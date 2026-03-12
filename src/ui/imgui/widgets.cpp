@@ -3,6 +3,7 @@
     #include "widgets.hpp"
 
     #include <algorithm>
+    #include <cctype>
     #include <cmath>
     #include <cstdio>
     #include <cstring>
@@ -124,12 +125,20 @@ bool section_header(const char* label, bool* open, ImFont* font)
 
     ImGui::SameLine(0.0f, tokens::SPACE_2);
 
-    // Label text — calmer uppercase style
+    // Label text — ALL CAPS, text_secondary (per spec §5.1)
+    char upper_buf[128];
+    {
+        size_t i = 0;
+        for (; label[i] && i < sizeof(upper_buf) - 1; ++i)
+            upper_buf[i] = static_cast<char>(std::toupper(static_cast<unsigned char>(label[i])));
+        upper_buf[i] = '\0';
+    }
     if (font)
         ImGui::PushFont(font);
-    ImGui::PushStyleColor(ImGuiCol_Text,
-                          ImVec4(c.text_tertiary.r, c.text_tertiary.g, c.text_tertiary.b, 0.8f));
-    ImGui::TextUnformatted(label);
+    ImGui::PushStyleColor(
+        ImGuiCol_Text,
+        ImVec4(c.text_secondary.r, c.text_secondary.g, c.text_secondary.b, c.text_secondary.a));
+    ImGui::TextUnformatted(upper_buf);
     ImGui::PopStyleColor();
     if (font)
         ImGui::PopFont();
@@ -243,25 +252,124 @@ void info_row_mono(const char* label, const char* value)
 
 bool color_field(const char* label, spectra::Color& color)
 {
+    const auto& c = theme();
     ImGui::PushID(label);
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_MD);
 
-    float col[4] = {color.r, color.g, color.b, color.a};
-    bool  changed =
-        ImGui::ColorEdit4("##color",
-                          col,
-                          ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel
-                              | ImGuiColorEditFlags_AlphaBar | ImGuiColorEditFlags_DisplayHSV);
-    if (changed)
+    bool changed = false;
+
+    // 28×28 color swatch button
+    constexpr float swatch_sz = 28.0f;
+    ImVec2          cursor    = ImGui::GetCursorScreenPos();
+    ImU32 col_u32  = ImGui::ColorConvertFloat4ToU32(ImVec4(color.r, color.g, color.b, color.a));
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+
+    // Invisible button for interaction
+    if (ImGui::InvisibleButton("##swatch", ImVec2(swatch_sz, swatch_sz)))
     {
-        color = spectra::Color{col[0], col[1], col[2], col[3]};
+        ImGui::OpenPopup("##color_popover");
+    }
+
+    // Draw swatch (checkerboard alpha hint + filled rounded rect)
+    float radius = tokens::RADIUS_MD;
+    if (color.a < 1.0f)
+    {
+        // Checkerboard behind translucent colors
+        ImU32 ch_a = ImGui::ColorConvertFloat4ToU32(ImVec4(0.4f, 0.4f, 0.4f, 1.0f));
+        ImU32 ch_b = ImGui::ColorConvertFloat4ToU32(ImVec4(0.6f, 0.6f, 0.6f, 1.0f));
+        dl->AddRectFilled(cursor, ImVec2(cursor.x + swatch_sz, cursor.y + swatch_sz), ch_a, radius);
+        float half = swatch_sz * 0.5f;
+        dl->AddRectFilled(ImVec2(cursor.x + half, cursor.y),
+                          ImVec2(cursor.x + swatch_sz, cursor.y + half),
+                          ch_b);
+        dl->AddRectFilled(ImVec2(cursor.x, cursor.y + half),
+                          ImVec2(cursor.x + half, cursor.y + swatch_sz),
+                          ch_b);
+    }
+    dl->AddRectFilled(cursor, ImVec2(cursor.x + swatch_sz, cursor.y + swatch_sz), col_u32, radius);
+    // Border
+    dl->AddRect(cursor,
+                ImVec2(cursor.x + swatch_sz, cursor.y + swatch_sz),
+                ImGui::ColorConvertFloat4ToU32(
+                    ImVec4(c.border_subtle.r, c.border_subtle.g, c.border_subtle.b, 0.5f)),
+                radius);
+
+    // Hover highlight
+    if (ImGui::IsItemHovered())
+    {
+        dl->AddRect(
+            ImVec2(cursor.x - 1, cursor.y - 1),
+            ImVec2(cursor.x + swatch_sz + 1, cursor.y + swatch_sz + 1),
+            ImGui::ColorConvertFloat4ToU32(ImVec4(c.accent.r, c.accent.g, c.accent.b, 0.6f)),
+            radius + 1,
+            0,
+            1.5f);
     }
 
     ImGui::SameLine();
     ImGui::AlignTextToFramePadding();
     ImGui::TextUnformatted(label);
 
-    ImGui::PopStyleVar();
+    // Popover
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, tokens::RADIUS_LG);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(tokens::SPACE_3, tokens::SPACE_3));
+    ImGui::PushStyleColor(
+        ImGuiCol_PopupBg,
+        ImVec4(c.bg_elevated.r, c.bg_elevated.g, c.bg_elevated.b, c.bg_elevated.a));
+    ImGui::PushStyleColor(ImGuiCol_Border,
+                          ImVec4(c.border_subtle.r, c.border_subtle.g, c.border_subtle.b, 0.5f));
+
+    if (ImGui::BeginPopup("##color_popover"))
+    {
+        float col[4] = {color.r, color.g, color.b, color.a};
+
+        // Hue wheel color picker with alpha bar
+        if (ImGui::ColorPicker4("##picker",
+                                col,
+                                ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_AlphaBar
+                                    | ImGuiColorEditFlags_DisplayHex | ImGuiColorEditFlags_InputRGB
+                                    | ImGuiColorEditFlags_AlphaPreviewHalf))
+        {
+            color   = spectra::Color{col[0], col[1], col[2], col[3]};
+            changed = true;
+        }
+
+        // Palette swatches from current data palette
+        const auto& palette = spectra::ui::data_palette();
+        if (!palette.colors.empty())
+        {
+            ImGui::Spacing();
+            ImGui::PushStyleColor(
+                ImGuiCol_Text,
+                ImVec4(c.text_tertiary.r, c.text_tertiary.g, c.text_tertiary.b, 0.7f));
+            ImGui::TextUnformatted("Palette");
+            ImGui::PopStyleColor();
+
+            constexpr float sw_sz  = 16.0f;
+            constexpr float sw_gap = 3.0f;
+            size_t          count  = std::min(palette.colors.size(), size_t(10));
+            for (size_t i = 0; i < count; ++i)
+            {
+                ImGui::PushID(static_cast<int>(i));
+                const auto& pc    = palette.colors[i];
+                ImVec4      pcv   = ImVec4(pc.r, pc.g, pc.b, pc.a);
+                bool        click = ImGui::ColorButton("##pal", pcv, 0, ImVec2(sw_sz, sw_sz));
+                if (click)
+                {
+                    color   = spectra::Color{pc.r, pc.g, pc.b, color.a};
+                    changed = true;
+                }
+                ImGui::PopID();
+                if (i + 1 < count)
+                    ImGui::SameLine(0.0f, sw_gap);
+            }
+        }
+
+        ImGui::EndPopup();
+    }
+
+    ImGui::PopStyleColor(2);
+    ImGui::PopStyleVar(2);
+
     ImGui::PopID();
     return changed;
 }
@@ -273,26 +381,100 @@ bool slider_field(const char* label, float& value, float min, float max, const c
     const auto& c = theme();
     ImGui::PushID(label);
 
+    // Side-by-side label-value layout: 80px label | remaining width input
+    ImGui::AlignTextToFramePadding();
     ImGui::PushStyleColor(
         ImGuiCol_Text,
         ImVec4(c.text_secondary.r, c.text_secondary.g, c.text_secondary.b, c.text_secondary.a));
     ImGui::TextUnformatted(label);
     ImGui::PopStyleColor();
+    ImGui::SameLine(tokens::INSPECTOR_LABEL_WIDTH);
 
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_MD);
+    // Slider visual: 4px track height via reduced frame padding, pill-shaped thumb
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_PILL);
     ImGui::PushStyleVar(ImGuiStyleVar_GrabRounding, tokens::RADIUS_PILL);
-    ImGui::PushStyleColor(
-        ImGuiCol_FrameBg,
-        ImVec4(c.bg_tertiary.r, c.bg_tertiary.g, c.bg_tertiary.b, c.bg_tertiary.a));
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0.0f, 2.0f));   // ~4px track height
+    ImGui::PushStyleVar(ImGuiStyleVar_GrabMinSize, 14.0f);                 // 14px thumb diameter
+
+    // Smooth hover transition: lerp track background over 80ms
+    ImGuiID wid = ImGui::GetID("##slider");
+    float   ht  = widget_hover_t(wid);
+    float   hr  = c.bg_tertiary.r + 0.03f * ht;
+    float   hg  = c.bg_tertiary.g + 0.03f * ht;
+    float   hb  = c.bg_tertiary.b + 0.03f * ht;
+    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(hr, hg, hb, c.bg_tertiary.a));
+    ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(hr, hg, hb, c.bg_tertiary.a));
+    ImGui::PushStyleColor(ImGuiCol_FrameBgActive,
+                          ImVec4(c.accent.r, c.accent.g, c.accent.b, 0.18f));
     ImGui::PushStyleColor(ImGuiCol_SliderGrab,
                           ImVec4(c.accent.r, c.accent.g, c.accent.b, c.accent.a));
+    ImGui::PushStyleColor(ImGuiCol_SliderGrabActive,
+                          ImVec4(c.accent_hover.r, c.accent_hover.g, c.accent_hover.b, 1.0f));
     ImGui::PushItemWidth(-1);
+
+    // Record position before slider for accent fill bar
+    ImVec2 frame_pos = ImGui::GetCursorScreenPos();
 
     bool changed = ImGui::SliderFloat("##slider", &value, min, max, fmt);
 
+    update_widget_hover(wid, ImGui::IsItemHovered());
+
+    // Draw accent fill bar from min to current value position
+    if (max > min)
+    {
+        ImVec2      frame_min = ImGui::GetItemRectMin();
+        ImVec2      frame_max = ImGui::GetItemRectMax();
+        float       t         = std::clamp((value - min) / (max - min), 0.0f, 1.0f);
+        float       fill_w    = (frame_max.x - frame_min.x) * t;
+        float       track_h   = 4.0f;
+        float       center_y  = (frame_min.y + frame_max.y) * 0.5f;
+        ImDrawList* dl        = ImGui::GetWindowDrawList();
+        dl->AddRectFilled(
+            ImVec2(frame_min.x, center_y - track_h * 0.5f),
+            ImVec2(frame_min.x + fill_w, center_y + track_h * 0.5f),
+            ImGui::ColorConvertFloat4ToU32(ImVec4(c.accent.r, c.accent.g, c.accent.b, 0.6f)),
+            tokens::RADIUS_PILL);
+
+        // Floating value label above the thumb while dragging
+        if (ImGui::IsItemActive())
+        {
+            float thumb_x = frame_min.x + fill_w;
+            char  val_buf[32];
+            std::snprintf(val_buf, sizeof(val_buf), fmt, value);
+
+            ImVec2 val_sz = ImGui::CalcTextSize(val_buf);
+            float  lbl_w  = val_sz.x + tokens::SPACE_2 * 2.0f;
+            float  lbl_h  = val_sz.y + tokens::SPACE_1 * 2.0f;
+            float  lbl_x  = thumb_x - lbl_w * 0.5f;
+            float  lbl_y  = frame_min.y - lbl_h - 4.0f;
+
+            // Clamp horizontally to frame bounds
+            lbl_x = std::clamp(lbl_x, frame_min.x, frame_max.x - lbl_w);
+
+            ImU32 lbl_bg = ImGui::ColorConvertFloat4ToU32(
+                ImVec4(c.bg_elevated.r, c.bg_elevated.g, c.bg_elevated.b, 0.95f));
+            ImU32 lbl_fg = ImGui::ColorConvertFloat4ToU32(
+                ImVec4(c.text_primary.r, c.text_primary.g, c.text_primary.b, 1.0f));
+            ImU32 lbl_border = ImGui::ColorConvertFloat4ToU32(
+                ImVec4(c.border_subtle.r, c.border_subtle.g, c.border_subtle.b, 0.3f));
+
+            dl->AddRectFilled(ImVec2(lbl_x, lbl_y),
+                              ImVec2(lbl_x + lbl_w, lbl_y + lbl_h),
+                              lbl_bg,
+                              tokens::RADIUS_SM);
+            dl->AddRect(ImVec2(lbl_x, lbl_y),
+                        ImVec2(lbl_x + lbl_w, lbl_y + lbl_h),
+                        lbl_border,
+                        tokens::RADIUS_SM);
+            dl->AddText(ImVec2(lbl_x + tokens::SPACE_2, lbl_y + tokens::SPACE_1), lbl_fg, val_buf);
+        }
+    }
+
+    draw_focus_ring_if_needed();
+
     ImGui::PopItemWidth();
-    ImGui::PopStyleColor(2);
-    ImGui::PopStyleVar(2);
+    ImGui::PopStyleColor(5);
+    ImGui::PopStyleVar(4);
     ImGui::PopID();
     return changed;
 }
@@ -304,22 +486,33 @@ bool drag_field(const char* label, float& value, float speed, float min, float m
     const auto& c = theme();
     ImGui::PushID(label);
 
+    // Side-by-side label-value layout
+    ImGui::AlignTextToFramePadding();
     ImGui::PushStyleColor(
         ImGuiCol_Text,
         ImVec4(c.text_secondary.r, c.text_secondary.g, c.text_secondary.b, c.text_secondary.a));
     ImGui::TextUnformatted(label);
     ImGui::PopStyleColor();
+    ImGui::SameLine(tokens::INSPECTOR_LABEL_WIDTH);
 
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_MD);
-    ImGui::PushStyleColor(
-        ImGuiCol_FrameBg,
-        ImVec4(c.bg_tertiary.r, c.bg_tertiary.g, c.bg_tertiary.b, c.bg_tertiary.a));
+
+    ImGuiID wid = ImGui::GetID("##drag");
+    float   ht  = widget_hover_t(wid);
+    float   hr  = c.bg_tertiary.r + 0.03f * ht;
+    float   hg  = c.bg_tertiary.g + 0.03f * ht;
+    float   hb  = c.bg_tertiary.b + 0.03f * ht;
+    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(hr, hg, hb, c.bg_tertiary.a));
+    ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(hr, hg, hb, c.bg_tertiary.a));
     ImGui::PushItemWidth(-1);
 
     bool changed = ImGui::DragFloat("##drag", &value, speed, min, max, fmt);
 
+    update_widget_hover(wid, ImGui::IsItemHovered());
+    draw_focus_ring_if_needed();
+
     ImGui::PopItemWidth();
-    ImGui::PopStyleColor();
+    ImGui::PopStyleColor(2);
     ImGui::PopStyleVar();
     ImGui::PopID();
     return changed;
@@ -332,16 +525,24 @@ bool drag_field2(const char* label, float& v0, float& v1, float speed, const cha
     const auto& c = theme();
     ImGui::PushID(label);
 
+    // Side-by-side label-value layout
+    ImGui::AlignTextToFramePadding();
     ImGui::PushStyleColor(
         ImGuiCol_Text,
         ImVec4(c.text_secondary.r, c.text_secondary.g, c.text_secondary.b, c.text_secondary.a));
     ImGui::TextUnformatted(label);
     ImGui::PopStyleColor();
+    ImGui::SameLine(tokens::INSPECTOR_LABEL_WIDTH);
 
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_MD);
-    ImGui::PushStyleColor(
-        ImGuiCol_FrameBg,
-        ImVec4(c.bg_tertiary.r, c.bg_tertiary.g, c.bg_tertiary.b, c.bg_tertiary.a));
+
+    ImGuiID wid = ImGui::GetID("##drag2");
+    float   ht  = widget_hover_t(wid);
+    float   hr  = c.bg_tertiary.r + 0.03f * ht;
+    float   hg  = c.bg_tertiary.g + 0.03f * ht;
+    float   hb  = c.bg_tertiary.b + 0.03f * ht;
+    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(hr, hg, hb, c.bg_tertiary.a));
+    ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(hr, hg, hb, c.bg_tertiary.a));
     ImGui::PushItemWidth(-1);
 
     float v[2]    = {v0, v1};
@@ -352,8 +553,11 @@ bool drag_field2(const char* label, float& v0, float& v1, float speed, const cha
         v1 = v[1];
     }
 
+    update_widget_hover(wid, ImGui::IsItemHovered());
+    draw_focus_ring_if_needed();
+
     ImGui::PopItemWidth();
-    ImGui::PopStyleColor();
+    ImGui::PopStyleColor(2);
     ImGui::PopStyleVar();
     ImGui::PopID();
     return changed;
@@ -375,6 +579,8 @@ bool checkbox_field(const char* label, bool& value)
 
     bool changed = ImGui::Checkbox(label, &value);
 
+    draw_focus_ring_if_needed();
+
     ImGui::PopStyleColor(2);
     ImGui::PopStyleVar();
     ImGui::PopID();
@@ -388,7 +594,13 @@ bool toggle_field(const char* label, bool& value)
     const auto& c = theme();
     ImGui::PushID(label);
 
+    // Side-by-side label-value layout
+    ImGui::AlignTextToFramePadding();
+    ImGui::PushStyleColor(
+        ImGuiCol_Text,
+        ImVec4(c.text_secondary.r, c.text_secondary.g, c.text_secondary.b, c.text_secondary.a));
     ImGui::TextUnformatted(label);
+    ImGui::PopStyleColor();
     ImGui::SameLine(ImGui::GetContentRegionAvail().x - 36.0f);
 
     // Draw a toggle switch using ImGui draw list
@@ -404,16 +616,23 @@ bool toggle_field(const char* label, bool& value)
     if (clicked)
         value = !value;
 
-    // Background
-    ImU32 bg_col =
-        value
-            ? ImGui::ColorConvertFloat4ToU32(ImVec4(c.accent.r, c.accent.g, c.accent.b, c.accent.a))
-            : ImGui::ColorConvertFloat4ToU32(
-                  ImVec4(c.bg_tertiary.r, c.bg_tertiary.g, c.bg_tertiary.b, c.bg_tertiary.a));
+    // Smooth animation: track knob position with hover system
+    ImGuiID wid = ImGui::GetID("##toggle_anim");
+    float   t   = widget_hover_t(wid);
+    update_widget_hover(wid, value);
+
+    // Background: lerp between off (tertiary) and on (accent) colors
+    float bg_r   = c.bg_tertiary.r + (c.accent.r - c.bg_tertiary.r) * t;
+    float bg_g   = c.bg_tertiary.g + (c.accent.g - c.bg_tertiary.g) * t;
+    float bg_b   = c.bg_tertiary.b + (c.accent.b - c.bg_tertiary.b) * t;
+    float bg_a   = c.bg_tertiary.a + (c.accent.a - c.bg_tertiary.a) * t;
+    ImU32 bg_col = ImGui::ColorConvertFloat4ToU32(ImVec4(bg_r, bg_g, bg_b, bg_a));
     draw->AddRectFilled(pos, ImVec2(pos.x + width, pos.y + height), bg_col, radius);
 
-    // Knob
-    float knob_x = value ? (pos.x + width - radius) : (pos.x + radius);
+    // Knob: smoothly slide between left and right positions
+    float knob_off = pos.x + radius;
+    float knob_on  = pos.x + width - radius;
+    float knob_x   = knob_off + (knob_on - knob_off) * t;
     draw->AddCircleFilled(ImVec2(knob_x, pos.y + radius),
                           radius - 2.0f,
                           ImGui::ColorConvertFloat4ToU32(ImVec4(1, 1, 1, 1)));
@@ -429,23 +648,34 @@ bool combo_field(const char* label, int& current, const char* const* items, int 
     const auto& c = theme();
     ImGui::PushID(label);
 
+    // Side-by-side label-value layout
+    ImGui::AlignTextToFramePadding();
     ImGui::PushStyleColor(
         ImGuiCol_Text,
         ImVec4(c.text_secondary.r, c.text_secondary.g, c.text_secondary.b, c.text_secondary.a));
     ImGui::TextUnformatted(label);
     ImGui::PopStyleColor();
+    ImGui::SameLine(tokens::INSPECTOR_LABEL_WIDTH);
 
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_MD);
     ImGui::PushStyleVar(ImGuiStyleVar_PopupRounding, tokens::RADIUS_LG);
-    ImGui::PushStyleColor(
-        ImGuiCol_FrameBg,
-        ImVec4(c.bg_tertiary.r, c.bg_tertiary.g, c.bg_tertiary.b, c.bg_tertiary.a));
+
+    ImGuiID wid = ImGui::GetID("##combo");
+    float   ht  = widget_hover_t(wid);
+    float   hr  = c.bg_tertiary.r + 0.03f * ht;
+    float   hg  = c.bg_tertiary.g + 0.03f * ht;
+    float   hb  = c.bg_tertiary.b + 0.03f * ht;
+    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(hr, hg, hb, c.bg_tertiary.a));
+    ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(hr, hg, hb, c.bg_tertiary.a));
     ImGui::PushItemWidth(-1);
 
     bool changed = ImGui::Combo("##combo", &current, items, count);
 
+    update_widget_hover(wid, ImGui::IsItemHovered());
+    draw_focus_ring_if_needed();
+
     ImGui::PopItemWidth();
-    ImGui::PopStyleColor();
+    ImGui::PopStyleColor(2);
     ImGui::PopStyleVar(2);
     ImGui::PopID();
     return changed;
@@ -458,16 +688,24 @@ bool text_field(const char* label, std::string& value)
     const auto& c = theme();
     ImGui::PushID(label);
 
+    // Side-by-side label-value layout
+    ImGui::AlignTextToFramePadding();
     ImGui::PushStyleColor(
         ImGuiCol_Text,
         ImVec4(c.text_secondary.r, c.text_secondary.g, c.text_secondary.b, c.text_secondary.a));
     ImGui::TextUnformatted(label);
     ImGui::PopStyleColor();
+    ImGui::SameLine(tokens::INSPECTOR_LABEL_WIDTH);
 
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_MD);
-    ImGui::PushStyleColor(
-        ImGuiCol_FrameBg,
-        ImVec4(c.bg_tertiary.r, c.bg_tertiary.g, c.bg_tertiary.b, c.bg_tertiary.a));
+
+    ImGuiID wid = ImGui::GetID("##text");
+    float   ht  = widget_hover_t(wid);
+    float   hr  = c.bg_tertiary.r + 0.03f * ht;
+    float   hg  = c.bg_tertiary.g + 0.03f * ht;
+    float   hb  = c.bg_tertiary.b + 0.03f * ht;
+    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(hr, hg, hb, c.bg_tertiary.a));
+    ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(hr, hg, hb, c.bg_tertiary.a));
     ImGui::PushItemWidth(-1);
 
     char buf[256];
@@ -480,8 +718,11 @@ bool text_field(const char* label, std::string& value)
         value = buf;
     }
 
+    update_widget_hover(wid, ImGui::IsItemHovered());
+    draw_focus_ring_if_needed();
+
     ImGui::PopItemWidth();
-    ImGui::PopStyleColor();
+    ImGui::PopStyleColor(2);
     ImGui::PopStyleVar();
     ImGui::PopID();
     return changed;
@@ -865,23 +1106,34 @@ bool int_drag_field(const char* label, int& value, int speed, int min, int max, 
     const auto& c = theme();
     ImGui::PushID(label);
 
+    // Side-by-side label-value layout
+    ImGui::AlignTextToFramePadding();
     ImGui::PushStyleColor(
         ImGuiCol_Text,
         ImVec4(c.text_secondary.r, c.text_secondary.g, c.text_secondary.b, c.text_secondary.a));
     ImGui::TextUnformatted(label);
     ImGui::PopStyleColor();
+    ImGui::SameLine(tokens::INSPECTOR_LABEL_WIDTH);
 
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_SM);
-    ImGui::PushStyleColor(
-        ImGuiCol_FrameBg,
-        ImVec4(c.bg_tertiary.r, c.bg_tertiary.g, c.bg_tertiary.b, c.bg_tertiary.a));
+
+    ImGuiID wid = ImGui::GetID("##idrag");
+    float   ht  = widget_hover_t(wid);
+    float   hr  = c.bg_tertiary.r + 0.03f * ht;
+    float   hg  = c.bg_tertiary.g + 0.03f * ht;
+    float   hb  = c.bg_tertiary.b + 0.03f * ht;
+    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(hr, hg, hb, c.bg_tertiary.a));
+    ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(hr, hg, hb, c.bg_tertiary.a));
     ImGui::PushItemWidth(-1);
 
     float fspeed  = static_cast<float>(speed);
     bool  changed = ImGui::DragInt("##idrag", &value, fspeed, min, max, fmt);
 
+    update_widget_hover(wid, ImGui::IsItemHovered());
+    draw_focus_ring_if_needed();
+
     ImGui::PopItemWidth();
-    ImGui::PopStyleColor();
+    ImGui::PopStyleColor(2);
     ImGui::PopStyleVar();
     ImGui::PopID();
     return changed;
@@ -939,6 +1191,29 @@ void stat_row_colored(const char*           label,
 }
 
 // ─── Focus Ring ─────────────────────────────────────────────────────────────
+
+// ─── Hover Animation System ──────────────────────────────────────────────────
+
+static std::unordered_map<unsigned int, float>& hover_state_map()
+{
+    static std::unordered_map<unsigned int, float> map;
+    return map;
+}
+
+float widget_hover_t(unsigned int id)
+{
+    auto it = hover_state_map().find(id);
+    return (it != hover_state_map().end()) ? it->second : 0.0f;
+}
+
+void update_widget_hover(unsigned int id, bool hovered)
+{
+    float  dt = ImGui::GetIO().DeltaTime;
+    float& t  = hover_state_map()[id];
+    t         = smooth_hover_state(t, dt, hovered);
+}
+
+// ─── Focus Ring ──────────────────────────────────────────────────────────────
 
 void draw_focus_ring_if_needed()
 {

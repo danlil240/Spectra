@@ -149,6 +149,14 @@ void stat_row_colored(const char*           label,
 // Call immediately after the widget you want to decorate.
 void draw_focus_ring_if_needed();
 
+// ─── Hover Animation System ─────────────────────────────────────────────────
+// Tracks per-widget hover state for smooth 80ms transitions (see theme.hpp
+// smooth_hover_state).  Call widget_hover_t() BEFORE drawing to get the
+// current interpolation value, then update_widget_hover() AFTER the widget
+// to record the new hover state for next frame.
+float widget_hover_t(unsigned int id);
+void  update_widget_hover(unsigned int id, bool hovered);
+
 }   // namespace spectra::ui::widgets
 
 #endif   // SPECTRA_USE_IMGUI

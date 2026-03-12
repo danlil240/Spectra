@@ -77,10 +77,10 @@ class LayoutManager
     // Layout constants (matching the design spec)
     static constexpr float COMMAND_BAR_HEIGHT       = 48.0f;
     static constexpr float STATUS_BAR_HEIGHT        = 28.0f;
-    static constexpr float NAV_RAIL_COLLAPSED_WIDTH = 48.0f;
+    static constexpr float NAV_RAIL_COLLAPSED_WIDTH = 72.0f;
     static constexpr float NAV_RAIL_EXPANDED_WIDTH  = 200.0f;
     static constexpr float NAV_TOOLBAR_INSET =
-        68.0f;   // Space reserved for floating nav toolbar (margin + toolbar + gap)
+        72.0f;   // Nav rail width (full-height docked rail, no floating offset)
     static constexpr float PLOT_LEFT_MARGIN =
         100.0f;   // Default plot left margin (matches Margins::left) for tab alignment
     static constexpr float INSPECTOR_DEFAULT_WIDTH = 320.0f;

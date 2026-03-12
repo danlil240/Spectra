@@ -227,148 +227,109 @@ void ThemeManager::apply_to_imgui()
     // Apply colors
     ImVec4* imgui_colors = style.Colors;
 
+    // Helper: conditionally linearize sRGB colors for the sRGB framebuffer.
+    // Night theme (linearize_colors=true) needs this; Dark/Light pass through.
+    const bool do_lin = current_theme_->linearize_colors;
+    auto       lin    = [do_lin](const Color& c, float alpha_override = -1.0f) -> ImVec4
+    {
+        float a = alpha_override >= 0.0f ? alpha_override : c.a;
+        if (do_lin)
+        {
+            Color l = c.to_linear();
+            return ImVec4(l.r, l.g, l.b, a);
+        }
+        return ImVec4(c.r, c.g, c.b, a);
+    };
+
     // Window and background
-    imgui_colors[ImGuiCol_WindowBg] = ImVec4(colors.bg_secondary.r,
-                                             colors.bg_secondary.g,
-                                             colors.bg_secondary.b,
-                                             current_theme_->opacity_panel);
+    imgui_colors[ImGuiCol_WindowBg] = lin(colors.bg_secondary, current_theme_->opacity_panel);
     imgui_colors[ImGuiCol_ChildBg]  = ImVec4(0, 0, 0, 0);   // Transparent — inherits parent
-    imgui_colors[ImGuiCol_PopupBg] =
-        ImVec4(colors.tooltip_bg.r, colors.tooltip_bg.g, colors.tooltip_bg.b, colors.tooltip_bg.a);
-    imgui_colors[ImGuiCol_Border] =
-        ImVec4(colors.border_default.r, colors.border_default.g, colors.border_default.b, 0.3f);
+    imgui_colors[ImGuiCol_PopupBg] = lin(colors.tooltip_bg);
+    imgui_colors[ImGuiCol_Border]   = lin(colors.border_default, 0.3f);
     imgui_colors[ImGuiCol_BorderShadow] = ImVec4(0, 0, 0, 0);
 
     // Text
-    imgui_colors[ImGuiCol_Text] =
-        ImVec4(colors.text_primary.r, colors.text_primary.g, colors.text_primary.b, 1.0f);
-    imgui_colors[ImGuiCol_TextDisabled] =
-        ImVec4(colors.text_tertiary.r, colors.text_tertiary.g, colors.text_tertiary.b, 1.0f);
+    imgui_colors[ImGuiCol_Text]         = lin(colors.text_primary, 1.0f);
+    imgui_colors[ImGuiCol_TextDisabled] = lin(colors.text_tertiary, 1.0f);
 
     // Frame backgrounds — use input_bg token with subtle hover lift
-    imgui_colors[ImGuiCol_FrameBg] =
-        ImVec4(colors.input_bg.r, colors.input_bg.g, colors.input_bg.b, 1.0f);
-    imgui_colors[ImGuiCol_FrameBgHovered] = ImVec4(colors.input_bg.r + 0.03f,
-                                                   colors.input_bg.g + 0.03f,
-                                                   colors.input_bg.b + 0.03f,
-                                                   1.0f);   // Slight lift
-    imgui_colors[ImGuiCol_FrameBgActive] =
-        ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.18f);   // Soft focus ring feel
+    imgui_colors[ImGuiCol_FrameBg]        = lin(colors.input_bg, 1.0f);
+    imgui_colors[ImGuiCol_FrameBgHovered] = lin(Color(colors.input_bg.r + 0.03f,
+                                                      colors.input_bg.g + 0.03f,
+                                                      colors.input_bg.b + 0.03f),
+                                                1.0f);
+    imgui_colors[ImGuiCol_FrameBgActive]  = lin(colors.accent, 0.18f);
 
     // Titles
-    imgui_colors[ImGuiCol_TitleBg] =
-        ImVec4(colors.bg_secondary.r, colors.bg_secondary.g, colors.bg_secondary.b, 1.0f);
-    imgui_colors[ImGuiCol_TitleBgActive] =
-        ImVec4(colors.bg_elevated.r, colors.bg_elevated.g, colors.bg_elevated.b, 1.0f);
-    imgui_colors[ImGuiCol_TitleBgCollapsed] =
-        ImVec4(colors.bg_tertiary.r, colors.bg_tertiary.g, colors.bg_tertiary.b, 1.0f);
+    imgui_colors[ImGuiCol_TitleBg]          = lin(colors.bg_secondary, 1.0f);
+    imgui_colors[ImGuiCol_TitleBgActive]    = lin(colors.bg_elevated, 1.0f);
+    imgui_colors[ImGuiCol_TitleBgCollapsed] = lin(colors.bg_tertiary, 1.0f);
 
-    // Menu — slightly darker than panels to reduce visual weight
-    imgui_colors[ImGuiCol_MenuBarBg] =
-        ImVec4(colors.bg_primary.r * 0.6f + colors.bg_secondary.r * 0.4f,
-               colors.bg_primary.g * 0.6f + colors.bg_secondary.g * 0.4f,
-               colors.bg_primary.b * 0.6f + colors.bg_secondary.b * 0.4f,
-               1.0f);
+    // Menu
+    imgui_colors[ImGuiCol_MenuBarBg] = lin(Color(colors.bg_primary.r * 0.6f + colors.bg_secondary.r * 0.4f,
+                                                 colors.bg_primary.g * 0.6f + colors.bg_secondary.g * 0.4f,
+                                                 colors.bg_primary.b * 0.6f + colors.bg_secondary.b * 0.4f),
+                                          1.0f);
 
     // Scrollbar — themed track + thumb
-    imgui_colors[ImGuiCol_ScrollbarBg]   = ImVec4(colors.scrollbar_track.r,
-                                                colors.scrollbar_track.g,
-                                                colors.scrollbar_track.b,
-                                                colors.scrollbar_track.a);
-    imgui_colors[ImGuiCol_ScrollbarGrab] = ImVec4(colors.scrollbar_thumb.r,
-                                                  colors.scrollbar_thumb.g,
-                                                  colors.scrollbar_thumb.b,
-                                                  colors.scrollbar_thumb.a);
-    imgui_colors[ImGuiCol_ScrollbarGrabHovered] =
-        ImVec4(colors.text_secondary.r, colors.text_secondary.g, colors.text_secondary.b, 1.0f);
-    imgui_colors[ImGuiCol_ScrollbarGrabActive] =
-        ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 1.0f);
+    imgui_colors[ImGuiCol_ScrollbarBg]          = lin(colors.scrollbar_track);
+    imgui_colors[ImGuiCol_ScrollbarGrab]        = lin(colors.scrollbar_thumb);
+    imgui_colors[ImGuiCol_ScrollbarGrabHovered] = lin(colors.text_secondary, 1.0f);
+    imgui_colors[ImGuiCol_ScrollbarGrabActive]  = lin(colors.accent, 1.0f);
 
     // Check mark
-    imgui_colors[ImGuiCol_CheckMark] =
-        ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 1.0f);
+    imgui_colors[ImGuiCol_CheckMark] = lin(colors.accent, 1.0f);
 
     // Buttons
-    imgui_colors[ImGuiCol_Button] =
-        ImVec4(colors.bg_tertiary.r, colors.bg_tertiary.g, colors.bg_tertiary.b, 1.0f);
-    imgui_colors[ImGuiCol_ButtonHovered] =
-        ImVec4(colors.accent_subtle.r, colors.accent_subtle.g, colors.accent_subtle.b, 1.0f);
-    imgui_colors[ImGuiCol_ButtonActive] =
-        ImVec4(colors.accent_muted.r, colors.accent_muted.g, colors.accent_muted.b, 1.0f);
+    imgui_colors[ImGuiCol_Button]        = lin(colors.bg_tertiary, 1.0f);
+    imgui_colors[ImGuiCol_ButtonHovered] = lin(colors.accent_subtle, 1.0f);
+    imgui_colors[ImGuiCol_ButtonActive]  = lin(colors.accent_muted, 1.0f);
 
     // Header — use section_header_bg for base, subtle hover lift
-    imgui_colors[ImGuiCol_Header] = ImVec4(colors.section_header_bg.r,
-                                           colors.section_header_bg.g,
-                                           colors.section_header_bg.b,
-                                           colors.section_header_bg.a);
-    imgui_colors[ImGuiCol_HeaderHovered] =
-        ImVec4(colors.bg_tertiary.r, colors.bg_tertiary.g, colors.bg_tertiary.b, 0.8f);
-    imgui_colors[ImGuiCol_HeaderActive] =
-        ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.35f);
+    imgui_colors[ImGuiCol_Header]        = lin(colors.section_header_bg);
+    imgui_colors[ImGuiCol_HeaderHovered] = lin(colors.bg_tertiary, 0.8f);
+    imgui_colors[ImGuiCol_HeaderActive]  = lin(colors.accent, 0.35f);
 
     // Separator — hairline dividers
-    imgui_colors[ImGuiCol_Separator] =
-        ImVec4(colors.border_subtle.r, colors.border_subtle.g, colors.border_subtle.b, 0.4f);
-    imgui_colors[ImGuiCol_SeparatorHovered] =
-        ImVec4(colors.border_default.r, colors.border_default.g, colors.border_default.b, 0.7f);
-    imgui_colors[ImGuiCol_SeparatorActive] =
-        ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 1.0f);
+    imgui_colors[ImGuiCol_Separator]        = lin(colors.border_subtle, 0.4f);
+    imgui_colors[ImGuiCol_SeparatorHovered] = lin(colors.border_default, 0.7f);
+    imgui_colors[ImGuiCol_SeparatorActive]  = lin(colors.accent, 1.0f);
 
     // Resize grip
-    imgui_colors[ImGuiCol_ResizeGrip] =
-        ImVec4(colors.border_default.r, colors.border_default.g, colors.border_default.b, 1.0f);
-    imgui_colors[ImGuiCol_ResizeGripHovered] =
-        ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 1.0f);
-    imgui_colors[ImGuiCol_ResizeGripActive] =
-        ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 1.0f);
+    imgui_colors[ImGuiCol_ResizeGrip]        = lin(colors.border_default, 1.0f);
+    imgui_colors[ImGuiCol_ResizeGripHovered] = lin(colors.accent, 1.0f);
+    imgui_colors[ImGuiCol_ResizeGripActive]  = lin(colors.accent, 1.0f);
 
     // Tabs — calmer, accent_muted for selected instead of full accent
-    imgui_colors[ImGuiCol_Tab] =
-        ImVec4(colors.bg_tertiary.r, colors.bg_tertiary.g, colors.bg_tertiary.b, 0.7f);
-    imgui_colors[ImGuiCol_TabHovered] =
-        ImVec4(colors.accent_subtle.r, colors.accent_subtle.g, colors.accent_subtle.b, 0.5f);
-    imgui_colors[ImGuiCol_TabSelected] =
-        ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.35f);
-    imgui_colors[ImGuiCol_TabDimmed] =
-        ImVec4(colors.bg_tertiary.r, colors.bg_tertiary.g, colors.bg_tertiary.b, 0.5f);
-    imgui_colors[ImGuiCol_TabDimmedSelected] =
-        ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.20f);
+    imgui_colors[ImGuiCol_Tab]             = lin(colors.bg_tertiary, 0.7f);
+    imgui_colors[ImGuiCol_TabHovered]      = lin(colors.accent_subtle, 0.5f);
+    imgui_colors[ImGuiCol_TabSelected]     = lin(colors.accent, 0.35f);
+    imgui_colors[ImGuiCol_TabDimmed]       = lin(colors.bg_tertiary, 0.5f);
+    imgui_colors[ImGuiCol_TabDimmedSelected] = lin(colors.accent, 0.20f);
 
     // Plot lines (for ImGui plot widgets)
-    imgui_colors[ImGuiCol_PlotLines] =
-        ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 1.0f);
-    imgui_colors[ImGuiCol_PlotLinesHovered] =
-        ImVec4(colors.accent_hover.r, colors.accent_hover.g, colors.accent_hover.b, 1.0f);
-    imgui_colors[ImGuiCol_PlotHistogram] =
-        ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 1.0f);
-    imgui_colors[ImGuiCol_PlotHistogramHovered] =
-        ImVec4(colors.accent_hover.r, colors.accent_hover.g, colors.accent_hover.b, 1.0f);
+    imgui_colors[ImGuiCol_PlotLines]            = lin(colors.accent, 1.0f);
+    imgui_colors[ImGuiCol_PlotLinesHovered]     = lin(colors.accent_hover, 1.0f);
+    imgui_colors[ImGuiCol_PlotHistogram]        = lin(colors.accent, 1.0f);
+    imgui_colors[ImGuiCol_PlotHistogramHovered] = lin(colors.accent_hover, 1.0f);
 
     // Table headers
-    imgui_colors[ImGuiCol_TableHeaderBg] =
-        ImVec4(colors.bg_tertiary.r, colors.bg_tertiary.g, colors.bg_tertiary.b, 1.0f);
-    imgui_colors[ImGuiCol_TableBorderStrong] =
-        ImVec4(colors.border_default.r, colors.border_default.g, colors.border_default.b, 1.0f);
-    imgui_colors[ImGuiCol_TableBorderLight] =
-        ImVec4(colors.border_subtle.r, colors.border_subtle.g, colors.border_subtle.b, 1.0f);
-    imgui_colors[ImGuiCol_TableRowBg] = ImVec4(0, 0, 0, 0);
-    imgui_colors[ImGuiCol_TableRowBgAlt] =
-        ImVec4(colors.bg_tertiary.r, colors.bg_tertiary.g, colors.bg_tertiary.b, 0.5f);
+    imgui_colors[ImGuiCol_TableHeaderBg]    = lin(colors.bg_tertiary, 1.0f);
+    imgui_colors[ImGuiCol_TableBorderStrong] = lin(colors.border_default, 1.0f);
+    imgui_colors[ImGuiCol_TableBorderLight] = lin(colors.border_subtle, 1.0f);
+    imgui_colors[ImGuiCol_TableRowBg]       = ImVec4(0, 0, 0, 0);
+    imgui_colors[ImGuiCol_TableRowBgAlt]    = lin(colors.bg_tertiary, 0.5f);
 
     // Drag and drop — muted accent, not shouty
-    imgui_colors[ImGuiCol_DragDropTarget] =
-        ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.7f);
+    imgui_colors[ImGuiCol_DragDropTarget] = lin(colors.accent, 0.7f);
 
     // Navigation — use focus_ring token for keyboard focus
-    imgui_colors[ImGuiCol_NavHighlight] =
-        ImVec4(colors.focus_ring.r, colors.focus_ring.g, colors.focus_ring.b, 0.6f);
-    imgui_colors[ImGuiCol_NavWindowingHighlight] =
-        ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.6f);
-    imgui_colors[ImGuiCol_NavWindowingDimBg] = ImVec4(0, 0, 0, 0.3f);
+    imgui_colors[ImGuiCol_NavHighlight]          = lin(colors.focus_ring, 0.6f);
+    imgui_colors[ImGuiCol_NavWindowingHighlight] = lin(colors.accent, 0.6f);
+    imgui_colors[ImGuiCol_NavWindowingDimBg]     = ImVec4(0, 0, 0, 0.3f);
 
     // Modal
-    imgui_colors[ImGuiCol_ModalWindowDimBg] =
-        ImVec4(colors.bg_overlay.r, colors.bg_overlay.g, colors.bg_overlay.b, 0.5f);
+    imgui_colors[ImGuiCol_ModalWindowDimBg] = lin(colors.bg_overlay, 0.5f);
 }
 
 void ThemeManager::apply_to_renderer(Renderer& renderer)
@@ -939,7 +900,7 @@ void ThemeManager::initialize_default_themes()
         .grid_major       = Color(1.0f, 1.0f, 1.0f, 0.10f),
         .grid_minor       = Color(1.0f, 1.0f, 1.0f, 0.05f),
         .grid_line        = Color(1.0f, 1.0f, 1.0f, 0.10f),   // Compat
-        .axis_line        = Color(0.55f, 0.58f, 0.63f, 0.50f),
+        .axis_line        = Color(0.55f, 0.55f, 0.55f, 0.50f),
         .tick_label       = Color::from_hex(0x6B7582),
         .crosshair        = Color(0.30f, 0.56f, 0.84f, 0.70f),
         .selection_fill   = Color(0.30f, 0.56f, 0.84f, 0.20f),
@@ -1025,6 +986,7 @@ void ThemeManager::initialize_default_themes()
     night.opacity_tooltip  = 0.94f;
     night.shadow_intensity = 0.0f;
     night.use_blur         = false;
+    night.linearize_colors = true;   // Night hex values are sRGB-authored
     register_theme("night", night);
 
     // Light theme
@@ -1062,11 +1024,11 @@ void ThemeManager::initialize_default_themes()
                               .info    = Color::from_hex(0x0969DA),
 
                     // Plot-specific — clean academic gridlines
-                              .grid_major       = Color(0.0f, 0.0f, 0.0f, 0.12f),
-                              .grid_minor       = Color(0.0f, 0.0f, 0.0f, 0.06f),
-                              .grid_line        = Color(0.0f, 0.0f, 0.0f, 0.12f),
-                              .axis_line        = Color(0.15f, 0.18f, 0.22f, 0.60f),
-                              .tick_label       = Color::from_hex(0x656D76),
+                              .grid_major       = Color(0.0f, 0.0f, 0.0f, 0.30f),
+                              .grid_minor       = Color(0.0f, 0.0f, 0.0f, 0.15f),
+                              .grid_line        = Color(0.0f, 0.0f, 0.0f, 0.30f),
+                              .axis_line        = Color(0.10f, 0.10f, 0.10f, 0.80f),
+                              .tick_label       = Color::from_hex(0x2A2F35),
                               .crosshair        = Color(0.04f, 0.41f, 0.85f, 0.70f),
                               .selection_fill   = Color(0.04f, 0.41f, 0.85f, 0.12f),
                               .selection_border = Color::from_hex(0x0969DA),

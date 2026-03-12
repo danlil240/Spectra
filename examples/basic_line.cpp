@@ -13,7 +13,7 @@ int main()
         y[i] = std::sin(x[i]);
     }
 
-    spectra::plot(x, y, "b-").label("sin(x)");
+    spectra::plot(x, y, "c-").label("sin(x)");
     spectra::xlim(0.0f, 10.0f);
     spectra::ylim(-1.5f, 1.5f);
     spectra::title("Basic Line Plot");

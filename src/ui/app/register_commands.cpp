@@ -1453,6 +1453,22 @@ void register_standard_commands(const CommandBindings& b)
         "Tools",
         static_cast<uint16_t>(ui::Icon::Ruler));
 
+    cmd_registry.register_command(
+        "tool.annotate",
+        "Annotate Tool",
+        [&]() { input_handler.set_tool_mode(ToolMode::Annotate); },
+        "",
+        "Tools",
+        static_cast<uint16_t>(ui::Icon::Comment));
+
+    cmd_registry.register_command(
+        "tool.roi",
+        "ROI Tool",
+        [&]() { input_handler.set_tool_mode(ToolMode::ROI); },
+        "",
+        "Tools",
+        static_cast<uint16_t>(ui::Icon::VectorSquare));
+
     // ─── Window commands ─────────────────────────────────────────────────
     #ifdef SPECTRA_USE_GLFW
     cmd_registry.register_command(

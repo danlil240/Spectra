@@ -172,6 +172,10 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
     // Update modifier state from the authoritative GLFW mods bitmask
     mods_ = mods;
 
+    // Cancel scroll zoom smoothing on any mouse button press
+    if (action == 1)   // GLFW_PRESS
+        scroll_zoom_.active = false;
+
     // SPECTRA_LOG_DEBUG("input",
     //                  "Mouse button event - button: " + std::to_string(button)
     //                      + ", action: " + std::to_string(action) + ", mods: " +
@@ -1356,7 +1360,7 @@ void InputHandler::on_scroll(double /*x_offset*/, double y_offset, double cursor
 
     const auto& vp = viewport_for_axes(active_axes_);
 
-    // Cancel any running animations — new scroll input takes priority
+    // Cancel any running transition/animation — new scroll input takes priority
     if (transition_engine_)
     {
         transition_engine_->cancel_for_axes(active_axes_);
@@ -1366,8 +1370,19 @@ void InputHandler::on_scroll(double /*x_offset*/, double y_offset, double cursor
         anim_ctrl_->cancel_for_axes(active_axes_);
     }
 
-    auto xlim = active_axes_->x_limits();
-    auto ylim = active_axes_->y_limits();
+    // Use target limits if actively smoothing toward prior scroll zoom on the same
+    // axes, so rapid scrolling accumulates correctly toward the intended zoom level.
+    AxisLimits xlim, ylim;
+    if (scroll_zoom_.active && scroll_zoom_.axes == active_axes_)
+    {
+        xlim = {scroll_zoom_.target_xmin, scroll_zoom_.target_xmax};
+        ylim = {scroll_zoom_.target_ymin, scroll_zoom_.target_ymax};
+    }
+    else
+    {
+        xlim = active_axes_->x_limits();
+        ylim = active_axes_->y_limits();
+    }
 
     // Compute cursor position in data space
     float saved_vp_x = vp_x_, saved_vp_y = vp_y_;
@@ -1400,8 +1415,8 @@ void InputHandler::on_scroll(double /*x_offset*/, double y_offset, double cursor
         return;
     }
 
-    // Apply zoom instantly — scroll zoom must be immediate and responsive.
-    // (Animations are used for auto-fit, box zoom, and inertial pan instead.)
+    // Set scroll zoom targets — the view smoothly interpolates toward these
+    // in update() using exponential decay (spec §7.3).
     // Use double arithmetic to preserve precision at deep zoom levels.
     double dx       = static_cast<double>(data_x);
     double dy       = static_cast<double>(data_y);
@@ -1436,14 +1451,14 @@ void InputHandler::on_scroll(double /*x_offset*/, double y_offset, double cursor
         }
     }
 
-    active_axes_->xlim(new_xmin, new_xmax);
-    active_axes_->ylim(new_ymin, new_ymax);
-
-    // Propagate zoom to linked axes
-    if (axis_link_mgr_)
-    {
-        axis_link_mgr_->propagate_zoom(active_axes_, data_x, data_y, factor);
-    }
+    scroll_zoom_.axes         = active_axes_;
+    scroll_zoom_.target_xmin  = new_xmin;
+    scroll_zoom_.target_xmax  = new_xmax;
+    scroll_zoom_.target_ymin  = new_ymin;
+    scroll_zoom_.target_ymax  = new_ymax;
+    scroll_zoom_.anchor_data_x = data_x;
+    scroll_zoom_.anchor_data_y = data_y;
+    scroll_zoom_.active       = true;
 }
 
 // ─── Keyboard ───────────────────────────────────────────────────────────────
@@ -1783,12 +1798,60 @@ void InputHandler::update(float dt)
     {
         anim_ctrl_->update(dt);
     }
+
+    // Scroll zoom smoothing — exponential decay toward target limits (spec §7.3)
+    if (scroll_zoom_.active && scroll_zoom_.axes)
+    {
+        float t = 1.0f - std::exp(-SCROLL_ZOOM_SMOOTHING * dt);
+
+        auto   xlim = scroll_zoom_.axes->x_limits();
+        auto   ylim = scroll_zoom_.axes->y_limits();
+        double ix0  = xlim.min + (scroll_zoom_.target_xmin - xlim.min) * t;
+        double ix1  = xlim.max + (scroll_zoom_.target_xmax - xlim.max) * t;
+        double iy0  = ylim.min + (scroll_zoom_.target_ymin - ylim.min) * t;
+        double iy1  = ylim.max + (scroll_zoom_.target_ymax - ylim.max) * t;
+
+        scroll_zoom_.axes->xlim(ix0, ix1);
+        scroll_zoom_.axes->ylim(iy0, iy1);
+
+        // Propagate to linked axes using approximate per-frame zoom factor
+        if (axis_link_mgr_)
+        {
+            double old_range = xlim.max - xlim.min;
+            double new_range = ix1 - ix0;
+            if (old_range > 1e-300)
+            {
+                float frame_factor = static_cast<float>(new_range / old_range);
+                axis_link_mgr_->propagate_zoom(scroll_zoom_.axes,
+                                               scroll_zoom_.anchor_data_x,
+                                               scroll_zoom_.anchor_data_y,
+                                               frame_factor);
+            }
+        }
+
+        // Check if settled — snap to target when within 0.001% of range
+        double range =
+            std::abs(scroll_zoom_.target_xmax - scroll_zoom_.target_xmin)
+            + std::abs(scroll_zoom_.target_ymax - scroll_zoom_.target_ymin);
+        double err = std::abs(ix0 - scroll_zoom_.target_xmin)
+                     + std::abs(ix1 - scroll_zoom_.target_xmax)
+                     + std::abs(iy0 - scroll_zoom_.target_ymin)
+                     + std::abs(iy1 - scroll_zoom_.target_ymax);
+        if (err < std::max(range * 1e-5, 1e-12))
+        {
+            scroll_zoom_.axes->xlim(scroll_zoom_.target_xmin, scroll_zoom_.target_xmax);
+            scroll_zoom_.axes->ylim(scroll_zoom_.target_ymin, scroll_zoom_.target_ymax);
+            scroll_zoom_.active = false;
+        }
+    }
 }
 
 // ─── Animation query ────────────────────────────────────────────────────────
 
 bool InputHandler::has_active_animations() const
 {
+    if (scroll_zoom_.active)
+        return true;
     if (transition_engine_ && transition_engine_->has_active_animations())
         return true;
     return anim_ctrl_ && anim_ctrl_->has_active_animations();

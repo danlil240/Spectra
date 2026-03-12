@@ -237,6 +237,13 @@ void IconFont::build_icon_map()
         Icon::Home,          Icon::Back,
         Icon::Forward,       Icon::Up,
         Icon::Down,
+        // Vision nav rail icons
+        Icon::MousePointer,  Icon::Comment,
+        Icon::VectorSquare,  Icon::MapPin,
+        Icon::MagicWand,     Icon::Database,
+        Icon::Timeline,      Icon::Code,
+        Icon::ChartArea,     Icon::WindowIcon,
+        Icon::PlayCircle,    Icon::UserCircle,
     };
 
     for (Icon icon : all)

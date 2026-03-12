@@ -165,6 +165,16 @@ bool LegendInteraction::draw(Axes&               axes,
         legend_w += eye_width + 4.0f;
     float legend_h = pad_y * 2.0f + static_cast<float>(labeled_count) * row_height;
 
+    // Clamp legend height: max 8 visible rows, scrollable beyond
+    constexpr int   MAX_VISIBLE_ROWS = 8;
+    float           max_legend_h     = pad_y * 2.0f + static_cast<float>(MAX_VISIBLE_ROWS) * row_height;
+    bool            scrollable       = (labeled_count > MAX_VISIBLE_ROWS);
+    if (scrollable)
+    {
+        legend_w += 8.0f;   // room for scrollbar
+        legend_h = max_legend_h;
+    }
+
     // Compute default position from LegendConfig::position
     constexpr float margin    = 12.0f;
     float           default_x = viewport.x + viewport.w - legend_w - margin;   // TopRight default
@@ -216,10 +226,10 @@ bool LegendInteraction::draw(Axes&               axes,
     auto   is_sentinel = [](const Color& c) { return c.r == 0.0f && c.g == 0.0f && c.b == 0.0f; };
     ImVec4 bg_col;
     if (is_sentinel(config.bg_color))
-        bg_col = ImVec4(theme_colors.bg_elevated.r,
-                        theme_colors.bg_elevated.g,
-                        theme_colors.bg_elevated.b,
-                        0.92f);
+        bg_col = ImVec4(theme_colors.tooltip_bg.r,
+                        theme_colors.tooltip_bg.g,
+                        theme_colors.tooltip_bg.b,
+                        theme_colors.tooltip_bg.a);
     else
         bg_col = ImVec4(config.bg_color.r, config.bg_color.g, config.bg_color.b, config.bg_color.a);
 
@@ -237,14 +247,17 @@ bool LegendInteraction::draw(Axes&               axes,
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ui::tokens::RADIUS_MD);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(pad_x, pad_y));
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.5f);
     ImGui::PushStyleColor(ImGuiCol_WindowBg, bg_col);
     ImGui::PushStyleColor(ImGuiCol_Border, border_col);
 
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoSavedSettings
                              | ImGuiWindowFlags_NoBringToFrontOnFocus
-                             | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoScrollbar
-                             | ImGuiWindowFlags_NoScrollWithMouse;
+                             | ImGuiWindowFlags_NoFocusOnAppearing;
+    if (!scrollable)
+    {
+        flags |= ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
+    }
 
     // Allow moving if draggable
     if (!draggable_)
@@ -314,10 +327,10 @@ bool LegendInteraction::draw(Axes&               axes,
                               swatch_col,
                               2.0f);
 
-            // Series label
-            ImU32 text_col = ImGui::ColorConvertFloat4ToU32(ImVec4(theme_colors.text_primary.r,
-                                                                   theme_colors.text_primary.g,
-                                                                   theme_colors.text_primary.b,
+            // Series label — spec §4.3: use text_secondary for legend labels
+            ImU32 text_col = ImGui::ColorConvertFloat4ToU32(ImVec4(theme_colors.text_secondary.r,
+                                                                   theme_colors.text_secondary.g,
+                                                                   theme_colors.text_secondary.b,
                                                                    vis_alpha));
             float label_x  = row_x + swatch_size + swatch_gap;
             float label_y  = row_y + (row_height - font_size) * 0.5f;

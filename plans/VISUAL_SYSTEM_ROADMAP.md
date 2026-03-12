@@ -71,34 +71,44 @@ _Nothing currently in progress._
 
 ---
 
-## Remaining — Phase 2: Plot Surface + Inspector Modernization
+## Completed — Phase 2: Plot Surface + Inspector Modernization
+
+| # | Item | Date | Notes |
+|---|------|------|-------|
+| 2.1 | Zoom-dependent minor grid alpha (fade when spacing <50px) | Pre-existing | Minor grid alpha fades when spacing <50px. [renderer.cpp ~L1045](../src/render/renderer.cpp) |
+| 2.2 | Tooltip arrow/pointer toward data point | Pre-existing | Triangular pointer via `AddTriangleFilled`. [tooltip.cpp ~L190](../src/ui/overlay/tooltip.cpp) |
+| 2.3 | Legend panel mode (glass bg, compact series list, max 8 rows) | 2026-03-13 | Glass bg via `tooltip_bg` token, `text_secondary` labels, 0.5px border, max 8 rows scrollable. [legend_interaction.cpp](../src/ui/overlay/legend_interaction.cpp) |
+| 2.6 | Inspector 80px fixed label column alignment | Pre-existing | 80px label column in widgets. [widgets.cpp](../src/ui/imgui/widgets.cpp) |
+| 2.7 | Slider visual redesign (4px track, 14px thumb, accent fill) | Pre-existing | 4px track, 14px thumb, accent fill for active portion. [widgets.cpp](../src/ui/imgui/widgets.cpp) |
+| 2.9 | Focus ring system (keyboard-only visibility) | Pre-existing | `draw_focus_ring_if_needed()` with 7 call sites. [widgets.cpp ~L1173](../src/ui/imgui/widgets.cpp) |
+| 2.10 | Dock tab bar styling (36px, separator hairlines) | Pre-existing | 36px tabs, 2px accent underline, separator hairlines. [tab_bar.cpp ~L303](../src/ui/figures/tab_bar.cpp) |
+| 2.11 | Nav rail tool grouping with separator hairlines | Pre-existing | Grouped sections with separator hairlines. [imgui_integration.cpp ~L1996](../src/ui/imgui/imgui_integration.cpp) |
+| 2.12 | Icon brightness system (55%/85%/100%/25% alpha) | Pre-existing | Accent bar + Night glow in `icon_button()`. [imgui_integration.cpp ~L920](../src/ui/imgui/imgui_integration.cpp) |
+
+## Remaining — Phase 2 (Low Priority)
 
 | # | Item | Spec Section | Files to Modify | Priority |
 |---|------|-------------|-----------------|----------|
-| 2.1 | Zoom-dependent minor grid alpha (fade when spacing <50px) | §4.1 | `src/render/renderer.cpp` | High |
-| 2.2 | Tooltip arrow/pointer toward data point | §4.4 | `src/ui/overlay/tooltip.cpp` | Medium |
-| 2.3 | Legend panel mode (glass bg, compact series list, max 8 rows) | §4.3 | `src/ui/overlay/legend_interaction.cpp` | Medium |
 | 2.4 | Legend inline mode (labels next to traces) | §4.3 | `src/ui/overlay/legend_interaction.cpp` | Low |
 | 2.5 | Legend inspector mode (series list in inspector) | §4.3 | `src/ui/overlay/inspector.cpp` | Low |
-| 2.6 | Inspector 80px fixed label column alignment | §5.2 | `src/ui/overlay/inspector.cpp`, `src/ui/imgui/widgets.cpp` | High |
-| 2.7 | Slider visual redesign (4px track, 14px thumb, accent fill) | §5.4 | `src/ui/imgui/widgets.cpp` | Medium |
 | 2.8 | Color picker popover (hue ring, S/L square, hex input) | §5.5 | `src/ui/imgui/widgets.cpp` (new) | Low |
-| 2.9 | Focus ring system (keyboard-only visibility) | §5.3 | `src/ui/imgui/imgui_integration.cpp` | Medium |
-| 2.10 | Dock tab bar styling (36px, separator hairlines) | §6.4 | `src/ui/figures/tab_bar.cpp` | Low |
-| 2.11 | Nav rail tool grouping with separator hairlines | §6.1 | `src/ui/imgui/imgui_integration.cpp` | Low |
-| 2.12 | Icon brightness system (55%/85%/100%/25% alpha) | §6.3 | `src/ui/imgui/imgui_integration.cpp` | Medium |
 
 ---
 
-## Remaining — Phase 3: Interaction Polish + Glow Refinement
+## Completed — Phase 3: Interaction Polish + Glow Refinement
+
+| # | Item | Date | Notes |
+|---|------|------|-------|
+| 3.1 | Scroll-wheel zoom smoothing (exponential decay, factor 12.0) | 2026-03-13 | Exponential decay with `SCROLL_ZOOM_SMOOTHING=12.0f`, ~120ms settle. Targets accumulated across rapid scrolls. [input.hpp](../src/ui/input/input.hpp), [input.cpp ~L1776](../src/ui/input/input.cpp) |
+| 3.2 | Box zoom 200ms ease-out transition | Pre-existing | `ZOOM_ANIM_DURATION=0.20f` via transition_engine. [input.hpp ~L342](../src/ui/input/input.hpp) |
+| 3.3 | Double-click reset 250ms ease-in-out | Pre-existing | `AUTOFIT_ANIM_DURATION=0.25f` via transition_engine. [input.hpp ~L348](../src/ui/input/input.hpp) |
+| 3.4 | Tooltip entrance/exit hysteresis (100ms stay-visible) | Pre-existing | Asymmetric 50ms/100ms fade, hysteresis implemented. [tooltip.cpp](../src/ui/overlay/tooltip.cpp) |
+| 3.5 | Night theme crosshair glow (two-pass: 3px bloom + 1px sharp) | Pre-existing | Two-pass rendering: 3px glow + 1px sharp + intersection dot glow. [crosshair.cpp](../src/ui/overlay/crosshair.cpp) |
+
+## Remaining — Phase 3 (Low Priority)
 
 | # | Item | Spec Section | Files to Modify | Priority |
 |---|------|-------------|-----------------|----------|
-| 3.1 | Scroll-wheel zoom smoothing (exponential decay, factor 12.0) | §7.3 | `src/ui/input/input_handler.cpp` | High |
-| 3.2 | Box zoom 200ms ease-out transition | §7.3 | `src/ui/input/input_handler.cpp` | Medium |
-| 3.3 | Double-click reset 250ms ease-in-out | §7.3 | `src/ui/input/input_handler.cpp` | Medium |
-| 3.4 | Tooltip entrance/exit hysteresis (100ms stay-visible) | §7.4 | `src/ui/overlay/tooltip.cpp` | Medium |
-| 3.5 | Night theme crosshair glow (two-pass: 3px bloom + 1px sharp) | §8.4 | `src/render/renderer.cpp` | Medium |
 | 3.6 | ROI dashed border + drag handles + glow | §4.7 | `src/render/renderer.cpp`, `src/ui/input/region_select.cpp` | Low |
 | 3.7 | Annotation glass appearance + idle fade to 70% | §4.6 | `src/ui/overlay/` (new/existing) | Low |
 | 3.8 | Theme picker with preview thumbnails | §9 Phase 3.10 | `src/ui/imgui/imgui_integration.cpp` | Low |

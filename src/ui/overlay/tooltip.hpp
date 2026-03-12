@@ -21,6 +21,8 @@ struct NearestPointResult
     float         screen_x    = 0.0f;
     float         screen_y    = 0.0f;
     float         distance_px = 0.0f;
+    float         dy_dx       = 0.0f;    // Finite-difference derivative at the point
+    bool          dy_dx_valid = false;   // True when derivative could be computed
 };
 
 // Rich hover tooltip rendered via ImGui over the plot canvas.
@@ -53,6 +55,7 @@ class Tooltip
     // Animation state
     float opacity_        = 0.0f;
     float target_opacity_ = 0.0f;
+    float hysteresis_     = 0.0f;   // Time since cursor left snap radius
 };
 
 }   // namespace spectra

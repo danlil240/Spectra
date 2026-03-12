@@ -1,6 +1,7 @@
 #include "renderer.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <spectra/axes.hpp>
 #include <spectra/axes3d.hpp>
@@ -17,6 +18,47 @@
 
 namespace spectra
 {
+
+// Conditional sRGB-to-linear for themes with linearize_colors enabled (Night theme).
+static bool should_linearize()
+{
+    return ui::ThemeManager::instance().current().linearize_colors;
+}
+
+static float srgb_chan_to_linear(float c)
+{
+    return (c <= 0.04045f) ? c / 12.92f : std::pow((c + 0.055f) / 1.055f, 2.4f);
+}
+
+static void set_pc_color(float dst[4], const ui::Color& src)
+{
+    if (should_linearize())
+    {
+        dst[0] = srgb_chan_to_linear(src.r);
+        dst[1] = srgb_chan_to_linear(src.g);
+        dst[2] = srgb_chan_to_linear(src.b);
+    }
+    else
+    {
+        dst[0] = src.r; dst[1] = src.g; dst[2] = src.b;
+    }
+    dst[3] = src.a;
+}
+
+static void set_pc_color(float dst[4], const ui::Color& src, float alpha_override)
+{
+    if (should_linearize())
+    {
+        dst[0] = srgb_chan_to_linear(src.r);
+        dst[1] = srgb_chan_to_linear(src.g);
+        dst[2] = srgb_chan_to_linear(src.b);
+    }
+    else
+    {
+        dst[0] = src.r; dst[1] = src.g; dst[2] = src.b;
+    }
+    dst[3] = alpha_override;
+}
 
 Renderer::Renderer(Backend& backend) : backend_(backend) {}
 
@@ -302,9 +344,16 @@ void Renderer::render_plot_text(Figure& figure)
 
     auto color_to_rgba = [](const ui::Color& c) -> uint32_t
     {
-        uint8_t r = static_cast<uint8_t>(c.r * 255);
-        uint8_t g = static_cast<uint8_t>(c.g * 255);
-        uint8_t b = static_cast<uint8_t>(c.b * 255);
+        float cr = c.r, cg = c.g, cb = c.b;
+        if (should_linearize())
+        {
+            cr = srgb_chan_to_linear(cr);
+            cg = srgb_chan_to_linear(cg);
+            cb = srgb_chan_to_linear(cb);
+        }
+        uint8_t r = static_cast<uint8_t>(cr * 255);
+        uint8_t g = static_cast<uint8_t>(cg * 255);
+        uint8_t b = static_cast<uint8_t>(cb * 255);
         uint8_t a = static_cast<uint8_t>(c.a * 255);
         return static_cast<uint32_t>(r) | (static_cast<uint32_t>(g) << 8)
                | (static_cast<uint32_t>(b) << 16) | (static_cast<uint32_t>(a) << 24);
@@ -1097,10 +1146,7 @@ void Renderer::render_plot_geometry(Figure& figure)
         backend_.bind_pipeline(grid_pipeline_);
 
         SeriesPushConstants pc{};
-        pc.color[0]   = colors.axis_line.r;
-        pc.color[1]   = colors.axis_line.g;
-        pc.color[2]   = colors.axis_line.b;
-        pc.color[3]   = colors.axis_line.a;
+        set_pc_color(pc.color, colors.axis_line);
         pc.line_width = 1.0f;
         backend_.push_constants(pc);
 
@@ -1923,10 +1969,10 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
         SeriesPushConstants pc{};
         const auto&         theme_colors = ui::ThemeManager::instance().colors();
         float               blend        = 0.3f;
-        pc.color[0]                      = theme_colors.grid_major.r * (1.0f - blend) + blend;
-        pc.color[1]                      = theme_colors.grid_major.g * (1.0f - blend) + blend;
-        pc.color[2]                      = theme_colors.grid_major.b * (1.0f - blend) + blend;
-        pc.color[3]                      = 0.35f;
+        ui::Color           blended(theme_colors.grid_major.r * (1.0f - blend) + blend,
+                                    theme_colors.grid_major.g * (1.0f - blend) + blend,
+                                    theme_colors.grid_major.b * (1.0f - blend) + blend);
+        set_pc_color(pc.color, blended, 0.35f);
         pc.line_width                    = 1.0f;
         pc.data_offset_x                 = 0.0f;
         pc.data_offset_y                 = 0.0f;
@@ -2006,10 +2052,7 @@ void Renderer::render_bounding_box(Axes3D& axes, const Rect& /*viewport*/)
 
     SeriesPushConstants pc{};
     const auto&         theme_colors = ui::ThemeManager::instance().colors();
-    pc.color[0]                      = theme_colors.axis_line.r;
-    pc.color[1]                      = theme_colors.axis_line.g;
-    pc.color[2]                      = theme_colors.axis_line.b;
-    pc.color[3]                      = theme_colors.axis_line.a;
+    set_pc_color(pc.color, theme_colors.axis_line);
     pc.line_width                    = 1.5f;
     pc.data_offset_x                 = 0.0f;
     pc.data_offset_y                 = 0.0f;
@@ -2117,10 +2160,11 @@ void Renderer::render_tick_marks(Axes3D& axes, const Rect& /*viewport*/)
 
     SeriesPushConstants pc{};
     const auto&         theme_colors = ui::ThemeManager::instance().colors();
-    pc.color[0]                      = theme_colors.grid_major.r * 0.8f;
-    pc.color[1]                      = theme_colors.grid_major.g * 0.8f;
-    pc.color[2]                      = theme_colors.grid_major.b * 0.8f;
-    pc.color[3]                      = theme_colors.grid_major.a;
+    ui::Color           tick_color(theme_colors.grid_major.r * 0.8f,
+                                   theme_colors.grid_major.g * 0.8f,
+                                   theme_colors.grid_major.b * 0.8f,
+                                   theme_colors.grid_major.a);
+    set_pc_color(pc.color, tick_color);
     pc.line_width                    = 1.5f;
     pc.data_offset_x                 = 0.0f;
     pc.data_offset_y                 = 0.0f;
@@ -2541,10 +2585,7 @@ void Renderer::render_axis_border(AxesBase& axes,
 
     SeriesPushConstants pc{};
     const auto&         theme_colors = ui::ThemeManager::instance().colors();
-    pc.color[0]                      = theme_colors.axis_line.r;
-    pc.color[1]                      = theme_colors.axis_line.g;
-    pc.color[2]                      = theme_colors.axis_line.b;
-    pc.color[3]                      = theme_colors.axis_line.a;
+    set_pc_color(pc.color, theme_colors.axis_line);
     pc.line_width                    = 1.0f;
     pc.data_offset_x                 = 0.0f;
     pc.data_offset_y                 = 0.0f;

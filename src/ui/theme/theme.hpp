@@ -269,6 +269,11 @@ struct Theme
     // Animation settings
     float animation_speed   = 1.0f;   // Global animation speed multiplier
     bool  enable_animations = true;   // Master animation toggle
+
+    // Color space: when true, theme color values are in sRGB and must be
+    // converted to linear before passing to the VK_FORMAT_B8G8R8A8_SRGB
+    // framebuffer.  Night theme sets this to true; Dark/Light do not.
+    bool linearize_colors = false;
 };
 
 class ThemeManager

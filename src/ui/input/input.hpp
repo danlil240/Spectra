@@ -20,10 +20,12 @@ class UndoManager;
 // Tool mode (selected by toolbar buttons)
 enum class ToolMode
 {
-    Pan,       // Pan tool - left click and drag to pan
-    BoxZoom,   // Box zoom tool - right click and drag to zoom
-    Select,    // Select tool - left click and drag to region-select data points
-    Measure,   // Measure tool - left click and drag to measure distance between two points
+    Pan,        // Pan tool - left click and drag to pan
+    BoxZoom,    // Box zoom tool - right click and drag to zoom
+    Select,     // Select tool - left click and drag to region-select data points
+    Measure,    // Measure tool - left click and drag to measure distance between two points
+    Annotate,   // Annotate tool - click to place text annotations on the plot
+    ROI,        // ROI tool - click and drag to define a region of interest rectangle
 };
 
 // Interaction state for the input handler (dragging state)
@@ -338,8 +340,22 @@ class InputHandler
     // Zoom factor per scroll tick (0.25 = 25% range change per tick)
     static constexpr float ZOOM_FACTOR = 0.25f;
 
-    // Animated zoom duration (seconds)
-    static constexpr float ZOOM_ANIM_DURATION = 0.15f;
+    // Animated zoom duration (seconds) — spec §7.3: 200ms ease-out for box zoom
+    static constexpr float ZOOM_ANIM_DURATION = 0.20f;
+
+    // Scroll zoom exponential decay factor — spec §7.3: smooth ~120ms settle
+    static constexpr float SCROLL_ZOOM_SMOOTHING = 12.0f;
+
+    // Scroll zoom smoothing state — target limits that the view interpolates toward
+    struct ScrollZoomState
+    {
+        Axes*  axes       = nullptr;
+        double target_xmin = 0, target_xmax = 0;
+        double target_ymin = 0, target_ymax = 0;
+        float  anchor_data_x = 0, anchor_data_y = 0;
+        bool   active     = false;
+    };
+    ScrollZoomState scroll_zoom_;
 
     // Inertial pan duration (seconds)
     static constexpr float PAN_INERTIA_DURATION = 0.3f;

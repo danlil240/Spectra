@@ -160,6 +160,20 @@ enum class Icon : uint16_t
     Up      = 0xF077,   // fa-chevron-up
     Down    = 0xF078,   // fa-chevron-down
 
+    // Vision nav rail icons
+    MousePointer = 0xF245,   // fa-hand-pointer (select tool)
+    Comment      = 0xF075,   // fa-comment (annotate)
+    VectorSquare = 0xF5CB,   // fa-vector-square (ROI)
+    MapPin       = 0xF3C5,   // fa-location-dot (markers)
+    MagicWand    = 0xF0D0,   // fa-wand-magic-sparkles (transform)
+    Database     = 0xF1C0,   // fa-database (data)
+    Timeline     = 0xF550,   // fa-stream / fa-timeline
+    Code         = 0xF121,   // fa-code (python)
+    ChartArea    = 0xF1FE,   // fa-chart-area (analysis)
+    WindowIcon   = 0xF2D0,   // fa-window-maximize
+    PlayCircle   = 0xF144,   // fa-circle-play (run button)
+    UserCircle   = 0xF2BD,   // fa-circle-user (avatar)
+
     // End marker (not a real glyph)
     Last = 0xF8FF
 };

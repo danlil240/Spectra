@@ -24,10 +24,24 @@ void Tooltip::draw(const NearestPointResult& nearest, float window_width, float 
     if (!enabled_)
         return;
 
-    // Animate opacity
-    target_opacity_ = (nearest.found && nearest.distance_px <= snap_radius_px_) ? 1.0f : 0.0f;
-    float dt        = ImGui::GetIO().DeltaTime;
-    float speed     = 12.0f;
+    // Hysteresis: keep tooltip visible for 100ms after cursor leaves snap radius
+    float dt       = ImGui::GetIO().DeltaTime;
+    bool  in_range = nearest.found && nearest.distance_px <= snap_radius_px_;
+
+    if (in_range)
+    {
+        hysteresis_     = 0.0f;
+        target_opacity_ = 1.0f;
+    }
+    else
+    {
+        hysteresis_ += dt;
+        if (hysteresis_ > 0.1f)   // 100ms hysteresis delay
+            target_opacity_ = 0.0f;
+    }
+
+    // Asymmetric fade: 50ms in (speed=20), 100ms out (speed=10)
+    float speed = (target_opacity_ > opacity_) ? 20.0f : 10.0f;
     opacity_ += (target_opacity_ - opacity_) * std::min(1.0f, speed * dt);
     if (std::abs(opacity_ - target_opacity_) < 0.01f)
         opacity_ = target_opacity_;
@@ -42,6 +56,12 @@ void Tooltip::draw(const NearestPointResult& nearest, float window_width, float 
     std::snprintf(x_buf, sizeof(x_buf), "%.6g", nearest.data_x);
     std::snprintf(y_buf, sizeof(y_buf), "%.6g", nearest.data_y);
 
+    // Format dy/dx string
+    char dydx_line[96] = {};
+    bool show_dydx     = nearest.dy_dx_valid;
+    if (show_dydx)
+        std::snprintf(dydx_line, sizeof(dydx_line), "dy/dx: %.6g", nearest.dy_dx);
+
     const char* series_name  = "Unknown";
     Color       series_color = colors::gray;
     if (nearest.series)
@@ -51,7 +71,7 @@ void Tooltip::draw(const NearestPointResult& nearest, float window_width, float 
         series_color = nearest.series->color();
     }
 
-    // Tooltip layout constants — compact, glass-like
+    // Tooltip layout constants — compact, glass-like (Vision.png style)
     constexpr float padding     = 8.0f;
     constexpr float swatch_size = 9.0f;
     constexpr float row_height  = 16.0f;
@@ -61,18 +81,24 @@ void Tooltip::draw(const NearestPointResult& nearest, float window_width, float 
     ImFont* body_font = font_body_ ? font_body_ : ImGui::GetFont();
     ImVec2  name_size = body_font->CalcTextSizeA(body_font->FontSize, 1000.0f, 0.0f, series_name);
 
-    char coord_line[192];
-    std::snprintf(coord_line, sizeof(coord_line), "X: %s  Y: %s", x_buf, y_buf);
-    ImVec2 coord_size = body_font->CalcTextSizeA(body_font->FontSize, 1000.0f, 0.0f, coord_line);
+    // Vision.png layout: X and Y on separate lines
+    char x_line[96], y_line[96];
+    std::snprintf(x_line, sizeof(x_line), "X: %s", x_buf);
+    std::snprintf(y_line, sizeof(y_line), "Y: %s", y_buf);
+    ImVec2 x_line_size = body_font->CalcTextSizeA(body_font->FontSize, 1000.0f, 0.0f, x_line);
+    ImVec2 y_line_size = body_font->CalcTextSizeA(body_font->FontSize, 1000.0f, 0.0f, y_line);
+    ImVec2 dydx_size   = show_dydx
+                             ? body_font->CalcTextSizeA(body_font->FontSize, 1000.0f, 0.0f, dydx_line)
+                             : ImVec2(0.0f, 0.0f);
 
-    char idx_line[64];
-    std::snprintf(idx_line, sizeof(idx_line), "Index: %zu", nearest.point_index);
-    ImVec2 idx_size = body_font->CalcTextSizeA(body_font->FontSize, 1000.0f, 0.0f, idx_line);
-
-    float content_w =
-        std::max({name_size.x + swatch_size + 6.0f, coord_size.x, idx_size.x, min_width});
+    int   row_count = 3 + (show_dydx ? 1 : 0);   // name + X + Y + optional dy/dx
+    float content_w = std::max({name_size.x + swatch_size + 6.0f,
+                                x_line_size.x,
+                                y_line_size.x,
+                                dydx_size.x,
+                                min_width});
     float tooltip_w = content_w + padding * 2.0f;
-    float tooltip_h = padding * 2.0f + row_height * 3.0f;
+    float tooltip_h = padding * 2.0f + row_height * static_cast<float>(row_count);
 
     // Position: offset from the snap point, clamped to window
     float offset_x = 16.0f;
@@ -104,6 +130,20 @@ void Tooltip::draw(const NearestPointResult& nearest, float window_width, float 
                           ImVec2(tx + tooltip_w + sh_off, ty + tooltip_h + sh_off),
                           sh_col,
                           sh_r);
+
+        // Night theme: subtle accent glow halo around tooltip (Vision.png glass effect)
+        if (colors.glow_intensity > 0.01f)
+        {
+            ImU32 glow_col = ImGui::ColorConvertFloat4ToU32(
+                ImVec4(series_color.r, series_color.g, series_color.b,
+                       0.08f * opacity_ * colors.glow_intensity));
+            fg->AddRect(ImVec2(tx - 2.0f, ty - 2.0f),
+                        ImVec2(tx + tooltip_w + 2.0f, ty + tooltip_h + 2.0f),
+                        glow_col,
+                        sh_r + 2.0f,
+                        0,
+                        3.0f);
+        }
     }
 
     ImGui::PushStyleVar(ImGuiStyleVar_Alpha, opacity_);
@@ -147,23 +187,35 @@ void Tooltip::draw(const NearestPointResult& nearest, float window_width, float 
         ImGui::TextUnformatted(series_name);
         ImGui::PopStyleColor();
 
-        // Row 2: coordinates
+        // Row 2: X coordinate (Vision.png style — separate line)
         ImGui::PushStyleColor(ImGuiCol_Text,
                               ImVec4(colors.text_secondary.r,
                                      colors.text_secondary.g,
                                      colors.text_secondary.b,
                                      colors.text_secondary.a));
-        ImGui::TextUnformatted(coord_line);
+        ImGui::TextUnformatted(x_line);
         ImGui::PopStyleColor();
 
-        // Row 3: point index
+        // Row 3: Y coordinate
         ImGui::PushStyleColor(ImGuiCol_Text,
-                              ImVec4(colors.text_tertiary.r,
-                                     colors.text_tertiary.g,
-                                     colors.text_tertiary.b,
-                                     colors.text_tertiary.a));
-        ImGui::TextUnformatted(idx_line);
+                              ImVec4(colors.text_secondary.r,
+                                     colors.text_secondary.g,
+                                     colors.text_secondary.b,
+                                     colors.text_secondary.a));
+        ImGui::TextUnformatted(y_line);
         ImGui::PopStyleColor();
+
+        // Row 4: dy/dx derivative (when available)
+        if (show_dydx)
+        {
+            ImGui::PushStyleColor(ImGuiCol_Text,
+                                  ImVec4(colors.text_tertiary.r,
+                                         colors.text_tertiary.g,
+                                         colors.text_tertiary.b,
+                                         colors.text_tertiary.a));
+            ImGui::TextUnformatted(dydx_line);
+            ImGui::PopStyleColor();
+        }
 
         if (font_body_)
             ImGui::PopFont();
@@ -172,6 +224,42 @@ void Tooltip::draw(const NearestPointResult& nearest, float window_width, float 
 
     ImGui::PopStyleColor(2);
     ImGui::PopStyleVar(4);
+
+    // Draw triangular arrow pointer toward data point
+    if (nearest.found && nearest.distance_px <= snap_radius_px_)
+    {
+        ImDrawList* fg = ImGui::GetForegroundDrawList();
+        ImU32       arrow_col =
+            ImGui::ColorConvertFloat4ToU32(ImVec4(colors.tooltip_bg.r,
+                                                   colors.tooltip_bg.g,
+                                                   colors.tooltip_bg.b,
+                                                   colors.tooltip_bg.a * opacity_));
+        constexpr float arrow_size = 6.0f;
+
+        // Determine which edge the arrow should appear on
+        bool tooltip_above = (ty + tooltip_h < nearest.screen_y);
+        bool tooltip_below = (ty > nearest.screen_y);
+
+        float arrow_x =
+            std::clamp(nearest.screen_x, tx + arrow_size + 4.0f, tx + tooltip_w - arrow_size - 4.0f);
+
+        if (tooltip_above)
+        {
+            // Arrow points down from tooltip bottom
+            fg->AddTriangleFilled(ImVec2(arrow_x - arrow_size, ty + tooltip_h),
+                                  ImVec2(arrow_x + arrow_size, ty + tooltip_h),
+                                  ImVec2(arrow_x, ty + tooltip_h + arrow_size),
+                                  arrow_col);
+        }
+        else if (tooltip_below)
+        {
+            // Arrow points up from tooltip top
+            fg->AddTriangleFilled(ImVec2(arrow_x - arrow_size, ty),
+                                  ImVec2(arrow_x + arrow_size, ty),
+                                  ImVec2(arrow_x, ty - arrow_size),
+                                  arrow_col);
+        }
+    }
 
     // Draw snap indicator dot at the data point and connection line
     if (nearest.found && nearest.distance_px <= snap_radius_px_)
@@ -219,15 +307,23 @@ void Tooltip::draw(const NearestPointResult& nearest, float window_width, float 
             }
         }
 
-        // Night theme: subtle glow around snap dot
+        // Night theme: series-colored glow halo around snap dot (Vision.png style)
         if (colors.glow_intensity > 0.01f)
         {
-            ImU32 glow_color =
-                ImGui::ColorConvertFloat4ToU32(ImVec4(colors.accent_glow.r,
-                                                      colors.accent_glow.g,
-                                                      colors.accent_glow.b,
-                                                      colors.accent_glow.a * 0.5f * opacity_));
-            fg->AddCircleFilled(ImVec2(nearest.screen_x, nearest.screen_y), 7.0f, glow_color);
+            // Outer soft bloom — large, very faint
+            ImU32 glow_outer =
+                ImGui::ColorConvertFloat4ToU32(ImVec4(series_color.r,
+                                                      series_color.g,
+                                                      series_color.b,
+                                                      0.12f * opacity_ * colors.glow_intensity));
+            fg->AddCircleFilled(ImVec2(nearest.screen_x, nearest.screen_y), 12.0f, glow_outer, 24);
+            // Inner bright bloom
+            ImU32 glow_inner =
+                ImGui::ColorConvertFloat4ToU32(ImVec4(series_color.r,
+                                                      series_color.g,
+                                                      series_color.b,
+                                                      0.30f * opacity_ * colors.glow_intensity));
+            fg->AddCircleFilled(ImVec2(nearest.screen_x, nearest.screen_y), 7.0f, glow_inner, 16);
         }
 
         fg->AddCircleFilled(ImVec2(nearest.screen_x, nearest.screen_y), 4.5f, dot_color);

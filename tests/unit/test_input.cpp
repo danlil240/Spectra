@@ -115,6 +115,10 @@ TEST_F(InputHandlerTest, ScrollZoomIn)
     // Scroll up = zoom in
     handler_.on_scroll(0.0, 1.0, cx, cy);
 
+    // Advance smoothing to settle (exponential decay needs several frames)
+    for (int i = 0; i < 30; ++i)
+        handler_.update(1.0f / 60.0f);
+
     auto xlim_after = axes().x_limits();
     // auto ylim_after = axes().y_limits();  // Currently unused
 
@@ -134,6 +138,10 @@ TEST_F(InputHandlerTest, ScrollZoomOut)
 
     // Scroll down = zoom out
     handler_.on_scroll(0.0, -1.0, cx, cy);
+
+    // Advance smoothing to settle (exponential decay needs several frames)
+    for (int i = 0; i < 30; ++i)
+        handler_.update(1.0f / 60.0f);
 
     auto xlim_after = axes().x_limits();
 
@@ -457,6 +465,10 @@ TEST_F(MultiAxesInputTest, ScrollZoomsCorrectAxes)
 
     // Scroll over second axes
     handler_.on_scroll(0.0, 1.0, vp2.x + vp2.w / 2.0, vp2.y + vp2.h / 2.0);
+
+    // Advance smoothing to settle (exponential decay needs several frames)
+    for (int i = 0; i < 30; ++i)
+        handler_.update(1.0f / 60.0f);
 
     auto xlim1_after = ax1.x_limits();
     auto xlim2_after = ax2.x_limits();

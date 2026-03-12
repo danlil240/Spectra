@@ -34,10 +34,13 @@ void Renderer::destroy_series_buffers(SeriesGpuData& gpu)
 
 void Renderer::destroy_axes_buffers(AxesGpuData& gpu)
 {
-    if (gpu.grid_buffer)
-        backend_.destroy_buffer(gpu.grid_buffer);
-    if (gpu.minor_grid_buffer)
-        backend_.destroy_buffer(gpu.minor_grid_buffer);
+    for (uint32_t s = 0; s < FRAME_BUFFER_SLOTS; ++s)
+    {
+        if (gpu.grid_buffer[s])
+            backend_.destroy_buffer(gpu.grid_buffer[s]);
+        if (gpu.minor_grid_buffer[s])
+            backend_.destroy_buffer(gpu.minor_grid_buffer[s]);
+    }
     if (gpu.border_buffer)
         backend_.destroy_buffer(gpu.border_buffer);
     if (gpu.bbox_buffer)
@@ -127,8 +130,11 @@ Renderer::~Renderer()
     // Clean up per-figure overlay buffers
     for (auto& [ptr, data] : figure_gpu_data_)
     {
-        if (data.overlay_line_buffer)
-            backend_.destroy_buffer(data.overlay_line_buffer);
+        for (uint32_t s = 0; s < FRAME_BUFFER_SLOTS; ++s)
+        {
+            if (data.overlay_line_buffer[s])
+                backend_.destroy_buffer(data.overlay_line_buffer[s]);
+        }
     }
     figure_gpu_data_.clear();
 
@@ -432,8 +438,12 @@ void Renderer::render_plot_text(Figure& figure)
             auto  ext = text_renderer_.measure_text(axes.get_title(), FontSize::Title);
             float cx  = vp.x + vp.w * 0.5f;
             float py  = vp.y - ext.height - tick_padding;
-            if (py < vp.y + 2.0f)
-                py = vp.y + 2.0f;
+            // Only clamp if the title would go off the top of the figure.
+            // The previous clamp (py < vp.y + 2) always fired and placed the
+            // title inside the axes viewport where it competed with grid/series
+            // rendering, contributing to flicker in split-view panes.
+            if (py < 2.0f)
+                py = 2.0f;
             text_renderer_
                 .draw_text(axes.get_title(), cx, py, FontSize::Title, title_col, TextAlign::Center);
         }
@@ -693,6 +703,10 @@ void Renderer::render_plot_geometry(Figure& figure)
     float    fw    = static_cast<float>(fig_w);
     float    fh    = static_cast<float>(fig_h);
 
+    // Select the buffer slot for this frame so that the previous in-flight
+    // frame's GPU commands still read from the other slot while we write this one.
+    const uint32_t slot = backend_.current_flight_frame() % FRAME_BUFFER_SLOTS;
+
     const auto& colors = ui::ThemeManager::instance().colors();
 
     overlay_line_scratch_.clear();
@@ -881,14 +895,14 @@ void Renderer::render_plot_geometry(Figure& figure)
 
         size_t grid_bytes = grid_scratch_.size() * sizeof(float);
         auto&  gpu        = axes_gpu_data_[axes2d];
-        if (!gpu.grid_buffer || gpu.grid_capacity < grid_bytes)
+        if (!gpu.grid_buffer[slot] || gpu.grid_capacity[slot] < grid_bytes)
         {
-            if (gpu.grid_buffer)
-                backend_.destroy_buffer(gpu.grid_buffer);
-            gpu.grid_buffer   = backend_.create_buffer(BufferUsage::Vertex, grid_bytes * 2);
-            gpu.grid_capacity = grid_bytes * 2;
+            if (gpu.grid_buffer[slot])
+                backend_.destroy_buffer(gpu.grid_buffer[slot]);
+            gpu.grid_buffer[slot]   = backend_.create_buffer(BufferUsage::Vertex, grid_bytes * 2);
+            gpu.grid_capacity[slot] = grid_bytes * 2;
         }
-        backend_.upload_buffer(gpu.grid_buffer, grid_scratch_.data(), grid_bytes);
+        backend_.upload_buffer(gpu.grid_buffer[slot], grid_scratch_.data(), grid_bytes);
 
         // Scissor to axes viewport so grid lines don't bleed outside
         backend_.set_scissor(static_cast<int32_t>(vp.x),
@@ -918,7 +932,7 @@ void Renderer::render_plot_geometry(Figure& figure)
         backend_.push_constants(grid_pc);
 
         backend_.set_line_width(std::max(1.0f, as.grid_width));
-        backend_.bind_buffer(gpu.grid_buffer, 0);
+        backend_.bind_buffer(gpu.grid_buffer[slot], 0);
         backend_.draw(grid_vert_count);
         backend_.set_line_width(1.0f);
 
@@ -1028,15 +1042,17 @@ void Renderer::render_plot_geometry(Figure& figure)
         if (minor_vert_count > 0)
         {
             size_t minor_bytes = minor_grid_scratch_.size() * sizeof(float);
-            if (!gpu.minor_grid_buffer || gpu.minor_grid_capacity < minor_bytes)
+            if (!gpu.minor_grid_buffer[slot] || gpu.minor_grid_capacity[slot] < minor_bytes)
             {
-                if (gpu.minor_grid_buffer)
-                    backend_.destroy_buffer(gpu.minor_grid_buffer);
-                gpu.minor_grid_buffer =
+                if (gpu.minor_grid_buffer[slot])
+                    backend_.destroy_buffer(gpu.minor_grid_buffer[slot]);
+                gpu.minor_grid_buffer[slot] =
                     backend_.create_buffer(BufferUsage::Vertex, minor_bytes * 2);
-                gpu.minor_grid_capacity = minor_bytes * 2;
+                gpu.minor_grid_capacity[slot] = minor_bytes * 2;
             }
-            backend_.upload_buffer(gpu.minor_grid_buffer, minor_grid_scratch_.data(), minor_bytes);
+            backend_.upload_buffer(gpu.minor_grid_buffer[slot],
+                                   minor_grid_scratch_.data(),
+                                   minor_bytes);
 
             SeriesPushConstants minor_pc{};
             minor_pc.color[0]   = colors.grid_minor.r;
@@ -1047,7 +1063,7 @@ void Renderer::render_plot_geometry(Figure& figure)
             backend_.push_constants(minor_pc);
 
             backend_.set_line_width(minor_pc.line_width);
-            backend_.bind_buffer(gpu.minor_grid_buffer, 0);
+            backend_.bind_buffer(gpu.minor_grid_buffer[slot], 0);
             backend_.draw(minor_vert_count);
             backend_.set_line_width(1.0f);
         }
@@ -1066,15 +1082,15 @@ void Renderer::render_plot_geometry(Figure& figure)
     {
         size_t         line_bytes = overlay_line_scratch_.size() * sizeof(float);
         FigureGpuData& fig_gpu    = figure_gpu_data_[&figure];
-        if (!fig_gpu.overlay_line_buffer || fig_gpu.overlay_line_capacity < line_bytes)
+        if (!fig_gpu.overlay_line_buffer[slot] || fig_gpu.overlay_line_capacity[slot] < line_bytes)
         {
-            if (fig_gpu.overlay_line_buffer)
-                backend_.destroy_buffer(fig_gpu.overlay_line_buffer);
-            fig_gpu.overlay_line_buffer =
+            if (fig_gpu.overlay_line_buffer[slot])
+                backend_.destroy_buffer(fig_gpu.overlay_line_buffer[slot]);
+            fig_gpu.overlay_line_buffer[slot] =
                 backend_.create_buffer(BufferUsage::Vertex, line_bytes * 2);
-            fig_gpu.overlay_line_capacity = line_bytes * 2;
+            fig_gpu.overlay_line_capacity[slot] = line_bytes * 2;
         }
-        backend_.upload_buffer(fig_gpu.overlay_line_buffer,
+        backend_.upload_buffer(fig_gpu.overlay_line_buffer[slot],
                                overlay_line_scratch_.data(),
                                line_bytes);
 
@@ -1088,7 +1104,7 @@ void Renderer::render_plot_geometry(Figure& figure)
         pc.line_width = 1.0f;
         backend_.push_constants(pc);
 
-        backend_.bind_buffer(fig_gpu.overlay_line_buffer, 0);
+        backend_.bind_buffer(fig_gpu.overlay_line_buffer[slot], 0);
         backend_.draw(line_vert_count);
     }
 }
@@ -1805,6 +1821,8 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
         if (!axes3d->grid_enabled())
             return;
 
+        const uint32_t slot = backend_.current_flight_frame() % FRAME_BUFFER_SLOTS;
+
         auto  xlim = axes3d->x_limits();
         auto  ylim = axes3d->y_limits();
         auto  zlim = axes3d->z_limits();
@@ -1812,11 +1830,11 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
         auto& gpu  = axes_gpu_data_[&axes];
 
         // Check if limits/planes changed — skip regeneration if cached
-        auto& gc             = gpu.grid_cache;
+        auto& gc             = gpu.grid_cache[slot];
         bool  limits_changed = !gc.valid || gc.xmin != xlim.min || gc.xmax != xlim.max
                               || gc.ymin != ylim.min || gc.ymax != ylim.max || gc.zmin != zlim.min
                               || gc.zmax != zlim.max
-                              || gpu.cached_grid_planes != static_cast<int>(gp);
+                              || gpu.cached_grid_planes[slot] != static_cast<int>(gp);
 
         if (limits_changed)
         {
@@ -1877,26 +1895,26 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
             }
 
             size_t byte_size = float_count * sizeof(float);
-            if (!gpu.grid_buffer || gpu.grid_capacity < byte_size)
+            if (!gpu.grid_buffer[slot] || gpu.grid_capacity[slot] < byte_size)
             {
-                if (gpu.grid_buffer)
-                    backend_.destroy_buffer(gpu.grid_buffer);
-                gpu.grid_buffer   = backend_.create_buffer(BufferUsage::Vertex, byte_size * 2);
-                gpu.grid_capacity = byte_size * 2;
+                if (gpu.grid_buffer[slot])
+                    backend_.destroy_buffer(gpu.grid_buffer[slot]);
+                gpu.grid_buffer[slot] = backend_.create_buffer(BufferUsage::Vertex, byte_size * 2);
+                gpu.grid_capacity[slot] = byte_size * 2;
             }
-            backend_.upload_buffer(gpu.grid_buffer, grid_scratch_.data(), byte_size);
-            gpu.grid_vertex_count  = static_cast<uint32_t>(float_count / 3);
-            gc.xmin                = xlim.min;
-            gc.xmax                = xlim.max;
-            gc.ymin                = ylim.min;
-            gc.ymax                = ylim.max;
-            gc.zmin                = zlim.min;
-            gc.zmax                = zlim.max;
-            gpu.cached_grid_planes = static_cast<int>(gp);
-            gc.valid               = true;
+            backend_.upload_buffer(gpu.grid_buffer[slot], grid_scratch_.data(), byte_size);
+            gpu.grid_vertex_count[slot]  = static_cast<uint32_t>(float_count / 3);
+            gc.xmin                      = xlim.min;
+            gc.xmax                      = xlim.max;
+            gc.ymin                      = ylim.min;
+            gc.ymax                      = ylim.max;
+            gc.zmin                      = zlim.min;
+            gc.zmax                      = zlim.max;
+            gpu.cached_grid_planes[slot] = static_cast<int>(gp);
+            gc.valid                     = true;
         }
 
-        if (!gpu.grid_buffer || gpu.grid_vertex_count == 0)
+        if (!gpu.grid_buffer[slot] || gpu.grid_vertex_count[slot] == 0)
             return;
 
         // Draw 3D grid as overlay (no depth test so it's always visible)
@@ -1914,8 +1932,8 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
         pc.data_offset_y                 = 0.0f;
         backend_.push_constants(pc);
 
-        backend_.bind_buffer(gpu.grid_buffer, 0);
-        backend_.draw(gpu.grid_vertex_count);
+        backend_.bind_buffer(gpu.grid_buffer[slot], 0);
+        backend_.draw(gpu.grid_vertex_count[slot]);
     }
     // 2D grid is now rendered in screen-space by render_plot_geometry()
     // to avoid the same GPU buffer race that affected the border.

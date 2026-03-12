@@ -905,13 +905,32 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
         auto& dock_system = ui_ctx.dock_system;
         if (render_canvas && active_figure && dock_system.is_split())
         {
-            auto pane_infos = dock_system.get_pane_infos();
+            uint32_t sw_u       = backend_.swapchain_width();
+            uint32_t sh_u       = backend_.swapchain_height();
+            float    sw_f       = static_cast<float>(sw_u);
+            float    sh_f       = static_cast<float>(sh_u);
+            auto     pane_infos = dock_system.get_pane_infos();
             for (const auto& pinfo : pane_infos)
             {
                 Figure* pfig = registry_.get(pinfo.figure_index);
                 if (pfig)
                 {
+                    // All split-pane figures share the same swapchain and must
+                    // use its dimensions for viewport/scissor clipping.  Only
+                    // the active figure is updated elsewhere; non-active figures
+                    // would retain stale dimensions, causing the rightmost pane
+                    // to be clipped (title flicker during zoom).
+                    pfig->config_.width  = sw_u;
+                    pfig->config_.height = sh_u;
                     renderer_.render_figure_content(*pfig);
+                    // Flush text per-figure so that each pane's title, tick
+                    // labels, and axis labels are drawn immediately after its
+                    // geometry.  Batching all panes' text into a single deferred
+                    // flush caused the rightmost/bottom pane's title to flicker
+                    // during zoom — the later pane's geometry pipeline state
+                    // (UBO ring offset, viewport) could interfere with the
+                    // combined text draw.
+                    renderer_.render_text(sw_f, sh_f);
                 }
             }
         }

@@ -1013,8 +1013,6 @@ TEST(EdgeCases, RefreshWithNoNodeNoCrash)
     panel.set_target_node("");
     // Should return quickly without crashing (no set_client)
     panel.refresh();
-    // Give thread a moment to finish
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
     EXPECT_FALSE(panel.is_loaded());
 }
 

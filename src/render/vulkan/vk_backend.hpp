@@ -100,6 +100,8 @@ class VulkanBackend : public Backend
 
     uint32_t swapchain_width() const override;
     uint32_t swapchain_height() const override;
+    uint32_t current_flight_frame() const override;
+    uint32_t max_frames_in_flight() const override;
 
     // Returns true if swapchain needs recreation (set by present OUT_OF_DATE)
     bool swapchain_needs_recreation() const { return active_window_->swapchain_dirty; }

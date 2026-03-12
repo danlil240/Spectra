@@ -2234,6 +2234,16 @@ uint32_t VulkanBackend::swapchain_height() const
     return active_window_->swapchain.extent.height;
 }
 
+uint32_t VulkanBackend::current_flight_frame() const
+{
+    return active_window_ ? active_window_->current_flight_frame : 0;
+}
+
+uint32_t VulkanBackend::max_frames_in_flight() const
+{
+    return MAX_FRAMES_IN_FLIGHT;
+}
+
 VkRenderPass VulkanBackend::render_pass() const
 {
     if (headless_)

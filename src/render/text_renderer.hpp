@@ -152,11 +152,18 @@ class TextRenderer
     std::vector<TextVertex> vertices_;         // 2D text (no depth test)
     std::vector<TextVertex> depth_vertices_;   // 3D text (depth-tested)
 
-    // Vertex buffers (reused across frames, grown as needed)
-    BufferHandle vertex_buffer_;
-    size_t       vertex_buffer_capacity_ = 0;
-    BufferHandle depth_vertex_buffer_;
-    size_t       depth_vertex_buffer_capacity_ = 0;
+    // Vertex buffers: ring of slots that advances on each flush() call.
+    // Split-pane rendering flushes text once per pane within a single frame;
+    // using separate slots prevents a later pane's upload from overwriting
+    // data still referenced by an earlier pane's recorded draw command.
+    // 16 slots comfortably covers 2 flight frames × up to 8 panes.
+    static constexpr uint32_t TEXT_BUFFER_SLOTS = 16;
+    BufferHandle              vertex_buffer_[TEXT_BUFFER_SLOTS];
+    size_t                    vertex_buffer_capacity_[TEXT_BUFFER_SLOTS] = {};
+    BufferHandle              depth_vertex_buffer_[TEXT_BUFFER_SLOTS];
+    size_t                    depth_vertex_buffer_capacity_[TEXT_BUFFER_SLOTS] = {};
+    uint32_t                  flush_cursor_       = 0;   // advances per flush()
+    uint32_t                  depth_flush_cursor_ = 0;   // advances per flush_depth()
 
     // UBO for screen-space ortho projection
     BufferHandle text_ubo_;

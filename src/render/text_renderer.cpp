@@ -210,17 +210,20 @@ bool TextRenderer::init_from_file(Backend& backend, const std::string& ttf_path)
 
 void TextRenderer::shutdown(Backend& backend)
 {
-    if (vertex_buffer_)
+    for (uint32_t i = 0; i < TEXT_BUFFER_SLOTS; ++i)
     {
-        backend.destroy_buffer(vertex_buffer_);
-        vertex_buffer_          = {};
-        vertex_buffer_capacity_ = 0;
-    }
-    if (depth_vertex_buffer_)
-    {
-        backend.destroy_buffer(depth_vertex_buffer_);
-        depth_vertex_buffer_          = {};
-        depth_vertex_buffer_capacity_ = 0;
+        if (vertex_buffer_[i])
+        {
+            backend.destroy_buffer(vertex_buffer_[i]);
+            vertex_buffer_[i]          = {};
+            vertex_buffer_capacity_[i] = 0;
+        }
+        if (depth_vertex_buffer_[i])
+        {
+            backend.destroy_buffer(depth_vertex_buffer_[i]);
+            depth_vertex_buffer_[i]          = {};
+            depth_vertex_buffer_capacity_[i] = 0;
+        }
     }
     if (atlas_texture_)
     {
@@ -555,10 +558,14 @@ void TextRenderer::flush(Backend& backend, float screen_width, float screen_heig
 {
     if (!initialized_)
         return;
+    // Each flush gets its own buffer slot so that split-pane rendering
+    // (multiple flushes per frame) does not overwrite earlier draws.
+    uint32_t slot = flush_cursor_ % TEXT_BUFFER_SLOTS;
+    flush_cursor_ = (flush_cursor_ + 1) % TEXT_BUFFER_SLOTS;
     flush_batch(backend,
                 vertices_,
-                vertex_buffer_,
-                vertex_buffer_capacity_,
+                vertex_buffer_[slot],
+                vertex_buffer_capacity_[slot],
                 text_pipeline_,
                 screen_width,
                 screen_height);
@@ -568,10 +575,12 @@ void TextRenderer::flush_depth(Backend& backend, float screen_width, float scree
 {
     if (!initialized_)
         return;
+    uint32_t slot       = depth_flush_cursor_ % TEXT_BUFFER_SLOTS;
+    depth_flush_cursor_ = (depth_flush_cursor_ + 1) % TEXT_BUFFER_SLOTS;
     flush_batch(backend,
                 depth_vertices_,
-                depth_vertex_buffer_,
-                depth_vertex_buffer_capacity_,
+                depth_vertex_buffer_[slot],
+                depth_vertex_buffer_capacity_[slot],
                 text_depth_pipeline_,
                 screen_width,
                 screen_height);

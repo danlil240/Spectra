@@ -184,6 +184,13 @@ class Backend
     virtual uint32_t swapchain_width() const  = 0;
     virtual uint32_t swapchain_height() const = 0;
 
+    // Returns the current in-flight frame slot index [0, max_frames_in_flight).
+    // Used by renderers to ring-buffer per-frame GPU resources (vertex buffers,
+    // UBOs) so that frame N+1's CPU upload doesn't overwrite data that frame N's
+    // GPU commands still reference.
+    virtual uint32_t current_flight_frame() const { return 0; }
+    virtual uint32_t max_frames_in_flight() const { return 1; }
+
    protected:
     uint32_t msaa_samples_ = 1;   // 1 = no MSAA, 4 = MSAA 4x
 };

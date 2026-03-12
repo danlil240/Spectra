@@ -15,7 +15,7 @@ TEST(WorkspaceData, DefaultValues)
 {
     WorkspaceData data;
     EXPECT_EQ(data.version, WorkspaceData::FORMAT_VERSION);
-    EXPECT_EQ(data.theme_name, "dark");
+    EXPECT_EQ(data.theme_name, "night");
     EXPECT_EQ(data.active_figure_index, 0u);
     EXPECT_TRUE(data.panels.inspector_visible);
     EXPECT_FLOAT_EQ(data.panels.inspector_width, 320.0f);

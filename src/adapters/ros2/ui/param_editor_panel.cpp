@@ -349,8 +349,12 @@ ParamEditorPanel::ParamEditorPanel(rclcpp::Node::SharedPtr node) : node_(std::mo
     std::memset(preset_name_buf_, 0, sizeof(preset_name_buf_));
     std::memset(preset_path_buf_, 0, sizeof(preset_path_buf_));
 
-    // Start background worker for non-blocking parameter set operations.
-    set_worker_ = std::thread(&ParamEditorPanel::set_worker_func, this);
+    // Null-node instances are used by pure logic tests and should not spin up
+    // background ROS-related worker threads.
+    if (node_)
+    {
+        set_worker_ = std::thread(&ParamEditorPanel::set_worker_func, this);
+    }
 }
 
 ParamEditorPanel::~ParamEditorPanel()
@@ -452,6 +456,20 @@ void ParamEditorPanel::destroy_clients()
 
 void ParamEditorPanel::refresh()
 {
+    RefreshDoneCallback cb;
+    {
+        std::lock_guard<std::mutex> lk(mutex_);
+        cb = refresh_done_cb_;
+        if (target_node_.empty() || !list_client_ || !get_client_)
+        {
+            loaded_.store(false);
+            last_error_ = "no target node";
+            if (cb)
+                cb(false);
+            return;
+        }
+    }
+
     bool expected = false;
     if (!refreshing_.compare_exchange_strong(expected, true))
         return;

@@ -153,17 +153,23 @@ class Renderer
 
     BufferHandle frame_ubo_buffer_;
     // Per-axes GPU buffers for grid and border vertices.
+    // Must match VulkanBackend::MAX_FRAMES_IN_FLIGHT so each in-flight frame
+    // reads from its own GPU buffer instead of racing with the next frame's upload.
+    static constexpr uint32_t FRAME_BUFFER_SLOTS = 2;
+
     // A single shared buffer is unsafe because all subplot draws are recorded
     // into one command buffer — the host-visible upload for subplot N overwrites
     // the data that subplot N-1's draw command still references.
     struct AxesGpuData
     {
-        BufferHandle grid_buffer;
-        size_t       grid_capacity     = 0;
-        uint32_t     grid_vertex_count = 0;
-        BufferHandle minor_grid_buffer;
-        size_t       minor_grid_capacity     = 0;
-        uint32_t     minor_grid_vertex_count = 0;
+        // Per-slot to avoid CPU/GPU hazard: with MAX_FRAMES_IN_FLIGHT=2, frame N
+        // reads slot[0] while frame N+1 writes slot[1], and vice-versa.
+        BufferHandle grid_buffer[FRAME_BUFFER_SLOTS];
+        size_t       grid_capacity[FRAME_BUFFER_SLOTS]     = {};
+        uint32_t     grid_vertex_count[FRAME_BUFFER_SLOTS] = {};
+        BufferHandle minor_grid_buffer[FRAME_BUFFER_SLOTS];
+        size_t       minor_grid_capacity[FRAME_BUFFER_SLOTS] = {};
+        uint32_t     minor_grid_vertex_count                 = 0;   // 2D: unused stored
         BufferHandle border_buffer;
         size_t       border_capacity = 0;
         // 3D bounding box edges (12 lines = 24 vec3 vertices)
@@ -192,10 +198,13 @@ class Renderer
             double zmin = 0, zmax = 0;
             bool   valid = false;
         };
-        CachedLimits grid_cache;
+        // Per-slot caches: each in-flight slot independently tracks whether its
+        // buffer contents are still valid, allowing cache reuse when limits are
+        // stable while still performing the upload when a slot first activates.
+        CachedLimits grid_cache[FRAME_BUFFER_SLOTS];
         CachedLimits bbox_cache;
         CachedLimits tick_cache;
-        int          cached_grid_planes = 0;   // for 3D grid plane mask
+        int          cached_grid_planes[FRAME_BUFFER_SLOTS] = {};   // for 3D grid plane mask
         // Camera-relative rendering: current view center for 2D axes.
         // Grid and border vertices are generated relative to this origin.
         double view_center_x = 0.0;
@@ -272,8 +281,9 @@ class Renderer
     // N-1's draw command still references.
     struct FigureGpuData
     {
-        BufferHandle overlay_line_buffer;
-        size_t       overlay_line_capacity = 0;
+        // Per-slot to avoid CPU/GPU hazard during continuous zoom/resize.
+        BufferHandle overlay_line_buffer[FRAME_BUFFER_SLOTS];
+        size_t       overlay_line_capacity[FRAME_BUFFER_SLOTS] = {};
     };
     std::unordered_map<const Figure*, FigureGpuData> figure_gpu_data_;
 

@@ -712,6 +712,15 @@ class ImGuiIntegration
     {
         float x = 0, y = 0, w = 0, h = 0;
     } knobs_panel_rect_;
+
+    // Welcome screen logo texture (loaded once from embedded PNG)
+    void* logo_texture_id_ = nullptr;   // ImTextureID (VkDescriptorSet)
+    int   logo_width_      = 0;
+    int   logo_height_     = 0;
+    bool  logo_loaded_     = false;
+
+    void load_logo_texture();
+    void draw_welcome_screen(float display_w, float display_h, float dt);
 };
 
 // Helper factory to construct an ImGuiIntegration instance from translation units

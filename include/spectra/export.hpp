@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 namespace spectra
 {
@@ -16,6 +17,10 @@ class ImageExporter
                           const uint8_t*     rgba_data,
                           uint32_t           width,
                           uint32_t           height);
+
+    static std::vector<uint8_t> write_png_to_memory(const uint8_t* rgba_data,
+                                                     uint32_t       width,
+                                                     uint32_t       height);
 };
 
 class SvgExporter

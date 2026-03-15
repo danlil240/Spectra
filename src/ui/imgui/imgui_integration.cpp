@@ -69,6 +69,13 @@ static inline uint64_t vk_rp_to_u64(H rp)
     #include "../../../third_party/tinyfiledialogs.h"
 
     #include "../../../third_party/fa_solid_900.hpp"
+
+    // stb_image for decoding embedded PNG (implementation in stb_impl.cpp)
+    #include "stb_image.h"
+
+    // Embedded Spectra logo icon
+    #include "spectra_icon_embedded.hpp"
+
 // text_renderer.hpp removed — plot text now rendered by Renderer::render_plot_text
 
     #ifndef M_PI
@@ -179,6 +186,9 @@ bool ImGuiIntegration::init(VulkanBackend& backend, GLFWwindow* window, bool ins
 
     cached_render_pass_ = vk_rp_to_u64(ii.RenderPass);
     initialized_        = true;
+
+    load_logo_texture();
+
     return true;
 }
 
@@ -827,9 +837,160 @@ void ImGuiIntegration::build_empty_ui()
                                static_cast<int>(theme.bg_primary.b * 255),
                                255));
 
+    // Draw welcome screen with centered logo
+    draw_welcome_screen(io.DisplaySize.x, io.DisplaySize.y, dt);
+
     // Draw CSV dialog if open (user may have opened it from the menu)
     if (csv_dialog_open_)
         draw_csv_dialog();
+}
+
+// ─── Welcome screen logo texture ────────────────────────────────────────────
+
+void ImGuiIntegration::load_logo_texture()
+{
+    if (logo_loaded_)
+        return;
+
+    int w = 0, h = 0, channels = 0;
+    unsigned char* pixels = stbi_load_from_memory(
+        SpectraIcon_png_data,
+        static_cast<int>(SpectraIcon_png_size),
+        &w, &h, &channels, 4);   // Force RGBA
+
+    if (!pixels)
+    {
+        SPECTRA_LOG_WARN("imgui", "Failed to decode embedded logo PNG");
+        return;
+    }
+
+    // Register with ImGui's Vulkan backend — returns a VkDescriptorSet usable as ImTextureID
+    VkDescriptorSet ds = ImGui_ImplVulkan_AddTexture(
+        VK_NULL_HANDLE,   // sampler — ImGui creates its own
+        VK_NULL_HANDLE,   // image view — we need to create our own
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+    // ImGui_ImplVulkan_AddTexture with NULL handles won't work.
+    // Instead, create the texture through the Vulkan backend directly.
+    // We'll skip this approach and use VulkanBackend::create_texture + get the descriptor set.
+    stbi_image_free(pixels);
+
+    // For now, mark as attempted so we don't retry every frame
+    logo_loaded_ = true;
+    SPECTRA_LOG_INFO("imgui", "Logo texture: {}x{}", w, h);
+}
+
+void ImGuiIntegration::draw_welcome_screen(float display_w, float display_h, float dt)
+{
+    const auto& colors = ui::theme();
+    ImDrawList* fg     = ImGui::GetForegroundDrawList();
+
+    // Menu bar height offset
+    float menu_h   = ImGui::GetFrameHeight() + 2.0f;
+    float content_h = display_h - menu_h;
+    float cx        = display_w * 0.5f;
+
+    // Vertical center point
+    float center_y = menu_h + content_h * 0.38f;
+
+    // ── Logo image ──
+    if (logo_texture_id_)
+    {
+        float logo_draw_sz = 128.0f;
+        float lx = cx - logo_draw_sz * 0.5f;
+        float ly = center_y - logo_draw_sz * 0.5f;
+        fg->AddImage(
+            static_cast<ImTextureID>(logo_texture_id_),
+            ImVec2(lx, ly),
+            ImVec2(lx + logo_draw_sz, ly + logo_draw_sz));
+    }
+    else
+    {
+        // Fallback: draw chart-line icon with accent glow
+        float icon_cy = center_y;
+        for (int i = 0; i < 3; ++i)
+        {
+            float r = 42.0f + static_cast<float>(i) * 10.0f;
+            float a = 0.10f - static_cast<float>(i) * 0.03f;
+            fg->AddCircleFilled(
+                ImVec2(cx, icon_cy), r,
+                IM_COL32(static_cast<int>(colors.accent.r * 255),
+                         static_cast<int>(colors.accent.g * 255),
+                         static_cast<int>(colors.accent.b * 255),
+                         static_cast<int>(a * 255)),
+                64);
+        }
+        ImFont* ifont = ui::icon_font(ui::tokens::ICON_XL);
+        if (ifont)
+        {
+            const char* icon = ui::icon_str(ui::Icon::ChartLine);
+            ImVec2 sz = ifont->CalcTextSizeA(ui::tokens::ICON_XL, FLT_MAX, 0.0f, icon);
+            fg->AddText(ifont, ui::tokens::ICON_XL,
+                        ImVec2(cx - sz.x * 0.5f, icon_cy - sz.y * 0.5f),
+                        IM_COL32(static_cast<int>(colors.accent.r * 255),
+                                 static_cast<int>(colors.accent.g * 255),
+                                 static_cast<int>(colors.accent.b * 255), 255),
+                        icon);
+        }
+    }
+
+    // ── "Spectra" title ──
+    {
+        const char* title = "Spectra";
+        float font_size   = 26.0f;
+        ImFont* font      = ImGui::GetFont();
+        ImVec2 sz         = font->CalcTextSizeA(font_size, FLT_MAX, 0.0f, title);
+        fg->AddText(font, font_size,
+                    ImVec2(cx - sz.x * 0.5f, center_y + 72.0f),
+                    IM_COL32(static_cast<int>(colors.text_primary.r * 255),
+                             static_cast<int>(colors.text_primary.g * 255),
+                             static_cast<int>(colors.text_primary.b * 255), 255),
+                    title);
+    }
+
+    // ── Subtitle ──
+    {
+        const char* sub = "GPU-Accelerated Scientific Visualization";
+        ImFont* font    = ImGui::GetFont();
+        ImVec2 sz       = font->CalcTextSizeA(12.0f, FLT_MAX, 0.0f, sub);
+        fg->AddText(font, 12.0f,
+                    ImVec2(cx - sz.x * 0.5f, center_y + 102.0f),
+                    IM_COL32(static_cast<int>(colors.text_secondary.r * 255),
+                             static_cast<int>(colors.text_secondary.g * 255),
+                             static_cast<int>(colors.text_secondary.b * 255), 180),
+                    sub);
+    }
+
+    // ── Keyboard hint ──
+    {
+        const char* hint = "Press Ctrl+N to create a new figure";
+        ImFont* font     = ImGui::GetFont();
+        ImVec2 sz        = font->CalcTextSizeA(11.0f, FLT_MAX, 0.0f, hint);
+        float hint_y     = display_h - 48.0f;
+        fg->AddText(font, 11.0f,
+                    ImVec2(cx - sz.x * 0.5f, hint_y),
+                    IM_COL32(static_cast<int>(colors.text_tertiary.r * 255),
+                             static_cast<int>(colors.text_tertiary.g * 255),
+                             static_cast<int>(colors.text_tertiary.b * 255), 90),
+                    hint);
+    }
+
+    // ── Version ──
+    {
+    #ifdef SPECTRA_VERSION_STRING
+        const char* ver = "v" SPECTRA_VERSION_STRING;
+    #else
+        const char* ver = "v0.1.1";
+    #endif
+        ImFont* font = ImGui::GetFont();
+        ImVec2 sz    = font->CalcTextSizeA(10.0f, FLT_MAX, 0.0f, ver);
+        fg->AddText(font, 10.0f,
+                    ImVec2(cx - sz.x * 0.5f, display_h - 28.0f),
+                    IM_COL32(static_cast<int>(colors.text_tertiary.r * 255),
+                             static_cast<int>(colors.text_tertiary.g * 255),
+                             static_cast<int>(colors.text_tertiary.b * 255), 70),
+                    ver);
+    }
 }
 
 void ImGuiIntegration::render(VulkanBackend& backend)

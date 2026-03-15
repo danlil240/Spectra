@@ -30,6 +30,17 @@ else()
     )
 endif()
 
+# Embed Spectra logo icon into C array for the welcome screen
+if(EXISTS ${CMAKE_CURRENT_BINARY_DIR}/generated/spectra_icon_embedded.hpp)
+    message("Icon file spectra_icon.png already embedded, skipping")
+else()
+    embed_binary_file(
+        INPUT  ${CMAKE_CURRENT_SOURCE_DIR}/icons/spectra_icon.png
+        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/spectra_icon_embedded.hpp
+        VARIABLE SpectraIcon_png
+    )
+endif()
+
 # Feature flags
 option(SPECTRA_USE_GLFW    "Enable GLFW windowing adapter"       ON)
 option(SPECTRA_USE_IMGUI   "Enable Dear ImGui menu bar/settings" ON)
@@ -129,6 +140,7 @@ foreach(_ui_src
     src/embed/embed_surface.cpp
     src/embed/spectra_embed_c.cpp
     src/ui/automation/automation_server.cpp
+    src/ui/automation/mcp_server.cpp
 )
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${_ui_src})
         list(APPEND SPECTRA_UI_SOURCES ${_ui_src})
@@ -594,6 +606,18 @@ if(SPECTRA_BUILD_EMBED_SHARED)
         POSITION_INDEPENDENT_CODE ON
         OUTPUT_NAME spectra_embed
     )
+endif()
+
+# spectra — main application executable (welcome screen, no initial figure)
+if(SPECTRA_USE_GLFW AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/app/main.cpp)
+    add_executable(spectra-app src/app/main.cpp)
+    target_link_libraries(spectra-app PRIVATE spectra)
+    target_compile_features(spectra-app PRIVATE cxx_std_20)
+    target_include_directories(spectra-app PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_BINARY_DIR}/generated
+    )
+    set_target_properties(spectra-app PROPERTIES OUTPUT_NAME spectra)
 endif()
 
 # Multi-process daemon + agent binaries (Phase 4 & 5)

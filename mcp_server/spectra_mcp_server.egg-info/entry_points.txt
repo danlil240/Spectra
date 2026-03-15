@@ -1,2 +1,0 @@
-[console_scripts]
-spectra-mcp = spectra_mcp.server:main

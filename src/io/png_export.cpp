@@ -46,4 +46,29 @@ bool ImageExporter::write_png(const std::string& path,
     return result != 0;
 }
 
+std::vector<uint8_t> ImageExporter::write_png_to_memory(const uint8_t* rgba_data,
+                                                         uint32_t       width,
+                                                         uint32_t       height)
+{
+    std::vector<uint8_t> result;
+    if (!rgba_data || width == 0 || height == 0)
+        return result;
+
+    auto write_cb = [](void* context, void* data, int size)
+    {
+        auto* vec = static_cast<std::vector<uint8_t>*>(context);
+        auto* bytes = static_cast<const uint8_t*>(data);
+        vec->insert(vec->end(), bytes, bytes + size);
+    };
+
+    stbi_write_png_to_func(write_cb,
+                           &result,
+                           static_cast<int>(width),
+                           static_cast<int>(height),
+                           4,
+                           rgba_data,
+                           static_cast<int>(width * 4));
+    return result;
+}
+
 }   // namespace spectra

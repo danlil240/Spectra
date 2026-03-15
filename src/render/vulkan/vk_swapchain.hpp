@@ -10,7 +10,7 @@ namespace spectra::vk
 struct SwapchainContext
 {
     VkSwapchainKHR             swapchain    = VK_NULL_HANDLE;
-    VkFormat                   image_format = VK_FORMAT_B8G8R8A8_SRGB;
+    VkFormat                   image_format = VK_FORMAT_B8G8R8A8_UNORM;
     VkExtent2D                 extent       = {0, 0};
     std::vector<VkImage>       images;
     std::vector<VkImageView>   image_views;

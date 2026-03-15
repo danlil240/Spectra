@@ -40,9 +40,12 @@ SwapchainSupportDetails query_swapchain_support(VkPhysicalDevice device, VkSurfa
 
 VkSurfaceFormatKHR choose_surface_format(const std::vector<VkSurfaceFormatKHR>& formats)
 {
+    // Prefer UNORM so that theme hex values pass through 1:1 to the display
+    // without hardware sRGB gamma expansion.  All themes now store their
+    // intended display colours directly (no pre-gamma compensation needed).
     for (const auto& f : formats)
     {
-        if (f.format == VK_FORMAT_B8G8R8A8_SRGB
+        if (f.format == VK_FORMAT_B8G8R8A8_UNORM
             && f.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
         {
             return f;

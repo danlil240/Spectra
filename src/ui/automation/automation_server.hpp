@@ -31,6 +31,7 @@ struct AutomationRequest
     int         client_fd     = -1;           // fd to send response to
     bool        responded     = false;
     std::string response_json;                // filled by main thread after execution
+    int         wait_frames   = 0;            // >0 means defer response until N frames elapse
 };
 
 class AutomationServer
@@ -52,6 +53,10 @@ class AutomationServer
     // Must be called from the main thread each frame.
     // Drains pending requests, executes them, sends responses.
     void poll(App& app, WindowUIContext* ui_ctx);
+
+    std::string invoke(const std::string&              method,
+                       const std::string&              params_json = "{}",
+                       std::chrono::milliseconds       timeout     = std::chrono::seconds(30));
 
     // Returns the socket path being listened on.
     const std::string& socket_path() const { return socket_path_; }
@@ -93,7 +98,7 @@ class AutomationServer
     std::mutex         clients_mutex_;
     std::vector<int>   client_fds_;
 
-    uint64_t next_request_id_ = 1;
+    std::atomic<uint64_t> next_request_id_{1};
 };
 
 }   // namespace spectra

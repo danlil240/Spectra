@@ -23,6 +23,10 @@
     #include "ui/window/window_manager.hpp"
 #endif
 
+#ifdef SPECTRA_USE_IMGUI
+    #include "imgui.h"
+#endif
+
 #ifndef _WIN32
     #include <fcntl.h>
     #include <poll.h>
@@ -222,6 +226,60 @@ void AutomationServer::stop()
 #endif
 }
 
+std::string AutomationServer::invoke(const std::string& method,
+                                     const std::string& params_json,
+                                     std::chrono::milliseconds timeout)
+{
+#ifdef _WIN32
+    (void)method;
+    (void)params_json;
+    (void)timeout;
+    return json_error(0, "Automation is not supported on this platform");
+#else
+    if (!running_.load(std::memory_order_relaxed))
+        return json_error(0, "Automation server is not running");
+
+    AutomationRequest req;
+    req.id          = next_request_id_.fetch_add(1, std::memory_order_relaxed);
+    req.method      = method;
+    req.params_json = params_json.empty() ? "{}" : params_json;
+    const uint64_t req_id = req.id;
+
+    {
+        std::lock_guard lock(pending_mutex_);
+        pending_.push_back(std::move(req));
+    }
+
+    const auto deadline = std::chrono::steady_clock::now() + timeout;
+    while (running_.load(std::memory_order_relaxed)
+           && std::chrono::steady_clock::now() < deadline)
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        std::lock_guard lock(pending_mutex_);
+        for (auto it = pending_.begin(); it != pending_.end(); ++it)
+        {
+            if (it->id == req_id && it->responded)
+            {
+                std::string response = std::move(it->response_json);
+                pending_.erase(it);
+                return response;
+            }
+        }
+    }
+
+    {
+        std::lock_guard lock(pending_mutex_);
+        pending_.erase(std::remove_if(pending_.begin(),
+                                      pending_.end(),
+                                      [req_id](const AutomationRequest& pending_req)
+                                      { return pending_req.id == req_id; }),
+                       pending_.end());
+    }
+
+    return json_error(req_id, "Timeout");
+#endif
+}
+
 // ─── Listener thread ─────────────────────────────────────────────────────────
 
 void AutomationServer::listener_thread_fn()
@@ -311,7 +369,7 @@ void AutomationServer::handle_client(int client_fd)
 
 bool AutomationServer::parse_request(const std::string& json_str, AutomationRequest& req)
 {
-    req.id          = next_request_id_++;
+    req.id          = next_request_id_.fetch_add(1, std::memory_order_relaxed);
     req.method      = json_get_string(json_str, "method");
     req.params_json = json_get_object(json_str, "params");
     return !req.method.empty();
@@ -337,11 +395,42 @@ void AutomationServer::send_response(int fd, const std::string& json)
 
 void AutomationServer::poll(App& app, WindowUIContext* ui_ctx)
 {
+    {
+        std::lock_guard lock(pending_mutex_);
+
+        // Tick down wait_frames counters for deferred requests
+        for (auto& pr : pending_)
+        {
+            if (pr.wait_frames > 0 && !pr.responded)
+            {
+                --pr.wait_frames;
+                if (pr.wait_frames <= 0)
+                {
+                    pr.response_json = json_ok(pr.id, "{\"waited\":true}");
+                    pr.responded = true;
+                }
+            }
+        }
+
+        // Intercept wait_frames requests: parse the count and set it
+        // directly on the pending entry so they defer without executing.
+        for (auto& pr : pending_)
+        {
+            if (!pr.responded && pr.wait_frames <= 0 && pr.method == "wait_frames")
+            {
+                int count = static_cast<int>(json_get_number(pr.params_json, "count", 1));
+                if (count < 1) count = 1;
+                if (count > 600) count = 600;
+                pr.wait_frames = count;
+            }
+        }
+    }
+
     std::vector<AutomationRequest> to_exec;
     {
         std::lock_guard lock(pending_mutex_);
         for (auto& r : pending_)
-            if (!r.responded) to_exec.push_back(r);
+            if (!r.responded && r.wait_frames <= 0) to_exec.push_back(r);
     }
     for (auto& req : to_exec)
     {
@@ -705,6 +794,205 @@ void AutomationServer::execute(AutomationRequest& req, App& app, WindowUIContext
         ui_ctx->new_height   = h;
         ui_ctx->resize_requested_time = std::chrono::steady_clock::now();
         req.response_json = json_ok(req.id);
+#else
+        req.response_json = json_error(req.id, "GLFW not available");
+#endif
+        return;
+    }
+
+    // ── get_screenshot_base64 ──────────────────────────────────────────
+    if (method == "get_screenshot_base64")
+    {
+        Backend* backend = app.backend();
+        if (!backend)
+        {
+            req.response_json = json_error(req.id, "No backend available");
+            return;
+        }
+
+        uint32_t w = backend->swapchain_width();
+        uint32_t h = backend->swapchain_height();
+        if (w == 0 || h == 0)
+        {
+            req.response_json = json_error(req.id, "Swapchain not ready");
+            return;
+        }
+
+        std::vector<uint8_t> pixels(static_cast<size_t>(w) * h * 4);
+        if (!backend->readback_framebuffer(pixels.data(), w, h))
+        {
+            req.response_json = json_error(req.id, "Framebuffer readback failed");
+            return;
+        }
+
+        auto png_data = ImageExporter::write_png_to_memory(pixels.data(), w, h);
+        if (png_data.empty())
+        {
+            req.response_json = json_error(req.id, "PNG encoding failed");
+            return;
+        }
+
+        // Base64 encode
+        static constexpr const char* kB64 =
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        std::string b64;
+        b64.reserve((png_data.size() + 2) / 3 * 4);
+        for (size_t i = 0; i < png_data.size(); i += 3)
+        {
+            uint32_t n = static_cast<uint32_t>(png_data[i]) << 16;
+            if (i + 1 < png_data.size()) n |= static_cast<uint32_t>(png_data[i + 1]) << 8;
+            if (i + 2 < png_data.size()) n |= static_cast<uint32_t>(png_data[i + 2]);
+            b64 += kB64[(n >> 18) & 0x3F];
+            b64 += kB64[(n >> 12) & 0x3F];
+            b64 += (i + 1 < png_data.size()) ? kB64[(n >> 6) & 0x3F] : '=';
+            b64 += (i + 2 < png_data.size()) ? kB64[n & 0x3F] : '=';
+        }
+
+        req.response_json = json_ok(req.id,
+            "{\"width\":" + std::to_string(w)
+            + ",\"height\":" + std::to_string(h)
+            + ",\"format\":\"png\""
+            + ",\"data\":\"" + b64 + "\"}");
+        return;
+    }
+
+    // ── wait_frames ────────────────────────────────────────────────────
+    // Handled specially in poll() — this branch should not normally be reached
+    // because poll() intercepts wait_frames before calling execute().
+    if (method == "wait_frames")
+    {
+        req.response_json = json_ok(req.id, "{\"waited\":true}");
+        return;
+    }
+
+    // ── text_input ─────────────────────────────────────────────────────
+    if (method == "text_input")
+    {
+#ifdef SPECTRA_USE_IMGUI
+        std::string text = json_get_string(params, "text");
+        if (text.empty()) { req.response_json = json_error(req.id, "Missing text"); return; }
+        auto& io = ImGui::GetIO();
+        for (char c : text)
+            io.AddInputCharacter(static_cast<unsigned int>(c));
+        req.response_json = json_ok(req.id, "{\"chars\":" + std::to_string(text.size()) + "}");
+#else
+        req.response_json = json_error(req.id, "ImGui not available");
+#endif
+        return;
+    }
+
+    // ── double_click ───────────────────────────────────────────────────
+    if (method == "double_click")
+    {
+#ifdef SPECTRA_USE_GLFW
+        if (!ui_ctx) { req.response_json = json_error(req.id, "No UI context"); return; }
+        double x   = json_get_number(params, "x");
+        double y   = json_get_number(params, "y");
+        int    btn = json_get_int(params, "button", 0);
+        int    mod = json_get_int(params, "modifiers", 0);
+        // First click
+        ui_ctx->input_handler.on_mouse_button(btn, 1, mod, x, y);
+        ui_ctx->input_handler.on_mouse_button(btn, 0, mod, x, y);
+        // Second click (double)
+        ui_ctx->input_handler.on_mouse_button(btn, 1, mod, x, y);
+        ui_ctx->input_handler.on_mouse_button(btn, 0, mod, x, y);
+        req.response_json = json_ok(req.id);
+#else
+        req.response_json = json_error(req.id, "GLFW not available");
+#endif
+        return;
+    }
+
+    // ── get_figure_info ────────────────────────────────────────────────
+    if (method == "get_figure_info")
+    {
+        uint64_t fig_id = json_get_uint64(params, "figure_id", 0);
+        Figure* fig = app.figure_registry().get(static_cast<FigureId>(fig_id));
+        if (!fig) { req.response_json = json_error(req.id, "Figure not found"); return; }
+
+        std::ostringstream oss;
+        oss << "{\"figure_id\":" << fig_id
+            << ",\"width\":" << fig->width()
+            << ",\"height\":" << fig->height()
+            << ",\"axes_count\":" << fig->axes().size()
+            << ",\"all_axes_count\":" << fig->all_axes().size();
+
+        // 2D axes details
+        oss << ",\"axes\":[";
+        for (size_t ai = 0; ai < fig->axes().size(); ++ai)
+        {
+            if (ai > 0) oss << ",";
+            auto* ax = fig->axes()[ai].get();
+            if (!ax) { oss << "null"; continue; }
+            auto xl = ax->x_limits();
+            auto yl = ax->y_limits();
+            oss << "{\"index\":" << ai
+                << ",\"x_min\":" << xl.min << ",\"x_max\":" << xl.max
+                << ",\"y_min\":" << yl.min << ",\"y_max\":" << yl.max
+                << ",\"series\":[";
+            for (size_t si = 0; si < ax->series().size(); ++si)
+            {
+                if (si > 0) oss << ",";
+                auto* s = ax->series()[si].get();
+                if (!s) { oss << "null"; continue; }
+                const char* stype = "unknown";
+                size_t scount = 0;
+                if (auto* ls = dynamic_cast<const LineSeries*>(s))
+                    { stype = "line"; scount = ls->point_count(); }
+                else if (auto* ss = dynamic_cast<const ScatterSeries*>(s))
+                    { stype = "scatter"; scount = ss->point_count(); }
+                oss << "{\"label\":\"" << json_escape(s->label())
+                    << "\",\"type\":\"" << stype
+                    << "\",\"visible\":" << (s->visible() ? "true" : "false")
+                    << ",\"point_count\":" << scount << "}";
+            }
+            oss << "]}";
+        }
+        oss << "]";
+
+        // 3D axes count and basic info
+        oss << ",\"axes_3d\":[";
+        size_t a3i = 0;
+        for (size_t ai = 0; ai < fig->all_axes().size(); ++ai)
+        {
+            auto* ax_base = fig->all_axes()[ai].get();
+            if (!ax_base) continue;
+            auto* ax3d = dynamic_cast<Axes3D*>(ax_base);
+            if (!ax3d) continue;
+            if (a3i > 0) oss << ",";
+            auto xl = ax3d->x_limits();
+            auto yl = ax3d->y_limits();
+            auto zl = ax3d->z_limits();
+            oss << "{\"index\":" << ai
+                << ",\"x_min\":" << xl.min << ",\"x_max\":" << xl.max
+                << ",\"y_min\":" << yl.min << ",\"y_max\":" << yl.max
+                << ",\"z_min\":" << zl.min << ",\"z_max\":" << zl.max
+                << ",\"series_count\":" << ax3d->series().size() << "}";
+            ++a3i;
+        }
+        oss << "]";
+
+        oss << "}";
+        req.response_json = json_ok(req.id, oss.str());
+        return;
+    }
+
+    // ── get_window_size ────────────────────────────────────────────────
+    if (method == "get_window_size")
+    {
+#ifdef SPECTRA_USE_GLFW
+        if (!ui_ctx) { req.response_json = json_error(req.id, "No UI context"); return; }
+        Backend* backend = app.backend();
+        if (!backend)
+        {
+            req.response_json = json_error(req.id, "No backend available");
+            return;
+        }
+        uint32_t w = backend->swapchain_width();
+        uint32_t h = backend->swapchain_height();
+        req.response_json = json_ok(req.id,
+            "{\"width\":" + std::to_string(w)
+            + ",\"height\":" + std::to_string(h) + "}");
 #else
         req.response_json = json_error(req.id, "GLFW not available");
 #endif

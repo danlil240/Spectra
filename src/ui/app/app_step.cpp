@@ -38,6 +38,7 @@
 #endif
 
 #include "ui/automation/automation_server.hpp"
+#include "ui/automation/mcp_server.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -140,8 +141,8 @@ struct App::AppRuntime
     // Wall-clock for frame timing
     std::chrono::steady_clock::time_point last_step_time;
 
-    // Automation server (MCP-compatible remote control)
     std::unique_ptr<AutomationServer> auto_server;
+    std::unique_ptr<McpServer>        mcp_server;
 
     // Pending PNG capture (pre-present path to avoid reading presented images)
     struct PendingPngCapture
@@ -712,6 +713,30 @@ void App::init_runtime()
         if (rt.auto_server->start(auto_sock))
         {
             SPECTRA_LOG_INFO("app", "Automation server started: " + auto_sock);
+
+            std::string mcp_bind = "127.0.0.1";
+            if (const char* mcp_bind_env = std::getenv("SPECTRA_MCP_BIND"))
+            {
+                if (mcp_bind_env[0] != '\0')
+                    mcp_bind = mcp_bind_env;
+            }
+
+            uint16_t mcp_port = 8765;
+            if (const char* mcp_port_env = std::getenv("SPECTRA_MCP_PORT"))
+            {
+                if (mcp_port_env[0] != '\0')
+                {
+                    const long parsed_port = std::strtol(mcp_port_env, nullptr, 10);
+                    if (parsed_port > 0 && parsed_port <= 65535)
+                        mcp_port = static_cast<uint16_t>(parsed_port);
+                }
+            }
+
+            rt.mcp_server = std::make_unique<McpServer>();
+            if (rt.mcp_server->start(*rt.auto_server, mcp_bind, mcp_port))
+                SPECTRA_LOG_INFO("app", "MCP server started: " + rt.mcp_server->endpoint());
+            else
+                rt.mcp_server.reset();
         }
         else
         {
@@ -865,7 +890,12 @@ void App::shutdown_runtime()
 
     SPECTRA_LOG_INFO("main_loop", "Exited main render loop");
 
-    // Stop automation server before tearing down UI/Vulkan state
+    if (rt.mcp_server)
+    {
+        rt.mcp_server->stop();
+        rt.mcp_server.reset();
+    }
+
     if (rt.auto_server)
     {
         rt.auto_server->stop();

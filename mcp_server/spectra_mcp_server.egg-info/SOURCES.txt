@@ -1,0 +1,11 @@
+README.md
+pyproject.toml
+spectra_mcp/__init__.py
+spectra_mcp/client.py
+spectra_mcp/server.py
+spectra_mcp_server.egg-info/PKG-INFO
+spectra_mcp_server.egg-info/SOURCES.txt
+spectra_mcp_server.egg-info/dependency_links.txt
+spectra_mcp_server.egg-info/entry_points.txt
+spectra_mcp_server.egg-info/requires.txt
+spectra_mcp_server.egg-info/top_level.txt

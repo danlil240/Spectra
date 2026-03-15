@@ -458,7 +458,29 @@ void ImGuiIntegration::build_ui(Figure& figure)
     // Draw deferred tooltip (command bar) on top of everything
     if (deferred_tooltip_)
     {
-        ImGui::SetNextWindowPos(ImGui::GetIO().MousePos, ImGuiCond_Always, ImVec2(0.5f, 1.0f));
+        // Clamp tooltip position to stay within window bounds
+        {
+            ImVec2 mouse = ImGui::GetIO().MousePos;
+            ImVec2 display = ImGui::GetIO().DisplaySize;
+            float margin = 8.0f;
+            float est_tip_w = ImGui::CalcTextSize(deferred_tooltip_).x + ui::tokens::SPACE_3 * 2.0f + 4.0f;
+            float tip_y = std::clamp(mouse.y - 4.0f, margin + 20.0f, display.y - margin);
+            // If tooltip would clip right edge, anchor from right side
+            if (mouse.x + est_tip_w * 0.5f > display.x - margin)
+            {
+                float tip_x = display.x - margin;
+                ImGui::SetNextWindowPos(ImVec2(tip_x, tip_y), ImGuiCond_Always, ImVec2(1.0f, 1.0f));
+            }
+            else if (mouse.x - est_tip_w * 0.5f < margin)
+            {
+                float tip_x = margin;
+                ImGui::SetNextWindowPos(ImVec2(tip_x, tip_y), ImGuiCond_Always, ImVec2(0.0f, 1.0f));
+            }
+            else
+            {
+                ImGui::SetNextWindowPos(ImVec2(mouse.x, tip_y), ImGuiCond_Always, ImVec2(0.5f, 1.0f));
+            }
+        }
         ImGui::BeginTooltip();
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
                             ImVec2(ui::tokens::SPACE_3, ui::tokens::SPACE_2));
@@ -965,9 +987,9 @@ static bool icon_button(const char* label, bool active, ImFont* font, float size
     }
     ImGui::PushStyleColor(
         ImGuiCol_ButtonHovered,
-        ImVec4(colors.bg_tertiary.r, colors.bg_tertiary.g, colors.bg_tertiary.b, 0.7f));
+        ImVec4(colors.accent_subtle.r, colors.accent_subtle.g, colors.accent_subtle.b, 0.45f));
     ImGui::PushStyleColor(ImGuiCol_ButtonActive,
-                          ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.25f));
+                          ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.30f));
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, ui::tokens::RADIUS_MD);
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
                         ImVec2(ui::tokens::SPACE_2, ui::tokens::SPACE_2));
@@ -2106,6 +2128,15 @@ void ImGuiIntegration::draw_nav_rail()
                     }
                 }
 
+                // Position tooltip to the right of the nav rail item, clamped within display
+                {
+                    ImVec2 item_min = ImGui::GetItemRectMin();
+                    ImVec2 item_max = ImGui::GetItemRectMax();
+                    ImVec2 disp = ImGui::GetIO().DisplaySize;
+                    float tip_x = std::clamp(item_max.x + 8.0f, 8.0f, disp.x - 8.0f);
+                    float tip_y = std::clamp(item_min.y, 8.0f, disp.y - 40.0f);
+                    ImGui::SetNextWindowPos(ImVec2(tip_x, tip_y), ImGuiCond_Always, ImVec2(0.0f, 0.0f));
+                }
                 ImGui::BeginTooltip();
                 ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
                                     ImVec2(ui::tokens::SPACE_3, ui::tokens::SPACE_2));

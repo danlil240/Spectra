@@ -245,7 +245,7 @@ void ThemeManager::apply_to_imgui()
     imgui_colors[ImGuiCol_WindowBg] = lin(colors.bg_secondary, current_theme_->opacity_panel);
     imgui_colors[ImGuiCol_ChildBg]  = ImVec4(0, 0, 0, 0);   // Transparent — inherits parent
     imgui_colors[ImGuiCol_PopupBg] = lin(colors.tooltip_bg);
-    imgui_colors[ImGuiCol_Border]   = lin(colors.border_default, 0.3f);
+    imgui_colors[ImGuiCol_Border]   = lin(colors.border_default);
     imgui_colors[ImGuiCol_BorderShadow] = ImVec4(0, 0, 0, 0);
 
     // Text
@@ -291,8 +291,8 @@ void ThemeManager::apply_to_imgui()
     imgui_colors[ImGuiCol_HeaderActive]  = lin(colors.accent, 0.35f);
 
     // Separator — hairline dividers
-    imgui_colors[ImGuiCol_Separator]        = lin(colors.border_subtle, 0.4f);
-    imgui_colors[ImGuiCol_SeparatorHovered] = lin(colors.border_default, 0.7f);
+    imgui_colors[ImGuiCol_Separator]        = lin(colors.border_subtle);
+    imgui_colors[ImGuiCol_SeparatorHovered] = lin(colors.border_default);
     imgui_colors[ImGuiCol_SeparatorActive]  = lin(colors.accent, 1.0f);
 
     // Resize grip
@@ -879,10 +879,10 @@ void ThemeManager::initialize_default_themes()
         .text_tertiary  = Color::from_hex(0x454D56),
         .text_inverse   = Color::from_hex(0x0A0E13),
 
-        // Borders
-        .border_default = Color::from_hex(0x2A3038),   // Panel edges
-        .border_subtle  = Color::from_hex(0x1E242C),   // Hairline dividers
-        .border_strong  = Color::from_hex(0x6E7681),
+        // Borders — neutral gray (no blue tint)
+        .border_default = Color(0.25f, 0.27f, 0.29f, 0.65f),   // ~#404547 @ 65%
+        .border_subtle  = Color(0.20f, 0.22f, 0.24f, 0.45f),   // ~#333839 @ 45%
+        .border_strong  = Color(0.45f, 0.47f, 0.49f, 0.80f),   // ~#73787D @ 80%
 
         // Interactive — muted UI accent; data stays vibrant
         .accent        = Color::from_hex(0x4D8FD6),   // Muted blue
@@ -924,66 +924,66 @@ void ThemeManager::initialize_default_themes()
     dark.use_blur         = false;
     register_theme("dark", dark);
 
-    // Night theme — Vision-inspired ultra-dark with cyan accent and glow
+    // Night theme — Vision.png reference: deep navy with blue accent
     Theme night;
     night.name             = "night";
-    night.colors           = {// Canvas & Surfaces — ultra-dark with blue undertone
-                              .bg_canvas    = Color::from_hex(0x070A0F),   // Deepest — plot area
-                              .bg_primary   = Color::from_hex(0x0C1117),   // App window background
-                              .bg_secondary = Color::from_hex(0x141A22),   // Panels, rails
-                              .bg_tertiary  = Color::from_hex(0x1C222B),   // Inputs, cards
-                              .bg_elevated  = Color::from_hex(0x252C36),   // Tooltips, popovers
+    night.colors           = {// Canvas & Surfaces — Vision.png exact palette
+                              .bg_canvas    = Color::from_hex(0x0D1117),   // Plot area (seamless with app)
+                              .bg_primary   = Color::from_hex(0x0D1117),   // App window background
+                              .bg_secondary = Color::from_hex(0x161B22),   // Panels, rails, sidebar
+                              .bg_tertiary  = Color::from_hex(0x21262D),   // Inputs, cards, chips
+                              .bg_elevated  = Color::from_hex(0x2D333B),   // Tooltips, popovers
                               .bg_overlay   = Color(0.0f, 0.0f, 0.0f, 0.60f),
 
-                    // Text — cool-white hierarchy
-                              .text_primary   = Color::from_hex(0xE8ECF2),   // L*92
-                              .text_secondary = Color::from_hex(0x6B7A8D),   // Cool gray labels
-                              .text_tertiary  = Color::from_hex(0x3D4854),   // Dim for disabled
-                              .text_inverse   = Color::from_hex(0x0C1117),
+                    // Text — Vision.png cool-gray hierarchy
+                              .text_primary   = Color::from_hex(0xC9D1D9),   // Primary text
+                              .text_secondary = Color::from_hex(0x8B949E),   // Labels, descriptions
+                              .text_tertiary  = Color::from_hex(0x484F58),   // Disabled, placeholder
+                              .text_inverse   = Color::from_hex(0x0D1117),
 
-                    // Borders — barely visible structural dividers
-                              .border_default = Color::from_hex(0x1E2630),
-                              .border_subtle  = Color::from_hex(0x161C24),
-                              .border_strong  = Color::from_hex(0x3A4554),
+                    // Borders — Vision.png structural dividers
+                              .border_default = Color(0.13f, 0.15f, 0.18f, 0.50f),   // ~#21262D @ 50%
+                              .border_subtle  = Color(0.09f, 0.11f, 0.13f, 0.35f),   // faint @ 35%
+                              .border_strong  = Color(0.24f, 0.27f, 0.31f, 0.60f),   // ~#3D444D @ 60%
 
-                    // Interactive — cyan-blue accent with glow potential
-                              .accent        = Color::from_hex(0x3BB2F6),   // Vivid cyan-blue
-                              .accent_hover  = Color::from_hex(0x5CC4FF),   // Brighter on hover
-                              .accent_muted  = Color(0.23f, 0.70f, 0.96f, 0.25f),
-                              .accent_subtle = Color(0.23f, 0.70f, 0.96f, 0.10f),
+                    // Interactive — Vision.png blue accent
+                              .accent        = Color::from_hex(0x58A6FF),   // GitHub-blue accent
+                              .accent_hover  = Color::from_hex(0x79C0FF),   // Brighter on hover
+                              .accent_muted  = Color(0.35f, 0.65f, 1.0f, 0.25f),
+                              .accent_subtle = Color(0.35f, 0.65f, 1.0f, 0.10f),
 
-                    // Semantic — neon-adjacent for Night theme
-                              .success = Color::from_hex(0x34D399),
-                              .warning = Color::from_hex(0xFBBF24),
-                              .error   = Color::from_hex(0xF87171),
-                              .info    = Color::from_hex(0x60A5FA),
+                    // Semantic — Vision.png neon tones
+                              .success = Color::from_hex(0x3FB950),
+                              .warning = Color::from_hex(0xD29922),
+                              .error   = Color::from_hex(0xF85149),
+                              .info    = Color::from_hex(0x58A6FF),
 
-                    // Plot — ultra-receded grid, vivid data
-                              .grid_major       = Color(1.0f, 1.0f, 1.0f, 0.08f),
-                              .grid_minor       = Color(1.0f, 1.0f, 1.0f, 0.04f),
-                              .grid_line        = Color(1.0f, 1.0f, 1.0f, 0.08f),   // Compat
-                              .axis_line        = Color(0.60f, 0.65f, 0.72f, 0.35f),
-                              .tick_label       = Color::from_hex(0x5A6370),
-                              .crosshair        = Color(0.23f, 0.70f, 0.96f, 0.60f),
-                              .selection_fill   = Color(0.23f, 0.70f, 0.96f, 0.15f),
-                              .selection_border = Color::from_hex(0x3BB2F6),
-                              .tooltip_bg       = Color(0.10f, 0.12f, 0.16f, 0.92f),
-                              .tooltip_border   = Color(0.20f, 0.24f, 0.30f, 0.30f),
+                    // Plot — Vision.png ultra-receded grid
+                              .grid_major       = Color(1.0f, 1.0f, 1.0f, 0.07f),
+                              .grid_minor       = Color(1.0f, 1.0f, 1.0f, 0.03f),
+                              .grid_line        = Color(1.0f, 1.0f, 1.0f, 0.07f),   // Compat
+                              .axis_line        = Color(0.55f, 0.58f, 0.62f, 0.35f),
+                              .tick_label       = Color::from_hex(0x8B949E),
+                              .crosshair        = Color(0.35f, 0.65f, 1.0f, 0.60f),
+                              .selection_fill   = Color(0.35f, 0.65f, 1.0f, 0.15f),
+                              .selection_border = Color::from_hex(0x58A6FF),
+                              .tooltip_bg       = Color(0.09f, 0.11f, 0.13f, 0.94f),
+                              .tooltip_border   = Color(0.17f, 0.20f, 0.24f, 0.35f),
 
                     // Visual effects — glow enabled
-                              .accent_glow       = Color(0.23f, 0.70f, 0.96f, 0.40f),
-                              .glow_intensity    = 0.4f,
-                              .focus_ring        = Color::from_hex(0x3BB2F6),
+                              .accent_glow       = Color(0.35f, 0.65f, 1.0f, 0.35f),
+                              .glow_intensity    = 0.35f,
+                              .focus_ring        = Color::from_hex(0x58A6FF),
                               .scrollbar_thumb   = Color(1.0f, 1.0f, 1.0f, 0.15f),
                               .scrollbar_track   = Color(0.0f, 0.0f, 0.0f, 0.0f),
                               .section_header_bg = Color(1.0f, 1.0f, 1.0f, 0.03f),
-                              .input_bg          = Color::from_hex(0x1C222B),
-                              .hover_highlight   = Color(0.23f, 0.70f, 0.96f, 0.30f),
-                              .annotation_bg     = Color(0.10f, 0.12f, 0.16f, 0.85f),
-                              .roi_fill          = Color(0.23f, 0.70f, 0.96f, 0.10f),
-                              .roi_border        = Color(0.23f, 0.70f, 0.96f, 0.50f)};
-    night.opacity_panel    = 0.92f;
-    night.opacity_tooltip  = 0.94f;
+                              .input_bg          = Color::from_hex(0x21262D),
+                              .hover_highlight   = Color(0.35f, 0.65f, 1.0f, 0.25f),
+                              .annotation_bg     = Color(0.09f, 0.11f, 0.13f, 0.88f),
+                              .roi_fill          = Color(0.35f, 0.65f, 1.0f, 0.10f),
+                              .roi_border        = Color(0.35f, 0.65f, 1.0f, 0.50f)};
+    night.opacity_panel    = 0.95f;
+    night.opacity_tooltip  = 0.96f;
     night.shadow_intensity = 0.0f;
     night.use_blur         = false;
     night.linearize_colors = true;   // Night hex values are sRGB-authored
@@ -1000,16 +1000,16 @@ void ThemeManager::initialize_default_themes()
                               .bg_elevated  = Color::from_hex(0xFFFFFF),
                               .bg_overlay   = Color(0.0f, 0.0f, 0.0f, 0.30f),
 
-                    // Text
-                              .text_primary   = Color::from_hex(0x1F2328),
-                              .text_secondary = Color::from_hex(0x656D76),
-                              .text_tertiary  = Color::from_hex(0x8B949E),
+                    // Text — darkened for readability
+                              .text_primary   = Color::from_hex(0x111418),   // Near-black
+                              .text_secondary = Color::from_hex(0x424A53),   // Darker labels
+                              .text_tertiary  = Color::from_hex(0x6E7781),   // Darker placeholders
                               .text_inverse   = Color::from_hex(0xFFFFFF),
 
-                    // Borders
-                              .border_default = Color::from_hex(0xD0D7DE),
-                              .border_subtle  = Color::from_hex(0xE8ECF0),
-                              .border_strong  = Color::from_hex(0x8C959F),
+                    // Borders — clean neutral gray
+                              .border_default = Color(0.78f, 0.80f, 0.82f, 0.70f),   // ~#C7CCD1 @ 70%
+                              .border_subtle  = Color(0.86f, 0.88f, 0.90f, 0.50f),   // ~#DBE0E6 @ 50%
+                              .border_strong  = Color(0.55f, 0.58f, 0.62f, 0.85f),   // ~#8C959F @ 85%
 
                     // Interactive
                               .accent        = Color::from_hex(0x0969DA),

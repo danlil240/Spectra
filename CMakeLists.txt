@@ -128,6 +128,7 @@ foreach(_ui_src
     src/ui/overlay/custom_transform_dialog.cpp
     src/embed/embed_surface.cpp
     src/embed/spectra_embed_c.cpp
+    src/ui/automation/automation_server.cpp
 )
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${_ui_src})
         list(APPEND SPECTRA_UI_SOURCES ${_ui_src})

@@ -21,6 +21,7 @@
     #include <imgui_impl_vulkan.h>
 #endif
 
+#include <cmath>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
@@ -1803,7 +1804,10 @@ bool VulkanBackend::readback_framebuffer(uint8_t* out_rgba, uint32_t width, uint
     {
         if (active_window_->swapchain.images.empty())
             return false;
-        src_image = active_window_->swapchain.images[active_window_->swapchain.current_image_index];
+        // Use last_presented_image_idx — current_image_index may already point
+        // to the next acquired (unrendered) image when called between frames
+        // (e.g. from automation poll() inside app.step()).
+        src_image = active_window_->swapchain.images[active_window_->last_presented_image_idx];
         src_layout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
         // Clamp to actual swapchain extent to prevent out-of-bounds copy
         // (caller may pass stale dimensions from before a resize)
@@ -2017,7 +2021,7 @@ bool VulkanBackend::readback_framebuffer(uint8_t* out_rgba, uint32_t width, uint
         std::memcpy(out_rgba, mapped_ptr, static_cast<size_t>(buffer_size));
     }
 
-    // Swapchain uses BGRA format — swizzle to RGBA for PNG export
+    // Swapchain uses BGRA format — swizzle to RGBA for PNG export.
     if (!headless_)
     {
         for (uint32_t i = 0; i < width * height; ++i)

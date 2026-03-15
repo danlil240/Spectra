@@ -165,7 +165,7 @@ class FrameProfiler
         report += "\n  Hitches (>2x target): " + std::to_string(hitch_count_) + "/"
                   + std::to_string(frame_count_);
 
-        SPECTRA_LOG_INFO("profiler", report);
+        SPECTRA_LOG_DEBUG("profiler", report);
 
         // Reset for next window
         frame_count_ = 0;

@@ -37,6 +37,8 @@
     #include "ui/workspace/workspace.hpp"
 #endif
 
+#include "ui/automation/automation_server.hpp"
+
 #include <algorithm>
 #include <chrono>
 #include <cstdlib>
@@ -137,6 +139,19 @@ struct App::AppRuntime
 
     // Wall-clock for frame timing
     std::chrono::steady_clock::time_point last_step_time;
+
+    // Automation server (MCP-compatible remote control)
+    std::unique_ptr<AutomationServer> auto_server;
+
+    // Pending PNG capture (pre-present path to avoid reading presented images)
+    struct PendingPngCapture
+    {
+        std::vector<uint8_t> pixels;
+        std::string          path;
+        uint32_t             width  = 0;
+        uint32_t             height = 0;
+        bool                 active = false;
+    } pending_png_capture;
 
     AppRuntime(float fps, Backend& backend, Renderer& renderer, FigureRegistry& registry)
         : scheduler(fps), session(backend, renderer, registry)
@@ -683,6 +698,27 @@ void App::init_runtime()
     }
 
     rt.last_step_time = std::chrono::steady_clock::now();
+
+    // Start automation server for MCP-driven testing
+    {
+        std::string auto_sock;
+        const char* env = std::getenv("SPECTRA_AUTO_SOCKET");
+        if (env && env[0] != '\0')
+            auto_sock = env;
+        else
+            auto_sock = AutomationServer::default_socket_path();
+
+        rt.auto_server = std::make_unique<AutomationServer>();
+        if (rt.auto_server->start(auto_sock))
+        {
+            SPECTRA_LOG_INFO("app", "Automation server started: " + auto_sock);
+        }
+        else
+        {
+            SPECTRA_LOG_WARN("app", "Automation server failed to start");
+            rt.auto_server.reset();
+        }
+    }
 }
 
 // ─── step ────────────────────────────────────────────────────────────────────
@@ -698,6 +734,10 @@ App::StepResult App::step()
     auto& rt = *runtime_;
 
     auto step_start = std::chrono::steady_clock::now();
+
+    // Poll automation server for pending remote commands
+    if (rt.auto_server)
+        rt.auto_server->poll(*this, rt.ui_ctx_ptr);
 
     rt.session.tick(rt.scheduler,
                     rt.animator,
@@ -722,7 +762,26 @@ App::StepResult App::step()
     }
 #endif
 
-    // Process pending PNG export for the active figure (interactive mode)
+    // Phase 1: Write PNG from a previously completed pre-present capture.
+    if (rt.pending_png_capture.active)
+    {
+        auto& cap = rt.pending_png_capture;
+        if (ImageExporter::write_png(cap.path, cap.pixels.data(), cap.width, cap.height))
+        {
+            SPECTRA_LOG_INFO("export", "Saved PNG: " + cap.path);
+        }
+        else
+        {
+            SPECTRA_LOG_ERROR("export", "Failed to write PNG: " + cap.path);
+        }
+        cap.active = false;
+        cap.pixels.clear();
+        cap.path.clear();
+    }
+
+    // Phase 2: Schedule a pre-present capture for figures with pending export.
+    // The capture will execute inside end_frame() (do_capture_before_present),
+    // before vkQueuePresentKHR, so the swapchain image contents are valid.
     if (!config_.headless && rt.active_figure && !rt.active_figure->png_export_path_.empty())
     {
         uint32_t ew = rt.active_figure->png_export_width_ > 0 ? rt.active_figure->png_export_width_
@@ -730,23 +789,35 @@ App::StepResult App::step()
         uint32_t eh = rt.active_figure->png_export_height_ > 0
                           ? rt.active_figure->png_export_height_
                           : rt.active_figure->height();
-        std::vector<uint8_t> px(static_cast<size_t>(ew) * eh * 4);
-        if (backend_->readback_framebuffer(px.data(), ew, eh))
+        auto& cap   = rt.pending_png_capture;
+        cap.pixels.resize(static_cast<size_t>(ew) * eh * 4);
+        cap.path   = rt.active_figure->png_export_path_;
+        cap.width  = ew;
+        cap.height = eh;
+        cap.active = true;
+
+        auto* vk = static_cast<VulkanBackend*>(backend_.get());
+#ifdef SPECTRA_USE_GLFW
+        // Target the window that owns this figure so multi-window captures
+        // read the correct swapchain image.
+        WindowContext* target_wctx = nullptr;
+        if (rt.window_mgr)
         {
-            if (ImageExporter::write_png(rt.active_figure->png_export_path_, px.data(), ew, eh))
+            for (auto* wctx : rt.window_mgr->windows())
             {
-                SPECTRA_LOG_INFO("export", "Saved PNG: " + rt.active_figure->png_export_path_);
-            }
-            else
-            {
-                SPECTRA_LOG_ERROR("export",
-                                  "Failed to write PNG: " + rt.active_figure->png_export_path_);
+                if (wctx->active_figure_id == rt.frame_state.active_figure_id)
+                {
+                    target_wctx = wctx;
+                    break;
+                }
             }
         }
+        if (target_wctx)
+            vk->request_framebuffer_capture(cap.pixels.data(), ew, eh, target_wctx);
         else
-        {
-            SPECTRA_LOG_ERROR("export", "Failed to readback framebuffer for PNG export");
-        }
+#endif
+            vk->request_framebuffer_capture(cap.pixels.data(), ew, eh);
+
         rt.active_figure->png_export_path_.clear();
         rt.active_figure->png_export_width_  = 0;
         rt.active_figure->png_export_height_ = 0;
@@ -793,6 +864,13 @@ void App::shutdown_runtime()
     auto& rt = *runtime_;
 
     SPECTRA_LOG_INFO("main_loop", "Exited main render loop");
+
+    // Stop automation server before tearing down UI/Vulkan state
+    if (rt.auto_server)
+    {
+        rt.auto_server->stop();
+        rt.auto_server.reset();
+    }
 
 #ifdef SPECTRA_USE_FFMPEG
     if (rt.video_exporter)

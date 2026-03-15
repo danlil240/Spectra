@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "spectra-automation": {
+      "command": "spectra-mcp",
+      "args": [],
+      "env": {}
+    }
+  }
+}

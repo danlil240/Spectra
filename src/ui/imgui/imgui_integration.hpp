@@ -3,6 +3,7 @@
 #ifdef SPECTRA_USE_IMGUI
 
     #include <cfloat>
+    #include <cstdint>
     #include <functional>
     #include <memory>
     #include <spectra/fwd.hpp>
@@ -714,12 +715,12 @@ class ImGuiIntegration
     } knobs_panel_rect_;
 
     // Welcome screen logo texture (loaded once from embedded PNG)
-    void* logo_texture_id_ = nullptr;   // ImTextureID (VkDescriptorSet)
-    int   logo_width_      = 0;
-    int   logo_height_     = 0;
-    bool  logo_loaded_     = false;
+    uint64_t logo_texture_id_ = 0;   // ImTextureID / VkDescriptorSet bits
+    int      logo_width_      = 0;
+    int      logo_height_     = 0;
+    bool     logo_loaded_     = false;
 
-    void load_logo_texture();
+    void load_logo_texture(VulkanBackend& backend);
     void draw_welcome_screen(float display_w, float display_h, float dt);
 };
 

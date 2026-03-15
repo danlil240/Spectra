@@ -30,6 +30,11 @@ static inline uint64_t vk_rp_to_u64(H rp)
         return static_cast<uint64_t>(rp);
 }
 
+static inline ImTextureID imgui_texture_id_from_u64(uint64_t bits)
+{
+    return static_cast<ImTextureID>(bits);
+}
+
     #include "render/vulkan/vk_backend.hpp"
     #include "ui/animation/animation_curve_editor.hpp"
     #include "ui/data/axis_link.hpp"
@@ -187,7 +192,7 @@ bool ImGuiIntegration::init(VulkanBackend& backend, GLFWwindow* window, bool ins
     cached_render_pass_ = vk_rp_to_u64(ii.RenderPass);
     initialized_        = true;
 
-    load_logo_texture();
+    load_logo_texture(backend);
 
     return true;
 }
@@ -847,10 +852,11 @@ void ImGuiIntegration::build_empty_ui()
 
 // ─── Welcome screen logo texture ────────────────────────────────────────────
 
-void ImGuiIntegration::load_logo_texture()
+void ImGuiIntegration::load_logo_texture(VulkanBackend& backend)
 {
     if (logo_loaded_)
         return;
+    logo_loaded_ = true;   // Don't retry on failure
 
     int w = 0, h = 0, channels = 0;
     unsigned char* pixels = stbi_load_from_memory(
@@ -864,24 +870,40 @@ void ImGuiIntegration::load_logo_texture()
         return;
     }
 
-    // Register with ImGui's Vulkan backend — returns a VkDescriptorSet usable as ImTextureID
-    VkDescriptorSet ds = ImGui_ImplVulkan_AddTexture(
-        VK_NULL_HANDLE,   // sampler — ImGui creates its own
-        VK_NULL_HANDLE,   // image view — we need to create our own
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-
-    // ImGui_ImplVulkan_AddTexture with NULL handles won't work.
-    // Instead, create the texture through the Vulkan backend directly.
-    // We'll skip this approach and use VulkanBackend::create_texture + get the descriptor set.
+    // Create Vulkan texture via backend (image + view + sampler + staging upload)
+    auto tex = backend.create_texture(
+        static_cast<uint32_t>(w), static_cast<uint32_t>(h), pixels);
     stbi_image_free(pixels);
 
-    // For now, mark as attempted so we don't retry every frame
-    logo_loaded_ = true;
-    SPECTRA_LOG_INFO("imgui", "Logo texture: {}x{}", w, h);
+    if (!tex)
+    {
+        SPECTRA_LOG_WARN("imgui", "Failed to create logo Vulkan texture");
+        return;
+    }
+
+    // Extract Vulkan handles and register with ImGui's Vulkan backend
+    VkSampler   sampler = VK_NULL_HANDLE;
+    VkImageView view    = VK_NULL_HANDLE;
+    if (!backend.texture_vulkan_handles(tex, &sampler, &view))
+    {
+        backend.destroy_texture(tex);
+        SPECTRA_LOG_WARN("imgui", "Failed to get logo texture Vulkan handles");
+        return;
+    }
+
+    VkDescriptorSet ds = ImGui_ImplVulkan_AddTexture(
+        sampler, view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+    logo_texture_id_ = vk_rp_to_u64(ds);
+    logo_width_      = w;
+    logo_height_     = h;
+
+    SPECTRA_LOG_INFO("imgui", "Logo texture loaded: {}x{}", w, h);
 }
 
 void ImGuiIntegration::draw_welcome_screen(float display_w, float display_h, float dt)
 {
+    (void)dt;
     const auto& colors = ui::theme();
     ImDrawList* fg     = ImGui::GetForegroundDrawList();
 
@@ -900,7 +922,7 @@ void ImGuiIntegration::draw_welcome_screen(float display_w, float display_h, flo
         float lx = cx - logo_draw_sz * 0.5f;
         float ly = center_y - logo_draw_sz * 0.5f;
         fg->AddImage(
-            static_cast<ImTextureID>(logo_texture_id_),
+            imgui_texture_id_from_u64(logo_texture_id_),
             ImVec2(lx, ly),
             ImVec2(lx + logo_draw_sz, ly + logo_draw_sz));
     }

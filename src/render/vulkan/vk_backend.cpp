@@ -1375,6 +1375,20 @@ void VulkanBackend::destroy_texture(TextureHandle handle)
     }
 }
 
+bool VulkanBackend::texture_vulkan_handles(TextureHandle handle,
+                                           VkSampler*    out_sampler,
+                                           VkImageView*  out_view) const
+{
+    auto it = textures_.find(handle.id);
+    if (it == textures_.end())
+        return false;
+    if (out_sampler)
+        *out_sampler = it->second.sampler;
+    if (out_view)
+        *out_view = it->second.view;
+    return true;
+}
+
 bool VulkanBackend::begin_frame(FrameProfiler* profiler)
 {
     // NOTE: do NOT reset ubo_next_offset_ here.  In multi-window mode,

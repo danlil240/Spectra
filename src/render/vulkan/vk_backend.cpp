@@ -1139,17 +1139,21 @@ TextureHandle VulkanBackend::create_texture(uint32_t       width,
 
     VkDeviceSize image_size = static_cast<VkDeviceSize>(width) * height * 4;
 
+    // Compute full mipmap chain depth
+    uint32_t mip_levels = static_cast<uint32_t>(
+        std::floor(std::log2(static_cast<double>(std::max(width, height))))) + 1;
+
     // Create VkImage
     VkImageCreateInfo image_info{};
     image_info.sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     image_info.imageType     = VK_IMAGE_TYPE_2D;
     image_info.format        = VK_FORMAT_R8G8B8A8_UNORM;
     image_info.extent        = {width, height, 1};
-    image_info.mipLevels     = 1;
+    image_info.mipLevels     = mip_levels;
     image_info.arrayLayers   = 1;
     image_info.samples       = VK_SAMPLE_COUNT_1_BIT;
     image_info.tiling        = VK_IMAGE_TILING_OPTIMAL;
-    image_info.usage         = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+    image_info.usage         = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
     image_info.sharingMode   = VK_SHARING_MODE_EXCLUSIVE;
     image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
@@ -1263,7 +1267,74 @@ TextureHandle VulkanBackend::create_texture(uint32_t       width,
                                1,
                                &region);
 
-        // Transition: TRANSFER_DST_OPTIMAL → SHADER_READ_ONLY_OPTIMAL
+        // ── Generate mipmaps via repeated vkCmdBlitImage ──
+        int32_t mip_w = static_cast<int32_t>(width);
+        int32_t mip_h = static_cast<int32_t>(height);
+
+        for (uint32_t i = 1; i < mip_levels; ++i)
+        {
+            // Transition level i-1: TRANSFER_DST → TRANSFER_SRC
+            barrier.subresourceRange.baseMipLevel = i - 1;
+            barrier.oldLayout     = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+            barrier.newLayout     = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+            barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+            barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+            vkCmdPipelineBarrier(cmd,
+                                 VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                 VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                 0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+            // Transition level i: UNDEFINED → TRANSFER_DST
+            VkImageMemoryBarrier dst_barrier = barrier;
+            dst_barrier.subresourceRange.baseMipLevel = i;
+            dst_barrier.oldLayout     = VK_IMAGE_LAYOUT_UNDEFINED;
+            dst_barrier.newLayout     = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+            dst_barrier.srcAccessMask = 0;
+            dst_barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+            vkCmdPipelineBarrier(cmd,
+                                 VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                 VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                 0, 0, nullptr, 0, nullptr, 1, &dst_barrier);
+
+            int32_t next_w = mip_w > 1 ? mip_w / 2 : 1;
+            int32_t next_h = mip_h > 1 ? mip_h / 2 : 1;
+
+            VkImageBlit blit{};
+            blit.srcOffsets[0]                 = {0, 0, 0};
+            blit.srcOffsets[1]                 = {mip_w, mip_h, 1};
+            blit.srcSubresource.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+            blit.srcSubresource.mipLevel       = i - 1;
+            blit.srcSubresource.baseArrayLayer = 0;
+            blit.srcSubresource.layerCount     = 1;
+            blit.dstOffsets[0]                 = {0, 0, 0};
+            blit.dstOffsets[1]                 = {next_w, next_h, 1};
+            blit.dstSubresource.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+            blit.dstSubresource.mipLevel       = i;
+            blit.dstSubresource.baseArrayLayer = 0;
+            blit.dstSubresource.layerCount     = 1;
+
+            vkCmdBlitImage(cmd,
+                           tex.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                           tex.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                           1, &blit, VK_FILTER_LINEAR);
+
+            // Transition level i-1: TRANSFER_SRC → SHADER_READ_ONLY
+            barrier.subresourceRange.baseMipLevel = i - 1;
+            barrier.oldLayout     = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+            barrier.newLayout     = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+            barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+            vkCmdPipelineBarrier(cmd,
+                                 VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                 VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                                 0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+            mip_w = next_w;
+            mip_h = next_h;
+        }
+
+        // Transition last mip level: TRANSFER_DST → SHADER_READ_ONLY
+        barrier.subresourceRange.baseMipLevel = mip_levels - 1;
         barrier.oldLayout     = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
         barrier.newLayout     = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
@@ -1301,7 +1372,7 @@ TextureHandle VulkanBackend::create_texture(uint32_t       width,
     view_info.format                          = VK_FORMAT_R8G8B8A8_UNORM;
     view_info.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
     view_info.subresourceRange.baseMipLevel   = 0;
-    view_info.subresourceRange.levelCount     = 1;
+    view_info.subresourceRange.levelCount     = mip_levels;
     view_info.subresourceRange.baseArrayLayer = 0;
     view_info.subresourceRange.layerCount     = 1;
 
@@ -1322,7 +1393,7 @@ TextureHandle VulkanBackend::create_texture(uint32_t       width,
     sampler_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
     sampler_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
     sampler_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-    sampler_info.maxLod       = 1.0f;
+    sampler_info.maxLod       = static_cast<float>(mip_levels);
 
     if (vkCreateSampler(ctx_.device, &sampler_info, nullptr, &tex.sampler) != VK_SUCCESS)
     {

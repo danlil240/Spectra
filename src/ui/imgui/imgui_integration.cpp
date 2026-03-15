@@ -19,6 +19,8 @@
     #include <type_traits>
     #include <unordered_map>
 
+    #include "render/vulkan/vk_backend.hpp"
+
 // Portable conversion: VkRenderPass is a pointer on 64-bit, uint64_t on 32-bit.
 // Must be a template so if-constexpr discards the invalid branch.
 template <typename H>
@@ -35,7 +37,34 @@ static inline ImTextureID imgui_texture_id_from_u64(uint64_t bits)
     return static_cast<ImTextureID>(bits);
 }
 
-    #include "render/vulkan/vk_backend.hpp"
+template <typename H>
+static inline H u64_to_handle(uint64_t bits)
+{
+    if constexpr (std::is_pointer_v<H>)
+        return reinterpret_cast<H>(bits);
+    else
+        return static_cast<H>(bits);
+}
+
+static bool register_backend_texture(spectra::VulkanBackend& backend,
+                                     spectra::TextureHandle  texture,
+                                     uint64_t*               out_id)
+{
+    if (!texture)
+        return false;
+
+    VkSampler   sampler = VK_NULL_HANDLE;
+    VkImageView view    = VK_NULL_HANDLE;
+    if (!backend.texture_vulkan_handles(texture, &sampler, &view))
+        return false;
+
+    VkDescriptorSet ds =
+        ImGui_ImplVulkan_AddTexture(sampler, view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    if (out_id)
+        *out_id = vk_rp_to_u64(ds);
+    return true;
+}
+
     #include "ui/animation/animation_curve_editor.hpp"
     #include "ui/data/axis_link.hpp"
     #include "ui/input/box_zoom_overlay.hpp"
@@ -86,6 +115,52 @@ static inline ImTextureID imgui_texture_id_from_u64(uint64_t bits)
     #ifndef M_PI
         #define M_PI 3.14159265358979323846
     #endif
+
+static bool load_embedded_texture(spectra::VulkanBackend& backend,
+                                  const unsigned char*    bytes,
+                                  unsigned int            size,
+                                  spectra::TextureHandle* out_texture,
+                                  uint64_t*               out_id,
+                                  int*                    out_w,
+                                  int*                    out_h,
+                                  const char*             label)
+{
+    int w = 0, h = 0, channels = 0;
+    unsigned char* pixels =
+        stbi_load_from_memory(bytes, static_cast<int>(size), &w, &h, &channels, 4);
+    if (!pixels)
+    {
+        SPECTRA_LOG_WARN("imgui", std::string("Failed to decode embedded ") + label + " PNG");
+        return false;
+    }
+
+    spectra::TextureHandle texture =
+        backend.create_texture(static_cast<uint32_t>(w), static_cast<uint32_t>(h), pixels);
+    stbi_image_free(pixels);
+    if (!texture)
+    {
+        SPECTRA_LOG_WARN("imgui", std::string("Failed to create ") + label + " Vulkan texture");
+        return false;
+    }
+
+    uint64_t id = 0;
+    if (!register_backend_texture(backend, texture, &id))
+    {
+        backend.destroy_texture(texture);
+        SPECTRA_LOG_WARN("imgui", std::string("Failed to register ") + label + " texture with ImGui");
+        return false;
+    }
+
+    if (out_texture)
+        *out_texture = texture;
+    if (out_id)
+        *out_id = id;
+    if (out_w)
+        *out_w = w;
+    if (out_h)
+        *out_h = h;
+    return true;
+}
 
 namespace spectra
 {
@@ -191,8 +266,9 @@ bool ImGuiIntegration::init(VulkanBackend& backend, GLFWwindow* window, bool ins
 
     cached_render_pass_ = vk_rp_to_u64(ii.RenderPass);
     initialized_        = true;
+    backend_            = &backend;
 
-    load_logo_texture(backend);
+    load_logo_textures(backend);
 
     return true;
 }
@@ -254,6 +330,8 @@ bool ImGuiIntegration::init_headless(VulkanBackend& backend, uint32_t width, uin
 
     cached_render_pass_ = vk_rp_to_u64(ii.RenderPass);
     initialized_        = true;
+    backend_            = &backend;
+    load_logo_textures(backend);
     return true;
 }
 
@@ -290,6 +368,7 @@ void ImGuiIntegration::shutdown()
     if (this_ctx)
         ImGui::SetCurrentContext(this_ctx);
 
+    destroy_logo_textures();
     ImGui_ImplVulkan_Shutdown();
     if (!headless_)
         ImGui_ImplGlfw_Shutdown();
@@ -303,6 +382,7 @@ void ImGuiIntegration::shutdown()
         ImGui::SetCurrentContext(nullptr);
 
     layout_manager_.reset();
+    backend_     = nullptr;
     initialized_ = false;
 }
 
@@ -340,6 +420,16 @@ void ImGuiIntegration::on_swapchain_recreated(VulkanBackend& backend)
 
         ImGui_ImplVulkan_Init(&ii);
         ImGui_ImplVulkan_CreateFontsTexture();
+
+        // Re-register the single shared logo texture after ImGui reinit
+        // (corner is an alias — no separate remove/register needed)
+        if (welcome_logo_texture_id_ != 0)
+            ImGui_ImplVulkan_RemoveTexture(u64_to_handle<VkDescriptorSet>(welcome_logo_texture_id_));
+
+        welcome_logo_texture_id_ = 0;
+        corner_logo_texture_id_  = 0;
+        register_backend_texture(backend, welcome_logo_texture_, &welcome_logo_texture_id_);
+        corner_logo_texture_id_ = welcome_logo_texture_id_;
 
         cached_render_pass_ = current_rp_bits;
     }
@@ -852,53 +942,60 @@ void ImGuiIntegration::build_empty_ui()
 
 // ─── Welcome screen logo texture ────────────────────────────────────────────
 
-void ImGuiIntegration::load_logo_texture(VulkanBackend& backend)
+void ImGuiIntegration::load_logo_textures(VulkanBackend& backend)
 {
     if (logo_loaded_)
         return;
     logo_loaded_ = true;   // Don't retry on failure
 
-    int w = 0, h = 0, channels = 0;
-    unsigned char* pixels = stbi_load_from_memory(
-        SpectraIcon_png_data,
-        static_cast<int>(SpectraIcon_png_size),
-        &w, &h, &channels, 4);   // Force RGBA
+    const bool welcome_ok = load_embedded_texture(backend,
+                                                  SpectraIcon_png_data,
+                                                  SpectraIcon_png_size,
+                                                  &welcome_logo_texture_,
+                                                  &welcome_logo_texture_id_,
+                                                  &welcome_logo_width_,
+                                                  &welcome_logo_height_,
+                                                  "welcome logo");
 
-    if (!pixels)
+    // Reuse the same icon for the corner mark (the round dark icon reads well at 24px)
+    corner_logo_texture_    = welcome_logo_texture_;
+    corner_logo_texture_id_ = welcome_logo_texture_id_;
+    corner_logo_width_      = welcome_logo_width_;
+    corner_logo_height_     = welcome_logo_height_;
+    const bool corner_ok    = welcome_ok;
+
+    if (welcome_ok)
+        SPECTRA_LOG_INFO("imgui",
+                         "Welcome logo texture loaded: {}x{}",
+                         welcome_logo_width_,
+                         welcome_logo_height_);
+    if (corner_ok)
+        SPECTRA_LOG_INFO("imgui", "Corner logo: reusing welcome texture {}x{}",
+                         corner_logo_width_, corner_logo_height_);
+}
+
+void ImGuiIntegration::destroy_logo_textures()
+{
+    // Corner is an alias of welcome — clear it first without destroying
+    corner_logo_texture_id_ = 0;
+    corner_logo_texture_    = {};
+    corner_logo_width_      = 0;
+    corner_logo_height_     = 0;
+
+    if (welcome_logo_texture_id_ != 0)
     {
-        SPECTRA_LOG_WARN("imgui", "Failed to decode embedded logo PNG");
-        return;
+        ImGui_ImplVulkan_RemoveTexture(u64_to_handle<VkDescriptorSet>(welcome_logo_texture_id_));
+        welcome_logo_texture_id_ = 0;
     }
 
-    // Create Vulkan texture via backend (image + view + sampler + staging upload)
-    auto tex = backend.create_texture(
-        static_cast<uint32_t>(w), static_cast<uint32_t>(h), pixels);
-    stbi_image_free(pixels);
-
-    if (!tex)
+    if (backend_ && welcome_logo_texture_)
     {
-        SPECTRA_LOG_WARN("imgui", "Failed to create logo Vulkan texture");
-        return;
+        backend_->destroy_texture(welcome_logo_texture_);
+        welcome_logo_texture_ = {};
     }
 
-    // Extract Vulkan handles and register with ImGui's Vulkan backend
-    VkSampler   sampler = VK_NULL_HANDLE;
-    VkImageView view    = VK_NULL_HANDLE;
-    if (!backend.texture_vulkan_handles(tex, &sampler, &view))
-    {
-        backend.destroy_texture(tex);
-        SPECTRA_LOG_WARN("imgui", "Failed to get logo texture Vulkan handles");
-        return;
-    }
-
-    VkDescriptorSet ds = ImGui_ImplVulkan_AddTexture(
-        sampler, view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-
-    logo_texture_id_ = vk_rp_to_u64(ds);
-    logo_width_      = w;
-    logo_height_     = h;
-
-    SPECTRA_LOG_INFO("imgui", "Logo texture loaded: {}x{}", w, h);
+    welcome_logo_width_  = 0;
+    welcome_logo_height_ = 0;
 }
 
 void ImGuiIntegration::draw_welcome_screen(float display_w, float display_h, float dt)
@@ -908,21 +1005,28 @@ void ImGuiIntegration::draw_welcome_screen(float display_w, float display_h, flo
     ImDrawList* fg     = ImGui::GetForegroundDrawList();
 
     // Menu bar height offset
-    float menu_h   = ImGui::GetFrameHeight() + 2.0f;
+    float menu_h    = ImGui::GetFrameHeight() + 2.0f;
     float content_h = display_h - menu_h;
     float cx        = display_w * 0.5f;
 
-    // Vertical center point
-    float center_y = menu_h + content_h * 0.38f;
+    // Vertical center of the content area (below menu bar)
+    float center_y = menu_h + content_h * 0.45f;
 
     // ── Logo image ──
-    if (logo_texture_id_)
+    if (welcome_logo_texture_id_)
     {
-        float logo_draw_sz = 128.0f;
+        float logo_draw_sz = std::clamp(content_h * 0.28f, 180.0f, 220.0f);
         float lx = cx - logo_draw_sz * 0.5f;
         float ly = center_y - logo_draw_sz * 0.5f;
+        fg->AddCircleFilled(ImVec2(cx, center_y),
+                            logo_draw_sz * 0.62f,
+                            IM_COL32(static_cast<int>(colors.accent.r * 255),
+                                     static_cast<int>(colors.accent.g * 255),
+                                     static_cast<int>(colors.accent.b * 255),
+                                     16),
+                            96);
         fg->AddImage(
-            imgui_texture_id_from_u64(logo_texture_id_),
+            imgui_texture_id_from_u64(welcome_logo_texture_id_),
             ImVec2(lx, ly),
             ImVec2(lx + logo_draw_sz, ly + logo_draw_sz));
     }
@@ -959,11 +1063,11 @@ void ImGuiIntegration::draw_welcome_screen(float display_w, float display_h, flo
     // ── "Spectra" title ──
     {
         const char* title = "Spectra";
-        float font_size   = 26.0f;
-        ImFont* font      = ImGui::GetFont();
+        ImFont* font      = font_title_ ? font_title_ : ImGui::GetFont();
+        float font_size   = font_title_ ? font_title_->FontSize : 26.0f;
         ImVec2 sz         = font->CalcTextSizeA(font_size, FLT_MAX, 0.0f, title);
         fg->AddText(font, font_size,
-                    ImVec2(cx - sz.x * 0.5f, center_y + 72.0f),
+                    ImVec2(cx - sz.x * 0.5f, center_y + 155.0f),
                     IM_COL32(static_cast<int>(colors.text_primary.r * 255),
                              static_cast<int>(colors.text_primary.g * 255),
                              static_cast<int>(colors.text_primary.b * 255), 255),
@@ -976,10 +1080,10 @@ void ImGuiIntegration::draw_welcome_screen(float display_w, float display_h, flo
         ImFont* font    = ImGui::GetFont();
         ImVec2 sz       = font->CalcTextSizeA(12.0f, FLT_MAX, 0.0f, sub);
         fg->AddText(font, 12.0f,
-                    ImVec2(cx - sz.x * 0.5f, center_y + 102.0f),
+                    ImVec2(cx - sz.x * 0.5f, center_y + 187.0f),
                     IM_COL32(static_cast<int>(colors.text_secondary.r * 255),
                              static_cast<int>(colors.text_secondary.g * 255),
-                             static_cast<int>(colors.text_secondary.b * 255), 180),
+                             static_cast<int>(colors.text_secondary.b * 255), 220),
                     sub);
     }
 
@@ -988,12 +1092,12 @@ void ImGuiIntegration::draw_welcome_screen(float display_w, float display_h, flo
         const char* hint = "Press Ctrl+N to create a new figure";
         ImFont* font     = ImGui::GetFont();
         ImVec2 sz        = font->CalcTextSizeA(11.0f, FLT_MAX, 0.0f, hint);
-        float hint_y     = display_h - 48.0f;
-        fg->AddText(font, 11.0f,
+        float hint_y     = display_h - 52.0f;
+        fg->AddText(font, 12.0f,
                     ImVec2(cx - sz.x * 0.5f, hint_y),
                     IM_COL32(static_cast<int>(colors.text_tertiary.r * 255),
                              static_cast<int>(colors.text_tertiary.g * 255),
-                             static_cast<int>(colors.text_tertiary.b * 255), 90),
+                             static_cast<int>(colors.text_tertiary.b * 255), 220),
                     hint);
     }
 
@@ -1006,11 +1110,11 @@ void ImGuiIntegration::draw_welcome_screen(float display_w, float display_h, flo
     #endif
         ImFont* font = ImGui::GetFont();
         ImVec2 sz    = font->CalcTextSizeA(10.0f, FLT_MAX, 0.0f, ver);
-        fg->AddText(font, 10.0f,
-                    ImVec2(cx - sz.x * 0.5f, display_h - 28.0f),
+        fg->AddText(font, 11.0f,
+                    ImVec2(cx - sz.x * 0.5f, display_h - 30.0f),
                     IM_COL32(static_cast<int>(colors.text_tertiary.r * 255),
                              static_cast<int>(colors.text_tertiary.g * 255),
-                             static_cast<int>(colors.text_tertiary.b * 255), 70),
+                             static_cast<int>(colors.text_tertiary.b * 255), 220),
                     ver);
     }
 }
@@ -1537,106 +1641,30 @@ void ImGuiIntegration::draw_command_bar()
                             1.0f);
         }
 
-        // ── App title/brand on the left — polished programmatic logo + styled text ──
+        // ── App title/brand on the left — textured S mark + clean wordmark ──
         {
-            auto        accent = ui::theme().accent;
             ImDrawList* dl     = ImGui::GetWindowDrawList();
             float       bar_h  = ImGui::GetWindowSize().y;
             ImVec2      cursor = ImGui::GetCursorScreenPos();
             float       cy     = cursor.y + (bar_h - ImGui::GetCursorPosY() * 2.0f) * 0.5f;
+            float       logo_sz = 28.0f;
+            float       lx      = cursor.x + 1.0f;
+            float       ly      = cy - logo_sz * 0.5f;
+            float       text_x  = lx + logo_sz + 8.0f;
 
-            // ── Stylized "S" logo mark (enhanced bezier curves) ──
-            float logo_sz = 26.0f;   // Larger for more impact
-            float lx      = cursor.x + 2.0f;
-            float ly      = cy - logo_sz * 0.5f;
-
-            // Accent colors at different opacities for layered glow
-            auto ac = [&](uint8_t a) -> ImU32
+            if (corner_logo_texture_id_)
             {
-                return IM_COL32(static_cast<uint8_t>(accent.r * 255),
-                                static_cast<uint8_t>(accent.g * 255),
-                                static_cast<uint8_t>(accent.b * 255),
-                                a);
-            };
+                dl->AddImage(imgui_texture_id_from_u64(corner_logo_texture_id_),
+                             ImVec2(lx, ly),
+                             ImVec2(lx + logo_sz, ly + logo_sz));
+            }
 
-            // Brighter highlight for the logo (shift accent toward white, more vibrant)
-            float hr = accent.r + (1.0f - accent.r) * 0.55f;
-            float hg = accent.g + (1.0f - accent.g) * 0.55f;
-            float hb = accent.b + (1.0f - accent.b) * 0.55f;
-            auto  hi = [&](uint8_t a) -> ImU32
-            {
-                return IM_COL32(static_cast<uint8_t>(hr * 255),
-                                static_cast<uint8_t>(hg * 255),
-                                static_cast<uint8_t>(hb * 255),
-                                a);
-            };
-
-            // Subtle glow behind logo — reduced intensity to keep focus on canvas
-            ImVec2 logo_center = ImVec2(lx + logo_sz * 0.5f, ly + logo_sz * 0.5f);
-            dl->AddCircleFilled(logo_center, logo_sz * 0.85f, ac(4));    // Outer soft glow
-            dl->AddCircleFilled(logo_center, logo_sz * 0.65f, ac(8));    // Mid glow
-            dl->AddCircleFilled(logo_center, logo_sz * 0.50f, ac(12));   // Inner glow
-
-            // Draw stylized S with more dynamic curves
-            float sw = logo_sz * 0.75f;
-            float sh = logo_sz;
-            float sx = lx + (logo_sz - sw) * 0.5f;
-            float sy = ly;
-
-            // Top arc of S (smooth curve to middle)
-            dl->AddBezierCubic(ImVec2(sx + sw * 0.15f, sy + sh * 0.08f),
-                               ImVec2(sx + sw * 1.2f, sy - sh * 0.05f),
-                               ImVec2(sx + sw * 1.2f, sy + sh * 0.5f),
-                               ImVec2(sx + sw * 0.5f, sy + sh * 0.5f),
-                               hi(220),
-                               2.8f);
-
-            // Bottom arc of S (continuous from middle)
-            dl->AddBezierCubic(ImVec2(sx + sw * 0.5f, sy + sh * 0.5f),
-                               ImVec2(sx - sw * 0.1f, sy + sh * 0.5f),
-                               ImVec2(sx - sw * 0.1f, sy + sh * 1.02f),
-                               ImVec2(sx + sw * 0.85f, sy + sh * 0.92f),
-                               ac(220),
-                               2.8f);
-
-            // Bright center highlight stroke (thicker, more vibrant)
-            dl->AddBezierCubic(ImVec2(sx + sw * 0.15f, sy + sh * 0.08f),
-                               ImVec2(sx + sw * 1.2f, sy - sh * 0.05f),
-                               ImVec2(sx + sw * 1.2f, sy + sh * 0.5f),
-                               ImVec2(sx + sw * 0.5f, sy + sh * 0.5f),
-                               hi(110),
-                               4.8f);
-            dl->AddBezierCubic(ImVec2(sx + sw * 0.5f, sy + sh * 0.5f),
-                               ImVec2(sx - sw * 0.1f, sy + sh * 0.5f),
-                               ImVec2(sx - sw * 0.1f, sy + sh * 1.02f),
-                               ImVec2(sx + sw * 0.85f, sy + sh * 0.92f),
-                               ac(110),
-                               4.8f);
-
-            // Subtle inner highlight for extra depth
-            dl->AddBezierCubic(ImVec2(sx + sw * 0.15f, sy + sh * 0.08f),
-                               ImVec2(sx + sw * 1.2f, sy - sh * 0.05f),
-                               ImVec2(sx + sw * 1.2f, sy + sh * 0.5f),
-                               ImVec2(sx + sw * 0.5f, sy + sh * 0.5f),
-                               hi(55),
-                               6.2f);
-            dl->AddBezierCubic(ImVec2(sx + sw * 0.5f, sy + sh * 0.5f),
-                               ImVec2(sx - sw * 0.1f, sy + sh * 0.5f),
-                               ImVec2(sx - sw * 0.1f, sy + sh * 1.02f),
-                               ImVec2(sx + sw * 0.85f, sy + sh * 0.92f),
-                               ac(55),
-                               6.2f);
-
-            float text_x = lx + logo_sz + 8.0f;
-
-            // ── "SPECTRA" text with enhanced letter-spacing and multi-layer glow ──
             ImGui::PushFont(font_title_);
             const char* letters = "SPECTRA";
-            float       font_sz = font_title_->FontSize;
+            float       font_sz = font_title_->FontSize * 0.92f;
             float       text_y  = cy - font_sz * 0.5f;
-            float       spacing = 3.2f;   // Increased letter spacing for elegance
+            float       spacing = 2.6f;
 
-            // Measure total width for Dummy advance
             float total_w = 0.0f;
             for (const char* p = letters; *p; ++p)
             {
@@ -1645,23 +1673,6 @@ void ImGuiIntegration::draw_command_bar()
             }
             total_w -= spacing;   // no trailing space
 
-            // Layer 1: Soft glow behind text (reduced intensity for smooth edges)
-            {
-                float gx = text_x;
-                for (const char* p = letters; *p; ++p)
-                {
-                    char  ch[2] = {*p, 0};
-                    float cw    = ImGui::CalcTextSize(ch).x;
-                    // Gentle bloom effect with lower opacity
-                    dl->AddText(font_title_, font_sz, ImVec2(gx - 0.8f, text_y - 0.8f), ac(10), ch);
-                    dl->AddText(font_title_, font_sz, ImVec2(gx + 0.8f, text_y + 0.8f), ac(10), ch);
-                    dl->AddText(font_title_, font_sz, ImVec2(gx - 0.4f, text_y + 0.4f), ac(18), ch);
-                    dl->AddText(font_title_, font_sz, ImVec2(gx + 0.4f, text_y - 0.4f), ac(18), ch);
-                    gx += cw + spacing;
-                }
-            }
-
-            // Layer 2: Main text with enhanced gradient (more vibrant transition)
             {
                 float gx  = text_x;
                 int   idx = 0;
@@ -1670,35 +1681,22 @@ void ImGuiIntegration::draw_command_bar()
                 {
                     char  ch[2] = {*p, 0};
                     float cw    = ImGui::CalcTextSize(ch).x;
-                    // Enhanced gradient: more dramatic transition from bright to accent
                     float t = (len > 1) ? static_cast<float>(idx) / (len - 1) : 0.0f;
-                    // Use a more pronounced curve for the gradient
-                    float   curve = t * t;   // Quadratic curve for more dramatic effect
-                    uint8_t cr    = static_cast<uint8_t>((hr + (accent.r - hr) * curve) * 255);
-                    uint8_t cg    = static_cast<uint8_t>((hg + (accent.g - hg) * curve) * 255);
-                    uint8_t cb    = static_cast<uint8_t>((hb + (accent.b - hb) * curve) * 255);
-                    ImU32   col   = IM_COL32(cr, cg, cb, 255);   // Full opacity
+                    float mix = 0.25f + 0.35f * t;
+                    uint8_t cr = static_cast<uint8_t>(
+                        (ui::theme().text_primary.r * (1.0f - mix) + ui::theme().accent.r * mix) * 255);
+                    uint8_t cg = static_cast<uint8_t>(
+                        (ui::theme().text_primary.g * (1.0f - mix) + ui::theme().accent.g * mix) * 255);
+                    uint8_t cb = static_cast<uint8_t>(
+                        (ui::theme().text_primary.b * (1.0f - mix) + ui::theme().accent.b * mix) * 255);
+                    ImU32 col = IM_COL32(cr, cg, cb, 245);
                     dl->AddText(font_title_, font_sz, ImVec2(gx, text_y), col, ch);
                     gx += cw + spacing;
                 }
             }
 
-            // Layer 3: Subtle highlight on first few letters — dialed back
-            {
-                float gx  = text_x;
-                int   idx = 0;
-                for (const char* p = letters; *p && idx < 3; ++p, ++idx)   // Only first 3 letters
-                {
-                    char  ch[2]     = {*p, 0};
-                    float cw        = ImGui::CalcTextSize(ch).x;
-                    ImU32 highlight = hi(100);   // Reduced brightness
-                    dl->AddText(font_title_, font_sz, ImVec2(gx, text_y), highlight, ch);
-                    gx += cw + spacing;
-                }
-            }
-
             // Advance ImGui cursor past the entire brand block
-            float brand_w = (text_x - cursor.x) + total_w + 6.0f;
+            float brand_w = (text_x - cursor.x) + total_w + 4.0f;
             ImGui::Dummy(ImVec2(brand_w, font_sz));
             ImGui::PopFont();
         }

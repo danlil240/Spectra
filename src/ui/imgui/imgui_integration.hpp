@@ -11,6 +11,7 @@
     #include <unordered_map>
     #include <vector>
 
+    #include "render/backend.hpp"
     #include "ui/data/csv_loader.hpp"
 
     #include "ui/docking/dock_system.hpp"
@@ -714,13 +715,22 @@ class ImGuiIntegration
         float x = 0, y = 0, w = 0, h = 0;
     } knobs_panel_rect_;
 
-    // Welcome screen logo texture (loaded once from embedded PNG)
-    uint64_t logo_texture_id_ = 0;   // ImTextureID / VkDescriptorSet bits
-    int      logo_width_      = 0;
-    int      logo_height_     = 0;
-    bool     logo_loaded_     = false;
+    // Branded textures used by the empty-state welcome screen and top-left app mark
+    VulkanBackend* backend_ = nullptr;
 
-    void load_logo_texture(VulkanBackend& backend);
+    uint64_t       welcome_logo_texture_id_    = 0;   // ImTextureID / VkDescriptorSet bits
+    uint64_t       corner_logo_texture_id_     = 0;   // ImTextureID / VkDescriptorSet bits
+    int            welcome_logo_width_         = 0;
+    int            welcome_logo_height_        = 0;
+    int            corner_logo_width_          = 0;
+    int            corner_logo_height_         = 0;
+    bool           logo_loaded_                = false;
+
+    TextureHandle welcome_logo_texture_{};
+    TextureHandle corner_logo_texture_{};
+
+    void load_logo_textures(VulkanBackend& backend);
+    void destroy_logo_textures();
     void draw_welcome_screen(float display_w, float display_h, float dt);
 };
 

@@ -135,6 +135,7 @@ set(SPECTRA_UNIT_TESTS
     test_cross_codec
     test_text_renderer
     test_eigen_support
+    test_csv_loader
     test_series_stats
     test_series_clipboard
     test_clipboard_export

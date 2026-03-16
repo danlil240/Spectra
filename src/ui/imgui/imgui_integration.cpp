@@ -92,29 +92,6 @@ static bool load_embedded_texture(spectra::VulkanBackend& backend,
 
 namespace spectra
 {
-
-// Conditional sRGB-to-linear helpers for themes with linearize_colors enabled (Night theme).
-static ImVec4 srgb_to_linear(const ui::Color& c, float alpha_override = -1.0f)
-{
-    float a = alpha_override >= 0.0f ? alpha_override : c.a;
-    if (ui::ThemeManager::instance().current().linearize_colors)
-    {
-        ui::Color l = c.to_linear();
-        return ImVec4(l.r, l.g, l.b, a);
-    }
-    return ImVec4(c.r, c.g, c.b, a);
-}
-
-static ImU32 srgb_to_linear_u32(const ui::Color& c, uint8_t alpha)
-{
-    if (ui::ThemeManager::instance().current().linearize_colors)
-    {
-        ui::Color l = c.to_linear();
-        return IM_COL32(uint8_t(l.r * 255), uint8_t(l.g * 255), uint8_t(l.b * 255), alpha);
-    }
-    return IM_COL32(uint8_t(c.r * 255), uint8_t(c.g * 255), uint8_t(c.b * 255), alpha);
-}
-
 std::unique_ptr<ImGuiIntegration> make_imgui_integration()
 {
     return std::make_unique<ImGuiIntegration>();

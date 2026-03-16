@@ -412,8 +412,6 @@ bool slider_field(const char* label, float& value, float min, float max, const c
                           ImVec4(c.accent_hover.r, c.accent_hover.g, c.accent_hover.b, 1.0f));
     ImGui::PushItemWidth(-1);
 
-    // Record position before slider for accent fill bar
-    ImVec2 frame_pos = ImGui::GetCursorScreenPos();
 
     bool changed = ImGui::SliderFloat("##slider", &value, min, max, fmt);
 

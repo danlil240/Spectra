@@ -166,9 +166,9 @@ bool LegendInteraction::draw(Axes&               axes,
     float legend_h = pad_y * 2.0f + static_cast<float>(labeled_count) * row_height;
 
     // Clamp legend height: max 8 visible rows, scrollable beyond
-    constexpr int   MAX_VISIBLE_ROWS = 8;
-    float           max_legend_h     = pad_y * 2.0f + static_cast<float>(MAX_VISIBLE_ROWS) * row_height;
-    bool            scrollable       = (labeled_count > MAX_VISIBLE_ROWS);
+    constexpr int MAX_VISIBLE_ROWS = 8;
+    float         max_legend_h = pad_y * 2.0f + static_cast<float>(MAX_VISIBLE_ROWS) * row_height;
+    bool          scrollable   = (labeled_count > MAX_VISIBLE_ROWS);
     if (scrollable)
     {
         legend_w += 8.0f;   // room for scrollbar

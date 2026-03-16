@@ -1140,20 +1140,22 @@ TextureHandle VulkanBackend::create_texture(uint32_t       width,
     VkDeviceSize image_size = static_cast<VkDeviceSize>(width) * height * 4;
 
     // Compute full mipmap chain depth
-    uint32_t mip_levels = static_cast<uint32_t>(
-        std::floor(std::log2(static_cast<double>(std::max(width, height))))) + 1;
+    uint32_t mip_levels =
+        static_cast<uint32_t>(std::floor(std::log2(static_cast<double>(std::max(width, height)))))
+        + 1;
 
     // Create VkImage
     VkImageCreateInfo image_info{};
-    image_info.sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-    image_info.imageType     = VK_IMAGE_TYPE_2D;
-    image_info.format        = VK_FORMAT_R8G8B8A8_UNORM;
-    image_info.extent        = {width, height, 1};
-    image_info.mipLevels     = mip_levels;
-    image_info.arrayLayers   = 1;
-    image_info.samples       = VK_SAMPLE_COUNT_1_BIT;
-    image_info.tiling        = VK_IMAGE_TILING_OPTIMAL;
-    image_info.usage         = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+    image_info.sType       = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    image_info.imageType   = VK_IMAGE_TYPE_2D;
+    image_info.format      = VK_FORMAT_R8G8B8A8_UNORM;
+    image_info.extent      = {width, height, 1};
+    image_info.mipLevels   = mip_levels;
+    image_info.arrayLayers = 1;
+    image_info.samples     = VK_SAMPLE_COUNT_1_BIT;
+    image_info.tiling      = VK_IMAGE_TILING_OPTIMAL;
+    image_info.usage       = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT
+                       | VK_IMAGE_USAGE_SAMPLED_BIT;
     image_info.sharingMode   = VK_SHARING_MODE_EXCLUSIVE;
     image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
@@ -1275,26 +1277,38 @@ TextureHandle VulkanBackend::create_texture(uint32_t       width,
         {
             // Transition level i-1: TRANSFER_DST → TRANSFER_SRC
             barrier.subresourceRange.baseMipLevel = i - 1;
-            barrier.oldLayout     = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-            barrier.newLayout     = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-            barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-            barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+            barrier.oldLayout                     = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+            barrier.newLayout                     = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+            barrier.srcAccessMask                 = VK_ACCESS_TRANSFER_WRITE_BIT;
+            barrier.dstAccessMask                 = VK_ACCESS_TRANSFER_READ_BIT;
             vkCmdPipelineBarrier(cmd,
                                  VK_PIPELINE_STAGE_TRANSFER_BIT,
                                  VK_PIPELINE_STAGE_TRANSFER_BIT,
-                                 0, 0, nullptr, 0, nullptr, 1, &barrier);
+                                 0,
+                                 0,
+                                 nullptr,
+                                 0,
+                                 nullptr,
+                                 1,
+                                 &barrier);
 
             // Transition level i: UNDEFINED → TRANSFER_DST
-            VkImageMemoryBarrier dst_barrier = barrier;
+            VkImageMemoryBarrier dst_barrier          = barrier;
             dst_barrier.subresourceRange.baseMipLevel = i;
-            dst_barrier.oldLayout     = VK_IMAGE_LAYOUT_UNDEFINED;
-            dst_barrier.newLayout     = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-            dst_barrier.srcAccessMask = 0;
-            dst_barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+            dst_barrier.oldLayout                     = VK_IMAGE_LAYOUT_UNDEFINED;
+            dst_barrier.newLayout                     = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+            dst_barrier.srcAccessMask                 = 0;
+            dst_barrier.dstAccessMask                 = VK_ACCESS_TRANSFER_WRITE_BIT;
             vkCmdPipelineBarrier(cmd,
                                  VK_PIPELINE_STAGE_TRANSFER_BIT,
                                  VK_PIPELINE_STAGE_TRANSFER_BIT,
-                                 0, 0, nullptr, 0, nullptr, 1, &dst_barrier);
+                                 0,
+                                 0,
+                                 nullptr,
+                                 0,
+                                 nullptr,
+                                 1,
+                                 &dst_barrier);
 
             int32_t next_w = mip_w > 1 ? mip_w / 2 : 1;
             int32_t next_h = mip_h > 1 ? mip_h / 2 : 1;
@@ -1314,20 +1328,30 @@ TextureHandle VulkanBackend::create_texture(uint32_t       width,
             blit.dstSubresource.layerCount     = 1;
 
             vkCmdBlitImage(cmd,
-                           tex.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                           tex.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                           1, &blit, VK_FILTER_LINEAR);
+                           tex.image,
+                           VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                           tex.image,
+                           VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                           1,
+                           &blit,
+                           VK_FILTER_LINEAR);
 
             // Transition level i-1: TRANSFER_SRC → SHADER_READ_ONLY
             barrier.subresourceRange.baseMipLevel = i - 1;
-            barrier.oldLayout     = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-            barrier.newLayout     = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-            barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+            barrier.oldLayout                     = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+            barrier.newLayout                     = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            barrier.srcAccessMask                 = VK_ACCESS_TRANSFER_READ_BIT;
+            barrier.dstAccessMask                 = VK_ACCESS_SHADER_READ_BIT;
             vkCmdPipelineBarrier(cmd,
                                  VK_PIPELINE_STAGE_TRANSFER_BIT,
                                  VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                                 0, 0, nullptr, 0, nullptr, 1, &barrier);
+                                 0,
+                                 0,
+                                 nullptr,
+                                 0,
+                                 nullptr,
+                                 1,
+                                 &barrier);
 
             mip_w = next_w;
             mip_h = next_h;
@@ -1335,10 +1359,10 @@ TextureHandle VulkanBackend::create_texture(uint32_t       width,
 
         // Transition last mip level: TRANSFER_DST → SHADER_READ_ONLY
         barrier.subresourceRange.baseMipLevel = mip_levels - 1;
-        barrier.oldLayout     = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-        barrier.newLayout     = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        barrier.oldLayout                     = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        barrier.newLayout                     = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        barrier.srcAccessMask                 = VK_ACCESS_TRANSFER_WRITE_BIT;
+        barrier.dstAccessMask                 = VK_ACCESS_SHADER_READ_BIT;
 
         vkCmdPipelineBarrier(cmd,
                              VK_PIPELINE_STAGE_TRANSFER_BIT,
@@ -1892,7 +1916,7 @@ bool VulkanBackend::readback_framebuffer(uint8_t* out_rgba, uint32_t width, uint
         // Use last_presented_image_idx — current_image_index may already point
         // to the next acquired (unrendered) image when called between frames
         // (e.g. from automation poll() inside app.step()).
-        src_image = active_window_->swapchain.images[active_window_->last_presented_image_idx];
+        src_image  = active_window_->swapchain.images[active_window_->last_presented_image_idx];
         src_layout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
         // Clamp to actual swapchain extent to prevent out-of-bounds copy
         // (caller may pass stale dimensions from before a resize)

@@ -1451,14 +1451,14 @@ void InputHandler::on_scroll(double /*x_offset*/, double y_offset, double cursor
         }
     }
 
-    scroll_zoom_.axes         = active_axes_;
-    scroll_zoom_.target_xmin  = new_xmin;
-    scroll_zoom_.target_xmax  = new_xmax;
-    scroll_zoom_.target_ymin  = new_ymin;
-    scroll_zoom_.target_ymax  = new_ymax;
+    scroll_zoom_.axes          = active_axes_;
+    scroll_zoom_.target_xmin   = new_xmin;
+    scroll_zoom_.target_xmax   = new_xmax;
+    scroll_zoom_.target_ymin   = new_ymin;
+    scroll_zoom_.target_ymax   = new_ymax;
     scroll_zoom_.anchor_data_x = data_x;
     scroll_zoom_.anchor_data_y = data_y;
-    scroll_zoom_.active       = true;
+    scroll_zoom_.active        = true;
 }
 
 // ─── Keyboard ───────────────────────────────────────────────────────────────
@@ -1830,13 +1830,11 @@ void InputHandler::update(float dt)
         }
 
         // Check if settled — snap to target when within 0.001% of range
-        double range =
-            std::abs(scroll_zoom_.target_xmax - scroll_zoom_.target_xmin)
-            + std::abs(scroll_zoom_.target_ymax - scroll_zoom_.target_ymin);
-        double err = std::abs(ix0 - scroll_zoom_.target_xmin)
-                     + std::abs(ix1 - scroll_zoom_.target_xmax)
-                     + std::abs(iy0 - scroll_zoom_.target_ymin)
-                     + std::abs(iy1 - scroll_zoom_.target_ymax);
+        double range = std::abs(scroll_zoom_.target_xmax - scroll_zoom_.target_xmin)
+                       + std::abs(scroll_zoom_.target_ymax - scroll_zoom_.target_ymin);
+        double err =
+            std::abs(ix0 - scroll_zoom_.target_xmin) + std::abs(ix1 - scroll_zoom_.target_xmax)
+            + std::abs(iy0 - scroll_zoom_.target_ymin) + std::abs(iy1 - scroll_zoom_.target_ymax);
         if (err < std::max(range * 1e-5, 1e-12))
         {
             scroll_zoom_.axes->xlim(scroll_zoom_.target_xmin, scroll_zoom_.target_xmax);

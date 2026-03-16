@@ -242,10 +242,10 @@ void ThemeManager::apply_to_imgui()
     };
 
     // Window and background
-    imgui_colors[ImGuiCol_WindowBg] = lin(colors.bg_secondary, current_theme_->opacity_panel);
-    imgui_colors[ImGuiCol_ChildBg]  = ImVec4(0, 0, 0, 0);   // Transparent — inherits parent
-    imgui_colors[ImGuiCol_PopupBg] = lin(colors.tooltip_bg);
-    imgui_colors[ImGuiCol_Border]   = lin(colors.border_default);
+    imgui_colors[ImGuiCol_WindowBg]     = lin(colors.bg_secondary, current_theme_->opacity_panel);
+    imgui_colors[ImGuiCol_ChildBg]      = ImVec4(0, 0, 0, 0);   // Transparent — inherits parent
+    imgui_colors[ImGuiCol_PopupBg]      = lin(colors.tooltip_bg);
+    imgui_colors[ImGuiCol_Border]       = lin(colors.border_default);
     imgui_colors[ImGuiCol_BorderShadow] = ImVec4(0, 0, 0, 0);
 
     // Text
@@ -253,12 +253,11 @@ void ThemeManager::apply_to_imgui()
     imgui_colors[ImGuiCol_TextDisabled] = lin(colors.text_tertiary, 1.0f);
 
     // Frame backgrounds — use input_bg token with subtle hover lift
-    imgui_colors[ImGuiCol_FrameBg]        = lin(colors.input_bg, 1.0f);
-    imgui_colors[ImGuiCol_FrameBgHovered] = lin(Color(colors.input_bg.r + 0.03f,
-                                                      colors.input_bg.g + 0.03f,
-                                                      colors.input_bg.b + 0.03f),
-                                                1.0f);
-    imgui_colors[ImGuiCol_FrameBgActive]  = lin(colors.accent, 0.18f);
+    imgui_colors[ImGuiCol_FrameBg] = lin(colors.input_bg, 1.0f);
+    imgui_colors[ImGuiCol_FrameBgHovered] =
+        lin(Color(colors.input_bg.r + 0.03f, colors.input_bg.g + 0.03f, colors.input_bg.b + 0.03f),
+            1.0f);
+    imgui_colors[ImGuiCol_FrameBgActive] = lin(colors.accent, 0.18f);
 
     // Titles
     imgui_colors[ImGuiCol_TitleBg]          = lin(colors.bg_secondary, 1.0f);
@@ -266,10 +265,11 @@ void ThemeManager::apply_to_imgui()
     imgui_colors[ImGuiCol_TitleBgCollapsed] = lin(colors.bg_tertiary, 1.0f);
 
     // Menu
-    imgui_colors[ImGuiCol_MenuBarBg] = lin(Color(colors.bg_primary.r * 0.6f + colors.bg_secondary.r * 0.4f,
-                                                 colors.bg_primary.g * 0.6f + colors.bg_secondary.g * 0.4f,
-                                                 colors.bg_primary.b * 0.6f + colors.bg_secondary.b * 0.4f),
-                                          1.0f);
+    imgui_colors[ImGuiCol_MenuBarBg] =
+        lin(Color(colors.bg_primary.r * 0.6f + colors.bg_secondary.r * 0.4f,
+                  colors.bg_primary.g * 0.6f + colors.bg_secondary.g * 0.4f,
+                  colors.bg_primary.b * 0.6f + colors.bg_secondary.b * 0.4f),
+            1.0f);
 
     // Scrollbar — themed track + thumb
     imgui_colors[ImGuiCol_ScrollbarBg]          = lin(colors.scrollbar_track);
@@ -301,10 +301,10 @@ void ThemeManager::apply_to_imgui()
     imgui_colors[ImGuiCol_ResizeGripActive]  = lin(colors.accent, 1.0f);
 
     // Tabs — calmer, accent_muted for selected instead of full accent
-    imgui_colors[ImGuiCol_Tab]             = lin(colors.bg_tertiary, 0.7f);
-    imgui_colors[ImGuiCol_TabHovered]      = lin(colors.accent_subtle, 0.5f);
-    imgui_colors[ImGuiCol_TabSelected]     = lin(colors.accent, 0.35f);
-    imgui_colors[ImGuiCol_TabDimmed]       = lin(colors.bg_tertiary, 0.5f);
+    imgui_colors[ImGuiCol_Tab]               = lin(colors.bg_tertiary, 0.7f);
+    imgui_colors[ImGuiCol_TabHovered]        = lin(colors.accent_subtle, 0.5f);
+    imgui_colors[ImGuiCol_TabSelected]       = lin(colors.accent, 0.35f);
+    imgui_colors[ImGuiCol_TabDimmed]         = lin(colors.bg_tertiary, 0.5f);
     imgui_colors[ImGuiCol_TabDimmedSelected] = lin(colors.accent, 0.20f);
 
     // Plot lines (for ImGui plot widgets)
@@ -314,11 +314,11 @@ void ThemeManager::apply_to_imgui()
     imgui_colors[ImGuiCol_PlotHistogramHovered] = lin(colors.accent_hover, 1.0f);
 
     // Table headers
-    imgui_colors[ImGuiCol_TableHeaderBg]    = lin(colors.bg_tertiary, 1.0f);
+    imgui_colors[ImGuiCol_TableHeaderBg]     = lin(colors.bg_tertiary, 1.0f);
     imgui_colors[ImGuiCol_TableBorderStrong] = lin(colors.border_default, 1.0f);
-    imgui_colors[ImGuiCol_TableBorderLight] = lin(colors.border_subtle, 1.0f);
-    imgui_colors[ImGuiCol_TableRowBg]       = ImVec4(0, 0, 0, 0);
-    imgui_colors[ImGuiCol_TableRowBgAlt]    = lin(colors.bg_tertiary, 0.5f);
+    imgui_colors[ImGuiCol_TableBorderLight]  = lin(colors.border_subtle, 1.0f);
+    imgui_colors[ImGuiCol_TableRowBg]        = ImVec4(0, 0, 0, 0);
+    imgui_colors[ImGuiCol_TableRowBgAlt]     = lin(colors.bg_tertiary, 0.5f);
 
     // Drag and drop — muted accent, not shouty
     imgui_colors[ImGuiCol_DragDropTarget] = lin(colors.accent, 0.7f);

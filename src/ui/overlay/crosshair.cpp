@@ -91,11 +91,11 @@ void Crosshair::draw(const CursorReadout& cursor,
     // Night theme glow pass: wider, low-alpha lines drawn behind the sharp crosshair
     if (colors.glow_intensity > 0.01f)
     {
-        ImU32 glow_color = ImGui::ColorConvertFloat4ToU32(
-            ImVec4(colors.accent_glow.r,
-                   colors.accent_glow.g,
-                   colors.accent_glow.b,
-                   colors.accent_glow.a * opacity_ * 0.2f));
+        ImU32 glow_color =
+            ImGui::ColorConvertFloat4ToU32(ImVec4(colors.accent_glow.r,
+                                                  colors.accent_glow.g,
+                                                  colors.accent_glow.b,
+                                                  colors.accent_glow.a * opacity_ * 0.2f));
         fg->AddLine(ImVec2(sx, vy0), ImVec2(sx, vy1), glow_color, 3.0f);
         fg->AddLine(ImVec2(vx0, sy), ImVec2(vx1, sy), glow_color, 3.0f);
     }

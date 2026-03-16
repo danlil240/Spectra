@@ -412,7 +412,6 @@ bool slider_field(const char* label, float& value, float min, float max, const c
                           ImVec4(c.accent_hover.r, c.accent_hover.g, c.accent_hover.b, 1.0f));
     ImGui::PushItemWidth(-1);
 
-
     bool changed = ImGui::SliderFloat("##slider", &value, min, max, fmt);
 
     update_widget_hover(wid, ImGui::IsItemHovered());

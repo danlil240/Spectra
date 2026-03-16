@@ -47,8 +47,8 @@ bool ImageExporter::write_png(const std::string& path,
 }
 
 std::vector<uint8_t> ImageExporter::write_png_to_memory(const uint8_t* rgba_data,
-                                                         uint32_t       width,
-                                                         uint32_t       height)
+                                                        uint32_t       width,
+                                                        uint32_t       height)
 {
     std::vector<uint8_t> result;
     if (!rgba_data || width == 0 || height == 0)
@@ -56,7 +56,7 @@ std::vector<uint8_t> ImageExporter::write_png_to_memory(const uint8_t* rgba_data
 
     auto write_cb = [](void* context, void* data, int size)
     {
-        auto* vec = static_cast<std::vector<uint8_t>*>(context);
+        auto* vec   = static_cast<std::vector<uint8_t>*>(context);
         auto* bytes = static_cast<const uint8_t*>(data);
         vec->insert(vec->end(), bytes, bytes + size);
     };

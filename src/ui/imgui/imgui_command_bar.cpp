@@ -157,11 +157,9 @@ void ImGuiIntegration::draw_menubar_menu(const char* label, const std::vector<Me
     const auto& colors = ui::theme();
 
     ImGui::PushFont(font_menubar_);
-    ImGui::PushStyleColor(ImGuiCol_Text,
-                          ImVec4(colors.text_primary.r,
-                                 colors.text_primary.g,
-                                 colors.text_primary.b,
-                                 0.85f));
+    ImGui::PushStyleColor(
+        ImGuiCol_Text,
+        ImVec4(colors.text_primary.r, colors.text_primary.g, colors.text_primary.b, 0.85f));
     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
     ImGui::PushStyleColor(
         ImGuiCol_ButtonHovered,
@@ -1054,8 +1052,8 @@ void ImGuiIntegration::draw_nav_rail()
         };
 
         // ── Toggle helper (for panel/feature toggles) ──
-        auto toggle_btn = [&](ui::Icon icon, const char* label, bool is_active,
-                              std::function<void()> on_click)
+        auto toggle_btn =
+            [&](ui::Icon icon, const char* label, bool is_active, std::function<void()> on_click)
         {
             if (icon_label_button(ui::icon_str(icon),
                                   label,
@@ -1083,33 +1081,36 @@ void ImGuiIntegration::draw_nav_rail()
         draw_separator();
 
         // ── Group 3: Data tools ──
-        toggle_btn(ui::Icon::MapPin, "Markers",
+        toggle_btn(ui::Icon::MapPin,
+                   "Markers",
                    data_interaction_ && !data_interaction_->markers().empty(),
                    [this]()
                    {
                        if (data_interaction_)
                            data_interaction_->clear_markers();
                    });
-        toggle_btn(ui::Icon::MagicWand, "Transform", custom_transform_dialog_.is_open(),
-                   [this]()
-                   {
-                       if (!custom_transform_dialog_.is_open())
-                       {
-                           custom_transform_dialog_.set_fonts(font_body_, font_heading_,
-                                                             font_title_);
-                           custom_transform_dialog_.open(current_figure_);
-                       }
-                   });
+        toggle_btn(
+            ui::Icon::MagicWand,
+            "Transform",
+            custom_transform_dialog_.is_open(),
+            [this]()
+            {
+                if (!custom_transform_dialog_.is_open())
+                {
+                    custom_transform_dialog_.set_fonts(font_body_, font_heading_, font_title_);
+                    custom_transform_dialog_.open(current_figure_);
+                }
+            });
 
         draw_separator();
 
         // ── Group 4: Panels ──
-        toggle_btn(ui::Icon::Database, "Data",
+        toggle_btn(ui::Icon::Database,
+                   "Data",
                    panel_open_ && active_section_ == Section::DataEditor,
                    [this]()
                    {
-                       bool was_active =
-                           panel_open_ && active_section_ == Section::DataEditor;
+                       bool was_active = panel_open_ && active_section_ == Section::DataEditor;
                        if (was_active)
                        {
                            panel_open_ = false;
@@ -1122,19 +1123,25 @@ void ImGuiIntegration::draw_nav_rail()
                            layout_manager_->set_inspector_visible(true);
                        }
                    });
-        toggle_btn(ui::Icon::Timeline, "Timeline", show_timeline_,
+        toggle_btn(ui::Icon::Timeline,
+                   "Timeline",
+                   show_timeline_,
                    [this]() { show_timeline_ = !show_timeline_; });
 
         draw_separator();
 
         // ── Group 5: Utilities ──
-        toggle_btn(ui::Icon::Code, "Python", false,
+        toggle_btn(ui::Icon::Code,
+                   "Python",
+                   false,
                    [this]()
                    {
                        if (command_registry_)
                            command_registry_->execute("python.toggle_console");
                    });
-        toggle_btn(ui::Icon::Help, "Help", false,
+        toggle_btn(ui::Icon::Help,
+                   "Help",
+                   false,
                    [this]()
                    {
                        if (command_registry_)

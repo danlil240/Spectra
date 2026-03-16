@@ -349,11 +349,11 @@ class InputHandler
     // Scroll zoom smoothing state — target limits that the view interpolates toward
     struct ScrollZoomState
     {
-        Axes*  axes       = nullptr;
+        Axes*  axes        = nullptr;
         double target_xmin = 0, target_xmax = 0;
         double target_ymin = 0, target_ymax = 0;
         float  anchor_data_x = 0, anchor_data_y = 0;
-        bool   active     = false;
+        bool   active = false;
     };
     ScrollZoomState scroll_zoom_;
 

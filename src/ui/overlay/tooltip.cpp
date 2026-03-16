@@ -92,11 +92,8 @@ void Tooltip::draw(const NearestPointResult& nearest, float window_width, float 
                              : ImVec2(0.0f, 0.0f);
 
     int   row_count = 3 + (show_dydx ? 1 : 0);   // name + X + Y + optional dy/dx
-    float content_w = std::max({name_size.x + swatch_size + 6.0f,
-                                x_line_size.x,
-                                y_line_size.x,
-                                dydx_size.x,
-                                min_width});
+    float content_w = std::max(
+        {name_size.x + swatch_size + 6.0f, x_line_size.x, y_line_size.x, dydx_size.x, min_width});
     float tooltip_w = content_w + padding * 2.0f;
     float tooltip_h = padding * 2.0f + row_height * static_cast<float>(row_count);
 
@@ -134,9 +131,11 @@ void Tooltip::draw(const NearestPointResult& nearest, float window_width, float 
         // Night theme: subtle accent glow halo around tooltip (Vision.png glass effect)
         if (colors.glow_intensity > 0.01f)
         {
-            ImU32 glow_col = ImGui::ColorConvertFloat4ToU32(
-                ImVec4(series_color.r, series_color.g, series_color.b,
-                       0.08f * opacity_ * colors.glow_intensity));
+            ImU32 glow_col =
+                ImGui::ColorConvertFloat4ToU32(ImVec4(series_color.r,
+                                                      series_color.g,
+                                                      series_color.b,
+                                                      0.08f * opacity_ * colors.glow_intensity));
             fg->AddRect(ImVec2(tx - 2.0f, ty - 2.0f),
                         ImVec2(tx + tooltip_w + 2.0f, ty + tooltip_h + 2.0f),
                         glow_col,
@@ -228,20 +227,20 @@ void Tooltip::draw(const NearestPointResult& nearest, float window_width, float 
     // Draw triangular arrow pointer toward data point
     if (nearest.found && nearest.distance_px <= snap_radius_px_)
     {
-        ImDrawList* fg = ImGui::GetForegroundDrawList();
-        ImU32       arrow_col =
-            ImGui::ColorConvertFloat4ToU32(ImVec4(colors.tooltip_bg.r,
-                                                   colors.tooltip_bg.g,
-                                                   colors.tooltip_bg.b,
-                                                   colors.tooltip_bg.a * opacity_));
+        ImDrawList*     fg         = ImGui::GetForegroundDrawList();
+        ImU32           arrow_col  = ImGui::ColorConvertFloat4ToU32(ImVec4(colors.tooltip_bg.r,
+                                                                colors.tooltip_bg.g,
+                                                                colors.tooltip_bg.b,
+                                                                colors.tooltip_bg.a * opacity_));
         constexpr float arrow_size = 6.0f;
 
         // Determine which edge the arrow should appear on
         bool tooltip_above = (ty + tooltip_h < nearest.screen_y);
         bool tooltip_below = (ty > nearest.screen_y);
 
-        float arrow_x =
-            std::clamp(nearest.screen_x, tx + arrow_size + 4.0f, tx + tooltip_w - arrow_size - 4.0f);
+        float arrow_x = std::clamp(nearest.screen_x,
+                                   tx + arrow_size + 4.0f,
+                                   tx + tooltip_w - arrow_size - 4.0f);
 
         if (tooltip_above)
         {

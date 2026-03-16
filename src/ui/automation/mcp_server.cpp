@@ -32,7 +32,10 @@ namespace
 {
 constexpr const char* kProtocolVersion = "2025-06-18";
 constexpr const char* kServerName      = "spectra-automation";
-constexpr const char* kInstructions    = "Control a running Spectra application. Use these tools to interact with Spectra's UI: execute commands, simulate mouse and keyboard input, create figures, manage series data, and capture screenshots.";
+constexpr const char* kInstructions =
+    "Control a running Spectra application. Use these tools to interact with Spectra's UI: execute "
+    "commands, simulate mouse and keyboard input, create figures, manage series data, and capture "
+    "screenshots.";
 
 struct ToolSpec
 {
@@ -43,28 +46,95 @@ struct ToolSpec
 };
 
 constexpr std::array<ToolSpec, 22> kTools = {{
-    {"ping", "Ping the Spectra application to verify the connection is alive.", R"json({"type":"object","properties":{},"additionalProperties":false})json", "ping"},
-    {"get_state", "Get the current state of the Spectra application.", R"json({"type":"object","properties":{},"additionalProperties":false})json", "get_state"},
-    {"list_commands", "List all registered UI commands in the Spectra application.", R"json({"type":"object","properties":{},"additionalProperties":false})json", "list_commands"},
-    {"execute_command", "Execute a registered Spectra UI command by its ID.", R"json({"type":"object","properties":{"command_id":{"type":"string","description":"The command ID to execute."}},"required":["command_id"],"additionalProperties":false})json", "execute_command"},
-    {"mouse_move", "Move the mouse cursor to the specified position.", R"json({"type":"object","properties":{"x":{"type":"number"},"y":{"type":"number"}},"required":["x","y"],"additionalProperties":false})json", "mouse_move"},
-    {"mouse_click", "Click at the specified position.", R"json({"type":"object","properties":{"x":{"type":"number"},"y":{"type":"number"},"button":{"type":"integer","default":0},"modifiers":{"type":"integer","default":0}},"required":["x","y"],"additionalProperties":false})json", "mouse_click"},
-    {"mouse_drag", "Drag the mouse from one position to another.", R"json({"type":"object","properties":{"x1":{"type":"number"},"y1":{"type":"number"},"x2":{"type":"number"},"y2":{"type":"number"},"button":{"type":"integer","default":0},"modifiers":{"type":"integer","default":0},"steps":{"type":"integer","default":10}},"required":["x1","y1","x2","y2"],"additionalProperties":false})json", "mouse_drag"},
-    {"scroll", "Scroll at the specified position.", R"json({"type":"object","properties":{"x":{"type":"number"},"y":{"type":"number"},"dx":{"type":"number","default":0.0},"dy":{"type":"number","default":1.0}},"required":["x","y"],"additionalProperties":false})json", "scroll"},
-    {"key_press", "Press and release a keyboard key.", R"json({"type":"object","properties":{"key":{"type":"integer"},"modifiers":{"type":"integer","default":0}},"required":["key"],"additionalProperties":false})json", "key_press"},
-    {"create_figure", "Create a new figure in Spectra.", R"json({"type":"object","properties":{"width":{"type":"integer","default":1280},"height":{"type":"integer","default":720}},"additionalProperties":false})json", "create_figure"},
-    {"switch_figure", "Switch to a specific figure by its ID.", R"json({"type":"object","properties":{"figure_id":{"type":"integer"}},"required":["figure_id"],"additionalProperties":false})json", "switch_figure"},
-    {"add_series", "Add a data series to a figure.", R"json({"type":"object","properties":{"figure_id":{"type":"integer"},"series_type":{"type":"string","default":"line"},"n_points":{"type":"integer","default":100},"label":{"type":"string","default":""}},"required":["figure_id"],"additionalProperties":false})json", "add_series"},
-    {"pump_frames", "Advance the application by rendering the specified number of frames.", R"json({"type":"object","properties":{"count":{"type":"integer","default":1}},"additionalProperties":false})json", "pump_frames"},
-    {"capture_screenshot", "Capture a screenshot of the current active figure.", R"json({"type":"object","properties":{"path":{"type":"string","default":"/tmp/spectra_auto_screenshot.png"}},"additionalProperties":false})json", "capture_screenshot"},
-    {"capture_window", "Capture a full-window screenshot including UI chrome.", R"json({"type":"object","properties":{"path":{"type":"string","default":"/tmp/spectra_auto_window.png"}},"additionalProperties":false})json", "capture_window"},
-    {"resize_window", "Resize the active Spectra window.", R"json({"type":"object","properties":{"width":{"type":"integer"},"height":{"type":"integer"}},"required":["width","height"],"additionalProperties":false})json", "resize_window"},
-    {"get_screenshot_base64", "Capture a full-window screenshot and return it as base64-encoded PNG data inline.", R"json({"type":"object","properties":{},"additionalProperties":false})json", "get_screenshot_base64"},
-    {"wait_frames", "Wait for N frames to be rendered before responding. Blocks the MCP call until the frames have actually elapsed.", R"json({"type":"object","properties":{"count":{"type":"integer","default":1,"description":"Number of frames to wait (1-600)."}},"additionalProperties":false})json", "wait_frames"},
-    {"text_input", "Type text characters into the currently focused UI widget (e.g. text field, rename dialog).", R"json({"type":"object","properties":{"text":{"type":"string","description":"The text string to type."}},"required":["text"],"additionalProperties":false})json", "text_input"},
-    {"double_click", "Double-click at the specified position.", R"json({"type":"object","properties":{"x":{"type":"number"},"y":{"type":"number"},"button":{"type":"integer","default":0},"modifiers":{"type":"integer","default":0}},"required":["x","y"],"additionalProperties":false})json", "double_click"},
-    {"get_figure_info", "Get detailed information about a specific figure including axes, series, and limits.", R"json({"type":"object","properties":{"figure_id":{"type":"integer","description":"The figure ID to query."}},"required":["figure_id"],"additionalProperties":false})json", "get_figure_info"},
-    {"get_window_size", "Get the current window dimensions in pixels.", R"json({"type":"object","properties":{},"additionalProperties":false})json", "get_window_size"},
+    {"ping",
+     "Ping the Spectra application to verify the connection is alive.",
+     R"json({"type":"object","properties":{},"additionalProperties":false})json",
+     "ping"},
+    {"get_state",
+     "Get the current state of the Spectra application.",
+     R"json({"type":"object","properties":{},"additionalProperties":false})json",
+     "get_state"},
+    {"list_commands",
+     "List all registered UI commands in the Spectra application.",
+     R"json({"type":"object","properties":{},"additionalProperties":false})json",
+     "list_commands"},
+    {"execute_command",
+     "Execute a registered Spectra UI command by its ID.",
+     R"json({"type":"object","properties":{"command_id":{"type":"string","description":"The command ID to execute."}},"required":["command_id"],"additionalProperties":false})json",
+     "execute_command"},
+    {"mouse_move",
+     "Move the mouse cursor to the specified position.",
+     R"json({"type":"object","properties":{"x":{"type":"number"},"y":{"type":"number"}},"required":["x","y"],"additionalProperties":false})json",
+     "mouse_move"},
+    {"mouse_click",
+     "Click at the specified position.",
+     R"json({"type":"object","properties":{"x":{"type":"number"},"y":{"type":"number"},"button":{"type":"integer","default":0},"modifiers":{"type":"integer","default":0}},"required":["x","y"],"additionalProperties":false})json",
+     "mouse_click"},
+    {"mouse_drag",
+     "Drag the mouse from one position to another.",
+     R"json({"type":"object","properties":{"x1":{"type":"number"},"y1":{"type":"number"},"x2":{"type":"number"},"y2":{"type":"number"},"button":{"type":"integer","default":0},"modifiers":{"type":"integer","default":0},"steps":{"type":"integer","default":10}},"required":["x1","y1","x2","y2"],"additionalProperties":false})json",
+     "mouse_drag"},
+    {"scroll",
+     "Scroll at the specified position.",
+     R"json({"type":"object","properties":{"x":{"type":"number"},"y":{"type":"number"},"dx":{"type":"number","default":0.0},"dy":{"type":"number","default":1.0}},"required":["x","y"],"additionalProperties":false})json",
+     "scroll"},
+    {"key_press",
+     "Press and release a keyboard key.",
+     R"json({"type":"object","properties":{"key":{"type":"integer"},"modifiers":{"type":"integer","default":0}},"required":["key"],"additionalProperties":false})json",
+     "key_press"},
+    {"create_figure",
+     "Create a new figure in Spectra.",
+     R"json({"type":"object","properties":{"width":{"type":"integer","default":1280},"height":{"type":"integer","default":720}},"additionalProperties":false})json",
+     "create_figure"},
+    {"switch_figure",
+     "Switch to a specific figure by its ID.",
+     R"json({"type":"object","properties":{"figure_id":{"type":"integer"}},"required":["figure_id"],"additionalProperties":false})json",
+     "switch_figure"},
+    {"add_series",
+     "Add a data series to a figure.",
+     R"json({"type":"object","properties":{"figure_id":{"type":"integer"},"series_type":{"type":"string","default":"line"},"n_points":{"type":"integer","default":100},"label":{"type":"string","default":""}},"required":["figure_id"],"additionalProperties":false})json",
+     "add_series"},
+    {"pump_frames",
+     "Advance the application by rendering the specified number of frames.",
+     R"json({"type":"object","properties":{"count":{"type":"integer","default":1}},"additionalProperties":false})json",
+     "pump_frames"},
+    {"capture_screenshot",
+     "Capture a screenshot of the current active figure.",
+     R"json({"type":"object","properties":{"path":{"type":"string","default":"/tmp/spectra_auto_screenshot.png"}},"additionalProperties":false})json",
+     "capture_screenshot"},
+    {"capture_window",
+     "Capture a full-window screenshot including UI chrome.",
+     R"json({"type":"object","properties":{"path":{"type":"string","default":"/tmp/spectra_auto_window.png"}},"additionalProperties":false})json",
+     "capture_window"},
+    {"resize_window",
+     "Resize the active Spectra window.",
+     R"json({"type":"object","properties":{"width":{"type":"integer"},"height":{"type":"integer"}},"required":["width","height"],"additionalProperties":false})json",
+     "resize_window"},
+    {"get_screenshot_base64",
+     "Capture a full-window screenshot and return it as base64-encoded PNG data inline.",
+     R"json({"type":"object","properties":{},"additionalProperties":false})json",
+     "get_screenshot_base64"},
+    {"wait_frames",
+     "Wait for N frames to be rendered before responding. Blocks the MCP call until the frames "
+     "have actually elapsed.",
+     R"json({"type":"object","properties":{"count":{"type":"integer","default":1,"description":"Number of frames to wait (1-600)."}},"additionalProperties":false})json",
+     "wait_frames"},
+    {"text_input",
+     "Type text characters into the currently focused UI widget (e.g. text field, rename dialog).",
+     R"json({"type":"object","properties":{"text":{"type":"string","description":"The text string to type."}},"required":["text"],"additionalProperties":false})json",
+     "text_input"},
+    {"double_click",
+     "Double-click at the specified position.",
+     R"json({"type":"object","properties":{"x":{"type":"number"},"y":{"type":"number"},"button":{"type":"integer","default":0},"modifiers":{"type":"integer","default":0}},"required":["x","y"],"additionalProperties":false})json",
+     "double_click"},
+    {"get_figure_info",
+     "Get detailed information about a specific figure including axes, series, and limits.",
+     R"json({"type":"object","properties":{"figure_id":{"type":"integer","description":"The figure ID to query."}},"required":["figure_id"],"additionalProperties":false})json",
+     "get_figure_info"},
+    {"get_window_size",
+     "Get the current window dimensions in pixels.",
+     R"json({"type":"object","properties":{},"additionalProperties":false})json",
+     "get_window_size"},
 }};
 
 std::string json_escape(const std::string& s)
@@ -75,12 +145,24 @@ std::string json_escape(const std::string& s)
     {
         switch (c)
         {
-            case '"': out += "\\\""; break;
-            case '\\': out += "\\\\"; break;
-            case '\n': out += "\\n"; break;
-            case '\r': out += "\\r"; break;
-            case '\t': out += "\\t"; break;
-            default: out += c; break;
+            case '"':
+                out += "\\\"";
+                break;
+            case '\\':
+                out += "\\\\";
+                break;
+            case '\n':
+                out += "\\n";
+                break;
+            case '\r':
+                out += "\\r";
+                break;
+            case '\t':
+                out += "\\t";
+                break;
+            default:
+                out += c;
+                break;
         }
     }
     return out;
@@ -171,7 +253,7 @@ std::string json_extract_raw(const std::string& json, const std::string& key)
     pos = json.find(':', pos + quoted_key.size());
     if (pos == std::string::npos)
         return "";
-    pos = skip_ws(json, pos + 1);
+    pos              = skip_ws(json, pos + 1);
     const size_t end = parse_json_value_end(json, pos);
     if (end <= pos)
         return "";
@@ -193,12 +275,24 @@ std::string json_unquote(const std::string& raw)
             const char esc = raw[++i];
             switch (esc)
             {
-                case 'n': out += '\n'; break;
-                case 'r': out += '\r'; break;
-                case 't': out += '\t'; break;
-                case '"': out += '"'; break;
-                case '\\': out += '\\'; break;
-                default: out += esc; break;
+                case 'n':
+                    out += '\n';
+                    break;
+                case 'r':
+                    out += '\r';
+                    break;
+                case 't':
+                    out += '\t';
+                    break;
+                case '"':
+                    out += '"';
+                    break;
+                case '\\':
+                    out += '\\';
+                    break;
+                default:
+                    out += esc;
+                    break;
             }
         }
         else
@@ -239,17 +333,26 @@ std::string http_status_text(int status)
 {
     switch (status)
     {
-        case 200: return "OK";
-        case 202: return "Accepted";
-        case 400: return "Bad Request";
-        case 404: return "Not Found";
-        case 405: return "Method Not Allowed";
-        case 500: return "Internal Server Error";
-        default: return "OK";
+        case 200:
+            return "OK";
+        case 202:
+            return "Accepted";
+        case 400:
+            return "Bad Request";
+        case 404:
+            return "Not Found";
+        case 405:
+            return "Method Not Allowed";
+        case 500:
+            return "Internal Server Error";
+        default:
+            return "OK";
     }
 }
 
-std::string make_http_response(int status, const std::string& body, const std::string& content_type = "application/json")
+std::string make_http_response(int                status,
+                               const std::string& body,
+                               const std::string& content_type = "application/json")
 {
     std::ostringstream oss;
     oss << "HTTP/1.1 " << status << ' ' << http_status_text(status) << "\r\n";
@@ -264,14 +367,16 @@ std::string make_http_response(int status, const std::string& body, const std::s
 std::string extract_header_value(const std::string& headers, const std::string& key)
 {
     std::string lower_headers = headers;
-    std::transform(lower_headers.begin(), lower_headers.end(), lower_headers.begin(), [](unsigned char c) {
-        return static_cast<char>(std::tolower(c));
-    });
+    std::transform(lower_headers.begin(),
+                   lower_headers.end(),
+                   lower_headers.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
     std::string lower_key = key;
-    std::transform(lower_key.begin(), lower_key.end(), lower_key.begin(), [](unsigned char c) {
-        return static_cast<char>(std::tolower(c));
-    });
+    std::transform(lower_key.begin(),
+                   lower_key.end(),
+                   lower_key.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
     const std::string needle = lower_key + ":";
     size_t            pos    = lower_headers.find(needle);
@@ -279,8 +384,7 @@ std::string extract_header_value(const std::string& headers, const std::string& 
         return "";
 
     size_t value_pos = pos + needle.size();
-    while (value_pos < headers.size()
-           && (headers[value_pos] == ' ' || headers[value_pos] == '\t'))
+    while (value_pos < headers.size() && (headers[value_pos] == ' ' || headers[value_pos] == '\t'))
     {
         ++value_pos;
     }
@@ -314,7 +418,8 @@ const ToolSpec* find_tool(const std::string& name)
     return nullptr;
 }
 
-std::string remap_arguments_for_tool(const std::string& tool_name, const std::string& arguments_json)
+std::string remap_arguments_for_tool(const std::string& tool_name,
+                                     const std::string& arguments_json)
 {
     if (tool_name != "add_series")
         return arguments_json.empty() ? "{}" : arguments_json;
@@ -326,8 +431,9 @@ std::string remap_arguments_for_tool(const std::string& tool_name, const std::st
 
     std::ostringstream oss;
     oss << '{';
-    bool first = true;
-    auto append = [&](const char* key, const std::string& value) {
+    bool first  = true;
+    auto append = [&](const char* key, const std::string& value)
+    {
         if (value.empty())
             return;
         if (!first)
@@ -353,8 +459,8 @@ std::string build_tools_list_result()
         if (i > 0)
             oss << ',';
         oss << "{\"name\":\"" << json_escape(kTools[i].name) << "\",\"description\":\""
-            << json_escape(kTools[i].description) << "\",\"inputSchema\":"
-            << kTools[i].input_schema << '}';
+            << json_escape(kTools[i].description) << "\",\"inputSchema\":" << kTools[i].input_schema
+            << '}';
     }
     oss << "]}";
     return oss.str();
@@ -428,7 +534,7 @@ bool McpServer::start(AutomationServer& automation, const std::string& bind_host
     {
         SPECTRA_LOG_ERROR("mcp", "Invalid bind address: " + bind_host_);
         ::close(listen_fd_);
-        listen_fd_ = -1;
+        listen_fd_  = -1;
         automation_ = nullptr;
         return false;
     }
@@ -437,7 +543,7 @@ bool McpServer::start(AutomationServer& automation, const std::string& bind_host
     {
         SPECTRA_LOG_ERROR("mcp", "bind(): " + std::string(std::strerror(errno)));
         ::close(listen_fd_);
-        listen_fd_ = -1;
+        listen_fd_  = -1;
         automation_ = nullptr;
         return false;
     }
@@ -446,7 +552,7 @@ bool McpServer::start(AutomationServer& automation, const std::string& bind_host
     {
         SPECTRA_LOG_ERROR("mcp", "listen(): " + std::string(std::strerror(errno)));
         ::close(listen_fd_);
-        listen_fd_ = -1;
+        listen_fd_  = -1;
         automation_ = nullptr;
         return false;
     }
@@ -507,8 +613,8 @@ void McpServer::listener_thread_fn()
         struct pollfd pfd
         {
         };
-        pfd.fd     = listen_fd_;
-        pfd.events = POLLIN;
+        pfd.fd        = listen_fd_;
+        pfd.events    = POLLIN;
         const int ret = ::poll(&pfd, 1, 200);
         if (ret <= 0 || (pfd.revents & POLLIN) == 0)
             continue;
@@ -517,7 +623,8 @@ void McpServer::listener_thread_fn()
         {
         };
         socklen_t client_len = sizeof(client_addr);
-        int cfd = ::accept(listen_fd_, reinterpret_cast<struct sockaddr*>(&client_addr), &client_len);
+        int       cfd =
+            ::accept(listen_fd_, reinterpret_cast<struct sockaddr*>(&client_addr), &client_len);
         if (cfd < 0)
             continue;
 
@@ -552,11 +659,13 @@ void McpServer::handle_client(int client_fd)
             if (header_end == std::string::npos)
                 continue;
 
-            const std::string headers = request.substr(0, header_end + 4);
+            const std::string headers               = request.substr(0, header_end + 4);
             const auto        parsed_content_length = parse_content_length(headers);
             if (!parsed_content_length.has_value())
             {
-                response = make_http_response(400, jsonrpc_error("null", -32700, "Missing Content-Length"));
+                response =
+                    make_http_response(400,
+                                       jsonrpc_error("null", -32700, "Missing Content-Length"));
                 break;
             }
             content_length = *parsed_content_length;
@@ -570,11 +679,12 @@ void McpServer::handle_client(int client_fd)
             size_t line_end = headers.find("\r\n");
             if (line_end == std::string::npos)
             {
-                response = make_http_response(400, jsonrpc_error("null", -32700, "Invalid HTTP request"));
+                response =
+                    make_http_response(400, jsonrpc_error("null", -32700, "Invalid HTTP request"));
                 break;
             }
 
-            const std::string request_line = headers.substr(0, line_end);
+            const std::string  request_line = headers.substr(0, line_end);
             std::istringstream iss(request_line);
             std::string        method;
             std::string        path;
@@ -583,20 +693,25 @@ void McpServer::handle_client(int client_fd)
 
             if (method == "GET")
             {
-                const std::string health = "{\"name\":\"spectra-automation\",\"status\":\"ok\",\"endpoint\":\"" + json_escape(endpoint()) + "\"}";
+                const std::string health =
+                    "{\"name\":\"spectra-automation\",\"status\":\"ok\",\"endpoint\":\""
+                    + json_escape(endpoint()) + "\"}";
                 response = make_http_response(200, health);
                 break;
             }
 
             if (method != "POST")
             {
-                response = make_http_response(405, jsonrpc_error("null", -32600, "Unsupported HTTP method"));
+                response =
+                    make_http_response(405,
+                                       jsonrpc_error("null", -32600, "Unsupported HTTP method"));
                 break;
             }
 
             if (path != "/mcp" && path != "/")
             {
-                response = make_http_response(404, jsonrpc_error("null", -32601, "Unknown endpoint"));
+                response =
+                    make_http_response(404, jsonrpc_error("null", -32601, "Unknown endpoint"));
                 break;
             }
 
@@ -611,9 +726,12 @@ void McpServer::handle_client(int client_fd)
 
             if (rpc_method == "initialize")
             {
-                const std::string params_json       = json_extract_object(body, "params");
-                const std::string protocol_version  = json_extract_string(params_json, "protocolVersion");
-                response = make_http_response(200, jsonrpc_result(id_raw, build_initialize_result(protocol_version)));
+                const std::string params_json = json_extract_object(body, "params");
+                const std::string protocol_version =
+                    json_extract_string(params_json, "protocolVersion");
+                response = make_http_response(
+                    200,
+                    jsonrpc_result(id_raw, build_initialize_result(protocol_version)));
                 break;
             }
 
@@ -625,42 +743,60 @@ void McpServer::handle_client(int client_fd)
 
             if (rpc_method == "tools/list")
             {
-                response = make_http_response(200, jsonrpc_result(id_raw, build_tools_list_result()));
+                response =
+                    make_http_response(200, jsonrpc_result(id_raw, build_tools_list_result()));
                 break;
             }
 
             if (rpc_method == "tools/call")
             {
-                const std::string params_json     = json_extract_object(body, "params");
-                const std::string tool_name       = json_extract_string(params_json, "name");
-                const ToolSpec*   tool            = find_tool(tool_name);
-                const std::string arguments_json  = json_extract_raw(params_json, "arguments");
+                const std::string params_json    = json_extract_object(body, "params");
+                const std::string tool_name      = json_extract_string(params_json, "name");
+                const ToolSpec*   tool           = find_tool(tool_name);
+                const std::string arguments_json = json_extract_raw(params_json, "arguments");
 
                 if (!tool)
                 {
-                    response = make_http_response(200, jsonrpc_result(id_raw, build_call_error_result("Unknown tool: " + tool_name)));
+                    response = make_http_response(
+                        200,
+                        jsonrpc_result(id_raw,
+                                       build_call_error_result("Unknown tool: " + tool_name)));
                     break;
                 }
 
                 if (!automation_ || !automation_->is_running())
                 {
-                    response = make_http_response(200, jsonrpc_result(id_raw, build_call_error_result("Spectra automation server is not running")));
+                    response = make_http_response(
+                        200,
+                        jsonrpc_result(
+                            id_raw,
+                            build_call_error_result("Spectra automation server is not running")));
                     break;
                 }
 
-                const std::string normalized_arguments = remap_arguments_for_tool(tool_name, arguments_json);
-                const std::string automation_response = automation_->invoke(tool->automation_method, normalized_arguments);
-                const std::string ok_raw              = json_extract_raw(automation_response, "ok");
+                const std::string normalized_arguments =
+                    remap_arguments_for_tool(tool_name, arguments_json);
+                const std::string automation_response =
+                    automation_->invoke(tool->automation_method, normalized_arguments);
+                const std::string ok_raw = json_extract_raw(automation_response, "ok");
 
                 if (ok_raw == "true")
                 {
                     const std::string result_json = json_extract_raw(automation_response, "result");
-                    response = make_http_response(200, jsonrpc_result(id_raw, build_call_result(result_json.empty() ? "{}" : result_json)));
+                    response                      = make_http_response(
+                        200,
+                        jsonrpc_result(
+                            id_raw,
+                            build_call_result(result_json.empty() ? "{}" : result_json)));
                     break;
                 }
 
                 const std::string error_text = json_extract_string(automation_response, "error");
-                response = make_http_response(200, jsonrpc_result(id_raw, build_call_error_result(error_text.empty() ? "Unknown Spectra error" : error_text)));
+                response                     = make_http_response(
+                    200,
+                    jsonrpc_result(id_raw,
+                                   build_call_error_result(
+                                       error_text.empty() ? "Unknown Spectra error" : error_text)));
                 break;
             }
 
@@ -670,7 +806,8 @@ void McpServer::handle_client(int client_fd)
     }
 
     if (response.empty())
-        response = make_http_response(400, jsonrpc_error("null", -32700, "Failed to parse request"));
+        response =
+            make_http_response(400, jsonrpc_error("null", -32700, "Failed to parse request"));
 
     size_t total = 0;
     while (total < response.size())
@@ -684,7 +821,8 @@ void McpServer::handle_client(int client_fd)
     ::close(client_fd);
     {
         std::lock_guard lock(clients_mutex_);
-        client_fds_.erase(std::remove(client_fds_.begin(), client_fds_.end(), client_fd), client_fds_.end());
+        client_fds_.erase(std::remove(client_fds_.begin(), client_fds_.end(), client_fd),
+                          client_fds_.end());
     }
 #else
     (void)client_fd;

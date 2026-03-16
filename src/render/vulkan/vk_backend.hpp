@@ -66,9 +66,9 @@ class VulkanBackend : public Backend
     void          destroy_texture(TextureHandle handle) override;
 
     // Expose Vulkan handles for a texture (used by ImGui texture registration)
-    bool texture_vulkan_handles(TextureHandle   handle,
-                                VkSampler*      out_sampler,
-                                VkImageView*    out_view) const;
+    bool texture_vulkan_handles(TextureHandle handle,
+                                VkSampler*    out_sampler,
+                                VkImageView*  out_view) const;
 
     bool begin_frame(FrameProfiler* profiler = nullptr) override;
     void end_frame(FrameProfiler* profiler = nullptr) override;

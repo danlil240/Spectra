@@ -99,8 +99,7 @@ bool looks_like_datetime_candidate(std::string_view s)
     {
         const char c = s[i];
         if (c == '-' || c == '/' || c == '.' || c == 'T' || c == 't' || c == '_' || c == 'Z'
-            || c == 'z'
-            || c == ' ' || c == ':' || c == '+' || c == ',')
+            || c == 'z' || c == ' ' || c == ':' || c == '+' || c == ',')
         {
             return true;
         }
@@ -291,10 +290,10 @@ bool try_parse_datetime(const std::string& s, double& out)
 
     const std::string_view view(trimmed);
 
-    int year_value  = 0;
-    int month_value = 0;
-    int day_value   = 0;
-    size_t pos = 0;
+    int    year_value  = 0;
+    int    month_value = 0;
+    int    day_value   = 0;
+    size_t pos         = 0;
     if (!parse_date_part(view, pos, year_value, month_value, day_value))
         return false;
 
@@ -319,12 +318,15 @@ bool try_parse_datetime(const std::string& s, double& out)
         if (pos >= view.size())
             return false;
 
-        if (!parse_time_part(
-                view, pos, hour_value, minute_value, second_value, fractional_second))
+        if (!parse_time_part(view, pos, hour_value, minute_value, second_value, fractional_second))
             return false;
 
-        if (!parse_timezone_part(
-                view, pos, has_timezone, timezone_sign, timezone_hours, timezone_minutes))
+        if (!parse_timezone_part(view,
+                                 pos,
+                                 has_timezone,
+                                 timezone_sign,
+                                 timezone_hours,
+                                 timezone_minutes))
             return false;
 
         skip_spaces(view, pos);
@@ -483,9 +485,9 @@ CsvData parse_csv(const std::string& path)
             float val = 0.0f;
             if (c < fields.size())
             {
-                const std::string trimmed_field = trim_copy(fields[c]);
+                const std::string trimmed_field  = trim_copy(fields[c]);
                 double            datetime_value = 0.0;
-                const bool has_datetime_shape =
+                const bool        has_datetime_shape =
                     looks_like_datetime_candidate(std::string_view(trimmed_field));
 
                 if (has_datetime_shape && try_parse_datetime(trimmed_field, datetime_value))

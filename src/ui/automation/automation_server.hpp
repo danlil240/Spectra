@@ -26,12 +26,12 @@ struct WindowUIContext;
 struct AutomationRequest
 {
     uint64_t    id = 0;
-    std::string method;                       // e.g. "execute_command", "mouse_move"
-    std::string params_json;                  // raw JSON object string for parameters
-    int         client_fd     = -1;           // fd to send response to
-    bool        responded     = false;
-    std::string response_json;                // filled by main thread after execution
-    int         wait_frames   = 0;            // >0 means defer response until N frames elapse
+    std::string method;           // e.g. "execute_command", "mouse_move"
+    std::string params_json;      // raw JSON object string for parameters
+    int         client_fd = -1;   // fd to send response to
+    bool        responded = false;
+    std::string response_json;     // filled by main thread after execution
+    int         wait_frames = 0;   // >0 means defer response until N frames elapse
 };
 
 class AutomationServer
@@ -54,9 +54,9 @@ class AutomationServer
     // Drains pending requests, executes them, sends responses.
     void poll(App& app, WindowUIContext* ui_ctx);
 
-    std::string invoke(const std::string&              method,
-                       const std::string&              params_json = "{}",
-                       std::chrono::milliseconds       timeout     = std::chrono::seconds(30));
+    std::string invoke(const std::string&        method,
+                       const std::string&        params_json = "{}",
+                       std::chrono::milliseconds timeout     = std::chrono::seconds(30));
 
     // Returns the socket path being listened on.
     const std::string& socket_path() const { return socket_path_; }
@@ -85,18 +85,18 @@ class AutomationServer
     static std::string json_ok(uint64_t id, const std::string& result_json = "{}");
     static std::string json_error(uint64_t id, const std::string& message);
 
-    std::string      socket_path_;
-    int              listen_fd_ = -1;
+    std::string       socket_path_;
+    int               listen_fd_ = -1;
     std::atomic<bool> running_{false};
     std::thread       listener_thread_;
 
     // Pending requests from listener thread → main thread
-    std::mutex                        pending_mutex_;
-    std::vector<AutomationRequest>    pending_;
+    std::mutex                     pending_mutex_;
+    std::vector<AutomationRequest> pending_;
 
     // Active client fds (for cleanup)
-    std::mutex         clients_mutex_;
-    std::vector<int>   client_fds_;
+    std::mutex       clients_mutex_;
+    std::vector<int> client_fds_;
 
     std::atomic<uint64_t> next_request_id_{1};
 };

@@ -781,24 +781,21 @@ int main(int argc, char* argv[])
                      renderer_ptr.get());
 
     // Set tab drag handlers BEFORE creating windows so all windows get them
-    window_mgr->set_tab_detach_handler(
-        [&session](spectra::FigureId  fid,
-                   uint32_t           w,
-                   uint32_t           h,
-                   const std::string& title,
-                   int                sx,
-                   int                sy) {
-            session.queue_detach({fid, w, h, title, sx, sy});
-        });
+    window_mgr->set_tab_detach_handler([&session](spectra::FigureId  fid,
+                                                  uint32_t           w,
+                                                  uint32_t           h,
+                                                  const std::string& title,
+                                                  int                sx,
+                                                  int                sy)
+                                       { session.queue_detach({fid, w, h, title, sx, sy}); });
     window_mgr->set_tab_move_handler(
         [&session](spectra::FigureId fid,
                    uint32_t          target_wid,
                    int               drop_zone,
                    float             local_x,
                    float             local_y,
-                   spectra::FigureId target_figure_id) {
-            session.queue_move({fid, target_wid, drop_zone, local_x, local_y, target_figure_id});
-        });
+                   spectra::FigureId target_figure_id)
+        { session.queue_move({fid, target_wid, drop_zone, local_x, local_y, target_figure_id}); });
 
     auto* initial_wctx = window_mgr->create_first_window_with_ui(glfw->native_window(), all_ids);
 

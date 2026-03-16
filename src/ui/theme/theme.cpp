@@ -960,9 +960,9 @@ void ThemeManager::initialize_default_themes()
         .info    = Color::from_hex(0x4D8FD6),
 
         // Plot-specific — grid recedes, data is hero
-        .grid_major       = Color(1.0f, 1.0f, 1.0f, 0.30f),
-        .grid_minor       = Color(1.0f, 1.0f, 1.0f, 0.20f),
-        .grid_line        = Color(1.0f, 1.0f, 1.0f, 0.30f),   // Compat
+        .grid_major       = Color(1.0f, 1.0f, 1.0f, 0.25f),
+        .grid_minor       = Color(1.0f, 1.0f, 1.0f, 0.12f),
+        .grid_line        = Color(1.0f, 1.0f, 1.0f, 0.25f),   // Compat
         .axis_line        = Color(0.55f, 0.55f, 0.55f, 0.50f),
         .tick_label       = Color::from_hex(0x8B95A2),
         .crosshair        = Color(0.30f, 0.56f, 0.84f, 0.70f),

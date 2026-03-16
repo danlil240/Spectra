@@ -641,9 +641,8 @@ void AutomationServer::execute(AutomationRequest& req, App& app, WindowUIContext
     {
         uint32_t w = static_cast<uint32_t>(json_get_int(params, "width", 1280));
         uint32_t h = static_cast<uint32_t>(json_get_int(params, "height", 720));
-        auto& fig = app.figure({w, h});
-        auto ids = app.figure_registry().all_ids();
-        FigureId new_id = ids.empty() ? 0 : ids.back();
+        Figure& new_fig = app.figure({w, h});
+        FigureId new_id = app.figure_registry().find_id(&new_fig);
         req.response_json = json_ok(req.id, "{\"figure_id\":" + std::to_string(new_id) + "}");
         return;
     }

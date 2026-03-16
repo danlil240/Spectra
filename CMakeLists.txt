@@ -222,9 +222,8 @@ if(SPECTRA_USE_GLFW)
         include(FetchContent)
         FetchContent_Declare(
             glfw
-            GIT_REPOSITORY https://github.com/glfw/glfw.git
-            GIT_TAG        3.4
-            GIT_SHALLOW    TRUE
+            URL        https://github.com/glfw/glfw/archive/refs/tags/3.4.tar.gz
+            URL_HASH   MD5=7470db601fcf36f0604d32b537281a70
         )
         set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
         set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
@@ -259,12 +258,8 @@ if(SPECTRA_USE_IMGUI AND SPECTRA_USE_GLFW)
     include(FetchContent)
     FetchContent_Declare(
         imgui
-        GIT_REPOSITORY https://github.com/ocornut/imgui.git
-        # GIT_SHALLOW TRUE is intentionally NOT set here: v1.91.8-docking is on
-        # a separate branch from v1.91.8. GIT_SHALLOW TRUE causes FetchContent
-        # to sometimes resolve the wrong tag (main branch tip instead of the
-        # docking branch). A full clone ensures the correct commit is checked out.
-        GIT_TAG        v1.91.8-docking
+        URL        https://github.com/ocornut/imgui/archive/refs/tags/v1.91.8-docking.tar.gz
+        URL_HASH   MD5=c51327f9bc94e1d2af6b7a8d7d4029ff
     )
     FetchContent_MakeAvailable(imgui)
 

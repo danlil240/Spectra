@@ -3,6 +3,8 @@
     "cmake.generator": "Unix Makefiles",
     "cmake.buildDirectory": "${workspaceFolder}/build",
     "cmake.configureArgs": [
+        "-DCMAKE_C_COMPILER:FILEPATH=/usr/bin/clang-18",
+        "-DCMAKE_CXX_COMPILER:FILEPATH=/usr/bin/clang++-18",
         "-DCMAKE_BUILD_TYPE=Debug",
         "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
         "-DSPECTRA_BUILD_EXAMPLES=ON",
@@ -10,7 +12,7 @@
         "-DSPECTRA_USE_QT=ON",
         "-DSPECTRA_HAS_QT6=ON",
         "-DSPECTRA_BUILD_QT_EXAMPLE=ON",
-        "-DSPECTRA_USE_ROS2=ON",
+        "-DSPECTRA_USE_ROS2=OFF",
         "-DSPECTRA_ROS2_BAG=ON",
         "-DSPECTRA_USE_FFMPEG=ON"
     ],

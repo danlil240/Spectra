@@ -30,30 +30,14 @@ function(embed_binary_file)
 
     file(READ "${EMB_INPUT}" _hex HEX)
     string(LENGTH "${_hex}" _hex_len)
-
-    # Build comma-separated hex bytes
-    set(_bytes "")
-    set(_i 0)
-    set(_col 0)
-    while(_i LESS _hex_len)
-        string(SUBSTRING "${_hex}" ${_i} 2 _byte)
-        math(EXPR _i "${_i} + 2")
-
-        if(_bytes)
-            string(APPEND _bytes ",")
-        endif()
-
-        # Line break every 16 bytes
-        if(_col EQUAL 16)
-            string(APPEND _bytes "\n    ")
-            set(_col 0)
-        endif()
-
-        string(APPEND _bytes "0x${_byte}")
-        math(EXPR _col "${_col} + 1")
-    endwhile()
-
     math(EXPR _size "${_hex_len} / 2")
+
+    # Single-pass regex: prefix each hex pair with 0x and append comma.
+    # This is O(n) vs the old byte-by-byte while loop which was O(n²)
+    # due to string(SUBSTRING) on the full hex string each iteration.
+    string(REGEX REPLACE "([0-9a-f][0-9a-f])" "0x\\1," _bytes "${_hex}")
+    # Remove trailing comma
+    string(REGEX REPLACE ",$" "" _bytes "${_bytes}")
 
     file(WRITE "${EMB_OUTPUT}"
         "#pragma once\n"

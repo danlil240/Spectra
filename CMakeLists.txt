@@ -273,6 +273,13 @@ if(SPECTRA_USE_IMGUI AND SPECTRA_USE_GLFW)
         ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
         ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
         src/ui/imgui/imgui_integration.cpp
+        src/ui/imgui/imgui_command_bar.cpp
+        src/ui/imgui/imgui_panels.cpp
+        src/ui/imgui/imgui_pane_tabs.cpp
+        src/ui/imgui/imgui_animation.cpp
+        src/ui/imgui/imgui_selection.cpp
+        src/ui/imgui/imgui_dialogs.cpp
+        src/ui/imgui/imgui_preview.cpp
     )
 
     # GCC 14 warns on an upstream ImGui backend memset pattern; keep -Werror for

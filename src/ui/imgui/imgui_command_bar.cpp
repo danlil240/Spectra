@@ -1,0 +1,1151 @@
+#ifdef SPECTRA_USE_IMGUI
+
+    #include "imgui_integration_internal.hpp"
+
+    #include "../../../third_party/tinyfiledialogs.h"
+
+namespace spectra
+{
+
+// ─── Icon sidebar ───────────────────────────────────────────────────────────
+
+// Helper: draw a clickable icon + label button for the Vision nav rail.
+// Matches Vision.png: icon centered above a tiny label, subtle pill bg on active,
+// very muted inactive state, generous vertical cell height.
+static bool icon_label_button(const char* icon_codepoint,
+                              const char* label,
+                              bool        active,
+                              ImFont*     icon_font,
+                              ImFont*     label_font,
+                              float       width)
+{
+    using namespace ui;
+
+    const auto& colors = theme();
+
+    // Vision.png metrics: tall cells, icon above label, centered
+    float icon_sz  = icon_font ? icon_font->FontSize : 20.0f;
+    float label_sz = label_font ? (label_font->FontSize * 0.92f) : 11.0f;   // ~11px label
+    float icon_gap = 3.0f;    // gap between icon and label
+    float cell_h   = 52.0f;   // generous cell height like Vision.png
+    float pill_pad = 6.0f;    // horizontal inset for the highlight pill
+    float pill_w   = width - pill_pad * 2.0f;
+
+    // Full-width invisible button for hit testing
+    ImVec2 cursor = ImGui::GetCursorScreenPos();
+    ImGui::PushID(label);
+    ImGui::InvisibleButton("##btn", ImVec2(width, cell_h));
+    bool clicked = ImGui::IsItemClicked();
+    bool hovered = ImGui::IsItemHovered();
+    ImGui::PopID();
+
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+
+    // Pill background rect (inset from edges)
+    ImVec2 pill_min = ImVec2(cursor.x + pill_pad, cursor.y + 2.0f);
+    ImVec2 pill_max = ImVec2(cursor.x + pill_pad + pill_w, cursor.y + cell_h - 2.0f);
+
+    if (active)
+    {
+        // Vision.png: no background fill — only a thin accent bar on the left edge
+        float  bar_w   = 2.0f;
+        ImVec2 bar_min = ImVec2(cursor.x, cursor.y + 10.0f);
+        ImVec2 bar_max = ImVec2(cursor.x + bar_w, cursor.y + cell_h - 10.0f);
+        dl->AddRectFilled(bar_min,
+                          bar_max,
+                          ImGui::ColorConvertFloat4ToU32(
+                              ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 1.0f)),
+                          1.0f);
+
+        // Night theme: soft glow around the accent bar
+        if (colors.glow_intensity > 0.01f)
+        {
+            dl->AddRectFilled(ImVec2(bar_min.x - 1.0f, bar_min.y - 1.0f),
+                              ImVec2(bar_max.x + 2.0f, bar_max.y + 1.0f),
+                              ImGui::ColorConvertFloat4ToU32(ImVec4(colors.accent_glow.r,
+                                                                    colors.accent_glow.g,
+                                                                    colors.accent_glow.b,
+                                                                    colors.accent_glow.a * 0.25f)),
+                              2.0f);
+        }
+    }
+    else if (hovered)
+    {
+        dl->AddRectFilled(
+            pill_min,
+            pill_max,
+            ImGui::ColorConvertFloat4ToU32(
+                ImVec4(colors.text_primary.r, colors.text_primary.g, colors.text_primary.b, 0.06f)),
+            tokens::RADIUS_MD);
+    }
+
+    // Colors: active = accent icon only, inactive = bright, hovered = full brightness
+    ImU32 icon_col, text_col;
+    if (active)
+    {
+        icon_col = ImGui::ColorConvertFloat4ToU32(
+            ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 1.0f));
+        text_col = ImGui::ColorConvertFloat4ToU32(
+            ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.95f));
+    }
+    else
+    {
+        float alpha = hovered ? 1.0f : 0.8f;   // Vision.png: bright default, full on hover
+        icon_col    = ImGui::ColorConvertFloat4ToU32(
+            ImVec4(colors.text_primary.r, colors.text_primary.g, colors.text_primary.b, alpha));
+        text_col = ImGui::ColorConvertFloat4ToU32(ImVec4(colors.text_primary.r,
+                                                         colors.text_primary.g,
+                                                         colors.text_primary.b,
+                                                         alpha * 0.9f));
+    }
+
+    // Vertically center the icon+label block within the cell
+    float content_h = icon_sz + icon_gap + label_sz;
+    float y_start   = cursor.y + (cell_h - content_h) * 0.5f;
+
+    // Draw icon centered
+    if (icon_font)
+    {
+        ImVec2 isz = icon_font->CalcTextSizeA(icon_font->FontSize, FLT_MAX, 0.0f, icon_codepoint);
+        float  ix  = cursor.x + (width - isz.x) * 0.5f;
+        dl->AddText(icon_font, icon_font->FontSize, ImVec2(ix, y_start), icon_col, icon_codepoint);
+    }
+
+    // Draw label centered, smaller than label_font's native size
+    if (label_font)
+    {
+        ImVec2 lsz = label_font->CalcTextSizeA(label_sz, FLT_MAX, 0.0f, label);
+        float  lx  = cursor.x + (width - lsz.x) * 0.5f;
+        float  ly  = y_start + icon_sz + icon_gap;
+        dl->AddText(label_font, label_sz, ImVec2(lx, ly), text_col, label);
+    }
+
+    return clicked;
+}
+
+// ─── Legacy Methods (To be removed after migration) ───────────────────────────
+
+// These methods are kept temporarily for compatibility but will be removed
+// once Agent C implements the proper inspector system
+
+void ImGuiIntegration::draw_menubar()
+{
+    // Legacy method - replaced by draw_command_bar()
+    draw_command_bar();
+}
+
+void ImGuiIntegration::draw_icon_bar()
+{
+    // Legacy method - replaced by draw_nav_rail()
+    draw_nav_rail();
+}
+
+void ImGuiIntegration::draw_panel(Figure& figure)
+{
+    // Legacy method - replaced by draw_inspector()
+    draw_inspector(figure);
+}
+
+// ─── Legacy Panel Drawing Methods (To be removed after Agent C migration) ───
+
+// Helper for drawing dropdown menus — modern 2026 style with:
+//   • auto-close on mouse leave
+//   • hover-switch between adjacent menus
+//   • popup anchored to button's bottom-left corner
+void ImGuiIntegration::draw_menubar_menu(const char* label, const std::vector<MenuItem>& items)
+{
+    const auto& colors = ui::theme();
+
+    ImGui::PushFont(font_menubar_);
+    ImGui::PushStyleColor(ImGuiCol_Text,
+                          ImVec4(colors.text_primary.r,
+                                 colors.text_primary.g,
+                                 colors.text_primary.b,
+                                 0.85f));
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+    ImGui::PushStyleColor(
+        ImGuiCol_ButtonHovered,
+        ImVec4(colors.accent_subtle.r, colors.accent_subtle.g, colors.accent_subtle.b, 0.6f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive,
+                          ImVec4(colors.accent_muted.r,
+                                 colors.accent_muted.g,
+                                 colors.accent_muted.b,
+                                 colors.accent_muted.a));
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
+                        ImVec2(ui::tokens::SPACE_4, ui::tokens::SPACE_2));
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, ui::tokens::RADIUS_MD);
+
+    // Remember button rect for popup positioning and auto-close
+    ImVec2 btn_pos     = ImGui::GetCursorScreenPos();
+    bool   clicked     = ImGui::Button(label);
+    ImVec2 btn_size    = ImGui::GetItemRectSize();
+    ImVec2 btn_max     = ImVec2(btn_pos.x + btn_size.x, btn_pos.y + btn_size.y);
+    bool   btn_hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByPopup);
+
+    // Click opens this menu
+    if (clicked)
+    {
+        SPECTRA_LOG_DEBUG("menu", "Click open: " + std::string(label));
+        ImGui::OpenPopup(label);
+        open_menu_label_ = label;
+    }
+
+    // Hover-switch: if another menu is open and user hovers this button, switch
+    if (btn_hovered && !open_menu_label_.empty() && open_menu_label_ != label)
+    {
+        SPECTRA_LOG_DEBUG("menu",
+                          "Hover switch: " + std::string(open_menu_label_) + " -> " + label);
+        ImGui::OpenPopup(label);
+        open_menu_label_ = label;
+    }
+
+    // Anchor popup at button's bottom-left corner (not at mouse position)
+    ImGui::SetNextWindowPos(ImVec2(btn_pos.x, btn_max.y + 2.0f));
+
+    // Modern popup styling
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
+                        ImVec2(ui::tokens::SPACE_2, ui::tokens::SPACE_2));
+    ImGui::PushStyleVar(ImGuiStyleVar_PopupRounding, ui::tokens::RADIUS_LG);
+    ImGui::PushStyleVar(ImGuiStyleVar_PopupBorderSize, 0.5f);
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing,
+                        ImVec2(ui::tokens::SPACE_2, ui::tokens::SPACE_1));
+    ImGui::PushStyleColor(
+        ImGuiCol_PopupBg,
+        ImVec4(colors.bg_elevated.r, colors.bg_elevated.g, colors.bg_elevated.b, 0.97f));
+    ImGui::PushStyleColor(
+        ImGuiCol_Border,
+        ImVec4(colors.border_subtle.r, colors.border_subtle.g, colors.border_subtle.b, 0.4f));
+
+    if (ImGui::BeginPopup(label))
+    {
+        // Track that this menu is the open one
+        open_menu_label_ = label;
+
+        // ── Auto-close: dismiss when mouse moves away from button + popup ──
+        ImVec2 mouse      = ImGui::GetIO().MousePos;
+        ImVec2 popup_pos  = ImGui::GetWindowPos();
+        ImVec2 popup_size = ImGui::GetWindowSize();
+        float  margin     = 20.0f;
+
+        // Combined rect of button + popup + margin
+        float combined_min_x = std::min(btn_pos.x, popup_pos.x) - margin;
+        float combined_min_y = std::min(btn_pos.y, popup_pos.y) - margin;
+        float combined_max_x = std::max(btn_max.x, popup_pos.x + popup_size.x) + margin;
+        float combined_max_y = std::max(btn_max.y, popup_pos.y + popup_size.y) + margin;
+
+        bool mouse_in_zone = (mouse.x >= combined_min_x && mouse.x <= combined_max_x
+                              && mouse.y >= combined_min_y && mouse.y <= combined_max_y);
+
+        if (!mouse_in_zone && !ImGui::IsAnyItemActive())
+        {
+            SPECTRA_LOG_DEBUG("menu", "Auto-close: " + std::string(label));
+            ImGui::CloseCurrentPopup();
+            open_menu_label_.clear();
+        }
+
+        // Draw shadow behind popup
+        ImDrawList* bg_dl = ImGui::GetBackgroundDrawList();
+        bg_dl->AddRectFilled(ImVec2(popup_pos.x + 2, popup_pos.y + 3),
+                             ImVec2(popup_pos.x + popup_size.x + 2, popup_pos.y + popup_size.y + 5),
+                             IM_COL32(0, 0, 0, 30),
+                             ui::tokens::RADIUS_LG + 2);
+
+        for (const auto& item : items)
+        {
+            if (item.label.empty())
+            {
+                ImGui::Dummy(ImVec2(0, 2));
+                ImGui::PushStyleColor(ImGuiCol_Separator,
+                                      ImVec4(colors.border_subtle.r,
+                                             colors.border_subtle.g,
+                                             colors.border_subtle.b,
+                                             0.3f));
+                ImGui::Separator();
+                ImGui::PopStyleColor();
+                ImGui::Dummy(ImVec2(0, 2));
+            }
+            else if (!item.callback)
+            {
+                // Null callback + non-empty label → disabled / grayed-out text item.
+                // text_tertiary is the theme field for placeholders / disabled text.
+                ImGui::PushStyleColor(ImGuiCol_Text,
+                                      ImVec4(colors.text_tertiary.r,
+                                             colors.text_tertiary.g,
+                                             colors.text_tertiary.b,
+                                             colors.text_tertiary.a));
+                float item_h = ImGui::GetTextLineHeight() + 10.0f;
+                ImGui::PushStyleVar(ImGuiStyleVar_SelectableTextAlign, ImVec2(0.0f, 0.5f));
+                ImGui::Selectable(item.label.c_str(),
+                                  false,
+                                  ImGuiSelectableFlags_Disabled,
+                                  ImVec2(0, item_h));
+                ImGui::PopStyleVar();
+                ImGui::PopStyleColor();
+            }
+            else
+            {
+                ImGui::PushStyleColor(ImGuiCol_Text,
+                                      ImVec4(colors.text_primary.r,
+                                             colors.text_primary.g,
+                                             colors.text_primary.b,
+                                             colors.text_primary.a));
+                ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0, 0, 0, 0));
+                ImGui::PushStyleColor(ImGuiCol_HeaderHovered,
+                                      ImVec4(colors.accent_subtle.r,
+                                             colors.accent_subtle.g,
+                                             colors.accent_subtle.b,
+                                             0.5f));
+                ImGui::PushStyleColor(ImGuiCol_HeaderActive,
+                                      ImVec4(colors.accent_muted.r,
+                                             colors.accent_muted.g,
+                                             colors.accent_muted.b,
+                                             0.7f));
+                ImGui::PushStyleVar(ImGuiStyleVar_SelectableTextAlign, ImVec2(0.0f, 0.5f));
+
+                float item_h = ImGui::GetTextLineHeight() + 10.0f;
+                if (ImGui::Selectable(item.label.c_str(),
+                                      false,
+                                      ImGuiSelectableFlags_None,
+                                      ImVec2(0, item_h)))
+                {
+                    item.callback();
+                    open_menu_label_.clear();
+                }
+
+                ImGui::PopStyleVar();
+                ImGui::PopStyleColor(4);
+            }
+        }
+
+        ImGui::EndPopup();
+    }
+    else
+    {
+        // Popup closed (e.g. by clicking outside) — clear tracking if this was the open one
+        if (open_menu_label_ == label)
+        {
+            open_menu_label_.clear();
+        }
+    }
+
+    ImGui::PopStyleColor(2);
+    ImGui::PopStyleVar(4);
+    ImGui::PopStyleVar(2);
+    ImGui::PopStyleColor(4);
+    ImGui::PopFont();
+}
+
+// Helper for drawing toolbar buttons with modern hover styling and themed tooltips
+void ImGuiIntegration::draw_toolbar_button(const char*           icon,
+                                           std::function<void()> callback,
+                                           const char*           tooltip,
+                                           bool                  is_active)
+{
+    const auto& colors = ui::theme();
+    // Use per-instance font_icon_ (not the IconFont singleton) so that
+    // secondary windows use their own atlas font, avoiding TexID mismatch.
+    ImGui::PushFont(font_icon_);
+
+    if (is_active)
+    {
+        // Subtle accent pill — consistent with nav rail icon_button
+        ImGui::PushStyleColor(ImGuiCol_Button,
+                              ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.15f));
+        ImGui::PushStyleColor(ImGuiCol_Text,
+                              ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 1.0f));
+    }
+    else
+    {
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+        ImGui::PushStyleColor(ImGuiCol_Text,
+                              ImVec4(colors.text_primary.r,
+                                     colors.text_primary.g,
+                                     colors.text_primary.b,
+                                     0.80f));   // Bright to match nav rail
+    }
+    ImGui::PushStyleColor(
+        ImGuiCol_ButtonHovered,
+        ImVec4(colors.bg_tertiary.r, colors.bg_tertiary.g, colors.bg_tertiary.b, 0.7f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive,
+                          ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.25f));
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
+                        ImVec2(ui::tokens::SPACE_2, ui::tokens::SPACE_2));
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, ui::tokens::RADIUS_MD);
+
+    if (ImGui::Button(icon))
+    {
+        if (callback)
+            callback();
+    }
+
+    // Store tooltip for deferred rendering at the end of build_ui
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort) && tooltip)
+    {
+        deferred_tooltip_ = tooltip;
+    }
+
+    ImGui::PopStyleVar(2);
+    ImGui::PopStyleColor(4);
+    ImGui::PopFont();
+}
+
+// ─── Layout-Based Drawing Methods ─────────────────────────────────────────────
+
+void ImGuiIntegration::draw_command_bar()
+{
+    if (!layout_manager_)
+    {
+        SPECTRA_LOG_WARN("ui", "draw_command_bar called but layout_manager_ is null");
+        return;
+    }
+
+    SPECTRA_LOG_TRACE("ui", "Drawing command bar");
+
+    Rect bounds = layout_manager_->command_bar_rect();
+    ImGui::SetNextWindowPos(ImVec2(bounds.x, bounds.y));
+    ImGui::SetNextWindowSize(ImVec2(bounds.w, bounds.h));
+
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove
+                             | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings
+                             | ImGuiWindowFlags_NoBringToFrontOnFocus
+                             | ImGuiWindowFlags_NoFocusOnAppearing;
+
+    // Top bar: slightly darker than panels to push visual focus to canvas
+    float bar_blend = 0.65f;   // Blend toward bg_primary
+    auto  bar_bg_r =
+        ui::theme().bg_primary.r * bar_blend + ui::theme().bg_secondary.r * (1.0f - bar_blend);
+    auto bar_bg_g =
+        ui::theme().bg_primary.g * bar_blend + ui::theme().bg_secondary.g * (1.0f - bar_blend);
+    auto bar_bg_b =
+        ui::theme().bg_primary.b * bar_blend + ui::theme().bg_secondary.b * (1.0f - bar_blend);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
+                        ImVec2(ui::tokens::SPACE_4, ui::tokens::SPACE_2));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ui::tokens::SPACE_3, 0.0f));
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(bar_bg_r, bar_bg_g, bar_bg_b, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_Border,
+                          ImVec4(ui::theme().border_subtle.r,
+                                 ui::theme().border_subtle.g,
+                                 ui::theme().border_subtle.b,
+                                 0.3f));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+
+    if (ImGui::Begin("##commandbar", nullptr, flags))
+    {
+        SPECTRA_LOG_TRACE("ui", "Command bar window began successfully");
+
+        // ── Draw subtle bottom border line for menu bar separation ──
+        {
+            ImDrawList* bar_dl = ImGui::GetWindowDrawList();
+            ImVec2      wpos   = ImGui::GetWindowPos();
+            ImVec2      wsz    = ImGui::GetWindowSize();
+            bar_dl->AddLine(ImVec2(wpos.x, wpos.y + wsz.y - 1.0f),
+                            ImVec2(wpos.x + wsz.x, wpos.y + wsz.y - 1.0f),
+                            IM_COL32(static_cast<uint8_t>(ui::theme().border_subtle.r * 255),
+                                     static_cast<uint8_t>(ui::theme().border_subtle.g * 255),
+                                     static_cast<uint8_t>(ui::theme().border_subtle.b * 255),
+                                     60),
+                            1.0f);
+        }
+
+        // ── App title/brand on the left — textured S mark + clean wordmark ──
+        {
+            ImDrawList* dl      = ImGui::GetWindowDrawList();
+            float       bar_h   = ImGui::GetWindowSize().y;
+            ImVec2      cursor  = ImGui::GetCursorScreenPos();
+            float       cy      = cursor.y + (bar_h - ImGui::GetCursorPosY() * 2.0f) * 0.5f;
+            float       logo_sz = 28.0f;
+            float       lx      = cursor.x + 1.0f;
+            float       ly      = cy - logo_sz * 0.5f;
+            float       text_x  = lx + logo_sz + 8.0f;
+
+            if (corner_logo_texture_id_)
+            {
+                dl->AddImage(imgui_texture_id_from_u64(corner_logo_texture_id_),
+                             ImVec2(lx, ly),
+                             ImVec2(lx + logo_sz, ly + logo_sz));
+            }
+
+            ImGui::PushFont(font_title_);
+            const char* letters = "SPECTRA";
+            float       font_sz = font_title_->FontSize * 0.92f;
+            float       text_y  = cy - font_sz * 0.5f;
+            float       spacing = 2.6f;
+
+            float total_w = 0.0f;
+            for (const char* p = letters; *p; ++p)
+            {
+                char ch[2] = {*p, 0};
+                total_w += ImGui::CalcTextSize(ch).x + (*p ? spacing : 0.0f);
+            }
+            total_w -= spacing;   // no trailing space
+
+            {
+                float gx  = text_x;
+                int   idx = 0;
+                int   len = static_cast<int>(strlen(letters));
+                for (const char* p = letters; *p; ++p, ++idx)
+                {
+                    char    ch[2] = {*p, 0};
+                    float   cw    = ImGui::CalcTextSize(ch).x;
+                    float   t     = (len > 1) ? static_cast<float>(idx) / (len - 1) : 0.0f;
+                    float   mix   = 0.25f + 0.35f * t;
+                    uint8_t cr    = static_cast<uint8_t>(
+                        (ui::theme().text_primary.r * (1.0f - mix) + ui::theme().accent.r * mix)
+                        * 255);
+                    uint8_t cg = static_cast<uint8_t>(
+                        (ui::theme().text_primary.g * (1.0f - mix) + ui::theme().accent.g * mix)
+                        * 255);
+                    uint8_t cb = static_cast<uint8_t>(
+                        (ui::theme().text_primary.b * (1.0f - mix) + ui::theme().accent.b * mix)
+                        * 255);
+                    ImU32 col = IM_COL32(cr, cg, cb, 245);
+                    dl->AddText(font_title_, font_sz, ImVec2(gx, text_y), col, ch);
+                    gx += cw + spacing;
+                }
+            }
+
+            // Advance ImGui cursor past the entire brand block
+            float brand_w = (text_x - cursor.x) + total_w + 4.0f;
+            ImGui::Dummy(ImVec2(brand_w, font_sz));
+            ImGui::PopFont();
+        }
+
+        ImGui::SameLine();
+
+        draw_toolbar_button(
+            ui::icon_str(ui::Icon::Home),
+            [this]()
+            {
+                SPECTRA_LOG_DEBUG("ui_button", "Home button clicked - setting reset_view flag");
+                reset_view_ = true;
+                SPECTRA_LOG_DEBUG("ui_button", "Reset view flag set successfully");
+            },
+            "Reset View (Home)");
+
+        ImGui::SameLine();
+
+        // File menu
+        draw_menubar_menu("File",
+                          {MenuItem("New Figure",
+                                    [this]()
+                                    {
+                                        if (command_registry_)
+                                            command_registry_->execute("figure.new");
+                                    }),
+                           MenuItem("", nullptr),   // Separator
+                           MenuItem("Export PNG",
+                                    [this]()
+                                    {
+                                        if (command_registry_)
+                                            command_registry_->execute("file.export_png");
+                                    }),
+                           MenuItem("Export SVG",
+                                    [this]()
+                                    {
+                                        if (command_registry_)
+                                            command_registry_->execute("file.export_svg");
+                                    }),
+                           MenuItem("Save Workspace",
+                                    [this]()
+                                    {
+                                        if (command_registry_)
+                                            command_registry_->execute("file.save_workspace");
+                                    }),
+                           MenuItem("Load Workspace",
+                                    [this]()
+                                    {
+                                        if (command_registry_)
+                                            command_registry_->execute("file.load_workspace");
+                                    }),
+                           MenuItem("", nullptr),   // Separator
+                           MenuItem("Save Figure...",
+                                    [this]()
+                                    {
+                                        if (command_registry_)
+                                            command_registry_->execute("file.save_figure");
+                                    }),
+                           MenuItem("Load Figure...",
+                                    [this]()
+                                    {
+                                        if (command_registry_)
+                                            command_registry_->execute("file.load_figure");
+                                    }),
+                           MenuItem("", nullptr),   // Separator
+                           MenuItem("Exit",
+                                    [this]()
+                                    {
+                                        if (command_registry_)
+                                            command_registry_->execute("app.cancel");
+                                    })});
+
+        ImGui::SameLine();
+
+        // Data menu
+        draw_menubar_menu(
+            "Data",
+            {MenuItem(
+                "Load from CSV...",
+                [this]()
+                {
+                    // Open native OS file dialog
+                    char const* filters[3] = {"*.csv", "*.tsv", "*.txt"};
+                    const char* home_env   = std::getenv("HOME");
+                    std::string home_dir   = home_env ? std::string(home_env) + "/" : "/";
+                    const char* home       = home_dir.c_str();
+                    char const* result =
+                        tinyfd_openFileDialog("Open CSV File", home, 3, filters, "CSV files", 0);
+                    if (result)
+                    {
+                        csv_file_path_   = result;
+                        csv_data_        = parse_csv(csv_file_path_);
+                        csv_data_loaded_ = csv_data_.error.empty();
+                        csv_error_       = csv_data_.error;
+                        csv_col_x_       = 0;
+                        csv_col_y_       = (csv_data_.num_cols > 1) ? 1 : 0;
+                        csv_col_z_       = -1;
+                        if (csv_data_loaded_)
+                            csv_dialog_open_ = true;
+                    }
+                })});
+
+        ImGui::SameLine();
+
+        // View menu
+        draw_menubar_menu(
+            "View",
+            {MenuItem("Toggle Inspector",
+                      [this]()
+                      {
+                          if (command_registry_)
+                              command_registry_->execute("panel.toggle_inspector");
+                          else
+                          {
+                              bool new_vis = !layout_manager_->is_inspector_visible();
+                              layout_manager_->set_inspector_visible(new_vis);
+                              panel_open_ = new_vis;
+                          }
+                      }),
+             MenuItem("Toggle Navigation Rail", [this]() { show_nav_rail_ = !show_nav_rail_; }),
+             MenuItem("Toggle 2D/3D View",
+                      [this]()
+                      {
+                          if (command_registry_)
+                              command_registry_->execute("view.toggle_3d");
+                      }),
+             MenuItem("Zoom to Fit",
+                      [this]()
+                      {
+                          if (command_registry_)
+                              command_registry_->execute("view.autofit");
+                      }),
+             MenuItem("Reset View",
+                      [this]()
+                      {
+                          if (command_registry_)
+                              command_registry_->execute("view.reset");
+                      }),
+             MenuItem("Toggle Grid",
+                      [this]()
+                      {
+                          if (command_registry_)
+                              command_registry_->execute("view.toggle_grid");
+                      }),
+             MenuItem("Toggle Legend",
+                      [this]()
+                      {
+                          if (command_registry_)
+                              command_registry_->execute("view.toggle_legend");
+                      }),
+             MenuItem("Remove All Data Tips",
+                      [this]()
+                      {
+                          if (data_interaction_)
+                              data_interaction_->clear_markers();
+                      }),
+             MenuItem("", nullptr),   // Separator
+             MenuItem("Toggle Timeline",
+                      [this]()
+                      {
+                          if (command_registry_)
+                              command_registry_->execute("panel.toggle_timeline");
+                      }),
+             MenuItem("Toggle Curve Editor",
+                      [this]()
+                      {
+                          if (command_registry_)
+                              command_registry_->execute("panel.toggle_curve_editor");
+                      }),
+             MenuItem("Toggle Parameters",
+                      [this]()
+                      {
+                          if (knob_manager_ && !knob_manager_->empty())
+                              knob_manager_->set_visible(!knob_manager_->is_visible());
+                      }),
+             MenuItem("Toggle Data Editor",
+                      [this]()
+                      {
+                          if (active_section_ == Section::DataEditor && panel_open_)
+                          {
+                              panel_open_ = false;
+                              layout_manager_->set_inspector_visible(false);
+                          }
+                          else
+                          {
+                              active_section_ = Section::DataEditor;
+                              panel_open_     = true;
+                              layout_manager_->set_inspector_visible(true);
+                          }
+                      })});
+
+        ImGui::SameLine();
+
+        // Axes menu — link/unlink axes across subplots (2D and 3D)
+        {
+            std::vector<MenuItem> axes_items;
+
+            // Helper lambdas to collect 2D and 3D axes from the current figure
+            auto has_enough_axes = [this]() -> bool
+            {
+                if (!axis_link_mgr_ || !current_figure_)
+                    return false;
+                return current_figure_->all_axes().size() >= 2;
+            };
+
+            axes_items.emplace_back(
+                "Link X Axes",
+                [this, has_enough_axes]()
+                {
+                    if (!has_enough_axes())
+                        return;
+                    // Link 2D axes on X
+                    if (current_figure_->axes().size() >= 2)
+                    {
+                        auto gid = axis_link_mgr_->create_group("X Link", LinkAxis::X);
+                        for (auto& ax : current_figure_->axes_mut())
+                        {
+                            if (ax)
+                                axis_link_mgr_->add_to_group(gid, ax.get());
+                        }
+                    }
+                    // Link 3D axes (xlim/ylim/zlim all propagate together)
+                    {
+                        std::vector<Axes3D*> axes3d_list;
+                        for (auto& ab : current_figure_->all_axes_mut())
+                        {
+                            if (auto* a3 = dynamic_cast<Axes3D*>(ab.get()))
+                                axes3d_list.push_back(a3);
+                        }
+                        for (size_t i = 1; i < axes3d_list.size(); ++i)
+                            axis_link_mgr_->link_3d(axes3d_list[0], axes3d_list[i]);
+                    }
+                    SPECTRA_LOG_INFO("axes_link", "Linked all axes on X");
+                });
+            axes_items.emplace_back(
+                "Link Y Axes",
+                [this, has_enough_axes]()
+                {
+                    if (!has_enough_axes())
+                        return;
+                    if (current_figure_->axes().size() >= 2)
+                    {
+                        auto gid = axis_link_mgr_->create_group("Y Link", LinkAxis::Y);
+                        for (auto& ax : current_figure_->axes_mut())
+                        {
+                            if (ax)
+                                axis_link_mgr_->add_to_group(gid, ax.get());
+                        }
+                    }
+                    // 3D axes link all limits together
+                    {
+                        std::vector<Axes3D*> axes3d_list;
+                        for (auto& ab : current_figure_->all_axes_mut())
+                        {
+                            if (auto* a3 = dynamic_cast<Axes3D*>(ab.get()))
+                                axes3d_list.push_back(a3);
+                        }
+                        for (size_t i = 1; i < axes3d_list.size(); ++i)
+                            axis_link_mgr_->link_3d(axes3d_list[0], axes3d_list[i]);
+                    }
+                    SPECTRA_LOG_INFO("axes_link", "Linked all axes on Y");
+                });
+            axes_items.emplace_back(
+                "Link Z Axes",
+                [this, has_enough_axes]()
+                {
+                    if (!has_enough_axes())
+                        return;
+                    // Z-axis linking is only meaningful for 3D axes
+                    std::vector<Axes3D*> axes3d_list;
+                    for (auto& ab : current_figure_->all_axes_mut())
+                    {
+                        if (auto* a3 = dynamic_cast<Axes3D*>(ab.get()))
+                            axes3d_list.push_back(a3);
+                    }
+                    for (size_t i = 1; i < axes3d_list.size(); ++i)
+                        axis_link_mgr_->link_3d(axes3d_list[0], axes3d_list[i], LinkAxis::Z);
+                    SPECTRA_LOG_INFO("axes_link", "Linked all 3D axes on Z");
+                });
+            axes_items.emplace_back(
+                "Link All Axes",
+                [this, has_enough_axes]()
+                {
+                    if (!has_enough_axes())
+                        return;
+                    // Link 2D axes on X+Y
+                    if (current_figure_->axes().size() >= 2)
+                    {
+                        auto gid = axis_link_mgr_->create_group("XY Link", LinkAxis::Both);
+                        for (auto& ax : current_figure_->axes_mut())
+                        {
+                            if (ax)
+                                axis_link_mgr_->add_to_group(gid, ax.get());
+                        }
+                    }
+                    // Link 3D axes (xlim/ylim/zlim)
+                    {
+                        std::vector<Axes3D*> axes3d_list;
+                        for (auto& ab : current_figure_->all_axes_mut())
+                        {
+                            if (auto* a3 = dynamic_cast<Axes3D*>(ab.get()))
+                                axes3d_list.push_back(a3);
+                        }
+                        for (size_t i = 1; i < axes3d_list.size(); ++i)
+                            axis_link_mgr_->link_3d(axes3d_list[0], axes3d_list[i], LinkAxis::All);
+                    }
+                    SPECTRA_LOG_INFO("axes_link", "Linked all axes on X+Y+Z");
+                });
+            axes_items.emplace_back("", nullptr);   // separator
+            axes_items.emplace_back("Unlink All",
+                                    [this]()
+                                    {
+                                        if (!axis_link_mgr_)
+                                            return;
+                                        // Unlink 2D groups
+                                        std::vector<LinkGroupId> ids;
+                                        for (auto& [id, group] : axis_link_mgr_->groups())
+                                        {
+                                            ids.push_back(id);
+                                        }
+                                        for (auto id : ids)
+                                        {
+                                            axis_link_mgr_->remove_group(id);
+                                        }
+                                        // Unlink 3D axes
+                                        if (current_figure_)
+                                        {
+                                            for (auto& ab : current_figure_->all_axes_mut())
+                                            {
+                                                if (auto* a3 = dynamic_cast<Axes3D*>(ab.get()))
+                                                    axis_link_mgr_->remove_from_all_3d(a3);
+                                            }
+                                        }
+                                        axis_link_mgr_->clear_shared_cursor();
+                                        SPECTRA_LOG_INFO("axes_link", "Unlinked all axes");
+                                    });
+
+            draw_menubar_menu("Axes", axes_items);
+        }
+
+        ImGui::SameLine();
+
+        // Transforms menu — apply data transforms to series
+        {
+            std::vector<MenuItem> xform_items;
+            auto&                 registry = TransformRegistry::instance();
+            auto                  names    = registry.available_transforms();
+
+            // Built-in transforms
+            for (const auto& name : names)
+            {
+                xform_items.emplace_back(
+                    name,
+                    [this, name]()
+                    {
+                        if (!current_figure_)
+                            return;
+                        DataTransform xform;
+                        if (!TransformRegistry::instance().get_transform(name, xform))
+                            return;
+
+                        // Apply to all visible series in all axes
+                        for (auto& ax : current_figure_->axes_mut())
+                        {
+                            if (!ax)
+                                continue;
+                            for (auto& series_ptr : ax->series_mut())
+                            {
+                                if (!series_ptr || !series_ptr->visible())
+                                    continue;
+
+                                if (auto* ls = dynamic_cast<LineSeries*>(series_ptr.get()))
+                                {
+                                    std::vector<float> rx, ry;
+                                    xform.apply_y(ls->x_data(), ls->y_data(), rx, ry);
+                                    ls->set_x(rx).set_y(ry);
+                                }
+                                else if (auto* sc = dynamic_cast<ScatterSeries*>(series_ptr.get()))
+                                {
+                                    std::vector<float> rx, ry;
+                                    xform.apply_y(sc->x_data(), sc->y_data(), rx, ry);
+                                    sc->set_x(rx).set_y(ry);
+                                }
+                            }
+                            ax->auto_fit();
+                        }
+                        SPECTRA_LOG_INFO("transform", "Applied transform: " + name);
+                    });
+            }
+
+            // Separator and custom formula option
+            xform_items.emplace_back("", nullptr);   // separator
+            xform_items.emplace_back(
+                "Custom Formula...",
+                [this]()
+                {
+                    custom_transform_dialog_.set_fonts(font_body_, font_heading_, font_title_);
+                    custom_transform_dialog_.open(current_figure_);
+                });
+
+            draw_menubar_menu("Transforms", xform_items);
+        }
+
+        ImGui::SameLine();
+
+        // Tools menu
+        draw_menubar_menu(
+            "Tools",
+            {MenuItem("Screenshot (PNG)",
+                      [this]()
+                      {
+                          if (command_registry_)
+                              command_registry_->execute("file.export_png");
+                      }),
+             MenuItem("Undo",
+                      [this]()
+                      {
+                          if (command_registry_)
+                              command_registry_->execute("edit.undo");
+                      }),
+             MenuItem("Redo",
+                      [this]()
+                      {
+                          if (command_registry_)
+                              command_registry_->execute("edit.redo");
+                      }),
+             MenuItem("", nullptr),   // Separator
+             MenuItem("Theme Settings", [this]() { show_theme_settings_ = !show_theme_settings_; }),
+             MenuItem("Command Palette",
+                      [this]()
+                      {
+                          if (command_registry_)
+                              command_registry_->execute("app.command_palette");
+                      }),
+             MenuItem("", nullptr),   // Separator
+    #ifdef SPECTRA_USE_ROS2
+             MenuItem("ROS2 Adapter",
+                      [this]()
+                      {
+                          if (command_registry_)
+                              command_registry_->execute("tools.ros2_adapter");
+                      })
+    #else
+             // Grayed-out placeholder when compiled without ROS2 support.
+             // draw_menubar_menu skips items with a null callback; we render
+             // a disabled text label instead via a zero-callback sentinel that
+             // is handled specially in draw_menubar_menu.
+             MenuItem("\xEF\xA0\xAD ROS2 Adapter (not available)", nullptr)
+    #endif
+            });
+
+        // Push status info to the right
+        ImGui::SameLine(0.0f, ImGui::GetContentRegionAvail().x - 220.0f);
+
+        // Status info
+        ImGuiIO& io = ImGui::GetIO();
+        ImGui::PushFont(font_menubar_);
+        ImGui::PushStyleColor(ImGuiCol_Text,
+                              ImVec4(ui::theme().text_secondary.r,
+                                     ui::theme().text_secondary.g,
+                                     ui::theme().text_secondary.b,
+                                     ui::theme().text_secondary.a));
+
+        char status[128];
+        std::snprintf(status,
+                      sizeof(status),
+                      "Display: %dx%d | FPS: %.0f | GPU",
+                      static_cast<int>(io.DisplaySize.x),
+                      static_cast<int>(io.DisplaySize.y),
+                      io.Framerate);
+        ImGui::TextUnformatted(status);
+
+        ImGui::PopStyleColor();
+        ImGui::PopFont();
+    }
+    ImGui::End();
+    ImGui::PopStyleVar(4);
+    ImGui::PopStyleColor(2);
+}
+
+void ImGuiIntegration::draw_nav_rail()
+{
+    if (!layout_manager_ || !show_nav_rail_)
+        return;
+
+    Rect bounds = layout_manager_->nav_rail_rect();
+    if (bounds.w < 1.0f || bounds.h < 1.0f)
+        return;
+
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove
+                             | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings
+                             | ImGuiWindowFlags_NoBringToFrontOnFocus
+                             | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoScrollbar;
+
+    float rail_w = bounds.w;
+
+    // Vision.png style: full-height, bg_primary (darkest), no border, no rounding
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, ui::tokens::SPACE_2));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowMinSize, ImVec2(0, 0));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+    ImGui::PushStyleColor(
+        ImGuiCol_WindowBg,
+        ImVec4(ui::theme().bg_primary.r, ui::theme().bg_primary.g, ui::theme().bg_primary.b, 1.0f));
+
+    ImGui::SetNextWindowPos(ImVec2(bounds.x, bounds.y), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(rail_w, bounds.h), ImGuiCond_Always);
+
+    if (ImGui::Begin("##navrail", nullptr, flags))
+    {
+        ImFont* label_font = font_heading_;   // 12.5px — compact labels
+        float   btn_w      = rail_w;
+
+        // Separator: very subtle hairline, Vision.png style
+        auto draw_separator = [&]()
+        {
+            ImGui::Dummy(ImVec2(0, 3.0f));
+            float  sep_inset = 14.0f;
+            ImVec2 p0 = ImVec2(ImGui::GetWindowPos().x + sep_inset, ImGui::GetCursorScreenPos().y);
+            ImVec2 p1 = ImVec2(ImGui::GetWindowPos().x + rail_w - sep_inset, p0.y);
+            ImGui::GetWindowDrawList()->AddLine(p0,
+                                                p1,
+                                                IM_COL32(ui::theme().border_subtle.r * 255,
+                                                         ui::theme().border_subtle.g * 255,
+                                                         ui::theme().border_subtle.b * 255,
+                                                         25),
+                                                1.0f);
+            ImGui::Dummy(ImVec2(0, 3.0f));
+        };
+
+        // ── Tool mode helper ──
+        auto tool_btn = [&](ui::Icon icon, const char* label, ToolMode mode)
+        {
+            bool is_active = (interaction_mode_ == mode);
+            if (icon_label_button(ui::icon_str(icon),
+                                  label,
+                                  is_active,
+                                  font_icon_,
+                                  label_font,
+                                  btn_w))
+            {
+                interaction_mode_ = mode;
+            }
+        };
+
+        // ── Toggle helper (for panel/feature toggles) ──
+        auto toggle_btn = [&](ui::Icon icon, const char* label, bool is_active,
+                              std::function<void()> on_click)
+        {
+            if (icon_label_button(ui::icon_str(icon),
+                                  label,
+                                  is_active,
+                                  font_icon_,
+                                  label_font,
+                                  btn_w))
+            {
+                on_click();
+            }
+        };
+
+        // ── Group 1: Navigation tools ──
+        tool_btn(ui::Icon::MousePointer, "Select", ToolMode::Select);
+        tool_btn(ui::Icon::Hand, "Pan", ToolMode::Pan);
+        tool_btn(ui::Icon::ZoomIn, "Zoom", ToolMode::BoxZoom);
+
+        draw_separator();
+
+        // ── Group 2: Analysis tools ──
+        tool_btn(ui::Icon::Ruler, "Measure", ToolMode::Measure);
+        tool_btn(ui::Icon::Comment, "Annotate", ToolMode::Annotate);
+        tool_btn(ui::Icon::VectorSquare, "ROI", ToolMode::ROI);
+
+        draw_separator();
+
+        // ── Group 3: Data tools ──
+        toggle_btn(ui::Icon::MapPin, "Markers",
+                   data_interaction_ && !data_interaction_->markers().empty(),
+                   [this]()
+                   {
+                       if (data_interaction_)
+                           data_interaction_->clear_markers();
+                   });
+        toggle_btn(ui::Icon::MagicWand, "Transform", custom_transform_dialog_.is_open(),
+                   [this]()
+                   {
+                       if (!custom_transform_dialog_.is_open())
+                       {
+                           custom_transform_dialog_.set_fonts(font_body_, font_heading_,
+                                                             font_title_);
+                           custom_transform_dialog_.open(current_figure_);
+                       }
+                   });
+
+        draw_separator();
+
+        // ── Group 4: Panels ──
+        toggle_btn(ui::Icon::Database, "Data",
+                   panel_open_ && active_section_ == Section::DataEditor,
+                   [this]()
+                   {
+                       bool was_active =
+                           panel_open_ && active_section_ == Section::DataEditor;
+                       if (was_active)
+                       {
+                           panel_open_ = false;
+                           layout_manager_->set_inspector_visible(false);
+                       }
+                       else
+                       {
+                           active_section_ = Section::DataEditor;
+                           panel_open_     = true;
+                           layout_manager_->set_inspector_visible(true);
+                       }
+                   });
+        toggle_btn(ui::Icon::Timeline, "Timeline", show_timeline_,
+                   [this]() { show_timeline_ = !show_timeline_; });
+
+        draw_separator();
+
+        // ── Group 5: Utilities ──
+        toggle_btn(ui::Icon::Code, "Python", false,
+                   [this]()
+                   {
+                       if (command_registry_)
+                           command_registry_->execute("python.toggle_console");
+                   });
+        toggle_btn(ui::Icon::Help, "Help", false,
+                   [this]()
+                   {
+                       if (command_registry_)
+                           command_registry_->execute("help.show");
+                   });
+    }
+    ImGui::End();
+    ImGui::PopStyleColor(1);
+    ImGui::PopStyleVar(5);
+}
+
+}   // namespace spectra
+
+#endif   // SPECTRA_USE_IMGUI

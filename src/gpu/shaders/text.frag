@@ -10,10 +10,14 @@ layout(location = 0) out vec4 out_color;
 
 void main() {
     // Atlas stores coverage in alpha channel (oversampled rasterization).
-    // Use it directly — no SDF tricks needed. The 2x oversampled bitmap
-    // already has proper anti-aliased edges from stb_truetype's PackFont.
     float coverage = texture(font_atlas, frag_uv).a;
     if (coverage < 0.005)
         discard;
-    out_color = vec4(frag_color.rgb, frag_color.a * coverage);
+
+    // Sharpen edges while preserving thin strokes (small tick labels).
+    // Low threshold (0.05) keeps fine detail; upper bound (0.55) makes the
+    // transition to full opacity happen sooner, giving crisp glyph edges.
+    float alpha = smoothstep(0.05, 0.55, coverage);
+
+    out_color = vec4(frag_color.rgb, frag_color.a * alpha);
 }

@@ -12,7 +12,7 @@
         "-DSPECTRA_USE_QT=ON",
         "-DSPECTRA_HAS_QT6=ON",
         "-DSPECTRA_BUILD_QT_EXAMPLE=ON",
-        "-DSPECTRA_USE_ROS2=OFF",
+        "-DSPECTRA_USE_ROS2=ON",
         "-DSPECTRA_ROS2_BAG=ON",
         "-DSPECTRA_USE_FFMPEG=ON"
     ],

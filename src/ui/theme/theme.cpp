@@ -897,11 +897,11 @@ void ThemeManager::initialize_default_themes()
         .info    = Color::from_hex(0xA0A0A0),
 
         // Plot-specific — grid recedes, data is hero
-        .grid_major       = Color(1.0f, 1.0f, 1.0f, 0.10f),
-        .grid_minor       = Color(1.0f, 1.0f, 1.0f, 0.05f),
-        .grid_line        = Color(1.0f, 1.0f, 1.0f, 0.10f),   // Compat
+        .grid_major       = Color(1.0f, 1.0f, 1.0f, 0.18f),
+        .grid_minor       = Color(1.0f, 1.0f, 1.0f, 0.08f),
+        .grid_line        = Color(1.0f, 1.0f, 1.0f, 0.18f),   // Compat
         .axis_line        = Color(0.55f, 0.55f, 0.55f, 0.50f),
-        .tick_label       = Color::from_hex(0x808080),
+        .tick_label       = Color::from_hex(0xA0A8B0),
         .crosshair        = Color(0.88f, 0.88f, 0.88f, 0.70f),
         .selection_fill   = Color(0.88f, 0.88f, 0.88f, 0.15f),
         .selection_border = Color::from_hex(0xE0E0E0),
@@ -960,11 +960,11 @@ void ThemeManager::initialize_default_themes()
         .info    = Color::from_hex(0x4D8FD6),
 
         // Plot-specific — grid recedes, data is hero
-        .grid_major       = Color(1.0f, 1.0f, 1.0f, 0.10f),
-        .grid_minor       = Color(1.0f, 1.0f, 1.0f, 0.05f),
-        .grid_line        = Color(1.0f, 1.0f, 1.0f, 0.10f),   // Compat
+        .grid_major       = Color(1.0f, 1.0f, 1.0f, 0.30f),
+        .grid_minor       = Color(1.0f, 1.0f, 1.0f, 0.20f),
+        .grid_line        = Color(1.0f, 1.0f, 1.0f, 0.30f),   // Compat
         .axis_line        = Color(0.55f, 0.55f, 0.55f, 0.50f),
-        .tick_label       = Color::from_hex(0x6B7582),
+        .tick_label       = Color::from_hex(0x8B95A2),
         .crosshair        = Color(0.30f, 0.56f, 0.84f, 0.70f),
         .selection_fill   = Color(0.30f, 0.56f, 0.84f, 0.20f),
         .selection_border = Color::from_hex(0x4D8FD6),
@@ -1022,11 +1022,11 @@ void ThemeManager::initialize_default_themes()
                               .info    = Color::from_hex(0x0969DA),
 
                     // Plot-specific — clean academic gridlines
-                              .grid_major       = Color(0.0f, 0.0f, 0.0f, 0.20f),
-                              .grid_minor       = Color(0.0f, 0.0f, 0.0f, 0.10f),
-                              .grid_line        = Color(0.0f, 0.0f, 0.0f, 0.20f),
+                              .grid_major       = Color(0.0f, 0.0f, 0.0f, 0.28f),
+                              .grid_minor       = Color(0.0f, 0.0f, 0.0f, 0.14f),
+                              .grid_line        = Color(0.0f, 0.0f, 0.0f, 0.28f),
                               .axis_line        = Color(0.15f, 0.15f, 0.15f, 0.80f),
-                              .tick_label       = Color::from_hex(0x404040),
+                              .tick_label       = Color::from_hex(0x303030),
                               .crosshair        = Color(0.04f, 0.41f, 0.85f, 0.70f),
                               .selection_fill   = Color(0.04f, 0.41f, 0.85f, 0.12f),
                               .selection_border = Color::from_hex(0x0969DA),

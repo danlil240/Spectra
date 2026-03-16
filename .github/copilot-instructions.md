@@ -63,6 +63,7 @@ When a request in this workspace matches one of the skill domains below, read th
 - 3D rendering, new 3D series types, camera, lighting, colormaps, depth buffer, Axes3D, and 3D shader development: `skills/3d-rendering/SKILL.md`
 - Data decimation, filters, transforms, live streaming, CSV import, GPU data upload, and series data model: `skills/data-pipeline/SKILL.md`
 - Code simplification, duplication reduction, control flow flattening, dead code removal, interface narrowing, and safe refactoring: `skills/code-simplifier/SKILL.md`
+- Any change that affects what is drawn on screen — rendering features, shader edits, theme tweaks, series visuals, UI layout, color, grid, legend, axes, 3D camera, or animation output: `skills/graphical-change-workflow/SKILL.md`
 
 ## Operating Rules
 

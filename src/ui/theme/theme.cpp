@@ -163,50 +163,50 @@ void ThemeManager::apply_to_imgui()
     auto&       style  = ImGui::GetStyle();
     const auto& colors = current_theme_->colors;
 
-    // ── Modern 2026 styling ──────────────────────────────────────────────
+    // ── Modern 2026 styling ───────────────────────────────────────────────────────
     style.AntiAliasedLines       = true;
     style.AntiAliasedFill        = true;
     style.AntiAliasedLinesUseTex = true;
 
-    // Window styling — r12 for panels/containers
-    style.WindowPadding    = ImVec2(tokens::SPACE_4, tokens::SPACE_4);
+    // Window styling — r12 for panels/containers, generous padding
+    style.WindowPadding    = ImVec2(tokens::SPACE_5, tokens::SPACE_4);
     style.WindowRounding   = tokens::RADIUS_LG;
     style.WindowBorderSize = 0.0f;   // Hairline borders drawn manually
     style.WindowMinSize    = ImVec2(32, 32);
     style.WindowTitleAlign = ImVec2(0.5f, 0.5f);
 
-    // Frame styling — r8 for inputs, compact padding
-    style.FramePadding    = ImVec2(tokens::SPACE_2 + 2.0f, tokens::SPACE_2);
+    // Frame styling — r8 for inputs, comfortable padding for premium feel
+    style.FramePadding    = ImVec2(tokens::SPACE_3, tokens::SPACE_2 + 2.0f);
     style.FrameRounding   = tokens::RADIUS_MD;
     style.FrameBorderSize = 0.0f;
 
-    // Item spacing — breathing room
-    style.ItemSpacing      = ImVec2(tokens::SPACE_3, tokens::SPACE_2 + 2.0f);
-    style.ItemInnerSpacing = ImVec2(tokens::SPACE_2, tokens::SPACE_2);
+    // Item spacing — generous breathing room (non-ImGui-default)
+    style.ItemSpacing      = ImVec2(tokens::SPACE_3, tokens::SPACE_3);
+    style.ItemInnerSpacing = ImVec2(tokens::SPACE_2 + 2.0f, tokens::SPACE_2);
 
     // Indent and separator
     style.IndentSpacing           = tokens::SPACE_6;
     style.SeparatorTextBorderSize = 0.5f;
     style.SeparatorTextAlign      = ImVec2(0.5f, 0.5f);
-    style.SeparatorTextPadding    = ImVec2(tokens::SPACE_5, tokens::SPACE_2);
+    style.SeparatorTextPadding    = ImVec2(tokens::SPACE_6, tokens::SPACE_2);
 
-    // Scrollbar — thin, pill-shaped, modern
-    style.ScrollbarSize     = 5.0f;
+    // Scrollbar — thin, pill-shaped, modern (appears on hover)
+    style.ScrollbarSize     = 6.0f;
     style.ScrollbarRounding = tokens::RADIUS_PILL;
 
     // Grab — rounded slider handles
     style.GrabMinSize  = tokens::SPACE_4;
     style.GrabRounding = tokens::RADIUS_PILL;
 
-    // Tab — r4 for small controls
-    style.TabRounding               = tokens::RADIUS_SM;
+    // Tab — r6 for softer controls (between SM and MD)
+    style.TabRounding               = 6.0f;
     style.TabBorderSize             = 0.0f;
     style.TabMinWidthForCloseButton = 0.0f;
     style.TabBarBorderSize          = 0.0f;
 
-    // Popup / tooltip — r8 for popovers
-    style.PopupRounding   = tokens::RADIUS_MD;
-    style.PopupBorderSize = 0.5f;
+    // Popup / tooltip — r12 for premium floating surfaces
+    style.PopupRounding   = tokens::RADIUS_LG;
+    style.PopupBorderSize = 1.0f;
 
     // Child window
     style.ChildRounding   = tokens::RADIUS_MD;
@@ -216,10 +216,10 @@ void ThemeManager::apply_to_imgui()
     style.ButtonTextAlign     = ImVec2(0.5f, 0.5f);
     style.SelectableTextAlign = ImVec2(0.0f, 0.0f);
 
-    // Tooltip — modern rounded
-    style.HoverStationaryDelay = 0.3f;
-    style.HoverDelayShort      = 0.15f;
-    style.HoverDelayNormal     = 0.4f;
+    // Tooltip — modern, fast-appearing
+    style.HoverStationaryDelay = 0.25f;
+    style.HoverDelayShort      = 0.12f;
+    style.HoverDelayNormal     = 0.35f;
 
     // Display safe area padding
     style.DisplaySafeAreaPadding = ImVec2(0.0f, 0.0f);
@@ -241,35 +241,42 @@ void ThemeManager::apply_to_imgui()
         return ImVec4(c.r, c.g, c.b, a);
     };
 
+    Color menu_bar_bg   = colors.bg_primary.lerp(colors.bg_secondary, 0.28f);
+    Color frame_hover   = colors.input_bg.lerp(colors.accent, 0.10f);
+    Color frame_active  = colors.input_bg.lerp(colors.accent, 0.20f);
+    Color button_hover  = colors.bg_tertiary.lerp(colors.accent, 0.16f);
+    Color button_active = colors.bg_tertiary.lerp(colors.accent, 0.28f);
+    Color header_bg     = colors.bg_secondary.lerp(colors.bg_tertiary, 0.72f);
+    Color header_hover  = colors.bg_tertiary.lerp(colors.accent, 0.14f);
+    Color header_active = colors.bg_tertiary.lerp(colors.accent, 0.24f);
+    Color tab_idle      = colors.bg_secondary.lerp(colors.bg_tertiary, 0.35f);
+    Color tab_hover     = colors.bg_tertiary.lerp(colors.accent, 0.14f);
+    Color tab_selected  = colors.bg_tertiary.lerp(colors.accent, 0.22f);
+
     // Window and background
     imgui_colors[ImGuiCol_WindowBg]     = lin(colors.bg_secondary, current_theme_->opacity_panel);
     imgui_colors[ImGuiCol_ChildBg]      = ImVec4(0, 0, 0, 0);   // Transparent — inherits parent
     imgui_colors[ImGuiCol_PopupBg]      = lin(colors.tooltip_bg);
     imgui_colors[ImGuiCol_Border]       = lin(colors.border_default);
-    imgui_colors[ImGuiCol_BorderShadow] = ImVec4(0, 0, 0, 0);
+    imgui_colors[ImGuiCol_BorderShadow] = ImVec4(0, 0, 0, 0.15f);   // Subtle depth shadow
 
     // Text
     imgui_colors[ImGuiCol_Text]         = lin(colors.text_primary, 1.0f);
     imgui_colors[ImGuiCol_TextDisabled] = lin(colors.text_tertiary, 1.0f);
 
-    // Frame backgrounds — use input_bg token with subtle hover lift
-    imgui_colors[ImGuiCol_FrameBg] = lin(colors.input_bg, 1.0f);
-    imgui_colors[ImGuiCol_FrameBgHovered] =
-        lin(Color(colors.input_bg.r + 0.03f, colors.input_bg.g + 0.03f, colors.input_bg.b + 0.03f),
-            1.0f);
-    imgui_colors[ImGuiCol_FrameBgActive] = lin(colors.accent, 0.18f);
+    // Frame backgrounds — use input_bg token with visible hover lift
+    imgui_colors[ImGuiCol_FrameBg]        = lin(colors.input_bg, 1.0f);
+    imgui_colors[ImGuiCol_FrameBgHovered] = lin(frame_hover, 1.0f);
+    imgui_colors[ImGuiCol_FrameBgActive]  = lin(frame_active, 1.0f);
 
     // Titles
     imgui_colors[ImGuiCol_TitleBg]          = lin(colors.bg_secondary, 1.0f);
-    imgui_colors[ImGuiCol_TitleBgActive]    = lin(colors.bg_elevated, 1.0f);
+    imgui_colors[ImGuiCol_TitleBgActive] =
+        lin(colors.bg_secondary.lerp(colors.bg_elevated, 0.55f), 1.0f);
     imgui_colors[ImGuiCol_TitleBgCollapsed] = lin(colors.bg_tertiary, 1.0f);
 
     // Menu
-    imgui_colors[ImGuiCol_MenuBarBg] =
-        lin(Color(colors.bg_primary.r * 0.6f + colors.bg_secondary.r * 0.4f,
-                  colors.bg_primary.g * 0.6f + colors.bg_secondary.g * 0.4f,
-                  colors.bg_primary.b * 0.6f + colors.bg_secondary.b * 0.4f),
-            1.0f);
+    imgui_colors[ImGuiCol_MenuBarBg] = lin(menu_bar_bg, 1.0f);
 
     // Scrollbar — themed track + thumb
     imgui_colors[ImGuiCol_ScrollbarBg]          = lin(colors.scrollbar_track);
@@ -280,15 +287,15 @@ void ThemeManager::apply_to_imgui()
     // Check mark
     imgui_colors[ImGuiCol_CheckMark] = lin(colors.accent, 1.0f);
 
-    // Buttons
-    imgui_colors[ImGuiCol_Button]        = lin(colors.bg_tertiary, 1.0f);
-    imgui_colors[ImGuiCol_ButtonHovered] = lin(colors.accent_subtle, 1.0f);
-    imgui_colors[ImGuiCol_ButtonActive]  = lin(colors.accent_muted, 1.0f);
+    // Buttons — clear state progression: rest → hover → press
+    imgui_colors[ImGuiCol_Button]        = lin(colors.bg_tertiary, 0.92f);
+    imgui_colors[ImGuiCol_ButtonHovered] = lin(button_hover, 0.98f);
+    imgui_colors[ImGuiCol_ButtonActive]  = lin(button_active, 1.0f);
 
-    // Header — use section_header_bg for base, subtle hover lift
-    imgui_colors[ImGuiCol_Header]        = lin(colors.section_header_bg);
-    imgui_colors[ImGuiCol_HeaderHovered] = lin(colors.bg_tertiary, 0.8f);
-    imgui_colors[ImGuiCol_HeaderActive]  = lin(colors.accent, 0.35f);
+    // Header — visible hover/active for interaction affordance
+    imgui_colors[ImGuiCol_Header]        = lin(header_bg, 0.92f);
+    imgui_colors[ImGuiCol_HeaderHovered] = lin(header_hover, 0.96f);
+    imgui_colors[ImGuiCol_HeaderActive]  = lin(header_active, 1.0f);
 
     // Separator — hairline dividers
     imgui_colors[ImGuiCol_Separator]        = lin(colors.border_subtle);
@@ -300,12 +307,12 @@ void ThemeManager::apply_to_imgui()
     imgui_colors[ImGuiCol_ResizeGripHovered] = lin(colors.accent, 1.0f);
     imgui_colors[ImGuiCol_ResizeGripActive]  = lin(colors.accent, 1.0f);
 
-    // Tabs — calmer, accent_muted for selected instead of full accent
-    imgui_colors[ImGuiCol_Tab]               = lin(colors.bg_tertiary, 0.7f);
-    imgui_colors[ImGuiCol_TabHovered]        = lin(colors.accent_subtle, 0.5f);
-    imgui_colors[ImGuiCol_TabSelected]       = lin(colors.accent, 0.35f);
-    imgui_colors[ImGuiCol_TabDimmed]         = lin(colors.bg_tertiary, 0.5f);
-    imgui_colors[ImGuiCol_TabDimmedSelected] = lin(colors.accent, 0.20f);
+    // Tabs — clear active tab, visible hover state
+    imgui_colors[ImGuiCol_Tab]               = lin(tab_idle, 0.78f);
+    imgui_colors[ImGuiCol_TabHovered]        = lin(tab_hover, 0.92f);
+    imgui_colors[ImGuiCol_TabSelected]       = lin(tab_selected, 1.0f);
+    imgui_colors[ImGuiCol_TabDimmed]         = lin(colors.bg_secondary, 0.45f);
+    imgui_colors[ImGuiCol_TabDimmedSelected] = lin(tab_selected, 0.72f);
 
     // Plot lines (for ImGui plot widgets)
     imgui_colors[ImGuiCol_PlotLines]            = lin(colors.accent, 1.0f);
@@ -323,10 +330,10 @@ void ThemeManager::apply_to_imgui()
     // Drag and drop — muted accent, not shouty
     imgui_colors[ImGuiCol_DragDropTarget] = lin(colors.accent, 0.7f);
 
-    // Navigation — use focus_ring token for keyboard focus
-    imgui_colors[ImGuiCol_NavHighlight]          = lin(colors.focus_ring, 0.6f);
-    imgui_colors[ImGuiCol_NavWindowingHighlight] = lin(colors.accent, 0.6f);
-    imgui_colors[ImGuiCol_NavWindowingDimBg]     = ImVec4(0, 0, 0, 0.3f);
+    // Navigation — strong focus indicators for keyboard navigation
+    imgui_colors[ImGuiCol_NavHighlight]          = lin(colors.focus_ring, 0.80f);
+    imgui_colors[ImGuiCol_NavWindowingHighlight] = lin(colors.accent, 0.75f);
+    imgui_colors[ImGuiCol_NavWindowingDimBg]     = ImVec4(0, 0, 0, 0.40f);
 
     // Modal
     imgui_colors[ImGuiCol_ModalWindowDimBg] = lin(colors.bg_overlay, 0.5f);
@@ -925,66 +932,72 @@ void ThemeManager::initialize_default_themes()
     register_theme("dark", dark);
 
     // Night theme — deep dark with subtle blue undertones
+    // Design system: 5-level depth hierarchy for floating workspace feel
+    //   L0 bg_primary  — the void (app chrome, deepest)
+    //   L1 bg_canvas   — workspace surface (plot area, slightly lifted)
+    //   L2 bg_secondary — panels float above canvas (inspector, rails)
+    //   L3 bg_tertiary  — interactive surfaces (inputs, cards, chips)
+    //   L4 bg_elevated  — floating surfaces (tooltips, popups, dropdowns)
     Theme night;
     night.name   = "night";
     night.colors = {
-        // Surfaces — very dark with faint blue undertone
-        .bg_canvas    = Color::from_hex(0x0E1218),   // Plot area background
-        .bg_primary   = Color::from_hex(0x0A0E13),   // App window background
-        .bg_secondary = Color::from_hex(0x12161D),   // Surface-1: panels, inspector, rails
-        .bg_tertiary  = Color::from_hex(0x1A1F27),   // Surface-2: inputs, chips, cards
-        .bg_elevated  = Color::from_hex(0x222830),   // Floating: tooltips, popups
-        .bg_overlay   = Color(0.0f, 0.0f, 0.0f, 0.50f),
+        // Surfaces — progressive elevation with clear depth steps
+        .bg_canvas    = Color::from_hex(0x101822),   // L1: workspace surface
+        .bg_primary   = Color::from_hex(0x090B10),   // L0: deepest void
+        .bg_secondary = Color::from_hex(0x161C25),   // L2: panels float above canvas
+        .bg_tertiary  = Color::from_hex(0x1F2733),   // L3: inputs, cards (clear lift)
+        .bg_elevated  = Color::from_hex(0x293547),   // L4: tooltips, popups
+        .bg_overlay   = Color(0.0f, 0.02f, 0.04f, 0.60f),
 
-        // Text
-        .text_primary   = Color::from_hex(0xE2E8F0),
-        .text_secondary = Color::from_hex(0x7B8794),   // Calmer labels
-        .text_tertiary  = Color::from_hex(0x454D56),
-        .text_inverse   = Color::from_hex(0x0A0E13),
+        // Text — warm blue-white hierarchy with wider contrast steps
+        .text_primary   = Color::from_hex(0xE8ECF4),   // Bright, slightly warm
+        .text_secondary = Color::from_hex(0x96A3B6),   // Clear readable labels
+        .text_tertiary  = Color::from_hex(0x5F6D80),   // Placeholders, meta
+        .text_inverse   = Color::from_hex(0x080B10),
 
-        // Borders — neutral gray (no blue tint)
-        .border_default = Color(0.25f, 0.27f, 0.29f, 0.65f),   // ~#404547 @ 65%
-        .border_subtle  = Color(0.20f, 0.22f, 0.24f, 0.45f),   // ~#333839 @ 45%
-        .border_strong  = Color(0.45f, 0.47f, 0.49f, 0.80f),   // ~#73787D @ 80%
+        // Borders — material edge definition, slightly blue
+        .border_default = Color(0.30f, 0.36f, 0.44f, 0.72f),   // Panel edges — visible
+        .border_subtle  = Color(0.22f, 0.27f, 0.34f, 0.56f),   // Hairline dividers
+        .border_strong  = Color(0.45f, 0.53f, 0.65f, 0.92f),   // Focused element borders
 
-        // Interactive — muted blue accent
-        .accent        = Color::from_hex(0x4D8FD6),   // Muted blue
-        .accent_hover  = Color::from_hex(0x6AAAE8),   // Slightly brighter on hover
-        .accent_muted  = Color(0.30f, 0.56f, 0.84f, 0.25f),
-        .accent_subtle = Color(0.30f, 0.56f, 0.84f, 0.10f),
+        // Interactive — confident blue accent with clear state changes
+        .accent        = Color::from_hex(0x55A2FF),   // Slightly brighter blue
+        .accent_hover  = Color::from_hex(0x82C2FF),   // Distinct hover lift
+        .accent_muted  = Color(0.33f, 0.64f, 1.0f, 0.34f),   // Selected bg
+        .accent_subtle = Color(0.33f, 0.64f, 1.0f, 0.16f),   // Hover tint
 
-        // Semantic
+        // Semantic — slightly desaturated for calm UI
         .success = Color::from_hex(0x3FB950),
         .warning = Color::from_hex(0xD29922),
         .error   = Color::from_hex(0xF85149),
-        .info    = Color::from_hex(0x4D8FD6),
+        .info    = Color::from_hex(0x4D94E8),
 
         // Plot-specific — grid recedes, data is hero
-        .grid_major       = Color(1.0f, 1.0f, 1.0f, 0.25f),
-        .grid_minor       = Color(1.0f, 1.0f, 1.0f, 0.12f),
-        .grid_line        = Color(1.0f, 1.0f, 1.0f, 0.25f),   // Compat
-        .axis_line        = Color(0.55f, 0.55f, 0.55f, 0.50f),
-        .tick_label       = Color::from_hex(0x8B95A2),
-        .crosshair        = Color(0.30f, 0.56f, 0.84f, 0.70f),
-        .selection_fill   = Color(0.30f, 0.56f, 0.84f, 0.20f),
-        .selection_border = Color::from_hex(0x4D8FD6),
-        .tooltip_bg       = Color(0.13f, 0.15f, 0.19f, 0.92f),   // Near-opaque glass
-        .tooltip_border   = Color(0.22f, 0.25f, 0.30f, 0.35f),
+        .grid_major       = Color(0.68f, 0.78f, 1.0f, 0.18f),   // Faint blue-tinted grid
+        .grid_minor       = Color(0.68f, 0.78f, 1.0f, 0.08f),
+        .grid_line        = Color(0.68f, 0.78f, 1.0f, 0.18f),   // Compat
+        .axis_line        = Color(0.55f, 0.62f, 0.72f, 0.58f),
+        .tick_label       = Color::from_hex(0x94A3B8),
+        .crosshair        = Color(0.30f, 0.58f, 0.91f, 0.75f),
+        .selection_fill   = Color(0.30f, 0.58f, 0.91f, 0.18f),
+        .selection_border = Color::from_hex(0x55A2FF),
+        .tooltip_bg       = Color(0.11f, 0.14f, 0.20f, 0.97f),   // Near-opaque glass
+        .tooltip_border   = Color(0.30f, 0.38f, 0.48f, 0.45f),
 
-        // Visual effects — glow off
-        .accent_glow       = Color(0.0f, 0.0f, 0.0f, 0.0f),
-        .glow_intensity    = 0.0f,
-        .focus_ring        = Color::from_hex(0x4D8FD6),
-        .scrollbar_thumb   = Color(1.0f, 1.0f, 1.0f, 0.20f),
+        // Visual effects — subtle accent glow for active elements
+        .accent_glow       = Color(0.33f, 0.64f, 1.0f, 0.34f),
+        .glow_intensity    = 0.35f,
+        .focus_ring        = Color::from_hex(0x55A2FF),
+        .scrollbar_thumb   = Color(0.64f, 0.72f, 0.84f, 0.28f),
         .scrollbar_track   = Color(0.0f, 0.0f, 0.0f, 0.0f),
-        .section_header_bg = Color(1.0f, 1.0f, 1.0f, 0.04f),
-        .input_bg          = Color::from_hex(0x1A1F27),
-        .hover_highlight   = Color(0.30f, 0.56f, 0.84f, 0.25f),
-        .annotation_bg     = Color(0.13f, 0.15f, 0.19f, 0.85f),
-        .roi_fill          = Color(0.30f, 0.56f, 0.84f, 0.12f),
-        .roi_border        = Color(0.30f, 0.56f, 0.84f, 0.45f)};
-    night.shadow_intensity = 0.0f;
-    night.use_blur         = false;
+        .section_header_bg = Color(0.68f, 0.78f, 1.0f, 0.05f),
+        .input_bg          = Color::from_hex(0x1E2733),
+        .hover_highlight   = Color(0.33f, 0.64f, 1.0f, 0.22f),
+        .annotation_bg     = Color(0.10f, 0.13f, 0.18f, 0.92f),
+        .roi_fill          = Color(0.33f, 0.64f, 1.0f, 0.14f),
+        .roi_border        = Color(0.33f, 0.64f, 1.0f, 0.50f)};
+    night.shadow_intensity = 1.0f;
+    night.use_blur         = true;
     register_theme("night", night);
 
     // Light theme — white canvas, light blue chrome (modern)

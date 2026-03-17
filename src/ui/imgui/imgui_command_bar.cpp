@@ -27,8 +27,8 @@ static bool icon_label_button(const char* icon_codepoint,
     float icon_sz  = icon_font ? icon_font->FontSize : 20.0f;
     float label_sz = label_font ? (label_font->FontSize * 0.92f) : 11.0f;   // ~11px label
     float icon_gap = 3.0f;    // gap between icon and label
-    float cell_h   = 52.0f;   // generous cell height like Vision.png
-    float pill_pad = 6.0f;    // horizontal inset for the highlight pill
+    float cell_h   = 56.0f;   // generous cell height like Vision.png
+    float pill_pad = 7.0f;    // horizontal inset for the highlight pill
     float pill_w   = width - pill_pad * 2.0f;
 
     // Full-width invisible button for hit testing
@@ -47,8 +47,24 @@ static bool icon_label_button(const char* icon_codepoint,
 
     if (active)
     {
-        // Vision.png: no background fill — only a thin accent bar on the left edge
-        float  bar_w   = 2.0f;
+        dl->AddRectFilled(
+            pill_min,
+            pill_max,
+            ImGui::ColorConvertFloat4ToU32(
+                ImVec4(colors.bg_tertiary.r * 0.78f + colors.accent.r * 0.22f,
+                       colors.bg_tertiary.g * 0.78f + colors.accent.g * 0.22f,
+                       colors.bg_tertiary.b * 0.78f + colors.accent.b * 0.22f,
+                       0.96f)),
+            tokens::RADIUS_MD);
+        dl->AddRect(pill_min,
+                    pill_max,
+                    ImGui::ColorConvertFloat4ToU32(
+                        ImVec4(colors.border_strong.r,
+                               colors.border_strong.g,
+                               colors.border_strong.b,
+                               0.60f)),
+                    tokens::RADIUS_MD);
+        float  bar_w   = 3.0f;
         ImVec2 bar_min = ImVec2(cursor.x, cursor.y + 10.0f);
         ImVec2 bar_max = ImVec2(cursor.x + bar_w, cursor.y + cell_h - 10.0f);
         dl->AddRectFilled(bar_min,
@@ -75,7 +91,16 @@ static bool icon_label_button(const char* icon_codepoint,
             pill_min,
             pill_max,
             ImGui::ColorConvertFloat4ToU32(
-                ImVec4(colors.text_primary.r, colors.text_primary.g, colors.text_primary.b, 0.06f)),
+                ImVec4(colors.bg_tertiary.r * 0.84f + colors.accent.r * 0.16f,
+                       colors.bg_tertiary.g * 0.84f + colors.accent.g * 0.16f,
+                       colors.bg_tertiary.b * 0.84f + colors.accent.b * 0.16f,
+                       0.86f)),
+            tokens::RADIUS_MD);
+        dl->AddRect(
+            pill_min,
+            pill_max,
+            ImGui::ColorConvertFloat4ToU32(
+                ImVec4(colors.border_subtle.r, colors.border_subtle.g, colors.border_subtle.b, 0.55f)),
             tokens::RADIUS_MD);
     }
 
@@ -84,19 +109,17 @@ static bool icon_label_button(const char* icon_codepoint,
     if (active)
     {
         icon_col = ImGui::ColorConvertFloat4ToU32(
-            ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 1.0f));
+            ImVec4(colors.accent_hover.r, colors.accent_hover.g, colors.accent_hover.b, 1.0f));
         text_col = ImGui::ColorConvertFloat4ToU32(
-            ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.95f));
+            ImVec4(colors.accent_hover.r, colors.accent_hover.g, colors.accent_hover.b, 0.98f));
     }
     else
     {
-        float alpha = hovered ? 1.0f : 0.8f;   // Vision.png: bright default, full on hover
-        icon_col    = ImGui::ColorConvertFloat4ToU32(
-            ImVec4(colors.text_primary.r, colors.text_primary.g, colors.text_primary.b, alpha));
-        text_col = ImGui::ColorConvertFloat4ToU32(ImVec4(colors.text_primary.r,
-                                                         colors.text_primary.g,
-                                                         colors.text_primary.b,
-                                                         alpha * 0.9f));
+        const auto& base = hovered ? colors.text_primary : colors.text_secondary;
+        float       alpha = hovered ? 1.0f : 0.96f;
+        icon_col          = ImGui::ColorConvertFloat4ToU32(ImVec4(base.r, base.g, base.b, alpha));
+        text_col          = ImGui::ColorConvertFloat4ToU32(
+            ImVec4(base.r, base.g, base.b, hovered ? 0.92f : 0.86f));
     }
 
     // Vertically center the icon+label block within the cell
@@ -155,20 +178,27 @@ void ImGuiIntegration::draw_panel(Figure& figure)
 void ImGuiIntegration::draw_menubar_menu(const char* label, const std::vector<MenuItem>& items)
 {
     const auto& colors = ui::theme();
+    bool        menu_is_open = open_menu_label_ == label;
 
     ImGui::PushFont(font_menubar_);
     ImGui::PushStyleColor(
         ImGuiCol_Text,
-        ImVec4(colors.text_primary.r, colors.text_primary.g, colors.text_primary.b, 0.85f));
-    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+        ImVec4(colors.text_primary.r,
+               colors.text_primary.g,
+               colors.text_primary.b,
+               menu_is_open ? 1.0f : 0.88f));
+    ImGui::PushStyleColor(
+        ImGuiCol_Button,
+        menu_is_open ? ImVec4(colors.bg_tertiary.r, colors.bg_tertiary.g, colors.bg_tertiary.b, 0.95f)
+                     : ImVec4(0, 0, 0, 0));
     ImGui::PushStyleColor(
         ImGuiCol_ButtonHovered,
-        ImVec4(colors.accent_subtle.r, colors.accent_subtle.g, colors.accent_subtle.b, 0.6f));
+        ImVec4(colors.accent_subtle.r, colors.accent_subtle.g, colors.accent_subtle.b, 0.78f));
     ImGui::PushStyleColor(ImGuiCol_ButtonActive,
                           ImVec4(colors.accent_muted.r,
                                  colors.accent_muted.g,
                                  colors.accent_muted.b,
-                                 colors.accent_muted.a));
+                                 0.95f));
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
                         ImVec2(ui::tokens::SPACE_4, ui::tokens::SPACE_2));
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, ui::tokens::RADIUS_MD);
@@ -241,12 +271,21 @@ void ImGuiIntegration::draw_menubar_menu(const char* label, const std::vector<Me
             open_menu_label_.clear();
         }
 
-        // Draw shadow behind popup
-        ImDrawList* bg_dl = ImGui::GetBackgroundDrawList();
-        bg_dl->AddRectFilled(ImVec2(popup_pos.x + 2, popup_pos.y + 3),
-                             ImVec2(popup_pos.x + popup_size.x + 2, popup_pos.y + popup_size.y + 5),
-                             IM_COL32(0, 0, 0, 30),
-                             ui::tokens::RADIUS_LG + 2);
+        // Multi-layer soft shadow behind popup (elevation 3)
+        ImDrawList* bg_dl         = ImGui::GetBackgroundDrawList();
+        float       popup_shadow  = ui::tokens::ELEVATION_3_SPREAD;
+        for (int si = 1; si <= 4; ++si)
+        {
+            float st    = static_cast<float>(si) / 4.0f;
+            float soff  = popup_shadow * st;
+            float salph = 0.12f * (1.0f - st * 0.7f);
+            bg_dl->AddRectFilled(
+                ImVec2(popup_pos.x + soff * 0.3f, popup_pos.y + soff * 0.5f),
+                ImVec2(popup_pos.x + popup_size.x + soff * 0.5f,
+                       popup_pos.y + popup_size.y + soff),
+                IM_COL32(0, 0, 0, static_cast<int>(salph * 255)),
+                ui::tokens::RADIUS_LG + soff * 0.5f);
+        }
 
         for (const auto& item : items)
         {
@@ -409,7 +448,7 @@ void ImGuiIntegration::draw_command_bar()
                              | ImGuiWindowFlags_NoFocusOnAppearing;
 
     // Top bar: slightly darker than panels to push visual focus to canvas
-    float bar_blend = 0.65f;   // Blend toward bg_primary
+    float bar_blend = 0.74f;   // Blend toward bg_primary
     auto  bar_bg_r =
         ui::theme().bg_primary.r * bar_blend + ui::theme().bg_secondary.r * (1.0f - bar_blend);
     auto bar_bg_g =
@@ -417,7 +456,7 @@ void ImGuiIntegration::draw_command_bar()
     auto bar_bg_b =
         ui::theme().bg_primary.b * bar_blend + ui::theme().bg_secondary.b * (1.0f - bar_blend);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
-                        ImVec2(ui::tokens::SPACE_4, ui::tokens::SPACE_2));
+                        ImVec2(ui::tokens::SPACE_5, ui::tokens::SPACE_2));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ui::tokens::SPACE_3, 0.0f));
     ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(bar_bg_r, bar_bg_g, bar_bg_b, 1.0f));
@@ -432,17 +471,33 @@ void ImGuiIntegration::draw_command_bar()
     {
         SPECTRA_LOG_TRACE("ui", "Command bar window began successfully");
 
-        // ── Draw subtle bottom border line for menu bar separation ──
+        // ── Floating surface depth: bottom shadow + hairline border ──
         {
             ImDrawList* bar_dl = ImGui::GetWindowDrawList();
             ImVec2      wpos   = ImGui::GetWindowPos();
             ImVec2      wsz    = ImGui::GetWindowSize();
-            bar_dl->AddLine(ImVec2(wpos.x, wpos.y + wsz.y - 1.0f),
-                            ImVec2(wpos.x + wsz.x, wpos.y + wsz.y - 1.0f),
+            float       bottom = wpos.y + wsz.y;
+
+            // Multi-layer soft shadow below the bar
+            float shadow_spread = ui::tokens::ELEVATION_2_SPREAD;
+            for (int i = 0; i < 4; ++i)
+            {
+                float t     = static_cast<float>(i) / 4.0f;
+                float alpha = 0.10f * (1.0f - t);
+                float off   = shadow_spread * t;
+                bar_dl->AddRectFilled(
+                    ImVec2(wpos.x, bottom),
+                    ImVec2(wpos.x + wsz.x, bottom + off + 1.0f),
+                    IM_COL32(0, 0, 0, static_cast<int>(alpha * 255)));
+            }
+
+            // Crisp hairline border at bottom edge
+            bar_dl->AddLine(ImVec2(wpos.x, bottom - 1.0f),
+                            ImVec2(wpos.x + wsz.x, bottom - 1.0f),
                             IM_COL32(static_cast<uint8_t>(ui::theme().border_subtle.r * 255),
                                      static_cast<uint8_t>(ui::theme().border_subtle.g * 255),
                                      static_cast<uint8_t>(ui::theme().border_subtle.b * 255),
-                                     60),
+                                     80),
                             1.0f);
         }
 
@@ -961,7 +1016,7 @@ void ImGuiIntegration::draw_command_bar()
 
         // Status info
         ImGuiIO& io = ImGui::GetIO();
-        ImGui::PushFont(font_menubar_);
+        ImGui::PushFont(font_heading_);
         ImGui::PushStyleColor(ImGuiCol_Text,
                               ImVec4(ui::theme().text_secondary.r,
                                      ui::theme().text_secondary.g,
@@ -975,6 +1030,27 @@ void ImGuiIntegration::draw_command_bar()
                       static_cast<int>(io.DisplaySize.x),
                       static_cast<int>(io.DisplaySize.y),
                       io.Framerate);
+        ImVec2 status_pos = ImGui::GetCursorScreenPos();
+        ImVec2 status_sz  = ImGui::CalcTextSize(status);
+        ImVec2 chip_min(status_pos.x - ui::tokens::SPACE_2, status_pos.y - 3.0f);
+        ImVec2 chip_max(status_pos.x + status_sz.x + ui::tokens::SPACE_2,
+                        status_pos.y + status_sz.y + 3.0f);
+        ImGui::GetWindowDrawList()->AddRectFilled(
+            chip_min,
+            chip_max,
+            ImGui::ColorConvertFloat4ToU32(ImVec4(ui::theme().bg_tertiary.r,
+                                                  ui::theme().bg_tertiary.g,
+                                                  ui::theme().bg_tertiary.b,
+                                                  0.92f)),
+            ui::tokens::RADIUS_MD);
+        ImGui::GetWindowDrawList()->AddRect(
+            chip_min,
+            chip_max,
+            ImGui::ColorConvertFloat4ToU32(ImVec4(ui::theme().border_subtle.r,
+                                                  ui::theme().border_subtle.g,
+                                                  ui::theme().border_subtle.b,
+                                                  0.55f)),
+            ui::tokens::RADIUS_MD);
         ImGui::TextUnformatted(status);
 
         ImGui::PopStyleColor();
@@ -1002,20 +1078,49 @@ void ImGuiIntegration::draw_nav_rail()
     float rail_w = bounds.w;
 
     // Vision.png style: full-height, bg_primary (darkest), no border, no rounding
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, ui::tokens::SPACE_2));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, ui::tokens::SPACE_3));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowMinSize, ImVec2(0, 0));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
     ImGui::PushStyleColor(
         ImGuiCol_WindowBg,
-        ImVec4(ui::theme().bg_primary.r, ui::theme().bg_primary.g, ui::theme().bg_primary.b, 1.0f));
+        ImVec4(ui::theme().bg_secondary.r,
+               ui::theme().bg_secondary.g,
+               ui::theme().bg_secondary.b,
+               0.98f));
 
     ImGui::SetNextWindowPos(ImVec2(bounds.x, bounds.y), ImGuiCond_Always);
     ImGui::SetNextWindowSize(ImVec2(rail_w, bounds.h), ImGuiCond_Always);
 
     if (ImGui::Begin("##navrail", nullptr, flags))
     {
+        // Floating surface depth: soft shadow on right edge
+        {
+            ImDrawList* dl            = ImGui::GetWindowDrawList();
+            float       right_edge    = bounds.x + rail_w;
+            float       shadow_spread = ui::tokens::ELEVATION_1_SPREAD;
+            for (int i = 0; i < 4; ++i)
+            {
+                float t     = static_cast<float>(i) / 4.0f;
+                float alpha = 0.10f * (1.0f - t);
+                float off   = shadow_spread * t;
+                dl->AddRectFilled(
+                    ImVec2(right_edge, bounds.y),
+                    ImVec2(right_edge + off + 1.0f, bounds.y + bounds.h),
+                    IM_COL32(0, 0, 0, static_cast<int>(alpha * 255)));
+            }
+
+            // Hairline border on right edge
+            dl->AddLine(ImVec2(right_edge - 1.0f, bounds.y),
+                        ImVec2(right_edge - 1.0f, bounds.y + bounds.h),
+                        ImGui::ColorConvertFloat4ToU32(ImVec4(ui::theme().border_subtle.r,
+                                                              ui::theme().border_subtle.g,
+                                                              ui::theme().border_subtle.b,
+                                                              0.48f)),
+                        1.0f);
+        }
+
         ImFont* label_font = font_heading_;   // 12.5px — compact labels
         float   btn_w      = rail_w;
 

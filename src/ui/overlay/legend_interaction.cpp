@@ -226,28 +226,28 @@ bool LegendInteraction::draw(Axes&               axes,
     auto   is_sentinel = [](const Color& c) { return c.r == 0.0f && c.g == 0.0f && c.b == 0.0f; };
     ImVec4 bg_col;
     if (is_sentinel(config.bg_color))
-        bg_col = ImVec4(theme_colors.tooltip_bg.r,
-                        theme_colors.tooltip_bg.g,
-                        theme_colors.tooltip_bg.b,
-                        theme_colors.tooltip_bg.a);
+        bg_col = ImVec4(theme_colors.bg_elevated.r,
+                        theme_colors.bg_elevated.g,
+                        theme_colors.bg_elevated.b,
+                        0.94f);
     else
         bg_col = ImVec4(config.bg_color.r, config.bg_color.g, config.bg_color.b, config.bg_color.a);
 
     ImVec4 border_col;
     if (is_sentinel(config.border_color))
-        border_col = ImVec4(theme_colors.border_subtle.r,
-                            theme_colors.border_subtle.g,
-                            theme_colors.border_subtle.b,
-                            theme_colors.border_subtle.a);
+        border_col = ImVec4(theme_colors.border_default.r,
+                            theme_colors.border_default.g,
+                            theme_colors.border_default.b,
+                            0.65f);
     else
         border_col = ImVec4(config.border_color.r,
                             config.border_color.g,
                             config.border_color.b,
                             config.border_color.a);
 
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ui::tokens::RADIUS_MD);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(pad_x, pad_y));
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.5f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ui::tokens::RADIUS_LG);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(pad_x + 2.0f, pad_y + 1.0f));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
     ImGui::PushStyleColor(ImGuiCol_WindowBg, bg_col);
     ImGui::PushStyleColor(ImGuiCol_Border, border_col);
 
@@ -269,6 +269,20 @@ bool LegendInteraction::draw(Axes&               axes,
 
     if (ImGui::Begin(win_id, nullptr, flags))
     {
+        ImVec2      win_pos  = ImGui::GetWindowPos();
+        ImVec2      win_size = ImGui::GetWindowSize();
+        ImDrawList* bg_dl    = ImGui::GetBackgroundDrawList();
+        for (int i = 0; i < 3; ++i)
+        {
+            float t     = static_cast<float>(i) / 3.0f;
+            float off   = 1.0f + t * ui::tokens::ELEVATION_2_SPREAD * 0.45f;
+            float alpha = 0.12f * (1.0f - t);
+            bg_dl->AddRectFilled(ImVec2(win_pos.x + off * 0.2f, win_pos.y + off * 0.35f),
+                                 ImVec2(win_pos.x + win_size.x + off * 0.45f,
+                                        win_pos.y + win_size.y + off),
+                                 IM_COL32(0, 0, 0, static_cast<int>(alpha * 255)),
+                                 ui::tokens::RADIUS_LG + off * 0.25f);
+        }
         // Handle legend dragging
         if (draggable_)
         {
@@ -313,33 +327,12 @@ bool LegendInteraction::draw(Axes&               axes,
             auto& state = get_state(s.get());
             float row_y = cursor.y + static_cast<float>(row) * row_height;
             float row_x = cursor.x;
-
-            // Determine visual opacity
-            float vis_alpha = state.opacity;
-            Color sc        = s->color();
-
-            // Color swatch
-            ImU32 swatch_col =
-                ImGui::ColorConvertFloat4ToU32(ImVec4(sc.r, sc.g, sc.b, sc.a * vis_alpha));
-            float swatch_y = row_y + (row_height - swatch_size) * 0.5f;
-            dl->AddRectFilled(ImVec2(row_x, swatch_y),
-                              ImVec2(row_x + swatch_size, swatch_y + swatch_size),
-                              swatch_col,
-                              2.0f);
-
-            // Series label — spec §4.3: use text_secondary for legend labels
-            ImU32 text_col = ImGui::ColorConvertFloat4ToU32(ImVec4(theme_colors.text_secondary.r,
-                                                                   theme_colors.text_secondary.g,
-                                                                   theme_colors.text_secondary.b,
-                                                                   vis_alpha));
-            float label_x  = row_x + swatch_size + swatch_gap;
-            float label_y  = row_y + (row_height - font_size) * 0.5f;
-            dl->AddText(font, font_size, ImVec2(label_x, label_y), text_col, s->label().c_str());
-
-            // Click-to-toggle: invisible button over the row
+            float btn_w =
+                swatch_size + swatch_gap + max_label_w + (toggleable_ ? (eye_width + 4.0f) : 0.0f);
+            bool row_hovered = false;
             if (toggleable_)
             {
-                ImGui::SetCursorScreenPos(ImVec2(row_x, row_y));
+                ImGui::SetCursorScreenPos(ImVec2(row_x - 4.0f, row_y));
                 char btn_id[80];
                 std::snprintf(btn_id,
                               sizeof(btn_id),
@@ -348,43 +341,87 @@ bool LegendInteraction::draw(Axes&               axes,
                               axes_index,
                               row);
 
-                float btn_w = swatch_size + swatch_gap + max_label_w;
-                if (ImGui::InvisibleButton(btn_id, ImVec2(btn_w, row_height)))
+                if (ImGui::InvisibleButton(btn_id, ImVec2(btn_w + 8.0f, row_height)))
                 {
                     state.user_visible   = !state.user_visible;
                     state.target_opacity = state.user_visible ? 1.0f : 0.15f;
-
-                    // Apply visibility to the actual series
                     s->visible(state.user_visible);
                     consumed = true;
                 }
-
-                // Hover highlight
-                if (ImGui::IsItemHovered())
-                {
-                    ImU32 hover_col =
-                        ImGui::ColorConvertFloat4ToU32(ImVec4(theme_colors.accent_subtle.r,
-                                                              theme_colors.accent_subtle.g,
-                                                              theme_colors.accent_subtle.b,
-                                                              0.3f));
-                    dl->AddRectFilled(ImVec2(row_x - 4.0f, row_y),
-                                      ImVec2(row_x + btn_w + 4.0f, row_y + row_height),
-                                      hover_col,
-                                      3.0f);
-
-                    // Cursor hint
+                row_hovered = ImGui::IsItemHovered();
+                if (row_hovered)
                     ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
-                }
+            }
 
+            // Determine visual opacity
+            float vis_alpha = state.opacity;
+            Color sc        = s->color();
+            if (row_hovered)
+            {
+                dl->AddRectFilled(
+                    ImVec2(row_x - 4.0f, row_y),
+                    ImVec2(row_x + btn_w + 4.0f, row_y + row_height),
+                    ImGui::ColorConvertFloat4ToU32(
+                        ImVec4(theme_colors.bg_tertiary.r,
+                               theme_colors.bg_tertiary.g,
+                               theme_colors.bg_tertiary.b,
+                               0.90f)),
+                    ui::tokens::RADIUS_SM);
+                dl->AddRect(
+                    ImVec2(row_x - 4.0f, row_y),
+                    ImVec2(row_x + btn_w + 4.0f, row_y + row_height),
+                    ImGui::ColorConvertFloat4ToU32(
+                        ImVec4(theme_colors.border_default.r,
+                               theme_colors.border_default.g,
+                               theme_colors.border_default.b,
+                               0.55f)),
+                    ui::tokens::RADIUS_SM);
+            }
+
+            // Color swatch
+            ImU32 swatch_col =
+                ImGui::ColorConvertFloat4ToU32(ImVec4(sc.r, sc.g, sc.b, sc.a * vis_alpha));
+            float swatch_y = row_y + (row_height - swatch_size) * 0.5f;
+            dl->AddRectFilled(ImVec2(row_x, swatch_y),
+                              ImVec2(row_x + swatch_size, swatch_y + swatch_size),
+                              swatch_col,
+                              3.0f);
+            dl->AddRect(ImVec2(row_x, swatch_y),
+                        ImVec2(row_x + swatch_size, swatch_y + swatch_size),
+                        ImGui::ColorConvertFloat4ToU32(
+                            ImVec4(theme_colors.border_default.r,
+                                   theme_colors.border_default.g,
+                                   theme_colors.border_default.b,
+                                   0.28f)),
+                        3.0f);
+
+            // Series label — spec §4.3: use text_secondary for legend labels
+            const auto& row_text = state.user_visible ? theme_colors.text_primary
+                                                      : theme_colors.text_secondary;
+            ImU32       text_col = ImGui::ColorConvertFloat4ToU32(
+                ImVec4(row_text.r, row_text.g, row_text.b, vis_alpha));
+            float label_x  = row_x + swatch_size + swatch_gap;
+            float label_y  = row_y + (row_height - font_size) * 0.5f;
+            dl->AddText(font, font_size, ImVec2(label_x, label_y), text_col, s->label().c_str());
+
+            // Click-to-toggle: invisible button over the row
+            if (toggleable_)
+            {
                 // Eye icon (visibility indicator) on the right
                 float       eye_x     = row_x + btn_w + 4.0f;
                 float       eye_y     = row_y + (row_height - font_size * 0.7f) * 0.5f;
                 const char* eye_label = state.user_visible ? "o" : "-";
                 ImU32       eye_col =
-                    ImGui::ColorConvertFloat4ToU32(ImVec4(theme_colors.text_tertiary.r,
-                                                          theme_colors.text_tertiary.g,
-                                                          theme_colors.text_tertiary.b,
-                                                          theme_colors.text_tertiary.a));
+                    ImGui::ColorConvertFloat4ToU32(
+                        state.user_visible
+                            ? ImVec4(theme_colors.accent.r,
+                                     theme_colors.accent.g,
+                                     theme_colors.accent.b,
+                                     0.90f)
+                            : ImVec4(theme_colors.text_tertiary.r,
+                                     theme_colors.text_tertiary.g,
+                                     theme_colors.text_tertiary.b,
+                                     theme_colors.text_tertiary.a));
                 dl->AddText(font, font_size * 0.7f, ImVec2(eye_x, eye_y), eye_col, eye_label);
             }
 

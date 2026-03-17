@@ -156,7 +156,7 @@ void ImGuiIntegration::draw_pane_tab_headers()
         Rect b = pane->bounds();
         Rect hr{b.x, b.y, b.w, TAB_H};
 
-        PaneHeader ph;
+        PaneHeader ph{};
         ph.pane        = pane;
         ph.header_rect = hr;
 
@@ -176,11 +176,11 @@ void ImGuiIntegration::draw_pane_tab_headers()
             float  tw      = std::clamp(text_sz.x + TAB_PAD * 2 + CLOSE_SZ, TAB_MIN_W, TAB_MAX_W);
 
             // Add insertion gap before this tab if needed
-            if (pane_has_gap && insertion_gap_.insert_after_idx == SIZE_MAX && li == 0)
-            {
-                cur_x += insertion_gap_.current_gap;
-            }
-            else if (pane_has_gap && li > 0 && (li - 1) == insertion_gap_.insert_after_idx)
+            bool insert_gap_here =
+                pane_has_gap
+                && ((insertion_gap_.insert_after_idx == SIZE_MAX && li == 0)
+                    || (li > 0 && (li - 1) == insertion_gap_.insert_after_idx));
+            if (insert_gap_here)
             {
                 cur_x += insertion_gap_.current_gap;
             }
@@ -202,7 +202,7 @@ void ImGuiIntegration::draw_pane_tab_headers()
             bool hovered         = (mouse.x >= draw_x && mouse.x < draw_x + tw && mouse.y >= hr.y
                             && mouse.y < hr.y + TAB_H);
 
-            TabRect tr;
+            TabRect tr{};
             tr.figure_index = fig_idx;
             tr.x            = draw_x;
             tr.y            = hr.y;
@@ -268,11 +268,15 @@ void ImGuiIntegration::draw_pane_tab_headers()
         {
             draw_list->AddRectFilled(ImVec2(hr.x, hr.y),
                                      ImVec2(hr.x + hr.w, hr.y + hr.h),
-                                     to_col(theme.bg_secondary));
+                                     to_col(theme.bg_secondary.lerp(theme.bg_primary, 0.12f)));
         }
+        draw_list->AddLine(ImVec2(hr.x, hr.y),
+                           ImVec2(hr.x + hr.w, hr.y),
+                           to_col(theme.border_subtle, 0.28f),
+                           1.0f);
         draw_list->AddLine(ImVec2(hr.x, hr.y + hr.h - 1),
                            ImVec2(hr.x + hr.w, hr.y + hr.h - 1),
-                           to_col(theme.border_subtle),
+                           to_col(theme.border_default, 0.70f),
                            1.0f);
 
         for (auto& tr : ph.tabs)
@@ -286,30 +290,44 @@ void ImGuiIntegration::draw_pane_tab_headers()
                 continue;
 
             // Tab background
-            ImU32 bg;
+            ImU32 bg = 0;
+            ImU32 border_col = 0;
             bool  is_active_styled =
                 tr.is_active && !is_menu_open();   // Don't show active styling when menus are open
             if (is_being_dragged)
             {
                 bg = to_col(theme.bg_elevated);
+                border_col = to_col(theme.border_strong, 0.88f);
             }
             else if (is_active_styled)
             {
-                bg = to_col(theme.bg_tertiary);
+                bg = to_col(theme.bg_tertiary.lerp(theme.accent, 0.10f), 0.98f);
+                border_col = to_col(theme.border_default, 0.92f);
             }
             else if (tr.is_hovered)
             {
-                bg = to_col(theme.accent_subtle);
+                bg = to_col(theme.bg_tertiary.lerp(theme.accent, 0.08f), 0.84f);
+                border_col = to_col(theme.border_subtle, 0.78f);
             }
             else
             {
-                bg = to_col(theme.bg_secondary, 0.0f);
+                bg = to_col(theme.bg_secondary.lerp(theme.bg_tertiary, 0.18f), 0.35f);
+                border_col = to_col(theme.border_subtle, 0.20f);
             }
 
             float  inset_y = 3.0f;
             ImVec2 tl(tr.x, tr.y + inset_y);
             ImVec2 br(tr.x + tr.w, tr.y + tr.h);
+            if (is_active_styled || is_being_dragged)
+            {
+                draw_list->AddRectFilled(ImVec2(tl.x, tl.y + 1.0f),
+                                         ImVec2(br.x, br.y + 2.0f),
+                                         IM_COL32(0, 0, 0, 34),
+                                         6.0f,
+                                         ImDrawFlags_RoundCornersTop);
+            }
             draw_list->AddRectFilled(tl, br, bg, 4.0f, ImDrawFlags_RoundCornersTop);
+            draw_list->AddRect(tl, br, border_col, 4.0f, ImDrawFlags_RoundCornersTop);
 
             // Active underline (skip when menus are open)
             if (is_active_styled)
@@ -427,11 +445,17 @@ void ImGuiIntegration::draw_pane_tab_headers()
                 pane_tab_hovered_ = true;
 
             ImU32 add_bg =
-                add_hovered ? to_col(theme.accent_subtle) : to_col(theme.bg_secondary, 0.0f);
+                add_hovered ? to_col(theme.bg_tertiary.lerp(theme.accent, 0.08f), 0.84f)
+                            : to_col(theme.bg_secondary.lerp(theme.bg_tertiary, 0.18f), 0.35f);
             draw_list->AddRectFilled(ImVec2(add_rect.x, add_rect.y),
                                      ImVec2(add_rect.x + add_rect.w, add_rect.y + add_rect.h),
                                      add_bg,
                                      4.0f);
+            draw_list->AddRect(ImVec2(add_rect.x, add_rect.y),
+                               ImVec2(add_rect.x + add_rect.w, add_rect.y + add_rect.h),
+                               add_hovered ? to_col(theme.border_default, 0.88f)
+                                           : to_col(theme.border_subtle, 0.24f),
+                               4.0f);
 
             ImVec2 center(add_rect.x + add_rect.w * 0.5f, add_rect.y + add_rect.h * 0.5f);
             ImU32  add_col = add_hovered ? to_col(theme.accent) : to_col(theme.text_tertiary);
@@ -468,9 +492,11 @@ void ImGuiIntegration::draw_pane_tab_headers()
         // ImGui::GetMousePos() returns garbage when the cursor leaves
         // the GLFW window, causing int overflow → INT_MIN coordinates.
         // GLFW's glfwGetCursorPos works correctly even outside the window.
-        float screen_mx, screen_my;
+        float screen_mx = 0.0f;
+        float screen_my = 0.0f;
         {
-            double sx, sy;
+            double sx = 0.0;
+            double sy = 0.0;
             if (tab_drag_controller_->get_screen_cursor(sx, sy))
             {
                 screen_mx = static_cast<float>(sx);

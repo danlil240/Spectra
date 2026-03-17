@@ -3842,13 +3842,76 @@ class QAAgent
         }
 #endif
 
+        // ── 54. Command palette scrolled (20+ results, scrollbar visible) ──
+        // DES-I5: Open palette with no filter (shows all ~50 commands),
+        // navigate down 15 items via arrow keys to trigger scroll and make
+        // the custom scrollbar appear, then capture.
+        {
+            auto* ui = app_->ui_context();
+            if (ui)
+            {
+                // Switch to Figure 1 so the background is clean
+                auto ids = app_->figure_registry().all_ids();
+                if (!ids.empty())
+                    ui->fig_mgr->queue_switch(ids[0]);
+                pump_frames(5);
+
+                // Open command palette (shows all commands, no filter)
+                ui->cmd_registry.execute("app.command_palette");
+                pump_frames(8);   // Let open animation complete + results populate
+
+                // Navigate down 15 items to scroll the list and trigger scrollbar
+                for (int i = 0; i < 15; ++i)
+                {
+                    ImGui::GetIO().AddKeyEvent(ImGuiKey_DownArrow, true);
+                    pump_frames(1);
+                    ImGui::GetIO().AddKeyEvent(ImGuiKey_DownArrow, false);
+                    pump_frames(1);
+                }
+                pump_frames(5);   // Let scroll animation settle with scrollbar visible
+
+                named_screenshot("54_command_palette_scrolled");
+
+                // Close palette
+                ui->cmd_registry.execute("app.cancel");
+                pump_frames(3);
+            }
+        }
+
+        // ── Scenario 55: Nav rail icon alignment at 1.25× font scale ────
+        // DES-I6: Verify nav rail icons and labels are pixel-snapped at non-integer
+        // DPI scale factors. We simulate 125% scale by temporarily boosting
+        // ImGui global font scale, rendering frames, capturing, then restoring.
+        {
+            auto* ui = app_->ui_context();
+            if (ui)
+            {
+                // Switch to Figure 1 (clean sine wave, no extra chrome)
+                auto ids = app_->figure_registry().all_ids();
+                if (!ids.empty())
+                    ui->fig_mgr->queue_switch(ids[0]);
+                pump_frames(3);
+
+                // Temporarily apply 1.25× global font scale to simulate DPI scaling
+                float saved_scale              = ImGui::GetIO().FontGlobalScale;
+                ImGui::GetIO().FontGlobalScale = 1.25f;
+                pump_frames(3);   // Let layout settle at new scale
+
+                named_screenshot("55_nav_rail_dpi_scale_125pct");
+
+                // Restore original scale
+                ImGui::GetIO().FontGlobalScale = saved_scale;
+                pump_frames(2);
+            }
+        }
+
         // ── Summary ─────────────────────────────────────────────────────
         fprintf(stderr,
                 "[QA/Design] Captured %zu design screenshots in %s/design/\n",
                 design_screenshots_.size(),
                 opts_.output_dir.c_str());
 
-        static constexpr size_t EXPECTED_DESIGN_SHOTS = 54;
+        static constexpr size_t EXPECTED_DESIGN_SHOTS = 56;
         if (design_screenshots_.size() != EXPECTED_DESIGN_SHOTS)
         {
             add_issue(IssueSeverity::Error,

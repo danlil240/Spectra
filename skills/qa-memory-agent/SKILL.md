@@ -247,6 +247,46 @@ After every run, open `REPORT.md` and:
 
 ---
 
+## Spectra MCP Server
+
+Use the MCP server to create controlled allocation scenarios and verify memory is freed correctly, independent of the QA agent harness.
+
+### Start/restart procedure
+
+**Always kill existing Spectra instances before launching a new one.**
+
+```bash
+pkill -f spectra || true; sleep 0.5
+./build/app/spectra &
+sleep 1
+curl http://127.0.0.1:8765/   # health check
+```
+
+### Memory pressure via MCP
+
+```bash
+# Create many figures to stress figure lifecycle (check RSS before/after)
+for i in $(seq 1 10); do
+  curl -s -X POST http://127.0.0.1:8765/mcp \
+    -H "Content-Type: application/json" \
+    -d "{\"jsonrpc\":\"2.0\",\"id\":$i,\"method\":\"tools/call\",\"params\":{\"name\":\"create_figure\",\"arguments\":{\"width\":800,\"height\":600}}}"
+done
+
+# Add large series to each figure
+curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":100,"method":"tools/call","params":{"name":"add_series","arguments":{"figure_id":1,"series_type":"line","n_points":100000,"label":"mem_test"}}}'
+
+# Wait frames to ensure GPU work completes before RSS measurement
+curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":101,"method":"tools/call","params":{"name":"wait_frames","arguments":{"count":30}}}'
+```
+
+MCP env vars: `SPECTRA_MCP_PORT` (default `8765`), `SPECTRA_MCP_BIND` (default `127.0.0.1`).
+
+---
+
 ## Guardrails
 
 - Always run scenarios-only (`--no-fuzz`) for isolation — fuzzer intentionally creates many large datasets.

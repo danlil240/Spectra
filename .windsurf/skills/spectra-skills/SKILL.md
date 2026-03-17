@@ -168,3 +168,86 @@ Invoke these skills when working on Spectra to apply domain-specific expertise f
 - Compare against baseline
 - Threshold pixel diff
 - Detect layout shifts
+
+---
+
+## 12. Spectra MCP Server (Live Control)
+
+**Purpose:** Control a live Spectra instance from agents without writing C++ test harnesses.
+
+### Start/restart procedure
+
+**Always kill existing instances first, then launch Spectra — the MCP server starts automatically.**
+
+```bash
+pkill -f spectra || true
+sleep 0.5
+./build/app/spectra &
+# Optional: SPECTRA_MCP_PORT=9000 ./build/app/spectra &
+```
+
+### MCP endpoint
+
+```
+http://127.0.0.1:8765/mcp   (default)
+```
+
+Health check: `GET http://127.0.0.1:8765/` → `{"name":"spectra-automation","status":"ok","endpoint":"..."}`
+
+### Available tools (22 total)
+
+| Tool | Purpose |
+|---|---|
+| `ping` | Verify connection is alive |
+| `get_state` | Get current application state |
+| `list_commands` | List all registered UI commands |
+| `execute_command` | Execute a command by ID (e.g. `"view.toggle_grid"`) |
+| `mouse_move` | Move cursor to `{x, y}` |
+| `mouse_click` | Click at `{x, y, button, modifiers}` |
+| `mouse_drag` | Drag from `{x1,y1}` to `{x2,y2}` |
+| `double_click` | Double-click at `{x, y}` |
+| `scroll` | Scroll at `{x, y, dx, dy}` |
+| `key_press` | Press a key `{key, modifiers}` |
+| `text_input` | Type text into focused widget `{text}` |
+| `create_figure` | Create a new figure `{width, height}` |
+| `switch_figure` | Switch to figure `{figure_id}` |
+| `add_series` | Add a series `{figure_id, series_type, n_points, label}` |
+| `get_figure_info` | Deep figure introspection `{figure_id}` |
+| `pump_frames` | Advance N frames `{count}` |
+| `wait_frames` | Block until N frames rendered `{count}` |
+| `capture_screenshot` | Save figure PNG to `{path}` |
+| `capture_window` | Save full-window PNG to `{path}` |
+| `get_screenshot_base64` | Return screenshot as inline base64 PNG |
+| `resize_window` | Resize window `{width, height}` |
+| `get_window_size` | Get current window dimensions |
+
+### Protocol
+
+Standard MCP over HTTP (JSON-RPC 2.0). POST to `/mcp` with `Content-Type: application/json`.
+
+```bash
+# Health check
+curl http://127.0.0.1:8765/
+
+# List tools
+curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
+
+# Example: execute command
+curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"execute_command","arguments":{"command_id":"view.toggle_grid"}}}'
+
+# Example: capture screenshot
+curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"capture_window","arguments":{"path":"/tmp/spectra_snap.png"}}}'
+```
+
+### Environment variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `SPECTRA_MCP_PORT` | `8765` | HTTP port for the MCP server |
+| `SPECTRA_MCP_BIND` | `127.0.0.1` | Bind address |

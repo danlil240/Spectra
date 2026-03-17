@@ -117,6 +117,9 @@ class LegendInteraction
     bool  toggleable_      = true;
     float toggle_duration_ = 0.2f;
 
+    // Scroll state for scrollable legends
+    int scroll_offset_ = 0;
+
     // External systems
     TransitionEngine* transition_engine_ = nullptr;
 };

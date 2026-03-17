@@ -913,7 +913,7 @@ void ImGuiIntegration::draw_welcome_screen(float display_w, float display_h, flo
 {
     (void)dt;
     const auto& colors = ui::theme();
-    ImDrawList* fg     = ImGui::GetForegroundDrawList();
+    ImDrawList* fg     = ImGui::GetBackgroundDrawList();
 
     // Menu bar height offset
     float menu_h    = ImGui::GetFrameHeight() + 2.0f;

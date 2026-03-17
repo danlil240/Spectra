@@ -936,6 +936,8 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
         }
         else if (render_canvas && active_figure)
         {
+            active_figure->config_.width  = backend_.swapchain_width();
+            active_figure->config_.height = backend_.swapchain_height();
             renderer_.render_figure_content(*active_figure);
         }
 #else

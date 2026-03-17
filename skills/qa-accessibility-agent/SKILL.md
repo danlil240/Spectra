@@ -279,6 +279,49 @@ After every run, open `REPORT.md` and:
 
 ---
 
+## Spectra MCP Server
+
+Use the MCP server to capture live screenshots for contrast and colorblind auditing without running the full QA agent.
+
+### Start/restart procedure
+
+**Always kill existing Spectra instances before launching a new one.**
+
+```bash
+pkill -f spectra || true; sleep 0.5
+./build/app/spectra &
+sleep 1
+curl http://127.0.0.1:8765/   # health check
+```
+
+### Accessibility-relevant MCP commands
+
+```bash
+# Capture full-window screenshot for contrast analysis
+curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"capture_window","arguments":{"path":"/tmp/a11y_snap.png"}}}'
+
+# Toggle themes via command
+curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"execute_command","arguments":{"command_id":"view.set_theme_light"}}}'
+
+# Add multi-series figure to check colorblind palette in legend
+curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"create_figure","arguments":{"width":1280,"height":720}}}'
+
+# Inline screenshot for immediate inspection
+curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"get_screenshot_base64","arguments":{}}}'
+```
+
+MCP env vars: `SPECTRA_MCP_PORT` (default `8765`), `SPECTRA_MCP_BIND` (default `127.0.0.1`).
+
+---
+
 ## Guardrails
 
 - Never change a theme color without computing the new contrast ratio first.

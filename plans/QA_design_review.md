@@ -1,7 +1,10 @@
 # QA Design Review — UI/UX Improvements
 
 > Living document. Updated after each design review session with visual findings and concrete improvements.
-> Last updated: 2026-03-08 | Screenshots: `/tmp/spectra_qa_design_after_20260308/design/`
+> Last updated: 2026-03-17 | Screenshots: `/tmp/spectra_qa_design_after_20260317c/design/`
+> Session 13: 2026-03-17 — QA Designer Agent pass (DES-I6: nav rail icon/label pixel-snapping + 125% DPI coverage screenshot)
+> Session 12: 2026-03-17 — QA Designer Agent pass (DES-I5 coverage expansion: command palette scrolled)
+> Session 11: 2026-03-17 — QA Designer Agent pass (DES-I4: ImGui separator line pixel-snapping)
 > Session 10: 2026-03-08 — QA Designer Agent pass (DES-I3 coverage expansion: split view mismatched zoom)
 > Session 8: 2026-03-01 — QA Designer Agent pass (D46 coverage expansion: empty-after-delete state)
 > Session 4: 2026-02-27 — QA Designer Agent pass (D45)
@@ -12,6 +15,59 @@
 > Session 11: 2026-02-24 — QA Designer Agent pass (D25, D26, D27) — legend theme fix, grid/crosshair toggle drift fixes
 > Session 21: 2026-02-24 — Screenshot capture fix (D28), 3D colormap verified, FPS thresholds fixed (D32)
 > Session 24: 2026-02-24 — Open-item triage pass (D29, D30, D31, D33)
+
+---
+
+## Session 13 — DES-I6 Nav Rail Icon/Label Pixel-Snapping (2026-03-17)
+
+### Screenshots Captured
+- Baseline: 55 screenshots (`/tmp/spectra_qa_design_20260317c/design/`)
+- After improvement: 56 screenshots (`/tmp/spectra_qa_design_after_20260317c/design/`)
+
+### Triage
+- All previously fixed issues (D1–D46, DES-I1–DES-I5) confirmed still resolved.
+- No new visual regressions detected in full 55-screenshot baseline pass.
+
+### DES-I6: Nav Rail Icon and Label Draw Coordinates Not Pixel-Snapped ✅ FIXED
+- **Issue:** `icon_label_button()` in `imgui_command_bar.cpp` computed icon and label draw positions using fractional arithmetic: `y_start = cursor.y + (cell_h - content_h) * 0.5f`, `ix = cursor.x + (width - isz.x) * 0.5f`, `lx = cursor.x + (width - lsz.x) * 0.5f`, `ly = y_start + icon_draw_sz + icon_gap`. At non-integer DPI scale factors (125%, 150%) all four coordinates can be fractional, causing glyphs to anti-alias across two pixel rows/columns — icons and labels appear slightly blurry or doubled.
+- **Root cause:** No `std::floor()` applied to `AddText` call-site coordinates. ImGui's `AddText` does not snap glyph origins internally, unlike `AddRectFilled`.
+- **Locations fixed:**
+  - `src/ui/imgui/imgui_command_bar.cpp:130` — `y_start = std::floor(cursor.y + (cell_h - content_h) * 0.5f - lift * 0.35f)`
+  - `src/ui/imgui/imgui_command_bar.cpp:135` — `ix = std::floor(cursor.x + (width - isz.x) * 0.5f)`
+  - `src/ui/imgui/imgui_command_bar.cpp:142` — `lx = std::floor(cursor.x + (width - lsz.x) * 0.5f)`
+  - `src/ui/imgui/imgui_command_bar.cpp:143` — `ly = std::floor(y_start + icon_draw_sz + icon_gap)`
+  - `src/ui/imgui/imgui_command_bar.cpp:1133` — nav rail `draw_separator` p0.y → `std::floor(ImGui::GetCursorScreenPos().y)`
+- **Coverage addition:** Added `55_nav_rail_dpi_scale_125pct` to design review — sets `ImGui::GetIO().FontGlobalScale = 1.25f` for 3 frames, captures nav rail at simulated 125% DPI, then restores scale. Verifies icons and labels are crisp at elevated scale factor.
+- **Files changed:** `src/ui/imgui/imgui_command_bar.cpp`, `tests/qa/qa_agent.cpp`
+- **Verified:** 2026-03-17 — clean build (0 errors), design review exit code `0`, manifest confirms 56 screenshots including `55_nav_rail_dpi_scale_125pct`. Nav rail icons and "Pan" active label render crisp in screenshot.
+- **Status:** ✅ Fixed
+
+---
+
+## Session 11 — DES-I4 Separator Line Pixel-Snapping (2026-03-17)
+
+### Screenshots Captured
+- Baseline: 54 screenshots (`/tmp/spectra_qa_design_20260317/design/`)
+- After improvement: 54 screenshots (`/tmp/spectra_qa_design_after_20260317/design/`)
+
+### Triage
+- All previously fixed issues (D1–D46, DES-I1–DES-I3) confirmed still resolved.
+- No new visual regressions detected in full 54-screenshot baseline pass.
+
+### DES-I4: ImGui Separator Lines Blur at Non-Integer DPI Positions ✅ FIXED
+- **Issue:** `AddLine` calls for separator/hairline decorative lines used Y coordinates derived from `GetCursorScreenPos()`, `GetWindowPos() + GetWindowSize()`, and `text_size.y * 0.5f` arithmetic — all of which can produce sub-pixel (fractional) values at non-integer DPI scale factors. At 125% or 150% DPI, a 1px hairline drawn at Y=14.5 anti-aliases across two rows, appearing blurry/doubled instead of crisp.
+- **Root cause:** No coordinate snapping applied before passing positions to `AddLine`. ImGui draw list rasterizer does not snap internally for `AddLine` calls (unlike `AddRectFilled`).
+- **Locations audited and fixed:**
+  - `src/ui/imgui/widgets.cpp:1066` — `section_separator` `line_y = pos.y + text_size.y * 0.5f` → `std::floor(…)`
+  - `src/ui/imgui/imgui_animation.cpp:204` — timeline panel separator `p.y` → `std::floor(p.y)` (as `py`)
+  - `src/ui/imgui/imgui_animation.cpp:366` — curve editor separator `p.y` → `std::floor(p.y)` (as `py`)
+  - `src/ui/imgui/imgui_panels.cpp:52` — tab bar bottom hairline `wpos.y + wsz.y - 1.0f` → `std::floor(wpos.y + wsz.y) - 1.0f`
+  - `src/ui/imgui/imgui_command_bar.cpp:496` — command bar bottom hairline `bottom - 1.0f` → `std::floor(bottom) - 1.0f`
+- **Not changed:** Measurement tool `AddLine` in `imgui_integration.cpp` (data-driven, inherently fractional), data lines in `imgui_preview.cpp` and `imgui_pane_tabs.cpp` (data-driven or already integer-positioned).
+- **Fix:** Applied `std::floor()` (from `<cmath>`, already included) to the Y coordinate at the point of use. `ImFloor` from `imgui_internal.h` was available in the `imgui_integration_internal.hpp`-including files but `std::floor` is used throughout for consistency.
+- **Files changed:** `src/ui/imgui/widgets.cpp`, `src/ui/imgui/imgui_animation.cpp`, `src/ui/imgui/imgui_panels.cpp`, `src/ui/imgui/imgui_command_bar.cpp`
+- **Verified:** 2026-03-17 — clean build (0 errors), design review exit code `0`, manifest confirms 54 screenshots. Pre-existing `DesignTokens.LayoutConstants` and golden image test failures confirmed pre-existing (present before changes).
+- **Status:** ✅ Fixed
 
 ---
 

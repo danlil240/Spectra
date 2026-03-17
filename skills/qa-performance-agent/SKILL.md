@@ -331,6 +331,57 @@ After every run, open `REPORT.md` and:
 
 ---
 
+## Spectra MCP Server
+
+Use the MCP server to reproduce targeted performance scenarios without running the full QA harness, and to capture screenshots as visual evidence alongside frame profiler output.
+
+### Start/restart procedure
+
+**Always kill existing Spectra instances before launching a new one.**
+
+```bash
+pkill -f spectra || true; sleep 0.5
+./build/app/spectra &
+sleep 1
+curl http://127.0.0.1:8765/   # health check
+```
+
+### Performance-relevant MCP commands
+
+```bash
+# Create a massive dataset to trigger H1 (large dataset frame spike)
+curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"create_figure","arguments":{"width":1280,"height":720}}}'
+
+curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"add_series","arguments":{"figure_id":1,"series_type":"line","n_points":1000000,"label":"perf_stress"}}}'
+
+# Wait 60 frames and measure (watch frame profiler output in terminal)
+curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"wait_frames","arguments":{"count":60}}}'
+
+# Stress resize (triggers swapchain recreation — V1)
+curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"resize_window","arguments":{"width":640,"height":480}}}'
+
+curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"resize_window","arguments":{"width":1920,"height":1080}}}'
+
+# Capture screenshot as visual evidence
+curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"get_screenshot_base64","arguments":{}}}'
+```
+
+MCP env vars: `SPECTRA_MCP_PORT` (default `8765`), `SPECTRA_MCP_BIND` (default `127.0.0.1`).
+
+---
+
 ## Guardrails
 
 - Execute `spectra_qa_agent` at least once before drawing conclusions.

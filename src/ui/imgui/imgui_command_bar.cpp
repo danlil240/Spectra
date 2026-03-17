@@ -127,20 +127,20 @@ static bool icon_label_button(const char* icon_codepoint,
     float icon_draw_sz  = icon_sz * (1.0f + hover_t * 0.04f + active_t * 0.05f);
     float label_draw_sz = label_sz * (1.0f + hover_t * 0.02f + active_t * 0.03f);
     float content_h     = icon_draw_sz + icon_gap + label_draw_sz;
-    float y_start       = cursor.y + (cell_h - content_h) * 0.5f - lift * 0.35f;
+    float y_start       = std::floor(cursor.y + (cell_h - content_h) * 0.5f - lift * 0.35f);
 
     if (icon_font)
     {
         ImVec2 isz = icon_font->CalcTextSizeA(icon_draw_sz, FLT_MAX, 0.0f, icon_codepoint);
-        float  ix  = cursor.x + (width - isz.x) * 0.5f;
+        float  ix  = std::floor(cursor.x + (width - isz.x) * 0.5f);
         dl->AddText(icon_font, icon_draw_sz, ImVec2(ix, y_start), icon_col, icon_codepoint);
     }
 
     if (label_font)
     {
         ImVec2 lsz = label_font->CalcTextSizeA(label_draw_sz, FLT_MAX, 0.0f, label);
-        float  lx  = cursor.x + (width - lsz.x) * 0.5f;
-        float  ly  = y_start + icon_draw_sz + icon_gap;
+        float  lx  = std::floor(cursor.x + (width - lsz.x) * 0.5f);
+        float  ly  = std::floor(y_start + icon_draw_sz + icon_gap);
         dl->AddText(label_font, label_draw_sz, ImVec2(lx, ly), text_col, label);
     }
 
@@ -1130,7 +1130,7 @@ void ImGuiIntegration::draw_nav_rail()
         {
             ImGui::Dummy(ImVec2(0, 3.0f));
             float  sep_inset = 14.0f;
-            ImVec2 p0 = ImVec2(ImGui::GetWindowPos().x + sep_inset, ImGui::GetCursorScreenPos().y);
+            ImVec2 p0 = ImVec2(ImGui::GetWindowPos().x + sep_inset, std::floor(ImGui::GetCursorScreenPos().y));
             ImVec2 p1 = ImVec2(ImGui::GetWindowPos().x + rail_w - sep_inset, p0.y);
             ImGui::GetWindowDrawList()->AddLine(p0,
                                                 p1,

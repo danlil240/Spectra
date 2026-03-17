@@ -71,39 +71,48 @@ void Tooltip::draw(const NearestPointResult& nearest, float window_width, float 
         series_color = nearest.series->color();
     }
 
-    // Tooltip layout constants — compact, glass-like (Vision.png style)
-    constexpr float padding     = 8.0f;
-    constexpr float swatch_size = 9.0f;
-    constexpr float row_height  = 16.0f;
-    constexpr float min_width   = 130.0f;
+    // Tooltip layout constants
+    constexpr float padding     = 10.0f;
+    constexpr float swatch_r    = 5.0f;   // circle radius for color dot
+    constexpr float col_gap     = 10.0f;  // gap between label and value columns
+    constexpr float min_width   = 140.0f;
 
-    // Measure text to size the tooltip
-    ImFont* body_font = font_body_ ? font_body_ : ImGui::GetFont();
-    ImVec2  name_size = body_font->CalcTextSizeA(body_font->FontSize, 1000.0f, 0.0f, series_name);
+    ImFont* body_font  = font_body_ ? font_body_ : ImGui::GetFont();
+    float   font_sz    = body_font->FontSize;
+    float   row_h      = font_sz + 4.0f;
 
-    // Vision.png layout: X and Y on separate lines
-    char x_line[96], y_line[96];
-    std::snprintf(x_line, sizeof(x_line), "X: %s", x_buf);
-    std::snprintf(y_line, sizeof(y_line), "Y: %s", y_buf);
-    ImVec2 x_line_size = body_font->CalcTextSizeA(body_font->FontSize, 1000.0f, 0.0f, x_line);
-    ImVec2 y_line_size = body_font->CalcTextSizeA(body_font->FontSize, 1000.0f, 0.0f, y_line);
-    ImVec2 dydx_size   = show_dydx
-                             ? body_font->CalcTextSizeA(body_font->FontSize, 1000.0f, 0.0f, dydx_line)
-                             : ImVec2(0.0f, 0.0f);
+    // Format label/value pairs
+    const char* lbl_x    = "X";
+    const char* lbl_y    = "Y";
+    const char* lbl_dydx = "dy/dx";
 
-    int   row_count = 3 + (show_dydx ? 1 : 0);   // name + X + Y + optional dy/dx
-    float content_w = std::max(
-        {name_size.x + swatch_size + 6.0f, x_line_size.x, y_line_size.x, dydx_size.x, min_width});
-    float tooltip_w = content_w + padding * 2.0f;
-    float tooltip_h = padding * 2.0f + row_height * static_cast<float>(row_count);
+    // Measure column widths
+    float lbl_w = std::max({body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, lbl_x).x,
+                             body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, lbl_y).x,
+                             show_dydx ? body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, lbl_dydx).x
+                                       : 0.0f});
+    float val_w = std::max({body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, x_buf).x,
+                             body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, y_buf).x,
+                             show_dydx
+                                 ? body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, dydx_line + 6).x
+                                 : 0.0f});
+    float name_w  = body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, series_name).x
+                    + swatch_r * 2.0f + 6.0f;
+    float data_row_w = lbl_w + col_gap + val_w;
+    float content_w  = std::max({name_w, data_row_w, min_width});
+    int   data_rows  = 2 + (show_dydx ? 1 : 0);
+    float divider_h  = 6.0f;
+    float tooltip_w  = content_w + padding * 2.0f;
+    float tooltip_h  = padding * 2.0f + row_h           // name row
+                       + divider_h                       // separator gap
+                       + row_h * static_cast<float>(data_rows);
 
-    // Position: offset from the snap point, clamped to window
-    float offset_x = 16.0f;
+    // Position: above-right of the snap point, clamped to window
+    float offset_x = 14.0f;
     float offset_y = -tooltip_h - 8.0f;
     float tx       = nearest.screen_x + offset_x;
     float ty       = nearest.screen_y + offset_y;
 
-    // Clamp to window bounds
     if (tx + tooltip_w > window_width - 4.0f)
         tx = nearest.screen_x - tooltip_w - offset_x;
     if (ty < 4.0f)
@@ -113,116 +122,117 @@ void Tooltip::draw(const NearestPointResult& nearest, float window_width, float 
     if (ty + tooltip_h > window_height - 4.0f)
         ty = window_height - tooltip_h - 4.0f;
 
-    // Draw tooltip window with soft drop shadow for depth
-    ImGui::SetNextWindowPos(ImVec2(tx, ty));
-    ImGui::SetNextWindowSize(ImVec2(tooltip_w, tooltip_h));
-
-    // Soft shadow (drawn on foreground draw list before the window)
+    // Draw entirely on the foreground draw list — this renders above all ImGui windows,
+    // including popups and open menus, since the foreground draw list is composited last.
     {
-        ImDrawList* fg     = ImGui::GetForegroundDrawList();
-        float       sh_off = 2.0f;
-        float       sh_r   = ui::tokens::RADIUS_MD + 2.0f;
-        ImU32       sh_col = IM_COL32(0, 0, 0, static_cast<int>(30.0f * opacity_));
-        fg->AddRectFilled(ImVec2(tx + sh_off, ty + sh_off),
-                          ImVec2(tx + tooltip_w + sh_off, ty + tooltip_h + sh_off),
-                          sh_col,
-                          sh_r);
+        ImDrawList* fg  = ImGui::GetForegroundDrawList();
+        float       rnd = ui::tokens::RADIUS_MD;
 
-        // Night theme: subtle accent glow halo around tooltip (Vision.png glass effect)
+        // Shadow
+        ImU32 sh_col = IM_COL32(0, 0, 0, static_cast<int>(40.0f * opacity_));
+        fg->AddRectFilled(ImVec2(tx + 3.0f, ty + 3.0f),
+                          ImVec2(tx + tooltip_w + 3.0f, ty + tooltip_h + 3.0f),
+                          sh_col,
+                          rnd + 2.0f);
+
+        // Night-theme accent glow
         if (colors.glow_intensity > 0.01f)
         {
             ImU32 glow_col =
                 ImGui::ColorConvertFloat4ToU32(ImVec4(series_color.r,
                                                       series_color.g,
                                                       series_color.b,
-                                                      0.08f * opacity_ * colors.glow_intensity));
-            fg->AddRect(ImVec2(tx - 2.0f, ty - 2.0f),
-                        ImVec2(tx + tooltip_w + 2.0f, ty + tooltip_h + 2.0f),
+                                                      0.10f * opacity_ * colors.glow_intensity));
+            fg->AddRect(ImVec2(tx - 1.0f, ty - 1.0f),
+                        ImVec2(tx + tooltip_w + 1.0f, ty + tooltip_h + 1.0f),
                         glow_col,
-                        sh_r + 2.0f,
+                        rnd + 2.0f,
                         0,
-                        3.0f);
+                        2.0f);
         }
-    }
 
-    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, opacity_);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ui::tokens::RADIUS_MD);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(padding, padding));
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.5f);
-    ImGui::PushStyleColor(
-        ImGuiCol_WindowBg,
-        ImVec4(colors.tooltip_bg.r, colors.tooltip_bg.g, colors.tooltip_bg.b, colors.tooltip_bg.a));
-    ImGui::PushStyleColor(ImGuiCol_Border,
-                          ImVec4(colors.tooltip_border.r,
-                                 colors.tooltip_border.g,
-                                 colors.tooltip_border.b,
-                                 colors.tooltip_border.a));
+        // Background
+        ImU32 bg_col = ImGui::ColorConvertFloat4ToU32(
+            ImVec4(colors.tooltip_bg.r,
+                   colors.tooltip_bg.g,
+                   colors.tooltip_bg.b,
+                   colors.tooltip_bg.a * opacity_));
+        fg->AddRectFilled(ImVec2(tx, ty), ImVec2(tx + tooltip_w, ty + tooltip_h), bg_col, rnd);
 
-    ImGuiWindowFlags flags =
-        ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings
-        | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoFocusOnAppearing
-        | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_AlwaysAutoResize;
+        // Border
+        ImU32 border_col = ImGui::ColorConvertFloat4ToU32(
+            ImVec4(colors.tooltip_border.r,
+                   colors.tooltip_border.g,
+                   colors.tooltip_border.b,
+                   colors.tooltip_border.a * opacity_));
+        fg->AddRect(ImVec2(tx, ty),
+                    ImVec2(tx + tooltip_w, ty + tooltip_h),
+                    border_col,
+                    rnd,
+                    0,
+                    0.75f);
 
-    if (ImGui::Begin("##data_tooltip", nullptr, flags))
-    {
-        if (font_body_)
-            ImGui::PushFont(font_body_);
+        float ox = tx + padding;
+        float oy = ty + padding;
 
-        // Row 1: color swatch + series name
-        ImVec2      cursor = ImGui::GetCursorScreenPos();
-        ImDrawList* dl     = ImGui::GetWindowDrawList();
-        dl->AddRectFilled(
-            ImVec2(cursor.x, cursor.y + 3.0f),
-            ImVec2(cursor.x + swatch_size, cursor.y + 3.0f + swatch_size),
+        // ── Row 1: circle swatch + series name ──
+        float cy_name = oy + (row_h - swatch_r * 2.0f) * 0.5f;
+        fg->AddCircleFilled(
+            ImVec2(ox + swatch_r, cy_name + swatch_r),
+            swatch_r,
             ImGui::ColorConvertFloat4ToU32(
-                ImVec4(series_color.r, series_color.g, series_color.b, series_color.a)),
-            2.0f);
-        ImGui::SetCursorPosX(ImGui::GetCursorPosX() + swatch_size + 6.0f);
-        ImGui::PushStyleColor(ImGuiCol_Text,
-                              ImVec4(colors.text_primary.r,
-                                     colors.text_primary.g,
-                                     colors.text_primary.b,
-                                     colors.text_primary.a));
-        ImGui::TextUnformatted(series_name);
-        ImGui::PopStyleColor();
+                ImVec4(series_color.r, series_color.g, series_color.b, opacity_)));
+        fg->AddCircle(ImVec2(ox + swatch_r, cy_name + swatch_r),
+                      swatch_r,
+                      ImGui::ColorConvertFloat4ToU32(ImVec4(1.0f, 1.0f, 1.0f, 0.18f * opacity_)));
 
-        // Row 2: X coordinate (Vision.png style — separate line)
-        ImGui::PushStyleColor(ImGuiCol_Text,
-                              ImVec4(colors.text_secondary.r,
-                                     colors.text_secondary.g,
-                                     colors.text_secondary.b,
-                                     colors.text_secondary.a));
-        ImGui::TextUnformatted(x_line);
-        ImGui::PopStyleColor();
+        fg->AddText(body_font,
+                    font_sz,
+                    ImVec2(ox + swatch_r * 2.0f + 6.0f, oy + (row_h - font_sz) * 0.5f),
+                    ImGui::ColorConvertFloat4ToU32(ImVec4(colors.text_primary.r,
+                                                          colors.text_primary.g,
+                                                          colors.text_primary.b,
+                                                          colors.text_primary.a * opacity_)),
+                    series_name);
 
-        // Row 3: Y coordinate
-        ImGui::PushStyleColor(ImGuiCol_Text,
-                              ImVec4(colors.text_secondary.r,
-                                     colors.text_secondary.g,
-                                     colors.text_secondary.b,
-                                     colors.text_secondary.a));
-        ImGui::TextUnformatted(y_line);
-        ImGui::PopStyleColor();
-
-        // Row 4: dy/dx derivative (when available)
-        if (show_dydx)
+        // ── Divider ──
         {
-            ImGui::PushStyleColor(ImGuiCol_Text,
-                                  ImVec4(colors.text_tertiary.r,
-                                         colors.text_tertiary.g,
-                                         colors.text_tertiary.b,
-                                         colors.text_tertiary.a));
-            ImGui::TextUnformatted(dydx_line);
-            ImGui::PopStyleColor();
+            float div_y   = oy + row_h + divider_h * 0.5f - 0.5f;
+            ImU32 div_col = ImGui::ColorConvertFloat4ToU32(
+                ImVec4(colors.border_subtle.r,
+                       colors.border_subtle.g,
+                       colors.border_subtle.b,
+                       0.35f * opacity_));
+            fg->AddLine(ImVec2(ox, div_y), ImVec2(ox + content_w, div_y), div_col, 0.75f);
         }
 
-        if (font_body_)
-            ImGui::PopFont();
-    }
-    ImGui::End();
+        // ── Data rows: label (dim) + value (bright) ──
+        auto draw_data_row = [&](int row_idx, const char* label, const char* value)
+        {
+            float ry = oy + row_h + divider_h + row_h * static_cast<float>(row_idx);
+            fg->AddText(body_font,
+                        font_sz,
+                        ImVec2(ox, ry + (row_h - font_sz) * 0.5f),
+                        ImGui::ColorConvertFloat4ToU32(ImVec4(colors.text_secondary.r,
+                                                              colors.text_secondary.g,
+                                                              colors.text_secondary.b,
+                                                              0.70f * opacity_)),
+                        label);
+            fg->AddText(body_font,
+                        font_sz,
+                        ImVec2(ox + lbl_w + col_gap, ry + (row_h - font_sz) * 0.5f),
+                        ImGui::ColorConvertFloat4ToU32(ImVec4(colors.text_primary.r,
+                                                              colors.text_primary.g,
+                                                              colors.text_primary.b,
+                                                              colors.text_primary.a * opacity_)),
+                        value);
+        };
 
-    ImGui::PopStyleColor(2);
-    ImGui::PopStyleVar(4);
+        draw_data_row(0, lbl_x, x_buf);
+        draw_data_row(1, lbl_y, y_buf);
+        if (show_dydx)
+            draw_data_row(2, lbl_dydx, dydx_line + 6);
+    }
 
     // Draw triangular arrow pointer toward data point
     if (nearest.found && nearest.distance_px <= snap_radius_px_)

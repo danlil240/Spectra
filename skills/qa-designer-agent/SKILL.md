@@ -36,7 +36,7 @@ cmake --build build -j$(nproc)
 
 - Screenshots land in `<output-dir>/design/` with descriptive names.
 - `manifest.txt` lists all captured files.
-- **Expect 54 named screenshots** (see coverage table below).
+- **Expect 56 named screenshots** (see coverage table below).
 - Requires a live display — no headless path.
 
 ### 3. Triage open items
@@ -81,7 +81,7 @@ ctest --test-dir build --output-on-failure
 
 ---
 
-## Design-Review Screenshot Coverage (54 total)
+## Design-Review Screenshot Coverage (56 total)
 
 ### Core UI (01–20)
 | # | Name | What it covers |
@@ -148,6 +148,8 @@ ctest --test-dir build --output-on-failure
 | 51 | `51_empty_figure_after_delete` | Empty/error state after deleting the last series in a figure |
 | 52 | `52_legend_overflow_8_series` | Legend with 8 series testing overflow/wrapping behavior |
 | 53 | `53_split_view_mismatched_zoom` | Split view with mismatched axis ranges (auto-fit vs zoomed panes) |
+| 54 | `54_command_palette_scrolled` | Command palette scrolled (20+ results, scrollbar visible) |
+| 55 | `55_nav_rail_dpi_scale_125pct` | Nav rail at 1.25× font scale (simulates 125% DPI) — verifies icon/label pixel alignment |
 
 > **Multi-window captures (45/45b):** `named_screenshot()` now accepts a `WindowContext*` parameter. Screenshots 45 and 45b are captured with `target_window` set to the primary and secondary `WindowContext*` respectively, so the capture fires only during that window's `end_frame`. Do not use `set_active_window` + `pump_frames` as a workaround — it gets overridden by `step()`.
 
@@ -263,6 +265,8 @@ ctest --test-dir build --output-on-failure
 - **Split-view validation:** Ensure ≥2 figures exist before concluding split behavior is broken.
 - **3D colormaps:** Colormap type is encoded in push constants — changes are in `surface3d.frag` and the `ColormapType` enum.
 - **Multi-window captures:** Pass `WindowContext*` to `named_screenshot()` — do not `set_active_window` manually.
+- **Hairline coordinate snapping:** For any `AddLine` drawing a separator, border, or decorative line, apply `std::floor()` to the integer-axis coordinate (Y for horizontal lines, X for vertical) before passing to `AddLine`. This prevents 1px blurriness at non-integer DPI scale factors (e.g. 125%, 150%). `<cmath>` must be included.
+- **Icon/label draw-list snapping:** For any `AddText` call drawing icon glyphs or label text at computed center positions, apply `std::floor()` to both X and Y coordinates before passing to `AddText`. Centering arithmetic `(width - text_sz) * 0.5f` is inherently fractional — without snapping, glyphs anti-alias across two pixel rows/columns at non-integer DPI scale.
 
 ---
 
@@ -275,6 +279,104 @@ ctest --test-dir build --output-on-failure
 5. **Subtle depth** — shadows and opacity, not heavy borders
 6. **Responsive feedback** — every interaction has visual feedback
 7. **Accessible** — WCAG AA contrast, colorblind-safe palettes
+
+---
+
+## Spectra MCP Server
+
+Spectra ships an in-process HTTP MCP server for live agent control. **Use it to drive Spectra programmatically without modifying qa_agent.cpp.**
+
+### Start/restart procedure
+
+**Always kill existing Spectra instances before launching a new one.**
+
+```bash
+pkill -f spectra || true
+sleep 0.5
+./build/app/spectra &
+# Wait for ready
+sleep 1
+curl http://127.0.0.1:8765/   # health check
+```
+
+### MCP endpoint
+
+```
+http://127.0.0.1:8765/mcp   (default)
+```
+
+`GET /` returns `{"name":"spectra-automation","status":"ok","endpoint":"..."}`.
+
+### Available tools (22 total)
+
+| Tool | Purpose |
+|---|---|
+| `ping` | Verify connection is alive |
+| `get_state` | Get current application state |
+| `list_commands` | List all registered UI commands |
+| `execute_command` | Execute a command by ID (e.g. `"view.toggle_grid"`) |
+| `mouse_move` | Move cursor to `{x, y}` |
+| `mouse_click` | Click at `{x, y, button, modifiers}` |
+| `mouse_drag` | Drag from `{x1,y1}` to `{x2,y2}` |
+| `double_click` | Double-click at `{x, y}` |
+| `scroll` | Scroll at `{x, y, dx, dy}` |
+| `key_press` | Press a key `{key, modifiers}` |
+| `text_input` | Type text into focused widget `{text}` |
+| `create_figure` | Create a new figure `{width, height}` |
+| `switch_figure` | Switch to figure `{figure_id}` |
+| `add_series` | Add a series `{figure_id, series_type, n_points, label}` |
+| `get_figure_info` | Deep figure introspection `{figure_id}` |
+| `pump_frames` | Advance N frames `{count}` |
+| `wait_frames` | Block until N frames rendered `{count}` |
+| `capture_screenshot` | Save figure PNG to `{path}` |
+| `capture_window` | Save full-window PNG to `{path}` |
+| `get_screenshot_base64` | Return screenshot as inline base64 PNG |
+| `resize_window` | Resize window `{width, height}` |
+| `get_window_size` | Get current window dimensions |
+
+### Curl examples
+
+```bash
+# Health check
+curl http://127.0.0.1:8765/
+
+# Capture screenshot inline (base64 PNG for visual inspection)
+curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"get_screenshot_base64","arguments":{}}}'
+
+# Save window screenshot to disk
+curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"capture_window","arguments":{"path":"/tmp/spectra_snap.png"}}}'
+
+# Execute a UI command
+curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"execute_command","arguments":{"command_id":"view.toggle_grid"}}}'
+
+# Resize window
+curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"resize_window","arguments":{"width":1280,"height":720}}}'
+```
+
+### Environment variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `SPECTRA_MCP_PORT` | `8765` | HTTP port |
+| `SPECTRA_MCP_BIND` | `127.0.0.1` | Bind address |
+
+---
+
+## Known Constraints (updated)
+
+- Expected screenshot count after DES-I6: **56**.
+- Requires a live display (no headless mode yet).
+- Tracks CPU RSS only — no GPU memory visibility.
+- Vulkan validation layer errors not monitored in real-time (see `QA_update.md` item #4).
+- Screenshot races fixed via `request_framebuffer_capture()` (commit `4477b46`) — use that API, not `readback_framebuffer()`.
 
 ---
 
@@ -347,13 +449,14 @@ Next gap: <one sentence describing the next visual blind spot to tackle next ses
 | DES-I1 | ✅ Done (2026-03-01): Add screenshot for error/empty state after deleting the last series | Implemented as `51_empty_figure_after_delete` in `qa_agent.cpp` design review coverage |
 | DES-I2 | ✅ Done (2026-03-05): Add screenshot for legend with 8+ series (overflow/truncation behavior) | Implemented as `52_legend_overflow_8_series`; verifies legend handles 8 series with long names without overflow/overlap |
 | DES-I3 | ✅ Done (2026-03-08): Add screenshot for split view with mismatched axis ranges (zoomed vs auto-fit panes) | Implemented as `53_split_view_mismatched_zoom`; verifies no visual bleed between panes with different zoom levels |
-| DES-I4 | Audit all ImGui separator lines for 1px blurriness at non-integer DPI positions | In `imgui_integration.cpp`, check that `AddLine` calls use `ImFloor()`-snapped coordinates |
-| DES-I5 | Add screenshot for command palette with 20+ results (scrollbar visibility) | Add `54_command_palette_scrolled`; verify scrollbar appears and doesn't overlap text |
-| DES-I6 | Check toolbar icon alignment at 125% and 150% DPI scale | Add DPI-scaled design review run; verify nav rail icons don't have sub-pixel misalignment |
-| DES-I7 | Add screenshot for 3D surface with Jet colormap (colorblind unfriendly — should show deprecation warning or badge) | Add `55_3d_surface_jet_colormap`; check for visual warning indicator |
+| DES-I4 | ✅ Done (2026-03-17): Audit all ImGui separator lines for 1px blurriness at non-integer DPI positions | Fixed in `widgets.cpp` (section_separator line_y), `imgui_animation.cpp` (timeline + curve editor separators), `imgui_panels.cpp` (tab bar bottom hairline), `imgui_command_bar.cpp` (command bar bottom hairline) — applied `std::floor()` to all Y coordinates before `AddLine` |
+| DES-I5 | ✅ Done (2026-03-17): Add screenshot for command palette with 20+ results (scrollbar visibility) | Implemented as `54_command_palette_scrolled`; navigates down 15 items via arrow keys to trigger scroll + scrollbar visibility; verifies scrollbar appears and doesn't overlap text |
+| DES-I6 | ✅ Done (2026-03-17): Pixel-snap nav rail icon/label AddText coordinates + 125% DPI scale screenshot | Fixed in `imgui_command_bar.cpp` (`icon_label_button` y_start/ix/lx/ly, `draw_separator` p0.y — all `std::floor()`); added `55_nav_rail_dpi_scale_125pct` |
+| DES-I7 | Add screenshot for 3D surface with Jet colormap (colorblind unfriendly — should show deprecation warning or badge) | Add `56_3d_surface_jet_colormap`; check for visual warning indicator |
 | DES-I8 | Audit timeline editor transport controls for consistent icon sizing | In `timeline_editor.cpp` draw path, verify play/pause/stop icons use same pixel size constant |
-| DES-I9 | Add screenshot for resize to 320×240 with all panels open simultaneously | Add `56_tiny_window_all_panels`; verify no panel overflow / occlusion beyond viewport |
+| DES-I9 | Add screenshot for resize to 320×240 with all panels open simultaneously | Add `57_tiny_window_all_panels`; verify no panel overflow / occlusion beyond viewport |
 | DES-I10 | Check that selection highlight color is visible against both dark and light plot backgrounds | Compute contrast ratio of `selection_color` against `plot_bg` in both themes |
+| DES-I11 | Audit timeline transport icon sizing consistency | In `timeline_editor.cpp` draw path, verify play/pause/stop icons use same pixel size constant; add screenshot at 1.25× scale for timeline panel |}
 
 ---
 

@@ -198,6 +198,38 @@ ctest --test-dir build -R "golden.*3d" --output-on-failure
 
 ---
 
+## Live Validation via MCP Server
+
+After building, validate 3D rendering live without writing a test program:
+
+```bash
+pkill -f spectra || true; sleep 0.5
+./build/app/spectra &
+sleep 1
+
+# Create figure and add a 3D series
+curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"create_figure","arguments":{"width":1280,"height":720}}}'
+
+curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"add_series","arguments":{"figure_id":1,"series_type":"surface","n_points":900,"label":"test"}}}'
+
+# Wait for GPU to finish, then capture
+curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"wait_frames","arguments":{"count":10}}}'
+
+curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"get_screenshot_base64","arguments":{}}}'
+```
+
+See `skills/graphical-change-workflow/SKILL.md` for the full visual validation loop. MCP env vars: `SPECTRA_MCP_PORT` (default `8765`), `SPECTRA_MCP_BIND` (default `127.0.0.1`).
+
+---
+
 ## Guardrails
 
 - Always enable depth test for 3D pipelines — never render 3D without depth.

@@ -25,6 +25,7 @@
 
 #ifdef SPECTRA_USE_IMGUI
     #include "imgui.h"
+    #include "ui/theme/theme.hpp"
 #endif
 
 #ifndef _WIN32
@@ -643,7 +644,8 @@ void AutomationServer::execute(AutomationRequest& req, App& app, WindowUIContext
         {
             oss << ",\"undo_count\":" << ui_ctx->undo_mgr.undo_count()
                 << ",\"redo_count\":" << ui_ctx->undo_mgr.redo_count()
-                << ",\"is_3d_mode\":" << (ui_ctx->is_in_3d_mode ? "true" : "false");
+                << ",\"is_3d_mode\":" << (ui_ctx->is_in_3d_mode ? "true" : "false")
+                << ",\"theme\":\"" << json_escape(ui::ThemeManager::instance().current_theme_name()) << '"';
         }
 #endif
         oss << "}";

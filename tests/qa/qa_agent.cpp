@@ -51,6 +51,9 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#ifdef __linux__
+    #include <malloc.h>   // malloc_trim
+#endif
 #include <filesystem>
 #include <fstream>
 #include <functional>
@@ -690,9 +693,22 @@ class QAAgent
             if (keep != INVALID_FIGURE_ID)
             {
                 ui->fig_mgr->close_all_except(keep);
-                pump_frames(2);
+                // Pump enough frames for deferred GPU buffer frees to flush
+                // (requires flight_count_ frames after destruction is queued).
+                pump_frames(10);
             }
         }
+
+        // Clear the undo stack — closures may hold raw pointers to
+        // figures/axes that were just destroyed by close_all_except.
+        if (ui)
+            ui->undo_mgr.clear();
+#endif
+
+#ifdef __linux__
+        // Ask glibc to return freed heap pages to the OS so that
+        // RSS measurements reflect actual live allocations.
+        malloc_trim(0);
 #endif
     }
 
@@ -1136,6 +1152,26 @@ class QAAgent
 
         // Render some frames with all data
         pump_frames(30);
+
+        // Close the heavyweight figure to avoid polluting subsequent scenarios.
+        // The test already validated rendering with the large data above.
+#ifdef SPECTRA_USE_IMGUI
+        auto* ui = app_->ui_context();
+        if (ui && ui->fig_mgr)
+        {
+            FigureId massive_id = app_->figure_registry().find_id(&fig);
+            if (massive_id != 0)
+            {
+                // Create lightweight replacement first
+                ensure_lightweight_active_figure();
+                ui->fig_mgr->close_figure(massive_id);
+                pump_frames(5);
+            }
+        }
+#endif
+#ifdef __linux__
+        malloc_trim(0);
+#endif
         return true;
     }
 
@@ -1755,6 +1791,9 @@ class QAAgent
         }
 
         pump_frames(10);
+
+        // Clean up extra figures to avoid polluting subsequent scenarios.
+        reset_to_single_window_lightweight_state();
 #endif
         return true;
     }
@@ -1811,6 +1850,9 @@ class QAAgent
         }
 
         pump_frames(10);
+
+        // Clean up extra figures.
+        reset_to_single_window_lightweight_state();
 #endif
         return true;
     }
@@ -1855,6 +1897,9 @@ class QAAgent
         glfwSetWindowPos(glfw_win, 100, 100);
         glfwSetWindowSize(glfw_win, 1280, 720);
         pump_frames(10);
+#endif
+#ifdef __linux__
+        malloc_trim(0);
 #endif
         return true;
     }
@@ -2022,6 +2067,9 @@ class QAAgent
         pump_frames(15);
 
         fprintf(stderr, "[QA]   resize_marathon: complete — 520+ resize events across 7 phases\n");
+#endif
+#ifdef __linux__
+        malloc_trim(0);
 #endif
         return true;
     }

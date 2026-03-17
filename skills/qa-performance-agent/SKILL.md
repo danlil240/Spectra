@@ -183,6 +183,9 @@ ctest --test-dir build --output-on-failure
 - **~1s stalls in `vk_acquire`** — bounded at 100 ms per window now; cascading stall with N windows = N×100 ms max. See H4 in `QA_results.md`.
 - **`move_figure` warning** — cosmetic; no crash; source-window ownership tracking gap.
 - **`SIGSEGV` in `LegendInteraction::draw` / `Crosshair::draw_all_axes` during multi-window fuzz** — usually stale figure cache or pre-sync active-figure use; inspect `WindowManager::clear_figure_caches` wiring and `WindowRuntime` active-figure sync order.
+- **X11 `BadLength` or `BadRequest` crash during clipboard operations** — `glfwSetClipboardString` exceeds X11 protocol maximum (~4 MB). Check preceding `data.copy_all` or `data.copy_visible` with large datasets; the clipboard size guard should cap at `kMaxClipboardBytes`.
+- **`std::bad_alloc` / OOM during fuzz phase** — unbounded series accumulation from repeated `series.paste` or `AddSeries` fuzz actions. Check per-axes series count against `kMaxSeriesPerAxes` guard (200). Also check `LargeDataset` action frequency if RSS growth is extreme.
+- **SIGABRT/SIGSEGV in `file.save_workspace` or `file.load_workspace` command lambdas** — dangling `Series*` or `Figure*` accessed in serialization paths. Markers and other caches holding raw pointers must be cleared via `clear_figure_cache()` before save iterates them. Prefer pre-stored string labels (`series_label`) over pointer dereferences (`m.series->label()`).
 
 ---
 
@@ -229,6 +232,7 @@ ctest --test-dir build --output-on-failure
 | `figure_serialization` | Save/load roundtrip count mismatch | `FigureSerializer` chunk encoding/decoding |
 | `series_removed_interaction_safety` | UAF crash after `series.delete` | `notify_series_removed()` not clearing `nearest_` cache |
 | `line_culling_pan_zoom` | Visual corruption after pan | Binary-search culling off-by-one in `lo_idx`/`hi_idx` |
+| (future) `workspace_save_load_stress` | Dangling pointers in save/load | `DataInteraction::markers_` raw `Series*` not cleared; `FigureSerializer` chunk desync |
 
 ---
 

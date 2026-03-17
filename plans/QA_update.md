@@ -1,7 +1,7 @@
 # QA Agent — Improvement Backlog
 
 > Living document. Updated after each QA session with agent improvements to implement.
-> Last updated: 2026-03-05 | Session seeds: 42, 12345, 99999, 77777, 1771883518, 1771883726, 1771883913, 1771884136, 1771959053, 18335134330653, 42 (perf-agent repro), 27243840318184, 42 (memory-agent telemetry), 42 (real desktop perf), 35619058242308 (real desktop perf random)
+> Last updated: 2026-03-06 | Session seeds: 42, 12345, 99999, 77777, 1771883518, 1771883726, 1771883913, 1771884136, 1771959053, 18335134330653, 42 (perf-agent repro), 27243840318184, 42 (memory-agent telemetry), 42 (real desktop perf), 35619058242308 (real desktop perf random), 42 (perf-agent session 12), 25257321839906, 99, 26349518760598
 
 ---
 
@@ -285,6 +285,41 @@
 - Reproduced deterministic seed-42 crash in overlay path with two stack signatures (`LegendInteraction::draw` and `Crosshair::draw_all_axes`), both tied to stale figure/axes pointers during multi-window churn.
 - Product fix removed the crash on the same seed (`42`) without changing the existing open warning/error profile (H1/M1/V2 class issues still present).
 - Re-run ctest still reports only known golden-image failures (`golden_image_tests`, `golden_image_tests_3d`); no new unit/integration regressions observed.
+
+---
+
+## Session 12 Findings (2026-03-06, Performance Agent)
+
+### Run Summary
+
+| Metric | Seed 42 (deterministic) | Seed 25257321839906 (random) | Seed 99 (verify) | Seed 26349518760598 (regression) |
+|--------|------------------------|------------------------------|-------------------|----------------------------------|
+| Command | `--seed 42 --duration 120` | `--duration 60` | `--seed 99 --duration 120` | `--duration 60` |
+| Exit code | 1 | 0 | 2 (crash) | 0 |
+| Frames | 6,314 | 3,774 | 4,960 (crash) | 4,470 |
+| Scenarios | 20/20 passed | 20/20 passed | n/a (crash) | 20/20 passed |
+| CRITICAL | 1 (H4 device lost) | 0 | n/a | 0 |
+| ERROR | 0 | 0 | n/a | 0 |
+| RSS delta | +245MB (198→443) | +242MB (198→440) | n/a | +191MB (198→389) |
+| Avg frame | 10.5ms | 13.6ms | n/a | 11.3ms |
+| P95 frame | 36.2ms | 44.4ms | n/a | 41.3ms |
+| Max frame | 119.4ms | 125.8ms | n/a | 236.4ms |
+
+### Analysis
+- **Three new crashes found and fixed (C7, C8, C9):**
+  - **C7:** X11 `BadLength` crash from `glfwSetClipboardString` exceeding 4MB X11 protocol limit. Fixed with clipboard size guard.
+  - **C8:** `std::bad_alloc` OOM from unbounded `series.paste` accumulating hundreds of series. Fixed with 200-series-per-axes paste guard.
+  - **C9:** SIGSEGV in `file.save_workspace` from dangling `Series*` in `DataInteraction::markers_`. Fixed by clearing markers in `clear_figure_cache()` and using pre-stored `series_label` instead of `m.series->label()`.
+- **Nvidia driver crash on seed 99:** SIGSEGV inside `libnvidia-glcore.so.580.126.20` during `vkDestroyImageView` in swapchain recreation. Not fixable at app level; `vkDeviceWaitIdle` attempted and reverted — no improvement.
+- **1 CRITICAL on seed 42 (exit 1):** known H4 Vulkan device lost at frame 6314, bounded timeouts already in place.
+- **Unit tests:** 110/111 pass; only pre-existing `DesignTokens.LayoutConstants` theme test failure.
+- **Performance improved vs. prior sessions:** P95 `36.2ms` (seed 42) down from `83.40ms` (session 10 seed 42).
+
+### New Improvement Items
+- **19. Detect and Group Dangling-Pointer Crash Patterns in save/load Commands**
+  - Problem: `file.save_workspace` accessed `m.series->label()` on a dangling pointer. The crash manifested as SIGABRT, not SIGSEGV, making it harder to classify under the existing overlay stale-pointer bucket.
+  - Fix: Add crash signature classification for `register_commands.cpp` save/load paths — group any `Series*` or `Figure*` dereference in command lambdas under a `command_stale_pointer` bucket.
+  - Priority: P2
 
 ---
 

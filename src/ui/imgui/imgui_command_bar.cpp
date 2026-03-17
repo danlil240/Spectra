@@ -31,116 +31,117 @@ static bool icon_label_button(const char* icon_codepoint,
     float pill_pad = 7.0f;    // horizontal inset for the highlight pill
     float pill_w   = width - pill_pad * 2.0f;
 
-    // Full-width invisible button for hit testing
     ImVec2 cursor = ImGui::GetCursorScreenPos();
     ImGui::PushID(label);
+    ImGuiStorage* storage        = ImGui::GetStateStorage();
+    ImGuiID       hover_anim_id  = ImGui::GetID("hover_anim");
+    ImGuiID       active_anim_id = ImGui::GetID("active_anim");
     ImGui::InvisibleButton("##btn", ImVec2(width, cell_h));
-    bool clicked = ImGui::IsItemClicked();
-    bool hovered = ImGui::IsItemHovered();
+    bool  clicked = ImGui::IsItemClicked();
+    bool  hovered = ImGui::IsItemHovered();
+    float dt      = ImGui::GetIO().DeltaTime;
+    float hover_t = storage->GetFloat(hover_anim_id, hovered ? 1.0f : 0.0f);
+    float active_t = storage->GetFloat(active_anim_id, active ? 1.0f : 0.0f);
+    hover_t += ((hovered ? 1.0f : 0.0f) - hover_t) * std::min(1.0f, dt * 16.0f);
+    active_t += ((active ? 1.0f : 0.0f) - active_t) * std::min(1.0f, dt * 12.0f);
+    storage->SetFloat(hover_anim_id, hover_t);
+    storage->SetFloat(active_anim_id, active_t);
     ImGui::PopID();
 
     ImDrawList* dl = ImGui::GetWindowDrawList();
 
-    // Pill background rect (inset from edges)
-    ImVec2 pill_min = ImVec2(cursor.x + pill_pad, cursor.y + 2.0f);
-    ImVec2 pill_max = ImVec2(cursor.x + pill_pad + pill_w, cursor.y + cell_h - 2.0f);
+    float  motion_t = std::max(hover_t, active_t);
+    float  lift     = active_t * 1.5f + hover_t * 0.75f;
+    ImVec2 pill_min = ImVec2(cursor.x + pill_pad, cursor.y + 3.0f - lift);
+    ImVec2 pill_max = ImVec2(cursor.x + pill_pad + pill_w, cursor.y + cell_h - 3.0f - lift);
 
-    if (active)
+    if (motion_t > 0.01f)
     {
-        dl->AddRectFilled(
-            pill_min,
-            pill_max,
-            ImGui::ColorConvertFloat4ToU32(
-                ImVec4(colors.bg_tertiary.r * 0.78f + colors.accent.r * 0.22f,
-                       colors.bg_tertiary.g * 0.78f + colors.accent.g * 0.22f,
-                       colors.bg_tertiary.b * 0.78f + colors.accent.b * 0.22f,
-                       0.96f)),
-            tokens::RADIUS_MD);
-        dl->AddRect(pill_min,
-                    pill_max,
-                    ImGui::ColorConvertFloat4ToU32(
-                        ImVec4(colors.border_strong.r,
-                               colors.border_strong.g,
-                               colors.border_strong.b,
-                               0.60f)),
-                    tokens::RADIUS_MD);
-        float  bar_w   = 3.0f;
-        ImVec2 bar_min = ImVec2(cursor.x, cursor.y + 10.0f);
-        ImVec2 bar_max = ImVec2(cursor.x + bar_w, cursor.y + cell_h - 10.0f);
-        dl->AddRectFilled(bar_min,
-                          bar_max,
+        ui::Color glow_color =
+            colors.accent_glow.lerp(colors.accent, 0.18f + active_t * 0.18f + hover_t * 0.08f);
+        dl->AddRectFilled(ImVec2(pill_min.x - 1.5f, pill_min.y - 1.0f),
+                          ImVec2(pill_max.x + 1.5f, pill_max.y + 1.5f),
                           ImGui::ColorConvertFloat4ToU32(
-                              ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 1.0f)),
-                          1.0f);
+                              ImVec4(glow_color.r,
+                                     glow_color.g,
+                                     glow_color.b,
+                                     (0.06f + hover_t * 0.06f + active_t * 0.10f)
+                                         * colors.glow_intensity)),
+                          tokens::RADIUS_MD + 1.0f);
 
-        // Night theme: soft glow around the accent bar
-        if (colors.glow_intensity > 0.01f)
-        {
-            dl->AddRectFilled(ImVec2(bar_min.x - 1.0f, bar_min.y - 1.0f),
-                              ImVec2(bar_max.x + 2.0f, bar_max.y + 1.0f),
-                              ImGui::ColorConvertFloat4ToU32(ImVec4(colors.accent_glow.r,
-                                                                    colors.accent_glow.g,
-                                                                    colors.accent_glow.b,
-                                                                    colors.accent_glow.a * 0.25f)),
-                              2.0f);
-        }
-    }
-    else if (hovered)
-    {
+        ui::Color pill_fill =
+            colors.bg_secondary.lerp(colors.bg_tertiary, 0.62f).lerp(colors.accent,
+                                                                      0.06f + active_t * 0.16f
+                                                                          + hover_t * 0.10f);
         dl->AddRectFilled(
             pill_min,
             pill_max,
             ImGui::ColorConvertFloat4ToU32(
-                ImVec4(colors.bg_tertiary.r * 0.84f + colors.accent.r * 0.16f,
-                       colors.bg_tertiary.g * 0.84f + colors.accent.g * 0.16f,
-                       colors.bg_tertiary.b * 0.84f + colors.accent.b * 0.16f,
-                       0.86f)),
+                ImVec4(pill_fill.r, pill_fill.g, pill_fill.b, 0.55f + active_t * 0.36f + hover_t * 0.18f)),
             tokens::RADIUS_MD);
         dl->AddRect(
             pill_min,
             pill_max,
             ImGui::ColorConvertFloat4ToU32(
-                ImVec4(colors.border_subtle.r, colors.border_subtle.g, colors.border_subtle.b, 0.55f)),
+                ImVec4(colors.border_subtle.r * (1.0f - active_t) + colors.border_strong.r * active_t,
+                       colors.border_subtle.g * (1.0f - active_t) + colors.border_strong.g * active_t,
+                       colors.border_subtle.b * (1.0f - active_t) + colors.border_strong.b * active_t,
+                       0.28f + hover_t * 0.18f + active_t * 0.24f)),
             tokens::RADIUS_MD);
     }
 
-    // Colors: active = accent icon only, inactive = bright, hovered = full brightness
-    ImU32 icon_col, text_col;
-    if (active)
+    if (active_t > 0.01f)
     {
-        icon_col = ImGui::ColorConvertFloat4ToU32(
-            ImVec4(colors.accent_hover.r, colors.accent_hover.g, colors.accent_hover.b, 1.0f));
-        text_col = ImGui::ColorConvertFloat4ToU32(
-            ImVec4(colors.accent_hover.r, colors.accent_hover.g, colors.accent_hover.b, 0.98f));
-    }
-    else
-    {
-        const auto& base = hovered ? colors.text_primary : colors.text_secondary;
-        float       alpha = hovered ? 1.0f : 0.96f;
-        icon_col          = ImGui::ColorConvertFloat4ToU32(ImVec4(base.r, base.g, base.b, alpha));
-        text_col          = ImGui::ColorConvertFloat4ToU32(
-            ImVec4(base.r, base.g, base.b, hovered ? 0.92f : 0.86f));
+        float  bar_w   = 3.0f;
+        ImVec2 bar_min = ImVec2(cursor.x, cursor.y + 10.0f - lift);
+        ImVec2 bar_max = ImVec2(cursor.x + bar_w, cursor.y + cell_h - 10.0f - lift);
+        if (colors.glow_intensity > 0.01f)
+        {
+            dl->AddRectFilled(ImVec2(bar_min.x - 1.0f, bar_min.y - 1.0f),
+                              ImVec2(bar_max.x + 2.0f, bar_max.y + 1.0f),
+                              ImGui::ColorConvertFloat4ToU32(
+                                  ImVec4(colors.accent_glow.r,
+                                         colors.accent_glow.g,
+                                         colors.accent_glow.b,
+                                         colors.accent_glow.a * (0.18f + active_t * 0.10f))),
+                              2.0f);
+        }
+        dl->AddRectFilled(bar_min,
+                          bar_max,
+                          ImGui::ColorConvertFloat4ToU32(
+                              ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.80f + active_t * 0.20f)),
+                          1.0f);
     }
 
-    // Vertically center the icon+label block within the cell
-    float content_h = icon_sz + icon_gap + label_sz;
-    float y_start   = cursor.y + (cell_h - content_h) * 0.5f;
+    ui::Color icon_color =
+        colors.text_secondary.lerp(colors.text_primary, hover_t * 0.78f).lerp(colors.accent_hover,
+                                                                               active_t * 0.88f);
+    ui::Color text_color =
+        colors.text_secondary.lerp(colors.text_primary, hover_t * 0.60f).lerp(colors.accent_hover,
+                                                                               active_t * 0.80f);
+    ImU32 icon_col = ImGui::ColorConvertFloat4ToU32(
+        ImVec4(icon_color.r, icon_color.g, icon_color.b, 0.90f + hover_t * 0.08f + active_t * 0.10f));
+    ImU32 text_col = ImGui::ColorConvertFloat4ToU32(
+        ImVec4(text_color.r, text_color.g, text_color.b, 0.82f + hover_t * 0.10f + active_t * 0.08f));
 
-    // Draw icon centered
+    float icon_draw_sz  = icon_sz * (1.0f + hover_t * 0.04f + active_t * 0.05f);
+    float label_draw_sz = label_sz * (1.0f + hover_t * 0.02f + active_t * 0.03f);
+    float content_h     = icon_draw_sz + icon_gap + label_draw_sz;
+    float y_start       = cursor.y + (cell_h - content_h) * 0.5f - lift * 0.35f;
+
     if (icon_font)
     {
-        ImVec2 isz = icon_font->CalcTextSizeA(icon_font->FontSize, FLT_MAX, 0.0f, icon_codepoint);
+        ImVec2 isz = icon_font->CalcTextSizeA(icon_draw_sz, FLT_MAX, 0.0f, icon_codepoint);
         float  ix  = cursor.x + (width - isz.x) * 0.5f;
-        dl->AddText(icon_font, icon_font->FontSize, ImVec2(ix, y_start), icon_col, icon_codepoint);
+        dl->AddText(icon_font, icon_draw_sz, ImVec2(ix, y_start), icon_col, icon_codepoint);
     }
 
-    // Draw label centered, smaller than label_font's native size
     if (label_font)
     {
-        ImVec2 lsz = label_font->CalcTextSizeA(label_sz, FLT_MAX, 0.0f, label);
+        ImVec2 lsz = label_font->CalcTextSizeA(label_draw_sz, FLT_MAX, 0.0f, label);
         float  lx  = cursor.x + (width - lsz.x) * 0.5f;
-        float  ly  = y_start + icon_sz + icon_gap;
-        dl->AddText(label_font, label_sz, ImVec2(lx, ly), text_col, label);
+        float  ly  = y_start + icon_draw_sz + icon_gap;
+        dl->AddText(label_font, label_draw_sz, ImVec2(lx, ly), text_col, label);
     }
 
     return clicked;
@@ -492,8 +493,8 @@ void ImGuiIntegration::draw_command_bar()
             }
 
             // Crisp hairline border at bottom edge
-            bar_dl->AddLine(ImVec2(wpos.x, bottom - 1.0f),
-                            ImVec2(wpos.x + wsz.x, bottom - 1.0f),
+            bar_dl->AddLine(ImVec2(wpos.x, std::floor(bottom) - 1.0f),
+                            ImVec2(wpos.x + wsz.x, std::floor(bottom) - 1.0f),
                             IM_COL32(static_cast<uint8_t>(ui::theme().border_subtle.r * 255),
                                      static_cast<uint8_t>(ui::theme().border_subtle.g * 255),
                                      static_cast<uint8_t>(ui::theme().border_subtle.b * 255),

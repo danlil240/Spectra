@@ -49,8 +49,8 @@ void ImGuiIntegration::draw_tab_bar()
                               ImVec2(wpos.x + wsz.x, wpos.y + wsz.y + off),
                               IM_COL32(0, 0, 0, static_cast<int>(alpha * 255)));
         }
-        dl->AddLine(ImVec2(wpos.x, wpos.y + wsz.y - 1.0f),
-                    ImVec2(wpos.x + wsz.x, wpos.y + wsz.y - 1.0f),
+        dl->AddLine(ImVec2(wpos.x, std::floor(wpos.y + wsz.y) - 1.0f),
+                    ImVec2(wpos.x + wsz.x, std::floor(wpos.y + wsz.y) - 1.0f),
                     IM_COL32(static_cast<uint8_t>(ui::theme().border_default.r * 255),
                              static_cast<uint8_t>(ui::theme().border_default.g * 255),
                              static_cast<uint8_t>(ui::theme().border_default.b * 255),
@@ -210,6 +210,16 @@ void ImGuiIntegration::draw_canvas(Figure& figure)
     ImGui::End();
     ImGui::PopStyleColor(2);
 
+    ImDrawList* bg_dl = ImGui::GetBackgroundDrawList();
+    auto        outer = ui::theme().bg_primary.lerp(ui::theme().bg_secondary, 0.20f);
+    bg_dl->AddRectFilled(ImVec2(bounds.x - 8.0f, bounds.y - 8.0f),
+                         ImVec2(bounds.x + bounds.w + 8.0f, bounds.y + bounds.h + 8.0f),
+                         IM_COL32(static_cast<uint8_t>(outer.r * 255),
+                                  static_cast<uint8_t>(outer.g * 255),
+                                  static_cast<uint8_t>(outer.b * 255),
+                                  96),
+                         14.0f);
+
     ImDrawList* dl = ImGui::GetForegroundDrawList();
     for (int i = 0; i < 3; ++i)
     {
@@ -241,6 +251,30 @@ void ImGuiIntegration::draw_canvas(Figure& figure)
                          static_cast<uint8_t>(ui::theme().border_strong.b * 255),
                          56),
                 1.0f);
+    dl->AddRectFilledMultiColor(ImVec2(bounds.x + 1.0f, bounds.y + 1.0f),
+                                ImVec2(bounds.x + bounds.w - 1.0f, bounds.y + bounds.h * 0.42f),
+                                IM_COL32(0, 0, 0, 22),
+                                IM_COL32(0, 0, 0, 22),
+                                IM_COL32(0, 0, 0, 0),
+                                IM_COL32(0, 0, 0, 0));
+    dl->AddRectFilledMultiColor(ImVec2(bounds.x + 1.0f, bounds.y + bounds.h * 0.58f),
+                                ImVec2(bounds.x + bounds.w - 1.0f, bounds.y + bounds.h - 1.0f),
+                                IM_COL32(0, 0, 0, 0),
+                                IM_COL32(0, 0, 0, 0),
+                                IM_COL32(0, 0, 0, 28),
+                                IM_COL32(0, 0, 0, 28));
+    dl->AddRectFilledMultiColor(ImVec2(bounds.x + 1.0f, bounds.y + 1.0f),
+                                ImVec2(bounds.x + bounds.w * 0.16f, bounds.y + bounds.h - 1.0f),
+                                IM_COL32(0, 0, 0, 18),
+                                IM_COL32(0, 0, 0, 0),
+                                IM_COL32(0, 0, 0, 0),
+                                IM_COL32(0, 0, 0, 18));
+    dl->AddRectFilledMultiColor(ImVec2(bounds.x + bounds.w * 0.84f, bounds.y + 1.0f),
+                                ImVec2(bounds.x + bounds.w - 1.0f, bounds.y + bounds.h - 1.0f),
+                                IM_COL32(0, 0, 0, 0),
+                                IM_COL32(0, 0, 0, 18),
+                                IM_COL32(0, 0, 0, 18),
+                                IM_COL32(0, 0, 0, 0));
 
     // Draw interactive page scrollbar when subplots overflow the visible canvas area
     if (figure.needs_scroll(bounds.h))
@@ -718,7 +752,19 @@ void ImGuiIntegration::draw_status_bar()
             else
                 std::snprintf(zoom_buf, sizeof(zoom_buf), "Zoom: %.2e%%", zoom_pct);
         }
-        ImGui::TextUnformatted(zoom_buf);
+        {
+            ImVec2 chip_pos = ImGui::GetCursorScreenPos();
+            ImVec2 chip_sz  = ImGui::CalcTextSize(zoom_buf);
+            ImGui::GetWindowDrawList()->AddRectFilled(
+                ImVec2(chip_pos.x - 5.0f, chip_pos.y - 1.0f),
+                ImVec2(chip_pos.x + chip_sz.x + 5.0f, chip_pos.y + chip_sz.y + 1.0f),
+                IM_COL32(static_cast<uint8_t>(ui::theme().bg_tertiary.r * 255),
+                         static_cast<uint8_t>(ui::theme().bg_tertiary.g * 255),
+                         static_cast<uint8_t>(ui::theme().bg_tertiary.b * 255),
+                         72),
+                ui::tokens::RADIUS_SM);
+            ImGui::TextUnformatted(zoom_buf);
+        }
         ImGui::PopStyleColor();
 
         // Right side: performance info — anchor to right edge of window
@@ -734,24 +780,47 @@ void ImGuiIntegration::draw_status_bar()
         else if (fps_val < 45.0f)
             fps_color = ui::theme().warning;
 
-        ImGui::PushStyleColor(ImGuiCol_Text,
-                              ImVec4(fps_color.r, fps_color.g, fps_color.b, fps_color.a));
         char fps_buf[32];
         std::snprintf(fps_buf, sizeof(fps_buf), "%d fps", static_cast<int>(fps_val));
-        ImGui::TextUnformatted(fps_buf);
-        ImGui::PopStyleColor();
+        {
+            ImVec2 chip_pos = ImGui::GetCursorScreenPos();
+            ImVec2 chip_sz  = ImGui::CalcTextSize(fps_buf);
+            ImGui::GetWindowDrawList()->AddRectFilled(
+                ImVec2(chip_pos.x - 5.0f, chip_pos.y - 1.0f),
+                ImVec2(chip_pos.x + chip_sz.x + 5.0f, chip_pos.y + chip_sz.y + 1.0f),
+                IM_COL32(static_cast<uint8_t>(fps_color.r * 255),
+                         static_cast<uint8_t>(fps_color.g * 255),
+                         static_cast<uint8_t>(fps_color.b * 255),
+                         34),
+                ui::tokens::RADIUS_SM);
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(fps_color.r, fps_color.g, fps_color.b, 1.0f));
+            ImGui::TextUnformatted(fps_buf);
+            ImGui::PopStyleColor();
+        }
 
         // GPU time
         ImGui::SameLine(0.0f, ui::tokens::SPACE_3);
-        ImGui::PushStyleColor(ImGuiCol_Text,
-                              ImVec4(ui::theme().text_tertiary.r,
-                                     ui::theme().text_tertiary.g,
-                                     ui::theme().text_tertiary.b,
-                                     ui::theme().text_tertiary.a));
         char gpu_buf[32];
         std::snprintf(gpu_buf, sizeof(gpu_buf), "GPU: %.1fms", gpu_time_ms_);
-        ImGui::TextUnformatted(gpu_buf);
-        ImGui::PopStyleColor();
+        {
+            ImVec2 chip_pos = ImGui::GetCursorScreenPos();
+            ImVec2 chip_sz  = ImGui::CalcTextSize(gpu_buf);
+            ImGui::GetWindowDrawList()->AddRectFilled(
+                ImVec2(chip_pos.x - 5.0f, chip_pos.y - 1.0f),
+                ImVec2(chip_pos.x + chip_sz.x + 5.0f, chip_pos.y + chip_sz.y + 1.0f),
+                IM_COL32(static_cast<uint8_t>(ui::theme().bg_tertiary.r * 255),
+                         static_cast<uint8_t>(ui::theme().bg_tertiary.g * 255),
+                         static_cast<uint8_t>(ui::theme().bg_tertiary.b * 255),
+                         58),
+                ui::tokens::RADIUS_SM);
+            ImGui::PushStyleColor(ImGuiCol_Text,
+                                  ImVec4(ui::theme().text_tertiary.r,
+                                         ui::theme().text_tertiary.g,
+                                         ui::theme().text_tertiary.b,
+                                         ui::theme().text_tertiary.a));
+            ImGui::TextUnformatted(gpu_buf);
+            ImGui::PopStyleColor();
+        }
 
         ImGui::PopFont();
     }

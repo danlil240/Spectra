@@ -364,8 +364,8 @@ void Renderer::render_plot_text(Figure& figure)
     };
 
     uint32_t tick_col  = color_to_rgba(colors.tick_label);
-    uint32_t label_col = color_to_rgba(colors.text_primary);
-    uint32_t title_col = label_col;
+    uint32_t label_col = color_to_rgba(colors.text_secondary);
+    uint32_t title_col = color_to_rgba(colors.text_primary);
 
     constexpr float tick_padding = 5.0f;
 

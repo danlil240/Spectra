@@ -942,29 +942,29 @@ void ThemeManager::initialize_default_themes()
     night.name   = "night";
     night.colors = {
         // Surfaces — progressive elevation with clear depth steps
-        .bg_canvas    = Color::from_hex(0x101822),   // L1: workspace surface
-        .bg_primary   = Color::from_hex(0x090B10),   // L0: deepest void
-        .bg_secondary = Color::from_hex(0x161C25),   // L2: panels float above canvas
-        .bg_tertiary  = Color::from_hex(0x1F2733),   // L3: inputs, cards (clear lift)
-        .bg_elevated  = Color::from_hex(0x293547),   // L4: tooltips, popups
+        .bg_canvas    = Color::from_hex(0x132032),   // L1: workspace surface
+        .bg_primary   = Color::from_hex(0x07090D),   // L0: deepest void
+        .bg_secondary = Color::from_hex(0x141A22),   // L2: panels float above canvas
+        .bg_tertiary  = Color::from_hex(0x1D2530),   // L3: inputs, cards (clear lift)
+        .bg_elevated  = Color::from_hex(0x243041),   // L4: tooltips, popups
         .bg_overlay   = Color(0.0f, 0.02f, 0.04f, 0.60f),
 
         // Text — warm blue-white hierarchy with wider contrast steps
         .text_primary   = Color::from_hex(0xE8ECF4),   // Bright, slightly warm
-        .text_secondary = Color::from_hex(0x96A3B6),   // Clear readable labels
-        .text_tertiary  = Color::from_hex(0x5F6D80),   // Placeholders, meta
+        .text_secondary = Color::from_hex(0x9AA6B7),   // Clear readable labels
+        .text_tertiary  = Color::from_hex(0x677487),   // Placeholders, meta
         .text_inverse   = Color::from_hex(0x080B10),
 
         // Borders — material edge definition, slightly blue
-        .border_default = Color(0.30f, 0.36f, 0.44f, 0.72f),   // Panel edges — visible
-        .border_subtle  = Color(0.22f, 0.27f, 0.34f, 0.56f),   // Hairline dividers
-        .border_strong  = Color(0.45f, 0.53f, 0.65f, 0.92f),   // Focused element borders
+        .border_default = Color(0.30f, 0.35f, 0.42f, 0.68f),   // Panel edges — visible
+        .border_subtle  = Color(0.21f, 0.25f, 0.31f, 0.52f),   // Hairline dividers
+        .border_strong  = Color(0.46f, 0.52f, 0.62f, 0.88f),   // Focused element borders
 
         // Interactive — confident blue accent with clear state changes
-        .accent        = Color::from_hex(0x55A2FF),   // Slightly brighter blue
-        .accent_hover  = Color::from_hex(0x82C2FF),   // Distinct hover lift
-        .accent_muted  = Color(0.33f, 0.64f, 1.0f, 0.34f),   // Selected bg
-        .accent_subtle = Color(0.33f, 0.64f, 1.0f, 0.16f),   // Hover tint
+        .accent        = Color::from_hex(0x7C8FD6),   // Muted steel-violet for UI chrome
+        .accent_hover  = Color::from_hex(0x9EAFEE),   // Distinct hover lift
+        .accent_muted  = Color(0.49f, 0.56f, 0.84f, 0.30f),   // Selected bg
+        .accent_subtle = Color(0.49f, 0.56f, 0.84f, 0.12f),   // Hover tint
 
         // Semantic — slightly desaturated for calm UI
         .success = Color::from_hex(0x3FB950),
@@ -973,29 +973,29 @@ void ThemeManager::initialize_default_themes()
         .info    = Color::from_hex(0x4D94E8),
 
         // Plot-specific — grid recedes, data is hero
-        .grid_major       = Color(0.68f, 0.78f, 1.0f, 0.18f),   // Faint blue-tinted grid
-        .grid_minor       = Color(0.68f, 0.78f, 1.0f, 0.08f),
-        .grid_line        = Color(0.68f, 0.78f, 1.0f, 0.18f),   // Compat
-        .axis_line        = Color(0.55f, 0.62f, 0.72f, 0.58f),
-        .tick_label       = Color::from_hex(0x94A3B8),
-        .crosshair        = Color(0.30f, 0.58f, 0.91f, 0.75f),
-        .selection_fill   = Color(0.30f, 0.58f, 0.91f, 0.18f),
-        .selection_border = Color::from_hex(0x55A2FF),
+        .grid_major       = Color(0.82f, 0.86f, 0.93f, 0.25f),   // Calm scientific paper major lines
+        .grid_minor       = Color(0.82f, 0.86f, 0.93f, 0.07f),
+        .grid_line        = Color(0.82f, 0.86f, 0.93f, 0.25f),   // Compat
+        .axis_line        = Color(0.62f, 0.68f, 0.76f, 0.42f),
+        .tick_label       = Color::from_hex(0x7E8B9B),
+        .crosshair        = Color(0.48f, 0.69f, 0.96f, 0.60f),
+        .selection_fill   = Color(0.47f, 0.67f, 0.96f, 0.13f),
+        .selection_border = Color::from_hex(0x76A2E5),
         .tooltip_bg       = Color(0.11f, 0.14f, 0.20f, 0.97f),   // Near-opaque glass
         .tooltip_border   = Color(0.30f, 0.38f, 0.48f, 0.45f),
 
         // Visual effects — subtle accent glow for active elements
-        .accent_glow       = Color(0.33f, 0.64f, 1.0f, 0.34f),
+        .accent_glow       = Color(0.51f, 0.60f, 0.92f, 0.28f),
         .glow_intensity    = 0.35f,
-        .focus_ring        = Color::from_hex(0x55A2FF),
+        .focus_ring        = Color::from_hex(0x90A3E9),
         .scrollbar_thumb   = Color(0.64f, 0.72f, 0.84f, 0.28f),
         .scrollbar_track   = Color(0.0f, 0.0f, 0.0f, 0.0f),
         .section_header_bg = Color(0.68f, 0.78f, 1.0f, 0.05f),
         .input_bg          = Color::from_hex(0x1E2733),
-        .hover_highlight   = Color(0.33f, 0.64f, 1.0f, 0.22f),
+        .hover_highlight   = Color(0.49f, 0.56f, 0.84f, 0.18f),
         .annotation_bg     = Color(0.10f, 0.13f, 0.18f, 0.92f),
-        .roi_fill          = Color(0.33f, 0.64f, 1.0f, 0.14f),
-        .roi_border        = Color(0.33f, 0.64f, 1.0f, 0.50f)};
+        .roi_fill          = Color(0.47f, 0.67f, 0.96f, 0.12f),
+        .roi_border        = Color(0.47f, 0.67f, 0.96f, 0.40f)};
     night.shadow_intensity = 1.0f;
     night.use_blur         = true;
     register_theme("night", night);
@@ -1128,19 +1128,19 @@ void ThemeManager::initialize_data_palettes()
     // Default palette (Tableau 10 — perceptually uniform)
     DataPalette default_palette;
     default_palette.name            = "default";
-    default_palette.description     = "Tableau 10 — perceptually balanced for general use";
+    default_palette.description     = "Spectra vivid — separated from muted UI chrome for scientific plots";
     default_palette.colorblind_safe = false;
     default_palette.colors          = {
-        Color::from_hex(0x4E79A7),   // steel blue
-        Color::from_hex(0xF28E2B),   // orange
-        Color::from_hex(0xE15759),   // red
-        Color::from_hex(0x76B7B2),   // teal
-        Color::from_hex(0x59A14F),   // green
-        Color::from_hex(0xEDC948),   // gold
-        Color::from_hex(0xB07AA1),   // purple
-        Color::from_hex(0xFF9DA7),   // pink
-        Color::from_hex(0x9C755F),   // brown
-        Color::from_hex(0xBAB0AC)    // gray
+        Color::from_hex(0x22D3EE),   // vivid cyan
+        Color::from_hex(0xFB923C),   // orange
+        Color::from_hex(0xE879F9),   // magenta
+        Color::from_hex(0xA3E635),   // lime
+        Color::from_hex(0x60A5FA),   // sky blue
+        Color::from_hex(0xFB7185),   // rose
+        Color::from_hex(0xFACC15),   // amber
+        Color::from_hex(0x34D399),   // emerald
+        Color::from_hex(0xC084FC),   // violet
+        Color::from_hex(0xE5E7EB)    // light gray
     };
     data_palettes_["default"] = default_palette;
 

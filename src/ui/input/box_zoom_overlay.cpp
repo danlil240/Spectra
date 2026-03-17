@@ -67,44 +67,55 @@ void BoxZoomOverlay::draw(float /*window_width*/, float /*window_height*/)
     float x1 = std::max(rect_x0_, rect_x1_);
     float y1 = std::max(rect_y0_, rect_y1_);
 
-    // Fill: accent color with low opacity
     {
         const auto& fill     = colors.selection_fill;
         ImU32       fill_col = IM_COL32(static_cast<uint8_t>(fill.r * 255),
                                   static_cast<uint8_t>(fill.g * 255),
                                   static_cast<uint8_t>(fill.b * 255),
                                   static_cast<uint8_t>(fill_opacity_ * alpha * 255));
-        dl->AddRectFilled(ImVec2(x0, y0), ImVec2(x1, y1), fill_col);
+        dl->AddRectFilled(ImVec2(x0, y0), ImVec2(x1, y1), fill_col, ui::tokens::RADIUS_SM);
+        dl->AddRectFilledMultiColor(ImVec2(x0, y0),
+                                    ImVec2(x1, y0 + (y1 - y0) * 0.45f),
+                                    IM_COL32(255, 255, 255, static_cast<int>(alpha * 12.0f)),
+                                    IM_COL32(255, 255, 255, static_cast<int>(alpha * 12.0f)),
+                                    IM_COL32(255, 255, 255, 0),
+                                    IM_COL32(255, 255, 255, 0));
     }
 
-    // Border: dashed accent line
     const auto& border     = colors.selection_border;
     ImU32       border_col = IM_COL32(static_cast<uint8_t>(border.r * 255),
                                 static_cast<uint8_t>(border.g * 255),
                                 static_cast<uint8_t>(border.b * 255),
                                 static_cast<uint8_t>(alpha * 255));
+    ImU32       glow_col   = IM_COL32(static_cast<uint8_t>(colors.accent_glow.r * 255),
+                                static_cast<uint8_t>(colors.accent_glow.g * 255),
+                                static_cast<uint8_t>(colors.accent_glow.b * 255),
+                                static_cast<uint8_t>(alpha * 46));
 
-    // Draw dashed border (4 edges)
+    dl->AddRect(ImVec2(x0 - 1.0f, y0 - 1.0f),
+                ImVec2(x1 + 1.0f, y1 + 1.0f),
+                glow_col,
+                ui::tokens::RADIUS_SM,
+                0,
+                3.0f);
+
     draw_dashed_line_impl(x0, y0, x1, y0, border_col, border_width_);   // top
     draw_dashed_line_impl(x1, y0, x1, y1, border_col, border_width_);   // right
     draw_dashed_line_impl(x1, y1, x0, y1, border_col, border_width_);   // bottom
     draw_dashed_line_impl(x0, y1, x0, y0, border_col, border_width_);   // left
 
-    // Corner handles
     draw_corner_handles_impl(x0, y0, x1, y1, border_col);
 
-    // Crosshair lines extending beyond the selection
     if (show_crosshair_ && input_handler_ && input_handler_->active_axes())
     {
         const auto& vp        = input_handler_->active_axes()->viewport();
         ImU32       cross_col = IM_COL32(static_cast<uint8_t>(border.r * 255),
                                    static_cast<uint8_t>(border.g * 255),
                                    static_cast<uint8_t>(border.b * 255),
-                                   static_cast<uint8_t>(alpha * 0.3f * 255));
+                                   static_cast<uint8_t>(alpha * 0.24f * 255));
         draw_zoom_crosshair_impl(x0, y0, x1, y1, vp.x, vp.y, vp.w, vp.h, cross_col);
     }
 
-    // Dimension label
     if (show_dimensions_)
     {
         draw_dimension_label_impl(x0, y0, x1, y1, border_col);
@@ -200,17 +211,23 @@ void BoxZoomOverlay::draw_dimension_label_impl(float        x0,
     float  label_x   = (x0 + x1) * 0.5f - text_size.x * 0.5f;
     float  label_y   = std::max(y0, y1) + 6.0f;
 
-    // Background pill
     float       pad_x = 6.0f, pad_y = 2.0f;
     const auto& colors = ui::theme();
-    ImU32       bg_col = IM_COL32(static_cast<uint8_t>(colors.bg_primary.r * 255),
-                            static_cast<uint8_t>(colors.bg_primary.g * 255),
-                            static_cast<uint8_t>(colors.bg_primary.b * 255),
-                            static_cast<uint8_t>(0.85f * 255));
+    ImU32       bg_col = IM_COL32(static_cast<uint8_t>(colors.bg_elevated.r * 255),
+                            static_cast<uint8_t>(colors.bg_elevated.g * 255),
+                            static_cast<uint8_t>(colors.bg_elevated.b * 255),
+                            static_cast<uint8_t>(0.88f * 255));
     dl->AddRectFilled(ImVec2(label_x - pad_x, label_y - pad_y),
                       ImVec2(label_x + text_size.x + pad_x, label_y + text_size.y + pad_y),
                       bg_col,
                       ui::tokens::RADIUS_SM);
+    dl->AddRect(ImVec2(label_x - pad_x, label_y - pad_y),
+                ImVec2(label_x + text_size.x + pad_x, label_y + text_size.y + pad_y),
+                IM_COL32(static_cast<uint8_t>(colors.border_default.r * 255),
+                         static_cast<uint8_t>(colors.border_default.g * 255),
+                         static_cast<uint8_t>(colors.border_default.b * 255),
+                         96),
+                ui::tokens::RADIUS_SM);
 
     dl->AddText(ImVec2(label_x, label_y), col, buf);
 }

@@ -1146,16 +1146,16 @@ void ImGuiIntegration::load_fonts()
     font_body_ = add_font_pair(16.0f);
 
     // Heading font (12.5px) + FA6 icon merge
-    font_heading_ = add_font_pair(12.0f);
+    font_heading_ = add_font_pair(11.5f);
 
     // Icon font (20px) — primary icon font with Inter merged in
     font_icon_ = add_font_pair(20.0f);
 
     // Title font (18px) + FA6 icon merge
-    font_title_ = add_font_pair(19.0f);
+    font_title_ = add_font_pair(20.0f);
 
     // Menubar font (15px) + FA6 icon merge
-    font_menubar_ = add_font_pair(14.5f);
+    font_menubar_ = add_font_pair(14.0f);
 
     io.FontDefault = font_body_;
 }

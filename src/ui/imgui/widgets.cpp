@@ -1063,7 +1063,7 @@ void separator_label(const char* label, ImFont* font)
     if (font)
         ImGui::PopFont();
 
-    float line_y = pos.y + text_size.y * 0.5f;
+    float line_y = std::floor(pos.y + text_size.y * 0.5f);
     float gap    = tokens::SPACE_2;
     float text_x = (avail - text_size.x) * 0.5f;
 

@@ -139,15 +139,15 @@ bool LegendInteraction::draw(Axes&               axes,
     ImFont*     font         = font_body_ ? font_body_ : ImGui::GetFont();
 
     // Use font size from LegendConfig; fall back to font's native size
-    float font_size = (config.font_size > 0.0f) ? config.font_size : font->FontSize;
+    float font_size = (config.font_size > 0.0f) ? config.font_size : font->FontSize * 0.92f;
 
     // Use padding from LegendConfig
     float           pad         = config.padding;
-    float           pad_x       = pad + 2.0f;   // slight extra horizontal padding
-    float           pad_y       = pad;
+    float           pad_x       = pad + 0.5f;
+    float           pad_y       = std::max(2.0f, pad - 1.0f);
     constexpr float swatch_size = 10.0f;
     constexpr float swatch_gap  = 6.0f;
-    float           row_height  = font_size + 6.0f;
+    float           row_height  = font_size + 4.0f;
     constexpr float eye_width   = 16.0f;
 
     // Measure legend size
@@ -229,7 +229,7 @@ bool LegendInteraction::draw(Axes&               axes,
         bg_col = ImVec4(theme_colors.bg_elevated.r,
                         theme_colors.bg_elevated.g,
                         theme_colors.bg_elevated.b,
-                        0.94f);
+                        0.84f);
     else
         bg_col = ImVec4(config.bg_color.r, config.bg_color.g, config.bg_color.b, config.bg_color.a);
 
@@ -238,16 +238,16 @@ bool LegendInteraction::draw(Axes&               axes,
         border_col = ImVec4(theme_colors.border_default.r,
                             theme_colors.border_default.g,
                             theme_colors.border_default.b,
-                            0.65f);
+                            0.40f);
     else
         border_col = ImVec4(config.border_color.r,
                             config.border_color.g,
                             config.border_color.b,
                             config.border_color.a);
 
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ui::tokens::RADIUS_LG);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(pad_x + 2.0f, pad_y + 1.0f));
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ui::tokens::RADIUS_MD);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(pad_x + 1.0f, pad_y));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.75f);
     ImGui::PushStyleColor(ImGuiCol_WindowBg, bg_col);
     ImGui::PushStyleColor(ImGuiCol_Border, border_col);
 
@@ -272,16 +272,16 @@ bool LegendInteraction::draw(Axes&               axes,
         ImVec2      win_pos  = ImGui::GetWindowPos();
         ImVec2      win_size = ImGui::GetWindowSize();
         ImDrawList* bg_dl    = ImGui::GetBackgroundDrawList();
-        for (int i = 0; i < 3; ++i)
+        for (int i = 0; i < 2; ++i)
         {
-            float t     = static_cast<float>(i) / 3.0f;
-            float off   = 1.0f + t * ui::tokens::ELEVATION_2_SPREAD * 0.45f;
-            float alpha = 0.12f * (1.0f - t);
+            float t     = static_cast<float>(i) / 2.0f;
+            float off   = 1.0f + t * ui::tokens::ELEVATION_1_SPREAD * 0.35f;
+            float alpha = 0.08f * (1.0f - t);
             bg_dl->AddRectFilled(ImVec2(win_pos.x + off * 0.2f, win_pos.y + off * 0.35f),
                                  ImVec2(win_pos.x + win_size.x + off * 0.45f,
                                         win_pos.y + win_size.y + off),
                                  IM_COL32(0, 0, 0, static_cast<int>(alpha * 255)),
-                                 ui::tokens::RADIUS_LG + off * 0.25f);
+                                 ui::tokens::RADIUS_MD + off * 0.20f);
         }
         // Handle legend dragging
         if (draggable_)

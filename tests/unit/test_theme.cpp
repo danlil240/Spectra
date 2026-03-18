@@ -267,8 +267,8 @@ TEST(DesignTokens, PerformanceTargets)
 
 TEST(DesignTokens, LayoutConstants)
 {
-    EXPECT_FLOAT_EQ(tokens::COMMAND_BAR_HEIGHT, 42.0f);
-    EXPECT_FLOAT_EQ(tokens::NAV_RAIL_WIDTH, 48.0f);
+    EXPECT_FLOAT_EQ(tokens::COMMAND_BAR_HEIGHT, 44.0f);
+    EXPECT_FLOAT_EQ(tokens::NAV_RAIL_WIDTH, 56.0f);
     EXPECT_FLOAT_EQ(tokens::INSPECTOR_WIDTH, 320.0f);
     EXPECT_LT(tokens::INSPECTOR_WIDTH_MIN, tokens::INSPECTOR_WIDTH);
     EXPECT_GT(tokens::INSPECTOR_WIDTH_MAX, tokens::INSPECTOR_WIDTH);

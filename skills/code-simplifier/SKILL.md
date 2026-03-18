@@ -270,3 +270,30 @@ A simplification is done only when:
 | `src/anim/` | Easing function duplication, scheduler complexity |
 | `src/io/` | Export format boilerplate |
 | `src/data/` | Filter/decimation pattern repetition |
+
+---
+
+## Live Smoke Test via MCP Server
+
+After a simplification, verify the running binary still behaves correctly via the MCP server before running the full test suite:
+
+```bash
+pkill -f spectra || true; sleep 0.5
+./build/app/spectra &
+sleep 1
+
+# Smoke: ping, create figure, capture screenshot
+curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"ping","arguments":{}}}'
+
+curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"create_figure","arguments":{"width":1280,"height":720}}}'
+
+curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"get_screenshot_base64","arguments":{}}}'
+```
+
+MCP env vars: `SPECTRA_MCP_PORT` (default `8765`), `SPECTRA_MCP_BIND` (default `127.0.0.1`).

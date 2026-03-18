@@ -798,10 +798,7 @@ TEST(TransformRegistryTest, BuiltinCustomTransforms)
 TEST(TransformRegistryTest, RegisterCustom)
 {
     TransformRegistry reg;
-    reg.register_transform(
-        "cube",
-        [](float v) { return v * v * v; },
-        "y³");
+    reg.register_transform("cube", [](float v) { return v * v * v; }, "y³");
 
     DataTransform t;
     EXPECT_TRUE(reg.get_transform("cube", t));

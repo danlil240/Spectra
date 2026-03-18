@@ -33,13 +33,10 @@ class TempCsvFile
     TempCsvFile(TempCsvFile&&)                 = delete;
     TempCsvFile& operator=(TempCsvFile&&)      = delete;
 
-    std::string path() const
-    {
-        return path_.string();
-    }
+    std::string path() const { return path_.string(); }
 
    private:
-    std::filesystem::path path_;
+    std::filesystem::path  path_;
     static inline uint64_t unique_suffix_ =
         static_cast<uint64_t>(std::chrono::steady_clock::now().time_since_epoch().count());
 };

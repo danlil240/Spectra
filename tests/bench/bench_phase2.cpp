@@ -30,12 +30,7 @@ static void register_test_commands(CommandRegistry& reg, int count)
         std::string id       = "cmd." + std::to_string(i);
         std::string label    = "Command Number " + std::to_string(i);
         std::string category = "Category" + std::to_string(i % 5);
-        reg.register_command(
-            id,
-            label,
-            []() {},
-            "",
-            category);
+        reg.register_command(id, label, []() {}, "", category);
     }
 }
 

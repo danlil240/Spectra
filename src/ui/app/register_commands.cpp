@@ -566,7 +566,19 @@ void register_standard_commands(const CommandBindings& b)
             if (!tsv.empty())
             {
     #ifdef SPECTRA_USE_GLFW
-                glfwSetClipboardString(nullptr, tsv.c_str());
+                // Cap clipboard size to 4MB to avoid X11 BadLength errors
+                constexpr size_t kMaxClipboardBytes = 4 * 1024 * 1024;
+                if (tsv.size() <= kMaxClipboardBytes)
+                {
+                    glfwSetClipboardString(nullptr, tsv.c_str());
+                }
+                else
+                {
+                    SPECTRA_LOG_WARN("clipboard",
+                                     "TSV too large for clipboard ({} bytes, max {})",
+                                     tsv.size(),
+                                     kMaxClipboardBytes);
+                }
     #endif
             }
         },
@@ -637,7 +649,7 @@ void register_standard_commands(const CommandBindings& b)
                     WorkspaceData::InteractionState::MarkerEntry me;
                     me.data_x       = m.data_x;
                     me.data_y       = m.data_y;
-                    me.series_label = m.series ? m.series->label() : "";
+                    me.series_label = m.series_label;
                     me.point_index  = m.point_index;
                     data.interaction.markers.push_back(std::move(me));
                 }
@@ -981,7 +993,19 @@ void register_standard_commands(const CommandBindings& b)
                     target = current_fig->axes_mut()[0].get();
             }
             if (target)
+            {
+                // Guard against unbounded series accumulation (OOM protection)
+                constexpr size_t kMaxSeriesPerAxes = 200;
+                if (target->series().size() >= kMaxSeriesPerAxes)
+                {
+                    SPECTRA_LOG_WARN("clipboard",
+                                     "series.paste: axes already has {} series (max {})",
+                                     target->series().size(),
+                                     kMaxSeriesPerAxes);
+                    return;
+                }
                 imgui_ui->series_clipboard()->paste_all(*target);
+            }
         },
         "Ctrl+V",
         "Series",

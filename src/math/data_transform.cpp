@@ -928,30 +928,15 @@ void TransformRegistry::register_builtins()
 {
     // Built-in convenience transforms registered as custom entries
     // so they can be looked up by name
-    register_transform(
-        "square",
-        [](float v) { return v * v; },
-        "y²");
-    register_transform(
-        "sqrt",
-        [](float v) { return (v >= 0.0f) ? std::sqrt(v) : 0.0f; },
-        "√y");
+    register_transform("square", [](float v) { return v * v; }, "y²");
+    register_transform("sqrt", [](float v) { return (v >= 0.0f) ? std::sqrt(v) : 0.0f; }, "√y");
     register_transform(
         "reciprocal",
         [](float v) { return (v != 0.0f) ? (1.0f / v) : 0.0f; },
         "1/y");
-    register_transform(
-        "exp",
-        [](float v) { return std::exp(v); },
-        "e^y");
-    register_transform(
-        "sin",
-        [](float v) { return std::sin(v); },
-        "sin(y)");
-    register_transform(
-        "cos",
-        [](float v) { return std::cos(v); },
-        "cos(y)");
+    register_transform("exp", [](float v) { return std::exp(v); }, "e^y");
+    register_transform("sin", [](float v) { return std::sin(v); }, "sin(y)");
+    register_transform("cos", [](float v) { return std::cos(v); }, "cos(y)");
 }
 
 // ─── Free functions ─────────────────────────────────────────────────────────

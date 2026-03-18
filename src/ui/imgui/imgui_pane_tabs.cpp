@@ -156,7 +156,7 @@ void ImGuiIntegration::draw_pane_tab_headers()
         Rect b = pane->bounds();
         Rect hr{b.x, b.y, b.w, TAB_H};
 
-        PaneHeader ph;
+        PaneHeader ph{};
         ph.pane        = pane;
         ph.header_rect = hr;
 
@@ -176,11 +176,11 @@ void ImGuiIntegration::draw_pane_tab_headers()
             float  tw      = std::clamp(text_sz.x + TAB_PAD * 2 + CLOSE_SZ, TAB_MIN_W, TAB_MAX_W);
 
             // Add insertion gap before this tab if needed
-            if (pane_has_gap && insertion_gap_.insert_after_idx == SIZE_MAX && li == 0)
-            {
-                cur_x += insertion_gap_.current_gap;
-            }
-            else if (pane_has_gap && li > 0 && (li - 1) == insertion_gap_.insert_after_idx)
+            bool insert_gap_here =
+                pane_has_gap
+                && ((insertion_gap_.insert_after_idx == SIZE_MAX && li == 0)
+                    || (li > 0 && (li - 1) == insertion_gap_.insert_after_idx));
+            if (insert_gap_here)
             {
                 cur_x += insertion_gap_.current_gap;
             }
@@ -194,15 +194,16 @@ void ImGuiIntegration::draw_pane_tab_headers()
             }
             float lerp_t = std::min(1.0f, ANIM_SPEED * dt);
             anim.current_x += (anim.target_x - anim.current_x) * lerp_t;
-            anim.opacity += (anim.target_opacity - anim.opacity) * lerp_t;
 
             float draw_x = anim.current_x;
 
             bool is_active_local = (li == pane->active_local_index());
             bool hovered         = (mouse.x >= draw_x && mouse.x < draw_x + tw && mouse.y >= hr.y
                             && mouse.y < hr.y + TAB_H);
+            anim.target_opacity  = hovered ? 1.0f : (is_active_local ? 0.72f : 0.0f);
+            anim.opacity += (anim.target_opacity - anim.opacity) * lerp_t;
 
-            TabRect tr;
+            TabRect tr{};
             tr.figure_index = fig_idx;
             tr.x            = draw_x;
             tr.y            = hr.y;
@@ -268,12 +269,38 @@ void ImGuiIntegration::draw_pane_tab_headers()
         {
             draw_list->AddRectFilled(ImVec2(hr.x, hr.y),
                                      ImVec2(hr.x + hr.w, hr.y + hr.h),
-                                     to_col(theme.bg_secondary));
+                                     to_col(theme.bg_secondary.lerp(theme.bg_primary, 0.12f)));
         }
+        draw_list->AddLine(ImVec2(hr.x, hr.y),
+                           ImVec2(hr.x + hr.w, hr.y),
+                           to_col(theme.border_subtle, 0.28f),
+                           1.0f);
         draw_list->AddLine(ImVec2(hr.x, hr.y + hr.h - 1),
                            ImVec2(hr.x + hr.w, hr.y + hr.h - 1),
-                           to_col(theme.border_subtle),
+                           to_col(theme.border_default, 0.70f),
                            1.0f);
+        if (insertion_gap_.current_gap > 0.1f && ph.pane->id() == insertion_gap_.target_pane_id)
+        {
+            float gap_x = hr.x + 8.0f;
+            if (!ph.tabs.empty())
+            {
+                if (insertion_gap_.insert_after_idx == SIZE_MAX)
+                    gap_x = ph.tabs.front().x - insertion_gap_.current_gap * 0.5f;
+                else
+                {
+                    size_t idx = std::min(insertion_gap_.insert_after_idx, ph.tabs.size() - 1);
+                    gap_x      = ph.tabs[idx].x + ph.tabs[idx].w + insertion_gap_.current_gap * 0.5f;
+                }
+            }
+            draw_list->AddLine(ImVec2(gap_x, hr.y + 5.0f),
+                               ImVec2(gap_x, hr.y + hr.h - 5.0f),
+                               to_col(theme.accent_hover, 0.92f),
+                               2.0f);
+            draw_list->AddLine(ImVec2(gap_x, hr.y + 5.0f),
+                               ImVec2(gap_x, hr.y + hr.h - 5.0f),
+                               to_col(theme.accent_glow, 0.20f),
+                               5.0f);
+        }
 
         for (auto& tr : ph.tabs)
         {
@@ -286,38 +313,69 @@ void ImGuiIntegration::draw_pane_tab_headers()
                 continue;
 
             // Tab background
-            ImU32 bg;
+            ImU32 bg = 0;
+            ImU32 border_col = 0;
             bool  is_active_styled =
                 tr.is_active && !is_menu_open();   // Don't show active styling when menus are open
+            auto& anim = pane_tab_anims_[{ph.pane->id(), tr.figure_index}];
+            float motion_t = std::clamp(anim.opacity, 0.0f, 1.0f);
+            float active_t = is_active_styled ? std::max(0.72f, motion_t) : 0.0f;
+            float hover_t  = tr.is_hovered ? std::max(0.45f, motion_t) : motion_t * 0.45f;
             if (is_being_dragged)
             {
                 bg = to_col(theme.bg_elevated);
+                border_col = to_col(theme.border_strong, 0.88f);
             }
             else if (is_active_styled)
             {
-                bg = to_col(theme.bg_tertiary);
+                bg = to_col(theme.bg_tertiary.lerp(theme.accent, 0.10f + active_t * 0.08f), 0.96f);
+                border_col = to_col(theme.border_default, 0.92f);
             }
             else if (tr.is_hovered)
             {
-                bg = to_col(theme.accent_subtle);
+                bg = to_col(theme.bg_tertiary.lerp(theme.accent, 0.06f + hover_t * 0.06f),
+                            0.72f + hover_t * 0.18f);
+                border_col = to_col(theme.border_subtle, 0.68f + hover_t * 0.14f);
             }
             else
             {
-                bg = to_col(theme.bg_secondary, 0.0f);
+                bg = to_col(theme.bg_secondary.lerp(theme.bg_tertiary, 0.18f), 0.35f);
+                border_col = to_col(theme.border_subtle, 0.20f);
             }
 
-            float  inset_y = 3.0f;
-            ImVec2 tl(tr.x, tr.y + inset_y);
-            ImVec2 br(tr.x + tr.w, tr.y + tr.h);
-            draw_list->AddRectFilled(tl, br, bg, 4.0f, ImDrawFlags_RoundCornersTop);
-
-            // Active underline (skip when menus are open)
-            if (is_active_styled)
+            float  lift    = active_t * 2.0f + hover_t * 0.7f;
+            float  inset_y = 4.0f - active_t * 1.4f;
+            ImVec2 tl(tr.x, tr.y + inset_y - lift);
+            ImVec2 br(tr.x + tr.w, tr.y + tr.h - lift * 0.3f);
+            if (is_active_styled || is_being_dragged)
             {
-                draw_list->AddLine(ImVec2(tl.x + 3, br.y - 1),
-                                   ImVec2(br.x - 3, br.y - 1),
-                                   to_col(theme.accent),
-                                   2.0f);
+                draw_list->AddRectFilled(ImVec2(tl.x, tl.y + 1.0f),
+                                         ImVec2(br.x, br.y + 3.0f),
+                                         IM_COL32(0, 0, 0, 44),
+                                         6.0f,
+                                         ImDrawFlags_RoundCornersTop);
+            }
+            if (hover_t > 0.01f || active_t > 0.01f)
+            {
+                draw_list->AddRectFilled(ImVec2(tl.x - 1.0f, tl.y - 1.0f),
+                                         ImVec2(br.x + 1.0f, br.y + 1.5f),
+                                         to_col(theme.accent_glow, 0.06f + hover_t * 0.04f + active_t * 0.08f),
+                                         6.0f,
+                                         ImDrawFlags_RoundCornersTop);
+            }
+            draw_list->AddRectFilled(tl, br, bg, 4.0f, ImDrawFlags_RoundCornersTop);
+            draw_list->AddRect(tl, br, border_col, 4.0f, ImDrawFlags_RoundCornersTop);
+
+            float underline_t = is_active_styled ? 1.0f : hover_t;
+            if (underline_t > 0.01f)
+            {
+                float cx       = (tl.x + br.x) * 0.5f;
+                float half_len = (tr.w - 10.0f) * (0.18f + underline_t * 0.82f) * 0.5f;
+                draw_list->AddLine(ImVec2(cx - half_len, br.y - 1.0f),
+                                   ImVec2(cx + half_len, br.y - 1.0f),
+                                   to_col(is_active_styled ? theme.accent_hover : theme.accent,
+                                          0.35f + underline_t * 0.65f),
+                                   is_active_styled ? 2.5f : 1.5f);
             }
 
             // Title text
@@ -334,11 +392,11 @@ void ImGuiIntegration::draw_pane_tab_headers()
                 title.c_str());
             draw_list->PopClipRect();
 
-            // Close button (always show on active or hovered tabs)
-            if (tr.is_active || tr.is_hovered)
+            float close_vis = tr.is_hovered ? 1.0f : (tr.is_active ? 0.24f : 0.0f);
+            if (close_vis > 0.01f)
             {
                 float cx = tr.x + tr.w - CLOSE_SZ * 0.5f - 4.0f;
-                float cy = tr.y + tr.h * 0.5f;
+                float cy = tr.y + tr.h * 0.5f - lift * 0.2f;
                 float sz = 3.5f;
 
                 bool close_hovered = (std::abs(mouse.x - cx) < CLOSE_SZ * 0.5f
@@ -347,9 +405,10 @@ void ImGuiIntegration::draw_pane_tab_headers()
                 {
                     draw_list->AddCircleFilled(ImVec2(cx, cy),
                                                CLOSE_SZ * 0.5f,
-                                               to_col(theme.error, 0.15f));
+                                               to_col(theme.error, 0.18f));
                 }
-                ImU32 x_col = close_hovered ? to_col(theme.error) : to_col(theme.text_tertiary);
+                ImU32 x_col = close_hovered ? to_col(theme.error)
+                                            : to_col(theme.text_tertiary, 0.45f + close_vis * 0.40f);
                 draw_list->AddLine(ImVec2(cx - sz, cy - sz), ImVec2(cx + sz, cy + sz), x_col, 1.5f);
                 draw_list->AddLine(ImVec2(cx - sz, cy + sz), ImVec2(cx + sz, cy - sz), x_col, 1.5f);
 
@@ -427,11 +486,17 @@ void ImGuiIntegration::draw_pane_tab_headers()
                 pane_tab_hovered_ = true;
 
             ImU32 add_bg =
-                add_hovered ? to_col(theme.accent_subtle) : to_col(theme.bg_secondary, 0.0f);
+                add_hovered ? to_col(theme.bg_tertiary.lerp(theme.accent, 0.08f), 0.84f)
+                            : to_col(theme.bg_secondary.lerp(theme.bg_tertiary, 0.18f), 0.35f);
             draw_list->AddRectFilled(ImVec2(add_rect.x, add_rect.y),
                                      ImVec2(add_rect.x + add_rect.w, add_rect.y + add_rect.h),
                                      add_bg,
                                      4.0f);
+            draw_list->AddRect(ImVec2(add_rect.x, add_rect.y),
+                               ImVec2(add_rect.x + add_rect.w, add_rect.y + add_rect.h),
+                               add_hovered ? to_col(theme.border_default, 0.88f)
+                                           : to_col(theme.border_subtle, 0.24f),
+                               4.0f);
 
             ImVec2 center(add_rect.x + add_rect.w * 0.5f, add_rect.y + add_rect.h * 0.5f);
             ImU32  add_col = add_hovered ? to_col(theme.accent) : to_col(theme.text_tertiary);
@@ -468,9 +533,11 @@ void ImGuiIntegration::draw_pane_tab_headers()
         // ImGui::GetMousePos() returns garbage when the cursor leaves
         // the GLFW window, causing int overflow → INT_MIN coordinates.
         // GLFW's glfwGetCursorPos works correctly even outside the window.
-        float screen_mx, screen_my;
+        float screen_mx = 0.0f;
+        float screen_my = 0.0f;
         {
-            double sx, sy;
+            double sx = 0.0;
+            double sy = 0.0;
             if (tab_drag_controller_->get_screen_cursor(sx, sy))
             {
                 screen_mx = static_cast<float>(sx);

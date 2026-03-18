@@ -249,6 +249,48 @@ After every run, open `REPORT.md` and:
 
 ---
 
+## Spectra MCP Server
+
+Use the MCP server to exercise the live API layer directly, complementing the unit test suite.
+
+### Start/restart procedure
+
+**Always kill existing Spectra instances before launching a new one.**
+
+```bash
+pkill -f spectra || true; sleep 0.5
+./build/app/spectra &
+sleep 1
+curl http://127.0.0.1:8765/   # health check
+```
+
+### API verification via MCP
+
+```bash
+# Get application state (confirms app/session initialized)
+curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"get_state","arguments":{}}}'
+
+# Create figure + add series (exercises the create/series API path)
+curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"create_figure","arguments":{"width":1280,"height":720}}}'
+
+curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"add_series","arguments":{"figure_id":1,"series_type":"line","n_points":100,"label":"api_test"}}}'
+
+# Deep introspection — verify series was created correctly
+curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"get_figure_info","arguments":{"figure_id":1}}}'
+```
+
+MCP env vars: `SPECTRA_MCP_PORT` (default `8765`), `SPECTRA_MCP_BIND` (default `127.0.0.1`).
+
+---
+
 ## Guardrails
 
 - Never change a public header (`include/spectra/*.hpp`) without running all C++ and Python tests.

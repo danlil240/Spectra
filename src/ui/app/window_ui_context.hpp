@@ -65,7 +65,7 @@ struct WindowUIContext
     AnimationCurveEditor curve_editor;
 
     ModeTransition mode_transition;
-    bool           is_in_3d_mode = true;
+    bool           is_in_3d_mode = false;
     Camera         saved_3d_camera;
 
     // Initial axes limits for Home button (restore original view)

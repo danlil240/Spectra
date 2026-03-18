@@ -205,6 +205,33 @@ The easy API supports format strings like MATLAB: `"r--o"` = red dashed line wit
 
 ---
 
+## Live Smoke Test via MCP Server
+
+After building and installing the Python package, verify the full stack — Python → IPC → Spectra — using the MCP server as an independent signal:
+
+```bash
+pkill -f spectra || true; sleep 0.5
+./build/app/spectra &
+sleep 1
+
+# Verify Spectra is up
+curl http://127.0.0.1:8765/
+
+# Check state (confirms app is responsive to automation)
+curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"get_state","arguments":{}}}'
+
+# After running a Python example, confirm via MCP that figures were created
+curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"get_figure_info","arguments":{"figure_id":1}}}'
+```
+
+MCP env vars: `SPECTRA_MCP_PORT` (default `8765`), `SPECTRA_MCP_BIND` (default `127.0.0.1`).
+
+---
+
 ## Guardrails
 
 - Never change `_codec.py` without updating `src/ipc/codec.cpp` (and vice versa).

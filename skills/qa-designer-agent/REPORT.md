@@ -8,13 +8,13 @@
 
 | Field | Value |
 |---|---|
-| Last run | 2026-03-08 Session 10 |
-| Screenshot count confirmed | 54 |
+| Last run | 2026-03-17 Session 13 |
+| Screenshot count confirmed | 56 |
 | Open P0 issues | 0 |
 | Open P1 issues | 0 |
 | Open P2+ issues | 0 |
 | Last golden refresh | — |
-| SKILL.md last self-updated | 2026-03-08 (coverage + backlog update for DES-I3) |
+| SKILL.md last self-updated | 2026-03-17 (Coverage table + count 55→56 + DES-I6 done + DES-I11 added + icon/label snapping fix pattern) |
 
 ---
 
@@ -23,10 +23,148 @@
 <!-- One line per self-update: date | section changed | reason -->
 | Date | Section | Reason |
 |---|---|---|
+| 2026-03-17 | Screenshot Coverage table + count 55→56 + Fix Patterns + Improvement Backlog + Known Constraints | Added `55_nav_rail_dpi_scale_125pct`, icon/label snapping fix pattern, marked DES-I6 done, added DES-I11 |
+| 2026-03-17 | Screenshot Coverage table + Known screenshot count + Improvement Backlog | Added `54_command_palette_scrolled`, updated expected count to 55, and marked DES-I5 done |
+| 2026-03-17 | Fix Patterns + Improvement Backlog | Added hairline coordinate-snapping fix pattern; marked DES-I4 done |
 | 2026-03-08 | Screenshot Coverage table + Known screenshot count + Improvement Backlog | Added `53_split_view_mismatched_zoom`, updated expected count to 54, and marked DES-I3 done |
 | 2026-03-05 | Screenshot Coverage table + Known screenshot count + Improvement Backlog | Added `52_legend_overflow_8_series`, updated expected count to 53, and marked DES-I2 done |
 | 2026-03-01 | Screenshot Coverage table + Known screenshot count + Improvement Backlog | Added `51_empty_figure_after_delete`, updated expected count to 52, and marked DES-I1 done |
 | 2026-02-26 | Initial file created | Consolidation session |
+
+---
+
+## Session 2026-03-17 16:55 (Session 13)
+
+**Run config**
+- Seed: `42`
+- Mode: `--design-review --no-fuzz --no-scenarios`
+- Output dir: `/tmp/spectra_qa_design_20260317c` (baseline), `/tmp/spectra_qa_design_after_20260317c` (after improvement)
+- Exit code: `0` (baseline), `0` (after)
+- Duration: 20.2s baseline (1138 frames), 22.3s after (1147 frames)
+- Frame time (after): avg=~8.9ms p95=~39ms max=~207ms spikes=61
+- Memory (after): initial=221MB peak=270MB
+
+**Screenshot audit**
+- Expected: 56 (after improvement)
+- Captured: 56
+- Missing: none
+- New screenshot: `55_nav_rail_dpi_scale_125pct`
+
+**Issues found**
+- No new visual defects in 55-screenshot baseline visual inspection.
+- All previous fixes (D1–D46, DES-I1–DES-I5) confirmed still resolved.
+
+**Fixes applied**
+| Issue ID | File | Change |
+|---|---|---|
+| DES-I6 | `src/ui/imgui/imgui_command_bar.cpp` | `icon_label_button`: applied `std::floor()` to `y_start`, `ix`, `lx`, `ly` before `AddText` calls |
+| DES-I6 | `src/ui/imgui/imgui_command_bar.cpp` | `draw_separator` lambda: applied `std::floor()` to `p0.y` before `AddLine` call |
+| DES-I6 | `tests/qa/qa_agent.cpp` | Added `55_nav_rail_dpi_scale_125pct` screenshot + updated `EXPECTED_DESIGN_SHOTS` 55→56 |
+
+**Verification**
+- Build: clean (0 errors, 0 warnings)
+- Validation: errors=0 warnings=0
+- Design review: exit code `0`, 56 screenshots confirmed in manifest
+- Visual check: `55_nav_rail_dpi_scale_125pct` shows crisp icon and label text at 1.25× font scale
+
+---
+
+## Session 2026-03-17 16:20 (Session 12)
+
+**Run config**
+- Seed: `42`
+- Mode: `--design-review --no-fuzz --no-scenarios`
+- Output dir: `/tmp/spectra_qa_design_20260317b` (baseline), `/tmp/spectra_qa_design_after_20260317b` (after improvement)
+- Exit code: `0` (baseline), `0` (after)
+- Duration: 21.2s baseline (1086 frames), ~22s after (1135 frames)
+- Frame time (after): avg=~9ms p95=~40ms max=~160ms spikes=62
+- Memory (after): initial=221MB peak=~270MB
+
+**Screenshot audit**
+- Expected: 55 (after improvement)
+- Captured: 55
+- Missing: none
+- New screenshot: `54_command_palette_scrolled`
+
+**Issues found**
+- No new visual defects identified in full 54-screenshot baseline visual inspection.
+- All UI elements confirmed still correct: themes, grid, axes borders, legends, inspector, command palette, split views, 3D surfaces, multi-window, resize states.
+- D47 (By Design): `36_menu_bar_activated` does not show an open menu — the scenario captures the menu bar idle state, which is correct per the in-code comment (F10 doesn't reliably open a menu in headless mode).
+- D48 (By Design): `52_legend_overflow_8_series` legend text truncated with `<` chevron — correct overflow behavior.
+- D49 (By Design): `49_fullscreen_mode` shows chrome — `view.fullscreen` is a layout toggle (hides inspector+nav expansion), not OS fullscreen. Expected visual.
+
+**Fixes applied**
+| Issue ID | File | Change |
+|---|---|---|
+| DES-I5 | `tests/qa/qa_agent.cpp` | Added scenario `54_command_palette_scrolled`: opens palette with no filter (50 results), navigates down 15 items via arrow keys to trigger scroll physics + scrollbar visibility, captures |
+
+**Goldens updated**
+- none
+
+**ctest**
+- Not run this session (no source file changes, design-review only)
+
+**Self-updates to SKILL.md**
+- Updated expected design screenshot count `54` → `55`
+- Added coverage row `54_command_palette_scrolled`
+- Marked `DES-I5` as completed in Improvement Backlog
+
+## Self-Improvement — 2026-03-17
+Improvement: Added design-review screenshot `54_command_palette_scrolled` to verify the command palette scrollbar appears and is visible when navigating through 20+ results.
+Motivation: Previous coverage only tested the palette with a short filtered result set (≤5 items), which could miss regressions where the scrollbar is invisible, overlapping text, or incorrectly positioned when the full command list overflows the palette height.
+Change: `tests/qa/qa_agent.cpp` (new scenario + expected count 54→55), `skills/qa-designer-agent/SKILL.md` (coverage table/count + backlog status).
+Next gap: Check toolbar icon alignment at 125% and 150% DPI scale (DES-I6).
+
+---
+
+## Session 2026-03-17 16:06 (Session 11)
+
+**Run config**
+- Seed: `42`
+- Mode: `--design-review --no-fuzz --no-scenarios`
+- Output dir: `/tmp/spectra_qa_design_20260317` (baseline), `/tmp/spectra_qa_design_after_20260317` (after fix)
+- Exit code: `0` (baseline), `0` (after)
+- Duration: 21.9s baseline (1086 frames), 21.2s after (1086 frames)
+- Frame time (after): avg=8.9ms p95=39.3ms max=173.1ms spikes=60
+- Memory (after): initial=246MB peak=295MB
+
+**Screenshot audit**
+- Expected: 54
+- Captured: 54
+- Missing: none
+
+**Issues found**
+| ID | Priority | Screenshot | Description |
+|---|---|---|---|
+| DES-I4 | P2 | All panels with separators | `AddLine` calls for separator/hairline lines used sub-pixel Y coordinates; blurry at non-integer DPI scale |
+
+**Triage of prior issues**
+- D1–D46, DES-I1–DES-I3: All confirmed still resolved. No regressions detected in 54-screenshot baseline.
+
+**Fixes applied**
+| Issue ID | File | Change |
+|---|---|---|
+| DES-I4 | `src/ui/imgui/widgets.cpp` | `line_y = std::floor(pos.y + text_size.y * 0.5f)` in `section_separator` |
+| DES-I4 | `src/ui/imgui/imgui_animation.cpp` | `py = std::floor(p.y)` for both timeline panel and curve editor separators |
+| DES-I4 | `src/ui/imgui/imgui_panels.cpp` | `std::floor(wpos.y + wsz.y) - 1.0f` for tab bar bottom hairline |
+| DES-I4 | `src/ui/imgui/imgui_command_bar.cpp` | `std::floor(bottom) - 1.0f` for command bar bottom hairline |
+
+**Goldens updated**
+- none (change is sub-pixel; no pixel-level difference at integer DPI)
+
+**ctest**
+- Pre-existing failures confirmed: `DesignTokens.LayoutConstants` (stale expected values from D45 token refactor), `golden_image_tests` and variants (stale baselines). Both confirmed present before my changes via pre-change ctest run.
+- All other tests pass.
+
+**Self-updates to SKILL.md**
+- Marked `DES-I4` as completed in Improvement Backlog
+- Added `Hairline coordinate snapping` bullet to Fix Patterns
+
+## Self-Improvement — 2026-03-17
+Improvement: Applied `std::floor()` pixel-snapping to all decorative/separator `AddLine` Y coordinates in ImGui UI files to prevent 1px blurriness at non-integer DPI scale factors.
+Motivation: At 125% or 150% OS DPI scale, fractional Y positions from `GetCursorScreenPos()` arithmetic cause hairline separators to anti-alias across two pixel rows, appearing doubled or blurry. Previous code had no snapping at any of the 5 affected sites.
+Change: `src/ui/imgui/widgets.cpp`, `imgui_animation.cpp` (×2), `imgui_panels.cpp`, `imgui_command_bar.cpp` — all `AddLine` separator sites; `skills/qa-designer-agent/SKILL.md` (Fix Patterns + DES-I4 backlog).
+Next gap: Add screenshot for command palette with 20+ results to verify scrollbar visibility (DES-I5).
 
 ---
 

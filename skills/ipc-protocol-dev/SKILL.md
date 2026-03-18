@@ -229,6 +229,33 @@ ctest --test-dir build -LE gpu --output-on-failure
 
 ---
 
+## Live Smoke Test via MCP Server
+
+After building, verify the IPC round-trip works by sending a command through the MCP server (which internally routes through the automation server):
+
+```bash
+pkill -f spectra || true; sleep 0.5
+./build/app/spectra &
+sleep 1
+
+# Health check
+curl http://127.0.0.1:8765/
+
+# get_state exercises IPC from the automation layer
+curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"get_state","arguments":{}}}'
+
+# create_figure + add_series exercises full IPC command path
+curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"create_figure","arguments":{"width":800,"height":600}}}'
+```
+
+MCP env vars: `SPECTRA_MCP_PORT` (default `8765`), `SPECTRA_MCP_BIND` (default `127.0.0.1`).
+
+---
+
 ## Guardrails
 
 - Never reuse a `MessageType` enum value.

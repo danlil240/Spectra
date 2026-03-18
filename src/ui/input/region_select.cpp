@@ -288,10 +288,8 @@ void RegionSelect::draw(const Rect& viewport,
     ry1 = std::min(ry1, viewport.y + viewport.h);
 
     // ROI fill using roi_fill theme token
-    ImU32 fill_col = ImGui::ColorConvertFloat4ToU32(ImVec4(colors.roi_fill.r,
-                                                           colors.roi_fill.g,
-                                                           colors.roi_fill.b,
-                                                           fill_alpha_ * opacity_));
+    ImU32 fill_col = ImGui::ColorConvertFloat4ToU32(
+        ImVec4(colors.roi_fill.r, colors.roi_fill.g, colors.roi_fill.b, fill_alpha_ * opacity_));
     fg->AddRectFilled(ImVec2(rx0, ry0), ImVec2(rx1, ry1), fill_col);
 
     // ROI border — dashed using roi_border theme token
@@ -300,9 +298,9 @@ void RegionSelect::draw(const Rect& viewport,
                                                              colors.roi_border.b,
                                                              colors.roi_border.a * opacity_));
     {
-        constexpr float DASH = 6.0f;
-        constexpr float GAP  = 4.0f;
-        auto draw_dashed = [&](float x0, float y0, float x1, float y1)
+        constexpr float DASH        = 6.0f;
+        constexpr float GAP         = 4.0f;
+        auto            draw_dashed = [&](float x0, float y0, float x1, float y1)
         {
             float dx  = x1 - x0;
             float dy  = y1 - y0;
@@ -331,17 +329,12 @@ void RegionSelect::draw(const Rect& viewport,
     // Night theme glow around ROI border
     if (colors.glow_intensity > 0.01f)
     {
-        ImU32 glow_col = ImGui::ColorConvertFloat4ToU32(
-            ImVec4(colors.accent_glow.r,
-                   colors.accent_glow.g,
-                   colors.accent_glow.b,
-                   colors.accent_glow.a * opacity_ * 0.25f));
-        fg->AddRect(ImVec2(rx0 - 1, ry0 - 1),
-                    ImVec2(rx1 + 1, ry1 + 1),
-                    glow_col,
-                    0.0f,
-                    0,
-                    2.0f);
+        ImU32 glow_col =
+            ImGui::ColorConvertFloat4ToU32(ImVec4(colors.accent_glow.r,
+                                                  colors.accent_glow.g,
+                                                  colors.accent_glow.b,
+                                                  colors.accent_glow.a * opacity_ * 0.25f));
+        fg->AddRect(ImVec2(rx0 - 1, ry0 - 1), ImVec2(rx1 + 1, ry1 + 1), glow_col, 0.0f, 0, 2.0f);
     }
 
     // Corner handles (small squares)

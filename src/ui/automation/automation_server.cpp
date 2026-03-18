@@ -25,6 +25,7 @@
 
 #ifdef SPECTRA_USE_IMGUI
     #include "imgui.h"
+    #include "ui/theme/theme.hpp"
 #endif
 
 #ifndef _WIN32
@@ -54,12 +55,24 @@ static std::string json_escape(const std::string& s)
     {
         switch (c)
         {
-            case '"':  out += "\\\""; break;
-            case '\\': out += "\\\\"; break;
-            case '\n': out += "\\n";  break;
-            case '\r': out += "\\r";  break;
-            case '\t': out += "\\t";  break;
-            default:   out += c;      break;
+            case '"':
+                out += "\\\"";
+                break;
+            case '\\':
+                out += "\\\\";
+                break;
+            case '\n':
+                out += "\\n";
+                break;
+            case '\r':
+                out += "\\r";
+                break;
+            case '\t':
+                out += "\\t";
+                break;
+            default:
+                out += c;
+                break;
         }
     }
     return out;
@@ -84,23 +97,37 @@ static std::string json_get_string(const std::string& json, const std::string& k
         size_t end   = start;
         while (end < json.size())
         {
-            if (json[end] == '\\') { end += 2; continue; }
-            if (json[end] == '"') break;
+            if (json[end] == '\\')
+            {
+                end += 2;
+                continue;
+            }
+            if (json[end] == '"')
+                break;
             ++end;
         }
         return json.substr(start, end - start);
     }
     size_t start = pos;
     size_t end   = json.find_first_of(",}] \t\n\r", start);
-    if (end == std::string::npos) end = json.size();
+    if (end == std::string::npos)
+        end = json.size();
     return json.substr(start, end - start);
 }
 
 static double json_get_number(const std::string& json, const std::string& key, double fb = 0.0)
 {
     std::string val = json_get_string(json, key);
-    if (val.empty()) return fb;
-    try { return std::stod(val); } catch (...) { return fb; }
+    if (val.empty())
+        return fb;
+    try
+    {
+        return std::stod(val);
+    }
+    catch (...)
+    {
+        return fb;
+    }
 }
 
 static int json_get_int(const std::string& json, const std::string& key, int fb = 0)
@@ -111,23 +138,39 @@ static int json_get_int(const std::string& json, const std::string& key, int fb 
 static uint64_t json_get_uint64(const std::string& json, const std::string& key, uint64_t fb = 0)
 {
     std::string val = json_get_string(json, key);
-    if (val.empty()) return fb;
-    try { return std::stoull(val); } catch (...) { return fb; }
+    if (val.empty())
+        return fb;
+    try
+    {
+        return std::stoull(val);
+    }
+    catch (...)
+    {
+        return fb;
+    }
 }
 
 static std::string json_get_object(const std::string& json, const std::string& key)
 {
     std::string search = "\"" + key + "\"";
     auto        pos    = json.find(search);
-    if (pos == std::string::npos) return "{}";
+    if (pos == std::string::npos)
+        return "{}";
     pos = json.find('{', pos + search.size());
-    if (pos == std::string::npos) return "{}";
+    if (pos == std::string::npos)
+        return "{}";
     int    depth = 0;
     size_t start = pos;
     for (size_t i = pos; i < json.size(); ++i)
     {
-        if (json[i] == '{') ++depth;
-        else if (json[i] == '}') { --depth; if (depth == 0) return json.substr(start, i - start + 1); }
+        if (json[i] == '{')
+            ++depth;
+        else if (json[i] == '}')
+        {
+            --depth;
+            if (depth == 0)
+                return json.substr(start, i - start + 1);
+        }
     }
     return "{}";
 }
@@ -141,14 +184,18 @@ std::string AutomationServer::json_ok(uint64_t id, const std::string& result_jso
 
 std::string AutomationServer::json_error(uint64_t id, const std::string& message)
 {
-    return "{\"id\":" + std::to_string(id) + ",\"ok\":false,\"error\":\"" + json_escape(message) + "\"}";
+    return "{\"id\":" + std::to_string(id) + ",\"ok\":false,\"error\":\"" + json_escape(message)
+           + "\"}";
 }
 
 // ─── AutomationServer lifecycle ──────────────────────────────────────────────
 
 AutomationServer::AutomationServer() = default;
 
-AutomationServer::~AutomationServer() { stop(); }
+AutomationServer::~AutomationServer()
+{
+    stop();
+}
 
 std::string AutomationServer::default_socket_path()
 {
@@ -165,7 +212,8 @@ bool AutomationServer::start(const std::string& socket_path)
     (void)socket_path;
     return false;
 #else
-    if (running_.load()) return false;
+    if (running_.load())
+        return false;
     socket_path_ = socket_path;
     ::unlink(socket_path_.c_str());
 
@@ -176,25 +224,30 @@ bool AutomationServer::start(const std::string& socket_path)
         return false;
     }
 
-    struct sockaddr_un addr{};
+    struct sockaddr_un addr
+    {
+    };
     addr.sun_family = AF_UNIX;
     if (socket_path_.size() >= sizeof(addr.sun_path))
     {
-        ::close(listen_fd_); listen_fd_ = -1;
+        ::close(listen_fd_);
+        listen_fd_ = -1;
         return false;
     }
     std::strncpy(addr.sun_path, socket_path_.c_str(), sizeof(addr.sun_path) - 1);
 
     if (::bind(listen_fd_, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) < 0)
     {
-        ::close(listen_fd_); listen_fd_ = -1;
+        ::close(listen_fd_);
+        listen_fd_ = -1;
         return false;
     }
     ::chmod(socket_path_.c_str(), 0700);
 
     if (::listen(listen_fd_, 4) < 0)
     {
-        ::close(listen_fd_); listen_fd_ = -1;
+        ::close(listen_fd_);
+        listen_fd_ = -1;
         ::unlink(socket_path_.c_str());
         return false;
     }
@@ -209,25 +262,40 @@ bool AutomationServer::start(const std::string& socket_path)
 void AutomationServer::stop()
 {
 #ifndef _WIN32
-    if (!running_.load(std::memory_order_relaxed)) return;
+    if (!running_.load(std::memory_order_relaxed))
+        return;
     running_.store(false, std::memory_order_release);
 
-    if (listen_fd_ >= 0) { ::shutdown(listen_fd_, SHUT_RDWR); ::close(listen_fd_); listen_fd_ = -1; }
+    if (listen_fd_ >= 0)
+    {
+        ::shutdown(listen_fd_, SHUT_RDWR);
+        ::close(listen_fd_);
+        listen_fd_ = -1;
+    }
 
     {
         std::lock_guard lock(clients_mutex_);
-        for (int fd : client_fds_) { ::shutdown(fd, SHUT_RDWR); ::close(fd); }
+        for (int fd : client_fds_)
+        {
+            ::shutdown(fd, SHUT_RDWR);
+            ::close(fd);
+        }
         client_fds_.clear();
     }
 
-    if (listener_thread_.joinable()) listener_thread_.join();
-    if (!socket_path_.empty()) { ::unlink(socket_path_.c_str()); socket_path_.clear(); }
+    if (listener_thread_.joinable())
+        listener_thread_.join();
+    if (!socket_path_.empty())
+    {
+        ::unlink(socket_path_.c_str());
+        socket_path_.clear();
+    }
     SPECTRA_LOG_INFO("automation", "Stopped");
 #endif
 }
 
-std::string AutomationServer::invoke(const std::string& method,
-                                     const std::string& params_json,
+std::string AutomationServer::invoke(const std::string&        method,
+                                     const std::string&        params_json,
                                      std::chrono::milliseconds timeout)
 {
 #ifdef _WIN32
@@ -240,9 +308,9 @@ std::string AutomationServer::invoke(const std::string& method,
         return json_error(0, "Automation server is not running");
 
     AutomationRequest req;
-    req.id          = next_request_id_.fetch_add(1, std::memory_order_relaxed);
-    req.method      = method;
-    req.params_json = params_json.empty() ? "{}" : params_json;
+    req.id                = next_request_id_.fetch_add(1, std::memory_order_relaxed);
+    req.method            = method;
+    req.params_json       = params_json.empty() ? "{}" : params_json;
     const uint64_t req_id = req.id;
 
     {
@@ -251,8 +319,7 @@ std::string AutomationServer::invoke(const std::string& method,
     }
 
     const auto deadline = std::chrono::steady_clock::now() + timeout;
-    while (running_.load(std::memory_order_relaxed)
-           && std::chrono::steady_clock::now() < deadline)
+    while (running_.load(std::memory_order_relaxed) && std::chrono::steady_clock::now() < deadline)
     {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
         std::lock_guard lock(pending_mutex_);
@@ -287,16 +354,27 @@ void AutomationServer::listener_thread_fn()
 #ifndef _WIN32
     while (running_.load(std::memory_order_relaxed))
     {
-        struct pollfd pfd{};
-        pfd.fd = listen_fd_; pfd.events = POLLIN;
-        int ret = ::poll(&pfd, 1, 200);
-        if (ret <= 0 || !(pfd.revents & POLLIN)) continue;
+        struct pollfd pfd
+        {
+        };
+        pfd.fd     = listen_fd_;
+        pfd.events = POLLIN;
+        int ret    = ::poll(&pfd, 1, 200);
+        if (ret <= 0 || !(pfd.revents & POLLIN))
+            continue;
 
-        struct sockaddr_un ca{}; socklen_t cl = sizeof(ca);
-        int cfd = ::accept(listen_fd_, reinterpret_cast<struct sockaddr*>(&ca), &cl);
-        if (cfd < 0) continue;
+        struct sockaddr_un ca
+        {
+        };
+        socklen_t cl  = sizeof(ca);
+        int       cfd = ::accept(listen_fd_, reinterpret_cast<struct sockaddr*>(&ca), &cl);
+        if (cfd < 0)
+            continue;
 
-        { std::lock_guard lock(clients_mutex_); client_fds_.push_back(cfd); }
+        {
+            std::lock_guard lock(clients_mutex_);
+            client_fds_.push_back(cfd);
+        }
         SPECTRA_LOG_INFO("automation", "Client connected fd=" + std::to_string(cfd));
         std::thread(&AutomationServer::handle_client, this, cfd).detach();
     }
@@ -312,7 +390,8 @@ void AutomationServer::handle_client(int client_fd)
     while (running_.load(std::memory_order_relaxed))
     {
         ssize_t n = ::read(client_fd, chunk, sizeof(chunk));
-        if (n <= 0) break;
+        if (n <= 0)
+            break;
         buffer.append(chunk, static_cast<size_t>(n));
 
         size_t nl;
@@ -320,7 +399,8 @@ void AutomationServer::handle_client(int client_fd)
         {
             std::string line = buffer.substr(0, nl);
             buffer.erase(0, nl + 1);
-            if (line.empty() || line[0] != '{') continue;
+            if (line.empty() || line[0] != '{')
+                continue;
 
             AutomationRequest req;
             if (!parse_request(line, req))
@@ -329,9 +409,12 @@ void AutomationServer::handle_client(int client_fd)
                 continue;
             }
             uint64_t req_id = req.id;
-            req.client_fd = client_fd;
+            req.client_fd   = client_fd;
 
-            { std::lock_guard lock(pending_mutex_); pending_.push_back(std::move(req)); }
+            {
+                std::lock_guard lock(pending_mutex_);
+                pending_.push_back(std::move(req));
+            }
 
             // Wait for main thread to execute (max 30s)
             auto        deadline = std::chrono::steady_clock::now() + std::chrono::seconds(30);
@@ -348,7 +431,7 @@ void AutomationServer::handle_client(int client_fd)
                     if (it->id == req_id && it->responded)
                     {
                         response = std::move(it->response_json);
-                        got = true;
+                        got      = true;
                         pending_.erase(it);
                         break;
                     }
@@ -360,8 +443,11 @@ void AutomationServer::handle_client(int client_fd)
     }
 
     ::close(client_fd);
-    { std::lock_guard lock(clients_mutex_);
-      client_fds_.erase(std::remove(client_fds_.begin(), client_fds_.end(), client_fd), client_fds_.end()); }
+    {
+        std::lock_guard lock(clients_mutex_);
+        client_fds_.erase(std::remove(client_fds_.begin(), client_fds_.end(), client_fd),
+                          client_fds_.end());
+    }
 #else
     (void)client_fd;
 #endif
@@ -378,16 +464,18 @@ bool AutomationServer::parse_request(const std::string& json_str, AutomationRequ
 void AutomationServer::send_response(int fd, const std::string& json)
 {
 #ifndef _WIN32
-    std::string msg = json + "\n";
-    size_t total = 0;
+    std::string msg   = json + "\n";
+    size_t      total = 0;
     while (total < msg.size())
     {
         ssize_t w = ::write(fd, msg.data() + total, msg.size() - total);
-        if (w <= 0) break;
+        if (w <= 0)
+            break;
         total += static_cast<size_t>(w);
     }
 #else
-    (void)fd; (void)json;
+    (void)fd;
+    (void)json;
 #endif
 }
 
@@ -407,7 +495,7 @@ void AutomationServer::poll(App& app, WindowUIContext* ui_ctx)
                 if (pr.wait_frames <= 0)
                 {
                     pr.response_json = json_ok(pr.id, "{\"waited\":true}");
-                    pr.responded = true;
+                    pr.responded     = true;
                 }
             }
         }
@@ -419,8 +507,10 @@ void AutomationServer::poll(App& app, WindowUIContext* ui_ctx)
             if (!pr.responded && pr.wait_frames <= 0 && pr.method == "wait_frames")
             {
                 int count = static_cast<int>(json_get_number(pr.params_json, "count", 1));
-                if (count < 1) count = 1;
-                if (count > 600) count = 600;
+                if (count < 1)
+                    count = 1;
+                if (count > 600)
+                    count = 600;
                 pr.wait_frames = count;
             }
         }
@@ -430,7 +520,8 @@ void AutomationServer::poll(App& app, WindowUIContext* ui_ctx)
     {
         std::lock_guard lock(pending_mutex_);
         for (auto& r : pending_)
-            if (!r.responded && r.wait_frames <= 0) to_exec.push_back(r);
+            if (!r.responded && r.wait_frames <= 0)
+                to_exec.push_back(r);
     }
     for (auto& req : to_exec)
     {
@@ -438,7 +529,12 @@ void AutomationServer::poll(App& app, WindowUIContext* ui_ctx)
         std::lock_guard lock(pending_mutex_);
         for (auto& pr : pending_)
         {
-            if (pr.id == req.id) { pr.responded = true; pr.response_json = req.response_json; break; }
+            if (pr.id == req.id)
+            {
+                pr.responded     = true;
+                pr.response_json = req.response_json;
+                break;
+            }
         }
     }
 }
@@ -454,13 +550,20 @@ void AutomationServer::execute(AutomationRequest& req, App& app, WindowUIContext
     if (method == "execute_command")
     {
         std::string cmd_id = json_get_string(params, "command_id");
-        if (cmd_id.empty()) { req.response_json = json_error(req.id, "Missing command_id"); return; }
+        if (cmd_id.empty())
+        {
+            req.response_json = json_error(req.id, "Missing command_id");
+            return;
+        }
 #ifdef SPECTRA_USE_IMGUI
-        if (!ui_ctx) { req.response_json = json_error(req.id, "No UI context"); return; }
-        bool ok = ui_ctx->cmd_registry.execute(cmd_id);
-        req.response_json = ok
-            ? json_ok(req.id, "{\"executed\":\"" + json_escape(cmd_id) + "\"}")
-            : json_error(req.id, "Command not found or disabled: " + cmd_id);
+        if (!ui_ctx)
+        {
+            req.response_json = json_error(req.id, "No UI context");
+            return;
+        }
+        bool ok           = ui_ctx->cmd_registry.execute(cmd_id);
+        req.response_json = ok ? json_ok(req.id, "{\"executed\":\"" + json_escape(cmd_id) + "\"}")
+                               : json_error(req.id, "Command not found or disabled: " + cmd_id);
 #else
         (void)ui_ctx;
         req.response_json = json_error(req.id, "ImGui not available");
@@ -472,17 +575,22 @@ void AutomationServer::execute(AutomationRequest& req, App& app, WindowUIContext
     if (method == "list_commands")
     {
 #ifdef SPECTRA_USE_IMGUI
-        if (!ui_ctx) { req.response_json = json_error(req.id, "No UI context"); return; }
-        auto all = ui_ctx->cmd_registry.all_commands();
+        if (!ui_ctx)
+        {
+            req.response_json = json_error(req.id, "No UI context");
+            return;
+        }
+        auto               all = ui_ctx->cmd_registry.all_commands();
         std::ostringstream oss;
         oss << "[";
         for (size_t i = 0; i < all.size(); ++i)
         {
-            if (i > 0) oss << ",";
-            oss << "{\"id\":\"" << json_escape(all[i]->id)
-                << "\",\"label\":\"" << json_escape(all[i]->label)
-                << "\",\"category\":\"" << json_escape(all[i]->category)
-                << "\",\"shortcut\":\"" << json_escape(all[i]->shortcut)
+            if (i > 0)
+                oss << ",";
+            oss << "{\"id\":\"" << json_escape(all[i]->id) << "\",\"label\":\""
+                << json_escape(all[i]->label) << "\",\"category\":\""
+                << json_escape(all[i]->category) << "\",\"shortcut\":\""
+                << json_escape(all[i]->shortcut)
                 << "\",\"enabled\":" << (all[i]->enabled ? "true" : "false") << "}";
         }
         oss << "]";
@@ -503,23 +611,28 @@ void AutomationServer::execute(AutomationRequest& req, App& app, WindowUIContext
 
         FigureId active_id = INVALID_FIGURE_ID;
 #ifdef SPECTRA_USE_IMGUI
-        if (ui_ctx && ui_ctx->fig_mgr) active_id = ui_ctx->fig_mgr->active_index();
+        if (ui_ctx && ui_ctx->fig_mgr)
+            active_id = ui_ctx->fig_mgr->active_index();
 #endif
         oss << ",\"active_figure_id\":" << active_id;
 
         oss << ",\"figures\":[";
         for (size_t i = 0; i < ids.size(); ++i)
         {
-            if (i > 0) oss << ",";
+            if (i > 0)
+                oss << ",";
             Figure* fig = app.figure_registry().get(ids[i]);
             oss << "{\"id\":" << ids[i];
             if (fig)
             {
-                oss << ",\"width\":" << fig->width()
-                    << ",\"height\":" << fig->height()
+                oss << ",\"width\":" << fig->width() << ",\"height\":" << fig->height()
                     << ",\"axes_count\":" << fig->axes().size();
                 size_t ts = 0;
-                for (const auto& ax : fig->axes()) { if (ax) ts += ax->series().size(); }
+                for (const auto& ax : fig->axes())
+                {
+                    if (ax)
+                        ts += ax->series().size();
+                }
                 oss << ",\"total_series\":" << ts;
             }
             oss << "}";
@@ -531,7 +644,8 @@ void AutomationServer::execute(AutomationRequest& req, App& app, WindowUIContext
         {
             oss << ",\"undo_count\":" << ui_ctx->undo_mgr.undo_count()
                 << ",\"redo_count\":" << ui_ctx->undo_mgr.redo_count()
-                << ",\"is_3d_mode\":" << (ui_ctx->is_in_3d_mode ? "true" : "false");
+                << ",\"is_3d_mode\":" << (ui_ctx->is_in_3d_mode ? "true" : "false")
+                << ",\"theme\":\"" << json_escape(ui::ThemeManager::instance().current_theme_name()) << '"';
         }
 #endif
         oss << "}";
@@ -543,7 +657,11 @@ void AutomationServer::execute(AutomationRequest& req, App& app, WindowUIContext
     if (method == "mouse_move")
     {
 #ifdef SPECTRA_USE_GLFW
-        if (!ui_ctx) { req.response_json = json_error(req.id, "No UI context"); return; }
+        if (!ui_ctx)
+        {
+            req.response_json = json_error(req.id, "No UI context");
+            return;
+        }
         double x = json_get_number(params, "x");
         double y = json_get_number(params, "y");
         ui_ctx->input_handler.on_mouse_move(x, y);
@@ -558,7 +676,11 @@ void AutomationServer::execute(AutomationRequest& req, App& app, WindowUIContext
     if (method == "mouse_click")
     {
 #ifdef SPECTRA_USE_GLFW
-        if (!ui_ctx) { req.response_json = json_error(req.id, "No UI context"); return; }
+        if (!ui_ctx)
+        {
+            req.response_json = json_error(req.id, "No UI context");
+            return;
+        }
         double x   = json_get_number(params, "x");
         double y   = json_get_number(params, "y");
         int    btn = json_get_int(params, "button", 0);
@@ -576,15 +698,20 @@ void AutomationServer::execute(AutomationRequest& req, App& app, WindowUIContext
     if (method == "mouse_drag")
     {
 #ifdef SPECTRA_USE_GLFW
-        if (!ui_ctx) { req.response_json = json_error(req.id, "No UI context"); return; }
-        double x1  = json_get_number(params, "x1");
-        double y1  = json_get_number(params, "y1");
-        double x2  = json_get_number(params, "x2");
-        double y2  = json_get_number(params, "y2");
-        int    btn = json_get_int(params, "button", 0);
-        int    mod = json_get_int(params, "modifiers", 0);
+        if (!ui_ctx)
+        {
+            req.response_json = json_error(req.id, "No UI context");
+            return;
+        }
+        double x1    = json_get_number(params, "x1");
+        double y1    = json_get_number(params, "y1");
+        double x2    = json_get_number(params, "x2");
+        double y2    = json_get_number(params, "y2");
+        int    btn   = json_get_int(params, "button", 0);
+        int    mod   = json_get_int(params, "modifiers", 0);
         int    steps = json_get_int(params, "steps", 10);
-        if (steps < 2) steps = 2;
+        if (steps < 2)
+            steps = 2;
 
         ui_ctx->input_handler.on_mouse_move(x1, y1);
         ui_ctx->input_handler.on_mouse_button(btn, 1, mod, x1, y1);
@@ -607,7 +734,11 @@ void AutomationServer::execute(AutomationRequest& req, App& app, WindowUIContext
     if (method == "scroll")
     {
 #ifdef SPECTRA_USE_GLFW
-        if (!ui_ctx) { req.response_json = json_error(req.id, "No UI context"); return; }
+        if (!ui_ctx)
+        {
+            req.response_json = json_error(req.id, "No UI context");
+            return;
+        }
         double x  = json_get_number(params, "x");
         double y  = json_get_number(params, "y");
         double dx = json_get_number(params, "dx", 0.0);
@@ -624,7 +755,11 @@ void AutomationServer::execute(AutomationRequest& req, App& app, WindowUIContext
     if (method == "key_press")
     {
 #ifdef SPECTRA_USE_GLFW
-        if (!ui_ctx) { req.response_json = json_error(req.id, "No UI context"); return; }
+        if (!ui_ctx)
+        {
+            req.response_json = json_error(req.id, "No UI context");
+            return;
+        }
         int key = json_get_int(params, "key");
         int mod = json_get_int(params, "modifiers", 0);
         ui_ctx->input_handler.on_key(key, 1, mod);
@@ -639,10 +774,10 @@ void AutomationServer::execute(AutomationRequest& req, App& app, WindowUIContext
     // ── create_figure ───────────────────────────────────────────────────
     if (method == "create_figure")
     {
-        uint32_t w = static_cast<uint32_t>(json_get_int(params, "width", 1280));
-        uint32_t h = static_cast<uint32_t>(json_get_int(params, "height", 720));
-        Figure& new_fig = app.figure({w, h});
-        FigureId new_id = app.figure_registry().find_id(&new_fig);
+        uint32_t w        = static_cast<uint32_t>(json_get_int(params, "width", 1280));
+        uint32_t h        = static_cast<uint32_t>(json_get_int(params, "height", 720));
+        Figure&  new_fig  = app.figure({w, h});
+        FigureId new_id   = app.figure_registry().find_id(&new_fig);
         req.response_json = json_ok(req.id, "{\"figure_id\":" + std::to_string(new_id) + "}");
         return;
     }
@@ -650,15 +785,21 @@ void AutomationServer::execute(AutomationRequest& req, App& app, WindowUIContext
     // ── add_series ──────────────────────────────────────────────────────
     if (method == "add_series")
     {
-        uint64_t fig_id = json_get_uint64(params, "figure_id", 0);
-        std::string type = json_get_string(params, "type");
-        if (type.empty()) type = "line";
+        uint64_t    fig_id = json_get_uint64(params, "figure_id", 0);
+        std::string type   = json_get_string(params, "type");
+        if (type.empty())
+            type = "line";
         int n_points = json_get_int(params, "n_points", 100);
 
         Figure* fig = app.figure_registry().get(static_cast<FigureId>(fig_id));
-        if (!fig) { req.response_json = json_error(req.id, "Figure not found"); return; }
+        if (!fig)
+        {
+            req.response_json = json_error(req.id, "Figure not found");
+            return;
+        }
 
-        if (fig->axes().empty()) fig->subplot(1, 1, 1);
+        if (fig->axes().empty())
+            fig->subplot(1, 1, 1);
         auto& ax = *fig->axes_mut()[0];
 
         std::vector<float> x(n_points), y(n_points);
@@ -674,7 +815,8 @@ void AutomationServer::execute(AutomationRequest& req, App& app, WindowUIContext
         else
             ax.line(x, y).label(label.empty() ? "line" : label);
 
-        req.response_json = json_ok(req.id, "{\"series_count\":" + std::to_string(ax.series().size()) + "}");
+        req.response_json =
+            json_ok(req.id, "{\"series_count\":" + std::to_string(ax.series().size()) + "}");
         return;
     }
 
@@ -682,7 +824,11 @@ void AutomationServer::execute(AutomationRequest& req, App& app, WindowUIContext
     if (method == "switch_figure")
     {
 #ifdef SPECTRA_USE_IMGUI
-        if (!ui_ctx || !ui_ctx->fig_mgr) { req.response_json = json_error(req.id, "No UI"); return; }
+        if (!ui_ctx || !ui_ctx->fig_mgr)
+        {
+            req.response_json = json_error(req.id, "No UI");
+            return;
+        }
         uint64_t fig_id = json_get_uint64(params, "figure_id", 0);
         ui_ctx->fig_mgr->queue_switch(static_cast<FigureId>(fig_id));
         req.response_json = json_ok(req.id);
@@ -699,8 +845,10 @@ void AutomationServer::execute(AutomationRequest& req, App& app, WindowUIContext
         // Calling app.step() re-entrantly causes a segfault.
         // Just acknowledge — the normal frame loop will advance frames.
         int count = json_get_int(params, "count", 1);
-        if (count < 1) count = 1;
-        if (count > 600) count = 600;
+        if (count < 1)
+            count = 1;
+        if (count > 600)
+            count = 600;
         req.response_json = json_ok(req.id, "{\"pumped\":" + std::to_string(count) + "}");
         return;
     }
@@ -709,17 +857,20 @@ void AutomationServer::execute(AutomationRequest& req, App& app, WindowUIContext
     if (method == "capture_screenshot")
     {
         std::string path = json_get_string(params, "path");
-        if (path.empty()) path = "/tmp/spectra_auto_screenshot.png";
+        if (path.empty())
+            path = "/tmp/spectra_auto_screenshot.png";
 
         FigureId active_id = INVALID_FIGURE_ID;
 #ifdef SPECTRA_USE_IMGUI
-        if (ui_ctx && ui_ctx->fig_mgr) active_id = ui_ctx->fig_mgr->active_index();
+        if (ui_ctx && ui_ctx->fig_mgr)
+            active_id = ui_ctx->fig_mgr->active_index();
 #endif
         Figure* fig = app.figure_registry().get(active_id);
         if (!fig)
         {
             auto ids = app.figure_registry().all_ids();
-            if (!ids.empty()) fig = app.figure_registry().get(ids[0]);
+            if (!ids.empty())
+                fig = app.figure_registry().get(ids[0]);
         }
         if (fig)
         {
@@ -743,7 +894,8 @@ void AutomationServer::execute(AutomationRequest& req, App& app, WindowUIContext
     if (method == "capture_window")
     {
         std::string path = json_get_string(params, "path");
-        if (path.empty()) path = "/tmp/spectra_auto_window.png";
+        if (path.empty())
+            path = "/tmp/spectra_auto_window.png";
 
         Backend* backend = app.backend();
         if (!backend)
@@ -774,10 +926,10 @@ void AutomationServer::execute(AutomationRequest& req, App& app, WindowUIContext
         }
 
         SPECTRA_LOG_INFO("automation", "Window screenshot saved: " + path);
-        req.response_json = json_ok(req.id,
-            "{\"path\":\"" + json_escape(path)
-            + "\",\"width\":" + std::to_string(w)
-            + ",\"height\":" + std::to_string(h) + "}");
+        req.response_json =
+            json_ok(req.id,
+                    "{\"path\":\"" + json_escape(path) + "\",\"width\":" + std::to_string(w)
+                        + ",\"height\":" + std::to_string(h) + "}");
         return;
     }
 
@@ -785,14 +937,18 @@ void AutomationServer::execute(AutomationRequest& req, App& app, WindowUIContext
     if (method == "resize_window")
     {
 #ifdef SPECTRA_USE_GLFW
-        if (!ui_ctx) { req.response_json = json_error(req.id, "No UI context"); return; }
-        uint32_t w = static_cast<uint32_t>(json_get_int(params, "width", 1280));
-        uint32_t h = static_cast<uint32_t>(json_get_int(params, "height", 720));
-        ui_ctx->needs_resize = true;
-        ui_ctx->new_width    = w;
-        ui_ctx->new_height   = h;
+        if (!ui_ctx)
+        {
+            req.response_json = json_error(req.id, "No UI context");
+            return;
+        }
+        uint32_t w                    = static_cast<uint32_t>(json_get_int(params, "width", 1280));
+        uint32_t h                    = static_cast<uint32_t>(json_get_int(params, "height", 720));
+        ui_ctx->needs_resize          = true;
+        ui_ctx->new_width             = w;
+        ui_ctx->new_height            = h;
         ui_ctx->resize_requested_time = std::chrono::steady_clock::now();
-        req.response_json = json_ok(req.id);
+        req.response_json             = json_ok(req.id);
 #else
         req.response_json = json_error(req.id, "GLFW not available");
 #endif
@@ -839,19 +995,20 @@ void AutomationServer::execute(AutomationRequest& req, App& app, WindowUIContext
         for (size_t i = 0; i < png_data.size(); i += 3)
         {
             uint32_t n = static_cast<uint32_t>(png_data[i]) << 16;
-            if (i + 1 < png_data.size()) n |= static_cast<uint32_t>(png_data[i + 1]) << 8;
-            if (i + 2 < png_data.size()) n |= static_cast<uint32_t>(png_data[i + 2]);
+            if (i + 1 < png_data.size())
+                n |= static_cast<uint32_t>(png_data[i + 1]) << 8;
+            if (i + 2 < png_data.size())
+                n |= static_cast<uint32_t>(png_data[i + 2]);
             b64 += kB64[(n >> 18) & 0x3F];
             b64 += kB64[(n >> 12) & 0x3F];
             b64 += (i + 1 < png_data.size()) ? kB64[(n >> 6) & 0x3F] : '=';
             b64 += (i + 2 < png_data.size()) ? kB64[n & 0x3F] : '=';
         }
 
-        req.response_json = json_ok(req.id,
-            "{\"width\":" + std::to_string(w)
-            + ",\"height\":" + std::to_string(h)
-            + ",\"format\":\"png\""
-            + ",\"data\":\"" + b64 + "\"}");
+        req.response_json =
+            json_ok(req.id,
+                    "{\"width\":" + std::to_string(w) + ",\"height\":" + std::to_string(h)
+                        + ",\"format\":\"png\"" + ",\"data\":\"" + b64 + "\"}");
         return;
     }
 
@@ -869,7 +1026,11 @@ void AutomationServer::execute(AutomationRequest& req, App& app, WindowUIContext
     {
 #ifdef SPECTRA_USE_IMGUI
         std::string text = json_get_string(params, "text");
-        if (text.empty()) { req.response_json = json_error(req.id, "Missing text"); return; }
+        if (text.empty())
+        {
+            req.response_json = json_error(req.id, "Missing text");
+            return;
+        }
         auto& io = ImGui::GetIO();
         for (char c : text)
             io.AddInputCharacter(static_cast<unsigned int>(c));
@@ -884,7 +1045,11 @@ void AutomationServer::execute(AutomationRequest& req, App& app, WindowUIContext
     if (method == "double_click")
     {
 #ifdef SPECTRA_USE_GLFW
-        if (!ui_ctx) { req.response_json = json_error(req.id, "No UI context"); return; }
+        if (!ui_ctx)
+        {
+            req.response_json = json_error(req.id, "No UI context");
+            return;
+        }
         double x   = json_get_number(params, "x");
         double y   = json_get_number(params, "y");
         int    btn = json_get_int(params, "button", 0);
@@ -906,42 +1071,57 @@ void AutomationServer::execute(AutomationRequest& req, App& app, WindowUIContext
     if (method == "get_figure_info")
     {
         uint64_t fig_id = json_get_uint64(params, "figure_id", 0);
-        Figure* fig = app.figure_registry().get(static_cast<FigureId>(fig_id));
-        if (!fig) { req.response_json = json_error(req.id, "Figure not found"); return; }
+        Figure*  fig    = app.figure_registry().get(static_cast<FigureId>(fig_id));
+        if (!fig)
+        {
+            req.response_json = json_error(req.id, "Figure not found");
+            return;
+        }
 
         std::ostringstream oss;
-        oss << "{\"figure_id\":" << fig_id
-            << ",\"width\":" << fig->width()
-            << ",\"height\":" << fig->height()
-            << ",\"axes_count\":" << fig->axes().size()
+        oss << "{\"figure_id\":" << fig_id << ",\"width\":" << fig->width()
+            << ",\"height\":" << fig->height() << ",\"axes_count\":" << fig->axes().size()
             << ",\"all_axes_count\":" << fig->all_axes().size();
 
         // 2D axes details
         oss << ",\"axes\":[";
         for (size_t ai = 0; ai < fig->axes().size(); ++ai)
         {
-            if (ai > 0) oss << ",";
+            if (ai > 0)
+                oss << ",";
             auto* ax = fig->axes()[ai].get();
-            if (!ax) { oss << "null"; continue; }
+            if (!ax)
+            {
+                oss << "null";
+                continue;
+            }
             auto xl = ax->x_limits();
             auto yl = ax->y_limits();
-            oss << "{\"index\":" << ai
-                << ",\"x_min\":" << xl.min << ",\"x_max\":" << xl.max
-                << ",\"y_min\":" << yl.min << ",\"y_max\":" << yl.max
-                << ",\"series\":[";
+            oss << "{\"index\":" << ai << ",\"x_min\":" << xl.min << ",\"x_max\":" << xl.max
+                << ",\"y_min\":" << yl.min << ",\"y_max\":" << yl.max << ",\"series\":[";
             for (size_t si = 0; si < ax->series().size(); ++si)
             {
-                if (si > 0) oss << ",";
+                if (si > 0)
+                    oss << ",";
                 auto* s = ax->series()[si].get();
-                if (!s) { oss << "null"; continue; }
-                const char* stype = "unknown";
-                size_t scount = 0;
+                if (!s)
+                {
+                    oss << "null";
+                    continue;
+                }
+                const char* stype  = "unknown";
+                size_t      scount = 0;
                 if (auto* ls = dynamic_cast<const LineSeries*>(s))
-                    { stype = "line"; scount = ls->point_count(); }
+                {
+                    stype  = "line";
+                    scount = ls->point_count();
+                }
                 else if (auto* ss = dynamic_cast<const ScatterSeries*>(s))
-                    { stype = "scatter"; scount = ss->point_count(); }
-                oss << "{\"label\":\"" << json_escape(s->label())
-                    << "\",\"type\":\"" << stype
+                {
+                    stype  = "scatter";
+                    scount = ss->point_count();
+                }
+                oss << "{\"label\":\"" << json_escape(s->label()) << "\",\"type\":\"" << stype
                     << "\",\"visible\":" << (s->visible() ? "true" : "false")
                     << ",\"point_count\":" << scount << "}";
             }
@@ -955,18 +1135,19 @@ void AutomationServer::execute(AutomationRequest& req, App& app, WindowUIContext
         for (size_t ai = 0; ai < fig->all_axes().size(); ++ai)
         {
             auto* ax_base = fig->all_axes()[ai].get();
-            if (!ax_base) continue;
+            if (!ax_base)
+                continue;
             auto* ax3d = dynamic_cast<Axes3D*>(ax_base);
-            if (!ax3d) continue;
-            if (a3i > 0) oss << ",";
+            if (!ax3d)
+                continue;
+            if (a3i > 0)
+                oss << ",";
             auto xl = ax3d->x_limits();
             auto yl = ax3d->y_limits();
             auto zl = ax3d->z_limits();
-            oss << "{\"index\":" << ai
-                << ",\"x_min\":" << xl.min << ",\"x_max\":" << xl.max
-                << ",\"y_min\":" << yl.min << ",\"y_max\":" << yl.max
-                << ",\"z_min\":" << zl.min << ",\"z_max\":" << zl.max
-                << ",\"series_count\":" << ax3d->series().size() << "}";
+            oss << "{\"index\":" << ai << ",\"x_min\":" << xl.min << ",\"x_max\":" << xl.max
+                << ",\"y_min\":" << yl.min << ",\"y_max\":" << yl.max << ",\"z_min\":" << zl.min
+                << ",\"z_max\":" << zl.max << ",\"series_count\":" << ax3d->series().size() << "}";
             ++a3i;
         }
         oss << "]";
@@ -980,7 +1161,11 @@ void AutomationServer::execute(AutomationRequest& req, App& app, WindowUIContext
     if (method == "get_window_size")
     {
 #ifdef SPECTRA_USE_GLFW
-        if (!ui_ctx) { req.response_json = json_error(req.id, "No UI context"); return; }
+        if (!ui_ctx)
+        {
+            req.response_json = json_error(req.id, "No UI context");
+            return;
+        }
         Backend* backend = app.backend();
         if (!backend)
         {
@@ -989,9 +1174,9 @@ void AutomationServer::execute(AutomationRequest& req, App& app, WindowUIContext
         }
         uint32_t w = backend->swapchain_width();
         uint32_t h = backend->swapchain_height();
-        req.response_json = json_ok(req.id,
-            "{\"width\":" + std::to_string(w)
-            + ",\"height\":" + std::to_string(h) + "}");
+        req.response_json =
+            json_ok(req.id,
+                    "{\"width\":" + std::to_string(w) + ",\"height\":" + std::to_string(h) + "}");
 #else
         req.response_json = json_error(req.id, "GLFW not available");
 #endif

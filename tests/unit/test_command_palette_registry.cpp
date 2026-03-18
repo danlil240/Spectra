@@ -115,12 +115,7 @@ TEST(CommandRegistry, SetEnabledToggle)
 TEST(CommandRegistry, FindExisting)
 {
     CommandRegistry reg;
-    reg.register_command(
-        "test.cmd",
-        "Test Command",
-        []() {},
-        "Ctrl+T",
-        "Testing");
+    reg.register_command("test.cmd", "Test Command", []() {}, "Ctrl+T", "Testing");
 
     const Command* cmd = reg.find("test.cmd");
     ASSERT_NE(cmd, nullptr);
@@ -228,30 +223,10 @@ TEST(CommandRegistry, SearchMaxResults)
 TEST(CommandRegistry, CategoriesReturnsUnique)
 {
     CommandRegistry reg;
-    reg.register_command(
-        "a",
-        "A",
-        []() {},
-        "",
-        "View");
-    reg.register_command(
-        "b",
-        "B",
-        []() {},
-        "",
-        "Edit");
-    reg.register_command(
-        "c",
-        "C",
-        []() {},
-        "",
-        "View");
-    reg.register_command(
-        "d",
-        "D",
-        []() {},
-        "",
-        "File");
+    reg.register_command("a", "A", []() {}, "", "View");
+    reg.register_command("b", "B", []() {}, "", "Edit");
+    reg.register_command("c", "C", []() {}, "", "View");
+    reg.register_command("d", "D", []() {}, "", "File");
 
     auto cats = reg.categories();
     EXPECT_EQ(cats.size(), 3u);
@@ -260,24 +235,9 @@ TEST(CommandRegistry, CategoriesReturnsUnique)
 TEST(CommandRegistry, CommandsInCategory)
 {
     CommandRegistry reg;
-    reg.register_command(
-        "a",
-        "A",
-        []() {},
-        "",
-        "View");
-    reg.register_command(
-        "b",
-        "B",
-        []() {},
-        "",
-        "Edit");
-    reg.register_command(
-        "c",
-        "C",
-        []() {},
-        "",
-        "View");
+    reg.register_command("a", "A", []() {}, "", "View");
+    reg.register_command("b", "B", []() {}, "", "Edit");
+    reg.register_command("c", "C", []() {}, "", "View");
 
     auto view_cmds = reg.commands_in_category("View");
     EXPECT_EQ(view_cmds.size(), 2u);
@@ -346,24 +306,9 @@ TEST(CommandRegistry, ClearRecent)
 TEST(CommandRegistry, AllCommandsSorted)
 {
     CommandRegistry reg;
-    reg.register_command(
-        "z",
-        "Zeta",
-        []() {},
-        "",
-        "B");
-    reg.register_command(
-        "a",
-        "Alpha",
-        []() {},
-        "",
-        "A");
-    reg.register_command(
-        "m",
-        "Mu",
-        []() {},
-        "",
-        "A");
+    reg.register_command("z", "Zeta", []() {}, "", "B");
+    reg.register_command("a", "Alpha", []() {}, "", "A");
+    reg.register_command("m", "Mu", []() {}, "", "A");
 
     auto all = reg.all_commands();
     ASSERT_EQ(all.size(), 3u);

@@ -43,13 +43,13 @@ constexpr float ICON_BUTTON_HITBOX = 32.0f;   // Standard icon button size
 constexpr float INSPECTOR_HEADER_H = 36.0f;   // Inspector header strip height
 
 // Layout Constants
-constexpr float COMMAND_BAR_HEIGHT      = 42.0f;   // Slimmer top bar
-constexpr float NAV_RAIL_WIDTH          = 48.0f;
+constexpr float COMMAND_BAR_HEIGHT      = 44.0f;   // Slimmer top bar
+constexpr float NAV_RAIL_WIDTH          = 56.0f;
 constexpr float NAV_RAIL_WIDTH_EXPANDED = 200.0f;
 constexpr float INSPECTOR_WIDTH         = 320.0f;
 constexpr float INSPECTOR_WIDTH_MIN     = 240.0f;
 constexpr float INSPECTOR_WIDTH_MAX     = 480.0f;
-constexpr float STATUS_BAR_HEIGHT       = 28.0f;
+constexpr float STATUS_BAR_HEIGHT       = 30.0f;
 constexpr float FLOATING_TOOLBAR_HEIGHT = 48.0f;
 
 // Animation Durations (in seconds)
@@ -112,6 +112,16 @@ constexpr float SHADOW_INTENSITY_SUBTLE   = 0.12f;
 constexpr float SHADOW_INTENSITY_NORMAL   = 0.15f;
 constexpr float SHADOW_INTENSITY_STRONG   = 0.20f;
 constexpr float SHADOW_INTENSITY_STRONGER = 0.25f;
+
+// Elevation System — shadow spread for depth hierarchy
+constexpr float ELEVATION_0_SPREAD = 0.0f;    // Flat on surface (canvas)
+constexpr float ELEVATION_1_SPREAD = 4.0f;    // Subtle lift (nav rail, status bar)
+constexpr float ELEVATION_2_SPREAD = 8.0f;    // Floating panel (inspector, command bar)
+constexpr float ELEVATION_3_SPREAD = 16.0f;   // Popup/dropdown
+constexpr float ELEVATION_4_SPREAD = 24.0f;   // Modal overlay
+
+// Panel gap — breathing room between floating panels and canvas
+constexpr float PANEL_GAP = 2.0f;   // Subtle gap to reinforce floating feel
 
 // Interaction Values
 constexpr float HOVER_DISTANCE_THRESHOLD    = 8.0f;    // For data point snapping

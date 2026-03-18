@@ -200,11 +200,12 @@ void ImGuiIntegration::draw_timeline_panel()
         // Subtle separator
         ImGui::Spacing();
         {
-            ImVec2 p = ImGui::GetCursorScreenPos();
-            float  w = ImGui::GetContentRegionAvail().x;
+            ImVec2 p  = ImGui::GetCursorScreenPos();
+            float  py = std::floor(p.y);
+            float  w  = ImGui::GetContentRegionAvail().x;
             ImGui::GetWindowDrawList()->AddLine(
-                ImVec2(p.x, p.y),
-                ImVec2(p.x + w, p.y),
+                ImVec2(p.x, py),
+                ImVec2(p.x + w, py),
                 IM_COL32(static_cast<int>(colors.border_subtle.r * 255),
                          static_cast<int>(colors.border_subtle.g * 255),
                          static_cast<int>(colors.border_subtle.b * 255),
@@ -361,11 +362,12 @@ void ImGuiIntegration::draw_curve_editor_panel()
         // Subtle separator
         ImGui::Spacing();
         {
-            ImVec2 p = ImGui::GetCursorScreenPos();
-            float  w = ImGui::GetContentRegionAvail().x;
+            ImVec2 p  = ImGui::GetCursorScreenPos();
+            float  py = std::floor(p.y);
+            float  w  = ImGui::GetContentRegionAvail().x;
             ImGui::GetWindowDrawList()->AddLine(
-                ImVec2(p.x, p.y),
-                ImVec2(p.x + w, p.y),
+                ImVec2(p.x, py),
+                ImVec2(p.x + w, py),
                 IM_COL32(static_cast<int>(colors.border_subtle.r * 255),
                          static_cast<int>(colors.border_subtle.g * 255),
                          static_cast<int>(colors.border_subtle.b * 255),

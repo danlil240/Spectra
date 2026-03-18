@@ -40,7 +40,9 @@ static void set_pc_color(float dst[4], const ui::Color& src)
     }
     else
     {
-        dst[0] = src.r; dst[1] = src.g; dst[2] = src.b;
+        dst[0] = src.r;
+        dst[1] = src.g;
+        dst[2] = src.b;
     }
     dst[3] = src.a;
 }
@@ -55,7 +57,9 @@ static void set_pc_color(float dst[4], const ui::Color& src, float alpha_overrid
     }
     else
     {
-        dst[0] = src.r; dst[1] = src.g; dst[2] = src.b;
+        dst[0] = src.r;
+        dst[1] = src.g;
+        dst[2] = src.b;
     }
     dst[3] = alpha_override;
 }
@@ -360,8 +364,8 @@ void Renderer::render_plot_text(Figure& figure)
     };
 
     uint32_t tick_col  = color_to_rgba(colors.tick_label);
-    uint32_t label_col = color_to_rgba(colors.text_primary);
-    uint32_t title_col = label_col;
+    uint32_t label_col = color_to_rgba(colors.text_secondary);
+    uint32_t title_col = color_to_rgba(colors.text_primary);
 
     constexpr float tick_padding = 5.0f;
 
@@ -1970,12 +1974,12 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
         const auto&         theme_colors = ui::ThemeManager::instance().colors();
         float               blend        = 0.3f;
         ui::Color           blended(theme_colors.grid_major.r * (1.0f - blend) + blend,
-                                    theme_colors.grid_major.g * (1.0f - blend) + blend,
-                                    theme_colors.grid_major.b * (1.0f - blend) + blend);
+                          theme_colors.grid_major.g * (1.0f - blend) + blend,
+                          theme_colors.grid_major.b * (1.0f - blend) + blend);
         set_pc_color(pc.color, blended, 0.35f);
-        pc.line_width                    = 1.0f;
-        pc.data_offset_x                 = 0.0f;
-        pc.data_offset_y                 = 0.0f;
+        pc.line_width    = 1.0f;
+        pc.data_offset_x = 0.0f;
+        pc.data_offset_y = 0.0f;
         backend_.push_constants(pc);
 
         backend_.bind_buffer(gpu.grid_buffer[slot], 0);
@@ -2053,9 +2057,9 @@ void Renderer::render_bounding_box(Axes3D& axes, const Rect& /*viewport*/)
     SeriesPushConstants pc{};
     const auto&         theme_colors = ui::ThemeManager::instance().colors();
     set_pc_color(pc.color, theme_colors.axis_line);
-    pc.line_width                    = 1.5f;
-    pc.data_offset_x                 = 0.0f;
-    pc.data_offset_y                 = 0.0f;
+    pc.line_width    = 1.5f;
+    pc.data_offset_x = 0.0f;
+    pc.data_offset_y = 0.0f;
     backend_.push_constants(pc);
 
     backend_.bind_buffer(gpu.bbox_buffer, 0);
@@ -2161,13 +2165,13 @@ void Renderer::render_tick_marks(Axes3D& axes, const Rect& /*viewport*/)
     SeriesPushConstants pc{};
     const auto&         theme_colors = ui::ThemeManager::instance().colors();
     ui::Color           tick_color(theme_colors.grid_major.r * 0.8f,
-                                   theme_colors.grid_major.g * 0.8f,
-                                   theme_colors.grid_major.b * 0.8f,
-                                   theme_colors.grid_major.a);
+                         theme_colors.grid_major.g * 0.8f,
+                         theme_colors.grid_major.b * 0.8f,
+                         theme_colors.grid_major.a);
     set_pc_color(pc.color, tick_color);
-    pc.line_width                    = 1.5f;
-    pc.data_offset_x                 = 0.0f;
-    pc.data_offset_y                 = 0.0f;
+    pc.line_width    = 1.5f;
+    pc.data_offset_x = 0.0f;
+    pc.data_offset_y = 0.0f;
     backend_.push_constants(pc);
 
     backend_.bind_buffer(gpu.tick_buffer, 0);
@@ -2586,9 +2590,9 @@ void Renderer::render_axis_border(AxesBase& axes,
     SeriesPushConstants pc{};
     const auto&         theme_colors = ui::ThemeManager::instance().colors();
     set_pc_color(pc.color, theme_colors.axis_line);
-    pc.line_width                    = 1.0f;
-    pc.data_offset_x                 = 0.0f;
-    pc.data_offset_y                 = 0.0f;
+    pc.line_width    = 1.0f;
+    pc.data_offset_x = 0.0f;
+    pc.data_offset_y = 0.0f;
     backend_.push_constants(pc);
 
     backend_.bind_buffer(gpu.border_buffer, 0);

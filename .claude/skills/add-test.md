@@ -24,6 +24,27 @@ Add unit tests, golden tests, or benchmarks for Spectra features.
 3. Add build target in `tests/CMakeLists.txt`
 4. Run: `./build/tests/bench_<feature>`
 
+## Live Interaction Tests via MCP Server
+
+For UI interaction tests that don't need a C++ test harness, drive a live Spectra instance via the MCP server:
+
+```bash
+# Kill existing instance, launch fresh
+pkill -f spectra || true; sleep 0.5
+./build/app/spectra &
+sleep 1
+
+# Verify alive
+curl http://127.0.0.1:8765/
+
+# Example: create a figure, add series, capture screenshot
+curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"create_figure","arguments":{"width":1280,"height":720}}}'
+```
+
+See `.windsurf/skills/spectra-skills/SKILL.md` § 12 for the full 22-tool reference.
+
 ## Conventions
 
 - Test one behavior per TEST case

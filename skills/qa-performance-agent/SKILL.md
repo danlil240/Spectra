@@ -183,6 +183,9 @@ ctest --test-dir build --output-on-failure
 - **~1s stalls in `vk_acquire`** — bounded at 100 ms per window now; cascading stall with N windows = N×100 ms max. See H4 in `QA_results.md`.
 - **`move_figure` warning** — cosmetic; no crash; source-window ownership tracking gap.
 - **`SIGSEGV` in `LegendInteraction::draw` / `Crosshair::draw_all_axes` during multi-window fuzz** — usually stale figure cache or pre-sync active-figure use; inspect `WindowManager::clear_figure_caches` wiring and `WindowRuntime` active-figure sync order.
+- **X11 `BadLength` or `BadRequest` crash during clipboard operations** — `glfwSetClipboardString` exceeds X11 protocol maximum (~4 MB). Check preceding `data.copy_all` or `data.copy_visible` with large datasets; the clipboard size guard should cap at `kMaxClipboardBytes`.
+- **`std::bad_alloc` / OOM during fuzz phase** — unbounded series accumulation from repeated `series.paste` or `AddSeries` fuzz actions. Check per-axes series count against `kMaxSeriesPerAxes` guard (200). Also check `LargeDataset` action frequency if RSS growth is extreme.
+- **SIGABRT/SIGSEGV in `file.save_workspace` or `file.load_workspace` command lambdas** — dangling `Series*` or `Figure*` accessed in serialization paths. Markers and other caches holding raw pointers must be cleared via `clear_figure_cache()` before save iterates them. Prefer pre-stored string labels (`series_label`) over pointer dereferences (`m.series->label()`).
 
 ---
 
@@ -229,6 +232,7 @@ ctest --test-dir build --output-on-failure
 | `figure_serialization` | Save/load roundtrip count mismatch | `FigureSerializer` chunk encoding/decoding |
 | `series_removed_interaction_safety` | UAF crash after `series.delete` | `notify_series_removed()` not clearing `nearest_` cache |
 | `line_culling_pan_zoom` | Visual corruption after pan | Binary-search culling off-by-one in `lo_idx`/`hi_idx` |
+| (future) `workspace_save_load_stress` | Dangling pointers in save/load | `DataInteraction::markers_` raw `Series*` not cleared; `FigureSerializer` chunk desync |
 
 ---
 
@@ -328,6 +332,57 @@ After every run, open `REPORT.md` and:
 2. Fill in: seed used, duration, exit code, scenario results (pass/fail/crash per scenario), frame time P99/max, RSS delta, CRITICAL/ERROR count, fixes applied, files changed, self-updates made.
 3. Update the `## Current Status` block at the very top.
 4. Never delete old session blocks — they are the performance regression history.
+
+---
+
+## Spectra MCP Server
+
+Use the MCP server to reproduce targeted performance scenarios without running the full QA harness, and to capture screenshots as visual evidence alongside frame profiler output.
+
+### Start/restart procedure
+
+**Always kill existing Spectra instances before launching a new one.**
+
+```bash
+pkill -f spectra || true; sleep 0.5
+./build/app/spectra &
+sleep 1
+curl http://127.0.0.1:8765/   # health check
+```
+
+### Performance-relevant MCP commands
+
+```bash
+# Create a massive dataset to trigger H1 (large dataset frame spike)
+curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"create_figure","arguments":{"width":1280,"height":720}}}'
+
+curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"add_series","arguments":{"figure_id":1,"series_type":"line","n_points":1000000,"label":"perf_stress"}}}'
+
+# Wait 60 frames and measure (watch frame profiler output in terminal)
+curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"wait_frames","arguments":{"count":60}}}'
+
+# Stress resize (triggers swapchain recreation — V1)
+curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"resize_window","arguments":{"width":640,"height":480}}}'
+
+curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"resize_window","arguments":{"width":1920,"height":1080}}}'
+
+# Capture screenshot as visual evidence
+curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"get_screenshot_base64","arguments":{}}}'
+```
+
+MCP env vars: `SPECTRA_MCP_PORT` (default `8765`), `SPECTRA_MCP_BIND` (default `127.0.0.1`).
 
 ---
 

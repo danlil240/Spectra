@@ -777,8 +777,8 @@ bool RosSessionManager::json_get_bool(const std::string& json,
 
 std::string RosSessionManager::current_iso8601()
 {
-    auto           now = std::chrono::system_clock::now();
-    std::time_t    t   = std::chrono::system_clock::to_time_t(now);
+    auto        now = std::chrono::system_clock::now();
+    std::time_t t   = std::chrono::system_clock::to_time_t(now);
     struct std::tm tm_utc
     {
     };

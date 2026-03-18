@@ -122,6 +122,9 @@ class DataInteraction
             // Reset nearest-point result — it holds a raw Series* pointer
             // that becomes dangling when the figure's series are destroyed.
             nearest_ = {};
+            // Clear markers — they hold raw Series* pointers that become
+            // dangling when the figure (and its series) are destroyed.
+            markers_.clear();
         }
     }
 

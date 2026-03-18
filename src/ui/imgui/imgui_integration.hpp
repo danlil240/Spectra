@@ -718,13 +718,13 @@ class ImGuiIntegration
     // Branded textures used by the empty-state welcome screen and top-left app mark
     VulkanBackend* backend_ = nullptr;
 
-    uint64_t       welcome_logo_texture_id_    = 0;   // ImTextureID / VkDescriptorSet bits
-    uint64_t       corner_logo_texture_id_     = 0;   // ImTextureID / VkDescriptorSet bits
-    int            welcome_logo_width_         = 0;
-    int            welcome_logo_height_        = 0;
-    int            corner_logo_width_          = 0;
-    int            corner_logo_height_         = 0;
-    bool           logo_loaded_                = false;
+    uint64_t welcome_logo_texture_id_ = 0;   // ImTextureID / VkDescriptorSet bits
+    uint64_t corner_logo_texture_id_  = 0;   // ImTextureID / VkDescriptorSet bits
+    int      welcome_logo_width_      = 0;
+    int      welcome_logo_height_     = 0;
+    int      corner_logo_width_       = 0;
+    int      corner_logo_height_      = 0;
+    bool     logo_loaded_             = false;
 
     TextureHandle welcome_logo_texture_{};
     TextureHandle corner_logo_texture_{};

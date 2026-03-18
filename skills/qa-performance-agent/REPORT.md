@@ -8,17 +8,17 @@
 
 | Field | Value |
 |---|---|
-| Last run | 2026-03-01 20:34 |
-| Last seed | 27243840318184 (random), 42 (deterministic verify), 42 (pre-fix repro) |
-| Last exit code | 1 (random run) |
-| Scenarios passing | 16/16 (seed 27243840318184), 20/20 (seed 42 deterministic verify) |
-| Frame time P99 | 258.8ms (seed 27243840318184) |
-| Frame time max | 427.8ms (seed 27243840318184) |
-| RSS delta | +127MB (seed 27243840318184), +177MB (seed 42 deterministic verify) |
-| Open CRITICAL | 0 |
-| Open ERROR | 11 (validation path V2/V1 class) |
+| Last run | 2026-03-06 |
+| Last seed | 26349518760598 (random regression), 42 (deterministic verify), 25257321839906 (random), 99 (Nvidia driver crash) |
+| Last exit code | 0 (random regression) |
+| Scenarios passing | 20/20 (seed 42), 20/20 (seed 25257321839906), 20/20 (seed 26349518760598) |
+| Frame time P95 | 41.3ms (seed 26349518760598) |
+| Frame time max | 236.4ms (seed 26349518760598) |
+| RSS delta | +191MB (seed 26349518760598), +245MB (seed 42) |
+| Open CRITICAL | 1 (H4 device lost — known, bounded) |
+| Open ERROR | 0 |
 | Open issues (QA_results.md) | H1, H3, H4, M1, V1, V2, Q1 |
-| SKILL.md last self-updated | 2026-03-01 (Interpretation Rules) |
+| SKILL.md last self-updated | 2026-03-06 (Interpretation Rules) |
 
 ---
 
@@ -26,8 +26,60 @@
 
 | Date | Section | Reason |
 |---|---|---|
+| 2026-03-06 | Interpretation Rules | Added clipboard/paste overflow and dangling-marker crash signatures from C7/C8/C9 |
 | 2026-03-01 | Interpretation Rules | Added stale-overlay crash signature heuristic from seed-42 repro/fix cycle |
 | 2026-02-26 | Initial file created | Consolidation session |
+
+---
+
+## Session 2026-03-06
+
+**Run config**
+- Deterministic baseline: `--seed 42 --duration 120 --output-dir /tmp/spectra_qa_perf`
+- Randomized pass: `--duration 60 --output-dir /tmp/spectra_qa_perf` (seed 25257321839906)
+- Verification seed 99: `--seed 99 --duration 120 --output-dir /tmp/spectra_qa_perf`
+- Regression random: `--duration 60 --output-dir /tmp/spectra_qa_perf` (seed 26349518760598)
+- Build/tests: `cmake --build build -j$(nproc)`, `ctest --test-dir build -LE gpu --output-on-failure`
+
+**Summary**
+- Initial seed 42 run crashed (exit 2) with X11 BadLength at frame 3059 from oversized clipboard write (C7).
+- After C7 fix, crashed again with `std::bad_alloc` from unbounded `series.paste` (C8).
+- After C8 fix, crashed with SIGABRT from dangling `Series*` in `file.save_workspace` marker serialization (C9).
+- After all three fixes, seed 42 completed successfully: 6314 frames, 20/20 scenarios, exit 1 (1 CRITICAL = known H4 device lost).
+- Seed 99 verification: SIGSEGV at frame 4960 — Nvidia driver crash inside `libnvidia-glcore.so` during swapchain destruction. Not fixable at app level.
+- Random seed 25257321839906: clean exit 0, 3774 frames, 20/20 scenarios, 0 CRITICAL.
+- Regression random seed 26349518760598: clean exit 0, 4470 frames, 20/20 scenarios, 0 CRITICAL.
+- Unit tests: 110/111 pass (pre-existing `DesignTokens.LayoutConstants` theme failure).
+
+**Performance metrics**
+- Seed 42 deterministic: avg `10.5ms`, p95 `36.2ms`, p99 n/a, max `119.4ms`, RSS `198→443MB` (`+245MB`), issues: 1 CRITICAL (H4 device lost at frame 6314).
+- Seed 25257321839906 random: avg `13.6ms`, p95 `44.4ms`, max `125.8ms`, RSS `198→440MB` (`+242MB`), issues: 0 CRITICAL, 0 ERROR.
+- Seed 26349518760598 regression: avg `11.3ms`, p95 `41.3ms`, max `236.4ms`, RSS `198→389MB` (`+191MB`), issues: 0 CRITICAL, 0 ERROR.
+
+**Root cause + fix**
+- C7: X11 `BadLength` from `glfwSetClipboardString` exceeding 4MB. Fix: clipboard size guard in `register_commands.cpp`.
+- C8: `std::bad_alloc` from unbounded `series.paste`. Fix: 200-series-per-axes paste limit in `register_commands.cpp`.
+- C9: dangling `Series*` in `DataInteraction::markers_` accessed by `file.save_workspace`. Fix: (a) `markers_.clear()` in `clear_figure_cache()` in `data_interaction.hpp`, (b) use `m.series_label` instead of `m.series->label()` in `register_commands.cpp`.
+- Nvidia driver SIGSEGV (seed 99): not fixable — crash inside `libnvidia-glcore.so.580.126.20`.
+
+**Files changed**
+- `src/ui/app/register_commands.cpp` (C7 clipboard guard, C8 paste limit, C9 series_label)
+- `src/ui/overlay/data_interaction.hpp` (C9 markers_.clear())
+- `plans/QA_results.md`
+- `plans/QA_update.md`
+- `skills/qa-performance-agent/SKILL.md`
+
+**Test status**
+- `ctest --test-dir build -LE gpu --output-on-failure`: 110/111 pass; known theme test failure.
+
+**Self-updates to SKILL.md**
+- Added interpretation rules for clipboard overflow (C7), paste accumulation (C8), and dangling-marker save/load (C9) crash signatures.
+
+## Self-Improvement — 2026-03-06
+Improvement: Added three interpretation rules for new crash signature classes: X11 clipboard overflow crashes, unbounded series accumulation OOM, and dangling-pointer access in save/load command paths.
+Motivation: Prior guidance only covered overlay stale-figure crashes; these three new crash classes required manual triage because the SKILL.md had no recognition pattern for clipboard size limits, paste accumulation pressure, or command-lambda pointer safety in save/load paths.
+Change: `skills/qa-performance-agent/SKILL.md` updated under `## Interpretation Rules` with three new bullets.
+Next gap: Add a `workspace_save_load_stress` scenario (PERF-I9) to specifically stress `file.save_workspace` / `file.load_workspace` under concurrent figure churn — this session's C9 crash would have been caught earlier by a dedicated scenario.
 
 ---
 

@@ -27,97 +27,121 @@ static bool icon_label_button(const char* icon_codepoint,
     float icon_sz  = icon_font ? icon_font->FontSize : 20.0f;
     float label_sz = label_font ? (label_font->FontSize * 0.92f) : 11.0f;   // ~11px label
     float icon_gap = 3.0f;    // gap between icon and label
-    float cell_h   = 52.0f;   // generous cell height like Vision.png
-    float pill_pad = 6.0f;    // horizontal inset for the highlight pill
+    float cell_h   = 56.0f;   // generous cell height like Vision.png
+    float pill_pad = 7.0f;    // horizontal inset for the highlight pill
     float pill_w   = width - pill_pad * 2.0f;
 
-    // Full-width invisible button for hit testing
     ImVec2 cursor = ImGui::GetCursorScreenPos();
     ImGui::PushID(label);
+    ImGuiStorage* storage        = ImGui::GetStateStorage();
+    ImGuiID       hover_anim_id  = ImGui::GetID("hover_anim");
+    ImGuiID       active_anim_id = ImGui::GetID("active_anim");
     ImGui::InvisibleButton("##btn", ImVec2(width, cell_h));
-    bool clicked = ImGui::IsItemClicked();
-    bool hovered = ImGui::IsItemHovered();
+    bool  clicked = ImGui::IsItemClicked();
+    bool  hovered = ImGui::IsItemHovered();
+    float dt      = ImGui::GetIO().DeltaTime;
+    float hover_t = storage->GetFloat(hover_anim_id, hovered ? 1.0f : 0.0f);
+    float active_t = storage->GetFloat(active_anim_id, active ? 1.0f : 0.0f);
+    hover_t += ((hovered ? 1.0f : 0.0f) - hover_t) * std::min(1.0f, dt * 16.0f);
+    active_t += ((active ? 1.0f : 0.0f) - active_t) * std::min(1.0f, dt * 12.0f);
+    storage->SetFloat(hover_anim_id, hover_t);
+    storage->SetFloat(active_anim_id, active_t);
     ImGui::PopID();
 
     ImDrawList* dl = ImGui::GetWindowDrawList();
 
-    // Pill background rect (inset from edges)
-    ImVec2 pill_min = ImVec2(cursor.x + pill_pad, cursor.y + 2.0f);
-    ImVec2 pill_max = ImVec2(cursor.x + pill_pad + pill_w, cursor.y + cell_h - 2.0f);
+    float  motion_t = std::max(hover_t, active_t);
+    float  lift     = active_t * 1.5f + hover_t * 0.75f;
+    ImVec2 pill_min = ImVec2(cursor.x + pill_pad, cursor.y + 3.0f - lift);
+    ImVec2 pill_max = ImVec2(cursor.x + pill_pad + pill_w, cursor.y + cell_h - 3.0f - lift);
 
-    if (active)
+    if (motion_t > 0.01f)
     {
-        // Vision.png: no background fill — only a thin accent bar on the left edge
-        float  bar_w   = 2.0f;
-        ImVec2 bar_min = ImVec2(cursor.x, cursor.y + 10.0f);
-        ImVec2 bar_max = ImVec2(cursor.x + bar_w, cursor.y + cell_h - 10.0f);
-        dl->AddRectFilled(bar_min,
-                          bar_max,
+        ui::Color glow_color =
+            colors.accent_glow.lerp(colors.accent, 0.18f + active_t * 0.18f + hover_t * 0.08f);
+        dl->AddRectFilled(ImVec2(pill_min.x - 1.5f, pill_min.y - 1.0f),
+                          ImVec2(pill_max.x + 1.5f, pill_max.y + 1.5f),
                           ImGui::ColorConvertFloat4ToU32(
-                              ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 1.0f)),
-                          1.0f);
+                              ImVec4(glow_color.r,
+                                     glow_color.g,
+                                     glow_color.b,
+                                     (0.06f + hover_t * 0.06f + active_t * 0.10f)
+                                         * colors.glow_intensity)),
+                          tokens::RADIUS_MD + 1.0f);
 
-        // Night theme: soft glow around the accent bar
-        if (colors.glow_intensity > 0.01f)
-        {
-            dl->AddRectFilled(ImVec2(bar_min.x - 1.0f, bar_min.y - 1.0f),
-                              ImVec2(bar_max.x + 2.0f, bar_max.y + 1.0f),
-                              ImGui::ColorConvertFloat4ToU32(ImVec4(colors.accent_glow.r,
-                                                                    colors.accent_glow.g,
-                                                                    colors.accent_glow.b,
-                                                                    colors.accent_glow.a * 0.25f)),
-                              2.0f);
-        }
-    }
-    else if (hovered)
-    {
+        ui::Color pill_fill =
+            colors.bg_secondary.lerp(colors.bg_tertiary, 0.62f).lerp(colors.accent,
+                                                                      0.06f + active_t * 0.16f
+                                                                          + hover_t * 0.10f);
         dl->AddRectFilled(
             pill_min,
             pill_max,
             ImGui::ColorConvertFloat4ToU32(
-                ImVec4(colors.text_primary.r, colors.text_primary.g, colors.text_primary.b, 0.06f)),
+                ImVec4(pill_fill.r, pill_fill.g, pill_fill.b, 0.55f + active_t * 0.36f + hover_t * 0.18f)),
+            tokens::RADIUS_MD);
+        dl->AddRect(
+            pill_min,
+            pill_max,
+            ImGui::ColorConvertFloat4ToU32(
+                ImVec4(colors.border_subtle.r * (1.0f - active_t) + colors.border_strong.r * active_t,
+                       colors.border_subtle.g * (1.0f - active_t) + colors.border_strong.g * active_t,
+                       colors.border_subtle.b * (1.0f - active_t) + colors.border_strong.b * active_t,
+                       0.28f + hover_t * 0.18f + active_t * 0.24f)),
             tokens::RADIUS_MD);
     }
 
-    // Colors: active = accent icon only, inactive = bright, hovered = full brightness
-    ImU32 icon_col, text_col;
-    if (active)
+    if (active_t > 0.01f)
     {
-        icon_col = ImGui::ColorConvertFloat4ToU32(
-            ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 1.0f));
-        text_col = ImGui::ColorConvertFloat4ToU32(
-            ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.95f));
-    }
-    else
-    {
-        float alpha = hovered ? 1.0f : 0.8f;   // Vision.png: bright default, full on hover
-        icon_col    = ImGui::ColorConvertFloat4ToU32(
-            ImVec4(colors.text_primary.r, colors.text_primary.g, colors.text_primary.b, alpha));
-        text_col = ImGui::ColorConvertFloat4ToU32(ImVec4(colors.text_primary.r,
-                                                         colors.text_primary.g,
-                                                         colors.text_primary.b,
-                                                         alpha * 0.9f));
+        float  bar_w   = 3.0f;
+        ImVec2 bar_min = ImVec2(cursor.x, cursor.y + 10.0f - lift);
+        ImVec2 bar_max = ImVec2(cursor.x + bar_w, cursor.y + cell_h - 10.0f - lift);
+        if (colors.glow_intensity > 0.01f)
+        {
+            dl->AddRectFilled(ImVec2(bar_min.x - 1.0f, bar_min.y - 1.0f),
+                              ImVec2(bar_max.x + 2.0f, bar_max.y + 1.0f),
+                              ImGui::ColorConvertFloat4ToU32(
+                                  ImVec4(colors.accent_glow.r,
+                                         colors.accent_glow.g,
+                                         colors.accent_glow.b,
+                                         colors.accent_glow.a * (0.18f + active_t * 0.10f))),
+                              2.0f);
+        }
+        dl->AddRectFilled(bar_min,
+                          bar_max,
+                          ImGui::ColorConvertFloat4ToU32(
+                              ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.80f + active_t * 0.20f)),
+                          1.0f);
     }
 
-    // Vertically center the icon+label block within the cell
-    float content_h = icon_sz + icon_gap + label_sz;
-    float y_start   = cursor.y + (cell_h - content_h) * 0.5f;
+    ui::Color icon_color =
+        colors.text_secondary.lerp(colors.text_primary, hover_t * 0.78f).lerp(colors.accent_hover,
+                                                                               active_t * 0.88f);
+    ui::Color text_color =
+        colors.text_secondary.lerp(colors.text_primary, hover_t * 0.60f).lerp(colors.accent_hover,
+                                                                               active_t * 0.80f);
+    ImU32 icon_col = ImGui::ColorConvertFloat4ToU32(
+        ImVec4(icon_color.r, icon_color.g, icon_color.b, 0.90f + hover_t * 0.08f + active_t * 0.10f));
+    ImU32 text_col = ImGui::ColorConvertFloat4ToU32(
+        ImVec4(text_color.r, text_color.g, text_color.b, 0.82f + hover_t * 0.10f + active_t * 0.08f));
 
-    // Draw icon centered
+    float icon_draw_sz  = icon_sz * (1.0f + hover_t * 0.04f + active_t * 0.05f);
+    float label_draw_sz = label_sz * (1.0f + hover_t * 0.02f + active_t * 0.03f);
+    float content_h     = icon_draw_sz + icon_gap + label_draw_sz;
+    float y_start       = std::floor(cursor.y + (cell_h - content_h) * 0.5f - lift * 0.35f);
+
     if (icon_font)
     {
-        ImVec2 isz = icon_font->CalcTextSizeA(icon_font->FontSize, FLT_MAX, 0.0f, icon_codepoint);
-        float  ix  = cursor.x + (width - isz.x) * 0.5f;
-        dl->AddText(icon_font, icon_font->FontSize, ImVec2(ix, y_start), icon_col, icon_codepoint);
+        ImVec2 isz = icon_font->CalcTextSizeA(icon_draw_sz, FLT_MAX, 0.0f, icon_codepoint);
+        float  ix  = std::floor(cursor.x + (width - isz.x) * 0.5f);
+        dl->AddText(icon_font, icon_draw_sz, ImVec2(ix, y_start), icon_col, icon_codepoint);
     }
 
-    // Draw label centered, smaller than label_font's native size
     if (label_font)
     {
-        ImVec2 lsz = label_font->CalcTextSizeA(label_sz, FLT_MAX, 0.0f, label);
-        float  lx  = cursor.x + (width - lsz.x) * 0.5f;
-        float  ly  = y_start + icon_sz + icon_gap;
-        dl->AddText(label_font, label_sz, ImVec2(lx, ly), text_col, label);
+        ImVec2 lsz = label_font->CalcTextSizeA(label_draw_sz, FLT_MAX, 0.0f, label);
+        float  lx  = std::floor(cursor.x + (width - lsz.x) * 0.5f);
+        float  ly  = std::floor(y_start + icon_draw_sz + icon_gap);
+        dl->AddText(label_font, label_draw_sz, ImVec2(lx, ly), text_col, label);
     }
 
     return clicked;
@@ -155,22 +179,27 @@ void ImGuiIntegration::draw_panel(Figure& figure)
 void ImGuiIntegration::draw_menubar_menu(const char* label, const std::vector<MenuItem>& items)
 {
     const auto& colors = ui::theme();
+    bool        menu_is_open = open_menu_label_ == label;
 
     ImGui::PushFont(font_menubar_);
-    ImGui::PushStyleColor(ImGuiCol_Text,
-                          ImVec4(colors.text_primary.r,
-                                 colors.text_primary.g,
-                                 colors.text_primary.b,
-                                 0.85f));
-    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+    ImGui::PushStyleColor(
+        ImGuiCol_Text,
+        ImVec4(colors.text_primary.r,
+               colors.text_primary.g,
+               colors.text_primary.b,
+               menu_is_open ? 1.0f : 0.88f));
+    ImGui::PushStyleColor(
+        ImGuiCol_Button,
+        menu_is_open ? ImVec4(colors.bg_tertiary.r, colors.bg_tertiary.g, colors.bg_tertiary.b, 0.95f)
+                     : ImVec4(0, 0, 0, 0));
     ImGui::PushStyleColor(
         ImGuiCol_ButtonHovered,
-        ImVec4(colors.accent_subtle.r, colors.accent_subtle.g, colors.accent_subtle.b, 0.6f));
+        ImVec4(colors.accent_subtle.r, colors.accent_subtle.g, colors.accent_subtle.b, 0.78f));
     ImGui::PushStyleColor(ImGuiCol_ButtonActive,
                           ImVec4(colors.accent_muted.r,
                                  colors.accent_muted.g,
                                  colors.accent_muted.b,
-                                 colors.accent_muted.a));
+                                 0.95f));
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
                         ImVec2(ui::tokens::SPACE_4, ui::tokens::SPACE_2));
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, ui::tokens::RADIUS_MD);
@@ -243,12 +272,21 @@ void ImGuiIntegration::draw_menubar_menu(const char* label, const std::vector<Me
             open_menu_label_.clear();
         }
 
-        // Draw shadow behind popup
-        ImDrawList* bg_dl = ImGui::GetBackgroundDrawList();
-        bg_dl->AddRectFilled(ImVec2(popup_pos.x + 2, popup_pos.y + 3),
-                             ImVec2(popup_pos.x + popup_size.x + 2, popup_pos.y + popup_size.y + 5),
-                             IM_COL32(0, 0, 0, 30),
-                             ui::tokens::RADIUS_LG + 2);
+        // Multi-layer soft shadow behind popup (elevation 3)
+        ImDrawList* bg_dl         = ImGui::GetBackgroundDrawList();
+        float       popup_shadow  = ui::tokens::ELEVATION_3_SPREAD;
+        for (int si = 1; si <= 4; ++si)
+        {
+            float st    = static_cast<float>(si) / 4.0f;
+            float soff  = popup_shadow * st;
+            float salph = 0.12f * (1.0f - st * 0.7f);
+            bg_dl->AddRectFilled(
+                ImVec2(popup_pos.x + soff * 0.3f, popup_pos.y + soff * 0.5f),
+                ImVec2(popup_pos.x + popup_size.x + soff * 0.5f,
+                       popup_pos.y + popup_size.y + soff),
+                IM_COL32(0, 0, 0, static_cast<int>(salph * 255)),
+                ui::tokens::RADIUS_LG + soff * 0.5f);
+        }
 
         for (const auto& item : items)
         {
@@ -411,7 +449,7 @@ void ImGuiIntegration::draw_command_bar()
                              | ImGuiWindowFlags_NoFocusOnAppearing;
 
     // Top bar: slightly darker than panels to push visual focus to canvas
-    float bar_blend = 0.65f;   // Blend toward bg_primary
+    float bar_blend = 0.74f;   // Blend toward bg_primary
     auto  bar_bg_r =
         ui::theme().bg_primary.r * bar_blend + ui::theme().bg_secondary.r * (1.0f - bar_blend);
     auto bar_bg_g =
@@ -419,7 +457,7 @@ void ImGuiIntegration::draw_command_bar()
     auto bar_bg_b =
         ui::theme().bg_primary.b * bar_blend + ui::theme().bg_secondary.b * (1.0f - bar_blend);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
-                        ImVec2(ui::tokens::SPACE_4, ui::tokens::SPACE_2));
+                        ImVec2(ui::tokens::SPACE_5, ui::tokens::SPACE_2));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ui::tokens::SPACE_3, 0.0f));
     ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(bar_bg_r, bar_bg_g, bar_bg_b, 1.0f));
@@ -434,17 +472,33 @@ void ImGuiIntegration::draw_command_bar()
     {
         SPECTRA_LOG_TRACE("ui", "Command bar window began successfully");
 
-        // ── Draw subtle bottom border line for menu bar separation ──
+        // ── Floating surface depth: bottom shadow + hairline border ──
         {
             ImDrawList* bar_dl = ImGui::GetWindowDrawList();
             ImVec2      wpos   = ImGui::GetWindowPos();
             ImVec2      wsz    = ImGui::GetWindowSize();
-            bar_dl->AddLine(ImVec2(wpos.x, wpos.y + wsz.y - 1.0f),
-                            ImVec2(wpos.x + wsz.x, wpos.y + wsz.y - 1.0f),
+            float       bottom = wpos.y + wsz.y;
+
+            // Multi-layer soft shadow below the bar
+            float shadow_spread = ui::tokens::ELEVATION_2_SPREAD;
+            for (int i = 0; i < 4; ++i)
+            {
+                float t     = static_cast<float>(i) / 4.0f;
+                float alpha = 0.10f * (1.0f - t);
+                float off   = shadow_spread * t;
+                bar_dl->AddRectFilled(
+                    ImVec2(wpos.x, bottom),
+                    ImVec2(wpos.x + wsz.x, bottom + off + 1.0f),
+                    IM_COL32(0, 0, 0, static_cast<int>(alpha * 255)));
+            }
+
+            // Crisp hairline border at bottom edge
+            bar_dl->AddLine(ImVec2(wpos.x, std::floor(bottom) - 1.0f),
+                            ImVec2(wpos.x + wsz.x, std::floor(bottom) - 1.0f),
                             IM_COL32(static_cast<uint8_t>(ui::theme().border_subtle.r * 255),
                                      static_cast<uint8_t>(ui::theme().border_subtle.g * 255),
                                      static_cast<uint8_t>(ui::theme().border_subtle.b * 255),
-                                     60),
+                                     80),
                             1.0f);
         }
 
@@ -963,7 +1017,7 @@ void ImGuiIntegration::draw_command_bar()
 
         // Status info
         ImGuiIO& io = ImGui::GetIO();
-        ImGui::PushFont(font_menubar_);
+        ImGui::PushFont(font_heading_);
         ImGui::PushStyleColor(ImGuiCol_Text,
                               ImVec4(ui::theme().text_secondary.r,
                                      ui::theme().text_secondary.g,
@@ -977,6 +1031,27 @@ void ImGuiIntegration::draw_command_bar()
                       static_cast<int>(io.DisplaySize.x),
                       static_cast<int>(io.DisplaySize.y),
                       io.Framerate);
+        ImVec2 status_pos = ImGui::GetCursorScreenPos();
+        ImVec2 status_sz  = ImGui::CalcTextSize(status);
+        ImVec2 chip_min(status_pos.x - ui::tokens::SPACE_2, status_pos.y - 3.0f);
+        ImVec2 chip_max(status_pos.x + status_sz.x + ui::tokens::SPACE_2,
+                        status_pos.y + status_sz.y + 3.0f);
+        ImGui::GetWindowDrawList()->AddRectFilled(
+            chip_min,
+            chip_max,
+            ImGui::ColorConvertFloat4ToU32(ImVec4(ui::theme().bg_tertiary.r,
+                                                  ui::theme().bg_tertiary.g,
+                                                  ui::theme().bg_tertiary.b,
+                                                  0.92f)),
+            ui::tokens::RADIUS_MD);
+        ImGui::GetWindowDrawList()->AddRect(
+            chip_min,
+            chip_max,
+            ImGui::ColorConvertFloat4ToU32(ImVec4(ui::theme().border_subtle.r,
+                                                  ui::theme().border_subtle.g,
+                                                  ui::theme().border_subtle.b,
+                                                  0.55f)),
+            ui::tokens::RADIUS_MD);
         ImGui::TextUnformatted(status);
 
         ImGui::PopStyleColor();
@@ -1004,20 +1079,49 @@ void ImGuiIntegration::draw_nav_rail()
     float rail_w = bounds.w;
 
     // Vision.png style: full-height, bg_primary (darkest), no border, no rounding
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, ui::tokens::SPACE_2));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, ui::tokens::SPACE_3));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowMinSize, ImVec2(0, 0));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
     ImGui::PushStyleColor(
         ImGuiCol_WindowBg,
-        ImVec4(ui::theme().bg_primary.r, ui::theme().bg_primary.g, ui::theme().bg_primary.b, 1.0f));
+        ImVec4(ui::theme().bg_secondary.r,
+               ui::theme().bg_secondary.g,
+               ui::theme().bg_secondary.b,
+               0.98f));
 
     ImGui::SetNextWindowPos(ImVec2(bounds.x, bounds.y), ImGuiCond_Always);
     ImGui::SetNextWindowSize(ImVec2(rail_w, bounds.h), ImGuiCond_Always);
 
     if (ImGui::Begin("##navrail", nullptr, flags))
     {
+        // Floating surface depth: soft shadow on right edge
+        {
+            ImDrawList* dl            = ImGui::GetWindowDrawList();
+            float       right_edge    = bounds.x + rail_w;
+            float       shadow_spread = ui::tokens::ELEVATION_1_SPREAD;
+            for (int i = 0; i < 4; ++i)
+            {
+                float t     = static_cast<float>(i) / 4.0f;
+                float alpha = 0.10f * (1.0f - t);
+                float off   = shadow_spread * t;
+                dl->AddRectFilled(
+                    ImVec2(right_edge, bounds.y),
+                    ImVec2(right_edge + off + 1.0f, bounds.y + bounds.h),
+                    IM_COL32(0, 0, 0, static_cast<int>(alpha * 255)));
+            }
+
+            // Hairline border on right edge
+            dl->AddLine(ImVec2(right_edge - 1.0f, bounds.y),
+                        ImVec2(right_edge - 1.0f, bounds.y + bounds.h),
+                        ImGui::ColorConvertFloat4ToU32(ImVec4(ui::theme().border_subtle.r,
+                                                              ui::theme().border_subtle.g,
+                                                              ui::theme().border_subtle.b,
+                                                              0.48f)),
+                        1.0f);
+        }
+
         ImFont* label_font = font_heading_;   // 12.5px — compact labels
         float   btn_w      = rail_w;
 
@@ -1026,7 +1130,7 @@ void ImGuiIntegration::draw_nav_rail()
         {
             ImGui::Dummy(ImVec2(0, 3.0f));
             float  sep_inset = 14.0f;
-            ImVec2 p0 = ImVec2(ImGui::GetWindowPos().x + sep_inset, ImGui::GetCursorScreenPos().y);
+            ImVec2 p0 = ImVec2(ImGui::GetWindowPos().x + sep_inset, std::floor(ImGui::GetCursorScreenPos().y));
             ImVec2 p1 = ImVec2(ImGui::GetWindowPos().x + rail_w - sep_inset, p0.y);
             ImGui::GetWindowDrawList()->AddLine(p0,
                                                 p1,
@@ -1054,8 +1158,8 @@ void ImGuiIntegration::draw_nav_rail()
         };
 
         // ── Toggle helper (for panel/feature toggles) ──
-        auto toggle_btn = [&](ui::Icon icon, const char* label, bool is_active,
-                              std::function<void()> on_click)
+        auto toggle_btn =
+            [&](ui::Icon icon, const char* label, bool is_active, std::function<void()> on_click)
         {
             if (icon_label_button(ui::icon_str(icon),
                                   label,
@@ -1083,33 +1187,36 @@ void ImGuiIntegration::draw_nav_rail()
         draw_separator();
 
         // ── Group 3: Data tools ──
-        toggle_btn(ui::Icon::MapPin, "Markers",
+        toggle_btn(ui::Icon::MapPin,
+                   "Markers",
                    data_interaction_ && !data_interaction_->markers().empty(),
                    [this]()
                    {
                        if (data_interaction_)
                            data_interaction_->clear_markers();
                    });
-        toggle_btn(ui::Icon::MagicWand, "Transform", custom_transform_dialog_.is_open(),
-                   [this]()
-                   {
-                       if (!custom_transform_dialog_.is_open())
-                       {
-                           custom_transform_dialog_.set_fonts(font_body_, font_heading_,
-                                                             font_title_);
-                           custom_transform_dialog_.open(current_figure_);
-                       }
-                   });
+        toggle_btn(
+            ui::Icon::MagicWand,
+            "Transform",
+            custom_transform_dialog_.is_open(),
+            [this]()
+            {
+                if (!custom_transform_dialog_.is_open())
+                {
+                    custom_transform_dialog_.set_fonts(font_body_, font_heading_, font_title_);
+                    custom_transform_dialog_.open(current_figure_);
+                }
+            });
 
         draw_separator();
 
         // ── Group 4: Panels ──
-        toggle_btn(ui::Icon::Database, "Data",
+        toggle_btn(ui::Icon::Database,
+                   "Data",
                    panel_open_ && active_section_ == Section::DataEditor,
                    [this]()
                    {
-                       bool was_active =
-                           panel_open_ && active_section_ == Section::DataEditor;
+                       bool was_active = panel_open_ && active_section_ == Section::DataEditor;
                        if (was_active)
                        {
                            panel_open_ = false;
@@ -1122,19 +1229,25 @@ void ImGuiIntegration::draw_nav_rail()
                            layout_manager_->set_inspector_visible(true);
                        }
                    });
-        toggle_btn(ui::Icon::Timeline, "Timeline", show_timeline_,
+        toggle_btn(ui::Icon::Timeline,
+                   "Timeline",
+                   show_timeline_,
                    [this]() { show_timeline_ = !show_timeline_; });
 
         draw_separator();
 
         // ── Group 5: Utilities ──
-        toggle_btn(ui::Icon::Code, "Python", false,
+        toggle_btn(ui::Icon::Code,
+                   "Python",
+                   false,
                    [this]()
                    {
                        if (command_registry_)
                            command_registry_->execute("python.toggle_console");
                    });
-        toggle_btn(ui::Icon::Help, "Help", false,
+        toggle_btn(ui::Icon::Help,
+                   "Help",
+                   false,
                    [this]()
                    {
                        if (command_registry_)

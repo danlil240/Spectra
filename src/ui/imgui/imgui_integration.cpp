@@ -92,7 +92,6 @@ static bool load_embedded_texture(spectra::VulkanBackend& backend,
 
 namespace spectra
 {
-
 std::unique_ptr<ImGuiIntegration> make_imgui_integration()
 {
     return std::make_unique<ImGuiIntegration>();
@@ -914,7 +913,7 @@ void ImGuiIntegration::draw_welcome_screen(float display_w, float display_h, flo
 {
     (void)dt;
     const auto& colors = ui::theme();
-    ImDrawList* fg     = ImGui::GetForegroundDrawList();
+    ImDrawList* fg     = ImGui::GetBackgroundDrawList();
 
     // Menu bar height offset
     float menu_h    = ImGui::GetFrameHeight() + 2.0f;
@@ -1147,16 +1146,16 @@ void ImGuiIntegration::load_fonts()
     font_body_ = add_font_pair(16.0f);
 
     // Heading font (12.5px) + FA6 icon merge
-    font_heading_ = add_font_pair(12.5f);
+    font_heading_ = add_font_pair(11.5f);
 
     // Icon font (20px) — primary icon font with Inter merged in
     font_icon_ = add_font_pair(20.0f);
 
     // Title font (18px) + FA6 icon merge
-    font_title_ = add_font_pair(18.0f);
+    font_title_ = add_font_pair(20.0f);
 
     // Menubar font (15px) + FA6 icon merge
-    font_menubar_ = add_font_pair(15.0f);
+    font_menubar_ = add_font_pair(14.0f);
 
     io.FontDefault = font_body_;
 }

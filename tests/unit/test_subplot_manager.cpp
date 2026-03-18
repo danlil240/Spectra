@@ -626,10 +626,7 @@ TEST_F(SubplotManagerLiveTest, XAxisLinkingCreatedForTwoActivePlots)
     auto pub2     = pub_node->create_publisher<std_msgs::msg::Float64>("/link_test/b", 10);
 
     // Give discovery time.
-    spin_until(
-        pub_node,
-        [] { return false; },
-        std::chrono::milliseconds(300));
+    spin_until(pub_node, [] { return false; }, std::chrono::milliseconds(300));
 
     SubplotManager mgr(bridge_, intr_, 2, 1);
 
@@ -657,10 +654,7 @@ TEST_F(SubplotManagerLiveTest, XAxisLinkingNotCreatedForSinglePlot)
 {
     auto pub_node = std::make_shared<rclcpp::Node>("test_single_link_pub");
     auto pub1     = pub_node->create_publisher<std_msgs::msg::Float64>("/single_link_test", 10);
-    spin_until(
-        pub_node,
-        [] { return false; },
-        std::chrono::milliseconds(300));
+    spin_until(pub_node, [] { return false; }, std::chrono::milliseconds(300));
 
     SubplotManager mgr(bridge_, intr_, 2, 1);
     auto           h1 = mgr.add_plot(1, "/single_link_test", "data", "std_msgs/msg/Float64");
@@ -675,10 +669,7 @@ TEST_F(SubplotManagerLiveTest, RemovePlotUnlinksAxes)
     auto pub_node = std::make_shared<rclcpp::Node>("test_unlink_pub");
     auto pub1     = pub_node->create_publisher<std_msgs::msg::Float64>("/unlink_test/a", 10);
     auto pub2     = pub_node->create_publisher<std_msgs::msg::Float64>("/unlink_test/b", 10);
-    spin_until(
-        pub_node,
-        [] { return false; },
-        std::chrono::milliseconds(300));
+    spin_until(pub_node, [] { return false; }, std::chrono::milliseconds(300));
 
     SubplotManager mgr(bridge_, intr_, 2, 1);
     auto           h1 = mgr.add_plot(1, "/unlink_test/a", "data", "std_msgs/msg/Float64");
@@ -699,10 +690,7 @@ TEST_F(SubplotManagerLiveTest, ThreeSubplotsAllLinked)
     auto p1       = pub_node->create_publisher<std_msgs::msg::Float64>("/three_link/a", 10);
     auto p2       = pub_node->create_publisher<std_msgs::msg::Float64>("/three_link/b", 10);
     auto p3       = pub_node->create_publisher<std_msgs::msg::Float64>("/three_link/c", 10);
-    spin_until(
-        pub_node,
-        [] { return false; },
-        std::chrono::milliseconds(300));
+    spin_until(pub_node, [] { return false; }, std::chrono::milliseconds(300));
 
     SubplotManager mgr(bridge_, intr_, 3, 1);
     auto           h1 = mgr.add_plot(1, "/three_link/a", "data", "std_msgs/msg/Float64");

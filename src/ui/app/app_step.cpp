@@ -265,9 +265,8 @@ void App::init_runtime()
                                         uint32_t           h,
                                         const std::string& title,
                                         int                sx,
-                                        int                sy) {
-                    session.queue_detach({fid, w, h, title, sx, sy});
-                });
+                                        int                sy)
+                { session.queue_detach({fid, w, h, title, sx, sy}); });
             rt.window_mgr->set_tab_move_handler(
                 [&session = rt.session](FigureId fid,
                                         uint32_t target_wid,
@@ -809,12 +808,12 @@ App::StepResult App::step()
     // before vkQueuePresentKHR, so the swapchain image contents are valid.
     if (!config_.headless && rt.active_figure && !rt.active_figure->png_export_path_.empty())
     {
-        uint32_t ew = rt.active_figure->png_export_width_ > 0 ? rt.active_figure->png_export_width_
-                                                              : rt.active_figure->width();
-        uint32_t eh = rt.active_figure->png_export_height_ > 0
-                          ? rt.active_figure->png_export_height_
-                          : rt.active_figure->height();
-        auto& cap   = rt.pending_png_capture;
+        uint32_t ew  = rt.active_figure->png_export_width_ > 0 ? rt.active_figure->png_export_width_
+                                                               : rt.active_figure->width();
+        uint32_t eh  = rt.active_figure->png_export_height_ > 0
+                           ? rt.active_figure->png_export_height_
+                           : rt.active_figure->height();
+        auto&    cap = rt.pending_png_capture;
         cap.pixels.resize(static_cast<size_t>(ew) * eh * 4);
         cap.path   = rt.active_figure->png_export_path_;
         cap.width  = ew;

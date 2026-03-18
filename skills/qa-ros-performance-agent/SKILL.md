@@ -202,6 +202,55 @@ ctest --test-dir build-ros2 --output-on-failure
 - Keep updates small and concrete: add one command, one interpretation rule, one file mapping, or one scenario note.
 - Record every real QA run in `skills/qa-ros-performance-agent/REPORT.md`.
 
+## Spectra MCP Server
+
+Use the MCP server to verify that the Spectra rendering layer is healthy during ROS QA sessions, independently of the ROS QA agent harness.
+
+### Start/restart procedure
+
+**Always kill existing Spectra instances before launching a new one.**
+
+```bash
+pkill -f spectra || true
+pkill -f spectra-backend || true
+sleep 0.5
+./build-ros2/app/spectra &
+sleep 1
+curl http://127.0.0.1:8765/   # health check
+```
+
+### ROS QA-relevant MCP commands
+
+```bash
+# Confirm app is alive and responsive
+curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"get_state","arguments":{}}}'
+
+# Capture screenshot of the ROS shell layout for design review
+curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"capture_window","arguments":{"path":"/tmp/ros_shell_snap.png"}}}'
+
+# Wait frames and capture inline for immediate inspection
+curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"wait_frames","arguments":{"count":10}}}'
+
+curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"get_screenshot_base64","arguments":{}}}'
+
+# Get window size (verify layout dimensions are correct)
+curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"get_window_size","arguments":{}}}'
+```
+
+MCP env vars: `SPECTRA_MCP_PORT` (default `8765`), `SPECTRA_MCP_BIND` (default `127.0.0.1`).
+
+---
+
 ## Mandatory Session Backlog
 
 At the end of each ROS QA task, decide whether one of these needs an update:

@@ -238,6 +238,53 @@ After every run, open `REPORT.md` and:
 
 ---
 
+## Spectra MCP Server
+
+Use the MCP server to capture live screenshots for direct visual comparison against golden baselines, without waiting for the full golden test suite to run.
+
+### Start/restart procedure
+
+**Always kill existing Spectra instances before launching a new one.**
+
+```bash
+pkill -f spectra || true; sleep 0.5
+./build/app/spectra &
+sleep 1
+curl http://127.0.0.1:8765/   # health check
+```
+
+### Regression capture via MCP
+
+```bash
+# Recreate a golden scenario and capture for comparison
+curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"create_figure","arguments":{"width":1280,"height":720}}}'
+
+curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"add_series","arguments":{"figure_id":1,"series_type":"line","n_points":200,"label":"regression_check"}}}'
+
+# Wait for render to settle
+curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"wait_frames","arguments":{"count":10}}}'
+
+# Capture for visual diff against baseline
+curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"capture_screenshot","arguments":{"path":"/tmp/regression_live.png"}}}'
+
+# Toggle grid/legend to check command-driven goldens
+curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"execute_command","arguments":{"command_id":"view.toggle_grid"}}}'
+```
+
+MCP env vars: `SPECTRA_MCP_PORT` (default `8765`), `SPECTRA_MCP_BIND` (default `127.0.0.1`).
+
+---
+
 ## Guardrails
 
 - Never regenerate goldens without visually inspecting the new output first.

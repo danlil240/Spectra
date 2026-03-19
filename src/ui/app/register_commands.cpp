@@ -1021,6 +1021,16 @@ void register_standard_commands(const CommandBindings& b)
             auto& sel = imgui_ui->selection_context();
             if (sel.type != ui::SelectionType::Series)
                 return;
+
+            // Snapshot each series before deferring removal so undo can restore them.
+            struct DeleteEntry
+            {
+                AxesBase*      owner;
+                SeriesSnapshot snap;
+            };
+            std::vector<DeleteEntry> entries;
+            entries.reserve(sel.selected_series.size());
+
             // Defer removal so the user's on_frame callback (which may
             // hold raw Series& references) runs before the series is
             // actually destroyed.  WindowRuntime flushes after on_frame.
@@ -1028,9 +1038,24 @@ void register_standard_commands(const CommandBindings& b)
             {
                 AxesBase* owner = e.axes_base ? e.axes_base : static_cast<AxesBase*>(e.axes);
                 if (owner && e.series)
+                {
+                    entries.push_back({owner, SeriesClipboard::snapshot(*e.series)});
                     imgui_ui->defer_series_removal(owner, const_cast<Series*>(e.series));
+                }
             }
             sel.clear();
+
+            if (!entries.empty())
+            {
+                undo_mgr.push(UndoAction{
+                    "Delete series",
+                    [entries]()
+                    {
+                        for (const auto& de : entries)
+                            SeriesClipboard::paste_to(*de.owner, de.snap);
+                    },
+                    nullptr});
+            }
         },
         "Delete",
         "Series",

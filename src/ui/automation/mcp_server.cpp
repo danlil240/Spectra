@@ -91,8 +91,8 @@ constexpr std::array<ToolSpec, 22> kTools = {{
      R"json({"type":"object","properties":{"figure_id":{"type":"integer"}},"required":["figure_id"],"additionalProperties":false})json",
      "switch_figure"},
     {"add_series",
-     "Add a data series to a figure.",
-     R"json({"type":"object","properties":{"figure_id":{"type":"integer"},"series_type":{"type":"string","default":"line"},"n_points":{"type":"integer","default":100},"label":{"type":"string","default":""}},"required":["figure_id"],"additionalProperties":false})json",
+     "Add a data series to a figure. Provide x/y arrays for custom data, or n_points for auto-generated sine data.",
+     R"json({"type":"object","properties":{"figure_id":{"type":"integer"},"type":{"type":"string","default":"line","description":"Series type: line, scatter, bar, histogram"},"x":{"type":"array","items":{"type":"number"},"description":"X data values"},"y":{"type":"array","items":{"type":"number"},"description":"Y data values"},"bins":{"type":"integer","default":30,"description":"Number of bins (histogram only)"},"n_points":{"type":"integer","default":100,"description":"Points to auto-generate if x/y not provided"},"label":{"type":"string","default":""}},"required":["figure_id"],"additionalProperties":false})json",
      "add_series"},
     {"pump_frames",
      "Advance the application by rendering the specified number of frames.",
@@ -425,9 +425,12 @@ std::string remap_arguments_for_tool(const std::string& tool_name,
         return arguments_json.empty() ? "{}" : arguments_json;
 
     const std::string figure_id   = json_extract_raw(arguments_json, "figure_id");
-    const std::string series_type = json_extract_raw(arguments_json, "series_type");
+    const std::string series_type = json_extract_raw(arguments_json, "type");
     const std::string n_points    = json_extract_raw(arguments_json, "n_points");
     const std::string label       = json_extract_raw(arguments_json, "label");
+    const std::string x_arr       = json_extract_raw(arguments_json, "x");
+    const std::string y_arr       = json_extract_raw(arguments_json, "y");
+    const std::string bins        = json_extract_raw(arguments_json, "bins");
 
     std::ostringstream oss;
     oss << '{';
@@ -446,6 +449,9 @@ std::string remap_arguments_for_tool(const std::string& tool_name,
     append("type", series_type.empty() ? "\"line\"" : series_type);
     append("n_points", n_points.empty() ? "100" : n_points);
     append("label", label.empty() ? "\"\"" : label);
+    append("x", x_arr);
+    append("y", y_arr);
+    append("bins", bins);
     oss << '}';
     return oss.str();
 }

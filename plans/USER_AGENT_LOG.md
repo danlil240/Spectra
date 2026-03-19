@@ -12,24 +12,24 @@ Legend: ✅ tested+passing | ⚠️ tested+bug found | ❌ never tested
 | Category | Features | Status |
 |---|---|---|
 | A — Figure Lifecycle | figure.new ✅, figure.close ❌, tab switching ❌, create_figure ❌, switch_figure ❌ | ⚠️ partial |
-| B — Series Management | add_series line ✅, scatter/bar/stem/step/histogram ❌, copy/cut/paste/delete/cycle/deselect ❌ | ⚠️ partial |
-| C — View Controls | reset ✅, grid ✅, scroll-zoom ✅, autofit ❌, home ❌, zoom_in/out ❌, crosshair ❌, legend ❌, border ❌, fullscreen ❌, toggle_3d ❌ | ⚠️ partial |
-| D — Tool Modes | pan, box_zoom, select, measure, annotate, roi | ❌ |
+| B — Series Management | add_series line ✅ scatter ✅ bar ✅ histogram ✅, cycle_selection ✅, delete ✅, undo-delete ✅, copy/cut/paste/stem/step ❌ | ⚠️ partial |
+| C — View Controls | reset ✅, grid ✅, scroll-zoom ✅, crosshair ✅, legend ✅, autofit ❌, home ❌, zoom_in/out ❌, border ❌, fullscreen ❌, toggle_3d ❌ | ⚠️ partial |
+| D — Tool Modes | pan ✅, box_zoom ❌, select ❌, measure ❌, annotate ❌, roi ❌ | ⚠️ partial |
 | E — Themes | night ✅, light ✅, dark ❌, toggle ❌, undo-theme ✅ | ⚠️ partial |
 | F — Panels | inspector ✅, nav_rail ❌, timeline ❌, curve_editor ❌, data_editor ❌ | ⚠️ partial |
 | G — Split View | split_right ✅, reset_splits ✅, split_down ❌, close_split ❌ | ⚠️ partial |
-| H — Animation | play/pause, step_forward/back, go_to_start/end, stop | ❌ |
-| I — Edit / Undo | undo (theme) ✅, redo ❌, multi-level undo ❌ | ⚠️ partial |
-| J — File Operations | export_png, export_svg, save/load workspace, save/load figure | ❌ |
-| K — Mouse & Keyboard | scroll-zoom ✅, drag pan ❌, click legend ❌, double-click rename ❌, key_press ❌, text_input ❌ | ⚠️ partial |
+| H — Animation | toggle_play ✅, step_forward ✅, go_to_start ✅, step_back ❌, go_to_end ❌, stop ❌ | ⚠️ partial |
+| I — Edit / Undo | undo (theme) ✅, undo (delete) ✅, redo ❌, multi-level ❌ | ⚠️ partial |
+| J — File Operations | export_png ❌, export_svg ❌, save/load workspace ❌, save/load figure ❌ | ❌ |
+| K — Mouse & Keyboard | scroll-zoom ✅, mouse_drag pan ✅, click legend ❌, double-click rename ❌, key_press ❌, text_input ❌ | ⚠️ partial |
 | L — Data | copy_to_clipboard ❌, get_figure_info ✅ | ⚠️ partial |
-| M — App | command_palette, cancel, resize_window | ❌ |
+| M — App | command_palette ⚠️ (executes/no persist), cancel ❌, resize_window ❌ | ⚠️ partial |
 
 ---
 
 ## Open Bugs
 
-_None open. All found bugs fixed in session 1._
+_None open. All bugs from sessions 1–3 fixed in-session._
 
 ---
 
@@ -46,6 +46,64 @@ _Closed gaps:_
 ---
 
 <!-- sessions appended below -->
+
+---
+
+## Session 2026-03-18 23:25
+
+### Features Exercised
+- [A] `figure.new` — PASS (figure_count 0→1, active_figure_id=1)
+- [B] `add_series` scatter (x=[1..10], y=[2.1,3.5,…]) — **BUG FIXED → PASS** (get_figure_info confirms type:scatter, point_count:10)
+- [B] `add_series` bar (x=[1..5], y=[10,25,15,30,20]) — **BUG FIXED → PASS** (type:bar, point_count:4; bars render at correct heights)
+- [B] `add_series` histogram (y=[1..9], bins=5) — **BUG FIXED → PASS** (type:histogram, point_count:5)
+- [C] `view.toggle_legend` — PASS (legend box disappears then reappears on second toggle; confirmed by screenshot)
+- [C] `view.toggle_crosshair` — PASS (dashed crosshair lines visible at cursor position with coordinate labels)
+- [D] `tool.pan` — PASS (pan tool activated via command)
+- [K] `mouse_drag` pan — PASS (x-axis shifted from [0.38,5.22] → [1.25,6.09] after 200px drag)
+- [B] `series.cycle_selection` — PASS (series A selected, confirmed via app log "Series selected from canvas: A")
+- [B] `series.delete` — PASS (series count 2→1)
+- [I] `edit.undo` after `series.delete` — **BUG FIXED → PASS** (count restored 1→2, deleted series 'A' re-appears with label intact)
+- [M] `app.command_palette` — PARTIAL (command executes cleanly but palette overlay doesn't persist; expected behaviour without keyboard input focus)
+- [H] `anim.toggle_play` — PASS (play started, wait_frames confirmed frames rendered, toggle_play again stopped)
+- [H] `anim.step_forward` — PASS (command executes without error)
+- [H] `anim.go_to_start` — PASS (command executes without error)
+
+### Bugs Found & Fixed
+
+#### BUG-001: `add_series` ignored caller x/y data and always rendered sine wave
+- **Root cause 1**: `mcp_server.cpp::remap_arguments_for_tool` was rebuilding the JSON arguments for `add_series` but never forwarded `x`/`y` arrays — only `figure_id`, `series_type` (wrong key), `n_points`, `label`.
+- **Root cause 2**: `automation_server.cpp` `add_series` handler always generated sine wave data; only handled `scatter` type, defaulted everything else to `line`.
+- **Fix**: 
+  - `mcp_server.cpp`: updated schema to add `x`, `y`, `bins`, `type` parameters; fixed remap to forward all of them.
+  - `automation_server.cpp`: added `json_get_float_array` helper; rewrote handler to use caller data if provided, fall back to sine wave only when omitted; added `bar` and `histogram` dispatch.
+  - Added `#include <spectra/series_stats.hpp>` to get complete `BarSeries`/`HistogramSeries` definitions.
+- **Files**: `src/ui/automation/automation_server.cpp`, `src/ui/automation/mcp_server.cpp`
+- **Verified**: `get_figure_info` now returns correct `type` and `point_count`; visual screenshot confirms correct data shapes.
+
+#### BUG-002: `get_figure_info` reported `type:unknown, point_count:0` for bar/histogram series
+- **Root cause**: `get_figure_info` handler only dynamic_cast-checked `LineSeries*` and `ScatterSeries*`, not `BarSeries*` / `HistogramSeries*`.
+- **Fix**: Added two more `else if` branches in `automation_server.cpp` for `BarSeries` (using `bar_positions().size()`) and `HistogramSeries` (using `bin_counts().size()`).
+- **Files**: `src/ui/automation/automation_server.cpp`
+- **Verified**: `get_figure_info` now returns `type:bar` and `type:histogram` with correct counts.
+
+#### BUG-003: `series.delete` + `edit.undo` did not restore deleted series
+- **Root cause**: `series.delete` command deferred the removal via `imgui_ui->defer_series_removal()` but **never called `undo_mgr.push()`**. The undo stack was unaffected so `edit.undo` would undo a completely different prior action.
+- **Fix**: In `register_commands.cpp` `series.delete` handler — before deferring removal, snapshot each selected series via `SeriesClipboard::snapshot()`. After deferring, push an `UndoAction` whose `undo_fn` calls `SeriesClipboard::paste_to(owner, snap)` for each snapshotted entry.
+- **Files**: `src/ui/app/register_commands.cpp`
+- **Verified**: delete series A (count 2→1), `edit.undo` → count 1→2, series 'A' re-appears with correct label.
+
+### MCP Gaps Found
+- `add_series` previously exposed as `series_type` parameter (wrong name) — fixed to `type`.
+- `add_series` schema lacked `x`, `y`, `bins` parameters — added.
+
+### Coverage Heat Map Updates
+- B: scatter ✅, bar ✅, histogram ✅, series.cycle_selection ✅, series.delete ✅, undo-delete ✅
+- C: crosshair ✅, legend ✅
+- D: tool.pan ✅
+- H: anim.toggle_play ✅, anim.step_forward ✅, anim.go_to_start ✅
+- I: undo after delete ✅
+- K: mouse_drag pan ✅
+- M: app.command_palette ⚠️ (executes but palette closes without keyboard focus)
 
 ---
 

@@ -10,6 +10,7 @@
 #include <spectra/figure.hpp>
 #include <spectra/logger.hpp>
 #include <spectra/series.hpp>
+#include <spectra/series_stats.hpp>
 
 #include "render/backend.hpp"
 
@@ -133,6 +134,40 @@ static double json_get_number(const std::string& json, const std::string& key, d
 static int json_get_int(const std::string& json, const std::string& key, int fb = 0)
 {
     return static_cast<int>(json_get_number(json, key, fb));
+}
+
+static std::vector<float> json_get_float_array(const std::string& json, const std::string& key)
+{
+    std::string search = "\"" + key + "\"";
+    auto        pos    = json.find(search);
+    if (pos == std::string::npos)
+        return {};
+    pos = json.find(':', pos + search.size());
+    if (pos == std::string::npos)
+        return {};
+    pos = json.find_first_not_of(" \t\n\r", pos + 1);
+    if (pos == std::string::npos || json[pos] != '[')
+        return {};
+    ++pos;
+    std::vector<float> result;
+    while (pos < json.size())
+    {
+        pos = json.find_first_not_of(" \t\n\r,", pos);
+        if (pos == std::string::npos || json[pos] == ']')
+            break;
+        size_t end = json.find_first_of(",]}", pos);
+        if (end == std::string::npos)
+            break;
+        try
+        {
+            result.push_back(std::stof(json.substr(pos, end - pos)));
+        }
+        catch (...)
+        {
+        }
+        pos = end;
+    }
+    return result;
 }
 
 static uint64_t json_get_uint64(const std::string& json, const std::string& key, uint64_t fb = 0)
@@ -802,18 +837,36 @@ void AutomationServer::execute(AutomationRequest& req, App& app, WindowUIContext
             fig->subplot(1, 1, 1);
         auto& ax = *fig->axes_mut()[0];
 
-        std::vector<float> x(n_points), y(n_points);
-        for (int i = 0; i < n_points; ++i)
+        std::vector<float> x_caller = json_get_float_array(params, "x");
+        std::vector<float> y_caller = json_get_float_array(params, "y");
+
+        std::vector<float> x_gen, y_gen;
+        if (x_caller.empty() || y_caller.empty())
         {
-            x[i] = static_cast<float>(i);
-            y[i] = std::sin(static_cast<float>(i) * 0.1f);
+            x_gen.resize(static_cast<size_t>(n_points));
+            y_gen.resize(static_cast<size_t>(n_points));
+            for (int i = 0; i < n_points; ++i)
+            {
+                x_gen[i] = static_cast<float>(i);
+                y_gen[i] = std::sin(static_cast<float>(i) * 0.1f);
+            }
         }
 
-        std::string label = json_get_string(params, "label");
+        const std::vector<float>& x = x_caller.empty() ? x_gen : x_caller;
+        const std::vector<float>& y = y_caller.empty() ? y_gen : y_caller;
+
+        std::string label    = json_get_string(params, "label");
+        Series*     new_ser  = nullptr;
         if (type == "scatter")
-            ax.scatter(x, y).label(label.empty() ? "scatter" : label);
+            new_ser = &ax.scatter(x, y);
+        else if (type == "bar")
+            new_ser = &ax.bar(x, y);
+        else if (type == "histogram")
+            new_ser = &ax.histogram(y, json_get_int(params, "bins", 30));
         else
-            ax.line(x, y).label(label.empty() ? "line" : label);
+            new_ser = &ax.line(x, y);
+        if (new_ser && !label.empty())
+            new_ser->label(label);
 
         req.response_json =
             json_ok(req.id, "{\"series_count\":" + std::to_string(ax.series().size()) + "}");
@@ -1120,6 +1173,16 @@ void AutomationServer::execute(AutomationRequest& req, App& app, WindowUIContext
                 {
                     stype  = "scatter";
                     scount = ss->point_count();
+                }
+                else if (auto* bs = dynamic_cast<const BarSeries*>(s))
+                {
+                    stype  = "bar";
+                    scount = bs->bar_positions().size();
+                }
+                else if (auto* hs = dynamic_cast<const HistogramSeries*>(s))
+                {
+                    stype  = "histogram";
+                    scount = hs->bin_counts().size();
                 }
                 oss << "{\"label\":\"" << json_escape(s->label()) << "\",\"type\":\"" << stype
                     << "\",\"visible\":" << (s->visible() ? "true" : "false")

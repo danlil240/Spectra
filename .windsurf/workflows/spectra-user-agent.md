@@ -11,10 +11,24 @@ description: Spectra User Agent — Act as a real user, explore features via MCP
 ## Pre-Session Checklist
 
 1. Verify Spectra is running and the MCP server is reachable:
-   - Call `ping` tool. If it fails, stop and report: "Spectra not running at http://127.0.0.1:8765/mcp".
-2. Call `list_commands` to get the current live command registry — this is the ground truth of what is explorable.
+   - Use `run_command` to check: `curl -s -X POST http://127.0.0.1:8765/mcp -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"ping","arguments":{}}}'`
+   - **If ping fails (connection refused / exit code 7)**: Launch Spectra automatically:
+     ```
+     /home/daniel/projects/Spectra/build/spectra
+     ```
+     Run it as a **non-blocking** background command (`Blocking: false`, `WaitMsBeforeAsync: 3000`).
+     Then wait 3–4 seconds and ping again. If it still fails after one retry, report the error and stop.
+   - **Do NOT stop and ask the user to launch it** — always attempt to launch it yourself first.
+2. Call `list_commands` (via HTTP POST to MCP) to get the current live command registry — this is the ground truth of what is explorable.
 3. Call `get_state` to understand the current app state (active figure, series count, theme, etc.).
 4. Call `get_window_size` to know the canvas dimensions for accurate mouse coordinates.
+
+> **MCP HTTP helper** — all MCP tool calls use:
+> ```
+> curl -s -X POST http://127.0.0.1:8765/mcp \
+>   -H "Content-Type: application/json" \
+>   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"<tool>","arguments":{...}}}'
+> ```
 
 ---
 

@@ -33,10 +33,9 @@ class Crosshair
               float                ylim_max);
 
     // Draw crosshair across ALL subplots in the figure.
-    // The vertical line is drawn at the same data-X on every axes;
-    // the horizontal line is only drawn on the axes the cursor is over.
-    // If an AxisLinkManager is provided, the shared cursor is used to
-    // draw horizontal lines on linked non-hovered axes as well.
+    // The vertical line is drawn at the same data-X on every axes.
+    // The horizontal line is drawn at the same normalized Y position
+    // on every axes, with each subplot showing its own data-Y label.
     void draw_all_axes(const CursorReadout& cursor,
                        Figure&              figure,
                        AxisLinkManager*     link_mgr = nullptr);

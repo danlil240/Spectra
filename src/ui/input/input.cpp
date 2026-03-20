@@ -53,6 +53,7 @@ void InputHandler::set_tool_mode(ToolMode new_tool)
             data_interaction_->set_crosshair(crosshair_was_active_);
         measure_dragging_    = false;
         measure_click_state_ = 0;
+        measure_axes_        = nullptr;
     }
 
     // Entering Measure mode: auto-enable crosshair
@@ -165,6 +166,7 @@ void InputHandler::clear_figure_cache(Figure* fig)
         active_axes_      = nullptr;
         active_axes_base_ = nullptr;
         drag3d_axes_      = nullptr;
+        measure_axes_     = nullptr;
         mode_             = InteractionMode::Idle;
         is_3d_orbit_drag_ = false;
         is_3d_pan_drag_   = false;
@@ -560,8 +562,25 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
             if (measure_click_state_ == 1)
             {
                 // Second click: finalize measurement at this point
+                // Use measure_axes_ viewport for consistent coordinate mapping
                 SPECTRA_LOG_DEBUG("input", "Measure: second click placed");
-                screen_to_data(x, y, measure_end_data_x_, measure_end_data_y_);
+                if (measure_axes_)
+                {
+                    Axes* saved_axes = active_axes_;
+                    float svx = vp_x_, svy = vp_y_, svw = vp_w_, svh = vp_h_;
+                    active_axes_    = measure_axes_;
+                    const auto& mvp = measure_axes_->viewport();
+                    vp_x_           = mvp.x;
+                    vp_y_           = mvp.y;
+                    vp_w_           = mvp.w;
+                    vp_h_           = mvp.h;
+                    screen_to_data(x, y, measure_end_data_x_, measure_end_data_y_);
+                    active_axes_ = saved_axes;
+                    vp_x_        = svx;
+                    vp_y_        = svy;
+                    vp_w_        = svw;
+                    vp_h_        = svh;
+                }
                 measure_click_state_ = 2;
                 return;
             }
@@ -570,6 +589,7 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
             SPECTRA_LOG_DEBUG("input", "Starting measure (press)");
             measure_dragging_       = true;
             measure_click_state_    = 0;
+            measure_axes_           = active_axes_;
             measure_start_screen_x_ = x;
             measure_start_screen_y_ = y;
             screen_to_data(x, y, measure_start_data_x_, measure_start_data_y_);
@@ -580,7 +600,24 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
         }
         if (action == ACTION_RELEASE && measure_dragging_)
         {
-            screen_to_data(x, y, measure_end_data_x_, measure_end_data_y_);
+            // Use measure_axes_ viewport for consistent coordinate mapping
+            if (measure_axes_)
+            {
+                Axes* saved_axes = active_axes_;
+                float svx = vp_x_, svy = vp_y_, svw = vp_w_, svh = vp_h_;
+                active_axes_    = measure_axes_;
+                const auto& mvp = measure_axes_->viewport();
+                vp_x_           = mvp.x;
+                vp_y_           = mvp.y;
+                vp_w_           = mvp.w;
+                vp_h_           = mvp.h;
+                screen_to_data(x, y, measure_end_data_x_, measure_end_data_y_);
+                active_axes_ = saved_axes;
+                vp_x_        = svx;
+                vp_y_        = svy;
+                vp_w_        = svw;
+                vp_h_        = svh;
+            }
             measure_dragging_ = false;
             mode_             = InteractionMode::Idle;
 
@@ -1163,8 +1200,9 @@ void InputHandler::on_mouse_move(double x, double y)
         screen_to_data(x, y, cursor_readout_.data_x, cursor_readout_.data_y);
 
         // Restore if we were in a drag with a different axes
-        // (includes middle-mouse pan and measure drag which don't set mode_)
-        if (mode_ == InteractionMode::Dragging || middle_pan_dragging_ || measure_dragging_)
+        // (includes middle-mouse pan, measure drag, and measure two-click mode)
+        if (mode_ == InteractionMode::Dragging || middle_pan_dragging_ || measure_dragging_
+            || (measure_click_state_ == 1 && tool_mode_ == ToolMode::Measure))
         {
             active_axes_ = prev;
             vp_x_        = saved_vp_x;
@@ -1211,16 +1249,43 @@ void InputHandler::on_mouse_move(double x, double y)
     }
 
     // Update measure drag (Measure mode)
-    if (measure_dragging_ && tool_mode_ == ToolMode::Measure)
+    // Use measure_axes_ viewport for consistent coordinate mapping
+    if (measure_dragging_ && tool_mode_ == ToolMode::Measure && measure_axes_)
     {
+        Axes* saved_axes = active_axes_;
+        float svx = vp_x_, svy = vp_y_, svw = vp_w_, svh = vp_h_;
+        active_axes_    = measure_axes_;
+        const auto& mvp = measure_axes_->viewport();
+        vp_x_           = mvp.x;
+        vp_y_           = mvp.y;
+        vp_w_           = mvp.w;
+        vp_h_           = mvp.h;
         screen_to_data(x, y, measure_end_data_x_, measure_end_data_y_);
+        active_axes_ = saved_axes;
+        vp_x_        = svx;
+        vp_y_        = svy;
+        vp_w_        = svw;
+        vp_h_        = svh;
         return;
     }
 
     // Update measure endpoint in two-click mode (first point placed, tracking cursor)
-    if (measure_click_state_ == 1 && tool_mode_ == ToolMode::Measure)
+    if (measure_click_state_ == 1 && tool_mode_ == ToolMode::Measure && measure_axes_)
     {
+        Axes* saved_axes = active_axes_;
+        float svx = vp_x_, svy = vp_y_, svw = vp_w_, svh = vp_h_;
+        active_axes_    = measure_axes_;
+        const auto& mvp = measure_axes_->viewport();
+        vp_x_           = mvp.x;
+        vp_y_           = mvp.y;
+        vp_w_           = mvp.w;
+        vp_h_           = mvp.h;
         screen_to_data(x, y, measure_end_data_x_, measure_end_data_y_);
+        active_axes_ = saved_axes;
+        vp_x_        = svx;
+        vp_y_        = svy;
+        vp_w_        = svw;
+        vp_h_        = svh;
         // Don't return — allow cursor readout to update
     }
 

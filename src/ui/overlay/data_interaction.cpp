@@ -247,14 +247,19 @@ void DataInteraction::draw_overlays(float window_width, float window_height, Fig
         }
     }
 
-    // Draw region selection overlay
-    if (active_axes_)
+    // Draw region selection overlay — use the axes where the ROI was started
+    // so it stays in the correct subplot when the cursor moves.
+    Axes* roi_axes = region_axes_ ? region_axes_ : active_axes_;
+    if (roi_axes && (region_.is_dragging() || region_.has_selection()))
     {
-        region_.draw(active_viewport_,
-                     xlim_min_,
-                     xlim_max_,
-                     ylim_min_,
-                     ylim_max_,
+        const auto& vp = roi_axes->viewport();
+        auto        xl = roi_axes->x_limits();
+        auto        yl = roi_axes->y_limits();
+        region_.draw(vp,
+                     static_cast<float>(xl.min),
+                     static_cast<float>(xl.max),
+                     static_cast<float>(yl.min),
+                     static_cast<float>(yl.max),
                      window_width,
                      window_height);
     }
@@ -506,30 +511,36 @@ void DataInteraction::begin_region_select(double screen_x, double screen_y)
 {
     if (!active_axes_)
         return;
+    region_axes_ = active_axes_;
     region_.begin(screen_x, screen_y, active_viewport_, xlim_min_, xlim_max_, ylim_min_, ylim_max_);
 }
 
 void DataInteraction::update_region_drag(double screen_x, double screen_y)
 {
-    if (!active_axes_)
+    // Use the axes where the ROI was started, not whatever the cursor is over now
+    if (!region_axes_)
         return;
+    const auto& vp = region_axes_->viewport();
+    auto        xl = region_axes_->x_limits();
+    auto        yl = region_axes_->y_limits();
     region_.update_drag(screen_x,
                         screen_y,
-                        active_viewport_,
-                        xlim_min_,
-                        xlim_max_,
-                        ylim_min_,
-                        ylim_max_);
+                        vp,
+                        static_cast<float>(xl.min),
+                        static_cast<float>(xl.max),
+                        static_cast<float>(yl.min),
+                        static_cast<float>(yl.max));
 }
 
 void DataInteraction::finish_region_select()
 {
-    region_.finish(active_axes_);
+    region_.finish(region_axes_ ? region_axes_ : active_axes_);
 }
 
 void DataInteraction::dismiss_region_select()
 {
     region_.dismiss();
+    region_axes_ = nullptr;
 }
 
 void DataInteraction::select_series_in_rect(const BoxZoomRect& rect, Figure& figure)

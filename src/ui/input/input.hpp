@@ -153,8 +153,9 @@ class InputHandler
     const BoxZoomRect& box_zoom_rect() const { return box_zoom_; }
 
     // Measure tool state (for overlay rendering)
-    bool is_measure_dragging() const { return measure_dragging_; }
-    bool has_measure_result() const { return measure_click_state_ >= 1; }
+    bool  is_measure_dragging() const { return measure_dragging_; }
+    bool  has_measure_result() const { return measure_click_state_ >= 1; }
+    Axes* measure_axes() const { return measure_axes_; }
 
     // Select tool rectangle state (for overlay rendering)
     bool               is_select_rect_active() const { return select_rect_active_; }
@@ -282,6 +283,7 @@ class InputHandler
     // Measure tool state
     bool   measure_dragging_       = false;
     int    measure_click_state_    = 0;   // 0=idle, 1=first point placed, 2=second point placed
+    Axes*  measure_axes_           = nullptr;   // axes where the measurement started
     double measure_start_screen_x_ = 0.0;
     double measure_start_screen_y_ = 0.0;
     float  measure_start_data_x_   = 0.0f;

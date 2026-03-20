@@ -129,6 +129,7 @@ class DataInteraction
         {
             last_figure_ = nullptr;
             active_axes_ = nullptr;
+            region_axes_ = nullptr;
             // Reset nearest-point result — it holds a raw Series* pointer
             // that becomes dangling when the figure's series are destroyed.
             nearest_ = {};
@@ -214,6 +215,10 @@ class DataInteraction
     Rect          active_viewport_;
     float         xlim_min_ = 0.0f, xlim_max_ = 1.0f;
     float         ylim_min_ = 0.0f, ylim_max_ = 1.0f;
+
+    // Region selection: remember which axes the ROI was started in
+    // so it stays in the correct subplot when the cursor moves.
+    Axes* region_axes_ = nullptr;
 };
 
 }   // namespace spectra

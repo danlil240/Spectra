@@ -582,9 +582,11 @@ void ImGuiIntegration::build_ui(Figure& figure)
     // Crosshair is handled by data_interaction (auto-enabled when entering Measure mode)
     if (input_handler_ && input_handler_->tool_mode() == ToolMode::Measure)
     {
-        Axes* ax         = input_handler_->active_axes();
-        bool  dragging   = input_handler_->is_measure_dragging();
-        bool  has_result = input_handler_->has_measure_result();
+        Axes* ax = input_handler_->measure_axes();
+        if (!ax)
+            ax = input_handler_->active_axes();
+        bool dragging   = input_handler_->is_measure_dragging();
+        bool has_result = input_handler_->has_measure_result();
         if (ax && (dragging || has_result))
         {
             const auto& vp   = ax->viewport();

@@ -7,9 +7,7 @@
     #include <imgui.h>
     #include <spectra/axes.hpp>
     #include <spectra/figure.hpp>
-    #include <spectra/series.hpp>
 
-    #include "ui/data/axis_link.hpp"
     #include "ui/input/input.hpp"
     #include "ui/theme/theme.hpp"
 
@@ -125,12 +123,13 @@ void Crosshair::draw(const CursorReadout& cursor,
         ImU32 dot_stroke = ImGui::ColorConvertFloat4ToU32(
             ImVec4(colors.bg_canvas.r, colors.bg_canvas.g, colors.bg_canvas.b, opacity_));
         fg->AddCircle(ImVec2(sx, sy), DOT_RADIUS, dot_stroke, 12, 1.0f);
-        fg->AddCircle(ImVec2(sx, sy),
-                      DOT_RADIUS + 3.0f,
-                      ImGui::ColorConvertFloat4ToU32(
-                          ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, opacity_ * 0.28f)),
-                      18,
-                      1.0f);
+        fg->AddCircle(
+            ImVec2(sx, sy),
+            DOT_RADIUS + 3.0f,
+            ImGui::ColorConvertFloat4ToU32(
+                ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, opacity_ * 0.28f)),
+            18,
+            1.0f);
 
         if (colors.glow_intensity > 0.01f)
         {
@@ -196,7 +195,7 @@ void Crosshair::draw(const CursorReadout& cursor,
 
 void Crosshair::draw_all_axes(const CursorReadout& cursor,
                               Figure&              figure,
-                              AxisLinkManager*     link_mgr)
+                              AxisLinkManager* /*link_mgr*/)
 {
     // Animate opacity (shared across all axes)
     float target = (enabled_ && cursor.valid) ? 1.0f : 0.0f;
@@ -245,9 +244,17 @@ void Crosshair::draw_all_axes(const CursorReadout& cursor,
 
     // Get the data-X coordinate from the hovered axes
     auto        xlim_h   = hovered_axes->x_limits();
+    auto        ylim_h   = hovered_axes->y_limits();
     const auto& vp_h     = hovered_axes->viewport();
     float       norm_x_h = (cx - vp_h.x) / vp_h.w;
     float       data_x   = xlim_h.min + norm_x_h * (xlim_h.max - xlim_h.min);
+
+    // Get the data-Y coordinate from the hovered axes
+    double y_range_h = ylim_h.max - ylim_h.min;
+    if (y_range_h == 0.0)
+        y_range_h = 1.0;
+    float norm_y_h = 1.0f - (cy - vp_h.y) / vp_h.h;
+    float data_y   = ylim_h.min + norm_y_h * y_range_h;
 
     // Draw on ALL axes
     for (auto& axes_ptr : figure.axes())
@@ -319,9 +326,7 @@ void Crosshair::draw_all_axes(const CursorReadout& cursor,
                                  1.0f);
 
                 // Y label inside left edge of viewport
-                float norm_y = 1.0f - (cy - vy0) / vp.h;
-                float data_y = ylim.min + norm_y * y_range;
-                char  y_label[32];
+                char y_label[32];
                 std::snprintf(y_label, sizeof(y_label), "%.4g", data_y);
                 ImVec2 sz  = font->CalcTextSizeA(font->FontSize * 0.85f, 200.0f, 0.0f, y_label);
                 float  lx2 = vx0 + 4.0f;
@@ -338,123 +343,55 @@ void Crosshair::draw_all_axes(const CursorReadout& cursor,
                 fg->AddText(font, font->FontSize * 0.85f, ImVec2(lx2, ly2), label_text, y_label);
             }
         }
-        // Shared cursor: draw horizontal line on non-hovered linked axes
-        // by interpolating Y from the nearest series at data_x.
-        else if (link_mgr && link_mgr->is_linked(axes_ptr.get()))
+        // Horizontal line on non-hovered axes at the same data-Y
+        else
         {
-            auto sc = link_mgr->shared_cursor_for(axes_ptr.get());
-            if (sc.valid)
+            // Map the hovered axes' data-Y into this subplot's screen coordinates
+            float norm_iy = static_cast<float>((data_y - ylim.min) / y_range);
+            float sy      = vy0 + (1.0f - norm_iy) * vp.h;
+
+            if (sy >= vy0 && sy <= vy1)
             {
-                // Find the Y value at data_x by interpolating the first visible series
-                float interp_y = 0.0f;
-                bool  found_y  = false;
-                for (const auto& series_ptr : axes_ptr->series())
-                {
-                    if (!series_ptr || !series_ptr->visible())
-                        continue;
+                // Dimmer line for non-hovered axes
+                ImU32 dim_color =
+                    ImGui::ColorConvertFloat4ToU32(ImVec4(colors.crosshair.r,
+                                                          colors.crosshair.g,
+                                                          colors.crosshair.b,
+                                                          colors.crosshair.a * opacity_ * 0.6f));
 
-                    const float* x_data = nullptr;
-                    const float* y_data = nullptr;
-                    size_t       count  = 0;
+                draw_dashed_line(fg,
+                                 ImVec2(vx0, sy),
+                                 ImVec2(vx1, sy),
+                                 dim_color,
+                                 dash_length_,
+                                 gap_length_,
+                                 1.0f);
 
-                    if (auto* ls = dynamic_cast<LineSeries*>(series_ptr.get()))
-                    {
-                        x_data = ls->x_data().data();
-                        y_data = ls->y_data().data();
-                        count  = ls->point_count();
-                    }
-                    else if (auto* sc_s = dynamic_cast<ScatterSeries*>(series_ptr.get()))
-                    {
-                        x_data = sc_s->x_data().data();
-                        y_data = sc_s->y_data().data();
-                        count  = sc_s->point_count();
-                    }
+                // Y label showing the same data-Y value
+                char y_label[32];
+                std::snprintf(y_label, sizeof(y_label), "%.4g", data_y);
+                ImVec2 sz  = font->CalcTextSizeA(font->FontSize * 0.85f, 200.0f, 0.0f, y_label);
+                float  lx2 = vx0 + 4.0f;
+                float  ly2 = sy - sz.y * 0.5f;
+                if (ly2 < vy0)
+                    ly2 = vy0;
+                if (ly2 + sz.y + label_pad * 2.0f > vy1)
+                    ly2 = vy1 - sz.y - label_pad * 2.0f;
 
-                    if (!x_data || !y_data || count == 0)
-                        continue;
+                ImU32 dim_label_text = ImGui::ColorConvertFloat4ToU32(ImVec4(colors.text_primary.r,
+                                                                             colors.text_primary.g,
+                                                                             colors.text_primary.b,
+                                                                             opacity_ * 0.6f));
 
-                    // Binary search for the interval containing data_x
-                    // (assumes x_data is sorted)
-                    if (data_x < x_data[0] || data_x > x_data[count - 1])
-                        continue;
-
-                    size_t lo = 0, hi = count - 1;
-                    while (lo + 1 < hi)
-                    {
-                        size_t mid = (lo + hi) / 2;
-                        if (x_data[mid] <= data_x)
-                            lo = mid;
-                        else
-                            hi = mid;
-                    }
-
-                    // Linear interpolation between lo and hi
-                    float dx = x_data[hi] - x_data[lo];
-                    if (dx > 0.0f)
-                    {
-                        float t  = (data_x - x_data[lo]) / dx;
-                        interp_y = y_data[lo] + t * (y_data[hi] - y_data[lo]);
-                    }
-                    else
-                    {
-                        interp_y = y_data[lo];
-                    }
-                    found_y = true;
-                    break;   // Use first visible series
-                }
-
-                if (found_y)
-                {
-                    // Convert interp_y to screen coordinates
-                    float norm_iy = (interp_y - ylim.min) / y_range;
-                    float sy      = vy0 + (1.0f - norm_iy) * vp.h;
-
-                    if (sy >= vy0 && sy <= vy1)
-                    {
-                        // Dimmer line for non-hovered axes
-                        ImU32 dim_color = ImGui::ColorConvertFloat4ToU32(
-                            ImVec4(colors.crosshair.r,
-                                   colors.crosshair.g,
-                                   colors.crosshair.b,
-                                   colors.crosshair.a * opacity_ * 0.6f));
-
-                        draw_dashed_line(fg,
-                                         ImVec2(vx0, sy),
-                                         ImVec2(vx1, sy),
-                                         dim_color,
-                                         dash_length_,
-                                         gap_length_,
-                                         1.0f);
-
-                        // Y label inside left edge of viewport
-                        char y_label[32];
-                        std::snprintf(y_label, sizeof(y_label), "%.4g", interp_y);
-                        ImVec2 sz =
-                            font->CalcTextSizeA(font->FontSize * 0.85f, 200.0f, 0.0f, y_label);
-                        float lx2 = vx0 + 4.0f;
-                        float ly2 = sy - sz.y * 0.5f;
-                        if (ly2 < vy0)
-                            ly2 = vy0;
-                        if (ly2 + sz.y + label_pad * 2.0f > vy1)
-                            ly2 = vy1 - sz.y - label_pad * 2.0f;
-
-                        ImU32 dim_label_text =
-                            ImGui::ColorConvertFloat4ToU32(ImVec4(colors.text_primary.r,
-                                                                  colors.text_primary.g,
-                                                                  colors.text_primary.b,
-                                                                  opacity_ * 0.6f));
-
-                        fg->AddRectFilled(ImVec2(lx2 - label_pad, ly2 - label_pad),
-                                          ImVec2(lx2 + sz.x + label_pad, ly2 + sz.y + label_pad),
-                                          label_bg,
-                                          3.0f);
-                        fg->AddText(font,
-                                    font->FontSize * 0.85f,
-                                    ImVec2(lx2, ly2),
-                                    dim_label_text,
-                                    y_label);
-                    }
-                }
+                fg->AddRectFilled(ImVec2(lx2 - label_pad, ly2 - label_pad),
+                                  ImVec2(lx2 + sz.x + label_pad, ly2 + sz.y + label_pad),
+                                  label_bg,
+                                  3.0f);
+                fg->AddText(font,
+                            font->FontSize * 0.85f,
+                            ImVec2(lx2, ly2),
+                            dim_label_text,
+                            y_label);
             }
         }
     }

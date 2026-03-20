@@ -222,8 +222,9 @@ if(SPECTRA_USE_GLFW)
         include(FetchContent)
         FetchContent_Declare(
             glfw
-            URL        https://github.com/glfw/glfw/archive/refs/tags/3.4.tar.gz
-            URL_HASH   MD5=7470db601fcf36f0604d32b537281a70
+            GIT_REPOSITORY https://github.com/glfw/glfw.git
+            GIT_TAG        fdd14e65b1c29e4e6df875fb5669ec00d6793531 # master post-3.4, fixes macOS 14 SDK
+            GIT_SHALLOW    FALSE
         )
         set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
         set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)

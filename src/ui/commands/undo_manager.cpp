@@ -1,6 +1,7 @@
 #include "undo_manager.hpp"
 
 #include <algorithm>
+#include <spectra/logger.hpp>
 
 namespace spectra
 {
@@ -41,6 +42,7 @@ bool UndoManager::undo()
 
         auto action = std::move(undo_stack_.back());
         undo_stack_.pop_back();
+        SPECTRA_LOG_TRACE("undo", "Undo: {}", action.description);
         fn = action.undo_fn;
         redo_stack_.push_back(std::move(action));
     }
@@ -60,6 +62,7 @@ bool UndoManager::redo()
 
         auto action = std::move(redo_stack_.back());
         redo_stack_.pop_back();
+        SPECTRA_LOG_TRACE("undo", "Redo: {}", action.description);
         fn = action.redo_fn;
         undo_stack_.push_back(std::move(action));
     }

@@ -1,5 +1,7 @@
 #include "tab_bar.hpp"
 
+#include <spectra/logger.hpp>
+
 #include "ui/theme/design_tokens.hpp"
 #include "ui/theme/theme.hpp"
 
@@ -25,6 +27,7 @@ size_t TabBar::add_tab(const std::string& title, bool can_close)
 {
     tabs_.emplace_back(title, can_close);
     size_t new_index = tabs_.size() - 1;
+    SPECTRA_LOG_TRACE("tab", "Tab added: index={} title='{}'", new_index, title);
 
     // Auto-activate the new tab
     set_active_tab(new_index);
@@ -43,6 +46,8 @@ void TabBar::remove_tab(size_t index)
     {
         return;   // Can't close this tab
     }
+
+    SPECTRA_LOG_TRACE("tab", "Tab removed: index={} title='{}'", index, tabs_[index].title);
 
     // Notify callback before removal
     if (on_tab_close_)
@@ -95,6 +100,11 @@ void TabBar::set_active_tab(size_t index)
 {
     if (index < tabs_.size() && index != active_tab_)
     {
+        SPECTRA_LOG_TRACE("tab",
+                          "Active tab changed: {} -> {} title='{}'",
+                          active_tab_,
+                          index,
+                          tabs_[index].title);
         active_tab_ = index;
 
         // Notify callback
@@ -505,6 +515,7 @@ size_t TabBar::get_close_button_at_position(const ImVec2&                 pos,
 void TabBar::start_drag(size_t tab_index, float mouse_x)
 {
 #ifdef SPECTRA_USE_IMGUI
+    SPECTRA_LOG_TRACE("ui", "Tab drag started: tab={}", tab_index);
     is_dragging_      = true;
     dragged_tab_      = tab_index;
     drag_offset_x_    = mouse_x;
@@ -584,6 +595,7 @@ void TabBar::update_drag(float mouse_x)
 void TabBar::end_drag()
 {
 #ifdef SPECTRA_USE_IMGUI
+    SPECTRA_LOG_TRACE("ui", "Tab drag ended: tab={}", dragged_tab_);
     if (is_dock_dragging_ && dragged_tab_ < tabs_.size())
     {
         ImVec2 mouse_pos = ImGui::GetMousePos();

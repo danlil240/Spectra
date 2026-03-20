@@ -107,6 +107,10 @@ struct WindowUIContext
     uint32_t                              new_width    = 0;
     uint32_t                              new_height   = 0;
     std::chrono::steady_clock::time_point resize_requested_time;
+
+    // Raw GLFW window handle (not owned). Set by app_step after window creation.
+    // Used by automation resize_window to call glfwSetWindowSize.
+    void* glfw_window = nullptr;
 #endif
 
     // Non-copyable, non-movable (contains unique_ptrs and non-movable types)

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <spectra/logger.hpp>
 
 namespace spectra
 {
@@ -12,6 +13,7 @@ DockSystem::DockSystem() = default;
 
 SplitPane* DockSystem::split_right(FigureId new_figure_index, float ratio)
 {
+    SPECTRA_LOG_TRACE("dock", "Split right: figure={}", new_figure_index);
     auto* result = split_view_.split_active(SplitDirection::Horizontal, new_figure_index, ratio);
     if (result && on_layout_changed_)
         on_layout_changed_();
@@ -20,6 +22,7 @@ SplitPane* DockSystem::split_right(FigureId new_figure_index, float ratio)
 
 SplitPane* DockSystem::split_down(FigureId new_figure_index, float ratio)
 {
+    SPECTRA_LOG_TRACE("dock", "Split down: figure={}", new_figure_index);
     auto* result = split_view_.split_active(SplitDirection::Vertical, new_figure_index, ratio);
     if (result && on_layout_changed_)
         on_layout_changed_();
@@ -50,6 +53,7 @@ SplitPane* DockSystem::split_figure_down(FigureId figure_index,
 
 bool DockSystem::close_split(FigureId figure_index)
 {
+    SPECTRA_LOG_TRACE("dock", "Close split: figure={}", figure_index);
     bool result = split_view_.close_pane(figure_index);
     if (result && on_layout_changed_)
         on_layout_changed_();
@@ -67,6 +71,7 @@ void DockSystem::reset_splits()
 
 void DockSystem::begin_drag(FigureId figure_index, float mouse_x, float mouse_y)
 {
+    SPECTRA_LOG_TRACE("dock", "Dock drag begin: figure={}", figure_index);
     is_dragging_           = true;
     dragging_figure_index_ = figure_index;
     drag_mouse_x_          = mouse_x;
@@ -96,6 +101,7 @@ bool DockSystem::end_drag(float mouse_x, float mouse_y)
 
     if (target.zone == DropZone::None || !target.target_pane)
     {
+        SPECTRA_LOG_TRACE("dock", "Dock drag ended: no valid drop target");
         return false;
     }
 
@@ -106,6 +112,10 @@ bool DockSystem::end_drag(float mouse_x, float mouse_y)
         return false;
     }
 
+    SPECTRA_LOG_TRACE("dock",
+                      "Dock drag dropped: figure={} zone={}",
+                      dragging_figure_index_,
+                      static_cast<int>(target.zone));
     FigureId target_figure = target.target_pane->figure_index();
 
     // Don't dock onto self if the target pane only has one figure

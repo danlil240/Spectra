@@ -352,6 +352,7 @@ bool ShortcutManager::on_key(int key, int action, int mods)
         cmd_id = it->second;
     }
 
+    SPECTRA_LOG_TRACE("input", "Shortcut {} -> command '{}'", sc.to_string(), cmd_id);
     return registry_->execute(cmd_id);
 }
 

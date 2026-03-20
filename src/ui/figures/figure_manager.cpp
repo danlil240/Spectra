@@ -3,6 +3,7 @@
 #include <cassert>
 #include <spectra/axes3d.hpp>
 #include <spectra/camera.hpp>
+#include <spectra/logger.hpp>
 #include <spectra/series3d.hpp>
 #include <spectra/series_stats.hpp>
 
@@ -65,6 +66,8 @@ FigureId FigureManager::create_figure(const FigureConfig& config)
     auto id = registry_.register_figure(std::move(new_figure));
     ordered_ids_.push_back(id);
 
+    SPECTRA_LOG_TRACE("figure", "Created figure id={}", id);
+
     // Add state for the new figure (use next available figure number)
     FigureState new_state;
     new_state.custom_title = default_title(next_figure_number());
@@ -89,6 +92,8 @@ bool FigureManager::close_figure(FigureId index)
     {
         return false;
     }
+
+    SPECTRA_LOG_TRACE("figure", "Closing figure id={}", index);
 
     // Last figure: request window close instead of closing the figure
     if (ordered_ids_.size() <= 1)
@@ -236,6 +241,8 @@ FigureState FigureManager::remove_figure(FigureId id)
     if (pos == SIZE_MAX)
         return {};
 
+    SPECTRA_LOG_TRACE("figure", "Removing figure id={}", id);
+
     // Save current state before removal
     if (id == active_index_)
         save_active_state();
@@ -295,6 +302,7 @@ void FigureManager::add_figure(FigureId id, FigureState fig_state)
     if (!registry_.get(id))
         return;
 
+    SPECTRA_LOG_TRACE("figure", "Adding figure id={}", id);
     ordered_ids_.push_back(id);
     states_[id] = std::move(fig_state);
 
@@ -577,6 +585,8 @@ void FigureManager::switch_to(FigureId index)
     {
         return;
     }
+
+    SPECTRA_LOG_TRACE("figure", "Switching to figure id={} (from id={})", index, active_index_);
 
     // Save current figure state before switching
     save_active_state();

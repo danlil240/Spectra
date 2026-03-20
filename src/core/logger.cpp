@@ -1,5 +1,6 @@
 #include <cstdio>
 #include <ctime>
+#include <filesystem>
 #include <iomanip>
 #include <iostream>
 #include <spectra/logger.hpp>
@@ -176,6 +177,59 @@ Logger::LogSink null_sink()
     };
 }
 
+Logger::LogSink filtered_sink(LogLevel min_level, Logger::LogSink inner)
+{
+    return [min_level, inner = std::move(inner)](const Logger::LogEntry& entry)
+    {
+        if (entry.level >= min_level)
+        {
+            inner(entry);
+        }
+    };
+}
+
 }   // namespace sinks
+
+void setup_dual_logging(LogLevel           console_level,
+                        LogLevel           file_level,
+                        const std::string& log_path)
+{
+    auto& logger = Logger::instance();
+
+    // Global min level = lowest of the two sinks so all messages reach dispatch
+    LogLevel global_min = std::min(console_level, file_level);
+    logger.set_level(global_min);
+    logger.clear_sinks();
+
+    // Console sink with per-sink level filter
+    logger.add_sink(sinks::filtered_sink(console_level, sinks::console_sink()));
+
+    // File sink
+    std::string path = log_path;
+    if (path.empty())
+    {
+        try
+        {
+            path = (std::filesystem::temp_directory_path() / "spectra_app.log").string();
+        }
+        catch (...)
+        {
+            path = "/tmp/spectra_app.log";
+        }
+    }
+
+    try
+    {
+        logger.add_sink(sinks::filtered_sink(file_level, sinks::file_sink(path)));
+        SPECTRA_LOG_INFO("app", "Dual logging active — console: {} file: {} path: {}",
+                         Logger::level_to_string(console_level),
+                         Logger::level_to_string(file_level),
+                         path);
+    }
+    catch (const std::exception& e)
+    {
+        SPECTRA_LOG_WARN("app", "Failed to open log file: {}", std::string(e.what()));
+    }
+}
 
 }   // namespace spectra

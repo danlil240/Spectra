@@ -18,6 +18,7 @@
     #include "ui/input/input.hpp"
     #include "ui/overlay/custom_transform_dialog.hpp"
     #include "ui/overlay/data_editor.hpp"
+    #include "ui/overlay/data_interaction.hpp"
     #include "ui/overlay/inspector.hpp"
     #include "ui/layout/layout_manager.hpp"
     #include "ui/input/selection_context.hpp"
@@ -327,6 +328,9 @@ class ImGuiIntegration
 
     // Deselect any currently selected series (canvas click on empty area)
     void deselect_series();
+
+    // Select multiple series from rectangle drag (replaces current selection)
+    void select_series_in_rect(const std::vector<DataInteraction::RectSelectedEntry>& entries);
 
     // Switch inspector to Series section (for programmatic series cycling)
     void set_inspector_section_series() { active_section_ = Section::Series; }

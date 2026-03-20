@@ -35,7 +35,6 @@ void FrameScheduler::clear_fixed_timestep()
 
 void FrameScheduler::begin_frame()
 {
-    SPECTRA_LOG_TRACE("scheduler", "begin_frame called");
     frame_start_ = Clock::now();
 
     if (first_frame_)
@@ -81,7 +80,6 @@ void FrameScheduler::begin_frame()
 
 void FrameScheduler::end_frame()
 {
-    SPECTRA_LOG_TRACE("scheduler", "end_frame called");
     last_frame_end_ = Clock::now();
 
     if (mode_ == Mode::TargetFPS && target_fps_ > 0.0f)
@@ -175,12 +173,12 @@ void FrameScheduler::update_stats(float dt_ms)
 
         if (hitches_in_window_ > 0)
         {
-            SPECTRA_LOG_INFO("perf",
-                             "Stats (" + std::to_string(STATS_WINDOW_FRAMES)
-                                 + " frames):" + " avg=" + std::to_string(stats_.avg_frame_time_ms)
-                                 + "ms" + " p95=" + std::to_string(stats_.p95_frame_time_ms) + "ms"
-                                 + " max=" + std::to_string(stats_.max_frame_time_ms) + "ms"
-                                 + " hitches=" + std::to_string(hitches_in_window_));
+            SPECTRA_LOG_DEBUG("perf",
+                              "Stats (" + std::to_string(STATS_WINDOW_FRAMES)
+                                  + " frames):" + " avg=" + std::to_string(stats_.avg_frame_time_ms)
+                                  + "ms" + " p95=" + std::to_string(stats_.p95_frame_time_ms) + "ms"
+                                  + " max=" + std::to_string(stats_.max_frame_time_ms) + "ms"
+                                  + " hitches=" + std::to_string(hitches_in_window_));
         }
 
         max_dt_in_window_  = 0.0f;

@@ -12,7 +12,13 @@
 namespace spectra
 {
 
-void DataMarkerManager::add(float data_x, float data_y, const Series* series, size_t index)
+void DataMarkerManager::add(float         data_x,
+                            float         data_y,
+                            const Series* series,
+                            size_t        index,
+                            const Axes*   axes,
+                            float         dy_dx,
+                            bool          dy_dx_valid)
 {
     DataMarker m;
     m.data_x       = data_x;
@@ -21,13 +27,19 @@ void DataMarkerManager::add(float data_x, float data_y, const Series* series, si
     m.point_index  = index;
     m.color        = series ? series->color() : colors::white;
     m.series_label = series ? series->label() : std::string();
+    m.axes         = axes;
+    m.dy_dx        = dy_dx;
+    m.dy_dx_valid  = dy_dx_valid;
     markers_.push_back(m);
 }
 
 bool DataMarkerManager::toggle_or_add(float         data_x,
                                       float         data_y,
                                       const Series* series,
-                                      size_t        index)
+                                      size_t        index,
+                                      const Axes*   axes,
+                                      float         dy_dx,
+                                      bool          dy_dx_valid)
 {
     int existing = find_duplicate(series, index);
     if (existing >= 0)
@@ -35,7 +47,7 @@ bool DataMarkerManager::toggle_or_add(float         data_x,
         remove(static_cast<size_t>(existing));
         return false;
     }
-    add(data_x, data_y, series, index);
+    add(data_x, data_y, series, index, axes, dy_dx, dy_dx_valid);
     return true;
 }
 
@@ -100,7 +112,8 @@ void DataMarkerManager::draw(const Rect& viewport,
                              float       xlim_max,
                              float       ylim_min,
                              float       ylim_max,
-                             float       opacity)
+                             float       opacity,
+                             const Axes* filter_axes)
 {
     if (markers_.empty())
         return;
@@ -122,7 +135,12 @@ void DataMarkerManager::draw(const Rect& viewport,
     for (size_t i = 0; i < markers_.size(); ++i)
     {
         const auto& m = markers_[i];
-        float       sx, sy;
+
+        // Filter by axes when requested (multi-subplot support)
+        if (filter_axes && m.axes != filter_axes)
+            continue;
+
+        float sx, sy;
         data_to_screen(m.data_x,
                        m.data_y,
                        viewport,
@@ -157,15 +175,23 @@ void DataMarkerManager::draw(const Rect& viewport,
         char coord_buf[64];
         std::snprintf(coord_buf, sizeof(coord_buf), "X: %.4g   Y: %.4g", m.data_x, m.data_y);
 
+        char deriv_buf[48] = "";
+        bool has_deriv     = m.dy_dx_valid;
+        if (has_deriv)
+            std::snprintf(deriv_buf, sizeof(deriv_buf), "dy/dx: %.4g", m.dy_dx);
+
         bool has_name = !m.series_label.empty();
 
         // Measure text sizes
         ImVec2 name_sz = has_name ? font->CalcTextSizeA(fs_sm, 300.0f, 0.0f, m.series_label.c_str())
                                   : ImVec2(0, 0);
         ImVec2 coord_sz = font->CalcTextSizeA(fs_sm, 300.0f, 0.0f, coord_buf);
+        ImVec2 deriv_sz =
+            has_deriv ? font->CalcTextSizeA(fs_sm, 300.0f, 0.0f, deriv_buf) : ImVec2(0, 0);
 
-        float text_w = std::max(name_sz.x, coord_sz.x);
-        float text_h = coord_sz.y + (has_name ? (name_sz.y + 3.0f) : 0.0f);
+        float text_w = std::max({name_sz.x, coord_sz.x, deriv_sz.x});
+        float text_h = coord_sz.y + (has_name ? (name_sz.y + 3.0f) : 0.0f)
+                       + (has_deriv ? (deriv_sz.y + 3.0f) : 0.0f);
 
         float box_w = text_w + pad_x * 2.0f;
         float box_h = text_h + pad_y * 2.0f;
@@ -275,6 +301,11 @@ void DataMarkerManager::draw(const Rect& viewport,
             ty += name_sz.y + 3.0f;
         }
         fg->AddText(font, fs_sm, ImVec2(tx, ty), text_dim, coord_buf);
+        if (has_deriv)
+        {
+            ty += coord_sz.y + 3.0f;
+            fg->AddText(font, fs_sm, ImVec2(tx, ty), text_dim, deriv_buf);
+        }
     }
 }
 
@@ -285,7 +316,8 @@ int DataMarkerManager::hit_test(float       screen_x,
                                 float       xlim_max,
                                 float       ylim_min,
                                 float       ylim_max,
-                                float       radius_px) const
+                                float       radius_px,
+                                const Axes* filter_axes) const
 {
     // Constants matching draw() for label box geometry
     ImFont*     font    = ImGui::GetFont();
@@ -300,7 +332,12 @@ int DataMarkerManager::hit_test(float       screen_x,
     for (size_t i = 0; i < markers_.size(); ++i)
     {
         const auto& m = markers_[i];
-        float       sx, sy;
+
+        // Filter by axes when requested
+        if (filter_axes && m.axes != filter_axes)
+            continue;
+
+        float sx, sy;
         data_to_screen(m.data_x,
                        m.data_y,
                        viewport,
@@ -323,15 +360,23 @@ int DataMarkerManager::hit_test(float       screen_x,
         char coord_buf[64];
         std::snprintf(coord_buf, sizeof(coord_buf), "X: %.4g   Y: %.4g", m.data_x, m.data_y);
 
+        char deriv_buf[48] = "";
+        bool has_deriv     = m.dy_dx_valid;
+        if (has_deriv)
+            std::snprintf(deriv_buf, sizeof(deriv_buf), "dy/dx: %.4g", m.dy_dx);
+
         bool   has_name = !m.series_label.empty();
         ImVec2 name_sz = has_name ? font->CalcTextSizeA(fs_sm, 300.0f, 0.0f, m.series_label.c_str())
                                   : ImVec2(0, 0);
         ImVec2 coord_sz = font->CalcTextSizeA(fs_sm, 300.0f, 0.0f, coord_buf);
+        ImVec2 deriv_sz =
+            has_deriv ? font->CalcTextSizeA(fs_sm, 300.0f, 0.0f, deriv_buf) : ImVec2(0, 0);
 
-        float text_w = std::max(name_sz.x, coord_sz.x);
-        float text_h = coord_sz.y + (has_name ? (name_sz.y + 3.0f) : 0.0f);
-        float box_w  = text_w + pad_x * 2.0f;
-        float box_h  = text_h + pad_y * 2.0f;
+        float text_w = std::max({name_sz.x, coord_sz.x, deriv_sz.x});
+        float text_h = coord_sz.y + (has_name ? (name_sz.y + 3.0f) : 0.0f)
+                       + (has_deriv ? (deriv_sz.y + 3.0f) : 0.0f);
+        float box_w = text_w + pad_x * 2.0f;
+        float box_h = text_h + pad_y * 2.0f;
 
         bool  flip = (sy - ring_r - gap - arrow_h - box_h) < viewport.y;
         float box_top, box_bot;

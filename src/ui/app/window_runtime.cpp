@@ -339,9 +339,9 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
         auto since_last = now_resize - resize_requested_time;
         if (since_last >= RESIZE_DEBOUNCE)
         {
-            SPECTRA_LOG_INFO("resize",
-                             "Recreating swapchain: " + std::to_string(new_width) + "x"
-                                 + std::to_string(new_height));
+            SPECTRA_LOG_DEBUG("resize",
+                              "Recreating swapchain: " + std::to_string(new_width) + "x"
+                                  + std::to_string(new_height));
             needs_resize = false;
             auto* vk     = static_cast<VulkanBackend*>(&backend_);
             vk->clear_swapchain_dirty();
@@ -836,9 +836,9 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
         }
         if (aw && target_w > 0 && target_h > 0)
         {
-            SPECTRA_LOG_INFO("resize",
-                             "OUT_OF_DATE, recreating: " + std::to_string(target_w) + "x"
-                                 + std::to_string(target_h));
+            SPECTRA_LOG_DEBUG("resize",
+                              "OUT_OF_DATE, recreating: " + std::to_string(target_w) + "x"
+                                  + std::to_string(target_h));
             if (profiler)
                 profiler->increment_counter("swapchain_recreate");
             aw->swapchain_invalidated = false;

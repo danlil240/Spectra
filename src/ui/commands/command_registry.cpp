@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <spectra/logger.hpp>
 
 namespace spectra
 {
@@ -47,10 +48,12 @@ bool CommandRegistry::execute(const std::string& id)
         auto            it = commands_.find(id);
         if (it == commands_.end() || !it->second.enabled || !it->second.callback)
         {
+            SPECTRA_LOG_TRACE("command", "Command '{}' not found or disabled", id);
             return false;
         }
         cb = it->second.callback;
     }
+    SPECTRA_LOG_TRACE("command", "Executing command '{}'", id);
     // Execute outside the lock to avoid deadlocks
     cb();
     record_execution(id);

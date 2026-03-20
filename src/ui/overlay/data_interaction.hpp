@@ -64,9 +64,15 @@ class DataInteraction
 
     // Toggle a data label (datatip) on a point: adds if absent, removes if present.
     // Returns true if a label was added.
-    bool toggle_data_label(float data_x, float data_y, const Series* series, size_t index)
+    bool toggle_data_label(float         data_x,
+                           float         data_y,
+                           const Series* series,
+                           size_t        index,
+                           const Axes*   axes        = nullptr,
+                           float         dy_dx       = 0.0f,
+                           bool          dy_dx_valid = false)
     {
-        return markers_.toggle_or_add(data_x, data_y, series, index);
+        return markers_.toggle_or_add(data_x, data_y, series, index, axes, dy_dx, dy_dx_valid);
     }
 
     // Handle mouse click for marker placement/removal.
@@ -79,7 +85,7 @@ class DataInteraction
     // Select-mode click behavior: series selection callbacks only (no datatip marker mutations).
     bool on_mouse_click_series_only(double screen_x, double screen_y);
 
-    // Region selection (shift-drag)
+    // Region selection (ROI tool — analysis rectangle)
     void                    begin_region_select(double screen_x, double screen_y);
     void                    update_region_drag(double screen_x, double screen_y);
     void                    finish_region_select();
@@ -87,6 +93,10 @@ class DataInteraction
     bool                    is_region_dragging() const { return region_.is_dragging(); }
     bool                    has_region_selection() const { return region_.has_selection(); }
     const RegionStatistics& region_statistics() const { return region_.statistics(); }
+
+    // Rectangle multi-select: select all series whose data intersects a screen-space rectangle.
+    // Fires the on_rect_series_selected_ callback with all matching series.
+    void select_series_in_rect(const BoxZoomRect& rect, Figure& figure);
 
     // Legend interaction
     LegendInteraction&       legend() { return legend_; }
@@ -152,6 +162,22 @@ class DataInteraction
     using PointSelectedCallback = std::function<void(Figure*, Axes*, int, Series*, int, size_t)>;
     void set_on_point_selected(PointSelectedCallback cb) { on_point_selected_ = std::move(cb); }
 
+    // Rectangle multi-select callback: fired when a rectangle drag selects multiple series.
+    // Args: vector of (Figure*, Axes*, axes_index, Series*, series_index) tuples
+    struct RectSelectedEntry
+    {
+        Figure* figure       = nullptr;
+        Axes*   axes         = nullptr;
+        int     axes_index   = -1;
+        Series* series       = nullptr;
+        int     series_index = -1;
+    };
+    using RectSeriesSelectedCallback = std::function<void(const std::vector<RectSelectedEntry>&)>;
+    void set_on_rect_series_selected(RectSeriesSelectedCallback cb)
+    {
+        on_rect_series_selected_ = std::move(cb);
+    }
+
     // Programmatically select/highlight a point (used by Data Editor row selection).
     // Returns true when the point was valid for the provided series and a marker was placed.
     bool select_point(const Series* series, size_t point_index);
@@ -175,10 +201,11 @@ class DataInteraction
     AxisLinkManager* axis_link_mgr_ = nullptr;
 
     // Series selection / deselection callbacks
-    SeriesSelectedCallback   on_series_selected_;
-    SeriesSelectedCallback   on_series_rc_selected_;
-    SeriesDeselectedCallback on_series_deselected_;
-    PointSelectedCallback    on_point_selected_;
+    SeriesSelectedCallback     on_series_selected_;
+    SeriesSelectedCallback     on_series_rc_selected_;
+    SeriesDeselectedCallback   on_series_deselected_;
+    PointSelectedCallback      on_point_selected_;
+    RectSeriesSelectedCallback on_rect_series_selected_;
 
     // Cached state for drawing
     CursorReadout last_cursor_;
@@ -187,13 +214,6 @@ class DataInteraction
     Rect          active_viewport_;
     float         xlim_min_ = 0.0f, xlim_max_ = 1.0f;
     float         ylim_min_ = 0.0f, ylim_max_ = 1.0f;
-
-    // Persistent marker viewport: updated whenever active_axes_ is valid,
-    // used to keep drawing data tips even when the cursor leaves the figure.
-    bool  has_marker_viewport_ = false;
-    Rect  marker_viewport_;
-    float marker_xlim_min_ = 0.0f, marker_xlim_max_ = 1.0f;
-    float marker_ylim_min_ = 0.0f, marker_ylim_max_ = 1.0f;
 };
 
 }   // namespace spectra

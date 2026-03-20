@@ -488,6 +488,7 @@ void WindowManager::glfw_window_close_callback(GLFWwindow* window)
     if (!wctx)
         return;
 
+    SPECTRA_LOG_TRACE("input", "Window {} close requested", wctx->id);
     wctx->should_close = true;
     mgr->pending_close_ids_.push_back(wctx->id);
 }
@@ -502,6 +503,7 @@ void WindowManager::glfw_window_focus_callback(GLFWwindow* window, int focused)
     if (!wctx)
         return;
 
+    SPECTRA_LOG_TRACE("input", "Window {} focus {}", wctx->id, focused ? "gained" : "lost");
     wctx->is_focused = (focused != 0);
     if (focused)
         wctx->z_order = mgr->next_z_order_++;
@@ -1802,6 +1804,13 @@ bool WindowManager::init_window_ui(WindowContext& wctx, FigureId initial_figure_
             if (imgui_raw)
                 imgui_raw->deselect_series();
         });
+    // Wire rectangle multi-select (Select tool drag)
+    ui->data_interaction->set_on_rect_series_selected(
+        [imgui_raw](const std::vector<DataInteraction::RectSelectedEntry>& entries)
+        {
+            if (imgui_raw)
+                imgui_raw->select_series_in_rect(entries);
+        });
     ui->data_interaction->set_axis_link_manager(&ui->axis_link_mgr);
 
     // Wire pane tab context menu callbacks
@@ -2007,6 +2016,12 @@ void WindowManager::glfw_mouse_button_callback(GLFWwindow* window, int button, i
     if (!mgr)
         return;
 
+    SPECTRA_LOG_TRACE("input",
+                      "Mouse button {} {} (mods={})",
+                      button,
+                      action == 1 ? "press" : "release",
+                      mods);
+
     // Track mouse release for tab drag (callback-based).
     // This runs before the ui_ctx check so it catches events on preview windows too.
     // We suppress releases that arrive within the suppression window — the WM
@@ -2096,6 +2111,8 @@ void WindowManager::glfw_scroll_callback(GLFWwindow* window, double x_offset, do
     if (!wctx || !wctx->ui_ctx)
         return;
 
+    SPECTRA_LOG_TRACE("input", "Scroll x={} y={}", x_offset, y_offset);
+
     #ifdef SPECTRA_USE_IMGUI
     auto& ui = *wctx->ui_ctx;
 
@@ -2182,6 +2199,12 @@ void WindowManager::glfw_key_callback(GLFWwindow* window,
     auto& input_handler = ui.input_handler;
     auto& imgui_ui      = ui.imgui_ui;
     auto& shortcut_mgr  = ui.shortcut_mgr;
+
+    SPECTRA_LOG_TRACE("input",
+                      "Key {} {} (mods={})",
+                      key,
+                      action == 1 ? "press" : (action == 0 ? "release" : "repeat"),
+                      mods);
 
     // Always let the shortcut manager try modifier-key combos (Ctrl+C/V/X etc.)
     // and Delete, even when ImGui wants keyboard focus (e.g. inspector open).
@@ -2273,6 +2296,8 @@ void WindowManager::glfw_cursor_enter_callback(GLFWwindow* window, int entered)
     WindowContext* wctx = mgr->find_by_glfw_window(window);
     if (!wctx || !wctx->ui_ctx)
         return;
+
+    SPECTRA_LOG_TRACE("input", "Cursor {} window {}", entered ? "entered" : "left", wctx->id);
 
     #ifdef SPECTRA_USE_IMGUI
     // Switch to this window's ImGui context and forward cursor enter/leave

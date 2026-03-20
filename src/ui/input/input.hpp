@@ -20,12 +20,12 @@ class UndoManager;
 // Tool mode (selected by toolbar buttons)
 enum class ToolMode
 {
-    Pan,       // Pan tool - left click and drag to pan
-    BoxZoom,   // Box zoom tool - right click and drag to zoom
-    Select,    // Select tool - left click and drag to region-select data points
-    Measure,   // Measure tool - left click and drag to measure distance between two points
-    Annotate,  // Annotate tool - place text annotations on the plot
-    ROI,       // ROI tool - draw a region of interest rectangle
+    Pan,        // Pan tool - left click and drag to pan
+    BoxZoom,    // Box zoom tool - right click and drag to zoom
+    Select,     // Select tool - left click and drag to region-select data points
+    Measure,    // Measure tool - left click and drag to measure distance between two points
+    Annotate,   // Annotate tool - place text annotations on the plot
+    ROI,        // ROI tool - draw a region of interest rectangle
 };
 
 // Interaction state for the input handler (dragging state)
@@ -156,6 +156,10 @@ class InputHandler
     bool is_measure_dragging() const { return measure_dragging_; }
     bool has_measure_result() const { return measure_click_state_ >= 1; }
 
+    // Select tool rectangle state (for overlay rendering)
+    bool               is_select_rect_active() const { return select_rect_active_; }
+    const BoxZoomRect& select_rect() const { return select_rect_; }
+
     // Middle-mouse pan state (for callback passthrough)
     bool  is_middle_pan_dragging() const { return middle_pan_dragging_; }
     float measure_start_data_x() const { return measure_start_data_x_; }
@@ -265,11 +269,15 @@ class InputHandler
     // Modifier key tracking (updated from on_key)
     int mods_ = 0;
 
-    // Region selection drag state
+    // Region selection drag state (ROI mode)
     bool region_dragging_ = false;
     // Select-mode press origin (used to distinguish click-to-select vs drag-select)
     double select_start_x_ = 0.0;
     double select_start_y_ = 0.0;
+
+    // Select mode rectangle drag state (graph multi-select)
+    bool        select_rect_active_ = false;
+    BoxZoomRect select_rect_;
 
     // Measure tool state
     bool   measure_dragging_       = false;
@@ -340,22 +348,8 @@ class InputHandler
     // Zoom factor per scroll tick (0.25 = 25% range change per tick)
     static constexpr float ZOOM_FACTOR = 0.25f;
 
-    // Animated zoom duration (seconds) — spec §7.3: 200ms ease-out for box zoom
-    static constexpr float ZOOM_ANIM_DURATION = 0.20f;
-
-    // Scroll zoom exponential decay factor — spec §7.3: smooth ~120ms settle
-    static constexpr float SCROLL_ZOOM_SMOOTHING = 12.0f;
-
-    // Scroll zoom smoothing state — target limits that the view interpolates toward
-    struct ScrollZoomState
-    {
-        Axes*  axes       = nullptr;
-        double target_xmin = 0, target_xmax = 0;
-        double target_ymin = 0, target_ymax = 0;
-        float  anchor_data_x = 0, anchor_data_y = 0;
-        bool   active     = false;
-    };
-    ScrollZoomState scroll_zoom_;
+    // Animated zoom duration (seconds)
+    static constexpr float ZOOM_ANIM_DURATION = 0.15f;
 
     // Inertial pan duration (seconds)
     static constexpr float PAN_INERTIA_DURATION = 0.3f;

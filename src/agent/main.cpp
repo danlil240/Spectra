@@ -559,19 +559,8 @@ int main(int argc, char* argv[])
     std::signal(SIGINT, signal_handler);
     std::signal(SIGTERM, signal_handler);
 
-    // Initialize logger
-    auto& logger = spectra::Logger::instance();
-    logger.set_level(spectra::LogLevel::Debug);
-    logger.add_sink(spectra::sinks::console_sink());
-    try
-    {
-        std::string log_path =
-            (std::filesystem::temp_directory_path() / "spectra_agent.log").string();
-        logger.add_sink(spectra::sinks::file_sink(log_path));
-    }
-    catch (...)
-    {
-    }
+    // Initialize dual logging: console=INFO+, file=TRACE+
+    spectra::setup_dual_logging(spectra::LogLevel::Info, spectra::LogLevel::Trace);
 
     std::cerr << "[spectra-window] Connecting to backend: " << socket_path << "\n";
 

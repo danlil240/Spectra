@@ -156,46 +156,16 @@ void TabDragController::update(float mouse_x,
                          && last_hovered_window_id_ != source_window_id_)
                     target_wid = last_hovered_window_id_;
 
-                fprintf(stderr,
-                        "[tab_drag] DROP: fig=%lu src=%u target=%u "
-                        "(release_at=%u hover=%u) screen=(%.0f,%.0f) "
-                        "has_cb=%d\n",
-                        static_cast<unsigned long>(figure_id_),
-                        source_window_id_,
-                        target_wid,
-                        release_target,
-                        last_hovered_window_id_,
-                        screen_mouse_x,
-                        screen_mouse_y,
-                        on_drop_on_window_ ? 1 : 0);
+                SPECTRA_LOG_TRACE("tab_drag",
+                                  "DROP: fig={} src_win={} target_win={} screen=({:.0f},{:.0f})",
+                                  figure_id_, source_window_id_, target_wid,
+                                  screen_mouse_x, screen_mouse_y);
 
-                // Log all windows
-                if (window_manager_)
-                {
-                    for (auto* wctx : window_manager_->windows())
-                    {
-                        if (!wctx || !wctx->glfw_window || wctx->is_preview)
-                            continue;
-                        auto*  win = static_cast<GLFWwindow*>(wctx->glfw_window);
-                        double cx, cy;
-                        glfwGetCursorPos(win, &cx, &cy);
-                        int ww, wh;
-                        glfwGetWindowSize(win, &ww, &wh);
-                        fprintf(stderr,
-                                "[tab_drag]   win %u: cursor_rel=(%.0f,%.0f) "
-                                "size=(%d,%d) inside=%d\n",
-                                wctx->id,
-                                cx,
-                                cy,
-                                ww,
-                                wh,
-                                (cx >= 0 && cx < ww && cy >= 0 && cy < wh) ? 1 : 0);
-                    }
-                }
 
                 if (target_wid != 0 && on_drop_on_window_)
                 {
-                    fprintf(stderr, "[tab_drag]   → MOVE to window %u\n", target_wid);
+                    SPECTRA_LOG_TRACE("tab_drag", "Drop: move fig={} to window={}", figure_id_,
+                                      target_wid);
                     if (dock_dragging_ && dock_system_)
                         dock_system_->cancel_drag();
                     on_drop_on_window_(figure_id_, target_wid, screen_mouse_x, screen_mouse_y);
@@ -203,12 +173,14 @@ void TabDragController::update(float mouse_x,
                 }
                 else if (is_outside_all_windows(screen_mouse_x, screen_mouse_y))
                 {
-                    fprintf(stderr, "[tab_drag]   → DETACH (outside all windows)\n");
+                    SPECTRA_LOG_TRACE("tab_drag", "Drop: detach fig={} outside all windows",
+                                      figure_id_);
                     execute_drop_outside(screen_mouse_x, screen_mouse_y);
                 }
                 else
                 {
-                    fprintf(stderr, "[tab_drag]   → DROP INSIDE (return to source)\n");
+                    SPECTRA_LOG_TRACE("tab_drag", "Drop: return fig={} to source window",
+                                      figure_id_);
                     execute_drop_inside(mouse_x, mouse_y);
                 }
                 return;

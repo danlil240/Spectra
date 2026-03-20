@@ -78,7 +78,7 @@ VkPresentModeKHR choose_present_mode(const std::vector<VkPresentModeKHR>& modes)
 
     // Log available modes
     for (auto m : modes)
-        SPECTRA_LOG_INFO("Vulkan", "  available present mode: {}", mode_name(m));
+        SPECTRA_LOG_DEBUG("Vulkan", "  available present mode: {}", mode_name(m));
 
         // Select based on compile-time SPECTRA_PRESENT_MODE_* define
 #if defined(SPECTRA_PRESENT_MODE_MAILBOX)
@@ -91,7 +91,7 @@ VkPresentModeKHR choose_present_mode(const std::vector<VkPresentModeKHR>& modes)
 
     if (has_mode(preferred))
     {
-        SPECTRA_LOG_INFO("Vulkan", "present mode: {} (requested)", mode_name(preferred));
+        SPECTRA_LOG_DEBUG("Vulkan", "present mode: {} (requested)", mode_name(preferred));
         return preferred;
     }
 

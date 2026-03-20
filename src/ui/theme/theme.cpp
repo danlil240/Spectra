@@ -4,6 +4,7 @@
 #include <cmath>
 #include <filesystem>
 #include <fstream>
+#include <spectra/logger.hpp>
 #include <sstream>
 #include <vector>
 
@@ -42,6 +43,7 @@ void ThemeManager::set_theme(const std::string& name)
     auto it = themes_.find(name);
     if (it != themes_.end())
     {
+        SPECTRA_LOG_TRACE("theme", "Theme changed to '{}'", name);
         current_theme_name_ = name;
         current_theme_      = &it->second;
         ++theme_version_;
@@ -270,7 +272,7 @@ void ThemeManager::apply_to_imgui()
     imgui_colors[ImGuiCol_FrameBgActive]  = lin(frame_active, 1.0f);
 
     // Titles
-    imgui_colors[ImGuiCol_TitleBg]          = lin(colors.bg_secondary, 1.0f);
+    imgui_colors[ImGuiCol_TitleBg] = lin(colors.bg_secondary, 1.0f);
     imgui_colors[ImGuiCol_TitleBgActive] =
         lin(colors.bg_secondary.lerp(colors.bg_elevated, 0.55f), 1.0f);
     imgui_colors[ImGuiCol_TitleBgCollapsed] = lin(colors.bg_tertiary, 1.0f);
@@ -961,8 +963,8 @@ void ThemeManager::initialize_default_themes()
         .border_strong  = Color(0.46f, 0.52f, 0.62f, 0.88f),   // Focused element borders
 
         // Interactive — confident blue accent with clear state changes
-        .accent        = Color::from_hex(0x7C8FD6),   // Muted steel-violet for UI chrome
-        .accent_hover  = Color::from_hex(0x9EAFEE),   // Distinct hover lift
+        .accent        = Color::from_hex(0x7C8FD6),           // Muted steel-violet for UI chrome
+        .accent_hover  = Color::from_hex(0x9EAFEE),           // Distinct hover lift
         .accent_muted  = Color(0.49f, 0.56f, 0.84f, 0.30f),   // Selected bg
         .accent_subtle = Color(0.49f, 0.56f, 0.84f, 0.12f),   // Hover tint
 
@@ -973,13 +975,13 @@ void ThemeManager::initialize_default_themes()
         .info    = Color::from_hex(0x4D94E8),
 
         // Plot-specific — grid recedes, data is hero
-        .grid_major       = Color(0.82f, 0.86f, 0.93f, 0.25f),   // Calm scientific paper major lines
-        .grid_minor       = Color(0.82f, 0.86f, 0.93f, 0.07f),
-        .grid_line        = Color(0.82f, 0.86f, 0.93f, 0.25f),   // Compat
-        .axis_line        = Color(0.62f, 0.68f, 0.76f, 0.42f),
-        .tick_label       = Color::from_hex(0x7E8B9B),
-        .crosshair        = Color(0.48f, 0.69f, 0.96f, 0.60f),
-        .selection_fill   = Color(0.47f, 0.67f, 0.96f, 0.13f),
+        .grid_major     = Color(0.82f, 0.86f, 0.93f, 0.25f),   // Calm scientific paper major lines
+        .grid_minor     = Color(0.82f, 0.86f, 0.93f, 0.07f),
+        .grid_line      = Color(0.82f, 0.86f, 0.93f, 0.25f),   // Compat
+        .axis_line      = Color(0.62f, 0.68f, 0.76f, 0.42f),
+        .tick_label     = Color::from_hex(0x7E8B9B),
+        .crosshair      = Color(0.48f, 0.69f, 0.96f, 0.60f),
+        .selection_fill = Color(0.47f, 0.67f, 0.96f, 0.13f),
         .selection_border = Color::from_hex(0x76A2E5),
         .tooltip_bg       = Color(0.11f, 0.14f, 0.20f, 0.97f),   // Near-opaque glass
         .tooltip_border   = Color(0.30f, 0.38f, 0.48f, 0.45f),
@@ -1127,8 +1129,9 @@ void ThemeManager::initialize_data_palettes()
 {
     // Default palette (Tableau 10 — perceptually uniform)
     DataPalette default_palette;
-    default_palette.name            = "default";
-    default_palette.description     = "Spectra vivid — separated from muted UI chrome for scientific plots";
+    default_palette.name = "default";
+    default_palette.description =
+        "Spectra vivid — separated from muted UI chrome for scientific plots";
     default_palette.colorblind_safe = false;
     default_palette.colors          = {
         Color::from_hex(0x22D3EE),   // vivid cyan

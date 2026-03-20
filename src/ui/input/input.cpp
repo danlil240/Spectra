@@ -32,8 +32,14 @@ void InputHandler::set_tool_mode(ToolMode new_tool)
     if (new_tool == tool_mode_)
         return;
 
-    // Leaving Select mode: dismiss region selection
+    // Leaving Select mode: cancel any select rectangle
     if (tool_mode_ == ToolMode::Select)
+    {
+        select_rect_active_ = false;
+    }
+
+    // Leaving ROI mode: dismiss region selection
+    if (tool_mode_ == ToolMode::ROI)
     {
         if (data_interaction_)
             data_interaction_->dismiss_region_select();
@@ -171,10 +177,6 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
 {
     // Update modifier state from the authoritative GLFW mods bitmask
     mods_ = mods;
-
-    // Cancel scroll zoom smoothing on any mouse button press
-    if (action == 1)   // GLFW_PRESS
-        scroll_zoom_.active = false;
 
     // SPECTRA_LOG_DEBUG("input",
     //                  "Mouse button event - button: " + std::to_string(button)
@@ -605,22 +607,60 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
 
     if (button == MOUSE_BUTTON_LEFT)
     {
-        // Select mode: left-drag for region selection
+        // Select mode: left-drag for rectangle multi-select of graphs
         if (action == ACTION_PRESS && mode_ == InteractionMode::Idle
             && tool_mode_ == ToolMode::Select)
+        {
+            select_start_x_     = x;
+            select_start_y_     = y;
+            select_rect_active_ = true;
+            select_rect_.x0     = x;
+            select_rect_.y0     = y;
+            select_rect_.x1     = x;
+            select_rect_.y1     = y;
+            SPECTRA_LOG_DEBUG("input", "Starting select rectangle");
+            return;
+        }
+
+        if (action == ACTION_RELEASE && select_rect_active_ && tool_mode_ == ToolMode::Select)
+        {
+            float           dx_px              = static_cast<float>(x - select_start_x_);
+            float           dy_px              = static_cast<float>(y - select_start_y_);
+            float           move_dist          = std::sqrt(dx_px * dx_px + dy_px * dy_px);
+            constexpr float CLICK_THRESHOLD_PX = 5.0f;
+
+            if (move_dist < CLICK_THRESHOLD_PX)
+            {
+                // Click (not drag): single series select/deselect
+                if (data_interaction_)
+                    data_interaction_->on_mouse_click_series_only(x, y);
+            }
+            else
+            {
+                // Drag finished: select all series intersecting the rectangle
+                SPECTRA_LOG_DEBUG("input", "Finishing select rectangle");
+                if (data_interaction_ && figure_)
+                    data_interaction_->select_series_in_rect(select_rect_, *figure_);
+            }
+            select_rect_active_ = false;
+            return;
+        }
+
+        // ROI mode: left-drag for region analysis
+        if (action == ACTION_PRESS && mode_ == InteractionMode::Idle && tool_mode_ == ToolMode::ROI)
         {
             if (data_interaction_)
             {
                 select_start_x_ = x;
                 select_start_y_ = y;
-                SPECTRA_LOG_DEBUG("input", "Starting region selection (Select mode)");
+                SPECTRA_LOG_DEBUG("input", "Starting ROI region selection");
                 data_interaction_->begin_region_select(x, y);
                 region_dragging_ = true;
                 return;
             }
         }
 
-        if (action == ACTION_RELEASE && region_dragging_ && tool_mode_ == ToolMode::Select)
+        if (action == ACTION_RELEASE && region_dragging_ && tool_mode_ == ToolMode::ROI)
         {
             if (data_interaction_)
             {
@@ -631,13 +671,12 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
 
                 if (move_dist < CLICK_THRESHOLD_PX)
                 {
-                    // Select mode click behavior: series selection/deselection only.
+                    // ROI click: dismiss
                     data_interaction_->dismiss_region_select();
-                    data_interaction_->on_mouse_click_series_only(x, y);
                 }
                 else
                 {
-                    SPECTRA_LOG_DEBUG("input", "Finishing region selection");
+                    SPECTRA_LOG_DEBUG("input", "Finishing ROI region selection");
                     data_interaction_->finish_region_select();
                 }
             }
@@ -1185,8 +1224,16 @@ void InputHandler::on_mouse_move(double x, double y)
         // Don't return — allow cursor readout to update
     }
 
-    // Update region selection drag (Select mode)
-    if (region_dragging_ && tool_mode_ == ToolMode::Select && data_interaction_)
+    // Update select rectangle drag (Select mode)
+    if (select_rect_active_ && tool_mode_ == ToolMode::Select)
+    {
+        select_rect_.x1 = x;
+        select_rect_.y1 = y;
+        return;
+    }
+
+    // Update region selection drag (ROI mode)
+    if (region_dragging_ && tool_mode_ == ToolMode::ROI && data_interaction_)
     {
         data_interaction_->update_region_drag(x, y);
         return;
@@ -1360,7 +1407,7 @@ void InputHandler::on_scroll(double /*x_offset*/, double y_offset, double cursor
 
     const auto& vp = viewport_for_axes(active_axes_);
 
-    // Cancel any running transition/animation — new scroll input takes priority
+    // Cancel any running animations — new scroll input takes priority
     if (transition_engine_)
     {
         transition_engine_->cancel_for_axes(active_axes_);
@@ -1370,19 +1417,8 @@ void InputHandler::on_scroll(double /*x_offset*/, double y_offset, double cursor
         anim_ctrl_->cancel_for_axes(active_axes_);
     }
 
-    // Use target limits if actively smoothing toward prior scroll zoom on the same
-    // axes, so rapid scrolling accumulates correctly toward the intended zoom level.
-    AxisLimits xlim, ylim;
-    if (scroll_zoom_.active && scroll_zoom_.axes == active_axes_)
-    {
-        xlim = {scroll_zoom_.target_xmin, scroll_zoom_.target_xmax};
-        ylim = {scroll_zoom_.target_ymin, scroll_zoom_.target_ymax};
-    }
-    else
-    {
-        xlim = active_axes_->x_limits();
-        ylim = active_axes_->y_limits();
-    }
+    auto xlim = active_axes_->x_limits();
+    auto ylim = active_axes_->y_limits();
 
     // Compute cursor position in data space
     float saved_vp_x = vp_x_, saved_vp_y = vp_y_;
@@ -1415,8 +1451,8 @@ void InputHandler::on_scroll(double /*x_offset*/, double y_offset, double cursor
         return;
     }
 
-    // Set scroll zoom targets — the view smoothly interpolates toward these
-    // in update() using exponential decay (spec §7.3).
+    // Apply zoom instantly — scroll zoom must be immediate and responsive.
+    // (Animations are used for auto-fit, box zoom, and inertial pan instead.)
     // Use double arithmetic to preserve precision at deep zoom levels.
     double dx       = static_cast<double>(data_x);
     double dy       = static_cast<double>(data_y);
@@ -1451,14 +1487,14 @@ void InputHandler::on_scroll(double /*x_offset*/, double y_offset, double cursor
         }
     }
 
-    scroll_zoom_.axes         = active_axes_;
-    scroll_zoom_.target_xmin  = new_xmin;
-    scroll_zoom_.target_xmax  = new_xmax;
-    scroll_zoom_.target_ymin  = new_ymin;
-    scroll_zoom_.target_ymax  = new_ymax;
-    scroll_zoom_.anchor_data_x = data_x;
-    scroll_zoom_.anchor_data_y = data_y;
-    scroll_zoom_.active       = true;
+    active_axes_->xlim(new_xmin, new_xmax);
+    active_axes_->ylim(new_ymin, new_ymax);
+
+    // Propagate zoom to linked axes
+    if (axis_link_mgr_)
+    {
+        axis_link_mgr_->propagate_zoom(active_axes_, data_x, data_y, factor);
+    }
 }
 
 // ─── Keyboard ───────────────────────────────────────────────────────────────
@@ -1798,60 +1834,12 @@ void InputHandler::update(float dt)
     {
         anim_ctrl_->update(dt);
     }
-
-    // Scroll zoom smoothing — exponential decay toward target limits (spec §7.3)
-    if (scroll_zoom_.active && scroll_zoom_.axes)
-    {
-        float t = 1.0f - std::exp(-SCROLL_ZOOM_SMOOTHING * dt);
-
-        auto   xlim = scroll_zoom_.axes->x_limits();
-        auto   ylim = scroll_zoom_.axes->y_limits();
-        double ix0  = xlim.min + (scroll_zoom_.target_xmin - xlim.min) * t;
-        double ix1  = xlim.max + (scroll_zoom_.target_xmax - xlim.max) * t;
-        double iy0  = ylim.min + (scroll_zoom_.target_ymin - ylim.min) * t;
-        double iy1  = ylim.max + (scroll_zoom_.target_ymax - ylim.max) * t;
-
-        scroll_zoom_.axes->xlim(ix0, ix1);
-        scroll_zoom_.axes->ylim(iy0, iy1);
-
-        // Propagate to linked axes using approximate per-frame zoom factor
-        if (axis_link_mgr_)
-        {
-            double old_range = xlim.max - xlim.min;
-            double new_range = ix1 - ix0;
-            if (old_range > 1e-300)
-            {
-                float frame_factor = static_cast<float>(new_range / old_range);
-                axis_link_mgr_->propagate_zoom(scroll_zoom_.axes,
-                                               scroll_zoom_.anchor_data_x,
-                                               scroll_zoom_.anchor_data_y,
-                                               frame_factor);
-            }
-        }
-
-        // Check if settled — snap to target when within 0.001% of range
-        double range =
-            std::abs(scroll_zoom_.target_xmax - scroll_zoom_.target_xmin)
-            + std::abs(scroll_zoom_.target_ymax - scroll_zoom_.target_ymin);
-        double err = std::abs(ix0 - scroll_zoom_.target_xmin)
-                     + std::abs(ix1 - scroll_zoom_.target_xmax)
-                     + std::abs(iy0 - scroll_zoom_.target_ymin)
-                     + std::abs(iy1 - scroll_zoom_.target_ymax);
-        if (err < std::max(range * 1e-5, 1e-12))
-        {
-            scroll_zoom_.axes->xlim(scroll_zoom_.target_xmin, scroll_zoom_.target_xmax);
-            scroll_zoom_.axes->ylim(scroll_zoom_.target_ymin, scroll_zoom_.target_ymax);
-            scroll_zoom_.active = false;
-        }
-    }
 }
 
 // ─── Animation query ────────────────────────────────────────────────────────
 
 bool InputHandler::has_active_animations() const
 {
-    if (scroll_zoom_.active)
-        return true;
     if (transition_engine_ && transition_engine_->has_active_animations())
         return true;
     return anim_ctrl_ && anim_ctrl_->has_active_animations();

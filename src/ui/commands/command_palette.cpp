@@ -5,6 +5,7 @@
     #include <algorithm>
     #include <cstring>
     #include <imgui.h>
+    #include <spectra/logger.hpp>
 
     #include "command_registry.hpp"
     #include "ui/theme/design_tokens.hpp"
@@ -19,6 +20,7 @@ namespace spectra
 
 void CommandPalette::open()
 {
+    SPECTRA_LOG_TRACE("ui", "Command palette opened");
     open_          = true;
     focus_input_   = true;
     search_buf_[0] = '\0';
@@ -34,6 +36,7 @@ void CommandPalette::open()
 
 void CommandPalette::close()
 {
+    SPECTRA_LOG_TRACE("ui", "Command palette closed");
     open_          = false;
     search_buf_[0] = '\0';
     last_query_.clear();

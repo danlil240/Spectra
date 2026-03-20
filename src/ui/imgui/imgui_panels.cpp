@@ -461,10 +461,9 @@ void ImGuiIntegration::draw_inspector(Figure& figure)
                 float t     = static_cast<float>(i) / 4.0f;
                 float alpha = 0.12f * (1.0f - t);
                 float off   = shadow_spread * t;
-                dl->AddRectFilled(
-                    ImVec2(bounds.x - off - 1.0f, bounds.y),
-                    ImVec2(bounds.x, bounds.y + bounds.h),
-                    IM_COL32(0, 0, 0, static_cast<int>(alpha * 255)));
+                dl->AddRectFilled(ImVec2(bounds.x - off - 1.0f, bounds.y),
+                                  ImVec2(bounds.x, bounds.y + bounds.h),
+                                  IM_COL32(0, 0, 0, static_cast<int>(alpha * 255)));
             }
 
             // Crisp material edge: hairline border on left
@@ -631,10 +630,9 @@ void ImGuiIntegration::draw_status_bar()
                 float t     = static_cast<float>(i) / 4.0f;
                 float alpha = 0.08f * (1.0f - t);
                 float off   = shadow_spread * t;
-                bar_dl->AddRectFilled(
-                    ImVec2(wpos.x, wpos.y - off - 1.0f),
-                    ImVec2(wpos.x + wsz.x, wpos.y),
-                    IM_COL32(0, 0, 0, static_cast<int>(alpha * 255)));
+                bar_dl->AddRectFilled(ImVec2(wpos.x, wpos.y - off - 1.0f),
+                                      ImVec2(wpos.x + wsz.x, wpos.y),
+                                      IM_COL32(0, 0, 0, static_cast<int>(alpha * 255)));
             }
 
             // Crisp hairline border at top edge
@@ -691,6 +689,10 @@ void ImGuiIntegration::draw_status_bar()
                     break;
                 case ToolMode::Select:
                     mode_label = "Select";
+                    mode_color = ui::theme().info;
+                    break;
+                case ToolMode::ROI:
+                    mode_label = "ROI";
                     mode_color = ui::theme().info;
                     break;
                 case ToolMode::Measure:
@@ -793,7 +795,8 @@ void ImGuiIntegration::draw_status_bar()
                          static_cast<uint8_t>(fps_color.b * 255),
                          34),
                 ui::tokens::RADIUS_SM);
-            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(fps_color.r, fps_color.g, fps_color.b, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_Text,
+                                  ImVec4(fps_color.r, fps_color.g, fps_color.b, 1.0f));
             ImGui::TextUnformatted(fps_buf);
             ImGui::PopStyleColor();
         }

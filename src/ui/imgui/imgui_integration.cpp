@@ -399,7 +399,6 @@ void ImGuiIntegration::build_ui(Figure& figure)
         return;
     }
 
-    SPECTRA_LOG_TRACE("ui", "Building UI for figure");
     current_figure_ = &figure;
 
     float dt = ImGui::GetIO().DeltaTime;
@@ -554,6 +553,29 @@ void ImGuiIntegration::build_ui(Figure& figure)
         box_zoom_overlay_->update(dt);
         ImGuiIO& io = ImGui::GetIO();
         box_zoom_overlay_->draw(io.DisplaySize.x, io.DisplaySize.y);
+    }
+
+    // Draw select rectangle overlay (Select tool rubber-band)
+    if (input_handler_ && input_handler_->is_select_rect_active())
+    {
+        const auto& sr = input_handler_->select_rect();
+        float       x0 = static_cast<float>(std::min(sr.x0, sr.x1));
+        float       y0 = static_cast<float>(std::min(sr.y0, sr.y1));
+        float       x1 = static_cast<float>(std::max(sr.x0, sr.x1));
+        float       y1 = static_cast<float>(std::max(sr.y0, sr.y1));
+
+        ImDrawList* fg     = ImGui::GetForegroundDrawList();
+        const auto& colors = ui::theme();
+        ImU32       fill   = IM_COL32(static_cast<uint8_t>(colors.selection_fill.r * 255),
+                              static_cast<uint8_t>(colors.selection_fill.g * 255),
+                              static_cast<uint8_t>(colors.selection_fill.b * 255),
+                              40);
+        ImU32       border = IM_COL32(static_cast<uint8_t>(colors.selection_border.r * 255),
+                                static_cast<uint8_t>(colors.selection_border.g * 255),
+                                static_cast<uint8_t>(colors.selection_border.b * 255),
+                                200);
+        fg->AddRectFilled(ImVec2(x0, y0), ImVec2(x1, y1), fill);
+        fg->AddRect(ImVec2(x0, y0), ImVec2(x1, y1), border, 0.0f, 0, 1.0f);
     }
 
     // Draw measure overlay (Measure tool mode)
@@ -874,15 +896,15 @@ void ImGuiIntegration::load_logo_textures(VulkanBackend& backend)
     const bool corner_ok    = welcome_ok;
 
     if (welcome_ok)
-        SPECTRA_LOG_INFO("imgui",
-                         "Welcome logo texture loaded: {}x{}",
-                         welcome_logo_width_,
-                         welcome_logo_height_);
+        SPECTRA_LOG_DEBUG("imgui",
+                          "Welcome logo texture loaded: {}x{}",
+                          welcome_logo_width_,
+                          welcome_logo_height_);
     if (corner_ok)
-        SPECTRA_LOG_INFO("imgui",
-                         "Corner logo: reusing welcome texture {}x{}",
-                         corner_logo_width_,
-                         corner_logo_height_);
+        SPECTRA_LOG_DEBUG("imgui",
+                          "Corner logo: reusing welcome texture {}x{}",
+                          corner_logo_width_,
+                          corner_logo_height_);
 }
 
 void ImGuiIntegration::destroy_logo_textures()
@@ -1063,13 +1085,6 @@ bool ImGuiIntegration::wants_capture_mouse() const
     bool any_window_hovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow);
     bool any_item_hovered   = ImGui::IsAnyItemHovered();
     bool any_item_active    = ImGui::IsAnyItemActive();
-
-    SPECTRA_LOG_TRACE("input",
-                      "ImGui mouse capture state - wants_capture: "
-                          + std::string(wants_capture ? "true" : "false") + ", window_hovered: "
-                          + std::string(any_window_hovered ? "true" : "false")
-                          + ", item_hovered: " + std::string(any_item_hovered ? "true" : "false")
-                          + ", item_active: " + std::string(any_item_active ? "true" : "false"));
 
     // If an ImGui item is actively being interacted with (e.g. dragging a slider),
     // always capture — regardless of cursor position.

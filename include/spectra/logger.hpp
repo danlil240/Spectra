@@ -140,7 +140,12 @@ namespace sinks
 Logger::LogSink console_sink();
 Logger::LogSink file_sink(const std::string& filename);
 Logger::LogSink null_sink();
+Logger::LogSink filtered_sink(LogLevel min_level, Logger::LogSink inner);
 }   // namespace sinks
+
+void setup_dual_logging(LogLevel console_level = LogLevel::Info,
+                        LogLevel file_level    = LogLevel::Trace,
+                        const std::string& log_path = "");
 
 #define SPECTRA_LOG_TRACE(category, ...)                                            \
     do                                                                              \

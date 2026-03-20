@@ -43,7 +43,6 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdlib>
-#include <filesystem>
 #include <iostream>
 #include <memory>
 #include <unordered_map>
@@ -54,22 +53,7 @@ namespace spectra
 // ─── App ctor/dtor (must be here where AppRuntime is complete) ───────────────
 App::App(const AppConfig& config) : config_(config)
 {
-    auto& logger = spectra::Logger::instance();
-    logger.set_level(spectra::LogLevel::Debug);
-
-    logger.add_sink(spectra::sinks::console_sink());
-
-    try
-    {
-        std::string log_path =
-            (std::filesystem::temp_directory_path() / "spectra_app.log").string();
-        logger.add_sink(spectra::sinks::file_sink(log_path));
-        SPECTRA_LOG_INFO("app", "Log file: " + log_path);
-    }
-    catch (const std::exception& e)
-    {
-        SPECTRA_LOG_WARN("app", "Failed to create log file: " + std::string(e.what()));
-    }
+    spectra::setup_dual_logging(spectra::LogLevel::Info, spectra::LogLevel::Trace);
 
     SPECTRA_LOG_INFO("app",
                      "Initializing Spectra application (headless: "
@@ -285,7 +269,8 @@ void App::init_runtime()
 
             if (initial_wctx && initial_wctx->ui_ctx)
             {
-                rt.ui_ctx_ptr = initial_wctx->ui_ctx.get();
+                rt.ui_ctx_ptr              = initial_wctx->ui_ctx.get();
+                rt.ui_ctx_ptr->glfw_window = initial_wctx->glfw_window;
             }
 
             // Pre-create a hidden preview window so tab tearoff is instant.

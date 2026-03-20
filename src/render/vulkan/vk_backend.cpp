@@ -454,7 +454,7 @@ bool VulkanBackend::create_swapchain(uint32_t width, uint32_t height)
 
 bool VulkanBackend::recreate_swapchain(uint32_t width, uint32_t height)
 {
-    SPECTRA_LOG_INFO(
+    SPECTRA_LOG_DEBUG(
         "vulkan",
         "recreate_swapchain called: " + std::to_string(width) + "x" + std::to_string(height));
 
@@ -498,7 +498,7 @@ bool VulkanBackend::recreate_swapchain(uint32_t width, uint32_t height)
             old_swapchain,
             reuse_rp,
             vk_msaa);
-        SPECTRA_LOG_INFO(
+        SPECTRA_LOG_DEBUG(
             "vulkan",
             "New swapchain created: " + std::to_string(active_window_->swapchain.extent.width) + "x"
                 + std::to_string(active_window_->swapchain.extent.height));
@@ -528,7 +528,7 @@ bool VulkanBackend::recreate_swapchain(uint32_t width, uint32_t height)
         active_window_->current_flight_frame  = 0;
         active_window_->swapchain_invalidated = false;
 
-        SPECTRA_LOG_INFO("vulkan", "Swapchain recreation completed successfully");
+        SPECTRA_LOG_DEBUG("vulkan", "Swapchain recreation completed successfully");
         return true;
     }
     catch (const std::exception& e)

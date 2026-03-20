@@ -2,6 +2,7 @@
 
     #include "data_interaction.hpp"
 
+    #include <algorithm>
     #include <cmath>
     #include <imgui.h>
     #include <limits>
@@ -51,8 +52,70 @@ bool DataInteraction::select_point(const Series* series, size_t point_index)
     if (!x_data || !y_data || point_index >= count)
         return false;
 
+    // Find the axes that owns this series
+    const Axes* target_axes = nullptr;
+    if (last_figure_)
+    {
+        for (auto& axes_ptr : last_figure_->axes())
+        {
+            if (!axes_ptr)
+                continue;
+            for (auto& s : axes_ptr->series())
+            {
+                if (s.get() == series)
+                {
+                    target_axes = axes_ptr.get();
+                    break;
+                }
+            }
+            if (target_axes)
+                break;
+        }
+    }
+
+    // Compute dy/dx at the selected point
+    float dy_dx       = 0.0f;
+    bool  dy_dx_valid = false;
+    if (count >= 2)
+    {
+        size_t i = point_index;
+        if (i > 0 && i + 1 < count)
+        {
+            float dx = x_data[i + 1] - x_data[i - 1];
+            if (std::abs(dx) > 1e-30f)
+            {
+                dy_dx       = (y_data[i + 1] - y_data[i - 1]) / dx;
+                dy_dx_valid = true;
+            }
+        }
+        else if (i == 0)
+        {
+            float dx = x_data[1] - x_data[0];
+            if (std::abs(dx) > 1e-30f)
+            {
+                dy_dx       = (y_data[1] - y_data[0]) / dx;
+                dy_dx_valid = true;
+            }
+        }
+        else if (i == count - 1)
+        {
+            float dx = x_data[count - 1] - x_data[count - 2];
+            if (std::abs(dx) > 1e-30f)
+            {
+                dy_dx       = (y_data[count - 1] - y_data[count - 2]) / dx;
+                dy_dx_valid = true;
+            }
+        }
+    }
+
     markers_.clear();
-    markers_.add(x_data[point_index], y_data[point_index], series, point_index);
+    markers_.add(x_data[point_index],
+                 y_data[point_index],
+                 series,
+                 point_index,
+                 target_axes,
+                 dy_dx,
+                 dy_dx_valid);
 
     // Keep nearest cache coherent so tooltip/cursor feedback remains aligned.
     nearest_.found       = true;
@@ -101,14 +164,6 @@ void DataInteraction::update(const CursorReadout& cursor, Figure& figure)
             xlim_max_        = xl.max;
             ylim_min_        = yl.min;
             ylim_max_        = yl.max;
-
-            // Cache for persistent marker drawing when cursor leaves
-            has_marker_viewport_ = true;
-            marker_viewport_     = vp;
-            marker_xlim_min_     = xl.min;
-            marker_xlim_max_     = xl.max;
-            marker_ylim_min_     = yl.min;
-            marker_ylim_max_     = yl.max;
             break;
         }
     }
@@ -171,31 +226,25 @@ void DataInteraction::draw_overlays(float window_width, float window_height, Fig
     }
 
     // Draw markers (data tips) — always visible, even when cursor is outside the figure.
-    // Use live viewport when cursor is over axes, otherwise use cached viewport.
-    if (active_axes_)
+    // Each marker is drawn using its owning axes' viewport and limits so that
+    // markers stay in their correct subplot regardless of cursor position.
+    if (overlay_figure && !markers_.markers().empty())
     {
-        markers_.draw(active_viewport_, xlim_min_, xlim_max_, ylim_min_, ylim_max_);
-    }
-    else if (has_marker_viewport_ && !markers_.markers().empty())
-    {
-        // Cursor left the figure — keep drawing markers at their last known positions.
-        // Update cached limits from the figure's first axes (zoom/pan may have changed).
-        if (overlay_figure && !overlay_figure->axes().empty() && overlay_figure->axes()[0])
+        for (auto& axes_ptr : overlay_figure->axes())
         {
-            auto& ax         = overlay_figure->axes()[0];
-            marker_viewport_ = ax->viewport();
-            auto xl          = ax->x_limits();
-            auto yl          = ax->y_limits();
-            marker_xlim_min_ = xl.min;
-            marker_xlim_max_ = xl.max;
-            marker_ylim_min_ = yl.min;
-            marker_ylim_max_ = yl.max;
+            if (!axes_ptr)
+                continue;
+            const auto& vp = axes_ptr->viewport();
+            auto        xl = axes_ptr->x_limits();
+            auto        yl = axes_ptr->y_limits();
+            markers_.draw(vp,
+                          static_cast<float>(xl.min),
+                          static_cast<float>(xl.max),
+                          static_cast<float>(yl.min),
+                          static_cast<float>(yl.max),
+                          1.0f,
+                          axes_ptr.get());
         }
-        markers_.draw(marker_viewport_,
-                      marker_xlim_min_,
-                      marker_xlim_max_,
-                      marker_ylim_min_,
-                      marker_ylim_max_);
     }
 
     // Draw region selection overlay
@@ -294,7 +343,9 @@ bool DataInteraction::on_mouse_click_datatip_only(int button, double screen_x, d
                                            xlim_min_,
                                            xlim_max_,
                                            ylim_min_,
-                                           ylim_max_);
+                                           ylim_max_,
+                                           10.0f,
+                                           active_axes_);
         if (marker_hit >= 0)
         {
             markers_.remove(static_cast<size_t>(marker_hit));
@@ -307,7 +358,10 @@ bool DataInteraction::on_mouse_click_datatip_only(int button, double screen_x, d
             markers_.toggle_or_add(nearest_.data_x,
                                    nearest_.data_y,
                                    nearest_.series,
-                                   nearest_.point_index);
+                                   nearest_.point_index,
+                                   active_axes_,
+                                   nearest_.dy_dx,
+                                   nearest_.dy_dx_valid);
             return true;
         }
     }
@@ -321,7 +375,9 @@ bool DataInteraction::on_mouse_click_datatip_only(int button, double screen_x, d
                                     xlim_min_,
                                     xlim_max_,
                                     ylim_min_,
-                                    ylim_max_);
+                                    ylim_max_,
+                                    10.0f,
+                                    active_axes_);
         if (idx >= 0)
         {
             markers_.remove(static_cast<size_t>(idx));
@@ -370,7 +426,9 @@ bool DataInteraction::on_mouse_click(int button, double screen_x, double screen_
                                            xlim_min_,
                                            xlim_max_,
                                            ylim_min_,
-                                           ylim_max_);
+                                           ylim_max_,
+                                           10.0f,
+                                           active_axes_);
         if (marker_hit >= 0)
         {
             markers_.remove(static_cast<size_t>(marker_hit));
@@ -383,7 +441,10 @@ bool DataInteraction::on_mouse_click(int button, double screen_x, double screen_
             markers_.toggle_or_add(nearest_.data_x,
                                    nearest_.data_y,
                                    nearest_.series,
-                                   nearest_.point_index);
+                                   nearest_.point_index,
+                                   active_axes_,
+                                   nearest_.dy_dx,
+                                   nearest_.dy_dx_valid);
 
             // Also fire series/point selection callbacks (for inspector + data editor sync).
             dispatch_series_selection_from_nearest();
@@ -406,7 +467,9 @@ bool DataInteraction::on_mouse_click(int button, double screen_x, double screen_
                                     xlim_min_,
                                     xlim_max_,
                                     ylim_min_,
-                                    ylim_max_);
+                                    ylim_max_,
+                                    10.0f,
+                                    active_axes_);
         if (idx >= 0)
         {
             markers_.remove(static_cast<size_t>(idx));
@@ -467,6 +530,171 @@ void DataInteraction::finish_region_select()
 void DataInteraction::dismiss_region_select()
 {
     region_.dismiss();
+}
+
+void DataInteraction::select_series_in_rect(const BoxZoomRect& rect, Figure& figure)
+{
+    std::vector<RectSelectedEntry> hits;
+
+    // Normalize the screen-space rectangle
+    double rx0 = std::min(rect.x0, rect.x1);
+    double ry0 = std::min(rect.y0, rect.y1);
+    double rx1 = std::max(rect.x0, rect.x1);
+    double ry1 = std::max(rect.y0, rect.y1);
+
+    int ax_idx = 0;
+    for (auto& axes_ptr : figure.axes())
+    {
+        if (!axes_ptr)
+        {
+            ax_idx++;
+            continue;
+        }
+        const auto& vp   = axes_ptr->viewport();
+        auto        xlim = axes_ptr->x_limits();
+        auto        ylim = axes_ptr->y_limits();
+        double      xr   = xlim.max - xlim.min;
+        double      yr   = ylim.max - ylim.min;
+        if (xr == 0.0)
+            xr = 1.0;
+        if (yr == 0.0)
+            yr = 1.0;
+
+        int s_idx = 0;
+        for (auto& series_ptr : axes_ptr->series())
+        {
+            if (!series_ptr || !series_ptr->visible())
+            {
+                s_idx++;
+                continue;
+            }
+
+            const float* x_data = nullptr;
+            const float* y_data = nullptr;
+            size_t       count  = 0;
+
+            if (auto* ls = dynamic_cast<LineSeries*>(series_ptr.get()))
+            {
+                x_data = ls->x_data().data();
+                y_data = ls->y_data().data();
+                count  = ls->point_count();
+            }
+            else if (auto* sc = dynamic_cast<ScatterSeries*>(series_ptr.get()))
+            {
+                x_data = sc->x_data().data();
+                y_data = sc->y_data().data();
+                count  = sc->point_count();
+            }
+
+            if (!x_data || !y_data || count == 0)
+            {
+                s_idx++;
+                continue;
+            }
+
+            // Check if any data point maps to a screen position inside the rectangle
+            bool hit = false;
+            for (size_t i = 0; i < count && !hit; ++i)
+            {
+                double norm_x = (static_cast<double>(x_data[i]) - xlim.min) / xr;
+                double norm_y = (static_cast<double>(y_data[i]) - ylim.min) / yr;
+                double scr_x  = vp.x + norm_x * vp.w;
+                double scr_y  = vp.y + (1.0 - norm_y) * vp.h;
+                if (scr_x >= rx0 && scr_x <= rx1 && scr_y >= ry0 && scr_y <= ry1)
+                    hit = true;
+            }
+
+            // Also check line segment intersections with the rectangle edges
+            if (!hit && count >= 2)
+            {
+                for (size_t i = 0; i + 1 < count && !hit; ++i)
+                {
+                    double nx0 = (static_cast<double>(x_data[i]) - xlim.min) / xr;
+                    double ny0 = (static_cast<double>(y_data[i]) - ylim.min) / yr;
+                    double nx1 = (static_cast<double>(x_data[i + 1]) - xlim.min) / xr;
+                    double ny1 = (static_cast<double>(y_data[i + 1]) - ylim.min) / yr;
+
+                    double sx0 = vp.x + nx0 * vp.w;
+                    double sy0 = vp.y + (1.0 - ny0) * vp.h;
+                    double sx1 = vp.x + nx1 * vp.w;
+                    double sy1 = vp.y + (1.0 - ny1) * vp.h;
+
+                    // Cohen-Sutherland: if the segment can be clipped to the rectangle, it
+                    // intersects
+                    double cx0 = sx0, cy0 = sy0, cx1 = sx1, cy1 = sy1;
+                    auto   outcode = [&](double px, double py) -> int
+                    {
+                        int code = 0;
+                        if (px < rx0)
+                            code |= 1;
+                        else if (px > rx1)
+                            code |= 2;
+                        if (py < ry0)
+                            code |= 4;
+                        else if (py > ry1)
+                            code |= 8;
+                        return code;
+                    };
+                    int oc0 = outcode(cx0, cy0);
+                    int oc1 = outcode(cx1, cy1);
+                    for (int iter = 0; iter < 20; ++iter)
+                    {
+                        if ((oc0 | oc1) == 0)
+                        {
+                            hit = true;
+                            break;
+                        }
+                        if ((oc0 & oc1) != 0)
+                            break;
+                        int    oc_out = oc0 ? oc0 : oc1;
+                        double px = 0, py = 0;
+                        if (oc_out & 8)
+                        {
+                            px = cx0 + (cx1 - cx0) * (ry1 - cy0) / (cy1 - cy0);
+                            py = ry1;
+                        }
+                        else if (oc_out & 4)
+                        {
+                            px = cx0 + (cx1 - cx0) * (ry0 - cy0) / (cy1 - cy0);
+                            py = ry0;
+                        }
+                        else if (oc_out & 2)
+                        {
+                            py = cy0 + (cy1 - cy0) * (rx1 - cx0) / (cx1 - cx0);
+                            px = rx1;
+                        }
+                        else if (oc_out & 1)
+                        {
+                            py = cy0 + (cy1 - cy0) * (rx0 - cx0) / (cx1 - cx0);
+                            px = rx0;
+                        }
+                        if (oc_out == oc0)
+                        {
+                            cx0 = px;
+                            cy0 = py;
+                            oc0 = outcode(cx0, cy0);
+                        }
+                        else
+                        {
+                            cx1 = px;
+                            cy1 = py;
+                            oc1 = outcode(cx1, cy1);
+                        }
+                    }
+                }
+            }
+
+            if (hit)
+            {
+                hits.push_back({&figure, axes_ptr.get(), ax_idx, series_ptr.get(), s_idx});
+            }
+            s_idx++;
+        }
+        ax_idx++;
+    }
+
+    if (on_rect_series_selected_)
+        on_rect_series_selected_(hits);
 }
 
 NearestPointResult DataInteraction::find_nearest(const CursorReadout& cursor, Figure& figure) const

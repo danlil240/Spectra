@@ -20,6 +20,9 @@
 #include "ui/figures/figure_registry.hpp"
 
 #ifdef SPECTRA_USE_GLFW
+    #define GLFW_INCLUDE_NONE
+    #include <GLFW/glfw3.h>
+
     #include "ui/input/input.hpp"
     #include "ui/window/window_manager.hpp"
 #endif
@@ -1001,7 +1004,11 @@ void AutomationServer::execute(AutomationRequest& req, App& app, WindowUIContext
         ui_ctx->new_width             = w;
         ui_ctx->new_height            = h;
         ui_ctx->resize_requested_time = std::chrono::steady_clock::now();
-        req.response_json             = json_ok(req.id);
+        if (ui_ctx->glfw_window)
+            glfwSetWindowSize(static_cast<GLFWwindow*>(ui_ctx->glfw_window),
+                              static_cast<int>(w),
+                              static_cast<int>(h));
+        req.response_json = json_ok(req.id);
 #else
         req.response_json = json_error(req.id, "GLFW not available");
 #endif

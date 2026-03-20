@@ -82,6 +82,30 @@ void ImGuiIntegration::deselect_series()
     }
 }
 
+void ImGuiIntegration::select_series_in_rect(
+    const std::vector<DataInteraction::RectSelectedEntry>& entries)
+{
+    if (entries.empty())
+    {
+        deselect_series();
+        return;
+    }
+
+    // Clear previous selection and add all matched series
+    selection_ctx_.clear();
+    for (const auto& e : entries)
+    {
+        selection_ctx_.add_series(e.figure,
+                                  e.axes,
+                                  static_cast<AxesBase*>(e.axes),
+                                  e.axes_index,
+                                  e.series,
+                                  e.series_index);
+    }
+    active_section_ = Section::Series;
+    SPECTRA_LOG_INFO("ui", "Rectangle selected " + std::to_string(entries.size()) + " series");
+}
+
 }   // namespace spectra
 
 #endif   // SPECTRA_USE_IMGUI

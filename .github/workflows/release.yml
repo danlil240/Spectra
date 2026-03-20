@@ -111,8 +111,6 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: macos-14
-            arch: arm64
           - os: macos-15
             arch: arm64
     runs-on: ${{ matrix.os }}
@@ -183,7 +181,7 @@ jobs:
   python-wheels:
     strategy:
       matrix:
-        os: [ubuntu-24.04, macos-15-intel, macos-14, windows-2022]
+        os: [ubuntu-24.04, macos-15-intel, macos-15, windows-2022]
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -270,11 +268,11 @@ jobs:
           CIBW_BUILD_MACOS: cp39-* cp310-* cp311-* cp312-* cp313-*
           CIBW_REPAIR_MACOS: delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel} --macos-version 15.0
           CIBW_ENVIRONMENT_MACOS_ARM64: >
-            MACOSX_DEPLOYMENT_TARGET=14.0
-            CFLAGS="-mmacosx-version-min=14.0"
-            CXXFLAGS="-mmacosx-version-min=14.0"
-            CMAKE_ARGS="-DCMAKE_OSX_DEPLOYMENT_TARGET=14.0"
-          CIBW_REPAIR_MACOS_ARM64: delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel} --macos-version 14.0
+            MACOSX_DEPLOYMENT_TARGET=15.0
+            CFLAGS="-mmacosx-version-min=15.0"
+            CXXFLAGS="-mmacosx-version-min=15.0"
+            CMAKE_ARGS="-DCMAKE_OSX_DEPLOYMENT_TARGET=15.0"
+          CIBW_REPAIR_MACOS_ARM64: delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel} --macos-version 15.0
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4

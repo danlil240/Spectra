@@ -243,6 +243,13 @@ void Axes3D::auto_fit()
                 continue;
             ms->get_bounds(s_min, s_max);
         }
+        else if (auto* sh3d = dynamic_cast<ShapeSeries3D*>(s.get()))
+        {
+            sh3d->rebuild_geometry();
+            if (sh3d->vertex_count() == 0)
+                continue;
+            sh3d->get_bounds(s_min, s_max);
+        }
         else
         {
             continue;
@@ -317,6 +324,14 @@ SurfaceSeries& Axes3D::surface(std::span<const float> x_grid,
 MeshSeries& Axes3D::mesh(std::span<const float> vertices, std::span<const uint32_t> indices)
 {
     auto  series = std::make_unique<MeshSeries>(vertices, indices);
+    auto* ptr    = series.get();
+    series_.push_back(std::move(series));
+    return *ptr;
+}
+
+ShapeSeries3D& Axes3D::shapes3d()
+{
+    auto  series = std::make_unique<ShapeSeries3D>();
     auto* ptr    = series.get();
     series_.push_back(std::move(series));
     return *ptr;

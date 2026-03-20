@@ -10,6 +10,8 @@
 #include <spectra/logger.hpp>
 #include <spectra/series.hpp>
 #include <spectra/series3d.hpp>
+#include <spectra/series_shapes.hpp>
+#include <spectra/series_shapes3d.hpp>
 #include <spectra/series_stats.hpp>
 #include <vector>
 
@@ -499,6 +501,38 @@ void Renderer::render_plot_text(Figure& figure)
                 py = 2.0f;
             text_renderer_
                 .draw_text(axes.get_title(), cx, py, FontSize::Title, title_col, TextAlign::Center);
+        }
+
+        // ── ShapeSeries text annotations (data-space text labels) ──
+        for (const auto& sp : axes.series())
+        {
+            auto* shape = dynamic_cast<const ShapeSeries*>(sp.get());
+            if (!shape || shape->text_annotations().empty())
+                continue;
+
+            const auto& sc = shape->color();
+            for (const auto& ann : shape->text_annotations())
+            {
+                float px = data_to_px_x(ann.x);
+                float py = data_to_px_y(ann.y);
+
+                // Determine text color: use annotation color if set, else series color
+                Color tc = (ann.text_color.a > 0.01f) ? ann.text_color : sc;
+                uint8_t tr = static_cast<uint8_t>(tc.r * 255);
+                uint8_t tg = static_cast<uint8_t>(tc.g * 255);
+                uint8_t tb = static_cast<uint8_t>(tc.b * 255);
+                uint8_t ta = static_cast<uint8_t>(tc.a * shape->opacity() * 255);
+                uint32_t text_rgba = static_cast<uint32_t>(tr)
+                                   | (static_cast<uint32_t>(tg) << 8)
+                                   | (static_cast<uint32_t>(tb) << 16)
+                                   | (static_cast<uint32_t>(ta) << 24);
+
+                auto fs = FontSize::Label;   // default
+                auto ta_align  = static_cast<TextAlign>(std::clamp(ann.align, 0, 2));
+                auto ta_valign = static_cast<TextVAlign>(std::clamp(ann.valign, 0, 2));
+
+                text_renderer_.draw_text(ann.content, px, py, fs, text_rgba, ta_align, ta_valign);
+            }
         }
     }
 
@@ -1198,6 +1232,10 @@ void Renderer::upload_series_data(Series& series, double origin_x, double origin
     auto* histogram = dynamic_cast<HistogramSeries*>(&series);
     auto* bar       = dynamic_cast<BarSeries*>(&series);
 
+    // Try shape series
+    auto* shape   = dynamic_cast<ShapeSeries*>(&series);
+    auto* shape3d = dynamic_cast<ShapeSeries3D*>(&series);
+
     auto& gpu = series_gpu_data_[&series];
 
     // Tag series type on first encounter (avoids dynamic_cast in render_series)
@@ -1223,10 +1261,14 @@ void Renderer::upload_series_data(Series& series, double origin_x, double origin
             gpu.type = SeriesType::Histogram2D;
         else if (bar)
             gpu.type = SeriesType::Bar2D;
+        else if (shape)
+            gpu.type = SeriesType::Shape2D;
+        else if (shape3d)
+            gpu.type = SeriesType::Shape3D;
     }
 
-    // Handle 2D line/scatter and statistical series (vec2 interleaved)
-    if (line || scatter || boxplot || violin || histogram || bar)
+    // Handle 2D line/scatter and statistical/shape series (vec2 interleaved)
+    if (line || scatter || boxplot || violin || histogram || bar || shape)
     {
         const float* x_data = nullptr;
         const float* y_data = nullptr;
@@ -1271,6 +1313,13 @@ void Renderer::upload_series_data(Series& series, double origin_x, double origin
             x_data = bar->x_data().data();
             y_data = bar->y_data().data();
             count  = bar->point_count();
+        }
+        else if (shape)
+        {
+            shape->rebuild_geometry();
+            x_data = shape->x_data().data();
+            y_data = shape->y_data().data();
+            count  = shape->point_count();
         }
 
         if (count == 0)
@@ -1325,6 +1374,11 @@ void Renderer::upload_series_data(Series& series, double origin_x, double origin
         {
             fill_verts = bar->fill_verts();
             fill_count = bar->fill_vertex_count();
+        }
+        else if (shape && shape->fill_vertex_count() > 0)
+        {
+            fill_verts = shape->fill_verts();
+            fill_count = shape->fill_vertex_count();
         }
 
         if (fill_count > 0)
@@ -1527,6 +1581,39 @@ void Renderer::upload_series_data(Series& series, double origin_x, double origin
         }
         backend_.upload_buffer(gpu.index_buffer, mesh->indices().data(), idx_byte_size);
         gpu.index_count = mesh->indices().size();
+
+        series.clear_dirty();
+    }
+    // Handle 3D shapes (vertex buffer + index buffer, same as MeshSeries)
+    else if (shape3d)
+    {
+        shape3d->rebuild_geometry();
+
+        if (shape3d->vertices().empty() || shape3d->indices().empty())
+            return;
+
+        size_t vert_byte_size = shape3d->vertices().size() * sizeof(float);
+        size_t idx_byte_size  = shape3d->indices().size() * sizeof(uint32_t);
+
+        // Vertex buffer
+        if (!gpu.ssbo || gpu.uploaded_count < shape3d->vertex_count())
+        {
+            if (gpu.ssbo)
+                backend_.destroy_buffer(gpu.ssbo);
+            gpu.ssbo = backend_.create_buffer(BufferUsage::Vertex, vert_byte_size);
+        }
+        backend_.upload_buffer(gpu.ssbo, shape3d->vertices().data(), vert_byte_size);
+        gpu.uploaded_count = shape3d->vertex_count();
+
+        // Index buffer
+        if (!gpu.index_buffer || gpu.index_count < shape3d->indices().size())
+        {
+            if (gpu.index_buffer)
+                backend_.destroy_buffer(gpu.index_buffer);
+            gpu.index_buffer = backend_.create_buffer(BufferUsage::Index, idx_byte_size);
+        }
+        backend_.upload_buffer(gpu.index_buffer, shape3d->indices().data(), idx_byte_size);
+        gpu.index_count = shape3d->indices().size();
 
         series.clear_dirty();
     }
@@ -1743,6 +1830,7 @@ void Renderer::render_axes(AxesBase&   axes,
             auto* scatter3d = dynamic_cast<ScatterSeries3D*>(series_ptr.get());
             auto* surface   = dynamic_cast<SurfaceSeries*>(series_ptr.get());
             auto* mesh_s    = dynamic_cast<MeshSeries*>(series_ptr.get());
+            auto* shape3d_s = dynamic_cast<ShapeSeries3D*>(series_ptr.get());
 
             if (line3d)
                 centroid = line3d->compute_centroid();
@@ -1752,6 +1840,8 @@ void Renderer::render_axes(AxesBase&   axes,
                 centroid = surface->compute_centroid();
             else if (mesh_s)
                 centroid = mesh_s->compute_centroid();
+            else if (shape3d_s)
+                centroid = shape3d_s->compute_centroid();
 
             // Transform centroid to world space via model matrix
             vec4 world_c   = mat4_mul_vec4(model_mat, {centroid.x, centroid.y, centroid.z, 1.0f});
@@ -2949,6 +3039,53 @@ void Renderer::render_series(Series& series,
                 backend_.bind_buffer(gpu.ssbo, 0);
                 uint32_t segments = static_cast<uint32_t>(bs->point_count()) - 1;
                 backend_.draw(segments * 6);
+            }
+            break;
+        }
+        case SeriesType::Shape2D:
+        {
+            auto* sh = static_cast<ShapeSeries*>(&series);
+            // Draw fill with per-vertex gradient alpha
+            if (gpu.fill_buffer && gpu.fill_vertex_count > 0)
+            {
+                backend_.bind_pipeline(stat_fill_pipeline_);
+                SeriesPushConstants fill_pc = pc;
+                fill_pc.color[3] *= 0.50f;
+                backend_.push_constants(fill_pc);
+                backend_.bind_buffer(gpu.fill_buffer, 0);
+                backend_.draw(static_cast<uint32_t>(gpu.fill_vertex_count));
+            }
+            // Draw outline
+            if (sh->point_count() > 1)
+            {
+                backend_.bind_pipeline(line_pipeline_);
+                pc.line_width = 1.5f;
+                backend_.push_constants(pc);
+                backend_.bind_buffer(gpu.ssbo, 0);
+                uint32_t segments = static_cast<uint32_t>(sh->point_count()) - 1;
+                backend_.draw(segments * 6);
+            }
+            break;
+        }
+        case SeriesType::Shape3D:
+        {
+            auto* sh3d = static_cast<ShapeSeries3D*>(&series);
+            if (gpu.index_buffer)
+            {
+                bool is_transparent = (pc.color[3] * pc.opacity) < 0.99f;
+                backend_.bind_pipeline(is_transparent ? mesh3d_transparent_pipeline_
+                                                      : mesh3d_pipeline_);
+                pc._pad2[0] = sh3d->ambient();
+                pc._pad2[1] = sh3d->specular();
+                if (sh3d->shininess() > 0.0f)
+                {
+                    pc.marker_size = sh3d->shininess();
+                    pc.marker_type = 0;
+                }
+                backend_.push_constants(pc);
+                backend_.bind_buffer(gpu.ssbo, 0);
+                backend_.bind_index_buffer(gpu.index_buffer);
+                backend_.draw_indexed(static_cast<uint32_t>(gpu.index_count));
             }
             break;
         }

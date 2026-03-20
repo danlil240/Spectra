@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.20)
 # Read version from single source-of-truth
 file(READ ${CMAKE_CURRENT_SOURCE_DIR}/version.txt _ver_raw)
 string(STRIP "${_ver_raw}" SPECTRA_VERSION)
+set(SPECTRA_VERSION_STRING "${SPECTRA_VERSION}")
 
 project(spectra VERSION ${SPECTRA_VERSION} LANGUAGES CXX)
 
@@ -193,8 +194,13 @@ target_link_libraries(spectra PUBLIC Vulkan::Vulkan)
 
 target_compile_definitions(spectra PUBLIC
     $<$<BOOL:${SPECTRA_USE_FFMPEG}>:SPECTRA_USE_FFMPEG>
+    SPECTRA_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
+    SPECTRA_VERSION_MINOR=${PROJECT_VERSION_MINOR}
+    SPECTRA_VERSION_PATCH=${PROJECT_VERSION_PATCH}
+    SPECTRA_VERSION_STRING="${SPECTRA_VERSION_STRING}"
     SPECTRA_RUNTIME_MODE_${SPECTRA_RUNTIME_MODE}
 )
+message("SPECTRA_VERSION_STRING: ${SPECTRA_VERSION_STRING}")
 target_compile_definitions(spectra PRIVATE
     $<$<BOOL:${SPECTRA_USE_EIGEN}>:SPECTRA_USE_EIGEN>
 )

@@ -1048,7 +1048,7 @@ void ImGuiIntegration::draw_welcome_screen(float display_w, float display_h, flo
     #ifdef SPECTRA_VERSION_STRING
         const char* ver = "v" SPECTRA_VERSION_STRING;
     #else
-        const char* ver = "v0.1.1";
+        const char* ver = "v0.1.2";
     #endif
         ImFont* font = ImGui::GetFont();
         ImVec2  sz   = font->CalcTextSizeA(10.0f, FLT_MAX, 0.0f, ver);

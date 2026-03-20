@@ -344,6 +344,61 @@ inline BarSeries& bar(std::span<const float> positions, std::span<const float> h
     return detail::easy_state().ensure_axes().bar(positions, heights);
 }
 
+// ─── Shape Annotations ──────────────────────────────────────────────────────
+
+// Create an empty shape series. Add shapes with .rect(), .circle(), .arrow(), etc.
+inline ShapeSeries& shapes()
+{
+    return detail::easy_state().ensure_axes().shapes();
+}
+
+// Per-shape convenience functions — each creates its own ShapeSeries so
+// styles (fill_color, line_color, fill_opacity, etc.) are independent.
+//
+//   spectra::rect(1,1,2,2).fill_color({1,0,0,1}).fill_opacity(0.5f);
+//   spectra::circle(5,5,1).fill_color({0,0,1,1});
+//
+
+inline ShapeSeries& rect(float x, float y, float w, float h)
+{
+    return detail::easy_state().ensure_axes().shapes().rect(x, y, w, h);
+}
+
+inline ShapeSeries& circle(float cx, float cy, float r)
+{
+    return detail::easy_state().ensure_axes().shapes().circle(cx, cy, r);
+}
+
+inline ShapeSeries& ellipse(float cx, float cy, float rx, float ry)
+{
+    return detail::easy_state().ensure_axes().shapes().ellipse(cx, cy, rx, ry);
+}
+
+inline ShapeSeries& arrow(float x1, float y1, float x2, float y2)
+{
+    return detail::easy_state().ensure_axes().shapes().arrow(x1, y1, x2, y2);
+}
+
+inline ShapeSeries& ring(float cx, float cy, float outer_r, float inner_r)
+{
+    return detail::easy_state().ensure_axes().shapes().ring(cx, cy, outer_r, inner_r);
+}
+
+inline ShapeSeries& polygon(std::span<const float> x, std::span<const float> y)
+{
+    return detail::easy_state().ensure_axes().shapes().polygon(x, y);
+}
+
+inline ShapeSeries& shape_line(float x1, float y1, float x2, float y2)
+{
+    return detail::easy_state().ensure_axes().shapes().line(x1, y1, x2, y2);
+}
+
+inline ShapeSeries& text_annotation(float x, float y, const std::string& content)
+{
+    return detail::easy_state().ensure_axes().shapes().text(x, y, content);
+}
+
 // ─── 3D Plotting ────────────────────────────────────────────────────────────
 
 // 3D line plot.
@@ -386,6 +441,12 @@ inline MeshSeries& mesh(std::span<const float> vertices, std::span<const uint32_
     auto& ref = ax.mesh(vertices, indices);
     ax.auto_fit();
     return ref;
+}
+
+// Create an empty 3D shape series. Add shapes with .box(), .sphere(), .cylinder(), etc.
+inline ShapeSeries3D& shapes3d()
+{
+    return detail::easy_state().ensure_axes3d().shapes3d();
 }
 
 // ─── Axes Configuration (applies to current axes) ───────────────────────────

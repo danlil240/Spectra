@@ -7,6 +7,7 @@
 #include <spectra/color.hpp>
 #include <spectra/fwd.hpp>
 #include <spectra/series.hpp>
+#include <spectra/series_shapes.hpp>
 #include <string>
 #include <vector>
 
@@ -126,6 +127,9 @@ class Axes : public AxesBase
     ViolinSeries&    violin();
     HistogramSeries& histogram(std::span<const float> values, int bins = 30);
     BarSeries&       bar(std::span<const float> positions, std::span<const float> heights);
+
+    // Shape annotation series (rectangles, circles, arrows, polygons, etc.)
+    ShapeSeries& shapes();
 
     // Axis configuration
     void xlim(double min, double max);

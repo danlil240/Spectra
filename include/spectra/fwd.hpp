@@ -29,6 +29,8 @@ class BoxPlotSeries;
 class ViolinSeries;
 class HistogramSeries;
 class BarSeries;
+class ShapeSeries;
+class ShapeSeries3D;
 
 class Renderer;
 class Backend;

@@ -6,6 +6,7 @@
 #include <spectra/fwd.hpp>
 #include <spectra/math3d.hpp>
 #include <spectra/series3d.hpp>
+#include <spectra/series_shapes3d.hpp>
 #include <string>
 #include <vector>
 
@@ -109,6 +110,7 @@ class Axes3D : public AxesBase
                              std::span<const float> y_grid,
                              std::span<const float> z_values);
     MeshSeries&      mesh(std::span<const float> vertices, std::span<const uint32_t> indices);
+    ShapeSeries3D&   shapes3d();
 
    private:
     std::optional<AxisLimits> xlim_;

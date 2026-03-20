@@ -233,6 +233,8 @@ class Renderer
         Violin2D,
         Histogram2D,
         Bar2D,
+        Shape2D,
+        Shape3D,
     };
 
     // Per-series GPU buffers (keyed by series pointer address)

@@ -17,6 +17,8 @@
 #include <spectra/math3d.hpp>
 #include <spectra/series.hpp>
 #include <spectra/series3d.hpp>
+#include <spectra/series_shapes.hpp>
+#include <spectra/series_shapes3d.hpp>
 
 // ─── Convenience API ─────────────────────────────────────────────────────────
 // For the easiest possible API with free functions (plot, scatter, show, etc.),

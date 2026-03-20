@@ -2,6 +2,7 @@
 #include <cmath>
 #include <limits>
 #include <spectra/axes.hpp>
+#include <spectra/series_shapes.hpp>
 #include <spectra/series_stats.hpp>
 
 namespace spectra
@@ -109,6 +110,11 @@ HistogramSeries& Axes::histogram(std::span<const float> values, int bins)
 BarSeries& Axes::bar(std::span<const float> positions, std::span<const float> heights)
 {
     return add_series<BarSeries>(positions, heights);
+}
+
+ShapeSeries& Axes::shapes()
+{
+    return add_series<ShapeSeries>();
 }
 
 // --- Axis configuration ---
@@ -301,6 +307,8 @@ static void data_extent(const std::vector<std::unique_ptr<Series>>& series,
             try_stat(hs->x_data(), hs->y_data());
         if (auto* bs = dynamic_cast<const BarSeries*>(s.get()))
             try_stat(bs->x_data(), bs->y_data());
+        if (auto* sh = dynamic_cast<const ShapeSeries*>(s.get()))
+            try_stat(sh->x_data(), sh->y_data());
     }
 
     // Fallback if no data
@@ -486,6 +494,8 @@ static bool windowed_y_extent(const std::vector<std::unique_ptr<Series>>& series
             consume_xy(hs->x_data(), hs->y_data());
         if (auto* bs = dynamic_cast<const BarSeries*>(s.get()))
             consume_xy(bs->x_data(), bs->y_data());
+        if (auto* sh = dynamic_cast<const ShapeSeries*>(s.get()))
+            consume_xy(sh->x_data(), sh->y_data());
     }
 
     return has_y;

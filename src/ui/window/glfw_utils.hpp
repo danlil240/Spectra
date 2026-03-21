@@ -10,6 +10,13 @@
     #include <stb_image.h>
     #include <vector>
 
+    #if __has_include("spectra_icon_embedded.hpp")
+        #include "spectra_icon_embedded.hpp"
+        #define SPECTRA_HAS_EMBEDDED_ICON 1
+    #else
+        #define SPECTRA_HAS_EMBEDDED_ICON 0
+    #endif
+
 namespace spectra
 {
 
@@ -88,14 +95,65 @@ inline void set_window_icon(GLFWwindow* window)
     if (!window)
         return;
 
+    constexpr int ICON_SIZES[] = {16, 32, 48};
+    constexpr int N            = sizeof(ICON_SIZES) / sizeof(ICON_SIZES[0]);
+
+    // Helper: given raw RGBA pixels, set the GLFW window icon and return true.
+    auto apply_icon = [&](unsigned char* pixels, int w, int h, bool needs_free) -> bool
+    {
+        std::vector<unsigned char> buffers[N];
+        GLFWimage                  images[N];
+
+        for (int i = 0; i < N; ++i)
+        {
+            buffers[i] = downscale_icon(pixels, w, h, ICON_SIZES[i]);
+            if (!buffers[i].empty())
+            {
+                images[i].width  = ICON_SIZES[i];
+                images[i].height = ICON_SIZES[i];
+                images[i].pixels = buffers[i].data();
+            }
+            else
+            {
+                images[i].width  = w;
+                images[i].height = h;
+                images[i].pixels = pixels;
+            }
+        }
+
+        glfwSetWindowIcon(window, N, images);
+        if (needs_free)
+            stbi_image_free(pixels);
+        return true;
+    };
+
+    // 1. Try embedded icon (always available in a normal build)
+    #if SPECTRA_HAS_EMBEDDED_ICON
+    {
+        int            w = 0, h = 0, channels = 0;
+        unsigned char* pixels = stbi_load_from_memory(SpectraIcon_png_data,
+                                                      static_cast<int>(SpectraIcon_png_size),
+                                                      &w,
+                                                      &h,
+                                                      &channels,
+                                                      4);
+        if (pixels)
+        {
+            apply_icon(pixels, w, h, true);
+            return;
+        }
+    }
+    #endif
+
+    // 2. Fall back to file on disk (dev tree + installed locations)
     const char* icon_paths[] = {
         "icons/spectra_icon.png",
         "../icons/spectra_icon.png",
         "../../icons/spectra_icon.png",
         "../../../icons/spectra_icon.png",
+        "/usr/share/icons/hicolor/256x256/apps/spectra.png",
+        "/usr/local/share/icons/hicolor/256x256/apps/spectra.png",
     };
-
-    constexpr int ICON_SIZES[] = {16, 32, 48};
 
     for (const char* path : icon_paths)
     {
@@ -103,29 +161,7 @@ inline void set_window_icon(GLFWwindow* window)
         unsigned char* pixels = stbi_load(path, &w, &h, &channels, 4);
         if (pixels)
         {
-            constexpr int              N = sizeof(ICON_SIZES) / sizeof(ICON_SIZES[0]);
-            std::vector<unsigned char> buffers[N];
-            GLFWimage                  images[N];
-
-            for (int i = 0; i < N; ++i)
-            {
-                buffers[i] = downscale_icon(pixels, w, h, ICON_SIZES[i]);
-                if (!buffers[i].empty())
-                {
-                    images[i].width  = ICON_SIZES[i];
-                    images[i].height = ICON_SIZES[i];
-                    images[i].pixels = buffers[i].data();
-                }
-                else
-                {
-                    images[i].width  = w;
-                    images[i].height = h;
-                    images[i].pixels = pixels;
-                }
-            }
-
-            glfwSetWindowIcon(window, N, images);
-            stbi_image_free(pixels);
+            apply_icon(pixels, w, h, true);
             return;
         }
     }

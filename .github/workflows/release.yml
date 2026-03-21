@@ -64,11 +64,22 @@ jobs:
             dpkg-deb -I "$f" | sed -n '1,120p'
           done
 
-      - name: Smoke-test DEB install
+      - name: Smoke-test DEB install (clean container)
         run: |
-          sudo apt-get update
-          sudo apt-get install -y ./build/*.deb
-          spectra-backend --version
+          # Build a throwaway container from a clean base image to verify
+          # the .deb installs without any pre-existing build dependencies.
+          cat > /tmp/Dockerfile.deb-test <<'DOCKEOF'
+          FROM ubuntu:${{ matrix.label }}
+          COPY *.deb /tmp/
+          RUN apt-get update \
+              && apt-get install -y --no-install-recommends /tmp/*.deb \
+              && rm -rf /var/lib/apt/lists/*
+          RUN spectra --version
+          RUN spectra-backend --version
+          RUN ! ldd "$(command -v spectra)" | grep -q "not found"
+          RUN ! ldd "$(command -v spectra-backend)" | grep -q "not found"
+          DOCKEOF
+          docker build -f /tmp/Dockerfile.deb-test -t spectra-deb-smoke build/
 
       - name: Build AppImage
         run: |

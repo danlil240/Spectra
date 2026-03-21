@@ -689,6 +689,11 @@ install(FILES ${CMAKE_CURRENT_BINARY_DIR}/generated/spectra/version.hpp
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/spectra
 )
 
+# Main application binary (inproc mode)
+if(TARGET spectra-app)
+    install(TARGETS spectra-app RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+endif()
+
 # Multiproc binaries
 if(SPECTRA_RUNTIME_MODE STREQUAL "multiproc" AND NOT SPECTRA_PYTHON_WHEEL)
     if(TARGET spectra-backend)

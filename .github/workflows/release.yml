@@ -522,21 +522,7 @@ jobs:
           cp packaging/apt/options gh-pages-tree/apt/conf/options
 
       - name: Add packages to APT repo
-        env:
-          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: |
-          # Configure loopback pinentry — reprepro's gpg calls will use this
-          mkdir -p ~/.gnupg && chmod 700 ~/.gnupg
-          printf 'pinentry-mode loopback\n' >> ~/.gnupg/gpg.conf
-          printf 'allow-loopback-pinentry\n' >> ~/.gnupg/gpg-agent.conf
-          gpg-connect-agent reloadagent /bye || true
-
-          # Pre-sign test to cache passphrase in agent for this session
-          echo "test" | gpg --batch --yes \
-            --passphrase "$GPG_PASSPHRASE" \
-            --pinentry-mode loopback \
-            -u "$GPG_KEY_ID" --clearsign > /dev/null
-
           cd gh-pages-tree/apt
           for deb in ../../debs/*.deb; do
             echo "Adding $deb to stable"

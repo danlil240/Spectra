@@ -501,7 +501,7 @@ jobs:
           echo "$GPG_FINGERPRINT:6:" | gpg --import-ownertrust
 
       - name: Install reprepro
-        run: sudo apt-get install -y reprepro
+        run: sudo apt-get install -y reprepro pinentry-curses gnupg-utils
 
       - name: Checkout gh-pages branch
         run: |
@@ -525,10 +525,20 @@ jobs:
         env:
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: |
-          # Preset the passphrase into gpg-agent so reprepro can sign non-interactively
+          # Configure gpg-agent for non-interactive CI use
+          mkdir -p ~/.gnupg
+          chmod 700 ~/.gnupg
+          echo "allow-preset-passphrase" >> ~/.gnupg/gpg-agent.conf
+          echo "pinentry-mode loopback" >> ~/.gnupg/gpg-agent.conf
+          echo "pinentry-program /usr/bin/pinentry-curses" >> ~/.gnupg/gpg-agent.conf
+          gpg-connect-agent reloadagent /bye
+
+          # Preset the passphrase into gpg-agent
           GPG_KEYGRIP=$(gpg --with-keygrip --list-secret-keys "$GPG_KEY_ID" \
             | grep Keygrip | head -1 | awk '{print $3}')
-          gpg-connect-agent "PRESET_PASSPHRASE $GPG_KEYGRIP -1 $(echo -n "$GPG_PASSPHRASE" | xxd -p | tr -d '\n')" /bye
+          echo "Using keygrip: $GPG_KEYGRIP"
+          /usr/lib/gnupg2/gpg-preset-passphrase \
+            --preset "$GPG_KEYGRIP" <<< "$GPG_PASSPHRASE"
 
           cd gh-pages-tree/apt
           for deb in ../../debs/*.deb; do

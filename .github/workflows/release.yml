@@ -9,6 +9,7 @@ permissions:
 
 env:
   BUILD_TYPE: Release
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   # ─── Linux Packages (.deb, .tar.gz) ────────────────────────────────────
@@ -18,8 +19,10 @@ jobs:
         include:
           - os: ubuntu-22.04
             label: ubuntu22.04
+            docker_tag: "22.04"
           - os: ubuntu-24.04
             label: ubuntu24.04
+            docker_tag: "24.04"
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -69,7 +72,7 @@ jobs:
           # Build a throwaway container from a clean base image to verify
           # the .deb installs without any pre-existing build dependencies.
           cat > /tmp/Dockerfile.deb-test <<'DOCKEOF'
-          FROM ubuntu:${{ matrix.label }}
+          FROM ubuntu:${{ matrix.docker_tag }}
           COPY *.deb /tmp/
           RUN apt-get update \
               && apt-get install -y --no-install-recommends /tmp/*.deb \

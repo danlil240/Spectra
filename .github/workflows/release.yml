@@ -20,9 +20,11 @@ jobs:
           - os: ubuntu-22.04
             label: ubuntu22.04
             docker_tag: "22.04"
+            codename: jammy
           - os: ubuntu-24.04
             label: ubuntu24.04
             docker_tag: "24.04"
+            codename: noble
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -50,7 +52,8 @@ jobs:
           cmake -B build \
             -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
             -DSPECTRA_BUILD_TESTS=OFF \
-            -DSPECTRA_BUILD_EXAMPLES=OFF
+            -DSPECTRA_BUILD_EXAMPLES=OFF \
+            -DSPECTRA_PKG_DISTRO_CODENAME=${{ matrix.codename }}
           cmake --build build --config ${{ env.BUILD_TYPE }} -j$(nproc)
 
       - name: Package
@@ -94,10 +97,11 @@ jobs:
 
       - name: Normalize Linux artifact names
         run: |
+          VERSION=$(cat version.txt | tr -d '[:space:]')
           mkdir -p artifacts
           for f in build/*.deb; do
-            b="$(basename "$f" .deb)"
-            cp "$f" "artifacts/${b}_${{ matrix.label }}.deb"
+            ARCH=$(dpkg-deb -f "$f" Architecture)
+            cp "$f" "artifacts/spectra_${VERSION}_${ARCH}_${{ matrix.label }}.deb"
           done
           for f in build/*.tar.gz; do
             b="$(basename "$f" .tar.gz)"

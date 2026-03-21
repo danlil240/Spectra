@@ -334,6 +334,61 @@ jobs:
         id: version
         run: echo "version=$(cat version.txt | tr -d '[:space:]')" >> $GITHUB_OUTPUT
 
+      - name: Check GPG key availability
+        id: gpg_check
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        run: |
+          if [ -n "$GPG_PRIVATE_KEY" ]; then
+            echo "available=true" >> $GITHUB_OUTPUT
+          else
+            echo "available=false" >> $GITHUB_OUTPUT
+            echo "::warning::GPG_PRIVATE_KEY secret not set — skipping artifact signing"
+          fi
+
+      - name: Import GPG key
+        if: steps.gpg_check.outputs.available == 'true'
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          echo "$GPG_PRIVATE_KEY" | base64 -d | gpg --batch --import
+          GPG_KEY_ID=$(gpg --list-secret-keys --keyid-format long | grep sec | head -1 | awk '{print $2}' | cut -d'/' -f2)
+          echo "GPG_KEY_ID=$GPG_KEY_ID" >> $GITHUB_ENV
+          echo "$GPG_KEY_ID:6:" | gpg --import-ownertrust
+
+      - name: Generate SHA256 checksums
+        run: |
+          cd dist
+          sha256sum * > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: GPG-sign checksums and artifacts
+        if: steps.gpg_check.outputs.available == 'true'
+        env:
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          cd dist
+          # Sign the checksums file
+          gpg --batch --yes --pinentry-mode loopback \
+            --passphrase "$GPG_PASSPHRASE" \
+            --detach-sign --armor SHA256SUMS
+          # Sign each binary artifact
+          for f in *; do
+            [ "$f" = "SHA256SUMS" ] && continue
+            [ "$f" = "SHA256SUMS.asc" ] && continue
+            gpg --batch --yes --pinentry-mode loopback \
+              --passphrase "$GPG_PASSPHRASE" \
+              --detach-sign --armor "$f"
+          done
+          echo "--- Signed artifacts ---"
+          ls -la *.asc
+
+      - name: Export GPG public key
+        if: steps.gpg_check.outputs.available == 'true'
+        run: |
+          gpg --armor --export "$GPG_KEY_ID" > dist/spectra-release-signing-key.asc
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -360,6 +415,31 @@ jobs:
             ```
             cmake -B build && cmake --build build && sudo cmake --install build
             ```
+
+            ### Verifying Downloads
+
+            All release artifacts are GPG-signed. To verify:
+
+            **1. Import the signing key:**
+            ```bash
+            curl -fsSL https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/spectra-release-signing-key.asc | gpg --import
+            ```
+
+            **2. Verify checksums file:**
+            ```bash
+            gpg --verify SHA256SUMS.asc SHA256SUMS
+            ```
+
+            **3. Verify file integrity:**
+            ```bash
+            sha256sum -c SHA256SUMS --ignore-missing
+            ```
+
+            **4. Or verify an individual artifact:**
+            ```bash
+            gpg --verify spectra_${{ steps.version.outputs.version }}_amd64_ubuntu24.04.deb.asc \
+                         spectra_${{ steps.version.outputs.version }}_amd64_ubuntu24.04.deb
+            ```
           files: dist/*
           draft: false
           prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
@@ -372,3 +452,96 @@ jobs:
         run: |
           pip install twine
           twine upload dist/*.whl dist/*.tar.gz || echo "PyPI upload skipped (no token or already published)"
+
+  # ─── APT Repository (GitHub Pages) ────────────────────────────────────────
+  apt-repo:
+    needs: [release]
+    runs-on: ubuntu-24.04
+    if: "!contains(github.ref, 'alpha') && !contains(github.ref, 'rc')"
+
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Linux artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: debs/
+          pattern: linux-packages-*
+          merge-multiple: true
+
+      - name: Check GPG key availability
+        id: gpg_check
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        run: |
+          if [ -n "$GPG_PRIVATE_KEY" ]; then
+            echo "available=true" >> $GITHUB_OUTPUT
+          else
+            echo "available=false" >> $GITHUB_OUTPUT
+            echo "::error::GPG_PRIVATE_KEY secret is required for APT repo signing"
+            exit 1
+          fi
+
+      - name: Import GPG key
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          echo "$GPG_PRIVATE_KEY" | base64 -d | gpg --batch --import
+          GPG_KEY_ID=$(gpg --list-secret-keys --keyid-format long | grep sec | head -1 | awk '{print $2}' | cut -d'/' -f2)
+          echo "GPG_KEY_ID=$GPG_KEY_ID" >> $GITHUB_ENV
+          echo "$GPG_KEY_ID:6:" | gpg --import-ownertrust
+
+      - name: Install reprepro
+        run: sudo apt-get install -y reprepro
+
+      - name: Checkout gh-pages branch
+        run: |
+          git fetch origin gh-pages || true
+          if git show-ref --quiet refs/remotes/origin/gh-pages; then
+            git worktree add gh-pages-tree origin/gh-pages
+          else
+            # First time: create orphan gh-pages branch
+            git worktree add --orphan -b gh-pages gh-pages-tree
+          fi
+
+      - name: Set up APT repo structure
+        run: |
+          mkdir -p gh-pages-tree/apt/conf
+          # Copy reprepro config (update SignWith to use our key)
+          sed "s/SignWith: yes/SignWith: $GPG_KEY_ID/" \
+            packaging/apt/distributions > gh-pages-tree/apt/conf/distributions
+          cp packaging/apt/options gh-pages-tree/apt/conf/options
+
+      - name: Add packages to APT repo
+        env:
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          # Preset the passphrase into gpg-agent so reprepro can sign non-interactively
+          GPG_KEYGRIP=$(gpg --with-keygrip --list-secret-keys "$GPG_KEY_ID" \
+            | grep Keygrip | head -1 | awk '{print $3}')
+          gpg-connect-agent "PRESET_PASSPHRASE $GPG_KEYGRIP -1 $(echo -n "$GPG_PASSPHRASE" | xxd -p | tr -d '\n')" /bye
+
+          cd gh-pages-tree/apt
+          for deb in ../../debs/*.deb; do
+            echo "Adding $deb to stable"
+            reprepro -Vb . --confdir ./conf includedeb stable "$deb"
+          done
+
+          # Export public key so apt clients can verify the repo
+          gpg --armor --export "$GPG_KEY_ID" > spectra-archive-keyring.asc
+
+      - name: Copy apt README
+        run: cp packaging/apt/README.md gh-pages-tree/apt/README.md
+
+      - name: Commit and push gh-pages
+        run: |
+          cd gh-pages-tree
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet || git commit -m "apt: add packages for ${{ github.ref_name }}"
+          git push origin HEAD:gh-pages

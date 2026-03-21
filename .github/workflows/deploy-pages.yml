@@ -2,7 +2,7 @@ name: Deploy GitHub Pages
 
 on:
   push:
-    branches: [main]
+    branches: [main, gh-pages]
   workflow_dispatch:
 
 permissions:
@@ -22,16 +22,32 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout main
         uses: actions/checkout@v4
+
+      - name: Checkout apt repo from gh-pages
+        run: |
+          git fetch origin gh-pages || true
+          if git show-ref --quiet refs/remotes/origin/gh-pages; then
+            git worktree add gh-pages-tree origin/gh-pages
+          fi
+
+      - name: Assemble site
+        run: |
+          mkdir -p _site
+          cp -r docs/. _site/
+          if [ -d gh-pages-tree/apt ]; then
+            mkdir -p _site/apt
+            cp -r gh-pages-tree/apt/. _site/apt/
+          fi
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
-      - name: Upload docs artifact
+      - name: Upload site artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./docs
+          path: ./_site
 
       - name: Deploy to GitHub Pages
         id: deployment

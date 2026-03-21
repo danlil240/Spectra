@@ -1,0 +1,8 @@
+Origin: Spectra
+Label: Spectra
+Suite: stable
+Codename: stable
+Architectures: amd64 arm64 source
+Components: main
+Description: Spectra plotting library APT repository
+SignWith: yes

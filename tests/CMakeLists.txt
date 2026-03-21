@@ -129,6 +129,7 @@ set(SPECTRA_UNIT_TESTS
     test_ipc
     test_session_graph
     test_process_manager
+    test_animation_tick_gate
     test_easy_api
     test_knob_manager
     test_python_ipc

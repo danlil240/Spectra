@@ -43,16 +43,16 @@ class ResourceMonitor
     {
         // Accumulate for averages
         frame_ms_acc_ += frame_ms;
-        gpu_ms_acc_   += gpu_ms;
+        gpu_ms_acc_ += gpu_ms;
         ++sample_count_;
 
-        auto now     = Clock::now();
+        auto   now     = Clock::now();
         double elapsed = std::chrono::duration<double>(now - last_log_).count();
         if (elapsed < interval_s_)
             return;
 
         double avg_frame_ms = sample_count_ > 0 ? frame_ms_acc_ / sample_count_ : 0.0;
-        double avg_gpu_ms   = sample_count_ > 0 ? gpu_ms_acc_   / sample_count_ : 0.0;
+        double avg_gpu_ms   = sample_count_ > 0 ? gpu_ms_acc_ / sample_count_ : 0.0;
         double avg_fps      = avg_frame_ms > 0.0 ? 1000.0 / avg_frame_ms : 0.0;
 
         double cpu_pct = read_cpu_percent(elapsed);
@@ -90,17 +90,17 @@ class ResourceMonitor
    private:
     using Clock = std::chrono::steady_clock;
 
-    double     interval_s_;
+    double            interval_s_;
     Clock::time_point last_log_;
-    double     frame_ms_acc_ = 0.0;
-    double     gpu_ms_acc_   = 0.0;
-    uint64_t   sample_count_ = 0;
+    double            frame_ms_acc_ = 0.0;
+    double            gpu_ms_acc_   = 0.0;
+    uint64_t          sample_count_ = 0;
 
 #ifdef __linux__
-    double   ticks_per_sec_     = 100.0;
-    uint64_t prev_utime_        = 0;
-    uint64_t prev_stime_        = 0;
-    int64_t  prev_wall_ns_      = 0;
+    double   ticks_per_sec_      = 100.0;
+    uint64_t prev_utime_         = 0;
+    uint64_t prev_stime_         = 0;
+    int64_t  prev_wall_ns_       = 0;
     bool     cpu_baseline_ready_ = false;
 
     // Read utime+stime ticks and wall-clock ns from /proc/self/stat.
@@ -116,25 +116,39 @@ class ResourceMonitor
         unsigned long ut = 0;
         unsigned long st = 0;
 
-        int pid = 0;
-        char comm[256]{};
-        char state = 0;
-        int ppid = 0, pgrp = 0, session = 0, tty = 0, tpgid = 0;
-        unsigned flags = 0;
+        int           pid = 0;
+        char          comm[256]{};
+        char          state = 0;
+        int           ppid = 0, pgrp = 0, session = 0, tty = 0, tpgid = 0;
+        unsigned      flags  = 0;
         unsigned long minflt = 0, cminflt = 0, majflt = 0, cmajflt = 0;
 
-        fscanf(f,
-               "%d %255s %c %d %d %d %d %d %u %lu %lu %lu %lu %lu %lu",
-               &pid, comm, &state, &ppid, &pgrp, &session, &tty, &tpgid, &flags,
-               &minflt, &cminflt, &majflt, &cmajflt, &ut, &st);
+        int nfields = fscanf(f,
+                             "%d %255s %c %d %d %d %d %d %u %lu %lu %lu %lu %lu %lu",
+                             &pid,
+                             comm,
+                             &state,
+                             &ppid,
+                             &pgrp,
+                             &session,
+                             &tty,
+                             &tpgid,
+                             &flags,
+                             &minflt,
+                             &cminflt,
+                             &majflt,
+                             &cmajflt,
+                             &ut,
+                             &st);
         fclose(f);
+        if (nfields < 15)
+            return false;
 
-        utime = static_cast<uint64_t>(ut);
-        stime = static_cast<uint64_t>(st);
-        wall_ns = static_cast<int64_t>(
-            std::chrono::duration_cast<std::chrono::nanoseconds>(
-                std::chrono::steady_clock::now().time_since_epoch())
-            .count());
+        utime   = static_cast<uint64_t>(ut);
+        stime   = static_cast<uint64_t>(st);
+        wall_ns = static_cast<int64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                           std::chrono::steady_clock::now().time_since_epoch())
+                                           .count());
         return true;
     }
 
@@ -142,8 +156,8 @@ class ResourceMonitor
     // (no baseline yet — caller should skip logging).
     double read_cpu_percent(double elapsed_wall_s)
     {
-        uint64_t utime = 0;
-        uint64_t stime = 0;
+        uint64_t utime   = 0;
+        uint64_t stime   = 0;
         int64_t  wall_ns = 0;
         if (!sample_cpu_ticks(utime, stime, wall_ns))
             return 0.0;
@@ -152,15 +166,13 @@ class ResourceMonitor
         if (cpu_baseline_ready_)
         {
             uint64_t delta_ticks = (utime + stime) - (prev_utime_ + prev_stime_);
-            double delta_cpu_s   = static_cast<double>(delta_ticks) / ticks_per_sec_;
-            cpu_pct = (elapsed_wall_s > 0.0)
-                          ? (delta_cpu_s / elapsed_wall_s) * 100.0
-                          : 0.0;
+            double   delta_cpu_s = static_cast<double>(delta_ticks) / ticks_per_sec_;
+            cpu_pct = (elapsed_wall_s > 0.0) ? (delta_cpu_s / elapsed_wall_s) * 100.0 : 0.0;
         }
 
-        prev_utime_        = utime;
-        prev_stime_        = stime;
-        prev_wall_ns_      = wall_ns;
+        prev_utime_         = utime;
+        prev_stime_         = stime;
+        prev_wall_ns_       = wall_ns;
         cpu_baseline_ready_ = true;
 
         return cpu_pct;
@@ -188,8 +200,8 @@ class ResourceMonitor
     }
 #else
     // Non-Linux stubs
-    double read_cpu_percent(double) { return 0.0; }
-    static double read_rss_mb()    { return 0.0; }
+    double        read_cpu_percent(double) { return 0.0; }
+    static double read_rss_mb() { return 0.0; }
 #endif
 };
 

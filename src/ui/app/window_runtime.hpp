@@ -41,6 +41,8 @@ class WindowRuntime
     void update(WindowUIContext& ui_ctx,
                 FrameState&      fs,
                 FrameScheduler&  scheduler,
+                bool             allow_animation_tick,
+                float            animation_dt,
                 FrameProfiler*   profiler = nullptr
 #ifdef SPECTRA_USE_GLFW
                 ,

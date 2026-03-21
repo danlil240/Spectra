@@ -25,6 +25,7 @@
 #endif
 
 #include <algorithm>
+#include <chrono>
 #include <string>
 
 namespace spectra
@@ -60,6 +61,15 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
 {
     newly_created_window_ids_.clear();
 
+    const bool vsync_mode = scheduler.mode() == FrameScheduler::Mode::VSync;
+    bool       scheduled_animation = false;
+    bool       animation_due_tick  = false;
+    bool       allow_animation_tick = true;
+    bool       should_render_tick   = true;
+    bool       has_any_animation    = false;
+    float      max_animation_fps    = 0.0f;
+    float      animation_dt         = 0.0f;
+
     profiler_.begin_frame();
 
     try
@@ -88,6 +98,19 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
     SPECTRA_PROFILE_BEGIN(profiler_, "animator");
     animator.evaluate(scheduler.elapsed_seconds());
     SPECTRA_PROFILE_END(profiler_, "animator");
+
+    scheduled_animation = vsync_mode && animation_tick_gate_.active();
+    if (scheduled_animation)
+        animation_tick_gate_.accumulate_dt(scheduler.dt());
+
+    const auto frame_now = AnimationTickGate::Clock::now();
+    animation_due_tick   = scheduled_animation && animation_tick_gate_.should_tick(frame_now);
+    allow_animation_tick = (not vsync_mode) || (not scheduled_animation) || animation_due_tick;
+    should_render_tick   = headless || (not redraw_tracker_.is_idle()) || animation_due_tick;
+
+    animation_dt = scheduler.dt();
+    if (vsync_mode && scheduled_animation)
+        animation_dt = animation_due_tick ? animation_tick_gate_.consume_accumulated_dt() : 0.0f;
 
     // ── Unified window update + render loop ───────────────────────
 #ifdef SPECTRA_USE_GLFW
@@ -145,6 +168,9 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
             // Preview windows: render the preview card with actual figure data
             if (wctx->is_preview)
             {
+                if (not should_render_tick)
+                    continue;
+
                 if (wctx->ui_ctx && wctx->ui_ctx->imgui_ui)
                 {
                     // Find the figure being dragged by checking all windows' drag controllers
@@ -187,6 +213,9 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
             // ── Panel window: lightweight ImGui frame with panel callback ──
             if (wctx->panel_draw_callback)
             {
+                if (not should_render_tick)
+                    continue;
+
                 if (wctx->ui_ctx && wctx->ui_ctx->imgui_ui)
                 {
                     wctx->ui_ctx->imgui_ui->new_frame();
@@ -361,7 +390,12 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
             {
                 win_fs.has_animation = static_cast<bool>(win_fs.active_figure->anim_on_frame_);
                 if (win_fs.has_animation)
-                    redraw_tracker_.mark_dirty("animation");
+                {
+                    has_any_animation = true;
+                    max_animation_fps = std::max(max_animation_fps, win_fs.active_figure->anim_fps_);
+                    if (not vsync_mode)
+                        redraw_tracker_.mark_dirty("animation");
+                }
             }
 
     #ifdef SPECTRA_USE_GLFW
@@ -379,8 +413,7 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
 
             // Also check split-view pane figures — animation must continue
             // even when the active tab is not the animated one.
-            if (!win_fs.has_animation && win_fs.active_figure
-                && wctx->ui_ctx->dock_system.is_split())
+            if (win_fs.active_figure && wctx->ui_ctx->dock_system.is_split())
             {
                 for (const auto& pinfo : wctx->ui_ctx->dock_system.get_pane_infos())
                 {
@@ -388,14 +421,24 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
                     if (pfig && pfig->anim_on_frame_)
                     {
                         win_fs.has_animation = true;
-                        break;
+                        has_any_animation    = true;
+                        max_animation_fps    = std::max(max_animation_fps, pfig->anim_fps_);
                     }
                 }
             }
 
+            if (not should_render_tick)
+                continue;
+
             {
                 SPECTRA_PROFILE_SCOPE(profiler_, "win_update");
-                win_rt_.update(*wctx->ui_ctx, win_fs, scheduler, &profiler_, window_mgr);
+                win_rt_.update(*wctx->ui_ctx,
+                               win_fs,
+                               scheduler,
+                               allow_animation_tick,
+                               animation_dt,
+                               &profiler_,
+                               window_mgr);
             }
 
             // Sync WindowContext::assigned_figures with FigureManager.
@@ -443,11 +486,13 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
 #endif
 
     // Headless path (no GLFW, no WindowManager)
-    if (headless && headless_ui_ctx)
+    if (headless && headless_ui_ctx && should_render_tick)
     {
         win_rt_.update(*headless_ui_ctx,
                        frame_state,
                        scheduler,
+                       allow_animation_tick,
+                       animation_dt,
                        &profiler_
 #ifdef SPECTRA_USE_GLFW
                        ,
@@ -719,6 +764,27 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
         scheduler.end_frame();
     profiler_.end_frame();
 
+    if (vsync_mode)
+    {
+        if (should_render_tick)
+        {
+            if (not has_any_animation)
+            {
+                animation_tick_gate_.clear();
+            }
+            else if (allow_animation_tick)
+            {
+                float effective_fps =
+                    max_animation_fps > 0.0f ? max_animation_fps : scheduler.target_fps();
+                animation_tick_gate_.schedule_next(AnimationTickGate::Clock::now(), effective_fps);
+            }
+        }
+    }
+    else
+    {
+        animation_tick_gate_.clear();
+    }
+
     // ── Poll events + check exit ─────────────────────────────────
 #ifdef SPECTRA_USE_GLFW
     if (window_mgr)
@@ -741,10 +807,17 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
         SPECTRA_PROFILE_BEGIN(profiler_, "poll_events");
         if (redraw_tracker_.is_idle())
         {
+            double wait_timeout_s = 0.1;
+            if (vsync_mode && (has_any_animation || scheduled_animation))
+            {
+                wait_timeout_s =
+                    animation_tick_gate_.wait_timeout_seconds(AnimationTickGate::Clock::now(), 0.1);
+            }
+
             // Nothing to render — sleep until an OS event arrives or 100ms timeout.
             // The timeout ensures we wake periodically for automation polling,
             // pending detach processing, and other deferred work.
-            window_mgr->wait_events_timeout(0.1);
+            window_mgr->wait_events_timeout(wait_timeout_s);
         }
         else
         {

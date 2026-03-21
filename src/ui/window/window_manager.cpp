@@ -461,6 +461,12 @@ void WindowManager::rebuild_active_list()
     }
 }
 
+void WindowManager::request_redraw(const char* reason)
+{
+    if (redraw_request_handler_)
+        redraw_request_handler_(reason);
+}
+
 // --- GLFW callback trampolines ---
 
 #ifdef SPECTRA_USE_GLFW
@@ -479,6 +485,7 @@ void WindowManager::glfw_framebuffer_size_callback(GLFWwindow* window, int width
     wctx->pending_width  = static_cast<uint32_t>(width);
     wctx->pending_height = static_cast<uint32_t>(height);
     wctx->resize_time    = std::chrono::steady_clock::now();
+    mgr->request_redraw("resize");
 
     SPECTRA_LOG_DEBUG("window_manager",
                       "Window " + std::to_string(wctx->id) + " resize: " + std::to_string(width)
@@ -514,6 +521,7 @@ void WindowManager::glfw_window_focus_callback(GLFWwindow* window, int focused)
     wctx->is_focused = (focused != 0);
     if (focused)
         wctx->z_order = mgr->next_z_order_++;
+    mgr->request_redraw("focus");
     #ifdef SPECTRA_USE_IMGUI
     // Forward focus event to ImGui for this window's context
     if (wctx->imgui_context && wctx->ui_ctx)
@@ -1970,6 +1978,7 @@ void WindowManager::glfw_cursor_pos_callback(GLFWwindow* window, double x, doubl
     if (wctx->imgui_context)
         ImGui::SetCurrentContext(static_cast<ImGuiContext*>(wctx->imgui_context));
     ImGui_ImplGlfw_CursorPosCallback(window, x, y);
+    mgr->request_redraw("mouse_move");
 
     auto& input_handler = ui.input_handler;
     auto& imgui_ui      = ui.imgui_ui;
@@ -2054,6 +2063,7 @@ void WindowManager::glfw_mouse_button_callback(GLFWwindow* window, int button, i
     if (wctx->imgui_context)
         ImGui::SetCurrentContext(static_cast<ImGuiContext*>(wctx->imgui_context));
     ImGui_ImplGlfw_MouseButtonCallback(window, button, action, mods);
+    mgr->request_redraw("mouse_button");
 
     auto& input_handler = ui.input_handler;
     auto& imgui_ui      = ui.imgui_ui;
@@ -2128,6 +2138,7 @@ void WindowManager::glfw_scroll_callback(GLFWwindow* window, double x_offset, do
     if (wctx->imgui_context)
         ImGui::SetCurrentContext(static_cast<ImGuiContext*>(wctx->imgui_context));
     ImGui_ImplGlfw_ScrollCallback(window, x_offset, y_offset);
+    mgr->request_redraw("scroll");
 
     auto& input_handler = ui.input_handler;
     auto& imgui_ui      = ui.imgui_ui;
@@ -2202,6 +2213,7 @@ void WindowManager::glfw_key_callback(GLFWwindow* window,
     if (wctx->imgui_context)
         ImGui::SetCurrentContext(static_cast<ImGuiContext*>(wctx->imgui_context));
     ImGui_ImplGlfw_KeyCallback(window, key, scancode, action, mods);
+    mgr->request_redraw("key");
 
     auto& input_handler = ui.input_handler;
     auto& imgui_ui      = ui.imgui_ui;
@@ -2287,6 +2299,7 @@ void WindowManager::glfw_char_callback(GLFWwindow* window, unsigned int codepoin
     if (wctx->imgui_context)
         ImGui::SetCurrentContext(static_cast<ImGuiContext*>(wctx->imgui_context));
     ImGui_ImplGlfw_CharCallback(window, codepoint);
+    mgr->request_redraw("char");
     if (prev_ctx)
         ImGui::SetCurrentContext(prev_ctx);
     #else
@@ -2312,6 +2325,7 @@ void WindowManager::glfw_cursor_enter_callback(GLFWwindow* window, int entered)
     if (wctx->imgui_context)
         ImGui::SetCurrentContext(static_cast<ImGuiContext*>(wctx->imgui_context));
     ImGui_ImplGlfw_CursorEnterCallback(window, entered);
+    mgr->request_redraw("cursor_enter");
     if (prev_ctx)
         ImGui::SetCurrentContext(prev_ctx);
     #else

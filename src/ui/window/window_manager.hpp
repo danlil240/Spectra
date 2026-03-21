@@ -245,9 +245,14 @@ class WindowManager
                                               float    local_x,
                                               float    local_y,
                                               FigureId target_figure_id)>;
+    using RedrawRequestHandler = std::function<void(const char* reason)>;
 
     void set_tab_detach_handler(TabDetachHandler cb) { tab_detach_handler_ = std::move(cb); }
     void set_tab_move_handler(TabMoveHandler cb) { tab_move_handler_ = std::move(cb); }
+    void set_redraw_request_handler(RedrawRequestHandler cb)
+    {
+        redraw_request_handler_ = std::move(cb);
+    }
 
     // Shutdown: destroy all windows and release resources.
     // After this, the WindowManager is in an uninitialized state.
@@ -280,6 +285,8 @@ class WindowManager
     // Helper: find the WindowContext for a GLFW window handle
     WindowContext* find_by_glfw_window(GLFWwindow* window) const;
 
+    void request_redraw(const char* reason);
+
     // Initialize the full UI subsystem bundle for a WindowContext.
     // Creates ImGuiIntegration, FigureManager, DockSystem, InputHandler, etc.
     bool init_window_ui(WindowContext& wctx, FigureId initial_figure_id);
@@ -303,8 +310,9 @@ class WindowManager
     std::unique_ptr<WindowContext> pooled_preview_;
 
     // Tab drag handlers (applied to every new window's TabDragController)
-    TabDetachHandler tab_detach_handler_;
-    TabMoveHandler   tab_move_handler_;
+    TabDetachHandler     tab_detach_handler_;
+    TabMoveHandler       tab_move_handler_;
+    RedrawRequestHandler redraw_request_handler_;
 
     // Cross-window drag target tracking
     uint32_t            drag_target_window_id_ = 0;

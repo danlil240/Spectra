@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "anim/frame_profiler.hpp"
+#include "animation_tick_gate.hpp"
 #include "redraw_tracker.hpp"
 #include "resource_monitor.hpp"
 #include "window_runtime.hpp"
@@ -124,6 +125,10 @@ class SessionRuntime
 
     // Event-driven rendering: only redraw when something changes.
     RedrawTracker redraw_tracker_;
+
+    // In VSync mode, animation-only redraws sleep until the next animation deadline
+    // instead of redrawing every monitor refresh.
+    AnimationTickGate animation_tick_gate_;
 
     // Periodic resource utilization logger (CPU%, RAM, frame timing).
     ResourceMonitor resource_monitor_;

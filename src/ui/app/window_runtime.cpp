@@ -42,6 +42,8 @@ WindowRuntime::WindowRuntime(Backend& backend, Renderer& renderer, FigureRegistr
 void WindowRuntime::update(WindowUIContext& ui_ctx,
                            FrameState&      fs,
                            FrameScheduler&  scheduler,
+                           bool             allow_animation_tick,
+                           float            animation_dt,
                            FrameProfiler*   profiler
 #ifdef SPECTRA_USE_GLFW
                            ,
@@ -199,6 +201,7 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
             return;
 
         Frame frame = scheduler.current_frame();
+        frame.dt    = animation_dt;
 
 #ifdef SPECTRA_USE_IMGUI
         if (is_active)
@@ -289,14 +292,14 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
     };
 
     // Drive animation for the active figure
-    if (active_figure && has_animation)
+    if (allow_animation_tick && active_figure && has_animation)
     {
         drive_figure_anim(active_figure, /*is_active=*/true);
     }
 
 #ifdef SPECTRA_USE_IMGUI
     // Drive animation for non-active figures visible in split view panes.
-    if (dock_system.is_split())
+    if (allow_animation_tick && dock_system.is_split())
     {
         auto pane_infos = dock_system.get_pane_infos();
         for (const auto& pinfo : pane_infos)

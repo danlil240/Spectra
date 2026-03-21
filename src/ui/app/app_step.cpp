@@ -242,6 +242,9 @@ void App::init_runtime()
             rt.window_mgr->init(static_cast<VulkanBackend*>(backend_.get()),
                                 &registry_,
                                 renderer_.get());
+            rt.window_mgr->set_redraw_request_handler(
+                [&session = rt.session](const char* reason)
+                { session.redraw_tracker().mark_dirty(reason); });
 
             rt.window_mgr->set_tab_detach_handler(
                 [&session = rt.session](FigureId           fid,

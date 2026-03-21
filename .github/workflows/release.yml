@@ -501,7 +501,7 @@ jobs:
           echo "$GPG_FINGERPRINT:6:" | gpg --import-ownertrust
 
       - name: Install reprepro
-        run: sudo apt-get install -y reprepro pinentry-curses gnupg-utils
+        run: sudo apt-get install -y reprepro
 
       - name: Checkout gh-pages branch
         run: |
@@ -525,20 +525,17 @@ jobs:
         env:
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: |
-          # Configure gpg-agent for non-interactive CI use
-          mkdir -p ~/.gnupg
-          chmod 700 ~/.gnupg
-          echo "allow-preset-passphrase" >> ~/.gnupg/gpg-agent.conf
-          echo "pinentry-mode loopback" >> ~/.gnupg/gpg-agent.conf
-          echo "pinentry-program /usr/bin/pinentry-curses" >> ~/.gnupg/gpg-agent.conf
-          gpg-connect-agent reloadagent /bye
+          # Configure loopback pinentry — reprepro's gpg calls will use this
+          mkdir -p ~/.gnupg && chmod 700 ~/.gnupg
+          printf 'pinentry-mode loopback\n' >> ~/.gnupg/gpg.conf
+          printf 'allow-loopback-pinentry\n' >> ~/.gnupg/gpg-agent.conf
+          gpg-connect-agent reloadagent /bye || true
 
-          # Preset the passphrase into gpg-agent
-          GPG_KEYGRIP=$(gpg --with-keygrip --list-secret-keys "$GPG_KEY_ID" \
-            | grep Keygrip | head -1 | awk '{print $3}')
-          echo "Using keygrip: $GPG_KEYGRIP"
-          /usr/lib/gnupg2/gpg-preset-passphrase \
-            --preset "$GPG_KEYGRIP" <<< "$GPG_PASSPHRASE"
+          # Pre-sign test to cache passphrase in agent for this session
+          echo "test" | gpg --batch --yes \
+            --passphrase "$GPG_PASSPHRASE" \
+            --pinentry-mode loopback \
+            -u "$GPG_KEY_ID" --clearsign > /dev/null
 
           cd gh-pages-tree/apt
           for deb in ../../debs/*.deb; do

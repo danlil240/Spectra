@@ -289,6 +289,13 @@ void WindowManager::poll_events()
 #endif
 }
 
+void WindowManager::wait_events_timeout(double timeout_seconds)
+{
+#ifdef SPECTRA_USE_GLFW
+    glfwWaitEventsTimeout(timeout_seconds);
+#endif
+}
+
 WindowContext* WindowManager::focused_window() const
 {
     for (auto& wctx : windows_)

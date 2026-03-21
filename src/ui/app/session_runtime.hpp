@@ -6,6 +6,8 @@
 #include <vector>
 
 #include "anim/frame_profiler.hpp"
+#include "redraw_tracker.hpp"
+#include "resource_monitor.hpp"
 #include "window_runtime.hpp"
 
 namespace spectra
@@ -65,6 +67,9 @@ class SessionRuntime
     // Access the window runtime (for callers that need per-window control).
     WindowRuntime& window_runtime() { return win_rt_; }
 
+    // Access the redraw tracker (for event-driven rendering).
+    RedrawTracker& redraw_tracker() { return redraw_tracker_; }
+
     // Access the frame scheduler.
     FrameScheduler& scheduler();
 
@@ -116,6 +121,12 @@ class SessionRuntime
 
     // Deferred cross-window move requests.
     std::vector<PendingMove> pending_moves_;
+
+    // Event-driven rendering: only redraw when something changes.
+    RedrawTracker redraw_tracker_;
+
+    // Periodic resource utilization logger (CPU%, RAM, frame timing).
+    ResourceMonitor resource_monitor_;
 
     // DEBUG-only per-frame performance profiler.
     FrameProfiler profiler_{600};

@@ -80,6 +80,10 @@ class WindowManager
     // Single glfwPollEvents() call for all windows.
     void poll_events();
 
+    // Block until an event arrives or timeout (seconds) elapses.
+    // Use when the application is idle (nothing to render) to save CPU/GPU.
+    void wait_events_timeout(double timeout_seconds);
+
     // Returns all currently active (non-closed) window contexts.
     const std::vector<WindowContext*>& windows() const { return active_ptrs_; }
 

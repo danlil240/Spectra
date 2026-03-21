@@ -356,6 +356,11 @@ std::string AutomationServer::invoke(const std::string&        method,
         pending_.push_back(std::move(req));
     }
 
+    // Wake the main thread if it's sleeping in glfwWaitEventsTimeout().
+#ifdef SPECTRA_USE_GLFW
+    glfwPostEmptyEvent();
+#endif
+
     const auto deadline = std::chrono::steady_clock::now() + timeout;
     while (running_.load(std::memory_order_relaxed) && std::chrono::steady_clock::now() < deadline)
     {
@@ -453,6 +458,11 @@ void AutomationServer::handle_client(int client_fd)
                 std::lock_guard lock(pending_mutex_);
                 pending_.push_back(std::move(req));
             }
+
+            // Wake the main thread if it's sleeping in glfwWaitEventsTimeout().
+#ifdef SPECTRA_USE_GLFW
+            glfwPostEmptyEvent();
+#endif
 
             // Wait for main thread to execute (max 30s)
             auto        deadline = std::chrono::steady_clock::now() + std::chrono::seconds(30);

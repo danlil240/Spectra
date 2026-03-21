@@ -746,7 +746,11 @@ App::StepResult App::step()
 
     // Poll automation server for pending remote commands
     if (rt.auto_server)
+    {
         rt.auto_server->poll(*this, rt.ui_ctx_ptr);
+        // Automation commands will have been drained into cmd_queue;
+        // the tick() will mark dirty when it processes them.
+    }
 
     rt.session.tick(rt.scheduler,
                     rt.animator,

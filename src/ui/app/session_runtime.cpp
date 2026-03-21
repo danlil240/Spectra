@@ -9,6 +9,7 @@
 #include "render/vulkan/vk_backend.hpp"
 #include "ui/commands/command_queue.hpp"
 #include "ui/figures/figure_registry.hpp"
+#include "ui/input/input.hpp"
 #include "window_ui_context.hpp"
 
 #ifdef SPECTRA_USE_GLFW
@@ -78,6 +79,7 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
     SPECTRA_PROFILE_END(profiler_, "cmd_drain");
     if (commands_processed > 0)
     {
+        redraw_tracker_.mark_dirty("commands");
         SPECTRA_LOG_TRACE("main_loop",
                           "Processed " + std::to_string(commands_processed) + " commands");
     }
@@ -132,6 +134,7 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
             // Sync WindowContext resize state → UIContext resize fields
             if (wctx->needs_resize)
             {
+                redraw_tracker_.mark_dirty("resize");
                 wctx->ui_ctx->needs_resize          = true;
                 wctx->ui_ctx->new_width             = wctx->pending_width;
                 wctx->ui_ctx->new_height            = wctx->pending_height;
@@ -357,7 +360,22 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
             if (win_fs.active_figure)
             {
                 win_fs.has_animation = static_cast<bool>(win_fs.active_figure->anim_on_frame_);
+                if (win_fs.has_animation)
+                    redraw_tracker_.mark_dirty("animation");
             }
+
+    #ifdef SPECTRA_USE_GLFW
+            // Mark dirty when the input handler is actively dragging (pan/zoom/box)
+            // or when a zoom/inertia animation is still running.
+            if (wctx->ui_ctx)
+            {
+                auto& ih = wctx->ui_ctx->input_handler;
+                if (ih.mode() == InteractionMode::Dragging)
+                    redraw_tracker_.mark_dirty("drag");
+                if (ih.has_active_animations())
+                    redraw_tracker_.mark_dirty("input_anim");
+            }
+    #endif
 
             // Also check split-view pane figures — animation must continue
             // even when the active tab is not the animated one.
@@ -693,15 +711,45 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
     }
 #endif
 
-    scheduler.end_frame();
+    // Only run the scheduler's sleep/spin-wait pacing when actively rendering.
+    // When idle, glfwWaitEventsTimeout() handles pacing instead — the scheduler's
+    // spin-wait would otherwise burn CPU to hit target FPS on frames that don't
+    // need rendering (e.g. mouse hover wakeups).
+    if (!redraw_tracker_.is_idle())
+        scheduler.end_frame();
     profiler_.end_frame();
 
     // ── Poll events + check exit ─────────────────────────────────
 #ifdef SPECTRA_USE_GLFW
     if (window_mgr)
     {
+        // Only check for sustained states that don't generate fresh OS events.
+        // Mouse movement / scroll / clicks already wake glfwWaitEventsTimeout()
+        // as OS cursor-pos / scroll / button events — checking io.MouseDelta or
+        // io.MouseDown here would re-mark dirty every rendered frame and cause
+        // a 100% CPU spin loop while the mouse is moving.
+        ImGuiIO& io = ImGui::GetIO();
+
+        // Active ImGui widget sustained across frames (slider drag, text input).
+        if (ImGui::IsAnyItemActive() || io.WantTextInput)
+            redraw_tracker_.mark_dirty("imgui_active");
+
+        // Queued keyboard characters (typing in the command bar, etc.).
+        if (io.InputQueueCharacters.Size > 0)
+            redraw_tracker_.mark_dirty("keyboard");
+
         SPECTRA_PROFILE_BEGIN(profiler_, "poll_events");
-        window_mgr->poll_events();
+        if (redraw_tracker_.is_idle())
+        {
+            // Nothing to render — sleep until an OS event arrives or 100ms timeout.
+            // The timeout ensures we wake periodically for automation polling,
+            // pending detach processing, and other deferred work.
+            window_mgr->wait_events_timeout(0.1);
+        }
+        else
+        {
+            window_mgr->poll_events();
+        }
         SPECTRA_PROFILE_END(profiler_, "poll_events");
         window_mgr->process_pending_closes();
 
@@ -722,6 +770,13 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
 
     // Refresh active_figure pointer in case it was destroyed during process_pending_closes
     frame_state.active_figure = registry_.get(frame_state.active_figure_id);
+
+    // Advance the redraw tracker — decrement grace counter.
+    redraw_tracker_.end_frame();
+
+    // Periodic resource utilization log (CPU%, RAM, frame timing).
+    double frame_ms = static_cast<double>(scheduler.dt()) * 1000.0;
+    resource_monitor_.tick(frame_ms);
 
     return frame_state;
 }

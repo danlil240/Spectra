@@ -1,0 +1,38 @@
+Origin: Spectra
+Label: Spectra
+Suite: stable
+Codename: noble
+Date: Sat, 21 Mar 2026 20:05:28 UTC
+Architectures: amd64 arm64
+Components: main
+Description: Spectra plotting library APT repository (Ubuntu 24.04 Noble)
+MD5Sum:
+ 6a5acb57d1a26b1bd0bfe23d080d3250 530 main/binary-amd64/Packages
+ c72886d4abcb3731476233f2cf5726f0 388 main/binary-amd64/Packages.gz
+ 47007d2e7356ad1655a707f59cf797ba 157 main/binary-amd64/Release
+ d41d8cd98f00b204e9800998ecf8427e 0 main/binary-arm64/Packages
+ 7029066c27ac6f5ef18d660d5741979a 20 main/binary-arm64/Packages.gz
+ 902e3cfd95fa9b0102276111301ac245 157 main/binary-arm64/Release
+ d41d8cd98f00b204e9800998ecf8427e 0 main/source/Sources
+ 7029066c27ac6f5ef18d660d5741979a 20 main/source/Sources.gz
+ e9ec5e2b26f53c0e4af9a7e133601797 158 main/source/Release
+SHA1:
+ 3a6d57fba539222d2d0657e756902c901f756b4b 530 main/binary-amd64/Packages
+ 154eddc22a3b4eac5a5a09c0dae8804dd34a62b4 388 main/binary-amd64/Packages.gz
+ 3123c13dfcbb43dad267b1e0c56c417bcd083933 157 main/binary-amd64/Release
+ da39a3ee5e6b4b0d3255bfef95601890afd80709 0 main/binary-arm64/Packages
+ 46c6643f07aa7f6bfe7118de926b86defc5087c4 20 main/binary-arm64/Packages.gz
+ 61dc624bc15ef0ae575d2d3cf25485ae46600a47 157 main/binary-arm64/Release
+ da39a3ee5e6b4b0d3255bfef95601890afd80709 0 main/source/Sources
+ 46c6643f07aa7f6bfe7118de926b86defc5087c4 20 main/source/Sources.gz
+ 8b3ee1da66598fa0d5841d9e03e748a2fe027455 158 main/source/Release
+SHA256:
+ 027196e46c111a30933015411066b77644c56d1c1330eba371ec6614fb6568a3 530 main/binary-amd64/Packages
+ 5bdc4aa43fa7d4a92f27533cd6ff8f3bee85cd3bad8082fc9c0b0d6700da93d8 388 main/binary-amd64/Packages.gz
+ 27ce7018fd50f08ea6a27041a98af6694f67d0983b6224c3fcbfdbabdec0271a 157 main/binary-amd64/Release
+ e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 0 main/binary-arm64/Packages
+ 59869db34853933b239f1e2219cf7d431da006aa919635478511fabbfc8849d2 20 main/binary-arm64/Packages.gz
+ a8cd14205354f319d3b7c7244abaa349ea4caa23e714efd804ea5f855a1b1fb2 157 main/binary-arm64/Release
+ e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 0 main/source/Sources
+ 59869db34853933b239f1e2219cf7d431da006aa919635478511fabbfc8849d2 20 main/source/Sources.gz
+ f5bd8124ec859814b7f4b41ea42845f9cc5dc84423e1488e2e96a098952857e2 158 main/source/Release

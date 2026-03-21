@@ -1,0 +1,17 @@
+Origin: Spectra
+Label: Spectra
+Suite: stable
+Codename: jammy
+Architectures: amd64 arm64 source
+Components: main
+Description: Spectra plotting library APT repository (Ubuntu 22.04 Jammy)
+SignWith: CB1F5FBD18EBAECA
+
+Origin: Spectra
+Label: Spectra
+Suite: stable
+Codename: noble
+Architectures: amd64 arm64 source
+Components: main
+Description: Spectra plotting library APT repository (Ubuntu 24.04 Noble)
+SignWith: CB1F5FBD18EBAECA

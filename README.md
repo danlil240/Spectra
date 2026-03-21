@@ -48,7 +48,34 @@ sp.show()
 
 ## Install
 
-Source build dependencies on Ubuntu/Debian:
+### APT Repository (Ubuntu 22.04 / 24.04)
+
+The fastest way to install on Ubuntu — adds the Spectra repo so `apt` handles
+updates automatically:
+
+```bash
+# 1. Import the signing key
+curl -fsSL https://danlil240.github.io/Spectra/apt/spectra-archive-keyring.asc \
+  | sudo gpg --dearmor -o /etc/apt/keyrings/spectra.gpg
+
+# 2. Add the repository (auto-detects your Ubuntu codename)
+echo "deb [signed-by=/etc/apt/keyrings/spectra.gpg] https://danlil240.github.io/Spectra/apt $(lsb_release -cs) main" \
+  | sudo tee /etc/apt/sources.list.d/spectra.list
+
+# 3. Install
+sudo apt update
+sudo apt install spectra
+```
+
+### Python
+
+```bash
+pip install spectra-plot
+```
+
+No compiler or Vulkan SDK needed — just a working Vulkan runtime/driver.
+
+### Build from Source
 
 ```bash
 sudo apt install build-essential cmake libvulkan-dev libglfw3-dev glslang-tools
@@ -61,16 +88,11 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j$(nproc)
 ```
 
-Released artifact dependencies:
+### Other Artifacts
 
-- `.deb`: install with `sudo apt install ./spectra_<version>_amd64.deb`. Do not preinstall `-dev` packages; `apt` resolves runtime dependencies automatically.
-- `AppImage`: no manual package installs in the common case; a working Vulkan-capable driver/runtime is still required.
-- Python wheel: `pip install spectra-plot`; no compiler or Vulkan SDK is needed on the target machine, but the backend still needs a working Vulkan runtime/driver.
-
-```bash
-# Python
-pip install spectra-plot
-```
+- **`.deb`** (direct download): `sudo apt install ./spectra_<version>_amd64.deb`. No `-dev` packages needed; `apt` resolves runtime dependencies.
+- **AppImage**: download and run — a working Vulkan-capable driver is required.
+- **Python wheel**: `pip install spectra-plot`.
 
 > **Platform-specific setup, CMake options, Eigen integration, and packaging →** [Getting Started Guide](https://danlil240.github.io/Spectra/getting-started.html)
 

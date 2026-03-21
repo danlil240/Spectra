@@ -226,7 +226,22 @@ target_link_libraries(myapp PRIVATE spectra::spectra)</code></pre>
         <div class="container">
           <h2>9. Deployment &amp; Packaging</h2>
 
-          <h3>Install from Source</h3>
+          <h3>APT Repository (Ubuntu 22.04 / 24.04)</h3>
+          <p>The recommended Linux install — adds the Spectra repo so <code>apt</code> handles updates automatically:</p>
+          <pre><code># Import the signing key
+curl -fsSL https://danlil240.github.io/Spectra/apt/spectra-archive-keyring.asc \
+  | sudo gpg --dearmor -o /etc/apt/keyrings/spectra.gpg
+
+# Add the repository (auto-detects your Ubuntu codename)
+echo "deb [signed-by=/etc/apt/keyrings/spectra.gpg] https://danlil240.github.io/Spectra/apt $(lsb_release -cs) main" \
+  | sudo tee /etc/apt/sources.list.d/spectra.list
+
+# Install
+sudo apt update
+sudo apt install spectra</code></pre>
+          <div class="callout">Supported codenames: <strong>jammy</strong> (22.04) and <strong>noble</strong> (24.04). The <code>$(lsb_release -cs)</code> command auto-detects the correct one.</div>
+
+          <h3 style="margin-top:1.5rem">Install from Source</h3>
           <pre><code>cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j$(nproc)
 sudo cmake --install build --prefix /usr/local</code></pre>

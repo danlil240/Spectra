@@ -403,7 +403,7 @@ class RosAppShell
     bool  show_nav_rail_        = true;
     bool  nav_rail_expanded_    = false;
     float nav_rail_width_       = 220.0f;
-    float nav_rail_collapsed_w_ = 52.0f;
+    float nav_rail_collapsed_w_ = 44.0f;
 
     // Dockspace state.
     bool dock_layout_initialized_ = false;

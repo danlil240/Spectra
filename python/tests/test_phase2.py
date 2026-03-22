@@ -279,7 +279,7 @@ class TestConvenienceAPI:
     def test_version_exists(self):
         import spectra as sp
         assert hasattr(sp, "__version__")
-        assert sp.__version__ == "0.1.0"
+        assert sp.__version__ == "0.2.0"
 
     def test_session_class_exported(self):
         from spectra import Session

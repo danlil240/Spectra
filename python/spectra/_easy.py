@@ -136,6 +136,7 @@ class _EasyState:
         self._live_stop_events: List[threading.Event] = []
         self._shutting_down = False
         self._axes_bounds: dict = {}  # id(axes) -> [xmin, xmax, ymin, ymax]
+        self._subplot_cache: dict = {}  # (figure_id, rows, cols, index) -> Axes
 
     def _ensure_session(self):
         """Lazily create the backend session."""
@@ -197,6 +198,8 @@ class _EasyState:
         self._current_axes3d = None
         self._figures.clear()
         self._axes_bounds.clear()
+        self._subplot_cache.clear()
+        self._shutting_down = False
 
 
 _state = _EasyState()
@@ -267,9 +270,17 @@ def subplot(rows: int, cols: int, index: int):
     Uses 1-based indexing: subplot(2, 1, 1) = top of 2-row layout.
     """
     fig = _state._ensure_figure()
+    cache_key = (fig.id, rows, cols, index)
+    cached = _state._subplot_cache.get(cache_key)
+    if cached is not None:
+        _state._current_axes_key = (rows, cols, index)
+        _state._current_axes = cached
+        _state._current_axes3d = None
+        return cached
     _state._current_axes_key = (rows, cols, index)
     _state._current_axes = fig.subplot(rows, cols, index)
     _state._current_axes3d = None
+    _state._subplot_cache[cache_key] = _state._current_axes
     return _state._current_axes
 
 
@@ -279,8 +290,15 @@ def subplot3d(rows: int = 1, cols: int = 1, index: int = 1):
     Uses 1-based indexing: subplot3d(2, 1, 1) = top of 2-row layout.
     """
     fig = _state._ensure_figure()
+    cache_key = (fig.id, rows, cols, index, '3d')
+    cached = _state._subplot_cache.get(cache_key)
+    if cached is not None:
+        _state._current_axes3d = cached
+        _state._current_axes = None
+        return cached
     _state._current_axes3d = fig.subplot3d(rows, cols, index)
     _state._current_axes = None
+    _state._subplot_cache[cache_key] = _state._current_axes3d
     return _state._current_axes3d
 
 

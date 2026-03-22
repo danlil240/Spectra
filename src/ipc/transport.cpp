@@ -40,7 +40,7 @@ inline auto fd_read(int fd, void* buf, size_t len)
 }
 inline auto fd_write(int fd, const void* buf, size_t len)
 {
-    return ::write(fd, buf, len);
+    return ::send(fd, buf, len, MSG_NOSIGNAL);
 }
 inline void fd_close(int fd)
 {
@@ -108,7 +108,12 @@ bool Connection::send(const Message& msg)
     if (fd_ < 0)
         return false;
     auto wire = encode_message(msg);
-    return write_exact(wire.data(), wire.size());
+    if (!write_exact(wire.data(), wire.size()))
+    {
+        close();
+        return false;
+    }
+    return true;
 }
 
 std::optional<Message> Connection::recv()

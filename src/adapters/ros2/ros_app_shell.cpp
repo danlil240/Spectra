@@ -280,6 +280,7 @@ bool RosAppShell::init(int argc, char** argv)
         return false;
 
     discovery_ = std::make_unique<TopicDiscovery>(bridge_->node());
+    discovery_->set_self_node_name(bridge_->node()->get_fully_qualified_name());
 
     plot_mgr_    = std::make_unique<RosPlotManager>(*bridge_, *intr_);
     subplot_mgr_ = std::make_unique<SubplotManager>(*bridge_,
@@ -345,7 +346,6 @@ bool RosAppShell::init(int argc, char** argv)
     param_editor_ = std::make_unique<ParamEditorPanel>(bridge_->node());
     param_editor_->set_title("Parameter Editor");
     param_editor_->set_live_edit(true);
-    param_editor_->set_target_node(bridge_->node()->get_fully_qualified_name());
 
     service_caller_ =
         std::make_unique<ServiceCaller>(bridge_->node(), intr_.get(), discovery_.get());
@@ -647,6 +647,10 @@ void RosAppShell::draw()
     {
         draw_plot_area(&show_plot_area_);
     }
+    else if (layout_manager_)
+    {
+        layout_manager_->clear_canvas_override();
+    }
 
     // Issue 1: When the Plot Area panel is closed (X button), clear all subplots
     // so they don't remain active in the background.
@@ -872,9 +876,9 @@ void RosAppShell::apply_default_dock_layout()
 
     ImGuiID dock_main = dockspace_id_;
     ImGuiID dock_left =
-        ImGui::DockBuilderSplitNode(dock_main, ImGuiDir_Left, 0.18f, nullptr, &dock_main);
+        ImGui::DockBuilderSplitNode(dock_main, ImGuiDir_Left, 0.24f, nullptr, &dock_main);
     ImGuiID dock_right =
-        ImGui::DockBuilderSplitNode(dock_main, ImGuiDir_Right, 0.22f, nullptr, &dock_main);
+        ImGui::DockBuilderSplitNode(dock_main, ImGuiDir_Right, 0.20f, nullptr, &dock_main);
     ImGuiID dock_bottom =
         ImGui::DockBuilderSplitNode(dock_main, ImGuiDir_Down, 0.22f, nullptr, &dock_main);
     ImGuiID dock_right_bottom =
@@ -921,85 +925,275 @@ void RosAppShell::draw_nav_rail()
     const ImGuiViewport* vp       = ImGui::GetMainViewport();
     const float          status_h = ImGui::GetFrameHeight();
     const float          rail_w   = nav_rail_expanded_ ? nav_rail_width_ : nav_rail_collapsed_w_;
+    const auto&          th       = ui::theme();
+
+    // Helper to make ImU32 from theme Color with optional alpha override.
+    auto to_u32 = [](const ui::Color& c, float a = -1.0f) -> ImU32
+    {
+        float alpha = a >= 0.0f ? a : c.a;
+        return IM_COL32(static_cast<uint8_t>(c.r * 255),
+                        static_cast<uint8_t>(c.g * 255),
+                        static_cast<uint8_t>(c.b * 255),
+                        static_cast<uint8_t>(alpha * 255));
+    };
 
     ImGui::SetNextWindowPos(ImVec2(vp->WorkPos.x, vp->WorkPos.y), ImGuiCond_Always);
     ImGui::SetNextWindowSize(ImVec2(rail_w, std::max(1.0f, vp->WorkSize.y - status_h)),
                              ImGuiCond_Always);
     ImGui::SetNextWindowBgAlpha(1.0f);
 
+    // Use a slightly darker shade than bg_secondary for the rail to create depth.
+    ui::Color rail_bg = th.bg_primary.lerp(th.bg_secondary, 0.15f);
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(rail_bg.r, rail_bg.g, rail_bg.b, 1.0f));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(6.0f, 8.0f));
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4.0f, 1.0f));
+
     const ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar |
     #ifdef IMGUI_HAS_DOCK
                                    ImGuiWindowFlags_NoDocking |
     #endif
                                    ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove
-                                   | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings;
+                                   | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings
+                                   | ImGuiWindowFlags_NoScrollbar;
 
     if (!ImGui::Begin("##ros_nav_rail", nullptr, flags))
     {
         ImGui::End();
+        ImGui::PopStyleVar(2);
+        ImGui::PopStyleColor();
         return;
     }
 
-    if (ImGui::Button(nav_rail_expanded_ ? "<<" : ">>"))
-        nav_rail_expanded_ = !nav_rail_expanded_;
+    auto* dl = ImGui::GetWindowDrawList();
 
-    if (nav_rail_expanded_)
+    // Right-edge: border line + inner shadow gradient for depth.
     {
-        ImGui::SameLine();
-        if (ImGui::Button("Hide Rail"))
-            show_nav_rail_ = false;
+        float rx = vp->WorkPos.x + rail_w;
+        float ry = vp->WorkPos.y;
+        float rh = vp->WorkSize.y;
+        // Crisp 1px border.
+        dl->AddLine(ImVec2(rx - 1.0f, ry), ImVec2(rx - 1.0f, ry + rh),
+                    to_u32(th.border_subtle, 0.5f));
+        // Soft inner shadow (gradient from dark to transparent, 6px wide).
+        dl->AddRectFilledMultiColor(
+            ImVec2(rx - 7.0f, ry), ImVec2(rx - 1.0f, ry + rh),
+            IM_COL32(0, 0, 0, 0), IM_COL32(0, 0, 0, 28),
+            IM_COL32(0, 0, 0, 28), IM_COL32(0, 0, 0, 0));
     }
 
-    auto toggle_btn = [&](const char* compact, const char* full, bool& panel_flag)
+    // Expand / collapse toggle — styled as an icon-only button.
     {
-        const bool was_active = panel_flag;
-        if (was_active)
-            ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive));
+        const char* toggle_icon = nav_rail_expanded_ ? ui::icon_str(ui::Icon::Back)
+                                                     : ui::icon_str(ui::Icon::Forward);
+        ImVec2 btn_sz = nav_rail_expanded_ ? ImVec2(-1.0f, 24.0f) : ImVec2(rail_w - 14.0f, 24.0f);
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
+                              ImVec4(th.bg_tertiary.r, th.bg_tertiary.g, th.bg_tertiary.b, 0.5f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive,
+                              ImVec4(th.bg_elevated.r, th.bg_elevated.g, th.bg_elevated.b, 0.6f));
+        ImGui::PushStyleColor(ImGuiCol_Text,
+                              ImVec4(th.text_tertiary.r, th.text_tertiary.g, th.text_tertiary.b, 0.7f));
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f);
+        if (ImGui::Button(toggle_icon, btn_sz))
+            nav_rail_expanded_ = !nav_rail_expanded_;
+        ImGui::PopStyleVar();
+        ImGui::PopStyleColor(4);
+    }
 
-        const char* lbl = nav_rail_expanded_ ? full : compact;
-        ImVec2 btn_size = nav_rail_expanded_ ? ImVec2(-1.0f, 0.0f) : ImVec2(rail_w - 14.0f, 0.0f);
-        if (ImGui::Button(lbl, btn_size))
+    ImGui::Spacing();
+
+    // Button height.
+    const float btn_h = nav_rail_expanded_ ? 28.0f : 32.0f;
+
+    // ── nav_button: custom-drawn icon button with depth ──────────────────
+    auto nav_button = [&](ui::Icon icon, const char* label, bool& panel_flag)
+    {
+        const bool active = panel_flag;
+        ImGui::PushID(label);
+
+        // Reserve space for the button via an invisible ImGui button.
+        ImVec2 btn_sz = nav_rail_expanded_ ? ImVec2(ImGui::GetContentRegionAvail().x, btn_h)
+                                           : ImVec2(rail_w - 14.0f, btn_h);
+        ImVec2 cursor = ImGui::GetCursorScreenPos();
+
+        // Invisible button for hit-testing and interaction.
+        ImGui::InvisibleButton("##btn", btn_sz);
+        bool hovered = ImGui::IsItemHovered();
+        bool clicked = ImGui::IsItemClicked();
+        if (clicked)
             panel_flag = !panel_flag;
 
-        if (was_active)
-            ImGui::PopStyleColor();
+        ImVec2 tl(cursor.x, cursor.y);
+        ImVec2 br(cursor.x + btn_sz.x, cursor.y + btn_sz.y);
 
-        if (!nav_rail_expanded_ && ImGui::IsItemHovered())
-            ImGui::SetTooltip("%s", full);
+        // ── Background ──
+        if (active)
+        {
+            // Active: gradient fill from accent-tinted bg_tertiary.
+            ui::Color bg_top = th.bg_tertiary.lerp(th.accent, 0.12f);
+            ui::Color bg_bot = th.bg_tertiary.lerp(th.accent, 0.06f);
+            float     alpha  = hovered ? 1.0f : 0.85f;
+            dl->AddRectFilled(tl, br,
+                              to_u32(bg_top, alpha), 5.0f);
+            // Subtle bottom-half darkening for gradient feel.
+            float mid_y = (tl.y + br.y) * 0.5f;
+            dl->AddRectFilledMultiColor(
+                ImVec2(tl.x, mid_y), br,
+                to_u32(bg_bot, 0.0f), to_u32(bg_bot, 0.0f),
+                to_u32(bg_bot, alpha * 0.5f), to_u32(bg_bot, alpha * 0.5f));
+
+            // Inner highlight at top edge (1px bright line).
+            dl->AddLine(ImVec2(tl.x + 4.0f, tl.y + 0.5f),
+                        ImVec2(br.x - 4.0f, tl.y + 0.5f),
+                        to_u32(th.accent, 0.15f), 1.0f);
+        }
+        else if (hovered)
+        {
+            // Hover: subtle elevated background.
+            dl->AddRectFilled(tl, br,
+                              to_u32(th.bg_tertiary, 0.55f), 5.0f);
+        }
+
+        // ── Accent bar (left edge, glowing for active) ──
+        if (active)
+        {
+            // Glow layer (wider, softer).
+            dl->AddRectFilled(
+                ImVec2(tl.x - 1.0f, tl.y + 3.0f),
+                ImVec2(tl.x + 4.0f, br.y - 3.0f),
+                to_u32(th.accent, 0.25f), 2.0f);
+            // Core bar.
+            dl->AddRectFilled(
+                ImVec2(tl.x, tl.y + 4.0f),
+                ImVec2(tl.x + 3.0f, br.y - 4.0f),
+                to_u32(th.accent, 0.95f), 1.5f);
+        }
+
+        // ── Border (subtle, only for active) ──
+        if (active)
+        {
+            dl->AddRect(tl, br, to_u32(th.border_subtle, 0.3f), 5.0f);
+        }
+
+        // ── Icon + text ──
+        if (nav_rail_expanded_)
+        {
+            // Icon + label.
+            char buf[256];
+            std::snprintf(buf, sizeof(buf), "%s  %s", ui::icon_str(icon), label);
+            ImU32 text_col = active  ? to_u32(th.text_primary, 1.0f)
+                             : hovered ? to_u32(th.text_primary, 0.9f)
+                                       : to_u32(th.text_secondary, 0.8f);
+            ImVec2 tsz = ImGui::CalcTextSize(buf);
+            ImVec2 tpos(tl.x + 10.0f, tl.y + (btn_h - tsz.y) * 0.5f);
+            dl->AddText(tpos, text_col, buf);
+        }
+        else
+        {
+            // Icon only, centered.
+            const char* icon_s = ui::icon_str(icon);
+            ImU32       text_col = active  ? to_u32(th.accent, 1.0f)
+                                   : hovered ? to_u32(th.text_primary, 0.85f)
+                                             : to_u32(th.text_secondary, 0.6f);
+            ImVec2 isz  = ImGui::CalcTextSize(icon_s);
+            ImVec2 ipos(tl.x + (btn_sz.x - isz.x) * 0.5f,
+                        tl.y + (btn_h - isz.y) * 0.5f);
+            dl->AddText(ipos, text_col, icon_s);
+
+            if (hovered)
+                ImGui::SetTooltip("%s", label);
+        }
+
+        ImGui::PopID();
     };
 
-    ImGui::SeparatorText("Core");
-    toggle_btn("TP", "Topic Monitor", show_topic_list_);
-    toggle_btn("PL", "Plot Area", show_plot_area_);
-    toggle_btn("EC", "Topic Echo", show_topic_echo_);
-    toggle_btn("ST", "Topic Statistics", show_topic_stats_);
+    // ── section_header: label + subtle divider ───────────────────────────
+    auto section_header = [&](const char* text)
+    {
+        ImGui::Spacing();
+        ImGui::Spacing();
+        if (nav_rail_expanded_)
+        {
+            ImVec2 cursor = ImGui::GetCursorScreenPos();
+            float  avail  = ImGui::GetContentRegionAvail().x;
+            // Small-caps style label.
+            ImVec2 tsz = ImGui::CalcTextSize(text);
+            dl->AddText(ImVec2(cursor.x + 10.0f, cursor.y),
+                        to_u32(th.text_tertiary, 0.5f), text);
+            // Subtle line after text.
+            float lx = cursor.x + 10.0f + tsz.x + 6.0f;
+            float ly = cursor.y + tsz.y * 0.5f;
+            dl->AddLine(ImVec2(lx, ly), ImVec2(cursor.x + avail - 4.0f, ly),
+                        to_u32(th.border_subtle, 0.2f));
+            ImGui::Dummy(ImVec2(0.0f, tsz.y + 2.0f));
+        }
+        else
+        {
+            float cx = ImGui::GetCursorScreenPos().x;
+            float cy = ImGui::GetCursorScreenPos().y + 2.0f;
+            dl->AddLine(
+                ImVec2(cx + 8.0f, cy),
+                ImVec2(cx + rail_w - 22.0f, cy),
+                to_u32(th.border_subtle, 0.25f));
+            ImGui::Dummy(ImVec2(0.0f, 6.0f));
+        }
+    };
 
-    ImGui::SeparatorText("Tools");
-    toggle_btn("BI", "Bag Info", show_bag_info_);
-    toggle_btn("BP", "Bag Playback", show_bag_playback_);
-    toggle_btn("LG", "Log Viewer", show_log_viewer_);
-    toggle_btn("DG", "Diagnostics", show_diagnostics_);
+    section_header("CORE");
+    nav_button(ui::Icon::List, "Topic Monitor", show_topic_list_);
+    nav_button(ui::Icon::ChartLine, "Plot Area", show_plot_area_);
+    nav_button(ui::Icon::Command, "Topic Echo", show_topic_echo_);
+    nav_button(ui::Icon::BarChart, "Topic Statistics", show_topic_stats_);
 
-    ImGui::SeparatorText("Advanced");
-    toggle_btn("DP", "Displays", show_displays_panel_);
-    toggle_btn("3D", "Scene Viewport", show_scene_viewport_);
-    toggle_btn("IN", "Inspector", show_inspector_panel_);
-    toggle_btn("NG", "Node Graph", show_node_graph_);
-    toggle_btn("TF", "TF Tree", show_tf_tree_);
-    toggle_btn("PE", "Parameter Editor", show_param_editor_);
-    toggle_btn("SV", "Service Caller", show_service_caller_);
+    section_header("TOOLS");
+    nav_button(ui::Icon::Database, "Bag Info", show_bag_info_);
+    nav_button(ui::Icon::Play, "Bag Playback", show_bag_playback_);
+    nav_button(ui::Icon::FileText, "Log Viewer", show_log_viewer_);
+    nav_button(ui::Icon::Warning, "Diagnostics", show_diagnostics_);
+
+    section_header("ADVANCED");
+    nav_button(ui::Icon::Eye, "Displays", show_displays_panel_);
+    nav_button(ui::Icon::Maximize, "Scene Viewport", show_scene_viewport_);
+    nav_button(ui::Icon::Search, "Inspector", show_inspector_panel_);
+    nav_button(ui::Icon::Link, "Node Graph", show_node_graph_);
+    nav_button(ui::Icon::Timeline, "TF Tree", show_tf_tree_);
+    nav_button(ui::Icon::Settings, "Parameter Editor", show_param_editor_);
+    nav_button(ui::Icon::Wrench, "Service Caller", show_service_caller_);
 
     if (nav_rail_expanded_)
     {
-        ImGui::Separator();
-        ImGui::TextDisabled("Rail Width");
+        ImGui::Spacing();
+        ImGui::Spacing();
+        ImGui::Spacing();
+        {
+            float cx = ImGui::GetCursorScreenPos().x;
+            float cy = ImGui::GetCursorScreenPos().y;
+            float aw = ImGui::GetContentRegionAvail().x;
+            dl->AddLine(ImVec2(cx + 8.0f, cy), ImVec2(cx + aw - 4.0f, cy),
+                        to_u32(th.border_subtle, 0.2f));
+        }
+        ImGui::Dummy(ImVec2(0.0f, 6.0f));
+
+        dl->AddText(ImGui::GetCursorScreenPos(), to_u32(th.text_tertiary, 0.45f), "Rail Width");
+        ImGui::Dummy(ImVec2(0.0f, ImGui::GetTextLineHeight() + 2.0f));
+        ImGui::SetNextItemWidth(-1.0f);
         ImGui::SliderFloat("##ros_nav_width", &nav_rail_width_, 180.0f, 360.0f, "%.0f px");
 
+        ImGui::Spacing();
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 5.0f);
+        ImGui::PushStyleColor(ImGuiCol_Button,
+                              ImVec4(th.bg_tertiary.r, th.bg_tertiary.g, th.bg_tertiary.b, 0.6f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
+                              ImVec4(th.bg_elevated.r, th.bg_elevated.g, th.bg_elevated.b, 0.8f));
         if (ImGui::Button("Reset Layout", ImVec2(-1.0f, 0.0f)))
             dock_layout_initialized_ = false;
+        ImGui::PopStyleColor(2);
+        ImGui::PopStyleVar();
     }
 
     ImGui::End();
+    ImGui::PopStyleVar(2);
+    ImGui::PopStyleColor();
 #endif
 }
 

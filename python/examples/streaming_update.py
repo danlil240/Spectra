@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Streaming data update example — demonstrates Series.append() and FramePacer.
 
-Simulates a live sensor stream: appends new data points at 30 FPS.
+Simulates a live sensor stream: appends new data points at 60 FPS.
 
 Usage:
     python streaming_update.py
@@ -31,15 +31,15 @@ line2 = ax.line([], [], label="cos")
 fig.show()
 
 # Stream data using FramePacer
-pacer = sp.FramePacer(fps=30)
+pacer = sp.FramePacer(fps=60.0)  # target 60 FPS for smooth updates
 t = 0.0
-dt_step = 1.0 / 30.0
+dt_step = 1.0 / 60.0
 window_sec = 10.0  # visible time window (seconds)
 
 ax.set_ylim(-1.2, 1.2)
 ax.set_xlim(0.0, window_sec)
 
-print("Streaming data at 30 FPS. Close the window to stop.")
+print("Streaming data at 60 FPS. Close the window to stop.")
 
 while fig.is_visible:
     t += dt_step

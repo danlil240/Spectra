@@ -59,14 +59,33 @@ def _can_connect(path: str) -> bool:
         return False
 
 
+def _is_native_binary(path: str) -> bool:
+    """Return True if *path* looks like a compiled (ELF / Mach-O) executable
+    rather than a script wrapper (e.g. the pip-installed console_scripts shim).
+    """
+    try:
+        with open(path, "rb") as f:
+            magic = f.read(4)
+        # ELF: \x7fELF  |  Mach-O: \xfe\xed\xfa\xce / \xcf\xfa\xed\xfe
+        return magic[:4] == b"\x7fELF" or magic[:4] in (
+            b"\xfe\xed\xfa\xce",
+            b"\xfe\xed\xfa\xcf",
+            b"\xcf\xfa\xed\xfe",
+            b"\xce\xfa\xed\xfe",
+        )
+    except OSError:
+        return False
+
+
 def _find_backend_binary() -> Optional[str]:
     """Find the spectra-backend binary.
 
     Search order:
     1. $SPECTRA_BACKEND_PATH env var
     2. Bundled binary inside pip-installed package (_bin/spectra-backend)
-    3. System PATH
-    4. Heuristic: common build directories relative to project root
+    3. Heuristic: common build directories relative to project root
+    4. System PATH (filtered — skips script wrappers to avoid exec loops)
+    5. Previously downloaded binary in user cache
     """
     # 1. Explicit env var
     env_path = os.environ.get("SPECTRA_BACKEND_PATH")
@@ -90,10 +109,19 @@ def _find_backend_binary() -> Optional[str]:
         if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
             return candidate
 
-    # 4. System PATH (fallback — may find stale installed binaries)
+    # 4. System PATH (fallback — may find stale installed binaries).
+    #    Skip script wrappers (e.g. the pip console_scripts shim) to avoid
+    #    an infinite os.execv loop where the wrapper calls _find_backend_binary
+    #    which finds the wrapper again.
     found = shutil.which("spectra-backend")
-    if found:
+    if found and _is_native_binary(found):
         return found
+
+    # 5. Previously downloaded binary in user cache
+    from ._download import find_cached_backend
+    cached = find_cached_backend()
+    if cached:
+        return cached
 
     return None
 
@@ -109,10 +137,27 @@ def ensure_backend(socket_path: str, timeout: float = 5.0) -> str:
 
     binary = _find_backend_binary()
     if binary is None:
-        raise RuntimeError(
-            "spectra-backend binary not found. "
-            "Set SPECTRA_BACKEND_PATH or add it to PATH."
-        )
+        # No binary found locally — try downloading from GitHub Releases
+        if os.environ.get("SPECTRA_NO_DOWNLOAD", "").lower() not in ("1", "true", "yes"):
+            try:
+                from ._download import download_backend
+                download_backend()
+                binary = _find_backend_binary()
+            except Exception as dl_err:
+                # Download failed — fall through to the error below with a hint
+                _dl_hint = f"\nAuto-download failed: {dl_err}"
+            else:
+                _dl_hint = ""
+        else:
+            _dl_hint = "\n(Auto-download disabled by SPECTRA_NO_DOWNLOAD)"
+        if binary is None:
+            raise RuntimeError(
+                "spectra-backend binary not found. "
+                "Install the spectra-plot wheel (includes the binary), "
+                "set SPECTRA_BACKEND_PATH, or build with CMake "
+                "(cmake -B build -DSPECTRA_RUNTIME_MODE=multiproc)."
+                + _dl_hint
+            )
 
     # Ensure socket directory exists
     sock_dir = os.path.dirname(socket_path)
@@ -129,7 +174,7 @@ def ensure_backend(socket_path: str, timeout: float = 5.0) -> str:
     # Launch backend
     _debug_log = os.environ.get("SPECTRA_DEBUG_LOG")
     _stderr_target = open(_debug_log, "w") if _debug_log else subprocess.PIPE
-    subprocess.Popen(
+    proc = subprocess.Popen(
         [binary, "--socket", socket_path],
         stdout=subprocess.DEVNULL,
         stderr=_stderr_target,
@@ -141,9 +186,20 @@ def ensure_backend(socket_path: str, timeout: float = 5.0) -> str:
     while time.monotonic() < deadline:
         if _can_connect(socket_path):
             return socket_path
+        # If the process already exited, don't keep waiting
+        if proc.poll() is not None:
+            break
         time.sleep(0.05)
+
+    # Collect stderr for the error message if available
+    hint = ""
+    if proc.poll() is not None and _stderr_target == subprocess.PIPE:
+        stderr_bytes = proc.stderr.read() if proc.stderr else b""
+        if stderr_bytes:
+            hint = f"\nBackend stderr:\n{stderr_bytes.decode(errors='replace').rstrip()}"
 
     raise RuntimeError(
         f"spectra-backend did not start within {timeout}s. "
-        f"Socket: {socket_path}"
+        f"Binary: {binary}\n"
+        f"Socket: {socket_path}{hint}"
     )

@@ -322,9 +322,90 @@ jobs:
           name: sdist
           path: dist/*.tar.gz
 
+  # ─── Standalone Backend Binaries (for pure-Python pip install) ──────────
+  backend-binaries:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            platform: linux-x86_64
+          - os: macos-15
+            platform: macos-arm64
+          - os: windows-2022
+            platform: windows-x86_64
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libvulkan-dev \
+            vulkan-validationlayers \
+            libwayland-dev \
+            libxrandr-dev \
+            libxinerama-dev \
+            libxcursor-dev \
+            libxi-dev \
+            libxkbcommon-dev \
+            libgl1-mesa-dev \
+            glslang-tools
+
+      - name: Install dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: brew install vulkan-headers vulkan-loader glslang molten-vk
+
+      - name: Install Vulkan SDK (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ver = "1.4.304.1"
+          $url = "https://sdk.lunarg.com/sdk/download/$ver/windows/VulkanSDK-$ver-Installer.exe"
+          Invoke-WebRequest -Uri $url -OutFile VulkanSDK.exe
+          Start-Process -FilePath .\VulkanSDK.exe -Args "--accept-licenses --default-answer --confirm-command install" -Wait
+          $sdkPath = "C:\VulkanSDK\$ver"
+          echo "VULKAN_SDK=$sdkPath" >> $env:GITHUB_ENV
+          echo "$sdkPath\Bin" >> $env:GITHUB_PATH
+
+      - name: Configure + Build (multiproc)
+        run: |
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+            -DSPECTRA_BUILD_TESTS=OFF \
+            -DSPECTRA_BUILD_EXAMPLES=OFF \
+            -DSPECTRA_RUNTIME_MODE=multiproc
+          cmake --build build --config ${{ env.BUILD_TYPE }} -j4
+        shell: bash
+
+      - name: Package backend binaries (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          mkdir -p pkg
+          cp build/spectra-backend pkg/
+          cp build/spectra-window pkg/
+          tar czf spectra-backend-${{ matrix.platform }}.tar.gz -C pkg .
+
+      - name: Package backend binaries (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path pkg
+          Copy-Item build/${{ env.BUILD_TYPE }}/spectra-backend.exe pkg/
+          Copy-Item build/${{ env.BUILD_TYPE }}/spectra-window.exe pkg/
+          Compress-Archive -Path pkg/* -DestinationPath spectra-backend-${{ matrix.platform }}.zip
+
+      - name: Upload backend binary archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-${{ matrix.platform }}
+          path: spectra-backend-${{ matrix.platform }}.*
+
   # ─── Create GitHub Release ─────────────────────────────────────────────
   release:
-    needs: [package-linux, package-macos, package-windows, python-wheels, python-sdist]
+    needs: [package-linux, package-macos, package-windows, python-wheels, python-sdist, backend-binaries]
     runs-on: ubuntu-24.04
 
     steps:

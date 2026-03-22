@@ -175,7 +175,7 @@ class TestEasyState:
     def test_shutdown_without_session(self):
         state = _EasyState()
         state.shutdown()  # should not raise
-        assert state._shutting_down is True
+        assert state._shutting_down is False  # reset so new plots can be created
         assert state._session is None
 
     def test_double_shutdown(self):

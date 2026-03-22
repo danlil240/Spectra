@@ -213,6 +213,9 @@ int main(int argc, char* argv[])
 
     std::signal(SIGINT, signal_handler);
     std::signal(SIGTERM, signal_handler);
+    #ifndef _WIN32
+    std::signal(SIGPIPE, SIG_IGN);
+    #endif
 
     std::cerr << "[spectra-backend] Starting daemon, socket: " << socket_path << "\n";
     std::cerr << "[spectra-backend] Agent binary: " << agent_path << "\n";
@@ -301,6 +304,31 @@ int main(int argc, char* argv[])
                     auto orphaned = graph.remove_agent(it->window_id);
                     std::cerr << "[spectra-backend] Agent disconnected (window=" << it->window_id
                               << ", orphaned_figures=" << orphaned.size() << ")\n";
+
+                    // Notify Python clients about closed figures
+                    for (auto fid : orphaned)
+                    {
+                        spectra::ipc::EvtWindowClosedPayload evt;
+                        evt.figure_id    = fid;
+                        evt.window_id    = it->window_id;
+                        evt.reason       = "agent_disconnected";
+                        auto evt_payload = spectra::ipc::encode_evt_window_closed(evt);
+
+                        for (auto& c : clients)
+                        {
+                            if (c.conn && c.conn->is_open() && c.handshake_done
+                                && c.client_type == spectra::daemon::ClientType::PYTHON)
+                            {
+                                spectra::ipc::Message evt_msg;
+                                evt_msg.header.type = spectra::ipc::MessageType::EVT_WINDOW_CLOSED;
+                                evt_msg.header.session_id = graph.session_id();
+                                evt_msg.payload           = evt_payload;
+                                evt_msg.header.payload_len =
+                                    static_cast<uint32_t>(evt_msg.payload.size());
+                                c.conn->send(evt_msg);
+                            }
+                        }
+                    }
                 }
                 it = clients.erase(it);
                 continue;
@@ -334,6 +362,31 @@ int main(int argc, char* argv[])
                     auto orphaned = graph.remove_agent(it->window_id);
                     std::cerr << "[spectra-backend] Agent lost (window=" << it->window_id
                               << ", orphaned_figures=" << orphaned.size() << ")\n";
+
+                    // Notify Python clients about closed figures
+                    for (auto fid : orphaned)
+                    {
+                        spectra::ipc::EvtWindowClosedPayload evt;
+                        evt.figure_id    = fid;
+                        evt.window_id    = it->window_id;
+                        evt.reason       = "agent_lost";
+                        auto evt_payload = spectra::ipc::encode_evt_window_closed(evt);
+
+                        for (auto& c : clients)
+                        {
+                            if (c.conn && c.conn->is_open() && c.handshake_done
+                                && c.client_type == spectra::daemon::ClientType::PYTHON)
+                            {
+                                spectra::ipc::Message evt_msg;
+                                evt_msg.header.type = spectra::ipc::MessageType::EVT_WINDOW_CLOSED;
+                                evt_msg.header.session_id = graph.session_id();
+                                evt_msg.payload           = evt_payload;
+                                evt_msg.header.payload_len =
+                                    static_cast<uint32_t>(evt_msg.payload.size());
+                                c.conn->send(evt_msg);
+                            }
+                        }
+                    }
                 }
                 it = clients.erase(it);
                 continue;

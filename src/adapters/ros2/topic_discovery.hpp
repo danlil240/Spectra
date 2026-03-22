@@ -105,6 +105,12 @@ class TopicDiscovery
     void                      set_refresh_interval(std::chrono::milliseconds interval);
     std::chrono::milliseconds refresh_interval() const;
 
+    // Set the fully-qualified name of the spectra-ros own node to hide from
+    // all panel data (node list, publisher_nodes, subscriber_nodes).
+    // Pass an empty string to disable filtering (default).
+    void               set_self_node_name(const std::string& fq_name);
+    const std::string& self_node_name() const;
+
     // ---------- accessors (snapshot of last refresh) ---------------------
 
     std::vector<TopicInfo>   topics() const;
@@ -143,6 +149,9 @@ class TopicDiscovery
     void set_refresh_done_callback(RefreshDoneCallback cb);
 
    private:
+    // Returns true if fq_name should be hidden from external consumers.
+    bool is_self(const std::string& fq_name) const;
+
     // Internal refresh implementation (mutex already NOT held when called).
     void do_refresh(bool full_enrich = false);
 
@@ -178,6 +187,7 @@ class TopicDiscovery
     NodeCallback        node_cb_;
     RefreshDoneCallback refresh_done_cb_;
 
+    std::string               self_node_name_;   // own node — hidden from panels
     std::chrono::milliseconds interval_{2000};
 
     // Dedicated background thread for DDS graph queries.  Running graph

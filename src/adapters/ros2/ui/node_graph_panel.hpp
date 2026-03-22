@@ -62,6 +62,19 @@ enum class GraphNodeKind : uint8_t
     Topic,     // a ROS2 topic (ellipse)
 };
 
+enum class GraphShowMode : uint8_t
+{
+    Both,       // show nodes and topics
+    NodesOnly,  // show only ROS nodes
+    TopicsOnly, // show only topics
+};
+
+enum class GraphLayoutMode : uint8_t
+{
+    Hierarchical,  // layered left→right: pub-nodes | topics | sub-nodes
+    Force,         // pure force-directed (Fruchterman–Reingold)
+};
+
 struct GraphNode
 {
     std::string   id;             // unique key: full node/topic name
@@ -156,6 +169,10 @@ class NodeGraphPanel
     void  set_ideal_length(float l);   // ideal edge length (default 200)
     float ideal_length() const;
 
+    // Layout mode (default: Hierarchical).
+    void            set_layout_mode(GraphLayoutMode m);
+    GraphLayoutMode layout_mode() const;
+
     // ---------- accessors (for testing, thread-safe) ---------------------
 
     // Current node/edge count after last rebuild.
@@ -216,7 +233,8 @@ class NodeGraphPanel
     // ---------- internal graph state (all protected by mutex_) ----------
 
     void rebuild_from_discovery();
-    void scatter_new_nodes();   // random initial position for new nodes
+    void scatter_new_nodes();              // random initial position for new nodes
+    void place_nodes_hierarchical();       // layered initial placement
 
     // Apply filter: returns true if a node/topic should be visible.
     bool passes_filter(const GraphNode& n) const;
@@ -230,6 +248,8 @@ class NodeGraphPanel
 
     // Stable id → index lookup rebuilt after each graph change.
     void rebuild_index();
+    // Lockless layout reset — mutex_ must already be held by caller.
+    void reset_layout_unlocked();
     // Lockless layout step — mutex_ must already be held by caller.
     void layout_step_unlocked();
 
@@ -245,15 +265,19 @@ class NodeGraphPanel
     // id → index in nodes_ (rebuilt in rebuild_index())
     std::unordered_map<std::string, std::size_t> node_index_;
 
-    std::string namespace_filter_;
-    std::string title_{"Node Graph"};
-    std::string selected_id_;
+    std::string   namespace_filter_;
+    std::string   title_{"Node Graph"};
+    std::string   selected_id_;
+    GraphShowMode show_mode_{GraphShowMode::Both};
+    bool          hide_debug_{true};   // hide rosout, parameter_events, etc.
 
     // Force-directed parameters
-    float repulsion_{150.0f};
-    float attraction_{0.06f};
-    float damping_{0.85f};
-    float ideal_length_{200.0f};
+    float repulsion_{200.0f};
+    float attraction_{0.04f};
+    float damping_{0.80f};
+    float ideal_length_{160.0f};
+
+    GraphLayoutMode layout_mode_{GraphLayoutMode::Hierarchical};
 
     // Layout convergence tracking
     float             max_velocity_{0.0f};
@@ -269,6 +293,7 @@ class NodeGraphPanel
     float view_ox_{0.0f};
     float view_oy_{0.0f};
     float view_scale_{1.0f};
+    std::atomic<bool> recenter_view_pending_{false};
     bool  dragging_canvas_{false};
 
     // Callbacks (protected by mutex_)
@@ -280,7 +305,7 @@ class NodeGraphPanel
     uint32_t rng_state_{12345};
     float    rng_next();   // simple xorshift → [0,1)
 
-    static constexpr int   MAX_STEPS_PER_FRAME   = 6;
+    static constexpr int   MAX_STEPS_PER_FRAME   = 2;
     static constexpr float CONVERGENCE_THRESHOLD = 0.5f;
     static constexpr float MIN_SCALE             = 0.05f;
     static constexpr float MAX_SCALE             = 5.0f;

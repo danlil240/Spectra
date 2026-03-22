@@ -204,6 +204,23 @@ std::chrono::milliseconds TopicDiscovery::refresh_interval() const
     return interval_;
 }
 
+void TopicDiscovery::set_self_node_name(const std::string& fq_name)
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    self_node_name_ = fq_name;
+}
+
+const std::string& TopicDiscovery::self_node_name() const
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    return self_node_name_;
+}
+
+bool TopicDiscovery::is_self(const std::string& fq_name) const
+{
+    return !self_node_name_.empty() && fq_name == self_node_name_;
+}
+
 // ---------------------------------------------------------------------------
 // accessors
 // ---------------------------------------------------------------------------
@@ -234,7 +251,10 @@ std::vector<NodeInfo> TopicDiscovery::nodes() const
     std::vector<NodeInfo>       result;
     result.reserve(node_map_.size());
     for (const auto& [_, v] : node_map_)
-        result.push_back(v);
+    {
+        if (!is_self(v.full_name))
+            result.push_back(v);
+    }
     return result;
 }
 
@@ -426,6 +446,8 @@ void TopicDiscovery::do_refresh(bool full_enrich)
 
             for (const auto& n : fresh_nodes)
             {
+                if (is_self(n.full_name))
+                    continue;
                 if (node_map_.count(n.full_name) == 0)
                 {
                     node_map_[n.full_name] = n;
@@ -557,8 +579,19 @@ void TopicDiscovery::enrich_batch()
                 it->second.local_publisher_count  = count_local_endpoints(pub_infos, local_node);
                 it->second.local_subscriber_count = count_local_endpoints(sub_infos, local_node);
                 it->second.qos                    = qos;
-                it->second.publisher_nodes        = collect_endpoint_nodes(pub_infos);
-                it->second.subscriber_nodes       = collect_endpoint_nodes(sub_infos);
+
+                auto pub_nodes = collect_endpoint_nodes(pub_infos);
+                auto sub_nodes = collect_endpoint_nodes(sub_infos);
+                pub_nodes.erase(
+                    std::remove_if(pub_nodes.begin(), pub_nodes.end(),
+                                   [this](const std::string& n) { return is_self(n); }),
+                    pub_nodes.end());
+                sub_nodes.erase(
+                    std::remove_if(sub_nodes.begin(), sub_nodes.end(),
+                                   [this](const std::string& n) { return is_self(n); }),
+                    sub_nodes.end());
+                it->second.publisher_nodes  = std::move(pub_nodes);
+                it->second.subscriber_nodes = std::move(sub_nodes);
             }
         }
     }
@@ -606,8 +639,19 @@ void TopicDiscovery::enrich_all()
                 it->second.local_publisher_count  = count_local_endpoints(pub_infos, local_node);
                 it->second.local_subscriber_count = count_local_endpoints(sub_infos, local_node);
                 it->second.qos                    = qos;
-                it->second.publisher_nodes        = collect_endpoint_nodes(pub_infos);
-                it->second.subscriber_nodes       = collect_endpoint_nodes(sub_infos);
+
+                auto pub_nodes = collect_endpoint_nodes(pub_infos);
+                auto sub_nodes = collect_endpoint_nodes(sub_infos);
+                pub_nodes.erase(
+                    std::remove_if(pub_nodes.begin(), pub_nodes.end(),
+                                   [this](const std::string& n) { return is_self(n); }),
+                    pub_nodes.end());
+                sub_nodes.erase(
+                    std::remove_if(sub_nodes.begin(), sub_nodes.end(),
+                                   [this](const std::string& n) { return is_self(n); }),
+                    sub_nodes.end());
+                it->second.publisher_nodes  = std::move(pub_nodes);
+                it->second.subscriber_nodes = std::move(sub_nodes);
             }
         }
     }
@@ -717,6 +761,8 @@ void TopicDiscovery::diff_nodes(const std::vector<NodeInfo>& fresh)
 
     for (const auto& n : fresh)
     {
+        if (is_self(n.full_name))
+            continue;
         if (node_map_.count(n.full_name) == 0)
         {
             node_map_[n.full_name] = n;

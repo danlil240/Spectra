@@ -251,9 +251,9 @@ void ThemeManager::apply_to_imgui()
     Color header_bg     = colors.bg_secondary.lerp(colors.bg_tertiary, 0.72f);
     Color header_hover  = colors.bg_tertiary.lerp(colors.accent, 0.14f);
     Color header_active = colors.bg_tertiary.lerp(colors.accent, 0.24f);
-    Color tab_idle      = colors.bg_secondary.lerp(colors.bg_tertiary, 0.35f);
-    Color tab_hover     = colors.bg_tertiary.lerp(colors.accent, 0.14f);
-    Color tab_selected  = colors.bg_tertiary.lerp(colors.accent, 0.22f);
+    Color tab_idle      = colors.bg_secondary.lerp(colors.bg_tertiary, 0.25f);
+    Color tab_hover     = colors.bg_tertiary.lerp(colors.accent, 0.18f);
+    Color tab_selected  = colors.bg_tertiary.lerp(colors.accent, 0.30f);
 
     // Window and background
     imgui_colors[ImGuiCol_WindowBg]     = lin(colors.bg_secondary, current_theme_->opacity_panel);
@@ -309,12 +309,12 @@ void ThemeManager::apply_to_imgui()
     imgui_colors[ImGuiCol_ResizeGripHovered] = lin(colors.accent, 1.0f);
     imgui_colors[ImGuiCol_ResizeGripActive]  = lin(colors.accent, 1.0f);
 
-    // Tabs — clear active tab, visible hover state
-    imgui_colors[ImGuiCol_Tab]               = lin(tab_idle, 0.78f);
-    imgui_colors[ImGuiCol_TabHovered]        = lin(tab_hover, 0.92f);
+    // Tabs — clear active tab with strong contrast, visible hover lift
+    imgui_colors[ImGuiCol_Tab]               = lin(tab_idle, 0.70f);
+    imgui_colors[ImGuiCol_TabHovered]        = lin(tab_hover, 0.95f);
     imgui_colors[ImGuiCol_TabSelected]       = lin(tab_selected, 1.0f);
-    imgui_colors[ImGuiCol_TabDimmed]         = lin(colors.bg_secondary, 0.45f);
-    imgui_colors[ImGuiCol_TabDimmedSelected] = lin(tab_selected, 0.72f);
+    imgui_colors[ImGuiCol_TabDimmed]         = lin(colors.bg_secondary, 0.55f);
+    imgui_colors[ImGuiCol_TabDimmedSelected] = lin(tab_selected, 0.82f);
 
     // Plot lines (for ImGui plot widgets)
     imgui_colors[ImGuiCol_PlotLines]            = lin(colors.accent, 1.0f);

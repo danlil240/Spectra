@@ -78,7 +78,7 @@ class ResourceMonitor
                  avg_fps,
                  avg_gpu_ms);
 
-        SPECTRA_LOG_INFO("resources", buf);
+        SPECTRA_LOG_DEBUG("resources", buf);
 
         // Reset accumulators
         frame_ms_acc_ = 0.0;

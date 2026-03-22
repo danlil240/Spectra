@@ -558,6 +558,9 @@ int main(int argc, char* argv[])
 
     std::signal(SIGINT, signal_handler);
     std::signal(SIGTERM, signal_handler);
+#ifndef _WIN32
+    std::signal(SIGPIPE, SIG_IGN);
+#endif
 
     // Initialize dual logging: console=INFO+, file=TRACE+
     spectra::setup_dual_logging(spectra::LogLevel::Info, spectra::LogLevel::Trace);
@@ -768,6 +771,11 @@ int main(int argc, char* argv[])
     window_mgr->init(static_cast<spectra::VulkanBackend*>(backend.get()),
                      &registry,
                      renderer_ptr.get());
+
+    // Wire GLFW input events (scroll, mouse, key) to the redraw tracker
+    // so the event loop wakes from glfwWaitEventsTimeout and renders.
+    window_mgr->set_redraw_request_handler([&session](const char* reason)
+                                           { session.redraw_tracker().mark_dirty(reason); });
 
     // Set tab drag handlers BEFORE creating windows so all windows get them
     window_mgr->set_tab_detach_handler([&session](spectra::FigureId  fid,
@@ -1161,6 +1169,10 @@ int main(int argc, char* argv[])
                         if (needs_rebuild)
                             cache_dirty = true;
 
+                        // Signal the redraw tracker so the event loop wakes
+                        // from glfwWaitEventsTimeout and renders the new data.
+                        session.redraw_tracker().mark_dirty("ipc_state_diff");
+
                         spectra::ipc::AckStatePayload ack;
                         ack.revision = current_revision;
                         send_ipc(*conn,
@@ -1257,6 +1269,7 @@ int main(int argc, char* argv[])
 #endif
             }
             cache_dirty = false;
+            session.redraw_tracker().mark_dirty("ipc_cache_rebuild");
         }
 
         // ── Flush knob changes back to app via IPC ─────────────────────

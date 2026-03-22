@@ -4,10 +4,10 @@ Depends: libc6 (>= 2.34), libgcc-s1 (>= 4.0), libstdc++6 (>= 11), libvulkan1 (>=
 Priority: optional
 Section: science
 Filename: pool/main/s/spectra/spectra_0.2.0-1~jammy_amd64.deb
-Size: 34094026
-SHA256: 4a8ff4ee26ce244d366c178cde0b08b85b5bcea669f9b51126e203840e1399db
-SHA1: c0460f7414250dd96c762f9a318f9f1c9f296c99
-MD5sum: 3d9bf035eeb04055240e3a8c9bea3c86
+Size: 34094020
+SHA256: c526459f884d498ca0d5051beaa50834d065333e48d09235bf30491baddb416c
+SHA1: aef0e419c3c8f9e29e7eacee631f8c9a7daabc5e
+MD5sum: 7c29c211d5457c606c415a77c9b8120c
 Description: GPU-accelerated scientific plotting library
 Maintainer: danlil240
 Version: 0.2.0-1~jammy

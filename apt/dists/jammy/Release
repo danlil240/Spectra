@@ -2,13 +2,13 @@ Origin: Spectra
 Label: Spectra
 Suite: stable
 Codename: jammy
-Date: Sat, 21 Mar 2026 20:05:28 UTC
+Date: Sun, 22 Mar 2026 10:29:18 UTC
 Architectures: amd64 arm64
 Components: main
 Description: Spectra plotting library APT repository (Ubuntu 22.04 Jammy)
 MD5Sum:
- 5268b9bd02dca63760141d6bf971da20 528 main/binary-amd64/Packages
- ee830676e0551b8045c4028e519e528b 386 main/binary-amd64/Packages.gz
+ f399d2edad02e86dc185137b36ba28a7 528 main/binary-amd64/Packages
+ 0a7507082fdf7a550f14ae7f0aba9df1 387 main/binary-amd64/Packages.gz
  391eb304b856b1bdff677fbd7f1e08b0 157 main/binary-amd64/Release
  d41d8cd98f00b204e9800998ecf8427e 0 main/binary-arm64/Packages
  7029066c27ac6f5ef18d660d5741979a 20 main/binary-arm64/Packages.gz
@@ -17,8 +17,8 @@ MD5Sum:
  7029066c27ac6f5ef18d660d5741979a 20 main/source/Sources.gz
  f9d18cc852212c82d57ac64ea056f622 158 main/source/Release
 SHA1:
- eccbfa8d94f21f3f08a48249981894185eb5f2e2 528 main/binary-amd64/Packages
- 655964fe2c7825ad5e022d653f7a842b83061eb3 386 main/binary-amd64/Packages.gz
+ a606c2a6683716ebffd526903d7dac6580c62dd6 528 main/binary-amd64/Packages
+ 481500db14bf11323b696d4ed92739481e3f902e 387 main/binary-amd64/Packages.gz
  bbee963519b47ebc77247479af3d5d9db7cd95c3 157 main/binary-amd64/Release
  da39a3ee5e6b4b0d3255bfef95601890afd80709 0 main/binary-arm64/Packages
  46c6643f07aa7f6bfe7118de926b86defc5087c4 20 main/binary-arm64/Packages.gz
@@ -27,8 +27,8 @@ SHA1:
  46c6643f07aa7f6bfe7118de926b86defc5087c4 20 main/source/Sources.gz
  1b6d7f75f27bfd70099d4333f0d1d2f2cbd57402 158 main/source/Release
 SHA256:
- 589b282e9a8cb7fbe8f4dfd1bb2ed545c159c7c37b8b2cb15b3e9793afea49da 528 main/binary-amd64/Packages
- 2b9da91dc32ade7f384400377c133a3f64636f9650048dbaf30991de526837f9 386 main/binary-amd64/Packages.gz
+ 954e6644e2d89ad9fd44faf2b10fca40553bf400646ed98ab5ca24e4229f21e5 528 main/binary-amd64/Packages
+ 7d670f0c02c11e8d4facbd117f44672b55925a4dafebef0a29dcc9a92b66d42b 387 main/binary-amd64/Packages.gz
  8f527356f8dca6034044246ff0881bcae33878563e9c16163c9492dcb77d0079 157 main/binary-amd64/Release
  e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 0 main/binary-arm64/Packages
  59869db34853933b239f1e2219cf7d431da006aa919635478511fabbfc8849d2 20 main/binary-arm64/Packages.gz

@@ -27,7 +27,7 @@ numpy = ["numpy>=1.20"]
 dev = ["pytest>=7.0", "numpy>=1.20"]
 
 [tool.setuptools.dynamic]
-version = {file = "../version.txt"}
+version = {file = "VERSION"}
 
 [tool.setuptools.packages.find]
 where = ["."]

@@ -312,7 +312,8 @@ jobs:
       - name: Build sdist
         run: |
           pip install build
-          python -m build --sdist
+          cp version.txt python/VERSION
+          python -m build --sdist python/
 
       - name: Upload sdist
         uses: actions/upload-artifact@v4

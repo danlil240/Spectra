@@ -464,10 +464,18 @@ jobs:
       id-token: write
 
     steps:
-      - name: Download all artifacts
+      - name: Download wheels
         uses: actions/download-artifact@v4
         with:
           path: dist/
+          pattern: wheels-*
+          merge-multiple: true
+
+      - name: Download sdist
+        uses: actions/download-artifact@v4
+        with:
+          path: dist/
+          pattern: sdist
           merge-multiple: true
 
       - name: Publish to PyPI

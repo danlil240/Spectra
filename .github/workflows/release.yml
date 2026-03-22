@@ -6,6 +6,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 env:
   BUILD_TYPE: Release
@@ -313,7 +314,7 @@ jobs:
         run: |
           pip install build
           cp version.txt python/VERSION
-          python -m build --sdist python/
+          python -m build --sdist python/ --output dist/
 
       - name: Upload sdist
         uses: actions/upload-artifact@v4
@@ -453,14 +454,27 @@ jobs:
           draft: false
           prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
 
+  # ─── Publish to PyPI (Trusted Publishing / OIDC) ─────────────────────────
+  publish-pypi:
+    needs: [release]
+    runs-on: ubuntu-24.04
+    if: "!contains(github.ref, 'alpha') && !contains(github.ref, 'beta')"
+    environment: pypi
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist/
+          merge-multiple: true
+
       - name: Publish to PyPI
-        if: "!contains(github.ref, 'alpha') && !contains(github.ref, 'beta')"
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-        run: |
-          pip install twine
-          twine upload dist/*.whl dist/*.tar.gz || echo "PyPI upload skipped (no token or already published)"
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/
+          skip-existing: true
 
   # ─── APT Repository (GitHub Pages) ────────────────────────────────────────
   apt-repo:

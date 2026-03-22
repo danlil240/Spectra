@@ -5,13 +5,13 @@ Origin: Spectra
 Label: Spectra
 Suite: stable
 Codename: jammy
-Date: Sun, 22 Mar 2026 12:14:54 UTC
+Date: Sun, 22 Mar 2026 15:46:39 UTC
 Architectures: amd64 arm64
 Components: main
 Description: Spectra plotting library APT repository (Ubuntu 22.04 Jammy)
 MD5Sum:
- c5993cff3dafbd3468edbdd01ac4b94b 528 main/binary-amd64/Packages
- c841c6b8535ded48b37dafcb5cb9f9e6 386 main/binary-amd64/Packages.gz
+ 5b17733f66a7f1c19dfe8141e3e515d7 528 main/binary-amd64/Packages
+ 2a34b25850a0f7902de295b6152a8010 387 main/binary-amd64/Packages.gz
  391eb304b856b1bdff677fbd7f1e08b0 157 main/binary-amd64/Release
  d41d8cd98f00b204e9800998ecf8427e 0 main/binary-arm64/Packages
  7029066c27ac6f5ef18d660d5741979a 20 main/binary-arm64/Packages.gz
@@ -20,8 +20,8 @@ MD5Sum:
  7029066c27ac6f5ef18d660d5741979a 20 main/source/Sources.gz
  f9d18cc852212c82d57ac64ea056f622 158 main/source/Release
 SHA1:
- 8fbbaf80c7d63d0152729a440acfdd233dc8d466 528 main/binary-amd64/Packages
- b06d7cc17dc62d283275324d9b1d8374953a776a 386 main/binary-amd64/Packages.gz
+ a1ee4ea28cf0498d5b8f0ee927ee93251c0e7963 528 main/binary-amd64/Packages
+ 9fd3209e1424e4e344e57a1637e9a7b28f194b63 387 main/binary-amd64/Packages.gz
  bbee963519b47ebc77247479af3d5d9db7cd95c3 157 main/binary-amd64/Release
  da39a3ee5e6b4b0d3255bfef95601890afd80709 0 main/binary-arm64/Packages
  46c6643f07aa7f6bfe7118de926b86defc5087c4 20 main/binary-arm64/Packages.gz
@@ -30,8 +30,8 @@ SHA1:
  46c6643f07aa7f6bfe7118de926b86defc5087c4 20 main/source/Sources.gz
  1b6d7f75f27bfd70099d4333f0d1d2f2cbd57402 158 main/source/Release
 SHA256:
- 623533b9fe84f04e1e1114907738d4fdc1779df830234fc4f01956f932da6d18 528 main/binary-amd64/Packages
- cf62b2e94f50b96ee164e709f1cd09fa4332cc0f2ad04d71f597dc064e9a4a51 386 main/binary-amd64/Packages.gz
+ 45107ceb54b8042f65064a2693d9c95260b92da39128eceee9f44c0efa056633 528 main/binary-amd64/Packages
+ cf62e6c00f604d7e16817f5a90ddef9407b762c7449c3ddc91f61c47f3ec6827 387 main/binary-amd64/Packages.gz
  8f527356f8dca6034044246ff0881bcae33878563e9c16163c9492dcb77d0079 157 main/binary-amd64/Release
  e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 0 main/binary-arm64/Packages
  59869db34853933b239f1e2219cf7d431da006aa919635478511fabbfc8849d2 20 main/binary-arm64/Packages.gz
@@ -41,17 +41,17 @@ SHA256:
  eecc2cf89253e5d18ae6df5b425a5b5a9d58acbc34e6e16824f643aa44c19250 158 main/source/Release
 -----BEGIN PGP SIGNATURE-----
 
-iQIzBAEBCgAdFiEER/B9JVIhPFpLhGW8yx9fvRjrrsoFAmm/3T4ACgkQyx9fvRjr
-rsqHzw//SpKKECwDuIsv1tEThPL8+DsRnkroWcP9k4gZlpk+FtlVtjmsul5lHstE
-Yhcq0WfMri2Qu81nwkmifTzUFDhf7stuY3g3zcW9v7VFMFxjaHnJoK8p2BHJzJWi
-sPY8EQw4IzODs2PAzIFVcyUafrmZ8+KgTGzLW+SZo2uYNCXWc/bZGnXxdBnvaINZ
-Otp8YP+SzvDjhA/OJBB0h+4BKn2VLvaZFdyKhMbirdnD0iobVo+8AjGQvnae0H7d
-Fg6WfDqbamlrj1QlVqU+KW5mM2dD7LCBMmNxYfG+kTJWNelswNU+nmeQnG66SKQv
-T6iUL4jeE6YFsdp5ZPW7dBVojesPwpYREhUgUdAMZz0M9Of8wSdadMn/kKi0j/VB
-GLZ5hPnC5KSjTYyQCvDFL+cQZstm7wospQ6GQ744rMzRO4QVrjQpOFpESiN9/bpL
-eUjLHaFEdknpqXrLzESHafWk270XuUNSXB8ltmVaPVboTlkH8pElU0lQl/dbbArp
-o5zZoOnmQ0WuYgO+NyuXmCfx01Nvxnh6wS4gKVjhLNNJY/HwgH+9FgSPrX+UBY+L
-P/PkIqJupyvyry+xB51dCRROzBVRJtzzZZfN7ejzS5L7kyCdr/i1j46ov9+Hs5HJ
-zjU8VtA37L4l/s0F5KMcsjOQs6dV5U5eFUDilNfC3CZiz7/cl+c=
-=KPEl
+iQIzBAEBCgAdFiEER/B9JVIhPFpLhGW8yx9fvRjrrsoFAmnADt8ACgkQyx9fvRjr
+rsrR5g/+Lz4FNh70b9zGm26DBMdOkyfEcMc9ERc59BHlrP74DomFnjPlEWlAryMj
+vOKuYmjjs18XLEtmL5p5LRRqRsPfgIBM3MIQ4kUNc5zNTaZqZRfS2vrtb/NEIDA+
+FiS8juFNIWES3JnPYcbXR2GZyfJ6lRt8YQRpT9mMTXBa/A/N+EW+40iGnCzg4yHZ
+DtonEP/iw6CICbj3gqbsLM55FJmOHNgRfGMvqypwFcgjB/rymI4GCmf44JwpQkVr
+bOEuZB6V6AjkDsl59dt29kRADfkD87c7co2tEGKkOivW+MXoNnXffXIeSOindY49
+OEBmn1/S5Vn7xrINTB5LpgZGFTLyFjLJmzWXcufHqUaskBOgqbVAHXU2oP65sqKv
+yKTtHfomJQjfcaMFhePaxM2xlkpfDAyfPkl1eofXv99KJMlhd9fpbHB13F8HnT4C
+nezL6KchQ9g3tyTpPFQ6hYD9LwG8gdxs4i5mLS15I2u3L5ZmRoHCuqzk0Al4UAlU
+MrtV3ET4YcL6GB4T+MMMfdDoitCAc9D/2qmlsiCdxBFOrMq0grogcSmAqe4TmeWh
+3kUqIxjl4ZD3h62PnbnWc32OX0calUucgMDl5vRYd3MSJGE0i1eX6e3UhnVKu6T7
+dfkJg/ZVGgoirOpvfb/32ztl1lHx4o0gk4uDh0ghqyH2LDSo0Io=
+=U4Jb
 -----END PGP SIGNATURE-----

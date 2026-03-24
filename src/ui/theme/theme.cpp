@@ -203,7 +203,7 @@ void ThemeManager::apply_to_imgui()
     // Tab — r6 for softer controls (between SM and MD)
     style.TabRounding               = 6.0f;
     style.TabBorderSize             = 0.0f;
-    style.TabMinWidthForCloseButton = 0.0f;
+    style.TabCloseButtonMinWidthUnselected = 0.0f;
     style.TabBarBorderSize          = 0.0f;
 
     // Popup / tooltip — r12 for premium floating surfaces

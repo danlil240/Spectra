@@ -264,8 +264,8 @@ if(SPECTRA_USE_IMGUI AND SPECTRA_USE_GLFW)
     include(FetchContent)
     FetchContent_Declare(
         imgui
-        URL        https://github.com/ocornut/imgui/archive/refs/tags/v1.91.8-docking.tar.gz
-        URL_HASH   MD5=c51327f9bc94e1d2af6b7a8d7d4029ff
+        URL        https://github.com/ocornut/imgui/archive/refs/tags/v1.92.6-docking.tar.gz
+        URL_HASH   SHA256=5e84cdaa6a6041586a0d11a3071b749734a0439d66fdbdad37ae5b27e37d396c
     )
     FetchContent_MakeAvailable(imgui)
 

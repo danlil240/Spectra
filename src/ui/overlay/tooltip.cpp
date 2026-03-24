@@ -78,7 +78,7 @@ void Tooltip::draw(const NearestPointResult& nearest, float window_width, float 
     constexpr float min_width   = 140.0f;
 
     ImFont* body_font  = font_body_ ? font_body_ : ImGui::GetFont();
-    float   font_sz    = body_font->FontSize;
+    float   font_sz    = body_font->LegacySize;
     float   row_h      = font_sz + 4.0f;
 
     // Format label/value pairs

@@ -2766,11 +2766,10 @@ bool VulkanBackend::init_window_context_with_imgui(WindowContext& wctx,
     ii.DescriptorPool = descriptor_pool_;
     ii.MinImageCount  = 2;
     ii.ImageCount     = static_cast<uint32_t>(wctx.swapchain.images.size());
-    ii.RenderPass     = wctx.swapchain.render_pass;
-    ii.MSAASamples    = VK_SAMPLE_COUNT_1_BIT;
+    ii.PipelineInfoMain.RenderPass  = wctx.swapchain.render_pass;
+    ii.PipelineInfoMain.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
 
     ImGui_ImplVulkan_Init(&ii);
-    ImGui_ImplVulkan_CreateFontsTexture();
 
     // Store the ImGui context handle on the WindowContext so callers can
     // switch to it with ImGui::SetCurrentContext() before each frame.

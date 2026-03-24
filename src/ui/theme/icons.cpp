@@ -65,7 +65,7 @@ bool IconFont::initialize()
         {
             if (!font)
                 continue;
-            float sz = font->FontSize;
+            float sz = font->LegacySize;
             if (sz >= 15.5f && sz <= 16.5f)
                 font_16_ = font;
             else if (sz >= 19.5f && sz <= 20.5f)
@@ -79,7 +79,7 @@ bool IconFont::initialize()
             ImFont* largest = atlas->Fonts[0];
             for (ImFont* font : atlas->Fonts)
             {
-                if (font && font->FontSize > largest->FontSize)
+                if (font && font->LegacySize > largest->LegacySize)
                     largest = font;
             }
             font_32_ = largest;

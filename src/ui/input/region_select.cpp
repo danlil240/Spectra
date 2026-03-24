@@ -388,7 +388,7 @@ void RegionSelect::draw_mini_toolbar(float rx0,
                   stats_.y_max);
 
     ImFont* font      = font_body_ ? font_body_ : ImGui::GetFont();
-    float   font_size = font->FontSize * 0.85f;
+    float   font_size = font->LegacySize * 0.85f;
 
     ImVec2 count_sz = font->CalcTextSizeA(font_size, 400.0f, 0.0f, count_buf);
     ImVec2 mean_sz  = font->CalcTextSizeA(font_size, 400.0f, 0.0f, mean_buf);

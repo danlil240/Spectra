@@ -115,11 +115,10 @@ bool ImGuiIntegration::init(VulkanBackend& backend, GLFWwindow* window, bool ins
     layout_manager_ = std::make_unique<LayoutManager>();
 
     IMGUI_CHECKVERSION();
-    // Each window gets its own font atlas so that creating a secondary
-    // window mid-frame doesn't hit the "locked ImFontAtlas" assertion
-    // (the primary window's shared atlas is locked between NewFrame/EndFrame).
-    owned_font_atlas_ = std::make_unique<ImFontAtlas>();
-    imgui_context_    = ImGui::CreateContext(owned_font_atlas_.get());
+    // In ImGui 1.92.x with RendererHasTextures the atlas must be owned by
+    // the context (OwnerContext == ctx). Pass nullptr so CreateContext creates
+    // its own atlas. The old shared-atlas workaround is not needed in 1.92.x.
+    imgui_context_ = ImGui::CreateContext(nullptr);
     // CreateContext() restores the previous context if one exists (ImGui 1.90+).
     // We must explicitly switch to the new context so load_fonts() and
     // backend init operate on the correct context/atlas.
@@ -163,13 +162,12 @@ bool ImGuiIntegration::init(VulkanBackend& backend, GLFWwindow* window, bool ins
     ii.DescriptorPool = backend.descriptor_pool();
     ii.MinImageCount  = backend.min_image_count();
     ii.ImageCount     = backend.image_count();
-    ii.RenderPass     = backend.render_pass();
-    ii.MSAASamples    = VK_SAMPLE_COUNT_1_BIT;
+    ii.PipelineInfoMain.RenderPass  = backend.render_pass();
+    ii.PipelineInfoMain.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
 
     ImGui_ImplVulkan_Init(&ii);
-    ImGui_ImplVulkan_CreateFontsTexture();
 
-    cached_render_pass_ = vk_rp_to_u64(ii.RenderPass);
+    cached_render_pass_ = vk_rp_to_u64(ii.PipelineInfoMain.RenderPass);
     initialized_        = true;
     backend_            = &backend;
 
@@ -187,8 +185,7 @@ bool ImGuiIntegration::init_headless(VulkanBackend& backend, uint32_t width, uin
     layout_manager_ = std::make_unique<LayoutManager>();
 
     IMGUI_CHECKVERSION();
-    owned_font_atlas_ = std::make_unique<ImFontAtlas>();
-    imgui_context_    = ImGui::CreateContext(owned_font_atlas_.get());
+    imgui_context_ = ImGui::CreateContext(nullptr);
     ImGui::SetCurrentContext(imgui_context_);
 
     // Configure IO for headless operation
@@ -227,13 +224,12 @@ bool ImGuiIntegration::init_headless(VulkanBackend& backend, uint32_t width, uin
     // uses a single offscreen framebuffer (image_count=1), so clamp to 2.
     ii.MinImageCount = std::max(backend.min_image_count(), 2u);
     ii.ImageCount    = std::max(backend.image_count(), 2u);
-    ii.RenderPass    = backend.render_pass();
-    ii.MSAASamples   = VK_SAMPLE_COUNT_1_BIT;
+    ii.PipelineInfoMain.RenderPass  = backend.render_pass();
+    ii.PipelineInfoMain.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
 
     ImGui_ImplVulkan_Init(&ii);
-    ImGui_ImplVulkan_CreateFontsTexture();
 
-    cached_render_pass_ = vk_rp_to_u64(ii.RenderPass);
+    cached_render_pass_ = vk_rp_to_u64(ii.PipelineInfoMain.RenderPass);
     initialized_        = true;
     backend_            = &backend;
     load_logo_textures(backend);
@@ -320,11 +316,10 @@ void ImGuiIntegration::on_swapchain_recreated(VulkanBackend& backend)
         ii.DescriptorPool = backend.descriptor_pool();
         ii.MinImageCount  = backend.min_image_count();
         ii.ImageCount     = backend.image_count();
-        ii.RenderPass     = current_rp;
-        ii.MSAASamples    = VK_SAMPLE_COUNT_1_BIT;
+        ii.PipelineInfoMain.RenderPass  = current_rp;
+        ii.PipelineInfoMain.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
 
         ImGui_ImplVulkan_Init(&ii);
-        ImGui_ImplVulkan_CreateFontsTexture();
 
         // Re-register the single shared logo texture after ImGui reinit
         // (corner is an alias — no separate remove/register needed)
@@ -1000,7 +995,7 @@ void ImGuiIntegration::draw_welcome_screen(float display_w, float display_h, flo
     {
         const char* title     = "Spectra";
         ImFont*     font      = font_title_ ? font_title_ : ImGui::GetFont();
-        float       font_size = font_title_ ? font_title_->FontSize : 26.0f;
+        float       font_size = font_title_ ? font_title_->LegacySize : 26.0f;
         ImVec2      sz        = font->CalcTextSizeA(font_size, FLT_MAX, 0.0f, title);
         fg->AddText(font,
                     font_size,

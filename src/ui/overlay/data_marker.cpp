@@ -121,7 +121,7 @@ void DataMarkerManager::draw(const Rect& viewport,
     const auto& colors   = ui::ThemeManager::instance().colors();
     ImDrawList* fg       = ImGui::GetForegroundDrawList();
     ImFont*     font     = ImGui::GetFont();
-    const float fs       = font->FontSize;
+    const float fs       = font->LegacySize;
     const float fs_sm    = fs * 0.78f;   // small font for coordinates
     const float pad_x    = 8.0f;         // horizontal padding inside box
     const float pad_y    = 5.0f;         // vertical padding inside box
@@ -321,7 +321,7 @@ int DataMarkerManager::hit_test(float       screen_x,
 {
     // Constants matching draw() for label box geometry
     ImFont*     font    = ImGui::GetFont();
-    const float fs      = font->FontSize;
+    const float fs      = font->LegacySize;
     const float fs_sm   = fs * 0.78f;
     const float pad_x   = 8.0f;
     const float pad_y   = 5.0f;

@@ -139,7 +139,7 @@ bool LegendInteraction::draw(Axes&               axes,
     ImFont*     font         = font_body_ ? font_body_ : ImGui::GetFont();
 
     // Use font size from LegendConfig; fall back to font's native size
-    float font_size = (config.font_size > 0.0f) ? config.font_size : font->FontSize;
+    float font_size = (config.font_size > 0.0f) ? config.font_size : font->LegacySize;
 
     // Use padding from LegendConfig
     float           pad         = config.padding;

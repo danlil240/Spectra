@@ -24,8 +24,8 @@ static bool icon_label_button(const char* icon_codepoint,
     const auto& colors = theme();
 
     // Vision.png metrics: tall cells, icon above label, centered
-    float icon_sz  = icon_font ? icon_font->FontSize : 20.0f;
-    float label_sz = label_font ? (label_font->FontSize * 0.92f) : 11.0f;   // ~11px label
+    float icon_sz  = icon_font ? icon_font->LegacySize : 20.0f;
+    float label_sz = label_font ? (label_font->LegacySize * 0.92f) : 11.0f;   // ~11px label
     float icon_gap = 3.0f;    // gap between icon and label
     float cell_h   = 56.0f;   // generous cell height like Vision.png
     float pill_pad = 7.0f;    // horizontal inset for the highlight pill
@@ -522,7 +522,7 @@ void ImGuiIntegration::draw_command_bar()
 
             ImGui::PushFont(font_title_);
             const char* letters = "SPECTRA";
-            float       font_sz = font_title_->FontSize * 0.92f;
+            float       font_sz = font_title_->LegacySize * 0.92f;
             float       text_y  = cy - font_sz * 0.5f;
             float       spacing = 2.6f;
 

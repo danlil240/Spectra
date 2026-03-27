@@ -207,8 +207,7 @@ void ImGuiIntegration::draw_canvas(Figure& figure)
     ImDrawList* dl = nullptr;
     {
         ImGui::SetNextWindowPos(ImVec2(bounds.x - 8.0f, bounds.y - 8.0f));
-        ImGui::SetNextWindowSize(
-            ImVec2(bounds.w + 16.0f, bounds.h + 16.0f));
+        ImGui::SetNextWindowSize(ImVec2(bounds.w + 16.0f, bounds.h + 16.0f));
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
         ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
         ImGuiWindowFlags border_flags =
@@ -498,22 +497,120 @@ void ImGuiIntegration::draw_inspector(Figure& figure)
                         1.0f);
         }
 
-        // Close button in top-right corner (24px hitbox, r4)
-        ImGui::SameLine(ImGui::GetContentRegionAvail().x - 24.0f);
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
-                              ImVec4(ui::theme().accent_subtle.r,
-                                     ui::theme().accent_subtle.g,
-                                     ui::theme().accent_subtle.b,
-                                     0.4f));
-        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, ui::tokens::RADIUS_SM);
-        if (ImGui::Button(ui::icon_str(ui::Icon::Close), ImVec2(24, 24)))
+        // ── Inspector tab bar ──
         {
-            layout_manager_->set_inspector_visible(false);
-            panel_open_ = false;
+            const auto& colors  = ui::theme();
+            float       avail_w = ImGui::GetContentRegionAvail().x;
+
+            struct TabDef
+            {
+                const char* label;
+                ui::Icon    icon;
+                Section     section;
+            };
+            TabDef tabs[] = {
+                {"Figure", ui::Icon::ChartLine, Section::Figure},
+                {"Series", ui::Icon::Palette, Section::Series},
+                {"Axes", ui::Icon::Axes, Section::Axes},
+                {"Data", ui::Icon::Database, Section::DataEditor},
+            };
+            constexpr int tab_count = 4;
+            float         tab_w     = std::floor(avail_w / static_cast<float>(tab_count));
+            float         tab_h     = 28.0f;
+
+            ImGui::PushFont(font_heading_);
+            ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, ui::tokens::RADIUS_SM);
+            ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(2.0f, 0.0f));
+
+            for (int i = 0; i < tab_count; ++i)
+            {
+                if (i > 0)
+                    ImGui::SameLine();
+
+                bool is_active = (active_section_ == tabs[i].section);
+
+                // Tab button colors
+                if (is_active)
+                {
+                    ImGui::PushStyleColor(
+                        ImGuiCol_Button,
+                        ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.18f));
+                    ImGui::PushStyleColor(
+                        ImGuiCol_ButtonHovered,
+                        ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.28f));
+                    ImGui::PushStyleColor(
+                        ImGuiCol_ButtonActive,
+                        ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.35f));
+                    ImGui::PushStyleColor(
+                        ImGuiCol_Text,
+                        ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 1.0f));
+                }
+                else
+                {
+                    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+                    ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
+                                          ImVec4(colors.text_secondary.r,
+                                                 colors.text_secondary.g,
+                                                 colors.text_secondary.b,
+                                                 0.12f));
+                    ImGui::PushStyleColor(ImGuiCol_ButtonActive,
+                                          ImVec4(colors.text_secondary.r,
+                                                 colors.text_secondary.g,
+                                                 colors.text_secondary.b,
+                                                 0.20f));
+                    ImGui::PushStyleColor(ImGuiCol_Text,
+                                          ImVec4(colors.text_secondary.r,
+                                                 colors.text_secondary.g,
+                                                 colors.text_secondary.b,
+                                                 0.85f));
+                }
+
+                char btn_id[64];
+                std::snprintf(btn_id, sizeof(btn_id), "%s##insp_tab_%d", tabs[i].label, i);
+                if (ImGui::Button(btn_id, ImVec2(tab_w, tab_h)))
+                {
+                    active_section_ = tabs[i].section;
+                    // Clear stale selection when switching sections
+                    if (tabs[i].section != Section::Series)
+                        selection_ctx_.clear();
+                }
+
+                // Draw active indicator bar under the tab
+                if (is_active)
+                {
+                    ImVec2      item_min = ImGui::GetItemRectMin();
+                    ImVec2      item_max = ImGui::GetItemRectMax();
+                    ImDrawList* tdl      = ImGui::GetWindowDrawList();
+                    tdl->AddRectFilled(
+                        ImVec2(item_min.x + 4.0f, item_max.y - 2.0f),
+                        ImVec2(item_max.x - 4.0f, item_max.y),
+                        ImGui::ColorConvertFloat4ToU32(
+                            ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.8f)),
+                        1.0f);
+                }
+
+                ImGui::PopStyleColor(4);
+            }
+
+            ImGui::PopStyleVar(2);
+            ImGui::PopFont();
+
+            // Separator line under tabs
+            ImGui::Dummy(ImVec2(0, 4.0f));
+            {
+                ImDrawList* tdl   = ImGui::GetWindowDrawList();
+                ImVec2      wpos  = ImGui::GetWindowPos();
+                float       sep_y = ImGui::GetCursorScreenPos().y;
+                tdl->AddLine(ImVec2(wpos.x + 8.0f, sep_y),
+                             ImVec2(wpos.x + bounds.w - 8.0f, sep_y),
+                             ImGui::ColorConvertFloat4ToU32(ImVec4(colors.border_subtle.r,
+                                                                   colors.border_subtle.g,
+                                                                   colors.border_subtle.b,
+                                                                   0.35f)),
+                             1.0f);
+            }
+            ImGui::Dummy(ImVec2(0, 4.0f));
         }
-        ImGui::PopStyleVar();
-        ImGui::PopStyleColor(2);
 
         // Scrollable content area
         ImGui::BeginChild("##inspector_content",
@@ -606,6 +703,97 @@ void ImGuiIntegration::draw_inspector(Figure& figure)
     ImGui::End();
     ImGui::PopStyleColor(2);
     ImGui::PopStyleVar(3);
+}
+
+void ImGuiIntegration::draw_inspector_toggle()
+{
+    if (!layout_manager_)
+        return;
+
+    Rect canvas  = layout_manager_->canvas_rect();
+    bool is_open = layout_manager_->is_inspector_visible();
+
+    // Small pill-shaped chevron toggle on the right edge of the canvas
+    constexpr float BTN_W        = 16.0f;
+    constexpr float BTN_H        = 36.0f;
+    constexpr float BTN_ROUNDING = 8.0f;
+    float           btn_x        = canvas.x + canvas.w - BTN_W;
+    if (is_open)
+    {
+        Rect insp = layout_manager_->inspector_rect();
+        btn_x     = insp.x - BTN_W;
+    }
+    float btn_y = canvas.y + (canvas.h - BTN_H) * 0.5f;
+
+    ImGui::SetNextWindowPos(ImVec2(btn_x, btn_y));
+    ImGui::SetNextWindowSize(ImVec2(BTN_W, BTN_H));
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove
+                             | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBackground
+                             | ImGuiWindowFlags_NoBringToFrontOnFocus
+                             | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoScrollbar
+                             | ImGuiWindowFlags_NoScrollWithMouse;
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+    if (ImGui::Begin("##inspector_toggle", nullptr, flags))
+    {
+        ImGui::InvisibleButton("##insp_toggle_btn", ImVec2(BTN_W, BTN_H));
+        bool hovered = ImGui::IsItemHovered();
+        bool clicked = ImGui::IsItemClicked();
+
+        if (clicked)
+        {
+            if (is_open)
+            {
+                layout_manager_->set_inspector_visible(false);
+                panel_open_ = false;
+            }
+            else
+            {
+                layout_manager_->set_inspector_visible(true);
+                panel_open_ = true;
+            }
+        }
+
+        const auto& colors = ui::theme();
+        ImDrawList* dl     = ImGui::GetWindowDrawList();
+
+        // Only show background on hover for a subtle feel
+        if (hovered)
+        {
+            ImU32 bg_col = IM_COL32(static_cast<uint8_t>(colors.bg_tertiary.r * 255),
+                                    static_cast<uint8_t>(colors.bg_tertiary.g * 255),
+                                    static_cast<uint8_t>(colors.bg_tertiary.b * 255),
+                                    180);
+            dl->AddRectFilled(ImVec2(btn_x, btn_y),
+                              ImVec2(btn_x + BTN_W, btn_y + BTN_H),
+                              bg_col,
+                              BTN_ROUNDING);
+        }
+
+        // Chevron icon centered in the pill
+        ImFont* icon_font_ptr = font_icon_;
+        if (icon_font_ptr)
+        {
+            const char* chevron =
+                is_open ? ui::icon_str(ui::Icon::ChevronRight) : ui::icon_str(ui::Icon::Back);
+
+            ImU32 icon_col =
+                hovered ? ImGui::ColorConvertFloat4ToU32(
+                              ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 1.0f))
+                        : ImGui::ColorConvertFloat4ToU32(ImVec4(colors.text_secondary.r,
+                                                                colors.text_secondary.g,
+                                                                colors.text_secondary.b,
+                                                                0.45f));
+
+            float  icon_sz = icon_font_ptr->LegacySize;
+            ImVec2 isz     = icon_font_ptr->CalcTextSizeA(icon_sz, FLT_MAX, 0.0f, chevron);
+            float  ix      = btn_x + (BTN_W - isz.x) * 0.5f;
+            float  iy      = btn_y + (BTN_H - icon_sz) * 0.5f;
+            dl->AddText(icon_font_ptr, icon_sz, ImVec2(ix, iy), icon_col, chevron);
+        }
+    }
+    ImGui::End();
+    ImGui::PopStyleVar();
 }
 
 void ImGuiIntegration::draw_status_bar()

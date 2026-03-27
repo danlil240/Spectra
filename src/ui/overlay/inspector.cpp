@@ -272,6 +272,7 @@ void Inspector::draw_series_browser(Figure& fig)
 
         // Advance cursor past header
         ImGui::SetCursorScreenPos(ImVec2(header_min.x, header_max.y + tokens::ROW_PADDING_V));
+        ImGui::Dummy(ImVec2(0, 0));
     }
 
     // Paste button (shown when clipboard has data)
@@ -773,6 +774,7 @@ void Inspector::draw_series_browser(Figure& fig)
 
             // Advance cursor to next row
             ImGui::SetCursorScreenPos(ImVec2(row_min.x, row_max.y));
+            ImGui::Dummy(ImVec2(0, 0));
 
             ImGui::PopID();
             s_idx++;

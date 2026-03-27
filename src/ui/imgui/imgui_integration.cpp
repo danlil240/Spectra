@@ -440,6 +440,10 @@ void ImGuiIntegration::build_ui(Figure& figure)
     {
         draw_inspector(figure);
     }
+    if (canvas_visible_)
+    {
+        draw_inspector_toggle();
+    }
     if (status_bar_visible_)
         draw_status_bar();
     if (canvas_visible_)

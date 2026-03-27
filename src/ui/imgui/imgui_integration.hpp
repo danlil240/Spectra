@@ -422,6 +422,7 @@ class ImGuiIntegration
     void draw_nav_rail();
     void draw_canvas(Figure& figure);
     void draw_inspector(Figure& figure);
+    void draw_inspector_toggle();
     void draw_status_bar();
     void draw_split_view_splitters();
     void draw_pane_tab_headers();

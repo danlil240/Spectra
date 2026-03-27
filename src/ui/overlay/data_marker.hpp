@@ -7,6 +7,8 @@
     #include <string>
     #include <vector>
 
+struct ImDrawList;
+
 namespace spectra
 {
 
@@ -61,13 +63,15 @@ class DataMarkerManager
 
     // Draw all markers. Converts data coords to screen coords using the viewport and limits.
     // When filter_axes is non-null, only markers belonging to that axes are drawn.
+    // When dl is non-null, draws into the given draw list instead of GetForegroundDrawList().
     void draw(const Rect& viewport,
               float       xlim_min,
               float       xlim_max,
               float       ylim_min,
               float       ylim_max,
               float       opacity     = 1.0f,
-              const Axes* filter_axes = nullptr);
+              const Axes* filter_axes = nullptr,
+              ImDrawList* dl          = nullptr);
 
     // Hit-test: returns index of marker near screen position, or -1.
     // When filter_axes is non-null, only markers belonging to that axes are tested.

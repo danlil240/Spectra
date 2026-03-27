@@ -264,13 +264,10 @@ void ImGuiIntegration::draw_pane_tab_headers()
 
         auto* draw_list = ImGui::GetWindowDrawList();
 
-        // Draw header background (skip when menus are open to avoid z-order issues)
-        if (!is_menu_open())
-        {
-            draw_list->AddRectFilled(ImVec2(hr.x, hr.y),
-                                     ImVec2(hr.x + hr.w, hr.y + hr.h),
-                                     to_col(theme.bg_secondary.lerp(theme.bg_primary, 0.12f)));
-        }
+        // Draw header background and borders
+        draw_list->AddRectFilled(ImVec2(hr.x, hr.y),
+                                 ImVec2(hr.x + hr.w, hr.y + hr.h),
+                                 to_col(theme.bg_secondary.lerp(theme.bg_primary, 0.12f)));
         draw_list->AddLine(ImVec2(hr.x, hr.y),
                            ImVec2(hr.x + hr.w, hr.y),
                            to_col(theme.border_subtle, 0.28f),

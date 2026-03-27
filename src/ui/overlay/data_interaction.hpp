@@ -38,7 +38,12 @@ class DataInteraction
     // Draw all overlays (tooltip, crosshair, markers).
     // Pass current_figure when available so overlay rendering does not depend
     // on stale cached figure pointers.
-    void draw_overlays(float window_width, float window_height, Figure* current_figure = nullptr);
+    // When dl is non-null, all overlay primitives are drawn into that draw list
+    // instead of GetForegroundDrawList(), enabling proper z-ordering behind menus.
+    void draw_overlays(float       window_width,
+                       float       window_height,
+                       Figure*     current_figure = nullptr,
+                       ImDrawList* dl             = nullptr);
 
     // Draw legend overlay for a specific figure (for split-mode panes).
     // Respects figure.legend().visible.

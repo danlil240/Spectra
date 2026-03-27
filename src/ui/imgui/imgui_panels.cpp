@@ -202,6 +202,27 @@ void ImGuiIntegration::draw_canvas(Figure& figure)
     ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0, 0, 0, 0));
     ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0, 0, 0, 0));
 
+    // Canvas border draws into a dedicated overlay window so it respects
+    // ImGui z-ordering and renders behind menus/popups.
+    ImDrawList* dl = nullptr;
+    {
+        ImGui::SetNextWindowPos(ImVec2(bounds.x - 8.0f, bounds.y - 8.0f));
+        ImGui::SetNextWindowSize(
+            ImVec2(bounds.w + 16.0f, bounds.h + 16.0f));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+        ImGuiWindowFlags border_flags =
+            ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove
+            | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus
+            | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoBackground
+            | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse
+            | ImGuiWindowFlags_NoInputs;
+        if (ImGui::Begin("##canvas_border", nullptr, border_flags))
+            dl = ImGui::GetWindowDrawList();
+        ImGui::End();
+        ImGui::PopStyleVar(2);
+    }
+
     if (ImGui::Begin("##canvas", nullptr, flags))
     {
         // Canvas content is rendered by Vulkan, not ImGui
@@ -209,6 +230,9 @@ void ImGuiIntegration::draw_canvas(Figure& figure)
     }
     ImGui::End();
     ImGui::PopStyleColor(2);
+
+    if (!dl)
+        return;
 
     ImDrawList* bg_dl = ImGui::GetBackgroundDrawList();
     auto        outer = ui::theme().bg_primary.lerp(ui::theme().bg_secondary, 0.20f);
@@ -219,8 +243,6 @@ void ImGuiIntegration::draw_canvas(Figure& figure)
                                   static_cast<uint8_t>(outer.b * 255),
                                   96),
                          14.0f);
-
-    ImDrawList* dl = ImGui::GetForegroundDrawList();
     for (int i = 0; i < 3; ++i)
     {
         float expand = static_cast<float>(i + 1);

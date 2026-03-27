@@ -113,13 +113,14 @@ void DataMarkerManager::draw(const Rect& viewport,
                              float       ylim_min,
                              float       ylim_max,
                              float       opacity,
-                             const Axes* filter_axes)
+                             const Axes* filter_axes,
+                             ImDrawList* dl)
 {
     if (markers_.empty())
         return;
 
     const auto& colors   = ui::ThemeManager::instance().colors();
-    ImDrawList* fg       = ImGui::GetForegroundDrawList();
+    ImDrawList* fg       = dl ? dl : ImGui::GetForegroundDrawList();
     ImFont*     font     = ImGui::GetFont();
     const float fs       = font->LegacySize;
     const float fs_sm    = fs * 0.78f;   // small font for coordinates

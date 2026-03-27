@@ -213,7 +213,10 @@ void DataInteraction::draw_legend_for_figure(Figure& figure)
     }
 }
 
-void DataInteraction::draw_overlays(float window_width, float window_height, Figure* current_figure)
+void DataInteraction::draw_overlays(float       window_width,
+                                    float       window_height,
+                                    Figure*     current_figure,
+                                    ImDrawList* dl)
 {
     Figure* overlay_figure = current_figure ? current_figure : last_figure_;
     if (current_figure)
@@ -243,7 +246,8 @@ void DataInteraction::draw_overlays(float window_width, float window_height, Fig
                           static_cast<float>(yl.min),
                           static_cast<float>(yl.max),
                           1.0f,
-                          axes_ptr.get());
+                          axes_ptr.get(),
+                          dl);
         }
     }
 
@@ -267,15 +271,16 @@ void DataInteraction::draw_overlays(float window_width, float window_height, Fig
     // Draw crosshair: use multi-axes mode if figure has multiple axes
     if (overlay_figure && overlay_figure->axes().size() > 1)
     {
-        crosshair_.draw_all_axes(last_cursor_, *overlay_figure, axis_link_mgr_);
+        crosshair_.draw_all_axes(last_cursor_, *overlay_figure, axis_link_mgr_, dl);
     }
     else if (active_axes_)
     {
-        crosshair_.draw(last_cursor_, active_viewport_, xlim_min_, xlim_max_, ylim_min_, ylim_max_);
+        crosshair_.draw(
+            last_cursor_, active_viewport_, xlim_min_, xlim_max_, ylim_min_, ylim_max_, dl);
     }
 
     // Draw tooltip last (on top)
-    tooltip_.draw(nearest_, window_width, window_height);
+    tooltip_.draw(nearest_, window_width, window_height, dl);
 }
 
 bool DataInteraction::dispatch_series_selection_from_nearest()

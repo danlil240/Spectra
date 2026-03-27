@@ -19,7 +19,10 @@ void Tooltip::set_fonts(ImFont* body, ImFont* heading)
     font_heading_ = heading;
 }
 
-void Tooltip::draw(const NearestPointResult& nearest, float window_width, float window_height)
+void Tooltip::draw(const NearestPointResult& nearest,
+                   float                     window_width,
+                   float                     window_height,
+                   ImDrawList*               dl)
 {
     if (!enabled_)
         return;
@@ -125,7 +128,7 @@ void Tooltip::draw(const NearestPointResult& nearest, float window_width, float 
     // Draw entirely on the foreground draw list — this renders above all ImGui windows,
     // including popups and open menus, since the foreground draw list is composited last.
     {
-        ImDrawList* fg  = ImGui::GetForegroundDrawList();
+        ImDrawList* fg  = dl ? dl : ImGui::GetForegroundDrawList();
         float       rnd = ui::tokens::RADIUS_MD;
 
         // Shadow
@@ -237,7 +240,7 @@ void Tooltip::draw(const NearestPointResult& nearest, float window_width, float 
     // Draw triangular arrow pointer toward data point
     if (nearest.found && nearest.distance_px <= snap_radius_px_)
     {
-        ImDrawList*     fg         = ImGui::GetForegroundDrawList();
+        ImDrawList*     fg         = dl ? dl : ImGui::GetForegroundDrawList();
         ImU32           arrow_col  = ImGui::ColorConvertFloat4ToU32(ImVec4(colors.tooltip_bg.r,
                                                                 colors.tooltip_bg.g,
                                                                 colors.tooltip_bg.b,
@@ -273,7 +276,7 @@ void Tooltip::draw(const NearestPointResult& nearest, float window_width, float 
     // Draw snap indicator dot at the data point and connection line
     if (nearest.found && nearest.distance_px <= snap_radius_px_)
     {
-        ImDrawList* fg        = ImGui::GetForegroundDrawList();
+        ImDrawList* fg        = dl ? dl : ImGui::GetForegroundDrawList();
         ImU32       dot_color = ImGui::ColorConvertFloat4ToU32(
             ImVec4(series_color.r, series_color.g, series_color.b, opacity_));
         ImU32 ring_color = ImGui::ColorConvertFloat4ToU32(

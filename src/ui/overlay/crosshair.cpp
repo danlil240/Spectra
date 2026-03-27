@@ -55,7 +55,8 @@ void Crosshair::draw(const CursorReadout& cursor,
                      float /*xlim_min*/,
                      float /*xlim_max*/,
                      float /*ylim_min*/,
-                     float /*ylim_max*/)
+                     float /*ylim_max*/,
+                     ImDrawList*          dl)
 {
     // Animate opacity
     float target = (enabled_ && cursor.valid) ? 1.0f : 0.0f;
@@ -84,7 +85,7 @@ void Crosshair::draw(const CursorReadout& cursor,
     if (sx < vx0 || sx > vx1 || sy < vy0 || sy > vy1)
         return;
 
-    ImDrawList* fg = ImGui::GetForegroundDrawList();
+    ImDrawList* fg = dl ? dl : ImGui::GetForegroundDrawList();
 
     if (colors.glow_intensity > 0.01f)
     {
@@ -195,7 +196,8 @@ void Crosshair::draw(const CursorReadout& cursor,
 
 void Crosshair::draw_all_axes(const CursorReadout& cursor,
                               Figure&              figure,
-                              AxisLinkManager* /*link_mgr*/)
+                              AxisLinkManager* /*link_mgr*/,
+                              ImDrawList*          dl)
 {
     // Animate opacity (shared across all axes)
     float target = (enabled_ && cursor.valid) ? 1.0f : 0.0f;
@@ -215,7 +217,7 @@ void Crosshair::draw_all_axes(const CursorReadout& cursor,
     float cx = static_cast<float>(cursor.screen_x);
     float cy = static_cast<float>(cursor.screen_y);
 
-    ImDrawList* fg = ImGui::GetForegroundDrawList();
+    ImDrawList* fg = dl ? dl : ImGui::GetForegroundDrawList();
 
     ImU32 label_bg = ImGui::ColorConvertFloat4ToU32(
         ImVec4(colors.bg_elevated.r, colors.bg_elevated.g, colors.bg_elevated.b, 0.9f * opacity_));

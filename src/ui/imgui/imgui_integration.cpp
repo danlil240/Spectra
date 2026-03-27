@@ -515,11 +515,32 @@ void ImGuiIntegration::build_ui(Figure& figure)
         deferred_tooltip_ = nullptr;   // Clear for next frame
     }
 
-    // Draw data interaction overlays (tooltip, crosshair, markers) on top of everything
+    // Draw data interaction overlays (tooltip, crosshair, markers) into a regular
+    // ImGui window so they render behind menus/popups in z-order.
+    ImDrawList* overlay_dl = nullptr;
+    {
+        ImGuiIO& io = ImGui::GetIO();
+        ImGui::SetNextWindowPos(ImVec2(0, 0));
+        ImGui::SetNextWindowSize(io.DisplaySize);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+        ImGuiWindowFlags overlay_flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove
+                                         | ImGuiWindowFlags_NoSavedSettings
+                                         | ImGuiWindowFlags_NoBringToFrontOnFocus
+                                         | ImGuiWindowFlags_NoFocusOnAppearing
+                                         | ImGuiWindowFlags_NoBackground
+                                         | ImGuiWindowFlags_NoScrollbar
+                                         | ImGuiWindowFlags_NoScrollWithMouse
+                                         | ImGuiWindowFlags_NoInputs;
+        if (ImGui::Begin("##overlay_host", nullptr, overlay_flags))
+            overlay_dl = ImGui::GetWindowDrawList();
+        ImGui::End();
+        ImGui::PopStyleVar(2);
+    }
     if (data_interaction_)
     {
         ImGuiIO& io = ImGui::GetIO();
-        data_interaction_->draw_overlays(io.DisplaySize.x, io.DisplaySize.y, &figure);
+        data_interaction_->draw_overlays(io.DisplaySize.x, io.DisplaySize.y, &figure, overlay_dl);
 
         // In split mode, draw_overlays only draws legends for the active figure.
         // Draw legends for all other split pane figures as well.

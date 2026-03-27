@@ -5,6 +5,7 @@
     #include <spectra/color.hpp>
     #include <spectra/series.hpp>
 
+struct ImDrawList;
 struct ImFont;
 
 namespace spectra
@@ -37,7 +38,11 @@ class Tooltip
 
     // Draw the tooltip at the given screen position for the given nearest-point result.
     // Call inside an ImGui frame, after build_ui but before ImGui::Render().
-    void draw(const NearestPointResult& nearest, float window_width, float window_height);
+    // When dl is non-null, draws into the given draw list instead of GetForegroundDrawList().
+    void draw(const NearestPointResult& nearest,
+              float                     window_width,
+              float                     window_height,
+              ImDrawList*               dl = nullptr);
 
     // Configuration
     void  set_snap_radius(float px) { snap_radius_px_ = px; }

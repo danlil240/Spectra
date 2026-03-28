@@ -145,6 +145,7 @@ WindowContext* WindowManager::create_window(uint32_t           width,
     glfwSetFramebufferSizeCallback(glfw_win, glfw_framebuffer_size_callback);
     glfwSetWindowCloseCallback(glfw_win, glfw_window_close_callback);
     glfwSetWindowFocusCallback(glfw_win, glfw_window_focus_callback);
+    glfwSetDropCallback(glfw_win, glfw_drop_callback);
 
     WindowContext* ptr = wctx.get();
     windows_.push_back(std::move(wctx));
@@ -552,6 +553,7 @@ void WindowManager::install_input_callbacks(WindowContext& wctx)
         glfwSetKeyCallback(glfw_win, glfw_key_callback);
         glfwSetCharCallback(glfw_win, glfw_char_callback);
         glfwSetCursorEnterCallback(glfw_win, glfw_cursor_enter_callback);
+        glfwSetDropCallback(glfw_win, glfw_drop_callback);
     }
     #else
     (void)wctx;
@@ -668,6 +670,7 @@ WindowContext* WindowManager::create_panel_window(uint32_t              width,
         glfwSetKeyCallback(glfw_win, glfw_key_callback);
         glfwSetCharCallback(glfw_win, glfw_char_callback);
         glfwSetCursorEnterCallback(glfw_win, glfw_cursor_enter_callback);
+        glfwSetDropCallback(glfw_win, glfw_drop_callback);
     }
 
     // Minimal UI context: ImGuiIntegration only (no FigureManager/DockSystem).
@@ -1558,6 +1561,7 @@ WindowContext* WindowManager::create_window_with_ui(uint32_t           width,
         glfwSetKeyCallback(glfw_win, glfw_key_callback);
         glfwSetCharCallback(glfw_win, glfw_char_callback);
         glfwSetCursorEnterCallback(glfw_win, glfw_cursor_enter_callback);
+        glfwSetDropCallback(glfw_win, glfw_drop_callback);
     }
 #endif
 
@@ -2333,6 +2337,22 @@ void WindowManager::glfw_cursor_enter_callback(GLFWwindow* window, int entered)
     #endif
 }
 
+void WindowManager::glfw_drop_callback(GLFWwindow* window, int count, const char** paths)
+{
+    auto* mgr = static_cast<WindowManager*>(glfwGetWindowUserPointer(window));
+    if (!mgr || !mgr->file_drop_handler_)
+        return;
+
+    WindowContext* wctx = mgr->find_by_glfw_window(window);
+    uint32_t       wid  = wctx ? wctx->id : 0;
+
+    for (int i = 0; i < count; ++i)
+    {
+        if (paths[i])
+            mgr->file_drop_handler_(wid, std::string(paths[i]));
+    }
+}
+
 #else
 
 // Stubs when GLFW is not available
@@ -2342,6 +2362,7 @@ void WindowManager::glfw_scroll_callback(GLFWwindow*, double, double) {}
 void WindowManager::glfw_key_callback(GLFWwindow*, int, int, int, int) {}
 void WindowManager::glfw_char_callback(GLFWwindow*, unsigned int) {}
 void WindowManager::glfw_cursor_enter_callback(GLFWwindow*, int) {}
+void WindowManager::glfw_drop_callback(GLFWwindow*, int, const char**) {}
 
 WindowContext* WindowManager::find_by_glfw_window(GLFWwindow*) const
 {

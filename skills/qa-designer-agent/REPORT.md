@@ -8,13 +8,13 @@
 
 | Field | Value |
 |---|---|
-| Last run | 2026-03-17 Session 13 |
-| Screenshot count confirmed | 56 |
+| Last run | 2026-03-28 Session 15 |
+| Screenshot count confirmed | 57 |
 | Open P0 issues | 0 |
 | Open P1 issues | 0 |
 | Open P2+ issues | 0 |
 | Last golden refresh | — |
-| SKILL.md last self-updated | 2026-03-17 (Coverage table + count 55→56 + DES-I6 done + DES-I11 added + icon/label snapping fix pattern) |
+| SKILL.md last self-updated | 2026-03-28 (DES-I9: tiny window all panels screenshot, count 56→57) |
 
 ---
 
@@ -23,6 +23,8 @@
 <!-- One line per self-update: date | section changed | reason -->
 | Date | Section | Reason |
 |---|---|---|
+| 2026-03-28 | Screenshot Coverage table + count 56→57 + Improvement Backlog | Added `56_tiny_window_all_panels_open` (DES-I9), updated expected count to 57, marked DES-I9 done |
+| 2026-03-28 | Fix Patterns + Issue-to-File Map + Known Constraints | Added event-driven rendering (RedrawTracker) compatibility pattern; added redraw_tracker.hpp and session_runtime.hpp to Issue-to-File Map; documented pump_frames mark_dirty requirement in Known Constraints |
 | 2026-03-17 | Screenshot Coverage table + count 55→56 + Fix Patterns + Improvement Backlog + Known Constraints | Added `55_nav_rail_dpi_scale_125pct`, icon/label snapping fix pattern, marked DES-I6 done, added DES-I11 |
 | 2026-03-17 | Screenshot Coverage table + Known screenshot count + Improvement Backlog | Added `54_command_palette_scrolled`, updated expected count to 55, and marked DES-I5 done |
 | 2026-03-17 | Fix Patterns + Improvement Backlog | Added hairline coordinate-snapping fix pattern; marked DES-I4 done |
@@ -30,6 +32,97 @@
 | 2026-03-05 | Screenshot Coverage table + Known screenshot count + Improvement Backlog | Added `52_legend_overflow_8_series`, updated expected count to 53, and marked DES-I2 done |
 | 2026-03-01 | Screenshot Coverage table + Known screenshot count + Improvement Backlog | Added `51_empty_figure_after_delete`, updated expected count to 52, and marked DES-I1 done |
 | 2026-02-26 | Initial file created | Consolidation session |
+
+---
+
+## Session 2026-03-28 17:09 (Session 15)
+
+**Run config**
+- Seed: `42`
+- Mode: `--design-review --no-fuzz --no-scenarios`
+- Output dir: `/tmp/spectra_qa_design_s15`
+- Exit code: `0`
+- Duration: 20.4s | Frames: 1198
+- Frame time: avg=8.3ms p95=38.9ms max=135.5ms spikes=63
+- Memory: initial=174MB peak=207MB
+- GPU memory: local initial=33MB peak=33MB
+- Validation: errors=11 warnings=0 (all viewport-width-zero from tiny window scenario)
+
+**Screenshot audit**
+- Expected: 57
+- Captured: 57
+- Missing: none
+- New screenshot: `56_tiny_window_all_panels_open`
+
+**Issues found**
+- None. All 57 screenshots visually clean.
+- Vulkan validation errors (VkViewport width=0) are expected at 320×240 with all panels open — canvas area shrinks to zero when inspector + nav rail + timeline consume the entire window area. Not a visual regression.
+
+**Triage**
+- All 57 screenshots inspected across categories: 2D (01–06), inspector/panels (07, 27–28, 38), command palette (08, 37, 54), split views (09–10, 33, 47, 53), themes (11–12), grid/legend/crosshair (13–15), zoom/tabs (16–17), timeline/animation (18, 29–32), 3D (19–26), resize states (41–44, 56), multi-window (45, 45b, 46, 48), fullscreen/minimal (49–50), empty/overflow (51–52), DPI (55).
+- All previously fixed issues (D1–D46, DES-I1–DES-I6) confirmed still resolved.
+- No new visual regressions detected.
+
+**Fixes applied**
+- None needed.
+
+**Verification**
+- Build: clean (0 errors, 0 warnings)
+- Design review: exit code `0`, 57 screenshots in manifest
+- New `56_tiny_window_all_panels_open` captures 320×240 with inspector, expanded nav rail, and timeline all visible — panels overlap and occlude canvas as expected at this extreme size
+- Clean shutdown, all windows destroyed properly
+
+## Self-Improvement — 2026-03-28 (Session 15)
+Improvement: Added `56_tiny_window_all_panels_open` screenshot (DES-I9) — captures 320×240 window with inspector, expanded nav rail, and timeline all open simultaneously.
+Motivation: Previous coverage only tested 320×240 with panels closed (screenshot 44). This exercised minimal chrome but missed the case where all panels compete for space at extreme sizes, which could expose overflow, occlusion, or layout assert errors.
+Change: `tests/qa/qa_agent.cpp` — added scenario 56 between scenario 55 and Summary; updated EXPECTED_DESIGN_SHOTS from 56 to 57. Updated SKILL.md screenshot coverage table and improvement backlog (DES-I9 marked done).
+Next gap: DES-I7 — Add screenshot for 3D surface with Jet colormap to verify colorblind accessibility indicator.
+
+---
+
+## Session 2026-03-28 16:50 (Session 14)
+
+**Run config**
+- Seed: `42`
+- Mode: `--design-review --no-fuzz --no-scenarios`
+- Output dir: `/tmp/spectra_qa_design_20260328b`
+- Exit code: `0`
+- Duration: 20.0s | Frames: 1147
+- Frame time: avg=8.3ms p95=38.9ms max=118.0ms spikes=60
+- Memory: initial=174MB peak=199MB
+- GPU memory: local initial=31MB peak=31MB
+- Validation: errors=0 warnings=0
+
+**Screenshot audit**
+- Expected: 56
+- Captured: 56
+- Missing: none
+
+**Critical regression found and fixed**
+- **Blank screenshots (P0):** Event-driven rendering (`RedrawTracker`, commit `0bb50a1d`) gates the render loop. `pump_frames()` calls `app_->step()` but never marks the tracker dirty. Without `mark_dirty()`, `should_render_tick` evaluates to `false` (headless=false, tracker idle, no animation due), the entire render loop is skipped, `end_frame()` never fires, and captures produce blank transparent PNGs.
+- **SIGSEGV crash (secondary):** First run also crashed with SIGSEGV in Vulkan validation layer ("malloc(): unaligned tcache chunk detected") after screenshot 21 during 3D surface teardown — likely secondary to reading uninitialized framebuffer state. Crash gone after applying fix.
+
+**Fixes applied**
+| Issue ID | File | Change |
+|---|---|---|
+| P0-blank-capture | `tests/qa/qa_agent.cpp` | Added `#include "ui/app/session_runtime.hpp"` and `s->redraw_tracker().mark_dirty("qa_pump")` before each `app_->step()` in `pump_frames()` |
+
+**Triage**
+- All 56 screenshots visually inspected across all categories: 2D plots, 3D surfaces/scatter/helix, inspector panels, command palette, themes (dark/light), split views, timeline/curve editor, resize states (640x480, 1920x600, 600x1080, 320x240), multi-window (primary/secondary/detached), fullscreen, empty state, legend overflow, DPI scaling.
+- All previously fixed issues (D1–D46, DES-I1–DES-I6) confirmed still resolved.
+- No new visual regressions detected.
+
+**Verification**
+- Build: clean (0 errors, 0 warnings)
+- Validation: errors=0 warnings=0
+- Design review: exit code `0`, 56 screenshots in manifest
+- Clean shutdown, all windows destroyed properly, no SIGSEGV
+
+## Self-Improvement — 2026-03-28
+Improvement: Added event-driven rendering (`RedrawTracker`) compatibility to Fix Patterns, Issue-to-File Map, and Known Constraints — documenting that `pump_frames()` must call `mark_dirty()` before each frame to prevent blank captures.
+Motivation: Session 14 discovered a P0 regression (all 56 screenshots blank) caused by `RedrawTracker` gating the render loop. The previous version of this agent had no knowledge of event-driven rendering and no guidance to diagnose blank-capture failures. Future sessions encountering similar issues will find the fix pattern immediately.
+Change: Updated `SKILL.md` — added fix pattern for `mark_dirty` requirement, added `redraw_tracker.hpp` and `session_runtime.hpp` to Issue-to-File Map, updated Known Constraints with `pump_frames` caveat.
+Next gap: DES-I7 — Add screenshot for 3D surface with Jet colormap to verify colorblind accessibility indicator.
 
 ---
 

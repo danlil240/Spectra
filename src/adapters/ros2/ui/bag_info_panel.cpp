@@ -466,9 +466,20 @@ void BagInfoPanel::draw_no_bag_placeholder()
 void BagInfoPanel::handle_imgui_drag_drop()
 {
 #ifdef SPECTRA_USE_IMGUI
-    // Accept a drag payload of type "ROS2_BAG_FILE" — a null-terminated path.
+    // Draw a full-window invisible button as the drop target.  Without a
+    // preceding widget, BeginDragDropTarget() has no item to attach to.
+    // SetNextItemAllowOverlap() ensures this button doesn't eat clicks
+    // from content drawn on top afterwards.
+    const ImVec2 avail  = ImGui::GetContentRegionAvail();
+    const ImVec2 cursor = ImGui::GetCursorPos();
+
+    ImGui::SetNextItemAllowOverlap();
+    ImGui::InvisibleButton("##bag_drop_zone",
+                           ImVec2(std::max(1.0f, avail.x), std::max(1.0f, avail.y)));
+
     if (ImGui::BeginDragDropTarget())
     {
+        // Accept an internal "ROS2_BAG_FILE" payload.
         if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ROS2_BAG_FILE"))
         {
             if (payload->DataSize > 0)
@@ -478,23 +489,21 @@ void BagInfoPanel::handle_imgui_drag_drop()
                 try_open_file(path);
             }
         }
-        ImGui::EndDragDropTarget();
-    }
-
-    // Also accept a generic "FILES" payload (e.g. from OS-level drop forwarding).
-    if (ImGui::BeginDragDropTarget())
-    {
-        if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("FILES"))
+        // Also accept a generic "FILES" payload (e.g. from OS-level drop forwarding).
+        else if (const ImGuiPayload* files_payload = ImGui::AcceptDragDropPayload("FILES"))
         {
-            if (payload->DataSize > 0)
+            if (files_payload->DataSize > 0)
             {
-                const std::string path(static_cast<const char*>(payload->Data),
-                                       static_cast<size_t>(payload->DataSize - 1));
+                const std::string path(static_cast<const char*>(files_payload->Data),
+                                       static_cast<size_t>(files_payload->DataSize - 1));
                 try_open_file(path);
             }
         }
         ImGui::EndDragDropTarget();
     }
+
+    // Reset cursor so actual content draws on top of the invisible button.
+    ImGui::SetCursorPos(cursor);
 #endif
 }
 

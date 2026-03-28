@@ -143,6 +143,58 @@ class FieldAccessor
     bool     is_dynamic_array() const { return is_dynamic_array_; }
     uint32_t array_size() const { return array_size_; }
 
+    // Returns true if the accessor path passes through a dynamic indirection
+    // (std::vector or std::string).  Such accessors cannot safely operate on
+    // raw CDR bytes — they require a fully deserialized in-memory struct.
+    bool requires_deserialized_struct() const
+    {
+        for (const auto& s : steps_)
+        {
+            if (s.is_dynamic)
+                return true;
+        }
+        return is_dynamic_array_;
+    }
+
+    // Byte offset of the leaf field within its parent struct.
+    size_t leaf_offset() const { return leaf_offset_; }
+
+    // Total byte offset from the beginning of the message struct to the
+    // leaf field, assuming no dynamic indirections.  Only meaningful when
+    // requires_deserialized_struct() is false.
+    size_t flat_byte_offset() const
+    {
+        size_t total = 0;
+        for (const auto& s : steps_)
+            total += s.offset;
+        return total + leaf_offset_;
+    }
+
+    // Size in bytes of the leaf scalar type (0 if unknown).
+    size_t leaf_size() const
+    {
+        switch (leaf_type_)
+        {
+            case FieldType::Float64:
+            case FieldType::Int64:
+            case FieldType::Uint64:
+                return 8;
+            case FieldType::Float32:
+            case FieldType::Int32:
+            case FieldType::Uint32:
+                return 4;
+            case FieldType::Int16:
+            case FieldType::Uint16:
+                return 2;
+            case FieldType::Int8:
+            case FieldType::Uint8:
+            case FieldType::Bool:
+                return 1;
+            default:
+                return 0;
+        }
+    }
+
    private:
     friend class MessageIntrospector;
 

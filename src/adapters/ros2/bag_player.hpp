@@ -41,17 +41,19 @@
 #include <cstdint>
 #include <functional>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
 #include "bag_reader.hpp"
+#include "message_introspector.hpp"
 
 // Forward declarations — avoids pulling ROS2 / Spectra render headers here.
 namespace spectra::adapters::ros2
 {
 class RosPlotManager;
-class MessageIntrospector;
+class SubplotManager;
 }   // namespace spectra::adapters::ros2
 
 namespace spectra
@@ -284,6 +286,10 @@ class BagPlayer
     // Total messages injected since the last open() or seek_begin().
     uint64_t total_injected() const noexcept;
 
+    // Optional: attach a SubplotManager so bag data is injected into
+    // the rendered subplots rather than into standalone PlotManager figures.
+    void set_subplot_manager(SubplotManager* mgr);
+
    private:
     // ------------------------------------------------------------------
     // Internal helpers
@@ -356,6 +362,13 @@ class BagPlayer
     // Statistics.
     uint64_t total_injected_{0};
 
+    // Lookahead: cached message read past the time window.
+    // Avoids expensive seek-back (rosbag2 reopens the DB on seek).
+    std::optional<BagMessage> lookahead_msg_;
+
+    // Optional SubplotManager for rendering integration.
+    SubplotManager* subplot_mgr_{nullptr};
+
     // Callbacks.
     StateCallback    on_state_change_;
     PlayheadCallback on_playhead_;
@@ -370,8 +383,12 @@ class BagPlayer
     struct TopicFields
     {
         bool scanned{false};
-        // field_path → plot_id in RosPlotManager
-        std::unordered_map<std::string, int> field_plot_ids;
+        // field_path → accessor (cached per topic)
+        struct FieldEntry
+        {
+            FieldAccessor accessor;
+        };
+        std::unordered_map<std::string, FieldEntry> field_entries;
     };
     std::unordered_map<std::string, TopicFields> topic_fields_;
 };

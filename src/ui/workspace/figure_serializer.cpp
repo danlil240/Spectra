@@ -11,6 +11,9 @@
 #include <spectra/series3d.hpp>
 #include <spectra/series_stats.hpp>
 
+#include "overlay_snapshot.hpp"
+
+#include "../dialog_env_guard.hpp"
 #include "../../../third_party/tinyfiledialogs.h"
 
 namespace spectra
@@ -41,6 +44,10 @@ enum ChunkTag : uint16_t
     TAG_SERIES_VIOLIN  = 0x0027,
     TAG_SERIES_HIST    = 0x0028,
     TAG_SERIES_BAR     = 0x0029,
+
+    TAG_ANNOTATION     = 0x0040,
+    TAG_MARKER         = 0x0041,
+    TAG_OVERLAY_CONFIG = 0x0042,
 
     TAG_END = 0xFFFF,
 };
@@ -471,7 +478,9 @@ static void write_axes_3d(BinaryWriter& w, const Axes3D& axes, int axes_index)
     }
 }
 
-bool FigureSerializer::save(const std::string& path, const Figure& figure)
+bool FigureSerializer::save(const std::string&     path,
+                            const Figure&          figure,
+                            const OverlaySnapshot* overlay)
 {
     std::ofstream f(path, std::ios::binary);
     if (!f.is_open())
@@ -557,6 +566,46 @@ bool FigureSerializer::save(const std::string& path, const Figure& figure)
         }
     }
 
+    // Write overlay state (if provided)
+    if (overlay)
+    {
+        // Overlay config (crosshair, tooltip)
+        {
+            auto opos = w.begin_chunk(TAG_OVERLAY_CONFIG);
+            w.write_u8(overlay->crosshair_enabled ? 1 : 0);
+            w.write_u8(overlay->tooltip_enabled ? 1 : 0);
+            w.end_chunk(opos);
+        }
+
+        // Markers
+        for (const auto& m : overlay->markers)
+        {
+            auto mpos = w.begin_chunk(TAG_MARKER);
+            w.write_f32(m.data_x);
+            w.write_f32(m.data_y);
+            w.write_string(m.series_label);
+            w.write_u32(static_cast<uint32_t>(m.point_index));
+            w.write_i32(static_cast<int32_t>(m.axes_index));
+            w.end_chunk(mpos);
+        }
+
+        // Annotations
+        for (const auto& ann : overlay->annotations)
+        {
+            if (ann.text.empty())
+                continue;
+            auto apos = w.begin_chunk(TAG_ANNOTATION);
+            w.write_f32(ann.data_x);
+            w.write_f32(ann.data_y);
+            w.write_string(ann.text);
+            w.write_color(ann.color);
+            w.write_f32(ann.offset_x);
+            w.write_f32(ann.offset_y);
+            w.write_i32(static_cast<int32_t>(ann.axes_index));
+            w.end_chunk(apos);
+        }
+    }
+
     // End marker
     w.write_u16(static_cast<uint16_t>(TAG_END));
     w.write_u32(0);
@@ -566,7 +615,7 @@ bool FigureSerializer::save(const std::string& path, const Figure& figure)
 
 // ─── Load implementation ────────────────────────────────────────────────────
 
-bool FigureSerializer::load(const std::string& path, Figure& figure)
+bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnapshot* overlay)
 {
     std::ifstream f(path, std::ios::binary);
     if (!f.is_open())
@@ -1221,6 +1270,62 @@ bool FigureSerializer::load(const std::string& path, Figure& figure)
                 break;
             }
 
+            case TAG_ANNOTATION:
+            {
+                if (overlay)
+                {
+                    OverlaySnapshot::AnnotationEntry ae;
+                    ae.data_x     = r.read_f32();
+                    ae.data_y     = r.read_f32();
+                    ae.text       = r.read_string();
+                    ae.color      = r.read_color();
+                    ae.offset_x   = r.read_f32();
+                    ae.offset_y   = r.read_f32();
+                    int32_t ai    = r.read_i32();
+                    ae.axes_index = (ai >= 0) ? static_cast<size_t>(ai) : 0;
+                    overlay->annotations.push_back(std::move(ae));
+                }
+                else
+                {
+                    r.skip(len);
+                }
+                break;
+            }
+
+            case TAG_MARKER:
+            {
+                if (overlay)
+                {
+                    OverlaySnapshot::MarkerEntry me;
+                    me.data_x       = r.read_f32();
+                    me.data_y       = r.read_f32();
+                    me.series_label = r.read_string();
+                    me.point_index  = r.read_u32();
+                    int32_t ai      = r.read_i32();
+                    me.axes_index   = (ai >= 0) ? static_cast<size_t>(ai) : 0;
+                    overlay->markers.push_back(std::move(me));
+                }
+                else
+                {
+                    r.skip(len);
+                }
+                break;
+            }
+
+            case TAG_OVERLAY_CONFIG:
+            {
+                if (overlay)
+                {
+                    overlay->crosshair_enabled = r.read_u8() != 0;
+                    overlay->tooltip_enabled   = r.read_u8() != 0;
+                }
+                else
+                {
+                    r.skip(len);
+                }
+                break;
+            }
+
             default:
                 // Unknown chunk — skip
                 r.skip(len);
@@ -1233,8 +1338,10 @@ bool FigureSerializer::load(const std::string& path, Figure& figure)
 
 // ─── Dialog wrappers ────────────────────────────────────────────────────────
 
-bool FigureSerializer::save_with_dialog(const Figure& figure)
+bool FigureSerializer::save_with_dialog(const Figure& figure, const OverlaySnapshot* overlay)
 {
+    DialogEnvGuard env_guard;
+
     char const* filter_patterns[] = {"*.spectra"};
     const char* home_env          = std::getenv("HOME");
     std::string home_dir = (home_env ? std::string(home_env) + "/" : "/") + "figure.spectra";
@@ -1248,11 +1355,13 @@ bool FigureSerializer::save_with_dialog(const Figure& figure)
     if (!result)
         return false;
 
-    return save(result, figure);
+    return save(result, figure, overlay);
 }
 
-bool FigureSerializer::load_with_dialog(Figure& figure)
+bool FigureSerializer::load_with_dialog(Figure& figure, OverlaySnapshot* overlay)
 {
+    DialogEnvGuard env_guard;
+
     char const* filter_patterns[] = {"*.spectra"};
     const char* home_env          = std::getenv("HOME");
     std::string home_dir          = home_env ? std::string(home_env) + "/" : "/";
@@ -1267,7 +1376,7 @@ bool FigureSerializer::load_with_dialog(Figure& figure)
     if (!result)
         return false;
 
-    return load(result, figure);
+    return load(result, figure, overlay);
 }
 
 }   // namespace spectra

@@ -7,14 +7,10 @@ int main()
     // ── Per-shape easy API: each call is independent ──
 
     // Red rectangle
-    spectra::rect(1.0f, 1.0f, 2.0f, 1.5f)
-        .fill_color({1.0f, 0.2f, 0.2f, 1.0f})
-        .fill_opacity(0.4f);
+    spectra::rect(1.0f, 1.0f, 2.0f, 1.5f).fill_color({1.0f, 0.2f, 0.2f, 1.0f}).fill_opacity(0.4f);
 
     // Blue circle
-    spectra::circle(6.0f, 5.0f, 1.2f)
-        .fill_color({0.2f, 0.4f, 1.0f, 1.0f})
-        .fill_opacity(0.5f);
+    spectra::circle(6.0f, 5.0f, 1.2f).fill_color({0.2f, 0.4f, 1.0f, 1.0f}).fill_opacity(0.5f);
 
     // Green ellipse
     spectra::ellipse(3.0f, 5.0f, 1.5f, 0.8f)
@@ -22,13 +18,10 @@ int main()
         .fill_opacity(0.35f);
 
     // Orange arrow
-    spectra::arrow(0.5f, 4.0f, 3.0f, 6.5f)
-        .line_color({1.0f, 0.6f, 0.1f, 1.0f});
+    spectra::arrow(0.5f, 4.0f, 3.0f, 6.5f).line_color({1.0f, 0.6f, 0.1f, 1.0f});
 
     // Purple ring
-    spectra::ring(8.0f, 3.0f, 1.5f, 0.8f)
-        .fill_color({0.6f, 0.2f, 0.8f, 1.0f})
-        .fill_opacity(0.4f);
+    spectra::ring(8.0f, 3.0f, 1.5f, 0.8f).fill_color({0.6f, 0.2f, 0.8f, 1.0f}).fill_opacity(0.4f);
 
     // Cyan polygon (pentagon)
     constexpr int      N = 5;
@@ -40,14 +33,10 @@ int main()
         px[i]       = 8.0f + 1.0f * std::cos(angle);
         py[i]       = 6.0f + 1.0f * std::sin(angle);
     }
-    spectra::polygon(px, py)
-        .fill_color({0.1f, 0.8f, 0.8f, 1.0f})
-        .fill_opacity(0.35f);
+    spectra::polygon(px, py).fill_color({0.1f, 0.8f, 0.8f, 1.0f}).fill_opacity(0.35f);
 
     // Rotated rectangle
-    spectra::rect(5.0f, 1.0f, 2.5f, 1.0f)
-        .rotation(0.4f)
-        .fill_opacity(0.2f);
+    spectra::rect(5.0f, 1.0f, 2.5f, 1.0f).rotation(0.4f).fill_opacity(0.2f);
 
     // Line
     spectra::shape_line(0.0f, 0.0f, 10.0f, 8.0f);

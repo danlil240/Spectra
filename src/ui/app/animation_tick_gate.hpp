@@ -21,24 +21,18 @@ class AnimationTickGate
 
     bool active() const { return next_due_.has_value(); }
 
-    void accumulate_dt(float dt)
-    {
-        pending_dt_ += std::max(0.0f, dt);
-    }
+    void accumulate_dt(float dt) { pending_dt_ += std::max(0.0f, dt); }
 
     float accumulated_dt() const { return pending_dt_; }
 
     float consume_accumulated_dt()
     {
-        float dt = pending_dt_;
+        float dt    = pending_dt_;
         pending_dt_ = 0.0f;
         return dt;
     }
 
-    bool should_tick(TimePoint now) const
-    {
-        return !next_due_.has_value() || now >= *next_due_;
-    }
+    bool should_tick(TimePoint now) const { return !next_due_.has_value() || now >= *next_due_; }
 
     void schedule_next(TimePoint now, float fps)
     {
@@ -48,8 +42,9 @@ class AnimationTickGate
             return;
         }
 
-        next_due_ = now + std::chrono::duration_cast<Clock::duration>(
-                              std::chrono::duration<double>(1.0 / static_cast<double>(fps)));
+        next_due_ = now
+                    + std::chrono::duration_cast<Clock::duration>(
+                        std::chrono::duration<double>(1.0 / static_cast<double>(fps)));
     }
 
     double wait_timeout_seconds(TimePoint now, double fallback_s) const

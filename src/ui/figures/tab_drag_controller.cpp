@@ -158,13 +158,17 @@ void TabDragController::update(float mouse_x,
 
                 SPECTRA_LOG_TRACE("tab_drag",
                                   "DROP: fig={} src_win={} target_win={} screen=({:.0f},{:.0f})",
-                                  figure_id_, source_window_id_, target_wid,
-                                  screen_mouse_x, screen_mouse_y);
-
+                                  figure_id_,
+                                  source_window_id_,
+                                  target_wid,
+                                  screen_mouse_x,
+                                  screen_mouse_y);
 
                 if (target_wid != 0 && on_drop_on_window_)
                 {
-                    SPECTRA_LOG_TRACE("tab_drag", "Drop: move fig={} to window={}", figure_id_,
+                    SPECTRA_LOG_TRACE("tab_drag",
+                                      "Drop: move fig={} to window={}",
+                                      figure_id_,
                                       target_wid);
                     if (dock_dragging_ && dock_system_)
                         dock_system_->cancel_drag();
@@ -173,13 +177,15 @@ void TabDragController::update(float mouse_x,
                 }
                 else if (is_outside_all_windows(screen_mouse_x, screen_mouse_y))
                 {
-                    SPECTRA_LOG_TRACE("tab_drag", "Drop: detach fig={} outside all windows",
+                    SPECTRA_LOG_TRACE("tab_drag",
+                                      "Drop: detach fig={} outside all windows",
                                       figure_id_);
                     execute_drop_outside(screen_mouse_x, screen_mouse_y);
                 }
                 else
                 {
-                    SPECTRA_LOG_TRACE("tab_drag", "Drop: return fig={} to source window",
+                    SPECTRA_LOG_TRACE("tab_drag",
+                                      "Drop: return fig={} to source window",
                                       figure_id_);
                     execute_drop_inside(mouse_x, mouse_y);
                 }

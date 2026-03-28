@@ -972,27 +972,31 @@ void RosAppShell::draw_nav_rail()
         float ry = vp->WorkPos.y;
         float rh = vp->WorkSize.y;
         // Crisp 1px border.
-        dl->AddLine(ImVec2(rx - 1.0f, ry), ImVec2(rx - 1.0f, ry + rh),
+        dl->AddLine(ImVec2(rx - 1.0f, ry),
+                    ImVec2(rx - 1.0f, ry + rh),
                     to_u32(th.border_subtle, 0.5f));
         // Soft inner shadow (gradient from dark to transparent, 6px wide).
-        dl->AddRectFilledMultiColor(
-            ImVec2(rx - 7.0f, ry), ImVec2(rx - 1.0f, ry + rh),
-            IM_COL32(0, 0, 0, 0), IM_COL32(0, 0, 0, 28),
-            IM_COL32(0, 0, 0, 28), IM_COL32(0, 0, 0, 0));
+        dl->AddRectFilledMultiColor(ImVec2(rx - 7.0f, ry),
+                                    ImVec2(rx - 1.0f, ry + rh),
+                                    IM_COL32(0, 0, 0, 0),
+                                    IM_COL32(0, 0, 0, 28),
+                                    IM_COL32(0, 0, 0, 28),
+                                    IM_COL32(0, 0, 0, 0));
     }
 
     // Expand / collapse toggle — styled as an icon-only button.
     {
-        const char* toggle_icon = nav_rail_expanded_ ? ui::icon_str(ui::Icon::Back)
-                                                     : ui::icon_str(ui::Icon::Forward);
+        const char* toggle_icon =
+            nav_rail_expanded_ ? ui::icon_str(ui::Icon::Back) : ui::icon_str(ui::Icon::Forward);
         ImVec2 btn_sz = nav_rail_expanded_ ? ImVec2(-1.0f, 24.0f) : ImVec2(rail_w - 14.0f, 24.0f);
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
                               ImVec4(th.bg_tertiary.r, th.bg_tertiary.g, th.bg_tertiary.b, 0.5f));
         ImGui::PushStyleColor(ImGuiCol_ButtonActive,
                               ImVec4(th.bg_elevated.r, th.bg_elevated.g, th.bg_elevated.b, 0.6f));
-        ImGui::PushStyleColor(ImGuiCol_Text,
-                              ImVec4(th.text_tertiary.r, th.text_tertiary.g, th.text_tertiary.b, 0.7f));
+        ImGui::PushStyleColor(
+            ImGuiCol_Text,
+            ImVec4(th.text_tertiary.r, th.text_tertiary.g, th.text_tertiary.b, 0.7f));
         ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f);
         if (ImGui::Button(toggle_icon, btn_sz))
             nav_rail_expanded_ = !nav_rail_expanded_;
@@ -1033,40 +1037,41 @@ void RosAppShell::draw_nav_rail()
             ui::Color bg_top = th.bg_tertiary.lerp(th.accent, 0.12f);
             ui::Color bg_bot = th.bg_tertiary.lerp(th.accent, 0.06f);
             float     alpha  = hovered ? 1.0f : 0.85f;
-            dl->AddRectFilled(tl, br,
-                              to_u32(bg_top, alpha), 5.0f);
+            dl->AddRectFilled(tl, br, to_u32(bg_top, alpha), 5.0f);
             // Subtle bottom-half darkening for gradient feel.
             float mid_y = (tl.y + br.y) * 0.5f;
-            dl->AddRectFilledMultiColor(
-                ImVec2(tl.x, mid_y), br,
-                to_u32(bg_bot, 0.0f), to_u32(bg_bot, 0.0f),
-                to_u32(bg_bot, alpha * 0.5f), to_u32(bg_bot, alpha * 0.5f));
+            dl->AddRectFilledMultiColor(ImVec2(tl.x, mid_y),
+                                        br,
+                                        to_u32(bg_bot, 0.0f),
+                                        to_u32(bg_bot, 0.0f),
+                                        to_u32(bg_bot, alpha * 0.5f),
+                                        to_u32(bg_bot, alpha * 0.5f));
 
             // Inner highlight at top edge (1px bright line).
             dl->AddLine(ImVec2(tl.x + 4.0f, tl.y + 0.5f),
                         ImVec2(br.x - 4.0f, tl.y + 0.5f),
-                        to_u32(th.accent, 0.15f), 1.0f);
+                        to_u32(th.accent, 0.15f),
+                        1.0f);
         }
         else if (hovered)
         {
             // Hover: subtle elevated background.
-            dl->AddRectFilled(tl, br,
-                              to_u32(th.bg_tertiary, 0.55f), 5.0f);
+            dl->AddRectFilled(tl, br, to_u32(th.bg_tertiary, 0.55f), 5.0f);
         }
 
         // ── Accent bar (left edge, glowing for active) ──
         if (active)
         {
             // Glow layer (wider, softer).
-            dl->AddRectFilled(
-                ImVec2(tl.x - 1.0f, tl.y + 3.0f),
-                ImVec2(tl.x + 4.0f, br.y - 3.0f),
-                to_u32(th.accent, 0.25f), 2.0f);
+            dl->AddRectFilled(ImVec2(tl.x - 1.0f, tl.y + 3.0f),
+                              ImVec2(tl.x + 4.0f, br.y - 3.0f),
+                              to_u32(th.accent, 0.25f),
+                              2.0f);
             // Core bar.
-            dl->AddRectFilled(
-                ImVec2(tl.x, tl.y + 4.0f),
-                ImVec2(tl.x + 3.0f, br.y - 4.0f),
-                to_u32(th.accent, 0.95f), 1.5f);
+            dl->AddRectFilled(ImVec2(tl.x, tl.y + 4.0f),
+                              ImVec2(tl.x + 3.0f, br.y - 4.0f),
+                              to_u32(th.accent, 0.95f),
+                              1.5f);
         }
 
         // ── Border (subtle, only for active) ──
@@ -1081,23 +1086,22 @@ void RosAppShell::draw_nav_rail()
             // Icon + label.
             char buf[256];
             std::snprintf(buf, sizeof(buf), "%s  %s", ui::icon_str(icon), label);
-            ImU32 text_col = active  ? to_u32(th.text_primary, 1.0f)
-                             : hovered ? to_u32(th.text_primary, 0.9f)
-                                       : to_u32(th.text_secondary, 0.8f);
-            ImVec2 tsz = ImGui::CalcTextSize(buf);
+            ImU32  text_col = active    ? to_u32(th.text_primary, 1.0f)
+                              : hovered ? to_u32(th.text_primary, 0.9f)
+                                        : to_u32(th.text_secondary, 0.8f);
+            ImVec2 tsz      = ImGui::CalcTextSize(buf);
             ImVec2 tpos(tl.x + 10.0f, tl.y + (btn_h - tsz.y) * 0.5f);
             dl->AddText(tpos, text_col, buf);
         }
         else
         {
             // Icon only, centered.
-            const char* icon_s = ui::icon_str(icon);
-            ImU32       text_col = active  ? to_u32(th.accent, 1.0f)
+            const char* icon_s   = ui::icon_str(icon);
+            ImU32       text_col = active    ? to_u32(th.accent, 1.0f)
                                    : hovered ? to_u32(th.text_primary, 0.85f)
                                              : to_u32(th.text_secondary, 0.6f);
-            ImVec2 isz  = ImGui::CalcTextSize(icon_s);
-            ImVec2 ipos(tl.x + (btn_sz.x - isz.x) * 0.5f,
-                        tl.y + (btn_h - isz.y) * 0.5f);
+            ImVec2      isz      = ImGui::CalcTextSize(icon_s);
+            ImVec2      ipos(tl.x + (btn_sz.x - isz.x) * 0.5f, tl.y + (btn_h - isz.y) * 0.5f);
             dl->AddText(ipos, text_col, icon_s);
 
             if (hovered)
@@ -1118,12 +1122,12 @@ void RosAppShell::draw_nav_rail()
             float  avail  = ImGui::GetContentRegionAvail().x;
             // Small-caps style label.
             ImVec2 tsz = ImGui::CalcTextSize(text);
-            dl->AddText(ImVec2(cursor.x + 10.0f, cursor.y),
-                        to_u32(th.text_tertiary, 0.5f), text);
+            dl->AddText(ImVec2(cursor.x + 10.0f, cursor.y), to_u32(th.text_tertiary, 0.5f), text);
             // Subtle line after text.
             float lx = cursor.x + 10.0f + tsz.x + 6.0f;
             float ly = cursor.y + tsz.y * 0.5f;
-            dl->AddLine(ImVec2(lx, ly), ImVec2(cursor.x + avail - 4.0f, ly),
+            dl->AddLine(ImVec2(lx, ly),
+                        ImVec2(cursor.x + avail - 4.0f, ly),
                         to_u32(th.border_subtle, 0.2f));
             ImGui::Dummy(ImVec2(0.0f, tsz.y + 2.0f));
         }
@@ -1131,10 +1135,9 @@ void RosAppShell::draw_nav_rail()
         {
             float cx = ImGui::GetCursorScreenPos().x;
             float cy = ImGui::GetCursorScreenPos().y + 2.0f;
-            dl->AddLine(
-                ImVec2(cx + 8.0f, cy),
-                ImVec2(cx + rail_w - 22.0f, cy),
-                to_u32(th.border_subtle, 0.25f));
+            dl->AddLine(ImVec2(cx + 8.0f, cy),
+                        ImVec2(cx + rail_w - 22.0f, cy),
+                        to_u32(th.border_subtle, 0.25f));
             ImGui::Dummy(ImVec2(0.0f, 6.0f));
         }
     };
@@ -1169,7 +1172,8 @@ void RosAppShell::draw_nav_rail()
             float cx = ImGui::GetCursorScreenPos().x;
             float cy = ImGui::GetCursorScreenPos().y;
             float aw = ImGui::GetContentRegionAvail().x;
-            dl->AddLine(ImVec2(cx + 8.0f, cy), ImVec2(cx + aw - 4.0f, cy),
+            dl->AddLine(ImVec2(cx + 8.0f, cy),
+                        ImVec2(cx + aw - 4.0f, cy),
                         to_u32(th.border_subtle, 0.2f));
         }
         ImGui::Dummy(ImVec2(0.0f, 6.0f));

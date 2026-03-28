@@ -20,6 +20,7 @@ void DataInteraction::set_fonts(ImFont* body, ImFont* heading, ImFont* icon)
     tooltip_.set_fonts(body, heading);
     region_.set_fonts(body, heading);
     legend_.set_fonts(body, icon);
+    annotations_.set_fonts(body, heading);
 }
 
 bool DataInteraction::select_point(const Series* series, size_t point_index)
@@ -275,8 +276,29 @@ void DataInteraction::draw_overlays(float       window_width,
     }
     else if (active_axes_)
     {
-        crosshair_.draw(
-            last_cursor_, active_viewport_, xlim_min_, xlim_max_, ylim_min_, ylim_max_, dl);
+        crosshair_
+            .draw(last_cursor_, active_viewport_, xlim_min_, xlim_max_, ylim_min_, ylim_max_, dl);
+    }
+
+    // Draw annotations
+    if (overlay_figure)
+    {
+        for (auto& axes_ptr : overlay_figure->axes())
+        {
+            if (!axes_ptr)
+                continue;
+            const auto& vp = axes_ptr->viewport();
+            auto        xl = axes_ptr->x_limits();
+            auto        yl = axes_ptr->y_limits();
+            annotations_.draw(vp,
+                              static_cast<float>(xl.min),
+                              static_cast<float>(xl.max),
+                              static_cast<float>(yl.min),
+                              static_cast<float>(yl.max),
+                              1.0f,
+                              axes_ptr.get(),
+                              dl);
+        }
     }
 
     // Draw tooltip last (on top)
@@ -713,6 +735,110 @@ void DataInteraction::select_series_in_rect(const BoxZoomRect& rect, Figure& fig
         on_rect_series_selected_(hits);
 }
 
+// ─── Annotation tool ────────────────────────────────────────────────────────
+
+bool DataInteraction::on_mouse_click_annotate(int button, double screen_x, double screen_y)
+{
+    if (!active_axes_ || !last_figure_)
+        return false;
+
+    // Right click: remove annotation
+    if (button == 1)
+    {
+        int idx = annotations_.hit_test(static_cast<float>(screen_x),
+                                        static_cast<float>(screen_y),
+                                        active_viewport_,
+                                        xlim_min_,
+                                        xlim_max_,
+                                        ylim_min_,
+                                        ylim_max_,
+                                        10.0f,
+                                        active_axes_);
+        if (idx >= 0)
+        {
+            annotations_.remove(static_cast<size_t>(idx));
+            return true;
+        }
+        return false;
+    }
+
+    // Left click
+    if (button == 0)
+    {
+        // If currently editing an annotation, commit it first
+        annotations_.cancel_editing();
+
+        // Hit-test existing annotations — clicking on one starts editing
+        int hit = annotations_.hit_test(static_cast<float>(screen_x),
+                                        static_cast<float>(screen_y),
+                                        active_viewport_,
+                                        xlim_min_,
+                                        xlim_max_,
+                                        ylim_min_,
+                                        ylim_max_,
+                                        10.0f,
+                                        active_axes_);
+        if (hit >= 0)
+        {
+            // Re-enter editing mode on the clicked annotation
+            auto& anns                             = annotations_.annotations_mut();
+            anns[static_cast<size_t>(hit)].editing = true;
+            return true;
+        }
+
+        // Place a new annotation at the click position (data coordinates)
+        float x_range = xlim_max_ - xlim_min_;
+        float y_range = ylim_max_ - ylim_min_;
+        if (x_range == 0.0f)
+            x_range = 1.0f;
+        if (y_range == 0.0f)
+            y_range = 1.0f;
+
+        float norm_x = (static_cast<float>(screen_x) - active_viewport_.x) / active_viewport_.w;
+        float norm_y =
+            1.0f - (static_cast<float>(screen_y) - active_viewport_.y) / active_viewport_.h;
+        float data_x = xlim_min_ + norm_x * x_range;
+        float data_y = ylim_min_ + norm_y * y_range;
+
+        annotations_.add(data_x, data_y, active_axes_);
+        return true;
+    }
+
+    return false;
+}
+
+void DataInteraction::begin_annotation_drag(double screen_x, double screen_y)
+{
+    if (!active_axes_)
+        return;
+
+    int hit = annotations_.hit_test(static_cast<float>(screen_x),
+                                    static_cast<float>(screen_y),
+                                    active_viewport_,
+                                    xlim_min_,
+                                    xlim_max_,
+                                    ylim_min_,
+                                    ylim_max_,
+                                    10.0f,
+                                    active_axes_);
+    if (hit >= 0)
+    {
+        annotations_.begin_drag(static_cast<size_t>(hit),
+                                static_cast<float>(screen_x),
+                                static_cast<float>(screen_y));
+    }
+}
+
+void DataInteraction::update_annotation_drag(double screen_x, double screen_y)
+{
+    annotations_.update_drag(static_cast<float>(screen_x), static_cast<float>(screen_y));
+}
+
+void DataInteraction::end_annotation_drag()
+{
+    annotations_.end_drag();
+}
+
 NearestPointResult DataInteraction::find_nearest(const CursorReadout& cursor, Figure& figure) const
 {
     NearestPointResult best;
@@ -854,6 +980,131 @@ NearestPointResult DataInteraction::find_nearest(const CursorReadout& cursor, Fi
     }
 
     return best;
+}
+
+// ─── Overlay snapshot ────────────────────────────────────────────────────────
+
+OverlaySnapshot DataInteraction::capture_overlay_snapshot(const Figure& figure) const
+{
+    OverlaySnapshot snap;
+    snap.crosshair_enabled = crosshair_.enabled();
+    snap.tooltip_enabled   = tooltip_.enabled();
+
+    // Helper: resolve an Axes pointer to its index in the figure
+    auto resolve_axes_index = [&](const Axes* axes) -> size_t
+    {
+        if (!axes)
+            return 0;
+        size_t idx = 0;
+        for (const auto& ax : figure.axes())
+        {
+            if (ax.get() == axes)
+                return idx;
+            ++idx;
+        }
+        return 0;
+    };
+
+    // Markers
+    for (const auto& m : markers_.markers())
+    {
+        OverlaySnapshot::MarkerEntry me;
+        me.data_x       = m.data_x;
+        me.data_y       = m.data_y;
+        me.series_label = m.series_label;
+        me.point_index  = m.point_index;
+        me.axes_index   = resolve_axes_index(m.axes);
+        snap.markers.push_back(std::move(me));
+    }
+
+    // Annotations
+    for (const auto& ann : annotations_.annotations())
+    {
+        if (ann.editing || ann.text.empty())
+            continue;
+        OverlaySnapshot::AnnotationEntry ae;
+        ae.data_x     = ann.data_x;
+        ae.data_y     = ann.data_y;
+        ae.text       = ann.text;
+        ae.color      = ann.color;
+        ae.offset_x   = ann.offset_x;
+        ae.offset_y   = ann.offset_y;
+        ae.axes_index = resolve_axes_index(ann.axes);
+        snap.annotations.push_back(std::move(ae));
+    }
+
+    return snap;
+}
+
+void DataInteraction::restore_overlay_snapshot(const OverlaySnapshot& snapshot, Figure& figure)
+{
+    set_crosshair(snapshot.crosshair_enabled);
+    set_tooltip(snapshot.tooltip_enabled);
+
+    // Helper: resolve an axes index to a pointer
+    auto resolve_axes_ptr = [&](size_t idx) -> const Axes*
+    {
+        if (idx < figure.axes().size() && figure.axes()[idx])
+            return figure.axes()[idx].get();
+        return nullptr;
+    };
+
+    // Restore markers
+    clear_markers();
+    for (const auto& me : snapshot.markers)
+    {
+        // Find the series by label to get a valid pointer
+        const Series* series_ptr = nullptr;
+        const Axes*   axes_ptr   = resolve_axes_ptr(me.axes_index);
+        if (axes_ptr)
+        {
+            for (const auto& sp : axes_ptr->series())
+            {
+                if (sp->label() == me.series_label)
+                {
+                    series_ptr = sp.get();
+                    break;
+                }
+            }
+        }
+        else
+        {
+            // Search all axes for the series
+            for (const auto& ax : figure.axes())
+            {
+                if (!ax)
+                    continue;
+                for (const auto& sp : ax->series())
+                {
+                    if (sp->label() == me.series_label)
+                    {
+                        series_ptr = sp.get();
+                        axes_ptr   = ax.get();
+                        break;
+                    }
+                }
+                if (series_ptr)
+                    break;
+            }
+        }
+        add_marker(me.data_x, me.data_y, series_ptr, me.point_index);
+    }
+
+    // Restore annotations
+    annotations_.clear();
+    for (const auto& ae : snapshot.annotations)
+    {
+        if (ae.text.empty())
+            continue;
+        const Axes* axes_ptr = resolve_axes_ptr(ae.axes_index);
+        size_t      idx      = annotations_.add(ae.data_x, ae.data_y, axes_ptr);
+        auto&       ann      = annotations_.annotations_mut()[idx];
+        ann.text             = ae.text;
+        ann.color            = ae.color;
+        ann.offset_x         = ae.offset_x;
+        ann.offset_y         = ae.offset_y;
+        ann.editing          = false;
+    }
 }
 
 }   // namespace spectra

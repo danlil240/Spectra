@@ -357,9 +357,9 @@ std::string AutomationServer::invoke(const std::string&        method,
     }
 
     // Wake the main thread if it's sleeping in glfwWaitEventsTimeout().
-#ifdef SPECTRA_USE_GLFW
+    #ifdef SPECTRA_USE_GLFW
     glfwPostEmptyEvent();
-#endif
+    #endif
 
     const auto deadline = std::chrono::steady_clock::now() + timeout;
     while (running_.load(std::memory_order_relaxed) && std::chrono::steady_clock::now() < deadline)
@@ -460,9 +460,9 @@ void AutomationServer::handle_client(int client_fd)
             }
 
             // Wake the main thread if it's sleeping in glfwWaitEventsTimeout().
-#ifdef SPECTRA_USE_GLFW
+    #ifdef SPECTRA_USE_GLFW
             glfwPostEmptyEvent();
-#endif
+    #endif
 
             // Wait for main thread to execute (max 30s)
             auto        deadline = std::chrono::steady_clock::now() + std::chrono::seconds(30);
@@ -693,7 +693,8 @@ void AutomationServer::execute(AutomationRequest& req, App& app, WindowUIContext
             oss << ",\"undo_count\":" << ui_ctx->undo_mgr.undo_count()
                 << ",\"redo_count\":" << ui_ctx->undo_mgr.redo_count()
                 << ",\"is_3d_mode\":" << (ui_ctx->is_in_3d_mode ? "true" : "false")
-                << ",\"theme\":\"" << json_escape(ui::ThemeManager::instance().current_theme_name()) << '"';
+                << ",\"theme\":\"" << json_escape(ui::ThemeManager::instance().current_theme_name())
+                << '"';
         }
 #endif
         oss << "}";
@@ -868,8 +869,8 @@ void AutomationServer::execute(AutomationRequest& req, App& app, WindowUIContext
         const std::vector<float>& x = x_caller.empty() ? x_gen : x_caller;
         const std::vector<float>& y = y_caller.empty() ? y_gen : y_caller;
 
-        std::string label    = json_get_string(params, "label");
-        Series*     new_ser  = nullptr;
+        std::string label   = json_get_string(params, "label");
+        Series*     new_ser = nullptr;
         if (type == "scatter")
             new_ser = &ax.scatter(x, y);
         else if (type == "bar")

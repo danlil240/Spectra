@@ -292,6 +292,12 @@ class InputHandler
     float  measure_end_data_y_     = 0.0f;
     bool   crosshair_was_active_   = false;   // to restore crosshair state when leaving Measure
 
+    // Annotate tool state
+    bool   annotate_dragging_     = false;
+    bool   annotate_press_active_ = false;
+    double annotate_start_x_      = 0.0;
+    double annotate_start_y_      = 0.0;
+
     // Middle-mouse pan state (works in all tool modes for 2D axes)
     bool   middle_pan_dragging_ = false;
     double middle_pan_start_x_  = 0.0;

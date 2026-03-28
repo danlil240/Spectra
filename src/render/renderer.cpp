@@ -517,17 +517,16 @@ void Renderer::render_plot_text(Figure& figure)
                 float py = data_to_px_y(ann.y);
 
                 // Determine text color: use annotation color if set, else series color
-                Color tc = (ann.text_color.a > 0.01f) ? ann.text_color : sc;
-                uint8_t tr = static_cast<uint8_t>(tc.r * 255);
-                uint8_t tg = static_cast<uint8_t>(tc.g * 255);
-                uint8_t tb = static_cast<uint8_t>(tc.b * 255);
-                uint8_t ta = static_cast<uint8_t>(tc.a * shape->opacity() * 255);
-                uint32_t text_rgba = static_cast<uint32_t>(tr)
-                                   | (static_cast<uint32_t>(tg) << 8)
-                                   | (static_cast<uint32_t>(tb) << 16)
-                                   | (static_cast<uint32_t>(ta) << 24);
+                Color    tc        = (ann.text_color.a > 0.01f) ? ann.text_color : sc;
+                uint8_t  tr        = static_cast<uint8_t>(tc.r * 255);
+                uint8_t  tg        = static_cast<uint8_t>(tc.g * 255);
+                uint8_t  tb        = static_cast<uint8_t>(tc.b * 255);
+                uint8_t  ta        = static_cast<uint8_t>(tc.a * shape->opacity() * 255);
+                uint32_t text_rgba = static_cast<uint32_t>(tr) | (static_cast<uint32_t>(tg) << 8)
+                                     | (static_cast<uint32_t>(tb) << 16)
+                                     | (static_cast<uint32_t>(ta) << 24);
 
-                auto fs = FontSize::Label;   // default
+                auto fs        = FontSize::Label;   // default
                 auto ta_align  = static_cast<TextAlign>(std::clamp(ann.align, 0, 2));
                 auto ta_valign = static_cast<TextVAlign>(std::clamp(ann.valign, 0, 2));
 

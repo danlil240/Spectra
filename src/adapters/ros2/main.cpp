@@ -352,15 +352,15 @@ int main(int argc, char** argv)
         ui_ctx->imgui_ui->set_command_bar_visible(false);
         ui_ctx->imgui_ui->set_status_bar_visible(false);
         shell.set_layout_manager(&lm);
-        ui_ctx->imgui_ui->set_extra_draw_callback([&shell, ui_ctx]()
-                                                  {
-                                                      if (ui_ctx && ui_ctx->imgui_ui)
-                                                      {
-                                                          ui_ctx->imgui_ui->set_render_figure_enabled(
-                                                              shell.plot_area_visible());
-                                                      }
-                                                      shell.draw();
-                                                  });
+        ui_ctx->imgui_ui->set_extra_draw_callback(
+            [&shell, ui_ctx]()
+            {
+                if (ui_ctx && ui_ctx->imgui_ui)
+                {
+                    ui_ctx->imgui_ui->set_render_figure_enabled(shell.plot_area_visible());
+                }
+                shell.draw();
+            });
         // GPU scene render callback — invoked during the active Vulkan render
         // pass (before ImGui overlay) so the 3D scene viewport is drawn with
         // real GPU pipelines instead of the software ImGui preview.

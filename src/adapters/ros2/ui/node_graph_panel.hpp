@@ -64,15 +64,15 @@ enum class GraphNodeKind : uint8_t
 
 enum class GraphShowMode : uint8_t
 {
-    Both,       // show nodes and topics
-    NodesOnly,  // show only ROS nodes
-    TopicsOnly, // show only topics
+    Both,         // show nodes and topics
+    NodesOnly,    // show only ROS nodes
+    TopicsOnly,   // show only topics
 };
 
 enum class GraphLayoutMode : uint8_t
 {
-    Hierarchical,  // layered left→right: pub-nodes | topics | sub-nodes
-    Force,         // pure force-directed (Fruchterman–Reingold)
+    Hierarchical,   // layered left→right: pub-nodes | topics | sub-nodes
+    Force,          // pure force-directed (Fruchterman–Reingold)
 };
 
 struct GraphNode
@@ -233,8 +233,8 @@ class NodeGraphPanel
     // ---------- internal graph state (all protected by mutex_) ----------
 
     void rebuild_from_discovery();
-    void scatter_new_nodes();              // random initial position for new nodes
-    void place_nodes_hierarchical();       // layered initial placement
+    void scatter_new_nodes();          // random initial position for new nodes
+    void place_nodes_hierarchical();   // layered initial placement
 
     // Apply filter: returns true if a node/topic should be visible.
     bool passes_filter(const GraphNode& n) const;
@@ -290,11 +290,11 @@ class NodeGraphPanel
     bool                                  first_refresh_{true};
 
     // View state (pan + zoom, render thread only — no lock needed)
-    float view_ox_{0.0f};
-    float view_oy_{0.0f};
-    float view_scale_{1.0f};
+    float             view_ox_{0.0f};
+    float             view_oy_{0.0f};
+    float             view_scale_{1.0f};
     std::atomic<bool> recenter_view_pending_{false};
-    bool  dragging_canvas_{false};
+    bool              dragging_canvas_{false};
 
     // Callbacks (protected by mutex_)
     SelectCallback     select_cb_;

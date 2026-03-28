@@ -157,8 +157,7 @@ void ExpressionEditor::draw_expression_input()
     ImGui::SetNextItemWidth(-1.0f);
 
     // Detect Ctrl+Enter to trigger apply.
-    bool ctrl_enter =
-        ImGui::IsKeyDown(ImGuiMod_Ctrl) && ImGui::IsKeyPressed(ImGuiKey_Enter, false);
+    bool ctrl_enter = ImGui::IsKeyDown(ImGuiMod_Ctrl) && ImGui::IsKeyPressed(ImGuiKey_Enter, false);
 
     const ImGuiInputTextFlags flags =
         ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_AllowTabInput;

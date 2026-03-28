@@ -582,7 +582,7 @@ void NodeGraphPanel::place_nodes_hierarchical()
             sub_deg[e.to_id]++;
     }
 
-    constexpr int NUM_TIERS = 5;
+    constexpr int    NUM_TIERS = 5;
     std::vector<int> tier(N, 2);   // default: middle (mixed)
 
     // First pass: classify ROS nodes.
@@ -595,11 +595,11 @@ void NodeGraphPanel::place_nodes_hierarchical()
         bool has_pub = pub_deg.contains(n.id) && pub_deg[n.id] > 0;
         bool has_sub = sub_deg.contains(n.id) && sub_deg[n.id] > 0;
         if (has_pub && !has_sub)
-            tier[i] = 0;          // pure publisher → left
+            tier[i] = 0;   // pure publisher → left
         else if (!has_pub && has_sub)
-            tier[i] = 4;          // pure subscriber → right
+            tier[i] = 4;   // pure subscriber → right
         else
-            tier[i] = 2;          // mixed or isolated → center
+            tier[i] = 2;   // mixed or isolated → center
     }
 
     // Second pass: classify topics.
@@ -664,20 +664,22 @@ void NodeGraphPanel::place_nodes_hierarchical()
     for (int t = 0; t < NUM_TIERS; ++t)
     {
         auto& indices = by_tier[t];
-        std::sort(indices.begin(), indices.end(), [&](std::size_t a, std::size_t b)
-        {
-            const auto& na = nodes_[a];
-            const auto& nb = nodes_[b];
-            if (na.namespace_ != nb.namespace_)
-                return na.namespace_ < nb.namespace_;
-            return na.display_name < nb.display_name;
-        });
+        std::sort(indices.begin(),
+                  indices.end(),
+                  [&](std::size_t a, std::size_t b)
+                  {
+                      const auto& na = nodes_[a];
+                      const auto& nb = nodes_[b];
+                      if (na.namespace_ != nb.namespace_)
+                          return na.namespace_ < nb.namespace_;
+                      return na.display_name < nb.display_name;
+                  });
     }
 
     // ---- 5.  Initial Y positions: evenly spaced per tier ----
     // Use wider spacing — topics get tighter packing, ROS nodes wider.
-    const float NODE_GAP  = 48.0f;    // vertical gap for ROS nodes
-    const float TOPIC_GAP = 36.0f;    // vertical gap for topics (denser)
+    const float NODE_GAP  = 48.0f;   // vertical gap for ROS nodes
+    const float TOPIC_GAP = 36.0f;   // vertical gap for topics (denser)
 
     // Add extra gap between namespace groups within a tier.
     const float NS_GAP = 18.0f;
@@ -689,11 +691,11 @@ void NodeGraphPanel::place_nodes_hierarchical()
         if (cnt == 0)
             continue;
 
-        bool is_topic_tier = (t == 1 || t == 3);
-        float gap = is_topic_tier ? TOPIC_GAP : NODE_GAP;
+        bool  is_topic_tier = (t == 1 || t == 3);
+        float gap           = is_topic_tier ? TOPIC_GAP : NODE_GAP;
 
         // Place with namespace cluster gaps.
-        float y = 0.0f;
+        float       y = 0.0f;
         std::string prev_ns;
         for (int k = 0; k < cnt; ++k)
         {
@@ -701,7 +703,7 @@ void NodeGraphPanel::place_nodes_hierarchical()
             if (k > 0 && n.namespace_ != prev_ns)
                 y += NS_GAP;   // extra gap between namespace groups
             nodes_[indices[k]].py = y;
-            prev_ns = n.namespace_;
+            prev_ns               = n.namespace_;
             y += gap;
         }
 
@@ -739,15 +741,15 @@ void NodeGraphPanel::place_nodes_hierarchical()
             if (indices.size() <= 1)
                 continue;
 
-            bool is_topic_tier = (t == 1 || t == 3);
-            float gap = is_topic_tier ? TOPIC_GAP : NODE_GAP;
+            bool  is_topic_tier = (t == 1 || t == 3);
+            float gap           = is_topic_tier ? TOPIC_GAP : NODE_GAP;
 
             // Compute barycenter: average Y of cross-tier neighbours.
             // Use median for even passes, mean for odd (improves convergence).
             std::vector<float> bary(indices.size(), 0.0f);
             for (std::size_t k = 0; k < indices.size(); ++k)
             {
-                std::size_t ni = indices[k];
+                std::size_t        ni = indices[k];
                 std::vector<float> nbr_ys;
                 for (std::size_t nb : adj[ni])
                 {
@@ -779,17 +781,17 @@ void NodeGraphPanel::place_nodes_hierarchical()
             std::vector<std::size_t> perm(indices.size());
             for (std::size_t k = 0; k < perm.size(); ++k)
                 perm[k] = k;
-            std::sort(perm.begin(), perm.end(), [&](std::size_t a, std::size_t b) {
-                return bary[a] < bary[b];
-            });
+            std::sort(perm.begin(),
+                      perm.end(),
+                      [&](std::size_t a, std::size_t b) { return bary[a] < bary[b]; });
 
             // Re-assign Y positions in sorted order with namespace gaps.
-            const int cnt = static_cast<int>(indices.size());
+            const int                cnt = static_cast<int>(indices.size());
             std::vector<std::size_t> sorted_indices(cnt);
             for (int k = 0; k < cnt; ++k)
                 sorted_indices[k] = indices[perm[k]];
 
-            float y = 0.0f;
+            float       y = 0.0f;
             std::string prev_ns;
             for (int k = 0; k < cnt; ++k)
             {
@@ -797,7 +799,7 @@ void NodeGraphPanel::place_nodes_hierarchical()
                 if (k > 0 && n.namespace_ != prev_ns)
                     y += NS_GAP;
                 nodes_[sorted_indices[k]].py = y;
-                prev_ns = n.namespace_;
+                prev_ns                      = n.namespace_;
                 y += gap;
             }
             float total_h = y - gap;
@@ -811,8 +813,8 @@ void NodeGraphPanel::place_nodes_hierarchical()
 
     // ---- 7.  Assign X positions per tier ----
     // ROS node tiers get more width; topic tiers narrower.
-    const float NODE_TIER_GAP  = 400.0f;    // gap before/after ROS node tiers
-    const float TOPIC_TIER_GAP = 280.0f;    // gap before/after topic tiers
+    const float NODE_TIER_GAP  = 400.0f;   // gap before/after ROS node tiers
+    const float TOPIC_TIER_GAP = 280.0f;   // gap before/after topic tiers
 
     float cur_x = 0.0f;
     bool  first = true;
@@ -890,16 +892,11 @@ static bool is_debug_topic(const std::string& name)
     // Includes per-node lifecycle/action topics that add noise.
     if (name == "/rosout" || name == "/parameter_events")
         return true;
-    return ends_with(name, "/rosout")
-        || ends_with(name, "/parameter_events")
-        || ends_with(name, "/transition_event")
-        || ends_with(name, "/describe_parameters")
-        || ends_with(name, "/get_parameters")
-        || ends_with(name, "/set_parameters")
-        || ends_with(name, "/list_parameters")
-        || ends_with(name, "/get_parameter_types")
-        || ends_with(name, "/set_parameters_atomically")
-        || ends_with(name, "/status");
+    return ends_with(name, "/rosout") || ends_with(name, "/parameter_events")
+           || ends_with(name, "/transition_event") || ends_with(name, "/describe_parameters")
+           || ends_with(name, "/get_parameters") || ends_with(name, "/set_parameters")
+           || ends_with(name, "/list_parameters") || ends_with(name, "/get_parameter_types")
+           || ends_with(name, "/set_parameters_atomically") || ends_with(name, "/status");
 }
 
 bool NodeGraphPanel::passes_filter(const GraphNode& n) const
@@ -998,10 +995,10 @@ void NodeGraphPanel::layout_step_unlocked()
         float spd = std::sqrt(nodes_[i].vx * nodes_[i].vx + nodes_[i].vy * nodes_[i].vy);
         if (spd > max_speed)
         {
-            float scale  = max_speed / spd;
+            float scale = max_speed / spd;
             nodes_[i].vx *= scale;
             nodes_[i].vy *= scale;
-            spd           = max_speed;
+            spd = max_speed;
         }
 
         nodes_[i].px += nodes_[i].vx;
@@ -1072,7 +1069,7 @@ void NodeGraphPanel::draw_toolbar()
 
     // Namespace filter — styled frame
     ImGui::SetNextItemWidth(200.0f);
-    ImGui::PushStyleColor(ImGuiCol_FrameBg,        ImVec4(0.13f, 0.16f, 0.20f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.13f, 0.16f, 0.20f, 1.0f));
     ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0.17f, 0.20f, 0.26f, 1.0f));
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f);
     char buf[256];
@@ -1085,7 +1082,7 @@ void NodeGraphPanel::draw_toolbar()
 
     ImGui::SameLine(0.0f, 6.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f);
-    ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.17f, 0.20f, 0.26f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.17f, 0.20f, 0.26f, 1.0f));
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.22f, 0.26f, 0.34f, 1.0f));
     if (ImGui::Button("Re-layout"))
     {
@@ -1140,12 +1137,12 @@ void NodeGraphPanel::draw_toolbar()
         const bool active = (show_mode_ == mode);
         if (active)
         {
-            ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.23f, 0.51f, 0.97f, 0.85f));
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.23f, 0.51f, 0.97f, 0.85f));
             ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.30f, 0.58f, 1.00f, 0.95f));
         }
         else
         {
-            ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.17f, 0.20f, 0.26f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.17f, 0.20f, 0.26f, 1.0f));
             ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.22f, 0.26f, 0.34f, 1.0f));
         }
         if (ImGui::Button(label))
@@ -1153,9 +1150,9 @@ void NodeGraphPanel::draw_toolbar()
         ImGui::PopStyleColor(2);
     };
 
-    mode_btn("Nodes",  GraphShowMode::NodesOnly);
+    mode_btn("Nodes", GraphShowMode::NodesOnly);
     ImGui::SameLine(0.0f, 2.0f);
-    mode_btn("Both",   GraphShowMode::Both);
+    mode_btn("Both", GraphShowMode::Both);
     ImGui::SameLine(0.0f, 2.0f);
     mode_btn("Topics", GraphShowMode::TopicsOnly);
 
@@ -1169,12 +1166,12 @@ void NodeGraphPanel::draw_toolbar()
         const bool active = (layout_mode_ == lm);
         if (active)
         {
-            ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.18f, 0.42f, 0.22f, 0.90f));
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.18f, 0.42f, 0.22f, 0.90f));
             ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.22f, 0.52f, 0.28f, 1.00f));
         }
         else
         {
-            ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.17f, 0.20f, 0.26f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.17f, 0.20f, 0.26f, 1.0f));
             ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.22f, 0.26f, 0.34f, 1.0f));
         }
         if (ImGui::Button(label))
@@ -1188,7 +1185,7 @@ void NodeGraphPanel::draw_toolbar()
 
     layout_btn("Hierarchical", GraphLayoutMode::Hierarchical);
     ImGui::SameLine(0.0f, 2.0f);
-    layout_btn("Force",        GraphLayoutMode::Force);
+    layout_btn("Force", GraphLayoutMode::Force);
 
     // "Hide Debug" toggle — filters rosout, parameter_events, etc.
     ImGui::SameLine(0.0f, 14.0f);
@@ -1199,12 +1196,12 @@ void NodeGraphPanel::draw_toolbar()
         const bool active = hide_debug_;
         if (active)
         {
-            ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.55f, 0.30f, 0.12f, 0.85f));
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.55f, 0.30f, 0.12f, 0.85f));
             ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.65f, 0.38f, 0.16f, 1.00f));
         }
         else
         {
-            ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.17f, 0.20f, 0.26f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.17f, 0.20f, 0.26f, 1.0f));
             ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.22f, 0.26f, 0.34f, 1.0f));
         }
         if (ImGui::Button(active ? "Debug Hidden" : "Show All"))
@@ -1283,10 +1280,10 @@ void NodeGraphPanel::draw_graph_canvas()
 
         if (recenter_view_pending_.exchange(false, std::memory_order_acq_rel))
         {
-            float min_x = 0.0f;
-            float max_x = 0.0f;
-            float min_y = 0.0f;
-            float max_y = 0.0f;
+            float min_x       = 0.0f;
+            float max_x       = 0.0f;
+            float min_y       = 0.0f;
+            float max_y       = 0.0f;
             bool  have_bounds = false;
             for (const auto& n : nodes_)
             {
@@ -1296,7 +1293,7 @@ void NodeGraphPanel::draw_graph_canvas()
                 {
                     min_x = max_x = n.px;
                     min_y = max_y = n.py;
-                    have_bounds = true;
+                    have_bounds   = true;
                     continue;
                 }
                 min_x = std::min(min_x, n.px);
@@ -1307,22 +1304,22 @@ void NodeGraphPanel::draw_graph_canvas()
 
             if (!have_bounds)
             {
-                view_ox_ = 0.0f;
-                view_oy_ = 0.0f;
+                view_ox_    = 0.0f;
+                view_oy_    = 0.0f;
                 view_scale_ = 1.0f;
             }
             else
             {
                 const float span_x = std::max(max_x - min_x, 1.0f);
                 const float span_y = std::max(max_y - min_y, 1.0f);
-                const float fit_x = (canvas_size.x * 0.8f) / span_x;
-                const float fit_y = (canvas_size.y * 0.8f) / span_y;
-                view_scale_ = std::clamp(std::min(fit_x, fit_y), MIN_SCALE, MAX_SCALE);
+                const float fit_x  = (canvas_size.x * 0.8f) / span_x;
+                const float fit_y  = (canvas_size.y * 0.8f) / span_y;
+                view_scale_        = std::clamp(std::min(fit_x, fit_y), MIN_SCALE, MAX_SCALE);
 
                 const float center_x = 0.5f * (min_x + max_x);
                 const float center_y = 0.5f * (min_y + max_y);
-                view_ox_ = 0.5f * canvas_size.x - center_x * view_scale_;
-                view_oy_ = 0.5f * canvas_size.y - center_y * view_scale_;
+                view_ox_             = 0.5f * canvas_size.x - center_x * view_scale_;
+                view_oy_             = 0.5f * canvas_size.y - center_y * view_scale_;
             }
         }
 
@@ -1352,18 +1349,18 @@ void NodeGraphPanel::draw_graph_canvas()
                 if (n.kind == GraphNodeKind::RosNode)
                 {
                     float tw = ImGui::CalcTextSize(n.display_name.c_str()).x;
-                    hw = std::max(48.0f, tw * 0.5f + 14.0f);
-                    hh = 15.0f;
+                    hw       = std::max(48.0f, tw * 0.5f + 14.0f);
+                    hh       = 15.0f;
                 }
                 else
                 {
                     float tw = ImGui::CalcTextSize(n.display_name.c_str()).x;
-                    hw = std::max(24.0f, tw * 0.5f + 8.0f);
-                    hh = 10.0f;
+                    hw       = std::max(24.0f, tw * 0.5f + 8.0f);
+                    hh       = 10.0f;
                 }
 
-                float sx = ox_d + n.px * view_scale_;
-                float sy = oy_d + n.py * view_scale_;
+                float sx  = ox_d + n.px * view_scale_;
+                float sy  = oy_d + n.py * view_scale_;
                 float shw = hw * view_scale_;
                 float shh = hh * view_scale_;
 
@@ -1388,23 +1385,23 @@ void NodeGraphPanel::draw_graph_canvas()
                     continue;
 
                 float hue = string_to_hue(ns);
-                float cr = 0.0f;
-                float cg = 0.0f;
-                float cb = 0.0f;
+                float cr  = 0.0f;
+                float cg  = 0.0f;
+                float cb  = 0.0f;
                 hsv_to_rgb(hue, 0.45f, 0.55f, cr, cg, cb);
 
                 ImU32 fill_col   = IM_COL32(static_cast<int>(cr * 255),
-                                             static_cast<int>(cg * 255),
-                                             static_cast<int>(cb * 255),
-                                             18);
+                                          static_cast<int>(cg * 255),
+                                          static_cast<int>(cb * 255),
+                                          18);
                 ImU32 border_col = IM_COL32(static_cast<int>(cr * 255),
-                                             static_cast<int>(cg * 255),
-                                             static_cast<int>(cb * 255),
-                                             55);
+                                            static_cast<int>(cg * 255),
+                                            static_cast<int>(cb * 255),
+                                            55);
                 ImU32 text_col   = IM_COL32(static_cast<int>(cr * 255),
-                                             static_cast<int>(cg * 255),
-                                             static_cast<int>(cb * 255),
-                                             140);
+                                          static_cast<int>(cg * 255),
+                                          static_cast<int>(cb * 255),
+                                          140);
 
                 ImVec2 tl(b.min_x - pad, b.min_y - pad - 16.0f * view_scale_);
                 ImVec2 br(b.max_x + pad, b.max_y + pad);
@@ -1417,7 +1414,8 @@ void NodeGraphPanel::draw_graph_canvas()
                 {
                     const char* label = ns.c_str();
                     dl->AddText(ImVec2(tl.x + 6.0f * view_scale_, tl.y + 3.0f * view_scale_),
-                                text_col, label);
+                                text_col,
+                                label);
                 }
             }
         }
@@ -1516,52 +1514,52 @@ void NodeGraphPanel::draw_node(const GraphNode& n, float ox, float oy, float sca
     {
         // Rounded rect: auto-sized to text width
         float text_w = ImGui::CalcTextSize(n.display_name.c_str()).x;
-        float hw = std::max(48.0f, text_w * 0.5f + 14.0f) * scale;
-        float hh = 15.0f * scale;
-        float rr = 5.0f * scale;
+        float hw     = std::max(48.0f, text_w * 0.5f + 14.0f) * scale;
+        float hh     = 15.0f * scale;
+        float rr     = 5.0f * scale;
 
         // Namespace-keyed accent color (desaturated, dark)
         float hue = string_to_hue(n.namespace_);
         float nr = 0.0f, ng = 0.0f, nb = 0.0f;
         hsv_to_rgb(hue, 0.5f, 0.5f, nr, ng, nb);
         ImU32 ns_col = IM_COL32(static_cast<int>(nr * 255),
-                                 static_cast<int>(ng * 255),
-                                 static_cast<int>(nb * 255),
-                                 200);
+                                static_cast<int>(ng * 255),
+                                static_cast<int>(nb * 255),
+                                200);
 
         // Fill: dark panel
         ImU32 fill = n.selected ? IM_COL32(30, 38, 58, 245) : IM_COL32(26, 31, 42, 235);
 
         // Selection glow shadow
         if (n.selected)
-            dl->AddRectFilled(
-                ImVec2(cx - hw - 3.0f * scale, cy - hh - 3.0f * scale),
-                ImVec2(cx + hw + 3.0f * scale, cy + hh + 3.0f * scale),
-                IM_COL32(59, 130, 246, 60),
-                rr + 2.0f * scale);
+            dl->AddRectFilled(ImVec2(cx - hw - 3.0f * scale, cy - hh - 3.0f * scale),
+                              ImVec2(cx + hw + 3.0f * scale, cy + hh + 3.0f * scale),
+                              IM_COL32(59, 130, 246, 60),
+                              rr + 2.0f * scale);
 
         dl->AddRectFilled(ImVec2(cx - hw, cy - hh), ImVec2(cx + hw, cy + hh), fill, rr);
 
         // Namespace color accent bar on left edge
         float bar_w = 3.0f * scale;
-        dl->AddRectFilled(
-            ImVec2(cx - hw, cy - hh + rr),
-            ImVec2(cx - hw + bar_w, cy + hh - rr),
-            ns_col);
+        dl->AddRectFilled(ImVec2(cx - hw, cy - hh + rr),
+                          ImVec2(cx - hw + bar_w, cy + hh - rr),
+                          ns_col);
 
         // Border
-        ImU32 border_col = n.selected ? IM_COL32(59, 130, 246, 220)
-                                      : IM_COL32(55, 65, 85, 200);
-        dl->AddRect(ImVec2(cx - hw, cy - hh), ImVec2(cx + hw, cy + hh),
-                    border_col, rr, 0, n.selected ? 1.5f : 1.0f);
+        ImU32 border_col = n.selected ? IM_COL32(59, 130, 246, 220) : IM_COL32(55, 65, 85, 200);
+        dl->AddRect(ImVec2(cx - hw, cy - hh),
+                    ImVec2(cx + hw, cy + hh),
+                    border_col,
+                    rr,
+                    0,
+                    n.selected ? 1.5f : 1.0f);
 
         // Label
         if (scale > 0.3f)
         {
             const char* label = n.display_name.c_str();
             ImVec2      tsz   = ImGui::CalcTextSize(label);
-            ImU32       tcol  = n.selected ? IM_COL32(220, 235, 255, 255)
-                                          : IM_COL32(180, 195, 215, 230);
+            ImU32 tcol = n.selected ? IM_COL32(220, 235, 255, 255) : IM_COL32(180, 195, 215, 230);
             // Clamp text inside node
             float text_x = cx - tsz.x * 0.5f + bar_w * 0.5f;
             float text_y = cy - tsz.y * 0.5f;
@@ -1571,31 +1569,33 @@ void NodeGraphPanel::draw_node(const GraphNode& n, float ox, float oy, float sca
     else
     {
         // Topic node — small pill shape
-        float hw = std::max(24.0f, ImGui::CalcTextSize(n.display_name.c_str()).x * 0.5f + 8.0f) * scale;
+        float hw =
+            std::max(24.0f, ImGui::CalcTextSize(n.display_name.c_str()).x * 0.5f + 8.0f) * scale;
         float hh = 10.0f * scale;
         float rr = hh;   // fully rounded
 
         ImU32 fill       = n.selected ? IM_COL32(28, 40, 60, 230) : IM_COL32(22, 30, 44, 210);
-        ImU32 border_col = n.selected ? IM_COL32(59, 130, 246, 200)
-                                      : IM_COL32(50, 75, 110, 160);
+        ImU32 border_col = n.selected ? IM_COL32(59, 130, 246, 200) : IM_COL32(50, 75, 110, 160);
 
         if (n.selected)
-            dl->AddRectFilled(
-                ImVec2(cx - hw - 2.0f * scale, cy - hh - 2.0f * scale),
-                ImVec2(cx + hw + 2.0f * scale, cy + hh + 2.0f * scale),
-                IM_COL32(59, 130, 246, 40),
-                rr + 2.0f * scale);
+            dl->AddRectFilled(ImVec2(cx - hw - 2.0f * scale, cy - hh - 2.0f * scale),
+                              ImVec2(cx + hw + 2.0f * scale, cy + hh + 2.0f * scale),
+                              IM_COL32(59, 130, 246, 40),
+                              rr + 2.0f * scale);
 
         dl->AddRectFilled(ImVec2(cx - hw, cy - hh), ImVec2(cx + hw, cy + hh), fill, rr);
-        dl->AddRect(ImVec2(cx - hw, cy - hh), ImVec2(cx + hw, cy + hh),
-                    border_col, rr, 0, n.selected ? 1.5f : 1.0f);
+        dl->AddRect(ImVec2(cx - hw, cy - hh),
+                    ImVec2(cx + hw, cy + hh),
+                    border_col,
+                    rr,
+                    0,
+                    n.selected ? 1.5f : 1.0f);
 
         if (scale > 0.35f)
         {
             const char* label = n.display_name.c_str();
             ImVec2      tsz   = ImGui::CalcTextSize(label);
-            ImU32       tcol  = n.selected ? IM_COL32(160, 210, 255, 255)
-                                          : IM_COL32(120, 170, 210, 200);
+            ImU32 tcol = n.selected ? IM_COL32(160, 210, 255, 255) : IM_COL32(120, 170, 210, 200);
             dl->AddText(ImVec2(cx - tsz.x * 0.5f, cy - tsz.y * 0.5f), tcol, label);
         }
     }
@@ -1617,10 +1617,8 @@ void NodeGraphPanel::draw_edge(const GraphEdge& e, float ox, float oy, float sca
     ImDrawList* dl = ImGui::GetWindowDrawList();
 
     // Publish = accent blue, subscribe = muted teal
-    ImU32 col  = e.is_publish ? IM_COL32(59, 130, 246, 80)
-                              : IM_COL32(56, 178, 172, 65);
-    ImU32 acol = e.is_publish ? IM_COL32(59, 130, 246, 160)
-                              : IM_COL32(56, 178, 172, 130);
+    ImU32 col  = e.is_publish ? IM_COL32(59, 130, 246, 80) : IM_COL32(56, 178, 172, 65);
+    ImU32 acol = e.is_publish ? IM_COL32(59, 130, 246, 160) : IM_COL32(56, 178, 172, 130);
 
     if (layout_mode_ == GraphLayoutMode::Hierarchical)
     {
@@ -1664,8 +1662,8 @@ void NodeGraphPanel::draw_edge(const GraphEdge& e, float ox, float oy, float sca
         dl->AddBezierCubic(p1, p2, p3, p4, col, 1.2f * scale);
 
         // Arrowhead pointing right at the left edge of B.
-        float arrow_len  = 6.0f * scale;
-        float arrow_half = 2.5f * scale;
+        float  arrow_len  = 6.0f * scale;
+        float  arrow_half = 2.5f * scale;
         ImVec2 tip(bx, by);
         ImVec2 wing_a(bx - arrow_len, by - arrow_half);
         ImVec2 wing_b(bx - arrow_len, by + arrow_half);

@@ -4,6 +4,8 @@
 #include <spectra/fwd.hpp>
 #include <string>
 
+#include "overlay_snapshot.hpp"
+
 namespace spectra
 {
 
@@ -21,20 +23,25 @@ class FigureSerializer
 {
    public:
     // Save a figure to a binary .spectra file. Returns true on success.
-    static bool save(const std::string& path, const Figure& figure);
+    // If overlay is non-null, overlay data (annotations, markers, etc.) is
+    // saved as additional chunks.
+    static bool save(const std::string&     path,
+                     const Figure&          figure,
+                     const OverlaySnapshot* overlay = nullptr);
 
     // Load a figure from a binary .spectra file into an existing Figure.
     // Clears existing axes/series and replaces with file contents.
+    // If overlay is non-null, overlay chunks are loaded into it.
     // Returns true on success.
-    static bool load(const std::string& path, Figure& figure);
+    static bool load(const std::string& path, Figure& figure, OverlaySnapshot* overlay = nullptr);
 
     // Open a native OS save dialog and save the figure.
     // Returns true if the user selected a file and save succeeded.
-    static bool save_with_dialog(const Figure& figure);
+    static bool save_with_dialog(const Figure& figure, const OverlaySnapshot* overlay = nullptr);
 
     // Open a native OS open dialog and load into the figure.
     // Returns true if the user selected a file and load succeeded.
-    static bool load_with_dialog(Figure& figure);
+    static bool load_with_dialog(Figure& figure, OverlaySnapshot* overlay = nullptr);
 };
 
 }   // namespace spectra

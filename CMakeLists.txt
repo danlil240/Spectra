@@ -308,6 +308,7 @@ if(SPECTRA_USE_IMGUI AND SPECTRA_USE_GLFW)
         src/ui/overlay/tooltip.cpp
         src/ui/overlay/crosshair.cpp
         src/ui/overlay/data_marker.cpp
+        src/ui/overlay/annotation.cpp
         src/ui/overlay/data_interaction.cpp
         src/ui/input/region_select.cpp
         src/ui/overlay/legend_interaction.cpp

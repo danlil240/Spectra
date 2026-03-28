@@ -582,14 +582,14 @@ void TopicDiscovery::enrich_batch()
 
                 auto pub_nodes = collect_endpoint_nodes(pub_infos);
                 auto sub_nodes = collect_endpoint_nodes(sub_infos);
-                pub_nodes.erase(
-                    std::remove_if(pub_nodes.begin(), pub_nodes.end(),
-                                   [this](const std::string& n) { return is_self(n); }),
-                    pub_nodes.end());
-                sub_nodes.erase(
-                    std::remove_if(sub_nodes.begin(), sub_nodes.end(),
-                                   [this](const std::string& n) { return is_self(n); }),
-                    sub_nodes.end());
+                pub_nodes.erase(std::remove_if(pub_nodes.begin(),
+                                               pub_nodes.end(),
+                                               [this](const std::string& n) { return is_self(n); }),
+                                pub_nodes.end());
+                sub_nodes.erase(std::remove_if(sub_nodes.begin(),
+                                               sub_nodes.end(),
+                                               [this](const std::string& n) { return is_self(n); }),
+                                sub_nodes.end());
                 it->second.publisher_nodes  = std::move(pub_nodes);
                 it->second.subscriber_nodes = std::move(sub_nodes);
             }
@@ -642,14 +642,14 @@ void TopicDiscovery::enrich_all()
 
                 auto pub_nodes = collect_endpoint_nodes(pub_infos);
                 auto sub_nodes = collect_endpoint_nodes(sub_infos);
-                pub_nodes.erase(
-                    std::remove_if(pub_nodes.begin(), pub_nodes.end(),
-                                   [this](const std::string& n) { return is_self(n); }),
-                    pub_nodes.end());
-                sub_nodes.erase(
-                    std::remove_if(sub_nodes.begin(), sub_nodes.end(),
-                                   [this](const std::string& n) { return is_self(n); }),
-                    sub_nodes.end());
+                pub_nodes.erase(std::remove_if(pub_nodes.begin(),
+                                               pub_nodes.end(),
+                                               [this](const std::string& n) { return is_self(n); }),
+                                pub_nodes.end());
+                sub_nodes.erase(std::remove_if(sub_nodes.begin(),
+                                               sub_nodes.end(),
+                                               [this](const std::string& n) { return is_self(n); }),
+                                sub_nodes.end());
                 it->second.publisher_nodes  = std::move(pub_nodes);
                 it->second.subscriber_nodes = std::move(sub_nodes);
             }

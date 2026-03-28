@@ -56,7 +56,7 @@ void Crosshair::draw(const CursorReadout& cursor,
                      float /*xlim_max*/,
                      float /*ylim_min*/,
                      float /*ylim_max*/,
-                     ImDrawList*          dl)
+                     ImDrawList* dl)
 {
     // Animate opacity
     float target = (enabled_ && cursor.valid) ? 1.0f : 0.0f;
@@ -172,7 +172,11 @@ void Crosshair::draw(const CursorReadout& cursor,
                           ImVec2(lx + sz.x + label_pad, ly + sz.y + label_pad * 2.0f),
                           label_bg,
                           3.0f);
-        fg->AddText(font, font->LegacySize * 0.85f, ImVec2(lx, ly + label_pad), label_text, x_label);
+        fg->AddText(font,
+                    font->LegacySize * 0.85f,
+                    ImVec2(lx, ly + label_pad),
+                    label_text,
+                    x_label);
     }
 
     // Y label inside left edge of viewport
@@ -197,7 +201,7 @@ void Crosshair::draw(const CursorReadout& cursor,
 void Crosshair::draw_all_axes(const CursorReadout& cursor,
                               Figure&              figure,
                               AxisLinkManager* /*link_mgr*/,
-                              ImDrawList*          dl)
+                              ImDrawList* dl)
 {
     // Animate opacity (shared across all axes)
     float target = (enabled_ && cursor.valid) ? 1.0f : 0.0f;

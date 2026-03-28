@@ -81,20 +81,19 @@ class ShapeSeries3D : public Series
     ShapeSeries3D& sphere(float cx, float cy, float cz, float r);
 
     // Add a cylinder from (x1,y1,z1) to (x2,y2,z2) with given radius.
-    ShapeSeries3D& cylinder(float x1, float y1, float z1,
-                            float x2, float y2, float z2, float radius);
+    ShapeSeries3D&
+    cylinder(float x1, float y1, float z1, float x2, float y2, float z2, float radius);
 
     // Add a cone from base (x1,y1,z1) to apex (x2,y2,z2) with base radius.
-    ShapeSeries3D& cone(float x1, float y1, float z1,
-                        float x2, float y2, float z2, float radius);
+    ShapeSeries3D& cone(float x1, float y1, float z1, float x2, float y2, float z2, float radius);
 
     // Add a 3D arrow from (x1,y1,z1) to (x2,y2,z2) with shaft radius.
-    ShapeSeries3D& arrow3d(float x1, float y1, float z1,
-                           float x2, float y2, float z2, float shaft_radius = 0.02f);
+    ShapeSeries3D&
+    arrow3d(float x1, float y1, float z1, float x2, float y2, float z2, float shaft_radius = 0.02f);
 
     // Add a plane at center (cx,cy,cz) with normal (nx,ny,nz) and half_size.
-    ShapeSeries3D& plane(float cx, float cy, float cz,
-                         float nx, float ny, float nz, float half_size = 1.0f);
+    ShapeSeries3D&
+    plane(float cx, float cy, float cz, float nx, float ny, float nz, float half_size = 1.0f);
 
     // ── Per-shape style modifiers (apply to the last added shape) ──
 
@@ -194,10 +193,17 @@ class ShapeSeries3D : public Series
     void push_tri(uint32_t a, uint32_t b, uint32_t c);
 
     // Helper: generate a capped cylinder/cone between two points
-    void generate_tube(float x1, float y1, float z1,
-                       float x2, float y2, float z2,
-                       float r_bottom, float r_top,
-                       int segments, bool cap_bottom, bool cap_top);
+    void generate_tube(float x1,
+                       float y1,
+                       float z1,
+                       float x2,
+                       float y2,
+                       float z2,
+                       float r_bottom,
+                       float r_top,
+                       int   segments,
+                       bool  cap_bottom,
+                       bool  cap_top);
 };
 
 }   // namespace spectra

@@ -190,9 +190,33 @@ std::string Workspace::serialize_json(const WorkspaceData& data)
         os << "        \"data_x\": " << m.data_x << ",\n";
         os << "        \"data_y\": " << m.data_y << ",\n";
         os << "        \"series_label\": \"" << escape_json(m.series_label) << "\",\n";
-        os << "        \"point_index\": " << m.point_index << "\n";
+        os << "        \"point_index\": " << m.point_index << ",\n";
+        os << "        \"axes_index\": " << m.axes_index << "\n";
         os << "      }";
         if (mi + 1 < data.interaction.markers.size())
+            os << ",";
+        os << "\n";
+    }
+    os << "    ],\n";
+
+    // Annotations
+    os << "    \"annotations\": [\n";
+    for (size_t ai = 0; ai < data.interaction.annotations.size(); ++ai)
+    {
+        const auto& a = data.interaction.annotations[ai];
+        os << "      {\n";
+        os << "        \"data_x\": " << a.data_x << ",\n";
+        os << "        \"data_y\": " << a.data_y << ",\n";
+        os << "        \"text\": \"" << escape_json(a.text) << "\",\n";
+        os << "        \"color_r\": " << a.color.r << ",\n";
+        os << "        \"color_g\": " << a.color.g << ",\n";
+        os << "        \"color_b\": " << a.color.b << ",\n";
+        os << "        \"color_a\": " << a.color.a << ",\n";
+        os << "        \"offset_x\": " << a.offset_x << ",\n";
+        os << "        \"offset_y\": " << a.offset_y << ",\n";
+        os << "        \"axes_index\": " << a.axes_index << "\n";
+        os << "      }";
+        if (ai + 1 < data.interaction.annotations.size())
             os << ",";
         os << "\n";
     }
@@ -628,13 +652,32 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data)
                 auto        marker_objects   = parse_json_array(interaction_json, "markers");
                 for (const auto& m_json : marker_objects)
                 {
-                    WorkspaceData::InteractionState::MarkerEntry m;
+                    OverlaySnapshot::MarkerEntry m;
                     m.data_x       = static_cast<float>(read_number_value(m_json, "data_x", 0));
                     m.data_y       = static_cast<float>(read_number_value(m_json, "data_y", 0));
                     m.series_label = read_string_value(m_json, "series_label");
                     m.point_index =
                         static_cast<size_t>(read_number_value(m_json, "point_index", 0));
+                    m.axes_index = static_cast<size_t>(read_number_value(m_json, "axes_index", 0));
                     data.interaction.markers.push_back(std::move(m));
+                }
+
+                // Parse annotations array
+                auto annotation_objects = parse_json_array(interaction_json, "annotations");
+                for (const auto& a_json : annotation_objects)
+                {
+                    OverlaySnapshot::AnnotationEntry a;
+                    a.data_x     = static_cast<float>(read_number_value(a_json, "data_x", 0));
+                    a.data_y     = static_cast<float>(read_number_value(a_json, "data_y", 0));
+                    a.text       = read_string_value(a_json, "text");
+                    a.color.r    = static_cast<float>(read_number_value(a_json, "color_r", 1));
+                    a.color.g    = static_cast<float>(read_number_value(a_json, "color_g", 1));
+                    a.color.b    = static_cast<float>(read_number_value(a_json, "color_b", 1));
+                    a.color.a    = static_cast<float>(read_number_value(a_json, "color_a", 1));
+                    a.offset_x   = static_cast<float>(read_number_value(a_json, "offset_x", 0));
+                    a.offset_y   = static_cast<float>(read_number_value(a_json, "offset_y", -40));
+                    a.axes_index = static_cast<size_t>(read_number_value(a_json, "axes_index", 0));
+                    data.interaction.annotations.push_back(std::move(a));
                 }
             }
         }

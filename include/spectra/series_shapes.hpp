@@ -128,8 +128,8 @@ class ShapeSeries : public Series
     ShapeSeries& rotation(float radians);
     ShapeSeries& segments(int n);
     ShapeSeries& arrow_head(float length_frac, float width);
-    ShapeSeries& text_align(int align);       // 0=Left, 1=Center, 2=Right
-    ShapeSeries& text_valign(int valign);     // 0=Top, 1=Middle, 2=Bottom
+    ShapeSeries& text_align(int align);     // 0=Left, 1=Center, 2=Right
+    ShapeSeries& text_valign(int valign);   // 0=Top, 1=Middle, 2=Bottom
 
     // ── Bulk operations ──
 
@@ -149,10 +149,10 @@ class ShapeSeries : public Series
         float       x;
         float       y;
         std::string content;
-        float       font_size;   // 0 = auto
-        int         align;       // 0=Left, 1=Center, 2=Right
-        int         valign;      // 0=Top, 1=Middle, 2=Bottom
-        Color       text_color;  // zero-alpha = use series color
+        float       font_size;    // 0 = auto
+        int         align;        // 0=Left, 1=Center, 2=Right
+        int         valign;       // 0=Top, 1=Middle, 2=Bottom
+        Color       text_color;   // zero-alpha = use series color
     };
     const std::vector<TextAnnotation>& text_annotations() const { return text_annotations_; }
 
@@ -217,9 +217,15 @@ class ShapeSeries : public Series
     void push_nan_break();
 
     // Push a filled triangle into fill_verts_.
-    void push_fill_tri(float x0, float y0, float a0,
-                       float x1, float y1, float a1,
-                       float x2, float y2, float a2);
+    void push_fill_tri(float x0,
+                       float y0,
+                       float a0,
+                       float x1,
+                       float y1,
+                       float a1,
+                       float x2,
+                       float y2,
+                       float a2);
 
     // Push an outline segment (two points).
     void push_outline_seg(float x0, float y0, float x1, float y1);

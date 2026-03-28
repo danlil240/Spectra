@@ -239,7 +239,7 @@ class WindowManager
     // windows so all windows get the same drag behavior.
     using TabDetachHandler = std::function<
         void(FigureId fid, uint32_t w, uint32_t h, const std::string& title, int sx, int sy)>;
-    using TabMoveHandler = std::function<void(FigureId fid,
+    using TabMoveHandler       = std::function<void(FigureId fid,
                                               uint32_t target_window_id,
                                               int      drop_zone,
                                               float    local_x,

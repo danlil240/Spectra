@@ -646,12 +646,49 @@ void register_standard_commands(const CommandBindings& b)
                 data.interaction.tooltip_enabled   = data_interaction->tooltip_active();
                 for (const auto& m : data_interaction->markers())
                 {
-                    WorkspaceData::InteractionState::MarkerEntry me;
+                    OverlaySnapshot::MarkerEntry me;
                     me.data_x       = m.data_x;
                     me.data_y       = m.data_y;
                     me.series_label = m.series_label;
                     me.point_index  = m.point_index;
                     data.interaction.markers.push_back(std::move(me));
+                }
+
+                // Capture annotations
+                for (const auto& ann : data_interaction->annotations().annotations())
+                {
+                    if (ann.editing)
+                        continue;   // Don't save in-progress edits
+                    if (ann.text.empty())
+                        continue;   // Don't save empty annotations
+                    OverlaySnapshot::AnnotationEntry ae;
+                    ae.data_x   = ann.data_x;
+                    ae.data_y   = ann.data_y;
+                    ae.text     = ann.text;
+                    ae.color    = ann.color;
+                    ae.offset_x = ann.offset_x;
+                    ae.offset_y = ann.offset_y;
+                    // Resolve axes pointer to index
+                    ae.axes_index = 0;
+                    if (ann.axes && !figs.empty())
+                    {
+                        for (auto* fig : figs)
+                        {
+                            if (!fig)
+                                continue;
+                            size_t ai = 0;
+                            for (const auto& ax : fig->axes())
+                            {
+                                if (ax.get() == ann.axes)
+                                {
+                                    ae.axes_index = ai;
+                                    break;
+                                }
+                                ++ai;
+                            }
+                        }
+                    }
+                    data.interaction.annotations.push_back(std::move(ae));
                 }
             }
             for (size_t i = 0; i < data.figures.size() && i < fig_mgr.count(); ++i)
@@ -695,6 +732,34 @@ void register_standard_commands(const CommandBindings& b)
                 {
                     data_interaction->set_crosshair(data.interaction.crosshair_enabled);
                     data_interaction->set_tooltip(data.interaction.tooltip_enabled);
+
+                    // Restore annotations
+                    data_interaction->annotations().clear();
+                    for (const auto& ae : data.interaction.annotations)
+                    {
+                        if (ae.text.empty())
+                            continue;
+                        // Resolve axes_index back to Axes pointer
+                        const Axes* axes_ptr = nullptr;
+                        for (auto* fig : figs)
+                        {
+                            if (!fig)
+                                continue;
+                            if (ae.axes_index < fig->axes().size() && fig->axes()[ae.axes_index])
+                            {
+                                axes_ptr = fig->axes()[ae.axes_index].get();
+                                break;
+                            }
+                        }
+                        size_t idx =
+                            data_interaction->annotations().add(ae.data_x, ae.data_y, axes_ptr);
+                        auto& ann    = data_interaction->annotations().annotations_mut()[idx];
+                        ann.text     = ae.text;
+                        ann.color    = ae.color;
+                        ann.offset_x = ae.offset_x;
+                        ann.offset_y = ae.offset_y;
+                        ann.editing  = false;
+                    }
                 }
                 for (size_t i = 0; i < data.figures.size() && i < fig_mgr.count(); ++i)
                 {
@@ -735,7 +800,15 @@ void register_standard_commands(const CommandBindings& b)
         {
             if (!active_figure)
                 return;
-            FigureSerializer::save_with_dialog(*active_figure);
+            if (data_interaction)
+            {
+                auto snap = data_interaction->capture_overlay_snapshot(*active_figure);
+                FigureSerializer::save_with_dialog(*active_figure, &snap);
+            }
+            else
+            {
+                FigureSerializer::save_with_dialog(*active_figure);
+            }
         },
         "",
         "File",
@@ -748,7 +821,16 @@ void register_standard_commands(const CommandBindings& b)
         {
             if (!active_figure)
                 return;
-            FigureSerializer::load_with_dialog(*active_figure);
+            if (data_interaction)
+            {
+                OverlaySnapshot snap;
+                FigureSerializer::load_with_dialog(*active_figure, &snap);
+                data_interaction->restore_overlay_snapshot(snap, *active_figure);
+            }
+            else
+            {
+                FigureSerializer::load_with_dialog(*active_figure);
+            }
             // Mark all series dirty so GPU data gets re-uploaded
             for (auto& ax : active_figure->all_axes_mut())
             {
@@ -1047,14 +1129,13 @@ void register_standard_commands(const CommandBindings& b)
 
             if (!entries.empty())
             {
-                undo_mgr.push(UndoAction{
-                    "Delete series",
-                    [entries]()
-                    {
-                        for (const auto& de : entries)
-                            SeriesClipboard::paste_to(*de.owner, de.snap);
-                    },
-                    nullptr});
+                undo_mgr.push(UndoAction{"Delete series",
+                                         [entries]()
+                                         {
+                                             for (const auto& de : entries)
+                                                 SeriesClipboard::paste_to(*de.owner, de.snap);
+                                         },
+                                         nullptr});
             }
         },
         "Delete",

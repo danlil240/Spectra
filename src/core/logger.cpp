@@ -190,9 +190,7 @@ Logger::LogSink filtered_sink(LogLevel min_level, Logger::LogSink inner)
 
 }   // namespace sinks
 
-void setup_dual_logging(LogLevel           console_level,
-                        LogLevel           file_level,
-                        const std::string& log_path)
+void setup_dual_logging(LogLevel console_level, LogLevel file_level, const std::string& log_path)
 {
     auto& logger = Logger::instance();
 
@@ -221,7 +219,8 @@ void setup_dual_logging(LogLevel           console_level,
     try
     {
         logger.add_sink(sinks::filtered_sink(file_level, sinks::file_sink(path)));
-        SPECTRA_LOG_INFO("app", "Dual logging active — console: {} file: {} path: {}",
+        SPECTRA_LOG_INFO("app",
+                         "Dual logging active — console: {} file: {} path: {}",
                          Logger::level_to_string(console_level),
                          Logger::level_to_string(file_level),
                          path);

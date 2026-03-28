@@ -8,7 +8,7 @@ using namespace spectra;
 
 TEST(AnimationTickGate, UnscheduledGateFallsBackToIdleTimeout)
 {
-    AnimationTickGate           gate;
+    AnimationTickGate            gate;
     AnimationTickGate::TimePoint now{};
 
     EXPECT_TRUE(gate.should_tick(now));
@@ -17,7 +17,7 @@ TEST(AnimationTickGate, UnscheduledGateFallsBackToIdleTimeout)
 
 TEST(AnimationTickGate, ScheduledGateWaitsUntilNextFrameDeadline)
 {
-    AnimationTickGate           gate;
+    AnimationTickGate            gate;
     AnimationTickGate::TimePoint start{};
     gate.schedule_next(start, 60.0f);
 
@@ -28,7 +28,7 @@ TEST(AnimationTickGate, ScheduledGateWaitsUntilNextFrameDeadline)
 
 TEST(AnimationTickGate, ExpiredDeadlineTicksImmediately)
 {
-    AnimationTickGate           gate;
+    AnimationTickGate            gate;
     AnimationTickGate::TimePoint start{};
     gate.schedule_next(start, 60.0f);
 
@@ -39,7 +39,7 @@ TEST(AnimationTickGate, ExpiredDeadlineTicksImmediately)
 
 TEST(AnimationTickGate, InvalidFpsClearsSchedule)
 {
-    AnimationTickGate           gate;
+    AnimationTickGate            gate;
     AnimationTickGate::TimePoint start{};
     gate.schedule_next(start, 60.0f);
     gate.schedule_next(start, 0.0f);
@@ -62,7 +62,7 @@ TEST(AnimationTickGate, AccumulatesSkippedDtUntilConsumed)
 
 TEST(AnimationTickGate, ClearResetsPendingDtAndSchedule)
 {
-    AnimationTickGate           gate;
+    AnimationTickGate            gate;
     AnimationTickGate::TimePoint start{};
 
     gate.accumulate_dt(0.02f);

@@ -91,7 +91,8 @@ constexpr std::array<ToolSpec, 22> kTools = {{
      R"json({"type":"object","properties":{"figure_id":{"type":"integer"}},"required":["figure_id"],"additionalProperties":false})json",
      "switch_figure"},
     {"add_series",
-     "Add a data series to a figure. Provide x/y arrays for custom data, or n_points for auto-generated sine data.",
+     "Add a data series to a figure. Provide x/y arrays for custom data, or n_points for "
+     "auto-generated sine data.",
      R"json({"type":"object","properties":{"figure_id":{"type":"integer"},"type":{"type":"string","default":"line","description":"Series type: line, scatter, bar, histogram"},"x":{"type":"array","items":{"type":"number"},"description":"X data values"},"y":{"type":"array","items":{"type":"number"},"description":"Y data values"},"bins":{"type":"integer","default":30,"description":"Number of bins (histogram only)"},"n_points":{"type":"integer","default":100,"description":"Points to auto-generate if x/y not provided"},"label":{"type":"string","default":""}},"required":["figure_id"],"additionalProperties":false})json",
      "add_series"},
     {"pump_frames",

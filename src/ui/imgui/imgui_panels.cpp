@@ -909,6 +909,10 @@ void ImGuiIntegration::draw_status_bar()
                     mode_label = "Measure";
                     mode_color = ui::theme().success;
                     break;
+                case ToolMode::Annotate:
+                    mode_label = "Annotate";
+                    mode_color = ui::theme().accent;
+                    break;
                 default:
                     break;
             }

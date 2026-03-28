@@ -5,6 +5,8 @@
 #include <string>
 #include <vector>
 
+#include "overlay_snapshot.hpp"
+
 namespace spectra
 {
 
@@ -88,20 +90,9 @@ struct WorkspaceData
         bool  nav_rail_expanded = false;
     };
 
-    struct InteractionState
-    {
-        bool crosshair_enabled = false;
-        bool tooltip_enabled   = true;
-        // Persistent data markers (screen-independent, stored in data coords)
-        struct MarkerEntry
-        {
-            float       data_x = 0.0f;
-            float       data_y = 0.0f;
-            std::string series_label;
-            size_t      point_index = 0;
-        };
-        std::vector<MarkerEntry> markers;
-    };
+    // Overlay state is stored as a plain-data OverlaySnapshot (shared with
+    // the binary figure serializer).
+    using InteractionState = OverlaySnapshot;
 
     uint32_t                 version             = FORMAT_VERSION;
     std::string              theme_name          = "night";

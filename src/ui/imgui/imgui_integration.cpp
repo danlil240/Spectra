@@ -19,6 +19,7 @@
     #include "spectra_icon_embedded.hpp"
 
     #include "../../../third_party/tinyfiledialogs.h"
+    #include "../dialog_env_guard.hpp"
 
     #ifndef M_PI
         #define M_PI 3.14159265358979323846
@@ -154,14 +155,14 @@ bool ImGuiIntegration::init(VulkanBackend& backend, GLFWwindow* window, bool ins
     ImGui_ImplGlfw_InitForVulkan(window, install_callbacks);
 
     ImGui_ImplVulkan_InitInfo ii{};
-    ii.Instance       = backend.instance();
-    ii.PhysicalDevice = backend.physical_device();
-    ii.Device         = backend.device();
-    ii.QueueFamily    = backend.graphics_queue_family();
-    ii.Queue          = backend.graphics_queue();
-    ii.DescriptorPool = backend.descriptor_pool();
-    ii.MinImageCount  = backend.min_image_count();
-    ii.ImageCount     = backend.image_count();
+    ii.Instance                     = backend.instance();
+    ii.PhysicalDevice               = backend.physical_device();
+    ii.Device                       = backend.device();
+    ii.QueueFamily                  = backend.graphics_queue_family();
+    ii.Queue                        = backend.graphics_queue();
+    ii.DescriptorPool               = backend.descriptor_pool();
+    ii.MinImageCount                = backend.min_image_count();
+    ii.ImageCount                   = backend.image_count();
     ii.PipelineInfoMain.RenderPass  = backend.render_pass();
     ii.PipelineInfoMain.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
 
@@ -222,8 +223,8 @@ bool ImGuiIntegration::init_headless(VulkanBackend& backend, uint32_t width, uin
     ii.DescriptorPool = backend.descriptor_pool();
     // ImGui Vulkan backend asserts MinImageCount >= 2. The headless backend
     // uses a single offscreen framebuffer (image_count=1), so clamp to 2.
-    ii.MinImageCount = std::max(backend.min_image_count(), 2u);
-    ii.ImageCount    = std::max(backend.image_count(), 2u);
+    ii.MinImageCount                = std::max(backend.min_image_count(), 2u);
+    ii.ImageCount                   = std::max(backend.image_count(), 2u);
     ii.PipelineInfoMain.RenderPass  = backend.render_pass();
     ii.PipelineInfoMain.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
 
@@ -308,14 +309,14 @@ void ImGuiIntegration::on_swapchain_recreated(VulkanBackend& backend)
         ImGui_ImplVulkan_Shutdown();
 
         ImGui_ImplVulkan_InitInfo ii{};
-        ii.Instance       = backend.instance();
-        ii.PhysicalDevice = backend.physical_device();
-        ii.Device         = backend.device();
-        ii.QueueFamily    = backend.graphics_queue_family();
-        ii.Queue          = backend.graphics_queue();
-        ii.DescriptorPool = backend.descriptor_pool();
-        ii.MinImageCount  = backend.min_image_count();
-        ii.ImageCount     = backend.image_count();
+        ii.Instance                     = backend.instance();
+        ii.PhysicalDevice               = backend.physical_device();
+        ii.Device                       = backend.device();
+        ii.QueueFamily                  = backend.graphics_queue_family();
+        ii.Queue                        = backend.graphics_queue();
+        ii.DescriptorPool               = backend.descriptor_pool();
+        ii.MinImageCount                = backend.min_image_count();
+        ii.ImageCount                   = backend.image_count();
         ii.PipelineInfoMain.RenderPass  = current_rp;
         ii.PipelineInfoMain.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
 
@@ -528,14 +529,12 @@ void ImGuiIntegration::build_ui(Figure& figure)
         ImGui::SetNextWindowSize(io.DisplaySize);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
         ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
-        ImGuiWindowFlags overlay_flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove
-                                         | ImGuiWindowFlags_NoSavedSettings
-                                         | ImGuiWindowFlags_NoBringToFrontOnFocus
-                                         | ImGuiWindowFlags_NoFocusOnAppearing
-                                         | ImGuiWindowFlags_NoBackground
-                                         | ImGuiWindowFlags_NoScrollbar
-                                         | ImGuiWindowFlags_NoScrollWithMouse
-                                         | ImGuiWindowFlags_NoInputs;
+        ImGuiWindowFlags overlay_flags =
+            ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove
+            | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus
+            | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoBackground
+            | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse
+            | ImGuiWindowFlags_NoInputs;
         if (ImGui::Begin("##overlay_host", nullptr, overlay_flags))
             overlay_dl = ImGui::GetWindowDrawList();
         ImGui::End();
@@ -687,11 +686,12 @@ void ImGuiIntegration::build_ui(Figure& figure)
     // Handle deferred CSV open request (from welcome screen button)
     if (pending_open_csv_)
     {
-        pending_open_csv_      = false;
-        char const* filters[3] = {"*.csv", "*.tsv", "*.txt"};
-        const char* home_env   = std::getenv("HOME");
-        std::string home_dir   = home_env ? std::string(home_env) + "/" : "/";
-        char const* result =
+        pending_open_csv_ = false;
+        DialogEnvGuard env_guard;
+        char const*    filters[3] = {"*.csv", "*.tsv", "*.txt"};
+        const char*    home_env   = std::getenv("HOME");
+        std::string    home_dir   = home_env ? std::string(home_env) + "/" : "/";
+        char const*    result =
             tinyfd_openFileDialog("Open CSV File", home_dir.c_str(), 3, filters, "CSV files", 0);
         if (result)
         {

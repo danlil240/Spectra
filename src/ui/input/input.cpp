@@ -56,6 +56,15 @@ void InputHandler::set_tool_mode(ToolMode new_tool)
         measure_axes_        = nullptr;
     }
 
+    // Leaving Annotate mode: cancel any active editing, reset state
+    if (tool_mode_ == ToolMode::Annotate)
+    {
+        if (data_interaction_)
+            data_interaction_->annotations().cancel_editing();
+        annotate_dragging_     = false;
+        annotate_press_active_ = false;
+    }
+
     // Entering Measure mode: auto-enable crosshair
     if (new_tool == ToolMode::Measure)
     {
@@ -514,6 +523,13 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
     {
         if (action == ACTION_PRESS && !rclick_zoom_dragging_ && active_axes_)
         {
+            // Annotate mode: right-click removes annotation
+            if (tool_mode_ == ToolMode::Annotate && data_interaction_
+                && data_interaction_->on_mouse_click_annotate(1, x, y))
+            {
+                return;
+            }
+
             // Let DataInteraction handle right-click first (marker remove).
             // If a marker was removed, don't start zoom drag.
             if (data_interaction_ && data_interaction_->on_mouse_click_datatip_only(1, x, y))
@@ -719,6 +735,52 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
             }
             region_dragging_ = false;
             return;
+        }
+
+        // Annotate mode: left-click to place/edit annotations, drag to reposition
+        if (tool_mode_ == ToolMode::Annotate && data_interaction_)
+        {
+            if (action == ACTION_PRESS && mode_ == InteractionMode::Idle)
+            {
+                // Check if we're clicking on an existing annotation to drag it
+                annotate_start_x_  = x;
+                annotate_start_y_  = y;
+                annotate_dragging_ = false;
+                data_interaction_->begin_annotation_drag(x, y);
+                if (data_interaction_->is_annotation_dragging())
+                {
+                    annotate_dragging_ = true;
+                    mode_              = InteractionMode::Dragging;
+                    return;
+                }
+                // Not on an existing annotation — will place on release (click)
+                annotate_press_active_ = true;
+                return;
+            }
+            if (action == ACTION_RELEASE)
+            {
+                if (annotate_dragging_)
+                {
+                    data_interaction_->end_annotation_drag();
+                    annotate_dragging_ = false;
+                    mode_              = InteractionMode::Idle;
+                    return;
+                }
+                if (annotate_press_active_)
+                {
+                    annotate_press_active_ = false;
+                    // Only place if mouse didn't move much (click, not drag)
+                    float           dx_px              = static_cast<float>(x - annotate_start_x_);
+                    float           dy_px              = static_cast<float>(y - annotate_start_y_);
+                    float           move_dist          = std::sqrt(dx_px * dx_px + dy_px * dy_px);
+                    constexpr float CLICK_THRESHOLD_PX = 5.0f;
+                    if (move_dist < CLICK_THRESHOLD_PX)
+                    {
+                        data_interaction_->on_mouse_click_annotate(0, x, y);
+                    }
+                    return;
+                }
+            }
         }
 
         // BoxZoom tool mode: left-click to draw box zoom rectangle
@@ -1175,6 +1237,13 @@ void InputHandler::on_mouse_move(double x, double y)
                                                      active_axes_->y_limits());
             }
         }
+        return;
+    }
+
+    // Annotate mode: update drag position
+    if (annotate_dragging_ && data_interaction_)
+    {
+        data_interaction_->update_annotation_drag(x, y);
         return;
     }
 

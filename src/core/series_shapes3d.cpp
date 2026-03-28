@@ -8,8 +8,7 @@ static constexpr float PI = 3.14159265358979f;
 
 // ── Shape creation ──────────────────────────────────────────────────────────
 
-ShapeSeries3D& ShapeSeries3D::box(float cx, float cy, float cz,
-                                  float sx, float sy, float sz)
+ShapeSeries3D& ShapeSeries3D::box(float cx, float cy, float cz, float sx, float sy, float sz)
 {
     ShapeDef3D def;
     def.type      = ShapeDef3D::Type::Box;
@@ -37,8 +36,8 @@ ShapeSeries3D& ShapeSeries3D::sphere(float cx, float cy, float cz, float r)
     return *this;
 }
 
-ShapeSeries3D& ShapeSeries3D::cylinder(float x1, float y1, float z1,
-                                       float x2, float y2, float z2, float radius)
+ShapeSeries3D&
+ShapeSeries3D::cylinder(float x1, float y1, float z1, float x2, float y2, float z2, float radius)
 {
     ShapeDef3D def;
     def.type      = ShapeDef3D::Type::Cylinder;
@@ -54,8 +53,8 @@ ShapeSeries3D& ShapeSeries3D::cylinder(float x1, float y1, float z1,
     return *this;
 }
 
-ShapeSeries3D& ShapeSeries3D::cone(float x1, float y1, float z1,
-                                   float x2, float y2, float z2, float radius)
+ShapeSeries3D&
+ShapeSeries3D::cone(float x1, float y1, float z1, float x2, float y2, float z2, float radius)
 {
     ShapeDef3D def;
     def.type      = ShapeDef3D::Type::Cone;
@@ -71,8 +70,13 @@ ShapeSeries3D& ShapeSeries3D::cone(float x1, float y1, float z1,
     return *this;
 }
 
-ShapeSeries3D& ShapeSeries3D::arrow3d(float x1, float y1, float z1,
-                                      float x2, float y2, float z2, float shaft_radius)
+ShapeSeries3D& ShapeSeries3D::arrow3d(float x1,
+                                      float y1,
+                                      float z1,
+                                      float x2,
+                                      float y2,
+                                      float z2,
+                                      float shaft_radius)
 {
     ShapeDef3D def;
     def.type      = ShapeDef3D::Type::Arrow3D;
@@ -88,8 +92,8 @@ ShapeSeries3D& ShapeSeries3D::arrow3d(float x1, float y1, float z1,
     return *this;
 }
 
-ShapeSeries3D& ShapeSeries3D::plane(float cx, float cy, float cz,
-                                    float nx, float ny, float nz, float half_size)
+ShapeSeries3D&
+ShapeSeries3D::plane(float cx, float cy, float cz, float nx, float ny, float nz, float half_size)
 {
     ShapeDef3D def;
     def.type      = ShapeDef3D::Type::Plane;
@@ -151,8 +155,7 @@ ShapeSeries3D& ShapeSeries3D::clear_shapes()
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-uint32_t ShapeSeries3D::push_vertex(float x, float y, float z,
-                                    float nx, float ny, float nz)
+uint32_t ShapeSeries3D::push_vertex(float x, float y, float z, float nx, float ny, float nz)
 {
     uint32_t idx = static_cast<uint32_t>(vertices_.size() / 6);
     vertices_.push_back(x);
@@ -212,14 +215,30 @@ void ShapeSeries3D::generate_box(const ShapeDef3D& def)
 
     for (int f = 0; f < 6; ++f)
     {
-        uint32_t v0 = push_vertex(faces[f][0].x, faces[f][0].y, faces[f][0].z,
-                                  faces[f][0].nx, faces[f][0].ny, faces[f][0].nz);
-        uint32_t v1 = push_vertex(faces[f][1].x, faces[f][1].y, faces[f][1].z,
-                                  faces[f][1].nx, faces[f][1].ny, faces[f][1].nz);
-        uint32_t v2 = push_vertex(faces[f][2].x, faces[f][2].y, faces[f][2].z,
-                                  faces[f][2].nx, faces[f][2].ny, faces[f][2].nz);
-        uint32_t v3 = push_vertex(faces[f][3].x, faces[f][3].y, faces[f][3].z,
-                                  faces[f][3].nx, faces[f][3].ny, faces[f][3].nz);
+        uint32_t v0 = push_vertex(faces[f][0].x,
+                                  faces[f][0].y,
+                                  faces[f][0].z,
+                                  faces[f][0].nx,
+                                  faces[f][0].ny,
+                                  faces[f][0].nz);
+        uint32_t v1 = push_vertex(faces[f][1].x,
+                                  faces[f][1].y,
+                                  faces[f][1].z,
+                                  faces[f][1].nx,
+                                  faces[f][1].ny,
+                                  faces[f][1].nz);
+        uint32_t v2 = push_vertex(faces[f][2].x,
+                                  faces[f][2].y,
+                                  faces[f][2].z,
+                                  faces[f][2].nx,
+                                  faces[f][2].ny,
+                                  faces[f][2].nz);
+        uint32_t v3 = push_vertex(faces[f][3].x,
+                                  faces[f][3].y,
+                                  faces[f][3].z,
+                                  faces[f][3].nx,
+                                  faces[f][3].ny,
+                                  faces[f][3].nz);
         push_tri(v0, v1, v2);
         push_tri(v0, v2, v3);
     }
@@ -227,11 +246,11 @@ void ShapeSeries3D::generate_box(const ShapeDef3D& def)
 
 void ShapeSeries3D::generate_sphere(const ShapeDef3D& def)
 {
-    float cx   = def.params[0];
-    float cy   = def.params[1];
-    float cz   = def.params[2];
-    float r    = def.params[3];
-    int   segs = def.segments;
+    float cx    = def.params[0];
+    float cy    = def.params[1];
+    float cz    = def.params[2];
+    float r     = def.params[3];
+    int   segs  = def.segments;
     int   rings = segs / 2;
 
     // UV-sphere tessellation
@@ -261,7 +280,7 @@ void ShapeSeries3D::generate_sphere(const ShapeDef3D& def)
         for (int lon = 0; lon < segs; ++lon)
         {
             uint32_t base = static_cast<uint32_t>(vertices_.size() / 6)
-                          - static_cast<uint32_t>((rings + 1) * (segs + 1));
+                            - static_cast<uint32_t>((rings + 1) * (segs + 1));
             uint32_t curr = base + static_cast<uint32_t>(lat * (segs + 1) + lon);
             uint32_t next = curr + static_cast<uint32_t>(segs + 1);
 
@@ -271,15 +290,22 @@ void ShapeSeries3D::generate_sphere(const ShapeDef3D& def)
     }
 }
 
-void ShapeSeries3D::generate_tube(float x1, float y1, float z1,
-                                  float x2, float y2, float z2,
-                                  float r_bottom, float r_top,
-                                  int segs, bool cap_bottom, bool cap_top)
+void ShapeSeries3D::generate_tube(float x1,
+                                  float y1,
+                                  float z1,
+                                  float x2,
+                                  float y2,
+                                  float z2,
+                                  float r_bottom,
+                                  float r_top,
+                                  int   segs,
+                                  bool  cap_bottom,
+                                  bool  cap_top)
 {
     // Axis direction
-    float dx = x2 - x1;
-    float dy = y2 - y1;
-    float dz = z2 - z1;
+    float dx  = x2 - x1;
+    float dy  = y2 - y1;
+    float dz  = z2 - z1;
     float len = std::sqrt(dx * dx + dy * dy + dz * dz);
     if (len < 1e-8f)
         return;
@@ -332,10 +358,10 @@ void ShapeSeries3D::generate_tube(float x1, float y1, float z1,
 
         // For a cone/cylinder, the normal needs to account for the slope
         float slope_factor = (r_bottom - r_top) / len;
-        float nx = rx + ax * slope_factor;
-        float ny = ry + ay * slope_factor;
-        float nz = rz + az * slope_factor;
-        float n_len = std::sqrt(nx * nx + ny * ny + nz * nz);
+        float nx           = rx + ax * slope_factor;
+        float ny           = ry + ay * slope_factor;
+        float nz           = rz + az * slope_factor;
+        float n_len        = std::sqrt(nx * nx + ny * ny + nz * nz);
         if (n_len > 1e-8f)
         {
             nx /= n_len;
@@ -366,23 +392,25 @@ void ShapeSeries3D::generate_tube(float x1, float y1, float z1,
         uint32_t center = push_vertex(x1, y1, z1, -ax, -ay, -az);
         for (int i = 0; i < segs; ++i)
         {
-            float a0 = 2.0f * PI * static_cast<float>(i) / static_cast<float>(segs);
-            float a1 = 2.0f * PI * static_cast<float>(i + 1) / static_cast<float>(segs);
+            float a0   = 2.0f * PI * static_cast<float>(i) / static_cast<float>(segs);
+            float a1   = 2.0f * PI * static_cast<float>(i + 1) / static_cast<float>(segs);
             float cos0 = std::cos(a0);
             float sin0 = std::sin(a0);
             float cos1 = std::cos(a1);
             float sin1 = std::sin(a1);
 
-            uint32_t p0 = push_vertex(
-                x1 + (ux * cos0 + vx * sin0) * r_bottom,
-                y1 + (uy * cos0 + vy * sin0) * r_bottom,
-                z1 + (uz * cos0 + vz * sin0) * r_bottom,
-                -ax, -ay, -az);
-            uint32_t p1 = push_vertex(
-                x1 + (ux * cos1 + vx * sin1) * r_bottom,
-                y1 + (uy * cos1 + vy * sin1) * r_bottom,
-                z1 + (uz * cos1 + vz * sin1) * r_bottom,
-                -ax, -ay, -az);
+            uint32_t p0 = push_vertex(x1 + (ux * cos0 + vx * sin0) * r_bottom,
+                                      y1 + (uy * cos0 + vy * sin0) * r_bottom,
+                                      z1 + (uz * cos0 + vz * sin0) * r_bottom,
+                                      -ax,
+                                      -ay,
+                                      -az);
+            uint32_t p1 = push_vertex(x1 + (ux * cos1 + vx * sin1) * r_bottom,
+                                      y1 + (uy * cos1 + vy * sin1) * r_bottom,
+                                      z1 + (uz * cos1 + vz * sin1) * r_bottom,
+                                      -ax,
+                                      -ay,
+                                      -az);
             push_tri(center, p1, p0);
         }
     }
@@ -393,23 +421,25 @@ void ShapeSeries3D::generate_tube(float x1, float y1, float z1,
         uint32_t center = push_vertex(x2, y2, z2, ax, ay, az);
         for (int i = 0; i < segs; ++i)
         {
-            float a0 = 2.0f * PI * static_cast<float>(i) / static_cast<float>(segs);
-            float a1 = 2.0f * PI * static_cast<float>(i + 1) / static_cast<float>(segs);
+            float a0   = 2.0f * PI * static_cast<float>(i) / static_cast<float>(segs);
+            float a1   = 2.0f * PI * static_cast<float>(i + 1) / static_cast<float>(segs);
             float cos0 = std::cos(a0);
             float sin0 = std::sin(a0);
             float cos1 = std::cos(a1);
             float sin1 = std::sin(a1);
 
-            uint32_t p0 = push_vertex(
-                x2 + (ux * cos0 + vx * sin0) * r_top,
-                y2 + (uy * cos0 + vy * sin0) * r_top,
-                z2 + (uz * cos0 + vz * sin0) * r_top,
-                ax, ay, az);
-            uint32_t p1 = push_vertex(
-                x2 + (ux * cos1 + vx * sin1) * r_top,
-                y2 + (uy * cos1 + vy * sin1) * r_top,
-                z2 + (uz * cos1 + vz * sin1) * r_top,
-                ax, ay, az);
+            uint32_t p0 = push_vertex(x2 + (ux * cos0 + vx * sin0) * r_top,
+                                      y2 + (uy * cos0 + vy * sin0) * r_top,
+                                      z2 + (uz * cos0 + vz * sin0) * r_top,
+                                      ax,
+                                      ay,
+                                      az);
+            uint32_t p1 = push_vertex(x2 + (ux * cos1 + vx * sin1) * r_top,
+                                      y2 + (uy * cos1 + vy * sin1) * r_top,
+                                      z2 + (uz * cos1 + vz * sin1) * r_top,
+                                      ax,
+                                      ay,
+                                      az);
             push_tri(center, p0, p1);
         }
     }
@@ -417,28 +447,42 @@ void ShapeSeries3D::generate_tube(float x1, float y1, float z1,
 
 void ShapeSeries3D::generate_cylinder(const ShapeDef3D& def)
 {
-    generate_tube(def.params[0], def.params[1], def.params[2],
-                  def.params[3], def.params[4], def.params[5],
-                  def.params[6], def.params[6],
-                  def.segments, true, true);
+    generate_tube(def.params[0],
+                  def.params[1],
+                  def.params[2],
+                  def.params[3],
+                  def.params[4],
+                  def.params[5],
+                  def.params[6],
+                  def.params[6],
+                  def.segments,
+                  true,
+                  true);
 }
 
 void ShapeSeries3D::generate_cone(const ShapeDef3D& def)
 {
-    generate_tube(def.params[0], def.params[1], def.params[2],
-                  def.params[3], def.params[4], def.params[5],
-                  def.params[6], 0.0f,
-                  def.segments, true, false);
+    generate_tube(def.params[0],
+                  def.params[1],
+                  def.params[2],
+                  def.params[3],
+                  def.params[4],
+                  def.params[5],
+                  def.params[6],
+                  0.0f,
+                  def.segments,
+                  true,
+                  false);
 }
 
 void ShapeSeries3D::generate_arrow3d(const ShapeDef3D& def)
 {
-    float x1 = def.params[0];
-    float y1 = def.params[1];
-    float z1 = def.params[2];
-    float x2 = def.params[3];
-    float y2 = def.params[4];
-    float z2 = def.params[5];
+    float x1      = def.params[0];
+    float y1      = def.params[1];
+    float z1      = def.params[2];
+    float x2      = def.params[3];
+    float y2      = def.params[4];
+    float z2      = def.params[5];
     float shaft_r = def.params[6];
 
     float dx  = x2 - x1;
@@ -458,12 +502,10 @@ void ShapeSeries3D::generate_arrow3d(const ShapeDef3D& def)
     float sz   = z1 + dz * frac;
 
     // Shaft (cylinder)
-    generate_tube(x1, y1, z1, sx, sy, sz,
-                  shaft_r, shaft_r, def.segments, true, false);
+    generate_tube(x1, y1, z1, sx, sy, sz, shaft_r, shaft_r, def.segments, true, false);
 
     // Head (cone)
-    generate_tube(sx, sy, sz, x2, y2, z2,
-                  head_r, 0.0f, def.segments, true, false);
+    generate_tube(sx, sy, sz, x2, y2, z2, head_r, 0.0f, def.segments, true, false);
 }
 
 void ShapeSeries3D::generate_plane(const ShapeDef3D& def)
@@ -508,26 +550,58 @@ void ShapeSeries3D::generate_plane(const ShapeDef3D& def)
     float vz = nx * uy - ny * ux;
 
     // Four corners
-    uint32_t v0 = push_vertex(cx - ux * hs - vx * hs, cy - uy * hs - vy * hs,
-                              cz - uz * hs - vz * hs, nx, ny, nz);
-    uint32_t v1 = push_vertex(cx + ux * hs - vx * hs, cy + uy * hs - vy * hs,
-                              cz + uz * hs - vz * hs, nx, ny, nz);
-    uint32_t v2 = push_vertex(cx + ux * hs + vx * hs, cy + uy * hs + vy * hs,
-                              cz + uz * hs + vz * hs, nx, ny, nz);
-    uint32_t v3 = push_vertex(cx - ux * hs + vx * hs, cy - uy * hs + vy * hs,
-                              cz - uz * hs + vz * hs, nx, ny, nz);
+    uint32_t v0 = push_vertex(cx - ux * hs - vx * hs,
+                              cy - uy * hs - vy * hs,
+                              cz - uz * hs - vz * hs,
+                              nx,
+                              ny,
+                              nz);
+    uint32_t v1 = push_vertex(cx + ux * hs - vx * hs,
+                              cy + uy * hs - vy * hs,
+                              cz + uz * hs - vz * hs,
+                              nx,
+                              ny,
+                              nz);
+    uint32_t v2 = push_vertex(cx + ux * hs + vx * hs,
+                              cy + uy * hs + vy * hs,
+                              cz + uz * hs + vz * hs,
+                              nx,
+                              ny,
+                              nz);
+    uint32_t v3 = push_vertex(cx - ux * hs + vx * hs,
+                              cy - uy * hs + vy * hs,
+                              cz - uz * hs + vz * hs,
+                              nx,
+                              ny,
+                              nz);
 
     push_tri(v0, v1, v2);
     push_tri(v0, v2, v3);
     // Back face
-    uint32_t v4 = push_vertex(cx - ux * hs - vx * hs, cy - uy * hs - vy * hs,
-                              cz - uz * hs - vz * hs, -nx, -ny, -nz);
-    uint32_t v5 = push_vertex(cx + ux * hs - vx * hs, cy + uy * hs - vy * hs,
-                              cz + uz * hs - vz * hs, -nx, -ny, -nz);
-    uint32_t v6 = push_vertex(cx + ux * hs + vx * hs, cy + uy * hs + vy * hs,
-                              cz + uz * hs + vz * hs, -nx, -ny, -nz);
-    uint32_t v7 = push_vertex(cx - ux * hs + vx * hs, cy - uy * hs + vy * hs,
-                              cz - uz * hs + vz * hs, -nx, -ny, -nz);
+    uint32_t v4 = push_vertex(cx - ux * hs - vx * hs,
+                              cy - uy * hs - vy * hs,
+                              cz - uz * hs - vz * hs,
+                              -nx,
+                              -ny,
+                              -nz);
+    uint32_t v5 = push_vertex(cx + ux * hs - vx * hs,
+                              cy + uy * hs - vy * hs,
+                              cz + uz * hs - vz * hs,
+                              -nx,
+                              -ny,
+                              -nz);
+    uint32_t v6 = push_vertex(cx + ux * hs + vx * hs,
+                              cy + uy * hs + vy * hs,
+                              cz + uz * hs + vz * hs,
+                              -nx,
+                              -ny,
+                              -nz);
+    uint32_t v7 = push_vertex(cx - ux * hs + vx * hs,
+                              cy - uy * hs + vy * hs,
+                              cz - uz * hs + vz * hs,
+                              -nx,
+                              -ny,
+                              -nz);
     push_tri(v4, v6, v5);
     push_tri(v4, v7, v6);
 }
@@ -543,12 +617,24 @@ void ShapeSeries3D::rebuild_geometry()
     {
         switch (def.type)
         {
-            case ShapeDef3D::Type::Box: generate_box(def); break;
-            case ShapeDef3D::Type::Sphere: generate_sphere(def); break;
-            case ShapeDef3D::Type::Cylinder: generate_cylinder(def); break;
-            case ShapeDef3D::Type::Cone: generate_cone(def); break;
-            case ShapeDef3D::Type::Arrow3D: generate_arrow3d(def); break;
-            case ShapeDef3D::Type::Plane: generate_plane(def); break;
+            case ShapeDef3D::Type::Box:
+                generate_box(def);
+                break;
+            case ShapeDef3D::Type::Sphere:
+                generate_sphere(def);
+                break;
+            case ShapeDef3D::Type::Cylinder:
+                generate_cylinder(def);
+                break;
+            case ShapeDef3D::Type::Cone:
+                generate_cone(def);
+                break;
+            case ShapeDef3D::Type::Arrow3D:
+                generate_arrow3d(def);
+                break;
+            case ShapeDef3D::Type::Plane:
+                generate_plane(def);
+                break;
         }
     }
 }
@@ -563,10 +649,10 @@ vec3 ShapeSeries3D::compute_centroid() const
     if (vertices_.empty())
         return {0, 0, 0};
 
-    float sx = 0.0f;
-    float sy = 0.0f;
-    float sz = 0.0f;
-    size_t n = vertices_.size() / 6;
+    float  sx = 0.0f;
+    float  sy = 0.0f;
+    float  sz = 0.0f;
+    size_t n  = vertices_.size() / 6;
     for (size_t i = 0; i < n; ++i)
     {
         sx += vertices_[i * 6 + 0];
@@ -585,20 +671,26 @@ void ShapeSeries3D::get_bounds(vec3& min_out, vec3& max_out) const
         max_out = {0, 0, 0};
         return;
     }
-    min_out = {1e30f, 1e30f, 1e30f};
-    max_out = {-1e30f, -1e30f, -1e30f};
+    min_out  = {1e30f, 1e30f, 1e30f};
+    max_out  = {-1e30f, -1e30f, -1e30f};
     size_t n = vertices_.size() / 6;
     for (size_t i = 0; i < n; ++i)
     {
         float x = vertices_[i * 6 + 0];
         float y = vertices_[i * 6 + 1];
         float z = vertices_[i * 6 + 2];
-        if (x < min_out.x) min_out.x = x;
-        if (y < min_out.y) min_out.y = y;
-        if (z < min_out.z) min_out.z = z;
-        if (x > max_out.x) max_out.x = x;
-        if (y > max_out.y) max_out.y = y;
-        if (z > max_out.z) max_out.z = z;
+        if (x < min_out.x)
+            min_out.x = x;
+        if (y < min_out.y)
+            min_out.y = y;
+        if (z < min_out.z)
+            min_out.z = z;
+        if (x > max_out.x)
+            max_out.x = x;
+        if (y > max_out.y)
+            max_out.y = y;
+        if (z > max_out.z)
+            max_out.z = z;
     }
 }
 

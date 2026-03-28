@@ -10,6 +10,7 @@
         #include <imgui_internal.h>
     #endif
     #include "../../../third_party/tinyfiledialogs.h"
+    #include "../../ui/dialog_env_guard.hpp"
 #endif
 
 #include <algorithm>
@@ -26,10 +27,11 @@ namespace
 #ifdef SPECTRA_USE_IMGUI
 std::string choose_ulog_file_path()
 {
-    char const* filter_patterns[] = {"*.ulg", "*.ulog"};
-    const char* home_env          = std::getenv("HOME");
-    std::string default_path      = home_env ? std::string(home_env) + "/" : "/";
-    const char* result            = tinyfd_openFileDialog("Open ULog",
+    DialogEnvGuard env_guard;
+    char const*    filter_patterns[] = {"*.ulg", "*.ulog"};
+    const char*    home_env          = std::getenv("HOME");
+    std::string    default_path      = home_env ? std::string(home_env) + "/" : "/";
+    const char*    result            = tinyfd_openFileDialog("Open ULog",
                                                default_path.c_str(),
                                                2,
                                                filter_patterns,

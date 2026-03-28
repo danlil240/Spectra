@@ -61,9 +61,9 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
 {
     newly_created_window_ids_.clear();
 
-    const bool vsync_mode = scheduler.mode() == FrameScheduler::Mode::VSync;
-    bool       scheduled_animation = false;
-    bool       animation_due_tick  = false;
+    const bool vsync_mode           = scheduler.mode() == FrameScheduler::Mode::VSync;
+    bool       scheduled_animation  = false;
+    bool       animation_due_tick   = false;
     bool       allow_animation_tick = true;
     bool       should_render_tick   = true;
     bool       has_any_animation    = false;
@@ -112,7 +112,7 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
     if (vsync_mode && scheduled_animation)
         animation_dt = animation_due_tick ? animation_tick_gate_.consume_accumulated_dt() : 0.0f;
 
-    // ── Unified window update + render loop ───────────────────────
+        // ── Unified window update + render loop ───────────────────────
 #ifdef SPECTRA_USE_GLFW
     if (window_mgr)
     {
@@ -392,7 +392,8 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
                 if (win_fs.has_animation)
                 {
                     has_any_animation = true;
-                    max_animation_fps = std::max(max_animation_fps, win_fs.active_figure->anim_fps_);
+                    max_animation_fps =
+                        std::max(max_animation_fps, win_fs.active_figure->anim_fps_);
                     if (not vsync_mode)
                         redraw_tracker_.mark_dirty("animation");
                 }

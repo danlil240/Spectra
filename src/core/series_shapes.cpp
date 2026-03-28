@@ -230,12 +230,12 @@ ShapeSeries& ShapeSeries::clear_shapes()
 
 void ShapeSeries::rotate_point(float& x, float& y, float cx, float cy, float angle)
 {
-    float dx  = x - cx;
-    float dy  = y - cy;
+    float dx    = x - cx;
+    float dy    = y - cy;
     float cos_a = std::cos(angle);
     float sin_a = std::sin(angle);
-    x = cx + dx * cos_a - dy * sin_a;
-    y = cy + dx * sin_a + dy * cos_a;
+    x           = cx + dx * cos_a - dy * sin_a;
+    y           = cy + dx * sin_a + dy * cos_a;
 }
 
 void ShapeSeries::push_nan_break()
@@ -244,9 +244,15 @@ void ShapeSeries::push_nan_break()
     line_y_.push_back(NaN);
 }
 
-void ShapeSeries::push_fill_tri(float x0, float y0, float a0,
-                                float x1, float y1, float a1,
-                                float x2, float y2, float a2)
+void ShapeSeries::push_fill_tri(float x0,
+                                float y0,
+                                float a0,
+                                float x1,
+                                float y1,
+                                float a1,
+                                float x2,
+                                float y2,
+                                float a2)
 {
     fill_verts_.push_back(x0);
     fill_verts_.push_back(y0);
@@ -282,7 +288,7 @@ void ShapeSeries::generate_rect(const ShapeDef& def)
     if (def.corner_radius > 0.0f)
     {
         // Rounded rectangle: approximate corners with arcs
-        float r = std::min(def.corner_radius, std::min(w * 0.5f, h * 0.5f));
+        float         r        = std::min(def.corner_radius, std::min(w * 0.5f, h * 0.5f));
         constexpr int arc_segs = 8;
 
         // Build vertices of rounded rect
@@ -322,9 +328,15 @@ void ShapeSeries::generate_rect(const ShapeDef& def)
         for (size_t i = 0; i < n; ++i)
         {
             size_t j = (i + 1) % n;
-            push_fill_tri(fcx, fcy, def.fill_opacity,
-                          vx[i], vy[i], def.fill_opacity,
-                          vx[j], vy[j], def.fill_opacity);
+            push_fill_tri(fcx,
+                          fcy,
+                          def.fill_opacity,
+                          vx[i],
+                          vy[i],
+                          def.fill_opacity,
+                          vx[j],
+                          vy[j],
+                          def.fill_opacity);
         }
 
         // Outline
@@ -353,12 +365,8 @@ void ShapeSeries::generate_rect(const ShapeDef& def)
         }
 
         // Fill: two triangles
-        push_fill_tri(x0, y0, def.fill_opacity,
-                      x1, y1, def.fill_opacity,
-                      x2, y2, def.fill_opacity);
-        push_fill_tri(x0, y0, def.fill_opacity,
-                      x2, y2, def.fill_opacity,
-                      x3, y3, def.fill_opacity);
+        push_fill_tri(x0, y0, def.fill_opacity, x1, y1, def.fill_opacity, x2, y2, def.fill_opacity);
+        push_fill_tri(x0, y0, def.fill_opacity, x2, y2, def.fill_opacity, x3, y3, def.fill_opacity);
 
         // Outline: four edges
         if (!line_x_.empty())
@@ -380,15 +388,21 @@ void ShapeSeries::generate_circle(const ShapeDef& def)
     // Fill: fan from center
     for (int i = 0; i < segs; ++i)
     {
-        float a0 = 2.0f * PI * static_cast<float>(i) / segs;
-        float a1 = 2.0f * PI * static_cast<float>(i + 1) / segs;
+        float a0  = 2.0f * PI * static_cast<float>(i) / segs;
+        float a1  = 2.0f * PI * static_cast<float>(i + 1) / segs;
         float px0 = cx + r * std::cos(a0);
         float py0 = cy + r * std::sin(a0);
         float px1 = cx + r * std::cos(a1);
         float py1 = cy + r * std::sin(a1);
-        push_fill_tri(cx, cy, def.fill_opacity,
-                      px0, py0, def.fill_opacity,
-                      px1, py1, def.fill_opacity);
+        push_fill_tri(cx,
+                      cy,
+                      def.fill_opacity,
+                      px0,
+                      py0,
+                      def.fill_opacity,
+                      px1,
+                      py1,
+                      def.fill_opacity);
     }
 
     // Outline
@@ -417,8 +431,8 @@ void ShapeSeries::generate_ellipse(const ShapeDef& def)
     // Fill: fan from center
     for (int i = 0; i < segs; ++i)
     {
-        float a0 = 2.0f * PI * static_cast<float>(i) / segs;
-        float a1 = 2.0f * PI * static_cast<float>(i + 1) / segs;
+        float a0  = 2.0f * PI * static_cast<float>(i) / segs;
+        float a1  = 2.0f * PI * static_cast<float>(i + 1) / segs;
         float px0 = cx + rx * std::cos(a0);
         float py0 = cy + ry * std::sin(a0);
         float px1 = cx + rx * std::cos(a1);
@@ -430,9 +444,15 @@ void ShapeSeries::generate_ellipse(const ShapeDef& def)
             rotate_point(px1, py1, cx, cy, def.rotation);
         }
 
-        push_fill_tri(cx, cy, def.fill_opacity,
-                      px0, py0, def.fill_opacity,
-                      px1, py1, def.fill_opacity);
+        push_fill_tri(cx,
+                      cy,
+                      def.fill_opacity,
+                      px0,
+                      py0,
+                      def.fill_opacity,
+                      px1,
+                      py1,
+                      def.fill_opacity);
     }
 
     // Outline
@@ -505,9 +525,15 @@ void ShapeSeries::generate_arrow(const ShapeDef& def)
     float right_x = shaft_end_x - px * head_w;
     float right_y = shaft_end_y - py * head_w;
 
-    push_fill_tri(x2, y2, def.fill_opacity,
-                  left_x, left_y, def.fill_opacity,
-                  right_x, right_y, def.fill_opacity);
+    push_fill_tri(x2,
+                  y2,
+                  def.fill_opacity,
+                  left_x,
+                  left_y,
+                  def.fill_opacity,
+                  right_x,
+                  right_y,
+                  def.fill_opacity);
 
     // Arrowhead outline
     push_outline_seg(x2, y2, left_x, left_y);
@@ -538,12 +564,24 @@ void ShapeSeries::generate_ring(const ShapeDef& def)
         float ix1 = cx + inner_r * std::cos(a1);
         float iy1 = cy + inner_r * std::sin(a1);
 
-        push_fill_tri(ox0, oy0, def.fill_opacity,
-                      ox1, oy1, def.fill_opacity,
-                      ix0, iy0, def.fill_opacity);
-        push_fill_tri(ix0, iy0, def.fill_opacity,
-                      ox1, oy1, def.fill_opacity,
-                      ix1, iy1, def.fill_opacity);
+        push_fill_tri(ox0,
+                      oy0,
+                      def.fill_opacity,
+                      ox1,
+                      oy1,
+                      def.fill_opacity,
+                      ix0,
+                      iy0,
+                      def.fill_opacity);
+        push_fill_tri(ix0,
+                      iy0,
+                      def.fill_opacity,
+                      ox1,
+                      oy1,
+                      def.fill_opacity,
+                      ix1,
+                      iy1,
+                      def.fill_opacity);
     }
 
     // Outline: outer circle + inner circle
@@ -593,9 +631,9 @@ void ShapeSeries::generate_polygon(const ShapeDef& def)
     // Fill: fan from centroid
     for (size_t i = 0; i < n; ++i)
     {
-        size_t j  = (i + 1) % n;
-        float vx0 = px[i], vy0 = py[i];
-        float vx1 = px[j], vy1 = py[j];
+        size_t j   = (i + 1) % n;
+        float  vx0 = px[i], vy0 = py[i];
+        float  vx1 = px[j], vy1 = py[j];
 
         if (def.rotation != 0.0f)
         {
@@ -607,9 +645,15 @@ void ShapeSeries::generate_polygon(const ShapeDef& def)
         if (def.rotation != 0.0f)
             rotate_point(rcx, rcy, cx, cy, def.rotation);
 
-        push_fill_tri(rcx, rcy, def.fill_opacity,
-                      vx0, vy0, def.fill_opacity,
-                      vx1, vy1, def.fill_opacity);
+        push_fill_tri(rcx,
+                      rcy,
+                      def.fill_opacity,
+                      vx0,
+                      vy0,
+                      def.fill_opacity,
+                      vx1,
+                      vy1,
+                      def.fill_opacity);
     }
 
     // Outline
@@ -617,9 +661,9 @@ void ShapeSeries::generate_polygon(const ShapeDef& def)
         push_nan_break();
     for (size_t i = 0; i < n; ++i)
     {
-        size_t j  = (i + 1) % n;
-        float vx0 = px[i], vy0 = py[i];
-        float vx1 = px[j], vy1 = py[j];
+        size_t j   = (i + 1) % n;
+        float  vx0 = px[i], vy0 = py[i];
+        float  vx1 = px[j], vy1 = py[j];
 
         if (def.rotation != 0.0f)
         {
@@ -645,13 +689,27 @@ void ShapeSeries::rebuild_geometry()
     {
         switch (def.type)
         {
-            case ShapeDef::Type::Rect: generate_rect(def); break;
-            case ShapeDef::Type::Circle: generate_circle(def); break;
-            case ShapeDef::Type::Ellipse: generate_ellipse(def); break;
-            case ShapeDef::Type::Line: generate_line(def); break;
-            case ShapeDef::Type::Arrow: generate_arrow(def); break;
-            case ShapeDef::Type::Ring: generate_ring(def); break;
-            case ShapeDef::Type::Polygon: generate_polygon(def); break;
+            case ShapeDef::Type::Rect:
+                generate_rect(def);
+                break;
+            case ShapeDef::Type::Circle:
+                generate_circle(def);
+                break;
+            case ShapeDef::Type::Ellipse:
+                generate_ellipse(def);
+                break;
+            case ShapeDef::Type::Line:
+                generate_line(def);
+                break;
+            case ShapeDef::Type::Arrow:
+                generate_arrow(def);
+                break;
+            case ShapeDef::Type::Ring:
+                generate_ring(def);
+                break;
+            case ShapeDef::Type::Polygon:
+                generate_polygon(def);
+                break;
             case ShapeDef::Type::Text:
             {
                 TextAnnotation ann;

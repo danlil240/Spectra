@@ -6,12 +6,14 @@
     #include <spectra/figure.hpp>
     #include <spectra/fwd.hpp>
 
+    #include "annotation.hpp"
     #include "crosshair.hpp"
     #include "data_marker.hpp"
     #include "ui/input/input.hpp"
     #include "legend_interaction.hpp"
     #include "ui/input/region_select.hpp"
     #include "tooltip.hpp"
+    #include "ui/workspace/overlay_snapshot.hpp"
 
 struct ImFont;
 
@@ -107,6 +109,20 @@ class DataInteraction
     LegendInteraction&       legend() { return legend_; }
     const LegendInteraction& legend() const { return legend_; }
 
+    // Annotation management (Annotate tool)
+    AnnotationManager&       annotations() { return annotations_; }
+    const AnnotationManager& annotations() const { return annotations_; }
+
+    // Handle mouse click in Annotate mode.
+    // Returns true if the click was consumed (annotation placed/removed).
+    bool on_mouse_click_annotate(int button, double screen_x, double screen_y);
+
+    // Handle mouse drag for annotation repositioning.
+    void begin_annotation_drag(double screen_x, double screen_y);
+    void update_annotation_drag(double screen_x, double screen_y);
+    void end_annotation_drag();
+    bool is_annotation_dragging() const { return annotations_.is_dragging(); }
+
     // Set the transition engine for animated markers/regions
     void set_transition_engine(class TransitionEngine* te);
 
@@ -188,6 +204,14 @@ class DataInteraction
     // Returns true when the point was valid for the provided series and a marker was placed.
     bool select_point(const Series* series, size_t point_index);
 
+    // Capture all overlay state into a plain-data snapshot for serialization.
+    // Resolves raw Axes* pointers to index within the given figure.
+    OverlaySnapshot capture_overlay_snapshot(const Figure& figure) const;
+
+    // Restore overlay state from a snapshot. Resolves axes indices back to
+    // pointers using the given figure. Clears existing markers/annotations first.
+    void restore_overlay_snapshot(const OverlaySnapshot& snapshot, Figure& figure);
+
    private:
     // Dispatch series/point callbacks from current nearest_ selection.
     // Returns true when dispatch succeeded.
@@ -200,6 +224,7 @@ class DataInteraction
     Tooltip            tooltip_;
     Crosshair          crosshair_;
     DataMarkerManager  markers_;
+    AnnotationManager  annotations_;
     RegionSelect       region_;
     LegendInteraction  legend_;
 

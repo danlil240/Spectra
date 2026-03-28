@@ -3,6 +3,7 @@
     #include "imgui_integration_internal.hpp"
 
     #include "../../../third_party/tinyfiledialogs.h"
+    #include "../dialog_env_guard.hpp"
 
 namespace spectra
 {
@@ -37,10 +38,10 @@ static bool icon_label_button(const char* icon_codepoint,
     ImGuiID       hover_anim_id  = ImGui::GetID("hover_anim");
     ImGuiID       active_anim_id = ImGui::GetID("active_anim");
     ImGui::InvisibleButton("##btn", ImVec2(width, cell_h));
-    bool  clicked = ImGui::IsItemClicked();
-    bool  hovered = ImGui::IsItemHovered();
-    float dt      = ImGui::GetIO().DeltaTime;
-    float hover_t = storage->GetFloat(hover_anim_id, hovered ? 1.0f : 0.0f);
+    bool  clicked  = ImGui::IsItemClicked();
+    bool  hovered  = ImGui::IsItemHovered();
+    float dt       = ImGui::GetIO().DeltaTime;
+    float hover_t  = storage->GetFloat(hover_anim_id, hovered ? 1.0f : 0.0f);
     float active_t = storage->GetFloat(active_anim_id, active ? 1.0f : 0.0f);
     hover_t += ((hovered ? 1.0f : 0.0f) - hover_t) * std::min(1.0f, dt * 16.0f);
     active_t += ((active ? 1.0f : 0.0f) - active_t) * std::min(1.0f, dt * 12.0f);
@@ -59,34 +60,34 @@ static bool icon_label_button(const char* icon_codepoint,
     {
         ui::Color glow_color =
             colors.accent_glow.lerp(colors.accent, 0.18f + active_t * 0.18f + hover_t * 0.08f);
-        dl->AddRectFilled(ImVec2(pill_min.x - 1.5f, pill_min.y - 1.0f),
-                          ImVec2(pill_max.x + 1.5f, pill_max.y + 1.5f),
-                          ImGui::ColorConvertFloat4ToU32(
-                              ImVec4(glow_color.r,
-                                     glow_color.g,
-                                     glow_color.b,
-                                     (0.06f + hover_t * 0.06f + active_t * 0.10f)
-                                         * colors.glow_intensity)),
-                          tokens::RADIUS_MD + 1.0f);
+        dl->AddRectFilled(
+            ImVec2(pill_min.x - 1.5f, pill_min.y - 1.0f),
+            ImVec2(pill_max.x + 1.5f, pill_max.y + 1.5f),
+            ImGui::ColorConvertFloat4ToU32(
+                ImVec4(glow_color.r,
+                       glow_color.g,
+                       glow_color.b,
+                       (0.06f + hover_t * 0.06f + active_t * 0.10f) * colors.glow_intensity)),
+            tokens::RADIUS_MD + 1.0f);
 
-        ui::Color pill_fill =
-            colors.bg_secondary.lerp(colors.bg_tertiary, 0.62f).lerp(colors.accent,
-                                                                      0.06f + active_t * 0.16f
-                                                                          + hover_t * 0.10f);
+        ui::Color pill_fill = colors.bg_secondary.lerp(colors.bg_tertiary, 0.62f)
+                                  .lerp(colors.accent, 0.06f + active_t * 0.16f + hover_t * 0.10f);
         dl->AddRectFilled(
             pill_min,
             pill_max,
-            ImGui::ColorConvertFloat4ToU32(
-                ImVec4(pill_fill.r, pill_fill.g, pill_fill.b, 0.55f + active_t * 0.36f + hover_t * 0.18f)),
+            ImGui::ColorConvertFloat4ToU32(ImVec4(pill_fill.r,
+                                                  pill_fill.g,
+                                                  pill_fill.b,
+                                                  0.55f + active_t * 0.36f + hover_t * 0.18f)),
             tokens::RADIUS_MD);
         dl->AddRect(
             pill_min,
             pill_max,
-            ImGui::ColorConvertFloat4ToU32(
-                ImVec4(colors.border_subtle.r * (1.0f - active_t) + colors.border_strong.r * active_t,
-                       colors.border_subtle.g * (1.0f - active_t) + colors.border_strong.g * active_t,
-                       colors.border_subtle.b * (1.0f - active_t) + colors.border_strong.b * active_t,
-                       0.28f + hover_t * 0.18f + active_t * 0.24f)),
+            ImGui::ColorConvertFloat4ToU32(ImVec4(
+                colors.border_subtle.r * (1.0f - active_t) + colors.border_strong.r * active_t,
+                colors.border_subtle.g * (1.0f - active_t) + colors.border_strong.g * active_t,
+                colors.border_subtle.b * (1.0f - active_t) + colors.border_strong.b * active_t,
+                0.28f + hover_t * 0.18f + active_t * 0.24f)),
             tokens::RADIUS_MD);
     }
 
@@ -108,21 +109,27 @@ static bool icon_label_button(const char* icon_codepoint,
         }
         dl->AddRectFilled(bar_min,
                           bar_max,
-                          ImGui::ColorConvertFloat4ToU32(
-                              ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.80f + active_t * 0.20f)),
+                          ImGui::ColorConvertFloat4ToU32(ImVec4(colors.accent.r,
+                                                                colors.accent.g,
+                                                                colors.accent.b,
+                                                                0.80f + active_t * 0.20f)),
                           1.0f);
     }
 
-    ui::Color icon_color =
-        colors.text_secondary.lerp(colors.text_primary, hover_t * 0.78f).lerp(colors.accent_hover,
-                                                                               active_t * 0.88f);
-    ui::Color text_color =
-        colors.text_secondary.lerp(colors.text_primary, hover_t * 0.60f).lerp(colors.accent_hover,
-                                                                               active_t * 0.80f);
-    ImU32 icon_col = ImGui::ColorConvertFloat4ToU32(
-        ImVec4(icon_color.r, icon_color.g, icon_color.b, 0.90f + hover_t * 0.08f + active_t * 0.10f));
-    ImU32 text_col = ImGui::ColorConvertFloat4ToU32(
-        ImVec4(text_color.r, text_color.g, text_color.b, 0.82f + hover_t * 0.10f + active_t * 0.08f));
+    ui::Color icon_color = colors.text_secondary.lerp(colors.text_primary, hover_t * 0.78f)
+                               .lerp(colors.accent_hover, active_t * 0.88f);
+    ui::Color text_color = colors.text_secondary.lerp(colors.text_primary, hover_t * 0.60f)
+                               .lerp(colors.accent_hover, active_t * 0.80f);
+    ImU32 icon_col =
+        ImGui::ColorConvertFloat4ToU32(ImVec4(icon_color.r,
+                                              icon_color.g,
+                                              icon_color.b,
+                                              0.90f + hover_t * 0.08f + active_t * 0.10f));
+    ImU32 text_col =
+        ImGui::ColorConvertFloat4ToU32(ImVec4(text_color.r,
+                                              text_color.g,
+                                              text_color.b,
+                                              0.82f + hover_t * 0.10f + active_t * 0.08f));
 
     float icon_draw_sz  = icon_sz * (1.0f + hover_t * 0.04f + active_t * 0.05f);
     float label_draw_sz = label_sz * (1.0f + hover_t * 0.02f + active_t * 0.03f);
@@ -178,28 +185,26 @@ void ImGuiIntegration::draw_panel(Figure& figure)
 //   • popup anchored to button's bottom-left corner
 void ImGuiIntegration::draw_menubar_menu(const char* label, const std::vector<MenuItem>& items)
 {
-    const auto& colors = ui::theme();
+    const auto& colors       = ui::theme();
     bool        menu_is_open = open_menu_label_ == label;
 
     ImGui::PushFont(font_menubar_);
-    ImGui::PushStyleColor(
-        ImGuiCol_Text,
-        ImVec4(colors.text_primary.r,
-               colors.text_primary.g,
-               colors.text_primary.b,
-               menu_is_open ? 1.0f : 0.88f));
+    ImGui::PushStyleColor(ImGuiCol_Text,
+                          ImVec4(colors.text_primary.r,
+                                 colors.text_primary.g,
+                                 colors.text_primary.b,
+                                 menu_is_open ? 1.0f : 0.88f));
     ImGui::PushStyleColor(
         ImGuiCol_Button,
-        menu_is_open ? ImVec4(colors.bg_tertiary.r, colors.bg_tertiary.g, colors.bg_tertiary.b, 0.95f)
-                     : ImVec4(0, 0, 0, 0));
+        menu_is_open
+            ? ImVec4(colors.bg_tertiary.r, colors.bg_tertiary.g, colors.bg_tertiary.b, 0.95f)
+            : ImVec4(0, 0, 0, 0));
     ImGui::PushStyleColor(
         ImGuiCol_ButtonHovered,
         ImVec4(colors.accent_subtle.r, colors.accent_subtle.g, colors.accent_subtle.b, 0.78f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive,
-                          ImVec4(colors.accent_muted.r,
-                                 colors.accent_muted.g,
-                                 colors.accent_muted.b,
-                                 0.95f));
+    ImGui::PushStyleColor(
+        ImGuiCol_ButtonActive,
+        ImVec4(colors.accent_muted.r, colors.accent_muted.g, colors.accent_muted.b, 0.95f));
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
                         ImVec2(ui::tokens::SPACE_4, ui::tokens::SPACE_2));
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, ui::tokens::RADIUS_MD);
@@ -273,8 +278,8 @@ void ImGuiIntegration::draw_menubar_menu(const char* label, const std::vector<Me
         }
 
         // Multi-layer soft shadow behind popup (elevation 3)
-        ImDrawList* bg_dl         = ImGui::GetBackgroundDrawList();
-        float       popup_shadow  = ui::tokens::ELEVATION_3_SPREAD;
+        ImDrawList* bg_dl        = ImGui::GetBackgroundDrawList();
+        float       popup_shadow = ui::tokens::ELEVATION_3_SPREAD;
         for (int si = 1; si <= 4; ++si)
         {
             float st    = static_cast<float>(si) / 4.0f;
@@ -282,8 +287,7 @@ void ImGuiIntegration::draw_menubar_menu(const char* label, const std::vector<Me
             float salph = 0.12f * (1.0f - st * 0.7f);
             bg_dl->AddRectFilled(
                 ImVec2(popup_pos.x + soff * 0.3f, popup_pos.y + soff * 0.5f),
-                ImVec2(popup_pos.x + popup_size.x + soff * 0.5f,
-                       popup_pos.y + popup_size.y + soff),
+                ImVec2(popup_pos.x + popup_size.x + soff * 0.5f, popup_pos.y + popup_size.y + soff),
                 IM_COL32(0, 0, 0, static_cast<int>(salph * 255)),
                 ui::tokens::RADIUS_LG + soff * 0.5f);
         }
@@ -486,10 +490,9 @@ void ImGuiIntegration::draw_command_bar()
                 float t     = static_cast<float>(i) / 4.0f;
                 float alpha = 0.10f * (1.0f - t);
                 float off   = shadow_spread * t;
-                bar_dl->AddRectFilled(
-                    ImVec2(wpos.x, bottom),
-                    ImVec2(wpos.x + wsz.x, bottom + off + 1.0f),
-                    IM_COL32(0, 0, 0, static_cast<int>(alpha * 255)));
+                bar_dl->AddRectFilled(ImVec2(wpos.x, bottom),
+                                      ImVec2(wpos.x + wsz.x, bottom + off + 1.0f),
+                                      IM_COL32(0, 0, 0, static_cast<int>(alpha * 255)));
             }
 
             // Crisp hairline border at bottom edge
@@ -643,11 +646,12 @@ void ImGuiIntegration::draw_command_bar()
                 [this]()
                 {
                     // Open native OS file dialog
-                    char const* filters[3] = {"*.csv", "*.tsv", "*.txt"};
-                    const char* home_env   = std::getenv("HOME");
-                    std::string home_dir   = home_env ? std::string(home_env) + "/" : "/";
-                    const char* home       = home_dir.c_str();
-                    char const* result =
+                    DialogEnvGuard env_guard;
+                    char const*    filters[3] = {"*.csv", "*.tsv", "*.txt"};
+                    const char*    home_env   = std::getenv("HOME");
+                    std::string    home_dir   = home_env ? std::string(home_env) + "/" : "/";
+                    const char*    home       = home_dir.c_str();
+                    char const*    result =
                         tinyfd_openFileDialog("Open CSV File", home, 3, filters, "CSV files", 0);
                     if (result)
                     {
@@ -1084,12 +1088,11 @@ void ImGuiIntegration::draw_nav_rail()
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowMinSize, ImVec2(0, 0));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
-    ImGui::PushStyleColor(
-        ImGuiCol_WindowBg,
-        ImVec4(ui::theme().bg_secondary.r,
-               ui::theme().bg_secondary.g,
-               ui::theme().bg_secondary.b,
-               0.98f));
+    ImGui::PushStyleColor(ImGuiCol_WindowBg,
+                          ImVec4(ui::theme().bg_secondary.r,
+                                 ui::theme().bg_secondary.g,
+                                 ui::theme().bg_secondary.b,
+                                 0.98f));
 
     ImGui::SetNextWindowPos(ImVec2(bounds.x, bounds.y), ImGuiCond_Always);
     ImGui::SetNextWindowSize(ImVec2(rail_w, bounds.h), ImGuiCond_Always);
@@ -1106,10 +1109,9 @@ void ImGuiIntegration::draw_nav_rail()
                 float t     = static_cast<float>(i) / 4.0f;
                 float alpha = 0.10f * (1.0f - t);
                 float off   = shadow_spread * t;
-                dl->AddRectFilled(
-                    ImVec2(right_edge, bounds.y),
-                    ImVec2(right_edge + off + 1.0f, bounds.y + bounds.h),
-                    IM_COL32(0, 0, 0, static_cast<int>(alpha * 255)));
+                dl->AddRectFilled(ImVec2(right_edge, bounds.y),
+                                  ImVec2(right_edge + off + 1.0f, bounds.y + bounds.h),
+                                  IM_COL32(0, 0, 0, static_cast<int>(alpha * 255)));
             }
 
             // Hairline border on right edge
@@ -1130,8 +1132,9 @@ void ImGuiIntegration::draw_nav_rail()
         {
             ImGui::Dummy(ImVec2(0, 3.0f));
             float  sep_inset = 14.0f;
-            ImVec2 p0 = ImVec2(ImGui::GetWindowPos().x + sep_inset, std::floor(ImGui::GetCursorScreenPos().y));
-            ImVec2 p1 = ImVec2(ImGui::GetWindowPos().x + rail_w - sep_inset, p0.y);
+            ImVec2 p0        = ImVec2(ImGui::GetWindowPos().x + sep_inset,
+                               std::floor(ImGui::GetCursorScreenPos().y));
+            ImVec2 p1        = ImVec2(ImGui::GetWindowPos().x + rail_w - sep_inset, p0.y);
             ImGui::GetWindowDrawList()->AddLine(p0,
                                                 p1,
                                                 IM_COL32(ui::theme().border_subtle.r * 255,

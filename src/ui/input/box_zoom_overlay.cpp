@@ -88,9 +88,9 @@ void BoxZoomOverlay::draw(float /*window_width*/, float /*window_height*/)
                                 static_cast<uint8_t>(border.b * 255),
                                 static_cast<uint8_t>(alpha * 255));
     ImU32       glow_col   = IM_COL32(static_cast<uint8_t>(colors.accent_glow.r * 255),
-                                static_cast<uint8_t>(colors.accent_glow.g * 255),
-                                static_cast<uint8_t>(colors.accent_glow.b * 255),
-                                static_cast<uint8_t>(alpha * 46));
+                              static_cast<uint8_t>(colors.accent_glow.g * 255),
+                              static_cast<uint8_t>(colors.accent_glow.b * 255),
+                              static_cast<uint8_t>(alpha * 46));
 
     dl->AddRect(ImVec2(x0 - 1.0f, y0 - 1.0f),
                 ImVec2(x1 + 1.0f, y1 + 1.0f),

@@ -75,14 +75,14 @@ void Tooltip::draw(const NearestPointResult& nearest,
     }
 
     // Tooltip layout constants
-    constexpr float padding     = 10.0f;
-    constexpr float swatch_r    = 5.0f;   // circle radius for color dot
-    constexpr float col_gap     = 10.0f;  // gap between label and value columns
-    constexpr float min_width   = 140.0f;
+    constexpr float padding   = 10.0f;
+    constexpr float swatch_r  = 5.0f;    // circle radius for color dot
+    constexpr float col_gap   = 10.0f;   // gap between label and value columns
+    constexpr float min_width = 140.0f;
 
-    ImFont* body_font  = font_body_ ? font_body_ : ImGui::GetFont();
-    float   font_sz    = body_font->LegacySize;
-    float   row_h      = font_sz + 4.0f;
+    ImFont* body_font = font_body_ ? font_body_ : ImGui::GetFont();
+    float   font_sz   = body_font->LegacySize;
+    float   row_h     = font_sz + 4.0f;
 
     // Format label/value pairs
     const char* lbl_x    = "X";
@@ -90,25 +90,24 @@ void Tooltip::draw(const NearestPointResult& nearest,
     const char* lbl_dydx = "dy/dx";
 
     // Measure column widths
-    float lbl_w = std::max({body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, lbl_x).x,
-                             body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, lbl_y).x,
-                             show_dydx ? body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, lbl_dydx).x
-                                       : 0.0f});
-    float val_w = std::max({body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, x_buf).x,
-                             body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, y_buf).x,
-                             show_dydx
-                                 ? body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, dydx_line + 6).x
-                                 : 0.0f});
-    float name_w  = body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, series_name).x
-                    + swatch_r * 2.0f + 6.0f;
+    float lbl_w =
+        std::max({body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, lbl_x).x,
+                  body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, lbl_y).x,
+                  show_dydx ? body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, lbl_dydx).x : 0.0f});
+    float val_w = std::max(
+        {body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, x_buf).x,
+         body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, y_buf).x,
+         show_dydx ? body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, dydx_line + 6).x : 0.0f});
+    float name_w =
+        body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, series_name).x + swatch_r * 2.0f + 6.0f;
     float data_row_w = lbl_w + col_gap + val_w;
     float content_w  = std::max({name_w, data_row_w, min_width});
     int   data_rows  = 2 + (show_dydx ? 1 : 0);
     float divider_h  = 6.0f;
     float tooltip_w  = content_w + padding * 2.0f;
-    float tooltip_h  = padding * 2.0f + row_h           // name row
-                       + divider_h                       // separator gap
-                       + row_h * static_cast<float>(data_rows);
+    float tooltip_h  = padding * 2.0f + row_h   // name row
+                      + divider_h               // separator gap
+                      + row_h * static_cast<float>(data_rows);
 
     // Position: above-right of the snap point, clamped to window
     float offset_x = 14.0f;
@@ -155,19 +154,18 @@ void Tooltip::draw(const NearestPointResult& nearest,
         }
 
         // Background
-        ImU32 bg_col = ImGui::ColorConvertFloat4ToU32(
-            ImVec4(colors.tooltip_bg.r,
-                   colors.tooltip_bg.g,
-                   colors.tooltip_bg.b,
-                   colors.tooltip_bg.a * opacity_));
+        ImU32 bg_col = ImGui::ColorConvertFloat4ToU32(ImVec4(colors.tooltip_bg.r,
+                                                             colors.tooltip_bg.g,
+                                                             colors.tooltip_bg.b,
+                                                             colors.tooltip_bg.a * opacity_));
         fg->AddRectFilled(ImVec2(tx, ty), ImVec2(tx + tooltip_w, ty + tooltip_h), bg_col, rnd);
 
         // Border
-        ImU32 border_col = ImGui::ColorConvertFloat4ToU32(
-            ImVec4(colors.tooltip_border.r,
-                   colors.tooltip_border.g,
-                   colors.tooltip_border.b,
-                   colors.tooltip_border.a * opacity_));
+        ImU32 border_col =
+            ImGui::ColorConvertFloat4ToU32(ImVec4(colors.tooltip_border.r,
+                                                  colors.tooltip_border.g,
+                                                  colors.tooltip_border.b,
+                                                  colors.tooltip_border.a * opacity_));
         fg->AddRect(ImVec2(tx, ty),
                     ImVec2(tx + tooltip_w, ty + tooltip_h),
                     border_col,
@@ -180,11 +178,10 @@ void Tooltip::draw(const NearestPointResult& nearest,
 
         // ── Row 1: circle swatch + series name ──
         float cy_name = oy + (row_h - swatch_r * 2.0f) * 0.5f;
-        fg->AddCircleFilled(
-            ImVec2(ox + swatch_r, cy_name + swatch_r),
-            swatch_r,
-            ImGui::ColorConvertFloat4ToU32(
-                ImVec4(series_color.r, series_color.g, series_color.b, opacity_)));
+        fg->AddCircleFilled(ImVec2(ox + swatch_r, cy_name + swatch_r),
+                            swatch_r,
+                            ImGui::ColorConvertFloat4ToU32(
+                                ImVec4(series_color.r, series_color.g, series_color.b, opacity_)));
         fg->AddCircle(ImVec2(ox + swatch_r, cy_name + swatch_r),
                       swatch_r,
                       ImGui::ColorConvertFloat4ToU32(ImVec4(1.0f, 1.0f, 1.0f, 0.18f * opacity_)));
@@ -201,11 +198,10 @@ void Tooltip::draw(const NearestPointResult& nearest,
         // ── Divider ──
         {
             float div_y   = oy + row_h + divider_h * 0.5f - 0.5f;
-            ImU32 div_col = ImGui::ColorConvertFloat4ToU32(
-                ImVec4(colors.border_subtle.r,
-                       colors.border_subtle.g,
-                       colors.border_subtle.b,
-                       0.35f * opacity_));
+            ImU32 div_col = ImGui::ColorConvertFloat4ToU32(ImVec4(colors.border_subtle.r,
+                                                                  colors.border_subtle.g,
+                                                                  colors.border_subtle.b,
+                                                                  0.35f * opacity_));
             fg->AddLine(ImVec2(ox, div_y), ImVec2(ox + content_w, div_y), div_col, 0.75f);
         }
 

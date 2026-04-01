@@ -8,7 +8,7 @@
 #include <string>
 #include <vector>
 
-#include "figure_registry.hpp"
+#include <spectra/figure_registry.hpp>
 
 namespace spectra
 {

@@ -2,7 +2,7 @@
 #include <spectra/axes3d.hpp>
 #include <spectra/embed.hpp>
 
-#include "ui/figures/figure_registry.hpp"
+#include <spectra/figure_registry.hpp>
 
 #include <cstdint>
 #include <cstring>

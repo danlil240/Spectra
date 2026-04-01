@@ -27,6 +27,7 @@
 
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
+    #include "ui/app/session_runtime.hpp"
     #include "ui/app/window_ui_context.hpp"
     #include "ui/commands/command_registry.hpp"
     #include "ui/figures/figure_manager.hpp"
@@ -529,6 +530,9 @@ class QAAgent
         {
             if (has_critical_issue())
                 break;
+            // Force a render even when event-driven rendering gate is idle.
+            if (auto* s = app_->session())
+                s->redraw_tracker().mark_dirty("qa_pump");
             try
             {
                 auto result = app_->step();
@@ -3953,13 +3957,53 @@ class QAAgent
             }
         }
 
+        // ── Scenario 56: Tiny window (320×240) with all panels open ────
+        // DES-I9: Verify no panel overflow / occlusion when inspector,
+        // timeline, and nav rail are all open at minimum window size.
+        {
+            auto* wm = app_->window_manager();
+            auto* ui = app_->ui_context();
+            if (wm && ui && ui->imgui_ui && !wm->windows().empty())
+            {
+                auto* wctx     = wm->windows()[0];
+                auto* glfw_win = static_cast<GLFWwindow*>(wctx->glfw_window);
+                if (glfw_win)
+                {
+                    // Switch to Figure 1 so there is visible content
+                    auto ids = app_->figure_registry().all_ids();
+                    if (!ids.empty())
+                        ui->fig_mgr->queue_switch(ids[0]);
+                    pump_frames(5);
+
+                    // Open all panels: inspector, nav rail expanded, timeline
+                    auto& lm = ui->imgui_ui->get_layout_manager();
+                    lm.set_inspector_visible(true);
+                    lm.set_nav_rail_expanded(true);
+                    lm.set_bottom_panel_height(120.0f);
+                    pump_frames(10);
+
+                    // Shrink to 320×240
+                    glfwSetWindowSize(glfw_win, 320, 240);
+                    pump_frames(20);
+                    named_screenshot("56_tiny_window_all_panels_open");
+
+                    // Restore window and hide panels
+                    glfwSetWindowSize(glfw_win, 1280, 720);
+                    lm.set_inspector_visible(false);
+                    lm.set_nav_rail_expanded(false);
+                    lm.set_bottom_panel_height(0.0f);
+                    pump_frames(15);
+                }
+            }
+        }
+
         // ── Summary ─────────────────────────────────────────────────────
         fprintf(stderr,
                 "[QA/Design] Captured %zu design screenshots in %s/design/\n",
                 design_screenshots_.size(),
                 opts_.output_dir.c_str());
 
-        static constexpr size_t EXPECTED_DESIGN_SHOTS = 56;
+        static constexpr size_t EXPECTED_DESIGN_SHOTS = 57;
         if (design_screenshots_.size() != EXPECTED_DESIGN_SHOTS)
         {
             add_issue(IssueSeverity::Error,

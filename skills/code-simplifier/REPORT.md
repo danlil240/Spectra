@@ -44,6 +44,22 @@ Use this format for each entry:
 
 ---
 
+### [2025-07-25] MR-1: Split renderer.cpp (3,338 → 735 lines)
+
+- **Files:** `src/render/renderer.cpp`, `src/render/render_2d.cpp`, `src/render/render_3d.cpp`, `src/render/render_geometry.cpp`, `src/render/render_upload.cpp`
+- **Risk:** med
+- **Change:** Extracted 2D rendering (598 lines), 3D rendering (560 lines), geometry helpers (1,142 lines), and GPU upload (426 lines) into focused translation units. Core renderer.cpp retained orchestration logic only (735 lines). All methods remain `Renderer` members via separate TUs including the same header.
+- **Verification:** Build + `ctest --test-dir build -LE gpu` (111/112 pass — 1 pre-existing ROS2 SEGFAULT)
+- **Status:** Done
+
+### [2025-07-25] MR-2: Split vk_backend.cpp (2,932 → 1,299 lines)
+
+- **Files:** `src/render/vulkan/vk_backend.cpp`, `src/render/vulkan/vk_texture.cpp`, `src/render/vulkan/vk_frame.cpp`, `src/render/vulkan/vk_capture.cpp`, `src/render/vulkan/vk_multi_window.cpp`
+- **Risk:** med
+- **Change:** Extracted texture create/destroy (370 lines), frame lifecycle + draw commands + queries (485 lines), framebuffer readback/capture (453 lines), and multi-window context management (397 lines) into focused translation units. Core vk_backend.cpp retained init/shutdown, surface, swapchain, pipelines, buffers, and descriptor management (1,299 lines).
+- **Verification:** Build + `ctest --test-dir build -LE gpu` (111/112 pass — 1 pre-existing ROS2 SEGFAULT)
+- **Status:** Done
+
 ## In Progress
 
 _None._

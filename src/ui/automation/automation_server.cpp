@@ -17,7 +17,7 @@
 #include "ui/app/window_ui_context.hpp"
 #include "ui/commands/command_registry.hpp"
 #include "ui/figures/figure_manager.hpp"
-#include "ui/figures/figure_registry.hpp"
+#include <spectra/figure_registry.hpp>
 
 #ifdef SPECTRA_USE_GLFW
     #define GLFW_INCLUDE_NONE

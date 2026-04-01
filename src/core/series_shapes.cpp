@@ -727,9 +727,4 @@ void ShapeSeries::rebuild_geometry()
     }
 }
 
-void ShapeSeries::record_commands(Renderer& /*renderer*/)
-{
-    // Actual GPU command recording is handled by the Renderer.
-}
-
 }   // namespace spectra

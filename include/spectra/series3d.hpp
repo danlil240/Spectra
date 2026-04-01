@@ -55,8 +55,6 @@ class LineSeries3D : public Series
     std::span<const float> z_data() const { return z_; }
     size_t                 point_count() const { return x_.size(); }
 
-    void record_commands(Renderer& renderer) override;
-
     vec3 compute_centroid() const;
     void get_bounds(vec3& min_out, vec3& max_out) const;
 
@@ -138,8 +136,6 @@ class ScatterSeries3D : public Series
     std::span<const float> y_data() const { return y_; }
     std::span<const float> z_data() const { return z_; }
     size_t                 point_count() const { return x_.size(); }
-
-    void record_commands(Renderer& renderer) override;
 
     vec3 compute_centroid() const;
     void get_bounds(vec3& min_out, vec3& max_out) const;
@@ -233,8 +229,6 @@ class SurfaceSeries : public Series
 
     void generate_mesh();
     void generate_wireframe_mesh();
-
-    void record_commands(Renderer& renderer) override;
 
     vec3 compute_centroid() const;
     void get_bounds(vec3& min_out, vec3& max_out) const;
@@ -399,8 +393,6 @@ class MeshSeries : public Series
 
     size_t vertex_count() const { return vertices_.size() / 6; }
     size_t triangle_count() const { return indices_.size() / 3; }
-
-    void record_commands(Renderer& renderer) override;
 
     vec3 compute_centroid() const;
     void get_bounds(vec3& min_out, vec3& max_out) const;

@@ -119,8 +119,6 @@ class ShapeSeries3D : public Series
     // Rebuild mesh geometry from shape definitions.
     void rebuild_geometry();
 
-    void record_commands(Renderer& renderer) override;
-
     // 3D bounds for auto_fit
     vec3 compute_centroid() const;
     void get_bounds(vec3& min_out, vec3& max_out) const;

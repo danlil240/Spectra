@@ -261,7 +261,7 @@ class RosAppShell
 
     int active_plot_count() const;
 
-    bool add_topic_plot(const std::string& topic_field);
+    bool add_topic_plot(const std::string& topic_field, const std::string& type_hint = "");
     void clear_plots();
 
     RosSession capture_session() const;

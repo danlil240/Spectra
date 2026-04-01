@@ -227,9 +227,10 @@ void App::run_multiproc()
                 continue;
             fig->compute_layout();
 
-            uint32_t export_w = fig->png_export_width_ > 0 ? fig->png_export_width_ : fig->width();
+            uint32_t export_w =
+                fig->export_req_.png_width > 0 ? fig->export_req_.png_width : fig->width();
             uint32_t export_h =
-                fig->png_export_height_ > 0 ? fig->png_export_height_ : fig->height();
+                fig->export_req_.png_height > 0 ? fig->export_req_.png_height : fig->height();
 
             backend_->create_offscreen_framebuffer(export_w, export_h);
             static_cast<VulkanBackend*>(backend_.get())->ensure_pipelines();
@@ -250,16 +251,16 @@ void App::run_multiproc()
             fig->config_.height = orig_h;
             fig->compute_layout();
 
-            if (!fig->png_export_path_.empty())
+            if (!fig->export_req_.png_path.empty())
             {
                 std::vector<uint8_t> pixels(static_cast<size_t>(export_w) * export_h * 4);
                 if (backend_->readback_framebuffer(pixels.data(), export_w, export_h))
                 {
-                    if (!ImageExporter::write_png(fig->png_export_path_,
+                    if (!ImageExporter::write_png(fig->export_req_.png_path,
                                                   pixels.data(),
                                                   export_w,
                                                   export_h))
-                        std::cerr << "[spectra] Failed to write PNG: " << fig->png_export_path_
+                        std::cerr << "[spectra] Failed to write PNG: " << fig->export_req_.png_path
                                   << "\n";
                 }
                 else
@@ -268,10 +269,11 @@ void App::run_multiproc()
                 }
             }
 
-            if (!fig->svg_export_path_.empty())
+            if (!fig->export_req_.svg_path.empty())
             {
-                if (!SvgExporter::write_svg(fig->svg_export_path_, *fig))
-                    std::cerr << "[spectra] Failed to write SVG: " << fig->svg_export_path_ << "\n";
+                if (!SvgExporter::write_svg(fig->export_req_.svg_path, *fig))
+                    std::cerr << "[spectra] Failed to write SVG: " << fig->export_req_.svg_path
+                              << "\n";
             }
         }
 
@@ -572,9 +574,9 @@ void App::run_multiproc()
                 Figure* fig = registry_.get(id);
                 if (fig && fig->has_animation())
                 {
-                    if (fig->anim_on_frame_)
+                    if (fig->anim_.on_frame)
                     {
-                        fig->anim_on_frame_(frame);
+                        fig->anim_.on_frame(frame);
                     }
                 }
 

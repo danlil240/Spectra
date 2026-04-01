@@ -1,0 +1,426 @@
+// render_upload.cpp — Series GPU data upload and dirty tracking.
+// Split from renderer.cpp (MR-1) for focused module ownership.
+
+#include "renderer.hpp"
+
+#include <cstring>
+#include <spectra/series.hpp>
+#include <spectra/series3d.hpp>
+#include <spectra/series_shapes.hpp>
+#include <spectra/series_shapes3d.hpp>
+#include <spectra/series_stats.hpp>
+
+namespace spectra
+{
+
+void Renderer::upload_series_data(Series& series)
+{
+    upload_series_data(series, 0.0, 0.0);
+}
+
+void Renderer::upload_series_data(Series& series, double origin_x, double origin_y)
+{
+    // Try 2D series first
+    auto* line    = dynamic_cast<LineSeries*>(&series);
+    auto* scatter = dynamic_cast<ScatterSeries*>(&series);
+
+    // Try 3D series
+    auto* line3d    = dynamic_cast<LineSeries3D*>(&series);
+    auto* scatter3d = dynamic_cast<ScatterSeries3D*>(&series);
+    auto* surface   = dynamic_cast<SurfaceSeries*>(&series);
+    auto* mesh      = dynamic_cast<MeshSeries*>(&series);
+
+    // Try statistical series
+    auto* boxplot   = dynamic_cast<BoxPlotSeries*>(&series);
+    auto* violin    = dynamic_cast<ViolinSeries*>(&series);
+    auto* histogram = dynamic_cast<HistogramSeries*>(&series);
+    auto* bar       = dynamic_cast<BarSeries*>(&series);
+
+    // Try shape series
+    auto* shape   = dynamic_cast<ShapeSeries*>(&series);
+    auto* shape3d = dynamic_cast<ShapeSeries3D*>(&series);
+
+    auto& gpu = series_gpu_data_[&series];
+
+    // Tag series type on first encounter (avoids dynamic_cast in render_series)
+    if (gpu.type == SeriesType::Unknown)
+    {
+        if (line)
+            gpu.type = SeriesType::Line2D;
+        else if (scatter)
+            gpu.type = SeriesType::Scatter2D;
+        else if (line3d)
+            gpu.type = SeriesType::Line3D;
+        else if (scatter3d)
+            gpu.type = SeriesType::Scatter3D;
+        else if (surface)
+            gpu.type = SeriesType::Surface3D;
+        else if (mesh)
+            gpu.type = SeriesType::Mesh3D;
+        else if (boxplot)
+            gpu.type = SeriesType::BoxPlot2D;
+        else if (violin)
+            gpu.type = SeriesType::Violin2D;
+        else if (histogram)
+            gpu.type = SeriesType::Histogram2D;
+        else if (bar)
+            gpu.type = SeriesType::Bar2D;
+        else if (shape)
+            gpu.type = SeriesType::Shape2D;
+        else if (shape3d)
+            gpu.type = SeriesType::Shape3D;
+    }
+
+    // Handle 2D line/scatter and statistical/shape series (vec2 interleaved)
+    if (line || scatter || boxplot || violin || histogram || bar || shape)
+    {
+        const float* x_data = nullptr;
+        const float* y_data = nullptr;
+        size_t       count  = 0;
+
+        if (line)
+        {
+            x_data = line->x_data().data();
+            y_data = line->y_data().data();
+            count  = line->point_count();
+        }
+        else if (scatter)
+        {
+            x_data = scatter->x_data().data();
+            y_data = scatter->y_data().data();
+            count  = scatter->point_count();
+        }
+        else if (boxplot)
+        {
+            boxplot->rebuild_geometry();
+            x_data = boxplot->x_data().data();
+            y_data = boxplot->y_data().data();
+            count  = boxplot->point_count();
+        }
+        else if (violin)
+        {
+            violin->rebuild_geometry();
+            x_data = violin->x_data().data();
+            y_data = violin->y_data().data();
+            count  = violin->point_count();
+        }
+        else if (histogram)
+        {
+            histogram->rebuild_geometry();
+            x_data = histogram->x_data().data();
+            y_data = histogram->y_data().data();
+            count  = histogram->point_count();
+        }
+        else if (bar)
+        {
+            bar->rebuild_geometry();
+            x_data = bar->x_data().data();
+            y_data = bar->y_data().data();
+            count  = bar->point_count();
+        }
+        else if (shape)
+        {
+            shape->rebuild_geometry();
+            x_data = shape->x_data().data();
+            y_data = shape->y_data().data();
+            count  = shape->point_count();
+        }
+
+        if (count == 0)
+            return;
+
+        size_t byte_size = count * 2 * sizeof(float);
+        if (!gpu.ssbo || gpu.uploaded_count < count)
+        {
+            if (gpu.ssbo)
+                backend_.destroy_buffer(gpu.ssbo);
+            size_t alloc_size = byte_size * 2;
+            gpu.ssbo          = backend_.create_buffer(BufferUsage::Storage, alloc_size);
+        }
+
+        size_t floats_needed = count * 2;
+        if (upload_scratch_.size() < floats_needed)
+            upload_scratch_.resize(floats_needed);
+        // Camera-relative upload: subtract origin in double precision
+        // before converting to float.  Keeps GPU floats small, eliminating
+        // catastrophic cancellation at deep zoom.
+        for (size_t i = 0; i < count; ++i)
+        {
+            upload_scratch_[i * 2] = static_cast<float>(static_cast<double>(x_data[i]) - origin_x);
+            upload_scratch_[i * 2 + 1] =
+                static_cast<float>(static_cast<double>(y_data[i]) - origin_y);
+        }
+
+        backend_.upload_buffer(gpu.ssbo, upload_scratch_.data(), byte_size);
+        gpu.uploaded_count = count;
+        gpu.origin_x       = origin_x;
+        gpu.origin_y       = origin_y;
+
+        // Upload fill geometry for statistical series (interleaved {x,y,alpha} vertex buffer)
+        std::span<const float> fill_verts;
+        size_t                 fill_count = 0;
+        if (boxplot && boxplot->fill_vertex_count() > 0)
+        {
+            fill_verts = boxplot->fill_verts();
+            fill_count = boxplot->fill_vertex_count();
+        }
+        else if (violin && violin->fill_vertex_count() > 0)
+        {
+            fill_verts = violin->fill_verts();
+            fill_count = violin->fill_vertex_count();
+        }
+        else if (histogram && histogram->fill_vertex_count() > 0)
+        {
+            fill_verts = histogram->fill_verts();
+            fill_count = histogram->fill_vertex_count();
+        }
+        else if (bar && bar->fill_vertex_count() > 0)
+        {
+            fill_verts = bar->fill_verts();
+            fill_count = bar->fill_vertex_count();
+        }
+        else if (shape && shape->fill_vertex_count() > 0)
+        {
+            fill_verts = shape->fill_verts();
+            fill_count = shape->fill_vertex_count();
+        }
+
+        if (fill_count > 0)
+        {
+            // 3 floats per vertex: x, y, alpha — apply origin offset
+            size_t fill_bytes  = fill_count * 3 * sizeof(float);
+            size_t fill_floats = fill_count * 3;
+            if (!gpu.fill_buffer || gpu.fill_vertex_count < fill_count)
+            {
+                if (gpu.fill_buffer)
+                    backend_.destroy_buffer(gpu.fill_buffer);
+                gpu.fill_buffer = backend_.create_buffer(BufferUsage::Vertex, fill_bytes * 2);
+            }
+
+            if (origin_x != 0.0 || origin_y != 0.0)
+            {
+                // Re-center fill vertices (stride=3: x, y, alpha)
+                if (upload_scratch_.size() < fill_floats)
+                    upload_scratch_.resize(fill_floats);
+                const float* fv = fill_verts.data();
+                for (size_t i = 0; i < fill_count; ++i)
+                {
+                    upload_scratch_[i * 3] =
+                        static_cast<float>(static_cast<double>(fv[i * 3]) - origin_x);
+                    upload_scratch_[i * 3 + 1] =
+                        static_cast<float>(static_cast<double>(fv[i * 3 + 1]) - origin_y);
+                    upload_scratch_[i * 3 + 2] = fv[i * 3 + 2];   // alpha unchanged
+                }
+                backend_.upload_buffer(gpu.fill_buffer, upload_scratch_.data(), fill_bytes);
+            }
+            else
+            {
+                backend_.upload_buffer(gpu.fill_buffer, fill_verts.data(), fill_bytes);
+            }
+            gpu.fill_vertex_count = fill_count;
+        }
+
+        // Upload outlier data for box plots (persistent buffer, avoids in-flight destruction)
+        if (boxplot && boxplot->outlier_count() > 0)
+        {
+            size_t out_count     = boxplot->outlier_count();
+            size_t out_byte_size = out_count * 2 * sizeof(float);
+            if (!gpu.outlier_buffer || gpu.outlier_count < out_count)
+            {
+                if (gpu.outlier_buffer)
+                    backend_.destroy_buffer(gpu.outlier_buffer);
+                gpu.outlier_buffer =
+                    backend_.create_buffer(BufferUsage::Storage, out_byte_size * 2);
+            }
+            size_t out_floats = out_count * 2;
+            if (upload_scratch_.size() < out_floats)
+                upload_scratch_.resize(out_floats);
+            const float* ox = boxplot->outlier_x().data();
+            const float* oy = boxplot->outlier_y().data();
+            for (size_t i = 0; i < out_count; ++i)
+            {
+                upload_scratch_[i * 2] = static_cast<float>(static_cast<double>(ox[i]) - origin_x);
+                upload_scratch_[i * 2 + 1] =
+                    static_cast<float>(static_cast<double>(oy[i]) - origin_y);
+            }
+            backend_.upload_buffer(gpu.outlier_buffer, upload_scratch_.data(), out_byte_size);
+            gpu.outlier_count = out_count;
+        }
+        else if (boxplot)
+        {
+            gpu.outlier_count = 0;
+        }
+
+        series.clear_dirty();
+    }
+    // Handle 3D line/scatter (vec4 interleaved: x,y,z,pad)
+    else if (line3d || scatter3d)
+    {
+        const float* x_data = nullptr;
+        const float* y_data = nullptr;
+        const float* z_data = nullptr;
+        size_t       count  = 0;
+
+        if (line3d)
+        {
+            x_data = line3d->x_data().data();
+            y_data = line3d->y_data().data();
+            z_data = line3d->z_data().data();
+            count  = line3d->point_count();
+        }
+        else if (scatter3d)
+        {
+            x_data = scatter3d->x_data().data();
+            y_data = scatter3d->y_data().data();
+            z_data = scatter3d->z_data().data();
+            count  = scatter3d->point_count();
+        }
+
+        if (count == 0)
+            return;
+
+        size_t byte_size = count * 4 * sizeof(float);
+        if (!gpu.ssbo || gpu.uploaded_count < count)
+        {
+            if (gpu.ssbo)
+                backend_.destroy_buffer(gpu.ssbo);
+            size_t alloc_size = byte_size * 2;
+            gpu.ssbo          = backend_.create_buffer(BufferUsage::Storage, alloc_size);
+        }
+
+        size_t floats_needed = count * 4;
+        if (upload_scratch_.size() < floats_needed)
+            upload_scratch_.resize(floats_needed);
+        for (size_t i = 0; i < count; ++i)
+        {
+            upload_scratch_[i * 4]     = x_data[i];
+            upload_scratch_[i * 4 + 1] = y_data[i];
+            upload_scratch_[i * 4 + 2] = z_data[i];
+            upload_scratch_[i * 4 + 3] = 0.0f;   // padding
+        }
+
+        backend_.upload_buffer(gpu.ssbo, upload_scratch_.data(), byte_size);
+        gpu.uploaded_count = count;
+        series.clear_dirty();
+    }
+    // Handle surface (vertex buffer + index buffer)
+    else if (surface)
+    {
+        // Choose between wireframe and solid mesh
+        const SurfaceMesh* active_mesh = nullptr;
+        if (surface->wireframe())
+        {
+            if (!surface->is_wireframe_mesh_generated())
+            {
+                surface->generate_wireframe_mesh();
+            }
+            if (!surface->is_wireframe_mesh_generated())
+                return;
+            active_mesh = &surface->wireframe_mesh();
+        }
+        else
+        {
+            if (!surface->is_mesh_generated())
+            {
+                surface->generate_mesh();
+            }
+            if (!surface->is_mesh_generated())
+                return;
+            active_mesh = &surface->mesh();
+        }
+
+        if (active_mesh->vertices.empty() || active_mesh->indices.empty())
+            return;
+
+        size_t vert_byte_size = active_mesh->vertices.size() * sizeof(float);
+        size_t idx_byte_size  = active_mesh->indices.size() * sizeof(uint32_t);
+
+        // Vertex buffer
+        if (!gpu.ssbo || gpu.uploaded_count < active_mesh->vertex_count)
+        {
+            if (gpu.ssbo)
+                backend_.destroy_buffer(gpu.ssbo);
+            gpu.ssbo = backend_.create_buffer(BufferUsage::Vertex, vert_byte_size);
+        }
+        backend_.upload_buffer(gpu.ssbo, active_mesh->vertices.data(), vert_byte_size);
+        gpu.uploaded_count = active_mesh->vertex_count;
+
+        // Index buffer
+        if (!gpu.index_buffer || gpu.index_count < active_mesh->indices.size())
+        {
+            if (gpu.index_buffer)
+                backend_.destroy_buffer(gpu.index_buffer);
+            gpu.index_buffer = backend_.create_buffer(BufferUsage::Index, idx_byte_size);
+        }
+        backend_.upload_buffer(gpu.index_buffer, active_mesh->indices.data(), idx_byte_size);
+        gpu.index_count = active_mesh->indices.size();
+
+        series.clear_dirty();
+    }
+    // Handle mesh (vertex buffer + index buffer)
+    else if (mesh)
+    {
+        if (mesh->vertices().empty() || mesh->indices().empty())
+            return;
+
+        size_t vert_byte_size = mesh->vertices().size() * sizeof(float);
+        size_t idx_byte_size  = mesh->indices().size() * sizeof(uint32_t);
+
+        // Vertex buffer
+        if (!gpu.ssbo || gpu.uploaded_count < mesh->vertex_count())
+        {
+            if (gpu.ssbo)
+                backend_.destroy_buffer(gpu.ssbo);
+            gpu.ssbo = backend_.create_buffer(BufferUsage::Vertex, vert_byte_size);
+        }
+        backend_.upload_buffer(gpu.ssbo, mesh->vertices().data(), vert_byte_size);
+        gpu.uploaded_count = mesh->vertex_count();
+
+        // Index buffer
+        if (!gpu.index_buffer || gpu.index_count < mesh->indices().size())
+        {
+            if (gpu.index_buffer)
+                backend_.destroy_buffer(gpu.index_buffer);
+            gpu.index_buffer = backend_.create_buffer(BufferUsage::Index, idx_byte_size);
+        }
+        backend_.upload_buffer(gpu.index_buffer, mesh->indices().data(), idx_byte_size);
+        gpu.index_count = mesh->indices().size();
+
+        series.clear_dirty();
+    }
+    // Handle 3D shapes (vertex buffer + index buffer, same as MeshSeries)
+    else if (shape3d)
+    {
+        shape3d->rebuild_geometry();
+
+        if (shape3d->vertices().empty() || shape3d->indices().empty())
+            return;
+
+        size_t vert_byte_size = shape3d->vertices().size() * sizeof(float);
+        size_t idx_byte_size  = shape3d->indices().size() * sizeof(uint32_t);
+
+        // Vertex buffer
+        if (!gpu.ssbo || gpu.uploaded_count < shape3d->vertex_count())
+        {
+            if (gpu.ssbo)
+                backend_.destroy_buffer(gpu.ssbo);
+            gpu.ssbo = backend_.create_buffer(BufferUsage::Vertex, vert_byte_size);
+        }
+        backend_.upload_buffer(gpu.ssbo, shape3d->vertices().data(), vert_byte_size);
+        gpu.uploaded_count = shape3d->vertex_count();
+
+        // Index buffer
+        if (!gpu.index_buffer || gpu.index_count < shape3d->indices().size())
+        {
+            if (gpu.index_buffer)
+                backend_.destroy_buffer(gpu.index_buffer);
+            gpu.index_buffer = backend_.create_buffer(BufferUsage::Index, idx_byte_size);
+        }
+        backend_.upload_buffer(gpu.index_buffer, shape3d->indices().data(), idx_byte_size);
+        gpu.index_count = shape3d->indices().size();
+
+        series.clear_dirty();
+    }
+}
+
+}   // namespace spectra

@@ -21,7 +21,7 @@
 #include "../render/renderer.hpp"
 #include "../render/vulkan/vk_backend.hpp"
 #include "ui/commands/command_queue.hpp"
-#include "ui/figures/figure_registry.hpp"
+#include <spectra/figure_registry.hpp>
 #include "ui/overlay/knob_manager.hpp"
 #include "ui/app/register_commands.hpp"
 #include "ui/app/session_runtime.hpp"

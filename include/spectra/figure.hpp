@@ -68,6 +68,30 @@ class AnimationBuilder
     std::function<void(Frame&)> on_frame_;
 };
 
+// Pending export requests (PNG / SVG / video).  Populated by Figure::save_*
+// and AnimationBuilder::record(); consumed by the runtime after rendering.
+struct FigureExportRequest
+{
+    std::string png_path;
+    uint32_t    png_width  = 0;   // 0 = use figure's native resolution
+    uint32_t    png_height = 0;
+    std::string svg_path;
+    std::string video_path;
+};
+
+// Animation state set by AnimationBuilder, driven by WindowRuntime.
+struct FigureAnimState
+{
+    float                       fps      = 60.0f;
+    float                       duration = 0.0f;
+    bool                        loop     = false;
+    std::function<void(Frame&)> on_frame;
+
+    // Per-figure elapsed time so each figure keeps its own timeline
+    // position even when it's not the active tab in a split view.
+    float time = 0.0f;
+};
+
 class Figure
 {
    public:
@@ -129,10 +153,15 @@ class Figure
     }
 
     // Animation property accessors
-    float anim_fps() const { return anim_fps_; }
-    float anim_duration() const { return anim_duration_; }
-    bool  anim_loop() const { return anim_loop_; }
-    bool  has_animation() const { return static_cast<bool>(anim_on_frame_); }
+    float anim_fps() const { return anim_.fps; }
+    float anim_duration() const { return anim_.duration; }
+    bool  anim_loop() const { return anim_.loop; }
+    bool  has_animation() const { return static_cast<bool>(anim_.on_frame); }
+
+    // Export / animation sub-objects (public so runtime subsystems can
+    // consume pending requests without requiring friend access).
+    FigureExportRequest export_req_;
+    FigureAnimState     anim_;
 
    private:
     friend class AnimationBuilder;
@@ -154,28 +183,6 @@ class Figure
     // Scroll state for overflow when subplots exceed visible area
     float scroll_offset_y_ = 0.0f;
     float content_height_  = 0.0f;
-
-    // Pending PNG export path (set by save_png, executed after render)
-    std::string png_export_path_;
-    uint32_t    png_export_width_  = 0;   // 0 = use figure's native resolution
-    uint32_t    png_export_height_ = 0;
-
-    // Pending SVG export path (set by save_svg, executed after layout)
-    std::string svg_export_path_;
-
-    // Pending video recording path (set by AnimationBuilder::record())
-    std::string video_record_path_;
-
-    // Animation state (set by AnimationBuilder)
-    float                       anim_fps_      = 60.0f;
-    float                       anim_duration_ = 0.0f;
-    bool                        anim_loop_     = false;
-    std::function<void(Frame&)> anim_on_frame_;
-
-    // Per-figure animation elapsed time (driven by WindowRuntime).
-    // Stored here so each figure keeps its own timeline position
-    // even when it's not the active tab in a split view.
-    float anim_time_ = 0.0f;
 };
 
 }   // namespace spectra

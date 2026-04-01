@@ -117,8 +117,6 @@ class BoxPlotSeries : public Series
         return *this;
     }
 
-    void record_commands(Renderer& renderer) override;
-
     // Rebuild line/scatter geometry from stats
     void rebuild_geometry();
 
@@ -225,7 +223,6 @@ class ViolinSeries : public Series
     };
     const std::vector<ViolinData>& violins() const { return violins_; }
 
-    void record_commands(Renderer& renderer) override;
     void rebuild_geometry();
 
    private:
@@ -325,7 +322,6 @@ class HistogramSeries : public Series
     // Access raw values for duplication
     const std::vector<float>& raw_values() const { return raw_values_; }
 
-    void record_commands(Renderer& renderer) override;
     void rebuild_geometry();
 
    private:
@@ -432,7 +428,6 @@ class BarSeries : public Series
         return *this;
     }
 
-    void record_commands(Renderer& renderer) override;
     void rebuild_geometry();
 
    private:

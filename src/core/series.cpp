@@ -91,12 +91,6 @@ LineSeries& LineSeries::format(std::string_view fmt)
     return *this;
 }
 
-void LineSeries::record_commands(Renderer& /*renderer*/)
-{
-    // Actual GPU command recording is handled by the Renderer (Agent 1).
-    // This is a hook for the renderer to dispatch based on series type.
-}
-
 // --- ScatterSeries ---
 
 ScatterSeries::ScatterSeries(std::span<const float> x, std::span<const float> y)
@@ -131,11 +125,6 @@ ScatterSeries& ScatterSeries::format(std::string_view fmt)
 {
     Series::apply_format_string(fmt);
     return *this;
-}
-
-void ScatterSeries::record_commands(Renderer& /*renderer*/)
-{
-    // Actual GPU command recording is handled by the Renderer (Agent 1).
 }
 
 }   // namespace spectra

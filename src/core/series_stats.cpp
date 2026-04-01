@@ -287,8 +287,6 @@ void BoxPlotSeries::rebuild_geometry()
     }
 }
 
-void BoxPlotSeries::record_commands(Renderer& /*renderer*/) {}
-
 // ═══════════════════════════════════════════════════════════════════════════
 // ViolinSeries
 // ═══════════════════════════════════════════════════════════════════════════
@@ -468,8 +466,6 @@ void ViolinSeries::rebuild_geometry()
     }
 }
 
-void ViolinSeries::record_commands(Renderer& /*renderer*/) {}
-
 // ═══════════════════════════════════════════════════════════════════════════
 // HistogramSeries
 // ═══════════════════════════════════════════════════════════════════════════
@@ -573,8 +569,6 @@ void HistogramSeries::rebuild_geometry()
     line_y_.push_back(0.0f);
 }
 
-void HistogramSeries::record_commands(Renderer& /*renderer*/) {}
-
 // ═══════════════════════════════════════════════════════════════════════════
 // BarSeries
 // ═══════════════════════════════════════════════════════════════════════════
@@ -646,7 +640,5 @@ void BarSeries::rebuild_geometry()
         line_y_.push_back(NAN_BREAK);
     }
 }
-
-void BarSeries::record_commands(Renderer& /*renderer*/) {}
 
 }   // namespace spectra

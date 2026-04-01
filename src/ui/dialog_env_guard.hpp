@@ -7,6 +7,30 @@
 namespace spectra
 {
 
+// Portable wrappers for setenv/unsetenv (POSIX-only; MSVC uses _putenv_s).
+namespace detail
+{
+#ifdef _WIN32
+inline void set_env(const char* name, const char* value)
+{
+    _putenv_s(name, value);
+}
+inline void unset_env(const char* name)
+{
+    _putenv_s(name, "");
+}
+#else
+inline void set_env(const char* name, const char* value)
+{
+    setenv(name, value, 1);
+}
+inline void unset_env(const char* name)
+{
+    unsetenv(name);
+}
+#endif
+}   // namespace detail
+
 /// RAII guard that temporarily restores the pre-snap environment before spawning
 /// a native file dialog.  Snap-packaged VS Code overrides GTK_PATH, GIO_MODULE_DIR,
 /// and other variables to point into the snap tree, which causes spawned GTK
@@ -55,9 +79,9 @@ struct DialogEnvGuard
             // Restore the original.  Empty original means the variable was unset
             // before snap modified it.
             if (orig_val[0] != '\0')
-                setenv(var, orig_val, 1);
+                detail::set_env(var, orig_val);
             else
-                unsetenv(var);
+                detail::unset_env(var);
         }
     }
 
@@ -66,9 +90,9 @@ struct DialogEnvGuard
         for (auto& s : saved_)
         {
             if (s.had_value)
-                setenv(s.name.c_str(), s.value.c_str(), 1);
+                detail::set_env(s.name.c_str(), s.value.c_str());
             else
-                unsetenv(s.name.c_str());
+                detail::unset_env(s.name.c_str());
         }
     }
 

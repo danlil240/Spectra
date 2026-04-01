@@ -7,7 +7,7 @@
 #include "render/backend.hpp"
 #include "render/renderer.hpp"
 #include "render/vulkan/vk_backend.hpp"
-#include "ui/figures/figure_registry.hpp"
+#include <spectra/figure_registry.hpp>
 #include "ui/input/input.hpp"
 #include "ui/theme/theme.hpp"
 

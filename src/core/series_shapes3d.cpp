@@ -639,11 +639,6 @@ void ShapeSeries3D::rebuild_geometry()
     }
 }
 
-void ShapeSeries3D::record_commands(Renderer& /*renderer*/)
-{
-    // GPU command recording handled by the Renderer.
-}
-
 vec3 ShapeSeries3D::compute_centroid() const
 {
     if (vertices_.empty())

@@ -313,6 +313,7 @@ bool RosAppShell::init(int argc, char** argv)
     bag_info_->set_title("Bag Info");
 
     bag_player_         = std::make_unique<BagPlayer>(*plot_mgr_, *intr_);
+    bag_player_->set_subplot_manager(subplot_mgr_.get());
     bag_playback_panel_ = std::make_unique<BagPlaybackPanel>(bag_player_.get());
     bag_playback_panel_->set_title("Bag Playback");
 
@@ -360,14 +361,30 @@ bool RosAppShell::init(int argc, char** argv)
             // Pass the bag-provided type directly so discovery is not needed.
             on_topic_selected(topic, type);
         });
-    bag_info_->set_topic_plot_callback([this](const std::string& topic, const std::string& /*type*/)
-                                       { add_topic_plot(topic); });
+    bag_info_->set_topic_plot_callback([this](const std::string& topic, const std::string& type)
+                                       { add_topic_plot(topic, type); });
     bag_info_->set_bag_opened_callback(
         [this](const std::string& path)
         {
             if (bag_player_ && bag_player_->open(path))
             {
                 show_bag_playback_ = true;
+
+                // Auto-create subplots for the first few bag topics so the
+                // user sees data immediately when pressing play.
+                if (bag_info_)
+                {
+                    const auto& topics = bag_info_->topics();
+                    constexpr size_t MAX_AUTO = 4;
+                    size_t added = 0;
+                    for (const auto& row : topics)
+                    {
+                        if (added >= MAX_AUTO)
+                            break;
+                        if (add_topic_plot(row.name, row.type))
+                            ++added;
+                    }
+                }
             }
             else if (bag_player_)
             {
@@ -2576,7 +2593,7 @@ std::string RosAppShell::window_title() const
     return "Spectra ROS2 \xe2\x80\x94 " + cfg_.node_name;
 }
 
-bool RosAppShell::add_topic_plot(const std::string& topic_field)
+bool RosAppShell::add_topic_plot(const std::string& topic_field, const std::string& type_hint)
 {
     if (!subplot_mgr_)
         return false;
@@ -2598,7 +2615,9 @@ bool RosAppShell::add_topic_plot(const std::string& topic_field)
     if (topic.empty())
         return false;
 
-    const std::string type_name = detect_topic_type(topic);
+    std::string type_name = type_hint;
+    if (type_name.empty())
+        type_name = detect_topic_type(topic);
 
     if (field_path.empty())
         field_path = default_numeric_field(topic, type_name);

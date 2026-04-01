@@ -1,4 +1,4 @@
-#include "figure_registry.hpp"
+#include <spectra/figure_registry.hpp>
 
 #include <algorithm>
 

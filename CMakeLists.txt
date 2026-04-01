@@ -636,6 +636,10 @@ if(SPECTRA_RUNTIME_MODE STREQUAL "multiproc")
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/daemon/main.cpp)
         add_executable(spectra-backend
             src/daemon/main.cpp
+            src/daemon/daemon_server.cpp
+            src/daemon/agent_message_handler.cpp
+            src/daemon/python_message_handler.cpp
+            src/daemon/heartbeat_monitor.cpp
             src/daemon/session_graph.cpp
             src/daemon/process_manager.cpp
             src/daemon/figure_model.cpp

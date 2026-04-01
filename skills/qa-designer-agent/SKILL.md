@@ -36,7 +36,7 @@ cmake --build build -j$(nproc)
 
 - Screenshots land in `<output-dir>/design/` with descriptive names.
 - `manifest.txt` lists all captured files.
-- **Expect 56 named screenshots** (see coverage table below).
+- **Expect 57 named screenshots** (see coverage table below).
 - Requires a live display — no headless path.
 
 ### 3. Triage open items
@@ -81,7 +81,7 @@ ctest --test-dir build --output-on-failure
 
 ---
 
-## Design-Review Screenshot Coverage (56 total)
+## Design-Review Screenshot Coverage (57 total)
 
 ### Core UI (01–20)
 | # | Name | What it covers |
@@ -150,6 +150,7 @@ ctest --test-dir build --output-on-failure
 | 53 | `53_split_view_mismatched_zoom` | Split view with mismatched axis ranges (auto-fit vs zoomed panes) |
 | 54 | `54_command_palette_scrolled` | Command palette scrolled (20+ results, scrollbar visible) |
 | 55 | `55_nav_rail_dpi_scale_125pct` | Nav rail at 1.25× font scale (simulates 125% DPI) — verifies icon/label pixel alignment |
+| 56 | `56_tiny_window_all_panels_open` | 320×240 with inspector, expanded nav rail, and timeline all open — verifies no crash/assert at extreme panel contention |
 
 > **Multi-window captures (45/45b):** `named_screenshot()` now accepts a `WindowContext*` parameter. Screenshots 45 and 45b are captured with `target_window` set to the primary and secondary `WindowContext*` respectively, so the capture fires only during that window's `end_frame`. Do not use `set_active_window` + `pump_frames` as a workaround — it gets overridden by `step()`.
 
@@ -221,6 +222,8 @@ ctest --test-dir build --output-on-failure
 | Multi-window screenshot capture | `src/render/vulkan/vk_backend.cpp` | `request_framebuffer_capture()` |
 | Per-window active figure | `src/ui/app/window_ui_context.hpp` | `per_window_active_figure` |
 | Series removal safety | `src/ui/overlay/data_interaction.hpp` | `notify_series_removed()` |
+| Event-driven rendering gate | `src/ui/app/redraw_tracker.hpp` | `mark_dirty()`, `is_idle()`, `needs_redraw()` |
+| Render-loop tick decision | `src/ui/app/session_runtime.hpp` | `redraw_tracker()`, `should_render_tick` logic |
 
 ---
 
@@ -267,6 +270,7 @@ ctest --test-dir build --output-on-failure
 - **Multi-window captures:** Pass `WindowContext*` to `named_screenshot()` — do not `set_active_window` manually.
 - **Hairline coordinate snapping:** For any `AddLine` drawing a separator, border, or decorative line, apply `std::floor()` to the integer-axis coordinate (Y for horizontal lines, X for vertical) before passing to `AddLine`. This prevents 1px blurriness at non-integer DPI scale factors (e.g. 125%, 150%). `<cmath>` must be included.
 - **Icon/label draw-list snapping:** For any `AddText` call drawing icon glyphs or label text at computed center positions, apply `std::floor()` to both X and Y coordinates before passing to `AddText`. Centering arithmetic `(width - text_sz) * 0.5f` is inherently fractional — without snapping, glyphs anti-alias across two pixel rows/columns at non-integer DPI scale.
+- **Event-driven rendering (`RedrawTracker`) compatibility:** When using `pump_frames()` in the QA agent, always call `s->redraw_tracker().mark_dirty("qa_pump")` before each `app_->step()` call. The `RedrawTracker` (commit `0bb50a1d`) gates the render loop — `should_render_tick` in `session_runtime.cpp` evaluates to `false` when the tracker is idle, headless is off, and no animation is due. Without `mark_dirty()`, the entire render/present pipeline is skipped and captures produce blank PNGs. Requires `#include "ui/app/session_runtime.hpp"`.
 
 ---
 
@@ -377,6 +381,7 @@ curl -s -X POST http://127.0.0.1:8765/mcp \
 - Tracks CPU RSS only — no GPU memory visibility.
 - Vulkan validation layer errors not monitored in real-time (see `QA_update.md` item #4).
 - Screenshot races fixed via `request_framebuffer_capture()` (commit `4477b46`) — use that API, not `readback_framebuffer()`.
+- **Event-driven rendering (commit `0bb50a1d`):** `pump_frames()` must call `mark_dirty("qa_pump")` on the `RedrawTracker` before each `step()`, otherwise the render loop is gated off and captures are blank. Fixed in Session 14 (2026-03-28).
 
 ---
 
@@ -454,7 +459,7 @@ Next gap: <one sentence describing the next visual blind spot to tackle next ses
 | DES-I6 | ✅ Done (2026-03-17): Pixel-snap nav rail icon/label AddText coordinates + 125% DPI scale screenshot | Fixed in `imgui_command_bar.cpp` (`icon_label_button` y_start/ix/lx/ly, `draw_separator` p0.y — all `std::floor()`); added `55_nav_rail_dpi_scale_125pct` |
 | DES-I7 | Add screenshot for 3D surface with Jet colormap (colorblind unfriendly — should show deprecation warning or badge) | Add `56_3d_surface_jet_colormap`; check for visual warning indicator |
 | DES-I8 | Audit timeline editor transport controls for consistent icon sizing | In `timeline_editor.cpp` draw path, verify play/pause/stop icons use same pixel size constant |
-| DES-I9 | Add screenshot for resize to 320×240 with all panels open simultaneously | Add `57_tiny_window_all_panels`; verify no panel overflow / occlusion beyond viewport |
+| DES-I9 | ✅ Done (2026-03-28): Add screenshot for resize to 320×240 with all panels open simultaneously | Implemented as `56_tiny_window_all_panels_open`; verifies panel overlap/occlusion at extreme window size |
 | DES-I10 | Check that selection highlight color is visible against both dark and light plot backgrounds | Compute contrast ratio of `selection_color` against `plot_bg` in both themes |
 | DES-I11 | Audit timeline transport icon sizing consistency | In `timeline_editor.cpp` draw path, verify play/pause/stop icons use same pixel size constant; add screenshot at 1.25× scale for timeline panel |}
 

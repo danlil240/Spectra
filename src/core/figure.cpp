@@ -38,20 +38,20 @@ AnimationBuilder& AnimationBuilder::loop(bool enabled)
 
 void AnimationBuilder::play()
 {
-    figure_.anim_fps_      = target_fps_;
-    figure_.anim_duration_ = duration_;
-    figure_.anim_loop_     = loop_;
-    figure_.anim_on_frame_ = on_frame_;
+    figure_.anim_.fps      = target_fps_;
+    figure_.anim_.duration = duration_;
+    figure_.anim_.loop     = loop_;
+    figure_.anim_.on_frame = on_frame_;
     // Actual playback is driven by App (Agent 4).
 }
 
 void AnimationBuilder::record(const std::string& output_path)
 {
-    figure_.anim_fps_          = target_fps_;
-    figure_.anim_duration_     = duration_;
-    figure_.anim_loop_         = false;
-    figure_.anim_on_frame_     = on_frame_;
-    figure_.video_record_path_ = output_path;
+    figure_.anim_.fps              = target_fps_;
+    figure_.anim_.duration         = duration_;
+    figure_.anim_.loop             = false;
+    figure_.anim_.on_frame         = on_frame_;
+    figure_.export_req_.video_path = output_path;
 }
 
 // --- Figure ---
@@ -120,23 +120,23 @@ void Figure::show()
 
 void Figure::save_png(const std::string& path)
 {
-    png_export_path_   = path;
-    png_export_width_  = 0;
-    png_export_height_ = 0;
+    export_req_.png_path   = path;
+    export_req_.png_width  = 0;
+    export_req_.png_height = 0;
     compute_layout();
 }
 
 void Figure::save_png(const std::string& path, uint32_t export_width, uint32_t export_height)
 {
-    png_export_path_   = path;
-    png_export_width_  = export_width;
-    png_export_height_ = export_height;
+    export_req_.png_path   = path;
+    export_req_.png_width  = export_width;
+    export_req_.png_height = export_height;
     compute_layout();
 }
 
 void Figure::save_svg(const std::string& path)
 {
-    svg_export_path_ = path;
+    export_req_.svg_path = path;
     compute_layout();
 }
 

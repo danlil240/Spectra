@@ -2,8 +2,6 @@
 #include <cmath>
 #include <spectra/series3d.hpp>
 
-#include "../render/renderer.hpp"
-
 namespace spectra
 {
 
@@ -110,13 +108,6 @@ void LineSeries3D::get_bounds(vec3& min_out, vec3& max_out) const
     get_bounds_xyz(x_, y_, z_, min_out, max_out);
 }
 
-void LineSeries3D::record_commands(Renderer& renderer)
-{
-    if (!visible_)
-        return;
-    renderer.upload_series_data(*this);
-}
-
 // ─── ScatterSeries3D ─────────────────────────────────────────────────────────
 
 ScatterSeries3D::ScatterSeries3D(std::span<const float> x,
@@ -162,13 +153,6 @@ vec3 ScatterSeries3D::compute_centroid() const
 void ScatterSeries3D::get_bounds(vec3& min_out, vec3& max_out) const
 {
     get_bounds_xyz(x_, y_, z_, min_out, max_out);
-}
-
-void ScatterSeries3D::record_commands(Renderer& renderer)
-{
-    if (!visible_)
-        return;
-    renderer.upload_series_data(*this);
 }
 
 // ─── SurfaceSeries ───────────────────────────────────────────────────────────
@@ -380,32 +364,6 @@ void SurfaceSeries::get_bounds(vec3& min_out, vec3& max_out) const
     max_out = {*x_max, *y_max, *z_max};
 }
 
-void SurfaceSeries::record_commands(Renderer& renderer)
-{
-    if (!visible_)
-        return;
-
-    if (wireframe_)
-    {
-        if (!wireframe_mesh_generated_)
-        {
-            generate_wireframe_mesh();
-        }
-    }
-    else
-    {
-        if (!mesh_generated_)
-        {
-            generate_mesh();
-        }
-    }
-
-    if (mesh_generated_ || wireframe_mesh_generated_)
-    {
-        renderer.upload_series_data(*this);
-    }
-}
-
 // ─── MeshSeries ──────────────────────────────────────────────────────────────
 
 MeshSeries::MeshSeries(std::span<const float> vertices, std::span<const uint32_t> indices)
@@ -469,13 +427,6 @@ void MeshSeries::get_bounds(vec3& min_out, vec3& max_out) const
         max_out.y = std::fmax(max_out.y, y);
         max_out.z = std::fmax(max_out.z, z);
     }
-}
-
-void MeshSeries::record_commands(Renderer& renderer)
-{
-    if (!visible_)
-        return;
-    renderer.upload_series_data(*this);
 }
 
 // ─── Colormap Support ─────────────────────────────────────────────────────────

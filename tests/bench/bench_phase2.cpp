@@ -13,7 +13,7 @@
 
 #include "ui/commands/command_registry.hpp"
 #include "ui/figures/figure_manager.hpp"
-#include "ui/figures/figure_registry.hpp"
+#include <spectra/figure_registry.hpp>
 #include "ui/commands/shortcut_manager.hpp"
 #include "ui/animation/transition_engine.hpp"
 #include "ui/commands/undo_manager.hpp"

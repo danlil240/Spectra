@@ -18,7 +18,7 @@
     #include <thread>
 #endif
 
-#include "ui/figures/figure_registry.hpp"
+#include <spectra/figure_registry.hpp>
 #include "session_runtime.hpp"
 #include "window_ui_context.hpp"
 

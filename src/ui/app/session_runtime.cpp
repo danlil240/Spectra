@@ -8,7 +8,7 @@
 #include "render/renderer.hpp"
 #include "render/vulkan/vk_backend.hpp"
 #include "ui/commands/command_queue.hpp"
-#include "ui/figures/figure_registry.hpp"
+#include <spectra/figure_registry.hpp>
 #include "ui/input/input.hpp"
 #include "window_ui_context.hpp"
 
@@ -388,12 +388,12 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
             // ImGui chrome (menu bar, empty canvas) so the window isn't black.
             if (win_fs.active_figure)
             {
-                win_fs.has_animation = static_cast<bool>(win_fs.active_figure->anim_on_frame_);
+                win_fs.has_animation = static_cast<bool>(win_fs.active_figure->anim_.on_frame);
                 if (win_fs.has_animation)
                 {
                     has_any_animation = true;
                     max_animation_fps =
-                        std::max(max_animation_fps, win_fs.active_figure->anim_fps_);
+                        std::max(max_animation_fps, win_fs.active_figure->anim_.fps);
                     if (not vsync_mode)
                         redraw_tracker_.mark_dirty("animation");
                 }
@@ -419,11 +419,11 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
                 for (const auto& pinfo : wctx->ui_ctx->dock_system.get_pane_infos())
                 {
                     Figure* pfig = registry_.get(pinfo.figure_index);
-                    if (pfig && pfig->anim_on_frame_)
+                    if (pfig && pfig->anim_.on_frame)
                     {
                         win_fs.has_animation = true;
                         has_any_animation    = true;
-                        max_animation_fps    = std::max(max_animation_fps, pfig->anim_fps_);
+                        max_animation_fps    = std::max(max_animation_fps, pfig->anim_.fps);
                     }
                 }
             }

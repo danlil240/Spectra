@@ -165,8 +165,8 @@ void App::init_runtime()
     {
         init_active_id = all_ids[0];
         init_active    = registry_.get(init_active_id);
-        if (init_active && init_active->anim_fps_ > 0.0f)
-            init_fps = init_active->anim_fps_;
+        if (init_active && init_active->anim_.fps > 0.0f)
+            init_fps = init_active->anim_.fps;
     }
 
     uint32_t init_w = init_active ? init_active->width() : 1280;
@@ -181,7 +181,7 @@ void App::init_runtime()
     rt.active_figure_id             = init_active_id;
 
     rt.frame_state.has_animation =
-        init_active ? static_cast<bool>(init_active->anim_on_frame_) : false;
+        init_active ? static_cast<bool>(init_active->anim_.on_frame) : false;
 
     if (!config_.headless)
     {
@@ -189,9 +189,9 @@ void App::init_runtime()
     }
 
 #ifdef SPECTRA_USE_FFMPEG
-    rt.is_recording = init_active && !init_active->video_record_path_.empty();
+    rt.is_recording = init_active && !init_active->export_req_.video_path.empty();
 #else
-    if (init_active && !init_active->video_record_path_.empty())
+    if (init_active && !init_active->export_req_.video_path.empty())
     {
         std::cerr << "[spectra] Video recording requested but SPECTRA_USE_FFMPEG is not enabled\n";
     }
@@ -201,15 +201,15 @@ void App::init_runtime()
     if (rt.is_recording)
     {
         VideoExporter::Config vcfg;
-        vcfg.output_path  = init_active->video_record_path_;
+        vcfg.output_path  = init_active->export_req_.video_path;
         vcfg.width        = init_active->width();
         vcfg.height       = init_active->height();
-        vcfg.fps          = init_active->anim_fps_;
+        vcfg.fps          = init_active->anim_.fps;
         rt.video_exporter = std::make_unique<VideoExporter>(vcfg);
         if (!rt.video_exporter->is_open())
         {
             std::cerr << "[spectra] Failed to open video exporter for: "
-                      << init_active->video_record_path_ << "\n";
+                      << init_active->export_req_.video_path << "\n";
             rt.video_exporter.reset();
         }
         else
@@ -336,21 +336,21 @@ void App::init_runtime()
     curve_editor.set_interpolator(&keyframe_interpolator);
     if (init_active)
     {
-        if (init_active->anim_duration_ > 0.0f)
+        if (init_active->anim_.duration > 0.0f)
         {
-            timeline_editor.set_duration(init_active->anim_duration_);
+            timeline_editor.set_duration(init_active->anim_.duration);
         }
         else if (rt.frame_state.has_animation)
         {
             timeline_editor.set_duration(60.0f);
         }
-        if (init_active->anim_loop_)
+        if (init_active->anim_.loop)
         {
             timeline_editor.set_loop_mode(LoopMode::Loop);
         }
-        if (init_active->anim_fps_ > 0.0f)
+        if (init_active->anim_.fps > 0.0f)
         {
-            timeline_editor.set_fps(init_active->anim_fps_);
+            timeline_editor.set_fps(init_active->anim_.fps);
         }
         if (rt.frame_state.has_animation)
         {
@@ -798,16 +798,17 @@ App::StepResult App::step()
     // Phase 2: Schedule a pre-present capture for figures with pending export.
     // The capture will execute inside end_frame() (do_capture_before_present),
     // before vkQueuePresentKHR, so the swapchain image contents are valid.
-    if (!config_.headless && rt.active_figure && !rt.active_figure->png_export_path_.empty())
+    if (!config_.headless && rt.active_figure && !rt.active_figure->export_req_.png_path.empty())
     {
-        uint32_t ew  = rt.active_figure->png_export_width_ > 0 ? rt.active_figure->png_export_width_
-                                                               : rt.active_figure->width();
-        uint32_t eh  = rt.active_figure->png_export_height_ > 0
-                           ? rt.active_figure->png_export_height_
+        uint32_t ew  = rt.active_figure->export_req_.png_width > 0
+                           ? rt.active_figure->export_req_.png_width
+                           : rt.active_figure->width();
+        uint32_t eh  = rt.active_figure->export_req_.png_height > 0
+                           ? rt.active_figure->export_req_.png_height
                            : rt.active_figure->height();
         auto&    cap = rt.pending_png_capture;
         cap.pixels.resize(static_cast<size_t>(ew) * eh * 4);
-        cap.path   = rt.active_figure->png_export_path_;
+        cap.path   = rt.active_figure->export_req_.png_path;
         cap.width  = ew;
         cap.height = eh;
         cap.active = true;
@@ -834,15 +835,15 @@ App::StepResult App::step()
 #endif
             vk->request_framebuffer_capture(cap.pixels.data(), ew, eh);
 
-        rt.active_figure->png_export_path_.clear();
-        rt.active_figure->png_export_width_  = 0;
-        rt.active_figure->png_export_height_ = 0;
+        rt.active_figure->export_req_.png_path.clear();
+        rt.active_figure->export_req_.png_width  = 0;
+        rt.active_figure->export_req_.png_height = 0;
     }
 
     // Check animation duration termination
-    if (rt.active_figure && rt.active_figure->anim_duration_ > 0.0f
-        && rt.scheduler.elapsed_seconds() >= rt.active_figure->anim_duration_
-        && !rt.active_figure->anim_loop_)
+    if (rt.active_figure && rt.active_figure->anim_.duration > 0.0f
+        && rt.scheduler.elapsed_seconds() >= rt.active_figure->anim_.duration
+        && !rt.active_figure->anim_.loop)
     {
         rt.session.request_exit();
     }
@@ -909,10 +910,11 @@ void App::shutdown_runtime()
             continue;
         auto& f = *fig_ptr;
 
-        if (config_.headless && !f.png_export_path_.empty())
+        if (config_.headless && !f.export_req_.png_path.empty())
         {
-            uint32_t export_w = f.png_export_width_ > 0 ? f.png_export_width_ : f.width();
-            uint32_t export_h = f.png_export_height_ > 0 ? f.png_export_height_ : f.height();
+            uint32_t export_w = f.export_req_.png_width > 0 ? f.export_req_.png_width : f.width();
+            uint32_t export_h =
+                f.export_req_.png_height > 0 ? f.export_req_.png_height : f.height();
 
             bool needs_render =
                 (&f != rt.active_figure) || (export_w != f.width()) || (export_h != f.height());
@@ -942,12 +944,13 @@ void App::shutdown_runtime()
             std::vector<uint8_t> pixels(static_cast<size_t>(export_w) * export_h * 4);
             if (backend_->readback_framebuffer(pixels.data(), export_w, export_h))
             {
-                if (!ImageExporter::write_png(f.png_export_path_,
+                if (!ImageExporter::write_png(f.export_req_.png_path,
                                               pixels.data(),
                                               export_w,
                                               export_h))
                 {
-                    std::cerr << "[spectra] Failed to write PNG: " << f.png_export_path_ << "\n";
+                    std::cerr << "[spectra] Failed to write PNG: " << f.export_req_.png_path
+                              << "\n";
                 }
             }
             else
@@ -956,12 +959,12 @@ void App::shutdown_runtime()
             }
         }
 
-        if (!f.svg_export_path_.empty())
+        if (!f.export_req_.svg_path.empty())
         {
             f.compute_layout();
-            if (!SvgExporter::write_svg(f.svg_export_path_, f))
+            if (!SvgExporter::write_svg(f.export_req_.svg_path, f))
             {
-                std::cerr << "[spectra] Failed to write SVG: " << f.svg_export_path_ << "\n";
+                std::cerr << "[spectra] Failed to write SVG: " << f.export_req_.svg_path << "\n";
             }
         }
     }

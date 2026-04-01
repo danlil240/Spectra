@@ -12,6 +12,7 @@
 
 #include "message_introspector.hpp"
 #include "ros_plot_manager.hpp"
+#include "subplot_manager.hpp"
 
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
@@ -51,6 +52,7 @@ bool BagPlayer::open(const std::string& bag_path, const std::vector<std::string>
     {
         // (Internal close without locking again.)
         reader_.close();
+        lookahead_msg_.reset();
         open_           = false;
         state_          = PlayerState::Stopped;
         playhead_sec_   = 0.0;
@@ -99,6 +101,7 @@ void BagPlayer::close()
         return;
 
     reader_.close();
+    lookahead_msg_.reset();
     open_           = false;
     state_          = PlayerState::Stopped;
     playhead_sec_   = 0.0;
@@ -160,6 +163,7 @@ void BagPlayer::play()
         {
             playhead_sec_ = 0.0;
             bag_time_ns_  = metadata_.start_time_ns;
+            lookahead_msg_.reset();
             reader_.seek_begin();
         }
     }
@@ -188,6 +192,7 @@ void BagPlayer::stop()
         {
             playhead_sec_ = 0.0;
             bag_time_ns_  = metadata_.start_time_ns;
+            lookahead_msg_.reset();
             reader_.seek_begin();
         }
         sync_timeline_playhead();
@@ -244,6 +249,7 @@ bool BagPlayer::seek(double offset_sec)
     playhead_sec_        = clamped;
     bag_time_ns_         = offset_to_ns(clamped);
 
+    lookahead_msg_.reset();
     const bool ok = reader_.seek(bag_time_ns_);
     if (!ok)
         last_error_ = reader_.last_error();
@@ -401,6 +407,7 @@ bool BagPlayer::advance(double dt)
             // Loop: reset to beginning.
             playhead_sec_ = 0.0;
             bag_time_ns_  = metadata_.start_time_ns;
+            lookahead_msg_.reset();
             reader_.seek_begin();
             total_injected_ = 0;
         }
@@ -465,6 +472,12 @@ uint64_t BagPlayer::total_injected() const noexcept
     return total_injected_;
 }
 
+void BagPlayer::set_subplot_manager(SubplotManager* mgr)
+{
+    std::lock_guard<std::mutex> lk(mutex_);
+    subplot_mgr_ = mgr;
+}
+
 // ---------------------------------------------------------------------------
 // Private: inject_until
 // ---------------------------------------------------------------------------
@@ -475,23 +488,30 @@ uint32_t BagPlayer::inject_until(int64_t end_ns)
     uint32_t       injected   = 0;
     const uint32_t max_inject = config_.max_inject_per_frame;
 
+    // Consume the cached lookahead message first (if any).
+    if (lookahead_msg_.has_value())
+    {
+        auto& la = *lookahead_msg_;
+        if (la.timestamp_ns > end_ns)
+            return 0;   // still ahead of current window
+
+        inject_message(la);
+        ++injected;
+        ++total_injected_;
+        lookahead_msg_.reset();
+    }
+
     BagMessage msg;
     while (reader_.has_next() && injected < max_inject)
     {
-        // Peek at next message timestamp without reading the full message.
-        // We read it and check — if past end_ns, we need to seek back.
-        // rosbag2 doesn't offer a peek-timestamp API, so we read and push back
-        // by re-seeking if we've overshot.  Because we seek per-advance, and
-        // advance() calls inject_until once, this rare case only triggers at
-        // loop boundaries.
-
         if (!reader_.read_next(msg))
             break;
 
         if (msg.timestamp_ns > end_ns)
         {
-            // Overshot — seek back so next advance starts from this message.
-            reader_.seek(msg.timestamp_ns);
+            // Cache the overshot message for the next advance() call
+            // instead of seeking back (rosbag2 reopens the DB on seek).
+            lookahead_msg_ = std::move(msg);
             break;
         }
 
@@ -514,111 +534,90 @@ void BagPlayer::inject_message(const BagMessage& msg)
     if (!msg.valid())
         return;
 
-    // Lazy-scan fields for this topic on first encounter.
+    // Lazy-build cached accessors for this topic's numeric fields.
     auto& tf = topic_fields_[msg.topic];
     if (!tf.scanned)
     {
         tf.scanned = true;
 
-        // Introspect the schema.
         auto schema = intr_.introspect(msg.type);
         if (!schema)
             return;
 
-        // Collect all numeric leaf paths.
         const auto paths = schema->numeric_paths();
-
         for (const auto& field_path : paths)
         {
-            // Register a plot in RosPlotManager for each numeric field.
-            // add_plot with empty type_name would try to detect from live graph —
-            // we supply the type directly so it works without a live ROS2 node.
-            PlotHandle h = plot_mgr_.add_plot(msg.topic, field_path, msg.type, 10000);
-            if (h.valid())
-                tf.field_plot_ids[field_path] = h.id;
+            FieldAccessor acc = intr_.make_accessor(*schema, field_path);
+            if (!acc.valid())
+                continue;
+            // Skip fields that require pointer indirection (dynamic arrays,
+            // strings, etc.) — the accessor would dereference random CDR bytes
+            // as memory addresses, causing a crash.
+            if (acc.requires_deserialized_struct())
+                continue;
+
+            TopicFields::FieldEntry fe;
+            fe.accessor = std::move(acc);
+            tf.field_entries[field_path] = std::move(fe);
         }
     }
 
-    // Deserialize and extract each registered numeric field.
-    if (tf.field_plot_ids.empty())
+    if (tf.field_entries.empty())
         return;
-
-    // We need to deserialize the CDR buffer and extract fields.
-    // Use rclcpp deserialization via introspection.
-    auto schema = intr_.introspect(msg.type);
-    if (!schema)
-        return;
-
-        // Allocate a temporary C++ message object on the stack is not possible for
-        // unknown types.  Instead, we use the CDR accessor pattern: work directly
-        // on the serialized bytes through the FieldAccessor byte-offset chain.
-        //
-        // However, FieldAccessor::extract_double() needs a *deserialized* in-memory
-        // struct, not raw CDR bytes.  For bag playback we use the same CDR
-        // deserialization path as TopicEchoPanel — allocate via the rosidl C API,
-        // deserialize into it, extract, then free.
-        //
-        // This is intentionally simple: correctness over speed.  For high-rate bags
-        // the user should reduce rate or increase max_inject_per_frame.
 
 #ifdef SPECTRA_ROS2_BAG
-    // Deserialize via rclcpp::Serialization machinery.
-    // We use dlopen to get the deserialize symbol rather than depending on
-    // rclcpp::Serialization<T> (T is unknown at compile time).
-
-    // Build a deserialized C++ struct: use rosidl_runtime_cpp utilities.
-    // Strategy: load the type support dynamically and allocate via the
-    // introspector's internal dlopen path (same as TopicEchoPanel).
-
-    const double bag_time_sec = static_cast<double>(msg.timestamp_ns) * 1e-9
-                                - static_cast<double>(metadata_.start_time_ns) * 1e-9;
-
-    // Minimal CDR extraction: for each field path, build an accessor and
-    // extract from the raw bytes using direct offset arithmetic.
-    //
-    // NOTE: The accessor operates on a *deserialized* C++ struct.  Since we
-    // cannot instantiate an arbitrary C++ message type here, we fall back to
-    // the FieldAccessor's own CDR extraction path by calling extract_double()
-    // with a null check.  The actual extraction relies on the byte-layout of
-    // the in-memory struct matching the CDR layout for scalar types (which
-    // holds for all POD numeric fields in ROS2 messages without padding
-    // differences).  For production use, a full CDR deserializer would be
-    // preferable; this is sufficient for the bag playback feature scope.
-    //
-    // We use the serialized_data bytes directly via CDR offset arithmetic
-    // for scalar fields — this is safe for all ROS2 primitive numeric types
-    // (bool, int8-64, uint8-64, float32, float64) which have no CDR header
-    // beyond the 4-byte CDR header at the start of the buffer.
-
-    // CDR format: 4-byte header (0x00 0x01 0x00 0x00 for little-endian),
-    // followed by the serialized struct.
+    // CDR format: 4-byte header followed by the serialized struct.
     if (msg.serialized_data.size() < 4)
         return;
 
     const uint8_t* cdr_body      = msg.serialized_data.data() + 4;
     const size_t   cdr_body_size = msg.serialized_data.size() - 4;
 
-    for (auto& [field_path, plot_id] : tf.field_plot_ids)
+    const double bag_time_sec = static_cast<double>(msg.timestamp_ns) * 1e-9
+                                - static_cast<double>(metadata_.start_time_ns) * 1e-9;
+
+    for (auto& [field_path, fe] : tf.field_entries)
     {
-        // Build accessor for this field.
-        FieldAccessor acc = intr_.make_accessor(*schema, field_path);
-        if (!acc.valid())
+        const auto& acc = fe.accessor;
+
+        // Bounds-check: ensure the CDR body is large enough for the leaf.
+        const size_t total_offset = acc.flat_byte_offset();
+        const size_t leaf_sz      = acc.leaf_size();
+        if (leaf_sz == 0 || total_offset + leaf_sz > cdr_body_size)
             continue;
 
-        // Use the CDR body as if it were an in-memory struct.
-        // This works reliably for scalar numeric fields at the top level or
-        // in simple nested structs without dynamic arrays before the field.
         const double value = acc.extract_double(static_cast<const void*>(cdr_body));
-
         if (std::isnan(value))
             continue;
 
-        // Get the PlotHandle to find the series pointer.
-        PlotHandle h = plot_mgr_.handle(plot_id);
-        if (!h.valid())
-            continue;
+        // Inject into SubplotManager series that match this topic + field.
+        if (subplot_mgr_)
+        {
+            const int cap = subplot_mgr_->capacity();
+            for (int s = 1; s <= cap; ++s)
+            {
+                auto* se = subplot_mgr_->slot_entry_pub(s);
+                if (!se || !se->active())
+                    continue;
 
-        h.series->append(static_cast<float>(bag_time_sec), static_cast<float>(value));
+                // Check primary series.
+                if (se->topic == msg.topic && se->field_path == field_path && se->series)
+                {
+                    se->series->append(static_cast<float>(bag_time_sec),
+                                       static_cast<float>(value));
+                }
+
+                // Check extra series in this slot.
+                for (auto& es : se->extra_series)
+                {
+                    if (es->topic == msg.topic && es->field_path == field_path && es->series)
+                    {
+                        es->series->append(static_cast<float>(bag_time_sec),
+                                           static_cast<float>(value));
+                    }
+                }
+            }
+        }
 
         if (on_message_)
             on_message_(msg.topic, bag_time_sec, value);
@@ -784,6 +783,7 @@ void BagPlayer::register_timeline_tracks()
             const double clamped = clamp_offset(static_cast<double>(t));
             playhead_sec_        = clamped;
             bag_time_ns_         = offset_to_ns(clamped);
+            lookahead_msg_.reset();
             reader_.seek(bag_time_ns_);
         });
 }

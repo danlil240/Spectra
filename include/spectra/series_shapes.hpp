@@ -170,8 +170,6 @@ class ShapeSeries : public Series
     // Rebuild geometry from shape definitions.
     void rebuild_geometry();
 
-    void record_commands(Renderer& renderer) override;
-
     // Fluent setters (covariant return)
     using Series::color;
     using Series::label;

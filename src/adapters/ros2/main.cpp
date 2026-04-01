@@ -40,6 +40,9 @@
 #ifdef SPECTRA_USE_IMGUI
     #include "ui/app/window_ui_context.hpp"
 #endif
+#ifdef SPECTRA_USE_GLFW
+    #include "ui/window/window_manager.hpp"
+#endif
 
 #include <csignal>
 #include <cstdio>
@@ -375,6 +378,22 @@ int main(int argc, char** argv)
                 if (rect.w < 1.0f || rect.h < 1.0f)
                     return;
                 scene_renderer->render(renderer, shell.scene_manager(), sv->camera(), rect);
+            });
+    }
+#endif
+
+#ifdef SPECTRA_USE_GLFW
+    // Forward OS file drops to the bag info panel.
+    if (auto* wm = app.window_manager())
+    {
+        wm->set_file_drop_handler(
+            [&shell](uint32_t /*window_id*/, const std::string& path)
+            {
+                if (auto* panel = shell.bag_info_panel())
+                {
+                    if (panel->try_open_file(path))
+                        shell.set_bag_info_visible(true);
+                }
             });
     }
 #endif

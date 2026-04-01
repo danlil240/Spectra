@@ -96,8 +96,6 @@ class Series
     const PlotStyle& plot_style() const { return style_; }
     PlotStyle&       plot_style_mut() { return style_; }
 
-    virtual void record_commands(Renderer& renderer) = 0;
-
    protected:
     Series& apply_format_string(std::string_view fmt);
 
@@ -136,8 +134,6 @@ class LineSeries : public Series
 
     // Estimated memory consumption in bytes (x + y vectors).
     size_t memory_bytes() const { return x_.size() * 2 * sizeof(float); }
-
-    void record_commands(Renderer& renderer) override;
 
     // Bring base-class getters into scope (setters below would otherwise hide them)
     using Series::color;
@@ -209,8 +205,6 @@ class ScatterSeries : public Series
     std::span<const float> x_data() const { return x_; }
     std::span<const float> y_data() const { return y_; }
     size_t                 point_count() const { return x_.size(); }
-
-    void record_commands(Renderer& renderer) override;
 
     // Bring base-class getters into scope (setters below would otherwise hide them)
     using Series::color;

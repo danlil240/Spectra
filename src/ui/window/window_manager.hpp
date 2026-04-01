@@ -246,6 +246,7 @@ class WindowManager
                                               float    local_y,
                                               FigureId target_figure_id)>;
     using RedrawRequestHandler = std::function<void(const char* reason)>;
+    using FileDropHandler      = std::function<void(uint32_t window_id, const std::string& path)>;
 
     void set_tab_detach_handler(TabDetachHandler cb) { tab_detach_handler_ = std::move(cb); }
     void set_tab_move_handler(TabMoveHandler cb) { tab_move_handler_ = std::move(cb); }
@@ -253,6 +254,7 @@ class WindowManager
     {
         redraw_request_handler_ = std::move(cb);
     }
+    void set_file_drop_handler(FileDropHandler cb) { file_drop_handler_ = std::move(cb); }
 
     // Shutdown: destroy all windows and release resources.
     // After this, the WindowManager is in an uninitialized state.
@@ -281,6 +283,7 @@ class WindowManager
     static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int action, int mods);
     static void glfw_char_callback(GLFWwindow* window, unsigned int codepoint);
     static void glfw_cursor_enter_callback(GLFWwindow* window, int entered);
+    static void glfw_drop_callback(GLFWwindow* window, int count, const char** paths);
 
     // Helper: find the WindowContext for a GLFW window handle
     WindowContext* find_by_glfw_window(GLFWwindow* window) const;
@@ -313,6 +316,9 @@ class WindowManager
     TabDetachHandler     tab_detach_handler_;
     TabMoveHandler       tab_move_handler_;
     RedrawRequestHandler redraw_request_handler_;
+
+    // OS file drop handler
+    FileDropHandler file_drop_handler_;
 
     // Cross-window drag target tracking
     uint32_t            drag_target_window_id_ = 0;

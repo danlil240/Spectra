@@ -9,7 +9,7 @@
 #include "core/layout.hpp"
 #include "render/renderer.hpp"
 #include "render/vulkan/vk_backend.hpp"
-#include "ui/figures/figure_registry.hpp"
+#include <spectra/figure_registry.hpp>
 #include "window_ui_context.hpp"
 
 #ifdef SPECTRA_USE_GLFW
@@ -123,8 +123,8 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
             active_figure    = fig;
             if (active_figure)
             {
-                scheduler.set_target_fps(active_figure->anim_fps_);
-                has_animation = static_cast<bool>(active_figure->anim_on_frame_);
+                scheduler.set_target_fps(active_figure->anim_.fps);
+                has_animation = static_cast<bool>(active_figure->anim_.on_frame);
     #ifdef SPECTRA_USE_GLFW
                 input_handler.set_figure(active_figure);
                 if (!active_figure->axes().empty() && active_figure->axes()[0])
@@ -197,7 +197,7 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
     // is_active controls whether this figure syncs with the timeline editor.
     auto drive_figure_anim = [&](Figure* fig, bool is_active)
     {
-        if (!fig->anim_on_frame_)
+        if (!fig->anim_.on_frame)
             return;
 
         Frame frame = scheduler.current_frame();
@@ -210,7 +210,7 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
             if (tl_state == PlaybackState::Playing)
             {
                 float tl_playhead = timeline_editor.playhead();
-                float diff        = tl_playhead - fig->anim_time_;
+                float diff        = tl_playhead - fig->anim_.time;
                 // If the figure's anim_time_ has advanced past the timeline
                 // playhead (e.g. it was running as non-active while a different
                 // tab was selected), sync the playhead forward to the figure
@@ -218,48 +218,48 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                 if (diff < -0.001f)
                 {
                     // Figure is ahead of playhead — sync playhead to figure
-                    timeline_editor.set_playhead(fig->anim_time_);
+                    timeline_editor.set_playhead(fig->anim_.time);
                 }
                 else if (diff > 0.001f)
                 {
                     // User scrubbed the playhead forward — sync figure to playhead
-                    fig->anim_time_ = tl_playhead;
+                    fig->anim_.time = tl_playhead;
                 }
-                fig->anim_time_ += frame.dt;
-                frame.elapsed_sec = fig->anim_time_;
-                fig->anim_on_frame_(frame);
-                if (fig->anim_time_ > timeline_editor.duration())
+                fig->anim_.time += frame.dt;
+                frame.elapsed_sec = fig->anim_.time;
+                fig->anim_.on_frame(frame);
+                if (fig->anim_.time > timeline_editor.duration())
                 {
-                    timeline_editor.set_duration(fig->anim_time_ + 30.0f);
+                    timeline_editor.set_duration(fig->anim_.time + 30.0f);
                 }
-                timeline_editor.set_playhead(fig->anim_time_);
+                timeline_editor.set_playhead(fig->anim_.time);
             }
             else if (tl_state == PlaybackState::Paused)
             {
-                fig->anim_time_   = timeline_editor.playhead();
-                frame.elapsed_sec = fig->anim_time_;
+                fig->anim_.time   = timeline_editor.playhead();
+                frame.elapsed_sec = fig->anim_.time;
                 frame.dt          = 0.0f;
-                fig->anim_on_frame_(frame);
+                fig->anim_.on_frame(frame);
             }
             else
             {
-                fig->anim_time_   = 0.0f;
+                fig->anim_.time   = 0.0f;
                 frame.elapsed_sec = 0.0f;
                 frame.dt          = 0.0f;
-                fig->anim_on_frame_(frame);
+                fig->anim_.on_frame(frame);
             }
         }
         else
         {
             // Non-active animated figure: advance its own time independently
-            fig->anim_time_ += frame.dt;
-            frame.elapsed_sec = fig->anim_time_;
-            fig->anim_on_frame_(frame);
+            fig->anim_.time += frame.dt;
+            frame.elapsed_sec = fig->anim_.time;
+            fig->anim_.on_frame(frame);
         }
 #else
-        fig->anim_time_ += frame.dt;
-        frame.elapsed_sec = fig->anim_time_;
-        fig->anim_on_frame_(frame);
+        fig->anim_.time += frame.dt;
+        frame.elapsed_sec = fig->anim_.time;
+        fig->anim_.on_frame(frame);
 #endif
 
         // Post-callback guard: if on_frame left all axes empty, the callback
@@ -284,9 +284,9 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                         break;
                     }
             }
-            if (!has_any_series && !fig->anim_loop_)
+            if (!has_any_series && !fig->anim_.loop)
             {
-                fig->anim_on_frame_ = nullptr;
+                fig->anim_.on_frame = nullptr;
             }
         }
     };
@@ -307,7 +307,7 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
             if (pinfo.figure_index == fs.active_figure_id)
                 continue;   // already driven above
             Figure* pfig = registry_.get(pinfo.figure_index);
-            if (!pfig || !pfig->anim_on_frame_)
+            if (!pfig || !pfig->anim_.on_frame)
                 continue;
             wire_series_callbacks(pfig);
             drive_figure_anim(pfig, /*is_active=*/false);

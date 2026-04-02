@@ -135,7 +135,7 @@ bool LegendInteraction::draw(Axes&               axes,
     if (labeled_count == 0)
         return false;
 
-    const auto& theme_colors = ui::ThemeManager::instance().colors();
+    const auto& theme_colors = (theme_mgr_ ? *theme_mgr_ : ui::ThemeManager::instance()).colors();
     ImFont*     font         = font_body_ ? font_body_ : ImGui::GetFont();
 
     // Use font size from LegendConfig; fall back to font's native size

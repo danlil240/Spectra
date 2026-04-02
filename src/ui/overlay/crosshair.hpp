@@ -6,6 +6,11 @@
 
 struct ImDrawList;
 
+namespace spectra::ui
+{
+class ThemeManager;
+}   // namespace spectra::ui
+
 namespace spectra
 {
 
@@ -48,8 +53,10 @@ class Crosshair
     // Configuration
     void set_dash_length(float px) { dash_length_ = px; }
     void set_gap_length(float px) { gap_length_ = px; }
+    void set_theme_manager(ui::ThemeManager* tm) { theme_mgr_ = tm; }
 
    private:
+    ui::ThemeManager* theme_mgr_ = nullptr;
     bool  enabled_     = false;
     float dash_length_ = 6.0f;
     float gap_length_  = 4.0f;

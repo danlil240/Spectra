@@ -140,7 +140,7 @@ void Renderer::render_series(Series&             series,
             pc.marker_type = static_cast<uint32_t>(style.marker_style);
             if (pc.marker_type == 0)
             {
-                const auto& theme_colors = ui::ThemeManager::instance().colors();
+                const auto& theme_colors = theme_mgr_.colors();
                 float       bg_luma      = 0.2126f * theme_colors.bg_canvas.r
                                 + 0.7152f * theme_colors.bg_canvas.g
                                 + 0.0722f * theme_colors.bg_canvas.b;
@@ -428,7 +428,7 @@ void Renderer::render_selection_highlight(AxesBase& axes, const Rect& /*viewport
     if (selected_series_.empty())
         return;
 
-    const auto& accent = ui::ThemeManager::instance().colors().accent;
+    const auto& accent = theme_mgr_.colors().accent;
 
     for (const auto* sel : selected_series_)
     {

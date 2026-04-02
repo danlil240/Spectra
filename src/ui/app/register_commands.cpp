@@ -74,6 +74,11 @@ void register_standard_commands(const CommandBindings& b)
     auto& fig_mgr          = *ui_ctx.fig_mgr;
     auto& input_handler    = ui_ctx.input_handler;
     auto& anim_controller  = ui_ctx.anim_controller;
+    // Injected ThemeManager — prefer over ThemeManager::instance() so that
+    // command lambdas use the App-owned instance rather than the global fallback.
+    auto& tm = *ui_ctx.theme_mgr;
+    // Pointer for undo/redo lambdas (captured by value, outlive registration scope).
+    auto* tm_ptr = ui_ctx.theme_mgr;
 
     #ifdef SPECTRA_USE_GLFW
     WindowManager* window_mgr = b.window_mgr;
@@ -636,7 +641,7 @@ void register_standard_commands(const CommandBindings& b)
             }
             auto data = Workspace::capture(figs,
                                            fig_mgr.active_index(),
-                                           ui::ThemeManager::instance().current_theme_name(),
+                                           tm.current_theme_name(),
                                            panels.inspector_visible,
                                            panels.inspector_width,
                                            panels.nav_rail_expanded);
@@ -774,8 +779,8 @@ void register_standard_commands(const CommandBindings& b)
                 }
                 if (!data.theme_name.empty())
                 {
-                    ui::ThemeManager::instance().set_theme(data.theme_name);
-                    ui::ThemeManager::instance().apply_to_imgui();
+                    tm.set_theme(data.theme_name);
+                    tm.apply_to_imgui();
                 }
                 if (imgui_ui)
                 {
@@ -1234,22 +1239,19 @@ void register_standard_commands(const CommandBindings& b)
         "Switch to Night Theme",
         [&]()
         {
-            auto&       tm        = ui::ThemeManager::instance();
             std::string old_theme = tm.current_theme_name();
             tm.set_theme("night");
             tm.apply_to_imgui();
             undo_mgr.push(UndoAction{"Switch to night theme",
-                                     [old_theme]()
+                                     [old_theme, tm_ptr]()
                                      {
-                                         auto& t = ui::ThemeManager::instance();
-                                         t.set_theme(old_theme);
-                                         t.apply_to_imgui();
+                                         tm_ptr->set_theme(old_theme);
+                                         tm_ptr->apply_to_imgui();
                                      },
-                                     []()
+                                     [tm_ptr]()
                                      {
-                                         auto& t = ui::ThemeManager::instance();
-                                         t.set_theme("night");
-                                         t.apply_to_imgui();
+                                         tm_ptr->set_theme("night");
+                                         tm_ptr->apply_to_imgui();
                                      }});
         },
         "",
@@ -1261,22 +1263,19 @@ void register_standard_commands(const CommandBindings& b)
         "Switch to Dark Theme",
         [&]()
         {
-            auto&       tm        = ui::ThemeManager::instance();
             std::string old_theme = tm.current_theme_name();
             tm.set_theme("dark");
             tm.apply_to_imgui();
             undo_mgr.push(UndoAction{"Switch to dark theme",
-                                     [old_theme]()
+                                     [old_theme, tm_ptr]()
                                      {
-                                         auto& t = ui::ThemeManager::instance();
-                                         t.set_theme(old_theme);
-                                         t.apply_to_imgui();
+                                         tm_ptr->set_theme(old_theme);
+                                         tm_ptr->apply_to_imgui();
                                      },
-                                     []()
+                                     [tm_ptr]()
                                      {
-                                         auto& t = ui::ThemeManager::instance();
-                                         t.set_theme("dark");
-                                         t.apply_to_imgui();
+                                         tm_ptr->set_theme("dark");
+                                         tm_ptr->apply_to_imgui();
                                      }});
         },
         "",
@@ -1288,22 +1287,19 @@ void register_standard_commands(const CommandBindings& b)
         "Switch to Light Theme",
         [&]()
         {
-            auto&       tm        = ui::ThemeManager::instance();
             std::string old_theme = tm.current_theme_name();
             tm.set_theme("light");
             tm.apply_to_imgui();
             undo_mgr.push(UndoAction{"Switch to light theme",
-                                     [old_theme]()
+                                     [old_theme, tm_ptr]()
                                      {
-                                         auto& t = ui::ThemeManager::instance();
-                                         t.set_theme(old_theme);
-                                         t.apply_to_imgui();
+                                         tm_ptr->set_theme(old_theme);
+                                         tm_ptr->apply_to_imgui();
                                      },
-                                     []()
+                                     [tm_ptr]()
                                      {
-                                         auto& t = ui::ThemeManager::instance();
-                                         t.set_theme("light");
-                                         t.apply_to_imgui();
+                                         tm_ptr->set_theme("light");
+                                         tm_ptr->apply_to_imgui();
                                      }});
         },
         "",
@@ -1315,23 +1311,20 @@ void register_standard_commands(const CommandBindings& b)
         "Toggle Dark/Light Theme",
         [&]()
         {
-            auto&       tm        = ui::ThemeManager::instance();
             std::string old_theme = tm.current_theme_name();
             std::string new_theme = (old_theme == "dark") ? "light" : "dark";
             tm.set_theme(new_theme);
             tm.apply_to_imgui();
             undo_mgr.push(UndoAction{"Toggle theme",
-                                     [old_theme]()
+                                     [old_theme, tm_ptr]()
                                      {
-                                         auto& t = ui::ThemeManager::instance();
-                                         t.set_theme(old_theme);
-                                         t.apply_to_imgui();
+                                         tm_ptr->set_theme(old_theme);
+                                         tm_ptr->apply_to_imgui();
                                      },
-                                     [new_theme]()
+                                     [new_theme, tm_ptr]()
                                      {
-                                         auto& t = ui::ThemeManager::instance();
-                                         t.set_theme(new_theme);
-                                         t.apply_to_imgui();
+                                         tm_ptr->set_theme(new_theme);
+                                         tm_ptr->apply_to_imgui();
                                      }});
         },
         "",

@@ -9,6 +9,11 @@
 
 struct ImFont;
 
+namespace spectra::ui
+{
+class ThemeManager;
+}   // namespace spectra::ui
+
 namespace spectra
 {
 
@@ -106,6 +111,7 @@ class RegionSelect
 
     void set_fill_alpha(float a) { fill_alpha_ = a; }
     void set_border_width(float w) { border_width_ = w; }
+    void set_theme_manager(ui::ThemeManager* tm) { theme_mgr_ = tm; }
 
    private:
     // Draw the floating mini-toolbar with statistics
@@ -167,6 +173,8 @@ class RegionSelect
     // Fonts
     ImFont* font_body_    = nullptr;
     ImFont* font_heading_ = nullptr;
+
+    ui::ThemeManager* theme_mgr_ = nullptr;
 
     // Visual config
     float fill_alpha_   = 0.15f;

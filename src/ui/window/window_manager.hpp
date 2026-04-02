@@ -50,8 +50,9 @@ class WindowManager
     // Initialize the window manager with a reference to the Vulkan backend
     // and figure registry.  Must be called before any other method.
     void init(VulkanBackend*  backend,
-              FigureRegistry* registry = nullptr,
-              Renderer*       renderer = nullptr);
+              FigureRegistry* registry  = nullptr,
+              Renderer*       renderer  = nullptr,
+              ui::ThemeManager* theme_mgr = nullptr);
 
     // Create the initial (first) window uniformly — same ownership as
     // secondary windows.  Takes ownership of the backend's initial
@@ -294,9 +295,10 @@ class WindowManager
     // Creates ImGuiIntegration, FigureManager, DockSystem, InputHandler, etc.
     bool init_window_ui(WindowContext& wctx, FigureId initial_figure_id);
 
-    VulkanBackend*                              backend_  = nullptr;
-    FigureRegistry*                             registry_ = nullptr;
-    Renderer*                                   renderer_ = nullptr;
+    VulkanBackend*   backend_   = nullptr;
+    FigureRegistry*  registry_  = nullptr;
+    Renderer*        renderer_  = nullptr;
+    ui::ThemeManager* theme_mgr_ = nullptr;
     std::vector<std::unique_ptr<WindowContext>> windows_;
     std::vector<WindowContext*> active_ptrs_;   // cache of raw pointers for fast iteration
     uint32_t                    next_window_id_ = 1;

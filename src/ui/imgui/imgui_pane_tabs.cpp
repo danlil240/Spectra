@@ -1040,7 +1040,7 @@ void ImGuiIntegration::draw_plot_overlays(Figure& figure)
         return;
 
     ImDrawList* dl     = ImGui::GetBackgroundDrawList();
-    const auto& colors = ui::ThemeManager::instance().colors();
+    const auto& colors = (theme_mgr_ ? *theme_mgr_ : ui::ThemeManager::instance()).colors();
 
     // ── Subplot separation: draw subtle divider lines between subplot cells ──
     int rows = figure.grid_rows();

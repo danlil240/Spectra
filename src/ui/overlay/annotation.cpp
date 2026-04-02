@@ -224,7 +224,7 @@ void AnnotationManager::draw(const Rect& viewport,
     if (annotations_.empty())
         return;
 
-    const auto& colors   = ui::ThemeManager::instance().colors();
+    const auto& colors   = (theme_mgr_ ? *theme_mgr_ : ui::ThemeManager::instance()).colors();
     ImDrawList* fg       = dl ? dl : ImGui::GetForegroundDrawList();
     ImFont*     font     = font_body_ ? font_body_ : ImGui::GetFont();
     const float fs       = font->LegacySize;

@@ -27,6 +27,7 @@
 #include "ui/app/session_runtime.hpp"
 #include "ui/app/window_runtime.hpp"
 #include "ui/app/window_ui_context.hpp"
+#include "ui/theme/theme.hpp"
 
 #ifdef SPECTRA_USE_GLFW
     #define GLFW_INCLUDE_NONE
@@ -734,7 +735,13 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    auto renderer_ptr = std::make_unique<spectra::Renderer>(*backend);
+    // Agent-owned ThemeManager (no App in multiproc mode).
+    // Register it as the active instance so ThemeManager::instance() returns
+    // this object for all subsystems (register_commands, renderers, overlays).
+    spectra::ui::ThemeManager theme_mgr;
+    spectra::ui::ThemeManager::set_current(&theme_mgr);
+
+    auto renderer_ptr = std::make_unique<spectra::Renderer>(*backend, theme_mgr);
     if (!renderer_ptr->init())
     {
         std::cerr << "[spectra-window] Failed to initialize renderer\n";
@@ -770,7 +777,8 @@ int main(int argc, char* argv[])
     window_mgr = std::make_unique<spectra::WindowManager>();
     window_mgr->init(static_cast<spectra::VulkanBackend*>(backend.get()),
                      &registry,
-                     renderer_ptr.get());
+                     renderer_ptr.get(),
+                     &theme_mgr);
 
     // Wire GLFW input events (scroll, mouse, key) to the redraw tracker
     // so the event loop wakes from glfwWaitEventsTimeout and renders.
@@ -853,6 +861,7 @@ int main(int argc, char* argv[])
     if (!ui_ctx_ptr)
     {
         headless_ui_ctx                = std::make_unique<spectra::WindowUIContext>();
+        headless_ui_ctx->theme_mgr     = &theme_mgr;
         headless_ui_ctx->fig_mgr_owned = std::make_unique<spectra::FigureManager>(registry);
         headless_ui_ctx->fig_mgr       = headless_ui_ctx->fig_mgr_owned.get();
         ui_ctx_ptr                     = headless_ui_ctx.get();

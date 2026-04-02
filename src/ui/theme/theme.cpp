@@ -13,19 +13,53 @@
 namespace spectra::ui
 {
 
+// Redirectable singleton pointer.  When non-null, instance() returns this
+// instead of the process-wide static fallback.  App sets/clears this pointer
+// in init_runtime() / shutdown_runtime().
+static ThemeManager* s_current_instance = nullptr;
+
+void ThemeManager::set_current(ThemeManager* tm)
+{
+    s_current_instance = tm;
+}
+
+void ThemeManager::ensure_initialized()
+{
+    if (themes_.empty())
+    {
+        initialize_default_themes();
+        initialize_data_palettes();
+        set_theme("night");
+    }
+}
+
 ThemeManager& ThemeManager::instance()
 {
-    static ThemeManager instance;
-    if (instance.themes_.empty())
+    if (s_current_instance)
     {
-        instance.initialize_default_themes();
-        instance.initialize_data_palettes();
+        // Lazily initialize the injected instance on first access.
+        if (s_current_instance->themes_.empty())
+        {
+            s_current_instance->initialize_default_themes();
+            s_current_instance->initialize_data_palettes();
+            s_current_instance->set_theme("night");
+        }
+        return *s_current_instance;
+    }
+
+    // Fallback: process-wide static singleton (used by embed / Qt / agent paths
+    // that do not go through App).
+    static ThemeManager fallback;
+    if (fallback.themes_.empty())
+    {
+        fallback.initialize_default_themes();
+        fallback.initialize_data_palettes();
         // Always default to night theme.  Previous code used "light" when no
         // ImGui context existed, which caused headless/embed surfaces to
         // render with wrong colors (light grid/text on night background).
-        instance.set_theme("night");
+        fallback.set_theme("night");
     }
-    return instance;
+    return fallback;
 }
 
 void ThemeManager::register_theme(const std::string& name, Theme theme)

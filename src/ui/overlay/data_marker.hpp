@@ -9,6 +9,11 @@
 
 struct ImDrawList;
 
+namespace spectra::ui
+{
+class ThemeManager;
+}   // namespace spectra::ui
+
 namespace spectra
 {
 
@@ -73,6 +78,8 @@ class DataMarkerManager
               const Axes* filter_axes = nullptr,
               ImDrawList* dl          = nullptr);
 
+    void set_theme_manager(ui::ThemeManager* tm) { theme_mgr_ = tm; }
+
     // Hit-test: returns index of marker near screen position, or -1.
     // When filter_axes is non-null, only markers belonging to that axes are tested.
     int hit_test(float       screen_x,
@@ -87,6 +94,8 @@ class DataMarkerManager
 
    private:
     std::vector<DataMarker> markers_;
+
+    ui::ThemeManager* theme_mgr_ = nullptr;
 
     // Find existing marker for the same series + point_index, or -1
     int find_duplicate(const Series* series, size_t point_index) const;

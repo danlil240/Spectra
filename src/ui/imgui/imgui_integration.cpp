@@ -133,7 +133,8 @@ bool ImGuiIntegration::init(VulkanBackend& backend, GLFWwindow* window, bool ins
     ImGui::GetIO().IniFilename = nullptr;
 
     // Initialize theme system
-    ui::ThemeManager::instance();
+    if (theme_mgr_)
+        theme_mgr_->ensure_initialized();
 
     load_fonts();
 
@@ -198,7 +199,8 @@ bool ImGuiIntegration::init_headless(VulkanBackend& backend, uint32_t width, uin
     io.IniFilename = nullptr;
 
     // Initialize theme system
-    ui::ThemeManager::instance();
+    if (theme_mgr_)
+        theme_mgr_->ensure_initialized();
 
     load_fonts();
 
@@ -398,7 +400,10 @@ void ImGuiIntegration::build_ui(Figure& figure)
     current_figure_ = &figure;
 
     float dt = ImGui::GetIO().DeltaTime;
-    ui::ThemeManager::instance().update(dt);
+    if (theme_mgr_)
+        theme_mgr_->update(dt);
+    else
+        ui::ThemeManager::instance().update(dt);
     ui::widgets::update_section_animations(dt);
 
     // Sync panel_open_ from layout manager so external toggles (commands, undo)
@@ -867,7 +872,10 @@ void ImGuiIntegration::build_empty_ui()
     current_figure_ = nullptr;
 
     float dt = ImGui::GetIO().DeltaTime;
-    ui::ThemeManager::instance().update(dt);
+    if (theme_mgr_)
+        theme_mgr_->update(dt);
+    else
+        ui::ThemeManager::instance().update(dt);
 
     // Draw command bar (menu) so user can create figures / load CSV.
     // Suppressed when an adapter shell provides its own menu (e.g. spectra-ros).
@@ -1202,7 +1210,10 @@ void ImGuiIntegration::load_fonts()
 void ImGuiIntegration::apply_modern_style()
 {
     // Apply theme colors through ThemeManager
-    ui::ThemeManager::instance().apply_to_imgui();
+    if (theme_mgr_)
+        theme_mgr_->apply_to_imgui();
+    else
+        ui::ThemeManager::instance().apply_to_imgui();
 }
 
 }   // namespace spectra

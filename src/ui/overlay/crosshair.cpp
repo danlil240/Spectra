@@ -67,7 +67,7 @@ void Crosshair::draw(const CursorReadout& cursor,
     if (opacity_ < 0.01f)
         return;
 
-    const auto& colors     = ui::ThemeManager::instance().colors();
+    const auto& colors     = (theme_mgr_ ? *theme_mgr_ : ui::ThemeManager::instance()).colors();
     ImU32       line_color = ImGui::ColorConvertFloat4ToU32(ImVec4(colors.crosshair.r,
                                                              colors.crosshair.g,
                                                              colors.crosshair.b,
@@ -212,7 +212,7 @@ void Crosshair::draw_all_axes(const CursorReadout& cursor,
     if (opacity_ < 0.01f)
         return;
 
-    const auto& colors     = ui::ThemeManager::instance().colors();
+    const auto& colors     = (theme_mgr_ ? *theme_mgr_ : ui::ThemeManager::instance()).colors();
     ImU32       line_color = ImGui::ColorConvertFloat4ToU32(ImVec4(colors.crosshair.r,
                                                              colors.crosshair.g,
                                                              colors.crosshair.b,

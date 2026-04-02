@@ -29,6 +29,11 @@ struct ImFontAtlas;
 struct ImGuiContext;
 struct ImVec2;
 
+namespace spectra::ui
+{
+class ThemeManager;
+}   // namespace spectra::ui
+
 namespace spectra
 {
 
@@ -146,6 +151,10 @@ class ImGuiIntegration
     }
     void set_zoom_level(float zoom) { zoom_level_ = zoom; }
     void set_gpu_time(float ms) { gpu_time_ms_ = ms; }
+
+    // Injected ThemeManager (not owned). Must be set before init().
+    void              set_theme_manager(ui::ThemeManager* tm) { theme_mgr_ = tm; }
+    ui::ThemeManager* theme_mgr() const { return theme_mgr_; }
 
     // Data interaction layer (owned externally by App)
     void             set_data_interaction(DataInteraction* di) { data_interaction_ = di; }
@@ -509,6 +518,9 @@ class ImGuiIntegration
     bool  cursor_data_valid_ = false;
     float zoom_level_        = 1.0f;
     float gpu_time_ms_       = 0.0f;
+
+    // Injected ThemeManager (not owned)
+    ui::ThemeManager* theme_mgr_ = nullptr;
 
     // Data interaction layer (not owned)
     DataInteraction* data_interaction_ = nullptr;

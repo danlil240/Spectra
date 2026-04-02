@@ -11,6 +11,11 @@
 
 struct ImFont;
 
+namespace spectra::ui
+{
+class ThemeManager;
+}   // namespace spectra::ui
+
 namespace spectra
 {
 
@@ -75,6 +80,8 @@ class LegendInteraction
     void  set_toggle_duration(float d) { toggle_duration_ = d; }
     float toggle_duration() const { return toggle_duration_; }
 
+    void set_theme_manager(ui::ThemeManager* tm) { theme_mgr_ = tm; }
+
    private:
     // Get or create state for a series pointer
     LegendSeriesState& get_state(const Series* s);
@@ -119,6 +126,8 @@ class LegendInteraction
 
     // External systems
     TransitionEngine* transition_engine_ = nullptr;
+
+    ui::ThemeManager* theme_mgr_ = nullptr;
 };
 
 }   // namespace spectra

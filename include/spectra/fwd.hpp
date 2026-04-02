@@ -102,3 +102,10 @@ struct LegendConfig;
 struct FigureStyle;
 
 }   // namespace spectra
+
+namespace spectra::ui
+{
+
+class ThemeManager;
+
+}   // namespace spectra::ui

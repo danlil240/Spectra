@@ -234,7 +234,7 @@ bool QtRuntime::attach_window(QWindow* window, uint32_t width, uint32_t height)
     if (!renderer_)
     {
         backend_->set_active_window(state->window_ctx.get());
-        renderer_ = std::make_unique<Renderer>(*backend_);
+        renderer_ = std::make_unique<Renderer>(*backend_, ui::ThemeManager::instance());
         if (!renderer_->init())
         {
             SPECTRA_LOG_ERROR("qt_runtime", "Failed to initialize renderer");

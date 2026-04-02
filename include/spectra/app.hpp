@@ -90,6 +90,7 @@ class App
 
     AppConfig                 config_;
     FigureRegistry            registry_;
+    std::unique_ptr<ui::ThemeManager> theme_mgr_;
     std::unique_ptr<Backend>  backend_;
     std::unique_ptr<Renderer> renderer_;
 

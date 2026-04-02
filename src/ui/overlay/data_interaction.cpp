@@ -23,6 +23,17 @@ void DataInteraction::set_fonts(ImFont* body, ImFont* heading, ImFont* icon)
     annotations_.set_fonts(body, heading);
 }
 
+void DataInteraction::set_theme_manager(ui::ThemeManager* tm)
+{
+    theme_mgr_     = tm;
+    crosshair_.set_theme_manager(tm);
+    tooltip_.set_theme_manager(tm);
+    markers_.set_theme_manager(tm);
+    annotations_.set_theme_manager(tm);
+    region_.set_theme_manager(tm);
+    legend_.set_theme_manager(tm);
+}
+
 bool DataInteraction::select_point(const Series* series, size_t point_index)
 {
     if (!series)

@@ -17,9 +17,9 @@ namespace spectra
 {
 
 // Conditional sRGB-to-linear for themes with linearize_colors enabled.
-static bool should_linearize_3d()
+static bool should_linearize_3d(const ui::ThemeManager& tm)
 {
-    return ui::ThemeManager::instance().current().linearize_colors;
+    return tm.current().linearize_colors;
 }
 
 static float srgb_chan_to_linear_3d(float c)
@@ -27,9 +27,9 @@ static float srgb_chan_to_linear_3d(float c)
     return (c <= 0.04045f) ? c / 12.92f : std::pow((c + 0.055f) / 1.055f, 2.4f);
 }
 
-static void set_pc_color_3d(float dst[4], const ui::Color& src)
+static void set_pc_color_3d(float dst[4], const ui::Color& src, const ui::ThemeManager& tm)
 {
-    if (should_linearize_3d())
+    if (should_linearize_3d(tm))
     {
         dst[0] = srgb_chan_to_linear_3d(src.r);
         dst[1] = srgb_chan_to_linear_3d(src.g);
@@ -110,8 +110,8 @@ void Renderer::render_bounding_box(Axes3D& axes, const Rect& /*viewport*/)
     backend_.bind_pipeline(grid3d_pipeline_);
 
     SeriesPushConstants pc{};
-    const auto&         theme_colors = ui::ThemeManager::instance().colors();
-    set_pc_color_3d(pc.color, theme_colors.axis_line);
+    const auto&         theme_colors = theme_mgr_.colors();
+    set_pc_color_3d(pc.color, theme_colors.axis_line, theme_mgr_);
     pc.line_width    = 1.5f;
     pc.data_offset_x = 0.0f;
     pc.data_offset_y = 0.0f;
@@ -218,12 +218,12 @@ void Renderer::render_tick_marks(Axes3D& axes, const Rect& /*viewport*/)
     backend_.bind_pipeline(grid3d_pipeline_);
 
     SeriesPushConstants pc{};
-    const auto&         theme_colors = ui::ThemeManager::instance().colors();
+    const auto&         theme_colors = theme_mgr_.colors();
     ui::Color           tick_color(theme_colors.grid_major.r * 0.8f,
                          theme_colors.grid_major.g * 0.8f,
                          theme_colors.grid_major.b * 0.8f,
                          theme_colors.grid_major.a);
-    set_pc_color_3d(pc.color, tick_color);
+    set_pc_color_3d(pc.color, tick_color, theme_mgr_);
     pc.line_width    = 1.5f;
     pc.data_offset_x = 0.0f;
     pc.data_offset_y = 0.0f;

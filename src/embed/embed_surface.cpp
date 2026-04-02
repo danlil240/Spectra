@@ -70,7 +70,7 @@ struct EmbedSurface::Impl
             return false;
         }
 
-        renderer = std::make_unique<Renderer>(*backend);
+        renderer = std::make_unique<Renderer>(*backend, ui::ThemeManager::instance());
         if (!renderer->init())
         {
             SPECTRA_LOG_ERROR("embed", "Failed to initialize renderer");

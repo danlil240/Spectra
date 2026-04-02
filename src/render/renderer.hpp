@@ -12,6 +12,11 @@ namespace spectra
 class Axes3D;
 }
 
+namespace spectra::ui
+{
+class ThemeManager;
+}
+
 #include <array>
 #include <cstdint>
 #include <unordered_map>
@@ -23,7 +28,7 @@ namespace spectra
 class Renderer
 {
    public:
-    explicit Renderer(Backend& backend);
+    explicit Renderer(Backend& backend, ui::ThemeManager& theme_mgr);
     ~Renderer();
 
     Renderer(const Renderer&)            = delete;
@@ -123,8 +128,9 @@ class Renderer
                                     const Rect& viewport,
                                     uint32_t    fig_width,
                                     uint32_t    fig_height);
-    Backend&     backend_;
-    TextRenderer text_renderer_;
+    Backend&          backend_;
+    ui::ThemeManager& theme_mgr_;
+    TextRenderer      text_renderer_;
 
     PipelineHandle line_pipeline_;
     PipelineHandle scatter_pipeline_;

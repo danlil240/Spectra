@@ -324,9 +324,24 @@ class ThemeManager
     Color get_color(const std::string& color_name) const;
     Color lerp_color(const std::string& color_name, const Color& target, float t) const;
 
-   private:
+    // Redirect ThemeManager::instance() to a specific instance.
+    // Call with a non-null pointer to make instance() return that object;
+    // call with nullptr to revert to the process-wide fallback singleton.
+    // App calls this in init_runtime() / shutdown_runtime() so all
+    // subsystems that still use instance() transparently use the App-owned
+    // ThemeManager while avoiding a global singleton.
+    static void set_current(ThemeManager* tm);
+
+    // Publicly constructible so owners (App, agent, embed) can create
+    // their own instances rather than relying on the singleton.
     ThemeManager() = default;
 
+    // Ensure themes and palettes are initialized. Safe to call multiple times.
+    // ImGuiIntegration calls this before apply_to_imgui() so the injected
+    // instance is ready without going through instance().
+    void ensure_initialized();
+
+   private:
     std::unordered_map<std::string, Theme> themes_;
     std::string                            current_theme_name_ = "night";
     Theme*                                 current_theme_      = nullptr;

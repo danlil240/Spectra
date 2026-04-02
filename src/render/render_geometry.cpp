@@ -21,9 +21,9 @@ namespace spectra
 {
 
 // Conditional sRGB-to-linear for themes with linearize_colors enabled.
-static bool should_linearize_geom()
+static bool should_linearize_geom(const ui::ThemeManager& tm)
 {
-    return ui::ThemeManager::instance().current().linearize_colors;
+    return tm.current().linearize_colors;
 }
 
 static float srgb_chan_to_linear_geom(float c)
@@ -31,9 +31,9 @@ static float srgb_chan_to_linear_geom(float c)
     return (c <= 0.04045f) ? c / 12.92f : std::pow((c + 0.055f) / 1.055f, 2.4f);
 }
 
-static void set_pc_color_geom(float dst[4], const ui::Color& src)
+static void set_pc_color_geom(float dst[4], const ui::Color& src, const ui::ThemeManager& tm)
 {
-    if (should_linearize_geom())
+    if (should_linearize_geom(tm))
     {
         dst[0] = srgb_chan_to_linear_geom(src.r);
         dst[1] = srgb_chan_to_linear_geom(src.g);
@@ -48,9 +48,10 @@ static void set_pc_color_geom(float dst[4], const ui::Color& src)
     dst[3] = src.a;
 }
 
-static void set_pc_color_geom(float dst[4], const ui::Color& src, float alpha_override)
+static void set_pc_color_geom(
+    float dst[4], const ui::Color& src, float alpha_override, const ui::ThemeManager& tm)
 {
-    if (should_linearize_geom())
+    if (should_linearize_geom(tm))
     {
         dst[0] = srgb_chan_to_linear_geom(src.r);
         dst[1] = srgb_chan_to_linear_geom(src.g);
@@ -70,12 +71,12 @@ void Renderer::render_plot_text(Figure& figure)
     if (!text_renderer_.is_initialized())
         return;
 
-    const auto& colors = ui::ThemeManager::instance().colors();
+    const auto& colors = theme_mgr_.colors();
 
-    auto color_to_rgba = [](const ui::Color& c) -> uint32_t
+    auto color_to_rgba = [this](const ui::Color& c) -> uint32_t
     {
         float cr = c.r, cg = c.g, cb = c.b;
-        if (should_linearize_geom())
+        if (should_linearize_geom(theme_mgr_))
         {
             cr = srgb_chan_to_linear_geom(cr);
             cg = srgb_chan_to_linear_geom(cg);
@@ -517,7 +518,7 @@ void Renderer::render_plot_geometry(Figure& figure)
     // frame's GPU commands still read from the other slot while we write this one.
     const uint32_t slot = backend_.current_flight_frame() % FRAME_BUFFER_SLOTS;
 
-    const auto& colors = ui::ThemeManager::instance().colors();
+    const auto& colors = theme_mgr_.colors();
 
     overlay_line_scratch_.clear();
     overlay_tri_scratch_.clear();
@@ -907,7 +908,7 @@ void Renderer::render_plot_geometry(Figure& figure)
         backend_.bind_pipeline(grid_pipeline_);
 
         SeriesPushConstants pc{};
-        set_pc_color_geom(pc.color, colors.axis_line);
+        set_pc_color_geom(pc.color, colors.axis_line, theme_mgr_);
         pc.line_width = 1.0f;
         backend_.push_constants(pc);
 
@@ -1024,12 +1025,12 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
         backend_.bind_pipeline(grid_overlay3d_pipeline_);
 
         SeriesPushConstants pc{};
-        const auto&         theme_colors = ui::ThemeManager::instance().colors();
+        const auto&         theme_colors = theme_mgr_.colors();
         float               blend        = 0.3f;
         ui::Color           blended(theme_colors.grid_major.r * (1.0f - blend) + blend,
                           theme_colors.grid_major.g * (1.0f - blend) + blend,
                           theme_colors.grid_major.b * (1.0f - blend) + blend);
-        set_pc_color_geom(pc.color, blended, 0.35f);
+        set_pc_color_geom(pc.color, blended, 0.35f, theme_mgr_);
         pc.line_width    = 1.0f;
         pc.data_offset_x = 0.0f;
         pc.data_offset_y = 0.0f;
@@ -1128,8 +1129,8 @@ void Renderer::render_axis_border(AxesBase& axes,
     backend_.bind_pipeline(grid_pipeline_);
 
     SeriesPushConstants pc{};
-    const auto&         theme_colors = ui::ThemeManager::instance().colors();
-    set_pc_color_geom(pc.color, theme_colors.axis_line);
+    const auto&         theme_colors = theme_mgr_.colors();
+    set_pc_color_geom(pc.color, theme_colors.axis_line, theme_mgr_);
     pc.line_width    = 1.0f;
     pc.data_offset_x = 0.0f;
     pc.data_offset_y = 0.0f;

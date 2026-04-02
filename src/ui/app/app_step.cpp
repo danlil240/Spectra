@@ -74,7 +74,13 @@ App::App(const AppConfig& config) : config_(config)
         return;
     }
 
-    renderer_ = std::make_unique<Renderer>(*backend_);
+    // Create the App-owned ThemeManager and register it as the active instance
+    // so ThemeManager::instance() returns this object instead of the fallback
+    // singleton for the lifetime of this App.
+    theme_mgr_ = std::make_unique<ui::ThemeManager>();
+    ui::ThemeManager::set_current(theme_mgr_.get());
+
+    renderer_ = std::make_unique<Renderer>(*backend_, *theme_mgr_);
     if (!renderer_->init())
     {
         SPECTRA_LOG_ERROR("app", "Failed to initialize renderer");
@@ -88,6 +94,10 @@ App::~App()
 {
     runtime_.reset();
     renderer_.reset();
+    // Clear the singleton pointer before the ThemeManager member is destroyed
+    // to prevent any remaining call sites from dereferencing a dangling pointer.
+    ui::ThemeManager::set_current(nullptr);
+    theme_mgr_.reset();
     if (backend_)
     {
         backend_->shutdown();
@@ -241,7 +251,8 @@ void App::init_runtime()
             rt.window_mgr = std::make_unique<WindowManager>();
             rt.window_mgr->init(static_cast<VulkanBackend*>(backend_.get()),
                                 &registry_,
-                                renderer_.get());
+                                renderer_.get(),
+                                theme_mgr_.get());
             rt.window_mgr->set_redraw_request_handler(
                 [&session = rt.session](const char* reason)
                 { session.redraw_tracker().mark_dirty(reason); });
@@ -307,6 +318,7 @@ void App::init_runtime()
     if (!rt.ui_ctx_ptr)
     {
         rt.headless_ui_ctx                = std::make_unique<WindowUIContext>();
+        rt.headless_ui_ctx->theme_mgr     = theme_mgr_.get();
         rt.headless_ui_ctx->fig_mgr_owned = std::make_unique<FigureManager>(registry_);
         rt.headless_ui_ctx->fig_mgr       = rt.headless_ui_ctx->fig_mgr_owned.get();
         rt.ui_ctx_ptr                     = rt.headless_ui_ctx.get();

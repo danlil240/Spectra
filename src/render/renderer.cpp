@@ -21,7 +21,10 @@
 namespace spectra
 {
 
-Renderer::Renderer(Backend& backend) : backend_(backend) {}
+Renderer::Renderer(Backend& backend, ui::ThemeManager& theme_mgr)
+    : backend_(backend), theme_mgr_(theme_mgr)
+{
+}
 
 void Renderer::destroy_series_buffers(SeriesGpuData& gpu)
 {
@@ -229,7 +232,7 @@ void Renderer::begin_render_pass()
     // begin_frame() succeeds, NOT here.  This ensures the fence wait has
     // completed before any GPU resources are freed.
 
-    const auto& theme_colors = ui::ThemeManager::instance().colors();
+    const auto& theme_colors = theme_mgr_.colors();
     Color       bg_color     = Color(theme_colors.bg_canvas.r,
                            theme_colors.bg_canvas.g,
                            theme_colors.bg_canvas.b,

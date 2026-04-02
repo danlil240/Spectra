@@ -33,6 +33,9 @@ class DataInteraction
     // Set fonts for tooltip/legend/region rendering
     void set_fonts(ImFont* body, ImFont* heading, ImFont* icon = nullptr);
 
+    // Inject ThemeManager into all overlay sub-objects.
+    void set_theme_manager(ui::ThemeManager* tm);
+
     // Main update: run nearest-point query and update internal state.
     // Call once per frame after input handling.
     void update(const CursorReadout& cursor, Figure& figure);
@@ -230,6 +233,8 @@ class DataInteraction
 
     // Axis link manager for shared cursor
     AxisLinkManager* axis_link_mgr_ = nullptr;
+
+    ui::ThemeManager* theme_mgr_ = nullptr;
 
     // Series selection / deselection callbacks
     SeriesSelectedCallback     on_series_selected_;

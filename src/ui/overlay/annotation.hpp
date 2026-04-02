@@ -10,6 +10,11 @@
 struct ImDrawList;
 struct ImFont;
 
+namespace spectra::ui
+{
+class ThemeManager;
+}   // namespace spectra::ui
+
 namespace spectra
 {
 
@@ -39,6 +44,7 @@ class AnnotationManager
 
     // Set fonts for annotation rendering
     void set_fonts(ImFont* body, ImFont* heading);
+    void set_theme_manager(ui::ThemeManager* tm) { theme_mgr_ = tm; }
 
     // Add a new annotation at the given data coordinates.
     // Returns the index of the newly created annotation.
@@ -116,6 +122,8 @@ class AnnotationManager
     // Fonts (not owned)
     ImFont* font_body_    = nullptr;
     ImFont* font_heading_ = nullptr;
+
+    ui::ThemeManager* theme_mgr_ = nullptr;
 
     // Drag state
     bool   drag_active_         = false;

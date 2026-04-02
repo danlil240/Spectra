@@ -188,7 +188,7 @@ void ImGuiIntegration::draw_custom_transform_dialog()
 void ImGuiIntegration::draw_theme_settings()
 {
     const auto& colors        = ui::theme();
-    auto&       theme_manager = ui::ThemeManager::instance();
+    auto& theme_manager = (theme_mgr_ ? *theme_mgr_ : ui::ThemeManager::instance());
 
     // Center the modal window
     ImGuiIO& io            = ImGui::GetIO();

@@ -119,7 +119,7 @@ void DataMarkerManager::draw(const Rect& viewport,
     if (markers_.empty())
         return;
 
-    const auto& colors   = ui::ThemeManager::instance().colors();
+    const auto& colors   = (theme_mgr_ ? *theme_mgr_ : ui::ThemeManager::instance()).colors();
     ImDrawList* fg       = dl ? dl : ImGui::GetForegroundDrawList();
     ImFont*     font     = ImGui::GetFont();
     const float fs       = font->LegacySize;

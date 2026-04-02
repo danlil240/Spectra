@@ -45,6 +45,10 @@ namespace spectra
 // Phase 2+: One instance per WindowContext for full multi-window support.
 struct WindowUIContext
 {
+    // Injected ThemeManager (not owned).  Set by WindowManager::init_window_ui()
+    // from the App-owned instance.  All commands and UI code that previously
+    // called ThemeManager::instance() should use this pointer instead.
+    ui::ThemeManager* theme_mgr = nullptr;
 #ifdef SPECTRA_USE_IMGUI
     std::unique_ptr<ImGuiIntegration> imgui_ui;
     std::unique_ptr<DataInteraction>  data_interaction;

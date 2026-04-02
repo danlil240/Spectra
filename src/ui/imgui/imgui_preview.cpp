@@ -7,7 +7,7 @@ namespace spectra
 
 void ImGuiIntegration::build_preview_ui(const std::string& title, Figure* figure)
 {
-    const auto& theme = ui::ThemeManager::instance().colors();
+    const auto& theme = (theme_mgr_ ? *theme_mgr_ : ui::ThemeManager::instance()).colors();
     ImDrawList* dl    = ImGui::GetBackgroundDrawList();
     ImVec2      disp  = ImGui::GetIO().DisplaySize;
 

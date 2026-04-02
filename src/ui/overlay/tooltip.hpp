@@ -8,6 +8,11 @@
 struct ImDrawList;
 struct ImFont;
 
+namespace spectra::ui
+{
+class ThemeManager;
+}   // namespace spectra::ui
+
 namespace spectra
 {
 
@@ -50,8 +55,10 @@ class Tooltip
 
     void set_enabled(bool e) { enabled_ = e; }
     bool enabled() const { return enabled_; }
+    void set_theme_manager(ui::ThemeManager* tm) { theme_mgr_ = tm; }
 
    private:
+    ui::ThemeManager* theme_mgr_ = nullptr;
     ImFont* font_body_      = nullptr;
     ImFont* font_heading_   = nullptr;
     float   snap_radius_px_ = 8.0f;

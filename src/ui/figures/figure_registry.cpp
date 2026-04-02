@@ -1,28 +1,40 @@
 #include <spectra/figure_registry.hpp>
 
 #include <algorithm>
+#include <spectra/event_bus.hpp>
 
 namespace spectra
 {
 
 FigureRegistry::IdType FigureRegistry::register_figure(std::unique_ptr<Figure> fig)
 {
-    std::lock_guard<std::mutex> lock(mutex_);
-    IdType                      id = next_id_++;
-    figures_[id]                   = std::move(fig);
-    insertion_order_.push_back(id);
+    IdType  id     = 0;
+    Figure* figptr = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        id     = next_id_++;
+        figptr = fig.get();
+        figures_[id] = std::move(fig);
+        insertion_order_.push_back(id);
+    }
+    if (event_system_)
+        event_system_->figure_created().emit({id, figptr});
     return id;
 }
 
 void FigureRegistry::unregister_figure(IdType id)
 {
-    std::lock_guard<std::mutex> lock(mutex_);
-    auto                        it = figures_.find(id);
-    if (it == figures_.end())
-        return;
-    figures_.erase(it);
-    insertion_order_.erase(std::remove(insertion_order_.begin(), insertion_order_.end(), id),
-                           insertion_order_.end());
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        auto                        it = figures_.find(id);
+        if (it == figures_.end())
+            return;
+        figures_.erase(it);
+        insertion_order_.erase(std::remove(insertion_order_.begin(), insertion_order_.end(), id),
+                               insertion_order_.end());
+    }
+    if (event_system_)
+        event_system_->figure_destroyed().emit({id});
 }
 
 Figure* FigureRegistry::get(IdType id) const

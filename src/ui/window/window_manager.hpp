@@ -257,6 +257,9 @@ class WindowManager
     }
     void set_file_drop_handler(FileDropHandler cb) { file_drop_handler_ = std::move(cb); }
 
+    // Set the event system for cross-subsystem notifications.
+    void set_event_system(EventSystem* es) { event_system_ = es; }
+
     // Shutdown: destroy all windows and release resources.
     // After this, the WindowManager is in an uninitialized state.
     void shutdown();
@@ -337,6 +340,8 @@ class WindowManager
     bool                                  mouse_release_tracking_ = false;
     bool                                  mouse_release_seen_     = false;
     std::chrono::steady_clock::time_point suppress_release_until_{};
+
+    EventSystem* event_system_ = nullptr;
 
     // Deferred preview window requests
     struct PendingPreviewCreate

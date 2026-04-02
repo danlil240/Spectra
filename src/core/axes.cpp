@@ -2,6 +2,7 @@
 #include <cmath>
 #include <limits>
 #include <spectra/axes.hpp>
+#include <spectra/event_bus.hpp>
 #include <spectra/series_shapes.hpp>
 #include <spectra/series_stats.hpp>
 
@@ -12,10 +13,12 @@ namespace spectra
 
 void AxesBase::clear_series()
 {
-    if (on_series_removed_)
+    for (auto& s : series_)
     {
-        for (auto& s : series_)
+        if (on_series_removed_)
             on_series_removed_(s.get());
+        if (event_system_)
+            event_system_->series_removed().emit({this, s.get()});
     }
     series_.clear();
 }
@@ -24,8 +27,11 @@ bool AxesBase::remove_series(size_t index)
 {
     if (index >= series_.size())
         return false;
+    auto* ptr = series_[index].get();
     if (on_series_removed_)
-        on_series_removed_(series_[index].get());
+        on_series_removed_(ptr);
+    if (event_system_)
+        event_system_->series_removed().emit({this, ptr});
     series_.erase(series_.begin() + static_cast<ptrdiff_t>(index));
     return true;
 }
@@ -48,7 +54,10 @@ T& Axes::add_series(Args&&... args)
     auto  s   = std::make_unique<T>(std::forward<Args>(args)...);
     auto& ref = *s;
     ref.set_color(palette::default_cycle[series_.size() % palette::default_cycle_size]);
+    ref.set_event_context(event_system_, this);
     series_.push_back(std::move(s));
+    if (event_system_)
+        event_system_->series_added().emit({this, &ref});
     return ref;
 }
 
@@ -125,6 +134,12 @@ void Axes::xlim(double min, double max)
     // users can resume via the Live button.
     presented_buffer_following_ = false;
     xlim_                       = AxisLimits{min, max};
+    if (event_system_)
+    {
+        auto xl = x_limits();
+        auto yl = y_limits();
+        event_system_->axes_limits_changed().emit({this, xl.min, xl.max, yl.min, yl.max});
+    }
 }
 
 void Axes::ylim(double min, double max)
@@ -132,6 +147,12 @@ void Axes::ylim(double min, double max)
     // Y overrides are independent from live X-follow: callers can keep a
     // streaming time window while locking or zooming the Y axis manually.
     ylim_ = AxisLimits{min, max};
+    if (event_system_)
+    {
+        auto xl = x_limits();
+        auto yl = y_limits();
+        event_system_->axes_limits_changed().emit({this, xl.min, xl.max, yl.min, yl.max});
+    }
 }
 
 void Axes::clear_ylim()

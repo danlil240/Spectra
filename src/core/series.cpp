@@ -1,10 +1,18 @@
 #include <cassert>
+#include <spectra/event_bus.hpp>
 #include <spectra/series.hpp>
 
 namespace spectra
 {
 
 // --- Series (base) ---
+
+void Series::mark_dirty()
+{
+    dirty_ = true;
+    if (event_system_)
+        event_system_->series_data_changed().emit({owning_axes_, this});
+}
 
 Series& Series::plot_style(const PlotStyle& ps)
 {

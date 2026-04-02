@@ -10,6 +10,11 @@
 
 struct ImVec4;   // Forward declaration for ImGui
 
+namespace spectra
+{
+class EventSystem;
+}   // namespace spectra
+
 namespace spectra::ui
 {
 
@@ -336,6 +341,9 @@ class ThemeManager
     // their own instances rather than relying on the singleton.
     ThemeManager() = default;
 
+    // Set the event system for cross-subsystem notifications.
+    void set_event_system(spectra::EventSystem* es) { event_system_ = es; }
+
     // Ensure themes and palettes are initialized. Safe to call multiple times.
     // ImGuiIntegration calls this before apply_to_imgui() so the injected
     // instance is ready without going through instance().
@@ -376,6 +384,9 @@ class ThemeManager
 
     // Default theme persistence
     std::string default_theme_path_;
+
+    // Event system for cross-subsystem notifications
+    spectra::EventSystem* event_system_ = nullptr;
 
     void        initialize_default_themes();
     void        initialize_data_palettes();

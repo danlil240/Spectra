@@ -4,6 +4,7 @@
 #include <cmath>
 #include <filesystem>
 #include <fstream>
+#include <spectra/event_bus.hpp>
 #include <spectra/logger.hpp>
 #include <sstream>
 #include <vector>
@@ -82,6 +83,8 @@ void ThemeManager::set_theme(const std::string& name)
         current_theme_      = &it->second;
         ++theme_version_;
         apply_to_imgui();
+        if (event_system_)
+            event_system_->theme_changed().emit(spectra::ThemeChangedEvent{name});
     }
 }
 

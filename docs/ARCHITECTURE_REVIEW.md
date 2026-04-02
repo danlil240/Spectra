@@ -284,13 +284,17 @@ This limits plugins to "add a menu command" which is insufficient for a serious 
 - **Difficulty**: Medium. ~15 call sites need updating. Some are in command lambdas that capture pointers.
 - **Strategy**: Add `ThemeManager*` to `WindowUIContext`. Change `ThemeManager::instance()` to return from a thread-local or context variable during transition.
 
-### MR-4: Make the library actually split-able
+### MR-4: Make the library actually split-able ✅ DONE
 
-- **What**: Factor the CMake build so that `spectra-core` (data model, math, transforms, export) is a **real** static/shared library that does not depend on Vulkan, GLFW, or ImGui. `spectra-render` adds the rendering layer. `spectra-ui` adds the UI layer.
+- **What**: Factored the CMake build so that `spectra-core` (data model, math, transforms, I/O export, animation, camera, knob manager) is a **real** static/shared library that does not depend on Vulkan, GLFW, or ImGui. `spectra` links `spectra-core` PUBLIC and adds the rendering, UI, IPC, and platform layers.
+  - Created `libspectra-core.a` (~9MB): `src/core/`, `src/math/`, `src/data/`, `src/io/`, `src/anim/`, camera, knob manager
+  - Remaining `libspectra.a` (~79MB): render, platform, UI, IPC, daemon, embed, third-party
+  - Moved `knob_manager.hpp` from `src/ui/overlay/` to `include/spectra/` (was the last public→private include violation)
+  - Camera (`src/ui/camera/camera.cpp`) moved to spectra-core (pure math, no render deps)
+  - Prerequisite QW-2 (`Series::record_commands` removal) and QW-3 (`app.hpp` internal include fix) were already completed
 - **Why**: Enables headless usage (Python bindings, CI/CD, testing) without pulling in GPU dependencies. Enables embedding in Qt or other frameworks without GLFW.
-- **Benefit**: Smaller binaries for headless use. Cleaner dependency graph. Easier packaging.
-- **Difficulty**: Medium-high. Requires untangling `#include` chains, especially `Series::record_commands()` (see QW-2).
-- **Strategy**: Start with QW-2 (remove renderer dependency from series). Then split `src/core/` + `src/math/` + `src/data/` + `src/io/` into `spectra-core`. Incremental.
+- **Benefit**: Smaller binaries for headless use. Cleaner dependency graph. Easier packaging. Downstream consumers can now `target_link_libraries(my_app PRIVATE spectra-core)` for headless data manipulation without any GPU stack.
+- **Difficulty**: Medium-high. Required untangling `#include` chains and moving pure-math code out of the UI layer.
 
 ### MR-5: Add an observer/event system for cross-subsystem notifications
 

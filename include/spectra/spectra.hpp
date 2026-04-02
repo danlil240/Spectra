@@ -9,6 +9,7 @@
 #include <spectra/easy.hpp>
 #include <spectra/easy_embed.hpp>
 #include <spectra/embed.hpp>
+#include <spectra/event_bus.hpp>
 #include <spectra/export.hpp>
 #include <spectra/figure.hpp>
 #include <spectra/frame.hpp>

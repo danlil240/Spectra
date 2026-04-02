@@ -126,8 +126,6 @@ foreach(_ui_src
     src/ui/animation/camera_animator.cpp
     src/ui/animation/animation_curve_editor.cpp
     src/ui/animation/mode_transition.cpp
-    src/ui/overlay/knob_manager.cpp
-    src/ui/camera/camera.cpp
     src/ui/imgui/axes3d_renderer.cpp
     src/ui/window/window_manager.cpp
     src/ui/app/window_runtime.cpp
@@ -149,17 +147,67 @@ foreach(_ui_src
     endif()
 endforeach()
 
-# Core library (headless-capable)
-# Use -DBUILD_SHARED_LIBS=ON to build as shared library (libspectra.so)
-add_library(spectra
+# ─── spectra-core: headless data model library (no Vulkan, no GLFW, no ImGui) ─
+# This is a real static/shared library containing the core data model, math,
+# data processing, I/O export, animation, and knob manager.  It has zero GPU
+# dependencies, making it suitable for headless Python consumers, CI pipelines,
+# and embedding scenarios that don't need rendering.
+
+add_library(spectra-core
     ${SPECTRA_CORE_SOURCES}
-    ${SPECTRA_RENDER_SOURCES}
-    ${SPECTRA_PLATFORM_SOURCES}
-    third_party/tinyfiledialogs.cpp
     ${SPECTRA_ANIM_SOURCES}
     ${SPECTRA_IO_SOURCES}
     ${SPECTRA_DATA_SOURCES}
     ${SPECTRA_MATH_SOURCES}
+    src/ui/overlay/knob_manager.cpp
+    src/ui/camera/camera.cpp
+)
+
+set_target_properties(spectra-core PROPERTIES
+    VERSION   ${PROJECT_VERSION}
+    SOVERSION ${PROJECT_VERSION_MAJOR}
+    POSITION_INDEPENDENT_CODE ON
+)
+
+target_include_directories(spectra-core PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
+
+target_include_directories(spectra-core PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_BINARY_DIR}/generated
+)
+target_include_directories(spectra-core SYSTEM PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb
+)
+
+target_compile_definitions(spectra-core PUBLIC
+    $<$<BOOL:${SPECTRA_USE_FFMPEG}>:SPECTRA_USE_FFMPEG>
+    SPECTRA_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
+    SPECTRA_VERSION_MINOR=${PROJECT_VERSION_MINOR}
+    SPECTRA_VERSION_PATCH=${PROJECT_VERSION_PATCH}
+    SPECTRA_VERSION_STRING="${SPECTRA_VERSION_STRING}"
+)
+
+# MSVC requires _USE_MATH_DEFINES to expose M_PI, M_E etc. from <cmath>.
+if(MSVC)
+    target_compile_definitions(spectra-core PUBLIC _USE_MATH_DEFINES)
+endif()
+
+# Suppress warnings in third-party headers (stb_image.h tc16 array — GCC only)
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_compile_options(spectra-core PRIVATE -Wno-error=maybe-uninitialized)
+endif()
+
+# ─── spectra: full GPU-accelerated library (rendering + UI + IPC) ─────────────
+# Links spectra-core and adds Vulkan rendering, platform windowing, IPC,
+# daemon support, and the full ImGui-based UI stack.
+
+add_library(spectra
+    ${SPECTRA_RENDER_SOURCES}
+    ${SPECTRA_PLATFORM_SOURCES}
+    third_party/tinyfiledialogs.cpp
     ${SPECTRA_IPC_SOURCES}
     ${SPECTRA_DAEMON_SOURCES}
     ${SPECTRA_UI_SOURCES}
@@ -171,11 +219,7 @@ set_target_properties(spectra PROPERTIES
     POSITION_INDEPENDENT_CODE ON
 )
 
-target_include_directories(spectra PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:include>
-)
-
+# Public include dirs come transitively from spectra-core.
 target_include_directories(spectra PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_BINARY_DIR}/generated
@@ -190,14 +234,9 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     target_compile_options(spectra PRIVATE -Wno-error=maybe-uninitialized)
 endif()
 
-target_link_libraries(spectra PUBLIC Vulkan::Vulkan)
+target_link_libraries(spectra PUBLIC spectra-core Vulkan::Vulkan)
 
 target_compile_definitions(spectra PUBLIC
-    $<$<BOOL:${SPECTRA_USE_FFMPEG}>:SPECTRA_USE_FFMPEG>
-    SPECTRA_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
-    SPECTRA_VERSION_MINOR=${PROJECT_VERSION_MINOR}
-    SPECTRA_VERSION_PATCH=${PROJECT_VERSION_PATCH}
-    SPECTRA_VERSION_STRING="${SPECTRA_VERSION_STRING}"
     SPECTRA_RUNTIME_MODE_${SPECTRA_RUNTIME_MODE}
 )
 message("SPECTRA_VERSION_STRING: ${SPECTRA_VERSION_STRING}")
@@ -205,12 +244,6 @@ target_compile_definitions(spectra PRIVATE
     $<$<BOOL:${SPECTRA_USE_EIGEN}>:SPECTRA_USE_EIGEN>
 )
 target_compile_definitions(spectra PRIVATE SPECTRA_PRESENT_MODE_${SPECTRA_PRESENT_MODE})
-
-# MSVC requires _USE_MATH_DEFINES to expose M_PI, M_E etc. from <cmath>.
-# PUBLIC so examples and tests also get it (transitive via linking spectra).
-if(MSVC)
-    target_compile_definitions(spectra PUBLIC _USE_MATH_DEFINES)
-endif()
 
 # Ensure shaders are compiled before the library
 if(TARGET spectra_shaders)
@@ -574,18 +607,12 @@ if(SPECTRA_USE_PX4)
     message(STATUS "PX4/ULog adapter enabled")
 endif()
 
-# ─── Logical library split (spectra-core, spectra-ipc, spectra-render) ────────
-# These are INTERFACE targets that expose subsets of the monolithic spectra lib.
-# Downstream consumers can depend on spectra-core (no rendering), spectra-ipc
-# (protocol + transport only), or spectra-render (full rendering stack).
-
-add_library(spectra-core INTERFACE)
-target_link_libraries(spectra-core INTERFACE spectra)
-target_compile_definitions(spectra-core INTERFACE SPECTRA_CORE_ONLY)
+# ─── Convenience INTERFACE targets ────────────────────────────────────────────
+# spectra-core is now a real library (defined above).  These remaining
+# INTERFACE targets are thin aliases for backward compatibility.
 
 add_library(spectra-ipc INTERFACE)
 target_link_libraries(spectra-ipc INTERFACE spectra)
-target_compile_definitions(spectra-ipc INTERFACE SPECTRA_IPC_ONLY)
 
 add_library(spectra-render INTERFACE)
 target_link_libraries(spectra-render INTERFACE spectra)
@@ -677,7 +704,7 @@ include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
 # Library
-install(TARGETS spectra EXPORT spectraTargets
+install(TARGETS spectra-core spectra EXPORT spectraTargets
     ARCHIVE  DESTINATION ${CMAKE_INSTALL_LIBDIR}
     LIBRARY  DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME  DESTINATION ${CMAKE_INSTALL_BINDIR}

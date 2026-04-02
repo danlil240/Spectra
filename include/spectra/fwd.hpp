@@ -81,6 +81,7 @@ class WindowManager;
 class FigureRegistry;
 struct WindowUIContext;
 class TabDragController;
+class EventSystem;
 
 class SeriesClipboard;
 struct SeriesSnapshot;

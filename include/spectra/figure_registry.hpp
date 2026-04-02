@@ -32,6 +32,10 @@ class FigureRegistry
     FigureRegistry(const FigureRegistry&)            = delete;
     FigureRegistry& operator=(const FigureRegistry&) = delete;
 
+    // Set the event system for cross-subsystem notifications.
+    // Must not be called while events are being emitted.
+    void set_event_system(EventSystem* es) { event_system_ = es; }
+
     // Register a figure and return its stable ID.
     // The registry takes ownership of the Figure.
     IdType register_figure(std::unique_ptr<Figure> fig);
@@ -68,6 +72,7 @@ class FigureRegistry
     std::unordered_map<IdType, std::unique_ptr<Figure>> figures_;
     std::vector<IdType> insertion_order_;   // preserves iteration order
     IdType              next_id_ = 1;
+    EventSystem*        event_system_ = nullptr;
 };
 
 }   // namespace spectra

@@ -1,4 +1,4 @@
-#include "knob_manager.hpp"
+#include <spectra/knob_manager.hpp>
 
 #include <algorithm>
 

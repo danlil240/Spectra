@@ -55,11 +55,19 @@ class Series
 
     bool is_dirty() const { return dirty_; }
     void clear_dirty() { dirty_ = false; }
-    void mark_dirty() { dirty_ = true; }
+    void mark_dirty();
     void set_color(const Color& c)
     {
         color_ = c;
         dirty_ = true;
+    }
+
+    // ── Event system integration ──
+    // Called by AxesBase when the series is added to axes with an event system.
+    void set_event_context(EventSystem* es, AxesBase* axes)
+    {
+        event_system_ = es;
+        owning_axes_  = axes;
     }
 
     // ── Plot style (line style, marker style, etc.) ──
@@ -99,11 +107,13 @@ class Series
    protected:
     Series& apply_format_string(std::string_view fmt);
 
-    std::string label_;
-    Color       color_ = colors::blue;
-    PlotStyle   style_;   // line/marker style, sizes, opacity
-    bool        visible_ = true;
-    bool        dirty_   = true;
+    std::string  label_;
+    Color        color_ = colors::blue;
+    PlotStyle    style_;   // line/marker style, sizes, opacity
+    bool         visible_ = true;
+    bool         dirty_   = true;
+    EventSystem* event_system_ = nullptr;
+    AxesBase*    owning_axes_  = nullptr;
 };
 
 class LineSeries : public Series

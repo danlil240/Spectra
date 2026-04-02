@@ -1,5 +1,6 @@
 #include "window_manager.hpp"
 
+#include <spectra/event_bus.hpp>
 #include <spectra/logger.hpp>
 
 #include "render/renderer.hpp"
@@ -89,6 +90,8 @@ WindowContext* WindowManager::create_initial_window(void* glfw_window)
 
     SPECTRA_LOG_INFO("window_manager",
                      "Created initial window (id=" + std::to_string(ptr->id) + ")");
+    if (event_system_)
+        event_system_->window_opened().emit({ptr->id});
     return ptr;
 }
 
@@ -157,6 +160,8 @@ WindowContext* WindowManager::create_window(uint32_t           width,
     SPECTRA_LOG_INFO("window_manager",
                      "Created window " + std::to_string(ptr->id) + ": " + std::to_string(width)
                          + "x" + std::to_string(height) + " \"" + title + "\"");
+    if (event_system_)
+        event_system_->window_opened().emit({ptr->id});
     return ptr;
 #else
     (void)width;
@@ -250,6 +255,9 @@ void WindowManager::destroy_window(uint32_t window_id)
 #endif
 
     SPECTRA_LOG_INFO("window_manager", "Destroyed window " + std::to_string(window_id));
+
+    if (event_system_)
+        event_system_->window_closed().emit({window_id});
 
     windows_.erase(it);
     rebuild_active_list();

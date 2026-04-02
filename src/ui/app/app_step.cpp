@@ -683,17 +683,17 @@ void App::init_runtime()
 
     rt.scheduler.reset();
 
-    // Capture initial axes limits for Home button
-    auto& home_limits_ref = rt.ui_ctx_ptr->home_limits;
+    // Capture initial axes limits for Home button — stored per-figure in ViewModel
     for (auto id : registry_.all_ids())
     {
         Figure* fig_ptr = registry_.get(id);
         if (!fig_ptr)
             continue;
+        auto& vm = rt.ui_ctx_ptr->fig_mgr->state(id);
         for (auto& ax : fig_ptr->axes_mut())
         {
             if (ax)
-                home_limits_ref[ax.get()] = {ax->x_limits(), ax->y_limits()};
+                vm.set_home_limit(ax.get(), {ax->x_limits(), ax->y_limits()});
         }
     }
 

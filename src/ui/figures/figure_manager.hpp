@@ -10,35 +10,17 @@
 
 #include <spectra/figure_registry.hpp>
 
+#include "ui/viewmodel/figure_view_model.hpp"
+
 namespace spectra
 {
 
 class TabBar;
 
-// Per-figure state that persists across tab switches
-struct FigureState
-{
-    // Axis limits snapshot (restored when switching back to this figure)
-    struct AxesSnapshot
-    {
-        AxisLimits x_limits;
-        AxisLimits y_limits;
-    };
-    std::vector<AxesSnapshot> axes_snapshots;
-
-    // Inspector selection state
-    int selected_series_index = -1;   // -1 = none
-    int selected_axes_index   = -1;   // -1 = none
-
-    // Scroll positions
-    float inspector_scroll_y = 0.0f;
-
-    // Modified flag (unsaved changes)
-    bool is_modified = false;
-
-    // Custom title (empty = auto-generated)
-    std::string custom_title;
-};
+// Backward-compatible alias.  FigureState was a plain struct holding
+// per-figure UI state.  It is now FigureViewModel (LT-1 migration).
+// Existing code that uses FigureState continues to compile unchanged.
+using FigureState = FigureViewModel;
 
 /**
  * FigureManager — Manages multi-figure lifecycle for Spectra.
@@ -137,7 +119,7 @@ class FigureManager
    private:
     FigureRegistry&       registry_;
     std::vector<FigureId> ordered_ids_;   // Ordered list of registry IDs (tab order)
-    std::unordered_map<FigureId, FigureState> states_;
+    std::unordered_map<FigureId, FigureViewModel> states_;
     FigureId                                  active_index_ = INVALID_FIGURE_ID;
     TabBar*                                   tab_bar_      = nullptr;
 

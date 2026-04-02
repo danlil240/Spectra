@@ -116,6 +116,7 @@ foreach(_ui_src
     src/ui/input/gesture_recognizer.cpp
     src/ui/animation/transition_engine.cpp
     src/ui/figures/figure_manager.cpp
+    src/ui/viewmodel/figure_view_model.cpp
     src/ui/animation/timeline_editor.cpp
     src/ui/animation/recording_export.cpp
     src/ui/docking/split_view.cpp

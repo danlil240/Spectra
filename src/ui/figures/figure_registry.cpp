@@ -12,8 +12,8 @@ FigureRegistry::IdType FigureRegistry::register_figure(std::unique_ptr<Figure> f
     Figure* figptr = nullptr;
     {
         std::lock_guard<std::mutex> lock(mutex_);
-        id     = next_id_++;
-        figptr = fig.get();
+        id           = next_id_++;
+        figptr       = fig.get();
         figures_[id] = std::move(fig);
         insertion_order_.push_back(id);
     }

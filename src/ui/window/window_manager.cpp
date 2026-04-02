@@ -38,7 +38,9 @@ WindowManager::~WindowManager()
     shutdown();
 }
 
-void WindowManager::init(VulkanBackend* backend, FigureRegistry* registry, Renderer* renderer,
+void WindowManager::init(VulkanBackend*    backend,
+                         FigureRegistry*   registry,
+                         Renderer*         renderer,
                          ui::ThemeManager* theme_mgr)
 {
     backend_   = backend;
@@ -685,9 +687,9 @@ WindowContext* WindowManager::create_panel_window(uint32_t              width,
     }
 
     // Minimal UI context: ImGuiIntegration only (no FigureManager/DockSystem).
-    auto ui      = std::make_unique<WindowUIContext>();
+    auto ui       = std::make_unique<WindowUIContext>();
     ui->theme_mgr = theme_mgr_;
-    ui->imgui_ui = std::make_unique<ImGuiIntegration>();
+    ui->imgui_ui  = std::make_unique<ImGuiIntegration>();
     ui->imgui_ui->set_theme_manager(theme_mgr_);
 
     ImGuiContext* prev_imgui_ctx = ImGui::GetCurrentContext();
@@ -800,9 +802,9 @@ void WindowManager::warmup_preview_window(uint32_t width, uint32_t height)
     glfwSetWindowCloseCallback(glfw_win, glfw_window_close_callback);
     glfwSetMouseButtonCallback(glfw_win, glfw_mouse_button_callback);
 
-    auto ui      = std::make_unique<WindowUIContext>();
+    auto ui       = std::make_unique<WindowUIContext>();
     ui->theme_mgr = theme_mgr_;
-    ui->imgui_ui = std::make_unique<ImGuiIntegration>();
+    ui->imgui_ui  = std::make_unique<ImGuiIntegration>();
     ui->imgui_ui->set_theme_manager(theme_mgr_);
 
     ImGuiContext* prev_imgui_ctx = ImGui::GetCurrentContext();
@@ -976,7 +978,7 @@ WindowContext* WindowManager::create_preview_window_impl(uint32_t           widt
     glfwSetMouseButtonCallback(glfw_win, glfw_mouse_button_callback);
 
     // Initialize ImGui for this preview window so we can render the card
-    auto ui = std::make_unique<WindowUIContext>();
+    auto ui       = std::make_unique<WindowUIContext>();
     ui->theme_mgr = theme_mgr_;
 
     // Minimal ImGui init — no FigureManager, no DockSystem, no input
@@ -1606,7 +1608,7 @@ bool WindowManager::init_window_ui(WindowContext& wctx, FigureId initial_figure_
         return false;
 
 #ifdef SPECTRA_USE_IMGUI
-    auto ui = std::make_unique<WindowUIContext>();
+    auto ui       = std::make_unique<WindowUIContext>();
     ui->theme_mgr = theme_mgr_;
 
     // Create per-window FigureManager with only the assigned figure.

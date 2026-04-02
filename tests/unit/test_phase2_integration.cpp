@@ -522,20 +522,20 @@ TEST(FigureManagerIntegration, PerFigureStatePreserved)
     FigureId       second_id = mgr.create_figure();
 
     // Set state on first figure
-    mgr.state(first_id).selected_series_index = 2;
-    mgr.state(first_id).inspector_scroll_y    = 150.0f;
+    mgr.state(first_id).set_selected_series_index(2);
+    mgr.state(first_id).set_inspector_scroll_y(150.0f);
 
     // Switch to second figure
     mgr.switch_to(second_id);
-    mgr.state(second_id).selected_series_index = 5;
+    mgr.state(second_id).set_selected_series_index(5);
 
     // Switch back to first figure
     mgr.switch_to(first_id);
-    EXPECT_EQ(mgr.state(first_id).selected_series_index, 2);
-    EXPECT_FLOAT_EQ(mgr.state(first_id).inspector_scroll_y, 150.0f);
+    EXPECT_EQ(mgr.state(first_id).selected_series_index(), 2);
+    EXPECT_FLOAT_EQ(mgr.state(first_id).inspector_scroll_y(), 150.0f);
 
     // Second figure state also preserved
-    EXPECT_EQ(mgr.state(second_id).selected_series_index, 5);
+    EXPECT_EQ(mgr.state(second_id).selected_series_index(), 5);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

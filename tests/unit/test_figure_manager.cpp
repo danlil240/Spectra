@@ -394,15 +394,15 @@ TEST_F(FigureManagerTest, StateAccessor)
 {
     FigureManager mgr(registry_);
     auto&         st         = mgr.state(first_id_);
-    st.selected_series_index = 3;
-    EXPECT_EQ(mgr.state(first_id_).selected_series_index, 3);
+    st.set_selected_series_index(3);
+    EXPECT_EQ(mgr.state(first_id_).selected_series_index(), 3);
 }
 
 TEST_F(FigureManagerTest, ActiveState)
 {
     FigureManager mgr(registry_);
-    mgr.active_state().inspector_scroll_y = 42.0f;
-    EXPECT_FLOAT_EQ(mgr.state(first_id_).inspector_scroll_y, 42.0f);
+    mgr.active_state().set_inspector_scroll_y(42.0f);
+    EXPECT_FLOAT_EQ(mgr.state(first_id_).inspector_scroll_y(), 42.0f);
 }
 
 TEST_F(FigureManagerTest, SaveRestoreAxisState)
@@ -420,11 +420,11 @@ TEST_F(FigureManagerTest, SaveRestoreAxisState)
 
     // The save should have captured fig_id's axis state
     const auto& st = mgr.state(fig_id);
-    ASSERT_EQ(st.axes_snapshots.size(), 1u);
-    EXPECT_FLOAT_EQ(st.axes_snapshots[0].x_limits.min, 10.0f);
-    EXPECT_FLOAT_EQ(st.axes_snapshots[0].x_limits.max, 20.0f);
-    EXPECT_FLOAT_EQ(st.axes_snapshots[0].y_limits.min, 30.0f);
-    EXPECT_FLOAT_EQ(st.axes_snapshots[0].y_limits.max, 40.0f);
+    ASSERT_EQ(st.axes_snapshots().size(), 1u);
+    EXPECT_FLOAT_EQ(st.axes_snapshots()[0].x_limits.min, 10.0f);
+    EXPECT_FLOAT_EQ(st.axes_snapshots()[0].x_limits.max, 20.0f);
+    EXPECT_FLOAT_EQ(st.axes_snapshots()[0].y_limits.min, 30.0f);
+    EXPECT_FLOAT_EQ(st.axes_snapshots()[0].y_limits.max, 40.0f);
 }
 
 TEST_F(FigureManagerTest, SwitchPreservesAndRestoresState)
@@ -625,8 +625,8 @@ TEST_F(FigureManagerTest, RemoveFigureReturnsState)
     FigureId second = mgr.create_figure();
 
     FigureState state = mgr.remove_figure(first_id_);
-    EXPECT_EQ(state.custom_title, "Custom Title");
-    EXPECT_TRUE(state.is_modified);
+    EXPECT_EQ(state.custom_title(), "Custom Title");
+    EXPECT_TRUE(state.is_modified());
     EXPECT_EQ(mgr.count(), 1u);
     EXPECT_EQ(mgr.active_index(), second);
 
@@ -639,7 +639,7 @@ TEST_F(FigureManagerTest, RemoveFigureInvalidId)
     FigureManager mgr(registry_);
     FigureState   state = mgr.remove_figure(999);
     // Should return default state, no crash
-    EXPECT_TRUE(state.custom_title.empty());
+    EXPECT_TRUE(state.custom_title().empty());
     EXPECT_EQ(mgr.count(), 1u);
 }
 
@@ -665,7 +665,7 @@ TEST_F(FigureManagerTest, AddFigureFromAnotherManager)
     EXPECT_EQ(dst.count(), 1u);
 
     // Transfer
-    transferred.custom_title = "Transferred";
+    transferred.set_custom_title("Transferred");
     dst.add_figure(second, std::move(transferred));
     EXPECT_EQ(dst.count(), 2u);
     EXPECT_EQ(dst.active_index(), second);
@@ -676,7 +676,7 @@ TEST_F(FigureManagerTest, AddFigureDuplicateIsNoop)
 {
     FigureManager mgr(registry_);
     FigureState   state;
-    state.custom_title = "Duplicate";
+    state.set_custom_title("Duplicate");
     mgr.add_figure(first_id_, std::move(state));
     // Should be no-op — first_id_ already in manager
     EXPECT_EQ(mgr.count(), 1u);

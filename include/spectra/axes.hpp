@@ -74,7 +74,7 @@ class AxesBase
     bool has_series_removed_callback() const { return static_cast<bool>(on_series_removed_); }
 
     // ── Event system integration ──
-    void set_event_system(EventSystem* es) { event_system_ = es; }
+    void         set_event_system(EventSystem* es) { event_system_ = es; }
     EventSystem* event_system() const { return event_system_; }
 
     void        set_viewport(const Rect& r) { viewport_ = r; }

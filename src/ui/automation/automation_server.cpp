@@ -691,8 +691,9 @@ void AutomationServer::execute(AutomationRequest& req, App& app, WindowUIContext
         if (ui_ctx)
         {
             oss << ",\"undo_count\":" << ui_ctx->undo_mgr.undo_count()
-                << ",\"redo_count\":" << ui_ctx->undo_mgr.redo_count()
-                << ",\"is_3d_mode\":" << (ui_ctx->is_in_3d_mode ? "true" : "false")
+                << ",\"redo_count\":" << ui_ctx->undo_mgr.redo_count() << ",\"is_3d_mode\":"
+                << ((ui_ctx->fig_mgr && ui_ctx->fig_mgr->active_state().is_in_3d_mode()) ? "true"
+                                                                                         : "false")
                 << ",\"theme\":\""
                 << json_escape(ui_ctx->theme_mgr
                                    ? ui_ctx->theme_mgr->current_theme_name()

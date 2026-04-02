@@ -20,8 +20,8 @@ FigureManager::FigureManager(FigureRegistry& registry) : registry_(registry)
     for (auto id : registry_.all_ids())
     {
         ordered_ids_.push_back(id);
-        FigureState st;
-        st.custom_title = default_title(id);
+        FigureState st(id, registry_.get(id));
+        st.set_custom_title(default_title(id));
         states_[id]     = std::move(st);
     }
     if (!ordered_ids_.empty())
@@ -69,8 +69,8 @@ FigureId FigureManager::create_figure(const FigureConfig& config)
     SPECTRA_LOG_TRACE("figure", "Created figure id={}", id);
 
     // Add state for the new figure (use next available figure number)
-    FigureState new_state;
-    new_state.custom_title = default_title(next_figure_number());
+    FigureState new_state(id, registry_.get(id));
+    new_state.set_custom_title(default_title(next_figure_number()));
     states_[id]            = std::move(new_state);
 
     // Sync tab bar
@@ -303,6 +303,8 @@ void FigureManager::add_figure(FigureId id, FigureState fig_state)
         return;
 
     SPECTRA_LOG_TRACE("figure", "Adding figure id={}", id);
+    fig_state.set_figure_id(id);
+    fig_state.set_model(registry_.get(id));
     ordered_ids_.push_back(id);
     states_[id] = std::move(fig_state);
 
@@ -564,8 +566,8 @@ FigureId FigureManager::duplicate_figure(FigureId index)
     ordered_ids_.push_back(new_id);
 
     // Create state with next available figure number
-    FigureState new_state;
-    new_state.custom_title = default_title(next_figure_number());
+    FigureState new_state(new_id, registry_.get(new_id));
+    new_state.set_custom_title(default_title(next_figure_number()));
     states_[new_id]        = std::move(new_state);
 
     // Sync tab bar
@@ -673,6 +675,10 @@ FigureState& FigureManager::state(FigureId index)
         static FigureState dummy;
         return dummy;
     }
+    // Lazily keep model pointer up-to-date (figure may have been
+    // re-registered or the pointer invalidated by registry changes).
+    if (!it->second.model())
+        it->second.set_model(registry_.get(index));
     return it->second;
 }
 
@@ -695,9 +701,9 @@ FigureState& FigureManager::active_state()
 std::string FigureManager::get_title(FigureId index) const
 {
     auto it = states_.find(index);
-    if (it != states_.end() && !it->second.custom_title.empty())
+    if (it != states_.end() && !it->second.custom_title().empty())
     {
-        return it->second.custom_title;
+        return it->second.custom_title();
     }
     // Fallback: use FigureId-based title (stable across windows)
     return default_title(index);
@@ -709,7 +715,7 @@ void FigureManager::set_title(FigureId index, const std::string& title)
     auto it = states_.find(index);
     if (it != states_.end())
     {
-        it->second.custom_title = title;
+        it->second.set_custom_title(title);
         if (tab_bar_)
         {
             size_t pos = id_to_pos(index);
@@ -725,7 +731,7 @@ void FigureManager::mark_modified(FigureId index, bool modified)
     auto it = states_.find(index);
     if (it != states_.end())
     {
-        it->second.is_modified = modified;
+        it->second.set_is_modified(modified);
     }
 }
 
@@ -734,7 +740,7 @@ bool FigureManager::is_modified(FigureId index) const
     auto it = states_.find(index);
     if (it == states_.end())
         return false;
-    return it->second.is_modified;
+    return it->second.is_modified();
 }
 
 bool FigureManager::process_pending()
@@ -804,20 +810,10 @@ void FigureManager::save_active_state()
     auto it = states_.find(active_index_);
     if (it == states_.end())
         return;
-    auto& st = it->second;
 
-    // Snapshot axis limits
-    st.axes_snapshots.clear();
-    for (const auto& ax : fig->axes())
-    {
-        if (ax)
-        {
-            FigureState::AxesSnapshot snap;
-            snap.x_limits = ax->x_limits();
-            snap.y_limits = ax->y_limits();
-            st.axes_snapshots.push_back(snap);
-        }
-    }
+    // Ensure the ViewModel has the model pointer, then delegate.
+    it->second.set_model(fig);
+    it->second.save_axes_state();
 }
 
 void FigureManager::restore_state(FigureId index)
@@ -829,19 +825,10 @@ void FigureManager::restore_state(FigureId index)
     auto it = states_.find(index);
     if (it == states_.end())
         return;
-    const auto& st = it->second;
 
-    // Restore axis limits
-    for (size_t i = 0; i < st.axes_snapshots.size() && i < fig->axes().size(); ++i)
-    {
-        if (fig->axes_mut()[i])
-        {
-            fig->axes_mut()[i]->xlim(st.axes_snapshots[i].x_limits.min,
-                                     st.axes_snapshots[i].x_limits.max);
-            fig->axes_mut()[i]->ylim(st.axes_snapshots[i].y_limits.min,
-                                     st.axes_snapshots[i].y_limits.max);
-        }
-    }
+    // Ensure the ViewModel has the model pointer, then delegate.
+    it->second.set_model(fig);
+    it->second.restore_axes_state();
 }
 
 std::string FigureManager::default_title(FigureId index)
@@ -876,8 +863,8 @@ void FigureManager::ensure_states()
     {
         if (states_.find(id) == states_.end())
         {
-            FigureState st;
-            st.custom_title = default_title(id);
+            FigureState st(id, registry_.get(id));
+            st.set_custom_title(default_title(id));
             states_[id]     = std::move(st);
         }
     }
@@ -889,15 +876,15 @@ size_t FigureManager::next_figure_number() const
     size_t max_num = ordered_ids_.size();
     for (const auto& [id, st] : states_)
     {
-        if (!st.custom_title.empty())
+        if (!st.custom_title().empty())
         {
             // Try to parse "Figure N" pattern
             const std::string prefix = "Figure ";
-            if (st.custom_title.substr(0, prefix.size()) == prefix)
+            if (st.custom_title().substr(0, prefix.size()) == prefix)
             {
                 try
                 {
-                    size_t num = std::stoul(st.custom_title.substr(prefix.size()));
+                    size_t num = std::stoul(st.custom_title().substr(prefix.size()));
                     if (num >= max_num)
                         max_num = num + 1;
                 }

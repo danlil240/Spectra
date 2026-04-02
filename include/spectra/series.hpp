@@ -110,8 +110,8 @@ class Series
     std::string  label_;
     Color        color_ = colors::blue;
     PlotStyle    style_;   // line/marker style, sizes, opacity
-    bool         visible_ = true;
-    bool         dirty_   = true;
+    bool         visible_      = true;
+    bool         dirty_        = true;
     EventSystem* event_system_ = nullptr;
     AxesBase*    owning_axes_  = nullptr;
 };

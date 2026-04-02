@@ -61,7 +61,6 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
     auto& dock_system      = ui_ctx.dock_system;
     auto& timeline_editor  = ui_ctx.timeline_editor;
     auto& mode_transition  = ui_ctx.mode_transition;
-    auto& home_limits      = ui_ctx.home_limits;
     auto& fig_mgr          = *ui_ctx.fig_mgr;
     auto& anim_controller  = ui_ctx.anim_controller;
 
@@ -392,12 +391,13 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
         // Handle interaction state from UI — Home restores original view
         if (active_figure && imgui_ui->should_reset_view())
         {
+            auto& active_vm = fig_mgr.active_state();
             for (auto& ax : active_figure->axes_mut())
             {
                 if (ax)
                 {
-                    auto it = home_limits.find(ax.get());
-                    if (it != home_limits.end())
+                    auto it = active_vm.home_limits().find(ax.get());
+                    if (it != active_vm.home_limits().end())
                     {
                         // Animate back to the user's original limits
                         anim_controller.animate_axis_limits(*ax,
@@ -464,16 +464,20 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
 
         // Feed zoom level (approximate: based on data bounds vs view)
         // Cache data_range to avoid O(n) minmax_element scan every frame.
+        // Zoom cache is per-figure (stored in ViewModel) so switching tabs
+        // doesn't share stale cache between different figures.
         if (active_figure && !active_figure->axes().empty() && active_figure->axes()[0])
         {
             auto& ax         = active_figure->axes()[0];
             auto  xlim       = ax->x_limits();
             float view_range = xlim.max - xlim.min;
 
+            auto& zoom_vm = fig_mgr.active_state();
+
             // Invalidate cache when series count changes or any series is dirty
             size_t series_count = ax->series().size();
             bool   needs_recompute =
-                !ui_ctx.zoom_cache_valid || series_count != ui_ctx.cached_zoom_series_count;
+                !zoom_vm.zoom_cache_valid() || series_count != zoom_vm.cached_zoom_series_count();
             if (!needs_recompute)
             {
                 for (auto& s : ax->series())
@@ -505,13 +509,10 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                         data_max              = std::max(data_max, *it_max);
                     }
                 }
-                ui_ctx.cached_data_min          = data_min;
-                ui_ctx.cached_data_max          = data_max;
-                ui_ctx.cached_zoom_series_count = series_count;
-                ui_ctx.zoom_cache_valid         = true;
+                zoom_vm.set_zoom_cache(data_min, data_max, series_count);
             }
 
-            float data_range = ui_ctx.cached_data_max - ui_ctx.cached_data_min;
+            float data_range = zoom_vm.cached_data_max() - zoom_vm.cached_data_min();
             if (view_range > 0.0f && data_range > 0.0f)
             {
                 imgui_ui->set_zoom_level(data_range / view_range);

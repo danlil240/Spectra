@@ -71,7 +71,7 @@ class FigureRegistry
     mutable std::mutex                                  mutex_;
     std::unordered_map<IdType, std::unique_ptr<Figure>> figures_;
     std::vector<IdType> insertion_order_;   // preserves iteration order
-    IdType              next_id_ = 1;
+    IdType              next_id_      = 1;
     EventSystem*        event_system_ = nullptr;
 };
 

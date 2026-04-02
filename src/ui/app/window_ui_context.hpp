@@ -69,15 +69,9 @@ struct WindowUIContext
     AnimationCurveEditor curve_editor;
 
     ModeTransition mode_transition;
-    bool           is_in_3d_mode = false;
-    Camera         saved_3d_camera;
-
-    // Initial axes limits for Home button (restore original view)
-    struct InitialLimits
-    {
-        AxisLimits x, y;
-    };
-    std::unordered_map<Axes*, InitialLimits> home_limits;
+    // NOTE: is_in_3d_mode, saved_3d_camera, and home_limits have been migrated
+    // to FigureViewModel (per-figure state).  Access via fig_mgr->state(id)
+    // or fig_mgr->active_state().  See LT-1 in ARCHITECTURE_REVIEW.md.
 
     CommandRegistry cmd_registry;
     ShortcutManager shortcut_mgr;
@@ -94,12 +88,8 @@ struct WindowUIContext
     Figure*  per_window_active_figure    = nullptr;
     FigureId per_window_active_figure_id = INVALID_FIGURE_ID;
 
-    // Cached data range for zoom level computation.
-    // Avoids scanning all series x_data with minmax_element every frame.
-    float  cached_data_min          = 0.0f;
-    float  cached_data_max          = 0.0f;
-    size_t cached_zoom_series_count = 0;
-    bool   zoom_cache_valid         = false;
+    // NOTE: cached_data_min/max, cached_zoom_series_count, zoom_cache_valid
+    // have been migrated to FigureViewModel (per-figure state).
 #endif
 
 #ifdef SPECTRA_USE_GLFW

@@ -64,9 +64,6 @@ void register_standard_commands(const CommandBindings& b)
     auto& dock_system      = ui_ctx.dock_system;
     auto& timeline_editor  = ui_ctx.timeline_editor;
     auto& mode_transition  = ui_ctx.mode_transition;
-    auto& is_in_3d_mode    = ui_ctx.is_in_3d_mode;
-    auto& saved_3d_camera  = ui_ctx.saved_3d_camera;
-    auto& home_limits      = ui_ctx.home_limits;
     auto& cmd_registry     = ui_ctx.cmd_registry;
     auto& shortcut_mgr     = ui_ctx.shortcut_mgr;
     auto& undo_mgr         = ui_ctx.undo_mgr;
@@ -303,13 +300,14 @@ void register_standard_commands(const CommandBindings& b)
         {
             if (!active_figure)
                 return;
-            auto before = capture_figure_axes(*active_figure);
+            auto  before    = capture_figure_axes(*active_figure);
+            auto& active_vm = fig_mgr.active_state();
             for (auto& ax : active_figure->axes_mut())
             {
                 if (!ax)
                     continue;
-                auto it = home_limits.find(ax.get());
-                if (it != home_limits.end())
+                auto it = active_vm.home_limits().find(ax.get());
+                if (it != active_vm.home_limits().end())
                 {
                     ax->xlim(it->second.x.min, it->second.x.max);
                     ax->ylim(it->second.y.min, it->second.y.max);
@@ -468,9 +466,10 @@ void register_standard_commands(const CommandBindings& b)
             if (!ax3d || mode_transition.is_active())
                 return;
 
-            if (is_in_3d_mode)
+            auto& vm_3d = fig_mgr.active_state();
+            if (vm_3d.is_in_3d_mode())
             {
-                saved_3d_camera = ax3d->camera();
+                vm_3d.set_saved_3d_camera(ax3d->camera());
 
                 ModeTransition3DState from;
                 from.camera      = ax3d->camera();
@@ -484,7 +483,7 @@ void register_standard_commands(const CommandBindings& b)
                 to.ylim = ax3d->y_limits();
 
                 mode_transition.begin_to_2d(from, to);
-                is_in_3d_mode = false;
+                vm_3d.set_is_in_3d_mode(false);
                 input_handler.set_orbit_locked(true);
             }
             else
@@ -494,14 +493,14 @@ void register_standard_commands(const CommandBindings& b)
                 from.ylim = ax3d->y_limits();
 
                 ModeTransition3DState to;
-                to.camera      = saved_3d_camera;
+                to.camera      = vm_3d.saved_3d_camera();
                 to.xlim        = ax3d->x_limits();
                 to.ylim        = ax3d->y_limits();
                 to.zlim        = ax3d->z_limits();
                 to.grid_planes = static_cast<int>(ax3d->grid_planes());
 
                 mode_transition.begin_to_3d(from, to);
-                is_in_3d_mode = true;
+                vm_3d.set_is_in_3d_mode(true);
                 input_handler.set_orbit_locked(false);
             }
         },

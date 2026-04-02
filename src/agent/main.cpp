@@ -885,7 +885,6 @@ int main(int argc, char* argv[])
     auto& tab_drag_controller   = ui_ctx_ptr->tab_drag_controller;
     auto& fig_mgr               = *ui_ctx_ptr->fig_mgr;
     auto& input_handler         = ui_ctx_ptr->input_handler;
-    auto& home_limits           = ui_ctx_ptr->home_limits;
 
     // Sync timeline with figure animation settings
     timeline_editor.set_interpolator(&keyframe_interpolator);
@@ -1046,16 +1045,17 @@ int main(int argc, char* argv[])
 
     scheduler.reset();
 
-    // Capture initial axes limits for Home button
+    // Capture initial axes limits for Home button — stored per-figure in ViewModel
     for (auto id : registry.all_ids())
     {
         spectra::Figure* fig_ptr = registry.get(id);
         if (!fig_ptr)
             continue;
+        auto& vm = fig_mgr.state(id);
         for (auto& ax : fig_ptr->axes_mut())
         {
             if (ax)
-                home_limits[ax.get()] = {ax->x_limits(), ax->y_limits()};
+                vm.set_home_limit(ax.get(), {ax->x_limits(), ax->y_limits()});
         }
     }
 
@@ -1250,7 +1250,7 @@ int main(int argc, char* argv[])
                         {
                             spectra::FigureState st;
                             if (fi < figure_cache.size() && !figure_cache[fi].title.empty())
-                                st.custom_title = figure_cache[fi].title;
+                                st.set_custom_title(figure_cache[fi].title);
                             fm->add_figure(new_id, std::move(st));
                         }
                     }

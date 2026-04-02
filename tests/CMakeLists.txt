@@ -146,6 +146,7 @@ set(SPECTRA_UNIT_TESTS
     test_embed_surface
     test_easy_embed
     test_ultra_zoom_precision
+    test_figure_view_model
 )
 
 # Tests that require a GPU/display (Vulkan + GLFW window)

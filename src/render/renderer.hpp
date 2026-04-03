@@ -4,6 +4,7 @@
 #include <spectra/series.hpp>
 
 #include "backend.hpp"
+#include "series_type_registry.hpp"
 #include "text_renderer.hpp"
 
 // Forward declarations
@@ -88,6 +89,9 @@ class Renderer
     void set_selected_series(const std::vector<const Series*>& selected);
     void clear_selected_series();
 
+    // Set the series type registry for custom plugin series types.
+    void set_series_type_registry(SeriesTypeRegistry* reg) { series_type_registry_ = reg; }
+
    private:
     void render_axes(AxesBase& axes, const Rect& viewport, uint32_t fig_width, uint32_t fig_height);
     void render_grid(AxesBase& axes, const Rect& viewport);
@@ -124,13 +128,14 @@ class Renderer
 
     void render_arrows(Axes3D& axes, const Rect& viewport);
 
-    void         render_axis_border(AxesBase&   axes,
-                                    const Rect& viewport,
-                                    uint32_t    fig_width,
-                                    uint32_t    fig_height);
-    Backend&          backend_;
-    ui::ThemeManager& theme_mgr_;
-    TextRenderer      text_renderer_;
+    void                render_axis_border(AxesBase&   axes,
+                                           const Rect& viewport,
+                                           uint32_t    fig_width,
+                                           uint32_t    fig_height);
+    Backend&            backend_;
+    ui::ThemeManager&   theme_mgr_;
+    TextRenderer        text_renderer_;
+    SeriesTypeRegistry* series_type_registry_ = nullptr;
 
     PipelineHandle line_pipeline_;
     PipelineHandle scatter_pipeline_;
@@ -241,6 +246,7 @@ class Renderer
         Bar2D,
         Shape2D,
         Shape3D,
+        Custom,   // Plugin-defined custom series type
     };
 
     // Per-series GPU buffers (keyed by series pointer address)
@@ -260,6 +266,9 @@ class Renderer
         // at deep zoom by keeping GPU floats small.
         double origin_x = 0.0;
         double origin_y = 0.0;
+        // Plugin custom series type fields
+        std::string custom_type_name;             // Links to SeriesTypeRegistry entry
+        void*       plugin_gpu_state = nullptr;   // Opaque state managed by plugin
     };
     std::unordered_map<const Series*, SeriesGpuData> series_gpu_data_;
 

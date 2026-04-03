@@ -8,6 +8,8 @@
 #include "render/vulkan/window_context.hpp"
 #include "ui/app/window_ui_context.hpp"
 #include "ui/theme/theme.hpp"
+#include "io/export_registry.hpp"
+#include "ui/workspace/plugin_api.hpp"
 
 #ifdef SPECTRA_USE_GLFW
     #define GLFW_INCLUDE_NONE
@@ -1764,6 +1766,14 @@ bool WindowManager::init_window_ui(WindowContext& wctx, FigureId initial_figure_
     ui->imgui_ui->set_curve_editor(&ui->curve_editor);
     ui->imgui_ui->set_mode_transition(&ui->mode_transition);
     ui->imgui_ui->set_knob_manager(&ui->knob_manager);
+
+    // Shared plugin services.
+    ui->overlay_registry = &shared_overlay_registry_;
+    ui->plugin_manager   = plugin_manager_;
+
+    ui->imgui_ui->set_overlay_registry(ui->overlay_registry);
+    ui->imgui_ui->set_plugin_manager(ui->plugin_manager);
+    ui->imgui_ui->set_export_format_registry(export_format_registry_);
     ui->imgui_ui->set_series_clipboard(&shared_clipboard_);
     // (text_renderer wiring removed — plot text now rendered by Renderer::render_plot_text)
 

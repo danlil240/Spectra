@@ -4,6 +4,7 @@
 #include "renderer.hpp"
 
 #include <cstring>
+#include <spectra/custom_series.hpp>
 #include <spectra/series.hpp>
 #include <spectra/series3d.hpp>
 #include <spectra/series_shapes.hpp>
@@ -40,6 +41,9 @@ void Renderer::upload_series_data(Series& series, double origin_x, double origin
     auto* shape   = dynamic_cast<ShapeSeries*>(&series);
     auto* shape3d = dynamic_cast<ShapeSeries3D*>(&series);
 
+    // Try custom plugin series
+    auto* custom = dynamic_cast<CustomSeries*>(&series);
+
     auto& gpu = series_gpu_data_[&series];
 
     // Tag series type on first encounter (avoids dynamic_cast in render_series)
@@ -69,6 +73,11 @@ void Renderer::upload_series_data(Series& series, double origin_x, double origin
             gpu.type = SeriesType::Shape2D;
         else if (shape3d)
             gpu.type = SeriesType::Shape3D;
+        else if (custom)
+        {
+            gpu.type             = SeriesType::Custom;
+            gpu.custom_type_name = custom->type_name();
+        }
     }
 
     // Handle 2D line/scatter and statistical/shape series (vec2 interleaved)
@@ -419,6 +428,20 @@ void Renderer::upload_series_data(Series& series, double origin_x, double origin
         backend_.upload_buffer(gpu.index_buffer, shape3d->indices().data(), idx_byte_size);
         gpu.index_count = shape3d->indices().size();
 
+        series.clear_dirty();
+    }
+
+    // Custom plugin series upload
+    if (custom && series_type_registry_)
+    {
+        const auto* entry = series_type_registry_->find(custom->type_name());
+        if (entry && entry->upload_fn)
+        {
+            entry->upload_fn(backend_,
+                             custom->data(),
+                             gpu.plugin_gpu_state,
+                             custom->element_count());
+        }
         series.clear_dirty();
     }
 }

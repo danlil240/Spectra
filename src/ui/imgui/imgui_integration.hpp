@@ -45,8 +45,11 @@ class CommandRegistry;
 class KnobManager;
 class DataInteraction;
 class DockSystem;
+class ExportFormatRegistry;
 class KeyframeInterpolator;
 class ModeTransition;
+class OverlayRegistry;
+class PluginManager;
 class Renderer;
 class ShortcutManager;
 class TabBar;
@@ -232,6 +235,22 @@ class ImGuiIntegration
     // Knob manager (interactive parameter controls, owned externally by WindowUIContext)
     void         set_knob_manager(KnobManager* km) { knob_manager_ = km; }
     KnobManager* knob_manager() const { return knob_manager_; }
+
+    // Plugin overlay registry (shared, not owned — owned by PluginManager)
+    void             set_overlay_registry(OverlayRegistry* reg) { overlay_registry_ = reg; }
+    OverlayRegistry* overlay_registry() const { return overlay_registry_; }
+
+    // Plugin export format registry (shared, not owned — owned by PluginManager)
+    void set_export_format_registry(ExportFormatRegistry* reg) { export_format_registry_ = reg; }
+    ExportFormatRegistry* export_format_registry() const { return export_format_registry_; }
+
+    // Plugin manager (shared, not owned — owned by AppRuntime)
+    void           set_plugin_manager(PluginManager* mgr) { plugin_manager_ = mgr; }
+    PluginManager* plugin_manager() const { return plugin_manager_; }
+
+    // Plugins panel visibility
+    bool is_plugins_panel_visible() const { return show_plugins_panel_; }
+    void set_plugins_panel_visible(bool v) { show_plugins_panel_ = v; }
 
     // Tab bar (owned externally by App)
     void    set_tab_bar(TabBar* tb) { tab_bar_ = tb; }
@@ -439,6 +458,7 @@ class ImGuiIntegration
     void draw_axis_link_indicators(Figure& figure);
     void draw_timeline_panel();
     void draw_curve_editor_panel();
+    void draw_plugins_panel();
     void draw_theme_settings();
     void draw_knobs_panel();
     void draw_csv_dialog();
@@ -561,6 +581,21 @@ class ImGuiIntegration
 
     // Knob manager (not owned)
     KnobManager* knob_manager_ = nullptr;
+
+    // Plugin overlay registry (not owned)
+    OverlayRegistry* overlay_registry_ = nullptr;
+
+    // Plugin export format registry (not owned)
+    ExportFormatRegistry* export_format_registry_ = nullptr;
+
+    // Plugin manager (not owned)
+    PluginManager* plugin_manager_ = nullptr;
+
+    // Plugins panel state
+    bool                     show_plugins_panel_ = false;
+    std::vector<std::string> plugin_scan_dirs_;
+    char                     plugin_scan_dir_buf_[512] = {};
+    std::string              plugin_panel_status_;
 
     // Tab bar (not owned)
     TabBar* tab_bar_ = nullptr;

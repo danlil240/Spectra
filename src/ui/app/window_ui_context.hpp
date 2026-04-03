@@ -21,6 +21,7 @@
     #include "ui/animation/keyframe_interpolator.hpp"
     #include "ui/overlay/knob_manager.hpp"
     #include "ui/animation/mode_transition.hpp"
+    #include "ui/overlay/overlay_registry.hpp"
     #include "ui/commands/shortcut_manager.hpp"
     #include "ui/figures/tab_bar.hpp"
     #include "ui/figures/tab_drag_controller.hpp"
@@ -36,6 +37,8 @@
 
 namespace spectra
 {
+
+class PluginManager;
 
 // Per-window UI subsystem bundle.
 // Groups all UI objects that were previously stack-local in App::run()
@@ -81,6 +84,12 @@ struct WindowUIContext
     TabDragController tab_drag_controller;
 
     KnobManager knob_manager;
+
+    // Plugin overlay registry (shared across windows, not owned — owned by PluginManager)
+    OverlayRegistry* overlay_registry = nullptr;
+
+    // Plugin manager (shared across windows, not owned — owned by AppRuntime)
+    PluginManager* plugin_manager = nullptr;
 
     // Per-window active figure pointer, updated each frame by the render loop.
     // Used by command lambdas (register_standard_commands) so clipboard/view

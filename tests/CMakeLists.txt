@@ -147,7 +147,56 @@ set(SPECTRA_UNIT_TESTS
     test_easy_embed
     test_ultra_zoom_precision
     test_figure_view_model
+    test_plugin_transforms
+    test_plugin_overlays
+    test_plugin_version_negotiation
+    test_plugin_export
+    test_plugin_data_source
+    test_plugin_integration
+    test_plugin_series_type
 )
+
+# Mock transform plugin — shared library loaded by test_plugin_transforms
+add_library(mock_transform_plugin SHARED unit/mock_transform_plugin.cpp)
+target_include_directories(mock_transform_plugin PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_BINARY_DIR}/generated
+)
+target_compile_features(mock_transform_plugin PRIVATE cxx_std_20)
+target_link_libraries(mock_transform_plugin PRIVATE spectra)
+set_target_properties(mock_transform_plugin PROPERTIES PREFIX "")
+
+# Mock overlay plugin — shared library loaded by test_plugin_overlays
+add_library(mock_overlay_plugin SHARED unit/mock_overlay_plugin.cpp)
+target_include_directories(mock_overlay_plugin PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_BINARY_DIR}/generated
+)
+target_compile_features(mock_overlay_plugin PRIVATE cxx_std_20)
+target_link_libraries(mock_overlay_plugin PRIVATE spectra)
+set_target_properties(mock_overlay_plugin PROPERTIES PREFIX "")
+
+# Mock version-specific plugins for A3 version negotiation tests
+foreach(_mock_ver v1_0 v1_1 v1_99)
+    add_library(mock_plugin_${_mock_ver} SHARED unit/mock_plugin_${_mock_ver}.cpp)
+    target_include_directories(mock_plugin_${_mock_ver} PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_BINARY_DIR}/generated
+    )
+    target_compile_features(mock_plugin_${_mock_ver} PRIVATE cxx_std_20)
+    target_link_libraries(mock_plugin_${_mock_ver} PRIVATE spectra)
+    set_target_properties(mock_plugin_${_mock_ver} PROPERTIES PREFIX "")
+endforeach()
+
+# Mock integration plugin — shared library loaded by test_plugin_integration
+add_library(mock_integration_plugin SHARED unit/mock_integration_plugin.cpp)
+target_include_directories(mock_integration_plugin PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_BINARY_DIR}/generated
+)
+target_compile_features(mock_integration_plugin PRIVATE cxx_std_20)
+target_link_libraries(mock_integration_plugin PRIVATE spectra)
+set_target_properties(mock_integration_plugin PROPERTIES PREFIX "")
 
 # Tests that require a GPU/display (Vulkan + GLFW window)
 set(SPECTRA_GPU_TESTS
@@ -183,6 +232,35 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
         # Link Eigen3 for Eigen-specific tests
         if(_test STREQUAL "test_eigen_support" AND SPECTRA_USE_EIGEN)
             target_link_libraries(unit_${_test} PRIVATE Eigen3::Eigen)
+        endif()
+        # Pass mock plugin path to transform plugin tests
+        if(_test STREQUAL "test_plugin_transforms")
+            target_compile_definitions(unit_${_test} PRIVATE
+                SPECTRA_MOCK_TRANSFORM_PLUGIN_PATH="$<TARGET_FILE:mock_transform_plugin>"
+            )
+            add_dependencies(unit_${_test} mock_transform_plugin)
+        endif()
+        # Pass mock overlay plugin path to overlay plugin tests
+        if(_test STREQUAL "test_plugin_overlays")
+            target_compile_definitions(unit_${_test} PRIVATE
+                SPECTRA_MOCK_OVERLAY_PLUGIN_PATH="$<TARGET_FILE:mock_overlay_plugin>"
+            )
+            add_dependencies(unit_${_test} mock_overlay_plugin)
+        endif()
+        # Pass mock version plugin paths to version negotiation tests
+        if(_test STREQUAL "test_plugin_version_negotiation")
+            target_compile_definitions(unit_${_test} PRIVATE
+                SPECTRA_MOCK_PLUGIN_V1_0_PATH="$<TARGET_FILE:mock_plugin_v1_0>"
+                SPECTRA_MOCK_PLUGIN_V1_1_PATH="$<TARGET_FILE:mock_plugin_v1_1>"
+                SPECTRA_MOCK_PLUGIN_V1_99_PATH="$<TARGET_FILE:mock_plugin_v1_99>"
+            )
+            add_dependencies(unit_${_test} mock_plugin_v1_0 mock_plugin_v1_1 mock_plugin_v1_99)
+        endif()
+        if(_test STREQUAL "test_plugin_integration")
+            target_compile_definitions(unit_${_test} PRIVATE
+                SPECTRA_MOCK_INTEGRATION_PLUGIN_PATH="$<TARGET_FILE:mock_integration_plugin>"
+            )
+            add_dependencies(unit_${_test} mock_integration_plugin)
         endif()
     endif()
 endforeach()

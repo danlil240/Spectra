@@ -238,6 +238,7 @@ TEST(PluginEntryTest, DefaultValues)
     EXPECT_TRUE(entry.version.empty());
     EXPECT_FALSE(entry.loaded);
     EXPECT_TRUE(entry.enabled);
+    EXPECT_EQ(entry.api_version_minor, 0u);
     EXPECT_EQ(entry.handle, nullptr);
     EXPECT_EQ(entry.shutdown_fn, nullptr);
     EXPECT_TRUE(entry.registered_commands.empty());
@@ -247,7 +248,7 @@ TEST(PluginEntryTest, DefaultValues)
 
 TEST(PluginContextTest, VersionConstants)
 {
-    EXPECT_EQ(SPECTRA_PLUGIN_API_VERSION_MAJOR, 1u);
+    EXPECT_EQ(SPECTRA_PLUGIN_API_VERSION_MAJOR, 2u);
     EXPECT_EQ(SPECTRA_PLUGIN_API_VERSION_MINOR, 0u);
 }
 
@@ -256,11 +257,16 @@ TEST(PluginContextTest, ContextStruct)
     SpectraPluginContext ctx{};
     ctx.api_version_major = SPECTRA_PLUGIN_API_VERSION_MAJOR;
     ctx.api_version_minor = SPECTRA_PLUGIN_API_VERSION_MINOR;
-    EXPECT_EQ(ctx.api_version_major, 1u);
+    EXPECT_EQ(ctx.api_version_major, 2u);
     EXPECT_EQ(ctx.api_version_minor, 0u);
     EXPECT_EQ(ctx.command_registry, nullptr);
     EXPECT_EQ(ctx.shortcut_manager, nullptr);
     EXPECT_EQ(ctx.undo_manager, nullptr);
+    EXPECT_EQ(ctx.transform_registry, nullptr);
+    EXPECT_EQ(ctx.overlay_registry, nullptr);
+    EXPECT_EQ(ctx.data_source_registry, nullptr);
+    EXPECT_EQ(ctx.series_type_registry, nullptr);
+    EXPECT_EQ(ctx.backend_handle, nullptr);
 }
 
 TEST(PluginContextTest, InfoStruct)

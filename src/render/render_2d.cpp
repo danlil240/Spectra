@@ -7,6 +7,7 @@
 #include <cmath>
 #include <spectra/axes.hpp>
 #include <spectra/axes3d.hpp>
+#include <spectra/custom_series.hpp>
 #include <spectra/series.hpp>
 #include <spectra/series3d.hpp>
 #include <spectra/series_shapes.hpp>
@@ -18,7 +19,7 @@
 namespace spectra
 {
 
-void Renderer::render_series(Series&             series,
+void Renderer::render_series(Series& series,
                              const Rect& /*viewport*/,
                              const VisibleRange* visible,
                              double              view_cx,
@@ -415,6 +416,23 @@ void Renderer::render_series(Series&             series,
                 backend_.bind_buffer(gpu.ssbo, 0);
                 backend_.bind_index_buffer(gpu.index_buffer);
                 backend_.draw_indexed(static_cast<uint32_t>(gpu.index_count));
+            }
+            break;
+        }
+        case SeriesType::Custom:
+        {
+            if (series_type_registry_)
+            {
+                const auto* entry = series_type_registry_->find(gpu.custom_type_name);
+                if (entry && entry->draw_fn && entry->pipeline)
+                {
+                    float viewport_xywh[4] = {0, 0, 0, 0};   // Set by caller via set_viewport
+                    entry->draw_fn(backend_,
+                                   entry->pipeline,
+                                   gpu.plugin_gpu_state,
+                                   viewport_xywh,
+                                   pc);
+                }
             }
             break;
         }

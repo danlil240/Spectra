@@ -41,6 +41,7 @@
     #include "ui/theme/icons.hpp"
     #include "ui/animation/keyframe_interpolator.hpp"
     #include "ui/overlay/knob_manager.hpp"
+    #include "ui/overlay/overlay_registry.hpp"
     #include "math/data_transform.hpp"
     #include "ui/animation/mode_transition.hpp"
     #include "ui/figures/tab_bar.hpp"

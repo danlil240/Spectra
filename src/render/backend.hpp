@@ -9,6 +9,40 @@ namespace spectra
 
 class FrameProfiler;
 
+/// Pipeline creation descriptor for plugin-provided custom series types.
+/// Uses raw SPIR-V bytecodes and Vulkan-compatible enum values.
+struct CustomPipelineDesc
+{
+    const uint8_t* vert_spirv      = nullptr;
+    size_t         vert_spirv_size = 0;
+    const uint8_t* frag_spirv      = nullptr;
+    size_t         frag_spirv_size = 0;
+    uint32_t       topology        = 0;   // VkPrimitiveTopology value
+
+    struct VertexBinding
+    {
+        uint32_t binding;
+        uint32_t stride;
+        uint32_t input_rate;   // 0 = per-vertex, 1 = per-instance
+    };
+    struct VertexAttribute
+    {
+        uint32_t location;
+        uint32_t binding;
+        uint32_t format;   // VkFormat value
+        uint32_t offset;
+    };
+    const VertexBinding*   vertex_bindings        = nullptr;
+    uint32_t               vertex_binding_count   = 0;
+    const VertexAttribute* vertex_attributes      = nullptr;
+    uint32_t               vertex_attribute_count = 0;
+
+    bool enable_depth_test    = false;
+    bool enable_depth_write   = false;
+    bool enable_backface_cull = false;
+    bool enable_blending      = true;
+};
+
 enum class BufferUsage
 {
     Vertex,
@@ -132,6 +166,16 @@ class Backend
 
     // Pipeline management
     virtual PipelineHandle create_pipeline(PipelineType type) = 0;
+
+    // Custom pipeline from plugin-provided SPIR-V and config.
+    // Default implementation returns an invalid handle (no-op for backends that
+    // do not support custom pipelines).
+    virtual PipelineHandle create_custom_pipeline(const CustomPipelineDesc& desc)
+    {
+        (void)desc;
+        return PipelineHandle{};
+    }
+    virtual void destroy_pipeline(PipelineHandle handle) { (void)handle; }
 
     // Buffer management
     virtual BufferHandle create_buffer(BufferUsage usage, size_t size_bytes) = 0;

@@ -814,6 +814,12 @@ void TransformRegistry::register_xy_transform(const std::string&          name,
     custom_transforms_[name] = {DataTransform(name, std::move(func)), desc};
 }
 
+bool TransformRegistry::unregister_transform(const std::string& name)
+{
+    std::lock_guard lock(mutex_);
+    return custom_transforms_.erase(name) > 0;
+}
+
 bool TransformRegistry::get_transform(const std::string& name, DataTransform& out) const
 {
     std::lock_guard lock(mutex_);

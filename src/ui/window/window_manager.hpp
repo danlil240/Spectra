@@ -8,6 +8,7 @@
 #include <optional>
 #include <spectra/fwd.hpp>
 #include "ui/commands/series_clipboard.hpp"
+#include "ui/overlay/overlay_registry.hpp"
 #include <string>
 #include <vector>
 
@@ -20,6 +21,8 @@ namespace spectra
 struct WindowContext;
 class VulkanBackend;
 class Renderer;
+class ExportFormatRegistry;
+class PluginManager;
 
 // Manages multiple OS windows, each with its own GLFW window, Vulkan surface,
 // swapchain, command buffers, and sync objects.  Shared Vulkan resources
@@ -260,6 +263,13 @@ class WindowManager
     // Set the event system for cross-subsystem notifications.
     void set_event_system(EventSystem* es) { event_system_ = es; }
 
+    // Shared plugin services wired into each window UI context.
+    void set_plugin_manager(PluginManager* mgr) { plugin_manager_ = mgr; }
+    void set_export_format_registry(ExportFormatRegistry* reg) { export_format_registry_ = reg; }
+
+    // Shared overlay registry (owned here, shared with all windows and PluginManager).
+    OverlayRegistry& overlay_registry() { return shared_overlay_registry_; }
+
     // Shutdown: destroy all windows and release resources.
     // After this, the WindowManager is in an uninitialized state.
     void shutdown();
@@ -331,6 +341,13 @@ class WindowManager
 
     // Shared clipboard across all windows (owned here, passed by pointer to each window's UI)
     SeriesClipboard shared_clipboard_;
+
+    // Shared overlay registry across all windows (owned here, wired to PluginManager)
+    OverlayRegistry shared_overlay_registry_;
+
+    // Shared plugin services (owned externally by AppRuntime)
+    PluginManager*        plugin_manager_         = nullptr;
+    ExportFormatRegistry* export_format_registry_ = nullptr;
 
     // Monotonic z-order counter — incremented each time any window gains focus.
     // Each window's z_order field stores the value at its last focus event.

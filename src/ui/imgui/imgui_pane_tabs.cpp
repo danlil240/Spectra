@@ -1218,6 +1218,49 @@ void ImGuiIntegration::draw_plot_overlays(Figure& figure)
 
     // Selection highlight is now rendered by the GPU pipeline
     // (Renderer::render_selection_highlight)
+
+    // ── Plugin overlay callbacks ─────────────────────────────────────────────
+    // Invoke registered overlays for each axes viewport so plugins can draw
+    // custom annotations (crosshairs, rulers, indicators, etc.) on top of the
+    // plot canvas.  The draw_list in OverlayDrawContext maps to the background
+    // ImDrawList, which sits above the Vulkan plot surface but below ImGui
+    // popups and menus.
+    if (overlay_registry_ && overlay_registry_->count() > 0)
+    {
+        ImDrawList* overlay_dl = ImGui::GetBackgroundDrawList();
+        ImGuiIO&    io         = ImGui::GetIO();
+
+        const auto& all_axes = figure.all_axes();
+        for (int ai = 0; ai < static_cast<int>(all_axes.size()); ++ai)
+        {
+            const auto& ax = all_axes[static_cast<size_t>(ai)];
+            if (!ax)
+                continue;
+
+            Rect vp = ax->viewport();
+            if (vp.w <= 0.0f || vp.h <= 0.0f)
+                continue;
+
+            bool is_hovered = (io.MousePos.x >= vp.x && io.MousePos.x <= vp.x + vp.w
+                               && io.MousePos.y >= vp.y && io.MousePos.y <= vp.y + vp.h);
+
+            OverlayDrawContext ctx{};
+            ctx.viewport_x = vp.x;
+            ctx.viewport_y = vp.y;
+            ctx.viewport_w = vp.w;
+            ctx.viewport_h = vp.h;
+            ctx.mouse_x    = io.MousePos.x;
+            ctx.mouse_y    = io.MousePos.y;
+            ctx.is_hovered = is_hovered;
+            ctx.figure_id =
+                static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&figure) & 0xFFFFFFFF);
+            ctx.axes_index   = ai;
+            ctx.series_count = static_cast<int>(ax->series().size());
+            ctx.draw_list    = static_cast<void*>(overlay_dl);
+
+            overlay_registry_->draw_all(ctx);
+        }
+    }
 }
 
 }   // namespace spectra

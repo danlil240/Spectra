@@ -52,6 +52,8 @@ class VulkanBackend : public Backend
     bool create_offscreen_framebuffer(uint32_t width, uint32_t height) override;
 
     PipelineHandle create_pipeline(PipelineType type) override;
+    PipelineHandle create_custom_pipeline(const CustomPipelineDesc& desc) override;
+    void           destroy_pipeline(PipelineHandle handle) override;
 
     BufferHandle create_buffer(BufferUsage usage, size_t size_bytes) override;
     void         destroy_buffer(BufferHandle handle) override;

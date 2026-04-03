@@ -10,13 +10,18 @@
 #include <spectra/logger.hpp>
 
 #include "anim/frame_scheduler.hpp"
+#include "adapters/data_source_registry.hpp"
+#include "io/export_registry.hpp"
+#include "math/data_transform.hpp"
 #include "render/renderer.hpp"
+#include "render/series_type_registry.hpp"
 #include "render/vulkan/vk_backend.hpp"
 #include "render/vulkan/window_context.hpp"
 #include "ui/commands/command_queue.hpp"
 #include "session_runtime.hpp"
 #include "window_runtime.hpp"
 #include "window_ui_context.hpp"
+#include "ui/workspace/plugin_api.hpp"
 
 #ifdef SPECTRA_USE_GLFW
     #define GLFW_INCLUDE_NONE
@@ -111,6 +116,11 @@ struct App::AppRuntime
     FrameScheduler scheduler;
     Animator       animator;
     SessionRuntime session;
+
+    PluginManager        plugin_manager;
+    ExportFormatRegistry export_format_registry;
+    DataSourceRegistry   data_source_registry;
+    SeriesTypeRegistry   series_type_registry;
 
     FrameState frame_state;
     uint64_t   frame_number = 0;
@@ -256,6 +266,8 @@ void App::init_runtime()
             rt.window_mgr->set_redraw_request_handler(
                 [&session = rt.session](const char* reason)
                 { session.redraw_tracker().mark_dirty(reason); });
+            rt.window_mgr->set_plugin_manager(&rt.plugin_manager);
+            rt.window_mgr->set_export_format_registry(&rt.export_format_registry);
 
             rt.window_mgr->set_tab_detach_handler(
                 [&session = rt.session](FigureId           fid,
@@ -322,6 +334,28 @@ void App::init_runtime()
         rt.headless_ui_ctx->fig_mgr_owned = std::make_unique<FigureManager>(registry_);
         rt.headless_ui_ctx->fig_mgr       = rt.headless_ui_ctx->fig_mgr_owned.get();
         rt.ui_ctx_ptr                     = rt.headless_ui_ctx.get();
+    }
+
+    // Wire plugin host services after UI context creation.
+    rt.plugin_manager.set_command_registry(&rt.ui_ctx_ptr->cmd_registry);
+    rt.plugin_manager.set_shortcut_manager(&rt.ui_ctx_ptr->shortcut_mgr);
+    rt.plugin_manager.set_undo_manager(&rt.ui_ctx_ptr->undo_mgr);
+    rt.plugin_manager.set_transform_registry(&TransformRegistry::instance());
+    rt.plugin_manager.set_export_format_registry(&rt.export_format_registry);
+    rt.plugin_manager.set_data_source_registry(&rt.data_source_registry);
+    rt.plugin_manager.set_series_type_registry(&rt.series_type_registry);
+    rt.plugin_manager.set_backend(backend_.get());
+    renderer_->set_series_type_registry(&rt.series_type_registry);
+#ifdef SPECTRA_USE_GLFW
+    if (rt.window_mgr)
+        rt.plugin_manager.set_overlay_registry(&rt.window_mgr->overlay_registry());
+#endif
+
+    rt.ui_ctx_ptr->plugin_manager = &rt.plugin_manager;
+    if (rt.ui_ctx_ptr->imgui_ui)
+    {
+        rt.ui_ctx_ptr->imgui_ui->set_plugin_manager(&rt.plugin_manager);
+        rt.ui_ctx_ptr->imgui_ui->set_export_format_registry(&rt.export_format_registry);
     }
 
 #ifdef SPECTRA_USE_IMGUI

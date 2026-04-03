@@ -582,6 +582,91 @@ PipelineHandle VulkanBackend::create_pipeline(PipelineType type)
     return h;
 }
 
+PipelineHandle VulkanBackend::create_custom_pipeline(const CustomPipelineDesc& desc)
+{
+    VkRenderPass rp = render_pass();
+    if (rp == VK_NULL_HANDLE)
+    {
+        SPECTRA_LOG_WARN("vk_backend", "Cannot create custom pipeline — no render pass");
+        return PipelineHandle{};
+    }
+
+    if (!desc.vert_spirv || desc.vert_spirv_size == 0 || !desc.frag_spirv
+        || desc.frag_spirv_size == 0)
+    {
+        SPECTRA_LOG_WARN("vk_backend", "Custom pipeline missing SPIR-V shaders");
+        return PipelineHandle{};
+    }
+
+    vk::PipelineConfig cfg;
+    cfg.render_pass          = rp;
+    cfg.pipeline_layout      = pipeline_layout_;
+    cfg.vert_spirv           = desc.vert_spirv;
+    cfg.vert_spirv_size      = desc.vert_spirv_size;
+    cfg.frag_spirv           = desc.frag_spirv;
+    cfg.frag_spirv_size      = desc.frag_spirv_size;
+    cfg.topology             = static_cast<VkPrimitiveTopology>(desc.topology);
+    cfg.enable_blending      = desc.enable_blending;
+    cfg.enable_depth_test    = desc.enable_depth_test;
+    cfg.enable_depth_write   = desc.enable_depth_write;
+    cfg.enable_backface_cull = desc.enable_backface_cull;
+    cfg.msaa_samples         = static_cast<VkSampleCountFlagBits>(msaa_samples_);
+
+    // Convert vertex bindings
+    for (uint32_t i = 0; i < desc.vertex_binding_count && desc.vertex_bindings; ++i)
+    {
+        const auto&                     b = desc.vertex_bindings[i];
+        VkVertexInputBindingDescription vb{};
+        vb.binding = b.binding;
+        vb.stride  = b.stride;
+        vb.inputRate =
+            b.input_rate == 0 ? VK_VERTEX_INPUT_RATE_VERTEX : VK_VERTEX_INPUT_RATE_INSTANCE;
+        cfg.vertex_bindings.push_back(vb);
+    }
+
+    // Convert vertex attributes
+    for (uint32_t i = 0; i < desc.vertex_attribute_count && desc.vertex_attributes; ++i)
+    {
+        const auto&                       a = desc.vertex_attributes[i];
+        VkVertexInputAttributeDescription va{};
+        va.location = a.location;
+        va.binding  = a.binding;
+        va.format   = static_cast<VkFormat>(a.format);
+        va.offset   = a.offset;
+        cfg.vertex_attributes.push_back(va);
+    }
+
+    VkPipeline vk_pipeline = vk::create_graphics_pipeline(ctx_.device, cfg);
+    if (vk_pipeline == VK_NULL_HANDLE)
+    {
+        return PipelineHandle{};
+    }
+
+    PipelineHandle h;
+    h.id                    = next_pipeline_id_++;
+    pipelines_[h.id]        = vk_pipeline;
+    pipeline_layouts_[h.id] = pipeline_layout_;
+    return h;
+}
+
+void VulkanBackend::destroy_pipeline(PipelineHandle handle)
+{
+    if (!handle)
+        return;
+
+    auto it = pipelines_.find(handle.id);
+    if (it != pipelines_.end())
+    {
+        if (it->second != VK_NULL_HANDLE)
+        {
+            vkDestroyPipeline(ctx_.device, it->second, nullptr);
+        }
+        pipelines_.erase(it);
+        pipeline_types_.erase(handle.id);
+        pipeline_layouts_.erase(handle.id);
+    }
+}
+
 VkPipeline VulkanBackend::create_pipeline_for_type(PipelineType type, VkRenderPass rp)
 {
     vk::PipelineConfig cfg;

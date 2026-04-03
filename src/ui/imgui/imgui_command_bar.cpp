@@ -4,6 +4,8 @@
 
     #include "../../../third_party/tinyfiledialogs.h"
     #include "../dialog_env_guard.hpp"
+    #include "io/export_registry.hpp"
+    #include "ui/workspace/plugin_api.hpp"
 
 namespace spectra
 {
@@ -582,59 +584,83 @@ void ImGuiIntegration::draw_command_bar()
 
         ImGui::SameLine();
 
-        // File menu
-        draw_menubar_menu("File",
-                          {MenuItem("New Figure",
-                                    [this]()
-                                    {
-                                        if (command_registry_)
-                                            command_registry_->execute("figure.new");
-                                    }),
-                           MenuItem("", nullptr),   // Separator
-                           MenuItem("Export PNG",
-                                    [this]()
-                                    {
-                                        if (command_registry_)
-                                            command_registry_->execute("file.export_png");
-                                    }),
-                           MenuItem("Export SVG",
-                                    [this]()
-                                    {
-                                        if (command_registry_)
-                                            command_registry_->execute("file.export_svg");
-                                    }),
-                           MenuItem("Save Workspace",
-                                    [this]()
-                                    {
-                                        if (command_registry_)
-                                            command_registry_->execute("file.save_workspace");
-                                    }),
-                           MenuItem("Load Workspace",
-                                    [this]()
-                                    {
-                                        if (command_registry_)
-                                            command_registry_->execute("file.load_workspace");
-                                    }),
-                           MenuItem("", nullptr),   // Separator
-                           MenuItem("Save Figure...",
-                                    [this]()
-                                    {
-                                        if (command_registry_)
-                                            command_registry_->execute("file.save_figure");
-                                    }),
-                           MenuItem("Load Figure...",
-                                    [this]()
-                                    {
-                                        if (command_registry_)
-                                            command_registry_->execute("file.load_figure");
-                                    }),
-                           MenuItem("", nullptr),   // Separator
-                           MenuItem("Exit",
-                                    [this]()
-                                    {
-                                        if (command_registry_)
-                                            command_registry_->execute("app.cancel");
-                                    })});
+        // File menu — build dynamically to include plugin export formats
+        std::vector<MenuItem> file_items;
+        file_items.emplace_back("New Figure",
+                                [this]()
+                                {
+                                    if (command_registry_)
+                                        command_registry_->execute("figure.new");
+                                });
+        file_items.emplace_back("", nullptr);   // Separator
+        file_items.emplace_back("Export PNG",
+                                [this]()
+                                {
+                                    if (command_registry_)
+                                        command_registry_->execute("file.export_png");
+                                });
+        file_items.emplace_back("Export SVG",
+                                [this]()
+                                {
+                                    if (command_registry_)
+                                        command_registry_->execute("file.export_svg");
+                                });
+
+        // Plugin-registered export formats (API v1.3)
+        if (export_format_registry_)
+        {
+            auto formats = export_format_registry_->available_formats();
+            if (!formats.empty())
+            {
+                file_items.emplace_back("", nullptr);   // Separator
+                for (const auto& fmt : formats)
+                {
+                    std::string label    = "Export " + fmt.name + " (." + fmt.extension + ")";
+                    std::string fmt_name = fmt.name;
+                    file_items.emplace_back(
+                        label,
+                        [this, fmt_name]()
+                        {
+                            if (command_registry_)
+                                command_registry_->execute("file.export_plugin." + fmt_name);
+                        });
+                }
+            }
+        }
+
+        file_items.emplace_back("Save Workspace",
+                                [this]()
+                                {
+                                    if (command_registry_)
+                                        command_registry_->execute("file.save_workspace");
+                                });
+        file_items.emplace_back("Load Workspace",
+                                [this]()
+                                {
+                                    if (command_registry_)
+                                        command_registry_->execute("file.load_workspace");
+                                });
+        file_items.emplace_back("", nullptr);   // Separator
+        file_items.emplace_back("Save Figure...",
+                                [this]()
+                                {
+                                    if (command_registry_)
+                                        command_registry_->execute("file.save_figure");
+                                });
+        file_items.emplace_back("Load Figure...",
+                                [this]()
+                                {
+                                    if (command_registry_)
+                                        command_registry_->execute("file.load_figure");
+                                });
+        file_items.emplace_back("", nullptr);   // Separator
+        file_items.emplace_back("Exit",
+                                [this]()
+                                {
+                                    if (command_registry_)
+                                        command_registry_->execute("app.cancel");
+                                });
+        draw_menubar_menu("File", file_items);
 
         ImGui::SameLine();
 
@@ -754,6 +780,14 @@ void ImGuiIntegration::draw_command_bar()
                               panel_open_     = true;
                               layout_manager_->set_inspector_visible(true);
                           }
+                      }),
+             MenuItem("Plugins...",
+                      [this]()
+                      {
+                          if (command_registry_)
+                              command_registry_->execute("panel.toggle_plugins");
+                          else
+                              show_plugins_panel_ = !show_plugins_panel_;
                       })});
 
         ImGui::SameLine();
@@ -1064,6 +1098,194 @@ void ImGuiIntegration::draw_command_bar()
     ImGui::End();
     ImGui::PopStyleVar(4);
     ImGui::PopStyleColor(2);
+}
+
+void ImGuiIntegration::draw_plugins_panel()
+{
+    if (!show_plugins_panel_)
+        return;
+
+    ImGui::SetNextWindowSize(ImVec2(760.0f, 520.0f), ImGuiCond_FirstUseEver);
+    if (!ImGui::Begin("Plugins", &show_plugins_panel_))
+    {
+        ImGui::End();
+        return;
+    }
+
+    if (!plugin_manager_)
+    {
+        ImGui::TextUnformatted("Plugin manager is not available in this runtime.");
+        ImGui::End();
+        return;
+    }
+
+    ImGui::TextUnformatted("Manage runtime plugins and extension points.");
+    ImGui::Separator();
+
+    if (ImGui::Button("Load Plugin..."))
+    {
+        DialogEnvGuard env_guard;
+    #ifdef _WIN32
+        static const char* filters[1] = {"*.dll"};
+        const char*        path       = tinyfd_openFileDialog("Load Plugin",
+                                                 PluginManager::default_plugin_dir().c_str(),
+                                                 1,
+                                                 filters,
+                                                 "Plugins",
+                                                 0);
+    #elif defined(__APPLE__)
+        static const char* filters[1] = {"*.dylib"};
+        const char*        path       = tinyfd_openFileDialog("Load Plugin",
+                                                 PluginManager::default_plugin_dir().c_str(),
+                                                 1,
+                                                 filters,
+                                                 "Plugins",
+                                                 0);
+    #else
+        static const char* filters[1] = {"*.so"};
+        const char*        path       = tinyfd_openFileDialog("Load Plugin",
+                                                 PluginManager::default_plugin_dir().c_str(),
+                                                 1,
+                                                 filters,
+                                                 "Plugins",
+                                                 0);
+    #endif
+        if (path && path[0] != '\0')
+        {
+            if (plugin_manager_->load_plugin(path))
+                plugin_panel_status_ = std::string("Loaded: ") + path;
+            else
+                plugin_panel_status_ = std::string("Failed to load: ") + path;
+        }
+    }
+
+    ImGui::SameLine();
+    if (ImGui::Button("Scan Plugin Dirs"))
+    {
+        int loaded = 0;
+        int failed = 0;
+
+        std::vector<std::string> dirs;
+        dirs.push_back(PluginManager::default_plugin_dir());
+        for (const auto& d : plugin_scan_dirs_)
+        {
+            if (!d.empty())
+                dirs.push_back(d);
+        }
+
+        for (const auto& dir : dirs)
+        {
+            auto discovered = plugin_manager_->discover(dir);
+            for (const auto& path : discovered)
+            {
+                if (plugin_manager_->load_plugin(path))
+                    ++loaded;
+                else
+                    ++failed;
+            }
+        }
+        plugin_panel_status_ = "Scan complete: loaded " + std::to_string(loaded)
+                               + ", failed/skipped " + std::to_string(failed);
+    }
+
+    ImGui::SameLine();
+    if (ImGui::Button("Rescan Default"))
+    {
+        int  loaded     = 0;
+        int  failed     = 0;
+        auto discovered = plugin_manager_->discover(PluginManager::default_plugin_dir());
+        for (const auto& path : discovered)
+        {
+            if (plugin_manager_->load_plugin(path))
+                ++loaded;
+            else
+                ++failed;
+        }
+        plugin_panel_status_ = "Default scan: loaded " + std::to_string(loaded)
+                               + ", failed/skipped " + std::to_string(failed);
+    }
+
+    ImGui::Spacing();
+    ImGui::TextUnformatted("Custom scan directories:");
+    ImGui::PushItemWidth(-120.0f);
+    ImGui::InputText("##plugin_scan_dir", plugin_scan_dir_buf_, sizeof(plugin_scan_dir_buf_));
+    ImGui::PopItemWidth();
+    ImGui::SameLine();
+    if (ImGui::Button("Add Dir"))
+    {
+        std::string dir = plugin_scan_dir_buf_;
+        if (!dir.empty())
+        {
+            if (std::find(plugin_scan_dirs_.begin(), plugin_scan_dirs_.end(), dir)
+                == plugin_scan_dirs_.end())
+            {
+                plugin_scan_dirs_.push_back(dir);
+            }
+            plugin_scan_dir_buf_[0] = '\0';
+        }
+    }
+
+    for (size_t i = 0; i < plugin_scan_dirs_.size(); ++i)
+    {
+        ImGui::PushID(static_cast<int>(i));
+        ImGui::TextUnformatted(plugin_scan_dirs_[i].c_str());
+        ImGui::SameLine();
+        if (ImGui::SmallButton("Remove"))
+        {
+            plugin_scan_dirs_.erase(plugin_scan_dirs_.begin() + static_cast<long>(i));
+            ImGui::PopID();
+            break;
+        }
+        ImGui::PopID();
+    }
+
+    if (!plugin_panel_status_.empty())
+    {
+        ImGui::Spacing();
+        ImGui::TextWrapped("%s", plugin_panel_status_.c_str());
+    }
+
+    ImGui::Separator();
+
+    auto plugins = plugin_manager_->plugins();
+    if (plugins.empty())
+    {
+        ImGui::TextUnformatted("No plugins loaded.");
+        ImGui::End();
+        return;
+    }
+
+    std::string unload_name;
+    for (const auto& plugin : plugins)
+    {
+        ImGui::PushID(plugin.name.c_str());
+        ImGui::SeparatorText(plugin.name.c_str());
+        ImGui::Text("Version: %s", plugin.version.empty() ? "(unknown)" : plugin.version.c_str());
+        ImGui::Text("Author: %s", plugin.author.empty() ? "(unknown)" : plugin.author.c_str());
+        ImGui::TextWrapped("Description: %s",
+                           plugin.description.empty() ? "(none)" : plugin.description.c_str());
+        ImGui::TextWrapped("Path: %s", plugin.path.c_str());
+
+        bool enabled = plugin.enabled;
+        if (ImGui::Checkbox("Enabled", &enabled))
+            plugin_manager_->set_plugin_enabled(plugin.name, enabled);
+
+        ImGui::SameLine();
+        if (ImGui::Button("Unload"))
+            unload_name = plugin.name;
+
+        ImGui::PopID();
+    }
+
+    if (!unload_name.empty())
+    {
+        if (plugin_manager_->unload_plugin(unload_name))
+            plugin_panel_status_ = "Unloaded: " + unload_name;
+        else
+            plugin_panel_status_ = "Failed to unload: " + unload_name;
+    }
+
+    ImGui::End();
 }
 
 void ImGuiIntegration::draw_nav_rail()

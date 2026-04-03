@@ -724,6 +724,12 @@ void ImGuiIntegration::build_ui(Figure& figure)
         draw_custom_transform_dialog();
     }
 
+    // Draw plugin manager panel if open
+    if (show_plugins_panel_)
+    {
+        draw_plugins_panel();
+    }
+
     // Draw theme settings window if open
     if (show_theme_settings_)
     {
@@ -899,6 +905,10 @@ void ImGuiIntegration::build_empty_ui()
     // Draw CSV dialog if open (user may have opened it from the menu)
     if (csv_dialog_open_)
         draw_csv_dialog();
+
+    // Plugins panel can be opened while no figure exists.
+    if (show_plugins_panel_)
+        draw_plugins_panel();
 }
 
 // ─── Welcome screen logo texture ────────────────────────────────────────────

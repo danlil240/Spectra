@@ -246,6 +246,9 @@ class TransformRegistry
                                DataTransform::CustomXYFunc func,
                                const std::string&          description = "");
 
+    // Remove a custom transform by name.
+    bool unregister_transform(const std::string& name);
+
     // Get a registered custom transform by name
     bool get_transform(const std::string& name, DataTransform& out) const;
 

@@ -32,6 +32,7 @@
     #include "ui/theme/icons.hpp"
     #include "ui/theme/theme.hpp"
     #include "ui/commands/undoable_property.hpp"
+    #include "ui/workspace/plugin_api.hpp"
     #include "ui/workspace/workspace.hpp"
     #include "ui/workspace/figure_serializer.hpp"
 #endif
@@ -703,6 +704,8 @@ void register_standard_commands(const CommandBindings& b)
             data.undo_count = undo_mgr.undo_count();
             data.redo_count = undo_mgr.redo_count();
             data.dock_state = dock_system.serialize();
+            if (ui_ctx.plugin_manager)
+                data.plugin_state = ui_ctx.plugin_manager->serialize_state();
             Workspace::save(Workspace::default_path(), data);
         },
         "",
@@ -791,6 +794,8 @@ void register_standard_commands(const CommandBindings& b)
                 {
                     dock_system.deserialize(data.dock_state);
                 }
+                if (ui_ctx.plugin_manager && !data.plugin_state.empty())
+                    ui_ctx.plugin_manager->deserialize_state(data.plugin_state);
             }
         },
         "",
@@ -1228,6 +1233,17 @@ void register_standard_commands(const CommandBindings& b)
             {
                 imgui_ui->set_curve_editor_visible(!imgui_ui->is_curve_editor_visible());
             }
+        },
+        "",
+        "Panel");
+
+    cmd_registry.register_command(
+        "panel.toggle_plugins",
+        "Toggle Plugins Panel",
+        [&]()
+        {
+            if (imgui_ui)
+                imgui_ui->set_plugins_panel_visible(!imgui_ui->is_plugins_panel_visible());
         },
         "",
         "Panel");

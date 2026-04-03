@@ -129,3 +129,8 @@ if(SPECTRA_BUILD_QT_EXAMPLE)
         SPECTRA_QT_FORCE_MULTI_CANVAS
     )
 endif()
+
+# Plugin examples — shared libraries
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/plugins/CMakeLists.txt)
+    add_subdirectory(plugins)
+endif()

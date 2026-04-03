@@ -36,6 +36,17 @@ void Renderer::destroy_series_buffers(SeriesGpuData& gpu)
         backend_.destroy_buffer(gpu.fill_buffer);
     if (gpu.outlier_buffer)
         backend_.destroy_buffer(gpu.outlier_buffer);
+
+    // Clean up plugin GPU state for custom series types.
+    if (gpu.type == SeriesType::Custom && gpu.plugin_gpu_state && series_type_registry_)
+    {
+        const auto* entry = series_type_registry_->find(gpu.custom_type_name);
+        if (entry && entry->cleanup_fn)
+        {
+            entry->cleanup_fn(backend_, gpu.plugin_gpu_state);
+        }
+        gpu.plugin_gpu_state = nullptr;
+    }
 }
 
 void Renderer::destroy_axes_buffers(AxesGpuData& gpu)
@@ -144,6 +155,12 @@ Renderer::~Renderer()
     }
     figure_gpu_data_.clear();
 
+    // Destroy custom series type pipelines
+    if (series_type_registry_)
+    {
+        series_type_registry_->destroy_pipelines(backend_);
+    }
+
     if (overlay_tri_buffer_)
         backend_.destroy_buffer(overlay_tri_buffer_);
 
@@ -181,6 +198,12 @@ bool Renderer::init()
     scatter3d_transparent_pipeline_ = backend_.create_pipeline(PipelineType::Scatter3D_Transparent);
     mesh3d_transparent_pipeline_    = backend_.create_pipeline(PipelineType::Mesh3D_Transparent);
     surface3d_transparent_pipeline_ = backend_.create_pipeline(PipelineType::Surface3D_Transparent);
+
+    // Create pipelines for custom plugin series types
+    if (series_type_registry_)
+    {
+        series_type_registry_->create_pipelines(backend_);
+    }
 
     // Create frame UBO buffer
     frame_ubo_buffer_ = backend_.create_buffer(BufferUsage::Uniform, sizeof(FrameUBO));

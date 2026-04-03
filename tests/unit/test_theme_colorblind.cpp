@@ -277,22 +277,24 @@ class ColorblindPaletteTest : public ::testing::Test
    protected:
     void SetUp() override
     {
-        auto& tm          = ThemeManager::instance();
-        original_theme_   = tm.current_theme_name();
-        original_palette_ = tm.current_data_palette_name();
+        ThemeManager::set_current(&tm_);
+        tm_.ensure_initialized();
+        original_theme_   = tm_.current_theme_name();
+        original_palette_ = tm_.current_data_palette_name();
     }
     void TearDown() override
     {
-        auto& tm = ThemeManager::instance();
-        if (tm.is_transitioning())
-            tm.update(10.0f);
-        if (tm.is_palette_transitioning())
-            tm.update(10.0f);
-        tm.set_theme(original_theme_);
-        tm.set_data_palette(original_palette_);
+        if (tm_.is_transitioning())
+            tm_.update(10.0f);
+        if (tm_.is_palette_transitioning())
+            tm_.update(10.0f);
+        tm_.set_theme(original_theme_);
+        tm_.set_data_palette(original_palette_);
+        ThemeManager::set_current(nullptr);
     }
-    std::string original_theme_;
-    std::string original_palette_;
+    ThemeManager tm_;
+    std::string  original_theme_;
+    std::string  original_palette_;
 };
 
 TEST_F(ColorblindPaletteTest, AllExpectedPalettesExist)
@@ -657,19 +659,21 @@ class ThemeExportImportTest : public ::testing::Test
    protected:
     void SetUp() override
     {
-        auto& tm        = ThemeManager::instance();
-        original_theme_ = tm.current_theme_name();
+        ThemeManager::set_current(&tm_);
+        tm_.ensure_initialized();
+        original_theme_ = tm_.current_theme_name();
         test_dir_       = std::filesystem::temp_directory_path() / "spectra_test_themes";
         std::filesystem::create_directories(test_dir_);
     }
     void TearDown() override
     {
-        auto& tm = ThemeManager::instance();
-        if (tm.is_transitioning())
-            tm.update(10.0f);
-        tm.set_theme(original_theme_);
+        if (tm_.is_transitioning())
+            tm_.update(10.0f);
+        tm_.set_theme(original_theme_);
         std::filesystem::remove_all(test_dir_);
+        ThemeManager::set_current(nullptr);
     }
+    ThemeManager          tm_;
     std::string           original_theme_;
     std::filesystem::path test_dir_;
 };

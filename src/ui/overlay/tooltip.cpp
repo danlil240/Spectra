@@ -52,7 +52,7 @@ void Tooltip::draw(const NearestPointResult& nearest,
     if (opacity_ < 0.01f)
         return;
 
-    const auto& colors = (theme_mgr_ ? *theme_mgr_ : ui::ThemeManager::instance()).colors();
+    const auto& colors = theme_mgr_->colors();
 
     // Format coordinate strings
     char x_buf[64], y_buf[64];

@@ -110,6 +110,10 @@ file(GLOB SPECTRA_DAEMON_SOURCES
 file(GLOB SPECTRA_UI_SOURCES src/ui/app/app.cpp src/ui/app/app_inproc.cpp src/ui/app/app_multiproc.cpp src/ui/app/app_step.cpp)
 foreach(_ui_src
     src/ui/input/input.cpp
+    src/ui/input/input_pan_zoom.cpp
+    src/ui/input/input_select.cpp
+    src/ui/input/input_measure.cpp
+    src/ui/input/input_annotate.cpp
     src/ui/layout/layout_manager.cpp
     src/ui/figures/tab_bar.cpp
     src/ui/animation/animation_controller.cpp
@@ -129,6 +133,8 @@ foreach(_ui_src
     src/ui/animation/mode_transition.cpp
     src/ui/imgui/axes3d_renderer.cpp
     src/ui/window/window_manager.cpp
+    src/ui/window/window_lifecycle.cpp
+    src/ui/window/window_figure_ops.cpp
     src/ui/app/window_runtime.cpp
     src/ui/app/session_runtime.cpp
     src/ui/figures/figure_registry.cpp

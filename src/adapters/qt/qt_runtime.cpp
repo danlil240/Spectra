@@ -126,8 +126,11 @@ bool QtRuntime::init()
     // Wire the QVulkanInstance into the surface host so create_surface works
     surface_host_->set_vulkan_instance(vulkan_instance_.get());
 
+    // Register the Qt-owned ThemeManager as the active instance.
+    ui::ThemeManager::set_current(&theme_mgr_);
+
     // Apply dark theme by default
-    ui::ThemeManager::instance().set_theme("dark");
+    theme_mgr_.set_theme("dark");
 
     initialized_ = true;
     SPECTRA_LOG_INFO("qt_runtime",
@@ -180,6 +183,8 @@ void QtRuntime::shutdown()
 
     surface_host_.reset();
     vulkan_instance_.reset();
+
+    ui::ThemeManager::set_current(nullptr);
 
     initialized_ = false;
     SPECTRA_LOG_INFO("qt_runtime", "Shutdown complete");
@@ -234,7 +239,7 @@ bool QtRuntime::attach_window(QWindow* window, uint32_t width, uint32_t height)
     if (!renderer_)
     {
         backend_->set_active_window(state->window_ctx.get());
-        renderer_ = std::make_unique<Renderer>(*backend_, ui::ThemeManager::instance());
+        renderer_ = std::make_unique<Renderer>(*backend_, theme_mgr_);
         if (!renderer_->init())
         {
             SPECTRA_LOG_ERROR("qt_runtime", "Failed to initialize renderer");

@@ -27,6 +27,7 @@ struct EmbedSurface::Impl
 {
     EmbedConfig config;
 
+    ui::ThemeManager               theme_mgr;
     std::unique_ptr<VulkanBackend> backend;
     std::unique_ptr<Renderer>      renderer;
     FigureRegistry                 registry;
@@ -70,7 +71,12 @@ struct EmbedSurface::Impl
             return false;
         }
 
-        renderer = std::make_unique<Renderer>(*backend, ui::ThemeManager::instance());
+        // Register the embed-owned ThemeManager so all subsystems
+        // (renderer, overlays, ui::theme()) use it instead of requiring
+        // a global fallback singleton.
+        ui::ThemeManager::set_current(&theme_mgr);
+
+        renderer = std::make_unique<Renderer>(*backend, theme_mgr);
         if (!renderer->init())
         {
             SPECTRA_LOG_ERROR("embed", "Failed to initialize renderer");
@@ -81,9 +87,8 @@ struct EmbedSurface::Impl
 
         // Force the configured theme BEFORE any rendering so that
         // bg_primary, grid_line, tick_label, series palette colors
-        // are all correct from the first frame.  The renderer reads
-        // colors from ThemeManager::instance().colors() at render time.
-        ui::ThemeManager::instance().set_theme(config.theme);
+        // are all correct from the first frame.
+        theme_mgr.set_theme(config.theme);
 
 #ifdef SPECTRA_USE_IMGUI
         // Only initialize ImGui when the user explicitly opts in to UI chrome.

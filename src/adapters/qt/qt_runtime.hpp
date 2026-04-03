@@ -9,6 +9,8 @@
 
 #include <QtGui/QVulkanInstance>
 
+#include "ui/theme/theme.hpp"
+
 class QWindow;
 
 namespace spectra
@@ -121,6 +123,7 @@ class QtRuntime
 
     bool initialized_ = false;
 
+    ui::ThemeManager                                           theme_mgr_;
     std::unique_ptr<QtSurfaceHost>                             surface_host_;
     std::unique_ptr<QVulkanInstance>                           vulkan_instance_;
     std::unique_ptr<VulkanBackend>                             backend_;

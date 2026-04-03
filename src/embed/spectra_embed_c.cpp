@@ -273,7 +273,8 @@ extern "C"
     {
         if (!s || !theme)
             return;
-        // Theme is applied globally via ThemeManager; just set it.
+        // Theme is applied via the embed-owned ThemeManager registered through
+        // set_current(); instance() returns that object.
         spectra::ui::ThemeManager::instance().set_theme(theme);
     }
 

@@ -1,6 +1,7 @@
 #include "theme.hpp"
 
 #include <algorithm>
+#include <cassert>
 #include <cmath>
 #include <filesystem>
 #include <fstream>
@@ -36,31 +37,19 @@ void ThemeManager::ensure_initialized()
 
 ThemeManager& ThemeManager::instance()
 {
-    if (s_current_instance)
-    {
-        // Lazily initialize the injected instance on first access.
-        if (s_current_instance->themes_.empty())
-        {
-            s_current_instance->initialize_default_themes();
-            s_current_instance->initialize_data_palettes();
-            s_current_instance->set_theme("night");
-        }
-        return *s_current_instance;
-    }
+    assert(s_current_instance
+           && "ThemeManager::instance() called before set_current(). "
+              "Every entry point (App, agent, embed, Qt) must create a ThemeManager "
+              "and call ThemeManager::set_current() before use.");
 
-    // Fallback: process-wide static singleton (used by embed / Qt / agent paths
-    // that do not go through App).
-    static ThemeManager fallback;
-    if (fallback.themes_.empty())
+    // Lazily initialize the injected instance on first access.
+    if (s_current_instance->themes_.empty())
     {
-        fallback.initialize_default_themes();
-        fallback.initialize_data_palettes();
-        // Always default to night theme.  Previous code used "light" when no
-        // ImGui context existed, which caused headless/embed surfaces to
-        // render with wrong colors (light grid/text on night background).
-        fallback.set_theme("night");
+        s_current_instance->initialize_default_themes();
+        s_current_instance->initialize_data_palettes();
+        s_current_instance->set_theme("night");
     }
-    return fallback;
+    return *s_current_instance;
 }
 
 void ThemeManager::register_theme(const std::string& name, Theme theme)

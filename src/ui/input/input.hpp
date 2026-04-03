@@ -198,6 +198,32 @@ class InputHandler
     // Cancel box zoom
     void cancel_box_zoom();
 
+    // ─── Pan/Zoom helpers (input_pan_zoom.cpp) ──────────────────────────
+    void handle_mouse_button_3d(Axes3D* axes3d, int button, int action, double x, double y);
+    void handle_mouse_button_middle_pan(int action, double x, double y);
+    void handle_mouse_button_rclick_zoom(int action, double x, double y);
+    void handle_mouse_button_box_zoom(int action, double x, double y);
+    void handle_mouse_button_pan(int action, int mods, double x, double y);
+    void handle_mouse_move_3d_drag(double x, double y);
+    void handle_mouse_move_rclick_zoom(double x, double y);
+    void handle_mouse_move_pan_drag(double x, double y);
+    void handle_scroll_3d(Axes3D* axes3d, double y_offset);
+    void handle_scroll_2d(double y_offset, double cursor_x, double cursor_y);
+
+    // ─── Select/ROI helpers (input_select.cpp) ──────────────────────────
+    void handle_mouse_button_select(int action, double x, double y);
+    void handle_mouse_button_roi(int action, double x, double y);
+    void handle_mouse_move_select(double x, double y);
+    void handle_mouse_move_roi(double x, double y);
+
+    // ─── Measure helpers (input_measure.cpp) ─────────────────────────────
+    void handle_mouse_button_measure(int action, double x, double y);
+    void handle_mouse_move_measure(double x, double y);
+
+    // ─── Annotate helpers (input_annotate.cpp) ───────────────────────────
+    void handle_mouse_button_annotate(int button, int action, double x, double y);
+    void handle_mouse_move_annotate(double x, double y);
+
     Figure*   figure_           = nullptr;
     Axes*     active_axes_      = nullptr;
     AxesBase* active_axes_base_ = nullptr;

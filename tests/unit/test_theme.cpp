@@ -288,19 +288,21 @@ class ThemeManagerTest : public ::testing::Test
    protected:
     void SetUp() override
     {
-        auto& tm        = ThemeManager::instance();
-        original_theme_ = tm.current_theme_name();
+        ThemeManager::set_current(&tm_);
+        tm_.ensure_initialized();
+        original_theme_ = tm_.current_theme_name();
     }
     void TearDown() override
     {
-        auto& tm = ThemeManager::instance();
-        if (tm.is_transitioning())
+        if (tm_.is_transitioning())
         {
-            tm.update(10.0f);
+            tm_.update(10.0f);
         }
-        tm.set_theme(original_theme_);
+        tm_.set_theme(original_theme_);
+        ThemeManager::set_current(nullptr);
     }
-    std::string original_theme_;
+    ThemeManager tm_;
+    std::string  original_theme_;
 };
 
 TEST_F(ThemeManagerTest, SingletonReturnsSameInstance)

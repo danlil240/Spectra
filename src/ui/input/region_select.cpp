@@ -267,7 +267,7 @@ void RegionSelect::draw(const Rect& viewport,
     if (opacity_ < 0.01f)
         return;
 
-    const auto& colors = (theme_mgr_ ? *theme_mgr_ : ui::ThemeManager::instance()).colors();
+    const auto& colors = theme_mgr_->colors();
     ImDrawList* fg     = ImGui::GetForegroundDrawList();
 
     // Convert data rect to screen rect
@@ -366,7 +366,7 @@ void RegionSelect::draw_mini_toolbar(float rx0,
                                      float window_width,
                                      float window_height)
 {
-    const auto& colors = (theme_mgr_ ? *theme_mgr_ : ui::ThemeManager::instance()).colors();
+    const auto& colors = theme_mgr_->colors();
 
     // Format statistics
     char count_buf[64];

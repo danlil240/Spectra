@@ -2,7 +2,7 @@
 
 > **Purpose**: This document is the single source of truth for understanding the Spectra codebase.
 > **All agents MUST read this file before executing any task.**
-> Last updated: 2026-03-06
+> Last updated: 2026-04-03
 
 ---
 
@@ -27,6 +27,7 @@ Spectra/
 │   ├── core/                 # Figure, Axes, Series implementations
 │   ├── render/               # Renderer, Backend abstraction, TextRenderer
 │   │   └── vulkan/           # VulkanBackend, VkSwapchain, VkBuffer, VkPipeline, WindowContext
+│   ├── app/                  # Standalone app entry point (main.cpp)
 │   ├── ui/
 │   │   ├── app/              # App lifecycle: app.cpp, app_inproc, app_multiproc, app_step,
 │   │   │                     #   SessionRuntime, WindowRuntime, WindowUIContext, register_commands
@@ -40,13 +41,17 @@ Spectra/
 │   │   ├── commands/         # CommandRegistry, CommandPalette, CommandQueue, ShortcutManager,
 │   │   │                     #   UndoManager, SeriesClipboard, ShortcutConfig, UndoableProperty
 │   │   ├── docking/          # DockSystem, SplitViewManager, SplitPane
+│   │   ├── automation/       # UI automation and scripted interaction hooks
 │   │   ├── animation/        # AnimationController, TimelineEditor, KeyframeInterpolator,
 │   │   │                     #   AnimationCurveEditor, CameraAnimator, ModeTransition,
 │   │   │                     #   RecordingExport, TransitionEngine
+│   │   ├── panel/            # Dedicated UI panels and panel helpers
 │   │   ├── theme/            # ThemeManager, Theme, DesignTokens, Icons
 │   │   ├── data/             # AxisLinkManager, CsvLoader, ClipboardExport
 │   │   ├── camera/           # Camera implementation
 │   │   ├── layout/           # LayoutManager
+│   │   ├── viewmodel/        # View-model layer used by ImGui-facing UI code
+│   │   ├── welcome/          # Welcome/start screens and onboarding flows
 │   │   └── workspace/        # Workspace save/load, FigureSerializer, PluginAPI
 │   ├── embed/                # EmbedSurface impl, C FFI wrapper
 │   ├── platform/
@@ -66,21 +71,21 @@ Spectra/
 │   ├── agent/                # Window agent process entry point
 │   └── gpu/shaders/          # GLSL shaders (compiled to SPIR-V)
 ├── tests/
-│   ├── unit/                 # ~126 unit test files
+│   ├── unit/                 # ~145 unit test files
 │   ├── bench/                # Benchmarks (3D, decimation, multi-window, etc.)
 │   ├── golden/               # Golden image regression tests
 │   ├── qa/                   # QA agent (automated visual testing, ROS QA)
 │   └── util/                 # Test utilities (GPU hang detector, fixtures, validation guard)
-├── examples/                 # ~49 example programs
+├── examples/                 # ~47 example programs
 ├── python/                   # Python bindings (spectra package)
-│   ├── spectra/              # Python module (18 core files + qt backend)
+│   ├── spectra/              # Python module (19 core files + qt backend)
 │   ├── examples/             # Python examples (16 demos)
-│   └── tests/                # Python tests (12 test files)
+│   └── tests/                # Python tests (11 test files)
 ├── third_party/              # STB, VMA, fonts
 ├── plans/                    # Architecture plans (markdown)
 ├── cmake/                    # CMake modules (shader compilation, asset embedding)
 ├── tools/                    # Dev tools (find_unused, generate_atlas, icon font gen)
-├── skills/                   # QA skill agents (7 domains)
+├── skills/                   # Specialized skill agents (14 domains)
 ├── packaging/                # Distribution: AppImage, AUR, Homebrew, Scoop, completions
 ├── docs/                     # HTML docs, man pages, getting started guide
 └── icons/                    # Desktop icons and banner
@@ -117,6 +122,13 @@ These are the user-facing headers. Everything in `src/` is internal.
 | `embed.hpp` | `EmbedSurface` class — CPU readback (`render_to_buffer`) and Vulkan interop (`render_to_image`); `EmbedConfig`, `VulkanInteropInfo`. |
 | `eigen_easy.hpp` | Eigen overload templates for all easy.hpp functions (`plot`, `scatter`, `plot3`); header-only. |
 | `spectra_embed_c.h` | Pure-C FFI: opaque handles `SpectraEmbed`, `SpectraFigure`, `SpectraAxes`, `SpectraSeries` for ctypes/Rust/C# bindings. |
+| `custom_series.hpp` | Extensible custom series interfaces for user-defined renderable series types. |
+| `event_bus.hpp` | Public event bus contracts and event dispatch interfaces. |
+| `figure_registry.hpp` | Public figure registry APIs used for figure lookup and lifecycle control. |
+| `knob_manager.hpp` | Public knob/parameter-control integration APIs. |
+| `series_shapes.hpp` | 2D shape-oriented series types and helpers. |
+| `series_shapes3d.hpp` | 3D shape-oriented series types and helpers. |
+| `theme_api.hpp` | Public theme selection and theme API surface. |
 
 ---
 
@@ -522,8 +534,8 @@ Flow: Python → encode message → Unix socket → Backend daemon → FigureMod
 - `spectra-backend` — daemon process (multiproc mode)
 - `spectra-window` — agent process (multiproc mode)
 - `spectra-ros` — ROS2 adapter standalone application
-- ~49 example executables
-- ~126 unit test executables + benchmarks + golden tests
+- ~47 example executables
+- ~145 unit test executables + benchmarks + golden tests
 
 ### 11.3 Compile Defines
 
@@ -581,7 +593,7 @@ Flow: Python → encode message → Unix socket → Backend daemon → FigureMod
 
 | Feature | Primary File(s) |
 |---|---|
-| App lifecycle | `src/ui/app/app.cpp`, `app_inproc.cpp`, `app_multiproc.cpp`, `app_step.cpp` |
+| App lifecycle | `src/app/main.cpp`, `src/ui/app/app.cpp`, `app_inproc.cpp`, `app_multiproc.cpp`, `app_step.cpp` |
 | Per-window update/render loop | `src/ui/app/window_runtime.cpp` |
 | Session orchestration | `src/ui/app/session_runtime.cpp` |
 | Per-window UI bundle | `src/ui/app/window_ui_context.hpp` |
@@ -692,7 +704,7 @@ Flow: Python → encode message → Unix socket → Backend daemon → FigureMod
 
 | Directory | Contents |
 |---|---|
-| `tests/unit/` | ~126 files: test_axes, test_series, test_figure, test_renderer, test_backend, test_3d_*, test_command_*, test_dock_*, test_theme, test_workspace, test_ipc_*, test_input, test_animation_*, test_ros_*, test_bag_*, test_topic_*, test_expression_*, test_diagnostics_*, test_embed_*, etc. |
+| `tests/unit/` | ~145 files: test_axes, test_series, test_figure, test_renderer, test_backend, test_3d_*, test_command_*, test_dock_*, test_theme, test_workspace, test_ipc_*, test_input, test_animation_*, test_ros_*, test_bag_*, test_topic_*, test_expression_*, test_diagnostics_*, test_embed_*, etc. |
 | `tests/bench/` | 8 benchmarks: bench_3d, bench_3d_phase3, bench_decimation, bench_multi_window, bench_phase2, bench_phase3, bench_render, bench_ui |
 | `tests/golden/` | Golden image regression: renders figures, compares against baseline PNGs (2D + 3D + phase variants) |
 | `tests/qa/` | QA agents: qa_agent.cpp (visual testing), ros_qa_agent.cpp (ROS2 QA) |

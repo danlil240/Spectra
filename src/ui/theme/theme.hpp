@@ -284,6 +284,9 @@ struct Theme
 class ThemeManager
 {
    public:
+    // Returns the ThemeManager registered via set_current().
+    // Asserts if no instance has been set — every entry point must own
+    // a ThemeManager and call set_current() before any access.
     static ThemeManager& instance();
 
     // Theme registration and switching
@@ -331,14 +334,14 @@ class ThemeManager
 
     // Redirect ThemeManager::instance() to a specific instance.
     // Call with a non-null pointer to make instance() return that object;
-    // call with nullptr to revert to the process-wide fallback singleton.
-    // App calls this in init_runtime() / shutdown_runtime() so all
-    // subsystems that still use instance() transparently use the App-owned
-    // ThemeManager while avoiding a global singleton.
+    // call with nullptr to clear.  Every entry point (App, agent, embed,
+    // Qt runtime) must own a ThemeManager and call set_current() before
+    // any subsystem accesses instance().  Calling instance() without a
+    // prior set_current() triggers an assertion failure.
     static void set_current(ThemeManager* tm);
 
-    // Publicly constructible so owners (App, agent, embed) can create
-    // their own instances rather than relying on the singleton.
+    // Publicly constructible so owners (App, agent, embed, Qt) can create
+    // their own instances.
     ThemeManager() = default;
 
     // Set the event system for cross-subsystem notifications.

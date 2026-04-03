@@ -504,6 +504,9 @@ struct PluginEntry
     std::string path;   // Path to the shared library
     bool        loaded                   = false;
     bool        enabled                  = true;
+    bool        quarantined              = false;   // Auto-disabled after crash/fault
+    int         fault_count              = 0;       // Number of faults observed
+    std::string last_fault_message;                 // Diagnostic info from last fault
     uint32_t    api_version_minor        = 0;   // API minor version the plugin was built against
     void*       handle                   = nullptr;   // dlopen/LoadLibrary handle
     SpectraPluginShutdownFn  shutdown_fn = nullptr;

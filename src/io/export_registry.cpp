@@ -3,6 +3,7 @@
 #include <algorithm>
 
 #include "spectra/logger.hpp"
+#include "ui/workspace/plugin_guard.hpp"
 
 namespace spectra
 {
@@ -65,7 +66,7 @@ bool ExportFormatRegistry::export_figure(const std::string& format_name,
         std::lock_guard lock(mutex_);
         for (const auto& entry : formats_)
         {
-            if (entry.name == format_name)
+            if (entry.name == format_name && !entry.faulted)
             {
                 cb = entry.callback;
                 break;
@@ -87,7 +88,25 @@ bool ExportFormatRegistry::export_figure(const std::string& format_name,
     ctx.pixel_height    = pixel_height;
     ctx.output_path     = output_path.c_str();
 
-    return cb(ctx);
+    bool ok     = false;
+    auto result = plugin_guard_invoke(format_name.c_str(), [&]() { ok = cb(ctx); });
+    if (result != PluginCallResult::Success)
+    {
+        SPECTRA_LOG_ERROR(
+            "plugin", "Export format '{}' faulted during export — disabling", format_name);
+        // Mark the entry as faulted so future exports skip it.
+        std::lock_guard lock(mutex_);
+        for (auto& entry : formats_)
+        {
+            if (entry.name == format_name)
+            {
+                entry.faulted = true;
+                break;
+            }
+        }
+        return false;
+    }
+    return ok;
 }
 
 size_t ExportFormatRegistry::count() const

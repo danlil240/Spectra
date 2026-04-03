@@ -61,10 +61,11 @@ class OverlayRegistry
     {
         std::string  name;
         DrawCallback callback;
+        bool         faulted = false;   // Set true on crash/exception to skip future invocations
     };
 
-    mutable std::mutex mutex_;
-    std::vector<Entry> overlays_;
+    mutable std::mutex       mutex_;
+    mutable std::vector<Entry> overlays_;
 };
 
 }   // namespace spectra

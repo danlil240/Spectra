@@ -70,10 +70,11 @@ class ExportFormatRegistry
         std::string    name;
         std::string    extension;
         ExportCallback callback;
+        bool           faulted = false;   // Set true on crash/exception
     };
 
-    mutable std::mutex mutex_;
-    std::vector<Entry> formats_;
+    mutable std::mutex       mutex_;
+    mutable std::vector<Entry> formats_;
 };
 
 }   // namespace spectra

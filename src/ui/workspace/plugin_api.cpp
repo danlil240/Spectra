@@ -1,5 +1,6 @@
 #include "plugin_api.hpp"
 
+#include <bit>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
@@ -561,8 +562,7 @@ extern "C"
             // Copy push constants to C ABI layout.
             static_assert(sizeof(SpectraSeriesPushConst) == sizeof(SeriesPushConstants),
                           "Push constant layout mismatch");
-            SpectraSeriesPushConst cpc;
-            std::memcpy(&cpc, &pc, sizeof(cpc));
+            SpectraSeriesPushConst cpc = std::bit_cast<SpectraSeriesPushConst>(pc);
 
             return draw_cb(bh, ph, gpu_state, &vp, &cpc, ud);
         };
@@ -671,7 +671,7 @@ extern "C"
         SeriesPushConstants spc;
         static_assert(sizeof(SpectraSeriesPushConst) == sizeof(SeriesPushConstants),
                       "Push constant layout mismatch");
-        std::memcpy(&spc, pc, sizeof(spc));
+        spc = std::bit_cast<SeriesPushConstants>(*pc);
         b->push_constants(spc);
     }
 

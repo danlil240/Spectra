@@ -1,6 +1,7 @@
 #include "adapters/data_source_registry.hpp"
 
 #include "spectra/logger.hpp"
+#include "ui/workspace/plugin_guard.hpp"
 
 namespace spectra
 {
@@ -85,9 +86,22 @@ std::vector<DataPoint> DataSourceRegistry::poll_all()
     std::vector<DataPoint> result;
     for (auto& e : sources_)
     {
+        if (e.faulted)
+            continue;
+
         if (e.adapter && e.adapter->is_running())
         {
-            auto pts = e.adapter->poll();
+            std::vector<DataPoint> pts;
+            auto guard_result =
+                plugin_guard_invoke(e.name.c_str(), [&]() { pts = e.adapter->poll(); });
+            if (guard_result != PluginCallResult::Success)
+            {
+                SPECTRA_LOG_ERROR("plugin",
+                                  "Data source '{}' faulted during poll — disabling",
+                                  e.name);
+                e.faulted = true;
+                continue;
+            }
             result.insert(result.end(),
                           std::make_move_iterator(pts.begin()),
                           std::make_move_iterator(pts.end()));

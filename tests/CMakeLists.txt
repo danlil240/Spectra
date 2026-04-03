@@ -154,6 +154,7 @@ set(SPECTRA_UNIT_TESTS
     test_plugin_data_source
     test_plugin_integration
     test_plugin_series_type
+    test_plugin_guard
 )
 
 # Mock transform plugin — shared library loaded by test_plugin_transforms

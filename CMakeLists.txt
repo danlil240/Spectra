@@ -362,6 +362,7 @@ if(SPECTRA_USE_IMGUI AND SPECTRA_USE_GLFW)
         src/ui/workspace/workspace.cpp
         src/ui/commands/shortcut_config.cpp
         src/ui/workspace/plugin_api.cpp
+        src/ui/workspace/plugin_guard.cpp
         src/ui/figures/tab_drag_controller.cpp
         src/ui/app/register_commands.cpp
     )

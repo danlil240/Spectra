@@ -39,6 +39,8 @@ struct SeriesTypeEntry
     // Persistent copy of SPIR-V bytecode (the registration pointer may not outlive the plugin init)
     std::vector<uint8_t> vert_spirv_storage;
     std::vector<uint8_t> frag_spirv_storage;
+
+    bool faulted = false;   // Set true on crash/exception to skip future invocations
 };
 
 /// Registry for plugin-defined custom series types.

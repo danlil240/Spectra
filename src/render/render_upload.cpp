@@ -11,6 +11,8 @@
 #include <spectra/series_shapes3d.hpp>
 #include <spectra/series_stats.hpp>
 
+#include "ui/workspace/plugin_guard.hpp"
+
 namespace spectra
 {
 
@@ -434,13 +436,22 @@ void Renderer::upload_series_data(Series& series, double origin_x, double origin
     // Custom plugin series upload
     if (custom && series_type_registry_)
     {
-        const auto* entry = series_type_registry_->find(custom->type_name());
-        if (entry && entry->upload_fn)
+        auto* entry = series_type_registry_->find_mut(custom->type_name());
+        if (entry && entry->upload_fn && !entry->faulted)
         {
-            entry->upload_fn(backend_,
-                             custom->data(),
-                             gpu.plugin_gpu_state,
-                             custom->element_count());
+            auto result = plugin_guard_invoke(
+                entry->type_name.c_str(),
+                [&]()
+                {
+                    entry->upload_fn(backend_,
+                                     custom->data(),
+                                     gpu.plugin_gpu_state,
+                                     custom->element_count());
+                });
+            if (result != PluginCallResult::Success)
+            {
+                entry->faulted = true;
+            }
         }
         series.clear_dirty();
     }

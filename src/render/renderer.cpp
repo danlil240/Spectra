@@ -17,6 +17,7 @@
 
 #include "ui/imgui/axes3d_renderer.hpp"
 #include "ui/theme/theme.hpp"
+#include "ui/workspace/plugin_guard.hpp"
 
 namespace spectra
 {
@@ -40,10 +41,16 @@ void Renderer::destroy_series_buffers(SeriesGpuData& gpu)
     // Clean up plugin GPU state for custom series types.
     if (gpu.type == SeriesType::Custom && gpu.plugin_gpu_state && series_type_registry_)
     {
-        const auto* entry = series_type_registry_->find(gpu.custom_type_name);
+        auto* entry = series_type_registry_->find_mut(gpu.custom_type_name);
         if (entry && entry->cleanup_fn)
         {
-            entry->cleanup_fn(backend_, gpu.plugin_gpu_state);
+            auto result = plugin_guard_invoke(entry->type_name.c_str(),
+                                              [&]()
+                                              { entry->cleanup_fn(backend_, gpu.plugin_gpu_state); });
+            if (result != PluginCallResult::Success)
+            {
+                entry->faulted = true;
+            }
         }
         gpu.plugin_gpu_state = nullptr;
     }

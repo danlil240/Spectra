@@ -14,6 +14,8 @@
 #include <spectra/series_shapes3d.hpp>
 #include <spectra/series_stats.hpp>
 
+#include "ui/workspace/plugin_guard.hpp"
+
 #include "ui/theme/theme.hpp"
 
 namespace spectra
@@ -423,15 +425,24 @@ void Renderer::render_series(Series& series,
         {
             if (series_type_registry_)
             {
-                const auto* entry = series_type_registry_->find(gpu.custom_type_name);
-                if (entry && entry->draw_fn && entry->pipeline)
+                auto* entry = series_type_registry_->find_mut(gpu.custom_type_name);
+                if (entry && entry->draw_fn && entry->pipeline && !entry->faulted)
                 {
                     float viewport_xywh[4] = {0, 0, 0, 0};   // Set by caller via set_viewport
-                    entry->draw_fn(backend_,
-                                   entry->pipeline,
-                                   gpu.plugin_gpu_state,
-                                   viewport_xywh,
-                                   pc);
+                    auto  result           = plugin_guard_invoke(
+                        entry->type_name.c_str(),
+                        [&]()
+                        {
+                            entry->draw_fn(backend_,
+                                                          entry->pipeline,
+                                                          gpu.plugin_gpu_state,
+                                                          viewport_xywh,
+                                                          pc);
+                        });
+                    if (result != PluginCallResult::Success)
+                    {
+                        entry->faulted = true;
+                    }
                 }
             }
             break;

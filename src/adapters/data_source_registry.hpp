@@ -45,6 +45,7 @@ class DataSourceRegistry
     {
         std::string                        name;
         std::unique_ptr<DataSourceAdapter> adapter;
+        bool                               faulted = false;   // Set true on crash/exception
     };
 
     mutable std::mutex mutex_;

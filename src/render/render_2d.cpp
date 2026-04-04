@@ -7,6 +7,7 @@
 #include <cmath>
 #include <spectra/axes.hpp>
 #include <spectra/axes3d.hpp>
+#include <spectra/chunked_series.hpp>
 #include <spectra/custom_series.hpp>
 #include <spectra/series.hpp>
 #include <spectra/series3d.hpp>
@@ -132,6 +133,42 @@ void Renderer::render_series(Series& series,
                 backend_.push_constants(pc);
                 backend_.bind_buffer(gpu.ssbo, 0);
                 backend_.draw_instanced(6, pt_count, first_pt);
+            }
+            break;
+        }
+        case SeriesType::ChunkedLine2D:
+        {
+            auto* cl = static_cast<ChunkedLineSeries*>(&series);
+            if (gpu.uploaded_count < 2)
+                break;
+
+            if (style.line_style != LineStyle::Solid && style.line_style != LineStyle::None)
+            {
+                DashPattern dp = get_dash_pattern(style.line_style, cl->width());
+                for (int i = 0; i < dp.count && i < 8; ++i)
+                    pc.dash_pattern[i] = dp.segments[i];
+                pc.dash_total = dp.total;
+                pc.dash_count = dp.count;
+            }
+
+            uint32_t seg_count = static_cast<uint32_t>(gpu.uploaded_count) - 1;
+            uint32_t pt_count  = static_cast<uint32_t>(gpu.uploaded_count);
+
+            if (style.has_line() && seg_count > 0)
+            {
+                backend_.bind_pipeline(line_pipeline_);
+                pc.line_width = cl->width();
+                backend_.push_constants(pc);
+                backend_.bind_buffer(gpu.ssbo, 0);
+                backend_.draw(seg_count * 6, 0);
+            }
+            if (style.has_marker() && pt_count > 0)
+            {
+                backend_.bind_pipeline(scatter_pipeline_);
+                pc.point_size = style.marker_size;
+                backend_.push_constants(pc);
+                backend_.bind_buffer(gpu.ssbo, 0);
+                backend_.draw_instanced(6, pt_count, 0);
             }
             break;
         }
@@ -566,6 +603,33 @@ void Renderer::render_selection_highlight(AxesBase& axes, const Rect& /*viewport
                     backend_.push_constants(pc);
                     backend_.bind_buffer(gpu.ssbo, 0);
                     backend_.draw_instanced(6, pt_count, first_pt);
+                }
+                break;
+            }
+            case SeriesType::ChunkedLine2D:
+            {
+                if (gpu.uploaded_count < 2)
+                    break;
+
+                uint32_t seg_count = static_cast<uint32_t>(gpu.uploaded_count) - 1;
+                uint32_t pt_count  = static_cast<uint32_t>(gpu.uploaded_count);
+
+                if (seg_count > 0)
+                {
+                    backend_.bind_pipeline(line_pipeline_);
+                    pc.line_width = 1.5f;
+                    backend_.push_constants(pc);
+                    backend_.bind_buffer(gpu.ssbo, 0);
+                    backend_.draw(seg_count * 6, 0);
+                }
+                if (pt_count > 0)
+                {
+                    backend_.bind_pipeline(scatter_pipeline_);
+                    pc.point_size  = 5.0f;
+                    pc.marker_type = static_cast<uint32_t>(MarkerStyle::FilledCircle);
+                    backend_.push_constants(pc);
+                    backend_.bind_buffer(gpu.ssbo, 0);
+                    backend_.draw_instanced(6, pt_count, 0);
                 }
                 break;
             }

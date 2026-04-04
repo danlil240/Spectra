@@ -1,5 +1,6 @@
 #include "ui/viewmodel/series_view_model.hpp"
 
+#include <algorithm>
 #include <spectra/series.hpp>
 
 #include "ui/commands/undo_manager.hpp"
@@ -143,6 +144,7 @@ void SeriesViewModel::clear_label_override()
 
 void SeriesViewModel::set_opacity_override(float o)
 {
+    o = std::clamp(o, 0.0f, 1.0f);
     if (opacity_override_.has_value() && *opacity_override_ == o)
         return;
     opacity_override_ = o;
@@ -227,6 +229,7 @@ void SeriesViewModel::set_opacity(float o)
 {
     if (!model_)
         return;
+    o = std::clamp(o, 0.0f, 1.0f);
     model_->opacity(o);
     notify_changed(ChangeField::Opacity);
 }

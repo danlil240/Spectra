@@ -16,6 +16,8 @@
 
 #include "ui/imgui/axes3d_renderer.hpp"
 #include "ui/theme/theme.hpp"
+#include "ui/viewmodel/axes_view_model.hpp"
+#include "ui/viewmodel/figure_view_model.hpp"
 
 namespace spectra
 {
@@ -113,8 +115,22 @@ void Renderer::render_plot_text(Figure& figure)
         if (vp.y + vp.h < 0.0f || vp.y > static_cast<float>(fig_h))
             continue;
 
-        auto xlim = axes.x_limits();
-        auto ylim = axes.y_limits();
+        // Phase 2 (LT-5): read limits via AxesViewModel when available
+        AxisLimits xlim, ylim;
+        {
+            auto* axes2d_ptr = dynamic_cast<Axes*>(&axes);
+            if (figure_vm_ && axes2d_ptr)
+            {
+                auto& avm = figure_vm_->get_or_create_axes_vm(axes2d_ptr);
+                xlim       = avm.visual_xlim();
+                ylim       = avm.visual_ylim();
+            }
+            else
+            {
+                xlim = axes.x_limits();
+                ylim = axes.y_limits();
+            }
+        }
 
         double x_range = xlim.max - xlim.min;
         double y_range = ylim.max - ylim.min;
@@ -569,8 +585,22 @@ void Renderer::render_plot_geometry(Figure& figure)
             overlay_line_scratch_.push_back(by1);
         }
 
-        auto xlim = axes.x_limits();
-        auto ylim = axes.y_limits();
+        // Phase 2 (LT-5): read limits via AxesViewModel when available
+        AxisLimits xlim, ylim;
+        {
+            auto* axes2d_ptr = dynamic_cast<Axes*>(&axes);
+            if (figure_vm_ && axes2d_ptr)
+            {
+                auto& avm = figure_vm_->get_or_create_axes_vm(axes2d_ptr);
+                xlim       = avm.visual_xlim();
+                ylim       = avm.visual_ylim();
+            }
+            else
+            {
+                xlim = axes.x_limits();
+                ylim = axes.y_limits();
+            }
+        }
 
         double x_range = xlim.max - xlim.min;
         double y_range = ylim.max - ylim.min;
@@ -656,9 +686,21 @@ void Renderer::render_plot_geometry(Figure& figure)
         if (!axes2d || !axes2d->grid_enabled())
             continue;
 
-        const auto& vp   = axes2d->viewport();
-        auto        xlim = axes2d->x_limits();
-        auto        ylim = axes2d->y_limits();
+        const auto& vp = axes2d->viewport();
+
+        // Phase 2 (LT-5): read limits via AxesViewModel when available
+        AxisLimits xlim, ylim;
+        if (figure_vm_)
+        {
+            auto& avm = figure_vm_->get_or_create_axes_vm(axes2d);
+            xlim       = avm.visual_xlim();
+            ylim       = avm.visual_ylim();
+        }
+        else
+        {
+            xlim = axes2d->x_limits();
+            ylim = axes2d->y_limits();
+        }
 
         double x_range = xlim.max - xlim.min;
         double y_range = ylim.max - ylim.min;
@@ -1059,8 +1101,20 @@ void Renderer::render_axis_border(AxesBase& axes,
     auto* axes2d = dynamic_cast<Axes*>(&axes);
     if (!axes2d)
         return;   // Border only for 2D axes
-    auto xlim = axes2d->x_limits();
-    auto ylim = axes2d->y_limits();
+
+    // Phase 2 (LT-5): read limits via AxesViewModel when available
+    AxisLimits xlim, ylim;
+    if (figure_vm_)
+    {
+        auto& avm = figure_vm_->get_or_create_axes_vm(axes2d);
+        xlim       = avm.visual_xlim();
+        ylim       = avm.visual_ylim();
+    }
+    else
+    {
+        xlim = axes2d->x_limits();
+        ylim = axes2d->y_limits();
+    }
 
     // Retrieve view center for camera-relative coordinates
     auto&  agpu = axes_gpu_data_[&axes];

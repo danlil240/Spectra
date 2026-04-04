@@ -11,6 +11,7 @@
 namespace spectra
 {
 class Axes3D;
+class FigureViewModel;
 }
 
 namespace spectra::ui
@@ -46,6 +47,7 @@ class Renderer
     void begin_render_pass();
     void begin_render_pass(const Color& clear_color);
     void render_figure_content(Figure& figure);
+    void render_figure_content(Figure& figure, FigureViewModel* fig_vm);
     void end_render_pass();
 
     // Upload series data to GPU if dirty
@@ -136,6 +138,11 @@ class Renderer
     ui::ThemeManager&   theme_mgr_;
     TextRenderer        text_renderer_;
     SeriesTypeRegistry* series_type_registry_ = nullptr;
+
+    // Active FigureViewModel for the current render pass (set by render_figure_content).
+    // Enables Phase 2 ViewModel-based rendering: axes limits read via AxesViewModel,
+    // series properties (visible, color, opacity) read via SeriesViewModel.
+    FigureViewModel* figure_vm_ = nullptr;
 
     PipelineHandle line_pipeline_;
     PipelineHandle scatter_pipeline_;

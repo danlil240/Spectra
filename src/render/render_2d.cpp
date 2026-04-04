@@ -15,6 +15,8 @@
 #include <spectra/series_shapes3d.hpp>
 #include <spectra/series_stats.hpp>
 
+#include "ui/viewmodel/figure_view_model.hpp"
+#include "ui/viewmodel/series_view_model.hpp"
 #include "ui/workspace/plugin_guard.hpp"
 
 #include "ui/theme/theme.hpp"
@@ -37,11 +39,26 @@ void Renderer::render_series(Series& series,
         return;
 
     SeriesPushConstants pc{};
-    const auto&         c = series.color();
-    pc.color[0]           = c.r;
-    pc.color[1]           = c.g;
-    pc.color[2]           = c.b;
-    pc.color[3]           = c.a * series.opacity();
+
+    // Phase 2 (LT-5): read color/opacity via SeriesViewModel when available,
+    // enabling per-view color/opacity overrides.
+    Color eff_color;
+    float eff_opacity;
+    if (figure_vm_)
+    {
+        auto& svm   = figure_vm_->get_or_create_series_vm(&series);
+        eff_color   = svm.effective_color();
+        eff_opacity = svm.effective_opacity();
+    }
+    else
+    {
+        eff_color   = series.color();
+        eff_opacity = series.opacity();
+    }
+    pc.color[0] = eff_color.r;
+    pc.color[1] = eff_color.g;
+    pc.color[2] = eff_color.b;
+    pc.color[3] = eff_color.a * eff_opacity;
 
     const auto& style = series.plot_style();
     pc.line_style     = static_cast<uint32_t>(style.line_style);

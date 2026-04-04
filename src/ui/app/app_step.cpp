@@ -20,6 +20,7 @@
 #include "ui/commands/command_queue.hpp"
 #include "session_runtime.hpp"
 #include "window_runtime.hpp"
+#include "window_ui_context_builder.hpp"
 #include "window_ui_context.hpp"
 #include "ui/workspace/plugin_api.hpp"
 
@@ -269,6 +270,7 @@ void App::init_runtime()
                 { session.redraw_tracker().mark_dirty(reason); });
             rt.window_mgr->set_plugin_manager(&rt.plugin_manager);
             rt.window_mgr->set_export_format_registry(&rt.export_format_registry);
+            rt.window_mgr->set_session_runtime(&rt.session);
 
             rt.window_mgr->set_tab_detach_handler(
                 [&session = rt.session](FigureId           fid,
@@ -330,11 +332,32 @@ void App::init_runtime()
 
     if (!rt.ui_ctx_ptr)
     {
-        rt.headless_ui_ctx                = std::make_unique<WindowUIContext>();
-        rt.headless_ui_ctx->theme_mgr     = theme_mgr_.get();
-        rt.headless_ui_ctx->fig_mgr_owned = std::make_unique<FigureManager>(registry_);
-        rt.headless_ui_ctx->fig_mgr       = rt.headless_ui_ctx->fig_mgr_owned.get();
-        rt.ui_ctx_ptr                     = rt.headless_ui_ctx.get();
+        WindowUIContextBuildOptions options;
+        options.registry               = &registry_;
+        options.theme_mgr              = theme_mgr_.get();
+        options.initial_figure_id      = init_active_id;
+        options.active_figure          = &rt.active_figure;
+        options.active_figure_id       = &rt.active_figure_id;
+        options.session                = &rt.session;
+        options.plugin_manager         = &rt.plugin_manager;
+        options.export_format_registry = &rt.export_format_registry;
+#ifdef SPECTRA_USE_GLFW
+        options.window_manager = rt.window_mgr.get();
+        if (rt.window_mgr)
+            options.overlay_registry = &rt.window_mgr->overlay_registry();
+#endif
+        options.on_figure_closed = [wm = rt.window_mgr.get()](FigureId, Figure* fig)
+        {
+#ifdef SPECTRA_USE_GLFW
+            if (wm && fig)
+                wm->clear_figure_caches(fig);
+#else
+            (void)fig;
+#endif
+        };
+
+        rt.headless_ui_ctx = build_window_ui_context(options);
+        rt.ui_ctx_ptr      = rt.headless_ui_ctx.get();
     }
 
     // Wire plugin host services after UI context creation.
@@ -379,8 +402,6 @@ void App::init_runtime()
         imgui_ui->set_knob_manager(knob_manager_);
     }
 
-    timeline_editor.set_interpolator(&keyframe_interpolator);
-    curve_editor.set_interpolator(&keyframe_interpolator);
     if (init_active)
     {
         if (init_active->anim_.duration > 0.0f)
@@ -488,11 +509,6 @@ void App::init_runtime()
         }
         keyframe_interpolator.compute_all_auto_tangents();
     }
-
-    shortcut_mgr.set_command_registry(&cmd_registry);
-    shortcut_mgr.register_defaults();
-    cmd_palette.set_command_registry(&cmd_registry);
-    cmd_palette.set_shortcut_manager(&shortcut_mgr);
 
     #ifdef SPECTRA_USE_GLFW
     if (rt.window_mgr)
@@ -660,59 +676,8 @@ void App::init_runtime()
                 });
         }
 
-        // Clear cached figure/axes pointers when a figure is closed,
-        // preventing dangling pointer dereference in legend/crosshair/input/inspector rendering.
-        {
-            auto* di       = rt.ui_ctx_ptr->data_interaction.get();
-            auto* ih       = &rt.ui_ctx_ptr->input_handler;
-            auto* imgui_ui = rt.ui_ctx_ptr->imgui_ui.get();
-    #ifdef SPECTRA_USE_GLFW
-            auto* wm = rt.window_mgr.get();
-    #endif
-            fig_mgr.set_on_figure_closed(
-                [di,
-                 ih,
-                 imgui_ui,
-                 this
-    #ifdef SPECTRA_USE_GLFW
-                 ,
-                 wm
-    #endif
-            ](FigureId id)
-                {
-                    auto* fig = registry_.get(id);
-                    if (!fig)
-                        return;
-    #ifdef SPECTRA_USE_GLFW
-                    if (wm)
-                    {
-                        wm->clear_figure_caches(fig);
-                        return;
-                    }
-    #endif
-                    if (di)
-                        di->clear_figure_cache(fig);
-                    ih->clear_figure_cache(fig);
-                    if (imgui_ui)
-                        imgui_ui->clear_figure_cache(fig);
-                });
-        }
-
         cmd_palette.set_body_font(nullptr);
         cmd_palette.set_heading_font(nullptr);
-
-        {
-            CommandBindings cb;
-            cb.ui_ctx           = rt.ui_ctx_ptr;
-            cb.registry         = &registry_;
-            cb.active_figure    = &rt.active_figure;
-            cb.active_figure_id = &rt.active_figure_id;
-            cb.session          = &rt.session;
-    #ifdef SPECTRA_USE_GLFW
-            cb.window_mgr = rt.window_mgr.get();
-    #endif
-            register_standard_commands(cb);
-        }
     }
 #endif
 

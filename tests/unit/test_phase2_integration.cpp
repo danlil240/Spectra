@@ -145,6 +145,31 @@ TEST_F(CommandShortcutIntegration, CategoriesGroupCorrectly)
     EXPECT_EQ(edit_cmds.size(), 1u);
 }
 
+TEST(CommandShortcutUndoRedoIntegration, DefaultUndoRedoShortcutsDriveUndoManager)
+{
+    CommandRegistry reg;
+    ShortcutManager shortcuts;
+    UndoManager     undo;
+    int             value = 0;
+
+    shortcuts.set_command_registry(&reg);
+    shortcuts.register_defaults();
+
+    reg.register_command("edit.undo", "Undo", [&]() { undo.undo(); }, "Ctrl+Z", "Edit");
+    reg.register_command("edit.redo", "Redo", [&]() { undo.redo(); }, "Ctrl+Y", "Edit");
+
+    undo.push({"Set value to 1", [&]() { value = 0; }, [&]() { value = 1; }});
+    value = 1;
+
+    EXPECT_TRUE(shortcuts.on_key(90, 1, 0x02));   // Ctrl+Z
+    EXPECT_EQ(value, 0);
+    EXPECT_EQ(undo.redo_count(), 1u);
+
+    EXPECT_TRUE(shortcuts.on_key(89, 1, 0x02));   // Ctrl+Y
+    EXPECT_EQ(value, 1);
+    EXPECT_EQ(undo.undo_count(), 1u);
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // Integration: UndoManager + Workspace save/load
 // ═══════════════════════════════════════════════════════════════════════════════

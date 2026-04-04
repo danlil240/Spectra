@@ -289,6 +289,8 @@ TEST(ShortcutManager, RegisterDefaultsPopulatesBindings)
 
     // Check a few specific defaults
     EXPECT_EQ(mgr.command_for_shortcut({75, KeyMod::Control}), "app.command_palette");
+    EXPECT_EQ(mgr.command_for_shortcut({90, KeyMod::Control}), "edit.undo");        // Ctrl+Z
+    EXPECT_EQ(mgr.command_for_shortcut({89, KeyMod::Control}), "edit.redo");        // Ctrl+Y
     EXPECT_EQ(mgr.command_for_shortcut({82, KeyMod::None}), "view.reset");         // R
     EXPECT_EQ(mgr.command_for_shortcut({71, KeyMod::None}), "view.toggle_grid");   // G
 }

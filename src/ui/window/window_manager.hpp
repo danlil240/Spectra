@@ -23,6 +23,7 @@ class VulkanBackend;
 class Renderer;
 class ExportFormatRegistry;
 class PluginManager;
+class SessionRuntime;
 
 // Manages multiple OS windows, each with its own GLFW window, Vulkan surface,
 // swapchain, command buffers, and sync objects.  Shared Vulkan resources
@@ -266,6 +267,7 @@ class WindowManager
     // Shared plugin services wired into each window UI context.
     void set_plugin_manager(PluginManager* mgr) { plugin_manager_ = mgr; }
     void set_export_format_registry(ExportFormatRegistry* reg) { export_format_registry_ = reg; }
+    void set_session_runtime(SessionRuntime* session) { session_ = session; }
 
     // Shared overlay registry (owned here, shared with all windows and PluginManager).
     OverlayRegistry& overlay_registry() { return shared_overlay_registry_; }
@@ -348,6 +350,7 @@ class WindowManager
     // Shared plugin services (owned externally by AppRuntime)
     PluginManager*        plugin_manager_         = nullptr;
     ExportFormatRegistry* export_format_registry_ = nullptr;
+    SessionRuntime*       session_                = nullptr;
 
     // Monotonic z-order counter — incremented each time any window gains focus.
     // Each window's z_order field stores the value at its last focus event.

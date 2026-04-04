@@ -1,6 +1,7 @@
 #pragma once
 
 #include <functional>
+#include <optional>
 #include <spectra/axes.hpp>
 #include <spectra/fwd.hpp>
 
@@ -23,8 +24,11 @@ class UndoManager;
  *          that currently lives on Axes (visual limits).  Add new per-axes
  *          view fields (hover, scroll).
  * Phase 2: Migrate callers to use AxesViewModel instead of direct Axes access.
- * Phase 3: Move visual-limit storage from Axes into AxesViewModel; enforce
- *          accessor-only access with change callbacks.
+ * Phase 3: AxesViewModel owns its own visual limits (xlim_, ylim_) for
+ *          per-view zoom independence.  When set, they take precedence over
+ *          the model's limits.  When not set, the model's auto-fit limits are
+ *          used as a fallback.  Mutations sync to the model for backward
+ *          compatibility.
  */
 class AxesViewModel
 {
@@ -53,14 +57,24 @@ class AxesViewModel
     using ChangeCallback = std::function<void(AxesViewModel&, ChangeField)>;
     void set_on_changed(ChangeCallback cb) { on_changed_ = std::move(cb); }
 
-    // ── Forwarding accessors (Phase 1) ───────────────────────────────
-    // In Phase 1 these delegate to the Axes model.  In Phase 3 the
-    // storage will migrate here for per-view zoom independence.
+    // ── Visual-limit accessors (Phase 3: local storage) ──────────────
+    // Returns the ViewModel's limits if set, otherwise falls back to
+    // the Axes model's limits (auto-fit or manual).  This enables
+    // per-view zoom independence: two ViewModels for the same Axes
+    // can display different zoom levels.
 
     AxisLimits visual_xlim() const;
     AxisLimits visual_ylim() const;
     void       set_visual_xlim(double min, double max);
     void       set_visual_ylim(double min, double max);
+
+    // Clear the ViewModel's visual limits, reverting to model fallback.
+    void clear_visual_xlim();
+    void clear_visual_ylim();
+
+    // Whether the ViewModel has its own visual limits (vs. model fallback).
+    bool has_visual_xlim() const { return xlim_.has_value(); }
+    bool has_visual_ylim() const { return ylim_.has_value(); }
 
     // ── New per-view state ───────────────────────────────────────────
 
@@ -72,6 +86,12 @@ class AxesViewModel
 
    private:
     Axes* model_ = nullptr;
+
+    // Phase 3: Per-view visual limits (owned by ViewModel).
+    // When set, visual_xlim()/visual_ylim() return these values;
+    // when not set, they fall back to model_->x_limits()/y_limits().
+    std::optional<AxisLimits> xlim_;
+    std::optional<AxisLimits> ylim_;
 
     // Per-view state (owned by ViewModel)
     bool  is_hovered_ = false;

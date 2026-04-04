@@ -9,10 +9,12 @@ namespace spectra
 
 AxesViewModel::AxesViewModel(Axes* model) : model_(model) {}
 
-// ── Forwarding accessors (Phase 1: delegate to Axes model) ───────────────
+// ── Visual-limit accessors (Phase 3: local storage with model fallback) ──────
 
 AxisLimits AxesViewModel::visual_xlim() const
 {
+    if (xlim_.has_value())
+        return *xlim_;
     if (model_)
         return model_->x_limits();
     return {0.0, 1.0};
@@ -20,6 +22,8 @@ AxisLimits AxesViewModel::visual_xlim() const
 
 AxisLimits AxesViewModel::visual_ylim() const
 {
+    if (ylim_.has_value())
+        return *ylim_;
     if (model_)
         return model_->y_limits();
     return {0.0, 1.0};
@@ -34,9 +38,13 @@ void AxesViewModel::set_visual_xlim(double min, double max)
         return;
     if (min >= max)
         return;
-    AxisLimits old = model_->x_limits();
+    AxisLimits old = visual_xlim();
     if (old.min == min && old.max == max)
         return;
+    // Phase 3: store in ViewModel's local storage
+    xlim_ = AxisLimits{min, max};
+    // Sync to model for backward compatibility — callers that still read
+    // directly from Axes will see the same limits.
     model_->xlim(min, max);
     if (undo_mgr_ && !suppressing_undo_)
     {
@@ -67,9 +75,12 @@ void AxesViewModel::set_visual_ylim(double min, double max)
         return;
     if (min >= max)
         return;
-    AxisLimits old = model_->y_limits();
+    AxisLimits old = visual_ylim();
     if (old.min == min && old.max == max)
         return;
+    // Phase 3: store in ViewModel's local storage
+    ylim_ = AxisLimits{min, max};
+    // Sync to model for backward compatibility
     model_->ylim(min, max);
     if (undo_mgr_ && !suppressing_undo_)
     {
@@ -88,6 +99,22 @@ void AxesViewModel::set_visual_ylim(double min, double max)
                                        self->suppressing_undo_ = false;
                                    }});
     }
+    notify_changed(ChangeField::VisualYLim);
+}
+
+void AxesViewModel::clear_visual_xlim()
+{
+    if (!xlim_.has_value())
+        return;
+    xlim_.reset();
+    notify_changed(ChangeField::VisualXLim);
+}
+
+void AxesViewModel::clear_visual_ylim()
+{
+    if (!ylim_.has_value())
+        return;
+    ylim_.reset();
     notify_changed(ChangeField::VisualYLim);
 }
 

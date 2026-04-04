@@ -527,7 +527,7 @@ while running:
 
 ### LT-5: ViewModel for Axes and Series
 
-> *Carried from ARCHITECTURE_REVIEW_V2.md — Phase 1 implemented.*
+> *Carried from ARCHITECTURE_REVIEW_V2.md — All 3 phases implemented.*
 
 `FigureViewModel` (LT-1) proved the pattern: separating view-layer UI state from the core data model enables multiple independent views of the same data, clean undo integration, and per-window overrides without touching shared data. The next targets are `Axes` and `Series`.
 
@@ -537,9 +537,11 @@ Owns per-view UI state that the renderer, input handler, and interaction subsyst
 
 | View-state field | Description |
 |---|---|
-| `visual_xlim` / `visual_ylim` | Forwarding accessors to `Axes::xlim/ylim` (Phase 1); migrate storage here in Phase 3 for per-view zoom independence |
+| `visual_xlim` / `visual_ylim` | Per-view visual limits stored locally in the ViewModel (`std::optional<AxisLimits>`). When set, takes precedence over model limits. When not set, falls back to `Axes::x_limits()`/`y_limits()`. Syncs to model on mutation for backward compatibility. |
 | `is_hovered` | Whether the cursor is currently inside this axes area |
 | `scroll_y` | Per-axes vertical scroll offset for the legend / inspector |
+| `has_visual_xlim/ylim()` | Whether the ViewModel has its own limits (vs. model fallback) |
+| `clear_visual_xlim/ylim()` | Revert to model-fallback limits |
 
 **Validation** (enforced at the ViewModel boundary):
 
@@ -571,10 +573,21 @@ Owns per-view overrides and interaction state layered on top of the shared `Seri
 
 `FigureViewModel::get_or_create_axes_vm(Axes*)` and `get_or_create_series_vm(Series*)` lazily create and cache sub-ViewModels, inheriting the owning `UndoManager` automatically. Stale entries are removed via `remove_axes_vm` / `remove_series_vm`.
 
+#### Renderer integration (Phase 2)
+
+`Renderer::render_figure_content(Figure&, FigureViewModel*)` accepts an optional ViewModel. When provided:
+- Axes limits are read via `AxesViewModel::visual_xlim/ylim()` instead of `Axes::x_limits/y_limits()`
+- Series visibility, color, and opacity are read via `SeriesViewModel::effective_visible/color/opacity()`
+- Falls back to direct model access when no ViewModel is available (backward compatible)
+
+`InputHandler` routes limit mutations through `set_axes_xlim/ylim()` helpers that use `AxesViewModel` when `FigureViewModel` is set.
+
+`WindowRuntime` wires `FigureViewModel*` to both the Renderer and InputHandler during per-window updates.
+
 #### Migration phases
 
 | Phase | Status | Description |
 |---|---|---|
 | Phase 1 | ✅ **Done** | `AxesViewModel` and `SeriesViewModel` classes created with forwarding accessors, per-view state fields, change callbacks, undo integration, and input validation. Tests in `tests/unit/test_axes_view_model.cpp` and `tests/unit/test_series_view_model.cpp`. |
-| Phase 2 | ⬜ Open | Migrate callers (`Renderer`, `InputHandler`, inspector panels) to use the ViewModels instead of accessing `Axes` / `Series` directly. |
-| Phase 3 | ⬜ Open | Move `visual_xlim/ylim` storage from `Axes` into `AxesViewModel`; enforce accessor-only access. Enables multiple views of the same axes at different zoom levels. |
+| Phase 2 | ✅ **Done** | `Renderer` reads limits via AxesViewModel, series properties via SeriesViewModel. `InputHandler` routes limit writes through AxesViewModel. `WindowRuntime` wires FigureViewModel to both. |
+| Phase 3 | ✅ **Done** | AxesViewModel stores its own `std::optional<AxisLimits> xlim_/ylim_` locally. `visual_xlim/ylim()` returns local storage when set, model fallback otherwise. Mutations sync to model for backward compatibility. `clear_visual_xlim/ylim()` reverts to model. Enables per-view zoom independence. |

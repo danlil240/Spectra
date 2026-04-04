@@ -444,6 +444,15 @@ The `EventBus<T>` is functional but fragile under real-world usage patterns.
 - **Coupling risk**: `Renderer` currently reads axes limits and series visibility directly. Must route through ViewModel accessors.
 - **Difficulty**: High. Axes and Series are the most-touched types in the codebase.
 
+**Phase 1 status: ✅ Done.** `AxesViewModel` and `SeriesViewModel` created in `src/ui/viewmodel/` with:
+- Forwarding accessors for `visual_xlim/ylim` (delegates to `Axes`) and `effective_visible/color/label/opacity` (delegates to `Series`)
+- Per-view override fields on `SeriesViewModel` (`visible_override_`, `color_override_`, `label_override_`, `opacity_override_`)
+- Per-view state on `AxesViewModel` (`is_hovered_`, `scroll_y_`)
+- Change callbacks (`set_on_changed`) and optional `UndoManager` integration
+- **Input validation**: `set_visual_xlim/ylim` rejects inverted ranges (`min >= max`), `NaN`, and `±Inf`; `set_opacity_override` and `set_opacity` clamp to `[0.0, 1.0]`
+- Unit tests in `tests/unit/test_axes_view_model.cpp` and `tests/unit/test_series_view_model.cpp`
+- `FigureViewModel::get_or_create_axes_vm/series_vm` lazily creates and caches sub-ViewModels
+
 #### LT-6: GPU compute pipeline for data processing
 
 All data processing (decimation, transforms, FFT, derivative, cumulative sum) currently runs on the CPU in `src/data/` and `src/math/`. For datasets exceeding ~1M points, this becomes a bottleneck — especially LTTB decimation and FFT.
@@ -560,8 +569,9 @@ Enable multiple users to view and interact with the same figure session, either 
 | LT-1: FigureModel/ViewModel separation | ✅ **Done** (Phases 1-3) | Full accessor-based ViewModel with undo |
 | LT-2: Expand plugin API | ✅ **Done** (v2.0) | 6 extension points including custom series types |
 | LT-3: Thread-safe data model | ✅ **Done** | PendingSeriesData + SpinLock + direct-write ROS2 |
+| LT-5: ViewModel for Axes and Series | ✅ **Done** (Phase 1) | `AxesViewModel` + `SeriesViewModel` with forwarding accessors, per-view overrides, change callbacks, undo, and input validation |
 
-**10 of 12** V1 recommendations implemented. 2 remaining (ThemeManager singleton, plus carried items).
+**11 of 13** V1/V2 recommendations implemented (Phase 1). 2 remaining (ThemeManager singleton; LT-5 Phases 2-3).
 
 ---
 

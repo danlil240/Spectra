@@ -1,5 +1,7 @@
 #include "ui/viewmodel/axes_view_model.hpp"
 
+#include <cmath>
+
 #include "ui/commands/undo_manager.hpp"
 
 namespace spectra
@@ -26,6 +28,11 @@ AxisLimits AxesViewModel::visual_ylim() const
 void AxesViewModel::set_visual_xlim(double min, double max)
 {
     if (!model_)
+        return;
+    // Validate: reject degenerate, NaN, or infinite ranges
+    if (std::isnan(min) || std::isnan(max) || std::isinf(min) || std::isinf(max))
+        return;
+    if (min >= max)
         return;
     AxisLimits old = model_->x_limits();
     if (old.min == min && old.max == max)
@@ -54,6 +61,11 @@ void AxesViewModel::set_visual_xlim(double min, double max)
 void AxesViewModel::set_visual_ylim(double min, double max)
 {
     if (!model_)
+        return;
+    // Validate: reject degenerate, NaN, or infinite ranges
+    if (std::isnan(min) || std::isnan(max) || std::isinf(min) || std::isinf(max))
+        return;
+    if (min >= max)
         return;
     AxisLimits old = model_->y_limits();
     if (old.min == min && old.max == max)

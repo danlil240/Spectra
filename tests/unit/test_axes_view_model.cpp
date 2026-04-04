@@ -1,6 +1,8 @@
 #include <gtest/gtest.h>
 #include <spectra/axes.hpp>
 
+#include <limits>
+
 #include "ui/viewmodel/axes_view_model.hpp"
 
 namespace spectra
@@ -258,6 +260,128 @@ TEST(AxesViewModelTest, MultipleViewModelsShareModel)
     // Changing limits through one ViewModel affects the model
     vm1.set_visual_xlim(0.0, 20.0);
     EXPECT_DOUBLE_EQ(vm2.visual_xlim().max, 20.0);
+}
+
+// ─── Input Validation ────────────────────────────────────────────────────────
+
+TEST(AxesViewModelTest, SetVisualXLimRejectsInvertedRange)
+{
+    Axes ax;
+    ax.xlim(0.0, 1.0);
+
+    AxesViewModel vm(&ax);
+    int           change_count = 0;
+    vm.set_on_changed([&](AxesViewModel&, AxesViewModel::ChangeField) { ++change_count; });
+
+    // min > max — must be rejected
+    vm.set_visual_xlim(5.0, 2.0);
+    EXPECT_DOUBLE_EQ(ax.x_limits().min, 0.0);
+    EXPECT_DOUBLE_EQ(ax.x_limits().max, 1.0);
+    EXPECT_EQ(change_count, 0);
+}
+
+TEST(AxesViewModelTest, SetVisualXLimRejectsEqualMinMax)
+{
+    Axes ax;
+    ax.xlim(0.0, 1.0);
+
+    AxesViewModel vm(&ax);
+    int           change_count = 0;
+    vm.set_on_changed([&](AxesViewModel&, AxesViewModel::ChangeField) { ++change_count; });
+
+    // min == max — degenerate range, must be rejected
+    vm.set_visual_xlim(3.0, 3.0);
+    EXPECT_DOUBLE_EQ(ax.x_limits().min, 0.0);
+    EXPECT_DOUBLE_EQ(ax.x_limits().max, 1.0);
+    EXPECT_EQ(change_count, 0);
+}
+
+TEST(AxesViewModelTest, SetVisualXLimRejectsNaN)
+{
+    Axes ax;
+    ax.xlim(0.0, 1.0);
+
+    AxesViewModel vm(&ax);
+    int           change_count = 0;
+    vm.set_on_changed([&](AxesViewModel&, AxesViewModel::ChangeField) { ++change_count; });
+
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    vm.set_visual_xlim(nan, 1.0);
+    EXPECT_DOUBLE_EQ(ax.x_limits().min, 0.0);
+    EXPECT_EQ(change_count, 0);
+
+    vm.set_visual_xlim(0.0, nan);
+    EXPECT_DOUBLE_EQ(ax.x_limits().max, 1.0);
+    EXPECT_EQ(change_count, 0);
+}
+
+TEST(AxesViewModelTest, SetVisualXLimRejectsInfinity)
+{
+    Axes ax;
+    ax.xlim(0.0, 1.0);
+
+    AxesViewModel vm(&ax);
+    int           change_count = 0;
+    vm.set_on_changed([&](AxesViewModel&, AxesViewModel::ChangeField) { ++change_count; });
+
+    const double inf = std::numeric_limits<double>::infinity();
+    vm.set_visual_xlim(-inf, inf);
+    EXPECT_DOUBLE_EQ(ax.x_limits().min, 0.0);
+    EXPECT_DOUBLE_EQ(ax.x_limits().max, 1.0);
+    EXPECT_EQ(change_count, 0);
+}
+
+TEST(AxesViewModelTest, SetVisualYLimRejectsInvertedRange)
+{
+    Axes ax;
+    ax.ylim(0.0, 1.0);
+
+    AxesViewModel vm(&ax);
+    int           change_count = 0;
+    vm.set_on_changed([&](AxesViewModel&, AxesViewModel::ChangeField) { ++change_count; });
+
+    // min > max — must be rejected
+    vm.set_visual_ylim(10.0, -10.0);
+    EXPECT_DOUBLE_EQ(ax.y_limits().min, 0.0);
+    EXPECT_DOUBLE_EQ(ax.y_limits().max, 1.0);
+    EXPECT_EQ(change_count, 0);
+}
+
+TEST(AxesViewModelTest, SetVisualYLimRejectsNaN)
+{
+    Axes ax;
+    ax.ylim(0.0, 1.0);
+
+    AxesViewModel vm(&ax);
+    int           change_count = 0;
+    vm.set_on_changed([&](AxesViewModel&, AxesViewModel::ChangeField) { ++change_count; });
+
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    vm.set_visual_ylim(nan, 5.0);
+    EXPECT_DOUBLE_EQ(ax.y_limits().min, 0.0);
+    EXPECT_DOUBLE_EQ(ax.y_limits().max, 1.0);
+    EXPECT_EQ(change_count, 0);
+}
+
+TEST(AxesViewModelTest, SetVisualLimValidRangeIsAccepted)
+{
+    Axes ax;
+    ax.xlim(0.0, 1.0);
+    ax.ylim(0.0, 1.0);
+
+    AxesViewModel vm(&ax);
+    int           change_count = 0;
+    vm.set_on_changed([&](AxesViewModel&, AxesViewModel::ChangeField) { ++change_count; });
+
+    vm.set_visual_xlim(-100.0, 100.0);
+    EXPECT_DOUBLE_EQ(ax.x_limits().min, -100.0);
+    EXPECT_DOUBLE_EQ(ax.x_limits().max, 100.0);
+    EXPECT_EQ(change_count, 1);
+
+    vm.set_visual_ylim(-50.0, 50.0);
+    EXPECT_DOUBLE_EQ(ax.y_limits().min, -50.0);
+    EXPECT_DOUBLE_EQ(ax.y_limits().max, 50.0);
+    EXPECT_EQ(change_count, 2);
 }
 
 }   // namespace spectra

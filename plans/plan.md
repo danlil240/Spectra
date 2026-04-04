@@ -520,3 +520,61 @@ while running:
 - **Extensibility:** New plot types inherit from `Series` base, register a pipeline + shader pair. Renderer dispatches by series type via virtual `record_commands()`.
 - **Zero-copy where possible:** `std::span` interfaces avoid copies; GPU upload from user memory directly.
 - **Minimal allocations in hot path:** Pre-allocated command buffers, ring buffers, arena allocators for per-frame scratch.
+
+---
+
+## L. Long-Term Architecture Items
+
+### LT-5: ViewModel for Axes and Series
+
+> *Carried from ARCHITECTURE_REVIEW_V2.md — Phase 1 implemented.*
+
+`FigureViewModel` (LT-1) proved the pattern: separating view-layer UI state from the core data model enables multiple independent views of the same data, clean undo integration, and per-window overrides without touching shared data. The next targets are `Axes` and `Series`.
+
+#### AxesViewModel (`src/ui/viewmodel/axes_view_model.hpp`)
+
+Owns per-view UI state that the renderer, input handler, and interaction subsystems need but that is **not** part of the data model:
+
+| View-state field | Description |
+|---|---|
+| `visual_xlim` / `visual_ylim` | Forwarding accessors to `Axes::xlim/ylim` (Phase 1); migrate storage here in Phase 3 for per-view zoom independence |
+| `is_hovered` | Whether the cursor is currently inside this axes area |
+| `scroll_y` | Per-axes vertical scroll offset for the legend / inspector |
+
+**Validation** (enforced at the ViewModel boundary):
+
+- `set_visual_xlim(min, max)` and `set_visual_ylim(min, max)` reject:
+  - `min >= max` (inverted or degenerate range)
+  - `NaN` in either argument
+  - `±Inf` in either argument
+
+#### SeriesViewModel (`src/ui/viewmodel/series_view_model.hpp`)
+
+Owns per-view overrides and interaction state layered on top of the shared `Series` model:
+
+| Override field | Description |
+|---|---|
+| `visible_override` | Per-window show/hide without touching the shared model |
+| `color_override` | Per-window color tint |
+| `label_override` | User-edited display name |
+| `opacity_override` | Per-window opacity tweak |
+| `is_selected` | Selection state for inspector/highlight |
+| `is_highlighted` | Transient hover highlight |
+
+**Override semantics**: if an override is set, `effective_*()` returns the override; otherwise it falls back to the model value.
+
+**Validation** (enforced at the ViewModel boundary):
+
+- `set_opacity_override(o)` and `set_opacity(o)` clamp `o` to `[0.0, 1.0]`.
+
+#### FigureViewModel integration
+
+`FigureViewModel::get_or_create_axes_vm(Axes*)` and `get_or_create_series_vm(Series*)` lazily create and cache sub-ViewModels, inheriting the owning `UndoManager` automatically. Stale entries are removed via `remove_axes_vm` / `remove_series_vm`.
+
+#### Migration phases
+
+| Phase | Status | Description |
+|---|---|---|
+| Phase 1 | ✅ **Done** | `AxesViewModel` and `SeriesViewModel` classes created with forwarding accessors, per-view state fields, change callbacks, undo integration, and input validation. Tests in `tests/unit/test_axes_view_model.cpp` and `tests/unit/test_series_view_model.cpp`. |
+| Phase 2 | ⬜ Open | Migrate callers (`Renderer`, `InputHandler`, inspector panels) to use the ViewModels instead of accessing `Axes` / `Series` directly. |
+| Phase 3 | ⬜ Open | Move `visual_xlim/ylim` storage from `Axes` into `AxesViewModel`; enforce accessor-only access. Enables multiple views of the same axes at different zoom levels. |

@@ -14,6 +14,16 @@ using namespace spectra;
 // so crash-recovery tests must be skipped under UBSan.
 static bool running_under_ubsan()
 {
+    // Compile-time detection (Clang / GCC 14+)
+#if defined(__has_feature)
+    #if __has_feature(undefined_behavior_sanitizer)
+    return true;
+    #endif
+#endif
+#if defined(__SANITIZE_UNDEFINED__)
+    return true;
+#endif
+    // Runtime fallback: CI sets UBSAN_OPTIONS when running UBSan
     return std::getenv("UBSAN_OPTIONS") != nullptr;
 }
 

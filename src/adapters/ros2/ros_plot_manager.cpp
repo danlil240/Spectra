@@ -75,11 +75,26 @@ PlotHandle RosPlotManager::add_plot(const std::string& topic,
     // Build the label: "topic/field_path"
     std::string lbl = topic + "/" + field_path;
 
-    // Create an empty LineSeries (data arrives via poll()).
-    spectra::LineSeries& ls = entry->axes->line();
-    ls.label(lbl);
-    ls.color(next_color());
-    entry->series = &ls;
+    // Create series: either LineSeries or ChunkedLineSeries depending on config.
+    if (use_chunked_)
+    {
+        spectra::ChunkedLineSeries& cs = entry->axes->chunked_line();
+        cs.label(lbl);
+        cs.color(next_color());
+        cs.enable_lod(chunked_lod_);
+        if (chunked_memory_budget_ > 0)
+            cs.set_memory_budget(chunked_memory_budget_);
+        entry->chunked    = &cs;
+        entry->base_series = &cs;
+    }
+    else
+    {
+        spectra::LineSeries& ls = entry->axes->line();
+        ls.label(lbl);
+        ls.color(next_color());
+        entry->series      = &ls;
+        entry->base_series = &ls;
+    }
 
     // Label axes with sensible defaults.
     entry->axes->xlabel("time (s)");
@@ -106,20 +121,20 @@ PlotHandle RosPlotManager::add_plot(const std::string& topic,
         // Enable thread-safe series mode: the ROS2 executor thread writes
         // directly to the Series via PendingSeriesData, eliminating the
         // ring-buffer intermediary.
-        entry->series->set_thread_safe(true);
+        entry->base_series->set_thread_safe(true);
         entry->direct_ctx = std::make_unique<DirectWriteContext>();
 
-        auto* ctx      = entry->direct_ctx.get();
-        auto* series   = entry->series;
-        auto* data_cb  = &on_data_cb_;
-        int   entry_id = entry->id;
+        auto* ctx         = entry->direct_ctx.get();
+        auto* base_series = entry->base_series;
+        auto* data_cb     = &on_data_cb_;
+        int   entry_id    = entry->id;
         sub->set_field_callback(
             eid,
-            [ctx, series, data_cb, entry_id](double t_sec, double val)
+            [ctx, base_series, data_cb, entry_id](double t_sec, double val)
             {
                 std::call_once(ctx->origin_once, [&]() { ctx->origin = t_sec; });
                 const double t_rel = t_sec - ctx->origin;
-                series->append(static_cast<float>(t_rel), static_cast<float>(val));
+                base_series->append(static_cast<float>(t_rel), static_cast<float>(val));
                 ctx->samples_written.fetch_add(1, std::memory_order_relaxed);
 
                 if (*data_cb)
@@ -143,12 +158,14 @@ PlotHandle RosPlotManager::add_plot(const std::string& topic,
     entry->drain_buf.clear();
 
     PlotHandle h;
-    h.id         = entry->id;
-    h.topic      = entry->topic;
-    h.field_path = entry->field_path;
-    h.figure     = entry->figure.get();
-    h.axes       = entry->axes;
-    h.series     = entry->series;
+    h.id             = entry->id;
+    h.topic          = entry->topic;
+    h.field_path     = entry->field_path;
+    h.figure         = entry->figure.get();
+    h.axes           = entry->axes;
+    h.base_series    = entry->base_series;
+    h.series         = entry->series;
+    h.chunked_series = entry->chunked;
 
     entries_.push_back(std::move(entry));
     return h;
@@ -201,12 +218,14 @@ PlotHandle RosPlotManager::handle(int id) const
     }
 
     PlotHandle h;
-    h.id         = e->id;
-    h.topic      = e->topic;
-    h.field_path = e->field_path;
-    h.figure     = e->figure.get();
-    h.axes       = e->axes;
-    h.series     = e->series;
+    h.id             = e->id;
+    h.topic          = e->topic;
+    h.field_path     = e->field_path;
+    h.figure         = e->figure.get();
+    h.axes           = e->axes;
+    h.base_series    = e->base_series;
+    h.series         = e->series;
+    h.chunked_series = e->chunked;
     return h;
 }
 
@@ -218,12 +237,14 @@ std::vector<PlotHandle> RosPlotManager::handles() const
     for (const auto& e : entries_)
     {
         PlotHandle h;
-        h.id         = e->id;
-        h.topic      = e->topic;
-        h.field_path = e->field_path;
-        h.figure     = e->figure.get();
-        h.axes       = e->axes;
-        h.series     = e->series;
+        h.id             = e->id;
+        h.topic          = e->topic;
+        h.field_path     = e->field_path;
+        h.figure         = e->figure.get();
+        h.axes           = e->axes;
+        h.base_series    = e->base_series;
+        h.series         = e->series;
+        h.chunked_series = e->chunked;
         result.push_back(h);
     }
     return result;
@@ -270,15 +291,15 @@ void RosPlotManager::poll()
             }
 
             // Commit pending data from the executor thread to the series.
-            entry->series->commit_pending();
+            entry->base_series->commit_pending();
 
             // Prune old data (erase_before routes through PendingSeriesData
             // in thread-safe mode).
-            if (entry->series && pruning_enabled_ && has_origin)
+            if (entry->base_series && pruning_enabled_ && has_origin)
             {
                 const auto  xlim         = entry->axes->x_limits();
                 const float prune_before = static_cast<float>(xlim.min - prune_buffer_s_);
-                entry->series->erase_before(prune_before);
+                entry->base_series->erase_before(prune_before);
             }
 
             // Track samples for auto-fit.
@@ -306,11 +327,11 @@ void RosPlotManager::poll()
         entry->axes->set_presented_buffer_right_edge(now_rel);
 
         // Prune data older than the visible view plus the configured history buffer.
-        if (entry->series && pruning_enabled_)
+        if (entry->base_series && pruning_enabled_)
         {
             const auto  xlim         = entry->axes->x_limits();
             const float prune_before = static_cast<float>(xlim.min - prune_buffer_s_);
-            entry->series->erase_before(prune_before);
+            entry->base_series->erase_before(prune_before);
         }
 
         if (!entry->subscriber || !entry->subscriber->is_running())
@@ -330,7 +351,7 @@ void RosPlotManager::poll()
 
         if (n > 0)
         {
-            // Append to the LineSeries using relative time (seconds since
+            // Append to the series using relative time (seconds since
             // origin) so that float precision is not lost at epoch-scale
             // timestamps (~1.7e9 exceeds float's ~7-digit mantissa).
             const double origin = entry->time_origin;
@@ -339,7 +360,8 @@ void RosPlotManager::poll()
                 const FieldSample& s     = entry->drain_buf[i];
                 const double       t_sec = static_cast<double>(s.timestamp_ns) * 1e-9;
                 const double       t_rel = t_sec - origin;
-                entry->series->append(static_cast<float>(t_rel), static_cast<float>(s.value));
+                entry->base_series->append(static_cast<float>(t_rel),
+                                           static_cast<float>(s.value));
 
                 if (on_data_cb_)
                     on_data_cb_(entry->id, t_sec, s.value);
@@ -479,7 +501,7 @@ void RosPlotManager::resume_all_scroll()
 size_t RosPlotManager::memory_bytes(int id) const
 {
     const PlotEntry* e = find_entry(id);
-    return (e && e->series) ? e->series->memory_bytes() : 0;
+    return (e && e->base_series) ? e->base_series->memory_bytes() : 0;
 }
 
 size_t RosPlotManager::total_memory_bytes() const
@@ -487,8 +509,8 @@ size_t RosPlotManager::total_memory_bytes() const
     size_t total = 0;
     for (const auto& e : entries_)
     {
-        if (e->series)
-            total += e->series->memory_bytes();
+        if (e->base_series)
+            total += e->base_series->memory_bytes();
     }
     return total;
 }

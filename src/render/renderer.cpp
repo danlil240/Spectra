@@ -17,6 +17,9 @@
 
 #include "ui/imgui/axes3d_renderer.hpp"
 #include "ui/theme/theme.hpp"
+#include "ui/viewmodel/axes_view_model.hpp"
+#include "ui/viewmodel/figure_view_model.hpp"
+#include "ui/viewmodel/series_view_model.hpp"
 #include "ui/workspace/plugin_guard.hpp"
 
 namespace spectra
@@ -279,6 +282,12 @@ void Renderer::begin_render_pass(const Color& clear_color)
 
 void Renderer::render_figure_content(Figure& figure)
 {
+    render_figure_content(figure, nullptr);
+}
+
+void Renderer::render_figure_content(Figure& figure, FigureViewModel* fig_vm)
+{
+    figure_vm_ = fig_vm;
     uint32_t w = figure.width();
     uint32_t h = figure.height();
 
@@ -455,8 +464,21 @@ void Renderer::render_axes(AxesBase&   axes,
         // Data on the GPU is stored relative to a per-series origin,
         // and the small gap between origin and view center is bridged
         // by the data_offset push constants.
-        auto xlim = axes2d->x_limits();
-        auto ylim = axes2d->y_limits();
+
+        // Phase 2 (LT-5): read limits via AxesViewModel when available,
+        // enabling per-view overrides and validation.
+        AxisLimits xlim, ylim;
+        if (figure_vm_)
+        {
+            auto& axes_vm = figure_vm_->get_or_create_axes_vm(axes2d);
+            xlim           = axes_vm.visual_xlim();
+            ylim           = axes_vm.visual_ylim();
+        }
+        else
+        {
+            xlim = axes2d->x_limits();
+            ylim = axes2d->y_limits();
+        }
 
         double view_cx = (xlim.min + xlim.max) * 0.5;
         double view_cy = (ylim.min + ylim.max) * 0.5;
@@ -547,7 +569,21 @@ void Renderer::render_axes(AxesBase&   axes,
 
         for (auto& series_ptr : axes.series())
         {
-            if (!series_ptr || !series_ptr->visible())
+            if (!series_ptr)
+                continue;
+
+            // Phase 2 (LT-5): check visibility via SeriesViewModel when available
+            bool visible;
+            if (figure_vm_)
+            {
+                auto& svm = figure_vm_->get_or_create_series_vm(series_ptr.get());
+                visible    = svm.effective_visible();
+            }
+            else
+            {
+                visible = series_ptr->visible();
+            }
+            if (!visible)
                 continue;
 
             if (series_ptr->is_dirty())
@@ -579,7 +615,19 @@ void Renderer::render_axes(AxesBase&   axes,
             vec3 world_pos = {world_c.x, world_c.y, world_c.z};
             auto dist      = static_cast<float>(vec3_length(world_pos - cam_pos));
 
-            bool is_transparent = (series_ptr->color().a * series_ptr->opacity()) < 0.99f;
+            // Phase 2 (LT-5): read color/opacity via SeriesViewModel when available
+            float effective_alpha;
+            if (figure_vm_)
+            {
+                auto& svm        = figure_vm_->get_or_create_series_vm(series_ptr.get());
+                Color eff_color   = svm.effective_color();
+                effective_alpha   = eff_color.a * svm.effective_opacity();
+            }
+            else
+            {
+                effective_alpha = series_ptr->color().a * series_ptr->opacity();
+            }
+            bool is_transparent = effective_alpha < 0.99f;
 
             if (is_transparent)
             {
@@ -652,7 +700,21 @@ void Renderer::render_axes(AxesBase&   axes,
 
         for (auto& series_ptr : axes.series())
         {
-            if (!series_ptr || !series_ptr->visible())
+            if (!series_ptr)
+                continue;
+
+            // Phase 2 (LT-5): check visibility via SeriesViewModel when available
+            bool visible;
+            if (figure_vm_)
+            {
+                auto& svm = figure_vm_->get_or_create_series_vm(series_ptr.get());
+                visible    = svm.effective_visible();
+            }
+            else
+            {
+                visible = series_ptr->visible();
+            }
+            if (!visible)
                 continue;
 
             auto& gpu = series_gpu_data_[series_ptr.get()];

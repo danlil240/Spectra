@@ -126,6 +126,11 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                 has_animation = static_cast<bool>(active_figure->anim_.on_frame);
     #ifdef SPECTRA_USE_GLFW
                 input_handler.set_figure(active_figure);
+                // Phase 2 (LT-5): wire FigureViewModel for ViewModel-based limit mutations
+                if (ui_ctx.fig_mgr)
+                    input_handler.set_figure_view_model(&fig_mgr.active_state());
+                else
+                    input_handler.set_figure_view_model(nullptr);
                 if (!active_figure->axes().empty() && active_figure->axes()[0])
                 {
                     input_handler.set_active_axes(active_figure->axes()[0].get());
@@ -926,7 +931,11 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
                     // to be clipped (title flicker during zoom).
                     pfig->config_.width  = sw_u;
                     pfig->config_.height = sh_u;
-                    renderer_.render_figure_content(*pfig);
+                    // Phase 2 (LT-5): pass FigureViewModel for ViewModel-based rendering
+                    FigureViewModel* pane_vm = nullptr;
+                    if (ui_ctx.fig_mgr)
+                        pane_vm = &ui_ctx.fig_mgr->state(pinfo.figure_index);
+                    renderer_.render_figure_content(*pfig, pane_vm);
                     // Flush text per-figure so that each pane's title, tick
                     // labels, and axis labels are drawn immediately after its
                     // geometry.  Batching all panes' text into a single deferred
@@ -942,11 +951,21 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
         {
             active_figure->config_.width  = backend_.swapchain_width();
             active_figure->config_.height = backend_.swapchain_height();
-            renderer_.render_figure_content(*active_figure);
+            // Phase 2 (LT-5): pass FigureViewModel for ViewModel-based rendering
+            FigureViewModel* active_vm = nullptr;
+            if (ui_ctx.fig_mgr)
+                active_vm = &ui_ctx.fig_mgr->active_state();
+            renderer_.render_figure_content(*active_figure, active_vm);
         }
 #else
         if (active_figure)
-            renderer_.render_figure_content(*active_figure);
+        {
+            // Phase 2 (LT-5): pass FigureViewModel when available
+            FigureViewModel* active_vm = nullptr;
+            if (ui_ctx.fig_mgr)
+                active_vm = &ui_ctx.fig_mgr->active_state();
+            renderer_.render_figure_content(*active_figure, active_vm);
+        }
 #endif
         if (profiler)
             profiler->end_stage("cmd_record");

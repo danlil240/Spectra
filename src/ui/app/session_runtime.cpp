@@ -1,8 +1,11 @@
 #include "session_runtime.hpp"
 
 #include <spectra/animator.hpp>
+#include <spectra/axes.hpp>
+#include <spectra/event_bus.hpp>
 #include <spectra/figure.hpp>
 #include <spectra/logger.hpp>
+#include <spectra/series.hpp>
 
 #include "anim/frame_scheduler.hpp"
 #include "render/renderer.hpp"
@@ -93,6 +96,13 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
         SPECTRA_LOG_TRACE("main_loop",
                           "Processed " + std::to_string(commands_processed) + " commands");
     }
+
+    // Drain deferred events from background threads.
+    if (event_system_)
+        event_system_->drain_all_deferred();
+
+    // Commit pending thread-safe series data from background threads.
+    commit_thread_safe_series();
 
     // Evaluate keyframe animations
     SPECTRA_PROFILE_BEGIN(profiler_, "animator");
@@ -853,6 +863,30 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
     resource_monitor_.tick(frame_ms);
 
     return frame_state;
+}
+
+void SessionRuntime::commit_thread_safe_series()
+{
+    bool any_committed = false;
+
+    for (auto id : registry_.all_ids())
+    {
+        Figure* fig = registry_.get(id);
+        if (!fig)
+            continue;
+
+        for (auto& axes_ptr : fig->all_axes())
+        {
+            for (auto& series_ptr : axes_ptr->series())
+            {
+                if (series_ptr->is_thread_safe() && series_ptr->commit_pending())
+                    any_committed = true;
+            }
+        }
+    }
+
+    if (any_committed)
+        redraw_tracker_.mark_dirty("series_commit");
 }
 
 }   // namespace spectra

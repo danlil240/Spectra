@@ -2,8 +2,21 @@
 
 #include <cstring>
 
+#include "codec_fb.hpp"
+
 namespace spectra::ipc
 {
+
+// ─── Format-aware decode helper ──────────────────────────────────────────────
+// If the payload starts with 0x01, strip the prefix byte and delegate to FB.
+// Otherwise fall through to legacy TLV decoding below.
+
+#define DECODE_TRY_FB(decode_fb_func, data)                            \
+    do                                                                 \
+    {                                                                  \
+        if (detect_payload_format(data) == PayloadFormat::FLATBUFFERS) \
+            return decode_fb_func(strip_fb_prefix(data));              \
+    } while (0)
 
 // ─── Little-endian helpers ───────────────────────────────────────────────────
 
@@ -201,6 +214,7 @@ std::vector<uint8_t> encode_hello(const HelloPayload& p)
 
 std::optional<HelloPayload> decode_hello(std::span<const uint8_t> data)
 {
+    DECODE_TRY_FB(decode_fb_hello, data);
     HelloPayload   p;
     PayloadDecoder dec(data);
     while (dec.next())
@@ -242,6 +256,7 @@ std::vector<uint8_t> encode_welcome(const WelcomePayload& p)
 
 std::optional<WelcomePayload> decode_welcome(std::span<const uint8_t> data)
 {
+    DECODE_TRY_FB(decode_fb_welcome, data);
     WelcomePayload p;
     PayloadDecoder dec(data);
     while (dec.next())
@@ -279,6 +294,7 @@ std::vector<uint8_t> encode_resp_ok(const RespOkPayload& p)
 
 std::optional<RespOkPayload> decode_resp_ok(std::span<const uint8_t> data)
 {
+    DECODE_TRY_FB(decode_fb_resp_ok, data);
     RespOkPayload  p;
     PayloadDecoder dec(data);
     while (dec.next())
@@ -306,6 +322,7 @@ std::vector<uint8_t> encode_resp_err(const RespErrPayload& p)
 
 std::optional<RespErrPayload> decode_resp_err(std::span<const uint8_t> data)
 {
+    DECODE_TRY_FB(decode_fb_resp_err, data);
     RespErrPayload p;
     PayloadDecoder dec(data);
     while (dec.next())
@@ -343,6 +360,7 @@ std::vector<uint8_t> encode_cmd_assign_figures(const CmdAssignFiguresPayload& p)
 
 std::optional<CmdAssignFiguresPayload> decode_cmd_assign_figures(std::span<const uint8_t> data)
 {
+    DECODE_TRY_FB(decode_fb_cmd_assign_figures, data);
     CmdAssignFiguresPayload p;
     PayloadDecoder          dec(data);
     while (dec.next())
@@ -376,6 +394,7 @@ std::vector<uint8_t> encode_req_create_window(const ReqCreateWindowPayload& p)
 
 std::optional<ReqCreateWindowPayload> decode_req_create_window(std::span<const uint8_t> data)
 {
+    DECODE_TRY_FB(decode_fb_req_create_window, data);
     ReqCreateWindowPayload p;
     PayloadDecoder         dec(data);
     while (dec.next())
@@ -402,6 +421,7 @@ std::vector<uint8_t> encode_req_close_window(const ReqCloseWindowPayload& p)
 
 std::optional<ReqCloseWindowPayload> decode_req_close_window(std::span<const uint8_t> data)
 {
+    DECODE_TRY_FB(decode_fb_req_close_window, data);
     ReqCloseWindowPayload p;
     PayloadDecoder        dec(data);
     while (dec.next())
@@ -431,6 +451,7 @@ std::vector<uint8_t> encode_cmd_remove_figure(const CmdRemoveFigurePayload& p)
 
 std::optional<CmdRemoveFigurePayload> decode_cmd_remove_figure(std::span<const uint8_t> data)
 {
+    DECODE_TRY_FB(decode_fb_cmd_remove_figure, data);
     CmdRemoveFigurePayload p;
     PayloadDecoder         dec(data);
     while (dec.next())
@@ -460,6 +481,7 @@ std::vector<uint8_t> encode_cmd_set_active(const CmdSetActivePayload& p)
 
 std::optional<CmdSetActivePayload> decode_cmd_set_active(std::span<const uint8_t> data)
 {
+    DECODE_TRY_FB(decode_fb_cmd_set_active, data);
     CmdSetActivePayload p;
     PayloadDecoder      dec(data);
     while (dec.next())
@@ -489,6 +511,7 @@ std::vector<uint8_t> encode_cmd_close_window(const CmdCloseWindowPayload& p)
 
 std::optional<CmdCloseWindowPayload> decode_cmd_close_window(std::span<const uint8_t> data)
 {
+    DECODE_TRY_FB(decode_fb_cmd_close_window, data);
     CmdCloseWindowPayload p;
     PayloadDecoder        dec(data);
     while (dec.next())
@@ -524,6 +547,7 @@ std::vector<uint8_t> encode_req_detach_figure(const ReqDetachFigurePayload& p)
 
 std::optional<ReqDetachFigurePayload> decode_req_detach_figure(std::span<const uint8_t> data)
 {
+    DECODE_TRY_FB(decode_fb_req_detach_figure, data);
     ReqDetachFigurePayload p;
     PayloadDecoder         dec(data);
     while (dec.next())
@@ -929,6 +953,7 @@ std::vector<uint8_t> encode_state_snapshot(const StateSnapshotPayload& p)
 
 std::optional<StateSnapshotPayload> decode_state_snapshot(std::span<const uint8_t> data)
 {
+    DECODE_TRY_FB(decode_fb_state_snapshot, data);
     StateSnapshotPayload p;
     PayloadDecoder       dec(data);
     while (dec.next())
@@ -1046,6 +1071,7 @@ std::vector<uint8_t> encode_state_diff(const StateDiffPayload& p)
 
 std::optional<StateDiffPayload> decode_state_diff(std::span<const uint8_t> data)
 {
+    DECODE_TRY_FB(decode_fb_state_diff, data);
     StateDiffPayload p;
     PayloadDecoder   dec(data);
     while (dec.next())
@@ -1082,6 +1108,7 @@ std::vector<uint8_t> encode_ack_state(const AckStatePayload& p)
 
 std::optional<AckStatePayload> decode_ack_state(std::span<const uint8_t> data)
 {
+    DECODE_TRY_FB(decode_fb_ack_state, data);
     AckStatePayload p;
     PayloadDecoder  dec(data);
     while (dec.next())
@@ -1116,6 +1143,7 @@ std::vector<uint8_t> encode_evt_input(const EvtInputPayload& p)
 
 std::optional<EvtInputPayload> decode_evt_input(std::span<const uint8_t> data)
 {
+    DECODE_TRY_FB(decode_fb_evt_input, data);
     EvtInputPayload p;
     PayloadDecoder  dec(data);
     while (dec.next())
@@ -1166,6 +1194,7 @@ std::vector<uint8_t> encode_req_create_figure(const ReqCreateFigurePayload& p)
 
 std::optional<ReqCreateFigurePayload> decode_req_create_figure(std::span<const uint8_t> data)
 {
+    DECODE_TRY_FB(decode_fb_req_create_figure, data);
     ReqCreateFigurePayload p;
     PayloadDecoder         dec(data);
     while (dec.next())
@@ -1197,6 +1226,7 @@ std::vector<uint8_t> encode_req_destroy_figure(const ReqDestroyFigurePayload& p)
 
 std::optional<ReqDestroyFigurePayload> decode_req_destroy_figure(std::span<const uint8_t> data)
 {
+    DECODE_TRY_FB(decode_fb_req_destroy_figure, data);
     ReqDestroyFigurePayload p;
     PayloadDecoder          dec(data);
     while (dec.next())
@@ -1227,6 +1257,7 @@ std::vector<uint8_t> encode_req_create_axes(const ReqCreateAxesPayload& p)
 
 std::optional<ReqCreateAxesPayload> decode_req_create_axes(std::span<const uint8_t> data)
 {
+    DECODE_TRY_FB(decode_fb_req_create_axes, data);
     ReqCreateAxesPayload p;
     PayloadDecoder       dec(data);
     while (dec.next())
@@ -1267,6 +1298,7 @@ std::vector<uint8_t> encode_req_add_series(const ReqAddSeriesPayload& p)
 
 std::optional<ReqAddSeriesPayload> decode_req_add_series(std::span<const uint8_t> data)
 {
+    DECODE_TRY_FB(decode_fb_req_add_series, data);
     ReqAddSeriesPayload p;
     PayloadDecoder      dec(data);
     while (dec.next())
@@ -1302,6 +1334,7 @@ std::vector<uint8_t> encode_req_remove_series(const ReqRemoveSeriesPayload& p)
 
 std::optional<ReqRemoveSeriesPayload> decode_req_remove_series(std::span<const uint8_t> data)
 {
+    DECODE_TRY_FB(decode_fb_req_remove_series, data);
     ReqRemoveSeriesPayload p;
     PayloadDecoder         dec(data);
     while (dec.next())
@@ -1334,6 +1367,7 @@ std::vector<uint8_t> encode_req_set_data(const ReqSetDataPayload& p)
 
 std::optional<ReqSetDataPayload> decode_req_set_data(std::span<const uint8_t> data)
 {
+    DECODE_TRY_FB(decode_fb_req_set_data, data);
     ReqSetDataPayload p;
     PayloadDecoder    dec(data);
     while (dec.next())
@@ -1371,6 +1405,7 @@ std::vector<uint8_t> encode_req_append_data(const ReqAppendDataPayload& p)
 
 std::optional<ReqAppendDataPayload> decode_req_append_data(std::span<const uint8_t> data)
 {
+    DECODE_TRY_FB(decode_fb_req_append_data, data);
     ReqAppendDataPayload p;
     PayloadDecoder       dec(data);
     while (dec.next())
@@ -1412,6 +1447,7 @@ std::vector<uint8_t> encode_req_update_property(const ReqUpdatePropertyPayload& 
 
 std::optional<ReqUpdatePropertyPayload> decode_req_update_property(std::span<const uint8_t> data)
 {
+    DECODE_TRY_FB(decode_fb_req_update_property, data);
     ReqUpdatePropertyPayload p;
     PayloadDecoder           dec(data);
     while (dec.next())
@@ -1466,6 +1502,7 @@ std::vector<uint8_t> encode_req_show(const ReqShowPayload& p)
 
 std::optional<ReqShowPayload> decode_req_show(std::span<const uint8_t> data)
 {
+    DECODE_TRY_FB(decode_fb_req_show, data);
     ReqShowPayload p;
     PayloadDecoder dec(data);
     while (dec.next())
@@ -1494,6 +1531,7 @@ std::vector<uint8_t> encode_req_close_figure(const ReqCloseFigurePayload& p)
 
 std::optional<ReqCloseFigurePayload> decode_req_close_figure(std::span<const uint8_t> data)
 {
+    DECODE_TRY_FB(decode_fb_req_close_figure, data);
     ReqCloseFigurePayload p;
     PayloadDecoder        dec(data);
     while (dec.next())
@@ -1523,6 +1561,7 @@ std::vector<uint8_t> encode_req_update_batch(const ReqUpdateBatchPayload& p)
 
 std::optional<ReqUpdateBatchPayload> decode_req_update_batch(std::span<const uint8_t> data)
 {
+    DECODE_TRY_FB(decode_fb_req_update_batch, data);
     ReqUpdateBatchPayload p;
     PayloadDecoder        dec(data);
     while (dec.next())
@@ -1549,6 +1588,7 @@ std::vector<uint8_t> encode_req_reconnect(const ReqReconnectPayload& p)
 
 std::optional<ReqReconnectPayload> decode_req_reconnect(std::span<const uint8_t> data)
 {
+    DECODE_TRY_FB(decode_fb_req_reconnect, data);
     ReqReconnectPayload p;
     PayloadDecoder      dec(data);
     while (dec.next())
@@ -1578,6 +1618,7 @@ std::vector<uint8_t> encode_resp_figure_created(const RespFigureCreatedPayload& 
 
 std::optional<RespFigureCreatedPayload> decode_resp_figure_created(std::span<const uint8_t> data)
 {
+    DECODE_TRY_FB(decode_fb_resp_figure_created, data);
     RespFigureCreatedPayload p;
     PayloadDecoder           dec(data);
     while (dec.next())
@@ -1607,6 +1648,7 @@ std::vector<uint8_t> encode_resp_axes_created(const RespAxesCreatedPayload& p)
 
 std::optional<RespAxesCreatedPayload> decode_resp_axes_created(std::span<const uint8_t> data)
 {
+    DECODE_TRY_FB(decode_fb_resp_axes_created, data);
     RespAxesCreatedPayload p;
     PayloadDecoder         dec(data);
     while (dec.next())
@@ -1636,6 +1678,7 @@ std::vector<uint8_t> encode_resp_series_added(const RespSeriesAddedPayload& p)
 
 std::optional<RespSeriesAddedPayload> decode_resp_series_added(std::span<const uint8_t> data)
 {
+    DECODE_TRY_FB(decode_fb_resp_series_added, data);
     RespSeriesAddedPayload p;
     PayloadDecoder         dec(data);
     while (dec.next())
@@ -1667,6 +1710,7 @@ std::vector<uint8_t> encode_resp_figure_list(const RespFigureListPayload& p)
 
 std::optional<RespFigureListPayload> decode_resp_figure_list(std::span<const uint8_t> data)
 {
+    DECODE_TRY_FB(decode_fb_resp_figure_list, data);
     RespFigureListPayload p;
     PayloadDecoder        dec(data);
     while (dec.next())
@@ -1699,6 +1743,7 @@ std::vector<uint8_t> encode_evt_window_closed(const EvtWindowClosedPayload& p)
 
 std::optional<EvtWindowClosedPayload> decode_evt_window_closed(std::span<const uint8_t> data)
 {
+    DECODE_TRY_FB(decode_fb_evt_window_closed, data);
     EvtWindowClosedPayload p;
     PayloadDecoder         dec(data);
     while (dec.next())
@@ -1731,6 +1776,7 @@ std::vector<uint8_t> encode_evt_figure_destroyed(const EvtFigureDestroyedPayload
 
 std::optional<EvtFigureDestroyedPayload> decode_evt_figure_destroyed(std::span<const uint8_t> data)
 {
+    DECODE_TRY_FB(decode_fb_evt_figure_destroyed, data);
     EvtFigureDestroyedPayload p;
     PayloadDecoder            dec(data);
     while (dec.next())

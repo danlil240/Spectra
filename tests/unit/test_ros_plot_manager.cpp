@@ -524,8 +524,9 @@ TEST_F(RosPlotManagerTest, PollXAxisIsTimeSeconds)
 
     ASSERT_TRUE(got_data);
     auto* ls = dynamic_cast<spectra::LineSeries*>(h.axes->series()[0].get());
-    // X should be a positive timestamp in seconds (not nanoseconds).
-    EXPECT_GT(ls->x_data()[0], 0.0f);
+    // X should be a relative timestamp in seconds (not nanoseconds, not
+    // epoch-scale).  In direct-write mode, the first point's x is 0.0.
+    EXPECT_GE(ls->x_data()[0], 0.0f);
     EXPECT_LT(ls->x_data()[0], 1e10f);   // not in nanoseconds
 }
 

@@ -1237,6 +1237,10 @@ TEST_F(PhaseCIntegrationTest, FullPipelineC6_ThreeTopicsScrollBoundsPruningLinke
         const auto   xlim   = axes->x_limits();
         series->append(static_cast<float>(xlim.max + 1.0), 999.0f);
 
+        // In thread-safe mode, append() writes to PendingSeriesData.
+        // Commit before checking point_count().
+        series->commit_pending();
+
         const size_t after_inject = series->point_count();
         ASSERT_EQ(after_inject, before + 1u) << "append() failed";
 
@@ -1244,6 +1248,9 @@ TEST_F(PhaseCIntegrationTest, FullPipelineC6_ThreeTopicsScrollBoundsPruningLinke
         // then trigger one more poll to prune it.
         mgr.set_now(t_known + WINDOW_S * 4.0);
         mgr.poll();
+        // In direct-write mode, erase_before() routes through PendingSeriesData.
+        // A second poll() or explicit commit is needed to apply the prune.
+        series->commit_pending();
 
         // The injected old sample should have been pruned.
         const size_t after_prune = series->point_count();

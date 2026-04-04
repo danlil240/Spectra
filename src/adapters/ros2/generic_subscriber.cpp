@@ -160,6 +160,14 @@ void GenericSubscriber::remove_field(int extractor_id)
         extractors_.erase(it);
 }
 
+void GenericSubscriber::set_field_callback(int                              extractor_id,
+                                           FieldExtractor::DirectWriteCallback cb)
+{
+    FieldExtractor* ex = find_extractor(extractor_id);
+    if (ex)
+        ex->direct_write_cb = std::move(cb);
+}
+
 // ---------------------------------------------------------------------------
 // Lifecycle
 // ---------------------------------------------------------------------------
@@ -355,7 +363,7 @@ void GenericSubscriber::on_message(std::shared_ptr<rclcpp::SerializedMessage> se
         }
     }
 
-    // Push extracted values to each ring buffer.
+    // Push extracted values to each ring buffer (or invoke direct-write callback).
     for (const auto& ex : extractors_)
     {
         if (!ex->accessor.valid())
@@ -363,19 +371,32 @@ void GenericSubscriber::on_message(std::shared_ptr<rclcpp::SerializedMessage> se
 
         const double val = ex->accessor.extract_double(msg_buf.data());
 
-        FieldSample sample;
-        sample.timestamp_ns = ts_ns;
-        sample.value        = val;
+        if (ex->direct_write_cb)
+        {
+            // Direct-write mode: invoke callback on executor thread.
+            // The callback is expected to be thread-safe (e.g. Series::append()
+            // in thread-safe mode routes through PendingSeriesData).
+            const double t_sec = static_cast<double>(ts_ns) * 1e-9;
+            ex->direct_write_cb(t_sec, val);
+            stat_written_.fetch_add(1, std::memory_order_relaxed);
+        }
+        else
+        {
+            // Ring-buffer mode: push sample for later drain by consumer thread.
+            FieldSample sample;
+            sample.timestamp_ns = ts_ns;
+            sample.value        = val;
 
-        const size_t before = ex->ring.size();
-        ex->ring.push(sample);
-        const size_t after = ex->ring.size();
+            const size_t before = ex->ring.size();
+            ex->ring.push(sample);
+            const size_t after = ex->ring.size();
 
-        stat_written_.fetch_add(1, std::memory_order_relaxed);
-        // If size did not grow the ring was full and a sample was silently
-        // replaced (push() drops oldest).  Count as dropped.
-        if (after <= before)
-            stat_ring_dropped_.fetch_add(1, std::memory_order_relaxed);
+            stat_written_.fetch_add(1, std::memory_order_relaxed);
+            // If size did not grow the ring was full and a sample was silently
+            // replaced (push() drops oldest).  Count as dropped.
+            if (after <= before)
+                stat_ring_dropped_.fetch_add(1, std::memory_order_relaxed);
+        }
     }
 
     // Call fini to release any heap allocations inside the message struct

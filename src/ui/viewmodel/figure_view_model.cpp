@@ -157,4 +157,50 @@ void FigureViewModel::notify_changed(ChangeField field)
         on_changed_(*this, field);
 }
 
+// ── Sub-ViewModel management (LT-5) ─────────────────────────────────────────
+
+AxesViewModel& FigureViewModel::get_or_create_axes_vm(Axes* ax)
+{
+    auto it = axes_vms_.find(ax);
+    if (it != axes_vms_.end())
+        return it->second;
+
+    auto [inserted, _] = axes_vms_.emplace(ax, AxesViewModel(ax));
+    inserted->second.set_undo_manager(undo_mgr_);
+    return inserted->second;
+}
+
+SeriesViewModel& FigureViewModel::get_or_create_series_vm(Series* s)
+{
+    auto it = series_vms_.find(s);
+    if (it != series_vms_.end())
+        return it->second;
+
+    auto [inserted, _] = series_vms_.emplace(s, SeriesViewModel(s));
+    inserted->second.set_undo_manager(undo_mgr_);
+    return inserted->second;
+}
+
+AxesViewModel* FigureViewModel::find_axes_vm(Axes* ax)
+{
+    auto it = axes_vms_.find(ax);
+    return it != axes_vms_.end() ? &it->second : nullptr;
+}
+
+SeriesViewModel* FigureViewModel::find_series_vm(Series* s)
+{
+    auto it = series_vms_.find(s);
+    return it != series_vms_.end() ? &it->second : nullptr;
+}
+
+void FigureViewModel::remove_axes_vm(Axes* ax)
+{
+    axes_vms_.erase(ax);
+}
+
+void FigureViewModel::remove_series_vm(Series* s)
+{
+    series_vms_.erase(s);
+}
+
 }   // namespace spectra

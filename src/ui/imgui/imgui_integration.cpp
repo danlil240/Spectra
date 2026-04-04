@@ -389,7 +389,7 @@ void ImGuiIntegration::new_frame_headless(const HeadlessFrameInput& input)
     update_layout(input.display_w, input.display_h, io.DeltaTime);
 }
 
-void ImGuiIntegration::build_ui(Figure& figure)
+void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
 {
     if (!initialized_)
     {
@@ -398,6 +398,7 @@ void ImGuiIntegration::build_ui(Figure& figure)
     }
 
     current_figure_ = &figure;
+    inspector_.set_figure_view_model(vm);
 
     float dt = ImGui::GetIO().DeltaTime;
     if (theme_mgr_)

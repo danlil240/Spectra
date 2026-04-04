@@ -1,12 +1,17 @@
 """TLV (Tag-Length-Value) codec mirroring src/ipc/codec.hpp.
 
 Wire format per field: [tag: u8] [len: u32 LE] [data: len bytes]
+
+FlatBuffers payloads are prefixed with 0x01; legacy TLV payloads start with
+a raw tag byte (never 0x00 or 0x01 in practice, but 0x00 is reserved).
+Decode functions auto-detect the format and delegate to _codec_fb when needed.
 """
 
 import struct
 from typing import List, Optional, Tuple
 
 from . import _protocol as P
+from . import _codec_fb as fb_codec
 
 
 # ─── Encoder ──────────────────────────────────────────────────────────────────
@@ -198,6 +203,8 @@ def encode_hello(client_type: str = "python", build: str = "") -> bytes:
 
 
 def decode_welcome(data: bytes) -> dict:
+    if fb_codec._is_fb(data):
+        return fb_codec.decode_fb_welcome(data)
     result = {"session_id": 0, "window_id": 0, "process_id": 0, "heartbeat_ms": 5000, "mode": ""}
     dec = PayloadDecoder(data)
     while dec.next():
@@ -447,6 +454,8 @@ def decode_blob_release(data: bytes) -> str:
 
 def decode_resp_err(data: bytes) -> Tuple[int, int, str]:
     """Returns (request_id, code, message)."""
+    if fb_codec._is_fb(data):
+        return fb_codec.decode_fb_resp_err(data)
     request_id = 0
     code = 0
     message = ""
@@ -464,6 +473,8 @@ def decode_resp_err(data: bytes) -> Tuple[int, int, str]:
 
 def decode_resp_figure_created(data: bytes) -> Tuple[int, int]:
     """Returns (request_id, figure_id)."""
+    if fb_codec._is_fb(data):
+        return fb_codec.decode_fb_resp_figure_created(data)
     request_id = 0
     figure_id = 0
     dec = PayloadDecoder(data)
@@ -478,6 +489,8 @@ def decode_resp_figure_created(data: bytes) -> Tuple[int, int]:
 
 def decode_resp_axes_created(data: bytes) -> Tuple[int, int]:
     """Returns (request_id, axes_index)."""
+    if fb_codec._is_fb(data):
+        return fb_codec.decode_fb_resp_axes_created(data)
     request_id = 0
     axes_index = 0
     dec = PayloadDecoder(data)
@@ -492,6 +505,8 @@ def decode_resp_axes_created(data: bytes) -> Tuple[int, int]:
 
 def decode_resp_series_added(data: bytes) -> Tuple[int, int]:
     """Returns (request_id, series_index)."""
+    if fb_codec._is_fb(data):
+        return fb_codec.decode_fb_resp_series_added(data)
     request_id = 0
     series_index = 0
     dec = PayloadDecoder(data)
@@ -506,6 +521,8 @@ def decode_resp_series_added(data: bytes) -> Tuple[int, int]:
 
 def decode_resp_figure_list(data: bytes) -> Tuple[int, List[int]]:
     """Returns (request_id, [figure_ids])."""
+    if fb_codec._is_fb(data):
+        return fb_codec.decode_fb_resp_figure_list(data)
     request_id = 0
     figure_ids: List[int] = []
     dec = PayloadDecoder(data)
@@ -520,6 +537,8 @@ def decode_resp_figure_list(data: bytes) -> Tuple[int, List[int]]:
 
 def decode_resp_ok(data: bytes) -> int:
     """Returns request_id."""
+    if fb_codec._is_fb(data):
+        return fb_codec.decode_fb_resp_ok(data)
     request_id = 0
     dec = PayloadDecoder(data)
     while dec.next():
@@ -530,6 +549,8 @@ def decode_resp_ok(data: bytes) -> int:
 
 def decode_evt_window_closed(data: bytes) -> Tuple[int, int, str]:
     """Returns (figure_id, window_id, reason)."""
+    if fb_codec._is_fb(data):
+        return fb_codec.decode_fb_evt_window_closed(data)
     figure_id = 0
     window_id = 0
     reason = ""

@@ -104,7 +104,7 @@ class ImGuiIntegration
     };
     void new_frame_headless(const HeadlessFrameInput& input);
 
-    void build_ui(Figure& figure);
+    void build_ui(Figure& figure, FigureViewModel* vm = nullptr);
     void build_empty_ui();   // Render menu bar only (no figure)
     void render(VulkanBackend& backend);
 

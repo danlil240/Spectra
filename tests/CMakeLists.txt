@@ -49,6 +49,10 @@ function(add_spectra_test subdir name)
     target_include_directories(${target_name} PRIVATE
         ${CMAKE_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/util
+        ${CMAKE_BINARY_DIR}/generated/flatbuffers
+    )
+    target_include_directories(${target_name} SYSTEM PRIVATE
+        ${flatbuffers_SOURCE_DIR}/include
     )
     # Propagate feature flags to tests for conditional compilation
     target_compile_definitions(${target_name} PRIVATE
@@ -128,6 +132,7 @@ set(SPECTRA_UNIT_TESTS
     test_figure_registry
     test_event_bus
     test_ipc
+    test_ipc_flatbuffers
     test_session_graph
     test_process_manager
     test_animation_tick_gate
@@ -147,6 +152,8 @@ set(SPECTRA_UNIT_TESTS
     test_easy_embed
     test_ultra_zoom_precision
     test_figure_view_model
+    test_axes_view_model
+    test_series_view_model
     test_plugin_transforms
     test_plugin_overlays
     test_plugin_version_negotiation
@@ -155,6 +162,8 @@ set(SPECTRA_UNIT_TESTS
     test_plugin_integration
     test_plugin_series_type
     test_plugin_guard
+    test_pending_series_data
+    test_series_thread_safe
 )
 
 # Mock transform plugin — shared library loaded by test_plugin_transforms

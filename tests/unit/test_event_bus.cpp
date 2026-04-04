@@ -4,7 +4,9 @@
 #include <spectra/figure.hpp>
 #include <spectra/figure_registry.hpp>
 #include <spectra/series.hpp>
+#include <atomic>
 #include <string>
+#include <thread>
 #include <vector>
 
 using namespace spectra;
@@ -323,4 +325,362 @@ TEST(EventSystem, AxesWithoutEventSystemNoEvent)
     ax.ylim(0, 1);
     ax.remove_series(0);
     ax.clear_series();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Re-entrancy guard tests
+// ═══════════════════════════════════════════════════════════════════════════════
+
+TEST(EventBus, ReentrantEmitQueuesEvent)
+{
+    EventBus<TestEvent> bus;
+    std::vector<int>    order;
+
+    bus.subscribe(
+        [&](const TestEvent& e)
+        {
+            order.push_back(e.value);
+            if (e.value == 1)
+            {
+                // Re-entrant emit: should be queued.
+                bus.emit({2});
+            }
+        });
+
+    bus.emit({1});
+    // Outer event fires first, then queued event drains.
+    ASSERT_EQ(order.size(), 2u);
+    EXPECT_EQ(order[0], 1);
+    EXPECT_EQ(order[1], 2);
+}
+
+TEST(EventBus, ReentrantEmitMultipleQueued)
+{
+    EventBus<TestEvent> bus;
+    std::vector<int>    order;
+
+    bus.subscribe(
+        [&](const TestEvent& e)
+        {
+            order.push_back(e.value);
+            if (e.value == 1)
+            {
+                bus.emit({2});
+                bus.emit({3});
+            }
+        });
+
+    bus.emit({1});
+    ASSERT_EQ(order.size(), 3u);
+    EXPECT_EQ(order[0], 1);
+    EXPECT_EQ(order[1], 2);
+    EXPECT_EQ(order[2], 3);
+}
+
+TEST(EventBus, ReentrantEmitChained)
+{
+    // Event 1 triggers event 2, which triggers event 3.
+    EventBus<TestEvent> bus;
+    std::vector<int>    order;
+
+    bus.subscribe(
+        [&](const TestEvent& e)
+        {
+            order.push_back(e.value);
+            if (e.value == 1)
+                bus.emit({2});
+            else if (e.value == 2)
+                bus.emit({3});
+        });
+
+    bus.emit({1});
+    ASSERT_EQ(order.size(), 3u);
+    EXPECT_EQ(order[0], 1);
+    EXPECT_EQ(order[1], 2);
+    EXPECT_EQ(order[2], 3);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Priority tests
+// ═══════════════════════════════════════════════════════════════════════════════
+
+TEST(EventBus, PriorityOrdering)
+{
+    EventBus<TestEvent> bus;
+    std::vector<int>    order;
+
+    // Subscribe in reverse priority order.
+    bus.subscribe([&](const TestEvent&) { order.push_back(3); }, Priority::Low);
+    bus.subscribe([&](const TestEvent&) { order.push_back(1); }, Priority::High);
+    bus.subscribe([&](const TestEvent&) { order.push_back(2); }, Priority::Normal);
+
+    bus.emit({0});
+    ASSERT_EQ(order.size(), 3u);
+    EXPECT_EQ(order[0], 1);   // High first
+    EXPECT_EQ(order[1], 2);   // Normal second
+    EXPECT_EQ(order[2], 3);   // Low last
+}
+
+TEST(EventBus, PriorityStableOrder)
+{
+    // Multiple subs at the same priority maintain registration order.
+    EventBus<TestEvent> bus;
+    std::vector<int>    order;
+
+    bus.subscribe([&](const TestEvent&) { order.push_back(1); }, Priority::Normal);
+    bus.subscribe([&](const TestEvent&) { order.push_back(2); }, Priority::Normal);
+    bus.subscribe([&](const TestEvent&) { order.push_back(3); }, Priority::Normal);
+
+    bus.emit({0});
+    ASSERT_EQ(order.size(), 3u);
+    EXPECT_EQ(order[0], 1);
+    EXPECT_EQ(order[1], 2);
+    EXPECT_EQ(order[2], 3);
+}
+
+TEST(EventBus, DefaultPriorityIsNormal)
+{
+    EventBus<TestEvent> bus;
+    std::vector<int>    order;
+
+    // Default subscribe (Normal) should run after High.
+    bus.subscribe([&](const TestEvent&) { order.push_back(2); });   // default = Normal
+    bus.subscribe([&](const TestEvent&) { order.push_back(1); }, Priority::High);
+
+    bus.emit({0});
+    ASSERT_EQ(order.size(), 2u);
+    EXPECT_EQ(order[0], 1);
+    EXPECT_EQ(order[1], 2);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Cross-thread deferred emission tests
+// ═══════════════════════════════════════════════════════════════════════════════
+
+TEST(EventBus, EmitDeferredAndDrain)
+{
+    EventBus<TestEvent> bus;
+    int                 received = 0;
+    bus.subscribe([&](const TestEvent& e) { received = e.value; });
+
+    bus.emit_deferred({42});
+    EXPECT_EQ(received, 0);   // Not delivered yet.
+
+    bus.drain_deferred();
+    EXPECT_EQ(received, 42);   // Now delivered.
+}
+
+TEST(EventBus, EmitDeferredMultiple)
+{
+    EventBus<TestEvent> bus;
+    std::vector<int>    received;
+    bus.subscribe([&](const TestEvent& e) { received.push_back(e.value); });
+
+    bus.emit_deferred({1});
+    bus.emit_deferred({2});
+    bus.emit_deferred({3});
+    EXPECT_TRUE(received.empty());
+
+    bus.drain_deferred();
+    ASSERT_EQ(received.size(), 3u);
+    EXPECT_EQ(received[0], 1);
+    EXPECT_EQ(received[1], 2);
+    EXPECT_EQ(received[2], 3);
+}
+
+TEST(EventBus, DrainDeferredEmpty)
+{
+    EventBus<TestEvent> bus;
+    bus.drain_deferred();   // No-op, should not crash.
+}
+
+TEST(EventBus, EmitDeferredFromThread)
+{
+    EventBus<TestEvent>  bus;
+    std::atomic<int>     received{0};
+    bus.subscribe([&](const TestEvent& e) { received.store(e.value); });
+
+    std::thread t([&]() { bus.emit_deferred({99}); });
+    t.join();
+
+    EXPECT_EQ(received.load(), 0);
+    bus.drain_deferred();
+    EXPECT_EQ(received.load(), 99);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ScopedSubscription tests
+// ═══════════════════════════════════════════════════════════════════════════════
+
+TEST(ScopedSubscription, AutoUnsubscribes)
+{
+    EventBus<TestEvent> bus;
+    int                 count = 0;
+
+    {
+        ScopedSubscription<TestEvent> sub(bus, [&](const TestEvent&) { ++count; });
+        EXPECT_TRUE(sub.active());
+        EXPECT_EQ(bus.subscriber_count(), 1u);
+        bus.emit({0});
+        EXPECT_EQ(count, 1);
+    }
+
+    // Out of scope — should be unsubscribed.
+    EXPECT_EQ(bus.subscriber_count(), 0u);
+    bus.emit({0});
+    EXPECT_EQ(count, 1);   // No increment.
+}
+
+TEST(ScopedSubscription, MoveConstruct)
+{
+    EventBus<TestEvent> bus;
+    int                 count = 0;
+
+    ScopedSubscription<TestEvent> sub1(bus, [&](const TestEvent&) { ++count; });
+    ScopedSubscription<TestEvent> sub2(std::move(sub1));
+
+    EXPECT_FALSE(sub1.active());
+    EXPECT_TRUE(sub2.active());
+    EXPECT_EQ(bus.subscriber_count(), 1u);
+
+    bus.emit({0});
+    EXPECT_EQ(count, 1);
+}
+
+TEST(ScopedSubscription, MoveAssign)
+{
+    EventBus<TestEvent> bus;
+    int                 count1 = 0, count2 = 0;
+
+    ScopedSubscription<TestEvent> sub1(bus, [&](const TestEvent&) { ++count1; });
+    ScopedSubscription<TestEvent> sub2(bus, [&](const TestEvent&) { ++count2; });
+    EXPECT_EQ(bus.subscriber_count(), 2u);
+
+    sub2 = std::move(sub1);
+    // sub2's original callback should be unsubscribed, sub1's transferred.
+    EXPECT_EQ(bus.subscriber_count(), 1u);
+    bus.emit({0});
+    EXPECT_EQ(count1, 1);
+    EXPECT_EQ(count2, 0);
+}
+
+TEST(ScopedSubscription, Release)
+{
+    EventBus<TestEvent> bus;
+    int                 count = 0;
+
+    ScopedSubscription<TestEvent> sub(bus, [&](const TestEvent&) { ++count; });
+    auto                          id = sub.release();
+
+    EXPECT_FALSE(sub.active());
+    // Still subscribed since we released ownership.
+    EXPECT_EQ(bus.subscriber_count(), 1u);
+    bus.emit({0});
+    EXPECT_EQ(count, 1);
+
+    // Manual cleanup.
+    bus.unsubscribe(id);
+    EXPECT_EQ(bus.subscriber_count(), 0u);
+}
+
+TEST(ScopedSubscription, DefaultConstructed)
+{
+    ScopedSubscription<TestEvent> sub;
+    EXPECT_FALSE(sub.active());
+    // Destruction of default-constructed should not crash.
+}
+
+TEST(ScopedSubscription, WithPriority)
+{
+    EventBus<TestEvent> bus;
+    std::vector<int>    order;
+
+    ScopedSubscription<TestEvent> low(bus, [&](const TestEvent&) { order.push_back(3); },
+                                      Priority::Low);
+    ScopedSubscription<TestEvent> high(bus, [&](const TestEvent&) { order.push_back(1); },
+                                       Priority::High);
+
+    bus.emit({0});
+    ASSERT_EQ(order.size(), 2u);
+    EXPECT_EQ(order[0], 1);
+    EXPECT_EQ(order[1], 3);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EventSystem — new bus accessors
+// ═══════════════════════════════════════════════════════════════════════════════
+
+TEST(EventSystem, NewBusesAccessible)
+{
+    EventSystem es;
+    EXPECT_EQ(es.animation_started().subscriber_count(), 0u);
+    EXPECT_EQ(es.animation_stopped().subscriber_count(), 0u);
+    EXPECT_EQ(es.export_completed().subscriber_count(), 0u);
+    EXPECT_EQ(es.plugin_loaded().subscriber_count(), 0u);
+    EXPECT_EQ(es.plugin_unloaded().subscriber_count(), 0u);
+}
+
+TEST(EventSystem, AnimationEvents)
+{
+    EventSystem es;
+    FigureId    started_id = 0, stopped_id = 0;
+
+    es.animation_started().subscribe(
+        [&](const AnimationStartedEvent& e) { started_id = e.figure_id; });
+    es.animation_stopped().subscribe(
+        [&](const AnimationStoppedEvent& e) { stopped_id = e.figure_id; });
+
+    es.animation_started().emit({42});
+    EXPECT_EQ(started_id, 42u);
+
+    es.animation_stopped().emit({99});
+    EXPECT_EQ(stopped_id, 99u);
+}
+
+TEST(EventSystem, ExportCompletedEvent)
+{
+    EventSystem es;
+    std::string received_path;
+
+    es.export_completed().subscribe(
+        [&](const ExportCompletedEvent& e) { received_path = e.path; });
+
+    es.export_completed().emit({1, "/tmp/test.png"});
+    EXPECT_EQ(received_path, "/tmp/test.png");
+}
+
+TEST(EventSystem, PluginEvents)
+{
+    EventSystem es;
+    std::string loaded_name, unloaded_name;
+
+    es.plugin_loaded().subscribe([&](const PluginLoadedEvent& e) { loaded_name = e.plugin_name; });
+    es.plugin_unloaded().subscribe(
+        [&](const PluginUnloadedEvent& e) { unloaded_name = e.plugin_name; });
+
+    es.plugin_loaded().emit({"my_plugin"});
+    EXPECT_EQ(loaded_name, "my_plugin");
+
+    es.plugin_unloaded().emit({"my_plugin"});
+    EXPECT_EQ(unloaded_name, "my_plugin");
+}
+
+TEST(EventSystem, DrainAllDeferred)
+{
+    EventSystem es;
+    int         fig_count = 0, theme_count = 0;
+
+    es.figure_created().subscribe([&](const FigureCreatedEvent&) { ++fig_count; });
+    es.theme_changed().subscribe([&](const ThemeChangedEvent&) { ++theme_count; });
+
+    es.figure_created().emit_deferred({1, nullptr});
+    es.theme_changed().emit_deferred({"dark"});
+
+    EXPECT_EQ(fig_count, 0);
+    EXPECT_EQ(theme_count, 0);
+
+    es.drain_all_deferred();
+
+    EXPECT_EQ(fig_count, 1);
+    EXPECT_EQ(theme_count, 1);
 }

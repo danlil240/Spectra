@@ -90,6 +90,9 @@ find_package(Vulkan REQUIRED)
 # Shader compilation (GLSL -> SPIR-V)
 include(cmake/CompileShaders.cmake)
 
+# FlatBuffers schema compilation (IPC protocol v2)
+include(cmake/CompileFlatBuffers.cmake)
+
 # Collect source files
 file(GLOB_RECURSE SPECTRA_CORE_SOURCES   src/core/*.cpp)
 file(GLOB_RECURSE SPECTRA_RENDER_SOURCES src/render/*.cpp)
@@ -121,6 +124,8 @@ foreach(_ui_src
     src/ui/animation/transition_engine.cpp
     src/ui/figures/figure_manager.cpp
     src/ui/viewmodel/figure_view_model.cpp
+    src/ui/viewmodel/axes_view_model.cpp
+    src/ui/viewmodel/series_view_model.cpp
     src/ui/animation/timeline_editor.cpp
     src/ui/animation/recording_export.cpp
     src/ui/docking/split_view.cpp
@@ -232,10 +237,12 @@ set_target_properties(spectra PROPERTIES
 target_include_directories(spectra PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_BINARY_DIR}/generated
+    ${CMAKE_CURRENT_BINARY_DIR}/generated/flatbuffers
 )
 target_include_directories(spectra SYSTEM PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/vma
+    ${flatbuffers_SOURCE_DIR}/include
 )
 
 # Suppress warnings in third-party headers (stb_image.h tc16 array — GCC only)
@@ -258,6 +265,9 @@ target_compile_definitions(spectra PRIVATE SPECTRA_PRESENT_MODE_${SPECTRA_PRESEN
 if(TARGET spectra_shaders)
     add_dependencies(spectra spectra_shaders)
 endif()
+
+# Ensure FlatBuffers schemas are generated before the library
+add_dependencies(spectra spectra_flatbuffers_gen)
 
 # GLFW adapter (optional)
 if(SPECTRA_USE_GLFW)

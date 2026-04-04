@@ -53,6 +53,20 @@ namespace spectra::adapters::ros2
 {
 
 // ---------------------------------------------------------------------------
+// DirectWriteContext — shared state for direct-write callbacks.
+//
+// Captures the time origin (set on first sample) and a sample counter.
+// Thread-safe: origin is set exactly once via std::call_once; counter is atomic.
+// ---------------------------------------------------------------------------
+
+struct DirectWriteContext
+{
+    std::once_flag        origin_once;
+    double                origin{0.0};
+    std::atomic<uint64_t> samples_written{0};
+};
+
+// ---------------------------------------------------------------------------
 // PlotHandle — returned by add_plot(); allows the caller to access the
 // underlying Figure and LineSeries directly.
 // ---------------------------------------------------------------------------
@@ -231,6 +245,11 @@ class RosPlotManager
         // Time origin for relative timestamps (seconds since epoch).
         double time_origin{0.0};
         bool   has_time_origin{false};
+
+        // Direct-write context (thread-safe series mode).
+        // When non-null, the subscriber invokes a callback directly from the
+        // executor thread and bypasses the ring buffer drain in poll().
+        std::unique_ptr<DirectWriteContext> direct_ctx;
     };
 
     // Find entry by id; returns nullptr if not found.

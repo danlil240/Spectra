@@ -116,6 +116,12 @@ struct FieldExtractor
     FieldAccessor accessor;
     RingBuffer    ring;
 
+    // Optional direct-write callback.  When set, the executor thread invokes
+    // this instead of pushing to the ring buffer — enabling thread-safe
+    // Series::append() directly from the ROS2 executor.
+    using DirectWriteCallback = std::function<void(double timestamp_s, double value)>;
+    DirectWriteCallback direct_write_cb;
+
     FieldExtractor(int id_, std::string path, FieldAccessor acc, size_t depth)
         : id(id_), field_path(std::move(path)), accessor(std::move(acc)), ring(depth)
     {
@@ -186,6 +192,13 @@ class GenericSubscriber
 
     // Number of registered field extractors.
     size_t field_count() const { return extractors_.size(); }
+
+    // Set a direct-write callback for a field extractor.  When set, the
+    // executor thread invokes this callback (with timestamp_s, value) instead
+    // of pushing to the ring buffer.  The callback must be thread-safe
+    // (e.g. Series::append() in thread-safe mode).
+    // Must be called before start() (or after stop()).
+    void set_field_callback(int extractor_id, FieldExtractor::DirectWriteCallback cb);
 
     // ---------- lifecycle -------------------------------------------------
 

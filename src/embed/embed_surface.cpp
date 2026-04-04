@@ -96,6 +96,7 @@ struct EmbedSurface::Impl
         if (config.show_imgui_chrome)
         {
             imgui_ui = std::make_unique<ImGuiIntegration>();
+            imgui_ui->set_theme_manager(&theme_mgr);
             if (!imgui_ui->init_headless(*backend, config.width, config.height))
             {
                 SPECTRA_LOG_WARN("embed",

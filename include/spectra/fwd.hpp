@@ -25,6 +25,8 @@ class ScatterSeries3D;
 class SurfaceSeries;
 class MeshSeries;
 
+class ChunkedLineSeries;
+
 class BoxPlotSeries;
 class ViolinSeries;
 class HistogramSeries;

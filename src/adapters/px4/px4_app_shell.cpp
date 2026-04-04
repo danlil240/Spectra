@@ -1,6 +1,7 @@
 #include "px4_app_shell.hpp"
 
 #include <spectra/axes.hpp>
+#include <spectra/chunked_series.hpp>
 #include <spectra/figure.hpp>
 #include <spectra/series.hpp>
 
@@ -573,8 +574,20 @@ void Px4AppShell::sync_auto_plot_figure()
             ax.clear_series();
             for (const auto& f : group.fields)
             {
-                auto& ls = ax.line(f.times, f.values);
-                ls.label(f.label);
+                if (cfg_.use_chunked)
+                {
+                    auto& cs = ax.chunked_line();
+                    cs.set_data(f.times, f.values);
+                    cs.label(f.label);
+                    cs.enable_lod(true);
+                    if (cfg_.chunked_memory_budget > 0)
+                        cs.set_memory_budget(cfg_.chunked_memory_budget);
+                }
+                else
+                {
+                    auto& ls = ax.line(f.times, f.values);
+                    ls.label(f.label);
+                }
             }
         }
         else if (data_changed)
@@ -582,7 +595,18 @@ void Px4AppShell::sync_auto_plot_figure()
             for (size_t j = 0; j < group.fields.size(); ++j)
             {
                 const auto& f    = group.fields[j];
-                auto*       line = dynamic_cast<spectra::LineSeries*>(ax.series_mut()[j].get());
+                auto*       sptr = ax.series_mut()[j].get();
+
+                // Try ChunkedLineSeries first (when chunked mode active).
+                auto* chunked = dynamic_cast<spectra::ChunkedLineSeries*>(sptr);
+                if (chunked)
+                {
+                    chunked->set_data(f.times, f.values);
+                    chunked->label(f.label);
+                    continue;
+                }
+
+                auto* line = dynamic_cast<spectra::LineSeries*>(sptr);
                 if (!line)
                 {
                     ax.clear_series();
@@ -648,9 +672,22 @@ void Px4AppShell::sync_manual_plot_figure(bool force)
         ax.clear_series();
         for (const auto& field : plot_mgr_.fields())
         {
-            auto& ls = ax.line(field.times, field.values);
-            ls.label(field.label);
-            ls.visible(field.visible);
+            if (cfg_.use_chunked)
+            {
+                auto& cs = ax.chunked_line();
+                cs.set_data(field.times, field.values);
+                cs.label(field.label);
+                cs.enable_lod(true);
+                cs.visible(field.visible);
+                if (cfg_.chunked_memory_budget > 0)
+                    cs.set_memory_budget(cfg_.chunked_memory_budget);
+            }
+            else
+            {
+                auto& ls = ax.line(field.times, field.values);
+                ls.label(field.label);
+                ls.visible(field.visible);
+            }
         }
     }
     else
@@ -658,7 +695,19 @@ void Px4AppShell::sync_manual_plot_figure(bool force)
         for (size_t i = 0; i < plot_mgr_.fields().size(); ++i)
         {
             const auto& field = plot_mgr_.fields()[i];
-            auto*       line  = dynamic_cast<spectra::LineSeries*>(ax.series_mut()[i].get());
+            auto*       sptr  = ax.series_mut()[i].get();
+
+            // Try ChunkedLineSeries first (when chunked mode active).
+            auto* chunked = dynamic_cast<spectra::ChunkedLineSeries*>(sptr);
+            if (chunked)
+            {
+                chunked->set_data(field.times, field.values);
+                chunked->label(field.label);
+                chunked->visible(field.visible);
+                continue;
+            }
+
+            auto* line = dynamic_cast<spectra::LineSeries*>(sptr);
             if (!line)
             {
                 ax.clear_series();

@@ -6,6 +6,8 @@ import subprocess
 import time
 from typing import Optional
 
+from ._log import log
+
 
 def resolve_socket_path(explicit: Optional[str] = None) -> str:
     """Resolve the socket path using the priority order from the architecture plan.
@@ -54,8 +56,10 @@ def _can_connect(path: str) -> bool:
                 s.close()
                 return False
         s.close()
+        log.debug("launcher _can_connect: healthy backend at %s", path)
         return True
     except OSError:
+        log.debug("launcher _can_connect: unavailable %s", path)
         return False
 
 
@@ -90,12 +94,14 @@ def _find_backend_binary() -> Optional[str]:
     # 1. Explicit env var
     env_path = os.environ.get("SPECTRA_BACKEND_PATH")
     if env_path and os.path.isfile(env_path) and os.access(env_path, os.X_OK):
+        log.debug("launcher backend binary via env: %s", env_path)
         return env_path
 
     # 2. Bundled binary (pip install spectra-plot ships backend in _bin/)
     pkg_dir = os.path.dirname(os.path.abspath(__file__))
     bundled = os.path.join(pkg_dir, "_bin", "spectra-backend")
     if os.path.isfile(bundled) and os.access(bundled, os.X_OK):
+        log.debug("launcher backend binary bundled: %s", bundled)
         return bundled
 
     # 3. Heuristic: look in common build directories relative to the project root.
@@ -107,6 +113,7 @@ def _find_backend_binary() -> Optional[str]:
                        "cmake-build-debug", "cmake-build-release", "out/build"):
         candidate = os.path.join(project_root, build_dir, "spectra-backend")
         if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+            log.debug("launcher backend binary from build dir: %s", candidate)
             return candidate
 
     # 4. System PATH (fallback — may find stale installed binaries).
@@ -115,14 +122,17 @@ def _find_backend_binary() -> Optional[str]:
     #    which finds the wrapper again.
     found = shutil.which("spectra-backend")
     if found and _is_native_binary(found):
+        log.debug("launcher backend binary from PATH: %s", found)
         return found
 
     # 5. Previously downloaded binary in user cache
     from ._download import find_cached_backend
     cached = find_cached_backend()
     if cached:
+        log.debug("launcher backend binary from cache: %s", cached)
         return cached
 
+    log.debug("launcher backend binary not found")
     return None
 
 
@@ -133,6 +143,7 @@ def ensure_backend(socket_path: str, timeout: float = 5.0) -> str:
     Otherwise, launches one and waits for it to be ready.
     """
     if _can_connect(socket_path):
+        log.info("launcher reusing existing backend socket=%s", socket_path)
         return socket_path
 
     binary = _find_backend_binary()
@@ -141,6 +152,7 @@ def ensure_backend(socket_path: str, timeout: float = 5.0) -> str:
         if os.environ.get("SPECTRA_NO_DOWNLOAD", "").lower() not in ("1", "true", "yes"):
             try:
                 from ._download import download_backend
+                log.info("launcher attempting backend auto-download")
                 download_backend()
                 binary = _find_backend_binary()
             except Exception as dl_err:
@@ -167,6 +179,7 @@ def ensure_backend(socket_path: str, timeout: float = 5.0) -> str:
     # Remove stale socket file
     if os.path.exists(socket_path):
         try:
+            log.debug("launcher removing stale socket: %s", socket_path)
             os.unlink(socket_path)
         except OSError:
             pass
@@ -180,11 +193,13 @@ def ensure_backend(socket_path: str, timeout: float = 5.0) -> str:
         stderr=_stderr_target,
         start_new_session=True,
     )
+    log.info("launcher started backend pid=%s binary=%s socket=%s", proc.pid, binary, socket_path)
 
     # Wait for socket to appear and be connectable
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         if _can_connect(socket_path):
+            log.info("launcher backend ready socket=%s", socket_path)
             return socket_path
         # If the process already exited, don't keep waiting
         if proc.poll() is not None:

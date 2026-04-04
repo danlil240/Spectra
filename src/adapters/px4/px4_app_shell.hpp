@@ -40,6 +40,13 @@ struct Px4AppConfig
     double      time_window_s{30.0};
     uint32_t    window_width{1400};
     uint32_t    window_height{800};
+
+    // When true, use ChunkedLineSeries for plotting (efficient for large
+    // ULog files and long-running live sessions).  Default: false.
+    bool use_chunked{false};
+
+    // Memory budget (bytes) for chunked series.  0 = unlimited.
+    size_t chunked_memory_budget{0};
 };
 
 Px4AppConfig parse_px4_args(int argc, char** argv, std::string& error_out);

@@ -127,6 +127,9 @@ class Axes : public AxesBase
                      std::string_view       fmt = "-");
     LineSeries& plot(std::span<const float> x, std::span<const float> y, const PlotStyle& style);
 
+    // Chunked line series — for large datasets and streaming (ROS2, PX4, etc.)
+    ChunkedLineSeries& chunked_line();
+
     // Statistical plot series creation
     BoxPlotSeries&   box_plot();
     ViolinSeries&    violin();

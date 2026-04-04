@@ -45,6 +45,8 @@
 #include <spectra/figure.hpp>
 #include <spectra/series.hpp>
 
+#include <spectra/chunked_series.hpp>
+
 #include "generic_subscriber.hpp"
 #include "message_introspector.hpp"
 #include "ros2_bridge.hpp"
@@ -81,12 +83,20 @@ struct PlotHandle
     std::string field_path;
 
     // Pointers into RosPlotManager-owned storage; valid until remove_plot(id).
-    // The Figure and LineSeries are owned by the PlotEntry, not the caller.
-    spectra::Figure*     figure{nullptr};
-    spectra::Axes*       axes{nullptr};
+    // The Figure and Series are owned by the PlotEntry, not the caller.
+    spectra::Figure* figure{nullptr};
+    spectra::Axes*   axes{nullptr};
+
+    // Always valid — points to the underlying Series (LineSeries or ChunkedLineSeries).
+    spectra::Series* base_series{nullptr};
+
+    // Non-null only when the plot uses LineSeries (use_chunked == false).
     spectra::LineSeries* series{nullptr};
 
-    bool valid() const { return id >= 1 && figure != nullptr && series != nullptr; }
+    // Non-null only when the plot uses ChunkedLineSeries (use_chunked == true).
+    spectra::ChunkedLineSeries* chunked_series{nullptr};
+
+    bool valid() const { return id >= 1 && figure != nullptr && base_series != nullptr; }
 };
 
 class TopicDiscovery;
@@ -182,6 +192,27 @@ class RosPlotManager
     void   set_pruning_enabled(bool enabled);
     bool   pruning_enabled() const;
 
+    // ---------- chunked series (LT-8) ------------------------------------
+
+    // Enable chunked series mode for new plots.  When enabled, new plots
+    // use ChunkedLineSeries instead of LineSeries — storing data in fixed-size
+    // chunks for efficient streaming and optional level-of-detail rendering.
+    // Existing plots are not affected.  Default: false.
+    void set_use_chunked(bool enabled) { use_chunked_ = enabled; }
+    bool use_chunked() const { return use_chunked_; }
+
+    // Set the memory budget (bytes) for chunked series.  When the total data
+    // in a chunked series exceeds this budget, the oldest chunks are dropped.
+    // 0 = unlimited.  Default: 0.  Only applies when use_chunked is true.
+    void   set_chunked_memory_budget(size_t bytes) { chunked_memory_budget_ = bytes; }
+    size_t chunked_memory_budget() const { return chunked_memory_budget_; }
+
+    // Enable/disable level-of-detail cache for chunked series.
+    // When enabled, a decimation pyramid is built so the renderer can use
+    // coarser data when zoomed out.  Default: true (when chunked mode active).
+    void set_chunked_lod(bool enabled) { chunked_lod_ = enabled; }
+    bool chunked_lod() const { return chunked_lod_; }
+
     // ---------- auto-scroll (C2) -----------------------------------------
 
     // Set the sliding time window width (seconds) applied to all plots.
@@ -225,8 +256,16 @@ class RosPlotManager
 
         // Spectra objects (owned here).
         std::unique_ptr<spectra::Figure> figure;
-        spectra::Axes*                   axes{nullptr};     // non-owning, into figure->axes()
-        spectra::LineSeries*             series{nullptr};   // non-owning, into axes->series()
+        spectra::Axes*                   axes{nullptr};   // non-owning, into figure->axes()
+
+        // Base series pointer (always valid, points to either series or chunked).
+        spectra::Series* base_series{nullptr};
+
+        // Non-null when using LineSeries (use_chunked == false).
+        spectra::LineSeries* series{nullptr};
+
+        // Non-null when using ChunkedLineSeries (use_chunked == true).
+        spectra::ChunkedLineSeries* chunked{nullptr};
 
         // ROS2 subscription.
         std::unique_ptr<GenericSubscriber> subscriber;
@@ -283,6 +322,11 @@ class RosPlotManager
     double   scroll_window_s_      = DEFAULT_SCROLL_WINDOW_S;
     double   prune_buffer_s_       = DEFAULT_PRUNE_BUFFER_S;
     bool     pruning_enabled_      = true;
+
+    // Chunked series configuration (LT-8).
+    bool   use_chunked_           = false;
+    size_t chunked_memory_budget_ = 0;   // 0 = unlimited
+    bool   chunked_lod_           = true;
 
     OnDataCallback on_data_cb_;
 

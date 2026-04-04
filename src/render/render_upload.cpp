@@ -4,6 +4,8 @@
 #include "renderer.hpp"
 
 #include <cstring>
+#include <limits>
+#include <spectra/chunked_series.hpp>
 #include <spectra/custom_series.hpp>
 #include <spectra/series.hpp>
 #include <spectra/series3d.hpp>
@@ -26,6 +28,9 @@ void Renderer::upload_series_data(Series& series, double origin_x, double origin
     // Try 2D series first
     auto* line    = dynamic_cast<LineSeries*>(&series);
     auto* scatter = dynamic_cast<ScatterSeries*>(&series);
+
+    // Try chunked series
+    auto* chunked_line = dynamic_cast<ChunkedLineSeries*>(&series);
 
     // Try 3D series
     auto* line3d    = dynamic_cast<LineSeries3D*>(&series);
@@ -55,6 +60,8 @@ void Renderer::upload_series_data(Series& series, double origin_x, double origin
             gpu.type = SeriesType::Line2D;
         else if (scatter)
             gpu.type = SeriesType::Scatter2D;
+        else if (chunked_line)
+            gpu.type = SeriesType::ChunkedLine2D;
         else if (line3d)
             gpu.type = SeriesType::Line3D;
         else if (scatter3d)
@@ -264,6 +271,50 @@ void Renderer::upload_series_data(Series& series, double origin_x, double origin
 
         series.clear_dirty();
     }
+    // Handle chunked 2D line series (demand-loaded, LoD-aware)
+    else if (chunked_line)
+    {
+        // Query visible data: use full range when no specific viewport is available.
+        // The renderer's render_series() will clip to the actual viewport.
+        // We use a generous max_points budget to maintain visual fidelity.
+        auto vis = chunked_line->visible_data(-std::numeric_limits<float>::max(),
+                                              std::numeric_limits<float>::max(),
+                                              65536);
+
+        size_t count = vis.x.size();
+        if (count == 0)
+        {
+            series.clear_dirty();
+            return;
+        }
+
+        size_t byte_size = count * 2 * sizeof(float);
+        if (!gpu.ssbo || gpu.uploaded_count < count)
+        {
+            if (gpu.ssbo)
+                backend_.destroy_buffer(gpu.ssbo);
+            size_t alloc_size = byte_size * 2;
+            gpu.ssbo          = backend_.create_buffer(BufferUsage::Storage, alloc_size);
+        }
+
+        size_t floats_needed = count * 2;
+        if (upload_scratch_.size() < floats_needed)
+            upload_scratch_.resize(floats_needed);
+
+        for (size_t i = 0; i < count; ++i)
+        {
+            upload_scratch_[i * 2] = static_cast<float>(static_cast<double>(vis.x[i]) - origin_x);
+            upload_scratch_[i * 2 + 1] =
+                static_cast<float>(static_cast<double>(vis.y[i]) - origin_y);
+        }
+
+        backend_.upload_buffer(gpu.ssbo, upload_scratch_.data(), byte_size);
+        gpu.uploaded_count = count;
+        gpu.origin_x       = origin_x;
+        gpu.origin_y       = origin_y;
+
+        series.clear_dirty();
+    }
     // Handle 3D line/scatter (vec4 interleaved: x,y,z,pad)
     else if (line3d || scatter3d)
     {
@@ -439,15 +490,13 @@ void Renderer::upload_series_data(Series& series, double origin_x, double origin
         auto* entry = series_type_registry_->find_mut(custom->type_name());
         if (entry && entry->upload_fn && !entry->faulted)
         {
-            auto result = plugin_guard_invoke(
-                entry->type_name.c_str(),
-                [&]()
-                {
-                    entry->upload_fn(backend_,
-                                     custom->data(),
-                                     gpu.plugin_gpu_state,
-                                     custom->element_count());
-                });
+            auto result = plugin_guard_invoke(entry->type_name.c_str(),
+                                              [&]() {
+                                                  entry->upload_fn(backend_,
+                                                                   custom->data(),
+                                                                   gpu.plugin_gpu_state,
+                                                                   custom->element_count());
+                                              });
             if (result != PluginCallResult::Success)
             {
                 entry->faulted = true;

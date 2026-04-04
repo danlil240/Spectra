@@ -48,7 +48,7 @@ extern "C"
         info->api_version_major = SPECTRA_PLUGIN_API_VERSION_MAJOR;
         info->api_version_minor = SPECTRA_PLUGIN_API_VERSION_MINOR;
 
-        if (ctx->api_version_minor >= 2 && ctx->overlay_registry)
+        if (ctx->overlay_registry)
         {
             g_overlay_registry = ctx->overlay_registry;
             spectra_register_overlay(ctx->overlay_registry,

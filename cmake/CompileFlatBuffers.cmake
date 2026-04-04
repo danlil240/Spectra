@@ -23,6 +23,13 @@ set(FLATBUFFERS_BUILD_FLATC ON CACHE BOOL "" FORCE)
 
 FetchContent_MakeAvailable(flatbuffers)
 
+# Suppress warnings in third-party FlatBuffers code (e.g. -Wstringop-overflow in GCC 13+)
+if(TARGET flatc)
+    target_compile_options(flatc PRIVATE
+        $<$<CXX_COMPILER_ID:GNU>:-Wno-stringop-overflow>
+    )
+endif()
+
 # ─── Schema compilation ──────────────────────────────────────────────────────
 
 set(SPECTRA_FBS_SCHEMA_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/ipc/schemas")

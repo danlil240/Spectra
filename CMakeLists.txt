@@ -52,6 +52,7 @@ option(SPECTRA_USE_EIGEN   "Enable Eigen vector adapters"         ON)
 option(SPECTRA_USE_ROS2    "Enable ROS2 adapter (requires sourced ROS2 workspace)" ON)
 option(SPECTRA_ROS2_BAG    "Enable rosbag2 support (requires rosbag2 packages)"    ON)
 option(SPECTRA_USE_PX4     "Enable PX4 ULog adapter (ULog visualizer + MAVLink)"   ON)
+option(SPECTRA_USE_WEBGPU  "Enable WebGPU/wasm rendering backend (requires Dawn or wgpu-native)" OFF)
 option(SPECTRA_BUILD_EXAMPLES "Build example programs"            ON)
 option(SPECTRA_BUILD_QT_EXAMPLE "Build the Qt6 embed example"     OFF)
 option(SPECTRA_BUILD_TESTS    "Build unit tests and benchmarks"   ON)
@@ -89,6 +90,28 @@ find_package(Vulkan REQUIRED)
 
 # Shader compilation (GLSL -> SPIR-V)
 include(cmake/CompileShaders.cmake)
+
+# WGSL shader embedding — always generated when the wgsl source dir exists.
+# This allows the WebGPU shader tests to run even when SPECTRA_USE_WEBGPU=OFF
+# (e.g. in CI without Dawn), because the embedded sources are plain strings.
+set(WGSL_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/gpu/shaders/wgsl)
+set(WGSL_HEADER     ${CMAKE_CURRENT_BINARY_DIR}/generated/shader_wgsl.hpp)
+if(EXISTS ${WGSL_SOURCE_DIR})
+    file(GLOB _wgsl_inputs "${WGSL_SOURCE_DIR}/*.wgsl")
+    if(_wgsl_inputs)
+        add_custom_command(
+            OUTPUT  ${WGSL_HEADER}
+            COMMAND ${CMAKE_COMMAND}
+                -DWGSL_SOURCE_DIR=${WGSL_SOURCE_DIR}
+                -DOUTPUT_HEADER=${WGSL_HEADER}
+                -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/EmbedWGSLShaders.cmake
+            DEPENDS ${_wgsl_inputs}
+            COMMENT "Embedding WGSL shader sources into shader_wgsl.hpp"
+            VERBATIM
+        )
+        add_custom_target(spectra_wgsl_shaders DEPENDS ${WGSL_HEADER})
+    endif()
+endif()
 
 # FlatBuffers schema compilation (IPC protocol v2)
 include(cmake/CompileFlatBuffers.cmake)
@@ -574,6 +597,77 @@ if(SPECTRA_USE_EIGEN)
         target_link_libraries(spectra PUBLIC Eigen3::Eigen)
         target_compile_definitions(spectra PUBLIC SPECTRA_USE_EIGEN)
     endif()
+endif()
+
+# ─── WebGPU backend (optional) ───────────────────────────────────────────────
+# Implements the Backend interface using the WebGPU C API.  Supports native
+# builds with Google Dawn and Emscripten/wasm browser targets.
+#
+# Usage:
+#   Native (Dawn):     cmake -DSPECTRA_USE_WEBGPU=ON -Ddawn_DIR=<dawn_install>/lib/cmake/dawn
+#   Emscripten/wasm:   emcmake cmake -DSPECTRA_USE_WEBGPU=ON
+#
+# The WebGPU backend sources are conditionally compiled into the main spectra
+# library when this option is ON.  No extra library target is created — the
+# backend is selected at runtime by the application.
+#
+# WGSL shader embedding is always generated (unconditionally, above) so the
+# shader content tests can run even when SPECTRA_USE_WEBGPU=OFF.
+if(SPECTRA_USE_WEBGPU)
+    # ── WebGPU / Dawn dependency ─────────────────────────────────────────────
+    if(NOT EMSCRIPTEN)
+        # Native build: require Dawn (Google's WebGPU implementation).
+        # Users must set dawn_DIR or DAWN_INSTALL_DIR.
+        find_package(Dawn QUIET)
+        if(NOT Dawn_FOUND)
+            # Try finding via pkg-config as fallback.
+            find_package(PkgConfig QUIET)
+            if(PkgConfig_FOUND)
+                pkg_check_modules(DAWN QUIET dawn webgpu_dawn)
+            endif()
+        endif()
+
+        if(Dawn_FOUND OR DAWN_FOUND)
+            message(STATUS "WebGPU backend enabled (Dawn found)")
+        else()
+            message(STATUS
+                "Dawn not found — WebGPU backend enabled but you must link "
+                "webgpu_dawn manually (set Dawn_DIR or DAWN_INSTALL_DIR).")
+        endif()
+    else()
+        message(STATUS "WebGPU backend enabled (Emscripten target)")
+    endif()
+
+    # ── Add WebGPU sources to the spectra library ────────────────────────────
+    target_sources(spectra PRIVATE
+        src/render/webgpu/wgpu_backend.cpp
+    )
+    target_compile_definitions(spectra PUBLIC SPECTRA_USE_WEBGPU)
+
+    # Ensure WGSL shaders are generated before building the backend.
+    if(TARGET spectra_wgsl_shaders)
+        add_dependencies(spectra spectra_wgsl_shaders)
+    endif()
+
+    # Link Dawn when found natively.
+    if(NOT EMSCRIPTEN)
+        if(TARGET dawn::webgpu_dawn)
+            target_link_libraries(spectra PUBLIC dawn::webgpu_dawn)
+        elseif(TARGET webgpu_dawn)
+            target_link_libraries(spectra PUBLIC webgpu_dawn)
+        elseif(DAWN_LIBRARIES)
+            target_link_libraries(spectra PUBLIC ${DAWN_LIBRARIES})
+            if(DAWN_INCLUDE_DIRS)
+                target_include_directories(spectra PUBLIC ${DAWN_INCLUDE_DIRS})
+            endif()
+        endif()
+    else()
+        # Emscripten provides WebGPU via USE_WEBGPU linker flag.
+        target_link_options(spectra PUBLIC "SHELL:-s USE_WEBGPU=1")
+        target_compile_options(spectra PUBLIC "SHELL:-s USE_WEBGPU=1")
+    endif()
+
+    message(STATUS "SPECTRA_USE_WEBGPU: ON (inproc mode only; IPC/multiproc not supported on wasm)")
 endif()
 
 # PX4 / ULog adapter (optional) — standalone flight log viewer + MAVLink bridge.

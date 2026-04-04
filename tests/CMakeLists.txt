@@ -49,6 +49,7 @@ function(add_spectra_test subdir name)
     target_include_directories(${target_name} PRIVATE
         ${CMAKE_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/util
+        ${CMAKE_BINARY_DIR}/generated
         ${CMAKE_BINARY_DIR}/generated/flatbuffers
     )
     target_include_directories(${target_name} SYSTEM PRIVATE
@@ -57,6 +58,7 @@ function(add_spectra_test subdir name)
     # Propagate feature flags to tests for conditional compilation
     target_compile_definitions(${target_name} PRIVATE
         $<$<BOOL:${SPECTRA_USE_FFMPEG}>:SPECTRA_USE_FFMPEG>
+        $<$<BOOL:${SPECTRA_USE_WEBGPU}>:SPECTRA_USE_WEBGPU>
         SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
     )
     add_test(NAME ${target_name} COMMAND ${target_name})
@@ -168,6 +170,7 @@ set(SPECTRA_UNIT_TESTS
     test_chunked_series
     test_pending_series_data
     test_series_thread_safe
+    test_webgpu_backend
 )
 
 # Mock transform plugin — shared library loaded by test_plugin_transforms
@@ -275,6 +278,11 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
                 SPECTRA_MOCK_INTEGRATION_PLUGIN_PATH="$<TARGET_FILE:mock_integration_plugin>"
             )
             add_dependencies(unit_${_test} mock_integration_plugin)
+        endif()
+        # WebGPU test: depend on WGSL shader generation (always available when
+        # the wgsl source dir exists, regardless of SPECTRA_USE_WEBGPU).
+        if(_test STREQUAL "test_webgpu_backend" AND TARGET spectra_wgsl_shaders)
+            add_dependencies(unit_${_test} spectra_wgsl_shaders)
         endif()
     endif()
 endforeach()

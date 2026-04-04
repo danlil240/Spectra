@@ -84,6 +84,7 @@ App::App(const AppConfig& config) : config_(config)
     // singleton for the lifetime of this App.
     theme_mgr_ = std::make_unique<ui::ThemeManager>();
     ui::ThemeManager::set_current(theme_mgr_.get());
+    theme_mgr_->ensure_initialized();
 
     renderer_ = std::make_unique<Renderer>(*backend_, *theme_mgr_);
     if (!renderer_->init())

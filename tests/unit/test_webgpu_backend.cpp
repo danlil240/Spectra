@@ -256,4 +256,3 @@ TEST(WebGPUBackendDimensions, ZeroBeforeSwapchain)
 }
 
 #endif   // SPECTRA_USE_WEBGPU
-

@@ -170,6 +170,7 @@ set(SPECTRA_UNIT_TESTS
     test_chunked_series
     test_pending_series_data
     test_series_thread_safe
+    test_accessibility
     test_webgpu_backend
 )
 

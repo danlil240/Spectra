@@ -368,6 +368,16 @@ void ShortcutManager::register_defaults()
     bind({KEY_F, KeyMod::None}, "view.fullscreen");
     bind({KEY_HOME, KeyMod::None}, "view.home");
 
+    // Keyboard zoom (+/- keys) — accessible without mouse
+    bind({KEY_EQUAL, KeyMod::None}, "view.zoom_in");
+    bind({KEY_MINUS, KeyMod::None}, "view.zoom_out");
+
+    // Keyboard pan (arrow keys) — accessible without mouse
+    bind({KEY_LEFT, KeyMod::None}, "view.pan_left");
+    bind({KEY_RIGHT, KeyMod::None}, "view.pan_right");
+    bind({KEY_UP, KeyMod::None}, "view.pan_up");
+    bind({KEY_DOWN, KeyMod::None}, "view.pan_down");
+
     // Command palette
     bind({KEY_K, KeyMod::Control}, "app.command_palette");
 

@@ -45,6 +45,8 @@
 #include <spectra/series.hpp>
 #include "ui/commands/series_clipboard.hpp"
 #include "ui/data/clipboard_export.hpp"
+#include "ui/data/html_table_export.hpp"
+#include "ui/accessibility/sonification.hpp"
 
 namespace spectra
 {
@@ -446,6 +448,77 @@ void register_standard_commands(const CommandBindings& b)
         "",
         "View");
 
+    // ─── Keyboard pan commands (arrow keys) ─────────────────────────────
+    // Each command shifts the active axes by 10% of the current visible range.
+
+    cmd_registry.register_command(
+        "view.pan_left",
+        "Pan Left",
+        [&]()
+        {
+            if (auto* ax = input_handler.active_axes())
+            {
+                auto  old_x   = ax->x_limits();
+                auto  old_y   = ax->y_limits();
+                float dx      = (old_x.max - old_x.min) * 0.1f;
+                AxisLimits nx = {old_x.min - dx, old_x.max - dx};
+                undoable_set_limits(&undo_mgr, *ax, nx, old_y);
+            }
+        },
+        "Left",
+        "View");
+
+    cmd_registry.register_command(
+        "view.pan_right",
+        "Pan Right",
+        [&]()
+        {
+            if (auto* ax = input_handler.active_axes())
+            {
+                auto  old_x   = ax->x_limits();
+                auto  old_y   = ax->y_limits();
+                float dx      = (old_x.max - old_x.min) * 0.1f;
+                AxisLimits nx = {old_x.min + dx, old_x.max + dx};
+                undoable_set_limits(&undo_mgr, *ax, nx, old_y);
+            }
+        },
+        "Right",
+        "View");
+
+    cmd_registry.register_command(
+        "view.pan_up",
+        "Pan Up",
+        [&]()
+        {
+            if (auto* ax = input_handler.active_axes())
+            {
+                auto  old_x   = ax->x_limits();
+                auto  old_y   = ax->y_limits();
+                float dy      = (old_y.max - old_y.min) * 0.1f;
+                AxisLimits ny = {old_y.min + dy, old_y.max + dy};
+                undoable_set_limits(&undo_mgr, *ax, old_x, ny);
+            }
+        },
+        "Up",
+        "View");
+
+    cmd_registry.register_command(
+        "view.pan_down",
+        "Pan Down",
+        [&]()
+        {
+            if (auto* ax = input_handler.active_axes())
+            {
+                auto  old_x   = ax->x_limits();
+                auto  old_y   = ax->y_limits();
+                float dy      = (old_y.max - old_y.min) * 0.1f;
+                AxisLimits ny = {old_y.min - dy, old_y.max - dy};
+                undoable_set_limits(&undo_mgr, *ax, old_x, ny);
+            }
+        },
+        "Down",
+        "View");
+
     // Toggle 2D/3D view mode
     cmd_registry.register_command(
         "view.toggle_3d",
@@ -590,6 +663,64 @@ void register_standard_commands(const CommandBindings& b)
         "Ctrl+Shift+D",
         "Data",
         static_cast<uint16_t>(ui::Icon::Copy));
+
+    // ─── Accessible HTML table export ───────────────────────────────────
+    cmd_registry.register_command(
+        "data.export_html_table",
+        "Export Accessible HTML Table",
+        [&]()
+        {
+            if (!active_figure)
+                return;
+            const std::string path = "spectra_data.html";
+            if (figure_to_html_table_file(*active_figure, path))
+            {
+                SPECTRA_LOG_INFO("accessibility",
+                                 "HTML table exported to '{}'",
+                                 path);
+            }
+            else
+            {
+                SPECTRA_LOG_WARN("accessibility",
+                                 "Failed to write HTML table to '{}'",
+                                 path);
+            }
+        },
+        "",
+        "Data",
+        static_cast<uint16_t>(ui::Icon::Export));
+
+    // ─── Sonification command ────────────────────────────────────────────
+    cmd_registry.register_command(
+        "accessibility.sonify_series",
+        "Sonify Active Series (Export WAV)",
+        [&]()
+        {
+            if (!active_figure)
+                return;
+            // Sonify the first non-empty 2D axes in the active figure.
+            for (auto& ax_ptr : active_figure->axes_mut())
+            {
+                if (!ax_ptr || ax_ptr->series().empty())
+                    continue;
+                const std::string path = "spectra_sonify.wav";
+                if (sonify_axes_to_wav(*ax_ptr, path))
+                {
+                    SPECTRA_LOG_INFO("accessibility",
+                                     "Sonification WAV exported to '{}'",
+                                     path);
+                }
+                else
+                {
+                    SPECTRA_LOG_WARN("accessibility",
+                                     "Failed to sonify axes or write WAV to '{}'",
+                                     path);
+                }
+                break;
+            }
+        },
+        "",
+        "Accessibility");
 
     // ─── File commands ───────────────────────────────────────────────────
     cmd_registry.register_command(

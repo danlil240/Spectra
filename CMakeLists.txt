@@ -161,6 +161,7 @@ foreach(_ui_src
     src/ui/animation/mode_transition.cpp
     src/ui/imgui/axes3d_renderer.cpp
     src/ui/window/window_manager.cpp
+    src/ui/window/window_glfw_callbacks.cpp
     src/ui/window/window_lifecycle.cpp
     src/ui/window/window_figure_ops.cpp
     src/ui/app/window_runtime.cpp

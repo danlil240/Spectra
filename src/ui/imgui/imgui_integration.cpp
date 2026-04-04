@@ -403,8 +403,6 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
     float dt = ImGui::GetIO().DeltaTime;
     if (theme_mgr_)
         theme_mgr_->update(dt);
-    else
-        ui::ThemeManager::instance().update(dt);
     ui::widgets::update_section_animations(dt);
 
     // Sync panel_open_ from layout manager so external toggles (commands, undo)
@@ -881,8 +879,6 @@ void ImGuiIntegration::build_empty_ui()
     float dt = ImGui::GetIO().DeltaTime;
     if (theme_mgr_)
         theme_mgr_->update(dt);
-    else
-        ui::ThemeManager::instance().update(dt);
 
     // Draw command bar (menu) so user can create figures / load CSV.
     // Suppressed when an adapter shell provides its own menu (e.g. spectra-ros).
@@ -1223,8 +1219,6 @@ void ImGuiIntegration::apply_modern_style()
     // Apply theme colors through ThemeManager
     if (theme_mgr_)
         theme_mgr_->apply_to_imgui();
-    else
-        ui::ThemeManager::instance().apply_to_imgui();
 }
 
 }   // namespace spectra

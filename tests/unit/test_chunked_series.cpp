@@ -287,19 +287,18 @@ TEST(ChunkedLineSeries, LoadBinaryColumns)
     std::remove(path.c_str());
 }
 
-// ─── Move semantics ─────────────────────────────────────────────────────────
+// ─── Unique pointer ownership ───────────────────────────────────────────────
 
-TEST(ChunkedLineSeries, MoveConstruction)
+TEST(ChunkedLineSeries, UniquePtrOwnership)
 {
-    ChunkedLineSeries  series;
-    std::vector<float> x = {1.0f, 2.0f, 3.0f};
-    std::vector<float> y = {10.0f, 20.0f, 30.0f};
-    series.set_data(x, y);
+    auto               series = std::make_unique<ChunkedLineSeries>();
+    std::vector<float> x      = {1.0f, 2.0f, 3.0f};
+    std::vector<float> y      = {10.0f, 20.0f, 30.0f};
+    series->set_data(x, y);
 
-    ChunkedLineSeries moved(std::move(series));
-    EXPECT_EQ(moved.point_count(), 3u);
+    EXPECT_EQ(series->point_count(), 3u);
 
-    auto rx = moved.x_range(0, 3);
+    auto rx = series->x_range(0, 3);
     EXPECT_FLOAT_EQ(rx[0], 1.0f);
 }
 

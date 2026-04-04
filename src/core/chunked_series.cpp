@@ -32,10 +32,6 @@ ChunkedLineSeries::ChunkedLineSeries() : impl_(std::make_unique<Impl>()) {}
 
 ChunkedLineSeries::~ChunkedLineSeries() = default;
 
-ChunkedLineSeries::ChunkedLineSeries(ChunkedLineSeries&&) noexcept = default;
-
-ChunkedLineSeries& ChunkedLineSeries::operator=(ChunkedLineSeries&&) noexcept = default;
-
 // ── Data ingestion ──
 
 ChunkedLineSeries& ChunkedLineSeries::set_data(std::span<const float> x, std::span<const float> y)

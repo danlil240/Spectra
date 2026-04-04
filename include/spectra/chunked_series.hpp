@@ -34,11 +34,12 @@ class ChunkedLineSeries : public Series
     ChunkedLineSeries();
     ~ChunkedLineSeries() override;
 
-    // Move-only (owns chunked arrays and optional mapped file).
-    ChunkedLineSeries(ChunkedLineSeries&&) noexcept;
-    ChunkedLineSeries& operator=(ChunkedLineSeries&&) noexcept;
+    // Non-copyable, non-movable (Series base has std::atomic<bool>).
+    // Managed by pointer/unique_ptr; pimpl hides heavy state.
     ChunkedLineSeries(const ChunkedLineSeries&)            = delete;
     ChunkedLineSeries& operator=(const ChunkedLineSeries&) = delete;
+    ChunkedLineSeries(ChunkedLineSeries&&)                  = delete;
+    ChunkedLineSeries& operator=(ChunkedLineSeries&&)       = delete;
 
     // ── Data ingestion ──
 

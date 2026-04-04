@@ -2,6 +2,7 @@
 #include <cmath>
 #include <limits>
 #include <spectra/axes.hpp>
+#include <spectra/chunked_series.hpp>
 #include <spectra/event_bus.hpp>
 #include <spectra/series_shapes.hpp>
 #include <spectra/series_stats.hpp>
@@ -81,6 +82,11 @@ ScatterSeries& Axes::scatter(std::span<const float> x, std::span<const float> y)
 ScatterSeries& Axes::scatter()
 {
     return add_series<ScatterSeries>();
+}
+
+ChunkedLineSeries& Axes::chunked_line()
+{
+    return add_series<ChunkedLineSeries>();
 }
 
 // --- MATLAB-style plot ---

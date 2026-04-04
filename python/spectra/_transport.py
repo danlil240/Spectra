@@ -6,6 +6,7 @@ from typing import Optional
 from . import _protocol as P
 from . import _codec as codec
 from ._errors import ConnectionError, ProtocolError
+from ._log import log
 
 
 class Transport:
@@ -21,16 +22,20 @@ class Transport:
     def connect(path: str, timeout: float = 5.0) -> "Transport":
         """Connect to a Unix domain socket at the given path."""
         try:
+            log.debug("transport connect start path=%s timeout=%.1fs", path, timeout)
             sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             sock.settimeout(timeout)
             sock.connect(path)
+            log.debug("transport connected path=%s", path)
             return Transport(sock)
         except OSError as e:
+            log.error("transport connect failed path=%s err=%s", path, e)
             raise ConnectionError(f"Failed to connect to {path}: {e}") from e
 
     def close(self) -> None:
         if self._sock is not None:
             try:
+                log.debug("transport closing socket fd=%s", self._sock.fileno())
                 self._sock.close()
             except OSError:
                 pass
@@ -72,6 +77,15 @@ class Transport:
         data = header + payload
         try:
             self._sendall(data)
+            log.debug(
+                "transport send type=0x%04X seq=%d req_id=%d session=%d window=%d payload=%d",
+                msg_type,
+                seq,
+                request_id,
+                session_id,
+                window_id,
+                len(payload),
+            )
         except OSError as e:
             self.close()
             raise ConnectionError(f"Send failed: {e}") from e
@@ -107,6 +121,16 @@ class Transport:
                 raise ConnectionError("Connection closed during payload read")
         else:
             payload = b""
+
+        log.debug(
+            "transport recv type=0x%04X seq=%d req_id=%d session=%d window=%d payload=%d",
+            hdr["type"],
+            hdr["seq"],
+            hdr["request_id"],
+            hdr["session_id"],
+            hdr["window_id"],
+            payload_len,
+        )
 
         return {"header": hdr, "payload": payload}
 

@@ -38,6 +38,7 @@ from ._errors import (
     BackendError,
 )
 from ._animation import ipc_sleep, FramePacer, BackendAnimator
+from ._log import set_log_level, get_log_level
 
 # ─── Easy API (one-liners, everything in background) ─────────────────────────
 from ._easy import (
@@ -144,4 +145,6 @@ __all__ = [
     "ipc_sleep",
     "FramePacer",
     "BackendAnimator",
+    "set_log_level",
+    "get_log_level",
 ]

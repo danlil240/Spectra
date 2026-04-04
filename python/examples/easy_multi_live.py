@@ -15,6 +15,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import spectra as sp
 
+sp.set_log_level("INFO")  # set to DEBUG for more details on IPC and backend
+
 # Create figure and series
 sp.title("Multi-Signal Live Stream")
 sp.xlabel("Time (s)")

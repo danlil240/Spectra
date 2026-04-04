@@ -405,4 +405,61 @@ TEST(SeriesViewModelTest, IndependentSelectionPerView)
     EXPECT_FALSE(vm2.is_selected());
 }
 
+// ─── Input Validation ────────────────────────────────────────────────────────
+
+TEST(SeriesViewModelTest, OpacityOverrideClampsAboveOne)
+{
+    SeriesViewModel vm;
+    vm.set_opacity_override(1.5f);
+    EXPECT_FLOAT_EQ(vm.effective_opacity(), 1.0f);
+}
+
+TEST(SeriesViewModelTest, OpacityOverrideClampsBelowZero)
+{
+    SeriesViewModel vm;
+    vm.set_opacity_override(-0.5f);
+    EXPECT_FLOAT_EQ(vm.effective_opacity(), 0.0f);
+}
+
+TEST(SeriesViewModelTest, OpacityOverrideAcceptsValidRange)
+{
+    SeriesViewModel vm;
+    vm.set_opacity_override(0.0f);
+    EXPECT_FLOAT_EQ(vm.effective_opacity(), 0.0f);
+
+    vm.set_opacity_override(0.5f);
+    EXPECT_FLOAT_EQ(vm.effective_opacity(), 0.5f);
+
+    vm.set_opacity_override(1.0f);
+    EXPECT_FLOAT_EQ(vm.effective_opacity(), 1.0f);
+}
+
+TEST(SeriesViewModelTest, SetOpacityClampsToValidRange)
+{
+    LineSeries s;
+    s.opacity(1.0f);
+
+    SeriesViewModel vm(&s);
+    vm.set_opacity(2.0f);
+    EXPECT_FLOAT_EQ(s.opacity(), 1.0f);
+
+    vm.set_opacity(-1.0f);
+    EXPECT_FLOAT_EQ(s.opacity(), 0.0f);
+}
+
+TEST(SeriesViewModelTest, SetOpacityAcceptsValidRange)
+{
+    LineSeries s;
+
+    SeriesViewModel vm(&s);
+    vm.set_opacity(0.0f);
+    EXPECT_FLOAT_EQ(s.opacity(), 0.0f);
+
+    vm.set_opacity(0.75f);
+    EXPECT_FLOAT_EQ(s.opacity(), 0.75f);
+
+    vm.set_opacity(1.0f);
+    EXPECT_FLOAT_EQ(s.opacity(), 1.0f);
+}
+
 }   // namespace spectra

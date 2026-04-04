@@ -12,6 +12,8 @@
 #include "ui/commands/undo_manager.hpp"
 #include "ui/data/axis_link.hpp"
 #include "ui/overlay/data_interaction.hpp"
+#include "ui/viewmodel/axes_view_model.hpp"
+#include "ui/viewmodel/figure_view_model.hpp"
 
 namespace spectra
 {
@@ -147,6 +149,37 @@ AxesBase* InputHandler::hit_test_all_axes(double screen_x, double screen_y) cons
 
 InputHandler::InputHandler()  = default;
 InputHandler::~InputHandler() = default;
+
+// Phase 2 (LT-5): Route limit mutations through AxesViewModel when available.
+void InputHandler::set_axes_xlim(Axes* ax, double min, double max)
+{
+    if (!ax)
+        return;
+    if (figure_vm_)
+    {
+        auto& avm = figure_vm_->get_or_create_axes_vm(ax);
+        avm.set_visual_xlim(min, max);
+    }
+    else
+    {
+        ax->xlim(min, max);
+    }
+}
+
+void InputHandler::set_axes_ylim(Axes* ax, double min, double max)
+{
+    if (!ax)
+        return;
+    if (figure_vm_)
+    {
+        auto& avm = figure_vm_->get_or_create_axes_vm(ax);
+        avm.set_visual_ylim(min, max);
+    }
+    else
+    {
+        ax->ylim(min, max);
+    }
+}
 
 void InputHandler::clear_figure_cache(Figure* fig)
 {
@@ -450,8 +483,8 @@ void InputHandler::on_mouse_move(double x, double y)
         double      y_range   = middle_pan_ylim_max_ - middle_pan_ylim_min_;
         double      dx_data   = -dx_screen * x_range / vp.w;
         double      dy_data   = dy_screen * y_range / vp.h;
-        active_axes_->xlim(middle_pan_xlim_min_ + dx_data, middle_pan_xlim_max_ + dx_data);
-        active_axes_->ylim(middle_pan_ylim_min_ + dy_data, middle_pan_ylim_max_ + dy_data);
+        set_axes_xlim(active_axes_, middle_pan_xlim_min_ + dx_data, middle_pan_xlim_max_ + dx_data);
+        set_axes_ylim(active_axes_, middle_pan_ylim_min_ + dy_data, middle_pan_ylim_max_ + dy_data);
         if (axis_link_mgr_)
             axis_link_mgr_->propagate_limits(active_axes_,
                                              active_axes_->x_limits(),
@@ -621,8 +654,8 @@ void InputHandler::on_key(int key, int action, int mods)
                     axes_ptr->auto_fit();
                     AxisLimits target_x = axes_ptr->x_limits();
                     AxisLimits target_y = axes_ptr->y_limits();
-                    axes_ptr->xlim(old_xlim.min, old_xlim.max);
-                    axes_ptr->ylim(old_ylim.min, old_ylim.max);
+                    set_axes_xlim(axes_ptr.get(), old_xlim.min, old_xlim.max);
+                    set_axes_ylim(axes_ptr.get(), old_ylim.min, old_ylim.max);
                     if (transition_engine_)
                     {
                         transition_engine_->animate_limits(*axes_ptr,
@@ -666,8 +699,8 @@ void InputHandler::on_key(int key, int action, int mods)
                 active_axes_->auto_fit();
                 AxisLimits target_x = active_axes_->x_limits();
                 AxisLimits target_y = active_axes_->y_limits();
-                active_axes_->xlim(old_xlim.min, old_xlim.max);
-                active_axes_->ylim(old_ylim.min, old_ylim.max);
+                set_axes_xlim(active_axes_, old_xlim.min, old_xlim.max);
+                set_axes_ylim(active_axes_, old_ylim.min, old_ylim.max);
                 transition_engine_->animate_limits(*active_axes_,
                                                    target_x,
                                                    target_y,
@@ -681,8 +714,8 @@ void InputHandler::on_key(int key, int action, int mods)
                 active_axes_->auto_fit();
                 AxisLimits target_x = active_axes_->x_limits();
                 AxisLimits target_y = active_axes_->y_limits();
-                active_axes_->xlim(old_xlim.min, old_xlim.max);
-                active_axes_->ylim(old_ylim.min, old_ylim.max);
+                set_axes_xlim(active_axes_, old_xlim.min, old_xlim.max);
+                set_axes_ylim(active_axes_, old_ylim.min, old_ylim.max);
                 anim_ctrl_->animate_axis_limits(*active_axes_,
                                                 target_x,
                                                 target_y,
@@ -743,8 +776,8 @@ void InputHandler::on_key(int key, int action, int mods)
                 active_axes_->auto_fit();
                 AxisLimits target_x = active_axes_->x_limits();
                 AxisLimits target_y = active_axes_->y_limits();
-                active_axes_->xlim(old_xlim.min, old_xlim.max);
-                active_axes_->ylim(old_ylim.min, old_ylim.max);
+                set_axes_xlim(active_axes_, old_xlim.min, old_xlim.max);
+                set_axes_ylim(active_axes_, old_ylim.min, old_ylim.max);
                 transition_engine_->animate_limits(*active_axes_,
                                                    target_x,
                                                    target_y,
@@ -758,8 +791,8 @@ void InputHandler::on_key(int key, int action, int mods)
                 active_axes_->auto_fit();
                 AxisLimits target_x = active_axes_->x_limits();
                 AxisLimits target_y = active_axes_->y_limits();
-                active_axes_->xlim(old_xlim.min, old_xlim.max);
-                active_axes_->ylim(old_ylim.min, old_ylim.max);
+                set_axes_xlim(active_axes_, old_xlim.min, old_xlim.max);
+                set_axes_ylim(active_axes_, old_ylim.min, old_ylim.max);
                 anim_ctrl_->animate_axis_limits(*active_axes_,
                                                 target_x,
                                                 target_y,
@@ -838,8 +871,8 @@ void InputHandler::apply_box_zoom()
         }
         else
         {
-            active_axes_->xlim(xmin, xmax);
-            active_axes_->ylim(ymin, ymax);
+            set_axes_xlim(active_axes_, xmin, xmax);
+            set_axes_ylim(active_axes_, ymin, ymax);
         }
 
         // Propagate box zoom to linked axes

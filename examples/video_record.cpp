@@ -21,7 +21,7 @@ int main()
         x[i] = static_cast<float>(i) * 0.05f;
     }
 
-    ax.line(x, y).label("wave").color(spectra::colors::cyan);
+    auto& line = ax.line(x, y).label("wave").color(spectra::colors::cyan);
     ax.xlim(0.0f, 10.0f);
     ax.ylim(-1.5f, 1.5f);
     ax.title("Recorded Animation");
@@ -39,7 +39,7 @@ int main()
                 {
                     y[i] = std::sin(x[i] + t * 2.0f);
                 }
-                ax.line(x, y);
+                line.set_y(y);
             })
         .record("output.mp4");
 

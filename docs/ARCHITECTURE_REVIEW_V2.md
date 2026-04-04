@@ -444,6 +444,31 @@ The `EventBus<T>` is functional but fragile under real-world usage patterns.
 - **Coupling risk**: `Renderer` currently reads axes limits and series visibility directly. Must route through ViewModel accessors.
 - **Difficulty**: High. Axes and Series are the most-touched types in the codebase.
 
+**Phase 1 status: ✅ Done.** `AxesViewModel` and `SeriesViewModel` created in `src/ui/viewmodel/` with:
+- Forwarding accessors for `visual_xlim/ylim` (delegates to `Axes`) and `effective_visible/color/label/opacity` (delegates to `Series`)
+- Per-view override fields on `SeriesViewModel` (`visible_override_`, `color_override_`, `label_override_`, `opacity_override_`)
+- Per-view state on `AxesViewModel` (`is_hovered_`, `scroll_y_`)
+- Change callbacks (`set_on_changed`) and optional `UndoManager` integration
+- **Input validation**: `set_visual_xlim/ylim` rejects inverted ranges (`min >= max`), `NaN`, and `±Inf`; `set_opacity_override` and `set_opacity` clamp to `[0.0, 1.0]`
+- Unit tests in `tests/unit/test_axes_view_model.cpp` and `tests/unit/test_series_view_model.cpp`
+- `FigureViewModel::get_or_create_axes_vm/series_vm` lazily creates and caches sub-ViewModels
+
+**Phase 2 status: ✅ Done.** Renderer and InputHandler migrated to use ViewModels:
+- `Renderer::render_figure_content(Figure&, FigureViewModel*)` overload threads ViewModel through the render pipeline
+- Axes limits read via `AxesViewModel::visual_xlim/ylim()` in `renderer.cpp`, `render_geometry.cpp`, `render_2d.cpp`
+- Series visibility/color/opacity read via `SeriesViewModel::effective_visible/color/opacity()` in `renderer.cpp`, `render_2d.cpp`
+- `InputHandler::set_axes_xlim/ylim()` helpers route limit mutations through `AxesViewModel`
+- `WindowRuntime` wires `FigureViewModel*` to both Renderer and InputHandler on every frame
+
+**Phase 3 status: ✅ Done.** Visual-limit storage moved from forwarding to local ownership:
+- `AxesViewModel` stores `std::optional<AxisLimits> xlim_/ylim_` locally
+- `visual_xlim/ylim()` returns local storage when set, model fallback (`Axes::x_limits()`) otherwise
+- `set_visual_xlim/ylim()` writes to local storage AND syncs to model for backward compatibility
+- `clear_visual_xlim/ylim()` reverts to model-fallback limits
+- `has_visual_xlim/ylim()` queries whether ViewModel has its own limits
+- Per-view zoom independence: two ViewModels for the same Axes display different zoom levels
+- 5 new Phase 3 unit tests: local storage ownership, clear/revert, no-op clear, per-view independence, default ViewModel
+
 #### LT-6: GPU compute pipeline for data processing
 
 All data processing (decimation, transforms, FFT, derivative, cumulative sum) currently runs on the CPU in `src/data/` and `src/math/`. For datasets exceeding ~1M points, this becomes a bottleneck — especially LTTB decimation and FFT.
@@ -560,8 +585,9 @@ Enable multiple users to view and interact with the same figure session, either 
 | LT-1: FigureModel/ViewModel separation | ✅ **Done** (Phases 1-3) | Full accessor-based ViewModel with undo |
 | LT-2: Expand plugin API | ✅ **Done** (v2.0) | 6 extension points including custom series types |
 | LT-3: Thread-safe data model | ✅ **Done** | PendingSeriesData + SpinLock + direct-write ROS2 |
+| LT-5: ViewModel for Axes and Series | ✅ **Done** (Phases 1-3) | `AxesViewModel` + `SeriesViewModel` with local limit storage, per-view overrides, validation, change callbacks, undo. Renderer and InputHandler migrated to use ViewModels. |
 
-**10 of 12** V1 recommendations implemented. 2 remaining (ThemeManager singleton, plus carried items).
+**12 of 13** V1/V2 recommendations implemented. 1 remaining (ThemeManager singleton).
 
 ---
 

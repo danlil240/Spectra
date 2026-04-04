@@ -140,6 +140,11 @@ class Series
     const PlotStyle& plot_style() const { return style_; }
     PlotStyle&       plot_style_mut() { return style_; }
 
+    // ── Streaming data interface (optional; implemented by LineSeries / ChunkedLineSeries) ──
+    virtual void   append(float /*x*/, float /*y*/) {}
+    virtual size_t erase_before(float /*x_threshold*/) { return 0; }
+    virtual size_t memory_bytes() const { return 0; }
+
    protected:
     Series& apply_format_string(std::string_view fmt);
 
@@ -164,7 +169,7 @@ class LineSeries : public Series
 
     LineSeries& set_x(std::span<const float> x);
     LineSeries& set_y(std::span<const float> y);
-    void        append(float x, float y);
+    void        append(float x, float y) override;
 
     LineSeries& width(float w)
     {
@@ -180,10 +185,10 @@ class LineSeries : public Series
 
     // Remove all points with x < x_threshold.  Assumes x is sorted ascending.
     // Returns the number of points removed.
-    size_t erase_before(float x_threshold);
+    size_t erase_before(float x_threshold) override;
 
     // Estimated memory consumption in bytes (x + y vectors).
-    size_t memory_bytes() const { return x_.size() * 2 * sizeof(float); }
+    size_t memory_bytes() const override { return x_.size() * 2 * sizeof(float); }
 
     // Bring base-class getters into scope (setters below would otherwise hide them)
     using Series::color;
@@ -245,7 +250,7 @@ class ScatterSeries : public Series
 
     ScatterSeries& set_x(std::span<const float> x);
     ScatterSeries& set_y(std::span<const float> y);
-    void           append(float x, float y);
+    void           append(float x, float y) override;
 
     ScatterSeries& size(float s)
     {

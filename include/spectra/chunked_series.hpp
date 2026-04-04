@@ -38,8 +38,8 @@ class ChunkedLineSeries : public Series
     // Managed by pointer/unique_ptr; pimpl hides heavy state.
     ChunkedLineSeries(const ChunkedLineSeries&)            = delete;
     ChunkedLineSeries& operator=(const ChunkedLineSeries&) = delete;
-    ChunkedLineSeries(ChunkedLineSeries&&)                  = delete;
-    ChunkedLineSeries& operator=(ChunkedLineSeries&&)       = delete;
+    ChunkedLineSeries(ChunkedLineSeries&&)                 = delete;
+    ChunkedLineSeries& operator=(ChunkedLineSeries&&)      = delete;
 
     // ── Data ingestion ──
 
@@ -61,14 +61,14 @@ class ChunkedLineSeries : public Series
                                            std::size_t        count);
 
     /// Append a single point (streaming).
-    void append(float x, float y);
+    void append(float x, float y) override;
 
     /// Append a batch of points.
     void append_batch(std::span<const float> x, std::span<const float> y);
 
     /// Remove all points with x < x_threshold (assumes x sorted ascending).
     /// Returns the number of points removed.
-    std::size_t erase_before(float x_threshold);
+    std::size_t erase_before(float x_threshold) override;
 
     // ── Configuration ──
 
@@ -96,7 +96,7 @@ class ChunkedLineSeries : public Series
     [[nodiscard]] std::size_t point_count() const;
 
     /// Estimated memory consumption in bytes (x + y chunked arrays).
-    [[nodiscard]] std::size_t memory_bytes() const;
+    [[nodiscard]] std::size_t memory_bytes() const override;
 
     /// Read a range of x values into a vector.
     [[nodiscard]] std::vector<float> x_range(std::size_t offset, std::size_t count) const;

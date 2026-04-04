@@ -39,8 +39,8 @@ bool write_wav(const std::string& path, const std::vector<int16_t>& pcm, uint32_
 
 // Convenience: sonify + write to WAV in one call.
 // Returns true on success.
-bool sonify_axes_to_wav(const Axes&                axes,
-                        const std::string&         path,
-                        const SonificationParams&  params = {});
+bool sonify_axes_to_wav(const Axes&               axes,
+                        const std::string&        path,
+                        const SonificationParams& params = {});
 
 }   // namespace spectra

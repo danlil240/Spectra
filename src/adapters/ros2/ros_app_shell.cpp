@@ -312,7 +312,7 @@ bool RosAppShell::init(int argc, char** argv)
     bag_info_ = std::make_unique<BagInfoPanel>();
     bag_info_->set_title("Bag Info");
 
-    bag_player_         = std::make_unique<BagPlayer>(*plot_mgr_, *intr_);
+    bag_player_ = std::make_unique<BagPlayer>(*plot_mgr_, *intr_);
     bag_player_->set_subplot_manager(subplot_mgr_.get());
     bag_playback_panel_ = std::make_unique<BagPlaybackPanel>(bag_player_.get());
     bag_playback_panel_->set_title("Bag Playback");
@@ -374,9 +374,9 @@ bool RosAppShell::init(int argc, char** argv)
                 // user sees data immediately when pressing play.
                 if (bag_info_)
                 {
-                    const auto& topics = bag_info_->topics();
+                    const auto&      topics   = bag_info_->topics();
                     constexpr size_t MAX_AUTO = 4;
-                    size_t added = 0;
+                    size_t           added    = 0;
                     for (const auto& row : topics)
                     {
                         if (added >= MAX_AUTO)

@@ -48,8 +48,10 @@ static void set_pc_color_geom(float dst[4], const ui::Color& src, const ui::Them
     dst[3] = src.a;
 }
 
-static void set_pc_color_geom(
-    float dst[4], const ui::Color& src, float alpha_override, const ui::ThemeManager& tm)
+static void set_pc_color_geom(float                   dst[4],
+                              const ui::Color&        src,
+                              float                   alpha_override,
+                              const ui::ThemeManager& tm)
 {
     if (should_linearize_geom(tm))
     {

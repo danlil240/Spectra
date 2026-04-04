@@ -15,7 +15,7 @@ namespace spectra::daemon
 
 HandleResult handle_hello(DaemonContext& ctx, ClientSlot& slot, const ipc::Message& msg)
 {
-    auto     hello = ipc::decode_hello(msg.payload);
+    auto       hello = ipc::decode_hello(msg.payload);
     ClientType ctype = ClientType::AGENT;
     if (hello)
     {
@@ -24,8 +24,8 @@ HandleResult handle_hello(DaemonContext& ctx, ClientSlot& slot, const ipc::Messa
                   << (ctype == ClientType::PYTHON ? "python"
                       : ctype == ClientType::APP  ? "app"
                                                   : "agent")
-                  << " (build=" << hello->agent_build
-                  << ", client_type=" << hello->client_type << ")\n";
+                  << " (build=" << hello->agent_build << ", client_type=" << hello->client_type
+                  << ")\n";
     }
 
     slot.client_type = ctype;
@@ -69,18 +69,14 @@ HandleResult handle_hello(DaemonContext& ctx, ClientSlot& slot, const ipc::Messa
         auto assigned = ctx.graph.figures_for_window(wid);
         if (!assigned.empty())
         {
-            send_assign_figures(*slot.conn,
-                                wid,
-                                ctx.graph.session_id(),
-                                assigned,
-                                assigned[0]);
+            send_assign_figures(*slot.conn, wid, ctx.graph.session_id(), assigned, assigned[0]);
         }
 
         auto snap = ctx.fig_model.snapshot(assigned);
         send_state_snapshot(*slot.conn, wid, ctx.graph.session_id(), snap);
 
-        std::cerr << "[spectra-backend] Assigned window_id=" << wid << " with "
-                  << assigned.size() << " figures\n";
+        std::cerr << "[spectra-backend] Assigned window_id=" << wid << " with " << assigned.size()
+                  << " figures\n";
     }
     return HandleResult::Continue;
 }
@@ -92,9 +88,7 @@ HandleResult handle_heartbeat(DaemonContext& ctx, ClientSlot& slot, const ipc::M
     return HandleResult::Continue;
 }
 
-HandleResult handle_req_create_window(DaemonContext& ctx,
-                                      ClientSlot&    slot,
-                                      const ipc::Message& msg)
+HandleResult handle_req_create_window(DaemonContext& ctx, ClientSlot& slot, const ipc::Message& msg)
 {
     std::cerr << "[spectra-backend] REQ_CREATE_WINDOW from window=" << slot.window_id << "\n";
 
@@ -116,11 +110,9 @@ HandleResult handle_req_create_window(DaemonContext& ctx,
     return HandleResult::Continue;
 }
 
-HandleResult handle_req_close_window(DaemonContext& ctx,
-                                     ClientSlot&    slot,
-                                     const ipc::Message& msg)
+HandleResult handle_req_close_window(DaemonContext& ctx, ClientSlot& slot, const ipc::Message& msg)
 {
-    auto close_req = ipc::decode_req_close_window(msg.payload);
+    auto          close_req  = ipc::decode_req_close_window(msg.payload);
     ipc::WindowId target_wid = slot.window_id;
     if (close_req && close_req->window_id != ipc::INVALID_WINDOW)
         target_wid = close_req->window_id;
@@ -160,8 +152,8 @@ HandleResult handle_req_close_window(DaemonContext& ctx,
         }
         else
         {
-            std::cerr << "[spectra-backend] No remaining agents for "
-                      << orphaned.size() << " orphaned figures\n";
+            std::cerr << "[spectra-backend] No remaining agents for " << orphaned.size()
+                      << " orphaned figures\n";
         }
     }
 
@@ -189,9 +181,7 @@ HandleResult handle_req_close_window(DaemonContext& ctx,
     return HandleResult::Continue;
 }
 
-HandleResult handle_req_detach_figure(DaemonContext& ctx,
-                                      ClientSlot&    slot,
-                                      const ipc::Message& msg)
+HandleResult handle_req_detach_figure(DaemonContext& ctx, ClientSlot& slot, const ipc::Message& msg)
 {
     auto detach = ipc::decode_req_detach_figure(msg.payload);
     if (!detach)
@@ -238,8 +228,8 @@ HandleResult handle_req_detach_figure(DaemonContext& ctx,
     ctx.graph.assign_figure(detach->figure_id, new_wid);
     ctx.graph.heartbeat(new_wid);
 
-    std::cerr << "[spectra-backend] Spawning new agent for detached figure, window="
-              << new_wid << "\n";
+    std::cerr << "[spectra-backend] Spawning new agent for detached figure, window=" << new_wid
+              << "\n";
 
     ctx.proc_mgr.spawn_agent_for_window(new_wid);
 
@@ -284,8 +274,7 @@ HandleResult handle_evt_input(DaemonContext& ctx, ClientSlot& /*slot*/, const ip
         case ipc::EvtInputPayload::InputType::SCROLL:
         {
             auto snap = ctx.fig_model.snapshot({input->figure_id});
-            if (!snap.figures.empty()
-                && input->axes_index < snap.figures[0].axes.size())
+            if (!snap.figures.empty() && input->axes_index < snap.figures[0].axes.size())
             {
                 const auto& ax   = snap.figures[0].axes[input->axes_index];
                 double      zoom = 1.0 - input->y * 0.1;
@@ -298,11 +287,11 @@ HandleResult handle_evt_input(DaemonContext& ctx, ClientSlot& /*slot*/, const ip
                 double hw = (ax.x_max - ax.x_min) * 0.5 * zoom;
                 double hh = (ax.y_max - ax.y_min) * 0.5 * zoom;
                 auto   op = ctx.fig_model.set_axis_limits(input->figure_id,
-                                                          input->axes_index,
-                                                          cx - hw,
-                                                          cx + hw,
-                                                          cy - hh,
-                                                          cy + hh);
+                                                        input->axes_index,
+                                                        cx - hw,
+                                                        cx + hw,
+                                                        cy - hh,
+                                                        cy + hh);
                 diff.ops.push_back(op);
             }
             break;
@@ -313,13 +302,11 @@ HandleResult handle_evt_input(DaemonContext& ctx, ClientSlot& /*slot*/, const ip
             if (input->key == 'G' || input->key == 'g')
             {
                 auto snap = ctx.fig_model.snapshot({input->figure_id});
-                if (!snap.figures.empty()
-                    && input->axes_index < snap.figures[0].axes.size())
+                if (!snap.figures.empty() && input->axes_index < snap.figures[0].axes.size())
                 {
                     bool cur = snap.figures[0].axes[input->axes_index].grid_visible;
-                    auto op  = ctx.fig_model.set_grid_visible(input->figure_id,
-                                                              input->axes_index,
-                                                              !cur);
+                    auto op =
+                        ctx.fig_model.set_grid_visible(input->figure_id, input->axes_index, !cur);
                     diff.ops.push_back(op);
                 }
             }
@@ -344,7 +331,7 @@ HandleResult handle_evt_input(DaemonContext& ctx, ClientSlot& /*slot*/, const ip
 }
 
 HandleResult handle_state_snapshot(DaemonContext& ctx,
-                                   ClientSlot&    /*slot*/,
+                                   ClientSlot& /*slot*/,
                                    const ipc::Message& msg)
 {
     // App client pushes its figures to the backend.
@@ -355,8 +342,8 @@ HandleResult handle_state_snapshot(DaemonContext& ctx,
         return HandleResult::Continue;
     }
 
-    std::cerr << "[spectra-backend] STATE_SNAPSHOT: received "
-              << incoming->figures.size() << " figure(s) from app\n";
+    std::cerr << "[spectra-backend] STATE_SNAPSHOT: received " << incoming->figures.size()
+              << " figure(s) from app\n";
 
     auto new_ids = ctx.fig_model.load_snapshot(*incoming);
 
@@ -396,9 +383,8 @@ HandleResult handle_state_snapshot(DaemonContext& ctx,
         }
         else
         {
-            std::cerr << "[spectra-backend] Spawned agent pid=" << pid
-                      << " for group " << wg << " with " << fig_indices.size()
-                      << " figure(s)"
+            std::cerr << "[spectra-backend] Spawned agent pid=" << pid << " for group " << wg
+                      << " with " << fig_indices.size() << " figure(s)"
                       << " (pre-assigned window=" << pre_wid << ")\n";
         }
     }
@@ -413,22 +399,19 @@ HandleResult handle_state_snapshot(DaemonContext& ctx,
         pid_t pid = ctx.proc_mgr.spawn_agent();
         if (pid <= 0)
         {
-            std::cerr << "[spectra-backend] Failed to spawn agent for figure "
-                      << new_ids[fi] << "\n";
+            std::cerr << "[spectra-backend] Failed to spawn agent for figure " << new_ids[fi]
+                      << "\n";
         }
         else
         {
-            std::cerr << "[spectra-backend] Spawned agent pid=" << pid
-                      << " for figure " << new_ids[fi]
-                      << " (pre-assigned window=" << pre_wid << ")\n";
+            std::cerr << "[spectra-backend] Spawned agent pid=" << pid << " for figure "
+                      << new_ids[fi] << " (pre-assigned window=" << pre_wid << ")\n";
         }
     }
     return HandleResult::Continue;
 }
 
-HandleResult handle_state_diff(DaemonContext& ctx,
-                                ClientSlot&    slot,
-                                const ipc::Message& msg)
+HandleResult handle_state_diff(DaemonContext& ctx, ClientSlot& slot, const ipc::Message& msg)
 {
     // Decode, apply to FigureModel, and forward.
     auto incoming_diff = ipc::decode_state_diff(msg.payload);

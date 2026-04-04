@@ -21,7 +21,7 @@
 #include "render/backend.hpp"
 
 #ifdef SPECTRA_USE_WEBGPU
-#    include "render/webgpu/wgpu_backend.hpp"
+    #include "render/webgpu/wgpu_backend.hpp"
 #endif
 
 using namespace spectra;
@@ -103,8 +103,8 @@ TEST(WebGPULayout, SeriesPushConstantsAlignment)
     // WebGPU uniform buffers must be 256-byte aligned.
     // SeriesPushConstants must fit within one 256-byte slot.
     constexpr size_t sz = sizeof(SeriesPushConstants);
-    EXPECT_LE(sz, 256u)
-        << "SeriesPushConstants (" << sz << " bytes) exceeds 256-byte UBO alignment budget";
+    EXPECT_LE(sz, 256u) << "SeriesPushConstants (" << sz
+                        << " bytes) exceeds 256-byte UBO alignment budget";
 }
 
 TEST(WebGPULayout, FrameUBOAlignment)
@@ -177,7 +177,7 @@ TEST(WebGPUBackendConstruction, DestructWithoutInit)
 TEST(WebGPUBackendLifecycle, InitFailsGracefullyWithoutGPU)
 {
     WebGPUBackend backend;
-    bool result = true;
+    bool          result = true;
     EXPECT_NO_THROW({ result = backend.init(/*headless=*/true); });
     // Either init succeeds (GPU available) or fails gracefully.
     (void)result;
@@ -215,7 +215,7 @@ TEST(WebGPUBackendNoOp, CreateOffscreenBeforeInit)
 
 TEST(WebGPUBackendNoOp, CreatePipelineBeforeInit)
 {
-    WebGPUBackend backend;
+    WebGPUBackend  backend;
     PipelineHandle h = backend.create_pipeline(PipelineType::Line);
     EXPECT_FALSE(static_cast<bool>(h));
 }
@@ -223,7 +223,7 @@ TEST(WebGPUBackendNoOp, CreatePipelineBeforeInit)
 TEST(WebGPUBackendNoOp, CreateBufferBeforeInit)
 {
     WebGPUBackend backend;
-    BufferHandle h = backend.create_buffer(BufferUsage::Vertex, 1024);
+    BufferHandle  h = backend.create_buffer(BufferUsage::Vertex, 1024);
     EXPECT_FALSE(static_cast<bool>(h));
 }
 
@@ -231,7 +231,7 @@ TEST(WebGPUBackendNoOp, CreateTextureBeforeInit)
 {
     WebGPUBackend backend;
     const uint8_t px[4] = {255, 0, 0, 255};
-    TextureHandle h = backend.create_texture(1, 1, px);
+    TextureHandle h     = backend.create_texture(1, 1, px);
     EXPECT_FALSE(static_cast<bool>(h));
 }
 
@@ -244,7 +244,7 @@ TEST(WebGPUBackendNoOp, BeginFrameBeforeInit)
 TEST(WebGPUBackendNoOp, ReadbackBeforeInit)
 {
     WebGPUBackend backend;
-    uint8_t buf[4]{};
+    uint8_t       buf[4]{};
     EXPECT_FALSE(backend.readback_framebuffer(buf, 1, 1));
 }
 

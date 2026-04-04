@@ -120,8 +120,8 @@ class FigureManager
     FigureRegistry&       registry_;
     std::vector<FigureId> ordered_ids_;   // Ordered list of registry IDs (tab order)
     std::unordered_map<FigureId, FigureViewModel> states_;
-    FigureId                                  active_index_ = INVALID_FIGURE_ID;
-    TabBar*                                   tab_bar_      = nullptr;
+    FigureId                                      active_index_ = INVALID_FIGURE_ID;
+    TabBar*                                       tab_bar_      = nullptr;
 
     // Convert positional index to FigureId and vice versa
     size_t   id_to_pos(FigureId id) const;

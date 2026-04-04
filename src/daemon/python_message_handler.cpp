@@ -18,29 +18,29 @@ static void apply_property_update(FigureModel&           fig_model,
                                   uint32_t               axes_index,
                                   uint32_t               series_index,
                                   const std::string&     property,
-                                  float f1, float f2, float f3, float f4,
+                                  float                  f1,
+                                  float                  f2,
+                                  float                  f3,
+                                  float                  f4,
                                   bool                   bool_val,
                                   const std::string&     str_val,
                                   ipc::StateDiffPayload& diff)
 {
     if (property == "color")
     {
-        diff.ops.push_back(
-            fig_model.set_series_color(figure_id, series_index, f1, f2, f3, f4));
+        diff.ops.push_back(fig_model.set_series_color(figure_id, series_index, f1, f2, f3, f4));
     }
     else if (property == "xlim")
     {
         double cx0, cx1, cy0, cy1;
         fig_model.get_axis_limits(figure_id, axes_index, cx0, cx1, cy0, cy1);
-        diff.ops.push_back(
-            fig_model.set_axis_limits(figure_id, axes_index, f1, f2, cy0, cy1));
+        diff.ops.push_back(fig_model.set_axis_limits(figure_id, axes_index, f1, f2, cy0, cy1));
     }
     else if (property == "ylim")
     {
         double cx0, cx1, cy0, cy1;
         fig_model.get_axis_limits(figure_id, axes_index, cx0, cx1, cy0, cy1);
-        diff.ops.push_back(
-            fig_model.set_axis_limits(figure_id, axes_index, cx0, cx1, f1, f2));
+        diff.ops.push_back(fig_model.set_axis_limits(figure_id, axes_index, cx0, cx1, f1, f2));
     }
     else if (property == "zlim")
     {
@@ -94,24 +94,26 @@ static void apply_property_update(FigureModel&           fig_model,
 
 // ─── Handlers ──────────────────────────────────────────────────────────────
 
-HandleResult handle_req_create_figure(DaemonContext& ctx,
-                                      ClientSlot&    slot,
-                                      const ipc::Message& msg)
+HandleResult handle_req_create_figure(DaemonContext& ctx, ClientSlot& slot, const ipc::Message& msg)
 {
     auto req = ipc::decode_req_create_figure(msg.payload);
     if (!req)
     {
-        send_resp_err(*slot.conn, ctx.graph.session_id(), msg.header.request_id,
-                      400, "Bad REQ_CREATE_FIGURE payload");
+        send_resp_err(*slot.conn,
+                      ctx.graph.session_id(),
+                      msg.header.request_id,
+                      400,
+                      "Bad REQ_CREATE_FIGURE payload");
         return HandleResult::Continue;
     }
 
-    auto fid = ctx.fig_model.create_figure(
-        req->title.empty() ? "Figure" : req->title, req->width, req->height);
+    auto fid = ctx.fig_model.create_figure(req->title.empty() ? "Figure" : req->title,
+                                           req->width,
+                                           req->height);
     ctx.graph.register_figure(fid, req->title);
 
-    std::cerr << "[spectra-backend] Python: created figure " << fid
-              << " title=" << req->title << "\n";
+    std::cerr << "[spectra-backend] Python: created figure " << fid << " title=" << req->title
+              << "\n";
 
     ipc::RespFigureCreatedPayload resp;
     resp.request_id = msg.header.request_id;
@@ -124,22 +126,22 @@ HandleResult handle_req_create_figure(DaemonContext& ctx,
     return HandleResult::Continue;
 }
 
-HandleResult handle_req_create_axes(DaemonContext& ctx,
-                                    ClientSlot&    slot,
-                                    const ipc::Message& msg)
+HandleResult handle_req_create_axes(DaemonContext& ctx, ClientSlot& slot, const ipc::Message& msg)
 {
     auto req = ipc::decode_req_create_axes(msg.payload);
     if (!req || !ctx.fig_model.has_figure(req->figure_id))
     {
-        send_resp_err(*slot.conn, ctx.graph.session_id(), msg.header.request_id,
-                      404, "Figure not found");
+        send_resp_err(*slot.conn,
+                      ctx.graph.session_id(),
+                      msg.header.request_id,
+                      404,
+                      "Figure not found");
         return HandleResult::Continue;
     }
 
     ctx.fig_model.set_grid(req->figure_id, req->grid_rows, req->grid_cols);
 
-    auto axes_idx =
-        ctx.fig_model.add_axes(req->figure_id, 0.0f, 1.0f, 0.0f, 1.0f, req->is_3d);
+    auto axes_idx = ctx.fig_model.add_axes(req->figure_id, 0.0f, 1.0f, 0.0f, 1.0f, req->is_3d);
 
     std::cerr << "[spectra-backend] Python: created axes " << axes_idx
               << (req->is_3d ? " (3D)" : "") << " in figure " << req->figure_id << "\n";
@@ -170,24 +172,25 @@ HandleResult handle_req_create_axes(DaemonContext& ctx,
     return HandleResult::Continue;
 }
 
-HandleResult handle_req_add_series(DaemonContext& ctx,
-                                   ClientSlot&    slot,
-                                   const ipc::Message& msg)
+HandleResult handle_req_add_series(DaemonContext& ctx, ClientSlot& slot, const ipc::Message& msg)
 {
     auto req = ipc::decode_req_add_series(msg.payload);
     if (!req || !ctx.fig_model.has_figure(req->figure_id))
     {
-        send_resp_err(*slot.conn, ctx.graph.session_id(), msg.header.request_id,
-                      404, "Figure not found");
+        send_resp_err(*slot.conn,
+                      ctx.graph.session_id(),
+                      msg.header.request_id,
+                      404,
+                      "Figure not found");
         return HandleResult::Continue;
     }
 
     uint32_t series_idx = 0;
     auto     add_op     = ctx.fig_model.add_series_with_diff(req->figure_id,
-                                                              req->label,
-                                                              req->series_type,
-                                                              req->axes_index,
-                                                              series_idx);
+                                                     req->label,
+                                                     req->series_type,
+                                                     req->axes_index,
+                                                     series_idx);
 
     std::cerr << "[spectra-backend] Python: added series " << series_idx
               << " type=" << req->series_type << " in figure " << req->figure_id << "\n";
@@ -225,15 +228,16 @@ HandleResult handle_req_add_series(DaemonContext& ctx,
     return HandleResult::Continue;
 }
 
-HandleResult handle_req_set_data(DaemonContext& ctx,
-                                 ClientSlot&    slot,
-                                 const ipc::Message& msg)
+HandleResult handle_req_set_data(DaemonContext& ctx, ClientSlot& slot, const ipc::Message& msg)
 {
     auto req = ipc::decode_req_set_data(msg.payload);
     if (!req || !ctx.fig_model.has_figure(req->figure_id))
     {
-        send_resp_err(*slot.conn, ctx.graph.session_id(), msg.header.request_id,
-                      404, "Figure not found");
+        send_resp_err(*slot.conn,
+                      ctx.graph.session_id(),
+                      msg.header.request_id,
+                      404,
+                      "Figure not found");
         return HandleResult::Continue;
     }
 
@@ -249,15 +253,18 @@ HandleResult handle_req_set_data(DaemonContext& ctx,
     return HandleResult::Continue;
 }
 
-HandleResult handle_req_update_property(DaemonContext& ctx,
-                                        ClientSlot&    slot,
+HandleResult handle_req_update_property(DaemonContext&      ctx,
+                                        ClientSlot&         slot,
                                         const ipc::Message& msg)
 {
     auto req = ipc::decode_req_update_property(msg.payload);
     if (!req || !ctx.fig_model.has_figure(req->figure_id))
     {
-        send_resp_err(*slot.conn, ctx.graph.session_id(), msg.header.request_id,
-                      404, "Figure not found");
+        send_resp_err(*slot.conn,
+                      ctx.graph.session_id(),
+                      msg.header.request_id,
+                      404,
+                      "Figure not found");
         return HandleResult::Continue;
     }
 
@@ -265,11 +272,23 @@ HandleResult handle_req_update_property(DaemonContext& ctx,
     auto                  base_rev = ctx.fig_model.revision();
 
     // Check for unknown property before applying
-    static const char* known_props[] = {
-        "color", "xlim", "ylim", "zlim", "title", "grid", "visible",
-        "line_width", "marker_size", "opacity", "xlabel", "ylabel",
-        "axes_title", "label", "legend", "legend_visible"};
-    bool known = false;
+    static const char* known_props[] = {"color",
+                                        "xlim",
+                                        "ylim",
+                                        "zlim",
+                                        "title",
+                                        "grid",
+                                        "visible",
+                                        "line_width",
+                                        "marker_size",
+                                        "opacity",
+                                        "xlabel",
+                                        "ylabel",
+                                        "axes_title",
+                                        "label",
+                                        "legend",
+                                        "legend_visible"};
+    bool               known         = false;
     for (const auto* p : known_props)
     {
         if (req->property == p)
@@ -280,8 +299,11 @@ HandleResult handle_req_update_property(DaemonContext& ctx,
     }
     if (!known)
     {
-        send_resp_err(*slot.conn, ctx.graph.session_id(), msg.header.request_id,
-                      400, "Unknown property: " + req->property);
+        send_resp_err(*slot.conn,
+                      ctx.graph.session_id(),
+                      msg.header.request_id,
+                      400,
+                      "Unknown property: " + req->property);
         return HandleResult::Continue;
     }
 
@@ -290,7 +312,10 @@ HandleResult handle_req_update_property(DaemonContext& ctx,
                           req->axes_index,
                           req->series_index,
                           req->property,
-                          req->f1, req->f2, req->f3, req->f4,
+                          req->f1,
+                          req->f2,
+                          req->f3,
+                          req->f4,
                           req->bool_val,
                           req->str_val,
                           diff);
@@ -307,21 +332,21 @@ HandleResult handle_req_update_property(DaemonContext& ctx,
     return HandleResult::Continue;
 }
 
-HandleResult handle_req_show(DaemonContext& ctx,
-                             ClientSlot&    slot,
-                             const ipc::Message& msg)
+HandleResult handle_req_show(DaemonContext& ctx, ClientSlot& slot, const ipc::Message& msg)
 {
     auto req = ipc::decode_req_show(msg.payload);
     if (!req || !ctx.fig_model.has_figure(req->figure_id))
     {
-        send_resp_err(*slot.conn, ctx.graph.session_id(), msg.header.request_id,
-                      404, "Figure not found");
+        send_resp_err(*slot.conn,
+                      ctx.graph.session_id(),
+                      msg.header.request_id,
+                      404,
+                      "Figure not found");
         return HandleResult::Continue;
     }
 
     // If window_id is specified and valid, add figure as tab to existing window
-    if (req->window_id != ipc::INVALID_WINDOW
-        && ctx.graph.agent(req->window_id) != nullptr)
+    if (req->window_id != ipc::INVALID_WINDOW && ctx.graph.agent(req->window_id) != nullptr)
     {
         std::cerr << "[spectra-backend] Python: REQ_SHOW figure=" << req->figure_id
                   << " as tab in window=" << req->window_id << "\n";
@@ -333,12 +358,11 @@ HandleResult handle_req_show(DaemonContext& ctx,
         {
             if (c.window_id == req->window_id && c.conn)
             {
-                send_assign_figures(
-                    *c.conn,
-                    req->window_id,
-                    ctx.graph.session_id(),
-                    assigned,
-                    assigned.empty() ? req->figure_id : assigned[0]);
+                send_assign_figures(*c.conn,
+                                    req->window_id,
+                                    ctx.graph.session_id(),
+                                    assigned,
+                                    assigned.empty() ? req->figure_id : assigned[0]);
 
                 auto snap = ctx.fig_model.snapshot(assigned);
                 send_state_snapshot(*c.conn, req->window_id, ctx.graph.session_id(), snap);
@@ -346,8 +370,7 @@ HandleResult handle_req_show(DaemonContext& ctx,
             }
         }
 
-        send_resp_ok(*slot.conn, ctx.graph.session_id(), msg.header.request_id,
-                     req->window_id);
+        send_resp_ok(*slot.conn, ctx.graph.session_id(), msg.header.request_id, req->window_id);
     }
     else
     {
@@ -361,29 +384,33 @@ HandleResult handle_req_show(DaemonContext& ctx,
         pid_t pid = ctx.proc_mgr.spawn_agent();
         if (pid > 0)
         {
-            std::cerr << "[spectra-backend] Spawned agent pid=" << pid
-                      << " for figure " << req->figure_id << " (window=" << new_wid << ")\n";
+            std::cerr << "[spectra-backend] Spawned agent pid=" << pid << " for figure "
+                      << req->figure_id << " (window=" << new_wid << ")\n";
             send_resp_ok(*slot.conn, ctx.graph.session_id(), msg.header.request_id, new_wid);
         }
         else
         {
             ctx.graph.remove_agent(new_wid);
-            send_resp_err(*slot.conn, ctx.graph.session_id(), msg.header.request_id,
-                          500, "Failed to spawn agent");
+            send_resp_err(*slot.conn,
+                          ctx.graph.session_id(),
+                          msg.header.request_id,
+                          500,
+                          "Failed to spawn agent");
         }
     }
     return HandleResult::Continue;
 }
 
-HandleResult handle_req_append_data(DaemonContext& ctx,
-                                    ClientSlot&    slot,
-                                    const ipc::Message& msg)
+HandleResult handle_req_append_data(DaemonContext& ctx, ClientSlot& slot, const ipc::Message& msg)
 {
     auto req = ipc::decode_req_append_data(msg.payload);
     if (!req || !ctx.fig_model.has_figure(req->figure_id))
     {
-        send_resp_err(*slot.conn, ctx.graph.session_id(), msg.header.request_id,
-                      404, "Figure not found");
+        send_resp_err(*slot.conn,
+                      ctx.graph.session_id(),
+                      msg.header.request_id,
+                      404,
+                      "Figure not found");
         return HandleResult::Continue;
     }
 
@@ -399,22 +426,23 @@ HandleResult handle_req_append_data(DaemonContext& ctx,
     return HandleResult::Continue;
 }
 
-HandleResult handle_req_remove_series(DaemonContext& ctx,
-                                      ClientSlot&    slot,
-                                      const ipc::Message& msg)
+HandleResult handle_req_remove_series(DaemonContext& ctx, ClientSlot& slot, const ipc::Message& msg)
 {
     auto req = ipc::decode_req_remove_series(msg.payload);
     if (!req || !ctx.fig_model.has_figure(req->figure_id))
     {
-        send_resp_err(*slot.conn, ctx.graph.session_id(), msg.header.request_id,
-                      404, "Figure not found");
+        send_resp_err(*slot.conn,
+                      ctx.graph.session_id(),
+                      msg.header.request_id,
+                      404,
+                      "Figure not found");
         return HandleResult::Continue;
     }
 
     auto op = ctx.fig_model.remove_series(req->figure_id, req->series_index);
 
-    std::cerr << "[spectra-backend] Python: removed series " << req->series_index
-              << " from figure " << req->figure_id << "\n";
+    std::cerr << "[spectra-backend] Python: removed series " << req->series_index << " from figure "
+              << req->figure_id << "\n";
 
     ipc::StateDiffPayload diff;
     diff.base_revision = ctx.fig_model.revision() - 1;
@@ -426,20 +454,21 @@ HandleResult handle_req_remove_series(DaemonContext& ctx,
     return HandleResult::Continue;
 }
 
-HandleResult handle_req_close_figure(DaemonContext& ctx,
-                                     ClientSlot&    slot,
-                                     const ipc::Message& msg)
+HandleResult handle_req_close_figure(DaemonContext& ctx, ClientSlot& slot, const ipc::Message& msg)
 {
     auto req = ipc::decode_req_close_figure(msg.payload);
     if (!req || !ctx.fig_model.has_figure(req->figure_id))
     {
-        send_resp_err(*slot.conn, ctx.graph.session_id(), msg.header.request_id,
-                      404, "Figure not found");
+        send_resp_err(*slot.conn,
+                      ctx.graph.session_id(),
+                      msg.header.request_id,
+                      404,
+                      "Figure not found");
         return HandleResult::Continue;
     }
 
-    std::cerr << "[spectra-backend] Python: REQ_CLOSE_FIGURE figure="
-              << req->figure_id << " (closing window, keeping figure)\n";
+    std::cerr << "[spectra-backend] Python: REQ_CLOSE_FIGURE figure=" << req->figure_id
+              << " (closing window, keeping figure)\n";
 
     // Find and close agent windows displaying this figure
     for (auto wid : ctx.graph.all_window_ids())
@@ -477,15 +506,16 @@ HandleResult handle_req_close_figure(DaemonContext& ctx,
     return HandleResult::Continue;
 }
 
-HandleResult handle_req_update_batch(DaemonContext& ctx,
-                                     ClientSlot&    slot,
-                                     const ipc::Message& msg)
+HandleResult handle_req_update_batch(DaemonContext& ctx, ClientSlot& slot, const ipc::Message& msg)
 {
     auto req = ipc::decode_req_update_batch(msg.payload);
     if (!req || req->updates.empty())
     {
-        send_resp_err(*slot.conn, ctx.graph.session_id(), msg.header.request_id,
-                      400, "Bad REQ_UPDATE_BATCH payload");
+        send_resp_err(*slot.conn,
+                      ctx.graph.session_id(),
+                      msg.header.request_id,
+                      400,
+                      "Bad REQ_UPDATE_BATCH payload");
         return HandleResult::Continue;
     }
 
@@ -502,14 +532,17 @@ HandleResult handle_req_update_batch(DaemonContext& ctx,
                               upd.axes_index,
                               upd.series_index,
                               upd.property,
-                              upd.f1, upd.f2, upd.f3, upd.f4,
+                              upd.f1,
+                              upd.f2,
+                              upd.f3,
+                              upd.f4,
                               upd.bool_val,
                               upd.str_val,
                               diff);
     }
 
-    std::cerr << "[spectra-backend] Python: batch update with "
-              << req->updates.size() << " items, " << diff.ops.size() << " applied\n";
+    std::cerr << "[spectra-backend] Python: batch update with " << req->updates.size() << " items, "
+              << diff.ops.size() << " applied\n";
 
     // Broadcast diff to agents
     if (!diff.ops.empty())
@@ -523,20 +556,22 @@ HandleResult handle_req_update_batch(DaemonContext& ctx,
     return HandleResult::Continue;
 }
 
-HandleResult handle_req_destroy_figure(DaemonContext& ctx,
-                                       ClientSlot&    slot,
+HandleResult handle_req_destroy_figure(DaemonContext&      ctx,
+                                       ClientSlot&         slot,
                                        const ipc::Message& msg)
 {
     auto req = ipc::decode_req_destroy_figure(msg.payload);
     if (!req)
     {
-        send_resp_err(*slot.conn, ctx.graph.session_id(), msg.header.request_id,
-                      400, "Bad payload");
+        send_resp_err(*slot.conn,
+                      ctx.graph.session_id(),
+                      msg.header.request_id,
+                      400,
+                      "Bad payload");
         return HandleResult::Continue;
     }
 
-    std::cerr << "[spectra-backend] Python: REQ_DESTROY_FIGURE figure="
-              << req->figure_id << "\n";
+    std::cerr << "[spectra-backend] Python: REQ_DESTROY_FIGURE figure=" << req->figure_id << "\n";
 
     ctx.fig_model.remove_figure(req->figure_id);
     ctx.graph.remove_figure(req->figure_id);
@@ -545,9 +580,7 @@ HandleResult handle_req_destroy_figure(DaemonContext& ctx,
     return HandleResult::Continue;
 }
 
-HandleResult handle_req_list_figures(DaemonContext& ctx,
-                                     ClientSlot&    slot,
-                                     const ipc::Message& msg)
+HandleResult handle_req_list_figures(DaemonContext& ctx, ClientSlot& slot, const ipc::Message& msg)
 {
     ipc::RespFigureListPayload resp;
     resp.request_id = msg.header.request_id;
@@ -561,26 +594,29 @@ HandleResult handle_req_list_figures(DaemonContext& ctx,
     return HandleResult::Continue;
 }
 
-HandleResult handle_req_reconnect(DaemonContext& ctx,
-                                  ClientSlot&    slot,
-                                  const ipc::Message& msg)
+HandleResult handle_req_reconnect(DaemonContext& ctx, ClientSlot& slot, const ipc::Message& msg)
 {
     auto req = ipc::decode_req_reconnect(msg.payload);
     if (!req)
     {
-        send_resp_err(*slot.conn, ctx.graph.session_id(), msg.header.request_id,
-                      400, "Bad REQ_RECONNECT payload");
+        send_resp_err(*slot.conn,
+                      ctx.graph.session_id(),
+                      msg.header.request_id,
+                      400,
+                      "Bad REQ_RECONNECT payload");
         return HandleResult::Continue;
     }
 
-    std::cerr << "[spectra-backend] Python: REQ_RECONNECT session="
-              << req->session_id << "\n";
+    std::cerr << "[spectra-backend] Python: REQ_RECONNECT session=" << req->session_id << "\n";
 
     // Verify session ID matches (or accept any if 0)
     if (req->session_id != 0 && req->session_id != ctx.graph.session_id())
     {
-        send_resp_err(*slot.conn, ctx.graph.session_id(), msg.header.request_id,
-                      409, "Session ID mismatch");
+        send_resp_err(*slot.conn,
+                      ctx.graph.session_id(),
+                      msg.header.request_id,
+                      409,
+                      "Session ID mismatch");
         return HandleResult::Continue;
     }
 
@@ -595,7 +631,7 @@ HandleResult handle_req_reconnect(DaemonContext& ctx,
 }
 
 HandleResult handle_req_disconnect(DaemonContext& /*ctx*/,
-                                   ClientSlot&    slot,
+                                   ClientSlot& slot,
                                    const ipc::Message& /*msg*/)
 {
     std::cerr << "[spectra-backend] Python client disconnected gracefully\n";
@@ -603,9 +639,7 @@ HandleResult handle_req_disconnect(DaemonContext& /*ctx*/,
     return HandleResult::EraseAndContinue;
 }
 
-HandleResult handle_req_get_snapshot(DaemonContext& ctx,
-                                     ClientSlot&    slot,
-                                     const ipc::Message& msg)
+HandleResult handle_req_get_snapshot(DaemonContext& ctx, ClientSlot& slot, const ipc::Message& msg)
 {
     auto snap = ctx.fig_model.snapshot();
     send_python_response(*slot.conn,

@@ -458,10 +458,10 @@ void register_standard_commands(const CommandBindings& b)
         {
             if (auto* ax = input_handler.active_axes())
             {
-                auto  old_x   = ax->x_limits();
-                auto  old_y   = ax->y_limits();
-                float dx      = (old_x.max - old_x.min) * 0.1f;
-                AxisLimits nx = {old_x.min - dx, old_x.max - dx};
+                auto       old_x = ax->x_limits();
+                auto       old_y = ax->y_limits();
+                float      dx    = (old_x.max - old_x.min) * 0.1f;
+                AxisLimits nx    = {old_x.min - dx, old_x.max - dx};
                 undoable_set_limits(&undo_mgr, *ax, nx, old_y);
             }
         },
@@ -475,10 +475,10 @@ void register_standard_commands(const CommandBindings& b)
         {
             if (auto* ax = input_handler.active_axes())
             {
-                auto  old_x   = ax->x_limits();
-                auto  old_y   = ax->y_limits();
-                float dx      = (old_x.max - old_x.min) * 0.1f;
-                AxisLimits nx = {old_x.min + dx, old_x.max + dx};
+                auto       old_x = ax->x_limits();
+                auto       old_y = ax->y_limits();
+                float      dx    = (old_x.max - old_x.min) * 0.1f;
+                AxisLimits nx    = {old_x.min + dx, old_x.max + dx};
                 undoable_set_limits(&undo_mgr, *ax, nx, old_y);
             }
         },
@@ -492,10 +492,10 @@ void register_standard_commands(const CommandBindings& b)
         {
             if (auto* ax = input_handler.active_axes())
             {
-                auto  old_x   = ax->x_limits();
-                auto  old_y   = ax->y_limits();
-                float dy      = (old_y.max - old_y.min) * 0.1f;
-                AxisLimits ny = {old_y.min + dy, old_y.max + dy};
+                auto       old_x = ax->x_limits();
+                auto       old_y = ax->y_limits();
+                float      dy    = (old_y.max - old_y.min) * 0.1f;
+                AxisLimits ny    = {old_y.min + dy, old_y.max + dy};
                 undoable_set_limits(&undo_mgr, *ax, old_x, ny);
             }
         },
@@ -509,10 +509,10 @@ void register_standard_commands(const CommandBindings& b)
         {
             if (auto* ax = input_handler.active_axes())
             {
-                auto  old_x   = ax->x_limits();
-                auto  old_y   = ax->y_limits();
-                float dy      = (old_y.max - old_y.min) * 0.1f;
-                AxisLimits ny = {old_y.min - dy, old_y.max - dy};
+                auto       old_x = ax->x_limits();
+                auto       old_y = ax->y_limits();
+                float      dy    = (old_y.max - old_y.min) * 0.1f;
+                AxisLimits ny    = {old_y.min - dy, old_y.max - dy};
                 undoable_set_limits(&undo_mgr, *ax, old_x, ny);
             }
         },
@@ -675,15 +675,11 @@ void register_standard_commands(const CommandBindings& b)
             const std::string path = "spectra_data.html";
             if (figure_to_html_table_file(*active_figure, path))
             {
-                SPECTRA_LOG_INFO("accessibility",
-                                 "HTML table exported to '{}'",
-                                 path);
+                SPECTRA_LOG_INFO("accessibility", "HTML table exported to '{}'", path);
             }
             else
             {
-                SPECTRA_LOG_WARN("accessibility",
-                                 "Failed to write HTML table to '{}'",
-                                 path);
+                SPECTRA_LOG_WARN("accessibility", "Failed to write HTML table to '{}'", path);
             }
         },
         "",
@@ -706,9 +702,7 @@ void register_standard_commands(const CommandBindings& b)
                 const std::string path = "spectra_sonify.wav";
                 if (sonify_axes_to_wav(*ax_ptr, path))
                 {
-                    SPECTRA_LOG_INFO("accessibility",
-                                     "Sonification WAV exported to '{}'",
-                                     path);
+                    SPECTRA_LOG_INFO("accessibility", "Sonification WAV exported to '{}'", path);
                 }
                 else
                 {

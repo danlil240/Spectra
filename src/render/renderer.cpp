@@ -44,9 +44,9 @@ void Renderer::destroy_series_buffers(SeriesGpuData& gpu)
         auto* entry = series_type_registry_->find_mut(gpu.custom_type_name);
         if (entry && entry->cleanup_fn)
         {
-            auto result = plugin_guard_invoke(entry->type_name.c_str(),
-                                              [&]()
-                                              { entry->cleanup_fn(backend_, gpu.plugin_gpu_state); });
+            auto result =
+                plugin_guard_invoke(entry->type_name.c_str(),
+                                    [&]() { entry->cleanup_fn(backend_, gpu.plugin_gpu_state); });
             if (result != PluginCallResult::Success)
             {
                 entry->faulted = true;

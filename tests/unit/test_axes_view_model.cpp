@@ -18,7 +18,7 @@ TEST(AxesViewModelTest, DefaultConstruction)
 
 TEST(AxesViewModelTest, ConstructWithModel)
 {
-    Axes ax;
+    Axes          ax;
     AxesViewModel vm(&ax);
     EXPECT_EQ(vm.model(), &ax);
 }
@@ -46,7 +46,7 @@ TEST(AxesViewModelTest, VisualXLimForwardsToModel)
     ax.xlim(-5.0, 5.0);
 
     AxesViewModel vm(&ax);
-    AxisLimits lim = vm.visual_xlim();
+    AxisLimits    lim = vm.visual_xlim();
     EXPECT_DOUBLE_EQ(lim.min, -5.0);
     EXPECT_DOUBLE_EQ(lim.max, 5.0);
 }
@@ -57,7 +57,7 @@ TEST(AxesViewModelTest, VisualYLimForwardsToModel)
     ax.ylim(0.0, 100.0);
 
     AxesViewModel vm(&ax);
-    AxisLimits lim = vm.visual_ylim();
+    AxisLimits    lim = vm.visual_ylim();
     EXPECT_DOUBLE_EQ(lim.min, 0.0);
     EXPECT_DOUBLE_EQ(lim.max, 100.0);
 }
@@ -95,8 +95,8 @@ TEST(AxesViewModelTest, SetVisualYLimUpdatesModel)
 TEST(AxesViewModelTest, VisualLimitsReturnDefaultsWithNoModel)
 {
     AxesViewModel vm;
-    AxisLimits xlim = vm.visual_xlim();
-    AxisLimits ylim = vm.visual_ylim();
+    AxisLimits    xlim = vm.visual_xlim();
+    AxisLimits    ylim = vm.visual_ylim();
 
     EXPECT_DOUBLE_EQ(xlim.min, 0.0);
     EXPECT_DOUBLE_EQ(xlim.max, 1.0);
@@ -141,9 +141,9 @@ TEST(AxesViewModelTest, ChangeCallbackOnVisualXLim)
     Axes ax;
     ax.xlim(0.0, 1.0);
 
-    AxesViewModel vm(&ax);
+    AxesViewModel              vm(&ax);
     AxesViewModel::ChangeField last_field{};
-    int change_count = 0;
+    int                        change_count = 0;
 
     vm.set_on_changed(
         [&](AxesViewModel&, AxesViewModel::ChangeField f)
@@ -162,9 +162,9 @@ TEST(AxesViewModelTest, ChangeCallbackOnVisualYLim)
     Axes ax;
     ax.ylim(0.0, 1.0);
 
-    AxesViewModel vm(&ax);
+    AxesViewModel              vm(&ax);
     AxesViewModel::ChangeField last_field{};
-    int change_count = 0;
+    int                        change_count = 0;
 
     vm.set_on_changed(
         [&](AxesViewModel&, AxesViewModel::ChangeField f)
@@ -180,9 +180,9 @@ TEST(AxesViewModelTest, ChangeCallbackOnVisualYLim)
 
 TEST(AxesViewModelTest, ChangeCallbackOnHover)
 {
-    AxesViewModel vm;
+    AxesViewModel              vm;
     AxesViewModel::ChangeField last_field{};
-    int change_count = 0;
+    int                        change_count = 0;
 
     vm.set_on_changed(
         [&](AxesViewModel&, AxesViewModel::ChangeField f)
@@ -198,9 +198,9 @@ TEST(AxesViewModelTest, ChangeCallbackOnHover)
 
 TEST(AxesViewModelTest, ChangeCallbackOnScrollY)
 {
-    AxesViewModel vm;
+    AxesViewModel              vm;
     AxesViewModel::ChangeField last_field{};
-    int change_count = 0;
+    int                        change_count = 0;
 
     vm.set_on_changed(
         [&](AxesViewModel&, AxesViewModel::ChangeField f)
@@ -220,7 +220,7 @@ TEST(AxesViewModelTest, NoCallbackOnSameValue)
     ax.xlim(0.0, 1.0);
 
     AxesViewModel vm(&ax);
-    int change_count = 0;
+    int           change_count = 0;
 
     vm.set_on_changed([&](AxesViewModel&, AxesViewModel::ChangeField) { ++change_count; });
 

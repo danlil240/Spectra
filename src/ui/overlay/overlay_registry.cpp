@@ -44,8 +44,7 @@ void OverlayRegistry::draw_all(const OverlayDrawContext& ctx) const
         if (entry.faulted)
             continue;
 
-        auto result = plugin_guard_invoke(entry.name.c_str(),
-                                          [&]() { entry.callback(ctx); });
+        auto result = plugin_guard_invoke(entry.name.c_str(), [&]() { entry.callback(ctx); });
         if (result != PluginCallResult::Success)
         {
             SPECTRA_LOG_ERROR("plugin",

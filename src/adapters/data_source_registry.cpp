@@ -92,7 +92,7 @@ std::vector<DataPoint> DataSourceRegistry::poll_all()
         if (e.adapter && e.adapter->is_running())
         {
             std::vector<DataPoint> pts;
-            auto guard_result =
+            auto                   guard_result =
                 plugin_guard_invoke(e.name.c_str(), [&]() { pts = e.adapter->poll(); });
             if (guard_result != PluginCallResult::Success)
             {

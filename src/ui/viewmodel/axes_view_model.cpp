@@ -5,10 +5,7 @@
 namespace spectra
 {
 
-AxesViewModel::AxesViewModel(Axes* model)
-    : model_(model)
-{
-}
+AxesViewModel::AxesViewModel(Axes* model) : model_(model) {}
 
 // ── Forwarding accessors (Phase 1: delegate to Axes model) ───────────────
 
@@ -37,20 +34,19 @@ void AxesViewModel::set_visual_xlim(double min, double max)
     if (undo_mgr_ && !suppressing_undo_)
     {
         auto* self = this;
-        undo_mgr_->push(UndoAction{
-            "Change X limits",
-            [self, old]()
-            {
-                self->suppressing_undo_ = true;
-                self->set_visual_xlim(old.min, old.max);
-                self->suppressing_undo_ = false;
-            },
-            [self, min, max]()
-            {
-                self->suppressing_undo_ = true;
-                self->set_visual_xlim(min, max);
-                self->suppressing_undo_ = false;
-            }});
+        undo_mgr_->push(UndoAction{"Change X limits",
+                                   [self, old]()
+                                   {
+                                       self->suppressing_undo_ = true;
+                                       self->set_visual_xlim(old.min, old.max);
+                                       self->suppressing_undo_ = false;
+                                   },
+                                   [self, min, max]()
+                                   {
+                                       self->suppressing_undo_ = true;
+                                       self->set_visual_xlim(min, max);
+                                       self->suppressing_undo_ = false;
+                                   }});
     }
     notify_changed(ChangeField::VisualXLim);
 }
@@ -66,20 +62,19 @@ void AxesViewModel::set_visual_ylim(double min, double max)
     if (undo_mgr_ && !suppressing_undo_)
     {
         auto* self = this;
-        undo_mgr_->push(UndoAction{
-            "Change Y limits",
-            [self, old]()
-            {
-                self->suppressing_undo_ = true;
-                self->set_visual_ylim(old.min, old.max);
-                self->suppressing_undo_ = false;
-            },
-            [self, min, max]()
-            {
-                self->suppressing_undo_ = true;
-                self->set_visual_ylim(min, max);
-                self->suppressing_undo_ = false;
-            }});
+        undo_mgr_->push(UndoAction{"Change Y limits",
+                                   [self, old]()
+                                   {
+                                       self->suppressing_undo_ = true;
+                                       self->set_visual_ylim(old.min, old.max);
+                                       self->suppressing_undo_ = false;
+                                   },
+                                   [self, min, max]()
+                                   {
+                                       self->suppressing_undo_ = true;
+                                       self->set_visual_ylim(min, max);
+                                       self->suppressing_undo_ = false;
+                                   }});
     }
     notify_changed(ChangeField::VisualYLim);
 }

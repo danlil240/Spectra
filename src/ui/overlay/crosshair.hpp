@@ -56,11 +56,11 @@ class Crosshair
     void set_theme_manager(ui::ThemeManager* tm) { theme_mgr_ = tm; }
 
    private:
-    ui::ThemeManager* theme_mgr_ = nullptr;
-    bool  enabled_     = false;
-    float dash_length_ = 6.0f;
-    float gap_length_  = 4.0f;
-    float opacity_     = 0.0f;
+    ui::ThemeManager* theme_mgr_   = nullptr;
+    bool              enabled_     = false;
+    float             dash_length_ = 6.0f;
+    float             gap_length_  = 4.0f;
+    float             opacity_     = 0.0f;
 };
 
 }   // namespace spectra

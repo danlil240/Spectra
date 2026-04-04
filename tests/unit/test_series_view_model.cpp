@@ -22,7 +22,7 @@ TEST(SeriesViewModelTest, DefaultConstruction)
 
 TEST(SeriesViewModelTest, ConstructWithModel)
 {
-    LineSeries s;
+    LineSeries      s;
     SeriesViewModel vm(&s);
     EXPECT_EQ(vm.model(), &s);
 }
@@ -62,7 +62,7 @@ TEST(SeriesViewModelTest, EffectiveColorForwardsToModel)
     s.color(colors::red);
 
     SeriesViewModel vm(&s);
-    Color c = vm.effective_color();
+    Color           c = vm.effective_color();
     EXPECT_FLOAT_EQ(c.r, colors::red.r);
     EXPECT_FLOAT_EQ(c.g, colors::red.g);
     EXPECT_FLOAT_EQ(c.b, colors::red.b);
@@ -252,9 +252,9 @@ TEST(SeriesViewModelTest, HighlightState)
 
 TEST(SeriesViewModelTest, ChangeCallbackOnVisibleOverride)
 {
-    SeriesViewModel vm;
+    SeriesViewModel              vm;
     SeriesViewModel::ChangeField last_field{};
-    int change_count = 0;
+    int                          change_count = 0;
 
     vm.set_on_changed(
         [&](SeriesViewModel&, SeriesViewModel::ChangeField f)
@@ -274,8 +274,7 @@ TEST(SeriesViewModelTest, ChangeCallbackOnClearOverride)
     vm.set_visible_override(true);
 
     int change_count = 0;
-    vm.set_on_changed(
-        [&](SeriesViewModel&, SeriesViewModel::ChangeField) { ++change_count; });
+    vm.set_on_changed([&](SeriesViewModel&, SeriesViewModel::ChangeField) { ++change_count; });
 
     vm.clear_visible_override();
     EXPECT_EQ(change_count, 1);
@@ -286,9 +285,9 @@ TEST(SeriesViewModelTest, ChangeCallbackOnModelForwarding)
     LineSeries s;
     s.visible(true);
 
-    SeriesViewModel vm(&s);
+    SeriesViewModel              vm(&s);
     SeriesViewModel::ChangeField last_field{};
-    int change_count = 0;
+    int                          change_count = 0;
 
     vm.set_on_changed(
         [&](SeriesViewModel&, SeriesViewModel::ChangeField f)
@@ -304,9 +303,9 @@ TEST(SeriesViewModelTest, ChangeCallbackOnModelForwarding)
 
 TEST(SeriesViewModelTest, ChangeCallbackOnSelection)
 {
-    SeriesViewModel vm;
+    SeriesViewModel              vm;
     SeriesViewModel::ChangeField last_field{};
-    int change_count = 0;
+    int                          change_count = 0;
 
     vm.set_on_changed(
         [&](SeriesViewModel&, SeriesViewModel::ChangeField f)
@@ -322,9 +321,9 @@ TEST(SeriesViewModelTest, ChangeCallbackOnSelection)
 
 TEST(SeriesViewModelTest, ChangeCallbackOnHighlight)
 {
-    SeriesViewModel vm;
+    SeriesViewModel              vm;
     SeriesViewModel::ChangeField last_field{};
-    int change_count = 0;
+    int                          change_count = 0;
 
     vm.set_on_changed(
         [&](SeriesViewModel&, SeriesViewModel::ChangeField f)
@@ -344,10 +343,9 @@ TEST(SeriesViewModelTest, NoCallbackOnSameValue)
     s.visible(true);
 
     SeriesViewModel vm(&s);
-    int change_count = 0;
+    int             change_count = 0;
 
-    vm.set_on_changed(
-        [&](SeriesViewModel&, SeriesViewModel::ChangeField) { ++change_count; });
+    vm.set_on_changed([&](SeriesViewModel&, SeriesViewModel::ChangeField) { ++change_count; });
 
     vm.set_visible(true);   // Same as model
     EXPECT_EQ(change_count, 0);

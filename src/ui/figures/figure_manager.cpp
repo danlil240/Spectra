@@ -22,7 +22,7 @@ FigureManager::FigureManager(FigureRegistry& registry) : registry_(registry)
         ordered_ids_.push_back(id);
         FigureState st(id, registry_.get(id));
         st.set_custom_title(default_title(id));
-        states_[id]     = std::move(st);
+        states_[id] = std::move(st);
     }
     if (!ordered_ids_.empty())
     {
@@ -71,7 +71,7 @@ FigureId FigureManager::create_figure(const FigureConfig& config)
     // Add state for the new figure (use next available figure number)
     FigureState new_state(id, registry_.get(id));
     new_state.set_custom_title(default_title(next_figure_number()));
-    states_[id]            = std::move(new_state);
+    states_[id] = std::move(new_state);
 
     // Sync tab bar
     if (tab_bar_)
@@ -568,7 +568,7 @@ FigureId FigureManager::duplicate_figure(FigureId index)
     // Create state with next available figure number
     FigureState new_state(new_id, registry_.get(new_id));
     new_state.set_custom_title(default_title(next_figure_number()));
-    states_[new_id]        = std::move(new_state);
+    states_[new_id] = std::move(new_state);
 
     // Sync tab bar
     if (tab_bar_)
@@ -865,7 +865,7 @@ void FigureManager::ensure_states()
         {
             FigureState st(id, registry_.get(id));
             st.set_custom_title(default_title(id));
-            states_[id]     = std::move(st);
+            states_[id] = std::move(st);
         }
     }
 }

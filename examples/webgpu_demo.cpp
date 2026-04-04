@@ -32,8 +32,8 @@
 // ─── Platform-specific main loop ─────────────────────────────────────────────
 
 #ifdef __EMSCRIPTEN__
-#    include <emscripten.h>
-#    include <emscripten/html5.h>
+    #include <emscripten.h>
+    #include <emscripten/html5.h>
 
 namespace
 {
@@ -131,10 +131,7 @@ int main()
         sy[i]   = std::cos(2.0f * t);
     }
 
-    ax2.scatter(sx, sy)
-        .label("Lissajous 3:2")
-        .color(spectra::rgb(1.0f, 0.7f, 0.2f))
-        .size(6.0f);
+    ax2.scatter(sx, sy).label("Lissajous 3:2").color(spectra::rgb(1.0f, 0.7f, 0.2f)).size(6.0f);
 
     ax2.title("Scatter — Lissajous Curve");
     ax2.xlabel("sin(3t)");

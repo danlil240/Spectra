@@ -7,10 +7,7 @@
 namespace spectra
 {
 
-SeriesViewModel::SeriesViewModel(Series* model)
-    : model_(model)
-{
-}
+SeriesViewModel::SeriesViewModel(Series* model) : model_(model) {}
 
 // ── Effective accessors (override → model fallback) ──────────────────────
 
@@ -62,23 +59,22 @@ void SeriesViewModel::set_visible_override(bool v)
     if (undo_mgr_ && !suppressing_undo_)
     {
         auto* self = this;
-        undo_mgr_->push(UndoAction{
-            v ? "Show series" : "Hide series",
-            [self, old]()
-            {
-                self->suppressing_undo_ = true;
-                if (old.has_value())
-                    self->set_visible_override(*old);
-                else
-                    self->clear_visible_override();
-                self->suppressing_undo_ = false;
-            },
-            [self, v]()
-            {
-                self->suppressing_undo_ = true;
-                self->set_visible_override(v);
-                self->suppressing_undo_ = false;
-            }});
+        undo_mgr_->push(UndoAction{v ? "Show series" : "Hide series",
+                                   [self, old]()
+                                   {
+                                       self->suppressing_undo_ = true;
+                                       if (old.has_value())
+                                           self->set_visible_override(*old);
+                                       else
+                                           self->clear_visible_override();
+                                       self->suppressing_undo_ = false;
+                                   },
+                                   [self, v]()
+                                   {
+                                       self->suppressing_undo_ = true;
+                                       self->set_visible_override(v);
+                                       self->suppressing_undo_ = false;
+                                   }});
     }
     notify_changed(ChangeField::Visible);
 }
@@ -93,8 +89,8 @@ void SeriesViewModel::clear_visible_override()
 
 void SeriesViewModel::set_color_override(const Color& c)
 {
-    if (color_override_.has_value() && color_override_->r == c.r && color_override_->g == c.g &&
-        color_override_->b == c.b && color_override_->a == c.a)
+    if (color_override_.has_value() && color_override_->r == c.r && color_override_->g == c.g
+        && color_override_->b == c.b && color_override_->a == c.a)
         return;
     color_override_ = c;
     notify_changed(ChangeField::Color);
@@ -117,23 +113,22 @@ void SeriesViewModel::set_label_override(const std::string& lbl)
     if (undo_mgr_ && !suppressing_undo_)
     {
         auto* self = this;
-        undo_mgr_->push(UndoAction{
-            "Rename series",
-            [self, old]()
-            {
-                self->suppressing_undo_ = true;
-                if (old.has_value())
-                    self->set_label_override(*old);
-                else
-                    self->clear_label_override();
-                self->suppressing_undo_ = false;
-            },
-            [self, lbl]()
-            {
-                self->suppressing_undo_ = true;
-                self->set_label_override(lbl);
-                self->suppressing_undo_ = false;
-            }});
+        undo_mgr_->push(UndoAction{"Rename series",
+                                   [self, old]()
+                                   {
+                                       self->suppressing_undo_ = true;
+                                       if (old.has_value())
+                                           self->set_label_override(*old);
+                                       else
+                                           self->clear_label_override();
+                                       self->suppressing_undo_ = false;
+                                   },
+                                   [self, lbl]()
+                                   {
+                                       self->suppressing_undo_ = true;
+                                       self->set_label_override(lbl);
+                                       self->suppressing_undo_ = false;
+                                   }});
     }
     notify_changed(ChangeField::Label);
 }
@@ -175,20 +170,19 @@ void SeriesViewModel::set_visible(bool v)
     if (undo_mgr_ && !suppressing_undo_)
     {
         auto* self = this;
-        undo_mgr_->push(UndoAction{
-            v ? "Show series" : "Hide series",
-            [self, old]()
-            {
-                self->suppressing_undo_ = true;
-                self->set_visible(old);
-                self->suppressing_undo_ = false;
-            },
-            [self, v]()
-            {
-                self->suppressing_undo_ = true;
-                self->set_visible(v);
-                self->suppressing_undo_ = false;
-            }});
+        undo_mgr_->push(UndoAction{v ? "Show series" : "Hide series",
+                                   [self, old]()
+                                   {
+                                       self->suppressing_undo_ = true;
+                                       self->set_visible(old);
+                                       self->suppressing_undo_ = false;
+                                   },
+                                   [self, v]()
+                                   {
+                                       self->suppressing_undo_ = true;
+                                       self->set_visible(v);
+                                       self->suppressing_undo_ = false;
+                                   }});
     }
     notify_changed(ChangeField::Visible);
 }
@@ -212,20 +206,19 @@ void SeriesViewModel::set_label(const std::string& lbl)
     if (undo_mgr_ && !suppressing_undo_)
     {
         auto* self = this;
-        undo_mgr_->push(UndoAction{
-            "Rename series",
-            [self, old]()
-            {
-                self->suppressing_undo_ = true;
-                self->set_label(old);
-                self->suppressing_undo_ = false;
-            },
-            [self, lbl]()
-            {
-                self->suppressing_undo_ = true;
-                self->set_label(lbl);
-                self->suppressing_undo_ = false;
-            }});
+        undo_mgr_->push(UndoAction{"Rename series",
+                                   [self, old]()
+                                   {
+                                       self->suppressing_undo_ = true;
+                                       self->set_label(old);
+                                       self->suppressing_undo_ = false;
+                                   },
+                                   [self, lbl]()
+                                   {
+                                       self->suppressing_undo_ = true;
+                                       self->set_label(lbl);
+                                       self->suppressing_undo_ = false;
+                                   }});
     }
     notify_changed(ChangeField::Label);
 }

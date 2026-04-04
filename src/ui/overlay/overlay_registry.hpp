@@ -64,7 +64,7 @@ class OverlayRegistry
         bool         faulted = false;   // Set true on crash/exception to skip future invocations
     };
 
-    mutable std::mutex       mutex_;
+    mutable std::mutex         mutex_;
     mutable std::vector<Entry> overlays_;
 };
 

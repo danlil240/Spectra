@@ -73,7 +73,7 @@ class ExportFormatRegistry
         bool           faulted = false;   // Set true on crash/exception
     };
 
-    mutable std::mutex       mutex_;
+    mutable std::mutex         mutex_;
     mutable std::vector<Entry> formats_;
 };
 

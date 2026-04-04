@@ -73,24 +73,24 @@ class SeriesViewModel
     // ── Override management ──────────────────────────────────────────
 
     // Visibility override (per-window show/hide).
-    bool                         has_visible_override() const { return visible_override_.has_value(); }
-    void                         set_visible_override(bool v);
-    void                         clear_visible_override();
+    bool has_visible_override() const { return visible_override_.has_value(); }
+    void set_visible_override(bool v);
+    void clear_visible_override();
 
     // Color override (per-window color change).
-    bool                         has_color_override() const { return color_override_.has_value(); }
-    void                         set_color_override(const Color& c);
-    void                         clear_color_override();
+    bool has_color_override() const { return color_override_.has_value(); }
+    void set_color_override(const Color& c);
+    void clear_color_override();
 
     // Label override (user-edited display name).
-    bool                         has_label_override() const { return label_override_.has_value(); }
-    void                         set_label_override(const std::string& lbl);
-    void                         clear_label_override();
+    bool has_label_override() const { return label_override_.has_value(); }
+    void set_label_override(const std::string& lbl);
+    void clear_label_override();
 
     // Opacity override (per-window opacity tweak).
-    bool                         has_opacity_override() const { return opacity_override_.has_value(); }
-    void                         set_opacity_override(float o);
-    void                         clear_opacity_override();
+    bool has_opacity_override() const { return opacity_override_.has_value(); }
+    void set_opacity_override(float o);
+    void clear_opacity_override();
 
     // ── Direct forwarding to model (Phase 1 convenience) ─────────────
     // These modify the underlying Series model directly, matching the

@@ -557,7 +557,7 @@ void BagPlayer::inject_message(const BagMessage& msg)
                 continue;
 
             TopicFields::FieldEntry fe;
-            fe.accessor = std::move(acc);
+            fe.accessor                  = std::move(acc);
             tf.field_entries[field_path] = std::move(fe);
         }
     }
@@ -603,8 +603,7 @@ void BagPlayer::inject_message(const BagMessage& msg)
                 // Check primary series.
                 if (se->topic == msg.topic && se->field_path == field_path && se->series)
                 {
-                    se->series->append(static_cast<float>(bag_time_sec),
-                                       static_cast<float>(value));
+                    se->series->append(static_cast<float>(bag_time_sec), static_cast<float>(value));
                 }
 
                 // Check extra series in this slot.

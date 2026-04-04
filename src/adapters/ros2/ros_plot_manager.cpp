@@ -84,7 +84,7 @@ PlotHandle RosPlotManager::add_plot(const std::string& topic,
         cs.enable_lod(chunked_lod_);
         if (chunked_memory_budget_ > 0)
             cs.set_memory_budget(chunked_memory_budget_);
-        entry->chunked    = &cs;
+        entry->chunked     = &cs;
         entry->base_series = &cs;
     }
     else
@@ -360,8 +360,7 @@ void RosPlotManager::poll()
                 const FieldSample& s     = entry->drain_buf[i];
                 const double       t_sec = static_cast<double>(s.timestamp_ns) * 1e-9;
                 const double       t_rel = t_sec - origin;
-                entry->base_series->append(static_cast<float>(t_rel),
-                                           static_cast<float>(s.value));
+                entry->base_series->append(static_cast<float>(t_rel), static_cast<float>(s.value));
 
                 if (on_data_cb_)
                     on_data_cb_(entry->id, t_sec, s.value);

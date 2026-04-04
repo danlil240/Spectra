@@ -88,11 +88,11 @@ class App
     // that should share one OS window.
     std::vector<std::vector<FigureId>> compute_window_groups() const;
 
-    AppConfig                 config_;
-    FigureRegistry            registry_;
+    AppConfig                         config_;
+    FigureRegistry                    registry_;
     std::unique_ptr<ui::ThemeManager> theme_mgr_;
-    std::unique_ptr<Backend>  backend_;
-    std::unique_ptr<Renderer> renderer_;
+    std::unique_ptr<Backend>          backend_;
+    std::unique_ptr<Renderer>         renderer_;
 
     // Maps a FigureId to the FigureId it should be tabbed next to.
     // Figures not in this map get their own window.

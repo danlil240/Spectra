@@ -5,11 +5,11 @@
 namespace spectra::daemon
 {
 
-bool send_assign_figures(ipc::Connection&              conn,
-                         ipc::WindowId                 wid,
-                         ipc::SessionId                sid,
-                         const std::vector<uint64_t>&  figure_ids,
-                         uint64_t                      active_figure_id)
+bool send_assign_figures(ipc::Connection&             conn,
+                         ipc::WindowId                wid,
+                         ipc::SessionId               sid,
+                         const std::vector<uint64_t>& figure_ids,
+                         uint64_t                     active_figure_id)
 {
     ipc::CmdAssignFiguresPayload payload;
     payload.window_id        = wid;
@@ -25,10 +25,10 @@ bool send_assign_figures(ipc::Connection&              conn,
     return conn.send(msg);
 }
 
-bool send_state_snapshot(ipc::Connection&                  conn,
-                         ipc::WindowId                     wid,
-                         ipc::SessionId                    sid,
-                         const ipc::StateSnapshotPayload&  snap)
+bool send_state_snapshot(ipc::Connection&                 conn,
+                         ipc::WindowId                    wid,
+                         ipc::SessionId                   sid,
+                         const ipc::StateSnapshotPayload& snap)
 {
     ipc::Message msg;
     msg.header.type        = ipc::MessageType::STATE_SNAPSHOT;
@@ -39,10 +39,10 @@ bool send_state_snapshot(ipc::Connection&                  conn,
     return conn.send(msg);
 }
 
-bool send_state_diff(ipc::Connection&              conn,
-                     ipc::WindowId                 wid,
-                     ipc::SessionId                sid,
-                     const ipc::StateDiffPayload&  diff)
+bool send_state_diff(ipc::Connection&             conn,
+                     ipc::WindowId                wid,
+                     ipc::SessionId               sid,
+                     const ipc::StateDiffPayload& diff)
 {
     ipc::Message msg;
     msg.header.type        = ipc::MessageType::STATE_DIFF;
@@ -53,9 +53,9 @@ bool send_state_diff(ipc::Connection&              conn,
     return conn.send(msg);
 }
 
-bool send_close_window(ipc::Connection& conn,
-                       ipc::WindowId    wid,
-                       ipc::SessionId   sid,
+bool send_close_window(ipc::Connection&   conn,
+                       ipc::WindowId      wid,
+                       ipc::SessionId     sid,
                        const std::string& reason)
 {
     ipc::CmdCloseWindowPayload payload;
@@ -116,8 +116,7 @@ bool send_resp_ok(ipc::Connection& conn,
     return conn.send(msg);
 }
 
-void broadcast_diff_to_agents(DaemonContext&               ctx,
-                              const ipc::StateDiffPayload& diff)
+void broadcast_diff_to_agents(DaemonContext& ctx, const ipc::StateDiffPayload& diff)
 {
     for (auto& c : ctx.clients)
     {
@@ -128,8 +127,7 @@ void broadcast_diff_to_agents(DaemonContext&               ctx,
     }
 }
 
-void broadcast_diff_to_all(DaemonContext&               ctx,
-                           const ipc::StateDiffPayload& diff)
+void broadcast_diff_to_all(DaemonContext& ctx, const ipc::StateDiffPayload& diff)
 {
     for (auto& c : ctx.clients)
     {
@@ -146,15 +144,14 @@ void notify_python_window_closed(DaemonContext&     ctx,
                                  const std::string& reason)
 {
     ipc::EvtWindowClosedPayload evt;
-    evt.figure_id = figure_id;
-    evt.window_id = window_id;
-    evt.reason    = reason;
+    evt.figure_id    = figure_id;
+    evt.window_id    = window_id;
+    evt.reason       = reason;
     auto evt_payload = ipc::encode_evt_window_closed(evt);
 
     for (auto& c : ctx.clients)
     {
-        if (c.conn && c.conn->is_open() && c.handshake_done
-            && c.client_type == ClientType::PYTHON)
+        if (c.conn && c.conn->is_open() && c.handshake_done && c.client_type == ClientType::PYTHON)
         {
             ipc::Message evt_msg;
             evt_msg.header.type        = ipc::MessageType::EVT_WINDOW_CLOSED;
@@ -166,8 +163,7 @@ void notify_python_window_closed(DaemonContext&     ctx,
     }
 }
 
-void redistribute_orphaned_figures(DaemonContext&               ctx,
-                                   const std::vector<uint64_t>& orphaned)
+void redistribute_orphaned_figures(DaemonContext& ctx, const std::vector<uint64_t>& orphaned)
 {
     if (orphaned.empty())
         return;

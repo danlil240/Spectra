@@ -25,7 +25,7 @@ void DataInteraction::set_fonts(ImFont* body, ImFont* heading, ImFont* icon)
 
 void DataInteraction::set_theme_manager(ui::ThemeManager* tm)
 {
-    theme_mgr_     = tm;
+    theme_mgr_ = tm;
     crosshair_.set_theme_manager(tm);
     tooltip_.set_theme_manager(tm);
     markers_.set_theme_manager(tm);

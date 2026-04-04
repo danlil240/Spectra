@@ -25,7 +25,7 @@ TEST(FigureViewModelTest, DefaultConstruction)
 
 TEST(FigureViewModelTest, ConstructWithIdAndModel)
 {
-    Figure fig;
+    Figure          fig;
     FigureViewModel vm(42, &fig);
     EXPECT_EQ(vm.figure_id(), 42u);
     EXPECT_EQ(vm.model(), &fig);
@@ -97,7 +97,7 @@ TEST(FigureViewModelTest, SaveWithNoModelIsNoop)
 
 TEST(FigureViewModelTest, RestoreWithNoModelIsNoop)
 {
-    FigureViewModel vm;
+    FigureViewModel               vm;
     FigureViewModel::AxesSnapshot snap;
     snap.x_limits = {-10.0, 10.0};
     snap.y_limits = {-10.0, 10.0};
@@ -155,8 +155,8 @@ TEST(FigureViewModelTest, FigureStateAliasWorks)
 
 TEST(FigureViewModelTest, ChangeCallbackFiresOnSetters)
 {
-    FigureViewModel vm;
-    int call_count = 0;
+    FigureViewModel              vm;
+    int                          call_count = 0;
     FigureViewModel::ChangeField last_field{};
     vm.set_on_changed(
         [&](FigureViewModel&, FigureViewModel::ChangeField f)
@@ -193,7 +193,7 @@ TEST(FigureViewModelTest, ChangeCallbackFiresOnSetters)
 TEST(FigureViewModelTest, NoCallbackOnSameValue)
 {
     FigureViewModel vm;
-    int call_count = 0;
+    int             call_count = 0;
     vm.set_on_changed([&](FigureViewModel&, FigureViewModel::ChangeField) { ++call_count; });
 
     vm.set_selected_series_index(-1);   // default is -1 — no change
@@ -266,12 +266,12 @@ TEST(FigureViewModelTest, ThreeDModePerFigure)
     vm2.set_is_in_3d_mode(true);
     vm1.set_is_in_3d_mode(false);
     EXPECT_FALSE(vm1.is_in_3d_mode());
-    EXPECT_TRUE(vm2.is_in_3d_mode());    // Still independent
+    EXPECT_TRUE(vm2.is_in_3d_mode());   // Still independent
 }
 
 TEST(FigureViewModelTest, ModelPointerWiredOnConstruction)
 {
-    Figure fig;
+    Figure          fig;
     FigureViewModel vm(42, &fig);
 
     EXPECT_EQ(vm.figure_id(), 42u);
@@ -292,7 +292,7 @@ TEST(FigureViewModelTest, ModelPointerWiredOnConstruction)
 
 TEST(FigureViewModelTest, UndoCustomTitle)
 {
-    UndoManager undo;
+    UndoManager     undo;
     FigureViewModel vm(1, nullptr);
     vm.set_undo_manager(&undo);
 
@@ -312,7 +312,7 @@ TEST(FigureViewModelTest, UndoCustomTitle)
 
 TEST(FigureViewModelTest, Undo3DMode)
 {
-    UndoManager undo;
+    UndoManager     undo;
     FigureViewModel vm(1, nullptr);
     vm.set_undo_manager(&undo);
 
@@ -331,7 +331,7 @@ TEST(FigureViewModelTest, Undo3DMode)
 
 TEST(FigureViewModelTest, UndoSeriesSelection)
 {
-    UndoManager undo;
+    UndoManager     undo;
     FigureViewModel vm(1, nullptr);
     vm.set_undo_manager(&undo);
 

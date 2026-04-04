@@ -49,7 +49,7 @@ TEST_F(HtmlTableTest, ContainsAxesTitleAndLabels)
 
 TEST_F(HtmlTableTest, DataValuesAppearsInRows)
 {
-    auto& ax = fig_.subplot(1, 1, 1);
+    auto& ax  = fig_.subplot(1, 1, 1);
     float x[] = {1.0f, 2.0f, 3.0f};
     float y[] = {10.0f, 20.0f, 30.0f};
     ax.line(x, y).label("series");
@@ -75,7 +75,7 @@ TEST_F(HtmlTableTest, HtmlSpecialCharsEscaped)
 
 TEST_F(HtmlTableTest, WriteToFileSucceeds)
 {
-    auto& ax = fig_.subplot(1, 1, 1);
+    auto& ax  = fig_.subplot(1, 1, 1);
     float x[] = {0.0f, 1.0f};
     float y[] = {0.0f, 1.0f};
     ax.line(x, y);
@@ -96,7 +96,7 @@ TEST_F(HtmlTableTest, SectionAriaLabelPresent)
 
 TEST_F(HtmlTableTest, TheadWithScopePresent)
 {
-    auto& ax = fig_.subplot(1, 1, 1);
+    auto& ax  = fig_.subplot(1, 1, 1);
     float x[] = {1.0f};
     float y[] = {2.0f};
     ax.line(x, y).label("s");
@@ -130,16 +130,16 @@ class SonificationTest : public ::testing::Test
 
 TEST_F(SonificationTest, EmptyAxesReturnsEmpty)
 {
-    auto& ax = fig_.subplot(1, 1, 1);
+    auto& ax  = fig_.subplot(1, 1, 1);
     auto  pcm = sonify_axes(static_cast<const Axes&>(ax));
     EXPECT_TRUE(pcm.empty());
 }
 
 TEST_F(SonificationTest, LineSeriesProducesSamples)
 {
-    auto&  ax  = fig_.subplot(1, 1, 1);
-    float  x[] = {0.0f, 1.0f, 2.0f, 3.0f, 4.0f};
-    float  y[] = {0.0f, 1.0f, 2.0f, 1.0f, 0.0f};
+    auto& ax  = fig_.subplot(1, 1, 1);
+    float x[] = {0.0f, 1.0f, 2.0f, 3.0f, 4.0f};
+    float y[] = {0.0f, 1.0f, 2.0f, 1.0f, 0.0f};
     ax.line(x, y).label("wave");
 
     SonificationParams params;

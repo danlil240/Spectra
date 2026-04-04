@@ -6,8 +6,7 @@ namespace spectra::daemon
 {
 
 HeartbeatMonitor::HeartbeatMonitor(std::chrono::milliseconds agent_timeout)
-    : agent_timeout_(agent_timeout)
-    , last_check_(std::chrono::steady_clock::now())
+    : agent_timeout_(agent_timeout), last_check_(std::chrono::steady_clock::now())
 {
 }
 
@@ -48,10 +47,8 @@ void HeartbeatMonitor::tick(DaemonContext& ctx)
     // Remove closed connections
     auto& clients = ctx.clients;
     clients.erase(std::remove_if(clients.begin(),
-                                  clients.end(),
-                                  [](const ClientSlot& c) {
-                                      return !c.conn || !c.conn->is_open();
-                                  }),
+                                 clients.end(),
+                                 [](const ClientSlot& c) { return !c.conn || !c.conn->is_open(); }),
                   clients.end());
 
     // Reap zombie child processes

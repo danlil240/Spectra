@@ -393,7 +393,7 @@ TEST_F(FigureManagerTest, ModifiedOutOfBounds)
 TEST_F(FigureManagerTest, StateAccessor)
 {
     FigureManager mgr(registry_);
-    auto&         st         = mgr.state(first_id_);
+    auto&         st = mgr.state(first_id_);
     st.set_selected_series_index(3);
     EXPECT_EQ(mgr.state(first_id_).selected_series_index(), 3);
 }

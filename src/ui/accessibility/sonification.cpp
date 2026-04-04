@@ -70,29 +70,29 @@ std::vector<int16_t> sonify_axes(const Axes& axes, const SonificationParams& par
     std::vector<int16_t> pcm(total_samples, 0);
 
     // Number of data points and total samples map linearly.
-    const size_t n = xd.size();
+    const size_t n     = xd.size();
     double       phase = 0.0;   // accumulated phase in radians
 
     for (uint32_t si = 0; si < total_samples; ++si)
     {
         // Which data point does this sample correspond to?
-        double t      = static_cast<double>(si) / static_cast<double>(total_samples - 1);
-        size_t di     = static_cast<size_t>(t * static_cast<double>(n - 1));
-        di             = std::min(di, n - 1);
-        float  y_val   = yd[di];
+        double t    = static_cast<double>(si) / static_cast<double>(total_samples - 1);
+        size_t di   = static_cast<size_t>(t * static_cast<double>(n - 1));
+        di          = std::min(di, n - 1);
+        float y_val = yd[di];
 
         // Map y_val to frequency (linear).
-        float  norm    = (y_val - ymin) / (ymax - ymin);
-        double freq    = static_cast<double>(params.freq_lo_hz)
-                       + static_cast<double>(norm)
-                             * static_cast<double>(params.freq_hi_hz - params.freq_lo_hz);
+        float  norm = (y_val - ymin) / (ymax - ymin);
+        double freq = static_cast<double>(params.freq_lo_hz)
+                      + static_cast<double>(norm)
+                            * static_cast<double>(params.freq_hi_hz - params.freq_lo_hz);
 
         // Advance phase and generate sample.
         phase = std::fmod(phase + 2.0 * M_PI * freq / static_cast<double>(params.sample_rate),
                           2.0 * M_PI);
 
         float sample = params.amplitude * static_cast<float>(std::sin(phase));
-        pcm[si] = static_cast<int16_t>(sample * 32767.0f);
+        pcm[si]      = static_cast<int16_t>(sample * 32767.0f);
     }
 
     return pcm;
@@ -110,12 +110,12 @@ bool write_wav(const std::string& path, const std::vector<int16_t>& pcm, uint32_
     if (!f.is_open())
         return false;
 
-    constexpr uint16_t channels   = 1;
-    constexpr uint16_t bit_depth  = 16;
-    uint32_t           byte_rate  = sample_rate * channels * (bit_depth / 8u);
+    constexpr uint16_t channels    = 1;
+    constexpr uint16_t bit_depth   = 16;
+    uint32_t           byte_rate   = sample_rate * channels * (bit_depth / 8u);
     uint16_t           block_align = static_cast<uint16_t>(channels * (bit_depth / 8u));
-    uint32_t           data_bytes = static_cast<uint32_t>(pcm.size()) * sizeof(int16_t);
-    uint32_t           riff_size  = 36u + data_bytes;
+    uint32_t           data_bytes  = static_cast<uint32_t>(pcm.size()) * sizeof(int16_t);
+    uint32_t           riff_size   = 36u + data_bytes;
 
     // RIFF chunk descriptor
     f.write("RIFF", 4);
@@ -124,8 +124,8 @@ bool write_wav(const std::string& path, const std::vector<int16_t>& pcm, uint32_
 
     // fmt sub-chunk
     f.write("fmt ", 4);
-    write_le(f, uint32_t{16}, 4);       // PCM sub-chunk size
-    write_le(f, uint16_t{1}, 2);        // PCM format
+    write_le(f, uint32_t{16}, 4);   // PCM sub-chunk size
+    write_le(f, uint16_t{1}, 2);    // PCM format
     write_le(f, channels, 2);
     write_le(f, sample_rate, 4);
     write_le(f, byte_rate, 4);
@@ -135,8 +135,7 @@ bool write_wav(const std::string& path, const std::vector<int16_t>& pcm, uint32_
     // data sub-chunk
     f.write("data", 4);
     write_le(f, data_bytes, 4);
-    f.write(reinterpret_cast<const char*>(pcm.data()),
-            static_cast<std::streamsize>(data_bytes));
+    f.write(reinterpret_cast<const char*>(pcm.data()), static_cast<std::streamsize>(data_bytes));
 
     return f.good();
 }

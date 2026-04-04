@@ -58,11 +58,11 @@ class Tooltip
     void set_theme_manager(ui::ThemeManager* tm) { theme_mgr_ = tm; }
 
    private:
-    ui::ThemeManager* theme_mgr_ = nullptr;
-    ImFont* font_body_      = nullptr;
-    ImFont* font_heading_   = nullptr;
-    float   snap_radius_px_ = 8.0f;
-    bool    enabled_        = true;
+    ui::ThemeManager* theme_mgr_      = nullptr;
+    ImFont*           font_body_      = nullptr;
+    ImFont*           font_heading_   = nullptr;
+    float             snap_radius_px_ = 8.0f;
+    bool              enabled_        = true;
 
     // Animation state
     float opacity_        = 0.0f;

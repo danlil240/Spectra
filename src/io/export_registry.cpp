@@ -92,8 +92,9 @@ bool ExportFormatRegistry::export_figure(const std::string& format_name,
     auto result = plugin_guard_invoke(format_name.c_str(), [&]() { ok = cb(ctx); });
     if (result != PluginCallResult::Success)
     {
-        SPECTRA_LOG_ERROR(
-            "plugin", "Export format '{}' faulted during export — disabling", format_name);
+        SPECTRA_LOG_ERROR("plugin",
+                          "Export format '{}' faulted during export — disabling",
+                          format_name);
         // Mark the entry as faulted so future exports skip it.
         std::lock_guard lock(mutex_);
         for (auto& entry : formats_)

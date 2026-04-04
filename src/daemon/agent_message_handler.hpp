@@ -11,12 +11,12 @@ namespace spectra::daemon
 
 HandleResult handle_hello(DaemonContext& ctx, ClientSlot& slot, const ipc::Message& msg);
 HandleResult handle_heartbeat(DaemonContext& ctx, ClientSlot& slot, const ipc::Message& msg);
-HandleResult handle_req_create_window(DaemonContext& ctx, ClientSlot& slot, const ipc::Message& msg);
-HandleResult handle_req_close_window(DaemonContext& ctx,
-                                     ClientSlot&    slot,
-                                     const ipc::Message& msg);
-HandleResult handle_req_detach_figure(DaemonContext& ctx,
-                                      ClientSlot&    slot,
+HandleResult handle_req_create_window(DaemonContext&      ctx,
+                                      ClientSlot&         slot,
+                                      const ipc::Message& msg);
+HandleResult handle_req_close_window(DaemonContext& ctx, ClientSlot& slot, const ipc::Message& msg);
+HandleResult handle_req_detach_figure(DaemonContext&      ctx,
+                                      ClientSlot&         slot,
                                       const ipc::Message& msg);
 HandleResult handle_evt_window(DaemonContext& ctx, ClientSlot& slot, const ipc::Message& msg);
 HandleResult handle_evt_input(DaemonContext& ctx, ClientSlot& slot, const ipc::Message& msg);

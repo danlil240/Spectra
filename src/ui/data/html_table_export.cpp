@@ -63,8 +63,8 @@ static std::string series_2d_table(const Series& s, int series_idx)
     if (!line && !scatter)
         return {};
 
-    const std::string lbl = s.label().empty() ? ("Series " + std::to_string(series_idx + 1))
-                                               : s.label();
+    const std::string lbl =
+        s.label().empty() ? ("Series " + std::to_string(series_idx + 1)) : s.label();
 
     std::string xname = "X";
     std::string yname = "Y";
@@ -102,13 +102,13 @@ static std::string series_2d_table(const Series& s, int series_idx)
 // Render a single 3D series as an HTML <table>.
 static std::string series_3d_table(const Series& s, int series_idx)
 {
-    const auto* line3  = dynamic_cast<const LineSeries3D*>(&s);
-    const auto* scat3  = dynamic_cast<const ScatterSeries3D*>(&s);
+    const auto* line3 = dynamic_cast<const LineSeries3D*>(&s);
+    const auto* scat3 = dynamic_cast<const ScatterSeries3D*>(&s);
     if (!line3 && !scat3)
         return {};
 
-    const std::string lbl = s.label().empty() ? ("Series " + std::to_string(series_idx + 1))
-                                               : s.label();
+    const std::string lbl =
+        s.label().empty() ? ("Series " + std::to_string(series_idx + 1)) : s.label();
 
     std::ostringstream o;
     o << "<table>\n"

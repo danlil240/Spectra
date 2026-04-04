@@ -1,8 +1,7 @@
 // transform_smooth.cpp — Example Spectra plugin: moving-average smoothing transform
 //
 // Build as a shared library:
-//   g++ -shared -fPIC -std=c++20 -o libtransform_smooth.so transform_smooth.cpp
-//       -I<spectra>/include -I<spectra>/src
+//   g++ -shared -fPIC -std=c++20 -I<spectra>/include -I<spectra>/src -o libtransform_smooth.so transform_smooth.cpp
 //
 // Place the resulting .so in ~/.config/spectra/plugins/ or load via View → Plugins.
 

@@ -136,9 +136,12 @@ inline PayloadFormat detect_payload_format(std::span<const uint8_t> payload)
 }
 
 // Strip the 1-byte format prefix from a FlatBuffers payload.
-inline std::span<const uint8_t> strip_fb_prefix(std::span<const uint8_t> payload)
+// Returns a heap-allocated copy so the buffer is properly aligned for
+// FlatBuffers access (the original span at offset +1 may be misaligned).
+inline std::vector<uint8_t> strip_fb_prefix(std::span<const uint8_t> payload)
 {
-    return payload.subspan(1);
+    auto stripped = payload.subspan(1);
+    return {stripped.begin(), stripped.end()};
 }
 
 }   // namespace spectra::ipc

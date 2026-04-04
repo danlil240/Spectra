@@ -2,12 +2,20 @@
 
 #include <gtest/gtest.h>
 
+#include <cstdlib>
 #include <stdexcept>
 
 #include "ui/overlay/overlay_registry.hpp"
 #include "ui/workspace/plugin_guard.hpp"
 
 using namespace spectra;
+
+// UBSan intercepts null-pointer dereferences before our signal handler can act,
+// so crash-recovery tests must be skipped under UBSan.
+static bool running_under_ubsan()
+{
+    return std::getenv("UBSAN_OPTIONS") != nullptr;
+}
 
 // ─── Basic guard tests ──────────────────────────────────────────────────────
 
@@ -41,6 +49,9 @@ TEST(PluginGuard, NullContextName)
 #ifndef _WIN32
 TEST(PluginGuard, CatchSegfault)
 {
+    if (running_under_ubsan())
+        GTEST_SKIP() << "Skipped under UBSan (intentional null deref)";
+
     auto result = plugin_guard_invoke("segfault_test",
                                       [&]()
                                       {
@@ -78,6 +89,9 @@ TEST(PluginGuard, RecoveryAfterException)
 #ifndef _WIN32
 TEST(PluginGuard, RecoveryAfterSignal)
 {
+    if (running_under_ubsan())
+        GTEST_SKIP() << "Skipped under UBSan (intentional null deref)";
+
     // First call: segfault
     auto r1 = plugin_guard_invoke("crash",
                                   [&]()

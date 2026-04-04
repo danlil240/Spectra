@@ -63,6 +63,7 @@ constexpr int KEY_T = 84;
 constexpr int KEY_V = 86;
 constexpr int KEY_W = 87;
 constexpr int KEY_X = 88;
+constexpr int KEY_Y = 89;
 }   // namespace glfw_keys
 
 static std::string key_to_string(int key)
@@ -392,7 +393,7 @@ void ShortcutManager::register_defaults()
 
     // Undo/redo
     bind({KEY_Z, KeyMod::Control}, "edit.undo");
-    bind({KEY_Z, KeyMod::Control | KeyMod::Shift}, "edit.redo");
+    bind({KEY_Y, KeyMod::Control}, "edit.redo");
 
     // Split view (KEY_SLASH for non-US layouts, KEY_BACKSLASH for US layouts)
     bind({KEY_SLASH, KeyMod::Control}, "view.split_right");

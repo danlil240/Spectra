@@ -994,7 +994,7 @@ void register_standard_commands(const CommandBindings& b)
         "edit.redo",
         "Redo",
         [&]() { undo_mgr.redo(); },
-        "Ctrl+Shift+Z",
+        "Ctrl+Y",
         "Edit",
         static_cast<uint16_t>(ui::Icon::Redo));
 

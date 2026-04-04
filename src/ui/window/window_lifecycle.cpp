@@ -9,6 +9,7 @@
 #include "render/renderer.hpp"
 #include "render/vulkan/vk_backend.hpp"
 #include "render/vulkan/window_context.hpp"
+#include "ui/app/window_ui_context_builder.hpp"
 #include "ui/app/window_ui_context.hpp"
 #include "ui/theme/theme.hpp"
 #include "io/export_registry.hpp"
@@ -645,115 +646,33 @@ bool WindowManager::init_window_ui(WindowContext& wctx, FigureId initial_figure_
         return false;
 
 #ifdef SPECTRA_USE_IMGUI
-    auto ui       = std::make_unique<WindowUIContext>();
-    ui->theme_mgr = theme_mgr_;
-
-    // Create per-window FigureManager with only the assigned figure.
-    // FigureManager's constructor imports ALL registry figures, so we
-    // remove everything except the initial figure for this window.
-    ui->fig_mgr_owned = std::make_unique<FigureManager>(*registry_);
-    ui->fig_mgr       = ui->fig_mgr_owned.get();
+    WindowUIContextBuildOptions options;
+    options.registry               = registry_;
+    options.theme_mgr              = theme_mgr_;
+    options.initial_figure_id      = initial_figure_id;
+    options.plugin_manager         = plugin_manager_;
+    options.export_format_registry = export_format_registry_;
+    options.overlay_registry       = &shared_overlay_registry_;
+    options.series_clipboard       = &shared_clipboard_;
+    options.session                = session_;
+    options.on_window_close_request = [this, window_id = wctx.id]() { request_close(window_id); };
+    options.on_figure_closed        = [this](FigureId, Figure* fig)
     {
-        auto all = ui->fig_mgr->figure_ids();   // copy — we'll mutate
-        for (auto id : all)
-        {
-            if (id != initial_figure_id)
-                ui->fig_mgr->remove_figure(id);
-        }
-    }
+        if (fig)
+            clear_figure_caches(fig);
+    };
+    options.create_imgui_integration = true;
+#ifdef SPECTRA_USE_GLFW
+    options.window_manager = this;
+    options.window_id      = wctx.id;
+#endif
 
-    // Create per-window TabBar
-    ui->figure_tabs = std::make_unique<TabBar>();
-    ui->fig_mgr->set_tab_bar(ui->figure_tabs.get());
-
-    // Wire "close last tab → close window" callback
-    uint32_t       wctx_id = wctx.id;
-    WindowManager* wm_self = this;
-    ui->fig_mgr->set_on_window_close_request([wm_self, wctx_id]()
-                                             { wm_self->request_close(wctx_id); });
-    ui->fig_mgr->set_on_figure_closed(
-        [wm_self, reg = registry_](FigureId id)
-        {
-            if (!wm_self || !reg)
-                return;
-            if (auto* fig = reg->get(id))
-                wm_self->clear_figure_caches(fig);
-        });
-
-    // Wire TabBar callbacks → FigureManager + DockSystem
-    auto* fig_mgr_ptr = ui->fig_mgr;
-    auto* dock_ptr    = &ui->dock_system;
-    auto* guard_ptr   = &ui->dock_tab_sync_guard;
-
-    ui->figure_tabs->set_tab_change_callback(
-        [fig_mgr_ptr, dock_ptr, guard_ptr](size_t new_index)
-        {
-            if (*guard_ptr)
-                return;
-            *guard_ptr = true;
-            // Convert positional tab index → FigureId
-            const auto& ids = fig_mgr_ptr->figure_ids();
-            if (new_index < ids.size())
-            {
-                FigureId fid = ids[new_index];
-                fig_mgr_ptr->queue_switch(fid);
-                dock_ptr->set_active_figure_index(fid);
-            }
-            *guard_ptr = false;
-        });
-    ui->figure_tabs->set_tab_close_callback(
-        [fig_mgr_ptr](size_t index)
-        {
-            const auto& ids = fig_mgr_ptr->figure_ids();
-            if (index < ids.size())
-                fig_mgr_ptr->queue_close(ids[index]);
-        });
-    ui->figure_tabs->set_tab_add_callback([fig_mgr_ptr]() { fig_mgr_ptr->queue_create(); });
-    ui->figure_tabs->set_tab_duplicate_callback(
-        [fig_mgr_ptr](size_t index)
-        {
-            const auto& ids = fig_mgr_ptr->figure_ids();
-            if (index < ids.size())
-                fig_mgr_ptr->duplicate_figure(ids[index]);
-        });
-    ui->figure_tabs->set_tab_close_all_except_callback(
-        [fig_mgr_ptr](size_t index)
-        {
-            const auto& ids = fig_mgr_ptr->figure_ids();
-            if (index < ids.size())
-                fig_mgr_ptr->close_all_except(ids[index]);
-        });
-    ui->figure_tabs->set_tab_close_to_right_callback(
-        [fig_mgr_ptr](size_t index)
-        {
-            const auto& ids = fig_mgr_ptr->figure_ids();
-            if (index < ids.size())
-                fig_mgr_ptr->close_to_right(ids[index]);
-        });
-    ui->figure_tabs->set_tab_rename_callback(
-        [fig_mgr_ptr](size_t index, const std::string& t)
-        {
-            const auto& ids = fig_mgr_ptr->figure_ids();
-            if (index < ids.size())
-                fig_mgr_ptr->set_title(ids[index], t);
-        });
-
-    // Tab drag-to-dock callbacks
-    ui->figure_tabs->set_tab_drag_out_callback([dock_ptr](size_t index, float mx, float my)
-                                               { dock_ptr->begin_drag(index, mx, my); });
-    ui->figure_tabs->set_tab_drag_update_callback([dock_ptr](size_t /*index*/, float mx, float my)
-                                                  { dock_ptr->update_drag(mx, my); });
-    ui->figure_tabs->set_tab_drag_end_callback([dock_ptr](size_t /*index*/, float mx, float my)
-                                               { dock_ptr->end_drag(mx, my); });
-    ui->figure_tabs->set_tab_drag_cancel_callback([dock_ptr](size_t /*index*/)
-                                                  { dock_ptr->cancel_drag(); });
-
-    // Create per-window ImGuiIntegration
-    ui->imgui_ui = std::make_unique<ImGuiIntegration>();
-    ui->imgui_ui->set_theme_manager(theme_mgr_);
+    auto ui = build_window_ui_context(options);
+    if (!ui)
+        return false;
 
     auto* glfw_win = static_cast<GLFWwindow*>(wctx.glfw_window);
-    if (glfw_win && backend_)
+    if (glfw_win && backend_ && ui->imgui_ui)
     {
         // Save current ImGui context — the primary window may be mid-frame
         // (between NewFrame/EndFrame) so we must restore it after init.
@@ -787,38 +706,7 @@ bool WindowManager::init_window_ui(WindowContext& wctx, FigureId initial_figure_
         ImGui::SetCurrentContext(prev_imgui_ctx);
     }
 
-    // Wire subsystems to ImGuiIntegration
-    ui->imgui_ui->set_dock_system(&ui->dock_system);
-    ui->imgui_ui->set_tab_bar(ui->figure_tabs.get());
-    ui->imgui_ui->set_command_palette(&ui->cmd_palette);
-    ui->imgui_ui->set_command_registry(&ui->cmd_registry);
-    ui->imgui_ui->set_shortcut_manager(&ui->shortcut_mgr);
-    ui->imgui_ui->set_undo_manager(&ui->undo_mgr);
-    ui->imgui_ui->set_axis_link_manager(&ui->axis_link_mgr);
-    ui->imgui_ui->set_input_handler(&ui->input_handler);
-    ui->imgui_ui->set_timeline_editor(&ui->timeline_editor);
-    ui->imgui_ui->set_keyframe_interpolator(&ui->keyframe_interpolator);
-    ui->imgui_ui->set_curve_editor(&ui->curve_editor);
-    ui->imgui_ui->set_mode_transition(&ui->mode_transition);
-    ui->imgui_ui->set_knob_manager(&ui->knob_manager);
-
-    // Shared plugin services.
-    ui->overlay_registry = &shared_overlay_registry_;
-    ui->plugin_manager   = plugin_manager_;
-
-    ui->imgui_ui->set_overlay_registry(ui->overlay_registry);
-    ui->imgui_ui->set_plugin_manager(ui->plugin_manager);
-    ui->imgui_ui->set_export_format_registry(export_format_registry_);
-    ui->imgui_ui->set_series_clipboard(&shared_clipboard_);
-    // (text_renderer wiring removed — plot text now rendered by Renderer::render_plot_text)
-
-    // Wire TabDragController for drag-to-detach support
-    ui->tab_drag_controller.set_window_manager(this);
-    ui->tab_drag_controller.set_dock_system(&ui->dock_system);
-    ui->tab_drag_controller.set_source_window_id(wctx.id);
-    ui->imgui_ui->set_tab_drag_controller(&ui->tab_drag_controller);
-    ui->imgui_ui->set_window_id(wctx.id);
-    ui->imgui_ui->set_window_manager(this);
+    auto* fig_mgr_ptr = ui->fig_mgr;
 
     // Wire stored tab drag handlers so every window supports tear-off and cross-window move
     if (tab_detach_handler_)
@@ -849,169 +737,6 @@ bool WindowManager::init_window_ui(WindowContext& wctx, FigureId initial_figure_
                 auto info = wm->cross_window_drop_info();
                 handler(fid, target_wid, info.zone, info.hx, info.hy, info.target_figure_id);
             });
-    }
-
-    // Wire DataInteraction
-    ui->data_interaction = std::make_unique<DataInteraction>();
-    ui->data_interaction->set_theme_manager(theme_mgr_);
-    ui->imgui_ui->set_data_interaction(ui->data_interaction.get());
-    ui->input_handler.set_data_interaction(ui->data_interaction.get());
-
-    // Wire box zoom overlay
-    ui->box_zoom_overlay.set_input_handler(&ui->input_handler);
-    ui->imgui_ui->set_box_zoom_overlay(&ui->box_zoom_overlay);
-
-    // Wire input handler
-    ui->input_handler.set_animation_controller(&ui->anim_controller);
-    ui->input_handler.set_gesture_recognizer(&ui->gesture);
-    ui->input_handler.set_shortcut_manager(&ui->shortcut_mgr);
-    ui->input_handler.set_undo_manager(&ui->undo_mgr);
-    ui->input_handler.set_axis_link_manager(&ui->axis_link_mgr);
-
-    // Wire series click-to-select (left-click toggles selection)
-    auto* imgui_raw = ui->imgui_ui.get();
-    ui->data_interaction->set_on_series_selected(
-        [imgui_raw](Figure* fig, Axes* ax, int ax_idx, Series* s, int s_idx)
-        {
-            if (imgui_raw)
-                imgui_raw->select_series(fig, ax, ax_idx, s, s_idx);
-        });
-    // Wire right-click series selection (no toggle — always selects for context menu)
-    ui->data_interaction->set_on_series_right_click_selected(
-        [imgui_raw](Figure* fig, Axes* ax, int ax_idx, Series* s, int s_idx)
-        {
-            if (imgui_raw)
-                imgui_raw->select_series_no_toggle(fig, ax, ax_idx, s, s_idx);
-        });
-    // Wire series deselect (left-click on empty canvas)
-    ui->data_interaction->set_on_series_deselected(
-        [imgui_raw]()
-        {
-            if (imgui_raw)
-                imgui_raw->deselect_series();
-        });
-    // Wire rectangle multi-select (Select tool drag)
-    ui->data_interaction->set_on_rect_series_selected(
-        [imgui_raw](const std::vector<DataInteraction::RectSelectedEntry>& entries)
-        {
-            if (imgui_raw)
-                imgui_raw->select_series_in_rect(entries);
-        });
-    ui->data_interaction->set_axis_link_manager(&ui->axis_link_mgr);
-
-    // Wire pane tab context menu callbacks
-    ui->imgui_ui->set_pane_tab_duplicate_cb([fig_mgr_ptr](FigureId index)
-                                            { fig_mgr_ptr->duplicate_figure(index); });
-    ui->imgui_ui->set_pane_tab_close_cb([fig_mgr_ptr](FigureId index)
-                                        { fig_mgr_ptr->queue_close(index); });
-    ui->imgui_ui->set_pane_tab_split_right_cb(
-        [dock_ptr](FigureId index)
-        {
-            auto* pane = dock_ptr->split_view().root()
-                             ? dock_ptr->split_view().root()->find_by_figure(index)
-                             : nullptr;
-            if (!pane || pane->figure_count() < 2)
-                return;
-            auto* new_pane = dock_ptr->split_figure_right(index, index);
-            if (!new_pane)
-                return;
-            // Remove the moved figure from the source (first child) pane
-            auto* parent = new_pane->parent();
-            if (parent && parent->first())
-                parent->first()->remove_figure(index);
-            dock_ptr->set_active_figure_index(index);
-        });
-    ui->imgui_ui->set_pane_tab_split_down_cb(
-        [dock_ptr](FigureId index)
-        {
-            auto* pane = dock_ptr->split_view().root()
-                             ? dock_ptr->split_view().root()->find_by_figure(index)
-                             : nullptr;
-            if (!pane || pane->figure_count() < 2)
-                return;
-            auto* new_pane = dock_ptr->split_figure_down(index, index);
-            if (!new_pane)
-                return;
-            // Remove the moved figure from the source (first child) pane
-            auto* parent = new_pane->parent();
-            if (parent && parent->first())
-                parent->first()->remove_figure(index);
-            dock_ptr->set_active_figure_index(index);
-        });
-    ui->imgui_ui->set_pane_tab_rename_cb([fig_mgr_ptr](size_t index, const std::string& t)
-                                         { fig_mgr_ptr->set_title(index, t); });
-
-    // Figure title lookup — fig_idx is a FigureId, not a positional index
-    ui->imgui_ui->set_figure_title_callback(
-        [fig_mgr_ptr](size_t fig_idx) -> std::string
-        { return fig_mgr_ptr->get_title(static_cast<FigureId>(fig_idx)); });
-
-    // Figure pointer resolver — used for split-mode legend drawing
-    ui->imgui_ui->set_figure_ptr_callback([fig_mgr_ptr](FigureId id) -> Figure*
-                                          { return fig_mgr_ptr->get_figure(id); });
-
-    // Dock system → tab bar sync
-    auto* figure_tabs_raw = ui->figure_tabs.get();
-    ui->dock_system.split_view().set_on_active_changed(
-        [figure_tabs_raw, fig_mgr_ptr, guard_ptr](FigureId figure_index)
-        {
-            if (*guard_ptr)
-                return;
-            *guard_ptr = true;
-            // figure_index here is a FigureId from the dock system.
-            // Find its positional index for the tab bar.
-            const auto& ids = fig_mgr_ptr->figure_ids();
-            for (size_t i = 0; i < ids.size(); ++i)
-            {
-                if (ids[i] == figure_index)
-                {
-                    if (figure_tabs_raw && i < figure_tabs_raw->get_tab_count())
-                        figure_tabs_raw->set_active_tab(i);
-                    break;
-                }
-            }
-            fig_mgr_ptr->queue_switch(figure_index);
-            *guard_ptr = false;
-        });
-
-    // Wire timeline/interpolator
-    ui->timeline_editor.set_interpolator(&ui->keyframe_interpolator);
-    ui->curve_editor.set_interpolator(&ui->keyframe_interpolator);
-
-    // Wire shortcut manager
-    ui->shortcut_mgr.set_command_registry(&ui->cmd_registry);
-    ui->shortcut_mgr.register_defaults();
-    ui->cmd_palette.set_command_registry(&ui->cmd_registry);
-    ui->cmd_palette.set_shortcut_manager(&ui->shortcut_mgr);
-
-    // Set the initial figure in the input handler
-    Figure* fig = registry_->get(initial_figure_id);
-    if (fig)
-    {
-        ui->input_handler.set_figure(fig);
-        if (!fig->axes().empty() && fig->axes()[0])
-        {
-            ui->input_handler.set_active_axes(fig->axes()[0].get());
-            auto& vp = fig->axes()[0]->viewport();
-            ui->input_handler.set_viewport(vp.x, vp.y, vp.w, vp.h);
-        }
-    }
-
-    // Initialize per-window active figure so command lambdas have a valid target.
-    ui->per_window_active_figure    = fig;
-    ui->per_window_active_figure_id = initial_figure_id;
-
-    // Register standard commands (clipboard, view, file, etc.) for this window.
-    // This is critical — without it, keyboard shortcuts (Ctrl+C/V/X, Delete, etc.)
-    // have no command handlers and silently fail in secondary windows.
-    {
-        CommandBindings cb;
-        cb.ui_ctx           = ui.get();
-        cb.registry         = registry_;
-        cb.active_figure    = &ui->per_window_active_figure;
-        cb.active_figure_id = &ui->per_window_active_figure_id;
-        cb.window_mgr       = this;
-        register_standard_commands(cb);
     }
 
     SPECTRA_LOG_INFO("imgui", "Created ImGui context for window " + std::to_string(wctx.id));

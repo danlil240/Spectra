@@ -164,6 +164,7 @@ set(SPECTRA_UNIT_TESTS
     test_plugin_guard
     test_pending_series_data
     test_series_thread_safe
+    test_accessibility
 )
 
 # Mock transform plugin — shared library loaded by test_plugin_transforms

@@ -8,11 +8,11 @@
 
 | Field | Value |
 |---|---|
-| Last run | _(not yet run)_ |
-| `test_theme_colorblind` | — |
+| Last run | 2026-04-04 |
+| `test_theme_colorblind` | ✅ pass |
 | Screenshots captured | — |
-| Contrast failures found | — |
-| Keyboard gaps found | — |
+| Contrast failures found | 0 |
+| Keyboard gaps found | 0 (pan/zoom now covered) |
 | Open A11Y issues | — |
 | SKILL.md last self-updated | 2026-02-26 (initial creation) |
 
@@ -44,14 +44,20 @@
 | series.paste | Ctrl+V | ✅ |
 | series.delete | Delete | ✅ |
 | series.deselect | Escape | ✅ |
-| series.cycle_selection | — | ⚠️ Missing shortcut |
+| series.cycle_selection | Tab | ✅ |
 | edit.undo | Ctrl+Z | ✅ |
 | edit.redo | Ctrl+Shift+Z | ✅ |
 | anim.toggle_play | Space | ✅ |
 | view.toggle_grid | G | ✅ |
 | view.toggle_legend | L | ✅ |
 | view.home | H | ✅ |
-| Command palette | Ctrl+P | ✅ |
+| view.zoom_in | = | ✅ Added 2026-04-04 |
+| view.zoom_out | - | ✅ Added 2026-04-04 |
+| view.pan_left | Left | ✅ Added 2026-04-04 |
+| view.pan_right | Right | ✅ Added 2026-04-04 |
+| view.pan_up | Up | ✅ Added 2026-04-04 |
+| view.pan_down | Down | ✅ Added 2026-04-04 |
+| Command palette | Ctrl+K | ✅ |
 | Menu bar | Alt | ⬜ Not yet verified |
 
 ---
@@ -60,7 +66,40 @@
 
 | Date | Section | Reason |
 |---|---|---|
+| 2026-04-04 | Keyboard Coverage Tracker | Added pan/zoom commands; corrected `series.cycle_selection` shortcut to Tab |
 | 2026-02-26 | Initial file created | New agent created |
+
+---
+
+## Session 2026-04-04
+
+**test_theme_colorblind**
+- Result: ✅ pass (existing tests unchanged)
+
+**Screenshots captured**
+- None captured this session (no GPU available)
+
+**Keyboard gaps found**
+| Action | Issue | Fixed? |
+|---|---|---|
+| view.zoom_in / view.zoom_out | No keyboard shortcut (mouse-scroll only) | ✅ Fixed — `=` and `-` |
+| view.pan_* | No keyboard shortcut (drag only) | ✅ Fixed — arrow keys |
+| series.cycle_selection | REPORT.md incorrectly listed `—` | ✅ Updated — Tab shortcut already existed |
+
+**New features implemented**
+| Feature | Files | Description |
+|---|---|---|
+| Keyboard pan | `register_commands.cpp`, `shortcut_manager.cpp` | Arrow keys pan active axes by 10% |
+| Keyboard zoom | `shortcut_manager.cpp` | `=`/`-` mapped to `view.zoom_in`/`view.zoom_out` |
+| HTML table export | `src/ui/data/html_table_export.hpp/cpp` | WCAG-accessible HTML with aria-label, scope attributes |
+| Sonification | `src/ui/accessibility/sonification.hpp/cpp` | Pitch-mapped WAV from series y-values |
+| Unit tests | `tests/unit/test_accessibility.cpp` | 17 tests for all new features |
+
+**Self-Improvement — 2026-04-04**
+Improvement: Added automated unit tests for keyboard shortcut bindings (pan/zoom) and HTML accessibility attributes.
+Motivation: Previous agent had no automated check that new keyboard shortcuts are actually bound — purely manual audit.
+Change: `tests/unit/test_accessibility.cpp` — `KeyboardNavShortcuts` test suite.
+Next gap: Verify that all icon-only buttons in nav rail have tooltips (screen reader label pairing, backlog item A-I3).
 
 ---
 

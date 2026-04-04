@@ -145,6 +145,8 @@ foreach(_ui_src
     src/ui/figures/figure_registry.cpp
     src/ui/data/csv_loader.cpp
     src/ui/data/clipboard_export.cpp
+    src/ui/data/html_table_export.cpp
+    src/ui/accessibility/sonification.cpp
     src/ui/workspace/figure_serializer.cpp
     src/ui/commands/series_clipboard.cpp
     src/ui/overlay/data_editor.cpp

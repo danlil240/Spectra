@@ -1,7 +1,7 @@
 // export_csv.cpp — Example Spectra plugin: CSV series data exporter
 //
 // Build as a shared library:
-//   g++ -shared -fPIC -std=c++20 -o export_csv.so export_csv.cpp \
+//   g++ -shared -fPIC -std=c++20 -o export_csv.so export_csv.cpp
 //       -I<spectra>/include -I<spectra>/src
 //
 // Place the resulting .so in ~/.config/spectra/plugins/ or load via View → Plugins.

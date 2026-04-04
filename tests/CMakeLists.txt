@@ -189,10 +189,19 @@ set_target_properties(mock_transform_plugin PROPERTIES PREFIX "")
 add_library(mock_overlay_plugin SHARED unit/mock_overlay_plugin.cpp)
 target_include_directories(mock_overlay_plugin PRIVATE
     ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include
     ${CMAKE_BINARY_DIR}/generated
 )
 target_compile_features(mock_overlay_plugin PRIVATE cxx_std_20)
-target_link_libraries(mock_overlay_plugin PRIVATE spectra)
+# Do NOT link spectra — the plugin resolves C ABI symbols from the host at
+# dlopen time.  Linking the static lib duplicates symbols, causing macOS and
+# ASan failures where the plugin's copy of OverlayRegistry methods operates on
+# the test's object with incompatible internal state.
+if(APPLE)
+    target_link_options(mock_overlay_plugin PRIVATE -undefined dynamic_lookup)
+else()
+    target_link_options(mock_overlay_plugin PRIVATE "LINKER:--allow-shlib-undefined")
+endif()
 set_target_properties(mock_overlay_plugin PROPERTIES PREFIX "")
 
 # Mock version-specific plugins for A3 version negotiation tests
@@ -265,6 +274,11 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
                 SPECTRA_MOCK_OVERLAY_PLUGIN_PATH="$<TARGET_FILE:mock_overlay_plugin>"
             )
             add_dependencies(unit_${_test} mock_overlay_plugin)
+            # Export symbols so the dlopen'd plugin can resolve C ABI functions
+            # from the test executable instead of carrying its own copy.
+            if(NOT WIN32)
+                target_link_options(unit_${_test} PRIVATE -rdynamic)
+            endif()
         endif()
         # Pass mock version plugin paths to version negotiation tests
         if(_test STREQUAL "test_plugin_version_negotiation")

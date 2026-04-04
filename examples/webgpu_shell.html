@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spectra — WebGPU Demo</title>
+    <style>
+        :root {
+            --bg:   #1e1e2e;
+            --fg:   #cdd6f4;
+            --dim:  #6c7086;
+            --link: #89b4fa;
+            --code: #181825;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--fg);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            padding: 2rem 1rem;
+        }
+        h1 { font-size: 1.5rem; margin-bottom: 0.25rem; }
+        .subtitle { color: var(--dim); font-size: 0.85rem; margin-bottom: 1rem; }
+        a { color: var(--link); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+
+        #canvas-container {
+            position: relative;
+            border: 1px solid #313244;
+            border-radius: 6px;
+            overflow: hidden;
+            background: #11111b;
+        }
+        canvas {
+            display: block;
+            width: 800px;
+            height: 600px;
+        }
+
+        #status {
+            margin-top: 1rem;
+            font-size: 0.8rem;
+            color: var(--dim);
+            text-align: center;
+            max-width: 600px;
+        }
+        #status.error { color: #f38ba8; }
+        #status.ok    { color: #a6e3a1; }
+
+        .info {
+            margin-top: 1.5rem;
+            max-width: 600px;
+            font-size: 0.8rem;
+            color: var(--dim);
+            line-height: 1.6;
+        }
+        code {
+            background: var(--code);
+            padding: 0.15em 0.35em;
+            border-radius: 3px;
+            font-family: "JetBrains Mono", "Fira Code", monospace;
+            font-size: 0.85em;
+        }
+    </style>
+</head>
+<body>
+    <h1>Spectra — WebGPU Demo</h1>
+    <p class="subtitle">GPU-accelerated scientific plotting in the browser</p>
+
+    <div id="canvas-container">
+        <canvas id="canvas" width="800" height="600"
+                oncontextmenu="event.preventDefault()"></canvas>
+    </div>
+
+    <p id="status">Initializing WebGPU&hellip;</p>
+
+    <div class="info">
+        <p>
+            This page runs the Spectra C++20 plotting library compiled to
+            WebAssembly via Emscripten.  The rendering uses the
+            <strong>WebGPU API</strong> — no Vulkan, no OpenGL, no software
+            fallback.  Requires a WebGPU-capable browser (Chrome 113+,
+            Edge 113+, or Firefox Nightly with <code>dom.webgpu.enabled</code>).
+        </p>
+        <p style="margin-top: 0.5rem;">
+            Source:
+            <a href="https://github.com/danlil240/Spectra/blob/main/examples/webgpu_demo.cpp">
+                examples/webgpu_demo.cpp
+            </a>
+        </p>
+    </div>
+
+    <script>
+        // ── WebGPU availability check ─────────────────────────────────────
+        const statusEl = document.getElementById("status");
+
+        if (!navigator.gpu) {
+            statusEl.textContent =
+                "WebGPU is not available in this browser. " +
+                "Try Chrome 113+, Edge 113+, or Firefox Nightly with dom.webgpu.enabled.";
+            statusEl.className = "error";
+        } else {
+            statusEl.textContent = "Loading WASM module…";
+        }
+    </script>
+
+    <!-- Emscripten-generated JS glue.  The filename matches the CMake
+         target name (webgpu_demo).  Update if the target is renamed. -->
+    <script src="webgpu_demo.js"></script>
+
+    <script>
+        // After the WASM module loads, Emscripten calls Module.onRuntimeInitialized.
+        if (typeof Module !== "undefined") {
+            const origInit = Module.onRuntimeInitialized;
+            Module.onRuntimeInitialized = function () {
+                if (origInit) origInit();
+                statusEl.textContent = "Running — interact with the plot above.";
+                statusEl.className = "ok";
+            };
+        }
+    </script>
+</body>
+</html>

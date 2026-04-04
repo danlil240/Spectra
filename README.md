@@ -103,6 +103,7 @@ cmake --build build -j$(nproc)
 | Domain | What you get |
 |---|---|
 | **Core Rendering** | Vulkan pipeline, MSAA 4x, GPU text, SDF anti-aliasing, format strings (`"r--o"`) |
+| **WebGPU / wasm** | Alternative WebGPU backend — same codebase runs in the browser via Emscripten |
 | **3D Visualization** | Surface, mesh, scatter, line — with lighting, transparency, wireframe, colormaps |
 | **Easy API** | `plot()`, `scatter()`, `subplot()`, `plot3()`, `surf()` — 7 levels of progressive complexity |
 | **Animation** | Frame callbacks, timeline editor, 7 keyframe interpolation modes, camera animator |
@@ -152,6 +153,34 @@ ninja -C build-ros2 spectra-ros
 ```
 
 > **Full ROS2 documentation →** [ROS2 Adapter Guide](https://danlil240.github.io/Spectra/ros2-adapter.html)
+
+---
+
+## WebGPU / WebAssembly (experimental)
+
+Spectra includes a WebGPU rendering backend that enables the same C++ codebase to run in the browser via Emscripten. All GLSL shaders are ported to WGSL. The WebGPU backend supports line, scatter, grid, text, and statistical series — the same 2D pipeline as the Vulkan backend.
+
+**Native (Dawn):**
+
+```bash
+cmake -B build -DSPECTRA_USE_WEBGPU=ON \
+      -Ddawn_DIR=/path/to/dawn/install/lib/cmake/dawn
+cmake --build build --target webgpu_demo
+./build/examples/webgpu_demo
+```
+
+**Browser (Emscripten):**
+
+```bash
+source /path/to/emsdk/emsdk_env.sh
+emcmake cmake -B build-wasm -DSPECTRA_USE_WEBGPU=ON -DCMAKE_BUILD_TYPE=Release
+cmake --build build-wasm --target webgpu_demo
+# Open build-wasm/examples/webgpu_demo.html in Chrome 113+ or Edge 113+
+```
+
+The example source is in [`examples/webgpu_demo.cpp`](examples/webgpu_demo.cpp). It uses the standard `App` + `Figure` + `Axes` API — no WebGPU-specific code needed in user applications.
+
+> **Note:** The WebGPU backend is inproc-only. IPC/multiproc mode is not available on wasm targets (no Unix sockets in the browser). 3D pipeline types are not yet ported to WGSL.
 
 ---
 

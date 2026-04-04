@@ -130,6 +130,19 @@ if(SPECTRA_BUILD_QT_EXAMPLE)
     )
 endif()
 
+# WebGPU demo — works with both Dawn (native) and Emscripten (wasm) targets.
+# Requires -DSPECTRA_USE_WEBGPU=ON.  On Emscripten, produces an HTML+JS+WASM
+# bundle using the webgpu_shell.html template.
+if(SPECTRA_USE_WEBGPU AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/webgpu_demo.cpp)
+    add_spectra_example(webgpu_demo)
+    if(EMSCRIPTEN)
+        set_target_properties(webgpu_demo PROPERTIES
+            SUFFIX ".html"
+            LINK_FLAGS "--shell-file ${CMAKE_CURRENT_SOURCE_DIR}/webgpu_shell.html -s USE_WEBGPU=1 -s USE_GLFW=3"
+        )
+    endif()
+endif()
+
 # Plugin examples — shared libraries
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/plugins/CMakeLists.txt)
     add_subdirectory(plugins)

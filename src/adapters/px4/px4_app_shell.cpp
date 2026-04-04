@@ -594,11 +594,11 @@ void Px4AppShell::sync_auto_plot_figure()
         {
             for (size_t j = 0; j < group.fields.size(); ++j)
             {
-                const auto& f = group.fields[j];
+                const auto& f    = group.fields[j];
+                auto*       sptr = ax.series_mut()[j].get();
 
                 // Try ChunkedLineSeries first (when chunked mode active).
-                auto* chunked =
-                    dynamic_cast<spectra::ChunkedLineSeries*>(ax.series_mut()[j].get());
+                auto* chunked = dynamic_cast<spectra::ChunkedLineSeries*>(sptr);
                 if (chunked)
                 {
                     chunked->set_data(f.times, f.values);
@@ -606,7 +606,7 @@ void Px4AppShell::sync_auto_plot_figure()
                     continue;
                 }
 
-                auto* line = dynamic_cast<spectra::LineSeries*>(ax.series_mut()[j].get());
+                auto* line = dynamic_cast<spectra::LineSeries*>(sptr);
                 if (!line)
                 {
                     ax.clear_series();
@@ -695,10 +695,10 @@ void Px4AppShell::sync_manual_plot_figure(bool force)
         for (size_t i = 0; i < plot_mgr_.fields().size(); ++i)
         {
             const auto& field = plot_mgr_.fields()[i];
+            auto*       sptr  = ax.series_mut()[i].get();
 
             // Try ChunkedLineSeries first (when chunked mode active).
-            auto* chunked =
-                dynamic_cast<spectra::ChunkedLineSeries*>(ax.series_mut()[i].get());
+            auto* chunked = dynamic_cast<spectra::ChunkedLineSeries*>(sptr);
             if (chunked)
             {
                 chunked->set_data(field.times, field.values);
@@ -707,7 +707,7 @@ void Px4AppShell::sync_manual_plot_figure(bool force)
                 continue;
             }
 
-            auto* line = dynamic_cast<spectra::LineSeries*>(ax.series_mut()[i].get());
+            auto* line = dynamic_cast<spectra::LineSeries*>(sptr);
             if (!line)
             {
                 ax.clear_series();

@@ -103,6 +103,29 @@ PlotHandle RosPlotManager::add_plot(const std::string& topic,
         }
         entry->extractor_id = eid;
 
+        // Enable thread-safe series mode: the ROS2 executor thread writes
+        // directly to the Series via PendingSeriesData, eliminating the
+        // ring-buffer intermediary.
+        entry->series->set_thread_safe(true);
+        entry->direct_ctx = std::make_unique<DirectWriteContext>();
+
+        auto* ctx      = entry->direct_ctx.get();
+        auto* series   = entry->series;
+        auto* data_cb  = &on_data_cb_;
+        int   entry_id = entry->id;
+        sub->set_field_callback(
+            eid,
+            [ctx, series, data_cb, entry_id](double t_sec, double val)
+            {
+                std::call_once(ctx->origin_once, [&]() { ctx->origin = t_sec; });
+                const double t_rel = t_sec - ctx->origin;
+                series->append(static_cast<float>(t_rel), static_cast<float>(val));
+                ctx->samples_written.fetch_add(1, std::memory_order_relaxed);
+
+                if (*data_cb)
+                    (*data_cb)(entry_id, t_sec, val);
+            });
+
         if (!sub->start())
         {
             // Subscription failed (schema introspection error).
@@ -222,6 +245,54 @@ void RosPlotManager::poll()
 
     for (auto& entry : entries_)
     {
+        // ── Direct-write mode (thread-safe series) ──────────────────
+        // In direct-write mode, data is written to PendingSeriesData by the
+        // executor thread callback and committed by commit_thread_safe_series()
+        // at frame boundary.  We skip ring-buffer draining and use the
+        // DirectWriteContext for time origin and sample tracking.
+        if (entry->direct_ctx)
+        {
+            // Use the time origin set by the first direct-write callback.
+            const double origin = entry->direct_ctx->origin;
+            const bool   has_origin =
+                entry->direct_ctx->samples_written.load(std::memory_order_relaxed) > 0;
+
+            if (has_origin)
+            {
+                if (!entry->has_time_origin)
+                {
+                    entry->time_origin     = origin;
+                    entry->has_time_origin = true;
+                }
+
+                const double now_rel = wall_now - entry->time_origin;
+                entry->axes->set_presented_buffer_right_edge(now_rel);
+            }
+
+            // Commit pending data from the executor thread to the series.
+            entry->series->commit_pending();
+
+            // Prune old data (erase_before routes through PendingSeriesData
+            // in thread-safe mode).
+            if (entry->series && pruning_enabled_ && has_origin)
+            {
+                const auto  xlim         = entry->axes->x_limits();
+                const float prune_before = static_cast<float>(xlim.min - prune_buffer_s_);
+                entry->series->erase_before(prune_before);
+            }
+
+            // Track samples for auto-fit.
+            entry->samples_received =
+                entry->direct_ctx->samples_written.load(std::memory_order_relaxed);
+            if (!entry->auto_fitted && entry->samples_received >= auto_fit_samples_)
+            {
+                entry->axes->auto_fit();
+                entry->auto_fitted = true;
+            }
+            continue;
+        }
+
+        // ── Legacy ring-buffer mode (non-thread-safe series) ────────
         // Set the time origin on first frame so that all series x-values
         // use small relative seconds instead of epoch seconds (~1.7e9),
         // which exceed float's ~7-digit precision.

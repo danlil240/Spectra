@@ -57,6 +57,7 @@
 #include "generic_subscriber.hpp"
 #include "message_introspector.hpp"
 #include "ros2_bridge.hpp"
+#include "ros_plot_manager.hpp"   // DirectWriteContext
 
 // AxisLinkManager lives under src/ui/data/ — not a public include header.
 // We forward-declare here and include the .hpp from subplot_manager.cpp.
@@ -86,6 +87,9 @@ struct SeriesEntry
     size_t                             color_index{0};
 
     std::vector<FieldSample> drain_buf;
+
+    // Direct-write context (thread-safe series mode).
+    std::unique_ptr<DirectWriteContext> direct_ctx;
 
     bool active() const { return series != nullptr && !topic.empty(); }
 };
@@ -399,6 +403,9 @@ class SubplotManager
 
         // Manual Y-axis limits (nullopt = auto).
         std::optional<spectra::AxisLimits> manual_ylim;
+
+        // Direct-write context for primary series (thread-safe mode).
+        std::unique_ptr<DirectWriteContext> direct_ctx;
 
         bool active() const { return slot >= 1 && axes != nullptr; }
 

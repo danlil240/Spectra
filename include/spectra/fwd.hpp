@@ -58,6 +58,8 @@ class ShortcutManager;
 class UndoManager;
 class FigureManager;
 class FigureViewModel;
+class AxesViewModel;
+class SeriesViewModel;
 // FigureState is now a type alias for FigureViewModel (see figure_manager.hpp).
 // Do NOT forward-declare it as a struct here.
 class TimelineEditor;

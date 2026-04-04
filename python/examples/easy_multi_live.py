@@ -55,8 +55,8 @@ def update(t, dt):
     sp.ylim(-1.5, 1.5)
 
 
-sp.live(update, fps=30)
+sp.live(update, fps=60)
 
-print("Streaming 3 signals at 30 FPS. Close the window to exit.")
+print("Streaming 3 signals at 60 FPS. Close the window to exit.")
 sp.show()
 print("Done.")

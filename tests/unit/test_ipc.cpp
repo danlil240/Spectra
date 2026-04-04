@@ -292,7 +292,7 @@ TEST(IpcMessage, InvalidConstants)
 TEST(IpcMessage, ProtocolVersion)
 {
     EXPECT_EQ(PROTOCOL_MAJOR, 1u);
-    EXPECT_EQ(PROTOCOL_MINOR, 0u);
+    EXPECT_EQ(PROTOCOL_MINOR, 1u);   // bumped for FlatBuffers payload support
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

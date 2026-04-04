@@ -1,5 +1,7 @@
 #pragma once
 
+#include <atomic>
+#include <functional>
 #include <memory>
 #include <span>
 #include <spectra/color.hpp>
@@ -10,6 +12,14 @@
 
 namespace spectra
 {
+
+class PendingSeriesData;
+
+// Custom deleter for PendingSeriesData (allows incomplete type in unique_ptr).
+struct PendingSeriesDataDeleter
+{
+    void operator()(PendingSeriesData* ptr) const;
+};
 
 struct SeriesStyle
 {
@@ -30,7 +40,19 @@ struct Rect
 class Series
 {
    public:
-    virtual ~Series() = default;
+    virtual ~Series();
+
+    Series() = default;
+
+    // Move operations — deleted because std::atomic<bool> is not movable.
+    // Series instances are managed by pointer/reference; moves are not needed.
+    Series(Series&&)            = delete;
+    Series& operator=(Series&&) = delete;
+
+    // Copy operations — pending buffer is NOT copied (thread-safe state
+    // is per-instance and must be re-enabled on copies).
+    Series(const Series& other);
+    Series& operator=(const Series& other);
 
     Series& label(const std::string& lbl)
     {
@@ -56,6 +78,20 @@ class Series
     bool is_dirty() const { return dirty_; }
     void clear_dirty() { dirty_ = false; }
     void mark_dirty();
+
+    // ── Thread-safe data access (opt-in) ──
+    // When enabled, set_x/set_y/append/erase_before route through a pending
+    // buffer that is committed atomically at frame boundary.  Default off
+    // (zero overhead for single-threaded callers).
+    void set_thread_safe(bool enabled);
+    bool is_thread_safe() const { return thread_safe_; }
+
+    // Apply pending data from background threads.  Called by SessionRuntime
+    // at frame boundary.  Returns true if data was committed.
+    virtual bool commit_pending();
+
+    // Set a callback invoked when background data arrives (for waking idle loops).
+    void set_wake_fn(std::function<void()> fn);
     void set_color(const Color& c)
     {
         color_ = c;
@@ -107,13 +143,17 @@ class Series
    protected:
     Series& apply_format_string(std::string_view fmt);
 
-    std::string  label_;
-    Color        color_ = colors::blue;
-    PlotStyle    style_;   // line/marker style, sizes, opacity
-    bool         visible_      = true;
-    bool         dirty_        = true;
-    EventSystem* event_system_ = nullptr;
-    AxesBase*    owning_axes_  = nullptr;
+    std::string       label_;
+    Color             color_ = colors::blue;
+    PlotStyle         style_;   // line/marker style, sizes, opacity
+    bool              visible_ = true;
+    std::atomic<bool> dirty_{true};
+    EventSystem*      event_system_ = nullptr;
+    AxesBase*         owning_axes_  = nullptr;
+
+    // Thread-safe data buffering (opt-in).
+    bool                                                         thread_safe_ = false;
+    std::unique_ptr<PendingSeriesData, PendingSeriesDataDeleter> pending_;
 };
 
 class LineSeries : public Series
@@ -188,6 +228,9 @@ class LineSeries : public Series
     // Apply a MATLAB-style format string (e.g. "r--o")
     LineSeries& format(std::string_view fmt);
 
+    // Thread-safe commit override.
+    bool commit_pending() override;
+
    private:
     std::vector<float> x_;
     std::vector<float> y_;
@@ -258,6 +301,9 @@ class ScatterSeries : public Series
 
     // Apply a MATLAB-style format string (e.g. "ro")
     ScatterSeries& format(std::string_view fmt);
+
+    // Thread-safe commit override.
+    bool commit_pending() override;
 
    private:
     std::vector<float> x_;

@@ -20,6 +20,7 @@ class FigureRegistry;
 class FrameScheduler;
 class Animator;
 class CommandQueue;
+class EventSystem;
 struct WindowContext;
 struct WindowUIContext;
 
@@ -71,6 +72,9 @@ class SessionRuntime
     // Access the redraw tracker (for event-driven rendering).
     RedrawTracker& redraw_tracker() { return redraw_tracker_; }
 
+    // Set the event system for deferred event draining.
+    void set_event_system(EventSystem* es) { event_system_ = es; }
+
     // Access the frame scheduler.
     FrameScheduler& scheduler();
 
@@ -107,10 +111,14 @@ class SessionRuntime
     void request_exit() { running_ = false; }
 
    private:
+    // Commit pending thread-safe series data at frame boundary.
+    void commit_thread_safe_series();
+
     Backend&        backend_;
     Renderer&       renderer_;
     FigureRegistry& registry_;
     WindowRuntime   win_rt_;
+    EventSystem*    event_system_ = nullptr;
 
     bool running_ = true;
 

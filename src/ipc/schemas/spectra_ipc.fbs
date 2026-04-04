@@ -1,0 +1,325 @@
+// Spectra IPC Protocol — FlatBuffers Schema (v2)
+//
+// This schema defines the payload encoding for all Spectra IPC messages.
+// The 40-byte framing header (magic, type, length, seq, request_id,
+// session_id, window_id) is unchanged and NOT part of this schema.
+// Only the variable-length payload bytes use FlatBuffers encoding.
+//
+// Schema evolution rules:
+//   - New fields must be added at the END of a table with a default value.
+//   - Never remove or reorder existing fields.
+//   - Deprecated fields should be marked with (deprecated).
+//   - Enum values must never be reused.
+
+namespace spectra.ipc.fb;
+
+// ─── Handshake ───────────────────────────────────────────────────────────────
+
+table HelloPayload {
+    protocol_major: uint16 = 1;
+    protocol_minor: uint16 = 0;
+    agent_build: string;
+    capabilities: uint32 = 0;
+    client_type: string;
+}
+
+table WelcomePayload {
+    session_id: uint64 = 0;
+    window_id: uint64 = 0;
+    process_id: uint64 = 0;
+    heartbeat_ms: uint32 = 5000;
+    mode: string;
+}
+
+// ─── Response ────────────────────────────────────────────────────────────────
+
+table RespOkPayload {
+    request_id: uint64 = 0;
+}
+
+table RespErrPayload {
+    request_id: uint64 = 0;
+    code: uint32 = 0;
+    message: string;
+}
+
+// ─── Control (Agent ↔ Backend) ───────────────────────────────────────────────
+
+table CmdAssignFiguresPayload {
+    window_id: uint64 = 0;
+    figure_ids: [uint64];
+    active_figure_id: uint64 = 0;
+}
+
+table ReqCreateWindowPayload {
+    template_window_id: uint64 = 0;
+}
+
+table ReqCloseWindowPayload {
+    window_id: uint64 = 0;
+    reason: string;
+}
+
+table ReqDetachFigurePayload {
+    source_window_id: uint64 = 0;
+    figure_id: uint64 = 0;
+    width: uint32 = 800;
+    height: uint32 = 600;
+    screen_x: int32 = 0;
+    screen_y: int32 = 0;
+}
+
+table CmdRemoveFigurePayload {
+    window_id: uint64 = 0;
+    figure_id: uint64 = 0;
+}
+
+table CmdSetActivePayload {
+    window_id: uint64 = 0;
+    figure_id: uint64 = 0;
+}
+
+table CmdCloseWindowPayload {
+    window_id: uint64 = 0;
+    reason: string;
+}
+
+// ─── State sync ──────────────────────────────────────────────────────────────
+
+table SnapshotAxisState {
+    x_min: double = 0.0;
+    x_max: double = 1.0;
+    y_min: double = 0.0;
+    y_max: double = 1.0;
+    z_min: double = 0.0;
+    z_max: double = 1.0;
+    grid_visible: bool = true;
+    is_3d: bool = false;
+    x_label: string;
+    y_label: string;
+    title: string;
+}
+
+table SnapshotSeriesState {
+    name: string;
+    series_type: string;
+    color_r: float = 1.0;
+    color_g: float = 1.0;
+    color_b: float = 1.0;
+    color_a: float = 1.0;
+    line_width: float = 2.0;
+    marker_size: float = 6.0;
+    visible: bool = true;
+    opacity: float = 1.0;
+    point_count: uint32 = 0;
+    axes_index: uint32 = 0;
+    data: [float];
+}
+
+table SnapshotFigureState {
+    figure_id: uint64 = 0;
+    title: string;
+    width: uint32 = 1280;
+    height: uint32 = 720;
+    grid_rows: int32 = 1;
+    grid_cols: int32 = 1;
+    window_group: uint32 = 0;
+    axes: [SnapshotAxisState];
+    series: [SnapshotSeriesState];
+}
+
+table SnapshotKnobState {
+    name: string;
+    knob_type: uint8 = 0;
+    value: float = 0.0;
+    min_val: float = 0.0;
+    max_val: float = 1.0;
+    step: float = 0.0;
+    choices: [string];
+}
+
+table StateSnapshotPayload {
+    revision: uint64 = 0;
+    session_id: uint64 = 0;
+    figures: [SnapshotFigureState];
+    knobs: [SnapshotKnobState];
+}
+
+enum DiffOpType : uint8 {
+    SET_AXIS_LIMITS    = 1,
+    SET_SERIES_COLOR   = 2,
+    SET_SERIES_VISIBLE = 3,
+    SET_FIGURE_TITLE   = 4,
+    SET_GRID_VISIBLE   = 5,
+    SET_LINE_WIDTH     = 6,
+    SET_MARKER_SIZE    = 7,
+    SET_OPACITY        = 8,
+    ADD_FIGURE         = 10,
+    REMOVE_FIGURE      = 11,
+    SET_SERIES_DATA    = 12,
+    SET_AXIS_XLABEL    = 13,
+    SET_AXIS_YLABEL    = 14,
+    SET_AXIS_TITLE     = 15,
+    SET_SERIES_LABEL   = 16,
+    REMOVE_SERIES      = 17,
+    SET_KNOB_VALUE     = 20,
+    SET_AXIS_ZLIMITS   = 21,
+    ADD_SERIES         = 22,
+    ADD_AXES           = 23,
+}
+
+table DiffOp {
+    op_type: DiffOpType = SET_AXIS_LIMITS;
+    figure_id: uint64 = 0;
+    axes_index: uint32 = 0;
+    series_index: uint32 = 0;
+    f1: double = 0.0;
+    f2: double = 0.0;
+    f3: double = 0.0;
+    f4: double = 0.0;
+    bool_val: bool = false;
+    str_val: string;
+    data: [float];
+}
+
+table StateDiffPayload {
+    base_revision: uint64 = 0;
+    new_revision: uint64 = 0;
+    ops: [DiffOp];
+}
+
+table AckStatePayload {
+    revision: uint64 = 0;
+}
+
+// ─── Input events ────────────────────────────────────────────────────────────
+
+enum InputType : uint8 {
+    KEY_PRESS    = 1,
+    KEY_RELEASE  = 2,
+    MOUSE_BUTTON = 3,
+    MOUSE_MOVE   = 4,
+    SCROLL       = 5,
+}
+
+table EvtInputPayload {
+    window_id: uint64 = 0;
+    input_type: InputType = KEY_PRESS;
+    key: int32 = 0;
+    mods: int32 = 0;
+    x: double = 0.0;
+    y: double = 0.0;
+    figure_id: uint64 = 0;
+    axes_index: uint32 = 0;
+}
+
+// ─── Python lifecycle requests ───────────────────────────────────────────────
+
+table ReqCreateFigurePayload {
+    title: string;
+    width: uint32 = 1280;
+    height: uint32 = 720;
+}
+
+table ReqDestroyFigurePayload {
+    figure_id: uint64 = 0;
+}
+
+table ReqCreateAxesPayload {
+    figure_id: uint64 = 0;
+    grid_rows: int32 = 1;
+    grid_cols: int32 = 1;
+    grid_index: int32 = 1;
+    is_3d: bool = false;
+}
+
+table ReqAddSeriesPayload {
+    figure_id: uint64 = 0;
+    axes_index: uint32 = 0;
+    series_type: string;
+    label: string;
+}
+
+table ReqRemoveSeriesPayload {
+    figure_id: uint64 = 0;
+    series_index: uint32 = 0;
+}
+
+table ReqSetDataPayload {
+    figure_id: uint64 = 0;
+    series_index: uint32 = 0;
+    dtype: uint8 = 0;
+    data: [float];
+}
+
+table ReqUpdatePropertyPayload {
+    figure_id: uint64 = 0;
+    axes_index: uint32 = 0;
+    series_index: uint32 = 0;
+    property: string;
+    f1: double = 0.0;
+    f2: double = 0.0;
+    f3: double = 0.0;
+    f4: double = 0.0;
+    bool_val: bool = false;
+    str_val: string;
+}
+
+table ReqShowPayload {
+    figure_id: uint64 = 0;
+    window_id: uint64 = 0;
+}
+
+table ReqCloseFigurePayload {
+    figure_id: uint64 = 0;
+}
+
+table ReqAppendDataPayload {
+    figure_id: uint64 = 0;
+    series_index: uint32 = 0;
+    data: [float];
+}
+
+table ReqUpdateBatchPayload {
+    updates: [ReqUpdatePropertyPayload];
+}
+
+table ReqReconnectPayload {
+    session_id: uint64 = 0;
+    session_token: string;
+}
+
+// ─── Python responses ────────────────────────────────────────────────────────
+
+table RespFigureCreatedPayload {
+    request_id: uint64 = 0;
+    figure_id: uint64 = 0;
+}
+
+table RespAxesCreatedPayload {
+    request_id: uint64 = 0;
+    axes_index: uint32 = 0;
+}
+
+table RespSeriesAddedPayload {
+    request_id: uint64 = 0;
+    series_index: uint32 = 0;
+}
+
+table RespFigureListPayload {
+    request_id: uint64 = 0;
+    figure_ids: [uint64];
+}
+
+// ─── Python events ───────────────────────────────────────────────────────────
+
+table EvtWindowClosedPayload {
+    figure_id: uint64 = 0;
+    window_id: uint64 = 0;
+    reason: string;
+}
+
+table EvtFigureDestroyedPayload {
+    figure_id: uint64 = 0;
+    reason: string;
+}

@@ -5,6 +5,7 @@
 #include <span>
 #include <vector>
 
+#include "codec_fb.hpp"
 #include "message.hpp"
 
 namespace spectra::ipc

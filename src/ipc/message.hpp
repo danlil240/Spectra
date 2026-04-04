@@ -122,14 +122,17 @@ struct Message
 // ─── Handshake payloads ──────────────────────────────────────────────────────
 
 static constexpr uint16_t PROTOCOL_MAJOR = 1;
-static constexpr uint16_t PROTOCOL_MINOR = 0;
+static constexpr uint16_t PROTOCOL_MINOR = 1;
+
+// Capability bits for HELLO handshake
+static constexpr uint32_t CAPABILITY_FLATBUFFERS = 0x0001;
 
 struct HelloPayload
 {
     uint16_t    protocol_major = PROTOCOL_MAJOR;
     uint16_t    protocol_minor = PROTOCOL_MINOR;
     std::string agent_build;
-    uint32_t    capabilities = 0;   // bitmask, reserved for future use
+    uint32_t    capabilities = 0;   // bitmask: CAPABILITY_FLATBUFFERS etc.
     std::string client_type;        // "python" or "agent" (empty = legacy agent)
 };
 

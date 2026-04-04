@@ -378,7 +378,7 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
         if (profiler)
             profiler->begin_stage("imgui_build");
         if (active_figure)
-            imgui_ui->build_ui(*active_figure);
+            imgui_ui->build_ui(*active_figure, &fig_mgr.active_state());
         else
             imgui_ui->build_empty_ui();
 

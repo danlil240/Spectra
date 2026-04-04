@@ -8,6 +8,9 @@
 #include <unordered_map>
 #include <vector>
 
+#include "ui/viewmodel/axes_view_model.hpp"
+#include "ui/viewmodel/series_view_model.hpp"
+
 namespace spectra
 {
 
@@ -129,6 +132,21 @@ class FigureViewModel
     void   set_zoom_cache(float data_min, float data_max, size_t series_count);
     void   invalidate_zoom_cache();
 
+    // ── Sub-ViewModels (LT-5) ────────────────────────────────────────
+    // Lazy-created per-axes and per-series view-models.  Callers use
+    // get_or_create to obtain a ViewModel that inherits this VM's
+    // UndoManager automatically.
+
+    AxesViewModel&   get_or_create_axes_vm(Axes* ax);
+    SeriesViewModel& get_or_create_series_vm(Series* s);
+
+    AxesViewModel*   find_axes_vm(Axes* ax);
+    SeriesViewModel* find_series_vm(Series* s);
+
+    // Remove stale entries (call when axes/series are deleted).
+    void remove_axes_vm(Axes* ax);
+    void remove_series_vm(Series* s);
+
    private:
     FigureId figure_id_ = INVALID_FIGURE_ID;
     Figure*  model_     = nullptr;
@@ -157,6 +175,10 @@ class FigureViewModel
     float  cached_data_max_          = 0.0f;
     size_t cached_zoom_series_count_ = 0;
     bool   zoom_cache_valid_         = false;
+
+    // Sub-ViewModels (LT-5) — keyed by raw model pointer
+    std::unordered_map<Axes*, AxesViewModel>     axes_vms_;
+    std::unordered_map<Series*, SeriesViewModel> series_vms_;
 
     // Change notification
     ChangeCallback on_changed_;

@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 #include <spectra/series3d.hpp>
 
@@ -8,10 +9,10 @@ namespace spectra
 namespace
 {
 
-void assign_coord(std::vector<float>& out, std::span<const float> in, bool& dirty)
+void assign_coord(std::vector<float>& out, std::span<const float> in, std::atomic<bool>& dirty)
 {
     out.assign(in.begin(), in.end());
-    dirty = true;
+    dirty.store(true, std::memory_order_release);
 }
 
 vec3 compute_centroid_xyz(const std::vector<float>& x,

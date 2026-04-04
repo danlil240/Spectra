@@ -9,7 +9,14 @@ HEADER_SIZE = 40
 MAX_PAYLOAD_SIZE = 256 * 1024 * 1024  # 256 MiB
 
 PROTOCOL_MAJOR = 1
-PROTOCOL_MINOR = 0
+PROTOCOL_MINOR = 1
+
+# Capability bits
+CAPABILITY_FLATBUFFERS = 0x0001
+
+# Payload format prefix bytes
+PAYLOAD_FORMAT_TLV = 0x00
+PAYLOAD_FORMAT_FLATBUFFERS = 0x01
 
 # Header struct: magic(2) + type(u16) + payload_len(u32) + seq(u64)
 #                + request_id(u64) + session_id(u64) + window_id(u64)

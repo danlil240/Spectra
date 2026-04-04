@@ -6,6 +6,7 @@
     #include <spectra/fwd.hpp>
 
     #include "ui/input/selection_context.hpp"
+    #include "ui/viewmodel/figure_view_model.hpp"
 
 struct ImFont;
 
@@ -19,6 +20,10 @@ class Inspector
 
     void                    set_context(const SelectionContext& ctx);
     const SelectionContext& context() const { return ctx_; }
+
+    // Set the active FigureViewModel (for sub-ViewModel access)
+    void             set_figure_view_model(FigureViewModel* vm) { figure_vm_ = vm; }
+    FigureViewModel* figure_view_model() const { return figure_vm_; }
 
     // Draw the inspector content within the given rect.
     // Call between ImGui::Begin/End of the inspector window.
@@ -49,6 +54,7 @@ class Inspector
     void draw_series_browser(Figure& fig);
 
     SelectionContext ctx_;
+    FigureViewModel* figure_vm_ = nullptr;
     SeriesClipboard* clipboard_ = nullptr;
     DeferRemovalFn   defer_removal_;
 

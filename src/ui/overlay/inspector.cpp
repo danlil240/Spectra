@@ -17,6 +17,8 @@
     #include "ui/theme/design_tokens.hpp"
     #include "ui/theme/icons.hpp"
     #include "ui/theme/theme.hpp"
+    #include "ui/viewmodel/axes_view_model.hpp"
+    #include "ui/viewmodel/series_view_model.hpp"
     #include "ui/imgui/widgets.hpp"
 
 namespace spectra::ui
@@ -583,7 +585,12 @@ void Inspector::draw_series_browser(Figure& fig)
             bool eye_clicked = ImGui::InvisibleButton("##eye", ImVec2(eye_w, eye_w));
             bool eye_hovered = ImGui::IsItemHovered();
             if (eye_clicked)
-                s->visible(!vis);
+            {
+                if (figure_vm_)
+                    figure_vm_->get_or_create_series_vm(s.get()).set_visible(!vis);
+                else
+                    s->visible(!vis);
+            }
 
             // Draw icon text centered within the button rect
             {
@@ -857,7 +864,12 @@ void Inspector::draw_axes_properties(Axes& ax, int index)
             float xmax_f = static_cast<float>(xlim.max);
             if (widgets::drag_field2("Range", xmin_f, xmax_f, 0.01f, "%.3f"))
             {
-                ax.xlim(static_cast<double>(xmin_f), static_cast<double>(xmax_f));
+                if (figure_vm_)
+                    figure_vm_->get_or_create_axes_vm(&ax).set_visual_xlim(
+                        static_cast<double>(xmin_f),
+                        static_cast<double>(xmax_f));
+                else
+                    ax.xlim(static_cast<double>(xmin_f), static_cast<double>(xmax_f));
             }
             std::string xlabel = ax.get_xlabel();
             if (widgets::text_field("Label", xlabel))
@@ -881,7 +893,12 @@ void Inspector::draw_axes_properties(Axes& ax, int index)
             float ymax_f = static_cast<float>(ylim.max);
             if (widgets::drag_field2("Range", ymin_f, ymax_f, 0.01f, "%.3f"))
             {
-                ax.ylim(static_cast<double>(ymin_f), static_cast<double>(ymax_f));
+                if (figure_vm_)
+                    figure_vm_->get_or_create_axes_vm(&ax).set_visual_ylim(
+                        static_cast<double>(ymin_f),
+                        static_cast<double>(ymax_f));
+                else
+                    ax.ylim(static_cast<double>(ymin_f), static_cast<double>(ymax_f));
             }
             std::string ylabel = ax.get_ylabel();
             if (widgets::text_field("Label", ylabel))
@@ -1013,13 +1030,19 @@ void Inspector::draw_series_properties(Series& s, int /*index*/)
             spectra::Color col = s.color();
             if (widgets::color_field("Color", col))
             {
-                s.set_color(col);
+                if (figure_vm_)
+                    figure_vm_->get_or_create_series_vm(&s).set_color(col);
+                else
+                    s.set_color(col);
             }
 
             bool vis = s.visible();
             if (widgets::toggle_field("Visible", vis))
             {
-                s.visible(vis);
+                if (figure_vm_)
+                    figure_vm_->get_or_create_series_vm(&s).set_visible(vis);
+                else
+                    s.visible(vis);
             }
 
             // Line style dropdown (all series types)
@@ -1075,7 +1098,10 @@ void Inspector::draw_series_properties(Series& s, int /*index*/)
                 float op = s.opacity();
                 if (widgets::slider_field("Opacity", op, 0.0f, 1.0f, "%.2f"))
                 {
-                    s.opacity(op);
+                    if (figure_vm_)
+                        figure_vm_->get_or_create_series_vm(&s).set_opacity(op);
+                    else
+                        s.opacity(op);
                 }
             }
 
@@ -1101,7 +1127,10 @@ void Inspector::draw_series_properties(Series& s, int /*index*/)
             std::string lbl = s.label();
             if (widgets::text_field("Label", lbl))
             {
-                s.label(lbl);
+                if (figure_vm_)
+                    figure_vm_->get_or_create_series_vm(&s).set_label(lbl);
+                else
+                    s.label(lbl);
             }
 
             widgets::end_group();

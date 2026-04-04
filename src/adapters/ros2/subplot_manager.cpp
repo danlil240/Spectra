@@ -197,6 +197,34 @@ SubplotHandle SubplotManager::add_plot(int                slot,
             if (eid < 0)
                 return bad;
             entry->extractor_id = eid;
+
+            // Enable thread-safe series + direct-write callback.
+            entry->series->set_thread_safe(true);
+            entry->direct_ctx = std::make_unique<DirectWriteContext>();
+
+            auto* ctx     = entry->direct_ctx.get();
+            auto* origin  = &shared_time_origin_;
+            auto* has_o   = &has_shared_origin_;
+            auto* series  = entry->series;
+            auto* data_cb = &on_data_cb_;
+            int   slot_id = slot;
+            sub->set_field_callback(
+                eid,
+                [ctx, origin, has_o, series, data_cb, slot_id](double t_sec, double val)
+                {
+                    if (!*has_o)
+                    {
+                        *origin = t_sec;
+                        *has_o  = true;
+                    }
+                    const double t_rel = t_sec - *origin;
+                    series->append(static_cast<float>(t_rel), static_cast<float>(val));
+                    ctx->samples_written.fetch_add(1, std::memory_order_relaxed);
+
+                    if (*data_cb)
+                        (*data_cb)(slot_id, t_sec, val);
+                });
+
             if (!sub->start())
                 return bad;
             entry->drain_buf.reserve(std::min(buffer_depth, MAX_DRAIN_PER_POLL));
@@ -275,6 +303,33 @@ SubplotHandle SubplotManager::add_plot(int                slot,
             return bad;
 
         se.extractor_id = eid;
+
+        // Enable thread-safe series + direct-write callback.
+        se.series->set_thread_safe(true);
+        se.direct_ctx = std::make_unique<DirectWriteContext>();
+
+        auto* ctx     = se.direct_ctx.get();
+        auto* origin  = &shared_time_origin_;
+        auto* has_o   = &has_shared_origin_;
+        auto* series  = se.series;
+        auto* data_cb = &on_data_cb_;
+        int   slot_id = slot;
+        sub->set_field_callback(
+            eid,
+            [ctx, origin, has_o, series, data_cb, slot_id](double t_sec, double val)
+            {
+                if (!*has_o)
+                {
+                    *origin = t_sec;
+                    *has_o  = true;
+                }
+                const double t_rel = t_sec - *origin;
+                series->append(static_cast<float>(t_rel), static_cast<float>(val));
+                ctx->samples_written.fetch_add(1, std::memory_order_relaxed);
+
+                if (*data_cb)
+                    (*data_cb)(slot_id, t_sec, val);
+            });
 
         if (!sub->start())
             return bad;
@@ -572,7 +627,20 @@ void SubplotManager::poll()
         const double now_rel = wall_now - shared_time_origin_;
 
         // -- Drain primary series --
-        if (se.subscriber && se.subscriber->is_running() && se.extractor_id >= 0)
+        // In direct-write mode, data is written by the executor thread
+        // callback and committed at frame boundary.  Skip ring-buffer drain.
+        if (se.direct_ctx)
+        {
+            // Commit pending data from the executor thread to the series.
+            if (se.series)
+                se.series->commit_pending();
+
+            se.samples_received = se.direct_ctx->samples_written.load(std::memory_order_relaxed);
+            se.auto_fitted      = (se.samples_received >= auto_fit_samples_);
+            if (se.samples_received > 0)
+                slot_received_new_data = true;
+        }
+        else if (se.subscriber && se.subscriber->is_running() && se.extractor_id >= 0)
         {
             if (se.drain_buf.capacity() < MAX_DRAIN_PER_POLL)
                 se.drain_buf.reserve(MAX_DRAIN_PER_POLL);
@@ -603,6 +671,20 @@ void SubplotManager::poll()
         // -- Drain extra series --
         for (auto& es : se.extra_series)
         {
+            // Direct-write mode for extra series.
+            if (es->direct_ctx)
+            {
+                if (es->series)
+                    es->series->commit_pending();
+
+                es->samples_received =
+                    es->direct_ctx->samples_written.load(std::memory_order_relaxed);
+                es->auto_fitted = (es->samples_received >= auto_fit_samples_);
+                if (es->samples_received > 0)
+                    slot_received_new_data = true;
+                continue;
+            }
+
             if (!es->subscriber || !es->subscriber->is_running() || es->extractor_id < 0)
                 continue;
 

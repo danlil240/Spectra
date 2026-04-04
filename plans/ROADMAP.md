@@ -1,6 +1,6 @@
 # Spectra UI Redesign — Roadmap & Progress Tracker
 
-**Last Updated:** 2026-02-17 (All UI Redesign Phases Complete + 3D Phase 3 Complete)  
+**Last Updated:** 2026-04-04 (Architecture priorities refreshed; repo metrics/review regenerated)  
 **Current Phase:** 3D Visualization — Phase 3 Complete ✅  
 **Overall Progress:** UI Redesign Phase 1 ✅, Phase 2 ✅, Phase 3 ✅ | 3D Agent 1 ✅, Agent 2 ✅, Agent 4 ✅, Agent 5 ✅, Agent 6 ✅, Agent 7 ✅ (Phase 3 Final)
 
@@ -22,6 +22,21 @@
 | **3. Build only your targets** | Use `cmake --build build --target unit_test_YOUR_FEATURE` or `--target spectra`. Do NOT run full `cmake --build build` or `ctest` while parallel agents are working. |
 | **4. Guard cross-agent deps** | Use null-check pointers (`if (ptr) { ptr->method(); }`) or `#ifdef` for optional modules. |
 | **5. Don't touch in-progress files** | Check this roadmap for `🔄 In Progress` markers before modifying shared files. |
+
+---
+
+## Current Architecture Priorities (2026-04-04)
+
+These are the next architecture follow-ups worth prioritizing across the repo:
+
+| Priority | Status | Notes |
+|------|--------|-------|
+| `WindowUIContext` initialization/lifecycle refactor | 🔄 Next Up | Prefer a shared `WindowInitializationContext` or builder used by both windowed and headless startup paths. This is the next real architecture project. |
+| Table-driven command registration | 🔄 Planned | For `register_commands.cpp`, build on existing `CommandBindings` instead of doing a purely mechanical file split or inventing a parallel context object. |
+| Table-driven automation dispatch | 🔄 Planned | For `automation_server.cpp`, prefer descriptor/registration tables over a larger `if (method == ...)` chain. |
+| Theming contextualization | 🔄 Planned | Frame the work around eliminating or contextualizing `ui::theme()` usage, not around chasing a few remaining `ThemeManager::instance()` references. |
+| IPC migration | 🔄 Planned | Move to FlatBuffers-by-default writes, auto-detect on reads, and remove dead TLV last. |
+| WebGPU messaging | 🔄 Planned | Keep docs/user-facing messaging at “2D/experimental” until the 3D pipeline set exists. |
 
 ---
 

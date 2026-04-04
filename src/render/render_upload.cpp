@@ -277,8 +277,9 @@ void Renderer::upload_series_data(Series& series, double origin_x, double origin
         // Query visible data: use full range when no specific viewport is available.
         // The renderer's render_series() will clip to the actual viewport.
         // We use a generous max_points budget to maintain visual fidelity.
-        auto vis = chunked_line->visible_data(
-            -std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), 65536);
+        auto vis = chunked_line->visible_data(-std::numeric_limits<float>::max(),
+                                              std::numeric_limits<float>::max(),
+                                              65536);
 
         size_t count = vis.x.size();
         if (count == 0)
@@ -302,8 +303,7 @@ void Renderer::upload_series_data(Series& series, double origin_x, double origin
 
         for (size_t i = 0; i < count; ++i)
         {
-            upload_scratch_[i * 2] =
-                static_cast<float>(static_cast<double>(vis.x[i]) - origin_x);
+            upload_scratch_[i * 2] = static_cast<float>(static_cast<double>(vis.x[i]) - origin_x);
             upload_scratch_[i * 2 + 1] =
                 static_cast<float>(static_cast<double>(vis.y[i]) - origin_y);
         }
@@ -490,15 +490,13 @@ void Renderer::upload_series_data(Series& series, double origin_x, double origin
         auto* entry = series_type_registry_->find_mut(custom->type_name());
         if (entry && entry->upload_fn && !entry->faulted)
         {
-            auto result = plugin_guard_invoke(
-                entry->type_name.c_str(),
-                [&]()
-                {
-                    entry->upload_fn(backend_,
-                                     custom->data(),
-                                     gpu.plugin_gpu_state,
-                                     custom->element_count());
-                });
+            auto result = plugin_guard_invoke(entry->type_name.c_str(),
+                                              [&]() {
+                                                  entry->upload_fn(backend_,
+                                                                   custom->data(),
+                                                                   gpu.plugin_gpu_state,
+                                                                   custom->element_count());
+                                              });
             if (result != PluginCallResult::Success)
             {
                 entry->faulted = true;

@@ -123,8 +123,8 @@ class ChunkedArray
             return;
 
         ensure_capacity(size_ + data.size());
-        std::size_t remaining = data.size();
-        const float* src      = data.data();
+        std::size_t  remaining = data.size();
+        const float* src       = data.data();
 
         while (remaining > 0)
         {

@@ -1,4 +1,5 @@
 #include <cmath>
+#include <filesystem>
 #include <fstream>
 #include <gtest/gtest.h>
 #include <numeric>
@@ -131,7 +132,7 @@ TEST(ChunkedLineSeries, Width)
 TEST(ChunkedLineSeries, FluentAPI)
 {
     ChunkedLineSeries series;
-    auto& ref = series.label("chunked").color(colors::red).width(3.0f).enable_lod(true);
+    auto&             ref = series.label("chunked").color(colors::red).width(3.0f).enable_lod(true);
 
     EXPECT_EQ(&ref, &series);
     const Series& base = series;
@@ -234,7 +235,7 @@ TEST(ChunkedLineSeries, LoadBinaryInterleaved)
         data.push_back(static_cast<float>(i * i));
     }
 
-    std::string   path = "/tmp/spectra_test_interleaved.bin";
+    auto path = (std::filesystem::temp_directory_path() / "spectra_test_interleaved.bin").string();
     std::ofstream ofs(path, std::ios::binary);
     ofs.write(reinterpret_cast<const char*>(data.data()),
               static_cast<std::streamsize>(data.size() * sizeof(float)));
@@ -265,7 +266,7 @@ TEST(ChunkedLineSeries, LoadBinaryColumns)
     for (std::size_t i = 0; i < N; ++i)
         data.push_back(static_cast<float>(i * 2));
 
-    std::string   path = "/tmp/spectra_test_columns.bin";
+    auto path = (std::filesystem::temp_directory_path() / "spectra_test_columns.bin").string();
     std::ofstream ofs(path, std::ios::binary);
     ofs.write(reinterpret_cast<const char*>(data.data()),
               static_cast<std::streamsize>(data.size() * sizeof(float)));

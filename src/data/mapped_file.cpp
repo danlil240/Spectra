@@ -4,14 +4,14 @@
 #include <utility>
 
 #ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN
-#define NOMINMAX
-#include <windows.h>
+    #define WIN32_LEAN_AND_MEAN
+    #define NOMINMAX
+    #include <windows.h>
 #else
-#include <fcntl.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
-#include <unistd.h>
+    #include <fcntl.h>
+    #include <sys/mman.h>
+    #include <sys/stat.h>
+    #include <unistd.h>
 #endif
 
 namespace spectra::data
@@ -20,8 +20,13 @@ namespace spectra::data
 MappedFile::MappedFile(const std::string& path)
 {
 #ifdef _WIN32
-    file_handle_ = CreateFileA(
-        path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
+    file_handle_ = CreateFileA(path.c_str(),
+                               GENERIC_READ,
+                               FILE_SHARE_READ,
+                               nullptr,
+                               OPEN_EXISTING,
+                               0,
+                               nullptr);
     if (file_handle_ == INVALID_HANDLE_VALUE)
         throw std::runtime_error("MappedFile: cannot open " + path);
 
@@ -98,14 +103,15 @@ MappedFile::~MappedFile()
 }
 
 MappedFile::MappedFile(MappedFile&& other) noexcept
-    : data_(std::exchange(other.data_, nullptr))
-    , size_(std::exchange(other.size_, 0))
-    , open_(std::exchange(other.open_, false))
+    : data_(std::exchange(other.data_, nullptr)), size_(std::exchange(other.size_, 0)),
+      open_(std::exchange(other.open_, false))
 #ifdef _WIN32
-    , file_handle_(std::exchange(other.file_handle_, nullptr))
-    , mapping_handle_(std::exchange(other.mapping_handle_, nullptr))
+      ,
+      file_handle_(std::exchange(other.file_handle_, nullptr)),
+      mapping_handle_(std::exchange(other.mapping_handle_, nullptr))
 #else
-    , fd_(std::exchange(other.fd_, -1))
+      ,
+      fd_(std::exchange(other.fd_, -1))
 #endif
 {
 }
@@ -128,8 +134,7 @@ MappedFile& MappedFile::operator=(MappedFile&& other) noexcept
     return *this;
 }
 
-std::span<const float> MappedFile::subspan_float(std::size_t byte_offset,
-                                                  std::size_t count) const
+std::span<const float> MappedFile::subspan_float(std::size_t byte_offset, std::size_t count) const
 {
     if (!data_ || byte_offset >= size_)
         return {};

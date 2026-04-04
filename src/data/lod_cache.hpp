@@ -34,7 +34,9 @@ class LodCache
     /// Build the LoD pyramid from full-resolution source data.
     /// `x` and `y` must be the same length with x sorted ascending.
     /// `ratio` controls the decimation factor between levels (default 4x).
-    void build(std::span<const float> x, std::span<const float> y, std::size_t ratio = DEFAULT_RATIO)
+    void build(std::span<const float> x,
+               std::span<const float> y,
+               std::size_t            ratio = DEFAULT_RATIO)
     {
         levels_.clear();
         source_size_ = x.size();
@@ -172,29 +174,25 @@ class LodCache
     /// Find the index range [lo, hi) of elements in `v` that fall within
     /// [x_min, x_max] using binary search.
     static std::pair<std::size_t, std::size_t> visible_range(const std::vector<float>& v,
-                                                              float                     x_min,
-                                                              float                     x_max)
+                                                             float                     x_min,
+                                                             float                     x_max)
     {
         if (v.empty())
             return {0, 0};
-        auto lo = static_cast<std::size_t>(
-            std::lower_bound(v.begin(), v.end(), x_min) - v.begin());
-        auto hi = static_cast<std::size_t>(
-            std::upper_bound(v.begin(), v.end(), x_max) - v.begin());
+        auto lo = static_cast<std::size_t>(std::lower_bound(v.begin(), v.end(), x_min) - v.begin());
+        auto hi = static_cast<std::size_t>(std::upper_bound(v.begin(), v.end(), x_max) - v.begin());
         return {lo, hi};
     }
 
     /// Same as above but for a span.
     static std::pair<std::size_t, std::size_t> visible_range_span(std::span<const float> v,
-                                                                   float                  x_min,
-                                                                   float                  x_max)
+                                                                  float                  x_min,
+                                                                  float                  x_max)
     {
         if (v.empty())
             return {0, 0};
-        auto lo = static_cast<std::size_t>(
-            std::lower_bound(v.begin(), v.end(), x_min) - v.begin());
-        auto hi = static_cast<std::size_t>(
-            std::upper_bound(v.begin(), v.end(), x_max) - v.begin());
+        auto lo = static_cast<std::size_t>(std::lower_bound(v.begin(), v.end(), x_min) - v.begin());
+        auto hi = static_cast<std::size_t>(std::upper_bound(v.begin(), v.end(), x_max) - v.begin());
         return {lo, hi};
     }
 

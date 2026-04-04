@@ -38,8 +38,7 @@ ChunkedLineSeries& ChunkedLineSeries::operator=(ChunkedLineSeries&&) noexcept = 
 
 // ── Data ingestion ──
 
-ChunkedLineSeries& ChunkedLineSeries::set_data(std::span<const float> x,
-                                               std::span<const float> y)
+ChunkedLineSeries& ChunkedLineSeries::set_data(std::span<const float> x, std::span<const float> y)
 {
     assert(x.size() == y.size());
     impl_->x.clear();
@@ -47,13 +46,13 @@ ChunkedLineSeries& ChunkedLineSeries::set_data(std::span<const float> x,
     impl_->x.append(x);
     impl_->y.append(y);
     impl_->lod_dirty = true;
-    dirty_            = true;
+    dirty_           = true;
     return *this;
 }
 
 ChunkedLineSeries& ChunkedLineSeries::load_binary(const std::string& path,
-                                                   std::size_t        offset_bytes,
-                                                   std::size_t        count)
+                                                  std::size_t        offset_bytes,
+                                                  std::size_t        count)
 {
     data::MappedFile file(path);
     if (!file.is_open())
@@ -80,14 +79,14 @@ ChunkedLineSeries& ChunkedLineSeries::load_binary(const std::string& path,
     }
 
     impl_->lod_dirty = true;
-    dirty_            = true;
+    dirty_           = true;
     return *this;
 }
 
 ChunkedLineSeries& ChunkedLineSeries::load_binary_columns(const std::string& path,
-                                                           std::size_t        x_offset_bytes,
-                                                           std::size_t        y_offset_bytes,
-                                                           std::size_t        count)
+                                                          std::size_t        x_offset_bytes,
+                                                          std::size_t        y_offset_bytes,
+                                                          std::size_t        count)
 {
     data::MappedFile file(path);
     if (!file.is_open())
@@ -106,7 +105,7 @@ ChunkedLineSeries& ChunkedLineSeries::load_binary_columns(const std::string& pat
     impl_->y.append(y_span.subspan(0, actual));
 
     impl_->lod_dirty = true;
-    dirty_            = true;
+    dirty_           = true;
     return *this;
 }
 
@@ -115,7 +114,7 @@ void ChunkedLineSeries::append(float x, float y)
     impl_->x.push_back(x);
     impl_->y.push_back(y);
     impl_->lod_dirty = true;
-    dirty_            = true;
+    dirty_           = true;
     enforce_memory_budget();
 }
 
@@ -125,7 +124,7 @@ void ChunkedLineSeries::append_batch(std::span<const float> x, std::span<const f
     impl_->x.append(x);
     impl_->y.append(y);
     impl_->lod_dirty = true;
-    dirty_            = true;
+    dirty_           = true;
     enforce_memory_budget();
 }
 
@@ -151,7 +150,7 @@ std::size_t ChunkedLineSeries::erase_before(float x_threshold)
     impl_->x.erase_front(lo);
     impl_->y.erase_front(lo);
     impl_->lod_dirty = true;
-    dirty_            = true;
+    dirty_           = true;
     return lo;
 }
 
@@ -202,7 +201,7 @@ ChunkedLineSeries& ChunkedLineSeries::set_chunk_size(std::size_t size)
 ChunkedLineSeries& ChunkedLineSeries::width(float w)
 {
     impl_->line_width = w;
-    dirty_             = true;
+    dirty_            = true;
     return *this;
 }
 
@@ -234,28 +233,22 @@ std::vector<float> ChunkedLineSeries::y_range(std::size_t offset, std::size_t co
 }
 
 ChunkedLineSeries::VisibleData ChunkedLineSeries::visible_data(float       x_min,
-                                                                float       x_max,
-                                                                std::size_t max_points) const
+                                                               float       x_max,
+                                                               std::size_t max_points) const
 {
     if (impl_->x.empty())
         return {};
 
-    // Get full data as vectors for range queries
-    // For very large datasets, this could be optimized to avoid the copy,
-    // but the LoD cache amortizes the cost.
-    auto all_x = impl_->x.read_vec(0, impl_->x.size());
-    auto all_y = impl_->y.read_vec(0, impl_->y.size());
-
-    std::span<const float> x_span(all_x);
-    std::span<const float> y_span(all_y);
-
-    // Try LoD cache first
+    // Try LoD cache first (requires full data for query)
     if (impl_->lod_enabled)
     {
         rebuild_lod_if_needed();
         if (!impl_->lod.empty())
         {
-            auto result = impl_->lod.query(x_span, y_span, x_min, x_max, max_points);
+            auto all_x = impl_->x.read_vec(0, impl_->x.size());
+            auto all_y = impl_->y.read_vec(0, impl_->y.size());
+
+            auto result = impl_->lod.query(all_x, all_y, x_min, x_max, max_points);
             return {
                 std::vector<float>(result.x.begin(), result.x.end()),
                 std::vector<float>(result.y.begin(), result.y.end()),
@@ -264,33 +257,54 @@ ChunkedLineSeries::VisibleData ChunkedLineSeries::visible_data(float       x_min
         }
     }
 
-    // No LoD — clip to visible range and decimate if needed
-    auto lo_it =
-        std::lower_bound(all_x.begin(), all_x.end(), x_min);
-    auto hi_it =
-        std::upper_bound(all_x.begin(), all_x.end(), x_max);
+    // No LoD — binary search on ChunkedArray to find visible range without
+    // copying the entire dataset.
+    std::size_t n = impl_->x.size();
 
-    auto lo_idx = static_cast<std::size_t>(lo_it - all_x.begin());
-    auto hi_idx = static_cast<std::size_t>(hi_it - all_x.begin());
+    // Binary search for lower bound (first element >= x_min)
+    std::size_t lo = 0, hi = n;
+    while (lo < hi)
+    {
+        std::size_t mid = lo + (hi - lo) / 2;
+        if (impl_->x[mid] < x_min)
+            lo = mid + 1;
+        else
+            hi = mid;
+    }
+    std::size_t lo_idx = lo;
+
+    // Binary search for upper bound (first element > x_max)
+    lo = lo_idx;
+    hi = n;
+    while (lo < hi)
+    {
+        std::size_t mid = lo + (hi - lo) / 2;
+        if (impl_->x[mid] <= x_max)
+            lo = mid + 1;
+        else
+            hi = mid;
+    }
+    std::size_t hi_idx = lo;
 
     std::size_t visible_count = hi_idx - lo_idx;
     if (visible_count == 0)
         return {};
 
-    std::span<const float> vis_x = x_span.subspan(lo_idx, visible_count);
-    std::span<const float> vis_y = y_span.subspan(lo_idx, visible_count);
+    // Read only the visible range
+    auto vis_x = impl_->x.read_vec(lo_idx, visible_count);
+    auto vis_y = impl_->y.read_vec(lo_idx, visible_count);
 
     if (visible_count <= max_points)
     {
         return {
-            std::vector<float>(vis_x.begin(), vis_x.end()),
-            std::vector<float>(vis_y.begin(), vis_y.end()),
+            std::move(vis_x),
+            std::move(vis_y),
             0,
         };
     }
 
     // Decimate to fit budget
-    auto decimated = data::min_max_decimate(vis_x, vis_y, max_points / 2);
+    auto        decimated = data::min_max_decimate(vis_x, vis_y, max_points / 2);
     VisibleData out;
     out.x.reserve(decimated.size());
     out.y.reserve(decimated.size());
@@ -321,11 +335,8 @@ void ChunkedLineSeries::rebuild_lod_if_needed() const
     auto all_x = impl_->x.read_vec(0, impl_->x.size());
     auto all_y = impl_->y.read_vec(0, impl_->y.size());
 
-    // const_cast is safe here: we're updating a cache, not logical state.
-    auto& lod     = const_cast<data::LodCache&>(impl_->lod);
-    auto& dirty   = const_cast<bool&>(impl_->lod_dirty);
-    lod.build(all_x, all_y);
-    dirty = false;
+    impl_->lod.build(all_x, all_y);
+    impl_->lod_dirty = false;
 }
 
 void ChunkedLineSeries::enforce_memory_budget()

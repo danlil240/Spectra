@@ -1,4 +1,5 @@
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <gtest/gtest.h>
 #include <vector>
@@ -13,7 +14,8 @@ namespace
 /// Helper to create a temporary binary file with float data.
 std::string write_temp_binary(const std::vector<float>& data, const std::string& name)
 {
-    std::string path = "/tmp/spectra_test_" + name + ".bin";
+    auto path =
+        (std::filesystem::temp_directory_path() / ("spectra_test_" + name + ".bin")).string();
     std::ofstream ofs(path, std::ios::binary);
     ofs.write(reinterpret_cast<const char*>(data.data()),
               static_cast<std::streamsize>(data.size() * sizeof(float)));
@@ -47,7 +49,8 @@ TEST(MappedFile, MapExistingFile)
 
 TEST(MappedFile, MapNonExistent)
 {
-    EXPECT_THROW(MappedFile mf("/tmp/nonexistent_file_xyz.bin"), std::runtime_error);
+    auto path = (std::filesystem::temp_directory_path() / "nonexistent_file_xyz.bin").string();
+    EXPECT_THROW(MappedFile mf(path), std::runtime_error);
 }
 
 // ─── Subspan access ─────────────────────────────────────────────────────────
@@ -148,7 +151,7 @@ TEST(MappedFile, ExplicitClose)
 
 TEST(MappedFile, EmptyFile)
 {
-    std::string path = "/tmp/spectra_test_empty.bin";
+    auto path = (std::filesystem::temp_directory_path() / "spectra_test_empty.bin").string();
     std::ofstream(path, std::ios::binary);   // Create empty file
 
     MappedFile mf(path);

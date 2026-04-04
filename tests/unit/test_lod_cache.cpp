@@ -32,6 +32,33 @@ TEST(LodCache, BuildFromSmallData)
     EXPECT_EQ(cache.level_count(), 0u);
 }
 
+TEST(LodCache, BuildAtMinLevelBoundary)
+{
+    LodCache cache;
+
+    // Exactly MIN_LEVEL_POINTS — should build at least one level
+    const std::size_t  N = LodCache::MIN_LEVEL_POINTS;
+    std::vector<float> x(N), y(N);
+    std::iota(x.begin(), x.end(), 0.0f);
+    for (std::size_t i = 0; i < N; ++i)
+        y[i] = static_cast<float>(i);
+
+    cache.build(x, y);
+    // With exactly 64 points and ratio 4, the first level target would be 16,
+    // which is below MIN_LEVEL_POINTS, so no levels should be built.
+    EXPECT_TRUE(cache.empty());
+
+    // Just above boundary: 4 * MIN_LEVEL_POINTS should build exactly one level
+    const std::size_t  N2 = 4 * LodCache::MIN_LEVEL_POINTS;
+    std::vector<float> x2(N2), y2(N2);
+    std::iota(x2.begin(), x2.end(), 0.0f);
+    for (std::size_t i = 0; i < N2; ++i)
+        y2[i] = static_cast<float>(i);
+
+    cache.build(x2, y2);
+    EXPECT_GE(cache.level_count(), 1u);
+}
+
 TEST(LodCache, BuildFromLargeData)
 {
     LodCache cache;

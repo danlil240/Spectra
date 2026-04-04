@@ -247,7 +247,7 @@ class Renderer
         Shape2D,
         Shape3D,
         ChunkedLine2D,   // ChunkedLineSeries — demand-loaded, LoD-aware
-        Custom,           // Plugin-defined custom series type
+        Custom,          // Plugin-defined custom series type
     };
 
     // Per-series GPU buffers (keyed by series pointer address)

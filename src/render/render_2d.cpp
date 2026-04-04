@@ -466,16 +466,14 @@ void Renderer::render_series(Series& series,
                 if (entry && entry->draw_fn && entry->pipeline && !entry->faulted)
                 {
                     float viewport_xywh[4] = {0, 0, 0, 0};   // Set by caller via set_viewport
-                    auto  result           = plugin_guard_invoke(
-                        entry->type_name.c_str(),
-                        [&]()
-                        {
-                            entry->draw_fn(backend_,
-                                                          entry->pipeline,
-                                                          gpu.plugin_gpu_state,
-                                                          viewport_xywh,
-                                                          pc);
-                        });
+                    auto  result           = plugin_guard_invoke(entry->type_name.c_str(),
+                                                      [&]() {
+                                                          entry->draw_fn(backend_,
+                                                                         entry->pipeline,
+                                                                         gpu.plugin_gpu_state,
+                                                                         viewport_xywh,
+                                                                         pc);
+                                                      });
                     if (result != PluginCallResult::Success)
                     {
                         entry->faulted = true;

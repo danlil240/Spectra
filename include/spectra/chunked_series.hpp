@@ -79,14 +79,14 @@ class ChunkedLineSeries : public Series
 
     /// Set a memory budget for streaming mode.  When the total data exceeds
     /// this budget, the oldest chunks are dropped.  0 = unlimited (default).
-    ChunkedLineSeries& set_memory_budget(std::size_t bytes);
+    ChunkedLineSeries&        set_memory_budget(std::size_t bytes);
     [[nodiscard]] std::size_t memory_budget() const;
 
     /// Set the chunk size (number of floats per chunk).
     ChunkedLineSeries& set_chunk_size(std::size_t size);
 
     /// Line width.
-    ChunkedLineSeries& width(float w);
+    ChunkedLineSeries&  width(float w);
     [[nodiscard]] float width() const;
 
     // ── Data access ──
@@ -160,7 +160,7 @@ class ChunkedLineSeries : public Series
     void enforce_memory_budget();
 
     struct Impl;
-    std::unique_ptr<Impl> impl_;
+    mutable std::unique_ptr<Impl> impl_;
 };
 
 }   // namespace spectra

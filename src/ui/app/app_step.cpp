@@ -388,10 +388,10 @@ void App::init_runtime()
     auto& dock_system           = rt.ui_ctx_ptr->dock_system;
     auto& timeline_editor       = rt.ui_ctx_ptr->timeline_editor;
     auto& keyframe_interpolator = rt.ui_ctx_ptr->keyframe_interpolator;
-    auto& curve_editor          = rt.ui_ctx_ptr->curve_editor;
+    // auto& curve_editor          = rt.ui_ctx_ptr->curve_editor;
     // auto& home_limits           = rt.ui_ctx_ptr->home_limits;
-    auto& cmd_registry        = rt.ui_ctx_ptr->cmd_registry;
-    auto& shortcut_mgr        = rt.ui_ctx_ptr->shortcut_mgr;
+    // auto& cmd_registry        = rt.ui_ctx_ptr->cmd_registry;
+    // auto& shortcut_mgr        = rt.ui_ctx_ptr->shortcut_mgr;
     auto& cmd_palette         = rt.ui_ctx_ptr->cmd_palette;
     auto& tab_drag_controller = rt.ui_ctx_ptr->tab_drag_controller;
     auto& fig_mgr             = *rt.ui_ctx_ptr->fig_mgr;

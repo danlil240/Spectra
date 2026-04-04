@@ -7,10 +7,7 @@
 namespace spectra
 {
 
-FigureViewModel::FigureViewModel(FigureId id, Figure* model)
-    : figure_id_(id), model_(model)
-{
-}
+FigureViewModel::FigureViewModel(FigureId id, Figure* model) : figure_id_(id), model_(model) {}
 
 void FigureViewModel::save_axes_state()
 {
@@ -54,15 +51,24 @@ void FigureViewModel::set_selected_series_index(int idx)
 {
     if (idx == selected_series_index_)
         return;
-    int old = selected_series_index_;
+    int old                = selected_series_index_;
     selected_series_index_ = idx;
     if (undo_mgr_ && !suppressing_undo_)
     {
         auto* self = this;
-        undo_mgr_->push(UndoAction{
-            "Change series selection",
-            [self, old]() { self->suppressing_undo_ = true; self->set_selected_series_index(old); self->suppressing_undo_ = false; },
-            [self, idx]() { self->suppressing_undo_ = true; self->set_selected_series_index(idx); self->suppressing_undo_ = false; }});
+        undo_mgr_->push(UndoAction{"Change series selection",
+                                   [self, old]()
+                                   {
+                                       self->suppressing_undo_ = true;
+                                       self->set_selected_series_index(old);
+                                       self->suppressing_undo_ = false;
+                                   },
+                                   [self, idx]()
+                                   {
+                                       self->suppressing_undo_ = true;
+                                       self->set_selected_series_index(idx);
+                                       self->suppressing_undo_ = false;
+                                   }});
     }
     notify_changed(ChangeField::SelectedSeriesIndex);
 }
@@ -96,14 +102,23 @@ void FigureViewModel::set_custom_title(const std::string& title)
     if (title == custom_title_)
         return;
     std::string old = custom_title_;
-    custom_title_ = title;
+    custom_title_   = title;
     if (undo_mgr_ && !suppressing_undo_)
     {
         auto* self = this;
-        undo_mgr_->push(UndoAction{
-            "Rename figure",
-            [self, old]() { self->suppressing_undo_ = true; self->set_custom_title(old); self->suppressing_undo_ = false; },
-            [self, title]() { self->suppressing_undo_ = true; self->set_custom_title(title); self->suppressing_undo_ = false; }});
+        undo_mgr_->push(UndoAction{"Rename figure",
+                                   [self, old]()
+                                   {
+                                       self->suppressing_undo_ = true;
+                                       self->set_custom_title(old);
+                                       self->suppressing_undo_ = false;
+                                   },
+                                   [self, title]()
+                                   {
+                                       self->suppressing_undo_ = true;
+                                       self->set_custom_title(title);
+                                       self->suppressing_undo_ = false;
+                                   }});
     }
     notify_changed(ChangeField::CustomTitle);
 }
@@ -112,15 +127,24 @@ void FigureViewModel::set_is_in_3d_mode(bool v)
 {
     if (v == is_in_3d_mode_)
         return;
-    bool old = is_in_3d_mode_;
+    bool old       = is_in_3d_mode_;
     is_in_3d_mode_ = v;
     if (undo_mgr_ && !suppressing_undo_)
     {
         auto* self = this;
-        undo_mgr_->push(UndoAction{
-            v ? "Switch to 3D" : "Switch to 2D",
-            [self, old]() { self->suppressing_undo_ = true; self->set_is_in_3d_mode(old); self->suppressing_undo_ = false; },
-            [self, v]() { self->suppressing_undo_ = true; self->set_is_in_3d_mode(v); self->suppressing_undo_ = false; }});
+        undo_mgr_->push(UndoAction{v ? "Switch to 3D" : "Switch to 2D",
+                                   [self, old]()
+                                   {
+                                       self->suppressing_undo_ = true;
+                                       self->set_is_in_3d_mode(old);
+                                       self->suppressing_undo_ = false;
+                                   },
+                                   [self, v]()
+                                   {
+                                       self->suppressing_undo_ = true;
+                                       self->set_is_in_3d_mode(v);
+                                       self->suppressing_undo_ = false;
+                                   }});
     }
     notify_changed(ChangeField::IsIn3DMode);
 }

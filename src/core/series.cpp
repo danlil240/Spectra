@@ -17,15 +17,11 @@ void PendingSeriesDataDeleter::operator()(PendingSeriesData* ptr) const
 Series::~Series() = default;
 
 Series::Series(const Series& other)
-    : label_(other.label_)
-    , color_(other.color_)
-    , style_(other.style_)
-    , visible_(other.visible_)
-    , dirty_(other.dirty_.load(std::memory_order_relaxed))
-    , event_system_(other.event_system_)
-    , owning_axes_(other.owning_axes_)
-    , thread_safe_(false)   // Thread-safe state is not copied.
-    , pending_(nullptr)
+    : label_(other.label_), color_(other.color_), style_(other.style_), visible_(other.visible_),
+      dirty_(other.dirty_.load(std::memory_order_relaxed)), event_system_(other.event_system_),
+      owning_axes_(other.owning_axes_), thread_safe_(false)   // Thread-safe state is not copied.
+      ,
+      pending_(nullptr)
 {
 }
 
@@ -33,10 +29,10 @@ Series& Series::operator=(const Series& other)
 {
     if (this != &other)
     {
-        label_        = other.label_;
-        color_        = other.color_;
-        style_        = other.style_;
-        visible_      = other.visible_;
+        label_   = other.label_;
+        color_   = other.color_;
+        style_   = other.style_;
+        visible_ = other.visible_;
         dirty_.store(other.dirty_.load(std::memory_order_relaxed), std::memory_order_relaxed);
         event_system_ = other.event_system_;
         owning_axes_  = other.owning_axes_;

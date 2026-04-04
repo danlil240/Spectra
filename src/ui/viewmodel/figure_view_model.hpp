@@ -178,7 +178,7 @@ class FigureViewModel
 
     // Sub-ViewModels (LT-5) — keyed by raw model pointer
     std::unordered_map<Axes*, AxesViewModel>     axes_vms_;
-    std::unordered_map<Series*, SeriesViewModel>  series_vms_;
+    std::unordered_map<Series*, SeriesViewModel> series_vms_;
 
     // Change notification
     ChangeCallback on_changed_;

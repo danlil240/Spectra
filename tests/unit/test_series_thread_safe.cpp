@@ -78,7 +78,7 @@ TEST(SeriesThreadSafe, EraseBeforeRoutesToPending)
 {
     std::vector<float> init_x = {1.0f, 2.0f, 3.0f, 4.0f};
     std::vector<float> init_y = {10.0f, 20.0f, 30.0f, 40.0f};
-    LineSeries s(init_x, init_y);
+    LineSeries         s(init_x, init_y);
     s.set_thread_safe(true);
     s.clear_dirty();
 
@@ -161,14 +161,15 @@ TEST(SeriesThreadSafe, ConcurrentAppend)
     std::vector<std::thread> threads;
     for (int t = 0; t < num_threads; ++t)
     {
-        threads.emplace_back([&s, t]()
-        {
-            for (int i = 0; i < appends; ++i)
+        threads.emplace_back(
+            [&s, t]()
             {
-                float val = static_cast<float>(t * appends + i);
-                s.append(val, val * 10.0f);
-            }
-        });
+                for (int i = 0; i < appends; ++i)
+                {
+                    float val = static_cast<float>(t * appends + i);
+                    s.append(val, val * 10.0f);
+                }
+            });
     }
     for (auto& th : threads)
         th.join();
@@ -197,15 +198,16 @@ TEST(SeriesThreadSafe, ConcurrentAppendWithIntermediateCommits)
     std::vector<std::thread> threads;
     for (int t = 0; t < num_threads; ++t)
     {
-        threads.emplace_back([&s, t, &threads_done]()
-        {
-            for (int i = 0; i < appends; ++i)
+        threads.emplace_back(
+            [&s, t, &threads_done]()
             {
-                float val = static_cast<float>(t * appends + i);
-                s.append(val, val);
-            }
-            threads_done.fetch_add(1, std::memory_order_release);
-        });
+                for (int i = 0; i < appends; ++i)
+                {
+                    float val = static_cast<float>(t * appends + i);
+                    s.append(val, val);
+                }
+                threads_done.fetch_add(1, std::memory_order_release);
+            });
     }
 
     // "Main thread" periodically commits while producers are running

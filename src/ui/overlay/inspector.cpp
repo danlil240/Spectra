@@ -866,7 +866,8 @@ void Inspector::draw_axes_properties(Axes& ax, int index)
             {
                 if (figure_vm_)
                     figure_vm_->get_or_create_axes_vm(&ax).set_visual_xlim(
-                        static_cast<double>(xmin_f), static_cast<double>(xmax_f));
+                        static_cast<double>(xmin_f),
+                        static_cast<double>(xmax_f));
                 else
                     ax.xlim(static_cast<double>(xmin_f), static_cast<double>(xmax_f));
             }
@@ -894,7 +895,8 @@ void Inspector::draw_axes_properties(Axes& ax, int index)
             {
                 if (figure_vm_)
                     figure_vm_->get_or_create_axes_vm(&ax).set_visual_ylim(
-                        static_cast<double>(ymin_f), static_cast<double>(ymax_f));
+                        static_cast<double>(ymin_f),
+                        static_cast<double>(ymax_f));
                 else
                     ax.ylim(static_cast<double>(ymin_f), static_cast<double>(ymax_f));
             }

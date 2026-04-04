@@ -136,10 +136,7 @@ class PendingSeriesData
     }
 
     // Lock-free check: are there pending operations?
-    bool has_pending() const noexcept
-    {
-        return has_pending_.load(std::memory_order_acquire);
-    }
+    bool has_pending() const noexcept { return has_pending_.load(std::memory_order_acquire); }
 
     // ── Wake callback ────────────────────────────────────────────────────
 
@@ -158,8 +155,8 @@ class PendingSeriesData
         }
     }
 
-    SpinLock           lock_;
-    std::atomic<bool>  has_pending_{false};
+    SpinLock          lock_;
+    std::atomic<bool> has_pending_{false};
 
     // Full-replace buffers (applied as move, so zero-copy for large datasets).
     std::optional<std::vector<float>> pending_x_;

@@ -143,17 +143,17 @@ class Series
    protected:
     Series& apply_format_string(std::string_view fmt);
 
-    std::string  label_;
-    Color        color_ = colors::blue;
-    PlotStyle    style_;   // line/marker style, sizes, opacity
-    bool               visible_      = true;
-    std::atomic<bool>  dirty_{true};
-    EventSystem*       event_system_ = nullptr;
-    AxesBase*    owning_axes_  = nullptr;
+    std::string       label_;
+    Color             color_ = colors::blue;
+    PlotStyle         style_;   // line/marker style, sizes, opacity
+    bool              visible_ = true;
+    std::atomic<bool> dirty_{true};
+    EventSystem*      event_system_ = nullptr;
+    AxesBase*         owning_axes_  = nullptr;
 
     // Thread-safe data buffering (opt-in).
-    bool                                                            thread_safe_ = false;
-    std::unique_ptr<PendingSeriesData, PendingSeriesDataDeleter>    pending_;
+    bool                                                         thread_safe_ = false;
+    std::unique_ptr<PendingSeriesData, PendingSeriesDataDeleter> pending_;
 };
 
 class LineSeries : public Series

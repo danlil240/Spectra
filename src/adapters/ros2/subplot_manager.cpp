@@ -208,19 +208,22 @@ SubplotHandle SubplotManager::add_plot(int                slot,
             auto* series  = entry->series;
             auto* data_cb = &on_data_cb_;
             int   slot_id = slot;
-            sub->set_field_callback(eid, [ctx, origin, has_o, series, data_cb, slot_id](double t_sec, double val) {
-                if (!*has_o)
+            sub->set_field_callback(
+                eid,
+                [ctx, origin, has_o, series, data_cb, slot_id](double t_sec, double val)
                 {
-                    *origin = t_sec;
-                    *has_o  = true;
-                }
-                const double t_rel = t_sec - *origin;
-                series->append(static_cast<float>(t_rel), static_cast<float>(val));
-                ctx->samples_written.fetch_add(1, std::memory_order_relaxed);
+                    if (!*has_o)
+                    {
+                        *origin = t_sec;
+                        *has_o  = true;
+                    }
+                    const double t_rel = t_sec - *origin;
+                    series->append(static_cast<float>(t_rel), static_cast<float>(val));
+                    ctx->samples_written.fetch_add(1, std::memory_order_relaxed);
 
-                if (*data_cb)
-                    (*data_cb)(slot_id, t_sec, val);
-            });
+                    if (*data_cb)
+                        (*data_cb)(slot_id, t_sec, val);
+                });
 
             if (!sub->start())
                 return bad;
@@ -311,19 +314,22 @@ SubplotHandle SubplotManager::add_plot(int                slot,
         auto* series  = se.series;
         auto* data_cb = &on_data_cb_;
         int   slot_id = slot;
-        sub->set_field_callback(eid, [ctx, origin, has_o, series, data_cb, slot_id](double t_sec, double val) {
-            if (!*has_o)
+        sub->set_field_callback(
+            eid,
+            [ctx, origin, has_o, series, data_cb, slot_id](double t_sec, double val)
             {
-                *origin = t_sec;
-                *has_o  = true;
-            }
-            const double t_rel = t_sec - *origin;
-            series->append(static_cast<float>(t_rel), static_cast<float>(val));
-            ctx->samples_written.fetch_add(1, std::memory_order_relaxed);
+                if (!*has_o)
+                {
+                    *origin = t_sec;
+                    *has_o  = true;
+                }
+                const double t_rel = t_sec - *origin;
+                series->append(static_cast<float>(t_rel), static_cast<float>(val));
+                ctx->samples_written.fetch_add(1, std::memory_order_relaxed);
 
-            if (*data_cb)
-                (*data_cb)(slot_id, t_sec, val);
-        });
+                if (*data_cb)
+                    (*data_cb)(slot_id, t_sec, val);
+            });
 
         if (!sub->start())
             return bad;
@@ -629,9 +635,8 @@ void SubplotManager::poll()
             if (se.series)
                 se.series->commit_pending();
 
-            se.samples_received =
-                se.direct_ctx->samples_written.load(std::memory_order_relaxed);
-            se.auto_fitted = (se.samples_received >= auto_fit_samples_);
+            se.samples_received = se.direct_ctx->samples_written.load(std::memory_order_relaxed);
+            se.auto_fitted      = (se.samples_received >= auto_fit_samples_);
             if (se.samples_received > 0)
                 slot_received_new_data = true;
         }

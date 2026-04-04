@@ -160,8 +160,7 @@ void GenericSubscriber::remove_field(int extractor_id)
         extractors_.erase(it);
 }
 
-void GenericSubscriber::set_field_callback(int                              extractor_id,
-                                           FieldExtractor::DirectWriteCallback cb)
+void GenericSubscriber::set_field_callback(int extractor_id, FieldExtractor::DirectWriteCallback cb)
 {
     FieldExtractor* ex = find_extractor(extractor_id);
     if (ex)

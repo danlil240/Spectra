@@ -496,8 +496,8 @@ TEST(EventBus, DrainDeferredEmpty)
 
 TEST(EventBus, EmitDeferredFromThread)
 {
-    EventBus<TestEvent>  bus;
-    std::atomic<int>     received{0};
+    EventBus<TestEvent> bus;
+    std::atomic<int>    received{0};
     bus.subscribe([&](const TestEvent& e) { received.store(e.value); });
 
     std::thread t([&]() { bus.emit_deferred({99}); });
@@ -595,10 +595,14 @@ TEST(ScopedSubscription, WithPriority)
     EventBus<TestEvent> bus;
     std::vector<int>    order;
 
-    ScopedSubscription<TestEvent> low(bus, [&](const TestEvent&) { order.push_back(3); },
-                                      Priority::Low);
-    ScopedSubscription<TestEvent> high(bus, [&](const TestEvent&) { order.push_back(1); },
-                                       Priority::High);
+    ScopedSubscription<TestEvent> low(
+        bus,
+        [&](const TestEvent&) { order.push_back(3); },
+        Priority::Low);
+    ScopedSubscription<TestEvent> high(
+        bus,
+        [&](const TestEvent&) { order.push_back(1); },
+        Priority::High);
 
     bus.emit({0});
     ASSERT_EQ(order.size(), 2u);
@@ -625,10 +629,10 @@ TEST(EventSystem, AnimationEvents)
     EventSystem es;
     FigureId    started_id = 0, stopped_id = 0;
 
-    es.animation_started().subscribe(
-        [&](const AnimationStartedEvent& e) { started_id = e.figure_id; });
-    es.animation_stopped().subscribe(
-        [&](const AnimationStoppedEvent& e) { stopped_id = e.figure_id; });
+    es.animation_started().subscribe([&](const AnimationStartedEvent& e)
+                                     { started_id = e.figure_id; });
+    es.animation_stopped().subscribe([&](const AnimationStoppedEvent& e)
+                                     { stopped_id = e.figure_id; });
 
     es.animation_started().emit({42});
     EXPECT_EQ(started_id, 42u);
@@ -642,8 +646,7 @@ TEST(EventSystem, ExportCompletedEvent)
     EventSystem es;
     std::string received_path;
 
-    es.export_completed().subscribe(
-        [&](const ExportCompletedEvent& e) { received_path = e.path; });
+    es.export_completed().subscribe([&](const ExportCompletedEvent& e) { received_path = e.path; });
 
     es.export_completed().emit({1, "/tmp/test.png"});
     EXPECT_EQ(received_path, "/tmp/test.png");
@@ -655,8 +658,8 @@ TEST(EventSystem, PluginEvents)
     std::string loaded_name, unloaded_name;
 
     es.plugin_loaded().subscribe([&](const PluginLoadedEvent& e) { loaded_name = e.plugin_name; });
-    es.plugin_unloaded().subscribe(
-        [&](const PluginUnloadedEvent& e) { unloaded_name = e.plugin_name; });
+    es.plugin_unloaded().subscribe([&](const PluginUnloadedEvent& e)
+                                   { unloaded_name = e.plugin_name; });
 
     es.plugin_loaded().emit({"my_plugin"});
     EXPECT_EQ(loaded_name, "my_plugin");

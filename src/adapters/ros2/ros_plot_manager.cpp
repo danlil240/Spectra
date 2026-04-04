@@ -113,15 +113,18 @@ PlotHandle RosPlotManager::add_plot(const std::string& topic,
         auto* series   = entry->series;
         auto* data_cb  = &on_data_cb_;
         int   entry_id = entry->id;
-        sub->set_field_callback(eid, [ctx, series, data_cb, entry_id](double t_sec, double val) {
-            std::call_once(ctx->origin_once, [&]() { ctx->origin = t_sec; });
-            const double t_rel = t_sec - ctx->origin;
-            series->append(static_cast<float>(t_rel), static_cast<float>(val));
-            ctx->samples_written.fetch_add(1, std::memory_order_relaxed);
+        sub->set_field_callback(
+            eid,
+            [ctx, series, data_cb, entry_id](double t_sec, double val)
+            {
+                std::call_once(ctx->origin_once, [&]() { ctx->origin = t_sec; });
+                const double t_rel = t_sec - ctx->origin;
+                series->append(static_cast<float>(t_rel), static_cast<float>(val));
+                ctx->samples_written.fetch_add(1, std::memory_order_relaxed);
 
-            if (*data_cb)
-                (*data_cb)(entry_id, t_sec, val);
-        });
+                if (*data_cb)
+                    (*data_cb)(entry_id, t_sec, val);
+            });
 
         if (!sub->start())
         {

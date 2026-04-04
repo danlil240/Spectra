@@ -172,7 +172,8 @@ class EventBus
     void sort_subs()
     {
         std::stable_sort(
-            subs_.begin(), subs_.end(),
+            subs_.begin(),
+            subs_.end(),
             [](const Sub& a, const Sub& b)
             { return static_cast<uint8_t>(a.priority) < static_cast<uint8_t>(b.priority); });
     }
@@ -312,8 +313,9 @@ class ScopedSubscription
    public:
     ScopedSubscription() = default;
 
-    ScopedSubscription(EventBus<Event>& bus, typename EventBus<Event>::Callback cb,
-                       Priority priority = Priority::Normal)
+    ScopedSubscription(EventBus<Event>&                   bus,
+                       typename EventBus<Event>::Callback cb,
+                       Priority                           priority = Priority::Normal)
         : bus_(&bus), id_(bus.subscribe(std::move(cb), priority))
     {
     }
@@ -325,8 +327,7 @@ class ScopedSubscription
     }
 
     // Move-only
-    ScopedSubscription(ScopedSubscription&& other) noexcept
-        : bus_(other.bus_), id_(other.id_)
+    ScopedSubscription(ScopedSubscription&& other) noexcept : bus_(other.bus_), id_(other.id_)
     {
         other.bus_ = nullptr;
     }

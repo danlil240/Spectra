@@ -49,22 +49,23 @@ TEST(SpinLock, GuardLocksAndUnlocks)
 
 TEST(SpinLock, ConcurrentIncrement)
 {
-    SpinLock lock;
-    int      counter = 0;
-    constexpr int num_threads    = 4;
-    constexpr int increments     = 10000;
+    SpinLock      lock;
+    int           counter     = 0;
+    constexpr int num_threads = 4;
+    constexpr int increments  = 10000;
 
     std::vector<std::thread> threads;
     for (int t = 0; t < num_threads; ++t)
     {
-        threads.emplace_back([&]()
-        {
-            for (int i = 0; i < increments; ++i)
+        threads.emplace_back(
+            [&]()
             {
-                SpinLockGuard guard(lock);
-                ++counter;
-            }
-        });
+                for (int i = 0; i < increments; ++i)
+                {
+                    SpinLockGuard guard(lock);
+                    ++counter;
+                }
+            });
     }
     for (auto& th : threads)
         th.join();
@@ -84,14 +85,14 @@ TEST(PendingSeriesData, InitialState)
 
 TEST(PendingSeriesData, EmptyCommitReturnsFalse)
 {
-    PendingSeriesData      pending;
+    PendingSeriesData  pending;
     std::vector<float> x, y;
     EXPECT_FALSE(pending.commit(x, y));
 }
 
 TEST(PendingSeriesData, AppendAccumulates)
 {
-    PendingSeriesData      pending;
+    PendingSeriesData  pending;
     std::vector<float> x, y;
 
     pending.append(1.0f, 10.0f);
@@ -111,7 +112,7 @@ TEST(PendingSeriesData, AppendAccumulates)
 
 TEST(PendingSeriesData, AppendToExistingData)
 {
-    PendingSeriesData      pending;
+    PendingSeriesData  pending;
     std::vector<float> x = {0.0f};
     std::vector<float> y = {0.0f};
 
@@ -124,7 +125,7 @@ TEST(PendingSeriesData, AppendToExistingData)
 
 TEST(PendingSeriesData, ReplaceX)
 {
-    PendingSeriesData      pending;
+    PendingSeriesData  pending;
     std::vector<float> x = {1.0f, 2.0f};
     std::vector<float> y = {10.0f, 20.0f};
 
@@ -140,7 +141,7 @@ TEST(PendingSeriesData, ReplaceX)
 
 TEST(PendingSeriesData, ReplaceY)
 {
-    PendingSeriesData      pending;
+    PendingSeriesData  pending;
     std::vector<float> x = {1.0f, 2.0f};
     std::vector<float> y = {10.0f, 20.0f};
 
@@ -156,7 +157,7 @@ TEST(PendingSeriesData, ReplaceY)
 
 TEST(PendingSeriesData, EraseBefore)
 {
-    PendingSeriesData      pending;
+    PendingSeriesData  pending;
     std::vector<float> x = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f};
     std::vector<float> y = {10.0f, 20.0f, 30.0f, 40.0f, 50.0f};
 
@@ -170,7 +171,7 @@ TEST(PendingSeriesData, EraseBefore)
 
 TEST(PendingSeriesData, EraseBeforeNoEffect)
 {
-    PendingSeriesData      pending;
+    PendingSeriesData  pending;
     std::vector<float> x = {5.0f, 6.0f};
     std::vector<float> y = {50.0f, 60.0f};
 
@@ -183,7 +184,7 @@ TEST(PendingSeriesData, EraseBeforeNoEffect)
 
 TEST(PendingSeriesData, CommitOrdering_ReplaceThenEraseThenAppend)
 {
-    PendingSeriesData      pending;
+    PendingSeriesData  pending;
     std::vector<float> x, y;
 
     // Replace with sorted data
@@ -216,7 +217,7 @@ TEST(PendingSeriesData, CommitOrdering_ReplaceThenEraseThenAppend)
 
 TEST(PendingSeriesData, SecondCommitReturnsFalse)
 {
-    PendingSeriesData      pending;
+    PendingSeriesData  pending;
     std::vector<float> x, y;
 
     pending.append(1.0f, 2.0f);
@@ -245,7 +246,7 @@ TEST(PendingSeriesData, WakeFnCalledOnce)
 
 TEST(PendingSeriesData, ConcurrentAppendAndCommit)
 {
-    PendingSeriesData      pending;
+    PendingSeriesData  pending;
     std::vector<float> x, y;
 
     constexpr int num_threads = 4;
@@ -254,14 +255,15 @@ TEST(PendingSeriesData, ConcurrentAppendAndCommit)
     std::vector<std::thread> threads;
     for (int t = 0; t < num_threads; ++t)
     {
-        threads.emplace_back([&, t]()
-        {
-            for (int i = 0; i < appends; ++i)
+        threads.emplace_back(
+            [&, t]()
             {
-                float val = static_cast<float>(t * appends + i);
-                pending.append(val, val * 10.0f);
-            }
-        });
+                for (int i = 0; i < appends; ++i)
+                {
+                    float val = static_cast<float>(t * appends + i);
+                    pending.append(val, val * 10.0f);
+                }
+            });
     }
     for (auto& th : threads)
         th.join();

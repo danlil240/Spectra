@@ -53,9 +53,9 @@ class Inspector
     // Draw the series browser (list all series for quick selection)
     void draw_series_browser(Figure& fig);
 
-    SelectionContext  ctx_;
-    FigureViewModel*  figure_vm_ = nullptr;
-    SeriesClipboard*  clipboard_ = nullptr;
+    SelectionContext ctx_;
+    FigureViewModel* figure_vm_ = nullptr;
+    SeriesClipboard* clipboard_ = nullptr;
     DeferRemovalFn   defer_removal_;
 
     // Collapsible section states

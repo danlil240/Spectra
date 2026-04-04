@@ -242,5 +242,6 @@ TEST(PluginExportCAPI, WriteAndVerifyCsvOutput)
     EXPECT_EQ(header, "figure_json");
     EXPECT_EQ(content, json);
 
+    f.close();
     fs::remove(tmp_path);
 }

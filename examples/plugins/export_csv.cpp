@@ -116,7 +116,7 @@ static int csv_export(const spectra::SpectraExportContext* ctx, void* /*user_dat
 
 extern "C"
 {
-    int spectra_plugin_init(const spectra::SpectraPluginContext* ctx,
+    SPECTRA_PLUGIN_API int spectra_plugin_init(const spectra::SpectraPluginContext* ctx,
                             spectra::SpectraPluginInfo*          info)
     {
         info->name              = "Export: CSV Data";
@@ -139,5 +139,5 @@ extern "C"
         return 0;
     }
 
-    void spectra_plugin_shutdown() {}
+    SPECTRA_PLUGIN_API void spectra_plugin_shutdown() {}
 }

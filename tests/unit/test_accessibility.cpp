@@ -226,6 +226,7 @@ TEST_F(SonificationTest, WavFileHasCorrectHeader)
     f.read(wave, 4);
     EXPECT_EQ(std::string(wave, 4), "WAVE");
 
+    f.close();
     std::filesystem::remove(path);
 }
 

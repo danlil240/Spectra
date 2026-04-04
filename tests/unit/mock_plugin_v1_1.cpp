@@ -12,7 +12,7 @@ static float triple_value(float v, void* /* user_data */)
 
 extern "C"
 {
-    int spectra_plugin_init(const SpectraPluginContext* ctx, SpectraPluginInfo* info)
+    SPECTRA_PLUGIN_API int spectra_plugin_init(const SpectraPluginContext* ctx, SpectraPluginInfo* info)
     {
         info->name              = "MockPluginV1_1";
         info->version           = "1.1.0";
@@ -34,5 +34,5 @@ extern "C"
         return 0;
     }
 
-    void spectra_plugin_shutdown(void) {}
+    SPECTRA_PLUGIN_API void spectra_plugin_shutdown(void) {}
 }

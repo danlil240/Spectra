@@ -39,7 +39,7 @@ static void mock_crosshair_draw(const SpectraOverlayContext* ctx, void* /* user_
 
 extern "C"
 {
-    int spectra_plugin_init(const SpectraPluginContext* ctx, SpectraPluginInfo* info)
+    SPECTRA_PLUGIN_API int spectra_plugin_init(const SpectraPluginContext* ctx, SpectraPluginInfo* info)
     {
         info->name              = "MockOverlayPlugin";
         info->version           = "1.0.0";
@@ -60,7 +60,7 @@ extern "C"
         return 0;
     }
 
-    void spectra_plugin_shutdown()
+    SPECTRA_PLUGIN_API void spectra_plugin_shutdown()
     {
         if (g_overlay_registry)
         {

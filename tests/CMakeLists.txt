@@ -193,14 +193,21 @@ target_include_directories(mock_overlay_plugin PRIVATE
     ${CMAKE_BINARY_DIR}/generated
 )
 target_compile_features(mock_overlay_plugin PRIVATE cxx_std_20)
-# Do NOT link spectra — the plugin resolves C ABI symbols from the host at
-# dlopen time.  Linking the static lib duplicates symbols, causing macOS and
-# ASan failures where the plugin's copy of OverlayRegistry methods operates on
-# the test's object with incompatible internal state.
-if(APPLE)
-    target_link_options(mock_overlay_plugin PRIVATE -undefined dynamic_lookup)
+if(WIN32)
+    # Windows requires all symbols resolved at link time.
+    # SPECTRA_PLUGIN_API (__declspec(dllexport)) ensures the entry points are
+    # visible to GetProcAddress.
+    target_link_libraries(mock_overlay_plugin PRIVATE spectra)
 else()
-    target_link_options(mock_overlay_plugin PRIVATE "LINKER:--allow-shlib-undefined")
+    # On Unix, do NOT link spectra — the plugin resolves C ABI symbols from the
+    # host at dlopen time.  Linking the static lib duplicates symbols, causing
+    # macOS and ASan failures where the plugin's copy of OverlayRegistry methods
+    # operates on the test's object with incompatible internal state.
+    if(APPLE)
+        target_link_options(mock_overlay_plugin PRIVATE -undefined dynamic_lookup)
+    else()
+        target_link_options(mock_overlay_plugin PRIVATE "LINKER:--allow-shlib-undefined")
+    endif()
 endif()
 set_target_properties(mock_overlay_plugin PROPERTIES PREFIX "")
 

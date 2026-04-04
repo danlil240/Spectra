@@ -53,6 +53,8 @@ void em_main_loop()
 
 // ─── Data generation ─────────────────────────────────────────────────────────
 
+static constexpr float PI = 3.14159265f;
+
 static void generate_demo_data(std::vector<float>& x,
                                std::vector<float>& y_sin,
                                std::vector<float>& y_cos,
@@ -66,7 +68,7 @@ static void generate_demo_data(std::vector<float>& x,
 
     for (int i = 0; i < n; ++i)
     {
-        float t     = static_cast<float>(i) / static_cast<float>(n - 1) * 4.0f * 3.14159265f;
+        float t     = static_cast<float>(i) / static_cast<float>(n - 1) * 4.0f * PI;
         x[i]        = t;
         y_sin[i]    = std::sin(t);
         y_cos[i]    = std::cos(t);
@@ -124,7 +126,7 @@ int main()
     std::vector<float> sx(100), sy(100);
     for (int i = 0; i < 100; ++i)
     {
-        float t = static_cast<float>(i) / 99.0f * 2.0f * 3.14159265f;
+        float t = static_cast<float>(i) / 99.0f * 2.0f * PI;
         sx[i]   = std::sin(3.0f * t);
         sy[i]   = std::cos(2.0f * t);
     }

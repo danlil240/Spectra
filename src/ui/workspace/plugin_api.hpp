@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "plugin_guard.hpp"
+#include "plugin_manifest.hpp"
 
 // Cross-platform symbol export macro for plugin entry points.
 // Plugins must use SPECTRA_PLUGIN_API on spectra_plugin_init / spectra_plugin_shutdown.
@@ -519,6 +520,7 @@ struct PluginEntry
     void*       handle                   = nullptr;   // dlopen/LoadLibrary handle
     SpectraPluginShutdownFn  shutdown_fn = nullptr;
     std::vector<std::string> registered_commands;   // Commands registered by this plugin
+    PluginManifest           manifest;              // Parsed plugin.json manifest (may be empty if no manifest)
 };
 
 // Manages plugin lifecycle: discovery, loading, unloading.

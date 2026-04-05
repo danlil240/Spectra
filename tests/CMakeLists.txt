@@ -166,6 +166,7 @@ set(SPECTRA_UNIT_TESTS
     test_plugin_series_type
     test_plugin_guard
     test_plugin_diagnostics
+    test_plugin_manifest
     test_chunked_array
     test_mapped_file
     test_lod_cache

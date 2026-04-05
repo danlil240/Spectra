@@ -740,6 +740,36 @@ bool PluginManager::load_plugin(const std::string& path)
             return false;
     }
 
+    // Manifest pre-check before opening the shared library
+    PluginManifest manifest;
+    std::string    manifest_path = find_plugin_manifest_path(path);
+    if (!manifest_path.empty())
+    {
+        manifest = load_plugin_manifest(manifest_path);
+        if (manifest.is_valid())
+        {
+            if (!manifest.is_api_compatible(SPECTRA_PLUGIN_API_VERSION_MAJOR,
+                                            SPECTRA_PLUGIN_API_VERSION_MINOR))
+            {
+                SPECTRA_LOG_WARN(
+                    "plugin",
+                    "Plugin manifest '{}' requests API v{} but host provides v{}.{} — skipping "
+                    "load",
+                    manifest.name,
+                    manifest.api_version,
+                    SPECTRA_PLUGIN_API_VERSION_MAJOR,
+                    SPECTRA_PLUGIN_API_VERSION_MINOR);
+                return false;
+            }
+            SPECTRA_LOG_INFO("plugin",
+                             "Loading plugin '{}' v{} by {} (API v{})",
+                             manifest.name,
+                             manifest.version,
+                             manifest.author.empty() ? "unknown" : manifest.author,
+                             manifest.api_version);
+        }
+    }
+
     void*                   handle      = nullptr;
     SpectraPluginInitFn     init_fn     = nullptr;
     SpectraPluginShutdownFn shutdown_fn = nullptr;
@@ -825,6 +855,7 @@ bool PluginManager::load_plugin(const std::string& path)
     entry.handle                   = handle;
     entry.shutdown_fn              = shutdown_fn;
     entry.diagnostics.init_time_us = init_us;
+    entry.manifest                 = std::move(manifest);
 
     plugins_.push_back(std::move(entry));
     return true;

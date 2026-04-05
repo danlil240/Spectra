@@ -1,6 +1,9 @@
 #pragma once
 
 #include <atomic>
+#if defined(_MSC_VER)
+    #include <intrin.h>
+#endif
 
 namespace spectra
 {
@@ -34,7 +37,9 @@ class SpinLock
         while (flag_.test_and_set(std::memory_order_acquire))
         {
             // Spin — hint to the CPU that we are in a spin-wait loop.
-#if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)
+#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
+            _mm_pause();
+#elif defined(__x86_64__) || defined(__i386__)
             __builtin_ia32_pause();
 #elif defined(__aarch64__) || defined(_M_ARM64)
             asm volatile("yield" ::: "memory");

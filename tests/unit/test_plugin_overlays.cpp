@@ -19,7 +19,7 @@ TEST(PluginOverlay, RegisterAndDrawAll)
     int call_count = 0;
 
     // Register via C++ API wrapping what the C ABI does internally
-    reg.register_overlay("TestOverlay", [&](const OverlayDrawContext& ctx) { ++call_count; });
+    reg.register_overlay("TestOverlay", [&](const OverlayDrawContext&) { ++call_count; });
 
     EXPECT_EQ(reg.count(), 1u);
 

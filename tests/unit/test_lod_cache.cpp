@@ -83,7 +83,9 @@ TEST(LodCache, BuildFromLargeData)
     {
         EXPECT_GT(cache.level_size(i), 0u);
         if (i > 1)
+        {
             EXPECT_LT(cache.level_size(i), cache.level_size(i - 1));
+        }
     }
 }
 

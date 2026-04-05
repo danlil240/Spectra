@@ -1,8 +1,7 @@
 // export_csv.cpp — Example Spectra plugin: CSV series data exporter
 //
 // Build as a shared library:
-//   g++ -shared -fPIC -std=c++20 -o export_csv.so export_csv.cpp \
-//       -I<spectra>/include -I<spectra>/src
+//   g++ -shared -fPIC -std=c++20 -I<spectra>/include -I<spectra>/src -o export_csv.so export_csv.cpp
 //
 // Place the resulting .so in ~/.config/spectra/plugins/ or load via View → Plugins.
 //
@@ -116,7 +115,7 @@ static int csv_export(const spectra::SpectraExportContext* ctx, void* /*user_dat
 
 extern "C"
 {
-    int spectra_plugin_init(const spectra::SpectraPluginContext* ctx,
+    SPECTRA_PLUGIN_API int spectra_plugin_init(const spectra::SpectraPluginContext* ctx,
                             spectra::SpectraPluginInfo*          info)
     {
         info->name              = "Export: CSV Data";
@@ -139,5 +138,5 @@ extern "C"
         return 0;
     }
 
-    void spectra_plugin_shutdown() {}
+    SPECTRA_PLUGIN_API void spectra_plugin_shutdown() {}
 }

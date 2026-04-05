@@ -188,8 +188,6 @@ TEST(PluginSeriesType, UploadCallbackInvoked)
     ASSERT_NE(entry, nullptr);
 
     // The C++ wrapper captures user_data, so we just call it directly.
-    float dummy_data[] = {1.0f, 2.0f, 3.0f};
-    void* gpu_state    = nullptr;
     // The registry stores C++ std::function wrappers. We need a Backend& for
     // calling them — but in a non-GPU test we can't create one. Instead,
     // verify the tracker was incremented by the C ABI registration path.

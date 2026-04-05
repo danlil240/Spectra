@@ -38,7 +38,7 @@ static void reverse_xy(const float* x_in,
 
 extern "C"
 {
-    int spectra_plugin_init(const SpectraPluginContext* ctx, SpectraPluginInfo* info)
+    SPECTRA_PLUGIN_API int spectra_plugin_init(const SpectraPluginContext* ctx, SpectraPluginInfo* info)
     {
         info->name              = "MockTransformPlugin";
         info->version           = "1.0.0";
@@ -65,5 +65,5 @@ extern "C"
         return 0;
     }
 
-    void spectra_plugin_shutdown() {}
+    SPECTRA_PLUGIN_API void spectra_plugin_shutdown() {}
 }

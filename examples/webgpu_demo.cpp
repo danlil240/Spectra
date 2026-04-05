@@ -98,6 +98,7 @@ int main()
 
     spectra::AppConfig config;
     config.headless = false;
+    config.backend  = spectra::RenderBackend::WebGPU;
 #ifdef __EMSCRIPTEN__
     // Emscripten: no sockets, always inproc.
     config.socket_path = "";

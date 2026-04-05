@@ -17,6 +17,9 @@
 #include "render/series_type_registry.hpp"
 #include "render/vulkan/vk_backend.hpp"
 #include "render/vulkan/window_context.hpp"
+#ifdef SPECTRA_USE_WEBGPU
+    #include "render/webgpu/wgpu_backend.hpp"
+#endif
 #include "ui/commands/command_queue.hpp"
 #include "session_runtime.hpp"
 #include "window_runtime.hpp"
@@ -74,6 +77,10 @@ App::App(const AppConfig& config) : config_(config)
     SPECTRA_LOG_INFO("app", "Runtime mode: " + std::string(multiproc ? "multiproc" : "inproc"));
 
     backend_ = std::make_unique<VulkanBackend>();
+#ifdef SPECTRA_USE_WEBGPU
+    if (config_.backend == RenderBackend::WebGPU)
+        backend_ = std::make_unique<WebGPUBackend>();
+#endif
     if (!backend_->init(config_.headless))
     {
         SPECTRA_LOG_ERROR("app", "Failed to initialize Vulkan backend");
@@ -99,15 +106,56 @@ App::App(const AppConfig& config) : config_(config)
 
 App::~App()
 {
-    runtime_.reset();
-    renderer_.reset();
+    // Guard each destruction step with try-catch.  On CI with lavapipe
+    // (software Vulkan), non-deterministic std::system_error("Invalid
+    // argument") can be thrown from deep inside member destructors
+    // (likely from pthread operations in the software driver).  Since
+    // destructors are noexcept, an uncaught throw triggers std::terminate.
+    try
+    {
+        shutdown_runtime();
+    }
+    catch (const std::exception& e)
+    {
+        SPECTRA_LOG_ERROR("shutdown", std::string("Exception in shutdown_runtime: ") + e.what());
+    }
+    catch (...)
+    {
+    }
+
+    try
+    {
+        runtime_.reset();
+    }
+    catch (...)
+    {
+    }
+
+    try
+    {
+        renderer_.reset();
+    }
+    catch (const std::exception& e)
+    {
+        SPECTRA_LOG_ERROR("shutdown", std::string("Exception in ~Renderer: ") + e.what());
+    }
+    catch (...)
+    {
+    }
+
     // Clear the singleton pointer before the ThemeManager member is destroyed
     // to prevent any remaining call sites from dereferencing a dangling pointer.
     ui::ThemeManager::set_current(nullptr);
     theme_mgr_.reset();
     if (backend_)
     {
-        backend_->shutdown();
+        try
+        {
+            backend_->shutdown();
+        }
+        catch (...)
+        {
+        }
     }
 }
 
@@ -164,6 +212,14 @@ struct App::AppRuntime
         : scheduler(fps), session(backend, renderer, registry)
     {
     }
+
+    // Explicit noexcept(false) destructor: the implicit default destructor
+    // is noexcept, which means any exception thrown during member destruction
+    // triggers std::terminate.  On CI with lavapipe (software Vulkan),
+    // non-deterministic std::system_error("Invalid argument") can occur
+    // during member cleanup.  Making the destructor noexcept(false) lets
+    // the exception propagate to callers that have try-catch guards.
+    ~AppRuntime() noexcept(false) = default;
 };
 
 // ─── init_runtime ────────────────────────────────────────────────────────────
@@ -260,104 +316,96 @@ void App::init_runtime()
             backend_->create_surface(rt.glfw->native_window());
             backend_->create_swapchain(init_w, init_h);
 
-            rt.window_mgr = std::make_unique<WindowManager>();
-            rt.window_mgr->init(static_cast<VulkanBackend*>(backend_.get()),
-                                &registry_,
-                                renderer_.get(),
-                                theme_mgr_.get());
-            rt.window_mgr->set_redraw_request_handler(
-                [&session = rt.session](const char* reason)
-                { session.redraw_tracker().mark_dirty(reason); });
-            rt.window_mgr->set_plugin_manager(&rt.plugin_manager);
-            rt.window_mgr->set_export_format_registry(&rt.export_format_registry);
-            rt.window_mgr->set_session_runtime(&rt.session);
-
-            rt.window_mgr->set_tab_detach_handler(
-                [&session = rt.session](FigureId           fid,
-                                        uint32_t           w,
-                                        uint32_t           h,
-                                        const std::string& title,
-                                        int                sx,
-                                        int                sy)
-                { session.queue_detach({fid, w, h, title, sx, sy}); });
-            rt.window_mgr->set_tab_move_handler(
-                [&session = rt.session](FigureId fid,
-                                        uint32_t target_wid,
-                                        int      drop_zone,
-                                        float    local_x,
-                                        float    local_y,
-                                        FigureId target_figure_id) {
-                    session.queue_move(
-                        {fid, target_wid, drop_zone, local_x, local_y, target_figure_id});
-                });
-
-            std::vector<FigureId> first_group =
-                window_groups.empty() ? std::vector<FigureId>{} : window_groups[0];
-            auto* initial_wctx =
-                rt.window_mgr->create_first_window_with_ui(rt.glfw->native_window(), first_group);
-
-            if (initial_wctx && initial_wctx->ui_ctx)
+            // WindowManager requires VulkanBackend — skip for other backends.
+            if (config_.backend == RenderBackend::Vulkan)
             {
-                rt.ui_ctx_ptr              = initial_wctx->ui_ctx.get();
-                rt.ui_ctx_ptr->glfw_window = initial_wctx->glfw_window;
-            }
+                rt.window_mgr = std::make_unique<WindowManager>();
+                rt.window_mgr->init(static_cast<VulkanBackend*>(backend_.get()),
+                                    &registry_,
+                                    renderer_.get(),
+                                    theme_mgr_.get());
+                rt.window_mgr->set_redraw_request_handler(
+                    [&session = rt.session](const char* reason)
+                    { session.redraw_tracker().mark_dirty(reason); });
+                rt.window_mgr->set_plugin_manager(&rt.plugin_manager);
+                rt.window_mgr->set_export_format_registry(&rt.export_format_registry);
+                rt.window_mgr->set_session_runtime(&rt.session);
 
-            // Pre-create a hidden preview window so tab tearoff is instant.
-            rt.window_mgr->warmup_preview_window();
+                rt.window_mgr->set_tab_detach_handler(
+                    [&session = rt.session](FigureId           fid,
+                                            uint32_t           w,
+                                            uint32_t           h,
+                                            const std::string& title,
+                                            int                sx,
+                                            int                sy)
+                    { session.queue_detach({fid, w, h, title, sx, sy}); });
+                rt.window_mgr->set_tab_move_handler(
+                    [&session = rt.session](FigureId fid,
+                                            uint32_t target_wid,
+                                            int      drop_zone,
+                                            float    local_x,
+                                            float    local_y,
+                                            FigureId target_figure_id) {
+                        session.queue_move(
+                            {fid, target_wid, drop_zone, local_x, local_y, target_figure_id});
+                    });
 
-            for (size_t gi = 1; gi < window_groups.size(); ++gi)
-            {
-                auto& group = window_groups[gi];
-                if (group.empty())
-                    continue;
+                std::vector<FigureId> first_group =
+                    window_groups.empty() ? std::vector<FigureId>{} : window_groups[0];
+                auto* initial_wctx =
+                    rt.window_mgr->create_first_window_with_ui(rt.glfw->native_window(),
+                                                               first_group);
 
-                auto*    fig0 = registry_.get(group[0]);
-                uint32_t w    = fig0 ? fig0->width() : 800;
-                uint32_t h    = fig0 ? fig0->height() : 600;
-
-                auto* new_wctx = rt.window_mgr->create_window_with_ui(w, h, "Spectra", group[0]);
-
-                if (new_wctx && new_wctx->ui_ctx && new_wctx->ui_ctx->fig_mgr)
+                if (initial_wctx && initial_wctx->ui_ctx)
                 {
-                    for (size_t fi = 1; fi < group.size(); ++fi)
+                    rt.ui_ctx_ptr              = initial_wctx->ui_ctx.get();
+                    rt.ui_ctx_ptr->glfw_window = initial_wctx->glfw_window;
+                }
+
+                // Pre-create a hidden preview window so tab tearoff is instant.
+                rt.window_mgr->warmup_preview_window();
+
+                for (size_t gi = 1; gi < window_groups.size(); ++gi)
+                {
+                    auto& group = window_groups[gi];
+                    if (group.empty())
+                        continue;
+
+                    auto*    fig0 = registry_.get(group[0]);
+                    uint32_t w    = fig0 ? fig0->width() : 800;
+                    uint32_t h    = fig0 ? fig0->height() : 600;
+
+                    auto* new_wctx =
+                        rt.window_mgr->create_window_with_ui(w, h, "Spectra", group[0]);
+
+                    if (new_wctx && new_wctx->ui_ctx && new_wctx->ui_ctx->fig_mgr)
                     {
-                        new_wctx->ui_ctx->fig_mgr->add_figure(group[fi], FigureState{});
-                        new_wctx->assigned_figures.push_back(group[fi]);
+                        for (size_t fi = 1; fi < group.size(); ++fi)
+                        {
+                            new_wctx->ui_ctx->fig_mgr->add_figure(group[fi], FigureState{});
+                            new_wctx->assigned_figures.push_back(group[fi]);
+                        }
                     }
                 }
-            }
+            }   // if (config_.backend == RenderBackend::Vulkan)
         }
     }
 #endif
 
     if (!rt.ui_ctx_ptr)
     {
-        WindowUIContextBuildOptions options;
-        options.registry               = &registry_;
-        options.theme_mgr              = theme_mgr_.get();
-        options.initial_figure_id      = init_active_id;
-        options.active_figure          = &rt.active_figure;
-        options.active_figure_id       = &rt.active_figure_id;
-        options.session                = &rt.session;
-        options.plugin_manager         = &rt.plugin_manager;
-        options.export_format_registry = &rt.export_format_registry;
-#ifdef SPECTRA_USE_GLFW
-        options.window_manager = rt.window_mgr.get();
-        if (rt.window_mgr)
-            options.overlay_registry = &rt.window_mgr->overlay_registry();
-#endif
-        options.on_figure_closed = [wm = rt.window_mgr.get()](FigureId, Figure* fig)
-        {
-#ifdef SPECTRA_USE_GLFW
-            if (wm && fig)
-                wm->clear_figure_caches(fig);
-#else
-            (void)fig;
-#endif
-        };
-
-        rt.headless_ui_ctx = build_window_ui_context(options);
-        rt.ui_ctx_ptr      = rt.headless_ui_ctx.get();
+        // Headless mode: create a minimal WindowUIContext with only the
+        // FigureManager needed for rendering.  The full builder
+        // (build_window_ui_context) creates CommandRegistry, ShortcutManager,
+        // InputHandler, AnimationController, and many other objects whose
+        // destruction order within AppRuntime can trigger std::system_error
+        // during rapid create/destroy cycles (e.g. golden tests running
+        // multiple App instances in the same process).
+        rt.headless_ui_ctx                = std::make_unique<WindowUIContext>();
+        rt.headless_ui_ctx->theme_mgr     = theme_mgr_.get();
+        rt.headless_ui_ctx->fig_mgr_owned = std::make_unique<FigureManager>(registry_);
+        rt.headless_ui_ctx->fig_mgr       = rt.headless_ui_ctx->fig_mgr_owned.get();
+        rt.ui_ctx_ptr                     = rt.headless_ui_ctx.get();
     }
 
     // Wire plugin host services after UI context creation.
@@ -388,10 +436,10 @@ void App::init_runtime()
     auto& dock_system           = rt.ui_ctx_ptr->dock_system;
     auto& timeline_editor       = rt.ui_ctx_ptr->timeline_editor;
     auto& keyframe_interpolator = rt.ui_ctx_ptr->keyframe_interpolator;
-    auto& curve_editor          = rt.ui_ctx_ptr->curve_editor;
+    // auto& curve_editor          = rt.ui_ctx_ptr->curve_editor;
     // auto& home_limits           = rt.ui_ctx_ptr->home_limits;
-    auto& cmd_registry        = rt.ui_ctx_ptr->cmd_registry;
-    auto& shortcut_mgr        = rt.ui_ctx_ptr->shortcut_mgr;
+    // auto& cmd_registry        = rt.ui_ctx_ptr->cmd_registry;
+    // auto& shortcut_mgr        = rt.ui_ctx_ptr->shortcut_mgr;
     auto& cmd_palette         = rt.ui_ctx_ptr->cmd_palette;
     auto& tab_drag_controller = rt.ui_ctx_ptr->tab_drag_controller;
     auto& fig_mgr             = *rt.ui_ctx_ptr->fig_mgr;
@@ -531,7 +579,8 @@ void App::init_runtime()
     if (config_.headless)
     {
         backend_->create_offscreen_framebuffer(init_w, init_h);
-        static_cast<VulkanBackend*>(backend_.get())->ensure_pipelines();
+        if (config_.backend == RenderBackend::Vulkan)
+            static_cast<VulkanBackend*>(backend_.get())->ensure_pipelines();
     }
 
 #ifdef SPECTRA_USE_IMGUI
@@ -699,48 +748,57 @@ void App::init_runtime()
 
     rt.last_step_time = std::chrono::steady_clock::now();
 
-    // Start automation server for MCP-driven testing
+    // Start automation server for MCP-driven testing.
+    // In headless mode, skip unless explicitly requested via environment variable
+    // to avoid thread lifecycle issues during rapid create/destroy cycles in tests.
     {
-        std::string auto_sock;
-        const char* env = std::getenv("SPECTRA_AUTO_SOCKET");
-        if (env && env[0] != '\0')
-            auto_sock = env;
-        else
-            auto_sock = AutomationServer::default_socket_path();
+        const char* auto_env = std::getenv("SPECTRA_AUTO_SOCKET");
+        bool        want_automation =
+            !config_.headless || (auto_env && auto_env[0] != '\0');
 
-        rt.auto_server = std::make_unique<AutomationServer>();
-        if (rt.auto_server->start(auto_sock))
+        if (want_automation)
         {
-            SPECTRA_LOG_INFO("app", "Automation server started: " + auto_sock);
-
-            std::string mcp_bind = "127.0.0.1";
-            if (const char* mcp_bind_env = std::getenv("SPECTRA_MCP_BIND"))
-            {
-                if (mcp_bind_env[0] != '\0')
-                    mcp_bind = mcp_bind_env;
-            }
-
-            uint16_t mcp_port = 8765;
-            if (const char* mcp_port_env = std::getenv("SPECTRA_MCP_PORT"))
-            {
-                if (mcp_port_env[0] != '\0')
-                {
-                    const long parsed_port = std::strtol(mcp_port_env, nullptr, 10);
-                    if (parsed_port > 0 && parsed_port <= 65535)
-                        mcp_port = static_cast<uint16_t>(parsed_port);
-                }
-            }
-
-            rt.mcp_server = std::make_unique<McpServer>();
-            if (rt.mcp_server->start(*rt.auto_server, mcp_bind, mcp_port))
-                SPECTRA_LOG_INFO("app", "MCP server started: " + rt.mcp_server->endpoint());
+            std::string auto_sock;
+            if (auto_env && auto_env[0] != '\0')
+                auto_sock = auto_env;
             else
-                rt.mcp_server.reset();
-        }
-        else
-        {
-            SPECTRA_LOG_WARN("app", "Automation server failed to start");
-            rt.auto_server.reset();
+                auto_sock = AutomationServer::default_socket_path();
+
+            rt.auto_server = std::make_unique<AutomationServer>();
+            if (rt.auto_server->start(auto_sock))
+            {
+                SPECTRA_LOG_INFO("app", "Automation server started: " + auto_sock);
+
+                std::string mcp_bind = "127.0.0.1";
+                if (const char* mcp_bind_env = std::getenv("SPECTRA_MCP_BIND"))
+                {
+                    if (mcp_bind_env[0] != '\0')
+                        mcp_bind = mcp_bind_env;
+                }
+
+                uint16_t mcp_port = 8765;
+                if (const char* mcp_port_env = std::getenv("SPECTRA_MCP_PORT"))
+                {
+                    if (mcp_port_env[0] != '\0')
+                    {
+                        const long parsed_port = std::strtol(mcp_port_env, nullptr, 10);
+                        if (parsed_port > 0 && parsed_port <= 65535)
+                            mcp_port = static_cast<uint16_t>(parsed_port);
+                    }
+                }
+
+                rt.mcp_server = std::make_unique<McpServer>();
+                if (rt.mcp_server->start(*rt.auto_server, mcp_bind, mcp_port))
+                    SPECTRA_LOG_INFO("app",
+                                     "MCP server started: " + rt.mcp_server->endpoint());
+                else
+                    rt.mcp_server.reset();
+            }
+            else
+            {
+                SPECTRA_LOG_WARN("app", "Automation server failed to start");
+                rt.auto_server.reset();
+            }
         }
     }
 }
@@ -825,7 +883,9 @@ App::StepResult App::step()
         cap.height = eh;
         cap.active = true;
 
-        auto* vk = static_cast<VulkanBackend*>(backend_.get());
+        auto* vk = (config_.backend == RenderBackend::Vulkan)
+                       ? static_cast<VulkanBackend*>(backend_.get())
+                       : nullptr;
 #ifdef SPECTRA_USE_GLFW
         // Target the window that owns this figure so multi-window captures
         // read the correct swapchain image.
@@ -845,6 +905,7 @@ App::StepResult App::step()
             vk->request_framebuffer_capture(cap.pixels.data(), ew, eh, target_wctx);
         else
 #endif
+            if (vk)
             vk->request_framebuffer_capture(cap.pixels.data(), ew, eh);
 
         rt.active_figure->export_req_.png_path.clear();
@@ -934,7 +995,8 @@ void App::shutdown_runtime()
             if (needs_render)
             {
                 backend_->create_offscreen_framebuffer(export_w, export_h);
-                static_cast<VulkanBackend*>(backend_.get())->ensure_pipelines();
+                if (config_.backend == RenderBackend::Vulkan)
+                    static_cast<VulkanBackend*>(backend_.get())->ensure_pipelines();
 
                 uint32_t orig_w  = f.config_.width;
                 uint32_t orig_h  = f.config_.height;
@@ -998,7 +1060,21 @@ void App::shutdown_runtime()
         backend_->wait_idle();
     }
 
-    runtime_.reset();
+    try
+    {
+        runtime_.reset();
+    }
+    catch (const std::exception& e)
+    {
+        SPECTRA_LOG_ERROR("shutdown",
+                          std::string("Exception during AppRuntime destruction: ") + e.what());
+        // Force-null the pointer to avoid double-free in ~App()
+        runtime_.release();
+    }
+    catch (...)
+    {
+        runtime_.release();
+    }
 }
 
 // ─── Accessors ───────────────────────────────────────────────────────────────

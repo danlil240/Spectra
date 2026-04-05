@@ -6,6 +6,14 @@
 #include <string>
 #include <vector>
 
+// Cross-platform symbol export macro for plugin entry points.
+// Plugins must use SPECTRA_PLUGIN_API on spectra_plugin_init / spectra_plugin_shutdown.
+#ifdef _WIN32
+    #define SPECTRA_PLUGIN_API __declspec(dllexport)
+#else
+    #define SPECTRA_PLUGIN_API __attribute__((visibility("default")))
+#endif
+
 namespace spectra
 {
 

@@ -39,6 +39,10 @@ void App::render_secondary_window(WindowContext* wctx)
     if (!fig)
         return;
 
+    // Secondary windows currently require VulkanBackend.
+    if (config_.backend != RenderBackend::Vulkan)
+        return;
+
     auto* vk = static_cast<VulkanBackend*>(backend_.get());
 
     // Handle per-window resize with debounce

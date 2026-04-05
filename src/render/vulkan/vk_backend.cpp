@@ -70,7 +70,14 @@ VulkanBackend::VulkanBackend() : initial_window_(std::make_unique<WindowContext>
 
 VulkanBackend::~VulkanBackend()
 {
-    shutdown();
+    try
+    {
+        shutdown();
+    }
+    catch (...)
+    {
+        // Swallow exceptions — destructor is noexcept.
+    }
 }
 
 bool VulkanBackend::init(bool headless)

@@ -141,7 +141,7 @@ static void heatmap_cleanup(SpectraBackendHandle backend,
 
 extern "C"
 {
-    int spectra_plugin_init(const SpectraPluginContext* ctx, SpectraPluginInfo* info)
+    SPECTRA_PLUGIN_API int spectra_plugin_init(const SpectraPluginContext* ctx, SpectraPluginInfo* info)
     {
         info->name              = "Series: Heatmap";
         info->version           = "1.0.0";
@@ -170,7 +170,7 @@ extern "C"
         return spectra_register_series_type(ctx->series_type_registry, &desc);
     }
 
-    void spectra_plugin_shutdown()
+    SPECTRA_PLUGIN_API void spectra_plugin_shutdown()
     {
         // Nothing to clean up — per-series state is freed via cleanup_fn.
     }

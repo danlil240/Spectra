@@ -386,7 +386,8 @@ void NodeGraphPanel::build_graph(const std::vector<TopicInfo>& topics,
     for (const auto& ti : topics)
     {
         // Count how many known nodes publish/subscribe to this topic.
-        int connections = 0;
+        bool has_node_info = !ti.publisher_nodes.empty() || !ti.subscriber_nodes.empty();
+        int  connections   = 0;
         for (const auto& pub : ti.publisher_nodes)
             if (known_nodes.contains(pub))
                 ++connections;
@@ -394,8 +395,9 @@ void NodeGraphPanel::build_graph(const std::vector<TopicInfo>& topics,
             if (known_nodes.contains(sub))
                 ++connections;
 
-        // Skip orphan topics (spectra-ros internal, cli-only, etc.).
-        if (connections == 0)
+        // Skip orphan topics (spectra-ros internal, cli-only, etc.)
+        // only when we have publisher/subscriber node lists to decide from.
+        if (has_node_info && connections == 0)
             continue;
 
         GraphNode tn;
@@ -485,14 +487,16 @@ void NodeGraphPanel::reset_layout_unlocked()
 
     if (layout_mode_ == GraphLayoutMode::Hierarchical)
     {
-        place_nodes_hierarchical();   // sets layout_converged_ = true
+        place_nodes_hierarchical();
     }
     else
     {
         scatter_new_nodes();
-        layout_converged_ = false;
-        max_velocity_     = 1e9f;
     }
+
+    // Always start animation so the reset provides visual feedback.
+    layout_converged_ = false;
+    max_velocity_     = 1e9f;
 
     recenter_view_pending_.store(true, std::memory_order_release);
 }

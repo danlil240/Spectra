@@ -62,8 +62,6 @@ class Inspector
     bool sec_appearance_ = true;
     bool sec_margins_    = true;
     bool sec_legend_     = true;
-    bool sec_data_       = true;
-    bool sec_transform_  = false;
     bool sec_axis_x_     = true;
     bool sec_axis_y_     = true;
     bool sec_grid_       = true;

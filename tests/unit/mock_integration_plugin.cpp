@@ -39,7 +39,7 @@ static int integration_export(const SpectraExportContext* ctx, void* /*user_data
 
 extern "C"
 {
-    int spectra_plugin_init(const SpectraPluginContext* ctx, SpectraPluginInfo* info)
+    SPECTRA_PLUGIN_API int spectra_plugin_init(const SpectraPluginContext* ctx, SpectraPluginInfo* info)
     {
         if (!ctx || !info)
             return 1;
@@ -84,7 +84,7 @@ extern "C"
         return 0;
     }
 
-    void spectra_plugin_shutdown()
+    SPECTRA_PLUGIN_API void spectra_plugin_shutdown()
     {
         if (g_export_registry)
         {

@@ -478,17 +478,19 @@ void TextRenderer::flush_batch(Backend&                 backend,
         return;
 
     // Build screen-space orthographic projection:
-    // Maps (0,0)-(w,h) to Vulkan clip space [-1,1] x [-1,1]
-    // Vulkan Y is top-down, so (0,0) = top-left matches screen coords.
+    // Maps (0,0)-(w,h) to clip space [-1,1] x [-1,1].
+    // Screen coords are Y-down (0=top, h=bottom).
+    // Vulkan clip Y is top-down (positive scale), WebGPU is Y-up (negative scale).
     // Z maps [0,1] -> [0,1] for depth buffer compatibility.
     FrameUBO ubo{};   // Value-initializes all members to zero
+    float    y_sign = backend.clip_y_down() ? 1.0f : -1.0f;
 
     // Column-major ortho: [0, screen_width] -> [-1, 1], [0, screen_height] -> [-1, 1]
     ubo.projection[0]  = 2.0f / screen_width;
-    ubo.projection[5]  = 2.0f / screen_height;   // Positive: Y-down in Vulkan
-    ubo.projection[10] = 1.0f;                   // Z passthrough: NDC z = vertex z
+    ubo.projection[5]  = y_sign * 2.0f / screen_height;
+    ubo.projection[10] = 1.0f;   // Z passthrough: NDC z = vertex z
     ubo.projection[12] = -1.0f;
-    ubo.projection[13] = -1.0f;
+    ubo.projection[13] = y_sign * -1.0f;
     ubo.projection[15] = 1.0f;
 
     // Identity view

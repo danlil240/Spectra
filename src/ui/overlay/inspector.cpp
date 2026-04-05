@@ -20,6 +20,7 @@
     #include "ui/viewmodel/axes_view_model.hpp"
     #include "ui/viewmodel/series_view_model.hpp"
     #include "ui/imgui/widgets.hpp"
+    #include "ui/workspace/plugin_api.hpp"
 
 namespace spectra::ui
 {
@@ -1436,6 +1437,41 @@ void Inspector::draw_axes_statistics(const Axes& ax)
         {
             std::snprintf(buf, sizeof(buf), "[%.4g, %.4g]", global_ymin, global_ymax);
             widgets::stat_row("Y Extent", buf);
+        }
+    }
+}
+
+void Inspector::draw_plugin_status(const PluginManager& plugin_mgr)
+{
+    auto plugins = plugin_mgr.plugins();
+    if (plugins.empty())
+        return;
+
+    ImGui::SeparatorText("Plugins");
+
+    for (const auto& p : plugins)
+    {
+        const char* status_text = p.diagnostics.quarantined ? "[!]"
+                                  : (p.diagnostics.fault_count > 0 ? "[~]" : "[ok]");
+
+        ImGui::TextUnformatted(status_text);
+        ImGui::SameLine();
+        ImGui::TextUnformatted(p.name.c_str());
+
+        if (ImGui::IsItemHovered())
+        {
+            ImGui::BeginTooltip();
+            ImGui::Text("Version: %s", p.version.c_str());
+            ImGui::Text("API: v%u.%u", SPECTRA_PLUGIN_API_VERSION_MAJOR, p.api_version_minor);
+            ImGui::Text("Calls: %zu  Faults: %zu", p.diagnostics.call_count,
+                        p.diagnostics.fault_count);
+            ImGui::Text("Init time: %zu \xc2\xb5s", p.diagnostics.init_time_us);
+            if (!p.diagnostics.last_fault_reason.empty())
+            {
+                ImGui::Separator();
+                ImGui::TextWrapped("Last fault: %s", p.diagnostics.last_fault_reason.c_str());
+            }
+            ImGui::EndTooltip();
         }
     }
 }

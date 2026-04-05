@@ -274,6 +274,8 @@ class Renderer
         // at deep zoom by keeping GPU floats small.
         double origin_x = 0.0;
         double origin_y = 0.0;
+        // Upload skip optimisation (WS-5.2)
+        uint64_t data_generation = 0;   // Monotonic counter; incremented when data changes
         // Plugin custom series type fields
         std::string custom_type_name;             // Links to SeriesTypeRegistry entry
         void*       plugin_gpu_state = nullptr;   // Opaque state managed by plugin

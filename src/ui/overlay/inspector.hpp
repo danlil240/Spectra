@@ -10,6 +10,11 @@
 
 struct ImFont;
 
+namespace spectra
+{
+class PluginManager;
+}
+
 namespace spectra::ui
 {
 
@@ -39,6 +44,9 @@ class Inspector
     // Deferred series removal callback (set by ImGuiIntegration)
     using DeferRemovalFn = std::function<void(AxesBase*, Series*)>;
     void set_defer_series_removal(DeferRemovalFn fn) { defer_removal_ = std::move(fn); }
+
+    /// Draw plugin status section (call from app context when plugin_mgr is available).
+    void draw_plugin_status(const PluginManager& plugin_mgr);
 
    private:
     void draw_figure_properties(Figure& fig);

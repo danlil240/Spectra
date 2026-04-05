@@ -19,6 +19,32 @@
 namespace spectra
 {
 
+/// Fine-grained redraw reason for smarter invalidation (WS-5.3).
+/// Callers may OR these together; the tracker itself only needs a dirty flag.
+enum class RedrawReason : uint32_t
+{
+    None         = 0,
+    DataChanged  = 1 << 0,   // Series data mutation
+    ViewChanged  = 1 << 1,   // Pan/zoom/scroll
+    UiChanged    = 1 << 2,   // Inspector toggle, tab switch
+    Animation    = 1 << 3,   // on_frame callback active
+    WindowResize = 1 << 4,   // Window resized
+    ThemeChanged = 1 << 5,   // Theme update
+};
+
+inline RedrawReason operator|(RedrawReason a, RedrawReason b)
+{
+    return static_cast<RedrawReason>(static_cast<uint32_t>(a) | static_cast<uint32_t>(b));
+}
+inline RedrawReason operator&(RedrawReason a, RedrawReason b)
+{
+    return static_cast<RedrawReason>(static_cast<uint32_t>(a) & static_cast<uint32_t>(b));
+}
+inline bool has_reason(RedrawReason flags, RedrawReason bit)
+{
+    return (static_cast<uint32_t>(flags) & static_cast<uint32_t>(bit)) != 0;
+}
+
 class RedrawTracker
 {
    public:
@@ -51,6 +77,9 @@ class RedrawTracker
     // Force continuous rendering (e.g. during animation).
     void set_continuous(bool on) { always_on_ = on; }
     bool is_continuous() const { return always_on_; }
+
+    /// Number of frames skipped due to low-power idle mode (informational).
+    size_t frames_skipped_idle = 0;
 
    private:
     bool     dirty_        = true;    // Something changed this frame

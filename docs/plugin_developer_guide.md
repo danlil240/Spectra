@@ -1,7 +1,7 @@
 # Spectra Plugin Developer Guide
 
-> **API version covered**: v1.3 (current stable)  
-> **Phase D — Custom Series Types** requires API v2.0 and depends on renderer decoupling (QW-2/QW-3/QW-4). It is not yet available; see [Phase D deferred note](#phase-d-custom-series-types-deferred).
+> **API version covered**: v2.0 (current stable)  
+> **Phase D — Custom Series Types** is available in API v2.0 via the `custom_series` registry.
 
 ---
 
@@ -138,6 +138,29 @@ Place the built `.so` in one of:
 - `~/.config/spectra/plugins/` — scanned automatically on startup
 - Any directory passed to `PluginManager::discover()`
 - Loaded manually via **View → Plugins → Load Plugin...**
+
+### Plugin manifests (`plugin.json`)
+
+Each plugin may ship an optional `plugin.json` manifest alongside the shared library. The host reads it at load time and uses the `name`, `version`, and `api_version` fields for display and compatibility checks before calling `spectra_plugin_init`.
+
+Manifest format:
+
+```json
+{
+  "name": "My Plugin",
+  "version": "1.0.0",
+  "api_version": "2.0",
+  "author": "Your Name",
+  "description": "Short description",
+  "capabilities": ["overlay", "transform"],
+  "dependencies": [],
+  "min_spectra_version": "0.9.0"
+}
+```
+
+`capabilities` is informational — it lists the extension point types the plugin registers. Valid values: `"command"`, `"transform"`, `"overlay"`, `"export_format"`, `"data_source"`, `"custom_series"`.
+
+The manifest filename must match the library name: `libmy_plugin.so` → `my_plugin.plugin.json` placed in the same directory (or named `plugin.json` for single-plugin install directories).
 
 ---
 

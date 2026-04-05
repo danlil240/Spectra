@@ -416,8 +416,9 @@ void Renderer::render_axes(AxesBase&   axes,
             // Perspective projection matrix
             float fov_rad      = cam.fov * 3.14159265f / 180.0f;
             float f            = 1.0f / tanf(fov_rad * 0.5f);
+            float y_sign       = backend_.clip_y_down() ? -1.0f : 1.0f;
             ubo.projection[0]  = f / aspect;
-            ubo.projection[5]  = -f;   // Negative for Vulkan Y-down
+            ubo.projection[5]  = y_sign * f;
             ubo.projection[10] = cam.far_clip / (cam.near_clip - cam.far_clip);
             ubo.projection[11] = -1.0f;
             ubo.projection[14] = (cam.far_clip * cam.near_clip) / (cam.near_clip - cam.far_clip);
@@ -485,8 +486,8 @@ void Renderer::render_axes(AxesBase&   axes,
         if (figure_vm_)
         {
             auto& axes_vm = figure_vm_->get_or_create_axes_vm(axes2d);
-            xlim           = axes_vm.visual_xlim();
-            ylim           = axes_vm.visual_ylim();
+            xlim          = axes_vm.visual_xlim();
+            ylim          = axes_vm.visual_ylim();
         }
         else
         {
@@ -591,7 +592,7 @@ void Renderer::render_axes(AxesBase&   axes,
             if (figure_vm_)
             {
                 auto& svm = figure_vm_->get_or_create_series_vm(series_ptr.get());
-                visible    = svm.effective_visible();
+                visible   = svm.effective_visible();
             }
             else
             {
@@ -633,9 +634,9 @@ void Renderer::render_axes(AxesBase&   axes,
             float effective_alpha;
             if (figure_vm_)
             {
-                auto& svm        = figure_vm_->get_or_create_series_vm(series_ptr.get());
-                Color eff_color   = svm.effective_color();
-                effective_alpha   = eff_color.a * svm.effective_opacity();
+                auto& svm       = figure_vm_->get_or_create_series_vm(series_ptr.get());
+                Color eff_color = svm.effective_color();
+                effective_alpha = eff_color.a * svm.effective_opacity();
             }
             else
             {
@@ -722,7 +723,7 @@ void Renderer::render_axes(AxesBase&   axes,
             if (figure_vm_)
             {
                 auto& svm = figure_vm_->get_or_create_series_vm(series_ptr.get());
-                visible    = svm.effective_visible();
+                visible   = svm.effective_visible();
             }
             else
             {
@@ -801,11 +802,14 @@ void Renderer::build_ortho_projection(double left,
     if (tb == 0.0)
         tb = 1.0;
 
+    // Y sign: Vulkan clip Y points down, WebGPU/OpenGL clip Y points up.
+    double y_sign = backend_.clip_y_down() ? -1.0 : 1.0;
+
     m[0]  = static_cast<float>(2.0 / rl);
-    m[5]  = static_cast<float>(-2.0 / tb);   // Negate for Vulkan Y-down clip space
+    m[5]  = static_cast<float>(y_sign * 2.0 / tb);
     m[10] = -1.0f;
     m[12] = static_cast<float>(-(right + left) / rl);
-    m[13] = static_cast<float>((top + bottom) / tb);   // Flip sign for Vulkan
+    m[13] = static_cast<float>(-y_sign * (top + bottom) / tb);
     m[15] = 1.0f;
 }
 
@@ -832,11 +836,13 @@ void Renderer::build_ortho_projection_3d(float  left,
     if (fn == 0.0f)
         fn = 1.0f;
 
+    float y_sign = backend_.clip_y_down() ? -1.0f : 1.0f;
+
     m[0]  = 2.0f / rl;
-    m[5]  = -2.0f / tb;   // Negate for Vulkan Y-down
+    m[5]  = y_sign * 2.0f / tb;
     m[10] = -1.0f / fn;   // Maps [near,far] → [0,1] for Vulkan depth
     m[12] = -(right + left) / rl;
-    m[13] = (top + bottom) / tb;
+    m[13] = -y_sign * (top + bottom) / tb;
     m[14] = -near_clip / fn;   // Depth offset
     m[15] = 1.0f;
 }

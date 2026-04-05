@@ -24,7 +24,6 @@ struct WGPUAdapterImpl;
 struct WGPUDeviceImpl;
 struct WGPUQueueImpl;
 struct WGPUSurfaceImpl;
-struct WGPUSwapChainImpl;
 struct WGPUTextureImpl;
 struct WGPUTextureViewImpl;
 struct WGPUBufferImpl;
@@ -42,7 +41,6 @@ using WGPUAdapter           = WGPUAdapterImpl*;
 using WGPUDevice            = WGPUDeviceImpl*;
 using WGPUQueue             = WGPUQueueImpl*;
 using WGPUSurface           = WGPUSurfaceImpl*;
-using WGPUSwapChain         = WGPUSwapChainImpl*;
 using WGPUTexture           = WGPUTextureImpl*;
 using WGPUTextureView       = WGPUTextureViewImpl*;
 using WGPUBuffer            = WGPUBufferImpl*;
@@ -138,6 +136,8 @@ class WebGPUBackend : public Backend
     uint32_t swapchain_width() const override;
     uint32_t swapchain_height() const override;
 
+    bool clip_y_down() const override { return false; }
+
    private:
     // ── Device init helpers ──────────────────────────────────────────────────
     bool request_adapter();
@@ -168,11 +168,11 @@ class WebGPUBackend : public Backend
     WGPUDevice   device_   = nullptr;
     WGPUQueue    queue_    = nullptr;
 
-    // ── Surface / swapchain (windowed mode) ─────────────────────────────────
-    WGPUSurface   surface_   = nullptr;
-    WGPUSwapChain swapchain_ = nullptr;
-    uint32_t      sc_width_  = 0;
-    uint32_t      sc_height_ = 0;
+    // ── Surface (windowed mode) ──────────────────────────────────────────────
+    WGPUSurface surface_        = nullptr;
+    uint32_t    surface_format_ = 0x1B;   // WGPUTextureFormat_BGRA8Unorm
+    uint32_t    sc_width_       = 0;
+    uint32_t    sc_height_      = 0;
 
     // ── Offscreen framebuffer (headless mode) ────────────────────────────────
     WGPUTexture     offscreen_color_      = nullptr;
@@ -237,6 +237,8 @@ class WebGPUBackend : public Backend
 
     // Last Uniform buffer dynamic offset (set by upload_buffer for Uniform).
     uint32_t ubo_bound_offset_ = 0;
+    // Ring write cursor — advances with each UBO upload, reset per frame.
+    uint32_t ubo_ring_write_head_ = 0;
 
     // Currently bound index buffer (for draw_indexed).
     WGPUBuffer current_index_buf_ = nullptr;

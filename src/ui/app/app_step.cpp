@@ -17,6 +17,9 @@
 #include "render/series_type_registry.hpp"
 #include "render/vulkan/vk_backend.hpp"
 #include "render/vulkan/window_context.hpp"
+#ifdef SPECTRA_USE_WEBGPU
+    #include "render/webgpu/wgpu_backend.hpp"
+#endif
 #include "ui/commands/command_queue.hpp"
 #include "session_runtime.hpp"
 #include "window_runtime.hpp"
@@ -74,6 +77,10 @@ App::App(const AppConfig& config) : config_(config)
     SPECTRA_LOG_INFO("app", "Runtime mode: " + std::string(multiproc ? "multiproc" : "inproc"));
 
     backend_ = std::make_unique<VulkanBackend>();
+#ifdef SPECTRA_USE_WEBGPU
+    if (config_.backend == RenderBackend::WebGPU)
+        backend_ = std::make_unique<WebGPUBackend>();
+#endif
     if (!backend_->init(config_.headless))
     {
         SPECTRA_LOG_ERROR("app", "Failed to initialize Vulkan backend");
@@ -309,72 +316,78 @@ void App::init_runtime()
             backend_->create_surface(rt.glfw->native_window());
             backend_->create_swapchain(init_w, init_h);
 
-            rt.window_mgr = std::make_unique<WindowManager>();
-            rt.window_mgr->init(static_cast<VulkanBackend*>(backend_.get()),
-                                &registry_,
-                                renderer_.get(),
-                                theme_mgr_.get());
-            rt.window_mgr->set_redraw_request_handler(
-                [&session = rt.session](const char* reason)
-                { session.redraw_tracker().mark_dirty(reason); });
-            rt.window_mgr->set_plugin_manager(&rt.plugin_manager);
-            rt.window_mgr->set_export_format_registry(&rt.export_format_registry);
-            rt.window_mgr->set_session_runtime(&rt.session);
-
-            rt.window_mgr->set_tab_detach_handler(
-                [&session = rt.session](FigureId           fid,
-                                        uint32_t           w,
-                                        uint32_t           h,
-                                        const std::string& title,
-                                        int                sx,
-                                        int                sy)
-                { session.queue_detach({fid, w, h, title, sx, sy}); });
-            rt.window_mgr->set_tab_move_handler(
-                [&session = rt.session](FigureId fid,
-                                        uint32_t target_wid,
-                                        int      drop_zone,
-                                        float    local_x,
-                                        float    local_y,
-                                        FigureId target_figure_id) {
-                    session.queue_move(
-                        {fid, target_wid, drop_zone, local_x, local_y, target_figure_id});
-                });
-
-            std::vector<FigureId> first_group =
-                window_groups.empty() ? std::vector<FigureId>{} : window_groups[0];
-            auto* initial_wctx =
-                rt.window_mgr->create_first_window_with_ui(rt.glfw->native_window(), first_group);
-
-            if (initial_wctx && initial_wctx->ui_ctx)
+            // WindowManager requires VulkanBackend — skip for other backends.
+            if (config_.backend == RenderBackend::Vulkan)
             {
-                rt.ui_ctx_ptr              = initial_wctx->ui_ctx.get();
-                rt.ui_ctx_ptr->glfw_window = initial_wctx->glfw_window;
-            }
+                rt.window_mgr = std::make_unique<WindowManager>();
+                rt.window_mgr->init(static_cast<VulkanBackend*>(backend_.get()),
+                                    &registry_,
+                                    renderer_.get(),
+                                    theme_mgr_.get());
+                rt.window_mgr->set_redraw_request_handler(
+                    [&session = rt.session](const char* reason)
+                    { session.redraw_tracker().mark_dirty(reason); });
+                rt.window_mgr->set_plugin_manager(&rt.plugin_manager);
+                rt.window_mgr->set_export_format_registry(&rt.export_format_registry);
+                rt.window_mgr->set_session_runtime(&rt.session);
 
-            // Pre-create a hidden preview window so tab tearoff is instant.
-            rt.window_mgr->warmup_preview_window();
+                rt.window_mgr->set_tab_detach_handler(
+                    [&session = rt.session](FigureId           fid,
+                                            uint32_t           w,
+                                            uint32_t           h,
+                                            const std::string& title,
+                                            int                sx,
+                                            int                sy)
+                    { session.queue_detach({fid, w, h, title, sx, sy}); });
+                rt.window_mgr->set_tab_move_handler(
+                    [&session = rt.session](FigureId fid,
+                                            uint32_t target_wid,
+                                            int      drop_zone,
+                                            float    local_x,
+                                            float    local_y,
+                                            FigureId target_figure_id) {
+                        session.queue_move(
+                            {fid, target_wid, drop_zone, local_x, local_y, target_figure_id});
+                    });
 
-            for (size_t gi = 1; gi < window_groups.size(); ++gi)
-            {
-                auto& group = window_groups[gi];
-                if (group.empty())
-                    continue;
+                std::vector<FigureId> first_group =
+                    window_groups.empty() ? std::vector<FigureId>{} : window_groups[0];
+                auto* initial_wctx =
+                    rt.window_mgr->create_first_window_with_ui(rt.glfw->native_window(),
+                                                               first_group);
 
-                auto*    fig0 = registry_.get(group[0]);
-                uint32_t w    = fig0 ? fig0->width() : 800;
-                uint32_t h    = fig0 ? fig0->height() : 600;
-
-                auto* new_wctx = rt.window_mgr->create_window_with_ui(w, h, "Spectra", group[0]);
-
-                if (new_wctx && new_wctx->ui_ctx && new_wctx->ui_ctx->fig_mgr)
+                if (initial_wctx && initial_wctx->ui_ctx)
                 {
-                    for (size_t fi = 1; fi < group.size(); ++fi)
+                    rt.ui_ctx_ptr              = initial_wctx->ui_ctx.get();
+                    rt.ui_ctx_ptr->glfw_window = initial_wctx->glfw_window;
+                }
+
+                // Pre-create a hidden preview window so tab tearoff is instant.
+                rt.window_mgr->warmup_preview_window();
+
+                for (size_t gi = 1; gi < window_groups.size(); ++gi)
+                {
+                    auto& group = window_groups[gi];
+                    if (group.empty())
+                        continue;
+
+                    auto*    fig0 = registry_.get(group[0]);
+                    uint32_t w    = fig0 ? fig0->width() : 800;
+                    uint32_t h    = fig0 ? fig0->height() : 600;
+
+                    auto* new_wctx =
+                        rt.window_mgr->create_window_with_ui(w, h, "Spectra", group[0]);
+
+                    if (new_wctx && new_wctx->ui_ctx && new_wctx->ui_ctx->fig_mgr)
                     {
-                        new_wctx->ui_ctx->fig_mgr->add_figure(group[fi], FigureState{});
-                        new_wctx->assigned_figures.push_back(group[fi]);
+                        for (size_t fi = 1; fi < group.size(); ++fi)
+                        {
+                            new_wctx->ui_ctx->fig_mgr->add_figure(group[fi], FigureState{});
+                            new_wctx->assigned_figures.push_back(group[fi]);
+                        }
                     }
                 }
-            }
+            }   // if (config_.backend == RenderBackend::Vulkan)
         }
     }
 #endif
@@ -566,7 +579,8 @@ void App::init_runtime()
     if (config_.headless)
     {
         backend_->create_offscreen_framebuffer(init_w, init_h);
-        static_cast<VulkanBackend*>(backend_.get())->ensure_pipelines();
+        if (config_.backend == RenderBackend::Vulkan)
+            static_cast<VulkanBackend*>(backend_.get())->ensure_pipelines();
     }
 
 #ifdef SPECTRA_USE_IMGUI
@@ -869,7 +883,9 @@ App::StepResult App::step()
         cap.height = eh;
         cap.active = true;
 
-        auto* vk = static_cast<VulkanBackend*>(backend_.get());
+        auto* vk = (config_.backend == RenderBackend::Vulkan)
+                       ? static_cast<VulkanBackend*>(backend_.get())
+                       : nullptr;
 #ifdef SPECTRA_USE_GLFW
         // Target the window that owns this figure so multi-window captures
         // read the correct swapchain image.
@@ -889,6 +905,7 @@ App::StepResult App::step()
             vk->request_framebuffer_capture(cap.pixels.data(), ew, eh, target_wctx);
         else
 #endif
+            if (vk)
             vk->request_framebuffer_capture(cap.pixels.data(), ew, eh);
 
         rt.active_figure->export_req_.png_path.clear();
@@ -978,7 +995,8 @@ void App::shutdown_runtime()
             if (needs_render)
             {
                 backend_->create_offscreen_framebuffer(export_w, export_h);
-                static_cast<VulkanBackend*>(backend_.get())->ensure_pipelines();
+                if (config_.backend == RenderBackend::Vulkan)
+                    static_cast<VulkanBackend*>(backend_.get())->ensure_pipelines();
 
                 uint32_t orig_w  = f.config_.width;
                 uint32_t orig_h  = f.config_.height;

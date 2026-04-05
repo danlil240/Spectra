@@ -228,6 +228,11 @@ class Backend
     virtual uint32_t swapchain_width() const  = 0;
     virtual uint32_t swapchain_height() const = 0;
 
+    // Clip-space Y convention.  Vulkan clip Y points down (true),
+    // WebGPU/OpenGL clip Y points up (false).  Used by the renderer
+    // to build correct orthographic projection matrices.
+    virtual bool clip_y_down() const { return true; }
+
     // Returns the current in-flight frame slot index [0, max_frames_in_flight).
     // Used by renderers to ring-buffer per-frame GPU resources (vertex buffers,
     // UBOs) so that frame N+1's CPU upload doesn't overwrite data that frame N's

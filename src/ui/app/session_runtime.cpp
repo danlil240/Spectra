@@ -513,6 +513,31 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
         win_rt_.render(*headless_ui_ctx, frame_state, &profiler_);
     }
 
+    // Simple render path for non-Vulkan backends (e.g. WebGPU) that don't
+    // use WindowManager.  No ImGui, no multi-window — just render the
+    // active figure directly.  Always render (no smart redraw tracking
+    // without WindowManager to drive the dirty state).
+#ifdef SPECTRA_USE_GLFW
+    if (!headless && !window_mgr && frame_state.active_figure)
+    {
+        auto* fig           = frame_state.active_figure;
+        fig->config_.width  = backend_.swapchain_width();
+        fig->config_.height = backend_.swapchain_height();
+        fig->compute_layout();
+
+        if (backend_.begin_frame())
+        {
+            renderer_.begin_render_pass();
+            renderer_.render_figure_content(*fig);
+            float sw = static_cast<float>(backend_.swapchain_width());
+            float sh = static_cast<float>(backend_.swapchain_height());
+            renderer_.render_text(sw, sh);
+            renderer_.end_render_pass();
+            backend_.end_frame();
+        }
+    }
+#endif
+
     // ── Process deferred preview window create/destroy ─────────
 #ifdef SPECTRA_USE_GLFW
     if (window_mgr)

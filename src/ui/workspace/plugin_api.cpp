@@ -1,6 +1,7 @@
 #include "plugin_api.hpp"
 
 #include <bit>
+#include <chrono>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
@@ -772,7 +773,11 @@ bool PluginManager::load_plugin(const std::string& path)
 
     SpectraPluginContext ctx = make_context(SPECTRA_PLUGIN_API_VERSION_MINOR);
     SpectraPluginInfo    info{};
+    auto                 t0     = std::chrono::steady_clock::now();
     int                  result = init_fn(&ctx, &info);
+    auto                 t1     = std::chrono::steady_clock::now();
+    size_t               init_us =
+        static_cast<size_t>(std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count());
     if (result != 0)
     {
 #ifdef _WIN32
@@ -809,16 +814,17 @@ bool PluginManager::load_plugin(const std::string& path)
     }
 
     PluginEntry entry;
-    entry.name              = info.name ? info.name : "Unknown";
-    entry.version           = info.version ? info.version : "0.0.0";
-    entry.author            = info.author ? info.author : "";
-    entry.description       = info.description ? info.description : "";
-    entry.path              = path;
-    entry.loaded            = true;
-    entry.enabled           = true;
-    entry.api_version_minor = plugin_minor;
-    entry.handle            = handle;
-    entry.shutdown_fn       = shutdown_fn;
+    entry.name                     = info.name ? info.name : "Unknown";
+    entry.version                  = info.version ? info.version : "0.0.0";
+    entry.author                   = info.author ? info.author : "";
+    entry.description              = info.description ? info.description : "";
+    entry.path                     = path;
+    entry.loaded                   = true;
+    entry.enabled                  = true;
+    entry.api_version_minor        = plugin_minor;
+    entry.handle                   = handle;
+    entry.shutdown_fn              = shutdown_fn;
+    entry.diagnostics.init_time_us = init_us;
 
     plugins_.push_back(std::move(entry));
     return true;
@@ -912,6 +918,17 @@ const PluginEntry* PluginManager::find_plugin(const std::string& name) const
     {
         if (p.name == name)
             return &p;
+    }
+    return nullptr;
+}
+
+const PluginDiagnostics* PluginManager::diagnostics(const std::string& name) const
+{
+    std::lock_guard lock(mutex_);
+    for (const auto& p : plugins_)
+    {
+        if (p.name == name)
+            return &p.diagnostics;
     }
     return nullptr;
 }

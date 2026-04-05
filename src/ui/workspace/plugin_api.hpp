@@ -6,6 +6,8 @@
 #include <string>
 #include <vector>
 
+#include "plugin_guard.hpp"
+
 // Cross-platform symbol export macro for plugin entry points.
 // Plugins must use SPECTRA_PLUGIN_API on spectra_plugin_init / spectra_plugin_shutdown.
 #ifdef _WIN32
@@ -512,9 +514,7 @@ struct PluginEntry
     std::string path;   // Path to the shared library
     bool        loaded      = false;
     bool        enabled     = true;
-    bool        quarantined = false;            // Auto-disabled after crash/fault
-    int         fault_count = 0;                // Number of faults observed
-    std::string last_fault_message;             // Diagnostic info from last fault
+    PluginDiagnostics diagnostics;                   ///< Lifecycle diagnostics.
     uint32_t    api_version_minor        = 0;   // API minor version the plugin was built against
     void*       handle                   = nullptr;   // dlopen/LoadLibrary handle
     SpectraPluginShutdownFn  shutdown_fn = nullptr;
@@ -557,7 +557,10 @@ class PluginManager
     std::vector<PluginEntry> plugins() const;
 
     // Get a plugin by name.
-    const PluginEntry* find_plugin(const std::string& name) const;
+    [[nodiscard]] const PluginEntry* find_plugin(const std::string& name) const;
+
+    // Get diagnostics for a plugin by name. Returns nullptr if not found.
+    [[nodiscard]] const PluginDiagnostics* diagnostics(const std::string& name) const;
 
     // Number of loaded plugins.
     size_t plugin_count() const;

@@ -158,6 +158,21 @@ struct WorkspaceData
     std::string mode_transition_state;
 };
 
+/// Result of workspace validation.
+struct WorkspaceValidationResult
+{
+    bool                     valid    = true;    // False if data is structurally corrupt
+    bool                     repaired = false;   // True if repairs were made
+    std::vector<std::string> warnings;           // Non-fatal issues found
+    std::vector<std::string> errors;             // Fatal issues
+};
+
+/// Validate the internal consistency of a WorkspaceData object.
+/// Checks: version compatibility, non-negative dimensions, valid axis ranges,
+/// series count consistent with axes, valid series types.
+/// Repairs minor issues (clamps values) when possible.
+WorkspaceValidationResult validate_workspace_data(WorkspaceData& data);
+
 // Workspace save/load operations.
 // All methods are static — no persistent state needed.
 class Workspace

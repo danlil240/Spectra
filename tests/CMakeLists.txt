@@ -175,6 +175,8 @@ set(SPECTRA_UNIT_TESTS
     test_pending_series_data
     test_series_thread_safe
     test_accessibility
+    test_workspace_autosave
+    test_accessible_summary
     test_webgpu_backend
 )
 

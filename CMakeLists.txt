@@ -172,6 +172,7 @@ foreach(_ui_src
     src/ui/data/clipboard_export.cpp
     src/ui/data/html_table_export.cpp
     src/ui/accessibility/sonification.cpp
+    src/ui/accessibility/accessible_summary.cpp
     src/ui/workspace/figure_serializer.cpp
     src/ui/commands/series_clipboard.cpp
     src/ui/overlay/data_editor.cpp
@@ -397,6 +398,7 @@ if(SPECTRA_USE_IMGUI AND SPECTRA_USE_GLFW)
         src/ui/commands/shortcut_manager.cpp
         src/ui/commands/undo_manager.cpp
         src/ui/workspace/workspace.cpp
+        src/ui/workspace/workspace_autosave.cpp
         src/ui/commands/shortcut_config.cpp
         src/ui/workspace/plugin_api.cpp
         src/ui/workspace/plugin_guard.cpp

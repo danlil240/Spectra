@@ -18,11 +18,14 @@ struct ChunkedLineSeries::Impl
     data::ChunkedArray y;
     data::LodCache     lod;
 
-    bool        lod_enabled    = false;
-    std::size_t memory_budget  = 0;   // 0 = unlimited
-    float       line_width     = 2.0f;
-    bool        lod_dirty      = true;
-    uint64_t    lod_generation = 0;
+    bool        lod_enabled        = false;
+    std::size_t memory_budget      = 0;       // 0 = unlimited
+    float       line_width         = 2.0f;
+    bool        lod_dirty          = true;
+    uint64_t    lod_generation     = 0;
+    std::size_t max_visible_points = 65536;
+    float       prefetch_margin    = 0.1f;
+    QueryStats  last_stats;
 
     Impl() = default;
     explicit Impl(std::size_t chunk_size) : x(chunk_size), y(chunk_size) {}
@@ -235,6 +238,10 @@ ChunkedLineSeries::VisibleData ChunkedLineSeries::visible_data(float       x_min
     if (impl_->x.empty())
         return {};
 
+    // Use the configured default when the caller passed the sentinel value
+    const std::size_t effective_max =
+        (max_points == USE_MAX_VISIBLE_POINTS) ? impl_->max_visible_points : max_points;
+
     // Try LoD cache first (requires full data for query)
     if (impl_->lod_enabled)
     {
@@ -244,7 +251,13 @@ ChunkedLineSeries::VisibleData ChunkedLineSeries::visible_data(float       x_min
             auto all_x = impl_->x.read_vec(0, impl_->x.size());
             auto all_y = impl_->y.read_vec(0, impl_->y.size());
 
-            auto result = impl_->lod.query(all_x, all_y, x_min, x_max, max_points);
+            auto result = impl_->lod.query_with_stats(all_x, all_y, x_min, x_max, effective_max);
+
+            impl_->last_stats.lod_level_used  = result.stats.lod_level_used;
+            impl_->last_stats.points_returned = result.stats.points_returned;
+            impl_->last_stats.points_in_range = result.stats.points_in_range;
+            impl_->last_stats.cache_hit       = result.stats.cache_hit;
+
             return {
                 std::vector<float>(result.x.begin(), result.x.end()),
                 std::vector<float>(result.y.begin(), result.y.end()),
@@ -284,14 +297,21 @@ ChunkedLineSeries::VisibleData ChunkedLineSeries::visible_data(float       x_min
 
     std::size_t visible_count = hi_idx - lo_idx;
     if (visible_count == 0)
+    {
+        impl_->last_stats = {};
         return {};
+    }
 
     // Read only the visible range
     auto vis_x = impl_->x.read_vec(lo_idx, visible_count);
     auto vis_y = impl_->y.read_vec(lo_idx, visible_count);
 
-    if (visible_count <= max_points)
+    if (visible_count <= effective_max)
     {
+        impl_->last_stats.lod_level_used  = 0;
+        impl_->last_stats.points_returned = visible_count;
+        impl_->last_stats.points_in_range = visible_count;
+        impl_->last_stats.cache_hit       = false;
         return {
             std::move(vis_x),
             std::move(vis_y),
@@ -300,7 +320,7 @@ ChunkedLineSeries::VisibleData ChunkedLineSeries::visible_data(float       x_min
     }
 
     // Decimate to fit budget
-    auto        decimated = data::min_max_decimate(vis_x, vis_y, max_points / 2);
+    auto        decimated = data::min_max_decimate(vis_x, vis_y, effective_max / 2);
     VisibleData out;
     out.x.reserve(decimated.size());
     out.y.reserve(decimated.size());
@@ -310,7 +330,41 @@ ChunkedLineSeries::VisibleData ChunkedLineSeries::visible_data(float       x_min
         out.y.push_back(dy);
     }
     out.lod_level = 0;   // Ad-hoc decimation, not a cached level
+
+    impl_->last_stats.lod_level_used  = 0;
+    impl_->last_stats.points_returned = out.x.size();
+    impl_->last_stats.points_in_range = visible_count;
+    impl_->last_stats.cache_hit       = false;
     return out;
+}
+
+// ── Quality vs speed controls ──
+
+ChunkedLineSeries& ChunkedLineSeries::set_max_visible_points(std::size_t n)
+{
+    impl_->max_visible_points = n;
+    return *this;
+}
+
+std::size_t ChunkedLineSeries::max_visible_points() const
+{
+    return impl_->max_visible_points;
+}
+
+ChunkedLineSeries& ChunkedLineSeries::set_prefetch_margin(float fraction)
+{
+    impl_->prefetch_margin = fraction;
+    return *this;
+}
+
+float ChunkedLineSeries::prefetch_margin() const
+{
+    return impl_->prefetch_margin;
+}
+
+ChunkedLineSeries::QueryStats ChunkedLineSeries::last_query_stats() const
+{
+    return impl_->last_stats;
 }
 
 // ── Fluent setters ──

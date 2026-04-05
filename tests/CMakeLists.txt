@@ -168,6 +168,7 @@ set(SPECTRA_UNIT_TESTS
     test_chunked_array
     test_mapped_file
     test_lod_cache
+    test_lod_cache_metrics
     test_chunked_series
     test_pending_series_data
     test_series_thread_safe

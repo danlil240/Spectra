@@ -111,9 +111,35 @@ class ChunkedLineSeries : public Series
         std::size_t        lod_level = 0;   // 0 = full resolution
     };
 
-    [[nodiscard]] VisibleData visible_data(float       x_min,
-                                           float       x_max,
-                                           std::size_t max_points = 4096) const;
+    /// Statistics for the last visible_data() call.
+    struct QueryStats
+    {
+        std::size_t lod_level_used  = 0;
+        std::size_t points_returned = 0;
+        std::size_t points_in_range = 0;
+        bool        cache_hit       = false;
+    };
+
+    /// Pass as max_points to visible_data() to use the configured max_visible_points().
+    static constexpr std::size_t USE_MAX_VISIBLE_POINTS = static_cast<std::size_t>(-1);
+
+    [[nodiscard]] VisibleData visible_data(
+        float       x_min,
+        float       x_max,
+        std::size_t max_points = USE_MAX_VISIBLE_POINTS) const;
+
+    /// Control quality vs speed: maximum visible points used by visible_data().
+    /// Default is 65536. Passing max_points to visible_data() overrides this.
+    ChunkedLineSeries&        set_max_visible_points(std::size_t n);
+    [[nodiscard]] std::size_t max_visible_points() const;
+
+    /// Control prefetch margin: fraction of viewport width to prefetch on each
+    /// side. Default is 0.1 (10%).
+    ChunkedLineSeries& set_prefetch_margin(float fraction);
+    [[nodiscard]] float prefetch_margin() const;
+
+    /// Returns stats populated by the most recent visible_data() call.
+    [[nodiscard]] QueryStats last_query_stats() const;
 
     // ── Fluent setters (return correct type) ──
 

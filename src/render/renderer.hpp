@@ -31,7 +31,7 @@ class Renderer
 {
    public:
     explicit Renderer(Backend& backend, ui::ThemeManager& theme_mgr);
-    ~Renderer();
+    ~Renderer() noexcept;
 
     Renderer(const Renderer&)            = delete;
     Renderer& operator=(const Renderer&) = delete;

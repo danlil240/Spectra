@@ -40,6 +40,7 @@ class LineSeries3D : public Series
     LineSeries3D& set_x(std::span<const float> x);
     LineSeries3D& set_y(std::span<const float> y);
     LineSeries3D& set_z(std::span<const float> z);
+    using Series::append;   // Bring base 2-arg append into scope (avoid -Woverloaded-virtual)
     void          append(float x, float y, float z);
 
     LineSeries3D& width(float w)
@@ -122,6 +123,7 @@ class ScatterSeries3D : public Series
     ScatterSeries3D& set_x(std::span<const float> x);
     ScatterSeries3D& set_y(std::span<const float> y);
     ScatterSeries3D& set_z(std::span<const float> z);
+    using Series::append;   // Bring base 2-arg append into scope (avoid -Woverloaded-virtual)
     void             append(float x, float y, float z);
 
     ScatterSeries3D& size(float s)

@@ -13,10 +13,17 @@
 namespace spectra
 {
 
+enum class RenderBackend
+{
+    Vulkan,
+    WebGPU,
+};
+
 struct AppConfig
 {
-    bool        headless = false;
-    std::string socket_path;   // non-empty → multiproc mode; empty → check SPECTRA_SOCKET env
+    bool          headless = false;
+    std::string   socket_path;   // non-empty → multiproc mode; empty → check SPECTRA_SOCKET env
+    RenderBackend backend = RenderBackend::Vulkan;
 };
 
 class SessionRuntime;

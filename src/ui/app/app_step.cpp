@@ -902,6 +902,7 @@ void App::shutdown_runtime()
     auto& rt = *runtime_;
 
     SPECTRA_LOG_INFO("main_loop", "Exited main render loop");
+    SPECTRA_LOG_INFO("shutdown", "Phase 1: stopping servers");
 
     if (rt.mcp_server)
     {
@@ -1006,6 +1007,20 @@ void App::shutdown_runtime()
     {
         backend_->wait_idle();
     }
+
+    SPECTRA_LOG_INFO("shutdown", "Phase 2: releasing UI context");
+
+    // Explicitly reset sub-objects in controlled order to isolate potential
+    // destructor issues. The WindowUIContext holds CommandRegistry, ShortcutManager,
+    // and other objects with std::mutex members.
+    if (runtime_)
+    {
+        runtime_->headless_ui_ctx.reset();
+        runtime_->mcp_server.reset();
+        runtime_->auto_server.reset();
+    }
+
+    SPECTRA_LOG_INFO("shutdown", "Phase 3: releasing runtime");
 
     runtime_.reset();
 }

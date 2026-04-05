@@ -80,12 +80,13 @@ class TestExportManager
             if (p->id == id)
             {
                 PlotHandle h;
-                h.id         = p->id;
-                h.topic      = p->topic;
-                h.field_path = p->field_path;
-                h.figure     = p->figure.get();
-                h.axes       = nullptr;
-                h.series     = p->series;
+                h.id          = p->id;
+                h.topic       = p->topic;
+                h.field_path  = p->field_path;
+                h.figure      = p->figure.get();
+                h.axes        = nullptr;
+                h.series      = p->series;
+                h.base_series = p->series;
                 return h;
             }
         }

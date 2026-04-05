@@ -902,6 +902,8 @@ void SessionRuntime::commit_thread_safe_series()
 
         for (auto& axes_ptr : fig->all_axes())
         {
+            if (!axes_ptr)
+                continue;
             for (auto& series_ptr : axes_ptr->series())
             {
                 if (series_ptr->is_thread_safe() && series_ptr->commit_pending())

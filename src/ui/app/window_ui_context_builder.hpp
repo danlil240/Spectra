@@ -39,10 +39,16 @@ struct WindowUIContextBuildOptions
     uint32_t       window_id      = 0;
 #endif
 
-    std::function<void()>             on_window_close_request;
+    std::function<void()>                  on_window_close_request;
     std::function<void(FigureId, Figure*)> on_figure_closed;
 
     bool create_imgui_integration = false;
+
+    // When true, creates a minimal headless-safe context with only
+    // FigureManager and ThemeManager — skips commands, shortcuts, input,
+    // animation, and ImGui-dependent objects to avoid destruction-order
+    // issues in rapid create/destroy cycles (e.g. golden tests).
+    bool headless = false;
 };
 
 std::unique_ptr<WindowUIContext> build_window_ui_context(

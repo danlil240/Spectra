@@ -182,6 +182,12 @@ foreach(_ui_src
     src/embed/spectra_embed_c.cpp
     src/ui/automation/automation_server.cpp
     src/ui/automation/mcp_server.cpp
+    src/ui/automation/handlers/handlers_command.cpp
+    src/ui/automation/handlers/handlers_input.cpp
+    src/ui/automation/handlers/handlers_figure.cpp
+    src/ui/automation/handlers/handlers_capture.cpp
+    src/ui/automation/handlers/handlers_window.cpp
+    src/ui/automation/handlers/handlers_utility.cpp
 )
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${_ui_src})
         list(APPEND SPECTRA_UI_SOURCES ${_ui_src})
@@ -402,6 +408,18 @@ if(SPECTRA_USE_IMGUI AND SPECTRA_USE_GLFW)
         src/ui/workspace/plugin_guard.cpp
         src/ui/figures/tab_drag_controller.cpp
         src/ui/app/register_commands.cpp
+        src/ui/app/commands/command_descriptor.cpp
+        src/ui/app/commands/commands_view.cpp
+        src/ui/app/commands/commands_edit.cpp
+        src/ui/app/commands/commands_file.cpp
+        src/ui/app/commands/commands_figure.cpp
+        src/ui/app/commands/commands_series.cpp
+        src/ui/app/commands/commands_animation.cpp
+        src/ui/app/commands/commands_panel.cpp
+        src/ui/app/commands/commands_theme.cpp
+        src/ui/app/commands/commands_tools.cpp
+        src/ui/app/commands/commands_data.cpp
+        src/ui/app/commands/commands_app.cpp
     )
         if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${_imgui_src})
             target_sources(spectra PRIVATE ${_imgui_src})

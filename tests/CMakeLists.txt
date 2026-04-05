@@ -414,6 +414,9 @@ if(SPECTRA_BUILD_BENCHMARKS)
         add_spectra_bench(bench_multi_window)
     endif()
 
+    add_spectra_bench(bench_startup)
+    add_spectra_bench(bench_ipc_codec)
+
     if(SPECTRA_USE_ROS2 AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/bench/bench_ros3d.cpp)
         add_executable(bench_ros3d bench/bench_ros3d.cpp)
         target_link_libraries(bench_ros3d PRIVATE

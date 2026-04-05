@@ -193,14 +193,7 @@ def decode_header(data: bytes) -> Optional[dict]:
 # ─── Convenience: encode specific payloads ────────────────────────────────────
 
 def encode_hello(client_type: str = "python", build: str = "") -> bytes:
-    enc = PayloadEncoder()
-    enc.put_u16(P.TAG_PROTOCOL_MAJOR, P.PROTOCOL_MAJOR)
-    enc.put_u16(P.TAG_PROTOCOL_MINOR, P.PROTOCOL_MINOR)
-    enc.put_string(P.TAG_AGENT_BUILD, build)
-    enc.put_u32(P.TAG_CAPABILITIES, 0)
-    enc.put_string(P.TAG_CLIENT_TYPE, client_type)
-    return enc.take()
-
+    return fb_codec.encode_fb_hello(client_type=client_type, build=build)
 
 def decode_welcome(data: bytes) -> dict:
     if fb_codec._is_fb(data):
@@ -223,42 +216,16 @@ def decode_welcome(data: bytes) -> dict:
 
 
 def encode_req_create_figure(title: str = "", width: int = 1280, height: int = 720) -> bytes:
-    enc = PayloadEncoder()
-    enc.put_string(P.TAG_TITLE, title)
-    enc.put_u32(P.TAG_WIDTH, width)
-    enc.put_u32(P.TAG_HEIGHT, height)
-    return enc.take()
-
+    return fb_codec.encode_fb_req_create_figure(title=title, width=width, height=height)
 
 def encode_req_create_axes(figure_id: int, rows: int, cols: int, index: int, is_3d: bool = False) -> bytes:
-    enc = PayloadEncoder()
-    enc.put_u64(P.TAG_FIGURE_ID, figure_id)
-    enc.put_u32(P.TAG_GRID_ROWS, rows)
-    enc.put_u32(P.TAG_GRID_COLS, cols)
-    enc.put_u32(P.TAG_GRID_INDEX, index)
-    if is_3d:
-        enc.put_bool(P.TAG_IS_3D, True)
-    return enc.take()
-
+    return fb_codec.encode_fb_req_create_axes(figure_id=figure_id, rows=rows, cols=cols, index=index, is_3d=is_3d)
 
 def encode_req_add_series(figure_id: int, axes_index: int, series_type: str, label: str = "") -> bytes:
-    enc = PayloadEncoder()
-    enc.put_u64(P.TAG_FIGURE_ID, figure_id)
-    enc.put_u32(P.TAG_AXES_INDEX, axes_index)
-    enc.put_string(P.TAG_SERIES_TYPE, series_type)
-    enc.put_string(P.TAG_SERIES_LABEL, label)
-    return enc.take()
-
+    return fb_codec.encode_fb_req_add_series(figure_id=figure_id, axes_index=axes_index, series_type=series_type, label=label)
 
 def encode_req_set_data(figure_id: int, series_index: int, data: List[float], dtype: int = 0) -> bytes:
-    enc = PayloadEncoder()
-    enc.put_u64(P.TAG_FIGURE_ID, figure_id)
-    enc.put_u32(P.TAG_SERIES_INDEX, series_index)
-    enc.put_u16(P.TAG_DTYPE, dtype)
-    if data:
-        enc.put_float_array(P.TAG_BLOB_INLINE, data)
-    return enc.take()
-
+    return fb_codec.encode_fb_req_set_data(figure_id=figure_id, series_index=series_index, data=data, dtype=dtype)
 
 def encode_req_set_data_raw(figure_id: int, series_index: int, raw_bytes: bytes, count: int, dtype: int = 0) -> bytes:
     """Encode REQ_SET_DATA with pre-packed float array bytes for zero-copy from numpy."""
@@ -301,14 +268,7 @@ def encode_req_set_data_chunked(
 
 
 def encode_req_append_data(figure_id: int, series_index: int, data: List[float]) -> bytes:
-    """Encode REQ_APPEND_DATA for streaming append."""
-    enc = PayloadEncoder()
-    enc.put_u64(P.TAG_FIGURE_ID, figure_id)
-    enc.put_u32(P.TAG_SERIES_INDEX, series_index)
-    if data:
-        enc.put_float_array(P.TAG_BLOB_INLINE, data)
-    return enc.take()
-
+    return fb_codec.encode_fb_req_append_data(figure_id=figure_id, series_index=series_index, data=data)
 
 def encode_req_append_data_raw(figure_id: int, series_index: int, raw_bytes: bytes, count: int) -> bytes:
     """Encode REQ_APPEND_DATA with pre-packed float array bytes for zero-copy from numpy."""
@@ -332,48 +292,19 @@ def encode_req_update_property(
     bool_val: bool = False,
     str_val: str = "",
 ) -> bytes:
-    enc = PayloadEncoder()
-    enc.put_u64(P.TAG_FIGURE_ID, figure_id)
-    enc.put_u32(P.TAG_AXES_INDEX, axes_index)
-    enc.put_u32(P.TAG_SERIES_INDEX, series_index)
-    enc.put_string(P.TAG_PROPERTY_NAME, prop)
-    enc.put_double(P.TAG_F1, f1)
-    enc.put_double(P.TAG_F2, f2)
-    enc.put_double(P.TAG_F3, f3)
-    enc.put_double(P.TAG_F4, f4)
-    enc.put_bool(P.TAG_BOOL_VAL, bool_val)
-    if str_val:
-        enc.put_string(P.TAG_STR_VAL, str_val)
-    return enc.take()
-
+    return fb_codec.encode_fb_req_update_property(figure_id=figure_id, axes_index=axes_index, series_index=series_index, prop=prop, f1=f1, f2=f2, f3=f3, f4=f4, bool_val=bool_val, str_val=str_val)
 
 def encode_req_show(figure_id: int, window_id: int = 0) -> bytes:
-    enc = PayloadEncoder()
-    enc.put_u64(P.TAG_FIGURE_ID, figure_id)
-    if window_id != 0:
-        enc.put_u64(P.TAG_WINDOW_ID, window_id)
-    return enc.take()
-
+    return fb_codec.encode_fb_req_show(figure_id=figure_id, window_id=window_id)
 
 def encode_req_destroy_figure(figure_id: int) -> bytes:
-    enc = PayloadEncoder()
-    enc.put_u64(P.TAG_FIGURE_ID, figure_id)
-    return enc.take()
-
+    return fb_codec.encode_fb_req_destroy_figure(figure_id=figure_id)
 
 def encode_req_remove_series(figure_id: int, series_index: int) -> bytes:
-    enc = PayloadEncoder()
-    enc.put_u64(P.TAG_FIGURE_ID, figure_id)
-    enc.put_u32(P.TAG_SERIES_INDEX, series_index)
-    return enc.take()
-
+    return fb_codec.encode_fb_req_remove_series(figure_id=figure_id, series_index=series_index)
 
 def encode_req_close_figure(figure_id: int) -> bytes:
-    """Encode REQ_CLOSE_FIGURE — close the window but keep the figure in the model."""
-    enc = PayloadEncoder()
-    enc.put_u64(P.TAG_FIGURE_ID, figure_id)
-    return enc.take()
-
+    return fb_codec.encode_fb_req_close_figure(figure_id=figure_id)
 
 def encode_req_update_batch(updates: list) -> bytes:
     """Encode REQ_UPDATE_BATCH — multiple property updates in one message.
@@ -389,12 +320,7 @@ def encode_req_update_batch(updates: list) -> bytes:
 
 
 def encode_req_reconnect(session_id: int, session_token: str = "") -> bytes:
-    enc = PayloadEncoder()
-    enc.put_u64(P.TAG_SESSION_ID, session_id)
-    if session_token:
-        enc.put_string(P.TAG_SESSION_TOKEN, session_token)
-    return enc.take()
-
+    return fb_codec.encode_fb_req_reconnect(session_id=session_id, session_token=session_token)
 
 def encode_req_list_figures() -> bytes:
     return b""

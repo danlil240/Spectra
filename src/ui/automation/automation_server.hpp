@@ -13,6 +13,7 @@
 #include <mutex>
 #include <string>
 #include <thread>
+#include <unordered_map>
 #include <vector>
 
 namespace spectra
@@ -81,10 +82,6 @@ class AutomationServer
     // Send a JSON response string back to the client fd.
     void send_response(int fd, const std::string& json);
 
-    // JSON helpers (minimal, no external dependency)
-    static std::string json_ok(uint64_t id, const std::string& result_json = "{}");
-    static std::string json_error(uint64_t id, const std::string& message);
-
     std::string       socket_path_;
     int               listen_fd_ = -1;
     std::atomic<bool> running_{false};
@@ -99,6 +96,13 @@ class AutomationServer
     std::vector<int> client_fds_;
 
     std::atomic<uint64_t> next_request_id_{1};
+
+    // Handler registry: method name -> handler function.
+    using HandlerFn = std::function<void(AutomationRequest&, App&, WindowUIContext*)>;
+    std::unordered_map<std::string, HandlerFn> handlers_;
+
+    // Populate handlers_ from the handler group factories.
+    void register_handlers();
 };
 
 }   // namespace spectra

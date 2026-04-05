@@ -30,9 +30,9 @@ void ImGuiIntegration::draw_tab_bar()
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
 
     ImGui::PushStyleColor(ImGuiCol_WindowBg,
-                          ImVec4(ui::theme().bg_secondary.r,
-                                 ui::theme().bg_secondary.g,
-                                 ui::theme().bg_secondary.b,
+                          ImVec4(theme_colors().bg_secondary.r,
+                                 theme_colors().bg_secondary.g,
+                                 theme_colors().bg_secondary.b,
                                  1.0f));
 
     if (ImGui::Begin("##tabbar_host", nullptr, flags))
@@ -51,9 +51,9 @@ void ImGuiIntegration::draw_tab_bar()
         }
         dl->AddLine(ImVec2(wpos.x, std::floor(wpos.y + wsz.y) - 1.0f),
                     ImVec2(wpos.x + wsz.x, std::floor(wpos.y + wsz.y) - 1.0f),
-                    IM_COL32(static_cast<uint8_t>(ui::theme().border_default.r * 255),
-                             static_cast<uint8_t>(ui::theme().border_default.g * 255),
-                             static_cast<uint8_t>(ui::theme().border_default.b * 255),
+                    IM_COL32(static_cast<uint8_t>(theme_colors().border_default.r * 255),
+                             static_cast<uint8_t>(theme_colors().border_default.g * 255),
+                             static_cast<uint8_t>(theme_colors().border_default.b * 255),
                              90),
                     1.0f);
         tab_bar_->draw(bounds, dock_system_);
@@ -88,15 +88,15 @@ void ImGuiIntegration::draw_canvas(Figure& figure)
             | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoFocusOnAppearing;
 
         ImGui::PushStyleColor(ImGuiCol_WindowBg,
-                              ImVec4(ui::theme().bg_canvas.r,
-                                     ui::theme().bg_canvas.g,
-                                     ui::theme().bg_canvas.b,
+                              ImVec4(theme_colors().bg_canvas.r,
+                                     theme_colors().bg_canvas.g,
+                                     theme_colors().bg_canvas.b,
                                      1.0f));
         ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0, 0, 0, 0));
 
         if (ImGui::Begin("##canvas_welcome", nullptr, empty_flags))
         {
-            const auto& colors = ui::theme();
+            const auto& colors = theme_colors();
             float       cx     = bounds.x + bounds.w * 0.5f;
             float       cy     = bounds.y + bounds.h * 0.5f;
 
@@ -234,7 +234,7 @@ void ImGuiIntegration::draw_canvas(Figure& figure)
         return;
 
     ImDrawList* bg_dl = ImGui::GetBackgroundDrawList();
-    auto        outer = ui::theme().bg_primary.lerp(ui::theme().bg_secondary, 0.20f);
+    auto        outer = theme_colors().bg_primary.lerp(theme_colors().bg_secondary, 0.20f);
     bg_dl->AddRectFilled(ImVec2(bounds.x - 8.0f, bounds.y - 8.0f),
                          ImVec2(bounds.x + bounds.w + 8.0f, bounds.y + bounds.h + 8.0f),
                          IM_COL32(static_cast<uint8_t>(outer.r * 255),
@@ -253,23 +253,23 @@ void ImGuiIntegration::draw_canvas(Figure& figure)
     }
     dl->AddRect(ImVec2(bounds.x, bounds.y),
                 ImVec2(bounds.x + bounds.w, bounds.y + bounds.h),
-                IM_COL32(static_cast<uint8_t>(ui::theme().border_default.r * 255),
-                         static_cast<uint8_t>(ui::theme().border_default.g * 255),
-                         static_cast<uint8_t>(ui::theme().border_default.b * 255),
+                IM_COL32(static_cast<uint8_t>(theme_colors().border_default.r * 255),
+                         static_cast<uint8_t>(theme_colors().border_default.g * 255),
+                         static_cast<uint8_t>(theme_colors().border_default.b * 255),
                          180),
                 10.0f);
     dl->AddRect(ImVec2(bounds.x + 1.0f, bounds.y + 1.0f),
                 ImVec2(bounds.x + bounds.w - 1.0f, bounds.y + bounds.h - 1.0f),
-                IM_COL32(static_cast<uint8_t>(ui::theme().border_subtle.r * 255),
-                         static_cast<uint8_t>(ui::theme().border_subtle.g * 255),
-                         static_cast<uint8_t>(ui::theme().border_subtle.b * 255),
+                IM_COL32(static_cast<uint8_t>(theme_colors().border_subtle.r * 255),
+                         static_cast<uint8_t>(theme_colors().border_subtle.g * 255),
+                         static_cast<uint8_t>(theme_colors().border_subtle.b * 255),
                          120),
                 9.0f);
     dl->AddLine(ImVec2(bounds.x + 4.0f, bounds.y + 1.0f),
                 ImVec2(bounds.x + bounds.w - 4.0f, bounds.y + 1.0f),
-                IM_COL32(static_cast<uint8_t>(ui::theme().border_strong.r * 255),
-                         static_cast<uint8_t>(ui::theme().border_strong.g * 255),
-                         static_cast<uint8_t>(ui::theme().border_strong.b * 255),
+                IM_COL32(static_cast<uint8_t>(theme_colors().border_strong.r * 255),
+                         static_cast<uint8_t>(theme_colors().border_strong.g * 255),
+                         static_cast<uint8_t>(theme_colors().border_strong.b * 255),
                          56),
                 1.0f);
     dl->AddRectFilledMultiColor(ImVec2(bounds.x + 1.0f, bounds.y + 1.0f),
@@ -352,7 +352,7 @@ void ImGuiIntegration::draw_canvas(Figure& figure)
             ImDrawList* dl = ImGui::GetForegroundDrawList();
 
             // Track background
-            auto  bg        = ui::theme().bg_elevated;
+            auto  bg        = theme_colors().bg_elevated;
             ImU32 track_col = IM_COL32(static_cast<uint8_t>(bg.r * 255),
                                        static_cast<uint8_t>(bg.g * 255),
                                        static_cast<uint8_t>(bg.b * 255),
@@ -363,7 +363,7 @@ void ImGuiIntegration::draw_canvas(Figure& figure)
                               SCROLLBAR_WIDTH * 0.5f);
 
             // Thumb with hover/active highlight
-            auto    accent    = ui::theme().accent;
+            auto    accent    = theme_colors().accent;
             uint8_t alpha     = track_active ? 240 : (thumb_hovered ? 210 : 180);
             ImU32   thumb_col = IM_COL32(static_cast<uint8_t>(accent.r * 255),
                                        static_cast<uint8_t>(accent.g * 255),
@@ -431,7 +431,7 @@ void ImGuiIntegration::draw_inspector(Figure& figure)
             {
                 ImDrawList* dl       = ImGui::GetWindowDrawList();
                 float       line_x   = bounds.x;
-                auto        accent   = ui::theme().accent;
+                auto        accent   = theme_colors().accent;
                 ImU32       line_col = active ? IM_COL32(uint8_t(accent.r * 255),
                                                    uint8_t(accent.g * 255),
                                                    uint8_t(accent.b * 255),
@@ -463,9 +463,9 @@ void ImGuiIntegration::draw_inspector(Figure& figure)
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);   // No outer border
     ImGui::PushStyleColor(ImGuiCol_WindowBg,
-                          ImVec4(ui::theme().bg_secondary.r,
-                                 ui::theme().bg_secondary.g,
-                                 ui::theme().bg_secondary.b,
+                          ImVec4(theme_colors().bg_secondary.r,
+                                 theme_colors().bg_secondary.g,
+                                 theme_colors().bg_secondary.b,
                                  1.0f));
     ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0, 0, 0, 0));   // Inner hairline drawn manually
 
@@ -490,16 +490,16 @@ void ImGuiIntegration::draw_inspector(Figure& figure)
             // Crisp material edge: hairline border on left
             dl->AddLine(ImVec2(bounds.x, bounds.y),
                         ImVec2(bounds.x, bounds.y + bounds.h),
-                        ImGui::ColorConvertFloat4ToU32(ImVec4(ui::theme().border_subtle.r,
-                                                              ui::theme().border_subtle.g,
-                                                              ui::theme().border_subtle.b,
+                        ImGui::ColorConvertFloat4ToU32(ImVec4(theme_colors().border_subtle.r,
+                                                              theme_colors().border_subtle.g,
+                                                              theme_colors().border_subtle.b,
                                                               0.50f)),
                         1.0f);
         }
 
         // ── Inspector tab bar ──
         {
-            const auto& colors  = ui::theme();
+            const auto& colors  = theme_colors();
             float       avail_w = ImGui::GetContentRegionAvail().x;
 
             struct TabDef
@@ -754,7 +754,7 @@ void ImGuiIntegration::draw_inspector_toggle()
             }
         }
 
-        const auto& colors = ui::theme();
+        const auto& colors = theme_colors();
         ImDrawList* dl     = ImGui::GetWindowDrawList();
 
         // Only show background on hover for a subtle feel
@@ -817,11 +817,11 @@ void ImGuiIntegration::draw_status_bar()
     // Status bar uses a blend between bg_primary and bg_secondary (darker than panels)
     float sb_blend = 0.55f;
     auto  sb_bg_r =
-        ui::theme().bg_primary.r * sb_blend + ui::theme().bg_secondary.r * (1.0f - sb_blend);
+        theme_colors().bg_primary.r * sb_blend + theme_colors().bg_secondary.r * (1.0f - sb_blend);
     auto sb_bg_g =
-        ui::theme().bg_primary.g * sb_blend + ui::theme().bg_secondary.g * (1.0f - sb_blend);
+        theme_colors().bg_primary.g * sb_blend + theme_colors().bg_secondary.g * (1.0f - sb_blend);
     auto sb_bg_b =
-        ui::theme().bg_primary.b * sb_blend + ui::theme().bg_secondary.b * (1.0f - sb_blend);
+        theme_colors().bg_primary.b * sb_blend + theme_colors().bg_secondary.b * (1.0f - sb_blend);
     ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(sb_bg_r, sb_bg_g, sb_bg_b, 1.0f));
     ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0, 0, 0, 0));
 
@@ -848,9 +848,9 @@ void ImGuiIntegration::draw_status_bar()
             // Crisp hairline border at top edge
             bar_dl->AddLine(ImVec2(wpos.x, wpos.y),
                             ImVec2(wpos.x + wsz.x, wpos.y),
-                            IM_COL32(static_cast<uint8_t>(ui::theme().border_subtle.r * 255),
-                                     static_cast<uint8_t>(ui::theme().border_subtle.g * 255),
-                                     static_cast<uint8_t>(ui::theme().border_subtle.b * 255),
+                            IM_COL32(static_cast<uint8_t>(theme_colors().border_subtle.r * 255),
+                                     static_cast<uint8_t>(theme_colors().border_subtle.g * 255),
+                                     static_cast<uint8_t>(theme_colors().border_subtle.b * 255),
                                      80),
                             1.0f);
         }
@@ -866,10 +866,10 @@ void ImGuiIntegration::draw_status_bar()
 
         // Left: cursor data readout
         ImGui::PushStyleColor(ImGuiCol_Text,
-                              ImVec4(ui::theme().text_secondary.r,
-                                     ui::theme().text_secondary.g,
-                                     ui::theme().text_secondary.b,
-                                     ui::theme().text_secondary.a));
+                              ImVec4(theme_colors().text_secondary.r,
+                                     theme_colors().text_secondary.g,
+                                     theme_colors().text_secondary.b,
+                                     theme_colors().text_secondary.a));
         char cursor_buf[64];
         if (cursor_data_valid_)
             std::snprintf(cursor_buf,
@@ -886,32 +886,32 @@ void ImGuiIntegration::draw_status_bar()
         ImGui::SameLine(0.0f, ui::tokens::SPACE_6);
         {
             const char* mode_label = "Navigate";
-            auto        mode_color = ui::theme().text_secondary;
+            auto        mode_color = theme_colors().text_secondary;
             switch (interaction_mode_)
             {
                 case ToolMode::Pan:
                     mode_label = "Pan";
-                    mode_color = ui::theme().accent;
+                    mode_color = theme_colors().accent;
                     break;
                 case ToolMode::BoxZoom:
                     mode_label = "Box Zoom";
-                    mode_color = ui::theme().warning;
+                    mode_color = theme_colors().warning;
                     break;
                 case ToolMode::Select:
                     mode_label = "Select";
-                    mode_color = ui::theme().info;
+                    mode_color = theme_colors().info;
                     break;
                 case ToolMode::ROI:
                     mode_label = "ROI";
-                    mode_color = ui::theme().info;
+                    mode_color = theme_colors().info;
                     break;
                 case ToolMode::Measure:
                     mode_label = "Measure";
-                    mode_color = ui::theme().success;
+                    mode_color = theme_colors().success;
                     break;
                 case ToolMode::Annotate:
                     mode_label = "Annotate";
-                    mode_color = ui::theme().accent;
+                    mode_color = theme_colors().accent;
                     break;
                 default:
                     break;
@@ -940,9 +940,9 @@ void ImGuiIntegration::draw_status_bar()
         // Separator — subtle dot
         ImGui::SameLine(0.0f, ui::tokens::SPACE_3);
         ImGui::PushStyleColor(ImGuiCol_Text,
-                              ImVec4(ui::theme().text_tertiary.r,
-                                     ui::theme().text_tertiary.g,
-                                     ui::theme().text_tertiary.b,
+                              ImVec4(theme_colors().text_tertiary.r,
+                                     theme_colors().text_tertiary.g,
+                                     theme_colors().text_tertiary.b,
                                      0.5f));
         ImGui::TextUnformatted("\xC2\xB7");
         ImGui::PopStyleColor();
@@ -950,10 +950,10 @@ void ImGuiIntegration::draw_status_bar()
         // Zoom level
         ImGui::SameLine(0.0f, ui::tokens::SPACE_3);
         ImGui::PushStyleColor(ImGuiCol_Text,
-                              ImVec4(ui::theme().text_secondary.r,
-                                     ui::theme().text_secondary.g,
-                                     ui::theme().text_secondary.b,
-                                     ui::theme().text_secondary.a));
+                              ImVec4(theme_colors().text_secondary.r,
+                                     theme_colors().text_secondary.g,
+                                     theme_colors().text_secondary.b,
+                                     theme_colors().text_secondary.a));
         char zoom_buf[48];
         {
             double zoom_pct = static_cast<double>(zoom_level_) * 100.0;
@@ -974,9 +974,9 @@ void ImGuiIntegration::draw_status_bar()
             ImGui::GetWindowDrawList()->AddRectFilled(
                 ImVec2(chip_pos.x - 5.0f, chip_pos.y - 1.0f),
                 ImVec2(chip_pos.x + chip_sz.x + 5.0f, chip_pos.y + chip_sz.y + 1.0f),
-                IM_COL32(static_cast<uint8_t>(ui::theme().bg_tertiary.r * 255),
-                         static_cast<uint8_t>(ui::theme().bg_tertiary.g * 255),
-                         static_cast<uint8_t>(ui::theme().bg_tertiary.b * 255),
+                IM_COL32(static_cast<uint8_t>(theme_colors().bg_tertiary.r * 255),
+                         static_cast<uint8_t>(theme_colors().bg_tertiary.g * 255),
+                         static_cast<uint8_t>(theme_colors().bg_tertiary.b * 255),
                          72),
                 ui::tokens::RADIUS_SM);
             ImGui::TextUnformatted(zoom_buf);
@@ -990,11 +990,11 @@ void ImGuiIntegration::draw_status_bar()
 
         // FPS with color coding
         float fps_val   = io.Framerate;
-        auto  fps_color = ui::theme().success;
+        auto  fps_color = theme_colors().success;
         if (fps_val < 20.0f)
-            fps_color = ui::theme().error;
+            fps_color = theme_colors().error;
         else if (fps_val < 45.0f)
-            fps_color = ui::theme().warning;
+            fps_color = theme_colors().warning;
 
         char fps_buf[32];
         std::snprintf(fps_buf, sizeof(fps_buf), "%d fps", static_cast<int>(fps_val));
@@ -1025,16 +1025,16 @@ void ImGuiIntegration::draw_status_bar()
             ImGui::GetWindowDrawList()->AddRectFilled(
                 ImVec2(chip_pos.x - 5.0f, chip_pos.y - 1.0f),
                 ImVec2(chip_pos.x + chip_sz.x + 5.0f, chip_pos.y + chip_sz.y + 1.0f),
-                IM_COL32(static_cast<uint8_t>(ui::theme().bg_tertiary.r * 255),
-                         static_cast<uint8_t>(ui::theme().bg_tertiary.g * 255),
-                         static_cast<uint8_t>(ui::theme().bg_tertiary.b * 255),
+                IM_COL32(static_cast<uint8_t>(theme_colors().bg_tertiary.r * 255),
+                         static_cast<uint8_t>(theme_colors().bg_tertiary.g * 255),
+                         static_cast<uint8_t>(theme_colors().bg_tertiary.b * 255),
                          58),
                 ui::tokens::RADIUS_SM);
             ImGui::PushStyleColor(ImGuiCol_Text,
-                                  ImVec4(ui::theme().text_tertiary.r,
-                                         ui::theme().text_tertiary.g,
-                                         ui::theme().text_tertiary.b,
-                                         ui::theme().text_tertiary.a));
+                                  ImVec4(theme_colors().text_tertiary.r,
+                                         theme_colors().text_tertiary.g,
+                                         theme_colors().text_tertiary.b,
+                                         theme_colors().text_tertiary.a));
             ImGui::TextUnformatted(gpu_buf);
             ImGui::PopStyleColor();
         }
@@ -1052,7 +1052,7 @@ void ImGuiIntegration::draw_split_view_splitters()
         return;
 
     auto*  draw_list = ImGui::GetForegroundDrawList();
-    auto&  theme     = ui::theme();
+    auto&  theme     = theme_colors();
     ImVec2 mouse     = ImGui::GetMousePos();
 
     // ── Non-split drag-to-split overlay ──────────────────────────────────

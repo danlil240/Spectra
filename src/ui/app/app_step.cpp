@@ -49,6 +49,8 @@
 #include "ui/automation/automation_server.hpp"
 #include "ui/automation/mcp_server.hpp"
 
+#include "perf_metrics.hpp"
+
 #include <algorithm>
 #include <chrono>
 #include <cstdlib>
@@ -225,6 +227,8 @@ struct App::AppRuntime
 // ─── init_runtime ────────────────────────────────────────────────────────────
 void App::init_runtime()
 {
+    PerfMetrics::instance().mark_startup_begin();
+
     if (!backend_ || !renderer_)
     {
         std::cerr << "[spectra] Cannot run: backend or renderer not initialized\n";
@@ -394,18 +398,15 @@ void App::init_runtime()
 
     if (!rt.ui_ctx_ptr)
     {
-        // Headless mode: create a minimal WindowUIContext with only the
-        // FigureManager needed for rendering.  The full builder
-        // (build_window_ui_context) creates CommandRegistry, ShortcutManager,
-        // InputHandler, AnimationController, and many other objects whose
-        // destruction order within AppRuntime can trigger std::system_error
-        // during rapid create/destroy cycles (e.g. golden tests running
-        // multiple App instances in the same process).
-        rt.headless_ui_ctx                = std::make_unique<WindowUIContext>();
-        rt.headless_ui_ctx->theme_mgr     = theme_mgr_.get();
-        rt.headless_ui_ctx->fig_mgr_owned = std::make_unique<FigureManager>(registry_);
-        rt.headless_ui_ctx->fig_mgr       = rt.headless_ui_ctx->fig_mgr_owned.get();
-        rt.ui_ctx_ptr                     = rt.headless_ui_ctx.get();
+        // Headless mode: use the shared builder with `headless = true`
+        // for a minimal context (FigureManager + ThemeManager only),
+        // avoiding destruction-order issues in rapid create/destroy cycles.
+        WindowUIContextBuildOptions headless_opts;
+        headless_opts.registry  = &registry_;
+        headless_opts.theme_mgr = theme_mgr_.get();
+        headless_opts.headless  = true;
+        rt.headless_ui_ctx      = build_window_ui_context(headless_opts);
+        rt.ui_ctx_ptr           = rt.headless_ui_ctx.get();
     }
 
     // Wire plugin host services after UI context creation.
@@ -801,6 +802,12 @@ void App::init_runtime()
             }
         }
     }
+
+    PerfMetrics::instance().mark_startup_end();
+    SPECTRA_LOG_INFO("app",
+                     "Startup completed in "
+                         + std::to_string(PerfMetrics::instance().startup_total_us() / 1000.0)
+                         + " ms");
 }
 
 // ─── step ────────────────────────────────────────────────────────────────────
@@ -934,6 +941,7 @@ App::StepResult App::step()
 #endif
 
     rt.frame_number++;
+    PerfMetrics::instance().increment_frame_count();
 
     auto  step_end = std::chrono::steady_clock::now();
     float ms       = std::chrono::duration<float, std::milli>(step_end - step_start).count();

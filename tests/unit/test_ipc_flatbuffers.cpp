@@ -356,19 +356,19 @@ TEST(IpcCrossCodec, ReqSetDataFbToTlvDecode)
 // Legacy TLV still works (regression guard)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-TEST(IpcCrossCodec, LegacyTlvHelloStillDecodes)
+TEST(IpcCrossCodec, DefaultEncodeProducesFlatBuffers)
 {
-    // Encode with legacy TLV
+    // encode_hello() now produces FlatBuffers by default
     HelloPayload p;
     p.agent_build = "legacy-test";
     p.client_type = "python";
 
     auto buf = encode_hello(p);
-    // Should NOT start with 0x01
+    // Should start with 0x01 (FlatBuffers prefix)
     ASSERT_FALSE(buf.empty());
-    EXPECT_NE(buf[0], static_cast<uint8_t>(PayloadFormat::FLATBUFFERS));
+    EXPECT_EQ(buf[0], static_cast<uint8_t>(PayloadFormat::FLATBUFFERS));
 
-    // Legacy decode should still work
+    // Auto-detect decode should still work
     auto decoded = decode_hello(buf);
     ASSERT_TRUE(decoded.has_value());
     EXPECT_EQ(decoded->agent_build, "legacy-test");

@@ -105,6 +105,13 @@ ImGuiIntegration::~ImGuiIntegration()
     shutdown();
 }
 
+const ui::ThemeColors& ImGuiIntegration::theme_colors() const
+{
+    if (theme_mgr_)
+        return theme_mgr_->colors();
+    return ui::theme();
+}
+
 bool ImGuiIntegration::init(VulkanBackend& backend, GLFWwindow* window, bool install_callbacks)
 {
     if (initialized_)
@@ -503,20 +510,20 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
                             ImVec2(ui::tokens::SPACE_3, ui::tokens::SPACE_2));
         ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ui::tokens::RADIUS_MD);
         ImGui::PushStyleColor(ImGuiCol_PopupBg,
-                              ImVec4(ui::theme().bg_elevated.r,
-                                     ui::theme().bg_elevated.g,
-                                     ui::theme().bg_elevated.b,
+                              ImVec4(theme_colors().bg_elevated.r,
+                                     theme_colors().bg_elevated.g,
+                                     theme_colors().bg_elevated.b,
                                      0.95f));
         ImGui::PushStyleColor(ImGuiCol_Border,
-                              ImVec4(ui::theme().border_subtle.r,
-                                     ui::theme().border_subtle.g,
-                                     ui::theme().border_subtle.b,
+                              ImVec4(theme_colors().border_subtle.r,
+                                     theme_colors().border_subtle.g,
+                                     theme_colors().border_subtle.b,
                                      0.3f));
         ImGui::PushStyleColor(ImGuiCol_Text,
-                              ImVec4(ui::theme().text_primary.r,
-                                     ui::theme().text_primary.g,
-                                     ui::theme().text_primary.b,
-                                     ui::theme().text_primary.a));
+                              ImVec4(theme_colors().text_primary.r,
+                                     theme_colors().text_primary.g,
+                                     theme_colors().text_primary.b,
+                                     theme_colors().text_primary.a));
         ImGui::TextUnformatted(deferred_tooltip_);
         ImGui::PopStyleColor(3);
         ImGui::PopStyleVar(2);
@@ -588,7 +595,7 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
         float       y1 = static_cast<float>(std::max(sr.y0, sr.y1));
 
         ImDrawList* fg     = ImGui::GetForegroundDrawList();
-        const auto& colors = ui::theme();
+        const auto& colors = theme_colors();
         ImU32       fill   = IM_COL32(static_cast<uint8_t>(colors.selection_fill.r * 255),
                               static_cast<uint8_t>(colors.selection_fill.g * 255),
                               static_cast<uint8_t>(colors.selection_fill.b * 255),
@@ -639,7 +646,7 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
             if (dist > 1e-6f)
             {
                 auto* dl       = ImGui::GetForegroundDrawList();
-                auto  accent   = ui::theme().accent;
+                auto  accent   = theme_colors().accent;
                 ImU32 line_col = IM_COL32(uint8_t(accent.r * 255),
                                           uint8_t(accent.g * 255),
                                           uint8_t(accent.b * 255),
@@ -648,9 +655,9 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
                                          uint8_t(accent.g * 255),
                                          uint8_t(accent.b * 255),
                                          255);
-                ImU32 bg_col   = IM_COL32(uint8_t(ui::theme().bg_elevated.r * 255),
-                                        uint8_t(ui::theme().bg_elevated.g * 255),
-                                        uint8_t(ui::theme().bg_elevated.b * 255),
+                ImU32 bg_col   = IM_COL32(uint8_t(theme_colors().bg_elevated.r * 255),
+                                        uint8_t(theme_colors().bg_elevated.g * 255),
+                                        uint8_t(theme_colors().bg_elevated.b * 255),
                                         230);
 
                 float scr_sx, scr_sy, scr_ex, scr_ey;
@@ -748,7 +755,7 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
                                nullptr,
                                ImGuiWindowFlags_AlwaysAutoResize))
     {
-        const auto& colors = ui::theme();
+        const auto& colors = theme_colors();
         ImGui::PushStyleColor(ImGuiCol_Text,
                               ImVec4(colors.text_primary.r,
                                      colors.text_primary.g,
@@ -787,7 +794,7 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
     // Draw directional dock highlight overlay when another window is dragging a tab over this one
     if (window_manager_ && window_id_ != 0 && window_manager_->drag_target_window() == window_id_)
     {
-        auto&       theme     = ui::theme();
+        auto&       theme     = theme_colors();
         auto        drop_info = window_manager_->cross_window_drop_info();
         ImDrawList* dl        = ImGui::GetForegroundDrawList();
 
@@ -886,7 +893,7 @@ void ImGuiIntegration::build_empty_ui()
         draw_command_bar();
 
     // Fill the rest with the background color
-    auto&       theme = ui::theme();
+    auto&       theme = theme_colors();
     ImDrawList* bg    = ImGui::GetBackgroundDrawList();
     ImGuiIO&    io    = ImGui::GetIO();
     bg->AddRectFilled(ImVec2(0, 0),
@@ -971,7 +978,7 @@ void ImGuiIntegration::destroy_logo_textures()
 void ImGuiIntegration::draw_welcome_screen(float display_w, float display_h, float dt)
 {
     (void)dt;
-    const auto& colors = ui::theme();
+    const auto& colors = theme_colors();
     ImDrawList* fg     = ImGui::GetBackgroundDrawList();
 
     // Menu bar height offset

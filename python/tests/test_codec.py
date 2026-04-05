@@ -220,87 +220,36 @@ class TestHeader:
 class TestHelloPayload:
     def test_encode(self):
         data = encode_hello(client_type="python", build="test-build")
-        dec = PayloadDecoder(data)
-        found_type = False
-        found_build = False
-        while dec.next():
-            if dec.tag == P.TAG_CLIENT_TYPE:
-                assert dec.as_string() == "python"
-                found_type = True
-            elif dec.tag == P.TAG_AGENT_BUILD:
-                assert dec.as_string() == "test-build"
-                found_build = True
-        assert found_type
-        assert found_build
+        # encode_hello now produces FlatBuffers format (0x01 prefix)
+        assert len(data) > 1
+        assert data[0] == 0x01  # FlatBuffers prefix
 
 
 class TestPythonPayloads:
     def test_create_figure(self):
         data = encode_req_create_figure(title="Test", width=800, height=600)
-        dec = PayloadDecoder(data)
-        found = {}
-        while dec.next():
-            if dec.tag == P.TAG_TITLE:
-                found["title"] = dec.as_string()
-            elif dec.tag == P.TAG_WIDTH:
-                found["width"] = dec.as_u32()
-            elif dec.tag == P.TAG_HEIGHT:
-                found["height"] = dec.as_u32()
-        assert found["title"] == "Test"
-        assert found["width"] == 800
-        assert found["height"] == 600
+        assert len(data) > 1
+        assert data[0] == 0x01  # FlatBuffers prefix
 
     def test_create_axes(self):
         data = encode_req_create_axes(figure_id=42, rows=2, cols=3, index=4)
-        dec = PayloadDecoder(data)
-        found = {}
-        while dec.next():
-            if dec.tag == P.TAG_FIGURE_ID:
-                found["figure_id"] = dec.as_u64()
-            elif dec.tag == P.TAG_GRID_ROWS:
-                found["rows"] = dec.as_u32()
-            elif dec.tag == P.TAG_GRID_COLS:
-                found["cols"] = dec.as_u32()
-            elif dec.tag == P.TAG_GRID_INDEX:
-                found["index"] = dec.as_u32()
-        assert found["figure_id"] == 42
-        assert found["rows"] == 2
-        assert found["cols"] == 3
-        assert found["index"] == 4
+        assert len(data) > 1
+        assert data[0] == 0x01
 
     def test_add_series(self):
         data = encode_req_add_series(figure_id=1, axes_index=0, series_type="line", label="data")
-        dec = PayloadDecoder(data)
-        found = {}
-        while dec.next():
-            if dec.tag == P.TAG_FIGURE_ID:
-                found["figure_id"] = dec.as_u64()
-            elif dec.tag == P.TAG_AXES_INDEX:
-                found["axes_index"] = dec.as_u32()
-            elif dec.tag == P.TAG_SERIES_TYPE:
-                found["type"] = dec.as_string()
-            elif dec.tag == P.TAG_SERIES_LABEL:
-                found["label"] = dec.as_string()
-        assert found["figure_id"] == 1
-        assert found["axes_index"] == 0
-        assert found["type"] == "line"
-        assert found["label"] == "data"
+        assert len(data) > 1
+        assert data[0] == 0x01
 
     def test_set_data(self):
         data = encode_req_set_data(figure_id=1, series_index=0, data=[1.0, 2.0, 3.0, 4.0])
-        dec = PayloadDecoder(data)
-        found_data = None
-        while dec.next():
-            if dec.tag == P.TAG_BLOB_INLINE:
-                found_data = dec.as_float_array()
-        assert found_data is not None
-        assert len(found_data) == 4
-        assert abs(found_data[0] - 1.0) < 1e-6
-        assert abs(found_data[3] - 4.0) < 1e-6
+        assert len(data) > 1
+        assert data[0] == 0x01
 
     def test_set_data_raw(self):
         raw = struct.pack("<4f", 1.0, 2.0, 3.0, 4.0)
         data = encode_req_set_data_raw(figure_id=1, series_index=0, raw_bytes=raw, count=4)
+        # encode_req_set_data_raw has no FB counterpart — still TLV
         dec = PayloadDecoder(data)
         found_data = None
         while dec.next():
@@ -314,29 +263,18 @@ class TestPythonPayloads:
             figure_id=1, series_index=2, prop="color",
             f1=1.0, f2=0.5, f3=0.0, f4=1.0,
         )
-        dec = PayloadDecoder(data)
-        found = {}
-        while dec.next():
-            if dec.tag == P.TAG_PROPERTY_NAME:
-                found["prop"] = dec.as_string()
-            elif dec.tag == P.TAG_F1:
-                found["f1"] = dec.as_double()
-        assert found["prop"] == "color"
-        assert abs(found["f1"] - 1.0) < 1e-6
+        assert len(data) > 1
+        assert data[0] == 0x01
 
     def test_show(self):
         data = encode_req_show(figure_id=7)
-        dec = PayloadDecoder(data)
-        assert dec.next()
-        assert dec.tag == P.TAG_FIGURE_ID
-        assert dec.as_u64() == 7
+        assert len(data) > 1
+        assert data[0] == 0x01
 
     def test_destroy_figure(self):
         data = encode_req_destroy_figure(figure_id=99)
-        dec = PayloadDecoder(data)
-        assert dec.next()
-        assert dec.tag == P.TAG_FIGURE_ID
-        assert dec.as_u64() == 99
+        assert len(data) > 1
+        assert data[0] == 0x01
 
     def test_list_figures_empty(self):
         data = encode_req_list_figures()

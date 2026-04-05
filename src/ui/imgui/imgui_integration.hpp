@@ -31,6 +31,7 @@ struct ImVec2;
 
 namespace spectra::ui
 {
+struct ThemeColors;
 class ThemeManager;
 }   // namespace spectra::ui
 
@@ -541,6 +542,10 @@ class ImGuiIntegration
 
     // Injected ThemeManager (not owned)
     ui::ThemeManager* theme_mgr_ = nullptr;
+
+    // Contextual theme accessor — uses the injected per-window ThemeManager
+    // instead of the global ui::theme() singleton, enabling per-window theming.
+    const ui::ThemeColors& theme_colors() const;
 
     // Data interaction layer (not owned)
     DataInteraction* data_interaction_ = nullptr;

@@ -202,14 +202,7 @@ std::string PayloadDecoder::as_string() const
 
 std::vector<uint8_t> encode_hello(const HelloPayload& p)
 {
-    PayloadEncoder enc;
-    enc.put_u16(TAG_PROTOCOL_MAJOR, p.protocol_major);
-    enc.put_u16(TAG_PROTOCOL_MINOR, p.protocol_minor);
-    enc.put_string(TAG_AGENT_BUILD, p.agent_build);
-    enc.put_u32(TAG_CAPABILITIES, p.capabilities);
-    if (!p.client_type.empty())
-        enc.put_string(TAG_CLIENT_TYPE, p.client_type);
-    return enc.take();
+    return encode_fb_hello(p);
 }
 
 std::optional<HelloPayload> decode_hello(std::span<const uint8_t> data)
@@ -245,13 +238,7 @@ std::optional<HelloPayload> decode_hello(std::span<const uint8_t> data)
 
 std::vector<uint8_t> encode_welcome(const WelcomePayload& p)
 {
-    PayloadEncoder enc;
-    enc.put_u64(TAG_SESSION_ID, p.session_id);
-    enc.put_u64(TAG_WINDOW_ID, p.window_id);
-    enc.put_u64(TAG_PROCESS_ID, p.process_id);
-    enc.put_u32(TAG_HEARTBEAT_MS, p.heartbeat_ms);
-    enc.put_string(TAG_MODE, p.mode);
-    return enc.take();
+    return encode_fb_welcome(p);
 }
 
 std::optional<WelcomePayload> decode_welcome(std::span<const uint8_t> data)
@@ -287,9 +274,7 @@ std::optional<WelcomePayload> decode_welcome(std::span<const uint8_t> data)
 
 std::vector<uint8_t> encode_resp_ok(const RespOkPayload& p)
 {
-    PayloadEncoder enc;
-    enc.put_u64(TAG_REQUEST_ID, p.request_id);
-    return enc.take();
+    return encode_fb_resp_ok(p);
 }
 
 std::optional<RespOkPayload> decode_resp_ok(std::span<const uint8_t> data)
@@ -313,11 +298,7 @@ std::optional<RespOkPayload> decode_resp_ok(std::span<const uint8_t> data)
 
 std::vector<uint8_t> encode_resp_err(const RespErrPayload& p)
 {
-    PayloadEncoder enc;
-    enc.put_u64(TAG_REQUEST_ID, p.request_id);
-    enc.put_u32(TAG_ERROR_CODE, p.code);
-    enc.put_string(TAG_ERROR_MESSAGE, p.message);
-    return enc.take();
+    return encode_fb_resp_err(p);
 }
 
 std::optional<RespErrPayload> decode_resp_err(std::span<const uint8_t> data)
@@ -349,13 +330,7 @@ std::optional<RespErrPayload> decode_resp_err(std::span<const uint8_t> data)
 
 std::vector<uint8_t> encode_cmd_assign_figures(const CmdAssignFiguresPayload& p)
 {
-    PayloadEncoder enc;
-    enc.put_u64(TAG_WINDOW_ID, p.window_id);
-    enc.put_u32(TAG_FIGURE_COUNT, static_cast<uint32_t>(p.figure_ids.size()));
-    for (auto fid : p.figure_ids)
-        enc.put_u64(TAG_FIGURE_IDS, fid);
-    enc.put_u64(TAG_ACTIVE_FIGURE, p.active_figure_id);
-    return enc.take();
+    return encode_fb_cmd_assign_figures(p);
 }
 
 std::optional<CmdAssignFiguresPayload> decode_cmd_assign_figures(std::span<const uint8_t> data)
@@ -387,9 +362,7 @@ std::optional<CmdAssignFiguresPayload> decode_cmd_assign_figures(std::span<const
 
 std::vector<uint8_t> encode_req_create_window(const ReqCreateWindowPayload& p)
 {
-    PayloadEncoder enc;
-    enc.put_u64(TAG_TEMPLATE_WINDOW, p.template_window_id);
-    return enc.take();
+    return encode_fb_req_create_window(p);
 }
 
 std::optional<ReqCreateWindowPayload> decode_req_create_window(std::span<const uint8_t> data)
@@ -413,10 +386,7 @@ std::optional<ReqCreateWindowPayload> decode_req_create_window(std::span<const u
 
 std::vector<uint8_t> encode_req_close_window(const ReqCloseWindowPayload& p)
 {
-    PayloadEncoder enc;
-    enc.put_u64(TAG_WINDOW_ID, p.window_id);
-    enc.put_string(TAG_REASON, p.reason);
-    return enc.take();
+    return encode_fb_req_close_window(p);
 }
 
 std::optional<ReqCloseWindowPayload> decode_req_close_window(std::span<const uint8_t> data)
@@ -443,10 +413,7 @@ std::optional<ReqCloseWindowPayload> decode_req_close_window(std::span<const uin
 
 std::vector<uint8_t> encode_cmd_remove_figure(const CmdRemoveFigurePayload& p)
 {
-    PayloadEncoder enc;
-    enc.put_u64(TAG_WINDOW_ID, p.window_id);
-    enc.put_u64(TAG_FIGURE_ID, p.figure_id);
-    return enc.take();
+    return encode_fb_cmd_remove_figure(p);
 }
 
 std::optional<CmdRemoveFigurePayload> decode_cmd_remove_figure(std::span<const uint8_t> data)
@@ -473,10 +440,7 @@ std::optional<CmdRemoveFigurePayload> decode_cmd_remove_figure(std::span<const u
 
 std::vector<uint8_t> encode_cmd_set_active(const CmdSetActivePayload& p)
 {
-    PayloadEncoder enc;
-    enc.put_u64(TAG_WINDOW_ID, p.window_id);
-    enc.put_u64(TAG_ACTIVE_FIGURE, p.figure_id);
-    return enc.take();
+    return encode_fb_cmd_set_active(p);
 }
 
 std::optional<CmdSetActivePayload> decode_cmd_set_active(std::span<const uint8_t> data)
@@ -503,10 +467,7 @@ std::optional<CmdSetActivePayload> decode_cmd_set_active(std::span<const uint8_t
 
 std::vector<uint8_t> encode_cmd_close_window(const CmdCloseWindowPayload& p)
 {
-    PayloadEncoder enc;
-    enc.put_u64(TAG_WINDOW_ID, p.window_id);
-    enc.put_string(TAG_REASON, p.reason);
-    return enc.take();
+    return encode_fb_cmd_close_window(p);
 }
 
 std::optional<CmdCloseWindowPayload> decode_cmd_close_window(std::span<const uint8_t> data)
@@ -535,14 +496,7 @@ std::optional<CmdCloseWindowPayload> decode_cmd_close_window(std::span<const uin
 
 std::vector<uint8_t> encode_req_detach_figure(const ReqDetachFigurePayload& p)
 {
-    PayloadEncoder enc;
-    enc.put_u64(TAG_SOURCE_WINDOW, p.source_window_id);
-    enc.put_u64(TAG_FIGURE_ID, p.figure_id);
-    enc.put_u32(TAG_WIDTH, p.width);
-    enc.put_u32(TAG_HEIGHT, p.height);
-    payload_put_float(enc, TAG_SCREEN_X, static_cast<float>(p.screen_x));
-    payload_put_float(enc, TAG_SCREEN_Y, static_cast<float>(p.screen_y));
-    return enc.take();
+    return encode_fb_req_detach_figure(p);
 }
 
 std::optional<ReqDetachFigurePayload> decode_req_detach_figure(std::span<const uint8_t> data)
@@ -935,20 +889,7 @@ static SnapshotKnobState decode_knob_blob(std::span<const uint8_t> data)
 
 std::vector<uint8_t> encode_state_snapshot(const StateSnapshotPayload& p)
 {
-    PayloadEncoder enc;
-    enc.put_u64(TAG_REVISION, p.revision);
-    enc.put_u64(TAG_SESSION_ID, p.session_id);
-    for (const auto& fig : p.figures)
-    {
-        auto blob = encode_figure_blob(fig);
-        payload_put_blob(enc, TAG_FIGURE_BLOB, blob);
-    }
-    for (const auto& k : p.knobs)
-    {
-        auto blob = encode_knob_blob(k);
-        payload_put_blob(enc, TAG_KNOB_BLOB, blob);
-    }
-    return enc.take();
+    return encode_fb_state_snapshot(p);
 }
 
 std::optional<StateSnapshotPayload> decode_state_snapshot(std::span<const uint8_t> data)
@@ -1058,15 +999,7 @@ static DiffOp decode_diff_op_blob(std::span<const uint8_t> data)
 
 std::vector<uint8_t> encode_state_diff(const StateDiffPayload& p)
 {
-    PayloadEncoder enc;
-    enc.put_u64(TAG_BASE_REVISION, p.base_revision);
-    enc.put_u64(TAG_NEW_REVISION, p.new_revision);
-    for (const auto& op : p.ops)
-    {
-        auto blob = encode_diff_op_blob(op);
-        payload_put_blob(enc, TAG_DIFF_OP_BLOB, blob);
-    }
-    return enc.take();
+    return encode_fb_state_diff(p);
 }
 
 std::optional<StateDiffPayload> decode_state_diff(std::span<const uint8_t> data)
@@ -1101,9 +1034,7 @@ std::optional<StateDiffPayload> decode_state_diff(std::span<const uint8_t> data)
 
 std::vector<uint8_t> encode_ack_state(const AckStatePayload& p)
 {
-    PayloadEncoder enc;
-    enc.put_u64(TAG_REVISION, p.revision);
-    return enc.take();
+    return encode_fb_ack_state(p);
 }
 
 std::optional<AckStatePayload> decode_ack_state(std::span<const uint8_t> data)
@@ -1129,16 +1060,7 @@ std::optional<AckStatePayload> decode_ack_state(std::span<const uint8_t> data)
 
 std::vector<uint8_t> encode_evt_input(const EvtInputPayload& p)
 {
-    PayloadEncoder enc;
-    enc.put_u64(TAG_WINDOW_ID, p.window_id);
-    enc.put_u16(TAG_INPUT_TYPE, static_cast<uint16_t>(p.input_type));
-    enc.put_u32(TAG_KEY_CODE, static_cast<uint32_t>(p.key));
-    enc.put_u32(TAG_MODS, static_cast<uint32_t>(p.mods));
-    payload_put_double(enc, TAG_CURSOR_X, p.x);
-    payload_put_double(enc, TAG_CURSOR_Y, p.y);
-    enc.put_u64(TAG_FIGURE_ID, p.figure_id);
-    enc.put_u32(TAG_AXES_INDEX, p.axes_index);
-    return enc.take();
+    return encode_fb_evt_input(p);
 }
 
 std::optional<EvtInputPayload> decode_evt_input(std::span<const uint8_t> data)
@@ -1185,11 +1107,7 @@ std::optional<EvtInputPayload> decode_evt_input(std::span<const uint8_t> data)
 
 std::vector<uint8_t> encode_req_create_figure(const ReqCreateFigurePayload& p)
 {
-    PayloadEncoder enc;
-    enc.put_string(TAG_TITLE, p.title);
-    enc.put_u32(TAG_WIDTH, p.width);
-    enc.put_u32(TAG_HEIGHT, p.height);
-    return enc.take();
+    return encode_fb_req_create_figure(p);
 }
 
 std::optional<ReqCreateFigurePayload> decode_req_create_figure(std::span<const uint8_t> data)
@@ -1219,9 +1137,7 @@ std::optional<ReqCreateFigurePayload> decode_req_create_figure(std::span<const u
 
 std::vector<uint8_t> encode_req_destroy_figure(const ReqDestroyFigurePayload& p)
 {
-    PayloadEncoder enc;
-    enc.put_u64(TAG_FIGURE_ID, p.figure_id);
-    return enc.take();
+    return encode_fb_req_destroy_figure(p);
 }
 
 std::optional<ReqDestroyFigurePayload> decode_req_destroy_figure(std::span<const uint8_t> data)
@@ -1245,14 +1161,7 @@ std::optional<ReqDestroyFigurePayload> decode_req_destroy_figure(std::span<const
 
 std::vector<uint8_t> encode_req_create_axes(const ReqCreateAxesPayload& p)
 {
-    PayloadEncoder enc;
-    enc.put_u64(TAG_FIGURE_ID, p.figure_id);
-    enc.put_u32(TAG_GRID_ROWS, static_cast<uint32_t>(p.grid_rows));
-    enc.put_u32(TAG_GRID_COLS, static_cast<uint32_t>(p.grid_cols));
-    enc.put_u32(TAG_GRID_INDEX, static_cast<uint32_t>(p.grid_index));
-    if (p.is_3d)
-        payload_put_bool(enc, TAG_IS_3D, true);
-    return enc.take();
+    return encode_fb_req_create_axes(p);
 }
 
 std::optional<ReqCreateAxesPayload> decode_req_create_axes(std::span<const uint8_t> data)
@@ -1288,12 +1197,7 @@ std::optional<ReqCreateAxesPayload> decode_req_create_axes(std::span<const uint8
 
 std::vector<uint8_t> encode_req_add_series(const ReqAddSeriesPayload& p)
 {
-    PayloadEncoder enc;
-    enc.put_u64(TAG_FIGURE_ID, p.figure_id);
-    enc.put_u32(TAG_AXES_INDEX, p.axes_index);
-    enc.put_string(TAG_SERIES_TYPE, p.series_type);
-    enc.put_string(TAG_SERIES_LABEL, p.label);
-    return enc.take();
+    return encode_fb_req_add_series(p);
 }
 
 std::optional<ReqAddSeriesPayload> decode_req_add_series(std::span<const uint8_t> data)
@@ -1326,10 +1230,7 @@ std::optional<ReqAddSeriesPayload> decode_req_add_series(std::span<const uint8_t
 
 std::vector<uint8_t> encode_req_remove_series(const ReqRemoveSeriesPayload& p)
 {
-    PayloadEncoder enc;
-    enc.put_u64(TAG_FIGURE_ID, p.figure_id);
-    enc.put_u32(TAG_SERIES_INDEX, p.series_index);
-    return enc.take();
+    return encode_fb_req_remove_series(p);
 }
 
 std::optional<ReqRemoveSeriesPayload> decode_req_remove_series(std::span<const uint8_t> data)
@@ -1356,13 +1257,7 @@ std::optional<ReqRemoveSeriesPayload> decode_req_remove_series(std::span<const u
 
 std::vector<uint8_t> encode_req_set_data(const ReqSetDataPayload& p)
 {
-    PayloadEncoder enc;
-    enc.put_u64(TAG_FIGURE_ID, p.figure_id);
-    enc.put_u32(TAG_SERIES_INDEX, p.series_index);
-    enc.put_u16(TAG_DTYPE, p.dtype);
-    if (!p.data.empty())
-        payload_put_float_array(enc, TAG_BLOB_INLINE, p.data);
-    return enc.take();
+    return encode_fb_req_set_data(p);
 }
 
 std::optional<ReqSetDataPayload> decode_req_set_data(std::span<const uint8_t> data)
@@ -1395,12 +1290,7 @@ std::optional<ReqSetDataPayload> decode_req_set_data(std::span<const uint8_t> da
 
 std::vector<uint8_t> encode_req_append_data(const ReqAppendDataPayload& p)
 {
-    PayloadEncoder enc;
-    enc.put_u64(TAG_FIGURE_ID, p.figure_id);
-    enc.put_u32(TAG_SERIES_INDEX, p.series_index);
-    if (!p.data.empty())
-        payload_put_float_array(enc, TAG_BLOB_INLINE, p.data);
-    return enc.take();
+    return encode_fb_req_append_data(p);
 }
 
 std::optional<ReqAppendDataPayload> decode_req_append_data(std::span<const uint8_t> data)
@@ -1430,19 +1320,7 @@ std::optional<ReqAppendDataPayload> decode_req_append_data(std::span<const uint8
 
 std::vector<uint8_t> encode_req_update_property(const ReqUpdatePropertyPayload& p)
 {
-    PayloadEncoder enc;
-    enc.put_u64(TAG_FIGURE_ID, p.figure_id);
-    enc.put_u32(TAG_AXES_INDEX, p.axes_index);
-    enc.put_u32(TAG_SERIES_INDEX, p.series_index);
-    enc.put_string(TAG_PROPERTY_NAME, p.property);
-    payload_put_double(enc, TAG_F1, p.f1);
-    payload_put_double(enc, TAG_F2, p.f2);
-    payload_put_double(enc, TAG_F3, p.f3);
-    payload_put_double(enc, TAG_F4, p.f4);
-    payload_put_bool(enc, TAG_BOOL_VAL, p.bool_val);
-    if (!p.str_val.empty())
-        enc.put_string(TAG_STR_VAL, p.str_val);
-    return enc.take();
+    return encode_fb_req_update_property(p);
 }
 
 std::optional<ReqUpdatePropertyPayload> decode_req_update_property(std::span<const uint8_t> data)
@@ -1493,11 +1371,7 @@ std::optional<ReqUpdatePropertyPayload> decode_req_update_property(std::span<con
 
 std::vector<uint8_t> encode_req_show(const ReqShowPayload& p)
 {
-    PayloadEncoder enc;
-    enc.put_u64(TAG_FIGURE_ID, p.figure_id);
-    if (p.window_id != ipc::INVALID_WINDOW)
-        enc.put_u64(TAG_WINDOW_ID, p.window_id);
-    return enc.take();
+    return encode_fb_req_show(p);
 }
 
 std::optional<ReqShowPayload> decode_req_show(std::span<const uint8_t> data)
@@ -1524,9 +1398,7 @@ std::optional<ReqShowPayload> decode_req_show(std::span<const uint8_t> data)
 
 std::vector<uint8_t> encode_req_close_figure(const ReqCloseFigurePayload& p)
 {
-    PayloadEncoder enc;
-    enc.put_u64(TAG_FIGURE_ID, p.figure_id);
-    return enc.take();
+    return encode_fb_req_close_figure(p);
 }
 
 std::optional<ReqCloseFigurePayload> decode_req_close_figure(std::span<const uint8_t> data)
@@ -1550,13 +1422,7 @@ std::optional<ReqCloseFigurePayload> decode_req_close_figure(std::span<const uin
 
 std::vector<uint8_t> encode_req_update_batch(const ReqUpdateBatchPayload& p)
 {
-    PayloadEncoder enc;
-    for (const auto& upd : p.updates)
-    {
-        auto item_bytes = encode_req_update_property(upd);
-        payload_put_blob(enc, TAG_BATCH_ITEM, item_bytes);
-    }
-    return enc.take();
+    return encode_fb_req_update_batch(p);
 }
 
 std::optional<ReqUpdateBatchPayload> decode_req_update_batch(std::span<const uint8_t> data)
@@ -1580,10 +1446,7 @@ std::optional<ReqUpdateBatchPayload> decode_req_update_batch(std::span<const uin
 
 std::vector<uint8_t> encode_req_reconnect(const ReqReconnectPayload& p)
 {
-    PayloadEncoder enc;
-    enc.put_u64(TAG_SESSION_ID, p.session_id);
-    enc.put_string(TAG_SESSION_TOKEN, p.session_token);
-    return enc.take();
+    return encode_fb_req_reconnect(p);
 }
 
 std::optional<ReqReconnectPayload> decode_req_reconnect(std::span<const uint8_t> data)
@@ -1610,10 +1473,7 @@ std::optional<ReqReconnectPayload> decode_req_reconnect(std::span<const uint8_t>
 
 std::vector<uint8_t> encode_resp_figure_created(const RespFigureCreatedPayload& p)
 {
-    PayloadEncoder enc;
-    enc.put_u64(TAG_REQUEST_ID, p.request_id);
-    enc.put_u64(TAG_FIGURE_ID, p.figure_id);
-    return enc.take();
+    return encode_fb_resp_figure_created(p);
 }
 
 std::optional<RespFigureCreatedPayload> decode_resp_figure_created(std::span<const uint8_t> data)
@@ -1640,10 +1500,7 @@ std::optional<RespFigureCreatedPayload> decode_resp_figure_created(std::span<con
 
 std::vector<uint8_t> encode_resp_axes_created(const RespAxesCreatedPayload& p)
 {
-    PayloadEncoder enc;
-    enc.put_u64(TAG_REQUEST_ID, p.request_id);
-    enc.put_u32(TAG_AXES_INDEX, p.axes_index);
-    return enc.take();
+    return encode_fb_resp_axes_created(p);
 }
 
 std::optional<RespAxesCreatedPayload> decode_resp_axes_created(std::span<const uint8_t> data)
@@ -1670,10 +1527,7 @@ std::optional<RespAxesCreatedPayload> decode_resp_axes_created(std::span<const u
 
 std::vector<uint8_t> encode_resp_series_added(const RespSeriesAddedPayload& p)
 {
-    PayloadEncoder enc;
-    enc.put_u64(TAG_REQUEST_ID, p.request_id);
-    enc.put_u32(TAG_SERIES_INDEX, p.series_index);
-    return enc.take();
+    return encode_fb_resp_series_added(p);
 }
 
 std::optional<RespSeriesAddedPayload> decode_resp_series_added(std::span<const uint8_t> data)
@@ -1700,12 +1554,7 @@ std::optional<RespSeriesAddedPayload> decode_resp_series_added(std::span<const u
 
 std::vector<uint8_t> encode_resp_figure_list(const RespFigureListPayload& p)
 {
-    PayloadEncoder enc;
-    enc.put_u64(TAG_REQUEST_ID, p.request_id);
-    enc.put_u32(TAG_FIGURE_COUNT, static_cast<uint32_t>(p.figure_ids.size()));
-    for (auto fid : p.figure_ids)
-        enc.put_u64(TAG_FIGURE_IDS, fid);
-    return enc.take();
+    return encode_fb_resp_figure_list(p);
 }
 
 std::optional<RespFigureListPayload> decode_resp_figure_list(std::span<const uint8_t> data)
@@ -1734,11 +1583,7 @@ std::optional<RespFigureListPayload> decode_resp_figure_list(std::span<const uin
 
 std::vector<uint8_t> encode_evt_window_closed(const EvtWindowClosedPayload& p)
 {
-    PayloadEncoder enc;
-    enc.put_u64(TAG_FIGURE_ID, p.figure_id);
-    enc.put_u64(TAG_WINDOW_ID, p.window_id);
-    enc.put_string(TAG_REASON, p.reason);
-    return enc.take();
+    return encode_fb_evt_window_closed(p);
 }
 
 std::optional<EvtWindowClosedPayload> decode_evt_window_closed(std::span<const uint8_t> data)
@@ -1768,10 +1613,7 @@ std::optional<EvtWindowClosedPayload> decode_evt_window_closed(std::span<const u
 
 std::vector<uint8_t> encode_evt_figure_destroyed(const EvtFigureDestroyedPayload& p)
 {
-    PayloadEncoder enc;
-    enc.put_u64(TAG_FIGURE_ID, p.figure_id);
-    enc.put_string(TAG_REASON, p.reason);
-    return enc.take();
+    return encode_fb_evt_figure_destroyed(p);
 }
 
 std::optional<EvtFigureDestroyedPayload> decode_evt_figure_destroyed(std::span<const uint8_t> data)

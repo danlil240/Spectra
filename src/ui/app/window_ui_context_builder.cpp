@@ -16,14 +16,23 @@
 namespace spectra
 {
 
-std::unique_ptr<WindowUIContext> build_window_ui_context(
-    const WindowUIContextBuildOptions& options)
+std::unique_ptr<WindowUIContext> build_window_ui_context(const WindowUIContextBuildOptions& options)
 {
     if (!options.registry || !options.theme_mgr)
         return nullptr;
 
     auto ui       = std::make_unique<WindowUIContext>();
     ui->theme_mgr = options.theme_mgr;
+
+    // Headless path: minimal FigureManager-only context.
+    if (options.headless)
+    {
+#ifdef SPECTRA_USE_IMGUI
+        ui->fig_mgr_owned = std::make_unique<FigureManager>(*options.registry);
+        ui->fig_mgr       = ui->fig_mgr_owned.get();
+#endif
+        return ui;
+    }
 
 #ifdef SPECTRA_USE_IMGUI
     Figure** active_figure_ptr =
@@ -48,9 +57,9 @@ std::unique_ptr<WindowUIContext> build_window_ui_context(
     if (options.on_window_close_request)
         ui->fig_mgr->set_on_window_close_request(options.on_window_close_request);
 
-    auto* registry   = options.registry;
-    auto* ui_raw     = ui.get();
-    auto  on_closed  = options.on_figure_closed;
+    auto* registry  = options.registry;
+    auto* ui_raw    = ui.get();
+    auto  on_closed = options.on_figure_closed;
     ui->fig_mgr->set_on_figure_closed(
         [registry, ui_raw, on_closed](FigureId id)
         {
@@ -76,7 +85,7 @@ std::unique_ptr<WindowUIContext> build_window_ui_context(
         {
             if (*guard_ptr)
                 return;
-            *guard_ptr = true;
+            *guard_ptr      = true;
             const auto& ids = fig_mgr_ptr->figure_ids();
             if (new_index < ids.size())
             {
@@ -123,12 +132,12 @@ std::unique_ptr<WindowUIContext> build_window_ui_context(
                 fig_mgr_ptr->set_title(ids[index], title);
         });
 
-    ui->figure_tabs->set_tab_drag_out_callback(
-        [dock_ptr](size_t index, float mx, float my) { dock_ptr->begin_drag(index, mx, my); });
-    ui->figure_tabs->set_tab_drag_update_callback(
-        [dock_ptr](size_t, float mx, float my) { dock_ptr->update_drag(mx, my); });
-    ui->figure_tabs->set_tab_drag_end_callback(
-        [dock_ptr](size_t, float mx, float my) { dock_ptr->end_drag(mx, my); });
+    ui->figure_tabs->set_tab_drag_out_callback([dock_ptr](size_t index, float mx, float my)
+                                               { dock_ptr->begin_drag(index, mx, my); });
+    ui->figure_tabs->set_tab_drag_update_callback([dock_ptr](size_t, float mx, float my)
+                                                  { dock_ptr->update_drag(mx, my); });
+    ui->figure_tabs->set_tab_drag_end_callback([dock_ptr](size_t, float mx, float my)
+                                               { dock_ptr->end_drag(mx, my); });
     ui->figure_tabs->set_tab_drag_cancel_callback([dock_ptr](size_t) { dock_ptr->cancel_drag(); });
 
     ui->overlay_registry = options.overlay_registry;
@@ -155,14 +164,14 @@ std::unique_ptr<WindowUIContext> build_window_ui_context(
         ui->imgui_ui->set_plugin_manager(ui->plugin_manager);
         ui->imgui_ui->set_export_format_registry(options.export_format_registry);
         ui->imgui_ui->set_series_clipboard(options.series_clipboard);
-#ifdef SPECTRA_USE_GLFW
+    #ifdef SPECTRA_USE_GLFW
         ui->tab_drag_controller.set_window_manager(options.window_manager);
         ui->tab_drag_controller.set_dock_system(&ui->dock_system);
         ui->tab_drag_controller.set_source_window_id(options.window_id);
         ui->imgui_ui->set_tab_drag_controller(&ui->tab_drag_controller);
         ui->imgui_ui->set_window_id(options.window_id);
         ui->imgui_ui->set_window_manager(options.window_manager);
-#endif
+    #endif
     }
 
     ui->data_interaction = std::make_unique<DataInteraction>();
@@ -210,10 +219,10 @@ std::unique_ptr<WindowUIContext> build_window_ui_context(
 
     if (ui->imgui_ui)
     {
-        ui->imgui_ui->set_pane_tab_duplicate_cb(
-            [fig_mgr_ptr](FigureId index) { fig_mgr_ptr->duplicate_figure(index); });
-        ui->imgui_ui->set_pane_tab_close_cb(
-            [fig_mgr_ptr](FigureId index) { fig_mgr_ptr->queue_close(index); });
+        ui->imgui_ui->set_pane_tab_duplicate_cb([fig_mgr_ptr](FigureId index)
+                                                { fig_mgr_ptr->duplicate_figure(index); });
+        ui->imgui_ui->set_pane_tab_close_cb([fig_mgr_ptr](FigureId index)
+                                            { fig_mgr_ptr->queue_close(index); });
         ui->imgui_ui->set_pane_tab_split_right_cb(
             [dock_ptr](FigureId index)
             {
@@ -246,14 +255,13 @@ std::unique_ptr<WindowUIContext> build_window_ui_context(
                     parent->first()->remove_figure(index);
                 dock_ptr->set_active_figure_index(index);
             });
-        ui->imgui_ui->set_pane_tab_rename_cb(
-            [fig_mgr_ptr](size_t index, const std::string& title)
-            { fig_mgr_ptr->set_title(index, title); });
+        ui->imgui_ui->set_pane_tab_rename_cb([fig_mgr_ptr](size_t index, const std::string& title)
+                                             { fig_mgr_ptr->set_title(index, title); });
         ui->imgui_ui->set_figure_title_callback(
             [fig_mgr_ptr](size_t fig_idx) -> std::string
             { return fig_mgr_ptr->get_title(static_cast<FigureId>(fig_idx)); });
-        ui->imgui_ui->set_figure_ptr_callback(
-            [fig_mgr_ptr](FigureId id) -> Figure* { return fig_mgr_ptr->get_figure(id); });
+        ui->imgui_ui->set_figure_ptr_callback([fig_mgr_ptr](FigureId id) -> Figure*
+                                              { return fig_mgr_ptr->get_figure(id); });
     }
 
     auto* figure_tabs_raw = ui->figure_tabs.get();
@@ -262,7 +270,7 @@ std::unique_ptr<WindowUIContext> build_window_ui_context(
         {
             if (*guard_ptr)
                 return;
-            *guard_ptr = true;
+            *guard_ptr      = true;
             const auto& ids = fig_mgr_ptr->figure_ids();
             for (size_t i = 0; i < ids.size(); ++i)
             {
@@ -284,7 +292,7 @@ std::unique_ptr<WindowUIContext> build_window_ui_context(
     ui->cmd_palette.set_command_registry(&ui->cmd_registry);
     ui->cmd_palette.set_shortcut_manager(&ui->shortcut_mgr);
 
-    Figure* initial_figure = options.registry->get(options.initial_figure_id);
+    Figure* initial_figure          = options.registry->get(options.initial_figure_id);
     ui->per_window_active_figure    = initial_figure;
     ui->per_window_active_figure_id = options.initial_figure_id;
     *active_figure_ptr              = initial_figure;
@@ -307,9 +315,9 @@ std::unique_ptr<WindowUIContext> build_window_ui_context(
     bindings.active_figure    = active_figure_ptr;
     bindings.active_figure_id = active_figure_id_ptr;
     bindings.session          = options.session;
-#ifdef SPECTRA_USE_GLFW
+    #ifdef SPECTRA_USE_GLFW
     bindings.window_mgr = options.window_manager;
-#endif
+    #endif
     register_standard_commands(bindings);
 #endif
 

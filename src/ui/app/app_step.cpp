@@ -332,32 +332,18 @@ void App::init_runtime()
 
     if (!rt.ui_ctx_ptr)
     {
-        WindowUIContextBuildOptions options;
-        options.registry               = &registry_;
-        options.theme_mgr              = theme_mgr_.get();
-        options.initial_figure_id      = init_active_id;
-        options.active_figure          = &rt.active_figure;
-        options.active_figure_id       = &rt.active_figure_id;
-        options.session                = &rt.session;
-        options.plugin_manager         = &rt.plugin_manager;
-        options.export_format_registry = &rt.export_format_registry;
-#ifdef SPECTRA_USE_GLFW
-        options.window_manager = rt.window_mgr.get();
-        if (rt.window_mgr)
-            options.overlay_registry = &rt.window_mgr->overlay_registry();
-#endif
-        options.on_figure_closed = [wm = rt.window_mgr.get()](FigureId, Figure* fig)
-        {
-#ifdef SPECTRA_USE_GLFW
-            if (wm && fig)
-                wm->clear_figure_caches(fig);
-#else
-            (void)fig;
-#endif
-        };
-
-        rt.headless_ui_ctx = build_window_ui_context(options);
-        rt.ui_ctx_ptr      = rt.headless_ui_ctx.get();
+        // Headless mode: create a minimal WindowUIContext with only the
+        // FigureManager needed for rendering.  The full builder
+        // (build_window_ui_context) creates CommandRegistry, ShortcutManager,
+        // InputHandler, AnimationController, and many other objects whose
+        // destruction order within AppRuntime can trigger std::system_error
+        // during rapid create/destroy cycles (e.g. golden tests running
+        // multiple App instances in the same process).
+        rt.headless_ui_ctx                = std::make_unique<WindowUIContext>();
+        rt.headless_ui_ctx->theme_mgr     = theme_mgr_.get();
+        rt.headless_ui_ctx->fig_mgr_owned = std::make_unique<FigureManager>(registry_);
+        rt.headless_ui_ctx->fig_mgr       = rt.headless_ui_ctx->fig_mgr_owned.get();
+        rt.ui_ctx_ptr                     = rt.headless_ui_ctx.get();
     }
 
     // Wire plugin host services after UI context creation.
@@ -902,7 +888,6 @@ void App::shutdown_runtime()
     auto& rt = *runtime_;
 
     SPECTRA_LOG_INFO("main_loop", "Exited main render loop");
-    SPECTRA_LOG_INFO("shutdown", "Phase 1: stopping servers");
 
     if (rt.mcp_server)
     {
@@ -1007,20 +992,6 @@ void App::shutdown_runtime()
     {
         backend_->wait_idle();
     }
-
-    SPECTRA_LOG_INFO("shutdown", "Phase 2: releasing UI context");
-
-    // Explicitly reset sub-objects in controlled order to isolate potential
-    // destructor issues. The WindowUIContext holds CommandRegistry, ShortcutManager,
-    // and other objects with std::mutex members.
-    if (runtime_)
-    {
-        runtime_->headless_ui_ctx.reset();
-        runtime_->mcp_server.reset();
-        runtime_->auto_server.reset();
-    }
-
-    SPECTRA_LOG_INFO("shutdown", "Phase 3: releasing runtime");
 
     runtime_.reset();
 }

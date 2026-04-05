@@ -993,23 +993,6 @@ void App::shutdown_runtime()
         backend_->wait_idle();
     }
 
-    // Shut down the Renderer first so it flushes deferred GPU deletions
-    // while the Vulkan device is still alive.
-    if (renderer_)
-    {
-        renderer_.reset();
-    }
-
-    // Perform full Vulkan cleanup before destroying AppRuntime.
-    // This ensures all GPU resources (pipelines, buffers, device) are
-    // released before AppRuntime member destructors run, preventing
-    // interference from software Vulkan driver (lavapipe) internal
-    // threads that may still be active.
-    if (backend_)
-    {
-        backend_->shutdown();
-    }
-
     runtime_.reset();
 }
 

@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <unordered_set>
 #include <spectra/axes.hpp>
 #include <spectra/axes3d.hpp>
 #include <spectra/figure.hpp>
@@ -1208,19 +1209,13 @@ WorkspaceValidationResult validate_workspace_data(WorkspaceData& data)
         }
 
         // Validate series types
-        static const std::vector<std::string> kValidTypes = {
+        static const std::unordered_set<std::string> kValidTypes = {
             "line",    "scatter", "line3d",   "scatter3d", "surface",
             "mesh",    "boxplot", "violin",   "histogram", "bar"
         };
         for (auto& ser : fig.series)
         {
-            bool valid_type = ser.type.empty();
-            for (const auto& t : kValidTypes)
-                if (ser.type == t)
-                {
-                    valid_type = true;
-                    break;
-                }
+            bool valid_type = ser.type.empty() || kValidTypes.count(ser.type) > 0;
             if (!valid_type)
             {
                 result.warnings.push_back("Unknown series type '" + ser.type

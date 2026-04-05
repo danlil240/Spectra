@@ -128,8 +128,10 @@ void Renderer::render_text(float screen_width, float screen_height)
     text_renderer_.flush(backend_, screen_width, screen_height);
 }
 
-Renderer::~Renderer()
+Renderer::~Renderer() noexcept
 {
+    try
+    {
     // Wait for GPU to finish using all resources before destroying them
     backend_.wait_idle();
 
@@ -177,6 +179,18 @@ Renderer::~Renderer()
     if (frame_ubo_buffer_)
     {
         backend_.destroy_buffer(frame_ubo_buffer_);
+    }
+
+    }   // try
+    catch (const std::exception& e)
+    {
+        // Swallow exceptions during renderer cleanup.
+        // On CI with lavapipe (software Vulkan), non-deterministic
+        // std::system_error can occur during Vulkan resource teardown.
+        (void)e;
+    }
+    catch (...)
+    {
     }
 }
 

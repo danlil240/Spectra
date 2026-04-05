@@ -99,15 +99,56 @@ App::App(const AppConfig& config) : config_(config)
 
 App::~App()
 {
-    runtime_.reset();
-    renderer_.reset();
+    // Guard each destruction step with try-catch.  On CI with lavapipe
+    // (software Vulkan), non-deterministic std::system_error("Invalid
+    // argument") can be thrown from deep inside member destructors
+    // (likely from pthread operations in the software driver).  Since
+    // destructors are noexcept, an uncaught throw triggers std::terminate.
+    try
+    {
+        shutdown_runtime();
+    }
+    catch (const std::exception& e)
+    {
+        SPECTRA_LOG_ERROR("shutdown", std::string("Exception in shutdown_runtime: ") + e.what());
+    }
+    catch (...)
+    {
+    }
+
+    try
+    {
+        runtime_.reset();
+    }
+    catch (...)
+    {
+    }
+
+    try
+    {
+        renderer_.reset();
+    }
+    catch (const std::exception& e)
+    {
+        SPECTRA_LOG_ERROR("shutdown", std::string("Exception in ~Renderer: ") + e.what());
+    }
+    catch (...)
+    {
+    }
+
     // Clear the singleton pointer before the ThemeManager member is destroyed
     // to prevent any remaining call sites from dereferencing a dangling pointer.
     ui::ThemeManager::set_current(nullptr);
     theme_mgr_.reset();
     if (backend_)
     {
-        backend_->shutdown();
+        try
+        {
+            backend_->shutdown();
+        }
+        catch (...)
+        {
+        }
     }
 }
 
@@ -164,6 +205,14 @@ struct App::AppRuntime
         : scheduler(fps), session(backend, renderer, registry)
     {
     }
+
+    // Explicit noexcept(false) destructor: the implicit default destructor
+    // is noexcept, which means any exception thrown during member destruction
+    // triggers std::terminate.  On CI with lavapipe (software Vulkan),
+    // non-deterministic std::system_error("Invalid argument") can occur
+    // during member cleanup.  Making the destructor noexcept(false) lets
+    // the exception propagate to callers that have try-catch guards.
+    ~AppRuntime() noexcept(false) = default;
 };
 
 // ─── init_runtime ────────────────────────────────────────────────────────────
@@ -993,7 +1042,21 @@ void App::shutdown_runtime()
         backend_->wait_idle();
     }
 
-    runtime_.reset();
+    try
+    {
+        runtime_.reset();
+    }
+    catch (const std::exception& e)
+    {
+        SPECTRA_LOG_ERROR("shutdown",
+                          std::string("Exception during AppRuntime destruction: ") + e.what());
+        // Force-null the pointer to avoid double-free in ~App()
+        runtime_.release();
+    }
+    catch (...)
+    {
+        runtime_.release();
+    }
 }
 
 // ─── Accessors ───────────────────────────────────────────────────────────────

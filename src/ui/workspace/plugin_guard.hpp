@@ -10,7 +10,7 @@ namespace spectra
 /// Lifecycle diagnostics for a loaded plugin.
 struct PluginDiagnostics
 {
-    size_t      init_time_us    = 0;   ///< Time spent in spectra_plugin_init (microseconds).
+    uint64_t    init_time_us    = 0;   ///< Time spent in spectra_plugin_init (microseconds).
     size_t      call_count      = 0;   ///< Total guarded callback invocations.
     size_t      fault_count     = 0;   ///< Number of caught exceptions / signals.
     uint64_t    last_fault_time = 0;   ///< Monotonic timestamp (ns) of last fault.

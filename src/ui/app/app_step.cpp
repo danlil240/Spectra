@@ -699,48 +699,57 @@ void App::init_runtime()
 
     rt.last_step_time = std::chrono::steady_clock::now();
 
-    // Start automation server for MCP-driven testing
+    // Start automation server for MCP-driven testing.
+    // In headless mode, skip unless explicitly requested via environment variable
+    // to avoid thread lifecycle issues during rapid create/destroy cycles in tests.
     {
-        std::string auto_sock;
-        const char* env = std::getenv("SPECTRA_AUTO_SOCKET");
-        if (env && env[0] != '\0')
-            auto_sock = env;
-        else
-            auto_sock = AutomationServer::default_socket_path();
+        const char* auto_env = std::getenv("SPECTRA_AUTO_SOCKET");
+        bool        want_automation =
+            !config_.headless || (auto_env && auto_env[0] != '\0');
 
-        rt.auto_server = std::make_unique<AutomationServer>();
-        if (rt.auto_server->start(auto_sock))
+        if (want_automation)
         {
-            SPECTRA_LOG_INFO("app", "Automation server started: " + auto_sock);
-
-            std::string mcp_bind = "127.0.0.1";
-            if (const char* mcp_bind_env = std::getenv("SPECTRA_MCP_BIND"))
-            {
-                if (mcp_bind_env[0] != '\0')
-                    mcp_bind = mcp_bind_env;
-            }
-
-            uint16_t mcp_port = 8765;
-            if (const char* mcp_port_env = std::getenv("SPECTRA_MCP_PORT"))
-            {
-                if (mcp_port_env[0] != '\0')
-                {
-                    const long parsed_port = std::strtol(mcp_port_env, nullptr, 10);
-                    if (parsed_port > 0 && parsed_port <= 65535)
-                        mcp_port = static_cast<uint16_t>(parsed_port);
-                }
-            }
-
-            rt.mcp_server = std::make_unique<McpServer>();
-            if (rt.mcp_server->start(*rt.auto_server, mcp_bind, mcp_port))
-                SPECTRA_LOG_INFO("app", "MCP server started: " + rt.mcp_server->endpoint());
+            std::string auto_sock;
+            if (auto_env && auto_env[0] != '\0')
+                auto_sock = auto_env;
             else
-                rt.mcp_server.reset();
-        }
-        else
-        {
-            SPECTRA_LOG_WARN("app", "Automation server failed to start");
-            rt.auto_server.reset();
+                auto_sock = AutomationServer::default_socket_path();
+
+            rt.auto_server = std::make_unique<AutomationServer>();
+            if (rt.auto_server->start(auto_sock))
+            {
+                SPECTRA_LOG_INFO("app", "Automation server started: " + auto_sock);
+
+                std::string mcp_bind = "127.0.0.1";
+                if (const char* mcp_bind_env = std::getenv("SPECTRA_MCP_BIND"))
+                {
+                    if (mcp_bind_env[0] != '\0')
+                        mcp_bind = mcp_bind_env;
+                }
+
+                uint16_t mcp_port = 8765;
+                if (const char* mcp_port_env = std::getenv("SPECTRA_MCP_PORT"))
+                {
+                    if (mcp_port_env[0] != '\0')
+                    {
+                        const long parsed_port = std::strtol(mcp_port_env, nullptr, 10);
+                        if (parsed_port > 0 && parsed_port <= 65535)
+                            mcp_port = static_cast<uint16_t>(parsed_port);
+                    }
+                }
+
+                rt.mcp_server = std::make_unique<McpServer>();
+                if (rt.mcp_server->start(*rt.auto_server, mcp_bind, mcp_port))
+                    SPECTRA_LOG_INFO("app",
+                                     "MCP server started: " + rt.mcp_server->endpoint());
+                else
+                    rt.mcp_server.reset();
+            }
+            else
+            {
+                SPECTRA_LOG_WARN("app", "Automation server failed to start");
+                rt.auto_server.reset();
+            }
         }
     }
 }

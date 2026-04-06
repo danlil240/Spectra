@@ -1,0 +1,10 @@
+{
+  "name": "Export: CSV Data",
+  "version": "1.0.0",
+  "api_version": "2.0",
+  "author": "Spectra Examples",
+  "description": "Exports series data to CSV format",
+  "capabilities": ["export_format"],
+  "dependencies": [],
+  "min_spectra_version": "0.9.0"
+}

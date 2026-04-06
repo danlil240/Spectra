@@ -1,6 +1,7 @@
 #include "plugin_api.hpp"
 
 #include <bit>
+#include <chrono>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
@@ -739,6 +740,36 @@ bool PluginManager::load_plugin(const std::string& path)
             return false;
     }
 
+    // Manifest pre-check before opening the shared library
+    PluginManifest manifest;
+    std::string    manifest_path = find_plugin_manifest_path(path);
+    if (!manifest_path.empty())
+    {
+        manifest = load_plugin_manifest(manifest_path);
+        if (manifest.is_valid())
+        {
+            if (!manifest.is_api_compatible(SPECTRA_PLUGIN_API_VERSION_MAJOR,
+                                            SPECTRA_PLUGIN_API_VERSION_MINOR))
+            {
+                SPECTRA_LOG_WARN(
+                    "plugin",
+                    "Plugin manifest '{}' requests API v{} but host provides v{}.{} — skipping "
+                    "load",
+                    manifest.name,
+                    manifest.api_version,
+                    SPECTRA_PLUGIN_API_VERSION_MAJOR,
+                    SPECTRA_PLUGIN_API_VERSION_MINOR);
+                return false;
+            }
+            SPECTRA_LOG_INFO("plugin",
+                             "Loading plugin '{}' v{} by {} (API v{})",
+                             manifest.name,
+                             manifest.version,
+                             manifest.author.empty() ? "unknown" : manifest.author,
+                             manifest.api_version);
+        }
+    }
+
     void*                   handle      = nullptr;
     SpectraPluginInitFn     init_fn     = nullptr;
     SpectraPluginShutdownFn shutdown_fn = nullptr;
@@ -772,7 +803,11 @@ bool PluginManager::load_plugin(const std::string& path)
 
     SpectraPluginContext ctx = make_context(SPECTRA_PLUGIN_API_VERSION_MINOR);
     SpectraPluginInfo    info{};
+    auto                 t0     = std::chrono::steady_clock::now();
     int                  result = init_fn(&ctx, &info);
+    auto                 t1     = std::chrono::steady_clock::now();
+    size_t               init_us =
+        static_cast<size_t>(std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count());
     if (result != 0)
     {
 #ifdef _WIN32
@@ -809,16 +844,18 @@ bool PluginManager::load_plugin(const std::string& path)
     }
 
     PluginEntry entry;
-    entry.name              = info.name ? info.name : "Unknown";
-    entry.version           = info.version ? info.version : "0.0.0";
-    entry.author            = info.author ? info.author : "";
-    entry.description       = info.description ? info.description : "";
-    entry.path              = path;
-    entry.loaded            = true;
-    entry.enabled           = true;
-    entry.api_version_minor = plugin_minor;
-    entry.handle            = handle;
-    entry.shutdown_fn       = shutdown_fn;
+    entry.name                     = info.name ? info.name : "Unknown";
+    entry.version                  = info.version ? info.version : "0.0.0";
+    entry.author                   = info.author ? info.author : "";
+    entry.description              = info.description ? info.description : "";
+    entry.path                     = path;
+    entry.loaded                   = true;
+    entry.enabled                  = true;
+    entry.api_version_minor        = plugin_minor;
+    entry.handle                   = handle;
+    entry.shutdown_fn              = shutdown_fn;
+    entry.diagnostics.init_time_us = init_us;
+    entry.manifest                 = std::move(manifest);
 
     plugins_.push_back(std::move(entry));
     return true;
@@ -912,6 +949,17 @@ const PluginEntry* PluginManager::find_plugin(const std::string& name) const
     {
         if (p.name == name)
             return &p;
+    }
+    return nullptr;
+}
+
+const PluginDiagnostics* PluginManager::diagnostics(const std::string& name) const
+{
+    std::lock_guard lock(mutex_);
+    for (const auto& p : plugins_)
+    {
+        if (p.name == name)
+            return &p.diagnostics;
     }
     return nullptr;
 }

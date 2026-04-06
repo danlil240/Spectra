@@ -165,13 +165,18 @@ set(SPECTRA_UNIT_TESTS
     test_plugin_integration
     test_plugin_series_type
     test_plugin_guard
+    test_plugin_diagnostics
+    test_plugin_manifest
     test_chunked_array
     test_mapped_file
     test_lod_cache
+    test_lod_cache_metrics
     test_chunked_series
     test_pending_series_data
     test_series_thread_safe
     test_accessibility
+    test_workspace_autosave
+    test_accessible_summary
     test_webgpu_backend
 )
 

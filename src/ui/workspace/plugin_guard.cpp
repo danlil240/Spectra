@@ -1,5 +1,6 @@
 #include "plugin_guard.hpp"
 
+#include <chrono>
 #include <exception>
 #include <mutex>
 
@@ -109,9 +110,30 @@ void install_signal_handlers()
 
 }   // namespace
 
-PluginCallResult plugin_guard_invoke(const char* context_name, void (*fn)(void*), void* arg)
+PluginCallResult plugin_guard_invoke(const char* context_name, void (*fn)(void*), void* arg,
+                                     PluginDiagnostics* diag)
 {
     const char* name = context_name ? context_name : "<unknown>";
+
+    if (diag && diag->quarantined)
+        return PluginCallResult::Quarantined;
+
+    if (diag)
+        diag->call_count++;
+
+    auto record_fault = [&](const std::string& reason)
+    {
+        if (!diag)
+            return;
+        diag->fault_count++;
+        diag->last_fault_reason = reason;
+        diag->last_fault_time   = static_cast<uint64_t>(
+            std::chrono::duration_cast<std::chrono::nanoseconds>(
+                std::chrono::steady_clock::now().time_since_epoch())
+                .count());
+        if (static_cast<int>(diag->fault_count) >= PLUGIN_QUARANTINE_THRESHOLD)
+            diag->quarantined = true;
+    };
 
 #ifndef _WIN32
     // Install signal handlers once (process-wide).  The thread-local
@@ -124,12 +146,15 @@ PluginCallResult plugin_guard_invoke(const char* context_name, void (*fn)(void*)
     if (sigsetjmp(t_jmp_buf, 1) != 0)
     {
         // Arrived here via siglongjmp from the signal handler.
-        t_in_guard = 0;
-        int sig    = t_caught_signal;
+        t_in_guard    = 0;
+        int        sig = t_caught_signal;
+        std::string reason =
+            std::string("fatal signal ") + signal_name(sig);
         SPECTRA_LOG_ERROR("plugin",
                           "Plugin callback '{}' caught fatal signal {} — disabling",
                           name,
                           signal_name(sig));
+        record_fault(reason);
         return PluginCallResult::Signal;
     }
 
@@ -147,6 +172,7 @@ PluginCallResult plugin_guard_invoke(const char* context_name, void (*fn)(void*)
                           "Plugin callback '{}' threw exception: {} — disabling",
                           name,
                           e.what());
+        record_fault(e.what());
         return PluginCallResult::Exception;
     }
     catch (...)
@@ -155,6 +181,7 @@ PluginCallResult plugin_guard_invoke(const char* context_name, void (*fn)(void*)
         SPECTRA_LOG_ERROR("plugin",
                           "Plugin callback '{}' threw unknown exception — disabling",
                           name);
+        record_fault("unknown exception");
         return PluginCallResult::Exception;
     }
 
@@ -171,6 +198,7 @@ PluginCallResult plugin_guard_invoke(const char* context_name, void (*fn)(void*)
                           "Plugin callback '{}' threw exception: {} — disabling",
                           name,
                           e.what());
+        record_fault(e.what());
         return PluginCallResult::Exception;
     }
     catch (...)
@@ -178,6 +206,7 @@ PluginCallResult plugin_guard_invoke(const char* context_name, void (*fn)(void*)
         SPECTRA_LOG_ERROR("plugin",
                           "Plugin callback '{}' threw unknown exception — disabling",
                           name);
+        record_fault("unknown exception");
         return PluginCallResult::Exception;
     }
 #endif

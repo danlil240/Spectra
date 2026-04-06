@@ -288,6 +288,23 @@ void Renderer::upload_series_data(Series& series, double origin_x, double origin
             return;
         }
 
+        // WS-5.2: Skip re-upload if data and origin haven't changed significantly.
+        // Small pans are handled by the data_offset push constant in render_series()
+        // without requiring GPU buffer re-upload.
+        const uint64_t current_generation = static_cast<uint64_t>(chunked_line->point_count());
+        const bool     count_changed      = (count != gpu.uploaded_count);
+        const bool     origin_moved =
+            (std::abs(static_cast<double>(gpu.origin_x) - origin_x) > 1.0 ||
+             std::abs(static_cast<double>(gpu.origin_y) - origin_y) > 1.0);
+        const bool needs_upload =
+            count_changed || origin_moved || !gpu.ssbo || (current_generation != gpu.data_generation);
+
+        if (!needs_upload)
+        {
+            series.clear_dirty();
+            return;
+        }
+
         size_t byte_size = count * 2 * sizeof(float);
         if (!gpu.ssbo || gpu.uploaded_count < count)
         {
@@ -309,9 +326,10 @@ void Renderer::upload_series_data(Series& series, double origin_x, double origin
         }
 
         backend_.upload_buffer(gpu.ssbo, upload_scratch_.data(), byte_size);
-        gpu.uploaded_count = count;
-        gpu.origin_x       = origin_x;
-        gpu.origin_y       = origin_y;
+        gpu.uploaded_count  = count;
+        gpu.origin_x        = origin_x;
+        gpu.origin_y        = origin_y;
+        gpu.data_generation = current_generation;
 
         series.clear_dirty();
     }

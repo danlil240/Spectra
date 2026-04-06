@@ -56,7 +56,8 @@ static void crosshair_draw(const SpectraOverlayContext* ctx, void* /* user_data 
 
 extern "C"
 {
-    SPECTRA_PLUGIN_API int spectra_plugin_init(const SpectraPluginContext* ctx, SpectraPluginInfo* info)
+    SPECTRA_PLUGIN_API int spectra_plugin_init(const SpectraPluginContext* ctx,
+                                               SpectraPluginInfo*          info)
     {
         info->name              = "Overlay: Crosshair";
         info->version           = "1.0.0";

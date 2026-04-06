@@ -24,12 +24,12 @@ struct PluginManifest
 {
     std::string              name;
     std::string              version;
-    std::string              api_version;          // e.g. "2.0"
+    std::string              api_version;   // e.g. "2.0"
     std::string              author;
     std::string              description;
-    std::vector<std::string> capabilities;         // e.g. ["data_source", "overlay"]
-    std::vector<std::string> dependencies;         // plugin names this plugin depends on
-    std::string              min_spectra_version;  // minimum Spectra version required
+    std::vector<std::string> capabilities;          // e.g. ["data_source", "overlay"]
+    std::vector<std::string> dependencies;          // plugin names this plugin depends on
+    std::string              min_spectra_version;   // minimum Spectra version required
 
     /// Is this manifest valid (has required fields)?
     [[nodiscard]] bool is_valid() const;

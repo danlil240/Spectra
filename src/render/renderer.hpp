@@ -12,7 +12,7 @@ namespace spectra
 {
 class Axes3D;
 class FigureViewModel;
-}
+}   // namespace spectra
 
 namespace spectra::ui
 {

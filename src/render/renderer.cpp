@@ -132,54 +132,54 @@ Renderer::~Renderer() noexcept
 {
     try
     {
-    // Wait for GPU to finish using all resources before destroying them
-    backend_.wait_idle();
+        // Wait for GPU to finish using all resources before destroying them
+        backend_.wait_idle();
 
-    // Shutdown text renderer
-    text_renderer_.shutdown(backend_);
+        // Shutdown text renderer
+        text_renderer_.shutdown(backend_);
 
-    // Flush ALL deferred deletion ring slots
-    for (auto& slot : deletion_ring_)
-    {
-        for (auto& gpu : slot)
-            destroy_series_buffers(gpu);
-        slot.clear();
-    }
-
-    // Clean up per-series GPU data
-    for (auto& [ptr, data] : series_gpu_data_)
-        destroy_series_buffers(data);
-    series_gpu_data_.clear();
-
-    // Clean up per-axes GPU data (grid + border + bbox + tick buffers)
-    for (auto& [ptr, data] : axes_gpu_data_)
-        destroy_axes_buffers(data);
-    axes_gpu_data_.clear();
-
-    // Clean up per-figure overlay buffers
-    for (auto& [ptr, data] : figure_gpu_data_)
-    {
-        for (uint32_t s = 0; s < FRAME_BUFFER_SLOTS; ++s)
+        // Flush ALL deferred deletion ring slots
+        for (auto& slot : deletion_ring_)
         {
-            if (data.overlay_line_buffer[s])
-                backend_.destroy_buffer(data.overlay_line_buffer[s]);
+            for (auto& gpu : slot)
+                destroy_series_buffers(gpu);
+            slot.clear();
         }
-    }
-    figure_gpu_data_.clear();
 
-    // Destroy custom series type pipelines
-    if (series_type_registry_)
-    {
-        series_type_registry_->destroy_pipelines(backend_);
-    }
+        // Clean up per-series GPU data
+        for (auto& [ptr, data] : series_gpu_data_)
+            destroy_series_buffers(data);
+        series_gpu_data_.clear();
 
-    if (overlay_tri_buffer_)
-        backend_.destroy_buffer(overlay_tri_buffer_);
+        // Clean up per-axes GPU data (grid + border + bbox + tick buffers)
+        for (auto& [ptr, data] : axes_gpu_data_)
+            destroy_axes_buffers(data);
+        axes_gpu_data_.clear();
 
-    if (frame_ubo_buffer_)
-    {
-        backend_.destroy_buffer(frame_ubo_buffer_);
-    }
+        // Clean up per-figure overlay buffers
+        for (auto& [ptr, data] : figure_gpu_data_)
+        {
+            for (uint32_t s = 0; s < FRAME_BUFFER_SLOTS; ++s)
+            {
+                if (data.overlay_line_buffer[s])
+                    backend_.destroy_buffer(data.overlay_line_buffer[s]);
+            }
+        }
+        figure_gpu_data_.clear();
+
+        // Destroy custom series type pipelines
+        if (series_type_registry_)
+        {
+            series_type_registry_->destroy_pipelines(backend_);
+        }
+
+        if (overlay_tri_buffer_)
+            backend_.destroy_buffer(overlay_tri_buffer_);
+
+        if (frame_ubo_buffer_)
+        {
+            backend_.destroy_buffer(frame_ubo_buffer_);
+        }
 
     }   // try
     catch (const std::exception& e)

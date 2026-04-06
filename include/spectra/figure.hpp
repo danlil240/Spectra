@@ -82,9 +82,10 @@ struct FigureExportRequest
 // Animation state set by AnimationBuilder, driven by WindowRuntime.
 struct FigureAnimState
 {
-    float                       fps      = 60.0f;
-    float                       duration = 0.0f;
-    bool                        loop     = false;
+    float                       fps            = 60.0f;
+    float                       duration       = 0.0f;
+    bool                        loop           = false;
+    bool                        live_streaming = false;
     std::function<void(Frame&)> on_frame;
 
     // Per-figure elapsed time so each figure keeps its own timeline
@@ -156,7 +157,7 @@ class Figure
     float anim_fps() const { return anim_.fps; }
     float anim_duration() const { return anim_.duration; }
     bool  anim_loop() const { return anim_.loop; }
-    bool  has_animation() const { return static_cast<bool>(anim_.on_frame); }
+    bool has_animation() const { return static_cast<bool>(anim_.on_frame) || anim_.live_streaming; }
 
     // Export / animation sub-objects (public so runtime subsystems can
     // consume pending requests without requiring friend access).

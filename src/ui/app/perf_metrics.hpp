@@ -50,12 +50,11 @@ class PerfMetrics
 
     void mark_startup_phase(const char* phase)
     {
-        auto now = Clock::now();
-        double us =
-            std::chrono::duration<double, std::micro>(now - last_phase_end_).count();
+        auto   now = Clock::now();
+        double us  = std::chrono::duration<double, std::micro>(now - last_phase_end_).count();
         std::lock_guard lk(mu_);
         startup_phases_[phase] = us;
-        last_phase_end_ = now;
+        last_phase_end_        = now;
     }
 
     void mark_startup_end()
@@ -89,7 +88,7 @@ class PerfMetrics
 
     // ─── Frame counter (atomic, lockfree) ────────────────────────────────
 
-    void increment_frame_count() { frame_count_.fetch_add(1, std::memory_order_relaxed); }
+    void     increment_frame_count() { frame_count_.fetch_add(1, std::memory_order_relaxed); }
     uint64_t frame_count() const { return frame_count_.load(std::memory_order_relaxed); }
 
    private:
@@ -99,9 +98,9 @@ class PerfMetrics
     mutable std::mutex mu_;
 
     // Startup
-    TimePoint startup_begin_    = Clock::now();
-    TimePoint last_phase_end_   = Clock::now();
-    double    startup_total_us_ = 0.0;
+    TimePoint                               startup_begin_    = Clock::now();
+    TimePoint                               last_phase_end_   = Clock::now();
+    double                                  startup_total_us_ = 0.0;
     std::unordered_map<std::string, double> startup_phases_;
 
     // Automation

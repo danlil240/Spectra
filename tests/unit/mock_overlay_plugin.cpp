@@ -39,7 +39,8 @@ static void mock_crosshair_draw(const SpectraOverlayContext* ctx, void* /* user_
 
 extern "C"
 {
-    SPECTRA_PLUGIN_API int spectra_plugin_init(const SpectraPluginContext* ctx, SpectraPluginInfo* info)
+    SPECTRA_PLUGIN_API int spectra_plugin_init(const SpectraPluginContext* ctx,
+                                               SpectraPluginInfo*          info)
     {
         info->name              = "MockOverlayPlugin";
         info->version           = "1.0.0";

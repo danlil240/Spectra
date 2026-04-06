@@ -650,4 +650,40 @@ HandleResult handle_req_get_snapshot(DaemonContext& ctx, ClientSlot& slot, const
     return HandleResult::Continue;
 }
 
+HandleResult handle_req_anim_start(DaemonContext& ctx, ClientSlot& slot, const ipc::Message& msg)
+{
+    auto req = ipc::decode_req_anim_start(msg.payload);
+    if (!req || !ctx.fig_model.has_figure(req->figure_id))
+    {
+        send_resp_err(*slot.conn,
+                      ctx.graph.session_id(),
+                      msg.header.request_id,
+                      404,
+                      "Figure not found");
+        return HandleResult::Continue;
+    }
+
+    // Build a SET_LIVE_FPS diff op and broadcast to agents so
+    // the rendering loop switches to continuous mode at the target FPS.
+    // Also persist in the figure model so newly-connecting agents get it.
+    ctx.fig_model.set_live_fps(req->figure_id, req->fps);
+
+    ipc::StateDiffPayload diff;
+    auto                  base_rev = ctx.fig_model.revision();
+
+    ipc::DiffOp op;
+    op.type      = ipc::DiffOp::Type::SET_LIVE_FPS;
+    op.figure_id = req->figure_id;
+    op.f1        = req->fps;
+    op.bool_val  = true;   // enable live streaming
+    diff.ops.push_back(std::move(op));
+
+    diff.base_revision = base_rev;
+    diff.new_revision  = ctx.fig_model.revision();
+    broadcast_diff_to_agents(ctx, diff);
+
+    send_resp_ok(*slot.conn, ctx.graph.session_id(), msg.header.request_id);
+    return HandleResult::Continue;
+}
+
 }   // namespace spectra::daemon

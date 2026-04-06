@@ -49,8 +49,7 @@ namespace
 
 void skip_ws(const std::string& s, size_t& pos)
 {
-    while (pos < s.size() &&
-           (s[pos] == ' ' || s[pos] == '\t' || s[pos] == '\n' || s[pos] == '\r'))
+    while (pos < s.size() && (s[pos] == ' ' || s[pos] == '\t' || s[pos] == '\n' || s[pos] == '\r'))
         ++pos;
 }
 
@@ -69,13 +68,27 @@ std::string parse_json_string(const std::string& s, size_t& pos)
             ++pos;
             switch (s[pos])
             {
-                case '"':  result += '"';  break;
-                case '\\': result += '\\'; break;
-                case '/':  result += '/';  break;
-                case 'n':  result += '\n'; break;
-                case 't':  result += '\t'; break;
-                case 'r':  result += '\r'; break;
-                default:   result += s[pos]; break;
+                case '"':
+                    result += '"';
+                    break;
+                case '\\':
+                    result += '\\';
+                    break;
+                case '/':
+                    result += '/';
+                    break;
+                case 'n':
+                    result += '\n';
+                    break;
+                case 't':
+                    result += '\t';
+                    break;
+                case 'r':
+                    result += '\r';
+                    break;
+                default:
+                    result += s[pos];
+                    break;
             }
         }
         else
@@ -170,12 +183,18 @@ PluginManifest load_plugin_manifest(const std::string& json_path)
         else if (json[pos] == '"')
         {
             std::string val = parse_json_string(json, pos);
-            if      (key == "name")                manifest.name = val;
-            else if (key == "version")             manifest.version = val;
-            else if (key == "api_version")         manifest.api_version = val;
-            else if (key == "author")              manifest.author = val;
-            else if (key == "description")         manifest.description = val;
-            else if (key == "min_spectra_version") manifest.min_spectra_version = val;
+            if (key == "name")
+                manifest.name = val;
+            else if (key == "version")
+                manifest.version = val;
+            else if (key == "api_version")
+                manifest.api_version = val;
+            else if (key == "author")
+                manifest.author = val;
+            else if (key == "description")
+                manifest.description = val;
+            else if (key == "min_spectra_version")
+                manifest.min_spectra_version = val;
         }
         else
         {
@@ -191,10 +210,9 @@ PluginManifest load_plugin_manifest(const std::string& json_path)
 
     if (!manifest.is_valid())
     {
-        SPECTRA_LOG_WARN(
-            "plugin",
-            "Plugin manifest missing required fields (name/version/api_version): {}",
-            json_path);
+        SPECTRA_LOG_WARN("plugin",
+                         "Plugin manifest missing required fields (name/version/api_version): {}",
+                         json_path);
     }
 
     return manifest;

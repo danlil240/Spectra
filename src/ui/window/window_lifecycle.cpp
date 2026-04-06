@@ -647,14 +647,14 @@ bool WindowManager::init_window_ui(WindowContext& wctx, FigureId initial_figure_
 
 #ifdef SPECTRA_USE_IMGUI
     WindowUIContextBuildOptions options;
-    options.registry               = registry_;
-    options.theme_mgr              = theme_mgr_;
-    options.initial_figure_id      = initial_figure_id;
-    options.plugin_manager         = plugin_manager_;
-    options.export_format_registry = export_format_registry_;
-    options.overlay_registry       = &shared_overlay_registry_;
-    options.series_clipboard       = &shared_clipboard_;
-    options.session                = session_;
+    options.registry                = registry_;
+    options.theme_mgr               = theme_mgr_;
+    options.initial_figure_id       = initial_figure_id;
+    options.plugin_manager          = plugin_manager_;
+    options.export_format_registry  = export_format_registry_;
+    options.overlay_registry        = &shared_overlay_registry_;
+    options.series_clipboard        = &shared_clipboard_;
+    options.session                 = session_;
     options.on_window_close_request = [this, window_id = wctx.id]() { request_close(window_id); };
     options.on_figure_closed        = [this](FigureId, Figure* fig)
     {
@@ -662,10 +662,10 @@ bool WindowManager::init_window_ui(WindowContext& wctx, FigureId initial_figure_
             clear_figure_caches(fig);
     };
     options.create_imgui_integration = true;
-#ifdef SPECTRA_USE_GLFW
+    #ifdef SPECTRA_USE_GLFW
     options.window_manager = this;
     options.window_id      = wctx.id;
-#endif
+    #endif
 
     auto ui = build_window_ui_context(options);
     if (!ui)

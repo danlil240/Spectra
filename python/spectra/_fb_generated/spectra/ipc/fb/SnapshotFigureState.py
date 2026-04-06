@@ -123,8 +123,15 @@ class SnapshotFigureState(object):
         o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(20))
         return o == 0
 
+    # SnapshotFigureState
+    def LiveFps(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(22))
+        if o != 0:
+            return self._tab.Get(flatbuffers.number_types.Float32Flags, o + self._tab.Pos)
+        return 0.0
+
 def SnapshotFigureStateStart(builder):
-    builder.StartObject(9)
+    builder.StartObject(10)
 
 def Start(builder):
     SnapshotFigureStateStart(builder)
@@ -194,6 +201,12 @@ def SnapshotFigureStateStartSeriesVector(builder, numElems):
 
 def StartSeriesVector(builder, numElems):
     return SnapshotFigureStateStartSeriesVector(builder, numElems)
+
+def SnapshotFigureStateAddLiveFps(builder, liveFps):
+    builder.PrependFloat32Slot(9, liveFps, 0.0)
+
+def AddLiveFps(builder, liveFps):
+    SnapshotFigureStateAddLiveFps(builder, liveFps)
 
 def SnapshotFigureStateEnd(builder):
     return builder.EndObject()

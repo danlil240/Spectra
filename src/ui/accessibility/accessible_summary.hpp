@@ -31,13 +31,13 @@ struct SummaryOptions
 std::string accessible_figure_summary(const Figure& figure, const SummaryOptions& options = {});
 
 /// Generate an accessible summary for a single Axes object.
-std::string accessible_axes_summary(const Axes&          axes,
-                                    size_t               axes_index,
+std::string accessible_axes_summary(const Axes&           axes,
+                                    size_t                axes_index,
                                     const SummaryOptions& options = {});
 
 /// Generate an accessible summary for a single Series.
-std::string accessible_series_summary(const Series&        series,
-                                      size_t               series_index,
+std::string accessible_series_summary(const Series&         series,
+                                      size_t                series_index,
                                       const SummaryOptions& options = {});
 
 }   // namespace spectra

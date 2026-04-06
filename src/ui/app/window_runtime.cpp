@@ -123,7 +123,7 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
             if (active_figure)
             {
                 scheduler.set_target_fps(active_figure->anim_.fps);
-                has_animation = static_cast<bool>(active_figure->anim_.on_frame);
+                has_animation = active_figure->has_animation();
     #ifdef SPECTRA_USE_GLFW
                 input_handler.set_figure(active_figure);
                 // Phase 2 (LT-5): wire FigureViewModel for ViewModel-based limit mutations

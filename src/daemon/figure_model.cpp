@@ -434,6 +434,14 @@ ipc::DiffOp FigureModel::set_figure_title(uint64_t figure_id, const std::string&
     return op;
 }
 
+void FigureModel::set_live_fps(uint64_t figure_id, float fps)
+{
+    std::lock_guard lock(mu_);
+    auto            it = figures_.find(figure_id);
+    if (it != figures_.end())
+        it->second.live_fps = fps;
+}
+
 // --- Load snapshot (app → backend push) ---
 
 std::vector<uint64_t> FigureModel::load_snapshot(const ipc::StateSnapshotPayload& snap)
@@ -459,6 +467,7 @@ std::vector<uint64_t> FigureModel::load_snapshot(const ipc::StateSnapshotPayload
         fd.height    = fig.height;
         fd.grid_rows = fig.grid_rows;
         fd.grid_cols = fig.grid_cols;
+        fd.live_fps  = fig.live_fps;
         fd.axes      = fig.axes;
         fd.series    = fig.series;
         figures_[id] = std::move(fd);
@@ -490,6 +499,7 @@ ipc::StateSnapshotPayload FigureModel::snapshot() const
         fig.height    = fd.height;
         fig.grid_rows = fd.grid_rows;
         fig.grid_cols = fd.grid_cols;
+        fig.live_fps  = fd.live_fps;
         fig.axes      = fd.axes;
         fig.series    = fd.series;
         snap.figures.push_back(std::move(fig));
@@ -517,6 +527,7 @@ ipc::StateSnapshotPayload FigureModel::snapshot(const std::vector<uint64_t>& fig
         fig.height    = fd.height;
         fig.grid_rows = fd.grid_rows;
         fig.grid_cols = fd.grid_cols;
+        fig.live_fps  = fd.live_fps;
         fig.axes      = fd.axes;
         fig.series    = fd.series;
         snap.figures.push_back(std::move(fig));

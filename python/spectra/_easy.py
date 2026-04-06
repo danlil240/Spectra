@@ -933,6 +933,18 @@ def live(
     ax = _state._ensure_axes()
     _state._show_if_pending()
 
+    # Notify the backend that this figure is live-streaming at the
+    # requested FPS so the render loop runs continuously.
+    from . import _protocol as P
+    from . import _codec as codec
+
+    session = _state._ensure_session()
+    try:
+        payload = codec.encode_req_anim_start(fig_obj._id, fps=fps, duration=duration)
+        session._request(P.REQ_ANIM_START, payload)
+    except Exception:
+        pass  # Best-effort; Python-side pacing still works as fallback
+
     # Detect callback signature
     sig = inspect.signature(callback)
     nparams = len(sig.parameters)

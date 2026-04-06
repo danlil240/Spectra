@@ -24,10 +24,10 @@ static constexpr int PLUGIN_QUARANTINE_THRESHOLD = 3;
 /// Result of a guarded plugin callback invocation.
 enum class PluginCallResult
 {
-    Success,      ///< Callback completed normally.
-    Exception,    ///< C++ exception was caught.
-    Signal,       ///< Fatal signal was caught (SIGSEGV, SIGBUS, SIGFPE).
-    Quarantined,  ///< Plugin is quarantined — call was skipped.
+    Success,       ///< Callback completed normally.
+    Exception,     ///< C++ exception was caught.
+    Signal,        ///< Fatal signal was caught (SIGSEGV, SIGBUS, SIGFPE).
+    Quarantined,   ///< Plugin is quarantined — call was skipped.
 };
 
 /// Invoke a plugin callback with crash isolation, recording diagnostics.
@@ -46,13 +46,15 @@ enum class PluginCallResult
 /// WARNING: When a signal is caught, C++ destructors for stack objects between
 /// the guard point and the faulting instruction are NOT executed.  Only use for
 /// C ABI / plugin callbacks where this is acceptable.
-PluginCallResult plugin_guard_invoke(const char*        context_name,
-                                     void (*fn)(void*), void* arg,
+PluginCallResult plugin_guard_invoke(const char* context_name,
+                                     void (*fn)(void*),
+                                     void*              arg,
                                      PluginDiagnostics* diag = nullptr);
 
 /// Convenience overload for lambdas and functors.
 template <typename Fn>
-PluginCallResult plugin_guard_invoke(const char* context_name, Fn&& fn,
+PluginCallResult plugin_guard_invoke(const char*        context_name,
+                                     Fn&&               fn,
                                      PluginDiagnostics* diag = nullptr)
 {
     using FnType = std::decay_t<Fn>;

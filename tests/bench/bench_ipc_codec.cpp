@@ -47,9 +47,9 @@ BENCHMARK(BM_IpcCodec_Hello_Decode)->Unit(benchmark::kNanosecond);
 
 static void BM_IpcCodec_SetData_Encode(benchmark::State& state)
 {
-    const auto    n = static_cast<size_t>(state.range(0));
+    const auto        n = static_cast<size_t>(state.range(0));
     ReqSetDataPayload p;
-    p.figure_id   = 1;
+    p.figure_id    = 1;
     p.series_index = 0;
     p.data.resize(n);
     for (size_t i = 0; i < n; ++i)
@@ -71,9 +71,9 @@ BENCHMARK(BM_IpcCodec_SetData_Encode)
 
 static void BM_IpcCodec_SetData_Decode(benchmark::State& state)
 {
-    const auto    n = static_cast<size_t>(state.range(0));
+    const auto        n = static_cast<size_t>(state.range(0));
     ReqSetDataPayload p;
-    p.figure_id   = 1;
+    p.figure_id    = 1;
     p.series_index = 0;
     p.data.resize(n);
     for (size_t i = 0; i < n; ++i)

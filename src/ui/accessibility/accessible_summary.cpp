@@ -72,8 +72,8 @@ static std::string fmt_float(float v)
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-std::string accessible_series_summary(const Series&        series,
-                                      size_t               series_index,
+std::string accessible_series_summary(const Series&         series,
+                                      size_t                series_index,
                                       const SummaryOptions& options)
 {
     std::ostringstream ss;
@@ -116,8 +116,8 @@ std::string accessible_series_summary(const Series&        series,
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-std::string accessible_axes_summary(const Axes&          axes,
-                                    size_t               axes_index,
+std::string accessible_axes_summary(const Axes&           axes,
+                                    size_t                axes_index,
                                     const SummaryOptions& options)
 {
     std::ostringstream ss;
@@ -173,8 +173,7 @@ std::string accessible_figure_summary(const Figure& figure, const SummaryOptions
     std::ostringstream ss;
 
     const auto& axes_vec = figure.axes();
-    ss << "Figure with " << axes_vec.size()
-       << (axes_vec.size() == 1 ? " axes" : " axes");
+    ss << "Figure with " << axes_vec.size() << (axes_vec.size() == 1 ? " axes" : " axes");
 
     int rows = figure.grid_rows();
     int cols = figure.grid_cols();
@@ -186,8 +185,7 @@ std::string accessible_figure_summary(const Figure& figure, const SummaryOptions
     int limit = std::min(static_cast<int>(axes_vec.size()), options.max_series_in_summary);
     for (int i = 0; i < limit; ++i)
     {
-        ss << " " << accessible_axes_summary(*axes_vec[i], static_cast<size_t>(i), options)
-           << ".";
+        ss << " " << accessible_axes_summary(*axes_vec[i], static_cast<size_t>(i), options) << ".";
     }
     if (static_cast<int>(axes_vec.size()) > limit)
         ss << " (and " << (axes_vec.size() - static_cast<size_t>(limit)) << " more axes).";

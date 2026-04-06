@@ -12,7 +12,8 @@ static float triple_value(float v, void* /* user_data */)
 
 extern "C"
 {
-    SPECTRA_PLUGIN_API int spectra_plugin_init(const SpectraPluginContext* ctx, SpectraPluginInfo* info)
+    SPECTRA_PLUGIN_API int spectra_plugin_init(const SpectraPluginContext* ctx,
+                                               SpectraPluginInfo*          info)
     {
         info->name              = "MockPluginV1_1";
         info->version           = "1.1.0";

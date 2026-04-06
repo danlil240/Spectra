@@ -7,12 +7,16 @@
 namespace spectra
 {
 
-void register_descriptors(CommandRegistry&                     registry,
+void register_descriptors(CommandRegistry&                      registry,
                           const std::vector<CommandDescriptor>& descriptors)
 {
     for (const auto& desc : descriptors)
     {
-        registry.register_command(desc.id, desc.label, desc.action, desc.shortcut, desc.category,
+        registry.register_command(desc.id,
+                                  desc.label,
+                                  desc.action,
+                                  desc.shortcut,
+                                  desc.category,
                                   desc.icon);
     }
 }

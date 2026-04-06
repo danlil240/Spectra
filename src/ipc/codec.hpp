@@ -184,6 +184,7 @@ static constexpr uint8_t TAG_OPACITY_VAL  = 0x75;
 static constexpr uint8_t TAG_POINT_COUNT  = 0x76;
 static constexpr uint8_t TAG_SERIES_DATA  = 0x77;   // raw float array
 static constexpr uint8_t TAG_WINDOW_GROUP = 0x78;   // figure window grouping
+static constexpr uint8_t TAG_LIVE_FPS     = 0xA1;   // live streaming FPS (float)
 
 // Knob blob tags
 static constexpr uint8_t TAG_KNOB_BLOB   = 0x79;   // nested TLV for a knob
@@ -290,6 +291,8 @@ std::optional<ReqUpdateBatchPayload> decode_req_update_batch(std::span<const uin
 
 std::vector<uint8_t>               encode_req_reconnect(const ReqReconnectPayload& p);
 std::optional<ReqReconnectPayload> decode_req_reconnect(std::span<const uint8_t> data);
+
+std::optional<ReqAnimStartPayload> decode_req_anim_start(std::span<const uint8_t> data);
 
 std::vector<uint8_t> encode_resp_figure_created(const RespFigureCreatedPayload& p);
 std::optional<RespFigureCreatedPayload> decode_resp_figure_created(std::span<const uint8_t> data);

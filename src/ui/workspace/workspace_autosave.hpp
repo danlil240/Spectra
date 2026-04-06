@@ -38,17 +38,17 @@ class WorkspaceAutosave
     // ── Configuration ──
 
     /// Set the interval between auto-saves (default: 60 seconds).
-    void set_interval(Duration interval);
+    void                   set_interval(Duration interval);
     [[nodiscard]] Duration interval() const;
 
     /// Set the debounce delay after mark_dirty() before saving (default: 5 seconds).
     /// Prevents saving on every single keystroke.
-    void set_debounce(Duration debounce);
+    void                   set_debounce(Duration debounce);
     [[nodiscard]] Duration debounce() const;
 
     /// Set the output path for auto-saves.
     /// Default: ~/.config/spectra/autosave.spectra
-    void set_autosave_path(const std::string& path);
+    void                             set_autosave_path(const std::string& path);
     [[nodiscard]] const std::string& autosave_path() const;
 
     /// Set the function that produces the JSON to save.

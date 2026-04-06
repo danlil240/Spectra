@@ -70,6 +70,10 @@ enum class MessageType : uint16_t
     REQ_GET_SNAPSHOT = 0x0510,
     REQ_LIST_FIGURES = 0x0511,
 
+    // Python → Backend: animation
+    REQ_ANIM_START = 0x0520,
+    REQ_ANIM_STOP  = 0x0521,
+
     // Python → Backend: session
     REQ_RECONNECT  = 0x0530,
     REQ_DISCONNECT = 0x0531,
@@ -255,7 +259,8 @@ struct SnapshotFigureState
     uint32_t    height       = 720;
     int32_t     grid_rows    = 1;
     int32_t     grid_cols    = 1;
-    uint32_t    window_group = 0;   // Figures with the same non-zero group share one window
+    uint32_t    window_group = 0;      // Figures with the same non-zero group share one window
+    float       live_fps     = 0.0f;   // >0 = Python live-streaming at this FPS
     std::vector<SnapshotAxisState>   axes;
     std::vector<SnapshotSeriesState> series;
 };
@@ -306,6 +311,7 @@ struct DiffOp
         SET_AXIS_ZLIMITS   = 21,   // f1=z_min, f2=z_max
         ADD_SERIES         = 22,   // str_val=type, axes_index=axes, series_index=new index
         ADD_AXES           = 23,   // axes_index=new index, bool_val=is_3d
+        SET_LIVE_FPS       = 25,   // f1=target fps, bool_val=enable/disable
     };
 
     Type     type         = Type::SET_AXIS_LIMITS;
@@ -455,6 +461,14 @@ struct ReqReconnectPayload
 {
     SessionId   session_id = INVALID_SESSION;
     std::string session_token;
+};
+
+// Python → Backend: start live streaming / animation at target FPS.
+struct ReqAnimStartPayload
+{
+    uint64_t figure_id = 0;
+    float    fps       = 60.0f;
+    float    duration  = 0.0f;   // 0 = infinite
 };
 
 // ─── Python response payloads ───────────────────────────────────────────────

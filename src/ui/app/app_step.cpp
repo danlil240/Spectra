@@ -262,8 +262,7 @@ void App::init_runtime()
     rt.active_figure                = init_active;
     rt.active_figure_id             = init_active_id;
 
-    rt.frame_state.has_animation =
-        init_active ? static_cast<bool>(init_active->anim_.on_frame) : false;
+    rt.frame_state.has_animation = init_active ? init_active->has_animation() : false;
 
     if (!config_.headless)
     {
@@ -753,9 +752,8 @@ void App::init_runtime()
     // In headless mode, skip unless explicitly requested via environment variable
     // to avoid thread lifecycle issues during rapid create/destroy cycles in tests.
     {
-        const char* auto_env = std::getenv("SPECTRA_AUTO_SOCKET");
-        bool        want_automation =
-            !config_.headless || (auto_env && auto_env[0] != '\0');
+        const char* auto_env        = std::getenv("SPECTRA_AUTO_SOCKET");
+        bool        want_automation = !config_.headless || (auto_env && auto_env[0] != '\0');
 
         if (want_automation)
         {
@@ -790,8 +788,7 @@ void App::init_runtime()
 
                 rt.mcp_server = std::make_unique<McpServer>();
                 if (rt.mcp_server->start(*rt.auto_server, mcp_bind, mcp_port))
-                    SPECTRA_LOG_INFO("app",
-                                     "MCP server started: " + rt.mcp_server->endpoint());
+                    SPECTRA_LOG_INFO("app", "MCP server started: " + rt.mcp_server->endpoint());
                 else
                     rt.mcp_server.reset();
             }

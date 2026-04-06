@@ -456,12 +456,12 @@ void ImGuiIntegration::draw_command_bar()
 
     // Top bar: slightly darker than panels to push visual focus to canvas
     float bar_blend = 0.74f;   // Blend toward bg_primary
-    auto  bar_bg_r =
-        theme_colors().bg_primary.r * bar_blend + theme_colors().bg_secondary.r * (1.0f - bar_blend);
-    auto bar_bg_g =
-        theme_colors().bg_primary.g * bar_blend + theme_colors().bg_secondary.g * (1.0f - bar_blend);
-    auto bar_bg_b =
-        theme_colors().bg_primary.b * bar_blend + theme_colors().bg_secondary.b * (1.0f - bar_blend);
+    auto  bar_bg_r  = theme_colors().bg_primary.r * bar_blend
+                    + theme_colors().bg_secondary.r * (1.0f - bar_blend);
+    auto bar_bg_g = theme_colors().bg_primary.g * bar_blend
+                    + theme_colors().bg_secondary.g * (1.0f - bar_blend);
+    auto bar_bg_b = theme_colors().bg_primary.b * bar_blend
+                    + theme_colors().bg_secondary.b * (1.0f - bar_blend);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
                         ImVec2(ui::tokens::SPACE_5, ui::tokens::SPACE_2));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
@@ -549,16 +549,16 @@ void ImGuiIntegration::draw_command_bar()
                     float   cw    = ImGui::CalcTextSize(ch).x;
                     float   t     = (len > 1) ? static_cast<float>(idx) / (len - 1) : 0.0f;
                     float   mix   = 0.25f + 0.35f * t;
-                    uint8_t cr    = static_cast<uint8_t>(
-                        (theme_colors().text_primary.r * (1.0f - mix) + theme_colors().accent.r * mix)
-                        * 255);
-                    uint8_t cg = static_cast<uint8_t>(
-                        (theme_colors().text_primary.g * (1.0f - mix) + theme_colors().accent.g * mix)
-                        * 255);
-                    uint8_t cb = static_cast<uint8_t>(
-                        (theme_colors().text_primary.b * (1.0f - mix) + theme_colors().accent.b * mix)
-                        * 255);
-                    ImU32 col = IM_COL32(cr, cg, cb, 245);
+                    uint8_t cr  = static_cast<uint8_t>((theme_colors().text_primary.r * (1.0f - mix)
+                                                       + theme_colors().accent.r * mix)
+                                                      * 255);
+                    uint8_t cg  = static_cast<uint8_t>((theme_colors().text_primary.g * (1.0f - mix)
+                                                       + theme_colors().accent.g * mix)
+                                                      * 255);
+                    uint8_t cb  = static_cast<uint8_t>((theme_colors().text_primary.b * (1.0f - mix)
+                                                       + theme_colors().accent.b * mix)
+                                                      * 255);
+                    ImU32   col = IM_COL32(cr, cg, cb, 245);
                     dl->AddText(font_title_, font_sz, ImVec2(gx, text_y), col, ch);
                     gx += cw + spacing;
                 }

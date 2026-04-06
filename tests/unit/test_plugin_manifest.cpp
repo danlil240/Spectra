@@ -57,7 +57,7 @@ TEST(PluginManifest, IsValidComplete)
 TEST(PluginManifest, ParsedApiVersionValid)
 {
     PluginManifest m;
-    m.api_version = "2.0";
+    m.api_version       = "2.0";
     auto [major, minor] = m.parsed_api_version();
     EXPECT_EQ(major, 2u);
     EXPECT_EQ(minor, 0u);
@@ -66,7 +66,7 @@ TEST(PluginManifest, ParsedApiVersionValid)
 TEST(PluginManifest, ParsedApiVersionNonZeroMinor)
 {
     PluginManifest m;
-    m.api_version = "1.3";
+    m.api_version       = "1.3";
     auto [major, minor] = m.parsed_api_version();
     EXPECT_EQ(major, 1u);
     EXPECT_EQ(minor, 3u);
@@ -75,7 +75,7 @@ TEST(PluginManifest, ParsedApiVersionNonZeroMinor)
 TEST(PluginManifest, ParsedApiVersionNoDot)
 {
     PluginManifest m;
-    m.api_version = "2";
+    m.api_version       = "2";
     auto [major, minor] = m.parsed_api_version();
     EXPECT_EQ(major, 0u);
     EXPECT_EQ(minor, 0u);
@@ -92,7 +92,7 @@ TEST(PluginManifest, ParsedApiVersionEmpty)
 TEST(PluginManifest, ParsedApiVersionNonNumeric)
 {
     PluginManifest m;
-    m.api_version = "abc.def";
+    m.api_version       = "abc.def";
     auto [major, minor] = m.parsed_api_version();
     EXPECT_EQ(major, 0u);
     EXPECT_EQ(minor, 0u);
@@ -220,8 +220,8 @@ TEST(LoadPluginManifest, InvalidJson)
 
 TEST(LoadPluginManifest, MissingRequiredFields)
 {
-    const std::string json = R"({"author": "Someone"})";
-    auto              path = write_temp_file("test_plugin_manifest_missing.json", json);
+    const std::string json     = R"({"author": "Someone"})";
+    auto              path     = write_temp_file("test_plugin_manifest_missing.json", json);
     auto              manifest = load_plugin_manifest(path);
     std::filesystem::remove(path);
 

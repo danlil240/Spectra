@@ -72,6 +72,28 @@ std::unique_ptr<WindowUIContext> build_window_ui_context(const WindowUIContextBu
                 if (ui_raw->imgui_ui)
                     ui_raw->imgui_ui->clear_figure_cache(fig);
             }
+
+            // Remove figure from the split pane tree so stale tabs don't linger
+            auto& sv   = ui_raw->dock_system.split_view();
+            auto* root = sv.root();
+            if (root)
+            {
+                auto* pane = root->find_by_figure(id);
+                if (pane)
+                {
+                    if (pane->figure_count() <= 1 && root->is_split())
+                    {
+                        // Sole figure in a split pane — collapse the split
+                        ui_raw->dock_system.close_split(id);
+                    }
+                    else
+                    {
+                        // Multiple figures in this pane — just remove the tab
+                        pane->remove_figure(id);
+                    }
+                }
+            }
+
             if (on_closed)
                 on_closed(id, fig);
         });

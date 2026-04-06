@@ -50,7 +50,7 @@ TEST(WorkspaceAutosave, MarkDirtySetsDirtyFlag)
 
 TEST(WorkspaceAutosave, TickDoesNotSaveBeforeDebounce)
 {
-    std::string path = test_autosave_path("_nodebounce");
+    std::string       path = test_autosave_path("_nodebounce");
     WorkspaceAutosave a;
     a.set_autosave_path(path);
     a.set_debounce(std::chrono::seconds(60));   // very long debounce

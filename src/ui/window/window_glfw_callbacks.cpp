@@ -203,10 +203,7 @@ void WindowManager::glfw_cursor_pos_callback(GLFWwindow* window, double x, doubl
     #endif
 }
 
-void WindowManager::glfw_mouse_button_callback(GLFWwindow* window,
-                                               int         button,
-                                               int         action,
-                                               int         mods)
+void WindowManager::glfw_mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 {
     auto* mgr = static_cast<WindowManager*>(glfwGetWindowUserPointer(window));
     if (!mgr)

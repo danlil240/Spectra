@@ -123,10 +123,9 @@ class ChunkedLineSeries : public Series
     /// Pass as max_points to visible_data() to use the configured max_visible_points().
     static constexpr std::size_t USE_MAX_VISIBLE_POINTS = static_cast<std::size_t>(-1);
 
-    [[nodiscard]] VisibleData visible_data(
-        float       x_min,
-        float       x_max,
-        std::size_t max_points = USE_MAX_VISIBLE_POINTS) const;
+    [[nodiscard]] VisibleData visible_data(float       x_min,
+                                           float       x_max,
+                                           std::size_t max_points = USE_MAX_VISIBLE_POINTS) const;
 
     /// Control quality vs speed: maximum visible points used by visible_data().
     /// Default is 65536. Passing max_points to visible_data() overrides this.
@@ -135,7 +134,7 @@ class ChunkedLineSeries : public Series
 
     /// Control prefetch margin: fraction of viewport width to prefetch on each
     /// side. Default is 0.1 (10%).
-    ChunkedLineSeries& set_prefetch_margin(float fraction);
+    ChunkedLineSeries&  set_prefetch_margin(float fraction);
     [[nodiscard]] float prefetch_margin() const;
 
     /// Returns stats populated by the most recent visible_data() call.

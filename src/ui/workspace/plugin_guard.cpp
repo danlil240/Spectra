@@ -110,7 +110,9 @@ void install_signal_handlers()
 
 }   // namespace
 
-PluginCallResult plugin_guard_invoke(const char* context_name, void (*fn)(void*), void* arg,
+PluginCallResult plugin_guard_invoke(const char* context_name,
+                                     void (*fn)(void*),
+                                     void*              arg,
                                      PluginDiagnostics* diag)
 {
     const char* name = context_name ? context_name : "<unknown>";
@@ -127,10 +129,10 @@ PluginCallResult plugin_guard_invoke(const char* context_name, void (*fn)(void*)
             return;
         diag->fault_count++;
         diag->last_fault_reason = reason;
-        diag->last_fault_time   = static_cast<uint64_t>(
-            std::chrono::duration_cast<std::chrono::nanoseconds>(
-                std::chrono::steady_clock::now().time_since_epoch())
-                .count());
+        diag->last_fault_time =
+            static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                      std::chrono::steady_clock::now().time_since_epoch())
+                                      .count());
         if (static_cast<int>(diag->fault_count) >= PLUGIN_QUARANTINE_THRESHOLD)
             diag->quarantined = true;
     };
@@ -146,10 +148,9 @@ PluginCallResult plugin_guard_invoke(const char* context_name, void (*fn)(void*)
     if (sigsetjmp(t_jmp_buf, 1) != 0)
     {
         // Arrived here via siglongjmp from the signal handler.
-        t_in_guard    = 0;
-        int        sig = t_caught_signal;
-        std::string reason =
-            std::string("fatal signal ") + signal_name(sig);
+        t_in_guard         = 0;
+        int         sig    = t_caught_signal;
+        std::string reason = std::string("fatal signal ") + signal_name(sig);
         SPECTRA_LOG_ERROR("plugin",
                           "Plugin callback '{}' caught fatal signal {} — disabling",
                           name,

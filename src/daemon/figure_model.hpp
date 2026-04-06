@@ -125,6 +125,9 @@ class FigureModel
     // Set figure title. Returns a DiffOp.
     ipc::DiffOp set_figure_title(uint64_t figure_id, const std::string& title);
 
+    // Set live streaming FPS for a figure. 0 disables live streaming.
+    void set_live_fps(uint64_t figure_id, float fps);
+
     // --- Snapshot / Diff ---
 
     // Produce a full STATE_SNAPSHOT of all figures (or a subset by ID).
@@ -170,6 +173,7 @@ class FigureModel
         uint32_t                              height    = 720;
         int32_t                               grid_rows = 1;
         int32_t                               grid_cols = 1;
+        float                                 live_fps  = 0.0f;
         std::vector<ipc::SnapshotAxisState>   axes;
         std::vector<ipc::SnapshotSeriesState> series;
     };

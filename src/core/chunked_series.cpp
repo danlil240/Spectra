@@ -19,7 +19,7 @@ struct ChunkedLineSeries::Impl
     data::LodCache     lod;
 
     bool        lod_enabled        = false;
-    std::size_t memory_budget      = 0;       // 0 = unlimited
+    std::size_t memory_budget      = 0;   // 0 = unlimited
     float       line_width         = 2.0f;
     bool        lod_dirty          = true;
     uint64_t    lod_generation     = 0;

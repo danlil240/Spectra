@@ -126,6 +126,7 @@ table SnapshotFigureState {
     window_group: uint32 = 0;
     axes: [SnapshotAxisState];
     series: [SnapshotSeriesState];
+    live_fps: float = 0.0;
 }
 
 table SnapshotKnobState {
@@ -166,6 +167,7 @@ enum DiffOpType : uint8 {
     SET_AXIS_ZLIMITS   = 21,
     ADD_SERIES         = 22,
     ADD_AXES           = 23,
+    SET_LIVE_FPS       = 25,
 }
 
 table DiffOp {

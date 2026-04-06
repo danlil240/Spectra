@@ -1191,28 +1191,34 @@ WorkspaceValidationResult validate_workspace_data(WorkspaceData& data)
             // x range sanity
             if (ax.x_min >= ax.x_max && !ax.auto_fit)
             {
-                result.warnings.push_back("Axis has invalid x range ["
-                                          + std::to_string(ax.x_min) + ", "
-                                          + std::to_string(ax.x_max) + "], resetting to auto-fit");
+                result.warnings.push_back("Axis has invalid x range [" + std::to_string(ax.x_min)
+                                          + ", " + std::to_string(ax.x_max)
+                                          + "], resetting to auto-fit");
                 ax.auto_fit     = true;
                 result.repaired = true;
             }
             // y range sanity
             if (ax.y_min >= ax.y_max && !ax.auto_fit)
             {
-                result.warnings.push_back("Axis has invalid y range ["
-                                          + std::to_string(ax.y_min) + ", "
-                                          + std::to_string(ax.y_max) + "], resetting to auto-fit");
+                result.warnings.push_back("Axis has invalid y range [" + std::to_string(ax.y_min)
+                                          + ", " + std::to_string(ax.y_max)
+                                          + "], resetting to auto-fit");
                 ax.auto_fit     = true;
                 result.repaired = true;
             }
         }
 
         // Validate series types
-        static const std::unordered_set<std::string> kValidTypes = {
-            "line",    "scatter", "line3d",   "scatter3d", "surface",
-            "mesh",    "boxplot", "violin",   "histogram", "bar"
-        };
+        static const std::unordered_set<std::string> kValidTypes = {"line",
+                                                                    "scatter",
+                                                                    "line3d",
+                                                                    "scatter3d",
+                                                                    "surface",
+                                                                    "mesh",
+                                                                    "boxplot",
+                                                                    "violin",
+                                                                    "histogram",
+                                                                    "bar"};
         for (auto& ser : fig.series)
         {
             bool valid_type = ser.type.empty() || kValidTypes.count(ser.type) > 0;
@@ -1225,9 +1231,9 @@ WorkspaceValidationResult validate_workspace_data(WorkspaceData& data)
             }
 
             // Color channels must be [0, 1]
-            auto clamp01 = [](float v) { return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v); };
-            float cr = clamp01(ser.color_r), cg = clamp01(ser.color_g),
-                  cb = clamp01(ser.color_b), ca = clamp01(ser.color_a);
+            auto  clamp01 = [](float v) { return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v); };
+            float cr = clamp01(ser.color_r), cg = clamp01(ser.color_g), cb = clamp01(ser.color_b),
+                  ca = clamp01(ser.color_a);
             if (cr != ser.color_r || cg != ser.color_g || cb != ser.color_b || ca != ser.color_a)
             {
                 result.warnings.push_back("Series '" + ser.name

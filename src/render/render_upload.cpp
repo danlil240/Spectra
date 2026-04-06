@@ -293,11 +293,10 @@ void Renderer::upload_series_data(Series& series, double origin_x, double origin
         // without requiring GPU buffer re-upload.
         const uint64_t current_generation = static_cast<uint64_t>(chunked_line->point_count());
         const bool     count_changed      = (count != gpu.uploaded_count);
-        const bool     origin_moved =
-            (std::abs(static_cast<double>(gpu.origin_x) - origin_x) > 1.0 ||
-             std::abs(static_cast<double>(gpu.origin_y) - origin_y) > 1.0);
-        const bool needs_upload =
-            count_changed || origin_moved || !gpu.ssbo || (current_generation != gpu.data_generation);
+        const bool     origin_moved = (std::abs(static_cast<double>(gpu.origin_x) - origin_x) > 1.0
+                                   || std::abs(static_cast<double>(gpu.origin_y) - origin_y) > 1.0);
+        const bool     needs_upload = count_changed || origin_moved || !gpu.ssbo
+                                  || (current_generation != gpu.data_generation);
 
         if (!needs_upload)
         {

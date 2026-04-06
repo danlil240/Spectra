@@ -33,21 +33,18 @@ class WindowUIContextBuilderTest : public ::testing::Test
         secondary_id_ = registry_.register_figure(std::move(fig2));
     }
 
-    void TearDown() override
-    {
-        ui::ThemeManager::set_current(nullptr);
-    }
+    void TearDown() override { ui::ThemeManager::set_current(nullptr); }
 
-    FigureRegistry          registry_;
-    ui::ThemeManager        theme_mgr_;
-    PluginManager           plugin_manager_;
-    ExportFormatRegistry    export_registry_;
-    OverlayRegistry         overlay_registry_;
-    SeriesClipboard         shared_clipboard_;
-    Figure*                 active_figure_    = nullptr;
-    FigureId                active_figure_id_ = INVALID_FIGURE_ID;
-    FigureRegistry::IdType  primary_id_       = INVALID_FIGURE_ID;
-    FigureRegistry::IdType  secondary_id_     = INVALID_FIGURE_ID;
+    FigureRegistry         registry_;
+    ui::ThemeManager       theme_mgr_;
+    PluginManager          plugin_manager_;
+    ExportFormatRegistry   export_registry_;
+    OverlayRegistry        overlay_registry_;
+    SeriesClipboard        shared_clipboard_;
+    Figure*                active_figure_    = nullptr;
+    FigureId               active_figure_id_ = INVALID_FIGURE_ID;
+    FigureRegistry::IdType primary_id_       = INVALID_FIGURE_ID;
+    FigureRegistry::IdType secondary_id_     = INVALID_FIGURE_ID;
 };
 
 TEST_F(WindowUIContextBuilderTest, BuildsHeadlessSafeContextWithSharedServices)

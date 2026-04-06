@@ -398,7 +398,7 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
             // ImGui chrome (menu bar, empty canvas) so the window isn't black.
             if (win_fs.active_figure)
             {
-                win_fs.has_animation = static_cast<bool>(win_fs.active_figure->anim_.on_frame);
+                win_fs.has_animation = win_fs.active_figure->has_animation();
                 if (win_fs.has_animation)
                 {
                     has_any_animation = true;
@@ -429,7 +429,7 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
                 for (const auto& pinfo : wctx->ui_ctx->dock_system.get_pane_infos())
                 {
                     Figure* pfig = registry_.get(pinfo.figure_index);
-                    if (pfig && pfig->anim_.on_frame)
+                    if (pfig && pfig->has_animation())
                     {
                         win_fs.has_animation = true;
                         has_any_animation    = true;

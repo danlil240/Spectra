@@ -93,10 +93,10 @@ class LodCache
     /// Statistics returned alongside a query result.
     struct QueryStats
     {
-        std::size_t lod_level_used  = 0;     // 0 = full resolution
-        std::size_t points_returned = 0;     // Points in the returned span
-        std::size_t points_in_range = 0;     // Points in source at this range
-        bool        cache_hit       = false; // True if a cached level was used (level >= 1)
+        std::size_t lod_level_used  = 0;       // 0 = full resolution
+        std::size_t points_returned = 0;       // Points in the returned span
+        std::size_t points_in_range = 0;       // Points in source at this range
+        bool        cache_hit       = false;   // True if a cached level was used (level >= 1)
     };
 
     /// Combined query result with diagnostic statistics.
@@ -146,9 +146,9 @@ class LodCache
         }
 
         // All levels exceed budget; return the coarsest level
-        auto& coarsest   = levels_.back();
-        auto [lo, hi]    = visible_range(coarsest.x, x_min, x_max);
-        std::size_t count = hi - lo;
+        auto& coarsest           = levels_.back();
+        auto [lo, hi]            = visible_range(coarsest.x, x_min, x_max);
+        std::size_t count        = hi - lo;
         coarsest.last_query_time = ++lru_counter_;
         return {
             std::span<const float>(coarsest.x).subspan(lo, count),
@@ -205,10 +205,10 @@ class LodCache
         }
 
         // All levels exceed budget; return the coarsest level
-        auto& coarsest            = levels_.back();
-        auto [lo, hi]             = visible_range(coarsest.x, x_min, x_max);
-        std::size_t count         = hi - lo;
-        coarsest.last_query_time  = ++lru_counter_;
+        auto& coarsest           = levels_.back();
+        auto [lo, hi]            = visible_range(coarsest.x, x_min, x_max);
+        std::size_t count        = hi - lo;
+        coarsest.last_query_time = ++lru_counter_;
         QueryStats stats;
         stats.lod_level_used  = levels_.size();
         stats.points_returned = count;
@@ -261,7 +261,8 @@ class LodCache
         std::vector<std::size_t> order(levels_.size());
         for (std::size_t i = 0; i < levels_.size(); ++i)
             order[i] = i;
-        std::sort(order.begin(), order.end(),
+        std::sort(order.begin(),
+                  order.end(),
                   [this](std::size_t a, std::size_t b)
                   { return levels_[a].last_query_time < levels_[b].last_query_time; });
         return order;

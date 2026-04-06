@@ -141,7 +141,8 @@ static void heatmap_cleanup(SpectraBackendHandle backend,
 
 extern "C"
 {
-    SPECTRA_PLUGIN_API int spectra_plugin_init(const SpectraPluginContext* ctx, SpectraPluginInfo* info)
+    SPECTRA_PLUGIN_API int spectra_plugin_init(const SpectraPluginContext* ctx,
+                                               SpectraPluginInfo*          info)
     {
         info->name              = "Series: Heatmap";
         info->version           = "1.0.0";

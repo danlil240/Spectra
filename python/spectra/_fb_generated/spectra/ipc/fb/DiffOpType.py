@@ -23,3 +23,4 @@ class DiffOpType(object):
     SET_AXIS_ZLIMITS = 21
     ADD_SERIES = 22
     ADD_AXES = 23
+    SET_LIVE_FPS = 25

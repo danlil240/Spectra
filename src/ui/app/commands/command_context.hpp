@@ -29,8 +29,8 @@ struct CommandContext
 {
     WindowUIContext& ui_ctx;
     FigureRegistry&  registry;
-    Figure**         active_figure;       // pointer-to-pointer, updated per-frame
-    FigureId*        active_figure_id;    // pointer, updated per-frame
+    Figure**         active_figure;      // pointer-to-pointer, updated per-frame
+    FigureId*        active_figure_id;   // pointer, updated per-frame
     SessionRuntime*  session = nullptr;
 #ifdef SPECTRA_USE_GLFW
     WindowManager* window_mgr = nullptr;

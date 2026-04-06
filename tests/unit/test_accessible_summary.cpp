@@ -161,10 +161,10 @@ TEST(AccessibleSummary, SeriesSummaryContainsPointCount)
     float y[] = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f};
     ax.line(x, y).label("pts");
 
-    const auto& sv      = ax.series();
+    const auto&    sv = ax.series();
     SummaryOptions opts;
     opts.include_point_count = true;
-    std::string summary = accessible_series_summary(*sv[0], 0, opts);
+    std::string summary      = accessible_series_summary(*sv[0], 0, opts);
     EXPECT_NE(summary.find("5 points"), std::string::npos);
 }
 
@@ -177,10 +177,10 @@ TEST(AccessibleSummary, SeriesSummaryContainsRange)
     float y[] = {-10.0f, 0.0f, 10.0f};
     ax.line(x, y).label("range_test");
 
-    const auto& sv      = ax.series();
+    const auto&    sv = ax.series();
     SummaryOptions opts;
     opts.include_series_ranges = true;
-    std::string summary = accessible_series_summary(*sv[0], 0, opts);
+    std::string summary        = accessible_series_summary(*sv[0], 0, opts);
     EXPECT_NE(summary.find("Y range"), std::string::npos);
 }
 
@@ -211,10 +211,10 @@ TEST(AccessibleSummary, ChunkedSeriesIncludesLoDInfo)
     float y[] = {0.0f, 1.0f, 0.0f};
     chunked.set_data(x, y);
 
-    const auto& sv      = ax.series();
+    const auto&    sv = ax.series();
     SummaryOptions opts;
     opts.include_lod_info = true;
-    std::string summary = accessible_series_summary(*sv[0], 0, opts);
+    std::string summary   = accessible_series_summary(*sv[0], 0, opts);
     EXPECT_NE(summary.find("LoD level"), std::string::npos);
 }
 

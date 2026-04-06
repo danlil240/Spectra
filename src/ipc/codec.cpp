@@ -772,6 +772,8 @@ static std::vector<uint8_t> encode_figure_blob(const SnapshotFigureState& fig)
     enc.put_u32(TAG_GRID_COLS, static_cast<uint32_t>(fig.grid_cols));
     if (fig.window_group != 0)
         enc.put_u32(TAG_WINDOW_GROUP, fig.window_group);
+    if (fig.live_fps > 0.0f)
+        payload_put_float(enc, TAG_LIVE_FPS, fig.live_fps);
     for (const auto& ax : fig.axes)
     {
         auto blob = encode_axis_blob(ax);
@@ -813,6 +815,9 @@ static SnapshotFigureState decode_figure_blob(std::span<const uint8_t> data)
                 break;
             case TAG_WINDOW_GROUP:
                 fig.window_group = dec.as_u32();
+                break;
+            case TAG_LIVE_FPS:
+                fig.live_fps = payload_as_float(dec);
                 break;
             case TAG_AXIS_BLOB:
             {
@@ -1463,6 +1468,30 @@ std::optional<ReqReconnectPayload> decode_req_reconnect(std::span<const uint8_t>
                 break;
             case TAG_SESSION_TOKEN:
                 p.session_token = dec.as_string();
+                break;
+            default:
+                break;
+        }
+    }
+    return p;
+}
+
+std::optional<ReqAnimStartPayload> decode_req_anim_start(std::span<const uint8_t> data)
+{
+    ReqAnimStartPayload p;
+    PayloadDecoder      dec(data);
+    while (dec.next())
+    {
+        switch (dec.tag())
+        {
+            case TAG_FIGURE_ID:
+                p.figure_id = dec.as_u64();
+                break;
+            case TAG_F1:
+                p.fps = payload_as_float(dec);
+                break;
+            case TAG_F2:
+                p.duration = payload_as_float(dec);
                 break;
             default:
                 break;

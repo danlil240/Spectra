@@ -265,6 +265,13 @@ std::unique_ptr<spectra::Figure> build_figure_from_snapshot(
         }
     }
 
+    // Apply live streaming FPS from snapshot
+    if (snap.live_fps > 0.0f)
+    {
+        fig->anim_.live_streaming = true;
+        fig->anim_.fps            = snap.live_fps;
+    }
+
     return fig;
 }
 
@@ -364,6 +371,9 @@ void apply_diff_op_to_cache(spectra::ipc::SnapshotFigureState& fig, const spectr
         case spectra::ipc::DiffOp::Type::SET_AXIS_TITLE:
             if (op.axes_index < fig.axes.size())
                 fig.axes[op.axes_index].title = op.str_val;
+            break;
+        case spectra::ipc::DiffOp::Type::SET_LIVE_FPS:
+            // Handled on the live Figure object, not the cache.
             break;
         default:
             break;
@@ -468,6 +478,11 @@ void apply_diff_op_to_figure(spectra::Figure& fig, const spectra::ipc::DiffOp& o
         case spectra::ipc::DiffOp::Type::SET_AXIS_TITLE:
             if (op.axes_index < fig.axes().size() && fig.axes()[op.axes_index])
                 fig.axes_mut()[op.axes_index]->title(op.str_val);
+            break;
+        case spectra::ipc::DiffOp::Type::SET_LIVE_FPS:
+            fig.anim_.live_streaming = op.bool_val;
+            if (op.f1 > 0.0)
+                fig.anim_.fps = static_cast<float>(op.f1);
             break;
         default:
             break;

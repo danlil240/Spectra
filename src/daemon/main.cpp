@@ -305,6 +305,9 @@ int main(int argc, char* argv[])
                 case MessageType::REQ_GET_SNAPSHOT:
                     result = handle_req_get_snapshot(ctx, *it, msg);
                     break;
+                case MessageType::REQ_ANIM_START:
+                    result = handle_req_anim_start(ctx, *it, msg);
+                    break;
 
                 default:
                     std::cerr << "[spectra-backend] Unknown message type 0x" << std::hex

@@ -11,8 +11,10 @@ using spectra::ChunkedLineSeries;
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-static void build_large(LodCache& cache, std::vector<float>& x, std::vector<float>& y,
-                        std::size_t n = 10000)
+static void build_large(LodCache&           cache,
+                        std::vector<float>& x,
+                        std::vector<float>& y,
+                        std::size_t         n = 10000)
 {
     x.resize(n);
     y.resize(n);
@@ -75,7 +77,7 @@ TEST(LodCacheMetrics, EvictIfStale_DoesNotEvictSameGeneration)
     std::vector<float> x, y;
     build_large(cache, x, y);
 
-    uint64_t gen = cache.generation();   // Should be 1
+    uint64_t gen     = cache.generation();   // Should be 1
     bool     evicted = cache.evict_if_stale(gen);
     EXPECT_FALSE(evicted);
     EXPECT_FALSE(cache.empty());
@@ -226,15 +228,15 @@ TEST(LodCacheMetrics, ChunkedSeries_QueryStats_Default)
 
 TEST(LodCacheMetrics, ChunkedSeries_QueryStats_NoLod)
 {
-    ChunkedLineSeries series;
-    const std::size_t N = 1000;
+    ChunkedLineSeries  series;
+    const std::size_t  N = 1000;
     std::vector<float> x(N), y(N);
     std::iota(x.begin(), x.end(), 0.0f);
     for (std::size_t i = 0; i < N; ++i)
         y[i] = static_cast<float>(i);
     series.set_data(x, y);
 
-    auto vd = series.visible_data(0.0f, 999.0f, 10000);
+    auto vd    = series.visible_data(0.0f, 999.0f, 10000);
     auto stats = series.last_query_stats();
 
     EXPECT_EQ(stats.lod_level_used, 0u);
@@ -247,7 +249,7 @@ TEST(LodCacheMetrics, ChunkedSeries_QueryStats_WithLod)
     ChunkedLineSeries series;
     series.enable_lod(true);
 
-    const std::size_t N = 10000;
+    const std::size_t  N = 10000;
     std::vector<float> x(N), y(N);
     std::iota(x.begin(), x.end(), 0.0f);
     for (std::size_t i = 0; i < N; ++i)
@@ -286,8 +288,8 @@ TEST(LodCacheMetrics, ChunkedSeries_PrefetchMargin_DefaultAndSet)
 
 TEST(LodCacheMetrics, ChunkedSeries_MaxVisiblePoints_AffectsDecimation)
 {
-    ChunkedLineSeries series;
-    const std::size_t N = 10000;
+    ChunkedLineSeries  series;
+    const std::size_t  N = 10000;
     std::vector<float> x(N), y(N);
     std::iota(x.begin(), x.end(), 0.0f);
     for (std::size_t i = 0; i < N; ++i)

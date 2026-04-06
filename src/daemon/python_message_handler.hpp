@@ -48,4 +48,6 @@ HandleResult handle_req_disconnect(DaemonContext& ctx, ClientSlot& slot, const i
 
 HandleResult handle_req_get_snapshot(DaemonContext& ctx, ClientSlot& slot, const ipc::Message& msg);
 
+HandleResult handle_req_anim_start(DaemonContext& ctx, ClientSlot& slot, const ipc::Message& msg);
+
 }   // namespace spectra::daemon

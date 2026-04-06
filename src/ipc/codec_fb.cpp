@@ -413,6 +413,7 @@ static flatbuffers::Offset<fb::SnapshotFigureState> build_fb_figure(
     b.add_window_group(fig.window_group);
     b.add_axes(axes_off);
     b.add_series(series_off);
+    b.add_live_fps(fig.live_fps);
     return b.Finish();
 }
 
@@ -425,6 +426,7 @@ static SnapshotFigureState read_fb_figure(const fb::SnapshotFigureState* fb)
     fig.grid_rows    = fb->grid_rows();
     fig.grid_cols    = fb->grid_cols();
     fig.window_group = fb->window_group();
+    fig.live_fps     = fb->live_fps();
     if (fb->title())
         fig.title = fb->title()->str();
     if (fb->axes())

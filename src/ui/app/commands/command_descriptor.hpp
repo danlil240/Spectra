@@ -30,7 +30,7 @@ struct CommandDescriptor
 
 // Batch-register a list of descriptors into the given CommandRegistry.
 // Shortcuts are auto-registered via the ShortcutManager.
-void register_descriptors(CommandRegistry&                     registry,
+void register_descriptors(CommandRegistry&                      registry,
                           const std::vector<CommandDescriptor>& descriptors);
 
 }   // namespace spectra

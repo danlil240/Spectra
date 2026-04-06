@@ -508,19 +508,19 @@ extern "C"
 // Represents a loaded plugin.
 struct PluginEntry
 {
-    std::string name;
-    std::string version;
-    std::string author;
-    std::string description;
-    std::string path;   // Path to the shared library
-    bool        loaded      = false;
-    bool        enabled     = true;
-    PluginDiagnostics diagnostics;                   ///< Lifecycle diagnostics.
-    uint32_t    api_version_minor        = 0;   // API minor version the plugin was built against
-    void*       handle                   = nullptr;   // dlopen/LoadLibrary handle
+    std::string       name;
+    std::string       version;
+    std::string       author;
+    std::string       description;
+    std::string       path;   // Path to the shared library
+    bool              loaded  = false;
+    bool              enabled = true;
+    PluginDiagnostics diagnostics;              ///< Lifecycle diagnostics.
+    uint32_t          api_version_minor  = 0;   // API minor version the plugin was built against
+    void*             handle             = nullptr;   // dlopen/LoadLibrary handle
     SpectraPluginShutdownFn  shutdown_fn = nullptr;
     std::vector<std::string> registered_commands;   // Commands registered by this plugin
-    PluginManifest           manifest;              // Parsed plugin.json manifest (may be empty if no manifest)
+    PluginManifest manifest;   // Parsed plugin.json manifest (may be empty if no manifest)
 };
 
 // Manages plugin lifecycle: discovery, loading, unloading.

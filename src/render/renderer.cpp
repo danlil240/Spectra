@@ -173,9 +173,6 @@ Renderer::~Renderer() noexcept
             series_type_registry_->destroy_pipelines(backend_);
         }
 
-        if (overlay_tri_buffer_)
-            backend_.destroy_buffer(overlay_tri_buffer_);
-
         if (frame_ubo_buffer_)
         {
             backend_.destroy_buffer(frame_ubo_buffer_);

@@ -67,7 +67,6 @@ std::vector<CommandDescriptor> make_app_commands(CommandContext& ctx)
     {
         auto&  registry         = ctx.registry;
         auto&  active_figure_id = *ctx.active_figure_id;
-        auto*& active_figure    = *ctx.active_figure;
         auto&  fig_mgr          = *ui_ctx.fig_mgr;
         auto*  window_mgr       = ctx.window_mgr;
 

@@ -28,6 +28,9 @@ json to_json(const SubscriptionEntry& entry)
         {"subplot_slot", entry.subplot_slot},
         {"time_window_s", entry.time_window_s},
         {"scroll_paused", entry.scroll_paused},
+        {"axis_mode", axis_mode_name(entry.axis_mode)},
+        {"x_field_path", entry.x_field_path},
+        {"y_field_path", entry.y_field_path},
     };
 }
 
@@ -280,6 +283,10 @@ bool deserialize_session_v2_json(const json& root, RosSession& out, std::string&
             entry.subplot_slot  = item.value("subplot_slot", 0);
             entry.time_window_s = item.value("time_window_s", 0.0);
             entry.scroll_paused = item.value("scroll_paused", false);
+            entry.axis_mode =
+                axis_mode_from_name(item.value("axis_mode", std::string{"time-series"}));
+            entry.x_field_path = item.value("x_field_path", std::string{});
+            entry.y_field_path = item.value("y_field_path", std::string{});
             if (!entry.topic.empty())
                 out.subscriptions.push_back(std::move(entry));
         }

@@ -88,22 +88,6 @@ TEST(HelloClientType, EmptyClientType)
     EXPECT_EQ(decoded->client_type, "");
 }
 
-TEST(HelloClientType, BackwardCompatible)
-{
-    // Old encoder (no client_type) should still decode fine
-    PayloadEncoder enc;
-    enc.put_u16(TAG_PROTOCOL_MAJOR, 1);
-    enc.put_u16(TAG_PROTOCOL_MINOR, 0);
-    enc.put_string(TAG_AGENT_BUILD, "old-agent");
-    enc.put_u32(TAG_CAPABILITIES, 0);
-    auto data = enc.take();
-
-    auto decoded = decode_hello(data);
-    ASSERT_TRUE(decoded.has_value());
-    EXPECT_EQ(decoded->client_type, "");   // not present → empty
-    EXPECT_EQ(decoded->agent_build, "old-agent");
-}
-
 // ─── Python request payload round-trips ──────────────────────────────────────
 
 TEST(PythonPayloads, ReqCreateFigure)

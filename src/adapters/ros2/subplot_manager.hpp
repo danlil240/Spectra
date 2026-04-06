@@ -55,6 +55,7 @@
 #include <spectra/series.hpp>
 
 #include "generic_subscriber.hpp"
+#include "axis_mode.hpp"
 #include "message_introspector.hpp"
 #include "ros2_bridge.hpp"
 #include "ros_plot_manager.hpp"   // DirectWriteContext
@@ -218,6 +219,19 @@ class SubplotManager
 
     // Access individual series entries in a slot (0-based series index).
     const SeriesEntry* slot_series(int slot, int series_idx) const;
+
+    // Returns whether a slot can be switched into custom-axis mode.
+    bool slot_supports_custom_axes(int slot, std::string* reason_out = nullptr) const;
+
+    // Returns numeric leaf field paths available for the slot's current topic type.
+    std::vector<std::string> slot_numeric_fields(int slot) const;
+
+    // Reconfigure the slot's primary series between time-series and custom-axis modes.
+    bool configure_slot_axes(int                slot,
+                             AxisMode           mode,
+                             const std::string& x_field_path,
+                             const std::string& y_field_path,
+                             std::string*       error_out = nullptr);
 
     // Retrieve handle for a slot.  Returns invalid handle if slot is empty.
     SubplotHandle handle(int slot) const;
@@ -384,6 +398,8 @@ class SubplotManager
         // ROS2 subscription (for legacy single-series mode).
         std::unique_ptr<GenericSubscriber> subscriber;
         int                                extractor_id{-1};
+        int                                x_extractor_id{-1};
+        int                                y_extractor_id{-1};
 
         // Auto-fit state.
         size_t samples_received{0};
@@ -394,9 +410,17 @@ class SubplotManager
 
         // Per-slot scratch drain buffer.
         std::vector<FieldSample> drain_buf;
+        std::vector<FieldSample> x_drain_buf;
+        std::vector<FieldSample> y_drain_buf;
 
         // Per-slot time-window override (seconds). <= 0 means use global.
         double time_window_override_s{-1.0};
+
+        // The slot is the source of truth for axis mode and configured axes.
+        AxisMode    axis_mode{AxisMode::TimeSeries};
+        std::string x_field_path{AXIS_SOURCE_TIME};
+        std::string y_field_path;
+        size_t      buffer_depth{10000};
 
         // Multi-series support: additional series in this slot.
         std::vector<std::unique_ptr<SeriesEntry>> extra_series;
@@ -439,14 +463,32 @@ class SubplotManager
     // Auto-detect type name for topic.
     std::string detect_type(const std::string& topic) const;
 
+    // Resolve numeric field paths for a topic type.
+    std::vector<std::string> numeric_fields_for_type(const std::string& type_name) const;
+
+    bool validate_axis_config(const SlotEntry&    se,
+                              AxisMode            mode,
+                              const std::string&  resolved_type,
+                              const std::string&  x_field_path,
+                              const std::string&  y_field_path,
+                              std::string*        error_out) const;
+
+    bool rebuild_primary_slot_subscription(SlotEntry&     se,
+                                           size_t         buffer_depth,
+                                           std::string*   error_out);
+
+    void apply_slot_presented_buffer(SlotEntry& se);
+
+    void reset_slot_axis_config(SlotEntry& se);
+
     // Assign next palette color.
     spectra::Color next_color();
 
     // Re-link all active axes (called after add_plot / remove_plot).
     void rebuild_x_links();
 
-    // Update the ylabel for a slot based on all series it contains.
-    void update_slot_ylabel(SlotEntry& se);
+    // Update slot labels based on its configured axis mode and series layout.
+    void update_slot_labels(SlotEntry& se);
 
     // -----------------------------------------------------------------
     // Members

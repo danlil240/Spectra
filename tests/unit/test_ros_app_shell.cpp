@@ -42,6 +42,21 @@ static std::vector<char*> make_argv(std::vector<std::string>& args)
     return ptrs;
 }
 
+static void init_shell_subplot_state(RosAppShell& shell, int rows = 1, int cols = 1)
+{
+    int    argc = 0;
+    char** argv = nullptr;
+
+    shell.bridge_ = std::make_unique<Ros2Bridge>();
+    shell.intr_   = std::make_unique<MessageIntrospector>();
+    ASSERT_TRUE(shell.bridge_->init(shell.cfg_.node_name, shell.cfg_.node_ns, argc, argv));
+
+    shell.cfg_.subplot_rows = rows;
+    shell.cfg_.subplot_cols = cols;
+    shell.subplot_mgr_ =
+        std::make_unique<SubplotManager>(*shell.bridge_, *shell.intr_, rows, cols);
+}
+
 // ---------------------------------------------------------------------------
 // Suite: LayoutMode
 // ---------------------------------------------------------------------------
@@ -282,6 +297,105 @@ TEST(ParseArgs, WindowSeconds)
     auto                     cfg = parse_args(static_cast<int>(ptrs.size()), ptrs.data(), err);
     EXPECT_TRUE(err.empty());
     EXPECT_DOUBLE_EQ(cfg.time_window_s, 60.0);
+}
+
+TEST(RosAppShellSession, CaptureSessionPersistsCustomAxesConfig)
+{
+    RosAppShell shell(make_cfg("session_capture"));
+    init_shell_subplot_state(shell);
+
+    auto h = shell.subplot_mgr_->add_plot(1,
+                                          "/twist",
+                                          "angular.z",
+                                          "geometry_msgs/msg/Twist");
+    ASSERT_TRUE(h.valid());
+
+    std::string error;
+    ASSERT_TRUE(shell.subplot_mgr_->configure_slot_axes(1,
+                                                        AxisMode::CustomAxes,
+                                                        "linear.x",
+                                                        "angular.z",
+                                                        &error))
+        << error;
+
+    RosSession session = shell.capture_session();
+    ASSERT_EQ(session.subscriptions.size(), 1u);
+
+    const auto& sub = session.subscriptions.front();
+    EXPECT_EQ(sub.topic, "/twist");
+    EXPECT_EQ(sub.field_path, "angular.z");
+    EXPECT_EQ(sub.type_name, "geometry_msgs/msg/Twist");
+    EXPECT_EQ(sub.subplot_slot, 1);
+    EXPECT_EQ(sub.axis_mode, AxisMode::CustomAxes);
+    EXPECT_EQ(sub.x_field_path, "linear.x");
+    EXPECT_EQ(sub.y_field_path, "angular.z");
+}
+
+TEST(RosAppShellSession, ApplySessionRestoresCustomAxesConfig)
+{
+    RosAppShell shell(make_cfg("session_apply"));
+    init_shell_subplot_state(shell);
+
+    RosSession session;
+    session.subplot_rows  = 1;
+    session.subplot_cols  = 1;
+    session.time_window_s = 30.0;
+
+    SubscriptionEntry entry;
+    entry.topic        = "/twist";
+    entry.field_path   = "angular.z";
+    entry.type_name    = "geometry_msgs/msg/Twist";
+    entry.subplot_slot = 1;
+    entry.axis_mode    = AxisMode::CustomAxes;
+    entry.x_field_path = "linear.x";
+    entry.y_field_path = "angular.z";
+    session.subscriptions.push_back(entry);
+
+    shell.apply_session(session);
+
+    const auto* slot = shell.subplot_mgr_->slot_entry_pub(1);
+    ASSERT_NE(slot, nullptr);
+    ASSERT_TRUE(shell.subplot_mgr_->has_plot(1));
+    EXPECT_EQ(slot->axis_mode, AxisMode::CustomAxes);
+    EXPECT_EQ(slot->x_field_path, "linear.x");
+    EXPECT_EQ(slot->y_field_path, "angular.z");
+    EXPECT_EQ(slot->axes->xlabel(), "linear.x");
+    EXPECT_EQ(slot->axes->ylabel(), "angular.z");
+    ASSERT_NE(slot->series, nullptr);
+    EXPECT_EQ(slot->series->label(), "/twist: angular.z vs linear.x");
+}
+
+TEST(RosAppShellSession, ApplySessionInvalidCustomAxesFallsBackAndNotifies)
+{
+    RosAppShell shell(make_cfg("session_invalid_axes"));
+    init_shell_subplot_state(shell);
+
+    RosSession session;
+    session.subplot_rows  = 1;
+    session.subplot_cols  = 1;
+    session.time_window_s = 30.0;
+
+    SubscriptionEntry entry;
+    entry.topic        = "/twist";
+    entry.field_path   = "angular.z";
+    entry.type_name    = "geometry_msgs/msg/Twist";
+    entry.subplot_slot = 1;
+    entry.axis_mode    = AxisMode::CustomAxes;
+    entry.x_field_path = "not_a_field";
+    entry.y_field_path = "angular.z";
+    session.subscriptions.push_back(entry);
+
+    shell.apply_session(session);
+
+    const auto* slot = shell.subplot_mgr_->slot_entry_pub(1);
+    ASSERT_NE(slot, nullptr);
+    ASSERT_TRUE(shell.subplot_mgr_->has_plot(1));
+    EXPECT_EQ(slot->axis_mode, AxisMode::TimeSeries);
+    EXPECT_EQ(slot->x_field_path, AXIS_SOURCE_TIME);
+    EXPECT_EQ(slot->y_field_path, "angular.z");
+    EXPECT_NE(shell.session_status_msg_.find("Plot restore fallback for slot 1"),
+              std::string::npos);
+    EXPECT_GT(shell.session_status_timer_, 0.0f);
 }
 
 TEST(ParseArgs, WindowSecondsShortFlag)

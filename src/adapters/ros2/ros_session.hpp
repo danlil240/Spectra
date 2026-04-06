@@ -36,6 +36,8 @@
 #include <string>
 #include <vector>
 
+#include "axis_mode.hpp"
+
 namespace spectra::adapters::ros2
 {
 
@@ -69,6 +71,11 @@ struct SubscriptionEntry
 
     // Whether auto-scroll is paused for this plot.
     bool scroll_paused{false};
+
+    // Slot-level axis behavior and optional custom-axis field selections.
+    AxisMode    axis_mode{AxisMode::TimeSeries};
+    std::string x_field_path;
+    std::string y_field_path;
 };
 
 // ---------------------------------------------------------------------------

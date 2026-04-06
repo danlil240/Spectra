@@ -121,36 +121,6 @@ std::optional<Message> decode_message(std::span<const uint8_t> data)
     return msg;
 }
 
-// ─── PayloadEncoder ──────────────────────────────────────────────────────────
-
-void PayloadEncoder::put_u16(uint8_t tag, uint16_t val)
-{
-    buf_.push_back(tag);
-    write_u32_le(buf_, 2);
-    write_u16_le(buf_, val);
-}
-
-void PayloadEncoder::put_u32(uint8_t tag, uint32_t val)
-{
-    buf_.push_back(tag);
-    write_u32_le(buf_, 4);
-    write_u32_le(buf_, val);
-}
-
-void PayloadEncoder::put_u64(uint8_t tag, uint64_t val)
-{
-    buf_.push_back(tag);
-    write_u32_le(buf_, 8);
-    write_u64_le(buf_, val);
-}
-
-void PayloadEncoder::put_string(uint8_t tag, const std::string& val)
-{
-    buf_.push_back(tag);
-    write_u32_le(buf_, static_cast<uint32_t>(val.size()));
-    buf_.insert(buf_.end(), val.begin(), val.end());
-}
-
 // ─── PayloadDecoder ──────────────────────────────────────────────────────────
 
 PayloadDecoder::PayloadDecoder(std::span<const uint8_t> data) : data_(data) {}
@@ -207,33 +177,7 @@ std::vector<uint8_t> encode_hello(const HelloPayload& p)
 
 std::optional<HelloPayload> decode_hello(std::span<const uint8_t> data)
 {
-    DECODE_TRY_FB(decode_fb_hello, data);
-    HelloPayload   p;
-    PayloadDecoder dec(data);
-    while (dec.next())
-    {
-        switch (dec.tag())
-        {
-            case TAG_PROTOCOL_MAJOR:
-                p.protocol_major = dec.as_u16();
-                break;
-            case TAG_PROTOCOL_MINOR:
-                p.protocol_minor = dec.as_u16();
-                break;
-            case TAG_AGENT_BUILD:
-                p.agent_build = dec.as_string();
-                break;
-            case TAG_CAPABILITIES:
-                p.capabilities = dec.as_u32();
-                break;
-            case TAG_CLIENT_TYPE:
-                p.client_type = dec.as_string();
-                break;
-            default:
-                break;   // skip unknown tags (forward compat)
-        }
-    }
-    return p;
+    return decode_fb_hello(strip_fb_prefix(data));
 }
 
 std::vector<uint8_t> encode_welcome(const WelcomePayload& p)
@@ -243,33 +187,7 @@ std::vector<uint8_t> encode_welcome(const WelcomePayload& p)
 
 std::optional<WelcomePayload> decode_welcome(std::span<const uint8_t> data)
 {
-    DECODE_TRY_FB(decode_fb_welcome, data);
-    WelcomePayload p;
-    PayloadDecoder dec(data);
-    while (dec.next())
-    {
-        switch (dec.tag())
-        {
-            case TAG_SESSION_ID:
-                p.session_id = dec.as_u64();
-                break;
-            case TAG_WINDOW_ID:
-                p.window_id = dec.as_u64();
-                break;
-            case TAG_PROCESS_ID:
-                p.process_id = dec.as_u64();
-                break;
-            case TAG_HEARTBEAT_MS:
-                p.heartbeat_ms = dec.as_u32();
-                break;
-            case TAG_MODE:
-                p.mode = dec.as_string();
-                break;
-            default:
-                break;
-        }
-    }
-    return p;
+    return decode_fb_welcome(strip_fb_prefix(data));
 }
 
 std::vector<uint8_t> encode_resp_ok(const RespOkPayload& p)
@@ -279,21 +197,7 @@ std::vector<uint8_t> encode_resp_ok(const RespOkPayload& p)
 
 std::optional<RespOkPayload> decode_resp_ok(std::span<const uint8_t> data)
 {
-    DECODE_TRY_FB(decode_fb_resp_ok, data);
-    RespOkPayload  p;
-    PayloadDecoder dec(data);
-    while (dec.next())
-    {
-        switch (dec.tag())
-        {
-            case TAG_REQUEST_ID:
-                p.request_id = dec.as_u64();
-                break;
-            default:
-                break;
-        }
-    }
-    return p;
+    return decode_fb_resp_ok(strip_fb_prefix(data));
 }
 
 std::vector<uint8_t> encode_resp_err(const RespErrPayload& p)
@@ -303,27 +207,7 @@ std::vector<uint8_t> encode_resp_err(const RespErrPayload& p)
 
 std::optional<RespErrPayload> decode_resp_err(std::span<const uint8_t> data)
 {
-    DECODE_TRY_FB(decode_fb_resp_err, data);
-    RespErrPayload p;
-    PayloadDecoder dec(data);
-    while (dec.next())
-    {
-        switch (dec.tag())
-        {
-            case TAG_REQUEST_ID:
-                p.request_id = dec.as_u64();
-                break;
-            case TAG_ERROR_CODE:
-                p.code = dec.as_u32();
-                break;
-            case TAG_ERROR_MESSAGE:
-                p.message = dec.as_string();
-                break;
-            default:
-                break;
-        }
-    }
-    return p;
+    return decode_fb_resp_err(strip_fb_prefix(data));
 }
 
 // ─── Control payload encode/decode ───────────────────────────────────────────
@@ -335,29 +219,7 @@ std::vector<uint8_t> encode_cmd_assign_figures(const CmdAssignFiguresPayload& p)
 
 std::optional<CmdAssignFiguresPayload> decode_cmd_assign_figures(std::span<const uint8_t> data)
 {
-    DECODE_TRY_FB(decode_fb_cmd_assign_figures, data);
-    CmdAssignFiguresPayload p;
-    PayloadDecoder          dec(data);
-    while (dec.next())
-    {
-        switch (dec.tag())
-        {
-            case TAG_WINDOW_ID:
-                p.window_id = dec.as_u64();
-                break;
-            case TAG_FIGURE_IDS:
-                p.figure_ids.push_back(dec.as_u64());
-                break;
-            case TAG_ACTIVE_FIGURE:
-                p.active_figure_id = dec.as_u64();
-                break;
-            case TAG_FIGURE_COUNT:
-                break;   // informational only
-            default:
-                break;
-        }
-    }
-    return p;
+    return decode_fb_cmd_assign_figures(strip_fb_prefix(data));
 }
 
 std::vector<uint8_t> encode_req_create_window(const ReqCreateWindowPayload& p)
@@ -367,21 +229,7 @@ std::vector<uint8_t> encode_req_create_window(const ReqCreateWindowPayload& p)
 
 std::optional<ReqCreateWindowPayload> decode_req_create_window(std::span<const uint8_t> data)
 {
-    DECODE_TRY_FB(decode_fb_req_create_window, data);
-    ReqCreateWindowPayload p;
-    PayloadDecoder         dec(data);
-    while (dec.next())
-    {
-        switch (dec.tag())
-        {
-            case TAG_TEMPLATE_WINDOW:
-                p.template_window_id = dec.as_u64();
-                break;
-            default:
-                break;
-        }
-    }
-    return p;
+    return decode_fb_req_create_window(strip_fb_prefix(data));
 }
 
 std::vector<uint8_t> encode_req_close_window(const ReqCloseWindowPayload& p)
@@ -391,24 +239,7 @@ std::vector<uint8_t> encode_req_close_window(const ReqCloseWindowPayload& p)
 
 std::optional<ReqCloseWindowPayload> decode_req_close_window(std::span<const uint8_t> data)
 {
-    DECODE_TRY_FB(decode_fb_req_close_window, data);
-    ReqCloseWindowPayload p;
-    PayloadDecoder        dec(data);
-    while (dec.next())
-    {
-        switch (dec.tag())
-        {
-            case TAG_WINDOW_ID:
-                p.window_id = dec.as_u64();
-                break;
-            case TAG_REASON:
-                p.reason = dec.as_string();
-                break;
-            default:
-                break;
-        }
-    }
-    return p;
+    return decode_fb_req_close_window(strip_fb_prefix(data));
 }
 
 std::vector<uint8_t> encode_cmd_remove_figure(const CmdRemoveFigurePayload& p)
@@ -418,24 +249,7 @@ std::vector<uint8_t> encode_cmd_remove_figure(const CmdRemoveFigurePayload& p)
 
 std::optional<CmdRemoveFigurePayload> decode_cmd_remove_figure(std::span<const uint8_t> data)
 {
-    DECODE_TRY_FB(decode_fb_cmd_remove_figure, data);
-    CmdRemoveFigurePayload p;
-    PayloadDecoder         dec(data);
-    while (dec.next())
-    {
-        switch (dec.tag())
-        {
-            case TAG_WINDOW_ID:
-                p.window_id = dec.as_u64();
-                break;
-            case TAG_FIGURE_ID:
-                p.figure_id = dec.as_u64();
-                break;
-            default:
-                break;
-        }
-    }
-    return p;
+    return decode_fb_cmd_remove_figure(strip_fb_prefix(data));
 }
 
 std::vector<uint8_t> encode_cmd_set_active(const CmdSetActivePayload& p)
@@ -445,24 +259,7 @@ std::vector<uint8_t> encode_cmd_set_active(const CmdSetActivePayload& p)
 
 std::optional<CmdSetActivePayload> decode_cmd_set_active(std::span<const uint8_t> data)
 {
-    DECODE_TRY_FB(decode_fb_cmd_set_active, data);
-    CmdSetActivePayload p;
-    PayloadDecoder      dec(data);
-    while (dec.next())
-    {
-        switch (dec.tag())
-        {
-            case TAG_WINDOW_ID:
-                p.window_id = dec.as_u64();
-                break;
-            case TAG_ACTIVE_FIGURE:
-                p.figure_id = dec.as_u64();
-                break;
-            default:
-                break;
-        }
-    }
-    return p;
+    return decode_fb_cmd_set_active(strip_fb_prefix(data));
 }
 
 std::vector<uint8_t> encode_cmd_close_window(const CmdCloseWindowPayload& p)
@@ -472,24 +269,7 @@ std::vector<uint8_t> encode_cmd_close_window(const CmdCloseWindowPayload& p)
 
 std::optional<CmdCloseWindowPayload> decode_cmd_close_window(std::span<const uint8_t> data)
 {
-    DECODE_TRY_FB(decode_fb_cmd_close_window, data);
-    CmdCloseWindowPayload p;
-    PayloadDecoder        dec(data);
-    while (dec.next())
-    {
-        switch (dec.tag())
-        {
-            case TAG_WINDOW_ID:
-                p.window_id = dec.as_u64();
-                break;
-            case TAG_REASON:
-                p.reason = dec.as_string();
-                break;
-            default:
-                break;
-        }
-    }
-    return p;
+    return decode_fb_cmd_close_window(strip_fb_prefix(data));
 }
 
 // ─── REQ_DETACH_FIGURE ───────────────────────────────────────────────────────
@@ -501,75 +281,10 @@ std::vector<uint8_t> encode_req_detach_figure(const ReqDetachFigurePayload& p)
 
 std::optional<ReqDetachFigurePayload> decode_req_detach_figure(std::span<const uint8_t> data)
 {
-    DECODE_TRY_FB(decode_fb_req_detach_figure, data);
-    ReqDetachFigurePayload p;
-    PayloadDecoder         dec(data);
-    while (dec.next())
-    {
-        switch (dec.tag())
-        {
-            case TAG_SOURCE_WINDOW:
-                p.source_window_id = dec.as_u64();
-                break;
-            case TAG_FIGURE_ID:
-                p.figure_id = dec.as_u64();
-                break;
-            case TAG_WIDTH:
-                p.width = dec.as_u32();
-                break;
-            case TAG_HEIGHT:
-                p.height = dec.as_u32();
-                break;
-            case TAG_SCREEN_X:
-                p.screen_x = static_cast<int32_t>(payload_as_float(dec));
-                break;
-            case TAG_SCREEN_Y:
-                p.screen_y = static_cast<int32_t>(payload_as_float(dec));
-                break;
-            default:
-                break;
-        }
-    }
-    return p;
+    return decode_fb_req_detach_figure(strip_fb_prefix(data));
 }
 
-// ─── Payload extension helpers ───────────────────────────────────────────────
-
-void payload_put_float(PayloadEncoder& enc, uint8_t tag, float val)
-{
-    uint32_t bits;
-    std::memcpy(&bits, &val, 4);
-    enc.put_u32(tag, bits);
-}
-
-void payload_put_double(PayloadEncoder& enc, uint8_t tag, double val)
-{
-    uint64_t bits;
-    std::memcpy(&bits, &val, 8);
-    enc.put_u64(tag, bits);
-}
-
-void payload_put_bool(PayloadEncoder& enc, uint8_t tag, bool val)
-{
-    enc.put_u16(tag, val ? 1 : 0);
-}
-
-void payload_put_blob(PayloadEncoder& enc, uint8_t tag, const std::vector<uint8_t>& blob)
-{
-    enc.put_string(tag, std::string(reinterpret_cast<const char*>(blob.data()), blob.size()));
-}
-
-void payload_put_float_array(PayloadEncoder& enc, uint8_t tag, const std::vector<float>& arr)
-{
-    // Encode as raw bytes: [count_u32] [float0] [float1] ...
-    std::vector<uint8_t> raw;
-    uint32_t             count = static_cast<uint32_t>(arr.size());
-    raw.resize(4 + count * 4);
-    std::memcpy(raw.data(), &count, 4);
-    if (!arr.empty())
-        std::memcpy(raw.data() + 4, arr.data(), count * 4);
-    enc.put_string(tag, std::string(reinterpret_cast<const char*>(raw.data()), raw.size()));
-}
+// ─── Payload decode helpers ──────────────────────────────────────────────────
 
 float payload_as_float(const PayloadDecoder& dec)
 {
@@ -613,283 +328,6 @@ std::vector<uint8_t> payload_as_blob(const PayloadDecoder& dec)
     return std::vector<uint8_t>(s.begin(), s.end());
 }
 
-// ─── Axis blob encode/decode ─────────────────────────────────────────────────
-
-static std::vector<uint8_t> encode_axis_blob(const SnapshotAxisState& ax)
-{
-    PayloadEncoder enc;
-    payload_put_double(enc, TAG_X_MIN, ax.x_min);
-    payload_put_double(enc, TAG_X_MAX, ax.x_max);
-    payload_put_double(enc, TAG_Y_MIN, ax.y_min);
-    payload_put_double(enc, TAG_Y_MAX, ax.y_max);
-    payload_put_bool(enc, TAG_GRID_VISIBLE, ax.grid_visible);
-    if (ax.is_3d)
-    {
-        payload_put_bool(enc, TAG_IS_3D, true);
-        payload_put_double(enc, TAG_Z_MIN, ax.z_min);
-        payload_put_double(enc, TAG_Z_MAX, ax.z_max);
-    }
-    enc.put_string(TAG_X_LABEL, ax.x_label);
-    enc.put_string(TAG_Y_LABEL, ax.y_label);
-    enc.put_string(TAG_TITLE, ax.title);
-    return enc.take();
-}
-
-static SnapshotAxisState decode_axis_blob(std::span<const uint8_t> data)
-{
-    SnapshotAxisState ax;
-    PayloadDecoder    dec(data);
-    while (dec.next())
-    {
-        switch (dec.tag())
-        {
-            case TAG_X_MIN:
-                ax.x_min = payload_as_double(dec);
-                break;
-            case TAG_X_MAX:
-                ax.x_max = payload_as_double(dec);
-                break;
-            case TAG_Y_MIN:
-                ax.y_min = payload_as_double(dec);
-                break;
-            case TAG_Y_MAX:
-                ax.y_max = payload_as_double(dec);
-                break;
-            case TAG_GRID_VISIBLE:
-                ax.grid_visible = payload_as_bool(dec);
-                break;
-            case TAG_IS_3D:
-                ax.is_3d = payload_as_bool(dec);
-                break;
-            case TAG_Z_MIN:
-                ax.z_min = payload_as_double(dec);
-                break;
-            case TAG_Z_MAX:
-                ax.z_max = payload_as_double(dec);
-                break;
-            case TAG_X_LABEL:
-                ax.x_label = dec.as_string();
-                break;
-            case TAG_Y_LABEL:
-                ax.y_label = dec.as_string();
-                break;
-            case TAG_TITLE:
-                ax.title = dec.as_string();
-                break;
-            default:
-                break;
-        }
-    }
-    return ax;
-}
-
-// ─── Series blob encode/decode ───────────────────────────────────────────────
-
-static std::vector<uint8_t> encode_series_blob(const SnapshotSeriesState& s)
-{
-    PayloadEncoder enc;
-    enc.put_string(TAG_SERIES_NAME, s.name);
-    enc.put_string(TAG_SERIES_TYPE, s.type);
-    payload_put_float(enc, TAG_COLOR_R, s.color_r);
-    payload_put_float(enc, TAG_COLOR_G, s.color_g);
-    payload_put_float(enc, TAG_COLOR_B, s.color_b);
-    payload_put_float(enc, TAG_COLOR_A, s.color_a);
-    payload_put_float(enc, TAG_LINE_WIDTH, s.line_width);
-    payload_put_float(enc, TAG_MARKER_SIZE, s.marker_size);
-    payload_put_bool(enc, TAG_VISIBLE, s.visible);
-    payload_put_float(enc, TAG_OPACITY_VAL, s.opacity);
-    enc.put_u32(TAG_POINT_COUNT, s.point_count);
-    enc.put_u32(TAG_SERIES_AXES_INDEX, s.axes_index);
-    if (!s.data.empty())
-        payload_put_float_array(enc, TAG_SERIES_DATA, s.data);
-    return enc.take();
-}
-
-static SnapshotSeriesState decode_series_blob(std::span<const uint8_t> data)
-{
-    SnapshotSeriesState s;
-    PayloadDecoder      dec(data);
-    while (dec.next())
-    {
-        switch (dec.tag())
-        {
-            case TAG_SERIES_NAME:
-                s.name = dec.as_string();
-                break;
-            case TAG_SERIES_TYPE:
-                s.type = dec.as_string();
-                break;
-            case TAG_COLOR_R:
-                s.color_r = payload_as_float(dec);
-                break;
-            case TAG_COLOR_G:
-                s.color_g = payload_as_float(dec);
-                break;
-            case TAG_COLOR_B:
-                s.color_b = payload_as_float(dec);
-                break;
-            case TAG_COLOR_A:
-                s.color_a = payload_as_float(dec);
-                break;
-            case TAG_LINE_WIDTH:
-                s.line_width = payload_as_float(dec);
-                break;
-            case TAG_MARKER_SIZE:
-                s.marker_size = payload_as_float(dec);
-                break;
-            case TAG_VISIBLE:
-                s.visible = payload_as_bool(dec);
-                break;
-            case TAG_OPACITY_VAL:
-                s.opacity = payload_as_float(dec);
-                break;
-            case TAG_POINT_COUNT:
-                s.point_count = dec.as_u32();
-                break;
-            case TAG_SERIES_DATA:
-                s.data = payload_as_float_array(dec);
-                break;
-            case TAG_SERIES_AXES_INDEX:
-                s.axes_index = dec.as_u32();
-                break;
-            default:
-                break;
-        }
-    }
-    return s;
-}
-
-// ─── Figure blob encode/decode ───────────────────────────────────────────────
-
-static std::vector<uint8_t> encode_figure_blob(const SnapshotFigureState& fig)
-{
-    PayloadEncoder enc;
-    enc.put_u64(TAG_FIGURE_ID, fig.figure_id);
-    enc.put_string(TAG_TITLE, fig.title);
-    enc.put_u32(TAG_WIDTH, fig.width);
-    enc.put_u32(TAG_HEIGHT, fig.height);
-    enc.put_u32(TAG_GRID_ROWS, static_cast<uint32_t>(fig.grid_rows));
-    enc.put_u32(TAG_GRID_COLS, static_cast<uint32_t>(fig.grid_cols));
-    if (fig.window_group != 0)
-        enc.put_u32(TAG_WINDOW_GROUP, fig.window_group);
-    if (fig.live_fps > 0.0f)
-        payload_put_float(enc, TAG_LIVE_FPS, fig.live_fps);
-    for (const auto& ax : fig.axes)
-    {
-        auto blob = encode_axis_blob(ax);
-        payload_put_blob(enc, TAG_AXIS_BLOB, blob);
-    }
-    for (const auto& s : fig.series)
-    {
-        auto blob = encode_series_blob(s);
-        payload_put_blob(enc, TAG_SERIES_BLOB, blob);
-    }
-    return enc.take();
-}
-
-static SnapshotFigureState decode_figure_blob(std::span<const uint8_t> data)
-{
-    SnapshotFigureState fig;
-    PayloadDecoder      dec(data);
-    while (dec.next())
-    {
-        switch (dec.tag())
-        {
-            case TAG_FIGURE_ID:
-                fig.figure_id = dec.as_u64();
-                break;
-            case TAG_TITLE:
-                fig.title = dec.as_string();
-                break;
-            case TAG_WIDTH:
-                fig.width = dec.as_u32();
-                break;
-            case TAG_HEIGHT:
-                fig.height = dec.as_u32();
-                break;
-            case TAG_GRID_ROWS:
-                fig.grid_rows = static_cast<int32_t>(dec.as_u32());
-                break;
-            case TAG_GRID_COLS:
-                fig.grid_cols = static_cast<int32_t>(dec.as_u32());
-                break;
-            case TAG_WINDOW_GROUP:
-                fig.window_group = dec.as_u32();
-                break;
-            case TAG_LIVE_FPS:
-                fig.live_fps = payload_as_float(dec);
-                break;
-            case TAG_AXIS_BLOB:
-            {
-                auto blob = payload_as_blob(dec);
-                fig.axes.push_back(decode_axis_blob(blob));
-                break;
-            }
-            case TAG_SERIES_BLOB:
-            {
-                auto blob = payload_as_blob(dec);
-                fig.series.push_back(decode_series_blob(blob));
-                break;
-            }
-            default:
-                break;
-        }
-    }
-    return fig;
-}
-
-// ─── Knob blob encode/decode ─────────────────────────────────────────────────
-
-static std::vector<uint8_t> encode_knob_blob(const SnapshotKnobState& k)
-{
-    PayloadEncoder enc;
-    enc.put_string(TAG_KNOB_NAME, k.name);
-    enc.put_u16(TAG_KNOB_TYPE, k.type);
-    payload_put_float(enc, TAG_KNOB_VALUE, k.value);
-    payload_put_float(enc, TAG_KNOB_MIN, k.min_val);
-    payload_put_float(enc, TAG_KNOB_MAX, k.max_val);
-    payload_put_float(enc, TAG_KNOB_STEP, k.step);
-    for (const auto& c : k.choices)
-        enc.put_string(TAG_KNOB_CHOICE, c);
-    return enc.take();
-}
-
-static SnapshotKnobState decode_knob_blob(std::span<const uint8_t> data)
-{
-    SnapshotKnobState k;
-    PayloadDecoder    dec(data);
-    while (dec.next())
-    {
-        switch (dec.tag())
-        {
-            case TAG_KNOB_NAME:
-                k.name = dec.as_string();
-                break;
-            case TAG_KNOB_TYPE:
-                k.type = static_cast<uint8_t>(dec.as_u16());
-                break;
-            case TAG_KNOB_VALUE:
-                k.value = payload_as_float(dec);
-                break;
-            case TAG_KNOB_MIN:
-                k.min_val = payload_as_float(dec);
-                break;
-            case TAG_KNOB_MAX:
-                k.max_val = payload_as_float(dec);
-                break;
-            case TAG_KNOB_STEP:
-                k.step = payload_as_float(dec);
-                break;
-            case TAG_KNOB_CHOICE:
-                k.choices.push_back(dec.as_string());
-                break;
-            default:
-                break;
-        }
-    }
-    return k;
-}
-
 // ─── STATE_SNAPSHOT encode/decode ────────────────────────────────────────────
 
 std::vector<uint8_t> encode_state_snapshot(const StateSnapshotPayload& p)
@@ -899,105 +337,7 @@ std::vector<uint8_t> encode_state_snapshot(const StateSnapshotPayload& p)
 
 std::optional<StateSnapshotPayload> decode_state_snapshot(std::span<const uint8_t> data)
 {
-    DECODE_TRY_FB(decode_fb_state_snapshot, data);
-    StateSnapshotPayload p;
-    PayloadDecoder       dec(data);
-    while (dec.next())
-    {
-        switch (dec.tag())
-        {
-            case TAG_REVISION:
-                p.revision = dec.as_u64();
-                break;
-            case TAG_SESSION_ID:
-                p.session_id = dec.as_u64();
-                break;
-            case TAG_FIGURE_BLOB:
-            {
-                auto blob = payload_as_blob(dec);
-                p.figures.push_back(decode_figure_blob(blob));
-                break;
-            }
-            case TAG_KNOB_BLOB:
-            {
-                auto blob = payload_as_blob(dec);
-                p.knobs.push_back(decode_knob_blob(blob));
-                break;
-            }
-            default:
-                break;
-        }
-    }
-    return p;
-}
-
-// ─── DiffOp blob encode/decode ───────────────────────────────────────────────
-/*
-static std::vector<uint8_t> encode_diff_op_blob(const DiffOp& op)
-{
-    PayloadEncoder enc;
-    enc.put_u16(TAG_OP_TYPE, static_cast<uint16_t>(op.type));
-    enc.put_u64(TAG_FIGURE_ID, op.figure_id);
-    enc.put_u32(TAG_AXES_INDEX, op.axes_index);
-    enc.put_u32(TAG_SERIES_INDEX, op.series_index);
-    payload_put_double(enc, TAG_F1, op.f1);
-    payload_put_double(enc, TAG_F2, op.f2);
-    payload_put_double(enc, TAG_F3, op.f3);
-    payload_put_double(enc, TAG_F4, op.f4);
-    payload_put_bool(enc, TAG_BOOL_VAL, op.bool_val);
-    if (!op.str_val.empty())
-        enc.put_string(TAG_STR_VAL, op.str_val);
-    if (!op.data.empty())
-        payload_put_float_array(enc, TAG_OP_DATA, op.data);
-    return enc.take();
-}
- */
-static DiffOp decode_diff_op_blob(std::span<const uint8_t> data)
-{
-    DiffOp         op;
-    PayloadDecoder dec(data);
-    while (dec.next())
-    {
-        switch (dec.tag())
-        {
-            case TAG_OP_TYPE:
-                op.type = static_cast<DiffOp::Type>(dec.as_u16());
-                break;
-            case TAG_FIGURE_ID:
-                op.figure_id = dec.as_u64();
-                break;
-            case TAG_AXES_INDEX:
-                op.axes_index = dec.as_u32();
-                break;
-            case TAG_SERIES_INDEX:
-                op.series_index = dec.as_u32();
-                break;
-            case TAG_F1:
-                op.f1 = payload_as_double(dec);
-                break;
-            case TAG_F2:
-                op.f2 = payload_as_double(dec);
-                break;
-            case TAG_F3:
-                op.f3 = payload_as_double(dec);
-                break;
-            case TAG_F4:
-                op.f4 = payload_as_double(dec);
-                break;
-            case TAG_BOOL_VAL:
-                op.bool_val = payload_as_bool(dec);
-                break;
-            case TAG_STR_VAL:
-                op.str_val = dec.as_string();
-                break;
-            case TAG_OP_DATA:
-                op.data = payload_as_float_array(dec);
-                break;
-            default:
-                break;
-        }
-    }
-    return op;
+    return decode_fb_state_snapshot(strip_fb_prefix(data));
 }
 
 // ─── STATE_DIFF encode/decode ────────────────────────────────────────────────
@@ -1009,30 +349,7 @@ std::vector<uint8_t> encode_state_diff(const StateDiffPayload& p)
 
 std::optional<StateDiffPayload> decode_state_diff(std::span<const uint8_t> data)
 {
-    DECODE_TRY_FB(decode_fb_state_diff, data);
-    StateDiffPayload p;
-    PayloadDecoder   dec(data);
-    while (dec.next())
-    {
-        switch (dec.tag())
-        {
-            case TAG_BASE_REVISION:
-                p.base_revision = dec.as_u64();
-                break;
-            case TAG_NEW_REVISION:
-                p.new_revision = dec.as_u64();
-                break;
-            case TAG_DIFF_OP_BLOB:
-            {
-                auto blob = payload_as_blob(dec);
-                p.ops.push_back(decode_diff_op_blob(blob));
-                break;
-            }
-            default:
-                break;
-        }
-    }
-    return p;
+    return decode_fb_state_diff(strip_fb_prefix(data));
 }
 
 // ─── ACK_STATE encode/decode ─────────────────────────────────────────────────
@@ -1044,21 +361,7 @@ std::vector<uint8_t> encode_ack_state(const AckStatePayload& p)
 
 std::optional<AckStatePayload> decode_ack_state(std::span<const uint8_t> data)
 {
-    DECODE_TRY_FB(decode_fb_ack_state, data);
-    AckStatePayload p;
-    PayloadDecoder  dec(data);
-    while (dec.next())
-    {
-        switch (dec.tag())
-        {
-            case TAG_REVISION:
-                p.revision = dec.as_u64();
-                break;
-            default:
-                break;
-        }
-    }
-    return p;
+    return decode_fb_ack_state(strip_fb_prefix(data));
 }
 
 // ─── EVT_INPUT encode/decode ─────────────────────────────────────────────────
@@ -1070,42 +373,7 @@ std::vector<uint8_t> encode_evt_input(const EvtInputPayload& p)
 
 std::optional<EvtInputPayload> decode_evt_input(std::span<const uint8_t> data)
 {
-    DECODE_TRY_FB(decode_fb_evt_input, data);
-    EvtInputPayload p;
-    PayloadDecoder  dec(data);
-    while (dec.next())
-    {
-        switch (dec.tag())
-        {
-            case TAG_WINDOW_ID:
-                p.window_id = dec.as_u64();
-                break;
-            case TAG_INPUT_TYPE:
-                p.input_type = static_cast<EvtInputPayload::InputType>(dec.as_u16());
-                break;
-            case TAG_KEY_CODE:
-                p.key = static_cast<int32_t>(dec.as_u32());
-                break;
-            case TAG_MODS:
-                p.mods = static_cast<int32_t>(dec.as_u32());
-                break;
-            case TAG_CURSOR_X:
-                p.x = payload_as_double(dec);
-                break;
-            case TAG_CURSOR_Y:
-                p.y = payload_as_double(dec);
-                break;
-            case TAG_FIGURE_ID:
-                p.figure_id = dec.as_u64();
-                break;
-            case TAG_AXES_INDEX:
-                p.axes_index = dec.as_u32();
-                break;
-            default:
-                break;
-        }
-    }
-    return p;
+    return decode_fb_evt_input(strip_fb_prefix(data));
 }
 
 // ─── Python request/response payload encode/decode ───────────────────────────
@@ -1117,27 +385,7 @@ std::vector<uint8_t> encode_req_create_figure(const ReqCreateFigurePayload& p)
 
 std::optional<ReqCreateFigurePayload> decode_req_create_figure(std::span<const uint8_t> data)
 {
-    DECODE_TRY_FB(decode_fb_req_create_figure, data);
-    ReqCreateFigurePayload p;
-    PayloadDecoder         dec(data);
-    while (dec.next())
-    {
-        switch (dec.tag())
-        {
-            case TAG_TITLE:
-                p.title = dec.as_string();
-                break;
-            case TAG_WIDTH:
-                p.width = dec.as_u32();
-                break;
-            case TAG_HEIGHT:
-                p.height = dec.as_u32();
-                break;
-            default:
-                break;
-        }
-    }
-    return p;
+    return decode_fb_req_create_figure(strip_fb_prefix(data));
 }
 
 std::vector<uint8_t> encode_req_destroy_figure(const ReqDestroyFigurePayload& p)
@@ -1147,21 +395,7 @@ std::vector<uint8_t> encode_req_destroy_figure(const ReqDestroyFigurePayload& p)
 
 std::optional<ReqDestroyFigurePayload> decode_req_destroy_figure(std::span<const uint8_t> data)
 {
-    DECODE_TRY_FB(decode_fb_req_destroy_figure, data);
-    ReqDestroyFigurePayload p;
-    PayloadDecoder          dec(data);
-    while (dec.next())
-    {
-        switch (dec.tag())
-        {
-            case TAG_FIGURE_ID:
-                p.figure_id = dec.as_u64();
-                break;
-            default:
-                break;
-        }
-    }
-    return p;
+    return decode_fb_req_destroy_figure(strip_fb_prefix(data));
 }
 
 std::vector<uint8_t> encode_req_create_axes(const ReqCreateAxesPayload& p)
@@ -1171,33 +405,7 @@ std::vector<uint8_t> encode_req_create_axes(const ReqCreateAxesPayload& p)
 
 std::optional<ReqCreateAxesPayload> decode_req_create_axes(std::span<const uint8_t> data)
 {
-    DECODE_TRY_FB(decode_fb_req_create_axes, data);
-    ReqCreateAxesPayload p;
-    PayloadDecoder       dec(data);
-    while (dec.next())
-    {
-        switch (dec.tag())
-        {
-            case TAG_FIGURE_ID:
-                p.figure_id = dec.as_u64();
-                break;
-            case TAG_GRID_ROWS:
-                p.grid_rows = static_cast<int32_t>(dec.as_u32());
-                break;
-            case TAG_GRID_COLS:
-                p.grid_cols = static_cast<int32_t>(dec.as_u32());
-                break;
-            case TAG_GRID_INDEX:
-                p.grid_index = static_cast<int32_t>(dec.as_u32());
-                break;
-            case TAG_IS_3D:
-                p.is_3d = payload_as_bool(dec);
-                break;
-            default:
-                break;
-        }
-    }
-    return p;
+    return decode_fb_req_create_axes(strip_fb_prefix(data));
 }
 
 std::vector<uint8_t> encode_req_add_series(const ReqAddSeriesPayload& p)
@@ -1207,30 +415,7 @@ std::vector<uint8_t> encode_req_add_series(const ReqAddSeriesPayload& p)
 
 std::optional<ReqAddSeriesPayload> decode_req_add_series(std::span<const uint8_t> data)
 {
-    DECODE_TRY_FB(decode_fb_req_add_series, data);
-    ReqAddSeriesPayload p;
-    PayloadDecoder      dec(data);
-    while (dec.next())
-    {
-        switch (dec.tag())
-        {
-            case TAG_FIGURE_ID:
-                p.figure_id = dec.as_u64();
-                break;
-            case TAG_AXES_INDEX:
-                p.axes_index = dec.as_u32();
-                break;
-            case TAG_SERIES_TYPE:
-                p.series_type = dec.as_string();
-                break;
-            case TAG_SERIES_LABEL:
-                p.label = dec.as_string();
-                break;
-            default:
-                break;
-        }
-    }
-    return p;
+    return decode_fb_req_add_series(strip_fb_prefix(data));
 }
 
 std::vector<uint8_t> encode_req_remove_series(const ReqRemoveSeriesPayload& p)
@@ -1240,24 +425,7 @@ std::vector<uint8_t> encode_req_remove_series(const ReqRemoveSeriesPayload& p)
 
 std::optional<ReqRemoveSeriesPayload> decode_req_remove_series(std::span<const uint8_t> data)
 {
-    DECODE_TRY_FB(decode_fb_req_remove_series, data);
-    ReqRemoveSeriesPayload p;
-    PayloadDecoder         dec(data);
-    while (dec.next())
-    {
-        switch (dec.tag())
-        {
-            case TAG_FIGURE_ID:
-                p.figure_id = dec.as_u64();
-                break;
-            case TAG_SERIES_INDEX:
-                p.series_index = dec.as_u32();
-                break;
-            default:
-                break;
-        }
-    }
-    return p;
+    return decode_fb_req_remove_series(strip_fb_prefix(data));
 }
 
 std::vector<uint8_t> encode_req_set_data(const ReqSetDataPayload& p)
@@ -1331,47 +499,7 @@ std::vector<uint8_t> encode_req_update_property(const ReqUpdatePropertyPayload& 
 std::optional<ReqUpdatePropertyPayload> decode_req_update_property(std::span<const uint8_t> data)
 {
     DECODE_TRY_FB(decode_fb_req_update_property, data);
-    ReqUpdatePropertyPayload p;
-    PayloadDecoder           dec(data);
-    while (dec.next())
-    {
-        switch (dec.tag())
-        {
-            case TAG_FIGURE_ID:
-                p.figure_id = dec.as_u64();
-                break;
-            case TAG_AXES_INDEX:
-                p.axes_index = dec.as_u32();
-                break;
-            case TAG_SERIES_INDEX:
-                p.series_index = dec.as_u32();
-                break;
-            case TAG_PROPERTY_NAME:
-                p.property = dec.as_string();
-                break;
-            case TAG_F1:
-                p.f1 = payload_as_double(dec);
-                break;
-            case TAG_F2:
-                p.f2 = payload_as_double(dec);
-                break;
-            case TAG_F3:
-                p.f3 = payload_as_double(dec);
-                break;
-            case TAG_F4:
-                p.f4 = payload_as_double(dec);
-                break;
-            case TAG_BOOL_VAL:
-                p.bool_val = payload_as_bool(dec);
-                break;
-            case TAG_STR_VAL:
-                p.str_val = dec.as_string();
-                break;
-            default:
-                break;
-        }
-    }
-    return p;
+    return std::nullopt;
 }
 
 std::vector<uint8_t> encode_req_show(const ReqShowPayload& p)
@@ -1381,24 +509,7 @@ std::vector<uint8_t> encode_req_show(const ReqShowPayload& p)
 
 std::optional<ReqShowPayload> decode_req_show(std::span<const uint8_t> data)
 {
-    DECODE_TRY_FB(decode_fb_req_show, data);
-    ReqShowPayload p;
-    PayloadDecoder dec(data);
-    while (dec.next())
-    {
-        switch (dec.tag())
-        {
-            case TAG_FIGURE_ID:
-                p.figure_id = dec.as_u64();
-                break;
-            case TAG_WINDOW_ID:
-                p.window_id = dec.as_u64();
-                break;
-            default:
-                break;
-        }
-    }
-    return p;
+    return decode_fb_req_show(strip_fb_prefix(data));
 }
 
 std::vector<uint8_t> encode_req_close_figure(const ReqCloseFigurePayload& p)
@@ -1408,21 +519,7 @@ std::vector<uint8_t> encode_req_close_figure(const ReqCloseFigurePayload& p)
 
 std::optional<ReqCloseFigurePayload> decode_req_close_figure(std::span<const uint8_t> data)
 {
-    DECODE_TRY_FB(decode_fb_req_close_figure, data);
-    ReqCloseFigurePayload p;
-    PayloadDecoder        dec(data);
-    while (dec.next())
-    {
-        switch (dec.tag())
-        {
-            case TAG_FIGURE_ID:
-                p.figure_id = dec.as_u64();
-                break;
-            default:
-                break;
-        }
-    }
-    return p;
+    return decode_fb_req_close_figure(strip_fb_prefix(data));
 }
 
 std::vector<uint8_t> encode_req_update_batch(const ReqUpdateBatchPayload& p)
@@ -1456,24 +553,7 @@ std::vector<uint8_t> encode_req_reconnect(const ReqReconnectPayload& p)
 
 std::optional<ReqReconnectPayload> decode_req_reconnect(std::span<const uint8_t> data)
 {
-    DECODE_TRY_FB(decode_fb_req_reconnect, data);
-    ReqReconnectPayload p;
-    PayloadDecoder      dec(data);
-    while (dec.next())
-    {
-        switch (dec.tag())
-        {
-            case TAG_SESSION_ID:
-                p.session_id = dec.as_u64();
-                break;
-            case TAG_SESSION_TOKEN:
-                p.session_token = dec.as_string();
-                break;
-            default:
-                break;
-        }
-    }
-    return p;
+    return decode_fb_req_reconnect(strip_fb_prefix(data));
 }
 
 std::optional<ReqAnimStartPayload> decode_req_anim_start(std::span<const uint8_t> data)
@@ -1507,24 +587,7 @@ std::vector<uint8_t> encode_resp_figure_created(const RespFigureCreatedPayload& 
 
 std::optional<RespFigureCreatedPayload> decode_resp_figure_created(std::span<const uint8_t> data)
 {
-    DECODE_TRY_FB(decode_fb_resp_figure_created, data);
-    RespFigureCreatedPayload p;
-    PayloadDecoder           dec(data);
-    while (dec.next())
-    {
-        switch (dec.tag())
-        {
-            case TAG_REQUEST_ID:
-                p.request_id = dec.as_u64();
-                break;
-            case TAG_FIGURE_ID:
-                p.figure_id = dec.as_u64();
-                break;
-            default:
-                break;
-        }
-    }
-    return p;
+    return decode_fb_resp_figure_created(strip_fb_prefix(data));
 }
 
 std::vector<uint8_t> encode_resp_axes_created(const RespAxesCreatedPayload& p)
@@ -1534,24 +597,7 @@ std::vector<uint8_t> encode_resp_axes_created(const RespAxesCreatedPayload& p)
 
 std::optional<RespAxesCreatedPayload> decode_resp_axes_created(std::span<const uint8_t> data)
 {
-    DECODE_TRY_FB(decode_fb_resp_axes_created, data);
-    RespAxesCreatedPayload p;
-    PayloadDecoder         dec(data);
-    while (dec.next())
-    {
-        switch (dec.tag())
-        {
-            case TAG_REQUEST_ID:
-                p.request_id = dec.as_u64();
-                break;
-            case TAG_AXES_INDEX:
-                p.axes_index = dec.as_u32();
-                break;
-            default:
-                break;
-        }
-    }
-    return p;
+    return decode_fb_resp_axes_created(strip_fb_prefix(data));
 }
 
 std::vector<uint8_t> encode_resp_series_added(const RespSeriesAddedPayload& p)
@@ -1561,24 +607,7 @@ std::vector<uint8_t> encode_resp_series_added(const RespSeriesAddedPayload& p)
 
 std::optional<RespSeriesAddedPayload> decode_resp_series_added(std::span<const uint8_t> data)
 {
-    DECODE_TRY_FB(decode_fb_resp_series_added, data);
-    RespSeriesAddedPayload p;
-    PayloadDecoder         dec(data);
-    while (dec.next())
-    {
-        switch (dec.tag())
-        {
-            case TAG_REQUEST_ID:
-                p.request_id = dec.as_u64();
-                break;
-            case TAG_SERIES_INDEX:
-                p.series_index = dec.as_u32();
-                break;
-            default:
-                break;
-        }
-    }
-    return p;
+    return decode_fb_resp_series_added(strip_fb_prefix(data));
 }
 
 std::vector<uint8_t> encode_resp_figure_list(const RespFigureListPayload& p)
@@ -1588,26 +617,7 @@ std::vector<uint8_t> encode_resp_figure_list(const RespFigureListPayload& p)
 
 std::optional<RespFigureListPayload> decode_resp_figure_list(std::span<const uint8_t> data)
 {
-    DECODE_TRY_FB(decode_fb_resp_figure_list, data);
-    RespFigureListPayload p;
-    PayloadDecoder        dec(data);
-    while (dec.next())
-    {
-        switch (dec.tag())
-        {
-            case TAG_REQUEST_ID:
-                p.request_id = dec.as_u64();
-                break;
-            case TAG_FIGURE_IDS:
-                p.figure_ids.push_back(dec.as_u64());
-                break;
-            case TAG_FIGURE_COUNT:
-                break;   // informational only
-            default:
-                break;
-        }
-    }
-    return p;
+    return decode_fb_resp_figure_list(strip_fb_prefix(data));
 }
 
 std::vector<uint8_t> encode_evt_window_closed(const EvtWindowClosedPayload& p)
@@ -1617,27 +627,7 @@ std::vector<uint8_t> encode_evt_window_closed(const EvtWindowClosedPayload& p)
 
 std::optional<EvtWindowClosedPayload> decode_evt_window_closed(std::span<const uint8_t> data)
 {
-    DECODE_TRY_FB(decode_fb_evt_window_closed, data);
-    EvtWindowClosedPayload p;
-    PayloadDecoder         dec(data);
-    while (dec.next())
-    {
-        switch (dec.tag())
-        {
-            case TAG_FIGURE_ID:
-                p.figure_id = dec.as_u64();
-                break;
-            case TAG_WINDOW_ID:
-                p.window_id = dec.as_u64();
-                break;
-            case TAG_REASON:
-                p.reason = dec.as_string();
-                break;
-            default:
-                break;
-        }
-    }
-    return p;
+    return decode_fb_evt_window_closed(strip_fb_prefix(data));
 }
 
 std::vector<uint8_t> encode_evt_figure_destroyed(const EvtFigureDestroyedPayload& p)
@@ -1647,24 +637,7 @@ std::vector<uint8_t> encode_evt_figure_destroyed(const EvtFigureDestroyedPayload
 
 std::optional<EvtFigureDestroyedPayload> decode_evt_figure_destroyed(std::span<const uint8_t> data)
 {
-    DECODE_TRY_FB(decode_fb_evt_figure_destroyed, data);
-    EvtFigureDestroyedPayload p;
-    PayloadDecoder            dec(data);
-    while (dec.next())
-    {
-        switch (dec.tag())
-        {
-            case TAG_FIGURE_ID:
-                p.figure_id = dec.as_u64();
-                break;
-            case TAG_REASON:
-                p.reason = dec.as_string();
-                break;
-            default:
-                break;
-        }
-    }
-    return p;
+    return decode_fb_evt_figure_destroyed(strip_fb_prefix(data));
 }
 
 }   // namespace spectra::ipc

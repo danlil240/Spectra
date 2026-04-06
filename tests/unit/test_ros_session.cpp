@@ -346,6 +346,32 @@ TEST(RoundTrip, SingleSubscription)
     EXPECT_TRUE(out.subscriptions[0].scroll_paused);
 }
 
+TEST(RoundTrip, SubscriptionCustomAxisConfig)
+{
+    RosSession        s;
+    SubscriptionEntry sub;
+    sub.topic         = "/cmd_vel";
+    sub.field_path    = "linear.x";
+    sub.type_name     = "geometry_msgs/msg/Twist";
+    sub.subplot_slot  = 3;
+    sub.time_window_s = 45.0;
+    sub.scroll_paused = true;
+    sub.axis_mode     = ros2::AxisMode::CustomAxes;
+    sub.x_field_path  = "linear.x";
+    sub.y_field_path  = "angular.z";
+    s.subscriptions.push_back(sub);
+
+    auto        json = RosSessionManager::serialize(s);
+    RosSession  out;
+    std::string err;
+    ASSERT_TRUE(RosSessionManager::deserialize(json, out, err));
+
+    ASSERT_EQ(out.subscriptions.size(), 1u);
+    EXPECT_EQ(out.subscriptions[0].axis_mode, ros2::AxisMode::CustomAxes);
+    EXPECT_EQ(out.subscriptions[0].x_field_path, "linear.x");
+    EXPECT_EQ(out.subscriptions[0].y_field_path, "angular.z");
+}
+
 TEST(RoundTrip, MultipleSubscriptions)
 {
     RosSession s;
@@ -671,6 +697,24 @@ TEST(Deserialize, LegacyVersion1SessionRemainsSupported)
     EXPECT_TRUE(out.panels.inspector_panel);
     EXPECT_FALSE(out.panels.nav_rail);
     EXPECT_EQ(out.imgui_ini_data, "[window][legacy]");
+}
+
+TEST(Deserialize, MissingAxisFieldsDefaultToTimeSeries)
+{
+    const std::string json = R"({
+  "version": 2,
+  "subscriptions": [
+    {"topic":"/imu","field_path":"linear_acceleration.x","type_name":"sensor_msgs/msg/Imu","subplot_slot":1}
+  ]
+})";
+
+    RosSession  out;
+    std::string err;
+    ASSERT_TRUE(RosSessionManager::deserialize(json, out, err)) << err;
+    ASSERT_EQ(out.subscriptions.size(), 1u);
+    EXPECT_EQ(out.subscriptions[0].axis_mode, ros2::AxisMode::TimeSeries);
+    EXPECT_TRUE(out.subscriptions[0].x_field_path.empty());
+    EXPECT_TRUE(out.subscriptions[0].y_field_path.empty());
 }
 
 // ===========================================================================

@@ -28,7 +28,6 @@ std::vector<CommandDescriptor> make_series_commands(CommandContext& ctx)
 
 #ifdef SPECTRA_USE_IMGUI
     auto&  ui_ctx        = ctx.ui_ctx;
-    auto&  registry      = ctx.registry;
     auto*& active_figure = *ctx.active_figure;
     auto&  imgui_ui      = ui_ctx.imgui_ui;
     auto&  undo_mgr      = ui_ctx.undo_mgr;

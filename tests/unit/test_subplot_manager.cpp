@@ -293,6 +293,76 @@ TEST_F(SubplotManagerTest, AddPlot_RowColOverload_InvalidCell)
     EXPECT_FALSE(h.valid());
 }
 
+TEST_F(SubplotManagerTest, PrimarySlotDefaultsToTimeSeriesAxisMode)
+{
+    SubplotManager mgr(bridge_, intr_, 1, 1);
+    auto           h = mgr.add_plot(1, "/axis_default", "data", "std_msgs/msg/Float64");
+    ASSERT_TRUE(h.valid());
+
+    const auto* se = mgr.slot_entry_pub(1);
+    ASSERT_NE(se, nullptr);
+    EXPECT_EQ(se->axis_mode, AxisMode::TimeSeries);
+    EXPECT_EQ(se->x_field_path, AXIS_SOURCE_TIME);
+    EXPECT_EQ(se->y_field_path, "data");
+}
+
+TEST_F(SubplotManagerTest, ConfigureSlotAxesCustomTimeUpdatesLabelsAndDisablesFollow)
+{
+    SubplotManager mgr(bridge_, intr_, 1, 1);
+    auto           h = mgr.add_plot(1, "/axis_time", "data", "std_msgs/msg/Float64");
+    ASSERT_TRUE(h.valid());
+
+    std::string error;
+    ASSERT_TRUE(mgr.configure_slot_axes(1, AxisMode::CustomAxes, AXIS_SOURCE_TIME, "data", &error))
+        << error;
+
+    const auto* se = mgr.slot_entry_pub(1);
+    ASSERT_NE(se, nullptr);
+    EXPECT_EQ(se->axis_mode, AxisMode::CustomAxes);
+    EXPECT_EQ(h.axes->xlabel(), "time (s)");
+    EXPECT_EQ(h.axes->ylabel(), "data");
+    EXPECT_EQ(h.series->label(), "/axis_time: data vs time (s)");
+    EXPECT_FALSE(h.axes->has_presented_buffer());
+    EXPECT_FALSE(h.axes->is_presented_buffer_following());
+}
+
+TEST_F(SubplotManagerTest, ConfigureSlotAxesCustomFieldUpdatesLabels)
+{
+    SubplotManager mgr(bridge_, intr_, 1, 1);
+    auto           h =
+        mgr.add_plot(1, "/cmd_vel", "linear.x", "geometry_msgs/msg/Twist");
+    ASSERT_TRUE(h.valid());
+
+    std::string error;
+    ASSERT_TRUE(
+        mgr.configure_slot_axes(1, AxisMode::CustomAxes, "linear.x", "angular.z", &error))
+        << error;
+
+    const auto* se = mgr.slot_entry_pub(1);
+    ASSERT_NE(se, nullptr);
+    EXPECT_EQ(se->axis_mode, AxisMode::CustomAxes);
+    EXPECT_EQ(se->field_path, "angular.z");
+    EXPECT_EQ(h.axes->xlabel(), "linear.x");
+    EXPECT_EQ(h.axes->ylabel(), "angular.z");
+    EXPECT_EQ(h.series->label(), "/cmd_vel: angular.z vs linear.x");
+}
+
+TEST_F(SubplotManagerTest, ConfigureSlotAxesRejectsOverlaySlots)
+{
+    SubplotManager mgr(bridge_, intr_, 1, 1);
+    auto           h1 = mgr.add_plot(1, "/overlay_slot", "linear.x", "geometry_msgs/msg/Twist");
+    auto           h2 = mgr.add_plot(1, "/overlay_slot", "angular.z", "geometry_msgs/msg/Twist");
+    ASSERT_TRUE(h1.valid());
+    ASSERT_TRUE(h2.valid());
+    ASSERT_EQ(mgr.slot_series_count(1), 2);
+
+    std::string error;
+    EXPECT_FALSE(
+        mgr.configure_slot_axes(1, AxisMode::CustomAxes, "linear.x", "angular.z", &error));
+    EXPECT_FALSE(error.empty());
+    EXPECT_EQ(mgr.slot_entry_pub(1)->axis_mode, AxisMode::TimeSeries);
+}
+
 // ============================================================
 // Suite: has_plot / active_count / remove_plot
 // ============================================================
@@ -706,6 +776,33 @@ TEST_F(SubplotManagerLiveTest, ThreeSubplotsAllLinked)
     EXPECT_GE(peers1.size(), 2u);
 }
 
+TEST_F(SubplotManagerLiveTest, CustomAxisSlotsDoNotParticipateInLinkedX)
+{
+    auto pub_node = std::make_shared<rclcpp::Node>("test_custom_axis_link_pub");
+    auto p1       = pub_node->create_publisher<std_msgs::msg::Float64>("/custom_link/a", 10);
+    auto p2       = pub_node->create_publisher<std_msgs::msg::Float64>("/custom_link/b", 10);
+    spin_until(pub_node, [] { return false; }, std::chrono::milliseconds(300));
+
+    SubplotManager mgr(bridge_, intr_, 2, 1);
+    auto           h1 = mgr.add_plot(1, "/custom_link/a", "data", "std_msgs/msg/Float64");
+    auto           h2 = mgr.add_plot(2, "/custom_link/b", "data", "std_msgs/msg/Float64");
+    ASSERT_TRUE(h1.valid());
+    ASSERT_TRUE(h2.valid());
+
+    ASSERT_GT(mgr.link_manager().group_count(), 0u);
+
+    std::string error;
+    ASSERT_TRUE(mgr.configure_slot_axes(2, AxisMode::CustomAxes, AXIS_SOURCE_TIME, "data", &error))
+        << error;
+
+    auto peers1 = mgr.link_manager().linked_peers(h1.axes);
+    bool found  = false;
+    for (auto* p : peers1)
+        if (p == h2.axes)
+            found = true;
+    EXPECT_FALSE(found);
+}
+
 // ============================================================
 // Suite: Live data — poll() receives published values
 // ============================================================
@@ -719,6 +816,11 @@ TEST_F(SubplotManagerLiveTest, PollAppendsFloat64Data)
     SubplotManager mgr(bridge_, intr_, 2, 1);
     auto           h = mgr.add_plot(1, topic, "data", "std_msgs/msg/Float64");
     ASSERT_TRUE(h.valid());
+    const auto* se = mgr.slot_entry_pub(1);
+    ASSERT_NE(se, nullptr);
+    ASSERT_NE(se->subscriber, nullptr);
+    ASSERT_TRUE(se->subscriber->is_running());
+    ASSERT_NE(se->direct_ctx, nullptr);
 
     spin_until(pub_node, [&] { return pub->get_subscription_count() >= 1; });
 

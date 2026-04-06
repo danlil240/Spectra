@@ -38,22 +38,6 @@ std::optional<Message> decode_message(std::span<const uint8_t> data);
 //   0x03 = uint64_t (8 bytes)
 //   0x04 = string   (len bytes, no null terminator)
 
-// Payload encoder — builds a TLV byte buffer.
-class PayloadEncoder
-{
-   public:
-    void put_u16(uint8_t tag, uint16_t val);
-    void put_u32(uint8_t tag, uint32_t val);
-    void put_u64(uint8_t tag, uint64_t val);
-    void put_string(uint8_t tag, const std::string& val);
-
-    const std::vector<uint8_t>& data() const { return buf_; }
-    std::vector<uint8_t>        take() { return std::move(buf_); }
-
-   private:
-    std::vector<uint8_t> buf_;
-};
-
 // Payload decoder — reads TLV fields from a byte buffer.
 class PayloadDecoder
 {
@@ -227,14 +211,6 @@ static constexpr uint8_t TAG_Z_MAX             = 0xA8;
 static constexpr uint8_t TAG_BLOB_INLINE       = 0xB0;
 static constexpr uint8_t TAG_BATCH_ITEM        = 0xB1;   // nested TLV for a batch update item
 static constexpr uint8_t TAG_SERIES_AXES_INDEX = 0xB2;   // axes_index within series blob
-
-// PayloadEncoder extension for floats and raw byte blobs
-// (added as free functions to avoid modifying the class)
-void payload_put_float(PayloadEncoder& enc, uint8_t tag, float val);
-void payload_put_blob(PayloadEncoder& enc, uint8_t tag, const std::vector<uint8_t>& blob);
-void payload_put_float_array(PayloadEncoder& enc, uint8_t tag, const std::vector<float>& arr);
-void payload_put_double(PayloadEncoder& enc, uint8_t tag, double val);
-void payload_put_bool(PayloadEncoder& enc, uint8_t tag, bool val);
 
 float                payload_as_float(const PayloadDecoder& dec);
 double               payload_as_double(const PayloadDecoder& dec);

@@ -539,7 +539,6 @@ void Renderer::render_plot_geometry(Figure& figure)
     const auto& colors = theme_mgr_.colors();
 
     overlay_line_scratch_.clear();
-    overlay_tri_scratch_.clear();
 
     // ── 2D Axes: border and tick mark lines ──
     for (auto& axes_ptr : figure.axes())

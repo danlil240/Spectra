@@ -187,7 +187,6 @@ class Renderer
         uint32_t     grid_vertex_count[FRAME_BUFFER_SLOTS] = {};
         BufferHandle minor_grid_buffer[FRAME_BUFFER_SLOTS];
         size_t       minor_grid_capacity[FRAME_BUFFER_SLOTS] = {};
-        uint32_t     minor_grid_vertex_count                 = 0;   // 2D: unused stored
         BufferHandle border_buffer;
         size_t       border_capacity = 0;
         // 3D bounding box edges (12 lines = 24 vec3 vertices)
@@ -314,14 +313,8 @@ class Renderer
     };
     std::unordered_map<const Figure*, FigureGpuData> figure_gpu_data_;
 
-    // Reusable scratch buffers for screen-space overlay vertex generation.
+    // Reusable scratch buffer for screen-space overlay vertex generation.
     std::vector<float> overlay_line_scratch_;
-    std::vector<float> overlay_tri_scratch_;
-
-    // Legacy single-instance triangle overlay buffer (currently unused but kept
-    // to avoid touching unrelated destruction paths).
-    BufferHandle overlay_tri_buffer_;
-    size_t       overlay_tri_capacity_ = 0;
 
     // Legend GPU buffers
     BufferHandle       legend_line_buffer_;

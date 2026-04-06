@@ -117,70 +117,14 @@ TEST(IpcCodec, MessageTruncatedPayload)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Payload TLV Encode/Decode
+// Payload TLV Decode
 // ═══════════════════════════════════════════════════════════════════════════════
-
-TEST(IpcCodec, PayloadEncoderDecoder)
-{
-    PayloadEncoder enc;
-    enc.put_u16(0x01, 1234);
-    enc.put_u32(0x02, 56789);
-    enc.put_u64(0x03, 0xDEADBEEFCAFE0000ULL);
-    enc.put_string(0x04, "hello world");
-
-    auto buf = enc.data();
-    EXPECT_GT(buf.size(), 0u);
-
-    PayloadDecoder dec(buf);
-
-    ASSERT_TRUE(dec.next());
-    EXPECT_EQ(dec.tag(), 0x01);
-    EXPECT_EQ(dec.as_u16(), 1234u);
-
-    ASSERT_TRUE(dec.next());
-    EXPECT_EQ(dec.tag(), 0x02);
-    EXPECT_EQ(dec.as_u32(), 56789u);
-
-    ASSERT_TRUE(dec.next());
-    EXPECT_EQ(dec.tag(), 0x03);
-    EXPECT_EQ(dec.as_u64(), 0xDEADBEEFCAFE0000ULL);
-
-    ASSERT_TRUE(dec.next());
-    EXPECT_EQ(dec.tag(), 0x04);
-    EXPECT_EQ(dec.as_string(), "hello world");
-
-    EXPECT_FALSE(dec.next());
-}
 
 TEST(IpcCodec, PayloadDecoderEmptyBuffer)
 {
     std::vector<uint8_t> empty;
     PayloadDecoder       dec(empty);
     EXPECT_FALSE(dec.next());
-}
-
-TEST(IpcCodec, PayloadDecoderTruncated)
-{
-    PayloadEncoder enc;
-    enc.put_u64(0x03, 42);
-    auto buf = enc.data();
-    // Truncate to just the tag + partial length
-    buf.resize(3);
-    PayloadDecoder dec(buf);
-    EXPECT_FALSE(dec.next());
-}
-
-TEST(IpcCodec, PayloadStringEmpty)
-{
-    PayloadEncoder enc;
-    enc.put_string(0x04, "");
-    auto buf = enc.data();
-
-    PayloadDecoder dec(buf);
-    ASSERT_TRUE(dec.next());
-    EXPECT_EQ(dec.tag(), 0x04);
-    EXPECT_EQ(dec.as_string(), "");
-    EXPECT_EQ(dec.field_len(), 0u);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1095,80 +1039,6 @@ TEST(IpcCodec, EvtInputMouseMove)
     EXPECT_EQ(decoded->input_type, EvtInputPayload::InputType::MOUSE_MOVE);
     EXPECT_NEAR(decoded->x, 500.5, 0.001);
     EXPECT_NEAR(decoded->y, 300.25, 0.001);
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// Float/Bool/Double Helpers
-// ═══════════════════════════════════════════════════════════════════════════════
-
-TEST(IpcCodec, FloatArrayRoundTrip)
-{
-    std::vector<float> data = {1.5f, -2.5f, 3.14159f, 0.0f, -0.0f};
-    PayloadEncoder     enc;
-    payload_put_float_array(enc, 0x77, data);
-    auto buf = enc.take();
-
-    PayloadDecoder dec(buf);
-    ASSERT_TRUE(dec.next());
-    EXPECT_EQ(dec.tag(), 0x77);
-    auto decoded = payload_as_float_array(dec);
-    ASSERT_EQ(decoded.size(), 5u);
-    EXPECT_FLOAT_EQ(decoded[0], 1.5f);
-    EXPECT_FLOAT_EQ(decoded[1], -2.5f);
-    EXPECT_FLOAT_EQ(decoded[2], 3.14159f);
-    EXPECT_FLOAT_EQ(decoded[3], 0.0f);
-}
-
-TEST(IpcCodec, FloatArrayEmpty)
-{
-    std::vector<float> data;
-    PayloadEncoder     enc;
-    payload_put_float_array(enc, 0x77, data);
-    auto buf = enc.take();
-
-    PayloadDecoder dec(buf);
-    ASSERT_TRUE(dec.next());
-    auto decoded = payload_as_float_array(dec);
-    EXPECT_TRUE(decoded.empty());
-}
-
-TEST(IpcCodec, BoolRoundTrip)
-{
-    PayloadEncoder enc;
-    payload_put_bool(enc, 0x01, true);
-    payload_put_bool(enc, 0x02, false);
-    auto buf = enc.take();
-
-    PayloadDecoder dec(buf);
-    ASSERT_TRUE(dec.next());
-    EXPECT_TRUE(payload_as_bool(dec));
-    ASSERT_TRUE(dec.next());
-    EXPECT_FALSE(payload_as_bool(dec));
-}
-
-TEST(IpcCodec, FloatRoundTrip)
-{
-    PayloadEncoder enc;
-    payload_put_float(enc, 0x10, 3.14159f);
-    payload_put_float(enc, 0x11, -0.001f);
-    auto buf = enc.take();
-
-    PayloadDecoder dec(buf);
-    ASSERT_TRUE(dec.next());
-    EXPECT_FLOAT_EQ(payload_as_float(dec), 3.14159f);
-    ASSERT_TRUE(dec.next());
-    EXPECT_FLOAT_EQ(payload_as_float(dec), -0.001f);
-}
-
-TEST(IpcCodec, DoubleRoundTrip)
-{
-    PayloadEncoder enc;
-    payload_put_double(enc, 0x20, 123456.789012);
-    auto buf = enc.take();
-
-    PayloadDecoder dec(buf);
-    ASSERT_TRUE(dec.next());
-    EXPECT_NEAR(payload_as_double(dec), 123456.789012, 0.000001);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

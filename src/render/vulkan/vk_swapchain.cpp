@@ -611,7 +611,12 @@ OffscreenContext create_offscreen_framebuffer(VkDevice              device,
                                               VkSampleCountFlagBits msaa_samples)
 {
     OffscreenContext ctx;
-    ctx.format       = VK_FORMAT_R8G8B8A8_SRGB;
+    // Use UNORM so that theme hex values (stored as sRGB) pass through 1:1
+    // without hardware linear→sRGB gamma expansion.  This matches the
+    // windowed swapchain format choice (choose_surface_format prefers UNORM).
+    // Using SRGB here would cause double-gamma: theme sRGB values treated as
+    // linear → converted to sRGB again → visibly lighter/washed-out colours.
+    ctx.format       = VK_FORMAT_R8G8B8A8_UNORM;
     ctx.extent       = {width, height};
     ctx.msaa_samples = msaa_samples;
     bool use_msaa    = (msaa_samples != VK_SAMPLE_COUNT_1_BIT);

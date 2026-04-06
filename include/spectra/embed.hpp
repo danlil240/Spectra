@@ -70,8 +70,8 @@ struct EmbedConfig
     // (useful for compositing over host content).
     float background_alpha = 1.0f;
 
-    // Theme name ("dark" or "light"). Default: "dark".
-    std::string theme = "dark";
+    // Theme name ("dark", "night", or "light"). Default: "night".
+    std::string theme = "night";
 
     // UI chrome visibility (only effective when built with SPECTRA_USE_IMGUI).
     // When ImGui is not available, these are ignored and only the raw plot is rendered.

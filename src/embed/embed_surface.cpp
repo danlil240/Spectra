@@ -85,6 +85,12 @@ struct EmbedSurface::Impl
 
         backend->ensure_pipelines();
 
+        // Register all built-in themes and palettes so that set_theme()
+        // can actually find the requested theme by name.  Without this
+        // the themes_ map is empty and set_theme() silently no-ops,
+        // leaving a default (all-black) fallback.
+        theme_mgr.ensure_initialized();
+
         // Force the configured theme BEFORE any rendering so that
         // bg_primary, grid_line, tick_label, series palette colors
         // are all correct from the first frame.

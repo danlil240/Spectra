@@ -932,7 +932,7 @@ std::optional<StateSnapshotPayload> decode_state_snapshot(std::span<const uint8_
 }
 
 // ─── DiffOp blob encode/decode ───────────────────────────────────────────────
-
+/*
 static std::vector<uint8_t> encode_diff_op_blob(const DiffOp& op)
 {
     PayloadEncoder enc;
@@ -951,7 +951,7 @@ static std::vector<uint8_t> encode_diff_op_blob(const DiffOp& op)
         payload_put_float_array(enc, TAG_OP_DATA, op.data);
     return enc.take();
 }
-
+ */
 static DiffOp decode_diff_op_blob(std::span<const uint8_t> data)
 {
     DiffOp         op;

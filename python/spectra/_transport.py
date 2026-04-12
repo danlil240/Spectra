@@ -21,9 +21,15 @@ class Transport:
     @staticmethod
     def connect(path: str, timeout: float = 5.0) -> "Transport":
         """Connect to a Unix domain socket at the given path."""
+        af_unix = getattr(socket, "AF_UNIX", None)
+        if af_unix is None:
+            raise ConnectionError(
+                "AF_UNIX sockets are not supported on this platform. "
+                "Requires Windows 10 1803+ with Python 3.9+ or a Unix system."
+            )
         try:
             log.debug("transport connect start path=%s timeout=%.1fs", path, timeout)
-            sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            sock = socket.socket(af_unix, socket.SOCK_STREAM)
             sock.settimeout(timeout)
             sock.connect(path)
             log.debug("transport connected path=%s", path)

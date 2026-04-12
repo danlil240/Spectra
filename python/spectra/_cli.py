@@ -1,6 +1,7 @@
 """Command-line entry points for spectra."""
 
 import os
+import platform as _platform
 import sys
 
 
@@ -58,4 +59,10 @@ def backend_main():
         )
         sys.exit(1)
 
-    os.execv(binary, [binary] + sys.argv[1:])
+    if _platform.system() == "Windows":
+        # os.execv on Windows spawns a new process and exits the current one
+        # which can cause issues with console handling. Use subprocess instead.
+        import subprocess
+        sys.exit(subprocess.call([binary] + sys.argv[1:]))
+    else:
+        os.execv(binary, [binary] + sys.argv[1:])

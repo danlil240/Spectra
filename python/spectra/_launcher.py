@@ -1,12 +1,16 @@
 """Auto-launch spectra-backend daemon if not already running."""
 
 import os
+import platform as _platform
 import shutil
 import subprocess
+import sys
 import time
 from typing import Optional
 
 from ._log import log
+
+_IS_WINDOWS = _platform.system() == "Windows"
 
 
 def resolve_socket_path(explicit: Optional[str] = None) -> str:
@@ -14,8 +18,9 @@ def resolve_socket_path(explicit: Optional[str] = None) -> str:
 
     1. Explicit path passed to Session(socket=...)
     2. $SPECTRA_SOCKET environment variable
-    3. $XDG_RUNTIME_DIR/spectra/spectra.sock
-    4. /tmp/spectra-$USER/spectra.sock
+    3. Platform-specific default:
+       - Windows: %TEMP%/spectra/spectra.sock
+       - Linux:   $XDG_RUNTIME_DIR/spectra/spectra.sock or /tmp/spectra-$USER/spectra.sock
     """
     if explicit:
         return explicit
@@ -23,6 +28,11 @@ def resolve_socket_path(explicit: Optional[str] = None) -> str:
     env_sock = os.environ.get("SPECTRA_SOCKET")
     if env_sock:
         return env_sock
+
+    if _IS_WINDOWS:
+        temp = os.environ.get("TEMP", os.environ.get(
+            "TMP", os.path.join(os.path.expanduser("~"), "AppData", "Local", "Temp")))
+        return os.path.join(temp, "spectra", "spectra.sock")
 
     xdg = os.environ.get("XDG_RUNTIME_DIR")
     user = os.environ.get("USER", os.environ.get("LOGNAME", "unknown"))
@@ -42,8 +52,13 @@ def _can_connect(path: str) -> bool:
     import socket as _socket
     import select as _select
 
+    af_unix = getattr(_socket, "AF_UNIX", None)
+    if af_unix is None:
+        log.debug("launcher _can_connect: AF_UNIX not available")
+        return False
+
     try:
-        s = _socket.socket(_socket.AF_UNIX, _socket.SOCK_STREAM)
+        s = _socket.socket(af_unix, _socket.SOCK_STREAM)
         s.settimeout(1.0)
         s.connect(path)
         # Peek for immediate close/reset — a healthy backend won't send
@@ -64,18 +79,23 @@ def _can_connect(path: str) -> bool:
 
 
 def _is_native_binary(path: str) -> bool:
-    """Return True if *path* looks like a compiled (ELF / Mach-O) executable
+    """Return True if *path* looks like a compiled (ELF / Mach-O / PE) executable
     rather than a script wrapper (e.g. the pip-installed console_scripts shim).
     """
     try:
         with open(path, "rb") as f:
             magic = f.read(4)
         # ELF: \x7fELF  |  Mach-O: \xfe\xed\xfa\xce / \xcf\xfa\xed\xfe
-        return magic[:4] == b"\x7fELF" or magic[:4] in (
-            b"\xfe\xed\xfa\xce",
-            b"\xfe\xed\xfa\xcf",
-            b"\xcf\xfa\xed\xfe",
-            b"\xce\xfa\xed\xfe",
+        # PE (Windows): MZ
+        return (
+            magic[:4] == b"\x7fELF"
+            or magic[:4] in (
+                b"\xfe\xed\xfa\xce",
+                b"\xfe\xed\xfa\xcf",
+                b"\xcf\xfa\xed\xfe",
+                b"\xce\xfa\xed\xfe",
+            )
+            or magic[:2] == b"MZ"
         )
     except OSError:
         return False
@@ -86,11 +106,13 @@ def _find_backend_binary() -> Optional[str]:
 
     Search order:
     1. $SPECTRA_BACKEND_PATH env var
-    2. Bundled binary inside pip-installed package (_bin/spectra-backend)
+    2. Bundled binary inside pip-installed package (_bin/spectra-backend[.exe])
     3. Heuristic: common build directories relative to project root
     4. System PATH (filtered — skips script wrappers to avoid exec loops)
     5. Previously downloaded binary in user cache
     """
+    _exe = ".exe" if _IS_WINDOWS else ""
+
     # 1. Explicit env var
     env_path = os.environ.get("SPECTRA_BACKEND_PATH")
     if env_path and os.path.isfile(env_path) and os.access(env_path, os.X_OK):
@@ -99,7 +121,7 @@ def _find_backend_binary() -> Optional[str]:
 
     # 2. Bundled binary (pip install spectra-plot ships backend in _bin/)
     pkg_dir = os.path.dirname(os.path.abspath(__file__))
-    bundled = os.path.join(pkg_dir, "_bin", "spectra-backend")
+    bundled = os.path.join(pkg_dir, "_bin", f"spectra-backend{_exe}")
     if os.path.isfile(bundled) and os.access(bundled, os.X_OK):
         log.debug("launcher backend binary bundled: %s", bundled)
         return bundled
@@ -111,7 +133,7 @@ def _find_backend_binary() -> Optional[str]:
     project_root = os.path.normpath(os.path.join(pkg_dir, "..", ".."))
     for build_dir in ("build", "build_release", "build_debug", "build_asan",
                        "cmake-build-debug", "cmake-build-release", "out/build"):
-        candidate = os.path.join(project_root, build_dir, "spectra-backend")
+        candidate = os.path.join(project_root, build_dir, f"spectra-backend{_exe}")
         if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
             log.debug("launcher backend binary from build dir: %s", candidate)
             return candidate
@@ -187,11 +209,19 @@ def ensure_backend(socket_path: str, timeout: float = 5.0) -> str:
     # Launch backend
     _debug_log = os.environ.get("SPECTRA_DEBUG_LOG")
     _stderr_target = open(_debug_log, "w") if _debug_log else subprocess.PIPE
-    proc = subprocess.Popen(
-        [binary, "--socket", socket_path],
+    popen_kwargs: dict = dict(
         stdout=subprocess.DEVNULL,
         stderr=_stderr_target,
-        start_new_session=True,
+    )
+    if _IS_WINDOWS:
+        # CREATE_NO_WINDOW (0x08000000) hides the console window.
+        # CREATE_NEW_PROCESS_GROUP (0x200) detaches from the parent group.
+        popen_kwargs["creationflags"] = 0x08000000 | 0x00000200
+    else:
+        popen_kwargs["start_new_session"] = True
+    proc = subprocess.Popen(
+        [binary, "--socket", socket_path],
+        **popen_kwargs,
     )
     log.info("launcher started backend pid=%s binary=%s socket=%s", proc.pid, binary, socket_path)
 

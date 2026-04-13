@@ -72,6 +72,7 @@ class ExpressionParser
     // Recursive descent parser
     ExprNodePtr parse_expr();
     ExprNodePtr parse_ternary();
+    ExprNodePtr parse_comparison();
     ExprNodePtr parse_additive();
     ExprNodePtr parse_multiplicative();
     ExprNodePtr parse_power();
@@ -81,7 +82,9 @@ class ExpressionParser
     // Lexer helpers
     void        skip_whitespace();
     bool        match(char c);
+    bool        match2(char c1, char c2);
     bool        peek(char c) const;
+    bool        peek2(char c1, char c2) const;
     char        current() const;
     bool        at_end() const;
     void        advance();

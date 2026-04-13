@@ -99,14 +99,14 @@ ExprNodePtr ExpressionParser::parse_ternary()
 {
     // Ternary: condition ? true_expr : false_expr
     // Implemented as: if condition > 0 then true_expr else false_expr
-    auto node = parse_additive();
+    auto node = parse_comparison();
     if (!node)
         return nullptr;
 
     skip_whitespace();
     if (match('?'))
     {
-        auto true_expr = parse_additive();
+        auto true_expr = parse_comparison();
         if (!true_expr)
         {
             error_ = "Expected expression after '?'";
@@ -118,7 +118,7 @@ ExprNodePtr ExpressionParser::parse_ternary()
             error_ = "Expected ':' in ternary expression";
             return nullptr;
         }
-        auto false_expr = parse_additive();
+        auto false_expr = parse_comparison();
         if (!false_expr)
         {
             error_ = "Expected expression after ':'";
@@ -139,6 +139,84 @@ ExprNodePtr ExpressionParser::parse_ternary()
     }
 
     return node;
+}
+
+ExprNodePtr ExpressionParser::parse_comparison()
+{
+    auto left = parse_additive();
+    if (!left)
+        return nullptr;
+
+    while (true)
+    {
+        skip_whitespace();
+        if (match2('>', '='))
+        {
+            auto right = parse_additive();
+            if (!right)
+            {
+                error_ = "Expected expression after '>='";
+                return nullptr;
+            }
+            left = ExprNode::make_func("__ge", std::move(left), std::move(right));
+        }
+        else if (match2('<', '='))
+        {
+            auto right = parse_additive();
+            if (!right)
+            {
+                error_ = "Expected expression after '<='";
+                return nullptr;
+            }
+            left = ExprNode::make_func("__le", std::move(left), std::move(right));
+        }
+        else if (match2('=', '='))
+        {
+            auto right = parse_additive();
+            if (!right)
+            {
+                error_ = "Expected expression after '=='";
+                return nullptr;
+            }
+            left = ExprNode::make_func("__eq", std::move(left), std::move(right));
+        }
+        else if (match2('!', '='))
+        {
+            auto right = parse_additive();
+            if (!right)
+            {
+                error_ = "Expected expression after '!='";
+                return nullptr;
+            }
+            left = ExprNode::make_func("__ne", std::move(left), std::move(right));
+        }
+        else if (match('>'))
+        {
+            auto right = parse_additive();
+            if (!right)
+            {
+                error_ = "Expected expression after '>'";
+                return nullptr;
+            }
+            left = ExprNode::make_func("__gt", std::move(left), std::move(right));
+        }
+        else if (match('<'))
+        {
+            auto right = parse_additive();
+            if (!right)
+            {
+                error_ = "Expected expression after '<'";
+                return nullptr;
+            }
+            left = ExprNode::make_func("__lt", std::move(left), std::move(right));
+        }
+        else
+        {
+            break;
+        }
+    }
+
+    return left;
 }
 
 ExprNodePtr ExpressionParser::parse_additive()
@@ -398,9 +476,24 @@ bool ExpressionParser::match(char c)
     return false;
 }
 
+bool ExpressionParser::match2(char c1, char c2)
+{
+    if (pos_ + 1 < source_.size() && source_[pos_] == c1 && source_[pos_ + 1] == c2)
+    {
+        pos_ += 2;
+        return true;
+    }
+    return false;
+}
+
 bool ExpressionParser::peek(char c) const
 {
     return pos_ < source_.size() && source_[pos_] == c;
+}
+
+bool ExpressionParser::peek2(char c1, char c2) const
+{
+    return pos_ + 1 < source_.size() && source_[pos_] == c1 && source_[pos_ + 1] == c2;
 }
 
 char ExpressionParser::current() const
@@ -604,6 +697,20 @@ static float call_function(const std::string& name,
         float hi = evaluate(*right_node->right, ctx);
         return std::clamp(a, lo, hi);
     }
+
+    // Comparison operators (encoded as internal function calls)
+    if (name == "__gt")
+        return (a > b) ? 1.0f : 0.0f;
+    if (name == "__lt")
+        return (a < b) ? 1.0f : 0.0f;
+    if (name == "__ge")
+        return (a >= b) ? 1.0f : 0.0f;
+    if (name == "__le")
+        return (a <= b) ? 1.0f : 0.0f;
+    if (name == "__eq")
+        return (a == b) ? 1.0f : 0.0f;
+    if (name == "__ne")
+        return (a != b) ? 1.0f : 0.0f;
 
     return std::numeric_limits<float>::quiet_NaN();
 }

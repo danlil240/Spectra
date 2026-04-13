@@ -178,6 +178,7 @@ set(SPECTRA_UNIT_TESTS
     test_workspace_autosave
     test_accessible_summary
     test_webgpu_backend
+    test_expression_eval
 )
 
 # Mock transform plugin — shared library loaded by test_plugin_transforms

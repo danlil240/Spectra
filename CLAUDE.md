@@ -46,7 +46,7 @@ ctest --test-dir build -L golden -j1 --output-on-failure
 | `SPECTRA_BUILD_EXAMPLES` | ON | Example programs |
 | `SPECTRA_BUILD_TESTS` | ON | Unit tests |
 | `SPECTRA_BUILD_GOLDEN_TESTS` | ON | Visual regression tests |
-| `SPECTRA_RUNTIME_MODE` | inproc | `inproc` or `multiproc` |
+| `SPECTRA_RUNTIME_MODE` | multiproc | `inproc` or `multiproc` |
 
 ## Project Structure
 

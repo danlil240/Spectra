@@ -285,3 +285,35 @@ jobs:
         run: |
           cd build
           ctest --output-on-failure -LE gpu -j$(nproc)
+
+  # ─── ROS2 Adapter Build (compile-only) ─────────────────────────────────────
+  build-ros2:
+    runs-on: ubuntu-24.04
+    container:
+      image: ros:humble-ros-base
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ROS2 dependencies
+        run: |
+          apt-get update
+          apt-get install -y \
+            libvulkan-dev \
+            libglfw3-dev \
+            glslang-tools \
+            nlohmann-json3-dev \
+            libtinyxml2-dev
+
+      - name: Configure CMake with ROS2
+        run: |
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+            -DSPECTRA_USE_ROS2=ON \
+            -DSPECTRA_ROS2_BAG=ON \
+            -DSPECTRA_BUILD_TESTS=OFF \
+            -DSPECTRA_BUILD_EXAMPLES=OFF \
+            -DSPECTRA_BUILD_GOLDEN_TESTS=OFF
+
+      - name: Build ROS2 adapter
+        run: cmake --build build --config ${{ env.BUILD_TYPE }} -j$(nproc)

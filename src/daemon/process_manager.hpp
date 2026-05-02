@@ -7,7 +7,11 @@
 
 #ifdef _WIN32
     #include <process.h>
+    #ifdef __MINGW32__
+        #include <sys/types.h>
+    #elif defined(_MSC_VER)
 using pid_t = int;
+    #endif
 #else
     #include <sys/types.h>
 #endif

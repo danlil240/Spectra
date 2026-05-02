@@ -28,8 +28,12 @@
 
 #ifdef _WIN32
     #include <process.h>
-    #define getpid _getpid
+    #ifdef __MINGW32__
+        #include <sys/types.h>
+    #elif defined(_MSC_VER)
 using pid_t = int;
+    #endif
+    #define getpid _getpid
 #else
     #include <csignal>
     #include <poll.h>

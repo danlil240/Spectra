@@ -238,8 +238,8 @@ target_compile_definitions(spectra-core PUBLIC
     SPECTRA_VERSION_STRING="${SPECTRA_VERSION_STRING}"
 )
 
-# MSVC requires _USE_MATH_DEFINES to expose M_PI, M_E etc. from <cmath>.
-if(MSVC)
+# Windows toolchains require _USE_MATH_DEFINES to expose M_PI, M_E etc. from <cmath>.
+if(WIN32)
     target_compile_definitions(spectra-core PUBLIC _USE_MATH_DEFINES)
 endif()
 
@@ -720,6 +720,10 @@ if(SPECTRA_USE_PX4)
     )
 
     target_compile_definitions(spectra_px4_adapter PUBLIC SPECTRA_USE_PX4)
+
+    if(WIN32)
+        target_link_libraries(spectra_px4_adapter PRIVATE ws2_32)
+    endif()
 
     # Forward ImGui include paths so UI panels can find imgui.h.
     if(SPECTRA_USE_IMGUI AND SPECTRA_USE_GLFW AND DEFINED imgui_SOURCE_DIR)

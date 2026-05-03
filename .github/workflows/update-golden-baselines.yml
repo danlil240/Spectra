@@ -113,7 +113,11 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add tests/golden/baseline/
+          # Clear any global gitignore that may exist on the runner (e.g. one that
+          # blanket-ignores "tests/"), then force-add so tracked baseline files can
+          # always be staged regardless of runner-level ignore configuration.
+          git config --global core.excludesFile ''
+          git add -f tests/golden/baseline/
           if git diff --cached --quiet; then
             echo "No baseline changes to commit"
           else

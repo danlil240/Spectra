@@ -96,4 +96,27 @@ bool GlfwSurfaceHost::framebuffer_size(void* native_window, SurfaceSize& out_siz
 #endif
 }
 
+bool GlfwSurfaceHost::query_presentation_support(VkInstance       instance,
+                                                 VkPhysicalDevice physical_device,
+                                                 uint32_t         queue_family_index) const
+{
+#ifdef SPECTRA_USE_GLFW
+    if (instance == VK_NULL_HANDLE || physical_device == VK_NULL_HANDLE)
+    {
+        return false;
+    }
+    if (!glfwInit())
+    {
+        return true;   // Can't query — preserve back-compat assumption.
+    }
+    return glfwGetPhysicalDevicePresentationSupport(instance, physical_device, queue_family_index)
+           == GLFW_TRUE;
+#else
+    (void)instance;
+    (void)physical_device;
+    (void)queue_family_index;
+    return true;
+#endif
+}
+
 }   // namespace spectra::platform

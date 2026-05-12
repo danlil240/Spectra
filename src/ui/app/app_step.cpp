@@ -64,7 +64,8 @@ namespace spectra
 // ─── App ctor/dtor (must be here where AppRuntime is complete) ───────────────
 App::App(const AppConfig& config) : config_(config)
 {
-    spectra::setup_dual_logging(spectra::LogLevel::Info, spectra::LogLevel::Trace);
+    spectra::setup_dual_logging(spectra::default_console_log_level(),
+                                spectra::default_file_log_level());
 
     SPECTRA_LOG_INFO("app",
                      "Initializing Spectra application (headless: "

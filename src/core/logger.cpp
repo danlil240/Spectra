@@ -1,14 +1,74 @@
+#include <cctype>
 #include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <ctime>
 #include <filesystem>
 #include <iomanip>
 #include <iostream>
+#include <optional>
 #include <spectra/logger.hpp>
 #include <sstream>
 #include <string>
 
 namespace spectra
 {
+
+namespace
+{
+// Parse a log-level string (case-insensitive).  Returns std::nullopt on unknown.
+std::optional<LogLevel> parse_level(const char* s)
+{
+    if (!s || !*s)
+        return std::nullopt;
+    std::string v;
+    for (const char* p = s; *p; ++p)
+        v += static_cast<char>(std::tolower(static_cast<unsigned char>(*p)));
+    if (v == "trace")
+        return LogLevel::Trace;
+    if (v == "debug")
+        return LogLevel::Debug;
+    if (v == "info")
+        return LogLevel::Info;
+    if (v == "warn" || v == "warning")
+        return LogLevel::Warning;
+    if (v == "error")
+        return LogLevel::Error;
+    if (v == "critical" || v == "crit" || v == "fatal")
+        return LogLevel::Critical;
+    if (v == "off" || v == "none" || v == "silent")
+        return LogLevel::Critical;
+    return std::nullopt;
+}
+}   // namespace
+
+LogLevel default_console_log_level()
+{
+    if (const char* env = std::getenv("SPECTRA_LOG_LEVEL"))
+    {
+        if (auto lvl = parse_level(env))
+            return *lvl;
+    }
+#ifdef NDEBUG
+    return LogLevel::Warning;
+#else
+    return LogLevel::Info;
+#endif
+}
+
+LogLevel default_file_log_level()
+{
+    if (const char* env = std::getenv("SPECTRA_LOG_FILE_LEVEL"))
+    {
+        if (auto lvl = parse_level(env))
+            return *lvl;
+    }
+#ifdef NDEBUG
+    return LogLevel::Info;
+#else
+    return LogLevel::Trace;
+#endif
+}
 
 Logger& Logger::instance()
 {

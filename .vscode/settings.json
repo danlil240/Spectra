@@ -15,7 +15,7 @@
         "-DSPECTRA_USE_ROS2=ON",
         "-DSPECTRA_ROS2_BAG=ON",
         "-DSPECTRA_USE_FFMPEG=ON",
-        "-DSPECTRA_USE_WEBGPU=ON",
+        "-DSPECTRA_USE_WEBGPU=OFF",
         "-DSPECTRA_BUILD_EMBED_SHARED=ON"
     ],
     "cmake.buildArgs": [],

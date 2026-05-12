@@ -213,6 +213,19 @@ inline Figure& figure(uint32_t width = 1280, uint32_t height = 720)
     return *s.current_fig;
 }
 
+// Create a new figure (new OS window) with a custom tab/window title.
+//
+//   spectra::figure("Trajectory");
+//
+inline Figure& figure(const std::string& name,
+                      uint32_t           width  = 1280,
+                      uint32_t           height = 720)
+{
+    Figure& fig = figure(width, height);
+    fig.set_tab_title(name);
+    return fig;
+}
+
 // Create a new figure that opens as a tab next to an existing figure.
 inline Figure& figure(Figure& tab_next_to, uint32_t /*width*/ = 1280, uint32_t /*height*/ = 720)
 {
@@ -258,6 +271,33 @@ inline Figure& tab(uint32_t width = 0, uint32_t height = 0)
     s.has_explicit_figure  = true;
     s.has_explicit_subplot = false;
     return *s.current_fig;
+}
+
+// Create a new tab in the current window with a custom title.
+//
+//   spectra::figure("Trajectories");
+//   spectra::plot(x, y);
+//   spectra::tab("XY View");
+//   spectra::plot(x, z);
+//
+// If there is no current figure, opens a new window with the given title.
+inline Figure& tab(const std::string& name, uint32_t width = 0, uint32_t height = 0)
+{
+    Figure& fig = tab(width, height);
+    fig.set_tab_title(name);
+    return fig;
+}
+
+// Set (or change) the title of the current tab/figure.
+//
+//   spectra::figure();
+//   spectra::tab_name("Interceptor");
+//
+inline void tab_name(const std::string& name)
+{
+    auto& s = detail::easy_state();
+    s.ensure_figure();
+    s.current_fig->set_tab_title(name);
 }
 
 // ─── Subplot Selection ──────────────────────────────────────────────────────

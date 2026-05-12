@@ -34,6 +34,20 @@ class SurfaceHost
     // Query framebuffer size in physical pixels.
     virtual bool framebuffer_size(void* native_window, SurfaceSize& out_size) const = 0;
 
+    // Surfaceless query: does the given queue family support presentation for windows
+    // created by this host on the given physical device? Used at device-creation time,
+    // before any window/surface exists, so the graphics queue family can be chosen to
+    // also support present. Default returns true (unknown — assume yes for back-compat).
+    virtual bool query_presentation_support(VkInstance       instance,
+                                            VkPhysicalDevice physical_device,
+                                            uint32_t         queue_family_index) const
+    {
+        (void)instance;
+        (void)physical_device;
+        (void)queue_family_index;
+        return true;
+    }
+
     // Optional lifecycle hooks for adapters that need to observe surface changes.
     virtual void on_surface_created(void* native_window, VkSurfaceKHR surface) const
     {

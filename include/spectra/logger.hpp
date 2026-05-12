@@ -5,6 +5,7 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -146,6 +147,14 @@ Logger::LogSink filtered_sink(LogLevel min_level, Logger::LogSink inner);
 void setup_dual_logging(LogLevel           console_level = LogLevel::Info,
                         LogLevel           file_level    = LogLevel::Trace,
                         const std::string& log_path      = "");
+
+// Default console log level resolved from build type and SPECTRA_LOG_LEVEL env.
+// Release: Warning, Debug: Info.  Override with SPECTRA_LOG_LEVEL={trace,debug,info,warning,error,critical}.
+LogLevel default_console_log_level();
+
+// Default file log level resolved from build type and SPECTRA_LOG_FILE_LEVEL env.
+// Release: Info, Debug: Trace.  Override with SPECTRA_LOG_FILE_LEVEL=...
+LogLevel default_file_log_level();
 
 #define SPECTRA_LOG_TRACE(category, ...)                                            \
     do                                                                              \

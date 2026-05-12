@@ -19,7 +19,8 @@ int main()
         x[i] = static_cast<float>(i) * 0.05f;
 
     // ── Window 1, Tab 1: Sine ────────────────────────────────────
-    spectra::figure();
+    spectra::figure("Trigonometry");
+    spectra::tab_name("Sine");
     {
         std::vector<float> y(x.size());
         for (size_t i = 0; i < x.size(); ++i)
@@ -30,7 +31,7 @@ int main()
     }
 
     // ── Window 1, Tab 2: Cosine (tab in same window) ─────────────
-    spectra::tab();
+    spectra::tab("Cosine");
     {
         std::vector<float> y(x.size());
         for (size_t i = 0; i < x.size(); ++i)
@@ -41,7 +42,7 @@ int main()
     }
 
     // ── Window 1, Tab 3: Tangent (tab in same window) ────────────
-    spectra::tab();
+    spectra::tab("Tangent");
     {
         std::vector<float> y(x.size());
         for (size_t i = 0; i < x.size(); ++i)
@@ -52,7 +53,7 @@ int main()
     }
 
     // ── Window 2: Exponential (new OS window) ────────────────────
-    spectra::figure();
+    spectra::figure("Exponential");
     {
         std::vector<float> y(x.size());
         for (size_t i = 0; i < x.size(); ++i)

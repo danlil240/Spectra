@@ -49,9 +49,9 @@ void register_standard_commands(const CommandBindings& b)
 
     ui_ctx.shortcut_mgr.register_defaults();
 
-    SPECTRA_LOG_INFO("app",
-                     "Registered " + std::to_string(reg.count()) + " commands, "
-                         + std::to_string(ui_ctx.shortcut_mgr.count()) + " shortcuts");
+    SPECTRA_LOG_DEBUG("app",
+                      "Registered " + std::to_string(reg.count()) + " commands, "
+                          + std::to_string(ui_ctx.shortcut_mgr.count()) + " shortcuts");
 #else
     (void)b;
 #endif

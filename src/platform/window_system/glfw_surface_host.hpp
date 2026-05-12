@@ -14,6 +14,9 @@ class GlfwSurfaceHost final : public SurfaceHost
                                void*         native_window,
                                VkSurfaceKHR& out_surface) const override;
     bool        framebuffer_size(void* native_window, SurfaceSize& out_size) const override;
+    bool        query_presentation_support(VkInstance       instance,
+                                           VkPhysicalDevice physical_device,
+                                           uint32_t         queue_family_index) const override;
 };
 
 }   // namespace spectra::platform

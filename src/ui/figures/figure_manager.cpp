@@ -21,7 +21,8 @@ FigureManager::FigureManager(FigureRegistry& registry) : registry_(registry)
     {
         ordered_ids_.push_back(id);
         FigureState st(id, registry_.get(id));
-        st.set_custom_title(default_title(id));
+        // Leave custom_title empty so get_title() falls back to either the
+        // figure's own tab_title (set via easy API) or default_title(id).
         states_[id] = std::move(st);
     }
     if (!ordered_ids_.empty())
@@ -705,7 +706,11 @@ std::string FigureManager::get_title(FigureId index) const
     {
         return it->second.custom_title();
     }
-    // Fallback: use FigureId-based title (stable across windows)
+    // Fall back to a tab_title set on the Figure itself (easy API).
+    Figure* fig = registry_.get(index);
+    if (fig && !fig->tab_title().empty())
+        return fig->tab_title();
+    // Final fallback: FigureId-based title (stable across windows).
     return default_title(index);
 }
 
@@ -864,7 +869,8 @@ void FigureManager::ensure_states()
         if (states_.find(id) == states_.end())
         {
             FigureState st(id, registry_.get(id));
-            st.set_custom_title(default_title(id));
+            // Leave custom_title empty; get_title() resolves from Figure::tab_title
+            // or default_title(id).
             states_[id] = std::move(st);
         }
     }

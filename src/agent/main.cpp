@@ -579,7 +579,8 @@ int main(int argc, char* argv[])
 #endif
 
     // Initialize dual logging: console=INFO+, file=TRACE+
-    spectra::setup_dual_logging(spectra::LogLevel::Info, spectra::LogLevel::Trace);
+    spectra::setup_dual_logging(spectra::default_console_log_level(),
+                                spectra::default_file_log_level());
 
     std::cerr << "[spectra-window] Connecting to backend: " << socket_path << "\n";
 

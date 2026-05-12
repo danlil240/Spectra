@@ -116,6 +116,12 @@ class Figure
         config_.height = h;
     }
 
+    // Tab/window title set by user code (e.g. spectra::tab("Name")).
+    // When non-empty, the UI uses this as the tab/window display title
+    // instead of the auto-generated "Figure N".
+    const std::string& tab_title() const { return tab_title_; }
+    void               set_tab_title(std::string title) { tab_title_ = std::move(title); }
+
     const std::vector<std::unique_ptr<Axes>>& axes() const { return axes_; }
     std::vector<std::unique_ptr<Axes>>&       axes_mut() { return axes_; }
 
@@ -184,6 +190,7 @@ class Figure
     // Scroll state for overflow when subplots exceed visible area
     float scroll_offset_y_ = 0.0f;
     float content_height_  = 0.0f;
+    std::string tab_title_;
 };
 
 }   // namespace spectra

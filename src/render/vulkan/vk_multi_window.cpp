@@ -119,10 +119,10 @@ bool VulkanBackend::init_window_context(WindowContext& wctx, uint32_t width, uin
 
         active_window_ = prev_active;
 
-        SPECTRA_LOG_INFO("vulkan",
-                         "Window context " + std::to_string(wctx.id)
-                             + " initialized: " + std::to_string(wctx.swapchain.extent.width) + "x"
-                             + std::to_string(wctx.swapchain.extent.height));
+        SPECTRA_LOG_DEBUG("vulkan",
+                          "Window context " + std::to_string(wctx.id)
+                              + " initialized: " + std::to_string(wctx.swapchain.extent.width)
+                              + "x" + std::to_string(wctx.swapchain.extent.height));
         return true;
     }
     catch (const std::exception& e)

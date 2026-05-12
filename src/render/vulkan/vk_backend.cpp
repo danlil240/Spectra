@@ -90,21 +90,20 @@ bool VulkanBackend::init(bool headless)
 
     try
     {
-#ifdef NDEBUG
+        // Validation layers add several seconds to startup on some drivers
+        // (notably ~6s on NVIDIA).  They are now opt-in even in debug builds:
+        // set SPECTRA_VALIDATION=1 to enable.  The legacy SPECTRA_NO_VALIDATION
+        // variable is still honored for back-compat.
         bool enable_validation = false;
-#else
-        // Validation layers add ~8s to startup on some drivers.
-        // Set SPECTRA_NO_VALIDATION=1 to disable in debug builds.
-        bool enable_validation = true;
-        {
-            const char* env = std::getenv("SPECTRA_NO_VALIDATION");
-            if (env && env[0] == '1')
-                enable_validation = false;
-        }
-#endif
-        SPECTRA_LOG_DEBUG(
+        if (const char* env = std::getenv("SPECTRA_VALIDATION"); env && env[0] == '1')
+            enable_validation = true;
+        if (const char* env = std::getenv("SPECTRA_NO_VALIDATION"); env && env[0] == '1')
+            enable_validation = false;
+
+        SPECTRA_LOG_INFO(
             "vulkan",
-            "Validation layers: " + std::string(enable_validation ? "true" : "false"));
+            std::string("Validation layers: ") + (enable_validation ? "enabled" : "disabled")
+                + " (set SPECTRA_VALIDATION=1 to enable)");
 
         ctx_.instance = vk::create_instance(enable_validation, headless_, surface_host_);
 
@@ -121,9 +120,37 @@ bool VulkanBackend::init(bool headless)
 
         // When not headless, force swapchain extension even though surface doesn't exist yet
         // (surface is created later by GLFW adapter, but device needs the extension at creation
-        // time)
+        // time). Also pick a graphics queue family that supports presentation for windows
+        // created by the active surface host, so the later surface-based verification matches
+        // and we don't have to fall back to using the graphics queue for present.
         if (!headless_)
         {
+            if (surface_host_ && ctx_.queue_families.graphics.has_value()
+                && !surface_host_->query_presentation_support(
+                    ctx_.instance,
+                    ctx_.physical_device,
+                    ctx_.queue_families.graphics.value()))
+            {
+                uint32_t count = 0;
+                vkGetPhysicalDeviceQueueFamilyProperties(ctx_.physical_device, &count, nullptr);
+                std::vector<VkQueueFamilyProperties> families(count);
+                vkGetPhysicalDeviceQueueFamilyProperties(ctx_.physical_device,
+                                                        &count,
+                                                        families.data());
+                for (uint32_t i = 0; i < count; ++i)
+                {
+                    if ((families[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
+                        && surface_host_->query_presentation_support(ctx_.instance,
+                                                                     ctx_.physical_device,
+                                                                     i))
+                    {
+                        ctx_.queue_families.graphics = i;
+                        if (!ctx_.queue_families.transfer.has_value())
+                            ctx_.queue_families.transfer = i;
+                        break;
+                    }
+                }
+            }
             ctx_.queue_families.present = ctx_.queue_families.graphics;
         }
         ctx_.device =

@@ -165,9 +165,10 @@ WindowContext* WindowManager::create_window(uint32_t           width,
     windows_.push_back(std::move(wctx));
     rebuild_active_list();
 
-    SPECTRA_LOG_INFO("window_manager",
-                     "Created window " + std::to_string(ptr->id) + ": " + std::to_string(width)
-                         + "x" + std::to_string(height) + " \"" + title + "\"");
+    SPECTRA_LOG_DEBUG("window_manager",
+                      "Created window " + std::to_string(ptr->id) + ": "
+                          + std::to_string(width) + "x" + std::to_string(height) + " \""
+                          + title + "\"");
     if (event_system_)
         event_system_->window_opened().emit({ptr->id});
     return ptr;
@@ -739,7 +740,7 @@ bool WindowManager::init_window_ui(WindowContext& wctx, FigureId initial_figure_
             });
     }
 
-    SPECTRA_LOG_INFO("imgui", "Created ImGui context for window " + std::to_string(wctx.id));
+    SPECTRA_LOG_DEBUG("imgui", "Created ImGui context for window " + std::to_string(wctx.id));
 
     wctx.ui_ctx = std::move(ui);
 #else

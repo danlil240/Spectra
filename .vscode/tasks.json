@@ -21,6 +21,49 @@
 			}
 		},
 		{
+			"label": "build-Release",
+			"type": "shell",
+			"command": "cmake -B build-release -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_INSTALL_PREFIX=/usr/local && cmake --build build-release -j$(nproc)",
+			"group": "build",
+			"problemMatcher": [
+				"$gcc"
+			],
+			"detail": "Configure and build Spectra in Release mode (build-release/)",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared",
+				"showReuseMessage": true,
+				"clear": false
+			},
+			"options": {
+				"cwd": "${workspaceFolder}"
+			}
+		},
+		{
+			"label": "install (sudo)",
+			"type": "shell",
+			"command": "sudo cmake --install build-release",
+			"group": "build",
+			"problemMatcher": [],
+			"detail": "Install Spectra to /usr/local (requires sudo). Depends on build-Release.",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": true,
+				"panel": "shared",
+				"showReuseMessage": true,
+				"clear": false
+			},
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"dependsOn": [
+				"build-Release"
+			]
+		},
+		{
 			"type": "cmake",
 			"label": "CMake: clean rebuild",
 			"command": "cleanRebuild",

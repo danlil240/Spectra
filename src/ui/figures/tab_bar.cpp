@@ -231,6 +231,15 @@ void TabBar::handle_input(const Rect& bounds)
         }
     }
 
+    // Middle-click on a tab closes it (Chrome-style)
+    if (ImGui::IsMouseClicked(ImGuiMouseButton_Middle))
+    {
+        if (hovered_tab_ < tabs_.size())
+        {
+            remove_tab(hovered_tab_);
+        }
+    }
+
     // Handle right-click context menu
     if (ImGui::IsMouseClicked(ImGuiMouseButton_Right))
     {

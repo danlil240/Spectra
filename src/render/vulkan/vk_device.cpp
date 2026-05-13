@@ -178,27 +178,50 @@ QueueFamilyIndices find_queue_families(VkPhysicalDevice device, VkSurfaceKHR sur
     std::vector<VkQueueFamilyProperties> families(count);
     vkGetPhysicalDeviceQueueFamilyProperties(device, &count, families.data());
 
+    // First pass: pick graphics and dedicated transfer queue families.
     for (uint32_t i = 0; i < count; ++i)
     {
-        if (families[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
+        if ((families[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) && !indices.graphics.has_value())
         {
             indices.graphics = i;
-        }
-
-        if (surface != VK_NULL_HANDLE)
-        {
-            VkBool32 present_support = VK_FALSE;
-            vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &present_support);
-            if (present_support)
-            {
-                indices.present = i;
-            }
         }
 
         if ((families[i].queueFlags & VK_QUEUE_TRANSFER_BIT)
             && !(families[i].queueFlags & VK_QUEUE_GRAPHICS_BIT))
         {
             indices.transfer = i;
+        }
+    }
+
+    // Second pass: pick present queue family. Prefer the graphics family to avoid
+    // cross-family ownership transfers and a separate present queue.
+    if (surface != VK_NULL_HANDLE)
+    {
+        if (indices.graphics.has_value())
+        {
+            VkBool32 present_support = VK_FALSE;
+            vkGetPhysicalDeviceSurfaceSupportKHR(device,
+                                                 indices.graphics.value(),
+                                                 surface,
+                                                 &present_support);
+            if (present_support)
+            {
+                indices.present = indices.graphics;
+            }
+        }
+
+        if (!indices.present.has_value())
+        {
+            for (uint32_t i = 0; i < count; ++i)
+            {
+                VkBool32 present_support = VK_FALSE;
+                vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &present_support);
+                if (present_support)
+                {
+                    indices.present = i;
+                    break;
+                }
+            }
         }
     }
 

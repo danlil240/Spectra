@@ -349,7 +349,8 @@ void App::init_runtime()
                                             int      drop_zone,
                                             float    local_x,
                                             float    local_y,
-                                            FigureId target_figure_id) {
+                                            FigureId target_figure_id)
+                    {
                         session.queue_move(
                             {fid, target_wid, drop_zone, local_x, local_y, target_figure_id});
                     });
@@ -776,19 +777,36 @@ void App::init_runtime()
                         mcp_bind = mcp_bind_env;
                 }
 
-                uint16_t mcp_port = 8765;
+                uint16_t mcp_port        = 8765;
+                bool     mcp_port_pinned = false;
                 if (const char* mcp_port_env = std::getenv("SPECTRA_MCP_PORT"))
                 {
                     if (mcp_port_env[0] != '\0')
                     {
                         const long parsed_port = std::strtol(mcp_port_env, nullptr, 10);
                         if (parsed_port > 0 && parsed_port <= 65535)
-                            mcp_port = static_cast<uint16_t>(parsed_port);
+                        {
+                            mcp_port        = static_cast<uint16_t>(parsed_port);
+                            mcp_port_pinned = true;
+                        }
                     }
                 }
 
                 rt.mcp_server = std::make_unique<McpServer>();
-                if (rt.mcp_server->start(*rt.auto_server, mcp_bind, mcp_port))
+                // If the user didn't pin a port, probe a small range so multiple
+                // Spectra instances on the same machine don't collide on 8765.
+                bool           started   = false;
+                const uint16_t max_tries = mcp_port_pinned ? 1 : 16;
+                for (uint16_t i = 0; i < max_tries; ++i)
+                {
+                    const uint16_t try_port = static_cast<uint16_t>(mcp_port + i);
+                    if (rt.mcp_server->start(*rt.auto_server, mcp_bind, try_port))
+                    {
+                        started = true;
+                        break;
+                    }
+                }
+                if (started)
                     SPECTRA_LOG_INFO("app", "MCP server started: " + rt.mcp_server->endpoint());
                 else
                     rt.mcp_server.reset();

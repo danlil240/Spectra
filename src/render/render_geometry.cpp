@@ -176,6 +176,7 @@ void Renderer::render_plot_text(Figure& figure)
         // Ticks are in ascending data order = ascending screen-Y bottom-to-top.
         // Iterate in reverse (high data → low data = top-to-bottom on screen).
         // Track last_y_bottom: skip next label if its top is within gap of last bottom.
+        float max_y_tick_width = 0.0f;
         {
             float           last_y_bottom = -1e30f;
             constexpr float label_gap     = 4.0f;
@@ -198,7 +199,8 @@ void Renderer::render_plot_text(Figure& figure)
                                          tick_col,
                                          TextAlign::Right,
                                          TextVAlign::Middle);
-                last_y_bottom = y_bottom;
+                last_y_bottom    = y_bottom;
+                max_y_tick_width = std::max(max_y_tick_width, ext.width);
             }
         }
 
@@ -218,9 +220,11 @@ void Renderer::render_plot_text(Figure& figure)
         // Y axis label (rotated -90°)
         if (!axes.get_ylabel().empty())
         {
-            const auto label_ext = text_renderer_.measure_text(axes.get_ylabel(), FontSize::Label);
-            float      center_x  = vp.x - tl - tick_padding - 18.0f - label_ext.height * 0.5f;
-            float      center_y  = vp.y + vp.h * 0.5f;
+            const auto      label_ext  = text_renderer_.measure_text(axes.get_ylabel(), FontSize::Label);
+            constexpr float label_gap  = 6.0f;   // gap between widest tick label and axis label
+            float           center_x   = vp.x - tl - tick_padding - max_y_tick_width - label_gap
+                              - label_ext.height * 0.5f;
+            float           center_y   = vp.y + vp.h * 0.5f;
             constexpr float neg_90_deg = -1.5707963f;   // -π/2
             text_renderer_.draw_text_rotated(axes.get_ylabel(),
                                              center_x,

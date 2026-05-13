@@ -36,5 +36,37 @@
         "*.cpp": "cpp",
         "*.vert": "glsl",
         "*.frag": "glsl"
-    }
+    },
+    "python.autoComplete.extraPaths": [
+        "/home/daniel/spb_ws/install/ims_gui/local/lib/python3.10/dist-packages",
+        "/home/daniel/spb_ws/install/vision_interfaces/local/lib/python3.10/dist-packages",
+        "/home/daniel/spb_ws/install/point_blank_sphera_backend/local/lib/python3.10/dist-packages",
+        "/home/daniel/spb_ws/install/interception_mngr_interfaces/local/lib/python3.10/dist-packages",
+        "/home/daniel/spb_ws/install/target_estimator_interfaces/local/lib/python3.10/dist-packages",
+        "/home/daniel/spb_ws/install/mission_controller_interfaces/local/lib/python3.10/dist-packages",
+        "/home/daniel/spb_ws/install/external_interfaces/local/lib/python3.10/dist-packages",
+        "/home/daniel/spb_ws/install/ros_common_interfaces/local/lib/python3.10/dist-packages",
+        "/home/daniel/spb_ws/install/gimbal_controller_interfaces/local/lib/python3.10/dist-packages",
+        "/home/daniel/spb_ws/install/fcu_driver2_interfaces/local/lib/python3.10/dist-packages",
+        "/home/daniel/spb_ws/build/dtc_driver",
+        "/home/daniel/spb_ws/install/dtc_driver/lib/python3.10/site-packages",
+        "/opt/ros/humble/lib/python3.10/site-packages",
+        "/opt/ros/humble/local/lib/python3.10/dist-packages"
+    ],
+    "python.analysis.extraPaths": [
+        "/home/daniel/spb_ws/install/ims_gui/local/lib/python3.10/dist-packages",
+        "/home/daniel/spb_ws/install/vision_interfaces/local/lib/python3.10/dist-packages",
+        "/home/daniel/spb_ws/install/point_blank_sphera_backend/local/lib/python3.10/dist-packages",
+        "/home/daniel/spb_ws/install/interception_mngr_interfaces/local/lib/python3.10/dist-packages",
+        "/home/daniel/spb_ws/install/target_estimator_interfaces/local/lib/python3.10/dist-packages",
+        "/home/daniel/spb_ws/install/mission_controller_interfaces/local/lib/python3.10/dist-packages",
+        "/home/daniel/spb_ws/install/external_interfaces/local/lib/python3.10/dist-packages",
+        "/home/daniel/spb_ws/install/ros_common_interfaces/local/lib/python3.10/dist-packages",
+        "/home/daniel/spb_ws/install/gimbal_controller_interfaces/local/lib/python3.10/dist-packages",
+        "/home/daniel/spb_ws/install/fcu_driver2_interfaces/local/lib/python3.10/dist-packages",
+        "/home/daniel/spb_ws/build/dtc_driver",
+        "/home/daniel/spb_ws/install/dtc_driver/lib/python3.10/site-packages",
+        "/opt/ros/humble/lib/python3.10/site-packages",
+        "/opt/ros/humble/local/lib/python3.10/dist-packages"
+    ]
 }

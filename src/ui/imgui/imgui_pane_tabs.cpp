@@ -425,6 +425,14 @@ void ImGuiIntegration::draw_pane_tab_headers()
             {
                 pane_tab_hovered_ = true;
 
+                // Middle-click closes the tab (Chrome-style)
+                if (ImGui::IsMouseClicked(ImGuiMouseButton_Middle))
+                {
+                    if (pane_tab_close_cb_)
+                        pane_tab_close_cb_(tr.figure_index);
+                    continue;
+                }
+
                 if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
                 {
                     // Activate this tab

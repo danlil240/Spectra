@@ -532,9 +532,7 @@ bool McpServer::start(AutomationServer& automation, const std::string& bind_host
     int reuse_addr = 1;
     ::setsockopt(listen_fd_, SOL_SOCKET, SO_REUSEADDR, &reuse_addr, sizeof(reuse_addr));
 
-    struct sockaddr_in addr
-    {
-    };
+    struct sockaddr_in addr{};
     addr.sin_family = AF_INET;
     addr.sin_port   = htons(port_);
     if (::inet_pton(AF_INET, bind_host_.c_str(), &addr.sin_addr) != 1)
@@ -548,7 +546,14 @@ bool McpServer::start(AutomationServer& automation, const std::string& bind_host
 
     if (::bind(listen_fd_, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) < 0)
     {
-        SPECTRA_LOG_ERROR("mcp", "bind(): " + std::string(std::strerror(errno)));
+        const int bind_errno = errno;
+        if (bind_errno == EADDRINUSE)
+            SPECTRA_LOG_WARN("mcp",
+                             "Port " + std::to_string(port_)
+                                 + " already in use (another Spectra instance?); "
+                                   "MCP server disabled for this process");
+        else
+            SPECTRA_LOG_ERROR("mcp", "bind(): " + std::string(std::strerror(bind_errno)));
         ::close(listen_fd_);
         listen_fd_  = -1;
         automation_ = nullptr;
@@ -564,10 +569,8 @@ bool McpServer::start(AutomationServer& automation, const std::string& bind_host
         return false;
     }
 
-    struct sockaddr_in bound_addr
-    {
-    };
-    socklen_t bound_len = sizeof(bound_addr);
+    struct sockaddr_in bound_addr{};
+    socklen_t          bound_len = sizeof(bound_addr);
     if (::getsockname(listen_fd_, reinterpret_cast<struct sockaddr*>(&bound_addr), &bound_len) == 0)
         port_ = ntohs(bound_addr.sin_port);
 
@@ -617,20 +620,16 @@ void McpServer::listener_thread_fn()
 #ifndef _WIN32
     while (running_.load(std::memory_order_relaxed))
     {
-        struct pollfd pfd
-        {
-        };
+        struct pollfd pfd{};
         pfd.fd        = listen_fd_;
         pfd.events    = POLLIN;
         const int ret = ::poll(&pfd, 1, 200);
         if (ret <= 0 || (pfd.revents & POLLIN) == 0)
             continue;
 
-        struct sockaddr_in client_addr
-        {
-        };
-        socklen_t client_len = sizeof(client_addr);
-        int       cfd =
+        struct sockaddr_in client_addr{};
+        socklen_t          client_len = sizeof(client_addr);
+        int                cfd =
             ::accept(listen_fd_, reinterpret_cast<struct sockaddr*>(&client_addr), &client_len);
         if (cfd < 0)
             continue;

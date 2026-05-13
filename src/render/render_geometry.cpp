@@ -220,10 +220,10 @@ void Renderer::render_plot_text(Figure& figure)
         // Y axis label (rotated -90°)
         if (!axes.get_ylabel().empty())
         {
-            const auto      label_ext  = text_renderer_.measure_text(axes.get_ylabel(), FontSize::Label);
-            constexpr float label_gap  = 6.0f;   // gap between widest tick label and axis label
-            float           center_x   = vp.x - tl - tick_padding - max_y_tick_width - label_gap
-                              - label_ext.height * 0.5f;
+            const auto label_ext = text_renderer_.measure_text(axes.get_ylabel(), FontSize::Label);
+            constexpr float label_gap = 6.0f;   // gap between widest tick label and axis label
+            float           center_x =
+                vp.x - tl - tick_padding - max_y_tick_width - label_gap - label_ext.height * 0.5f;
             float           center_y   = vp.y + vp.h * 0.5f;
             constexpr float neg_90_deg = -1.5707963f;   // -π/2
             text_renderer_.draw_text_rotated(axes.get_ylabel(),
@@ -983,9 +983,9 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
         // Check if limits/planes changed — skip regeneration if cached
         auto& gc             = gpu.grid_cache[slot];
         bool  limits_changed = !gc.valid || gc.xmin != xlim.min || gc.xmax != xlim.max
-                              || gc.ymin != ylim.min || gc.ymax != ylim.max || gc.zmin != zlim.min
-                              || gc.zmax != zlim.max
-                              || gpu.cached_grid_planes[slot] != static_cast<int>(gp);
+                               || gc.ymin != ylim.min || gc.ymax != ylim.max || gc.zmin != zlim.min
+                               || gc.zmax != zlim.max
+                               || gpu.cached_grid_planes[slot] != static_cast<int>(gp);
 
         if (limits_changed)
         {
@@ -1075,8 +1075,8 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
         const auto&         theme_colors = theme_mgr_.colors();
         float               blend        = 0.3f;
         ui::Color           blended(theme_colors.grid_major.r * (1.0f - blend) + blend,
-                          theme_colors.grid_major.g * (1.0f - blend) + blend,
-                          theme_colors.grid_major.b * (1.0f - blend) + blend);
+                                    theme_colors.grid_major.g * (1.0f - blend) + blend,
+                                    theme_colors.grid_major.b * (1.0f - blend) + blend);
         set_pc_color_geom(pc.color, blended, 0.35f, theme_mgr_);
         pc.line_width    = 1.0f;
         pc.data_offset_x = 0.0f;

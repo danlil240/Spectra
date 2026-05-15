@@ -903,15 +903,15 @@ void SessionRuntime::commit_thread_safe_series()
         if (!fig)
             continue;
 
-        fig->for_each_axes([&](AxesBase* ab)
-        {
-            for (auto& series_ptr : ab->series())
+        fig->for_each_axes(
+            [&](AxesBase* ab)
             {
-                if (series_ptr->is_thread_safe() && series_ptr->commit_pending())
-                    any_committed = true;
-[cmake] Not searching for unused variables given on the comma
-            }
-        });
+                for (auto& series_ptr : ab->series())
+                {
+                    if (series_ptr->is_thread_safe() && series_ptr->commit_pending())
+                        any_committed = true;
+                }
+            });
     }
 
     if (any_committed)
@@ -919,5 +919,3 @@ void SessionRuntime::commit_thread_safe_series()
 }
 
 }   // namespace spectra
-
-[cmake] Not searching for unused variables given on the comma

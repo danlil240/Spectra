@@ -7,6 +7,7 @@
 // with SPECTRA_NO_DAEMON_DISCOVERY=1.
 
 #include <spectra/app.hpp>
+#include <spectra/logger.hpp>
 
 #if __has_include(<spectra/version.hpp>)
     #include <spectra/version.hpp>
@@ -116,69 +117,18 @@ std::string locate_spectra_window()
     return "spectra-window";   // fall back to PATH
 }
 
-std::string locate_spectra_backend()
-{
-    char        buf[4096];
-    ssize_t     n = ::readlink("/proc/self/exe", buf, sizeof(buf) - 1);
-    std::string dir;
-    if (n > 0)
-    {
-        buf[n] = '\0';
-        std::string self(buf);
-        auto        slash = self.rfind('/');
-        if (slash != std::string::npos)
-            dir = self.substr(0, slash + 1);
-    }
-    std::string candidate = dir + "spectra-backend";
-    if (::access(candidate.c_str(), X_OK) == 0)
-        return candidate;
-    return "spectra-backend";   // fall back to PATH
-}
-
-// Spawn a fresh daemon on a per-process socket and wait until it's listening.
-// Returns the socket path on success, empty string on failure.
-std::string spawn_fresh_daemon()
-{
-    std::string sock = socket_dir() + "/spectra-" + std::to_string(::getpid()) + ".sock";
-    // Clean any leftover socket from a previous run with this pid (unlikely
-    // but harmless).
-    ::unlink(sock.c_str());
-
-    auto  backend_bin = locate_spectra_backend();
-    pid_t pid         = ::fork();
-    if (pid < 0)
-        return {};
-    if (pid == 0)
-    {
-        // Child: detach from parent's controlling tty so we survive when the
-        // user closes the window terminal, then exec the backend.
-        ::setsid();
-        ::execlp(backend_bin.c_str(),
-                 backend_bin.c_str(),
-                 "--socket",
-                 sock.c_str(),
-                 static_cast<const char*>(nullptr));
-        ::_exit(127);
-    }
-
-    // Parent: wait up to ~2s for the socket to become live.
-    for (int i = 0; i < 40; ++i)
-    {
-        timespec ts{0, 50 * 1000 * 1000};   // 50 ms
-        ::nanosleep(&ts, nullptr);
-        if (socket_is_live(sock))
-            return sock;
-        // If the child died early, bail out.
-        int status = 0;
-        if (::waitpid(pid, &status, WNOHANG) == pid)
-            return {};
-    }
-    return {};
-}
-
 // Returns true if we replaced this process with spectra-window.
 // On any failure, returns false and the caller proceeds with the normal
 // in-process app.
+//
+// Policy:
+//   - If the user already pointed us at a socket via $SPECTRA_SOCKET → leave
+//     it to App::run() (it will connect as a window agent).
+//   - If a daemon is already running and listening on the standard runtime
+//     dir → attach to it (re-exec spectra-window).
+//   - Otherwise → stay in-process.  The in-process `InprocTopicServer` will
+//     listen on $XDG_RUNTIME_DIR/spectra-<pid>.sock so publishers can still
+//     find us, and the user sees the welcome screen.
 bool maybe_attach_to_running_daemon()
 {
     const char* off = std::getenv("SPECTRA_NO_DAEMON_DISCOVERY");
@@ -190,21 +140,12 @@ bool maybe_attach_to_running_daemon()
     std::string sock = discover_live_daemon_socket();
     if (sock.empty())
     {
-        // No daemon yet — start one so the Topics workflow is available even
-        // before any publisher connects.  Without this, `spectra` runs purely
-        // in-process and the Topics panel has no transport to talk to.
-        sock = spawn_fresh_daemon();
-        if (sock.empty())
-        {
-            std::cerr << "[spectra] Could not start a daemon — running in-process\n";
-            return false;
-        }
-        std::cerr << "[spectra] Started fresh daemon at " << sock << "\n";
+        // No existing daemon — stay in-process.  The InprocTopicServer
+        // started by App::run() will accept publishers directly, and the
+        // welcome screen renders normally.
+        return false;
     }
-    else
-    {
-        std::cerr << "[spectra] Found running daemon at " << sock << "\n";
-    }
+    SPECTRA_LOG_INFO("app", "Found running daemon at {}", sock);
 
     auto window_bin = locate_spectra_window();
     ::execlp(window_bin.c_str(),
@@ -213,7 +154,7 @@ bool maybe_attach_to_running_daemon()
              sock.c_str(),
              static_cast<const char*>(nullptr));
     // execlp only returns on failure.
-    std::cerr << "[spectra] Failed to exec " << window_bin << " — continuing in-process\n";
+    SPECTRA_LOG_WARN("app", "Failed to exec {} — continuing in-process", window_bin);
     return false;
 }
 
@@ -260,6 +201,8 @@ int main(int argc, char* argv[])
 
     // If a publisher (or another tool) has already spawned a daemon, attach
     // to it transparently so its topics are immediately visible.
+    spectra::setup_dual_logging(spectra::default_console_log_level(),
+                                spectra::default_file_log_level());
     maybe_attach_to_running_daemon();
 
     spectra::App app;

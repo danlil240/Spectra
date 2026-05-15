@@ -1,6 +1,6 @@
 #include "python_message_handler.hpp"
 
-#include <iostream>
+#include <spectra/logger.hpp>
 
 #include "../ipc/codec.hpp"
 
@@ -112,8 +112,7 @@ HandleResult handle_req_create_figure(DaemonContext& ctx, ClientSlot& slot, cons
                                            req->height);
     ctx.graph.register_figure(fid, req->title);
 
-    std::cerr << "[spectra-backend] Python: created figure " << fid << " title=" << req->title
-              << "\n";
+    SPECTRA_LOG_DEBUG("daemon", "Python: created figure {} title={}", fid, req->title);
 
     ipc::RespFigureCreatedPayload resp;
     resp.request_id = msg.header.request_id;
@@ -143,8 +142,11 @@ HandleResult handle_req_create_axes(DaemonContext& ctx, ClientSlot& slot, const 
 
     auto axes_idx = ctx.fig_model.add_axes(req->figure_id, 0.0f, 1.0f, 0.0f, 1.0f, req->is_3d);
 
-    std::cerr << "[spectra-backend] Python: created axes " << axes_idx
-              << (req->is_3d ? " (3D)" : "") << " in figure " << req->figure_id << "\n";
+    SPECTRA_LOG_DEBUG("daemon",
+                      "Python: created axes {}{} in figure {}",
+                      axes_idx,
+                      req->is_3d ? " (3D)" : "",
+                      req->figure_id);
 
     // Broadcast ADD_AXES diff to all agents
     {
@@ -187,13 +189,16 @@ HandleResult handle_req_add_series(DaemonContext& ctx, ClientSlot& slot, const i
 
     uint32_t series_idx = 0;
     auto     add_op     = ctx.fig_model.add_series_with_diff(req->figure_id,
-                                                     req->label,
-                                                     req->series_type,
-                                                     req->axes_index,
-                                                     series_idx);
+                                                             req->label,
+                                                             req->series_type,
+                                                             req->axes_index,
+                                                             series_idx);
 
-    std::cerr << "[spectra-backend] Python: added series " << series_idx
-              << " type=" << req->series_type << " in figure " << req->figure_id << "\n";
+    SPECTRA_LOG_DEBUG("daemon",
+                      "Python: added series {} type={} in figure {}",
+                      series_idx,
+                      req->series_type,
+                      req->figure_id);
 
     // Broadcast ADD_SERIES diff to all agents
     {
@@ -348,8 +353,10 @@ HandleResult handle_req_show(DaemonContext& ctx, ClientSlot& slot, const ipc::Me
     // If window_id is specified and valid, add figure as tab to existing window
     if (req->window_id != ipc::INVALID_WINDOW && ctx.graph.agent(req->window_id) != nullptr)
     {
-        std::cerr << "[spectra-backend] Python: REQ_SHOW figure=" << req->figure_id
-                  << " as tab in window=" << req->window_id << "\n";
+        SPECTRA_LOG_DEBUG("daemon",
+                          "Python: REQ_SHOW figure={} as tab in window={}",
+                          req->figure_id,
+                          req->window_id);
 
         ctx.graph.assign_figure(req->figure_id, req->window_id);
 
@@ -375,7 +382,7 @@ HandleResult handle_req_show(DaemonContext& ctx, ClientSlot& slot, const ipc::Me
     else
     {
         // No target window — spawn a new agent
-        std::cerr << "[spectra-backend] Python: REQ_SHOW figure=" << req->figure_id << "\n";
+        SPECTRA_LOG_DEBUG("daemon", "Python: REQ_SHOW figure={}", req->figure_id);
 
         auto new_wid = ctx.graph.add_agent(0, -1);
         ctx.graph.assign_figure(req->figure_id, new_wid);
@@ -384,8 +391,11 @@ HandleResult handle_req_show(DaemonContext& ctx, ClientSlot& slot, const ipc::Me
         pid_t pid = ctx.proc_mgr.spawn_agent();
         if (pid > 0)
         {
-            std::cerr << "[spectra-backend] Spawned agent pid=" << pid << " for figure "
-                      << req->figure_id << " (window=" << new_wid << ")\n";
+            SPECTRA_LOG_INFO("daemon",
+                             "Spawned agent pid={} for figure {} (window={})",
+                             pid,
+                             req->figure_id,
+                             new_wid);
             send_resp_ok(*slot.conn, ctx.graph.session_id(), msg.header.request_id, new_wid);
         }
         else
@@ -441,8 +451,10 @@ HandleResult handle_req_remove_series(DaemonContext& ctx, ClientSlot& slot, cons
 
     auto op = ctx.fig_model.remove_series(req->figure_id, req->series_index);
 
-    std::cerr << "[spectra-backend] Python: removed series " << req->series_index << " from figure "
-              << req->figure_id << "\n";
+    SPECTRA_LOG_DEBUG("daemon",
+                      "Python: removed series {} from figure {}",
+                      req->series_index,
+                      req->figure_id);
 
     ipc::StateDiffPayload diff;
     diff.base_revision = ctx.fig_model.revision() - 1;
@@ -467,8 +479,9 @@ HandleResult handle_req_close_figure(DaemonContext& ctx, ClientSlot& slot, const
         return HandleResult::Continue;
     }
 
-    std::cerr << "[spectra-backend] Python: REQ_CLOSE_FIGURE figure=" << req->figure_id
-              << " (closing window, keeping figure)\n";
+    SPECTRA_LOG_DEBUG("daemon",
+                      "Python: REQ_CLOSE_FIGURE figure={} (closing window, keeping figure)",
+                      req->figure_id);
 
     // Find and close agent windows displaying this figure
     for (auto wid : ctx.graph.all_window_ids())
@@ -541,8 +554,10 @@ HandleResult handle_req_update_batch(DaemonContext& ctx, ClientSlot& slot, const
                               diff);
     }
 
-    std::cerr << "[spectra-backend] Python: batch update with " << req->updates.size() << " items, "
-              << diff.ops.size() << " applied\n";
+    SPECTRA_LOG_DEBUG("daemon",
+                      "Python: batch update with {} items, {} applied",
+                      req->updates.size(),
+                      diff.ops.size());
 
     // Broadcast diff to agents
     if (!diff.ops.empty())
@@ -571,7 +586,7 @@ HandleResult handle_req_destroy_figure(DaemonContext&      ctx,
         return HandleResult::Continue;
     }
 
-    std::cerr << "[spectra-backend] Python: REQ_DESTROY_FIGURE figure=" << req->figure_id << "\n";
+    SPECTRA_LOG_DEBUG("daemon", "Python: REQ_DESTROY_FIGURE figure={}", req->figure_id);
 
     ctx.fig_model.remove_figure(req->figure_id);
     ctx.graph.remove_figure(req->figure_id);
@@ -607,7 +622,7 @@ HandleResult handle_req_reconnect(DaemonContext& ctx, ClientSlot& slot, const ip
         return HandleResult::Continue;
     }
 
-    std::cerr << "[spectra-backend] Python: REQ_RECONNECT session=" << req->session_id << "\n";
+    SPECTRA_LOG_DEBUG("daemon", "Python: REQ_RECONNECT session={}", req->session_id);
 
     // Verify session ID matches (or accept any if 0)
     if (req->session_id != 0 && req->session_id != ctx.graph.session_id())
@@ -634,7 +649,7 @@ HandleResult handle_req_disconnect(DaemonContext& /*ctx*/,
                                    ClientSlot& slot,
                                    const ipc::Message& /*msg*/)
 {
-    std::cerr << "[spectra-backend] Python client disconnected gracefully\n";
+    SPECTRA_LOG_DEBUG("daemon", "Python client disconnected gracefully");
     slot.conn->close();
     return HandleResult::EraseAndContinue;
 }

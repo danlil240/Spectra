@@ -1,6 +1,6 @@
 #include "topic_message_handler.hpp"
 
-#include <iostream>
+#include <spectra/logger.hpp>
 
 #include "../ipc/codec.hpp"
 
@@ -97,8 +97,11 @@ HandleResult handle_req_declare_topic(DaemonContext& ctx, ClientSlot& slot, cons
         return HandleResult::Continue;
     }
 
-    std::cerr << "[spectra-backend] Topic declared: " << req->name
-              << " kind=" << static_cast<int>(req->kind) << " unit=" << req->unit << "\n";
+    SPECTRA_LOG_DEBUG("daemon",
+                      "Topic declared: {} kind={} unit={}",
+                      req->name,
+                      static_cast<int>(req->kind),
+                      req->unit);
 
     send_resp_ok(*slot.conn, ctx.graph.session_id(), msg.header.request_id);
     broadcast_topic_list_changed(ctx);
@@ -249,9 +252,12 @@ HandleResult handle_req_subscribe_topic(DaemonContext&      ctx,
         return HandleResult::Continue;
     }
 
-    std::cerr << "[spectra-backend] Topic subscribed: " << req->name
-              << " -> figure=" << req->figure_id << " axes=" << req->axes_index
-              << " series=" << series_index << "\n";
+    SPECTRA_LOG_DEBUG("daemon",
+                      "Topic subscribed: {} -> figure={} axes={} series={}",
+                      req->name,
+                      req->figure_id,
+                      req->axes_index,
+                      series_index);
 
     send_resp_subscribe(*slot.conn, ctx.graph.session_id(), msg.header.request_id, series_index);
     broadcast_topic_list_changed(ctx);

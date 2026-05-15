@@ -5,7 +5,6 @@
 
 #include <algorithm>
 #include <cstring>
-#include <iostream>
 #include <set>
 #include <stdexcept>
 #include <vector>
@@ -40,7 +39,7 @@ debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT severity,
 {
     if (severity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
     {
-        std::cerr << "[Spectra Vulkan] " << callback_data->pMessage << "\n";
+        SPECTRA_LOG_WARN("vulkan", "{}", callback_data->pMessage);
     }
     return VK_FALSE;
 }

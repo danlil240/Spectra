@@ -1,0 +1,36 @@
+{
+  "configurations": [
+    {
+      "browse": {
+        "databaseFilename": "${default}",
+        "limitSymbolsToIncludedHeaders": false
+      },
+      "includePath": [
+        "/home/daniel/spb_ws/install/mission_controller/include/**",
+        "/home/daniel/spb_ws/install/vision_interfaces/include/**",
+        "/home/daniel/spb_ws/install/trilateration_estimator_ros/include/**",
+        "/home/daniel/spb_ws/install/trilateration_estimator_core/include/**",
+        "/home/daniel/spb_ws/install/interception_mngr/include/**",
+        "/home/daniel/spb_ws/install/trajectory/include/**",
+        "/home/daniel/spb_ws/install/interception_mngr_interfaces/include/**",
+        "/home/daniel/spb_ws/install/target_estimator_interfaces/include/**",
+        "/home/daniel/spb_ws/install/serial/include/**",
+        "/home/daniel/spb_ws/install/gimbal_controller/include/**",
+        "/home/daniel/spb_ws/install/ros_common2/include/**",
+        "/home/daniel/spb_ws/install/mission_controller_interfaces/include/**",
+        "/home/daniel/spb_ws/install/external_interfaces/include/**",
+        "/home/daniel/spb_ws/install/ros_common_interfaces/include/**",
+        "/home/daniel/spb_ws/install/gimbal_controller_interfaces/include/**",
+        "/home/daniel/spb_ws/install/fcu_driver2_interfaces/include/**",
+        "/opt/ros/humble/include/**",
+        "/usr/include/**"
+      ],
+      "name": "ROS",
+      "intelliSenseMode": "gcc-x64",
+      "compilerPath": "/usr/bin/gcc",
+      "cStandard": "gnu11",
+      "cppStandard": "c++14"
+    }
+  ],
+  "version": 4
+}

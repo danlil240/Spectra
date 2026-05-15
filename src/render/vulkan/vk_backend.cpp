@@ -24,7 +24,6 @@
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
-#include <iostream>
 #include <stdexcept>
 
 #define VMA_IMPLEMENTATION
@@ -100,10 +99,10 @@ bool VulkanBackend::init(bool headless)
         if (const char* env = std::getenv("SPECTRA_NO_VALIDATION"); env && env[0] == '1')
             enable_validation = false;
 
-        SPECTRA_LOG_INFO(
-            "vulkan",
-            std::string("Validation layers: ") + (enable_validation ? "enabled" : "disabled")
-                + " (set SPECTRA_VALIDATION=1 to enable)");
+        SPECTRA_LOG_INFO("vulkan",
+                         std::string("Validation layers: ")
+                             + (enable_validation ? "enabled" : "disabled")
+                             + " (set SPECTRA_VALIDATION=1 to enable)");
 
         ctx_.instance = vk::create_instance(enable_validation, headless_, surface_host_);
 
@@ -126,17 +125,16 @@ bool VulkanBackend::init(bool headless)
         if (!headless_)
         {
             if (surface_host_ && ctx_.queue_families.graphics.has_value()
-                && !surface_host_->query_presentation_support(
-                    ctx_.instance,
-                    ctx_.physical_device,
-                    ctx_.queue_families.graphics.value()))
+                && !surface_host_->query_presentation_support(ctx_.instance,
+                                                              ctx_.physical_device,
+                                                              ctx_.queue_families.graphics.value()))
             {
                 uint32_t count = 0;
                 vkGetPhysicalDeviceQueueFamilyProperties(ctx_.physical_device, &count, nullptr);
                 std::vector<VkQueueFamilyProperties> families(count);
                 vkGetPhysicalDeviceQueueFamilyProperties(ctx_.physical_device,
-                                                        &count,
-                                                        families.data());
+                                                         &count,
+                                                         families.data());
                 for (uint32_t i = 0; i < count; ++i)
                 {
                     if ((families[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
@@ -239,7 +237,7 @@ bool VulkanBackend::init(bool headless)
     }
     catch (const std::exception& e)
     {
-        std::cerr << "[Spectra] Backend init failed: " << e.what() << "\n";
+        SPECTRA_LOG_ERROR("vulkan", "Backend init failed: {}", e.what());
         return false;
     }
 }
@@ -481,7 +479,7 @@ bool VulkanBackend::create_swapchain(uint32_t width, uint32_t height)
     }
     catch (const std::exception& e)
     {
-        std::cerr << "[Spectra] Swapchain creation failed: " << e.what() << "\n";
+        SPECTRA_LOG_ERROR("vulkan", "Swapchain creation failed: {}", e.what());
         return false;
     }
 }
@@ -579,17 +577,17 @@ bool VulkanBackend::create_offscreen_framebuffer(uint32_t width, uint32_t height
         vk::destroy_offscreen(ctx_.device, offscreen_);
         auto vk_msaa = static_cast<VkSampleCountFlagBits>(msaa_samples_);
         offscreen_   = vk::create_offscreen_framebuffer(ctx_.device,
-                                                      ctx_.physical_device,
-                                                      width,
-                                                      height,
-                                                      vk_msaa);
+                                                        ctx_.physical_device,
+                                                        width,
+                                                        height,
+                                                        vk_msaa);
         create_command_buffers();
         create_sync_objects();
         return true;
     }
     catch (const std::exception& e)
     {
-        std::cerr << "[Spectra] Offscreen framebuffer creation failed: " << e.what() << "\n";
+        SPECTRA_LOG_ERROR("vulkan", "Offscreen framebuffer creation failed: {}", e.what());
         return false;
     }
 }
@@ -1045,7 +1043,7 @@ VkPipeline VulkanBackend::create_pipeline_for_type(PipelineType type, VkRenderPa
     }
     catch (const std::exception& e)
     {
-        std::cerr << "[Spectra] Pipeline creation failed: " << e.what() << "\n";
+        SPECTRA_LOG_ERROR("vulkan", "Pipeline creation failed: {}", e.what());
         return VK_NULL_HANDLE;
     }
 }

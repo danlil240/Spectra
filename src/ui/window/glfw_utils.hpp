@@ -6,7 +6,7 @@
     #define GLFW_INCLUDE_VULKAN
     #include <GLFW/glfw3.h>
     #include <cstring>
-    #include <iostream>
+    #include <spectra/logger.hpp>
     #include <stb_image.h>
     #include <vector>
 
@@ -166,7 +166,7 @@ inline void set_window_icon(GLFWwindow* window)
         }
     }
 
-    std::cerr << "[spectra] Warning: could not load window icon (spectra_icon.png)\n";
+    SPECTRA_LOG_WARN("glfw", "Could not load window icon (spectra_icon.png)");
 }
 
 }   // namespace spectra

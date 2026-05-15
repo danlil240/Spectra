@@ -58,7 +58,6 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdlib>
-#include <iostream>
 #include <memory>
 #include <unordered_map>
 
@@ -240,7 +239,7 @@ void App::init_runtime()
 
     if (!backend_ || !renderer_)
     {
-        std::cerr << "[spectra] Cannot run: backend or renderer not initialized\n";
+        SPECTRA_LOG_ERROR("app", "Cannot run: backend or renderer not initialized");
         return;
     }
 
@@ -283,7 +282,7 @@ void App::init_runtime()
 #else
     if (init_active && !init_active->export_req_.video_path.empty())
     {
-        std::cerr << "[spectra] Video recording requested but SPECTRA_USE_FFMPEG is not enabled\n";
+        SPECTRA_LOG_WARN("app", "Video recording requested but SPECTRA_USE_FFMPEG is not enabled");
     }
 #endif
 
@@ -298,8 +297,9 @@ void App::init_runtime()
         rt.video_exporter = std::make_unique<VideoExporter>(vcfg);
         if (!rt.video_exporter->is_open())
         {
-            std::cerr << "[spectra] Failed to open video exporter for: "
-                      << init_active->export_req_.video_path << "\n";
+            SPECTRA_LOG_ERROR("app",
+                              "Failed to open video exporter for: {}",
+                              init_active->export_req_.video_path);
             rt.video_exporter.reset();
         }
         else
@@ -320,7 +320,7 @@ void App::init_runtime()
         rt.glfw = std::make_unique<GlfwAdapter>();
         if (!rt.glfw->init(init_w, init_h, "Spectra"))
         {
-            std::cerr << "[spectra] Failed to create GLFW window\n";
+            SPECTRA_LOG_ERROR("app", "Failed to create GLFW window");
             rt.glfw.reset();
         }
         else
@@ -1077,13 +1077,12 @@ void App::shutdown_runtime()
                                               export_w,
                                               export_h))
                 {
-                    std::cerr << "[spectra] Failed to write PNG: " << f.export_req_.png_path
-                              << "\n";
+                    SPECTRA_LOG_ERROR("app", "Failed to write PNG: {}", f.export_req_.png_path);
                 }
             }
             else
             {
-                std::cerr << "[spectra] Failed to readback framebuffer\n";
+                SPECTRA_LOG_ERROR("app", "Failed to readback framebuffer");
             }
         }
 
@@ -1092,7 +1091,7 @@ void App::shutdown_runtime()
             f.compute_layout();
             if (!SvgExporter::write_svg(f.export_req_.svg_path, f))
             {
-                std::cerr << "[spectra] Failed to write SVG: " << f.export_req_.svg_path << "\n";
+                SPECTRA_LOG_ERROR("app", "Failed to write SVG: {}", f.export_req_.svg_path);
             }
         }
     }

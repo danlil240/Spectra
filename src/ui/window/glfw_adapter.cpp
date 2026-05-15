@@ -3,12 +3,11 @@
     #include "glfw_adapter.hpp"
 
     #include "glfw_utils.hpp"
+    #include <spectra/logger.hpp>
 
     #define GLFW_INCLUDE_NONE
     #define GLFW_INCLUDE_VULKAN
     #include <GLFW/glfw3.h>
-    #include <iostream>
-
 namespace spectra
 {
 
@@ -21,13 +20,13 @@ bool GlfwAdapter::init(uint32_t width, uint32_t height, const std::string& title
 {
     if (!glfwInit())
     {
-        std::cerr << "[spectra] Failed to initialize GLFW\n";
+        SPECTRA_LOG_ERROR("glfw", "Failed to initialize GLFW");
         return false;
     }
 
     if (!glfwVulkanSupported())
     {
-        std::cerr << "[spectra] GLFW: Vulkan not supported\n";
+        SPECTRA_LOG_ERROR("glfw", "GLFW: Vulkan not supported");
         glfwTerminate();
         return false;
     }
@@ -44,7 +43,7 @@ bool GlfwAdapter::init(uint32_t width, uint32_t height, const std::string& title
 
     if (!window_)
     {
-        std::cerr << "[spectra] Failed to create GLFW window\n";
+        SPECTRA_LOG_ERROR("glfw", "Failed to create GLFW window");
         glfwTerminate();
         return false;
     }

@@ -573,7 +573,7 @@ int main(int argc, char* argv[])
     }
     if (socket_path.empty())
     {
-        std::cerr << "[spectra-window] Error: --socket <path> required\n";
+        SPECTRA_LOG_ERROR("window", "--socket <path> required");
         return 1;
     }
 
@@ -587,7 +587,7 @@ int main(int argc, char* argv[])
     spectra::setup_dual_logging(spectra::default_console_log_level(),
                                 spectra::default_file_log_level());
 
-    std::cerr << "[spectra-window] Connecting to backend: " << socket_path << "\n";
+    SPECTRA_LOG_INFO("window", "Connecting to backend: {}", socket_path);
 
     // ═══════════════════════════════════════════════════════════════════════
     // Phase 1: IPC connection + handshake
@@ -596,11 +596,11 @@ int main(int argc, char* argv[])
     auto conn = spectra::ipc::Client::connect(socket_path);
     if (!conn)
     {
-        std::cerr << "[spectra-window] Failed to connect to " << socket_path << "\n";
+        SPECTRA_LOG_ERROR("window", "Failed to connect to {}", socket_path);
         return 1;
     }
 
-    std::cerr << "[spectra-window] Connected (fd=" << conn->fd() << ")\n";
+    SPECTRA_LOG_INFO("window", "Connected (fd={})", conn->fd());
 
     // Send HELLO
     spectra::ipc::HelloPayload hello;
@@ -615,7 +615,7 @@ int main(int argc, char* argv[])
         hello_msg.header.payload_len = static_cast<uint32_t>(hello_msg.payload.size());
         if (!conn->send(hello_msg))
         {
-            std::cerr << "[spectra-window] Failed to send HELLO\n";
+            SPECTRA_LOG_ERROR("window", "Failed to send HELLO");
             return 1;
         }
     }
@@ -624,13 +624,13 @@ int main(int argc, char* argv[])
     auto welcome_msg = conn->recv();
     if (!welcome_msg || welcome_msg->header.type != spectra::ipc::MessageType::WELCOME)
     {
-        std::cerr << "[spectra-window] Did not receive WELCOME\n";
+        SPECTRA_LOG_ERROR("window", "Did not receive WELCOME");
         return 1;
     }
     auto welcome = spectra::ipc::decode_welcome(welcome_msg->payload);
     if (!welcome)
     {
-        std::cerr << "[spectra-window] Failed to decode WELCOME\n";
+        SPECTRA_LOG_ERROR("window", "Failed to decode WELCOME");
         return 1;
     }
 
@@ -638,8 +638,11 @@ int main(int argc, char* argv[])
     spectra::ipc::WindowId  ipc_window_id = welcome->window_id;
     uint32_t                heartbeat_ms  = welcome->heartbeat_ms;
 
-    std::cerr << "[spectra-window] WELCOME: session=" << session_id << " window=" << ipc_window_id
-              << " heartbeat=" << heartbeat_ms << "ms\n";
+    SPECTRA_LOG_INFO("window",
+                     "WELCOME: session={} window={} heartbeat={}ms",
+                     session_id,
+                     ipc_window_id,
+                     heartbeat_ms);
 
     // Track IPC state
     std::vector<uint64_t>                          assigned_figures;
@@ -695,13 +698,15 @@ int main(int argc, char* argv[])
                              ipc_window_id,
                              spectra::ipc::encode_ack_state(ack));
 
-                    std::cerr << "[spectra-window] STATE_SNAPSHOT (init): rev=" << current_revision
-                              << " figures=" << figure_cache.size() << "\n";
+                    SPECTRA_LOG_DEBUG("window",
+                                      "STATE_SNAPSHOT (init): rev={} figures={}",
+                                      current_revision,
+                                      figure_cache.size());
                 }
             }
         }
         if (!got_snapshot)
-            std::cerr << "[spectra-window] Warning: no STATE_SNAPSHOT received\n";
+            SPECTRA_LOG_WARN("window", "No STATE_SNAPSHOT received");
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -718,7 +723,7 @@ int main(int argc, char* argv[])
 
     if (registry.count() == 0)
     {
-        std::cerr << "[spectra-window] No figures received from backend, exiting\n";
+        SPECTRA_LOG_ERROR("window", "No figures received from backend, exiting");
         conn->close();
         return 0;
     }
@@ -752,7 +757,7 @@ int main(int argc, char* argv[])
     auto backend = std::make_unique<spectra::VulkanBackend>();
     if (!backend->init(false))
     {
-        std::cerr << "[spectra-window] Failed to initialize Vulkan backend\n";
+        SPECTRA_LOG_ERROR("window", "Failed to initialize Vulkan backend");
         return 1;
     }
 
@@ -765,7 +770,7 @@ int main(int argc, char* argv[])
     auto renderer_ptr = std::make_unique<spectra::Renderer>(*backend, theme_mgr);
     if (!renderer_ptr->init())
     {
-        std::cerr << "[spectra-window] Failed to initialize renderer\n";
+        SPECTRA_LOG_ERROR("window", "Failed to initialize renderer");
         return 1;
     }
 
@@ -788,7 +793,7 @@ int main(int argc, char* argv[])
     glfw = std::make_unique<spectra::GlfwAdapter>();
     if (!glfw->init(active_figure->width(), active_figure->height(), "Spectra"))
     {
-        std::cerr << "[spectra-window] Failed to create GLFW window\n";
+        SPECTRA_LOG_ERROR("window", "Failed to create GLFW window");
         return 1;
     }
 
@@ -1079,7 +1084,7 @@ int main(int argc, char* argv[])
         }
     }
 
-    std::cerr << "[spectra-window] Full UI initialized, entering main loop\n";
+    SPECTRA_LOG_INFO("window", "Full UI initialized, entering main loop");
 
     // ── Wire the Topics panel to IPC (Phase 2 of SPECTRA_TOPICS_PLAN). ──
 #ifdef SPECTRA_USE_IMGUI
@@ -1124,7 +1129,7 @@ int main(int argc, char* argv[])
             int poll_ret = ::poll(&pfd, 1, 0);   // non-blocking
             if (poll_ret > 0 && (pfd.revents & (POLLHUP | POLLERR)))
             {
-                std::cerr << "[spectra-window] Backend connection lost\n";
+                SPECTRA_LOG_WARN("window", "Backend connection lost");
                 session.request_exit();
                 break;
             }
@@ -1134,7 +1139,7 @@ int main(int argc, char* argv[])
             auto msg_opt = conn->recv();
             if (!msg_opt)
             {
-                std::cerr << "[spectra-window] Connection to backend lost\n";
+                SPECTRA_LOG_WARN("window", "Connection to backend lost");
                 session.request_exit();
                 break;
             }
@@ -1153,7 +1158,7 @@ int main(int argc, char* argv[])
                     break;
                 }
                 case spectra::ipc::MessageType::CMD_CLOSE_WINDOW:
-                    std::cerr << "[spectra-window] CMD_CLOSE_WINDOW\n";
+                    SPECTRA_LOG_DEBUG("window", "CMD_CLOSE_WINDOW");
                     session.request_exit();
                     break;
 
@@ -1458,7 +1463,7 @@ int main(int argc, char* argv[])
                           session_id,
                           ipc_window_id))
             {
-                std::cerr << "[spectra-window] Lost connection to backend\n";
+                SPECTRA_LOG_WARN("window", "Lost connection to backend");
                 session.request_exit();
                 break;
             }
@@ -1482,7 +1487,7 @@ int main(int argc, char* argv[])
     // Phase 6: Clean shutdown
     // ═══════════════════════════════════════════════════════════════════════
 
-    std::cerr << "[spectra-window] Shutting down\n";
+    SPECTRA_LOG_INFO("window", "Shutting down");
 
     // Notify backend
     send_ipc(*conn, spectra::ipc::MessageType::EVT_WINDOW, session_id, ipc_window_id);
@@ -1513,6 +1518,6 @@ int main(int argc, char* argv[])
 
     conn->close();
 
-    std::cerr << "[spectra-window] Agent stopped\n";
+    SPECTRA_LOG_INFO("window", "Agent stopped");
     return 0;
 }

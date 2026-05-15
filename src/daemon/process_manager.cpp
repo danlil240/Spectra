@@ -1,6 +1,6 @@
 #include "process_manager.hpp"
 
-#include <iostream>
+#include <spectra/logger.hpp>
 
 #ifndef _WIN32
     #include <spawn.h>
@@ -39,7 +39,7 @@ pid_t ProcessManager::spawn_agent()
 
     if (ret != 0)
     {
-        std::cerr << "[ProcessManager] posix_spawn failed: " << ret << "\n";
+        SPECTRA_LOG_ERROR("daemon", "posix_spawn failed: {}", ret);
         return -1;
     }
 
@@ -49,7 +49,7 @@ pid_t ProcessManager::spawn_agent()
     entry.alive       = true;
     processes_[pid]   = std::move(entry);
 
-    std::cerr << "[ProcessManager] Spawned agent pid=" << pid << "\n";
+    SPECTRA_LOG_INFO("daemon", "Spawned agent pid={}", pid);
     return pid;
 #else
     return -1;
@@ -93,12 +93,12 @@ std::vector<pid_t> ProcessManager::reap_finished()
         pid_t result = ::waitpid(it->first, &status, WNOHANG);
         if (result > 0)
         {
-            std::cerr << "[ProcessManager] Reaped pid=" << it->first;
+            std::string reap_msg = "Reaped pid=" + std::to_string(it->first);
             if (WIFEXITED(status))
-                std::cerr << " exit_code=" << WEXITSTATUS(status);
+                reap_msg += " exit_code=" + std::to_string(WEXITSTATUS(status));
             else if (WIFSIGNALED(status))
-                std::cerr << " signal=" << WTERMSIG(status);
-            std::cerr << "\n";
+                reap_msg += " signal=" + std::to_string(WTERMSIG(status));
+            SPECTRA_LOG_DEBUG("daemon", "{}", reap_msg);
 
             reaped.push_back(it->first);
             it = processes_.erase(it);

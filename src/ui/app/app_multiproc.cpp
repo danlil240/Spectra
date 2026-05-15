@@ -8,7 +8,6 @@
 
 #include <algorithm>
 #include <chrono>
-#include <iostream>
 #include <spectra/app.hpp>
 #include <spectra/export.hpp>
 #include <spectra/figure.hpp>
@@ -211,7 +210,7 @@ void App::run_multiproc()
 {
     if (registry_.count() == 0)
     {
-        std::cerr << "[spectra] No figures to display\n";
+        SPECTRA_LOG_WARN("app", "No figures to display");
         return;
     }
 
@@ -220,7 +219,7 @@ void App::run_multiproc()
     {
         if (!backend_ || !renderer_)
         {
-            std::cerr << "[spectra] Cannot run headless: backend or renderer not initialized\n";
+            SPECTRA_LOG_ERROR("app", "Cannot run headless: backend or renderer not initialized");
             return;
         }
 
@@ -264,20 +263,20 @@ void App::run_multiproc()
                                                   pixels.data(),
                                                   export_w,
                                                   export_h))
-                        std::cerr << "[spectra] Failed to write PNG: " << fig->export_req_.png_path
-                                  << "\n";
+                        SPECTRA_LOG_ERROR("app",
+                                          "Failed to write PNG: {}",
+                                          fig->export_req_.png_path);
                 }
                 else
                 {
-                    std::cerr << "[spectra] Failed to readback framebuffer\n";
+                    SPECTRA_LOG_ERROR("app", "Failed to readback framebuffer");
                 }
             }
 
             if (!fig->export_req_.svg_path.empty())
             {
                 if (!SvgExporter::write_svg(fig->export_req_.svg_path, *fig))
-                    std::cerr << "[spectra] Failed to write SVG: " << fig->export_req_.svg_path
-                              << "\n";
+                    SPECTRA_LOG_ERROR("app", "Failed to write SVG: {}", fig->export_req_.svg_path);
             }
         }
 
@@ -297,7 +296,7 @@ void App::run_multiproc()
         pid_t backend_pid = spawn_backend(sock);
         if (backend_pid <= 0)
         {
-            std::cerr << "[spectra] Failed to spawn spectra-backend\n";
+            SPECTRA_LOG_ERROR("app", "Failed to spawn spectra-backend");
             return;
         }
 
@@ -312,7 +311,7 @@ void App::run_multiproc()
 
         if (!conn || !conn->is_open())
         {
-            std::cerr << "[spectra] Timed out waiting for spectra-backend to start\n";
+            SPECTRA_LOG_ERROR("app", "Timed out waiting for spectra-backend to start");
 #ifndef _WIN32
             ::kill(backend_pid, SIGTERM);
 #endif
@@ -332,13 +331,13 @@ void App::run_multiproc()
         auto welcome_msg = conn->recv();
         if (!welcome_msg || welcome_msg->header.type != ipc::MessageType::WELCOME)
         {
-            std::cerr << "[spectra] Did not receive WELCOME from backend\n";
+            SPECTRA_LOG_ERROR("app", "Did not receive WELCOME from backend");
             return;
         }
         auto wp = ipc::decode_welcome(welcome_msg->payload);
         if (!wp)
         {
-            std::cerr << "[spectra] Failed to decode WELCOME\n";
+            SPECTRA_LOG_ERROR("app", "Failed to decode WELCOME");
             return;
         }
         session_id = wp->session_id;

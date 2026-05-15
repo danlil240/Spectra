@@ -6,8 +6,8 @@
 
     #include <cstdio>
     #include <cstring>
-    #include <iostream>
     #include <poll.h>
+    #include <spectra/logger.hpp>
     #include <unistd.h>
 
     #include "../ipc/codec.hpp"
@@ -47,14 +47,14 @@ std::string InprocTopicServer::start(FigureRegistry* fig_registry)
     socket_path_ = runtime_dir() + "/spectra-" + std::to_string(::getpid()) + ".sock";
     if (!server_.listen(socket_path_))
     {
-        std::cerr << "[inproc-topics] Failed to listen on " << socket_path_ << "\n";
+        SPECTRA_LOG_ERROR("topics", "Failed to listen on {}", socket_path_);
         socket_path_.clear();
         return {};
     }
 
     running_.store(true);
     thread_ = std::thread(&InprocTopicServer::run_loop, this);
-    std::cerr << "[inproc-topics] Listening on " << socket_path_ << "\n";
+    SPECTRA_LOG_INFO("topics", "Listening on {}", socket_path_);
     return socket_path_;
 }
 
@@ -188,7 +188,7 @@ void InprocTopicServer::handle_message(int /*fd*/,
                 std::lock_guard lock(reg_mu_);
                 registry_.declare(req->name, req->kind, req->unit, req->ring_capacity, client_id);
             }
-            std::cerr << "[inproc-topics] Topic declared: " << req->name << "\n";
+            SPECTRA_LOG_DEBUG("topics", "Topic declared: {}", req->name);
             send_ok(conn, msg.header.request_id);
             notify_topic_changed();
             break;
@@ -389,21 +389,22 @@ void InprocTopicServer::wire_topics_panel(ui::topics::TopicsPanel& panel,
     panel.set_subscribe_request_callback(
         [this, fig_registry](const ui::topics::SubscribeRequest& req)
         {
-            std::cerr << "[inproc-topics] subscribe_cb: fig_id=" << req.figure_id
-                      << " axes=" << req.axes_index << " topic=" << req.topic_name << "\n";
+            SPECTRA_LOG_DEBUG("topics",
+                              "subscribe_cb: fig_id={} axes={} topic={}",
+                              req.figure_id,
+                              req.axes_index,
+                              req.topic_name);
             if (!fig_registry)
             {
-                std::cerr << "[inproc-topics] subscribe_cb: fig_registry is null\n";
+                SPECTRA_LOG_ERROR("topics", "subscribe_cb: fig_registry is null");
                 return;
             }
             Figure* fig = fig_registry->get(req.figure_id);
             if (!fig)
             {
-                std::cerr << "[inproc-topics] subscribe_cb: figure not found (id=" << req.figure_id
-                          << ")\n";
-                // dump known IDs
+                SPECTRA_LOG_WARN("topics", "subscribe_cb: figure not found (id={})", req.figure_id);
                 for (auto id : fig_registry->all_ids())
-                    std::cerr << "  known fig id=" << id << "\n";
+                    SPECTRA_LOG_DEBUG("topics", "  known fig id={}", id);
                 return;
             }
             // Try 2D axes first, then 3D / generic.
@@ -420,9 +421,12 @@ void InprocTopicServer::wire_topics_panel(ui::topics::TopicsPanel& panel,
             }
             if (!ax)
             {
-                std::cerr << "[inproc-topics] subscribe_cb: no 2D axes at index " << req.axes_index
-                          << " (axes2d.size=" << axes2d.size() << ", all_axes.size=" << all.size()
-                          << ")\n";
+                SPECTRA_LOG_WARN(
+                    "topics",
+                    "subscribe_cb: no 2D axes at index {} (axes2d.size={}, all_axes.size={})",
+                    req.axes_index,
+                    axes2d.size(),
+                    all.size());
                 return;
             }
 
@@ -445,9 +449,12 @@ void InprocTopicServer::wire_topics_panel(ui::topics::TopicsPanel& panel,
                 registry_.subscribe(req.topic_name, sub);
             }
 
-            std::cerr << "[inproc-topics] Subscribed " << req.topic_name
-                      << " -> fig=" << req.figure_id << " axes=" << req.axes_index
-                      << " series=" << series_index << "\n";
+            SPECTRA_LOG_DEBUG("topics",
+                              "Subscribed {} -> fig={} axes={} series={}",
+                              req.topic_name,
+                              req.figure_id,
+                              req.axes_index,
+                              series_index);
         });
 
     // Fire notify when topics change to keep the panel fresh.

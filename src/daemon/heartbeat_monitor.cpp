@@ -1,6 +1,6 @@
 #include "heartbeat_monitor.hpp"
 
-#include <iostream>
+#include <spectra/logger.hpp>
 
 namespace spectra::daemon
 {
@@ -21,7 +21,7 @@ void HeartbeatMonitor::tick(DaemonContext& ctx)
     auto stale = ctx.graph.stale_agents(agent_timeout_);
     for (auto wid : stale)
     {
-        std::cerr << "[spectra-backend] Stale agent detected: window=" << wid << "\n";
+        SPECTRA_LOG_WARN("daemon", "Stale agent detected: window={}", wid);
 
         auto orphaned = ctx.graph.remove_agent(wid);
 
@@ -55,7 +55,7 @@ void HeartbeatMonitor::tick(DaemonContext& ctx)
     auto reaped = ctx.proc_mgr.reap_finished();
     for (auto pid : reaped)
     {
-        std::cerr << "[spectra-backend] Reaped child process pid=" << pid << "\n";
+        SPECTRA_LOG_DEBUG("daemon", "Reaped child process pid={}", pid);
         ctx.proc_mgr.remove_process(pid);
     }
 
@@ -77,7 +77,7 @@ void HeartbeatMonitor::tick(DaemonContext& ctx)
         }
         if (!has_keepalive_client)
         {
-            std::cerr << "[spectra-backend] No agents, no Python clients — shutting down\n";
+            SPECTRA_LOG_INFO("daemon", "No agents, no Python clients — shutting down");
             ctx.running.store(false, std::memory_order_relaxed);
         }
     }

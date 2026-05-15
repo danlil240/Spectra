@@ -5,7 +5,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
-#include <iostream>
+#include <spectra/logger.hpp>
 #include <thread>
 #include <vector>
 
@@ -238,9 +238,10 @@ std::unique_ptr<Publisher> Publisher::create(std::string_view name, const Option
     auto        conn = resolve_and_connect(opts, &socket);
     if (!conn || !conn->is_open())
     {
-        std::cerr << "[spectra::Publisher] failed to reach spectra-backend"
-                  << " (tried explicit, $SPECTRA_SOCKET, discovery"
-                  << (opts.auto_spawn_daemon ? ", auto-spawn" : "") << ")\n";
+        SPECTRA_LOG_ERROR("publisher",
+                          "Failed to reach spectra-backend"
+                          " (tried explicit, $SPECTRA_SOCKET, discovery{})",
+                          opts.auto_spawn_daemon ? ", auto-spawn" : "");
         return nullptr;
     }
 
@@ -263,7 +264,7 @@ std::unique_ptr<Publisher> Publisher::create(std::string_view name, const Option
     auto welcome_msg = conn->recv();
     if (!welcome_msg || welcome_msg->header.type != ipc::MessageType::WELCOME)
     {
-        std::cerr << "[spectra::Publisher] no WELCOME from daemon\n";
+        SPECTRA_LOG_ERROR("publisher", "No WELCOME from daemon");
         return nullptr;
     }
     auto welcome = ipc::decode_welcome(welcome_msg->payload);
@@ -287,7 +288,7 @@ std::unique_ptr<Publisher> Publisher::create(std::string_view name, const Option
     if (!impl.send_request_and_wait_ok(ipc::MessageType::REQ_DECLARE_TOPIC,
                                        ipc::encode_req_declare_topic(decl)))
     {
-        std::cerr << "[spectra::Publisher] REQ_DECLARE_TOPIC failed for '" << impl.name << "'\n";
+        SPECTRA_LOG_ERROR("publisher", "REQ_DECLARE_TOPIC failed for '{}'", impl.name);
         return nullptr;
     }
     return pub;

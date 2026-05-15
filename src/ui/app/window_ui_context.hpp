@@ -27,6 +27,7 @@
     #include "ui/figures/tab_drag_controller.hpp"
     #include "ui/animation/timeline_editor.hpp"
     #include "ui/commands/undo_manager.hpp"
+    #include "ui/topics/topics_panel.hpp"
 #endif
 
 #ifdef SPECTRA_USE_GLFW
@@ -84,6 +85,11 @@ struct WindowUIContext
     TabDragController tab_drag_controller;
 
     KnobManager knob_manager;
+
+    // Topics panel (Phase 2 of plans/SPECTRA_TOPICS_PLAN.md).
+    // Owned by the per-window UI bundle.  Wiring of IPC callbacks is done
+    // externally (by the agent or app shell).
+    ui::topics::TopicsPanel topics_panel;
 
     // Plugin overlay registry (shared across windows, not owned — owned by PluginManager)
     OverlayRegistry* overlay_registry = nullptr;

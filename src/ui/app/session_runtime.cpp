@@ -122,7 +122,7 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
     if (vsync_mode && scheduled_animation)
         animation_dt = animation_due_tick ? animation_tick_gate_.consume_accumulated_dt() : 0.0f;
 
-        // ── Unified window update + render loop ───────────────────────
+    // ── Unified window update + render loop ───────────────────────
 #ifdef SPECTRA_USE_GLFW
     if (window_mgr)
     {
@@ -486,6 +486,9 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
             // (clipboard, view commands registered via register_standard_commands).
             wctx->ui_ctx->per_window_active_figure    = win_fs.active_figure;
             wctx->ui_ctx->per_window_active_figure_id = win_fs.active_figure_id;
+
+            // Let the Topics panel know which figure the "Plot" button targets.
+            wctx->ui_ctx->topics_panel.set_target_figure_id(win_fs.active_figure_id);
 
             // Sync back to the app-level frame_state for the initial window
             if (wctx == window_mgr->windows()[0])
@@ -900,16 +903,15 @@ void SessionRuntime::commit_thread_safe_series()
         if (!fig)
             continue;
 
-        for (auto& axes_ptr : fig->all_axes())
+        fig->for_each_axes([&](AxesBase* ab)
         {
-            if (!axes_ptr)
-                continue;
-            for (auto& series_ptr : axes_ptr->series())
+            for (auto& series_ptr : ab->series())
             {
                 if (series_ptr->is_thread_safe() && series_ptr->commit_pending())
                     any_committed = true;
+[cmake] Not searching for unused variables given on the comma
             }
-        }
+        });
     }
 
     if (any_committed)
@@ -917,3 +919,5 @@ void SessionRuntime::commit_thread_safe_series()
 }
 
 }   // namespace spectra
+
+[cmake] Not searching for unused variables given on the comma

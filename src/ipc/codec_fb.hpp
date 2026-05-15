@@ -123,6 +123,32 @@ std::optional<EvtWindowClosedPayload>    decode_fb_evt_window_closed(std::span<c
 std::optional<EvtFigureDestroyedPayload> decode_fb_evt_figure_destroyed(
     std::span<const uint8_t> data);
 
+// ─── Topics (pub/sub) ────────────────────────────────────────────────────────
+
+std::vector<uint8_t> encode_fb_req_declare_topic(const ReqDeclareTopicPayload& p);
+std::vector<uint8_t> encode_fb_req_publish_topic_samples(
+    const ReqPublishTopicSamplesPayload& p);
+std::vector<uint8_t> encode_fb_req_subscribe_topic(const ReqSubscribeTopicPayload& p);
+std::vector<uint8_t> encode_fb_req_unsubscribe_topic(const ReqUnsubscribeTopicPayload& p);
+std::vector<uint8_t> encode_fb_req_list_topics(const ReqListTopicsPayload& p);
+std::vector<uint8_t> encode_fb_resp_topic_list(const RespTopicListPayload& p);
+std::vector<uint8_t> encode_fb_resp_subscribe_topic(const RespSubscribeTopicPayload& p);
+std::vector<uint8_t> encode_fb_evt_topic_list_changed(const EvtTopicListChangedPayload& p);
+
+std::optional<ReqDeclareTopicPayload> decode_fb_req_declare_topic(std::span<const uint8_t> data);
+std::optional<ReqPublishTopicSamplesPayload> decode_fb_req_publish_topic_samples(
+    std::span<const uint8_t> data);
+std::optional<ReqSubscribeTopicPayload> decode_fb_req_subscribe_topic(
+    std::span<const uint8_t> data);
+std::optional<ReqUnsubscribeTopicPayload> decode_fb_req_unsubscribe_topic(
+    std::span<const uint8_t> data);
+std::optional<ReqListTopicsPayload>      decode_fb_req_list_topics(std::span<const uint8_t> data);
+std::optional<RespTopicListPayload>      decode_fb_resp_topic_list(std::span<const uint8_t> data);
+std::optional<RespSubscribeTopicPayload> decode_fb_resp_subscribe_topic(
+    std::span<const uint8_t> data);
+std::optional<EvtTopicListChangedPayload> decode_fb_evt_topic_list_changed(
+    std::span<const uint8_t> data);
+
 // ─── Format detection ────────────────────────────────────────────────────────
 
 // Check the first byte of a payload to determine its format.

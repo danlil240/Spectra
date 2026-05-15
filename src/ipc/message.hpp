@@ -88,6 +88,16 @@ enum class MessageType : uint16_t
     // Backend → Python: events
     EVT_WINDOW_CLOSED    = 0x0550,
     EVT_FIGURE_DESTROYED = 0x0552,
+
+    // ─── Topics (pub/sub) ───────────────────────────────────────────────────
+    REQ_DECLARE_TOPIC         = 0x0600,
+    REQ_PUBLISH_TOPIC_SAMPLES = 0x0601,
+    REQ_SUBSCRIBE_TOPIC       = 0x0602,
+    REQ_UNSUBSCRIBE_TOPIC     = 0x0603,
+    REQ_LIST_TOPICS           = 0x0604,
+    RESP_TOPIC_LIST           = 0x0640,
+    RESP_SUBSCRIBE_TOPIC      = 0x0641,
+    EVT_TOPIC_LIST_CHANGED    = 0x0650,
 };
 
 // ─── Message envelope ────────────────────────────────────────────────────────
@@ -514,6 +524,88 @@ struct EvtFigureDestroyedPayload
 {
     uint64_t    figure_id = 0;
     std::string reason;
+};
+
+// ─── Topics (pub/sub) ───────────────────────────────────────────────────────
+
+enum class TopicKind : uint8_t
+{
+    Scalar2D = 0,
+    Scalar3D = 1,
+};
+
+// Client → Backend: declare a named topic.
+struct ReqDeclareTopicPayload
+{
+    std::string name;
+    TopicKind   kind          = TopicKind::Scalar2D;
+    std::string unit;
+    uint32_t    ring_capacity = 4096;
+};
+
+// Client → Backend: push N samples to a topic.
+// Sample layout (float64 interleaved):
+//   Scalar2D: [x0,y0, x1,y1, ...]
+//   Scalar3D: [x0,y0,z0, x1,y1,z1, ...]
+struct ReqPublishTopicSamplesPayload
+{
+    std::string         name;
+    std::vector<double> samples;
+};
+
+// Client → Backend: subscribe a series on (figure, axes) to a topic.
+// If series_index == UINT32_MAX, the daemon auto-creates a new line series
+// and returns its index in RespSubscribeTopicPayload.
+struct ReqSubscribeTopicPayload
+{
+    std::string name;
+    uint64_t    figure_id    = 0;
+    uint32_t    axes_index   = 0;
+    uint32_t    series_index = 0xFFFFFFFFu;
+};
+
+// Client → Backend: drop a topic subscription.
+struct ReqUnsubscribeTopicPayload
+{
+    uint64_t figure_id    = 0;
+    uint32_t axes_index   = 0;
+    uint32_t series_index = 0;
+};
+
+// Client → Backend: list all known topics.
+struct ReqListTopicsPayload
+{
+};
+
+struct TopicInfoEntry
+{
+    std::string name;
+    TopicKind   kind = TopicKind::Scalar2D;
+    std::string unit;
+    double      estimated_hz     = 0.0;
+    uint64_t    total_samples    = 0;
+    uint64_t    last_publish_ns  = 0;
+    uint32_t    subscriber_count = 0;
+    bool        publisher_online = false;
+};
+
+// Backend → Client: list of topics.
+struct RespTopicListPayload
+{
+    RequestId                   request_id = INVALID_REQUEST;
+    std::vector<TopicInfoEntry> topics;
+};
+
+// Backend → Client: subscribe acknowledgement (with resolved series_index).
+struct RespSubscribeTopicPayload
+{
+    RequestId request_id   = INVALID_REQUEST;
+    uint32_t  series_index = 0;
+};
+
+// Backend → Client: topic list changed (broadcast).
+struct EvtTopicListChangedPayload
+{
 };
 
 }   // namespace spectra::ipc

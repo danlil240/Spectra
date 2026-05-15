@@ -129,12 +129,14 @@ file(GLOB SPECTRA_DAEMON_SOURCES
     src/daemon/session_graph.cpp
     src/daemon/process_manager.cpp
     src/daemon/figure_model.cpp
+    src/daemon/topic_registry.cpp
 )
 
 # UI sources (non-ImGui) — guarded so parallel agents don't break each other's builds.
 # app.cpp is always present; others are included only if they exist on disk.
 file(GLOB SPECTRA_UI_SOURCES src/ui/app/app.cpp src/ui/app/app_inproc.cpp src/ui/app/app_multiproc.cpp src/ui/app/app_step.cpp)
 foreach(_ui_src
+    src/app/inproc_topic_server.cpp
     src/ui/app/window_ui_context_builder.cpp
     src/ui/input/input.cpp
     src/ui/input/input_pan_zoom.cpp
@@ -423,6 +425,7 @@ if(SPECTRA_USE_IMGUI AND SPECTRA_USE_GLFW)
         src/ui/app/commands/commands_tools.cpp
         src/ui/app/commands/commands_data.cpp
         src/ui/app/commands/commands_app.cpp
+        src/ui/topics/topics_panel.cpp
     )
         if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${_imgui_src})
             target_sources(spectra PRIVATE ${_imgui_src})
@@ -809,6 +812,8 @@ if(SPECTRA_RUNTIME_MODE STREQUAL "multiproc")
             src/daemon/daemon_server.cpp
             src/daemon/agent_message_handler.cpp
             src/daemon/python_message_handler.cpp
+            src/daemon/topic_message_handler.cpp
+            src/daemon/topic_registry.cpp
             src/daemon/heartbeat_monitor.cpp
             src/daemon/session_graph.cpp
             src/daemon/process_manager.cpp

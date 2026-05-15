@@ -490,3 +490,36 @@ def decode_evt_window_closed(data: bytes) -> Tuple[int, int, str]:
         elif t == P.TAG_REASON:
             reason = dec.as_string()
     return figure_id, window_id, reason
+
+
+# ─── Topics ───────────────────────────────────────────────────────────────────
+
+def encode_req_declare_topic(name: str, kind: int = 0, unit: str = "",
+                             ring_capacity: int = 4096) -> bytes:
+    return fb_codec.encode_fb_req_declare_topic(name, kind, unit, ring_capacity)
+
+
+def encode_req_publish_topic_samples(name: str, samples: List[float]) -> bytes:
+    return fb_codec.encode_fb_req_publish_topic_samples(name, samples)
+
+
+def encode_req_subscribe_topic(name: str, figure_id: int, axes_index: int,
+                               series_index: int = 0xFFFFFFFF) -> bytes:
+    return fb_codec.encode_fb_req_subscribe_topic(name, figure_id, axes_index, series_index)
+
+
+def encode_req_unsubscribe_topic(name: str, figure_id: int, axes_index: int,
+                                 series_index: int) -> bytes:
+    return fb_codec.encode_fb_req_unsubscribe_topic(name, figure_id, axes_index, series_index)
+
+
+def encode_req_list_topics() -> bytes:
+    return fb_codec.encode_fb_req_list_topics()
+
+
+def decode_resp_topic_list(data: bytes):
+    return fb_codec.decode_fb_resp_topic_list(data)
+
+
+def decode_resp_subscribe_topic(data: bytes):
+    return fb_codec.decode_fb_resp_subscribe_topic(data)

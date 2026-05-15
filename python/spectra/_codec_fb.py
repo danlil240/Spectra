@@ -14,6 +14,26 @@ import flatbuffers
 
 from . import _protocol as P
 
+# Make absolute imports of the form `from spectra.ipc.fb.X import X` (emitted
+# by `flatc --python` when one FlatBuffers table references another) resolve
+# to our `_fb_generated/spectra/ipc/fb` tree. Without this shim, only direct
+# top-level table accesses work — any nested-table call (e.g. fb.Topics(i))
+# fails with ModuleNotFoundError because the generated files use absolute
+# package paths matching their schema namespace.
+import os as _os
+import sys as _sys
+import types as _types
+
+_fb_root = _os.path.join(_os.path.dirname(__file__), "_fb_generated", "spectra")
+if "spectra.ipc" not in _sys.modules:
+    _ipc = _types.ModuleType("spectra.ipc")
+    _ipc.__path__ = [_os.path.join(_fb_root, "ipc")]
+    _sys.modules["spectra.ipc"] = _ipc
+if "spectra.ipc.fb" not in _sys.modules:
+    _fb = _types.ModuleType("spectra.ipc.fb")
+    _fb.__path__ = [_os.path.join(_fb_root, "ipc", "fb")]
+    _sys.modules["spectra.ipc.fb"] = _fb
+
 # ─── Generated FlatBuffers classes ────────────────────────────────────────────
 from ._fb_generated.spectra.ipc.fb import HelloPayload as FBHello
 from ._fb_generated.spectra.ipc.fb import WelcomePayload as FBWelcome
@@ -37,6 +57,15 @@ from ._fb_generated.spectra.ipc.fb import ReqDestroyFigurePayload as FBReqDestro
 from ._fb_generated.spectra.ipc.fb import ReqRemoveSeriesPayload as FBReqRemSeries
 from ._fb_generated.spectra.ipc.fb import ReqCloseFigurePayload as FBReqCloseFig
 from ._fb_generated.spectra.ipc.fb import ReqReconnectPayload as FBReqReconnect
+from ._fb_generated.spectra.ipc.fb import ReqDeclareTopicPayload as FBReqDeclareTopic
+from ._fb_generated.spectra.ipc.fb import ReqPublishTopicSamplesPayload as FBReqPublishTopic
+from ._fb_generated.spectra.ipc.fb import ReqSubscribeTopicPayload as FBReqSubscribeTopic
+from ._fb_generated.spectra.ipc.fb import ReqUnsubscribeTopicPayload as FBReqUnsubscribeTopic
+from ._fb_generated.spectra.ipc.fb import ReqListTopicsPayload as FBReqListTopics
+from ._fb_generated.spectra.ipc.fb import RespTopicListPayload as FBRespTopicList
+from ._fb_generated.spectra.ipc.fb import TopicInfoEntry as FBTopicInfoEntry
+from ._fb_generated.spectra.ipc.fb import RespSubscribeTopicPayload as FBRespSubscribeTopic
+from ._fb_generated.spectra.ipc.fb import EvtTopicListChangedPayload as FBEvtTopicListChanged
 
 FB_PREFIX = bytes([P.PAYLOAD_FORMAT_FLATBUFFERS])
 
@@ -305,3 +334,109 @@ def decode_fb_evt_figure_destroyed(data: bytes) -> Tuple[int, str]:
     buf = _strip(data) if _is_fb(data) else data
     fb = FBEvtFigDestroyed.EvtFigureDestroyedPayload.GetRootAs(buf, 0)
     return fb.FigureId(), (fb.Reason() or b"").decode("utf-8", errors="replace")
+
+
+# ─── Topics (pub/sub) ─────────────────────────────────────────────────────────
+
+def encode_fb_req_declare_topic(
+    name: str, kind: int = 0, unit: str = "", ring_capacity: int = 4096
+) -> bytes:
+    builder = flatbuffers.Builder(256)
+    name_off = builder.CreateString(name)
+    unit_off = builder.CreateString(unit)
+    FBReqDeclareTopic.Start(builder)
+    FBReqDeclareTopic.AddName(builder, name_off)
+    FBReqDeclareTopic.AddKind(builder, kind)
+    FBReqDeclareTopic.AddUnit(builder, unit_off)
+    FBReqDeclareTopic.AddRingCapacity(builder, ring_capacity)
+    root = builder.EndObject()
+    builder.Finish(root)
+    return _finalize(builder)
+
+
+def encode_fb_req_publish_topic_samples(name: str, samples: List[float]) -> bytes:
+    builder = flatbuffers.Builder(256 + len(samples) * 8)
+    name_off = builder.CreateString(name)
+    if samples:
+        FBReqPublishTopic.StartSamplesVector(builder, len(samples))
+        for v in reversed(samples):
+            builder.PrependFloat64(v)
+        samples_off = builder.EndVector()
+    FBReqPublishTopic.Start(builder)
+    FBReqPublishTopic.AddName(builder, name_off)
+    if samples:
+        FBReqPublishTopic.AddSamples(builder, samples_off)
+    root = builder.EndObject()
+    builder.Finish(root)
+    return _finalize(builder)
+
+
+def encode_fb_req_subscribe_topic(
+    name: str, figure_id: int, axes_index: int, series_index: int = 0xFFFFFFFF
+) -> bytes:
+    builder = flatbuffers.Builder(256)
+    name_off = builder.CreateString(name)
+    FBReqSubscribeTopic.Start(builder)
+    FBReqSubscribeTopic.AddName(builder, name_off)
+    FBReqSubscribeTopic.AddFigureId(builder, figure_id)
+    FBReqSubscribeTopic.AddAxesIndex(builder, axes_index)
+    FBReqSubscribeTopic.AddSeriesIndex(builder, series_index)
+    root = builder.EndObject()
+    builder.Finish(root)
+    return _finalize(builder)
+
+
+def encode_fb_req_unsubscribe_topic(
+    name: str, figure_id: int, axes_index: int, series_index: int
+) -> bytes:
+    builder = flatbuffers.Builder(256)
+    name_off = builder.CreateString(name)
+    FBReqUnsubscribeTopic.Start(builder)
+    FBReqUnsubscribeTopic.AddName(builder, name_off)
+    FBReqUnsubscribeTopic.AddFigureId(builder, figure_id)
+    FBReqUnsubscribeTopic.AddAxesIndex(builder, axes_index)
+    FBReqUnsubscribeTopic.AddSeriesIndex(builder, series_index)
+    root = builder.EndObject()
+    builder.Finish(root)
+    return _finalize(builder)
+
+
+def encode_fb_req_list_topics() -> bytes:
+    builder = flatbuffers.Builder(64)
+    FBReqListTopics.Start(builder)
+    root = builder.EndObject()
+    builder.Finish(root)
+    return _finalize(builder)
+
+
+def decode_fb_resp_topic_list(data: bytes):
+    buf = _strip(data) if _is_fb(data) else data
+    fb = FBRespTopicList.RespTopicListPayload.GetRootAs(buf, 0)
+    topics = []
+    for i in range(fb.TopicsLength()):
+        e = fb.Topics(i)
+        topics.append({
+            "name": (e.Name() or b"").decode("utf-8", errors="replace"),
+            "kind": e.Kind(),
+            "unit": (e.Unit() or b"").decode("utf-8", errors="replace"),
+            "publisher_online": bool(e.PublisherOnline()),
+            "total_samples": e.TotalSamples(),
+            "estimated_hz": e.EstimatedHz(),
+            "last_publish_ns": e.LastPublishNs(),
+            "subscriber_count": e.SubscriberCount(),
+        })
+    return {"request_id": fb.RequestId(), "topics": topics}
+
+
+def decode_fb_resp_subscribe_topic(data: bytes):
+    buf = _strip(data) if _is_fb(data) else data
+    fb = FBRespSubscribeTopic.RespSubscribeTopicPayload.GetRootAs(buf, 0)
+    return {
+        "request_id": fb.RequestId(),
+        "series_index": fb.SeriesIndex(),
+    }
+
+
+def decode_fb_evt_topic_list_changed(data: bytes):
+    # Currently a flag-only event; daemon broadcasts after any change.
+    return None

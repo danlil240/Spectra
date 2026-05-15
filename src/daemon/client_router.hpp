@@ -11,10 +11,11 @@ namespace spectra::daemon
 // Client type classification based on HELLO.client_type field.
 enum class ClientType : uint8_t
 {
-    UNKNOWN = 0,
-    AGENT   = 1,   // spectra-window render agent
-    PYTHON  = 2,   // Python client (import spectra)
-    APP     = 3,   // spectra-app (legacy inproc source client)
+    UNKNOWN   = 0,
+    AGENT     = 1,   // spectra-window render agent
+    PYTHON    = 2,   // Python client (import spectra)
+    APP       = 3,   // spectra-app (legacy inproc source client)
+    PUBLISHER = 4,   // headless topic publisher (no figures of its own)
 };
 
 // Classify a client based on its HELLO payload.
@@ -24,6 +25,8 @@ inline ClientType classify_client(const ipc::HelloPayload& hello)
         return ClientType::PYTHON;
     if (hello.client_type == "agent")
         return ClientType::AGENT;
+    if (hello.client_type == "publisher")
+        return ClientType::PUBLISHER;
     // Legacy: detect spectra-app by agent_build string
     if (hello.agent_build.find("spectra-app") != std::string::npos)
         return ClientType::APP;

@@ -169,6 +169,7 @@ enum class Icon : uint16_t
     Database     = 0xF1C0,   // fa-database (data)
     Timeline     = 0xF550,   // fa-stream / fa-timeline
     Code         = 0xF121,   // fa-code (python)
+    Broadcast    = 0xE4D9,   // fa-tower-broadcast (topics / pub-sub)
     ChartArea    = 0xF1FE,   // fa-chart-area (analysis)
     WindowIcon   = 0xF2D0,   // fa-window-maximize
     PlayCircle   = 0xF144,   // fa-circle-play (run button)

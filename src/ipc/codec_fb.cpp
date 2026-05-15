@@ -1176,4 +1176,238 @@ std::optional<EvtFigureDestroyedPayload> decode_fb_evt_figure_destroyed(
     return p;
 }
 
+// ─── Topics (pub/sub) ────────────────────────────────────────────────────────
+
+std::vector<uint8_t> encode_fb_req_declare_topic(const ReqDeclareTopicPayload& p)
+{
+    flatbuffers::FlatBufferBuilder fbb(256);
+    auto                           name_off = fbb.CreateString(p.name);
+    auto                           unit_off = fbb.CreateString(p.unit);
+    fb::ReqDeclareTopicPayloadBuilder b(fbb);
+    b.add_name(name_off);
+    b.add_kind(static_cast<uint8_t>(p.kind));
+    b.add_unit(unit_off);
+    b.add_ring_capacity(p.ring_capacity);
+    fbb.Finish(b.Finish());
+    return finalize(fbb);
+}
+
+std::optional<ReqDeclareTopicPayload> decode_fb_req_declare_topic(std::span<const uint8_t> data)
+{
+    flatbuffers::Verifier v(data.data(), data.size());
+    if (!v.VerifyBuffer<fb::ReqDeclareTopicPayload>())
+        return std::nullopt;
+    auto                   fb = flatbuffers::GetRoot<fb::ReqDeclareTopicPayload>(data.data());
+    ReqDeclareTopicPayload p;
+    if (fb->name())
+        p.name = fb->name()->str();
+    p.kind = static_cast<TopicKind>(fb->kind());
+    if (fb->unit())
+        p.unit = fb->unit()->str();
+    p.ring_capacity = fb->ring_capacity();
+    return p;
+}
+
+std::vector<uint8_t> encode_fb_req_publish_topic_samples(const ReqPublishTopicSamplesPayload& p)
+{
+    flatbuffers::FlatBufferBuilder fbb(256 + p.samples.size() * 8);
+    auto                           name_off = fbb.CreateString(p.name);
+    flatbuffers::Offset<flatbuffers::Vector<double>> samples_off;
+    if (!p.samples.empty())
+        samples_off = fbb.CreateVector(p.samples);
+    fb::ReqPublishTopicSamplesPayloadBuilder b(fbb);
+    b.add_name(name_off);
+    if (!p.samples.empty())
+        b.add_samples(samples_off);
+    fbb.Finish(b.Finish());
+    return finalize(fbb);
+}
+
+std::optional<ReqPublishTopicSamplesPayload> decode_fb_req_publish_topic_samples(
+    std::span<const uint8_t> data)
+{
+    flatbuffers::Verifier v(data.data(), data.size());
+    if (!v.VerifyBuffer<fb::ReqPublishTopicSamplesPayload>())
+        return std::nullopt;
+    auto fb = flatbuffers::GetRoot<fb::ReqPublishTopicSamplesPayload>(data.data());
+    ReqPublishTopicSamplesPayload p;
+    if (fb->name())
+        p.name = fb->name()->str();
+    if (fb->samples())
+    {
+        p.samples.reserve(fb->samples()->size());
+        for (auto v2 : *fb->samples())
+            p.samples.push_back(v2);
+    }
+    return p;
+}
+
+std::vector<uint8_t> encode_fb_req_subscribe_topic(const ReqSubscribeTopicPayload& p)
+{
+    flatbuffers::FlatBufferBuilder fbb(256);
+    auto                           name_off = fbb.CreateString(p.name);
+    fb::ReqSubscribeTopicPayloadBuilder b(fbb);
+    b.add_name(name_off);
+    b.add_figure_id(p.figure_id);
+    b.add_axes_index(p.axes_index);
+    b.add_series_index(p.series_index);
+    fbb.Finish(b.Finish());
+    return finalize(fbb);
+}
+
+std::optional<ReqSubscribeTopicPayload> decode_fb_req_subscribe_topic(
+    std::span<const uint8_t> data)
+{
+    flatbuffers::Verifier v(data.data(), data.size());
+    if (!v.VerifyBuffer<fb::ReqSubscribeTopicPayload>())
+        return std::nullopt;
+    auto                     fb = flatbuffers::GetRoot<fb::ReqSubscribeTopicPayload>(data.data());
+    ReqSubscribeTopicPayload p;
+    if (fb->name())
+        p.name = fb->name()->str();
+    p.figure_id    = fb->figure_id();
+    p.axes_index   = fb->axes_index();
+    p.series_index = fb->series_index();
+    return p;
+}
+
+std::vector<uint8_t> encode_fb_req_unsubscribe_topic(const ReqUnsubscribeTopicPayload& p)
+{
+    flatbuffers::FlatBufferBuilder fbb(64);
+    fb::ReqUnsubscribeTopicPayloadBuilder b(fbb);
+    b.add_figure_id(p.figure_id);
+    b.add_axes_index(p.axes_index);
+    b.add_series_index(p.series_index);
+    fbb.Finish(b.Finish());
+    return finalize(fbb);
+}
+
+std::optional<ReqUnsubscribeTopicPayload> decode_fb_req_unsubscribe_topic(
+    std::span<const uint8_t> data)
+{
+    flatbuffers::Verifier v(data.data(), data.size());
+    if (!v.VerifyBuffer<fb::ReqUnsubscribeTopicPayload>())
+        return std::nullopt;
+    auto fb = flatbuffers::GetRoot<fb::ReqUnsubscribeTopicPayload>(data.data());
+    ReqUnsubscribeTopicPayload p;
+    p.figure_id    = fb->figure_id();
+    p.axes_index   = fb->axes_index();
+    p.series_index = fb->series_index();
+    return p;
+}
+
+std::vector<uint8_t> encode_fb_req_list_topics(const ReqListTopicsPayload&)
+{
+    flatbuffers::FlatBufferBuilder fbb(32);
+    fb::ReqListTopicsPayloadBuilder b(fbb);
+    fbb.Finish(b.Finish());
+    return finalize(fbb);
+}
+
+std::optional<ReqListTopicsPayload> decode_fb_req_list_topics(std::span<const uint8_t> data)
+{
+    flatbuffers::Verifier v(data.data(), data.size());
+    if (!v.VerifyBuffer<fb::ReqListTopicsPayload>())
+        return std::nullopt;
+    return ReqListTopicsPayload{};
+}
+
+std::vector<uint8_t> encode_fb_resp_topic_list(const RespTopicListPayload& p)
+{
+    flatbuffers::FlatBufferBuilder fbb(512);
+    std::vector<flatbuffers::Offset<fb::TopicInfoEntry>> entries;
+    entries.reserve(p.topics.size());
+    for (const auto& t : p.topics)
+    {
+        auto name_off = fbb.CreateString(t.name);
+        auto unit_off = fbb.CreateString(t.unit);
+        fb::TopicInfoEntryBuilder eb(fbb);
+        eb.add_name(name_off);
+        eb.add_kind(static_cast<uint8_t>(t.kind));
+        eb.add_unit(unit_off);
+        eb.add_estimated_hz(t.estimated_hz);
+        eb.add_total_samples(t.total_samples);
+        eb.add_last_publish_ns(t.last_publish_ns);
+        eb.add_subscriber_count(t.subscriber_count);
+        eb.add_publisher_online(t.publisher_online);
+        entries.push_back(eb.Finish());
+    }
+    auto topics_off = fbb.CreateVector(entries);
+    fb::RespTopicListPayloadBuilder b(fbb);
+    b.add_request_id(p.request_id);
+    b.add_topics(topics_off);
+    fbb.Finish(b.Finish());
+    return finalize(fbb);
+}
+
+std::optional<RespTopicListPayload> decode_fb_resp_topic_list(std::span<const uint8_t> data)
+{
+    flatbuffers::Verifier v(data.data(), data.size());
+    if (!v.VerifyBuffer<fb::RespTopicListPayload>())
+        return std::nullopt;
+    auto                 fb = flatbuffers::GetRoot<fb::RespTopicListPayload>(data.data());
+    RespTopicListPayload p;
+    p.request_id = fb->request_id();
+    if (fb->topics())
+    {
+        p.topics.reserve(fb->topics()->size());
+        for (auto e : *fb->topics())
+        {
+            TopicInfoEntry t;
+            if (e->name())
+                t.name = e->name()->str();
+            t.kind = static_cast<TopicKind>(e->kind());
+            if (e->unit())
+                t.unit = e->unit()->str();
+            t.estimated_hz     = e->estimated_hz();
+            t.total_samples    = e->total_samples();
+            t.last_publish_ns  = e->last_publish_ns();
+            t.subscriber_count = e->subscriber_count();
+            t.publisher_online = e->publisher_online();
+            p.topics.push_back(std::move(t));
+        }
+    }
+    return p;
+}
+
+std::vector<uint8_t> encode_fb_resp_subscribe_topic(const RespSubscribeTopicPayload& p)
+{
+    flatbuffers::FlatBufferBuilder fbb(64);
+    fb::RespSubscribeTopicPayloadBuilder b(fbb);
+    b.add_request_id(p.request_id);
+    b.add_series_index(p.series_index);
+    fbb.Finish(b.Finish());
+    return finalize(fbb);
+}
+
+std::optional<RespSubscribeTopicPayload> decode_fb_resp_subscribe_topic(
+    std::span<const uint8_t> data)
+{
+    flatbuffers::Verifier v(data.data(), data.size());
+    if (!v.VerifyBuffer<fb::RespSubscribeTopicPayload>())
+        return std::nullopt;
+    auto                      fb = flatbuffers::GetRoot<fb::RespSubscribeTopicPayload>(data.data());
+    RespSubscribeTopicPayload p;
+    p.request_id   = fb->request_id();
+    p.series_index = fb->series_index();
+    return p;
+}
+
+std::vector<uint8_t> encode_fb_evt_topic_list_changed(const EvtTopicListChangedPayload&)
+{
+    flatbuffers::FlatBufferBuilder fbb(32);
+    fb::EvtTopicListChangedPayloadBuilder b(fbb);
+    fbb.Finish(b.Finish());
+    return finalize(fbb);
+}
+
+std::optional<EvtTopicListChangedPayload> decode_fb_evt_topic_list_changed(
+    std::span<const uint8_t> data)
+{
+    flatbuffers::Verifier v(data.data(), data.size());
+    if (!v.VerifyBuffer<fb::EvtTopicListChangedPayload>())
+        return std::nullopt;
+    return EvtTopicListChangedPayload{};
+}
+
 }   // namespace spectra::ipc

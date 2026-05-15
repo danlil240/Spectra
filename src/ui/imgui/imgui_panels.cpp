@@ -2,6 +2,8 @@
 
     #include "imgui_integration_internal.hpp"
 
+    #include "../topics/topics_panel.hpp"
+
 namespace spectra
 {
 
@@ -366,9 +368,9 @@ void ImGuiIntegration::draw_canvas(Figure& figure)
             auto    accent    = theme_colors().accent;
             uint8_t alpha     = track_active ? 240 : (thumb_hovered ? 210 : 180);
             ImU32   thumb_col = IM_COL32(static_cast<uint8_t>(accent.r * 255),
-                                       static_cast<uint8_t>(accent.g * 255),
-                                       static_cast<uint8_t>(accent.b * 255),
-                                       alpha);
+                                         static_cast<uint8_t>(accent.g * 255),
+                                         static_cast<uint8_t>(accent.b * 255),
+                                         alpha);
             dl->AddRectFilled(ImVec2(sb_x, thumb_y),
                               ImVec2(sb_x + SCROLLBAR_WIDTH, thumb_y + thumb_h),
                               thumb_col,
@@ -433,13 +435,13 @@ void ImGuiIntegration::draw_inspector(Figure& figure)
                 float       line_x   = bounds.x;
                 auto        accent   = theme_colors().accent;
                 ImU32       line_col = active ? IM_COL32(uint8_t(accent.r * 255),
-                                                   uint8_t(accent.g * 255),
-                                                   uint8_t(accent.b * 255),
-                                                   255)
+                                                         uint8_t(accent.g * 255),
+                                                         uint8_t(accent.b * 255),
+                                                         255)
                                               : IM_COL32(uint8_t(accent.r * 255),
-                                                   uint8_t(accent.g * 255),
-                                                   uint8_t(accent.b * 255),
-                                                   120);
+                                                         uint8_t(accent.g * 255),
+                                                         uint8_t(accent.b * 255),
+                                                         120);
                 dl->AddLine(ImVec2(line_x, bounds.y),
                             ImVec2(line_x, bounds.y + bounds.h),
                             line_col,
@@ -1066,9 +1068,9 @@ void ImGuiIntegration::draw_split_view_splitters()
         {
             Rect  hr               = target.highlight_rect;
             ImU32 highlight_color  = IM_COL32(static_cast<int>(theme.accent.r * 255),
-                                             static_cast<int>(theme.accent.g * 255),
-                                             static_cast<int>(theme.accent.b * 255),
-                                             40);
+                                              static_cast<int>(theme.accent.g * 255),
+                                              static_cast<int>(theme.accent.b * 255),
+                                              40);
             ImU32 highlight_border = IM_COL32(static_cast<int>(theme.accent.r * 255),
                                               static_cast<int>(theme.accent.g * 255),
                                               static_cast<int>(theme.accent.b * 255),
@@ -1253,9 +1255,9 @@ void ImGuiIntegration::draw_split_view_splitters()
         {
             Rect  hr               = target.highlight_rect;
             ImU32 highlight_color  = IM_COL32(static_cast<int>(theme.accent.r * 255),
-                                             static_cast<int>(theme.accent.g * 255),
-                                             static_cast<int>(theme.accent.b * 255),
-                                             60);
+                                              static_cast<int>(theme.accent.g * 255),
+                                              static_cast<int>(theme.accent.b * 255),
+                                              60);
             ImU32 highlight_border = IM_COL32(static_cast<int>(theme.accent.r * 255),
                                               static_cast<int>(theme.accent.g * 255),
                                               static_cast<int>(theme.accent.b * 255),
@@ -1272,6 +1274,108 @@ void ImGuiIntegration::draw_split_view_splitters()
                                2.0f);
         }
     }
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Topics drag-drop target on the canvas.
+//
+// While the user drags a "SPECTRA_TOPIC" payload from the Topics panel, an
+// invisible drop overlay covers the canvas region.  The axes under the mouse
+// is hit-tested via input_handler_; on drop, the panel's submit_subscribe()
+// fires the subscribe IPC with the resolved axes index.
+// ───────────────────────────────────────────────────────────────────────────
+void ImGuiIntegration::draw_topic_drop_target(Figure& figure)
+{
+    if (!topics_panel_ || !layout_manager_ || !input_handler_)
+        return;
+    if (!topics_panel_->has_subscribe_callback() || topics_panel_->target_figure_id() == 0)
+        return;
+
+    // Only show the drop overlay while a topic payload is being dragged.
+    const ImGuiPayload* payload = ImGui::GetDragDropPayload();
+    if (!payload || !payload->IsDataType(ui::topics::TOPIC_DRAG_TYPE))
+        return;
+
+    Rect bounds = layout_manager_->canvas_rect();
+    if (bounds.w < 1.0f || bounds.h < 1.0f)
+        return;
+
+    // Highlight the axes currently under the mouse, so the user sees which
+    // subplot the drop will land on.
+    ImGuiIO&    io        = ImGui::GetIO();
+    AxesBase*   hover_ax  = input_handler_->hit_test_all_axes(static_cast<double>(io.MousePos.x),
+                                                              static_cast<double>(io.MousePos.y));
+    int         hover_idx = -1;
+    const auto& all       = figure.all_axes();
+    for (size_t i = 0; i < all.size(); ++i)
+    {
+        if (all[i].get() == hover_ax)
+        {
+            hover_idx = static_cast<int>(i);
+            break;
+        }
+    }
+
+    if (hover_ax && hover_idx >= 0)
+    {
+        const auto& vp     = hover_ax->viewport();
+        ImDrawList* dl     = ImGui::GetForegroundDrawList();
+        const auto& th     = theme_colors();
+        ImU32       fill   = IM_COL32(static_cast<int>(th.accent.r * 255),
+                                      static_cast<int>(th.accent.g * 255),
+                                      static_cast<int>(th.accent.b * 255),
+                                      40);
+        ImU32       border = IM_COL32(static_cast<int>(th.accent.r * 255),
+                                      static_cast<int>(th.accent.g * 255),
+                                      static_cast<int>(th.accent.b * 255),
+                                      220);
+        dl->AddRectFilled(ImVec2(vp.x, vp.y), ImVec2(vp.x + vp.w, vp.y + vp.h), fill, 4.0f);
+        dl->AddRect(ImVec2(vp.x, vp.y), ImVec2(vp.x + vp.w, vp.y + vp.h), border, 4.0f, 0, 2.0f);
+    }
+
+    // Invisible drop-target window covering the canvas.  Inputs are enabled
+    // only while a drag is in progress, so normal canvas mouse handling is
+    // unaffected outside of drag-and-drop.
+    ImGui::SetNextWindowPos(ImVec2(bounds.x, bounds.y));
+    ImGui::SetNextWindowSize(ImVec2(bounds.w, bounds.h));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0, 0, 0, 0));
+    ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0, 0, 0, 0));
+
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove
+                             | ImGuiWindowFlags_NoSavedSettings
+                             | ImGuiWindowFlags_NoBringToFrontOnFocus
+                             | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoScrollbar
+                             | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoBackground;
+
+    if (ImGui::Begin("##topic_drop_overlay", nullptr, flags))
+    {
+        ImGui::InvisibleButton("##topic_drop_btn", ImVec2(bounds.w, bounds.h));
+        if (ImGui::BeginDragDropTarget())
+        {
+            if (const ImGuiPayload* p = ImGui::AcceptDragDropPayload(ui::topics::TOPIC_DRAG_TYPE))
+            {
+                if (p->DataSize == sizeof(ui::topics::TopicDragPayload))
+                {
+                    const auto*    dp = static_cast<const ui::topics::TopicDragPayload*>(p->Data);
+                    std::string    name(dp->name);
+                    const uint32_t axes_idx =
+                        (hover_idx >= 0) ? static_cast<uint32_t>(hover_idx) : 0u;
+                    topics_panel_->submit_subscribe(name,
+                                                    topics_panel_->target_figure_id(),
+                                                    axes_idx);
+                    SPECTRA_LOG_INFO(
+                        "topics",
+                        "Drop subscribe topic=" + name + " axes=" + std::to_string(axes_idx));
+                }
+            }
+            ImGui::EndDragDropTarget();
+        }
+    }
+    ImGui::End();
+    ImGui::PopStyleColor(2);
+    ImGui::PopStyleVar(2);
 }
 
 }   // namespace spectra

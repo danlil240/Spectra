@@ -49,6 +49,10 @@
 #include "ui/automation/automation_server.hpp"
 #include "ui/automation/mcp_server.hpp"
 
+#ifndef _WIN32
+    #include "../../app/inproc_topic_server.hpp"
+#endif
+
 #include "perf_metrics.hpp"
 
 #include <algorithm>
@@ -200,6 +204,10 @@ struct App::AppRuntime
 
     std::unique_ptr<AutomationServer> auto_server;
     std::unique_ptr<McpServer>        mcp_server;
+
+#ifndef _WIN32
+    std::unique_ptr<InprocTopicServer> topic_server;
+#endif
 
     // Pending PNG capture (pre-present path to avoid reading presented images)
     struct PendingPngCapture
@@ -819,6 +827,20 @@ void App::init_runtime()
         }
     }
 
+    // ── InprocTopicServer ─────────────────────────────────────────────────
+    // Start a publisher-facing socket server so external publishers can push
+    // topics into this inproc app without a separate spectra-backend daemon.
+    // Only in windowed (non-headless) mode to avoid socket leaks in test runs.
+#ifndef _WIN32
+    if (!config_.headless)
+    {
+        rt.topic_server = std::make_unique<InprocTopicServer>();
+        rt.topic_server->start(&registry_);
+        if (rt.ui_ctx_ptr)
+            rt.topic_server->wire_topics_panel(rt.ui_ctx_ptr->topics_panel, &registry_);
+    }
+#endif
+
     PerfMetrics::instance().mark_startup_end();
     SPECTRA_LOG_INFO("app",
                      "Startup completed in "
@@ -990,6 +1012,14 @@ void App::shutdown_runtime()
         rt.auto_server->stop();
         rt.auto_server.reset();
     }
+
+#ifndef _WIN32
+    if (rt.topic_server)
+    {
+        rt.topic_server->stop();
+        rt.topic_server.reset();
+    }
+#endif
 
 #ifdef SPECTRA_USE_FFMPEG
     if (rt.video_exporter)

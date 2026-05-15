@@ -59,19 +59,23 @@ void HeartbeatMonitor::tick(DaemonContext& ctx)
         ctx.proc_mgr.remove_process(pid);
     }
 
-    // Check if session is empty and no Python clients connected
+    // Check if session is empty and no Python/Publisher clients connected.
+    // Publishers count as keep-alive clients: a long-lived publisher should
+    // be able to feed topics into a UI that opens later.
     if (ctx.graph.is_empty())
     {
-        bool has_python = false;
+        bool has_keepalive_client = false;
         for (const auto& c : ctx.clients)
         {
-            if (c.conn && c.conn->is_open() && c.client_type == ClientType::PYTHON)
+            if (!c.conn || !c.conn->is_open())
+                continue;
+            if (c.client_type == ClientType::PYTHON || c.client_type == ClientType::PUBLISHER)
             {
-                has_python = true;
+                has_keepalive_client = true;
                 break;
             }
         }
-        if (!has_python)
+        if (!has_keepalive_client)
         {
             std::cerr << "[spectra-backend] No agents, no Python clients — shutting down\n";
             ctx.running.store(false, std::memory_order_relaxed);

@@ -325,3 +325,63 @@ table EvtFigureDestroyedPayload {
     figure_id: uint64 = 0;
     reason: string;
 }
+
+// ─── Topics (pub/sub) ────────────────────────────────────────────────────────
+// TopicKind: 0=Scalar2D (x,y), 1=Scalar3D (x,y,z)
+// Sample layout: float64 array interleaved per kind:
+//   Scalar2D: [x0,y0, x1,y1, ...]   (2 floats per sample)
+//   Scalar3D: [x0,y0,z0, x1,y1,z1, ...] (3 floats per sample)
+
+table ReqDeclareTopicPayload {
+    name: string;
+    kind: uint8 = 0;
+    unit: string;
+    ring_capacity: uint32 = 4096;
+}
+
+table ReqPublishTopicSamplesPayload {
+    name: string;
+    samples: [double];
+}
+
+table ReqSubscribeTopicPayload {
+    name: string;
+    figure_id: uint64 = 0;
+    axes_index: uint32 = 0;
+    series_index: uint32 = 0xFFFFFFFF;   // UINT32_MAX = auto-create new series
+}
+
+table ReqUnsubscribeTopicPayload {
+    figure_id: uint64 = 0;
+    axes_index: uint32 = 0;
+    series_index: uint32 = 0;
+}
+
+table ReqListTopicsPayload {
+    placeholder: uint8 = 0;
+}
+
+table TopicInfoEntry {
+    name: string;
+    kind: uint8 = 0;
+    unit: string;
+    estimated_hz: double = 0.0;
+    total_samples: uint64 = 0;
+    last_publish_ns: uint64 = 0;
+    subscriber_count: uint32 = 0;
+    publisher_online: bool = false;
+}
+
+table RespTopicListPayload {
+    request_id: uint64 = 0;
+    topics: [TopicInfoEntry];
+}
+
+table RespSubscribeTopicPayload {
+    request_id: uint64 = 0;
+    series_index: uint32 = 0;
+}
+
+table EvtTopicListChangedPayload {
+    placeholder: uint8 = 0;
+}

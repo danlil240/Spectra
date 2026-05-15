@@ -186,6 +186,7 @@ std::unique_ptr<WindowUIContext> build_window_ui_context(const WindowUIContextBu
         ui->imgui_ui->set_plugin_manager(ui->plugin_manager);
         ui->imgui_ui->set_export_format_registry(options.export_format_registry);
         ui->imgui_ui->set_series_clipboard(options.series_clipboard);
+        ui->imgui_ui->set_topics_panel(&ui->topics_panel);
     #ifdef SPECTRA_USE_GLFW
         ui->tab_drag_controller.set_window_manager(options.window_manager);
         ui->tab_drag_controller.set_dock_system(&ui->dock_system);

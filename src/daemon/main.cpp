@@ -15,6 +15,8 @@
 #include "daemon_server.hpp"
 #include "heartbeat_monitor.hpp"
 #include "python_message_handler.hpp"
+#include "topic_message_handler.hpp"
+#include "topic_registry.hpp"
 
 #ifdef _WIN32
     #include <process.h>
@@ -129,8 +131,10 @@ int main(int argc, char* argv[])
 
     std::vector<ClientSlot> clients;
     HeartbeatMonitor        heartbeat;
+    TopicRegistry           topics;
+    uint64_t                next_client_id = 1;
 
-    DaemonContext ctx{graph, fig_model, proc_mgr, clients, g_running};
+    DaemonContext ctx{graph, fig_model, proc_mgr, clients, g_running, topics};
 
     bool had_agents = false;
 
@@ -166,7 +170,8 @@ int main(int argc, char* argv[])
             {
                 std::cerr << "[spectra-backend] New connection (fd=" << new_conn->fd() << ")\n";
                 ClientSlot slot;
-                slot.conn = std::move(new_conn);
+                slot.conn      = std::move(new_conn);
+                slot.client_id = next_client_id++;
                 clients.push_back(std::move(slot));
             }
         }
@@ -184,6 +189,11 @@ int main(int argc, char* argv[])
                               << ", orphaned_figures=" << orphaned.size() << ")\n";
                     for (auto fid : orphaned)
                         notify_python_window_closed(ctx, fid, it->window_id, "agent_disconnected");
+                }
+                if (it->client_id != 0)
+                {
+                    topics.on_client_disconnect(it->client_id);
+                    broadcast_topic_list_changed(ctx);
                 }
                 it = clients.erase(it);
                 continue;
@@ -218,6 +228,11 @@ int main(int argc, char* argv[])
                               << ", orphaned_figures=" << orphaned.size() << ")\n";
                     for (auto fid : orphaned)
                         notify_python_window_closed(ctx, fid, it->window_id, "agent_lost");
+                }
+                if (it->client_id != 0)
+                {
+                    topics.on_client_disconnect(it->client_id);
+                    broadcast_topic_list_changed(ctx);
                 }
                 it = clients.erase(it);
                 continue;
@@ -309,6 +324,23 @@ int main(int argc, char* argv[])
                     result = handle_req_anim_start(ctx, *it, msg);
                     break;
 
+                // ─── Topics (pub/sub) ───────────────────────────────────────
+                case MessageType::REQ_DECLARE_TOPIC:
+                    result = handle_req_declare_topic(ctx, *it, msg);
+                    break;
+                case MessageType::REQ_PUBLISH_TOPIC_SAMPLES:
+                    result = handle_req_publish_topic_samples(ctx, *it, msg);
+                    break;
+                case MessageType::REQ_SUBSCRIBE_TOPIC:
+                    result = handle_req_subscribe_topic(ctx, *it, msg);
+                    break;
+                case MessageType::REQ_UNSUBSCRIBE_TOPIC:
+                    result = handle_req_unsubscribe_topic(ctx, *it, msg);
+                    break;
+                case MessageType::REQ_LIST_TOPICS:
+                    result = handle_req_list_topics(ctx, *it, msg);
+                    break;
+
                 default:
                     std::cerr << "[spectra-backend] Unknown message type 0x" << std::hex
                               << static_cast<uint16_t>(msg.header.type) << std::dec
@@ -336,15 +368,30 @@ int main(int argc, char* argv[])
         // --- Heartbeat monitor: stale agents + process reaping ---
         heartbeat.tick(ctx);
 
-        // --- Shutdown rule: exit when no agents remain (after at least one connected) ---
+        // --- Shutdown rule: exit when no agents remain (after at least one connected).
+        // Exception: if any publisher client is connected, stay alive so future
+        // UI windows can browse and subscribe to live topics.
         if (!graph.is_empty())
         {
             had_agents = true;
         }
         else if (had_agents)
         {
-            std::cerr << "[spectra-backend] All agents disconnected, shutting down\n";
-            g_running.store(false, std::memory_order_relaxed);
+            bool has_publisher = false;
+            for (const auto& c : clients)
+            {
+                if (c.handshake_done && c.client_type == ClientType::PUBLISHER && c.conn
+                    && c.conn->is_open())
+                {
+                    has_publisher = true;
+                    break;
+                }
+            }
+            if (!has_publisher)
+            {
+                std::cerr << "[spectra-backend] All agents disconnected, shutting down\n";
+                g_running.store(false, std::memory_order_relaxed);
+            }
         }
     }
 

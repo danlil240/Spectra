@@ -640,4 +640,82 @@ std::optional<EvtFigureDestroyedPayload> decode_evt_figure_destroyed(std::span<c
     return decode_fb_evt_figure_destroyed(strip_fb_prefix(data));
 }
 
+// ─── Topics (pub/sub) ────────────────────────────────────────────────────────
+
+std::vector<uint8_t> encode_req_declare_topic(const ReqDeclareTopicPayload& p)
+{
+    return encode_fb_req_declare_topic(p);
+}
+std::optional<ReqDeclareTopicPayload> decode_req_declare_topic(std::span<const uint8_t> data)
+{
+    return decode_fb_req_declare_topic(strip_fb_prefix(data));
+}
+
+std::vector<uint8_t> encode_req_publish_topic_samples(const ReqPublishTopicSamplesPayload& p)
+{
+    return encode_fb_req_publish_topic_samples(p);
+}
+std::optional<ReqPublishTopicSamplesPayload> decode_req_publish_topic_samples(
+    std::span<const uint8_t> data)
+{
+    return decode_fb_req_publish_topic_samples(strip_fb_prefix(data));
+}
+
+std::vector<uint8_t> encode_req_subscribe_topic(const ReqSubscribeTopicPayload& p)
+{
+    return encode_fb_req_subscribe_topic(p);
+}
+std::optional<ReqSubscribeTopicPayload> decode_req_subscribe_topic(std::span<const uint8_t> data)
+{
+    return decode_fb_req_subscribe_topic(strip_fb_prefix(data));
+}
+
+std::vector<uint8_t> encode_req_unsubscribe_topic(const ReqUnsubscribeTopicPayload& p)
+{
+    return encode_fb_req_unsubscribe_topic(p);
+}
+std::optional<ReqUnsubscribeTopicPayload> decode_req_unsubscribe_topic(
+    std::span<const uint8_t> data)
+{
+    return decode_fb_req_unsubscribe_topic(strip_fb_prefix(data));
+}
+
+std::vector<uint8_t> encode_req_list_topics(const ReqListTopicsPayload& p)
+{
+    return encode_fb_req_list_topics(p);
+}
+std::optional<ReqListTopicsPayload> decode_req_list_topics(std::span<const uint8_t> data)
+{
+    return decode_fb_req_list_topics(strip_fb_prefix(data));
+}
+
+std::vector<uint8_t> encode_resp_topic_list(const RespTopicListPayload& p)
+{
+    return encode_fb_resp_topic_list(p);
+}
+std::optional<RespTopicListPayload> decode_resp_topic_list(std::span<const uint8_t> data)
+{
+    return decode_fb_resp_topic_list(strip_fb_prefix(data));
+}
+
+std::vector<uint8_t> encode_resp_subscribe_topic(const RespSubscribeTopicPayload& p)
+{
+    return encode_fb_resp_subscribe_topic(p);
+}
+std::optional<RespSubscribeTopicPayload> decode_resp_subscribe_topic(
+    std::span<const uint8_t> data)
+{
+    return decode_fb_resp_subscribe_topic(strip_fb_prefix(data));
+}
+
+std::vector<uint8_t> encode_evt_topic_list_changed(const EvtTopicListChangedPayload& p)
+{
+    return encode_fb_evt_topic_list_changed(p);
+}
+std::optional<EvtTopicListChangedPayload> decode_evt_topic_list_changed(
+    std::span<const uint8_t> data)
+{
+    return decode_fb_evt_topic_list_changed(strip_fb_prefix(data));
+}
+
 }   // namespace spectra::ipc

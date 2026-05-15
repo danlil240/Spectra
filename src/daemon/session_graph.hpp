@@ -95,6 +95,9 @@ class SessionGraph
     // Get all window IDs.
     std::vector<ipc::WindowId> all_window_ids() const;
 
+    // Get figure IDs that are not assigned to any window (orphaned).
+    std::vector<uint64_t> unassigned_figure_ids() const;
+
     // Get the session ID.
     ipc::SessionId session_id() const { return session_id_; }
 

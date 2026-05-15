@@ -438,6 +438,9 @@ void ShortcutManager::register_defaults()
     bind({KEY_L, KeyMod::None}, "view.toggle_legend");
     bind({KEY_B, KeyMod::None}, "view.toggle_border");
 
+    // Topics panel (Phase 2 of plans/SPECTRA_TOPICS_PLAN.md)
+    bind({KEY_T, KeyMod::Control | KeyMod::Shift}, "panel.toggle_topics");
+
     // Escape
     bind({KEY_ESCAPE, KeyMod::None}, "app.cancel");
 }

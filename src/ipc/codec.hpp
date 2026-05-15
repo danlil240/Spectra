@@ -288,4 +288,34 @@ std::optional<EvtWindowClosedPayload> decode_evt_window_closed(std::span<const u
 std::vector<uint8_t> encode_evt_figure_destroyed(const EvtFigureDestroyedPayload& p);
 std::optional<EvtFigureDestroyedPayload> decode_evt_figure_destroyed(std::span<const uint8_t> data);
 
+// ─── Topics (pub/sub) ────────────────────────────────────────────────────────
+
+std::vector<uint8_t>                  encode_req_declare_topic(const ReqDeclareTopicPayload& p);
+std::optional<ReqDeclareTopicPayload> decode_req_declare_topic(std::span<const uint8_t> data);
+
+std::vector<uint8_t> encode_req_publish_topic_samples(const ReqPublishTopicSamplesPayload& p);
+std::optional<ReqPublishTopicSamplesPayload> decode_req_publish_topic_samples(
+    std::span<const uint8_t> data);
+
+std::vector<uint8_t>                    encode_req_subscribe_topic(const ReqSubscribeTopicPayload& p);
+std::optional<ReqSubscribeTopicPayload> decode_req_subscribe_topic(std::span<const uint8_t> data);
+
+std::vector<uint8_t> encode_req_unsubscribe_topic(const ReqUnsubscribeTopicPayload& p);
+std::optional<ReqUnsubscribeTopicPayload> decode_req_unsubscribe_topic(
+    std::span<const uint8_t> data);
+
+std::vector<uint8_t>                encode_req_list_topics(const ReqListTopicsPayload& p);
+std::optional<ReqListTopicsPayload> decode_req_list_topics(std::span<const uint8_t> data);
+
+std::vector<uint8_t>                encode_resp_topic_list(const RespTopicListPayload& p);
+std::optional<RespTopicListPayload> decode_resp_topic_list(std::span<const uint8_t> data);
+
+std::vector<uint8_t> encode_resp_subscribe_topic(const RespSubscribeTopicPayload& p);
+std::optional<RespSubscribeTopicPayload> decode_resp_subscribe_topic(
+    std::span<const uint8_t> data);
+
+std::vector<uint8_t> encode_evt_topic_list_changed(const EvtTopicListChangedPayload& p);
+std::optional<EvtTopicListChangedPayload> decode_evt_topic_list_changed(
+    std::span<const uint8_t> data);
+
 }   // namespace spectra::ipc

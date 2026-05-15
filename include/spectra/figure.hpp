@@ -128,6 +128,27 @@ class Figure
     const std::vector<std::unique_ptr<AxesBase>>& all_axes() const { return all_axes_; }
     std::vector<std::unique_ptr<AxesBase>>&       all_axes_mut() { return all_axes_; }
 
+    // Return the 2D Axes at `index` if it exists, else nullptr.
+    // Checks axes() (2D) first, then all_axes() (3D/generic) with a dynamic_cast.
+    Axes* get_axes(size_t index) const
+    {
+        if (index < axes_.size() && axes_[index])
+            return axes_[index].get();
+        if (index < all_axes_.size() && all_axes_[index])
+            return dynamic_cast<Axes*>(all_axes_[index].get());
+        return nullptr;
+    }
+
+    // Iterate all axes (2D and 3D) and call fn(AxesBase*) for each non-null entry.
+    template <typename Fn>
+    void for_each_axes(Fn&& fn) const
+    {
+        for (auto& a : axes_)
+            if (a) fn(static_cast<AxesBase*>(a.get()));
+        for (auto& a : all_axes_)
+            if (a) fn(a.get());
+    }
+
     FigureStyle&        style() { return style_; }
     const FigureStyle&  style() const { return style_; }
     LegendConfig&       legend() { return legend_; }

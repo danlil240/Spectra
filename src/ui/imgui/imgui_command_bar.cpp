@@ -4,6 +4,7 @@
 
     #include "../../../third_party/tinyfiledialogs.h"
     #include "../dialog_env_guard.hpp"
+    #include "../topics/topics_panel.hpp"
     #include "io/export_registry.hpp"
     #include "ui/workspace/plugin_api.hpp"
 
@@ -122,7 +123,7 @@ static bool icon_label_button(const char* icon_codepoint,
                                .lerp(colors.accent_hover, active_t * 0.88f);
     ui::Color text_color = colors.text_secondary.lerp(colors.text_primary, hover_t * 0.60f)
                                .lerp(colors.accent_hover, active_t * 0.80f);
-    ImU32 icon_col =
+    ImU32     icon_col =
         ImGui::ColorConvertFloat4ToU32(ImVec4(icon_color.r,
                                               icon_color.g,
                                               icon_color.b,
@@ -457,11 +458,11 @@ void ImGuiIntegration::draw_command_bar()
     // Top bar: slightly darker than panels to push visual focus to canvas
     float bar_blend = 0.74f;   // Blend toward bg_primary
     auto  bar_bg_r  = theme_colors().bg_primary.r * bar_blend
-                    + theme_colors().bg_secondary.r * (1.0f - bar_blend);
-    auto bar_bg_g = theme_colors().bg_primary.g * bar_blend
-                    + theme_colors().bg_secondary.g * (1.0f - bar_blend);
-    auto bar_bg_b = theme_colors().bg_primary.b * bar_blend
-                    + theme_colors().bg_secondary.b * (1.0f - bar_blend);
+                      + theme_colors().bg_secondary.r * (1.0f - bar_blend);
+    auto  bar_bg_g  = theme_colors().bg_primary.g * bar_blend
+                      + theme_colors().bg_secondary.g * (1.0f - bar_blend);
+    auto  bar_bg_b  = theme_colors().bg_primary.b * bar_blend
+                      + theme_colors().bg_secondary.b * (1.0f - bar_blend);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
                         ImVec2(ui::tokens::SPACE_5, ui::tokens::SPACE_2));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
@@ -550,14 +551,14 @@ void ImGuiIntegration::draw_command_bar()
                     float   t     = (len > 1) ? static_cast<float>(idx) / (len - 1) : 0.0f;
                     float   mix   = 0.25f + 0.35f * t;
                     uint8_t cr  = static_cast<uint8_t>((theme_colors().text_primary.r * (1.0f - mix)
-                                                       + theme_colors().accent.r * mix)
-                                                      * 255);
+                                                        + theme_colors().accent.r * mix)
+                                                       * 255);
                     uint8_t cg  = static_cast<uint8_t>((theme_colors().text_primary.g * (1.0f - mix)
-                                                       + theme_colors().accent.g * mix)
-                                                      * 255);
+                                                        + theme_colors().accent.g * mix)
+                                                       * 255);
                     uint8_t cb  = static_cast<uint8_t>((theme_colors().text_primary.b * (1.0f - mix)
-                                                       + theme_colors().accent.b * mix)
-                                                      * 255);
+                                                        + theme_colors().accent.b * mix)
+                                                       * 255);
                     ImU32   col = IM_COL32(cr, cg, cb, 245);
                     dl->AddText(font_title_, font_sz, ImVec2(gx, text_y), col, ch);
                     gx += cw + spacing;
@@ -780,6 +781,12 @@ void ImGuiIntegration::draw_command_bar()
                               panel_open_     = true;
                               layout_manager_->set_inspector_visible(true);
                           }
+                      }),
+             MenuItem("Toggle Topics",
+                      [this]()
+                      {
+                          if (command_registry_)
+                              command_registry_->execute("panel.toggle_topics");
                       }),
              MenuItem("Plugins...",
                       [this]()
@@ -1127,28 +1134,28 @@ void ImGuiIntegration::draw_plugins_panel()
         DialogEnvGuard env_guard;
     #ifdef _WIN32
         static const char* filters[1] = {"*.dll"};
-        const char*        path       = tinyfd_openFileDialog("Load Plugin",
-                                                 PluginManager::default_plugin_dir().c_str(),
-                                                 1,
-                                                 filters,
-                                                 "Plugins",
-                                                 0);
+        const char*        path = tinyfd_openFileDialog("Load Plugin",
+                                                        PluginManager::default_plugin_dir().c_str(),
+                                                        1,
+                                                        filters,
+                                                        "Plugins",
+                                                        0);
     #elif defined(__APPLE__)
         static const char* filters[1] = {"*.dylib"};
-        const char*        path       = tinyfd_openFileDialog("Load Plugin",
-                                                 PluginManager::default_plugin_dir().c_str(),
-                                                 1,
-                                                 filters,
-                                                 "Plugins",
-                                                 0);
+        const char*        path = tinyfd_openFileDialog("Load Plugin",
+                                                        PluginManager::default_plugin_dir().c_str(),
+                                                        1,
+                                                        filters,
+                                                        "Plugins",
+                                                        0);
     #else
         static const char* filters[1] = {"*.so"};
-        const char*        path       = tinyfd_openFileDialog("Load Plugin",
-                                                 PluginManager::default_plugin_dir().c_str(),
-                                                 1,
-                                                 filters,
-                                                 "Plugins",
-                                                 0);
+        const char*        path = tinyfd_openFileDialog("Load Plugin",
+                                                        PluginManager::default_plugin_dir().c_str(),
+                                                        1,
+                                                        filters,
+                                                        "Plugins",
+                                                        0);
     #endif
         if (path && path[0] != '\0')
         {
@@ -1355,7 +1362,7 @@ void ImGuiIntegration::draw_nav_rail()
             ImGui::Dummy(ImVec2(0, 3.0f));
             float  sep_inset = 14.0f;
             ImVec2 p0        = ImVec2(ImGui::GetWindowPos().x + sep_inset,
-                               std::floor(ImGui::GetCursorScreenPos().y));
+                                      std::floor(ImGui::GetCursorScreenPos().y));
             ImVec2 p1        = ImVec2(ImGui::GetWindowPos().x + rail_w - sep_inset, p0.y);
             ImGui::GetWindowDrawList()->AddLine(p0,
                                                 p1,
@@ -1462,13 +1469,13 @@ void ImGuiIntegration::draw_nav_rail()
         draw_separator();
 
         // ── Group 5: Utilities ──
-        toggle_btn(ui::Icon::Code,
-                   "Python",
-                   false,
+        toggle_btn(ui::Icon::Broadcast,
+                   "Topics",
+                   topics_panel_ && topics_panel_->is_visible(),
                    [this]()
                    {
                        if (command_registry_)
-                           command_registry_->execute("python.toggle_console");
+                           command_registry_->execute("panel.toggle_topics");
                    });
         toggle_btn(ui::Icon::Help,
                    "Help",

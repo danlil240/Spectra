@@ -29,6 +29,10 @@
 #include "ui/app/window_ui_context.hpp"
 #include "ui/theme/theme.hpp"
 
+#ifdef SPECTRA_USE_IMGUI
+    #include "ui/topics/topics_panel.hpp"
+#endif
+
 #ifdef SPECTRA_USE_GLFW
     #define GLFW_INCLUDE_NONE
     #define GLFW_INCLUDE_VULKAN
@@ -56,6 +60,7 @@
     #include <spectra/version.hpp>
 #endif
 #include <memory>
+#include <mutex>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -823,7 +828,6 @@ int main(int argc, char* argv[])
     if (initial_wctx && initial_wctx->ui_ctx)
     {
         ui_ctx_ptr = initial_wctx->ui_ctx.get();
-
         // Set tab titles from snapshot cache (so tabs show "Figure 1", "Figure 2", etc.
         // instead of FigureId-based defaults like "Figure 2", "Figure 3", "Figure 4")
         if (ui_ctx_ptr->fig_mgr)
@@ -1077,6 +1081,29 @@ int main(int argc, char* argv[])
 
     std::cerr << "[spectra-window] Full UI initialized, entering main loop\n";
 
+    // ── Wire the Topics panel to IPC (Phase 2 of SPECTRA_TOPICS_PLAN). ──
+#ifdef SPECTRA_USE_IMGUI
+    std::mutex                                         pending_topic_subs_mu;
+    std::vector<spectra::ui::topics::SubscribeRequest> pending_topic_subs;
+    std::atomic<bool>                                  pending_topic_list_request{true};
+    uint32_t                                           next_topic_req_id = 1;
+
+    if (ui_ctx_ptr)
+    {
+        auto& panel = ui_ctx_ptr->topics_panel;
+        panel.set_list_request_callback(
+            [&pending_topic_list_request]()
+            { pending_topic_list_request.store(true, std::memory_order_relaxed); });
+        panel.set_subscribe_request_callback(
+            [&pending_topic_subs_mu,
+             &pending_topic_subs](const spectra::ui::topics::SubscribeRequest& req)
+            {
+                std::lock_guard<std::mutex> g(pending_topic_subs_mu);
+                pending_topic_subs.push_back(req);
+            });
+    }
+#endif
+
     // ═══════════════════════════════════════════════════════════════════════
     // Phase 5: Main loop — SessionRuntime + IPC polling
     // ═══════════════════════════════════════════════════════════════════════
@@ -1213,8 +1240,85 @@ int main(int argc, char* argv[])
                 case spectra::ipc::MessageType::RESP_ERR:
                     break;
 
+    #ifdef SPECTRA_USE_IMGUI
+                case spectra::ipc::MessageType::RESP_TOPIC_LIST:
+                {
+                    auto resp = spectra::ipc::decode_resp_topic_list(msg.payload);
+                    if (resp && ui_ctx_ptr)
+                        ui_ctx_ptr->topics_panel.set_topics(std::move(resp->topics));
+                    break;
+                }
+                case spectra::ipc::MessageType::EVT_TOPIC_LIST_CHANGED:
+                {
+                    pending_topic_list_request.store(true, std::memory_order_relaxed);
+                    break;
+                }
+                case spectra::ipc::MessageType::RESP_SUBSCRIBE_TOPIC:
+                    // Series creation arrives via STATE_DIFF; nothing to do here.
+                    break;
+    #endif
+
                 default:
                     break;
+            }
+        }
+#endif
+
+#ifdef SPECTRA_USE_IMGUI
+        // ── Drain pending Topics-panel IPC requests ──────────────────────
+        if (ui_ctx_ptr)
+        {
+            // Keep the panel pointed at the currently active figure.  This
+            // is the figure id the daemon expects in REQ_SUBSCRIBE_TOPIC.
+            // Map the per-window active figure (registry id) back to the
+            // IPC figure id by index into assigned_figures.
+            uint64_t target_ipc_fig = ipc_active_figure_id;
+            for (size_t i = 0; i < all_ids.size() && i < assigned_figures.size(); ++i)
+            {
+                if (all_ids[i] == frame_state.active_figure_id)
+                {
+                    target_ipc_fig = assigned_figures[i];
+                    break;
+                }
+            }
+            ui_ctx_ptr->topics_panel.set_target_figure_id(target_ipc_fig);
+
+            // 1. Periodic / event-driven list refresh.
+            if (pending_topic_list_request.exchange(false, std::memory_order_relaxed))
+            {
+                spectra::ipc::ReqListTopicsPayload p;
+                spectra::ipc::Message              m;
+                m.header.type        = spectra::ipc::MessageType::REQ_LIST_TOPICS;
+                m.header.session_id  = session_id;
+                m.header.window_id   = ipc_window_id;
+                m.header.request_id  = next_topic_req_id++;
+                m.payload            = spectra::ipc::encode_req_list_topics(p);
+                m.header.payload_len = static_cast<uint32_t>(m.payload.size());
+                conn->send(m);
+            }
+
+            // 2. Subscribe requests committed by panel UI.
+            std::vector<spectra::ui::topics::SubscribeRequest> subs;
+            {
+                std::lock_guard<std::mutex> g(pending_topic_subs_mu);
+                subs.swap(pending_topic_subs);
+            }
+            for (const auto& s : subs)
+            {
+                spectra::ipc::ReqSubscribeTopicPayload p;
+                p.name         = s.topic_name;
+                p.figure_id    = s.figure_id;
+                p.axes_index   = s.axes_index;
+                p.series_index = s.series_index;
+
+                spectra::ipc::Message m;
+                m.header.type        = spectra::ipc::MessageType::REQ_SUBSCRIBE_TOPIC;
+                m.header.session_id  = session_id;
+                m.header.window_id   = ipc_window_id;
+                m.header.request_id  = next_topic_req_id++;
+                m.payload            = spectra::ipc::encode_req_subscribe_topic(p);
+                m.header.payload_len = static_cast<uint32_t>(m.payload.size());
+                conn->send(m);
             }
         }
 #endif
@@ -1290,6 +1394,31 @@ int main(int argc, char* argv[])
                     for (auto id : all_ids)
                         wctx->assigned_figures.push_back(id);
                     wctx->active_figure_id = target_id;
+                }
+#endif
+
+                // CRITICAL: rebuild_registry_from_cache destroys the previous
+                // Figure objects.  Any UI subsystem holding raw Figure*/Axes*
+                // pointers (input_handler in particular, used by the topics
+                // drop target's hit-test) must be re-pointed at the new live
+                // figure or it will dereference freed memory on the next
+                // interaction.  This was the crash on second topic drop.
+#ifdef SPECTRA_USE_IMGUI
+                if (ui_ctx_ptr && frame_state.active_figure)
+                {
+                    ui_ctx_ptr->input_handler.set_figure(frame_state.active_figure);
+                    if (!frame_state.active_figure->axes().empty()
+                        && frame_state.active_figure->axes()[0])
+                    {
+                        ui_ctx_ptr->input_handler.set_active_axes(
+                            frame_state.active_figure->axes()[0].get());
+                        const auto& vp = frame_state.active_figure->axes()[0]->viewport();
+                        ui_ctx_ptr->input_handler.set_viewport(vp.x, vp.y, vp.w, vp.h);
+                    }
+                    else
+                    {
+                        ui_ctx_ptr->input_handler.set_active_axes(nullptr);
+                    }
                 }
 #endif
             }

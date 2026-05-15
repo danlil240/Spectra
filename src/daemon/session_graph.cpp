@@ -221,4 +221,16 @@ std::vector<ipc::WindowId> SessionGraph::all_window_ids() const
     return result;
 }
 
+std::vector<uint64_t> SessionGraph::unassigned_figure_ids() const
+{
+    std::lock_guard       lock(mu_);
+    std::vector<uint64_t> result;
+    for (auto& [fid, entry] : figures_)
+    {
+        if (entry.assigned_window == ipc::INVALID_WINDOW)
+            result.push_back(fid);
+    }
+    return result;
+}
+
 }   // namespace spectra::daemon

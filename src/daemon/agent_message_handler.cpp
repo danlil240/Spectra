@@ -21,9 +21,10 @@ HandleResult handle_hello(DaemonContext& ctx, ClientSlot& slot, const ipc::Messa
     {
         ctype = classify_client(*hello);
         std::cerr << "[spectra-backend] HELLO from "
-                  << (ctype == ClientType::PYTHON ? "python"
-                      : ctype == ClientType::APP  ? "app"
-                                                  : "agent")
+                  << (ctype == ClientType::PYTHON      ? "python"
+                      : ctype == ClientType::APP       ? "app"
+                      : ctype == ClientType::PUBLISHER ? "publisher"
+                                                       : "agent")
                   << " (build=" << hello->agent_build << ", client_type=" << hello->client_type
                   << ")\n";
     }
@@ -67,6 +68,38 @@ HandleResult handle_hello(DaemonContext& ctx, ClientSlot& slot, const ipc::Messa
     if (ctype == ClientType::AGENT)
     {
         auto assigned = ctx.graph.figures_for_window(wid);
+
+        // If no figures are assigned to this window, first try to adopt any
+        // orphaned figures left behind by a previous window. This makes a
+        // fresh `spectra` reuse the prior session's figures and topic
+        // subscriptions instead of starting empty.
+        if (assigned.empty())
+        {
+            auto orphans = ctx.graph.unassigned_figure_ids();
+            for (auto fid : orphans)
+                ctx.graph.assign_figure(fid, wid);
+            if (!orphans.empty())
+            {
+                std::cerr << "[spectra-backend] Adopted " << orphans.size()
+                          << " orphaned figure(s) for agent window=" << wid << "\n";
+                assigned = ctx.graph.figures_for_window(wid);
+            }
+        }
+
+        // If the session still has no figures at all (e.g. a publisher-only
+        // daemon that an agent just connected to), auto-create one so the
+        // window has a canvas to render and a target for topic-drop
+        // subscriptions.
+        if (assigned.empty() && ctx.fig_model.figure_count() == 0)
+        {
+            auto fid = ctx.fig_model.create_figure("Figure 1", 1280, 720);
+            ctx.graph.register_figure(fid, "Figure 1");
+            ctx.graph.assign_figure(fid, wid);
+            assigned = ctx.graph.figures_for_window(wid);
+            std::cerr << "[spectra-backend] Auto-created figure " << fid
+                      << " for agent window=" << wid << "\n";
+        }
+
         if (!assigned.empty())
         {
             send_assign_figures(*slot.conn, wid, ctx.graph.session_id(), assigned, assigned[0]);
@@ -287,11 +320,11 @@ HandleResult handle_evt_input(DaemonContext& ctx, ClientSlot& /*slot*/, const ip
                 double hw = (ax.x_max - ax.x_min) * 0.5 * zoom;
                 double hh = (ax.y_max - ax.y_min) * 0.5 * zoom;
                 auto   op = ctx.fig_model.set_axis_limits(input->figure_id,
-                                                        input->axes_index,
-                                                        cx - hw,
-                                                        cx + hw,
-                                                        cy - hh,
-                                                        cy + hh);
+                                                          input->axes_index,
+                                                          cx - hw,
+                                                          cx + hw,
+                                                          cy - hh,
+                                                          cy + hh);
                 diff.ops.push_back(op);
             }
             break;

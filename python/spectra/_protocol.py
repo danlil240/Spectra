@@ -76,6 +76,21 @@ EVT_FIGURE_DESTROYED = 0x0552
 ANIM_TICK = 0x0560
 BLOB_RELEASE = 0x0570
 
+# ─── Topics (pub/sub) ─────────────────────────────────────────────────────────
+REQ_DECLARE_TOPIC = 0x0600
+REQ_PUBLISH_TOPIC_SAMPLES = 0x0601
+REQ_SUBSCRIBE_TOPIC = 0x0602
+REQ_UNSUBSCRIBE_TOPIC = 0x0603
+REQ_LIST_TOPICS = 0x0604
+RESP_TOPIC_LIST = 0x0640
+RESP_SUBSCRIBE_TOPIC = 0x0641
+EVT_TOPIC_LIST_CHANGED = 0x0650
+
+# Topic kinds (must match ipc::TopicKind)
+TOPIC_KIND_SCALAR_2D = 0
+TOPIC_KIND_SCALAR_3D = 1
+
+
 # ─── TLV tags (must match codec.hpp exactly) ──────────────────────────────────
 
 # Handshake tags

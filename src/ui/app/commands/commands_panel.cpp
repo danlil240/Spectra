@@ -7,6 +7,7 @@
 
 #ifdef SPECTRA_USE_IMGUI
     #include "ui/theme/icons.hpp"
+    #include "ui/topics/topics_panel.hpp"
 #endif
 
 namespace spectra
@@ -59,6 +60,13 @@ std::vector<CommandDescriptor> make_panel_commands(CommandContext& ctx)
                             imgui_ui->set_plugins_panel_visible(
                                 !imgui_ui->is_plugins_panel_visible());
                     }});
+
+    cmds.push_back({"panel.toggle_topics",
+                    "Toggle Topics Panel",
+                    "Ctrl+Shift+T",
+                    "Panel",
+                    0,
+                    [&]() { ui_ctx.topics_panel.set_visible(!ui_ctx.topics_panel.is_visible()); }});
 
     cmds.push_back(
         {"panel.toggle_inspector",

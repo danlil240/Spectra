@@ -33,6 +33,10 @@ namespace spectra::ui
 {
 struct ThemeColors;
 class ThemeManager;
+namespace topics
+{
+class TopicsPanel;
+}
 }   // namespace spectra::ui
 
 namespace spectra
@@ -253,6 +257,13 @@ class ImGuiIntegration
     bool is_plugins_panel_visible() const { return show_plugins_panel_; }
     void set_plugins_panel_visible(bool v) { show_plugins_panel_ = v; }
 
+    // Topics panel (Phase 2 of plans/SPECTRA_TOPICS_PLAN.md).
+    // The panel is owned externally (WindowUIContext); ImGuiIntegration only
+    // calls draw() on it during the UI pass.  May be nullptr when no
+    // transport is wired (e.g. in-process mode for now).
+    void                     set_topics_panel(ui::topics::TopicsPanel* p) { topics_panel_ = p; }
+    ui::topics::TopicsPanel* topics_panel() const { return topics_panel_; }
+
     // Tab bar (owned externally by App)
     void    set_tab_bar(TabBar* tb) { tab_bar_ = tb; }
     TabBar* tab_bar() const { return tab_bar_; }
@@ -466,6 +477,7 @@ class ImGuiIntegration
     void draw_custom_transform_dialog();
 
     void draw_plot_overlays(Figure& figure);
+    void draw_topic_drop_target(Figure& figure);
     void draw_toolbar_button(const char*           icon,
                              std::function<void()> callback,
                              const char*           tooltip,
@@ -601,6 +613,9 @@ class ImGuiIntegration
     std::vector<std::string> plugin_scan_dirs_;
     char                     plugin_scan_dir_buf_[512] = {};
     std::string              plugin_panel_status_;
+
+    // Topics panel (Phase 2 of plans/SPECTRA_TOPICS_PLAN.md) — not owned.
+    ui::topics::TopicsPanel* topics_panel_ = nullptr;
 
     // Tab bar (not owned)
     TabBar* tab_bar_ = nullptr;

@@ -12,6 +12,7 @@
 #include "figure_model.hpp"
 #include "process_manager.hpp"
 #include "session_graph.hpp"
+#include "topic_registry.hpp"
 
 namespace spectra::daemon
 {
@@ -24,6 +25,7 @@ struct ClientSlot
     bool                             handshake_done = false;
     bool       is_source_client = false;   // true = app pushing figures (not a render agent)
     ClientType client_type      = ClientType::UNKNOWN;
+    uint64_t   client_id        = 0;       // monotonic, set on accept
 };
 
 // Return value from message handlers — tells the event loop how to advance.
@@ -42,6 +44,7 @@ struct DaemonContext
     ProcessManager&          proc_mgr;
     std::vector<ClientSlot>& clients;
     std::atomic<bool>&       running;
+    TopicRegistry&           topics;
 };
 
 // ─── Helper functions (shared across handlers) ─────────────────────────────

@@ -33,8 +33,7 @@ int main()
 
     constexpr double kHz       = 50.0;
     constexpr int    kTotal    = static_cast<int>(30.0 * kHz);
-    const auto       period_ns = std::chrono::nanoseconds(
-        static_cast<long long>(1e9 / kHz));
+    const auto       period_ns = std::chrono::nanoseconds(static_cast<long long>(1e9 / kHz));
 
     auto next = std::chrono::steady_clock::now();
     for (int i = 0; i < kTotal; ++i)

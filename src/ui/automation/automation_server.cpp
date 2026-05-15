@@ -88,9 +88,7 @@ bool AutomationServer::start(const std::string& socket_path)
         return false;
     }
 
-    struct sockaddr_un addr
-    {
-    };
+    struct sockaddr_un addr{};
     addr.sun_family = AF_UNIX;
     if (socket_path_.size() >= sizeof(addr.sun_path))
     {
@@ -223,20 +221,16 @@ void AutomationServer::listener_thread_fn()
 #ifndef _WIN32
     while (running_.load(std::memory_order_relaxed))
     {
-        struct pollfd pfd
-        {
-        };
+        struct pollfd pfd{};
         pfd.fd     = listen_fd_;
         pfd.events = POLLIN;
         int ret    = ::poll(&pfd, 1, 200);
         if (ret <= 0 || !(pfd.revents & POLLIN))
             continue;
 
-        struct sockaddr_un ca
-        {
-        };
-        socklen_t cl  = sizeof(ca);
-        int       cfd = ::accept(listen_fd_, reinterpret_cast<struct sockaddr*>(&ca), &cl);
+        struct sockaddr_un ca{};
+        socklen_t          cl  = sizeof(ca);
+        int                cfd = ::accept(listen_fd_, reinterpret_cast<struct sockaddr*>(&ca), &cl);
         if (cfd < 0)
             continue;
 

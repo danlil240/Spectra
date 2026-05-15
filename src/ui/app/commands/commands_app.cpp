@@ -65,10 +65,10 @@ std::vector<CommandDescriptor> make_app_commands(CommandContext& ctx)
 
     #ifdef SPECTRA_USE_GLFW
     {
-        auto&  registry         = ctx.registry;
-        auto&  active_figure_id = *ctx.active_figure_id;
-        auto&  fig_mgr          = *ui_ctx.fig_mgr;
-        auto*  window_mgr       = ctx.window_mgr;
+        auto& registry         = ctx.registry;
+        auto& active_figure_id = *ctx.active_figure_id;
+        auto& fig_mgr          = *ui_ctx.fig_mgr;
+        auto* window_mgr       = ctx.window_mgr;
 
         cmds.push_back({"app.new_window",
                         "New Window",

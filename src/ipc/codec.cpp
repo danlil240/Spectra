@@ -702,8 +702,7 @@ std::vector<uint8_t> encode_resp_subscribe_topic(const RespSubscribeTopicPayload
 {
     return encode_fb_resp_subscribe_topic(p);
 }
-std::optional<RespSubscribeTopicPayload> decode_resp_subscribe_topic(
-    std::span<const uint8_t> data)
+std::optional<RespSubscribeTopicPayload> decode_resp_subscribe_topic(std::span<const uint8_t> data)
 {
     return decode_fb_resp_subscribe_topic(strip_fb_prefix(data));
 }

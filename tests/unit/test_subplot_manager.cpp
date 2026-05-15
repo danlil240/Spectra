@@ -329,13 +329,11 @@ TEST_F(SubplotManagerTest, ConfigureSlotAxesCustomTimeUpdatesLabelsAndDisablesFo
 TEST_F(SubplotManagerTest, ConfigureSlotAxesCustomFieldUpdatesLabels)
 {
     SubplotManager mgr(bridge_, intr_, 1, 1);
-    auto           h =
-        mgr.add_plot(1, "/cmd_vel", "linear.x", "geometry_msgs/msg/Twist");
+    auto           h = mgr.add_plot(1, "/cmd_vel", "linear.x", "geometry_msgs/msg/Twist");
     ASSERT_TRUE(h.valid());
 
     std::string error;
-    ASSERT_TRUE(
-        mgr.configure_slot_axes(1, AxisMode::CustomAxes, "linear.x", "angular.z", &error))
+    ASSERT_TRUE(mgr.configure_slot_axes(1, AxisMode::CustomAxes, "linear.x", "angular.z", &error))
         << error;
 
     const auto* se = mgr.slot_entry_pub(1);
@@ -357,8 +355,7 @@ TEST_F(SubplotManagerTest, ConfigureSlotAxesRejectsOverlaySlots)
     ASSERT_EQ(mgr.slot_series_count(1), 2);
 
     std::string error;
-    EXPECT_FALSE(
-        mgr.configure_slot_axes(1, AxisMode::CustomAxes, "linear.x", "angular.z", &error));
+    EXPECT_FALSE(mgr.configure_slot_axes(1, AxisMode::CustomAxes, "linear.x", "angular.z", &error));
     EXPECT_FALSE(error.empty());
     EXPECT_EQ(mgr.slot_entry_pub(1)->axis_mode, AxisMode::TimeSeries);
 }

@@ -46,7 +46,7 @@ void LiveConnectionPanel::draw(bool* p_open)
     if (state == spectra::PanelDetachController::State::DetachPending)
         return;
 
-        // After re-attach: force back into the target dockspace.
+    // After re-attach: force back into the target dockspace.
     #ifdef IMGUI_HAS_DOCK
     if (state == spectra::PanelDetachController::State::AttachPending
         && detach_ctrl_.dock_id() != 0)

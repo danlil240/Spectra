@@ -502,7 +502,7 @@ void AnimationCurveEditor::update_drag(float screen_x, float screen_y)
                 float len_out = std::sqrt(kf.out_tangent.dt * kf.out_tangent.dt
                                           + kf.out_tangent.dv * kf.out_tangent.dv);
                 float len_in  = std::sqrt(kf.in_tangent.dt * kf.in_tangent.dt
-                                         + kf.in_tangent.dv * kf.in_tangent.dv);
+                                          + kf.in_tangent.dv * kf.in_tangent.dv);
                 if (len_in > 0.0001f)
                 {
                     kf.out_tangent.dt = -kf.in_tangent.dt * (len_out / len_in);
@@ -524,7 +524,7 @@ void AnimationCurveEditor::update_drag(float screen_x, float screen_y)
             if (kf.tangent_mode == TangentMode::Aligned)
             {
                 float len_in  = std::sqrt(kf.in_tangent.dt * kf.in_tangent.dt
-                                         + kf.in_tangent.dv * kf.in_tangent.dv);
+                                          + kf.in_tangent.dv * kf.in_tangent.dv);
                 float len_out = std::sqrt(kf.out_tangent.dt * kf.out_tangent.dt
                                           + kf.out_tangent.dv * kf.out_tangent.dv);
                 if (len_out > 0.0001f)

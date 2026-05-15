@@ -882,7 +882,7 @@ void ThemeManager::load_default()
         {
             std::ifstream lf(default_theme_path_);
             std::string   json((std::istreambuf_iterator<char>(lf)),
-                             std::istreambuf_iterator<char>());
+                               std::istreambuf_iterator<char>());
             size_t        np = json.find("\"name\"");
             if (np != std::string::npos)
             {
@@ -1030,62 +1030,62 @@ void ThemeManager::initialize_default_themes()
 
     // Light theme — white canvas, light blue chrome (modern)
     Theme light;
-    light.name             = "light";
-    light.colors           = {                                             // Surfaces
-                              .bg_canvas    = Color::from_hex(0xFFFFFF),   // Pure white plot area
-                              .bg_primary   = Color::from_hex(0xE8EEF6),   // App chrome — soft blue
-                              .bg_secondary = Color::from_hex(0xDCE5F0),   // Panels, sidebar, rails
-                              .bg_tertiary  = Color::from_hex(0xCDD8E8),   // Inputs, chips, buttons
-                              .bg_elevated  = Color::from_hex(0xFFFFFF),   // Tooltips — white
-                              .bg_overlay   = Color(0.0f, 0.0f, 0.0f, 0.30f),
+    light.name   = "light";
+    light.colors = {                                             // Surfaces
+                    .bg_canvas    = Color::from_hex(0xFFFFFF),   // Pure white plot area
+                    .bg_primary   = Color::from_hex(0xE8EEF6),   // App chrome — soft blue
+                    .bg_secondary = Color::from_hex(0xDCE5F0),   // Panels, sidebar, rails
+                    .bg_tertiary  = Color::from_hex(0xCDD8E8),   // Inputs, chips, buttons
+                    .bg_elevated  = Color::from_hex(0xFFFFFF),   // Tooltips — white
+                    .bg_overlay   = Color(0.0f, 0.0f, 0.0f, 0.30f),
 
                     // Text — dark for readability against gray
-                              .text_primary   = Color::from_hex(0x1A1A1A),   // Near-black
-                              .text_secondary = Color::from_hex(0x505050),   // Medium gray labels
-                              .text_tertiary  = Color::from_hex(0x808080),   // Placeholders
-                              .text_inverse   = Color::from_hex(0xFFFFFF),
+                    .text_primary   = Color::from_hex(0x1A1A1A),   // Near-black
+                    .text_secondary = Color::from_hex(0x505050),   // Medium gray labels
+                    .text_tertiary  = Color::from_hex(0x808080),   // Placeholders
+                    .text_inverse   = Color::from_hex(0xFFFFFF),
 
                     // Borders — soft blue-gray
-                              .border_default = Color(0.70f, 0.76f, 0.84f, 0.55f),   // ~#B3C2D7 @ 55%
-                              .border_subtle  = Color(0.78f, 0.83f, 0.90f, 0.40f),   // ~#C7D4E6 @ 40%
-                              .border_strong  = Color(0.52f, 0.60f, 0.72f, 0.75f),   // ~#8599B8 @ 75%
+                    .border_default = Color(0.70f, 0.76f, 0.84f, 0.55f),   // ~#B3C2D7 @ 55%
+                    .border_subtle  = Color(0.78f, 0.83f, 0.90f, 0.40f),   // ~#C7D4E6 @ 40%
+                    .border_strong  = Color(0.52f, 0.60f, 0.72f, 0.75f),   // ~#8599B8 @ 75%
 
                     // Interactive
-                              .accent        = Color::from_hex(0x0969DA),
-                              .accent_hover  = Color::from_hex(0x0860CA),
-                              .accent_muted  = Color(0.04f, 0.41f, 0.85f, 0.15f),
-                              .accent_subtle = Color(0.04f, 0.41f, 0.85f, 0.06f),
+                    .accent        = Color::from_hex(0x0969DA),
+                    .accent_hover  = Color::from_hex(0x0860CA),
+                    .accent_muted  = Color(0.04f, 0.41f, 0.85f, 0.15f),
+                    .accent_subtle = Color(0.04f, 0.41f, 0.85f, 0.06f),
 
                     // Semantic
-                              .success = Color::from_hex(0x1A7F37),
-                              .warning = Color::from_hex(0x9A6700),
-                              .error   = Color::from_hex(0xCF222E),
-                              .info    = Color::from_hex(0x0969DA),
+                    .success = Color::from_hex(0x1A7F37),
+                    .warning = Color::from_hex(0x9A6700),
+                    .error   = Color::from_hex(0xCF222E),
+                    .info    = Color::from_hex(0x0969DA),
 
                     // Plot-specific — clean academic gridlines
-                              .grid_major       = Color(0.0f, 0.0f, 0.0f, 0.28f),
-                              .grid_minor       = Color(0.0f, 0.0f, 0.0f, 0.14f),
-                              .grid_line        = Color(0.0f, 0.0f, 0.0f, 0.28f),
-                              .axis_line        = Color(0.15f, 0.15f, 0.15f, 0.80f),
-                              .tick_label       = Color::from_hex(0x303030),
-                              .crosshair        = Color(0.04f, 0.41f, 0.85f, 0.70f),
-                              .selection_fill   = Color(0.04f, 0.41f, 0.85f, 0.12f),
-                              .selection_border = Color::from_hex(0x0969DA),
-                              .tooltip_bg       = Color::from_hex(0xFFFFFF),
-                              .tooltip_border   = Color::from_hex(0xB8C8DA),
+                    .grid_major       = Color(0.0f, 0.0f, 0.0f, 0.28f),
+                    .grid_minor       = Color(0.0f, 0.0f, 0.0f, 0.14f),
+                    .grid_line        = Color(0.0f, 0.0f, 0.0f, 0.28f),
+                    .axis_line        = Color(0.15f, 0.15f, 0.15f, 0.80f),
+                    .tick_label       = Color::from_hex(0x303030),
+                    .crosshair        = Color(0.04f, 0.41f, 0.85f, 0.70f),
+                    .selection_fill   = Color(0.04f, 0.41f, 0.85f, 0.12f),
+                    .selection_border = Color::from_hex(0x0969DA),
+                    .tooltip_bg       = Color::from_hex(0xFFFFFF),
+                    .tooltip_border   = Color::from_hex(0xB8C8DA),
 
                     // Visual effects — no glow
-                              .accent_glow       = Color(0.0f, 0.0f, 0.0f, 0.0f),
-                              .glow_intensity    = 0.0f,
-                              .focus_ring        = Color::from_hex(0x0969DA),
-                              .scrollbar_thumb   = Color(0.0f, 0.0f, 0.0f, 0.22f),
-                              .scrollbar_track   = Color(0.0f, 0.0f, 0.0f, 0.0f),
-                              .section_header_bg = Color(0.0f, 0.0f, 0.0f, 0.04f),
-                              .input_bg          = Color::from_hex(0xEAF0F8),
-                              .hover_highlight   = Color(0.04f, 0.41f, 0.85f, 0.12f),
-                              .annotation_bg     = Color(1.0f, 1.0f, 1.0f, 0.92f),
-                              .roi_fill          = Color(0.04f, 0.41f, 0.85f, 0.08f),
-                              .roi_border        = Color(0.04f, 0.41f, 0.85f, 0.40f)};
+                    .accent_glow       = Color(0.0f, 0.0f, 0.0f, 0.0f),
+                    .glow_intensity    = 0.0f,
+                    .focus_ring        = Color::from_hex(0x0969DA),
+                    .scrollbar_thumb   = Color(0.0f, 0.0f, 0.0f, 0.22f),
+                    .scrollbar_track   = Color(0.0f, 0.0f, 0.0f, 0.0f),
+                    .section_header_bg = Color(0.0f, 0.0f, 0.0f, 0.04f),
+                    .input_bg          = Color::from_hex(0xEAF0F8),
+                    .hover_highlight   = Color(0.04f, 0.41f, 0.85f, 0.12f),
+                    .annotation_bg     = Color(1.0f, 1.0f, 1.0f, 0.92f),
+                    .roi_fill          = Color(0.04f, 0.41f, 0.85f, 0.08f),
+                    .roi_border        = Color(0.04f, 0.41f, 0.85f, 0.40f)};
     light.shadow_intensity = 0.0f;
     light.use_blur         = false;
     register_theme("light", light);

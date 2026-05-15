@@ -51,6 +51,19 @@ std::vector<std::string> discover_candidate_sockets()
     std::vector<std::pair<std::string, fs::file_time_type>> hits;
     std::error_code                                         ec;
     const auto                                              dir = socket_dir();
+
+    // 1) Python session canonical socket: $XDG_RUNTIME_DIR/spectra/spectra.sock
+    //    (always tried first if it exists — Python spawns its daemon here).
+    {
+        const auto canonical = dir + "/spectra/spectra.sock";
+        auto       mtime     = fs::last_write_time(canonical, ec);
+        if (!ec)
+            hits.emplace_back(canonical, mtime);
+        ec.clear();
+    }
+
+    // 2) Per-process sockets directly in $XDG_RUNTIME_DIR
+    //    (inproc apps + C++ daemon spawn pattern).
     for (auto& e : fs::directory_iterator(dir, ec))
     {
         if (ec)

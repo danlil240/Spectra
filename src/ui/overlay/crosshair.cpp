@@ -69,9 +69,9 @@ void Crosshair::draw(const CursorReadout& cursor,
 
     const auto& colors     = theme_mgr_->colors();
     ImU32       line_color = ImGui::ColorConvertFloat4ToU32(ImVec4(colors.crosshair.r,
-                                                             colors.crosshair.g,
-                                                             colors.crosshair.b,
-                                                             colors.crosshair.a * opacity_));
+                                                                   colors.crosshair.g,
+                                                                   colors.crosshair.b,
+                                                                   colors.crosshair.a * opacity_));
 
     float sx = static_cast<float>(cursor.screen_x);
     float sy = static_cast<float>(cursor.screen_y);
@@ -214,9 +214,9 @@ void Crosshair::draw_all_axes(const CursorReadout& cursor,
 
     const auto& colors     = theme_mgr_->colors();
     ImU32       line_color = ImGui::ColorConvertFloat4ToU32(ImVec4(colors.crosshair.r,
-                                                             colors.crosshair.g,
-                                                             colors.crosshair.b,
-                                                             colors.crosshair.a * opacity_));
+                                                                   colors.crosshair.g,
+                                                                   colors.crosshair.b,
+                                                                   colors.crosshair.a * opacity_));
 
     float cx = static_cast<float>(cursor.screen_x);
     float cy = static_cast<float>(cursor.screen_y);

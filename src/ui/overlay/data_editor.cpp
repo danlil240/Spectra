@@ -467,9 +467,9 @@ void DataEditor::draw_data_table_2d(Series& series, int series_idx)
 
         // Use clipper for performance with large datasets
         ImU32            highlight_col = IM_COL32(static_cast<int>(theme().accent_subtle.r * 255),
-                                       static_cast<int>(theme().accent_subtle.g * 255),
-                                       static_cast<int>(theme().accent_subtle.b * 255),
-                                       96);
+                                                  static_cast<int>(theme().accent_subtle.g * 255),
+                                                  static_cast<int>(theme().accent_subtle.b * 255),
+                                                  96);
         ImGuiListClipper clipper;
         clipper.Begin(static_cast<int>(count));
         while (clipper.Step())
@@ -758,9 +758,9 @@ void DataEditor::draw_data_table_3d(Series& series, int series_idx)
         ImGui::TableHeadersRow();
 
         ImU32            highlight_col = IM_COL32(static_cast<int>(theme().accent_subtle.r * 255),
-                                       static_cast<int>(theme().accent_subtle.g * 255),
-                                       static_cast<int>(theme().accent_subtle.b * 255),
-                                       96);
+                                                  static_cast<int>(theme().accent_subtle.g * 255),
+                                                  static_cast<int>(theme().accent_subtle.b * 255),
+                                                  96);
         ImGuiListClipper clipper;
         clipper.Begin(static_cast<int>(count));
         while (clipper.Step())

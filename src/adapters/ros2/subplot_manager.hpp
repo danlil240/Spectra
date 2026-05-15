@@ -466,16 +466,16 @@ class SubplotManager
     // Resolve numeric field paths for a topic type.
     std::vector<std::string> numeric_fields_for_type(const std::string& type_name) const;
 
-    bool validate_axis_config(const SlotEntry&    se,
-                              AxisMode            mode,
-                              const std::string&  resolved_type,
-                              const std::string&  x_field_path,
-                              const std::string&  y_field_path,
-                              std::string*        error_out) const;
+    bool validate_axis_config(const SlotEntry&   se,
+                              AxisMode           mode,
+                              const std::string& resolved_type,
+                              const std::string& x_field_path,
+                              const std::string& y_field_path,
+                              std::string*       error_out) const;
 
-    bool rebuild_primary_slot_subscription(SlotEntry&     se,
-                                           size_t         buffer_depth,
-                                           std::string*   error_out);
+    bool rebuild_primary_slot_subscription(SlotEntry&   se,
+                                           size_t       buffer_depth,
+                                           std::string* error_out);
 
     void apply_slot_presented_buffer(SlotEntry& se);
 

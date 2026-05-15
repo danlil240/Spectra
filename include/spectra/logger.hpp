@@ -149,7 +149,8 @@ void setup_dual_logging(LogLevel           console_level = LogLevel::Info,
                         const std::string& log_path      = "");
 
 // Default console log level resolved from build type and SPECTRA_LOG_LEVEL env.
-// Release: Warning, Debug: Info.  Override with SPECTRA_LOG_LEVEL={trace,debug,info,warning,error,critical}.
+// Release: Warning, Debug: Info.  Override with
+// SPECTRA_LOG_LEVEL={trace,debug,info,warning,error,critical}.
 LogLevel default_console_log_level();
 
 // Default file log level resolved from build type and SPECTRA_LOG_FILE_LEVEL env.

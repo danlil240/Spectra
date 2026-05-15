@@ -297,7 +297,7 @@ std::vector<uint8_t> encode_req_publish_topic_samples(const ReqPublishTopicSampl
 std::optional<ReqPublishTopicSamplesPayload> decode_req_publish_topic_samples(
     std::span<const uint8_t> data);
 
-std::vector<uint8_t>                    encode_req_subscribe_topic(const ReqSubscribeTopicPayload& p);
+std::vector<uint8_t> encode_req_subscribe_topic(const ReqSubscribeTopicPayload& p);
 std::optional<ReqSubscribeTopicPayload> decode_req_subscribe_topic(std::span<const uint8_t> data);
 
 std::vector<uint8_t> encode_req_unsubscribe_topic(const ReqUnsubscribeTopicPayload& p);
@@ -311,8 +311,7 @@ std::vector<uint8_t>                encode_resp_topic_list(const RespTopicListPa
 std::optional<RespTopicListPayload> decode_resp_topic_list(std::span<const uint8_t> data);
 
 std::vector<uint8_t> encode_resp_subscribe_topic(const RespSubscribeTopicPayload& p);
-std::optional<RespSubscribeTopicPayload> decode_resp_subscribe_topic(
-    std::span<const uint8_t> data);
+std::optional<RespSubscribeTopicPayload> decode_resp_subscribe_topic(std::span<const uint8_t> data);
 
 std::vector<uint8_t> encode_evt_topic_list_changed(const EvtTopicListChangedPayload& p);
 std::optional<EvtTopicListChangedPayload> decode_evt_topic_list_changed(

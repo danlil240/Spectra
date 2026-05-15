@@ -24,11 +24,11 @@ std::vector<uint8_t> encode_fb_hello(const HelloPayload& p)
 {
     flatbuffers::FlatBufferBuilder fbb(256);
     auto                           offset = fb::CreateHelloPayloadDirect(fbb,
-                                               p.protocol_major,
-                                               p.protocol_minor,
-                                               p.agent_build.c_str(),
-                                               p.capabilities,
-                                               p.client_type.c_str());
+                                                                         p.protocol_major,
+                                                                         p.protocol_minor,
+                                                                         p.agent_build.c_str(),
+                                                                         p.capabilities,
+                                                                         p.client_type.c_str());
     fbb.Finish(offset);
     return finalize(fbb);
 }
@@ -55,11 +55,11 @@ std::vector<uint8_t> encode_fb_welcome(const WelcomePayload& p)
 {
     flatbuffers::FlatBufferBuilder fbb(256);
     auto                           offset = fb::CreateWelcomePayloadDirect(fbb,
-                                                 p.session_id,
-                                                 p.window_id,
-                                                 p.process_id,
-                                                 p.heartbeat_ms,
-                                                 p.mode.c_str());
+                                                                           p.session_id,
+                                                                           p.window_id,
+                                                                           p.process_id,
+                                                                           p.heartbeat_ms,
+                                                                           p.mode.c_str());
     fbb.Finish(offset);
     return finalize(fbb);
 }
@@ -202,12 +202,12 @@ std::vector<uint8_t> encode_fb_req_detach_figure(const ReqDetachFigurePayload& p
 {
     flatbuffers::FlatBufferBuilder fbb(128);
     auto                           offset = fb::CreateReqDetachFigurePayload(fbb,
-                                                   p.source_window_id,
-                                                   p.figure_id,
-                                                   p.width,
-                                                   p.height,
-                                                   p.screen_x,
-                                                   p.screen_y);
+                                                                             p.source_window_id,
+                                                                             p.figure_id,
+                                                                             p.width,
+                                                                             p.height,
+                                                                             p.screen_x,
+                                                                             p.screen_y);
     fbb.Finish(offset);
     return finalize(fbb);
 }
@@ -633,7 +633,7 @@ std::optional<AckStatePayload> decode_fb_ack_state(std::span<const uint8_t> data
 std::vector<uint8_t> encode_fb_evt_input(const EvtInputPayload& p)
 {
     flatbuffers::FlatBufferBuilder fbb(128);
-    auto                           offset = fb::CreateEvtInputPayload(fbb,
+    auto offset = fb::CreateEvtInputPayload(fbb,
                                             p.window_id,
                                             static_cast<fb::InputType>(p.input_type),
                                             p.key,
@@ -714,11 +714,11 @@ std::vector<uint8_t> encode_fb_req_create_axes(const ReqCreateAxesPayload& p)
 {
     flatbuffers::FlatBufferBuilder fbb(128);
     auto                           offset = fb::CreateReqCreateAxesPayload(fbb,
-                                                 p.figure_id,
-                                                 p.grid_rows,
-                                                 p.grid_cols,
-                                                 p.grid_index,
-                                                 p.is_3d);
+                                                                           p.figure_id,
+                                                                           p.grid_rows,
+                                                                           p.grid_cols,
+                                                                           p.grid_index,
+                                                                           p.is_3d);
     fbb.Finish(offset);
     return finalize(fbb);
 }
@@ -742,7 +742,7 @@ std::optional<ReqCreateAxesPayload> decode_fb_req_create_axes(std::span<const ui
 std::vector<uint8_t> encode_fb_req_add_series(const ReqAddSeriesPayload& p)
 {
     flatbuffers::FlatBufferBuilder fbb(256);
-    auto                           offset = fb::CreateReqAddSeriesPayloadDirect(fbb,
+    auto offset = fb::CreateReqAddSeriesPayloadDirect(fbb,
                                                       p.figure_id,
                                                       p.axes_index,
                                                       p.series_type.c_str(),
@@ -1180,9 +1180,9 @@ std::optional<EvtFigureDestroyedPayload> decode_fb_evt_figure_destroyed(
 
 std::vector<uint8_t> encode_fb_req_declare_topic(const ReqDeclareTopicPayload& p)
 {
-    flatbuffers::FlatBufferBuilder fbb(256);
-    auto                           name_off = fbb.CreateString(p.name);
-    auto                           unit_off = fbb.CreateString(p.unit);
+    flatbuffers::FlatBufferBuilder    fbb(256);
+    auto                              name_off = fbb.CreateString(p.name);
+    auto                              unit_off = fbb.CreateString(p.unit);
     fb::ReqDeclareTopicPayloadBuilder b(fbb);
     b.add_name(name_off);
     b.add_kind(static_cast<uint8_t>(p.kind));
@@ -1210,8 +1210,8 @@ std::optional<ReqDeclareTopicPayload> decode_fb_req_declare_topic(std::span<cons
 
 std::vector<uint8_t> encode_fb_req_publish_topic_samples(const ReqPublishTopicSamplesPayload& p)
 {
-    flatbuffers::FlatBufferBuilder fbb(256 + p.samples.size() * 8);
-    auto                           name_off = fbb.CreateString(p.name);
+    flatbuffers::FlatBufferBuilder                   fbb(256 + p.samples.size() * 8);
+    auto                                             name_off = fbb.CreateString(p.name);
     flatbuffers::Offset<flatbuffers::Vector<double>> samples_off;
     if (!p.samples.empty())
         samples_off = fbb.CreateVector(p.samples);
@@ -1244,8 +1244,8 @@ std::optional<ReqPublishTopicSamplesPayload> decode_fb_req_publish_topic_samples
 
 std::vector<uint8_t> encode_fb_req_subscribe_topic(const ReqSubscribeTopicPayload& p)
 {
-    flatbuffers::FlatBufferBuilder fbb(256);
-    auto                           name_off = fbb.CreateString(p.name);
+    flatbuffers::FlatBufferBuilder      fbb(256);
+    auto                                name_off = fbb.CreateString(p.name);
     fb::ReqSubscribeTopicPayloadBuilder b(fbb);
     b.add_name(name_off);
     b.add_figure_id(p.figure_id);
@@ -1255,8 +1255,7 @@ std::vector<uint8_t> encode_fb_req_subscribe_topic(const ReqSubscribeTopicPayloa
     return finalize(fbb);
 }
 
-std::optional<ReqSubscribeTopicPayload> decode_fb_req_subscribe_topic(
-    std::span<const uint8_t> data)
+std::optional<ReqSubscribeTopicPayload> decode_fb_req_subscribe_topic(std::span<const uint8_t> data)
 {
     flatbuffers::Verifier v(data.data(), data.size());
     if (!v.VerifyBuffer<fb::ReqSubscribeTopicPayload>())
@@ -1273,7 +1272,7 @@ std::optional<ReqSubscribeTopicPayload> decode_fb_req_subscribe_topic(
 
 std::vector<uint8_t> encode_fb_req_unsubscribe_topic(const ReqUnsubscribeTopicPayload& p)
 {
-    flatbuffers::FlatBufferBuilder fbb(64);
+    flatbuffers::FlatBufferBuilder        fbb(64);
     fb::ReqUnsubscribeTopicPayloadBuilder b(fbb);
     b.add_figure_id(p.figure_id);
     b.add_axes_index(p.axes_index);
@@ -1298,7 +1297,7 @@ std::optional<ReqUnsubscribeTopicPayload> decode_fb_req_unsubscribe_topic(
 
 std::vector<uint8_t> encode_fb_req_list_topics(const ReqListTopicsPayload&)
 {
-    flatbuffers::FlatBufferBuilder fbb(32);
+    flatbuffers::FlatBufferBuilder  fbb(32);
     fb::ReqListTopicsPayloadBuilder b(fbb);
     fbb.Finish(b.Finish());
     return finalize(fbb);
@@ -1314,13 +1313,13 @@ std::optional<ReqListTopicsPayload> decode_fb_req_list_topics(std::span<const ui
 
 std::vector<uint8_t> encode_fb_resp_topic_list(const RespTopicListPayload& p)
 {
-    flatbuffers::FlatBufferBuilder fbb(512);
+    flatbuffers::FlatBufferBuilder                       fbb(512);
     std::vector<flatbuffers::Offset<fb::TopicInfoEntry>> entries;
     entries.reserve(p.topics.size());
     for (const auto& t : p.topics)
     {
-        auto name_off = fbb.CreateString(t.name);
-        auto unit_off = fbb.CreateString(t.unit);
+        auto                      name_off = fbb.CreateString(t.name);
+        auto                      unit_off = fbb.CreateString(t.unit);
         fb::TopicInfoEntryBuilder eb(fbb);
         eb.add_name(name_off);
         eb.add_kind(static_cast<uint8_t>(t.kind));
@@ -1332,7 +1331,7 @@ std::vector<uint8_t> encode_fb_resp_topic_list(const RespTopicListPayload& p)
         eb.add_publisher_online(t.publisher_online);
         entries.push_back(eb.Finish());
     }
-    auto topics_off = fbb.CreateVector(entries);
+    auto                            topics_off = fbb.CreateVector(entries);
     fb::RespTopicListPayloadBuilder b(fbb);
     b.add_request_id(p.request_id);
     b.add_topics(topics_off);
@@ -1372,7 +1371,7 @@ std::optional<RespTopicListPayload> decode_fb_resp_topic_list(std::span<const ui
 
 std::vector<uint8_t> encode_fb_resp_subscribe_topic(const RespSubscribeTopicPayload& p)
 {
-    flatbuffers::FlatBufferBuilder fbb(64);
+    flatbuffers::FlatBufferBuilder       fbb(64);
     fb::RespSubscribeTopicPayloadBuilder b(fbb);
     b.add_request_id(p.request_id);
     b.add_series_index(p.series_index);
@@ -1395,7 +1394,7 @@ std::optional<RespSubscribeTopicPayload> decode_fb_resp_subscribe_topic(
 
 std::vector<uint8_t> encode_fb_evt_topic_list_changed(const EvtTopicListChangedPayload&)
 {
-    flatbuffers::FlatBufferBuilder fbb(32);
+    flatbuffers::FlatBufferBuilder        fbb(32);
     fb::EvtTopicListChangedPayloadBuilder b(fbb);
     fbb.Finish(b.Finish());
     return finalize(fbb);

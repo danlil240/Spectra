@@ -198,14 +198,14 @@ void LaserScanDisplay::submit_renderables(SceneManager& scene)
             continue;
 
         SceneEntity entity;
-        entity.type                  = "laserscan";
-        entity.label                 = topic_.empty() ? display_name()
-                                                      : topic_ + " [" + std::to_string(index + 1) + "/"
-                                            + std::to_string(scans.size()) + "]";
-        entity.display_name          = display_name();
-        entity.topic                 = frame.topic;
-        entity.frame_id              = frame.frame_id;
-        entity.transform             = frame_transform;
+        entity.type         = "laserscan";
+        entity.label        = topic_.empty() ? display_name()
+                                             : topic_ + " [" + std::to_string(index + 1) + "/"
+                                                   + std::to_string(scans.size()) + "]";
+        entity.display_name = display_name();
+        entity.topic        = frame.topic;
+        entity.frame_id     = frame.frame_id;
+        entity.transform    = frame_transform;
         entity.transform.translation = frame_transform.transform_point(frame.centroid);
         entity.scale                 = frame.max_bounds - frame.min_bounds;
         entity.stamp_ns              = frame.stamp_ns;

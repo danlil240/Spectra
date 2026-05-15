@@ -62,14 +62,19 @@ std::vector<CommandDescriptor> make_figure_commands(CommandContext& ctx)
                         [&fig_mgr, i]() { fig_mgr.queue_switch(static_cast<size_t>(i)); }});
     }
 
-    cmds.push_back({"figure.next_tab", "Next Figure Tab", "Ctrl+Tab", "Figure", 0, [&fig_mgr]() {
-                        fig_mgr.switch_to_next();
-                    }});
+    cmds.push_back({"figure.next_tab",
+                    "Next Figure Tab",
+                    "Ctrl+Tab",
+                    "Figure",
+                    0,
+                    [&fig_mgr]() { fig_mgr.switch_to_next(); }});
 
-    cmds.push_back(
-        {"figure.prev_tab", "Previous Figure Tab", "Ctrl+Shift+Tab", "Figure", 0, [&fig_mgr]() {
-             fig_mgr.switch_to_previous();
-         }});
+    cmds.push_back({"figure.prev_tab",
+                    "Previous Figure Tab",
+                    "Ctrl+Shift+Tab",
+                    "Figure",
+                    0,
+                    [&fig_mgr]() { fig_mgr.switch_to_previous(); }});
 #else
     (void)ctx;
 #endif

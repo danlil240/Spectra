@@ -126,8 +126,7 @@ std::optional<EvtFigureDestroyedPayload> decode_fb_evt_figure_destroyed(
 // ─── Topics (pub/sub) ────────────────────────────────────────────────────────
 
 std::vector<uint8_t> encode_fb_req_declare_topic(const ReqDeclareTopicPayload& p);
-std::vector<uint8_t> encode_fb_req_publish_topic_samples(
-    const ReqPublishTopicSamplesPayload& p);
+std::vector<uint8_t> encode_fb_req_publish_topic_samples(const ReqPublishTopicSamplesPayload& p);
 std::vector<uint8_t> encode_fb_req_subscribe_topic(const ReqSubscribeTopicPayload& p);
 std::vector<uint8_t> encode_fb_req_unsubscribe_topic(const ReqUnsubscribeTopicPayload& p);
 std::vector<uint8_t> encode_fb_req_list_topics(const ReqListTopicsPayload& p);

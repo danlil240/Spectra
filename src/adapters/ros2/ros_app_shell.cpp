@@ -1510,10 +1510,11 @@ void RosAppShell::draw_plot_area(bool* p_open)
                                 session_status_timer_ = 4.0f;
                             };
 
-                            const auto  numeric_fields         = subplot_mgr_->slot_numeric_fields(s);
+                            const auto  numeric_fields = subplot_mgr_->slot_numeric_fields(s);
                             std::string custom_axes_unavailable;
                             const bool  supports_custom_axes =
-                                subplot_mgr_->slot_supports_custom_axes(s, &custom_axes_unavailable);
+                                subplot_mgr_->slot_supports_custom_axes(s,
+                                                                        &custom_axes_unavailable);
 
                             char title_buf[128];
                             std::strncpy(title_buf, axes->title().c_str(), sizeof(title_buf) - 1);
@@ -1571,19 +1572,20 @@ void RosAppShell::draw_plot_area(bool* p_open)
                                                                   : slot_entry->y_field_path;
                                 const std::string current_x =
                                     (slot_entry->axis_mode == AxisMode::CustomAxes
-                                         && !slot_entry->x_field_path.empty())
+                                     && !slot_entry->x_field_path.empty())
                                         ? slot_entry->x_field_path
                                         : std::string(AXIS_SOURCE_TIME);
 
-                                if (ImGui::Selectable("Time Series",
-                                                      slot_entry->axis_mode == AxisMode::TimeSeries))
+                                if (ImGui::Selectable(
+                                        "Time Series",
+                                        slot_entry->axis_mode == AxisMode::TimeSeries))
                                 {
                                     std::string error;
                                     if (!subplot_mgr_->configure_slot_axes(s,
-                                                                          AxisMode::TimeSeries,
-                                                                          AXIS_SOURCE_TIME,
-                                                                          current_y,
-                                                                          &error))
+                                                                           AxisMode::TimeSeries,
+                                                                           AXIS_SOURCE_TIME,
+                                                                           current_y,
+                                                                           &error))
                                     {
                                         show_axis_config_error(error);
                                     }
@@ -1591,15 +1593,16 @@ void RosAppShell::draw_plot_area(bool* p_open)
 
                                 if (!supports_custom_axes)
                                     ImGui::BeginDisabled();
-                                if (ImGui::Selectable("Custom Axes",
-                                                      slot_entry->axis_mode == AxisMode::CustomAxes))
+                                if (ImGui::Selectable(
+                                        "Custom Axes",
+                                        slot_entry->axis_mode == AxisMode::CustomAxes))
                                 {
                                     std::string error;
                                     if (!subplot_mgr_->configure_slot_axes(s,
-                                                                          AxisMode::CustomAxes,
-                                                                          current_x,
-                                                                          current_y,
-                                                                          &error))
+                                                                           AxisMode::CustomAxes,
+                                                                           current_x,
+                                                                           current_y,
+                                                                           &error))
                                     {
                                         show_axis_config_error(error);
                                     }
@@ -1619,31 +1622,33 @@ void RosAppShell::draw_plot_area(bool* p_open)
                                                  numeric_fields.begin(),
                                                  numeric_fields.end());
 
-                                const std::string current_x =
-                                    slot_entry->x_field_path.empty() ? std::string(AXIS_SOURCE_TIME)
-                                                                     : slot_entry->x_field_path;
+                                const std::string current_x = slot_entry->x_field_path.empty()
+                                                                  ? std::string(AXIS_SOURCE_TIME)
+                                                                  : slot_entry->x_field_path;
                                 const std::string current_y = slot_entry->y_field_path.empty()
                                                                   ? slot_entry->field_path
                                                                   : slot_entry->y_field_path;
 
-                                const char* x_preview =
-                                    (current_x == AXIS_SOURCE_TIME) ? "time (s)" : current_x.c_str();
+                                const char* x_preview = (current_x == AXIS_SOURCE_TIME)
+                                                            ? "time (s)"
+                                                            : current_x.c_str();
                                 if (ImGui::BeginCombo("X Source", x_preview))
                                 {
                                     for (const auto& option : x_sources)
                                     {
-                                        const bool selected = (option == current_x);
-                                        const char* label = (option == AXIS_SOURCE_TIME)
-                                                                ? "time (s)"
-                                                                : option.c_str();
+                                        const bool  selected = (option == current_x);
+                                        const char* label    = (option == AXIS_SOURCE_TIME)
+                                                                   ? "time (s)"
+                                                                   : option.c_str();
                                         if (ImGui::Selectable(label, selected))
                                         {
                                             std::string error;
-                                            if (!subplot_mgr_->configure_slot_axes(s,
-                                                                                  AxisMode::CustomAxes,
-                                                                                  option,
-                                                                                  current_y,
-                                                                                  &error))
+                                            if (!subplot_mgr_->configure_slot_axes(
+                                                    s,
+                                                    AxisMode::CustomAxes,
+                                                    option,
+                                                    current_y,
+                                                    &error))
                                             {
                                                 show_axis_config_error(error);
                                             }
@@ -1652,8 +1657,8 @@ void RosAppShell::draw_plot_area(bool* p_open)
                                     ImGui::EndCombo();
                                 }
 
-                                const char* y_preview = current_y.empty() ? "<select field>"
-                                                                           : current_y.c_str();
+                                const char* y_preview =
+                                    current_y.empty() ? "<select field>" : current_y.c_str();
                                 if (ImGui::BeginCombo("Y Source", y_preview))
                                 {
                                     for (const auto& option : numeric_fields)
@@ -1662,11 +1667,12 @@ void RosAppShell::draw_plot_area(bool* p_open)
                                         if (ImGui::Selectable(option.c_str(), selected))
                                         {
                                             std::string error;
-                                            if (!subplot_mgr_->configure_slot_axes(s,
-                                                                                  AxisMode::CustomAxes,
-                                                                                  current_x,
-                                                                                  option,
-                                                                                  &error))
+                                            if (!subplot_mgr_->configure_slot_axes(
+                                                    s,
+                                                    AxisMode::CustomAxes,
+                                                    current_x,
+                                                    option,
+                                                    &error))
                                             {
                                                 show_axis_config_error(error);
                                             }
@@ -3361,8 +3367,8 @@ RosSession RosAppShell::capture_session() const
             if (!h.valid())
                 continue;
 
-            const auto* slot_entry = subplot_mgr_->slot_entry_pub(h.slot);
-            const bool  is_primary = slot_entry && slot_entry->series == h.series;
+            const auto*        slot_entry    = subplot_mgr_->slot_entry_pub(h.slot);
+            const bool         is_primary    = slot_entry && slot_entry->series == h.series;
             const SeriesEntry* matched_extra = nullptr;
             if (slot_entry && !is_primary)
             {
@@ -3384,7 +3390,7 @@ RosSession RosAppShell::capture_session() const
             e.subplot_slot  = h.slot;
             e.time_window_s = subplot_mgr_->time_window();
             e.scroll_paused = subplot_mgr_->is_scroll_paused(h.slot);
-            e.axis_mode     = is_primary && slot_entry ? slot_entry->axis_mode : AxisMode::TimeSeries;
+            e.axis_mode = is_primary && slot_entry ? slot_entry->axis_mode : AxisMode::TimeSeries;
             if (is_primary && slot_entry)
             {
                 e.x_field_path = slot_entry->x_field_path;
@@ -3534,7 +3540,8 @@ void RosAppShell::apply_session(const RosSession& session)
             continue;
         if (e.subplot_slot > 0 && subplot_mgr_)
         {
-            const auto h = subplot_mgr_->add_plot(e.subplot_slot, e.topic, e.field_path, e.type_name);
+            const auto h =
+                subplot_mgr_->add_plot(e.subplot_slot, e.topic, e.field_path, e.type_name);
             if (!h.valid())
                 continue;
 
@@ -3556,8 +3563,8 @@ void RosAppShell::apply_session(const RosSession& session)
                                                        restored_y,
                                                        &error))
                 {
-                    session_status_msg_ = "Plot restore fallback for slot "
-                                          + std::to_string(e.subplot_slot) + ": " + error;
+                    session_status_msg_   = "Plot restore fallback for slot "
+                                            + std::to_string(e.subplot_slot) + ": " + error;
                     session_status_timer_ = 4.0f;
                 }
             }

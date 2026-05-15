@@ -9,7 +9,11 @@ using namespace spectra;
 
 // ─── Helper ─────────────────────────────────────────────────────────────────
 
-static float eval(const std::string& expr, float x = 0.0f, float y = 0.0f, size_t i = 0, size_t n = 1)
+static float eval(const std::string& expr,
+                  float              x = 0.0f,
+                  float              y = 0.0f,
+                  size_t             i = 0,
+                  size_t             n = 1)
 {
     ExpressionParser parser;
     auto             ast = parser.parse(expr);

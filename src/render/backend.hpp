@@ -183,7 +183,7 @@ class Backend
     virtual void         upload_buffer(BufferHandle handle,
                                        const void*  data,
                                        size_t       size_bytes,
-                                       size_t       offset = 0)                    = 0;
+                                       size_t       offset = 0)              = 0;
 
     // Texture management
     virtual TextureHandle create_texture(uint32_t       width,
@@ -215,7 +215,7 @@ class Backend
                                 uint32_t first_instance = 0)                        = 0;
     virtual void draw_indexed(uint32_t index_count,
                               uint32_t first_index   = 0,
-                              int32_t  vertex_offset = 0)                            = 0;
+                              int32_t  vertex_offset = 0)                           = 0;
 
     // Readback (for offscreen/export)
     virtual bool readback_framebuffer(uint8_t* out_rgba, uint32_t width, uint32_t height) = 0;

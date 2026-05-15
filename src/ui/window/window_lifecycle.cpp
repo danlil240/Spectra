@@ -166,9 +166,8 @@ WindowContext* WindowManager::create_window(uint32_t           width,
     rebuild_active_list();
 
     SPECTRA_LOG_DEBUG("window_manager",
-                      "Created window " + std::to_string(ptr->id) + ": "
-                          + std::to_string(width) + "x" + std::to_string(height) + " \""
-                          + title + "\"");
+                      "Created window " + std::to_string(ptr->id) + ": " + std::to_string(width)
+                          + "x" + std::to_string(height) + " \"" + title + "\"");
     if (event_system_)
         event_system_->window_opened().emit({ptr->id});
     return ptr;

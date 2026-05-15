@@ -217,9 +217,7 @@ inline Figure& figure(uint32_t width = 1280, uint32_t height = 720)
 //
 //   spectra::figure("Trajectory");
 //
-inline Figure& figure(const std::string& name,
-                      uint32_t           width  = 1280,
-                      uint32_t           height = 720)
+inline Figure& figure(const std::string& name, uint32_t width = 1280, uint32_t height = 720)
 {
     Figure& fig = figure(width, height);
     fig.set_tab_title(name);

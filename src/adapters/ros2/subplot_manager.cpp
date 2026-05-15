@@ -258,9 +258,9 @@ SubplotHandle SubplotManager::add_plot(int                slot,
         se.subscriber.reset();
     }
 
-    se.topic      = topic;
-    se.field_path = field_path;
-    se.type_name  = resolved_type;
+    se.topic        = topic;
+    se.field_path   = field_path;
+    se.type_name    = resolved_type;
     se.buffer_depth = buffer_depth;
 
     // Clear any stale series data.
@@ -392,14 +392,14 @@ bool SubplotManager::remove_series_from_slot(int                slot,
             {
                 if (all_series[i].get() == (*it)->series)
                 {
-            se.axes->remove_series(i);
-            break;
+                    se.axes->remove_series(i);
+                    break;
+                }
+            }
+            se.extra_series.erase(it);
+            update_slot_labels(se);
+            return true;
         }
-    }
-    se.extra_series.erase(it);
-    update_slot_labels(se);
-    return true;
-}
     }
 
     // Check primary series.
@@ -444,10 +444,10 @@ bool SubplotManager::remove_series_from_slot(int                slot,
         se.drain_buf        = std::move(first->drain_buf);
         se.x_drain_buf.clear();
         se.y_drain_buf.clear();
-        se.direct_ctx       = std::move(first->direct_ctx);
-        se.axis_mode        = AxisMode::TimeSeries;
-        se.x_field_path     = AXIS_SOURCE_TIME;
-        se.y_field_path     = se.field_path;
+        se.direct_ctx   = std::move(first->direct_ctx);
+        se.axis_mode    = AxisMode::TimeSeries;
+        se.x_field_path = AXIS_SOURCE_TIME;
+        se.y_field_path = se.field_path;
         se.extra_series.erase(se.extra_series.begin());
         update_slot_labels(se);
         return true;
@@ -580,8 +580,8 @@ bool SubplotManager::slot_supports_custom_axes(int slot, std::string* reason_out
     if (se->series_count() != 1)
     {
         if (reason_out)
-            *reason_out =
-                "Custom axes are available only for slots with a single live series from one topic.";
+            *reason_out = "Custom axes are available only for slots with a single live series from "
+                          "one topic.";
         return false;
     }
 
@@ -604,7 +604,8 @@ std::vector<std::string> SubplotManager::slot_numeric_fields(int slot) const
     const SlotEntry* se = slot_entry(slot);
     if (!se)
         return {};
-    const std::string resolved_type = se->type_name.empty() ? detect_type(se->topic) : se->type_name;
+    const std::string resolved_type =
+        se->type_name.empty() ? detect_type(se->topic) : se->type_name;
     return numeric_fields_for_type(resolved_type);
 }
 
@@ -622,7 +623,8 @@ bool SubplotManager::configure_slot_axes(int                slot,
         return false;
     }
 
-    const std::string resolved_type = se->type_name.empty() ? detect_type(se->topic) : se->type_name;
+    const std::string resolved_type =
+        se->type_name.empty() ? detect_type(se->topic) : se->type_name;
     if (resolved_type.empty())
     {
         if (error_out)
@@ -630,14 +632,13 @@ bool SubplotManager::configure_slot_axes(int                slot,
         return false;
     }
 
-    const std::string desired_x =
-        (mode == AxisMode::TimeSeries || x_field_path.empty()) ? std::string(AXIS_SOURCE_TIME)
-                                                               : x_field_path;
+    const std::string desired_x = (mode == AxisMode::TimeSeries || x_field_path.empty())
+                                      ? std::string(AXIS_SOURCE_TIME)
+                                      : x_field_path;
     const std::string desired_y = y_field_path.empty() ? se->field_path : y_field_path;
 
     const bool live_path_ready =
-        !bridge_.is_ok()
-        || (se->subscriber != nullptr)
+        !bridge_.is_ok() || (se->subscriber != nullptr)
         || (se->axis_mode == AxisMode::TimeSeries && se->direct_ctx != nullptr)
         || (se->axis_mode == AxisMode::TimeSeries && se->extractor_id >= 0)
         || (se->axis_mode == AxisMode::CustomAxes && se->y_extractor_id >= 0);
@@ -653,12 +654,12 @@ bool SubplotManager::configure_slot_axes(int                slot,
     if (!validate_axis_config(*se, mode, resolved_type, desired_x, desired_y, error_out))
         return false;
 
-    const auto old_type_name     = se->type_name;
-    const auto old_field_path    = se->field_path;
-    const auto old_axis_mode     = se->axis_mode;
-    const auto old_x_field_path  = se->x_field_path;
-    const auto old_y_field_path  = se->y_field_path;
-    const bool old_thread_safe   = se->series->is_thread_safe();
+    const auto old_type_name    = se->type_name;
+    const auto old_field_path   = se->field_path;
+    const auto old_axis_mode    = se->axis_mode;
+    const auto old_x_field_path = se->x_field_path;
+    const auto old_y_field_path = se->y_field_path;
+    const bool old_thread_safe  = se->series->is_thread_safe();
 
     se->type_name    = resolved_type;
     se->field_path   = desired_y;
@@ -737,8 +738,9 @@ void SubplotManager::poll()
 
                     const size_t pending_y =
                         std::min(se.subscriber->pending(se.y_extractor_id), MAX_DRAIN_PER_POLL);
-                    const size_t n =
-                        se.subscriber->pop_bulk(se.y_extractor_id, se.y_drain_buf.data(), pending_y);
+                    const size_t n = se.subscriber->pop_bulk(se.y_extractor_id,
+                                                             se.y_drain_buf.data(),
+                                                             pending_y);
 
                     if (n > 0)
                     {
@@ -770,18 +772,20 @@ void SubplotManager::poll()
                     const size_t pending_y =
                         std::min(se.subscriber->pending(se.y_extractor_id), MAX_DRAIN_PER_POLL);
                     const size_t pair_count = std::min(pending_x, pending_y);
-                    const size_t nx =
-                        se.subscriber->pop_bulk(se.x_extractor_id, se.x_drain_buf.data(), pair_count);
-                    const size_t ny =
-                        se.subscriber->pop_bulk(se.y_extractor_id, se.y_drain_buf.data(), pair_count);
-                    const size_t n = std::min(nx, ny);
+                    const size_t nx         = se.subscriber->pop_bulk(se.x_extractor_id,
+                                                                      se.x_drain_buf.data(),
+                                                                      pair_count);
+                    const size_t ny         = se.subscriber->pop_bulk(se.y_extractor_id,
+                                                                      se.y_drain_buf.data(),
+                                                                      pair_count);
+                    const size_t n          = std::min(nx, ny);
 
                     if (n > 0)
                     {
                         for (size_t i = 0; i < n; ++i)
                         {
-                            const FieldSample& x_s = se.x_drain_buf[i];
-                            const FieldSample& y_s = se.y_drain_buf[i];
+                            const FieldSample& x_s   = se.x_drain_buf[i];
+                            const FieldSample& y_s   = se.y_drain_buf[i];
                             const double       t_sec = static_cast<double>(y_s.timestamp_ns) * 1e-9;
                             se.series->append(static_cast<float>(x_s.value),
                                               static_cast<float>(y_s.value));
@@ -813,10 +817,9 @@ void SubplotManager::poll()
             if (se.drain_buf.capacity() < MAX_DRAIN_PER_POLL)
                 se.drain_buf.resize(MAX_DRAIN_PER_POLL);
 
-            const size_t pending = std::min(se.subscriber->pending(se.extractor_id),
-                                            MAX_DRAIN_PER_POLL);
-            const size_t n =
-                se.subscriber->pop_bulk(se.extractor_id, se.drain_buf.data(), pending);
+            const size_t pending =
+                std::min(se.subscriber->pending(se.extractor_id), MAX_DRAIN_PER_POLL);
+            const size_t n = se.subscriber->pop_bulk(se.extractor_id, se.drain_buf.data(), pending);
 
             if (n > 0)
             {
@@ -1122,8 +1125,8 @@ SubplotManager::SubplotAction SubplotManager::draw_slot_context_menu(int slot, c
         const double current_win = slot_time_window(slot);
         const bool   has_override =
             (slot < 1 || slot > capacity())
-                  ? false
-                  : (slots_[static_cast<size_t>(slot - 1)].time_window_override_s > 0.0);
+                ? false
+                : (slots_[static_cast<size_t>(slot - 1)].time_window_override_s > 0.0);
 
         static const double kPresets[] = {5.0, 10.0, 30.0, 60.0, 300.0, 600.0};
         static const char*  kLabels[]  = {"5 s", "10 s", "30 s", "1 min", "5 min", "10 min"};
@@ -1520,8 +1523,8 @@ bool SubplotManager::validate_axis_config(const SlotEntry&   se,
     if (mode == AxisMode::CustomAxes && se.series_count() != 1)
     {
         if (error_out)
-            *error_out =
-                "Custom axes are available only for slots with a single live series from one topic.";
+            *error_out = "Custom axes are available only for slots with a single live series from "
+                         "one topic.";
         return false;
     }
 
@@ -1534,9 +1537,7 @@ bool SubplotManager::validate_axis_config(const SlotEntry&   se,
     }
 
     const auto is_numeric_path = [&](const std::string& path)
-    {
-        return std::find(numeric.begin(), numeric.end(), path) != numeric.end();
-    };
+    { return std::find(numeric.begin(), numeric.end(), path) != numeric.end(); };
 
     if (y_field_path.empty() || !is_numeric_path(y_field_path))
     {
@@ -1568,10 +1569,10 @@ bool SubplotManager::rebuild_primary_slot_subscription(SlotEntry&   se,
                                                        size_t       buffer_depth,
                                                        std::string* error_out)
 {
-    std::unique_ptr<GenericSubscriber> new_subscriber;
+    std::unique_ptr<GenericSubscriber>  new_subscriber;
     std::unique_ptr<DirectWriteContext> new_direct_ctx;
-    int new_x_extractor_id = -1;
-    int new_y_extractor_id = -1;
+    int                                 new_x_extractor_id = -1;
+    int                                 new_y_extractor_id = -1;
 
     if (bridge_.is_ok())
     {

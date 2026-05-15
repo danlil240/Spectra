@@ -622,13 +622,19 @@ std::vector<CommandDescriptor> make_view_commands(CommandContext& ctx)
         }
     };
 
-    cmds.push_back({"view.split_right", "Split Right", "Ctrl+\\", "View", 0, [&, do_split]() {
-                        do_split(SplitDirection::Horizontal);
-                    }});
+    cmds.push_back({"view.split_right",
+                    "Split Right",
+                    "Ctrl+\\",
+                    "View",
+                    0,
+                    [&, do_split]() { do_split(SplitDirection::Horizontal); }});
 
-    cmds.push_back({"view.split_down", "Split Down", "Ctrl+Shift+\\", "View", 0, [&, do_split]() {
-                        do_split(SplitDirection::Vertical);
-                    }});
+    cmds.push_back({"view.split_down",
+                    "Split Down",
+                    "Ctrl+Shift+\\",
+                    "View",
+                    0,
+                    [&, do_split]() { do_split(SplitDirection::Vertical); }});
 
     cmds.push_back({"view.close_split",
                     "Close Split Pane",
@@ -643,9 +649,12 @@ std::vector<CommandDescriptor> make_view_commands(CommandContext& ctx)
                         }
                     }});
 
-    cmds.push_back({"view.reset_splits", "Reset All Splits", "", "View", 0, [&]() {
-                        dock_system.reset_splits();
-                    }});
+    cmds.push_back({"view.reset_splits",
+                    "Reset All Splits",
+                    "",
+                    "View",
+                    0,
+                    [&]() { dock_system.reset_splits(); }});
 #else
     (void)ctx;
 #endif

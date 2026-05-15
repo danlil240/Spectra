@@ -443,9 +443,9 @@ void RegionSelect::draw_mini_toolbar(float rx0,
     if (ImGui::Begin("##region_stats", nullptr, flags))
     {
         ImU32 text_primary   = ImGui::ColorConvertFloat4ToU32(ImVec4(colors.text_primary.r,
-                                                                   colors.text_primary.g,
-                                                                   colors.text_primary.b,
-                                                                   colors.text_primary.a));
+                                                                     colors.text_primary.g,
+                                                                     colors.text_primary.b,
+                                                                     colors.text_primary.a));
         ImU32 text_secondary = ImGui::ColorConvertFloat4ToU32(ImVec4(colors.text_secondary.r,
                                                                      colors.text_secondary.g,
                                                                      colors.text_secondary.b,

@@ -783,8 +783,8 @@ void SplitViewManager::update_splitter_drag(float mouse_pos)
     float min_ratio = SplitPane::MIN_PANE_SIZE / total_size;
     float max_ratio = 1.0f - min_ratio;
     new_ratio       = std::clamp(new_ratio,
-                           std::max(SplitPane::MIN_RATIO, min_ratio),
-                           std::min(SplitPane::MAX_RATIO, max_ratio));
+                                 std::max(SplitPane::MIN_RATIO, min_ratio),
+                                 std::min(SplitPane::MAX_RATIO, max_ratio));
 
     dragging_splitter_->set_split_ratio(new_ratio);
     recompute_layout();

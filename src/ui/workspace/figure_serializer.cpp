@@ -1347,10 +1347,10 @@ bool FigureSerializer::save_with_dialog(const Figure& figure, const OverlaySnaps
     std::string home_dir = (home_env ? std::string(home_env) + "/" : "/") + "figure.spectra";
     const char* home     = home_dir.c_str();
     char*       result   = tinyfd_saveFileDialog("Save Figure",
-                                         home,
-                                         1,
-                                         filter_patterns,
-                                         "Spectra Figure (*.spectra)");
+                                                 home,
+                                                 1,
+                                                 filter_patterns,
+                                                 "Spectra Figure (*.spectra)");
 
     if (!result)
         return false;
@@ -1367,11 +1367,11 @@ bool FigureSerializer::load_with_dialog(Figure& figure, OverlaySnapshot* overlay
     std::string home_dir          = home_env ? std::string(home_env) + "/" : "/";
     const char* home              = home_dir.c_str();
     char*       result            = tinyfd_openFileDialog("Open Figure",
-                                         home,
-                                         1,
-                                         filter_patterns,
-                                         "Spectra Figure (*.spectra)",
-                                         0);
+                                                          home,
+                                                          1,
+                                                          filter_patterns,
+                                                          "Spectra Figure (*.spectra)",
+                                                          0);
 
     if (!result)
         return false;

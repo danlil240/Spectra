@@ -1481,6 +1481,18 @@ int main(int argc, char* argv[])
 #endif
                      frame_state);
         active_figure = frame_state.active_figure;
+
+#ifdef SPECTRA_USE_GLFW
+        // Auto-exit when the last window has been closed by the user.
+        // Without this, closing the window via the X button leaves the agent
+        // process alive (with no windows), the daemon never sees a disconnect,
+        // and Python clients waiting on EVT_WINDOW_CLOSED hang forever.
+        if (window_mgr && window_mgr->windows().empty())
+        {
+            SPECTRA_LOG_INFO("window", "All windows closed — exiting");
+            session.request_exit();
+        }
+#endif
     }
 
     // ═══════════════════════════════════════════════════════════════════════

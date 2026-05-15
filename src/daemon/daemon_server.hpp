@@ -25,7 +25,7 @@ struct ClientSlot
     bool                             handshake_done = false;
     bool       is_source_client = false;   // true = app pushing figures (not a render agent)
     ClientType client_type      = ClientType::UNKNOWN;
-    uint64_t   client_id        = 0;       // monotonic, set on accept
+    uint64_t   client_id        = 0;   // monotonic, set on accept
 };
 
 // Return value from message handlers — tells the event loop how to advance.

@@ -293,9 +293,9 @@ void Renderer::upload_series_data(Series& series, double origin_x, double origin
         // without requiring GPU buffer re-upload.
         const uint64_t current_generation = static_cast<uint64_t>(chunked_line->point_count());
         const bool     count_changed      = (count != gpu.uploaded_count);
-        const bool     origin_moved = (std::abs(static_cast<double>(gpu.origin_x) - origin_x) > 1.0
+        const bool origin_moved = (std::abs(static_cast<double>(gpu.origin_x) - origin_x) > 1.0
                                    || std::abs(static_cast<double>(gpu.origin_y) - origin_y) > 1.0);
-        const bool     needs_upload = count_changed || origin_moved || !gpu.ssbo
+        const bool needs_upload = count_changed || origin_moved || !gpu.ssbo
                                   || (current_generation != gpu.data_generation);
 
         if (!needs_upload)
@@ -508,7 +508,8 @@ void Renderer::upload_series_data(Series& series, double origin_x, double origin
         if (entry && entry->upload_fn && !entry->faulted)
         {
             auto result = plugin_guard_invoke(entry->type_name.c_str(),
-                                              [&]() {
+                                              [&]()
+                                              {
                                                   entry->upload_fn(backend_,
                                                                    custom->data(),
                                                                    gpu.plugin_gpu_state,

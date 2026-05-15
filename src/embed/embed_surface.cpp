@@ -228,12 +228,12 @@ struct EmbedSurface::Impl
             fig_margins.top    = af_style.margin_top;
             fig_margins.bottom = af_style.margin_bottom;
             const auto rects   = compute_subplot_layout(canvas.w,
-                                                      canvas.h,
-                                                      active_fig->grid_rows_,
-                                                      active_fig->grid_cols_,
-                                                      fig_margins,
-                                                      canvas.x,
-                                                      canvas.y);
+                                                        canvas.h,
+                                                        active_fig->grid_rows_,
+                                                        active_fig->grid_cols_,
+                                                        fig_margins,
+                                                        canvas.x,
+                                                        canvas.y);
             for (size_t i = 0; i < active_fig->axes_mut().size() && i < rects.size(); ++i)
             {
                 if (active_fig->axes_mut()[i])

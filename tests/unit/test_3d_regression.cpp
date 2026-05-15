@@ -205,10 +205,10 @@ TEST_F(Regression3DTest, SurfaceMaterialChainingWithColor)
 {
     SurfaceSeries s;
     auto&         ref = s.color(Color{1.0f, 0.0f, 0.0f, 1.0f})
-                    .ambient(0.3f)
-                    .specular(0.5f)
-                    .shininess(32.0f)
-                    .opacity(0.9f);
+                            .ambient(0.3f)
+                            .specular(0.5f)
+                            .shininess(32.0f)
+                            .opacity(0.9f);
     EXPECT_FLOAT_EQ(ref.ambient(), 0.3f);
     EXPECT_FLOAT_EQ(ref.specular(), 0.5f);
     EXPECT_FLOAT_EQ(ref.shininess(), 32.0f);
@@ -219,10 +219,10 @@ TEST_F(Regression3DTest, MeshMaterialChainingWithColor)
 {
     MeshSeries m;
     auto&      ref = m.color(Color{0.0f, 0.0f, 1.0f, 1.0f})
-                    .ambient(0.1f)
-                    .specular(0.8f)
-                    .shininess(256.0f)
-                    .opacity(0.5f);
+                         .ambient(0.1f)
+                         .specular(0.8f)
+                         .shininess(256.0f)
+                         .opacity(0.5f);
     EXPECT_FLOAT_EQ(ref.ambient(), 0.1f);
     EXPECT_FLOAT_EQ(ref.specular(), 0.8f);
     EXPECT_FLOAT_EQ(ref.shininess(), 256.0f);

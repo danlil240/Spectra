@@ -538,7 +538,7 @@ enum class TopicKind : uint8_t
 struct ReqDeclareTopicPayload
 {
     std::string name;
-    TopicKind   kind          = TopicKind::Scalar2D;
+    TopicKind   kind = TopicKind::Scalar2D;
     std::string unit;
     uint32_t    ring_capacity = 4096;
 };

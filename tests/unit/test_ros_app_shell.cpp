@@ -53,8 +53,7 @@ static void init_shell_subplot_state(RosAppShell& shell, int rows = 1, int cols 
 
     shell.cfg_.subplot_rows = rows;
     shell.cfg_.subplot_cols = cols;
-    shell.subplot_mgr_ =
-        std::make_unique<SubplotManager>(*shell.bridge_, *shell.intr_, rows, cols);
+    shell.subplot_mgr_ = std::make_unique<SubplotManager>(*shell.bridge_, *shell.intr_, rows, cols);
 }
 
 // ---------------------------------------------------------------------------
@@ -304,18 +303,12 @@ TEST(RosAppShellSession, CaptureSessionPersistsCustomAxesConfig)
     RosAppShell shell(make_cfg("session_capture"));
     init_shell_subplot_state(shell);
 
-    auto h = shell.subplot_mgr_->add_plot(1,
-                                          "/twist",
-                                          "angular.z",
-                                          "geometry_msgs/msg/Twist");
+    auto h = shell.subplot_mgr_->add_plot(1, "/twist", "angular.z", "geometry_msgs/msg/Twist");
     ASSERT_TRUE(h.valid());
 
     std::string error;
-    ASSERT_TRUE(shell.subplot_mgr_->configure_slot_axes(1,
-                                                        AxisMode::CustomAxes,
-                                                        "linear.x",
-                                                        "angular.z",
-                                                        &error))
+    ASSERT_TRUE(shell.subplot_mgr_
+                    ->configure_slot_axes(1, AxisMode::CustomAxes, "linear.x", "angular.z", &error))
         << error;
 
     RosSession session = shell.capture_session();

@@ -144,9 +144,11 @@ class Figure
     void for_each_axes(Fn&& fn) const
     {
         for (auto& a : axes_)
-            if (a) fn(static_cast<AxesBase*>(a.get()));
+            if (a)
+                fn(static_cast<AxesBase*>(a.get()));
         for (auto& a : all_axes_)
-            if (a) fn(a.get());
+            if (a)
+                fn(a.get());
     }
 
     FigureStyle&        style() { return style_; }
@@ -209,8 +211,8 @@ class Figure
     int                                    grid_cols_ = 1;
 
     // Scroll state for overflow when subplots exceed visible area
-    float scroll_offset_y_ = 0.0f;
-    float content_height_  = 0.0f;
+    float       scroll_offset_y_ = 0.0f;
+    float       content_height_  = 0.0f;
     std::string tab_title_;
 };
 

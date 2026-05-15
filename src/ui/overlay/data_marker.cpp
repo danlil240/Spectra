@@ -376,8 +376,8 @@ int DataMarkerManager::hit_test(float       screen_x,
         float text_w = std::max({name_sz.x, coord_sz.x, deriv_sz.x});
         float text_h = coord_sz.y + (has_name ? (name_sz.y + 3.0f) : 0.0f)
                        + (has_deriv ? (deriv_sz.y + 3.0f) : 0.0f);
-        float box_w = text_w + pad_x * 2.0f;
-        float box_h = text_h + pad_y * 2.0f;
+        float box_w  = text_w + pad_x * 2.0f;
+        float box_h  = text_h + pad_y * 2.0f;
 
         bool  flip = (sy - ring_r - gap - arrow_h - box_h) < viewport.y;
         float box_top, box_bot;

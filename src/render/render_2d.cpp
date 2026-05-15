@@ -199,8 +199,8 @@ void Renderer::render_series(Series& series,
             {
                 const auto& theme_colors = theme_mgr_.colors();
                 float       bg_luma      = 0.2126f * theme_colors.bg_canvas.r
-                                + 0.7152f * theme_colors.bg_canvas.g
-                                + 0.0722f * theme_colors.bg_canvas.b;
+                                           + 0.7152f * theme_colors.bg_canvas.g
+                                           + 0.0722f * theme_colors.bg_canvas.b;
                 pc.marker_type = static_cast<uint32_t>(bg_luma > 0.80f ? MarkerStyle::FilledCircle
                                                                        : MarkerStyle::Circle);
             }
@@ -484,13 +484,14 @@ void Renderer::render_series(Series& series,
                 {
                     float viewport_xywh[4] = {0, 0, 0, 0};   // Set by caller via set_viewport
                     auto  result           = plugin_guard_invoke(entry->type_name.c_str(),
-                                                      [&]() {
+                                                                 [&]()
+                                                                 {
                                                           entry->draw_fn(backend_,
                                                                          entry->pipeline,
                                                                          gpu.plugin_gpu_state,
                                                                          viewport_xywh,
                                                                          pc);
-                                                      });
+                                                                 });
                     if (result != PluginCallResult::Success)
                     {
                         entry->faulted = true;

@@ -1,6 +1,6 @@
 #include "topic_message_handler.hpp"
 
-#include <spectra/logger.hpp>
+#include <iostream>
 
 #include "../ipc/codec.hpp"
 
@@ -97,11 +97,8 @@ HandleResult handle_req_declare_topic(DaemonContext& ctx, ClientSlot& slot, cons
         return HandleResult::Continue;
     }
 
-    SPECTRA_LOG_DEBUG("daemon",
-                      "Topic declared: {} kind={} unit={}",
-                      req->name,
-                      static_cast<int>(req->kind),
-                      req->unit);
+    std::cerr << "[spectra-backend] Topic declared: " << req->name
+              << " kind=" << static_cast<int>(req->kind) << " unit=" << req->unit << "\n";
 
     send_resp_ok(*slot.conn, ctx.graph.session_id(), msg.header.request_id);
     broadcast_topic_list_changed(ctx);
@@ -191,29 +188,11 @@ HandleResult handle_req_subscribe_topic(DaemonContext&      ctx,
     }
     if (!ctx.topics.exists(req->name))
     {
-        // Pending path: the publisher hasn't declared the topic yet (workspace
-        // restore, race with publisher startup, ...).  Only valid when an
-        // explicit series_index is supplied — without a topic kind we cannot
-        // safely auto-create the right series type.
-        if (req->series_index == 0xFFFFFFFFu)
-        {
-            send_resp_err(*slot.conn,
-                          ctx.graph.session_id(),
-                          msg.header.request_id,
-                          404,
-                          "Topic not declared (auto-create requires live topic)");
-            return HandleResult::Continue;
-        }
-        TopicSubscription sub;
-        sub.figure_id    = req->figure_id;
-        sub.axes_index   = req->axes_index;
-        sub.series_index = req->series_index;
-        ctx.topics.subscribe_pending(req->name, sub);
-        send_resp_subscribe(*slot.conn,
-                            ctx.graph.session_id(),
-                            msg.header.request_id,
-                            req->series_index);
-        broadcast_topic_list_changed(ctx);
+        send_resp_err(*slot.conn,
+                      ctx.graph.session_id(),
+                      msg.header.request_id,
+                      404,
+                      "Topic not declared");
         return HandleResult::Continue;
     }
 
@@ -252,12 +231,9 @@ HandleResult handle_req_subscribe_topic(DaemonContext&      ctx,
         return HandleResult::Continue;
     }
 
-    SPECTRA_LOG_DEBUG("daemon",
-                      "Topic subscribed: {} -> figure={} axes={} series={}",
-                      req->name,
-                      req->figure_id,
-                      req->axes_index,
-                      series_index);
+    std::cerr << "[spectra-backend] Topic subscribed: " << req->name
+              << " -> figure=" << req->figure_id << " axes=" << req->axes_index
+              << " series=" << series_index << "\n";
 
     send_resp_subscribe(*slot.conn, ctx.graph.session_id(), msg.header.request_id, series_index);
     broadcast_topic_list_changed(ctx);

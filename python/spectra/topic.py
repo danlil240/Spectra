@@ -16,6 +16,7 @@ Usage::
 from __future__ import annotations
 
 import threading
+import time as _time
 from typing import Iterable, List, Optional, Sequence
 
 from . import _codec as codec
@@ -28,6 +29,9 @@ from ._transport import Transport
 
 KIND_SCALAR_2D = P.TOPIC_KIND_SCALAR_2D
 KIND_SCALAR_3D = P.TOPIC_KIND_SCALAR_3D
+
+# Rate-limit reconnect attempts (matches src/ipc/publisher_client.cpp).
+_RECONNECT_BACKOFF_SEC = 0.5
 
 
 class Publisher:
@@ -72,33 +76,31 @@ class Publisher:
         self._name = name
         self._kind = kind
         self._stride = 3 if kind == KIND_SCALAR_3D else 2
-        self._socket_path = resolve_socket_path(socket)
-        if auto_launch:
-            self._socket_path = ensure_backend(self._socket_path)
+        # Reconnect state. When `_explicit_socket` is set the publisher always
+        # reconnects to that exact path (matches the C++ Publisher policy).
+        # When it's None we re-resolve on every reconnect so we follow broker
+        # restarts (new daemon PID, or a UI app coming up on a fresh socket).
+        self._explicit_socket = socket
+        self._auto_launch = auto_launch
+        self._unit = unit
+        self._ring_capacity = ring_capacity
+        self._socket_path = ""
+        self._next_reconnect_at = 0.0
 
         self._lock = threading.Lock()
         self._next_request_id = 0
         self._session_id = 0
         self._closed = False
-        self._transport: Optional[Transport] = Transport.connect(self._socket_path)
+        self._transport: Optional[Transport] = None
 
-        # HELLO/WELCOME
-        hello = codec.encode_hello(client_type="publisher", build="spectra-python/publisher")
-        self._transport.send(msg_type=P.HELLO, payload=hello)
-        msg = self._transport.recv()
-        if msg is None or msg["header"]["type"] != P.WELCOME:
-            self._transport.close()
-            self._transport = None
-            raise ConnectionError("Did not receive WELCOME from backend")
-        welcome = codec.decode_welcome(msg["payload"])
-        self._session_id = welcome["session_id"]
-        log.debug("publisher connected session=%d", self._session_id)
-
-        # DECLARE
-        self._request(
-            P.REQ_DECLARE_TOPIC,
-            codec.encode_req_declare_topic(name, kind, unit, ring_capacity),
-        )
+        # Initial connection must succeed — otherwise the user's program can't
+        # tell whether the publisher is usable. Subsequent broker losses are
+        # handled silently by `_maybe_reconnect()` so publish loops keep
+        # running across UI restarts.
+        if not self._connect_and_declare():
+            raise ConnectionError(
+                f"Publisher failed to connect / declare topic '{name}'"
+            )
 
     # ── Public API ───────────────────────────────────────────────────────
 
@@ -120,6 +122,11 @@ class Publisher:
         For 2D topics, accepts ``(x, y)`` or an iterable of pairs.
         For 3D topics, accepts ``(x, y, z)`` or an iterable of triples.
         Also accepts a pre-interleaved flat sequence of doubles.
+
+        If the broker has gone away (UI closed, daemon exited), the call
+        attempts a rate-limited reconnect.  If reconnect doesn't immediately
+        succeed the sample is dropped silently and the publish loop keeps
+        running — matching the C++ ``spectra::Publisher`` policy.
         """
         samples = self._flatten(args)
         if not samples:
@@ -128,10 +135,27 @@ class Publisher:
             raise ValueError(
                 f"sample count {len(samples)} not a multiple of stride {self._stride}"
             )
-        self._request(
-            P.REQ_PUBLISH_TOPIC_SAMPLES,
-            codec.encode_req_publish_topic_samples(self._name, samples),
-        )
+        payload = codec.encode_req_publish_topic_samples(self._name, samples)
+
+        # First attempt — on the existing connection if any.
+        if self._transport is not None and self._transport.is_open:
+            try:
+                self._request(P.REQ_PUBLISH_TOPIC_SAMPLES, payload)
+                return
+            except (ConnectionError, BrokenPipeError, OSError) as e:
+                log.debug("publish failed, will try reconnect: %s", e)
+                self._drop_transport()
+
+        # Try to reconnect (rate-limited). If the broker isn't back yet, drop
+        # this sample and report success so the caller's loop keeps running.
+        if not self._maybe_reconnect():
+            return
+
+        try:
+            self._request(P.REQ_PUBLISH_TOPIC_SAMPLES, payload)
+        except (ConnectionError, BrokenPipeError, OSError) as e:
+            log.debug("publish failed after reconnect, dropping sample: %s", e)
+            self._drop_transport()
 
     def close(self) -> None:
         if self._closed:
@@ -157,6 +181,95 @@ class Publisher:
             pass
 
     # ── Internals ────────────────────────────────────────────────────────
+
+    def _drop_transport(self) -> None:
+        if self._transport is not None:
+            try:
+                self._transport.close()
+            except Exception:
+                pass
+            self._transport = None
+        self._session_id = 0
+
+    def _connect_and_declare(self) -> bool:
+        """Open a fresh socket, do HELLO/WELCOME, then DECLARE the topic.
+
+        Replaces any existing connection. Returns True on success. On failure
+        the publisher is left disconnected (transport is None) so the next
+        publish() call will trigger another rate-limited reconnect attempt.
+        """
+        self._drop_transport()
+
+        # Re-resolve every reconnect when the user didn't pin a path, so we
+        # follow broker PID changes across UI restarts.
+        path = resolve_socket_path(self._explicit_socket)
+        if self._auto_launch:
+            try:
+                path = ensure_backend(path)
+            except Exception as e:
+                log.debug("ensure_backend failed during reconnect: %s", e)
+                return False
+        if not path:
+            return False
+
+        try:
+            transport = Transport.connect(path)
+        except ConnectionError as e:
+            log.debug("Transport.connect failed during reconnect: %s", e)
+            return False
+
+        try:
+            hello = codec.encode_hello(
+                client_type="publisher", build="spectra-python/publisher"
+            )
+            transport.send(msg_type=P.HELLO, payload=hello)
+            msg = transport.recv()
+            if msg is None or msg["header"]["type"] != P.WELCOME:
+                transport.close()
+                return False
+            welcome = codec.decode_welcome(msg["payload"])
+        except (ConnectionError, BrokenPipeError, OSError) as e:
+            log.debug("HELLO/WELCOME failed during reconnect: %s", e)
+            try:
+                transport.close()
+            except Exception:
+                pass
+            return False
+
+        # Adopt the new connection before issuing DECLARE so `_request()`
+        # uses it.
+        self._socket_path = path
+        self._transport = transport
+        self._session_id = welcome["session_id"]
+        self._next_request_id = 0
+        log.debug(
+            "publisher connected session=%d socket=%s", self._session_id, path
+        )
+
+        try:
+            self._request(
+                P.REQ_DECLARE_TOPIC,
+                codec.encode_req_declare_topic(
+                    self._name, self._kind, self._unit, self._ring_capacity
+                ),
+            )
+        except (ConnectionError, BrokenPipeError, OSError, BackendError) as e:
+            log.debug("DECLARE failed during reconnect: %s", e)
+            self._drop_transport()
+            return False
+        return True
+
+    def _maybe_reconnect(self) -> bool:
+        """Rate-limited reconnect attempt. Returns True when connected."""
+        if self._closed:
+            return False
+        if self._transport is not None and self._transport.is_open:
+            return True
+        now = _time.monotonic()
+        if now < self._next_reconnect_at:
+            return False
+        self._next_reconnect_at = now + _RECONNECT_BACKOFF_SEC
+        return self._connect_and_declare()
 
     def _flatten(self, args: tuple) -> List[float]:
         if len(args) == self._stride and all(isinstance(a, (int, float)) for a in args):

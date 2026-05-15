@@ -5,16 +5,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
-#include <spectra/logger.hpp>
-#include <thread>
+#include <iostream>
 #include <vector>
-
-#ifndef _WIN32
-    #include <signal.h>
-    #include <sys/stat.h>
-    #include <sys/types.h>
-    #include <unistd.h>
-#endif
 
 #include "codec.hpp"
 #include "message.hpp"
@@ -43,158 +35,54 @@ std::string socket_dir()
     return "/tmp";
 }
 
-// Scan the socket directory for existing `spectra-*.sock` files and return
-// them most-recently-modified-first.  Skips broken / non-socket entries.
+// Scan the runtime dir for `spectra-<pid>.sock` entries (most recent first).
+// The broker writes its socket as spectra-<broker_pid>.sock so the publisher
+// must NOT use its own PID — we discover the broker socket instead.
 std::vector<std::string> discover_candidate_sockets()
 {
     namespace fs = std::filesystem;
-    std::vector<std::pair<std::string, fs::file_time_type>> hits;
+    std::vector<std::pair<fs::file_time_type, std::string>> entries;
     std::error_code                                         ec;
-    const auto                                              dir = socket_dir();
-
-    // 1) Python session canonical socket: $XDG_RUNTIME_DIR/spectra/spectra.sock
-    //    (always tried first if it exists — Python spawns its daemon here).
+    const std::string                                       dir = socket_dir();
+    for (auto it = fs::directory_iterator(dir, ec); !ec && it != fs::directory_iterator{};
+         it.increment(ec))
     {
-        const auto canonical = dir + "/spectra/spectra.sock";
-        auto       mtime     = fs::last_write_time(canonical, ec);
-        if (!ec)
-            hits.emplace_back(canonical, mtime);
-        ec.clear();
-    }
-
-    // 2) Per-process sockets directly in $XDG_RUNTIME_DIR
-    //    (inproc apps + C++ daemon spawn pattern).
-    for (auto& e : fs::directory_iterator(dir, ec))
-    {
-        if (ec)
-            break;
-        const auto& p    = e.path();
-        const auto  name = p.filename().string();
-        if (name.rfind("spectra-", 0) != 0 || p.extension() != ".sock")
+        const auto& p = it->path();
+        if (p.filename().string().rfind("spectra-", 0) != 0)
             continue;
-        auto mtime = fs::last_write_time(p, ec);
-        if (ec)
-        {
-            ec.clear();
+        if (p.extension() != ".sock")
             continue;
-        }
-        hits.emplace_back(p.string(), mtime);
+        std::error_code stat_ec;
+        auto            mt = fs::last_write_time(p, stat_ec);
+        if (stat_ec)
+            continue;
+        entries.emplace_back(mt, p.string());
     }
-    std::sort(hits.begin(),
-              hits.end(),
-              [](const auto& a, const auto& b) { return a.second > b.second; });
+    std::sort(entries.begin(),
+              entries.end(),
+              [](const auto& a, const auto& b) { return a.first > b.first; });
     std::vector<std::string> out;
-    out.reserve(hits.size());
-    for (auto& h : hits)
-        out.push_back(std::move(h.first));
+    out.reserve(entries.size());
+    for (auto& e : entries)
+        out.push_back(std::move(e.second));
     return out;
 }
 
-// Try to connect to `path` (transient — does not retain failures).
-std::unique_ptr<ipc::Connection> try_connect(const std::string& path)
+// Resolve the socket path with priority:
+//   1. explicit_path (user-supplied)
+//   2. $SPECTRA_SOCKET
+//   3. most-recent spectra-*.sock in the runtime dir (broker discovery)
+//   4. ipc::default_socket_path() as a last resort
+std::string resolve_socket(const std::string& explicit_path)
 {
-    auto c = ipc::Client::connect(path);
-    if (c && c->is_open())
-        return c;
-    return nullptr;
-}
-
-#ifndef _WIN32
-// Locate `spectra-backend`: next to /proc/self/exe, then on $PATH.
-std::string locate_backend_binary()
-{
-    char        buf[4096];
-    ssize_t     n = ::readlink("/proc/self/exe", buf, sizeof(buf) - 1);
-    std::string dir;
-    if (n > 0)
-    {
-        buf[n] = '\0';
-        std::string self(buf);
-        auto        slash = self.rfind('/');
-        if (slash != std::string::npos)
-            dir = self.substr(0, slash + 1);
-    }
-    for (const auto& candidate :
-         {dir + "spectra-backend",
-          (dir.size() > 1 ? dir.substr(0, dir.rfind('/', dir.size() - 2) + 1) : std::string{})
-              + "spectra-backend"})
-    {
-        if (!candidate.empty() && ::access(candidate.c_str(), X_OK) == 0)
-            return candidate;
-    }
-    return "spectra-backend";   // rely on $PATH
-}
-
-// Fork+exec the backend.  Returns the pid (>0 on success).
-pid_t spawn_backend(const std::string& sock_path)
-{
-    const std::string bin = locate_backend_binary();
-    pid_t             pid = ::fork();
-    if (pid == 0)
-    {
-        ::execlp(bin.c_str(), bin.c_str(), "--socket", sock_path.c_str(), nullptr);
-        ::_exit(127);
-    }
-    return pid;
-}
-#endif
-
-// Resolve the daemon connection.  Strategy:
-//   1. opts.socket_path                    — caller override
-//   2. $SPECTRA_SOCKET                     — explicit env override
-//   3. Discover existing spectra-*.sock    — pick an already-running daemon
-//   4. opts.auto_spawn_daemon              — spawn a fresh backend
-//
-// Returns an open connection and writes the chosen socket path to *out_path,
-// or nullptr if no daemon could be reached.
-std::unique_ptr<ipc::Connection> resolve_and_connect(const Publisher::Options& opts,
-                                                     std::string*              out_path)
-{
-    auto take = [&](std::unique_ptr<ipc::Connection> c, std::string path)
-    {
-        if (out_path)
-            *out_path = std::move(path);
-        return c;
-    };
-
-    if (!opts.socket_path.empty())
-    {
-        if (auto c = try_connect(opts.socket_path))
-            return take(std::move(c), opts.socket_path);
-        return nullptr;   // explicit request → no fallback
-    }
+    if (!explicit_path.empty())
+        return explicit_path;
     if (const char* env = std::getenv("SPECTRA_SOCKET"); env && *env)
-    {
-        if (auto c = try_connect(env))
-            return take(std::move(c), env);
-        return nullptr;   // explicit request → no fallback
-    }
-
-    // Discover any live daemon.
-    for (const auto& p : discover_candidate_sockets())
-    {
-        if (auto c = try_connect(p))
-            return take(std::move(c), p);
-    }
-
-#ifndef _WIN32
-    if (opts.auto_spawn_daemon)
-    {
-        const std::string sock = socket_dir() + "/spectra-" + std::to_string(::getpid()) + ".sock";
-        pid_t             pid  = spawn_backend(sock);
-        if (pid > 0)
-        {
-            for (int i = 0; i < 50; ++i)
-            {
-                std::this_thread::sleep_for(std::chrono::milliseconds(50));
-                if (auto c = try_connect(sock))
-                    return take(std::move(c), sock);
-            }
-            ::kill(pid, SIGTERM);
-        }
-    }
-#endif
-    return nullptr;
+        return env;
+    auto candidates = discover_candidate_sockets();
+    if (!candidates.empty())
+        return candidates.front();
+    return ipc::default_socket_path();
 }
 
 }   // namespace
@@ -206,6 +94,85 @@ struct Publisher::Impl
     Kind                             kind            = Kind::Scalar2D;
     uint64_t                         next_request_id = 1;
     ipc::SessionId                   session_id      = ipc::INVALID_SESSION;
+
+    // Reconnect state (set by create()).
+    // explicit_socket_path is non-empty when the user pinned a specific path
+    // (either via Options::socket_path or $SPECTRA_SOCKET). When empty, each
+    // reconnect re-discovers the freshest spectra-*.sock so the publisher
+    // follows broker PID changes across restarts.
+    std::string                                explicit_socket_path;
+    std::string                                socket_path;
+    std::string                                unit;
+    uint32_t                                   ring_capacity = 4096;
+    std::chrono::steady_clock::time_point      next_reconnect_attempt{};
+    static constexpr std::chrono::milliseconds reconnect_backoff{500};
+
+    // Establish socket + HELLO + DECLARE_TOPIC.  Replaces any existing
+    // connection.  Returns true on success.
+    bool connect_and_declare()
+    {
+        conn.reset();
+
+        // Re-resolve the socket path on every attempt so we pick up the new
+        // broker PID after a Spectra restart.
+        socket_path = resolve_socket(explicit_socket_path);
+
+        auto c = ipc::Client::connect(socket_path);
+        if (!c || !c->is_open())
+            return false;
+
+        ipc::HelloPayload hello;
+        hello.protocol_major = ipc::PROTOCOL_MAJOR;
+        hello.protocol_minor = ipc::PROTOCOL_MINOR;
+        hello.agent_build    = "spectra-publisher/0.1";
+        hello.client_type    = "publisher";
+        hello.capabilities   = ipc::CAPABILITY_FLATBUFFERS;
+        {
+            ipc::Message m;
+            m.header.type        = ipc::MessageType::HELLO;
+            m.payload            = ipc::encode_hello(hello);
+            m.header.payload_len = static_cast<uint32_t>(m.payload.size());
+            if (!c->send(m))
+                return false;
+        }
+
+        auto welcome_msg = c->recv();
+        if (!welcome_msg || welcome_msg->header.type != ipc::MessageType::WELCOME)
+            return false;
+        auto welcome = ipc::decode_welcome(welcome_msg->payload);
+        if (!welcome)
+            return false;
+
+        conn       = std::move(c);
+        session_id = welcome->session_id;
+
+        ipc::ReqDeclareTopicPayload decl;
+        decl.name          = name;
+        decl.kind          = to_ipc_kind(kind);
+        decl.unit          = unit;
+        decl.ring_capacity = ring_capacity;
+        if (!send_request_and_wait_ok(ipc::MessageType::REQ_DECLARE_TOPIC,
+                                      ipc::encode_req_declare_topic(decl)))
+        {
+            conn.reset();
+            return false;
+        }
+        return true;
+    }
+
+    // Try to reconnect, rate-limited by reconnect_backoff.  Returns true if
+    // the connection is alive after the call (either it already was or the
+    // reconnect succeeded).
+    bool maybe_reconnect()
+    {
+        if (conn && conn->is_open())
+            return true;
+        const auto now = std::chrono::steady_clock::now();
+        if (now < next_reconnect_attempt)
+            return false;
+        next_reconnect_attempt = now + reconnect_backoff;
+        return connect_and_declare();
+    }
 
     bool send_request_and_wait_ok(ipc::MessageType type, std::vector<uint8_t> payload)
     {
@@ -247,61 +214,24 @@ std::unique_ptr<Publisher> Publisher::create(std::string_view name, const Option
     if (name.empty())
         return nullptr;
 
-    std::string socket;
-    auto        conn = resolve_and_connect(opts, &socket);
-    if (!conn || !conn->is_open())
-    {
-        SPECTRA_LOG_ERROR("publisher",
-                          "Failed to reach spectra-backend"
-                          " (tried explicit, $SPECTRA_SOCKET, discovery{})",
-                          opts.auto_spawn_daemon ? ", auto-spawn" : "");
-        return nullptr;
-    }
+    auto pub           = std::unique_ptr<Publisher>(new Publisher());
+    pub->impl_         = std::make_unique<Impl>();
+    auto& impl         = *pub->impl_;
+    impl.name          = std::string(name);
+    impl.kind          = opts.kind;
+    impl.unit          = opts.unit;
+    impl.ring_capacity = opts.ring_capacity;
+    // Honour an explicit path (Options) OR $SPECTRA_SOCKET as a pinned target.
+    // Otherwise leave empty so connect_and_declare() rediscovers each attempt.
+    if (!opts.socket_path.empty())
+        impl.explicit_socket_path = opts.socket_path;
+    else if (const char* env = std::getenv("SPECTRA_SOCKET"); env && *env)
+        impl.explicit_socket_path = env;
 
-    // ── HELLO ────────────────────────────────────────────────────────────
-    ipc::HelloPayload hello;
-    hello.protocol_major = ipc::PROTOCOL_MAJOR;
-    hello.protocol_minor = ipc::PROTOCOL_MINOR;
-    hello.agent_build    = "spectra-publisher/0.1";
-    hello.client_type    = "publisher";
-    hello.capabilities   = ipc::CAPABILITY_FLATBUFFERS;
+    if (!impl.connect_and_declare())
     {
-        ipc::Message m;
-        m.header.type        = ipc::MessageType::HELLO;
-        m.payload            = ipc::encode_hello(hello);
-        m.header.payload_len = static_cast<uint32_t>(m.payload.size());
-        if (!conn->send(m))
-            return nullptr;
-    }
-
-    auto welcome_msg = conn->recv();
-    if (!welcome_msg || welcome_msg->header.type != ipc::MessageType::WELCOME)
-    {
-        SPECTRA_LOG_ERROR("publisher", "No WELCOME from daemon");
-        return nullptr;
-    }
-    auto welcome = ipc::decode_welcome(welcome_msg->payload);
-    if (!welcome)
-        return nullptr;
-
-    auto pub        = std::unique_ptr<Publisher>(new Publisher());
-    pub->impl_      = std::make_unique<Impl>();
-    auto& impl      = *pub->impl_;
-    impl.conn       = std::move(conn);
-    impl.name       = std::string(name);
-    impl.kind       = opts.kind;
-    impl.session_id = welcome->session_id;
-
-    // ── DECLARE TOPIC ───────────────────────────────────────────────────
-    ipc::ReqDeclareTopicPayload decl;
-    decl.name          = impl.name;
-    decl.kind          = to_ipc_kind(opts.kind);
-    decl.unit          = opts.unit;
-    decl.ring_capacity = opts.ring_capacity;
-    if (!impl.send_request_and_wait_ok(ipc::MessageType::REQ_DECLARE_TOPIC,
-                                       ipc::encode_req_declare_topic(decl)))
-    {
-        SPECTRA_LOG_ERROR("publisher", "REQ_DECLARE_TOPIC failed for '{}'", impl.name);
+        std::cerr << "[spectra::Publisher] failed to connect / declare '" << impl.name << "' on "
+                  << impl.socket_path << "\n";
         return nullptr;
     }
     return pub;
@@ -325,7 +255,7 @@ bool Publisher::publish(double x, double y, double z)
 
 bool Publisher::publish(std::span<const double> interleaved)
 {
-    if (!impl_ || !impl_->conn || !impl_->conn->is_open())
+    if (!impl_)
         return false;
     if (interleaved.empty())
         return true;
@@ -336,6 +266,24 @@ bool Publisher::publish(std::span<const double> interleaved)
     ipc::ReqPublishTopicSamplesPayload p;
     p.name = impl_->name;
     p.samples.assign(interleaved.begin(), interleaved.end());
+
+    // First attempt — on the existing connection if any.
+    if (impl_->conn && impl_->conn->is_open())
+    {
+        if (impl_->send_request_and_wait_ok(ipc::MessageType::REQ_PUBLISH_TOPIC_SAMPLES,
+                                            ipc::encode_req_publish_topic_samples(p)))
+            return true;
+        // Send/recv failed — broker likely went away.  Drop the connection
+        // and fall through to reconnect.
+        impl_->conn.reset();
+    }
+
+    // Try to reconnect (rate-limited).  If the broker isn't back yet, drop
+    // this sample silently and report success so the caller's loop keeps
+    // running — the publisher will reattach as soon as the broker returns.
+    if (!impl_->maybe_reconnect())
+        return true;
+
     return impl_->send_request_and_wait_ok(ipc::MessageType::REQ_PUBLISH_TOPIC_SAMPLES,
                                            ipc::encode_req_publish_topic_samples(p));
 }

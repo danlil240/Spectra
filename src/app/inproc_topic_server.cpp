@@ -449,6 +449,11 @@ void InprocTopicServer::wire_topics_panel(ui::topics::TopicsPanel& panel,
                 registry_.subscribe(req.topic_name, sub);
             }
 
+            // Enable continuous auto-zoom on the subscribed axes so the user
+            // can see all incoming samples without manually pressing "fit".
+            // The flag self-disables the first time the user pans or zooms.
+            ax->set_topic_auto_zoom(true);
+
             SPECTRA_LOG_DEBUG("topics",
                               "Subscribed {} -> fig={} axes={} series={}",
                               req.topic_name,

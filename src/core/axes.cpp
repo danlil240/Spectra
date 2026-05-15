@@ -619,6 +619,76 @@ void Axes::auto_fit()
     ylim_.reset();
 }
 
+void Axes::set_topic_auto_zoom(bool enabled)
+{
+    topic_auto_zoom_ = enabled;
+    if (!enabled)
+    {
+        last_auto_xlim_.reset();
+        last_auto_ylim_.reset();
+    }
+}
+
+void Axes::topic_auto_zoom_tick()
+{
+    if (!topic_auto_zoom_)
+        return;
+
+    // ── Step 1: detect user override ────────────────────────────────────────
+    //
+    // If the limits we set on the previous tick no longer match the current
+    // ones (i.e. user panned/zoomed/typed an explicit range), disable
+    // auto-zoom so the user's view is preserved.
+    const AxisLimits cur_x = x_limits();
+    const AxisLimits cur_y = y_limits();
+
+    if (last_auto_xlim_.has_value() && last_auto_ylim_.has_value())
+    {
+        const AxisLimits& lx    = *last_auto_xlim_;
+        const AxisLimits& ly    = *last_auto_ylim_;
+        const double      eps_x = std::max(std::abs(lx.max - lx.min), 1.0) * 1e-9;
+        const double      eps_y = std::max(std::abs(ly.max - ly.min), 1.0) * 1e-9;
+        if (std::abs(cur_x.min - lx.min) > eps_x || std::abs(cur_x.max - lx.max) > eps_x
+            || std::abs(cur_y.min - ly.min) > eps_y || std::abs(cur_y.max - ly.max) > eps_y)
+        {
+            topic_auto_zoom_ = false;
+            last_auto_xlim_.reset();
+            last_auto_ylim_.reset();
+            return;
+        }
+    }
+
+    // ── Step 2: recompute auto-fit limits from current data ────────────────
+    //
+    // Temporarily clear any previously-installed explicit limits so x_limits/
+    // y_limits return the live data extent.
+    const auto saved_x = xlim_;
+    const auto saved_y = ylim_;
+    xlim_.reset();
+    ylim_.reset();
+
+    const AxisLimits new_x = x_limits();
+    const AxisLimits new_y = y_limits();
+
+    if (!std::isfinite(new_x.min) || !std::isfinite(new_x.max) || !std::isfinite(new_y.min)
+        || !std::isfinite(new_y.max))
+    {
+        // Degenerate; restore previous explicit limits and try again next frame.
+        xlim_ = saved_x;
+        ylim_ = saved_y;
+        return;
+    }
+
+    xlim_           = new_x;
+    ylim_           = new_y;
+    last_auto_xlim_ = new_x;
+    last_auto_ylim_ = new_y;
+
+    if (event_system_)
+        event_system_->axes_limits_changed().emit(
+            {this, new_x.min, new_x.max, new_y.min, new_y.max});
+}
+
 // --- Tick generation ---
 // Simple "nice numbers" algorithm: pick tick spacing as 1, 2, or 5 × 10^n
 // to produce roughly 5–10 ticks in the given range.

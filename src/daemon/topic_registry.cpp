@@ -32,13 +32,6 @@ TopicRegistry::DeclareResult TopicRegistry::declare(const std::string& name,
         t.owner_client_id  = owner_client_id;
         t.publisher_online = true;
         t.ring_capacity    = ring_capacity == 0 ? 4096u : ring_capacity;
-        // Promote any pending subscriptions to live ones.
-        auto pit = pending_.find(name);
-        if (pit != pending_.end())
-        {
-            t.subs = std::move(pit->second);
-            pending_.erase(pit);
-        }
         topics_.emplace(name, std::move(t));
         return DeclareResult::Created;
     }
@@ -56,18 +49,6 @@ TopicRegistry::DeclareResult TopicRegistry::declare(const std::string& name,
     it->second.publisher_online = true;
     if (ring_capacity != 0)
         it->second.ring_capacity = ring_capacity;
-    // Also promote any pending subs queued while the publisher was offline.
-    auto pit = pending_.find(name);
-    if (pit != pending_.end())
-    {
-        for (auto& s : pit->second)
-        {
-            if (std::find(it->second.subs.begin(), it->second.subs.end(), s)
-                == it->second.subs.end())
-                it->second.subs.push_back(s);
-        }
-        pending_.erase(pit);
-    }
     return DeclareResult::ReclaimedByOwner;
 }
 
@@ -141,56 +122,6 @@ void TopicRegistry::unsubscribe(const TopicSubscription& sub)
     {
         auto& subs = kv.second.subs;
         subs.erase(std::remove(subs.begin(), subs.end(), sub), subs.end());
-    }
-    for (auto& kv : pending_)
-    {
-        auto& subs = kv.second;
-        subs.erase(std::remove(subs.begin(), subs.end(), sub), subs.end());
-    }
-}
-
-bool TopicRegistry::subscribe_pending(const std::string& name, const TopicSubscription& sub)
-{
-    std::lock_guard<std::mutex> lk(mutex_);
-    // If the topic already exists, promote immediately.
-    auto it = topics_.find(name);
-    if (it != topics_.end())
-    {
-        auto& subs = it->second.subs;
-        if (std::find(subs.begin(), subs.end(), sub) == subs.end())
-            subs.push_back(sub);
-        return true;
-    }
-    auto& q = pending_[name];
-    if (std::find(q.begin(), q.end(), sub) == q.end())
-        q.push_back(sub);
-    return true;
-}
-
-void TopicRegistry::clear_pending_for(uint64_t figure_id)
-{
-    std::lock_guard<std::mutex> lk(mutex_);
-    for (auto it = pending_.begin(); it != pending_.end();)
-    {
-        auto& v = it->second;
-        v.erase(std::remove_if(v.begin(),
-                               v.end(),
-                               [figure_id](const TopicSubscription& s)
-                               { return s.figure_id == figure_id; }),
-                v.end());
-        if (v.empty())
-            it = pending_.erase(it);
-        else
-            ++it;
-    }
-    for (auto& kv : topics_)
-    {
-        auto& subs = kv.second.subs;
-        subs.erase(std::remove_if(subs.begin(),
-                                  subs.end(),
-                                  [figure_id](const TopicSubscription& s)
-                                  { return s.figure_id == figure_id; }),
-                   subs.end());
     }
 }
 

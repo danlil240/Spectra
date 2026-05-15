@@ -1,9 +1,7 @@
 #include <atomic>
 #include <csignal>
-#include <cstdio>
 #include <cstring>
 #include <iostream>
-#include <spectra/logger.hpp>
 #include <string>
 #include <vector>
 
@@ -92,7 +90,7 @@ int main(int argc, char* argv[])
     }
 
 #ifdef _WIN32
-    SPECTRA_LOG_ERROR("daemon", "Unix domain socket daemon not supported on Windows");
+    std::cerr << "[spectra-backend] Unix domain socket daemon not supported on Windows\n";
     return 1;
 #else
     // Parse optional --socket <path> argument
@@ -114,17 +112,14 @@ int main(int argc, char* argv[])
     std::signal(SIGTERM, signal_handler);
     std::signal(SIGPIPE, SIG_IGN);
 
-    spectra::setup_dual_logging(spectra::default_console_log_level(),
-                                spectra::default_file_log_level());
-
-    SPECTRA_LOG_INFO("daemon", "Starting daemon, socket: {}", socket_path);
-    SPECTRA_LOG_INFO("daemon", "Agent binary: {}", agent_path);
+    std::cerr << "[spectra-backend] Starting daemon, socket: " << socket_path << "\n";
+    std::cerr << "[spectra-backend] Agent binary: " << agent_path << "\n";
 
     // --- Start UDS listener ---
     spectra::ipc::Server server;
     if (!server.listen(socket_path))
     {
-        SPECTRA_LOG_ERROR("daemon", "Failed to listen on {}", socket_path);
+        std::cerr << "[spectra-backend] Failed to listen on " << socket_path << "\n";
         return 1;
     }
 
@@ -143,7 +138,7 @@ int main(int argc, char* argv[])
 
     bool had_agents = false;
 
-    SPECTRA_LOG_INFO("daemon", "Listening for connections...");
+    std::cerr << "[spectra-backend] Listening for connections...\n";
 
     // --- Poll-based multiplexed event loop ---
     // poll() watches the listen fd + all client fds simultaneously so we never
@@ -163,7 +158,7 @@ int main(int argc, char* argv[])
         {
             if (errno == EINTR)
                 continue;
-            SPECTRA_LOG_ERROR("daemon", "poll() error");
+            std::cerr << "[spectra-backend] poll() error\n";
             break;
         }
 
@@ -173,7 +168,7 @@ int main(int argc, char* argv[])
             auto new_conn = server.try_accept();
             if (new_conn)
             {
-                SPECTRA_LOG_DEBUG("daemon", "New connection (fd={})", new_conn->fd());
+                std::cerr << "[spectra-backend] New connection (fd=" << new_conn->fd() << ")\n";
                 ClientSlot slot;
                 slot.conn      = std::move(new_conn);
                 slot.client_id = next_client_id++;
@@ -190,10 +185,8 @@ int main(int argc, char* argv[])
                 if (it->window_id != spectra::ipc::INVALID_WINDOW)
                 {
                     auto orphaned = graph.remove_agent(it->window_id);
-                    SPECTRA_LOG_INFO("daemon",
-                                     "Agent disconnected (window={}, orphaned_figures={})",
-                                     it->window_id,
-                                     orphaned.size());
+                    std::cerr << "[spectra-backend] Agent disconnected (window=" << it->window_id
+                              << ", orphaned_figures=" << orphaned.size() << ")\n";
                     for (auto fid : orphaned)
                         notify_python_window_closed(ctx, fid, it->window_id, "agent_disconnected");
                 }
@@ -221,7 +214,7 @@ int main(int argc, char* argv[])
                 // Connection closed or error
                 if (it->is_source_client)
                 {
-                    SPECTRA_LOG_INFO("daemon", "Source app disconnected — shutting down");
+                    std::cerr << "[spectra-backend] Source app disconnected — shutting down\n";
                     for (auto& entry : proc_mgr.all_processes())
                         ::kill(entry.pid, SIGTERM);
                     g_running.store(false, std::memory_order_relaxed);
@@ -231,10 +224,8 @@ int main(int argc, char* argv[])
                 if (it->window_id != spectra::ipc::INVALID_WINDOW)
                 {
                     auto orphaned = graph.remove_agent(it->window_id);
-                    SPECTRA_LOG_WARN("daemon",
-                                     "Agent lost (window={}, orphaned_figures={})",
-                                     it->window_id,
-                                     orphaned.size());
+                    std::cerr << "[spectra-backend] Agent lost (window=" << it->window_id
+                              << ", orphaned_figures=" << orphaned.size() << ")\n";
                     for (auto fid : orphaned)
                         notify_python_window_closed(ctx, fid, it->window_id, "agent_lost");
                 }
@@ -351,15 +342,9 @@ int main(int argc, char* argv[])
                     break;
 
                 default:
-                    char hex_type[16];
-                    std::snprintf(hex_type,
-                                  sizeof(hex_type),
-                                  "0x%04x",
-                                  static_cast<uint16_t>(msg.header.type));
-                    SPECTRA_LOG_WARN("daemon",
-                                     "Unknown message type {} from window={}",
-                                     hex_type,
-                                     it->window_id);
+                    std::cerr << "[spectra-backend] Unknown message type 0x" << std::hex
+                              << static_cast<uint16_t>(msg.header.type) << std::dec
+                              << " from window=" << it->window_id << "\n";
                     break;
             }
 
@@ -404,7 +389,7 @@ int main(int argc, char* argv[])
             }
             if (!has_publisher)
             {
-                SPECTRA_LOG_INFO("daemon", "All agents disconnected, shutting down");
+                std::cerr << "[spectra-backend] All agents disconnected, shutting down\n";
                 g_running.store(false, std::memory_order_relaxed);
             }
         }
@@ -418,7 +403,7 @@ int main(int argc, char* argv[])
     }
     server.close();
 
-    SPECTRA_LOG_INFO("daemon", "Daemon stopped");
+    std::cerr << "[spectra-backend] Daemon stopped\n";
     return 0;
 #endif   // !_WIN32
 }

@@ -13,14 +13,70 @@ from ._log import log
 _IS_WINDOWS = _platform.system() == "Windows"
 
 
-def resolve_socket_path(explicit: Optional[str] = None) -> str:
-    """Resolve the socket path using the priority order from the architecture plan.
+def _runtime_socket_dir() -> str:
+    """Directory the C++ side (daemon + inproc broker) places broker sockets in."""
+    if _IS_WINDOWS:
+        temp = os.environ.get(
+            "TEMP",
+            os.environ.get(
+                "TMP",
+                os.path.join(os.path.expanduser("~"), "AppData", "Local", "Temp"),
+            ),
+        )
+        return os.path.join(temp, "spectra")
+    xdg = os.environ.get("XDG_RUNTIME_DIR")
+    if xdg:
+        return xdg
+    return "/tmp"
 
-    1. Explicit path passed to Session(socket=...)
-    2. $SPECTRA_SOCKET environment variable
-    3. Platform-specific default:
-       - Windows: %TEMP%/spectra/spectra.sock
-       - Linux:   $XDG_RUNTIME_DIR/spectra/spectra.sock or /tmp/spectra-$USER/spectra.sock
+
+def _discover_live_broker() -> Optional[str]:
+    """Return the newest live `spectra-*.sock` in the runtime dir, or None.
+
+    Mirrors the C++ Publisher discovery (`src/ipc/publisher_client.cpp`) and
+    the inproc daemon-attach logic (`src/app/main.cpp`): scan the flat runtime
+    directory for `spectra-<pid>.sock` entries newest first and pick the first
+    that responds to a connect probe. This is what lets a Python publisher
+    converge on the same broker as an inproc C++ app.
+    """
+    dir_ = _runtime_socket_dir()
+    try:
+        entries = os.listdir(dir_)
+    except OSError:
+        return None
+    candidates = []
+    for name in entries:
+        if not name.startswith("spectra-") or not name.endswith(".sock"):
+            continue
+        # Skip the automation socket (`spectra-auto-<pid>.sock`) — that's the
+        # UI automation server, not the topic broker.
+        if name.startswith("spectra-auto-"):
+            continue
+        full = os.path.join(dir_, name)
+        try:
+            mtime = os.path.getmtime(full)
+        except OSError:
+            continue
+        candidates.append((mtime, full))
+    candidates.sort(reverse=True)
+    for _, path in candidates:
+        if _can_connect(path):
+            log.debug("launcher discovered live broker at %s", path)
+            return path
+    return None
+
+
+def resolve_socket_path(explicit: Optional[str] = None) -> str:
+    """Resolve the broker socket path.
+
+    Priority (matches the C++ Publisher in ``src/ipc/publisher_client.cpp``):
+
+    1. Explicit path passed by the caller.
+    2. ``$SPECTRA_SOCKET`` environment variable.
+    3. Newest live ``spectra-<pid>.sock`` in the runtime dir (daemon *or*
+       in-process app broker).
+    4. Empty string sentinel — meaning "no broker yet". ``ensure_backend()``
+       will launch one and discover its socket path.
     """
     if explicit:
         return explicit
@@ -29,18 +85,13 @@ def resolve_socket_path(explicit: Optional[str] = None) -> str:
     if env_sock:
         return env_sock
 
-    if _IS_WINDOWS:
-        temp = os.environ.get("TEMP", os.environ.get(
-            "TMP", os.path.join(os.path.expanduser("~"), "AppData", "Local", "Temp")))
-        return os.path.join(temp, "spectra", "spectra.sock")
+    discovered = _discover_live_broker()
+    if discovered:
+        return discovered
 
-    xdg = os.environ.get("XDG_RUNTIME_DIR")
-    user = os.environ.get("USER", os.environ.get("LOGNAME", "unknown"))
-
-    if xdg:
-        return os.path.join(xdg, "spectra", "spectra.sock")
-
-    return f"/tmp/spectra-{user}/spectra.sock"
+    # No live broker yet. Return an empty sentinel; ensure_backend() will
+    # launch one and report the path it ended up on.
+    return ""
 
 
 def _can_connect(path: str) -> bool:
@@ -159,14 +210,30 @@ def _find_backend_binary() -> Optional[str]:
 
 
 def ensure_backend(socket_path: str, timeout: float = 5.0) -> str:
-    """Ensure a backend is running. Returns the socket path.
+    """Ensure a backend is running. Returns the socket path actually in use.
 
-    If a backend is already listening, returns immediately.
-    Otherwise, launches one and waits for it to be ready.
+    Behaviour:
+
+    * If ``socket_path`` is non-empty and a backend is already listening
+      there, return it unchanged.
+    * If ``socket_path`` is non-empty but nothing is listening, launch
+      ``spectra-backend --socket <socket_path>`` and wait for it.
+    * If ``socket_path`` is empty (no pinned path and no live broker was
+      discovered), launch ``spectra-backend`` without a ``--socket`` argument
+      so it picks its default ``$XDG_RUNTIME_DIR/spectra-<daemon_pid>.sock``,
+      poll the runtime directory until a live broker appears, and return
+      its path.
     """
-    if _can_connect(socket_path):
+    if socket_path and _can_connect(socket_path):
         log.info("launcher reusing existing backend socket=%s", socket_path)
         return socket_path
+
+    # A live broker may have appeared between resolve_socket_path() and now —
+    # e.g. the user just launched an inproc Spectra app in another terminal.
+    rediscovered = _discover_live_broker()
+    if rediscovered and (not socket_path or rediscovered == socket_path):
+        log.info("launcher attaching to live broker socket=%s", rediscovered)
+        return rediscovered
 
     binary = _find_backend_binary()
     if binary is None:
@@ -193,18 +260,19 @@ def ensure_backend(socket_path: str, timeout: float = 5.0) -> str:
                 + _dl_hint
             )
 
-    # Ensure socket directory exists
-    sock_dir = os.path.dirname(socket_path)
-    if sock_dir:
-        os.makedirs(sock_dir, mode=0o700, exist_ok=True)
+    # Ensure socket directory exists (only meaningful when we have a path).
+    if socket_path:
+        sock_dir = os.path.dirname(socket_path)
+        if sock_dir:
+            os.makedirs(sock_dir, mode=0o700, exist_ok=True)
 
-    # Remove stale socket file
-    if os.path.exists(socket_path):
-        try:
-            log.debug("launcher removing stale socket: %s", socket_path)
-            os.unlink(socket_path)
-        except OSError:
-            pass
+        # Remove stale socket file
+        if os.path.exists(socket_path):
+            try:
+                log.debug("launcher removing stale socket: %s", socket_path)
+                os.unlink(socket_path)
+            except OSError:
+                pass
 
     # Launch backend
     _debug_log = os.environ.get("SPECTRA_DEBUG_LOG")
@@ -219,18 +287,52 @@ def ensure_backend(socket_path: str, timeout: float = 5.0) -> str:
         popen_kwargs["creationflags"] = 0x08000000 | 0x00000200
     else:
         popen_kwargs["start_new_session"] = True
-    proc = subprocess.Popen(
-        [binary, "--socket", socket_path],
-        **popen_kwargs,
-    )
-    log.info("launcher started backend pid=%s binary=%s socket=%s", proc.pid, binary, socket_path)
 
-    # Wait for socket to appear and be connectable
+    # Snapshot existing broker sockets so we can identify the newly-launched
+    # daemon's socket when --socket is not pinned.
+    pre_existing: set = set()
+    if not socket_path:
+        try:
+            pre_existing = {
+                os.path.join(_runtime_socket_dir(), n)
+                for n in os.listdir(_runtime_socket_dir())
+                if n.startswith("spectra-") and n.endswith(".sock")
+                and not n.startswith("spectra-auto-")
+            }
+        except OSError:
+            pre_existing = set()
+
+    argv = [binary]
+    if socket_path:
+        argv += ["--socket", socket_path]
+    proc = subprocess.Popen(argv, **popen_kwargs)
+    log.info(
+        "launcher started backend pid=%s binary=%s socket=%s",
+        proc.pid, binary, socket_path or "<default>",
+    )
+
+    # Wait for socket to appear and be connectable.
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        if _can_connect(socket_path):
-            log.info("launcher backend ready socket=%s", socket_path)
-            return socket_path
+        if socket_path:
+            if _can_connect(socket_path):
+                log.info("launcher backend ready socket=%s", socket_path)
+                return socket_path
+        else:
+            # Find a newly-created spectra-*.sock that wasn't there before.
+            try:
+                current = {
+                    os.path.join(_runtime_socket_dir(), n)
+                    for n in os.listdir(_runtime_socket_dir())
+                    if n.startswith("spectra-") and n.endswith(".sock")
+                    and not n.startswith("spectra-auto-")
+                }
+            except OSError:
+                current = set()
+            for p in sorted(current - pre_existing):
+                if _can_connect(p):
+                    log.info("launcher backend ready socket=%s", p)
+                    return p
         # If the process already exited, don't keep waiting
         if proc.poll() is not None:
             break
@@ -246,5 +348,5 @@ def ensure_backend(socket_path: str, timeout: float = 5.0) -> str:
     raise RuntimeError(
         f"spectra-backend did not start within {timeout}s. "
         f"Binary: {binary}\n"
-        f"Socket: {socket_path}{hint}"
+        f"Socket: {socket_path or '<default>'}{hint}"
     )

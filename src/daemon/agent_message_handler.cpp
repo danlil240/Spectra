@@ -1,6 +1,6 @@
 #include "agent_message_handler.hpp"
 
-#include <spectra/logger.hpp>
+#include <iostream>
 #include <unordered_map>
 
 #include "../ipc/codec.hpp"
@@ -20,14 +20,13 @@ HandleResult handle_hello(DaemonContext& ctx, ClientSlot& slot, const ipc::Messa
     if (hello)
     {
         ctype = classify_client(*hello);
-        SPECTRA_LOG_DEBUG("daemon",
-                          "HELLO from {} (build={}, client_type={})",
-                          (ctype == ClientType::PYTHON      ? "python"
-                           : ctype == ClientType::APP       ? "app"
-                           : ctype == ClientType::PUBLISHER ? "publisher"
-                                                            : "agent"),
-                          hello->agent_build,
-                          hello->client_type);
+        std::cerr << "[spectra-backend] HELLO from "
+                  << (ctype == ClientType::PYTHON      ? "python"
+                      : ctype == ClientType::APP       ? "app"
+                      : ctype == ClientType::PUBLISHER ? "publisher"
+                                                       : "agent")
+                  << " (build=" << hello->agent_build << ", client_type=" << hello->client_type
+                  << ")\n";
     }
 
     slot.client_type = ctype;
@@ -69,39 +68,6 @@ HandleResult handle_hello(DaemonContext& ctx, ClientSlot& slot, const ipc::Messa
     if (ctype == ClientType::AGENT)
     {
         auto assigned = ctx.graph.figures_for_window(wid);
-
-        // If no figures are assigned to this window, first try to adopt any
-        // orphaned figures left behind by a previous window. This makes a
-        // fresh `spectra` reuse the prior session's figures and topic
-        // subscriptions instead of starting empty.
-        if (assigned.empty())
-        {
-            auto orphans = ctx.graph.unassigned_figure_ids();
-            for (auto fid : orphans)
-                ctx.graph.assign_figure(fid, wid);
-            if (!orphans.empty())
-            {
-                SPECTRA_LOG_DEBUG("daemon",
-                                  "Adopted {} orphaned figure(s) for agent window={}",
-                                  orphans.size(),
-                                  wid);
-                assigned = ctx.graph.figures_for_window(wid);
-            }
-        }
-
-        // If the session still has no figures at all (e.g. a publisher-only
-        // daemon that an agent just connected to), auto-create one so the
-        // window has a canvas to render and a target for topic-drop
-        // subscriptions.
-        if (assigned.empty() && ctx.fig_model.figure_count() == 0)
-        {
-            auto fid = ctx.fig_model.create_figure("Figure 1", 1280, 720);
-            ctx.graph.register_figure(fid, "Figure 1");
-            ctx.graph.assign_figure(fid, wid);
-            assigned = ctx.graph.figures_for_window(wid);
-            SPECTRA_LOG_DEBUG("daemon", "Auto-created figure {} for agent window={}", fid, wid);
-        }
-
         if (!assigned.empty())
         {
             send_assign_figures(*slot.conn, wid, ctx.graph.session_id(), assigned, assigned[0]);
@@ -110,7 +76,8 @@ HandleResult handle_hello(DaemonContext& ctx, ClientSlot& slot, const ipc::Messa
         auto snap = ctx.fig_model.snapshot(assigned);
         send_state_snapshot(*slot.conn, wid, ctx.graph.session_id(), snap);
 
-        SPECTRA_LOG_DEBUG("daemon", "Assigned window_id={} with {} figures", wid, assigned.size());
+        std::cerr << "[spectra-backend] Assigned window_id=" << wid << " with " << assigned.size()
+                  << " figures\n";
     }
     return HandleResult::Continue;
 }
@@ -124,17 +91,17 @@ HandleResult handle_heartbeat(DaemonContext& ctx, ClientSlot& slot, const ipc::M
 
 HandleResult handle_req_create_window(DaemonContext& ctx, ClientSlot& slot, const ipc::Message& msg)
 {
-    SPECTRA_LOG_DEBUG("daemon", "REQ_CREATE_WINDOW from window={}", slot.window_id);
+    std::cerr << "[spectra-backend] REQ_CREATE_WINDOW from window=" << slot.window_id << "\n";
 
     pid_t pid = ctx.proc_mgr.spawn_agent();
     if (pid > 0)
     {
-        SPECTRA_LOG_INFO("daemon", "Spawned new agent pid={}", pid);
+        std::cerr << "[spectra-backend] Spawned new agent pid=" << pid << "\n";
         send_resp_ok(*slot.conn, ctx.graph.session_id(), msg.header.request_id, slot.window_id);
     }
     else
     {
-        SPECTRA_LOG_ERROR("daemon", "Failed to spawn agent");
+        std::cerr << "[spectra-backend] Failed to spawn agent\n";
         send_resp_err(*slot.conn,
                       ctx.graph.session_id(),
                       msg.header.request_id,
@@ -151,10 +118,8 @@ HandleResult handle_req_close_window(DaemonContext& ctx, ClientSlot& slot, const
     if (close_req && close_req->window_id != ipc::INVALID_WINDOW)
         target_wid = close_req->window_id;
 
-    SPECTRA_LOG_DEBUG("daemon",
-                      "REQ_CLOSE_WINDOW window={} reason={}",
-                      target_wid,
-                      close_req ? close_req->reason : "unknown");
+    std::cerr << "[spectra-backend] REQ_CLOSE_WINDOW window=" << target_wid
+              << " reason=" << (close_req ? close_req->reason : "unknown") << "\n";
 
     // Remove agent from graph, get orphaned figures
     auto orphaned = ctx.graph.remove_agent(target_wid);
@@ -169,10 +134,8 @@ HandleResult handle_req_close_window(DaemonContext& ctx, ClientSlot& slot, const
             for (auto fid : orphaned)
                 ctx.graph.assign_figure(fid, target);
 
-            SPECTRA_LOG_DEBUG("daemon",
-                              "Redistributed {} figures to window={}",
-                              orphaned.size(),
-                              target);
+            std::cerr << "[spectra-backend] Redistributed " << orphaned.size()
+                      << " figures to window=" << target << "\n";
 
             auto figs = ctx.graph.figures_for_window(target);
             for (auto& c : ctx.clients)
@@ -190,9 +153,8 @@ HandleResult handle_req_close_window(DaemonContext& ctx, ClientSlot& slot, const
         }
         else
         {
-            SPECTRA_LOG_WARN("daemon",
-                             "No remaining agents for {} orphaned figures",
-                             orphaned.size());
+            std::cerr << "[spectra-backend] No remaining agents for " << orphaned.size()
+                      << " orphaned figures\n";
         }
     }
 
@@ -226,17 +188,15 @@ HandleResult handle_req_detach_figure(DaemonContext& ctx, ClientSlot& slot, cons
     if (!detach)
         return HandleResult::Continue;
 
-    SPECTRA_LOG_DEBUG("daemon",
-                      "REQ_DETACH_FIGURE: figure={} from window={} -> new window at ({},{})",
-                      detach->figure_id,
-                      detach->source_window_id,
-                      detach->screen_x,
-                      detach->screen_y);
+    std::cerr << "[spectra-backend] REQ_DETACH_FIGURE: figure=" << detach->figure_id
+              << " from window=" << detach->source_window_id << " → new window at ("
+              << detach->screen_x << "," << detach->screen_y << ")\n";
 
     // Verify the figure exists
     if (!ctx.fig_model.has_figure(detach->figure_id))
     {
-        SPECTRA_LOG_WARN("daemon", "Figure {} not found, ignoring detach", detach->figure_id);
+        std::cerr << "[spectra-backend] Figure " << detach->figure_id
+                  << " not found, ignoring detach\n";
         return HandleResult::Continue;
     }
 
@@ -269,7 +229,8 @@ HandleResult handle_req_detach_figure(DaemonContext& ctx, ClientSlot& slot, cons
     ctx.graph.assign_figure(detach->figure_id, new_wid);
     ctx.graph.heartbeat(new_wid);
 
-    SPECTRA_LOG_DEBUG("daemon", "Spawning new agent for detached figure, window={}", new_wid);
+    std::cerr << "[spectra-backend] Spawning new agent for detached figure, window=" << new_wid
+              << "\n";
 
     ctx.proc_mgr.spawn_agent_for_window(new_wid);
 
@@ -280,15 +241,13 @@ HandleResult handle_req_detach_figure(DaemonContext& ctx, ClientSlot& slot, cons
 HandleResult handle_evt_window(DaemonContext& ctx, ClientSlot& slot, const ipc::Message& /*msg*/)
 {
     // Agent reports window event (e.g. close_requested)
-    SPECTRA_LOG_DEBUG("daemon", "EVT_WINDOW from window={}", slot.window_id);
+    std::cerr << "[spectra-backend] EVT_WINDOW from window=" << slot.window_id << "\n";
 
     if (slot.window_id != ipc::INVALID_WINDOW)
     {
         auto orphaned = ctx.graph.remove_agent(slot.window_id);
-        SPECTRA_LOG_INFO("daemon",
-                         "Agent closed (window={}, orphaned_figures={})",
-                         slot.window_id,
-                         orphaned.size());
+        std::cerr << "[spectra-backend] Agent closed (window=" << slot.window_id
+                  << ", orphaned_figures=" << orphaned.size() << ")\n";
 
         // Notify Python clients about closed figures
         for (auto fid : orphaned)
@@ -380,13 +339,12 @@ HandleResult handle_state_snapshot(DaemonContext& ctx,
     auto incoming = ipc::decode_state_snapshot(msg.payload);
     if (!incoming || incoming->figures.empty())
     {
-        SPECTRA_LOG_ERROR("daemon", "STATE_SNAPSHOT: empty or decode failed");
+        std::cerr << "[spectra-backend] STATE_SNAPSHOT: empty or decode failed\n";
         return HandleResult::Continue;
     }
 
-    SPECTRA_LOG_DEBUG("daemon",
-                      "STATE_SNAPSHOT: received {} figure(s) from app",
-                      incoming->figures.size());
+    std::cerr << "[spectra-backend] STATE_SNAPSHOT: received " << incoming->figures.size()
+              << " figure(s) from app\n";
 
     auto new_ids = ctx.fig_model.load_snapshot(*incoming);
 
@@ -422,17 +380,13 @@ HandleResult handle_state_snapshot(DaemonContext& ctx,
         pid_t pid = ctx.proc_mgr.spawn_agent();
         if (pid <= 0)
         {
-            SPECTRA_LOG_ERROR("daemon", "Failed to spawn agent for group {}", wg);
+            std::cerr << "[spectra-backend] Failed to spawn agent for group " << wg << "\n";
         }
         else
         {
-            SPECTRA_LOG_INFO(
-                "daemon",
-                "Spawned agent pid={} for group {} with {} figure(s) (pre-assigned window={})",
-                pid,
-                wg,
-                fig_indices.size(),
-                pre_wid);
+            std::cerr << "[spectra-backend] Spawned agent pid=" << pid << " for group " << wg
+                      << " with " << fig_indices.size() << " figure(s)"
+                      << " (pre-assigned window=" << pre_wid << ")\n";
         }
     }
 
@@ -446,15 +400,13 @@ HandleResult handle_state_snapshot(DaemonContext& ctx,
         pid_t pid = ctx.proc_mgr.spawn_agent();
         if (pid <= 0)
         {
-            SPECTRA_LOG_ERROR("daemon", "Failed to spawn agent for figure {}", new_ids[fi]);
+            std::cerr << "[spectra-backend] Failed to spawn agent for figure " << new_ids[fi]
+                      << "\n";
         }
         else
         {
-            SPECTRA_LOG_INFO("daemon",
-                             "Spawned agent pid={} for figure {} (pre-assigned window={})",
-                             pid,
-                             new_ids[fi],
-                             pre_wid);
+            std::cerr << "[spectra-backend] Spawned agent pid=" << pid << " for figure "
+                      << new_ids[fi] << " (pre-assigned window=" << pre_wid << ")\n";
         }
     }
     return HandleResult::Continue;

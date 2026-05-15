@@ -721,12 +721,13 @@ int main(int argc, char* argv[])
         rebuild_registry_from_cache(registry, figure_cache, INITIAL_WIDTH, INITIAL_HEIGHT);
     cache_dirty = false;
 
+    // If the daemon has no figures yet (e.g. a publisher launched it before
+    // any UI was opened), we run with an empty registry and let the shared
+    // window runtime render the branded welcome screen (build_empty_ui).
+    // The user can drag a topic onto the canvas, or create a figure from the
+    // menu, and the daemon will push it back via STATE_DIFF.
     if (registry.count() == 0)
-    {
-        SPECTRA_LOG_ERROR("window", "No figures received from backend, exiting");
-        conn->close();
-        return 0;
-    }
+        SPECTRA_LOG_INFO("window", "Daemon has no figures yet — opening welcome window");
 
     // ═══════════════════════════════════════════════════════════════════════
     // Phase 3: Initialize GPU + WindowManager + SessionRuntime
@@ -736,7 +737,8 @@ int main(int argc, char* argv[])
     spectra::FrameState frame_state;
     {
         // Pick the correct initial active figure based on IPC assignment
-        spectra::FigureId initial_active = all_ids[0];
+        spectra::FigureId initial_active =
+            all_ids.empty() ? spectra::INVALID_FIGURE_ID : all_ids[0];
         if (ipc_active_figure_id != 0)
         {
             for (size_t i = 0; i < assigned_figures.size() && i < all_ids.size(); ++i)
@@ -775,14 +777,14 @@ int main(int argc, char* argv[])
     }
 
     spectra::CommandQueue   cmd_queue;
-    spectra::FrameScheduler scheduler(active_figure->anim_fps());
+    spectra::FrameScheduler scheduler(active_figure ? active_figure->anim_fps() : 60.0f);
     // Windowed agent uses VK_PRESENT_MODE_FIFO_KHR (VSync) — don't
     // double-pace with FrameScheduler sleep on top.
     scheduler.set_mode(spectra::FrameScheduler::Mode::VSync);
     spectra::Animator       animator;
     spectra::SessionRuntime session(*backend, *renderer_ptr, registry);
 
-    frame_state.has_animation = active_figure->has_animation();
+    frame_state.has_animation = active_figure ? active_figure->has_animation() : false;
 
     spectra::WindowUIContext* ui_ctx_ptr = nullptr;
 
@@ -790,15 +792,17 @@ int main(int argc, char* argv[])
     std::unique_ptr<spectra::GlfwAdapter>   glfw;
     std::unique_ptr<spectra::WindowManager> window_mgr;
 
-    glfw = std::make_unique<spectra::GlfwAdapter>();
-    if (!glfw->init(active_figure->width(), active_figure->height(), "Spectra"))
+    glfw               = std::make_unique<spectra::GlfwAdapter>();
+    uint32_t initial_w = active_figure ? active_figure->width() : INITIAL_WIDTH;
+    uint32_t initial_h = active_figure ? active_figure->height() : INITIAL_HEIGHT;
+    if (!glfw->init(initial_w, initial_h, "Spectra"))
     {
         SPECTRA_LOG_ERROR("window", "Failed to create GLFW window");
         return 1;
     }
 
     backend->create_surface(glfw->native_window());
-    backend->create_swapchain(active_figure->width(), active_figure->height());
+    backend->create_swapchain(initial_w, initial_h);
 
     window_mgr = std::make_unique<spectra::WindowManager>();
     window_mgr->init(static_cast<spectra::VulkanBackend*>(backend.get()),
@@ -914,13 +918,13 @@ int main(int argc, char* argv[])
     // Sync timeline with figure animation settings
     timeline_editor.set_interpolator(&keyframe_interpolator);
     curve_editor.set_interpolator(&keyframe_interpolator);
-    if (active_figure->anim_duration() > 0.0f)
+    if (active_figure && active_figure->anim_duration() > 0.0f)
         timeline_editor.set_duration(active_figure->anim_duration());
     else if (frame_state.has_animation)
         timeline_editor.set_duration(60.0f);
-    if (active_figure->anim_loop())
+    if (active_figure && active_figure->anim_loop())
         timeline_editor.set_loop_mode(spectra::LoopMode::Loop);
-    if (active_figure->anim_fps() > 0.0f)
+    if (active_figure && active_figure->anim_fps() > 0.0f)
         timeline_editor.set_fps(active_figure->anim_fps());
     if (frame_state.has_animation)
         timeline_editor.play();
@@ -935,7 +939,7 @@ int main(int argc, char* argv[])
     {
         tab_drag_controller.set_window_manager(window_mgr.get());
         input_handler.set_figure(active_figure);
-        if (!active_figure->axes().empty() && active_figure->axes()[0])
+        if (active_figure && !active_figure->axes().empty() && active_figure->axes()[0])
         {
             input_handler.set_active_axes(active_figure->axes()[0].get());
             auto& vp = active_figure->axes()[0]->viewport();

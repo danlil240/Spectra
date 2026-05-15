@@ -906,10 +906,22 @@ void SessionRuntime::commit_thread_safe_series()
         fig->for_each_axes(
             [&](AxesBase* ab)
             {
+                bool axes_committed = false;
                 for (auto& series_ptr : ab->series())
                 {
                     if (series_ptr->is_thread_safe() && series_ptr->commit_pending())
-                        any_committed = true;
+                    {
+                        any_committed  = true;
+                        axes_committed = true;
+                    }
+                }
+                // Drive continuous topic-subscribed auto-zoom for 2D axes.
+                // The flag is enabled by the Topics drag/drop subscribe path
+                // and self-disables when the user pans or zooms.
+                if (axes_committed)
+                {
+                    if (auto* ax2d = dynamic_cast<Axes*>(ab); ax2d && ax2d->topic_auto_zoom())
+                        ax2d->topic_auto_zoom_tick();
                 }
             });
     }

@@ -79,17 +79,6 @@ class TopicRegistry
     bool subscribe(const std::string& name, const TopicSubscription& sub);
     void unsubscribe(const TopicSubscription& sub);
 
-    // Pending subscription — queued when the topic is not yet declared (e.g.
-    // a workspace load completes before the publisher reconnects).  When the
-    // topic is later declared, all matching pending entries are promoted to
-    // live subscriptions and forgotten.  Returns true if queued (or already
-    // promoted because the topic now exists).
-    bool subscribe_pending(const std::string& name, const TopicSubscription& sub);
-
-    // Forget any pending subscriptions matching this (figure, axes, series)
-    // triple — used by close/figure-destroy paths.
-    void clear_pending_for(uint64_t figure_id);
-
     // ─── Discovery ────────────────────────────────────────────────────────
 
     std::vector<Info> snapshot() const;
@@ -116,8 +105,6 @@ class TopicRegistry
 
     mutable std::mutex                     mutex_;
     std::unordered_map<std::string, Topic> topics_;
-    // Pending subscriptions keyed by topic name.  Drained on declare().
-    std::unordered_map<std::string, std::vector<TopicSubscription>> pending_;
 };
 
 }   // namespace spectra::daemon

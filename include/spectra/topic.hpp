@@ -44,10 +44,6 @@ class Publisher
         std::string unit;
         // Ring buffer capacity in samples retained at the daemon.
         uint32_t ring_capacity = 4096;
-        // When no daemon socket can be found, automatically spawn
-        // `spectra-backend` (searched next to the publisher binary, then on
-        // $PATH).  Set to false to fail fast instead.
-        bool auto_spawn_daemon = true;
     };
 
     Publisher() = default;

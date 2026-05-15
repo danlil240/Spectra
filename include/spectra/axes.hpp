@@ -185,6 +185,18 @@ class Axes : public AxesBase
     // Auto-fit limits to data
     void auto_fit() override;
 
+    // ── Continuous topic-driven auto-zoom ──
+    //
+    // When enabled (typically by the Topics drag-drop / subscribe path), the
+    // session runtime calls topic_auto_zoom_tick() each frame after thread-safe
+    // series have been committed.  The tick re-runs auto_fit() so the view
+    // keeps following the live data extent.  If the user pans or zooms (which
+    // mutates xlim_/ylim_ to values that differ from the last auto-fit result),
+    // auto-zoom is automatically disabled so the user's view is preserved.
+    void set_topic_auto_zoom(bool enabled);
+    bool topic_auto_zoom() const { return topic_auto_zoom_; }
+    void topic_auto_zoom_tick();
+
    private:
     // Internal helper: construct T(args...), assign default cycle color, push to series_
     template <typename T, typename... Args>
@@ -199,6 +211,11 @@ class Axes : public AxesBase
     std::optional<float>  presented_buffer_seconds_;
     bool                  presented_buffer_following_ = false;
     std::optional<double> presented_buffer_right_edge_;
+
+    // Topic-driven continuous auto-zoom state (see set_topic_auto_zoom).
+    bool                      topic_auto_zoom_ = false;
+    std::optional<AxisLimits> last_auto_xlim_;
+    std::optional<AxisLimits> last_auto_ylim_;
 };
 
 }   // namespace spectra

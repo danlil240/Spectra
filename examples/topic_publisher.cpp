@@ -40,11 +40,10 @@ int main()
     {
         double t = i / kHz;
         double y = std::sin(2.0 * M_PI * 1.0 * t);
-        if (!pub->publish(t, y))
-        {
-            std::cerr << "publish failed; exiting\n";
-            return 1;
-        }
+        // publish() drops samples silently while Spectra is closed and
+        // auto-reconnects when it returns, so we don't treat a single
+        // failure as fatal.
+        pub->publish(t, y);
         next += period_ns;
         std::this_thread::sleep_until(next);
     }

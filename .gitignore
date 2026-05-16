@@ -71,3 +71,7 @@ imgui.ini
 
 asan.log.*
 *.bak
+
+
+spectra_sonify.wav
+spectra_data.html

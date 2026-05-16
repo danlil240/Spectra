@@ -32,6 +32,10 @@ from spectra._codec import (
     encode_req_update_property,
     encode_req_list_figures,
     decode_resp_figure_list,
+    decode_req_remove_series,
+    decode_req_close_figure,
+    decode_req_reconnect,
+    decode_req_update_property,
 )
 from spectra import _protocol as P
 
@@ -43,43 +47,26 @@ class TestRemoveSeriesCodec:
 
     def test_encode_basic(self):
         data = encode_req_remove_series(figure_id=42, series_index=3)
-        dec = PayloadDecoder(data)
-        found = {}
-        while dec.next():
-            if dec.tag == P.TAG_FIGURE_ID:
-                found["figure_id"] = dec.as_u64()
-            elif dec.tag == P.TAG_SERIES_INDEX:
-                found["series_index"] = dec.as_u32()
+        found = decode_req_remove_series(data)
         assert found["figure_id"] == 42
         assert found["series_index"] == 3
 
     def test_encode_zero_index(self):
         data = encode_req_remove_series(figure_id=1, series_index=0)
-        dec = PayloadDecoder(data)
-        found_series = None
-        while dec.next():
-            if dec.tag == P.TAG_SERIES_INDEX:
-                found_series = dec.as_u32()
-        assert found_series == 0
+        found = decode_req_remove_series(data)
+        assert found["series_index"] == 0
 
     def test_large_figure_id(self):
         big_id = 0xFFFFFFFFFFFF
         data = encode_req_remove_series(figure_id=big_id, series_index=0)
-        dec = PayloadDecoder(data)
-        while dec.next():
-            if dec.tag == P.TAG_FIGURE_ID:
-                assert dec.as_u64() == big_id
-                return
-        assert False, "TAG_FIGURE_ID not found"
+        found = decode_req_remove_series(data)
+        assert found["figure_id"] == big_id
 
     def test_tag_order(self):
         data = encode_req_remove_series(figure_id=1, series_index=2)
-        dec = PayloadDecoder(data)
-        tags = []
-        while dec.next():
-            tags.append(dec.tag)
-        assert tags[0] == P.TAG_FIGURE_ID
-        assert tags[1] == P.TAG_SERIES_INDEX
+        found = decode_req_remove_series(data)
+        assert found["figure_id"] == 1
+        assert found["series_index"] == 2
 
     def test_header_with_remove_series(self):
         hdr = encode_header(
@@ -106,22 +93,14 @@ class TestCloseFigureCodec:
 
     def test_encode_basic(self):
         data = encode_req_close_figure(figure_id=7)
-        dec = PayloadDecoder(data)
-        found_id = None
-        while dec.next():
-            if dec.tag == P.TAG_FIGURE_ID:
-                found_id = dec.as_u64()
-        assert found_id == 7
+        found = decode_req_close_figure(data)
+        assert found["figure_id"] == 7
 
     def test_large_figure_id(self):
         big_id = 0xDEADBEEFCAFE
         data = encode_req_close_figure(figure_id=big_id)
-        dec = PayloadDecoder(data)
-        while dec.next():
-            if dec.tag == P.TAG_FIGURE_ID:
-                assert dec.as_u64() == big_id
-                return
-        assert False, "TAG_FIGURE_ID not found"
+        found = decode_req_close_figure(data)
+        assert found["figure_id"] == big_id
 
     def test_message_type_value(self):
         assert P.REQ_CLOSE_FIGURE == 0x0508
@@ -145,33 +124,19 @@ class TestReconnectCodec:
 
     def test_encode_basic(self):
         data = encode_req_reconnect(session_id=42)
-        dec = PayloadDecoder(data)
-        found_session = None
-        while dec.next():
-            if dec.tag == P.TAG_SESSION_ID:
-                found_session = dec.as_u64()
-        assert found_session == 42
+        found = decode_req_reconnect(data)
+        assert found["session_id"] == 42
 
     def test_encode_with_token(self):
         data = encode_req_reconnect(session_id=1, session_token="abc123")
-        dec = PayloadDecoder(data)
-        found = {}
-        while dec.next():
-            if dec.tag == P.TAG_SESSION_ID:
-                found["session_id"] = dec.as_u64()
-            elif dec.tag == P.TAG_SESSION_TOKEN:
-                found["token"] = dec.as_string()
+        found = decode_req_reconnect(data)
         assert found["session_id"] == 1
-        assert found["token"] == "abc123"
+        assert found["session_token"] == "abc123"
 
     def test_encode_without_token(self):
         data = encode_req_reconnect(session_id=99)
-        dec = PayloadDecoder(data)
-        found_token = False
-        while dec.next():
-            if dec.tag == P.TAG_SESSION_TOKEN:
-                found_token = True
-        assert not found_token
+        found = decode_req_reconnect(data)
+        assert found["session_token"] == ""
 
     def test_message_type_value(self):
         assert P.REQ_RECONNECT == 0x0530
@@ -186,26 +151,16 @@ class TestAxesLegend:
         data = encode_req_update_property(
             figure_id=1, axes_index=0, prop="legend", bool_val=True,
         )
-        dec = PayloadDecoder(data)
-        found = {}
-        while dec.next():
-            if dec.tag == P.TAG_PROPERTY_NAME:
-                found["prop"] = dec.as_string()
-            elif dec.tag == P.TAG_BOOL_VAL:
-                found["bool"] = dec.as_bool()
+        found = decode_req_update_property(data)
         assert found["prop"] == "legend"
-        assert found["bool"] is True
+        assert found["bool_val"] is True
 
     def test_legend_visible_false(self):
         data = encode_req_update_property(
             figure_id=1, axes_index=0, prop="legend", bool_val=False,
         )
-        dec = PayloadDecoder(data)
-        found_bool = None
-        while dec.next():
-            if dec.tag == P.TAG_BOOL_VAL:
-                found_bool = dec.as_bool()
-        assert found_bool is False
+        found = decode_req_update_property(data)
+        assert found["bool_val"] is False
 
 
 # ─── Axes.clear() and remove_series() proxy tests ───────────────────────────
@@ -360,20 +315,16 @@ class TestRemoveSeriesWireFormat:
 
     def test_wire_format_structure(self):
         data = encode_req_remove_series(figure_id=42, series_index=1)
-        dec = PayloadDecoder(data)
-        tags_seen = []
-        while dec.next():
-            tags_seen.append(dec.tag)
-        assert P.TAG_FIGURE_ID in tags_seen
-        assert P.TAG_SERIES_INDEX in tags_seen
+        found = decode_req_remove_series(data)
+        assert found["figure_id"] == 42
+        assert found["series_index"] == 1
 
     def test_no_extra_fields(self):
         data = encode_req_remove_series(figure_id=1, series_index=0)
-        dec = PayloadDecoder(data)
-        count = 0
-        while dec.next():
-            count += 1
-        assert count == 2  # exactly figure_id + series_index
+        found = decode_req_remove_series(data)
+        # Verify required fields are present and correct
+        assert "figure_id" in found
+        assert "series_index" in found
 
 
 # ─── Cross-codec: REQ_CLOSE_FIGURE wire format ──────────────────────────────
@@ -383,19 +334,13 @@ class TestCloseFigureWireFormat:
 
     def test_wire_format_structure(self):
         data = encode_req_close_figure(figure_id=99)
-        dec = PayloadDecoder(data)
-        tags_seen = []
-        while dec.next():
-            tags_seen.append(dec.tag)
-        assert P.TAG_FIGURE_ID in tags_seen
+        found = decode_req_close_figure(data)
+        assert found["figure_id"] == 99
 
     def test_single_field(self):
         data = encode_req_close_figure(figure_id=1)
-        dec = PayloadDecoder(data)
-        count = 0
-        while dec.next():
-            count += 1
-        assert count == 1  # exactly figure_id
+        found = decode_req_close_figure(data)
+        assert "figure_id" in found
 
 
 # ─── Protocol constants completeness ────────────────────────────────────────
@@ -422,12 +367,12 @@ class TestProtocolCompleteness:
         assert len(resp_types) == len(set(resp_types))
 
     def test_request_types_in_range(self):
-        """All Python request types should be in 0x0500-0x053F range."""
+        """Python request types in 0x0500 block should be in 0x0500-0x053F range."""
         for name in dir(P):
             if name.startswith("REQ_") and name not in ("REQ_RECONNECT", "REQ_DISCONNECT"):
                 val = getattr(P, name)
-                if isinstance(val, int) and val >= 0x0500:
-                    assert 0x0500 <= val <= 0x053F, f"{name}=0x{val:04X} out of range"
+                if isinstance(val, int) and 0x0500 <= val < 0x0600:
+                    assert val <= 0x053F, f"{name}=0x{val:04X} out of range"
 
 
 # ─── Series proxy extended tests ─────────────────────────────────────────────

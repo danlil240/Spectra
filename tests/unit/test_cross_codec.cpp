@@ -50,8 +50,8 @@ class CrossCodecCppWrite : public ::testing::Test
 TEST_F(CrossCodecCppWrite, WriteHello)
 {
     HelloPayload hp;
-    hp.protocol_major = 1;
-    hp.protocol_minor = 0;
+    hp.protocol_major = PROTOCOL_MAJOR;
+    hp.protocol_minor = PROTOCOL_MINOR;
     hp.agent_build    = "test-cross-cpp";
     hp.capabilities   = 0;
     hp.client_type    = "agent";
@@ -151,8 +151,8 @@ TEST_F(CrossCodecCppRead, DecodeHello)
     ASSERT_TRUE(hello.has_value());
     EXPECT_EQ(hello->client_type, "python");
     EXPECT_EQ(hello->agent_build, "test-cross-1.0");
-    EXPECT_EQ(hello->protocol_major, 1);
-    EXPECT_EQ(hello->protocol_minor, 0);
+    EXPECT_EQ(hello->protocol_major, PROTOCOL_MAJOR);
+    EXPECT_EQ(hello->protocol_minor, PROTOCOL_MINOR);
 }
 
 TEST_F(CrossCodecCppRead, DecodeReqCreateFigure)

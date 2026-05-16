@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <cstdint>
+#include <cstdlib>
 #include <gtest/gtest.h>
 #include <memory>
 #include <spectra/app.hpp>
@@ -372,7 +373,15 @@ class TearOffTest : public ::testing::Test
         app_->run();
     }
 
-    void TearDown() override { app_.reset(); }
+    void TearDown() override
+    {
+        // Leak app_ to static storage instead of destroying it.
+        // Destroying multiple VkInstance objects sequentially in the same process
+        // crashes the NVIDIA driver. ::_exit() at the end of main prevents the
+        // leaked App destructors from running.
+        static std::vector<std::unique_ptr<App>> s_leaked;
+        s_leaked.push_back(std::move(app_));
+    }
 
     VulkanBackend* vk_backend() { return static_cast<VulkanBackend*>(app_->backend()); }
 
@@ -448,31 +457,22 @@ TEST_F(TearOffTest, LastFigureProtection)
 {
     // The app.cpp callback checks registry_.count() <= 1 before detaching.
     // Verify the semantic contract: a single-figure app should not allow detach.
-    // We test this by verifying that a single figure app creates exactly one figure.
-    App   single_app({.headless = true, .socket_path = ""});
-    auto& fig = single_app.figure({.width = 320, .height = 240});
-    fig.subplot(1, 1, 1);
-    single_app.run();
-
-    // The figure was created successfully — only 1 exists.
-    // Detach should be blocked by the caller (registry_.count() <= 1).
-    EXPECT_EQ(fig.width(), 320u);
+    // app_ (from SetUp) has exactly one figure — verify this via the registry.
+    // (Avoids creating a second App/VkInstance which crashes the NVIDIA driver.)
+    EXPECT_EQ(app_->figure_registry().count(), 1u);
     SUCCEED();
 }
 
 TEST_F(TearOffTest, MultipleFiguresAllowDetach)
 {
     // With 2+ figures, detach should be allowed.
-    // Verify both figures are created and renderable.
-    App   multi_app({.headless = true, .socket_path = ""});
-    auto& fig1 = multi_app.figure({.width = 320, .height = 240});
-    fig1.subplot(1, 1, 1);
-    auto& fig2 = multi_app.figure({.width = 320, .height = 240});
+    // Add a second figure to app_ (already has one from SetUp) — avoids creating
+    // a second App/VkInstance which crashes the NVIDIA driver.
+    auto& fig2 = app_->figure({.width = 320, .height = 240});
     fig2.subplot(1, 1, 1);
-    multi_app.run();
 
-    // Both figures exist and have correct dimensions
-    EXPECT_EQ(fig1.width(), 320u);
+    // Both figures exist
+    EXPECT_EQ(app_->figure_registry().count(), 2u);
     EXPECT_EQ(fig2.width(), 320u);
 }
 
@@ -573,4 +573,16 @@ TEST(TestInfrastructure, StressRunner)
     EXPECT_GE(stats.min_ms, 0.0);
     EXPECT_GE(stats.max_ms, stats.min_ms);
     EXPECT_GE(stats.avg_ms, 0.0);
+}
+
+// Custom main: run all tests, then call _exit() to skip C++ destructors.
+// Destroying multiple VkInstance objects sequentially in the same process
+// crashes the NVIDIA driver (same root cause as BUG-1/3). The leaked App
+// objects in MultiWindowFixture::TearDown() are intentional — ::_exit()
+// prevents their destructors from running at process exit.
+int main(int argc, char** argv)
+{
+    ::testing::InitGoogleTest(&argc, argv);
+    int result = RUN_ALL_TESTS();
+    ::_exit(result);
 }

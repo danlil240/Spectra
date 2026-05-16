@@ -28,6 +28,8 @@ from spectra._codec import (
     encode_req_update_property,
     encode_req_reconnect,
     encode_req_update_batch,
+    decode_req_update_property,
+    decode_req_reconnect,
 )
 from spectra import _protocol as P
 
@@ -52,12 +54,8 @@ class TestBatchCodec:
                 count += 1
                 blob = dec.as_blob()
                 # The blob should be a valid update_property payload
-                inner = PayloadDecoder(blob)
-                found_prop = None
-                while inner.next():
-                    if inner.tag == P.TAG_PROPERTY_NAME:
-                        found_prop = inner.as_string()
-                assert found_prop == "xlim"
+                found = decode_req_update_property(blob)
+                assert found["prop"] == "xlim"
         assert count == 1
 
     def test_encode_multiple_items(self):
@@ -83,17 +81,7 @@ class TestBatchCodec:
         while dec.next():
             if dec.tag == P.TAG_BATCH_ITEM:
                 blob = dec.as_blob()
-                inner = PayloadDecoder(blob)
-                found = {}
-                while inner.next():
-                    if inner.tag == P.TAG_FIGURE_ID:
-                        found["figure_id"] = inner.as_u64()
-                    elif inner.tag == P.TAG_AXES_INDEX:
-                        found["axes_index"] = inner.as_u32()
-                    elif inner.tag == P.TAG_PROPERTY_NAME:
-                        found["prop"] = inner.as_string()
-                    elif inner.tag == P.TAG_STR_VAL:
-                        found["str_val"] = inner.as_string()
+                found = decode_req_update_property(blob)
                 assert found["figure_id"] == 42
                 assert found["axes_index"] == 2
                 assert found["prop"] == "xlabel"
@@ -113,12 +101,8 @@ class TestBatchCodec:
         while dec.next():
             if dec.tag == P.TAG_BATCH_ITEM:
                 blob = dec.as_blob()
-                inner = PayloadDecoder(blob)
-                found_prop = None
-                while inner.next():
-                    if inner.tag == P.TAG_PROPERTY_NAME:
-                        found_prop = inner.as_string()
-                assert found_prop == "color"
+                found = decode_req_update_property(blob)
+                assert found["prop"] == "color"
 
     def test_encode_bool_property(self):
         updates = [
@@ -129,12 +113,8 @@ class TestBatchCodec:
         while dec.next():
             if dec.tag == P.TAG_BATCH_ITEM:
                 blob = dec.as_blob()
-                inner = PayloadDecoder(blob)
-                found_bool = None
-                while inner.next():
-                    if inner.tag == P.TAG_BOOL_VAL:
-                        found_bool = inner.as_bool()
-                assert found_bool is False
+                found = decode_req_update_property(blob)
+                assert found["bool_val"] is False
 
 
 # ─── Protocol constant tests ─────────────────────────────────────────────────
@@ -180,42 +160,26 @@ class TestReconnectCodecExtended:
 
     def test_reconnect_zero_session(self):
         data = encode_req_reconnect(session_id=0)
-        dec = PayloadDecoder(data)
-        while dec.next():
-            if dec.tag == P.TAG_SESSION_ID:
-                assert dec.as_u64() == 0
-                return
-        assert False, "TAG_SESSION_ID not found"
+        found = decode_req_reconnect(data)
+        assert found["session_id"] == 0
 
     def test_reconnect_large_session_id(self):
         big_id = 0xDEADBEEFCAFEBABE
         data = encode_req_reconnect(session_id=big_id)
-        dec = PayloadDecoder(data)
-        while dec.next():
-            if dec.tag == P.TAG_SESSION_ID:
-                assert dec.as_u64() == big_id
-                return
-        assert False, "TAG_SESSION_ID not found"
+        found = decode_req_reconnect(data)
+        assert found["session_id"] == big_id
 
     def test_reconnect_with_long_token(self):
         token = "a" * 256
         data = encode_req_reconnect(session_id=1, session_token=token)
-        dec = PayloadDecoder(data)
-        while dec.next():
-            if dec.tag == P.TAG_SESSION_TOKEN:
-                assert dec.as_string() == token
-                return
-        assert False, "TAG_SESSION_TOKEN not found"
+        found = decode_req_reconnect(data)
+        assert found["session_token"] == token
 
     def test_reconnect_unicode_token(self):
         token = "reconnect_\u00e9\u00e8\u00ea"
         data = encode_req_reconnect(session_id=1, session_token=token)
-        dec = PayloadDecoder(data)
-        while dec.next():
-            if dec.tag == P.TAG_SESSION_TOKEN:
-                assert dec.as_string() == token
-                return
-        assert False, "TAG_SESSION_TOKEN not found"
+        found = decode_req_reconnect(data)
+        assert found["session_token"] == token
 
 
 # ─── Session API presence tests ──────────────────────────────────────────────
@@ -367,10 +331,7 @@ class TestBatchWireFormat:
         while dec.next():
             if dec.tag == P.TAG_BATCH_ITEM:
                 blob = dec.as_blob()
-                inner = PayloadDecoder(blob)
-                while inner.next():
-                    if inner.tag == P.TAG_PROPERTY_NAME:
-                        props.append(inner.as_string())
+                props.append(decode_req_update_property(blob)["prop"])
         assert props == ["xlabel", "ylabel", "axes_title"]
 
 
@@ -383,7 +344,7 @@ class TestProtocolVersionConstants:
         assert P.PROTOCOL_MAJOR == 1
 
     def test_protocol_minor(self):
-        assert P.PROTOCOL_MINOR == 0
+        assert P.PROTOCOL_MINOR == 1
 
     def test_header_size(self):
         assert P.HEADER_SIZE == 40
@@ -410,17 +371,7 @@ class TestBatchItemNesting:
         while dec.next():
             if dec.tag == P.TAG_BATCH_ITEM:
                 blob = dec.as_blob()
-                inner = PayloadDecoder(blob)
-                found = {}
-                while inner.next():
-                    if inner.tag == P.TAG_FIGURE_ID:
-                        found["figure_id"] = inner.as_u64()
-                    elif inner.tag == P.TAG_SERIES_INDEX:
-                        found["series_index"] = inner.as_u32()
-                    elif inner.tag == P.TAG_PROPERTY_NAME:
-                        found["prop"] = inner.as_string()
-                    elif inner.tag == P.TAG_F1:
-                        found["f1"] = inner.as_double()
+                found = decode_req_update_property(blob)
                 assert found["figure_id"] == 99
                 assert found["series_index"] == 3
                 assert found["prop"] == "opacity"
@@ -437,10 +388,7 @@ class TestBatchItemNesting:
         while dec.next():
             if dec.tag == P.TAG_BATCH_ITEM:
                 blob = dec.as_blob()
-                inner = PayloadDecoder(blob)
-                while inner.next():
-                    if inner.tag == P.TAG_FIGURE_ID:
-                        figure_ids.append(inner.as_u64())
+                figure_ids.append(decode_req_update_property(blob)["figure_id"])
         assert figure_ids == [1, 2]
 
 
@@ -451,30 +399,18 @@ class TestReconnectSessionIdVariants:
 
     def test_session_id_one(self):
         data = encode_req_reconnect(session_id=1)
-        dec = PayloadDecoder(data)
-        while dec.next():
-            if dec.tag == P.TAG_SESSION_ID:
-                assert dec.as_u64() == 1
-                return
-        assert False
+        found = decode_req_reconnect(data)
+        assert found["session_id"] == 1
 
     def test_session_id_max_u32(self):
         data = encode_req_reconnect(session_id=0xFFFFFFFF)
-        dec = PayloadDecoder(data)
-        while dec.next():
-            if dec.tag == P.TAG_SESSION_ID:
-                assert dec.as_u64() == 0xFFFFFFFF
-                return
-        assert False
+        found = decode_req_reconnect(data)
+        assert found["session_id"] == 0xFFFFFFFF
 
     def test_session_id_max_u64(self):
         data = encode_req_reconnect(session_id=0xFFFFFFFFFFFFFFFF)
-        dec = PayloadDecoder(data)
-        while dec.next():
-            if dec.tag == P.TAG_SESSION_ID:
-                assert dec.as_u64() == 0xFFFFFFFFFFFFFFFF
-                return
-        assert False
+        found = decode_req_reconnect(data)
+        assert found["session_id"] == 0xFFFFFFFFFFFFFFFF
 
 
 # ─── Batch edge cases ────────────────────────────────────────────────────────
@@ -519,14 +455,11 @@ class TestBatchEdgeCases:
         while dec.next():
             if dec.tag == P.TAG_BATCH_ITEM:
                 blob = dec.as_blob()
-                inner = PayloadDecoder(blob)
-                while inner.next():
-                    if inner.tag == P.TAG_PROPERTY_NAME:
-                        props.append(inner.as_string())
+                props.append(decode_req_update_property(blob)["prop"])
         assert props == ["xlim", "grid", "xlabel", "color"]
 
     def test_empty_string_val_not_encoded(self):
-        """Empty str_val should not produce a TAG_STR_VAL field."""
+        """Empty str_val should produce an empty string in the decoded payload."""
         updates = [
             dict(figure_id=1, prop="xlim", f1=0.0, f2=1.0, str_val=""),
         ]
@@ -535,9 +468,5 @@ class TestBatchEdgeCases:
         while dec.next():
             if dec.tag == P.TAG_BATCH_ITEM:
                 blob = dec.as_blob()
-                inner = PayloadDecoder(blob)
-                has_str_val = False
-                while inner.next():
-                    if inner.tag == P.TAG_STR_VAL:
-                        has_str_val = True
-                assert not has_str_val
+                found = decode_req_update_property(blob)
+                assert found["str_val"] == ""

@@ -1427,7 +1427,7 @@ class RosQAAgent
             return fail("bag", "Bag playback never injected samples into SubplotManager");
 
         // Wait for all messages to be injected (bag has BAG_MSG_COUNT messages).
-        const bool all_injected = wait_until(
+        [[maybe_unused]] const bool all_injected = wait_until(
             [this]()
             {
                 return shell_->bag_player()->total_injected()

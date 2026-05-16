@@ -15,6 +15,24 @@ from spectra._launcher import (
 )
 
 
+#!/usr/bin/env python3
+"""Tests for Windows compatibility in launcher, transport, and CLI modules."""
+import os
+import sys
+import tempfile
+from unittest import mock
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "python"))
+
+from spectra._launcher import (
+    resolve_socket_path,
+    _runtime_socket_dir,
+    _is_native_binary,
+    _find_backend_binary,
+    _can_connect,
+)
+
+
 class TestResolveSocketPath:
     """Test socket path resolution across platforms."""
 
@@ -26,46 +44,61 @@ class TestResolveSocketPath:
             assert resolve_socket_path() == "/env/path.sock"
 
     @mock.patch("spectra._launcher._IS_WINDOWS", True)
-    def test_windows_default_uses_temp(self):
+    @mock.patch("spectra._launcher._discover_live_broker", return_value=None)
+    def test_windows_default_uses_temp(self, _mock_discover):
         env = {"TEMP": r"C:\Users\test\AppData\Local\Temp"}
         # Remove SPECTRA_SOCKET to avoid interference
         env_clean = {k: v for k, v in os.environ.items()
                      if k not in ("SPECTRA_SOCKET",)}
         env_clean.update(env)
         with mock.patch.dict(os.environ, env_clean, clear=True):
+            # When no live broker is running, resolve_socket_path returns "".
+            # Platform-specific path construction is tested via _runtime_socket_dir.
             path = resolve_socket_path()
-            assert "spectra" in path
-            assert path.startswith(r"C:\Users\test\AppData\Local\Temp")
-            assert path.endswith("spectra.sock")
+            assert path == ""
+            # Verify runtime socket dir uses TEMP on Windows
+            dir_ = _runtime_socket_dir()
+            assert "spectra" in dir_
+            assert dir_.startswith(r"C:\Users\test\AppData\Local\Temp")
 
     @mock.patch("spectra._launcher._IS_WINDOWS", True)
-    def test_windows_uses_tmp_fallback(self):
+    @mock.patch("spectra._launcher._discover_live_broker", return_value=None)
+    def test_windows_uses_tmp_fallback(self, _mock_discover):
         env_clean = {k: v for k, v in os.environ.items()
                      if k not in ("SPECTRA_SOCKET", "TEMP", "TMP")}
         with mock.patch.dict(os.environ, env_clean, clear=True):
             path = resolve_socket_path()
-            assert "spectra" in path
-            assert path.endswith("spectra.sock")
+            assert path == ""
+            dir_ = _runtime_socket_dir()
+            assert "spectra" in dir_
 
     @mock.patch("spectra._launcher._IS_WINDOWS", False)
-    def test_linux_xdg_runtime_dir(self):
+    @mock.patch("spectra._launcher._discover_live_broker", return_value=None)
+    def test_linux_xdg_runtime_dir(self, _mock_discover):
         env = {"XDG_RUNTIME_DIR": "/run/user/1000"}
         env_clean = {k: v for k, v in os.environ.items()
                      if k not in ("SPECTRA_SOCKET",)}
         env_clean.update(env)
         with mock.patch.dict(os.environ, env_clean, clear=True):
+            # No live broker → returns empty sentinel
             path = resolve_socket_path()
-            assert path == "/run/user/1000/spectra/spectra.sock"
+            assert path == ""
+            # Platform dir is XDG_RUNTIME_DIR
+            dir_ = _runtime_socket_dir()
+            assert dir_ == "/run/user/1000"
 
     @mock.patch("spectra._launcher._IS_WINDOWS", False)
-    def test_linux_tmp_fallback(self):
+    @mock.patch("spectra._launcher._discover_live_broker", return_value=None)
+    def test_linux_tmp_fallback(self, _mock_discover):
         env = {"USER": "testuser"}
         env_clean = {k: v for k, v in os.environ.items()
                      if k not in ("SPECTRA_SOCKET", "XDG_RUNTIME_DIR")}
         env_clean.update(env)
         with mock.patch.dict(os.environ, env_clean, clear=True):
             path = resolve_socket_path()
-            assert path == "/tmp/spectra-testuser/spectra.sock"
+            assert path == ""
+            dir_ = _runtime_socket_dir()
+            assert dir_ == "/tmp"
 
 
 class TestIsNativeBinary:

@@ -843,6 +843,20 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
                 target_h = aw->pending_height;
             }
         }
+        // BUG-10: Coalesce swapchain recreations during active resize.
+        // If a resize callback is still in flight (within the debounce window),
+        // skip this frame entirely. The debounced path in update() will recreate
+        // once the size stabilizes. This avoids 2+ synchronous recreations per
+        // frame (each ~20ms) during rapid edge-drag resize.
+        if (aw && ui_ctx.needs_resize)
+        {
+            auto since_last = std::chrono::steady_clock::now() - ui_ctx.resize_requested_time;
+            if (since_last < std::chrono::milliseconds(50))
+            {
+                return false;   // Drop this frame; debounce path will handle it
+            }
+        }
+
         if (aw && target_w > 0 && target_h > 0)
         {
             SPECTRA_LOG_DEBUG("resize",
@@ -1023,6 +1037,14 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
             auto* aw_post = vk_post->active_window();
             if (aw_post && aw_post->swapchain_invalidated)
             {
+                // BUG-10: Coalesce post-present recreation during active resize.
+                // The debounced path in update() will recreate once size settles.
+                auto since_last = std::chrono::steady_clock::now() - ui_ctx.resize_requested_time;
+                if (ui_ctx.needs_resize && since_last < std::chrono::milliseconds(50))
+                {
+                    // Leave swapchain_invalidated=true; debounce path will recreate.
+                    return frame_ok;
+                }
                 aw_post->swapchain_invalidated = false;
                 uint32_t rw                    = aw_post->swapchain.extent.width;
                 uint32_t rh                    = aw_post->swapchain.extent.height;

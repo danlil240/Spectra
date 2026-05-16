@@ -212,15 +212,27 @@ TEST_F(DiscoveryFixture, TopicCountIncrementsWithEachNewTopic)
     const std::size_t base = disc_->topic_count();
 
     auto p1 = node_->create_publisher<std_msgs::msg::Float64>("/di_count_1", 10);
-    spin_for(200ms);
-    disc_->refresh();
+    // Poll until the first new topic appears (or timeout).
+    bool saw1 = wait_for(
+        [&]()
+        {
+            disc_->refresh();
+            return disc_->topic_count() > base;
+        });
     const std::size_t after1 = disc_->topic_count();
 
     auto p2 = node_->create_publisher<std_msgs::msg::Float64>("/di_count_2", 10);
-    spin_for(200ms);
-    disc_->refresh();
+    // Poll until the second new topic appears (or timeout).
+    bool saw2 = wait_for(
+        [&]()
+        {
+            disc_->refresh();
+            return disc_->topic_count() > after1;
+        });
     const std::size_t after2 = disc_->topic_count();
 
+    EXPECT_TRUE(saw1) << "Timed out waiting for /di_count_1 to appear";
+    EXPECT_TRUE(saw2) << "Timed out waiting for /di_count_2 to appear";
     EXPECT_GT(after1, base);
     EXPECT_GT(after2, after1);
 }

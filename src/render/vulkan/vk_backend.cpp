@@ -738,7 +738,7 @@ VkPipeline VulkanBackend::create_pipeline_for_type(PipelineType type, VkRenderPa
             cfg.frag_spirv_size    = shaders::line3d_frag_size;
             cfg.enable_depth_test  = true;
             cfg.enable_depth_write = true;
-            cfg.depth_compare_op   = VK_COMPARE_OP_LESS;
+            cfg.depth_compare_op   = VK_COMPARE_OP_LESS_OR_EQUAL;
             break;
         case PipelineType::Scatter3D:
             cfg.vert_spirv         = shaders::scatter3d_vert;

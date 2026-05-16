@@ -10,8 +10,13 @@
 
 #include "image_diff.hpp"
 #include "render/backend.hpp"
+#include "render/renderer.hpp"
 
 namespace fs = std::filesystem;
+
+// Single shared App — one VkInstance for the entire test binary.  See
+// golden_test_3d.cpp for the rationale.
+static spectra::App* g_app = nullptr;
 
 namespace spectra::test
 {
@@ -70,14 +75,31 @@ static void run_golden_test(const std::string&                 scene_name,
 
     fs::create_directories(output_dir());
 
-    App   app({.headless = true, .socket_path = ""});
-    auto& fig = app.figure({.width = width, .height = height});
+    ASSERT_NE(g_app, nullptr) << "Shared App not initialized";
+    App&     app    = *g_app;
+    auto&    fig    = app.figure({.width = width, .height = height});
+    FigureId fig_id = app.figure_registry().find_id(&fig);
 
     setup_scene(app, fig);
 
     std::vector<uint8_t> actual_pixels;
-    ASSERT_TRUE(render_headless(fig, app, actual_pixels))
-        << "Failed to render scene: " << scene_name;
+    bool                 render_ok = render_headless(fig, app, actual_pixels);
+    if (fig_id != INVALID_FIGURE_ID)
+    {
+        if (auto* r = app.renderer())
+        {
+            for (auto& axes_ptr : fig.all_axes())
+            {
+                for (auto& ser_ptr : axes_ptr->series())
+                    r->notify_series_removed(ser_ptr.get());
+                r->notify_axes_removed(axes_ptr.get());
+            }
+            r->notify_figure_removed(&fig);
+        }
+        app.figure_registry().unregister_figure(fig_id);
+    }
+
+    ASSERT_TRUE(render_ok) << "Failed to render scene: " << scene_name;
 
     ASSERT_TRUE(save_raw_rgba(actual_path.string(), actual_pixels.data(), width, height))
         << "Failed to save actual render for: " << scene_name;
@@ -553,3 +575,13 @@ TEST(GoldenImagePhase3, FormatStrings)
 }
 
 }   // namespace spectra::test
+
+// Custom main creates a single shared App (one VkInstance) and calls ::_exit()
+// after all tests complete, bypassing C++ destructors.  See golden_test_3d.cpp.
+int main(int argc, char** argv)
+{
+    ::testing::InitGoogleTest(&argc, argv);
+    g_app      = new spectra::App({.headless = true, .socket_path = ""});
+    int result = RUN_ALL_TESTS();
+    ::_exit(result);
+}

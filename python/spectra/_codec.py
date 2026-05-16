@@ -330,6 +330,96 @@ def encode_req_disconnect() -> bytes:
     return b""
 
 
+# ─── Request payload decoders (round-trip validation / testing) ───────────────
+
+def decode_req_append_data(data: bytes) -> dict:
+    """Decode REQ_APPEND_DATA payload (FlatBuffers). Returns dict with figure_id, series_index, data."""
+    if fb_codec._is_fb(data):
+        return fb_codec.decode_fb_req_append_data(data)
+    # TLV fallback (legacy)
+    result: dict = {"figure_id": 0, "series_index": 0, "data": []}
+    dec = PayloadDecoder(data)
+    while dec.next():
+        if dec.tag == P.TAG_FIGURE_ID:
+            result["figure_id"] = dec.as_u64()
+        elif dec.tag == P.TAG_SERIES_INDEX:
+            result["series_index"] = dec.as_u32()
+        elif dec.tag == P.TAG_BLOB_INLINE:
+            result["data"] = dec.as_float_array()
+    return result
+
+
+def decode_req_remove_series(data: bytes) -> dict:
+    """Decode REQ_REMOVE_SERIES payload. Returns dict with figure_id, series_index."""
+    if fb_codec._is_fb(data):
+        return fb_codec.decode_fb_req_remove_series(data)
+    result: dict = {"figure_id": 0, "series_index": 0}
+    dec = PayloadDecoder(data)
+    while dec.next():
+        if dec.tag == P.TAG_FIGURE_ID:
+            result["figure_id"] = dec.as_u64()
+        elif dec.tag == P.TAG_SERIES_INDEX:
+            result["series_index"] = dec.as_u32()
+    return result
+
+
+def decode_req_close_figure(data: bytes) -> dict:
+    """Decode REQ_CLOSE_FIGURE payload. Returns dict with figure_id."""
+    if fb_codec._is_fb(data):
+        return fb_codec.decode_fb_req_close_figure(data)
+    result: dict = {"figure_id": 0}
+    dec = PayloadDecoder(data)
+    while dec.next():
+        if dec.tag == P.TAG_FIGURE_ID:
+            result["figure_id"] = dec.as_u64()
+    return result
+
+
+def decode_req_reconnect(data: bytes) -> dict:
+    """Decode REQ_RECONNECT payload. Returns dict with session_id, session_token."""
+    if fb_codec._is_fb(data):
+        return fb_codec.decode_fb_req_reconnect(data)
+    result: dict = {"session_id": 0, "session_token": ""}
+    dec = PayloadDecoder(data)
+    while dec.next():
+        if dec.tag == P.TAG_SESSION_ID:
+            result["session_id"] = dec.as_u64()
+        elif dec.tag == P.TAG_SESSION_TOKEN:
+            result["session_token"] = dec.as_string()
+    return result
+
+
+def decode_req_update_property(data: bytes) -> dict:
+    """Decode REQ_UPDATE_PROPERTY payload. Returns dict with all fields."""
+    if fb_codec._is_fb(data):
+        return fb_codec.decode_fb_req_update_property(data)
+    result: dict = {"figure_id": 0, "axes_index": 0, "series_index": 0,
+                    "prop": "", "f1": 0.0, "f2": 0.0, "f3": 0.0, "f4": 0.0,
+                    "bool_val": False, "str_val": ""}
+    dec = PayloadDecoder(data)
+    while dec.next():
+        if dec.tag == P.TAG_FIGURE_ID:
+            result["figure_id"] = dec.as_u64()
+        elif dec.tag == P.TAG_AXES_INDEX:
+            result["axes_index"] = dec.as_u32()
+        elif dec.tag == P.TAG_SERIES_INDEX:
+            result["series_index"] = dec.as_u32()
+        elif dec.tag == P.TAG_PROPERTY_NAME:
+            result["prop"] = dec.as_string()
+        elif dec.tag == P.TAG_F1:
+            result["f1"] = dec.as_float()
+        elif dec.tag == P.TAG_F2:
+            result["f2"] = dec.as_float()
+        elif dec.tag == P.TAG_F3:
+            result["f3"] = dec.as_float()
+        elif dec.tag == P.TAG_F4:
+            result["f4"] = dec.as_float()
+        elif dec.tag == P.TAG_BOOL_VAL:
+            result["bool_val"] = dec.as_bool()
+        elif dec.tag == P.TAG_STR_VAL:
+            result["str_val"] = dec.as_string()
+    return result
+
 def encode_req_anim_start(figure_id: int, fps: float = 60.0, duration: float = 0.0) -> bytes:
     """Encode REQ_ANIM_START — start backend-driven animation.
 

@@ -4,6 +4,18 @@ import pytest
 import os
 import tempfile
 
+# Skip render tests if libspectra_embed.so is not built.
+try:
+    from spectra._embed import _find_library
+    _find_library()
+    _EMBED_AVAILABLE = True
+except (ImportError, FileNotFoundError, OSError):
+    _EMBED_AVAILABLE = False
+
+_skip_embed = pytest.mark.skipif(
+    not _EMBED_AVAILABLE,
+    reason="libspectra_embed.so not found — build with -DSPECTRA_BUILD_EMBED_SHARED=ON",
+)
 
 class TestImage:
     """Test the Image container class."""
@@ -25,6 +37,7 @@ class TestImage:
         assert len(img) == 0
 
 
+@_skip_embed
 class TestRender:
     """Test the render() function."""
 
@@ -80,6 +93,7 @@ class TestRender:
             assert img
 
 
+@_skip_embed
 class TestScatter:
     """Test the scatter() function."""
 
@@ -103,6 +117,7 @@ class TestScatter:
                 os.unlink(path)
 
 
+@_skip_embed
 class TestRenderMulti:
     """Test the render_multi() function."""
 
@@ -123,6 +138,7 @@ class TestRenderMulti:
         assert img
 
 
+@_skip_embed
 class TestWithOptions:
     """Test rendering with title/xlabel/ylabel options."""
 
@@ -138,6 +154,7 @@ class TestWithOptions:
         assert img
 
 
+@_skip_embed
 class TestImageSave:
     """Test Image.save() method."""
 

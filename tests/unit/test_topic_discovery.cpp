@@ -13,6 +13,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <set>
 #include <string>
 #include <thread>
 
@@ -439,22 +440,28 @@ TEST_F(TopicDiscoveryTest, ServicesReturnVector)
 
 TEST_F(TopicDiscoveryTest, ServiceCallbackFiredIfNewServiceAppears)
 {
-    // Pre-populate
+    // Pre-populate the cache with the current services.
     disc_->refresh();
-    const std::size_t before = disc_->service_count();
 
-    std::atomic<int> added{0};
+    // Snapshot the names of all services already known after the first refresh.
+    // Under parallel test execution other test threads may register new services
+    // concurrently; we must not count those as spurious re-adds of known services.
+    std::set<std::string> known_names;
+    for (const auto& s : disc_->services())
+        known_names.insert(s.name);
+
+    // Only flag callbacks for services that were already in the cache.
+    std::atomic<int> spurious{0};
     disc_->set_service_callback(
-        [&](const ServiceInfo&, bool a)
+        [&](const ServiceInfo& s, bool a)
         {
-            if (a)
-                ++added;
+            if (a && known_names.count(s.name))
+                ++spurious;
         });
 
     disc_->refresh();
-    // No new services should have been added — callback count stays 0.
-    EXPECT_EQ(added.load(), 0);
-    (void)before;
+    // Already-known services must NOT fire as "added" again.
+    EXPECT_EQ(spurious.load(), 0);
 }
 
 // ---------------------------------------------------------------------------

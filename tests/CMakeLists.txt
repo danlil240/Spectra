@@ -264,6 +264,11 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
     if(_test STREQUAL "test_eigen_support" AND NOT SPECTRA_USE_EIGEN)
         continue()
     endif()
+    # test_multi_window provides its own main() to avoid multi-VkInstance teardown
+    # crash on NVIDIA — handled in the dedicated block below this loop.
+    if(_test STREQUAL "test_multi_window")
+        continue()
+    endif()
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/${_test}.cpp)
         add_spectra_test(unit ${_test})
         # Tag GPU-dependent tests so they can be excluded with -LE gpu
@@ -316,6 +321,31 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
     endif()
 endforeach()
 
+# test_multi_window uses a custom main() to avoid multi-VkInstance teardown crash on NVIDIA.
+# (Same root cause as the 3D golden test SIGSEGV: the driver crashes when multiple
+# VkInstance objects are destroyed sequentially in one process.)
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_multi_window.cpp)
+    add_executable(unit_test_multi_window unit/test_multi_window.cpp)
+    target_link_libraries(unit_test_multi_window PRIVATE spectra GTest::gtest)
+    target_compile_features(unit_test_multi_window PRIVATE cxx_std_20)
+    target_include_directories(unit_test_multi_window PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/util
+        ${CMAKE_BINARY_DIR}/generated
+        ${CMAKE_BINARY_DIR}/generated/flatbuffers
+    )
+    target_include_directories(unit_test_multi_window SYSTEM PRIVATE
+        ${flatbuffers_SOURCE_DIR}/include
+    )
+    target_compile_definitions(unit_test_multi_window PRIVATE
+        $<$<BOOL:${SPECTRA_USE_FFMPEG}>:SPECTRA_USE_FFMPEG>
+        $<$<BOOL:${SPECTRA_USE_WEBGPU}>:SPECTRA_USE_WEBGPU>
+        SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+    )
+    add_test(NAME unit_test_multi_window COMMAND unit_test_multi_window)
+    set_tests_properties(unit_test_multi_window PROPERTIES LABELS "gpu")
+endif()
+
 # Golden image tests (require Vulkan — headless via lavapipe in CI)
 option(SPECTRA_BUILD_GOLDEN_TESTS "Build golden image regression tests" ON)
 if(SPECTRA_BUILD_GOLDEN_TESTS)
@@ -360,7 +390,7 @@ if(SPECTRA_BUILD_GOLDEN_TESTS)
     # 3D Phase 3 golden image tests
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/golden/golden_test_3d_phase3.cpp)
         add_executable(golden_image_tests_3d_phase3 golden/golden_test_3d_phase3.cpp)
-        target_link_libraries(golden_image_tests_3d_phase3 PRIVATE spectra GTest::gtest_main)
+        target_link_libraries(golden_image_tests_3d_phase3 PRIVATE spectra GTest::gtest)
         target_compile_features(golden_image_tests_3d_phase3 PRIVATE cxx_std_20)
         target_include_directories(golden_image_tests_3d_phase3 PRIVATE
             ${CMAKE_SOURCE_DIR}/src
@@ -373,7 +403,7 @@ if(SPECTRA_BUILD_GOLDEN_TESTS)
     # 3D golden image tests
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/golden/golden_test_3d.cpp)
         add_executable(golden_image_tests_3d golden/golden_test_3d.cpp)
-        target_link_libraries(golden_image_tests_3d PRIVATE spectra GTest::gtest_main)
+        target_link_libraries(golden_image_tests_3d PRIVATE spectra GTest::gtest)
         target_compile_features(golden_image_tests_3d PRIVATE cxx_std_20)
         target_include_directories(golden_image_tests_3d PRIVATE
             ${CMAKE_SOURCE_DIR}/src

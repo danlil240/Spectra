@@ -440,3 +440,67 @@ def decode_fb_resp_subscribe_topic(data: bytes):
 def decode_fb_evt_topic_list_changed(data: bytes):
     # Currently a flag-only event; daemon broadcasts after any change.
     return None
+
+
+# ─── Request payload decoders (for testing and round-trip verification) ──────
+
+def decode_fb_req_append_data(data: bytes) -> dict:
+    """Decode REQ_APPEND_DATA FlatBuffers payload → dict with figure_id, series_index, data."""
+    raw = _strip(data)
+    buf = bytearray(raw)
+    fb = FBReqAppendData.ReqAppendDataPayload.GetRootAs(buf, 0)
+    return {
+        "figure_id": fb.FigureId(),
+        "series_index": fb.SeriesIndex(),
+        "data": [fb.Data(i) for i in range(fb.DataLength())],
+    }
+
+
+def decode_fb_req_remove_series(data: bytes) -> dict:
+    """Decode REQ_REMOVE_SERIES FlatBuffers payload → dict with figure_id, series_index."""
+    raw = _strip(data)
+    buf = bytearray(raw)
+    fb = FBReqRemSeries.ReqRemoveSeriesPayload.GetRootAs(buf, 0)
+    return {"figure_id": fb.FigureId(), "series_index": fb.SeriesIndex()}
+
+
+def decode_fb_req_close_figure(data: bytes) -> dict:
+    """Decode REQ_CLOSE_FIGURE FlatBuffers payload → dict with figure_id."""
+    raw = _strip(data)
+    buf = bytearray(raw)
+    fb = FBReqCloseFig.ReqCloseFigurePayload.GetRootAs(buf, 0)
+    return {"figure_id": fb.FigureId()}
+
+
+def decode_fb_req_reconnect(data: bytes) -> dict:
+    """Decode REQ_RECONNECT FlatBuffers payload → dict with session_id, session_token."""
+    raw = _strip(data)
+    buf = bytearray(raw)
+    fb = FBReqReconnect.ReqReconnectPayload.GetRootAs(buf, 0)
+    token_raw = fb.SessionToken()
+    return {
+        "session_id": fb.SessionId(),
+        "session_token": token_raw.decode("utf-8") if token_raw else "",
+    }
+
+
+def decode_fb_req_update_property(data: bytes) -> dict:
+    """Decode REQ_UPDATE_PROPERTY FlatBuffers payload → dict with all fields."""
+    raw = _strip(data)
+    buf = bytearray(raw)
+    fb = FBReqUpdProp.ReqUpdatePropertyPayload.GetRootAs(buf, 0)
+    prop_raw = fb.Property()
+    str_val_raw = fb.StrVal()
+    return {
+        "figure_id": fb.FigureId(),
+        "axes_index": fb.AxesIndex(),
+        "series_index": fb.SeriesIndex(),
+        "prop": prop_raw.decode("utf-8") if prop_raw else "",
+        "f1": fb.F1(),
+        "f2": fb.F2(),
+        "f3": fb.F3(),
+        "f4": fb.F4(),
+        "bool_val": fb.BoolVal(),
+        "str_val": str_val_raw.decode("utf-8") if str_val_raw else "",
+    }
+

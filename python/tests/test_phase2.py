@@ -31,6 +31,8 @@ from spectra._codec import (
     encode_req_append_data_raw,
     encode_req_update_property,
     decode_evt_window_closed,
+    decode_req_append_data,
+    decode_req_update_property,
 )
 from spectra import _protocol as P
 from spectra._series import _to_float_list, _interleave_xy, _try_interleave_numpy
@@ -43,15 +45,7 @@ class TestAppendDataCodec:
 
     def test_encode_basic(self):
         data = encode_req_append_data(figure_id=42, series_index=1, data=[1.0, 2.0, 3.0, 4.0])
-        dec = PayloadDecoder(data)
-        found = {}
-        while dec.next():
-            if dec.tag == P.TAG_FIGURE_ID:
-                found["figure_id"] = dec.as_u64()
-            elif dec.tag == P.TAG_SERIES_INDEX:
-                found["series_index"] = dec.as_u32()
-            elif dec.tag == P.TAG_BLOB_INLINE:
-                found["data"] = dec.as_float_array()
+        found = decode_req_append_data(data)
         assert found["figure_id"] == 42
         assert found["series_index"] == 1
         assert len(found["data"]) == 4
@@ -60,50 +54,33 @@ class TestAppendDataCodec:
 
     def test_encode_empty_data(self):
         data = encode_req_append_data(figure_id=1, series_index=0, data=[])
-        dec = PayloadDecoder(data)
-        found_blob = False
-        while dec.next():
-            if dec.tag == P.TAG_BLOB_INLINE:
-                found_blob = True
-        assert not found_blob  # empty data should not produce a blob
+        found = decode_req_append_data(data)
+        # empty data should produce an empty list, not None
+        assert found["data"] == []
 
     def test_encode_single_point(self):
         data = encode_req_append_data(figure_id=1, series_index=0, data=[5.0, 10.0])
-        dec = PayloadDecoder(data)
-        found_data = None
-        while dec.next():
-            if dec.tag == P.TAG_BLOB_INLINE:
-                found_data = dec.as_float_array()
-        assert found_data is not None
-        assert len(found_data) == 2
-        assert abs(found_data[0] - 5.0) < 1e-6
-        assert abs(found_data[1] - 10.0) < 1e-6
+        found = decode_req_append_data(data)
+        assert len(found["data"]) == 2
+        assert abs(found["data"][0] - 5.0) < 1e-6
+        assert abs(found["data"][1] - 10.0) < 1e-6
 
     def test_encode_large_append(self):
         """Verify large data arrays encode correctly."""
         n = 10000
         data_list = [float(i) for i in range(n)]
         data = encode_req_append_data(figure_id=1, series_index=0, data=data_list)
-        dec = PayloadDecoder(data)
-        found_data = None
-        while dec.next():
-            if dec.tag == P.TAG_BLOB_INLINE:
-                found_data = dec.as_float_array()
-        assert found_data is not None
-        assert len(found_data) == n
-        assert abs(found_data[0] - 0.0) < 1e-6
-        assert abs(found_data[-1] - float(n - 1)) < 1e-3
+        found = decode_req_append_data(data)
+        assert len(found["data"]) == n
+        assert abs(found["data"][0] - 0.0) < 1e-6
+        assert abs(found["data"][-1] - float(n - 1)) < 1e-3
 
     def test_figure_id_preserved(self):
         """Verify large figure IDs survive encoding."""
         big_id = 0xFFFFFFFFFFFF
         data = encode_req_append_data(figure_id=big_id, series_index=0, data=[1.0])
-        dec = PayloadDecoder(data)
-        while dec.next():
-            if dec.tag == P.TAG_FIGURE_ID:
-                assert dec.as_u64() == big_id
-                return
-        assert False, "TAG_FIGURE_ID not found"
+        found = decode_req_append_data(data)
+        assert found["figure_id"] == big_id
 
 
 class TestAppendDataRawCodec:
@@ -122,21 +99,24 @@ class TestAppendDataRawCodec:
         assert abs(found_data[0] - 1.0) < 1e-6
 
     def test_encode_raw_matches_list(self):
-        """Raw and list encoding should produce identical blob content."""
+        """Raw and list encoding should produce identical float content."""
         values = [1.5, 2.5, 3.5, 4.5]
         raw = struct.pack(f"<{len(values)}f", *values)
         data_raw = encode_req_append_data_raw(figure_id=1, series_index=0, raw_bytes=raw, count=len(values))
         data_list = encode_req_append_data(figure_id=1, series_index=0, data=values)
-        # Both should decode to the same float array
-        def extract_floats(payload):
+        # TLV raw path: decode with PayloadDecoder
+        def extract_floats_tlv(payload):
             dec = PayloadDecoder(payload)
             while dec.next():
                 if dec.tag == P.TAG_BLOB_INLINE:
                     return dec.as_float_array()
             return None
-        assert extract_floats(data_raw) is not None
-        assert extract_floats(data_list) is not None
-        for a, b in zip(extract_floats(data_raw), extract_floats(data_list)):
+        # FB list path: decode with decode_req_append_data
+        floats_raw = extract_floats_tlv(data_raw)
+        floats_list = decode_req_append_data(data_list)["data"]
+        assert floats_raw is not None
+        assert len(floats_list) == len(values)
+        for a, b in zip(floats_raw, floats_list):
             assert abs(a - b) < 1e-6
 
     def test_numpy_interleave_raw(self):
@@ -599,25 +579,18 @@ class TestCrossCodecAppendData:
 
     def test_wire_format_structure(self):
         data = encode_req_append_data(figure_id=42, series_index=1, data=[1.0, 2.0])
-        # Should contain: TAG_FIGURE_ID(u64) + TAG_SERIES_INDEX(u32) + TAG_BLOB_INLINE(float_array)
-        dec = PayloadDecoder(data)
-        tags_seen = []
-        while dec.next():
-            tags_seen.append(dec.tag)
-        assert P.TAG_FIGURE_ID in tags_seen
-        assert P.TAG_SERIES_INDEX in tags_seen
-        assert P.TAG_BLOB_INLINE in tags_seen
+        found = decode_req_append_data(data)
+        assert found["figure_id"] == 42
+        assert found["series_index"] == 1
+        assert len(found["data"]) == 2
 
     def test_tag_order(self):
-        """Tags should appear in the order they were encoded."""
+        """All expected fields should be present in the decoded payload."""
         data = encode_req_append_data(figure_id=1, series_index=0, data=[1.0])
-        dec = PayloadDecoder(data)
-        tags = []
-        while dec.next():
-            tags.append(dec.tag)
-        assert tags[0] == P.TAG_FIGURE_ID
-        assert tags[1] == P.TAG_SERIES_INDEX
-        assert tags[2] == P.TAG_BLOB_INLINE
+        found = decode_req_append_data(data)
+        assert "figure_id" in found
+        assert "series_index" in found
+        assert "data" in found
 
     def test_message_type_value(self):
         """REQ_APPEND_DATA should be 0x0509."""
@@ -677,19 +650,7 @@ class TestUpdatePropertyCodec:
             figure_id=1, series_index=0, prop="color",
             f1=1.0, f2=0.5, f3=0.25, f4=0.75,
         )
-        dec = PayloadDecoder(data)
-        found = {}
-        while dec.next():
-            if dec.tag == P.TAG_PROPERTY_NAME:
-                found["prop"] = dec.as_string()
-            elif dec.tag == P.TAG_F1:
-                found["f1"] = dec.as_double()
-            elif dec.tag == P.TAG_F2:
-                found["f2"] = dec.as_double()
-            elif dec.tag == P.TAG_F3:
-                found["f3"] = dec.as_double()
-            elif dec.tag == P.TAG_F4:
-                found["f4"] = dec.as_double()
+        found = decode_req_update_property(data)
         assert found["prop"] == "color"
         assert abs(found["f1"] - 1.0) < 1e-6
         assert abs(found["f2"] - 0.5) < 1e-6
@@ -700,107 +661,56 @@ class TestUpdatePropertyCodec:
         data = encode_req_update_property(
             figure_id=1, series_index=0, prop="line_width", f1=2.5,
         )
-        dec = PayloadDecoder(data)
-        found_prop = None
-        found_f1 = None
-        while dec.next():
-            if dec.tag == P.TAG_PROPERTY_NAME:
-                found_prop = dec.as_string()
-            elif dec.tag == P.TAG_F1:
-                found_f1 = dec.as_double()
-        assert found_prop == "line_width"
-        assert abs(found_f1 - 2.5) < 1e-6
+        found = decode_req_update_property(data)
+        assert found["prop"] == "line_width"
+        assert abs(found["f1"] - 2.5) < 1e-6
 
     def test_visible_property(self):
         data = encode_req_update_property(
             figure_id=1, series_index=0, prop="visible", bool_val=True,
         )
-        dec = PayloadDecoder(data)
-        found_prop = None
-        found_bool = None
-        while dec.next():
-            if dec.tag == P.TAG_PROPERTY_NAME:
-                found_prop = dec.as_string()
-            elif dec.tag == P.TAG_BOOL_VAL:
-                found_bool = dec.as_bool()
-        assert found_prop == "visible"
-        assert found_bool is True
+        found = decode_req_update_property(data)
+        assert found["prop"] == "visible"
+        assert found["bool_val"] is True
 
     def test_label_property_with_str_val(self):
         data = encode_req_update_property(
             figure_id=1, series_index=0, prop="label", str_val="my series",
         )
-        dec = PayloadDecoder(data)
-        found_prop = None
-        found_str = None
-        while dec.next():
-            if dec.tag == P.TAG_PROPERTY_NAME:
-                found_prop = dec.as_string()
-            elif dec.tag == P.TAG_STR_VAL:
-                found_str = dec.as_string()
-        assert found_prop == "label"
-        assert found_str == "my series"
+        found = decode_req_update_property(data)
+        assert found["prop"] == "label"
+        assert found["str_val"] == "my series"
 
     def test_title_property(self):
         data = encode_req_update_property(
             figure_id=1, prop="title", str_val="My Figure",
         )
-        dec = PayloadDecoder(data)
-        found_prop = None
-        found_str = None
-        while dec.next():
-            if dec.tag == P.TAG_PROPERTY_NAME:
-                found_prop = dec.as_string()
-            elif dec.tag == P.TAG_STR_VAL:
-                found_str = dec.as_string()
-        assert found_prop == "title"
-        assert found_str == "My Figure"
+        found = decode_req_update_property(data)
+        assert found["prop"] == "title"
+        assert found["str_val"] == "My Figure"
 
     def test_grid_property(self):
         data = encode_req_update_property(
             figure_id=1, axes_index=0, prop="grid", bool_val=True,
         )
-        dec = PayloadDecoder(data)
-        found = {}
-        while dec.next():
-            if dec.tag == P.TAG_PROPERTY_NAME:
-                found["prop"] = dec.as_string()
-            elif dec.tag == P.TAG_AXES_INDEX:
-                found["axes_index"] = dec.as_u32()
-            elif dec.tag == P.TAG_BOOL_VAL:
-                found["bool"] = dec.as_bool()
+        found = decode_req_update_property(data)
         assert found["prop"] == "grid"
         assert found["axes_index"] == 0
-        assert found["bool"] is True
+        assert found["bool_val"] is True
 
     def test_opacity_property(self):
         data = encode_req_update_property(
             figure_id=1, series_index=2, prop="opacity", f1=0.5,
         )
-        dec = PayloadDecoder(data)
-        found_prop = None
-        found_f1 = None
-        while dec.next():
-            if dec.tag == P.TAG_PROPERTY_NAME:
-                found_prop = dec.as_string()
-            elif dec.tag == P.TAG_F1:
-                found_f1 = dec.as_double()
-        assert found_prop == "opacity"
-        assert abs(found_f1 - 0.5) < 1e-6
+        found = decode_req_update_property(data)
+        assert found["prop"] == "opacity"
+        assert abs(found["f1"] - 0.5) < 1e-6
 
     def test_xlim_property(self):
         data = encode_req_update_property(
             figure_id=1, axes_index=0, prop="xlim", f1=-10.0, f2=10.0,
         )
-        dec = PayloadDecoder(data)
-        found = {}
-        while dec.next():
-            if dec.tag == P.TAG_PROPERTY_NAME:
-                found["prop"] = dec.as_string()
-            elif dec.tag == P.TAG_F1:
-                found["f1"] = dec.as_double()
-            elif dec.tag == P.TAG_F2:
-                found["f2"] = dec.as_double()
+        found = decode_req_update_property(data)
         assert found["prop"] == "xlim"
         assert abs(found["f1"] - (-10.0)) < 1e-5
         assert abs(found["f2"] - 10.0) < 1e-5

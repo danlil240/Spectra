@@ -1083,7 +1083,7 @@ void ImGuiIntegration::draw_welcome_screen(float display_w, float display_h, flo
 
     // ── Keyboard hint ──
     {
-        const char* hint   = "Press Ctrl+N to create a new figure";
+        const char* hint   = "Press Ctrl+T to create a new figure";
         ImFont*     font   = ImGui::GetFont();
         ImVec2      sz     = font->CalcTextSizeA(11.0f, FLT_MAX, 0.0f, hint);
         float       hint_y = display_h - 52.0f;

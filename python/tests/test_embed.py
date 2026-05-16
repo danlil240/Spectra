@@ -3,25 +3,40 @@
 import pytest
 import ctypes
 
-from spectra._embed import (
-    EmbedSurface,
-    EmbedFigure,
-    EmbedAxes,
-    EmbedSeries,
-    MOUSE_LEFT,
-    MOUSE_RIGHT,
-    ACTION_PRESS,
-    ACTION_RELEASE,
-    MOD_SHIFT,
-    MOD_CONTROL,
-    KEY_R,
-    KEY_ESCAPE,
+# Probe for libspectra_embed.so at import time WITHOUT raising a module-level
+# skip (which would break launch_testing's pytest_pycollect_makemodule hook).
+# Use a flag + @pytest.mark.skipif on each test class instead.
+try:
+    from spectra._embed import (
+        _find_library,
+        EmbedSurface,
+        EmbedFigure,
+        EmbedAxes,
+        EmbedSeries,
+        MOUSE_LEFT,
+        MOUSE_RIGHT,
+        ACTION_PRESS,
+        ACTION_RELEASE,
+        MOD_SHIFT,
+        MOD_CONTROL,
+        KEY_R,
+        KEY_ESCAPE,
+    )
+    _find_library()  # probe now so we know the library is actually present
+    _EMBED_AVAILABLE = True
+except (ImportError, FileNotFoundError, OSError):
+    _EMBED_AVAILABLE = False
+
+_skip_embed = pytest.mark.skipif(
+    not _EMBED_AVAILABLE,
+    reason="libspectra_embed.so not found — build with -DSPECTRA_BUILD_EMBED_SHARED=ON",
 )
 
 
 # ─── Construction ────────────────────────────────────────────────────────────
 
 
+@_skip_embed
 class TestConstruction:
     def test_default(self):
         s = EmbedSurface(800, 600)
@@ -45,6 +60,7 @@ class TestConstruction:
 # ─── Figure Management ───────────────────────────────────────────────────────
 
 
+@_skip_embed
 class TestFigure:
     def test_create_figure(self):
         s = EmbedSurface(128, 128)
@@ -67,6 +83,7 @@ class TestFigure:
 # ─── Series ──────────────────────────────────────────────────────────────────
 
 
+@_skip_embed
 class TestSeries:
     def test_line(self):
         s = EmbedSurface(128, 128)
@@ -123,6 +140,7 @@ class TestSeries:
 # ─── Rendering ───────────────────────────────────────────────────────────────
 
 
+@_skip_embed
 class TestRendering:
     def test_render_returns_bytes(self):
         s = EmbedSurface(64, 64)
@@ -161,6 +179,7 @@ class TestRendering:
 # ─── Resize ──────────────────────────────────────────────────────────────────
 
 
+@_skip_embed
 class TestResize:
     def test_resize(self):
         s = EmbedSurface(100, 100)
@@ -185,6 +204,7 @@ class TestResize:
 # ─── Input Forwarding ───────────────────────────────────────────────────────
 
 
+@_skip_embed
 class TestInput:
     def test_mouse_move(self):
         s = EmbedSurface(128, 128)

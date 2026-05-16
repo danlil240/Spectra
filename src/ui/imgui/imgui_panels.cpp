@@ -602,7 +602,7 @@ void ImGuiIntegration::draw_inspector(Figure& figure)
             {
                 ImDrawList* tdl   = ImGui::GetWindowDrawList();
                 ImVec2      wpos  = ImGui::GetWindowPos();
-                float       sep_y = ImGui::GetCursorScreenPos().y;
+                float       sep_y = std::floor(ImGui::GetCursorScreenPos().y);
                 tdl->AddLine(ImVec2(wpos.x + 8.0f, sep_y),
                              ImVec2(wpos.x + bounds.w - 8.0f, sep_y),
                              ImGui::ColorConvertFloat4ToU32(ImVec4(colors.border_subtle.r,
@@ -789,8 +789,8 @@ void ImGuiIntegration::draw_inspector_toggle()
 
             float  icon_sz = icon_font_ptr->LegacySize;
             ImVec2 isz     = icon_font_ptr->CalcTextSizeA(icon_sz, FLT_MAX, 0.0f, chevron);
-            float  ix      = btn_x + (BTN_W - isz.x) * 0.5f;
-            float  iy      = btn_y + (BTN_H - icon_sz) * 0.5f;
+            float  ix      = std::floor(btn_x + (BTN_W - isz.x) * 0.5f);
+            float  iy      = std::floor(btn_y + (BTN_H - icon_sz) * 0.5f);
             dl->AddText(icon_font_ptr, icon_sz, ImVec2(ix, iy), icon_col, chevron);
         }
     }

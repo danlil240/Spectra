@@ -61,6 +61,17 @@ class Renderer
     // not freed while the GPU is still using them.
     void notify_series_removed(const Series* series);
 
+    // Notify the renderer that an AxesBase object is about to be destroyed.
+    // Immediately destroys its GPU buffers (grid, bbox, ticks, arrows) and
+    // removes its entry from axes_gpu_data_, preventing stale pointer reuse
+    // when the allocator recycles the address for a new AxesBase.
+    void notify_axes_removed(const AxesBase* axes);
+
+    // Notify the renderer that a Figure object is about to be destroyed.
+    // Immediately destroys its per-figure overlay GPU buffers and removes
+    // the entry from figure_gpu_data_, preventing stale pointer reuse.
+    void notify_figure_removed(const Figure* figure);
+
     // Flush the deferred-deletion queue.  Call this at a point where the
     // GPU is guaranteed to have finished all previously submitted work
     // (e.g. right after begin_frame / fence wait).

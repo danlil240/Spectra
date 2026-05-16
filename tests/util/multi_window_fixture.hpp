@@ -146,12 +146,26 @@ class MultiWindowFixture : public ::testing::Test
 
 // Stub: creates N independent headless Apps to simulate multi-window
 // This lets us write test structure now and swap in real multi-window later.
+//
+// NOTE: Apps are intentionally NOT destroyed between tests. Destroying multiple
+// VkInstance objects sequentially in the same process crashes the NVIDIA driver
+// (same root cause as the 3D golden test SIGSEGV). Leaked Apps are collected in
+// a static list; the custom main() in test_multi_window.cpp calls ::_exit() so
+// the process exits without running C++ destructors.
 class MultiWindowFixture : public ::testing::Test
 {
    protected:
     void SetUp() override {}
 
-    void TearDown() override { apps_.clear(); }
+    void TearDown() override
+    {
+        // Move apps to a static leak list instead of destroying them.
+        // Multiple VkInstance teardowns crash the NVIDIA driver.
+        static std::vector<std::unique_ptr<App>> s_leaked;
+        for (auto& app : apps_)
+            s_leaked.push_back(std::move(app));
+        apps_.clear();
+    }
 
     // Simulate N windows with independent headless Apps
     void create_windows(size_t count, uint32_t w = 640, uint32_t h = 480)

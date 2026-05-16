@@ -909,10 +909,11 @@ void ThemeManager::initialize_default_themes()
         .bg_overlay   = Color(0.0f, 0.0f, 0.0f, 0.50f),
 
         // Text — warm gray hierarchy
-        .text_primary   = Color::from_hex(0xDCDCDC),
-        .text_secondary = Color::from_hex(0x909090),   // Calmer labels
-        .text_tertiary  = Color::from_hex(0x5A5A5A),
-        .text_inverse   = Color::from_hex(0x181818),
+        .text_primary = Color::from_hex(0xDCDCDC),
+        .text_secondary =
+            Color::from_hex(0xA0A0A0),   // WCAG AA: ≥4.5:1 on bg_secondary/bg_tertiary
+        .text_tertiary = Color::from_hex(0x5A5A5A),
+        .text_inverse  = Color::from_hex(0x181818),
 
         // Borders — pure neutral gray (zero blue)
         .border_default = Color(0.30f, 0.30f, 0.30f, 0.65f),   // ~#4D4D4D @ 65%

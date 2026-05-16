@@ -10,8 +10,17 @@
 
 #include "image_diff.hpp"
 #include "render/backend.hpp"
+#include "render/renderer.hpp"
 
 namespace fs = std::filesystem;
+
+// Single shared App — one VkInstance for the entire test binary.  This avoids
+// the non-deterministic SIGSEGV in the NVIDIA Vulkan driver that occurs when
+// multiple VkInstances are created and destroyed sequentially in the same
+// process.  The App is heap-allocated (never deleted) so that its VkInstance
+// destructor is never invoked; ::_exit() in main() terminates the process
+// without running any C++ destructors.
+static spectra::App* g_app = nullptr;
 
 namespace spectra::test
 {
@@ -69,14 +78,31 @@ static void run_golden_test_3d(const std::string&                 scene_name,
 
     fs::create_directories(output_dir());
 
-    App   app({.headless = true, .socket_path = ""});
-    auto& fig = app.figure({.width = width, .height = height});
+    ASSERT_NE(g_app, nullptr) << "Shared App not initialized";
+    App&     app    = *g_app;
+    auto&    fig    = app.figure({.width = width, .height = height});
+    FigureId fig_id = app.figure_registry().find_id(&fig);
 
     setup_scene(app, fig);
 
     std::vector<uint8_t> actual_pixels;
-    ASSERT_TRUE(render_headless(fig, app, actual_pixels))
-        << "Failed to render scene: " << scene_name;
+    bool                 render_ok = render_headless(fig, app, actual_pixels);
+    // Clean up figure from registry so subsequent tests start with a fresh state.
+    // Notify the renderer to purge cached GPU data for all axes of this figure
+    // BEFORE unregistering — once the figure is destroyed the axes pointers are
+    // dangling, and the allocator may recycle their addresses for the next test.
+    if (fig_id != INVALID_FIGURE_ID)
+    {
+        if (auto* r = app.renderer())
+        {
+            for (auto& axes_ptr : fig.all_axes())
+                r->notify_axes_removed(axes_ptr.get());
+            r->notify_figure_removed(&fig);
+        }
+        app.figure_registry().unregister_figure(fig_id);
+    }
+
+    ASSERT_TRUE(render_ok) << "Failed to render scene: " << scene_name;
 
     ASSERT_TRUE(save_raw_rgba(actual_path.string(), actual_pixels.data(), width, height))
         << "Failed to save actual render for: " << scene_name;
@@ -485,7 +511,11 @@ TEST(Golden3D, CameraAngle_Orthographic)
             std::vector<float> z = {0.0f, 0.5f, 1.0f, 0.5f};
 
             ax.scatter3d(x, y, z).color(colors::red).size(8.0f);
-            ax.line3d(x, y, z).color(colors::blue).width(2.0f);
+
+            // Offset line slightly above scatter points so they don't fight for
+            // the same depth — avoids non-deterministic GPU z-fighting at equal depth.
+            std::vector<float> z_line = {0.02f, 0.52f, 1.02f, 0.52f};
+            ax.line3d(x, y, z_line).color(colors::blue).width(2.0f);
 
             ax.camera().projection_mode = Camera::ProjectionMode::Orthographic;
             ax.camera().ortho_size      = 5.0f;
@@ -576,3 +606,15 @@ TEST(Golden3D, CombinedLineAndScatter3D)
 }
 
 }   // namespace spectra::test
+
+// Custom main creates a single shared App (one VkInstance) and calls ::_exit()
+// after all tests complete, bypassing C++ destructors.  This avoids the
+// non-deterministic SIGSEGV in the NVIDIA Vulkan driver during VkInstance
+// teardown that occurs when multiple instances are destroyed in the same process.
+int main(int argc, char** argv)
+{
+    ::testing::InitGoogleTest(&argc, argv);
+    g_app      = new spectra::App({.headless = true, .socket_path = ""});
+    int result = RUN_ALL_TESTS();
+    ::_exit(result);
+}

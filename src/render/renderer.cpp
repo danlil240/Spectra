@@ -93,6 +93,34 @@ void Renderer::notify_series_removed(const Series* series)
     }
 }
 
+void Renderer::notify_axes_removed(const AxesBase* axes)
+{
+    auto it = axes_gpu_data_.find(axes);
+    if (it != axes_gpu_data_.end())
+    {
+        // Axes GPU buffers (grid, bbox, ticks, arrows) are not referenced by
+        // in-flight command buffers once the frame has been submitted — they
+        // are re-uploaded every frame and never held across frames by the GPU.
+        // It is safe to destroy them immediately (no deferred deletion needed).
+        destroy_axes_buffers(it->second);
+        axes_gpu_data_.erase(it);
+    }
+}
+
+void Renderer::notify_figure_removed(const Figure* figure)
+{
+    auto it = figure_gpu_data_.find(figure);
+    if (it != figure_gpu_data_.end())
+    {
+        for (uint32_t s = 0; s < FRAME_BUFFER_SLOTS; ++s)
+        {
+            if (it->second.overlay_line_buffer[s])
+                backend_.destroy_buffer(it->second.overlay_line_buffer[s]);
+        }
+        figure_gpu_data_.erase(it);
+    }
+}
+
 void Renderer::flush_pending_deletions()
 {
     // Destroy the oldest slot — these resources were queued DELETION_RING_SIZE
@@ -652,14 +680,18 @@ void Renderer::render_axes(AxesBase&   axes,
         }
 
         // Sort opaque front-to-back (for early-Z optimization)
-        std::sort(opaque_entries.begin(),
-                  opaque_entries.end(),
-                  [](const SortEntry& a, const SortEntry& b) { return a.distance < b.distance; });
+        // stable_sort preserves insertion order for equal-distance series, ensuring
+        // deterministic rendering when opaque series share the same centroid depth.
+        std::stable_sort(opaque_entries.begin(),
+                         opaque_entries.end(),
+                         [](const SortEntry& a, const SortEntry& b)
+                         { return a.distance < b.distance; });
 
         // Sort transparent back-to-front (painter's algorithm)
-        std::sort(transparent_entries.begin(),
-                  transparent_entries.end(),
-                  [](const SortEntry& a, const SortEntry& b) { return a.distance > b.distance; });
+        std::stable_sort(transparent_entries.begin(),
+                         transparent_entries.end(),
+                         [](const SortEntry& a, const SortEntry& b)
+                         { return a.distance > b.distance; });
 
         // Render opaque first, then transparent
         for (auto& entry : opaque_entries)

@@ -568,7 +568,8 @@ class TestCMakeLibSplit:
 
     def test_spectra_core_target(self):
         cmake = self._read_cmake()
-        assert "add_library(spectra-core INTERFACE)" in cmake
+        # spectra-core is a real static/shared library (not INTERFACE)
+        assert "add_library(spectra-core" in cmake
 
     def test_spectra_ipc_target(self):
         cmake = self._read_cmake()
@@ -580,7 +581,8 @@ class TestCMakeLibSplit:
 
     def test_spectra_core_links_spectra(self):
         cmake = self._read_cmake()
-        assert "target_link_libraries(spectra-core INTERFACE spectra)" in cmake
+        # spectra-core is a standalone library with its own source files
+        assert "target_include_directories(spectra-core" in cmake
 
     def test_spectra_ipc_links_spectra(self):
         cmake = self._read_cmake()

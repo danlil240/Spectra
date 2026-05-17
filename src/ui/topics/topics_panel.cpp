@@ -51,7 +51,7 @@ bool TopicsPanel::submit_subscribe(const std::string& topic_name,
                                    uint64_t           figure_id,
                                    uint32_t           axes_index)
 {
-    if (!subscribe_cb_ || topic_name.empty() || figure_id == 0)
+    if (!subscribe_cb_ || topic_name.empty())
         return false;
     SubscribeRequest req;
     req.topic_name   = topic_name;

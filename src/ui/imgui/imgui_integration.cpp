@@ -925,6 +925,9 @@ void ImGuiIntegration::build_empty_ui()
     // Topics panel can be opened while no figure exists.
     if (topics_panel_)
         topics_panel_->draw();
+
+    // Welcome-state drop target: allows dragging a topic to auto-create a new figure.
+    draw_topic_drop_target_welcome();
 }
 
 // ─── Welcome screen logo texture ────────────────────────────────────────────

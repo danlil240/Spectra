@@ -1378,6 +1378,81 @@ void ImGuiIntegration::draw_topic_drop_target(Figure& figure)
     ImGui::PopStyleVar(2);
 }
 
+// Welcome-state topic drop target.
+//
+// Shown when there are no figures yet (build_empty_ui).  The drop zone covers
+// the viewport background.  We use BeginDragDropTargetViewport() which is
+// independent of ImGui window Z-order: it activates whenever the mouse is
+// over the main viewport and NOT hovering any floating window (Topics Panel,
+// etc.).  On drop, submit_subscribe() fires with figure_id=0 so the daemon
+// auto-creates a new figure for the window.
+// ───────────────────────────────────────────────────────────────────────────
+void ImGuiIntegration::draw_topic_drop_target_welcome()
+{
+    if (!topics_panel_ || !topics_panel_->has_subscribe_callback())
+        return;
+
+    // Only run while a topic payload is being dragged.
+    const ImGuiPayload* payload = ImGui::GetDragDropPayload();
+    if (!payload || !payload->IsDataType(ui::topics::TOPIC_DRAG_TYPE))
+        return;
+
+    ImGuiIO&    io = ImGui::GetIO();
+    const float w  = io.DisplaySize.x;
+    const float h  = io.DisplaySize.y;
+
+    // True when the mouse is over the background (no floating window underneath).
+    const bool over_bg = !ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow
+                                                 | ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
+
+    // Draw a visual hint so the user can see the drop zone.
+    ImDrawList* dl     = ImGui::GetForegroundDrawList();
+    const auto& th     = theme_colors();
+    const float margin = 20.0f;
+
+    ImU32 fill   = IM_COL32(static_cast<int>(th.accent.r * 255),
+                            static_cast<int>(th.accent.g * 255),
+                            static_cast<int>(th.accent.b * 255),
+                            over_bg ? 40 : 18);
+    ImU32 border = IM_COL32(static_cast<int>(th.accent.r * 255),
+                            static_cast<int>(th.accent.g * 255),
+                            static_cast<int>(th.accent.b * 255),
+                            over_bg ? 220 : 90);
+    dl->AddRectFilled(ImVec2(margin, margin), ImVec2(w - margin, h - margin), fill, 8.0f);
+    dl->AddRect(ImVec2(margin, margin), ImVec2(w - margin, h - margin), border, 8.0f, 0, 2.0f);
+
+    const char* label    = "Drop to create new figure";
+    ImVec2      text_sz  = ImGui::CalcTextSize(label);
+    ImU32       text_col = IM_COL32(static_cast<int>(th.accent.r * 255),
+                                    static_cast<int>(th.accent.g * 255),
+                                    static_cast<int>(th.accent.b * 255),
+                                    over_bg ? 220 : 100);
+    dl->AddText(ImVec2((w - text_sz.x) * 0.5f, h * 0.65f), text_col, label);
+
+    // Viewport-level drop target — bypasses window Z-order requirements.
+    // BeginDragDropTargetViewport only checks mouse position vs viewport rect;
+    // it does not require the current ImGui window to be the hovered window.
+    if (over_bg)
+    {
+        if (ImGui::BeginDragDropTargetViewport(ImGui::GetMainViewport(), nullptr))
+        {
+            if (const ImGuiPayload* p = ImGui::AcceptDragDropPayload(ui::topics::TOPIC_DRAG_TYPE))
+            {
+                if (p->DataSize == sizeof(ui::topics::TopicDragPayload))
+                {
+                    const auto* dp = static_cast<const ui::topics::TopicDragPayload*>(p->Data);
+                    std::string name(dp->name);
+                    // figure_id=0 → daemon auto-creates a new figure for this window
+                    topics_panel_->submit_subscribe(name, 0, 0);
+                    SPECTRA_LOG_INFO("topics",
+                                     "Welcome drop: subscribe topic=" + name + " (new figure)");
+                }
+            }
+            ImGui::EndDragDropTarget();
+        }
+    }
+}
+
 }   // namespace spectra
 
 #endif   // SPECTRA_USE_IMGUI

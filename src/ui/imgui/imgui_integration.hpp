@@ -478,6 +478,7 @@ class ImGuiIntegration
 
     void draw_plot_overlays(Figure& figure);
     void draw_topic_drop_target(Figure& figure);
+    void draw_topic_drop_target_welcome();
     void draw_toolbar_button(const char*           icon,
                              std::function<void()> callback,
                              const char*           tooltip,

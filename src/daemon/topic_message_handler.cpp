@@ -177,6 +177,30 @@ HandleResult handle_req_subscribe_topic(DaemonContext&      ctx,
                       "Bad REQ_SUBSCRIBE_TOPIC payload");
         return HandleResult::Continue;
     }
+    // When figure_id == 0 and the request comes from a window agent, auto-create
+    // a new figure with one default axes and assign it to the requesting window.
+    if (req->figure_id == 0 && slot.window_id != ipc::INVALID_WINDOW)
+    {
+        auto kind  = ctx.topics.kind_of(req->name).value_or(ipc::TopicKind::Scalar2D);
+        bool is_3d = (kind == ipc::TopicKind::Scalar3D);
+
+        auto fid = ctx.fig_model.create_figure(req->name, 1280, 720);
+        ctx.graph.register_figure(fid, req->name);
+        ctx.fig_model.add_axes(fid, 0.0f, 1.0f, 0.0f, 1.0f, is_3d);
+        ctx.graph.assign_figure(fid, slot.window_id);
+
+        auto assigned = ctx.graph.figures_for_window(slot.window_id);
+        send_assign_figures(*slot.conn, slot.window_id, ctx.graph.session_id(), assigned, fid);
+        auto snap = ctx.fig_model.snapshot(assigned);
+        send_state_snapshot(*slot.conn, slot.window_id, ctx.graph.session_id(), snap);
+
+        req->figure_id  = fid;
+        req->axes_index = 0;
+
+        std::cerr << "[spectra-backend] Auto-created figure " << fid
+                  << " for topic drag-drop: " << req->name << "\n";
+    }
+
     if (!ctx.fig_model.has_figure(req->figure_id))
     {
         send_resp_err(*slot.conn,

@@ -61,6 +61,18 @@ std::vector<CommandDescriptor> make_file_commands(CommandContext& ctx)
                         active_figure->save_svg("spectra_export.svg");
                     }});
 
+    cmds.push_back({"file.copy_to_clipboard",
+                    "Copy Figure to Clipboard",
+                    "Ctrl+Shift+C",
+                    "File",
+                    static_cast<uint16_t>(ui::Icon::Copy),
+                    [&]()
+                    {
+                        if (!active_figure)
+                            return;
+                        active_figure->copy_to_clipboard();
+                    }});
+
     cmds.push_back({"file.save_workspace",
                     "Save Workspace",
                     "",

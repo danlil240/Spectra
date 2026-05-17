@@ -606,6 +606,12 @@ void ImGuiIntegration::draw_command_bar()
                                     if (command_registry_)
                                         command_registry_->execute("file.export_svg");
                                 });
+        file_items.emplace_back("Copy as Image\tCtrl+Shift+C",
+                                [this]()
+                                {
+                                    if (command_registry_)
+                                        command_registry_->execute("file.copy_to_clipboard");
+                                });
 
         // Plugin-registered export formats (API v1.3)
         if (export_format_registry_)

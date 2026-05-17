@@ -748,6 +748,12 @@ inline void save_svg(const std::string& path)
     detail::easy_state().ensure_figure().save_svg(path);
 }
 
+// Copy current figure to the system clipboard as a PNG image.
+inline void copy_to_clipboard()
+{
+    detail::easy_state().ensure_figure().copy_to_clipboard();
+}
+
 // ─── Show & Run ─────────────────────────────────────────────────────────────
 
 // Show all figures and enter the interactive event loop (blocking).

@@ -73,8 +73,9 @@ class AnimationBuilder
 struct FigureExportRequest
 {
     std::string png_path;
-    uint32_t    png_width  = 0;   // 0 = use figure's native resolution
-    uint32_t    png_height = 0;
+    uint32_t    png_width         = 0;   // 0 = use figure's native resolution
+    uint32_t    png_height        = 0;
+    bool        copy_to_clipboard = false;
     std::string svg_path;
     std::string video_path;
 };
@@ -105,6 +106,7 @@ class Figure
     void save_png(const std::string& path);
     void save_png(const std::string& path, uint32_t export_width, uint32_t export_height);
     void save_svg(const std::string& path);
+    void copy_to_clipboard();
 
     AnimationBuilder animate();
 

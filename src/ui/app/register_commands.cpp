@@ -35,17 +35,19 @@ void register_standard_commands(const CommandBindings& b)
 
     auto& reg = ui_ctx.cmd_registry;
 
-    register_descriptors(reg, make_view_commands(ctx));
-    register_descriptors(reg, make_edit_commands(ctx));
-    register_descriptors(reg, make_file_commands(ctx));
-    register_descriptors(reg, make_figure_commands(ctx));
-    register_descriptors(reg, make_series_commands(ctx));
-    register_descriptors(reg, make_animation_commands(ctx));
-    register_descriptors(reg, make_panel_commands(ctx));
-    register_descriptors(reg, make_theme_commands(ctx));
-    register_descriptors(reg, make_tools_commands(ctx));
-    register_descriptors(reg, make_data_commands(ctx));
-    register_descriptors(reg, make_app_commands(ctx));
+    auto& mgr = ui_ctx.shortcut_mgr;
+
+    register_descriptors(reg, mgr, make_view_commands(ctx));
+    register_descriptors(reg, mgr, make_edit_commands(ctx));
+    register_descriptors(reg, mgr, make_file_commands(ctx));
+    register_descriptors(reg, mgr, make_figure_commands(ctx));
+    register_descriptors(reg, mgr, make_series_commands(ctx));
+    register_descriptors(reg, mgr, make_animation_commands(ctx));
+    register_descriptors(reg, mgr, make_panel_commands(ctx));
+    register_descriptors(reg, mgr, make_theme_commands(ctx));
+    register_descriptors(reg, mgr, make_tools_commands(ctx));
+    register_descriptors(reg, mgr, make_data_commands(ctx));
+    register_descriptors(reg, mgr, make_app_commands(ctx));
 
     ui_ctx.shortcut_mgr.register_defaults();
 

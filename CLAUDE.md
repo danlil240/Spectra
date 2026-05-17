@@ -2,13 +2,13 @@
 
 ## Project Overview
 
-Spectra is a **GPU-accelerated C++20 plotting library** built on **Vulkan 1.2+** for scientific and engineering visualization. It features real-time animation, live data streaming, headless export, 3D rendering, and a full ImGui-based UI with docking, command palette, undo/redo, and themes.
+Spectra is a **GPU-accelerated C++20 plotting library** (v0.2.2) built on **Vulkan 1.2+** for scientific and engineering visualization. It features real-time animation, live data streaming, headless export, 3D rendering, and a full ImGui-based UI with docking, command palette, undo/redo, themes, plugin API, and workspace save/load. Additional integration layers cover **ROS2** (topics, bags, TF, diagnostics), **PX4/ULog** visualisation, **Qt embedding**, a **C FFI embed surface**, and an experimental **WebGPU** backend.
 
 ## Build System
 
 - **Build tool:** CMake 3.20+ with Ninja (preferred) or Make
 - **Standard:** C++20 (GCC 12+, Clang 15+, MSVC 2022+)
-- **Static library output:** `build/libspectra.a`
+- **Static library output:** `build/lib/libspectra.a`
 
 ### Common Build Commands
 
@@ -41,11 +41,21 @@ ctest --test-dir build -L golden -j1 --output-on-failure
 |------|---------|---------|
 | `SPECTRA_USE_GLFW` | ON | GLFW windowing |
 | `SPECTRA_USE_IMGUI` | ON | Dear ImGui UI |
-| `SPECTRA_USE_FFMPEG` | OFF | Video export via ffmpeg |
-| `SPECTRA_USE_EIGEN` | OFF | Eigen vector adapters |
+| `SPECTRA_USE_FFMPEG` | ON | Video export via ffmpeg |
+| `SPECTRA_USE_EIGEN` | ON | Eigen vector adapters |
+| `SPECTRA_USE_QT` | OFF | Qt adapter scaffolding (embedding) |
+| `SPECTRA_USE_ROS2` | ON | ROS2 adapter (requires sourced ROS2 workspace) |
+| `SPECTRA_ROS2_BAG` | ON | rosbag2 support (requires rosbag2 packages) |
+| `SPECTRA_USE_PX4` | ON | PX4 ULog adapter (ULog visualiser + MAVLink) |
+| `SPECTRA_USE_WEBGPU` | OFF | WebGPU/WASM backend (requires Dawn or wgpu-native) |
 | `SPECTRA_BUILD_EXAMPLES` | ON | Example programs |
-| `SPECTRA_BUILD_TESTS` | ON | Unit tests |
+| `SPECTRA_BUILD_QT_EXAMPLE` | OFF | Qt6 embed example (requires `SPECTRA_USE_QT=ON`) |
+| `SPECTRA_BUILD_TESTS` | ON | Unit tests and benchmarks |
+| `SPECTRA_BUILD_BENCHMARKS` | OFF | Performance benchmark suite |
 | `SPECTRA_BUILD_GOLDEN_TESTS` | ON | Visual regression tests |
+| `SPECTRA_BUILD_EMBED_SHARED` | OFF | Build `libspectra_embed` shared library for C FFI |
+| `SPECTRA_BUILD_QA_AGENT` | OFF | QA stress-testing agent |
+| `SPECTRA_PYTHON_WHEEL` | OFF | Install backend binary into Python package |
 | `SPECTRA_RUNTIME_MODE` | multiproc | `inproc` or `multiproc` |
 
 ## Project Structure
@@ -56,22 +66,54 @@ src/
   core/             # Data model: Figure, Axes, Axes3D, Series, layout, transforms
   render/           # Renderer abstraction + abstract Backend interface
     vulkan/         # VulkanBackend: device, swapchain, pipeline, buffers
+    webgpu/         # WebGPU backend (experimental, 2D only)
   gpu/shaders/      # GLSL 450 shaders (compiled to SPIR-V at build time)
-  anim/             # Animator, easing (7 modes), frame scheduler
-  ui/               # App, ImGui integration, commands, themes, docking, input
+  app/              # Standalone app entry point (main.cpp, inproc topic server)
+  ui/
+    app/            # App lifecycle: inproc/multiproc paths, SessionRuntime, WindowUIContext
+    imgui/          # ImGuiIntegration, Axes3DRenderer, widget helpers
+    figures/        # FigureRegistry, FigureManager, TabBar, TabDragController
+    window/         # WindowManager, GlfwAdapter
+    input/          # InputHandler, BoxZoomOverlay, GestureRecognizer, RegionSelect
+    overlay/        # Crosshair, DataEditor, DataInteraction, DataMarker, Inspector, KnobManager
+    commands/       # CommandRegistry, CommandPalette, ShortcutManager, UndoManager,
+                    #   SeriesClipboard, UndoableProperty
+    docking/        # DockSystem, SplitViewManager
+    automation/     # UI automation hooks
+    animation/      # AnimationController, TimelineEditor, KeyframeInterpolator, CameraAnimator,
+                    #   ModeTransition, RecordingExport, TransitionEngine
+    panel/          # Dedicated UI panels
+    theme/          # ThemeManager, DesignTokens, Icons
+    data/           # AxisLinkManager, CsvLoader, ClipboardExport
+    camera/         # Camera
+    layout/         # LayoutManager
+    viewmodel/      # View-model layer for ImGui-facing code
+    welcome/        # Welcome / onboarding screens
+    workspace/      # Workspace save/load v3, FigureSerializer, PluginAPI
+  embed/            # EmbedSurface, C FFI wrapper (spectra_embed_c)
+  platform/
+    window_system/  # SurfaceHost abstraction, GlfwSurfaceHost
+  adapters/         # Optional integration adapters
+    qt/             # QtRuntime, QtSurfaceHost (Qt embedding)
+    ros2/           # ROS2: RosAppShell, BagPlayer, ExpressionEngine, TopicDiscovery,
+                    #   GenericSubscriber, SubplotManager + ROS2 UI panels
+    px4/            # PX4 ULog adapter, MAVLink, ULog reader
+  anim/             # Animator, easing (7 modes), FrameScheduler, FrameProfiler
+  data/             # Decimation (LTTB, min-max), filters
+  math/             # DataTransform, TransformPipeline, TransformRegistry
   io/               # PNG/SVG/MP4 export
-  ipc/              # Binary IPC protocol (multi-process mode)
-  daemon/           # Multi-process backend daemon
-  agent/            # Multi-process window agent
-  data/             # Decimation, filters
-  math/             # Data transforms (log, normalize, FFT)
-python/             # Python bindings via IPC
-examples/           # 39+ runnable C++ demos
+  ipc/              # Binary IPC: Codec (TLV + FlatBuffers), Message, Transport, BlobStore
+  daemon/           # Multi-process backend daemon: FigureModel, SessionGraph, ProcessManager
+  agent/            # Multi-process window agent entry point
+python/             # Python bindings via IPC (spectra package)
+examples/           # ~50 runnable C++ demos
 tests/
-  unit/             # 120+ Google Test unit tests
-  golden/           # Visual regression tests (pixel comparison)
-  bench/            # Google Benchmark performance tests
-third_party/        # Bundled: stb, VMA, tinyfiledialogs
+  unit/             # 145+ Google Test unit test files (~1,200+ individual tests)
+  golden/           # Visual regression tests (pixel comparison, 30+ baselines)
+  bench/            # Google Benchmark performance tests (100+ benchmarks)
+  qa/               # QA agent automated visual/ROS testing
+  util/             # Test utilities (GPU hang detector, fixtures, validation guard)
+third_party/        # Bundled: stb, VMA, tinyfiledialogs, Inter font, SpectraIcons font
 plans/              # Architecture documents and roadmaps
 ```
 
@@ -96,8 +138,10 @@ plans/              # Architecture documents and roadmaps
 
 - **Builder** for configs (AnimationBuilder, AppConfig)
 - **Strategy** for backends (abstract `Backend`, `VulkanBackend` impl)
-- **Registry** for commands, shortcuts, figures
+- **Registry** for commands, shortcuts, figures, series types, data sources, transforms
 - **Composite** hierarchy: App -> Figure -> Axes -> Series
+- **EventBus** for decoupled intra-process notifications (`include/spectra/event_bus.hpp`)
+- **Topics** pub/sub for live data streaming (`include/spectra/topic.hpp`)
 
 ### Public API Guidelines
 
@@ -120,7 +164,10 @@ plans/              # Architecture documents and roadmaps
 - **SDF rendering:** Lines and markers use signed-distance-field anti-aliasing in fragment shaders
 - **MSDF text:** Multi-channel SDF font atlas for resolution-independent text
 - **Two runtime modes:** in-process (single binary) and multi-process (daemon + window agents via IPC)
+- **IPC codec:** Supports both TLV (legacy) and FlatBuffers encoding; migration to FlatBuffers-by-default is planned
 - **Workspace format:** v3 with backward compatibility for v1/v2
+- **Plugin API:** Runtime-loadable plugins for series types, data sources, overlays, and transforms
+- **WebGPU backend:** Experimental 2D-only backend (`src/render/webgpu/`); not production-ready
 
 ## Commit Style
 

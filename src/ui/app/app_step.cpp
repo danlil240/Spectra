@@ -54,6 +54,7 @@
 #endif
 
 #include "perf_metrics.hpp"
+#include "platform/clipboard_image.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -213,9 +214,10 @@ struct App::AppRuntime
     {
         std::vector<uint8_t> pixels;
         std::string          path;
-        uint32_t             width  = 0;
-        uint32_t             height = 0;
-        bool                 active = false;
+        uint32_t             width             = 0;
+        uint32_t             height            = 0;
+        bool                 active            = false;
+        bool                 copy_to_clipboard = false;
     } pending_png_capture;
 
     AppRuntime(float fps, Backend& backend, Renderer& renderer, FigureRegistry& registry)
@@ -897,15 +899,28 @@ App::StepResult App::step()
     if (rt.pending_png_capture.active)
     {
         auto& cap = rt.pending_png_capture;
-        if (ImageExporter::write_png(cap.path, cap.pixels.data(), cap.width, cap.height))
+        if (cap.copy_to_clipboard)
         {
-            SPECTRA_LOG_INFO("export", "Saved PNG: " + cap.path);
+            auto png = ImageExporter::write_png_to_memory(cap.pixels.data(), cap.width, cap.height);
+            if (!png.empty())
+                if (platform::copy_image_to_clipboard(png.data(), png.size()))
+                    SPECTRA_LOG_INFO("export", "Figure copied to clipboard");
+                else
+                    SPECTRA_LOG_WARN("export", "Clipboard image copy failed");
         }
         else
         {
-            SPECTRA_LOG_ERROR("export", "Failed to write PNG: " + cap.path);
+            if (ImageExporter::write_png(cap.path, cap.pixels.data(), cap.width, cap.height))
+            {
+                SPECTRA_LOG_INFO("export", "Saved PNG: " + cap.path);
+            }
+            else
+            {
+                SPECTRA_LOG_ERROR("export", "Failed to write PNG: " + cap.path);
+            }
         }
-        cap.active = false;
+        cap.active            = false;
+        cap.copy_to_clipboard = false;
         cap.pixels.clear();
         cap.path.clear();
     }
@@ -913,7 +928,9 @@ App::StepResult App::step()
     // Phase 2: Schedule a pre-present capture for figures with pending export.
     // The capture will execute inside end_frame() (do_capture_before_present),
     // before vkQueuePresentKHR, so the swapchain image contents are valid.
-    if (!config_.headless && rt.active_figure && !rt.active_figure->export_req_.png_path.empty())
+    if (!config_.headless && rt.active_figure
+        && (!rt.active_figure->export_req_.png_path.empty()
+            || rt.active_figure->export_req_.copy_to_clipboard))
     {
         uint32_t ew  = rt.active_figure->export_req_.png_width > 0
                            ? rt.active_figure->export_req_.png_width
@@ -923,10 +940,11 @@ App::StepResult App::step()
                            : rt.active_figure->height();
         auto&    cap = rt.pending_png_capture;
         cap.pixels.resize(static_cast<size_t>(ew) * eh * 4);
-        cap.path   = rt.active_figure->export_req_.png_path;
-        cap.width  = ew;
-        cap.height = eh;
-        cap.active = true;
+        cap.path              = rt.active_figure->export_req_.png_path;
+        cap.width             = ew;
+        cap.height            = eh;
+        cap.active            = true;
+        cap.copy_to_clipboard = rt.active_figure->export_req_.copy_to_clipboard;
 
         auto* vk = (config_.backend == RenderBackend::Vulkan)
                        ? static_cast<VulkanBackend*>(backend_.get())
@@ -954,8 +972,9 @@ App::StepResult App::step()
             vk->request_framebuffer_capture(cap.pixels.data(), ew, eh);
 
         rt.active_figure->export_req_.png_path.clear();
-        rt.active_figure->export_req_.png_width  = 0;
-        rt.active_figure->export_req_.png_height = 0;
+        rt.active_figure->export_req_.png_width         = 0;
+        rt.active_figure->export_req_.png_height        = 0;
+        rt.active_figure->export_req_.copy_to_clipboard = false;
     }
 
     // Check animation duration termination

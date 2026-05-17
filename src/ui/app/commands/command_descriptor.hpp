@@ -28,9 +28,11 @@ struct CommandDescriptor
     std::function<void()> action;     // Command callback
 };
 
-// Batch-register a list of descriptors into the given CommandRegistry.
-// Shortcuts are auto-registered via the ShortcutManager.
+// Batch-register a list of descriptors into the given CommandRegistry and
+// ShortcutManager. Each descriptor with a non-empty shortcut string is
+// bound in the ShortcutManager via Shortcut::from_string().
 void register_descriptors(CommandRegistry&                      registry,
+                          ShortcutManager&                      shortcuts,
                           const std::vector<CommandDescriptor>& descriptors);
 
 }   // namespace spectra

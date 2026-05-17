@@ -55,6 +55,7 @@ constexpr int KEY_G = 71;
 constexpr int KEY_K = 75;
 constexpr int KEY_L = 76;
 constexpr int KEY_M = 77;
+constexpr int KEY_N = 78;
 constexpr int KEY_P = 80;
 constexpr int KEY_Q = 81;
 constexpr int KEY_R = 82;
@@ -385,9 +386,10 @@ void ShortcutManager::register_defaults()
     // File operations
     bind({KEY_S, KeyMod::Control}, "file.export_png");
     bind({KEY_S, KeyMod::Control | KeyMod::Shift}, "file.export_svg");
+    bind({KEY_C, KeyMod::Control | KeyMod::Shift}, "file.copy_to_clipboard");
 
     // Figure management
-    bind({KEY_T, KeyMod::Control}, "figure.new");
+    bind({KEY_N, KeyMod::Control}, "figure.new");
     bind({KEY_W, KeyMod::Control}, "figure.close");
     bind({KEY_Q, KeyMod::None}, "figure.close");
 

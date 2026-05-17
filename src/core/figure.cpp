@@ -140,6 +140,11 @@ void Figure::save_svg(const std::string& path)
     compute_layout();
 }
 
+void Figure::copy_to_clipboard()
+{
+    export_req_.copy_to_clipboard = true;
+}
+
 AnimationBuilder Figure::animate()
 {
     return AnimationBuilder(*this);

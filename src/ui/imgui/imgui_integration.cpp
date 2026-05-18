@@ -4,7 +4,13 @@
 
     #define GLFW_INCLUDE_NONE
     #define GLFW_INCLUDE_VULKAN
-    #include <GLFW/glfw3.h>
+    #ifdef SPECTRA_USE_GLFW
+        #include <GLFW/glfw3.h>
+    #endif
+    #ifdef SPECTRA_USE_SDL3
+        #include <SDL3/SDL.h>
+        #include <SDL3/SDL_vulkan.h>
+    #endif
 
     // Compressed Inter font data
     #include "../../../third_party/inter_font.hpp"
@@ -21,6 +27,7 @@
     #include "../../../third_party/tinyfiledialogs.h"
     #include "../dialog_env_guard.hpp"
     #include "../topics/topics_panel.hpp"
+    #include "../settings/settings_panel.hpp"
 
     #ifndef M_PI
         #define M_PI 3.14159265358979323846
@@ -113,6 +120,7 @@ const ui::ThemeColors& ImGuiIntegration::theme_colors() const
     return ui::theme();
 }
 
+    #ifdef SPECTRA_USE_GLFW
 bool ImGuiIntegration::init(VulkanBackend& backend, GLFWwindow* window, bool install_callbacks)
 {
     if (initialized_)
@@ -156,11 +164,6 @@ bool ImGuiIntegration::init(VulkanBackend& backend, GLFWwindow* window, bool ins
     inspector_.set_fonts(font_body_, font_heading_, font_title_);
     data_editor_.set_fonts(font_body_, font_heading_, font_title_);
 
-    // For secondary windows, pass install_callbacks=false so ImGui doesn't
-    // install its own GLFW callbacks.  WindowManager handles context switching
-    // and input forwarding for secondary windows.  If ImGui installs callbacks
-    // on a secondary window, they fire during glfwPollEvents() with the wrong
-    // ImGui context (the primary's), routing all input to the primary window.
     ImGui_ImplGlfw_InitForVulkan(window, install_callbacks);
 
     ImGui_ImplVulkan_InitInfo ii{};
@@ -185,6 +188,59 @@ bool ImGuiIntegration::init(VulkanBackend& backend, GLFWwindow* window, bool ins
 
     return true;
 }
+    #endif   // SPECTRA_USE_GLFW
+
+    #ifdef SPECTRA_USE_SDL3
+bool ImGuiIntegration::init_sdl3(VulkanBackend& backend, SDL_Window* window)
+{
+    if (initialized_)
+        return true;
+    if (!window)
+        return false;
+
+    glfw_window_    = window;
+    layout_manager_ = std::make_unique<LayoutManager>();
+
+    IMGUI_CHECKVERSION();
+    imgui_context_ = ImGui::CreateContext(nullptr);
+    ImGui::SetCurrentContext(imgui_context_);
+    ImGui::GetIO().IniFilename = nullptr;
+
+    if (theme_mgr_)
+        theme_mgr_->ensure_initialized();
+
+    load_fonts();
+    ui::IconFont::instance().initialize();
+    apply_modern_style();
+
+    inspector_.set_fonts(font_body_, font_heading_, font_title_);
+    data_editor_.set_fonts(font_body_, font_heading_, font_title_);
+
+    ImGui_ImplSDL3_InitForVulkan(window);
+
+    ImGui_ImplVulkan_InitInfo ii{};
+    ii.Instance                     = backend.instance();
+    ii.PhysicalDevice               = backend.physical_device();
+    ii.Device                       = backend.device();
+    ii.QueueFamily                  = backend.graphics_queue_family();
+    ii.Queue                        = backend.graphics_queue();
+    ii.DescriptorPool               = backend.descriptor_pool();
+    ii.MinImageCount                = backend.min_image_count();
+    ii.ImageCount                   = backend.image_count();
+    ii.PipelineInfoMain.RenderPass  = backend.render_pass();
+    ii.PipelineInfoMain.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+
+    ImGui_ImplVulkan_Init(&ii);
+
+    cached_render_pass_ = vk_rp_to_u64(ii.PipelineInfoMain.RenderPass);
+    initialized_        = true;
+    backend_            = &backend;
+
+    load_logo_textures(backend);
+
+    return true;
+}
+    #endif   // SPECTRA_USE_SDL3
 
 bool ImGuiIntegration::init_headless(VulkanBackend& backend, uint32_t width, uint32_t height)
 {
@@ -283,7 +339,13 @@ void ImGuiIntegration::shutdown()
     destroy_logo_textures();
     ImGui_ImplVulkan_Shutdown();
     if (!headless_)
+    {
+    #ifdef SPECTRA_USE_GLFW
         ImGui_ImplGlfw_Shutdown();
+    #elif defined(SPECTRA_USE_SDL3)
+        ImGui_ImplSDL3_Shutdown();
+    #endif
+    }
     ImGui::DestroyContext(this_ctx);
     imgui_context_ = nullptr;
 
@@ -360,7 +422,11 @@ void ImGuiIntegration::new_frame()
     if (!initialized_)
         return;
     ImGui_ImplVulkan_NewFrame();
+    #ifdef SPECTRA_USE_GLFW
     ImGui_ImplGlfw_NewFrame();
+    #elif defined(SPECTRA_USE_SDL3)
+    ImGui_ImplSDL3_NewFrame();
+    #endif
     ImGui::NewFrame();
 
     // Update layout with current window size and delta time
@@ -744,6 +810,12 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
         topics_panel_->draw();
     }
 
+    // Draw Settings panel.
+    if (settings_panel_)
+    {
+        settings_panel_->draw();
+    }
+
     // Draw theme settings window if open
     if (show_theme_settings_)
     {
@@ -925,6 +997,10 @@ void ImGuiIntegration::build_empty_ui()
     // Topics panel can be opened while no figure exists.
     if (topics_panel_)
         topics_panel_->draw();
+
+    // Settings panel can be opened while no figure exists.
+    if (settings_panel_)
+        settings_panel_->draw();
 
     // Welcome-state drop target: allows dragging a topic to auto-create a new figure.
     draw_topic_drop_target_welcome();

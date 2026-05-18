@@ -156,6 +156,9 @@ struct WorkspaceData
 
     // v4: Mode transition state (serialized JSON from ModeTransition)
     std::string mode_transition_state;
+
+    // Last directory used for image/video export. Empty = use $HOME.
+    std::string last_export_dir;
 };
 
 /// Result of workspace validation.

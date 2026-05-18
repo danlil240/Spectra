@@ -33,12 +33,22 @@
     #include "ui/topics/topics_panel.hpp"
 #endif
 
+#include "ui/settings/settings_store.hpp"
+
 #ifdef SPECTRA_USE_GLFW
     #define GLFW_INCLUDE_NONE
     #define GLFW_INCLUDE_VULKAN
     #include <GLFW/glfw3.h>
 
     #include "ui/window/glfw_adapter.hpp"
+#endif
+
+#ifdef SPECTRA_USE_SDL3
+    #include <SDL3/SDL.h>
+    #include "ui/window/sdl3_adapter.hpp"
+#endif
+
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
     #include "ui/window/window_manager.hpp"
 #endif
 
@@ -769,6 +779,10 @@ int main(int argc, char* argv[])
     spectra::ui::ThemeManager theme_mgr;
     spectra::ui::ThemeManager::set_current(&theme_mgr);
 
+    spectra::ui::settings::SettingsStore settings_store;
+    settings_store.load();
+    settings_store.apply_to(theme_mgr);
+
     auto renderer_ptr = std::make_unique<spectra::Renderer>(*backend, theme_mgr);
     if (!renderer_ptr->init())
     {
@@ -815,6 +829,8 @@ int main(int argc, char* argv[])
     window_mgr->set_redraw_request_handler([&session](const char* reason)
                                            { session.redraw_tracker().mark_dirty(reason); });
 
+    window_mgr->set_settings_store(&settings_store);
+
     // Set tab drag handlers BEFORE creating windows so all windows get them
     window_mgr->set_tab_detach_handler([&session](spectra::FigureId  fid,
                                                   uint32_t           w,
@@ -833,7 +849,53 @@ int main(int argc, char* argv[])
         { session.queue_move({fid, target_wid, drop_zone, local_x, local_y, target_figure_id}); });
 
     auto* initial_wctx = window_mgr->create_first_window_with_ui(glfw->native_window(), all_ids);
+#elif defined(SPECTRA_USE_SDL3)
+    std::unique_ptr<spectra::Sdl3Adapter>   sdl3;
+    std::unique_ptr<spectra::WindowManager> window_mgr;
 
+    sdl3               = std::make_unique<spectra::Sdl3Adapter>();
+    uint32_t initial_w = active_figure ? active_figure->width() : INITIAL_WIDTH;
+    uint32_t initial_h = active_figure ? active_figure->height() : INITIAL_HEIGHT;
+    if (!sdl3->init(initial_w, initial_h, "Spectra"))
+    {
+        SPECTRA_LOG_ERROR("window", "Failed to create SDL3 window");
+        return 1;
+    }
+
+    backend->create_surface(sdl3->native_window());
+    backend->create_swapchain(initial_w, initial_h);
+
+    window_mgr = std::make_unique<spectra::WindowManager>();
+    window_mgr->init(static_cast<spectra::VulkanBackend*>(backend.get()),
+                     &registry,
+                     renderer_ptr.get(),
+                     &theme_mgr);
+
+    window_mgr->set_redraw_request_handler([&session](const char* reason)
+                                           { session.redraw_tracker().mark_dirty(reason); });
+
+    window_mgr->set_settings_store(&settings_store);
+
+    window_mgr->set_tab_detach_handler([&session](spectra::FigureId  fid,
+                                                  uint32_t           w,
+                                                  uint32_t           h,
+                                                  const std::string& title,
+                                                  int                sx,
+                                                  int                sy)
+                                       { session.queue_detach({fid, w, h, title, sx, sy}); });
+    window_mgr->set_tab_move_handler(
+        [&session](spectra::FigureId fid,
+                   uint32_t          target_wid,
+                   int               drop_zone,
+                   float             local_x,
+                   float             local_y,
+                   spectra::FigureId target_figure_id)
+        { session.queue_move({fid, target_wid, drop_zone, local_x, local_y, target_figure_id}); });
+
+    auto* initial_wctx = window_mgr->create_first_window_with_ui(sdl3->native_window(), all_ids);
+#endif
+
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
     if (initial_wctx && initial_wctx->ui_ctx)
     {
         ui_ctx_ptr = initial_wctx->ui_ctx.get();
@@ -934,7 +996,7 @@ int main(int argc, char* argv[])
     cmd_palette.set_command_registry(&cmd_registry);
     cmd_palette.set_shortcut_manager(&shortcut_mgr);
 
-    #ifdef SPECTRA_USE_GLFW
+    #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
     if (window_mgr)
     {
         tab_drag_controller.set_window_manager(window_mgr.get());
@@ -1065,7 +1127,7 @@ int main(int argc, char* argv[])
         cb.active_figure    = &active_figure;
         cb.active_figure_id = &active_figure_id;
         cb.session          = &session;
-    #ifdef SPECTRA_USE_GLFW
+    #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
         cb.window_mgr = window_mgr.get();
     #endif
         spectra::register_standard_commands(cb);
@@ -1394,7 +1456,7 @@ int main(int argc, char* argv[])
                 }
 #endif
 
-#ifdef SPECTRA_USE_GLFW
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
                 // Sync WindowContext
                 if (window_mgr && !window_mgr->windows().empty())
                 {
@@ -1480,13 +1542,13 @@ int main(int argc, char* argv[])
                      cmd_queue,
                      false,
                      ui_ctx_ptr,
-#ifdef SPECTRA_USE_GLFW
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
                      window_mgr.get(),
 #endif
                      frame_state);
         active_figure = frame_state.active_figure;
 
-#ifdef SPECTRA_USE_GLFW
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
         // Auto-exit when the last window has been closed by the user.
         // Without this, closing the window via the X button leaves the agent
         // process alive (with no windows), the daemon never sees a disconnect,
@@ -1508,11 +1570,16 @@ int main(int argc, char* argv[])
     // Notify backend
     send_ipc(*conn, spectra::ipc::MessageType::EVT_WINDOW, session_id, ipc_window_id);
 
-#ifdef SPECTRA_USE_GLFW
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
     if (window_mgr)
     {
+    #ifdef SPECTRA_USE_GLFW
         if (glfw)
             glfw->release_window();
+    #elif defined(SPECTRA_USE_SDL3)
+        if (sdl3)
+            sdl3->release_window();
+    #endif
         window_mgr->shutdown();
         window_mgr.reset();
     }
@@ -1528,8 +1595,8 @@ int main(int argc, char* argv[])
         backend.reset();
     }
 
-#ifdef SPECTRA_USE_GLFW
-    // GlfwAdapter destructor handles glfwTerminate
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
+    // Windowing adapter destructor handles cleanup
 #endif
 
     conn->close();

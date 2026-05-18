@@ -236,3 +236,40 @@ TEST_F(WorkspaceTest, OutputIsValidJson)
     EXPECT_NE(content.find("\"figures\""), std::string::npos);
     EXPECT_NE(content.find("\"theme_name\""), std::string::npos);
 }
+
+// ─── last_export_dir ─────────────────────────────────────────────────────────
+
+TEST_F(WorkspaceTest, LastExportDirRoundTrip)
+{
+    WorkspaceData original   = make_sample_data();
+    original.last_export_dir = "/tmp/exports";
+    ASSERT_TRUE(Workspace::save(tmp_path, original));
+
+    WorkspaceData loaded;
+    ASSERT_TRUE(Workspace::load(tmp_path, loaded));
+    EXPECT_EQ(loaded.last_export_dir, "/tmp/exports");
+}
+
+TEST_F(WorkspaceTest, LastExportDirBackwardCompat)
+{
+    // Minimal workspace JSON that does NOT contain "last_export_dir".
+    // Simulates a workspace saved by an older version of Spectra.
+    const std::string minimal_json =
+        R"({"version": 4, "theme_name": "night", "active_figure_index": 0,)"
+        R"( "panels": {"inspector_visible": true, "inspector_width": 320.0, "nav_rail_expanded": false},)"
+        R"( "figures": [], "interaction": {"crosshair_enabled": false, "tooltip_enabled": true,)"
+        R"( "markers": [], "annotations": []}, "undo_count": 0, "redo_count": 0,)"
+        R"( "axis_link_state": "", "transforms": [], "shortcut_overrides": [],)"
+        R"( "timeline": {"playhead": 0, "duration": 10, "fps": 30, "loop_mode": 0,)"
+        R"( "loop_start": 0, "loop_end": 0, "playing": false},)"
+        R"( "plugin_state": "", "data_palette_name": "", "mode_transition_state": ""})";
+
+    {
+        std::ofstream f(tmp_path);
+        f << minimal_json;
+    }
+
+    WorkspaceData loaded;
+    ASSERT_TRUE(Workspace::load(tmp_path, loaded));
+    EXPECT_TRUE(loaded.last_export_dir.empty());
+}

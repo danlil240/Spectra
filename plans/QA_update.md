@@ -1,10 +1,26 @@
 # Spectra QA Agent — Capability Gaps & Backlog
 
-**Last updated:** 2026-05-16
+**Last updated:** 2026-05-17
 
 ---
 
 ## Open Gaps
+
+### G-5 — `mouse_click` automation handler does not inject into ImGui IO
+
+**Impact:** All ImGui widget clicks (tab switches, combo opens, buttons, checkboxes) silently fail when issued through MCP `mouse_click`. The call returns `ok` but the widget does not respond. Discovered during Settings panel visual QA 2026-05-17.  
+**Root cause:** `handlers_input.cpp` `mouse_click` calls `input_handler.on_mouse_button()` which routes through `InputHandler` (axes hit-testing only) and returns early when `active_axes_` is null. `ImGui_ImplGlfw_MouseButtonCallback` is never called, so ImGui's IO never sees the press.  
+**File:** `src/ui/automation/handlers/handlers_input.cpp` — `mouse_click` lambda  
+**Suggested fix:** After calling `input_handler.on_mouse_button()`, also inject into ImGui's IO directly:
+```cpp
+auto& io = ImGui::GetIO();
+io.AddMousePosEvent(static_cast<float>(x), static_cast<float>(y));
+io.AddMouseButtonEvent(btn, true);   // press
+io.AddMouseButtonEvent(btn, false);  // release
+```
+The correct ImGui context must be active (set via `wctx->imgui_context`) before calling these.
+
+---
 
 ### G-1 — `move_figure` ownership tracking gap
 

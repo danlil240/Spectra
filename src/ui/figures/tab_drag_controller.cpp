@@ -6,8 +6,12 @@
     #include <cstdio>
     #include <spectra/logger.hpp>
 
-    #define GLFW_INCLUDE_NONE
-    #include <GLFW/glfw3.h>
+    #ifdef SPECTRA_USE_GLFW
+        #define GLFW_INCLUDE_NONE
+        #include <GLFW/glfw3.h>
+    #elif defined(SPECTRA_USE_SDL3)
+        #include <SDL3/SDL.h>
+    #endif
 
     #include "render/vulkan/window_context.hpp"
     #include "ui/docking/dock_system.hpp"
@@ -15,6 +19,48 @@
 
 namespace spectra
 {
+
+// Windowing-backend-agnostic helpers -----------------------------------------
+// These provide per-window cursor position and window size so the drag logic
+// doesn't need scattered #ifdef chains at each call site.
+
+namespace
+{
+
+/// Returns cursor position relative to the top-left of `native_win`.
+/// `native_win` is the raw window handle (GLFWwindow* or SDL_Window*).
+inline void window_cursor_pos(void* native_win, double& out_cx, double& out_cy)
+{
+    #ifdef SPECTRA_USE_GLFW
+    glfwGetCursorPos(static_cast<GLFWwindow*>(native_win), &out_cx, &out_cy);
+    #elif defined(SPECTRA_USE_SDL3)
+    auto* sdl_win = static_cast<SDL_Window*>(native_win);
+    float gx = 0, gy = 0;
+    SDL_GetGlobalMouseState(&gx, &gy);
+    int wx = 0, wy = 0;
+    SDL_GetWindowPosition(sdl_win, &wx, &wy);
+    out_cx = static_cast<double>(gx - wx);
+    out_cy = static_cast<double>(gy - wy);
+    #else
+    (void)native_win;
+    out_cx = out_cy = 0;
+    #endif
+}
+
+/// Returns logical window size in pixels.
+inline void window_size(void* native_win, int& out_w, int& out_h)
+{
+    #ifdef SPECTRA_USE_GLFW
+    glfwGetWindowSize(static_cast<GLFWwindow*>(native_win), &out_w, &out_h);
+    #elif defined(SPECTRA_USE_SDL3)
+    SDL_GetWindowSize(static_cast<SDL_Window*>(native_win), &out_w, &out_h);
+    #else
+    (void)native_win;
+    out_w = out_h = 0;
+    #endif
+}
+
+}   // anonymous namespace
 
 // ─── Input events ────────────────────────────────────────────────────────────
 
@@ -95,11 +141,10 @@ void TabDragController::update(float mouse_x,
                 {
                     if (!wctx || !wctx->glfw_window || wctx->is_preview)
                         continue;
-                    auto*  win = static_cast<GLFWwindow*>(wctx->glfw_window);
                     double cx, cy;
-                    glfwGetCursorPos(win, &cx, &cy);
+                    window_cursor_pos(wctx->glfw_window, cx, cy);
                     int ww, wh;
-                    glfwGetWindowSize(win, &ww, &wh);
+                    window_size(wctx->glfw_window, ww, wh);
                     // Content area check with generous margin for title bar
                     if (cx >= -10 && cx < ww + 10 && cy >= -50 && cy < wh + 10)
                     {
@@ -125,9 +170,8 @@ void TabDragController::update(float mouse_x,
                     auto* target_wctx = window_manager_->find_window(last_hovered_window_id_);
                     if (target_wctx && target_wctx->glfw_window)
                     {
-                        auto*  tw = static_cast<GLFWwindow*>(target_wctx->glfw_window);
                         double lcx, lcy;
-                        glfwGetCursorPos(tw, &lcx, &lcy);
+                        window_cursor_pos(target_wctx->glfw_window, lcx, lcy);
                         window_manager_->compute_cross_window_drop_zone(last_hovered_window_id_,
                                                                         static_cast<float>(lcx),
                                                                         static_cast<float>(lcy));
@@ -253,7 +297,13 @@ void TabDragController::cancel()
 bool TabDragController::check_mouse_held() const
 {
     if (window_manager_)
+    {
+    #ifdef SPECTRA_USE_GLFW
         return window_manager_->is_mouse_button_held(GLFW_MOUSE_BUTTON_LEFT);
+    #elif defined(SPECTRA_USE_SDL3)
+        return window_manager_->is_mouse_button_held(SDL_BUTTON_LEFT);
+    #endif
+    }
     return false;
 }
 
@@ -360,11 +410,10 @@ bool TabDragController::is_outside_all_windows(float /*screen_x*/, float /*scree
         if (!wctx || !wctx->glfw_window || wctx->is_preview)
             continue;
 
-        auto*  win = static_cast<GLFWwindow*>(wctx->glfw_window);
         double cx, cy;
-        glfwGetCursorPos(win, &cx, &cy);
+        window_cursor_pos(wctx->glfw_window, cx, cy);
         int ww, wh;
-        glfwGetWindowSize(win, &ww, &wh);
+        window_size(wctx->glfw_window, ww, wh);
 
         if (cx >= -SIDE_MARGIN && cx < ww + SIDE_MARGIN && cy >= -TITLE_BAR_MARGIN
             && cy < wh + SIDE_MARGIN)
@@ -395,11 +444,10 @@ uint32_t TabDragController::find_window_at(float /*screen_x*/, float /*screen_y*
         if (!wctx || !wctx->glfw_window || wctx->is_preview)
             continue;
 
-        auto*  win = static_cast<GLFWwindow*>(wctx->glfw_window);
         double cx, cy;
-        glfwGetCursorPos(win, &cx, &cy);
+        window_cursor_pos(wctx->glfw_window, cx, cy);
         int ww, wh;
-        glfwGetWindowSize(win, &ww, &wh);
+        window_size(wctx->glfw_window, ww, wh);
 
         if (cx >= 0 && cx < ww && cy >= 0 && cy < wh)
         {

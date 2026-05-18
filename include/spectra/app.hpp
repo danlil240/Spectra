@@ -29,8 +29,7 @@ struct AppConfig
 class SessionRuntime;
 class WindowRuntime;
 
-#ifdef SPECTRA_USE_GLFW
-class GlfwAdapter;
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
 class WindowManager;
 #endif
 
@@ -67,7 +66,7 @@ class App
     WindowUIContext* ui_context();
     SessionRuntime*  session();
     FigureRegistry&  figure_registry() { return registry_; }
-#ifdef SPECTRA_USE_GLFW
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
     WindowManager* window_manager();
 #endif
 

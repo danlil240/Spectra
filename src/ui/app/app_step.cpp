@@ -26,6 +26,7 @@
 #include "window_ui_context_builder.hpp"
 #include "window_ui_context.hpp"
 #include "ui/workspace/plugin_api.hpp"
+#include "ui/settings/settings_store.hpp"
 
 #ifdef SPECTRA_USE_GLFW
     #define GLFW_INCLUDE_NONE
@@ -33,6 +34,14 @@
     #include <GLFW/glfw3.h>
 
     #include "ui/window/glfw_adapter.hpp"
+#endif
+
+#ifdef SPECTRA_USE_SDL3
+    #include <SDL3/SDL.h>
+    #include "ui/window/sdl3_adapter.hpp"
+#endif
+
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
     #include "ui/window/window_manager.hpp"
 #endif
 
@@ -82,6 +91,21 @@ App::App(const AppConfig& config) : config_(config)
         multiproc       = (env && env[0] != '\0');
     }
     SPECTRA_LOG_INFO("app", "Runtime mode: " + std::string(multiproc ? "multiproc" : "inproc"));
+
+#ifdef SPECTRA_USE_SDL3
+    // SDL must be initialized before VulkanBackend::init() because
+    // SDL_Vulkan_GetInstanceExtensions() is called during Vulkan instance
+    // creation and requires the SDL video subsystem to be running.
+    if (!config_.headless)
+    {
+        if (!SDL_Init(SDL_INIT_VIDEO))
+        {
+            SPECTRA_LOG_ERROR("app",
+                              std::string("Failed to pre-initialize SDL video: ") + SDL_GetError());
+            return;
+        }
+    }
+#endif
 
     backend_ = std::make_unique<VulkanBackend>();
 #ifdef SPECTRA_USE_WEBGPU
@@ -164,6 +188,15 @@ App::~App()
         {
         }
     }
+
+#ifdef SPECTRA_USE_SDL3
+    // Balance the pre-backend SDL_Init(SDL_INIT_VIDEO) call made before
+    // VulkanBackend::init().  SdlAdapter::shutdown() already decremented the
+    // SDL subsystem reference count once (via SDL_Quit); this call brings
+    // the count to zero and fully releases the video subsystem.
+    if (!config_.headless && SDL_WasInit(SDL_INIT_VIDEO))
+        SDL_Quit();
+#endif
 }
 
 // ─── AppRuntime: all state that lives across frames ──────────────────────────
@@ -179,6 +212,8 @@ struct App::AppRuntime
     DataSourceRegistry   data_source_registry;
     SeriesTypeRegistry   series_type_registry;
 
+    std::unique_ptr<ui::settings::SettingsStore> settings_store;
+
     FrameState frame_state;
     uint64_t   frame_number = 0;
 
@@ -190,6 +225,11 @@ struct App::AppRuntime
 
 #ifdef SPECTRA_USE_GLFW
     std::unique_ptr<GlfwAdapter>   glfw;
+    std::unique_ptr<WindowManager> window_mgr;
+#endif
+
+#ifdef SPECTRA_USE_SDL3
+    std::unique_ptr<Sdl3Adapter>   sdl3;
     std::unique_ptr<WindowManager> window_mgr;
 #endif
 
@@ -266,6 +306,11 @@ void App::init_runtime()
 
     runtime_ = std::make_unique<AppRuntime>(init_fps, *backend_, *renderer_, registry_);
     auto& rt = *runtime_;
+
+    rt.settings_store = std::make_unique<ui::settings::SettingsStore>();
+    rt.settings_store->load();
+    rt.settings_store->apply_to(*theme_mgr_);
+    rt.settings_store->set_on_change([&store = *rt.settings_store]() { store.save(); });
 
     rt.frame_state.active_figure_id = init_active_id;
     rt.frame_state.active_figure    = init_active;
@@ -344,6 +389,7 @@ void App::init_runtime()
                 rt.window_mgr->set_plugin_manager(&rt.plugin_manager);
                 rt.window_mgr->set_export_format_registry(&rt.export_format_registry);
                 rt.window_mgr->set_session_runtime(&rt.session);
+                rt.window_mgr->set_settings_store(rt.settings_store.get());
 
                 rt.window_mgr->set_tab_detach_handler(
                     [&session = rt.session](FigureId           fid,
@@ -407,17 +453,103 @@ void App::init_runtime()
     }
 #endif
 
+#ifdef SPECTRA_USE_SDL3
+    if (!config_.headless)
+    {
+        rt.sdl3 = std::make_unique<Sdl3Adapter>();
+        if (!rt.sdl3->init(init_w, init_h, "Spectra"))
+        {
+            SPECTRA_LOG_ERROR("app", "Failed to create SDL3 window");
+            rt.sdl3.reset();
+        }
+        else
+        {
+            backend_->create_surface(rt.sdl3->native_window());
+            backend_->create_swapchain(init_w, init_h);
+
+            if (config_.backend == RenderBackend::Vulkan)
+            {
+                rt.window_mgr = std::make_unique<WindowManager>();
+                rt.window_mgr->init(static_cast<VulkanBackend*>(backend_.get()),
+                                    &registry_,
+                                    renderer_.get(),
+                                    theme_mgr_.get());
+                rt.window_mgr->set_redraw_request_handler(
+                    [&session = rt.session](const char* reason)
+                    { session.redraw_tracker().mark_dirty(reason); });
+                rt.window_mgr->set_plugin_manager(&rt.plugin_manager);
+                rt.window_mgr->set_export_format_registry(&rt.export_format_registry);
+                rt.window_mgr->set_session_runtime(&rt.session);
+                rt.window_mgr->set_settings_store(rt.settings_store.get());
+
+                rt.window_mgr->set_tab_detach_handler(
+                    [&session = rt.session](FigureId           fid,
+                                            uint32_t           w,
+                                            uint32_t           h,
+                                            const std::string& title,
+                                            int                sx,
+                                            int                sy)
+                    { session.queue_detach({fid, w, h, title, sx, sy}); });
+                rt.window_mgr->set_tab_move_handler(
+                    [&session = rt.session](FigureId fid,
+                                            uint32_t target_wid,
+                                            int      drop_zone,
+                                            float    local_x,
+                                            float    local_y,
+                                            FigureId target_figure_id)
+                    {
+                        session.queue_move(
+                            {fid, target_wid, drop_zone, local_x, local_y, target_figure_id});
+                    });
+
+                std::vector<FigureId> first_group =
+                    window_groups.empty() ? std::vector<FigureId>{} : window_groups[0];
+                auto* initial_wctx =
+                    rt.window_mgr->create_first_window_with_ui(rt.sdl3->native_window(),
+                                                               first_group);
+
+                if (initial_wctx && initial_wctx->ui_ctx)
+                {
+                    rt.ui_ctx_ptr              = initial_wctx->ui_ctx.get();
+                    rt.ui_ctx_ptr->glfw_window = initial_wctx->glfw_window;
+                }
+
+                for (size_t gi = 1; gi < window_groups.size(); ++gi)
+                {
+                    auto& group = window_groups[gi];
+                    if (group.empty())
+                        continue;
+                    auto*    fig0 = registry_.get(group[0]);
+                    uint32_t w    = fig0 ? fig0->width() : 800;
+                    uint32_t h    = fig0 ? fig0->height() : 600;
+                    auto*    new_wctx =
+                        rt.window_mgr->create_window_with_ui(w, h, "Spectra", group[0]);
+                    if (new_wctx && new_wctx->ui_ctx && new_wctx->ui_ctx->fig_mgr)
+                    {
+                        for (size_t fi = 1; fi < group.size(); ++fi)
+                        {
+                            new_wctx->ui_ctx->fig_mgr->add_figure(group[fi], FigureState{});
+                            new_wctx->assigned_figures.push_back(group[fi]);
+                        }
+                    }
+                }
+            }   // if (config_.backend == RenderBackend::Vulkan)
+        }
+    }
+#endif
+
     if (!rt.ui_ctx_ptr)
     {
         // Headless mode: use the shared builder with `headless = true`
         // for a minimal context (FigureManager + ThemeManager only),
         // avoiding destruction-order issues in rapid create/destroy cycles.
         WindowUIContextBuildOptions headless_opts;
-        headless_opts.registry  = &registry_;
-        headless_opts.theme_mgr = theme_mgr_.get();
-        headless_opts.headless  = true;
-        rt.headless_ui_ctx      = build_window_ui_context(headless_opts);
-        rt.ui_ctx_ptr           = rt.headless_ui_ctx.get();
+        headless_opts.registry       = &registry_;
+        headless_opts.theme_mgr      = theme_mgr_.get();
+        headless_opts.headless       = true;
+        headless_opts.settings_store = rt.settings_store.get();
+        rt.headless_ui_ctx           = build_window_ui_context(headless_opts);
+        rt.ui_ctx_ptr                = rt.headless_ui_ctx.get();
     }
 
     // Wire plugin host services after UI context creation.
@@ -430,7 +562,7 @@ void App::init_runtime()
     rt.plugin_manager.set_series_type_registry(&rt.series_type_registry);
     rt.plugin_manager.set_backend(backend_.get());
     renderer_->set_series_type_registry(&rt.series_type_registry);
-#ifdef SPECTRA_USE_GLFW
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
     if (rt.window_mgr)
         rt.plugin_manager.set_overlay_registry(&rt.window_mgr->overlay_registry());
 #endif
@@ -570,7 +702,7 @@ void App::init_runtime()
         keyframe_interpolator.compute_all_auto_tangents();
     }
 
-    #ifdef SPECTRA_USE_GLFW
+    #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
     if (rt.window_mgr)
     {
         tab_drag_controller.set_window_manager(rt.window_mgr.get());
@@ -877,7 +1009,7 @@ App::StepResult App::step()
                     rt.cmd_queue,
                     config_.headless,
                     rt.ui_ctx_ptr,
-#ifdef SPECTRA_USE_GLFW
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
                     rt.window_mgr.get(),
 #endif
                     rt.frame_state);
@@ -949,7 +1081,7 @@ App::StepResult App::step()
         auto* vk = (config_.backend == RenderBackend::Vulkan)
                        ? static_cast<VulkanBackend*>(backend_.get())
                        : nullptr;
-#ifdef SPECTRA_USE_GLFW
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
         // Target the window that owns this figure so multi-window captures
         // read the correct swapchain image.
         WindowContext* target_wctx = nullptr;
@@ -985,15 +1117,34 @@ App::StepResult App::step()
         rt.session.request_exit();
     }
 
-#ifdef SPECTRA_USE_GLFW
-    if (!rt.window_mgr && rt.glfw)
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
+    if (!rt.window_mgr)
     {
-        rt.glfw->poll_events();
-        if (rt.glfw->should_close())
+    #ifdef SPECTRA_USE_GLFW
+        if (rt.glfw)
         {
-            SPECTRA_LOG_INFO("main_loop", "Window closed, exiting loop");
-            rt.session.request_exit();
+            rt.glfw->poll_events();
+            if (rt.glfw->should_close())
+            {
+                SPECTRA_LOG_INFO("main_loop", "Window closed, exiting loop");
+                rt.session.request_exit();
+            }
         }
+    #elif defined(SPECTRA_USE_SDL3)
+        if (rt.sdl3)
+        {
+            // Process events; should_close is set by process_sdl3_events via SDL_EVENT_QUIT.
+            SDL_Event ev;
+            while (SDL_PollEvent(&ev))
+            {
+                if (ev.type == SDL_EVENT_QUIT)
+                {
+                    SPECTRA_LOG_INFO("main_loop", "Window closed, exiting loop");
+                    rt.session.request_exit();
+                }
+            }
+        }
+    #endif
     }
 #endif
 
@@ -1115,13 +1266,16 @@ void App::shutdown_runtime()
         }
     }
 
-#ifdef SPECTRA_USE_GLFW
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
     if (rt.window_mgr)
     {
+    #ifdef SPECTRA_USE_GLFW
         if (rt.glfw)
-        {
             rt.glfw->release_window();
-        }
+    #elif defined(SPECTRA_USE_SDL3)
+        if (rt.sdl3)
+            rt.sdl3->release_window();
+    #endif
         rt.window_mgr->shutdown();
         rt.window_mgr.reset();
     }
@@ -1157,7 +1311,7 @@ WindowUIContext* App::ui_context()
 
     auto& rt = *runtime_;
 
-#ifdef SPECTRA_USE_GLFW
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
     if (rt.window_mgr)
     {
         for (auto* wctx : rt.window_mgr->windows())
@@ -1186,7 +1340,7 @@ SessionRuntime* App::session()
     return runtime_ ? &runtime_->session : nullptr;
 }
 
-#ifdef SPECTRA_USE_GLFW
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
 WindowManager* App::window_manager()
 {
     return runtime_ ? runtime_->window_mgr.get() : nullptr;

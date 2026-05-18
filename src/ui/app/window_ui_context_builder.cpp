@@ -342,6 +342,17 @@ std::unique_ptr<WindowUIContext> build_window_ui_context(const WindowUIContextBu
     bindings.window_mgr = options.window_manager;
     #endif
     register_standard_commands(bindings);
+
+    ui->settings_cfg.set_shortcut_manager(&ui->shortcut_mgr);
+    ui->settings_cfg.load(ShortcutConfig::default_path());
+    ui->settings_cfg.apply_overrides();
+
+    ui->settings_store = options.settings_store;
+    ui->settings_panel.set_settings_store(ui->settings_store);
+    ui->settings_panel.set_theme_manager(options.theme_mgr);
+    ui->settings_panel.set_shortcut_config(&ui->settings_cfg);
+    if (ui->imgui_ui)
+        ui->imgui_ui->set_settings_panel(&ui->settings_panel);
 #endif
 
     return ui;

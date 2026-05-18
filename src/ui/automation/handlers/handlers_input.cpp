@@ -4,14 +4,23 @@
 #include "../automation_json.hpp"
 #include "../automation_server.hpp"
 
+#include "ui/app/session_runtime.hpp"
 #include "ui/app/window_ui_context.hpp"
+#include <spectra/app.hpp>
 
-#ifdef SPECTRA_USE_GLFW
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
     #include "ui/input/input.hpp"
+#endif
+#ifdef SPECTRA_USE_GLFW
+    #include <GLFW/glfw3.h>
+#endif
+#ifdef SPECTRA_USE_SDL3
+    #include <SDL3/SDL.h>
 #endif
 
 #ifdef SPECTRA_USE_IMGUI
     #include "imgui.h"
+    #include "ui/imgui/imgui_integration.hpp"
 #endif
 
 namespace spectra
@@ -25,7 +34,7 @@ std::vector<AutomationHandlerEntry> make_input_handlers()
     entries.push_back({"mouse_move",
                        [](AutomationRequest& req, App& /*app*/, WindowUIContext* ui_ctx)
                        {
-#ifdef SPECTRA_USE_GLFW
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
                            if (!ui_ctx)
                            {
                                req.response_json = json_error(req.id, "No UI context");
@@ -33,19 +42,32 @@ std::vector<AutomationHandlerEntry> make_input_handlers()
                            }
                            double x = json_get_number(req.params_json, "x");
                            double y = json_get_number(req.params_json, "y");
+    #ifdef SPECTRA_USE_IMGUI
+                           if (ui_ctx->imgui_ui)
+                           {
+                               ImGuiContext* prev_ctx = ImGui::GetCurrentContext();
+                               ImGuiContext* win_ctx  = ui_ctx->imgui_ui->imgui_context();
+                               if (win_ctx)
+                                   ImGui::SetCurrentContext(win_ctx);
+                               ImGui::GetIO().AddMousePosEvent(static_cast<float>(x),
+                                                               static_cast<float>(y));
+                               if (win_ctx && prev_ctx != win_ctx)
+                                   ImGui::SetCurrentContext(prev_ctx);
+                           }
+    #endif
                            ui_ctx->input_handler.on_mouse_move(x, y);
                            req.response_json = json_ok(req.id);
 #else
                            (void)ui_ctx;
-                           req.response_json = json_error(req.id, "GLFW not available");
+                           req.response_json = json_error(req.id, "No windowing backend");
 #endif
                        }});
 
     // ── mouse_click ──────────────────────────────────────────────────────
     entries.push_back({"mouse_click",
-                       [](AutomationRequest& req, App& /*app*/, WindowUIContext* ui_ctx)
+                       [](AutomationRequest& req, App& app, WindowUIContext* ui_ctx)
                        {
-#ifdef SPECTRA_USE_GLFW
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
                            if (!ui_ctx)
                            {
                                req.response_json = json_error(req.id, "No UI context");
@@ -55,12 +77,44 @@ std::vector<AutomationHandlerEntry> make_input_handlers()
                            double y   = json_get_number(req.params_json, "y");
                            int    btn = json_get_int(req.params_json, "button", 0);
                            int    mod = json_get_int(req.params_json, "modifiers", 0);
+        // Move the real cursor so events don't override our injected position.
+    #ifdef SPECTRA_USE_GLFW
+                           if (auto* win = static_cast<GLFWwindow*>(ui_ctx->glfw_window))
+                               glfwSetCursorPos(win, x, y);
+    #elif defined(SPECTRA_USE_SDL3)
+                           if (auto* win = static_cast<SDL_Window*>(ui_ctx->glfw_window))
+                               SDL_WarpMouseInWindow(win,
+                                                     static_cast<float>(x),
+                                                     static_cast<float>(y));
+    #endif
+    #ifdef SPECTRA_USE_IMGUI
+                           // Inject into ImGui IO for widget clicks (tabs, buttons, etc.).
+                           // Must switch to this window's own ImGui context — Spectra uses
+                           // a separate ImGuiContext per window, and multiple windows may be
+                           // active simultaneously (e.g. preview window).  Injecting into
+                           // the wrong context silently drops the events.
+                           if (ui_ctx->imgui_ui)
+                           {
+                               ImGuiContext* prev_ctx = ImGui::GetCurrentContext();
+                               ImGuiContext* win_ctx  = ui_ctx->imgui_ui->imgui_context();
+                               if (win_ctx)
+                                   ImGui::SetCurrentContext(win_ctx);
+                               ImGuiIO& io = ImGui::GetIO();
+                               io.AddMousePosEvent(static_cast<float>(x), static_cast<float>(y));
+                               io.AddMouseButtonEvent(btn, true);
+                               io.AddMouseButtonEvent(btn, false);
+                               if (win_ctx && prev_ctx != win_ctx)
+                                   ImGui::SetCurrentContext(prev_ctx);
+                           }
+    #endif
                            ui_ctx->input_handler.on_mouse_button(btn, 1, mod, x, y);
                            ui_ctx->input_handler.on_mouse_button(btn, 0, mod, x, y);
+                           if (auto* sess = app.session())
+                               sess->redraw_tracker().mark_dirty("mouse_click");
                            req.response_json = json_ok(req.id);
 #else
                            (void)ui_ctx;
-                           req.response_json = json_error(req.id, "GLFW not available");
+                           req.response_json = json_error(req.id, "No windowing backend");
 #endif
                        }});
 
@@ -68,7 +122,7 @@ std::vector<AutomationHandlerEntry> make_input_handlers()
     entries.push_back({"mouse_drag",
                        [](AutomationRequest& req, App& /*app*/, WindowUIContext* ui_ctx)
                        {
-#ifdef SPECTRA_USE_GLFW
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
                            if (!ui_ctx)
                            {
                                req.response_json = json_error(req.id, "No UI context");
@@ -97,7 +151,7 @@ std::vector<AutomationHandlerEntry> make_input_handlers()
                            req.response_json = json_ok(req.id);
 #else
                            (void)ui_ctx;
-                           req.response_json = json_error(req.id, "GLFW not available");
+                           req.response_json = json_error(req.id, "No windowing backend");
 #endif
                        }});
 
@@ -105,7 +159,7 @@ std::vector<AutomationHandlerEntry> make_input_handlers()
     entries.push_back({"scroll",
                        [](AutomationRequest& req, App& /*app*/, WindowUIContext* ui_ctx)
                        {
-#ifdef SPECTRA_USE_GLFW
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
                            if (!ui_ctx)
                            {
                                req.response_json = json_error(req.id, "No UI context");
@@ -119,7 +173,7 @@ std::vector<AutomationHandlerEntry> make_input_handlers()
                            req.response_json = json_ok(req.id);
 #else
                            (void)ui_ctx;
-                           req.response_json = json_error(req.id, "GLFW not available");
+                           req.response_json = json_error(req.id, "No windowing backend");
 #endif
                        }});
 
@@ -127,7 +181,7 @@ std::vector<AutomationHandlerEntry> make_input_handlers()
     entries.push_back({"key_press",
                        [](AutomationRequest& req, App& /*app*/, WindowUIContext* ui_ctx)
                        {
-#ifdef SPECTRA_USE_GLFW
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
                            if (!ui_ctx)
                            {
                                req.response_json = json_error(req.id, "No UI context");
@@ -140,7 +194,7 @@ std::vector<AutomationHandlerEntry> make_input_handlers()
                            req.response_json = json_ok(req.id);
 #else
                            (void)ui_ctx;
-                           req.response_json = json_error(req.id, "GLFW not available");
+                           req.response_json = json_error(req.id, "No windowing backend");
 #endif
                        }});
 
@@ -169,7 +223,7 @@ std::vector<AutomationHandlerEntry> make_input_handlers()
     entries.push_back({"double_click",
                        [](AutomationRequest& req, App& /*app*/, WindowUIContext* ui_ctx)
                        {
-#ifdef SPECTRA_USE_GLFW
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
                            if (!ui_ctx)
                            {
                                req.response_json = json_error(req.id, "No UI context");
@@ -188,7 +242,7 @@ std::vector<AutomationHandlerEntry> make_input_handlers()
                            req.response_json = json_ok(req.id);
 #else
                            (void)ui_ctx;
-                           req.response_json = json_error(req.id, "GLFW not available");
+                           req.response_json = json_error(req.id, "No windowing backend");
 #endif
                        }});
 

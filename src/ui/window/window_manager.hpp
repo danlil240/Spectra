@@ -14,6 +14,7 @@
 
 // Forward declarations
 struct GLFWwindow;
+struct SDL_Window;
 
 namespace spectra
 {
@@ -24,6 +25,11 @@ class Renderer;
 class ExportFormatRegistry;
 class PluginManager;
 class SessionRuntime;
+
+namespace ui::settings
+{
+class SettingsStore;
+}
 
 // Manages multiple OS windows, each with its own GLFW window, Vulkan surface,
 // swapchain, command buffers, and sync objects.  Shared Vulkan resources
@@ -84,6 +90,9 @@ class WindowManager
 
     // Single glfwPollEvents() call for all windows.
     void poll_events();
+
+    // SDL3 event pump — drains SDL_PollEvent and routes to input handlers.
+    void process_sdl3_events();
 
     // Block until an event arrives or timeout (seconds) elapses.
     // Use when the application is idle (nothing to render) to save CPU/GPU.
@@ -269,6 +278,9 @@ class WindowManager
     void set_export_format_registry(ExportFormatRegistry* reg) { export_format_registry_ = reg; }
     void set_session_runtime(SessionRuntime* session) { session_ = session; }
 
+    // Process-scoped settings store passed through to each window UI context.
+    void set_settings_store(ui::settings::SettingsStore* s) { settings_store_ = s; }
+
     // Shared overlay registry (owned here, shared with all windows and PluginManager).
     OverlayRegistry& overlay_registry() { return shared_overlay_registry_; }
 
@@ -303,6 +315,9 @@ class WindowManager
 
     // Helper: find the WindowContext for a GLFW window handle
     WindowContext* find_by_glfw_window(GLFWwindow* window) const;
+
+    // Helper: find the WindowContext for an SDL3 window handle
+    WindowContext* find_by_sdl3_window(SDL_Window* window) const;
 
     void request_redraw(const char* reason);
 
@@ -351,6 +366,9 @@ class WindowManager
     PluginManager*        plugin_manager_         = nullptr;
     ExportFormatRegistry* export_format_registry_ = nullptr;
     SessionRuntime*       session_                = nullptr;
+
+    // Process-scoped settings store (owned externally by App/agent).
+    ui::settings::SettingsStore* settings_store_ = nullptr;
 
     // Monotonic z-order counter — incremented each time any window gains focus.
     // Each window's z_order field stores the value at its last focus event.

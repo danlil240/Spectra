@@ -23,7 +23,12 @@
     #include "ui/layout/layout_manager.hpp"
     #include "ui/input/selection_context.hpp"
 
+    #ifdef SPECTRA_USE_GLFW
 struct GLFWwindow;
+    #endif
+    #ifdef SPECTRA_USE_SDL3
+struct SDL_Window;
+    #endif
 struct ImFont;
 struct ImFontAtlas;
 struct ImGuiContext;
@@ -36,6 +41,10 @@ class ThemeManager;
 namespace topics
 {
 class TopicsPanel;
+}
+namespace settings
+{
+class SettingsPanel;
 }
 }   // namespace spectra::ui
 
@@ -81,7 +90,12 @@ class ImGuiIntegration
     ImGuiIntegration(const ImGuiIntegration&)            = delete;
     ImGuiIntegration& operator=(const ImGuiIntegration&) = delete;
 
+    #ifdef SPECTRA_USE_GLFW
     bool init(VulkanBackend& backend, GLFWwindow* window, bool install_callbacks = true);
+    #endif
+    #ifdef SPECTRA_USE_SDL3
+    bool init_sdl3(VulkanBackend& backend, SDL_Window* window);
+    #endif
     bool is_initialized() const { return initialized_; }
 
     // Headless init: no GLFW window, no platform backend.
@@ -264,6 +278,10 @@ class ImGuiIntegration
     void                     set_topics_panel(ui::topics::TopicsPanel* p) { topics_panel_ = p; }
     ui::topics::TopicsPanel* topics_panel() const { return topics_panel_; }
 
+    // Settings panel — owned externally (WindowUIContext).
+    void set_settings_panel(ui::settings::SettingsPanel* p) { settings_panel_ = p; }
+    ui::settings::SettingsPanel* settings_panel() const { return settings_panel_; }
+
     // Tab bar (owned externally by App)
     void    set_tab_bar(TabBar* tb) { tab_bar_ = tb; }
     TabBar* tab_bar() const { return tab_bar_; }
@@ -282,6 +300,10 @@ class ImGuiIntegration
         std::function<void(FigureId figure_id, float screen_x, float screen_y)>;
     using PaneTabRenameCallback =
         std::function<void(FigureId figure_id, const std::string& new_title)>;
+
+    // Returns the per-window ImGui context — used by automation to inject into
+    // the correct context when multiple windows are active.
+    ImGuiContext* imgui_context() const { return imgui_context_; }
 
     void set_pane_tab_duplicate_cb(PaneTabCallback cb) { pane_tab_duplicate_cb_ = std::move(cb); }
     void set_pane_tab_close_cb(PaneTabCallback cb) { pane_tab_close_cb_ = std::move(cb); }
@@ -617,6 +639,9 @@ class ImGuiIntegration
 
     // Topics panel (Phase 2 of plans/SPECTRA_TOPICS_PLAN.md) — not owned.
     ui::topics::TopicsPanel* topics_panel_ = nullptr;
+
+    // Settings panel — not owned.
+    ui::settings::SettingsPanel* settings_panel_ = nullptr;
 
     // Tab bar (not owned)
     TabBar* tab_bar_ = nullptr;

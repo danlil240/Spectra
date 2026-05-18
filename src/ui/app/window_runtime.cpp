@@ -16,7 +16,9 @@
     #define GLFW_INCLUDE_NONE
     #define GLFW_INCLUDE_VULKAN
     #include <GLFW/glfw3.h>
+#endif
 
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
     #include "ui/window/window_manager.hpp"
 #endif
 
@@ -45,7 +47,7 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                            bool             allow_animation_tick,
                            float            animation_dt,
                            FrameProfiler*   profiler
-#ifdef SPECTRA_USE_GLFW
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
                            ,
                            WindowManager* /*window_mgr*/
 #endif
@@ -104,7 +106,7 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
     }
 #endif
 
-#ifdef SPECTRA_USE_GLFW
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
     // Update interaction animations (animated zoom, inertial pan, auto-fit)
     auto& input_handler = ui_ctx.input_handler;
     input_handler.update(scheduler.dt());
@@ -124,7 +126,7 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
             {
                 scheduler.set_target_fps(active_figure->anim_.fps);
                 has_animation = active_figure->has_animation();
-    #ifdef SPECTRA_USE_GLFW
+    #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
                 input_handler.set_figure(active_figure);
                 // Phase 2 (LT-5): wire FigureViewModel for ViewModel-based limit mutations
                 if (ui_ctx.fig_mgr)
@@ -330,7 +332,7 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
     }
 #endif
 
-#ifdef SPECTRA_USE_GLFW
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
     // Time-based resize debounce: recreate swapchain only when size has
     // stabilized (no new callback for RESIZE_DEBOUNCE ms). During drag,
     // we keep rendering with the old swapchain (slightly stretched but
@@ -778,7 +780,7 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
             active_figure->compute_layout();
 #endif
 
-#ifdef SPECTRA_USE_GLFW
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
         // Update input handler with visible canvas height for page scroll
         if (active_figure)
         {

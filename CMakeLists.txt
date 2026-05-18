@@ -45,6 +45,7 @@ endif()
 
 # Feature flags
 option(SPECTRA_USE_GLFW    "Enable GLFW windowing adapter"       ON)
+option(SPECTRA_USE_SDL3    "Enable SDL3 windowing adapter"        OFF)
 option(SPECTRA_USE_IMGUI   "Enable Dear ImGui menu bar/settings" ON)
 option(SPECTRA_USE_QT      "Enable Qt adapter scaffolding"        OFF)
 option(SPECTRA_USE_FFMPEG  "Enable video export via ffmpeg pipe"  ON)
@@ -330,6 +331,61 @@ if(SPECTRA_USE_GLFW)
     target_compile_definitions(spectra PUBLIC SPECTRA_USE_GLFW)
 endif()
 
+# SDL3 adapter (optional, mutually exclusive with GLFW)
+if(SPECTRA_USE_GLFW AND SPECTRA_USE_SDL3)
+    message(FATAL_ERROR "SPECTRA_USE_GLFW and SPECTRA_USE_SDL3 are mutually exclusive. "
+                        "Enable only one windowing backend at a time.")
+endif()
+
+if(SPECTRA_USE_SDL3)
+    find_package(SDL3 QUIET)
+    if(NOT SDL3_FOUND)
+        include(FetchContent)
+        FetchContent_Declare(
+            SDL3
+            URL https://github.com/libsdl-org/SDL/releases/download/release-3.2.0/SDL3-3.2.0.tar.gz
+        )
+        set(SDL_SHARED  OFF CACHE BOOL "" FORCE)
+        set(SDL_STATIC  ON  CACHE BOOL "" FORCE)
+        set(SDL_TESTS   OFF CACHE BOOL "" FORCE)
+        set(SDL_VULKAN  ON  CACHE BOOL "" FORCE)
+        FetchContent_MakeAvailable(SDL3)
+        # Build SDL3 static lib with -fPIC so it can be linked into shared libraries
+        # (e.g. libspectra_embed.so, Python extension modules, Qt adapters).
+        if(TARGET SDL3-static)
+            set_target_properties(SDL3-static PROPERTIES POSITION_INDEPENDENT_CODE ON)
+        endif()
+    endif()
+
+    target_sources(spectra PRIVATE
+        src/ui/window/sdl3_adapter.cpp
+        src/ui/window/window_sdl3_events.cpp
+        src/platform/window_system/sdl3_surface_host.cpp
+    )
+    # Link PRIVATE: SDL3 is an implementation detail; don't export to downstream consumers.
+    target_link_libraries(spectra PRIVATE SDL3::SDL3-static)
+    target_include_directories(spectra PRIVATE
+        $<TARGET_PROPERTY:SDL3::SDL3-static,INTERFACE_INCLUDE_DIRECTORIES>
+    )
+    target_compile_definitions(spectra PUBLIC SPECTRA_USE_SDL3)
+
+    # FetchContent produces real (non-IMPORTED) targets. CMake requires every target in
+    # the dependency chain of an exported target to also be in the export set.
+    # SDL3-static links SDL3_Headers (interface). We add both so the export validates.
+    # IMPORTED targets from find_package don't have this restriction.
+    if(NOT SDL3_FOUND)
+        set(_sdl3_export_targets SDL3-static)
+        foreach(_t SDL3_Headers SDL3main)
+            if(TARGET ${_t})
+                list(APPEND _sdl3_export_targets ${_t})
+            endif()
+        endforeach()
+        install(TARGETS ${_sdl3_export_targets} EXPORT spectraTargets
+            ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        )
+    endif()
+endif()
+
 # Qt adapter (optional)
 if(SPECTRA_USE_QT)
     find_package(Qt6 COMPONENTS Gui REQUIRED)
@@ -347,8 +403,8 @@ if(SPECTRA_USE_QT)
     target_compile_definitions(spectra_qt_adapter PUBLIC SPECTRA_USE_QT)
 endif()
 
-# Dear ImGui (optional — requires GLFW)
-if(SPECTRA_USE_IMGUI AND SPECTRA_USE_GLFW)
+# Dear ImGui (optional — requires GLFW or SDL3)
+if(SPECTRA_USE_IMGUI AND (SPECTRA_USE_GLFW OR SPECTRA_USE_SDL3))
     include(FetchContent)
     FetchContent_Declare(
         imgui
@@ -358,13 +414,18 @@ if(SPECTRA_USE_IMGUI AND SPECTRA_USE_GLFW)
     FetchContent_MakeAvailable(imgui)
 
     # ImGui core (always present when ImGui is enabled)
+    if(SPECTRA_USE_GLFW)
+        set(_imgui_window_backend_src ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp)
+    elseif(SPECTRA_USE_SDL3)
+        set(_imgui_window_backend_src ${imgui_SOURCE_DIR}/backends/imgui_impl_sdl3.cpp)
+    endif()
     target_sources(spectra PRIVATE
         ${imgui_SOURCE_DIR}/imgui.cpp
         ${imgui_SOURCE_DIR}/imgui_demo.cpp
         ${imgui_SOURCE_DIR}/imgui_draw.cpp
         ${imgui_SOURCE_DIR}/imgui_tables.cpp
         ${imgui_SOURCE_DIR}/imgui_widgets.cpp
-        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
+        ${_imgui_window_backend_src}
         ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
         src/ui/imgui/imgui_integration.cpp
         src/ui/imgui/imgui_command_bar.cpp
@@ -426,6 +487,8 @@ if(SPECTRA_USE_IMGUI AND SPECTRA_USE_GLFW)
         src/ui/app/commands/commands_data.cpp
         src/ui/app/commands/commands_app.cpp
         src/ui/topics/topics_panel.cpp
+        src/ui/settings/settings_store.cpp
+        src/ui/settings/settings_panel.cpp
     )
         if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${_imgui_src})
             target_sources(spectra PRIVATE ${_imgui_src})
@@ -435,6 +498,11 @@ if(SPECTRA_USE_IMGUI AND SPECTRA_USE_GLFW)
         ${imgui_SOURCE_DIR}
         ${imgui_SOURCE_DIR}/backends
     )
+    if(SPECTRA_USE_SDL3)
+        target_include_directories(spectra PRIVATE
+            $<TARGET_PROPERTY:SDL3::SDL3-static,INTERFACE_INCLUDE_DIRECTORIES>
+        )
+    endif()
     target_compile_definitions(spectra PUBLIC SPECTRA_USE_IMGUI)
 endif()
 
@@ -591,7 +659,7 @@ if(SPECTRA_USE_ROS2)
 
     # Forward ImGui include paths so topic_list_panel.cpp can find imgui.h
     # when SPECTRA_USE_IMGUI is ON (inherited via spectra PUBLIC definition).
-    if(SPECTRA_USE_IMGUI AND SPECTRA_USE_GLFW AND DEFINED imgui_SOURCE_DIR)
+    if(SPECTRA_USE_IMGUI AND (SPECTRA_USE_GLFW OR SPECTRA_USE_SDL3) AND DEFINED imgui_SOURCE_DIR)
         target_include_directories(spectra_ros2_adapter PRIVATE
             ${imgui_SOURCE_DIR}
             ${imgui_SOURCE_DIR}/backends
@@ -729,7 +797,7 @@ if(SPECTRA_USE_PX4)
     endif()
 
     # Forward ImGui include paths so UI panels can find imgui.h.
-    if(SPECTRA_USE_IMGUI AND SPECTRA_USE_GLFW AND DEFINED imgui_SOURCE_DIR)
+    if(SPECTRA_USE_IMGUI AND (SPECTRA_USE_GLFW OR SPECTRA_USE_SDL3) AND DEFINED imgui_SOURCE_DIR)
         target_include_directories(spectra_px4_adapter PRIVATE
             ${imgui_SOURCE_DIR}
             ${imgui_SOURCE_DIR}/backends
@@ -779,7 +847,7 @@ if(SPECTRA_BUILD_EMBED_SHARED)
     )
     # When ImGui is enabled, the embed surface uses it for full UI rendering.
     # Forward ImGui include paths so embed_surface.cpp can find imgui headers.
-    if(SPECTRA_USE_IMGUI AND SPECTRA_USE_GLFW AND DEFINED imgui_SOURCE_DIR)
+    if(SPECTRA_USE_IMGUI AND (SPECTRA_USE_GLFW OR SPECTRA_USE_SDL3) AND DEFINED imgui_SOURCE_DIR)
         target_include_directories(spectra_embed PRIVATE
             ${imgui_SOURCE_DIR}
             ${imgui_SOURCE_DIR}/backends
@@ -792,7 +860,7 @@ if(SPECTRA_BUILD_EMBED_SHARED)
 endif()
 
 # spectra — main application executable (welcome screen, no initial figure)
-if(SPECTRA_USE_GLFW AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/app/main.cpp)
+if((SPECTRA_USE_GLFW OR SPECTRA_USE_SDL3) AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/app/main.cpp)
     add_executable(spectra-app src/app/main.cpp)
     target_link_libraries(spectra-app PRIVATE spectra)
     target_compile_features(spectra-app PRIVATE cxx_std_20)
@@ -843,6 +911,11 @@ if(SPECTRA_RUNTIME_MODE STREQUAL "multiproc")
                 ${imgui_SOURCE_DIR}
                 ${imgui_SOURCE_DIR}/backends
             )
+            if(SPECTRA_USE_SDL3)
+                target_include_directories(spectra-window PRIVATE
+                    $<TARGET_PROPERTY:SDL3::SDL3-static,INTERFACE_INCLUDE_DIRECTORIES>
+                )
+            endif()
         endif()
     endif()
 endif()

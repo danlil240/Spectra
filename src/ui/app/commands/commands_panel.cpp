@@ -68,6 +68,13 @@ std::vector<CommandDescriptor> make_panel_commands(CommandContext& ctx)
                     0,
                     [&]() { ui_ctx.topics_panel.set_visible(!ui_ctx.topics_panel.is_visible()); }});
 
+    cmds.push_back({"panel.open_settings",
+                    "Settings",
+                    "",
+                    "Panel",
+                    0,
+                    [&]() { ui_ctx.settings_panel.open(); }});
+
     cmds.push_back(
         {"panel.toggle_inspector",
          "Toggle Inspector Panel",

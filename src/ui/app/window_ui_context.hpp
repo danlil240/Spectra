@@ -22,15 +22,18 @@
     #include "ui/overlay/knob_manager.hpp"
     #include "ui/animation/mode_transition.hpp"
     #include "ui/overlay/overlay_registry.hpp"
+    #include "ui/commands/shortcut_config.hpp"
     #include "ui/commands/shortcut_manager.hpp"
     #include "ui/figures/tab_bar.hpp"
     #include "ui/figures/tab_drag_controller.hpp"
     #include "ui/animation/timeline_editor.hpp"
     #include "ui/commands/undo_manager.hpp"
     #include "ui/topics/topics_panel.hpp"
+    #include "ui/settings/settings_panel.hpp"
+    #include "ui/settings/settings_store.hpp"
 #endif
 
-#ifdef SPECTRA_USE_GLFW
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
     #include "ui/animation/animation_controller.hpp"
     #include "ui/input/gesture_recognizer.hpp"
     #include "ui/input/input.hpp"
@@ -91,6 +94,12 @@ struct WindowUIContext
     // externally (by the agent or app shell).
     ui::topics::TopicsPanel topics_panel;
 
+    // Settings panel — owned by this context, wired to the process-scoped
+    // SettingsStore during window_ui_context_builder.
+    ShortcutConfig               settings_cfg;
+    ui::settings::SettingsPanel  settings_panel;
+    ui::settings::SettingsStore* settings_store = nullptr;
+
     // Plugin overlay registry (shared across windows, not owned — owned by PluginManager)
     OverlayRegistry* overlay_registry = nullptr;
 
@@ -107,7 +116,7 @@ struct WindowUIContext
     // have been migrated to FigureViewModel (per-figure state).
 #endif
 
-#ifdef SPECTRA_USE_GLFW
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
     AnimationController anim_controller;
     GestureRecognizer   gesture;
     InputHandler        input_handler;
@@ -117,10 +126,13 @@ struct WindowUIContext
     uint32_t                              new_height   = 0;
     std::chrono::steady_clock::time_point resize_requested_time;
 
-    // Raw GLFW window handle (not owned). Set by app_step after window creation.
-    // Used by automation resize_window to call glfwSetWindowSize.
+    // Raw window handle (not owned). Set by app_step after window creation.
+    // Used by automation resize_window to call the appropriate resize API.
     void* glfw_window = nullptr;
 #endif
+
+    // Runtime copy of last export directory. Synced to WorkspaceData on save/load.
+    std::string last_export_dir;
 
     // Non-copyable, non-movable (contains unique_ptrs and non-movable types)
     WindowUIContext()                                  = default;

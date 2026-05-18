@@ -4,7 +4,9 @@
 #include "../automation_json.hpp"
 #include "../automation_server.hpp"
 
+#include <spectra/app.hpp>
 #include "ui/app/window_ui_context.hpp"
+#include "ui/app/session_runtime.hpp"
 #include "ui/commands/command_registry.hpp"
 
 #include <sstream>
@@ -17,7 +19,7 @@ std::vector<AutomationHandlerEntry> make_command_handlers()
     std::vector<AutomationHandlerEntry> entries;
 
     entries.push_back({"execute_command",
-                       [](AutomationRequest& req, App& /*app*/, WindowUIContext* ui_ctx)
+                       [](AutomationRequest& req, App& app, WindowUIContext* ui_ctx)
                        {
                            std::string cmd_id = json_get_string(req.params_json, "command_id");
                            if (cmd_id.empty())
@@ -32,6 +34,14 @@ std::vector<AutomationHandlerEntry> make_command_handlers()
                                return;
                            }
                            bool ok = ui_ctx->cmd_registry.execute(cmd_id);
+                           // Ensure the frame is redrawn after any command execution
+                           // so that visibility changes (e.g. panel.open_settings) take
+                           // effect on the next captured screenshot.
+                           if (ok)
+                           {
+                               if (auto* sess = app.session())
+                                   sess->redraw_tracker().mark_dirty("execute_command");
+                           }
                            req.response_json =
                                ok ? json_ok(req.id,
                                             "{\"executed\":\"" + json_escape(cmd_id) + "\"}")

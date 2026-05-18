@@ -19,8 +19,14 @@
     #define GLFW_INCLUDE_NONE
     #define GLFW_INCLUDE_VULKAN
     #include <GLFW/glfw3.h>
+#endif
 
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
     #include "ui/window/window_manager.hpp"
+#endif
+
+#ifdef SPECTRA_USE_SDL3
+    #include <SDL3/SDL.h>
 #endif
 
 #ifdef SPECTRA_USE_IMGUI
@@ -57,7 +63,7 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
                                 CommandQueue&    cmd_queue,
                                 bool             headless,
                                 WindowUIContext* headless_ui_ctx,
-#ifdef SPECTRA_USE_GLFW
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
                                 WindowManager* window_mgr,
 #endif
                                 FrameState& frame_state)
@@ -123,7 +129,7 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
         animation_dt = animation_due_tick ? animation_tick_gate_.consume_accumulated_dt() : 0.0f;
 
     // ── Unified window update + render loop ───────────────────────
-#ifdef SPECTRA_USE_GLFW
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
     if (window_mgr)
     {
         auto* vk = static_cast<VulkanBackend*>(&backend_);
@@ -324,19 +330,29 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
                         (mouse_pos.x >= tb_min.x && mouse_pos.x <= tb_max.x
                          && mouse_pos.y >= tb_min.y && mouse_pos.y <= tb_max.y && !close_hovered);
 
+    #ifdef SPECTRA_USE_GLFW
                     auto* glfw_win = static_cast<GLFWwindow*>(wctx->glfw_window);
+    #endif
                     if (title_hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
                     {
                         wctx->titlebar_dragging = true;
+    #ifdef SPECTRA_USE_GLFW
                         double cx_d, cy_d;
                         glfwGetCursorPos(glfw_win, &cx_d, &cy_d);
                         wctx->drag_offset_x = cx_d;
                         wctx->drag_offset_y = cy_d;
+    #elif defined(SPECTRA_USE_SDL3)
+                        float cx_f, cy_f;
+                        SDL_GetMouseState(&cx_f, &cy_f);
+                        wctx->drag_offset_x = static_cast<double>(cx_f);
+                        wctx->drag_offset_y = static_cast<double>(cy_f);
+    #endif
                     }
                     if (wctx->titlebar_dragging)
                     {
                         if (ImGui::IsMouseDown(ImGuiMouseButton_Left))
                         {
+    #ifdef SPECTRA_USE_GLFW
                             double sx, sy;
                             glfwGetCursorPos(glfw_win, &sx, &sy);
                             int wx, wy;
@@ -344,6 +360,19 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
                             int new_x = wx + static_cast<int>(sx - wctx->drag_offset_x);
                             int new_y = wy + static_cast<int>(sy - wctx->drag_offset_y);
                             glfwSetWindowPos(glfw_win, new_x, new_y);
+    #elif defined(SPECTRA_USE_SDL3)
+                            float sx, sy;
+                            SDL_GetMouseState(&sx, &sy);
+                            int wx = 0, wy = 0;
+                            SDL_GetWindowPosition(static_cast<SDL_Window*>(wctx->glfw_window),
+                                                  &wx,
+                                                  &wy);
+                            int new_x = wx + static_cast<int>(sx - wctx->drag_offset_x);
+                            int new_y = wy + static_cast<int>(sy - wctx->drag_offset_y);
+                            SDL_SetWindowPosition(static_cast<SDL_Window*>(wctx->glfw_window),
+                                                  new_x,
+                                                  new_y);
+    #endif
                         }
                         else
                         {
@@ -409,7 +438,7 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
                 }
             }
 
-    #ifdef SPECTRA_USE_GLFW
+    #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
             // Mark dirty when the input handler is actively dragging (pan/zoom/box)
             // or when a zoom/inertia animation is still running.
             if (wctx->ui_ctx)
@@ -508,7 +537,7 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
                        allow_animation_tick,
                        animation_dt,
                        &profiler_
-#ifdef SPECTRA_USE_GLFW
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
                        ,
                        nullptr
 #endif
@@ -520,7 +549,7 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
     // use WindowManager.  No ImGui, no multi-window — just render the
     // active figure directly.  Always render (no smart redraw tracking
     // without WindowManager to drive the dirty state).
-#ifdef SPECTRA_USE_GLFW
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
     if (!headless && !window_mgr && frame_state.active_figure)
     {
         auto* fig           = frame_state.active_figure;
@@ -542,7 +571,7 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
 #endif
 
     // ── Process deferred preview window create/destroy ─────────
-#ifdef SPECTRA_USE_GLFW
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
     if (window_mgr)
     {
         window_mgr->process_deferred_preview();
@@ -550,7 +579,7 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
 #endif
 
     // ── Process deferred detach requests ─────────────────────────
-#ifdef SPECTRA_USE_GLFW
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
     if (window_mgr && !pending_detaches_.empty())
     {
         for (auto& pd : pending_detaches_)
@@ -601,7 +630,11 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
             // main loop can crash when the primary ImGui context is torn down.
             if (pf.empty() && src_wctx->glfw_window)
             {
+    #ifdef SPECTRA_USE_GLFW
                 glfwHideWindow(static_cast<GLFWwindow*>(src_wctx->glfw_window));
+    #elif defined(SPECTRA_USE_SDL3)
+                SDL_HideWindow(static_cast<SDL_Window*>(src_wctx->glfw_window));
+    #endif
                 src_wctx->should_close = true;
             }
 
@@ -698,7 +731,11 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
             // main loop can crash when the primary ImGui context is torn down.
             if (spf.empty() && src_wctx->glfw_window)
             {
+    #ifdef SPECTRA_USE_GLFW
                 glfwHideWindow(static_cast<GLFWwindow*>(src_wctx->glfw_window));
+    #elif defined(SPECTRA_USE_SDL3)
+                SDL_HideWindow(static_cast<SDL_Window*>(src_wctx->glfw_window));
+    #endif
                 src_wctx->should_close = true;
             }
 
@@ -825,7 +862,7 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
     }
 
     // ── Poll events + check exit ─────────────────────────────────
-#ifdef SPECTRA_USE_GLFW
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
     if (window_mgr)
     {
         // Only check for sustained states that don't generate fresh OS events.

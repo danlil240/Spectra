@@ -1,8 +1,8 @@
 # Spectra Visual QA Design Review
 
-> **Last Updated:** 2026-05-16
+> **Last Updated:** 2026-05-17
 > **Test Health:** 140/140 unit tests PASS · 59/59 golden image tests PASS · 103/103 accessibility tests PASS
-> **Design Health:** ✅ Good — No P0/P1 defects found. WCAG AA contrast failure fixed (A11Y-001).
+> **Design Health:** ✅ Good — No P0/P1 defects open. Settings panel accessibility audit complete 2026-05-17.
 
 ---
 
@@ -10,7 +10,14 @@
 
 | ID  | Priority | Status | Description | File | Line |
 |-----|----------|--------|-------------|------|------|
+| A11Y-SP-3 | P2 | Open | High-contrast theme conflict text: `theme().error = #FF0000` (L=0.213) gives 5.41:1 on `bg_secondary` (#1C1C1C). Fails ≥7:1 AAA target for high-contrast theme. Pure red hues cannot reach 7:1 on dark backgrounds — fix requires adding an icon/shape indicator (`ImGui::Text("[!]...")`) so color is not the sole conveyor of conflict state. | `src/ui/settings/settings_panel.cpp` | `draw_shortcuts_tab()` |
+| A11Y-SP-4 | P2 | Open | Keyboard nav burden in Shortcuts table: with no arrow-key row navigation, reaching buttons at the bottom of a large table requires O(n) Tab presses. Mitigated by the filter box, but filter discoverability is low on first use. Consider `ImGuiTableFlags_NoBordersInBodyUntilResize` + keyboard hint tooltip on the filter. | `src/ui/settings/settings_panel.cpp` | `draw_shortcuts_tab()` |
+| A11Y-SP-5 | P2 | Open | Light theme `warning` token `#9A6700` (L=0.168) achieves only 3.84:1 on `bg_secondary` (#DCE5F0) — fails WCAG AA 4.5:1. Affects the "Press key… (Esc = cancel)" capture indicator on light theme. Token fix requires golden baseline regeneration. Proposed value: `#7A5000` (L=0.102, contrast 6.29:1). | `src/ui/theme/theme.cpp` | light `warning` token |
 | D-3 | P3 | Open | Dark theme tick label has a blue tint (hex `0xA0A8B0` = RGB 160/168/176). The dark theme design intent is "neutral gray, no blue tints," but the 10-unit blue step on each channel is still visible on axis tick text. | `src/ui/theme/theme.cpp` | ~1015 |
+| D-4 | P3 | Open | Appearance tab has a large empty area (≈ 180px) below the "Reset to Defaults" button. The panel height is fixed at 472px but content only occupies the top 280px. Low visual density. | `src/ui/settings/settings_panel.cpp` | `draw_appearance_tab()` |
+| D-5 | P3 | Open | `SameLine(170.0f)` hardcoded pixel offset aligns Theme/Palette labels to their combos. Will break at non-default font scales. | `src/ui/settings/settings_panel.cpp` | `draw_appearance_tab()` |
+| D-6 | P3 | Fixed | Conflict/capture indicator colors in Shortcuts tab were hardcoded — now use `theme().error` / `theme().warning` tokens. | `src/ui/settings/settings_panel.cpp` | `draw_shortcuts_tab()` |
+| D-7 | P3 | Open | `active_tab_` member in `SettingsPanel` is set but never read; ImGui manages tab state. Dead code, minor confusion risk. | `src/ui/settings/settings_panel.hpp` | `active_tab_` member |
 
 ---
 
@@ -18,6 +25,14 @@
 
 | ID  | Priority | Resolution | Description | File | Fix |
 |-----|----------|------------|-------------|------|-----|
+| A11Y-SP-1 | P1 | Fixed 2026-05-17 | Conflict shortcut text used hardcoded `ImVec4(1,0.4,0.4,1)` = #FF6666. Contrast on **light** bg_secondary (#DCE5F0): **2.25:1** (required 4.5:1). Contrast on **dark** bg_secondary (#2E2E2E): **4.12:1** (required 4.5:1). | `src/ui/settings/settings_panel.cpp` + `src/ui/theme/theme.cpp` | Used `theme().error` token; raised dark `error` #F85149→**#FF7575** (4.52:1 on dark bg_secondary); darkened light `error` #CF222E→**#B91C1C** (5.09:1 on light bg_secondary). Also prepends `[!]` prefix (WCAG 1.4.1). |
+| A11Y-SP-2 | P2 | Fixed 2026-05-17 | Capture indicator "Press key..." used hardcoded amber — not from theme tokens (D-6). Added `(Esc = cancel)` suffix. | `src/ui/settings/settings_panel.cpp` | Replaced with `theme().warning` color. |
+| A11Y-SP-6 | P2 | Fixed 2026-05-17 | "X" SmallButton for removing shortcut overrides had no label or tooltip — action was not discoverable for keyboard-only users. | `src/ui/settings/settings_panel.cpp` | Added `SetTooltip("Remove custom shortcut override")` on hover. |
+| A11Y-SP-7 | P2 | Fixed 2026-05-17 | Palette dropdown listed internal codenames only ("default", "colorblind"…); CVD status was not communicated, making it inaccessible to users with color vision deficiency. | `src/ui/settings/settings_panel.cpp` | Dropdown items now query `theme_mgr_->get_data_palette(key).colorblind_safe` and append `"(CVD-safe)"` or `"(not CVD-safe)"` to each label. |
+| SP-1 | P0 | Fixed 2026-05-17 | Settings panel never appeared after `execute_command("panel.open_settings")` — automation MCP call returned `ok` but panel was invisible. Root cause: `settings_panel.open()` sets `visible_=true` but `RedrawTracker` stayed idle, skipping all render ticks. | `src/ui/automation/handlers/handlers_command.cpp` | Added `sess->redraw_tracker().mark_dirty("execute_command")` after every successful `cmd_registry.execute()` call. |
+| SP-2 | P1 | Fixed 2026-05-17 | Welcome screen content (logo, instructions text) bled through Settings window background at `opacity_panel=0.95f` alpha. | `src/ui/settings/settings_panel.cpp` | Push `ImGuiCol_WindowBg` at `0.98f` alpha before `Begin()`, matching the CSV dialog pattern in `imgui_dialogs.cpp`. |
+| SP-3 | P1 | Fixed 2026-05-17 | Tab bar near-invisible: inactive tabs were indistinguishable from window background (`tab_idle = bg_secondary.lerp(bg_tertiary, 0.25f)` and `ImGuiCol_Tab` at `0.70f` alpha). | `src/ui/theme/theme.cpp` | Raised `tab_idle` lerp to `0.50`, `tab_hover` to `0.22`, `tab_selected` to `0.36`; raised `ImGuiCol_Tab` alpha to `0.90f`. |
+| SP-4 | P2 | Fixed 2026-05-17 | Settings window appeared at `(0,0)` (top-left corner) on first open — centering via `vp->GetCenter()` did not work on first `ImGuiCond_Appearing`. | `src/ui/settings/settings_panel.cpp` | Changed `SetNextWindowPos` pivot to use `io.DisplaySize * 0.5f`, matching the CSV dialog pattern. Panel now renders centered at 1280×720. |
 | A11Y-001 | P1 | Fixed 2026-05-16 | Dark theme `text_secondary` (#909090) measured 4.25:1 on `bg_secondary` (#2E2E2E) and 3.79:1 on `bg_tertiary` (#363636) — both below WCAG AA 4.5:1 threshold. Affected inspector labels and placeholder text in inputs. | `src/ui/theme/theme.cpp` | `text_secondary` bumped from `0x909090` to `0xA0A0A0`; now 5.19:1 / 4.62:1 / 5.71:1 / 6.16:1 across all dark surfaces. |
 | D-1 | P3 | Fixed 2026-07-08 | Inspector toggle chevron glyph rendered at fractional pixel coordinates — blurry at 125%/150% DPI. Fixed by applying `std::floor()` to both `ix` and `iy` before `AddText`. | `src/ui/imgui/imgui_panels.cpp` | `draw_inspector_toggle()` — `ix`/`iy` now floored |
 | D-2 | P3 | Fixed 2026-07-08 | Inspector tab separator horizontal hairline rendered with un-snapped Y coordinate from `GetCursorScreenPos().y`. Fixed by wrapping in `std::floor()`. | `src/ui/imgui/imgui_panels.cpp` | `draw_inspector()` — `sep_y` now `std::floor(GetCursorScreenPos().y)` |

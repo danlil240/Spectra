@@ -12,6 +12,7 @@
 #include "ui/figures/figure_manager.hpp"
 
 #ifdef SPECTRA_USE_IMGUI
+    #include "ui/export_dialog.hpp"
     #include "ui/theme/icons.hpp"
     #include "ui/theme/theme.hpp"
     #include "ui/workspace/plugin_api.hpp"
@@ -46,7 +47,16 @@ std::vector<CommandDescriptor> make_file_commands(CommandContext& ctx)
                     {
                         if (!active_figure)
                             return;
-                        active_figure->save_png("spectra_export.png");
+                        const char* patterns[] = {"*.png"};
+                        auto        path       = spectra::ask_export_path("Export PNG",
+                                                                          "spectra_export.png",
+                                                                          1,
+                                                                          patterns,
+                                                                          "PNG Image",
+                                                                          ui_ctx.last_export_dir);
+                        if (!path)
+                            return;
+                        active_figure->save_png(*path);
                     }});
 
     cmds.push_back({"file.export_svg",
@@ -58,7 +68,16 @@ std::vector<CommandDescriptor> make_file_commands(CommandContext& ctx)
                     {
                         if (!active_figure)
                             return;
-                        active_figure->save_svg("spectra_export.svg");
+                        const char* patterns[] = {"*.svg"};
+                        auto        path       = spectra::ask_export_path("Export SVG",
+                                                                          "spectra_export.svg",
+                                                                          1,
+                                                                          patterns,
+                                                                          "SVG Image",
+                                                                          ui_ctx.last_export_dir);
+                        if (!path)
+                            return;
+                        active_figure->save_svg(*path);
                     }});
 
     cmds.push_back({"file.copy_to_clipboard",
@@ -157,9 +176,10 @@ std::vector<CommandDescriptor> make_file_commands(CommandContext& ctx)
                             data.figures[i].custom_tab_title = fig_mgr.get_title(i);
                             data.figures[i].is_modified      = fig_mgr.is_modified(i);
                         }
-                        data.undo_count = undo_mgr.undo_count();
-                        data.redo_count = undo_mgr.redo_count();
-                        data.dock_state = dock_system.serialize();
+                        data.undo_count      = undo_mgr.undo_count();
+                        data.redo_count      = undo_mgr.redo_count();
+                        data.dock_state      = dock_system.serialize();
+                        data.last_export_dir = ui_ctx.last_export_dir;
                         if (ui_ctx.plugin_manager)
                             data.plugin_state = ui_ctx.plugin_manager->serialize_state();
                         Workspace::save(Workspace::default_path(), data);
@@ -250,6 +270,8 @@ std::vector<CommandDescriptor> make_file_commands(CommandContext& ctx)
                  }
                  if (ui_ctx.plugin_manager && !data.plugin_state.empty())
                      ui_ctx.plugin_manager->deserialize_state(data.plugin_state);
+                 if (!data.last_export_dir.empty())
+                     ui_ctx.last_export_dir = data.last_export_dir;
              }
          }});
 

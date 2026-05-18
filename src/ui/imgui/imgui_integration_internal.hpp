@@ -8,7 +8,11 @@
     #include "imgui_integration.hpp"
 
     #include <imgui.h>
-    #include <imgui_impl_glfw.h>
+    #ifdef SPECTRA_USE_GLFW
+        #include <imgui_impl_glfw.h>
+    #elif defined(SPECTRA_USE_SDL3)
+        #include <imgui_impl_sdl3.h>
+    #endif
     #include <imgui_impl_vulkan.h>
     #include <imgui_internal.h>
     #include <spectra/axes.hpp>

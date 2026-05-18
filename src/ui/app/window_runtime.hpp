@@ -14,7 +14,7 @@ class FrameScheduler;
 struct WindowContext;
 struct WindowUIContext;
 
-#ifdef SPECTRA_USE_GLFW
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
 class WindowManager;
 #endif
 
@@ -44,7 +44,7 @@ class WindowRuntime
                 bool             allow_animation_tick,
                 float            animation_dt,
                 FrameProfiler*   profiler = nullptr
-#ifdef SPECTRA_USE_GLFW
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
                 ,
                 WindowManager* window_mgr = nullptr
 #endif

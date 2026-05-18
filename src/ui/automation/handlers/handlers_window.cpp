@@ -13,6 +13,9 @@
     #define GLFW_INCLUDE_NONE
     #include <GLFW/glfw3.h>
 #endif
+#ifdef SPECTRA_USE_SDL3
+    #include <SDL3/SDL.h>
+#endif
 
 #include <chrono>
 
@@ -27,7 +30,7 @@ std::vector<AutomationHandlerEntry> make_window_handlers()
     entries.push_back({"resize_window",
                        [](AutomationRequest& req, App& /*app*/, WindowUIContext* ui_ctx)
                        {
-#ifdef SPECTRA_USE_GLFW
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
                            if (!ui_ctx)
                            {
                                req.response_json = json_error(req.id, "No UI context");
@@ -41,14 +44,21 @@ std::vector<AutomationHandlerEntry> make_window_handlers()
                            ui_ctx->new_width             = w;
                            ui_ctx->new_height            = h;
                            ui_ctx->resize_requested_time = std::chrono::steady_clock::now();
+    #ifdef SPECTRA_USE_GLFW
                            if (ui_ctx->glfw_window)
                                glfwSetWindowSize(static_cast<GLFWwindow*>(ui_ctx->glfw_window),
                                                  static_cast<int>(w),
                                                  static_cast<int>(h));
+    #elif defined(SPECTRA_USE_SDL3)
+                           if (ui_ctx->glfw_window)
+                               SDL_SetWindowSize(static_cast<SDL_Window*>(ui_ctx->glfw_window),
+                                                 static_cast<int>(w),
+                                                 static_cast<int>(h));
+    #endif
                            req.response_json = json_ok(req.id);
 #else
                            (void)ui_ctx;
-                           req.response_json = json_error(req.id, "GLFW not available");
+                           req.response_json = json_error(req.id, "No windowing backend");
 #endif
                        }});
 
@@ -56,7 +66,7 @@ std::vector<AutomationHandlerEntry> make_window_handlers()
     entries.push_back({"get_window_size",
                        [](AutomationRequest& req, App& app, WindowUIContext* ui_ctx)
                        {
-#ifdef SPECTRA_USE_GLFW
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
                            if (!ui_ctx)
                            {
                                req.response_json = json_error(req.id, "No UI context");
@@ -77,7 +87,7 @@ std::vector<AutomationHandlerEntry> make_window_handlers()
 #else
                            (void)ui_ctx;
                            (void)app;
-                           req.response_json = json_error(req.id, "GLFW not available");
+                           req.response_json = json_error(req.id, "No windowing backend");
 #endif
                        }});
 

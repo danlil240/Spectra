@@ -8,6 +8,9 @@
 #ifdef SPECTRA_USE_GLFW
     #include "platform/window_system/glfw_surface_host.hpp"
 #endif
+#ifdef SPECTRA_USE_SDL3
+    #include "platform/window_system/sdl3_surface_host.hpp"
+#endif
 
 #ifdef SPECTRA_USE_GLFW
     #define GLFW_INCLUDE_NONE
@@ -17,7 +20,11 @@
 
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
-    #include <imgui_impl_glfw.h>
+    #ifdef SPECTRA_USE_GLFW
+        #include <imgui_impl_glfw.h>
+    #elif defined(SPECTRA_USE_SDL3)
+        #include <imgui_impl_sdl3.h>
+    #endif
     #include <imgui_impl_vulkan.h>
 #endif
 
@@ -63,6 +70,9 @@ VulkanBackend::VulkanBackend() : initial_window_(std::make_unique<WindowContext>
 #ifdef SPECTRA_USE_GLFW
     static const platform::GlfwSurfaceHost k_default_glfw_surface_host;
     surface_host_ = &k_default_glfw_surface_host;
+#elif defined(SPECTRA_USE_SDL3)
+    static const platform::Sdl3SurfaceHost k_default_sdl3_surface_host;
+    surface_host_ = &k_default_sdl3_surface_host;
 #endif
     active_window_ = initial_window_.get();
 }

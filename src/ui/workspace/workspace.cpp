@@ -289,7 +289,10 @@ std::string Workspace::serialize_json(const WorkspaceData& data)
     os << "  \"data_palette_name\": \"" << escape_json(data.data_palette_name) << "\",\n";
 
     // v4: Mode transition state
-    os << "  \"mode_transition_state\": \"" << escape_json(data.mode_transition_state) << "\"\n";
+    os << "  \"mode_transition_state\": \"" << escape_json(data.mode_transition_state) << "\",\n";
+
+    // Last export directory
+    os << "  \"last_export_dir\": \"" << escape_json(data.last_export_dir) << "\"\n";
     os << "}\n";
 
     return os.str();
@@ -772,6 +775,9 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data)
     {
         data.mode_transition_state = read_string_value(json, "mode_transition_state");
     }
+
+    // Last export directory (versionless — graceful default for old files)
+    data.last_export_dir = read_string_value(json, "last_export_dir");
 
     return true;
 }

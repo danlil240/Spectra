@@ -24,7 +24,7 @@ class EventSystem;
 struct WindowContext;
 struct WindowUIContext;
 
-#ifdef SPECTRA_USE_GLFW
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
 class GlfwAdapter;
 class WindowManager;
 #endif
@@ -98,7 +98,7 @@ class SessionRuntime
                     CommandQueue&    cmd_queue,
                     bool             headless,
                     WindowUIContext* headless_ui_ctx,
-#ifdef SPECTRA_USE_GLFW
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
                     WindowManager* window_mgr,
 #endif
                     FrameState& frame_state);

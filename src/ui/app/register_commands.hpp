@@ -9,7 +9,7 @@ class FigureRegistry;
 class SessionRuntime;
 struct WindowUIContext;
 
-#ifdef SPECTRA_USE_GLFW
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
 class WindowManager;
 #endif
 
@@ -23,7 +23,7 @@ struct CommandBindings
     Figure**         active_figure    = nullptr;   // updated per-frame
     FigureId*        active_figure_id = nullptr;   // updated per-frame
     SessionRuntime*  session          = nullptr;
-#ifdef SPECTRA_USE_GLFW
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
     WindowManager* window_mgr = nullptr;
 #endif
 };

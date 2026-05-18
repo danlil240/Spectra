@@ -14,9 +14,14 @@ class OverlayRegistry;
 class PluginManager;
 class SeriesClipboard;
 
-#ifdef SPECTRA_USE_GLFW
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
 class WindowManager;
 #endif
+
+namespace ui::settings
+{
+class SettingsStore;
+}
 
 struct WindowUIContextBuildOptions
 {
@@ -34,7 +39,9 @@ struct WindowUIContextBuildOptions
     OverlayRegistry*      overlay_registry       = nullptr;
     SeriesClipboard*      series_clipboard       = nullptr;
 
-#ifdef SPECTRA_USE_GLFW
+    ui::settings::SettingsStore* settings_store = nullptr;
+
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
     WindowManager* window_manager = nullptr;
     uint32_t       window_id      = 0;
 #endif

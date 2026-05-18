@@ -13,6 +13,10 @@
     #include <GLFW/glfw3.h>
 #endif
 
+#ifdef SPECTRA_USE_SDL3
+    #include <SDL3/SDL.h>
+#endif
+
 namespace spectra
 {
 
@@ -20,6 +24,8 @@ void WindowManager::poll_events()
 {
 #ifdef SPECTRA_USE_GLFW
     glfwPollEvents();
+#elif defined(SPECTRA_USE_SDL3)
+    process_sdl3_events();
 #endif
 }
 
@@ -27,6 +33,15 @@ void WindowManager::wait_events_timeout(double timeout_seconds)
 {
 #ifdef SPECTRA_USE_GLFW
     glfwWaitEventsTimeout(timeout_seconds);
+#elif defined(SPECTRA_USE_SDL3)
+    // SDL3 has no equivalent wait-for-event with timeout — use a brief poll
+    // and sleep to avoid busy-waiting.
+    process_sdl3_events();
+    if (timeout_seconds > 0.0)
+    {
+        auto ms = static_cast<uint32_t>(timeout_seconds * 1000.0);
+        SDL_Delay(std::min(ms, 100u));
+    }
 #else
     (void)timeout_seconds;
 #endif
@@ -165,7 +180,17 @@ bool WindowManager::get_global_cursor_pos(double& screen_x, double& screen_y) co
 
 #else
 
-void WindowManager::set_window_position(WindowContext&, int, int) {}
+void WindowManager::set_window_position(WindowContext& wctx, int x, int y)
+{
+    #ifdef SPECTRA_USE_SDL3
+    if (wctx.glfw_window)
+        SDL_SetWindowPosition(static_cast<SDL_Window*>(wctx.glfw_window), x, y);
+    #else
+    (void)wctx;
+    (void)x;
+    (void)y;
+    #endif
+}
 
 bool WindowManager::is_mouse_button_held(int) const
 {

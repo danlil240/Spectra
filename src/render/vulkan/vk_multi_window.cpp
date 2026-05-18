@@ -17,7 +17,11 @@
 
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
-    #include <imgui_impl_glfw.h>
+    #ifdef SPECTRA_USE_GLFW
+        #include <imgui_impl_glfw.h>
+    #elif defined(SPECTRA_USE_SDL3)
+        #include <imgui_impl_sdl3.h>
+    #endif
     #include <imgui_impl_vulkan.h>
 #endif
 
@@ -49,7 +53,7 @@ bool VulkanBackend::recreate_swapchain_for_with_imgui(WindowContext& wctx,
         return false;
     }
 
-#if defined(SPECTRA_USE_IMGUI) && defined(SPECTRA_USE_GLFW)
+#if defined(SPECTRA_USE_IMGUI) && (defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3))
     // Section 3F constraint 4: Update only this window's ImGui backend
     // with the new image count.  The render pass handle is reused during
     // recreate_swapchain (format doesn't change on resize), so we only
@@ -201,7 +205,7 @@ bool VulkanBackend::init_window_context_with_imgui(WindowContext& wctx,
         }
     }
 
-#if defined(SPECTRA_USE_IMGUI) && defined(SPECTRA_USE_GLFW)
+#if defined(SPECTRA_USE_IMGUI) && (defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3))
     // Step 3: Initialize per-window ImGui context.
     // Each window gets its own ImGui context for complete isolation.
     auto* prev_imgui_ctx = ImGui::GetCurrentContext();
@@ -218,8 +222,13 @@ bool VulkanBackend::init_window_context_with_imgui(WindowContext& wctx,
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     io.IniFilename = nullptr;
 
+    #ifdef SPECTRA_USE_GLFW
     auto* glfw_win = static_cast<GLFWwindow*>(wctx.glfw_window);
     ImGui_ImplGlfw_InitForVulkan(glfw_win, true);
+    #elif defined(SPECTRA_USE_SDL3)
+    auto* sdl_win = static_cast<SDL_Window*>(wctx.glfw_window);
+    ImGui_ImplSDL3_InitForVulkan(sdl_win);
+    #endif   // windowing backend
 
     // Section 3F constraint 3: use per-window ImageCount
     ImGui_ImplVulkan_InitInfo ii{};
@@ -277,7 +286,7 @@ void VulkanBackend::destroy_window_context(WindowContext& wctx)
         vkDeviceWaitIdle(ctx_.device);
     }
 
-#if defined(SPECTRA_USE_IMGUI) && defined(SPECTRA_USE_GLFW)
+#if defined(SPECTRA_USE_IMGUI) && (defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3))
     // Destroy per-window ImGui context (if this window had one).
     // Must happen before Vulkan resource teardown since ImGui holds
     // Vulkan descriptor sets and pipeline references.
@@ -287,7 +296,11 @@ void VulkanBackend::destroy_window_context(WindowContext& wctx)
         auto* this_ctx = static_cast<ImGuiContext*>(wctx.imgui_context);
         ImGui::SetCurrentContext(this_ctx);
         ImGui_ImplVulkan_Shutdown();
+    #ifdef SPECTRA_USE_GLFW
         ImGui_ImplGlfw_Shutdown();
+    #elif defined(SPECTRA_USE_SDL3)
+        ImGui_ImplSDL3_Shutdown();
+    #endif
         ImGui::DestroyContext(this_ctx);
         wctx.imgui_context = nullptr;
 

@@ -23,9 +23,18 @@
     #include "glfw_utils.hpp"
 #endif
 
+#ifdef SPECTRA_USE_SDL3
+    #include <SDL3/SDL.h>
+    #include <SDL3/SDL_vulkan.h>
+#endif
+
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
-    #include <imgui_impl_glfw.h>
+    #ifdef SPECTRA_USE_GLFW
+        #include <imgui_impl_glfw.h>
+    #elif defined(SPECTRA_USE_SDL3)
+        #include <imgui_impl_sdl3.h>
+    #endif
 
     #include "ui/app/register_commands.hpp"
     #include "ui/figures/figure_manager.hpp"
@@ -171,11 +180,48 @@ WindowContext* WindowManager::create_window(uint32_t           width,
     if (event_system_)
         event_system_->window_opened().emit({ptr->id});
     return ptr;
+#elif defined(SPECTRA_USE_SDL3)
+    auto* sdl_win = SDL_CreateWindow(title.c_str(),
+                                     static_cast<int>(width),
+                                     static_cast<int>(height),
+                                     SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
+    if (!sdl_win)
+    {
+        SPECTRA_LOG_ERROR("window_manager",
+                          std::string("create_window: SDL_CreateWindow failed: ") + SDL_GetError());
+        return nullptr;
+    }
+
+    auto wctx           = std::make_unique<WindowContext>();
+    wctx->id            = next_window_id_++;
+    wctx->native_window = sdl_win;
+    wctx->glfw_window   = sdl_win;
+
+    if (!backend_->init_window_context(*wctx, width, height))
+    {
+        SPECTRA_LOG_ERROR(
+            "window_manager",
+            "create_window: Vulkan resource init failed for window " + std::to_string(wctx->id));
+        SDL_DestroyWindow(sdl_win);
+        return nullptr;
+    }
+
+    WindowContext* ptr = wctx.get();
+    windows_.push_back(std::move(wctx));
+    rebuild_active_list();
+
+    SPECTRA_LOG_DEBUG("window_manager",
+                      "Created SDL3 window " + std::to_string(ptr->id) + ": "
+                          + std::to_string(width) + "x" + std::to_string(height) + " \"" + title
+                          + "\"");
+    if (event_system_)
+        event_system_->window_opened().emit({ptr->id});
+    return ptr;
 #else
     (void)width;
     (void)height;
     (void)title;
-    SPECTRA_LOG_ERROR("window_manager", "create_window: GLFW not available");
+    SPECTRA_LOG_ERROR("window_manager", "create_window: no windowing backend available");
     return nullptr;
 #endif
 }
@@ -252,11 +298,15 @@ void WindowManager::destroy_window(uint32_t window_id)
     // Destroy Vulkan resources
     backend_->destroy_window_context(wctx);
 
-#ifdef SPECTRA_USE_GLFW
-    // Destroy GLFW window
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
+    // Destroy native window
     if (wctx.glfw_window)
     {
+    #ifdef SPECTRA_USE_GLFW
         glfwDestroyWindow(static_cast<GLFWwindow*>(wctx.glfw_window));
+    #elif defined(SPECTRA_USE_SDL3)
+        SDL_DestroyWindow(static_cast<SDL_Window*>(wctx.glfw_window));
+    #endif
         wctx.native_window = nullptr;
         wctx.glfw_window   = nullptr;
     }
@@ -336,10 +386,14 @@ void WindowManager::shutdown()
 
         backend_->destroy_window_context(wctx);
 
-#ifdef SPECTRA_USE_GLFW
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
         if (wctx.glfw_window)
         {
+    #ifdef SPECTRA_USE_GLFW
             glfwDestroyWindow(static_cast<GLFWwindow*>(wctx.glfw_window));
+    #elif defined(SPECTRA_USE_SDL3)
+            SDL_DestroyWindow(static_cast<SDL_Window*>(wctx.glfw_window));
+    #endif
             wctx.native_window = nullptr;
             wctx.glfw_window   = nullptr;
         }
@@ -369,10 +423,14 @@ void WindowManager::shutdown()
             pooled_preview_->ui_ctx.reset();
         }
         backend_->destroy_window_context(*pooled_preview_);
-#ifdef SPECTRA_USE_GLFW
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
         if (pooled_preview_->glfw_window)
         {
+    #ifdef SPECTRA_USE_GLFW
             glfwDestroyWindow(static_cast<GLFWwindow*>(pooled_preview_->glfw_window));
+    #elif defined(SPECTRA_USE_SDL3)
+            SDL_DestroyWindow(static_cast<SDL_Window*>(pooled_preview_->glfw_window));
+    #endif
             pooled_preview_->native_window = nullptr;
             pooled_preview_->glfw_window   = nullptr;
         }
@@ -405,11 +463,15 @@ WindowContext* WindowManager::create_panel_window(uint32_t              width,
     if (!backend_ || backend_->is_headless())
         return nullptr;
 
-#ifdef SPECTRA_USE_GLFW
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
+    #ifdef SPECTRA_USE_GLFW
     // Create an undecorated, resizable window with custom title bar.
     glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
+    #endif
     auto* wctx = create_window(width, height, title);
+    #ifdef SPECTRA_USE_GLFW
     glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);   // Reset for future windows
+    #endif
     if (!wctx)
         return nullptr;
 
@@ -419,6 +481,7 @@ WindowContext* WindowManager::create_panel_window(uint32_t              width,
     wctx->panel_draw_callback = std::move(draw_callback);
 
     // Install full input callbacks (cursor, mouse, key, scroll).
+    #ifdef SPECTRA_USE_GLFW
     auto* glfw_win = static_cast<GLFWwindow*>(wctx->glfw_window);
     if (glfw_win)
     {
@@ -430,6 +493,8 @@ WindowContext* WindowManager::create_panel_window(uint32_t              width,
         glfwSetCursorEnterCallback(glfw_win, glfw_cursor_enter_callback);
         glfwSetDropCallback(glfw_win, glfw_drop_callback);
     }
+    #endif
+    // SDL3: events are handled centrally via process_sdl3_events()
 
     // Minimal UI context: ImGuiIntegration only (no FigureManager/DockSystem).
     auto ui       = std::make_unique<WindowUIContext>();
@@ -441,7 +506,17 @@ WindowContext* WindowManager::create_panel_window(uint32_t              width,
     auto*         prev_active    = backend_->active_window();
     backend_->set_active_window(wctx);
 
-    if (!ui->imgui_ui->init(*backend_, glfw_win, /*install_callbacks=*/false))
+    if (
+    #ifdef SPECTRA_USE_GLFW
+        !ui->imgui_ui->init(*backend_,
+                            static_cast<GLFWwindow*>(wctx->glfw_window),
+                            /*install_callbacks=*/false)
+    #elif defined(SPECTRA_USE_SDL3)
+        !ui->imgui_ui->init_sdl3(*backend_, static_cast<SDL_Window*>(wctx->glfw_window))
+    #else
+        false
+    #endif
+    )
     {
         SPECTRA_LOG_ERROR(
             "window_manager",
@@ -655,6 +730,7 @@ bool WindowManager::init_window_ui(WindowContext& wctx, FigureId initial_figure_
     options.overlay_registry        = &shared_overlay_registry_;
     options.series_clipboard        = &shared_clipboard_;
     options.session                 = session_;
+    options.settings_store          = settings_store_;
     options.on_window_close_request = [this, window_id = wctx.id]() { request_close(window_id); };
     options.on_figure_closed        = [this](FigureId, Figure* fig)
     {
@@ -662,7 +738,7 @@ bool WindowManager::init_window_ui(WindowContext& wctx, FigureId initial_figure_
             clear_figure_caches(fig);
     };
     options.create_imgui_integration = true;
-    #ifdef SPECTRA_USE_GLFW
+    #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
     options.window_manager = this;
     options.window_id      = wctx.id;
     #endif
@@ -671,8 +747,7 @@ bool WindowManager::init_window_ui(WindowContext& wctx, FigureId initial_figure_
     if (!ui)
         return false;
 
-    auto* glfw_win = static_cast<GLFWwindow*>(wctx.glfw_window);
-    if (glfw_win && backend_ && ui->imgui_ui)
+    if (wctx.glfw_window && backend_ && ui->imgui_ui)
     {
         // Save current ImGui context — the primary window may be mid-frame
         // (between NewFrame/EndFrame) so we must restore it after init.
@@ -682,13 +757,21 @@ bool WindowManager::init_window_ui(WindowContext& wctx, FigureId initial_figure_
         auto* prev_active = backend_->active_window();
         backend_->set_active_window(&wctx);
 
+        bool imgui_ok = false;
+    #ifdef SPECTRA_USE_GLFW
         // Pass install_callbacks=false so ImGui does NOT install its own
         // GLFW callbacks on this secondary window.  ImGui's callbacks use
         // ImGui::GetCurrentContext() which is the primary window's context
         // during glfwPollEvents(), causing input on the secondary window to
         // be routed to the primary.  Instead, WindowManager's GLFW callbacks
         // switch to the correct ImGui context and forward events manually.
-        if (!ui->imgui_ui->init(*backend_, glfw_win, /*install_callbacks=*/false))
+        imgui_ok = ui->imgui_ui->init(*backend_,
+                                      static_cast<GLFWwindow*>(wctx.glfw_window),
+                                      /*install_callbacks=*/false);
+    #elif defined(SPECTRA_USE_SDL3)
+        imgui_ok = ui->imgui_ui->init_sdl3(*backend_, static_cast<SDL_Window*>(wctx.glfw_window));
+    #endif
+        if (!imgui_ok)
         {
             SPECTRA_LOG_ERROR(
                 "window_manager",

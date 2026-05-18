@@ -85,7 +85,7 @@ void PanelDetachController::transition_to_detached(uint32_t window_id)
 
 void PanelDetachController::execute_create_window()
 {
-    #ifdef SPECTRA_USE_GLFW
+    #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
     if (!window_mgr_ || !draw_callback_)
     {
         state_ = State::Docked;
@@ -118,7 +118,7 @@ void PanelDetachController::execute_create_window()
 
 void PanelDetachController::execute_destroy_window()
 {
-    #ifdef SPECTRA_USE_GLFW
+    #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
     if (panel_window_id_ != 0 && window_mgr_)
     {
         SPECTRA_LOG_INFO(

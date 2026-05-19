@@ -75,3 +75,5 @@ asan.log.*
 
 spectra_sonify.wav
 spectra_data.html
+
+install/

@@ -295,6 +295,7 @@ void IconFont::build_icon_map()
         Icon::Database,
         Icon::Timeline,
         Icon::Code,
+        Icon::Broadcast,
         Icon::ChartArea,
         Icon::WindowIcon,
         Icon::PlayCircle,

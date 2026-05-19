@@ -134,10 +134,7 @@ inline std::optional<std::string> ask_export_path(const char*        title,
         // snap overrides, or ROS vars reach zenity's snap runtime and cause
         // a libpthread GLIBC_PRIVATE symbol-lookup crash.
         #ifdef __linux__
-            ::clearenv();
-        #else
-            // clearenv() is a GNU/glibc extension; on macOS use environ directly.
-            environ = nullptr;
+                    ::clearenv();
         #endif
 
         // Restore only what zenity / GTK need.

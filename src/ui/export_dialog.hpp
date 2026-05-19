@@ -133,7 +133,12 @@ inline std::optional<std::string> ask_export_path(const char*        title,
         // Clear ALL environment variables so no workspace LD_LIBRARY_PATH,
         // snap overrides, or ROS vars reach zenity's snap runtime and cause
         // a libpthread GLIBC_PRIVATE symbol-lookup crash.
-        ::clearenv();
+        #ifdef __linux__
+            ::clearenv();
+        #else
+            // clearenv() is a GNU/glibc extension; on macOS use environ directly.
+            environ = nullptr;
+        #endif
 
         // Restore only what zenity / GTK need.
         ::setenv("GDK_BACKEND", "x11", 1);   // force X11; avoids Wayland --attach mismatch

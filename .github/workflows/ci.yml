@@ -204,7 +204,8 @@ jobs:
             # Newer Vulkan loader env var name; keep both for compatibility.
             echo "VK_DRIVER_FILES=$LVP_ICD" >> "$GITHUB_ENV"
           else
-            echo "WARNING: lavapipe ICD JSON not found; continuing with loader default ICD selection"
+            echo "::error::lavapipe ICD not found"
+            exit 1
           fi
 
       - name: Configure + Build
@@ -307,6 +308,7 @@ jobs:
 
       - name: Configure CMake with ROS2
         run: |
+          . /opt/ros/humble/setup.sh
           cmake -B build \
             -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
             -DSPECTRA_USE_ROS2=ON \

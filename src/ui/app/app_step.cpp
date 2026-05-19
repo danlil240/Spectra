@@ -1035,10 +1035,12 @@ App::StepResult App::step()
         {
             auto png = ImageExporter::write_png_to_memory(cap.pixels.data(), cap.width, cap.height);
             if (!png.empty())
+            {
                 if (platform::copy_image_to_clipboard(png.data(), png.size()))
                     SPECTRA_LOG_INFO("export", "Figure copied to clipboard");
                 else
                     SPECTRA_LOG_WARN("export", "Clipboard image copy failed");
+            }
         }
         else
         {

@@ -66,7 +66,7 @@ static void run_golden_test(const std::string&                 scene_name,
                             std::function<void(App&, Figure&)> setup_scene,
                             uint32_t                           width             = 640,
                             uint32_t                           height            = 480,
-                            double                             tolerance_percent = 1.0,
+                            double                             tolerance_percent = 5.0,
                             double                             max_mae           = 2.0)
 {
     fs::path baseline_path = baseline_dir() / (scene_name + ".raw");

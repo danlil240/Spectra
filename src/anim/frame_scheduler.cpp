@@ -84,33 +84,24 @@ void FrameScheduler::end_frame()
 
     if (mode_ == Mode::TargetFPS && target_fps_ > 0.0f)
     {
-        Duration target_frame_time{1.0 / static_cast<double>(target_fps_)};
-        Duration frame_duration = last_frame_end_ - frame_start_;
+        const auto target_frame_time = std::chrono::duration_cast<Clock::duration>(
+            Duration{1.0 / static_cast<double>(target_fps_)});
+        const auto target_frame_end = frame_start_ + target_frame_time;
 
-        if (frame_duration < target_frame_time)
+        if (last_frame_end_ < target_frame_end)
         {
-            Duration remaining = target_frame_time - frame_duration;
-
-            // Sleep for most of the remaining time (leave 1ms for spin-wait)
-            auto sleep_time = remaining - Duration{0.001};
-            if (sleep_time.count() > 0.0)
+            // Sleep for most of the remaining budget, then yield in the final
+            // short window to keep pacing accurate without a CPU-burning spin loop.
+            constexpr auto k_final_yield_window = std::chrono::microseconds(250);
+            const auto     coarse_wakeup        = target_frame_end - k_final_yield_window;
+            if (coarse_wakeup > last_frame_end_)
             {
-                std::this_thread::sleep_for(
-                    std::chrono::duration_cast<std::chrono::microseconds>(sleep_time));
+                std::this_thread::sleep_until(coarse_wakeup);
             }
 
-            // Spin-wait for the rest (precision)
-            auto spin_start = Clock::now();
-            while (Clock::now() - frame_start_
-                   < std::chrono::duration_cast<Clock::duration>(target_frame_time))
+            while (Clock::now() < target_frame_end)
             {
-                // Busy wait
-                auto spin_duration = Clock::now() - spin_start;
-                if (spin_duration.count() > 0.01)
-                {   // Log if spinning for more than 10ms
-                    // This could indicate a problem with timing or high CPU load
-                    break;
-                }
+                std::this_thread::yield();
             }
         }
 

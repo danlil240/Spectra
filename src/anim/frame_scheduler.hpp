@@ -14,7 +14,7 @@ class FrameScheduler
    public:
     enum class Mode
     {
-        TargetFPS,   // Sleep + spin-wait to hit target FPS
+        TargetFPS,   // Sleep + short cooperative yield wait to hit target FPS
         VSync,       // Let the swapchain/driver handle pacing
         Uncapped,    // Run as fast as possible
     };

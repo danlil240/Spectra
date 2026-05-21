@@ -597,27 +597,31 @@ void Renderer::render_axes(AxesBase&   axes,
         vec3        cam_pos   = cam.position;
         mat4        model_mat = axes3d->data_to_normalized_matrix();
 
-        // Collect visible series with their distances
+        // Collect visible series with their distances.
         struct SortEntry
         {
             Series* series;
             float   distance;
-            bool    transparent;
         };
         std::vector<SortEntry> opaque_entries;
         std::vector<SortEntry> transparent_entries;
+        const size_t           series_count = axes.series().size();
+        opaque_entries.reserve(series_count);
+        transparent_entries.reserve(series_count);
 
         for (auto& series_ptr : axes.series())
         {
             if (!series_ptr)
                 continue;
 
-            // Phase 2 (LT-5): check visibility via SeriesViewModel when available
-            bool visible;
+            // Phase 2 (LT-5): check visibility via SeriesViewModel when available.
+            bool             visible;
+            SeriesViewModel* svm_ptr = nullptr;
             if (figure_vm_)
             {
                 auto& svm = figure_vm_->get_or_create_series_vm(series_ptr.get());
                 visible   = svm.effective_visible();
+                svm_ptr   = &svm;
             }
             else
             {
@@ -626,42 +630,54 @@ void Renderer::render_axes(AxesBase&   axes,
             if (!visible)
                 continue;
 
-            if (series_ptr->is_dirty())
+            auto gpu_it = series_gpu_data_.find(series_ptr.get());
+            if (series_ptr->is_dirty() || gpu_it == series_gpu_data_.end()
+                || gpu_it->second.type == SeriesType::Unknown)
             {
                 upload_series_data(*series_ptr);
+                gpu_it = series_gpu_data_.find(series_ptr.get());
             }
 
-            // Compute centroid distance from camera
-            vec3  centroid{0.0f, 0.0f, 0.0f};
-            auto* line3d    = dynamic_cast<LineSeries3D*>(series_ptr.get());
-            auto* scatter3d = dynamic_cast<ScatterSeries3D*>(series_ptr.get());
-            auto* surface   = dynamic_cast<SurfaceSeries*>(series_ptr.get());
-            auto* mesh_s    = dynamic_cast<MeshSeries*>(series_ptr.get());
-            auto* shape3d_s = dynamic_cast<ShapeSeries3D*>(series_ptr.get());
-
-            if (line3d)
-                centroid = line3d->compute_centroid();
-            else if (scatter3d)
-                centroid = scatter3d->compute_centroid();
-            else if (surface)
-                centroid = surface->compute_centroid();
-            else if (mesh_s)
-                centroid = mesh_s->compute_centroid();
-            else if (shape3d_s)
-                centroid = shape3d_s->compute_centroid();
+            // Compute centroid distance from camera using cached series type.
+            vec3 centroid{0.0f, 0.0f, 0.0f};
+            if (gpu_it != series_gpu_data_.end())
+            {
+                switch (gpu_it->second.type)
+                {
+                    case SeriesType::Line3D:
+                        centroid = static_cast<LineSeries3D*>(series_ptr.get())->compute_centroid();
+                        break;
+                    case SeriesType::Scatter3D:
+                        centroid =
+                            static_cast<ScatterSeries3D*>(series_ptr.get())->compute_centroid();
+                        break;
+                    case SeriesType::Surface3D:
+                        centroid =
+                            static_cast<SurfaceSeries*>(series_ptr.get())->compute_centroid();
+                        break;
+                    case SeriesType::Mesh3D:
+                        centroid = static_cast<MeshSeries*>(series_ptr.get())->compute_centroid();
+                        break;
+                    case SeriesType::Shape3D:
+                        centroid =
+                            static_cast<ShapeSeries3D*>(series_ptr.get())->compute_centroid();
+                        break;
+                    default:
+                        break;
+                }
+            }
 
             // Transform centroid to world space via model matrix
             vec4 world_c   = mat4_mul_vec4(model_mat, {centroid.x, centroid.y, centroid.z, 1.0f});
             vec3 world_pos = {world_c.x, world_c.y, world_c.z};
             auto dist      = static_cast<float>(vec3_length(world_pos - cam_pos));
 
-            // Phase 2 (LT-5): read color/opacity via SeriesViewModel when available
+            // Phase 2 (LT-5): read color/opacity via SeriesViewModel when available.
             float effective_alpha;
-            if (figure_vm_)
+            if (svm_ptr)
             {
-                auto& svm       = figure_vm_->get_or_create_series_vm(series_ptr.get());
-                Color eff_color = svm.effective_color();
-                effective_alpha = eff_color.a * svm.effective_opacity();
+                Color eff_color = svm_ptr->effective_color();
+                effective_alpha = eff_color.a * svm_ptr->effective_opacity();
             }
             else
             {
@@ -671,11 +687,11 @@ void Renderer::render_axes(AxesBase&   axes,
 
             if (is_transparent)
             {
-                transparent_entries.push_back({series_ptr.get(), dist, true});
+                transparent_entries.push_back({series_ptr.get(), dist});
             }
             else
             {
-                opaque_entries.push_back({series_ptr.get(), dist, false});
+                opaque_entries.push_back({series_ptr.get(), dist});
             }
         }
 

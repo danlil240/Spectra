@@ -333,41 +333,34 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
 #endif
 
 #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
-    // Time-based resize debounce: recreate swapchain only when size has
-    // stabilized (no new callback for RESIZE_DEBOUNCE ms). During drag,
-    // we keep rendering with the old swapchain (slightly stretched but
-    // no black flash). swapchain_dirty_ is set by present OUT_OF_DATE/SUBOPTIMAL.
-    static constexpr auto RESIZE_DEBOUNCE       = std::chrono::milliseconds(50);
-    auto&                 needs_resize          = ui_ctx.needs_resize;
-    auto&                 new_width             = ui_ctx.new_width;
-    auto&                 new_height            = ui_ctx.new_height;
-    auto&                 resize_requested_time = ui_ctx.resize_requested_time;
+    // Recreate the swapchain immediately whenever a resize callback has arrived.
+    // Recreating every frame during live drag is fast (fence-based sync,
+    // no vkDeviceWaitIdle) and prevents the compositor from stretching
+    // stale swapchain images while the window edge is being dragged.
+    auto& needs_resize = ui_ctx.needs_resize;
+    auto& new_width    = ui_ctx.new_width;
+    auto& new_height   = ui_ctx.new_height;
     if (needs_resize)
     {
-        auto now_resize = std::chrono::steady_clock::now();
-        auto since_last = now_resize - resize_requested_time;
-        if (since_last >= RESIZE_DEBOUNCE)
-        {
-            SPECTRA_LOG_DEBUG("resize",
-                              "Recreating swapchain: " + std::to_string(new_width) + "x"
-                                  + std::to_string(new_height));
-            needs_resize = false;
-            auto* vk     = static_cast<VulkanBackend*>(&backend_);
-            vk->clear_swapchain_dirty();
-            backend_.recreate_swapchain(new_width, new_height);
+        SPECTRA_LOG_DEBUG("resize",
+                          "Recreating swapchain: " + std::to_string(new_width) + "x"
+                              + std::to_string(new_height));
+        needs_resize = false;
+        auto* vk     = static_cast<VulkanBackend*>(&backend_);
+        vk->clear_swapchain_dirty();
+        backend_.recreate_swapchain(new_width, new_height);
 
-            if (active_figure)
-            {
-                active_figure->config_.width  = backend_.swapchain_width();
-                active_figure->config_.height = backend_.swapchain_height();
-            }
-    #ifdef SPECTRA_USE_IMGUI
-            if (imgui_ui)
-            {
-                imgui_ui->on_swapchain_recreated(*vk);
-            }
-    #endif
+        if (active_figure)
+        {
+            active_figure->config_.width  = backend_.swapchain_width();
+            active_figure->config_.height = backend_.swapchain_height();
         }
+    #ifdef SPECTRA_USE_IMGUI
+        if (imgui_ui)
+        {
+            imgui_ui->on_swapchain_recreated(*vk);
+        }
+    #endif
     }
 
     // Update input handler with current active axes viewport
@@ -845,20 +838,6 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
                 target_h = aw->pending_height;
             }
         }
-        // BUG-10: Coalesce swapchain recreations during active resize.
-        // If a resize callback is still in flight (within the debounce window),
-        // skip this frame entirely. The debounced path in update() will recreate
-        // once the size stabilizes. This avoids 2+ synchronous recreations per
-        // frame (each ~20ms) during rapid edge-drag resize.
-        if (aw && ui_ctx.needs_resize)
-        {
-            auto since_last = std::chrono::steady_clock::now() - ui_ctx.resize_requested_time;
-            if (since_last < std::chrono::milliseconds(50))
-            {
-                return false;   // Drop this frame; debounce path will handle it
-            }
-        }
-
         if (aw && target_w > 0 && target_h > 0)
         {
             SPECTRA_LOG_DEBUG("resize",
@@ -1039,14 +1018,6 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
             auto* aw_post = vk_post->active_window();
             if (aw_post && aw_post->swapchain_invalidated)
             {
-                // BUG-10: Coalesce post-present recreation during active resize.
-                // The debounced path in update() will recreate once size settles.
-                auto since_last = std::chrono::steady_clock::now() - ui_ctx.resize_requested_time;
-                if (ui_ctx.needs_resize && since_last < std::chrono::milliseconds(50))
-                {
-                    // Leave swapchain_invalidated=true; debounce path will recreate.
-                    return frame_ok;
-                }
                 aw_post->swapchain_invalidated = false;
                 uint32_t rw                    = aw_post->swapchain.extent.width;
                 uint32_t rh                    = aw_post->swapchain.extent.height;

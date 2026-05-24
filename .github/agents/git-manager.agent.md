@@ -36,14 +36,18 @@ chore: bump version to 0.2.4
 
 `<type>/<short-slug>` — e.g. `feat/axes3d-depth-toggle`, `fix/lavapipe-icd-discovery`, `release/0.2.4`
 
-## Version Bump Procedure
+## Full Release Workflow (commit + bump + push)
 
-1. Read `version.txt` and confirm current version with the user.
-2. Determine bump type: patch (bug fixes), minor (new features, backward-compatible), major (breaking).
-3. Update `version.txt` with the new version string.
-4. Commit: `chore: bump version to <new>`
-5. Tag: `git tag -a v<new> -m "Release v<new>"`
-6. Confirm before pushing tag — pushing triggers the full release pipeline.
+When asked to commit changes and bump the version, execute all steps without stopping to ask:
+
+1. `git status` + `git diff --stat` — survey changes.
+2. If branch is behind origin, run `git pull --rebase origin main` first.
+3. Stage and commit each logical group of changes with appropriate conventional commit messages.
+4. Write the new version to `version.txt`, stage, and commit: `chore: bump version to <new>`.
+5. Tag: `git tag -a v<new> -m "Release v<new>"`.
+6. Push branch: `git push origin main`.
+7. Push tag separately: `git push origin v<new>` — this triggers the release pipeline.
+8. Report final `git log --oneline -5` as confirmation.
 
 ## Pull Request Checklist
 
@@ -55,22 +59,13 @@ Before opening a PR, verify:
 - [ ] PR title follows conventional commit format
 - [ ] Description explains *what* and *why* (reference issue number if applicable)
 
-## Release Tag Procedure
-
-1. Confirm version in `version.txt` matches the intended tag.
-2. Ensure `main` is clean and CI is green.
-3. Run: `git tag -a v<version> -m "Release v<version>"`
-4. **Ask the user to confirm** before running `git push origin v<version>` — this triggers packaging.
-
 ## Constraints
 
 - DO NOT force-push to `main` or amend published commits without explicit user confirmation.
-- DO NOT `git push` anything without first showing the user what will be pushed.
 - DO NOT drop stashed work or untracked files — always check `git stash list` and `git status` first.
 - DO NOT use `--no-verify` unless the user asks.
-- ALWAYS show `git diff --stat` or `git log --oneline -5` before proposing a commit.
-- ALWAYS confirm tag pushes separately from branch pushes.
-- ALWAYS use `git push --tags` separately, never bundled with branch push.
+- ALWAYS push the branch before the tag.
+- ALWAYS use a separate `git push origin <tag>` command, never bundled with the branch push.
 
 ## Output Format
 

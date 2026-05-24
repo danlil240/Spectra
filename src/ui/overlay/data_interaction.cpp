@@ -855,6 +855,7 @@ NearestPointResult DataInteraction::find_nearest(const CursorReadout& cursor, Fi
     NearestPointResult best;
     best.found       = false;
     best.distance_px = std::numeric_limits<float>::max();
+    float best_dist2 = std::numeric_limits<float>::max();
 
     if (!cursor.valid)
         return best;
@@ -916,11 +917,11 @@ NearestPointResult DataInteraction::find_nearest(const CursorReadout& cursor, Fi
                 float sx     = vp.x + norm_x * vp.w;
                 float sy     = vp.y + (1.0f - norm_y) * vp.h;
 
-                float dx   = cx - sx;
-                float dy   = cy - sy;
-                float dist = std::sqrt(dx * dx + dy * dy);
+                float dx    = cx - sx;
+                float dy    = cy - sy;
+                float dist2 = dx * dx + dy * dy;
 
-                if (dist < best.distance_px)
+                if (dist2 < best_dist2)
                 {
                     best.found       = true;
                     best.series      = series_ptr.get();
@@ -929,10 +930,15 @@ NearestPointResult DataInteraction::find_nearest(const CursorReadout& cursor, Fi
                     best.data_y      = y_data[i];
                     best.screen_x    = sx;
                     best.screen_y    = sy;
-                    best.distance_px = dist;
+                    best_dist2       = dist2;
                 }
             }
         }
+    }
+
+    if (best.found)
+    {
+        best.distance_px = std::sqrt(best_dist2);
     }
 
     // Compute dy/dx at the nearest point via finite difference

@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Qt Embedding | Spectra Docs</title>
+    <meta
+      name="description"
+      content="Embed Spectra's Vulkan-accelerated plotting inside a Qt6 application using QtRuntime and QVulkanInstance."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Sora:wght@400;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body id="top" class="docs-page qt-doc">
+    <nav class="top-nav">
+      <div class="container nav-wrap">
+        <a href="index.html">Home</a>
+        <a href="getting-started.html">Getting Started</a>
+        <a href="features.html">Feature Guide</a>
+        <a href="examples.html">Examples</a>
+        <a href="architecture.html">Architecture</a>
+        <a href="ros2-adapter.html">ROS2</a>
+        <a href="px4-adapter.html">PX4</a>
+        <a href="qt-embed.html" aria-current="page">Qt Embed</a>
+        <a href="webgpu.html">WebGPU</a>
+      </div>
+    </nav>
+
+    <header class="page-hero">
+      <div class="container">
+        <div class="breadcrumb"><a href="index.html">Docs</a><span>/</span><span>Qt Embedding</span></div>
+        <div class="status-row" aria-label="Qt adapter scope">
+          <span class="status-chip">Qt6</span>
+          <span class="status-chip">QVulkanInstance</span>
+          <span class="status-chip">In-process</span>
+        </div>
+        <h1>Embedding Spectra in Qt6 Applications</h1>
+        <p class="lead">
+          Use Spectra's Vulkan rendering inside a <code>QWindow</code> via the
+          <code>QtRuntime</code> bootstrap — full plotting power without GLFW or a
+          separate window.
+        </p>
+      </div>
+    </header>
+
+    <main>
+      <section class="section section-tight">
+        <div class="container">
+          <h2>When to Use Qt Embedding</h2>
+          <ul>
+            <li>You already have a Qt6 desktop application and want Spectra plots inside it.</li>
+            <li>You need Spectra to share the application's main event loop and signals/slots.</li>
+            <li>You want a native Qt menu bar / dock layout around Spectra canvases.</li>
+          </ul>
+          <div class="callout">
+            For headless rendering without a window, see the
+            <a href="easy_embed_guide.md">Easy Embed Guide</a>. For a C ABI embed
+            surface (non-Qt host applications), see
+            <code>SPECTRA_BUILD_EMBED_SHARED=ON</code> and
+            <code>include/spectra/embed.h</code>.
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container">
+          <h2>Build Configuration</h2>
+          <pre><code>cmake -B build \
+  -DSPECTRA_USE_QT=ON \
+  -DSPECTRA_BUILD_QT_EXAMPLE=ON \
+  -DCMAKE_BUILD_TYPE=Release
+cmake --build build --target qt_embed_demo -j$(nproc)
+./build/examples/qt_embed_demo</code></pre>
+          <table>
+            <thead><tr><th>Flag</th><th>Purpose</th></tr></thead>
+            <tbody>
+              <tr><td><code>SPECTRA_USE_QT</code></td><td>Build the Qt adapter (<code>src/adapters/qt/</code>)</td></tr>
+              <tr><td><code>SPECTRA_BUILD_QT_EXAMPLE</code></td><td>Build <code>qt_embed_demo</code> (requires Qt6)</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container">
+          <h2>Minimal Integration</h2>
+          <pre><code>#include &lt;QApplication&gt;
+#include &lt;QVulkanInstance&gt;
+#include &lt;spectra/adapters/qt/qt_runtime.hpp&gt;
+#include &lt;spectra/figure.hpp&gt;
+
+int main(int argc, char** argv)
+{
+    QApplication app(argc, argv);
+
+    spectra::adapters::qt::QtRuntime rt;
+    rt.init();                           // VkInstance + VkDevice + Renderer
+
+    // Create a QWindow with surfaceType = Qt::VulkanSurface and
+    // assign rt.vulkan_instance() before show().
+    QWindow* win = make_vulkan_window(rt);
+    win-&gt;resize(1280, 800);
+    win-&gt;show();
+
+    spectra::Figure fig;
+    rt.attach_window(win, win-&gt;width(), win-&gt;height());
+
+    // Drive frames from a timer or QWindow::requestUpdate()
+    QObject::connect(&amp;timer, &amp;QTimer::timeout, [&amp;]() {
+        rt.begin_frame();
+        rt.render_figure(fig);
+        rt.end_frame();
+    });
+
+    return app.exec();
+}</code></pre>
+          <p>The full working example is in
+          <a href="https://github.com/danlil240/Spectra/blob/main/examples/qt_embed_demo.cpp"><code>examples/qt_embed_demo.cpp</code></a>.</p>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container">
+          <h2>QtRuntime API Surface</h2>
+          <table>
+            <thead><tr><th>Method</th><th>Purpose</th></tr></thead>
+            <tbody>
+              <tr><td><code>init()</code></td><td>Create <code>VkInstance</code>, <code>VkDevice</code>, and the shared <code>Renderer</code>.</td></tr>
+              <tr><td><code>vulkan_instance()</code></td><td>Returns the <code>QVulkanInstance*</code> to assign to your <code>QWindow</code>.</td></tr>
+              <tr><td><code>attach_window(QWindow*, w, h)</code></td><td>Create surface + swapchain for a Qt window.</td></tr>
+              <tr><td><code>resize_window(QWindow*, w, h)</code></td><td>Recreate the swapchain on resize.</td></tr>
+              <tr><td><code>begin_frame() / render_figure(Figure&amp;) / end_frame()</code></td><td>Drive a frame from the Qt event loop.</td></tr>
+              <tr><td><code>shutdown()</code></td><td>Tear down all Vulkan resources (idempotent).</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container">
+          <h2>Notes &amp; Limitations</h2>
+          <ul>
+            <li>Qt embedding runs in <strong>inproc</strong> mode only — there is no daemon.</li>
+            <li>The Qt window owns input; Spectra's input handler is wired through
+              <code>QtSurfaceHost</code>.</li>
+            <li>Multiple Qt windows are supported by calling <code>attach_window()</code> for each.</li>
+            <li>Wayland is supported via Qt's Vulkan integration; X11 is supported on Linux.</li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container">
+          <h2>Related</h2>
+          <ul>
+            <li><a href="easy_embed_guide.md">Easy Embed Guide</a> — headless one-liner rendering</li>
+            <li><a href="architecture.html">Architecture</a> — runtime modes and surface hosts</li>
+            <li><a href="https://github.com/danlil240/Spectra/tree/main/src/adapters/qt">src/adapters/qt/</a> — adapter source</li>
+          </ul>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-wrap">
+        <p>Spectra Docs</p>
+        <a href="index.html">Back to home</a>
+      </div>
+    </footer>
+  </body>
+</html>

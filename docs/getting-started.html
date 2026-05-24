@@ -5,25 +5,45 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Getting Started | Spectra Docs</title>
     <meta name="description" content="Install, build, and run Spectra for C++20 and Python — platform setup, CMake options, packaging, deployment, and CI/CD." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Sora:wght@400;600;700;800&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="styles.css" />
   </head>
-  <body id="top">
+  <body id="top" class="docs-page getting-started-doc">
     <nav class="top-nav">
       <div class="container nav-wrap">
         <a href="index.html">Home</a>
-        <a href="getting-started.html">Getting Started</a>
+        <a href="getting-started.html" aria-current="page">Getting Started</a>
         <a href="features.html">Feature Guide</a>
         <a href="examples.html">Examples</a>
         <a href="architecture.html">Architecture</a>
-        <a href="ros2-adapter.html">ROS2 Adapter</a>
+        <a href="ros2-adapter.html">ROS2</a>
+        <a href="px4-adapter.html">PX4</a>
+        <a href="qt-embed.html">Qt Embed</a>
+        <a href="webgpu.html">WebGPU</a>
       </div>
     </nav>
 
     <header class="page-hero">
       <div class="container">
         <div class="breadcrumb"><a href="index.html">Docs</a><span>/</span><span>Getting Started</span></div>
+        <div class="status-row" aria-label="Guide scope">
+          <span class="status-chip">C++20</span>
+          <span class="status-chip">Python 3.9+</span>
+          <span class="status-chip">Vulkan runtime</span>
+        </div>
         <h1>Getting Started with Spectra</h1>
         <p class="lead">From zero to GPU-accelerated plots in under five minutes — C++ and Python.</p>
+        <div class="metric-strip" aria-label="Setup flow">
+          <div class="metric-tile"><strong>1</strong><span>install prerequisites</span></div>
+          <div class="metric-tile"><strong>2</strong><span>configure CMake</span></div>
+          <div class="metric-tile"><strong>3</strong><span>build examples</span></div>
+          <div class="metric-tile"><strong>4</strong><span>run C++ or Python</span></div>
+        </div>
       </div>
     </header>
 

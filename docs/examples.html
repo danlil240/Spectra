@@ -5,23 +5,37 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Examples | Spectra Docs</title>
     <meta name="description" content="40+ Spectra examples — 2D, 3D, animation, multi-window, Python, and headless export." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Sora:wght@400;600;700;800&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="styles.css" />
   </head>
-  <body id="top">
+  <body id="top" class="docs-page examples-doc">
     <nav class="top-nav">
       <div class="container nav-wrap">
         <a href="index.html">Home</a>
         <a href="getting-started.html">Getting Started</a>
         <a href="features.html">Feature Guide</a>
-        <a href="examples.html">Examples</a>
+        <a href="examples.html" aria-current="page">Examples</a>
         <a href="architecture.html">Architecture</a>
-        <a href="ros2-adapter.html">ROS2 Adapter</a>
+        <a href="ros2-adapter.html">ROS2</a>
+        <a href="px4-adapter.html">PX4</a>
+        <a href="qt-embed.html">Qt Embed</a>
+        <a href="webgpu.html">WebGPU</a>
       </div>
     </nav>
 
     <header class="page-hero">
       <div class="container">
         <div class="breadcrumb"><a href="index.html">Docs</a><span>/</span><span>Examples</span></div>
+        <div class="status-row" aria-label="Example catalog scope">
+          <span class="status-chip">C++ recipes</span>
+          <span class="status-chip">Python scripts</span>
+          <span class="status-chip">Adapters</span>
+        </div>
         <h1>Example Recipes</h1>
         <p class="lead">40+ runnable C++ and Python programs covering every major Spectra feature.</p>
       </div>
@@ -65,6 +79,11 @@ cmake --build build -j$(nproc)
               <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/plot_styles_demo.cpp"><code>plot_styles_demo.cpp</code></a></td><td>All 18 markers, dash patterns, format strings</td></tr>
               <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/stats_demo.cpp"><code>stats_demo.cpp</code></a></td><td>Box plot, violin, histogram, bar chart</td></tr>
               <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/empty_launch_csv.cpp"><code>empty_launch_csv.cpp</code></a></td><td>Empty canvas + CSV data loading</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/comprehensive_subplot_demo.cpp"><code>comprehensive_subplot_demo.cpp</code></a></td><td>Full subplot grid feature tour</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/multi_window_demo.cpp"><code>multi_window_demo.cpp</code></a></td><td>Independent OS windows, peer-equivalent</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/eigen_demo.cpp"><code>eigen_demo.cpp</code></a></td><td>Plot directly from Eigen matrices / vectors</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/logger_example.cpp"><code>logger_example.cpp</code></a></td><td>Spectra structured logging</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/shapes_demo.cpp"><code>shapes_demo.cpp</code></a></td><td>2D shape primitives overlay</td></tr>
             </tbody>
           </table>
         </div>
@@ -83,6 +102,12 @@ cmake --build build -j$(nproc)
               <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/transparency_demo.cpp"><code>transparency_demo.cpp</code></a></td><td>Transparent surfaces, wireframe, painter's sort</td></tr>
               <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/mind_blowing_3d.cpp"><code>mind_blowing_3d.cpp</code></a></td><td>Advanced 3D visualization</td></tr>
               <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/mode_transition_demo.cpp"><code>mode_transition_demo.cpp</code></a></td><td>Animated 2D↔3D view switching</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/axes3d_demo.cpp"><code>axes3d_demo.cpp</code></a></td><td>3D axes / grid / tick label rendering</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/simple_3d_scatter.cpp"><code>simple_3d_scatter.cpp</code></a></td><td>Minimal 3D scatter plot</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/parametric_3d_line.cpp"><code>parametric_3d_line.cpp</code></a></td><td>Parametric 3D curves</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/shapes3d_demo.cpp"><code>shapes3d_demo.cpp</code></a></td><td>3D primitives (cubes, spheres, arrows)</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/realtime_3d_stream.cpp"><code>realtime_3d_stream.cpp</code></a></td><td>Live-streaming 3D data</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/camera_animation_3d.cpp"><code>camera_animation_3d.cpp</code></a></td><td>Scripted 3D camera fly-through</td></tr>
             </tbody>
           </table>
         </div>
@@ -115,9 +140,67 @@ cmake --build build -j$(nproc)
             <tbody>
               <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/shortcut_config_demo.cpp"><code>shortcut_config_demo.cpp</code></a></td><td>Custom keybinding persistence</td></tr>
               <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/plugin_api_demo.cpp"><code>plugin_api_demo.cpp</code></a></td><td>Plugin system demonstration</td></tr>
-              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/qt_embed_demo.cpp"><code>qt_embed_demo.cpp</code></a></td><td>Native Qt + Vulkan integration</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/qt_embed_demo.cpp"><code>qt_embed_demo.cpp</code></a></td><td>Native Qt + Vulkan integration — see <a href="qt-embed.html">Qt Embedding</a></td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/embed_cpp_demo.cpp"><code>embed_cpp_demo.cpp</code></a></td><td>C++ embed surface (host any OS window)</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/easy_embed_demo.cpp"><code>easy_embed_demo.cpp</code></a></td><td>Headless one-liner rendering — see <a href="easy_embed_guide.md">guide</a></td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/knob_demo.cpp"><code>knob_demo.cpp</code></a></td><td>Interactive knob overlay widgets</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/shortcut_usage_demo.cpp"><code>shortcut_usage_demo.cpp</code></a></td><td>Default shortcut tour</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/axes_menu_demo.cpp"><code>axes_menu_demo.cpp</code></a></td><td>Axes context menu customisation</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/legend_panel_test.cpp"><code>legend_panel_test.cpp</code></a></td><td>Legend panel layout</td></tr>
             </tbody>
           </table>
+        </div>
+      </section>
+
+      <!-- TOPICS / DAEMON -->
+      <section class="section">
+        <div class="container">
+          <h2>Topics &amp; Multi-Process</h2>
+          <table>
+            <thead><tr><th>Example</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/topic_publisher.cpp"><code>topic_publisher.cpp</code></a></td><td>Publish a named topic to <code>spectra-backend</code> — see <a href="topics.md">Topics guide</a></td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/multiproc_demo.sh"><code>multiproc_demo.sh</code></a></td><td>End-to-end daemon + window agent walkthrough</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- WEBGPU -->
+      <section class="section">
+        <div class="container">
+          <h2>WebGPU / WASM</h2>
+          <table>
+            <thead><tr><th>Example</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/webgpu_demo.cpp"><code>webgpu_demo.cpp</code></a></td><td>2D plotting via WebGPU — see <a href="webgpu.html">WebGPU guide</a></td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/webgpu_shell.html"><code>webgpu_shell.html</code></a></td><td>HTML shell for the Emscripten build</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ROS2 EXAMPLES -->
+      <section class="section">
+        <div class="container">
+          <h2>ROS2 Demos</h2>
+          <table>
+            <thead><tr><th>Example</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/ros2_demo.cpp"><code>ros2_demo.cpp</code></a></td><td>Minimal ROS2 subscriber + plot — see <a href="ros2-adapter.html">ROS2 Adapter</a></td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/ros2_ui_preview.cpp"><code>ros2_ui_preview.cpp</code></a></td><td>ROS2 panel UI preview without a live graph</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- PX4 -->
+      <section class="section">
+        <div class="container">
+          <h2>PX4 / ULog</h2>
+          <p>The PX4 adapter ships as a standalone <code>spectra-px4</code> binary rather than an example program. See the <a href="px4-adapter.html">PX4 Adapter guide</a> for ULog and MAVLink workflows.</p>
+          <pre><code>./build/spectra-px4 flight.ulg
+./build/spectra-px4 --connect --port 14540</code></pre>
         </div>
       </section>
 

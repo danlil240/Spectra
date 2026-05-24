@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WebGPU Backend | Spectra Docs</title>
+    <meta
+      name="description"
+      content="Experimental WebGPU/WASM backend for Spectra - the same C++ codebase runs in the browser via Emscripten with WGSL shaders."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Sora:wght@400;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body id="top" class="docs-page webgpu-doc">
+    <nav class="top-nav">
+      <div class="container nav-wrap">
+        <a href="index.html">Home</a>
+        <a href="getting-started.html">Getting Started</a>
+        <a href="features.html">Feature Guide</a>
+        <a href="examples.html">Examples</a>
+        <a href="architecture.html">Architecture</a>
+        <a href="ros2-adapter.html">ROS2</a>
+        <a href="px4-adapter.html">PX4</a>
+        <a href="qt-embed.html">Qt Embed</a>
+        <a href="webgpu.html" aria-current="page">WebGPU</a>
+      </div>
+    </nav>
+
+    <header class="webgpu-hero">
+      <div class="container webgpu-hero-grid">
+        <div class="webgpu-hero-copy">
+          <div class="breadcrumb"><a href="index.html">Docs</a><span>/</span><span>WebGPU Backend</span></div>
+          <div class="status-row" aria-label="WebGPU backend status">
+            <span class="status-chip status-chip-hot">Experimental</span>
+            <span class="status-chip">2D renderer</span>
+            <span class="status-chip">WGSL shaders</span>
+          </div>
+          <h1>WebGPU / WebAssembly Backend</h1>
+          <p class="lead">
+            Run the same Spectra C++ plotting code natively with
+            <a href="https://dawn.googlesource.com/dawn">Dawn</a> or in the browser with
+            <a href="https://emscripten.org">Emscripten</a>. The WebGPU path is experimental,
+            focused on polished 2D plots, dashboards, and browser demos without Vulkan.
+          </p>
+          <div class="hero-metrics" aria-label="Current WebGPU scope">
+            <div>
+              <strong>2D</strong>
+              <span>line, scatter, grid, axes, text</span>
+            </div>
+            <div>
+              <strong>Stats</strong>
+              <span>histogram, bar, box, violin</span>
+            </div>
+            <div>
+              <strong>Native + WASM</strong>
+              <span>Dawn or browser WebGPU</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="workbench-shell" aria-label="Static Spectra WebGPU plotting workbench preview">
+          <div class="workbench-titlebar">
+            <span></span><span></span><span></span>
+            <strong>Spectra WebGPU Workbench</strong>
+            <em>Frame 184 / GPU queue healthy</em>
+          </div>
+          <div class="workbench-body">
+            <aside class="workbench-side">
+              <div class="panel-label">Figure</div>
+              <div class="layer active"><b></b><span>Telemetry line</span></div>
+              <div class="layer amber"><b></b><span>Scatter residuals</span></div>
+              <div class="layer green"><b></b><span>Distribution</span></div>
+              <div class="mini-readout">
+                <span>Renderer</span>
+                <strong>WebGPU</strong>
+              </div>
+            </aside>
+            <section class="plot-stage">
+              <div class="plot-toolbar">
+                <span>pan</span>
+                <span>zoom</span>
+                <span>inspect</span>
+                <strong>msdf text</strong>
+              </div>
+              <svg class="hero-chart" viewBox="0 0 720 420" role="img" aria-label="Spectra chart with grid, axes, line, scatter and statistical plots">
+                <defs>
+                  <linearGradient id="lineGlow" x1="100" y1="0" x2="650" y2="0" gradientUnits="userSpaceOnUse">
+                    <stop offset="0" stop-color="#38e7d5" />
+                    <stop offset="0.45" stop-color="#7bb7ff" />
+                    <stop offset="1" stop-color="#f7b267" />
+                  </linearGradient>
+                  <filter id="softGlow" x="-20%" y="-30%" width="140%" height="160%">
+                    <feGaussianBlur stdDeviation="4" result="blur" />
+                    <feMerge>
+                      <feMergeNode in="blur" />
+                      <feMergeNode in="SourceGraphic" />
+                    </feMerge>
+                  </filter>
+                </defs>
+                <rect x="0" y="0" width="720" height="420" rx="8" fill="#09111c" />
+                <g stroke="#203047" stroke-width="1">
+                  <path d="M78 56H668M78 112H668M78 168H668M78 224H668M78 280H668M78 336H668" />
+                  <path d="M130 42V354M220 42V354M310 42V354M400 42V354M490 42V354M580 42V354" />
+                </g>
+                <path d="M78 354H668M78 42V354" fill="none" stroke="#6f829f" stroke-width="2" />
+                <g fill="#8da0bd" font-family="'Sora', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="22">
+                  <text x="66" y="360" text-anchor="end">0</text>
+                  <text x="66" y="229" text-anchor="end">50</text>
+                  <text x="66" y="64" text-anchor="end">100</text>
+                  <text x="566" y="382">samples</text>
+                  <text x="96" y="66">live FFT + residual distribution</text>
+                </g>
+                <path class="chart-area" d="M78 286C119 236 153 247 188 196C236 126 270 164 314 117C360 69 405 113 448 99C502 82 548 163 600 128C632 108 650 99 668 86V354H78Z" />
+                <path class="chart-line" d="M78 286C119 236 153 247 188 196C236 126 270 164 314 117C360 69 405 113 448 99C502 82 548 163 600 128C632 108 650 99 668 86" />
+                <g class="scatter-points">
+                  <circle cx="126" cy="264" r="5" />
+                  <circle cx="186" cy="200" r="5" />
+                  <circle cx="244" cy="144" r="5" />
+                  <circle cx="318" cy="119" r="5" />
+                  <circle cx="382" cy="96" r="5" />
+                  <circle cx="454" cy="100" r="5" />
+                  <circle cx="528" cy="146" r="5" />
+                  <circle cx="608" cy="123" r="5" />
+                </g>
+                <g class="bars">
+                  <rect x="112" y="318" width="18" height="36" />
+                  <rect x="138" y="298" width="18" height="56" />
+                  <rect x="164" y="274" width="18" height="80" />
+                  <rect x="190" y="306" width="18" height="48" />
+                </g>
+                <g class="box-violin">
+                  <path d="M611 221C584 247 584 295 611 323C638 295 638 247 611 221Z" />
+                  <line x1="611" y1="226" x2="611" y2="321" />
+                  <rect x="638" y="244" width="30" height="50" rx="3" />
+                  <line x1="653" y1="224" x2="653" y2="318" />
+                  <line x1="642" y1="269" x2="664" y2="269" />
+                </g>
+                <g class="crosshair">
+                  <path d="M448 42V354M78 99H668" />
+                  <rect x="462" y="70" width="126" height="58" rx="6" />
+                  <text x="477" y="95">x 3.84s</text>
+                  <text x="477" y="116">y 91.2</text>
+                </g>
+              </svg>
+            </section>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="section section-tight">
+        <div class="container">
+          <div class="section-heading">
+            <span class="eyebrow">Backend scope</span>
+            <h2>What's supported today</h2>
+            <p class="section-intro">
+              WebGPU currently tracks Spectra's 2D drawing model. It is useful for browser demos
+              and embedded dashboards, while Vulkan remains the production backend for the full
+              feature set.
+            </p>
+          </div>
+          <div class="capability-grid">
+            <article class="capability-panel ready">
+              <div class="panel-kicker">Implemented</div>
+              <h3>2D plotting primitives</h3>
+              <ul>
+                <li>Line series with SDF anti-aliasing</li>
+                <li>Scatter series with all 18 marker types</li>
+                <li>Grid lines, axes, and MSDF text rendering</li>
+                <li>Statistical series: histogram, bar, box, and violin</li>
+              </ul>
+            </article>
+            <article class="capability-panel limited">
+              <div class="panel-kicker">Not yet ported</div>
+              <h3>Full desktop runtime features</h3>
+              <ul>
+                <li>3D pipelines: surface, mesh, scatter3, line3, and lighting</li>
+                <li>Multi-process / IPC mode because browsers do not expose Unix sockets</li>
+                <li>Video export to MP4 or GIF</li>
+                <li>Runtime plugin loading because wasm has no <code>dlopen</code></li>
+              </ul>
+            </article>
+          </div>
+          <div class="callout warn status-callout">
+            <strong>Current status:</strong> experimental and 2D-only. For production scientific
+            workflows that need 3D rendering, IPC, plugins, or export pipelines, use the Vulkan
+            backend.
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container">
+          <div class="section-heading compact">
+            <span class="eyebrow">Build paths</span>
+            <h2>Native or browser targets</h2>
+          </div>
+          <div class="command-grid">
+            <article class="command-panel">
+              <div class="command-panel-header">
+                <span>Native Dawn</span>
+                <strong>Desktop WebGPU</strong>
+              </div>
+              <p>Build and link against a local
+              <a href="https://dawn.googlesource.com/dawn">Dawn</a> install.</p>
+              <pre><code>cmake -B build \
+  -DSPECTRA_USE_WEBGPU=ON \
+  -Ddawn_DIR=/path/to/dawn/install/lib/cmake/dawn \
+  -DCMAKE_BUILD_TYPE=Release
+cmake --build build --target webgpu_demo
+./build/examples/webgpu_demo</code></pre>
+              <p class="panel-note">You can also link against
+              <a href="https://github.com/gfx-rs/wgpu-native"><code>wgpu-native</code></a>
+              by pointing CMake at its install prefix.</p>
+            </article>
+            <article class="command-panel browser">
+              <div class="command-panel-header">
+                <span>Emscripten</span>
+                <strong>Browser WebGPU</strong>
+              </div>
+              <pre><code>source /path/to/emsdk/emsdk_env.sh
+emcmake cmake -B build-wasm \
+  -DSPECTRA_USE_WEBGPU=ON \
+  -DCMAKE_BUILD_TYPE=Release
+cmake --build build-wasm --target webgpu_demo
+
+# Serve and open in a WebGPU-capable browser (Chrome / Edge 113+)
+python3 -m http.server -d build-wasm/examples
+# http://localhost:8000/webgpu_demo.html</code></pre>
+              <p class="panel-note">The static HTML shell is
+              <a href="https://github.com/danlil240/Spectra/blob/main/examples/webgpu_shell.html"><code>examples/webgpu_shell.html</code></a>.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container">
+          <div class="split-section">
+            <article class="code-showcase">
+              <div class="section-heading compact">
+                <span class="eyebrow">Application code</span>
+                <h2>Same plotting API</h2>
+              </div>
+              <p>User code is <strong>identical</strong> to the Vulkan backend. Select WebGPU at
+              build time with <code>SPECTRA_USE_WEBGPU</code>.</p>
+              <pre><code>#include &lt;spectra/app.hpp&gt;
+#include &lt;spectra/easy.hpp&gt;
+
+int main()
+{
+    spectra::plot({0.f, 1.f, 2.f, 3.f}, {0.f, 1.f, 0.5f, 1.5f}, "c-o");
+    spectra::title("Hello WebGPU");
+    spectra::show();
+}</code></pre>
+              <p class="panel-note">The full example is in
+              <a href="https://github.com/danlil240/Spectra/blob/main/examples/webgpu_demo.cpp"><code>examples/webgpu_demo.cpp</code></a>.</p>
+            </article>
+            <article class="architecture-panel">
+              <div class="section-heading compact">
+                <span class="eyebrow">Shader layout</span>
+                <h2>Mirrored WGSL path</h2>
+              </div>
+              <p>GLSL Vulkan shaders are mirrored as WGSL in
+              <code>src/render/webgpu/shaders/</code>. When a 2D Vulkan shader changes, port the
+              equivalent <code>.wgsl</code> file to keep both backends in sync.</p>
+              <div class="pipeline-list" aria-label="WebGPU rendering path">
+                <span>C++ plot calls</span>
+                <span>Renderer abstraction</span>
+                <span>WebGPU backend</span>
+                <span>WGSL shader modules</span>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container">
+          <div class="section-heading compact">
+            <span class="eyebrow">Related</span>
+            <h2>Keep exploring</h2>
+          </div>
+          <div class="related-grid">
+            <a class="related-card" href="architecture.html">
+              <span>Architecture</span>
+              <strong>Backend abstraction layer</strong>
+            </a>
+            <a class="related-card" href="https://github.com/danlil240/Spectra/tree/main/src/render/webgpu">
+              <span>Source</span>
+              <strong>src/render/webgpu/ and WGSL shaders</strong>
+            </a>
+            <a class="related-card" href="https://github.com/danlil240/Spectra/blob/main/docs/plans/2026-04-04-next-3-phases-roadmap.md">
+              <span>Roadmap</span>
+              <strong>Planned WebGPU work</strong>
+            </a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-wrap">
+        <p>Spectra Docs</p>
+        <a href="index.html">Back to home</a>
+      </div>
+    </footer>
+  </body>
+</html>

@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PX4 Adapter | Spectra Docs</title>
+    <meta
+      name="description"
+      content="Spectra PX4 Adapter — GPU-accelerated ULog file analysis and real-time MAVLink telemetry visualization for PX4 autopilot."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Sora:wght@400;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body id="top" class="docs-page px4-doc">
+    <nav class="top-nav">
+      <div class="container nav-wrap">
+        <a href="index.html">Home</a>
+        <a href="getting-started.html">Getting Started</a>
+        <a href="features.html">Feature Guide</a>
+        <a href="examples.html">Examples</a>
+        <a href="architecture.html">Architecture</a>
+        <a href="ros2-adapter.html">ROS2</a>
+        <a href="px4-adapter.html" aria-current="page">PX4</a>
+        <a href="qt-embed.html">Qt Embed</a>
+        <a href="webgpu.html">WebGPU</a>
+      </div>
+    </nav>
+
+    <header class="page-hero">
+      <div class="container">
+        <div class="breadcrumb"><a href="index.html">Docs</a><span>/</span><span>PX4 Adapter</span></div>
+        <div class="status-row" aria-label="PX4 adapter scope">
+          <span class="status-chip">ULog</span>
+          <span class="status-chip">MAVLink</span>
+          <span class="status-chip">spectra-px4</span>
+        </div>
+        <h1>PX4 / ULog Adapter</h1>
+        <p class="lead">
+          Standalone <code>spectra-px4</code> binary for GPU-accelerated
+          PX4 autopilot visualization — offline ULog browsing and live MAVLink
+          telemetry in a single window.
+        </p>
+      </div>
+    </header>
+
+    <main>
+      <section class="section section-tight">
+        <div class="container">
+          <h2>What It Does</h2>
+          <div class="grid cards-2">
+            <article class="card">
+              <h3>Offline ULog Analysis</h3>
+              <ul>
+                <li>Load <code>.ulg</code> flight logs directly</li>
+                <li>Browse all logged topics and fields in a tree panel</li>
+                <li>Drag any field onto an axes to plot it</li>
+                <li>Chunked series for multi-GB logs with bounded memory</li>
+              </ul>
+            </article>
+            <article class="card">
+              <h3>Live MAVLink Telemetry</h3>
+              <ul>
+                <li>UDP connection to PX4 SITL or hardware autopilot</li>
+                <li>Real-time scrolling plots with configurable time window</li>
+                <li>Auto-plot groups for IMU, attitude, GPS, control outputs</li>
+                <li>Side-by-side with replayed log data</li>
+              </ul>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container">
+          <h2>Build &amp; Install</h2>
+          <p>The PX4 adapter is enabled by default when its dependencies are present.</p>
+          <pre><code>cmake -B build -DSPECTRA_USE_PX4=ON -DCMAKE_BUILD_TYPE=Release
+cmake --build build --target spectra-px4 -j$(nproc)
+./build/spectra-px4 --help</code></pre>
+          <div class="callout">
+            Set <code>-DSPECTRA_USE_PX4=OFF</code> to skip building the adapter and its
+            bundled ULog reader / MAVLink message definitions.
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container">
+          <h2>Command-Line Usage</h2>
+          <table>
+            <thead><tr><th>Flag</th><th>Description</th><th>Default</th></tr></thead>
+            <tbody>
+              <tr><td><code>--ulog FILE</code></td><td>Open a ULog file on launch</td><td>—</td></tr>
+              <tr><td><code>--host HOST</code></td><td>MAVLink UDP host</td><td><code>127.0.0.1</code></td></tr>
+              <tr><td><code>--port PORT</code></td><td>MAVLink UDP port</td><td><code>14540</code></td></tr>
+              <tr><td><code>--connect</code></td><td>Auto-connect to MAVLink on launch</td><td>off</td></tr>
+              <tr><td><code>--window-s SEC</code></td><td>Real-time scrolling window length</td><td><code>30</code></td></tr>
+              <tr><td><code>--chunked</code></td><td>Use chunked line series (large logs)</td><td>off</td></tr>
+              <tr><td><code>--budget BYTES</code></td><td>Memory budget for chunked series (0 = unlimited)</td><td><code>0</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container">
+          <h2>Common Workflows</h2>
+          <h3>Offline log inspection</h3>
+          <pre><code># Open a single log file
+./build/spectra-px4 flight.ulg
+
+# Large log with bounded memory (~512 MB)
+./build/spectra-px4 --chunked --budget 536870912 long_flight.ulg</code></pre>
+
+          <h3>SITL or hardware live telemetry</h3>
+          <pre><code># Auto-connect to PX4 SITL on default UDP port
+./build/spectra-px4 --connect --port 14540
+
+# Connect to a remote autopilot
+./build/spectra-px4 --connect --host 192.168.1.42 --port 14550</code></pre>
+
+          <h3>Mixed mode — log + live</h3>
+          <pre><code># Open a reference log and connect live for comparison
+./build/spectra-px4 --ulog reference.ulg --connect</code></pre>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container">
+          <h2>UI Panels</h2>
+          <div class="grid cards-2">
+            <article class="card">
+              <h3>ULog File Panel</h3>
+              <p>Browse the topic tree of an opened ULog. Expand a topic, drag a
+              field onto any axes, and Spectra creates a series automatically.</p>
+            </article>
+            <article class="card">
+              <h3>Live Connection Panel</h3>
+              <p>Manage the MAVLink UDP link — connect, disconnect, change host
+              / port, and see the per-topic message rate.</p>
+            </article>
+            <article class="card">
+              <h3>Auto-Plot Groups</h3>
+              <p>One-click presets for common PX4 telemetry: IMU accel / gyro,
+              attitude (roll / pitch / yaw), GPS position, motor outputs.</p>
+            </article>
+            <article class="card">
+              <h3>Standard Spectra UI</h3>
+              <p>Docking, command palette, undo / redo, timeline, recording,
+              themes, and workspace save / load all work in <code>spectra-px4</code>.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container">
+          <h2>Related</h2>
+          <ul>
+            <li><a href="ros2-adapter.html">ROS2 Adapter</a> — for ROS-based workflows</li>
+            <li><a href="features.html">Feature Guide</a> — full Spectra capability matrix</li>
+            <li><a href="https://github.com/danlil240/Spectra/tree/main/src/adapters/px4">src/adapters/px4/</a> — adapter source</li>
+          </ul>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-wrap">
+        <p>Spectra Docs</p>
+        <a href="index.html">Back to home</a>
+      </div>
+    </footer>
+  </body>
+</html>

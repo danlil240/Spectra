@@ -3,53 +3,116 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Spectra Features | Vulkan Plotting for C++20 and Python</title>
+    <title>GPU Plotting Workbench for C++20 and Python | Spectra Docs</title>
     <meta
       name="description"
-      content="Explore all Spectra features: GPU-accelerated 2D/3D plotting, animation, multi-window workflows, Python IPC, and headless export."
+      content="Spectra documentation dashboard for GPU-accelerated plotting, C++20 and Python APIs, architecture, examples, adapters, and WebGPU."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Sora:wght@400;600;700;800&display=swap"
+      rel="stylesheet"
     />
     <link rel="stylesheet" href="styles.css" />
   </head>
-  <body>
-    <header class="hero" id="top">
-      <div class="container">
-        <p class="eyebrow">Spectra Documentation</p>
-        <h1>All Spectra Features in One Place</h1>
-        <p class="lead">
-          A modern C++20 + Python plotting system powered by Vulkan, built for
-          scientific and engineering workflows.
-        </p>
-        <div class="pill-row" aria-label="project highlights">
-          <span class="pill">Vulkan 1.2+</span>
-          <span class="pill">2D + 3D</span>
-          <span class="pill">C++20 + Python</span>
-          <span class="pill">Headless + Interactive</span>
-        </div>
-        <div class="hero-cta">
-          <a class="btn btn-primary" href="#feature-map">Explore Features</a>
-          <a class="btn btn-ghost" href="getting-started.html">Quick Start Guide</a>
-        </div>
-      </div>
-    </header>
-
+  <body id="top" class="docs-page home-doc">
     <nav class="top-nav">
       <div class="container nav-wrap">
-        <a href="index.html">Home</a>
+        <a href="index.html" aria-current="page">Home</a>
         <a href="getting-started.html">Getting Started</a>
         <a href="features.html">Feature Guide</a>
         <a href="examples.html">Examples</a>
         <a href="architecture.html">Architecture</a>
-        <a href="#core-rendering">Core</a>
-        <a href="#visualization-3d">3D</a>
-        <a href="#easy-api">Easy API</a>
-        <a href="#animation-recording">Animation</a>
-        <a href="#ui-productivity">UI</a>
-        <a href="#python-api">Python</a>
-        <a href="#export-integration">Export</a>
-        <a href="#quality">Quality</a>
-        <a href="ros2-adapter.html">ROS2 Adapter</a>
+        <a href="ros2-adapter.html">ROS2</a>
+        <a href="px4-adapter.html">PX4</a>
+        <a href="qt-embed.html">Qt Embed</a>
+        <a href="webgpu.html">WebGPU</a>
       </div>
     </nav>
+
+    <header class="docs-hero">
+      <div class="container docs-hero-grid">
+        <div>
+          <p class="eyebrow">Spectra Documentation</p>
+          <h1>GPU plotting docs for serious workbench workflows</h1>
+          <p class="lead">
+            Build, embed, automate, and inspect Spectra: a C++20 and Python plotting
+            system with Vulkan rendering, interactive tools, adapters, and an
+            experimental WebGPU path.
+          </p>
+          <div class="pill-row" aria-label="project highlights">
+            <span class="pill">Vulkan 1.2+</span>
+            <span class="pill">2D + 3D</span>
+            <span class="pill">C++20 + Python</span>
+            <span class="pill">Interactive + headless</span>
+          </div>
+          <div class="hero-cta">
+            <a class="btn btn-primary" href="getting-started.html">Start Building</a>
+            <a class="btn btn-ghost" href="#subpages">Browse Docs</a>
+          </div>
+          <div class="metric-strip" aria-label="Documentation coverage">
+            <div class="metric-tile"><strong>Core</strong><span>plotting, UI, export</span></div>
+            <div class="metric-tile"><strong>Adapters</strong><span>ROS2, PX4, Qt</span></div>
+            <div class="metric-tile"><strong>Runtime</strong><span>inproc + IPC</span></div>
+            <div class="metric-tile"><strong>WebGPU</strong><span>experimental 2D</span></div>
+          </div>
+        </div>
+
+        <div class="doc-workbench" aria-label="Static Spectra documentation workbench preview">
+          <div class="doc-workbench-titlebar">
+            <span></span><span></span><span></span>
+            <strong>Spectra Docs Workbench</strong>
+            <em>plot stack online</em>
+          </div>
+          <div class="doc-workbench-body">
+            <aside class="doc-workbench-sidebar">
+              <div class="panel-label">Guides</div>
+              <div class="mini-nav-list">
+                <a href="getting-started.html">Install</a>
+                <a href="features.html">Capabilities</a>
+                <a href="examples.html">Recipes</a>
+                <a href="architecture.html">Runtime</a>
+              </div>
+            </aside>
+            <section class="doc-workbench-stage">
+              <div class="plot-toolbar">
+                <span>pan</span>
+                <span>inspect</span>
+                <span>export</span>
+                <strong>linked axes</strong>
+              </div>
+              <svg class="dashboard-chart" viewBox="0 0 620 360" role="img" aria-label="Spectra dashboard chart preview">
+                <rect x="0" y="0" width="620" height="360" rx="8" fill="#09111b" />
+                <g stroke="#203047" stroke-width="1">
+                  <path d="M68 48H580M68 104H580M68 160H580M68 216H580M68 272H580" />
+                  <path d="M130 38V300M210 38V300M290 38V300M370 38V300M450 38V300M530 38V300" />
+                </g>
+                <path d="M68 300H580M68 38V300" fill="none" stroke="#6f829f" stroke-width="2" />
+                <path d="M68 242C112 198 152 210 194 154C239 93 284 132 324 101C368 68 412 112 454 92C508 67 544 133 580 104" fill="none" stroke="#38dcca" stroke-width="5" stroke-linecap="round" />
+                <path d="M68 242C112 198 152 210 194 154C239 93 284 132 324 101C368 68 412 112 454 92C508 67 544 133 580 104V300H68Z" fill="rgba(56, 220, 202, 0.12)" />
+                <g fill="#09111b" stroke="#f7b267" stroke-width="3">
+                  <circle cx="130" cy="198" r="5" />
+                  <circle cx="194" cy="154" r="5" />
+                  <circle cx="324" cy="101" r="5" />
+                  <circle cx="454" cy="92" r="5" />
+                  <circle cx="544" cy="133" r="5" />
+                </g>
+                <g fill="rgba(123, 183, 255, 0.46)">
+                  <rect x="102" y="262" width="18" height="38" />
+                  <rect x="126" y="238" width="18" height="62" />
+                  <rect x="150" y="252" width="18" height="48" />
+                  <rect x="174" y="224" width="18" height="76" />
+                </g>
+                <g stroke="#ff7197" stroke-width="1.5" stroke-dasharray="6 7">
+                  <path d="M454 38V300M68 92H580" />
+                </g>
+              </svg>
+            </section>
+          </div>
+        </div>
+      </div>
+    </header>
 
     <main>
       <section class="section" id="feature-map">
@@ -119,6 +182,36 @@
               <h3>ROS2 Adapter</h3>
               <p>GPU-accelerated ROS2 visualization — topic monitor, live plotting, bag tools, TF tree, node graph, and more.</p>
               <a href="ros2-adapter.html">View ROS2 docs →</a>
+            </article>
+            <article class="card link-card">
+              <h3>PX4 / ULog Adapter</h3>
+              <p>Standalone <code>spectra-px4</code> for offline ULog browsing and live MAVLink telemetry.</p>
+              <a href="px4-adapter.html">View PX4 docs →</a>
+            </article>
+            <article class="card link-card">
+              <h3>Qt Embedding</h3>
+              <p>Embed Spectra's Vulkan rendering inside a Qt6 application via <code>QtRuntime</code>.</p>
+              <a href="qt-embed.html">View Qt guide →</a>
+            </article>
+            <article class="card link-card">
+              <h3>WebGPU / WASM</h3>
+              <p>Experimental WebGPU backend — same C++ code runs natively or in the browser.</p>
+              <a href="webgpu.html">View WebGPU docs →</a>
+            </article>
+            <article class="card link-card">
+              <h3>Easy Embed (Headless)</h3>
+              <p>One-liner offscreen rendering for web services, batch reports, and notebooks.</p>
+              <a href="easy_embed_guide.md">Open guide →</a>
+            </article>
+            <article class="card link-card">
+              <h3>Plugin Developer Guide</h3>
+              <p>Write shared-library plugins for commands, transforms, overlays, data sources, and export formats.</p>
+              <a href="plugin_developer_guide.md">Open guide →</a>
+            </article>
+            <article class="card link-card">
+              <h3>Topics (Live Streams)</h3>
+              <p>ROS-style named topics published into <code>spectra-backend</code> and plotted from any window.</p>
+              <a href="topics.md">Open guide →</a>
             </article>
           </div>
         </div>

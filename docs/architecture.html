@@ -5,23 +5,37 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Architecture | Spectra Docs</title>
     <meta name="description" content="Spectra architecture — system topology, runtime modes, project structure, and design decisions." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Sora:wght@400;600;700;800&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="styles.css" />
   </head>
-  <body id="top">
+  <body id="top" class="docs-page architecture-doc">
     <nav class="top-nav">
       <div class="container nav-wrap">
         <a href="index.html">Home</a>
         <a href="getting-started.html">Getting Started</a>
         <a href="features.html">Feature Guide</a>
         <a href="examples.html">Examples</a>
-        <a href="architecture.html">Architecture</a>
-        <a href="ros2-adapter.html">ROS2 Adapter</a>
+        <a href="architecture.html" aria-current="page">Architecture</a>
+        <a href="ros2-adapter.html">ROS2</a>
+        <a href="px4-adapter.html">PX4</a>
+        <a href="qt-embed.html">Qt Embed</a>
+        <a href="webgpu.html">WebGPU</a>
       </div>
     </nav>
 
     <header class="page-hero">
       <div class="container">
         <div class="breadcrumb"><a href="index.html">Docs</a><span>/</span><span>Architecture</span></div>
+        <div class="status-row" aria-label="Architecture scope">
+          <span class="status-chip">In-process</span>
+          <span class="status-chip">Multi-process</span>
+          <span class="status-chip">Vulkan backend</span>
+        </div>
         <h1>Architecture Overview</h1>
         <p class="lead">System topology, runtime modes, project structure, and core design decisions.</p>
       </div>

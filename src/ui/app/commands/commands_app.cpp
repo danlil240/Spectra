@@ -29,6 +29,16 @@
     #include <thread>
 #endif
 
+// Help command needs process-launch primitives on every platform.
+#ifdef SPECTRA_USE_IMGUI
+    #ifdef __unix__
+        #include <sys/types.h>
+        #include <unistd.h>
+    #endif
+    #include <cstdlib>
+    #include <thread>
+#endif
+
 #include <algorithm>
 #include <string>
 
@@ -190,6 +200,38 @@ std::vector<CommandDescriptor> make_app_commands(CommandContext& ctx)
         #endif
          }});
     #endif   // SPECTRA_USE_ROS2
+
+    // ─── Help: open documentation in the system browser ─────────────────
+    cmds.push_back(
+        {"help.show",
+         "Help / Documentation",
+         "F1",
+         "App",
+         static_cast<uint16_t>(ui::Icon::Help),
+         []()
+         {
+             constexpr const char* url = "https://danlil240.github.io/Spectra/index.html";
+    #if defined(_WIN32)
+             std::thread([url]()
+                         { std::system((std::string("start \"\" \"") + url + "\"").c_str()); })
+                 .detach();
+    #elif defined(__APPLE__)
+             std::thread([url]() { std::system((std::string("open \"") + url + "\"").c_str()); })
+                 .detach();
+    #elif defined(__unix__)
+             pid_t pid = fork();
+             if (pid == 0)
+             {
+                 execlp("xdg-open", "xdg-open", url, static_cast<char*>(nullptr));
+                 _exit(127);
+             }
+             else if (pid < 0)
+             {
+                 SPECTRA_LOG_ERROR("help", "fork() failed — cannot open browser");
+             }
+    #endif
+             SPECTRA_LOG_INFO("help", std::string("Opening documentation: ") + url);
+         }});
 #else
     (void)ctx;
 #endif

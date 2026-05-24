@@ -5,23 +5,38 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Feature Guide | Spectra Docs</title>
     <meta name="description" content="Comprehensive Spectra feature guide — rendering, 3D, animation, UI, Python, export, and more." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Sora:wght@400;600;700;800&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="styles.css" />
   </head>
-  <body id="top">
+  <body id="top" class="docs-page features-doc">
     <nav class="top-nav">
       <div class="container nav-wrap">
         <a href="index.html">Home</a>
         <a href="getting-started.html">Getting Started</a>
-        <a href="features.html">Feature Guide</a>
+        <a href="features.html" aria-current="page">Feature Guide</a>
         <a href="examples.html">Examples</a>
         <a href="architecture.html">Architecture</a>
-        <a href="ros2-adapter.html">ROS2 Adapter</a>
+        <a href="ros2-adapter.html">ROS2</a>
+        <a href="px4-adapter.html">PX4</a>
+        <a href="qt-embed.html">Qt Embed</a>
+        <a href="webgpu.html">WebGPU</a>
       </div>
     </nav>
 
     <header class="page-hero">
       <div class="container">
         <div class="breadcrumb"><a href="index.html">Docs</a><span>/</span><span>Feature Guide</span></div>
+        <div class="status-row" aria-label="Feature domains">
+          <span class="status-chip">Rendering</span>
+          <span class="status-chip">Interaction</span>
+          <span class="status-chip">Adapters</span>
+          <span class="status-chip">Export</span>
+        </div>
         <h1>Spectra Feature Guide</h1>
         <p class="lead">Everything Spectra supports, organized by domain for fast scanning.</p>
       </div>
@@ -48,6 +63,12 @@
               <tr><td>Python</td><td>Proxy API, easy one-liners, live streaming, NumPy zero-copy</td><td><code>spectra</code> package, Session / codec layers</td></tr>
               <tr><td>Export</td><td>Headless rendering, PNG / GIF / MP4, plugin API</td><td>Offscreen framebuffer, RecordingSession</td></tr>
               <tr><td>ROS2</td><td>Topic monitor, live plotter, bag player/recorder, TF tree, node graph</td><td><code>spectra-ros</code>, <a href="ros2-adapter.html">full docs →</a></td></tr>
+              <tr><td>PX4 / ULog</td><td>Offline ULog browsing + live MAVLink telemetry, auto-plot groups</td><td><code>spectra-px4</code>, <a href="px4-adapter.html">full docs →</a></td></tr>
+              <tr><td>Qt Embedding</td><td>Run Spectra rendering inside a <code>QWindow</code> via <code>QtRuntime</code></td><td><a href="qt-embed.html">Qt embed guide</a></td></tr>
+              <tr><td>WebGPU / WASM</td><td>Experimental 2D backend; native (Dawn) and browser (Emscripten)</td><td><a href="webgpu.html">WebGPU guide</a></td></tr>
+              <tr><td>Headless embed</td><td>One-liner offscreen PNG rendering; no window, no daemon</td><td><a href="easy_embed_guide.md">Easy Embed guide</a></td></tr>
+              <tr><td>Plugins</td><td>C-ABI shared libraries: commands, transforms, overlays, data sources, exporters</td><td><a href="plugin_developer_guide.md">Plugin guide</a></td></tr>
+              <tr><td>Topics</td><td>Named live streams published into <code>spectra-backend</code></td><td><a href="topics.md">Topics guide</a></td></tr>
             </tbody>
           </table>
         </div>

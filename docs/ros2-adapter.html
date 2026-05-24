@@ -3,10 +3,16 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ROS2 Adapter | Spectra Documentation</title>
+    <title>ROS2 Adapter | Spectra Docs</title>
     <meta
       name="description"
       content="Spectra ROS2 Adapter — GPU-accelerated topic monitoring, live plotting, bag playback, TF tree, node graph, parameter editor, service caller, CSV export, and more."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Sora:wght@400;600;700;800&display=swap"
+      rel="stylesheet"
     />
     <link rel="stylesheet" href="styles.css" />
     <style>
@@ -153,10 +159,32 @@
       }
     </style>
   </head>
-  <body>
-    <header class="hero" id="top">
+  <body id="top" class="docs-page ros2-doc">
+    <nav class="top-nav">
+      <div class="container nav-wrap">
+        <a href="index.html">Home</a>
+        <a href="getting-started.html">Getting Started</a>
+        <a href="features.html">Feature Guide</a>
+        <a href="examples.html">Examples</a>
+        <a href="architecture.html">Architecture</a>
+        <a href="ros2-adapter.html" aria-current="page">ROS2</a>
+        <a href="px4-adapter.html">PX4</a>
+        <a href="qt-embed.html">Qt Embed</a>
+        <a href="webgpu.html">WebGPU</a>
+      </div>
+    </nav>
+
+    <header class="page-hero">
       <div class="container">
-        <p class="eyebrow">Spectra Documentation</p>
+        <div class="breadcrumb"><a href="index.html">Docs</a><span>/</span><span>ROS2 Adapter</span></div>
+        <div class="status-row" aria-label="ROS2 adapter scope">
+          <span class="status-chip">ROS2 Humble+</span>
+          <span class="status-chip">Vulkan GPU</span>
+          <span class="status-chip">C++20</span>
+          <span class="status-chip">Thread-safe</span>
+          <span class="status-chip">Zero rqt dependency</span>
+          <span class="status-chip">SPECTRA_USE_ROS2</span>
+        </div>
         <h1>ROS2 Adapter</h1>
         <p class="lead">
           GPU-accelerated ROS2 visualization, debugging, and analysis.
@@ -164,14 +192,6 @@
           monitor, live plotter, bag player/recorder, TF tree, node graph,
           parameter editor, service caller, and more.
         </p>
-        <div class="badge-row">
-          <span class="badge">ROS2 Humble+</span>
-          <span class="badge">Vulkan GPU</span>
-          <span class="badge">C++20</span>
-          <span class="badge">Thread-safe</span>
-          <span class="badge">Zero rqt dependency</span>
-          <span class="badge">SPECTRA_USE_ROS2</span>
-        </div>
         <div class="hero-cta" style="margin-top:1.4rem">
           <a class="btn btn-primary" href="#quick-start">Quick Start</a>
           <a class="btn btn-ghost" href="#panels">Feature Panels</a>
@@ -179,22 +199,6 @@
         </div>
       </div>
     </header>
-
-    <nav class="top-nav">
-      <div class="container nav-wrap">
-        <a href="index.html">Home</a>
-        <a href="#quick-start">Quick Start</a>
-        <a href="#architecture">Architecture</a>
-        <a href="#panels">Panels</a>
-        <a href="#live-plotting">Live Plotting</a>
-        <a href="#bag-tools">Bag Tools</a>
-        <a href="#advanced-tools">Advanced Tools</a>
-        <a href="#export">Export</a>
-        <a href="#cmake">CMake</a>
-        <a href="#cli">CLI Reference</a>
-        <a href="#shortcuts">Shortcuts</a>
-      </div>
-    </nav>
 
     <main>
 

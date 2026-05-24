@@ -55,7 +55,10 @@ class Publisher
     Publisher& operator=(Publisher&& other) noexcept;
 
     // Create and connect a publisher for the given topic name.
-    // Returns nullptr on connection or declaration failure.
+    // If the daemon is not running, returns a valid but disconnected publisher
+    // that will auto-reconnect and resume delivery as soon as the daemon starts.
+    // publish() silently drops samples while disconnected so the caller's loop
+    // keeps running without crashing. Returns nullptr only if name is empty.
     static std::unique_ptr<Publisher> create(std::string_view name);
     static std::unique_ptr<Publisher> create(std::string_view name, const Options& opts);
 

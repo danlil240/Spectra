@@ -5,8 +5,9 @@
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
-#include <iostream>
 #include <vector>
+
+#include <spectra/logger.hpp>
 
 #include "codec.hpp"
 #include "message.hpp"
@@ -230,9 +231,14 @@ std::unique_ptr<Publisher> Publisher::create(std::string_view name, const Option
 
     if (!impl.connect_and_declare())
     {
-        std::cerr << "[spectra::Publisher] failed to connect / declare '" << impl.name << "' on "
-                  << impl.socket_path << "\n";
-        return nullptr;
+        SPECTRA_LOG_DEBUG("publisher",
+                          "spectra not running \u2014 publisher '{}' will auto-reconnect when the "
+                          "daemon starts (samples silently dropped until then)",
+                          impl.name);
+        // Return the publisher in a disconnected state instead of nullptr.
+        // publish() already handles a null conn: it calls maybe_reconnect() which
+        // is rate-limited and drops samples silently, keeping the caller's loop alive.
+        // This prevents a crash when the caller calls publish() without checking for null.
     }
     return pub;
 }

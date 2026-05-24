@@ -45,6 +45,41 @@
 namespace spectra
 {
 
+#if defined(SPECTRA_USE_IMGUI) && defined(__unix__)
+namespace
+{
+
+void sanitize_help_launcher_child_environment()
+{
+    constexpr const char* vars_to_unset[] = {"LD_LIBRARY_PATH",
+                                             "LD_PRELOAD",
+                                             "GIO_EXTRA_MODULES",
+                                             "GIO_MODULE_DIR",
+                                             "GTK_PATH",
+                                             "GTK_EXE_PREFIX",
+                                             "GTK_DATA_PREFIX",
+                                             "GSETTINGS_SCHEMA_DIR",
+                                             "GI_TYPELIB_PATH",
+                                             "SNAP",
+                                             "SNAP_NAME",
+                                             "SNAP_REVISION",
+                                             "SNAP_ARCH",
+                                             "SNAP_INSTANCE_NAME",
+                                             "SNAP_USER_DATA",
+                                             "SNAP_USER_COMMON",
+                                             "SNAP_LIBRARY_PATH"};
+
+    for (const char* var : vars_to_unset)
+    {
+        unsetenv(var);
+    }
+
+    setenv("XDG_DATA_DIRS", "/usr/local/share:/usr/share", 1);
+}
+
+}   // namespace
+#endif
+
 std::vector<CommandDescriptor> make_app_commands(CommandContext& ctx)
 {
     std::vector<CommandDescriptor> cmds;
@@ -222,6 +257,7 @@ std::vector<CommandDescriptor> make_app_commands(CommandContext& ctx)
              pid_t pid = fork();
              if (pid == 0)
              {
+                 sanitize_help_launcher_child_environment();
                  execlp("xdg-open", "xdg-open", url, static_cast<char*>(nullptr));
                  _exit(127);
              }

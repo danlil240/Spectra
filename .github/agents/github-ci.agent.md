@@ -106,6 +106,14 @@ When adding any GPU-dependent job on Linux, use this ICD discovery idiom (alread
 
 ## Approach
 
+**When the user says "fix CI" or "CI is failing":**
+1. **ALWAYS start online** — fetch `https://github.com/danlil240/Spectra/actions` first to find the latest failing run. Do NOT search local files first.
+2. Drill into the failing run URL, then into the specific failing job to get annotations/log output.
+3. Try `https://api.github.com/repos/danlil240/Spectra/check-runs/<id>/annotations` for structured error details.
+4. The raw log endpoint (`/actions/jobs/<id>/logs`) requires auth and returns 403 without a token — fall back to annotations and visible step output from the web page.
+5. Only after identifying the actual error (from CI output) should you open local source files.
+
+**General workflow changes:**
 1. **Read the affected workflow file(s)** before making changes — never edit blind.
 2. **Identify the minimal change** required; avoid restructuring unrelated jobs.
 3. **Apply the edit** and verify YAML syntax mentally (indentation, quoted strings, matrix entries).

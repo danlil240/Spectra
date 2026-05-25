@@ -8,12 +8,12 @@
 //   3. Open the Topics panel and drag "demo/sine" onto an axes to plot it live.
 //
 // Docker publisher-first workflow:
-//   docker run --rm --user "$(id -u):$(id -g)" \
-//     -v "$XDG_RUNTIME_DIR:$XDG_RUNTIME_DIR" \
-//     -e XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" \
+//   docker run --rm --user "$(id -u):$(id -g)"
+//     -v "$XDG_RUNTIME_DIR:$XDG_RUNTIME_DIR"
+//     -e XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR"
 //     spectra-topic-publisher:local
-//   # Then run `spectra` on the host. Do not set SPECTRA_SOCKET for this mode;
-//   # leaving it unset lets the publisher discover the new spectra-*.sock.
+//   Then run `spectra` on the host. Do not set SPECTRA_SOCKET for this mode;
+//   leaving it unset lets the publisher discover the new spectra-*.sock.
 //
 // The example exits after ~30 seconds. Press Ctrl+C to stop earlier.
 

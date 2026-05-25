@@ -59,10 +59,9 @@ void HeartbeatMonitor::tick(DaemonContext& ctx)
         ctx.proc_mgr.remove_process(pid);
     }
 
-    // Check if session is empty and no Python/Publisher clients connected.
-    // Publishers count as keep-alive clients: a long-lived publisher should
-    // be able to feed topics into a UI that opens later.
-    if (ctx.graph.is_empty())
+    // Auto-spawned daemons exit when the session is empty. Manually started
+    // daemons stay up as brokers until signaled.
+    if (ctx.idle_exit && ctx.graph.is_empty())
     {
         bool has_keepalive_client = false;
         for (const auto& c : ctx.clients)

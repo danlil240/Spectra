@@ -83,6 +83,7 @@ int main(int argc, char* argv[])
                       << "\n"
                       << "Options:\n"
                       << "  --socket <path>  Unix socket path to listen on\n"
+                      << "  --idle-exit      Exit when no UI/source/publisher clients remain\n"
                       << "  --version, -v    Print version and exit\n"
                       << "  --help, -h       Show this help\n";
             return 0;
@@ -95,12 +96,17 @@ int main(int argc, char* argv[])
 #else
     // Parse optional --socket <path> argument
     std::string socket_path;
-    for (int i = 1; i < argc - 1; ++i)
+    bool        idle_exit = false;
+    for (int i = 1; i < argc; ++i)
     {
-        if (std::string(argv[i]) == "--socket")
+        std::string arg = argv[i];
+        if (arg == "--socket" && i + 1 < argc)
         {
-            socket_path = argv[i + 1];
-            break;
+            socket_path = argv[++i];
+        }
+        else if (arg == "--idle-exit")
+        {
+            idle_exit = true;
         }
     }
     if (socket_path.empty())
@@ -134,7 +140,7 @@ int main(int argc, char* argv[])
     TopicRegistry           topics;
     uint64_t                next_client_id = 1;
 
-    DaemonContext ctx{graph, fig_model, proc_mgr, clients, g_running, topics};
+    DaemonContext ctx{graph, fig_model, proc_mgr, clients, g_running, topics, idle_exit};
 
     bool had_agents = false;
 
@@ -368,14 +374,14 @@ int main(int argc, char* argv[])
         // --- Heartbeat monitor: stale agents + process reaping ---
         heartbeat.tick(ctx);
 
-        // --- Shutdown rule: exit when no agents remain (after at least one connected).
-        // Exception: if any publisher client is connected, stay alive so future
-        // UI windows can browse and subscribe to live topics.
-        if (!graph.is_empty())
+        // --- Shutdown rule for auto-spawned daemons: exit when no agents remain
+        // after at least one connected. Manually started daemons stay alive as
+        // brokers until signaled.
+        if (idle_exit && !graph.is_empty())
         {
             had_agents = true;
         }
-        else if (had_agents)
+        else if (idle_exit && had_agents)
         {
             bool has_publisher = false;
             for (const auto& c : clients)

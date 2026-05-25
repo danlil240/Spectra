@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstdlib>
 #include <spectra/app.hpp>
 #include <spectra/export.hpp>
 #include <spectra/figure.hpp>
@@ -101,7 +102,12 @@ static pid_t spawn_backend(const std::string& sock_path)
     if (pid == 0)
     {
         // Child: exec the backend
-        ::execlp(backend_bin.c_str(), backend_bin.c_str(), "--socket", sock_path.c_str(), nullptr);
+        ::execlp(backend_bin.c_str(),
+                 backend_bin.c_str(),
+                 "--socket",
+                 sock_path.c_str(),
+                 "--idle-exit",
+                 nullptr);
         ::_exit(127);
     }
     return pid;
@@ -285,9 +291,16 @@ void App::run_multiproc()
         return;
     }
 
-    // Use a per-process unique socket so each app run gets its own backend.
-    // This prevents stale backends from previous runs accumulating agents.
-    const std::string sock = "/tmp/spectra-" + std::to_string(::getpid()) + ".sock";
+    // Use an explicit socket when requested so external publishers can rendezvous
+    // with this backend. Otherwise use a per-process unique socket.
+    std::string sock = config_.socket_path;
+    if (sock.empty())
+    {
+        if (const char* env = std::getenv("SPECTRA_SOCKET"); env && *env)
+            sock = env;
+    }
+    if (sock.empty())
+        sock = "/tmp/spectra-" + std::to_string(::getpid()) + ".sock";
 
     std::unique_ptr<ipc::Connection> conn;
 

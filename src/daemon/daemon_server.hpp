@@ -45,6 +45,7 @@ struct DaemonContext
     std::vector<ClientSlot>& clients;
     std::atomic<bool>&       running;
     TopicRegistry&           topics;
+    bool                     idle_exit = false;
 };
 
 // ─── Helper functions (shared across handlers) ─────────────────────────────

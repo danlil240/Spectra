@@ -28,20 +28,22 @@ This document covers the Phase 1–2 implementation described in
 ```cpp
 #include <spectra/topic.hpp>
 
-auto pub = spectra::Publisher::create("imu/accel_x",
-                                      spectra::Publisher::Kind::Scalar2D,
-                                      "m/s^2");
+spectra::Publisher::Options opts;
+opts.kind = spectra::Publisher::Kind::Scalar2D;
+opts.unit = "m/s^2";
+
+auto pub = spectra::Publisher::create("imu/accel_x", opts);
 if (!pub) return 1;
 
 for (int i = 0; i < 1000; ++i)
 {
     pub->publish(t, a);            // single sample
 }
-pub->flush();                      // optional — coalesced by default
 ```
 
-The publisher connects to the running daemon over the existing Unix-domain
-socket. It never owns a `Figure` and never blocks the UI thread.
+The publisher connects to a running Spectra socket when one is available. If
+Spectra is not open yet, `publish()` drops samples and retries in the
+background. It never owns a `Figure` and never blocks the UI thread.
 
 ### Daemon discovery
 
@@ -51,14 +53,35 @@ socket. It never owns a `Figure` and never blocks the UI thread.
 2. The `SPECTRA_SOCKET` environment variable.
 3. Discovery: scans `$XDG_RUNTIME_DIR` (or `/tmp`) for `spectra-*.sock`
    files and tries each, newest first.
-4. **Auto-spawn** (default on, disable with `Options::auto_spawn_daemon =
-   false`): forks a fresh `spectra-backend` next to the publisher binary or
-   on `$PATH`.
+4. The default socket path for the current process as a last resort.
 
-This means standalone publisher examples just work — running
-`./topic_publisher` with no live UI auto-starts the backend.
+If `Options::socket_path` or `SPECTRA_SOCKET` is set, the publisher is pinned
+to that exact path. Leave them unset for publisher-first workflows so the
+publisher can discover a Spectra app that opens later.
 
 See [`examples/topic_publisher.cpp`](../examples/topic_publisher.cpp).
+
+### Docker publisher-first workflow
+
+When publishing from Docker to a host Spectra app, share the host runtime
+directory and pass it through as `XDG_RUNTIME_DIR`:
+
+```bash
+docker run --rm \
+  --user "$(id -u):$(id -g)" \
+  -v "$XDG_RUNTIME_DIR:$XDG_RUNTIME_DIR" \
+  -e XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" \
+  spectra-topic-publisher:local
+```
+
+Then start Spectra on the host:
+
+```bash
+spectra
+```
+
+Do not set `SPECTRA_SOCKET` in this mode. Leaving it unset lets the publisher
+scan `$XDG_RUNTIME_DIR` and reconnect to the newest live `spectra-*.sock`.
 
 ## Python Publisher
 

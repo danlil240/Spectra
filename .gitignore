@@ -61,6 +61,10 @@ __pycache__
 
 # Docker test environment (local only)
 docker/
+!docker/
+docker/*
+!docker/spectra-publisher/
+!docker/spectra-publisher/Dockerfile
 
 
 spectra_export.png

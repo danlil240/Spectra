@@ -156,6 +156,31 @@ ninja -C build-ros2 spectra-ros
 
 ---
 
+## Live Topics From Docker
+
+Publishers can start before Spectra. For Docker, share the host runtime
+directory so the publisher can discover the `spectra-*.sock` file when the app
+opens:
+
+```bash
+docker run --rm \
+  --user "$(id -u):$(id -g)" \
+  -v "$XDG_RUNTIME_DIR:$XDG_RUNTIME_DIR" \
+  -e XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" \
+  spectra-topic-publisher:local
+```
+
+Then start Spectra on the host:
+
+```bash
+spectra
+```
+
+Do not set `SPECTRA_SOCKET` for this publisher-first workflow; leaving it unset
+lets the publisher follow the newest live Spectra socket.
+
+---
+
 ## WebGPU / WebAssembly (experimental)
 
 Spectra includes a WebGPU rendering backend that enables the same C++ codebase to run in the browser via Emscripten. All GLSL shaders are ported to WGSL. The WebGPU backend supports line, scatter, grid, text, and statistical series — the same 2D pipeline as the Vulkan backend.

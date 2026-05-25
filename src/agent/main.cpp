@@ -610,7 +610,8 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    SPECTRA_LOG_INFO("window", "Connected (fd={})", conn->fd());
+    SPECTRA_LOG_INFO("window", "Connected to backend");
+    SPECTRA_LOG_DEBUG("window", "Backend connection fd={}", conn->fd());
 
     // Send HELLO
     spectra::ipc::HelloPayload hello;

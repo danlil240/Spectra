@@ -341,7 +341,7 @@ void VulkanBackend::destroy_window_context(WindowContext& wctx)
     // Destroy surface
     destroy_surface_for(wctx);
 
-    SPECTRA_LOG_INFO("vulkan", "Window context " + std::to_string(wctx.id) + " destroyed");
+    SPECTRA_LOG_DEBUG("vulkan", "Window context " + std::to_string(wctx.id) + " destroyed");
 }
 
 void VulkanBackend::create_command_buffers_for(WindowContext& wctx)

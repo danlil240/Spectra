@@ -238,7 +238,7 @@ void AutomationServer::listener_thread_fn()
             std::lock_guard lock(clients_mutex_);
             client_fds_.push_back(cfd);
         }
-        SPECTRA_LOG_INFO("automation", "Client connected fd=" + std::to_string(cfd));
+        SPECTRA_LOG_DEBUG("automation", "Client connected fd=" + std::to_string(cfd));
         std::thread(&AutomationServer::handle_client, this, cfd).detach();
     }
 #endif

@@ -50,7 +50,7 @@ LogLevel default_console_log_level()
             return *lvl;
     }
 #ifdef NDEBUG
-    return LogLevel::Warning;
+    return LogLevel::Info;
 #else
     return LogLevel::Info;
 #endif
@@ -279,11 +279,11 @@ void setup_dual_logging(LogLevel console_level, LogLevel file_level, const std::
     try
     {
         logger.add_sink(sinks::filtered_sink(file_level, sinks::file_sink(path)));
-        SPECTRA_LOG_INFO("app",
-                         "Dual logging active — console: {} file: {} path: {}",
-                         Logger::level_to_string(console_level),
-                         Logger::level_to_string(file_level),
-                         path);
+        SPECTRA_LOG_DEBUG("app",
+                          "Dual logging active — console: {} file: {} path: {}",
+                          Logger::level_to_string(console_level),
+                          Logger::level_to_string(file_level),
+                          path);
     }
     catch (const std::exception& e)
     {

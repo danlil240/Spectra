@@ -323,6 +323,10 @@ if(SPECTRA_USE_GLFW)
         set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
         set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
         set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+        # Don't install GLFW's own headers/libs into the system prefix when
+        # building from source — they conflict with libglfw3-dev on the user's
+        # machine when the spectra .deb is installed.
+        set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
         FetchContent_MakeAvailable(glfw)
     endif()
 

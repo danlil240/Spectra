@@ -331,7 +331,10 @@ if(SPECTRA_USE_GLFW)
     endif()
 
     target_sources(spectra PRIVATE src/ui/window/glfw_adapter.cpp)
-    target_link_libraries(spectra PUBLIC glfw)
+    # GLFW is an implementation detail: no public header includes glfw3.h, so
+    # PRIVATE avoids propagating the dependency to consumers and keeps glfw out
+    # of the exported CMake targets (required when GLFW_INSTALL is OFF).
+    target_link_libraries(spectra PRIVATE glfw)
     target_compile_definitions(spectra PUBLIC SPECTRA_USE_GLFW)
 endif()
 

@@ -878,6 +878,11 @@ endif()
 if((SPECTRA_USE_GLFW OR SPECTRA_USE_SDL3) AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/app/main.cpp)
     add_executable(spectra-app src/app/main.cpp)
     target_link_libraries(spectra-app PRIVATE spectra)
+    # glfw is PRIVATE to spectra, so its include directories don't propagate;
+    # link directly so <GLFW/glfw3.h> resolves in app/main.cpp.
+    if(SPECTRA_USE_GLFW AND DEFINED _spectra_glfw_link)
+        target_link_libraries(spectra-app PRIVATE ${_spectra_glfw_link})
+    endif()
     target_compile_features(spectra-app PRIVATE cxx_std_20)
     target_include_directories(spectra-app PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
@@ -916,6 +921,12 @@ if(SPECTRA_RUNTIME_MODE STREQUAL "multiproc")
             src/agent/main.cpp
         )
         target_link_libraries(spectra-window PRIVATE spectra)
+        # glfw is PRIVATE to the spectra library target, so its include
+        # directories don't propagate here — link directly so the GLFW/glfw3.h
+        # include in agent/main.cpp resolves.
+        if(SPECTRA_USE_GLFW AND DEFINED _spectra_glfw_link)
+            target_link_libraries(spectra-window PRIVATE ${_spectra_glfw_link})
+        endif()
         target_compile_features(spectra-window PRIVATE cxx_std_20)
         target_include_directories(spectra-window PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/src

@@ -2,7 +2,14 @@ name: Deploy GitHub Pages
 
 on:
   push:
-    branches: [main, gh-pages]
+    branches: [main]
+  # Re-deploy Pages whenever the Release workflow updates the gh-pages branch.
+  # A GITHUB_TOKEN push from a workflow does NOT re-trigger push events, so
+  # this workflow_run trigger is the reliable way to pick up apt-repo updates.
+  workflow_run:
+    workflows: ["Release"]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
 
 permissions:

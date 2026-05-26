@@ -328,13 +328,21 @@ if(SPECTRA_USE_GLFW)
         # machine when the spectra .deb is installed.
         set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
         FetchContent_MakeAvailable(glfw)
+        # FetchContent produces a build-tree target (not IMPORTED), so CMake's
+        # install(EXPORT) would demand it be in an export set even when linked
+        # PRIVATE.  $<BUILD_INTERFACE:> scopes the dependency to the build tree
+        # so it is never evaluated for the installed package export — no export
+        # set membership required, no glfw files installed to the system.
+        set(_spectra_glfw_link "$<BUILD_INTERFACE:glfw>")
+    else()
+        # find_package produced an IMPORTED target — PRIVATE linking is fine
+        # with install(EXPORT) as-is.
+        set(_spectra_glfw_link "glfw")
     endif()
 
     target_sources(spectra PRIVATE src/ui/window/glfw_adapter.cpp)
-    # GLFW is an implementation detail: no public header includes glfw3.h, so
-    # PRIVATE avoids propagating the dependency to consumers and keeps glfw out
-    # of the exported CMake targets (required when GLFW_INSTALL is OFF).
-    target_link_libraries(spectra PRIVATE glfw)
+    # GLFW is an implementation detail: no public header includes glfw3.h.
+    target_link_libraries(spectra PRIVATE ${_spectra_glfw_link})
     target_compile_definitions(spectra PUBLIC SPECTRA_USE_GLFW)
 endif()
 

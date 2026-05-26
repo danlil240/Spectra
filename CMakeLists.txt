@@ -328,10 +328,21 @@ if(SPECTRA_USE_GLFW)
         # machine when the spectra .deb is installed.
         set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
         FetchContent_MakeAvailable(glfw)
+        # FetchContent produces a build-tree target (not IMPORTED), so CMake's
+        # install(EXPORT) would demand it be in an export set even when linked
+        # PRIVATE.  $<BUILD_INTERFACE:> scopes the dependency to the build tree
+        # so it is never evaluated for the installed package export — no export
+        # set membership required, no glfw files installed to the system.
+        set(_spectra_glfw_link "$<BUILD_INTERFACE:glfw>")
+    else()
+        # find_package produced an IMPORTED target — PRIVATE linking is fine
+        # with install(EXPORT) as-is.
+        set(_spectra_glfw_link "glfw")
     endif()
 
     target_sources(spectra PRIVATE src/ui/window/glfw_adapter.cpp)
-    target_link_libraries(spectra PUBLIC glfw)
+    # GLFW is an implementation detail: no public header includes glfw3.h.
+    target_link_libraries(spectra PRIVATE ${_spectra_glfw_link})
     target_compile_definitions(spectra PUBLIC SPECTRA_USE_GLFW)
 endif()
 
@@ -867,6 +878,11 @@ endif()
 if((SPECTRA_USE_GLFW OR SPECTRA_USE_SDL3) AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/app/main.cpp)
     add_executable(spectra-app src/app/main.cpp)
     target_link_libraries(spectra-app PRIVATE spectra)
+    # glfw is PRIVATE to spectra, so its include directories don't propagate;
+    # link directly so <GLFW/glfw3.h> resolves in app/main.cpp.
+    if(SPECTRA_USE_GLFW AND DEFINED _spectra_glfw_link)
+        target_link_libraries(spectra-app PRIVATE ${_spectra_glfw_link})
+    endif()
     target_compile_features(spectra-app PRIVATE cxx_std_20)
     target_include_directories(spectra-app PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
@@ -905,6 +921,12 @@ if(SPECTRA_RUNTIME_MODE STREQUAL "multiproc")
             src/agent/main.cpp
         )
         target_link_libraries(spectra-window PRIVATE spectra)
+        # glfw is PRIVATE to the spectra library target, so its include
+        # directories don't propagate here — link directly so the GLFW/glfw3.h
+        # include in agent/main.cpp resolves.
+        if(SPECTRA_USE_GLFW AND DEFINED _spectra_glfw_link)
+            target_link_libraries(spectra-window PRIVATE ${_spectra_glfw_link})
+        endif()
         target_compile_features(spectra-window PRIVATE cxx_std_20)
         target_include_directories(spectra-window PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/src

@@ -1,20 +1,31 @@
 # Spectra — Comprehensive Codebase Map
 
-> **Purpose**: This document is the single source of truth for understanding the Spectra codebase.
-> **All agents MUST read this file before executing any task.**
-> Last updated: 2026-04-03
+> **Purpose**: This document is the maintained map of the Spectra repository.
+> **All agents should read it before changing code.**
+> Last updated: 2026-05-28
 
 ---
 
 ## 1. Project Identity
 
-**Spectra** is a GPU-accelerated (Vulkan) scientific/engineering plotting library for C++20.
-- Cross-platform: Linux, macOS, Windows
-- Supports interactive rendering, offscreen rendering, image/video export
-- Supports animated plots (time series, trajectories, live sensor streams) with stable frame pacing
-- Thread-safe, modern 2026 UI via Dear ImGui
-- Two runtime modes: **inproc** (single-process) and **multiproc** (daemon + agent processes via Unix IPC)
-- Python bindings via Unix-socket IPC
+**Spectra** is a GPU-accelerated scientific / engineering plotting stack centered on modern C++20,
+a Vulkan renderer, and an ImGui-driven interactive UI. The repository now spans:
+
+- Core 2D + 3D plotting (`Figure`, `Axes`, `Series`, statistical plots, shapes, animation).
+- Two rendering backends: **Vulkan** (primary, production) and **WebGPU** (experimental/inproc-first).
+- Two runtime modes: **inproc** and **multiproc** (daemon + window agents over IPC).
+- Python bindings, ROS2 integration, PX4/ULog tooling, plugin loading, topics/pub-sub, and automation/MCP.
+- Interactive UI subsystems for docking, commands, workspace persistence, accessibility, settings, and testing.
+
+High-signal repository counts (checked against the working tree):
+
+- `include/spectra/`: **32** public headers.
+- `src/gpu/shaders/`: **28** GLSL shader files plus **5** WGSL shaders.
+- `src/adapters/ros2/`: **110** ROS2 adapter files across core/display/messages/scene/tf/urdf/ui.
+- `src/adapters/px4/`: **20** PX4 files across core/messages/ui.
+- `tests/unit/`: **164** unit-test source files.
+- `tests/bench/`: **11** benchmark files.
+- `examples/`: **53** runnable C++ examples plus support assets; `python/examples/`: **18** demos.
 
 ---
 
@@ -22,768 +33,1093 @@
 
 ```
 Spectra/
-├── include/spectra/          # PUBLIC API headers (user-facing)
+├── include/spectra/                  # Public API headers (32 headers)
 ├── src/
-│   ├── core/                 # Figure, Axes, Series implementations
-│   ├── render/               # Renderer, Backend abstraction, TextRenderer
-│   │   └── vulkan/           # VulkanBackend, VkSwapchain, VkBuffer, VkPipeline, WindowContext
-│   ├── app/                  # Standalone app entry point (main.cpp)
+│   ├── app/                          # Standalone app entry + inproc topic server
+│   ├── core/                         # Figure / Axes / Series data model + transforms
+│   ├── render/
+│   │   ├── vulkan/                   # Production Vulkan backend
+│   │   └── webgpu/                   # Experimental WebGPU backend
 │   ├── ui/
-│   │   ├── app/              # App lifecycle: app.cpp, app_inproc, app_multiproc, app_step,
-│   │   │                     #   SessionRuntime, WindowRuntime, WindowUIContext, register_commands
-│   │   ├── imgui/            # ImGuiIntegration (main UI), Axes3DRenderer, Widgets
-│   │   ├── figures/          # FigureRegistry, FigureManager, TabBar, TabDragController
-│   │   ├── window/           # WindowManager, GlfwAdapter, GlfwUtils
-│   │   ├── input/            # InputHandler, BoxZoomOverlay, GestureRecognizer, RegionSelect,
-│   │   │                     #   SelectionContext
-│   │   ├── overlay/          # Crosshair, DataEditor, DataInteraction, DataMarker, Inspector,
-│   │   │                     #   KnobManager, LegendInteraction, Tooltip
-│   │   ├── commands/         # CommandRegistry, CommandPalette, CommandQueue, ShortcutManager,
-│   │   │                     #   UndoManager, SeriesClipboard, ShortcutConfig, UndoableProperty
-│   │   ├── docking/          # DockSystem, SplitViewManager, SplitPane
-│   │   ├── automation/       # UI automation and scripted interaction hooks
-│   │   ├── animation/        # AnimationController, TimelineEditor, KeyframeInterpolator,
-│   │   │                     #   AnimationCurveEditor, CameraAnimator, ModeTransition,
-│   │   │                     #   RecordingExport, TransitionEngine
-│   │   ├── panel/            # Dedicated UI panels and panel helpers
-│   │   ├── theme/            # ThemeManager, Theme, DesignTokens, Icons
-│   │   ├── data/             # AxisLinkManager, CsvLoader, ClipboardExport
-│   │   ├── camera/           # Camera implementation
-│   │   ├── layout/           # LayoutManager
-│   │   ├── viewmodel/        # View-model layer used by ImGui-facing UI code
-│   │   ├── welcome/          # Welcome/start screens and onboarding flows
-│   │   └── workspace/        # Workspace save/load, FigureSerializer, PluginAPI
-│   ├── embed/                # EmbedSurface impl, C FFI wrapper
+│   │   ├── app/                      # SessionRuntime, WindowRuntime, WindowUIContextBuilder
+│   │   │   └── commands/             # Command registration split by domain
+│   │   ├── imgui/                    # Main ImGui integration and widgets
+│   │   ├── figures/                  # FigureManager, FigureRegistry, tab handling
+│   │   ├── window/                   # GLFW/SDL3 window adapters and lifecycle
+│   │   ├── input/                    # Mouse/keyboard/gesture handling
+│   │   ├── overlay/                  # Crosshair, inspector, data editor, annotations, tooltips
+│   │   ├── commands/                 # Command palette, shortcuts, undo, clipboard
+│   │   ├── docking/                  # Dock system and split views
+│   │   ├── animation/                # Timeline, transitions, recording, camera animation
+│   │   ├── theme/                    # Theme manager, icons, design tokens
+│   │   ├── data/                     # CSV import/export, axis linking, HTML table export
+│   │   ├── camera/                   # UI-facing camera implementation
+│   │   ├── layout/                   # Layout manager
+│   │   ├── viewmodel/                # Axes/Figure/Series view models
+│   │   ├── workspace/                # Workspace persistence + plugin loading
+│   │   ├── accessibility/            # Accessible summaries + sonification
+│   │   ├── settings/                 # Settings panel and storage
+│   │   ├── topics/                   # Topic browser/panel
+│   │   ├── panel/                    # Panel detaching helpers
+│   │   ├── automation/               # Automation server + MCP server
+│   │   │   └── handlers/             # Capture/command/figure/input/utility/window handlers
+│   │   └── *.hpp                     # Shared UI utility headers
+│   ├── embed/                        # EmbedSurface + C FFI implementation
 │   ├── platform/
-│   │   └── window_system/    # SurfaceHost abstraction, GlfwSurfaceHost
-│   ├── adapters/
-│   │   ├── qt/               # QtRuntime, QtSurfaceHost (Qt embedding)
-│   │   └── ros2/             # ROS2 adapter: RosAppShell, BagPlayer, ExpressionEngine,
-│   │                         #   TopicDiscovery, GenericSubscriber, SubplotManager, etc.
-│   │        └── ui/          # ROS2 UI panels: topic list, diagnostics, TF tree,
-│   │                         #   bag playback, param editor, service caller, etc.
-│   ├── anim/                 # Animator, Easing, FrameScheduler, FrameProfiler
-│   ├── data/                 # Decimation (LTTB, min-max), Filters
-│   ├── math/                 # DataTransform, TransformPipeline, TransformRegistry
-│   ├── io/                   # PngExport, SvgExport, VideoExport, STB impl
-│   ├── ipc/                  # Codec, Message, Transport, BlobStore (Unix socket IPC)
-│   ├── daemon/               # Backend daemon: main, FigureModel, SessionGraph, ProcessManager
-│   ├── agent/                # Window agent process entry point
-│   └── gpu/shaders/          # GLSL shaders (compiled to SPIR-V)
+│   │   └── window_system/            # GLFW/SDL3 surface hosts
+│   ├── anim/                         # Animator, easing, frame scheduling/profiling
+│   ├── data/                         # Chunked arrays, decimation, filters, LOD cache, mapped files
+│   ├── math/                         # Data transforms + expression evaluator
+│   ├── io/                           # PNG/SVG/video export + ffmpeg helpers
+│   ├── ipc/
+│   │   └── schemas/                  # FlatBuffers schema
+│   ├── daemon/                       # Multiprocess backend daemon
+│   ├── agent/                        # Window agent entry point
+│   ├── gpu/shaders/
+│   │   └── wgsl/                     # WGSL sources embedded for WebGPU/tests
+│   └── adapters/
+│       ├── qt/                       # Qt runtime + surface host
+│       ├── px4/
+│       │   ├── messages/             # PX4 telemetry adapters
+│       │   └── ui/                   # PX4 live/file panels
+│       └── ros2/
+│           ├── display/              # 3D/scene display plugins
+│           ├── messages/             # ROS message adapters
+│           ├── scene/                # Scene manager/renderer/mesh primitives
+│           ├── tf/                   # TF buffer
+│           ├── urdf/                 # URDF parsing
+│           └── ui/                   # ROS2 tooling panels
 ├── tests/
-│   ├── unit/                 # ~145 unit test files
-│   ├── bench/                # Benchmarks (3D, decimation, multi-window, etc.)
-│   ├── golden/               # Golden image regression tests
-│   ├── qa/                   # QA agent (automated visual testing, ROS QA)
-│   └── util/                 # Test utilities (GPU hang detector, fixtures, validation guard)
-├── examples/                 # ~47 example programs
-├── python/                   # Python bindings (spectra package)
-│   ├── spectra/              # Python module (19 core files + qt backend)
-│   ├── examples/             # Python examples (16 demos)
-│   └── tests/                # Python tests (11 test files)
-├── third_party/              # STB, VMA, fonts
-├── plans/                    # Architecture plans (markdown)
-├── cmake/                    # CMake modules (shader compilation, asset embedding)
-├── tools/                    # Dev tools (find_unused, generate_atlas, icon font gen)
-├── skills/                   # Specialized skill agents (14 domains)
-├── packaging/                # Distribution: AppImage, AUR, Homebrew, Scoop, completions
-├── docs/                     # HTML docs, man pages, getting started guide
-└── icons/                    # Desktop icons and banner
+│   ├── unit/                         # 164 unit test files
+│   ├── bench/                        # 11 benchmarks
+│   ├── golden/                       # 5 golden test sources + helpers + baselines
+│   ├── qa/                           # QA executables
+│   └── util/                         # Shared test utilities
+├── examples/
+│   └── plugins/                      # Plugin example implementations + manifests
+├── python/
+│   ├── spectra/                      # Python package
+│   │   ├── _fb_generated/            # FlatBuffers-generated Python package placeholder
+│   │   └── backends/                 # Qt/Agg backend support
+│   ├── examples/                     # Python demos
+│   └── tests/                        # Python tests
+├── cmake/                            # Shader / asset / FlatBuffers codegen modules
+├── tools/                            # Repo utilities + sanitizer config
+├── docs/                             # HTML docs, Markdown guides, Doxygen, man page, plans
+├── packaging/                        # AppImage, apt, AUR, shell completions, Homebrew, Scoop
+├── docker/                           # Container recipes
+├── plans/                            # Active + archived design / QA / roadmap docs
+├── skills/                           # Specialized skill prompts/reports
+├── icons/                            # Desktop/app artwork
+└── third_party/                      # Fonts, icon data, stb, tinyfiledialogs, VMA
 ```
 
 ---
 
 ## 3. Public API (include/spectra/)
 
-These are the user-facing headers. Everything in `src/` is internal.
+Everything in `include/spectra/` is user-facing. Internal implementation lives under `src/`.
 
 | Header | Contents |
 |---|---|
-| `spectra.hpp` | Master include — pulls in all public headers |
-| `easy.hpp` | MATLAB-style free-function API: `plot()`, `scatter()`, `show()`, `title()`, `subplot()`, `figure()`, `tab()`, `on_update()`, `plot3()`, `surf()`, etc. 7 progressive complexity levels. |
-| `app.hpp` | `App` class — top-level application object. Owns `FigureRegistry`, `Backend`, `Renderer`. Two run modes: `run()` (blocking) or `init_runtime()`/`step()`/`shutdown_runtime()` (frame-by-frame). |
-| `figure.hpp` | `Figure` class — owns `Axes`/`Axes3D` subplots, style, legend config, animation state. `AnimationBuilder` for fluent animation setup. |
-| `axes.hpp` | `AxesBase` (abstract), `Axes` (2D) — owns `Series` vector, axis limits, tick computation, grid, border. |
-| `axes3d.hpp` | `Axes3D` : `AxesBase` — 3D axes with Camera, grid planes, bounding box, lighting, zoom/pan on limits. |
-| `series.hpp` | `Series` (abstract base), `LineSeries`, `ScatterSeries` — 2D data series with fluent API, dirty tracking. `Rect` struct. |
-| `series3d.hpp` | `LineSeries3D`, `ScatterSeries3D`, `SurfaceSeries`, `MeshSeries` — 3D series with colormaps, materials, blend modes, wireframe. |
-| `series_stats.hpp` | `BoxPlotSeries`, `ViolinSeries`, `HistogramSeries`, `BarSeries` — statistical plot types with auto-generated geometry. |
-| `camera.hpp` | `Camera` — orbit camera (azimuth/elevation/distance), perspective/orthographic projection, serialize/deserialize. |
-| `color.hpp` | `Color` struct (RGBA float), named colors (`colors::red`, etc.), `palette::default_cycle` (10 colors). |
-| `plot_style.hpp` | `LineStyle`, `MarkerStyle`, `PlotStyle`, `DashPattern`, `parse_format_string()` (MATLAB-style "r--o"). |
-| `animator.hpp` | `Animator`, `Keyframe<T>`, easing functions (`ease::linear`, `ease_in_out`, `bounce`, `elastic`, `CubicBezier`). |
-| `frame.hpp` | `Frame` struct — `elapsed_sec`, `dt`, `number`, `paused`. |
-| `export.hpp` | `ImageExporter::write_png()`, `SvgExporter::write_svg()`, `VideoExporter` (ffmpeg pipe). |
-| `math3d.hpp` | `vec3`, `vec4`, `mat4` — minimal math types (no Eigen dependency). |
-| `eigen.hpp` | Optional Eigen adapters. |
-| `logger.hpp` | `Logger` singleton, `LogLevel`, sink system, `SPECTRA_LOG_*` macros. |
-| `fwd.hpp` | Forward declarations for all classes — **91 entries**. |
-| `easy_embed.hpp` | One-liner offscreen rendering: `RenderedImage`, `RenderOptions`, `SeriesDesc`, `render()`, `render_scatter()`. |
-| `embed.hpp` | `EmbedSurface` class — CPU readback (`render_to_buffer`) and Vulkan interop (`render_to_image`); `EmbedConfig`, `VulkanInteropInfo`. |
-| `eigen_easy.hpp` | Eigen overload templates for all easy.hpp functions (`plot`, `scatter`, `plot3`); header-only. |
-| `spectra_embed_c.h` | Pure-C FFI: opaque handles `SpectraEmbed`, `SpectraFigure`, `SpectraAxes`, `SpectraSeries` for ctypes/Rust/C# bindings. |
-| `custom_series.hpp` | Extensible custom series interfaces for user-defined renderable series types. |
-| `event_bus.hpp` | Public event bus contracts and event dispatch interfaces. |
-| `figure_registry.hpp` | Public figure registry APIs used for figure lookup and lifecycle control. |
-| `knob_manager.hpp` | Public knob/parameter-control integration APIs. |
-| `series_shapes.hpp` | 2D shape-oriented series types and helpers. |
-| `series_shapes3d.hpp` | 3D shape-oriented series types and helpers. |
-| `theme_api.hpp` | Public theme selection and theme API surface. |
+| `animator.hpp` | Public animation primitives: `Animator`, `Keyframe<T>`, easing helpers, frame callbacks. |
+| `app.hpp` | Top-level `App` API for inproc and multiproc execution, figure/window lifecycle, and frame stepping. |
+| `axes.hpp` | 2D axes model, axis limits/ticks/grid configuration, and subplot ownership. |
+| `axes3d.hpp` | 3D axes model with camera integration, bounds, lighting, and 3D interaction state. |
+| `camera.hpp` | Orbit camera math and serialization for 3D views. |
+| `chunked_series.hpp` | Large-dataset series API built around chunked storage / progressive upload patterns. |
+| `color.hpp` | RGBA color type, named colors, palette helpers. |
+| `custom_series.hpp` | Extension hooks for user-defined/custom renderable series. |
+| `easy.hpp` | MATLAB-style free-function API (`plot`, `scatter`, `subplot`, `figure`, `show`, `plot3`, `surf`, ...). |
+| `easy_embed.hpp` | One-shot offscreen/embed helpers for rendering simple figures without a full app runtime. |
+| `eigen.hpp` | Eigen adapters for vector/matrix-based plotting inputs. |
+| `eigen_easy.hpp` | Eigen overloads for the easy API. |
+| `embed.hpp` | EmbedSurface API for offscreen or foreign-window rendering and GPU readback/interoperability. |
+| `event_bus.hpp` | Public event bus contracts used by the application and plugin surfaces. |
+| `export.hpp` | PNG/SVG/video export entry points. |
+| `figure.hpp` | Figure object, subplot ownership, titles/legend/style, animation hooks. |
+| `figure_registry.hpp` | Public registry/lookup APIs for figure lifecycle. |
+| `frame.hpp` | Per-frame timing state passed to animation/update callbacks. |
+| `fwd.hpp` | Forward declarations for the public API surface. |
+| `knob_manager.hpp` | Public parameter/knob management interfaces. |
+| `logger.hpp` | Logging API, log levels, sinks, and macros. |
+| `math3d.hpp` | Minimal `vec*` / `mat4` math types used by the public 3D API. |
+| `plot_style.hpp` | Line, marker, dash, and MATLAB-style format-string parsing. |
+| `series.hpp` | Base 2D series plus line/scatter and common styling/data mutation methods. |
+| `series3d.hpp` | 3D line/scatter/surface/mesh series APIs. |
+| `series_shapes.hpp` | 2D shape-oriented series helpers and types. |
+| `series_shapes3d.hpp` | 3D shape-oriented series helpers and types. |
+| `series_stats.hpp` | Statistical plots: histogram, bar, violin, box plot, and related helpers. |
+| `spectra.hpp` | Umbrella include for the entire public C++ API. |
+| `spectra_embed_c.h` | Pure-C embedding/FFI surface for non-C++ consumers. |
+| `theme_api.hpp` | Public theme selection / registration API. |
+| `topic.hpp` | Public publish/subscribe topic API for streaming data topics. |
 
 ---
 
 ## 4. Class Hierarchy & Ownership
 
-### 4.1 Core Data Model
+### 4.1 Core data model
 
 ```
-App
- ├── FigureRegistry            (thread-safe, monotonic uint64 IDs, owns Figure unique_ptrs)
- │    └── Figure               (owns Axes/Axes3D vectors, style, legend, animation state)
- │         ├── Axes : AxesBase  (2D: owns Series vector, xlim/ylim, ticks)
- │         │    ├── LineSeries : Series
- │         │    ├── ScatterSeries : Series
- │         │    ├── BoxPlotSeries : Series
- │         │    ├── ViolinSeries : Series
- │         │    ├── HistogramSeries : Series
- │         │    └── BarSeries : Series
- │         └── Axes3D : AxesBase (3D: owns Camera, xlim/ylim/zlim, lighting)
- │              ├── LineSeries3D : Series
- │              ├── ScatterSeries3D : Series
- │              ├── SurfaceSeries : Series
- │              └── MeshSeries : Series
- ├── Backend (abstract)         → VulkanBackend (Vulkan implementation)
- └── Renderer                   (owns TextRenderer, pipeline handles, per-series GPU data)
+App / EmbedSurface
+ ├── FigureRegistry
+ │    └── Figure
+ │         ├── Axes (2D)
+ │         │    ├── LineSeries / ScatterSeries
+ │         │    ├── statistical series (box / violin / histogram / bar)
+ │         │    ├── shape-oriented series
+ │         │    └── ChunkedSeries / CustomSeries variants
+ │         └── Axes3D
+ │              ├── LineSeries3D / ScatterSeries3D
+ │              ├── SurfaceSeries / MeshSeries
+ │              └── 3D shape/image/point-cloud-oriented display paths
+ ├── Backend (abstract)
+ │    ├── VulkanBackend
+ │    └── WebGPUBackend
+ ├── Renderer
+ │    ├── TextRenderer
+ │    └── SeriesTypeRegistry
+ └── Runtime/UI services (WindowManager, InputHandler, DockSystem, CommandRegistry, ...)
 ```
 
-### 4.2 Runtime Layer (src/ui/app/)
+### 4.2 Runtime layer (`src/ui/app/`)
 
 ```
 App::run()
- └── run_inproc()  OR  run_multiproc()
-      │
-      ├── SessionRuntime          (session-level orchestration: poll events, iterate windows,
-      │    │                       process deferred detaches/moves, check exit conditions)
-      │    ├── WindowRuntime       (per-window: update() + render() cycle)
-      │    └── FrameScheduler      (frame pacing: TargetFPS / VSync / Uncapped)
-      │
-      └── Frame-by-frame alternative:
-           App::init_runtime() → App::step() → App::shutdown_runtime()
+ ├── inproc path      -> src/ui/app/app_inproc.cpp
+ ├── multiproc path   -> src/ui/app/app_multiproc.cpp
+ ├── frame stepping   -> src/ui/app/app_step.cpp
+ └── SessionRuntime
+      ├── WindowRuntime (per-window update/render loop)
+      ├── WindowUIContext / WindowUIContextBuilder
+      ├── AnimationTickGate, RedrawTracker, ResourceMonitor, PerfMetrics
+      └── domain command registrars in src/ui/app/commands/
 ```
 
-### 4.3 Per-Window UI Bundle (WindowUIContext)
+### 4.3 Per-window UI bundle (`WindowUIContext`)
 
-Every window (primary + secondary) gets a `WindowUIContext` containing:
+Each interactive window owns a `WindowUIContext` that wires together ImGui integration,
+figure tabs, docking, input, overlays, commands, animation tools, settings/topics panels, and
+automation hooks. Secondary windows are first-class peers; there is no hidden “main window”
+special case in the intended architecture.
 
-```
-WindowUIContext                          (src/ui/app/window_ui_context.hpp)
- ├── ImGuiIntegration*                   (ImGui init, full UI: menu bar, inspector, canvas, status bar)
- ├── FigureManager*                      (figure lifecycle, tab switching, per-figure state)
- ├── TabBar*                             (tab widget rendering, drag/reorder/close)
- ├── TabDragController                   (tab tear-off state machine: Idle→DragStart→Detached→Drop)
- ├── DockSystem                          (split view orchestration + drag-to-dock)
- │    └── SplitViewManager               (binary split tree of SplitPanes)
- │         └── SplitPane                 (leaf=figure, internal=two children + ratio)
- ├── DataInteraction*                    (hover/click data point detection)
- ├── BoxZoomOverlay                      (rubber-band zoom rectangle)
- ├── AxisLinkManager                     (linked axes that zoom/pan together)
- ├── CommandRegistry                     (named commands with callbacks)
- ├── CommandPalette                      (Ctrl+P fuzzy command search)
- ├── ShortcutManager                     (keyboard shortcut mapping)
- ├── UndoManager                         (undo/redo stack)
- ├── KnobManager                         (interactive parameter sliders)
- ├── TimelineEditor                      (keyframe timeline UI)
- ├── KeyframeInterpolator                (keyframe evaluation)
- ├── AnimationCurveEditor                (bezier curve editing)
- ├── ModeTransition                      (2D↔3D mode animation)
- ├── AnimationController                 (GLFW-based animation driver)
- ├── GestureRecognizer                   (multi-touch gestures)
- ├── InputHandler                        (mouse/keyboard → axis mutations, tool modes)
- └── SeriesClipboard (shared pointer)    (copy/paste series data)
-```
-
-### 4.4 Multi-Window System
+### 4.4 Multiprocess ownership
 
 ```
-WindowManager                            (src/ui/window/window_manager.hpp)
- ├── owns vector<unique_ptr<WindowContext>>
- ├── create_initial_window()             (adopts backend's initial WindowContext)
- ├── create_window_with_ui()             (new OS window + full UI stack)
- ├── detach_figure()                     (tab tear-off → new window)
- ├── move_figure()                       (cross-window figure transfer)
- ├── request_preview_window()            (ghost window during drag)
- ├── process_pending_closes()            (deferred window destruction)
- └── shared SeriesClipboard              (all windows share one clipboard)
-
-WindowContext                            (src/render/vulkan/window_context.hpp)
- ├── VkSurfaceKHR surface
- ├── vk::SwapchainContext swapchain
- ├── per-window command buffers + sync objects
- ├── per-window frame UBO
- ├── assigned_figures (vector<FigureId>)
- ├── active_figure_id
- ├── void* imgui_context                 (per-window ImGui context)
- └── unique_ptr<WindowUIContext> ui_ctx  (full UI bundle)
+Python / topic publishers / UI commands
+        │
+        ▼
+Backend daemon
+ ├── FigureModel          # authoritative session state
+ ├── SessionGraph         # figure↔agent↔client graph
+ ├── TopicRegistry        # topic subscriptions/publications
+ ├── ProcessManager       # window agent processes
+ ├── PythonMessageHandler # Python API requests
+ ├── AgentMessageHandler  # window-agent sync
+ └── TopicMessageHandler  # topic transport bridge
+        │
+        ▼
+Window agents (`src/agent/main.cpp`) -> WindowRuntime + Renderer + Backend
 ```
 
 ---
 
 ## 5. Rendering Pipeline
 
-### 5.1 GPU Architecture
+### 5.1 GPU architecture
 
-```
-VulkanBackend : Backend                  (src/render/vulkan/vk_backend.hpp)
- ├── vk::DeviceContext                   (VkInstance, VkDevice, VkPhysicalDevice, queues)
- ├── WindowContext*  active_window_       (multi-window: switch before frame ops)
- ├── VkCommandPool, VkDescriptorPool
- ├── Pipeline layouts (frame UBO + series SSBO + texture)
- ├── Deferred buffer deletion (frame-stamped ring)
- ├── Framebuffer capture (between submit and present)
- └── Headless offscreen framebuffer mode
+- `src/render/backend.hpp` defines the renderer/backend contract.
+- `src/render/renderer.*` owns draw orchestration, upload paths, pipeline selection, and text.
+- `src/render/vulkan/*` implements swapchains, buffers, frames, pipelines, capture, multi-window, and textures.
+- `src/render/webgpu/*` provides the experimental WebGPU path and consumes embedded WGSL shaders.
+- `src/render/series_type_registry.*` centralizes series-type to render-path registration.
+- Upload-heavy paths are split across `render_upload.cpp`, `render_2d.cpp`, `render_3d.cpp`, and `render_geometry.cpp`.
 
-Renderer                                 (src/render/renderer.hpp)
- ├── TextRenderer                        (SDF font atlas, batched text quads)
- ├── Pipeline handles: line, scatter, grid, overlay, stat_fill, arrow3d,
- │   line3d, scatter3d, mesh3d, surface3d, grid3d, grid_overlay3d,
- │   wireframe variants, transparent variants, text, text_depth
- ├── Per-axes GPU data (grid, border, bbox, tick, arrow buffers + cached limits)
- ├── Per-series GPU data (SSBO, index buffer, fill buffer, type cache)
- └── Deferred series deletion ring (4 slots)
-```
+### 5.2 Shader programs (`src/gpu/shaders/`)
 
-### 5.2 Shader Programs (src/gpu/shaders/)
-
-| Shader Pair | Pipeline | Purpose |
+| Shader | Pipeline / backend use | Purpose |
 |---|---|---|
-| `line.vert/frag` | Line | 2D line rendering with dash patterns, markers |
-| `scatter.vert/frag` | Scatter | 2D point rendering with marker shapes |
-| `grid.vert/frag` | Grid, Overlay | Grid lines, tick marks, 2D overlays |
-| `stat_fill.vert/frag` | StatFill | Filled triangles for box/violin/histogram/bar |
-| `line3d.vert/frag` | Line3D | 3D lines with depth + optional transparency |
-| `scatter3d.vert/frag` | Scatter3D | 3D points with depth + Phong shading |
-| `mesh3d.vert/frag` | Mesh3D | Triangle mesh with Phong lighting |
-| `surface3d.vert/frag` | Surface3D | Surface mesh with colormaps + lighting |
-| `grid3d.vert/frag` | Grid3D | 3D grid planes + bounding box edges |
-| `arrow3d.vert/frag` | Arrow3D | 3D axis arrows (depth-tested triangles) |
-| `text.vert/frag` | Text, TextDepth | Font atlas textured quads (2D + depth-tested) |
+| `line.vert` + `line.frag` | Vulkan 2D line pipeline | 2D lines, dash patterns, line joins, markers. |
+| `scatter.vert` + `scatter.frag` | Vulkan 2D scatter pipeline | 2D point/marker rendering. |
+| `grid.vert` + `grid.frag` | Vulkan grid / overlay pipeline | 2D grids, borders, ticks, overlays. |
+| `stat_fill.vert` + `stat_fill.frag` | Vulkan stat-fill pipeline | Histograms, bar fills, violin/box fills. |
+| `line3d.vert` + `line3d.frag` | Vulkan 3D line pipeline | Depth-tested 3D lines and trajectories. |
+| `scatter3d.vert` + `scatter3d.frag` | Vulkan 3D scatter pipeline | Depth-tested 3D markers with lighting. |
+| `mesh3d.vert` + `mesh3d.frag` | Vulkan mesh pipeline | Lit triangle meshes / wireframe variants. |
+| `surface3d.vert` + `surface3d.frag` | Vulkan surface pipeline | Surface meshes with colormaps and lighting. |
+| `grid3d.vert` + `grid3d.frag` | Vulkan 3D grid pipeline | 3D grid planes, boxes, guides. |
+| `arrow3d.vert` + `arrow3d.frag` | Vulkan axis-arrow pipeline | 3D axis arrows and orientation cues. |
+| `image3d.vert` + `image3d.frag` | Vulkan image display path | Textured image planes / ROS image display support. |
+| `marker3d.vert` + `marker3d.frag` | Vulkan marker display path | 3D markers / display markers beyond base scatter. |
+| `pointcloud.vert` + `pointcloud.frag` | Vulkan point-cloud path | Dense point cloud rendering for ROS/PX4-style spatial data. |
+| `text.vert` + `text.frag` | Vulkan text / text-depth pipelines | SDF/MSDF text in 2D and 3D overlays. |
+| `wgsl/grid.wgsl` | WebGPU grid pipeline | WGSL grid rendering. |
+| `wgsl/line.wgsl` | WebGPU line pipeline | WGSL line rendering. |
+| `wgsl/scatter.wgsl` | WebGPU scatter pipeline | WGSL point/marker rendering. |
+| `wgsl/stat_fill.wgsl` | WebGPU stat-fill pipeline | WGSL filled statistical geometry. |
+| `wgsl/text.wgsl` | WebGPU text pipeline | WGSL text / glyph rendering path. |
 
-### 5.3 Per-Frame Render Flow
+### 5.3 Per-frame render flow
 
 ```
-1. FrameScheduler::begin_frame()         — timing + dt computation
-2. SessionRuntime::tick() for each window:
-   a. WindowRuntime::update()
-      ├── FigureManager::process_pending()  (tab creates/closes/switches)
-      ├── Drive figure animation (on_frame callback)
-      ├── flush_deferred_series_removals()
-      ├── Figure::compute_layout()
-      ├── ImGuiIntegration::new_frame()
-      ├── ImGuiIntegration::build_ui()    (menus, inspector, canvas, overlays, tabs)
-      ├── DockSystem::update_layout()
-      └── InputHandler processing
-   b. WindowRuntime::render()
-      ├── Backend::begin_frame()          (acquire swapchain image, wait fence)
-      ├── Renderer::begin_render_pass()
-      ├── Renderer::render_figure_content()  (per-axes: upload series, bind pipeline, draw)
-      ├── Renderer::render_plot_text()    (tick labels, axis labels, titles via TextRenderer)
-      ├── Renderer::render_plot_geometry() (2D tick marks via overlay pipeline)
-      ├── Renderer::render_text()         (flush text vertex batch)
-      ├── ImGuiIntegration::render()      (ImGui draw commands)
-      ├── Renderer::end_render_pass()
-      └── Backend::end_frame()            (submit + present, optional framebuffer capture)
-3. Process deferred detaches/moves
-4. FrameScheduler::end_frame()            — sleep/spin to hit target FPS
+FrameScheduler::begin_frame()
+  -> SessionRuntime::tick() / WindowRuntime::update()
+     -> figure updates / animation callbacks / topic draining / deferred removals
+     -> ImGuiIntegration::new_frame() + UI build
+     -> Input / overlay / docking / command handling
+  -> WindowRuntime::render()
+     -> Backend::begin_frame()
+     -> Renderer upload + draw passes (2D, 3D, stats, overlays, text)
+     -> ImGui draw data
+     -> optional framebuffer capture / export / automation snapshot
+     -> Backend::end_frame()
+  -> SessionRuntime post-processing (detach/move/close windows)
+  -> FrameScheduler::end_frame()
 ```
 
 ---
 
 ## 6. Data Flow Diagrams
 
-### 6.1 Series Data → GPU
+### 6.1 Series data → CPU caches → GPU
 
 ```
-User code:
-  ax.line(x, y)  →  creates LineSeries, stores vector<float> x_, y_, sets dirty_=true
-
-Each frame (Renderer::render_figure_content):
-  for each axes in figure:
-    for each series in axes:
-      if series.is_dirty():
-        Renderer::upload_series_data(series)
-          → interleave x,y into upload_scratch_ (XYXYXY...)
-          → Backend::create_buffer(Storage, size) or reuse existing SSBO
-          → Backend::upload_buffer(ssbo, data, size)
-          → series.clear_dirty()
-      Renderer::render_series(series, viewport)
-        → Backend::bind_pipeline(line_pipeline)
-        → Backend::push_constants(color, line_width, dash_pattern, marker_type)
-        → Backend::bind_buffer(ssbo, binding=1)
-        → Backend::draw(vertex_count)
+User / adapter / topic input
+   -> Figure / Axes / Series mutation
+   -> dirty flags + optional chunked storage / mapped-file / LOD cache updates
+   -> Renderer upload path (`render_upload.cpp`)
+   -> backend buffers / textures / descriptors
+   -> draw pipelines selected by series type registry
 ```
 
-### 6.2 Figure Lifecycle (Multi-Window)
+### 6.2 Workspace + plugin + view-model flow
 
 ```
-App::figure()
-  → FigureRegistry::register_figure() → returns FigureId (monotonic uint64)
-  → sibling_map_ tracks which figures share a window (tab grouping)
-
-App::run_inproc()
-  → compute_window_groups() → groups figures by sibling relationships
-  → WindowManager::create_first_window_with_ui(glfw_window, group[0])
-  → For additional groups: WindowManager::create_window_with_ui(...)
-  → SessionRuntime loop: tick() until should_exit()
-
-Tab tear-off (during drag):
-  TabDragController state machine:
-    Idle → DragStartCandidate → DraggingDetached
-    → DropOutside: SessionRuntime::queue_detach() → WindowManager::detach_figure()
-    → DropOnWindow: SessionRuntime::queue_move() → WindowManager::move_figure()
-    → Cancel: restore original state
+Workspace file / plugin manifest / command action
+   -> Workspace / PluginAPI / PluginGuard
+   -> FigureSerializer + OverlaySnapshot
+   -> Figure/Axes/Series view models
+   -> ImGui panels, inspectors, topic/settings panels
 ```
 
-### 6.3 IPC / Multiproc Architecture
+### 6.3 IPC / multiprocess / topic transport
 
 ```
-Python Client ──Unix socket──► Backend Daemon (src/daemon/main.cpp)
-                                ├── FigureModel        (authoritative figure state, revisions)
-                                ├── SessionGraph       (tracks agents + figure assignments)
-                                ├── ProcessManager     (spawns agent processes)
-                                └── ClientRouter       (routes messages to correct agent)
-                                     │
-                          ┌──────────┤
-                          ▼          ▼
-                    Agent Process  Agent Process    (src/agent/main.cpp)
-                    (OS Window 1)  (OS Window 2)
-
-Message types (src/ipc/message.hpp):
-  HELLO/WELCOME → handshake
-  REQ_CREATE_FIGURE → Python creates figure
-  REQ_SET_DATA → Python sets series data
-  STATE_SNAPSHOT → full state sync
-  STATE_DIFF → incremental update (DiffOp)
-  EVT_INPUT → user interaction events
-
-Transport: Unix domain sockets, framed messages (40-byte header + TLV payload)
-Codec: encode_message() / decode_message() with PayloadEncoder/PayloadDecoder
+Python client / topic publisher / automation client
+        │
+        ├── TLV codec (`codec.*`) and FlatBuffers codec (`codec_fb.*`)
+        ├── Unix-socket transport (`transport.*`)
+        └── PublisherClient / message routing
+                │
+                ▼
+           daemon server
+                │
+                ├── figure state diffs
+                ├── topic registry updates
+                └── agent sync / automation responses
 ```
 
 ---
 
 ## 7. UI System (ImGui-based)
 
-### 7.1 Layout Structure
+- `src/ui/imgui/` is the main UI composition layer: menu bars, panes, selections, dialogs, previews, panels.
+- `src/ui/figures/`, `src/ui/docking/`, and `src/ui/window/` make multi-window + tab tear-off + split views work.
+- `src/ui/overlay/` contains interaction overlays (crosshair, annotations, inspector, legend, tooltips, markers).
+- `src/ui/commands/` and `src/ui/app/commands/` split generic command plumbing from command-domain registration.
+- `src/ui/accessibility/`, `src/ui/settings/`, and `src/ui/topics/` add non-plot UI subsystems missing from the older map.
+- `src/ui/automation/` exposes the UI to automation/MCP-style remote control.
+
+Canonical window layout:
 
 ```
-┌─────────────────────────────────────────────────┐
-│  Command Bar (menu bar: File, Edit, View, ...)  │
-├───────┬─────────────────────────────┬───────────┤
-│       │  Tab Bar (per-pane headers) │           │
-│  Nav  ├─────────────────────────────┤ Inspector │
-│  Rail │                             │  Panel    │
-│       │      Canvas (plot area)     │           │
-│       │   [split into SplitPanes]   │           │
-│       │                             │           │
-├───────┴─────────────────────────────┴───────────┤
-│  Status Bar (cursor pos, zoom %, FPS, GPU time) │
-└─────────────────────────────────────────────────┘
-
-Canvas can be split (DockSystem → SplitViewManager → binary tree of SplitPanes).
-Each SplitPane has its own tab bar with multiple figures.
-```
-
-### 7.2 Theme System
-
-```
-ThemeManager (singleton)                 (src/ui/theme/theme.hpp)
- ├── Theme { name, ThemeColors, DataPalette, visual props }
- │    └── ThemeColors: ~25 semantic color slots (bg_primary, text_primary, accent, grid_line, etc.)
- ├── DataPalette { colors, colorblind_safe flags }
- ├── CVD simulation (protanopia, deuteranopia, tritanopia, achromatopsia)
- ├── Animated theme transitions
- └── Persistence (export/import JSON)
-
-Design tokens (src/ui/theme/design_tokens.hpp):
-  Spacing, border widths, radii, durations, font sizes, z-indices
-```
-
-### 7.3 Command System
-
-```
-CommandRegistry: named commands with callbacks, category, shortcut hint
-CommandPalette: Ctrl+P fuzzy search UI (ranked by score)
-ShortcutManager: key binding → command name mapping, configurable
-UndoManager: undo/redo stack with UndoableProperty<T> for automatic tracking
-ShortcutConfig: persistent shortcut customization (JSON)
+Menu / command bar
+  -> docked panes + tab bars
+  -> plot canvases + overlays + inspectors + side panels
+  -> status/perf/topic/settings surfaces
 ```
 
 ---
 
 ## 8. Key Internal Classes
 
-### 8.1 FigureRegistry (src/ui/figures/figure_registry.hpp)
-- Thread-safe figure ownership with monotonic uint64 IDs
-- `register_figure()` → `FigureId`, `get()`, `release()`, `unregister_figure()`
-- Preserves insertion order for iteration
+### 8.1 `FigureRegistry` / `FigureManager`
+- Registry owns figure lifetimes; manager owns per-window tab/pane state, ordering, duplication, and transfers.
+- `FigureViewModel`, `AxesViewModel`, and `SeriesViewModel` provide UI-facing state projections.
 
-### 8.2 FigureManager (src/ui/figures/figure_manager.hpp)
-- Per-window figure lifecycle: create, close, duplicate, switch, reorder
-- Maintains `FigureState` per figure (axis snapshots, inspector selection, scroll, title)
-- Wired to `TabBar` for synchronized UI
-- Cross-window transfer: `remove_figure()` / `add_figure()` (keeps registry entry)
+### 8.2 `DockSystem` / `SplitViewManager` / `PanelDetachController`
+- These files implement dock trees, split panes, drop targets, detached panels, and pane-local tab bars.
 
-### 8.3 DockSystem + SplitViewManager (src/ui/docking/)
-- `SplitPane`: binary tree node. Leaf = figure(s), internal = two children + ratio
-- Multi-figure per pane (per-pane local tab bar)
-- `DockSystem`: orchestrates splits + drag-to-dock (drop zones: Left/Right/Top/Bottom/Center)
-- Max 8 panes per window
+### 8.3 `InputHandler` / `GestureRecognizer` / `SelectionContext`
+- Input is split by responsibility (`input_pan_zoom.cpp`, `input_select.cpp`, `input_measure.cpp`, `input_annotate.cpp`).
 
-### 8.4 InputHandler (src/ui/input/input.hpp)
-- Tool modes: Pan, BoxZoom, Select, Measure
-- Mouse/keyboard → axis limit mutations, zoom, scroll
-- Hit-tests against multiple axes (finds correct subplot under cursor)
-- `CursorReadout` for status bar data coordinates
+### 8.4 `OverlayRegistry` + overlay widgets
+- Central registration for overlay behavior; concrete overlays include annotations, crosshair, data editor, markers, inspector, tooltip, and legend interaction.
 
-### 8.5 DataTransform (src/math/data_transform.hpp)
-- Transform types: Log10, Ln, Abs, Normalize, Standardize, Derivative, CumulativeSum, FFT, Scale, Offset, Clamp, Custom
-- `TransformPipeline`: chain multiple transforms
-- `TransformRegistry`: named transform presets
+### 8.5 `DataTransform` / `TransformPipeline` / `ExpressionEval`
+- `src/math/data_transform.*` handles reusable transforms; `src/math/expression_eval.*` adds expression parsing/evaluation shared with ROS2 expression plotting.
 
-### 8.6 Decimation (src/data/decimation.hpp)
-- LTTB (Largest-Triangle-Three-Buckets) — visual shape preservation
-- Min-max decimation — peak preservation for waveforms
-- Uniform resampling — linear interpolation to even spacing
+### 8.6 `ChunkedArray` / `ChunkedSeries` / `LodCache` / `MappedFile`
+- These files are the large-data pipeline: chunked storage, memory-mapped data sources, and level-of-detail caches for scalable plotting.
 
-### 8.7 FrameScheduler (src/anim/frame_scheduler.hpp)
-- Modes: TargetFPS (sleep + spin-wait), VSync, Uncapped
-- Fixed timestep support for deterministic replay
-- Hitch detection: rolling window stats (avg, p95, max, hitch count)
+### 8.7 `FrameScheduler` / `FrameProfiler` / `AnimationTickGate`
+- Frame pacing, profiling, and redraw throttling are now spread across `src/anim/` and `src/ui/app/animation_tick_gate.hpp`.
 
-### 8.8 FrameProfiler (src/anim/frame_profiler.hpp)
-- DEBUG-only per-stage timing (`SPECTRA_PROFILE_SCOPE` macro)
-- Per-stage rolling stats (avg, p95, max)
-- Periodic logging summary
+### 8.8 `Renderer` / `SeriesTypeRegistry` / `TextRenderer`
+- `Renderer` is the central draw orchestrator; `SeriesTypeRegistry` decouples series type from render path; `TextRenderer` manages glyph batching.
+
+### 8.9 `VulkanBackend`
+- Owns device/swapchain/frame/pipeline/buffer/texture subsystems, multi-window render state, and capture/readback.
+
+### 8.10 `WebGPUBackend`
+- Experimental backend in `src/render/webgpu/`; paired with WGSL embedding and tests such as `test_webgpu_backend.cpp`.
+
+### 8.11 IPC codecs (`codec.*`, `codec_fb.*`)
+- Spectra now ships both legacy/TLV and FlatBuffers codecs. Cross-codec tests verify compatibility (`test_cross_codec`, Python cross-codec tests, benchmark codec).
+
+### 8.12 `AutomationServer` / `McpServer`
+- Remote-control surface for screenshots, window management, command execution, input synthesis, and figure inspection.
+
+### 8.13 `PluginAPI` / `PluginManifest` / `PluginGuard`
+- The plugin subsystem now covers exported data sources, overlays, transforms, and series-type extension points with manifest/version negotiation.
+
+### 8.14 Accessibility subsystem
+- `AccessibleSummary` generates non-visual summaries; `Sonification` turns plot structure into auditory cues.
+
+### 8.15 Settings subsystem
+- `SettingsStore` persists settings; `SettingsPanel` exposes them in the UI.
+
+### 8.16 PX4 subsystem
+- `Px4Bridge`, `Px4PlotManager`, `Px4AppShell`, telemetry adapters, and ULog parsing form a parallel adapter stack beside ROS2.
+
+### 8.17 Topic subsystem
+- `include/spectra/topic.hpp`, `src/app/inproc_topic_server.*`, `src/ipc/publisher_client.cpp`, `src/daemon/topic_*`, and `src/ui/topics/topics_panel.*` together provide pub/sub streaming.
 
 ---
 
 ## 9. Export System
 
-| Format | Class | Mechanism |
+| Format | Primary implementation | Notes |
 |---|---|---|
-| PNG | `ImageExporter::write_png()` | STB image write from GPU readback RGBA buffer |
-| SVG | `SvgExporter::write_svg()` | CPU-side traversal of Figure→Axes→Series, emits SVG elements directly |
-| Video | `VideoExporter` | FFmpeg pipe (`libx264`, `yuv420p`), frame-by-frame RGBA write |
-
-Export flow:
-- `Figure::save_png()` sets `png_export_path_` → executed after render
-- `Figure::save_svg()` sets `svg_export_path_` → executed after layout
-- `AnimationBuilder::record()` sets `video_record_path_` → VideoExporter writes each frame
+| PNG | `src/io/png_export.cpp` | GPU readback / offscreen export path. |
+| SVG | `src/io/svg_export.cpp` | CPU-side vector export from scene graph / series data. |
+| Video | `src/io/video_export.cpp`, `src/io/ffmpeg_command.hpp` | ffmpeg-backed frame streaming / recording export. |
+| Registry | `src/io/export_registry.*` | Central export capability registration. |
+| UI wiring | `src/ui/animation/recording_export.*`, `src/ui/export_dialog.hpp` | Recording workflow and dialog-level integration. |
 
 ---
 
-## 10. Python Bindings (python/)
+## 10. Python Bindings (`python/`)
+
+- `python/spectra/` contains 21 checked-in core module files and the public `embed.py` / `topic.py` entry points.
+- New since the old map: `_codec_fb.py`, `_download.py`, and `topic.py`.
+- `python/spectra/_fb_generated/` is reserved for generated FlatBuffers Python classes (currently an empty checked-in placeholder directory).
+- `python/spectra/backends/` contains Qt/Agg backend glue for embedding.
+- `python/examples/` now contains 18 demos, including topic publish/subscribe samples.
+- `python/tests/` now contains 12 test modules plus package init, including `test_cross_codec.py`, `test_download.py`, and `test_windows_compat.py`.
+
+Typical Python flow:
 
 ```
-python/spectra/
- ├── __init__.py               # Public API re-exports
- ├── _animation.py             # Animation helpers
- ├── _axes.py                  # Axes class (proxy)
- ├── _blob.py                  # Blob data handling
- ├── _cli.py                   # CLI entry points
- ├── _codec.py                 # Python-side message encode/decode
- ├── _easy.py                  # Python easy API (MATLAB-style)
- ├── _embed.py                 # Embedding support
- ├── _errors.py                # Error types
- ├── _figure.py                # Figure class (proxy to daemon)
- ├── _launcher.py              # Backend daemon launcher
- ├── _log.py                   # Logging
- ├── _persistence.py           # Session persistence
- ├── _protocol.py              # Protocol constants
- ├── _series.py                # Series class (proxy)
- ├── _session.py               # Session management
- ├── _transport.py             # Socket transport layer
- ├── embed.py                  # Public embed API
- └── backends/
-      ├── _qt_compat.py        # Qt compatibility shim
-      └── backend_qtagg.py     # Qt/Agg matplotlib-style backend
-
-Flow: Python → encode message → Unix socket → Backend daemon → FigureModel mutation
-      Backend daemon → STATE_DIFF → Agent process → WindowRuntime renders
+Python API -> _codec / _codec_fb -> _transport -> daemon/backend launcher
+          -> figure/session/topic proxies -> window agents / embed surface
 ```
 
 ---
 
 ## 11. Build System
 
-### 11.1 CMake Options
+### 11.1 CMake options
 
 | Option | Default | Purpose |
 |---|---|---|
-| `SPECTRA_USE_GLFW` | ON | GLFW windowing |
-| `SPECTRA_USE_IMGUI` | ON | Dear ImGui UI |
-| `SPECTRA_USE_FFMPEG` | OFF | Video export |
-| `SPECTRA_USE_EIGEN` | OFF | Eigen adapters |
-| `SPECTRA_BUILD_EXAMPLES` | ON | Example programs |
-| `SPECTRA_BUILD_TESTS` | ON | Unit tests + benchmarks |
-| `SPECTRA_RUNTIME_MODE` | multiproc | inproc or multiproc |
+| `SPECTRA_USE_GLFW` | ON | GLFW windowing adapter. |
+| `SPECTRA_USE_SDL3` | OFF | SDL3 windowing adapter. |
+| `SPECTRA_USE_IMGUI` | ON | Dear ImGui UI. |
+| `SPECTRA_USE_QT` | OFF | Qt adapter scaffolding. |
+| `SPECTRA_USE_FFMPEG` | ON | Video export via ffmpeg. |
+| `SPECTRA_USE_EIGEN` | ON | Eigen vector adapters. |
+| `SPECTRA_USE_ROS2` | ON | ROS2 adapter. |
+| `SPECTRA_ROS2_BAG` | ON | rosbag2 support. |
+| `SPECTRA_USE_PX4` | ON | PX4/ULog adapter stack. |
+| `SPECTRA_USE_WEBGPU` | OFF | WebGPU/WGSL backend. |
+| `SPECTRA_BUILD_EXAMPLES` | ON | Build examples. |
+| `SPECTRA_BUILD_QT_EXAMPLE` | OFF | Build Qt embed example. |
+| `SPECTRA_BUILD_TESTS` | ON | Build unit tests + benchmarks + golden tests. |
+| `SPECTRA_BUILD_EMBED_SHARED` | OFF | Build shared `spectra_embed` FFI library. |
+| `SPECTRA_PYTHON_WHEEL` | OFF | Install backend into Python package wheel layout. |
+| `SPECTRA_RUNTIME_MODE` | `multiproc` | `inproc` or `multiproc`. |
+| `SPECTRA_PRESENT_MODE` | `FIFO` | Vulkan present mode (`FIFO`, `MAILBOX`, `IMMEDIATE`). |
 
-### 11.2 Key Build Targets
+### 11.2 Key build targets
 
-- `spectra` — main shared library
-- `spectra-backend` — daemon process (multiproc mode)
-- `spectra-window` — agent process (multiproc mode)
-- `spectra-ros` — ROS2 adapter standalone application
-- ~47 example executables
-- ~145 unit test executables + benchmarks + golden tests
+- `spectra-core` — headless/core plotting, math, data, I/O, animation primitives.
+- `spectra` — full renderer/UI library.
+- `spectra_qt_adapter` — Qt embedding support.
+- `spectra_ros2_adapter` and `spectra-ros` — ROS2 adapter library + app.
+- `spectra_px4_adapter` and `spectra-px4` — PX4 adapter library + app.
+- `spectra-ipc` and `spectra-render` — interface/helper targets exposed by CMake.
+- `spectra_embed` — optional shared FFI/embed library.
+- `spectra-app` — standalone native application.
+- `spectra-backend` — multiprocess backend daemon.
+- `spectra-window` — multiprocess window agent.
+- `spectra_wgsl_shaders` — WGSL embedding/codegen target.
+- Example, unit-test, benchmark, golden-test, and QA executables.
 
-### 11.3 Compile Defines
+### 11.3 CMake modules
 
-- `SPECTRA_USE_GLFW` — enables GLFW-dependent code
-- `SPECTRA_USE_IMGUI` — enables ImGui-dependent code
-- `SPECTRA_USE_FFMPEG` — enables video export
-- `SPECTRA_USE_EIGEN` — enables Eigen adapters
-- `SPECTRA_BUILD_GOLDEN_TESTS` — enables golden image regression tests
+- `cmake/CompileShaders.cmake` — GLSL → SPIR-V compilation.
+- `cmake/CompileFlatBuffers.cmake` — FlatBuffers code generation.
+- `cmake/EmbedAssets.cmake` — binary/font/icon embedding.
+- `cmake/EmbedShaders.cmake` — compiled shader embedding.
+- `cmake/EmbedWGSLShaders.cmake` — WGSL source embedding.
+- `cmake/spectraConfig.cmake.in` — package config export.
+- `cmake/version.hpp.in` — generated version header template.
 
 ---
 
 ## 12. Threading Model
 
-- **Main thread**: GLFW event loop, ImGui, Vulkan command recording/submission
-- **FigureRegistry**: mutex-protected (safe to call from any thread)
-- **SplitViewManager**: mutex-protected
-- **SessionGraph** (daemon): mutex-protected
-- **FigureModel** (daemon): mutex-protected
-- **ProcessManager** (daemon): mutex-protected
-- **Logger**: mutex-protected singleton
-- **Series data**: NOT thread-safe — must be mutated from main thread or user's on_frame callback
+- Rendering is primarily frame-driven per window; backends own GPU resource lifetime and defer destruction safely.
+- Registry/graph/state managers (`FigureRegistry`, `SessionGraph`, `FigureModel`, `ProcessManager`, `TopicRegistry`) are explicit synchronization points.
+- UI, input, and most figure mutations are intended to occur on the owning window/app thread.
+- ROS2/PX4/topic/automation paths can feed data asynchronously, but visible model mutations still converge through synchronized app/daemon boundaries.
 
 ---
 
 ## 13. Important Patterns & Gotchas
 
-### 13.1 Deferred Deletion
-- **Series GPU resources**: `Renderer` uses a 4-slot deletion ring. When a series is removed, its GPU buffers go into the ring and are freed after `MAX_FRAMES_IN_FLIGHT + 2` frames.
-- **Vulkan buffers**: `VulkanBackend` has frame-stamped `pending_buffer_frees_` flushed each frame after fence wait.
-- **Series removal from commands**: Keyboard shortcuts fire during `glfwPollEvents()` at end of frame N. User's `on_frame` callback runs at start of frame N+1. So series deletion is deferred via `ImGuiIntegration::defer_series_removal()`, flushed in `WindowRuntime::update()` after `drive_figure_anim`.
+### 13.1 Deferred GPU deletion
+- Renderer and backend use deferred resource-free queues/rings; do not destroy GPU resources directly on the app thread.
 
-### 13.2 Multi-Window ImGui Contexts
-- Each window gets its own `ImGuiContext` + `ImFontAtlas` (owned by `ImGuiIntegration`).
-- After `ImGui::CreateContext()`, explicitly call `SetCurrentContext()` (CreateContext restores previous context).
-- Before update/render of secondary windows, switch to that window's ImGui context; restore primary context afterward.
+### 13.2 Multi-window peer semantics
+- Secondary windows are peers; avoid introducing “primary window only” behavior in rendering, input, docking, or teardown paths.
 
-### 13.3 Framebuffer Capture
-- `readback_framebuffer()` after present reads stale data. Use `request_framebuffer_capture()` which executes between `vkQueueSubmit` and `vkQueuePresentKHR` in `end_frame()`.
+### 13.3 Dual-codec IPC
+- The repository now carries TLV and FlatBuffers encode/decode paths. Cross-codec tests/benchmarks exist and should stay green together.
 
-### 13.4 Swapchain Recreation
-- For windows with ImGui: use `recreate_swapchain_for_with_imgui()` which also updates ImGui's MinImageCount and re-inits the Vulkan backend if the render pass handle changes.
+### 13.4 WebGPU is intentionally constrained
+- WebGPU support is experimental and currently documented as inproc-first / wasm-friendly rather than a full replacement for Vulkan/multiproc.
 
-### 13.5 Dirty Flag Pattern
-- All `Series` subclasses have `dirty_` flag. Set on any data/style mutation. Cleared after GPU upload in `Renderer::upload_series_data()`.
-- Statistical series (`BoxPlotSeries`, etc.) have `rebuild_geometry()` called when dirty before render.
+### 13.5 Plugin ABI/version discipline
+- Plugin loading is guarded by manifests, compatibility checks, and dedicated tests; extension points are intentionally narrow.
 
-### 13.6 Series Removed Callback
-- `AxesBase::set_series_removed_callback()` wires up deferred GPU cleanup. The framework installs this so `Renderer::notify_series_removed()` is called before the series is destroyed.
+### 13.6 Topic pipeline is cross-cutting
+- Topics touch public API, app runtime, daemon routing, Python, examples, and docs. Changes often need coordinated updates across those layers.
+
+### 13.7 Accessibility/settings/automation are now first-class subsystems
+- They are not add-ons hidden inside `imgui_integration.cpp`; the source tree has dedicated directories and tests for them.
 
 ---
 
-## 14. File Cross-Reference (Quick Lookup)
+## 14. File Cross-Reference (Complete Inventory)
 
-### Where to find a specific feature:
+This section is the exhaustive source-tree index for authored code and key repo assets. Baseline image corpora
+and other large binary collections are summarized rather than enumerated file-by-file.
 
-| Feature | Primary File(s) |
-|---|---|
-| App lifecycle | `src/app/main.cpp`, `src/ui/app/app.cpp`, `app_inproc.cpp`, `app_multiproc.cpp`, `app_step.cpp` |
-| Per-window update/render loop | `src/ui/app/window_runtime.cpp` |
-| Session orchestration | `src/ui/app/session_runtime.cpp` |
-| Per-window UI bundle | `src/ui/app/window_ui_context.hpp` |
-| Command registration | `src/ui/app/register_commands.cpp` |
-| Vulkan backend | `src/render/vulkan/vk_backend.cpp` (~98K) |
-| 2D/3D rendering | `src/render/renderer.cpp` (~99K) |
-| Text rendering | `src/render/text_renderer.cpp` |
-| Full ImGui UI | `src/ui/imgui/imgui_integration.cpp` (~224K) |
-| Widgets (ImGui) | `src/ui/imgui/widgets.cpp` |
-| Figure registry | `src/ui/figures/figure_registry.cpp` |
-| Figure manager | `src/ui/figures/figure_manager.cpp` |
-| Tab bar | `src/ui/figures/tab_bar.cpp` |
-| Tab drag controller | `src/ui/figures/tab_drag_controller.cpp` |
-| Window manager | `src/ui/window/window_manager.cpp` (~70K) |
-| GLFW adapter | `src/ui/window/glfw_adapter.cpp` |
-| Split view / docking | `src/ui/docking/split_view.cpp`, `dock_system.cpp` |
-| Input handling | `src/ui/input/input.cpp` (~63K) |
-| Box zoom | `src/ui/input/box_zoom_overlay.cpp` |
-| Region select | `src/ui/input/region_select.cpp` |
-| Inspector panel | `src/ui/overlay/inspector.cpp` (~38K) |
-| Data interaction | `src/ui/overlay/data_interaction.cpp` |
-| Crosshair overlay | `src/ui/overlay/crosshair.cpp` |
-| Legend interaction | `src/ui/overlay/legend_interaction.cpp` |
-| Knob manager | `src/ui/overlay/knob_manager.cpp` |
-| Theme system | `src/ui/theme/theme.cpp` (~46K) |
-| Design tokens | `src/ui/theme/design_tokens.hpp` |
-| Icons | `src/ui/theme/icons.cpp` |
-| Command palette | `src/ui/commands/command_palette.cpp` |
-| Command registry | `src/ui/commands/command_registry.cpp` |
-| Shortcut manager | `src/ui/commands/shortcut_manager.cpp` |
-| Undo manager | `src/ui/commands/undo_manager.cpp` |
-| Series clipboard | `src/ui/commands/series_clipboard.cpp` |
-| Axis linking | `src/ui/data/axis_link.cpp` |
-| CSV loader | `src/ui/data/csv_loader.cpp` |
-| Timeline editor | `src/ui/animation/timeline_editor.cpp` |
-| Keyframe interpolator | `src/ui/animation/keyframe_interpolator.cpp` |
-| Curve editor | `src/ui/animation/animation_curve_editor.cpp` |
-| Camera animator | `src/ui/animation/camera_animator.cpp` |
-| Mode transition | `src/ui/animation/mode_transition.cpp` |
-| Recording/export | `src/ui/animation/recording_export.cpp` |
-| Transition engine | `src/ui/animation/transition_engine.cpp` |
-| Layout manager | `src/ui/layout/layout_manager.cpp` |
-| Workspace save/load | `src/ui/workspace/workspace.cpp` |
-| Figure serializer | `src/ui/workspace/figure_serializer.cpp` |
-| Plugin API | `src/ui/workspace/plugin_api.cpp` |
-| Easing functions | `src/anim/easing.cpp` |
-| Frame scheduler | `src/anim/frame_scheduler.cpp` |
-| Data transforms | `src/math/data_transform.cpp` |
-| Decimation | `src/data/decimation.cpp` |
-| Filters | `src/data/filters.cpp` |
-| IPC codec | `src/ipc/codec.cpp` |
-| IPC transport | `src/ipc/transport.cpp` |
-| IPC messages | `src/ipc/message.hpp` |
-| Daemon main | `src/daemon/main.cpp` (~88K) |
-| Figure model | `src/daemon/figure_model.cpp` |
-| Session graph | `src/daemon/session_graph.cpp` |
-| Process manager | `src/daemon/process_manager.cpp` |
-| PNG export | `src/io/png_export.cpp` |
-| SVG export | `src/io/svg_export.cpp` |
-| Video export | `src/io/video_export.cpp` |
-| Embed surface | `src/embed/embed_surface.cpp` |
-| C FFI wrapper | `src/embed/spectra_embed_c.cpp` |
-| SurfaceHost abstraction | `src/platform/window_system/surface_host.hpp` |
-| GLFW surface host | `src/platform/window_system/glfw_surface_host.cpp` |
-| Qt runtime | `src/adapters/qt/qt_runtime.cpp` |
-| Qt surface host | `src/adapters/qt/qt_surface_host.cpp` |
-| ROS2 adapter entry | `src/adapters/ros2/main.cpp` |
-| ROS2 app shell | `src/adapters/ros2/ros_app_shell.cpp` |
-| ROS2 bridge | `src/adapters/ros2/ros2_bridge.cpp` |
-| ROS2 topic discovery | `src/adapters/ros2/topic_discovery.cpp` |
-| ROS2 generic subscriber | `src/adapters/ros2/generic_subscriber.cpp` |
-| ROS2 message introspector | `src/adapters/ros2/message_introspector.cpp` |
-| ROS2 expression engine | `src/adapters/ros2/expression_engine.cpp` |
-| ROS2 bag player | `src/adapters/ros2/bag_player.cpp` |
-| ROS2 bag reader | `src/adapters/ros2/bag_reader.cpp` |
-| ROS2 bag recorder | `src/adapters/ros2/bag_recorder.cpp` |
-| ROS2 subplot manager | `src/adapters/ros2/subplot_manager.cpp` |
-| ROS2 plot manager | `src/adapters/ros2/ros_plot_manager.cpp` |
-| ROS2 session | `src/adapters/ros2/ros_session.cpp` |
-| ROS2 log viewer | `src/adapters/ros2/ros_log_viewer.cpp` |
-| ROS2 CSV export | `src/adapters/ros2/ros_csv_export.cpp` |
-| ROS2 clipboard export | `src/adapters/ros2/ros_clipboard_export.cpp` |
-| ROS2 screenshot export | `src/adapters/ros2/ros_screenshot_export.cpp` |
-| ROS2 service caller | `src/adapters/ros2/service_caller.cpp` |
-| ROS2 expression plot | `src/adapters/ros2/expression_plot.cpp` |
-| ROS2 UI: topic list panel | `src/adapters/ros2/ui/topic_list_panel.cpp` |
-| ROS2 UI: topic echo panel | `src/adapters/ros2/ui/topic_echo_panel.cpp` |
-| ROS2 UI: topic stats overlay | `src/adapters/ros2/ui/topic_stats_overlay.cpp` |
-| ROS2 UI: diagnostics panel | `src/adapters/ros2/ui/diagnostics_panel.cpp` |
-| ROS2 UI: TF tree panel | `src/adapters/ros2/ui/tf_tree_panel.cpp` |
-| ROS2 UI: node graph panel | `src/adapters/ros2/ui/node_graph_panel.cpp` |
-| ROS2 UI: bag playback panel | `src/adapters/ros2/ui/bag_playback_panel.cpp` |
-| ROS2 UI: bag info panel | `src/adapters/ros2/ui/bag_info_panel.cpp` |
-| ROS2 UI: param editor panel | `src/adapters/ros2/ui/param_editor_panel.cpp` |
-| ROS2 UI: service caller panel | `src/adapters/ros2/ui/service_caller_panel.cpp` |
-| ROS2 UI: expression editor | `src/adapters/ros2/ui/expression_editor.cpp` |
-| ROS2 UI: field drag-drop | `src/adapters/ros2/ui/field_drag_drop.cpp` |
-| ROS2 UI: log viewer panel | `src/adapters/ros2/ui/log_viewer_panel.cpp` |
-| Clipboard export | `src/ui/data/clipboard_export.cpp` |
-| Data editor overlay | `src/ui/overlay/data_editor.cpp` |
-| Tooltip overlay | `src/ui/overlay/tooltip.cpp` |
-| Command queue | `src/ui/commands/command_queue.hpp` |
-| Selection context | `src/ui/input/selection_context.hpp` |
+### 14.1 Repository root (18 files)
+`.clang-format`, `.clang-tidy`, `.clangd`, `.dockerignore`, `.gitignore`, `.live-agents`,
+    `CLAUDE.md`, `CMakeLists.txt`, `CODEBASE_MAP.md`, `FORMAT.md`, `LICENSE`, `Makefile`,
+    `Makefile.format`, `README.md`, `Vision.png`, `format_project.sh`, `pyproject.toml`,
+    `version.txt`
+
+### 14.2 `include/spectra/` (32 files)
+`animator.hpp`, `app.hpp`, `axes.hpp`, `axes3d.hpp`, `camera.hpp`, `chunked_series.hpp`,
+    `color.hpp`, `custom_series.hpp`, `easy.hpp`, `easy_embed.hpp`, `eigen.hpp`, `eigen_easy.hpp`,
+    `embed.hpp`, `event_bus.hpp`, `export.hpp`, `figure.hpp`, `figure_registry.hpp`, `frame.hpp`,
+    `fwd.hpp`, `knob_manager.hpp`, `logger.hpp`, `math3d.hpp`, `plot_style.hpp`, `series.hpp`,
+    `series3d.hpp`, `series_shapes.hpp`, `series_shapes3d.hpp`, `series_stats.hpp`, `spectra.hpp`,
+    `spectra_embed_c.h`, `theme_api.hpp`, `topic.hpp`
+
+### 14.3 `src/app/` (3 files)
+`inproc_topic_server.cpp`, `inproc_topic_server.hpp`, `main.cpp`
+Contains the standalone app entry point plus the in-process topic server.
+
+### 14.4 `src/core/` (18 files)
+`axes.cpp`, `axes3d.cpp`, `axes3d.hpp`, `chunked_series.cpp`, `custom_series.cpp`, `figure.cpp`,
+    `layout.cpp`, `layout.hpp`, `logger.cpp`, `pending_series_data.hpp`, `series.cpp`,
+    `series3d.cpp`, `series_shapes.cpp`, `series_shapes3d.cpp`, `series_stats.cpp`, `spinlock.hpp`,
+    `transform.cpp`, `transform.hpp`
+
+### 14.5 `src/render/` (11 files)
+`backend.hpp`, `render_2d.cpp`, `render_3d.cpp`, `render_geometry.cpp`, `render_upload.cpp`,
+    `renderer.cpp`, `renderer.hpp`, `series_type_registry.cpp`, `series_type_registry.hpp`,
+    `text_renderer.cpp`, `text_renderer.hpp`
+
+### 14.6 `src/render/vulkan/` (15 files)
+`vk_backend.cpp`, `vk_backend.hpp`, `vk_buffer.cpp`, `vk_buffer.hpp`, `vk_capture.cpp`,
+    `vk_device.cpp`, `vk_device.hpp`, `vk_frame.cpp`, `vk_multi_window.cpp`, `vk_pipeline.cpp`,
+    `vk_pipeline.hpp`, `vk_swapchain.cpp`, `vk_swapchain.hpp`, `vk_texture.cpp`,
+    `window_context.hpp`
+
+### 14.7 `src/render/webgpu/` (2 files)
+`wgpu_backend.cpp`, `wgpu_backend.hpp`
+
+### 14.8 `src/ui/` (2 files)
+`dialog_env_guard.hpp`, `export_dialog.hpp`
+Root-level shared UI utility headers.
+
+### 14.9 `src/ui/app/` (18 files)
+`animation_tick_gate.hpp`, `app.cpp`, `app_inproc.cpp`, `app_multiproc.cpp`, `app_step.cpp`,
+    `perf_metrics.hpp`, `redraw_tracker.hpp`, `register_commands.cpp`, `register_commands.hpp`,
+    `resource_monitor.hpp`, `ros2_adapter_state.hpp`, `session_runtime.cpp`, `session_runtime.hpp`,
+    `window_runtime.cpp`, `window_runtime.hpp`, `window_ui_context.hpp`,
+    `window_ui_context_builder.cpp`, `window_ui_context_builder.hpp`
+
+### 14.10 `src/ui/app/commands/` (15 files)
+`command_context.hpp`, `command_descriptor.cpp`, `command_descriptor.hpp`, `command_groups.hpp`,
+    `commands_animation.cpp`, `commands_app.cpp`, `commands_data.cpp`, `commands_edit.cpp`,
+    `commands_figure.cpp`, `commands_file.cpp`, `commands_panel.cpp`, `commands_series.cpp`,
+    `commands_theme.cpp`, `commands_tools.cpp`, `commands_view.cpp`
+
+### 14.11 `src/ui/imgui/` (14 files)
+`axes3d_renderer.cpp`, `axes3d_renderer.hpp`, `imgui_animation.cpp`, `imgui_command_bar.cpp`,
+    `imgui_dialogs.cpp`, `imgui_integration.cpp`, `imgui_integration.hpp`,
+    `imgui_integration_internal.hpp`, `imgui_pane_tabs.cpp`, `imgui_panels.cpp`,
+    `imgui_preview.cpp`, `imgui_selection.cpp`, `widgets.cpp`, `widgets.hpp`
+
+### 14.12 `src/ui/figures/` (8 files)
+`figure_manager.cpp`, `figure_manager.hpp`, `figure_registry.cpp`, `figure_registry.hpp`,
+    `tab_bar.cpp`, `tab_bar.hpp`, `tab_drag_controller.cpp`, `tab_drag_controller.hpp`
+
+### 14.13 `src/ui/window/` (12 files)
+`glfw_adapter.cpp`, `glfw_adapter.hpp`, `glfw_utils.hpp`, `sdl3_adapter.cpp`, `sdl3_adapter.hpp`,
+    `sdl3_key_map.hpp`, `window_figure_ops.cpp`, `window_glfw_callbacks.cpp`,
+    `window_lifecycle.cpp`, `window_manager.cpp`, `window_manager.hpp`, `window_sdl3_events.cpp`
+
+### 14.14 `src/ui/input/` (13 files)
+`box_zoom_overlay.cpp`, `box_zoom_overlay.hpp`, `gesture_recognizer.cpp`, `gesture_recognizer.hpp`,
+    `input.cpp`, `input.hpp`, `input_annotate.cpp`, `input_measure.cpp`, `input_pan_zoom.cpp`,
+    `input_select.cpp`, `region_select.cpp`, `region_select.hpp`, `selection_context.hpp`
+
+### 14.15 `src/ui/overlay/` (22 files)
+`annotation.cpp`, `annotation.hpp`, `crosshair.cpp`, `crosshair.hpp`, `custom_transform_dialog.cpp`,
+    `custom_transform_dialog.hpp`, `data_editor.cpp`, `data_editor.hpp`, `data_interaction.cpp`,
+    `data_interaction.hpp`, `data_marker.cpp`, `data_marker.hpp`, `inspector.cpp`, `inspector.hpp`,
+    `knob_manager.cpp`, `knob_manager.hpp`, `legend_interaction.cpp`, `legend_interaction.hpp`,
+    `overlay_registry.cpp`, `overlay_registry.hpp`, `tooltip.cpp`, `tooltip.hpp`
+
+### 14.16 `src/ui/commands/` (16 files)
+`command_descriptor.cpp`, `command_descriptor.hpp`, `command_palette.cpp`, `command_palette.hpp`,
+    `command_queue.hpp`, `command_registry.cpp`, `command_registry.hpp`, `series_clipboard.cpp`,
+    `series_clipboard.hpp`, `shortcut_config.cpp`, `shortcut_config.hpp`, `shortcut_manager.cpp`,
+    `shortcut_manager.hpp`, `undo_manager.cpp`, `undo_manager.hpp`, `undoable_property.hpp`
+
+### 14.17 `src/ui/docking/` (4 files)
+`dock_system.cpp`, `dock_system.hpp`, `split_view.cpp`, `split_view.hpp`
+
+### 14.18 `src/ui/animation/` (16 files)
+`animation_controller.cpp`, `animation_controller.hpp`, `animation_curve_editor.cpp`,
+    `animation_curve_editor.hpp`, `camera_animator.cpp`, `camera_animator.hpp`,
+    `keyframe_interpolator.cpp`, `keyframe_interpolator.hpp`, `mode_transition.cpp`,
+    `mode_transition.hpp`, `recording_export.cpp`, `recording_export.hpp`, `timeline_editor.cpp`,
+    `timeline_editor.hpp`, `transition_engine.cpp`, `transition_engine.hpp`
+
+### 14.19 `src/ui/theme/` (6 files)
+`design_tokens.hpp`, `icons.cpp`, `icons.hpp`, `theme.cpp`, `theme.hpp`, `theme_api.cpp`
+
+### 14.20 `src/ui/data/` (9 files)
+`axis_link.cpp`, `axis_link.hpp`, `clipboard_export.cpp`, `clipboard_export.hpp`, `csv_loader.cpp`,
+    `csv_loader.hpp`, `data_transform.hpp`, `html_table_export.cpp`, `html_table_export.hpp`
+
+### 14.21 `src/ui/camera/` (2 files)
+`camera.cpp`, `camera.hpp`
+
+### 14.22 `src/ui/layout/` (2 files)
+`layout_manager.cpp`, `layout_manager.hpp`
+
+### 14.23 `src/ui/viewmodel/` (6 files)
+`axes_view_model.cpp`, `axes_view_model.hpp`, `figure_view_model.cpp`, `figure_view_model.hpp`,
+    `series_view_model.cpp`, `series_view_model.hpp`
+
+### 14.24 `src/ui/workspace/` (13 files)
+`figure_serializer.cpp`, `figure_serializer.hpp`, `overlay_snapshot.hpp`, `plugin_api.cpp`,
+    `plugin_api.hpp`, `plugin_guard.cpp`, `plugin_guard.hpp`, `plugin_manifest.cpp`,
+    `plugin_manifest.hpp`, `workspace.cpp`, `workspace.hpp`, `workspace_autosave.cpp`,
+    `workspace_autosave.hpp`
+
+### 14.25 `src/ui/accessibility/` (4 files)
+`accessible_summary.cpp`, `accessible_summary.hpp`, `sonification.cpp`, `sonification.hpp`
+
+### 14.26 `src/ui/settings/` (4 files)
+`settings_panel.cpp`, `settings_panel.hpp`, `settings_store.cpp`, `settings_store.hpp`
+
+### 14.27 `src/ui/topics/` (2 files)
+`topics_panel.cpp`, `topics_panel.hpp`
+
+### 14.28 `src/ui/panel/` (2 files)
+`panel_detach_controller.cpp`, `panel_detach_controller.hpp`
+
+### 14.29 `src/ui/automation/` (6 files)
+`automation_handler.hpp`, `automation_json.hpp`, `automation_server.cpp`, `automation_server.hpp`,
+    `mcp_server.cpp`, `mcp_server.hpp`
+
+### 14.30 `src/ui/automation/handlers/` (6 files)
+`handlers_capture.cpp`, `handlers_command.cpp`, `handlers_figure.cpp`, `handlers_input.cpp`,
+    `handlers_utility.cpp`, `handlers_window.cpp`
+
+### 14.31 `src/embed/` (2 files)
+`embed_surface.cpp`, `spectra_embed_c.cpp`
+
+### 14.32 `src/platform/` (2 files)
+`clipboard_image.cpp`, `clipboard_image.hpp`
+
+### 14.33 `src/platform/window_system/` (5 files)
+`glfw_surface_host.cpp`, `glfw_surface_host.hpp`, `sdl3_surface_host.cpp`, `sdl3_surface_host.hpp`,
+    `surface_host.hpp`
+
+### 14.34 `src/anim/` (5 files)
+`animator.cpp`, `easing.cpp`, `frame_profiler.hpp`, `frame_scheduler.cpp`, `frame_scheduler.hpp`
+
+### 14.35 `src/data/` (8 files)
+`chunked_array.hpp`, `decimation.cpp`, `decimation.hpp`, `filters.cpp`, `filters.hpp`,
+    `lod_cache.hpp`, `mapped_file.cpp`, `mapped_file.hpp`
+
+### 14.36 `src/math/` (4 files)
+`data_transform.cpp`, `data_transform.hpp`, `expression_eval.cpp`, `expression_eval.hpp`
+
+### 14.37 `src/io/` (7 files)
+`export_registry.cpp`, `export_registry.hpp`, `ffmpeg_command.hpp`, `png_export.cpp`,
+    `stb_impl.cpp`, `svg_export.cpp`, `video_export.cpp`
+
+### 14.38 `src/ipc/` (9 files)
+`blob_store.hpp`, `codec.cpp`, `codec.hpp`, `codec_fb.cpp`, `codec_fb.hpp`, `message.hpp`,
+    `publisher_client.cpp`, `transport.cpp`, `transport.hpp`
+
+### 14.39 `src/ipc/schemas/` (1 files)
+`spectra_ipc.fbs`
+
+### 14.40 `src/daemon/` (20 files)
+`agent_message_handler.cpp`, `agent_message_handler.hpp`, `client_router.hpp`, `daemon_server.cpp`,
+    `daemon_server.hpp`, `figure_model.cpp`, `figure_model.hpp`, `heartbeat_monitor.cpp`,
+    `heartbeat_monitor.hpp`, `main.cpp`, `process_manager.cpp`, `process_manager.hpp`,
+    `python_message_handler.cpp`, `python_message_handler.hpp`, `session_graph.cpp`,
+    `session_graph.hpp`, `topic_message_handler.cpp`, `topic_message_handler.hpp`,
+    `topic_registry.cpp`, `topic_registry.hpp`
+
+### 14.41 `src/agent/` (1 files)
+`main.cpp`
+
+### 14.42 `src/gpu/shaders/` (28 files)
+`arrow3d.frag`, `arrow3d.vert`, `grid.frag`, `grid.vert`, `grid3d.frag`, `grid3d.vert`,
+    `image3d.frag`, `image3d.vert`, `line.frag`, `line.vert`, `line3d.frag`, `line3d.vert`,
+    `marker3d.frag`, `marker3d.vert`, `mesh3d.frag`, `mesh3d.vert`, `pointcloud.frag`,
+    `pointcloud.vert`, `scatter.frag`, `scatter.vert`, `scatter3d.frag`, `scatter3d.vert`,
+    `stat_fill.frag`, `stat_fill.vert`, `surface3d.frag`, `surface3d.vert`, `text.frag`, `text.vert`
+
+### 14.43 `src/gpu/shaders/wgsl/` (5 files)
+`grid.wgsl`, `line.wgsl`, `scatter.wgsl`, `stat_fill.wgsl`, `text.wgsl`
+
+### 14.44 `src/adapters/` (3 files)
+`adapter_interface.hpp`, `data_source_registry.cpp`, `data_source_registry.hpp`
+
+### 14.45 `src/adapters/qt/` (4 files)
+`qt_runtime.cpp`, `qt_runtime.hpp`, `qt_surface_host.cpp`, `qt_surface_host.hpp`
+
+### 14.46 `src/adapters/px4/` (11 files)
+`main.cpp`, `px4_adapter.cpp`, `px4_adapter.hpp`, `px4_app_shell.cpp`, `px4_app_shell.hpp`,
+    `px4_bridge.cpp`, `px4_bridge.hpp`, `px4_plot_manager.cpp`, `px4_plot_manager.hpp`,
+    `ulog_reader.cpp`, `ulog_reader.hpp`
+
+### 14.47 `src/adapters/px4/messages/` (5 files)
+`actuator_adapter.hpp`, `attitude_adapter.hpp`, `battery_adapter.hpp`, `gps_adapter.hpp`,
+    `imu_adapter.hpp`
+
+### 14.48 `src/adapters/px4/ui/` (4 files)
+`live_connection_panel.cpp`, `live_connection_panel.hpp`, `ulog_file_panel.cpp`,
+    `ulog_file_panel.hpp`
+
+### 14.49 `src/adapters/ros2/` (40 files)
+`axis_mode.hpp`, `bag_player.cpp`, `bag_player.hpp`, `bag_reader.cpp`, `bag_reader.hpp`,
+    `bag_recorder.cpp`, `bag_recorder.hpp`, `expression_engine.cpp`, `expression_engine.hpp`,
+    `expression_plot.cpp`, `expression_plot.hpp`, `generic_subscriber.cpp`,
+    `generic_subscriber.hpp`, `main.cpp`, `message_introspector.cpp`, `message_introspector.hpp`,
+    `ros2_adapter.cpp`, `ros2_adapter.hpp`, `ros2_bridge.cpp`, `ros2_bridge.hpp`,
+    `ros_app_shell.cpp`, `ros_app_shell.hpp`, `ros_clipboard_export.cpp`,
+    `ros_clipboard_export.hpp`, `ros_csv_export.cpp`, `ros_csv_export.hpp`, `ros_log_viewer.cpp`,
+    `ros_log_viewer.hpp`, `ros_plot_manager.cpp`, `ros_plot_manager.hpp`,
+    `ros_screenshot_export.cpp`, `ros_screenshot_export.hpp`, `ros_session.cpp`, `ros_session.hpp`,
+    `service_caller.cpp`, `service_caller.hpp`, `subplot_manager.cpp`, `subplot_manager.hpp`,
+    `topic_discovery.cpp`, `topic_discovery.hpp`
+
+### 14.50 `src/adapters/ros2/display/` (21 files)
+`display_plugin.hpp`, `display_registry.cpp`, `display_registry.hpp`, `grid_display.cpp`,
+    `grid_display.hpp`, `image_display.cpp`, `image_display.hpp`, `laserscan_display.cpp`,
+    `laserscan_display.hpp`, `marker_display.cpp`, `marker_display.hpp`, `path_display.cpp`,
+    `path_display.hpp`, `pointcloud_display.cpp`, `pointcloud_display.hpp`, `pose_display.cpp`,
+    `pose_display.hpp`, `robot_model_display.cpp`, `robot_model_display.hpp`, `tf_display.cpp`,
+    `tf_display.hpp`
+
+### 14.51 `src/adapters/ros2/messages/` (7 files)
+`image_adapter.hpp`, `joint_state_adapter.hpp`, `laserscan_adapter.hpp`, `marker_adapter.hpp`,
+    `path_adapter.hpp`, `pointcloud_adapter.hpp`, `tf_adapter.hpp`
+
+### 14.52 `src/adapters/ros2/scene/` (6 files)
+`mesh_primitives.cpp`, `mesh_primitives.hpp`, `scene_manager.cpp`, `scene_manager.hpp`,
+    `scene_renderer.cpp`, `scene_renderer.hpp`
+
+### 14.53 `src/adapters/ros2/tf/` (2 files)
+`tf_buffer.cpp`, `tf_buffer.hpp`
+
+### 14.54 `src/adapters/ros2/urdf/` (2 files)
+`urdf_parser.cpp`, `urdf_parser.hpp`
+
+### 14.55 `src/adapters/ros2/ui/` (32 files)
+`bag_info_panel.cpp`, `bag_info_panel.hpp`, `bag_playback_panel.cpp`, `bag_playback_panel.hpp`,
+    `diagnostics_panel.cpp`, `diagnostics_panel.hpp`, `displays_panel.cpp`, `displays_panel.hpp`,
+    `expression_editor.cpp`, `expression_editor.hpp`, `field_drag_drop.cpp`, `field_drag_drop.hpp`,
+    `inspector_panel.cpp`, `inspector_panel.hpp`, `log_viewer_panel.cpp`, `log_viewer_panel.hpp`,
+    `node_graph_panel.cpp`, `node_graph_panel.hpp`, `param_editor_panel.cpp`,
+    `param_editor_panel.hpp`, `scene_viewport.cpp`, `scene_viewport.hpp`,
+    `service_caller_panel.cpp`, `service_caller_panel.hpp`, `tf_tree_panel.cpp`,
+    `tf_tree_panel.hpp`, `topic_echo_panel.cpp`, `topic_echo_panel.hpp`, `topic_list_panel.cpp`,
+    `topic_list_panel.hpp`, `topic_stats_overlay.cpp`, `topic_stats_overlay.hpp`
+
+### 14.56 `tests/unit/` (164 files)
+`mock_integration_plugin.cpp`, `mock_overlay_plugin.cpp`, `mock_plugin_v1_0.cpp`,
+    `mock_plugin_v1_1.cpp`, `mock_plugin_v1_99.cpp`, `mock_transform_plugin.cpp`,
+    `test_3d_integration.cpp`, `test_3d_pipelines.cpp`, `test_3d_regression.cpp`,
+    `test_accessibility.cpp`, `test_accessible_summary.cpp`, `test_animation_controller.cpp`,
+    `test_animation_tick_gate.cpp`, `test_axes3d.cpp`, `test_axes_view_model.cpp`,
+    `test_axis_link.cpp`, `test_bag_info_panel.cpp`, `test_bag_player.cpp`, `test_bag_reader.cpp`,
+    `test_bag_recorder.cpp`, `test_box_zoom_overlay.cpp`, `test_camera.cpp`,
+    `test_camera_animator.cpp`, `test_chunked_array.cpp`, `test_chunked_series.cpp`,
+    `test_clipboard_export.cpp`, `test_command_palette_registry.cpp`, `test_command_queue.cpp`,
+    `test_command_registry.cpp`, `test_cross_codec.cpp`, `test_csv_loader.cpp`,
+    `test_data_editor.cpp`, `test_data_interaction.cpp`, `test_data_transform.cpp`,
+    `test_decimation.cpp`, `test_depth_buffer.cpp`, `test_diagnostics_panel.cpp`,
+    `test_discovery_introspection.cpp`, `test_display_registry.cpp`, `test_dock_system.cpp`,
+    `test_easing.cpp`, `test_easy_api.cpp`, `test_easy_embed.cpp`, `test_eigen_support.cpp`,
+    `test_embed_surface.cpp`, `test_event_bus.cpp`, `test_expression_engine.cpp`,
+    `test_expression_eval.cpp`, `test_field_drag_drop.cpp`, `test_figure_manager.cpp`,
+    `test_figure_registry.cpp`, `test_figure_serializer.cpp`, `test_figure_view_model.cpp`,
+    `test_figure_window_api.cpp`, `test_filters.cpp`, `test_generic_subscriber.cpp`,
+    `test_gesture_recognizer.cpp`, `test_image_display.cpp`, `test_input.cpp`, `test_inspector.cpp`,
+    `test_inspector_stats.cpp`, `test_ipc.cpp`, `test_ipc_flatbuffers.cpp`,
+    `test_keyframe_interpolator.cpp`, `test_knob_manager.cpp`, `test_laserscan_display.cpp`,
+    `test_layout.cpp`, `test_layout_manager.cpp`, `test_legend_interaction.cpp`,
+    `test_lod_cache.cpp`, `test_lod_cache_metrics.cpp`, `test_log_viewer.cpp`,
+    `test_mapped_file.cpp`, `test_marker_display.cpp`, `test_math3d.cpp`,
+    `test_message_introspector.cpp`, `test_mode_transition.cpp`, `test_multi_window.cpp`,
+    `test_node_graph_panel.cpp`, `test_param_editor_panel.cpp`, `test_path_pose_display.cpp`,
+    `test_pending_series_data.cpp`, `test_phase2_integration.cpp`, `test_phase3_integration.cpp`,
+    `test_phase_a_integration.cpp`, `test_phase_c_integration.cpp`, `test_plot_style.cpp`,
+    `test_plugin_api.cpp`, `test_plugin_data_source.cpp`, `test_plugin_diagnostics.cpp`,
+    `test_plugin_export.cpp`, `test_plugin_guard.cpp`, `test_plugin_integration.cpp`,
+    `test_plugin_manifest.cpp`, `test_plugin_overlays.cpp`, `test_plugin_series_type.cpp`,
+    `test_plugin_transforms.cpp`, `test_plugin_version_negotiation.cpp`,
+    `test_pointcloud_display.cpp`, `test_process_manager.cpp`, `test_px4_app_shell.cpp`,
+    `test_px4_bridge.cpp`, `test_px4_plot_manager.cpp`, `test_python_ipc.cpp`,
+    `test_recording_export.cpp`, `test_region_select.cpp`, `test_resize_layout.cpp`,
+    `test_ring_buffer.cpp`, `test_robot_model_display.cpp`, `test_ros2_bridge.cpp`,
+    `test_ros2_menu_integration.cpp`, `test_ros_app_shell.cpp`, `test_ros_clipboard_export.cpp`,
+    `test_ros_csv_export.cpp`, `test_ros_plot_manager.cpp`, `test_ros_screenshot_export.cpp`,
+    `test_ros_session.cpp`, `test_scene_manager.cpp`, `test_scene_viewport.cpp`,
+    `test_series3d.cpp`, `test_series_clipboard.cpp`, `test_series_data.cpp`,
+    `test_series_reorder.cpp`, `test_series_stats.cpp`, `test_series_thread_safe.cpp`,
+    `test_series_view_model.cpp`, `test_series_visibility.cpp`, `test_service_caller.cpp`,
+    `test_session_graph.cpp`, `test_shared_cursor.cpp`, `test_shortcut_config.cpp`,
+    `test_shortcut_manager.cpp`, `test_split_view.cpp`, `test_subplot_manager.cpp`,
+    `test_svg_export.cpp`, `test_text_renderer.cpp`, `test_tf_buffer.cpp`, `test_tf_tree_panel.cpp`,
+    `test_theme.cpp`, `test_theme_colorblind.cpp`, `test_tick_generation.cpp`,
+    `test_timeline_editor.cpp`, `test_topic_discovery.cpp`, `test_topic_echo_panel.cpp`,
+    `test_topic_list_panel.cpp`, `test_topic_stats_overlay.cpp`, `test_transform.cpp`,
+    `test_transition_engine.cpp`, `test_transparency.cpp`, `test_ui_icons.cpp`,
+    `test_ulog_reader.cpp`, `test_ultra_zoom_precision.cpp`, `test_undo_manager.cpp`,
+    `test_undo_property.cpp`, `test_undo_redo.cpp`, `test_urdf_parser.cpp`,
+    `test_webgpu_backend.cpp`, `test_window_manager.cpp`, `test_window_ui_context_builder.cpp`,
+    `test_workspace.cpp`, `test_workspace_3d.cpp`, `test_workspace_autosave.cpp`,
+    `test_workspace_v2.cpp`, `test_workspace_v3.cpp`
+Includes mock plugin fixtures plus the 164 compiled unit-test sources.
+
+### 14.57 `tests/bench/` (11 files)
+`bench_3d.cpp`, `bench_3d_phase3.cpp`, `bench_decimation.cpp`, `bench_ipc_codec.cpp`,
+    `bench_multi_window.cpp`, `bench_phase2.cpp`, `bench_phase3.cpp`, `bench_render.cpp`,
+    `bench_ros3d.cpp`, `bench_startup.cpp`, `bench_ui.cpp`
+
+### 14.58 `tests/golden/` (6 files)
+`golden_test.cpp`, `golden_test_3d.cpp`, `golden_test_3d_phase3.cpp`, `golden_test_phase2.cpp`,
+    `golden_test_phase3.cpp`, `image_diff.hpp`
+Also contains `baseline/`, the golden-image corpus used by the test sources listed above.
+
+### 14.59 `tests/qa/` (2 files)
+`qa_agent.cpp`, `ros_qa_agent.cpp`
+
+### 14.60 `tests/util/` (3 files)
+`gpu_hang_detector.hpp`, `multi_window_fixture.hpp`, `validation_guard.hpp`
+
+### 14.61 `examples/` (54 files)
+`CMakeLists.txt`, `README_3D.md`, `advanced_animation_demo.cpp`, `animated_scatter.cpp`,
+    `axes3d_demo.cpp`, `axes_menu_demo.cpp`, `basic_line.cpp`, `camera_animation_3d.cpp`,
+    `camera_animator_demo.cpp`, `comprehensive_subplot_demo.cpp`, `demo_3d.cpp`,
+    `easy_api_demo.cpp`, `easy_embed_demo.cpp`, `easy_realtime_demo.cpp`, `eigen_demo.cpp`,
+    `embed_cpp_demo.cpp`, `empty_launch_csv.cpp`, `knob_demo.cpp`, `legend_panel_test.cpp`,
+    `lit_surface_demo.cpp`, `live_stream.cpp`, `logger_example.cpp`, `mind_blowing_3d.cpp`,
+    `mode_transition_demo.cpp`, `multi_figure_demo.cpp`, `multi_subplot.cpp`,
+    `multi_window_demo.cpp`, `multi_window_tabs_demo.cpp`, `multiproc_demo.sh`,
+    `offscreen_export.cpp`, `parametric_3d_line.cpp`, `plot_styles_demo.cpp`, `plugin_api_demo.cpp`,
+    `qt_embed_demo.cpp`, `realtime_3d_stream.cpp`, `ros2_demo.cpp`, `ros2_ui_preview.cpp`,
+    `sample_data.csv`, `shapes3d_demo.cpp`, `shapes_demo.cpp`, `shortcut_config_demo.cpp`,
+    `shortcut_usage_demo.cpp`, `simple_3d_scatter.cpp`, `stats_demo.cpp`, `surface_3d.cpp`,
+    `test_menubar.cpp`, `timeline_animation_demo.cpp`, `timeline_curve_demo.cpp`,
+    `topic_publisher.cpp`, `transparency_demo.cpp`, `video_record.cpp`, `webgpu_demo.cpp`,
+    `webgpu_shell.html`, `window_resize_test.cpp`
+Top-level examples also include support assets (`README_3D.md`, `sample_data.csv`, `webgpu_shell.html`, `multiproc_demo.sh`).
+
+### 14.62 `examples/plugins/` (9 files)
+`CMakeLists.txt`, `export_csv.cpp`, `export_csv.plugin.json`, `overlay_crosshair.cpp`,
+    `overlay_crosshair.plugin.json`, `series_heatmap.cpp`, `series_heatmap.plugin.json`,
+    `transform_smooth.cpp`, `transform_smooth.plugin.json`
+Contains four plugin examples plus their `.plugin.json` manifests.
+
+### 14.63 `python/` (4 files)
+`MANIFEST.in`, `VERSION`, `imgui.ini`, `pyproject.toml`
+Python package metadata/check-in files at the package root.
+
+### 14.64 `python/spectra/` (21 files)
+`__init__.py`, `_animation.py`, `_axes.py`, `_blob.py`, `_cli.py`, `_codec.py`, `_codec_fb.py`,
+    `_download.py`, `_easy.py`, `_embed.py`, `_errors.py`, `_figure.py`, `_launcher.py`, `_log.py`,
+    `_persistence.py`, `_protocol.py`, `_series.py`, `_session.py`, `_transport.py`, `embed.py`,
+    `topic.py`
+
+### 14.65 `python/spectra/_fb_generated/` (0 files)
+_Checked-in placeholder directory for generated FlatBuffers Python modules._
+
+### 14.66 `python/spectra/backends/` (3 files)
+`__init__.py`, `_qt_compat.py`, `backend_qtagg.py`
+
+### 14.67 `python/examples/` (18 files)
+`basic_line.py`, `easy_3d.py`, `easy_embed_demo.py`, `easy_embed_pyqt.py`, `easy_live_dashboard.py`,
+    `easy_minimal.py`, `easy_multi_live.py`, `easy_multi_tab.py`, `easy_one_liner.py`,
+    `easy_showcase.py`, `easy_subplots.py`, `pyqt_embed.py`, `qt_backend_demo.py`,
+    `qt_dynamic_demo.py`, `qt_minimal.py`, `streaming_update.py`, `topic_publisher.py`,
+    `topic_subscriber.py`
+
+### 14.68 `python/tests/` (13 files)
+`__init__.py`, `test_codec.py`, `test_cross_codec.py`, `test_download.py`, `test_easy.py`,
+    `test_easy_embed.py`, `test_embed.py`, `test_phase2.py`, `test_phase3.py`, `test_phase4.py`,
+    `test_phase5.py`, `test_qt_backend.py`, `test_windows_compat.py`
+
+### 14.69 `cmake/` (7 files)
+`CompileFlatBuffers.cmake`, `CompileShaders.cmake`, `EmbedAssets.cmake`, `EmbedShaders.cmake`,
+    `EmbedWGSLShaders.cmake`, `spectraConfig.cmake.in`, `version.hpp.in`
+
+### 14.70 `tools/` (7 files)
+`architecture_metrics.py`, `find_unused.py`, `generate_atlas.py`, `generate_icon_font.py`,
+    `list_github_models.sh`, `run_simplifier_loop.py`, `run_simplifier_loop.sh`
+
+### 14.71 `tools/sanitizers/` (1 files)
+`lsan.supp`
+
+### 14.72 `docs/` (18 files)
+`2026-04-04-last-3-days-branch-walkthrough.md`, `ARCHITECTURE_REVIEW_V3.md`, `Doxyfile`,
+    `architecture.html`, `easy_embed_guide.md`, `examples.html`, `features.html`, `getting-
+    started.html`, `getting_started.md`, `gpg-signing.md`, `index.html`,
+    `plugin_developer_guide.md`, `px4-adapter.html`, `qt-embed.html`, `ros2-adapter.html`,
+    `styles.css`, `topics.md`, `webgpu.html`
+
+### 14.73 `docs/archive/` (2 files)
+`ARCHITECTURE_REVIEW.md`, `ARCHITECTURE_REVIEW_V2.md`
+
+### 14.74 `docs/plans/` (4 files)
+`2026-04-04-next-3-phases-roadmap.md`, `2026-04-04-window-ui-context-builder-design.md`,
+    `2026-04-04-window-ui-context-builder-plan.md`, `CUSTOM_SERIES_DESIGN.md`
+
+### 14.75 `docs/man/` (1 files)
+`spectra-backend.1`
+
+### 14.76 `packaging/AppImage/` (2 files)
+`AppImageBuilder.yml`, `build-appimage.sh`
+
+### 14.77 `packaging/apt/` (3 files)
+`README.md`, `distributions`, `options`
+
+### 14.78 `packaging/aur/` (1 files)
+`PKGBUILD`
+
+### 14.79 `packaging/completions/` (3 files)
+`spectra-backend.bash`, `spectra-backend.fish`, `spectra-backend.zsh`
+
+### 14.80 `packaging/homebrew/` (1 files)
+`spectra.rb`
+
+### 14.81 `packaging/scoop/` (1 files)
+`spectra.json`
+
+### 14.82 `docker/` (1 files)
+`spectra-publisher/Dockerfile`
+
+### 14.83 `icons/` (5 files)
+`S.png`, `spectra.desktop`, `spectra_banner.png`, `spectra_icon.png`, `spectra_icon_alt.png`
+
+### 14.84 `plans/` (5 files)
+`QA_design_review.md`, `QA_results.md`, `QA_update.md`, `ROADMAP.md`, `SPECTRA_TOPICS_PLAN.md`
+
+### 14.85 `plans/archive/` (25 files)
+`3D_ARCHITECTURE_PLAN.md`, `DEPLOYMENT_PLAN.md`, `LT8_DATA_VIRTUALIZATION.md`,
+    `MULTI_WINDOW_ARCHITECTURE.md`, `PYTHON_IPC_ARCHITECTURE.md`, `PYTHON_USER_AGENT_LOG.md`,
+    `QA_agent_instructions.md`, `QA_design_review.md`, `QA_prd.md`, `QA_results.md`, `QA_update.md`,
+    `QT_embed_plan.md`, `ROS_UI_FIX_PLAN.md`, `SPECTRA_ROS_BREATHING_PLAN.md`,
+    `SPECTRA_ROS_STUDIO_PLAN.md`, `SPECTRA_UI_REDESIGN.md`, `USER_AGENT_LOG.md`,
+    `VISUAL_SYSTEM_REDESIGN.md`, `VISUAL_SYSTEM_ROADMAP.md`, `agents_plan.md`,
+    `dependency_report.md`, `no_main_window_plan.md`, `plan.md`, `tab-tearoff-plan.md`,
+    `upgrade_plan.md`
+
+### 14.86 `skills/` (29 files)
+`3d-rendering/SKILL.md`, `code-simplifier/EXPLORATION.md`, `code-simplifier/REPORT.md`, `code-
+    simplifier/SKILL.md`, `code-simplifier/agents/openai.yaml`, `data-pipeline/SKILL.md`,
+    `graphical-change-workflow/SKILL.md`, `ipc-protocol-dev/SKILL.md`, `python-bindings/SKILL.md`,
+    `qa-accessibility-agent/REPORT.md`, `qa-accessibility-agent/SKILL.md`, `qa-api-agent/REPORT.md`,
+    `qa-api-agent/SKILL.md`, `qa-designer-agent/REPORT.md`, `qa-designer-agent/SKILL.md`, `qa-
+    designer-agent/agents/openai.yaml`, `qa-designer-agent/references/qa-designer-reference.md`,
+    `qa-memory-agent/REPORT.md`, `qa-memory-agent/SKILL.md`, `qa-performance-agent/REPORT.md`, `qa-
+    performance-agent/SKILL.md`, `qa-performance-agent/agents/openai.yaml`, `qa-performance-
+    agent/references/qa-performance-reference.md`, `qa-regression-agent/REPORT.md`, `qa-regression-
+    agent/SKILL.md`, `qa-ros-performance-agent/REPORT.md`, `qa-ros-performance-agent/SKILL.md`, `qa-
+    ros-performance-agent/agents/openai.yaml`, `qa-ros-performance-agent/references/qa-ros-
+    performance-reference.md`
+Skill prompts/reports used by specialized agents; not production code, but part of the maintained repo surface.
+
+### 14.87 `third_party/` (12 files)
+`Inter-Regular.ttf`, `SpectraIcons.otf`, `SpectraIcons.ttf`, `fa_solid_900.hpp`,
+    `icon_font_data.hpp`, `inter_font.hpp`, `stb/stb_image.h`, `stb/stb_image_write.h`,
+    `stb/stb_truetype.h`, `tinyfiledialogs.cpp`, `tinyfiledialogs.h`, `vma/vk_mem_alloc.h`
 
 ---
 
 ## 15. Test Structure
 
-| Directory | Contents |
+| Directory | Current contents |
 |---|---|
-| `tests/unit/` | ~145 files: test_axes, test_series, test_figure, test_renderer, test_backend, test_3d_*, test_command_*, test_dock_*, test_theme, test_workspace, test_ipc_*, test_input, test_animation_*, test_ros_*, test_bag_*, test_topic_*, test_expression_*, test_diagnostics_*, test_embed_*, etc. |
-| `tests/bench/` | 8 benchmarks: bench_3d, bench_3d_phase3, bench_decimation, bench_multi_window, bench_phase2, bench_phase3, bench_render, bench_ui |
-| `tests/golden/` | Golden image regression: renders figures, compares against baseline PNGs (2D + 3D + phase variants) |
-| `tests/qa/` | QA agents: qa_agent.cpp (visual testing), ros_qa_agent.cpp (ROS2 QA) |
-| `tests/util/` | Test utilities: gpu_hang_detector.hpp, multi_window_fixture.hpp, validation_guard.hpp |
+| `tests/unit/` | **164** files. Coverage spans core plotting, UI/view-models, IPC, FlatBuffers, accessibility, WebGPU, plugins, ROS2, PX4, workspace persistence, and large-data utilities. |
+| `tests/bench/` | **11** benchmark files: 3D, render, startup, ROS3D, decimation, IPC codec, multi-window, and phase regressions. |
+| `tests/golden/` | **5 golden test sources** plus `image_diff.hpp` and the `baseline/` image corpus. |
+| `tests/qa/` | QA executables: `qa_agent.cpp`, `ros_qa_agent.cpp`. |
+| `tests/util/` | Shared utilities: GPU hang detection, multi-window fixtures, validation guards. |
+| `python/tests/` | Python API/codec/embed/backend regression tests. |
+
+Representative new coverage areas missing from the old map: accessibility summaries, animation tick gating, view models, LOD cache, FlatBuffers cross-codec behavior, WebGPU backend, PX4 adapter flow, scene/URDF/TF displays, workspace autosave, and plugin ABI/versioning.
 
 ---
 
 ## 16. Naming Conventions
 
-- **Namespace**: `spectra` (public), `spectra::ui` (theme), `spectra::ipc` (IPC), `spectra::daemon` (daemon), `spectra::data` (decimation), `spectra::ros2` (ROS2 adapter)
-- **Classes**: PascalCase (`FigureManager`, `VulkanBackend`)
-- **Methods**: snake_case (`create_figure()`, `begin_frame()`)
-- **Members**: snake_case with trailing underscore (`active_figure_id_`, `backend_`)
-- **Constants**: ALL_CAPS or inline constexpr PascalCase (`INVALID_FIGURE_ID`, `MAX_FRAMES_IN_FLIGHT`)
-- **Enums**: PascalCase enum class (`LineStyle::Dashed`, `ToolMode::Pan`)
-- **Files**: snake_case (`figure_manager.cpp`, `vk_backend.hpp`)
-- **Macros**: `SPECTRA_` prefix (`SPECTRA_LOG_INFO`, `SPECTRA_USE_GLFW`)
+- Namespaces in active use include `spectra`, `spectra::ui`, `spectra::ipc`, `spectra::daemon`, `spectra::ros2`, and `spectra::px4`.
+- Types/classes: `PascalCase` (`FigureManager`, `WebGPUBackend`, `Px4PlotManager`).
+- Functions and variables: `snake_case` (`render_plot_text`, `topic_registry_`).
+- Members: trailing underscore (`backend_`, `active_figure_id_`).
+- Macros / compile-time toggles: `SPECTRA_*` (`SPECTRA_USE_WEBGPU`, `SPECTRA_LOG_INFO`).
+- Files: `snake_case` (`window_ui_context_builder.cpp`, `test_cross_codec.py`).
 
 ---
 
 ## 17. Embedding & Platform Abstraction
 
-### 17.1 EmbedSurface (include/spectra/embed.hpp)
-- Headless or foreign-window Vulkan rendering without GLFW ownership
-- `render_to_buffer()` for CPU readback (PNG export, testing)
-- `render_to_image()` for Vulkan interop (external compositors, Qt)
-- Owns `VulkanBackend`, `Renderer`, `FigureRegistry`, `InputHandler`
-
-### 17.2 SurfaceHost (src/platform/window_system/)
-- Abstract `SurfaceHost` interface for platform-specific Vulkan surface creation
-- `GlfwSurfaceHost` — GLFW implementation (default)
-- `QtSurfaceHost` — Qt/QVulkanInstance implementation
-
-### 17.3 Qt Adapter (src/adapters/qt/)
-- `QtRuntime` — owns VulkanBackend + Renderer, manages multiple QWindow canvases
-- Integrates with Qt event loop via `QVulkanInstance`
-
-### 17.4 C FFI (include/spectra/spectra_embed_c.h)
-- Opaque handle API for non-C++ consumers (Python ctypes, Rust, C#)
-- Wraps `EmbedSurface`, `Figure`, `Axes`, `Series` as C handles
+- `include/spectra/embed.hpp` + `src/embed/embed_surface.cpp`: offscreen/foreign-window rendering surface.
+- `include/spectra/spectra_embed_c.h` + `src/embed/spectra_embed_c.cpp`: C ABI for FFI consumers.
+- `src/platform/window_system/surface_host.hpp`: abstraction for platform surface creation.
+- `src/platform/window_system/glfw_surface_host.*` and `sdl3_surface_host.*`: concrete host implementations.
+- `src/adapters/qt/*`: Qt runtime and surface host integration.
+- `src/platform/clipboard_image.*`: platform clipboard image helpers used by export/workflow tooling.
 
 ---
 
-## 18. ROS2 Adapter (src/adapters/ros2/)
+## 18. ROS2 Adapter (`src/adapters/ros2/`)
 
-### 18.1 Architecture
+The ROS2 adapter is now a large subsystem rather than a thin bridge. It includes:
+
+- Core session/runtime files: bridge, adapter, app shell, topic discovery, generic subscribers, message introspection, bag player/reader/recorder, expression engine, subplot manager, plot manager, service caller, screenshot/CSV/clipboard export, and ROS session persistence.
+- Display plugins under `display/`: grid, image, laserscan, marker, path, pointcloud, pose, robot-model, TF, plus the display registry/plugin contract.
+- Message adapters under `messages/`: image, joint state, laserscan, marker, path, pointcloud, TF.
+- Scene stack under `scene/`: mesh primitives, scene manager, scene renderer.
+- TF and URDF helpers under `tf/` and `urdf/`.
+- UI panels under `ui/`: bag info/playback, diagnostics, displays, expression editor, field drag-drop, inspector, log viewer, node graph, param editor, scene viewport, service caller, TF tree, topic echo/list/stats.
+
+Data path summary:
+
 ```
-spectra-ros (standalone executable)
- └── RosAppShell                         (src/adapters/ros2/ros_app_shell.hpp)
-      ├── Ros2Bridge                     (ROS2 node, spins in background thread)
-      ├── TopicDiscovery                 (enumerates topics + types)
-      ├── GenericSubscriber              (type-erased subscription to any topic)
-      ├── MessageIntrospector            (parses message fields at runtime)
-      ├── SubplotManager                 (NxM grid, shared cursor, linked X-axis)
-      ├── RosPlotManager                 (manages subscriptions → plot series)
-      ├── ExpressionEngine               (math expressions with $topic.field variables)
-      ├── BagPlayer / BagReader / BagRecorder  (rosbag2 playback/recording)
-      ├── RosSession                     (save/load ROS2 workspace state)
-      ├── ServiceCaller                  (call ROS2 services interactively)
-      ├── RosLogViewer                   (rosout log capture and display)
-      └── UI Panels (src/adapters/ros2/ui/)
-           ├── TopicListPanel            (browse and subscribe to topics)
-           ├── TopicEchoPanel            (raw message echo)
-           ├── TopicStatsOverlay         (Hz, bandwidth, latency)
-           ├── DiagnosticsPanel          (diagnostic_msgs aggregated view)
-           ├── TfTreePanel               (TF2 frame tree visualization)
-           ├── NodeGraphPanel            (ROS2 computation graph)
-           ├── BagPlaybackPanel          (bag player transport controls)
-           ├── BagInfoPanel              (bag metadata inspector)
-           ├── ParamEditorPanel          (live parameter editing)
-           ├── ServiceCallerPanel        (service call UI)
-           ├── ExpressionEditorPanel     (math expression builder)
-           ├── FieldDragDrop             (drag fields from topic to plot)
-           └── LogViewerPanel            (rosout log table)
+ROS topic / bag / service / TF
+   -> discovery + introspection + adapters
+   -> plot manager / display registry / scene manager
+   -> Figure/Axes/Series + overlays + inspectors
+   -> Vulkan renderer (and selected 3D/display shader paths)
 ```
 
-### 18.2 Data Flow
+---
+
+## 19. PX4 Adapter (`src/adapters/px4/`)
+
+The PX4 adapter is the second major robotics/telemetry integration stack in the repo.
+
+- `px4_adapter.*`: top-level adapter wiring.
+- `px4_app_shell.*`: application shell analogous to the ROS2 shell.
+- `px4_bridge.*`: PX4/MAVLink-style bridge and live connection integration.
+- `px4_plot_manager.*`: plot-oriented telemetry routing into Spectra figures/series.
+- `ulog_reader.*`: ULog parsing/import.
+- `messages/*.hpp`: telemetry adapters for actuators, attitude, battery, GPS, and IMU.
+- `ui/live_connection_panel.*` and `ui/ulog_file_panel.*`: live telemetry and offline file workflows.
+- `main.cpp`: standalone `spectra-px4` entry point when the adapter is enabled in CMake.
+
+PX4 fills the same architectural niche as ROS2, but with a PX4-specific telemetry and ULog ingestion stack.
+
+---
+
+## 20. WebGPU Backend (`src/render/webgpu/`)
+
+- `wgpu_backend.hpp/.cpp` contains the experimental WebGPU backend.
+- `src/gpu/shaders/wgsl/*.wgsl` are embedded by `cmake/EmbedWGSLShaders.cmake` into generated headers.
+- CMake supports `SPECTRA_USE_WEBGPU=ON`; comments in `CMakeLists.txt` explicitly document native Dawn and wasm/Emscripten use cases.
+- Current docs/tests position this backend as incremental and complementary, not a drop-in replacement for Vulkan/multiprocess rendering.
+- Verification exists in `tests/unit/test_webgpu_backend.cpp`, docs (`docs/webgpu.html`), and example assets (`examples/webgpu_demo.cpp`, `examples/webgpu_shell.html`).
+
+---
+
+## 21. Automation / MCP Server (`src/ui/automation/`)
+
+- `automation_server.*` exposes scripted UI automation.
+- `mcp_server.*` adds MCP-oriented control/inspection endpoints.
+- `automation_handler.hpp` and `automation_json.hpp` define request/response plumbing.
+- Handler split:
+  - `handlers_capture.cpp` — screenshots/capture/export style actions.
+  - `handlers_command.cpp` — command execution.
+  - `handlers_figure.cpp` — figure queries/manipulation.
+  - `handlers_input.cpp` — input synthesis.
+  - `handlers_utility.cpp` — helper operations.
+  - `handlers_window.cpp` — window lifecycle/selection commands.
+- This subsystem is cross-linked with QA, screenshot workflows, and remote-control testing.
+
+---
+
+## 22. Plugin System (`src/ui/workspace/`, `examples/plugins/`, plugin tests)
+
+- `plugin_api.*` defines runtime extension points.
+- `plugin_manifest.*` defines plugin metadata / compatibility expectations.
+- `plugin_guard.*` enforces safety/version checks during plugin loading.
+- `workspace.*`, `workspace_autosave.*`, `figure_serializer.*`, and `overlay_snapshot.hpp` persist plugin-augmented sessions.
+- Example plugins: `export_csv`, `overlay_crosshair`, `series_heatmap`, `transform_smooth`.
+- Plugin-focused unit coverage includes API, diagnostics, export, overlays, transforms, series types, data sources, integration, manifests, and version negotiation.
+
+The plugin system is no longer just a future hook; it is a tested, documented extension surface with concrete examples.
+
+---
+
+## 23. Topics System
+
+Topics are Spectra’s built-in publish/subscribe streaming mechanism for live data.
+
+- Public API: `include/spectra/topic.hpp`.
+- In-process server: `src/app/inproc_topic_server.cpp/.hpp`.
+- IPC/client transport: `src/ipc/publisher_client.cpp` and the normal codec/transport layers.
+- Daemon-side routing: `src/daemon/topic_registry.*` and `src/daemon/topic_message_handler.*`.
+- UI surface: `src/ui/topics/topics_panel.*`.
+- Python surface: `python/spectra/topic.py`.
+- Examples/docs/plans: `examples/topic_publisher.cpp`, `python/examples/topic_publisher.py`, `python/examples/topic_subscriber.py`, `docs/topics.md`, `plans/SPECTRA_TOPICS_PLAN.md`.
+
+Conceptually:
+
 ```
-ROS2 Topic → GenericSubscriber → MessageIntrospector → field extraction
-  → RosPlotManager → Series::set_data() → GPU upload
-  → ExpressionEngine (optional) → computed series
+publisher -> topic registry/server -> subscribers / figures / Python / UI panels
 ```
+
+This subsystem is important because it links easy API usage, multiprocess transport, automation, and adapter-driven live streaming into one consistent model.

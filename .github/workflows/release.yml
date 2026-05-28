@@ -46,6 +46,7 @@ jobs:
             libxkbcommon-dev \
             libgl1-mesa-dev \
             glslang-tools \
+            python3-pillow \
             ffmpeg \
             rpm
 
@@ -138,13 +139,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
       - name: Install dependencies
-        run: brew install vulkan-headers vulkan-loader glslang molten-vk
+        run: |
+          brew install vulkan-headers vulkan-loader glslang molten-vk
+          python -m venv .venv
+          source .venv/bin/activate
+          python -m pip install --upgrade pip
+          python -m pip install Pillow
+          python -c "from PIL import Image; print(f'Pillow {Image.__version__} installed')"
+          echo "PYTHON_VENV=$PWD/.venv/bin/python" >> "$GITHUB_ENV"
 
       - name: Configure + Build
         run: |
+          source .venv/bin/activate
           cmake -B build \
             -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+            -DPython3_EXECUTABLE:FILEPATH="$PYTHON_VENV" \
             -DSPECTRA_BUILD_TESTS=OFF \
             -DSPECTRA_BUILD_EXAMPLES=OFF
           cmake --build build --config ${{ env.BUILD_TYPE }} -j$(sysctl -n hw.ncpu)
@@ -167,6 +181,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
       - name: Install Vulkan SDK
         shell: pwsh
         run: |
@@ -178,12 +196,25 @@ jobs:
           echo "VULKAN_SDK=$sdkPath" >> $env:GITHUB_ENV
           echo "$sdkPath\Bin" >> $env:GITHUB_PATH
 
-      - name: Configure + Build
+      - name: Install Python dependencies
+        shell: pwsh
         run: |
+          python -m venv .venv
+          $pythonExe = Join-Path $PWD ".venv\Scripts\python.exe"
+          & $pythonExe -m pip install --upgrade pip
+          & $pythonExe -m pip install Pillow
+          & $pythonExe -c "from PIL import Image; print(f'Pillow {Image.__version__} installed')"
+          "PYTHON_VENV=$pythonExe" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Configure + Build
+        shell: pwsh
+        run: |
+          $pythonExe = (Resolve-Path "${env:PYTHON_VENV}").Path
           cmake -B build `
-            -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} `
-            -DSPECTRA_BUILD_TESTS=OFF `
-            -DSPECTRA_BUILD_EXAMPLES=OFF
+            "-DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}" `
+            "-DPython3_EXECUTABLE:FILEPATH=$pythonExe" `
+            "-DSPECTRA_BUILD_TESTS=OFF" `
+            "-DSPECTRA_BUILD_EXAMPLES=OFF"
           cmake --build build --config ${{ env.BUILD_TYPE }} -j $env:NUMBER_OF_PROCESSORS
 
       - name: Package
@@ -340,6 +371,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-python@v5
+        if: runner.os != 'Linux'
+        with:
+          python-version: '3.12'
+
       - name: Install dependencies (Linux)
         if: runner.os == 'Linux'
         run: |
@@ -355,11 +391,19 @@ jobs:
             libxi-dev \
             libxkbcommon-dev \
             libgl1-mesa-dev \
-            glslang-tools
+            glslang-tools \
+            python3-pillow
 
       - name: Install dependencies (macOS)
         if: runner.os == 'macOS'
-        run: brew install vulkan-headers vulkan-loader glslang molten-vk
+        run: |
+          brew install vulkan-headers vulkan-loader glslang molten-vk
+          python -m venv .venv
+          source .venv/bin/activate
+          python -m pip install --upgrade pip
+          python -m pip install Pillow
+          python -c "from PIL import Image; print(f'Pillow {Image.__version__} installed')"
+          echo "PYTHON_VENV=$PWD/.venv/bin/python" >> "$GITHUB_ENV"
 
       - name: Install Vulkan SDK (Windows)
         if: runner.os == 'Windows'
@@ -373,10 +417,26 @@ jobs:
           echo "VULKAN_SDK=$sdkPath" >> $env:GITHUB_ENV
           echo "$sdkPath\Bin" >> $env:GITHUB_PATH
 
+      - name: Install Python dependencies (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          python -m venv .venv
+          $pythonExe = Join-Path $PWD ".venv\Scripts\python.exe"
+          & $pythonExe -m pip install --upgrade pip
+          & $pythonExe -m pip install Pillow
+          & $pythonExe -c "from PIL import Image; print(f'Pillow {Image.__version__} installed')"
+          "PYTHON_VENV=$pythonExe" | Out-File -FilePath $env:GITHUB_ENV -Append
+
       - name: Configure + Build (multiproc)
         run: |
+          python_args=()
+          if [ -n "${PYTHON_VENV:-}" ]; then
+            python_args=(-DPython3_EXECUTABLE:FILEPATH="$PYTHON_VENV")
+          fi
           cmake -B build \
             -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+            "${python_args[@]}" \
             -DSPECTRA_BUILD_TESTS=OFF \
             -DSPECTRA_BUILD_EXAMPLES=OFF \
             -DSPECTRA_RUNTIME_MODE=multiproc

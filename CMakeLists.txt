@@ -12,6 +12,23 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+set(SPECTRA_HICOLOR_ICON_SIZES 16 32 48 64 128 256 512)
+set(SPECTRA_HICOLOR_ICON_OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated/icons/hicolor)
+add_custom_command(
+    OUTPUT ${SPECTRA_HICOLOR_ICON_OUTPUT_DIR}/16x16/apps/spectra.png
+    COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/cmake/generate_hicolor_icons.py
+        --input ${CMAKE_CURRENT_SOURCE_DIR}/icons/spectra_icon.png
+        --output-dir ${SPECTRA_HICOLOR_ICON_OUTPUT_DIR}
+        --name spectra.png
+        --sizes ${SPECTRA_HICOLOR_ICON_SIZES}
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/icons/spectra_icon.png
+    COMMENT "Generating hicolor icon theme PNGs"
+    VERBATIM
+)
+add_custom_target(spectra_hicolor_icons ALL DEPENDS ${SPECTRA_HICOLOR_ICON_OUTPUT_DIR}/16x16/apps/spectra.png)
+
 # Generate version header
 configure_file(
     ${CMAKE_CURRENT_SOURCE_DIR}/cmake/version.hpp.in
@@ -1021,9 +1038,9 @@ install(FILES
     third_party/SpectraIcons.otf
     DESTINATION ${CMAKE_INSTALL_DATADIR}/spectra/fonts
 )
-install(FILES icons/spectra_icon.png
-    DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/256x256/apps
-    RENAME spectra.png
+install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/generated/icons/hicolor/
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor
+    FILES_MATCHING PATTERN "spectra.png"
 )
 install(FILES icons/spectra.desktop
     DESTINATION ${CMAKE_INSTALL_DATADIR}/applications

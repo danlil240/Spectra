@@ -311,6 +311,16 @@ bool LegendInteraction::draw(Axes&               axes,
                 continue;
 
             auto& state = get_state(s.get());
+
+            // Sync legend state with model if visibility was changed externally
+            // (e.g. via inspector eye icon)
+            bool model_vis = s->visible();
+            if (state.user_visible != model_vis)
+            {
+                state.user_visible   = model_vis;
+                state.target_opacity = model_vis ? 1.0f : 0.15f;
+            }
+
             float row_y = cursor.y + static_cast<float>(row) * row_height;
             float row_x = cursor.x;
 

@@ -107,7 +107,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-        - name: Install Vulkan SDK
+      - name: Install Vulkan SDK
         shell: pwsh
         run: |
           $ver = "1.4.304.1"

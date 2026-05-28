@@ -78,16 +78,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
       - name: Install dependencies
         run: |
           brew install vulkan-headers vulkan-loader glslang molten-vk
-          python3 -m pip install --user --upgrade pip
-          python3 -m pip install --user Pillow
+          python -m venv .venv
+          source .venv/bin/activate
+          python -m pip install --upgrade pip
+          python -m pip install Pillow
+          python -c "from PIL import Image; print(f'Pillow {Image.__version__} installed')"
+          echo "PYTHON_VENV=$PWD/.venv/bin/python" >> "$GITHUB_ENV"
 
       - name: Configure CMake
         run: |
+          source .venv/bin/activate
           cmake -B build \
             -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+            -DPython3_EXECUTABLE:FILEPATH="$PYTHON_VENV" \
             -DSPECTRA_BUILD_TESTS=ON \
             -DSPECTRA_BUILD_EXAMPLES=ON \
             -DSPECTRA_BUILD_GOLDEN_TESTS=OFF
@@ -107,6 +117,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
       - name: Install Vulkan SDK
         shell: pwsh
         run: |
@@ -121,16 +135,23 @@ jobs:
       - name: Install Python dependencies
         shell: pwsh
         run: |
-          python -m pip install --user --upgrade pip
-          python -m pip install --user Pillow
+          python -m venv .venv
+          $pythonExe = Join-Path $PWD ".venv\Scripts\python.exe"
+          & $pythonExe -m pip install --upgrade pip
+          & $pythonExe -m pip install Pillow
+          & $pythonExe -c "from PIL import Image; print(f'Pillow {Image.__version__} installed')"
+          "PYTHON_VENV=$pythonExe" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Configure CMake
+        shell: pwsh
         run: |
+          $pythonExe = (Resolve-Path "${env:PYTHON_VENV}").Path
           cmake -B build `
-            -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} `
-            -DSPECTRA_BUILD_TESTS=ON `
-            -DSPECTRA_BUILD_EXAMPLES=ON `
-            -DSPECTRA_BUILD_GOLDEN_TESTS=OFF
+            "-DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}" `
+            "-DPython3_EXECUTABLE:FILEPATH=$pythonExe" `
+            "-DSPECTRA_BUILD_TESTS=ON" `
+            "-DSPECTRA_BUILD_EXAMPLES=ON" `
+            "-DSPECTRA_BUILD_GOLDEN_TESTS=OFF"
 
       - name: Build
         run: cmake --build build --config ${{ env.BUILD_TYPE }} -j $env:NUMBER_OF_PROCESSORS

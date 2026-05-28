@@ -44,6 +44,7 @@ jobs:
             libxi-dev \
             libxkbcommon-dev \
             libgl1-mesa-dev \
+            python3-pillow \
             glslang-tools
 
       - name: Configure CMake
@@ -80,6 +81,8 @@ jobs:
       - name: Install dependencies
         run: |
           brew install vulkan-headers vulkan-loader glslang molten-vk
+          python3 -m pip install --upgrade pip
+          python3 -m pip install Pillow
 
       - name: Configure CMake
         run: |
@@ -104,7 +107,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Vulkan SDK
+        - name: Install Vulkan SDK
         shell: pwsh
         run: |
           $ver = "1.4.304.1"
@@ -114,6 +117,12 @@ jobs:
           $sdkPath = "C:\VulkanSDK\$ver"
           echo "VULKAN_SDK=$sdkPath" >> $env:GITHUB_ENV
           echo "$sdkPath\Bin" >> $env:GITHUB_PATH
+
+      - name: Install Python dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install Pillow
 
       - name: Configure CMake
         run: |
@@ -156,6 +165,7 @@ jobs:
             libxi-dev \
             libxkbcommon-dev \
             libgl1-mesa-dev \
+            python3-pillow \
             xvfb \
             glslang-tools
 
@@ -264,7 +274,8 @@ jobs:
             libxkbcommon-dev \
             glslang-tools \
             libgl1-mesa-dev \
-            libglu1-mesa-dev
+            libglu1-mesa-dev \
+            python3-pillow
 
       - name: Configure with sanitizer
         run: |
@@ -304,7 +315,8 @@ jobs:
             libglfw3-dev \
             glslang-tools \
             nlohmann-json3-dev \
-            libtinyxml2-dev
+            libtinyxml2-dev \
+            python3-pillow
 
       - name: Configure CMake with ROS2
         run: |

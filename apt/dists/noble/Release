@@ -2,13 +2,13 @@ Origin: Spectra
 Label: Spectra
 Suite: stable
 Codename: noble
-Date: Mon, 25 May 2026 14:33:42 UTC
+Date: Fri, 29 May 2026 07:49:06 UTC
 Architectures: amd64 arm64
 Components: main
 Description: Spectra plotting library APT repository (Ubuntu 24.04 Noble)
 MD5Sum:
- a99aee52e23bf7efd4e8a11fcbebcf80 530 main/binary-amd64/Packages
- dfcf1ab7ac80ff8ab5b2210ecb8887cb 388 main/binary-amd64/Packages.gz
+ 4230c189950e8245324c8e1ad6430dac 530 main/binary-amd64/Packages
+ aff61a4e5dae4841e3008b6f254f1355 387 main/binary-amd64/Packages.gz
  47007d2e7356ad1655a707f59cf797ba 157 main/binary-amd64/Release
  d41d8cd98f00b204e9800998ecf8427e 0 main/binary-arm64/Packages
  7029066c27ac6f5ef18d660d5741979a 20 main/binary-arm64/Packages.gz
@@ -17,8 +17,8 @@ MD5Sum:
  7029066c27ac6f5ef18d660d5741979a 20 main/source/Sources.gz
  e9ec5e2b26f53c0e4af9a7e133601797 158 main/source/Release
 SHA1:
- 483ae4f7625ab7ac305f62beb579c629000c5cc0 530 main/binary-amd64/Packages
- 3f6bbb20bc61c156a43661f75d4851ca65f80e8d 388 main/binary-amd64/Packages.gz
+ 532dd39fe5966b217a6ccde94e0450d088fe3260 530 main/binary-amd64/Packages
+ 5ed6ead485b8572a3c233201380109fe7d9cd26f 387 main/binary-amd64/Packages.gz
  3123c13dfcbb43dad267b1e0c56c417bcd083933 157 main/binary-amd64/Release
  da39a3ee5e6b4b0d3255bfef95601890afd80709 0 main/binary-arm64/Packages
  46c6643f07aa7f6bfe7118de926b86defc5087c4 20 main/binary-arm64/Packages.gz
@@ -27,8 +27,8 @@ SHA1:
  46c6643f07aa7f6bfe7118de926b86defc5087c4 20 main/source/Sources.gz
  8b3ee1da66598fa0d5841d9e03e748a2fe027455 158 main/source/Release
 SHA256:
- 2f6957d2af90160b7438fa701785bae35c430f9788cf131414c9f89afda0d481 530 main/binary-amd64/Packages
- d91890084242ea2523c44847e2aaf3ef8b7fd00459ff3706d5536892dac8eb2a 388 main/binary-amd64/Packages.gz
+ b8f84bbbc6c6da04a6f56970f4cfa89d6f8f871a29fc69aae481fb8718f79fca 530 main/binary-amd64/Packages
+ c05c9c7eee525dc6b317357f4cd120d81a0c46a9d938d6fdf4df20e8e1cee12a 387 main/binary-amd64/Packages.gz
  27ce7018fd50f08ea6a27041a98af6694f67d0983b6224c3fcbfdbabdec0271a 157 main/binary-amd64/Release
  e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 0 main/binary-arm64/Packages
  59869db34853933b239f1e2219cf7d431da006aa919635478511fabbfc8849d2 20 main/binary-arm64/Packages.gz

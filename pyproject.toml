@@ -5,7 +5,7 @@
 # For wheel builds:            pip install . (or cibuildwheel)
 
 [build-system]
-requires = ["scikit-build-core>=0.8"]
+requires = ["scikit-build-core>=0.8", "Pillow>=10.0"]
 build-backend = "scikit_build_core.build"
 
 [project]

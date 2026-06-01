@@ -5,6 +5,7 @@
 #include <spectra/axes.hpp>
 #include <spectra/axes3d.hpp>
 #include <spectra/series.hpp>
+#include <spectra/series_stats.hpp>
 
 #include "ui/theme/theme.hpp"
 

@@ -84,6 +84,113 @@ struct EmbedConfig
     bool show_inspector    = false;   // Right inspector panel
     bool show_legend       = true;    // Series legend overlay (rendered by Vulkan, not ImGui)
     bool show_crosshair    = true;    // Crosshair + cursor readout
+
+    // Fluent builder for EmbedConfig (Phase 6D).  Defined out-of-line below.
+    //
+    //   auto cfg = EmbedConfig::Builder()
+    //                  .size(1280, 720)
+    //                  .theme("dark")
+    //                  .with_inspector()
+    //                  .without_legend()
+    //                  .build();
+    class Builder;
+};
+
+class EmbedConfig::Builder
+{
+   public:
+    Builder() = default;
+
+    Builder& size(uint32_t w, uint32_t h)
+    {
+        cfg_.width  = w;
+        cfg_.height = h;
+        return *this;
+    }
+    Builder& theme(std::string name)
+    {
+        cfg_.theme = std::move(name);
+        return *this;
+    }
+    Builder& dpi_scale(float s)
+    {
+        cfg_.dpi_scale = s;
+        return *this;
+    }
+    Builder& msaa(uint32_t samples)
+    {
+        cfg_.msaa = samples > 0 ? samples : 1;
+        return *this;
+    }
+    Builder& background_alpha(float a)
+    {
+        cfg_.background_alpha = a;
+        return *this;
+    }
+    Builder& transparent()
+    {
+        cfg_.background_alpha = 0.0f;
+        return *this;
+    }
+    Builder& vulkan_interop(bool enabled = true)
+    {
+        cfg_.enable_vulkan_interop = enabled;
+        return *this;
+    }
+    Builder& with_command_bar(bool v = true)
+    {
+        cfg_.show_command_bar = v;
+        cfg_.show_imgui_chrome |= v;
+        return *this;
+    }
+    Builder& with_status_bar(bool v = true)
+    {
+        cfg_.show_status_bar = v;
+        cfg_.show_imgui_chrome |= v;
+        return *this;
+    }
+    Builder& with_nav_rail(bool v = true)
+    {
+        cfg_.show_nav_rail = v;
+        cfg_.show_imgui_chrome |= v;
+        return *this;
+    }
+    Builder& with_inspector(bool v = true)
+    {
+        cfg_.show_inspector = v;
+        cfg_.show_imgui_chrome |= v;
+        return *this;
+    }
+    Builder& with_imgui_chrome(bool v = true)
+    {
+        cfg_.show_imgui_chrome = v;
+        return *this;
+    }
+    Builder& with_legend(bool v = true)
+    {
+        cfg_.show_legend = v;
+        return *this;
+    }
+    Builder& without_legend()
+    {
+        cfg_.show_legend = false;
+        return *this;
+    }
+    Builder& with_crosshair(bool v = true)
+    {
+        cfg_.show_crosshair = v;
+        return *this;
+    }
+    Builder& without_crosshair()
+    {
+        cfg_.show_crosshair = false;
+        return *this;
+    }
+
+    EmbedConfig build() const { return cfg_; }
+
+   private:
+    EmbedConfig cfg_{};
 };
 
 // Vulkan interop target: host provides these so Spectra renders directly

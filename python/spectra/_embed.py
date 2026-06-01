@@ -28,6 +28,14 @@ from typing import Optional, Tuple
 
 _lib: Optional[ctypes.CDLL] = None
 
+# Callback prototypes (Phase 4). Keep references to installed callbacks alive
+# on the owning Python object so they are not garbage-collected while the C
+# side still holds the function pointer.
+SpectraFrameCb = ctypes.CFUNCTYPE(
+    None, ctypes.c_void_p, ctypes.c_float, ctypes.c_float, ctypes.c_void_p
+)
+SpectraRedrawCb = ctypes.CFUNCTYPE(None, ctypes.c_void_p)
+
 
 def _find_library() -> str:
     """Locate libspectra_embed.so, searching common paths."""
@@ -265,26 +273,173 @@ def _load_lib() -> ctypes.CDLL:
     _lib.spectra_figure_set_title.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
     _lib.spectra_figure_set_title.restype = None
 
+    # ── Phase 1A: Series styling ──────────────────────────────────────────
+    _lib.spectra_series_set_color.argtypes = [
+        ctypes.c_void_p, ctypes.c_float, ctypes.c_float, ctypes.c_float, ctypes.c_float
+    ]
+    _lib.spectra_series_set_color.restype = None
+    _lib.spectra_series_set_opacity.argtypes = [ctypes.c_void_p, ctypes.c_float]
+    _lib.spectra_series_set_opacity.restype = None
+    _lib.spectra_series_set_line_width.argtypes = [ctypes.c_void_p, ctypes.c_float]
+    _lib.spectra_series_set_line_width.restype = None
+    _lib.spectra_series_set_marker_size.argtypes = [ctypes.c_void_p, ctypes.c_float]
+    _lib.spectra_series_set_marker_size.restype = None
+    _lib.spectra_series_set_marker_style.argtypes = [ctypes.c_void_p, ctypes.c_int]
+    _lib.spectra_series_set_marker_style.restype = None
+    _lib.spectra_series_set_line_style.argtypes = [ctypes.c_void_p, ctypes.c_int]
+    _lib.spectra_series_set_line_style.restype = None
+    _lib.spectra_series_set_label.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
+    _lib.spectra_series_set_label.restype = None
+
+    # ── Phase 1G: Series streaming ────────────────────────────────────────
+    _lib.spectra_series_append_xy.argtypes = [
+        ctypes.c_void_p, ctypes.c_float, ctypes.c_float
+    ]
+    _lib.spectra_series_append_xy.restype = None
+    _lib.spectra_series_append_data.argtypes = [
+        ctypes.c_void_p,
+        ctypes.POINTER(ctypes.c_float),
+        ctypes.POINTER(ctypes.c_float),
+        ctypes.c_uint32,
+    ]
+    _lib.spectra_series_append_data.restype = None
+    _lib.spectra_series_set_capacity.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
+    _lib.spectra_series_set_capacity.restype = None
+    _lib.spectra_series_clear.argtypes = [ctypes.c_void_p]
+    _lib.spectra_series_clear.restype = None
+
+    # ── Phase 1B: Bar options ─────────────────────────────────────────────
+    _lib.spectra_series_set_bar_width.argtypes = [ctypes.c_void_p, ctypes.c_float]
+    _lib.spectra_series_set_bar_width.restype = None
+    _lib.spectra_series_set_bar_baseline.argtypes = [ctypes.c_void_p, ctypes.c_float]
+    _lib.spectra_series_set_bar_baseline.restype = None
+    _lib.spectra_series_set_bar_orientation.argtypes = [ctypes.c_void_p, ctypes.c_int]
+    _lib.spectra_series_set_bar_orientation.restype = None
+    _lib.spectra_series_set_bar_gradient.argtypes = [ctypes.c_void_p, ctypes.c_int]
+    _lib.spectra_series_set_bar_gradient.restype = None
+
+    # ── Phase 1C: Histogram options ───────────────────────────────────────
+    _lib.spectra_series_set_histogram_bins.argtypes = [ctypes.c_void_p, ctypes.c_int]
+    _lib.spectra_series_set_histogram_bins.restype = None
+    _lib.spectra_series_set_histogram_cumulative.argtypes = [ctypes.c_void_p, ctypes.c_int]
+    _lib.spectra_series_set_histogram_cumulative.restype = None
+    _lib.spectra_series_set_histogram_density.argtypes = [ctypes.c_void_p, ctypes.c_int]
+    _lib.spectra_series_set_histogram_density.restype = None
+    _lib.spectra_series_set_histogram_gradient.argtypes = [ctypes.c_void_p, ctypes.c_int]
+    _lib.spectra_series_set_histogram_gradient.restype = None
+
+    # ── Phase 1D: 3D series ───────────────────────────────────────────────
+    _lib.spectra_axes3d_line.argtypes = [
+        ctypes.c_void_p,
+        ctypes.POINTER(ctypes.c_float),
+        ctypes.POINTER(ctypes.c_float),
+        ctypes.POINTER(ctypes.c_float),
+        ctypes.c_uint32,
+        ctypes.c_char_p,
+    ]
+    _lib.spectra_axes3d_line.restype = ctypes.c_void_p
+    _lib.spectra_axes3d_scatter.argtypes = [
+        ctypes.c_void_p,
+        ctypes.POINTER(ctypes.c_float),
+        ctypes.POINTER(ctypes.c_float),
+        ctypes.POINTER(ctypes.c_float),
+        ctypes.c_uint32,
+        ctypes.c_char_p,
+    ]
+    _lib.spectra_axes3d_scatter.restype = ctypes.c_void_p
+    _lib.spectra_axes3d_surf.argtypes = [
+        ctypes.c_void_p,
+        ctypes.POINTER(ctypes.c_float), ctypes.c_uint32,
+        ctypes.POINTER(ctypes.c_float), ctypes.c_uint32,
+        ctypes.POINTER(ctypes.c_float),
+        ctypes.c_char_p,
+    ]
+    _lib.spectra_axes3d_surf.restype = ctypes.c_void_p
+    _lib.spectra_series_set_z.argtypes = [
+        ctypes.c_void_p, ctypes.POINTER(ctypes.c_float), ctypes.c_uint32
+    ]
+    _lib.spectra_series_set_z.restype = None
+    _lib.spectra_series_set_colormap.argtypes = [ctypes.c_void_p, ctypes.c_int]
+    _lib.spectra_series_set_colormap.restype = None
+    _lib.spectra_series_set_colormap_range.argtypes = [
+        ctypes.c_void_p, ctypes.c_float, ctypes.c_float
+    ]
+    _lib.spectra_series_set_colormap_range.restype = None
+
+    # ── Phase 1E: Legend control ──────────────────────────────────────────
+    _lib.spectra_axes_show_legend.argtypes = [ctypes.c_void_p, ctypes.c_int]
+    _lib.spectra_axes_show_legend.restype = None
+    _lib.spectra_axes_set_legend_position.argtypes = [ctypes.c_void_p, ctypes.c_int]
+    _lib.spectra_axes_set_legend_position.restype = None
+
+    # ── Phase 1F: PNG render ──────────────────────────────────────────────
+    _lib.spectra_embed_render_png.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
+    _lib.spectra_embed_render_png.restype = ctypes.c_int
+
+    # ── Phase 2: Extra chrome setters + getters ───────────────────────────
+    _lib.spectra_embed_set_show_legend.argtypes = [ctypes.c_void_p, ctypes.c_int]
+    _lib.spectra_embed_set_show_legend.restype = None
+    _lib.spectra_embed_set_show_crosshair.argtypes = [ctypes.c_void_p, ctypes.c_int]
+    _lib.spectra_embed_set_show_crosshair.restype = None
+    for _getter in (
+        "spectra_embed_is_command_bar_visible",
+        "spectra_embed_is_status_bar_visible",
+        "spectra_embed_is_nav_rail_visible",
+        "spectra_embed_is_inspector_visible",
+        "spectra_embed_is_legend_visible",
+        "spectra_embed_is_crosshair_visible",
+    ):
+        fn = getattr(_lib, _getter)
+        fn.argtypes = [ctypes.c_void_p]
+        fn.restype = ctypes.c_int
+
+    # ── Phase 4: Animation & frame callbacks ──────────────────────────────
+    _lib.spectra_embed_set_on_frame.argtypes = [
+        ctypes.c_void_p, SpectraFrameCb, ctypes.c_void_p
+    ]
+    _lib.spectra_embed_set_on_frame.restype = None
+    _lib.spectra_embed_clear_on_frame.argtypes = [ctypes.c_void_p]
+    _lib.spectra_embed_clear_on_frame.restype = None
+    _lib.spectra_embed_set_redraw_callback.argtypes = [
+        ctypes.c_void_p, SpectraRedrawCb, ctypes.c_void_p
+    ]
+    _lib.spectra_embed_set_redraw_callback.restype = None
+    _lib.spectra_embed_animation_play.argtypes = [
+        ctypes.c_void_p, ctypes.c_float, ctypes.c_float
+    ]
+    _lib.spectra_embed_animation_play.restype = ctypes.c_int
+    _lib.spectra_embed_animation_stop.argtypes = [ctypes.c_void_p]
+    _lib.spectra_embed_animation_stop.restype = None
+
     return _lib
 
 
 # ─── Helper: convert Python list/numpy array to ctypes float pointer ─────────
 
-def _to_float_ptr(data) -> Tuple[ctypes.POINTER(ctypes.c_float), int]:
-    """Convert a sequence of floats to (ctypes float pointer, count)."""
+def _to_cfloat(data) -> Tuple[ctypes.POINTER(ctypes.c_float), int, object]:
+    """Convert a sequence/ndarray to (float pointer, count, owner).
+
+    For contiguous float32 numpy arrays this is zero-copy; the returned owner
+    must be kept alive by the caller for as long as the pointer is used.
+    """
     try:
         import numpy as np
         if isinstance(data, np.ndarray):
-            arr = data.astype(np.float32, copy=False)
+            arr = np.ascontiguousarray(data, dtype=np.float32)
             ptr = arr.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
-            return ptr, len(arr)
+            return ptr, arr.size, arr
     except ImportError:
         pass
 
-    # Plain Python list/tuple
     n = len(data)
     arr = (ctypes.c_float * n)(*data)
-    return ctypes.cast(arr, ctypes.POINTER(ctypes.c_float)), n
+    return ctypes.cast(arr, ctypes.POINTER(ctypes.c_float)), n, arr
+
+
+def _to_float_ptr(data) -> Tuple[ctypes.POINTER(ctypes.c_float), int]:
+    """Convert a sequence of floats to (ctypes float pointer, count)."""
+    ptr, n, _owner = _to_cfloat(data)
+    return ptr, n
 
 
 # ─── Constants ───────────────────────────────────────────────────────────────
@@ -305,6 +460,49 @@ KEY_R = 82
 KEY_G = 71
 KEY_A = 65
 KEY_S = 83
+
+# Line styles (spectra::LineStyle)
+LINE_NONE = 0
+LINE_SOLID = 1
+LINE_DASHED = 2
+LINE_DOTTED = 3
+_LINE_STYLES = {"none": 0, "solid": 1, "-": 1, "dashed": 2, "--": 2,
+                "dotted": 3, ":": 3}
+
+# Marker styles (spectra::MarkerStyle)
+_MARKER_STYLES = {
+    "none": 0, "circle": 1, "o": 1, "plus": 2, "+": 2, "cross": 3, "x": 3,
+    "star": 4, "*": 4, "square": 5, "s": 5, "diamond": 6, "d": 6,
+    "triangle_up": 7, "^": 7, "triangle_down": 8, "v": 8,
+    "triangle_left": 9, "<": 9, "triangle_right": 10, ">": 10,
+}
+
+# Bar orientation
+BAR_VERTICAL = 0
+BAR_HORIZONTAL = 1
+
+# Colormaps (spectra::ColormapType)
+_COLORMAPS = {
+    "none": 0, "viridis": 1, "plasma": 2, "inferno": 3, "magma": 4,
+    "jet": 5, "coolwarm": 6, "grayscale": 7, "gray": 7,
+}
+
+# Legend positions (spectra::LegendPosition)
+_LEGEND_POSITIONS = {
+    "top_right": 0, "upper right": 0, "top_left": 1, "upper left": 1,
+    "bottom_right": 2, "lower right": 2, "bottom_left": 3, "lower left": 3,
+    "none": 4,
+}
+
+
+def _resolve(value, mapping, kind: str) -> int:
+    """Resolve a style name (str) or int code to an integer enum value."""
+    if isinstance(value, str):
+        key = value.strip().lower()
+        if key not in mapping:
+            raise ValueError(f"Unknown {kind}: {value!r}")
+        return mapping[key]
+    return int(value)
 
 
 # ─── High-level Python wrappers ─────────────────────────────────────────────
@@ -332,6 +530,131 @@ class EmbedSeries:
         yp, yn = _to_float_ptr(y)
         assert xn == yn, f"x and y must have same length ({xn} vs {yn})"
         self._lib.spectra_series_set_data(self._handle, xp, yp, xn)
+
+    # ── Phase 1A: styling ────────────────────────────────────────────────
+
+    def set_color(self, r: float, g: float, b: float, a: float = 1.0) -> "EmbedSeries":
+        """Set the series color (RGBA components in [0, 1])."""
+        self._lib.spectra_series_set_color(self._handle, r, g, b, a)
+        return self
+
+    def set_opacity(self, value: float) -> "EmbedSeries":
+        """Set the series opacity (0 = transparent, 1 = opaque)."""
+        self._lib.spectra_series_set_opacity(self._handle, value)
+        return self
+
+    def set_line_width(self, value: float) -> "EmbedSeries":
+        """Set the line width in pixels (line series only)."""
+        self._lib.spectra_series_set_line_width(self._handle, value)
+        return self
+
+    def set_marker_size(self, value: float) -> "EmbedSeries":
+        """Set the marker size in pixels."""
+        self._lib.spectra_series_set_marker_size(self._handle, value)
+        return self
+
+    def set_marker_style(self, style) -> "EmbedSeries":
+        """Set the marker style (name like 'circle'/'square' or int code)."""
+        self._lib.spectra_series_set_marker_style(
+            self._handle, _resolve(style, _MARKER_STYLES, "marker style"))
+        return self
+
+    def set_line_style(self, style) -> "EmbedSeries":
+        """Set the line style (name like 'solid'/'dashed'/'dotted' or int code)."""
+        self._lib.spectra_series_set_line_style(
+            self._handle, _resolve(style, _LINE_STYLES, "line style"))
+        return self
+
+    def set_label(self, label: str) -> "EmbedSeries":
+        """Set the legend label for this series."""
+        self._lib.spectra_series_set_label(self._handle, label.encode("utf-8"))
+        return self
+
+    # ── Phase 1G: streaming ──────────────────────────────────────────────
+
+    def append_xy(self, x: float, y: float) -> None:
+        """Append a single (x, y) sample to the series."""
+        self._lib.spectra_series_append_xy(self._handle, x, y)
+
+    def append_data(self, x, y) -> None:
+        """Append a batch of (x, y) samples to the series."""
+        xp, xn = _to_float_ptr(x)
+        yp, yn = _to_float_ptr(y)
+        assert xn == yn, f"x and y must have same length ({xn} vs {yn})"
+        self._lib.spectra_series_append_data(self._handle, xp, yp, xn)
+
+    def set_capacity(self, max_points: int) -> None:
+        """Cap the number of retained points (ring buffer; 0 = unbounded)."""
+        self._lib.spectra_series_set_capacity(self._handle, max_points)
+
+    def clear(self) -> None:
+        """Remove all data points from the series."""
+        self._lib.spectra_series_clear(self._handle)
+
+    # ── Phase 1B: bar options ────────────────────────────────────────────
+
+    def set_bar_width(self, width: float) -> "EmbedSeries":
+        """Set the bar width (bar series only)."""
+        self._lib.spectra_series_set_bar_width(self._handle, width)
+        return self
+
+    def set_bar_baseline(self, baseline: float) -> "EmbedSeries":
+        """Set the bar baseline value (bar series only)."""
+        self._lib.spectra_series_set_bar_baseline(self._handle, baseline)
+        return self
+
+    def set_bar_orientation(self, orientation) -> "EmbedSeries":
+        """Set the bar orientation ('vertical'/'horizontal' or int code)."""
+        code = orientation
+        if isinstance(orientation, str):
+            code = BAR_HORIZONTAL if orientation.lower().startswith("h") else BAR_VERTICAL
+        self._lib.spectra_series_set_bar_orientation(self._handle, int(code))
+        return self
+
+    def set_bar_gradient(self, enabled: bool = True) -> "EmbedSeries":
+        """Enable/disable the bar gradient fill (bar series only)."""
+        self._lib.spectra_series_set_bar_gradient(self._handle, 1 if enabled else 0)
+        return self
+
+    # ── Phase 1C: histogram options ──────────────────────────────────────
+
+    def set_histogram_bins(self, bins: int) -> "EmbedSeries":
+        """Set the number of histogram bins."""
+        self._lib.spectra_series_set_histogram_bins(self._handle, bins)
+        return self
+
+    def set_histogram_cumulative(self, enabled: bool = True) -> "EmbedSeries":
+        """Enable/disable cumulative histogram mode."""
+        self._lib.spectra_series_set_histogram_cumulative(self._handle, 1 if enabled else 0)
+        return self
+
+    def set_histogram_density(self, enabled: bool = True) -> "EmbedSeries":
+        """Enable/disable density-normalized histogram mode."""
+        self._lib.spectra_series_set_histogram_density(self._handle, 1 if enabled else 0)
+        return self
+
+    def set_histogram_gradient(self, enabled: bool = True) -> "EmbedSeries":
+        """Enable/disable the histogram gradient fill."""
+        self._lib.spectra_series_set_histogram_gradient(self._handle, 1 if enabled else 0)
+        return self
+
+    # ── Phase 1D: 3D / colormap ──────────────────────────────────────────
+
+    def set_z(self, z) -> None:
+        """Update the Z data for a 3D line/scatter series."""
+        zp, zn = _to_float_ptr(z)
+        self._lib.spectra_series_set_z(self._handle, zp, zn)
+
+    def set_colormap(self, colormap) -> "EmbedSeries":
+        """Set the colormap (name like 'viridis' or int code)."""
+        self._lib.spectra_series_set_colormap(
+            self._handle, _resolve(colormap, _COLORMAPS, "colormap"))
+        return self
+
+    def set_colormap_range(self, min_val: float, max_val: float) -> "EmbedSeries":
+        """Set the colormap value range."""
+        self._lib.spectra_series_set_colormap_range(self._handle, min_val, max_val)
+        return self
 
 
 class EmbedAxes:
@@ -429,6 +752,58 @@ class EmbedAxes:
             raise RuntimeError("Failed to create bar series")
         return EmbedSeries(h)
 
+    # ── Phase 1D: 3D series ──────────────────────────────────────────────
+
+    def line3d(self, x, y, z, label: Optional[str] = None) -> EmbedSeries:
+        """Add a 3D line series (requires a 3D subplot)."""
+        xp, n = _to_float_ptr(x)
+        yp, yn = _to_float_ptr(y)
+        zp, zn = _to_float_ptr(z)
+        assert n == yn == zn, f"x, y, z must have same length ({n}, {yn}, {zn})"
+        lbl = label.encode("utf-8") if label else None
+        h = self._lib.spectra_axes3d_line(self._handle, xp, yp, zp, n, lbl)
+        if not h:
+            raise RuntimeError("Failed to create 3D line series")
+        return EmbedSeries(h)
+
+    def scatter3d(self, x, y, z, label: Optional[str] = None) -> EmbedSeries:
+        """Add a 3D scatter series (requires a 3D subplot)."""
+        xp, n = _to_float_ptr(x)
+        yp, yn = _to_float_ptr(y)
+        zp, zn = _to_float_ptr(z)
+        assert n == yn == zn, f"x, y, z must have same length ({n}, {yn}, {zn})"
+        lbl = label.encode("utf-8") if label else None
+        h = self._lib.spectra_axes3d_scatter(self._handle, xp, yp, zp, n, lbl)
+        if not h:
+            raise RuntimeError("Failed to create 3D scatter series")
+        return EmbedSeries(h)
+
+    def surf(self, x_grid, y_grid, z_values, label: Optional[str] = None) -> EmbedSeries:
+        """Add a 3D surface from grid vectors.
+
+        ``z_values`` is row-major with ``len(x_grid) * len(y_grid)`` entries.
+        """
+        xp, nx = _to_float_ptr(x_grid)
+        yp, ny = _to_float_ptr(y_grid)
+        zp, nz = _to_float_ptr(z_values)
+        assert nz == nx * ny, f"z_values must have nx*ny entries ({nz} vs {nx*ny})"
+        lbl = label.encode("utf-8") if label else None
+        h = self._lib.spectra_axes3d_surf(self._handle, xp, nx, yp, ny, zp, lbl)
+        if not h:
+            raise RuntimeError("Failed to create 3D surface series")
+        return EmbedSeries(h)
+
+    # ── Phase 1E: legend control ─────────────────────────────────────────
+
+    def show_legend(self, visible: bool = True) -> None:
+        """Show or hide the legend for this axes' figure."""
+        self._lib.spectra_axes_show_legend(self._handle, 1 if visible else 0)
+
+    def set_legend_position(self, position) -> None:
+        """Set the legend position (name like 'top_right' or int code)."""
+        self._lib.spectra_axes_set_legend_position(
+            self._handle, _resolve(position, _LEGEND_POSITIONS, "legend position"))
+
 
 class EmbedFigure:
     """Proxy for a figure in an embedded plot."""
@@ -500,9 +875,25 @@ class EmbedSurface:
         self._height = height
         # Pre-allocate pixel buffer
         self._buf = (ctypes.c_uint8 * (width * height * 4))()
+        # Keep installed C callbacks alive (Phase 4).
+        self._frame_cb = None
+        self._redraw_cb = None
 
     def __del__(self) -> None:
         if hasattr(self, "_handle") and self._handle:
+            self._lib.spectra_embed_destroy(self._handle)
+            self._handle = None
+
+    def __enter__(self) -> "EmbedSurface":
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> bool:
+        self.close()
+        return False
+
+    def close(self) -> None:
+        """Destroy the underlying surface and release GPU resources."""
+        if getattr(self, "_handle", None):
             self._lib.spectra_embed_destroy(self._handle)
             self._handle = None
 
@@ -549,6 +940,44 @@ class EmbedSurface:
     def render_into(self, buf: ctypes.Array) -> bool:
         """Render directly into a pre-allocated ctypes buffer (zero-copy)."""
         return bool(self._lib.spectra_embed_render(self._handle, buf))
+
+    # ── Phase 5C: rich output helpers ────────────────────────────────────
+
+    def render_numpy(self):
+        """Render one frame and return an (H, W, 4) uint8 RGBA numpy array."""
+        import numpy as np
+        w = self.width
+        h = self.height
+        buf_size = w * h * 4
+        if len(self._buf) != buf_size:
+            self._buf = (ctypes.c_uint8 * buf_size)()
+        ok = self._lib.spectra_embed_render(self._handle, self._buf)
+        if not ok:
+            raise RuntimeError("render failed")
+        arr = np.frombuffer(self._buf, dtype=np.uint8, count=buf_size)
+        return arr.reshape(h, w, 4).copy()
+
+    def render_pil(self):
+        """Render one frame and return a PIL.Image (RGBA)."""
+        from PIL import Image
+        return Image.frombytes("RGBA", (self.width, self.height), self.render())
+
+    def render_png(self, path) -> None:
+        """Render the current frame directly to a PNG file."""
+        ok = self._lib.spectra_embed_render_png(self._handle, str(path).encode("utf-8"))
+        if not ok:
+            raise RuntimeError(f"Failed to write PNG to {path!r}")
+
+    def _repr_png_(self) -> Optional[bytes]:
+        """Return PNG bytes for inline display in Jupyter notebooks."""
+        try:
+            import io
+            img = self.render_pil()
+            buf = io.BytesIO()
+            img.save(buf, format="PNG")
+            return buf.getvalue()
+        except Exception:
+            return None
 
     # ── Input forwarding ─────────────────────────────────────────────────
 
@@ -611,3 +1040,182 @@ class EmbedSurface:
     def set_show_inspector(self, visible: bool) -> None:
         """Show/hide the right inspector panel (requires ImGui build)."""
         self._lib.spectra_embed_set_show_inspector(self._handle, 1 if visible else 0)
+
+    def set_show_legend(self, visible: bool) -> None:
+        """Show/hide the plot legend."""
+        self._lib.spectra_embed_set_show_legend(self._handle, 1 if visible else 0)
+
+    def set_show_crosshair(self, visible: bool) -> None:
+        """Show/hide the data crosshair overlay."""
+        self._lib.spectra_embed_set_show_crosshair(self._handle, 1 if visible else 0)
+
+    @property
+    def command_bar_visible(self) -> bool:
+        return bool(self._lib.spectra_embed_is_command_bar_visible(self._handle))
+
+    @property
+    def status_bar_visible(self) -> bool:
+        return bool(self._lib.spectra_embed_is_status_bar_visible(self._handle))
+
+    @property
+    def nav_rail_visible(self) -> bool:
+        return bool(self._lib.spectra_embed_is_nav_rail_visible(self._handle))
+
+    @property
+    def inspector_visible(self) -> bool:
+        return bool(self._lib.spectra_embed_is_inspector_visible(self._handle))
+
+    @property
+    def legend_visible(self) -> bool:
+        return bool(self._lib.spectra_embed_is_legend_visible(self._handle))
+
+    @property
+    def crosshair_visible(self) -> bool:
+        return bool(self._lib.spectra_embed_is_crosshair_visible(self._handle))
+
+    # ── Phase 4: animation & frame callbacks ─────────────────────────────
+
+    def set_on_frame(self, callback) -> None:
+        """Register a per-frame callback ``callback(surface, time_sec, dt_sec)``.
+
+        Invoked from within :meth:`update` (and :meth:`animation_play`).
+        Pass ``None`` to clear the callback.
+        """
+        if callback is None:
+            self.clear_on_frame()
+            return
+
+        def _trampoline(_handle, time_sec, dt_sec, _user):
+            callback(self, time_sec, dt_sec)
+
+        self._frame_cb = SpectraFrameCb(_trampoline)
+        self._lib.spectra_embed_set_on_frame(self._handle, self._frame_cb, None)
+
+    def clear_on_frame(self) -> None:
+        """Remove any installed per-frame callback."""
+        self._lib.spectra_embed_clear_on_frame(self._handle)
+        self._frame_cb = None
+
+    def set_redraw_callback(self, callback) -> None:
+        """Register a redraw callback ``callback()`` invoked on repaint requests."""
+        if callback is None:
+            self._redraw_cb = None
+            self._lib.spectra_embed_set_redraw_callback(self._handle, SpectraRedrawCb(0), None)
+            return
+
+        def _trampoline(_user):
+            callback()
+
+        self._redraw_cb = SpectraRedrawCb(_trampoline)
+        self._lib.spectra_embed_set_redraw_callback(self._handle, self._redraw_cb, None)
+
+    def animation_play(self, fps: float = 60.0, duration: float = 0.0) -> int:
+        """Drive the frame callback for ``duration`` seconds at ``fps``.
+
+        Returns the number of frames stepped. Pass ``duration <= 0`` for a
+        single step.
+        """
+        return int(self._lib.spectra_embed_animation_play(self._handle, fps, duration))
+
+    def animation_stop(self) -> None:
+        """Stop the animation loop and reset the elapsed timeline."""
+        self._lib.spectra_embed_animation_stop(self._handle)
+
+    # ── Phase 5E: builder ────────────────────────────────────────────────
+
+    @staticmethod
+    def builder() -> "EmbedSurfaceBuilder":
+        """Return a fluent builder for configuring an :class:`EmbedSurface`."""
+        return EmbedSurfaceBuilder()
+
+
+class EmbedSurfaceBuilder:
+    """Fluent builder for :class:`EmbedSurface`.
+
+    Example::
+
+        surface = (EmbedSurface.builder()
+                   .size(1024, 768)
+                   .theme("dark")
+                   .with_inspector()
+                   .build())
+    """
+
+    def __init__(self) -> None:
+        self._width = 800
+        self._height = 600
+        self._theme: Optional[str] = None
+        self._dpi_scale = 1.0
+        self._msaa = 1
+        self._background_alpha = 1.0
+        self._chrome: dict = {}
+
+    def size(self, width: int, height: int) -> "EmbedSurfaceBuilder":
+        self._width = width
+        self._height = height
+        return self
+
+    def theme(self, name: str) -> "EmbedSurfaceBuilder":
+        self._theme = name
+        return self
+
+    def dpi_scale(self, scale: float) -> "EmbedSurfaceBuilder":
+        self._dpi_scale = scale
+        return self
+
+    def msaa(self, samples: int) -> "EmbedSurfaceBuilder":
+        self._msaa = samples
+        return self
+
+    def background_alpha(self, alpha: float) -> "EmbedSurfaceBuilder":
+        self._background_alpha = alpha
+        return self
+
+    def transparent(self) -> "EmbedSurfaceBuilder":
+        self._background_alpha = 0.0
+        return self
+
+    def with_inspector(self, visible: bool = True) -> "EmbedSurfaceBuilder":
+        self._chrome["inspector"] = visible
+        return self
+
+    def with_command_bar(self, visible: bool = True) -> "EmbedSurfaceBuilder":
+        self._chrome["command_bar"] = visible
+        return self
+
+    def with_status_bar(self, visible: bool = True) -> "EmbedSurfaceBuilder":
+        self._chrome["status_bar"] = visible
+        return self
+
+    def with_nav_rail(self, visible: bool = True) -> "EmbedSurfaceBuilder":
+        self._chrome["nav_rail"] = visible
+        return self
+
+    def without_legend(self) -> "EmbedSurfaceBuilder":
+        self._chrome["legend"] = False
+        return self
+
+    def with_crosshair(self, visible: bool = True) -> "EmbedSurfaceBuilder":
+        self._chrome["crosshair"] = visible
+        return self
+
+    def build(self) -> EmbedSurface:
+        surface = EmbedSurface(
+            self._width,
+            self._height,
+            theme=self._theme,
+            dpi_scale=self._dpi_scale,
+            msaa=self._msaa,
+            background_alpha=self._background_alpha,
+        )
+        setters = {
+            "inspector": surface.set_show_inspector,
+            "command_bar": surface.set_show_command_bar,
+            "status_bar": surface.set_show_status_bar,
+            "nav_rail": surface.set_show_nav_rail,
+            "legend": surface.set_show_legend,
+            "crosshair": surface.set_show_crosshair,
+        }
+        for key, visible in self._chrome.items():
+            setters[key](visible)
+        return surface

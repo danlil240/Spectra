@@ -75,7 +75,7 @@ extern "C"
         cfg.dpi_scale        = dpi_scale > 0.0f ? dpi_scale : 1.0f;
         cfg.msaa             = msaa > 0 ? msaa : 1;
         cfg.background_alpha = bg_alpha;
-        if (theme && theme[0] != '\0')
+        if (theme)
             cfg.theme = theme;
 
         auto* s = new (std::nothrow) SpectraEmbed(cfg);

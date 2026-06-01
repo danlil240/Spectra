@@ -414,7 +414,11 @@ def _render_with_options(
     x, y, *, width, height, save, title, xlabel, ylabel,
     theme=None, fmt="-", grid=True, scatter_mode=False, scatter=False
 ) -> Image:
-    """Use the full EmbedSurface for richer rendering with titles/labels/theme."""
+    """Use the full EmbedSurface for richer rendering with titles/labels/theme.
+
+    dpi_scale and msaa intentionally use defaults (1.0 and 1) since the
+    high-level render API targets pixel-exact offscreen output.
+    """
     from ._embed import EmbedSurface
 
     surface = EmbedSurface(width, height, theme=theme)

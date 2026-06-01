@@ -38,19 +38,33 @@ SpectraRedrawCb = ctypes.CFUNCTYPE(None, ctypes.c_void_p)
 
 # Interactive event callback prototypes (Phase 3).
 SpectraPointSelectedCb = ctypes.CFUNCTYPE(
-    None, ctypes.c_int, ctypes.c_int, ctypes.c_size_t,
-    ctypes.c_double, ctypes.c_double, ctypes.c_void_p
+    None,
+    ctypes.c_int,
+    ctypes.c_int,
+    ctypes.c_size_t,
+    ctypes.c_double,
+    ctypes.c_double,
+    ctypes.c_void_p,
 )
 SpectraSeriesSelectedCb = ctypes.CFUNCTYPE(
     None, ctypes.c_int, ctypes.c_int, ctypes.c_void_p
 )
 SpectraHoverCb = ctypes.CFUNCTYPE(
-    None, ctypes.c_int, ctypes.c_int, ctypes.c_size_t,
-    ctypes.c_double, ctypes.c_double, ctypes.c_void_p
+    None,
+    ctypes.c_int,
+    ctypes.c_int,
+    ctypes.c_size_t,
+    ctypes.c_double,
+    ctypes.c_double,
+    ctypes.c_void_p,
 )
 SpectraViewChangedCb = ctypes.CFUNCTYPE(
-    None, ctypes.c_double, ctypes.c_double, ctypes.c_double, ctypes.c_double,
-    ctypes.c_void_p
+    None,
+    ctypes.c_double,
+    ctypes.c_double,
+    ctypes.c_double,
+    ctypes.c_double,
+    ctypes.c_void_p,
 )
 
 
@@ -107,12 +121,12 @@ def _load_lib() -> ctypes.CDLL:
     _lib.spectra_embed_create.restype = ctypes.c_void_p
 
     _lib.spectra_embed_create_ex.argtypes = [
-        ctypes.c_uint32,   # width
-        ctypes.c_uint32,   # height
-        ctypes.c_char_p,   # theme
-        ctypes.c_float,    # dpi_scale
-        ctypes.c_uint32,   # msaa
-        ctypes.c_float,    # bg_alpha
+        ctypes.c_uint32,  # width
+        ctypes.c_uint32,  # height
+        ctypes.c_char_p,  # theme
+        ctypes.c_float,  # dpi_scale
+        ctypes.c_uint32,  # msaa
+        ctypes.c_float,  # bg_alpha
     ]
     _lib.spectra_embed_create_ex.restype = ctypes.c_void_p
 
@@ -131,12 +145,18 @@ def _load_lib() -> ctypes.CDLL:
 
     # Axes
     _lib.spectra_figure_subplot.argtypes = [
-        ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int
+        ctypes.c_void_p,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
     ]
     _lib.spectra_figure_subplot.restype = ctypes.c_void_p
 
     _lib.spectra_figure_subplot3d.argtypes = [
-        ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int
+        ctypes.c_void_p,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
     ]
     _lib.spectra_figure_subplot3d.restype = ctypes.c_void_p
 
@@ -160,12 +180,16 @@ def _load_lib() -> ctypes.CDLL:
     _lib.spectra_axes_scatter.restype = ctypes.c_void_p
 
     _lib.spectra_series_set_x.argtypes = [
-        ctypes.c_void_p, ctypes.POINTER(ctypes.c_float), ctypes.c_uint32
+        ctypes.c_void_p,
+        ctypes.POINTER(ctypes.c_float),
+        ctypes.c_uint32,
     ]
     _lib.spectra_series_set_x.restype = None
 
     _lib.spectra_series_set_y.argtypes = [
-        ctypes.c_void_p, ctypes.POINTER(ctypes.c_float), ctypes.c_uint32
+        ctypes.c_void_p,
+        ctypes.POINTER(ctypes.c_float),
+        ctypes.c_uint32,
     ]
     _lib.spectra_series_set_y.restype = None
 
@@ -178,10 +202,17 @@ def _load_lib() -> ctypes.CDLL:
     _lib.spectra_series_set_data.restype = None
 
     # Rendering
-    _lib.spectra_embed_render.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_uint8)]
+    _lib.spectra_embed_render.argtypes = [
+        ctypes.c_void_p,
+        ctypes.POINTER(ctypes.c_uint8),
+    ]
     _lib.spectra_embed_render.restype = ctypes.c_int
 
-    _lib.spectra_embed_resize.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.c_uint32]
+    _lib.spectra_embed_resize.argtypes = [
+        ctypes.c_void_p,
+        ctypes.c_uint32,
+        ctypes.c_uint32,
+    ]
     _lib.spectra_embed_resize.restype = ctypes.c_int
 
     _lib.spectra_embed_width.argtypes = [ctypes.c_void_p]
@@ -192,25 +223,36 @@ def _load_lib() -> ctypes.CDLL:
 
     # Input
     _lib.spectra_embed_mouse_move.argtypes = [
-        ctypes.c_void_p, ctypes.c_float, ctypes.c_float
+        ctypes.c_void_p,
+        ctypes.c_float,
+        ctypes.c_float,
     ]
     _lib.spectra_embed_mouse_move.restype = None
 
     _lib.spectra_embed_mouse_button.argtypes = [
-        ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int,
-        ctypes.c_float, ctypes.c_float,
+        ctypes.c_void_p,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_float,
+        ctypes.c_float,
     ]
     _lib.spectra_embed_mouse_button.restype = None
 
     _lib.spectra_embed_scroll.argtypes = [
         ctypes.c_void_p,
-        ctypes.c_float, ctypes.c_float,
-        ctypes.c_float, ctypes.c_float,
+        ctypes.c_float,
+        ctypes.c_float,
+        ctypes.c_float,
+        ctypes.c_float,
     ]
     _lib.spectra_embed_scroll.restype = None
 
     _lib.spectra_embed_key.argtypes = [
-        ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int
+        ctypes.c_void_p,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
     ]
     _lib.spectra_embed_key.restype = None
 
@@ -256,10 +298,18 @@ def _load_lib() -> ctypes.CDLL:
     _lib.spectra_axes_set_title.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
     _lib.spectra_axes_set_title.restype = None
 
-    _lib.spectra_axes_set_xlim.argtypes = [ctypes.c_void_p, ctypes.c_float, ctypes.c_float]
+    _lib.spectra_axes_set_xlim.argtypes = [
+        ctypes.c_void_p,
+        ctypes.c_float,
+        ctypes.c_float,
+    ]
     _lib.spectra_axes_set_xlim.restype = None
 
-    _lib.spectra_axes_set_ylim.argtypes = [ctypes.c_void_p, ctypes.c_float, ctypes.c_float]
+    _lib.spectra_axes_set_ylim.argtypes = [
+        ctypes.c_void_p,
+        ctypes.c_float,
+        ctypes.c_float,
+    ]
     _lib.spectra_axes_set_ylim.restype = None
 
     _lib.spectra_axes_set_grid.argtypes = [ctypes.c_void_p, ctypes.c_int]
@@ -269,51 +319,55 @@ def _load_lib() -> ctypes.CDLL:
     _lib.spectra_axes_auto_fit.restype = None
 
     _lib.spectra_axes_histogram.argtypes = [
-        ctypes.c_void_p,                      # ax
-        ctypes.POINTER(ctypes.c_float),        # values
-        ctypes.c_uint32,                       # count
-        ctypes.c_int,                          # bins
-        ctypes.c_char_p,                       # label
+        ctypes.c_void_p,  # ax
+        ctypes.POINTER(ctypes.c_float),  # values
+        ctypes.c_uint32,  # count
+        ctypes.c_int,  # bins
+        ctypes.c_char_p,  # label
     ]
     _lib.spectra_axes_histogram.restype = ctypes.c_void_p
 
     _lib.spectra_axes_bar.argtypes = [
-        ctypes.c_void_p,                      # ax
-        ctypes.POINTER(ctypes.c_float),        # positions
-        ctypes.POINTER(ctypes.c_float),        # heights
-        ctypes.c_uint32,                       # count
-        ctypes.c_char_p,                       # label
+        ctypes.c_void_p,  # ax
+        ctypes.POINTER(ctypes.c_float),  # positions
+        ctypes.POINTER(ctypes.c_float),  # heights
+        ctypes.c_uint32,  # count
+        ctypes.c_char_p,  # label
     ]
     _lib.spectra_axes_bar.restype = ctypes.c_void_p
 
     _lib.spectra_axes_stem.argtypes = [
-        ctypes.c_void_p,                      # ax
-        ctypes.POINTER(ctypes.c_float),        # x
-        ctypes.POINTER(ctypes.c_float),        # y
-        ctypes.c_uint32,                       # count
-        ctypes.c_char_p,                       # label
+        ctypes.c_void_p,  # ax
+        ctypes.POINTER(ctypes.c_float),  # x
+        ctypes.POINTER(ctypes.c_float),  # y
+        ctypes.c_uint32,  # count
+        ctypes.c_char_p,  # label
     ]
     _lib.spectra_axes_stem.restype = ctypes.c_void_p
 
     # ── Phase 7B: stem ──────────────────────────────────────────────────────
     _lib.spectra_axes_stem.argtypes = [
-        ctypes.c_void_p,                      # ax
-        ctypes.POINTER(ctypes.c_float),        # x
-        ctypes.POINTER(ctypes.c_float),        # y
-        ctypes.c_uint32,                       # count
-        ctypes.c_char_p,                       # label
+        ctypes.c_void_p,  # ax
+        ctypes.POINTER(ctypes.c_float),  # x
+        ctypes.POINTER(ctypes.c_float),  # y
+        ctypes.c_uint32,  # count
+        ctypes.c_char_p,  # label
     ]
     _lib.spectra_axes_stem.restype = ctypes.c_void_p
 
     # ── Phase 7C: scatter colormap ─────────────────────────────────────────
     _lib.spectra_series_set_scatter_colors.argtypes = [
-        ctypes.c_void_p, ctypes.POINTER(ctypes.c_float), ctypes.c_uint32
+        ctypes.c_void_p,
+        ctypes.POINTER(ctypes.c_float),
+        ctypes.c_uint32,
     ]
     _lib.spectra_series_set_scatter_colors.restype = None
     _lib.spectra_series_set_scatter_colormap.argtypes = [ctypes.c_void_p, ctypes.c_int]
     _lib.spectra_series_set_scatter_colormap.restype = None
     _lib.spectra_series_set_scatter_colormap_range.argtypes = [
-        ctypes.c_void_p, ctypes.c_float, ctypes.c_float
+        ctypes.c_void_p,
+        ctypes.c_float,
+        ctypes.c_float,
     ]
     _lib.spectra_series_set_scatter_colormap_range.restype = None
 
@@ -323,7 +377,11 @@ def _load_lib() -> ctypes.CDLL:
 
     # ── Phase 1A: Series styling ──────────────────────────────────────────
     _lib.spectra_series_set_color.argtypes = [
-        ctypes.c_void_p, ctypes.c_float, ctypes.c_float, ctypes.c_float, ctypes.c_float
+        ctypes.c_void_p,
+        ctypes.c_float,
+        ctypes.c_float,
+        ctypes.c_float,
+        ctypes.c_float,
     ]
     _lib.spectra_series_set_color.restype = None
     _lib.spectra_series_set_opacity.argtypes = [ctypes.c_void_p, ctypes.c_float]
@@ -341,7 +399,9 @@ def _load_lib() -> ctypes.CDLL:
 
     # ── Phase 1G: Series streaming ────────────────────────────────────────
     _lib.spectra_series_append_xy.argtypes = [
-        ctypes.c_void_p, ctypes.c_float, ctypes.c_float
+        ctypes.c_void_p,
+        ctypes.c_float,
+        ctypes.c_float,
     ]
     _lib.spectra_series_append_xy.restype = None
     _lib.spectra_series_append_data.argtypes = [
@@ -369,11 +429,17 @@ def _load_lib() -> ctypes.CDLL:
     # ── Phase 1C: Histogram options ───────────────────────────────────────
     _lib.spectra_series_set_histogram_bins.argtypes = [ctypes.c_void_p, ctypes.c_int]
     _lib.spectra_series_set_histogram_bins.restype = None
-    _lib.spectra_series_set_histogram_cumulative.argtypes = [ctypes.c_void_p, ctypes.c_int]
+    _lib.spectra_series_set_histogram_cumulative.argtypes = [
+        ctypes.c_void_p,
+        ctypes.c_int,
+    ]
     _lib.spectra_series_set_histogram_cumulative.restype = None
     _lib.spectra_series_set_histogram_density.argtypes = [ctypes.c_void_p, ctypes.c_int]
     _lib.spectra_series_set_histogram_density.restype = None
-    _lib.spectra_series_set_histogram_gradient.argtypes = [ctypes.c_void_p, ctypes.c_int]
+    _lib.spectra_series_set_histogram_gradient.argtypes = [
+        ctypes.c_void_p,
+        ctypes.c_int,
+    ]
     _lib.spectra_series_set_histogram_gradient.restype = None
 
     # ── Phase 1D: 3D series ───────────────────────────────────────────────
@@ -397,20 +463,26 @@ def _load_lib() -> ctypes.CDLL:
     _lib.spectra_axes3d_scatter.restype = ctypes.c_void_p
     _lib.spectra_axes3d_surf.argtypes = [
         ctypes.c_void_p,
-        ctypes.POINTER(ctypes.c_float), ctypes.c_uint32,
-        ctypes.POINTER(ctypes.c_float), ctypes.c_uint32,
+        ctypes.POINTER(ctypes.c_float),
+        ctypes.c_uint32,
+        ctypes.POINTER(ctypes.c_float),
+        ctypes.c_uint32,
         ctypes.POINTER(ctypes.c_float),
         ctypes.c_char_p,
     ]
     _lib.spectra_axes3d_surf.restype = ctypes.c_void_p
     _lib.spectra_series_set_z.argtypes = [
-        ctypes.c_void_p, ctypes.POINTER(ctypes.c_float), ctypes.c_uint32
+        ctypes.c_void_p,
+        ctypes.POINTER(ctypes.c_float),
+        ctypes.c_uint32,
     ]
     _lib.spectra_series_set_z.restype = None
     _lib.spectra_series_set_colormap.argtypes = [ctypes.c_void_p, ctypes.c_int]
     _lib.spectra_series_set_colormap.restype = None
     _lib.spectra_series_set_colormap_range.argtypes = [
-        ctypes.c_void_p, ctypes.c_float, ctypes.c_float
+        ctypes.c_void_p,
+        ctypes.c_float,
+        ctypes.c_float,
     ]
     _lib.spectra_series_set_colormap_range.restype = None
 
@@ -449,17 +521,23 @@ def _load_lib() -> ctypes.CDLL:
 
     # ── Phase 4: Animation & frame callbacks ──────────────────────────────
     _lib.spectra_embed_set_on_frame.argtypes = [
-        ctypes.c_void_p, SpectraFrameCb, ctypes.c_void_p
+        ctypes.c_void_p,
+        SpectraFrameCb,
+        ctypes.c_void_p,
     ]
     _lib.spectra_embed_set_on_frame.restype = None
     _lib.spectra_embed_clear_on_frame.argtypes = [ctypes.c_void_p]
     _lib.spectra_embed_clear_on_frame.restype = None
     _lib.spectra_embed_set_redraw_callback.argtypes = [
-        ctypes.c_void_p, SpectraRedrawCb, ctypes.c_void_p
+        ctypes.c_void_p,
+        SpectraRedrawCb,
+        ctypes.c_void_p,
     ]
     _lib.spectra_embed_set_redraw_callback.restype = None
     _lib.spectra_embed_animation_play.argtypes = [
-        ctypes.c_void_p, ctypes.c_float, ctypes.c_float
+        ctypes.c_void_p,
+        ctypes.c_float,
+        ctypes.c_float,
     ]
     _lib.spectra_embed_animation_play.restype = ctypes.c_int
     _lib.spectra_embed_animation_stop.argtypes = [ctypes.c_void_p]
@@ -467,19 +545,27 @@ def _load_lib() -> ctypes.CDLL:
 
     # ── Phase 3: Interactive event callbacks ──────────────────────────────
     _lib.spectra_embed_set_on_point_selected.argtypes = [
-        ctypes.c_void_p, SpectraPointSelectedCb, ctypes.c_void_p
+        ctypes.c_void_p,
+        SpectraPointSelectedCb,
+        ctypes.c_void_p,
     ]
     _lib.spectra_embed_set_on_point_selected.restype = None
     _lib.spectra_embed_set_on_series_selected.argtypes = [
-        ctypes.c_void_p, SpectraSeriesSelectedCb, ctypes.c_void_p
+        ctypes.c_void_p,
+        SpectraSeriesSelectedCb,
+        ctypes.c_void_p,
     ]
     _lib.spectra_embed_set_on_series_selected.restype = None
     _lib.spectra_embed_set_on_hover.argtypes = [
-        ctypes.c_void_p, SpectraHoverCb, ctypes.c_void_p
+        ctypes.c_void_p,
+        SpectraHoverCb,
+        ctypes.c_void_p,
     ]
     _lib.spectra_embed_set_on_hover.restype = None
     _lib.spectra_embed_set_on_view_changed.argtypes = [
-        ctypes.c_void_p, SpectraViewChangedCb, ctypes.c_void_p
+        ctypes.c_void_p,
+        SpectraViewChangedCb,
+        ctypes.c_void_p,
     ]
     _lib.spectra_embed_set_on_view_changed.restype = None
 
@@ -487,6 +573,7 @@ def _load_lib() -> ctypes.CDLL:
 
 
 # ─── Helper: convert Python list/numpy array to ctypes float pointer ─────────
+
 
 def _to_cfloat(data) -> Tuple[ctypes.POINTER(ctypes.c_float), int, object]:
     """Convert a sequence/ndarray to (float pointer, count, owner).
@@ -496,6 +583,7 @@ def _to_cfloat(data) -> Tuple[ctypes.POINTER(ctypes.c_float), int, object]:
     """
     try:
         import numpy as np
+
         if isinstance(data, np.ndarray):
             arr = np.ascontiguousarray(data, dtype=np.float32)
             ptr = arr.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
@@ -538,15 +626,39 @@ LINE_NONE = 0
 LINE_SOLID = 1
 LINE_DASHED = 2
 LINE_DOTTED = 3
-_LINE_STYLES = {"none": 0, "solid": 1, "-": 1, "dashed": 2, "--": 2,
-                "dotted": 3, ":": 3}
+_LINE_STYLES = {
+    "none": 0,
+    "solid": 1,
+    "-": 1,
+    "dashed": 2,
+    "--": 2,
+    "dotted": 3,
+    ":": 3,
+}
 
 # Marker styles (spectra::MarkerStyle)
 _MARKER_STYLES = {
-    "none": 0, "circle": 1, "o": 1, "plus": 2, "+": 2, "cross": 3, "x": 3,
-    "star": 4, "*": 4, "square": 5, "s": 5, "diamond": 6, "d": 6,
-    "triangle_up": 7, "^": 7, "triangle_down": 8, "v": 8,
-    "triangle_left": 9, "<": 9, "triangle_right": 10, ">": 10,
+    "none": 0,
+    "circle": 1,
+    "o": 1,
+    "plus": 2,
+    "+": 2,
+    "cross": 3,
+    "x": 3,
+    "star": 4,
+    "*": 4,
+    "square": 5,
+    "s": 5,
+    "diamond": 6,
+    "d": 6,
+    "triangle_up": 7,
+    "^": 7,
+    "triangle_down": 8,
+    "v": 8,
+    "triangle_left": 9,
+    "<": 9,
+    "triangle_right": 10,
+    ">": 10,
 }
 
 # Bar orientation
@@ -555,14 +667,27 @@ BAR_HORIZONTAL = 1
 
 # Colormaps (spectra::ColormapType)
 _COLORMAPS = {
-    "none": 0, "viridis": 1, "plasma": 2, "inferno": 3, "magma": 4,
-    "jet": 5, "coolwarm": 6, "grayscale": 7, "gray": 7,
+    "none": 0,
+    "viridis": 1,
+    "plasma": 2,
+    "inferno": 3,
+    "magma": 4,
+    "jet": 5,
+    "coolwarm": 6,
+    "grayscale": 7,
+    "gray": 7,
 }
 
 # Legend positions (spectra::LegendPosition)
 _LEGEND_POSITIONS = {
-    "top_right": 0, "upper right": 0, "top_left": 1, "upper left": 1,
-    "bottom_right": 2, "lower right": 2, "bottom_left": 3, "lower left": 3,
+    "top_right": 0,
+    "upper right": 0,
+    "top_left": 1,
+    "upper left": 1,
+    "bottom_right": 2,
+    "lower right": 2,
+    "bottom_left": 3,
+    "lower left": 3,
     "none": 4,
 }
 
@@ -585,6 +710,7 @@ def _resolve(value, mapping, kind: str) -> int:
 
 
 # ─── High-level Python wrappers ─────────────────────────────────────────────
+
 
 class EmbedSeries:
     """Proxy for a series in an embedded plot."""
@@ -635,13 +761,15 @@ class EmbedSeries:
     def set_marker_style(self, style) -> "EmbedSeries":
         """Set the marker style (name like 'circle'/'square' or int code)."""
         self._lib.spectra_series_set_marker_style(
-            self._handle, _resolve(style, _MARKER_STYLES, "marker style"))
+            self._handle, _resolve(style, _MARKER_STYLES, "marker style")
+        )
         return self
 
     def set_line_style(self, style) -> "EmbedSeries":
         """Set the line style (name like 'solid'/'dashed'/'dotted' or int code)."""
         self._lib.spectra_series_set_line_style(
-            self._handle, _resolve(style, _LINE_STYLES, "line style"))
+            self._handle, _resolve(style, _LINE_STYLES, "line style")
+        )
         return self
 
     def set_label(self, label: str) -> "EmbedSeries":
@@ -686,7 +814,9 @@ class EmbedSeries:
         """Set the bar orientation ('vertical'/'horizontal' or int code)."""
         code = orientation
         if isinstance(orientation, str):
-            code = BAR_HORIZONTAL if orientation.lower().startswith("h") else BAR_VERTICAL
+            code = (
+                BAR_HORIZONTAL if orientation.lower().startswith("h") else BAR_VERTICAL
+            )
         self._lib.spectra_series_set_bar_orientation(self._handle, int(code))
         return self
 
@@ -704,17 +834,23 @@ class EmbedSeries:
 
     def set_histogram_cumulative(self, enabled: bool = True) -> "EmbedSeries":
         """Enable/disable cumulative histogram mode."""
-        self._lib.spectra_series_set_histogram_cumulative(self._handle, 1 if enabled else 0)
+        self._lib.spectra_series_set_histogram_cumulative(
+            self._handle, 1 if enabled else 0
+        )
         return self
 
     def set_histogram_density(self, enabled: bool = True) -> "EmbedSeries":
         """Enable/disable density-normalized histogram mode."""
-        self._lib.spectra_series_set_histogram_density(self._handle, 1 if enabled else 0)
+        self._lib.spectra_series_set_histogram_density(
+            self._handle, 1 if enabled else 0
+        )
         return self
 
     def set_histogram_gradient(self, enabled: bool = True) -> "EmbedSeries":
         """Enable/disable the histogram gradient fill."""
-        self._lib.spectra_series_set_histogram_gradient(self._handle, 1 if enabled else 0)
+        self._lib.spectra_series_set_histogram_gradient(
+            self._handle, 1 if enabled else 0
+        )
         return self
 
     # ── Phase 1D: 3D / colormap ──────────────────────────────────────────
@@ -727,7 +863,8 @@ class EmbedSeries:
     def set_colormap(self, colormap) -> "EmbedSeries":
         """Set the colormap (name like 'viridis' or int code)."""
         self._lib.spectra_series_set_colormap(
-            self._handle, _resolve(colormap, _COLORMAPS, "colormap"))
+            self._handle, _resolve(colormap, _COLORMAPS, "colormap")
+        )
         return self
 
     def set_colormap_range(self, min_val: float, max_val: float) -> "EmbedSeries":
@@ -751,12 +888,17 @@ class EmbedSeries:
     def set_scatter_colormap(self, colormap) -> "EmbedSeries":
         """Set the colormap for scatter per-point colors (name or int code)."""
         self._lib.spectra_series_set_scatter_colormap(
-            self._handle, _resolve(colormap, _COLORMAPS, "colormap"))
+            self._handle, _resolve(colormap, _COLORMAPS, "colormap")
+        )
         return self
 
-    def set_scatter_colormap_range(self, min_val: float, max_val: float) -> "EmbedSeries":
+    def set_scatter_colormap_range(
+        self, min_val: float, max_val: float
+    ) -> "EmbedSeries":
         """Set the scatter colormap value range."""
-        self._lib.spectra_series_set_scatter_colormap_range(self._handle, min_val, max_val)
+        self._lib.spectra_series_set_scatter_colormap_range(
+            self._handle, min_val, max_val
+        )
         return self
 
 
@@ -779,8 +921,9 @@ class EmbedAxes:
             raise RuntimeError("Failed to create line series")
         return EmbedSeries(h)
 
-    def scatter(self, x, y, label: Optional[str] = None,
-                c=None, cmap: Optional[str] = None) -> EmbedSeries:
+    def scatter(
+        self, x, y, label: Optional[str] = None, c=None, cmap: Optional[str] = None
+    ) -> EmbedSeries:
         """Add a scatter series.
 
         Args:
@@ -830,7 +973,9 @@ class EmbedAxes:
         """Reset axis limits to encompass all series data."""
         self._lib.spectra_axes_auto_fit(self._handle)
 
-    def histogram(self, values, bins: int = 30, label: Optional[str] = None) -> EmbedSeries:
+    def histogram(
+        self, values, bins: int = 30, label: Optional[str] = None
+    ) -> EmbedSeries:
         """Add a histogram series.
 
         Args:
@@ -917,7 +1062,9 @@ class EmbedAxes:
             raise RuntimeError("Failed to create 3D scatter series")
         return EmbedSeries(h)
 
-    def surf(self, x_grid, y_grid, z_values, label: Optional[str] = None) -> EmbedSeries:
+    def surf(
+        self, x_grid, y_grid, z_values, label: Optional[str] = None
+    ) -> EmbedSeries:
         """Add a 3D surface from grid vectors.
 
         ``z_values`` is row-major with ``len(x_grid) * len(y_grid)`` entries.
@@ -941,19 +1088,22 @@ class EmbedAxes:
     def set_legend_position(self, position) -> None:
         """Set the legend position (name like 'top_right' or int code)."""
         self._lib.spectra_axes_set_legend_position(
-            self._handle, _resolve(position, _LEGEND_POSITIONS, "legend position"))
+            self._handle, _resolve(position, _LEGEND_POSITIONS, "legend position")
+        )
 
     # ── Phase 7A: axis scale ─────────────────────────────────────────────
 
     def xscale(self, scale) -> None:
         """Set the X-axis scale ('linear', 'log10'/'log', 'log2', 'sqrt')."""
         self._lib.spectra_axes_set_xscale(
-            self._handle, _resolve(scale, _SCALE_TYPES, "axis scale"))
+            self._handle, _resolve(scale, _SCALE_TYPES, "axis scale")
+        )
 
     def yscale(self, scale) -> None:
         """Set the Y-axis scale ('linear', 'log10'/'log', 'log2', 'sqrt')."""
         self._lib.spectra_axes_set_yscale(
-            self._handle, _resolve(scale, _SCALE_TYPES, "axis scale"))
+            self._handle, _resolve(scale, _SCALE_TYPES, "axis scale")
+        )
 
 
 class EmbedFigure:
@@ -1101,6 +1251,7 @@ class EmbedSurface:
     def render_numpy(self):
         """Render one frame and return an (H, W, 4) uint8 RGBA numpy array."""
         import numpy as np
+
         w = self.width
         h = self.height
         buf_size = w * h * 4
@@ -1115,6 +1266,7 @@ class EmbedSurface:
     def render_pil(self):
         """Render one frame and return a PIL.Image (RGBA)."""
         from PIL import Image
+
         return Image.frombytes("RGBA", (self.width, self.height), self.render())
 
     def render_png(self, path) -> None:
@@ -1127,6 +1279,7 @@ class EmbedSurface:
         """Return PNG bytes for inline display in Jupyter notebooks."""
         try:
             import io
+
             img = self.render_pil()
             buf = io.BytesIO()
             img.save(buf, format="PNG")
@@ -1139,8 +1292,9 @@ class EmbedSurface:
     def mouse_move(self, x: float, y: float) -> None:
         self._lib.spectra_embed_mouse_move(self._handle, x, y)
 
-    def mouse_button(self, button: int, action: int, mods: int,
-                     x: float, y: float) -> None:
+    def mouse_button(
+        self, button: int, action: int, mods: int, x: float, y: float
+    ) -> None:
         self._lib.spectra_embed_mouse_button(self._handle, button, action, mods, x, y)
 
     def scroll(self, dx: float, dy: float, cx: float, cy: float) -> None:
@@ -1256,7 +1410,8 @@ class EmbedSurface:
         if callback is None:
             self._redraw_cb = None
             self._lib.spectra_embed_set_redraw_callback(
-                self._handle, ctypes.cast(None, SpectraRedrawCb), None)
+                self._handle, ctypes.cast(None, SpectraRedrawCb), None
+            )
             return
 
         def _trampoline(_user):
@@ -1288,14 +1443,17 @@ class EmbedSurface:
         if callback is None:
             self._point_cb = None
             self._lib.spectra_embed_set_on_point_selected(
-                self._handle, ctypes.cast(None, SpectraPointSelectedCb), None)
+                self._handle, ctypes.cast(None, SpectraPointSelectedCb), None
+            )
             return
 
         def _trampoline(ai, si, pi, x, y, _user):
             callback(ai, si, pi, x, y)
 
         self._point_cb = SpectraPointSelectedCb(_trampoline)
-        self._lib.spectra_embed_set_on_point_selected(self._handle, self._point_cb, None)
+        self._lib.spectra_embed_set_on_point_selected(
+            self._handle, self._point_cb, None
+        )
 
     def set_on_series_selected(self, callback) -> None:
         """Register ``callback(axes_index, series_index)``.
@@ -1306,14 +1464,17 @@ class EmbedSurface:
         if callback is None:
             self._series_cb = None
             self._lib.spectra_embed_set_on_series_selected(
-                self._handle, ctypes.cast(None, SpectraSeriesSelectedCb), None)
+                self._handle, ctypes.cast(None, SpectraSeriesSelectedCb), None
+            )
             return
 
         def _trampoline(ai, si, _user):
             callback(ai, si)
 
         self._series_cb = SpectraSeriesSelectedCb(_trampoline)
-        self._lib.spectra_embed_set_on_series_selected(self._handle, self._series_cb, None)
+        self._lib.spectra_embed_set_on_series_selected(
+            self._handle, self._series_cb, None
+        )
 
     def set_on_hover(self, callback) -> None:
         """Register ``callback(axes_index, series_index, point_index, x, y)``.
@@ -1324,7 +1485,8 @@ class EmbedSurface:
         if callback is None:
             self._hover_cb = None
             self._lib.spectra_embed_set_on_hover(
-                self._handle, ctypes.cast(None, SpectraHoverCb), None)
+                self._handle, ctypes.cast(None, SpectraHoverCb), None
+            )
             return
 
         def _trampoline(ai, si, pi, x, y, _user):
@@ -1342,7 +1504,8 @@ class EmbedSurface:
         if callback is None:
             self._view_cb = None
             self._lib.spectra_embed_set_on_view_changed(
-                self._handle, ctypes.cast(None, SpectraViewChangedCb), None)
+                self._handle, ctypes.cast(None, SpectraViewChangedCb), None
+            )
             return
 
         def _trampoline(xmin, xmax, ymin, ymax, _user):

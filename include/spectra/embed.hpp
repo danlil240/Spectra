@@ -116,6 +116,10 @@ using RedrawCallback       = std::function<void()>;
 using CursorChangeCallback = std::function<void(CursorShape)>;
 using TooltipCallback      = std::function<void(const std::string& text, float x, float y)>;
 
+// Invoked once per update(dt) step with the cumulative elapsed time and the
+// delta of the current step.  Use for live data streaming / animation.
+using FrameCallback = std::function<void(float time_sec, float dt_sec)>;
+
 // ─── Mouse button constants (match GLFW) ────────────────────────────────────
 
 namespace embed
@@ -238,6 +242,25 @@ class EmbedSurface
     float    background_alpha() const;
     void     set_background_alpha(float alpha);
 
+    // ── UI chrome visibility ────────────────────────────────────────────
+    // Setters persist state in the surface config and route to the live
+    // LayoutManager / overlays when an ImGui build is active.  Getters
+    // reflect the current configured state.
+
+    void set_show_command_bar(bool visible);
+    void set_show_status_bar(bool visible);
+    void set_show_nav_rail(bool visible);
+    void set_show_inspector(bool visible);
+    void set_show_legend(bool visible);
+    void set_show_crosshair(bool visible);
+
+    bool show_command_bar() const;
+    bool show_status_bar() const;
+    bool show_nav_rail() const;
+    bool show_inspector() const;
+    bool show_legend() const;
+    bool show_crosshair() const;
+
     // ── Callbacks ───────────────────────────────────────────────────────
 
     // Called when Spectra's internal state changes and a repaint is needed.
@@ -249,6 +272,15 @@ class EmbedSurface
 
     // Called when a tooltip should be shown/hidden.
     void set_tooltip_callback(TooltipCallback cb);
+
+    // Per-step frame callback (Phase 4).  Invoked inside update(dt) with the
+    // cumulative elapsed time and the current step delta.  Use for live data
+    // streaming and animation.  Pass nullptr / call clear_frame_callback() to
+    // remove.  reset_frame_clock() rewinds the cumulative time to zero.
+    void  set_frame_callback(FrameCallback cb);
+    void  clear_frame_callback();
+    void  reset_frame_clock();
+    float frame_time() const;
 
     // ── Advanced: Vulkan device sharing ─────────────────────────────────
     // For advanced integrations where the host already has a Vulkan device.

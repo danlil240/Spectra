@@ -42,6 +42,8 @@ struct EmbedSurface::Impl
     RedrawCallback       redraw_cb;
     CursorChangeCallback cursor_cb;
     TooltipCallback      tooltip_cb;
+    FrameCallback        frame_cb;
+    float                frame_time = 0.0f;
 
 #ifdef SPECTRA_USE_IMGUI
     std::unique_ptr<ImGuiIntegration> imgui_ui;
@@ -116,11 +118,9 @@ struct EmbedSurface::Impl
                 imgui_ui->set_input_handler(&input);
 
                 // Apply UI chrome visibility from config
-                auto& lm = imgui_ui->get_layout_manager();
-                lm.set_inspector_visible(config.show_inspector);
-                lm.set_tab_bar_visible(false);   // Always off for embed (single figure)
-                if (!config.show_nav_rail)
-                    lm.set_nav_rail_width(0.0f);
+                imgui_ui->get_layout_manager().set_tab_bar_visible(
+                    false);   // Always off for embed (single figure)
+                apply_chrome();
             }
         }
 #endif
@@ -155,10 +155,37 @@ struct EmbedSurface::Impl
         initialized = false;
     }
 
+    // Apply UI chrome visibility from config to the live ImGui layer / overlays.
+    void apply_chrome()
+    {
+#ifdef SPECTRA_USE_IMGUI
+        if (imgui_ui)
+        {
+            imgui_ui->set_command_bar_visible(config.show_command_bar);
+            imgui_ui->set_status_bar_visible(config.show_status_bar);
+            imgui_ui->set_nav_rail_visible(config.show_nav_rail);
+
+            auto& lm = imgui_ui->get_layout_manager();
+            lm.set_inspector_visible(config.show_inspector);
+            if (!config.show_nav_rail)
+                lm.set_nav_rail_width(0.0f);
+        }
+        if (data_interaction)
+        {
+            data_interaction->set_crosshair(config.show_crosshair);
+        }
+#endif
+        // Legend is rendered by the Vulkan path; apply to the active figure.
+        if (active_fig)
+            active_fig->legend().visible = config.show_legend;
+    }
+
     void update_input_figure()
     {
         if (!active_fig)
             return;
+
+        active_fig->legend().visible = config.show_legend;
 
         input.set_figure(active_fig);
 
@@ -508,6 +535,13 @@ void EmbedSurface::update(float dt)
     if (!impl_ || !impl_->initialized)
         return;
     impl_->input.update(dt);
+
+    // Phase 4: drive the per-frame callback for live data / animation.
+    if (impl_->frame_cb)
+    {
+        impl_->frame_time += dt;
+        impl_->frame_cb(impl_->frame_time, dt);
+    }
 }
 
 // ── Properties ──────────────────────────────────────────────────────────────
@@ -544,6 +578,86 @@ void EmbedSurface::set_background_alpha(float alpha)
         impl_->config.background_alpha = alpha;
 }
 
+// ── UI chrome visibility ──────────────────────────────────────────────────────
+
+void EmbedSurface::set_show_command_bar(bool visible)
+{
+    if (!impl_)
+        return;
+    impl_->config.show_command_bar = visible;
+    impl_->apply_chrome();
+}
+
+void EmbedSurface::set_show_status_bar(bool visible)
+{
+    if (!impl_)
+        return;
+    impl_->config.show_status_bar = visible;
+    impl_->apply_chrome();
+}
+
+void EmbedSurface::set_show_nav_rail(bool visible)
+{
+    if (!impl_)
+        return;
+    impl_->config.show_nav_rail = visible;
+    impl_->apply_chrome();
+}
+
+void EmbedSurface::set_show_inspector(bool visible)
+{
+    if (!impl_)
+        return;
+    impl_->config.show_inspector = visible;
+    impl_->apply_chrome();
+}
+
+void EmbedSurface::set_show_legend(bool visible)
+{
+    if (!impl_)
+        return;
+    impl_->config.show_legend = visible;
+    impl_->apply_chrome();
+}
+
+void EmbedSurface::set_show_crosshair(bool visible)
+{
+    if (!impl_)
+        return;
+    impl_->config.show_crosshair = visible;
+    impl_->apply_chrome();
+}
+
+bool EmbedSurface::show_command_bar() const
+{
+    return impl_ && impl_->config.show_command_bar;
+}
+
+bool EmbedSurface::show_status_bar() const
+{
+    return impl_ && impl_->config.show_status_bar;
+}
+
+bool EmbedSurface::show_nav_rail() const
+{
+    return impl_ && impl_->config.show_nav_rail;
+}
+
+bool EmbedSurface::show_inspector() const
+{
+    return impl_ && impl_->config.show_inspector;
+}
+
+bool EmbedSurface::show_legend() const
+{
+    return impl_ && impl_->config.show_legend;
+}
+
+bool EmbedSurface::show_crosshair() const
+{
+    return impl_ && impl_->config.show_crosshair;
+}
+
 // ── Callbacks ───────────────────────────────────────────────────────────────
 
 void EmbedSurface::set_redraw_callback(RedrawCallback cb)
@@ -562,6 +676,29 @@ void EmbedSurface::set_tooltip_callback(TooltipCallback cb)
 {
     if (impl_)
         impl_->tooltip_cb = std::move(cb);
+}
+
+void EmbedSurface::set_frame_callback(FrameCallback cb)
+{
+    if (impl_)
+        impl_->frame_cb = std::move(cb);
+}
+
+void EmbedSurface::clear_frame_callback()
+{
+    if (impl_)
+        impl_->frame_cb = nullptr;
+}
+
+void EmbedSurface::reset_frame_clock()
+{
+    if (impl_)
+        impl_->frame_time = 0.0f;
+}
+
+float EmbedSurface::frame_time() const
+{
+    return impl_ ? impl_->frame_time : 0.0f;
 }
 
 // ── Advanced ────────────────────────────────────────────────────────────────

@@ -32,6 +32,63 @@ extern "C"
     typedef struct SpectraAxes   SpectraAxes;
     typedef struct SpectraSeries SpectraSeries;
 
+    /* ── Enumerations (mirror the C++ core) ──────────────────────────────── */
+
+    /* LineStyle (spectra::LineStyle) */
+    enum
+    {
+        SPECTRA_LINE_NONE   = 0,
+        SPECTRA_LINE_SOLID  = 1,
+        SPECTRA_LINE_DASHED = 2,
+        SPECTRA_LINE_DOTTED = 3
+    };
+
+    /* MarkerStyle (spectra::MarkerStyle) */
+    enum
+    {
+        SPECTRA_MARKER_NONE           = 0,
+        SPECTRA_MARKER_CIRCLE         = 1,
+        SPECTRA_MARKER_PLUS           = 2,
+        SPECTRA_MARKER_CROSS          = 3,
+        SPECTRA_MARKER_STAR           = 4,
+        SPECTRA_MARKER_SQUARE         = 5,
+        SPECTRA_MARKER_DIAMOND        = 6,
+        SPECTRA_MARKER_TRIANGLE_UP    = 7,
+        SPECTRA_MARKER_TRIANGLE_DOWN  = 8,
+        SPECTRA_MARKER_TRIANGLE_LEFT  = 9,
+        SPECTRA_MARKER_TRIANGLE_RIGHT = 10
+    };
+
+    /* Bar orientation (spectra::BarOrientation) */
+    enum
+    {
+        SPECTRA_BAR_VERTICAL   = 0,
+        SPECTRA_BAR_HORIZONTAL = 1
+    };
+
+    /* Colormap (spectra::ColormapType) */
+    enum
+    {
+        SPECTRA_CMAP_NONE      = 0,
+        SPECTRA_CMAP_VIRIDIS   = 1,
+        SPECTRA_CMAP_PLASMA    = 2,
+        SPECTRA_CMAP_INFERNO   = 3,
+        SPECTRA_CMAP_MAGMA     = 4,
+        SPECTRA_CMAP_JET       = 5,
+        SPECTRA_CMAP_COOLWARM  = 6,
+        SPECTRA_CMAP_GRAYSCALE = 7
+    };
+
+    /* Legend position (spectra::LegendPosition) */
+    enum
+    {
+        SPECTRA_LEGEND_TOP_RIGHT    = 0,
+        SPECTRA_LEGEND_TOP_LEFT     = 1,
+        SPECTRA_LEGEND_BOTTOM_RIGHT = 2,
+        SPECTRA_LEGEND_BOTTOM_LEFT  = 3,
+        SPECTRA_LEGEND_NONE         = 4
+    };
+
     /* ── Lifecycle ─────────────────────────────────────────────────────────── */
 
     /* Create an embed surface with the given dimensions. Returns NULL on failure. */
@@ -49,6 +106,32 @@ extern "C"
                                           float       dpi_scale,
                                           uint32_t    msaa,
                                           float       bg_alpha);
+
+    /* Full configuration struct mirroring spectra::EmbedConfig.
+     * All boolean fields use int (0 = false, non-zero = true). */
+    typedef struct SpectraEmbedConfig
+    {
+        uint32_t    width;
+        uint32_t    height;
+        uint32_t    msaa;
+        float       dpi_scale;
+        float       background_alpha;
+        const char* theme;            /* NULL → "night" */
+        int         show_imgui_chrome;
+        int         show_command_bar;
+        int         show_status_bar;
+        int         show_nav_rail;
+        int         show_inspector;
+        int         show_legend;
+        int         show_crosshair;
+    } SpectraEmbedConfig;
+
+    /* Initialize a SpectraEmbedConfig with library defaults. */
+    void spectra_embed_config_default(SpectraEmbedConfig* cfg);
+
+    /* Create an embed surface from a full configuration struct.
+     * Returns NULL on failure or if cfg is NULL. */
+    SpectraEmbed* spectra_embed_create_config(const SpectraEmbedConfig* cfg);
 
     /* Destroy an embed surface and free all resources. */
     void spectra_embed_destroy(SpectraEmbed* s);
@@ -99,6 +182,86 @@ extern "C"
     /* Update both X and Y data atomically (no intermediate mismatch). */
     void spectra_series_set_data(SpectraSeries* s, const float* x, const float* y, uint32_t count);
 
+    /* ── Series styling (Phase 1A) ─────────────────────────────────────────── */
+
+    /* Set series RGBA color (components in [0,1]). */
+    void spectra_series_set_color(SpectraSeries* s, float r, float g, float b, float a);
+    /* Set overall series opacity [0,1]. */
+    void spectra_series_set_opacity(SpectraSeries* s, float v);
+    /* Set line width in pixels (line / 3D-line series). */
+    void spectra_series_set_line_width(SpectraSeries* s, float v);
+    /* Set marker size in pixels. */
+    void spectra_series_set_marker_size(SpectraSeries* s, float v);
+    /* Set marker style (SPECTRA_MARKER_*). */
+    void spectra_series_set_marker_style(SpectraSeries* s, int style);
+    /* Set line style (SPECTRA_LINE_*). */
+    void spectra_series_set_line_style(SpectraSeries* s, int style);
+    /* Set series legend label. */
+    void spectra_series_set_label(SpectraSeries* s, const char* label);
+
+    /* ── Series streaming helpers (Phase 1G) ──────────────────────────────── */
+
+    /* Append a single (x,y) point to a line/scatter series. */
+    void spectra_series_append_xy(SpectraSeries* s, float x, float y);
+    /* Append a batch of points to a line/scatter series. */
+    void spectra_series_append_data(SpectraSeries* s, const float* x, const float* y, uint32_t count);
+    /* Configure a ring-buffer capacity (max retained points). 0 = unbounded.
+     * When exceeded by appends, the oldest points are dropped. */
+    void spectra_series_set_capacity(SpectraSeries* s, uint32_t max_points);
+    /* Remove all data points from a line/scatter series. */
+    void spectra_series_clear(SpectraSeries* s);
+
+    /* ── Bar series options (Phase 1B) ────────────────────────────────────── */
+
+    void spectra_series_set_bar_width(SpectraSeries* s, float width);
+    void spectra_series_set_bar_baseline(SpectraSeries* s, float baseline);
+    void spectra_series_set_bar_orientation(SpectraSeries* s, int orientation);
+    void spectra_series_set_bar_gradient(SpectraSeries* s, int enabled);
+
+    /* ── Histogram series options (Phase 1C) ──────────────────────────────── */
+
+    void spectra_series_set_histogram_bins(SpectraSeries* s, int bins);
+    void spectra_series_set_histogram_cumulative(SpectraSeries* s, int enabled);
+    void spectra_series_set_histogram_density(SpectraSeries* s, int enabled);
+    void spectra_series_set_histogram_gradient(SpectraSeries* s, int enabled);
+
+    /* ── 3D series (Phase 1D) ─────────────────────────────────────────────── */
+
+    /* Add a 3D line series to a 3D axes. label can be NULL. */
+    SpectraSeries* spectra_axes3d_line(SpectraAxes* ax,
+                                       const float* x,
+                                       const float* y,
+                                       const float* z,
+                                       uint32_t     count,
+                                       const char*  label);
+
+    /* Add a 3D scatter series to a 3D axes. label can be NULL. */
+    SpectraSeries* spectra_axes3d_scatter(SpectraAxes* ax,
+                                          const float* x,
+                                          const float* y,
+                                          const float* z,
+                                          uint32_t     count,
+                                          const char*  label);
+
+    /* Add a 3D surface from grid vectors. x_grid has nx entries, y_grid has ny
+     * entries, z_values is row-major with nx*ny entries. label can be NULL. */
+    SpectraSeries* spectra_axes3d_surf(SpectraAxes* ax,
+                                       const float* x_grid,
+                                       uint32_t     nx,
+                                       const float* y_grid,
+                                       uint32_t     ny,
+                                       const float* z_values,
+                                       const char*  label);
+
+    /* Update Z data for a 3D line/scatter series. */
+    void spectra_series_set_z(SpectraSeries* s, const float* z, uint32_t count);
+
+    /* Set colormap (SPECTRA_CMAP_*) — applies to surface series. */
+    void spectra_series_set_colormap(SpectraSeries* s, int colormap);
+
+    /* Set colormap value range — applies to surface series. */
+    void spectra_series_set_colormap_range(SpectraSeries* s, float min_val, float max_val);
+
     /* ── Rendering ─────────────────────────────────────────────────────────── */
 
     /* Render one frame to RGBA buffer. Buffer must be width*height*4 bytes.
@@ -107,6 +270,9 @@ extern "C"
 
     /* Resize the surface. Returns 1 on success, 0 on failure. */
     int spectra_embed_resize(SpectraEmbed* s, uint32_t width, uint32_t height);
+
+    /* Render the current frame directly to a PNG file. Returns 1 on success. */
+    int spectra_embed_render_png(SpectraEmbed* s, const char* path);
 
     /* Get current dimensions. */
     uint32_t spectra_embed_width(const SpectraEmbed* s);
@@ -145,11 +311,44 @@ extern "C"
     /* Set theme ("dark" or "light"). */
     void spectra_embed_set_theme(SpectraEmbed* s, const char* theme);
 
-    /* Show/hide UI chrome elements (requires ImGui build). */
+    /* Show/hide UI chrome elements (requires ImGui build).
+     * State is always stored and applied to the live LayoutManager when present. */
     void spectra_embed_set_show_command_bar(SpectraEmbed* s, int visible);
     void spectra_embed_set_show_status_bar(SpectraEmbed* s, int visible);
     void spectra_embed_set_show_nav_rail(SpectraEmbed* s, int visible);
     void spectra_embed_set_show_inspector(SpectraEmbed* s, int visible);
+    void spectra_embed_set_show_legend(SpectraEmbed* s, int visible);
+    void spectra_embed_set_show_crosshair(SpectraEmbed* s, int visible);
+
+    /* Query current UI chrome visibility (returns 0/1). */
+    int spectra_embed_is_command_bar_visible(const SpectraEmbed* s);
+    int spectra_embed_is_status_bar_visible(const SpectraEmbed* s);
+    int spectra_embed_is_nav_rail_visible(const SpectraEmbed* s);
+    int spectra_embed_is_inspector_visible(const SpectraEmbed* s);
+    int spectra_embed_is_legend_visible(const SpectraEmbed* s);
+    int spectra_embed_is_crosshair_visible(const SpectraEmbed* s);
+
+    /* ── Animation & live data (Phase 4) ──────────────────────────────────── */
+
+    /* Frame callback invoked inside spectra_embed_update(dt) with the elapsed
+     * time and the delta of the current step. user_data is passed through. */
+    typedef void (*SpectraFrameCb)(SpectraEmbed* s,
+                                   float         time_sec,
+                                   float         dt_sec,
+                                   void*         user_data);
+    void spectra_embed_set_on_frame(SpectraEmbed* s, SpectraFrameCb cb, void* user_data);
+    void spectra_embed_clear_on_frame(SpectraEmbed* s);
+
+    /* Redraw callback invoked when Spectra requests a repaint. */
+    typedef void (*SpectraRedrawCb)(void* user_data);
+    void spectra_embed_set_redraw_callback(SpectraEmbed* s, SpectraRedrawCb cb, void* user_data);
+
+    /* Drive the frame callback over a fixed duration at the given fps.
+     * Calls spectra_embed_update() internally; pass duration <= 0 for a single
+     * step. Returns the number of frames stepped. */
+    int spectra_embed_animation_play(SpectraEmbed* s, float fps, float duration_sec);
+    /* Stop a running animation loop and clear the elapsed timeline. */
+    void spectra_embed_animation_stop(SpectraEmbed* s);
 
     /* ── Axes configuration ───────────────────────────────────────────────── */
 
@@ -167,6 +366,13 @@ extern "C"
 
     /* Trigger auto-fit so axes limits are reset to encompass all data. */
     void spectra_axes_auto_fit(SpectraAxes* ax);
+
+    /* ── Legend control (Phase 1E) ─────────────────────────────────────────── */
+
+    /* Show/hide the legend on the figure that owns these axes. */
+    void spectra_axes_show_legend(SpectraAxes* ax, int visible);
+    /* Set legend position (SPECTRA_LEGEND_*). */
+    void spectra_axes_set_legend_position(SpectraAxes* ax, int position);
 
     /* Add a histogram series. label can be NULL. Returns NULL on failure. */
     SpectraSeries* spectra_axes_histogram(SpectraAxes* ax,

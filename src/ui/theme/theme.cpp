@@ -882,7 +882,7 @@ void ThemeManager::load_default()
         {
             std::ifstream lf(default_theme_path_);
             std::string   json((std::istreambuf_iterator<char>(lf)),
-                               std::istreambuf_iterator<char>());
+                             std::istreambuf_iterator<char>());
             size_t        np = json.find("\"name\"");
             if (np != std::string::npos)
             {

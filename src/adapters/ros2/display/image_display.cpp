@@ -79,9 +79,9 @@ void draw_preview(const ImageFrame& frame)
         {
             const size_t index = (static_cast<size_t>(y) * frame.preview_width + x) * 4u;
             const ImU32  color = IM_COL32(frame.preview_rgba[index + 0],
-                                          frame.preview_rgba[index + 1],
-                                          frame.preview_rgba[index + 2],
-                                          frame.preview_rgba[index + 3]);
+                                         frame.preview_rgba[index + 1],
+                                         frame.preview_rgba[index + 2],
+                                         frame.preview_rgba[index + 3]);
             draw_list->AddRectFilled(ImVec2(origin.x + static_cast<float>(x) * scale,
                                             origin.y + static_cast<float>(y) * scale),
                                      ImVec2(origin.x + static_cast<float>(x + 1u) * scale,
@@ -188,7 +188,7 @@ void ImageDisplay::submit_renderables(SceneManager& scene)
     entity.transform    = frame_transform;
     entity.scale        = {
         frame->height == 0 ? 1.0
-                           : static_cast<double>(frame->width) / static_cast<double>(frame->height),
+                                  : static_cast<double>(frame->width) / static_cast<double>(frame->height),
         1.0,
         1.0,
     };

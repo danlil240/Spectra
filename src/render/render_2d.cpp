@@ -192,6 +192,15 @@ void Renderer::render_series(Series& series,
         case SeriesType::Scatter2D:
         {
             auto* scatter = static_cast<ScatterSeries*>(&series);
+            // Colormap support (Phase 7C): encode colormap type + range in
+            // dash_count / dash_pattern, same encoding as 3D surface shader.
+            // TODO: create scatter_colormap pipeline with per-point color SSBO.
+            if (scatter->has_colormap())
+            {
+                pc.dash_count      = static_cast<int>(scatter->colormap());
+                pc.dash_pattern[0] = scatter->colormap_min();
+                pc.dash_pattern[1] = scatter->colormap_max();
+            }
             backend_.bind_pipeline(scatter_pipeline_);
             pc.point_size  = scatter->size();
             pc.marker_type = static_cast<uint32_t>(style.marker_style);
@@ -199,8 +208,8 @@ void Renderer::render_series(Series& series,
             {
                 const auto& theme_colors = theme_mgr_.colors();
                 float       bg_luma      = 0.2126f * theme_colors.bg_canvas.r
-                                           + 0.7152f * theme_colors.bg_canvas.g
-                                           + 0.0722f * theme_colors.bg_canvas.b;
+                                + 0.7152f * theme_colors.bg_canvas.g
+                                + 0.0722f * theme_colors.bg_canvas.b;
                 pc.marker_type = static_cast<uint32_t>(bg_luma > 0.80f ? MarkerStyle::FilledCircle
                                                                        : MarkerStyle::Circle);
             }
@@ -428,6 +437,33 @@ void Renderer::render_series(Series& series,
             }
             break;
         }
+        case SeriesType::Stem2D:
+        {
+            auto* stem = static_cast<StemSeries*>(&series);
+            // Draw stems as line segments
+            if (stem->point_count() > 1)
+            {
+                backend_.bind_pipeline(line_pipeline_);
+                pc.line_width  = stem->stem_width();
+                pc.marker_type = 0;   // suppress markers on line vertices (NaN breaks)
+                backend_.push_constants(pc);
+                backend_.bind_buffer(gpu.ssbo, 0);
+                uint32_t segments = static_cast<uint32_t>(stem->point_count()) - 1;
+                backend_.draw(segments * 6);
+                // Draw head markers if enabled
+                if (stem->show_heads())
+                {
+                    backend_.bind_pipeline(scatter_pipeline_);
+                    pc.point_size  = style.marker_size > 0.0f ? style.marker_size : 6.0f;
+                    pc.marker_type = static_cast<uint32_t>(MarkerStyle::FilledCircle);
+                    backend_.push_constants(pc);
+                    backend_.bind_buffer(gpu.ssbo, 0);
+                    // Heads are every 2nd vertex (data point, before NaN break)
+                    backend_.draw_instanced(6, static_cast<uint32_t>(stem->stem_x().size()));
+                }
+            }
+            break;
+        }
         case SeriesType::Shape2D:
         {
             auto* sh = static_cast<ShapeSeries*>(&series);
@@ -484,14 +520,13 @@ void Renderer::render_series(Series& series,
                 {
                     float viewport_xywh[4] = {0, 0, 0, 0};   // Set by caller via set_viewport
                     auto  result           = plugin_guard_invoke(entry->type_name.c_str(),
-                                                                 [&]()
-                                                                 {
+                                                      [&]() {
                                                           entry->draw_fn(backend_,
                                                                          entry->pipeline,
                                                                          gpu.plugin_gpu_state,
                                                                          viewport_xywh,
                                                                          pc);
-                                                                 });
+                                                      });
                     if (result != PluginCallResult::Success)
                     {
                         entry->faulted = true;

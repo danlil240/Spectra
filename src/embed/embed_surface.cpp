@@ -112,8 +112,8 @@ struct EmbedSurface::Impl
             {
                 const auto xl = axes2d[0]->x_limits();
                 const auto yl = axes2d[0]->y_limits();
-                if (!has_last_view || xl.min != last_view[0] || xl.max != last_view[1] ||
-                    yl.min != last_view[2] || yl.max != last_view[3])
+                if (!has_last_view || xl.min != last_view[0] || xl.max != last_view[1]
+                    || yl.min != last_view[2] || yl.max != last_view[3])
                 {
                     has_last_view = true;
                     last_view[0]  = xl.min;
@@ -203,15 +203,22 @@ struct EmbedSurface::Impl
                 // EmbedSurface-level callbacks (read dynamically so the host can
                 // (re)register them at any time).
                 data_interaction->set_on_point_selected(
-                    [this](Figure* fig, Axes*, int axes_index, Series*, int series_index,
+                    [this](Figure* fig,
+                           Axes*,
+                           int axes_index,
+                           Series*,
+                           int    series_index,
                            size_t point_index)
                     {
                         (void)fig;
                         if (point_selected_cb)
                         {
                             const auto& np = data_interaction->nearest_point();
-                            point_selected_cb(axes_index, series_index, point_index,
-                                              np.data_x, np.data_y);
+                            point_selected_cb(axes_index,
+                                              series_index,
+                                              point_index,
+                                              np.data_x,
+                                              np.data_y);
                         }
                     });
                 data_interaction->set_on_series_selected(
@@ -359,12 +366,12 @@ struct EmbedSurface::Impl
             fig_margins.top    = af_style.margin_top;
             fig_margins.bottom = af_style.margin_bottom;
             const auto rects   = compute_subplot_layout(canvas.w,
-                                                        canvas.h,
-                                                        active_fig->grid_rows_,
-                                                        active_fig->grid_cols_,
-                                                        fig_margins,
-                                                        canvas.x,
-                                                        canvas.y);
+                                                      canvas.h,
+                                                      active_fig->grid_rows_,
+                                                      active_fig->grid_cols_,
+                                                      fig_margins,
+                                                      canvas.x,
+                                                      canvas.y);
             for (size_t i = 0; i < active_fig->axes_mut().size() && i < rects.size(); ++i)
             {
                 if (active_fig->axes_mut()[i])

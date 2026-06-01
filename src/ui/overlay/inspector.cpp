@@ -597,13 +597,13 @@ void Inspector::draw_series_browser(Figure& fig)
             {
                 ImDrawList* dl       = ImGui::GetWindowDrawList();
                 ImVec4      icon_col = vis ? ImVec4(c.text_secondary.r,
-                                                    c.text_secondary.g,
-                                                    c.text_secondary.b,
-                                                    eye_hovered ? 1.0f : 0.7f)
+                                               c.text_secondary.g,
+                                               c.text_secondary.b,
+                                               eye_hovered ? 1.0f : 0.7f)
                                            : ImVec4(c.text_tertiary.r,
-                                                    c.text_tertiary.g,
-                                                    c.text_tertiary.b,
-                                                    eye_hovered ? 0.7f : 0.35f);
+                                               c.text_tertiary.g,
+                                               c.text_tertiary.b,
+                                               eye_hovered ? 0.7f : 0.35f);
                 ImFont*     fnt      = icon_f ? icon_f : ImGui::GetFont();
                 float       glyph_sz = tokens::ICON_SM;
                 ImVec2      tsz      = fnt->CalcTextSizeA(glyph_sz, FLT_MAX, 0.0f, eye_icon);

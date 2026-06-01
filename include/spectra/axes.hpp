@@ -22,6 +22,14 @@ enum class AutoscaleMode
     Manual,   // User-specified limits only
 };
 
+enum class ScaleType
+{
+    Linear,   // Standard linear scale (default)
+    Log10,    // Base-10 logarithmic scale
+    Log2,     // Base-2 logarithmic scale
+    Sqrt,     // Square-root scale
+};
+
 struct AxisStyle
 {
     Color tick_color  = colors::black;
@@ -89,6 +97,10 @@ class AxesBase
     bool border_enabled() const { return border_enabled_; }
     void show_border(bool enabled) { border_enabled_ = enabled; }
 
+    // Colormap colorbar visibility (Phase 7C)
+    bool colorbar_visible() const { return colorbar_visible_; }
+    void show_colorbar(bool visible) { colorbar_visible_ = visible; }
+
     AxisStyle&       axis_style() { return axis_style_; }
     const AxisStyle& axis_style() const { return axis_style_; }
 
@@ -100,8 +112,9 @@ class AxesBase
    protected:
     std::vector<std::unique_ptr<Series>> series_;
     std::string                          title_;
-    bool                                 grid_enabled_   = true;
-    bool                                 border_enabled_ = true;
+    bool                                 grid_enabled_     = true;
+    bool                                 border_enabled_   = true;
+    bool                                 colorbar_visible_ = false;
     AxisStyle                            axis_style_;
     Rect                                 viewport_;
     SeriesRemovedCallback                on_series_removed_;
@@ -135,6 +148,7 @@ class Axes : public AxesBase
     ViolinSeries&    violin();
     HistogramSeries& histogram(std::span<const float> values, int bins = 30);
     BarSeries&       bar(std::span<const float> positions, std::span<const float> heights);
+    StemSeries&      stem(std::span<const float> x, std::span<const float> y);
 
     // Shape annotation series (rectangles, circles, arrows, polygons, etc.)
     ShapeSeries& shapes();
@@ -151,6 +165,12 @@ class Axes : public AxesBase
     void autoscale_mode(AutoscaleMode mode);
     void presented_buffer(float seconds);
     void set_presented_buffer_right_edge(double x);
+
+    // Axis scale type (linear, log10, log2, sqrt)
+    void      xscale(ScaleType s) { xscale_ = s; }
+    ScaleType xscale() const { return xscale_; }
+    void      yscale(ScaleType s) { yscale_ = s; }
+    ScaleType yscale() const { return yscale_; }
 
     // Accessors
     AxisLimits         x_limits() const;
@@ -207,6 +227,8 @@ class Axes : public AxesBase
 
     std::string           xlabel_;
     std::string           ylabel_;
+    ScaleType             xscale_         = ScaleType::Linear;
+    ScaleType             yscale_         = ScaleType::Linear;
     AutoscaleMode         autoscale_mode_ = AutoscaleMode::Padded;
     std::optional<float>  presented_buffer_seconds_;
     bool                  presented_buffer_following_ = false;

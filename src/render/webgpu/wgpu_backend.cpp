@@ -333,8 +333,7 @@ bool WebGPUBackend::request_device()
                                                    WGPUErrorType  type,
                                                    WGPUStringView message,
                                                    void* /*userdata1*/,
-                                                   void* /*userdata2*/)
-    {
+                                                   void* /*userdata2*/) {
         fprintf(stderr,
                 "[Dawn Error type=%d] %.*s\n",
                 (int)type,

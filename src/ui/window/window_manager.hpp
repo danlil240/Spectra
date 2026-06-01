@@ -254,11 +254,11 @@ class WindowManager
     using TabDetachHandler = std::function<
         void(FigureId fid, uint32_t w, uint32_t h, const std::string& title, int sx, int sy)>;
     using TabMoveHandler       = std::function<void(FigureId fid,
-                                                    uint32_t target_window_id,
-                                                    int      drop_zone,
-                                                    float    local_x,
-                                                    float    local_y,
-                                                    FigureId target_figure_id)>;
+                                              uint32_t target_window_id,
+                                              int      drop_zone,
+                                              float    local_x,
+                                              float    local_y,
+                                              FigureId target_figure_id)>;
     using RedrawRequestHandler = std::function<void(const char* reason)>;
     using FileDropHandler      = std::function<void(uint32_t window_id, const std::string& path)>;
 

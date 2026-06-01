@@ -41,9 +41,7 @@ int main()
         return 1;
     }
 
-    SPECTRA_LOG_INFO("publisher",
-                     "Publishing topic '{}' at 50 Hz for 30 seconds",
-                     pub->name());
+    SPECTRA_LOG_INFO("publisher", "Publishing topic '{}' at 50 Hz for 30 seconds", pub->name());
     if (const char* pinned = std::getenv("SPECTRA_SOCKET"); pinned && *pinned)
     {
         SPECTRA_LOG_INFO("publisher", "Using pinned socket: {}", pinned);

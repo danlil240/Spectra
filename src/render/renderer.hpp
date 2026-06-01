@@ -261,6 +261,7 @@ class Renderer
         Violin2D,
         Histogram2D,
         Bar2D,
+        Stem2D,
         Shape2D,
         Shape3D,
         ChunkedLine2D,   // ChunkedLineSeries — demand-loaded, LoD-aware

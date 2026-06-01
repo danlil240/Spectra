@@ -23,10 +23,10 @@
 struct SpectraEmbed
 {
     spectra::EmbedSurface surface;
-    SpectraFrameCb        frame_cb     = nullptr;
-    void*                 frame_ud     = nullptr;
-    SpectraRedrawCb       redraw_cb    = nullptr;
-    void*                 redraw_ud    = nullptr;
+    SpectraFrameCb        frame_cb  = nullptr;
+    void*                 frame_ud  = nullptr;
+    SpectraRedrawCb       redraw_cb = nullptr;
+    void*                 redraw_ud = nullptr;
     explicit SpectraEmbed(uint32_t w, uint32_t h) : surface(spectra::EmbedConfig{w, h}) {}
     explicit SpectraEmbed(const spectra::EmbedConfig& cfg) : surface(cfg) {}
 };
@@ -63,10 +63,14 @@ static spectra::LineStyle to_line_style(int v)
 {
     switch (v)
     {
-        case SPECTRA_LINE_NONE: return spectra::LineStyle::None;
-        case SPECTRA_LINE_DASHED: return spectra::LineStyle::Dashed;
-        case SPECTRA_LINE_DOTTED: return spectra::LineStyle::Dotted;
-        default: return spectra::LineStyle::Solid;
+        case SPECTRA_LINE_NONE:
+            return spectra::LineStyle::None;
+        case SPECTRA_LINE_DASHED:
+            return spectra::LineStyle::Dashed;
+        case SPECTRA_LINE_DOTTED:
+            return spectra::LineStyle::Dotted;
+        default:
+            return spectra::LineStyle::Solid;
     }
 }
 
@@ -75,18 +79,30 @@ static spectra::MarkerStyle to_marker_style(int v)
     using M = spectra::MarkerStyle;
     switch (v)
     {
-        case SPECTRA_MARKER_NONE: return M::None;
-        case SPECTRA_MARKER_CIRCLE: return M::Circle;
-        case SPECTRA_MARKER_PLUS: return M::Plus;
-        case SPECTRA_MARKER_CROSS: return M::Cross;
-        case SPECTRA_MARKER_STAR: return M::Star;
-        case SPECTRA_MARKER_SQUARE: return M::Square;
-        case SPECTRA_MARKER_DIAMOND: return M::Diamond;
-        case SPECTRA_MARKER_TRIANGLE_UP: return M::TriangleUp;
-        case SPECTRA_MARKER_TRIANGLE_DOWN: return M::TriangleDown;
-        case SPECTRA_MARKER_TRIANGLE_LEFT: return M::TriangleLeft;
-        case SPECTRA_MARKER_TRIANGLE_RIGHT: return M::TriangleRight;
-        default: return M::Circle;
+        case SPECTRA_MARKER_NONE:
+            return M::None;
+        case SPECTRA_MARKER_CIRCLE:
+            return M::Circle;
+        case SPECTRA_MARKER_PLUS:
+            return M::Plus;
+        case SPECTRA_MARKER_CROSS:
+            return M::Cross;
+        case SPECTRA_MARKER_STAR:
+            return M::Star;
+        case SPECTRA_MARKER_SQUARE:
+            return M::Square;
+        case SPECTRA_MARKER_DIAMOND:
+            return M::Diamond;
+        case SPECTRA_MARKER_TRIANGLE_UP:
+            return M::TriangleUp;
+        case SPECTRA_MARKER_TRIANGLE_DOWN:
+            return M::TriangleDown;
+        case SPECTRA_MARKER_TRIANGLE_LEFT:
+            return M::TriangleLeft;
+        case SPECTRA_MARKER_TRIANGLE_RIGHT:
+            return M::TriangleRight;
+        default:
+            return M::Circle;
     }
 }
 
@@ -95,14 +111,22 @@ static spectra::ColormapType to_colormap(int v)
     using C = spectra::ColormapType;
     switch (v)
     {
-        case SPECTRA_CMAP_VIRIDIS: return C::Viridis;
-        case SPECTRA_CMAP_PLASMA: return C::Plasma;
-        case SPECTRA_CMAP_INFERNO: return C::Inferno;
-        case SPECTRA_CMAP_MAGMA: return C::Magma;
-        case SPECTRA_CMAP_JET: return C::Jet;
-        case SPECTRA_CMAP_COOLWARM: return C::Coolwarm;
-        case SPECTRA_CMAP_GRAYSCALE: return C::Grayscale;
-        default: return C::None;
+        case SPECTRA_CMAP_VIRIDIS:
+            return C::Viridis;
+        case SPECTRA_CMAP_PLASMA:
+            return C::Plasma;
+        case SPECTRA_CMAP_INFERNO:
+            return C::Inferno;
+        case SPECTRA_CMAP_MAGMA:
+            return C::Magma;
+        case SPECTRA_CMAP_JET:
+            return C::Jet;
+        case SPECTRA_CMAP_COOLWARM:
+            return C::Coolwarm;
+        case SPECTRA_CMAP_GRAYSCALE:
+            return C::Grayscale;
+        default:
+            return C::None;
     }
 }
 
@@ -111,11 +135,16 @@ static spectra::LegendPosition to_legend_position(int v)
     using L = spectra::LegendPosition;
     switch (v)
     {
-        case SPECTRA_LEGEND_TOP_LEFT: return L::TopLeft;
-        case SPECTRA_LEGEND_BOTTOM_RIGHT: return L::BottomRight;
-        case SPECTRA_LEGEND_BOTTOM_LEFT: return L::BottomLeft;
-        case SPECTRA_LEGEND_NONE: return L::None;
-        default: return L::TopRight;
+        case SPECTRA_LEGEND_TOP_LEFT:
+            return L::TopLeft;
+        case SPECTRA_LEGEND_BOTTOM_RIGHT:
+            return L::BottomRight;
+        case SPECTRA_LEGEND_BOTTOM_LEFT:
+            return L::BottomLeft;
+        case SPECTRA_LEGEND_NONE:
+            return L::None;
+        default:
+            return L::TopRight;
     }
 }
 
@@ -217,16 +246,16 @@ extern "C"
             return nullptr;
 
         spectra::EmbedConfig cfg;
-        cfg.width             = in->width > 0 ? in->width : cfg.width;
-        cfg.height            = in->height > 0 ? in->height : cfg.height;
-        cfg.msaa              = in->msaa > 0 ? in->msaa : 1;
-        cfg.dpi_scale         = in->dpi_scale > 0.0f ? in->dpi_scale : 1.0f;
-        cfg.background_alpha  = in->background_alpha;
+        cfg.width            = in->width > 0 ? in->width : cfg.width;
+        cfg.height           = in->height > 0 ? in->height : cfg.height;
+        cfg.msaa             = in->msaa > 0 ? in->msaa : 1;
+        cfg.dpi_scale        = in->dpi_scale > 0.0f ? in->dpi_scale : 1.0f;
+        cfg.background_alpha = in->background_alpha;
         if (in->theme)
             cfg.theme = in->theme;
         // Any explicit chrome request implies the ImGui pipeline must run.
-        cfg.show_imgui_chrome = in->show_imgui_chrome || in->show_command_bar
-                                || in->show_status_bar || in->show_nav_rail || in->show_inspector;
+        cfg.show_imgui_chrome = in->show_imgui_chrome || in->show_command_bar || in->show_status_bar
+                                || in->show_nav_rail || in->show_inspector;
         cfg.show_command_bar = in->show_command_bar != 0;
         cfg.show_status_bar  = in->show_status_bar != 0;
         cfg.show_nav_rail    = in->show_nav_rail != 0;
@@ -434,7 +463,10 @@ extern "C"
         trim_to_capacity(s);
     }
 
-    void spectra_series_append_data(SpectraSeries* s, const float* x, const float* y, uint32_t count)
+    void spectra_series_append_data(SpectraSeries* s,
+                                    const float*   x,
+                                    const float*   y,
+                                    uint32_t       count)
     {
         if (!s || !s->ptr || !x || !y || count == 0)
             return;
@@ -578,8 +610,9 @@ extern "C"
     {
         if (!ax || !ax->axes_3d || !x_grid || !y_grid || !z_values || nx == 0 || ny == 0)
             return nullptr;
-        auto& series =
-            ax->axes_3d->surface({x_grid, nx}, {y_grid, ny}, {z_values, static_cast<size_t>(nx) * ny});
+        auto& series = ax->axes_3d->surface({x_grid, nx},
+                                            {y_grid, ny},
+                                            {z_values, static_cast<size_t>(nx) * ny});
         if (label && label[0] != '\0')
             series.label(label);
         g_series_pool.push_back(SpectraSeries{&series, 0});
@@ -795,8 +828,8 @@ extern "C"
         if (cb)
         {
             SpectraEmbed* self = s;
-            s->surface.set_frame_callback(
-                [self](float t, float dt) { self->frame_cb(self, t, dt, self->frame_ud); });
+            s->surface.set_frame_callback([self](float t, float dt)
+                                          { self->frame_cb(self, t, dt, self->frame_ud); });
         }
         else
         {
@@ -884,8 +917,8 @@ extern "C"
             s->surface.set_on_series_selected(nullptr);
             return;
         }
-        s->surface.set_on_series_selected(
-            [cb, user_data](int ai, int si) { cb(ai, si, user_data); });
+        s->surface.set_on_series_selected([cb, user_data](int ai, int si)
+                                          { cb(ai, si, user_data); });
     }
 
     void spectra_embed_set_on_hover(SpectraEmbed* s, SpectraHoverCb cb, void* user_data)
@@ -897,9 +930,8 @@ extern "C"
             s->surface.set_on_hover(nullptr);
             return;
         }
-        s->surface.set_on_hover(
-            [cb, user_data](int ai, int si, std::size_t pi, double x, double y)
-            { cb(ai, si, pi, x, y, user_data); });
+        s->surface.set_on_hover([cb, user_data](int ai, int si, std::size_t pi, double x, double y)
+                                { cb(ai, si, pi, x, y, user_data); });
     }
 
     void spectra_embed_set_on_view_changed(SpectraEmbed*        s,
@@ -969,6 +1001,48 @@ extern "C"
         ax->axes_2d->auto_fit();
     }
 
+    void spectra_axes_set_xscale(SpectraAxes* ax, int scale_type)
+    {
+        if (!ax || !ax->axes_2d)
+            return;
+        switch (scale_type)
+        {
+            case SPECTRA_SCALE_LOG10:
+                ax->axes_2d->xscale(spectra::ScaleType::Log10);
+                break;
+            case SPECTRA_SCALE_LOG2:
+                ax->axes_2d->xscale(spectra::ScaleType::Log2);
+                break;
+            case SPECTRA_SCALE_SQRT:
+                ax->axes_2d->xscale(spectra::ScaleType::Sqrt);
+                break;
+            default:
+                ax->axes_2d->xscale(spectra::ScaleType::Linear);
+                break;
+        }
+    }
+
+    void spectra_axes_set_yscale(SpectraAxes* ax, int scale_type)
+    {
+        if (!ax || !ax->axes_2d)
+            return;
+        switch (scale_type)
+        {
+            case SPECTRA_SCALE_LOG10:
+                ax->axes_2d->yscale(spectra::ScaleType::Log10);
+                break;
+            case SPECTRA_SCALE_LOG2:
+                ax->axes_2d->yscale(spectra::ScaleType::Log2);
+                break;
+            case SPECTRA_SCALE_SQRT:
+                ax->axes_2d->yscale(spectra::ScaleType::Sqrt);
+                break;
+            default:
+                ax->axes_2d->yscale(spectra::ScaleType::Linear);
+                break;
+        }
+    }
+
     void spectra_axes_show_legend(SpectraAxes* ax, int visible)
     {
         if (!ax || !ax->fig)
@@ -1020,6 +1094,49 @@ extern "C"
 
         g_series_pool.push_back(SpectraSeries{&series});
         return &g_series_pool.back();
+    }
+
+    SpectraSeries* spectra_axes_stem(SpectraAxes* ax,
+                                     const float* x,
+                                     const float* y,
+                                     uint32_t     count,
+                                     const char*  label)
+    {
+        if (!ax || !ax->axes_2d || !x || !y || count == 0)
+            return nullptr;
+
+        std::span<const float> xs(x, count);
+        std::span<const float> ys(y, count);
+        auto&                  series = ax->axes_2d->stem(xs, ys);
+        if (label && label[0] != '\0')
+            series.label(label);
+        // Default stem appearance: filled circle heads, thin stems
+        series.stem_width(1.5f);
+        series.marker_style(spectra::MarkerStyle::FilledCircle);
+        series.marker_size(6.0f);
+
+        g_series_pool.push_back(SpectraSeries{&series});
+        return &g_series_pool.back();
+    }
+
+    // ── Scatter colormap (Phase 7C) ────────────────────────────────────────
+
+    void spectra_series_set_scatter_colors(SpectraSeries* s, const float* values, uint32_t count)
+    {
+        if (auto* sc = (s && s->ptr) ? dynamic_cast<spectra::ScatterSeries*>(s->ptr) : nullptr)
+            sc->color_values({values, count});
+    }
+
+    void spectra_series_set_scatter_colormap(SpectraSeries* s, int colormap)
+    {
+        if (auto* sc = (s && s->ptr) ? dynamic_cast<spectra::ScatterSeries*>(s->ptr) : nullptr)
+            sc->colormap(to_colormap(colormap));
+    }
+
+    void spectra_series_set_scatter_colormap_range(SpectraSeries* s, float min_val, float max_val)
+    {
+        if (auto* sc = (s && s->ptr) ? dynamic_cast<spectra::ScatterSeries*>(s->ptr) : nullptr)
+            sc->colormap_range(min_val, max_val);
     }
 
     // ── Figure configuration ────────────────────────────────────────────────────

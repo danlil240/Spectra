@@ -83,7 +83,7 @@ struct RenderOptions
     std::string save_path;   // If non-empty, saves PNG to this path
     std::string theme;       // Theme name: "dark", "night", or "light". Default: "night".
     float       dpi_scale        = 1.0f;
-    uint32_t    msaa             = 1;      // MSAA samples (1 = off, 4 = 4×)
+    uint32_t    msaa             = 1;   // MSAA samples (1 = off, 4 = 4×)
     bool        grid             = true;
     float       background_alpha = 1.0f;   // 0 = transparent background
 
@@ -98,6 +98,10 @@ struct RenderOptions
     // Optional manual axis limits (Phase 6A).
     std::optional<std::pair<double, double>> xlim;
     std::optional<std::pair<double, double>> ylim;
+
+    // Axis scale types (Phase 7A). Default: "linear".
+    std::string xscale = "linear";
+    std::string yscale = "linear";
 };
 
 // ─── Series Descriptor (for multi-series render) ─────────────────────────────
@@ -111,7 +115,7 @@ struct SeriesDesc
 
     // Per-series style overrides (Phase 6B). When set, they override the
     // values implied by the format string.
-    std::optional<Color> color;        // RGBA override
+    std::optional<Color> color;                // RGBA override
     float                line_width  = 0.0f;   // 0 = leave default
     float                marker_size = 0.0f;   // 0 = leave default
     float                opacity     = 1.0f;   // 1 = opaque
@@ -188,6 +192,19 @@ inline void configure_axes(Axes& ax, const RenderOptions& opts)
         ax.xlim(opts.xlim->first, opts.xlim->second);
     if (opts.ylim)
         ax.ylim(opts.ylim->first, opts.ylim->second);
+    // Apply axis scale types
+    if (opts.xscale == "log10" || opts.xscale == "log")
+        ax.xscale(ScaleType::Log10);
+    else if (opts.xscale == "log2")
+        ax.xscale(ScaleType::Log2);
+    else if (opts.xscale == "sqrt")
+        ax.xscale(ScaleType::Sqrt);
+    if (opts.yscale == "log10" || opts.yscale == "log")
+        ax.yscale(ScaleType::Log10);
+    else if (opts.yscale == "log2")
+        ax.yscale(ScaleType::Log2);
+    else if (opts.yscale == "sqrt")
+        ax.yscale(ScaleType::Sqrt);
 }
 
 inline bool save_if_requested(const RenderedImage& img, const RenderOptions& opts)
@@ -337,8 +354,8 @@ struct SubplotDesc
 // Render a grid of subplots.  `subplots` is laid out row-major; cells beyond
 // the supplied list are left empty.  opts.subplot_rows/cols are overridden by
 // the explicit `rows`/`cols` arguments.
-inline RenderedImage render_subplots(int                            rows,
-                                     int                            cols,
+inline RenderedImage render_subplots(int                             rows,
+                                     int                             cols,
                                      const std::vector<SubplotDesc>& subplots,
                                      const RenderOptions&            opts = {})
 {

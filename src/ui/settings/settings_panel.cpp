@@ -301,11 +301,14 @@ void SettingsPanel::draw_shortcuts_tab()
 
     ImGui::Spacing();
     ImGui::SetNextItemWidth(300.0f);
-    ImGui::InputTextWithHint("Filter##sc_filter", "type to filter by name...", filter_buf_, sizeof(filter_buf_));
+    ImGui::InputTextWithHint("Filter##sc_filter",
+                             "type to filter by name...",
+                             filter_buf_,
+                             sizeof(filter_buf_));
     ImGui::Spacing();
 
-    const auto& colors = ui::theme();
-    auto bindings = mgr->all_bindings();
+    const auto& colors   = ui::theme();
+    auto        bindings = mgr->all_bindings();
 
     // Count shortcut strings to detect conflicts.
     std::unordered_map<std::string, int> shortcut_count;
@@ -353,8 +356,9 @@ void SettingsPanel::draw_shortcuts_tab()
             bool is_capturing = capturing_shortcut_ && capturing_command_id_ == b.command_id;
             if (is_capturing)
             {
-                ImGui::TextColored(ImVec4(colors.warning.r, colors.warning.g, colors.warning.b, 1.0f),
-                                   "Press key...  (Esc = cancel)");
+                ImGui::TextColored(
+                    ImVec4(colors.warning.r, colors.warning.g, colors.warning.b, 1.0f),
+                    "Press key...  (Esc = cancel)");
 
                 // Detect any non-modifier key press.
                 for (ImGuiKey key : k_capturable_keys)
@@ -381,15 +385,16 @@ void SettingsPanel::draw_shortcuts_tab()
             {
                 std::string sc_str   = b.shortcut.valid() ? b.shortcut.to_string() : "(none)";
                 bool        conflict = b.shortcut.valid()
-                                       && shortcut_count.contains(b.shortcut.to_string())
-                                       && shortcut_count.at(b.shortcut.to_string()) > 1;
+                                && shortcut_count.contains(b.shortcut.to_string())
+                                && shortcut_count.at(b.shortcut.to_string()) > 1;
 
                 if (conflict)
                 {
                     // Use theme error token (not hardcoded) and prepend "[!]" so
                     // the conflict is communicated by shape as well as color (WCAG 1.4.1).
-                    ImGui::PushStyleColor(ImGuiCol_Text,
-                                         ImVec4(colors.error.r, colors.error.g, colors.error.b, 1.0f));
+                    ImGui::PushStyleColor(
+                        ImGuiCol_Text,
+                        ImVec4(colors.error.r, colors.error.g, colors.error.b, 1.0f));
                     sc_str = "[!] " + sc_str;
                 }
                 ImGui::TextUnformatted(sc_str.c_str());

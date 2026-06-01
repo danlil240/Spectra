@@ -231,14 +231,16 @@ using FrameCallback = std::function<void(float time_sec, float dt_sec)>;
 // series_index is the index of the series within its axes; point_index is the
 // index of the data point within the series.  axes_index is the index of the
 // axes within the figure.
-using PointSelectedCallback  = std::function<void(int axes_index, int series_index, std::size_t point_index, double x, double y)>;
+using PointSelectedCallback = std::function<
+    void(int axes_index, int series_index, std::size_t point_index, double x, double y)>;
 using SeriesSelectedCallback = std::function<void(int axes_index, int series_index)>;
 // Fired when the hovered (nearest) data point changes.  series_index < 0 means
 // the cursor moved away from any series.
-using HoverCallback          = std::function<void(int axes_index, int series_index, std::size_t point_index, double x, double y)>;
+using HoverCallback = std::function<
+    void(int axes_index, int series_index, std::size_t point_index, double x, double y)>;
 // Fired when the visible data range (xlim/ylim) of the active axes changes via
 // pan/zoom/auto-fit.
-using ViewChangedCallback    = std::function<void(double xmin, double xmax, double ymin, double ymax)>;
+using ViewChangedCallback = std::function<void(double xmin, double xmax, double ymin, double ymax)>;
 
 // ─── Mouse button constants (match GLFW) ────────────────────────────────────
 

@@ -307,6 +307,46 @@ class ScatterSeries : public Series
     // Apply a MATLAB-style format string (e.g. "ro")
     ScatterSeries& format(std::string_view fmt);
 
+    // ── Colormap support (Phase 7C) ─────────────────────────────────────
+    // Set per-point color values (one float per point).  Values are mapped
+    // through the active colormap to produce per-point colors.
+    ScatterSeries& color_values(std::span<const float> values);
+
+    // Set the colormap type used to map color_values to RGBA.
+    ScatterSeries& colormap(ColormapType cm)
+    {
+        colormap_type_ = cm;
+        dirty_         = true;
+        return *this;
+    }
+    ColormapType colormap() const { return colormap_type_; }
+
+    // Set the colormap value range [min, max]. Values outside this range
+    // are clamped. When not set, uses the data range of color_values_. */
+    ScatterSeries& colormap_range(float min_val, float max_val)
+    {
+        colormap_min_ = min_val;
+        colormap_max_ = max_val;
+        colormap_set_ = true;
+        dirty_        = true;
+        return *this;
+    }
+    void clear_colormap_range()
+    {
+        colormap_set_ = false;
+        dirty_        = true;
+    }
+
+    // Access per-point color values (one float per point).
+    std::span<const float> color_values_data() const { return color_values_; }
+    bool                   has_colormap() const
+    {
+        return colormap_type_ != ColormapType::None && !color_values_.empty();
+    }
+    float colormap_min() const { return colormap_min_; }
+    float colormap_max() const { return colormap_max_; }
+    bool  colormap_range_set() const { return colormap_set_; }
+
     // Thread-safe commit override.
     bool commit_pending() override;
 
@@ -314,6 +354,12 @@ class ScatterSeries : public Series
     std::vector<float> x_;
     std::vector<float> y_;
     float              point_size_ = 4.0f;
+    // Colormap support (Phase 7C)
+    std::vector<float> color_values_;
+    ColormapType       colormap_type_ = ColormapType::None;
+    float              colormap_min_  = 0.0f;
+    float              colormap_max_  = 1.0f;
+    bool               colormap_set_  = false;
 };
 
 }   // namespace spectra

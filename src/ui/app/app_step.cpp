@@ -405,8 +405,7 @@ void App::init_runtime()
                                             int      drop_zone,
                                             float    local_x,
                                             float    local_y,
-                                            FigureId target_figure_id)
-                    {
+                                            FigureId target_figure_id) {
                         session.queue_move(
                             {fid, target_wid, drop_zone, local_x, local_y, target_figure_id});
                     });
@@ -496,8 +495,7 @@ void App::init_runtime()
                                             int      drop_zone,
                                             float    local_x,
                                             float    local_y,
-                                            FigureId target_figure_id)
-                    {
+                                            FigureId target_figure_id) {
                         session.queue_move(
                             {fid, target_wid, drop_zone, local_x, local_y, target_figure_id});
                     });

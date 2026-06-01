@@ -368,9 +368,9 @@ void ImGuiIntegration::draw_canvas(Figure& figure)
             auto    accent    = theme_colors().accent;
             uint8_t alpha     = track_active ? 240 : (thumb_hovered ? 210 : 180);
             ImU32   thumb_col = IM_COL32(static_cast<uint8_t>(accent.r * 255),
-                                         static_cast<uint8_t>(accent.g * 255),
-                                         static_cast<uint8_t>(accent.b * 255),
-                                         alpha);
+                                       static_cast<uint8_t>(accent.g * 255),
+                                       static_cast<uint8_t>(accent.b * 255),
+                                       alpha);
             dl->AddRectFilled(ImVec2(sb_x, thumb_y),
                               ImVec2(sb_x + SCROLLBAR_WIDTH, thumb_y + thumb_h),
                               thumb_col,
@@ -435,13 +435,13 @@ void ImGuiIntegration::draw_inspector(Figure& figure)
                 float       line_x   = bounds.x;
                 auto        accent   = theme_colors().accent;
                 ImU32       line_col = active ? IM_COL32(uint8_t(accent.r * 255),
-                                                         uint8_t(accent.g * 255),
-                                                         uint8_t(accent.b * 255),
-                                                         255)
+                                                   uint8_t(accent.g * 255),
+                                                   uint8_t(accent.b * 255),
+                                                   255)
                                               : IM_COL32(uint8_t(accent.r * 255),
-                                                         uint8_t(accent.g * 255),
-                                                         uint8_t(accent.b * 255),
-                                                         120);
+                                                   uint8_t(accent.g * 255),
+                                                   uint8_t(accent.b * 255),
+                                                   120);
                 dl->AddLine(ImVec2(line_x, bounds.y),
                             ImVec2(line_x, bounds.y + bounds.h),
                             line_col,
@@ -1068,9 +1068,9 @@ void ImGuiIntegration::draw_split_view_splitters()
         {
             Rect  hr               = target.highlight_rect;
             ImU32 highlight_color  = IM_COL32(static_cast<int>(theme.accent.r * 255),
-                                              static_cast<int>(theme.accent.g * 255),
-                                              static_cast<int>(theme.accent.b * 255),
-                                              40);
+                                             static_cast<int>(theme.accent.g * 255),
+                                             static_cast<int>(theme.accent.b * 255),
+                                             40);
             ImU32 highlight_border = IM_COL32(static_cast<int>(theme.accent.r * 255),
                                               static_cast<int>(theme.accent.g * 255),
                                               static_cast<int>(theme.accent.b * 255),
@@ -1255,9 +1255,9 @@ void ImGuiIntegration::draw_split_view_splitters()
         {
             Rect  hr               = target.highlight_rect;
             ImU32 highlight_color  = IM_COL32(static_cast<int>(theme.accent.r * 255),
-                                              static_cast<int>(theme.accent.g * 255),
-                                              static_cast<int>(theme.accent.b * 255),
-                                              60);
+                                             static_cast<int>(theme.accent.g * 255),
+                                             static_cast<int>(theme.accent.b * 255),
+                                             60);
             ImU32 highlight_border = IM_COL32(static_cast<int>(theme.accent.r * 255),
                                               static_cast<int>(theme.accent.g * 255),
                                               static_cast<int>(theme.accent.b * 255),
@@ -1304,7 +1304,7 @@ void ImGuiIntegration::draw_topic_drop_target(Figure& figure)
     // subplot the drop will land on.
     ImGuiIO&    io        = ImGui::GetIO();
     AxesBase*   hover_ax  = input_handler_->hit_test_all_axes(static_cast<double>(io.MousePos.x),
-                                                              static_cast<double>(io.MousePos.y));
+                                                           static_cast<double>(io.MousePos.y));
     int         hover_idx = -1;
     const auto& all       = figure.all_axes();
     for (size_t i = 0; i < all.size(); ++i)
@@ -1322,13 +1322,13 @@ void ImGuiIntegration::draw_topic_drop_target(Figure& figure)
         ImDrawList* dl     = ImGui::GetForegroundDrawList();
         const auto& th     = theme_colors();
         ImU32       fill   = IM_COL32(static_cast<int>(th.accent.r * 255),
-                                      static_cast<int>(th.accent.g * 255),
-                                      static_cast<int>(th.accent.b * 255),
-                                      40);
+                              static_cast<int>(th.accent.g * 255),
+                              static_cast<int>(th.accent.b * 255),
+                              40);
         ImU32       border = IM_COL32(static_cast<int>(th.accent.r * 255),
-                                      static_cast<int>(th.accent.g * 255),
-                                      static_cast<int>(th.accent.b * 255),
-                                      220);
+                                static_cast<int>(th.accent.g * 255),
+                                static_cast<int>(th.accent.b * 255),
+                                220);
         dl->AddRectFilled(ImVec2(vp.x, vp.y), ImVec2(vp.x + vp.w, vp.y + vp.h), fill, 4.0f);
         dl->AddRect(ImVec2(vp.x, vp.y), ImVec2(vp.x + vp.w, vp.y + vp.h), border, 4.0f, 0, 2.0f);
     }
@@ -1411,9 +1411,9 @@ void ImGuiIntegration::draw_topic_drop_target_welcome()
     const float margin = 20.0f;
 
     ImU32 fill   = IM_COL32(static_cast<int>(th.accent.r * 255),
-                            static_cast<int>(th.accent.g * 255),
-                            static_cast<int>(th.accent.b * 255),
-                            over_bg ? 40 : 18);
+                          static_cast<int>(th.accent.g * 255),
+                          static_cast<int>(th.accent.b * 255),
+                          over_bg ? 40 : 18);
     ImU32 border = IM_COL32(static_cast<int>(th.accent.r * 255),
                             static_cast<int>(th.accent.g * 255),
                             static_cast<int>(th.accent.b * 255),
@@ -1424,9 +1424,9 @@ void ImGuiIntegration::draw_topic_drop_target_welcome()
     const char* label    = "Drop to create new figure";
     ImVec2      text_sz  = ImGui::CalcTextSize(label);
     ImU32       text_col = IM_COL32(static_cast<int>(th.accent.r * 255),
-                                    static_cast<int>(th.accent.g * 255),
-                                    static_cast<int>(th.accent.b * 255),
-                                    over_bg ? 220 : 100);
+                              static_cast<int>(th.accent.g * 255),
+                              static_cast<int>(th.accent.b * 255),
+                              over_bg ? 220 : 100);
     dl->AddText(ImVec2((w - text_sz.x) * 0.5f, h * 0.65f), text_col, label);
 
     // Viewport-level drop target — bypasses window Z-order requirements.

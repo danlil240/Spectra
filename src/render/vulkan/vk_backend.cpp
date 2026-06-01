@@ -587,10 +587,10 @@ bool VulkanBackend::create_offscreen_framebuffer(uint32_t width, uint32_t height
         vk::destroy_offscreen(ctx_.device, offscreen_);
         auto vk_msaa = static_cast<VkSampleCountFlagBits>(msaa_samples_);
         offscreen_   = vk::create_offscreen_framebuffer(ctx_.device,
-                                                        ctx_.physical_device,
-                                                        width,
-                                                        height,
-                                                        vk_msaa);
+                                                      ctx_.physical_device,
+                                                      width,
+                                                      height,
+                                                      vk_msaa);
         create_command_buffers();
         create_sync_objects();
         return true;

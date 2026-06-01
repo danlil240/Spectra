@@ -155,9 +155,9 @@ inline std::optional<ImageFrame> adapt_image_message(const sensor_msgs::msg::Ima
     frame.is_color =
         message.encoding == "rgb8" || message.encoding == "bgr8" || message.encoding == "rgba8";
 
-    const bool supported     = message.encoding == "rgb8" || message.encoding == "bgr8"
-                               || message.encoding == "rgba8" || message.encoding == "mono8"
-                               || message.encoding == "16UC1";
+    const bool supported = message.encoding == "rgb8" || message.encoding == "bgr8"
+                           || message.encoding == "rgba8" || message.encoding == "mono8"
+                           || message.encoding == "16UC1";
     frame.supported_encoding = supported;
     if (!supported)
     {

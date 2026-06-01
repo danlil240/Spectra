@@ -506,14 +506,14 @@ extern "C"
 
         // Build CustomPipelineDesc from the C ABI descriptor.
         CustomPipelineDesc pd;
-        pd.vert_spirv           = desc->vert_spirv;
-        pd.vert_spirv_size      = desc->vert_spirv_size;
-        pd.frag_spirv           = desc->frag_spirv;
-        pd.frag_spirv_size      = desc->frag_spirv_size;
-        pd.topology             = desc->topology;
-        pd.enable_depth_test    = (desc->flags & SPECTRA_SERIES_FLAG_3D) != 0;
-        pd.enable_depth_write   = (desc->flags & SPECTRA_SERIES_FLAG_3D) != 0
-                                  && (desc->flags & SPECTRA_SERIES_FLAG_TRANSPARENT) == 0;
+        pd.vert_spirv         = desc->vert_spirv;
+        pd.vert_spirv_size    = desc->vert_spirv_size;
+        pd.frag_spirv         = desc->frag_spirv;
+        pd.frag_spirv_size    = desc->frag_spirv_size;
+        pd.topology           = desc->topology;
+        pd.enable_depth_test  = (desc->flags & SPECTRA_SERIES_FLAG_3D) != 0;
+        pd.enable_depth_write = (desc->flags & SPECTRA_SERIES_FLAG_3D) != 0
+                                && (desc->flags & SPECTRA_SERIES_FLAG_TRANSPARENT) == 0;
         pd.enable_backface_cull = (desc->flags & SPECTRA_SERIES_FLAG_BACKFACE_CULL) != 0;
         pd.enable_blending      = true;
 

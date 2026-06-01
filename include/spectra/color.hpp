@@ -5,6 +5,20 @@
 namespace spectra
 {
 
+// ─── Colormap type ──────────────────────────────────────────────────────────
+
+enum class ColormapType
+{
+    None = 0,
+    Viridis,
+    Plasma,
+    Inferno,
+    Magma,
+    Jet,
+    Coolwarm,
+    Grayscale,
+};
+
 struct Color
 {
     float r = 0.0f;

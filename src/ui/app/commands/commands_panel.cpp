@@ -61,19 +61,14 @@ std::vector<CommandDescriptor> make_panel_commands(CommandContext& ctx)
                                 !imgui_ui->is_plugins_panel_visible());
                     }});
 
-    cmds.push_back({"panel.toggle_topics",
-                    "Toggle Topics Panel",
-                    "Ctrl+Shift+T",
-                    "Panel",
-                    0,
-                    [&]() { ui_ctx.topics_panel.set_visible(!ui_ctx.topics_panel.is_visible()); }});
+    cmds.push_back(
+        {"panel.toggle_topics", "Toggle Topics Panel", "Ctrl+Shift+T", "Panel", 0, [&]() {
+             ui_ctx.topics_panel.set_visible(!ui_ctx.topics_panel.is_visible());
+         }});
 
-    cmds.push_back({"panel.open_settings",
-                    "Settings",
-                    "",
-                    "Panel",
-                    0,
-                    [&]() { ui_ctx.settings_panel.open(); }});
+    cmds.push_back({"panel.open_settings", "Settings", "", "Panel", 0, [&]() {
+                        ui_ctx.settings_panel.open();
+                    }});
 
     cmds.push_back(
         {"panel.toggle_inspector",

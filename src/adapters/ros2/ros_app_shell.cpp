@@ -3563,8 +3563,8 @@ void RosAppShell::apply_session(const RosSession& session)
                                                        restored_y,
                                                        &error))
                 {
-                    session_status_msg_   = "Plot restore fallback for slot "
-                                            + std::to_string(e.subplot_slot) + ": " + error;
+                    session_status_msg_ = "Plot restore fallback for slot "
+                                          + std::to_string(e.subplot_slot) + ": " + error;
                     session_status_timer_ = 4.0f;
                 }
             }

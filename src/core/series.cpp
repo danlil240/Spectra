@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cassert>
 #include <spectra/event_bus.hpp>
 #include <spectra/series.hpp>
@@ -244,6 +245,20 @@ bool ScatterSeries::commit_pending()
         return true;
     }
     return false;
+}
+
+ScatterSeries& ScatterSeries::color_values(std::span<const float> values)
+{
+    color_values_.assign(values.begin(), values.end());
+    if (!colormap_set_ && !color_values_.empty())
+    {
+        // Auto-compute range from data
+        auto [vmin, vmax] = std::minmax_element(color_values_.begin(), color_values_.end());
+        colormap_min_     = *vmin;
+        colormap_max_     = *vmax;
+    }
+    dirty_ = true;
+    return *this;
 }
 
 }   // namespace spectra

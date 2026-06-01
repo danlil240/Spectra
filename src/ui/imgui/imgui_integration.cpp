@@ -665,13 +665,13 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
         ImDrawList* fg     = ImGui::GetForegroundDrawList();
         const auto& colors = theme_colors();
         ImU32       fill   = IM_COL32(static_cast<uint8_t>(colors.selection_fill.r * 255),
-                                      static_cast<uint8_t>(colors.selection_fill.g * 255),
-                                      static_cast<uint8_t>(colors.selection_fill.b * 255),
-                                      40);
+                              static_cast<uint8_t>(colors.selection_fill.g * 255),
+                              static_cast<uint8_t>(colors.selection_fill.b * 255),
+                              40);
         ImU32       border = IM_COL32(static_cast<uint8_t>(colors.selection_border.r * 255),
-                                      static_cast<uint8_t>(colors.selection_border.g * 255),
-                                      static_cast<uint8_t>(colors.selection_border.b * 255),
-                                      200);
+                                static_cast<uint8_t>(colors.selection_border.g * 255),
+                                static_cast<uint8_t>(colors.selection_border.b * 255),
+                                200);
         fg->AddRectFilled(ImVec2(x0, y0), ImVec2(x1, y1), fill);
         fg->AddRect(ImVec2(x0, y0), ImVec2(x1, y1), border, 0.0f, 0, 1.0f);
     }
@@ -720,13 +720,13 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
                                           uint8_t(accent.b * 255),
                                           220);
                 ImU32 dot_col  = IM_COL32(uint8_t(accent.r * 255),
-                                          uint8_t(accent.g * 255),
-                                          uint8_t(accent.b * 255),
-                                          255);
+                                         uint8_t(accent.g * 255),
+                                         uint8_t(accent.b * 255),
+                                         255);
                 ImU32 bg_col   = IM_COL32(uint8_t(theme_colors().bg_elevated.r * 255),
-                                          uint8_t(theme_colors().bg_elevated.g * 255),
-                                          uint8_t(theme_colors().bg_elevated.b * 255),
-                                          230);
+                                        uint8_t(theme_colors().bg_elevated.g * 255),
+                                        uint8_t(theme_colors().bg_elevated.b * 255),
+                                        230);
 
                 float scr_sx, scr_sy, scr_ex, scr_ey;
                 data_to_screen(sx, sy, scr_sx, scr_sy);
@@ -882,9 +882,9 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
         {
             // Draw highlight rect for the active drop zone
             ImU32 highlight_color  = IM_COL32(static_cast<int>(theme.accent.r * 255),
-                                              static_cast<int>(theme.accent.g * 255),
-                                              static_cast<int>(theme.accent.b * 255),
-                                              40);
+                                             static_cast<int>(theme.accent.g * 255),
+                                             static_cast<int>(theme.accent.b * 255),
+                                             40);
             ImU32 highlight_border = IM_COL32(static_cast<int>(theme.accent.r * 255),
                                               static_cast<int>(theme.accent.g * 255),
                                               static_cast<int>(theme.accent.b * 255),
@@ -1274,9 +1274,9 @@ void ImGuiIntegration::load_fonts()
     {
         cfg.SizePixels = 0;
         ImFont* font   = io.Fonts->AddFontFromMemoryCompressedTTF(InterFont_compressed_data,
-                                                                  InterFont_compressed_size,
-                                                                  size,
-                                                                  &cfg);
+                                                                InterFont_compressed_size,
+                                                                size,
+                                                                &cfg);
 
         ImFontConfig icon_cfg;
         icon_cfg.FontDataOwnedByAtlas = false;

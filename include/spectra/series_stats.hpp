@@ -444,4 +444,86 @@ class BarSeries : public Series
     std::vector<float> fill_verts_;   // interleaved {x, y, alpha} per vertex
 };
 
+// ─── Stem Series ────────────────────────────────────────────────────────────
+// Renders vertical stems (lines) from a baseline to each data point, with
+// optional circular heads at the data points.
+
+class StemSeries : public Series
+{
+   public:
+    StemSeries() = default;
+
+    // Set stem data (x positions and y heights)
+    StemSeries& set_data(std::span<const float> x, std::span<const float> y);
+
+    // Baseline value (bottom of stems). Default: 0
+    StemSeries& baseline(float b)
+    {
+        baseline_ = b;
+        dirty_    = true;
+        return *this;
+    }
+    float baseline() const { return baseline_; }
+
+    // Stem line width. Default: 1.5
+    StemSeries& stem_width(float w)
+    {
+        stem_width_ = w;
+        dirty_      = true;
+        return *this;
+    }
+    float stem_width() const { return stem_width_; }
+
+    // Show/hide circular heads at data points. Default: true
+    StemSeries& show_heads(bool show)
+    {
+        show_heads_ = show;
+        dirty_      = true;
+        return *this;
+    }
+    bool show_heads() const { return show_heads_; }
+
+    // Access outline geometry (vertical line segments with NaN breaks)
+    std::span<const float> x_data() const { return line_x_; }
+    std::span<const float> y_data() const { return line_y_; }
+    size_t                 point_count() const { return line_x_.size(); }
+
+    // Access raw data
+    const std::vector<float>& stem_x() const { return x_; }
+    const std::vector<float>& stem_y() const { return y_; }
+
+    // Fluent setters
+    using Series::color;
+    using Series::label;
+    using Series::opacity;
+    StemSeries& label(const std::string& lbl)
+    {
+        Series::label(lbl);
+        return *this;
+    }
+    StemSeries& color(const Color& c)
+    {
+        Series::color(c);
+        return *this;
+    }
+    StemSeries& opacity(float o)
+    {
+        Series::opacity(o);
+        return *this;
+    }
+
+    void rebuild_geometry();
+
+   private:
+    std::vector<float> x_;
+    std::vector<float> y_;
+    float              baseline_   = 0.0f;
+    float              stem_width_ = 1.5f;
+    bool               show_heads_ = true;
+
+    // Generated geometry (vertical line segments with NaN breaks)
+    std::vector<float> line_x_;
+    std::vector<float> line_y_;
+};
+
 }   // namespace spectra

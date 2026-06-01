@@ -43,6 +43,7 @@ void Renderer::upload_series_data(Series& series, double origin_x, double origin
     auto* violin    = dynamic_cast<ViolinSeries*>(&series);
     auto* histogram = dynamic_cast<HistogramSeries*>(&series);
     auto* bar       = dynamic_cast<BarSeries*>(&series);
+    auto* stem      = dynamic_cast<StemSeries*>(&series);
 
     // Try shape series
     auto* shape   = dynamic_cast<ShapeSeries*>(&series);
@@ -78,6 +79,8 @@ void Renderer::upload_series_data(Series& series, double origin_x, double origin
             gpu.type = SeriesType::Histogram2D;
         else if (bar)
             gpu.type = SeriesType::Bar2D;
+        else if (stem)
+            gpu.type = SeriesType::Stem2D;
         else if (shape)
             gpu.type = SeriesType::Shape2D;
         else if (shape3d)
@@ -90,7 +93,7 @@ void Renderer::upload_series_data(Series& series, double origin_x, double origin
     }
 
     // Handle 2D line/scatter and statistical/shape series (vec2 interleaved)
-    if (line || scatter || boxplot || violin || histogram || bar || shape)
+    if (line || scatter || boxplot || violin || histogram || bar || stem || shape)
     {
         const float* x_data = nullptr;
         const float* y_data = nullptr;
@@ -135,6 +138,13 @@ void Renderer::upload_series_data(Series& series, double origin_x, double origin
             x_data = bar->x_data().data();
             y_data = bar->y_data().data();
             count  = bar->point_count();
+        }
+        else if (stem)
+        {
+            stem->rebuild_geometry();
+            x_data = stem->x_data().data();
+            y_data = stem->y_data().data();
+            count  = stem->point_count();
         }
         else if (shape)
         {
@@ -293,9 +303,9 @@ void Renderer::upload_series_data(Series& series, double origin_x, double origin
         // without requiring GPU buffer re-upload.
         const uint64_t current_generation = static_cast<uint64_t>(chunked_line->point_count());
         const bool     count_changed      = (count != gpu.uploaded_count);
-        const bool origin_moved = (std::abs(static_cast<double>(gpu.origin_x) - origin_x) > 1.0
+        const bool     origin_moved = (std::abs(static_cast<double>(gpu.origin_x) - origin_x) > 1.0
                                    || std::abs(static_cast<double>(gpu.origin_y) - origin_y) > 1.0);
-        const bool needs_upload = count_changed || origin_moved || !gpu.ssbo
+        const bool     needs_upload = count_changed || origin_moved || !gpu.ssbo
                                   || (current_generation != gpu.data_generation);
 
         if (!needs_upload)
@@ -508,8 +518,7 @@ void Renderer::upload_series_data(Series& series, double origin_x, double origin
         if (entry && entry->upload_fn && !entry->faulted)
         {
             auto result = plugin_guard_invoke(entry->type_name.c_str(),
-                                              [&]()
-                                              {
+                                              [&]() {
                                                   entry->upload_fn(backend_,
                                                                    custom->data(),
                                                                    gpu.plugin_gpu_state,

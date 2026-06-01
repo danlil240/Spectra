@@ -127,6 +127,13 @@ BarSeries& Axes::bar(std::span<const float> positions, std::span<const float> he
     return add_series<BarSeries>(positions, heights);
 }
 
+StemSeries& Axes::stem(std::span<const float> x, std::span<const float> y)
+{
+    auto& ref = add_series<StemSeries>();
+    ref.set_data(x, y);
+    return ref;
+}
+
 ShapeSeries& Axes::shapes()
 {
     return add_series<ShapeSeries>();
@@ -881,12 +888,97 @@ static TickResult generate_ticks(double dmin, double dmax, int target_ticks = 7)
 TickResult Axes::compute_x_ticks() const
 {
     auto lim = x_limits();
+    if (xscale_ == ScaleType::Log10 || xscale_ == ScaleType::Log2)
+    {
+        double base = (xscale_ == ScaleType::Log2) ? 2.0 : 10.0;
+        // Generate nice logarithmic ticks
+        TickResult result;
+        double     log_min = std::log(lim.min) / std::log(base);
+        double     log_max = std::log(lim.max) / std::log(base);
+        // Clamp to safe range if limits include non-positive values
+        if (!std::isfinite(log_min) || !std::isfinite(log_max))
+        {
+            result.positions.push_back(lim.min);
+            result.labels.push_back(format_tick_value(lim.min, lim.max - lim.min));
+            return result;
+        }
+        int lo_exp = static_cast<int>(std::floor(log_min));
+        int hi_exp = static_cast<int>(std::ceil(log_max));
+        for (int e = lo_exp; e <= hi_exp; ++e)
+        {
+            double v = std::pow(base, static_cast<double>(e));
+            if (v >= lim.min * 0.99 && v <= lim.max * 1.01)
+            {
+                result.positions.push_back(v);
+                result.labels.push_back(format_tick_value(v, v * 0.1));
+            }
+        }
+        if (result.positions.empty())
+        {
+            result.positions.push_back(lim.min);
+            result.labels.push_back(format_tick_value(lim.min, lim.max - lim.min));
+        }
+        return result;
+    }
+    if (xscale_ == ScaleType::Sqrt)
+    {
+        // Map to squared space, generate linear ticks, map back
+        double     smin  = lim.min * lim.min;
+        double     smax  = lim.max * lim.max;
+        auto       inner = generate_ticks(smin, smax);
+        TickResult result;
+        for (auto& p : inner.positions)
+            result.positions.push_back(std::sqrt(std::max(0.0, p)));
+        result.labels = std::move(inner.labels);
+        return result;
+    }
     return generate_ticks(lim.min, lim.max);
 }
 
 TickResult Axes::compute_y_ticks() const
 {
     auto lim = y_limits();
+    if (yscale_ == ScaleType::Log10 || yscale_ == ScaleType::Log2)
+    {
+        double     base = (yscale_ == ScaleType::Log2) ? 2.0 : 10.0;
+        TickResult result;
+        double     log_min = std::log(lim.min) / std::log(base);
+        double     log_max = std::log(lim.max) / std::log(base);
+        if (!std::isfinite(log_min) || !std::isfinite(log_max))
+        {
+            result.positions.push_back(lim.min);
+            result.labels.push_back(format_tick_value(lim.min, lim.max - lim.min));
+            return result;
+        }
+        int lo_exp = static_cast<int>(std::floor(log_min));
+        int hi_exp = static_cast<int>(std::ceil(log_max));
+        for (int e = lo_exp; e <= hi_exp; ++e)
+        {
+            double v = std::pow(base, static_cast<double>(e));
+            if (v >= lim.min * 0.99 && v <= lim.max * 1.01)
+            {
+                result.positions.push_back(v);
+                result.labels.push_back(format_tick_value(v, v * 0.1));
+            }
+        }
+        if (result.positions.empty())
+        {
+            result.positions.push_back(lim.min);
+            result.labels.push_back(format_tick_value(lim.min, lim.max - lim.min));
+        }
+        return result;
+    }
+    if (yscale_ == ScaleType::Sqrt)
+    {
+        double     smin  = lim.min * lim.min;
+        double     smax  = lim.max * lim.max;
+        auto       inner = generate_ticks(smin, smax);
+        TickResult result;
+        for (auto& p : inner.positions)
+            result.positions.push_back(std::sqrt(std::max(0.0, p)));
+        result.labels = std::move(inner.labels);
+        return result;
+    }
     return generate_ticks(lim.min, lim.max);
 }
 

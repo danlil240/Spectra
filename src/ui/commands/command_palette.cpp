@@ -400,7 +400,7 @@ bool CommandPalette::draw(float window_width, float window_height)
     {
         ImVec2 mp         = ImGui::GetIO().MousePos;
         bool   on_palette = mp.x >= palette_x && mp.x <= palette_x + palette_w && mp.y >= palette_y
-                            && mp.y <= palette_y + palette_h;
+                          && mp.y <= palette_y + palette_h;
         if (!on_palette)
         {
             close();

@@ -286,6 +286,37 @@ def _load_lib() -> ctypes.CDLL:
     ]
     _lib.spectra_axes_bar.restype = ctypes.c_void_p
 
+    _lib.spectra_axes_stem.argtypes = [
+        ctypes.c_void_p,                      # ax
+        ctypes.POINTER(ctypes.c_float),        # x
+        ctypes.POINTER(ctypes.c_float),        # y
+        ctypes.c_uint32,                       # count
+        ctypes.c_char_p,                       # label
+    ]
+    _lib.spectra_axes_stem.restype = ctypes.c_void_p
+
+    # ── Phase 7B: stem ──────────────────────────────────────────────────────
+    _lib.spectra_axes_stem.argtypes = [
+        ctypes.c_void_p,                      # ax
+        ctypes.POINTER(ctypes.c_float),        # x
+        ctypes.POINTER(ctypes.c_float),        # y
+        ctypes.c_uint32,                       # count
+        ctypes.c_char_p,                       # label
+    ]
+    _lib.spectra_axes_stem.restype = ctypes.c_void_p
+
+    # ── Phase 7C: scatter colormap ─────────────────────────────────────────
+    _lib.spectra_series_set_scatter_colors.argtypes = [
+        ctypes.c_void_p, ctypes.POINTER(ctypes.c_float), ctypes.c_uint32
+    ]
+    _lib.spectra_series_set_scatter_colors.restype = None
+    _lib.spectra_series_set_scatter_colormap.argtypes = [ctypes.c_void_p, ctypes.c_int]
+    _lib.spectra_series_set_scatter_colormap.restype = None
+    _lib.spectra_series_set_scatter_colormap_range.argtypes = [
+        ctypes.c_void_p, ctypes.c_float, ctypes.c_float
+    ]
+    _lib.spectra_series_set_scatter_colormap_range.restype = None
+
     # Figure configuration
     _lib.spectra_figure_set_title.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
     _lib.spectra_figure_set_title.restype = None
@@ -388,6 +419,12 @@ def _load_lib() -> ctypes.CDLL:
     _lib.spectra_axes_show_legend.restype = None
     _lib.spectra_axes_set_legend_position.argtypes = [ctypes.c_void_p, ctypes.c_int]
     _lib.spectra_axes_set_legend_position.restype = None
+
+    # ── Phase 7A: Axis scale ──────────────────────────────────────────────
+    _lib.spectra_axes_set_xscale.argtypes = [ctypes.c_void_p, ctypes.c_int]
+    _lib.spectra_axes_set_xscale.restype = None
+    _lib.spectra_axes_set_yscale.argtypes = [ctypes.c_void_p, ctypes.c_int]
+    _lib.spectra_axes_set_yscale.restype = None
 
     # ── Phase 1F: PNG render ──────────────────────────────────────────────
     _lib.spectra_embed_render_png.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
@@ -528,6 +565,13 @@ _LEGEND_POSITIONS = {
     "bottom_right": 2, "lower right": 2, "bottom_left": 3, "lower left": 3,
     "none": 4,
 }
+
+# Axis scale types (spectra::ScaleType)
+SCALE_LINEAR = 0
+SCALE_LOG10 = 1
+SCALE_LOG2 = 2
+SCALE_SQRT = 3
+_SCALE_TYPES = {"linear": 0, "log10": 1, "log": 1, "log2": 2, "sqrt": 3}
 
 
 def _resolve(value, mapping, kind: str) -> int:
@@ -691,6 +735,30 @@ class EmbedSeries:
         self._lib.spectra_series_set_colormap_range(self._handle, min_val, max_val)
         return self
 
+    # ── Phase 7C: scatter colormap ────────────────────────────────────────
+
+    def set_scatter_colors(self, values) -> "EmbedSeries":
+        """Set per-point color values for a scatter series.
+
+        Each value is mapped through the active colormap to produce per-point
+        colors. Call ``set_colormap()`` first to choose a colormap, then call
+        this with a float array whose length matches the scatter points.
+        """
+        vp, vn = _to_float_ptr(values)
+        self._lib.spectra_series_set_scatter_colors(self._handle, vp, vn)
+        return self
+
+    def set_scatter_colormap(self, colormap) -> "EmbedSeries":
+        """Set the colormap for scatter per-point colors (name or int code)."""
+        self._lib.spectra_series_set_scatter_colormap(
+            self._handle, _resolve(colormap, _COLORMAPS, "colormap"))
+        return self
+
+    def set_scatter_colormap_range(self, min_val: float, max_val: float) -> "EmbedSeries":
+        """Set the scatter colormap value range."""
+        self._lib.spectra_series_set_scatter_colormap_range(self._handle, min_val, max_val)
+        return self
+
 
 class EmbedAxes:
     """Proxy for axes in an embedded plot."""
@@ -711,7 +779,16 @@ class EmbedAxes:
             raise RuntimeError("Failed to create line series")
         return EmbedSeries(h)
 
-    def scatter(self, x, y, label: Optional[str] = None) -> EmbedSeries:
+    def scatter(self, x, y, label: Optional[str] = None,
+                c=None, cmap: Optional[str] = None) -> EmbedSeries:
+        """Add a scatter series.
+
+        Args:
+            x, y: Data arrays (lists, numpy arrays).
+            label: Optional legend label.
+            c: Optional per-point color values for colormap coloring.
+            cmap: Colormap name (e.g., 'viridis', 'plasma'). Default: 'viridis'.
+        """
         xp, n = _to_float_ptr(x)
         yp, yn = _to_float_ptr(y)
         assert n == yn, f"x and y must have same length ({n} vs {yn})"
@@ -719,7 +796,11 @@ class EmbedAxes:
         h = self._lib.spectra_axes_scatter(self._handle, xp, yp, n, lbl)
         if not h:
             raise RuntimeError("Failed to create scatter series")
-        return EmbedSeries(h)
+        series = EmbedSeries(h)
+        if c is not None:
+            series.set_scatter_colormap(cmap or "viridis")
+            series.set_scatter_colors(c)
+        return series
 
     def set_xlabel(self, label: str) -> None:
         """Set the X-axis label."""
@@ -787,6 +868,29 @@ class EmbedAxes:
             raise RuntimeError("Failed to create bar series")
         return EmbedSeries(h)
 
+    # ── Phase 7B: stem ────────────────────────────────────────────────────
+
+    def stem(self, x, y, label: Optional[str] = None) -> EmbedSeries:
+        """Add a stem series — vertical lines from baseline to each point with
+        a filled circle head.
+
+        Args:
+            x: X positions of stems (list, tuple, or numpy array).
+            y: Y heights of stems (list, tuple, or numpy array).
+            label: Optional series label for legend.
+
+        Returns:
+            EmbedSeries handle.
+        """
+        xp, xn = _to_float_ptr(x)
+        yp, yn = _to_float_ptr(y)
+        assert xn == yn, f"x and y must have same length ({xn} vs {yn})"
+        lbl = label.encode("utf-8") if label else None
+        h = self._lib.spectra_axes_stem(self._handle, xp, yp, xn, lbl)
+        if not h:
+            raise RuntimeError("Failed to create stem series")
+        return EmbedSeries(h)
+
     # ── Phase 1D: 3D series ──────────────────────────────────────────────
 
     def line3d(self, x, y, z, label: Optional[str] = None) -> EmbedSeries:
@@ -838,6 +942,18 @@ class EmbedAxes:
         """Set the legend position (name like 'top_right' or int code)."""
         self._lib.spectra_axes_set_legend_position(
             self._handle, _resolve(position, _LEGEND_POSITIONS, "legend position"))
+
+    # ── Phase 7A: axis scale ─────────────────────────────────────────────
+
+    def xscale(self, scale) -> None:
+        """Set the X-axis scale ('linear', 'log10'/'log', 'log2', 'sqrt')."""
+        self._lib.spectra_axes_set_xscale(
+            self._handle, _resolve(scale, _SCALE_TYPES, "axis scale"))
+
+    def yscale(self, scale) -> None:
+        """Set the Y-axis scale ('linear', 'log10'/'log', 'log2', 'sqrt')."""
+        self._lib.spectra_axes_set_yscale(
+            self._handle, _resolve(scale, _SCALE_TYPES, "axis scale"))
 
 
 class EmbedFigure:

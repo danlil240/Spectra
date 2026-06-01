@@ -773,11 +773,11 @@ void SubplotManager::poll()
                         std::min(se.subscriber->pending(se.y_extractor_id), MAX_DRAIN_PER_POLL);
                     const size_t pair_count = std::min(pending_x, pending_y);
                     const size_t nx         = se.subscriber->pop_bulk(se.x_extractor_id,
-                                                                      se.x_drain_buf.data(),
-                                                                      pair_count);
+                                                              se.x_drain_buf.data(),
+                                                              pair_count);
                     const size_t ny         = se.subscriber->pop_bulk(se.y_extractor_id,
-                                                                      se.y_drain_buf.data(),
-                                                                      pair_count);
+                                                              se.y_drain_buf.data(),
+                                                              pair_count);
                     const size_t n          = std::min(nx, ny);
 
                     if (n > 0)
@@ -1125,8 +1125,8 @@ SubplotManager::SubplotAction SubplotManager::draw_slot_context_menu(int slot, c
         const double current_win = slot_time_window(slot);
         const bool   has_override =
             (slot < 1 || slot > capacity())
-                ? false
-                : (slots_[static_cast<size_t>(slot - 1)].time_window_override_s > 0.0);
+                  ? false
+                  : (slots_[static_cast<size_t>(slot - 1)].time_window_override_s > 0.0);
 
         static const double kPresets[] = {5.0, 10.0, 30.0, 60.0, 300.0, 600.0};
         static const char*  kLabels[]  = {"5 s", "10 s", "30 s", "1 min", "5 min", "10 min"};

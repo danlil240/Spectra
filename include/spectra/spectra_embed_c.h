@@ -90,6 +90,15 @@ extern "C"
         SPECTRA_LEGEND_NONE         = 4
     };
 
+    /* Axis scale type (spectra::ScaleType) */
+    enum
+    {
+        SPECTRA_SCALE_LINEAR = 0,
+        SPECTRA_SCALE_LOG10  = 1,
+        SPECTRA_SCALE_LOG2   = 2,
+        SPECTRA_SCALE_SQRT   = 3
+    };
+
     /* ── Lifecycle ─────────────────────────────────────────────────────────── */
 
     /* Create an embed surface with the given dimensions. Returns NULL on failure. */
@@ -117,7 +126,7 @@ extern "C"
         uint32_t    msaa;
         float       dpi_scale;
         float       background_alpha;
-        const char* theme;            /* NULL → "night" */
+        const char* theme; /* NULL → "night" */
         int         show_imgui_chrome;
         int         show_command_bar;
         int         show_status_bar;
@@ -205,7 +214,10 @@ extern "C"
     /* Append a single (x,y) point to a line/scatter series. */
     void spectra_series_append_xy(SpectraSeries* s, float x, float y);
     /* Append a batch of points to a line/scatter series. */
-    void spectra_series_append_data(SpectraSeries* s, const float* x, const float* y, uint32_t count);
+    void spectra_series_append_data(SpectraSeries* s,
+                                    const float*   x,
+                                    const float*   y,
+                                    uint32_t       count);
     /* Configure a ring-buffer capacity (max retained points). 0 = unbounded.
      * When exceeded by appends, the oldest points are dropped. */
     void spectra_series_set_capacity(SpectraSeries* s, uint32_t max_points);
@@ -333,10 +345,7 @@ extern "C"
 
     /* Frame callback invoked inside spectra_embed_update(dt) with the elapsed
      * time and the delta of the current step. user_data is passed through. */
-    typedef void (*SpectraFrameCb)(SpectraEmbed* s,
-                                   float         time_sec,
-                                   float         dt_sec,
-                                   void*         user_data);
+    typedef void (*SpectraFrameCb)(SpectraEmbed* s, float time_sec, float dt_sec, void* user_data);
     void spectra_embed_set_on_frame(SpectraEmbed* s, SpectraFrameCb cb, void* user_data);
     void spectra_embed_clear_on_frame(SpectraEmbed* s);
 
@@ -361,9 +370,7 @@ extern "C"
                                            double y,
                                            void*  user_data);
     /* Fired when the user selects a series (left-click near it). */
-    typedef void (*SpectraSeriesSelectedCb)(int   axes_index,
-                                            int   series_index,
-                                            void* user_data);
+    typedef void (*SpectraSeriesSelectedCb)(int axes_index, int series_index, void* user_data);
     /* Fired when the hovered/nearest data point changes. series_index < 0 means
      * the cursor moved away from any series. */
     typedef void (*SpectraHoverCb)(int    axes_index,
@@ -373,11 +380,8 @@ extern "C"
                                    double y,
                                    void*  user_data);
     /* Fired when the visible data range (xlim/ylim) of the active axes changes. */
-    typedef void (*SpectraViewChangedCb)(double xmin,
-                                         double xmax,
-                                         double ymin,
-                                         double ymax,
-                                         void*  user_data);
+    typedef void (
+        *SpectraViewChangedCb)(double xmin, double xmax, double ymin, double ymax, void* user_data);
 
     /* Register interactive callbacks. Pass NULL cb to clear. Point/series/hover
      * callbacks require the ImGui chrome build (show_imgui_chrome). */
@@ -409,6 +413,10 @@ extern "C"
     /* Trigger auto-fit so axes limits are reset to encompass all data. */
     void spectra_axes_auto_fit(SpectraAxes* ax);
 
+    /* Set axis scale type (SPECTRA_SCALE_*). */
+    void spectra_axes_set_xscale(SpectraAxes* ax, int scale_type);
+    void spectra_axes_set_yscale(SpectraAxes* ax, int scale_type);
+
     /* ── Legend control (Phase 1E) ─────────────────────────────────────────── */
 
     /* Show/hide the legend on the figure that owns these axes. */
@@ -424,12 +432,29 @@ extern "C"
                                           const char*  label);
 
     /* Add a bar series. label can be NULL. Returns NULL on failure. */
-    SpectraSeries* spectra_axes_bar(SpectraAxes*  ax,
-                                    const float*  positions,
-                                    const float*  heights,
-                                    uint32_t      count,
-                                    const char*   label);
+    SpectraSeries* spectra_axes_bar(SpectraAxes* ax,
+                                    const float* positions,
+                                    const float* heights,
+                                    uint32_t     count,
+                                    const char*  label);
 
+    /* Add a stem series. label can be NULL. Returns NULL on failure. */
+    SpectraSeries* spectra_axes_stem(SpectraAxes* ax,
+                                     const float* x,
+                                     const float* y,
+                                     uint32_t     count,
+                                     const char*  label);
+    /* ── Scatter colormap (Phase 7C) ──────────────────────────────────────── */
+
+    /* Set per-point color values for a scatter series.  Each value is mapped
+     * through the active colormap (default: Viridis) to produce per-point colors. */
+    void spectra_series_set_scatter_colors(SpectraSeries* s, const float* values, uint32_t count);
+
+    /* Set the colormap type for a scatter series (SPECTRA_CMAP_*). */
+    void spectra_series_set_scatter_colormap(SpectraSeries* s, int colormap);
+
+    /* Set the colormap value range for a scatter series. */
+    void spectra_series_set_scatter_colormap_range(SpectraSeries* s, float min_val, float max_val);
     /* ── Figure configuration ─────────────────────────────────────────────── */
 
     /* Set figure title. */

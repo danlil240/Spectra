@@ -31,6 +31,7 @@ class BoxPlotSeries;
 class ViolinSeries;
 class HistogramSeries;
 class BarSeries;
+class StemSeries;
 class ShapeSeries;
 class ShapeSeries3D;
 

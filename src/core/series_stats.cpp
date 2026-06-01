@@ -641,4 +641,37 @@ void BarSeries::rebuild_geometry()
     }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// StemSeries
+// ═══════════════════════════════════════════════════════════════════════════
+
+StemSeries& StemSeries::set_data(std::span<const float> x, std::span<const float> y)
+{
+    x_.assign(x.begin(), x.end());
+    y_.assign(y.begin(), y.end());
+    dirty_ = true;
+    rebuild_geometry();
+    return *this;
+}
+
+void StemSeries::rebuild_geometry()
+{
+    line_x_.clear();
+    line_y_.clear();
+
+    size_t n = std::min(x_.size(), y_.size());
+
+    for (size_t i = 0; i < n; ++i)
+    {
+        // Vertical line from baseline to data point
+        line_x_.push_back(x_[i]);
+        line_y_.push_back(baseline_);
+        line_x_.push_back(x_[i]);
+        line_y_.push_back(y_[i]);
+        // NaN break between stems
+        line_x_.push_back(NAN_BREAK);
+        line_y_.push_back(NAN_BREAK);
+    }
+}
+
 }   // namespace spectra

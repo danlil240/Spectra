@@ -128,7 +128,7 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
     if (vsync_mode && scheduled_animation)
         animation_dt = animation_due_tick ? animation_tick_gate_.consume_accumulated_dt() : 0.0f;
 
-    // ── Unified window update + render loop ───────────────────────
+        // ── Unified window update + render loop ───────────────────────
 #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
     if (window_mgr)
     {

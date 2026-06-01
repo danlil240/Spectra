@@ -12,17 +12,7 @@
 namespace spectra
 {
 
-enum class ColormapType
-{
-    None = 0,
-    Viridis,
-    Plasma,
-    Inferno,
-    Magma,
-    Jet,
-    Coolwarm,
-    Grayscale,
-};
+// ColormapType is defined in color.hpp — included transitively.
 
 enum class BlendMode
 {

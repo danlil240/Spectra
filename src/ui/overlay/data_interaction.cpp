@@ -184,13 +184,13 @@ void DataInteraction::update(const CursorReadout& cursor, Figure& figure)
     if (axis_link_mgr_ && active_axes_ && cursor.valid)
     {
         SharedCursor sc;
-        sc.valid       = true;
-        sc.data_x      = xlim_min_
-                         + (static_cast<float>(cursor.screen_x) - active_viewport_.x)
-                               / active_viewport_.w * (xlim_max_ - xlim_min_);
-        sc.data_y      = ylim_max_
-                         - (static_cast<float>(cursor.screen_y) - active_viewport_.y)
-                               / active_viewport_.h * (ylim_max_ - ylim_min_);
+        sc.valid  = true;
+        sc.data_x = xlim_min_
+                    + (static_cast<float>(cursor.screen_x) - active_viewport_.x)
+                          / active_viewport_.w * (xlim_max_ - xlim_min_);
+        sc.data_y = ylim_max_
+                    - (static_cast<float>(cursor.screen_y) - active_viewport_.y)
+                          / active_viewport_.h * (ylim_max_ - ylim_min_);
         sc.screen_x    = cursor.screen_x;
         sc.screen_y    = cursor.screen_y;
         sc.source_axes = active_axes_;

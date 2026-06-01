@@ -370,7 +370,7 @@ void ImGuiIntegration::draw_axes_context_menu(Figure& figure)
     if (ImGui::IsMouseClicked(ImGuiMouseButton_Right) && !io.WantCaptureMouse)
     {
         AxesBase* hit       = input_handler_->hit_test_all_axes(static_cast<double>(io.MousePos.x),
-                                                                static_cast<double>(io.MousePos.y));
+                                                          static_cast<double>(io.MousePos.y));
         context_menu_armed_ = (hit != nullptr);
         context_menu_pressed_axes_ = hit;
         context_menu_press_x_      = io.MousePos.x;
@@ -612,9 +612,9 @@ void ImGuiIntegration::draw_axes_context_menu(Figure& figure)
                                            : (grp->axis == LinkAxis::Y) ? "Y"
                                                                         : "XY";
                     ImU32       grp_col  = IM_COL32(static_cast<uint8_t>(grp->color.r * 255),
-                                                    static_cast<uint8_t>(grp->color.g * 255),
-                                                    static_cast<uint8_t>(grp->color.b * 255),
-                                                    255);
+                                             static_cast<uint8_t>(grp->color.g * 255),
+                                             static_cast<uint8_t>(grp->color.b * 255),
+                                             255);
 
                     ImVec2      cursor = ImGui::GetCursorScreenPos();
                     ImDrawList* dl     = ImGui::GetWindowDrawList();
@@ -710,7 +710,7 @@ void ImGuiIntegration::draw_axes_context_menu(Figure& figure)
             ImGui::Dummy(ImVec2(0, 2));
 
             bool   has_sel   = (selection_ctx_.type == ui::SelectionType::Series
-                                && !selection_ctx_.selected_series.empty());
+                            && !selection_ctx_.selected_series.empty());
             size_t sel_count = selection_ctx_.selected_count();
             bool   is_multi  = selection_ctx_.has_multi_selection();
 
@@ -851,9 +851,9 @@ void ImGuiIntegration::draw_axis_link_indicators(Figure& figure)
                 continue;
 
             ImU32 col    = IM_COL32(static_cast<uint8_t>(grp->color.r * 255),
-                                    static_cast<uint8_t>(grp->color.g * 255),
-                                    static_cast<uint8_t>(grp->color.b * 255),
-                                    200);
+                                 static_cast<uint8_t>(grp->color.g * 255),
+                                 static_cast<uint8_t>(grp->color.b * 255),
+                                 200);
             ImU32 bg_col = IM_COL32(0, 0, 0, 100);
 
             float cx = icon_x - gi * 22.0f;

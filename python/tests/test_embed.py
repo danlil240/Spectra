@@ -362,3 +362,53 @@ class TestNewSeriesTypes:
         ax.bar([1, 2, 3], [10, 20, 15])
         pixels = s.render()
         assert len(pixels) == 64 * 64 * 4
+
+
+# ─── Callback APIs ─────────────────────────────────────────────────────────────
+
+
+@_skip_embed
+class TestCallbacks:
+    def test_set_on_frame_and_clear(self):
+        s = EmbedSurface(128, 128)
+        s.figure().subplot(1, 1, 1)
+
+        calls = []
+
+        def on_frame(surface, time_sec, dt_sec):
+            calls.append((surface, time_sec, dt_sec))
+
+        s.set_on_frame(on_frame)
+        s.update(0.016)
+        assert len(calls) >= 1
+        assert calls[0][0] is s
+
+        s.clear_on_frame()
+        prev = len(calls)
+        s.update(0.016)
+        assert len(calls) == prev
+
+    def test_set_redraw_callback_accepts_none(self):
+        s = EmbedSurface(128, 128)
+        s.figure().subplot(1, 1, 1)
+
+        s.set_redraw_callback(lambda: None)
+        s.set_redraw_callback(None)  # must not raise
+
+    def test_interactive_callback_setters_accept_none(self):
+        s = EmbedSurface(128, 128)
+        fig = s.figure()
+        ax = fig.subplot(1, 1, 1)
+        ax.line([0, 1, 2], [0, 1, 4])
+        s.render()
+
+        s.set_on_point_selected(lambda ai, si, pi, x, y: None)
+        s.set_on_series_selected(lambda ai, si: None)
+        s.set_on_hover(lambda ai, si, pi, x, y: None)
+        s.set_on_view_changed(lambda xmin, xmax, ymin, ymax: None)
+
+        # Clear paths route through typed null callbacks and previously regressed.
+        s.set_on_point_selected(None)
+        s.set_on_series_selected(None)
+        s.set_on_hover(None)
+        s.set_on_view_changed(None)

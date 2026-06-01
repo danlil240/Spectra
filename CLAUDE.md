@@ -9,6 +9,7 @@ Spectra is a **GPU-accelerated C++20 plotting library** (v0.2.2) built on **Vulk
 - **Build tool:** CMake 3.20+ with Ninja (preferred) or Make
 - **Standard:** C++20 (GCC 12+, Clang 15+, MSVC 2022+)
 - **Static library output:** `build/lib/libspectra.a`
+- **Canonical environment/build reference for all agents:** [`BUILD_ENVIRONMENT.md`](BUILD_ENVIRONMENT.md)
 
 ### Common Build Commands
 

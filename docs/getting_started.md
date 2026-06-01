@@ -18,6 +18,9 @@ For released binaries, the requirements are smaller than for source builds:
 
 ## Building
 
+For the complete agent-ready environment and full feature matrix, see
+[`../BUILD_ENVIRONMENT.md`](../BUILD_ENVIRONMENT.md).
+
 Ubuntu/Debian source-build dependencies:
 
 ```bash

@@ -77,6 +77,9 @@ No compiler or Vulkan SDK needed — just a working Vulkan runtime/driver.
 
 ### Build from Source
 
+> For contributors and build/test agents: use the canonical environment guide at
+> [`BUILD_ENVIRONMENT.md`](BUILD_ENVIRONMENT.md) before configuring CMake.
+
 ```bash
 sudo apt install build-essential cmake libvulkan-dev libglfw3-dev glslang-tools
 ```

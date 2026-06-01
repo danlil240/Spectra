@@ -197,6 +197,7 @@ struct EmbedSurface::Impl
                 data_interaction = std::make_unique<DataInteraction>();
                 imgui_ui->set_data_interaction(data_interaction.get());
                 imgui_ui->set_input_handler(&input);
+                input.set_data_interaction(data_interaction.get());
 
                 // Phase 3: route DataInteraction selection callbacks to the
                 // EmbedSurface-level callbacks (read dynamically so the host can
@@ -810,13 +811,21 @@ float EmbedSurface::frame_time() const
 void EmbedSurface::set_on_point_selected(PointSelectedCallback cb)
 {
     if (impl_)
+    {
         impl_->point_selected_cb = std::move(cb);
+        if (impl_->point_selected_cb)
+            impl_->input.set_tool_mode(ToolMode::Select);
+    }
 }
 
 void EmbedSurface::set_on_series_selected(SeriesSelectedCallback cb)
 {
     if (impl_)
+    {
         impl_->series_selected_cb = std::move(cb);
+        if (impl_->series_selected_cb)
+            impl_->input.set_tool_mode(ToolMode::Select);
+    }
 }
 
 void EmbedSurface::set_on_hover(HoverCallback cb)

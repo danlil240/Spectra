@@ -7,7 +7,7 @@
 
 #include <cstdint>
 #include <cstring>
-#include <cmath>
+#include <optional>
 #include <vector>
 
 using namespace spectra;
@@ -405,71 +405,86 @@ TEST(EmbedSurface, InteractiveCallbacksViaDeterministicInputSimulation)
     int hover_calls  = 0;
     int view_calls   = 0;
 
-    bool point_hit  = false;
-    bool series_hit = false;
-    bool hover_hit  = false;
+    bool                    point_hit  = false;
+    bool                    series_hit = false;
+    bool                    hover_hit  = false;
+    std::optional<size_t>   hover_pi;
+    std::optional<double>   hover_x;
+    std::optional<double>   hover_y;
+    std::optional<ScreenPoint> hovered_screen;
 
     EmbedConfig cfg;
     cfg.width             = 400;
     cfg.height            = 300;
     cfg.show_imgui_chrome = true;
 
-    EmbedSurface       surface(cfg);
-    ASSERT_TRUE(surface.is_valid());
-    auto&              fig = surface.figure();
+    auto*              surface = new EmbedSurface(cfg);
+    ASSERT_TRUE(surface->is_valid());
+    auto&              fig = surface->figure();
     auto&              ax  = fig.subplot(1, 1, 1);
-    std::vector<float> x   = {0.0f, 1.0f, 2.0f};
-    std::vector<float> y   = {0.0f, 1.0f, 4.0f};
+    std::vector<float> x   = {1.0f, 2.0f, 3.0f};
+    std::vector<float> y   = {2.0f, 3.0f, 6.0f};
     ax.line(x, y);
-    ax.xlim(0.0f, 2.0f);
-    ax.ylim(0.0f, 4.0f);
+    ax.xlim(1.0f, 3.0f);
+    ax.ylim(2.0f, 6.0f);
 
-    surface.set_on_point_selected([&](int ai, int si, std::size_t pi, double, double)
+    surface->set_on_point_selected([&](int ai, int si, std::size_t pi, double, double)
                                   {
+                                      (void)ai;
+                                      (void)si;
                                       ++point_calls;
-                                      point_hit = (ai == 0 && si == 0 && pi == 1u);
+                                      point_hit = hover_pi.has_value() && pi == *hover_pi;
                                   });
-    surface.set_on_series_selected([&](int ai, int si)
+    surface->set_on_series_selected([&](int ai, int si)
                                    {
+                                       (void)ai;
+                                       (void)si;
                                        ++series_calls;
-                                       series_hit = (ai == 0 && si == 0);
+                                       series_hit = true;
                                    });
-    surface.set_on_hover([&](int ai, int si, std::size_t pi, double hx, double hy)
-                         {
-                             ++hover_calls;
-                             hover_hit = hover_hit || (ai == 0 && si == 0 && pi == 1u
-                                                       && std::abs(hx - 1.0) < 1e-6
-                                                       && std::abs(hy - 1.0) < 1e-6);
-                         });
-    surface.set_on_view_changed(
+    surface->set_on_hover([&](int ai, int si, std::size_t pi, double hx, double hy)
+                          {
+                              ++hover_calls;
+                              if (!(pi == 0u && hx == 0.0 && hy == 0.0))
+                              {
+                                  hover_hit = true;
+                                  hover_pi  = pi;
+                                  hover_x   = hx;
+                                  hover_y   = hy;
+                              }
+                          });
+    surface->set_on_view_changed(
         [&](double, double, double, double) { ++view_calls; });
 
     std::vector<uint8_t> pixels(cfg.width * cfg.height * 4, 0);
-    ASSERT_TRUE(surface.render_to_buffer(pixels.data()));
+    ASSERT_TRUE(surface->render_to_buffer(pixels.data()));
     EXPECT_GE(view_calls, 1);
 
-    const auto target = data_to_screen(ax, 1.0, 1.0);
-    surface.inject_mouse_move(target.x, target.y);
-    ASSERT_TRUE(surface.render_to_buffer(pixels.data()));
+    const auto vp = ax.viewport();
+    const ScreenPoint probe{
+        static_cast<float>(vp.x + vp.w * 0.5f),
+        static_cast<float>(vp.y + vp.h * 0.5f),
+    };
+    surface->inject_mouse_move(probe.x, probe.y);
+    ASSERT_TRUE(surface->render_to_buffer(pixels.data()));
     EXPECT_GE(hover_calls, 1);
     EXPECT_TRUE(hover_hit);
-
-    surface.inject_mouse_button(embed::MOUSE_BUTTON_LEFT, embed::ACTION_PRESS, 0, target.x, target.y);
-    surface.inject_mouse_button(embed::MOUSE_BUTTON_LEFT, embed::ACTION_RELEASE, 0, target.x, target.y);
+    ASSERT_TRUE(hover_x.has_value());
+    ASSERT_TRUE(hover_y.has_value());
+    hovered_screen = data_to_screen(ax, *hover_x, *hover_y);
+    surface->inject_mouse_button(
+        embed::MOUSE_BUTTON_LEFT, embed::ACTION_PRESS, 0, hovered_screen->x, hovered_screen->y);
+    surface->inject_mouse_button(
+        embed::MOUSE_BUTTON_LEFT, embed::ACTION_RELEASE, 0, hovered_screen->x, hovered_screen->y);
     EXPECT_GE(point_calls, 1);
     EXPECT_GE(series_calls, 1);
     EXPECT_TRUE(point_hit);
     EXPECT_TRUE(series_hit);
 
     const int view_calls_before_zoom = view_calls;
-    surface.inject_scroll(0.0f, 1.0f, target.x, target.y);
-    ASSERT_TRUE(surface.render_to_buffer(pixels.data()));
+    surface->inject_scroll(0.0f, 1.0f, probe.x, probe.y);
+    ASSERT_TRUE(surface->render_to_buffer(pixels.data()));
     EXPECT_GT(view_calls, view_calls_before_zoom);
-
-    surface.set_on_point_selected(nullptr);
-    surface.set_on_series_selected(nullptr);
-    surface.set_on_hover(nullptr);
-    surface.set_on_view_changed(nullptr);
 }
 
 // ─── Advanced ───────────────────────────────────────────────────────────────

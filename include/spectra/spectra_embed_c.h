@@ -20,6 +20,7 @@
 #define SPECTRA_EMBED_C_H
 
 #include <stdint.h>
+#include <stddef.h>
 
 #ifdef __cplusplus
 extern "C"
@@ -349,6 +350,47 @@ extern "C"
     int spectra_embed_animation_play(SpectraEmbed* s, float fps, float duration_sec);
     /* Stop a running animation loop and clear the elapsed timeline. */
     void spectra_embed_animation_stop(SpectraEmbed* s);
+
+    /* ── Interactive event callbacks (Phase 3) ────────────────────────────── */
+
+    /* Fired when the user selects a concrete data point (left-click near it). */
+    typedef void (*SpectraPointSelectedCb)(int    axes_index,
+                                           int    series_index,
+                                           size_t point_index,
+                                           double x,
+                                           double y,
+                                           void*  user_data);
+    /* Fired when the user selects a series (left-click near it). */
+    typedef void (*SpectraSeriesSelectedCb)(int   axes_index,
+                                            int   series_index,
+                                            void* user_data);
+    /* Fired when the hovered/nearest data point changes. series_index < 0 means
+     * the cursor moved away from any series. */
+    typedef void (*SpectraHoverCb)(int    axes_index,
+                                   int    series_index,
+                                   size_t point_index,
+                                   double x,
+                                   double y,
+                                   void*  user_data);
+    /* Fired when the visible data range (xlim/ylim) of the active axes changes. */
+    typedef void (*SpectraViewChangedCb)(double xmin,
+                                         double xmax,
+                                         double ymin,
+                                         double ymax,
+                                         void*  user_data);
+
+    /* Register interactive callbacks. Pass NULL cb to clear. Point/series/hover
+     * callbacks require the ImGui chrome build (show_imgui_chrome). */
+    void spectra_embed_set_on_point_selected(SpectraEmbed*          s,
+                                             SpectraPointSelectedCb cb,
+                                             void*                  user_data);
+    void spectra_embed_set_on_series_selected(SpectraEmbed*           s,
+                                              SpectraSeriesSelectedCb cb,
+                                              void*                   user_data);
+    void spectra_embed_set_on_hover(SpectraEmbed* s, SpectraHoverCb cb, void* user_data);
+    void spectra_embed_set_on_view_changed(SpectraEmbed*        s,
+                                           SpectraViewChangedCb cb,
+                                           void*                user_data);
 
     /* ── Axes configuration ───────────────────────────────────────────────── */
 

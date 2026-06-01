@@ -855,6 +855,69 @@ extern "C"
             s->surface.reset_frame_clock();
     }
 
+    // ── Interactive event callbacks (Phase 3) ────────────────────────────────────
+
+    void spectra_embed_set_on_point_selected(SpectraEmbed*          s,
+                                             SpectraPointSelectedCb cb,
+                                             void*                  user_data)
+    {
+        if (!s)
+            return;
+        if (!cb)
+        {
+            s->surface.set_on_point_selected(nullptr);
+            return;
+        }
+        s->surface.set_on_point_selected(
+            [cb, user_data](int ai, int si, std::size_t pi, double x, double y)
+            { cb(ai, si, pi, x, y, user_data); });
+    }
+
+    void spectra_embed_set_on_series_selected(SpectraEmbed*           s,
+                                              SpectraSeriesSelectedCb cb,
+                                              void*                   user_data)
+    {
+        if (!s)
+            return;
+        if (!cb)
+        {
+            s->surface.set_on_series_selected(nullptr);
+            return;
+        }
+        s->surface.set_on_series_selected(
+            [cb, user_data](int ai, int si) { cb(ai, si, user_data); });
+    }
+
+    void spectra_embed_set_on_hover(SpectraEmbed* s, SpectraHoverCb cb, void* user_data)
+    {
+        if (!s)
+            return;
+        if (!cb)
+        {
+            s->surface.set_on_hover(nullptr);
+            return;
+        }
+        s->surface.set_on_hover(
+            [cb, user_data](int ai, int si, std::size_t pi, double x, double y)
+            { cb(ai, si, pi, x, y, user_data); });
+    }
+
+    void spectra_embed_set_on_view_changed(SpectraEmbed*        s,
+                                           SpectraViewChangedCb cb,
+                                           void*                user_data)
+    {
+        if (!s)
+            return;
+        if (!cb)
+        {
+            s->surface.set_on_view_changed(nullptr);
+            return;
+        }
+        s->surface.set_on_view_changed(
+            [cb, user_data](double xmin, double xmax, double ymin, double ymax)
+            { cb(xmin, xmax, ymin, ymax, user_data); });
+    }
+
     // ── Axes configuration ──────────────────────────────────────────────────────
 
     void spectra_axes_set_xlabel(SpectraAxes* ax, const char* label)

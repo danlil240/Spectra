@@ -227,6 +227,19 @@ using TooltipCallback      = std::function<void(const std::string& text, float x
 // delta of the current step.  Use for live data streaming / animation.
 using FrameCallback = std::function<void(float time_sec, float dt_sec)>;
 
+// ── Interactive event callbacks (Phase 3) ───────────────────────────────────
+// series_index is the index of the series within its axes; point_index is the
+// index of the data point within the series.  axes_index is the index of the
+// axes within the figure.
+using PointSelectedCallback  = std::function<void(int axes_index, int series_index, std::size_t point_index, double x, double y)>;
+using SeriesSelectedCallback = std::function<void(int axes_index, int series_index)>;
+// Fired when the hovered (nearest) data point changes.  series_index < 0 means
+// the cursor moved away from any series.
+using HoverCallback          = std::function<void(int axes_index, int series_index, std::size_t point_index, double x, double y)>;
+// Fired when the visible data range (xlim/ylim) of the active axes changes via
+// pan/zoom/auto-fit.
+using ViewChangedCallback    = std::function<void(double xmin, double xmax, double ymin, double ymax)>;
+
 // ─── Mouse button constants (match GLFW) ────────────────────────────────────
 
 namespace embed
@@ -388,6 +401,16 @@ class EmbedSurface
     void  clear_frame_callback();
     void  reset_frame_clock();
     float frame_time() const;
+
+    // ── Interactive event callbacks (Phase 3) ───────────────────────────
+    // Fired when the user selects a concrete data point (left-click near it).
+    void set_on_point_selected(PointSelectedCallback cb);
+    // Fired when the user selects a series (left-click near it).
+    void set_on_series_selected(SeriesSelectedCallback cb);
+    // Fired when the hovered/nearest data point changes.
+    void set_on_hover(HoverCallback cb);
+    // Fired when the visible data range of the active axes changes.
+    void set_on_view_changed(ViewChangedCallback cb);
 
     // ── Advanced: Vulkan device sharing ─────────────────────────────────
     // For advanced integrations where the host already has a Vulkan device.

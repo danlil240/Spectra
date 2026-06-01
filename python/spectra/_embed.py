@@ -36,6 +36,23 @@ SpectraFrameCb = ctypes.CFUNCTYPE(
 )
 SpectraRedrawCb = ctypes.CFUNCTYPE(None, ctypes.c_void_p)
 
+# Interactive event callback prototypes (Phase 3).
+SpectraPointSelectedCb = ctypes.CFUNCTYPE(
+    None, ctypes.c_int, ctypes.c_int, ctypes.c_size_t,
+    ctypes.c_double, ctypes.c_double, ctypes.c_void_p
+)
+SpectraSeriesSelectedCb = ctypes.CFUNCTYPE(
+    None, ctypes.c_int, ctypes.c_int, ctypes.c_void_p
+)
+SpectraHoverCb = ctypes.CFUNCTYPE(
+    None, ctypes.c_int, ctypes.c_int, ctypes.c_size_t,
+    ctypes.c_double, ctypes.c_double, ctypes.c_void_p
+)
+SpectraViewChangedCb = ctypes.CFUNCTYPE(
+    None, ctypes.c_double, ctypes.c_double, ctypes.c_double, ctypes.c_double,
+    ctypes.c_void_p
+)
+
 
 def _find_library() -> str:
     """Locate libspectra_embed.so, searching common paths."""
@@ -410,6 +427,24 @@ def _load_lib() -> ctypes.CDLL:
     _lib.spectra_embed_animation_play.restype = ctypes.c_int
     _lib.spectra_embed_animation_stop.argtypes = [ctypes.c_void_p]
     _lib.spectra_embed_animation_stop.restype = None
+
+    # ── Phase 3: Interactive event callbacks ──────────────────────────────
+    _lib.spectra_embed_set_on_point_selected.argtypes = [
+        ctypes.c_void_p, SpectraPointSelectedCb, ctypes.c_void_p
+    ]
+    _lib.spectra_embed_set_on_point_selected.restype = None
+    _lib.spectra_embed_set_on_series_selected.argtypes = [
+        ctypes.c_void_p, SpectraSeriesSelectedCb, ctypes.c_void_p
+    ]
+    _lib.spectra_embed_set_on_series_selected.restype = None
+    _lib.spectra_embed_set_on_hover.argtypes = [
+        ctypes.c_void_p, SpectraHoverCb, ctypes.c_void_p
+    ]
+    _lib.spectra_embed_set_on_hover.restype = None
+    _lib.spectra_embed_set_on_view_changed.argtypes = [
+        ctypes.c_void_p, SpectraViewChangedCb, ctypes.c_void_p
+    ]
+    _lib.spectra_embed_set_on_view_changed.restype = None
 
     return _lib
 
@@ -875,9 +910,13 @@ class EmbedSurface:
         self._height = height
         # Pre-allocate pixel buffer
         self._buf = (ctypes.c_uint8 * (width * height * 4))()
-        # Keep installed C callbacks alive (Phase 4).
+        # Keep installed C callbacks alive (Phase 4 & Phase 3).
         self._frame_cb = None
         self._redraw_cb = None
+        self._point_cb = None
+        self._series_cb = None
+        self._hover_cb = None
+        self._view_cb = None
 
     def __del__(self) -> None:
         if hasattr(self, "_handle") and self._handle:
@@ -1120,6 +1159,80 @@ class EmbedSurface:
     def animation_stop(self) -> None:
         """Stop the animation loop and reset the elapsed timeline."""
         self._lib.spectra_embed_animation_stop(self._handle)
+
+    # ── Phase 3: interactive event callbacks ─────────────────────────────
+
+    def set_on_point_selected(self, callback) -> None:
+        """Register ``callback(axes_index, series_index, point_index, x, y)``.
+
+        Fired when the user selects a concrete data point. Requires the ImGui
+        chrome build. Pass ``None`` to clear.
+        """
+        if callback is None:
+            self._point_cb = None
+            self._lib.spectra_embed_set_on_point_selected(
+                self._handle, ctypes.cast(None, SpectraPointSelectedCb), None)
+            return
+
+        def _trampoline(ai, si, pi, x, y, _user):
+            callback(ai, si, pi, x, y)
+
+        self._point_cb = SpectraPointSelectedCb(_trampoline)
+        self._lib.spectra_embed_set_on_point_selected(self._handle, self._point_cb, None)
+
+    def set_on_series_selected(self, callback) -> None:
+        """Register ``callback(axes_index, series_index)``.
+
+        Fired when the user selects a series. Requires the ImGui chrome build.
+        Pass ``None`` to clear.
+        """
+        if callback is None:
+            self._series_cb = None
+            self._lib.spectra_embed_set_on_series_selected(
+                self._handle, ctypes.cast(None, SpectraSeriesSelectedCb), None)
+            return
+
+        def _trampoline(ai, si, _user):
+            callback(ai, si)
+
+        self._series_cb = SpectraSeriesSelectedCb(_trampoline)
+        self._lib.spectra_embed_set_on_series_selected(self._handle, self._series_cb, None)
+
+    def set_on_hover(self, callback) -> None:
+        """Register ``callback(axes_index, series_index, point_index, x, y)``.
+
+        Fired when the hovered/nearest data point changes; ``series_index < 0``
+        means the cursor moved away from any series. Pass ``None`` to clear.
+        """
+        if callback is None:
+            self._hover_cb = None
+            self._lib.spectra_embed_set_on_hover(
+                self._handle, ctypes.cast(None, SpectraHoverCb), None)
+            return
+
+        def _trampoline(ai, si, pi, x, y, _user):
+            callback(ai, si, pi, x, y)
+
+        self._hover_cb = SpectraHoverCb(_trampoline)
+        self._lib.spectra_embed_set_on_hover(self._handle, self._hover_cb, None)
+
+    def set_on_view_changed(self, callback) -> None:
+        """Register ``callback(xmin, xmax, ymin, ymax)``.
+
+        Fired when the visible data range of the active axes changes via
+        pan/zoom/auto-fit. Pass ``None`` to clear.
+        """
+        if callback is None:
+            self._view_cb = None
+            self._lib.spectra_embed_set_on_view_changed(
+                self._handle, ctypes.cast(None, SpectraViewChangedCb), None)
+            return
+
+        def _trampoline(xmin, xmax, ymin, ymax, _user):
+            callback(xmin, xmax, ymin, ymax)
+
+        self._view_cb = SpectraViewChangedCb(_trampoline)
+        self._lib.spectra_embed_set_on_view_changed(self._handle, self._view_cb, None)
 
     # ── Phase 5E: builder ────────────────────────────────────────────────
 

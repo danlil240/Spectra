@@ -45,6 +45,87 @@ struct EmbedSurface::Impl
     FrameCallback        frame_cb;
     float                frame_time = 0.0f;
 
+    // Interactive event callbacks (Phase 3)
+    PointSelectedCallback  point_selected_cb;
+    SeriesSelectedCallback series_selected_cb;
+    HoverCallback          hover_cb;
+    ViewChangedCallback    view_changed_cb;
+    const Series*          last_hover_series = nullptr;
+    std::size_t            last_hover_index  = 0;
+    bool                   has_last_view     = false;
+    double                 last_view[4]      = {0.0, 0.0, 0.0, 0.0};
+
+    // Locate the (axes_index, series_index) of a series within a figure.
+    static void find_series_indices(Figure* fig, const Series* s, int& out_ai, int& out_si)
+    {
+        out_ai = -1;
+        out_si = -1;
+        if (!fig || !s)
+            return;
+        auto& axes = fig->all_axes_mut();
+        for (std::size_t ai = 0; ai < axes.size(); ++ai)
+        {
+            if (!axes[ai])
+                continue;
+            auto& ser = axes[ai]->series_mut();
+            for (std::size_t si = 0; si < ser.size(); ++si)
+            {
+                if (ser[si].get() == s)
+                {
+                    out_ai = static_cast<int>(ai);
+                    out_si = static_cast<int>(si);
+                    return;
+                }
+            }
+        }
+    }
+
+    // Fire hover/view-changed callbacks based on current interaction state.
+    void dispatch_interaction_events(Figure* active_fig)
+    {
+#ifdef SPECTRA_USE_IMGUI
+        if (hover_cb && data_interaction)
+        {
+            const auto&   np = data_interaction->nearest_point();
+            const Series* s  = np.found ? np.series : nullptr;
+            if (s != last_hover_series || (s && np.point_index != last_hover_index))
+            {
+                last_hover_series = s;
+                last_hover_index  = np.point_index;
+                if (s)
+                {
+                    int ai = -1, si = -1;
+                    find_series_indices(active_fig, s, ai, si);
+                    hover_cb(ai, si, np.point_index, np.data_x, np.data_y);
+                }
+                else
+                {
+                    hover_cb(-1, -1, 0, 0.0, 0.0);
+                }
+            }
+        }
+#endif
+        if (view_changed_cb && active_fig)
+        {
+            auto& axes2d = active_fig->axes_mut();
+            if (!axes2d.empty() && axes2d[0])
+            {
+                const auto xl = axes2d[0]->x_limits();
+                const auto yl = axes2d[0]->y_limits();
+                if (!has_last_view || xl.min != last_view[0] || xl.max != last_view[1] ||
+                    yl.min != last_view[2] || yl.max != last_view[3])
+                {
+                    has_last_view = true;
+                    last_view[0]  = xl.min;
+                    last_view[1]  = xl.max;
+                    last_view[2]  = yl.min;
+                    last_view[3]  = yl.max;
+                    view_changed_cb(xl.min, xl.max, yl.min, yl.max);
+                }
+            }
+        }
+    }
+
 #ifdef SPECTRA_USE_IMGUI
     std::unique_ptr<ImGuiIntegration> imgui_ui;
     std::unique_ptr<DataInteraction>  data_interaction;
@@ -116,6 +197,28 @@ struct EmbedSurface::Impl
                 data_interaction = std::make_unique<DataInteraction>();
                 imgui_ui->set_data_interaction(data_interaction.get());
                 imgui_ui->set_input_handler(&input);
+
+                // Phase 3: route DataInteraction selection callbacks to the
+                // EmbedSurface-level callbacks (read dynamically so the host can
+                // (re)register them at any time).
+                data_interaction->set_on_point_selected(
+                    [this](Figure* fig, Axes*, int axes_index, Series*, int series_index,
+                           size_t point_index)
+                    {
+                        (void)fig;
+                        if (point_selected_cb)
+                        {
+                            const auto& np = data_interaction->nearest_point();
+                            point_selected_cb(axes_index, series_index, point_index,
+                                              np.data_x, np.data_y);
+                        }
+                    });
+                data_interaction->set_on_series_selected(
+                    [this](Figure*, Axes*, int axes_index, Series*, int series_index)
+                    {
+                        if (series_selected_cb)
+                            series_selected_cb(axes_index, series_index);
+                    });
 
                 // Apply UI chrome visibility from config
                 imgui_ui->get_layout_manager().set_tab_bar_visible(
@@ -286,6 +389,9 @@ struct EmbedSurface::Impl
             // Fallback: direct layout without ImGui
             active_fig->compute_layout();
         }
+
+        // Phase 3: fire hover / view-changed callbacks for the active figure.
+        dispatch_interaction_events(active_fig);
 
         // Upload any dirty series data
         for (auto& ax : active_fig->all_axes_mut())
@@ -699,6 +805,30 @@ void EmbedSurface::reset_frame_clock()
 float EmbedSurface::frame_time() const
 {
     return impl_ ? impl_->frame_time : 0.0f;
+}
+
+void EmbedSurface::set_on_point_selected(PointSelectedCallback cb)
+{
+    if (impl_)
+        impl_->point_selected_cb = std::move(cb);
+}
+
+void EmbedSurface::set_on_series_selected(SeriesSelectedCallback cb)
+{
+    if (impl_)
+        impl_->series_selected_cb = std::move(cb);
+}
+
+void EmbedSurface::set_on_hover(HoverCallback cb)
+{
+    if (impl_)
+        impl_->hover_cb = std::move(cb);
+}
+
+void EmbedSurface::set_on_view_changed(ViewChangedCallback cb)
+{
+    if (impl_)
+        impl_->view_changed_cb = std::move(cb);
 }
 
 // ── Advanced ────────────────────────────────────────────────────────────────

@@ -20,6 +20,7 @@ struct SpectraEmbed
 {
     spectra::EmbedSurface surface;
     explicit SpectraEmbed(uint32_t w, uint32_t h) : surface(spectra::EmbedConfig{w, h}) {}
+    explicit SpectraEmbed(const spectra::EmbedConfig& cfg) : surface(cfg) {}
 };
 
 struct SpectraFigure
@@ -53,6 +54,31 @@ extern "C"
     SpectraEmbed* spectra_embed_create(uint32_t width, uint32_t height)
     {
         auto* s = new (std::nothrow) SpectraEmbed(width, height);
+        if (!s || !s->surface.is_valid())
+        {
+            delete s;
+            return nullptr;
+        }
+        return s;
+    }
+
+    SpectraEmbed* spectra_embed_create_ex(uint32_t    width,
+                                          uint32_t    height,
+                                          const char* theme,
+                                          float       dpi_scale,
+                                          uint32_t    msaa,
+                                          float       bg_alpha)
+    {
+        spectra::EmbedConfig cfg;
+        cfg.width            = width;
+        cfg.height           = height;
+        cfg.dpi_scale        = dpi_scale > 0.0f ? dpi_scale : 1.0f;
+        cfg.msaa             = msaa > 0 ? msaa : 1;
+        cfg.background_alpha = bg_alpha;
+        if (theme && theme[0] != '\0')
+            cfg.theme = theme;
+
+        auto* s = new (std::nothrow) SpectraEmbed(cfg);
         if (!s || !s->surface.is_valid())
         {
             delete s;
@@ -267,6 +293,17 @@ extern "C"
         return s ? s->surface.dpi_scale() : 1.0f;
     }
 
+    void spectra_embed_set_background_alpha(SpectraEmbed* s, float alpha)
+    {
+        if (s)
+            s->surface.set_background_alpha(alpha);
+    }
+
+    float spectra_embed_get_background_alpha(const SpectraEmbed* s)
+    {
+        return s ? s->surface.background_alpha() : 1.0f;
+    }
+
     // ── Theme & UI chrome ────────────────────────────────────────────────────────
 
     void spectra_embed_set_theme(SpectraEmbed* s, const char* theme)
@@ -341,6 +378,50 @@ extern "C"
         if (!ax || !ax->axes_2d)
             return;
         ax->axes_2d->grid(enabled != 0);
+    }
+
+    void spectra_axes_auto_fit(SpectraAxes* ax)
+    {
+        if (!ax || !ax->axes_2d)
+            return;
+        ax->axes_2d->auto_fit();
+    }
+
+    SpectraSeries* spectra_axes_histogram(SpectraAxes* ax,
+                                          const float* values,
+                                          uint32_t     count,
+                                          int          bins,
+                                          const char*  label)
+    {
+        if (!ax || !ax->axes_2d || !values || count == 0)
+            return nullptr;
+
+        std::span<const float> vs(values, count);
+        auto&                  series = ax->axes_2d->histogram(vs, bins > 0 ? bins : 30);
+        if (label && label[0] != '\0')
+            series.label(label);
+
+        g_series_pool.push_back(SpectraSeries{&series});
+        return &g_series_pool.back();
+    }
+
+    SpectraSeries* spectra_axes_bar(SpectraAxes* ax,
+                                    const float* positions,
+                                    const float* heights,
+                                    uint32_t     count,
+                                    const char*  label)
+    {
+        if (!ax || !ax->axes_2d || !positions || !heights || count == 0)
+            return nullptr;
+
+        std::span<const float> ps(positions, count);
+        std::span<const float> hs(heights, count);
+        auto&                  series = ax->axes_2d->bar(ps, hs);
+        if (label && label[0] != '\0')
+            series.label(label);
+
+        g_series_pool.push_back(SpectraSeries{&series});
+        return &g_series_pool.back();
     }
 
     // ── Figure configuration ────────────────────────────────────────────────────

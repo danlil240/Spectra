@@ -79,7 +79,9 @@ struct RenderOptions
     std::string xlabel;
     std::string ylabel;
     std::string save_path;   // If non-empty, saves PNG to this path
+    std::string theme;       // Theme name: "dark", "night", or "light". Default: "night".
     float       dpi_scale = 1.0f;
+    uint32_t    msaa      = 1;   // MSAA samples (1 = off, 4 = 4×)
     bool        grid      = true;
 };
 
@@ -97,6 +99,18 @@ struct SeriesDesc
 
 namespace detail
 {
+
+inline EmbedConfig make_embed_config(const RenderOptions& opts)
+{
+    EmbedConfig cfg;
+    cfg.width     = opts.width;
+    cfg.height    = opts.height;
+    cfg.msaa      = opts.msaa > 0 ? opts.msaa : 1;
+    cfg.dpi_scale = opts.dpi_scale;
+    if (!opts.theme.empty())
+        cfg.theme = opts.theme;
+    return cfg;
+}
 
 inline RenderedImage render_to_image(EmbedSurface& surface)
 {
@@ -150,7 +164,7 @@ inline RenderedImage render(std::span<const float> x,
                             std::span<const float> y,
                             const RenderOptions&   opts = {})
 {
-    EmbedSurface surface(EmbedConfig{opts.width, opts.height, 1, false, opts.dpi_scale});
+    EmbedSurface surface(detail::make_embed_config(opts));
     auto&        fig = surface.figure();
     auto&        ax  = fig.subplot(1, 1, 1);
     ax.plot(x, y, opts.fmt);
@@ -171,7 +185,7 @@ inline RenderedImage render(std::span<const float> x,
 inline RenderedImage render_multi(std::initializer_list<SeriesDesc> series_list,
                                   const RenderOptions&              opts = {})
 {
-    EmbedSurface surface(EmbedConfig{opts.width, opts.height, 1, false, opts.dpi_scale});
+    EmbedSurface surface(detail::make_embed_config(opts));
     auto&        fig = surface.figure();
     auto&        ax  = fig.subplot(1, 1, 1);
 
@@ -192,7 +206,7 @@ inline RenderedImage render_multi(std::initializer_list<SeriesDesc> series_list,
 inline RenderedImage render_multi(const std::vector<SeriesDesc>& series_list,
                                   const RenderOptions&           opts = {})
 {
-    EmbedSurface surface(EmbedConfig{opts.width, opts.height, 1, false, opts.dpi_scale});
+    EmbedSurface surface(detail::make_embed_config(opts));
     auto&        fig = surface.figure();
     auto&        ax  = fig.subplot(1, 1, 1);
 
@@ -214,7 +228,7 @@ inline RenderedImage render_scatter(std::span<const float> x,
                                     std::span<const float> y,
                                     const RenderOptions&   opts = {})
 {
-    EmbedSurface surface(EmbedConfig{opts.width, opts.height, 1, false, opts.dpi_scale});
+    EmbedSurface surface(detail::make_embed_config(opts));
     auto&        fig = surface.figure();
     auto&        ax  = fig.subplot(1, 1, 1);
     ax.scatter(x, y);
@@ -230,7 +244,7 @@ inline RenderedImage render_histogram(std::span<const float> values,
                                       int                    bins = 30,
                                       const RenderOptions&   opts = {})
 {
-    EmbedSurface surface(EmbedConfig{opts.width, opts.height, 1, false, opts.dpi_scale});
+    EmbedSurface surface(detail::make_embed_config(opts));
     auto&        fig = surface.figure();
     auto&        ax  = fig.subplot(1, 1, 1);
     ax.histogram(values, bins);
@@ -246,7 +260,7 @@ inline RenderedImage render_bar(std::span<const float> positions,
                                 std::span<const float> heights,
                                 const RenderOptions&   opts = {})
 {
-    EmbedSurface surface(EmbedConfig{opts.width, opts.height, 1, false, opts.dpi_scale});
+    EmbedSurface surface(detail::make_embed_config(opts));
     auto&        fig = surface.figure();
     auto&        ax  = fig.subplot(1, 1, 1);
     ax.bar(positions, heights);

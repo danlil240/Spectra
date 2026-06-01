@@ -267,3 +267,98 @@ class TestInput:
         for _ in range(3):
             s.scroll(0.0, -1.0, 100.0, 100.0)
         s.render()
+
+
+# ─── Extended Construction ───────────────────────────────────────────────────
+
+
+@_skip_embed
+class TestExtendedConstruction:
+    def test_with_theme(self):
+        s = EmbedSurface(64, 64, theme="dark")
+        assert s.is_valid
+
+    def test_with_theme_light(self):
+        s = EmbedSurface(64, 64, theme="light")
+        assert s.is_valid
+
+    def test_with_dpi_scale(self):
+        s = EmbedSurface(64, 64, dpi_scale=2.0)
+        assert s.is_valid
+
+    def test_with_background_alpha(self):
+        s = EmbedSurface(64, 64, background_alpha=0.5)
+        assert s.is_valid
+
+    def test_background_alpha_property_get_set(self):
+        s = EmbedSurface(64, 64)
+        s.background_alpha = 0.25
+        assert abs(s.background_alpha - 0.25) < 1e-5
+
+    def test_background_alpha_init_preserved(self):
+        s = EmbedSurface(64, 64, background_alpha=0.75)
+        assert abs(s.background_alpha - 0.75) < 1e-5
+
+
+# ─── New Series Types ────────────────────────────────────────────────────────
+
+
+@_skip_embed
+class TestNewSeriesTypes:
+    def test_histogram(self):
+        s = EmbedSurface(128, 128)
+        fig = s.figure()
+        ax = fig.subplot(1, 1, 1)
+        series = ax.histogram([1, 2, 2, 3, 3, 3, 4, 4, 5], bins=5)
+        assert isinstance(series, EmbedSeries)
+
+    def test_histogram_with_label(self):
+        s = EmbedSurface(128, 128)
+        fig = s.figure()
+        ax = fig.subplot(1, 1, 1)
+        series = ax.histogram([1, 2, 3, 4, 5], bins=3, label="dist")
+        assert isinstance(series, EmbedSeries)
+
+    def test_bar(self):
+        s = EmbedSurface(128, 128)
+        fig = s.figure()
+        ax = fig.subplot(1, 1, 1)
+        series = ax.bar([1, 2, 3, 4], [10, 20, 15, 25])
+        assert isinstance(series, EmbedSeries)
+
+    def test_bar_with_label(self):
+        s = EmbedSurface(128, 128)
+        fig = s.figure()
+        ax = fig.subplot(1, 1, 1)
+        series = ax.bar([1, 2, 3], [5, 10, 7], label="values")
+        assert isinstance(series, EmbedSeries)
+
+    def test_bar_length_mismatch(self):
+        s = EmbedSurface(128, 128)
+        fig = s.figure()
+        ax = fig.subplot(1, 1, 1)
+        with pytest.raises(AssertionError):
+            ax.bar([1, 2, 3], [10, 20])
+
+    def test_auto_fit(self):
+        s = EmbedSurface(128, 128)
+        fig = s.figure()
+        ax = fig.subplot(1, 1, 1)
+        ax.line([0, 1, 2], [0, 1, 4])
+        ax.auto_fit()  # must not crash
+
+    def test_render_after_histogram(self):
+        s = EmbedSurface(64, 64)
+        fig = s.figure()
+        ax = fig.subplot(1, 1, 1)
+        ax.histogram(list(range(20)), bins=5)
+        pixels = s.render()
+        assert len(pixels) == 64 * 64 * 4
+
+    def test_render_after_bar(self):
+        s = EmbedSurface(64, 64)
+        fig = s.figure()
+        ax = fig.subplot(1, 1, 1)
+        ax.bar([1, 2, 3], [10, 20, 15])
+        pixels = s.render()
+        assert len(pixels) == 64 * 64 * 4

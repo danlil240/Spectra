@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include <spectra/axes3d.hpp>
 #include <spectra/embed.hpp>
+#include <spectra/spectra_embed_c.h>
 
 #include <spectra/figure_registry.hpp>
 
@@ -428,4 +429,94 @@ TEST(EmbedSurface, RenderWith3DSubplot)
 
     std::vector<uint8_t> pixels(64 * 64 * 4, 0);
     EXPECT_TRUE(surface.render_to_buffer(pixels.data()));
+}
+
+// ─── C API ──────────────────────────────────────────────────────────────────
+
+TEST(EmbedCApi, CreateDestroy)
+{
+    SpectraEmbed* s = spectra_embed_create(64, 64);
+    ASSERT_NE(s, nullptr);
+    EXPECT_EQ(spectra_embed_is_valid(s), 1);
+    spectra_embed_destroy(s);
+}
+
+TEST(EmbedCApi, CreateExWithTheme)
+{
+    SpectraEmbed* s = spectra_embed_create_ex(64, 64, "dark", 1.0f, 1, 1.0f);
+    ASSERT_NE(s, nullptr);
+    EXPECT_EQ(spectra_embed_is_valid(s), 1);
+    spectra_embed_destroy(s);
+}
+
+TEST(EmbedCApi, CreateExNullTheme)
+{
+    SpectraEmbed* s = spectra_embed_create_ex(64, 64, nullptr, 1.0f, 1, 1.0f);
+    ASSERT_NE(s, nullptr);
+    EXPECT_EQ(spectra_embed_is_valid(s), 1);
+    spectra_embed_destroy(s);
+}
+
+TEST(EmbedCApi, BackgroundAlpha)
+{
+    SpectraEmbed* s = spectra_embed_create(64, 64);
+    ASSERT_NE(s, nullptr);
+    spectra_embed_set_background_alpha(s, 0.5f);
+    EXPECT_FLOAT_EQ(spectra_embed_get_background_alpha(s), 0.5f);
+    spectra_embed_destroy(s);
+}
+
+TEST(EmbedCApi, HistogramSeries)
+{
+    SpectraEmbed* s = spectra_embed_create(64, 64);
+    ASSERT_NE(s, nullptr);
+
+    SpectraFigure* fig = spectra_embed_figure(s);
+    ASSERT_NE(fig, nullptr);
+    SpectraAxes* ax = spectra_figure_subplot(fig, 1, 1, 1);
+    ASSERT_NE(ax, nullptr);
+
+    std::vector<float> values = {1, 2, 2, 3, 3, 3, 4, 4, 5};
+    SpectraSeries*     series = spectra_axes_histogram(ax, values.data(),
+                                                       static_cast<uint32_t>(values.size()), 5, "hist");
+    EXPECT_NE(series, nullptr);
+
+    spectra_embed_destroy(s);
+}
+
+TEST(EmbedCApi, BarSeries)
+{
+    SpectraEmbed* s = spectra_embed_create(64, 64);
+    ASSERT_NE(s, nullptr);
+
+    SpectraFigure* fig = spectra_embed_figure(s);
+    ASSERT_NE(fig, nullptr);
+    SpectraAxes* ax = spectra_figure_subplot(fig, 1, 1, 1);
+    ASSERT_NE(ax, nullptr);
+
+    std::vector<float> pos     = {1, 2, 3, 4};
+    std::vector<float> heights = {10, 20, 15, 25};
+    SpectraSeries*     series  = spectra_axes_bar(ax, pos.data(), heights.data(),
+                                                  static_cast<uint32_t>(pos.size()), "bar");
+    EXPECT_NE(series, nullptr);
+
+    spectra_embed_destroy(s);
+}
+
+TEST(EmbedCApi, AutoFit)
+{
+    SpectraEmbed* s = spectra_embed_create(64, 64);
+    ASSERT_NE(s, nullptr);
+
+    SpectraFigure* fig = spectra_embed_figure(s);
+    ASSERT_NE(fig, nullptr);
+    SpectraAxes* ax = spectra_figure_subplot(fig, 1, 1, 1);
+    ASSERT_NE(ax, nullptr);
+
+    std::vector<float> x = {0, 1, 2};
+    std::vector<float> y = {0, 1, 4};
+    spectra_axes_line(ax, x.data(), y.data(), static_cast<uint32_t>(x.size()), nullptr);
+    spectra_axes_auto_fit(ax);  // Must not crash
+
+    spectra_embed_destroy(s);
 }

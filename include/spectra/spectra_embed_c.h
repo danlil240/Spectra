@@ -37,6 +37,19 @@ extern "C"
     /* Create an embed surface with the given dimensions. Returns NULL on failure. */
     SpectraEmbed* spectra_embed_create(uint32_t width, uint32_t height);
 
+    /* Create an embed surface with extended configuration.
+     * theme        - theme name ("dark", "night", or "light"), or NULL for default.
+     * dpi_scale    - DPI scale factor (1.0 = 96 DPI, 2.0 = Retina/HiDPI).
+     * msaa         - MSAA samples (1 = no MSAA, 4 = 4x MSAA).
+     * bg_alpha     - Background alpha (1.0 = opaque, 0.0 = transparent).
+     * Returns NULL on failure. */
+    SpectraEmbed* spectra_embed_create_ex(uint32_t    width,
+                                          uint32_t    height,
+                                          const char* theme,
+                                          float       dpi_scale,
+                                          uint32_t    msaa,
+                                          float       bg_alpha);
+
     /* Destroy an embed surface and free all resources. */
     void spectra_embed_destroy(SpectraEmbed* s);
 
@@ -114,6 +127,10 @@ extern "C"
     /* Advance animations by dt seconds. */
     void spectra_embed_update(SpectraEmbed* s, float dt);
 
+    /* Get/set background alpha (1.0 = opaque, 0.0 = transparent). */
+    void  spectra_embed_set_background_alpha(SpectraEmbed* s, float alpha);
+    float spectra_embed_get_background_alpha(const SpectraEmbed* s);
+
     /* ── Display configuration ────────────────────────────────────────────── */
 
     /* Set DPI scale factor (1.0 = 96 DPI, 2.0 = Retina/HiDPI).
@@ -147,6 +164,23 @@ extern "C"
 
     /* Enable/disable grid. */
     void spectra_axes_set_grid(SpectraAxes* ax, int enabled);
+
+    /* Trigger auto-fit so axes limits are reset to encompass all data. */
+    void spectra_axes_auto_fit(SpectraAxes* ax);
+
+    /* Add a histogram series. label can be NULL. Returns NULL on failure. */
+    SpectraSeries* spectra_axes_histogram(SpectraAxes* ax,
+                                          const float* values,
+                                          uint32_t     count,
+                                          int          bins,
+                                          const char*  label);
+
+    /* Add a bar series. label can be NULL. Returns NULL on failure. */
+    SpectraSeries* spectra_axes_bar(SpectraAxes*  ax,
+                                    const float*  positions,
+                                    const float*  heights,
+                                    uint32_t      count,
+                                    const char*   label);
 
     /* ── Figure configuration ─────────────────────────────────────────────── */
 

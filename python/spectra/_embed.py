@@ -81,6 +81,16 @@ def _load_lib() -> ctypes.CDLL:
     _lib.spectra_embed_create.argtypes = [ctypes.c_uint32, ctypes.c_uint32]
     _lib.spectra_embed_create.restype = ctypes.c_void_p
 
+    _lib.spectra_embed_create_ex.argtypes = [
+        ctypes.c_uint32,   # width
+        ctypes.c_uint32,   # height
+        ctypes.c_char_p,   # theme
+        ctypes.c_float,    # dpi_scale
+        ctypes.c_uint32,   # msaa
+        ctypes.c_float,    # bg_alpha
+    ]
+    _lib.spectra_embed_create_ex.restype = ctypes.c_void_p
+
     _lib.spectra_embed_destroy.argtypes = [ctypes.c_void_p]
     _lib.spectra_embed_destroy.restype = None
 
@@ -189,6 +199,12 @@ def _load_lib() -> ctypes.CDLL:
     _lib.spectra_embed_get_dpi_scale.argtypes = [ctypes.c_void_p]
     _lib.spectra_embed_get_dpi_scale.restype = ctypes.c_float
 
+    _lib.spectra_embed_set_background_alpha.argtypes = [ctypes.c_void_p, ctypes.c_float]
+    _lib.spectra_embed_set_background_alpha.restype = None
+
+    _lib.spectra_embed_get_background_alpha.argtypes = [ctypes.c_void_p]
+    _lib.spectra_embed_get_background_alpha.restype = ctypes.c_float
+
     # Theme & UI chrome
     _lib.spectra_embed_set_theme.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
     _lib.spectra_embed_set_theme.restype = None
@@ -223,6 +239,27 @@ def _load_lib() -> ctypes.CDLL:
 
     _lib.spectra_axes_set_grid.argtypes = [ctypes.c_void_p, ctypes.c_int]
     _lib.spectra_axes_set_grid.restype = None
+
+    _lib.spectra_axes_auto_fit.argtypes = [ctypes.c_void_p]
+    _lib.spectra_axes_auto_fit.restype = None
+
+    _lib.spectra_axes_histogram.argtypes = [
+        ctypes.c_void_p,                      # ax
+        ctypes.POINTER(ctypes.c_float),        # values
+        ctypes.c_uint32,                       # count
+        ctypes.c_int,                          # bins
+        ctypes.c_char_p,                       # label
+    ]
+    _lib.spectra_axes_histogram.restype = ctypes.c_void_p
+
+    _lib.spectra_axes_bar.argtypes = [
+        ctypes.c_void_p,                      # ax
+        ctypes.POINTER(ctypes.c_float),        # positions
+        ctypes.POINTER(ctypes.c_float),        # heights
+        ctypes.c_uint32,                       # count
+        ctypes.c_char_p,                       # label
+    ]
+    _lib.spectra_axes_bar.restype = ctypes.c_void_p
 
     # Figure configuration
     _lib.spectra_figure_set_title.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
@@ -350,6 +387,48 @@ class EmbedAxes:
         """Enable or disable grid lines."""
         self._lib.spectra_axes_set_grid(self._handle, 1 if enabled else 0)
 
+    def auto_fit(self) -> None:
+        """Reset axis limits to encompass all series data."""
+        self._lib.spectra_axes_auto_fit(self._handle)
+
+    def histogram(self, values, bins: int = 30, label: Optional[str] = None) -> EmbedSeries:
+        """Add a histogram series.
+
+        Args:
+            values: Data values (list, tuple, or numpy array).
+            bins: Number of histogram bins (default 30).
+            label: Optional series label for legend.
+
+        Returns:
+            EmbedSeries handle.
+        """
+        vp, n = _to_float_ptr(values)
+        lbl = label.encode("utf-8") if label else None
+        h = self._lib.spectra_axes_histogram(self._handle, vp, n, bins, lbl)
+        if not h:
+            raise RuntimeError("Failed to create histogram series")
+        return EmbedSeries(h)
+
+    def bar(self, positions, heights, label: Optional[str] = None) -> EmbedSeries:
+        """Add a bar series.
+
+        Args:
+            positions: X positions of bars (list, tuple, or numpy array).
+            heights: Height of each bar (list, tuple, or numpy array).
+            label: Optional series label for legend.
+
+        Returns:
+            EmbedSeries handle.
+        """
+        pp, pn = _to_float_ptr(positions)
+        hp, hn = _to_float_ptr(heights)
+        assert pn == hn, f"positions and heights must have same length ({pn} vs {hn})"
+        lbl = label.encode("utf-8") if label else None
+        h = self._lib.spectra_axes_bar(self._handle, pp, hp, pn, lbl)
+        if not h:
+            raise RuntimeError("Failed to create bar series")
+        return EmbedSeries(h)
+
 
 class EmbedFigure:
     """Proxy for a figure in an embedded plot."""
@@ -387,11 +466,31 @@ class EmbedSurface:
         ax = fig.subplot(1, 1, 1)
         ax.line([0,1,2,3], [0,1,4,9], label="data")
         pixels = surface.render()  # bytes, RGBA, 800*600*4
+
+    Extended creation::
+
+        surface = EmbedSurface(800, 600, theme="dark", dpi_scale=2.0, msaa=4)
+        surface = EmbedSurface(800, 600, background_alpha=0.0)  # transparent bg
     """
 
-    def __init__(self, width: int = 800, height: int = 600) -> None:
+    def __init__(
+        self,
+        width: int = 800,
+        height: int = 600,
+        *,
+        theme: Optional[str] = None,
+        dpi_scale: float = 1.0,
+        msaa: int = 1,
+        background_alpha: float = 1.0,
+    ) -> None:
         self._lib = _load_lib()
-        self._handle = self._lib.spectra_embed_create(width, height)
+        if theme or dpi_scale != 1.0 or msaa != 1 or background_alpha != 1.0:
+            theme_bytes = theme.encode("utf-8") if theme else None
+            self._handle = self._lib.spectra_embed_create_ex(
+                width, height, theme_bytes, dpi_scale, msaa, background_alpha
+            )
+        else:
+            self._handle = self._lib.spectra_embed_create(width, height)
         if not self._handle:
             raise RuntimeError(
                 "Failed to create EmbedSurface. "
@@ -480,6 +579,16 @@ class EmbedSurface:
     def dpi_scale(self) -> float:
         """Get current DPI scale factor."""
         return self._lib.spectra_embed_get_dpi_scale(self._handle)
+
+    @property
+    def background_alpha(self) -> float:
+        """Get background alpha (1.0 = opaque, 0.0 = transparent)."""
+        return self._lib.spectra_embed_get_background_alpha(self._handle)
+
+    @background_alpha.setter
+    def background_alpha(self, alpha: float) -> None:
+        """Set background alpha (1.0 = opaque, 0.0 = transparent)."""
+        self._lib.spectra_embed_set_background_alpha(self._handle, alpha)
 
     # ── Theme & UI chrome ─────────────────────────────────────────────────
 

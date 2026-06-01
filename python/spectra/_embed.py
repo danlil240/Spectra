@@ -1139,7 +1139,8 @@ class EmbedSurface:
         """Register a redraw callback ``callback()`` invoked on repaint requests."""
         if callback is None:
             self._redraw_cb = None
-            self._lib.spectra_embed_set_redraw_callback(self._handle, SpectraRedrawCb(0), None)
+            self._lib.spectra_embed_set_redraw_callback(
+                self._handle, ctypes.cast(None, SpectraRedrawCb), None)
             return
 
         def _trampoline(_user):

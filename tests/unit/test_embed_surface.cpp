@@ -7,9 +7,31 @@
 
 #include <cstdint>
 #include <cstring>
+#include <cmath>
 #include <vector>
 
 using namespace spectra;
+
+namespace
+{
+struct ScreenPoint
+{
+    float x;
+    float y;
+};
+
+ScreenPoint data_to_screen(const Axes& ax, double data_x, double data_y)
+{
+    const auto vp   = ax.viewport();
+    const auto xlim = ax.x_limits();
+    const auto ylim = ax.y_limits();
+    const auto xr   = (xlim.max - xlim.min) != 0.0 ? (xlim.max - xlim.min) : 1.0;
+    const auto yr   = (ylim.max - ylim.min) != 0.0 ? (ylim.max - ylim.min) : 1.0;
+    const auto nx   = (data_x - xlim.min) / xr;
+    const auto ny   = (data_y - ylim.min) / yr;
+    return {static_cast<float>(vp.x + nx * vp.w), static_cast<float>(vp.y + (1.0 - ny) * vp.h)};
+}
+}   // namespace
 
 // ─── Construction ───────────────────────────────────────────────────────────
 
@@ -374,6 +396,80 @@ TEST(EmbedSurface, CursorChangeCallback)
     surface.set_cursor_change_callback([&](CursorShape s) { last_shape = s; });
     // Callback stored — cursor changes happen during input handling
     EXPECT_EQ(last_shape, CursorShape::Arrow);
+}
+
+TEST(EmbedSurface, InteractiveCallbacksViaDeterministicInputSimulation)
+{
+    int point_calls  = 0;
+    int series_calls = 0;
+    int hover_calls  = 0;
+    int view_calls   = 0;
+
+    bool point_hit  = false;
+    bool series_hit = false;
+    bool hover_hit  = false;
+
+    EmbedConfig cfg;
+    cfg.width             = 400;
+    cfg.height            = 300;
+    cfg.show_imgui_chrome = true;
+
+    EmbedSurface       surface(cfg);
+    ASSERT_TRUE(surface.is_valid());
+    auto&              fig = surface.figure();
+    auto&              ax  = fig.subplot(1, 1, 1);
+    std::vector<float> x   = {0.0f, 1.0f, 2.0f};
+    std::vector<float> y   = {0.0f, 1.0f, 4.0f};
+    ax.line(x, y);
+    ax.xlim(0.0f, 2.0f);
+    ax.ylim(0.0f, 4.0f);
+
+    surface.set_on_point_selected([&](int ai, int si, std::size_t pi, double, double)
+                                  {
+                                      ++point_calls;
+                                      point_hit = (ai == 0 && si == 0 && pi == 1u);
+                                  });
+    surface.set_on_series_selected([&](int ai, int si)
+                                   {
+                                       ++series_calls;
+                                       series_hit = (ai == 0 && si == 0);
+                                   });
+    surface.set_on_hover([&](int ai, int si, std::size_t pi, double hx, double hy)
+                         {
+                             ++hover_calls;
+                             hover_hit = hover_hit || (ai == 0 && si == 0 && pi == 1u
+                                                       && std::abs(hx - 1.0) < 1e-6
+                                                       && std::abs(hy - 1.0) < 1e-6);
+                         });
+    surface.set_on_view_changed(
+        [&](double, double, double, double) { ++view_calls; });
+
+    std::vector<uint8_t> pixels(cfg.width * cfg.height * 4, 0);
+    ASSERT_TRUE(surface.render_to_buffer(pixels.data()));
+    EXPECT_GE(view_calls, 1);
+
+    const auto target = data_to_screen(ax, 1.0, 1.0);
+    surface.inject_mouse_move(target.x, target.y);
+    ASSERT_TRUE(surface.render_to_buffer(pixels.data()));
+    EXPECT_GE(hover_calls, 1);
+    EXPECT_TRUE(hover_hit);
+
+    surface.inject_mouse_button(embed::MOUSE_BUTTON_LEFT, embed::ACTION_PRESS, 0, target.x, target.y);
+    surface.inject_mouse_button(embed::MOUSE_BUTTON_LEFT, embed::ACTION_RELEASE, 0, target.x, target.y);
+    EXPECT_GE(point_calls, 1);
+    EXPECT_GE(series_calls, 1);
+    EXPECT_TRUE(point_hit);
+    EXPECT_TRUE(series_hit);
+
+    const int view_calls_before_zoom = view_calls;
+    surface.inject_scroll(0.0f, 1.0f, target.x, target.y);
+    ASSERT_TRUE(surface.render_to_buffer(pixels.data()));
+    EXPECT_GT(view_calls, view_calls_before_zoom);
+
+    surface.set_on_point_selected(nullptr);
+    surface.set_on_series_selected(nullptr);
+    surface.set_on_hover(nullptr);
+    surface.set_on_view_changed(nullptr);
 }
 
 // ─── Advanced ───────────────────────────────────────────────────────────────

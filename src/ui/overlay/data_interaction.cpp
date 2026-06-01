@@ -405,6 +405,7 @@ bool DataInteraction::on_mouse_click_datatip_only(int button, double screen_x, d
                                    active_axes_,
                                    nearest_.dy_dx,
                                    nearest_.dy_dx_valid);
+            dispatch_series_selection_from_nearest();
             return true;
         }
     }

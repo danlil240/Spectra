@@ -84,6 +84,113 @@ struct EmbedConfig
     bool show_inspector    = false;   // Right inspector panel
     bool show_legend       = true;    // Series legend overlay (rendered by Vulkan, not ImGui)
     bool show_crosshair    = true;    // Crosshair + cursor readout
+
+    // Fluent builder for EmbedConfig (Phase 6D).  Defined out-of-line below.
+    //
+    //   auto cfg = EmbedConfig::Builder()
+    //                  .size(1280, 720)
+    //                  .theme("dark")
+    //                  .with_inspector()
+    //                  .without_legend()
+    //                  .build();
+    class Builder;
+};
+
+class EmbedConfig::Builder
+{
+   public:
+    Builder() = default;
+
+    Builder& size(uint32_t w, uint32_t h)
+    {
+        cfg_.width  = w;
+        cfg_.height = h;
+        return *this;
+    }
+    Builder& theme(std::string name)
+    {
+        cfg_.theme = std::move(name);
+        return *this;
+    }
+    Builder& dpi_scale(float s)
+    {
+        cfg_.dpi_scale = s;
+        return *this;
+    }
+    Builder& msaa(uint32_t samples)
+    {
+        cfg_.msaa = samples > 0 ? samples : 1;
+        return *this;
+    }
+    Builder& background_alpha(float a)
+    {
+        cfg_.background_alpha = a;
+        return *this;
+    }
+    Builder& transparent()
+    {
+        cfg_.background_alpha = 0.0f;
+        return *this;
+    }
+    Builder& vulkan_interop(bool enabled = true)
+    {
+        cfg_.enable_vulkan_interop = enabled;
+        return *this;
+    }
+    Builder& with_command_bar(bool v = true)
+    {
+        cfg_.show_command_bar = v;
+        cfg_.show_imgui_chrome |= v;
+        return *this;
+    }
+    Builder& with_status_bar(bool v = true)
+    {
+        cfg_.show_status_bar = v;
+        cfg_.show_imgui_chrome |= v;
+        return *this;
+    }
+    Builder& with_nav_rail(bool v = true)
+    {
+        cfg_.show_nav_rail = v;
+        cfg_.show_imgui_chrome |= v;
+        return *this;
+    }
+    Builder& with_inspector(bool v = true)
+    {
+        cfg_.show_inspector = v;
+        cfg_.show_imgui_chrome |= v;
+        return *this;
+    }
+    Builder& with_imgui_chrome(bool v = true)
+    {
+        cfg_.show_imgui_chrome = v;
+        return *this;
+    }
+    Builder& with_legend(bool v = true)
+    {
+        cfg_.show_legend = v;
+        return *this;
+    }
+    Builder& without_legend()
+    {
+        cfg_.show_legend = false;
+        return *this;
+    }
+    Builder& with_crosshair(bool v = true)
+    {
+        cfg_.show_crosshair = v;
+        return *this;
+    }
+    Builder& without_crosshair()
+    {
+        cfg_.show_crosshair = false;
+        return *this;
+    }
+
+    EmbedConfig build() const { return cfg_; }
+
+   private:
+    EmbedConfig cfg_{};
 };
 
 // Vulkan interop target: host provides these so Spectra renders directly
@@ -115,6 +222,23 @@ enum class CursorShape
 using RedrawCallback       = std::function<void()>;
 using CursorChangeCallback = std::function<void(CursorShape)>;
 using TooltipCallback      = std::function<void(const std::string& text, float x, float y)>;
+
+// Invoked once per update(dt) step with the cumulative elapsed time and the
+// delta of the current step.  Use for live data streaming / animation.
+using FrameCallback = std::function<void(float time_sec, float dt_sec)>;
+
+// ── Interactive event callbacks (Phase 3) ───────────────────────────────────
+// series_index is the index of the series within its axes; point_index is the
+// index of the data point within the series.  axes_index is the index of the
+// axes within the figure.
+using PointSelectedCallback  = std::function<void(int axes_index, int series_index, std::size_t point_index, double x, double y)>;
+using SeriesSelectedCallback = std::function<void(int axes_index, int series_index)>;
+// Fired when the hovered (nearest) data point changes.  series_index < 0 means
+// the cursor moved away from any series.
+using HoverCallback          = std::function<void(int axes_index, int series_index, std::size_t point_index, double x, double y)>;
+// Fired when the visible data range (xlim/ylim) of the active axes changes via
+// pan/zoom/auto-fit.
+using ViewChangedCallback    = std::function<void(double xmin, double xmax, double ymin, double ymax)>;
 
 // ─── Mouse button constants (match GLFW) ────────────────────────────────────
 
@@ -238,6 +362,25 @@ class EmbedSurface
     float    background_alpha() const;
     void     set_background_alpha(float alpha);
 
+    // ── UI chrome visibility ────────────────────────────────────────────
+    // Setters persist state in the surface config and route to the live
+    // LayoutManager / overlays when an ImGui build is active.  Getters
+    // reflect the current configured state.
+
+    void set_show_command_bar(bool visible);
+    void set_show_status_bar(bool visible);
+    void set_show_nav_rail(bool visible);
+    void set_show_inspector(bool visible);
+    void set_show_legend(bool visible);
+    void set_show_crosshair(bool visible);
+
+    bool show_command_bar() const;
+    bool show_status_bar() const;
+    bool show_nav_rail() const;
+    bool show_inspector() const;
+    bool show_legend() const;
+    bool show_crosshair() const;
+
     // ── Callbacks ───────────────────────────────────────────────────────
 
     // Called when Spectra's internal state changes and a repaint is needed.
@@ -249,6 +392,25 @@ class EmbedSurface
 
     // Called when a tooltip should be shown/hidden.
     void set_tooltip_callback(TooltipCallback cb);
+
+    // Per-step frame callback (Phase 4).  Invoked inside update(dt) with the
+    // cumulative elapsed time and the current step delta.  Use for live data
+    // streaming and animation.  Pass nullptr / call clear_frame_callback() to
+    // remove.  reset_frame_clock() rewinds the cumulative time to zero.
+    void  set_frame_callback(FrameCallback cb);
+    void  clear_frame_callback();
+    void  reset_frame_clock();
+    float frame_time() const;
+
+    // ── Interactive event callbacks (Phase 3) ───────────────────────────
+    // Fired when the user selects a concrete data point (left-click near it).
+    void set_on_point_selected(PointSelectedCallback cb);
+    // Fired when the user selects a series (left-click near it).
+    void set_on_series_selected(SeriesSelectedCallback cb);
+    // Fired when the hovered/nearest data point changes.
+    void set_on_hover(HoverCallback cb);
+    // Fired when the visible data range of the active axes changes.
+    void set_on_view_changed(ViewChangedCallback cb);
 
     // ── Advanced: Vulkan device sharing ─────────────────────────────────
     // For advanced integrations where the host already has a Vulkan device.

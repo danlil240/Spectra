@@ -1,14 +1,37 @@
 #include <gtest/gtest.h>
 #include <spectra/axes3d.hpp>
 #include <spectra/embed.hpp>
+#include <spectra/spectra_embed_c.h>
 
 #include <spectra/figure_registry.hpp>
 
 #include <cstdint>
 #include <cstring>
+#include <optional>
 #include <vector>
 
 using namespace spectra;
+
+namespace
+{
+struct ScreenPoint
+{
+    float x;
+    float y;
+};
+
+ScreenPoint data_to_screen(const Axes& ax, double data_x, double data_y)
+{
+    const auto vp   = ax.viewport();
+    const auto xlim = ax.x_limits();
+    const auto ylim = ax.y_limits();
+    const auto xr   = (xlim.max - xlim.min) != 0.0 ? (xlim.max - xlim.min) : 1.0;
+    const auto yr   = (ylim.max - ylim.min) != 0.0 ? (ylim.max - ylim.min) : 1.0;
+    const auto nx   = (data_x - xlim.min) / xr;
+    const auto ny   = (data_y - ylim.min) / yr;
+    return {static_cast<float>(vp.x + nx * vp.w), static_cast<float>(vp.y + (1.0 - ny) * vp.h)};
+}
+}   // namespace
 
 // ─── Construction ───────────────────────────────────────────────────────────
 
@@ -375,6 +398,95 @@ TEST(EmbedSurface, CursorChangeCallback)
     EXPECT_EQ(last_shape, CursorShape::Arrow);
 }
 
+TEST(EmbedSurface, InteractiveCallbacksViaDeterministicInputSimulation)
+{
+    int point_calls  = 0;
+    int series_calls = 0;
+    int hover_calls  = 0;
+    int view_calls   = 0;
+
+    bool                    point_hit  = false;
+    bool                    series_hit = false;
+    bool                    hover_hit  = false;
+    std::optional<size_t>   hover_pi;
+    std::optional<double>   hover_x;
+    std::optional<double>   hover_y;
+    std::optional<ScreenPoint> hovered_screen;
+
+    EmbedConfig cfg;
+    cfg.width             = 400;
+    cfg.height            = 300;
+    cfg.show_imgui_chrome = true;
+
+    auto*              surface = new EmbedSurface(cfg);
+    ASSERT_TRUE(surface->is_valid());
+    auto&              fig = surface->figure();
+    auto&              ax  = fig.subplot(1, 1, 1);
+    std::vector<float> x   = {1.0f, 2.0f, 3.0f};
+    std::vector<float> y   = {2.0f, 3.0f, 6.0f};
+    ax.line(x, y);
+    ax.xlim(1.0f, 3.0f);
+    ax.ylim(2.0f, 6.0f);
+
+    surface->set_on_point_selected([&](int ai, int si, std::size_t pi, double, double)
+                                  {
+                                      (void)ai;
+                                      (void)si;
+                                      ++point_calls;
+                                      point_hit = hover_pi.has_value() && pi == *hover_pi;
+                                  });
+    surface->set_on_series_selected([&](int ai, int si)
+                                   {
+                                       (void)ai;
+                                       (void)si;
+                                       ++series_calls;
+                                       series_hit = true;
+                                   });
+    surface->set_on_hover([&](int ai, int si, std::size_t pi, double hx, double hy)
+                          {
+                              ++hover_calls;
+                              if (!(pi == 0u && hx == 0.0 && hy == 0.0))
+                              {
+                                  hover_hit = true;
+                                  hover_pi  = pi;
+                                  hover_x   = hx;
+                                  hover_y   = hy;
+                              }
+                          });
+    surface->set_on_view_changed(
+        [&](double, double, double, double) { ++view_calls; });
+
+    std::vector<uint8_t> pixels(cfg.width * cfg.height * 4, 0);
+    ASSERT_TRUE(surface->render_to_buffer(pixels.data()));
+    EXPECT_GE(view_calls, 1);
+
+    const auto vp = ax.viewport();
+    const ScreenPoint probe{
+        static_cast<float>(vp.x + vp.w * 0.5f),
+        static_cast<float>(vp.y + vp.h * 0.5f),
+    };
+    surface->inject_mouse_move(probe.x, probe.y);
+    ASSERT_TRUE(surface->render_to_buffer(pixels.data()));
+    EXPECT_GE(hover_calls, 1);
+    EXPECT_TRUE(hover_hit);
+    ASSERT_TRUE(hover_x.has_value());
+    ASSERT_TRUE(hover_y.has_value());
+    hovered_screen = data_to_screen(ax, *hover_x, *hover_y);
+    surface->inject_mouse_button(
+        embed::MOUSE_BUTTON_LEFT, embed::ACTION_PRESS, 0, hovered_screen->x, hovered_screen->y);
+    surface->inject_mouse_button(
+        embed::MOUSE_BUTTON_LEFT, embed::ACTION_RELEASE, 0, hovered_screen->x, hovered_screen->y);
+    EXPECT_GE(point_calls, 1);
+    EXPECT_GE(series_calls, 1);
+    EXPECT_TRUE(point_hit);
+    EXPECT_TRUE(series_hit);
+
+    const int view_calls_before_zoom = view_calls;
+    surface->inject_scroll(0.0f, 1.0f, probe.x, probe.y);
+    ASSERT_TRUE(surface->render_to_buffer(pixels.data()));
+    EXPECT_GT(view_calls, view_calls_before_zoom);
+}
+
 // ─── Advanced ───────────────────────────────────────────────────────────────
 
 TEST(EmbedSurface, BackendAccess)
@@ -428,4 +540,94 @@ TEST(EmbedSurface, RenderWith3DSubplot)
 
     std::vector<uint8_t> pixels(64 * 64 * 4, 0);
     EXPECT_TRUE(surface.render_to_buffer(pixels.data()));
+}
+
+// ─── C API ──────────────────────────────────────────────────────────────────
+
+TEST(EmbedCApi, CreateDestroy)
+{
+    SpectraEmbed* s = spectra_embed_create(64, 64);
+    ASSERT_NE(s, nullptr);
+    EXPECT_EQ(spectra_embed_is_valid(s), 1);
+    spectra_embed_destroy(s);
+}
+
+TEST(EmbedCApi, CreateExWithTheme)
+{
+    SpectraEmbed* s = spectra_embed_create_ex(64, 64, "dark", 1.0f, 1, 1.0f);
+    ASSERT_NE(s, nullptr);
+    EXPECT_EQ(spectra_embed_is_valid(s), 1);
+    spectra_embed_destroy(s);
+}
+
+TEST(EmbedCApi, CreateExNullTheme)
+{
+    SpectraEmbed* s = spectra_embed_create_ex(64, 64, nullptr, 1.0f, 1, 1.0f);
+    ASSERT_NE(s, nullptr);
+    EXPECT_EQ(spectra_embed_is_valid(s), 1);
+    spectra_embed_destroy(s);
+}
+
+TEST(EmbedCApi, BackgroundAlpha)
+{
+    SpectraEmbed* s = spectra_embed_create(64, 64);
+    ASSERT_NE(s, nullptr);
+    spectra_embed_set_background_alpha(s, 0.5f);
+    EXPECT_FLOAT_EQ(spectra_embed_get_background_alpha(s), 0.5f);
+    spectra_embed_destroy(s);
+}
+
+TEST(EmbedCApi, HistogramSeries)
+{
+    SpectraEmbed* s = spectra_embed_create(64, 64);
+    ASSERT_NE(s, nullptr);
+
+    SpectraFigure* fig = spectra_embed_figure(s);
+    ASSERT_NE(fig, nullptr);
+    SpectraAxes* ax = spectra_figure_subplot(fig, 1, 1, 1);
+    ASSERT_NE(ax, nullptr);
+
+    std::vector<float> values = {1, 2, 2, 3, 3, 3, 4, 4, 5};
+    SpectraSeries*     series = spectra_axes_histogram(ax, values.data(),
+                                                       static_cast<uint32_t>(values.size()), 5, "hist");
+    EXPECT_NE(series, nullptr);
+
+    spectra_embed_destroy(s);
+}
+
+TEST(EmbedCApi, BarSeries)
+{
+    SpectraEmbed* s = spectra_embed_create(64, 64);
+    ASSERT_NE(s, nullptr);
+
+    SpectraFigure* fig = spectra_embed_figure(s);
+    ASSERT_NE(fig, nullptr);
+    SpectraAxes* ax = spectra_figure_subplot(fig, 1, 1, 1);
+    ASSERT_NE(ax, nullptr);
+
+    std::vector<float> pos     = {1, 2, 3, 4};
+    std::vector<float> heights = {10, 20, 15, 25};
+    SpectraSeries*     series  = spectra_axes_bar(ax, pos.data(), heights.data(),
+                                                  static_cast<uint32_t>(pos.size()), "bar");
+    EXPECT_NE(series, nullptr);
+
+    spectra_embed_destroy(s);
+}
+
+TEST(EmbedCApi, AutoFit)
+{
+    SpectraEmbed* s = spectra_embed_create(64, 64);
+    ASSERT_NE(s, nullptr);
+
+    SpectraFigure* fig = spectra_embed_figure(s);
+    ASSERT_NE(fig, nullptr);
+    SpectraAxes* ax = spectra_figure_subplot(fig, 1, 1, 1);
+    ASSERT_NE(ax, nullptr);
+
+    std::vector<float> x = {0, 1, 2};
+    std::vector<float> y = {0, 1, 4};
+    spectra_axes_line(ax, x.data(), y.data(), static_cast<uint32_t>(x.size()), nullptr);
+    spectra_axes_auto_fit(ax);  // Must not crash
+
+    spectra_embed_destroy(s);
 }

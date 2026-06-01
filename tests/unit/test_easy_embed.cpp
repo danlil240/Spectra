@@ -124,6 +124,26 @@ TEST(EasyEmbed, RenderWithGrid)
     EXPECT_FALSE(img.empty());
 }
 
+TEST(EasyEmbed, RenderWithThemeDark)
+{
+    std::vector<float>     x = {0, 1, 2, 3};
+    std::vector<float>     y = {0, 1, 4, 9};
+    spectra::RenderOptions opts;
+    opts.theme = "dark";
+    auto img   = spectra::render(x, y, opts);
+    EXPECT_FALSE(img.empty());
+}
+
+TEST(EasyEmbed, RenderWithThemeLight)
+{
+    std::vector<float>     x = {0, 1, 2, 3};
+    std::vector<float>     y = {0, 1, 4, 9};
+    spectra::RenderOptions opts;
+    opts.theme = "light";
+    auto img   = spectra::render(x, y, opts);
+    EXPECT_FALSE(img.empty());
+}
+
 // ─── Save to PNG ────────────────────────────────────────────────────────────
 
 TEST(EasyEmbed, SavePng)

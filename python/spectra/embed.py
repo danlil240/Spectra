@@ -240,6 +240,9 @@ def render(
     title: Optional[str] = None,
     xlabel: Optional[str] = None,
     ylabel: Optional[str] = None,
+    theme: Optional[str] = None,
+    fmt: str = "-",
+    grid: bool = True,
 ) -> Image:
     """Render a line plot to pixels.
 
@@ -249,9 +252,12 @@ def render(
         width: Image width in pixels (default 800).
         height: Image height in pixels (default 600).
         save: If provided, save PNG to this path.
-        title: Plot title (applied via low-level API if using full surface).
+        title: Plot title.
         xlabel: X axis label.
         ylabel: Y axis label.
+        theme: Theme name ("dark", "night", or "light").
+        fmt: MATLAB-style format string (default "-").
+        grid: Whether to show the grid (default True).
 
     Returns:
         Image with .data (bytes), .width, .height attributes.
@@ -260,13 +266,12 @@ def render(
 
         import spectra.embed as spe
         img = spe.render([0,1,2,3], [0,1,4,9])
-        spe.render([0,1,2,3], [0,1,4,9], save="plot.png")
+        spe.render([0,1,2,3], [0,1,4,9], save="plot.png", title="My Plot")
     """
-    # If title/xlabel/ylabel are set, use the full surface path for richer output
-    if title or xlabel or ylabel:
+    if title or xlabel or ylabel or theme or fmt != "-" or not grid:
         return _render_with_options(x, y, width=width, height=height, save=save,
                                      title=title, xlabel=xlabel, ylabel=ylabel,
-                                     scatter=False)
+                                     theme=theme, fmt=fmt, grid=grid, scatter=False)
     return _render_impl(x, y, width, height, save, scatter=False)
 
 
@@ -280,20 +285,22 @@ def scatter(
     title: Optional[str] = None,
     xlabel: Optional[str] = None,
     ylabel: Optional[str] = None,
+    theme: Optional[str] = None,
+    grid: bool = True,
 ) -> Image:
     """Render a scatter plot to pixels.
 
-    Same arguments as render(). Returns Image.
+    Same arguments as render() (except no ``fmt``). Returns Image.
 
     Example::
 
         import spectra.embed as spe
         spe.scatter([1,2,3,4], [1,4,2,8], save="scatter.png")
     """
-    if title or xlabel or ylabel:
+    if title or xlabel or ylabel or theme or not grid:
         return _render_with_options(x, y, width=width, height=height, save=save,
                                      title=title, xlabel=xlabel, ylabel=ylabel,
-                                     scatter=True)
+                                     theme=theme, fmt="-", grid=grid, scatter=True)
     return _render_impl(x, y, width, height, save, scatter=True)
 
 
@@ -306,6 +313,8 @@ def render_multi(
     title: Optional[str] = None,
     xlabel: Optional[str] = None,
     ylabel: Optional[str] = None,
+    theme: Optional[str] = None,
+    grid: bool = True,
 ) -> Image:
     """Render multiple series on a single plot.
 
@@ -315,6 +324,10 @@ def render_multi(
         height: Image height.
         save: Save path (PNG).
         title: Plot title.
+        xlabel: X axis label.
+        ylabel: Y axis label.
+        theme: Theme name ("dark", "night", or "light").
+        grid: Whether to show the grid (default True).
 
     Example::
 
@@ -325,7 +338,7 @@ def render_multi(
     """
     return _render_with_options_multi(series_list, width=width, height=height,
                                       save=save, title=title, xlabel=xlabel,
-                                      ylabel=ylabel)
+                                      ylabel=ylabel, theme=theme, grid=grid)
 
 
 def histogram(
@@ -336,10 +349,13 @@ def histogram(
     height: int = 600,
     save: Optional[str] = None,
     title: Optional[str] = None,
+    xlabel: Optional[str] = None,
+    ylabel: Optional[str] = None,
+    theme: Optional[str] = None,
 ) -> Image:
     """Render a histogram to pixels.
 
-    Uses the full surface path since histogram requires the Axes.histogram() method.
+    Uses the native Axes.histogram() series for accurate rendering.
 
     Example::
 
@@ -347,18 +363,65 @@ def histogram(
         spe.histogram(np.random.randn(10000), bins=50, save="hist.png")
     """
     return _render_histogram_impl(values, bins=bins, width=width, height=height,
-                                   save=save, title=title)
+                                   save=save, title=title, xlabel=xlabel,
+                                   ylabel=ylabel, theme=theme)
+
+
+def render_bar(
+    positions,
+    heights,
+    *,
+    width: int = 800,
+    height: int = 600,
+    save: Optional[str] = None,
+    title: Optional[str] = None,
+    xlabel: Optional[str] = None,
+    ylabel: Optional[str] = None,
+    theme: Optional[str] = None,
+    label: Optional[str] = None,
+    grid: bool = True,
+) -> Image:
+    """Render a bar chart to pixels.
+
+    Args:
+        positions: X positions of the bars.
+        heights: Height of each bar.
+        width: Image width in pixels (default 800).
+        height: Image height in pixels (default 600).
+        save: Save path (PNG).
+        title: Plot title.
+        xlabel: X axis label.
+        ylabel: Y axis label.
+        theme: Theme name ("dark", "night", or "light").
+        label: Series label for legend.
+        grid: Whether to show the grid (default True).
+
+    Returns:
+        Image with .data (bytes), .width, .height attributes.
+
+    Example::
+
+        spe.render_bar([1,2,3,4,5], [10,25,15,30,20], title="Sales", save="bar.png")
+    """
+    return _render_bar_impl(positions, heights, width=width, height=height,
+                             save=save, title=title, xlabel=xlabel,
+                             ylabel=ylabel, theme=theme, label=label, grid=grid)
 
 
 # ─── Full-surface path (supports titles, labels, multi-series) ───────────────
 
 def _render_with_options(
-    x, y, *, width, height, save, title, xlabel, ylabel, scatter_mode=False, scatter=False
+    x, y, *, width, height, save, title, xlabel, ylabel,
+    theme=None, fmt="-", grid=True, scatter_mode=False, scatter=False
 ) -> Image:
-    """Use the full EmbedSurface for richer rendering with titles/labels."""
+    """Use the full EmbedSurface for richer rendering with titles/labels/theme.
+
+    dpi_scale and msaa intentionally use defaults (1.0 and 1) since the
+    high-level render API targets pixel-exact offscreen output.
+    """
     from ._embed import EmbedSurface
 
-    surface = EmbedSurface(width, height)
+    surface = EmbedSurface(width, height, theme=theme)
     fig = surface.figure()
     ax = fig.subplot(1, 1, 1)
 
@@ -367,9 +430,14 @@ def _render_with_options(
     else:
         ax.line(x, y)
 
-    # Note: title/xlabel/ylabel require C API extensions that aren't yet in
-    # the low-level embed. For now, render without them (the data is correct).
-    # TODO: Add spectra_axes_set_title etc. to C API.
+    if title:
+        ax.set_title(title)
+    if xlabel:
+        ax.set_xlabel(xlabel)
+    if ylabel:
+        ax.set_ylabel(ylabel)
+    ax.set_grid(grid)
+    ax.auto_fit()
 
     pixels = surface.render()
     img = Image(pixels, surface.width, surface.height)
@@ -381,12 +449,12 @@ def _render_with_options(
 
 
 def _render_with_options_multi(
-    series_list, *, width, height, save, title, xlabel, ylabel
+    series_list, *, width, height, save, title, xlabel, ylabel, theme=None, grid=True
 ) -> Image:
     """Multi-series render using full EmbedSurface."""
     from ._embed import EmbedSurface
 
-    surface = EmbedSurface(width, height)
+    surface = EmbedSurface(width, height, theme=theme)
     fig = surface.figure()
     ax = fig.subplot(1, 1, 1)
 
@@ -398,6 +466,15 @@ def _render_with_options_multi(
             x, y = entry[0], entry[1]
             ax.line(x, y)
 
+    if title:
+        ax.set_title(title)
+    if xlabel:
+        ax.set_xlabel(xlabel)
+    if ylabel:
+        ax.set_ylabel(ylabel)
+    ax.set_grid(grid)
+    ax.auto_fit()
+
     pixels = surface.render()
     img = Image(pixels, surface.width, surface.height)
 
@@ -407,40 +484,56 @@ def _render_with_options_multi(
     return img
 
 
-def _render_histogram_impl(values, *, bins, width, height, save, title) -> Image:
-    """Histogram render using full EmbedSurface.
+def _render_histogram_impl(values, *, bins, width, height, save, title,
+                             xlabel=None, ylabel=None, theme=None) -> Image:
+    """Histogram render using native Axes.histogram() series."""
+    from ._embed import EmbedSurface
 
-    Since the C API doesn't have histogram support directly, we compute
-    bin edges/heights in Python and render as a bar-like line plot.
-    """
-    # Compute histogram manually (avoid numpy dependency)
-    vals = sorted(float(v) for v in values)
-    if not vals:
-        raise ValueError("Empty values for histogram")
+    surface = EmbedSurface(width, height, theme=theme)
+    fig = surface.figure()
+    ax = fig.subplot(1, 1, 1)
+    ax.histogram(values, bins=bins)
 
-    vmin, vmax = vals[0], vals[-1]
-    if vmin == vmax:
-        vmax = vmin + 1.0
+    if title:
+        ax.set_title(title)
+    if xlabel:
+        ax.set_xlabel(xlabel)
+    if ylabel:
+        ax.set_ylabel(ylabel)
+    ax.auto_fit()
 
-    bin_width = (vmax - vmin) / bins
-    edges = [vmin + i * bin_width for i in range(bins + 1)]
-    counts = [0] * bins
+    pixels = surface.render()
+    img = Image(pixels, surface.width, surface.height)
 
-    for v in vals:
-        idx = int((v - vmin) / bin_width)
-        if idx >= bins:
-            idx = bins - 1
-        counts[idx] += 1
+    if save:
+        img.save(save)
 
-    # Build bar chart as line segments (NaN-separated vertical bars)
-    bar_x = []
-    bar_y = []
-    for i in range(bins):
-        left = edges[i]
-        right = edges[i + 1]
-        h = float(counts[i])
-        # Draw rectangle: bottom-left → top-left → top-right → bottom-right → bottom-left
-        bar_x.extend([left, left, right, right, left, float("nan")])
-        bar_y.extend([0.0, h, h, 0.0, 0.0, float("nan")])
+    return img
 
-    return _render_impl(bar_x, bar_y, width, height, save, scatter=False)
+
+def _render_bar_impl(positions, heights, *, width, height, save, title,
+                      xlabel=None, ylabel=None, theme=None, label=None, grid=True) -> Image:
+    """Bar chart render using native Axes.bar() series."""
+    from ._embed import EmbedSurface
+
+    surface = EmbedSurface(width, height, theme=theme)
+    fig = surface.figure()
+    ax = fig.subplot(1, 1, 1)
+    ax.bar(positions, heights, label=label)
+
+    if title:
+        ax.set_title(title)
+    if xlabel:
+        ax.set_xlabel(xlabel)
+    if ylabel:
+        ax.set_ylabel(ylabel)
+    ax.set_grid(grid)
+    ax.auto_fit()
+
+    pixels = surface.render()
+    img = Image(pixels, surface.width, surface.height)
+
+    if save:
+        img.save(save)
+
+    return img

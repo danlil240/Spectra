@@ -445,10 +445,10 @@ TEST(EmbedSurface, InteractiveCallbacksViaDeterministicInputSimulation)
             series_hit = true;
         });
     surface->set_on_hover(
-        [&](int ai, int si, std::size_t pi, double hx, double hy)
+        [&](int /* ai */, int /* si */, std::size_t pi, double hx, double hy)
         {
             ++hover_calls;
-            if (!(pi == 0u && hx == 0.0 && hy == 0.0))
+            if (pi != 0u || hx != 0.0 || hy != 0.0)
             {
                 hover_hit = true;
                 hover_pi  = pi;

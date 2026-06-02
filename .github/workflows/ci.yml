@@ -61,10 +61,43 @@ jobs:
       - name: Build
         run: cmake --build build --config ${{ env.BUILD_TYPE }} -j$(nproc)
 
-      - name: Run unit tests
+      - name: Pin Vulkan ICD to lavapipe
+        run: |
+          set -e
+          ICD_DIRS=(/usr/share/vulkan/icd.d /etc/vulkan/icd.d /usr/lib/x86_64-linux-gnu/vulkan/icd.d)
+          LVP_ICD=""
+          for d in "${ICD_DIRS[@]}"; do
+            [ -d "$d" ] || continue
+            for f in "$d"/lvp_icd*.json "$d"/*lavapipe*.json; do
+              [ -f "$f" ] || continue
+              LVP_ICD="$f"; break 2
+            done
+          done
+          if [ -z "$LVP_ICD" ]; then
+            for d in "${ICD_DIRS[@]}"; do
+              [ -d "$d" ] || continue
+              F_MATCH="$(grep -l 'libvulkan_lvp\.so' "$d"/*.json 2>/dev/null | head -n1 || true)"
+              if [ -n "$F_MATCH" ]; then LVP_ICD="$F_MATCH"; break; fi
+            done
+          fi
+          if [ -n "$LVP_ICD" ]; then
+            echo "VK_ICD_FILENAMES=$LVP_ICD" >> "$GITHUB_ENV"
+            echo "VK_DRIVER_FILES=$LVP_ICD" >> "$GITHUB_ENV"
+          else
+            echo "::error::lavapipe ICD not found"; exit 1
+          fi
+
+      - name: Run unit tests (non-GPU)
         run: |
           cd build
-          ctest --output-on-failure -L "!golden" -j$(nproc)
+          ctest --output-on-failure -LE "gpu|golden" -j$(nproc)
+
+      - name: Run unit tests (GPU, serial)
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          cd build
+          ctest --output-on-failure -L "gpu" -LE "golden" -j1
 
   # ─── Build + Unit Tests (macOS) ─────────────────────────────────────────
   build-macos:

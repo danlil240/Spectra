@@ -115,10 +115,10 @@ struct SeriesDesc
 
     // Per-series style overrides (Phase 6B). When set, they override the
     // values implied by the format string.
-    std::optional<Color> color;                // RGBA override
-    float                line_width  = 0.0f;   // 0 = leave default
-    float                marker_size = 0.0f;   // 0 = leave default
-    float                opacity     = 1.0f;   // 1 = opaque
+    std::optional<Color> color       = std::nullopt;   // RGBA override
+    float                line_width  = 0.0f;           // 0 = leave default
+    float                marker_size = 0.0f;           // 0 = leave default
+    float                opacity     = 1.0f;           // 1 = opaque
 };
 
 // ─── Internal helpers ────────────────────────────────────────────────────────

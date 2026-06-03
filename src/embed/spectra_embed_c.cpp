@@ -994,6 +994,13 @@ extern "C"
         ax->axes_2d->grid(enabled != 0);
     }
 
+    void spectra_axes_show_border(SpectraAxes* ax, int enabled)
+    {
+        if (!ax || !ax->axes_2d)
+            return;
+        ax->axes_2d->show_border(enabled != 0);
+    }
+
     void spectra_axes_auto_fit(SpectraAxes* ax)
     {
         if (!ax || !ax->axes_2d)

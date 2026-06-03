@@ -195,6 +195,7 @@ struct EmbedSurface::Impl
             else
             {
                 data_interaction = std::make_unique<DataInteraction>();
+                data_interaction->set_theme_manager(&theme_mgr);
                 imgui_ui->set_data_interaction(data_interaction.get());
                 imgui_ui->set_input_handler(&input);
                 input.set_data_interaction(data_interaction.get());
@@ -351,37 +352,42 @@ struct EmbedSurface::Impl
             mouse_wheel   = 0.0f;
             mouse_wheel_h = 0.0f;
 
-            // Build the full UI (command bar, canvas, status bar, overlays)
-            imgui_ui->build_ui(*active_fig);
-
             // Always hide tab bar for embed (single-figure surface)
             imgui_ui->get_layout_manager().set_tab_bar_visible(false);
 
-            // Compute subplot layout using LayoutManager canvas rect
-            const Rect  canvas   = imgui_ui->get_layout_manager().canvas_rect();
-            const auto& af_style = active_fig->style();
-            Margins     fig_margins;
-            fig_margins.left   = af_style.margin_left;
-            fig_margins.right  = af_style.margin_right;
-            fig_margins.top    = af_style.margin_top;
-            fig_margins.bottom = af_style.margin_bottom;
-            const auto rects   = compute_subplot_layout(canvas.w,
-                                                      canvas.h,
-                                                      active_fig->grid_rows_,
-                                                      active_fig->grid_cols_,
-                                                      fig_margins,
-                                                      canvas.x,
-                                                      canvas.y);
-            for (size_t i = 0; i < active_fig->axes_mut().size() && i < rects.size(); ++i)
+            // Pre-compute subplot layout BEFORE build_ui so that legend
+            // positions are correct on the very first rendered frame.
+            // canvas_rect() is a pure geometry calculation that is valid
+            // immediately after new_frame_headless sets the display size.
             {
-                if (active_fig->axes_mut()[i])
-                    active_fig->axes_mut()[i]->set_viewport(rects[i]);
+                const Rect  canvas   = imgui_ui->get_layout_manager().canvas_rect();
+                const auto& af_style = active_fig->style();
+                Margins     fig_margins;
+                fig_margins.left   = af_style.margin_left;
+                fig_margins.right  = af_style.margin_right;
+                fig_margins.top    = af_style.margin_top;
+                fig_margins.bottom = af_style.margin_bottom;
+                if (canvas.w > 0.0f && canvas.h > 0.0f)
+                {
+                    const auto rects = compute_subplot_layout(canvas.w,
+                                                              canvas.h,
+                                                              active_fig->grid_rows_,
+                                                              active_fig->grid_cols_,
+                                                              fig_margins,
+                                                              canvas.x,
+                                                              canvas.y);
+                    for (size_t i = 0; i < active_fig->axes_mut().size() && i < rects.size(); ++i)
+                        if (active_fig->axes_mut()[i])
+                            active_fig->axes_mut()[i]->set_viewport(rects[i]);
+                    for (size_t i = 0; i < active_fig->all_axes_mut().size() && i < rects.size();
+                         ++i)
+                        if (active_fig->all_axes_mut()[i])
+                            active_fig->all_axes_mut()[i]->set_viewport(rects[i]);
+                }
             }
-            for (size_t i = 0; i < active_fig->all_axes_mut().size() && i < rects.size(); ++i)
-            {
-                if (active_fig->all_axes_mut()[i])
-                    active_fig->all_axes_mut()[i]->set_viewport(rects[i]);
-            }
+
+            // Build the full UI (command bar, canvas, status bar, overlays)
+            imgui_ui->build_ui(*active_fig);
 
             // Update data interaction (cursor readout, crosshair, tooltips)
             if (data_interaction)

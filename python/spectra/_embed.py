@@ -106,6 +106,26 @@ def _find_library() -> str:
     )
 
 
+class _SpectraEmbedConfig(ctypes.Structure):
+    """Mirrors SpectraEmbedConfig from spectra_embed_c.h."""
+
+    _fields_ = [
+        ("width", ctypes.c_uint32),
+        ("height", ctypes.c_uint32),
+        ("msaa", ctypes.c_uint32),
+        ("dpi_scale", ctypes.c_float),
+        ("background_alpha", ctypes.c_float),
+        ("theme", ctypes.c_char_p),
+        ("show_imgui_chrome", ctypes.c_int),
+        ("show_command_bar", ctypes.c_int),
+        ("show_status_bar", ctypes.c_int),
+        ("show_nav_rail", ctypes.c_int),
+        ("show_inspector", ctypes.c_int),
+        ("show_legend", ctypes.c_int),
+        ("show_crosshair", ctypes.c_int),
+    ]
+
+
 def _load_lib() -> ctypes.CDLL:
     global _lib
     if _lib is not None:
@@ -129,6 +149,12 @@ def _load_lib() -> ctypes.CDLL:
         ctypes.c_float,  # bg_alpha
     ]
     _lib.spectra_embed_create_ex.restype = ctypes.c_void_p
+
+    _lib.spectra_embed_config_default.argtypes = [ctypes.c_void_p]
+    _lib.spectra_embed_config_default.restype = None
+
+    _lib.spectra_embed_create_config.argtypes = [ctypes.c_void_p]
+    _lib.spectra_embed_create_config.restype = ctypes.c_void_p
 
     _lib.spectra_embed_destroy.argtypes = [ctypes.c_void_p]
     _lib.spectra_embed_destroy.restype = None
@@ -314,6 +340,9 @@ def _load_lib() -> ctypes.CDLL:
 
     _lib.spectra_axes_set_grid.argtypes = [ctypes.c_void_p, ctypes.c_int]
     _lib.spectra_axes_set_grid.restype = None
+
+    _lib.spectra_axes_show_border.argtypes = [ctypes.c_void_p, ctypes.c_int]
+    _lib.spectra_axes_show_border.restype = None
 
     _lib.spectra_axes_auto_fit.argtypes = [ctypes.c_void_p]
     _lib.spectra_axes_auto_fit.restype = None
@@ -969,6 +998,10 @@ class EmbedAxes:
         """Enable or disable grid lines."""
         self._lib.spectra_axes_set_grid(self._handle, 1 if enabled else 0)
 
+    def show_border(self, enabled: bool = True) -> None:
+        """Show or hide the axes border rectangle."""
+        self._lib.spectra_axes_show_border(self._handle, 1 if enabled else 0)
+
     def auto_fit(self) -> None:
         """Reset axis limits to encompass all series data."""
         self._lib.spectra_axes_auto_fit(self._handle)
@@ -1158,15 +1191,35 @@ class EmbedSurface:
         dpi_scale: float = 1.0,
         msaa: int = 1,
         background_alpha: float = 1.0,
+        show_legend: bool = True,
+        imgui_chrome: bool = False,
     ) -> None:
         self._lib = _load_lib()
-        if theme or dpi_scale != 1.0 or msaa != 1 or background_alpha != 1.0:
-            theme_bytes = theme.encode("utf-8") if theme else None
-            self._handle = self._lib.spectra_embed_create_ex(
-                width, height, theme_bytes, dpi_scale, msaa, background_alpha
-            )
+        needs_config = (
+            imgui_chrome
+            or theme
+            or dpi_scale != 1.0
+            or msaa != 1
+            or background_alpha != 1.0
+        )
+        if needs_config:
+            cfg = _SpectraEmbedConfig()
+            self._lib.spectra_embed_config_default(ctypes.byref(cfg))
+            cfg.width = width
+            cfg.height = height
+            if theme:
+                cfg.theme = theme.encode("utf-8")
+            cfg.dpi_scale = dpi_scale
+            cfg.msaa = msaa
+            cfg.background_alpha = background_alpha
+            cfg.show_legend = 1 if show_legend else 0
+            if imgui_chrome:
+                cfg.show_imgui_chrome = 1
+            self._handle = self._lib.spectra_embed_create_config(ctypes.byref(cfg))
         else:
             self._handle = self._lib.spectra_embed_create(width, height)
+            if not show_legend:
+                self._lib.spectra_embed_set_show_legend(self._handle, 0)
         if not self._handle:
             raise RuntimeError(
                 "Failed to create EmbedSurface. "
@@ -1588,11 +1641,19 @@ class EmbedSurfaceBuilder:
         self._chrome["legend"] = False
         return self
 
+    def with_legend(self, visible: bool = True) -> "EmbedSurfaceBuilder":
+        self._chrome["legend"] = visible
+        return self
+
     def with_crosshair(self, visible: bool = True) -> "EmbedSurfaceBuilder":
         self._chrome["crosshair"] = visible
         return self
 
     def build(self) -> EmbedSurface:
+        # Any chrome panel request requires ImGui to be initialized at creation time.
+        _imgui_keys = {"inspector", "command_bar", "status_bar", "nav_rail"}
+        needs_imgui = any(self._chrome.get(k) for k in _imgui_keys)
+        show_legend = self._chrome.get("legend", True)
         surface = EmbedSurface(
             self._width,
             self._height,
@@ -1600,15 +1661,18 @@ class EmbedSurfaceBuilder:
             dpi_scale=self._dpi_scale,
             msaa=self._msaa,
             background_alpha=self._background_alpha,
+            show_legend=show_legend,
+            imgui_chrome=needs_imgui,
         )
-        setters = {
+        # Apply remaining chrome settings (crosshair, etc.) after creation.
+        post_setters = {
             "inspector": surface.set_show_inspector,
             "command_bar": surface.set_show_command_bar,
             "status_bar": surface.set_show_status_bar,
             "nav_rail": surface.set_show_nav_rail,
-            "legend": surface.set_show_legend,
             "crosshair": surface.set_show_crosshair,
         }
         for key, visible in self._chrome.items():
-            setters[key](visible)
+            if key in post_setters:
+                post_setters[key](visible)
         return surface

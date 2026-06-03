@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: spectra-plot
-Version: 0.2.0
+Version: 0.2.1
 Summary: GPU-accelerated scientific plotting via IPC
 License: MIT
 Classifier: Development Status :: 3 - Alpha

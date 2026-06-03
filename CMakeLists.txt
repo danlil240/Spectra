@@ -889,6 +889,9 @@ if(SPECTRA_BUILD_EMBED_SHARED)
         POSITION_INDEPENDENT_CODE ON
         OUTPUT_NAME spectra_embed
     )
+    install(TARGETS spectra_embed
+        LIBRARY DESTINATION lib
+    )
 endif()
 
 # spectra — main application executable (welcome screen, no initial figure)

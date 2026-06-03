@@ -17,13 +17,16 @@
 			},
 			"options": {
 				"cwd": "${workspaceFolder}",
-				"configureArgs": ["-DCMAKE_BUILD_TYPE=Debug", "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"]
+				"configureArgs": [
+					"-DCMAKE_BUILD_TYPE=Debug",
+					"-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
+				]
 			}
 		},
 		{
 			"label": "build-Release",
 			"type": "shell",
-			"command": "cmake -B build-release -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_INSTALL_PREFIX=/usr/local && cmake --build build-release -j$(nproc)",
+			"command": "cmake -B build-release -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_INSTALL_PREFIX=/usr/local -DSPECTRA_BUILD_EMBED_SHARED=ON && cmake --build build-release -j$(nproc)",
 			"group": "build",
 			"problemMatcher": [
 				"$gcc"
@@ -73,7 +76,9 @@
 			"group": "build",
 			"problemMatcher": [],
 			"detail": "CMake template clean rebuild task",
-			"dependsOn": ["CMake: Configure Project"]
+			"dependsOn": [
+				"CMake: Configure Project"
+			]
 		},
 		{
 			"type": "cmake",
@@ -99,7 +104,9 @@
 			"options": {
 				"cwd": "${workspaceFolder}"
 			},
-			"dependsOn": ["CMake: Configure Project"]
+			"dependsOn": [
+				"CMake: Configure Project"
+			]
 		},
 		{
 			"label": "clang-tidy: Check All Files",
@@ -119,7 +126,9 @@
 			},
 			"problemMatcher": {
 				"owner": "clang-tidy",
-				"fileLocation": ["absolute"],
+				"fileLocation": [
+					"absolute"
+				],
 				"pattern": {
 					"regexp": "^(.+):(\\d+):(\\d+):\\s+(warning|error):\\s+(.+)\\s+\\[(.+)\\]$",
 					"file": 1,
@@ -175,7 +184,11 @@
 			"id": "parallelJobs",
 			"type": "pickString",
 			"description": "Parallel jobs for clang-tidy",
-			"options": ["4", "8", "16"],
+			"options": [
+				"4",
+				"8",
+				"16"
+			],
 			"default": "8"
 		}
 	]

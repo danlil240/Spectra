@@ -410,6 +410,9 @@ extern "C"
     /* Enable/disable grid. */
     void spectra_axes_set_grid(SpectraAxes* ax, int enabled);
 
+    /* Show/hide the axes border rectangle. */
+    void spectra_axes_show_border(SpectraAxes* ax, int enabled);
+
     /* Trigger auto-fit so axes limits are reset to encompass all data. */
     void spectra_axes_auto_fit(SpectraAxes* ax);
 

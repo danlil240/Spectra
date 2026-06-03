@@ -1,0 +1,2 @@
+[console_scripts]
+spectra-backend = spectra._cli:backend_main

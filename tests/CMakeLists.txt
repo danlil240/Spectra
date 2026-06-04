@@ -324,6 +324,12 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
     endif()
 endforeach()
 
+# Wrap-handler integration test constructs App (Vulkan); ignore Mesa loader leaks under LSan.
+if(TARGET unit_test_automation_dispatch)
+    set_tests_properties(unit_test_automation_dispatch PROPERTIES
+        ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0:halt_on_error=1")
+endif()
+
 # test_multi_window uses a custom main() to avoid multi-VkInstance teardown crash on NVIDIA.
 # (Same root cause as the 3D golden test SIGSEGV: the driver crashes when multiple
 # VkInstance objects are destroyed sequentially in one process.)

@@ -1,5 +1,7 @@
 #include "ros_app_shell.hpp"
 
+#include "ros_app_shell_drop_targets.hpp"
+
 #include <algorithm>
 #include <cfloat>
 #include <chrono>
@@ -7,8 +9,6 @@
 #include <cmath>
 #include <cstring>
 #include <string_view>
-#include <unordered_set>
-
 #include "display/grid_display.hpp"
 #include "display/image_display.hpp"
 #include "display/laserscan_display.hpp"
@@ -58,7 +58,6 @@ constexpr float kPlotAreaMinWindowHeight    = 200.0f;
 constexpr float kPlotAreaTimeSliderMinWidth = 120.0f;
 constexpr float kPlotAreaTimeSliderMaxWidth = 220.0f;
 constexpr float kPlotAreaMinViewportHeight  = 120.0f;
-constexpr float kPlotAreaGlobalDropHeight   = 28.0f;
 constexpr float kPlotAreaButtonSpacing      = 4.0f;
 }   // namespace
 
@@ -113,44 +112,6 @@ bool should_trim_vulkan_loader_environment_for_ros_app(const char* preserve_load
 bool is_rviz_layout(LayoutMode layout)
 {
     return layout == LayoutMode::RViz || layout == LayoutMode::RVizPlot;
-}
-
-std::string normalize_frame_label(const std::string& frame)
-{
-    if (!frame.empty() && frame.front() == '/')
-        return frame.substr(1);
-    return frame;
-}
-
-std::vector<std::string> collect_known_fixed_frames(const TfTreePanel*  tf_tree_panel,
-                                                    const SceneManager& scene_manager,
-                                                    const std::string&  current_fixed_frame)
-{
-    std::unordered_set<std::string> seen;
-    std::vector<std::string>        frames;
-
-    auto add_frame = [&](const std::string& frame)
-    {
-        const std::string normalized = normalize_frame_label(frame);
-        if (normalized.empty())
-            return;
-        if (seen.insert(normalized).second)
-            frames.push_back(normalized);
-    };
-
-    if (tf_tree_panel)
-    {
-        for (const auto& frame : tf_tree_panel->buffer().all_frames())
-            add_frame(frame);
-    }
-
-    for (const auto& entity : scene_manager.entities())
-        add_frame(entity.frame_id);
-
-    add_frame(current_fixed_frame);
-
-    std::sort(frames.begin(), frames.end());
-    return frames;
 }
 
 RosAppConfig parse_args(int argc, char** argv, std::string& error_out)
@@ -1259,13 +1220,11 @@ void RosAppShell::draw_plot_area(bool* p_open)
     const ImGuiWindowFlags flags =
         ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoBackground;
 
-    // Fixed-size raw payload for ImGui drag-drop (mirrors field_drag_drop.cpp).
-    struct RawPayload
-    {
-        char topic_name[256]{};
-        char field_path[256]{};
-        char type_name[128]{};
-        char label[320]{};
+    const RosPlotDropTargetContext drop_ctx{
+        .drag_drop             = drag_drop_.get(),
+        .subplot_mgr           = subplot_mgr_.get(),
+        .default_numeric_field = [this](const std::string& topic, const std::string& type)
+        { return default_numeric_field(topic, type); },
     };
 
     if (ImGui::Begin("Plot Area", p_open, flags))
@@ -1795,53 +1754,10 @@ void RosAppShell::draw_plot_area(bool* p_open)
                 // Drop zone — fills remaining slot height so subplots
                 // expand to use all available vertical space.
                 {
-                    const float  used_h    = ImGui::GetCursorPosY() - slot_start_y;
-                    const float  remaining = std::max(8.0f, slot_h - used_h);
-                    const ImVec2 pos       = ImGui::GetCursorScreenPos();
-                    const float  drop_w    = std::max(1.0f, ImGui::GetContentRegionAvail().x);
-                    ImGui::InvisibleButton("##slot_drop", ImVec2(drop_w, remaining));
-
-                    // Accept drag-drop payloads targeted at this slot.
-                    if (drag_drop_ && drag_drop_->is_dragging())
-                    {
-                        const bool hovered =
-                            ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
-                        ImDrawList*  dl   = ImGui::GetWindowDrawList();
-                        const ImVec2 pmax = {pos.x + drop_w, pos.y + std::min(remaining, 8.0f)};
-
-                        if (hovered)
-                        {
-                            dl->AddRectFilled(pos, pmax, IM_COL32(60, 180, 255, 80), 3.0f);
-                            dl->AddRect(pos, pmax, IM_COL32(60, 180, 255, 200), 3.0f, 0, 2.0f);
-                        }
-
-                        if (ImGui::BeginDragDropTarget())
-                        {
-                            if (const ImGuiPayload* imgui_payload =
-                                    ImGui::AcceptDragDropPayload(FieldDragDrop::DRAG_TYPE))
-                            {
-                                if (imgui_payload->DataSize < static_cast<int>(sizeof(RawPayload)))
-                                {
-                                    ImGui::EndDragDropTarget();
-                                    continue;
-                                }
-                                const auto* raw =
-                                    static_cast<const RawPayload*>(imgui_payload->Data);
-                                std::string topic = raw->topic_name;
-                                std::string field = raw->field_path;
-                                std::string type  = raw->type_name;
-
-                                if (!topic.empty())
-                                {
-                                    if (field.empty())
-                                        field = default_numeric_field(topic, type);
-                                    if (!field.empty())
-                                        subplot_mgr_->add_plot(s, topic, field, type);
-                                }
-                            }
-                            ImGui::EndDragDropTarget();
-                        }
-                    }
+                    const float used_h    = ImGui::GetCursorPosY() - slot_start_y;
+                    const float remaining = std::max(8.0f, slot_h - used_h);
+                    const float drop_w    = std::max(1.0f, ImGui::GetContentRegionAvail().x);
+                    draw_subplot_slot_drop_target(drop_ctx, s, drop_w, remaining);
                 }
 
                 if (s < total_slots)
@@ -1858,75 +1774,8 @@ void RosAppShell::draw_plot_area(bool* p_open)
         ImGui::TextDisabled("Drop a topic/field here to add to a new subplot");
 
         {
-            ImVec2 avail =
-                ImVec2(std::max(1.0f, ImGui::GetContentRegionAvail().x), kPlotAreaGlobalDropHeight);
-
-            const ImVec2 pos = ImGui::GetCursorScreenPos();
-            ImGui::InvisibleButton("##global_drop", avail);
-
-            if (drag_drop_ && drag_drop_->is_dragging())
-            {
-                const bool hovered =
-                    ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
-                ImDrawList*  dl   = ImGui::GetWindowDrawList();
-                const ImVec2 pmax = {pos.x + avail.x, pos.y + avail.y};
-                dl->AddRectFilled(pos,
-                                  pmax,
-                                  hovered ? IM_COL32(60, 200, 100, 55) : IM_COL32(60, 200, 100, 22),
-                                  4.0f);
-                if (hovered)
-                {
-                    dl->AddRect(pos, pmax, IM_COL32(60, 200, 100, 220), 4.0f, 0, 2.0f);
-                    const char*  lbl     = "Drop to create new subplot";
-                    const ImVec2 text_sz = ImGui::CalcTextSize(lbl);
-                    dl->AddText({pos.x + (avail.x - text_sz.x) * 0.5f,
-                                 pos.y + (avail.y - text_sz.y) * 0.5f},
-                                IM_COL32(60, 200, 100, 240),
-                                lbl);
-                }
-
-                if (ImGui::BeginDragDropTarget())
-                {
-                    if (const ImGuiPayload* imgui_payload =
-                            ImGui::AcceptDragDropPayload(FieldDragDrop::DRAG_TYPE))
-                    {
-                        if (imgui_payload->DataSize >= static_cast<int>(sizeof(RawPayload)))
-                        {
-                            const auto* raw   = static_cast<const RawPayload*>(imgui_payload->Data);
-                            std::string topic = raw->topic_name;
-                            std::string field = raw->field_path;
-                            std::string type  = raw->type_name;
-
-                            if (!topic.empty())
-                            {
-                                if (field.empty())
-                                    field = default_numeric_field(topic, type);
-                                if (!field.empty())
-                                {
-                                    // Find first empty slot, or add a new row.
-                                    int target_slot = -1;
-                                    if (subplot_mgr_)
-                                    {
-                                        for (int s = 1; s <= subplot_mgr_->capacity(); ++s)
-                                        {
-                                            if (!subplot_mgr_->has_plot(s))
-                                            {
-                                                target_slot = s;
-                                                break;
-                                            }
-                                        }
-                                        if (target_slot < 0)
-                                            target_slot = subplot_mgr_->add_row();
-                                    }
-                                    if (target_slot > 0)
-                                        subplot_mgr_->add_plot(target_slot, topic, field, type);
-                                }
-                            }
-                        }
-                    }
-                    ImGui::EndDragDropTarget();
-                }
-            }
+            const float drop_w = std::max(1.0f, ImGui::GetContentRegionAvail().x);
+            draw_global_plot_drop_target(drop_ctx, drop_w, kPlotAreaGlobalDropHeight);
         }
 
         // Forward mouse/scroll events to the core InputHandler which provides
@@ -2515,217 +2364,6 @@ void RosAppShell::draw_status_bar()
 #endif
 }
 
-void RosAppShell::draw_menu_bar()
-{
-#ifdef SPECTRA_USE_IMGUI
-    if (!ImGui::BeginMainMenuBar())
-        return;
-
-    if (ImGui::BeginMenu("View"))
-    {
-        ImGui::MenuItem("Navigation Rail", nullptr, &show_nav_rail_);
-        if (show_nav_rail_)
-            ImGui::MenuItem("Expand Rail", nullptr, &nav_rail_expanded_);
-
-        ImGui::SeparatorText("Core Panels");
-        ImGui::MenuItem("Topic Monitor", nullptr, &show_topic_list_);
-        ImGui::MenuItem("Topic Echo", nullptr, &show_topic_echo_);
-        ImGui::MenuItem("Topic Statistics", nullptr, &show_topic_stats_);
-        ImGui::MenuItem("Plot Area", nullptr, &show_plot_area_);
-
-        ImGui::SeparatorText("Tools");
-        ImGui::MenuItem("Bag Info", nullptr, &show_bag_info_);
-        ImGui::MenuItem("Bag Playback", nullptr, &show_bag_playback_);
-        ImGui::MenuItem("Log Viewer", nullptr, &show_log_viewer_);
-        ImGui::MenuItem("Diagnostics", nullptr, &show_diagnostics_);
-
-        ImGui::SeparatorText("Advanced");
-        ImGui::MenuItem("Displays", nullptr, &show_displays_panel_);
-        ImGui::MenuItem("Scene Viewport", nullptr, &show_scene_viewport_);
-        ImGui::MenuItem("Inspector", nullptr, &show_inspector_panel_);
-        ImGui::MenuItem("Node Graph", nullptr, &show_node_graph_);
-        ImGui::MenuItem("TF Tree", nullptr, &show_tf_tree_);
-        ImGui::MenuItem("Parameter Editor", nullptr, &show_param_editor_);
-        ImGui::MenuItem("Service Caller", nullptr, &show_service_caller_);
-
-        ImGui::Separator();
-        if (ImGui::MenuItem("Reset Dock Layout"))
-            dock_layout_initialized_ = false;
-
-        ImGui::EndMenu();
-    }
-
-    if (ImGui::BeginMenu("Layout"))
-    {
-        if (ImGui::MenuItem("Reset Docked Layout"))
-            dock_layout_initialized_ = false;
-        ImGui::SeparatorText("Presets");
-        draw_layout_preset_menu();
-        ImGui::EndMenu();
-    }
-
-    if (ImGui::BeginMenu("Plots"))
-    {
-        // Add the current workspace selection to the plot.
-        const bool  has_topic = !workspace_state_.selected_topic.empty();
-        const bool  has_field = !workspace_state_.selected_field.empty();
-        const char* add_label =
-            has_field ? "Add Selected Field to Plot" : "Add Selected Topic to Plot";
-        if (ImGui::MenuItem(add_label, nullptr, false, has_topic))
-            workspace_state_.request_plot();
-        ImGui::Separator();
-
-        if (subplot_mgr_)
-        {
-            if (ImGui::MenuItem("Add Subplot Row"))
-                subplot_mgr_->add_row();
-            if (ImGui::MenuItem("Remove Last Row", nullptr, false, subplot_mgr_->rows() > 1))
-                subplot_mgr_->remove_last_row();
-            ImGui::Separator();
-        }
-
-        if (ImGui::MenuItem("Clear All Plots"))
-            clear_plots();
-        ImGui::Separator();
-        if (ImGui::MenuItem("Reset Basic Display", "R"))
-            reset_plot_display();
-        if (ImGui::MenuItem("Auto-Fit Y", "A", false, subplot_mgr_ != nullptr))
-            restore_plot_autofit(workspace_state_.active_subplot_idx);
-        ImGui::Separator();
-        if (ImGui::MenuItem("Toggle Pause/Live", "Space", false, subplot_mgr_ != nullptr))
-        {
-            int slot = workspace_state_.active_subplot_idx;
-            if (subplot_mgr_ && slot >= 1 && slot <= subplot_mgr_->capacity())
-            {
-                if (subplot_mgr_->is_scroll_paused(slot))
-                    subplot_mgr_->resume_scroll(slot);
-                else
-                    subplot_mgr_->pause_scroll(slot);
-            }
-            else if (subplot_mgr_)
-            {
-                bool any_live = false;
-                for (int s = 1; s <= subplot_mgr_->capacity(); ++s)
-                {
-                    if (subplot_mgr_->has_plot(s) && !subplot_mgr_->is_scroll_paused(s))
-                    {
-                        any_live = true;
-                        break;
-                    }
-                }
-                if (any_live)
-                    subplot_mgr_->pause_all_scroll();
-                else
-                    subplot_mgr_->resume_all_scroll();
-            }
-        }
-        if (ImGui::MenuItem("Resume All Scroll", "Home"))
-        {
-            if (subplot_mgr_)
-                subplot_mgr_->resume_all_scroll();
-        }
-        if (ImGui::MenuItem("Pause All Scroll"))
-        {
-            if (subplot_mgr_)
-                subplot_mgr_->pause_all_scroll();
-        }
-        ImGui::Separator();
-        if (ImGui::MenuItem("Toggle Grid", "G", false, subplot_mgr_ != nullptr))
-        {
-            int slot = workspace_state_.active_subplot_idx;
-            if (subplot_mgr_ && slot >= 1 && slot <= subplot_mgr_->capacity())
-            {
-                auto* se = subplot_mgr_->slot_entry_pub(slot);
-                if (se && se->axes)
-                    se->axes->grid(!se->axes->grid_enabled());
-            }
-        }
-        ImGui::EndMenu();
-    }
-
-    if (ImGui::BeginMenu("Session"))
-    {
-        if (ImGui::MenuItem("Save Session", "Ctrl+Shift+W"))
-            show_session_save_dialog_ = true;
-        if (ImGui::MenuItem("Save Session As..."))
-        {
-            session_save_path_buf_    = RosSessionManager::default_session_path(cfg_.node_name);
-            show_session_save_dialog_ = true;
-        }
-        if (ImGui::MenuItem("Load Session..."))
-            show_session_load_dialog_ = true;
-
-        ImGui::Separator();
-
-        if (ImGui::BeginMenu("Recent Sessions"))
-        {
-            // Quick-switch: load any of the last 5 sessions with one click.
-            draw_recent_sessions_menu();
-
-            auto recent = session_mgr_->load_recent();
-            if (!recent.empty())
-            {
-                ImGui::Separator();
-                if (ImGui::MenuItem("Clear Recent"))
-                    session_mgr_->clear_recent();
-            }
-            ImGui::EndMenu();
-        }
-
-        ImGui::EndMenu();
-    }
-
-    if (ImGui::BeginMenu("Tools"))
-    {
-        if (ImGui::MenuItem("Screenshot", "Ctrl+Shift+S", false, screenshot_export_ != nullptr))
-        {
-            const std::string path =
-                RosScreenshotExport::make_screenshot_path("/tmp", "spectra_ros");
-            if (screenshot_export_)
-                screenshot_export_->take_screenshot(path);
-        }
-        if (ImGui::MenuItem("Record Video...",
-                            nullptr,
-                            &show_record_dialog_,
-                            screenshot_export_ != nullptr))
-        {
-        }
-        ImGui::EndMenu();
-    }
-
-    ImGui::Separator();
-    ImGui::TextUnformatted("Fixed Frame");
-    ImGui::SameLine();
-    ImGui::SetNextItemWidth(180.0f);
-    const std::vector<std::string> frames =
-        collect_known_fixed_frames(tf_tree_panel_.get(),
-                                   scene_manager_,
-                                   workspace_state_.fixed_frame);
-    std::string current_label =
-        workspace_state_.fixed_frame.empty() ? "(auto)" : workspace_state_.fixed_frame;
-    if (ImGui::BeginCombo("##ros_fixed_frame", current_label.c_str()))
-    {
-        const bool is_auto = workspace_state_.fixed_frame.empty();
-        if (ImGui::Selectable("(auto)", is_auto))
-            workspace_state_.fixed_frame.clear();
-        if (is_auto)
-            ImGui::SetItemDefaultFocus();
-
-        for (const auto& frame : frames)
-        {
-            const bool selected = workspace_state_.fixed_frame == frame;
-            if (ImGui::Selectable(frame.c_str(), selected))
-                workspace_state_.fixed_frame = frame;
-            if (selected)
-                ImGui::SetItemDefaultFocus();
-        }
-        ImGui::EndCombo();
-    }
-
-    ImGui::EndMainMenuBar();
-#endif
-}
-
 std::string RosAppShell::window_title() const
 {
     return "Spectra ROS2 \xe2\x80\x94 " + cfg_.node_name;
@@ -2842,80 +2480,6 @@ void RosAppShell::subscribe_initial_topics()
         add_topic_plot(t);
 }
 
-void RosAppShell::wire_panel_callbacks()
-{
-    if (topic_list_)
-    {
-        topic_list_->set_select_callback([this](const std::string& topic)
-                                         { on_topic_selected(topic); });
-
-        topic_list_->set_plot_callback([this](const std::string& topic) { on_topic_plot(topic); });
-    }
-
-    drag_drop_ = std::make_unique<FieldDragDrop>();
-    drag_drop_->set_plot_request_callback([this](const FieldDragPayload& payload, PlotTarget target)
-                                          { handle_plot_request(payload, target); });
-
-    if (topic_list_)
-        topic_list_->set_drag_drop(drag_drop_.get());
-    if (topic_echo_)
-        topic_echo_->set_drag_drop(drag_drop_.get());
-
-    // Wire echo panel into topic list so the monitor can show inline echo.
-    if (topic_list_ && topic_echo_)
-        topic_list_->set_echo_panel(topic_echo_.get());
-
-    // Forward echo panel message arrivals to topic stats and topic list so
-    // that statistics update for the selected topic even when it isn't plotted.
-    if (topic_echo_)
-    {
-        topic_echo_->set_message_callback(
-            [this](const std::string& topic, size_t bytes)
-            {
-                // Only forward to topic_list / topic_stats if there is no
-                // active monitor subscription for this topic — the monitor
-                // sub already calls notify_message, so forwarding here too
-                // would double-count and inflate the displayed Hz.
-                bool has_monitor = false;
-                {
-                    std::lock_guard<std::mutex> lk(monitor_subs_mutex_);
-                    has_monitor = monitor_subs_.count(topic) > 0;
-                }
-                if (!has_monitor)
-                {
-                    if (topic_stats_)
-                        topic_stats_->notify_message(topic, bytes, -1);
-                    if (topic_list_)
-                        topic_list_->notify_message(topic, bytes);
-                }
-            });
-    }
-
-    if (node_graph_panel_)
-    {
-        node_graph_panel_->set_select_callback(
-            [this](const GraphNode& n)
-            {
-                if (n.kind == GraphNodeKind::Topic)
-                {
-                    on_topic_selected(n.id);
-                }
-                else if (param_editor_)
-                {
-                    param_editor_->set_target_node(n.id);
-                    show_param_editor_ = true;
-                }
-            });
-
-        node_graph_panel_->set_activate_callback(
-            [this](const GraphNode& n)
-            {
-                if (n.kind == GraphNodeKind::Topic)
-                    add_topic_plot(n.id);
-            });
-    }
-}
-
 void RosAppShell::refresh_scene_displays(float dt)
 {
     scene_manager_.clear();
@@ -2987,34 +2551,6 @@ void RosAppShell::draw_display_auxiliary_windows()
         if (display)
             display->draw_auxiliary_ui();
     }
-}
-
-void RosAppShell::handle_plot_request(const FieldDragPayload& payload, PlotTarget target)
-{
-    if (!payload.valid())
-        return;
-
-    std::string topic_field = payload.topic_name;
-    if (!payload.field_path.empty())
-        topic_field += ':' + payload.field_path;
-
-    // If workspace has an active subplot selection, target that slot.
-    if (target == PlotTarget::CurrentAxes && workspace_state_.active_subplot_idx > 0
-        && subplot_mgr_)
-    {
-        const int   slot  = workspace_state_.active_subplot_idx;
-        std::string field = payload.field_path;
-        if (field.empty())
-            field = default_numeric_field(payload.topic_name, payload.type_name);
-        if (!field.empty())
-        {
-            subplot_mgr_->add_plot(slot, payload.topic_name, field, payload.type_name);
-            show_plot_area_ = true;
-            return;
-        }
-    }
-
-    add_topic_plot(topic_field);
 }
 
 void RosAppShell::setup_layout_visibility()
@@ -3216,74 +2752,6 @@ void RosAppShell::apply_layout_preset(LayoutPreset preset)
 
     // Force a dock-layout rebuild on the next frame.
     dock_layout_initialized_ = false;
-}
-
-// ---------------------------------------------------------------------------
-// draw_layout_preset_menu (inline submenu items)
-// ---------------------------------------------------------------------------
-
-void RosAppShell::draw_layout_preset_menu()
-{
-#ifdef SPECTRA_USE_IMGUI
-    static const LayoutPreset kPresets[] = {
-        LayoutPreset::Default,
-        LayoutPreset::Debug,
-        LayoutPreset::Monitor,
-        LayoutPreset::BagReview,
-        LayoutPreset::RViz,
-        LayoutPreset::RVizPlot,
-    };
-    for (const auto p : kPresets)
-    {
-        const bool sel = (current_preset_ == p);
-        if (ImGui::MenuItem(layout_preset_name(p), nullptr, sel))
-            apply_layout_preset(p);
-    }
-#endif
-}
-
-// ---------------------------------------------------------------------------
-// draw_recent_sessions_menu (inline submenu items)
-// ---------------------------------------------------------------------------
-
-void RosAppShell::draw_recent_sessions_menu()
-{
-#ifdef SPECTRA_USE_IMGUI
-    if (!session_mgr_)
-    {
-        ImGui::TextDisabled("(no session manager)");
-        return;
-    }
-    const auto recents = session_mgr_->load_recent();
-    if (recents.empty())
-    {
-        ImGui::TextDisabled("(no recent sessions)");
-        return;
-    }
-    for (size_t i = 0; i < recents.size() && i < 5; ++i)
-    {
-        const std::string& path = recents[i].path;
-        // Show only the filename part as label; node name as shortcut hint.
-        const auto        slash = path.rfind('/');
-        const std::string label = (slash != std::string::npos) ? path.substr(slash + 1) : path;
-        if (ImGui::MenuItem(label.c_str(), recents[i].node.c_str()))
-        {
-            const auto result = load_session(path);
-            if (result.ok)
-            {
-                session_status_msg_   = "Loaded: " + label;
-                session_status_timer_ = 3.0f;
-            }
-            else
-            {
-                session_status_msg_   = "Load failed: " + result.error;
-                session_status_timer_ = 4.0f;
-            }
-        }
-        if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
-            ImGui::SetTooltip("%s", path.c_str());
-    }
-#endif
 }
 
 RosSession RosAppShell::capture_session() const

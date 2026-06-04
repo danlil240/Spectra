@@ -284,6 +284,25 @@ bool FieldDragDrop::try_get_dragging_payload(FieldDragPayload& out) const
 #endif
 }
 
+bool FieldDragDrop::try_parse_imgui_payload(const ImGuiPayload* imgui_payload,
+                                            FieldDragPayload&   out)
+{
+#ifdef SPECTRA_USE_IMGUI
+    if (!imgui_payload || !imgui_payload->IsDataType(DRAG_TYPE) || !imgui_payload->Data
+        || imgui_payload->DataSize < static_cast<int>(sizeof(RawPayload)))
+    {
+        return false;
+    }
+    const auto* raw = static_cast<const RawPayload*>(imgui_payload->Data);
+    out             = from_raw(*raw);
+    return out.valid();
+#else
+    (void)imgui_payload;
+    (void)out;
+    return false;
+#endif
+}
+
 // ---------------------------------------------------------------------------
 // FieldDragDrop::consume_pending_request
 // ---------------------------------------------------------------------------

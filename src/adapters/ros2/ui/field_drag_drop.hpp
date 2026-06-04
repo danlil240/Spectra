@@ -33,6 +33,10 @@
 #include <functional>
 #include <string>
 
+#ifdef SPECTRA_USE_IMGUI
+struct ImGuiPayload;
+#endif
+
 namespace spectra::adapters::ros2
 {
 
@@ -166,6 +170,11 @@ class FieldDragDrop
     // Returns true if a pending plot request was queued by the context menu
     // and clears the pending state.  Call once per frame.
     bool consume_pending_request(FieldDragPayload& payload_out, PlotTarget& target_out);
+
+#ifdef SPECTRA_USE_IMGUI
+    // Parse an ImGui drag-drop payload emitted by FieldDragDrop::begin_drag_source.
+    static bool try_parse_imgui_payload(const ImGuiPayload* imgui_payload, FieldDragPayload& out);
+#endif
 
    private:
     void fire_request(const FieldDragPayload& payload, PlotTarget target);

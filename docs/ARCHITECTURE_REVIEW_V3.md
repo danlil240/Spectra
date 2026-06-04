@@ -1,6 +1,6 @@
 # Spectra Architecture Review — V3
 
-> **Date**: 2026-04-04
+> **Date**: 2026-04-04 (metrics refreshed 2026-06-04)
 > **Baseline**: V2 review (2026-04-03)
 > **Scope**: Current repo reality after removing duplicated `WindowManager` implementations from the build path
 > **Metrics source**: `python tools/architecture_metrics.py --format json`
@@ -15,9 +15,9 @@ WebGPU exists, but the honest description today is **2D/experimental** rather th
 
 Current scripted scale:
 
-- `src/` C/C++: 145,631 lines
-- `tests/` C/C++: 88,162 lines
-- `python/`: 16,416 lines
+- `src/` C/C++: 155,625 lines
+- `tests/` C/C++: 90,995 lines
+- `python/`: 19,404 lines
 
 ---
 
@@ -27,27 +27,27 @@ Current scripted scale:
 
 | File | Lines | Notes |
 |---|---:|---|
-| `src/ui/window/window_manager.cpp` | 196 | Orchestration/helpers only |
-| `src/ui/window/window_lifecycle.cpp` | 1,028 | Window creation/destruction + UI bootstrap |
-| `src/ui/window/window_figure_ops.cpp` | 705 | Detach/move/preview logic |
-| `src/ui/window/window_glfw_callbacks.cpp` | 558 | GLFW routing/callback glue |
-| `src/ui/app/register_commands.cpp` | 1,878 | 68 command registrations in one TU |
-| `src/ui/automation/automation_server.cpp` | 1,279 | 22 method branches in one dispatcher |
-| `src/render/render_geometry.cpp` | 1,199 | Geometry/text/grid/border rendering mix |
-| `src/ui/imgui/imgui_integration.cpp` | 1,226 | Large UI dispatcher/orchestrator |
-| `src/ipc/codec.cpp` | 1,799 | Legacy TLV codec |
-| `src/ipc/codec_fb.cpp` | 1,177 | FlatBuffers codec |
-| `src/render/webgpu/wgpu_backend.cpp` | 1,393 | Experimental WebGPU backend |
-| `src/ui/app/window_ui_context.hpp` | 128 | Central per-window UI bundle |
+| `src/ui/window/window_manager.cpp` | 221 | Orchestration/helpers only |
+| `src/ui/window/window_lifecycle.cpp` | 817 | Window creation/destruction + UI bootstrap |
+| `src/ui/window/window_figure_ops.cpp` | 668 | Detach/move/preview logic |
+| `src/ui/window/window_glfw_callbacks.cpp` | 555 | GLFW routing/callback glue |
+| `src/ui/app/register_commands.cpp` | 62 | Table-driven command registration (delegates to `commands_*`) |
+| `src/ui/automation/automation_server.cpp` | 453 | Handler-map dispatch + `list_methods` catalog |
+| `src/render/render_geometry.cpp` | 1,202 | Geometry/text/grid/border rendering mix |
+| `src/ui/imgui/imgui_integration.cpp` | 1,324 | Large UI dispatcher/orchestrator |
+| `src/ipc/codec.cpp` | 720 | Legacy TLV codec |
+| `src/ipc/codec_fb.cpp` | 1,412 | FlatBuffers codec |
+| `src/render/webgpu/wgpu_backend.cpp` | 1,547 | Experimental WebGPU backend |
+| `src/ui/app/window_ui_context.hpp` | 146 | Central per-window UI bundle |
 
 ### Verified architecture signals
 
 - `WindowManager` split is now real in the repo/build: the duplicate cross-file method definitions are gone.
 - `ui::theme()` is the bigger theming debt than direct singleton calls:
-  - `ui::theme()` references: 154
-  - `ThemeManager::instance()` references: 11
-- `register_commands.cpp` is still a single registration function using the existing `CommandBindings` bundle.
-- `AutomationServer::execute()` is still a hardcoded method chain with 22 branches.
+  - `ui::theme()` references: 27
+  - `ThemeManager::instance()` references: 10
+- Command registration is table-driven: `register_commands.cpp` builds a `CommandContext` from `CommandBindings` and batch-registers per-category descriptor tables under `src/ui/app/commands/`.
+- `AutomationServer::execute()` dispatches via a handler map populated from `src/ui/automation/handlers/`; pre-flight context and parameter validation lives in `automation_dispatch.cpp`. Use the `list_methods` automation call to introspect handler metadata.
 - WebGPU WGSL footprint: 5 shader files / 595 total lines.
 
 ---
@@ -80,11 +80,9 @@ Current scripted scale:
 ## Current concerns
 
 1. **`WindowUIContext` is the next real architecture project.** The struct itself is small, but the initialization and ownership story is spread across `src/ui/window/window_lifecycle.cpp` and `src/ui/app/app_step.cpp`, with different startup paths for windowed and headless operation. That is the bigger architectural payoff now.
-2. **Theming debt is broader than singleton cleanup.** Chasing a handful of remaining `ThemeManager::instance()` calls would be cosmetic. The deeper issue is 154 `ui::theme()` references that bypass explicit context and make per-window or contextual theming harder.
-3. **`register_commands.cpp` is large, but the better next move is descriptor/registration tables.** A pure translation-unit split would mostly reshuffle code. The file already has `CommandBindings`; the next step should build on that with table-driven descriptors and shared helpers.
-4. **`automation_server.cpp` has the same shape of problem.** A 22-branch hardcoded dispatch chain wants a registration table, not just mechanical file splitting.
-5. **IPC is in transition, not “done.”** The repo already supports auto-detecting FlatBuffers vs TLV on reads, but writes are still mixed and the legacy TLV codec is still large and active.
-6. **WebGPU should stay explicitly experimental in docs.** The source itself says 3D pipeline types are not implemented, so public messaging should not imply Vulkan parity.
+2. **Theming debt is broader than singleton cleanup.** Chasing a handful of remaining `ThemeManager::instance()` calls would be cosmetic. The deeper issue is the remaining `ui::theme()` references that bypass explicit context and make per-window or contextual theming harder.
+3. **IPC is in transition, not “done.”** The repo already supports auto-detecting FlatBuffers vs TLV on reads, but writes are still mixed and the legacy TLV codec is still large and active.
+4. **WebGPU should stay explicitly experimental in docs.** The source itself says 3D pipeline types are not implemented, so public messaging should not imply Vulkan parity.
 
 ---
 
@@ -106,21 +104,12 @@ Why this comes first:
 - It pays off across runtime startup, testing, detached windows, and headless automation.
 - It is a deeper improvement than another surface-level source split.
 
-### 2. Table-driven command and automation registration
+### 2. Table-driven command and automation registration — done
 
-For `register_commands.cpp` and `automation_server.cpp`, prefer data tables over file splitting.
+Implemented as of 2026-06:
 
-Recommended direction:
-
-- Keep `CommandBindings` as the app-facing dependency bundle.
-- Add command descriptor tables per category or feature area.
-- Move repeated lambda setup into shared helpers instead of inventing a second context object.
-- Convert `AutomationServer::execute()` into a registration table of method handlers with metadata.
-
-Why this comes second:
-
-- It attacks duplication and consistency at the right layer.
-- It improves discoverability and future extension more than scattering code across files would.
+- **Commands:** `CommandBindings` → `CommandContext` → per-category `CommandDescriptor` tables in `src/ui/app/commands/`, registered via `register_descriptors()`.
+- **Automation:** handler group factories in `src/ui/automation/handlers/`, map dispatch in `AutomationServer::execute()`, pre-flight validation in `automation_dispatch.cpp`, introspection via `list_methods`.
 
 ### 3. Theming, IPC migration, and WebGPU messaging
 

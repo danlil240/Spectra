@@ -600,11 +600,11 @@ Root-level shared UI utility headers.
     `knob_manager.cpp`, `knob_manager.hpp`, `legend_interaction.cpp`, `legend_interaction.hpp`,
     `overlay_registry.cpp`, `overlay_registry.hpp`, `tooltip.cpp`, `tooltip.hpp`
 
-### 14.16 `src/ui/commands/` (16 files)
-`command_descriptor.cpp`, `command_descriptor.hpp`, `command_palette.cpp`, `command_palette.hpp`,
-    `command_queue.hpp`, `command_registry.cpp`, `command_registry.hpp`, `series_clipboard.cpp`,
-    `series_clipboard.hpp`, `shortcut_config.cpp`, `shortcut_config.hpp`, `shortcut_manager.cpp`,
-    `shortcut_manager.hpp`, `undo_manager.cpp`, `undo_manager.hpp`, `undoable_property.hpp`
+### 14.16 `src/ui/commands/` (14 files)
+`command_palette.cpp`, `command_palette.hpp`, `command_queue.hpp`, `command_registry.cpp`,
+    `command_registry.hpp`, `series_clipboard.cpp`, `series_clipboard.hpp`, `shortcut_config.cpp`,
+    `shortcut_config.hpp`, `shortcut_manager.cpp`, `shortcut_manager.hpp`, `undo_manager.cpp`,
+    `undo_manager.hpp`, `undoable_property.hpp`
 
 ### 14.17 `src/ui/docking/` (4 files)
 `dock_system.cpp`, `dock_system.hpp`, `split_view.cpp`, `split_view.hpp`
@@ -651,9 +651,10 @@ Root-level shared UI utility headers.
 ### 14.28 `src/ui/panel/` (2 files)
 `panel_detach_controller.cpp`, `panel_detach_controller.hpp`
 
-### 14.29 `src/ui/automation/` (6 files)
-`automation_handler.hpp`, `automation_json.hpp`, `automation_server.cpp`, `automation_server.hpp`,
-    `mcp_server.cpp`, `mcp_server.hpp`
+### 14.29 `src/ui/automation/` (8 files)
+`automation_dispatch.cpp`, `automation_dispatch.hpp`, `automation_handler.hpp`,
+    `automation_json.hpp`, `automation_server.cpp`, `automation_server.hpp`, `mcp_server.cpp`,
+    `mcp_server.hpp`
 
 ### 14.30 `src/ui/automation/handlers/` (6 files)
 `handlers_capture.cpp`, `handlers_command.cpp`, `handlers_figure.cpp`, `handlers_input.cpp`,
@@ -1077,9 +1078,11 @@ PX4 fills the same architectural niche as ROS2, but with a PX4-specific telemetr
 
 ## 21. Automation / MCP Server (`src/ui/automation/`)
 
-- `automation_server.*` exposes scripted UI automation.
+- `automation_server.*` exposes scripted UI automation with handler-map dispatch.
+- `automation_dispatch.*` provides pre-flight context/parameter validation and `list_methods` catalog serialization.
 - `mcp_server.*` adds MCP-oriented control/inspection endpoints.
-- `automation_handler.hpp` and `automation_json.hpp` define request/response plumbing.
+- `automation_handler.hpp` defines `AutomationHandlerEntry` metadata (context flags, param specs).
+- `automation_json.hpp` defines shared JSON parse/response helpers.
 - Handler split:
   - `handlers_capture.cpp` — screenshots/capture/export style actions.
   - `handlers_command.cpp` — command execution.

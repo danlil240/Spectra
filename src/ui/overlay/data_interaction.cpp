@@ -205,6 +205,57 @@ void DataInteraction::update(const CursorReadout& cursor, Figure& figure)
     nearest_ = find_nearest(cursor, figure);
 }
 
+bool DataInteraction::refresh_pointer_state(double screen_x, double screen_y)
+{
+    if (!last_figure_)
+        return false;
+
+    CursorReadout cursor;
+    cursor.screen_x = screen_x;
+    cursor.screen_y = screen_y;
+
+    active_axes_ = nullptr;
+    for (auto& axes_ptr : last_figure_->axes())
+    {
+        if (!axes_ptr)
+            continue;
+
+        const auto& vp = axes_ptr->viewport();
+        if (vp.w <= 0.0f || vp.h <= 0.0f)
+            continue;
+
+        const float sx = static_cast<float>(screen_x);
+        const float sy = static_cast<float>(screen_y);
+        if (sx < vp.x || sx > vp.x + vp.w || sy < vp.y || sy > vp.y + vp.h)
+            continue;
+
+        active_axes_     = axes_ptr.get();
+        active_viewport_ = vp;
+        auto xl          = axes_ptr->x_limits();
+        auto yl          = axes_ptr->y_limits();
+        xlim_min_        = xl.min;
+        xlim_max_        = xl.max;
+        ylim_min_        = yl.min;
+        ylim_max_        = yl.max;
+
+        float x_range = xlim_max_ - xlim_min_;
+        float y_range = ylim_max_ - ylim_min_;
+        if (x_range == 0.0f)
+            x_range = 1.0f;
+        if (y_range == 0.0f)
+            y_range = 1.0f;
+
+        cursor.valid  = true;
+        cursor.data_x = xlim_min_ + (sx - vp.x) / vp.w * x_range;
+        cursor.data_y = ylim_max_ - (sy - vp.y) / vp.h * y_range;
+        break;
+    }
+
+    last_cursor_ = cursor;
+    nearest_     = find_nearest(cursor, *last_figure_);
+    return cursor.valid;
+}
+
 void DataInteraction::draw_legend_for_figure(Figure& figure)
 {
     const auto& config = figure.legend();
@@ -375,6 +426,8 @@ bool DataInteraction::dispatch_series_selection_from_nearest()
 
 bool DataInteraction::on_mouse_click_datatip_only(int button, double screen_x, double screen_y)
 {
+    refresh_pointer_state(screen_x, screen_y);
+
     if (!active_axes_ || !last_figure_)
         return false;
 
@@ -433,8 +486,7 @@ bool DataInteraction::on_mouse_click_datatip_only(int button, double screen_x, d
 
 bool DataInteraction::on_mouse_click_series_only(double screen_x, double screen_y)
 {
-    (void)screen_x;
-    (void)screen_y;
+    refresh_pointer_state(screen_x, screen_y);
 
     if (!active_axes_ || !last_figure_)
         return false;
@@ -456,6 +508,8 @@ bool DataInteraction::on_mouse_click_series_only(double screen_x, double screen_
 
 bool DataInteraction::on_mouse_click(int button, double screen_x, double screen_y)
 {
+    refresh_pointer_state(screen_x, screen_y);
+
     if (!active_axes_ || !last_figure_)
         return false;
 

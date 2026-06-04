@@ -1,5 +1,6 @@
 """Socket I/O + message framing for the Spectra IPC protocol."""
 
+import select
 import socket
 from typing import Optional
 
@@ -50,6 +51,23 @@ class Transport:
     @property
     def is_open(self) -> bool:
         return self._sock is not None
+
+    def is_alive(self) -> bool:
+        """Return False if the peer has already closed/reset the socket.
+
+        This is a non-consuming check: a healthy Spectra backend does not send
+        unsolicited bytes to publishers, but if bytes are pending we only peek.
+        """
+        if self._sock is None:
+            return False
+        try:
+            ready, _, _ = select.select([self._sock], [], [], 0)
+            if not ready:
+                return True
+            data = self._sock.recv(1, socket.MSG_PEEK)
+            return bool(data)
+        except OSError:
+            return False
 
     def fileno(self) -> int:
         if self._sock is None:

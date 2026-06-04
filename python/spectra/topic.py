@@ -15,6 +15,7 @@ Usage::
 
 from __future__ import annotations
 
+import os
 import threading
 import time as _time
 from typing import Iterable, List, Optional, Sequence
@@ -22,7 +23,7 @@ from typing import Iterable, List, Optional, Sequence
 from . import _codec as codec
 from . import _protocol as P
 from ._errors import BackendError, ConnectionError, ProtocolError
-from ._launcher import ensure_backend, resolve_socket_path
+from ._launcher import ensure_backend, resolve_socket_candidates, resolve_socket_path
 from ._log import log
 from ._transport import Transport
 
@@ -114,7 +115,7 @@ class Publisher:
 
     @property
     def is_connected(self) -> bool:
-        return self._transport is not None and self._transport.is_open
+        return self._transport_is_alive()
 
     def publish(self, *args) -> None:
         """Publish one or more samples.
@@ -138,6 +139,9 @@ class Publisher:
         payload = codec.encode_req_publish_topic_samples(self._name, samples)
 
         # First attempt — on the existing connection if any.
+        if self._transport is not None and not self._transport_is_alive():
+            self._drop_transport()
+
         if self._transport is not None and self._transport.is_open:
             try:
                 self._request(P.REQ_PUBLISH_TOPIC_SAMPLES, payload)
@@ -191,6 +195,14 @@ class Publisher:
             self._transport = None
         self._session_id = 0
 
+    def _transport_is_alive(self) -> bool:
+        if self._transport is None or not self._transport.is_open:
+            return False
+        is_alive = getattr(self._transport, "is_alive", None)
+        if is_alive is None:
+            return True
+        return bool(is_alive())
+
     def _connect_and_declare(self) -> bool:
         """Open a fresh socket, do HELLO/WELCOME, then DECLARE the topic.
 
@@ -201,14 +213,29 @@ class Publisher:
         self._drop_transport()
 
         # Re-resolve every reconnect when the user didn't pin a path, so we
-        # follow broker PID changes across UI restarts.
-        path = resolve_socket_path(self._explicit_socket)
+        # follow broker PID changes across UI restarts. Try every discovered
+        # candidate through the full protocol handshake; a connect probe alone
+        # is not enough to trust a leftover shallow socket.
+        candidates = resolve_socket_candidates(self._explicit_socket)
         if self._auto_launch:
-            try:
-                path = ensure_backend(path)
-            except Exception as e:
-                log.debug("ensure_backend failed during reconnect: %s", e)
-                return False
+            pinned = self._explicit_socket is not None or bool(
+                os.environ.get("SPECTRA_SOCKET")
+            )
+            if pinned or not candidates:
+                path = candidates[0] if candidates else resolve_socket_path(self._explicit_socket)
+                try:
+                    ensured = ensure_backend(path)
+                except Exception as e:
+                    log.debug("ensure_backend failed during reconnect: %s", e)
+                    return False
+                candidates = [ensured] if ensured else candidates
+
+        for path in candidates:
+            if self._connect_and_declare_path(path):
+                return True
+        return False
+
+    def _connect_and_declare_path(self, path: str) -> bool:
         if not path:
             return False
 
@@ -263,8 +290,9 @@ class Publisher:
         """Rate-limited reconnect attempt. Returns True when connected."""
         if self._closed:
             return False
-        if self._transport is not None and self._transport.is_open:
+        if self._transport_is_alive():
             return True
+        self._drop_transport()
         now = _time.monotonic()
         if now < self._next_reconnect_at:
             return False

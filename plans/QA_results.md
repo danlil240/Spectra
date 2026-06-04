@@ -1,6 +1,6 @@
 # Spectra QA Results — Living Document
 
-**Last updated:** 2026-05-16  
+**Last updated:** 2026-06-04  
 **QA Agent build:** `build/tests/` (Release, all suites)  
 **Full sweep:** Stability · Pixel · Memory · Design · Accessibility · API
 
@@ -32,7 +32,8 @@
 | W-1 | WARNING | RSS growth >100 MB during fuzz | Monitor; by design |
 | W-2 | WARNING | Frame spikes >50 ms (resize/large-data) | By design / known |
 | W-3 | INFO | `move_figure` cosmetic warning in fuzz | Known / by design |
-| D-3 | P3 | Dark theme tick label `#A0A8B0` has blue tint | Low-priority tuning |
+| D-3 | P3 | ~~Dark theme tick label blue tint~~ | Fixed 2026-06-04 (`#A0A0A0`) |
+| A11Y-SP-5 | P2 | ~~Light warning contrast~~ | Fixed 2026-06-04 (`#7A5000`) |
 | G-3 | GAP | No `build-asan/` — ASan/LSan not confirmed | Build `build-asan/` next |
 
 ---

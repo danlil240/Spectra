@@ -2,6 +2,7 @@
 
 #include "daemon/client_router.hpp"
 #include "daemon/figure_model.hpp"
+#include "daemon/topic_registry.hpp"
 #include "ipc/codec.hpp"
 #include "ipc/message.hpp"
 
@@ -552,6 +553,48 @@ TEST(FigureModel, AppendSeriesData)
     ASSERT_EQ(op.data.size(), 4u);
     EXPECT_FLOAT_EQ(op.data[0], 1.0f);
     EXPECT_FLOAT_EQ(op.data[2], 3.0f);
+}
+
+TEST(FigureModel, AppendSeriesDataCarriesAxesIndexForSubplots)
+{
+    spectra::daemon::FigureModel model;
+    auto                         fig_id = model.create_figure("Test");
+    model.add_axes(fig_id, 0, 1, 0, 1);
+    model.add_axes(fig_id, 0, 1, 0, 1);
+    uint32_t series_idx = 0;
+    model.add_series_with_diff(fig_id, "line2", "line", 1, series_idx);
+
+    auto op = model.append_series_data(fig_id, series_idx, {1.0f, 2.0f});
+    EXPECT_EQ(op.type, DiffOp::Type::SET_SERIES_DATA);
+    EXPECT_EQ(op.axes_index, 1u);
+}
+
+TEST(TopicRegistry, SubscribeReturnsRetainedSamplesForLateSubscriber)
+{
+    spectra::daemon::TopicRegistry registry;
+    ASSERT_EQ(registry.declare("demo", TopicKind::Scalar2D, "m", 2, 100),
+              spectra::daemon::TopicRegistry::DeclareResult::Created);
+
+    TopicKind                                       kind = TopicKind::Scalar3D;
+    std::vector<spectra::daemon::TopicSubscription> subs;
+    ASSERT_TRUE(registry.publish("demo", {1.0, 10.0, 2.0, 20.0, 3.0, 30.0}, &kind, &subs));
+    EXPECT_EQ(kind, TopicKind::Scalar2D);
+    EXPECT_TRUE(subs.empty());
+
+    spectra::daemon::TopicSubscription sub;
+    sub.figure_id    = 7;
+    sub.axes_index   = 1;
+    sub.series_index = 2;
+    std::vector<double> retained;
+    kind = TopicKind::Scalar3D;
+    ASSERT_TRUE(registry.subscribe("demo", sub, &kind, &retained));
+
+    EXPECT_EQ(kind, TopicKind::Scalar2D);
+    ASSERT_EQ(retained.size(), 4u);
+    EXPECT_DOUBLE_EQ(retained[0], 2.0);
+    EXPECT_DOUBLE_EQ(retained[1], 20.0);
+    EXPECT_DOUBLE_EQ(retained[2], 3.0);
+    EXPECT_DOUBLE_EQ(retained[3], 30.0);
 }
 
 TEST(FigureModel, SetAxisXlabel)

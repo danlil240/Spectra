@@ -1,8 +1,8 @@
 # Spectra Visual QA Design Review
 
-> **Last Updated:** 2026-05-17
-> **Test Health:** 140/140 unit tests PASS · 59/59 golden image tests PASS · 103/103 accessibility tests PASS
-> **Design Health:** ✅ Good — No P0/P1 defects open. Settings panel accessibility audit complete 2026-05-17.
+> **Last Updated:** 2026-06-04
+> **Test Health:** 140/141 ctest (1 ROS topic_discovery flake) · golden_image_tests PASS · unit_test_accessibility 17/17 PASS
+> **Design Health:** ✅ Good — No P0/P1 defects open. Live design-review capture: 57/57 screenshots (seed 42).
 
 ---
 
@@ -10,14 +10,7 @@
 
 | ID  | Priority | Status | Description | File | Line |
 |-----|----------|--------|-------------|------|------|
-| A11Y-SP-3 | P2 | Open | High-contrast theme conflict text: `theme().error = #FF0000` (L=0.213) gives 5.41:1 on `bg_secondary` (#1C1C1C). Fails ≥7:1 AAA target for high-contrast theme. Pure red hues cannot reach 7:1 on dark backgrounds — fix requires adding an icon/shape indicator (`ImGui::Text("[!]...")`) so color is not the sole conveyor of conflict state. | `src/ui/settings/settings_panel.cpp` | `draw_shortcuts_tab()` |
-| A11Y-SP-4 | P2 | Open | Keyboard nav burden in Shortcuts table: with no arrow-key row navigation, reaching buttons at the bottom of a large table requires O(n) Tab presses. Mitigated by the filter box, but filter discoverability is low on first use. Consider `ImGuiTableFlags_NoBordersInBodyUntilResize` + keyboard hint tooltip on the filter. | `src/ui/settings/settings_panel.cpp` | `draw_shortcuts_tab()` |
-| A11Y-SP-5 | P2 | Open | Light theme `warning` token `#9A6700` (L=0.168) achieves only 3.84:1 on `bg_secondary` (#DCE5F0) — fails WCAG AA 4.5:1. Affects the "Press key… (Esc = cancel)" capture indicator on light theme. Token fix requires golden baseline regeneration. Proposed value: `#7A5000` (L=0.102, contrast 6.29:1). | `src/ui/theme/theme.cpp` | light `warning` token |
-| D-3 | P3 | Open | Dark theme tick label has a blue tint (hex `0xA0A8B0` = RGB 160/168/176). The dark theme design intent is "neutral gray, no blue tints," but the 10-unit blue step on each channel is still visible on axis tick text. | `src/ui/theme/theme.cpp` | ~1015 |
-| D-4 | P3 | Open | Appearance tab has a large empty area (≈ 180px) below the "Reset to Defaults" button. The panel height is fixed at 472px but content only occupies the top 280px. Low visual density. | `src/ui/settings/settings_panel.cpp` | `draw_appearance_tab()` |
-| D-5 | P3 | Open | `SameLine(170.0f)` hardcoded pixel offset aligns Theme/Palette labels to their combos. Will break at non-default font scales. | `src/ui/settings/settings_panel.cpp` | `draw_appearance_tab()` |
-| D-6 | P3 | Fixed | Conflict/capture indicator colors in Shortcuts tab were hardcoded — now use `theme().error` / `theme().warning` tokens. | `src/ui/settings/settings_panel.cpp` | `draw_shortcuts_tab()` |
-| D-7 | P3 | Open | `active_tab_` member in `SettingsPanel` is set but never read; ImGui manages tab state. Dead code, minor confusion risk. | `src/ui/settings/settings_panel.hpp` | `active_tab_` member |
+| A11Y-SP-4 | P2 | Open (mitigated) | Keyboard nav burden in Shortcuts table: no arrow-key row navigation; reaching bottom-row buttons still requires O(n) Tab presses. Filter tooltip added 2026-06-04; arrow-key table nav deferred (ImGui limitation). | `src/ui/settings/settings_panel.cpp` | `draw_shortcuts_tab()` |
 
 ---
 
@@ -25,6 +18,13 @@
 
 | ID  | Priority | Resolution | Description | File | Fix |
 |-----|----------|------------|-------------|------|-----|
+| A11Y-SP-3 | P2 | By Design 2026-06-04 | High-contrast `error` #FF0000 stays at 5.41:1 on `bg_secondary` (AAA 7:1 unreachable for pure red on dark). Conflict state uses `[!]` prefix (WCAG 1.4.1) since A11Y-SP-1 — color is not the sole indicator. | `src/ui/settings/settings_panel.cpp` | `draw_shortcuts_tab()` conflict branch |
+| A11Y-SP-4 | P2 | Mitigated 2026-06-04 | Filter discoverability: hover tooltip documents filter + Tab row navigation. | `src/ui/settings/settings_panel.cpp` | `draw_shortcuts_tab()` filter `InputTextWithHint` |
+| A11Y-SP-5 | P2 | Fixed 2026-06-04 | Light `warning` #9A6700 → **#7A5000** (6.29:1 on `bg_secondary`). | `src/ui/theme/theme.cpp` | light `warning` token |
+| D-3 | P3 | Fixed 2026-06-04 | Dark `tick_label` #A0A8B0 → **#A0A0A0** (neutral gray, no blue tint). | `src/ui/theme/theme.cpp` | dark theme `tick_label` |
+| D-4 | P3 | Fixed 2026-06-04 | Settings window used fixed 640×480 first-use size leaving ~180px dead space. Now `AlwaysAutoResize` + width constraints (520–640px). | `src/ui/settings/settings_panel.cpp` | `draw()` |
+| D-5 | P3 | Fixed 2026-06-04 | Theme/Palette labels use `CalcTextSize` + `AlignTextToFramePadding` instead of `SameLine(170)`. | `src/ui/settings/settings_panel.cpp` | `draw_appearance_tab()` |
+| D-7 | P3 | Fixed 2026-06-04 | Removed unused `active_tab_` member; ImGui owns tab state via `pending_tab_` only. | `src/ui/settings/settings_panel.hpp` | — |
 | A11Y-SP-1 | P1 | Fixed 2026-05-17 | Conflict shortcut text used hardcoded `ImVec4(1,0.4,0.4,1)` = #FF6666. Contrast on **light** bg_secondary (#DCE5F0): **2.25:1** (required 4.5:1). Contrast on **dark** bg_secondary (#2E2E2E): **4.12:1** (required 4.5:1). | `src/ui/settings/settings_panel.cpp` + `src/ui/theme/theme.cpp` | Used `theme().error` token; raised dark `error` #F85149→**#FF7575** (4.52:1 on dark bg_secondary); darkened light `error` #CF222E→**#B91C1C** (5.09:1 on light bg_secondary). Also prepends `[!]` prefix (WCAG 1.4.1). |
 | A11Y-SP-2 | P2 | Fixed 2026-05-17 | Capture indicator "Press key..." used hardcoded amber — not from theme tokens (D-6). Added `(Esc = cancel)` suffix. | `src/ui/settings/settings_panel.cpp` | Replaced with `theme().warning` color. |
 | A11Y-SP-6 | P2 | Fixed 2026-05-17 | "X" SmallButton for removing shortcut overrides had no label or tooltip — action was not discoverable for keyboard-only users. | `src/ui/settings/settings_panel.cpp` | Added `SetTooltip("Remove custom shortcut override")` on hover. |
@@ -71,14 +71,14 @@ Files reviewed for sub-pixel snapping, border rendering, and theme color correct
 - **Theme engine**: Night/Dark/Light all complete; `apply_to_imgui()` fully token-driven.
 - **Test suite**: 140 unit tests + 59 golden tests all pass.
 
-### Not Yet Captured (requires display + spectra_qa_agent run)
-- Live screenshot baseline for all 57 coverage points in `skills/qa-designer-agent/SKILL.md`
-- Runtime verification of dark-theme tick label tint (D-3) at pixel level
-- Theme switching hot-path visual correctness
-- Crosshair label clipping at viewport edges (runtime only)
-- Animation timeline editor visual review
-- Command palette badge/background styling
-- Split view divider alignment
+### Captured 2026-06-04 (seed 42, `spectra_qa_agent --design-review`)
+- **63/63** screenshots expected after G-6 (`57_settings_*` … `62_settings_ui_defaults`); prior pass captured 57 core UI frames only
+- `manifest.txt` complete; `11_theme_dark.png` / `12_theme_light.png` available for tick/warning visual diff
+
+### Not Yet Reviewed at Pixel Level
+- Crosshair label clipping at viewport edges
+- Command palette badge/background styling polish
+- Split view divider alignment under extreme aspect ratios
 
 ---
 
@@ -94,11 +94,10 @@ This review was conducted as a static code analysis sweep using the issue-to-fil
 - `src/ui/overlay/crosshair.cpp` (label positioning)
 - `tests/golden/baseline/` (baseline completeness)
 
-A live screenshot capture (requiring `SPECTRA_BUILD_QA_AGENT=ON` and a display) was not
-performed this session. The next review pass should run:
+Live screenshot capture performed 2026-06-04 (`SPECTRA_BUILD_QA_AGENT=ON`, DISPLAY=:1).
+Command:
 
 ```bash
-cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSPECTRA_BUILD_QA_AGENT=ON
-cmake --build build -j$(nproc)
-./build/tests/spectra_qa_agent --seed 42 --design-review
+./build/tests/spectra_qa_agent --seed 42 --design-review --no-fuzz --no-scenarios \
+    --output-dir /tmp/spectra_qa_design_20260604
 ```

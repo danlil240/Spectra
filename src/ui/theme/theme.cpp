@@ -882,7 +882,7 @@ void ThemeManager::load_default()
         {
             std::ifstream lf(default_theme_path_);
             std::string   json((std::istreambuf_iterator<char>(lf)),
-                             std::istreambuf_iterator<char>());
+                               std::istreambuf_iterator<char>());
             size_t        np = json.find("\"name\"");
             if (np != std::string::npos)
             {
@@ -937,7 +937,7 @@ void ThemeManager::initialize_default_themes()
         .grid_minor       = Color(1.0f, 1.0f, 1.0f, 0.08f),
         .grid_line        = Color(1.0f, 1.0f, 1.0f, 0.18f),   // Compat
         .axis_line        = Color(0.55f, 0.55f, 0.55f, 0.50f),
-        .tick_label       = Color::from_hex(0xA0A8B0),
+        .tick_label       = Color::from_hex(0xA0A0A0),   // Neutral gray (no blue tint)
         .crosshair        = Color(0.88f, 0.88f, 0.88f, 0.70f),
         .selection_fill   = Color(0.88f, 0.88f, 0.88f, 0.15f),
         .selection_border = Color::from_hex(0xE0E0E0),
@@ -1060,7 +1060,7 @@ void ThemeManager::initialize_default_themes()
 
         // Semantic
         .success = Color::from_hex(0x1A7F37),
-        .warning = Color::from_hex(0x9A6700),
+        .warning = Color::from_hex(0x7A5000),   // WCAG AA: 6.29:1 on bg_secondary (#DCE5F0)
         .error   = Color::from_hex(0xB91C1C),   // WCAG AA: 5.09:1 on bg_secondary (#DCE5F0)
         .info    = Color::from_hex(0x0969DA),
 

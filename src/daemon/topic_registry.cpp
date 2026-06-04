@@ -105,13 +105,26 @@ void TopicRegistry::on_client_disconnect(uint64_t client_id)
 
 bool TopicRegistry::subscribe(const std::string& name, const TopicSubscription& sub)
 {
+    return subscribe(name, sub, nullptr, nullptr);
+}
+
+bool TopicRegistry::subscribe(const std::string&       name,
+                              const TopicSubscription& sub,
+                              ipc::TopicKind*          kind_out,
+                              std::vector<double>*     retained_samples_out)
+{
     std::lock_guard<std::mutex> lk(mutex_);
     auto                        it = topics_.find(name);
     if (it == topics_.end())
         return false;
-    auto& subs = it->second.subs;
+    Topic& t    = it->second;
+    auto&  subs = t.subs;
     if (std::find(subs.begin(), subs.end(), sub) == subs.end())
         subs.push_back(sub);
+    if (kind_out)
+        *kind_out = t.kind;
+    if (retained_samples_out)
+        retained_samples_out->assign(t.ring.begin(), t.ring.end());
     return true;
 }
 

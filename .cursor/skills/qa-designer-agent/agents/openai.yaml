@@ -1,0 +1,4 @@
+interface:
+  display_name: "QA Designer Agent"
+  short_description: "Run Spectra design-review QA and visual fixes"
+  default_prompt: "Use $qa-designer-agent to run Spectra design-review screenshots, triage UI/UX findings, and apply minimal visual fixes."

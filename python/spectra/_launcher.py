@@ -30,20 +30,20 @@ def _runtime_socket_dir() -> str:
     return "/tmp"
 
 
-def _discover_live_broker() -> Optional[str]:
-    """Return the newest live `spectra-*.sock` in the runtime dir, or None.
+def _discover_live_brokers() -> list[str]:
+    """Return live `spectra-*.sock` entries in the runtime dir, newest first.
 
     Mirrors the C++ Publisher discovery (`src/ipc/publisher_client.cpp`) and
     the inproc daemon-attach logic (`src/app/main.cpp`): scan the flat runtime
-    directory for `spectra-<pid>.sock` entries newest first and pick the first
-    that responds to a connect probe. This is what lets a Python publisher
-    converge on the same broker as an inproc C++ app.
+    directory for `spectra-<pid>.sock` entries newest first and keep entries
+    that respond to a connect probe. The publisher still performs the full
+    HELLO/WELCOME/DECLARE handshake on each candidate before trusting it.
     """
     dir_ = _runtime_socket_dir()
     try:
         entries = os.listdir(dir_)
     except OSError:
-        return None
+        return []
     candidates = []
     for name in entries:
         if not name.startswith("spectra-") or not name.endswith(".sock"):
@@ -59,11 +59,30 @@ def _discover_live_broker() -> Optional[str]:
             continue
         candidates.append((mtime, full))
     candidates.sort(reverse=True)
+    live = []
     for _, path in candidates:
         if _can_connect(path):
             log.debug("launcher discovered live broker at %s", path)
-            return path
-    return None
+            live.append(path)
+    return live
+
+
+def _discover_live_broker() -> Optional[str]:
+    """Return the newest live `spectra-*.sock` in the runtime dir, or None."""
+    brokers = _discover_live_brokers()
+    return brokers[0] if brokers else None
+
+
+def resolve_socket_candidates(explicit: Optional[str] = None) -> list[str]:
+    """Resolve candidate broker socket paths, ordered by preference."""
+    if explicit:
+        return [explicit]
+
+    env_sock = os.environ.get("SPECTRA_SOCKET")
+    if env_sock:
+        return [env_sock]
+
+    return _discover_live_brokers()
 
 
 def resolve_socket_path(explicit: Optional[str] = None) -> str:
@@ -78,16 +97,9 @@ def resolve_socket_path(explicit: Optional[str] = None) -> str:
     4. Empty string sentinel — meaning "no broker yet". ``ensure_backend()``
        will launch one and discover its socket path.
     """
-    if explicit:
-        return explicit
-
-    env_sock = os.environ.get("SPECTRA_SOCKET")
-    if env_sock:
-        return env_sock
-
-    discovered = _discover_live_broker()
-    if discovered:
-        return discovered
+    candidates = resolve_socket_candidates(explicit)
+    if candidates:
+        return candidates[0]
 
     # No live broker yet. Return an empty sentinel; ensure_backend() will
     # launch one and report the path it ended up on.

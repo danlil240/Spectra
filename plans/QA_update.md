@@ -1,10 +1,14 @@
 # Spectra QA Agent — Capability Gaps & Backlog
 
-**Last updated:** 2026-05-17
+**Last updated:** 2026-06-04
 
 ---
 
 ## Open Gaps
+
+### G-6 — Design-review capture does not include Settings panel states
+
+**Status:** Resolved 2026-06-04 — added shots `57_settings_appearance_night` … `62_settings_ui_defaults` (6 frames); expected design-review count **63** (57 core + `45b` + 6 settings).
 
 ### G-5 — `mouse_click` automation handler does not inject into ImGui IO
 

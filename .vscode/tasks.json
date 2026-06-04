@@ -1,134 +1,270 @@
 {
 	"version": "2.0.0",
 	"tasks": [
+		// ─── Build (CMake Tools — uses .vscode/settings.json configureArgs) ───
 		{
 			"type": "cmake",
-			"label": "CMake: Configure Project",
+			"label": "CMake: Configure",
 			"command": "configure",
 			"problemMatcher": [],
-			"detail": "Configure CMake project with all examples enabled",
+			"detail": "Re-run CMake configure (compiler, ROS2, Qt, flags from settings.json)",
 			"presentation": {
-				"echo": true,
 				"reveal": "always",
-				"focus": false,
-				"panel": "shared",
-				"showReuseMessage": true,
-				"clear": false
-			},
-			"options": {
-				"cwd": "${workspaceFolder}",
-				"configureArgs": [
-					"-DCMAKE_BUILD_TYPE=Debug",
-					"-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
-				]
-			}
-		},
-		{
-			"label": "build-Release",
-			"type": "shell",
-			"command": "cmake -B build-release -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_INSTALL_PREFIX=/usr/local -DSPECTRA_BUILD_EMBED_SHARED=ON && cmake --build build-release -j$(nproc)",
-			"group": "build",
-			"problemMatcher": [
-				"$gcc"
-			],
-			"detail": "Configure and build Spectra in Release mode (build-release/)",
-			"presentation": {
-				"echo": true,
-				"reveal": "always",
-				"focus": false,
-				"panel": "shared",
-				"showReuseMessage": true,
-				"clear": false
+				"panel": "shared"
 			},
 			"options": {
 				"cwd": "${workspaceFolder}"
 			}
 		},
 		{
-			"label": "install (sudo)",
-			"type": "shell",
-			"command": "sudo cmake --install build-release",
-			"group": "build",
-			"problemMatcher": [],
-			"detail": "Install Spectra to /usr/local (requires sudo). Depends on build-Release.",
-			"presentation": {
-				"echo": true,
-				"reveal": "always",
-				"focus": true,
-				"panel": "shared",
-				"showReuseMessage": true,
-				"clear": false
-			},
-			"options": {
-				"cwd": "${workspaceFolder}"
-			},
-			"dependsOn": [
-				"build-Release"
-			]
-		},
-		{
 			"type": "cmake",
-			"label": "CMake: clean rebuild",
-			"command": "cleanRebuild",
-			"targets": [
-				"all"
-			],
-			"group": "build",
-			"problemMatcher": [],
-			"detail": "CMake template clean rebuild task",
-			"dependsOn": [
-				"CMake: Configure Project"
-			]
-		},
-		{
-			"type": "cmake",
-			"label": "Build Project with Examples",
+			"label": "CMake: Build",
 			"command": "build",
-			"targets": [
-				"all"
-			],
+			"targets": ["all"],
 			"group": {
 				"kind": "build",
 				"isDefault": true
 			},
-			"problemMatcher": [],
-			"detail": "Build the entire Spectra project including all examples",
+			"problemMatcher": ["$gcc"],
+			"detail": "Incremental build via CMake Tools (build/)",
 			"presentation": {
-				"echo": true,
 				"reveal": "always",
-				"focus": false,
-				"panel": "shared",
-				"showReuseMessage": true,
-				"clear": false
+				"panel": "shared"
 			},
 			"options": {
 				"cwd": "${workspaceFolder}"
-			},
-			"dependsOn": [
-				"CMake: Configure Project"
-			]
+			}
 		},
 		{
-			"label": "clang-tidy: Check All Files",
+			"type": "cmake",
+			"label": "CMake: Clean rebuild",
+			"command": "cleanRebuild",
+			"group": "build",
+			"problemMatcher": ["$gcc"],
+			"detail": "Clean then rebuild all targets",
+			"dependsOn": ["CMake: Configure"]
+		},
+		// ─── Build (Makefile / canonical) ─────────────────────────────────────
+		{
+			"label": "Build: make (configure + build)",
 			"type": "shell",
-			"command": "/usr/lib/llvm-18/bin/run-clang-tidy -clang-tidy-binary /usr/bin/clang-tidy-18 -p ${workspaceFolder}/build -j ${input:parallelJobs} '${workspaceFolder}/src/.*\\.cpp$'",
+			"command": "make build -j$(nproc)",
+			"group": "build",
+			"problemMatcher": ["$gcc"],
+			"detail": "Canonical Makefile target (BUILD_ENVIRONMENT.md §2)",
+			"presentation": {
+				"reveal": "always",
+				"panel": "shared"
+			},
 			"options": {
 				"cwd": "${workspaceFolder}"
-			},
-			"group": "test",
-			"detail": "Run clang-tidy on all src/ files using compile_commands.json",
+			}
+		},
+		{
+			"label": "Build: fast (no reconfigure)",
+			"type": "shell",
+			"command": "cmake --build build -j$(nproc)",
+			"group": "build",
+			"problemMatcher": ["$gcc"],
+			"detail": "Skip configure; use after editing .cpp/.hpp only",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			}
+		},
+		{
+			"label": "Build: canonical Release (Ninja, ROS2 off)",
+			"type": "shell",
+			"command": "cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSPECTRA_USE_GLFW=ON -DSPECTRA_USE_IMGUI=ON -DSPECTRA_USE_FFMPEG=ON -DSPECTRA_USE_EIGEN=ON -DSPECTRA_USE_PX4=ON -DSPECTRA_USE_ROS2=OFF -DSPECTRA_BUILD_EXAMPLES=ON -DSPECTRA_BUILD_TESTS=ON -DSPECTRA_BUILD_GOLDEN_TESTS=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && cmake --build build -j$(nproc)",
+			"group": "build",
+			"problemMatcher": ["$gcc"],
+			"detail": "CI/agent-style configure per BUILD_ENVIRONMENT.md (overwrites build/)",
 			"presentation": {
-				"echo": true,
+				"reveal": "always",
+				"panel": "shared"
+			},
+			"options": {
+				"cwd": "${workspaceFolder}"
+			}
+		},
+		{
+			"label": "Build: clean rebuild (make)",
+			"type": "shell",
+			"command": "make rebuild -j$(nproc)",
+			"group": "build",
+			"problemMatcher": ["$gcc"],
+			"detail": "rm -rf build/ then configure + build",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			}
+		},
+		{
+			"label": "Build: Debug",
+			"type": "shell",
+			"command": "make debug -j$(nproc)",
+			"group": "build",
+			"problemMatcher": ["$gcc"],
+			"detail": "make build BUILD_TYPE=Debug",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			}
+		},
+		{
+			"label": "Build: Release (embed shared, build-release/)",
+			"type": "shell",
+			"command": "cmake -B build-release -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_INSTALL_PREFIX=/usr/local -DSPECTRA_BUILD_EMBED_SHARED=ON && cmake --build build-release -j$(nproc)",
+			"group": "build",
+			"problemMatcher": ["$gcc"],
+			"detail": "Separate tree for install / libspectra_embed",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			}
+		},
+		{
+			"label": "Install: sudo (build-release/)",
+			"type": "shell",
+			"command": "sudo cmake --install build-release",
+			"group": "build",
+			"problemMatcher": [],
+			"detail": "Install to /usr/local after Build: Release (embed shared)",
+			"dependsOn": ["Build: Release (embed shared, build-release/)"],
+			"presentation": {
+				"reveal": "always",
+				"focus": true,
+				"panel": "shared"
+			},
+			"options": {
+				"cwd": "${workspaceFolder}"
+			}
+		},
+		// ─── Test ─────────────────────────────────────────────────────────────
+		{
+			"label": "Test: unit (no GPU, parallel)",
+			"type": "shell",
+			"command": "ctest --test-dir build -LE gpu --output-on-failure -j$(nproc)",
+			"group": {
+				"kind": "test",
+				"isDefault": true
+			},
+			"problemMatcher": ["$gcc"],
+			"detail": "Default CI-style suite; excludes gpu label",
+			"presentation": {
+				"reveal": "always",
+				"panel": "shared"
+			},
+			"options": {
+				"cwd": "${workspaceFolder}"
+			}
+		},
+		{
+			"label": "Test: GPU",
+			"type": "shell",
+			"command": "ctest --test-dir build -L gpu --output-on-failure -j1",
+			"group": "test",
+			"problemMatcher": ["$gcc"],
+			"detail": "Requires Vulkan device or lavapipe; serial (-j1) — parallel VkInstance crashes NVIDIA driver",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			}
+		},
+		{
+			"label": "Test: golden (xvfb + lavapipe)",
+			"type": "shell",
+			"command": "export VK_ICD_FILENAMES=$(find /usr/share/vulkan/icd.d -name '*lvp*' 2>/dev/null | head -1) LIBGL_ALWAYS_SOFTWARE=1 && xvfb-run -a ctest --test-dir build -L golden -j1 --output-on-failure",
+			"group": "test",
+			"problemMatcher": ["$gcc"],
+			"detail": "Pixel baselines; single-threaded (BUILD_ENVIRONMENT.md §3)",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			}
+		},
+		{
+			"label": "Test: single unit binary",
+			"type": "shell",
+			"command": "./build/tests/${input:unitTestBinary}",
+			"group": "test",
+			"problemMatcher": ["$gcc"],
+			"detail": "Run one Google Test executable directly",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			}
+		},
+		{
+			"label": "Test: make (all ctest)",
+			"type": "shell",
+			"command": "make test -j$(nproc)",
+			"group": "test",
+			"problemMatcher": ["$gcc"],
+			"detail": "Build if needed, then full ctest (includes GPU if built)",
+			"dependsOn": ["Build: make (configure + build)"],
+			"options": {
+				"cwd": "${workspaceFolder}"
+			}
+		},
+		{
+			"label": "Test: golden — update baselines",
+			"type": "shell",
+			"command": "cmake --build build -j$(nproc) && SPECTRA_UPDATE_BASELINES=1 ctest --test-dir build -L golden --output-on-failure -j1",
+			"group": "test",
+			"problemMatcher": ["$gcc"],
+			"detail": "Regenerate tests/golden/baseline/ after intentional visual changes",
+			"options": {
+				"cwd": "${workspaceFolder}",
+				"env": {
+					"SPECTRA_UPDATE_BASELINES": "1"
+				}
+			},
+			"dependsOn": ["Build: fast (no reconfigure)"]
+		},
+		{
+			"label": "Verify: build + unit tests",
+			"dependsOn": [
+				"Build: fast (no reconfigure)",
+				"Test: unit (no GPU, parallel)"
+			],
+			"dependsOrder": "sequence",
+			"group": "test",
+			"problemMatcher": [],
+			"detail": "Quick pre-commit check after small edits"
+		},
+		// ─── Quality ──────────────────────────────────────────────────────────
+		{
+			"label": "Format: clang-format (all)",
+			"type": "shell",
+			"command": "make format",
+			"problemMatcher": [],
+			"detail": "./format_project.sh — writes changes",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			}
+		},
+		{
+			"label": "Format: check (no writes)",
+			"type": "shell",
+			"command": "make check-format",
+			"problemMatcher": [],
+			"detail": "Fail if formatting drift; CI-style",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			}
+		},
+		{
+			"label": "Lint: clang-tidy (all src/)",
+			"type": "shell",
+			"command": "/usr/lib/llvm-18/bin/run-clang-tidy -clang-tidy-binary /usr/bin/clang-tidy-18 -p ${workspaceFolder}/build -j ${input:parallelJobs} '${workspaceFolder}/src/.*\\.cpp$'",
+			"group": "test",
+			"detail": "Requires compile_commands.json in build/",
+			"presentation": {
 				"reveal": "always",
 				"focus": true,
 				"panel": "new",
 				"clear": true
 			},
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
 			"problemMatcher": {
 				"owner": "clang-tidy",
-				"fileLocation": [
-					"absolute"
-				],
+				"fileLocation": ["absolute"],
 				"pattern": {
 					"regexp": "^(.+):(\\d+):(\\d+):\\s+(warning|error):\\s+(.+)\\s+\\[(.+)\\]$",
 					"file": 1,
@@ -140,43 +276,80 @@
 				}
 			}
 		},
+		// ─── Run ──────────────────────────────────────────────────────────────
 		{
-			"label": "Build and Generate Baselines",
+			"label": "Run: spectra (inproc)",
 			"type": "shell",
-			"command": "cmake --build build --parallel $(nproc) && ctest --test-dir build -L golden --output-on-failure",
-			"options": {
-				"cwd": "${workspaceFolder}",
-				"env": {
-					"SPECTRA_UPDATE_BASELINES": "1"
-				}
-			},
-			"group": "build",
-			"detail": "Build Spectra and regenerate golden image baselines by running golden tests",
+			"command": "SPECTRA_RUNTIME_MODE=inproc ./build/spectra",
+			"group": "none",
+			"problemMatcher": [],
+			"detail": "Single-process app; MCP on http://127.0.0.1:8765/mcp when enabled",
+			"isBackground": true,
 			"presentation": {
-				"echo": true,
 				"reveal": "always",
-				"focus": false,
-				"panel": "shared",
-				"showReuseMessage": true,
-				"clear": false
+				"panel": "dedicated"
 			},
-			"problemMatcher": {
-				"owner": "cpp",
-				"fileLocation": [
-					"absolute"
-				],
-				"pattern": {
-					"regexp": "^(.*):(\\d+):(\\d+):\\s+(error|warning):\\s+(.*)$",
-					"file": 1,
-					"line": 2,
-					"column": 3,
-					"severity": 4,
-					"message": 5
-				}
+			"options": {
+				"cwd": "${workspaceFolder}"
+			}
+		},
+		{
+			"label": "Run: spectra (multiproc default)",
+			"type": "shell",
+			"command": "./build/spectra",
+			"group": "none",
+			"problemMatcher": [],
+			"detail": "Default runtime; backend + window agents",
+			"isBackground": true,
+			"presentation": {
+				"reveal": "always",
+				"panel": "dedicated"
 			},
-			"dependsOn": [
-				"CMake: Configure Project"
-			]
+			"options": {
+				"cwd": "${workspaceFolder}"
+			}
+		},
+		{
+			"label": "Run: example",
+			"type": "shell",
+			"command": "./build/examples/${input:exampleName}",
+			"problemMatcher": [],
+			"detail": "Run a built example binary by name",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			}
+		},
+		{
+			"label": "Kill: spectra processes",
+			"type": "shell",
+			"command": "pkill -f 'spectra-backend|spectra-window|/build/spectra' 2>/dev/null || true; echo 'Done.'",
+			"problemMatcher": [],
+			"detail": "Stop stale daemons before MCP/visual QA",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			}
+		},
+		// ─── Python ───────────────────────────────────────────────────────────
+		{
+			"label": "Python: pip install (editable)",
+			"type": "shell",
+			"command": "make pip-dev",
+			"problemMatcher": [],
+			"detail": "pip install -e \".[dev]\" in python/",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			}
+		},
+		{
+			"label": "Python: pytest",
+			"type": "shell",
+			"command": "make pip-test",
+			"group": "test",
+			"problemMatcher": [],
+			"detail": "python/spectra IPC and API tests",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			}
 		}
 	],
 	"inputs": [
@@ -184,12 +357,35 @@
 			"id": "parallelJobs",
 			"type": "pickString",
 			"description": "Parallel jobs for clang-tidy",
-			"options": [
-				"4",
-				"8",
-				"16"
-			],
+			"options": ["4", "8", "16"],
 			"default": "8"
+		},
+		{
+			"id": "unitTestBinary",
+			"type": "pickString",
+			"description": "Unit test executable (under build/tests/)",
+			"options": [
+				"unit_test_easy_api",
+				"unit_test_ipc",
+				"unit_test_series",
+				"unit_test_figure",
+				"unit_test_codec",
+				"unit_test_theme"
+			],
+			"default": "unit_test_easy_api"
+		},
+		{
+			"id": "exampleName",
+			"type": "pickString",
+			"description": "Example binary name (under build/examples/)",
+			"options": [
+				"multi_window_demo",
+				"line_plot_demo",
+				"animation_demo",
+				"headless_export_demo",
+				"scatter_demo"
+			],
+			"default": "multi_window_demo"
 		}
 	]
 }

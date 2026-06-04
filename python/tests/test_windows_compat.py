@@ -44,7 +44,7 @@ class TestResolveSocketPath:
             assert resolve_socket_path() == "/env/path.sock"
 
     @mock.patch("spectra._launcher._IS_WINDOWS", True)
-    @mock.patch("spectra._launcher._discover_live_broker", return_value=None)
+    @mock.patch("spectra._launcher._discover_live_brokers", return_value=[])
     def test_windows_default_uses_temp(self, _mock_discover):
         env = {"TEMP": r"C:\Users\test\AppData\Local\Temp"}
         # Remove SPECTRA_SOCKET to avoid interference
@@ -62,7 +62,7 @@ class TestResolveSocketPath:
             assert dir_.startswith(r"C:\Users\test\AppData\Local\Temp")
 
     @mock.patch("spectra._launcher._IS_WINDOWS", True)
-    @mock.patch("spectra._launcher._discover_live_broker", return_value=None)
+    @mock.patch("spectra._launcher._discover_live_brokers", return_value=[])
     def test_windows_uses_tmp_fallback(self, _mock_discover):
         env_clean = {k: v for k, v in os.environ.items()
                      if k not in ("SPECTRA_SOCKET", "TEMP", "TMP")}
@@ -73,7 +73,7 @@ class TestResolveSocketPath:
             assert "spectra" in dir_
 
     @mock.patch("spectra._launcher._IS_WINDOWS", False)
-    @mock.patch("spectra._launcher._discover_live_broker", return_value=None)
+    @mock.patch("spectra._launcher._discover_live_brokers", return_value=[])
     def test_linux_xdg_runtime_dir(self, _mock_discover):
         env = {"XDG_RUNTIME_DIR": "/run/user/1000"}
         env_clean = {k: v for k, v in os.environ.items()
@@ -88,7 +88,7 @@ class TestResolveSocketPath:
             assert dir_ == "/run/user/1000"
 
     @mock.patch("spectra._launcher._IS_WINDOWS", False)
-    @mock.patch("spectra._launcher._discover_live_broker", return_value=None)
+    @mock.patch("spectra._launcher._discover_live_brokers", return_value=[])
     def test_linux_tmp_fallback(self, _mock_discover):
         env = {"USER": "testuser"}
         env_clean = {k: v for k, v in os.environ.items()

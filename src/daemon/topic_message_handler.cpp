@@ -54,6 +54,15 @@ bool send_resp_topic_list(ipc::Connection&                        conn,
                                 ipc::encode_resp_topic_list(p));
 }
 
+std::vector<float> to_float_vector(const std::vector<double>& samples)
+{
+    std::vector<float> out;
+    out.reserve(samples.size());
+    for (double d : samples)
+        out.push_back(static_cast<float>(d));
+    return out;
+}
+
 }   // namespace
 
 void broadcast_topic_list_changed(DaemonContext& ctx)
@@ -220,7 +229,9 @@ HandleResult handle_req_subscribe_topic(DaemonContext&      ctx,
         return HandleResult::Continue;
     }
 
-    uint32_t series_index = req->series_index;
+    ipc::Revision         base_revision = ctx.fig_model.revision();
+    ipc::StateDiffPayload subscription_diff;
+    uint32_t              series_index = req->series_index;
     // Auto-create a series on the target axes when sentinel is used.
     if (series_index == 0xFFFFFFFFu)
     {
@@ -245,7 +256,8 @@ HandleResult handle_req_subscribe_topic(DaemonContext&      ctx,
     sub.figure_id    = req->figure_id;
     sub.axes_index   = req->axes_index;
     sub.series_index = series_index;
-    if (!ctx.topics.subscribe(req->name, sub))
+    std::vector<double> retained_samples;
+    if (!ctx.topics.subscribe(req->name, sub, nullptr, &retained_samples))
     {
         send_resp_err(*slot.conn,
                       ctx.graph.session_id(),
@@ -253,6 +265,21 @@ HandleResult handle_req_subscribe_topic(DaemonContext&      ctx,
                       404,
                       "Topic not declared");
         return HandleResult::Continue;
+    }
+
+    if (!retained_samples.empty())
+    {
+        auto op = ctx.fig_model.set_series_data(req->figure_id,
+                                                series_index,
+                                                to_float_vector(retained_samples));
+        subscription_diff.ops.push_back(std::move(op));
+    }
+
+    if (!subscription_diff.ops.empty())
+    {
+        subscription_diff.base_revision = base_revision;
+        subscription_diff.new_revision  = ctx.fig_model.revision();
+        broadcast_diff_to_agents(ctx, subscription_diff);
     }
 
     std::cerr << "[spectra-backend] Topic subscribed: " << req->name

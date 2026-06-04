@@ -21,7 +21,7 @@
         "-DSPECTRA_USE_GLFW=ON"
     ],
     "cmake.buildArgs": [],
-    "cmake.defaultBuildTask": "Build Project with Examples",
+    "cmake.defaultBuildTask": "CMake: Build",
     "C_Cpp.intelliSenseEngine": "disabled",
     "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
     "C_Cpp.default.compileCommands": "${workspaceFolder}/build/compile_commands.json",

@@ -33,6 +33,7 @@
     #include "ui/figures/figure_manager.hpp"
     #include "ui/figures/tab_drag_controller.hpp"
     #include "ui/imgui/imgui_integration.hpp"
+    #include "ui/theme/theme.hpp"
     #include "ui/input/input.hpp"
     #include "ui/window/window_manager.hpp"
     #include "ui/workspace/figure_serializer.hpp"
@@ -184,9 +185,9 @@ class ValidationMonitor
         ci.sType           = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
         ci.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT
                              | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-        ci.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT
-                         | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT
-                         | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+        ci.messageType     = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT
+                             | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT
+                             | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
         ci.pfnUserCallback = &ValidationMonitor::callback;
         ci.pUserData       = this;
 
@@ -4018,13 +4019,58 @@ class QAAgent
             }
         }
 
+        // ── 57–63. Settings panel (G-6: Appearance / Shortcuts / UI Defaults) ──
+        {
+            auto* ui = app_->ui_context();
+            if (ui)
+            {
+                auto ids = app_->figure_registry().all_ids();
+                if (ids.empty() == false && ui->fig_mgr)
+                    ui->fig_mgr->queue_switch(ids[0]);
+                pump_frames(5);
+
+                auto close_settings = [&]()
+                {
+                    ui->settings_panel.set_visible(false);
+                    pump_frames(5);
+                };
+
+                auto capture_settings = [&](int tab, const char* shot, const char* theme)
+                {
+                    if (ui->theme_mgr)
+                    {
+                        ui->theme_mgr->set_theme(theme);
+                        pump_frames(20);
+                    }
+                    ui->settings_panel.select_tab(tab);
+                    ui->cmd_registry.execute("panel.open_settings");
+                    pump_frames(12);
+                    named_screenshot(shot);
+                    close_settings();
+                };
+
+                capture_settings(0, "57_settings_appearance_night", "night");
+                capture_settings(0, "58_settings_appearance_light", "light");
+                capture_settings(0, "59_settings_appearance_high_contrast", "high_contrast");
+                capture_settings(1, "60_settings_shortcuts_night", "night");
+                capture_settings(1, "61_settings_shortcuts_light", "light");
+                capture_settings(2, "62_settings_ui_defaults", "night");
+
+                if (ui->theme_mgr)
+                {
+                    ui->theme_mgr->set_theme("dark");
+                    pump_frames(15);
+                }
+            }
+        }
+
         // ── Summary ─────────────────────────────────────────────────────
         fprintf(stderr,
                 "[QA/Design] Captured %zu design screenshots in %s/design/\n",
                 design_screenshots_.size(),
                 opts_.output_dir.c_str());
 
-        static constexpr size_t EXPECTED_DESIGN_SHOTS = 57;
+        static constexpr size_t EXPECTED_DESIGN_SHOTS = 63;
         if (design_screenshots_.size() != EXPECTED_DESIGN_SHOTS)
         {
             add_issue(IssueSeverity::Error,
@@ -4976,16 +5022,16 @@ static void crash_handler(int sig)
     // Minimal async-signal-safe output
     char buf[512];
     int  len = snprintf(buf,
-                       sizeof(buf),
-                       "\n[QA] ══════════════════════════════════════\n"
+                        sizeof(buf),
+                        "\n[QA] ══════════════════════════════════════\n"
                         "[QA] CRASH: %s\n"
                         "[QA] Seed: %lu\n"
                         "[QA] Last action: %s\n"
                         "[QA] Reproduce: --seed %lu\n",
-                       name,
-                       static_cast<unsigned long>(g_qa_seed),
-                       g_last_action,
-                       static_cast<unsigned long>(g_qa_seed));
+                        name,
+                        static_cast<unsigned long>(g_qa_seed),
+                        g_last_action,
+                        static_cast<unsigned long>(g_qa_seed));
     if (len > 0)
         if (write(STDERR_FILENO, buf, static_cast<size_t>(len)))
         {
@@ -5014,11 +5060,11 @@ static void crash_handler(int sig)
         {
             char crash_buf[512];
             int  clen = snprintf(crash_buf,
-                                sizeof(crash_buf),
-                                "CRASH: %s\nSeed: %lu\nLast action: %s\n",
-                                name,
-                                static_cast<unsigned long>(g_qa_seed),
-                                g_last_action);
+                                 sizeof(crash_buf),
+                                 "CRASH: %s\nSeed: %lu\nLast action: %s\n",
+                                 name,
+                                 static_cast<unsigned long>(g_qa_seed),
+                                 g_last_action);
             if (clen > 0)
                 if (write(fd, crash_buf, static_cast<size_t>(clen)))
                 {

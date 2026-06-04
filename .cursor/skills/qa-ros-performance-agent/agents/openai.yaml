@@ -1,0 +1,4 @@
+interface:
+  display_name: "QA ROS Performance Agent"
+  short_description: "Run spectra-ros QA and triage ROS workflow regressions"
+  default_prompt: "Use $qa-ros-performance-agent to run spectra-ros QA sessions, investigate qa_report findings, and update ROS QA tracking notes."

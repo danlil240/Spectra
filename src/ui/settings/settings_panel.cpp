@@ -2,6 +2,7 @@
 
 #ifdef SPECTRA_USE_IMGUI
 
+    #include <algorithm>
     #include <cctype>
     #include <string>
     #include <unordered_map>
@@ -151,7 +152,7 @@ void SettingsPanel::draw()
     ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f),
                             ImGuiCond_Appearing,
                             ImVec2(0.5f, 0.5f));
-    ImGui::SetNextWindowSize(ImVec2(640.0f, 480.0f), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSizeConstraints(ImVec2(520.0f, 0.0f), ImVec2(640.0f, 720.0f));
 
     // Push fully-opaque window background so the welcome screen does not bleed through.
     const auto& colors = ui::theme();
@@ -159,7 +160,9 @@ void SettingsPanel::draw()
         ImGuiCol_WindowBg,
         ImVec4(colors.bg_secondary.r, colors.bg_secondary.g, colors.bg_secondary.b, 0.98f));
 
-    const bool open = ImGui::Begin("Settings##spectra", &visible_, ImGuiWindowFlags_NoCollapse);
+    const bool open = ImGui::Begin("Settings##spectra",
+                                   &visible_,
+                                   ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize);
     ImGui::PopStyleColor();
     if (!open)
     {
@@ -177,7 +180,6 @@ void SettingsPanel::draw()
             if (pending_tab_ == idx)
             {
                 pending_tab_ = -1;
-                active_tab_  = idx;
                 return ImGuiTabItemFlags_SetSelected;
             }
             return ImGuiTabItemFlags_None;
@@ -185,19 +187,16 @@ void SettingsPanel::draw()
 
         if (ImGui::BeginTabItem("Appearance", nullptr, tab_flag(0)))
         {
-            active_tab_ = 0;
             draw_appearance_tab();
             ImGui::EndTabItem();
         }
         if (ImGui::BeginTabItem("Shortcuts", nullptr, tab_flag(1)))
         {
-            active_tab_ = 1;
             draw_shortcuts_tab();
             ImGui::EndTabItem();
         }
         if (ImGui::BeginTabItem("UI Defaults", nullptr, tab_flag(2)))
         {
-            active_tab_ = 2;
             draw_ui_defaults_tab();
             ImGui::EndTabItem();
         }
@@ -228,8 +227,13 @@ void SettingsPanel::draw_appearance_tab()
 
     ImGui::Spacing();
 
+    const float label_w =
+        std::max(ImGui::CalcTextSize("Theme").x, ImGui::CalcTextSize("Data Palette").x)
+        + ImGui::GetStyle().ItemInnerSpacing.x * 2.0f;
+
+    ImGui::AlignTextToFramePadding();
     ImGui::TextUnformatted("Theme");
-    ImGui::SameLine(170.0f);
+    ImGui::SameLine(label_w);
     ImGui::SetNextItemWidth(200.0f);
     if (ImGui::BeginCombo("##theme", d.default_theme.c_str()))
     {
@@ -250,8 +254,9 @@ void SettingsPanel::draw_appearance_tab()
 
     ImGui::Spacing();
 
+    ImGui::AlignTextToFramePadding();
     ImGui::TextUnformatted("Data Palette");
-    ImGui::SameLine(170.0f);
+    ImGui::SameLine(label_w);
     ImGui::SetNextItemWidth(200.0f);
     if (ImGui::BeginCombo("##palette", d.default_data_palette.c_str()))
     {
@@ -305,6 +310,11 @@ void SettingsPanel::draw_shortcuts_tab()
                              "type to filter by name...",
                              filter_buf_,
                              sizeof(filter_buf_));
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+    {
+        ImGui::SetTooltip("Filter shortcuts by command name.\n"
+                          "Tab moves between rows; use the filter to jump to a command.");
+    }
     ImGui::Spacing();
 
     const auto& colors   = ui::theme();
@@ -385,8 +395,8 @@ void SettingsPanel::draw_shortcuts_tab()
             {
                 std::string sc_str   = b.shortcut.valid() ? b.shortcut.to_string() : "(none)";
                 bool        conflict = b.shortcut.valid()
-                                && shortcut_count.contains(b.shortcut.to_string())
-                                && shortcut_count.at(b.shortcut.to_string()) > 1;
+                                       && shortcut_count.contains(b.shortcut.to_string())
+                                       && shortcut_count.at(b.shortcut.to_string()) > 1;
 
                 if (conflict)
                 {

@@ -77,6 +77,10 @@ class TopicRegistry
     // ─── Subscriber API ───────────────────────────────────────────────────
 
     bool subscribe(const std::string& name, const TopicSubscription& sub);
+    bool subscribe(const std::string&       name,
+                   const TopicSubscription& sub,
+                   ipc::TopicKind*          kind_out,
+                   std::vector<double>*     retained_samples_out);
     void unsubscribe(const TopicSubscription& sub);
 
     // ─── Discovery ────────────────────────────────────────────────────────
@@ -94,8 +98,8 @@ class TopicRegistry
         uint64_t       owner_client_id  = 0;
         bool           publisher_online = false;
         uint32_t       ring_capacity    = 4096;
-        // Last N samples (interleaved doubles). Used for late-subscriber
-        // priming in the future; currently only counts/hz are tracked.
+        // Last N samples (interleaved doubles). Used to prime late subscribers
+        // immediately when a topic is dragged onto a plot.
         std::deque<double>             ring;
         uint64_t                       total_samples   = 0;
         uint64_t                       last_publish_ns = 0;

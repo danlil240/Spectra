@@ -441,12 +441,26 @@ void InprocTopicServer::wire_topics_panel(ui::topics::TopicsPanel& panel,
 
             // Register subscription in the registry.
             daemon::TopicSubscription sub;
-            sub.figure_id    = req.figure_id;
-            sub.axes_index   = req.axes_index;
-            sub.series_index = series_index;
+            sub.figure_id            = req.figure_id;
+            sub.axes_index           = req.axes_index;
+            sub.series_index         = series_index;
+            ipc::TopicKind      kind = ipc::TopicKind::Scalar2D;
+            std::vector<double> retained_samples;
             {
                 std::lock_guard lock(reg_mu_);
-                registry_.subscribe(req.topic_name, sub);
+                registry_.subscribe(req.topic_name, sub, &kind, &retained_samples);
+            }
+
+            if (!retained_samples.empty())
+            {
+                const size_t stride = (kind == ipc::TopicKind::Scalar3D) ? 3u : 2u;
+                const size_t n      = retained_samples.size() / stride;
+                for (size_t k = 0; k < n; ++k)
+                {
+                    float x = static_cast<float>(retained_samples[k * stride]);
+                    float y = static_cast<float>(retained_samples[k * stride + 1]);
+                    ls.append(x, y);
+                }
             }
 
             // Enable continuous auto-zoom on the subscribed axes so the user
@@ -460,6 +474,7 @@ void InprocTopicServer::wire_topics_panel(ui::topics::TopicsPanel& panel,
                               req.figure_id,
                               req.axes_index,
                               series_index);
+            notify_topic_changed();
         });
 
     // Fire notify when topics change to keep the panel fresh.

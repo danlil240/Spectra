@@ -1,7 +1,6 @@
 # the name by which the project can be referenced within Serena
 project_name: "Spectra"
 
-
 # list of languages for which language servers are started; choose from:
 #   al                  angular             ansible             bash                clojure
 #   cpp                 cpp_ccls            crystal             csharp              csharp_omnisharp
@@ -32,8 +31,8 @@ project_name: "Spectra"
 # The first language is the default language and the respective language server will be used as a fallback.
 # Note that when using the JetBrains backend, language servers are not used and this list is correspondingly ignored.
 languages:
-- cpp
-- python
+  - cpp
+  - python
 
 # the encoding used by text files in the project
 # For a list of possible encodings, see https://docs.python.org/3.11/library/codecs.html#standard-encodings
@@ -113,7 +112,12 @@ added_modes:
 
 # initial prompt for the project. It will always be given to the LLM upon activating the project
 # (contrary to the memories, which are loaded on demand).
-initial_prompt: ""
+initial_prompt: |
+  Spectra GPU plotting (C++20/Vulkan + Python IPC). Before editing code:
+  1. Read `mem:core` then follow memory links for build (`mem:suggested_commands`), style (`mem:conventions`), and verification (`mem:task_completion`).
+  2. For file locations and subsystem map, use repo `CODEBASE_MAP.md` (authoritative layout).
+  3. Prefer Serena symbol tools (`find_symbol`, `replace_symbol_body`) over raw grep for C++/Python refactors.
+  4. Do not guess dependencies — see `BUILD_ENVIRONMENT.md` and `CLAUDE.md`.
 
 # time budget (seconds) per tool call for the retrieval of additional symbol information
 # such as docstrings or parameter information.

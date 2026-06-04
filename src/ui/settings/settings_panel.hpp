@@ -43,7 +43,6 @@ class SettingsPanel
     ui::ThemeManager* theme_mgr_       = nullptr;
     ShortcutConfig*   shortcut_cfg_    = nullptr;
     bool              visible_         = false;
-    int               active_tab_      = 0;    // currently shown tab index
     int               pending_tab_     = -1;   // tab to switch to (-1 = no pending switch)
     char              filter_buf_[128] = {};
 

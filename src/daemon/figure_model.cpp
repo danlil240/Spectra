@@ -5,6 +5,17 @@
 namespace spectra::daemon
 {
 
+namespace
+{
+
+size_t stride_for_series_type(const std::string& type)
+{
+    return (type == "line3d" || type == "scatter3d" || type == "surface" || type == "mesh") ? 3u
+                                                                                            : 2u;
+}
+
+}   // namespace
+
 // --- Figure lifecycle ---
 
 uint64_t FigureModel::create_figure(const std::string& title, uint32_t width, uint32_t height)
@@ -378,17 +389,22 @@ ipc::DiffOp FigureModel::set_series_data(uint64_t                  figure_id,
                                          const std::vector<float>& data)
 {
     std::lock_guard lock(mu_);
-    auto            it = figures_.find(figure_id);
+    auto            it         = figures_.find(figure_id);
+    uint32_t        axes_index = 0;
     if (it != figures_.end() && series_index < it->second.series.size())
     {
-        it->second.series[series_index].data        = data;
-        it->second.series[series_index].point_count = static_cast<uint32_t>(data.size() / 2);
+        auto&        series = it->second.series[series_index];
+        const size_t stride = stride_for_series_type(series.type);
+        axes_index          = series.axes_index;
+        series.data         = data;
+        series.point_count  = static_cast<uint32_t>(data.size() / stride);
     }
     bump_revision();
 
     ipc::DiffOp op;
     op.type         = ipc::DiffOp::Type::SET_SERIES_DATA;
     op.figure_id    = figure_id;
+    op.axes_index   = axes_index;
     op.series_index = series_index;
     op.data         = data;
     return op;
@@ -399,12 +415,16 @@ ipc::DiffOp FigureModel::append_series_data(uint64_t                  figure_id,
                                             const std::vector<float>& data)
 {
     std::lock_guard lock(mu_);
-    auto            it = figures_.find(figure_id);
+    auto            it         = figures_.find(figure_id);
+    uint32_t        axes_index = 0;
     if (it != figures_.end() && series_index < it->second.series.size())
     {
-        auto& sd = it->second.series[series_index].data;
+        auto&        series = it->second.series[series_index];
+        const size_t stride = stride_for_series_type(series.type);
+        axes_index          = series.axes_index;
+        auto& sd            = series.data;
         sd.insert(sd.end(), data.begin(), data.end());
-        it->second.series[series_index].point_count = static_cast<uint32_t>(sd.size() / 2);
+        series.point_count = static_cast<uint32_t>(sd.size() / stride);
     }
     bump_revision();
 
@@ -413,6 +433,7 @@ ipc::DiffOp FigureModel::append_series_data(uint64_t                  figure_id,
     ipc::DiffOp op;
     op.type         = ipc::DiffOp::Type::SET_SERIES_DATA;
     op.figure_id    = figure_id;
+    op.axes_index   = axes_index;
     op.series_index = series_index;
     if (it != figures_.end() && series_index < it->second.series.size())
         op.data = it->second.series[series_index].data;

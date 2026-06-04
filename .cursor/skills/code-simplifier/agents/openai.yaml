@@ -1,0 +1,4 @@
+interface:
+  display_name: "Code Simplifier Agent"
+  short_description: "Simplify Spectra codebase while preserving behavior and correctness"
+  default_prompt: "Use $code-simplifier to identify and apply safe code simplifications in the Spectra codebase — reducing duplication, flattening control flow, narrowing interfaces, and removing dead code."

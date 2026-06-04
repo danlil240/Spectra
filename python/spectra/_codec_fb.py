@@ -217,6 +217,38 @@ def encode_fb_req_update_property(
     return _finalize(builder)
 
 
+def encode_fb_req_update_batch(updates: List[dict]) -> bytes:
+    """Encode REQ_UPDATE_BATCH with nested property updates."""
+    builder = flatbuffers.Builder(1024)
+    offsets = []
+    for upd in updates:
+        prop_off = builder.CreateString(upd.get("prop", ""))
+        str_val = upd.get("str_val", "")
+        str_off = builder.CreateString(str_val) if str_val else None
+        FBReqUpdProp.Start(builder)
+        FBReqUpdProp.AddFigureId(builder, upd.get("figure_id", 0))
+        FBReqUpdProp.AddAxesIndex(builder, upd.get("axes_index", 0))
+        FBReqUpdProp.AddSeriesIndex(builder, upd.get("series_index", 0))
+        FBReqUpdProp.AddProperty(builder, prop_off)
+        FBReqUpdProp.AddF1(builder, upd.get("f1", 0.0))
+        FBReqUpdProp.AddF2(builder, upd.get("f2", 0.0))
+        FBReqUpdProp.AddF3(builder, upd.get("f3", 0.0))
+        FBReqUpdProp.AddF4(builder, upd.get("f4", 0.0))
+        FBReqUpdProp.AddBoolVal(builder, upd.get("bool_val", False))
+        if str_off is not None:
+            FBReqUpdProp.AddStrVal(builder, str_off)
+        offsets.append(FBReqUpdProp.End(builder))
+    FBReqUpdBatch.StartUpdatesVector(builder, len(offsets))
+    for off in reversed(offsets):
+        builder.PrependUOffsetTRelative(off)
+    upds_off = builder.EndVector()
+    FBReqUpdBatch.Start(builder)
+    FBReqUpdBatch.AddUpdates(builder, upds_off)
+    root = builder.EndObject()
+    builder.Finish(root)
+    return _finalize(builder)
+
+
 def encode_fb_req_show(figure_id: int, window_id: int = 0) -> bytes:
     builder = flatbuffers.Builder(64)
     FBReqShow.Start(builder)
@@ -328,6 +360,30 @@ def decode_fb_evt_window_closed(data: bytes) -> Tuple[int, int, str]:
         fb.WindowId(),
         (fb.Reason() or b"").decode("utf-8", errors="replace"),
     )
+
+
+def decode_fb_req_update_batch(data: bytes) -> List[dict]:
+    buf = _strip(data) if _is_fb(data) else data
+    fb = FBReqUpdBatch.ReqUpdateBatchPayload.GetRootAs(buf, 0)
+    updates = []
+    if fb.UpdatesLength():
+        for i in range(fb.UpdatesLength()):
+            upd = fb.Updates(i)
+            updates.append(
+                {
+                    "figure_id": upd.FigureId(),
+                    "axes_index": upd.AxesIndex(),
+                    "series_index": upd.SeriesIndex(),
+                    "prop": (upd.Property() or b"").decode("utf-8", errors="replace"),
+                    "f1": upd.F1(),
+                    "f2": upd.F2(),
+                    "f3": upd.F3(),
+                    "f4": upd.F4(),
+                    "bool_val": upd.BoolVal(),
+                    "str_val": (upd.StrVal() or b"").decode("utf-8", errors="replace"),
+                }
+            )
+    return updates
 
 
 def decode_fb_evt_figure_destroyed(data: bytes) -> Tuple[int, str]:

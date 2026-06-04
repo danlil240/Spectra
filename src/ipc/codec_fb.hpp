@@ -9,7 +9,8 @@
 // Migration approach:
 //   - encode_fb_* serializes a payload struct into a FlatBuffers byte vector.
 //   - decode_fb_* deserializes a FlatBuffers byte vector back into the struct.
-//   - The codec.cpp functions delegate to these when the payload format is FB.
+//   - codec.cpp encode_* always delegates here; decode_* uses these when the
+//     payload format byte is 0x01 (legacy TLV decode lives in codec_tlv_*).
 
 #include <optional>
 #include <span>

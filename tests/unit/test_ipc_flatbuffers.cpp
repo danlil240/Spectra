@@ -374,7 +374,7 @@ TEST(IpcCrossCodec, DefaultEncodeProducesFlatBuffers)
     EXPECT_EQ(decoded->agent_build, "legacy-test");
 }
 
-TEST(IpcCrossCodec, LegacyTlvWelcomeStillDecodes)
+TEST(IpcCrossCodec, WelcomeEncodeDecodeRoundTrip)
 {
     WelcomePayload p;
     p.session_id = 555;

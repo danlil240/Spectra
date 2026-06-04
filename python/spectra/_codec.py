@@ -1,10 +1,8 @@
-"""TLV (Tag-Length-Value) codec mirroring src/ipc/codec.hpp.
+"""IPC payload codec mirroring src/ipc/codec.hpp.
 
-Wire format per field: [tag: u8] [len: u32 LE] [data: len bytes]
-
-FlatBuffers payloads are prefixed with 0x01; legacy TLV payloads start with
-a raw tag byte (never 0x00 or 0x01 in practice, but 0x00 is reserved).
-Decode functions auto-detect the format and delegate to _codec_fb when needed.
+All encode_* functions emit FlatBuffers (0x01 prefix) via _codec_fb.
+PayloadEncoder remains for a few legacy write paths (chunked set-data, anim).
+Decode functions auto-detect FlatBuffers vs legacy TLV and delegate to _codec_fb.
 """
 
 import struct
@@ -306,17 +304,25 @@ def encode_req_remove_series(figure_id: int, series_index: int) -> bytes:
 def encode_req_close_figure(figure_id: int) -> bytes:
     return fb_codec.encode_fb_req_close_figure(figure_id=figure_id)
 
+def decode_req_update_batch(data: bytes) -> list:
+    """Decode REQ_UPDATE_BATCH. Returns a list of update dicts."""
+    if fb_codec._is_fb(data):
+        return fb_codec.decode_fb_req_update_batch(data)
+    updates = []
+    dec = PayloadDecoder(data)
+    while dec.next():
+        if dec.tag == P.TAG_BATCH_ITEM:
+            updates.append(decode_req_update_property(dec.as_blob()))
+    return updates
+
+
 def encode_req_update_batch(updates: list) -> bytes:
     """Encode REQ_UPDATE_BATCH — multiple property updates in one message.
 
     Each item in `updates` is a dict with keys matching encode_req_update_property kwargs:
         figure_id, axes_index, series_index, prop, f1..f4, bool_val, str_val
     """
-    enc = PayloadEncoder()
-    for upd in updates:
-        item_bytes = encode_req_update_property(**upd)
-        enc.put_blob(P.TAG_BATCH_ITEM, item_bytes)
-    return enc.take()
+    return fb_codec.encode_fb_req_update_batch(updates)
 
 
 def encode_req_reconnect(session_id: int, session_token: str = "") -> bytes:

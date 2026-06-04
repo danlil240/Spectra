@@ -28,6 +28,7 @@ from spectra._codec import (
     encode_req_update_property,
     encode_req_reconnect,
     encode_req_update_batch,
+    decode_req_update_batch,
     decode_req_update_property,
     decode_req_reconnect,
 )
@@ -45,18 +46,11 @@ class TestBatchCodec:
         ]
         data = encode_req_update_batch(updates)
         assert len(data) > 0
+        assert data[0] == P.PAYLOAD_FORMAT_FLATBUFFERS
 
-        # Decode: should find one TAG_BATCH_ITEM blob
-        dec = PayloadDecoder(data)
-        count = 0
-        while dec.next():
-            if dec.tag == P.TAG_BATCH_ITEM:
-                count += 1
-                blob = dec.as_blob()
-                # The blob should be a valid update_property payload
-                found = decode_req_update_property(blob)
-                assert found["prop"] == "xlim"
-        assert count == 1
+        decoded = decode_req_update_batch(data)
+        assert len(decoded) == 1
+        assert decoded[0]["prop"] == "xlim"
 
     def test_encode_multiple_items(self):
         updates = [
@@ -65,56 +59,36 @@ class TestBatchCodec:
             dict(figure_id=1, axes_index=0, prop="grid", bool_val=True),
         ]
         data = encode_req_update_batch(updates)
-        dec = PayloadDecoder(data)
-        count = 0
-        while dec.next():
-            if dec.tag == P.TAG_BATCH_ITEM:
-                count += 1
-        assert count == 3
+        assert decode_req_update_batch(data)[2]["prop"] == "grid"
+        assert len(decode_req_update_batch(data)) == 3
 
     def test_encode_preserves_values(self):
         updates = [
             dict(figure_id=42, axes_index=2, prop="xlabel", str_val="Time (s)"),
         ]
-        data = encode_req_update_batch(updates)
-        dec = PayloadDecoder(data)
-        while dec.next():
-            if dec.tag == P.TAG_BATCH_ITEM:
-                blob = dec.as_blob()
-                found = decode_req_update_property(blob)
-                assert found["figure_id"] == 42
-                assert found["axes_index"] == 2
-                assert found["prop"] == "xlabel"
-                assert found["str_val"] == "Time (s)"
+        found = decode_req_update_batch(encode_req_update_batch(updates))[0]
+        assert found["figure_id"] == 42
+        assert found["axes_index"] == 2
+        assert found["prop"] == "xlabel"
+        assert found["str_val"] == "Time (s)"
 
     def test_encode_empty_list(self):
         data = encode_req_update_batch([])
-        assert data == b""
+        assert data[0] == P.PAYLOAD_FORMAT_FLATBUFFERS
+        assert decode_req_update_batch(data) == []
 
     def test_encode_float_properties(self):
         updates = [
             dict(figure_id=1, series_index=0, prop="color",
                  f1=1.0, f2=0.0, f3=0.0, f4=1.0),
         ]
-        data = encode_req_update_batch(updates)
-        dec = PayloadDecoder(data)
-        while dec.next():
-            if dec.tag == P.TAG_BATCH_ITEM:
-                blob = dec.as_blob()
-                found = decode_req_update_property(blob)
-                assert found["prop"] == "color"
+        assert decode_req_update_batch(encode_req_update_batch(updates))[0]["prop"] == "color"
 
     def test_encode_bool_property(self):
         updates = [
             dict(figure_id=1, axes_index=0, prop="grid", bool_val=False),
         ]
-        data = encode_req_update_batch(updates)
-        dec = PayloadDecoder(data)
-        while dec.next():
-            if dec.tag == P.TAG_BATCH_ITEM:
-                blob = dec.as_blob()
-                found = decode_req_update_property(blob)
-                assert found["bool_val"] is False
+        assert decode_req_update_batch(encode_req_update_batch(updates))[0]["bool_val"] is False
 
 
 # ─── Protocol constant tests ─────────────────────────────────────────────────
@@ -288,36 +262,26 @@ class TestAxesBatchContext:
 # ─── Batch wire format tests ─────────────────────────────────────────────────
 
 class TestBatchWireFormat:
-    """Verify wire format of REQ_UPDATE_BATCH matches C++ expectations."""
+    """Verify FlatBuffers wire format of REQ_UPDATE_BATCH matches C++ expectations."""
 
-    def test_batch_items_are_blobs(self):
+    def test_batch_uses_flatbuffers_prefix(self):
         updates = [
             dict(figure_id=1, prop="xlim", f1=0.0, f2=10.0),
             dict(figure_id=1, prop="ylim", f1=-1.0, f2=1.0),
         ]
         data = encode_req_update_batch(updates)
-        dec = PayloadDecoder(data)
-        tags = []
-        while dec.next():
-            tags.append(dec.tag)
-        assert all(t == P.TAG_BATCH_ITEM for t in tags)
-        assert len(tags) == 2
+        assert data[0] == P.PAYLOAD_FORMAT_FLATBUFFERS
+        assert len(decode_req_update_batch(data)) == 2
 
-    def test_each_item_is_valid_update_property(self):
-        """Each batch item blob should decode as a valid update_property payload."""
+    def test_each_item_round_trips(self):
         updates = [
             dict(figure_id=5, axes_index=1, prop="grid", bool_val=True),
         ]
-        data = encode_req_update_batch(updates)
-        dec = PayloadDecoder(data)
-        while dec.next():
-            if dec.tag == P.TAG_BATCH_ITEM:
-                blob = dec.as_blob()
-                # Should have the same structure as encode_req_update_property
-                ref = encode_req_update_property(
-                    figure_id=5, axes_index=1, prop="grid", bool_val=True,
-                )
-                assert blob == ref
+        decoded = decode_req_update_batch(encode_req_update_batch(updates))[0]
+        assert decoded["figure_id"] == 5
+        assert decoded["axes_index"] == 1
+        assert decoded["prop"] == "grid"
+        assert decoded["bool_val"] is True
 
     def test_item_order_preserved(self):
         updates = [
@@ -325,13 +289,7 @@ class TestBatchWireFormat:
             dict(figure_id=1, prop="ylabel", str_val="B"),
             dict(figure_id=1, prop="axes_title", str_val="C"),
         ]
-        data = encode_req_update_batch(updates)
-        dec = PayloadDecoder(data)
-        props = []
-        while dec.next():
-            if dec.tag == P.TAG_BATCH_ITEM:
-                blob = dec.as_blob()
-                props.append(decode_req_update_property(blob)["prop"])
+        props = [u["prop"] for u in decode_req_update_batch(encode_req_update_batch(updates))]
         assert props == ["xlabel", "ylabel", "axes_title"]
 
 
@@ -359,36 +317,25 @@ class TestProtocolVersionConstants:
 # ─── Batch item nesting tests ────────────────────────────────────────────────
 
 class TestBatchItemNesting:
-    """Verify nested TLV structure of batch items."""
+    """Verify nested update entries inside REQ_UPDATE_BATCH."""
 
-    def test_nested_blob_decodable(self):
+    def test_nested_updates_decodable(self):
         updates = [
             dict(figure_id=99, axes_index=0, series_index=3,
                  prop="opacity", f1=0.5),
         ]
-        data = encode_req_update_batch(updates)
-        dec = PayloadDecoder(data)
-        while dec.next():
-            if dec.tag == P.TAG_BATCH_ITEM:
-                blob = dec.as_blob()
-                found = decode_req_update_property(blob)
-                assert found["figure_id"] == 99
-                assert found["series_index"] == 3
-                assert found["prop"] == "opacity"
-                assert abs(found["f1"] - 0.5) < 0.001
+        found = decode_req_update_batch(encode_req_update_batch(updates))[0]
+        assert found["figure_id"] == 99
+        assert found["series_index"] == 3
+        assert found["prop"] == "opacity"
+        assert abs(found["f1"] - 0.5) < 0.001
 
     def test_multiple_figures_in_batch(self):
         updates = [
             dict(figure_id=1, prop="title", str_val="Fig 1"),
             dict(figure_id=2, prop="title", str_val="Fig 2"),
         ]
-        data = encode_req_update_batch(updates)
-        dec = PayloadDecoder(data)
-        figure_ids = []
-        while dec.next():
-            if dec.tag == P.TAG_BATCH_ITEM:
-                blob = dec.as_blob()
-                figure_ids.append(decode_req_update_property(blob)["figure_id"])
+        figure_ids = [u["figure_id"] for u in decode_req_update_batch(encode_req_update_batch(updates))]
         assert figure_ids == [1, 2]
 
 
@@ -420,26 +367,14 @@ class TestBatchEdgeCases:
 
     def test_single_item_batch(self):
         updates = [dict(figure_id=1, prop="grid", bool_val=True)]
-        data = encode_req_update_batch(updates)
-        dec = PayloadDecoder(data)
-        count = 0
-        while dec.next():
-            if dec.tag == P.TAG_BATCH_ITEM:
-                count += 1
-        assert count == 1
+        assert len(decode_req_update_batch(encode_req_update_batch(updates))) == 1
 
     def test_many_items_batch(self):
         updates = [
             dict(figure_id=1, prop=f"prop_{i}", str_val=f"val_{i}")
             for i in range(50)
         ]
-        data = encode_req_update_batch(updates)
-        dec = PayloadDecoder(data)
-        count = 0
-        while dec.next():
-            if dec.tag == P.TAG_BATCH_ITEM:
-                count += 1
-        assert count == 50
+        assert len(decode_req_update_batch(encode_req_update_batch(updates))) == 50
 
     def test_batch_with_all_property_types(self):
         """Batch containing float, bool, and string properties."""
@@ -449,13 +384,7 @@ class TestBatchEdgeCases:
             dict(figure_id=1, prop="xlabel", str_val="Time"),
             dict(figure_id=1, prop="color", f1=1.0, f2=0.0, f3=0.0, f4=1.0),
         ]
-        data = encode_req_update_batch(updates)
-        dec = PayloadDecoder(data)
-        props = []
-        while dec.next():
-            if dec.tag == P.TAG_BATCH_ITEM:
-                blob = dec.as_blob()
-                props.append(decode_req_update_property(blob)["prop"])
+        props = [u["prop"] for u in decode_req_update_batch(encode_req_update_batch(updates))]
         assert props == ["xlim", "grid", "xlabel", "color"]
 
     def test_empty_string_val_not_encoded(self):
@@ -463,10 +392,4 @@ class TestBatchEdgeCases:
         updates = [
             dict(figure_id=1, prop="xlim", f1=0.0, f2=1.0, str_val=""),
         ]
-        data = encode_req_update_batch(updates)
-        dec = PayloadDecoder(data)
-        while dec.next():
-            if dec.tag == P.TAG_BATCH_ITEM:
-                blob = dec.as_blob()
-                found = decode_req_update_property(blob)
-                assert found["str_val"] == ""
+        assert decode_req_update_batch(encode_req_update_batch(updates))[0]["str_val"] == ""

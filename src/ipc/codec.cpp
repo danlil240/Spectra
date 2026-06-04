@@ -7,18 +7,37 @@
 namespace spectra::ipc
 {
 
-// ─── Format-aware decode helper ──────────────────────────────────────────────
-// If the payload starts with 0x01, strip the prefix byte and delegate to FB.
-// Otherwise fall through to legacy TLV decoding below.
+// FlatBuffers payloads are prefixed with 0x01; legacy TLV decode remains in
+// codec_tlv_decode.cpp for a few message types still read from old clients.
 
 #define DECODE_TRY_FB(decode_fb_func, data)                            \
     do                                                                 \
     {                                                                  \
         if (detect_payload_format(data) == PayloadFormat::FLATBUFFERS) \
-            return decode_fb_func(strip_fb_prefix(data));              \
+        {                                                              \
+            auto _fb_body = strip_fb_prefix(data);                     \
+            return decode_fb_func(std::span<const uint8_t>(            \
+                _fb_body.data(), _fb_body.size()));                    \
+        }                                                              \
     } while (0)
 
-// ─── Little-endian helpers ───────────────────────────────────────────────────
+#define IPC_ENCODE_FB(name, p) return encode_fb_##name(p)
+
+#define IPC_DECODE_FB_ONLY(fb_name, data) \
+    do                                    \
+    {                                     \
+        DECODE_TRY_FB(decode_fb_##fb_name, data); \
+        return std::nullopt;              \
+    } while (0)
+
+#define IPC_DECODE_FB_OR_TLV(fb_name, tlv_fn, data) \
+    do                                              \
+    {                                               \
+        DECODE_TRY_FB(decode_fb_##fb_name, data);   \
+        return tlv_fn(data);                        \
+    } while (0)
+
+// ─── Little-endian helpers (framing header only) ─────────────────────────────
 
 static void write_u16_le(std::vector<uint8_t>& buf, uint16_t v)
 {
@@ -91,8 +110,6 @@ std::optional<MessageHeader> decode_header(std::span<const uint8_t> data)
     return hdr;
 }
 
-// ─── Full message encode/decode ──────────────────────────────────────────────
-
 std::vector<uint8_t> encode_message(const Message& msg)
 {
     std::vector<uint8_t> out;
@@ -121,600 +138,388 @@ std::optional<Message> decode_message(std::span<const uint8_t> data)
     return msg;
 }
 
-// ─── PayloadDecoder ──────────────────────────────────────────────────────────
-
-PayloadDecoder::PayloadDecoder(std::span<const uint8_t> data) : data_(data) {}
-
-bool PayloadDecoder::next()
-{
-    // Need at least 1 (tag) + 4 (len) bytes
-    if (pos_ + 5 > data_.size())
-        return false;
-
-    tag_        = data_[pos_];
-    len_        = read_u32_le(&data_[pos_ + 1]);
-    val_offset_ = pos_ + 5;
-
-    if (val_offset_ + len_ > data_.size())
-        return false;
-
-    pos_ = val_offset_ + len_;
-    return true;
-}
-
-uint16_t PayloadDecoder::as_u16() const
-{
-    if (len_ < 2)
-        return 0;
-    return read_u16_le(&data_[val_offset_]);
-}
-
-uint32_t PayloadDecoder::as_u32() const
-{
-    if (len_ < 4)
-        return 0;
-    return read_u32_le(&data_[val_offset_]);
-}
-
-uint64_t PayloadDecoder::as_u64() const
-{
-    if (len_ < 8)
-        return 0;
-    return read_u64_le(&data_[val_offset_]);
-}
-
-std::string PayloadDecoder::as_string() const
-{
-    return std::string(reinterpret_cast<const char*>(&data_[val_offset_]), len_);
-}
-
-// ─── Handshake payload encode/decode ─────────────────────────────────────────
+// ─── Payload encode/decode (FlatBuffers default) ─────────────────────────────
 
 std::vector<uint8_t> encode_hello(const HelloPayload& p)
 {
-    return encode_fb_hello(p);
+    IPC_ENCODE_FB(hello, p);
 }
-
 std::optional<HelloPayload> decode_hello(std::span<const uint8_t> data)
 {
-    return decode_fb_hello(strip_fb_prefix(data));
+    IPC_DECODE_FB_ONLY(hello, data);
 }
 
 std::vector<uint8_t> encode_welcome(const WelcomePayload& p)
 {
-    return encode_fb_welcome(p);
+    IPC_ENCODE_FB(welcome, p);
 }
-
 std::optional<WelcomePayload> decode_welcome(std::span<const uint8_t> data)
 {
-    return decode_fb_welcome(strip_fb_prefix(data));
+    IPC_DECODE_FB_ONLY(welcome, data);
 }
 
 std::vector<uint8_t> encode_resp_ok(const RespOkPayload& p)
 {
-    return encode_fb_resp_ok(p);
+    IPC_ENCODE_FB(resp_ok, p);
 }
-
 std::optional<RespOkPayload> decode_resp_ok(std::span<const uint8_t> data)
 {
-    return decode_fb_resp_ok(strip_fb_prefix(data));
+    IPC_DECODE_FB_ONLY(resp_ok, data);
 }
 
 std::vector<uint8_t> encode_resp_err(const RespErrPayload& p)
 {
-    return encode_fb_resp_err(p);
+    IPC_ENCODE_FB(resp_err, p);
 }
-
 std::optional<RespErrPayload> decode_resp_err(std::span<const uint8_t> data)
 {
-    return decode_fb_resp_err(strip_fb_prefix(data));
+    IPC_DECODE_FB_ONLY(resp_err, data);
 }
-
-// ─── Control payload encode/decode ───────────────────────────────────────────
 
 std::vector<uint8_t> encode_cmd_assign_figures(const CmdAssignFiguresPayload& p)
 {
-    return encode_fb_cmd_assign_figures(p);
+    IPC_ENCODE_FB(cmd_assign_figures, p);
 }
-
 std::optional<CmdAssignFiguresPayload> decode_cmd_assign_figures(std::span<const uint8_t> data)
 {
-    return decode_fb_cmd_assign_figures(strip_fb_prefix(data));
+    IPC_DECODE_FB_ONLY(cmd_assign_figures, data);
 }
 
 std::vector<uint8_t> encode_req_create_window(const ReqCreateWindowPayload& p)
 {
-    return encode_fb_req_create_window(p);
+    IPC_ENCODE_FB(req_create_window, p);
 }
-
 std::optional<ReqCreateWindowPayload> decode_req_create_window(std::span<const uint8_t> data)
 {
-    return decode_fb_req_create_window(strip_fb_prefix(data));
+    IPC_DECODE_FB_ONLY(req_create_window, data);
 }
 
 std::vector<uint8_t> encode_req_close_window(const ReqCloseWindowPayload& p)
 {
-    return encode_fb_req_close_window(p);
+    IPC_ENCODE_FB(req_close_window, p);
 }
-
 std::optional<ReqCloseWindowPayload> decode_req_close_window(std::span<const uint8_t> data)
 {
-    return decode_fb_req_close_window(strip_fb_prefix(data));
+    IPC_DECODE_FB_ONLY(req_close_window, data);
 }
 
 std::vector<uint8_t> encode_cmd_remove_figure(const CmdRemoveFigurePayload& p)
 {
-    return encode_fb_cmd_remove_figure(p);
+    IPC_ENCODE_FB(cmd_remove_figure, p);
 }
-
 std::optional<CmdRemoveFigurePayload> decode_cmd_remove_figure(std::span<const uint8_t> data)
 {
-    return decode_fb_cmd_remove_figure(strip_fb_prefix(data));
+    IPC_DECODE_FB_ONLY(cmd_remove_figure, data);
 }
 
 std::vector<uint8_t> encode_cmd_set_active(const CmdSetActivePayload& p)
 {
-    return encode_fb_cmd_set_active(p);
+    IPC_ENCODE_FB(cmd_set_active, p);
 }
-
 std::optional<CmdSetActivePayload> decode_cmd_set_active(std::span<const uint8_t> data)
 {
-    return decode_fb_cmd_set_active(strip_fb_prefix(data));
+    IPC_DECODE_FB_ONLY(cmd_set_active, data);
 }
 
 std::vector<uint8_t> encode_cmd_close_window(const CmdCloseWindowPayload& p)
 {
-    return encode_fb_cmd_close_window(p);
+    IPC_ENCODE_FB(cmd_close_window, p);
 }
-
 std::optional<CmdCloseWindowPayload> decode_cmd_close_window(std::span<const uint8_t> data)
 {
-    return decode_fb_cmd_close_window(strip_fb_prefix(data));
+    IPC_DECODE_FB_ONLY(cmd_close_window, data);
 }
-
-// ─── REQ_DETACH_FIGURE ───────────────────────────────────────────────────────
 
 std::vector<uint8_t> encode_req_detach_figure(const ReqDetachFigurePayload& p)
 {
-    return encode_fb_req_detach_figure(p);
+    IPC_ENCODE_FB(req_detach_figure, p);
 }
-
 std::optional<ReqDetachFigurePayload> decode_req_detach_figure(std::span<const uint8_t> data)
 {
-    return decode_fb_req_detach_figure(strip_fb_prefix(data));
+    IPC_DECODE_FB_ONLY(req_detach_figure, data);
 }
-
-// ─── Payload decode helpers ──────────────────────────────────────────────────
-
-float payload_as_float(const PayloadDecoder& dec)
-{
-    uint32_t bits = dec.as_u32();
-    float    val;
-    std::memcpy(&val, &bits, 4);
-    return val;
-}
-
-double payload_as_double(const PayloadDecoder& dec)
-{
-    uint64_t bits = dec.as_u64();
-    double   val;
-    std::memcpy(&val, &bits, 8);
-    return val;
-}
-
-bool payload_as_bool(const PayloadDecoder& dec)
-{
-    return dec.as_u16() != 0;
-}
-
-std::vector<float> payload_as_float_array(const PayloadDecoder& dec)
-{
-    std::string raw = dec.as_string();
-    if (raw.size() < 4)
-        return {};
-    uint32_t count;
-    std::memcpy(&count, raw.data(), 4);
-    if (raw.size() < 4 + count * 4)
-        return {};
-    std::vector<float> arr(count);
-    if (count > 0)
-        std::memcpy(arr.data(), raw.data() + 4, count * 4);
-    return arr;
-}
-
-std::vector<uint8_t> payload_as_blob(const PayloadDecoder& dec)
-{
-    std::string s = dec.as_string();
-    return std::vector<uint8_t>(s.begin(), s.end());
-}
-
-// ─── STATE_SNAPSHOT encode/decode ────────────────────────────────────────────
 
 std::vector<uint8_t> encode_state_snapshot(const StateSnapshotPayload& p)
 {
-    return encode_fb_state_snapshot(p);
+    IPC_ENCODE_FB(state_snapshot, p);
 }
-
 std::optional<StateSnapshotPayload> decode_state_snapshot(std::span<const uint8_t> data)
 {
-    return decode_fb_state_snapshot(strip_fb_prefix(data));
+    IPC_DECODE_FB_ONLY(state_snapshot, data);
 }
-
-// ─── STATE_DIFF encode/decode ────────────────────────────────────────────────
 
 std::vector<uint8_t> encode_state_diff(const StateDiffPayload& p)
 {
-    return encode_fb_state_diff(p);
+    IPC_ENCODE_FB(state_diff, p);
 }
-
 std::optional<StateDiffPayload> decode_state_diff(std::span<const uint8_t> data)
 {
-    return decode_fb_state_diff(strip_fb_prefix(data));
+    IPC_DECODE_FB_ONLY(state_diff, data);
 }
-
-// ─── ACK_STATE encode/decode ─────────────────────────────────────────────────
 
 std::vector<uint8_t> encode_ack_state(const AckStatePayload& p)
 {
-    return encode_fb_ack_state(p);
+    IPC_ENCODE_FB(ack_state, p);
 }
-
 std::optional<AckStatePayload> decode_ack_state(std::span<const uint8_t> data)
 {
-    return decode_fb_ack_state(strip_fb_prefix(data));
+    IPC_DECODE_FB_ONLY(ack_state, data);
 }
-
-// ─── EVT_INPUT encode/decode ─────────────────────────────────────────────────
 
 std::vector<uint8_t> encode_evt_input(const EvtInputPayload& p)
 {
-    return encode_fb_evt_input(p);
+    IPC_ENCODE_FB(evt_input, p);
 }
-
 std::optional<EvtInputPayload> decode_evt_input(std::span<const uint8_t> data)
 {
-    return decode_fb_evt_input(strip_fb_prefix(data));
+    IPC_DECODE_FB_ONLY(evt_input, data);
 }
-
-// ─── Python request/response payload encode/decode ───────────────────────────
 
 std::vector<uint8_t> encode_req_create_figure(const ReqCreateFigurePayload& p)
 {
-    return encode_fb_req_create_figure(p);
+    IPC_ENCODE_FB(req_create_figure, p);
 }
-
 std::optional<ReqCreateFigurePayload> decode_req_create_figure(std::span<const uint8_t> data)
 {
-    return decode_fb_req_create_figure(strip_fb_prefix(data));
+    IPC_DECODE_FB_ONLY(req_create_figure, data);
 }
 
 std::vector<uint8_t> encode_req_destroy_figure(const ReqDestroyFigurePayload& p)
 {
-    return encode_fb_req_destroy_figure(p);
+    IPC_ENCODE_FB(req_destroy_figure, p);
 }
-
 std::optional<ReqDestroyFigurePayload> decode_req_destroy_figure(std::span<const uint8_t> data)
 {
-    return decode_fb_req_destroy_figure(strip_fb_prefix(data));
+    IPC_DECODE_FB_ONLY(req_destroy_figure, data);
 }
 
 std::vector<uint8_t> encode_req_create_axes(const ReqCreateAxesPayload& p)
 {
-    return encode_fb_req_create_axes(p);
+    IPC_ENCODE_FB(req_create_axes, p);
 }
-
 std::optional<ReqCreateAxesPayload> decode_req_create_axes(std::span<const uint8_t> data)
 {
-    return decode_fb_req_create_axes(strip_fb_prefix(data));
+    IPC_DECODE_FB_ONLY(req_create_axes, data);
 }
 
 std::vector<uint8_t> encode_req_add_series(const ReqAddSeriesPayload& p)
 {
-    return encode_fb_req_add_series(p);
+    IPC_ENCODE_FB(req_add_series, p);
 }
-
 std::optional<ReqAddSeriesPayload> decode_req_add_series(std::span<const uint8_t> data)
 {
-    return decode_fb_req_add_series(strip_fb_prefix(data));
+    IPC_DECODE_FB_ONLY(req_add_series, data);
 }
 
 std::vector<uint8_t> encode_req_remove_series(const ReqRemoveSeriesPayload& p)
 {
-    return encode_fb_req_remove_series(p);
+    IPC_ENCODE_FB(req_remove_series, p);
 }
-
 std::optional<ReqRemoveSeriesPayload> decode_req_remove_series(std::span<const uint8_t> data)
 {
-    return decode_fb_req_remove_series(strip_fb_prefix(data));
+    IPC_DECODE_FB_ONLY(req_remove_series, data);
 }
 
 std::vector<uint8_t> encode_req_set_data(const ReqSetDataPayload& p)
 {
-    return encode_fb_req_set_data(p);
+    IPC_ENCODE_FB(req_set_data, p);
 }
-
 std::optional<ReqSetDataPayload> decode_req_set_data(std::span<const uint8_t> data)
 {
-    DECODE_TRY_FB(decode_fb_req_set_data, data);
-    ReqSetDataPayload p;
-    PayloadDecoder    dec(data);
-    while (dec.next())
-    {
-        switch (dec.tag())
-        {
-            case TAG_FIGURE_ID:
-                p.figure_id = dec.as_u64();
-                break;
-            case TAG_SERIES_INDEX:
-                p.series_index = dec.as_u32();
-                break;
-            case TAG_DTYPE:
-                p.dtype = static_cast<uint8_t>(dec.as_u16());
-                break;
-            case TAG_BLOB_INLINE:
-                p.data = payload_as_float_array(dec);
-                break;
-            default:
-                break;
-        }
-    }
-    return p;
+    IPC_DECODE_FB_OR_TLV(req_set_data, tlv_decode_req_set_data, data);
 }
 
 std::vector<uint8_t> encode_req_append_data(const ReqAppendDataPayload& p)
 {
-    return encode_fb_req_append_data(p);
+    IPC_ENCODE_FB(req_append_data, p);
 }
-
 std::optional<ReqAppendDataPayload> decode_req_append_data(std::span<const uint8_t> data)
 {
-    DECODE_TRY_FB(decode_fb_req_append_data, data);
-    ReqAppendDataPayload p;
-    PayloadDecoder       dec(data);
-    while (dec.next())
-    {
-        switch (dec.tag())
-        {
-            case TAG_FIGURE_ID:
-                p.figure_id = dec.as_u64();
-                break;
-            case TAG_SERIES_INDEX:
-                p.series_index = dec.as_u32();
-                break;
-            case TAG_BLOB_INLINE:
-                p.data = payload_as_float_array(dec);
-                break;
-            default:
-                break;
-        }
-    }
-    return p;
+    IPC_DECODE_FB_OR_TLV(req_append_data, tlv_decode_req_append_data, data);
 }
 
 std::vector<uint8_t> encode_req_update_property(const ReqUpdatePropertyPayload& p)
 {
-    return encode_fb_req_update_property(p);
+    IPC_ENCODE_FB(req_update_property, p);
 }
-
 std::optional<ReqUpdatePropertyPayload> decode_req_update_property(std::span<const uint8_t> data)
 {
-    DECODE_TRY_FB(decode_fb_req_update_property, data);
-    return std::nullopt;
+    IPC_DECODE_FB_OR_TLV(req_update_property, tlv_decode_req_update_property, data);
 }
 
 std::vector<uint8_t> encode_req_show(const ReqShowPayload& p)
 {
-    return encode_fb_req_show(p);
+    IPC_ENCODE_FB(req_show, p);
 }
-
 std::optional<ReqShowPayload> decode_req_show(std::span<const uint8_t> data)
 {
-    return decode_fb_req_show(strip_fb_prefix(data));
+    IPC_DECODE_FB_ONLY(req_show, data);
 }
 
 std::vector<uint8_t> encode_req_close_figure(const ReqCloseFigurePayload& p)
 {
-    return encode_fb_req_close_figure(p);
+    IPC_ENCODE_FB(req_close_figure, p);
 }
-
 std::optional<ReqCloseFigurePayload> decode_req_close_figure(std::span<const uint8_t> data)
 {
-    return decode_fb_req_close_figure(strip_fb_prefix(data));
+    IPC_DECODE_FB_ONLY(req_close_figure, data);
 }
 
 std::vector<uint8_t> encode_req_update_batch(const ReqUpdateBatchPayload& p)
 {
-    return encode_fb_req_update_batch(p);
+    IPC_ENCODE_FB(req_update_batch, p);
 }
-
 std::optional<ReqUpdateBatchPayload> decode_req_update_batch(std::span<const uint8_t> data)
 {
-    DECODE_TRY_FB(decode_fb_req_update_batch, data);
-    ReqUpdateBatchPayload p;
-    PayloadDecoder        dec(data);
-    while (dec.next())
-    {
-        if (dec.tag() == TAG_BATCH_ITEM)
-        {
-            auto blob = payload_as_blob(dec);
-            auto item =
-                decode_req_update_property(std::span<const uint8_t>(blob.data(), blob.size()));
-            if (item)
-                p.updates.push_back(*item);
-        }
-    }
-    return p;
+    IPC_DECODE_FB_OR_TLV(req_update_batch, tlv_decode_req_update_batch, data);
 }
 
 std::vector<uint8_t> encode_req_reconnect(const ReqReconnectPayload& p)
 {
-    return encode_fb_req_reconnect(p);
+    IPC_ENCODE_FB(req_reconnect, p);
 }
-
 std::optional<ReqReconnectPayload> decode_req_reconnect(std::span<const uint8_t> data)
 {
-    return decode_fb_req_reconnect(strip_fb_prefix(data));
+    IPC_DECODE_FB_ONLY(req_reconnect, data);
 }
 
 std::optional<ReqAnimStartPayload> decode_req_anim_start(std::span<const uint8_t> data)
 {
-    ReqAnimStartPayload p;
-    PayloadDecoder      dec(data);
-    while (dec.next())
-    {
-        switch (dec.tag())
-        {
-            case TAG_FIGURE_ID:
-                p.figure_id = dec.as_u64();
-                break;
-            case TAG_F1:
-                p.fps = payload_as_float(dec);
-                break;
-            case TAG_F2:
-                p.duration = payload_as_float(dec);
-                break;
-            default:
-                break;
-        }
-    }
-    return p;
+    return tlv_decode_req_anim_start(data);
 }
 
 std::vector<uint8_t> encode_resp_figure_created(const RespFigureCreatedPayload& p)
 {
-    return encode_fb_resp_figure_created(p);
+    IPC_ENCODE_FB(resp_figure_created, p);
 }
-
 std::optional<RespFigureCreatedPayload> decode_resp_figure_created(std::span<const uint8_t> data)
 {
-    return decode_fb_resp_figure_created(strip_fb_prefix(data));
+    IPC_DECODE_FB_ONLY(resp_figure_created, data);
 }
 
 std::vector<uint8_t> encode_resp_axes_created(const RespAxesCreatedPayload& p)
 {
-    return encode_fb_resp_axes_created(p);
+    IPC_ENCODE_FB(resp_axes_created, p);
 }
-
 std::optional<RespAxesCreatedPayload> decode_resp_axes_created(std::span<const uint8_t> data)
 {
-    return decode_fb_resp_axes_created(strip_fb_prefix(data));
+    IPC_DECODE_FB_ONLY(resp_axes_created, data);
 }
 
 std::vector<uint8_t> encode_resp_series_added(const RespSeriesAddedPayload& p)
 {
-    return encode_fb_resp_series_added(p);
+    IPC_ENCODE_FB(resp_series_added, p);
 }
-
 std::optional<RespSeriesAddedPayload> decode_resp_series_added(std::span<const uint8_t> data)
 {
-    return decode_fb_resp_series_added(strip_fb_prefix(data));
+    IPC_DECODE_FB_ONLY(resp_series_added, data);
 }
 
 std::vector<uint8_t> encode_resp_figure_list(const RespFigureListPayload& p)
 {
-    return encode_fb_resp_figure_list(p);
+    IPC_ENCODE_FB(resp_figure_list, p);
 }
-
 std::optional<RespFigureListPayload> decode_resp_figure_list(std::span<const uint8_t> data)
 {
-    return decode_fb_resp_figure_list(strip_fb_prefix(data));
+    IPC_DECODE_FB_ONLY(resp_figure_list, data);
 }
 
 std::vector<uint8_t> encode_evt_window_closed(const EvtWindowClosedPayload& p)
 {
-    return encode_fb_evt_window_closed(p);
+    IPC_ENCODE_FB(evt_window_closed, p);
 }
-
 std::optional<EvtWindowClosedPayload> decode_evt_window_closed(std::span<const uint8_t> data)
 {
-    return decode_fb_evt_window_closed(strip_fb_prefix(data));
+    IPC_DECODE_FB_ONLY(evt_window_closed, data);
 }
 
 std::vector<uint8_t> encode_evt_figure_destroyed(const EvtFigureDestroyedPayload& p)
 {
-    return encode_fb_evt_figure_destroyed(p);
+    IPC_ENCODE_FB(evt_figure_destroyed, p);
 }
-
 std::optional<EvtFigureDestroyedPayload> decode_evt_figure_destroyed(std::span<const uint8_t> data)
 {
-    return decode_fb_evt_figure_destroyed(strip_fb_prefix(data));
+    IPC_DECODE_FB_ONLY(evt_figure_destroyed, data);
 }
-
-// ─── Topics (pub/sub) ────────────────────────────────────────────────────────
 
 std::vector<uint8_t> encode_req_declare_topic(const ReqDeclareTopicPayload& p)
 {
-    return encode_fb_req_declare_topic(p);
+    IPC_ENCODE_FB(req_declare_topic, p);
 }
 std::optional<ReqDeclareTopicPayload> decode_req_declare_topic(std::span<const uint8_t> data)
 {
-    return decode_fb_req_declare_topic(strip_fb_prefix(data));
+    IPC_DECODE_FB_ONLY(req_declare_topic, data);
 }
 
 std::vector<uint8_t> encode_req_publish_topic_samples(const ReqPublishTopicSamplesPayload& p)
 {
-    return encode_fb_req_publish_topic_samples(p);
+    IPC_ENCODE_FB(req_publish_topic_samples, p);
 }
 std::optional<ReqPublishTopicSamplesPayload> decode_req_publish_topic_samples(
     std::span<const uint8_t> data)
 {
-    return decode_fb_req_publish_topic_samples(strip_fb_prefix(data));
+    IPC_DECODE_FB_ONLY(req_publish_topic_samples, data);
 }
 
 std::vector<uint8_t> encode_req_subscribe_topic(const ReqSubscribeTopicPayload& p)
 {
-    return encode_fb_req_subscribe_topic(p);
+    IPC_ENCODE_FB(req_subscribe_topic, p);
 }
 std::optional<ReqSubscribeTopicPayload> decode_req_subscribe_topic(std::span<const uint8_t> data)
 {
-    return decode_fb_req_subscribe_topic(strip_fb_prefix(data));
+    IPC_DECODE_FB_ONLY(req_subscribe_topic, data);
 }
 
 std::vector<uint8_t> encode_req_unsubscribe_topic(const ReqUnsubscribeTopicPayload& p)
 {
-    return encode_fb_req_unsubscribe_topic(p);
+    IPC_ENCODE_FB(req_unsubscribe_topic, p);
 }
 std::optional<ReqUnsubscribeTopicPayload> decode_req_unsubscribe_topic(
     std::span<const uint8_t> data)
 {
-    return decode_fb_req_unsubscribe_topic(strip_fb_prefix(data));
+    IPC_DECODE_FB_ONLY(req_unsubscribe_topic, data);
 }
 
 std::vector<uint8_t> encode_req_list_topics(const ReqListTopicsPayload& p)
 {
-    return encode_fb_req_list_topics(p);
+    IPC_ENCODE_FB(req_list_topics, p);
 }
 std::optional<ReqListTopicsPayload> decode_req_list_topics(std::span<const uint8_t> data)
 {
-    return decode_fb_req_list_topics(strip_fb_prefix(data));
+    IPC_DECODE_FB_ONLY(req_list_topics, data);
 }
 
 std::vector<uint8_t> encode_resp_topic_list(const RespTopicListPayload& p)
 {
-    return encode_fb_resp_topic_list(p);
+    IPC_ENCODE_FB(resp_topic_list, p);
 }
 std::optional<RespTopicListPayload> decode_resp_topic_list(std::span<const uint8_t> data)
 {
-    return decode_fb_resp_topic_list(strip_fb_prefix(data));
+    IPC_DECODE_FB_ONLY(resp_topic_list, data);
 }
 
 std::vector<uint8_t> encode_resp_subscribe_topic(const RespSubscribeTopicPayload& p)
 {
-    return encode_fb_resp_subscribe_topic(p);
+    IPC_ENCODE_FB(resp_subscribe_topic, p);
 }
 std::optional<RespSubscribeTopicPayload> decode_resp_subscribe_topic(std::span<const uint8_t> data)
 {
-    return decode_fb_resp_subscribe_topic(strip_fb_prefix(data));
+    IPC_DECODE_FB_ONLY(resp_subscribe_topic, data);
 }
 
 std::vector<uint8_t> encode_evt_topic_list_changed(const EvtTopicListChangedPayload& p)
 {
-    return encode_fb_evt_topic_list_changed(p);
+    IPC_ENCODE_FB(evt_topic_list_changed, p);
 }
 std::optional<EvtTopicListChangedPayload> decode_evt_topic_list_changed(
     std::span<const uint8_t> data)
 {
-    return decode_fb_evt_topic_list_changed(strip_fb_prefix(data));
+    IPC_DECODE_FB_ONLY(evt_topic_list_changed, data);
 }
+
+#undef DECODE_TRY_FB
+#undef IPC_ENCODE_FB
+#undef IPC_DECODE_FB_ONLY
+#undef IPC_DECODE_FB_OR_TLV
 
 }   // namespace spectra::ipc

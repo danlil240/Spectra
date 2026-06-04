@@ -21,6 +21,7 @@ namespace spectra
 
 class App;
 class CommandRegistry;
+struct AutomationHandlerEntry;
 struct WindowUIContext;
 
 // A pending automation request awaiting main-thread execution.
@@ -100,6 +101,9 @@ class AutomationServer
     // Handler registry: method name -> handler function.
     using HandlerFn = std::function<void(AutomationRequest&, App&, WindowUIContext*)>;
     std::unordered_map<std::string, HandlerFn> handlers_;
+
+    // Metadata catalog for list_methods and tooling.
+    std::vector<AutomationHandlerEntry> handler_catalog_;
 
     // Populate handlers_ from the handler group factories.
     void register_handlers();

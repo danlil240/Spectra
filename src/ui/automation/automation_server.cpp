@@ -3,6 +3,7 @@
 
 #include "automation_server.hpp"
 
+#include "automation_dispatch.hpp"
 #include "automation_handler.hpp"
 #include "automation_json.hpp"
 
@@ -51,7 +52,10 @@ void AutomationServer::register_handlers()
     auto install = [&](std::vector<AutomationHandlerEntry> entries)
     {
         for (auto& e : entries)
-            handlers_.emplace(std::move(e.method), std::move(e.handler));
+        {
+            handler_catalog_.push_back(e);
+            handlers_.emplace(e.method, wrap_automation_handler(std::move(e)));
+        }
     };
     install(make_command_handlers());
     install(make_input_handlers());
@@ -59,6 +63,20 @@ void AutomationServer::register_handlers()
     install(make_capture_handlers());
     install(make_window_handlers());
     install(make_utility_handlers());
+
+    AutomationHandlerEntry list_methods{
+        "list_methods",
+        "List all automation methods with metadata (context requirements and parameters).",
+        AutomationContextFlag::None,
+        {},
+        [this](AutomationRequest& req, App& /*app*/, WindowUIContext* /*ui_ctx*/)
+        {
+            req.response_json =
+                json_ok(req.id, "{\"methods\":" + serialize_handler_catalog(handler_catalog_) + "}");
+        },
+    };
+    handler_catalog_.push_back(list_methods);
+    handlers_.emplace(list_methods.method, wrap_automation_handler(std::move(list_methods)));
 }
 
 std::string AutomationServer::default_socket_path()

@@ -132,6 +132,7 @@ set(SPECTRA_UNIT_TESTS
     test_multi_window
     test_window_manager
     test_window_ui_context_builder
+    test_automation_dispatch
     test_figure_registry
     test_event_bus
     test_ipc

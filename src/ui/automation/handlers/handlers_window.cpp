@@ -24,72 +24,51 @@ namespace spectra
 
 std::vector<AutomationHandlerEntry> make_window_handlers()
 {
+    using Ctx = AutomationContextFlag;
     std::vector<AutomationHandlerEntry> entries;
 
-    // ── resize_window ────────────────────────────────────────────────────
-    entries.push_back({"resize_window",
-                       [](AutomationRequest& req, App& /*app*/, WindowUIContext* ui_ctx)
-                       {
-#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
-                           if (!ui_ctx)
-                           {
-                               req.response_json = json_error(req.id, "No UI context");
-                               return;
-                           }
-                           uint32_t w =
-                               static_cast<uint32_t>(json_get_int(req.params_json, "width", 1280));
-                           uint32_t h =
-                               static_cast<uint32_t>(json_get_int(req.params_json, "height", 720));
-                           ui_ctx->needs_resize          = true;
-                           ui_ctx->new_width             = w;
-                           ui_ctx->new_height            = h;
-                           ui_ctx->resize_requested_time = std::chrono::steady_clock::now();
-    #ifdef SPECTRA_USE_GLFW
-                           if (ui_ctx->glfw_window)
-                               glfwSetWindowSize(static_cast<GLFWwindow*>(ui_ctx->glfw_window),
-                                                 static_cast<int>(w),
-                                                 static_cast<int>(h));
-    #elif defined(SPECTRA_USE_SDL3)
-                           if (ui_ctx->glfw_window)
-                               SDL_SetWindowSize(static_cast<SDL_Window*>(ui_ctx->glfw_window),
-                                                 static_cast<int>(w),
-                                                 static_cast<int>(h));
-    #endif
-                           req.response_json = json_ok(req.id);
-#else
-                           (void)ui_ctx;
-                           req.response_json = json_error(req.id, "No windowing backend");
+    entries.push_back(automation_handler(
+        "resize_window",
+        "Resize the application window.",
+        Ctx::UiContext | Ctx::Windowing,
+        {},
+        [](AutomationRequest& req, App& /*app*/, WindowUIContext* ui_ctx)
+        {
+            uint32_t w = static_cast<uint32_t>(json_get_int(req.params_json, "width", 1280));
+            uint32_t h = static_cast<uint32_t>(json_get_int(req.params_json, "height", 720));
+            ui_ctx->needs_resize          = true;
+            ui_ctx->new_width             = w;
+            ui_ctx->new_height            = h;
+            ui_ctx->resize_requested_time = std::chrono::steady_clock::now();
+#ifdef SPECTRA_USE_GLFW
+            if (ui_ctx->glfw_window)
+                glfwSetWindowSize(static_cast<GLFWwindow*>(ui_ctx->glfw_window),
+                                  static_cast<int>(w),
+                                  static_cast<int>(h));
+#elif defined(SPECTRA_USE_SDL3)
+            if (ui_ctx->glfw_window)
+                SDL_SetWindowSize(static_cast<SDL_Window*>(ui_ctx->glfw_window),
+                                  static_cast<int>(w),
+                                  static_cast<int>(h));
 #endif
-                       }});
+            req.response_json = json_ok(req.id);
+        }));
 
-    // ── get_window_size ──────────────────────────────────────────────────
-    entries.push_back({"get_window_size",
-                       [](AutomationRequest& req, App& app, WindowUIContext* ui_ctx)
-                       {
-#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
-                           if (!ui_ctx)
-                           {
-                               req.response_json = json_error(req.id, "No UI context");
-                               return;
-                           }
-                           Backend* backend = app.backend();
-                           if (!backend)
-                           {
-                               req.response_json = json_error(req.id, "No backend available");
-                               return;
-                           }
-                           uint32_t w = backend->swapchain_width();
-                           uint32_t h = backend->swapchain_height();
-                           req.response_json =
-                               json_ok(req.id,
-                                       "{\"width\":" + std::to_string(w)
-                                           + ",\"height\":" + std::to_string(h) + "}");
-#else
-                           (void)ui_ctx;
-                           (void)app;
-                           req.response_json = json_error(req.id, "No windowing backend");
-#endif
-                       }});
+    entries.push_back(automation_handler(
+        "get_window_size",
+        "Get the current window/swapchain size.",
+        Ctx::UiContext | Ctx::Windowing | Ctx::Backend,
+        {},
+        [](AutomationRequest& req, App& app, WindowUIContext* /*ui_ctx*/)
+        {
+            Backend* backend = app.backend();
+            uint32_t w       = backend->swapchain_width();
+            uint32_t h       = backend->swapchain_height();
+            req.response_json =
+                json_ok(req.id,
+                        "{\"width\":" + std::to_string(w) + ",\"height\":" + std::to_string(h)
+                            + "}");
+        }));
 
     return entries;
 }

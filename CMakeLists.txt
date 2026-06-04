@@ -202,6 +202,7 @@ foreach(_ui_src
     src/embed/embed_surface.cpp
     src/embed/spectra_embed_c.cpp
     src/ui/automation/automation_server.cpp
+    src/ui/automation/automation_dispatch.cpp
     src/ui/automation/mcp_server.cpp
     src/ui/automation/handlers/handlers_command.cpp
     src/ui/automation/handlers/handlers_input.cpp
@@ -632,6 +633,9 @@ if(SPECTRA_USE_ROS2)
         src/adapters/ros2/ros_screenshot_export.cpp
         src/adapters/ros2/ros_clipboard_export.cpp
         src/adapters/ros2/ros_app_shell.cpp
+        src/adapters/ros2/ros_app_shell_panel_wiring.cpp
+        src/adapters/ros2/ros_app_shell_menus.cpp
+        src/adapters/ros2/ros_app_shell_drop_targets.cpp
         src/adapters/ros2/service_caller.cpp
         src/adapters/ros2/ui/service_caller_panel.cpp
         src/adapters/ros2/ui/bag_info_panel.cpp

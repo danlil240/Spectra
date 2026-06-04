@@ -81,4 +81,33 @@ TEST_F(WindowUIContextBuilderTest, BuildsHeadlessSafeContextWithSharedServices)
     EXPECT_EQ(ui_ctx->imgui_ui, nullptr);
 }
 
+TEST_F(WindowUIContextBuilderTest, BuildsImGuiOnlyContextWithoutFigureManager)
+{
+    WindowUIContextBuildOptions options;
+    options.theme_mgr = &theme_mgr_;
+    options.mode      = WindowUIContextBuildMode::ImGuiOnly;
+
+    auto ui_ctx = build_window_ui_context(options);
+    ASSERT_NE(ui_ctx, nullptr);
+    EXPECT_EQ(ui_ctx->theme_mgr, &theme_mgr_);
+    ASSERT_NE(ui_ctx->imgui_ui, nullptr);
+    EXPECT_EQ(ui_ctx->fig_mgr, nullptr);
+    EXPECT_EQ(ui_ctx->cmd_registry.count(), 0u);
+}
+
+TEST_F(WindowUIContextBuilderTest, BuildsMinimalHeadlessContext)
+{
+    WindowUIContextBuildOptions options;
+    options.registry  = &registry_;
+    options.theme_mgr = &theme_mgr_;
+    options.mode      = WindowUIContextBuildMode::Headless;
+
+    auto ui_ctx = build_window_ui_context(options);
+    ASSERT_NE(ui_ctx, nullptr);
+    ASSERT_NE(ui_ctx->fig_mgr, nullptr);
+    EXPECT_EQ(ui_ctx->fig_mgr->figure_ids().size(), 2u);
+    EXPECT_EQ(ui_ctx->imgui_ui, nullptr);
+    EXPECT_EQ(ui_ctx->cmd_registry.count(), 0u);
+}
+
 #endif

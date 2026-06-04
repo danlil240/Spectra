@@ -451,6 +451,98 @@ void WindowManager::shutdown()
     SPECTRA_LOG_INFO("window_manager", "Shutdown complete");
 }
 
+// ── WindowUIContext assembly helpers ─────────────────────────────────────────
+
+WindowUIContextBuildOptions WindowManager::make_ui_build_options(WindowContext& wctx,
+                                                                 FigureId       initial_figure_id)
+{
+    WindowUIContextBuildOptions options;
+    options.registry                = registry_;
+    options.theme_mgr               = theme_mgr_;
+    options.initial_figure_id       = initial_figure_id;
+    options.plugin_manager          = plugin_manager_;
+    options.export_format_registry  = export_format_registry_;
+    options.overlay_registry        = &shared_overlay_registry_;
+    options.series_clipboard        = &shared_clipboard_;
+    options.session                 = session_;
+    options.settings_store          = settings_store_;
+    options.on_window_close_request = [this, window_id = wctx.id]() { request_close(window_id); };
+    options.on_figure_closed        = [this](FigureId, Figure* fig)
+    {
+        if (fig)
+            clear_figure_caches(fig);
+    };
+    options.create_imgui_integration = true;
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
+    options.window_manager = this;
+    options.window_id      = wctx.id;
+#endif
+    return options;
+}
+
+void WindowManager::wire_tab_drag_handlers(WindowUIContext& ui)
+{
+#ifdef SPECTRA_USE_IMGUI
+    if (!ui.fig_mgr)
+        return;
+
+    auto* fig_mgr_ptr = ui.fig_mgr;
+
+    if (tab_detach_handler_)
+    {
+        auto* reg     = registry_;
+        auto  handler = tab_detach_handler_;
+        ui.tab_drag_controller.set_on_drop_outside(
+            [fig_mgr_ptr, reg, handler](FigureId fid, float sx, float sy)
+            {
+                auto* fig = reg->get(fid);
+                if (!fig)
+                    return;
+                uint32_t    w     = fig->width() > 0 ? fig->width() : 800;
+                uint32_t    h     = fig->height() > 0 ? fig->height() : 600;
+                std::string title = fig_mgr_ptr->get_title(fid);
+                handler(fid, w, h, title, static_cast<int>(sx), static_cast<int>(sy));
+            });
+    }
+    if (tab_move_handler_)
+    {
+        auto  handler = tab_move_handler_;
+        auto* wm      = this;
+        ui.tab_drag_controller.set_on_drop_on_window(
+            [handler, wm](FigureId fid, uint32_t target_wid, float /*sx*/, float /*sy*/)
+            {
+                auto info = wm->cross_window_drop_info();
+                handler(fid, target_wid, info.zone, info.hx, info.hy, info.target_figure_id);
+            });
+    }
+#endif
+}
+
+bool WindowManager::init_minimal_window_imgui(WindowContext& wctx)
+{
+#ifdef SPECTRA_USE_IMGUI
+    if (!backend_ || !theme_mgr_)
+        return false;
+
+    WindowUIContextBuildOptions options;
+    options.theme_mgr = theme_mgr_;
+    options.mode      = WindowUIContextBuildMode::ImGuiOnly;
+
+    auto ui = build_window_ui_context(options);
+    if (!ui || !ui->imgui_ui)
+        return false;
+
+    if (!init_window_imgui_integration(*backend_, wctx, *ui->imgui_ui, false))
+        return false;
+
+    wctx.ui_ctx = std::move(ui);
+    return true;
+#else
+    (void)wctx;
+    return false;
+#endif
+}
+
 // ── Panel windows ───────────────────────────────────────────────────────────
 
 WindowContext* WindowManager::create_panel_window(uint32_t              width,
@@ -496,41 +588,13 @@ WindowContext* WindowManager::create_panel_window(uint32_t              width,
     #endif
     // SDL3: events are handled centrally via process_sdl3_events()
 
-    // Minimal UI context: ImGuiIntegration only (no FigureManager/DockSystem).
-    auto ui       = std::make_unique<WindowUIContext>();
-    ui->theme_mgr = theme_mgr_;
-    ui->imgui_ui  = std::make_unique<ImGuiIntegration>();
-    ui->imgui_ui->set_theme_manager(theme_mgr_);
-
-    ImGuiContext* prev_imgui_ctx = ImGui::GetCurrentContext();
-    auto*         prev_active    = backend_->active_window();
-    backend_->set_active_window(wctx);
-
-    if (
-    #ifdef SPECTRA_USE_GLFW
-        !ui->imgui_ui->init(*backend_,
-                            static_cast<GLFWwindow*>(wctx->glfw_window),
-                            /*install_callbacks=*/false)
-    #elif defined(SPECTRA_USE_SDL3)
-        !ui->imgui_ui->init_sdl3(*backend_, static_cast<SDL_Window*>(wctx->glfw_window))
-    #else
-        false
-    #endif
-    )
+    if (!init_minimal_window_imgui(*wctx))
     {
         SPECTRA_LOG_ERROR(
             "window_manager",
             "create_panel_window: ImGui init failed for window " + std::to_string(wctx->id));
-        backend_->set_active_window(prev_active);
-        ImGui::SetCurrentContext(prev_imgui_ctx);
         return nullptr;
     }
-
-    wctx->imgui_context = ImGui::GetCurrentContext();
-    backend_->set_active_window(prev_active);
-    ImGui::SetCurrentContext(prev_imgui_ctx);
-
-    wctx->ui_ctx = std::move(ui);
 
     SPECTRA_LOG_INFO("window_manager",
                      "Created panel window " + std::to_string(wctx->id) + ": "
@@ -721,106 +785,23 @@ bool WindowManager::init_window_ui(WindowContext& wctx, FigureId initial_figure_
         return false;
 
 #ifdef SPECTRA_USE_IMGUI
-    WindowUIContextBuildOptions options;
-    options.registry                = registry_;
-    options.theme_mgr               = theme_mgr_;
-    options.initial_figure_id       = initial_figure_id;
-    options.plugin_manager          = plugin_manager_;
-    options.export_format_registry  = export_format_registry_;
-    options.overlay_registry        = &shared_overlay_registry_;
-    options.series_clipboard        = &shared_clipboard_;
-    options.session                 = session_;
-    options.settings_store          = settings_store_;
-    options.on_window_close_request = [this, window_id = wctx.id]() { request_close(window_id); };
-    options.on_figure_closed        = [this](FigureId, Figure* fig)
-    {
-        if (fig)
-            clear_figure_caches(fig);
-    };
-    options.create_imgui_integration = true;
-    #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
-    options.window_manager = this;
-    options.window_id      = wctx.id;
-    #endif
-
-    auto ui = build_window_ui_context(options);
+    auto options = make_ui_build_options(wctx, initial_figure_id);
+    auto ui      = build_window_ui_context(options);
     if (!ui)
         return false;
 
     if (wctx.glfw_window && backend_ && ui->imgui_ui)
     {
-        // Save current ImGui context — the primary window may be mid-frame
-        // (between NewFrame/EndFrame) so we must restore it after init.
-        ImGuiContext* prev_imgui_ctx = ImGui::GetCurrentContext();
-
-        // Set active window so render_pass() returns this window's render pass
-        auto* prev_active = backend_->active_window();
-        backend_->set_active_window(&wctx);
-
-        bool imgui_ok = false;
-    #ifdef SPECTRA_USE_GLFW
-        // Pass install_callbacks=false so ImGui does NOT install its own
-        // GLFW callbacks on this secondary window.  ImGui's callbacks use
-        // ImGui::GetCurrentContext() which is the primary window's context
-        // during glfwPollEvents(), causing input on the secondary window to
-        // be routed to the primary.  Instead, WindowManager's GLFW callbacks
-        // switch to the correct ImGui context and forward events manually.
-        imgui_ok = ui->imgui_ui->init(*backend_,
-                                      static_cast<GLFWwindow*>(wctx.glfw_window),
-                                      /*install_callbacks=*/false);
-    #elif defined(SPECTRA_USE_SDL3)
-        imgui_ok = ui->imgui_ui->init_sdl3(*backend_, static_cast<SDL_Window*>(wctx.glfw_window));
-    #endif
-        if (!imgui_ok)
+        if (!init_window_imgui_integration(*backend_, wctx, *ui->imgui_ui, false))
         {
             SPECTRA_LOG_ERROR(
                 "window_manager",
                 "init_window_ui: ImGui init failed for window " + std::to_string(wctx.id));
-            backend_->set_active_window(prev_active);
-            ImGui::SetCurrentContext(prev_imgui_ctx);
             return false;
         }
-
-        // Store the new window's ImGui context for later use
-        wctx.imgui_context = ImGui::GetCurrentContext();
-
-        // Restore previous active window and ImGui context
-        backend_->set_active_window(prev_active);
-        ImGui::SetCurrentContext(prev_imgui_ctx);
     }
 
-    auto* fig_mgr_ptr = ui->fig_mgr;
-
-    // Wire stored tab drag handlers so every window supports tear-off and cross-window move
-    if (tab_detach_handler_)
-    {
-        auto* reg     = registry_;
-        auto  handler = tab_detach_handler_;
-        ui->tab_drag_controller.set_on_drop_outside(
-            [fig_mgr_ptr, reg, handler](FigureId fid, float sx, float sy)
-            {
-                auto* fig = reg->get(fid);
-                if (!fig)
-                    return;
-                uint32_t    w     = fig->width() > 0 ? fig->width() : 800;
-                uint32_t    h     = fig->height() > 0 ? fig->height() : 600;
-                std::string title = fig_mgr_ptr->get_title(fid);
-                handler(fid, w, h, title, static_cast<int>(sx), static_cast<int>(sy));
-            });
-    }
-    if (tab_move_handler_)
-    {
-        auto  handler = tab_move_handler_;
-        auto* wm      = this;
-        ui->tab_drag_controller.set_on_drop_on_window(
-            [handler, wm](FigureId fid, uint32_t target_wid, float /*sx*/, float /*sy*/)
-            {
-                // Use the last computed cross-window drop zone (updated each frame
-                // during drag by TabDragController → compute_cross_window_drop_zone)
-                auto info = wm->cross_window_drop_info();
-                handler(fid, target_wid, info.zone, info.hx, info.hy, info.target_figure_id);
-            });
-    }
+    wire_tab_drag_handlers(*ui);
 
     SPECTRA_LOG_DEBUG("imgui", "Created ImGui context for window " + std::to_string(wctx.id));
 

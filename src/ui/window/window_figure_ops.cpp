@@ -422,30 +422,14 @@ void WindowManager::warmup_preview_window(uint32_t width, uint32_t height)
     glfwSetWindowCloseCallback(glfw_win, glfw_window_close_callback);
     glfwSetMouseButtonCallback(glfw_win, glfw_mouse_button_callback);
 
-    auto ui       = std::make_unique<WindowUIContext>();
-    ui->theme_mgr = theme_mgr_;
-    ui->imgui_ui  = std::make_unique<ImGuiIntegration>();
-    ui->imgui_ui->set_theme_manager(theme_mgr_);
-
-    ImGuiContext* prev_imgui_ctx = ImGui::GetCurrentContext();
-    auto*         prev_active    = backend_->active_window();
-    backend_->set_active_window(wctx.get());
-
-    if (!ui->imgui_ui->init(*backend_, glfw_win, /*install_callbacks=*/false))
+    if (!init_minimal_window_imgui(*wctx))
     {
         SPECTRA_LOG_WARN("window_manager", "warmup_preview_window: ImGui init failed");
-        backend_->set_active_window(prev_active);
-        ImGui::SetCurrentContext(prev_imgui_ctx);
         backend_->destroy_window_context(*wctx);
         glfwDestroyWindow(glfw_win);
         return;
     }
 
-    wctx->imgui_context = ImGui::GetCurrentContext();
-    backend_->set_active_window(prev_active);
-    ImGui::SetCurrentContext(prev_imgui_ctx);
-
-    wctx->ui_ctx    = std::move(ui);
     pooled_preview_ = std::move(wctx);
 
     SPECTRA_LOG_INFO("window_manager",
@@ -597,39 +581,18 @@ WindowContext* WindowManager::create_preview_window_impl(uint32_t           widt
     glfwSetWindowCloseCallback(glfw_win, glfw_window_close_callback);
     glfwSetMouseButtonCallback(glfw_win, glfw_mouse_button_callback);
 
-    // Initialize ImGui for this preview window so we can render the card
-    auto ui       = std::make_unique<WindowUIContext>();
-    ui->theme_mgr = theme_mgr_;
-
-    // Minimal ImGui init — no FigureManager, no DockSystem, no input
-    ui->imgui_ui = std::make_unique<ImGuiIntegration>();
-    ui->imgui_ui->set_theme_manager(theme_mgr_);
-
-    ImGuiContext* prev_imgui_ctx = ImGui::GetCurrentContext();
-    auto*         prev_active    = backend_->active_window();
-    backend_->set_active_window(wctx.get());
-
-    if (!ui->imgui_ui->init(*backend_, glfw_win, /*install_callbacks=*/false))
+    if (!init_minimal_window_imgui(*wctx))
     {
         SPECTRA_LOG_ERROR("window_manager", "create_preview_window: ImGui init failed");
-        backend_->set_active_window(prev_active);
-        ImGui::SetCurrentContext(prev_imgui_ctx);
         glfwDestroyWindow(glfw_win);
         return nullptr;
     }
-
-    wctx->imgui_context = ImGui::GetCurrentContext();
-    backend_->set_active_window(prev_active);
-    ImGui::SetCurrentContext(prev_imgui_ctx);
 
     preview_window_id_ = wctx->id;
 
     WindowContext* ptr = wctx.get();
     windows_.push_back(std::move(wctx));
     rebuild_active_list();
-
-    // Transfer UI context
-    ptr->ui_ctx = std::move(ui);
 
     SPECTRA_LOG_DEBUG("window_manager",
                       "Created preview window " + std::to_string(ptr->id) + ": "

@@ -13,15 +13,29 @@ class ExportFormatRegistry;
 class OverlayRegistry;
 class PluginManager;
 class SeriesClipboard;
+class VulkanBackend;
+
+struct WindowContext;
 
 #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
 class WindowManager;
+#endif
+
+#ifdef SPECTRA_USE_IMGUI
+class ImGuiIntegration;
 #endif
 
 namespace ui::settings
 {
 class SettingsStore;
 }
+
+enum class WindowUIContextBuildMode
+{
+    Full,        // FigureManager, commands, shortcuts, optional ImGuiIntegration object
+    Headless,    // FigureManager + ThemeManager only (golden tests, rapid teardown)
+    ImGuiOnly,   // ThemeManager + ImGuiIntegration object only (panel/preview windows)
+};
 
 struct WindowUIContextBuildOptions
 {
@@ -49,16 +63,22 @@ struct WindowUIContextBuildOptions
     std::function<void()>                  on_window_close_request;
     std::function<void(FigureId, Figure*)> on_figure_closed;
 
+    WindowUIContextBuildMode mode = WindowUIContextBuildMode::Full;
+
     bool create_imgui_integration = false;
 
-    // When true, creates a minimal headless-safe context with only
-    // FigureManager and ThemeManager — skips commands, shortcuts, input,
-    // animation, and ImGui-dependent objects to avoid destruction-order
-    // issues in rapid create/destroy cycles (e.g. golden tests).
+    // Deprecated: prefer `mode = WindowUIContextBuildMode::Headless`.
     bool headless = false;
 };
 
 std::unique_ptr<WindowUIContext> build_window_ui_context(
     const WindowUIContextBuildOptions& options);
+
+// Bind ImGuiIntegration to a native window, saving/restoring the backend's
+// active window and the thread-local ImGui context.
+bool init_window_imgui_integration(VulkanBackend&    backend,
+                                   WindowContext&    wctx,
+                                   ImGuiIntegration& imgui,
+                                   bool              install_callbacks = false);
 
 }   // namespace spectra

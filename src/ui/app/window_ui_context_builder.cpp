@@ -3,10 +3,20 @@
 #include <spectra/figure_registry.hpp>
 
 #include "register_commands.hpp"
+#include "render/vulkan/vk_backend.hpp"
+#include "render/vulkan/window_context.hpp"
 #include "window_ui_context.hpp"
 
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
+
+    #ifdef SPECTRA_USE_GLFW
+        #define GLFW_INCLUDE_NONE
+        #define GLFW_INCLUDE_VULKAN
+        #include <GLFW/glfw3.h>
+    #elif defined(SPECTRA_USE_SDL3)
+        #include <SDL3/SDL.h>
+    #endif
 
     #include "ui/figures/figure_manager.hpp"
     #include "ui/figures/tab_bar.hpp"
@@ -16,16 +26,83 @@
 namespace spectra
 {
 
+namespace
+{
+
+WindowUIContextBuildMode resolve_build_mode(const WindowUIContextBuildOptions& options)
+{
+    if (options.headless)
+        return WindowUIContextBuildMode::Headless;
+    return options.mode;
+}
+
+}   // namespace
+
+bool init_window_imgui_integration(VulkanBackend&    backend,
+                                   WindowContext&    wctx,
+                                   ImGuiIntegration& imgui,
+                                   bool              install_callbacks)
+{
+#ifdef SPECTRA_USE_IMGUI
+    if (!wctx.glfw_window)
+        return false;
+
+    ImGuiContext* prev_imgui_ctx = ImGui::GetCurrentContext();
+    auto*         prev_active    = backend.active_window();
+    backend.set_active_window(&wctx);
+
+    bool imgui_ok = false;
+    #ifdef SPECTRA_USE_GLFW
+    imgui_ok = imgui.init(backend, static_cast<GLFWwindow*>(wctx.glfw_window), install_callbacks);
+    #elif defined(SPECTRA_USE_SDL3)
+    imgui_ok = imgui.init_sdl3(backend, static_cast<SDL_Window*>(wctx.glfw_window));
+    (void)install_callbacks;
+    #endif
+
+    if (!imgui_ok)
+    {
+        backend.set_active_window(prev_active);
+        ImGui::SetCurrentContext(prev_imgui_ctx);
+        return false;
+    }
+
+    wctx.imgui_context = ImGui::GetCurrentContext();
+    backend.set_active_window(prev_active);
+    ImGui::SetCurrentContext(prev_imgui_ctx);
+    return true;
+#else
+    (void)backend;
+    (void)wctx;
+    (void)imgui;
+    (void)install_callbacks;
+    return false;
+#endif
+}
+
 std::unique_ptr<WindowUIContext> build_window_ui_context(const WindowUIContextBuildOptions& options)
 {
-    if (!options.registry || !options.theme_mgr)
+    if (!options.theme_mgr)
         return nullptr;
+
+    const auto mode = resolve_build_mode(options);
 
     auto ui       = std::make_unique<WindowUIContext>();
     ui->theme_mgr = options.theme_mgr;
 
+    if (mode == WindowUIContextBuildMode::ImGuiOnly)
+    {
+#ifdef SPECTRA_USE_IMGUI
+        ui->imgui_ui = std::make_unique<ImGuiIntegration>();
+        ui->imgui_ui->set_theme_manager(options.theme_mgr);
+#endif
+        return ui;
+    }
+
+    if (!options.registry)
+        return nullptr;
+
     // Headless path: minimal FigureManager-only context.
-    if (options.headless)
+    if (mode == WindowUIContextBuildMode::Headless)
     {
 #ifdef SPECTRA_USE_IMGUI
         ui->fig_mgr_owned = std::make_unique<FigureManager>(*options.registry);

@@ -668,11 +668,11 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
     {
         for (auto& pm : pending_moves_)
         {
-            fprintf(stderr,
-                    "[move] Processing: fig=%lu → target_wid=%u drop_zone=%d\n",
-                    (unsigned long)pm.figure_id,
-                    pm.target_window_id,
-                    pm.drop_zone);
+            SPECTRA_LOG_DEBUG("window_manager",
+                              "Processing cross-window move: fig="
+                                  + std::to_string(pm.figure_id) + " target_wid="
+                                  + std::to_string(pm.target_window_id) + " drop_zone="
+                                  + std::to_string(pm.drop_zone));
 
             // Find source window (the one that has this figure)
             WindowContext* src_wctx = nullptr;
@@ -692,11 +692,12 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
 
             if (!src_wctx || !dst_wctx || src_wctx == dst_wctx)
             {
-                fprintf(stderr,
-                        "[move]   SKIP: src=%p dst=%p same=%d\n",
-                        (void*)src_wctx,
-                        (void*)dst_wctx,
-                        src_wctx == dst_wctx ? 1 : 0);
+                SPECTRA_LOG_DEBUG("window_manager",
+                                  "Skipping cross-window move: fig="
+                                      + std::to_string(pm.figure_id) + " src_valid="
+                                      + std::to_string(src_wctx != nullptr) + " dst_valid="
+                                      + std::to_string(dst_wctx != nullptr) + " same_window="
+                                      + std::to_string(src_wctx == dst_wctx));
                 continue;
             }
             if (!src_wctx->ui_ctx || !src_wctx->ui_ctx->fig_mgr)
@@ -818,15 +819,15 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
                 }
             }
 
-            fprintf(stderr,
-                    "[move]   DONE: fig=%lu moved %u→%u "
-                    "(src_figs=%zu dst_figs=%zu split=%d)\n",
-                    static_cast<unsigned long>(pm.figure_id),
-                    src_wctx->id,
-                    dst_wctx->id,
-                    src_wctx->assigned_figures.size(),
-                    dst_wctx->assigned_figures.size(),
-                    dst_dock.is_split() ? 1 : 0);
+            SPECTRA_LOG_DEBUG("window_manager",
+                              "Cross-window move complete: fig="
+                                  + std::to_string(pm.figure_id) + " "
+                                  + std::to_string(src_wctx->id) + "->"
+                                  + std::to_string(dst_wctx->id) + " src_figs="
+                                  + std::to_string(src_wctx->assigned_figures.size())
+                                  + " dst_figs="
+                                  + std::to_string(dst_wctx->assigned_figures.size()) + " split="
+                                  + std::to_string(dst_dock.is_split() ? 1 : 0));
         }
         pending_moves_.clear();
     }

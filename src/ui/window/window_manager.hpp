@@ -7,6 +7,7 @@
 #include <memory>
 #include <optional>
 #include <spectra/fwd.hpp>
+#include "ui/app/window_ui_context_builder.hpp"
 #include "ui/commands/series_clipboard.hpp"
 #include "ui/overlay/overlay_registry.hpp"
 #include <string>
@@ -321,9 +322,15 @@ class WindowManager
 
     void request_redraw(const char* reason);
 
-    // Initialize the full UI subsystem bundle for a WindowContext.
-    // Creates ImGuiIntegration, FigureManager, DockSystem, InputHandler, etc.
+    // Initialize the full UI subsystem bundle (ImGui, FigureManager, etc.)
     bool init_window_ui(WindowContext& wctx, FigureId initial_figure_id);
+
+    WindowUIContextBuildOptions make_ui_build_options(WindowContext& wctx,
+                                                      FigureId       initial_figure_id);
+
+    bool init_minimal_window_imgui(WindowContext& wctx);
+
+    void wire_tab_drag_handlers(WindowUIContext& ui);
 
     VulkanBackend*                              backend_   = nullptr;
     FigureRegistry*                             registry_  = nullptr;

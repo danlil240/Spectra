@@ -23,10 +23,10 @@
 #include "ui/commands/command_queue.hpp"
 #include <spectra/figure_registry.hpp>
 #include "ui/overlay/knob_manager.hpp"
-#include "ui/app/register_commands.hpp"
 #include "ui/app/session_runtime.hpp"
 #include "ui/app/window_runtime.hpp"
 #include "ui/app/window_ui_context.hpp"
+#include "ui/app/window_ui_context_builder.hpp"
 #include "ui/theme/theme.hpp"
 
 #ifdef SPECTRA_USE_IMGUI
@@ -948,15 +948,20 @@ int main(int argc, char* argv[])
     window_mgr->warmup_preview_window();
 #endif
 
-    // Headless fallback
+    // Headless fallback — shared builder assembly (commands, shortcuts, FigureManager)
     std::unique_ptr<spectra::WindowUIContext> headless_ui_ctx;
     if (!ui_ctx_ptr)
     {
-        headless_ui_ctx                = std::make_unique<spectra::WindowUIContext>();
-        headless_ui_ctx->theme_mgr     = &theme_mgr;
-        headless_ui_ctx->fig_mgr_owned = std::make_unique<spectra::FigureManager>(registry);
-        headless_ui_ctx->fig_mgr       = headless_ui_ctx->fig_mgr_owned.get();
-        ui_ctx_ptr                     = headless_ui_ctx.get();
+        spectra::WindowUIContextBuildOptions opts;
+        opts.registry          = &registry;
+        opts.theme_mgr         = &theme_mgr;
+        opts.initial_figure_id = frame_state.active_figure_id;
+        opts.active_figure     = &active_figure;
+        opts.active_figure_id  = &active_figure_id;
+        opts.session           = &session;
+        opts.settings_store    = &settings_store;
+        headless_ui_ctx        = spectra::build_window_ui_context(opts);
+        ui_ctx_ptr             = headless_ui_ctx.get();
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -965,22 +970,16 @@ int main(int argc, char* argv[])
     // ═══════════════════════════════════════════════════════════════════════
 
 #ifdef SPECTRA_USE_IMGUI
-    auto& imgui_ui              = ui_ctx_ptr->imgui_ui;
-    auto& figure_tabs           = ui_ctx_ptr->figure_tabs;
-    auto& dock_system           = ui_ctx_ptr->dock_system;
-    auto& timeline_editor       = ui_ctx_ptr->timeline_editor;
-    auto& keyframe_interpolator = ui_ctx_ptr->keyframe_interpolator;
-    auto& curve_editor          = ui_ctx_ptr->curve_editor;
-    auto& shortcut_mgr          = ui_ctx_ptr->shortcut_mgr;
-    auto& cmd_palette           = ui_ctx_ptr->cmd_palette;
-    auto& cmd_registry          = ui_ctx_ptr->cmd_registry;
-    auto& tab_drag_controller   = ui_ctx_ptr->tab_drag_controller;
-    auto& fig_mgr               = *ui_ctx_ptr->fig_mgr;
-    auto& input_handler         = ui_ctx_ptr->input_handler;
+    auto& imgui_ui            = ui_ctx_ptr->imgui_ui;
+    auto& figure_tabs         = ui_ctx_ptr->figure_tabs;
+    auto& dock_system         = ui_ctx_ptr->dock_system;
+    auto& timeline_editor     = ui_ctx_ptr->timeline_editor;
+    auto& cmd_palette         = ui_ctx_ptr->cmd_palette;
+    auto& tab_drag_controller = ui_ctx_ptr->tab_drag_controller;
+    auto& fig_mgr             = *ui_ctx_ptr->fig_mgr;
+    auto& input_handler       = ui_ctx_ptr->input_handler;
 
-    // Sync timeline with figure animation settings
-    timeline_editor.set_interpolator(&keyframe_interpolator);
-    curve_editor.set_interpolator(&keyframe_interpolator);
+    // Sync timeline with figure animation settings (builder wires interpolators).
     if (active_figure && active_figure->anim_duration() > 0.0f)
         timeline_editor.set_duration(active_figure->anim_duration());
     else if (frame_state.has_animation)
@@ -991,11 +990,6 @@ int main(int argc, char* argv[])
         timeline_editor.set_fps(active_figure->anim_fps());
     if (frame_state.has_animation)
         timeline_editor.play();
-
-    shortcut_mgr.set_command_registry(&cmd_registry);
-    shortcut_mgr.register_defaults();
-    cmd_palette.set_command_registry(&cmd_registry);
-    cmd_palette.set_shortcut_manager(&shortcut_mgr);
 
     #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
     if (window_mgr)
@@ -1120,18 +1114,6 @@ int main(int argc, char* argv[])
 
         cmd_palette.set_body_font(nullptr);
         cmd_palette.set_heading_font(nullptr);
-
-        // Register ALL standard commands (same as inproc)
-        spectra::CommandBindings cb;
-        cb.ui_ctx           = ui_ctx_ptr;
-        cb.registry         = &registry;
-        cb.active_figure    = &active_figure;
-        cb.active_figure_id = &active_figure_id;
-        cb.session          = &session;
-    #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
-        cb.window_mgr = window_mgr.get();
-    #endif
-        spectra::register_standard_commands(cb);
     }
 #endif
 

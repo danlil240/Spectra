@@ -544,7 +544,7 @@ void App::init_runtime()
         WindowUIContextBuildOptions headless_opts;
         headless_opts.registry       = &registry_;
         headless_opts.theme_mgr      = theme_mgr_.get();
-        headless_opts.headless       = true;
+        headless_opts.mode           = WindowUIContextBuildMode::Headless;
         headless_opts.settings_store = rt.settings_store.get();
         rt.headless_ui_ctx           = build_window_ui_context(headless_opts);
         rt.ui_ctx_ptr                = rt.headless_ui_ctx.get();

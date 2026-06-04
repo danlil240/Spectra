@@ -220,6 +220,9 @@ class DataInteraction
     // Returns true when dispatch succeeded.
     bool dispatch_series_selection_from_nearest();
 
+    // Refresh cached cursor/axes/nearest-point state for an explicit screen position.
+    bool refresh_pointer_state(double screen_x, double screen_y);
+
     // Perform nearest-point spatial query across all visible series in the active axes.
     NearestPointResult find_nearest(const CursorReadout& cursor, Figure& figure) const;
 

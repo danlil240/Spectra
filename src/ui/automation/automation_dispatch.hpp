@@ -16,7 +16,7 @@ struct WindowUIContext;
 bool json_has_key(const std::string& json, const std::string& key);
 
 bool check_automation_context(AutomationContextFlag flags,
-                              App&                  app,
+                              App*                  app,
                               WindowUIContext*      ui_ctx,
                               std::string&          error);
 

@@ -22,7 +22,7 @@ bool json_has_key(const std::string& json, const std::string& key)
 }
 
 bool check_automation_context(AutomationContextFlag flags,
-                              App&                  app,
+                              App*                  app,
                               WindowUIContext*      ui_ctx,
                               std::string&          error)
 {
@@ -58,7 +58,7 @@ bool check_automation_context(AutomationContextFlag flags,
     }
 #endif
 
-    if (has_automation_flag(flags, F::Backend) && !app.backend())
+    if (has_automation_flag(flags, F::Backend) && (!app || !app->backend()))
     {
         error = "No backend available";
         return false;
@@ -110,7 +110,7 @@ AutomationHandlerFn wrap_automation_handler(AutomationHandlerEntry entry)
     return [entry = std::move(entry)](AutomationRequest& req, App& app, WindowUIContext* ui_ctx)
     {
         std::string err;
-        if (!check_automation_context(entry.context, app, ui_ctx, err))
+        if (!check_automation_context(entry.context, &app, ui_ctx, err))
         {
             req.response_json = json_error(req.id, err);
             return;

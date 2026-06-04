@@ -53,20 +53,18 @@ TEST(AutomationDispatch, ValidateRequiredNumericParam)
 
 TEST(AutomationDispatch, CheckContextUiContextMissing)
 {
-    App            app;
-    std::string    error;
+    std::string      error;
     WindowUIContext* ui = nullptr;
     EXPECT_FALSE(
-        check_automation_context(AutomationContextFlag::UiContext, app, ui, error));
+        check_automation_context(AutomationContextFlag::UiContext, nullptr, ui, error));
     EXPECT_EQ(error, "No UI context");
 }
 
 TEST(AutomationDispatch, CheckContextNoneAlwaysPasses)
 {
-    App            app;
-    std::string    error;
+    std::string      error;
     WindowUIContext* ui = nullptr;
-    EXPECT_TRUE(check_automation_context(AutomationContextFlag::None, app, ui, error));
+    EXPECT_TRUE(check_automation_context(AutomationContextFlag::None, nullptr, ui, error));
 }
 
 TEST(AutomationDispatch, SerializeHandlerCatalog)

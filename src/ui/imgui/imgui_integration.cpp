@@ -420,6 +420,13 @@ void ImGuiIntegration::update_layout(float window_width, float window_height, fl
     }
 }
 
+void ImGuiIntegration::set_nav_rail_visible(bool v)
+{
+    show_nav_rail_ = v;
+    if (layout_manager_)
+        layout_manager_->set_nav_rail_visible(v);
+}
+
 void ImGuiIntegration::new_frame()
 {
     if (!initialized_)

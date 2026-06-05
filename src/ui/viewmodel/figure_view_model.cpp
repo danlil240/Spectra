@@ -123,38 +123,6 @@ void FigureViewModel::set_custom_title(const std::string& title)
     notify_changed(ChangeField::CustomTitle);
 }
 
-void FigureViewModel::set_is_in_3d_mode(bool v)
-{
-    if (v == is_in_3d_mode_)
-        return;
-    bool old       = is_in_3d_mode_;
-    is_in_3d_mode_ = v;
-    if (undo_mgr_ && !suppressing_undo_)
-    {
-        auto* self = this;
-        undo_mgr_->push(UndoAction{v ? "Switch to 3D" : "Switch to 2D",
-                                   [self, old]()
-                                   {
-                                       self->suppressing_undo_ = true;
-                                       self->set_is_in_3d_mode(old);
-                                       self->suppressing_undo_ = false;
-                                   },
-                                   [self, v]()
-                                   {
-                                       self->suppressing_undo_ = true;
-                                       self->set_is_in_3d_mode(v);
-                                       self->suppressing_undo_ = false;
-                                   }});
-    }
-    notify_changed(ChangeField::IsIn3DMode);
-}
-
-void FigureViewModel::set_saved_3d_camera(const Camera& cam)
-{
-    saved_3d_camera_ = cam;
-    notify_changed(ChangeField::Saved3DCamera);
-}
-
 void FigureViewModel::set_home_limit(Axes* ax, const InitialLimits& lim)
 {
     home_limits_[ax] = lim;

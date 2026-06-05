@@ -11,6 +11,7 @@
 #include "ui/animation/transition_engine.hpp"
 #include "ui/commands/undo_manager.hpp"
 #include "ui/data/axis_link.hpp"
+#include "ui/overlay/axes3d_axis_pick.hpp"
 #include "ui/overlay/data_interaction.hpp"
 
 namespace spectra
@@ -22,7 +23,73 @@ constexpr int MOUSE_BUTTON_LEFT  = 0;
 constexpr int MOUSE_BUTTON_RIGHT = 1;
 constexpr int ACTION_PRESS       = 1;
 constexpr int ACTION_RELEASE     = 0;
+
 }   // anonymous namespace
+
+void InputHandler::update_axes3d_arrow_hover(AxesBase* hit_base, double x, double y)
+{
+    if (is_3d_orbit_drag_ || is_3d_pan_drag_ || rclick_zoom_dragging_)
+        return;
+
+    if (figure_)
+    {
+        for (auto& axes_ptr : figure_->all_axes_mut())
+        {
+            auto* axes3d = dynamic_cast<Axes3D*>(axes_ptr.get());
+            if (axes3d)
+                axes3d->set_hovered_axis_arrow(Axes3D::AxisArrowHover::None);
+        }
+    }
+
+    auto* axes3d = dynamic_cast<Axes3D*>(hit_base);
+    if (!axes3d)
+        return;
+
+    const Axis3DArrowPick pick =
+        pick_axes3d_axis_arrow(*axes3d, static_cast<float>(x), static_cast<float>(y));
+    axes3d->set_hovered_axis_arrow(axis_pick_to_hover(pick));
+}
+
+void InputHandler::snap_axes3d_axis_view(Axes3D* axes3d, Camera::AxisView axis_view)
+{
+    Camera&      cam    = axes3d->camera();
+    const Camera before = cam;
+
+    Camera target = cam;
+    target.align_view_to_axis(axis_view);
+
+    if (transition_engine_)
+    {
+        transition_engine_->cancel_for_camera(&cam);
+        transition_engine_->animate_camera(cam, target, AUTOFIT_ANIM_DURATION, ease::ease_out);
+    }
+    else if (anim_ctrl_)
+    {
+        anim_ctrl_->cancel_all();
+        anim_ctrl_->animate_camera(cam, target, AUTOFIT_ANIM_DURATION, ease::ease_out);
+    }
+    else
+    {
+        cam = target;
+        cam.update_position_from_orbit();
+    }
+
+    if (undo_mgr_)
+    {
+        Axes3D* ax = axes3d;
+        undo_mgr_->push(UndoAction{"Align 3D axis view",
+                                   [ax, before]()
+                                   {
+                                       ax->camera() = before;
+                                       ax->camera().update_position_from_orbit();
+                                   },
+                                   [ax, target]()
+                                   {
+                                       ax->camera() = target;
+                                       ax->camera().update_position_from_orbit();
+                                   }});
+    }
+}
 
 // ─── 3D camera interaction (orbit, right-click zoom, middle-pan) ────────────
 
@@ -34,6 +101,31 @@ void InputHandler::handle_mouse_button_3d(Axes3D* axes3d,
 {
     if (button == MOUSE_BUTTON_LEFT && action == ACTION_PRESS)
     {
+        if (gesture_ && gesture_->on_click(x, y))
+        {
+            is_3d_orbit_drag_ = false;
+            mode_             = InteractionMode::Idle;
+            drag3d_axes_      = nullptr;
+
+            const Axis3DArrowPick axis_pick = pick_axes3d_axis_arrow(*axes3d, static_cast<float>(x),
+                                                                     static_cast<float>(y));
+            if (axis_pick != Axis3DArrowPick::None)
+            {
+                SPECTRA_LOG_DEBUG("input", "Double-click on 3D axis arrow — align view");
+                snap_axes3d_axis_view(axes3d, axis_pick_to_camera_view(axis_pick));
+                return;
+            }
+
+            SPECTRA_LOG_DEBUG("input", "Double-click on 3D axes — auto-fit");
+            axes3d->auto_fit();
+            return;
+        }
+
+        if (transition_engine_)
+            transition_engine_->cancel_for_camera(&axes3d->camera());
+        else if (anim_ctrl_)
+            anim_ctrl_->cancel_all();
+
         is_3d_orbit_drag_ = true;
         drag_start_x_     = x;
         drag_start_y_     = y;
@@ -48,8 +140,34 @@ void InputHandler::handle_mouse_button_3d(Axes3D* axes3d,
     }
     if (button == MOUSE_BUTTON_LEFT && action == ACTION_RELEASE && is_3d_orbit_drag_)
     {
+        const double    dx_click    = x - drag_start_x_;
+        const double    dy_click    = y - drag_start_y_;
+        const float     move_dist   = static_cast<float>(std::sqrt(dx_click * dx_click + dy_click * dy_click));
+        constexpr float CLICK_THRESHOLD_PX = 5.0f;
+        const bool      was_click   = move_dist < CLICK_THRESHOLD_PX;
+
         is_3d_orbit_drag_ = false;
         mode_             = InteractionMode::Idle;
+
+        if (was_click && data_interaction_)
+        {
+            // Short click: undo only micro-orbit jitter, not an intentional nudge away
+            // from an axis-aligned snap (drag3d_start may be the snapped pose).
+            auto& cam = axes3d->camera();
+            const float angle_delta = std::abs(cam.azimuth - drag3d_start_camera_.azimuth)
+                                      + std::abs(cam.elevation - drag3d_start_camera_.elevation);
+            const vec3  pos_delta   = cam.position - drag3d_start_camera_.position;
+            const float pos_delta2  = vec3_length_sq(pos_delta);
+            if (angle_delta < 0.5f && pos_delta2 < 1e-4f)
+            {
+                cam = drag3d_start_camera_;
+                cam.update_position_from_orbit();
+            }
+            data_interaction_->on_mouse_click_datatip_only(0, x, y);
+            drag3d_axes_ = nullptr;
+            return;
+        }
+
         // Push undo for orbit drag
         if (undo_mgr_ && drag3d_axes_ == axes3d)
         {
@@ -72,7 +190,7 @@ void InputHandler::handle_mouse_button_3d(Axes3D* axes3d,
                                        {
                                            ax->camera() = after_camera;
                                            ax->camera().update_position_from_orbit();
-                                       }});
+                                           }});
         }
         drag3d_axes_ = nullptr;
         return;
@@ -558,15 +676,13 @@ void InputHandler::handle_mouse_move_3d_drag(double x, double y)
         auto  dx  = static_cast<float>(x - drag_start_x_);
         auto  dy  = static_cast<float>(y - drag_start_y_);
 
-        if (is_3d_orbit_drag_ && !orbit_locked_)
+        if (is_3d_orbit_drag_)
         {
+            if (transition_engine_)
+                transition_engine_->cancel_for_camera(&cam);
+            else if (anim_ctrl_)
+                anim_ctrl_->cancel_all();
             cam.orbit(dx * ORBIT_SENSITIVITY, -dy * ORBIT_SENSITIVITY);
-        }
-        else if (is_3d_orbit_drag_ && orbit_locked_)
-        {
-            // In 2D mode, orbit drag becomes pan
-            const auto& vp = viewport_for_axes(axes3d);
-            cam.pan(dx, dy, vp.w, vp.h);
         }
         else if (is_3d_pan_drag_)
         {

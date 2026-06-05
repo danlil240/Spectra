@@ -534,20 +534,29 @@ void Renderer::render_arrows(Axes3D& axes, const Rect& /*viewport*/)
         backend_.bind_pipeline(arrow3d_pipeline_);
 
         float arrow_colors[][4] = {
-            {0.902f, 0.275f, 0.275f, 1.0f},   // X: red
-            {0.275f, 0.784f, 0.275f, 1.0f},   // Y: green
-            {0.314f, 0.510f, 1.000f, 1.0f},   // Z: blue
+            {0.902f, 0.275f, 0.275f, 0.88f},   // X: red
+            {0.275f, 0.784f, 0.275f, 0.88f},   // Y: green
+            {0.314f, 0.510f, 1.000f, 0.88f},   // Z: blue
         };
+        constexpr float kHoverBrighten = 1.55f;
+
+        const Axes3D::AxisArrowHover hover = axes.hovered_axis_arrow();
 
         backend_.bind_buffer(gpu.arrow_tri_buffer, 0);
         uint32_t num_arrows = total_floats / FLOATS_PER_ARROW;
         for (uint32_t i = 0; i < num_arrows && i < 3; ++i)
         {
+            const bool is_hovered =
+                (i == 0 && hover == Axes3D::AxisArrowHover::X)
+                || (i == 1 && hover == Axes3D::AxisArrowHover::Y)
+                || (i == 2 && hover == Axes3D::AxisArrowHover::Z);
+            const float brighten = is_hovered ? kHoverBrighten : 1.0f;
+
             SeriesPushConstants pc{};
-            pc.color[0] = arrow_colors[i][0];
-            pc.color[1] = arrow_colors[i][1];
-            pc.color[2] = arrow_colors[i][2];
-            pc.color[3] = arrow_colors[i][3];
+            pc.color[0] = std::min(arrow_colors[i][0] * brighten, 1.0f);
+            pc.color[1] = std::min(arrow_colors[i][1] * brighten, 1.0f);
+            pc.color[2] = std::min(arrow_colors[i][2] * brighten, 1.0f);
+            pc.color[3] = is_hovered ? 1.0f : arrow_colors[i][3];
             pc.opacity  = 1.0f;
             backend_.push_constants(pc);
             backend_.draw(VERTS_PER_ARROW, i * VERTS_PER_ARROW);

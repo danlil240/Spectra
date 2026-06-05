@@ -151,9 +151,10 @@ class DataInteraction
     {
         if (!fig || last_figure_ == fig)
         {
-            last_figure_ = nullptr;
-            active_axes_ = nullptr;
-            region_axes_ = nullptr;
+            last_figure_   = nullptr;
+            active_axes_   = nullptr;
+            active_axes3d_ = nullptr;
+            region_axes_   = nullptr;
             // Reset nearest-point result — it holds a raw Series* pointer
             // that becomes dangling when the figure's series are destroyed.
             nearest_ = {};
@@ -226,6 +227,9 @@ class DataInteraction
     // Perform nearest-point spatial query across all visible series in the active axes.
     NearestPointResult find_nearest(const CursorReadout& cursor, Figure& figure) const;
 
+    // Pin / unpin a datatip at the current nearest point (2D or 3D). Returns true if handled.
+    bool try_toggle_datatip_at_nearest();
+
     NearestPointResult nearest_;
     Tooltip            tooltip_;
     Crosshair          crosshair_;
@@ -249,7 +253,8 @@ class DataInteraction
     // Cached state for drawing
     CursorReadout last_cursor_;
     Figure*       last_figure_ = nullptr;
-    Axes*         active_axes_ = nullptr;
+    Axes*         active_axes_  = nullptr;
+    const Axes3D* active_axes3d_ = nullptr;
     Rect          active_viewport_;
     float         xlim_min_ = 0.0f, xlim_max_ = 1.0f;
     float         ylim_min_ = 0.0f, ylim_max_ = 1.0f;

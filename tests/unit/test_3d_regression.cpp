@@ -10,6 +10,8 @@
 
 #include "render/backend.hpp"
 #include "ui/animation/camera_animator.hpp"
+#include "ui/overlay/axes3d_axis_pick.hpp"
+#include "ui/overlay/axes3d_pick.hpp"
 
 using namespace spectra;
 
@@ -639,6 +641,34 @@ TEST_F(Regression3DTest, CameraOrbitChangesPosition)
     vec3 after = ax.camera().position;
 
     EXPECT_NE(before.x, after.x);
+}
+
+TEST_F(Regression3DTest, AxisArrowPickAndAlignView)
+{
+    auto& ax = app_->figure().subplot3d(1, 1, 1);
+    ax.xlim(0.0, 1.0);
+    ax.ylim(0.0, 1.0);
+    ax.zlim(0.0, 1.0);
+    ax.set_viewport(Rect{0.0f, 0.0f, 800.0f, 600.0f});
+    ax.camera().set_azimuth(35.0f).set_elevation(25.0f).set_distance(6.0f);
+
+    const float             arrow_len_x = 0.18f;
+    const Projected3DPoint  px0       = project_axes3d_data_point(ax, {1.0f, 0.0f, 0.0f});
+    const Projected3DPoint  px1 =
+        project_axes3d_data_point(ax, {1.0f + arrow_len_x, 0.0f, 0.0f});
+    ASSERT_TRUE(px0.visible && px1.visible);
+
+    const float mid_x = 0.5f * (px0.screen_x + px1.screen_x);
+    const float mid_y = 0.5f * (px0.screen_y + px1.screen_y);
+    EXPECT_EQ(pick_axes3d_axis_arrow(ax, mid_x, mid_y, 32.0f), Axis3DArrowPick::X);
+    EXPECT_EQ(pick_axes3d_axis_arrow(ax, mid_x + 200.0f, mid_y, 32.0f), Axis3DArrowPick::None);
+
+    ax.camera().align_view_to_axis(Camera::AxisView::PositiveY);
+    EXPECT_NEAR(ax.camera().elevation, 75.0f, 0.1f);
+    ax.camera().align_view_to_axis(Camera::AxisView::PositiveX);
+    EXPECT_NEAR(ax.camera().azimuth, 0.0f, 0.1f);
+    EXPECT_NEAR(ax.camera().elevation, 0.0f, 0.1f);
+    EXPECT_NEAR(ax.camera().position.x, 6.0f, 0.1f);
 }
 
 TEST_F(Regression3DTest, CameraSerializationRoundTrip)

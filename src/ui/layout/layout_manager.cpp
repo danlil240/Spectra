@@ -28,8 +28,12 @@ void LayoutManager::update(float window_width, float window_height, float dt)
 
     // Compute animation targets
     float inspector_target = inspector_visible_ ? inspector_width_ : 0.0f;
-    float nav_rail_target =
-        nav_rail_expanded_ ? nav_rail_expanded_width_ : nav_rail_collapsed_width_;
+    float nav_rail_target = 0.0f;
+    if (nav_rail_visible_)
+    {
+        nav_rail_target =
+            nav_rail_expanded_ ? nav_rail_expanded_width_ : nav_rail_collapsed_width_;
+    }
 
     // Animate toward targets (snap instantly during live resize so chrome zones
     // don't lag behind the swapchain and expose the plot background underneath).
@@ -93,7 +97,7 @@ Rect LayoutManager::compute_tab_bar() const
     {
         return Rect{0.0f, 0.0f, 0.0f, 0.0f};
     }
-    float x = NAV_TOOLBAR_INSET + PLOT_LEFT_MARGIN;
+    float x = nav_rail_anim_width_ + PLOT_LEFT_MARGIN;
     float w = window_width_ - x - inspector_anim_width_;
     return Rect{x, COMMAND_BAR_HEIGHT, std::max(0.0f, w), TAB_BAR_HEIGHT};
 }
@@ -104,8 +108,8 @@ Rect LayoutManager::compute_canvas() const
     if (canvas_override_set_)
         return canvas_override_;
 
-    float x = NAV_TOOLBAR_INSET;
-    float w = window_width_ - NAV_TOOLBAR_INSET - inspector_anim_width_;
+    float x = nav_rail_anim_width_;
+    float w = window_width_ - nav_rail_anim_width_ - inspector_anim_width_;
     float y = COMMAND_BAR_HEIGHT;
 
     float h = window_height_ - COMMAND_BAR_HEIGHT - STATUS_BAR_HEIGHT - bottom_panel_height_;
@@ -149,13 +153,18 @@ Rect LayoutManager::tab_bar_rect() const
 
 float LayoutManager::nav_rail_width() const
 {
+    if (!nav_rail_visible_)
+        return 0.0f;
     return nav_rail_expanded_ ? nav_rail_expanded_width_ : nav_rail_collapsed_width_;
 }
 
 bool LayoutManager::is_animating() const
 {
     float inspector_target = inspector_visible_ ? inspector_width_ : 0.0f;
-    float nav_target = nav_rail_expanded_ ? nav_rail_expanded_width_ : nav_rail_collapsed_width_;
+    float nav_target = nav_rail_visible_
+                           ? (nav_rail_expanded_ ? nav_rail_expanded_width_
+                                                 : nav_rail_collapsed_width_)
+                           : 0.0f;
     return std::abs(inspector_anim_width_ - inspector_target) > 0.5f
            || std::abs(nav_rail_anim_width_ - nav_target) > 0.5f;
 }
@@ -185,6 +194,11 @@ void LayoutManager::reset_inspector_width()
 void LayoutManager::set_nav_rail_width(float width)
 {
     nav_rail_expanded_width_ = std::max(width, NAV_RAIL_COLLAPSED_WIDTH);
+}
+
+void LayoutManager::set_nav_rail_visible(bool visible)
+{
+    nav_rail_visible_ = visible;
 }
 
 void LayoutManager::set_nav_rail_expanded(bool expanded)

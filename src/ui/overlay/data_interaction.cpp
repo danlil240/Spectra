@@ -7,9 +7,12 @@
     #include <imgui.h>
     #include <limits>
     #include <spectra/axes.hpp>
+    #include <spectra/axes3d.hpp>
     #include <spectra/figure.hpp>
     #include <spectra/series.hpp>
+    #include <spectra/series3d.hpp>
 
+    #include "axes3d_pick.hpp"
     #include "ui/data/axis_link.hpp"
 
 namespace spectra
@@ -157,26 +160,47 @@ void DataInteraction::update(const CursorReadout& cursor, Figure& figure)
     #endif
     legend_.update(dt, figure);
 
-    // Determine which axes the cursor is over by hit-testing viewports
-    active_axes_ = nullptr;
+    // Determine which axes the cursor is over by hit-testing viewports (2D then 3D)
+    active_axes_   = nullptr;
+    active_axes3d_ = nullptr;
+    auto sx        = static_cast<float>(cursor.screen_x);
+    auto sy        = static_cast<float>(cursor.screen_y);
+    auto try_axes_hit = [&](AxesBase* axes_base) -> bool
+    {
+        if (!axes_base || !cursor.valid)
+            return false;
+        const auto& vp = axes_base->viewport();
+        if (sx < vp.x || sx > vp.x + vp.w || sy < vp.y || sy > vp.y + vp.h)
+            return false;
+        active_viewport_ = vp;
+        if (auto* axes2d = dynamic_cast<Axes*>(axes_base))
+        {
+            active_axes_ = axes2d;
+            auto xl      = axes2d->x_limits();
+            auto yl      = axes2d->y_limits();
+            xlim_min_    = xl.min;
+            xlim_max_    = xl.max;
+            ylim_min_    = yl.min;
+            ylim_max_    = yl.max;
+        }
+        else if (auto* axes3d = dynamic_cast<Axes3D*>(axes_base))
+        {
+            active_axes3d_ = axes3d;
+        }
+        return true;
+    };
+
     for (auto& axes_ptr : figure.axes())
     {
-        if (!axes_ptr)
-            continue;
-        const auto& vp = axes_ptr->viewport();
-        auto        sx = static_cast<float>(cursor.screen_x);
-        auto        sy = static_cast<float>(cursor.screen_y);
-        if (cursor.valid && sx >= vp.x && sx <= vp.x + vp.w && sy >= vp.y && sy <= vp.y + vp.h)
-        {
-            active_axes_     = axes_ptr.get();
-            active_viewport_ = vp;
-            auto xl          = axes_ptr->x_limits();
-            auto yl          = axes_ptr->y_limits();
-            xlim_min_        = xl.min;
-            xlim_max_        = xl.max;
-            ylim_min_        = yl.min;
-            ylim_max_        = yl.max;
+        if (try_axes_hit(axes_ptr.get()))
             break;
+    }
+    if (!active_axes_ && !active_axes3d_)
+    {
+        for (auto& axes_ptr : figure.all_axes())
+        {
+            if (try_axes_hit(axes_ptr.get()))
+                break;
         }
     }
 
@@ -214,41 +238,64 @@ bool DataInteraction::refresh_pointer_state(double screen_x, double screen_y)
     cursor.screen_x = screen_x;
     cursor.screen_y = screen_y;
 
-    active_axes_ = nullptr;
+    active_axes_   = nullptr;
+    active_axes3d_ = nullptr;
+    const auto sx  = static_cast<float>(screen_x);
+    const auto sy  = static_cast<float>(screen_y);
+
+    auto try_refresh_hit = [&](AxesBase* axes_base) -> bool
+    {
+        if (!axes_base)
+            return false;
+        const auto& vp = axes_base->viewport();
+        if (vp.w <= 0.0f || vp.h <= 0.0f)
+            return false;
+        if (sx < vp.x || sx > vp.x + vp.w || sy < vp.y || sy > vp.y + vp.h)
+            return false;
+
+        active_viewport_ = vp;
+        cursor.valid     = true;
+        cursor.screen_x  = screen_x;
+        cursor.screen_y  = screen_y;
+
+        if (auto* axes2d = dynamic_cast<Axes*>(axes_base))
+        {
+            active_axes_ = axes2d;
+            auto xl      = axes2d->x_limits();
+            auto yl      = axes2d->y_limits();
+            xlim_min_    = xl.min;
+            xlim_max_    = xl.max;
+            ylim_min_    = yl.min;
+            ylim_max_    = yl.max;
+
+            float x_range = xlim_max_ - xlim_min_;
+            float y_range = ylim_max_ - ylim_min_;
+            if (x_range == 0.0f)
+                x_range = 1.0f;
+            if (y_range == 0.0f)
+                y_range = 1.0f;
+            cursor.data_x = xlim_min_ + (sx - vp.x) / vp.w * x_range;
+            cursor.data_y = ylim_max_ - (sy - vp.y) / vp.h * y_range;
+        }
+        else if (auto* axes3d = dynamic_cast<Axes3D*>(axes_base))
+        {
+            active_axes3d_ = axes3d;
+        }
+        return true;
+    };
+
     for (auto& axes_ptr : last_figure_->axes())
     {
-        if (!axes_ptr)
-            continue;
-
-        const auto& vp = axes_ptr->viewport();
-        if (vp.w <= 0.0f || vp.h <= 0.0f)
-            continue;
-
-        const auto sx = static_cast<float>(screen_x);
-        const auto sy = static_cast<float>(screen_y);
-        if (sx < vp.x || sx > vp.x + vp.w || sy < vp.y || sy > vp.y + vp.h)
-            continue;
-
-        active_axes_     = axes_ptr.get();
-        active_viewport_ = vp;
-        auto xl          = axes_ptr->x_limits();
-        auto yl          = axes_ptr->y_limits();
-        xlim_min_        = xl.min;
-        xlim_max_        = xl.max;
-        ylim_min_        = yl.min;
-        ylim_max_        = yl.max;
-
-        float x_range = xlim_max_ - xlim_min_;
-        float y_range = ylim_max_ - ylim_min_;
-        if (x_range == 0.0f)
-            x_range = 1.0f;
-        if (y_range == 0.0f)
-            y_range = 1.0f;
-
-        cursor.valid  = true;
-        cursor.data_x = xlim_min_ + (sx - vp.x) / vp.w * x_range;
-        cursor.data_y = ylim_max_ - (sy - vp.y) / vp.h * y_range;
-        break;
+        if (try_refresh_hit(axes_ptr.get()))
+            break;
+    }
+    if (!active_axes_ && !active_axes3d_)
+    {
+        for (auto& axes_ptr : last_figure_->all_axes())
+        {
+            if (try_refresh_hit(axes_ptr.get()))
+                break;
+        }
     }
 
     last_cursor_ = cursor;
@@ -312,6 +359,13 @@ void DataInteraction::draw_overlays(float       window_width,
                           axes_ptr.get(),
                           dl);
         }
+        for (auto& axes_ptr : overlay_figure->all_axes())
+        {
+            if (!axes_ptr)
+                continue;
+            if (auto* axes3d = dynamic_cast<Axes3D*>(axes_ptr.get()))
+                markers_.draw_3d(*axes3d, 1.0f, dl);
+        }
     }
 
     // Draw region selection overlay — use the axes where the ROI was started
@@ -372,31 +426,24 @@ bool DataInteraction::dispatch_series_selection_from_nearest()
     if (!nearest_.found || !nearest_.series || !last_figure_)
         return false;
 
-    int ax_idx = 0;
-    for (auto& axes_ptr : last_figure_->axes())
+    auto dispatch_for_axes = [&](AxesBase* axes_base, int ax_idx) -> bool
     {
-        if (!axes_ptr)
-        {
-            ax_idx++;
-            continue;
-        }
+        if (!axes_base)
+            return false;
         int s_idx = 0;
-        for (auto& series_ptr : axes_ptr->series())
+        for (auto& series_ptr : axes_base->series())
         {
             if (series_ptr.get() == nearest_.series)
             {
+                Axes* axes2d = dynamic_cast<Axes*>(axes_base);
                 if (on_series_selected_)
                 {
-                    on_series_selected_(last_figure_,
-                                        axes_ptr.get(),
-                                        ax_idx,
-                                        series_ptr.get(),
-                                        s_idx);
+                    on_series_selected_(last_figure_, axes2d, ax_idx, series_ptr.get(), s_idx);
                 }
                 if (on_point_selected_)
                 {
                     on_point_selected_(last_figure_,
-                                       axes_ptr.get(),
+                                       axes2d,
                                        ax_idx,
                                        series_ptr.get(),
                                        s_idx,
@@ -406,6 +453,22 @@ bool DataInteraction::dispatch_series_selection_from_nearest()
             }
             s_idx++;
         }
+        return false;
+    };
+
+    int ax_idx = 0;
+    for (auto& axes_ptr : last_figure_->axes())
+    {
+        if (dispatch_for_axes(axes_ptr.get(), ax_idx))
+            return true;
+        ax_idx++;
+    }
+
+    ax_idx = 0;
+    for (auto& axes_ptr : last_figure_->all_axes())
+    {
+        if (dispatch_for_axes(axes_ptr.get(), ax_idx))
+            return true;
         ax_idx++;
     }
 
@@ -424,60 +487,108 @@ bool DataInteraction::dispatch_series_selection_from_nearest()
     return false;
 }
 
+bool DataInteraction::try_toggle_datatip_at_nearest()
+{
+    constexpr float SELECT_SNAP_PX = 30.0f;
+    if (!nearest_.found || nearest_.distance_px > SELECT_SNAP_PX)
+        return false;
+
+    if (nearest_.is_3d && nearest_.axes3d)
+    {
+        markers_.toggle_or_add_3d(nearest_.data_x,
+                                  nearest_.data_y,
+                                  nearest_.data_z,
+                                  nearest_.series,
+                                  nearest_.point_index,
+                                  nearest_.axes3d);
+        return true;
+    }
+
+    if (active_axes_)
+    {
+        markers_.toggle_or_add(nearest_.data_x,
+                               nearest_.data_y,
+                               nearest_.series,
+                               nearest_.point_index,
+                               active_axes_,
+                               nearest_.dy_dx,
+                               nearest_.dy_dx_valid);
+        return true;
+    }
+
+    return false;
+}
+
 bool DataInteraction::on_mouse_click_datatip_only(int button, double screen_x, double screen_y)
 {
     refresh_pointer_state(screen_x, screen_y);
 
-    if (!active_axes_ || !last_figure_)
+    if ((!active_axes_ && !active_axes3d_) || !last_figure_)
         return false;
 
     if (button == 0)
     {
-        int marker_hit = markers_.hit_test(static_cast<float>(screen_x),
-                                           static_cast<float>(screen_y),
-                                           active_viewport_,
-                                           xlim_min_,
-                                           xlim_max_,
-                                           ylim_min_,
-                                           ylim_max_,
-                                           10.0f,
-                                           active_axes_);
-        if (marker_hit >= 0)
+        if (active_axes3d_)
         {
-            markers_.remove(static_cast<size_t>(marker_hit));
-            return true;
+            int marker_hit = markers_.hit_test_3d(
+                static_cast<float>(screen_x), static_cast<float>(screen_y), *active_axes3d_, 10.0f);
+            if (marker_hit >= 0)
+            {
+                markers_.remove(static_cast<size_t>(marker_hit));
+                return true;
+            }
+        }
+        else if (active_axes_)
+        {
+            int marker_hit = markers_.hit_test(static_cast<float>(screen_x),
+                                               static_cast<float>(screen_y),
+                                               active_viewport_,
+                                               xlim_min_,
+                                               xlim_max_,
+                                               ylim_min_,
+                                               ylim_max_,
+                                               10.0f,
+                                               active_axes_);
+            if (marker_hit >= 0)
+            {
+                markers_.remove(static_cast<size_t>(marker_hit));
+                return true;
+            }
         }
 
-        constexpr float SELECT_SNAP_PX = 30.0f;
-        if (nearest_.found && nearest_.distance_px <= SELECT_SNAP_PX)
-        {
-            markers_.toggle_or_add(nearest_.data_x,
-                                   nearest_.data_y,
-                                   nearest_.series,
-                                   nearest_.point_index,
-                                   active_axes_,
-                                   nearest_.dy_dx,
-                                   nearest_.dy_dx_valid);
+        if (try_toggle_datatip_at_nearest())
             return true;
-        }
     }
 
     // Right click: remove marker
     if (button == 1)
     {
-        int idx = markers_.hit_test(static_cast<float>(screen_x),
-                                    static_cast<float>(screen_y),
-                                    active_viewport_,
-                                    xlim_min_,
-                                    xlim_max_,
-                                    ylim_min_,
-                                    ylim_max_,
-                                    10.0f,
-                                    active_axes_);
-        if (idx >= 0)
+        if (active_axes3d_)
         {
-            markers_.remove(static_cast<size_t>(idx));
-            return true;
+            int idx = markers_.hit_test_3d(
+                static_cast<float>(screen_x), static_cast<float>(screen_y), *active_axes3d_, 10.0f);
+            if (idx >= 0)
+            {
+                markers_.remove(static_cast<size_t>(idx));
+                return true;
+            }
+        }
+        else if (active_axes_)
+        {
+            int idx = markers_.hit_test(static_cast<float>(screen_x),
+                                        static_cast<float>(screen_y),
+                                        active_viewport_,
+                                        xlim_min_,
+                                        xlim_max_,
+                                        ylim_min_,
+                                        ylim_max_,
+                                        10.0f,
+                                        active_axes_);
+            if (idx >= 0)
+            {
+                markers_.remove(static_cast<size_t>(idx));
+                return true;
+            }
         }
     }
 
@@ -510,40 +621,42 @@ bool DataInteraction::on_mouse_click(int button, double screen_x, double screen_
 {
     refresh_pointer_state(screen_x, screen_y);
 
-    if (!active_axes_ || !last_figure_)
+    if ((!active_axes_ && !active_axes3d_) || !last_figure_)
         return false;
 
     // Left click: remove an existing data tip if clicked on it, otherwise pin a new one
     if (button == 0)
     {
-        // First: hit-test existing markers — clicking on a data tip removes it
-        int marker_hit = markers_.hit_test(static_cast<float>(screen_x),
-                                           static_cast<float>(screen_y),
-                                           active_viewport_,
-                                           xlim_min_,
-                                           xlim_max_,
-                                           ylim_min_,
-                                           ylim_max_,
-                                           10.0f,
-                                           active_axes_);
-        if (marker_hit >= 0)
+        if (active_axes3d_)
         {
-            markers_.remove(static_cast<size_t>(marker_hit));
-            return true;
+            int marker_hit = markers_.hit_test_3d(
+                static_cast<float>(screen_x), static_cast<float>(screen_y), *active_axes3d_, 10.0f);
+            if (marker_hit >= 0)
+            {
+                markers_.remove(static_cast<size_t>(marker_hit));
+                return true;
+            }
+        }
+        else if (active_axes_)
+        {
+            int marker_hit = markers_.hit_test(static_cast<float>(screen_x),
+                                               static_cast<float>(screen_y),
+                                               active_viewport_,
+                                               xlim_min_,
+                                               xlim_max_,
+                                               ylim_min_,
+                                               ylim_max_,
+                                               10.0f,
+                                               active_axes_);
+            if (marker_hit >= 0)
+            {
+                markers_.remove(static_cast<size_t>(marker_hit));
+                return true;
+            }
         }
 
-        constexpr float SELECT_SNAP_PX = 30.0f;
-        if (nearest_.found && nearest_.distance_px <= SELECT_SNAP_PX)
+        if (try_toggle_datatip_at_nearest())
         {
-            markers_.toggle_or_add(nearest_.data_x,
-                                   nearest_.data_y,
-                                   nearest_.series,
-                                   nearest_.point_index,
-                                   active_axes_,
-                                   nearest_.dy_dx,
-                                   nearest_.dy_dx_valid);
-
-            // Also fire series/point selection callbacks (for inspector + data editor sync).
             dispatch_series_selection_from_nearest();
             return true;
         }
@@ -558,19 +671,32 @@ bool DataInteraction::on_mouse_click(int button, double screen_x, double screen_
     // Right click: remove marker
     if (button == 1)
     {
-        int idx = markers_.hit_test(static_cast<float>(screen_x),
-                                    static_cast<float>(screen_y),
-                                    active_viewport_,
-                                    xlim_min_,
-                                    xlim_max_,
-                                    ylim_min_,
-                                    ylim_max_,
-                                    10.0f,
-                                    active_axes_);
-        if (idx >= 0)
+        if (active_axes3d_)
         {
-            markers_.remove(static_cast<size_t>(idx));
-            return true;
+            int idx = markers_.hit_test_3d(
+                static_cast<float>(screen_x), static_cast<float>(screen_y), *active_axes3d_, 10.0f);
+            if (idx >= 0)
+            {
+                markers_.remove(static_cast<size_t>(idx));
+                return true;
+            }
+        }
+        else if (active_axes_)
+        {
+            int idx = markers_.hit_test(static_cast<float>(screen_x),
+                                        static_cast<float>(screen_y),
+                                        active_viewport_,
+                                        xlim_min_,
+                                        xlim_max_,
+                                        ylim_min_,
+                                        ylim_max_,
+                                        10.0f,
+                                        active_axes_);
+            if (idx >= 0)
+            {
+                markers_.remove(static_cast<size_t>(idx));
+                return true;
+            }
         }
     }
 
@@ -915,11 +1041,28 @@ NearestPointResult DataInteraction::find_nearest(const CursorReadout& cursor, Fi
     best.distance_px = std::numeric_limits<float>::max();
     float best_dist2 = std::numeric_limits<float>::max();
 
-    if (!cursor.valid)
-        return best;
-
     auto cx = static_cast<float>(cursor.screen_x);
     auto cy = static_cast<float>(cursor.screen_y);
+
+    // Pure-3D figures never set cursor.valid via 2D hit-test; still allow 3D pick
+    // when the pointer is inside a 3D subplot viewport.
+    bool over_plot = cursor.valid;
+    if (!over_plot)
+    {
+        for (auto& axes_ptr : figure.all_axes())
+        {
+            if (!axes_ptr)
+                continue;
+            const auto& vp = axes_ptr->viewport();
+            if (cx >= vp.x && cx <= vp.x + vp.w && cy >= vp.y && cy <= vp.y + vp.h)
+            {
+                over_plot = true;
+                break;
+            }
+        }
+    }
+    if (!over_plot)
+        return best;
 
     // Search all axes
     for (auto& axes_ptr : figure.axes())
@@ -995,12 +1138,43 @@ NearestPointResult DataInteraction::find_nearest(const CursorReadout& cursor, Fi
     }
 
     if (best.found)
-    {
         best.distance_px = std::sqrt(best_dist2);
+
+    // Search 3D axes (stored in all_axes_, not axes_)
+    for (auto& axes_ptr : figure.all_axes())
+    {
+        if (!axes_ptr)
+            continue;
+        auto* axes3d = dynamic_cast<Axes3D*>(axes_ptr.get());
+        if (!axes3d)
+            continue;
+
+        const Nearest3DPickCandidate pick =
+            find_nearest_3d_in_axes(*axes3d, cx, cy);
+        if (!pick.found)
+            continue;
+
+        if (!best.found || pick.distance_px < best.distance_px)
+        {
+            best.found       = true;
+            best.series      = pick.series;
+            best.point_index = pick.point_index;
+            best.data_x      = pick.data_x;
+            best.data_y      = pick.data_y;
+            best.data_z      = pick.data_z;
+            best.screen_x    = pick.screen_x;
+            best.screen_y    = pick.screen_y;
+            best.distance_px = pick.distance_px;
+            best.ndc_depth   = pick.ndc_depth;
+            best.is_3d       = true;
+            best.axes3d      = axes3d;
+            best.dy_dx_valid = false;
+            best.dy_dx       = 0.0f;
+        }
     }
 
-    // Compute dy/dx at the nearest point via finite difference
-    if (best.found && best.series)
+    // Compute dy/dx at the nearest point via finite difference (2D only)
+    if (best.found && !best.is_3d && best.series)
     {
         const float* xd    = nullptr;
         const float* yd    = nullptr;

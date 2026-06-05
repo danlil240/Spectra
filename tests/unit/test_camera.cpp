@@ -131,25 +131,35 @@ TEST(CameraTest, OrbitElevation)
 TEST(CameraTest, OrbitElevationClamping)
 {
     Camera cam;
+    cam.target    = {0, 0, 0};
+    cam.azimuth   = 0.0f;
     cam.elevation = 0.0f;
+    cam.distance  = 5.0f;
+    cam.update_position_from_orbit();
 
     cam.orbit(0.0f, 100.0f);
-    EXPECT_FLOAT_EQ(cam.elevation, 89.0f);
+    EXPECT_LE(cam.elevation, 89.0f);
+    EXPECT_GT(cam.elevation, 70.0f);
 
     cam.orbit(0.0f, -200.0f);
-    EXPECT_FLOAT_EQ(cam.elevation, -89.0f);
+    EXPECT_GE(cam.elevation, -89.0f);
+    EXPECT_LT(cam.elevation, -50.0f);
 }
 
 TEST(CameraTest, OrbitAzimuthWrapping)
 {
     Camera cam;
-    cam.azimuth = 350.0f;
+    cam.target    = {0, 0, 0};
+    cam.azimuth   = 350.0f;
+    cam.elevation = 0.0f;
+    cam.distance  = 5.0f;
+    cam.update_position_from_orbit();
 
     cam.orbit(20.0f, 0.0f);
-    EXPECT_FLOAT_EQ(cam.azimuth, 10.0f);
+    EXPECT_NEAR(cam.azimuth, 10.0f, 0.5f);
 
     cam.orbit(-20.0f, 0.0f);
-    EXPECT_FLOAT_EQ(cam.azimuth, 350.0f);
+    EXPECT_NEAR(cam.azimuth, 350.0f, 0.5f);
 }
 
 TEST(CameraTest, Pan)
@@ -472,4 +482,61 @@ TEST(CameraTest, NearFarClipping)
 
     EXPECT_NE(proj.m[10], 0.0f);
     EXPECT_NE(proj.m[14], 0.0f);
+}
+
+TEST(CameraTest, AlignViewToAxisYUp)
+{
+    Camera cam;
+    cam.target   = {0, 0, 0};
+    cam.distance = 5.0f;
+    cam.up_axis  = Camera::UpAxis::Y;
+
+    cam.align_view_to_axis(Camera::AxisView::PositiveX);
+    EXPECT_FLOAT_EQ(cam.azimuth, 0.0f);
+    EXPECT_FLOAT_EQ(cam.elevation, 0.0f);
+    EXPECT_TRUE(vec3_near(cam.position, {5, 0, 0}, 1e-4f));
+
+    cam.align_view_to_axis(Camera::AxisView::PositiveY);
+    EXPECT_FLOAT_EQ(cam.azimuth, 0.0f);
+    EXPECT_FLOAT_EQ(cam.elevation, 75.0f);
+    EXPECT_GT(cam.position.y, 4.0f);
+
+    cam.align_view_to_axis(Camera::AxisView::PositiveZ);
+    EXPECT_FLOAT_EQ(cam.azimuth, 90.0f);
+    EXPECT_FLOAT_EQ(cam.elevation, 0.0f);
+    EXPECT_TRUE(vec3_near(cam.position, {0, 0, 5}, 1e-4f));
+}
+
+TEST(CameraTest, AlignViewToAxisZUp)
+{
+    Camera cam;
+    cam.target   = {0, 0, 0};
+    cam.distance = 5.0f;
+    cam.set_up_axis(Camera::UpAxis::Z);
+
+    cam.align_view_to_axis(Camera::AxisView::PositiveX);
+    EXPECT_TRUE(vec3_near(cam.position, {5, 0, 0}, 1e-4f));
+
+    cam.align_view_to_axis(Camera::AxisView::PositiveY);
+    EXPECT_TRUE(vec3_near(cam.position, {0, 5, 0}, 1e-4f));
+
+    cam.align_view_to_axis(Camera::AxisView::PositiveZ);
+    EXPECT_FLOAT_EQ(cam.elevation, 75.0f);
+    EXPECT_GT(cam.position.z, 4.0f);
+}
+
+TEST(CameraTest, OrbitEscapesAxisSnappedTopView)
+{
+    Camera cam;
+    cam.target   = {0, 0, 0};
+    cam.distance = 5.0f;
+    cam.align_view_to_axis(Camera::AxisView::PositiveY);
+    const vec3 snapped = cam.position;
+
+    cam.orbit(20.0f, 0.0f);
+    EXPECT_GT(vec3_length(cam.position - snapped), 0.35f);
+
+    cam.align_view_to_axis(Camera::AxisView::PositiveY);
+    cam.orbit(15.0f, 15.0f);
+    EXPECT_GT(vec3_length(cam.position - snapped), 0.35f);
 }

@@ -759,6 +759,10 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
 #ifdef SPECTRA_USE_IMGUI
         if (imgui_ui)
         {
+            ImGuiIO& io = ImGui::GetIO();
+            imgui_ui->get_layout_manager().set_nav_rail_visible(imgui_ui->is_nav_rail_visible());
+            imgui_ui->update_layout(io.DisplaySize.x, io.DisplaySize.y, io.DeltaTime);
+
             const Rect canvas = imgui_ui->get_layout_manager().canvas_rect();
 
             // Update dock system layout with current canvas bounds

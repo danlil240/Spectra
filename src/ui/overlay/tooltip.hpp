@@ -16,6 +16,8 @@ class ThemeManager;
 namespace spectra
 {
 
+class Axes3D;
+
 // Result of nearest-point spatial query
 struct NearestPointResult
 {
@@ -24,11 +26,15 @@ struct NearestPointResult
     size_t        point_index = 0;
     float         data_x      = 0.0f;
     float         data_y      = 0.0f;
+    float         data_z      = 0.0f;
     float         screen_x    = 0.0f;
     float         screen_y    = 0.0f;
     float         distance_px = 0.0f;
+    float         ndc_depth   = 1.0f;    // Clip-space depth for 3D tie-breaking
     float         dy_dx       = 0.0f;    // Finite-difference derivative at the point
     bool          dy_dx_valid = false;   // True when derivative could be computed
+    bool          is_3d       = false;
+    const Axes3D* axes3d     = nullptr;   // Owning 3D axes (for axis labels)
 };
 
 // Rich hover tooltip rendered via ImGui over the plot canvas.
@@ -53,6 +59,9 @@ class Tooltip
     void  set_snap_radius(float px) { snap_radius_px_ = px; }
     float snap_radius() const { return snap_radius_px_; }
 
+    void  set_snap_radius_3d(float px) { snap_radius_3d_px_ = px; }
+    float snap_radius_3d() const { return snap_radius_3d_px_; }
+
     void set_enabled(bool e) { enabled_ = e; }
     bool enabled() const { return enabled_; }
     void set_theme_manager(ui::ThemeManager* tm) { theme_mgr_ = tm; }
@@ -61,8 +70,14 @@ class Tooltip
     ui::ThemeManager* theme_mgr_      = nullptr;
     ImFont*           font_body_      = nullptr;
     ImFont*           font_heading_   = nullptr;
-    float             snap_radius_px_ = 8.0f;
+    float             snap_radius_px_   = 8.0f;
+    float             snap_radius_3d_px_ = 16.0f;
     bool              enabled_        = true;
+
+    void draw_3d(const NearestPointResult& nearest,
+                 float                     window_width,
+                 float                     window_height,
+                 ImDrawList*               dl);
 
     // Animation state
     float opacity_        = 0.0f;

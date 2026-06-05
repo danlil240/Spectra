@@ -243,8 +243,7 @@ TEST(TransitionEngine, LayoutAnimationDoesNotOversizeWindow)
         // auto nr = lm.nav_rail_rect();  // Currently unused
         auto insp = lm.inspector_rect();
 
-        // Nav toolbar inset + canvas + inspector should not exceed window width
-        float total = LayoutManager::NAV_TOOLBAR_INSET + cv.w + insp.w;
+        float total = lm.nav_rail_animated_width() + cv.w + insp.w;
         EXPECT_LE(total, 1280.0f + 1.0f) << "frame " << i;
         EXPECT_GE(cv.w, 0.0f) << "frame " << i;
         EXPECT_GE(cv.h, 0.0f) << "frame " << i;

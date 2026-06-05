@@ -2,8 +2,11 @@
 #include <cmath>
 #include <gtest/gtest.h>
 #include <spectra/axes.hpp>
+#include <spectra/axes3d.hpp>
 #include <spectra/figure.hpp>
 #include <spectra/series.hpp>
+
+#include "ui/overlay/axes3d_pick.hpp"
 
 // DataInteraction and its components are ImGui-guarded.
 // These tests exercise the pure-logic parts (nearest-point, markers)
@@ -347,4 +350,54 @@ TEST(DataMarkerTest, MarkerPersistsThroughZoom)
     data_to_screen(25.0f, 25.0f, vp, 25.0f, 75.0f, 25.0f, 75.0f, sx2, sy2);
     EXPECT_FLOAT_EQ(sx2, 0.0f);
     EXPECT_FLOAT_EQ(sy2, 1000.0f);
+}
+
+// ─── 3D nearest-point pick ───────────────────────────────────────────────────
+
+TEST(Axes3DPickTest, FindsNearestScatterPoint)
+{
+    Axes3D axes;
+    axes.xlim(-2.0, 2.0);
+    axes.ylim(-2.0, 2.0);
+    axes.zlim(-2.0, 2.0);
+    axes.set_viewport(Rect{0.0f, 0.0f, 800.0f, 600.0f});
+    axes.camera().set_azimuth(45.0f).set_elevation(30.0f).set_distance(8.0f);
+
+    std::vector<float> xs = {0.0f, 1.5f};
+    std::vector<float> ys = {0.0f, 0.0f};
+    std::vector<float> zs = {0.0f, 0.0f};
+    axes.scatter3d(xs, ys, zs);
+
+    const Projected3DPoint origin = project_axes3d_data_point(axes, {0.0f, 0.0f, 0.0f});
+    ASSERT_TRUE(origin.visible);
+
+    auto pick = find_nearest_3d_in_axes(axes, origin.screen_x + 2.0f, origin.screen_y + 2.0f);
+    ASSERT_TRUE(pick.found);
+    EXPECT_EQ(pick.point_index, 0u);
+    EXPECT_FLOAT_EQ(pick.data_x, 0.0f);
+    EXPECT_FLOAT_EQ(pick.data_y, 0.0f);
+    EXPECT_FLOAT_EQ(pick.data_z, 0.0f);
+    EXPECT_LT(pick.distance_px, 8.0f);
+}
+
+TEST(Axes3DPickTest, PrefersFrontmostWhenOverlapping)
+{
+    Axes3D axes;
+    axes.xlim(-2.0, 2.0);
+    axes.ylim(-2.0, 2.0);
+    axes.zlim(-2.0, 2.0);
+    axes.set_viewport(Rect{0.0f, 0.0f, 800.0f, 600.0f});
+    axes.camera().set_azimuth(0.0f).set_elevation(0.0f).set_distance(8.0f);
+
+    std::vector<float> xs2 = {0.0f, 0.0f};
+    std::vector<float> ys2 = {0.0f, 0.0f};
+    std::vector<float> zs2 = {-1.0f, 1.0f};
+    axes.scatter3d(xs2, ys2, zs2);
+
+    const Projected3DPoint proj = project_axes3d_data_point(axes, {0.0f, 0.0f, 1.0f});
+    ASSERT_TRUE(proj.visible);
+
+    auto pick = find_nearest_3d_in_axes(axes, proj.screen_x, proj.screen_y);
+    ASSERT_TRUE(pick.found);
+    EXPECT_FLOAT_EQ(pick.data_z, 1.0f);
 }

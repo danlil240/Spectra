@@ -139,9 +139,23 @@ TEST(LayoutManager, NavRailExpandedWidth)
     auto nr = lm.nav_rail_rect();
     EXPECT_FLOAT_EQ(nr.w, LayoutManager::NAV_RAIL_EXPANDED_WIDTH);
 
-    // Canvas starts after nav toolbar inset (nav rail doesn't push further)
     auto cv = lm.canvas_rect();
-    EXPECT_FLOAT_EQ(cv.x, LayoutManager::NAV_TOOLBAR_INSET);
+    EXPECT_FLOAT_EQ(cv.x, LayoutManager::NAV_RAIL_EXPANDED_WIDTH);
+    EXPECT_FLOAT_EQ(cv.w, 1280.0f - LayoutManager::NAV_RAIL_EXPANDED_WIDTH);
+}
+
+TEST(LayoutManager, NavRailHiddenExpandsCanvas)
+{
+    LayoutManager lm;
+    lm.set_nav_rail_visible(false);
+    lm.update(1280.0f, 720.0f);
+
+    auto cv = lm.canvas_rect();
+    EXPECT_FLOAT_EQ(cv.x, 0.0f);
+    EXPECT_FLOAT_EQ(cv.w, 1280.0f);
+
+    auto nr = lm.nav_rail_rect();
+    EXPECT_FLOAT_EQ(nr.w, 0.0f);
 }
 
 TEST(LayoutManager, NavRailCustomWidth)
@@ -272,15 +286,14 @@ TEST(LayoutManager, AllZonesOpenSimultaneously)
     auto insp = lm.inspector_rect();
     auto tb   = lm.tab_bar_rect();
 
-    // Canvas + inspector + nav toolbar inset should span the width
-    EXPECT_NEAR(LayoutManager::NAV_TOOLBAR_INSET + cv.w + insp.w, 1920.0f, 1.0f);
+    const float nav_w = LayoutManager::NAV_RAIL_EXPANDED_WIDTH;
+    EXPECT_NEAR(nav_w + cv.w + insp.w, 1920.0f, 1.0f);
 
     // Tab bar starts at plot grid (canvas + left margin) and is narrower
-    EXPECT_FLOAT_EQ(tb.x, LayoutManager::NAV_TOOLBAR_INSET + LayoutManager::PLOT_LEFT_MARGIN);
+    EXPECT_FLOAT_EQ(tb.x, nav_w + LayoutManager::PLOT_LEFT_MARGIN);
     EXPECT_FLOAT_EQ(tb.w, cv.w - LayoutManager::PLOT_LEFT_MARGIN);
 
-    // Canvas starts after nav toolbar inset
-    EXPECT_FLOAT_EQ(cv.x, LayoutManager::NAV_TOOLBAR_INSET);
+    EXPECT_FLOAT_EQ(cv.x, nav_w);
 
     // Canvas starts below tab bar
     EXPECT_FLOAT_EQ(cv.y, LayoutManager::COMMAND_BAR_HEIGHT + LayoutManager::TAB_BAR_HEIGHT);

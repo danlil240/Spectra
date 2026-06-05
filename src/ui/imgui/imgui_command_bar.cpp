@@ -720,13 +720,8 @@ void ImGuiIntegration::draw_command_bar()
                               panel_open_ = new_vis;
                           }
                       }),
-             MenuItem("Toggle Navigation Rail", [this]() { show_nav_rail_ = !show_nav_rail_; }),
-             MenuItem("Toggle 2D/3D View",
-                      [this]()
-                      {
-                          if (command_registry_)
-                              command_registry_->execute("view.toggle_3d");
-                      }),
+             MenuItem("Toggle Navigation Rail",
+                      [this]() { set_nav_rail_visible(!show_nav_rail_); }),
              MenuItem("Zoom to Fit",
                       [this]()
                       {

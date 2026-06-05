@@ -36,7 +36,6 @@ std::vector<CommandDescriptor> make_view_commands(CommandContext& ctx)
     auto&  imgui_ui         = ui_ctx.imgui_ui;
     auto&  data_interaction = ui_ctx.data_interaction;
     auto&  dock_system      = ui_ctx.dock_system;
-    auto&  mode_transition  = ui_ctx.mode_transition;
     auto&  undo_mgr         = ui_ctx.undo_mgr;
     auto&  fig_mgr          = *ui_ctx.fig_mgr;
     auto&  input_handler    = ui_ctx.input_handler;
@@ -474,68 +473,6 @@ std::vector<CommandDescriptor> make_view_commands(CommandContext& ctx)
                             float      dy    = (old_y.max - old_y.min) * 0.1f;
                             AxisLimits ny    = {old_y.min - dy, old_y.max - dy};
                             undoable_set_limits(&undo_mgr, *ax, old_x, ny);
-                        }
-                    }});
-
-    // ─── Toggle 2D/3D ────────────────────────────────────────────────────
-    cmds.push_back({"view.toggle_3d",
-                    "Toggle 2D/3D View",
-                    "3",
-                    "View",
-                    static_cast<uint16_t>(ui::Icon::Axes),
-                    [&]()
-                    {
-                        if (!active_figure)
-                            return;
-                        Axes3D* ax3d = nullptr;
-                        for (auto& ax_base : active_figure->all_axes())
-                        {
-                            if (ax_base)
-                            {
-                                ax3d = dynamic_cast<Axes3D*>(ax_base.get());
-                                if (ax3d)
-                                    break;
-                            }
-                        }
-                        if (!ax3d || mode_transition.is_active())
-                            return;
-
-                        auto& vm_3d = fig_mgr.active_state();
-                        if (vm_3d.is_in_3d_mode())
-                        {
-                            vm_3d.set_saved_3d_camera(ax3d->camera());
-
-                            ModeTransition3DState from;
-                            from.camera      = ax3d->camera();
-                            from.xlim        = ax3d->x_limits();
-                            from.ylim        = ax3d->y_limits();
-                            from.zlim        = ax3d->z_limits();
-                            from.grid_planes = static_cast<int>(ax3d->grid_planes());
-
-                            ModeTransition2DState to;
-                            to.xlim = ax3d->x_limits();
-                            to.ylim = ax3d->y_limits();
-
-                            mode_transition.begin_to_2d(from, to);
-                            vm_3d.set_is_in_3d_mode(false);
-                            input_handler.set_orbit_locked(true);
-                        }
-                        else
-                        {
-                            ModeTransition2DState from;
-                            from.xlim = ax3d->x_limits();
-                            from.ylim = ax3d->y_limits();
-
-                            ModeTransition3DState to;
-                            to.camera      = vm_3d.saved_3d_camera();
-                            to.xlim        = ax3d->x_limits();
-                            to.ylim        = ax3d->y_limits();
-                            to.zlim        = ax3d->z_limits();
-                            to.grid_planes = static_cast<int>(ax3d->grid_planes());
-
-                            mode_transition.begin_to_3d(from, to);
-                            vm_3d.set_is_in_3d_mode(true);
-                            input_handler.set_orbit_locked(false);
                         }
                     }});
 

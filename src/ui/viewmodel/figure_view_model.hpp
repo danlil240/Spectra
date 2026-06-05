@@ -2,7 +2,6 @@
 
 #include <functional>
 #include <spectra/axes.hpp>
-#include <spectra/camera.hpp>
 #include <spectra/fwd.hpp>
 #include <string>
 #include <unordered_map>
@@ -45,8 +44,6 @@ class FigureViewModel
         InspectorScrollY,
         IsModified,
         CustomTitle,
-        IsIn3DMode,
-        Saved3DCamera,
         HomeLimits,
         ZoomCache,
         AxesSnapshots,
@@ -106,15 +103,6 @@ class FigureViewModel
     const std::string& custom_title() const { return custom_title_; }
     void               set_custom_title(const std::string& title);
 
-    // 2D/3D mode toggle
-    bool is_in_3d_mode() const { return is_in_3d_mode_; }
-    void set_is_in_3d_mode(bool v);
-
-    // Saved camera when toggling out of 3D
-    const Camera& saved_3d_camera() const { return saved_3d_camera_; }
-    Camera&       saved_3d_camera_mut() { return saved_3d_camera_; }
-    void          set_saved_3d_camera(const Camera& cam);
-
     // Initial axes limits for Home button
     struct InitialLimits
     {
@@ -162,10 +150,6 @@ class FigureViewModel
 
     // Axes snapshots (restored on tab switch)
     std::vector<AxesSnapshot> axes_snapshots_;
-
-    // 3D mode
-    bool   is_in_3d_mode_ = false;
-    Camera saved_3d_camera_;
 
     // Home limits
     std::unordered_map<Axes*, InitialLimits> home_limits_;

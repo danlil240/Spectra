@@ -184,10 +184,6 @@ TEST(FigureViewModelTest, ChangeCallbackFiresOnSetters)
     vm.set_custom_title("Hello");
     EXPECT_EQ(call_count, 5);
     EXPECT_EQ(last_field, FigureViewModel::ChangeField::CustomTitle);
-
-    vm.set_is_in_3d_mode(true);
-    EXPECT_EQ(call_count, 6);
-    EXPECT_EQ(last_field, FigureViewModel::ChangeField::IsIn3DMode);
 }
 
 TEST(FigureViewModelTest, NoCallbackOnSameValue)
@@ -246,27 +242,11 @@ TEST(FigureViewModelTest, HomeLimitAccessor)
 TEST(FigureViewModelTest, DefaultPerFigureViewState)
 {
     FigureViewModel vm;
-    EXPECT_FALSE(vm.is_in_3d_mode());
     EXPECT_TRUE(vm.home_limits().empty());
     EXPECT_FLOAT_EQ(vm.cached_data_min(), 0.0f);
     EXPECT_FLOAT_EQ(vm.cached_data_max(), 0.0f);
     EXPECT_EQ(vm.cached_zoom_series_count(), 0u);
     EXPECT_FALSE(vm.zoom_cache_valid());
-}
-
-TEST(FigureViewModelTest, ThreeDModePerFigure)
-{
-    FigureViewModel vm1(1, nullptr);
-    FigureViewModel vm2(2, nullptr);
-
-    vm1.set_is_in_3d_mode(true);
-    EXPECT_TRUE(vm1.is_in_3d_mode());
-    EXPECT_FALSE(vm2.is_in_3d_mode());   // Independent
-
-    vm2.set_is_in_3d_mode(true);
-    vm1.set_is_in_3d_mode(false);
-    EXPECT_FALSE(vm1.is_in_3d_mode());
-    EXPECT_TRUE(vm2.is_in_3d_mode());   // Still independent
 }
 
 TEST(FigureViewModelTest, ModelPointerWiredOnConstruction)
@@ -310,25 +290,6 @@ TEST(FigureViewModelTest, UndoCustomTitle)
     EXPECT_EQ(vm.custom_title(), "Changed");
 }
 
-TEST(FigureViewModelTest, Undo3DMode)
-{
-    UndoManager     undo;
-    FigureViewModel vm(1, nullptr);
-    vm.set_undo_manager(&undo);
-
-    EXPECT_FALSE(vm.is_in_3d_mode());
-
-    vm.set_is_in_3d_mode(true);
-    EXPECT_TRUE(vm.is_in_3d_mode());
-    EXPECT_TRUE(undo.can_undo());
-
-    undo.undo();
-    EXPECT_FALSE(vm.is_in_3d_mode());
-
-    undo.redo();
-    EXPECT_TRUE(vm.is_in_3d_mode());
-}
-
 TEST(FigureViewModelTest, UndoSeriesSelection)
 {
     UndoManager     undo;
@@ -356,9 +317,6 @@ TEST(FigureViewModelTest, NoUndoWithoutManager)
     // Setters should still work without undo manager
     vm.set_custom_title("Test");
     EXPECT_EQ(vm.custom_title(), "Test");
-
-    vm.set_is_in_3d_mode(true);
-    EXPECT_TRUE(vm.is_in_3d_mode());
 }
 
 }   // namespace spectra

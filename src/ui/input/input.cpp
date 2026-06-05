@@ -7,6 +7,7 @@
 #include <spectra/logger.hpp>
 
 #include "gesture_recognizer.hpp"
+#include "ui/overlay/axes3d_axis_pick.hpp"
 #include "ui/animation/animation_controller.hpp"
 #include "ui/animation/transition_engine.hpp"
 #include "ui/commands/shortcut_manager.hpp"
@@ -423,55 +424,61 @@ void InputHandler::on_mouse_move(double x, double y)
         return;
     }
 
-    // Update cursor readout regardless of mode
-    Axes* hit = hit_test_axes(x, y);
-    if (hit)
+    // Update cursor readout regardless of mode (2D and 3D axes)
+    AxesBase* hit_base = hit_test_all_axes(x, y);
+    if (hit_base)
     {
         SPECTRA_LOG_TRACE("input", "Mouse move hit axes");
-        // Temporarily use hit axes for screen_to_data conversion
-        Axes* prev             = active_axes_;
-        active_axes_           = hit;
-        const auto& vp         = viewport_for_axes(hit);
-        float       saved_vp_x = vp_x_;
-        float       saved_vp_y = vp_y_;
-        float       saved_vp_w = vp_w_;
-        float       saved_vp_h = vp_h_;
-        vp_x_                  = vp.x;
-        vp_y_                  = vp.y;
-        vp_w_                  = vp.w;
-        vp_h_                  = vp.h;
+        Axes*       hit2d            = dynamic_cast<Axes*>(hit_base);
+        Axes*       prev             = active_axes_;
+        AxesBase*   prev_base        = active_axes_base_;
+        const auto& vp               = viewport_for_axes(hit_base);
+        float       saved_vp_x       = vp_x_;
+        float       saved_vp_y       = vp_y_;
+        float       saved_vp_w       = vp_w_;
+        float       saved_vp_h       = vp_h_;
+        vp_x_                        = vp.x;
+        vp_y_                        = vp.y;
+        vp_w_                        = vp.w;
+        vp_h_                        = vp.h;
+        active_axes_base_            = hit_base;
+        active_axes_                 = hit2d;
 
         cursor_readout_.valid    = true;
         cursor_readout_.screen_x = x;
         cursor_readout_.screen_y = y;
-        screen_to_data(x, y, cursor_readout_.data_x, cursor_readout_.data_y);
+        if (hit2d)
+            screen_to_data(x, y, cursor_readout_.data_x, cursor_readout_.data_y);
 
         // Restore if we were in a drag with a different axes
         // (includes middle-mouse pan, measure drag, and measure two-click mode)
         if (mode_ == InteractionMode::Dragging || middle_pan_dragging_ || measure_dragging_
             || (measure_click_state_ == 1 && tool_mode_ == ToolMode::Measure))
         {
-            active_axes_ = prev;
-            vp_x_        = saved_vp_x;
-            vp_y_        = saved_vp_y;
-            vp_w_        = saved_vp_w;
-            vp_h_        = saved_vp_h;
+            active_axes_      = prev;
+            active_axes_base_ = prev_base;
+            vp_x_             = saved_vp_x;
+            vp_y_             = saved_vp_y;
+            vp_w_             = saved_vp_w;
+            vp_h_             = saved_vp_h;
         }
         else
         {
             // In idle mode, update active axes to hovered one
-            active_axes_ = hit;
-            // Keep viewport in sync with the new active axes
-            vp_x_ = vp.x;
-            vp_y_ = vp.y;
-            vp_w_ = vp.w;
-            vp_h_ = vp.h;
+            active_axes_base_ = hit_base;
+            active_axes_      = hit2d;
+            vp_x_             = vp.x;
+            vp_y_             = vp.y;
+            vp_w_             = vp.w;
+            vp_h_             = vp.h;
         }
     }
     else
     {
         cursor_readout_.valid = false;
     }
+
+    update_axes3d_arrow_hover(hit_base, x, y);
 
     if (!active_axes_)
         return;

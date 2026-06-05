@@ -129,10 +129,6 @@ class InputHandler
     void             set_axis_link_manager(AxisLinkManager* alm) { axis_link_mgr_ = alm; }
     AxisLinkManager* axis_link_manager() const { return axis_link_mgr_; }
 
-    // Lock/unlock orbit rotation (lock in 2D mode so drag = pan only)
-    void set_orbit_locked(bool locked) { orbit_locked_ = locked; }
-    bool orbit_locked() const { return orbit_locked_; }
-
     // Key event: keyboard shortcuts
     void on_key(int key, int action, int mods);
 
@@ -219,6 +215,8 @@ class InputHandler
     void handle_mouse_move_pan_drag(double x, double y);
     void handle_scroll_3d(Axes3D* axes3d, double y_offset);
     void handle_scroll_2d(double y_offset, double cursor_x, double cursor_y);
+    void snap_axes3d_axis_view(Axes3D* axes3d, Camera::AxisView view);
+    void update_axes3d_arrow_hover(AxesBase* hit_base, double x, double y);
 
     // ─── Select/ROI helpers (input_select.cpp) ──────────────────────────
     void handle_mouse_button_select(int action, double x, double y);
@@ -242,7 +240,6 @@ class InputHandler
     // 3D orbit drag state
     bool                   is_3d_orbit_drag_ = false;
     bool                   is_3d_pan_drag_   = false;
-    bool                   orbit_locked_ = false;   // When true, orbit drag becomes pan (2D mode)
     static constexpr int   MOUSE_BUTTON_MIDDLE = 2;
     static constexpr float ORBIT_SENSITIVITY   = 0.3f;
     static constexpr float ZOOM_3D_FACTOR      = 0.1f;

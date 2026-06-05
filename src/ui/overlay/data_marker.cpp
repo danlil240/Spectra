@@ -6,7 +6,9 @@
     #include <cmath>
     #include <cstdio>
     #include <imgui.h>
+    #include <spectra/axes3d.hpp>
 
+    #include "axes3d_pick.hpp"
     #include "ui/theme/theme.hpp"
 
 namespace spectra
@@ -48,6 +50,43 @@ bool DataMarkerManager::toggle_or_add(float         data_x,
         return false;
     }
     add(data_x, data_y, series, index, axes, dy_dx, dy_dx_valid);
+    return true;
+}
+
+void DataMarkerManager::add_3d(float         data_x,
+                               float         data_y,
+                               float         data_z,
+                               const Series* series,
+                               size_t        index,
+                               const Axes3D* axes3d)
+{
+    DataMarker m;
+    m.data_x       = data_x;
+    m.data_y       = data_y;
+    m.data_z       = data_z;
+    m.series       = series;
+    m.point_index  = index;
+    m.color        = series ? series->color() : colors::white;
+    m.series_label = series ? series->label() : std::string();
+    m.axes3d       = axes3d;
+    m.is_3d        = true;
+    markers_.push_back(m);
+}
+
+bool DataMarkerManager::toggle_or_add_3d(float         data_x,
+                                         float         data_y,
+                                         float         data_z,
+                                         const Series* series,
+                                         size_t        index,
+                                         const Axes3D* axes3d)
+{
+    int existing = find_duplicate(series, index);
+    if (existing >= 0)
+    {
+        remove(static_cast<size_t>(existing));
+        return false;
+    }
+    add_3d(data_x, data_y, data_z, series, index, axes3d);
     return true;
 }
 
@@ -135,6 +174,9 @@ void DataMarkerManager::draw(const Rect& viewport,
 
     for (const auto& m : markers_)
     {
+        if (m.is_3d)
+            continue;
+
         // Filter by axes when requested (multi-subplot support)
         if (filter_axes && m.axes != filter_axes)
             continue;
@@ -335,6 +377,9 @@ int DataMarkerManager::hit_test(float       screen_x,
     {
         const auto& m = markers_[i];
 
+        if (m.is_3d)
+            continue;
+
         // Filter by axes when requested
         if (filter_axes && m.axes != filter_axes)
             continue;
@@ -415,6 +460,231 @@ int DataMarkerManager::hit_test(float       screen_x,
         }
 
         // Expand hit area slightly for easier clicking
+        constexpr float hit_margin = 2.0f;
+        if (screen_x >= box_left - hit_margin && screen_x <= box_right + hit_margin
+            && screen_y >= std::min(box_top, box_bot) - hit_margin
+            && screen_y <= std::max(box_top, box_bot) + hit_margin)
+        {
+            return static_cast<int>(i);
+        }
+    }
+    return -1;
+}
+
+void DataMarkerManager::draw_3d(const Axes3D& axes3d, float opacity, ImDrawList* dl)
+{
+    if (markers_.empty())
+        return;
+
+    const auto& colors = theme_mgr_->colors();
+    ImDrawList* fg     = dl ? dl : ImGui::GetForegroundDrawList();
+    ImFont*     font   = ImGui::GetFont();
+    const float fs_sm  = font->LegacySize * 0.72f;
+    const float pad_x  = 6.0f;
+    const float pad_y  = 3.0f;
+    const float arrow_h  = 5.0f;
+    const float arrow_w  = 5.0f;
+    const float corner_r = 6.0f;
+    const float dot_r    = 3.5f;
+    const float ring_r   = 5.0f;
+    const float gap      = 3.0f;
+
+    const Rect& viewport = axes3d.viewport();
+
+    for (const auto& m : markers_)
+    {
+        if (!m.is_3d || m.axes3d != &axes3d)
+            continue;
+
+        const Projected3DPoint proj =
+            project_axes3d_data_point(axes3d, {m.data_x, m.data_y, m.data_z});
+        if (!proj.visible)
+            continue;
+
+        const float sx = proj.screen_x;
+        const float sy = proj.screen_y;
+        if (sx < viewport.x || sx > viewport.x + viewport.w || sy < viewport.y
+            || sy > viewport.y + viewport.h)
+            continue;
+
+        ImU32 ring_col = ImGui::ColorConvertFloat4ToU32(
+            ImVec4(colors.bg_primary.r, colors.bg_primary.g, colors.bg_primary.b, opacity));
+        fg->AddCircleFilled(ImVec2(sx, sy), ring_r, ring_col);
+        ImU32 fill_col =
+            ImGui::ColorConvertFloat4ToU32(ImVec4(m.color.r, m.color.g, m.color.b, opacity));
+        fg->AddCircleFilled(ImVec2(sx, sy), dot_r, fill_col);
+
+        char coord_buf[72];
+        std::snprintf(coord_buf, sizeof(coord_buf), "%.4g, %.4g, %.4g", m.data_x, m.data_y, m.data_z);
+        bool has_name = !m.series_label.empty();
+
+        ImVec2 name_sz =
+            has_name ? font->CalcTextSizeA(fs_sm, 300.0f, 0.0f, m.series_label.c_str()) : ImVec2(0, 0);
+        ImVec2 coord_sz = font->CalcTextSizeA(fs_sm, 300.0f, 0.0f, coord_buf);
+
+        float text_w = std::max(name_sz.x, coord_sz.x);
+        float text_h = coord_sz.y + (has_name ? (name_sz.y + 2.0f) : 0.0f);
+        float box_w  = text_w + pad_x * 2.0f;
+        float box_h  = text_h + pad_y * 2.0f;
+
+        bool  flip        = (sy - ring_r - gap - arrow_h - box_h) < viewport.y;
+        float box_top     = NAN;
+        float box_bot     = NAN;
+        float arrow_tip_y = NAN;
+        if (!flip)
+        {
+            arrow_tip_y = sy - ring_r - gap;
+            box_bot     = arrow_tip_y - arrow_h;
+            box_top     = box_bot - box_h;
+        }
+        else
+        {
+            arrow_tip_y = sy + ring_r + gap;
+            box_top     = arrow_tip_y + arrow_h;
+            box_bot     = box_top + box_h;
+        }
+
+        float box_left  = sx - box_w * 0.5f;
+        float box_right = sx + box_w * 0.5f;
+        if (box_left < viewport.x + 2.0f)
+        {
+            float shift = (viewport.x + 2.0f) - box_left;
+            box_left += shift;
+            box_right += shift;
+        }
+        if (box_right > viewport.x + viewport.w - 2.0f)
+        {
+            float shift = box_right - (viewport.x + viewport.w - 2.0f);
+            box_left -= shift;
+            box_right -= shift;
+        }
+
+        ImU32 shadow_col = ImGui::ColorConvertFloat4ToU32(ImVec4(0, 0, 0, 0.10f * opacity));
+        fg->AddRectFilled(ImVec2(box_left + 1.0f, box_top + 1.0f),
+                          ImVec2(box_right + 1.0f, box_bot + 1.0f),
+                          shadow_col,
+                          corner_r);
+
+        ImU32 bg_col = ImGui::ColorConvertFloat4ToU32(ImVec4(colors.tooltip_bg.r,
+                                                             colors.tooltip_bg.g,
+                                                             colors.tooltip_bg.b,
+                                                             colors.tooltip_bg.a * opacity));
+        fg->AddRectFilled(ImVec2(box_left, box_top), ImVec2(box_right, box_bot), bg_col, corner_r);
+
+        float acx = std::clamp(sx, box_left + corner_r, box_right - corner_r);
+        if (!flip)
+        {
+            fg->AddTriangleFilled(ImVec2(acx - arrow_w, box_bot),
+                                  ImVec2(acx + arrow_w, box_bot),
+                                  ImVec2(acx, arrow_tip_y),
+                                  bg_col);
+        }
+        else
+        {
+            fg->AddTriangleFilled(ImVec2(acx - arrow_w, box_top),
+                                  ImVec2(acx + arrow_w, box_top),
+                                  ImVec2(acx, arrow_tip_y),
+                                  bg_col);
+        }
+
+        ImU32 box_border = ImGui::ColorConvertFloat4ToU32(ImVec4(colors.tooltip_border.r,
+                                                                 colors.tooltip_border.g,
+                                                                 colors.tooltip_border.b,
+                                                                 colors.tooltip_border.a * opacity));
+        fg->AddRect(ImVec2(box_left, box_top),
+                    ImVec2(box_right, box_bot),
+                    box_border,
+                    corner_r,
+                    0,
+                    0.5f);
+
+        ImU32 accent_col =
+            ImGui::ColorConvertFloat4ToU32(ImVec4(m.color.r, m.color.g, m.color.b, 0.85f * opacity));
+        fg->AddRectFilled(ImVec2(box_left, box_top + corner_r),
+                          ImVec2(box_left + 2.0f, box_bot - corner_r),
+                          accent_col);
+
+        ImU32 text_col = ImGui::ColorConvertFloat4ToU32(
+            ImVec4(colors.text_primary.r, colors.text_primary.g, colors.text_primary.b, opacity));
+        ImU32 text_dim = ImGui::ColorConvertFloat4ToU32(ImVec4(colors.text_secondary.r,
+                                                               colors.text_secondary.g,
+                                                               colors.text_secondary.b,
+                                                               opacity));
+
+        float tx = box_left + pad_x;
+        float ty = box_top + pad_y;
+        if (has_name)
+        {
+            fg->AddText(font, fs_sm, ImVec2(tx, ty), text_col, m.series_label.c_str());
+            ty += name_sz.y + 2.0f;
+        }
+        fg->AddText(font, fs_sm, ImVec2(tx, ty), text_dim, coord_buf);
+    }
+}
+
+int DataMarkerManager::hit_test_3d(float         screen_x,
+                                   float         screen_y,
+                                   const Axes3D& axes3d,
+                                   float         radius_px) const
+{
+    ImFont*     font    = ImGui::GetFont();
+    const float fs_sm   = font->LegacySize * 0.72f;
+    const float pad_x   = 6.0f;
+    const float pad_y   = 3.0f;
+    const float arrow_h = 5.0f;
+    const float ring_r  = 5.0f;
+    const float gap     = 3.0f;
+    const Rect& viewport = axes3d.viewport();
+
+    for (size_t i = 0; i < markers_.size(); ++i)
+    {
+        const auto& m = markers_[i];
+        if (!m.is_3d || m.axes3d != &axes3d)
+            continue;
+
+        const Projected3DPoint proj =
+            project_axes3d_data_point(axes3d, {m.data_x, m.data_y, m.data_z});
+        if (!proj.visible)
+            continue;
+
+        const float sx = proj.screen_x;
+        const float sy = proj.screen_y;
+
+        float dx = screen_x - sx;
+        float dy = screen_y - sy;
+        if (dx * dx + dy * dy <= radius_px * radius_px)
+            return static_cast<int>(i);
+
+        char coord_buf[72];
+        std::snprintf(coord_buf, sizeof(coord_buf), "%.4g, %.4g, %.4g", m.data_x, m.data_y, m.data_z);
+        bool   has_name  = !m.series_label.empty();
+        ImVec2 name_sz   = has_name ? font->CalcTextSizeA(fs_sm, 300.0f, 0.0f, m.series_label.c_str())
+                                    : ImVec2(0, 0);
+        ImVec2 coord_sz  = font->CalcTextSizeA(fs_sm, 300.0f, 0.0f, coord_buf);
+        float  text_w    = std::max(name_sz.x, coord_sz.x);
+        float  text_h    = coord_sz.y + (has_name ? (name_sz.y + 2.0f) : 0.0f);
+        float  box_w     = text_w + pad_x * 2.0f;
+        float  box_h     = text_h + pad_y * 2.0f;
+
+        bool  flip    = (sy - ring_r - gap - arrow_h - box_h) < viewport.y;
+        float box_top = NAN;
+        float box_bot = NAN;
+        if (!flip)
+        {
+            float arrow_tip_y = sy - ring_r - gap;
+            box_bot           = arrow_tip_y - arrow_h;
+            box_top           = box_bot - box_h;
+        }
+        else
+        {
+            float arrow_tip_y = sy + ring_r + gap;
+            box_top           = arrow_tip_y + arrow_h;
+            box_bot           = box_top + box_h;
+        }
+
+        float box_left  = sx - box_w * 0.5f;
+        float box_right = sx + box_w * 0.5f;
+
         constexpr float hit_margin = 2.0f;
         if (screen_x >= box_left - hit_margin && screen_x <= box_right + hit_margin
             && screen_y >= std::min(box_top, box_bot) - hit_margin

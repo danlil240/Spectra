@@ -58,6 +58,18 @@ class Axes3D : public AxesBase
         All  = XY | XZ | YZ
     };
 
+    // UI highlight for axis-arrow hover (drives brighter arrow rendering).
+    enum class AxisArrowHover
+    {
+        None,
+        X,
+        Y,
+        Z
+    };
+
+    void           set_hovered_axis_arrow(AxisArrowHover hover) { hovered_axis_arrow_ = hover; }
+    AxisArrowHover hovered_axis_arrow() const { return hovered_axis_arrow_; }
+
     void      grid_planes(GridPlane planes) { grid_planes_ = static_cast<int>(planes); }
     GridPlane grid_planes() const { return static_cast<GridPlane>(grid_planes_); }
 
@@ -126,6 +138,7 @@ class Axes3D : public AxesBase
     bool                    show_bounding_box_ = true;
     vec3                    light_dir_         = {1.0f, 1.0f, 1.0f};   // Default: top-right-front
     bool                    lighting_enabled_  = true;
+    AxisArrowHover          hovered_axis_arrow_ = AxisArrowHover::None;
 };
 
 inline Axes3D::GridPlane operator|(Axes3D::GridPlane a, Axes3D::GridPlane b)

@@ -21,6 +21,14 @@ class Camera
         Z
     };
 
+    // World-space +X / +Y / +Z axis-aligned views (2D projection of the other two axes).
+    enum class AxisView
+    {
+        PositiveX,
+        PositiveY,
+        PositiveZ
+    };
+
     vec3   position{0.0f, 0.0f, 5.0f};
     vec3   target{0.0f, 0.0f, 0.0f};
     vec3   up{0.0f, 1.0f, 0.0f};
@@ -97,7 +105,13 @@ class Camera
     void fit_to_bounds(vec3 min_bound, vec3 max_bound);
     void reset();
 
+    // Snap orbit angles so the camera looks along +X, +Y, or +Z (perpendicular 2D view).
+    Camera& align_view_to_axis(AxisView view);
+
     void update_position_from_orbit();
+
+    // Recompute azimuth/elevation/distance from the current position and target.
+    void sync_orbit_from_position();
 
     std::string serialize() const;
     void        deserialize(const std::string& json);

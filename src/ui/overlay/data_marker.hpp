@@ -18,19 +18,23 @@ namespace spectra
 {
 
 class Axes;
+class Axes3D;
 
 // A persistent data marker pinned to a specific data point.
 struct DataMarker
 {
     float         data_x      = 0.0f;
     float         data_y      = 0.0f;
+    float         data_z      = 0.0f;
     const Series* series      = nullptr;
     size_t        point_index = 0;
     Color         color       = colors::white;
-    std::string   series_label;            // series name shown in datatip
-    const Axes*   axes        = nullptr;   // owning axes (for multi-subplot)
-    float         dy_dx       = 0.0f;      // finite-difference derivative
-    bool          dy_dx_valid = false;     // true when derivative was computed
+    std::string   series_label;              // series name shown in datatip
+    const Axes*   axes        = nullptr;     // owning 2D axes (for multi-subplot)
+    const Axes3D* axes3d     = nullptr;     // owning 3D axes
+    float         dy_dx       = 0.0f;        // finite-difference derivative
+    bool          dy_dx_valid = false;       // true when derivative was computed
+    bool          is_3d       = false;
 };
 
 // Manages a collection of persistent data markers.
@@ -63,6 +67,19 @@ class DataMarkerManager
                        float         dy_dx       = 0.0f,
                        bool          dy_dx_valid = false);
 
+    void add_3d(float         data_x,
+                float         data_y,
+                float         data_z,
+                const Series* series,
+                size_t        index,
+                const Axes3D* axes3d);
+    bool toggle_or_add_3d(float         data_x,
+                            float         data_y,
+                            float         data_z,
+                            const Series* series,
+                            size_t        index,
+                            const Axes3D* axes3d);
+
     const std::vector<DataMarker>& markers() const { return markers_; }
     size_t                         count() const { return markers_.size(); }
 
@@ -92,6 +109,13 @@ class DataMarkerManager
                  float       radius_px   = 10.0f,
                  const Axes* filter_axes = nullptr) const;
 
+    // Draw / hit-test compact pinned labels on 3D axes (camera-projected).
+    void draw_3d(const Axes3D& axes3d, float opacity = 1.0f, ImDrawList* dl = nullptr);
+    int  hit_test_3d(float             screen_x,
+                     float             screen_y,
+                     const Axes3D&     axes3d,
+                     float             radius_px = 10.0f) const;
+
    private:
     std::vector<DataMarker> markers_;
 
@@ -110,6 +134,7 @@ class DataMarkerManager
                                float       ylim_max,
                                float&      screen_x,
                                float&      screen_y);
+
 };
 
 }   // namespace spectra

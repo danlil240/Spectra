@@ -749,10 +749,6 @@ class QAAgent
                               "One of each series type, toggle visibility, remove/re-add",
                               [](QAAgent& qa) { return qa.scenario_series_mixing(); }});
 
-        scenarios_.push_back({"mode_switching",
-                              "Toggle 2D/3D 10 times with data + orbit/pan between each",
-                              [](QAAgent& qa) { return qa.scenario_mode_switching(); }});
-
         scenarios_.push_back({"stress_docking",
                               "4 figures, split into grid, add tabs, rapid switching",
                               [](QAAgent& qa) { return qa.scenario_stress_docking(); }});
@@ -1403,24 +1399,6 @@ class QAAgent
         scat.visible(true);
         pump_frames(5);
 
-        return true;
-    }
-
-    bool scenario_mode_switching()
-    {
-        ensure_lightweight_active_figure();
-#ifdef SPECTRA_USE_IMGUI
-        auto* ui = app_->ui_context();
-        if (!ui)
-            return true;
-
-        for (int i = 0; i < 10; ++i)
-        {
-            // Toggle 3D mode via command
-            ui->cmd_registry.execute("view.toggle_3d");
-            pump_frames(10);
-        }
-#endif
         return true;
     }
 
@@ -4109,7 +4087,6 @@ class QAAgent
         UpdateData,
         LargeDataset,
         SplitDock,
-        Toggle3D,
         WaitFrames,
         WindowResize,
         WindowDrag,
@@ -4142,7 +4119,6 @@ class QAAgent
             {FuzzAction::UpdateData, 5},
             {FuzzAction::LargeDataset, 1},
             {FuzzAction::SplitDock, 3},
-            {FuzzAction::Toggle3D, 3},
             {FuzzAction::WaitFrames, 7},
             {FuzzAction::WindowResize, 3},
             {FuzzAction::WindowDrag, 3},
@@ -4219,8 +4195,6 @@ class QAAgent
                 return "fuzz:LargeDataset";
             case FuzzAction::SplitDock:
                 return "fuzz:SplitDock";
-            case FuzzAction::Toggle3D:
-                return "fuzz:Toggle3D";
             case FuzzAction::WaitFrames:
                 return "fuzz:WaitFrames";
             case FuzzAction::WindowResize:
@@ -4463,16 +4437,6 @@ class QAAgent
                     ui->cmd_registry.execute("view.split_right");
                 else
                     ui->cmd_registry.execute("view.split_down");
-#endif
-                break;
-            }
-
-            case FuzzAction::Toggle3D:
-            {
-#ifdef SPECTRA_USE_IMGUI
-                if (!ui)
-                    break;
-                ui->cmd_registry.execute("view.toggle_3d");
 #endif
                 break;
             }

@@ -76,7 +76,7 @@ struct WindowUIContext
     AnimationCurveEditor curve_editor;
 
     ModeTransition mode_transition;
-    // NOTE: is_in_3d_mode, saved_3d_camera, and home_limits have been migrated
+    // NOTE: per-figure home_limits live on FigureViewModel
     // to FigureViewModel (per-figure state).  Access via fig_mgr->state(id)
     // or fig_mgr->active_state().  See LT-1 in ARCHITECTURE_REVIEW.md.
 

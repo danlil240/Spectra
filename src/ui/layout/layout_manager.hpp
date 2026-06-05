@@ -40,6 +40,7 @@ class LayoutManager
     void set_inspector_visible(bool visible);
     void set_inspector_width(float width);
     void set_nav_rail_width(float width);
+    void set_nav_rail_visible(bool visible);
     void set_nav_rail_expanded(bool expanded);
     void set_tab_bar_visible(bool visible);
     void reset_inspector_width();
@@ -62,6 +63,7 @@ class LayoutManager
     bool  is_inspector_visible() const { return inspector_visible_; }
     float inspector_width() const { return inspector_width_; }
     float inspector_animated_width() const { return inspector_anim_width_; }
+    bool  is_nav_rail_visible() const { return nav_rail_visible_; }
     bool  is_nav_rail_expanded() const { return nav_rail_expanded_; }
     float nav_rail_width() const;
     float nav_rail_animated_width() const { return nav_rail_anim_width_; }
@@ -128,6 +130,7 @@ class LayoutManager
     // Configuration state
     bool  inspector_visible_        = false;
     float inspector_width_          = INSPECTOR_DEFAULT_WIDTH;
+    bool  nav_rail_visible_         = true;
     bool  nav_rail_expanded_        = false;
     float nav_rail_collapsed_width_ = NAV_RAIL_COLLAPSED_WIDTH;
     float nav_rail_expanded_width_  = NAV_RAIL_EXPANDED_WIDTH;

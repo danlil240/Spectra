@@ -1,5 +1,6 @@
 #include <cmath>
 #include <gtest/gtest.h>
+#include <spectra/axes3d.hpp>
 
 #include "ui/input/input.hpp"
 
@@ -481,4 +482,25 @@ TEST_F(MultiAxesInputTest, ScrollZoomsCorrectAxes)
     float range_before = xlim2_before.max - xlim2_before.min;
     float range_after  = xlim2_after.max - xlim2_after.min;
     EXPECT_LT(range_after, range_before);
+}
+
+TEST(InputHandler3DTest, CursorReadoutValidOverSubplot3d)
+{
+    Figure fig(FigureConfig{800, 600});
+    auto&  ax = fig.subplot3d(1, 1, 1);
+    ax.xlim(-1.0, 1.0);
+    ax.ylim(-1.0, 1.0);
+    ax.zlim(-1.0, 1.0);
+    fig.compute_layout();
+
+    InputHandler handler;
+    handler.set_figure(&fig);
+
+    const auto& vp = ax.viewport();
+    handler.on_mouse_move(vp.x + vp.w * 0.5, vp.y + vp.h * 0.5);
+
+    const auto& readout = handler.cursor_readout();
+    EXPECT_TRUE(readout.valid);
+    EXPECT_DOUBLE_EQ(readout.screen_x, vp.x + vp.w * 0.5);
+    EXPECT_DOUBLE_EQ(readout.screen_y, vp.y + vp.h * 0.5);
 }

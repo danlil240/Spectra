@@ -76,11 +76,24 @@ std::vector<AutomationHandlerEntry> make_figure_handlers()
 #ifdef SPECTRA_USE_IMGUI
             if (ui_ctx)
             {
+                bool has_3d_axes = false;
+                if (ui_ctx->fig_mgr)
+                {
+                    if (Figure* fig = ui_ctx->fig_mgr->active_figure())
+                    {
+                        for (const auto& ax_base : fig->all_axes())
+                        {
+                            if (ax_base && dynamic_cast<Axes3D*>(ax_base.get()))
+                            {
+                                has_3d_axes = true;
+                                break;
+                            }
+                        }
+                    }
+                }
                 oss << ",\"undo_count\":" << ui_ctx->undo_mgr.undo_count()
                     << ",\"redo_count\":" << ui_ctx->undo_mgr.redo_count() << ",\"is_3d_mode\":"
-                    << ((ui_ctx->fig_mgr && ui_ctx->fig_mgr->active_state().is_in_3d_mode())
-                            ? "true"
-                            : "false")
+                    << (has_3d_axes ? "true" : "false")
                     << R"(,"theme":")"
                     << json_escape(ui_ctx->theme_mgr ? ui_ctx->theme_mgr->current_theme_name() : "")
                     << '"';

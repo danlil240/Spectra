@@ -26,17 +26,53 @@ mat4 Camera::projection_matrix(float aspect_ratio) const
 
 void Camera::orbit(float d_azimuth, float d_elevation)
 {
-    azimuth += d_azimuth;
-    elevation += d_elevation;
+    vec3 offset = position - target;
+    float dist  = vec3_length(offset);
+    if (dist < 1e-6f)
+        return;
 
-    while (azimuth < 0.0f)
-        azimuth += 360.0f;
-    while (azimuth >= 360.0f)
-        azimuth -= 360.0f;
+    const vec3 world_up =
+        (up_axis == UpAxis::Z) ? vec3{0.0f, 0.0f, 1.0f} : vec3{0.0f, 1.0f, 0.0f};
 
-    elevation = clampf(elevation, -89.0f, 89.0f);
+    if (std::abs(d_azimuth) > 1e-6f)
+    {
+        // Sign matches legacy turntable: +azimuth moves +X toward +Z (Y-up).
+        const quat q_az =
+            quat_from_axis_angle(world_up, static_cast<double>(deg_to_rad(-d_azimuth)));
+        offset = quat_rotate(q_az, offset);
+    }
 
-    update_position_from_orbit();
+    if (std::abs(d_elevation) > 1e-6f)
+    {
+        vec3 right = vec3_cross(world_up, offset);
+        if (vec3_length(right) < 1e-4f)
+        {
+            const vec3 fallback =
+                (std::abs(world_up.y) < 0.9f) ? vec3{1.0f, 0.0f, 0.0f} : vec3{0.0f, 1.0f, 0.0f};
+            right = vec3_cross(world_up, fallback);
+        }
+        right = vec3_normalize(right);
+
+        const quat q_el =
+            quat_from_axis_angle(right, static_cast<double>(deg_to_rad(-d_elevation)));
+        offset = quat_rotate(q_el, offset);
+    }
+
+    position = target + offset;
+    distance = dist;
+    up       = world_up;
+    sync_orbit_from_position();
+
+    if (elevation > 89.0f)
+    {
+        elevation = 89.0f;
+        update_position_from_orbit();
+    }
+    else if (elevation < -89.0f)
+    {
+        elevation = -89.0f;
+        update_position_from_orbit();
+    }
 }
 
 void Camera::pan(float dx, float dy, float /*viewport_width*/, float /*viewport_height*/)
@@ -109,6 +145,80 @@ void Camera::fit_to_bounds(vec3 min_bound, vec3 max_bound)
     }
 
     update_position_from_orbit();
+}
+
+void Camera::sync_orbit_from_position()
+{
+    vec3 offset = position - target;
+    distance    = static_cast<float>(vec3_length(offset));
+    if (distance < 1e-6f)
+        return;
+
+    const vec3 dir = offset * (1.0f / distance);
+
+    if (up_axis == UpAxis::Z)
+    {
+        elevation = rad_to_deg(std::asin(clampf(dir.z, -1.0f, 1.0f)));
+        azimuth   = rad_to_deg(std::atan2(dir.y, dir.x));
+    }
+    else
+    {
+        elevation = rad_to_deg(std::asin(clampf(dir.y, -1.0f, 1.0f)));
+        azimuth   = rad_to_deg(std::atan2(dir.z, dir.x));
+    }
+
+    while (azimuth < 0.0f)
+        azimuth += 360.0f;
+    while (azimuth >= 360.0f)
+        azimuth -= 360.0f;
+
+    elevation = clampf(elevation, -89.0f, 89.0f);
+}
+
+Camera& Camera::align_view_to_axis(AxisView view)
+{
+    // Slightly off-pole so horizontal orbit still moves the camera after a snap.
+    constexpr float kPoleElevation = 75.0f;
+
+    if (up_axis == UpAxis::Z)
+    {
+        switch (view)
+        {
+            case AxisView::PositiveX:
+                azimuth   = 0.0f;
+                elevation = 0.0f;
+                break;
+            case AxisView::PositiveY:
+                azimuth   = 90.0f;
+                elevation = 0.0f;
+                break;
+            case AxisView::PositiveZ:
+                azimuth   = 0.0f;
+                elevation = kPoleElevation;
+                break;
+        }
+    }
+    else
+    {
+        switch (view)
+        {
+            case AxisView::PositiveX:
+                azimuth   = 0.0f;
+                elevation = 0.0f;
+                break;
+            case AxisView::PositiveY:
+                azimuth   = 0.0f;
+                elevation = kPoleElevation;
+                break;
+            case AxisView::PositiveZ:
+                azimuth   = 90.0f;
+                elevation = 0.0f;
+                break;
+        }
+    }
+
+    update_position_from_orbit();
+    return *this;
 }
 
 void Camera::reset()

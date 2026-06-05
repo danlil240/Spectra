@@ -345,7 +345,7 @@ class ImGuiIntegration
     bool is_curve_editor_visible() const { return show_curve_editor_; }
     void set_curve_editor_visible(bool v) { show_curve_editor_ = v; }
     bool is_nav_rail_visible() const { return show_nav_rail_; }
-    void set_nav_rail_visible(bool v) { show_nav_rail_ = v; }
+    void set_nav_rail_visible(bool v);
 
     // Chrome visibility — set to false by adapters that provide their own UI
     // (e.g. spectra-ros supplies its own menu bar, status bar, and canvas).

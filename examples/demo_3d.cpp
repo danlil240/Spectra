@@ -1,5 +1,4 @@
 #include <cmath>
-#include <iostream>
 #include <spectra/spectra.hpp>
 #include <vector>
 
@@ -20,7 +19,9 @@ int main()
     // --- Subplot 1: 3D Scatter Plot (Spiral) ---
     auto& ax1 = fig.subplot3d(2, 2, 1);
 
-    std::vector<float> x1, y1, z1;
+    std::vector<float> x1;
+    std::vector<float> y1;
+    std::vector<float> z1;
     for (int i = 0; i < 500; ++i)
     {
         float t = static_cast<float>(i) * 0.02f;
@@ -43,7 +44,9 @@ int main()
     // --- Subplot 2: 3D Line Plot (Helix) ---
     auto& ax2 = fig.subplot3d(2, 2, 2);
 
-    std::vector<float> x2, y2, z2;
+    std::vector<float> x2;
+    std::vector<float> y2;
+    std::vector<float> z2;
     for (int i = 0; i < 300; ++i)
     {
         float t = static_cast<float>(i) * 0.05f;
@@ -66,8 +69,11 @@ int main()
     // --- Subplot 3: Surface Plot (Mathematical Function) ---
     auto& ax3 = fig.subplot3d(2, 2, 3);
 
-    const int          nx = 50, ny = 50;
-    std::vector<float> x_grid(nx), y_grid(ny), z_values(nx * ny);
+    const int          nx = 50;
+    const int          ny = 50;
+    std::vector<float> x_grid(nx);
+    std::vector<float> y_grid(ny);
+    std::vector<float> z_values(nx * ny);
 
     for (int i = 0; i < nx; ++i)
     {

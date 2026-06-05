@@ -29,10 +29,10 @@ class ResourceMonitor
 {
    public:
     explicit ResourceMonitor(double interval_seconds = 5.0)
-        : interval_s_(interval_seconds), last_log_(Clock::now()),
-          ticks_per_sec_(static_cast<double>(sysconf(_SC_CLK_TCK)))
+        : interval_s_(interval_seconds), last_log_(Clock::now())
     {
 #ifdef __linux__
+        ticks_per_sec_ = static_cast<double>(sysconf(_SC_CLK_TCK));
         sample_cpu_ticks(prev_utime_, prev_stime_, prev_wall_ns_);
 #endif
     }

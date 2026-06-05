@@ -6,10 +6,12 @@
     #include <spawn.h>
     #include <sys/wait.h>
     #include <unistd.h>
-#endif
 
-#ifndef _WIN32
-
+    #ifdef __APPLE__
+        #include <crt_externs.h>
+    #else
+        extern char** environ;
+    #endif
 #endif
 
 namespace spectra::daemon
@@ -29,12 +31,18 @@ pid_t ProcessManager::spawn_agent()
     posix_spawn_file_actions_t actions;
     posix_spawn_file_actions_init(&actions);
 
+    #ifdef __APPLE__
+    char** env = *_NSGetEnviron();
+    #else
+    char** env = environ;
+    #endif
+
     int ret = posix_spawn(&pid,
                           agent_path_.c_str(),
                           &actions,
                           nullptr,
                           const_cast<char* const*>(argv),
-                          environ);
+                          env);
     posix_spawn_file_actions_destroy(&actions);
 
     if (ret != 0)

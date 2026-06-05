@@ -5,7 +5,6 @@
 #include <fstream>
 
 #define STB_TRUETYPE_IMPLEMENTATION
-#include <cmath>
 #include <stb_truetype.h>
 
 namespace spectra
@@ -567,14 +566,21 @@ void TextRenderer::flush_batch(Backend&                 backend,
     verts.clear();
 }
 
+void TextRenderer::begin_frame_recording(uint32_t flight_index)
+{
+    flush_slot_base_    = (flight_index % TEXT_FLIGHT_FRAMES) * MAX_TEXT_FLUSHES_PER_FRAME;
+    flush_cursor_       = 0;
+    depth_flush_cursor_ = 0;
+}
+
 void TextRenderer::flush(Backend& backend, float screen_width, float screen_height)
 {
     if (!initialized_)
         return;
-    // Each flush gets its own buffer slot so that split-pane rendering
-    // (multiple flushes per frame) does not overwrite earlier draws.
-    uint32_t slot = flush_cursor_ % TEXT_BUFFER_SLOTS;
-    flush_cursor_ = (flush_cursor_ + 1) % TEXT_BUFFER_SLOTS;
+    if (flush_cursor_ >= MAX_TEXT_FLUSHES_PER_FRAME)
+        return;
+    uint32_t slot = flush_slot_base_ + flush_cursor_;
+    ++flush_cursor_;
     flush_batch(backend,
                 vertices_,
                 vertex_buffer_[slot],
@@ -588,8 +594,10 @@ void TextRenderer::flush_depth(Backend& backend, float screen_width, float scree
 {
     if (!initialized_)
         return;
-    uint32_t slot       = depth_flush_cursor_ % TEXT_BUFFER_SLOTS;
-    depth_flush_cursor_ = (depth_flush_cursor_ + 1) % TEXT_BUFFER_SLOTS;
+    if (depth_flush_cursor_ >= MAX_TEXT_FLUSHES_PER_FRAME)
+        return;
+    uint32_t slot = flush_slot_base_ + depth_flush_cursor_;
+    ++depth_flush_cursor_;
     flush_batch(backend,
                 depth_vertices_,
                 depth_vertex_buffer_[slot],

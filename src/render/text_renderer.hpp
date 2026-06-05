@@ -120,6 +120,11 @@ class TextRenderer
     // Uses TextDepth pipeline with depth test enabled.
     void flush_depth(Backend& backend, float screen_width, float screen_height);
 
+    // Reset flush slot cursors for the current in-flight frame. Call once per
+    // render pass before any flush() (e.g. from Renderer::begin_render_pass).
+    // flight_index: backend.current_flight_frame() (0 or 1 with double-buffering).
+    void begin_frame_recording(uint32_t flight_index);
+
     // Returns true if init() succeeded
     bool is_initialized() const { return initialized_; }
 
@@ -152,18 +157,22 @@ class TextRenderer
     std::vector<TextVertex> vertices_;         // 2D text (no depth test)
     std::vector<TextVertex> depth_vertices_;   // 3D text (depth-tested)
 
-    // Vertex buffers: ring of slots that advances on each flush() call.
-    // Split-pane rendering flushes text once per pane within a single frame;
-    // using separate slots prevents a later pane's upload from overwriting
-    // data still referenced by an earlier pane's recorded draw command.
-    // 16 slots comfortably covers 2 flight frames × up to 8 panes.
-    static constexpr uint32_t TEXT_BUFFER_SLOTS = 16;
+    // Vertex buffers: partitioned by swapchain flight frame, then by flush index.
+    // Split-pane rendering flushes text once per pane (×2 for depth + 2D) within
+    // a single command buffer; each flush needs its own slot so uploads do not
+    // overwrite draws still in the same submission.  Slots are NOT reused until
+    // the matching flight frame completes (see begin_frame_recording).
+    static constexpr uint32_t MAX_TEXT_FLUSHES_PER_FRAME = 20;   // 10 panes × 2 flushes
+    static constexpr uint32_t TEXT_FLIGHT_FRAMES           = 2;
+    static constexpr uint32_t TEXT_BUFFER_SLOTS =
+        MAX_TEXT_FLUSHES_PER_FRAME * TEXT_FLIGHT_FRAMES;
     BufferHandle              vertex_buffer_[TEXT_BUFFER_SLOTS];
     size_t                    vertex_buffer_capacity_[TEXT_BUFFER_SLOTS] = {};
     BufferHandle              depth_vertex_buffer_[TEXT_BUFFER_SLOTS];
     size_t                    depth_vertex_buffer_capacity_[TEXT_BUFFER_SLOTS] = {};
-    uint32_t                  flush_cursor_       = 0;   // advances per flush()
-    uint32_t                  depth_flush_cursor_ = 0;   // advances per flush_depth()
+    uint32_t                  flush_slot_base_    = 0;   // flight_index * MAX_TEXT_FLUSHES_PER_FRAME
+    uint32_t                  flush_cursor_       = 0;   // per-frame flush count (2D text)
+    uint32_t                  depth_flush_cursor_ = 0;   // per-frame flush count (3D text)
 
     // UBO for screen-space ortho projection
     BufferHandle text_ubo_;

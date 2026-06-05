@@ -1091,8 +1091,9 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
         // Flush Vulkan plot text BEFORE ImGui so that UI overlays (command
         // palette, inspector, menus) render on top of plot labels.
         // The ImGui canvas ##window uses NoBackground so it won't overwrite text.
+        // Split view already flushes text per pane above; a second flush is redundant.
 #ifdef SPECTRA_USE_IMGUI
-        if (render_canvas)
+        if (render_canvas && !(dock_system.is_split() && active_figure))
 #endif
         {
             auto sw = static_cast<float>(backend_.swapchain_width());

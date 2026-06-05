@@ -107,7 +107,7 @@ bool validate_automation_params(const std::string&            params_json,
 
 AutomationHandlerFn wrap_automation_handler(AutomationHandlerEntry entry)
 {
-    return [entry = std::move(entry)](AutomationRequest& req, App& app, WindowUIContext* ui_ctx)
+    return [entry = std::move(entry)](AutomationRequest& req, App* app, WindowUIContext* ui_ctx)
     {
         std::string err;
         if (!check_automation_context(entry.context, &app, ui_ctx, err))

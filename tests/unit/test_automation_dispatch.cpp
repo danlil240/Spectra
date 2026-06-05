@@ -1,7 +1,5 @@
 #include <gtest/gtest.h>
 
-#include <spectra/app.hpp>
-
 #include "ui/automation/automation_dispatch.hpp"
 #include "ui/automation/automation_json.hpp"
 #include "ui/automation/automation_server.hpp"
@@ -75,7 +73,7 @@ TEST(AutomationDispatch, SerializeHandlerCatalog)
         "Ping the application.",
         AutomationContextFlag::None,
         {},
-        [](AutomationRequest&, App&, WindowUIContext*) {}));
+        [](AutomationRequest&, App*, WindowUIContext*) {}));
 
     const std::string json = serialize_handler_catalog(catalog);
     EXPECT_NE(json.find("\"method\":\"ping\""), std::string::npos);
@@ -89,15 +87,14 @@ TEST(AutomationDispatch, WrapHandlerRejectsMissingParams)
         "Test handler.",
         AutomationContextFlag::None,
         {{.name = "command_id", .kind = ParamKind::String, .required = true}},
-        [](AutomationRequest& req, App&, WindowUIContext*)
+        [](AutomationRequest& req, App*, WindowUIContext*)
         { req.response_json = json_ok(req.id); });
 
     auto              fn = wrap_automation_handler(std::move(entry));
     AutomationRequest req;
     req.id          = 42;
     req.params_json = "{}";
-    App             app;
-    fn(req, app, nullptr);
+    fn(req, nullptr, nullptr);
     EXPECT_NE(req.response_json.find("\"ok\":false"), std::string::npos);
     EXPECT_NE(req.response_json.find("Missing parameter: command_id"), std::string::npos);
 }

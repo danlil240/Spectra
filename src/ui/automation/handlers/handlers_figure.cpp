@@ -36,11 +36,11 @@ std::vector<AutomationHandlerEntry> make_figure_handlers()
         "Get the current state of the Spectra application.",
         Ctx::None,
         {},
-        [](AutomationRequest& req, App& app, WindowUIContext* ui_ctx)
+        [](AutomationRequest& req, App* app, WindowUIContext* ui_ctx)
         {
             std::ostringstream oss;
             oss << "{";
-            auto ids = app.figure_registry().all_ids();
+            auto ids = app->figure_registry().all_ids();
             oss << "\"figure_count\":" << ids.size();
 
             FigureId active_id = INVALID_FIGURE_ID;
@@ -55,7 +55,7 @@ std::vector<AutomationHandlerEntry> make_figure_handlers()
             {
                 if (i > 0)
                     oss << ",";
-                Figure* fig = app.figure_registry().get(ids[i]);
+                Figure* fig = app->figure_registry().get(ids[i]);
                 oss << "{\"id\":" << ids[i];
                 if (fig)
                 {
@@ -98,12 +98,12 @@ std::vector<AutomationHandlerEntry> make_figure_handlers()
         "Create a new figure in Spectra.",
         Ctx::None,
         {},
-        [](AutomationRequest& req, App& app, WindowUIContext* /*ui_ctx*/)
+        [](AutomationRequest& req, App* app, WindowUIContext* /*ui_ctx*/)
         {
             uint32_t w       = static_cast<uint32_t>(json_get_int(req.params_json, "width", 1280));
             uint32_t h       = static_cast<uint32_t>(json_get_int(req.params_json, "height", 720));
-            Figure&  new_fig = app.figure({w, h});
-            FigureId new_id  = app.figure_registry().find_id(&new_fig);
+            Figure&  new_fig = app->figure({w, h});
+            FigureId new_id  = app->figure_registry().find_id(&new_fig);
             req.response_json = json_ok(req.id, "{\"figure_id\":" + std::to_string(new_id) + "}");
         }));
 
@@ -112,7 +112,7 @@ std::vector<AutomationHandlerEntry> make_figure_handlers()
         "Add a data series to a figure.",
         Ctx::None,
         {{.name = "figure_id", .kind = ParamKind::Int, .required = true}},
-        [](AutomationRequest& req, App& app, WindowUIContext* /*ui_ctx*/)
+        [](AutomationRequest& req, App* app, WindowUIContext* /*ui_ctx*/)
         {
             uint64_t    fig_id = json_get_uint64(req.params_json, "figure_id", 0);
             std::string type   = json_get_string(req.params_json, "type");
@@ -120,7 +120,7 @@ std::vector<AutomationHandlerEntry> make_figure_handlers()
                 type = "line";
             int n_points = json_get_int(req.params_json, "n_points", 100);
 
-            Figure* fig = app.figure_registry().get(static_cast<FigureId>(fig_id));
+            Figure* fig = app->figure_registry().get(static_cast<FigureId>(fig_id));
             if (!fig)
             {
                 req.response_json = json_error(req.id, "Figure not found");
@@ -171,7 +171,7 @@ std::vector<AutomationHandlerEntry> make_figure_handlers()
         "Switch to a specific figure by its ID.",
         Ctx::ImGui | Ctx::FigureMgr,
         {{.name = "figure_id", .kind = ParamKind::Int, .required = true}},
-        [](AutomationRequest& req, App& /*app*/, WindowUIContext* ui_ctx)
+        [](AutomationRequest& req, App* /*app*/, WindowUIContext* ui_ctx)
         {
 #ifdef SPECTRA_USE_IMGUI
             uint64_t fig_id = json_get_uint64(req.params_json, "figure_id", 0);
@@ -188,10 +188,10 @@ std::vector<AutomationHandlerEntry> make_figure_handlers()
         "Get detailed information about a figure.",
         Ctx::None,
         {{.name = "figure_id", .kind = ParamKind::Int, .required = true}},
-        [](AutomationRequest& req, App& app, WindowUIContext* /*ui_ctx*/)
+        [](AutomationRequest& req, App* app, WindowUIContext* /*ui_ctx*/)
         {
             uint64_t fig_id = json_get_uint64(req.params_json, "figure_id", 0);
-            Figure*  fig    = app.figure_registry().get(static_cast<FigureId>(fig_id));
+            Figure*  fig    = app->figure_registry().get(static_cast<FigureId>(fig_id));
             if (!fig)
             {
                 req.response_json = json_error(req.id, "Figure not found");

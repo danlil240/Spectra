@@ -212,8 +212,7 @@ TEST(Golden3DPhase3, LitSurface_HighSpecular)
 
 TEST(Golden3DPhase3, LitMesh_Quad)
 {
-    run_golden_test_3d_p3(
-        "3d_p3_lit_mesh_quad",
+    run_golden_test_3d_p3("3d_p3_lit_mesh_quad",
                           [](App& /*app*/, Figure& fig)
                           {
                               auto& ax = fig.subplot3d(1, 1, 1);
@@ -233,10 +232,7 @@ TEST(Golden3DPhase3, LitMesh_Quad)
 
                               ax.set_light_dir(1.0f, 1.0f, 1.0f);
                               ax.title("Lit Mesh: Quad");
-                          },
-        640,
-        480,
-        3.5);
+                          });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

@@ -38,7 +38,7 @@ std::vector<AutomationHandlerEntry> make_input_handlers()
         kWindowUi,
         {{.name = "x", .kind = ParamKind::Number, .required = true},
          {.name = "y", .kind = ParamKind::Number, .required = true}},
-        [](AutomationRequest& req, App& /*app*/, WindowUIContext* ui_ctx)
+        [](AutomationRequest& req, App* /*app*/, WindowUIContext* ui_ctx)
         {
             double x = json_get_number(req.params_json, "x");
             double y = json_get_number(req.params_json, "y");
@@ -64,7 +64,7 @@ std::vector<AutomationHandlerEntry> make_input_handlers()
         kWindowUi,
         {{.name = "x", .kind = ParamKind::Number, .required = true},
          {.name = "y", .kind = ParamKind::Number, .required = true}},
-        [](AutomationRequest& req, App& app, WindowUIContext* ui_ctx)
+        [](AutomationRequest& req, App* app, WindowUIContext* ui_ctx)
         {
             double x   = json_get_number(req.params_json, "x");
             double y   = json_get_number(req.params_json, "y");
@@ -94,7 +94,7 @@ std::vector<AutomationHandlerEntry> make_input_handlers()
 #endif
             ui_ctx->input_handler.on_mouse_button(btn, 1, mod, x, y);
             ui_ctx->input_handler.on_mouse_button(btn, 0, mod, x, y);
-            if (auto* sess = app.session())
+            if (auto* sess = app->session())
                 sess->redraw_tracker().mark_dirty("mouse_click");
             req.response_json = json_ok(req.id);
         }));
@@ -107,7 +107,7 @@ std::vector<AutomationHandlerEntry> make_input_handlers()
          {.name = "y1", .kind = ParamKind::Number, .required = true},
          {.name = "x2", .kind = ParamKind::Number, .required = true},
          {.name = "y2", .kind = ParamKind::Number, .required = true}},
-        [](AutomationRequest& req, App& /*app*/, WindowUIContext* ui_ctx)
+        [](AutomationRequest& req, App* /*app*/, WindowUIContext* ui_ctx)
         {
             double x1    = json_get_number(req.params_json, "x1");
             double y1    = json_get_number(req.params_json, "y1");
@@ -138,7 +138,7 @@ std::vector<AutomationHandlerEntry> make_input_handlers()
         kWindowUi,
         {{.name = "x", .kind = ParamKind::Number, .required = true},
          {.name = "y", .kind = ParamKind::Number, .required = true}},
-        [](AutomationRequest& req, App& /*app*/, WindowUIContext* ui_ctx)
+        [](AutomationRequest& req, App* /*app*/, WindowUIContext* ui_ctx)
         {
             double x  = json_get_number(req.params_json, "x");
             double y  = json_get_number(req.params_json, "y");
@@ -153,7 +153,7 @@ std::vector<AutomationHandlerEntry> make_input_handlers()
         "Press and release a keyboard key.",
         kWindowUi,
         {{.name = "key", .kind = ParamKind::Int, .required = true}},
-        [](AutomationRequest& req, App& /*app*/, WindowUIContext* ui_ctx)
+        [](AutomationRequest& req, App* /*app*/, WindowUIContext* ui_ctx)
         {
             int key = json_get_int(req.params_json, "key");
             int mod = json_get_int(req.params_json, "modifiers", 0);
@@ -167,7 +167,7 @@ std::vector<AutomationHandlerEntry> make_input_handlers()
         "Inject text into the active ImGui text field.",
         Ctx::ImGui,
         {{.name = "text", .kind = ParamKind::String, .required = true}},
-        [](AutomationRequest& req, App& /*app*/, WindowUIContext* /*ui_ctx*/)
+        [](AutomationRequest& req, App* /*app*/, WindowUIContext* /*ui_ctx*/)
         {
 #ifdef SPECTRA_USE_IMGUI
             std::string text = json_get_string(req.params_json, "text");
@@ -187,7 +187,7 @@ std::vector<AutomationHandlerEntry> make_input_handlers()
         kWindowUi,
         {{.name = "x", .kind = ParamKind::Number, .required = true},
          {.name = "y", .kind = ParamKind::Number, .required = true}},
-        [](AutomationRequest& req, App& /*app*/, WindowUIContext* ui_ctx)
+        [](AutomationRequest& req, App* /*app*/, WindowUIContext* ui_ctx)
         {
             double x   = json_get_number(req.params_json, "x");
             double y   = json_get_number(req.params_json, "y");

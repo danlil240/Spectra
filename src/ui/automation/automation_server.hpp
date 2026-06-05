@@ -99,7 +99,7 @@ class AutomationServer
     std::atomic<uint64_t> next_request_id_{1};
 
     // Handler registry: method name -> handler function.
-    using HandlerFn = std::function<void(AutomationRequest&, App&, WindowUIContext*)>;
+    using HandlerFn = std::function<void(AutomationRequest&, App*, WindowUIContext*)>;
     std::unordered_map<std::string, HandlerFn> handlers_;
 
     // Metadata catalog for list_methods and tooling.

@@ -24,13 +24,13 @@ std::vector<AutomationHandlerEntry> make_command_handlers()
         "Execute a registered Spectra UI command by its ID.",
         AutomationContextFlag::ImGui,
         {{.name = "command_id", .kind = ParamKind::String, .required = true}},
-        [](AutomationRequest& req, App& app, WindowUIContext* ui_ctx)
+        [](AutomationRequest& req, App* app, WindowUIContext* ui_ctx)
         {
             std::string cmd_id = json_get_string(req.params_json, "command_id");
             bool        ok     = ui_ctx->cmd_registry.execute(cmd_id);
             if (ok)
             {
-                if (auto* sess = app.session())
+                if (auto* sess = app->session())
                     sess->redraw_tracker().mark_dirty("execute_command");
             }
             req.response_json =
@@ -43,7 +43,7 @@ std::vector<AutomationHandlerEntry> make_command_handlers()
         "List all registered UI commands in the Spectra application.",
         AutomationContextFlag::ImGui,
         {},
-        [](AutomationRequest& req, App& /*app*/, WindowUIContext* ui_ctx)
+        [](AutomationRequest& req, App* /*app*/, WindowUIContext* ui_ctx)
         {
             auto               all = ui_ctx->cmd_registry.all_commands();
             std::ostringstream oss;
@@ -68,7 +68,7 @@ std::vector<AutomationHandlerEntry> make_command_handlers()
         "Execute a registered Spectra UI command by its ID.",
         AutomationContextFlag::ImGui,
         {{.name = "command_id", .kind = ParamKind::String, .required = true}},
-        [](AutomationRequest& req, App& /*app*/, WindowUIContext* /*ui_ctx*/)
+        [](AutomationRequest& req, App* /*app*/, WindowUIContext* /*ui_ctx*/)
         { req.response_json = json_error(req.id, "ImGui not available"); }));
 
     entries.push_back(automation_handler(
@@ -76,7 +76,7 @@ std::vector<AutomationHandlerEntry> make_command_handlers()
         "List all registered UI commands in the Spectra application.",
         AutomationContextFlag::ImGui,
         {},
-        [](AutomationRequest& req, App& /*app*/, WindowUIContext* /*ui_ctx*/)
+        [](AutomationRequest& req, App* /*app*/, WindowUIContext* /*ui_ctx*/)
         { req.response_json = json_error(req.id, "ImGui not available"); }));
 #endif
 

@@ -69,7 +69,7 @@ void AutomationServer::register_handlers()
         "List all automation methods with metadata (context requirements and parameters).",
         AutomationContextFlag::None,
         {},
-        [this](AutomationRequest& req, App& /*app*/, WindowUIContext* /*ui_ctx*/)
+        [this](AutomationRequest& req, App* /*app*/, WindowUIContext* /*ui_ctx*/)
         {
             req.response_json =
                 json_ok(req.id, "{\"methods\":" + serialize_handler_catalog(handler_catalog_) + "}");
@@ -439,7 +439,7 @@ void AutomationServer::execute(AutomationRequest& req, App& app, WindowUIContext
     auto it = handlers_.find(req.method);
     if (it != handlers_.end())
     {
-        it->second(req, app, ui_ctx);
+        it->second(req, &app, ui_ctx);
     }
     else
     {

@@ -28,7 +28,7 @@ std::vector<AutomationHandlerEntry> make_capture_handlers()
         "Capture the active figure as a PNG file.",
         Ctx::None,
         {},
-        [](AutomationRequest& req, App& app, WindowUIContext* ui_ctx)
+        [](AutomationRequest& req, App* app, WindowUIContext* ui_ctx)
         {
             std::string path = json_get_string(req.params_json, "path");
             if (path.empty())
@@ -41,12 +41,12 @@ std::vector<AutomationHandlerEntry> make_capture_handlers()
 #else
             (void)ui_ctx;
 #endif
-            Figure* fig = app.figure_registry().get(active_id);
+            Figure* fig = app->figure_registry().get(active_id);
             if (!fig)
             {
-                auto ids = app.figure_registry().all_ids();
+                auto ids = app->figure_registry().all_ids();
                 if (!ids.empty())
-                    fig = app.figure_registry().get(ids[0]);
+                    fig = app->figure_registry().get(ids[0]);
             }
             if (fig)
             {
@@ -64,13 +64,13 @@ std::vector<AutomationHandlerEntry> make_capture_handlers()
         "Capture the full window framebuffer as a PNG file.",
         Ctx::Backend,
         {},
-        [](AutomationRequest& req, App& app, WindowUIContext* /*ui_ctx*/)
+        [](AutomationRequest& req, App* app, WindowUIContext* /*ui_ctx*/)
         {
             std::string path = json_get_string(req.params_json, "path");
             if (path.empty())
                 path = "/tmp/spectra_auto_window.png";
 
-            Backend* backend = app.backend();
+            Backend* backend = app->backend();
             uint32_t w       = backend->swapchain_width();
             uint32_t h       = backend->swapchain_height();
             if (w == 0 || h == 0)
@@ -104,9 +104,9 @@ std::vector<AutomationHandlerEntry> make_capture_handlers()
         "Capture the window framebuffer and return PNG data as base64.",
         Ctx::Backend,
         {},
-        [](AutomationRequest& req, App& app, WindowUIContext* /*ui_ctx*/)
+        [](AutomationRequest& req, App* app, WindowUIContext* /*ui_ctx*/)
         {
-            Backend* backend = app.backend();
+            Backend* backend = app->backend();
             uint32_t w       = backend->swapchain_width();
             uint32_t h       = backend->swapchain_height();
             if (w == 0 || h == 0)

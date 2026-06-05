@@ -18,7 +18,7 @@ struct AutomationRequest;
 struct WindowUIContext;
 
 using AutomationHandlerFn =
-    std::function<void(AutomationRequest& req, App& app, WindowUIContext* ui_ctx)>;
+    std::function<void(AutomationRequest& req, App* app, WindowUIContext* ui_ctx)>;
 
 enum class AutomationContextFlag : uint8_t
 {

@@ -16,7 +16,7 @@ std::vector<AutomationHandlerEntry> make_utility_handlers()
         "Advance the application by rendering the specified number of frames.",
         AutomationContextFlag::None,
         {},
-        [](AutomationRequest& req, App& /*app*/, WindowUIContext* /*ui_ctx*/)
+        [](AutomationRequest& req, App* /*app*/, WindowUIContext* /*ui_ctx*/)
         {
             int count = json_get_int(req.params_json, "count", 1);
             if (count < 1)
@@ -31,7 +31,7 @@ std::vector<AutomationHandlerEntry> make_utility_handlers()
         "Defer the response until N frames have elapsed.",
         AutomationContextFlag::None,
         {},
-        [](AutomationRequest& req, App& /*app*/, WindowUIContext* /*ui_ctx*/)
+        [](AutomationRequest& req, App* /*app*/, WindowUIContext* /*ui_ctx*/)
         { req.response_json = json_ok(req.id, "{\"waited\":true}"); }));
 
     entries.push_back(automation_handler(
@@ -39,7 +39,7 @@ std::vector<AutomationHandlerEntry> make_utility_handlers()
         "Ping the Spectra application to verify the connection is alive.",
         AutomationContextFlag::None,
         {},
-        [](AutomationRequest& req, App& /*app*/, WindowUIContext* /*ui_ctx*/)
+        [](AutomationRequest& req, App* /*app*/, WindowUIContext* /*ui_ctx*/)
         { req.response_json = json_ok(req.id, "{\"pong\":true}"); }));
 
     return entries;

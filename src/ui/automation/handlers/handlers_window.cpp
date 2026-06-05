@@ -32,7 +32,7 @@ std::vector<AutomationHandlerEntry> make_window_handlers()
         "Resize the application window.",
         Ctx::UiContext | Ctx::Windowing,
         {},
-        [](AutomationRequest& req, App& /*app*/, WindowUIContext* ui_ctx)
+        [](AutomationRequest& req, App* /*app*/, WindowUIContext* ui_ctx)
         {
             uint32_t w = static_cast<uint32_t>(json_get_int(req.params_json, "width", 1280));
             uint32_t h = static_cast<uint32_t>(json_get_int(req.params_json, "height", 720));
@@ -59,9 +59,9 @@ std::vector<AutomationHandlerEntry> make_window_handlers()
         "Get the current window/swapchain size.",
         Ctx::UiContext | Ctx::Windowing | Ctx::Backend,
         {},
-        [](AutomationRequest& req, App& app, WindowUIContext* /*ui_ctx*/)
+        [](AutomationRequest& req, App* app, WindowUIContext* /*ui_ctx*/)
         {
-            Backend* backend = app.backend();
+            Backend* backend = app->backend();
             uint32_t w       = backend->swapchain_width();
             uint32_t h       = backend->swapchain_height();
             req.response_json =

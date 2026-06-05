@@ -129,6 +129,10 @@ struct WindowUIContext
     // Raw window handle (not owned). Set by app_step after window creation.
     // Used by automation resize_window to call the appropriate resize API.
     void* glfw_window = nullptr;
+
+    // Cached minimum window size — avoids redundant platform calls each frame.
+    float applied_min_window_w_ = 0.0f;
+    float applied_min_window_h_ = 0.0f;
 #endif
 
     // Runtime copy of last export directory. Synced to WorkspaceData on save/load.

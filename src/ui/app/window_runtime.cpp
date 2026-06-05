@@ -24,6 +24,11 @@
 
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
+    #include "ui/layout/layout_manager.hpp"
+#endif
+
+#if defined(SPECTRA_USE_SDL3)
+    #include <SDL3/SDL.h>
 #endif
 
 #include <algorithm>
@@ -33,6 +38,54 @@
 
 namespace spectra
 {
+
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
+namespace
+{
+
+void apply_window_size_limits(WindowUIContext& ui_ctx, ImGuiIntegration& imgui_ui)
+{
+    if (!ui_ctx.glfw_window)
+        return;
+
+    const float min_w = LayoutManager::min_window_width(imgui_ui.is_nav_rail_visible());
+    const float min_h =
+        LayoutManager::min_window_height(imgui_ui.is_nav_rail_visible(),
+                                         imgui_ui.is_command_bar_visible(),
+                                         imgui_ui.is_status_bar_visible());
+
+    if (min_w == ui_ctx.applied_min_window_w_ && min_h == ui_ctx.applied_min_window_h_)
+        return;
+
+    ui_ctx.applied_min_window_w_ = min_w;
+    ui_ctx.applied_min_window_h_ = min_h;
+
+    const int min_wi = static_cast<int>(std::ceil(min_w));
+    const int min_hi = static_cast<int>(std::ceil(min_h));
+
+#ifdef SPECTRA_USE_GLFW
+    auto* win = static_cast<GLFWwindow*>(ui_ctx.glfw_window);
+    glfwSetWindowSizeLimits(win, min_wi, min_hi, GLFW_DONT_CARE, GLFW_DONT_CARE);
+
+    int ww = 0;
+    int wh = 0;
+    glfwGetWindowSize(win, &ww, &wh);
+    if (ww < min_wi || wh < min_hi)
+        glfwSetWindowSize(win, std::max(ww, min_wi), std::max(wh, min_hi));
+#elif defined(SPECTRA_USE_SDL3)
+    auto* win = static_cast<SDL_Window*>(ui_ctx.glfw_window);
+    SDL_SetWindowMinimumSize(win, min_wi, min_hi);
+
+    int ww = 0;
+    int wh = 0;
+    SDL_GetWindowSize(win, &ww, &wh);
+    if (ww < min_wi || wh < min_hi)
+        SDL_SetWindowSize(win, std::max(ww, min_wi), std::max(wh, min_hi));
+#endif
+}
+
+}   // namespace
+#endif
 
 WindowRuntime::WindowRuntime(Backend& backend, Renderer& renderer, FigureRegistry& registry)
     : backend_(backend), renderer_(renderer), registry_(registry)
@@ -322,47 +375,101 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
 
 #endif
 
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
+    // Keep swapchain extent matched to the live framebuffer BEFORE ImGui
+    // new_frame so layout zones and GPU rendering share the same dimensions.
+    bool resize_active         = false;
+    bool swapchain_recreated   = false;
+    uint32_t live_fb_w         = 0;
+    uint32_t live_fb_h         = 0;
+    {
+        auto& needs_resize = ui_ctx.needs_resize;
+        auto& new_width    = ui_ctx.new_width;
+        auto& new_height   = ui_ctx.new_height;
+        auto* vk           = static_cast<VulkanBackend*>(&backend_);
+        auto* aw           = vk->active_window();
+
+        if (aw)
+        {
+            vk->query_window_framebuffer_size(*aw, live_fb_w, live_fb_h);
+            resize_active = live_fb_w > 0 && live_fb_h > 0
+                            && (live_fb_w != vk->swapchain_width()
+                                || live_fb_h != vk->swapchain_height());
+
+            const bool want_recreate = resize_active || needs_resize || aw->swapchain_dirty
+                                       || aw->swapchain_invalidated;
+            if (want_recreate && live_fb_w > 0 && live_fb_h > 0)
+            {
+                const uint32_t target_w = live_fb_w;
+                const uint32_t target_h = live_fb_h;
+                SPECTRA_LOG_DEBUG("resize",
+                                  "Recreating swapchain: " + std::to_string(target_w) + "x"
+                                      + std::to_string(target_h));
+                needs_resize              = false;
+                aw->swapchain_invalidated = false;
+                vk->clear_swapchain_dirty();
+                backend_.recreate_swapchain(target_w, target_h);
+                swapchain_recreated = true;
+                resize_active       = false;
+
+                if (active_figure)
+                {
+                    active_figure->config_.width  = backend_.swapchain_width();
+                    active_figure->config_.height = backend_.swapchain_height();
+                }
+            #ifdef SPECTRA_USE_IMGUI
+                if (imgui_ui)
+                {
+                    imgui_ui->on_swapchain_recreated(*vk);
+                }
+            #endif
+            }
+            else if (needs_resize)
+            {
+                needs_resize = false;
+            }
+
+        }
+    }
+#endif
+
     // Start ImGui frame (updates layout manager with current window size).
     fs.imgui_frame_started = false;
 #ifdef SPECTRA_USE_IMGUI
     if (imgui_ui)
     {
+    #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
+        imgui_ui->get_layout_manager().set_resize_active(resize_active || swapchain_recreated);
+    #endif
         imgui_ui->new_frame();
         fs.imgui_frame_started = true;
+    #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
+        // GLFW can report a stale DisplaySize for a frame during live resize.
+        // Re-read window dimensions and snap layout so chrome zones stay aligned.
+        if ((resize_active || swapchain_recreated) && ui_ctx.glfw_window)
+        {
+            auto* win = static_cast<GLFWwindow*>(ui_ctx.glfw_window);
+            int   ww = 0;
+            int   wh = 0;
+            int   fbw = 0;
+            int   fbh = 0;
+            glfwGetWindowSize(win, &ww, &wh);
+            glfwGetFramebufferSize(win, &fbw, &fbh);
+            if (ww > 0 && wh > 0)
+            {
+                ImGuiIO& io     = ImGui::GetIO();
+                io.DisplaySize  = ImVec2(static_cast<float>(ww), static_cast<float>(wh));
+                io.DisplayFramebufferScale =
+                    ImVec2(static_cast<float>(fbw) / static_cast<float>(ww),
+                           static_cast<float>(fbh) / static_cast<float>(wh));
+                imgui_ui->update_layout(io.DisplaySize.x, io.DisplaySize.y, 0.0f);
+            }
+        }
+    #endif
     }
 #endif
 
 #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
-    // Recreate the swapchain immediately whenever a resize callback has arrived.
-    // Recreating every frame during live drag is fast (fence-based sync,
-    // no vkDeviceWaitIdle) and prevents the compositor from stretching
-    // stale swapchain images while the window edge is being dragged.
-    auto& needs_resize = ui_ctx.needs_resize;
-    auto& new_width    = ui_ctx.new_width;
-    auto& new_height   = ui_ctx.new_height;
-    if (needs_resize)
-    {
-        SPECTRA_LOG_DEBUG("resize",
-                          "Recreating swapchain: " + std::to_string(new_width) + "x"
-                              + std::to_string(new_height));
-        needs_resize = false;
-        auto* vk     = static_cast<VulkanBackend*>(&backend_);
-        vk->clear_swapchain_dirty();
-        backend_.recreate_swapchain(new_width, new_height);
-
-        if (active_figure)
-        {
-            active_figure->config_.width  = backend_.swapchain_width();
-            active_figure->config_.height = backend_.swapchain_height();
-        }
-    #ifdef SPECTRA_USE_IMGUI
-        if (imgui_ui)
-        {
-            imgui_ui->on_swapchain_recreated(*vk);
-        }
-    #endif
-    }
-
     // Update input handler with current active axes viewport
     if (active_figure && !active_figure->axes().empty() && active_figure->axes()[0])
     {
@@ -381,6 +488,10 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
             imgui_ui->build_ui(*active_figure, &fig_mgr.active_state());
         else
             imgui_ui->build_empty_ui();
+
+    #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
+        apply_window_size_limits(ui_ctx, *imgui_ui);
+    #endif
 
         // Old TabBar is replaced by unified pane tab headers
         // (drawn by draw_pane_tab_headers in ImGuiIntegration)
@@ -860,8 +971,9 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
                 ui_ctx.imgui_ui->on_swapchain_recreated(*vk);
             }
 #endif
-            // Retry begin_frame with the new swapchain
-            frame_ok = backend_.begin_frame(profiler);
+            // UI was built for the pre-recreate layout — skip this frame so the
+            // next update tick rebuilds chrome at the correct size.
+            return false;
         }
     }
 

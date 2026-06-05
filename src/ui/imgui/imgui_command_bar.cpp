@@ -21,18 +21,21 @@ static bool icon_label_button(const char* icon_codepoint,
                               bool        active,
                               ImFont*     icon_font,
                               ImFont*     label_font,
-                              float       width)
+                              float       width,
+                              float       scale = 1.0f)
 {
     using namespace ui;
 
     const auto& colors = theme();
+    scale              = std::max(scale, LayoutManager::NAV_RAIL_CELL_HEIGHT_MIN
+                                                / LayoutManager::NAV_RAIL_CELL_HEIGHT);
 
     // Vision.png metrics: tall cells, icon above label, centered
-    float icon_sz  = icon_font ? icon_font->LegacySize : 20.0f;
-    float label_sz = label_font ? (label_font->LegacySize * 0.92f) : 11.0f;   // ~11px label
-    float icon_gap = 3.0f;    // gap between icon and label
-    float cell_h   = 56.0f;   // generous cell height like Vision.png
-    float pill_pad = 7.0f;    // horizontal inset for the highlight pill
+    float icon_sz  = (icon_font ? icon_font->LegacySize : 20.0f) * scale;
+    float label_sz = (label_font ? (label_font->LegacySize * 0.92f) : 11.0f) * scale;
+    float icon_gap = 3.0f * scale;
+    float cell_h   = LayoutManager::NAV_RAIL_CELL_HEIGHT * scale;
+    float pill_pad = 7.0f * scale;
     float pill_w   = width - pill_pad * 2.0f;
 
     ImVec2 cursor = ImGui::GetCursorScreenPos();
@@ -1301,6 +1304,54 @@ void ImGuiIntegration::draw_plugins_panel()
     ImGui::End();
 }
 
+void ImGuiIntegration::draw_chrome_backdrops()
+{
+    if (!layout_manager_)
+        return;
+
+    ImDrawList* bg = ImGui::GetBackgroundDrawList();
+    const auto& c  = theme_colors();
+
+    if (command_bar_visible_)
+    {
+        Rect bar = layout_manager_->command_bar_rect();
+        bg->AddRectFilled(ImVec2(bar.x, bar.y),
+                          ImVec2(bar.x + bar.w, bar.y + bar.h),
+                          IM_COL32(static_cast<int>(c.bg_primary.r * 255),
+                                   static_cast<int>(c.bg_primary.g * 255),
+                                   static_cast<int>(c.bg_primary.b * 255),
+                                   255));
+    }
+
+    if (show_nav_rail_)
+    {
+        Rect nr = layout_manager_->nav_rail_rect();
+        float rail_w =
+            std::max(nr.w, LayoutManager::NAV_RAIL_COLLAPSED_WIDTH);
+        float rail_y = LayoutManager::COMMAND_BAR_HEIGHT;
+        float rail_h = std::max(nr.h,
+                                ImGui::GetIO().DisplaySize.y - rail_y
+                                    - LayoutManager::STATUS_BAR_HEIGHT);
+        bg->AddRectFilled(ImVec2(0.0f, rail_y),
+                          ImVec2(rail_w, rail_y + rail_h),
+                          IM_COL32(static_cast<int>(c.bg_secondary.r * 255),
+                                   static_cast<int>(c.bg_secondary.g * 255),
+                                   static_cast<int>(c.bg_secondary.b * 255),
+                                   255));
+    }
+
+    if (status_bar_visible_)
+    {
+        Rect sb = layout_manager_->status_bar_rect();
+        bg->AddRectFilled(ImVec2(sb.x, sb.y),
+                          ImVec2(sb.x + sb.w, sb.y + sb.h),
+                          IM_COL32(static_cast<int>(c.bg_primary.r * 255),
+                                   static_cast<int>(c.bg_primary.g * 255),
+                                   static_cast<int>(c.bg_primary.b * 255),
+                                   255));
+    }
+}
+
 void ImGuiIntegration::draw_nav_rail()
 {
     if (!layout_manager_ || !show_nav_rail_)
@@ -1361,11 +1412,12 @@ void ImGuiIntegration::draw_nav_rail()
 
         ImFont* label_font = font_heading_;   // 12.5px — compact labels
         float   btn_w      = rail_w;
+        float   btn_scale  = LayoutManager::nav_rail_scale_for_height(bounds.h);
 
         // Separator: very subtle hairline, Vision.png style
         auto draw_separator = [&]()
         {
-            ImGui::Dummy(ImVec2(0, 3.0f));
+            ImGui::Dummy(ImVec2(0, 3.0f * btn_scale));
             float  sep_inset = 14.0f;
             ImVec2 p0        = ImVec2(ImGui::GetWindowPos().x + sep_inset,
                                std::floor(ImGui::GetCursorScreenPos().y));
@@ -1377,7 +1429,7 @@ void ImGuiIntegration::draw_nav_rail()
                                                          theme_colors().border_subtle.b * 255,
                                                          25),
                                                 1.0f);
-            ImGui::Dummy(ImVec2(0, 3.0f));
+            ImGui::Dummy(ImVec2(0, 3.0f * btn_scale));
         };
 
         // ── Tool mode helper ──
@@ -1389,7 +1441,8 @@ void ImGuiIntegration::draw_nav_rail()
                                   is_active,
                                   font_icon_,
                                   label_font,
-                                  btn_w))
+                                  btn_w,
+                                  btn_scale))
             {
                 interaction_mode_ = mode;
             }
@@ -1404,7 +1457,8 @@ void ImGuiIntegration::draw_nav_rail()
                                   is_active,
                                   font_icon_,
                                   label_font,
-                                  btn_w))
+                                  btn_w,
+                                  btn_scale))
             {
                 on_click();
             }

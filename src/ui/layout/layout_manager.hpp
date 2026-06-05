@@ -68,6 +68,10 @@ class LayoutManager
     bool  is_tab_bar_visible() const { return tab_bar_visible_; }
     bool  is_animating() const;
 
+    // When true, panel width animations snap instantly (live window resize).
+    void set_resize_active(bool active) { resize_active_ = active; }
+    bool is_resize_active() const { return resize_active_; }
+
     // Inspector resize interaction helpers
     bool is_inspector_resize_hovered() const { return inspector_resize_hovered_; }
     void set_inspector_resize_hovered(bool hovered) { inspector_resize_hovered_ = hovered; }
@@ -89,6 +93,24 @@ class LayoutManager
     static constexpr float TAB_BAR_HEIGHT          = 36.0f;
     static constexpr float RESIZE_HANDLE_WIDTH     = 6.0f;
     static constexpr float ANIM_SPEED              = 12.0f;
+
+    // Nav rail vertical content (icon+label buttons stacked in draw_nav_rail)
+    static constexpr int   NAV_RAIL_BUTTON_COUNT     = 12;
+    static constexpr int   NAV_RAIL_SEPARATOR_COUNT  = 4;
+    static constexpr float NAV_RAIL_CELL_HEIGHT      = 56.0f;
+    static constexpr float NAV_RAIL_CELL_HEIGHT_MIN  = 36.0f;
+    static constexpr float NAV_RAIL_SEPARATOR_HEIGHT = 9.0f;
+    static constexpr float NAV_RAIL_VERTICAL_PADDING = 24.0f;   // top+bottom window padding
+    static constexpr float WINDOW_MIN_HEIGHT_NO_NAV  = 240.0f;
+    static constexpr float WINDOW_MIN_CANVAS_WIDTH   = 160.0f;
+
+    static float nav_rail_nominal_content_height();
+    static float nav_rail_min_content_height();
+    static float nav_rail_scale_for_height(float available_height);
+    static float min_window_height(bool nav_rail_visible,
+                                   bool command_bar_visible,
+                                   bool status_bar_visible);
+    static float min_window_width(bool nav_rail_visible);
 
    private:
     // Window dimensions
@@ -123,6 +145,8 @@ class LayoutManager
     // External canvas override
     Rect canvas_override_{};
     bool canvas_override_set_ = false;
+
+    bool resize_active_ = false;
 
     // Helper: exponential smoothing toward target
     static float smooth_toward(float current, float target, float speed, float dt);

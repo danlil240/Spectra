@@ -502,6 +502,10 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
         layout_manager_->set_bottom_panel_height(new_h);
     }
 
+    // Opaque chrome backdrops cover the plot clear color in UI zones during
+    // live resize when layout briefly lags the swapchain extent.
+    draw_chrome_backdrops();
+
     // Draw all zones using layout manager.
     // Each draw call is gated so adapter shells (e.g. spectra-ros) can suppress
     // Spectra's own chrome and replace it with their own menu/status/canvas.

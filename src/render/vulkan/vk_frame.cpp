@@ -100,10 +100,12 @@ bool VulkanBackend::begin_frame(FrameProfiler* profiler)
     }
     if (result == VK_SUBOPTIMAL_KHR)
     {
-        // Image is still valid and presentable, just not optimal for the
-        // current surface size. Continue rendering (stretched > black flash).
-        // The main loop debounce will recreate when resize stabilizes.
-        active_window_->swapchain_dirty = true;
+        // Surface size no longer matches the swapchain.  Skip this frame and
+        // let the caller recreate — presenting a stretched image causes
+        // visible brightness flicker and misaligned UI chrome during resize.
+        active_window_->swapchain_dirty       = true;
+        active_window_->swapchain_invalidated = true;
+        return false;
     }
 
     // Only reset fence after successful acquisition

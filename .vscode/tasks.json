@@ -111,7 +111,7 @@
 		{
 			"label": "Build: Release (embed shared, build-release/)",
 			"type": "shell",
-			"command": "cmake -B build-release -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_INSTALL_PREFIX=/usr/local -DSPECTRA_BUILD_EMBED_SHARED=ON && cmake --build build-release -j$(nproc)",
+			"command": "env -u CMAKE_ROOT cmake -B build-release -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_INSTALL_PREFIX=/usr/local -DSPECTRA_BUILD_EMBED_SHARED=ON && env -u CMAKE_ROOT cmake --build build-release -j$(nproc)",
 			"group": "build",
 			"problemMatcher": ["$gcc"],
 			"detail": "Separate tree for install / libspectra_embed",
@@ -122,7 +122,7 @@
 		{
 			"label": "Install: sudo (build-release/)",
 			"type": "shell",
-			"command": "sudo cmake --install build-release",
+			"command": "sudo env -u CMAKE_ROOT cmake --install build-release",
 			"group": "build",
 			"problemMatcher": [],
 			"detail": "Install to /usr/local after Build: Release (embed shared)",

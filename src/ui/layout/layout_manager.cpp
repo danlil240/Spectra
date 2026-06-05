@@ -31,9 +31,19 @@ void LayoutManager::update(float window_width, float window_height, float dt)
     float nav_rail_target =
         nav_rail_expanded_ ? nav_rail_expanded_width_ : nav_rail_collapsed_width_;
 
-    // Animate toward targets
-    inspector_anim_width_ = smooth_toward(inspector_anim_width_, inspector_target, ANIM_SPEED, dt);
-    nav_rail_anim_width_  = smooth_toward(nav_rail_anim_width_, nav_rail_target, ANIM_SPEED, dt);
+    // Animate toward targets (snap instantly during live resize so chrome zones
+    // don't lag behind the swapchain and expose the plot background underneath).
+    if (resize_active_)
+    {
+        inspector_anim_width_ = inspector_target;
+        nav_rail_anim_width_  = nav_rail_target;
+    }
+    else
+    {
+        inspector_anim_width_ =
+            smooth_toward(inspector_anim_width_, inspector_target, ANIM_SPEED, dt);
+        nav_rail_anim_width_ = smooth_toward(nav_rail_anim_width_, nav_rail_target, ANIM_SPEED, dt);
+    }
 
     compute_zones();
 }
@@ -185,6 +195,57 @@ void LayoutManager::set_nav_rail_expanded(bool expanded)
 void LayoutManager::set_tab_bar_visible(bool visible)
 {
     tab_bar_visible_ = visible;
+}
+
+float LayoutManager::nav_rail_nominal_content_height()
+{
+    return NAV_RAIL_VERTICAL_PADDING
+           + static_cast<float>(NAV_RAIL_BUTTON_COUNT) * NAV_RAIL_CELL_HEIGHT
+           + static_cast<float>(NAV_RAIL_SEPARATOR_COUNT) * NAV_RAIL_SEPARATOR_HEIGHT;
+}
+
+float LayoutManager::nav_rail_min_content_height()
+{
+    const float scale = NAV_RAIL_CELL_HEIGHT_MIN / NAV_RAIL_CELL_HEIGHT;
+    return NAV_RAIL_VERTICAL_PADDING
+           + static_cast<float>(NAV_RAIL_BUTTON_COUNT) * NAV_RAIL_CELL_HEIGHT * scale
+           + static_cast<float>(NAV_RAIL_SEPARATOR_COUNT) * NAV_RAIL_SEPARATOR_HEIGHT * scale;
+}
+
+float LayoutManager::nav_rail_scale_for_height(float available_height)
+{
+    const float nominal   = nav_rail_nominal_content_height();
+    const float min_scale = NAV_RAIL_CELL_HEIGHT_MIN / NAV_RAIL_CELL_HEIGHT;
+    if (available_height >= nominal)
+        return 1.0f;
+    const float min_h = nav_rail_min_content_height();
+    if (available_height <= min_h)
+        return min_scale;
+    return std::max(min_scale, available_height / nominal);
+}
+
+float LayoutManager::min_window_height(bool nav_rail_visible,
+                                       bool command_bar_visible,
+                                       bool status_bar_visible)
+{
+    float h = 0.0f;
+    if (command_bar_visible)
+        h += COMMAND_BAR_HEIGHT;
+    if (status_bar_visible)
+        h += STATUS_BAR_HEIGHT;
+    if (nav_rail_visible)
+        h += nav_rail_min_content_height();
+    else
+        h = std::max(h, WINDOW_MIN_HEIGHT_NO_NAV);
+    return h;
+}
+
+float LayoutManager::min_window_width(bool nav_rail_visible)
+{
+    float w = WINDOW_MIN_CANVAS_WIDTH;
+    if (nav_rail_visible)
+        w += NAV_RAIL_COLLAPSED_WIDTH;
+    return w;
 }
 
 }   // namespace spectra

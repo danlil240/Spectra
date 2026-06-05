@@ -181,6 +181,19 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
                 wctx->needs_resize                  = false;
             }
 
+            // Catch resize drift between GLFW callbacks: if the live framebuffer
+            // no longer matches the swapchain, queue recreation this frame.
+            if (fb_w > 0 && fb_h > 0
+                && (fb_w != wctx->swapchain.extent.width
+                    || fb_h != wctx->swapchain.extent.height))
+            {
+                redraw_tracker_.mark_dirty("resize");
+                wctx->ui_ctx->needs_resize          = true;
+                wctx->ui_ctx->new_width             = fb_w;
+                wctx->ui_ctx->new_height            = fb_h;
+                wctx->ui_ctx->resize_requested_time = std::chrono::steady_clock::now();
+            }
+
             // Preview windows: render the preview card with actual figure data
             if (wctx->is_preview)
             {
@@ -494,6 +507,10 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
             {
                 SPECTRA_PROFILE_SCOPE(profiler_, "win_render");
                 rendered = win_rt_.render(*wctx->ui_ctx, win_fs, &profiler_);
+            }
+            if (!rendered)
+            {
+                redraw_tracker_.mark_dirty("swapchain_recovery");
             }
 
             // Wait for GPU to finish this window's work before rendering the

@@ -479,6 +479,7 @@ class ImGuiIntegration
     void apply_modern_style();
     void load_fonts();
 
+    void draw_chrome_backdrops();
     void draw_command_bar();
     void draw_tab_bar();
     void draw_nav_rail();

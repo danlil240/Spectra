@@ -125,7 +125,7 @@ class ImGuiIntegration
 
     void build_ui(Figure& figure, FigureViewModel* vm = nullptr);
     void build_empty_ui();   // Render menu bar only (no figure)
-    void render(VulkanBackend& backend);
+    void render(VulkanBackend& backend) const;
 
     // Render a tearoff preview card into a preview window.
     // If figure is provided, renders actual series data; otherwise a placeholder.
@@ -502,10 +502,10 @@ class ImGuiIntegration
     void draw_plot_overlays(Figure& figure);
     void draw_topic_drop_target(Figure& figure);
     void draw_topic_drop_target_welcome();
-    void draw_toolbar_button(const char*           icon,
-                             std::function<void()> callback,
-                             const char*           tooltip,
-                             bool                  is_active = false);
+    void draw_toolbar_button(const char*                  icon,
+                             const std::function<void()>& callback,
+                             const char*                  tooltip,
+                             bool                         is_active = false);
     void draw_menubar_menu(const char* label, const std::vector<MenuItem>& items);
     // Legacy methods (to be removed after full migration)
     void draw_menubar();

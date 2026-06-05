@@ -20,7 +20,7 @@ TEST(AutomationDispatch, JsonHasKeyMissingKey)
 
 TEST(AutomationDispatch, ValidateRequiredStringParam)
 {
-    std::string error;
+    std::string                  error;
     const std::vector<ParamSpec> specs{
         {.name = "command_id", .kind = ParamKind::String, .required = true},
     };
@@ -32,7 +32,7 @@ TEST(AutomationDispatch, ValidateRequiredStringParam)
 
 TEST(AutomationDispatch, ValidateOptionalParamSkipped)
 {
-    std::string error;
+    std::string                  error;
     const std::vector<ParamSpec> specs{
         {.name = "path", .kind = ParamKind::String, .required = false},
     };
@@ -41,7 +41,7 @@ TEST(AutomationDispatch, ValidateOptionalParamSkipped)
 
 TEST(AutomationDispatch, ValidateRequiredNumericParam)
 {
-    std::string error;
+    std::string                  error;
     const std::vector<ParamSpec> specs{
         {.name = "figure_id", .kind = ParamKind::Int, .required = true},
     };
@@ -53,8 +53,7 @@ TEST(AutomationDispatch, CheckContextUiContextMissing)
 {
     std::string      error;
     WindowUIContext* ui = nullptr;
-    EXPECT_FALSE(
-        check_automation_context(AutomationContextFlag::UiContext, nullptr, ui, error));
+    EXPECT_FALSE(check_automation_context(AutomationContextFlag::UiContext, nullptr, ui, error));
     EXPECT_EQ(error, "No UI context");
 }
 
@@ -68,12 +67,11 @@ TEST(AutomationDispatch, CheckContextNoneAlwaysPasses)
 TEST(AutomationDispatch, SerializeHandlerCatalog)
 {
     std::vector<AutomationHandlerEntry> catalog;
-    catalog.push_back(automation_handler(
-        "ping",
-        "Ping the application.",
-        AutomationContextFlag::None,
-        {},
-        [](AutomationRequest&, App*, WindowUIContext*) {}));
+    catalog.push_back(automation_handler("ping",
+                                         "Ping the application.",
+                                         AutomationContextFlag::None,
+                                         {},
+                                         [](AutomationRequest&, App*, WindowUIContext*) {}));
 
     const std::string json = serialize_handler_catalog(catalog);
     EXPECT_NE(json.find("\"method\":\"ping\""), std::string::npos);
@@ -82,13 +80,13 @@ TEST(AutomationDispatch, SerializeHandlerCatalog)
 
 TEST(AutomationDispatch, WrapHandlerRejectsMissingParams)
 {
-    AutomationHandlerEntry entry = automation_handler(
-        "test_method",
-        "Test handler.",
-        AutomationContextFlag::None,
-        {{.name = "command_id", .kind = ParamKind::String, .required = true}},
-        [](AutomationRequest& req, App*, WindowUIContext*)
-        { req.response_json = json_ok(req.id); });
+    AutomationHandlerEntry entry =
+        automation_handler("test_method",
+                           "Test handler.",
+                           AutomationContextFlag::None,
+                           {{.name = "command_id", .kind = ParamKind::String, .required = true}},
+                           [](AutomationRequest& req, App*, WindowUIContext*)
+                           { req.response_json = json_ok(req.id); });
 
     auto              fn = wrap_automation_handler(std::move(entry));
     AutomationRequest req;

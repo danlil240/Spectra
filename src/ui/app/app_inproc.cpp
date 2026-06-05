@@ -78,8 +78,8 @@ void App::render_secondary_window(WindowContext* wctx)
         renderer_->begin_render_pass();
         renderer_->render_figure_content(*fig);
         {
-            float sw = static_cast<float>(backend_->swapchain_width());
-            float sh = static_cast<float>(backend_->swapchain_height());
+            auto sw = static_cast<float>(backend_->swapchain_width());
+            auto sh = static_cast<float>(backend_->swapchain_height());
             renderer_->render_text(sw, sh);
         }
         renderer_->end_render_pass();

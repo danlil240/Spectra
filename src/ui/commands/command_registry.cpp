@@ -77,7 +77,8 @@ int CommandRegistry::fuzzy_score(const std::string& query, const std::string& te
     //   - Consecutive matches: bonus
     //   - Word boundary matches: bonus
 
-    std::string q_lower, t_lower;
+    std::string q_lower;
+    std::string t_lower;
     q_lower.reserve(query.size());
     t_lower.reserve(text.size());
     for (char c : query)

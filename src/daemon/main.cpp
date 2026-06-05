@@ -207,7 +207,7 @@ int main(int argc, char* argv[])
 
             // Only recv() when poll() says data is ready (index offset by 1 for listen fd)
             size_t pfd_idx  = 1 + static_cast<size_t>(it - clients.begin());
-            bool   has_data = (pfd_idx < pfds.size()) && (pfds[pfd_idx].revents & POLLIN);
+            bool   has_data = (pfd_idx < pfds.size()) && ((pfds[pfd_idx].revents & POLLIN) != 0);
             if (!has_data)
             {
                 ++it;

@@ -133,7 +133,8 @@ std::size_t ChunkedLineSeries::erase_before(float x_threshold)
         return 0;
 
     // Binary search for the first element >= x_threshold.
-    std::size_t lo = 0, hi = impl_->x.size();
+    std::size_t lo = 0;
+    std::size_t hi = impl_->x.size();
     while (lo < hi)
     {
         std::size_t mid = lo + (hi - lo) / 2;
@@ -271,7 +272,8 @@ ChunkedLineSeries::VisibleData ChunkedLineSeries::visible_data(float       x_min
     std::size_t n = impl_->x.size();
 
     // Binary search for lower bound (first element >= x_min)
-    std::size_t lo = 0, hi = n;
+    std::size_t lo = 0;
+    std::size_t hi = n;
     while (lo < hi)
     {
         std::size_t mid = lo + (hi - lo) / 2;
@@ -395,7 +397,7 @@ void ChunkedLineSeries::enforce_memory_budget()
         return;
 
     while (impl_->x.memory_bytes() + impl_->y.memory_bytes() > impl_->memory_budget
-           && impl_->x.size() > 0)
+           && !impl_->x.empty())
     {
         // Drop one chunk worth of data from the front
         std::size_t drop = std::min(impl_->x.chunk_size(), impl_->x.size());

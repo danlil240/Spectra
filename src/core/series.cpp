@@ -20,8 +20,7 @@ Series::~Series() = default;
 Series::Series(const Series& other)
     : label_(other.label_), color_(other.color_), style_(other.style_), visible_(other.visible_),
       dirty_(other.dirty_.load(std::memory_order_relaxed)), event_system_(other.event_system_),
-      owning_axes_(other.owning_axes_), thread_safe_(false)   // Thread-safe state is not copied.
-      ,
+      owning_axes_(other.owning_axes_),   
       pending_(nullptr)
 {
 }
@@ -147,7 +146,8 @@ size_t LineSeries::erase_before(float x_threshold)
         return 0;
 
     // Binary search for the first element >= x_threshold (x_ is sorted ascending).
-    size_t lo = 0, hi = x_.size();
+    size_t lo = 0;
+    size_t hi = x_.size();
     while (lo < hi)
     {
         size_t mid = lo + (hi - lo) / 2;

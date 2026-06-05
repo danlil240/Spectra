@@ -90,8 +90,8 @@ void TopicStats::prune_and_compute(int64_t now_ns, int64_t window_ns)
     int64_t stale_ns = 2'000'000'000LL;   // 2 s default
     if (displayed_hz > 0.0 && displayed_hz <= 2.0)
     {
-        const int64_t period_ns = static_cast<int64_t>(1.0e9 / displayed_hz);
-        stale_ns                = std::max(stale_ns, period_ns * 3);
+        const auto period_ns = static_cast<int64_t>(1.0e9 / displayed_hz);
+        stale_ns             = std::max(stale_ns, period_ns * 3);
     }
     active = (last_msg_ns > 0) && (now_ns - last_msg_ns < stale_ns);
 

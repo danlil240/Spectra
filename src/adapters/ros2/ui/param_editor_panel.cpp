@@ -617,7 +617,7 @@ void ParamEditorPanel::do_refresh()
         entry.current = ParamValue::from_msg(get_resp->values[i]);
         entry.type    = entry.current.type;
         entry.staged  = entry.current;
-        if (descs.count(names[i]))
+        if (descs.contains(names[i]))
             entry.descriptor = descs.at(names[i]);
         new_names.push_back(names[i]);
         new_map[names[i]] = std::move(entry);
@@ -816,7 +816,7 @@ ParamSetResult ParamEditorPanel::set_param_internal(const std::string& param_nam
     // Success — update model + undo slot
     {
         std::lock_guard<std::mutex> lk(mutex_);
-        if (param_map_.count(param_name))
+        if (param_map_.contains(param_name))
         {
             auto& entry = param_map_[param_name];
 
@@ -1271,8 +1271,8 @@ bool ParamEditorPanel::parse_yaml(const std::string& yaml_text,
                     bool parsed = false;
                     try
                     {
-                        size_t  pos;
-                        int64_t iv = std::stoll(raw, &pos);
+                        size_t  pos = 0;
+                        int64_t iv  = std::stoll(raw, &pos);
                         if (pos == raw.size())
                         {
                             pv.type    = ParamType::Integer;
@@ -1287,8 +1287,8 @@ bool ParamEditorPanel::parse_yaml(const std::string& yaml_text,
                     {
                         try
                         {
-                            size_t pos;
-                            double dv = std::stod(raw, &pos);
+                            size_t pos = 0;
+                            double dv  = std::stod(raw, &pos);
                             if (pos == raw.size())
                             {
                                 pv.type       = ParamType::Double;
@@ -1470,7 +1470,7 @@ void ParamEditorPanel::draw_toolbar()
 
     // Live-edit toggle
     ImGui::SameLine();
-    bool live;
+    bool live = false;
     {
         std::lock_guard<std::mutex> lk(mutex_);
         live = live_edit_;
@@ -1580,7 +1580,8 @@ void ParamEditorPanel::draw_param_table()
                   names.end(),
                   [this](const std::string& a, const std::string& b)
                   {
-                      auto ia = param_map_.find(a), ib = param_map_.find(b);
+                      auto ia = param_map_.find(a);
+                      auto ib = param_map_.find(b);
                       if (ia == param_map_.end() || ib == param_map_.end())
                           return a < b;
                       return static_cast<int>(ia->second.type) < static_cast<int>(ib->second.type);
@@ -1593,10 +1594,10 @@ void ParamEditorPanel::draw_param_table()
         return;
     }
 
-    ImGuiTableFlags flags = ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg
-                            | ImGuiTableFlags_ScrollY | ImGuiTableFlags_Resizable
-                            | ImGuiTableFlags_SizingStretchProp;
-    float table_height = ImGui::GetContentRegionAvail().y - 4.0f;
+    ImGuiTableFlags flags        = ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg
+                                   | ImGuiTableFlags_ScrollY | ImGuiTableFlags_Resizable
+                                   | ImGuiTableFlags_SizingStretchProp;
+    float           table_height = ImGui::GetContentRegionAvail().y - 4.0f;
     if (!ImGui::BeginTable("##params", 3, flags, ImVec2(0, table_height)))
         return;
 
@@ -1738,14 +1739,14 @@ void ParamEditorPanel::draw_int_widget(ParamEntry& entry)
 
 void ParamEditorPanel::draw_double_widget(ParamEntry& entry)
 {
-    float v = static_cast<float>(entry.staged.double_val);
+    auto v = static_cast<float>(entry.staged.double_val);
     ImGui::SetNextItemWidth(-1);
     bool changed = false;
     if (entry.descriptor.has_float_range())
     {
-        float lo = static_cast<float>(entry.descriptor.float_range_min);
-        float hi = static_cast<float>(entry.descriptor.float_range_max);
-        changed  = ImGui::SliderFloat("##v", &v, lo, hi, "%.6g");
+        auto lo = static_cast<float>(entry.descriptor.float_range_min);
+        auto hi = static_cast<float>(entry.descriptor.float_range_max);
+        changed = ImGui::SliderFloat("##v", &v, lo, hi, "%.6g");
     }
     else
     {

@@ -395,7 +395,9 @@ void Inspector::draw_series_browser(Figure& fig)
             return clicked;
         };
 
-        char copy_lbl[32], cut_lbl[32], del_lbl[32];
+        char copy_lbl[32];
+        char cut_lbl[32];
+        char del_lbl[32];
         std::snprintf(copy_lbl, sizeof(copy_lbl), "Copy %zu", n);
         std::snprintf(cut_lbl, sizeof(cut_lbl), "Cut %zu", n);
         std::snprintf(del_lbl, sizeof(del_lbl), "Delete %zu", n);
@@ -597,13 +599,13 @@ void Inspector::draw_series_browser(Figure& fig)
             {
                 ImDrawList* dl       = ImGui::GetWindowDrawList();
                 ImVec4      icon_col = vis ? ImVec4(c.text_secondary.r,
-                                               c.text_secondary.g,
-                                               c.text_secondary.b,
-                                               eye_hovered ? 1.0f : 0.7f)
+                                                    c.text_secondary.g,
+                                                    c.text_secondary.b,
+                                                    eye_hovered ? 1.0f : 0.7f)
                                            : ImVec4(c.text_tertiary.r,
-                                               c.text_tertiary.g,
-                                               c.text_tertiary.b,
-                                               eye_hovered ? 0.7f : 0.35f);
+                                                    c.text_tertiary.g,
+                                                    c.text_tertiary.b,
+                                                    eye_hovered ? 0.7f : 0.35f);
                 ImFont*     fnt      = icon_f ? icon_f : ImGui::GetFont();
                 float       glyph_sz = tokens::ICON_SM;
                 ImVec2      tsz      = fnt->CalcTextSizeA(glyph_sz, FLT_MAX, 0.0f, eye_icon);
@@ -860,9 +862,9 @@ void Inspector::draw_axes_properties(Axes& ax, int index)
         if (widgets::begin_animated_section("X AXIS"))
         {
             widgets::begin_group("xaxis");
-            auto  xlim   = ax.x_limits();
-            float xmin_f = static_cast<float>(xlim.min);
-            float xmax_f = static_cast<float>(xlim.max);
+            auto xlim   = ax.x_limits();
+            auto xmin_f = static_cast<float>(xlim.min);
+            auto xmax_f = static_cast<float>(xlim.max);
             if (widgets::drag_field2("Range", xmin_f, xmax_f, 0.01f, "%.3f"))
             {
                 if (figure_vm_)
@@ -889,9 +891,9 @@ void Inspector::draw_axes_properties(Axes& ax, int index)
         if (widgets::begin_animated_section("Y AXIS"))
         {
             widgets::begin_group("yaxis");
-            auto  ylim   = ax.y_limits();
-            float ymin_f = static_cast<float>(ylim.min);
-            float ymax_f = static_cast<float>(ylim.max);
+            auto ylim   = ax.y_limits();
+            auto ymin_f = static_cast<float>(ylim.min);
+            auto ymax_f = static_cast<float>(ylim.max);
             if (widgets::drag_field2("Range", ymin_f, ymax_f, 0.01f, "%.3f"))
             {
                 if (figure_vm_)
@@ -1190,7 +1192,7 @@ static double compute_percentile(const std::vector<float>& sorted, double p)
     if (sorted.size() == 1)
         return static_cast<double>(sorted[0]);
     double idx = p * static_cast<double>(sorted.size() - 1);
-    size_t lo  = static_cast<size_t>(idx);
+    auto   lo  = static_cast<size_t>(idx);
     size_t hi  = lo + 1;
     if (hi >= sorted.size())
         return static_cast<double>(sorted.back());

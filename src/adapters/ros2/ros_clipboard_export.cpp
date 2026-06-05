@@ -101,7 +101,7 @@ std::string RosClipboardExport::build_tsv(const std::vector<SeriesData>& series,
     {
         for (float xf : sd.x)
         {
-            double xd = static_cast<double>(xf);
+            auto xd = static_cast<double>(xf);
             if (mode == SelectionRange::Range)
             {
                 if (xd < x_min || xd > x_max)
@@ -116,8 +116,8 @@ std::string RosClipboardExport::build_tsv(const std::vector<SeriesData>& series,
     {
         constexpr double EPS = 1e-12;
         auto             it  = std::unique(all_x.begin(),
-                              all_x.end(),
-                              [](double a, double b) { return (b - a) < EPS; });
+                                           all_x.end(),
+                                           [](double a, double b) { return (b - a) < EPS; });
         all_x.erase(it, all_x.end());
     }
 
@@ -148,7 +148,7 @@ std::string RosClipboardExport::build_tsv(const std::vector<SeriesData>& series,
             size_t      c  = cursors[si];
             if (c < sd.x.size())
             {
-                double           xd  = static_cast<double>(sd.x[c]);
+                auto             xd  = static_cast<double>(sd.x[c]);
                 constexpr double EPS = 1e-12;
                 if (std::abs(xd - row_x) < EPS && !sd.ns.empty())
                 {
@@ -158,7 +158,8 @@ std::string RosClipboardExport::build_tsv(const std::vector<SeriesData>& series,
             }
         }
 
-        int64_t sec = 0, nsec = 0;
+        int64_t sec  = 0;
+        int64_t nsec = 0;
         split_timestamp(row_x, ts_ns, sec, nsec);
 
         out << format_int64(sec) << "\t" << format_int64(nsec) << "\t"
@@ -174,7 +175,7 @@ std::string RosClipboardExport::build_tsv(const std::vector<SeriesData>& series,
 
             if (c < sd.x.size())
             {
-                double           xd  = static_cast<double>(sd.x[c]);
+                auto             xd  = static_cast<double>(sd.x[c]);
                 constexpr double EPS = 1e-12;
                 if (std::abs(xd - row_x) < EPS)
                 {

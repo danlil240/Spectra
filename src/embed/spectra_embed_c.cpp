@@ -254,14 +254,15 @@ extern "C"
         if (in->theme)
             cfg.theme = in->theme;
         // Any explicit chrome request implies the ImGui pipeline must run.
-        cfg.show_imgui_chrome = in->show_imgui_chrome || in->show_command_bar || in->show_status_bar
-                                || in->show_nav_rail || in->show_inspector;
-        cfg.show_command_bar = in->show_command_bar != 0;
-        cfg.show_status_bar  = in->show_status_bar != 0;
-        cfg.show_nav_rail    = in->show_nav_rail != 0;
-        cfg.show_inspector   = in->show_inspector != 0;
-        cfg.show_legend      = in->show_legend != 0;
-        cfg.show_crosshair   = in->show_crosshair != 0;
+        cfg.show_imgui_chrome = (in->show_imgui_chrome != 0) || (in->show_command_bar != 0)
+                                || (in->show_status_bar != 0) || (in->show_nav_rail != 0)
+                                || (in->show_inspector != 0);
+        cfg.show_command_bar  = in->show_command_bar != 0;
+        cfg.show_status_bar   = in->show_status_bar != 0;
+        cfg.show_nav_rail     = in->show_nav_rail != 0;
+        cfg.show_inspector    = in->show_inspector != 0;
+        cfg.show_legend       = in->show_legend != 0;
+        cfg.show_crosshair    = in->show_crosshair != 0;
 
         auto* s = new (std::nothrow) SpectraEmbed(cfg);
         if (!s || !s->surface.is_valid())
@@ -1238,7 +1239,8 @@ extern "C"
     {
         if (!path)
             return 0;
-        uint32_t w = 0, h = 0;
+        uint32_t w   = 0;
+        uint32_t h   = 0;
         uint8_t* buf = render_easy(x, y, count, width, height, &w, &h, false);
         if (!buf)
             return 0;
@@ -1256,7 +1258,8 @@ extern "C"
     {
         if (!path)
             return 0;
-        uint32_t w = 0, h = 0;
+        uint32_t w   = 0;
+        uint32_t h   = 0;
         uint8_t* buf = render_easy(x, y, count, width, height, &w, &h, true);
         if (!buf)
             return 0;

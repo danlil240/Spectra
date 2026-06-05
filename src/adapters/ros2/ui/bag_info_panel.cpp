@@ -45,7 +45,7 @@ std::string BagSummary::format_size(uint64_t bytes)
     {
         return "—";
     }
-    else if (bytes < 1024ULL)
+    if (bytes < 1024ULL)
     {
         std::snprintf(buf, sizeof(buf), "%llu B", static_cast<unsigned long long>(bytes));
     }
@@ -430,7 +430,7 @@ void BagInfoPanel::draw_topic_table()
 // draw_no_bag_placeholder
 // ---------------------------------------------------------------------------
 
-void BagInfoPanel::draw_no_bag_placeholder()
+void BagInfoPanel::draw_no_bag_placeholder() const
 {
 #ifdef SPECTRA_USE_IMGUI
     const ImVec2 avail = ImGui::GetContentRegionAvail();

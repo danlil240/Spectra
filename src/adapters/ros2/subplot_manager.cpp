@@ -773,11 +773,11 @@ void SubplotManager::poll()
                         std::min(se.subscriber->pending(se.y_extractor_id), MAX_DRAIN_PER_POLL);
                     const size_t pair_count = std::min(pending_x, pending_y);
                     const size_t nx         = se.subscriber->pop_bulk(se.x_extractor_id,
-                                                              se.x_drain_buf.data(),
-                                                              pair_count);
+                                                                      se.x_drain_buf.data(),
+                                                                      pair_count);
                     const size_t ny         = se.subscriber->pop_bulk(se.y_extractor_id,
-                                                              se.y_drain_buf.data(),
-                                                              pair_count);
+                                                                      se.y_drain_buf.data(),
+                                                                      pair_count);
                     const size_t n          = std::min(nx, ny);
 
                     if (n > 0)
@@ -912,8 +912,8 @@ void SubplotManager::poll()
         // x-values are not guaranteed to be safe for time-window pruning.
         if (pruning_enabled_ && se.axis_mode == AxisMode::TimeSeries)
         {
-            const auto  xlim         = se.axes->x_limits();
-            const float prune_before = static_cast<float>(xlim.min - prune_buffer_s_);
+            const auto xlim         = se.axes->x_limits();
+            const auto prune_before = static_cast<float>(xlim.min - prune_buffer_s_);
             if (se.series)
                 se.series->erase_before(prune_before);
             for (auto& es : se.extra_series)
@@ -1125,8 +1125,8 @@ SubplotManager::SubplotAction SubplotManager::draw_slot_context_menu(int slot, c
         const double current_win = slot_time_window(slot);
         const bool   has_override =
             (slot < 1 || slot > capacity())
-                  ? false
-                  : (slots_[static_cast<size_t>(slot - 1)].time_window_override_s > 0.0);
+                ? false
+                : (slots_[static_cast<size_t>(slot - 1)].time_window_override_s > 0.0);
 
         static const double kPresets[] = {5.0, 10.0, 30.0, 60.0, 300.0, 600.0};
         static const char*  kLabels[]  = {"5 s", "10 s", "30 s", "1 min", "5 min", "10 min"};
@@ -1242,23 +1242,23 @@ void SubplotManager::compact()
         std::vector<float>                        x_data;
         std::vector<float>                        y_data;
         std::unique_ptr<GenericSubscriber>        subscriber;
-        int                                       extractor_id;
-        int                                       x_extractor_id;
-        int                                       y_extractor_id;
-        size_t                                    samples_received;
-        bool                                      auto_fitted;
-        size_t                                    color_index;
+        int                                       extractor_id{};
+        int                                       x_extractor_id{};
+        int                                       y_extractor_id{};
+        size_t                                    samples_received{};
+        bool                                      auto_fitted{};
+        size_t                                    color_index{};
         std::vector<FieldSample>                  drain_buf;
         std::vector<FieldSample>                  x_drain_buf;
         std::vector<FieldSample>                  y_drain_buf;
-        double                                    time_window_override_s;
+        double                                    time_window_override_s{};
         std::optional<spectra::AxisLimits>        manual_ylim;
         std::vector<std::unique_ptr<SeriesEntry>> extra_series;
         std::unique_ptr<DirectWriteContext>       direct_ctx;
         AxisMode                                  axis_mode;
         std::string                               x_field_path;
         std::string                               y_field_path;
-        size_t                                    buffer_depth;
+        size_t                                    buffer_depth{};
         // Saved x/y data for each extra series (parallel to extra_series).
         std::vector<std::pair<std::vector<float>, std::vector<float>>> extra_xy;
     };

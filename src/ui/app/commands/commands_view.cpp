@@ -315,15 +315,15 @@ std::vector<CommandDescriptor> make_view_commands(CommandContext& ctx)
                     continue;
                 auto xd = line->x_data();
                 auto yd = line->y_data();
-                for (size_t i = 0; i < xd.size(); ++i)
+                for (float i : xd)
                 {
-                    dxmin = std::min(dxmin, xd[i]);
-                    dxmax = std::max(dxmax, xd[i]);
+                    dxmin = std::min(dxmin, i);
+                    dxmax = std::max(dxmax, i);
                 }
-                for (size_t i = 0; i < yd.size(); ++i)
+                for (float i : yd)
                 {
-                    dymin = std::min(dymin, yd[i]);
-                    dymax = std::max(dymax, yd[i]);
+                    dymin = std::min(dymin, i);
+                    dymax = std::max(dymax, i);
                 }
                 found = true;
             }
@@ -333,15 +333,15 @@ std::vector<CommandDescriptor> make_view_commands(CommandContext& ctx)
                     continue;
                 auto xd = sc->x_data();
                 auto yd = sc->y_data();
-                for (size_t i = 0; i < xd.size(); ++i)
+                for (float i : xd)
                 {
-                    dxmin = std::min(dxmin, xd[i]);
-                    dxmax = std::max(dxmax, xd[i]);
+                    dxmin = std::min(dxmin, i);
+                    dxmax = std::max(dxmax, i);
                 }
-                for (size_t i = 0; i < yd.size(); ++i)
+                for (float i : yd)
                 {
-                    dymin = std::min(dymin, yd[i]);
-                    dymax = std::max(dymax, yd[i]);
+                    dymin = std::min(dymin, i);
+                    dymax = std::max(dymax, i);
                 }
                 found = true;
             }
@@ -622,13 +622,19 @@ std::vector<CommandDescriptor> make_view_commands(CommandContext& ctx)
         }
     };
 
-    cmds.push_back({"view.split_right", "Split Right", "Ctrl+\\", "View", 0, [&, do_split]() {
-                        do_split(SplitDirection::Horizontal);
-                    }});
+    cmds.push_back({"view.split_right",
+                    "Split Right",
+                    "Ctrl+\\",
+                    "View",
+                    0,
+                    [&, do_split]() { do_split(SplitDirection::Horizontal); }});
 
-    cmds.push_back({"view.split_down", "Split Down", "Ctrl+Shift+\\", "View", 0, [&, do_split]() {
-                        do_split(SplitDirection::Vertical);
-                    }});
+    cmds.push_back({"view.split_down",
+                    "Split Down",
+                    "Ctrl+Shift+\\",
+                    "View",
+                    0,
+                    [&, do_split]() { do_split(SplitDirection::Vertical); }});
 
     cmds.push_back({"view.close_split",
                     "Close Split Pane",
@@ -643,9 +649,12 @@ std::vector<CommandDescriptor> make_view_commands(CommandContext& ctx)
                         }
                     }});
 
-    cmds.push_back({"view.reset_splits", "Reset All Splits", "", "View", 0, [&]() {
-                        dock_system.reset_splits();
-                    }});
+    cmds.push_back({"view.reset_splits",
+                    "Reset All Splits",
+                    "",
+                    "View",
+                    0,
+                    [&]() { dock_system.reset_splits(); }});
 #else
     (void)ctx;
 #endif

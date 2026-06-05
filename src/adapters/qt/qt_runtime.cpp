@@ -527,10 +527,10 @@ void QtRuntime::render_figure(QWindow* window, Figure& figure)
 
     backend_->set_active_window(state->window_ctx.get());
 
-    auto  sw_u = backend_->swapchain_width();
-    auto  sh_u = backend_->swapchain_height();
-    float sw   = static_cast<float>(sw_u);
-    float sh   = static_cast<float>(sh_u);
+    auto sw_u = backend_->swapchain_width();
+    auto sh_u = backend_->swapchain_height();
+    auto sw   = static_cast<float>(sw_u);
+    auto sh   = static_cast<float>(sh_u);
 
     const bool size_changed = (figure.width() != sw_u || figure.height() != sh_u);
     if (size_changed)

@@ -17,7 +17,7 @@
 namespace spectra::data
 {
 
-MappedFile::MappedFile(const std::string& path)
+MappedFile::MappedFile(const std::string& path) : fd_(::open(path.c_str(), O_RDONLY))
 {
 #ifdef _WIN32
     file_handle_ = CreateFileA(path.c_str(),
@@ -65,11 +65,11 @@ MappedFile::MappedFile(const std::string& path)
     }
     open_ = true;
 #else
-    fd_ = ::open(path.c_str(), O_RDONLY);
+
     if (fd_ < 0)
         throw std::runtime_error("MappedFile: cannot open " + path);
 
-    struct stat st;
+    struct stat st{};
     if (::fstat(fd_, &st) != 0)
     {
         ::close(fd_);

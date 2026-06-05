@@ -18,12 +18,10 @@ mat4 Camera::projection_matrix(float aspect_ratio) const
     {
         return mat4_perspective(deg_to_rad(fov), aspect_ratio, near_clip, far_clip);
     }
-    else
-    {
-        float half_w = ortho_size * aspect_ratio;
-        float half_h = ortho_size;
-        return mat4_ortho(-half_w, half_w, -half_h, half_h, near_clip, far_clip);
-    }
+
+    float half_w = ortho_size * aspect_ratio;
+    float half_h = ortho_size;
+    return mat4_ortho(-half_w, half_w, -half_h, half_h, near_clip, far_clip);
 }
 
 void Camera::orbit(float d_azimuth, float d_elevation)

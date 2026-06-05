@@ -196,8 +196,8 @@ class AxisLinkManager
     using AxesToIndex = std::function<int(const Axes*)>;
     using IndexToAxes = std::function<Axes*(int)>;
 
-    std::string serialize(AxesToIndex mapper) const;
-    void        deserialize(const std::string& json, IndexToAxes mapper);
+    std::string serialize(const AxesToIndex& mapper) const;
+    void        deserialize(const std::string& json, const IndexToAxes& mapper);
 
     // ── Callbacks ────────────────────────────────────────────────────
 

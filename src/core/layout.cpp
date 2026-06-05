@@ -35,7 +35,7 @@ std::vector<Rect> compute_subplot_layout(float          figure_width,
                                          float*         actual_content_height)
 {
     std::vector<Rect> rects;
-    rects.reserve(static_cast<size_t>(rows * cols));
+    rects.reserve(static_cast<size_t>(rows) * static_cast<size_t>(cols));
 
     // Total available space for the grid of subplots
     // Each cell gets an equal share of the figure, then margins are applied inside each cell.

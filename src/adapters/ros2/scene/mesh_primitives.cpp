@@ -50,15 +50,9 @@ PrimitiveMesh generate_cube()
 
     for (const auto& face : faces)
     {
-        uint32_t base = static_cast<uint32_t>(mesh.vertices.size() / 6);
-        for (int i = 0; i < 4; ++i)
-            push_vertex(mesh.vertices,
-                        face.verts[i][0],
-                        face.verts[i][1],
-                        face.verts[i][2],
-                        face.nx,
-                        face.ny,
-                        face.nz);
+        auto base = static_cast<uint32_t>(mesh.vertices.size() / 6);
+        for (auto vert : face.verts)
+            push_vertex(mesh.vertices, vert[0], vert[1], vert[2], face.nx, face.ny, face.nz);
         push_quad(mesh.indices, base, base + 1, base + 2, base + 3);
     }
 
@@ -100,7 +94,7 @@ PrimitiveMesh generate_sphere(int stacks, int slices)
     {
         for (int j = 0; j < slices; ++j)
         {
-            uint32_t row0 = static_cast<uint32_t>(i * (slices + 1) + j);
+            auto     row0 = static_cast<uint32_t>(i * (slices + 1) + j);
             uint32_t row1 = row0 + static_cast<uint32_t>(slices + 1);
 
             mesh.indices.push_back(row0);
@@ -141,12 +135,12 @@ PrimitiveMesh generate_cylinder(int slices)
     // Side indices
     for (int i = 0; i < slices; ++i)
     {
-        uint32_t base = static_cast<uint32_t>(i * 2);
+        auto base = static_cast<uint32_t>(i * 2);
         push_quad(mesh.indices, base, base + 1, base + 3, base + 2);
     }
 
     // Top cap
-    uint32_t top_center = static_cast<uint32_t>(mesh.vertices.size() / 6);
+    auto top_center = static_cast<uint32_t>(mesh.vertices.size() / 6);
     push_vertex(mesh.vertices, 0.0f, half_h, 0.0f, 0.0f, 1.0f, 0.0f);
     for (int i = 0; i <= slices; ++i)
     {
@@ -167,7 +161,7 @@ PrimitiveMesh generate_cylinder(int slices)
     }
 
     // Bottom cap
-    uint32_t bot_center = static_cast<uint32_t>(mesh.vertices.size() / 6);
+    auto bot_center = static_cast<uint32_t>(mesh.vertices.size() / 6);
     push_vertex(mesh.vertices, 0.0f, -half_h, 0.0f, 0.0f, -1.0f, 0.0f);
     for (int i = 0; i <= slices; ++i)
     {
@@ -214,7 +208,7 @@ PrimitiveMesh generate_cone(int slices)
         ny /= len;
         nz /= len;
 
-        uint32_t base = static_cast<uint32_t>(mesh.vertices.size() / 6);
+        auto base = static_cast<uint32_t>(mesh.vertices.size() / 6);
         push_vertex(mesh.vertices, 0.0f, half_h, 0.0f, nx, ny, nz);
         push_vertex(mesh.vertices,
                     radius * std::cos(theta0),
@@ -237,7 +231,7 @@ PrimitiveMesh generate_cone(int slices)
     }
 
     // Bottom cap
-    uint32_t bot_center = static_cast<uint32_t>(mesh.vertices.size() / 6);
+    auto bot_center = static_cast<uint32_t>(mesh.vertices.size() / 6);
     push_vertex(mesh.vertices, 0.0f, -half_h, 0.0f, 0.0f, -1.0f, 0.0f);
     for (int i = 0; i <= slices; ++i)
     {
@@ -289,7 +283,7 @@ PrimitiveMesh generate_arrow(int slices)
     }
     for (int i = 0; i < slices; ++i)
     {
-        uint32_t base = static_cast<uint32_t>(i * 2);
+        auto base = static_cast<uint32_t>(i * 2);
         push_quad(mesh.indices, base, base + 1, base + 3, base + 2);
     }
 
@@ -312,7 +306,7 @@ PrimitiveMesh generate_arrow(int slices)
         ny /= len;
         nz /= len;
 
-        uint32_t base = static_cast<uint32_t>(mesh.vertices.size() / 6);
+        auto base = static_cast<uint32_t>(mesh.vertices.size() / 6);
         push_vertex(mesh.vertices, tip_x, 0.0f, 0.0f, nx, ny, nz);
         push_vertex(mesh.vertices,
                     shaft_length,
@@ -335,7 +329,7 @@ PrimitiveMesh generate_arrow(int slices)
     }
 
     // Head base cap (disc at x=shaft_length)
-    uint32_t cap_center = static_cast<uint32_t>(mesh.vertices.size() / 6);
+    auto cap_center = static_cast<uint32_t>(mesh.vertices.size() / 6);
     push_vertex(mesh.vertices, shaft_length, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f);
     for (int i = 0; i <= slices; ++i)
     {

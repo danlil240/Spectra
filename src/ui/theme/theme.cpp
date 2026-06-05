@@ -1,8 +1,9 @@
 #include "theme.hpp"
 
+#include <cmath>
+
 #include <algorithm>
 #include <cassert>
-#include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <spectra/event_bus.hpp>
@@ -264,9 +265,9 @@ void ThemeManager::apply_to_imgui()
         if (do_lin)
         {
             Color l = c.to_linear();
-            return ImVec4(l.r, l.g, l.b, a);
+            return {l.r, l.g, l.b, a};
         }
-        return ImVec4(c.r, c.g, c.b, a);
+        return {c.r, c.g, c.b, a};
     };
 
     Color menu_bar_bg   = colors.bg_primary.lerp(colors.bg_secondary, 0.28f);
@@ -390,7 +391,7 @@ void ThemeManager::apply_to_renderer(Renderer& renderer)
 void ThemeManager::transition_to(const std::string& name, float duration_sec)
 {
     auto it = themes_.find(name);
-    if (it != themes_.end() && current_theme_)
+    if (it != themes_.end() && (current_theme_ != nullptr))
     {
         transitioning_           = true;
         transition_time_         = 0.0f;
@@ -470,7 +471,7 @@ Color ThemeManager::get_color(const std::string& color_name) const
 {
     // Simple color name lookup for convenience
     if (!current_theme_)
-        return Color();
+        return {};
 
     const auto& c = current_theme_->colors;
     if (color_name == "accent")
@@ -512,7 +513,7 @@ Color ThemeManager::get_color(const std::string& color_name) const
     if (color_name == "accent_glow")
         return c.accent_glow;
 
-    return Color();   // Return transparent if not found
+    return {};   // Return transparent if not found
 }
 
 Color ThemeManager::lerp_color(const std::string& color_name, const Color& target, float t) const
@@ -632,7 +633,7 @@ Color parse_color_array(const std::string& s, size_t& pos)
 {
     float v[4] = {0, 0, 0, 1};
     parse_float_array(s, pos, v, 4);
-    return Color(v[0], v[1], v[2], v[3]);
+    return {v[0], v[1], v[2], v[3]};
 }
 
 std::string extract_string_value(const std::string& s, size_t pos)
@@ -825,10 +826,7 @@ bool ThemeManager::import_theme(const std::string& path)
         {
             size_t t_pos = json.find("true", p);
             size_t f_pos = json.find("false", p);
-            if (t_pos != std::string::npos && (f_pos == std::string::npos || t_pos < f_pos))
-                out = true;
-            else
-                out = false;
+            out = t_pos != std::string::npos && (f_pos == std::string::npos || t_pos < f_pos);
         }
     };
 
@@ -1314,9 +1312,13 @@ Color simulate_cvd(const Color& c, CVDType type)
         return c;
 
     // Work in linear RGB
-    Color lin = c.to_linear();
-    float r = lin.r, g = lin.g, b = lin.b;
-    float out_r, out_g, out_b;
+    Color lin   = c.to_linear();
+    float r     = lin.r;
+    float g     = lin.g;
+    float b     = lin.b;
+    float out_r = NAN;
+    float out_g = NAN;
+    float out_b = NAN;
 
     switch (type)
     {

@@ -7,6 +7,7 @@
 
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
+    #include <cmath>
 #endif
 
 #ifdef SPECTRA_USE_ROS2
@@ -480,7 +481,7 @@ void DiagnosticsPanel::poll()
     }
 
     // Mark stale components.
-    const int64_t stale_ns = static_cast<int64_t>(stale_threshold_s_ * 1'000'000'000LL);
+    const auto stale_ns = static_cast<int64_t>(stale_threshold_s_ * 1'000'000'000LL);
     model_.prune_stale(now, stale_ns);
 
     // Recount badges.
@@ -606,7 +607,10 @@ void DiagnosticsPanel::draw_summary_bar()
 
     for (const auto& b : badges)
     {
-        float r, g, bl, a;
+        float r  = NAN;
+        float g  = NAN;
+        float bl = NAN;
+        float a  = NAN;
         level_color(b.lvl, r, g, bl, a);
 
         // Dim the badge if the filter is off.
@@ -722,7 +726,10 @@ void DiagnosticsPanel::draw_component_table()
 
 void DiagnosticsPanel::draw_component_row(DiagComponent& comp)
 {
-    float r, g, b, a;
+    float r = NAN;
+    float g = NAN;
+    float b = NAN;
+    float a = NAN;
     level_color(comp.level, r, g, b, a);
     const ImVec4 badge_col{r, g, b, 1.0f};
 
@@ -818,8 +825,11 @@ void DiagnosticsPanel::draw_sparkline(const DiagComponent& comp, float width, fl
 
     for (size_t i = 0; i < n; ++i)
     {
-        const DiagSparkEntry& e = comp.history[i];
-        float                 cr, cg, cb, ca;
+        const DiagSparkEntry& e  = comp.history[i];
+        float                 cr = NAN;
+        float                 cg = NAN;
+        float                 cb = NAN;
+        float                 ca = NAN;
         level_color(e.level, cr, cg, cb, ca);
 
         // Map level to Y: OK=bottom, ERROR=top.
@@ -850,8 +860,11 @@ void DiagnosticsPanel::draw_sparkline(const DiagComponent& comp, float width, fl
         // Draw line segment to next point.
         if (i + 1 < n)
         {
-            const DiagSparkEntry& ne = comp.history[i + 1];
-            float                 nr, ng, nb, na2;
+            const DiagSparkEntry& ne  = comp.history[i + 1];
+            float                 nr  = NAN;
+            float                 ng  = NAN;
+            float                 nb  = NAN;
+            float                 na2 = NAN;
             level_color(ne.level, nr, ng, nb, na2);
             float ny_norm = 0.9f;
             switch (ne.level)

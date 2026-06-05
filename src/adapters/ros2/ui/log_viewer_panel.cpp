@@ -37,7 +37,7 @@ const LogSeverity LogViewerPanel::severity_values_[] = {
 // Construction
 // ---------------------------------------------------------------------------
 
-LogViewerPanel::LogViewerPanel(RosLogViewer& viewer) : viewer_(viewer)
+LogViewerPanel::LogViewerPanel(RosLogViewer& viewer) : viewer_(viewer) 
 {
     // Mirror initial filter state into UI buffers.
     const LogFilter& f = viewer_.filter();
@@ -45,7 +45,7 @@ LogViewerPanel::LogViewerPanel(RosLogViewer& viewer) : viewer_(viewer)
     std::strncpy(regex_filter_buf_, f.message_regex_str.c_str(), sizeof(regex_filter_buf_) - 1);
 
     // Find matching severity combo index.
-    severity_combo_idx_ = 0;
+
     for (int i = 0; i < severity_count_; ++i)
     {
         if (severity_values_[i] == f.min_severity)
@@ -279,7 +279,7 @@ void LogViewerPanel::draw_filter_bar()
     // Each pill is a small toggle button that shows/hides entries of that level.
     struct PillDef
     {
-        const char* label;
+        const char* label{};
         LogSeverity sev;
         ImVec4      col_on;
         ImVec4      col_off;
@@ -389,17 +389,17 @@ static ImVec4 severity_row_colour(LogSeverity s)
     switch (s)
     {
         case LogSeverity::Debug:
-            return ImVec4(0.55f, 0.55f, 0.55f, 1.0f);
+            return {0.55f, 0.55f, 0.55f, 1.0f};
         case LogSeverity::Info:
-            return ImVec4(0.90f, 0.90f, 0.90f, 1.0f);
+            return {0.90f, 0.90f, 0.90f, 1.0f};
         case LogSeverity::Warn:
-            return ImVec4(1.00f, 0.85f, 0.10f, 1.0f);
+            return {1.00f, 0.85f, 0.10f, 1.0f};
         case LogSeverity::Error:
-            return ImVec4(1.00f, 0.35f, 0.35f, 1.0f);
+            return {1.00f, 0.35f, 0.35f, 1.0f};
         case LogSeverity::Fatal:
-            return ImVec4(1.00f, 0.20f, 0.80f, 1.0f);
+            return {1.00f, 0.20f, 0.80f, 1.0f};
         default:
-            return ImVec4(0.60f, 0.60f, 0.60f, 1.0f);
+            return {0.60f, 0.60f, 0.60f, 1.0f};
     }
 }
 #endif
@@ -518,10 +518,7 @@ void LogViewerPanel::draw_detail_pane(const LogEntry& e)
 {
 #ifdef SPECTRA_USE_IMGUI
     ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.10f, 0.10f, 0.14f, 1.0f));
-    ImGui::BeginChild("##detail",
-                      ImVec2(0.0f, 106.0f),
-                      false,
-                      ImGuiWindowFlags_HorizontalScrollbar);
+    ImGui::BeginChild("##detail", ImVec2(0.0f, 106.0f), 0, ImGuiWindowFlags_HorizontalScrollbar);
 
     const ImVec4 label_col = ImVec4(0.55f, 0.75f, 1.0f, 1.0f);
     const ImVec4 val_col   = ImVec4(0.90f, 0.90f, 0.90f, 1.0f);

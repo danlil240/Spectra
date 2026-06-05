@@ -198,9 +198,9 @@ class BagRecorder
     bool subscribe_topics();
 
     // Message callback for all subscriptions (executor thread).
-    void on_message(const std::string&                               topic_name,
-                    const std::string&                               message_type,
-                    std::shared_ptr<const rclcpp::SerializedMessage> msg);
+    void on_message(const std::string&                                      topic_name,
+                    const std::string&                                      message_type,
+                    const std::shared_ptr<const rclcpp::SerializedMessage>& msg);
 
     // Check auto-split conditions and perform split if needed.
     // Caller must hold mutex_.
@@ -212,7 +212,7 @@ class BagRecorder
 
     // Open a new writer at `path` with `storage_id`.
     // Caller must hold mutex_.
-    bool open_writer(const std::string& path, const std::string& storage_id);
+    bool open_writer(const std::string& path, const std::string& sid);
 
     // Close the current writer cleanly.
     // Caller must hold mutex_.

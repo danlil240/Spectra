@@ -398,8 +398,8 @@ std::optional<TfBuffer::TimedTransform> TfBuffer::sample_edge_unlocked(
     if (span_ns == 0)
         return after;
 
-    const float t = static_cast<float>(static_cast<double>(lookup_time_ns - before.stamp_ns)
-                                       / static_cast<double>(span_ns));
+    const auto t = static_cast<float>(static_cast<double>(lookup_time_ns - before.stamp_ns)
+                                      / static_cast<double>(span_ns));
 
     TimedTransform interpolated;
     interpolated.stamp_ns  = lookup_time_ns;

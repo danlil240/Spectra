@@ -26,13 +26,16 @@ void InputHandler::handle_mouse_button_measure(int action, double x, double y)
             if (measure_axes_)
             {
                 Axes* saved_axes = active_axes_;
-                float svx = vp_x_, svy = vp_y_, svw = vp_w_, svh = vp_h_;
-                active_axes_    = measure_axes_;
-                const auto& mvp = measure_axes_->viewport();
-                vp_x_           = mvp.x;
-                vp_y_           = mvp.y;
-                vp_w_           = mvp.w;
-                vp_h_           = mvp.h;
+                float svx        = vp_x_;
+                float svy        = vp_y_;
+                float svw        = vp_w_;
+                float svh        = vp_h_;
+                active_axes_     = measure_axes_;
+                const auto& mvp  = measure_axes_->viewport();
+                vp_x_            = mvp.x;
+                vp_y_            = mvp.y;
+                vp_w_            = mvp.w;
+                vp_h_            = mvp.h;
                 screen_to_data(x, y, measure_end_data_x_, measure_end_data_y_);
                 active_axes_ = saved_axes;
                 vp_x_        = svx;
@@ -62,13 +65,16 @@ void InputHandler::handle_mouse_button_measure(int action, double x, double y)
         if (measure_axes_)
         {
             Axes* saved_axes = active_axes_;
-            float svx = vp_x_, svy = vp_y_, svw = vp_w_, svh = vp_h_;
-            active_axes_    = measure_axes_;
-            const auto& mvp = measure_axes_->viewport();
-            vp_x_           = mvp.x;
-            vp_y_           = mvp.y;
-            vp_w_           = mvp.w;
-            vp_h_           = mvp.h;
+            float svx        = vp_x_;
+            float svy        = vp_y_;
+            float svw        = vp_w_;
+            float svh        = vp_h_;
+            active_axes_     = measure_axes_;
+            const auto& mvp  = measure_axes_->viewport();
+            vp_x_            = mvp.x;
+            vp_y_            = mvp.y;
+            vp_w_            = mvp.w;
+            vp_h_            = mvp.h;
             screen_to_data(x, y, measure_end_data_x_, measure_end_data_y_);
             active_axes_ = saved_axes;
             vp_x_        = svx;
@@ -80,8 +86,8 @@ void InputHandler::handle_mouse_button_measure(int action, double x, double y)
         mode_             = InteractionMode::Idle;
 
         // Check if the mouse barely moved — treat as a click (first point)
-        float           dx_px              = static_cast<float>(x - measure_start_screen_x_);
-        float           dy_px              = static_cast<float>(y - measure_start_screen_y_);
+        auto            dx_px              = static_cast<float>(x - measure_start_screen_x_);
+        auto            dy_px              = static_cast<float>(y - measure_start_screen_y_);
         float           move_dist          = std::sqrt(dx_px * dx_px + dy_px * dy_px);
         constexpr float CLICK_THRESHOLD_PX = 5.0f;
         if (move_dist < CLICK_THRESHOLD_PX)
@@ -107,13 +113,16 @@ void InputHandler::handle_mouse_move_measure(double x, double y)
         return;
 
     Axes* saved_axes = active_axes_;
-    float svx = vp_x_, svy = vp_y_, svw = vp_w_, svh = vp_h_;
-    active_axes_    = measure_axes_;
-    const auto& mvp = measure_axes_->viewport();
-    vp_x_           = mvp.x;
-    vp_y_           = mvp.y;
-    vp_w_           = mvp.w;
-    vp_h_           = mvp.h;
+    float svx        = vp_x_;
+    float svy        = vp_y_;
+    float svw        = vp_w_;
+    float svh        = vp_h_;
+    active_axes_     = measure_axes_;
+    const auto& mvp  = measure_axes_->viewport();
+    vp_x_            = mvp.x;
+    vp_y_            = mvp.y;
+    vp_w_            = mvp.w;
+    vp_h_            = mvp.h;
     screen_to_data(x, y, measure_end_data_x_, measure_end_data_y_);
     active_axes_ = saved_axes;
     vp_x_        = svx;

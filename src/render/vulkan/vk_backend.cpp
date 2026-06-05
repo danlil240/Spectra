@@ -65,7 +65,8 @@ std::unique_ptr<WindowContext> VulkanBackend::create_window_context()
     return std::make_unique<WindowContext>();
 }
 
-VulkanBackend::VulkanBackend() : initial_window_(std::make_unique<WindowContext>())
+VulkanBackend::VulkanBackend()
+    : initial_window_(std::make_unique<WindowContext>()), active_window_(initial_window_.get())
 {
 #ifdef SPECTRA_USE_GLFW
     static const platform::GlfwSurfaceHost k_default_glfw_surface_host;
@@ -74,7 +75,6 @@ VulkanBackend::VulkanBackend() : initial_window_(std::make_unique<WindowContext>
     static const platform::Sdl3SurfaceHost k_default_sdl3_surface_host;
     surface_host_ = &k_default_sdl3_surface_host;
 #endif
-    active_window_ = initial_window_.get();
 }
 
 VulkanBackend::~VulkanBackend()
@@ -587,10 +587,10 @@ bool VulkanBackend::create_offscreen_framebuffer(uint32_t width, uint32_t height
         vk::destroy_offscreen(ctx_.device, offscreen_);
         auto vk_msaa = static_cast<VkSampleCountFlagBits>(msaa_samples_);
         offscreen_   = vk::create_offscreen_framebuffer(ctx_.device,
-                                                      ctx_.physical_device,
-                                                      width,
-                                                      height,
-                                                      vk_msaa);
+                                                        ctx_.physical_device,
+                                                        width,
+                                                        height,
+                                                        vk_msaa);
         create_command_buffers();
         create_sync_objects();
         return true;
@@ -1224,7 +1224,7 @@ void VulkanBackend::upload_buffer(BufferHandle handle,
     // For dynamic UBO buffers, write to the next aligned slot
     if (entry.usage == BufferUsage::Uniform)
     {
-        uint32_t slot_size = static_cast<uint32_t>(ubo_slot_alignment_);
+        auto slot_size = static_cast<uint32_t>(ubo_slot_alignment_);
         if (ubo_next_offset_ + slot_size > slot_size * UBO_MAX_SLOTS)
         {
             ubo_next_offset_ = 0;   // wrap around (shouldn't happen with 64 slots)
@@ -1308,7 +1308,7 @@ void VulkanBackend::create_sync_objects()
 
     // Use one set of sync objects per swapchain image to prevent
     // semaphore reuse while the presentation engine still holds them.
-    uint32_t count = static_cast<uint32_t>(active_window_->swapchain.images.size());
+    auto count = static_cast<uint32_t>(active_window_->swapchain.images.size());
     active_window_->image_available_semaphores.resize(count);
     active_window_->render_finished_semaphores.resize(count);
     active_window_->in_flight_fences.resize(count);
@@ -1387,7 +1387,9 @@ VkDescriptorSet VulkanBackend::allocate_descriptor_set(VkDescriptorSetLayout lay
     return set;
 }
 
-void VulkanBackend::update_ubo_descriptor(VkDescriptorSet set, VkBuffer buffer, VkDeviceSize size)
+void VulkanBackend::update_ubo_descriptor(VkDescriptorSet set,
+                                          VkBuffer        buffer,
+                                          VkDeviceSize    size) const
 {
     VkDescriptorBufferInfo buf_info{};
     buf_info.buffer = buffer;
@@ -1405,7 +1407,9 @@ void VulkanBackend::update_ubo_descriptor(VkDescriptorSet set, VkBuffer buffer, 
     vkUpdateDescriptorSets(ctx_.device, 1, &write, 0, nullptr);
 }
 
-void VulkanBackend::update_ssbo_descriptor(VkDescriptorSet set, VkBuffer buffer, VkDeviceSize size)
+void VulkanBackend::update_ssbo_descriptor(VkDescriptorSet set,
+                                           VkBuffer        buffer,
+                                           VkDeviceSize    size) const
 {
     VkDescriptorBufferInfo buf_info{};
     buf_info.buffer = buffer;

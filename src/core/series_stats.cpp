@@ -1,3 +1,4 @@
+#include <ranges>
 #include <spectra/series_stats.hpp>
 
 #include <algorithm>
@@ -30,7 +31,7 @@ static float percentile(std::vector<float>& sorted, float p)
 static float gaussian_kde(float x, const std::vector<float>& data, float bandwidth)
 {
     float sum = 0.0f;
-    float n   = static_cast<float>(data.size());
+    auto  n   = static_cast<float>(data.size());
     for (float d : data)
     {
         float z = (x - d) / bandwidth;
@@ -78,7 +79,7 @@ static void emit_filled_quad(std::vector<float>& buf,
                              float               y1,
                              bool                gradient)
 {
-    float a0 = gradient ? 1.0f : 1.0f;    // left alpha (bright)
+    float a0 = 1.0f;                      // left alpha (always bright)
     float a1 = gradient ? 0.45f : 1.0f;   // right alpha (dim)
     // Triangle 1: bottom-left, bottom-right, top-left
     emit_vert(buf, x0, y0, a0);
@@ -146,11 +147,11 @@ BoxPlotStats BoxPlotSeries::compute_stats(std::span<const float> values)
             break;
         }
     }
-    for (auto it = sorted.rbegin(); it != sorted.rend(); ++it)
+    for (float& it : std::ranges::reverse_view(sorted))
     {
-        if (*it <= high_fence)
+        if (it <= high_fence)
         {
-            result.whisker_high = *it;
+            result.whisker_high = it;
             break;
         }
     }
@@ -329,7 +330,7 @@ void ViolinSeries::rebuild_geometry()
             range = 1.0f;
 
         // Silverman's rule of thumb for bandwidth
-        float n       = static_cast<float>(sorted.size());
+        auto  n       = static_cast<float>(sorted.size());
         float std_dev = 0.0f;
         float mean    = 0.0f;
         for (float v : sorted)
@@ -374,7 +375,7 @@ void ViolinSeries::rebuild_geometry()
             float y1  = y_vals[i + 1];
 
             // Gradient: center is bright (1.0), edges are dim
-            float ac  = gradient_ ? 1.0f : 1.0f;   // center alpha
+            float ac  = 1.0f;   // center alpha (always bright)
             float ar0 = grad_alpha(rx0, lx0, rx0, gradient_);
             float ar1 = grad_alpha(rx1, lx1, rx1, gradient_);
             float al0 = grad_alpha(lx0, lx0, rx0, gradient_);
@@ -534,7 +535,7 @@ void HistogramSeries::rebuild_geometry()
     // Density normalization
     if (density_)
     {
-        float total = static_cast<float>(raw_values_.size());
+        auto total = static_cast<float>(raw_values_.size());
         for (int i = 0; i < bins_; ++i)
             bin_counts_[i] /= (total * bin_width);
     }

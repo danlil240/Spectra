@@ -53,7 +53,7 @@ void FrameScheduler::begin_frame()
     Duration dt_duration         = frame_start_ - last_frame_start_;
     last_frame_start_            = frame_start_;
 
-    float raw_dt = static_cast<float>(dt_duration.count());
+    auto raw_dt = static_cast<float>(dt_duration.count());
 
     // Clamp dt to avoid spiral of death
     if (raw_dt > 0.25f)
@@ -153,7 +153,7 @@ void FrameScheduler::update_stats(float dt_ms)
         // Actual p95: copy to scratch, partial sort, pick 95th percentile.
         size_t n = std::min(window_counter_, static_cast<uint64_t>(STATS_WINDOW_FRAMES));
         std::copy(dt_samples_.begin(), dt_samples_.begin() + n, dt_sorted_.begin());
-        size_t p95_idx = static_cast<size_t>(n * 95 / 100);
+        auto p95_idx = static_cast<size_t>(n * 95 / 100);
         if (p95_idx >= n)
             p95_idx = n - 1;
         std::nth_element(dt_sorted_.begin(), dt_sorted_.begin() + p95_idx, dt_sorted_.begin() + n);

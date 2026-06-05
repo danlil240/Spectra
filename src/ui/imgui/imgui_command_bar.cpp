@@ -27,8 +27,8 @@ static bool icon_label_button(const char* icon_codepoint,
     using namespace ui;
 
     const auto& colors = theme();
-    scale              = std::max(scale, LayoutManager::NAV_RAIL_CELL_HEIGHT_MIN
-                                                / LayoutManager::NAV_RAIL_CELL_HEIGHT);
+    scale = std::max(scale,
+                     LayoutManager::NAV_RAIL_CELL_HEIGHT_MIN / LayoutManager::NAV_RAIL_CELL_HEIGHT);
 
     // Vision.png metrics: tall cells, icon above label, centered
     float icon_sz  = (icon_font ? icon_font->LegacySize : 20.0f) * scale;
@@ -126,7 +126,7 @@ static bool icon_label_button(const char* icon_codepoint,
                                .lerp(colors.accent_hover, active_t * 0.88f);
     ui::Color text_color = colors.text_secondary.lerp(colors.text_primary, hover_t * 0.60f)
                                .lerp(colors.accent_hover, active_t * 0.80f);
-    ImU32 icon_col =
+    ImU32     icon_col =
         ImGui::ColorConvertFloat4ToU32(ImVec4(icon_color.r,
                                               icon_color.g,
                                               icon_color.b,
@@ -384,10 +384,10 @@ void ImGuiIntegration::draw_menubar_menu(const char* label, const std::vector<Me
 }
 
 // Helper for drawing toolbar buttons with modern hover styling and themed tooltips
-void ImGuiIntegration::draw_toolbar_button(const char*           icon,
-                                           std::function<void()> callback,
-                                           const char*           tooltip,
-                                           bool                  is_active)
+void ImGuiIntegration::draw_toolbar_button(const char*                  icon,
+                                           const std::function<void()>& callback,
+                                           const char*                  tooltip,
+                                           bool                         is_active)
 {
     const auto& colors = theme_colors();
     // Use per-instance font_icon_ (not the IconFont singleton) so that
@@ -461,11 +461,11 @@ void ImGuiIntegration::draw_command_bar()
     // Top bar: slightly darker than panels to push visual focus to canvas
     float bar_blend = 0.74f;   // Blend toward bg_primary
     auto  bar_bg_r  = theme_colors().bg_primary.r * bar_blend
-                    + theme_colors().bg_secondary.r * (1.0f - bar_blend);
-    auto bar_bg_g = theme_colors().bg_primary.g * bar_blend
-                    + theme_colors().bg_secondary.g * (1.0f - bar_blend);
-    auto bar_bg_b = theme_colors().bg_primary.b * bar_blend
-                    + theme_colors().bg_secondary.b * (1.0f - bar_blend);
+                      + theme_colors().bg_secondary.r * (1.0f - bar_blend);
+    auto  bar_bg_g  = theme_colors().bg_primary.g * bar_blend
+                      + theme_colors().bg_secondary.g * (1.0f - bar_blend);
+    auto  bar_bg_b  = theme_colors().bg_primary.b * bar_blend
+                      + theme_colors().bg_secondary.b * (1.0f - bar_blend);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
                         ImVec2(ui::tokens::SPACE_5, ui::tokens::SPACE_2));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
@@ -549,20 +549,20 @@ void ImGuiIntegration::draw_command_bar()
                 int   len = static_cast<int>(strlen(letters));
                 for (const char* p = letters; *p; ++p, ++idx)
                 {
-                    char    ch[2] = {*p, 0};
-                    float   cw    = ImGui::CalcTextSize(ch).x;
-                    float   t     = (len > 1) ? static_cast<float>(idx) / (len - 1) : 0.0f;
-                    float   mix   = 0.25f + 0.35f * t;
-                    uint8_t cr  = static_cast<uint8_t>((theme_colors().text_primary.r * (1.0f - mix)
-                                                       + theme_colors().accent.r * mix)
-                                                      * 255);
-                    uint8_t cg  = static_cast<uint8_t>((theme_colors().text_primary.g * (1.0f - mix)
-                                                       + theme_colors().accent.g * mix)
-                                                      * 255);
-                    uint8_t cb  = static_cast<uint8_t>((theme_colors().text_primary.b * (1.0f - mix)
-                                                       + theme_colors().accent.b * mix)
-                                                      * 255);
-                    ImU32   col = IM_COL32(cr, cg, cb, 245);
+                    char  ch[2] = {*p, 0};
+                    float cw    = ImGui::CalcTextSize(ch).x;
+                    float t     = (len > 1) ? static_cast<float>(idx) / (len - 1) : 0.0f;
+                    float mix   = 0.25f + 0.35f * t;
+                    auto  cr    = static_cast<uint8_t>((theme_colors().text_primary.r * (1.0f - mix)
+                                                        + theme_colors().accent.r * mix)
+                                                       * 255);
+                    auto  cg    = static_cast<uint8_t>((theme_colors().text_primary.g * (1.0f - mix)
+                                                        + theme_colors().accent.g * mix)
+                                                       * 255);
+                    auto  cb    = static_cast<uint8_t>((theme_colors().text_primary.b * (1.0f - mix)
+                                                        + theme_colors().accent.b * mix)
+                                                       * 255);
+                    ImU32 col   = IM_COL32(cr, cg, cb, 245);
                     dl->AddText(font_title_, font_sz, ImVec2(gx, text_y), col, ch);
                     gx += cw + spacing;
                 }
@@ -964,6 +964,7 @@ void ImGuiIntegration::draw_command_bar()
             auto                  names    = registry.available_transforms();
 
             // Built-in transforms
+            xform_items.reserve(names.size());
             for (const auto& name : names)
             {
                 xform_items.emplace_back(
@@ -988,13 +989,15 @@ void ImGuiIntegration::draw_command_bar()
 
                                 if (auto* ls = dynamic_cast<LineSeries*>(series_ptr.get()))
                                 {
-                                    std::vector<float> rx, ry;
+                                    std::vector<float> rx;
+                                    std::vector<float> ry;
                                     xform.apply_y(ls->x_data(), ls->y_data(), rx, ry);
                                     ls->set_x(rx).set_y(ry);
                                 }
                                 else if (auto* sc = dynamic_cast<ScatterSeries*>(series_ptr.get()))
                                 {
-                                    std::vector<float> rx, ry;
+                                    std::vector<float> rx;
+                                    std::vector<float> ry;
                                     xform.apply_y(sc->x_data(), sc->y_data(), rx, ry);
                                     sc->set_x(rx).set_y(ry);
                                 }
@@ -1143,28 +1146,28 @@ void ImGuiIntegration::draw_plugins_panel()
         DialogEnvGuard env_guard;
     #ifdef _WIN32
         static const char* filters[1] = {"*.dll"};
-        const char*        path       = tinyfd_openFileDialog("Load Plugin",
-                                                 PluginManager::default_plugin_dir().c_str(),
-                                                 1,
-                                                 filters,
-                                                 "Plugins",
-                                                 0);
+        const char*        path = tinyfd_openFileDialog("Load Plugin",
+                                                        PluginManager::default_plugin_dir().c_str(),
+                                                        1,
+                                                        filters,
+                                                        "Plugins",
+                                                        0);
     #elif defined(__APPLE__)
         static const char* filters[1] = {"*.dylib"};
-        const char*        path       = tinyfd_openFileDialog("Load Plugin",
-                                                 PluginManager::default_plugin_dir().c_str(),
-                                                 1,
-                                                 filters,
-                                                 "Plugins",
-                                                 0);
+        const char*        path = tinyfd_openFileDialog("Load Plugin",
+                                                        PluginManager::default_plugin_dir().c_str(),
+                                                        1,
+                                                        filters,
+                                                        "Plugins",
+                                                        0);
     #else
         static const char* filters[1] = {"*.so"};
-        const char*        path       = tinyfd_openFileDialog("Load Plugin",
-                                                 PluginManager::default_plugin_dir().c_str(),
-                                                 1,
-                                                 filters,
-                                                 "Plugins",
-                                                 0);
+        const char*        path = tinyfd_openFileDialog("Load Plugin",
+                                                        PluginManager::default_plugin_dir().c_str(),
+                                                        1,
+                                                        filters,
+                                                        "Plugins",
+                                                        0);
     #endif
         if (path && path[0] != '\0')
         {
@@ -1325,13 +1328,12 @@ void ImGuiIntegration::draw_chrome_backdrops()
 
     if (show_nav_rail_)
     {
-        Rect nr = layout_manager_->nav_rail_rect();
-        float rail_w =
-            std::max(nr.w, LayoutManager::NAV_RAIL_COLLAPSED_WIDTH);
+        Rect  nr     = layout_manager_->nav_rail_rect();
+        float rail_w = std::max(nr.w, LayoutManager::NAV_RAIL_COLLAPSED_WIDTH);
         float rail_y = LayoutManager::COMMAND_BAR_HEIGHT;
-        float rail_h = std::max(nr.h,
-                                ImGui::GetIO().DisplaySize.y - rail_y
-                                    - LayoutManager::STATUS_BAR_HEIGHT);
+        float rail_h =
+            std::max(nr.h,
+                     ImGui::GetIO().DisplaySize.y - rail_y - LayoutManager::STATUS_BAR_HEIGHT);
         bg->AddRectFilled(ImVec2(0.0f, rail_y),
                           ImVec2(rail_w, rail_y + rail_h),
                           IM_COL32(static_cast<int>(c.bg_secondary.r * 255),
@@ -1420,7 +1422,7 @@ void ImGuiIntegration::draw_nav_rail()
             ImGui::Dummy(ImVec2(0, 3.0f * btn_scale));
             float  sep_inset = 14.0f;
             ImVec2 p0        = ImVec2(ImGui::GetWindowPos().x + sep_inset,
-                               std::floor(ImGui::GetCursorScreenPos().y));
+                                      std::floor(ImGui::GetCursorScreenPos().y));
             ImVec2 p1        = ImVec2(ImGui::GetWindowPos().x + rail_w - sep_inset, p0.y);
             ImGui::GetWindowDrawList()->AddLine(p0,
                                                 p1,
@@ -1449,8 +1451,10 @@ void ImGuiIntegration::draw_nav_rail()
         };
 
         // ── Toggle helper (for panel/feature toggles) ──
-        auto toggle_btn =
-            [&](ui::Icon icon, const char* label, bool is_active, std::function<void()> on_click)
+        auto toggle_btn = [&](ui::Icon                     icon,
+                              const char*                  label,
+                              bool                         is_active,
+                              const std::function<void()>& on_click)
         {
             if (icon_label_button(ui::icon_str(icon),
                                   label,
@@ -1481,7 +1485,7 @@ void ImGuiIntegration::draw_nav_rail()
         // ── Group 3: Data tools ──
         toggle_btn(ui::Icon::MapPin,
                    "Markers",
-                   data_interaction_ && !data_interaction_->markers().empty(),
+                   (data_interaction_ != nullptr) && !data_interaction_->markers().empty(),
                    [this]()
                    {
                        if (data_interaction_)
@@ -1531,7 +1535,7 @@ void ImGuiIntegration::draw_nav_rail()
         // ── Group 5: Utilities ──
         toggle_btn(ui::Icon::Broadcast,
                    "Topics",
-                   topics_panel_ && topics_panel_->is_visible(),
+                   (topics_panel_ != nullptr) && topics_panel_->is_visible(),
                    [this]()
                    {
                        if (command_registry_)

@@ -165,20 +165,19 @@ HandleResult handle_req_close_window(DaemonContext& ctx, ClientSlot& slot, const
         slot.conn->close();
         return HandleResult::EraseAndContinue;
     }
-    else
+
+    // Close a different window
+    for (auto& c : ctx.clients)
     {
-        // Close a different window
-        for (auto& c : ctx.clients)
+        if (c.window_id == target_wid && c.conn)
         {
-            if (c.window_id == target_wid && c.conn)
-            {
-                send_close_window(*c.conn, target_wid, ctx.graph.session_id(), "close_ack");
-                c.conn->close();
-                break;
-            }
+            send_close_window(*c.conn, target_wid, ctx.graph.session_id(), "close_ack");
+            c.conn->close();
+            break;
         }
-        send_resp_ok(*slot.conn, ctx.graph.session_id(), msg.header.request_id);
     }
+    send_resp_ok(*slot.conn, ctx.graph.session_id(), msg.header.request_id);
+
     return HandleResult::Continue;
 }
 
@@ -288,11 +287,11 @@ HandleResult handle_evt_input(DaemonContext& ctx, ClientSlot& /*slot*/, const ip
                 double hw = (ax.x_max - ax.x_min) * 0.5 * zoom;
                 double hh = (ax.y_max - ax.y_min) * 0.5 * zoom;
                 auto   op = ctx.fig_model.set_axis_limits(input->figure_id,
-                                                        input->axes_index,
-                                                        cx - hw,
-                                                        cx + hw,
-                                                        cy - hh,
-                                                        cy + hh);
+                                                          input->axes_index,
+                                                          cx - hw,
+                                                          cx + hw,
+                                                          cy - hh,
+                                                          cy + hh);
                 diff.ops.push_back(op);
             }
             break;

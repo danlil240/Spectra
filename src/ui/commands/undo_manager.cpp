@@ -1,6 +1,7 @@
 #include "undo_manager.hpp"
 
 #include <algorithm>
+#include <ranges>
 #include <spectra/logger.hpp>
 
 namespace spectra
@@ -148,10 +149,10 @@ void UndoManager::end_group()
     combined.undo_fn     = [actions]()
     {
         // Undo in reverse order
-        for (auto it = actions.rbegin(); it != actions.rend(); ++it)
+        for (const auto& action : std::ranges::reverse_view(actions))
         {
-            if (it->undo_fn)
-                it->undo_fn();
+            if (action.undo_fn)
+                action.undo_fn();
         }
     };
     combined.redo_fn = [actions]()

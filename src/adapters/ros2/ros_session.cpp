@@ -784,11 +784,9 @@ bool RosSessionManager::json_get_bool(const std::string& json,
 
 std::string RosSessionManager::current_iso8601()
 {
-    auto        now = std::chrono::system_clock::now();
-    std::time_t t   = std::chrono::system_clock::to_time_t(now);
-    struct std::tm tm_utc
-    {
-    };
+    auto           now = std::chrono::system_clock::now();
+    std::time_t    t   = std::chrono::system_clock::to_time_t(now);
+    struct std::tm tm_utc{};
 #if defined(_WIN32)
     gmtime_s(&tm_utc, &t);
 #else
@@ -834,9 +832,9 @@ std::string RosSessionManager::build_object(
 std::string RosSessionManager::serialize_subscription(const SubscriptionEntry& e)
 {
     std::string out = "{";
-    out += "\"topic\":\"" + json_escape(e.topic) + "\",";
-    out += "\"field_path\":\"" + json_escape(e.field_path) + "\",";
-    out += "\"type_name\":\"" + json_escape(e.type_name) + "\",";
+    out += R"("topic":")" + json_escape(e.topic) + "\",";
+    out += R"("field_path":")" + json_escape(e.field_path) + "\",";
+    out += R"("type_name":")" + json_escape(e.type_name) + "\",";
     out += "\"subplot_slot\":" + std::to_string(e.subplot_slot) + ",";
     out += "\"time_window_s\":" + std::to_string(e.time_window_s) + ",";
     out += "\"scroll_paused\":" + std::string(e.scroll_paused ? "true" : "false");
@@ -847,9 +845,9 @@ std::string RosSessionManager::serialize_subscription(const SubscriptionEntry& e
 static std::string serialize_var_binding(const ExpressionEntry::VarBinding& b)
 {
     std::string out = "{";
-    out += "\"variable\":\"" + RosSessionManager::json_escape(b.variable) + "\",";
-    out += "\"topic\":\"" + RosSessionManager::json_escape(b.topic) + "\",";
-    out += "\"field_path\":\"" + RosSessionManager::json_escape(b.field_path) + "\"";
+    out += R"("variable":")" + RosSessionManager::json_escape(b.variable) + "\",";
+    out += R"("topic":")" + RosSessionManager::json_escape(b.topic) + "\",";
+    out += R"("field_path":")" + RosSessionManager::json_escape(b.field_path) + "\"";
     out += "}";
     return out;
 }
@@ -861,8 +859,8 @@ static std::string serialize_var_binding(const ExpressionEntry::VarBinding& b)
 std::string RosSessionManager::serialize_expression(const ExpressionEntry& e)
 {
     std::string out = "{";
-    out += "\"expression\":\"" + json_escape(e.expression) + "\",";
-    out += "\"label\":\"" + json_escape(e.label) + "\",";
+    out += R"("expression":")" + json_escape(e.expression) + "\",";
+    out += R"("label":")" + json_escape(e.label) + "\",";
     out += "\"subplot_slot\":" + std::to_string(e.subplot_slot) + ",";
     out += "\"bindings\":[";
     for (size_t i = 0; i < e.bindings.size(); ++i)
@@ -882,8 +880,8 @@ std::string RosSessionManager::serialize_expression(const ExpressionEntry& e)
 std::string RosSessionManager::serialize_preset(const ExpressionPresetEntry& e)
 {
     std::string out = "{";
-    out += "\"name\":\"" + json_escape(e.name) + "\",";
-    out += "\"expression\":\"" + json_escape(e.expression) + "\",";
+    out += R"("name":")" + json_escape(e.name) + "\",";
+    out += R"("expression":")" + json_escape(e.expression) + "\",";
     out += "\"variables\":[";
     for (size_t i = 0; i < e.variables.size(); ++i)
     {
@@ -902,10 +900,10 @@ std::string RosSessionManager::serialize_preset(const ExpressionPresetEntry& e)
 std::string RosSessionManager::serialize_display(const DisplaySessionEntry& e)
 {
     std::string out = "{";
-    out += "\"type_id\":\"" + json_escape(e.type_id) + "\",";
-    out += "\"topic\":\"" + json_escape(e.topic) + "\",";
+    out += R"("type_id":")" + json_escape(e.type_id) + "\",";
+    out += R"("topic":")" + json_escape(e.topic) + "\",";
     out += "\"enabled\":" + std::string(e.enabled ? "true" : "false") + ",";
-    out += "\"config_blob\":\"" + json_escape(e.config_blob) + "\"";
+    out += R"("config_blob":")" + json_escape(e.config_blob) + "\"";
     out += "}";
     return out;
 }
@@ -1444,7 +1442,7 @@ std::string RosSessionManager::serialize_recent(const std::vector<RecentEntry>& 
         if (i > 0)
             out += ",\n";
         const auto& e = entries[i];
-        out += "  {\"path\":\"" + json_escape(e.path)
+        out += R"(  {"path":")" + json_escape(e.path)
                + "\","
                  "\"node\":\""
                + json_escape(e.node)

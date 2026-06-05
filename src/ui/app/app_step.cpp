@@ -88,7 +88,7 @@ App::App(const AppConfig& config) : config_(config)
     if (!multiproc)
     {
         const char* env = std::getenv("SPECTRA_SOCKET");
-        multiproc       = (env && env[0] != '\0');
+        multiproc       = ((env != nullptr) && env[0] != '\0');
     }
     SPECTRA_LOG_INFO("app", "Runtime mode: " + std::string(multiproc ? "multiproc" : "inproc"));
 
@@ -202,6 +202,9 @@ App::~App()
 // ─── AppRuntime: all state that lives across frames ──────────────────────────
 struct App::AppRuntime
 {
+    AppRuntime(const AppRuntime&)            = delete;
+    AppRuntime& operator=(const AppRuntime&) = delete;
+
     CommandQueue   cmd_queue;
     FrameScheduler scheduler;
     Animator       animator;
@@ -325,7 +328,7 @@ void App::init_runtime()
     }
 
 #ifdef SPECTRA_USE_FFMPEG
-    rt.is_recording = init_active && !init_active->export_req_.video_path.empty();
+    rt.is_recording = (init_active != nullptr) && !init_active->export_req_.video_path.empty();
 #else
     if (init_active && !init_active->export_req_.video_path.empty())
     {
@@ -405,7 +408,8 @@ void App::init_runtime()
                                             int      drop_zone,
                                             float    local_x,
                                             float    local_y,
-                                            FigureId target_figure_id) {
+                                            FigureId target_figure_id)
+                    {
                         session.queue_move(
                             {fid, target_wid, drop_zone, local_x, local_y, target_figure_id});
                     });
@@ -495,7 +499,8 @@ void App::init_runtime()
                                             int      drop_zone,
                                             float    local_x,
                                             float    local_y,
-                                            FigureId target_figure_id) {
+                                            FigureId target_figure_id)
+                    {
                         session.queue_move(
                             {fid, target_wid, drop_zone, local_x, local_y, target_figure_id});
                     });
@@ -894,8 +899,8 @@ void App::init_runtime()
     // In headless mode, skip unless explicitly requested via environment variable
     // to avoid thread lifecycle issues during rapid create/destroy cycles in tests.
     {
-        const char* auto_env        = std::getenv("SPECTRA_AUTO_SOCKET");
-        bool        want_automation = !config_.headless || (auto_env && auto_env[0] != '\0');
+        const char* auto_env = std::getenv("SPECTRA_AUTO_SOCKET");
+        bool want_automation = !config_.headless || ((auto_env != nullptr) && auto_env[0] != '\0');
 
         if (want_automation)
         {
@@ -939,7 +944,7 @@ void App::init_runtime()
                 const uint16_t max_tries = mcp_port_pinned ? 1 : 16;
                 for (uint16_t i = 0; i < max_tries; ++i)
                 {
-                    const uint16_t try_port = static_cast<uint16_t>(mcp_port + i);
+                    const auto try_port = static_cast<uint16_t>(mcp_port + i);
                     if (rt.mcp_server->start(*rt.auto_server, mcp_bind, try_port))
                     {
                         started = true;
@@ -1295,11 +1300,11 @@ void App::shutdown_runtime()
         SPECTRA_LOG_ERROR("shutdown",
                           std::string("Exception during AppRuntime destruction: ") + e.what());
         // Force-null the pointer to avoid double-free in ~App()
-        runtime_.release();
+        (void)runtime_.release();
     }
     catch (...)
     {
-        runtime_.release();
+        (void)runtime_.release();
     }
 }
 

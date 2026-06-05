@@ -319,15 +319,14 @@ std::string json_extract_object(const std::string& json, const std::string& key)
 
 std::string jsonrpc_result(const std::string& id_raw, const std::string& result_json)
 {
-    return "{\"jsonrpc\":\"2.0\",\"id\":" + (id_raw.empty() ? "null" : id_raw)
+    return R"({"jsonrpc":"2.0","id":)" + (id_raw.empty() ? "null" : id_raw)
            + ",\"result\":" + result_json + "}";
 }
 
 std::string jsonrpc_error(const std::string& id_raw, int code, const std::string& message)
 {
-    return "{\"jsonrpc\":\"2.0\",\"id\":" + (id_raw.empty() ? "null" : id_raw)
-           + ",\"error\":{\"code\":" + std::to_string(code) + ",\"message\":\""
-           + json_escape(message) + "\"}}";
+    return R"({"jsonrpc":"2.0","id":)" + (id_raw.empty() ? "null" : id_raw) + R"(,"error":{"code":)"
+           + std::to_string(code) + R"(,"message":")" + json_escape(message) + "\"}}";
 }
 
 std::string http_status_text(int status)
@@ -465,8 +464,8 @@ std::string build_tools_list_result()
     {
         if (i > 0)
             oss << ',';
-        oss << "{\"name\":\"" << json_escape(kTools[i].name) << "\",\"description\":\""
-            << json_escape(kTools[i].description) << "\",\"inputSchema\":" << kTools[i].input_schema
+        oss << R"({"name":")" << json_escape(kTools[i].name) << R"(","description":")"
+            << json_escape(kTools[i].description) << R"(","inputSchema":)" << kTools[i].input_schema
             << '}';
     }
     oss << "]}";
@@ -476,22 +475,22 @@ std::string build_tools_list_result()
 std::string build_initialize_result(const std::string& protocol_version)
 {
     const std::string negotiated = protocol_version.empty() ? kProtocolVersion : protocol_version;
-    return "{\"protocolVersion\":\"" + json_escape(negotiated)
-           + "\",\"capabilities\":{\"tools\":{\"listChanged\":false}},\"serverInfo\":{\"name\":\""
-           + std::string(kServerName) + "\",\"version\":\"" + SPECTRA_VERSION_STRING
-           + "\"},\"instructions\":\"" + json_escape(kInstructions) + "\"}";
+    return R"({"protocolVersion":")" + json_escape(negotiated)
+           + R"(","capabilities":{"tools":{"listChanged":false}},"serverInfo":{"name":")"
+           + std::string(kServerName) + R"(","version":")" + SPECTRA_VERSION_STRING
+           + R"("},"instructions":")" + json_escape(kInstructions) + "\"}";
 }
 
 std::string build_call_result(const std::string& payload_json)
 {
-    return "{\"content\":[{\"type\":\"text\",\"text\":\"" + json_escape(payload_json)
-           + "\"}],\"structuredContent\":" + payload_json + "}";
+    return R"({"content":[{"type":"text","text":")" + json_escape(payload_json)
+           + R"("}],"structuredContent":)" + payload_json + "}";
 }
 
 std::string build_call_error_result(const std::string& error_message)
 {
-    return "{\"content\":[{\"type\":\"text\",\"text\":\"" + json_escape(error_message)
-           + "\"}],\"isError\":true}";
+    return R"({"content":[{"type":"text","text":")" + json_escape(error_message)
+           + R"("}],"isError":true})";
 }
 }   // namespace
 
@@ -532,9 +531,7 @@ bool McpServer::start(AutomationServer& automation, const std::string& bind_host
     int reuse_addr = 1;
     ::setsockopt(listen_fd_, SOL_SOCKET, SO_REUSEADDR, &reuse_addr, sizeof(reuse_addr));
 
-    struct sockaddr_in addr
-    {
-    };
+    struct sockaddr_in addr{};
     addr.sin_family = AF_INET;
     addr.sin_port   = htons(port_);
     if (::inet_pton(AF_INET, bind_host_.c_str(), &addr.sin_addr) != 1)
@@ -571,10 +568,8 @@ bool McpServer::start(AutomationServer& automation, const std::string& bind_host
         return false;
     }
 
-    struct sockaddr_in bound_addr
-    {
-    };
-    socklen_t bound_len = sizeof(bound_addr);
+    struct sockaddr_in bound_addr{};
+    socklen_t          bound_len = sizeof(bound_addr);
     if (::getsockname(listen_fd_, reinterpret_cast<struct sockaddr*>(&bound_addr), &bound_len) == 0)
         port_ = ntohs(bound_addr.sin_port);
 
@@ -624,20 +619,16 @@ void McpServer::listener_thread_fn()
 #ifndef _WIN32
     while (running_.load(std::memory_order_relaxed))
     {
-        struct pollfd pfd
-        {
-        };
+        struct pollfd pfd{};
         pfd.fd        = listen_fd_;
         pfd.events    = POLLIN;
         const int ret = ::poll(&pfd, 1, 200);
         if (ret <= 0 || (pfd.revents & POLLIN) == 0)
             continue;
 
-        struct sockaddr_in client_addr
-        {
-        };
-        socklen_t client_len = sizeof(client_addr);
-        int       cfd =
+        struct sockaddr_in client_addr{};
+        socklen_t          client_len = sizeof(client_addr);
+        int                cfd =
             ::accept(listen_fd_, reinterpret_cast<struct sockaddr*>(&client_addr), &client_len);
         if (cfd < 0)
             continue;
@@ -708,7 +699,7 @@ void McpServer::handle_client(int client_fd)
             if (method == "GET")
             {
                 const std::string health =
-                    "{\"name\":\"spectra-automation\",\"status\":\"ok\",\"endpoint\":\""
+                    R"({"name":"spectra-automation","status":"ok","endpoint":")"
                     + json_escape(endpoint()) + "\"}";
                 response = make_http_response(200, health);
                 break;

@@ -72,7 +72,7 @@ bool parse_fixed_width_int(std::string_view s, size_t pos, size_t width, int& ou
     int value = 0;
     for (size_t i = 0; i < width; ++i)
     {
-        const unsigned char ch = static_cast<unsigned char>(s[pos + i]);
+        const auto ch = static_cast<unsigned char>(s[pos + i]);
         if (!std::isdigit(ch))
             return false;
         value = value * 10 + static_cast<int>(ch - '0');
@@ -354,7 +354,7 @@ bool try_parse_datetime(const std::string& s, double& out)
 
     if (has_timezone)
     {
-        const double timezone_offset =
+        const auto timezone_offset =
             static_cast<double>(timezone_sign * (timezone_hours * 3600 + timezone_minutes * 60));
         seconds -= timezone_offset;
     }
@@ -369,9 +369,8 @@ std::vector<std::string> split_line(const std::string& line, char delim)
     std::string              field;
     bool                     in_quotes = false;
 
-    for (size_t i = 0; i < line.size(); ++i)
+    for (char c : line)
     {
-        char c = line[i];
         if (c == '"')
         {
             in_quotes = !in_quotes;

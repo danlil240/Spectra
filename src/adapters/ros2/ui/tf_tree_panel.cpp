@@ -258,7 +258,7 @@ void TfTreePanel::draw_inline()
     const std::string filter(filter_buf_);
     ImGui::BeginChild("##tf_tree_scroll",
                       ImVec2(0.0f, ImGui::GetContentRegionAvail().y * 0.55f),
-                      false);
+                      0);
     if (snapshot.frames.empty())
     {
         ImGui::TextDisabled("No TF frames received yet.");

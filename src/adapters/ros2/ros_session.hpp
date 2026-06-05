@@ -377,7 +377,7 @@ class RosSessionManager
 
     // Deserialize a RosSession from a JSON string.
     // Returns false and sets error_out on failure.
-    static bool deserialize(const std::string& json,
+    static bool deserialize(const std::string& text,
                             RosSession&        session_out,
                             std::string&       error_out);
 

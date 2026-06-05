@@ -339,7 +339,7 @@ bool BagRecorder::subscribe_topics()
                 topic,
                 msg_type,
                 qos,
-                [this, topic, msg_type](std::shared_ptr<const rclcpp::SerializedMessage> msg)
+                [this, topic, msg_type](const std::shared_ptr<const rclcpp::SerializedMessage>& msg)
                 { on_message(topic, msg_type, msg); });
             subscriptions_.push_back(std::move(sub));
         }
@@ -360,7 +360,7 @@ bool BagRecorder::subscribe_topics()
 
 void BagRecorder::on_message(const std::string& topic_name,
                              const std::string& /*message_type*/,
-                             std::shared_ptr<const rclcpp::SerializedMessage> msg)
+                             const std::shared_ptr<const rclcpp::SerializedMessage>& msg)
 {
     if (!msg)
     {

@@ -94,7 +94,8 @@ std::string accessible_series_summary(const Series&         series,
 
     if (options.include_series_ranges)
     {
-        float ymin = 0.0f, ymax = 0.0f;
+        float ymin = 0.0f;
+        float ymax = 0.0f;
         if (compute_y_range(series, ymin, ymax))
             ss << ", Y range: " << fmt_float(ymin) << " to " << fmt_float(ymax);
     }
@@ -153,7 +154,7 @@ std::string accessible_axes_summary(const Axes&           axes,
     }
 
     const auto& sv = axes.series();
-    ss << ": " << sv.size() << (sv.size() == 1 ? " series" : " series");
+    ss << ": " << sv.size() << " series";
 
     int limit = std::min(static_cast<int>(sv.size()), options.max_series_in_summary);
     for (int i = 0; i < limit; ++i)
@@ -173,7 +174,7 @@ std::string accessible_figure_summary(const Figure& figure, const SummaryOptions
     std::ostringstream ss;
 
     const auto& axes_vec = figure.axes();
-    ss << "Figure with " << axes_vec.size() << (axes_vec.size() == 1 ? " axes" : " axes");
+    ss << "Figure with " << axes_vec.size() << (axes_vec.size() == 1 ? " axis" : " axes");
 
     int rows = figure.grid_rows();
     int cols = figure.grid_cols();

@@ -164,8 +164,8 @@ void DataInteraction::update(const CursorReadout& cursor, Figure& figure)
         if (!axes_ptr)
             continue;
         const auto& vp = axes_ptr->viewport();
-        float       sx = static_cast<float>(cursor.screen_x);
-        float       sy = static_cast<float>(cursor.screen_y);
+        auto        sx = static_cast<float>(cursor.screen_x);
+        auto        sy = static_cast<float>(cursor.screen_y);
         if (cursor.valid && sx >= vp.x && sx <= vp.x + vp.w && sy >= vp.y && sy <= vp.y + vp.h)
         {
             active_axes_     = axes_ptr.get();
@@ -184,13 +184,13 @@ void DataInteraction::update(const CursorReadout& cursor, Figure& figure)
     if (axis_link_mgr_ && active_axes_ && cursor.valid)
     {
         SharedCursor sc;
-        sc.valid  = true;
-        sc.data_x = xlim_min_
-                    + (static_cast<float>(cursor.screen_x) - active_viewport_.x)
-                          / active_viewport_.w * (xlim_max_ - xlim_min_);
-        sc.data_y = ylim_max_
-                    - (static_cast<float>(cursor.screen_y) - active_viewport_.y)
-                          / active_viewport_.h * (ylim_max_ - ylim_min_);
+        sc.valid       = true;
+        sc.data_x      = xlim_min_
+                         + (static_cast<float>(cursor.screen_x) - active_viewport_.x)
+                               / active_viewport_.w * (xlim_max_ - xlim_min_);
+        sc.data_y      = ylim_max_
+                         - (static_cast<float>(cursor.screen_y) - active_viewport_.y)
+                               / active_viewport_.h * (ylim_max_ - ylim_min_);
         sc.screen_x    = cursor.screen_x;
         sc.screen_y    = cursor.screen_y;
         sc.source_axes = active_axes_;
@@ -224,8 +224,8 @@ bool DataInteraction::refresh_pointer_state(double screen_x, double screen_y)
         if (vp.w <= 0.0f || vp.h <= 0.0f)
             continue;
 
-        const float sx = static_cast<float>(screen_x);
-        const float sy = static_cast<float>(screen_y);
+        const auto sx = static_cast<float>(screen_x);
+        const auto sy = static_cast<float>(screen_y);
         if (sx < vp.x || sx > vp.x + vp.w || sy < vp.y || sy > vp.y + vp.h)
             continue;
 
@@ -264,8 +264,8 @@ void DataInteraction::draw_legend_for_figure(Figure& figure)
     if (config.position == LegendPosition::None)
         return;
 
-    uintptr_t fig_id = reinterpret_cast<uintptr_t>(&figure);
-    size_t    idx    = 0;
+    auto   fig_id = reinterpret_cast<uintptr_t>(&figure);
+    size_t idx    = 0;
     for (auto& axes_ptr : figure.axes_mut())
     {
         if (axes_ptr)
@@ -547,7 +547,7 @@ bool DataInteraction::on_mouse_click(int button, double screen_x, double screen_
             dispatch_series_selection_from_nearest();
             return true;
         }
-        else if (on_series_deselected_)
+        if (on_series_deselected_)
         {
             // Clicked on canvas but not near any series — deselect
             on_series_deselected_();
@@ -724,7 +724,10 @@ void DataInteraction::select_series_in_rect(const BoxZoomRect& rect, Figure& fig
 
                     // Cohen-Sutherland: if the segment can be clipped to the rectangle, it
                     // intersects
-                    double cx0 = sx0, cy0 = sy0, cx1 = sx1, cy1 = sy1;
+                    double cx0     = sx0;
+                    double cy0     = sy0;
+                    double cx1     = sx1;
+                    double cy1     = sy1;
                     auto   outcode = [&](double px, double py) -> int
                     {
                         int code = 0;
@@ -750,7 +753,8 @@ void DataInteraction::select_series_in_rect(const BoxZoomRect& rect, Figure& fig
                         if ((oc0 & oc1) != 0)
                             break;
                         int    oc_out = oc0 ? oc0 : oc1;
-                        double px = 0, py = 0;
+                        double px     = 0;
+                        double py     = 0;
                         if (oc_out & 8)
                         {
                             px = cx0 + (cx1 - cx0) * (ry1 - cy0) / (cy1 - cy0);
@@ -914,8 +918,8 @@ NearestPointResult DataInteraction::find_nearest(const CursorReadout& cursor, Fi
     if (!cursor.valid)
         return best;
 
-    float cx = static_cast<float>(cursor.screen_x);
-    float cy = static_cast<float>(cursor.screen_y);
+    auto cx = static_cast<float>(cursor.screen_x);
+    auto cy = static_cast<float>(cursor.screen_y);
 
     // Search all axes
     for (auto& axes_ptr : figure.axes())

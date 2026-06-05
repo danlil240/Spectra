@@ -215,7 +215,7 @@ class RosLogViewer
     // Iterate all entries that pass the current filter, oldest first.
     // Callback: void(const LogEntry&).
     // Holds the internal lock for the duration — keep callback fast.
-    void for_each_filtered(std::function<void(const LogEntry&)> cb);
+    void for_each_filtered(const std::function<void(const LogEntry&)>& cb);
 
     // -----------------------------------------------------------------------
     // Statistics
@@ -258,7 +258,7 @@ class RosLogViewer
 
    private:
     // Called from executor thread when a /rosout message arrives.
-    void on_message(std::shared_ptr<rclcpp::SerializedMessage> raw_msg);
+    void on_message(const std::shared_ptr<rclcpp::SerializedMessage>& raw_msg);
 
     // Recompile the regex if dirty (render thread only).
     void maybe_recompile_regex();

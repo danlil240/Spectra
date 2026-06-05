@@ -67,7 +67,7 @@ spectra::Transform parse_origin(const XMLElement* parent, std::vector<std::strin
     if (const char* xyz_attr = origin_element->Attribute("xyz"))
     {
         if (!parse_vec3_attr(xyz_attr, xyz))
-            warnings.push_back("Invalid xyz attribute on <origin>");
+            warnings.emplace_back("Invalid xyz attribute on <origin>");
         else
             origin.translation = xyz;
     }
@@ -76,7 +76,7 @@ spectra::Transform parse_origin(const XMLElement* parent, std::vector<std::strin
     if (const char* rpy_attr = origin_element->Attribute("rpy"))
     {
         if (!parse_vec3_attr(rpy_attr, rpy))
-            warnings.push_back("Invalid rpy attribute on <origin>");
+            warnings.emplace_back("Invalid rpy attribute on <origin>");
         else
             origin.rotation = quat_from_rpy(rpy.x, rpy.y, rpy.z);
     }
@@ -94,7 +94,7 @@ UrdfGeometry parse_geometry(const XMLElement* geometry_element, std::vector<std:
     {
         spectra::vec3 size{};
         if (!parse_vec3_attr(box->Attribute("size"), size))
-            warnings.push_back("Ignoring <box> geometry with invalid size");
+            warnings.emplace_back("Ignoring <box> geometry with invalid size");
         else
         {
             geometry.type     = UrdfGeometryType::Box;
@@ -110,7 +110,7 @@ UrdfGeometry parse_geometry(const XMLElement* geometry_element, std::vector<std:
         if (cylinder->QueryDoubleAttribute("radius", &radius) != tinyxml2::XML_SUCCESS
             || cylinder->QueryDoubleAttribute("length", &length) != tinyxml2::XML_SUCCESS)
         {
-            warnings.push_back("Ignoring <cylinder> geometry with invalid radius/length");
+            warnings.emplace_back("Ignoring <cylinder> geometry with invalid radius/length");
         }
         else
         {
@@ -126,7 +126,7 @@ UrdfGeometry parse_geometry(const XMLElement* geometry_element, std::vector<std:
         double radius = 0.0;
         if (sphere->QueryDoubleAttribute("radius", &radius) != tinyxml2::XML_SUCCESS)
         {
-            warnings.push_back("Ignoring <sphere> geometry with invalid radius");
+            warnings.emplace_back("Ignoring <sphere> geometry with invalid radius");
         }
         else
         {
@@ -140,11 +140,11 @@ UrdfGeometry parse_geometry(const XMLElement* geometry_element, std::vector<std:
     {
         geometry.type          = UrdfGeometryType::Unsupported;
         geometry.mesh_filename = mesh->Attribute("filename") ? mesh->Attribute("filename") : "";
-        warnings.push_back("Ignoring unsupported <mesh> geometry");
+        warnings.emplace_back("Ignoring unsupported <mesh> geometry");
         return geometry;
     }
 
-    warnings.push_back("Ignoring <geometry> with no supported shape child");
+    warnings.emplace_back("Ignoring <geometry> with no supported shape child");
     return geometry;
 }
 

@@ -4,7 +4,7 @@
 namespace spectra
 {
 
-void Animator::evaluate(float /*time*/)
+void Animator::evaluate(float /*time*/) const
 {
     if (paused_)
         return;

@@ -74,7 +74,7 @@ class BinaryWriter
 
     void write_string(const std::string& s)
     {
-        uint32_t len = static_cast<uint32_t>(s.size());
+        auto len = static_cast<uint32_t>(s.size());
         write_u32(len);
         if (len > 0)
             f_.write(s.data(), len);
@@ -82,7 +82,7 @@ class BinaryWriter
 
     void write_floats(std::span<const float> data)
     {
-        uint32_t count = static_cast<uint32_t>(data.size());
+        auto count = static_cast<uint32_t>(data.size());
         write_u32(count);
         if (count > 0)
             f_.write(reinterpret_cast<const char*>(data.data()), count * sizeof(float));
@@ -90,7 +90,7 @@ class BinaryWriter
 
     void write_u32s(std::span<const uint32_t> data)
     {
-        uint32_t count = static_cast<uint32_t>(data.size());
+        auto count = static_cast<uint32_t>(data.size());
         write_u32(count);
         if (count > 0)
             f_.write(reinterpret_cast<const char*>(data.data()), count * sizeof(uint32_t));
@@ -107,8 +107,8 @@ class BinaryWriter
 
     void end_chunk(std::streampos length_pos)
     {
-        auto     end = f_.tellp();
-        uint32_t len = static_cast<uint32_t>(end - length_pos - 4);
+        auto end = f_.tellp();
+        auto len = static_cast<uint32_t>(end - length_pos - 4);
         f_.seekp(length_pos);
         write_u32(len);
         f_.seekp(end);
@@ -126,7 +126,7 @@ class BinaryWriter
         write_f32(s.plot_style().line_width);
     }
 
-    bool good() const { return f_.good(); }
+    [[nodiscard]] bool good() const { return f_.good(); }
 
    private:
     std::ofstream& f_;
@@ -216,7 +216,7 @@ class BinaryReader
         s.plot_style(ps);
     }
 
-    bool good() const { return f_.good(); }
+    [[nodiscard]] bool good() const { return f_.good(); }
 
    private:
     std::ifstream& f_;
@@ -232,8 +232,8 @@ static void write_axes_2d(BinaryWriter& w, const Axes& axes, int axes_index)
     w.write_string(axes.title());
     w.write_string(axes.xlabel());
     w.write_string(axes.ylabel());
-    w.write_u8(axes.grid_enabled());
-    w.write_u8(axes.border_enabled());
+    w.write_u8(static_cast<uint8_t>(axes.grid_enabled()));
+    w.write_u8(static_cast<uint8_t>(axes.border_enabled()));
     w.write_u8(static_cast<uint8_t>(axes.autoscale_mode()));
 
     auto xl = axes.x_limits();
@@ -284,11 +284,11 @@ static void write_axes_2d(BinaryWriter& w, const Axes& axes, int axes_index)
             w.write_i32(axes_index);
             w.write_series_common(*bp);
             w.write_f32(bp->box_width());
-            w.write_u8(bp->show_outliers());
-            w.write_u8(bp->notched());
-            w.write_u8(bp->gradient());
+            w.write_u8(static_cast<uint8_t>(bp->show_outliers()));
+            w.write_u8(static_cast<uint8_t>(bp->notched()));
+            w.write_u8(static_cast<uint8_t>(bp->gradient()));
             // Write box data
-            uint32_t box_count = static_cast<uint32_t>(bp->positions().size());
+            auto box_count = static_cast<uint32_t>(bp->positions().size());
             w.write_u32(box_count);
             for (uint32_t i = 0; i < box_count; ++i)
             {
@@ -310,9 +310,9 @@ static void write_axes_2d(BinaryWriter& w, const Axes& axes, int axes_index)
             w.write_series_common(*vs);
             w.write_f32(vs->violin_width());
             w.write_i32(vs->resolution());
-            w.write_u8(vs->show_box());
-            w.write_u8(vs->gradient());
-            uint32_t vcount = static_cast<uint32_t>(vs->violins().size());
+            w.write_u8(static_cast<uint8_t>(vs->show_box()));
+            w.write_u8(static_cast<uint8_t>(vs->gradient()));
+            auto vcount = static_cast<uint32_t>(vs->violins().size());
             w.write_u32(vcount);
             for (const auto& vd : vs->violins())
             {
@@ -327,9 +327,9 @@ static void write_axes_2d(BinaryWriter& w, const Axes& axes, int axes_index)
             w.write_i32(axes_index);
             w.write_series_common(*hs);
             w.write_i32(hs->bins());
-            w.write_u8(hs->cumulative());
-            w.write_u8(hs->density());
-            w.write_u8(hs->gradient());
+            w.write_u8(static_cast<uint8_t>(hs->cumulative()));
+            w.write_u8(static_cast<uint8_t>(hs->density()));
+            w.write_u8(static_cast<uint8_t>(hs->gradient()));
             w.write_floats(hs->raw_values());
             w.end_chunk(spos);
         }
@@ -341,7 +341,7 @@ static void write_axes_2d(BinaryWriter& w, const Axes& axes, int axes_index)
             w.write_f32(bs->bar_width());
             w.write_f32(bs->baseline());
             w.write_u8(static_cast<uint8_t>(bs->orientation()));
-            w.write_u8(bs->gradient());
+            w.write_u8(static_cast<uint8_t>(bs->gradient()));
             w.write_floats(bs->bar_positions());
             w.write_floats(bs->bar_heights());
             w.end_chunk(spos);
@@ -358,8 +358,8 @@ static void write_axes_3d(BinaryWriter& w, const Axes3D& axes, int axes_index)
     w.write_string(axes.xlabel());
     w.write_string(axes.ylabel());
     w.write_string(axes.zlabel());
-    w.write_u8(axes.grid_enabled());
-    w.write_u8(axes.border_enabled());
+    w.write_u8(static_cast<uint8_t>(axes.grid_enabled()));
+    w.write_u8(static_cast<uint8_t>(axes.border_enabled()));
 
     auto xl = axes.x_limits();
     auto yl = axes.y_limits();
@@ -373,14 +373,14 @@ static void write_axes_3d(BinaryWriter& w, const Axes3D& axes, int axes_index)
 
     // Grid planes
     w.write_i32(static_cast<int32_t>(axes.grid_planes()));
-    w.write_u8(axes.show_bounding_box());
+    w.write_u8(static_cast<uint8_t>(axes.show_bounding_box()));
 
     // Lighting
     auto ld = axes.light_dir();
     w.write_f32(ld.x);
     w.write_f32(ld.y);
     w.write_f32(ld.z);
-    w.write_u8(axes.lighting_enabled());
+    w.write_u8(static_cast<uint8_t>(axes.lighting_enabled()));
 
     // Axis style
     const auto& as = axes.axis_style();
@@ -450,9 +450,9 @@ static void write_axes_3d(BinaryWriter& w, const Axes3D& axes, int axes_index)
             w.write_f32(surf->specular());
             w.write_f32(surf->shininess());
             w.write_u8(static_cast<uint8_t>(surf->blend_mode()));
-            w.write_u8(surf->double_sided());
-            w.write_u8(surf->wireframe());
-            w.write_u8(surf->colormap_alpha());
+            w.write_u8(static_cast<uint8_t>(surf->double_sided()));
+            w.write_u8(static_cast<uint8_t>(surf->wireframe()));
+            w.write_u8(static_cast<uint8_t>(surf->colormap_alpha()));
             w.write_f32(surf->colormap_alpha_min());
             w.write_f32(surf->colormap_alpha_max());
             w.write_floats(surf->x_grid());
@@ -469,8 +469,8 @@ static void write_axes_3d(BinaryWriter& w, const Axes3D& axes, int axes_index)
             w.write_f32(ms->specular());
             w.write_f32(ms->shininess());
             w.write_u8(static_cast<uint8_t>(ms->blend_mode()));
-            w.write_u8(ms->double_sided());
-            w.write_u8(ms->wireframe());
+            w.write_u8(static_cast<uint8_t>(ms->double_sided()));
+            w.write_u8(static_cast<uint8_t>(ms->wireframe()));
             w.write_floats(ms->vertices());
             w.write_u32s(ms->indices());
             w.end_chunk(spos);
@@ -520,7 +520,7 @@ bool FigureSerializer::save(const std::string&     path,
         auto        pos = w.begin_chunk(TAG_LEGEND_CONFIG);
         const auto& lc  = figure.legend();
         w.write_u8(static_cast<uint8_t>(lc.position));
-        w.write_u8(lc.visible);
+        w.write_u8(static_cast<uint8_t>(lc.visible));
         w.write_f32(lc.font_size);
         w.write_color(lc.bg_color);
         w.write_color(lc.border_color);
@@ -1347,10 +1347,10 @@ bool FigureSerializer::save_with_dialog(const Figure& figure, const OverlaySnaps
     std::string home_dir = (home_env ? std::string(home_env) + "/" : "/") + "figure.spectra";
     const char* home     = home_dir.c_str();
     char*       result   = tinyfd_saveFileDialog("Save Figure",
-                                         home,
-                                         1,
-                                         filter_patterns,
-                                         "Spectra Figure (*.spectra)");
+                                                 home,
+                                                 1,
+                                                 filter_patterns,
+                                                 "Spectra Figure (*.spectra)");
 
     if (!result)
         return false;
@@ -1367,11 +1367,11 @@ bool FigureSerializer::load_with_dialog(Figure& figure, OverlaySnapshot* overlay
     std::string home_dir          = home_env ? std::string(home_env) + "/" : "/";
     const char* home              = home_dir.c_str();
     char*       result            = tinyfd_openFileDialog("Open Figure",
-                                         home,
-                                         1,
-                                         filter_patterns,
-                                         "Spectra Figure (*.spectra)",
-                                         0);
+                                                          home,
+                                                          1,
+                                                          filter_patterns,
+                                                          "Spectra Figure (*.spectra)",
+                                                          0);
 
     if (!result)
         return false;

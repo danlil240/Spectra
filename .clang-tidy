@@ -19,7 +19,6 @@ Checks: >
   bugprone-misplaced-widening-cast,
   bugprone-move-forwarding-reference,
   bugprone-multiple-new-in-one-expression,
-  bugprone-narrowing-conversions,
   bugprone-no-escape,
   bugprone-parent-virtual-call,
   bugprone-posix-return,
@@ -34,21 +33,12 @@ Checks: >
   bugprone-swapped-arguments,
   bugprone-throw-keyword-missing,
   bugprone-too-small-loop-variable,
-  bugprone-unchecked-optional-access,
   bugprone-undelegated-constructor,
   bugprone-unhandled-self-assignment,
   bugprone-unused-raii,
   bugprone-unused-return-value,
   bugprone-use-after-move,
   bugprone-virtual-near-miss,
-
-  # Static analyzer: keep to core C/C++ paths
-  clang-analyzer-core.*,
-  clang-analyzer-cplusplus.*,
-  clang-analyzer-deadcode.*,
-  clang-analyzer-nullability.*,
-  clang-analyzer-security.*,
-  clang-analyzer-unix.*,
 
   # Performance
   performance-for-range-copy,
@@ -97,8 +87,6 @@ Checks: >
   readability-delete-null-pointer,
   readability-duplicate-include,
   readability-else-after-return,
-  readability-function-cognitive-complexity,
-  readability-function-size,
   readability-implicit-bool-conversion,
   readability-inconsistent-declaration-parameter-name,
   readability-isolate-declaration,
@@ -118,44 +106,41 @@ Checks: >
   readability-simplify-subscript-expr,
   readability-static-accessed-through-instance,
   readability-string-compare,
-  readability-suspicious-call-argument,
   readability-uniqueptr-delete-release,
 
   # Core guidelines: selected only
   cppcoreguidelines-explicit-virtual-functions,
   cppcoreguidelines-init-variables,
-  cppcoreguidelines-macro-usage,
   cppcoreguidelines-misleading-capture-default-by-value,
   cppcoreguidelines-missing-std-forward,
   cppcoreguidelines-no-malloc,
   cppcoreguidelines-noexcept-destructor,
   cppcoreguidelines-noexcept-move-operations,
   cppcoreguidelines-prefer-member-initializer,
-  cppcoreguidelines-pro-type-const-cast,
   cppcoreguidelines-pro-type-cstyle-cast,
   cppcoreguidelines-pro-type-member-init,
-  cppcoreguidelines-pro-type-reinterpret-cast,
   cppcoreguidelines-rvalue-reference-param-not-moved,
   cppcoreguidelines-slicing,
   cppcoreguidelines-special-member-functions,
   cppcoreguidelines-use-default-member-init,
   cppcoreguidelines-virtual-class-destructor
 
+  # Disabled — architectural mismatch with Spectra (not fixable file-by-file):
+  #   bugprone-narrowing-conversions     double model coords, float GPU buffers
+  #   bugprone-unchecked-optional-access false positives on custom optional guards
+  #   readability-function-cognitive-complexity  large UI/render dispatch functions
+  #   readability-function-size          same
+  #   cppcoreguidelines-pro-type-reinterpret-cast  Vulkan handles, ULog, IPC binary
+  #   cppcoreguidelines-pro-type-const-cast        ImGui/editor const-view mutation
+  #   cppcoreguidelines-macro-usage      IPC codec dispatch macros
+  #   clang-analyzer-*                   slow/noisy in IDE; use dedicated analyzer runs
+  #   readability-suspicious-call-argument       false positives on IPC param names
+
 WarningsAsErrors: ''
 HeaderFilterRegex: '^(src|include|apps|test|tests)/'
 FormatStyle: file
 
 CheckOptions:
-  - key: readability-function-cognitive-complexity.Threshold
-    value: '50'
-  - key: readability-function-size.LineThreshold
-    value: '400'
-  - key: readability-function-size.StatementThreshold
-    value: '200'
-  - key: readability-function-size.BranchThreshold
-    value: '80'
-  - key: readability-function-size.ParameterThreshold
-    value: '8'
   - key: bugprone-argument-comment.StrictMode
     value: '0'
   - key: cppcoreguidelines-special-member-functions.AllowMissingMoveFunctions

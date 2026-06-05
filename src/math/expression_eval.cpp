@@ -518,7 +518,7 @@ void ExpressionParser::advance()
 
 bool ExpressionParser::is_ident_char(char c) const
 {
-    return std::isalnum(static_cast<unsigned char>(c)) || c == '_';
+    return (std::isalnum(static_cast<unsigned char>(c)) != 0) || c == '_';
 }
 
 std::string ExpressionParser::read_identifier()
@@ -770,8 +770,7 @@ float evaluate(const ExprNode& node, const ExprContext& ctx)
                 {
                     if (cond != 0.0f && !std::isnan(cond))
                         return evaluate(*node.right->left, ctx);
-                    else
-                        return evaluate(*node.right->right, ctx);
+                    return evaluate(*node.right->right, ctx);
                 }
                 return std::numeric_limits<float>::quiet_NaN();
             }

@@ -144,7 +144,7 @@ class AnimationCurveEditor
     // Select/deselect keyframes.
     void select_keyframe(uint32_t channel_id, size_t index);
     void deselect_all();
-    void select_keyframes_in_rect(float time_min, float time_max, float value_min, float value_max);
+    void select_keyframes_in_rect(float t_min, float t_max, float v_min, float v_max);
 
     size_t selected_count() const;
 

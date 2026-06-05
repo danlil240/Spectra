@@ -264,7 +264,7 @@ bool VulkanBackend::init_window_context_with_imgui(WindowContext& wctx,
     return true;
 }
 
-void VulkanBackend::wait_window_fences(WindowContext& wctx)
+void VulkanBackend::wait_window_fences(WindowContext& wctx) const
 {
     if (ctx_.device == VK_NULL_HANDLE || wctx.in_flight_fences.empty())
         return;
@@ -355,7 +355,7 @@ void VulkanBackend::create_command_buffers_for(WindowContext& wctx)
                              wctx.command_buffers.data());
     }
 
-    uint32_t count = static_cast<uint32_t>(wctx.swapchain.images.size());
+    auto count = static_cast<uint32_t>(wctx.swapchain.images.size());
     wctx.command_buffers.resize(count);
 
     VkCommandBufferAllocateInfo info{};
@@ -373,7 +373,7 @@ void VulkanBackend::create_command_buffers_for(WindowContext& wctx)
 
 void VulkanBackend::create_sync_objects_for(WindowContext& wctx)
 {
-    uint32_t count = static_cast<uint32_t>(wctx.swapchain.images.size());
+    auto count = static_cast<uint32_t>(wctx.swapchain.images.size());
     wctx.image_available_semaphores.resize(count);
     wctx.render_finished_semaphores.resize(count);
     wctx.in_flight_fences.resize(count);

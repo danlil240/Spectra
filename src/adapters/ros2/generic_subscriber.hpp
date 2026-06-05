@@ -248,7 +248,7 @@ class GenericSubscriber
 
    private:
     // Called by rclcpp on each incoming message.
-    void on_message(std::shared_ptr<rclcpp::SerializedMessage> msg);
+    void on_message(const std::shared_ptr<rclcpp::SerializedMessage>& msg);
 
     // Extract a wall-clock timestamp in nanoseconds.
     static int64_t wall_clock_ns();

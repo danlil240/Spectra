@@ -148,7 +148,7 @@ bool PanelDetachController::is_window_alive() const
         return false;
 
     auto* wctx = window_mgr_->find_window(panel_window_id_);
-    return wctx && !wctx->should_close;
+    return (wctx != nullptr) && !wctx->should_close;
 }
 
 }   // namespace spectra

@@ -1,7 +1,8 @@
 #include "input.hpp"
 
-#include <algorithm>
 #include <cmath>
+
+#include <algorithm>
 #include <limits>
 #include <spectra/logger.hpp>
 
@@ -124,7 +125,8 @@ void InputHandler::handle_mouse_button_3d(Axes3D* axes3d,
 
             // Origin of the normalized cube
             vec3  origin{0.0f, 0.0f, 0.0f};
-            float ox, oy;
+            float ox = NAN;
+            float oy = NAN;
             if (project(origin, ox, oy))
             {
                 // Unit steps along each normalized-cube axis
@@ -132,7 +134,8 @@ void InputHandler::handle_mouse_button_3d(Axes3D* axes3d,
                 vec3        axis_tips[3] = {{step, 0, 0}, {0, step, 0}, {0, 0, step}};
                 for (int i = 0; i < 3; ++i)
                 {
-                    float tx, ty;
+                    float tx = NAN;
+                    float ty = NAN;
                     if (project(axis_tips[i], tx, ty))
                     {
                         float ddx = tx - ox;
@@ -383,7 +386,7 @@ void InputHandler::handle_mouse_button_pan(int action, int mods, double x, doubl
                     axes3d->auto_fit();
                     return;   // Don't start a pan drag on double-click
                 }
-                else if (active_axes_ && (transition_engine_ || anim_ctrl_))
+                if (active_axes_ && (transition_engine_ || anim_ctrl_))
                 {
                     // Compute auto-fit target limits
                     auto old_xlim = active_axes_->x_limits();
@@ -453,8 +456,8 @@ void InputHandler::handle_mouse_button_pan(int action, int mods, double x, doubl
         // Detect click-without-drag: if the mouse barely moved, revert tiny
         // pan jitter and keep Pan mode non-selecting.
         {
-            float           dx_px              = static_cast<float>(x - drag_start_x_);
-            float           dy_px              = static_cast<float>(y - drag_start_y_);
+            auto            dx_px              = static_cast<float>(x - drag_start_x_);
+            auto            dy_px              = static_cast<float>(y - drag_start_y_);
             float           move_dist          = std::sqrt(dx_px * dx_px + dy_px * dy_px);
             constexpr float CLICK_THRESHOLD_PX = 5.0f;
             if (move_dist < CLICK_THRESHOLD_PX)
@@ -487,8 +490,8 @@ void InputHandler::handle_mouse_button_pan(int action, int mods, double x, doubl
             {
                 // Skip inertia if mouse barely moved — prevents spurious
                 // acceleration from sub-pixel or 1-2 px jitter on release
-                float           dx_px               = static_cast<float>(x - last_move_x_);
-                float           dy_px               = static_cast<float>(y - last_move_y_);
+                auto            dx_px               = static_cast<float>(x - last_move_x_);
+                auto            dy_px               = static_cast<float>(y - last_move_y_);
                 float           dist_px             = std::sqrt(dx_px * dx_px + dy_px * dy_px);
                 constexpr float MIN_RELEASE_DIST_PX = 2.0f;
 
@@ -515,8 +518,8 @@ void InputHandler::handle_mouse_button_pan(int action, int mods, double x, doubl
                     vx_screen = std::clamp(vx_screen, -MAX_SCREEN_VEL, MAX_SCREEN_VEL);
                     vy_screen = std::clamp(vy_screen, -MAX_SCREEN_VEL, MAX_SCREEN_VEL);
 
-                    float vx_data = static_cast<float>(-vx_screen * x_range / vp.w);
-                    float vy_data = static_cast<float>(vy_screen * y_range / vp.h);
+                    auto vx_data = static_cast<float>(-vx_screen * x_range / vp.w);
+                    auto vy_data = static_cast<float>(vy_screen * y_range / vp.h);
 
                     float speed = std::sqrt(vx_data * vx_data + vy_data * vy_data);
                     if (speed > MIN_INERTIA_VELOCITY)
@@ -552,8 +555,8 @@ void InputHandler::handle_mouse_move_3d_drag(double x, double y)
     if (auto* axes3d = dynamic_cast<Axes3D*>(active_axes_base_))
     {
         auto& cam = axes3d->camera();
-        float dx  = static_cast<float>(x - drag_start_x_);
-        float dy  = static_cast<float>(y - drag_start_y_);
+        auto  dx  = static_cast<float>(x - drag_start_x_);
+        auto  dy  = static_cast<float>(y - drag_start_y_);
 
         if (is_3d_orbit_drag_ && !orbit_locked_)
         {
@@ -600,7 +603,7 @@ void InputHandler::handle_mouse_move_rclick_zoom(double x, double y)
             {
                 // 3D: pick the axis whose screen-projected direction best aligns
                 // with the drag direction (camera-aware, works at any view angle).
-                float drag_len = static_cast<float>(std::sqrt(abs_dx * abs_dx + abs_dy * abs_dy));
+                auto drag_len = static_cast<float>(std::sqrt(abs_dx * abs_dx + abs_dy * abs_dy));
                 if (drag_len > 1e-4f)
                 {
                     float ndx      = static_cast<float>(dx_total) / drag_len;
@@ -627,7 +630,7 @@ void InputHandler::handle_mouse_move_rclick_zoom(double x, double y)
                 // 2D: 15° cones near horizontal/vertical are pure 1D.
                 // Middle angles use proportional XY blending.
                 constexpr double kRadToDeg = 57.29577951308232;
-                float angle_deg = static_cast<float>(std::atan2(abs_dy, abs_dx) * kRadToDeg);
+                auto angle_deg = static_cast<float>(std::atan2(abs_dy, abs_dx) * kRadToDeg);
                 if (angle_deg <= RCLICK_AXIS_1D_THRESHOLD_DEG)
                 {
                     rclick_zoom_axis_ = ZoomAxis::X;
@@ -654,9 +657,7 @@ void InputHandler::handle_mouse_move_rclick_zoom(double x, double y)
             pixel_delta = static_cast<float>(dx_delta);
         else if (rclick_zoom_axis_ == ZoomAxis::Y)
             pixel_delta = static_cast<float>(-dy_delta);   // screen Y inverted
-        else if (rclick_zoom_axis_ == ZoomAxis::XY)
-            pixel_delta = static_cast<float>(dx_delta - dy_delta) * 0.5f;
-        else if (rclick_zoom_axis_ == ZoomAxis::Z)
+        else if (rclick_zoom_axis_ == ZoomAxis::XY || rclick_zoom_axis_ == ZoomAxis::Z)
             pixel_delta = static_cast<float>(dx_delta - dy_delta) * 0.5f;
 
         float factor = 1.0f - pixel_delta * RCLICK_ZOOM_SENSITIVITY;
@@ -699,8 +700,8 @@ void InputHandler::handle_mouse_move_rclick_zoom(double x, double y)
         }
         else if (active_axes_)
         {
-            const double anchor_x = static_cast<double>(rclick_zoom_anchor_data_x_);
-            const double anchor_y = static_cast<double>(rclick_zoom_anchor_data_y_);
+            const auto anchor_x = static_cast<double>(rclick_zoom_anchor_data_x_);
+            const auto anchor_y = static_cast<double>(rclick_zoom_anchor_data_y_);
 
             if (active_axes_->is_presented_buffer_following()
                 && (rclick_zoom_axis_ == ZoomAxis::X || rclick_zoom_axis_ == ZoomAxis::XY))
@@ -873,14 +874,17 @@ void InputHandler::handle_scroll_2d(double y_offset, double cursor_x, double cur
     auto ylim = active_axes_->y_limits();
 
     // Compute cursor position in data space
-    float saved_vp_x = vp_x_, saved_vp_y = vp_y_;
-    float saved_vp_w = vp_w_, saved_vp_h = vp_h_;
-    vp_x_ = vp.x;
-    vp_y_ = vp.y;
-    vp_w_ = vp.w;
-    vp_h_ = vp.h;
+    float saved_vp_x = vp_x_;
+    float saved_vp_y = vp_y_;
+    float saved_vp_w = vp_w_;
+    float saved_vp_h = vp_h_;
+    vp_x_            = vp.x;
+    vp_y_            = vp.y;
+    vp_w_            = vp.w;
+    vp_h_            = vp.h;
 
-    float data_x, data_y;
+    float data_x = NAN;
+    float data_y = NAN;
     screen_to_data(cursor_x, cursor_y, data_x, data_y);
 
     vp_x_ = saved_vp_x;
@@ -906,8 +910,8 @@ void InputHandler::handle_scroll_2d(double y_offset, double cursor_x, double cur
     // Apply zoom instantly — scroll zoom must be immediate and responsive.
     // (Animations are used for auto-fit, box zoom, and inertial pan instead.)
     // Use double arithmetic to preserve precision at deep zoom levels.
-    double dx       = static_cast<double>(data_x);
-    double dy       = static_cast<double>(data_y);
+    auto   dx       = static_cast<double>(data_x);
+    auto   dy       = static_cast<double>(data_y);
     double new_xmin = dx + (xlim.min - dx) * factor;
     double new_xmax = dx + (xlim.max - dx) * factor;
     double new_ymin = dy + (ylim.min - dy) * factor;

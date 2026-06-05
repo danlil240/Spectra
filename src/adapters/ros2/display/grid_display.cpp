@@ -39,9 +39,13 @@ void GridDisplay::deserialize_config_blob(const std::string& blob)
     float size      = cell_size_;
     int   count     = cell_count_;
     char  plane[16] = {};
-    float r = color_[0], g = color_[1], b = color_[2];
-    float alpha = alpha_;
-    float ox = offset_[0], oy = offset_[1], oz = offset_[2];
+    float r         = color_[0];
+    float g         = color_[1];
+    float b         = color_[2];
+    float alpha     = alpha_;
+    float ox        = offset_[0];
+    float oy        = offset_[1];
+    float oz        = offset_[2];
     if (std::sscanf(
             blob.c_str(),
             "cell_size=%f;cell_count=%d;plane=%15[^;];color=%f,%f,%f;alpha=%f;offset=%f,%f,%f",

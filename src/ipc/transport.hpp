@@ -45,9 +45,9 @@ class Connection
     int fd_ = -1;
 
     // Internal: read exactly `len` bytes into `buf`. Returns false on error/EOF.
-    bool read_exact(uint8_t* buf, size_t len);
+    bool read_exact(uint8_t* buf, size_t len) const;
     // Internal: write exactly `len` bytes from `buf`. Returns false on error.
-    bool write_exact(const uint8_t* buf, size_t len);
+    bool write_exact(const uint8_t* buf, size_t len) const;
 };
 
 // ─── Server ──────────────────────────────────────────────────────────────────
@@ -68,11 +68,11 @@ class Server
 
     // Accept a new connection (blocking).
     // Returns nullptr if the server is closed or an error occurs.
-    std::unique_ptr<Connection> accept();
+    std::unique_ptr<Connection> accept() const;
 
     // Accept a new connection (non-blocking).
     // Returns nullptr immediately if no pending connection.
-    std::unique_ptr<Connection> try_accept();
+    std::unique_ptr<Connection> try_accept() const;
 
     // Close the listening socket and remove the socket file.
     void close();

@@ -377,7 +377,7 @@ bool RosAppShell::init(int argc, char** argv)
                         info.name,
                         type,
                         qos,
-                        [this, topic](std::shared_ptr<rclcpp::SerializedMessage> msg)
+                        [this, topic](const std::shared_ptr<rclcpp::SerializedMessage>& msg)
                         {
                             const size_t bytes = msg ? msg->size() : 0;
                             ++total_messages_;
@@ -414,7 +414,7 @@ bool RosAppShell::init(int argc, char** argv)
             bool has_monitor = false;
             {
                 std::lock_guard<std::mutex> lk(monitor_subs_mutex_);
-                has_monitor = monitor_subs_.count(h.topic) > 0;
+                has_monitor = monitor_subs_.contains(h.topic);
             }
             if (!has_monitor)
             {
@@ -436,7 +436,7 @@ bool RosAppShell::init(int argc, char** argv)
             bool has_monitor = false;
             {
                 std::lock_guard<std::mutex> lk(monitor_subs_mutex_);
-                has_monitor = monitor_subs_.count(h.topic) > 0;
+                has_monitor = monitor_subs_.contains(h.topic);
             }
             if (!has_monitor)
             {
@@ -1239,7 +1239,7 @@ void RosAppShell::draw_plot_area(bool* p_open)
             // When the user right-click-drags (box zoom) or scrolls while paused,
             // the axes X limits change but subplot_mgr_->time_window() doesn't
             // update.  Read the actual extent from the active subplot.
-            float tw = static_cast<float>(subplot_mgr_->time_window());
+            auto tw = static_cast<float>(subplot_mgr_->time_window());
             {
                 int active_slot = workspace_state_.active_subplot_idx;
                 if (active_slot >= 1 && active_slot <= subplot_mgr_->capacity())
@@ -1247,8 +1247,8 @@ void RosAppShell::draw_plot_area(bool* p_open)
                     const auto* se = subplot_mgr_->slot_entry_pub(active_slot);
                     if (se && se->axes)
                     {
-                        auto  xl     = se->axes->x_limits();
-                        float actual = static_cast<float>(xl.max - xl.min);
+                        auto xl     = se->axes->x_limits();
+                        auto actual = static_cast<float>(xl.max - xl.min);
                         if (actual > 0.5f && actual < 86400.0f)
                             tw = actual;
                     }
@@ -1259,7 +1259,7 @@ void RosAppShell::draw_plot_area(bool* p_open)
                                                kPlotAreaTimeSliderMaxWidth));
             if (ImGui::SliderFloat("##TimeWindow", &tw, 1.0f, 3600.0f, "%.1f s"))
             {
-                const double new_tw = static_cast<double>(tw);
+                const auto new_tw = static_cast<double>(tw);
                 subplot_mgr_->set_time_window(new_tw);
                 if (plot_mgr_)
                     plot_mgr_->set_time_window(new_tw);
@@ -1288,7 +1288,7 @@ void RosAppShell::draw_plot_area(bool* p_open)
                     plot_mgr_->set_pruning_enabled(prune_enabled);
             }
             same_line_button();
-            float prune_buf = static_cast<float>(subplot_mgr_->prune_buffer());
+            auto prune_buf = static_cast<float>(subplot_mgr_->prune_buffer());
             if (!prune_enabled)
                 ImGui::BeginDisabled();
             ImGui::SetNextItemWidth(90.0f);
@@ -1421,9 +1421,9 @@ void RosAppShell::draw_plot_area(bool* p_open)
                         auto* slot_entry = subplot_mgr_->slot_entry_pub(s);
                         if (slot_entry && slot_entry->axes)
                         {
-                            auto  yl     = slot_entry->axes->y_limits();
-                            float ymin_f = static_cast<float>(yl.min);
-                            float ymax_f = static_cast<float>(yl.max);
+                            auto yl     = slot_entry->axes->y_limits();
+                            auto ymin_f = static_cast<float>(yl.min);
+                            auto ymax_f = static_cast<float>(yl.max);
 
                             ImGui::SetNextItemWidth(120.0f);
                             ImGui::DragFloat("Y Min", &ymin_f, 0.01f);
@@ -2835,8 +2835,8 @@ RosSession RosAppShell::capture_session() const
             if (!h.valid())
                 continue;
 
-            const auto*        slot_entry    = subplot_mgr_->slot_entry_pub(h.slot);
-            const bool         is_primary    = slot_entry && slot_entry->series == h.series;
+            const auto* slot_entry = subplot_mgr_->slot_entry_pub(h.slot);
+            const bool  is_primary = (slot_entry != nullptr) && slot_entry->series == h.series;
             const SeriesEntry* matched_extra = nullptr;
             if (slot_entry && !is_primary)
             {
@@ -3031,8 +3031,8 @@ void RosAppShell::apply_session(const RosSession& session)
                                                        restored_y,
                                                        &error))
                 {
-                    session_status_msg_ = "Plot restore fallback for slot "
-                                          + std::to_string(e.subplot_slot) + ": " + error;
+                    session_status_msg_   = "Plot restore fallback for slot "
+                                            + std::to_string(e.subplot_slot) + ": " + error;
                     session_status_timer_ = 4.0f;
                 }
             }

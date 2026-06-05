@@ -57,7 +57,7 @@ std::string Workspace::serialize_json(const WorkspaceData& data)
     std::ostringstream os;
     os << "{\n";
     os << "  \"version\": " << data.version << ",\n";
-    os << "  \"theme_name\": \"" << escape_json(data.theme_name) << "\",\n";
+    os << R"(  "theme_name": ")" << escape_json(data.theme_name) << "\",\n";
     os << "  \"active_figure_index\": " << data.active_figure_index << ",\n";
 
     // Panels
@@ -75,13 +75,13 @@ std::string Workspace::serialize_json(const WorkspaceData& data)
     {
         const auto& fig = data.figures[fi];
         os << "    {\n";
-        os << "      \"title\": \"" << escape_json(fig.title) << "\",\n";
+        os << R"(      "title": ")" << escape_json(fig.title) << "\",\n";
         os << "      \"width\": " << fig.width << ",\n";
         os << "      \"height\": " << fig.height << ",\n";
         os << "      \"grid_rows\": " << fig.grid_rows << ",\n";
         os << "      \"grid_cols\": " << fig.grid_cols << ",\n";
         os << "      \"is_modified\": " << (fig.is_modified ? "true" : "false") << ",\n";
-        os << "      \"custom_tab_title\": \"" << escape_json(fig.custom_tab_title) << "\",\n";
+        os << R"(      "custom_tab_title": ")" << escape_json(fig.custom_tab_title) << "\",\n";
 
         // Axes
         os << "      \"axes\": [\n";
@@ -95,9 +95,9 @@ std::string Workspace::serialize_json(const WorkspaceData& data)
             os << "          \"y_max\": " << ax.y_max << ",\n";
             os << "          \"auto_fit\": " << (ax.auto_fit ? "true" : "false") << ",\n";
             os << "          \"grid_visible\": " << (ax.grid_visible ? "true" : "false") << ",\n";
-            os << "          \"x_label\": \"" << escape_json(ax.x_label) << "\",\n";
-            os << "          \"y_label\": \"" << escape_json(ax.y_label) << "\",\n";
-            os << "          \"title\": \"" << escape_json(ax.title) << "\",\n";
+            os << R"(          "x_label": ")" << escape_json(ax.x_label) << "\",\n";
+            os << R"(          "y_label": ")" << escape_json(ax.y_label) << "\",\n";
+            os << R"(          "title": ")" << escape_json(ax.title) << "\",\n";
             os << "          \"is_3d\": " << (ax.is_3d ? "true" : "false") << "\n";
             os << "        }";
             if (ai + 1 < fig.axes.size())
@@ -115,8 +115,8 @@ std::string Workspace::serialize_json(const WorkspaceData& data)
             os << "          \"axes_index\": " << a3.axes_index << ",\n";
             os << "          \"z_min\": " << a3.z_min << ",\n";
             os << "          \"z_max\": " << a3.z_max << ",\n";
-            os << "          \"z_label\": \"" << escape_json(a3.z_label) << "\",\n";
-            os << "          \"camera_state\": \"" << escape_json(a3.camera_state) << "\",\n";
+            os << R"(          "z_label": ")" << escape_json(a3.z_label) << "\",\n";
+            os << R"(          "camera_state": ")" << escape_json(a3.camera_state) << "\",\n";
             os << "          \"grid_planes\": " << a3.grid_planes << ",\n";
             os << "          \"show_bounding_box\": " << (a3.show_bounding_box ? "true" : "false")
                << ",\n";
@@ -138,8 +138,8 @@ std::string Workspace::serialize_json(const WorkspaceData& data)
         {
             const auto& s = fig.series[si];
             os << "        {\n";
-            os << "          \"name\": \"" << escape_json(s.name) << "\",\n";
-            os << "          \"type\": \"" << escape_json(s.type) << "\",\n";
+            os << R"(          "name": ")" << escape_json(s.name) << "\",\n";
+            os << R"(          "type": ")" << escape_json(s.type) << "\",\n";
             os << "          \"color_r\": " << s.color_r << ",\n";
             os << "          \"color_g\": " << s.color_g << ",\n";
             os << "          \"color_b\": " << s.color_b << ",\n";
@@ -190,7 +190,7 @@ std::string Workspace::serialize_json(const WorkspaceData& data)
         os << "      {\n";
         os << "        \"data_x\": " << m.data_x << ",\n";
         os << "        \"data_y\": " << m.data_y << ",\n";
-        os << "        \"series_label\": \"" << escape_json(m.series_label) << "\",\n";
+        os << R"(        "series_label": ")" << escape_json(m.series_label) << "\",\n";
         os << "        \"point_index\": " << m.point_index << ",\n";
         os << "        \"axes_index\": " << m.axes_index << "\n";
         os << "      }";
@@ -208,7 +208,7 @@ std::string Workspace::serialize_json(const WorkspaceData& data)
         os << "      {\n";
         os << "        \"data_x\": " << a.data_x << ",\n";
         os << "        \"data_y\": " << a.data_y << ",\n";
-        os << "        \"text\": \"" << escape_json(a.text) << "\",\n";
+        os << R"(        "text": ")" << escape_json(a.text) << "\",\n";
         os << "        \"color_r\": " << a.color.r << ",\n";
         os << "        \"color_g\": " << a.color.g << ",\n";
         os << "        \"color_b\": " << a.color.b << ",\n";
@@ -229,7 +229,7 @@ std::string Workspace::serialize_json(const WorkspaceData& data)
     os << "  \"redo_count\": " << data.redo_count << ",\n";
 
     // v3: Axis link state
-    os << "  \"axis_link_state\": \"" << escape_json(data.axis_link_state) << "\",\n";
+    os << R"(  "axis_link_state": ")" << escape_json(data.axis_link_state) << "\",\n";
 
     // v3: Data transform pipelines
     os << "  \"transforms\": [\n";
@@ -262,8 +262,8 @@ std::string Workspace::serialize_json(const WorkspaceData& data)
     for (size_t si = 0; si < data.shortcut_overrides.size(); ++si)
     {
         const auto& o = data.shortcut_overrides[si];
-        os << "    {\"command\": \"" << escape_json(o.command_id) << "\", \"shortcut\": \""
-           << escape_json(o.shortcut_str) << "\", \"removed\": " << (o.removed ? "true" : "false")
+        os << R"(    {"command": ")" << escape_json(o.command_id) << R"(", "shortcut": ")"
+           << escape_json(o.shortcut_str) << R"(", "removed": )" << (o.removed ? "true" : "false")
            << "}";
         if (si + 1 < data.shortcut_overrides.size())
             os << ",";
@@ -283,16 +283,16 @@ std::string Workspace::serialize_json(const WorkspaceData& data)
     os << "  },\n";
 
     // v3: Plugin state
-    os << "  \"plugin_state\": \"" << escape_json(data.plugin_state) << "\",\n";
+    os << R"(  "plugin_state": ")" << escape_json(data.plugin_state) << "\",\n";
 
     // v3: Data palette name
-    os << "  \"data_palette_name\": \"" << escape_json(data.data_palette_name) << "\",\n";
+    os << R"(  "data_palette_name": ")" << escape_json(data.data_palette_name) << "\",\n";
 
     // v4: Mode transition state
-    os << "  \"mode_transition_state\": \"" << escape_json(data.mode_transition_state) << "\",\n";
+    os << R"(  "mode_transition_state": ")" << escape_json(data.mode_transition_state) << "\",\n";
 
     // Last export directory
-    os << "  \"last_export_dir\": \"" << escape_json(data.last_export_dir) << "\"\n";
+    os << R"(  "last_export_dir": ")" << escape_json(data.last_export_dir) << "\"\n";
     os << "}\n";
 
     return os.str();
@@ -1227,7 +1227,7 @@ WorkspaceValidationResult validate_workspace_data(WorkspaceData& data)
                                                                     "bar"};
         for (auto& ser : fig.series)
         {
-            bool valid_type = ser.type.empty() || kValidTypes.count(ser.type) > 0;
+            bool valid_type = ser.type.empty() || kValidTypes.contains(ser.type);
             if (!valid_type)
             {
                 result.warnings.push_back("Unknown series type '" + ser.type
@@ -1238,8 +1238,10 @@ WorkspaceValidationResult validate_workspace_data(WorkspaceData& data)
 
             // Color channels must be [0, 1]
             auto  clamp01 = [](float v) { return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v); };
-            float cr = clamp01(ser.color_r), cg = clamp01(ser.color_g), cb = clamp01(ser.color_b),
-                  ca = clamp01(ser.color_a);
+            float cr      = clamp01(ser.color_r);
+            float cg      = clamp01(ser.color_g);
+            float cb      = clamp01(ser.color_b);
+            float ca      = clamp01(ser.color_a);
             if (cr != ser.color_r || cg != ser.color_g || cb != ser.color_b || ca != ser.color_a)
             {
                 result.warnings.push_back("Series '" + ser.name

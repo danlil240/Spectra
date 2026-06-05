@@ -55,7 +55,8 @@ void Tooltip::draw(const NearestPointResult& nearest,
     const auto& colors = theme_mgr_->colors();
 
     // Format coordinate strings
-    char x_buf[64], y_buf[64];
+    char x_buf[64];
+    char y_buf[64];
     std::snprintf(x_buf, sizeof(x_buf), "%.6g", nearest.data_x);
     std::snprintf(y_buf, sizeof(y_buf), "%.6g", nearest.data_y);
 
@@ -106,8 +107,8 @@ void Tooltip::draw(const NearestPointResult& nearest,
     float divider_h  = 6.0f;
     float tooltip_w  = content_w + padding * 2.0f;
     float tooltip_h  = padding * 2.0f + row_h   // name row
-                      + divider_h               // separator gap
-                      + row_h * static_cast<float>(data_rows);
+                       + divider_h              // separator gap
+                       + row_h * static_cast<float>(data_rows);
 
     // Position: above-right of the snap point, clamped to window
     float offset_x = 14.0f;
@@ -236,8 +237,8 @@ void Tooltip::draw(const NearestPointResult& nearest,
     // Draw triangular arrow pointer toward data point
     if (nearest.found && nearest.distance_px <= snap_radius_px_)
     {
-        ImDrawList*     fg         = dl ? dl : ImGui::GetForegroundDrawList();
-        ImU32           arrow_col  = ImGui::ColorConvertFloat4ToU32(ImVec4(colors.tooltip_bg.r,
+        ImDrawList* fg  = dl ? dl : ImGui::GetForegroundDrawList();
+        ImU32 arrow_col = ImGui::ColorConvertFloat4ToU32(ImVec4(colors.tooltip_bg.r,
                                                                 colors.tooltip_bg.g,
                                                                 colors.tooltip_bg.b,
                                                                 colors.tooltip_bg.a * opacity_));

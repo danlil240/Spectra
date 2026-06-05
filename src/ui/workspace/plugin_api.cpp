@@ -407,7 +407,7 @@ extern "C"
        public:
         explicit CDataSourceAdapter(const SpectraDataSourceDesc& desc) : desc_(desc) {}
 
-        const char* name() const override
+        [[nodiscard]] const char* name() const override
         {
             if (desc_.name_fn)
                 return desc_.name_fn(desc_.user_data);
@@ -426,7 +426,7 @@ extern "C"
                 desc_.stop_fn(desc_.user_data);
         }
 
-        bool is_running() const override
+        [[nodiscard]] bool is_running() const override
         {
             if (desc_.is_running_fn)
                 return desc_.is_running_fn(desc_.user_data) != 0;
@@ -506,14 +506,14 @@ extern "C"
 
         // Build CustomPipelineDesc from the C ABI descriptor.
         CustomPipelineDesc pd;
-        pd.vert_spirv         = desc->vert_spirv;
-        pd.vert_spirv_size    = desc->vert_spirv_size;
-        pd.frag_spirv         = desc->frag_spirv;
-        pd.frag_spirv_size    = desc->frag_spirv_size;
-        pd.topology           = desc->topology;
-        pd.enable_depth_test  = (desc->flags & SPECTRA_SERIES_FLAG_3D) != 0;
-        pd.enable_depth_write = (desc->flags & SPECTRA_SERIES_FLAG_3D) != 0
-                                && (desc->flags & SPECTRA_SERIES_FLAG_TRANSPARENT) == 0;
+        pd.vert_spirv           = desc->vert_spirv;
+        pd.vert_spirv_size      = desc->vert_spirv_size;
+        pd.frag_spirv           = desc->frag_spirv;
+        pd.frag_spirv_size      = desc->frag_spirv_size;
+        pd.topology             = desc->topology;
+        pd.enable_depth_test    = (desc->flags & SPECTRA_SERIES_FLAG_3D) != 0;
+        pd.enable_depth_write   = (desc->flags & SPECTRA_SERIES_FLAG_3D) != 0
+                                  && (desc->flags & SPECTRA_SERIES_FLAG_TRANSPARENT) == 0;
         pd.enable_backface_cull = (desc->flags & SPECTRA_SERIES_FLAG_BACKFACE_CULL) != 0;
         pd.enable_blending      = true;
 
@@ -563,7 +563,7 @@ extern "C"
             // Copy push constants to C ABI layout.
             static_assert(sizeof(SpectraSeriesPushConst) == sizeof(SeriesPushConstants),
                           "Push constant layout mismatch");
-            SpectraSeriesPushConst cpc = std::bit_cast<SpectraSeriesPushConst>(pc);
+            auto cpc = std::bit_cast<SpectraSeriesPushConst>(pc);
 
             return draw_cb(bh, ph, gpu_state, &vp, &cpc, ud);
         };
@@ -1070,8 +1070,8 @@ std::string PluginManager::serialize_state() const
     for (size_t i = 0; i < plugins_.size(); ++i)
     {
         const auto& p = plugins_[i];
-        out += "    {\"name\": \"" + escape_json(p.name) + "\", \"path\": \"" + escape_json(p.path)
-               + "\", \"enabled\": " + (p.enabled ? "true" : "false") + "}";
+        out += R"(    {"name": ")" + escape_json(p.name) + R"(", "path": ")" + escape_json(p.path)
+               + R"(", "enabled": )" + (p.enabled ? "true" : "false") + "}";
         if (i + 1 < plugins_.size())
             out += ",";
         out += "\n";

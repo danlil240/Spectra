@@ -126,7 +126,8 @@ void NodeGraphPanel::tick(float dt)
         std::lock_guard<std::mutex> lock(mutex_);
         // Auto-refresh check
         auto now = std::chrono::steady_clock::now();
-        if (discovery_ && (first_refresh_ || now - last_refresh_time_ >= refresh_interval_))
+        if ((discovery_ != nullptr)
+            && (first_refresh_ || now - last_refresh_time_ >= refresh_interval_))
         {
             first_refresh_     = false;
             last_refresh_time_ = now;
@@ -504,7 +505,7 @@ void NodeGraphPanel::reset_layout_unlocked()
 void NodeGraphPanel::scatter_new_nodes()
 {
     // Cap spread so nodes start on-screen even with many nodes.
-    const float n_f    = static_cast<float>(nodes_.size() + 1);
+    const auto  n_f    = static_cast<float>(nodes_.size() + 1);
     const float spread = std::min(ideal_length_ * std::sqrt(n_f) * 0.8f, 600.0f);
     for (auto& n : nodes_)
     {
@@ -1395,17 +1396,17 @@ void NodeGraphPanel::draw_graph_canvas()
                 hsv_to_rgb(hue, 0.45f, 0.55f, cr, cg, cb);
 
                 ImU32 fill_col   = IM_COL32(static_cast<int>(cr * 255),
-                                          static_cast<int>(cg * 255),
-                                          static_cast<int>(cb * 255),
-                                          18);
+                                            static_cast<int>(cg * 255),
+                                            static_cast<int>(cb * 255),
+                                            18);
                 ImU32 border_col = IM_COL32(static_cast<int>(cr * 255),
                                             static_cast<int>(cg * 255),
                                             static_cast<int>(cb * 255),
                                             55);
                 ImU32 text_col   = IM_COL32(static_cast<int>(cr * 255),
-                                          static_cast<int>(cg * 255),
-                                          static_cast<int>(cb * 255),
-                                          140);
+                                            static_cast<int>(cg * 255),
+                                            static_cast<int>(cb * 255),
+                                            140);
 
                 ImVec2 tl(b.min_x - pad, b.min_y - pad - 16.0f * view_scale_);
                 ImVec2 br(b.max_x + pad, b.max_y + pad);
@@ -1524,7 +1525,9 @@ void NodeGraphPanel::draw_node(const GraphNode& n, float ox, float oy, float sca
 
         // Namespace-keyed accent color (desaturated, dark)
         float hue = string_to_hue(n.namespace_);
-        float nr = 0.0f, ng = 0.0f, nb = 0.0f;
+        float nr  = 0.0f;
+        float ng  = 0.0f;
+        float nb  = 0.0f;
         hsv_to_rgb(hue, 0.5f, 0.5f, nr, ng, nb);
         ImU32 ns_col = IM_COL32(static_cast<int>(nr * 255),
                                 static_cast<int>(ng * 255),
@@ -1634,11 +1637,9 @@ void NodeGraphPanel::draw_edge(const GraphEdge& e, float ox, float oy, float sca
                 float tw = ImGui::CalcTextSize(n.display_name.c_str()).x;
                 return std::max(48.0f, tw * 0.5f + 14.0f) * scale;
             }
-            else
-            {
-                float tw = ImGui::CalcTextSize(n.display_name.c_str()).x;
-                return std::max(24.0f, tw * 0.5f + 8.0f) * scale;
-            }
+
+            float tw = ImGui::CalcTextSize(n.display_name.c_str()).x;
+            return std::max(24.0f, tw * 0.5f + 8.0f) * scale;
         };
 
         float a_cx = ox + A.px * scale;

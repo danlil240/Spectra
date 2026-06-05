@@ -1,7 +1,8 @@
 #include "ui/animation/keyframe_interpolator.hpp"
 
-#include <algorithm>
 #include <cmath>
+
+#include <algorithm>
 #include <cstring>
 #include <sstream>
 
@@ -443,7 +444,7 @@ float AnimationChannel::interp_ease_out(const TypedKeyframe& a, const TypedKeyfr
 
 float AnimationChannel::interp_ease_in_out(const TypedKeyframe& a, const TypedKeyframe& b, float t)
 {
-    float eased;
+    float eased = NAN;
     if (t < 0.5f)
     {
         eased = 2.0f * t * t;

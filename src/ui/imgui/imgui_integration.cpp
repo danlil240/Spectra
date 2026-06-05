@@ -6,6 +6,7 @@
     #define GLFW_INCLUDE_VULKAN
     #ifdef SPECTRA_USE_GLFW
         #include <GLFW/glfw3.h>
+        #include <cmath>
     #endif
     #ifdef SPECTRA_USE_SDL3
         #include <SDL3/SDL.h>
@@ -61,7 +62,9 @@ static bool load_embedded_texture(spectra::VulkanBackend& backend,
                                   int*                    out_h,
                                   const char*             label)
 {
-    int            w = 0, h = 0, channels = 0;
+    int            w        = 0;
+    int            h        = 0;
+    int            channels = 0;
     unsigned char* pixels =
         stbi_load_from_memory(bytes, static_cast<int>(size), &w, &h, &channels, 4);
     if (!pixels)
@@ -661,21 +664,21 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
     if (input_handler_ && input_handler_->is_select_rect_active())
     {
         const auto& sr = input_handler_->select_rect();
-        float       x0 = static_cast<float>(std::min(sr.x0, sr.x1));
-        float       y0 = static_cast<float>(std::min(sr.y0, sr.y1));
-        float       x1 = static_cast<float>(std::max(sr.x0, sr.x1));
-        float       y1 = static_cast<float>(std::max(sr.y0, sr.y1));
+        auto        x0 = static_cast<float>(std::min(sr.x0, sr.x1));
+        auto        y0 = static_cast<float>(std::min(sr.y0, sr.y1));
+        auto        x1 = static_cast<float>(std::max(sr.x0, sr.x1));
+        auto        y1 = static_cast<float>(std::max(sr.y0, sr.y1));
 
         ImDrawList* fg     = ImGui::GetForegroundDrawList();
         const auto& colors = theme_colors();
         ImU32       fill   = IM_COL32(static_cast<uint8_t>(colors.selection_fill.r * 255),
-                              static_cast<uint8_t>(colors.selection_fill.g * 255),
-                              static_cast<uint8_t>(colors.selection_fill.b * 255),
-                              40);
+                                      static_cast<uint8_t>(colors.selection_fill.g * 255),
+                                      static_cast<uint8_t>(colors.selection_fill.b * 255),
+                                      40);
         ImU32       border = IM_COL32(static_cast<uint8_t>(colors.selection_border.r * 255),
-                                static_cast<uint8_t>(colors.selection_border.g * 255),
-                                static_cast<uint8_t>(colors.selection_border.b * 255),
-                                200);
+                                      static_cast<uint8_t>(colors.selection_border.g * 255),
+                                      static_cast<uint8_t>(colors.selection_border.b * 255),
+                                      200);
         fg->AddRectFilled(ImVec2(x0, y0), ImVec2(x1, y1), fill);
         fg->AddRect(ImVec2(x0, y0), ImVec2(x1, y1), border, 0.0f, 0, 1.0f);
     }
@@ -724,15 +727,18 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
                                           uint8_t(accent.b * 255),
                                           220);
                 ImU32 dot_col  = IM_COL32(uint8_t(accent.r * 255),
-                                         uint8_t(accent.g * 255),
-                                         uint8_t(accent.b * 255),
-                                         255);
+                                          uint8_t(accent.g * 255),
+                                          uint8_t(accent.b * 255),
+                                          255);
                 ImU32 bg_col   = IM_COL32(uint8_t(theme_colors().bg_elevated.r * 255),
-                                        uint8_t(theme_colors().bg_elevated.g * 255),
-                                        uint8_t(theme_colors().bg_elevated.b * 255),
-                                        230);
+                                          uint8_t(theme_colors().bg_elevated.g * 255),
+                                          uint8_t(theme_colors().bg_elevated.b * 255),
+                                          230);
 
-                float scr_sx, scr_sy, scr_ex, scr_ey;
+                float scr_sx = NAN;
+                float scr_sy = NAN;
+                float scr_ex = NAN;
+                float scr_ey = NAN;
                 data_to_screen(sx, sy, scr_sx, scr_sy);
                 data_to_screen(ex, ey, scr_ex, scr_ey);
 
@@ -886,16 +892,18 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
         {
             // Draw highlight rect for the active drop zone
             ImU32 highlight_color  = IM_COL32(static_cast<int>(theme.accent.r * 255),
-                                             static_cast<int>(theme.accent.g * 255),
-                                             static_cast<int>(theme.accent.b * 255),
-                                             40);
+                                              static_cast<int>(theme.accent.g * 255),
+                                              static_cast<int>(theme.accent.b * 255),
+                                              40);
             ImU32 highlight_border = IM_COL32(static_cast<int>(theme.accent.r * 255),
                                               static_cast<int>(theme.accent.g * 255),
                                               static_cast<int>(theme.accent.b * 255),
                                               160);
 
-            float hx = drop_info.hx, hy = drop_info.hy;
-            float hw = drop_info.hw, hh = drop_info.hh;
+            float hx = drop_info.hx;
+            float hy = drop_info.hy;
+            float hw = drop_info.hw;
+            float hh = drop_info.hh;
 
             dl->AddRectFilled(ImVec2(hx, hy), ImVec2(hx + hw, hy + hh), highlight_color, 4.0f);
             dl->AddRect(ImVec2(hx, hy), ImVec2(hx + hw, hy + hh), highlight_border, 4.0f, 0, 2.0f);
@@ -1200,7 +1208,7 @@ void ImGuiIntegration::draw_welcome_screen(float display_w, float display_h, flo
     }
 }
 
-void ImGuiIntegration::render(VulkanBackend& backend)
+void ImGuiIntegration::render(VulkanBackend& backend) const
 {
     if (!initialized_)
         return;
@@ -1278,9 +1286,9 @@ void ImGuiIntegration::load_fonts()
     {
         cfg.SizePixels = 0;
         ImFont* font   = io.Fonts->AddFontFromMemoryCompressedTTF(InterFont_compressed_data,
-                                                                InterFont_compressed_size,
-                                                                size,
-                                                                &cfg);
+                                                                  InterFont_compressed_size,
+                                                                  size,
+                                                                  &cfg);
 
         ImFontConfig icon_cfg;
         icon_cfg.FontDataOwnedByAtlas = false;

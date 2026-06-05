@@ -932,7 +932,8 @@ void sparkline(const char*            id,
     ImDrawList* draw = ImGui::GetWindowDrawList();
 
     // Find data range
-    float vmin = values[0], vmax = values[0];
+    float vmin = values[0];
+    float vmax = values[0];
     for (float v : values)
     {
         if (v < vmin)
@@ -961,14 +962,14 @@ void sparkline(const char*            id,
     // Build polyline for fill
     std::vector<ImVec2> fill_pts;
     fill_pts.reserve(n + 2);
-    fill_pts.push_back(ImVec2(pos.x, baseline_y));
+    fill_pts.emplace_back(pos.x, baseline_y);
     for (size_t i = 0; i < n; ++i)
     {
         float x = pos.x + static_cast<float>(i) * step;
         float y = pos.y + height - ((values[i] - vmin) / range) * height;
-        fill_pts.push_back(ImVec2(x, y));
+        fill_pts.emplace_back(x, y);
     }
-    fill_pts.push_back(ImVec2(pos.x + w, baseline_y));
+    fill_pts.emplace_back(pos.x + w, baseline_y);
     draw->AddConvexPolyFilled(fill_pts.data(), static_cast<int>(fill_pts.size()), fill_col);
 
     // Draw line
@@ -1123,8 +1124,8 @@ bool int_drag_field(const char* label, int& value, int speed, int min, int max, 
     ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(hr, hg, hb, c.bg_tertiary.a));
     ImGui::PushItemWidth(-1);
 
-    float fspeed  = static_cast<float>(speed);
-    bool  changed = ImGui::DragInt("##idrag", &value, fspeed, min, max, fmt);
+    auto fspeed  = static_cast<float>(speed);
+    bool changed = ImGui::DragInt("##idrag", &value, fspeed, min, max, fmt);
 
     update_widget_hover(wid, ImGui::IsItemHovered());
     draw_focus_ring_if_needed();

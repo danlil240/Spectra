@@ -21,7 +21,10 @@ static bool transport_button(const char*            icon_label,
 {
     ImGui::PushFont(font);
 
-    ImVec4 bg, bg_hover, bg_active, text_col;
+    ImVec4 bg;
+    ImVec4 bg_hover;
+    ImVec4 bg_active;
+    ImVec4 text_col;
     if (accent)
     {
         bg       = ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.9f);
@@ -92,9 +95,9 @@ void ImGuiIntegration::draw_timeline_panel()
     // Draw top-border accent line via background draw list
     ImDrawList* bg_dl      = ImGui::GetBackgroundDrawList();
     ImU32       accent_col = IM_COL32(static_cast<int>(colors.accent.r * 255),
-                                static_cast<int>(colors.accent.g * 255),
-                                static_cast<int>(colors.accent.b * 255),
-                                180);
+                                      static_cast<int>(colors.accent.g * 255),
+                                      static_cast<int>(colors.accent.b * 255),
+                                      180);
     bg_dl->AddRectFilled(ImVec2(panel_x, panel_y - 1.0f),
                          ImVec2(panel_x + panel_w, panel_y + 1.0f),
                          accent_col);

@@ -207,7 +207,7 @@ class ServiceCaller
     void clear_history();
 
     // Prune to at most max_history entries (drops oldest).
-    void prune_history(std::size_t max_history);
+    void prune_history(std::size_t max_n);
 
     // Maximum retained history entries (default 200).
     void        set_max_history(std::size_t n) { max_history_ = n; }
@@ -251,7 +251,7 @@ class ServiceCaller
     // Internal: actually dispatch a generic service call.
     // Runs on the calling thread; the response fires the done callback on
     // the executor thread.
-    void dispatch_call(std::shared_ptr<CallRecord> rec);
+    void dispatch_call(const std::shared_ptr<CallRecord>& rec);
 
     // Query services directly from the node (fallback if no discovery).
     std::vector<ServiceEntry> query_services_from_node() const;

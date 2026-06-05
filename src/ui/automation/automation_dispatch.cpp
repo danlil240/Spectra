@@ -171,8 +171,8 @@ std::string serialize_handler_catalog(const std::vector<AutomationHandlerEntry>&
         if (i > 0)
             oss << ",";
         const auto& e = catalog[i];
-        oss << "{\"method\":\"" << json_escape(e.method) << "\",\"description\":\""
-            << json_escape(e.description) << "\",\"context\":[";
+        oss << R"({"method":")" << json_escape(e.method) << R"(","description":")"
+            << json_escape(e.description) << R"(","context":[)";
         bool first_ctx = true;
         for (uint8_t bit = 1; bit <= static_cast<uint8_t>(AutomationContextFlag::FigureMgr);
              bit <<= 1)
@@ -194,8 +194,8 @@ std::string serialize_handler_catalog(const std::vector<AutomationHandlerEntry>&
             if (pi > 0)
                 oss << ",";
             const auto& p = e.params[pi];
-            oss << "{\"name\":\"" << json_escape(p.name ? p.name : "") << "\",\"type\":\""
-                << param_kind_name(p.kind) << "\",\"required\":" << (p.required ? "true" : "false")
+            oss << R"({"name":")" << json_escape(p.name ? p.name : "") << R"(","type":")"
+                << param_kind_name(p.kind) << R"(","required":)" << (p.required ? "true" : "false")
                 << "}";
         }
         oss << "]}";

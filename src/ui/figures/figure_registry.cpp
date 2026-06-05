@@ -59,7 +59,7 @@ size_t FigureRegistry::count() const
 bool FigureRegistry::contains(IdType id) const
 {
     std::lock_guard<std::mutex> lock(mutex_);
-    return figures_.count(id) > 0;
+    return figures_.contains(id);
 }
 
 FigureRegistry::IdType FigureRegistry::find_id(const Figure* fig) const

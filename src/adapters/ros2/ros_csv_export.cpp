@@ -261,7 +261,7 @@ CsvExportResult RosCsvExport::build_result(const std::vector<SeriesData>& series
     {
         for (float xf : sd.x)
         {
-            double xd = static_cast<double>(xf);
+            auto xd = static_cast<double>(xf);
 
             // Range filter.
             if (mode == RangeMode::Visible)

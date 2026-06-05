@@ -1,4 +1,5 @@
 #include <cmath>
+
 #include <spectra/series_shapes3d.hpp>
 
 namespace spectra
@@ -157,7 +158,7 @@ ShapeSeries3D& ShapeSeries3D::clear_shapes()
 
 uint32_t ShapeSeries3D::push_vertex(float x, float y, float z, float nx, float ny, float nz)
 {
-    uint32_t idx = static_cast<uint32_t>(vertices_.size() / 6);
+    auto idx = static_cast<uint32_t>(vertices_.size() / 6);
     vertices_.push_back(x);
     vertices_.push_back(y);
     vertices_.push_back(z);
@@ -186,9 +187,12 @@ void ShapeSeries3D::generate_box(const ShapeDef3D& def)
     float sz = def.params[5];
 
     // 8 corners
-    float x0 = cx - sx, x1 = cx + sx;
-    float y0 = cy - sy, y1 = cy + sy;
-    float z0 = cz - sz, z1 = cz + sz;
+    float x0 = cx - sx;
+    float x1 = cx + sx;
+    float y0 = cy - sy;
+    float y1 = cy + sy;
+    float z0 = cz - sz;
+    float z1 = cz + sz;
 
     // Each face has 4 vertices with face normal (24 vertices total for sharp edges)
     struct FaceVert
@@ -213,32 +217,16 @@ void ShapeSeries3D::generate_box(const ShapeDef3D& def)
     };
     // clang-format on
 
-    for (int f = 0; f < 6; ++f)
+    for (auto& face : faces)
     {
-        uint32_t v0 = push_vertex(faces[f][0].x,
-                                  faces[f][0].y,
-                                  faces[f][0].z,
-                                  faces[f][0].nx,
-                                  faces[f][0].ny,
-                                  faces[f][0].nz);
-        uint32_t v1 = push_vertex(faces[f][1].x,
-                                  faces[f][1].y,
-                                  faces[f][1].z,
-                                  faces[f][1].nx,
-                                  faces[f][1].ny,
-                                  faces[f][1].nz);
-        uint32_t v2 = push_vertex(faces[f][2].x,
-                                  faces[f][2].y,
-                                  faces[f][2].z,
-                                  faces[f][2].nx,
-                                  faces[f][2].ny,
-                                  faces[f][2].nz);
-        uint32_t v3 = push_vertex(faces[f][3].x,
-                                  faces[f][3].y,
-                                  faces[f][3].z,
-                                  faces[f][3].nx,
-                                  faces[f][3].ny,
-                                  faces[f][3].nz);
+        uint32_t v0 =
+            push_vertex(face[0].x, face[0].y, face[0].z, face[0].nx, face[0].ny, face[0].nz);
+        uint32_t v1 =
+            push_vertex(face[1].x, face[1].y, face[1].z, face[1].nx, face[1].ny, face[1].nz);
+        uint32_t v2 =
+            push_vertex(face[2].x, face[2].y, face[2].z, face[2].nx, face[2].ny, face[2].nz);
+        uint32_t v3 =
+            push_vertex(face[3].x, face[3].y, face[3].z, face[3].nx, face[3].ny, face[3].nz);
         push_tri(v0, v1, v2);
         push_tri(v0, v2, v3);
     }
@@ -315,7 +303,9 @@ void ShapeSeries3D::generate_tube(float x1,
     float az = dz / len;
 
     // Build orthonormal basis (u, v) perpendicular to axis
-    float ux, uy, uz;
+    float ux = NAN;
+    float uy = NAN;
+    float uz = NAN;
     if (std::abs(ay) < 0.9f)
     {
         // Cross with Y-up
@@ -343,7 +333,7 @@ void ShapeSeries3D::generate_tube(float x1,
     float vz = ax * uy - ay * ux;
 
     // Generate body vertices
-    uint32_t base_idx = static_cast<uint32_t>(vertices_.size() / 6);
+    auto base_idx = static_cast<uint32_t>(vertices_.size() / 6);
 
     for (int i = 0; i <= segs; ++i)
     {
@@ -527,7 +517,9 @@ void ShapeSeries3D::generate_plane(const ShapeDef3D& def)
     nz /= n_len;
 
     // Build tangent basis
-    float ux, uy, uz;
+    float ux = NAN;
+    float uy = NAN;
+    float uz = NAN;
     if (std::abs(ny) < 0.9f)
     {
         ux = nz;
@@ -654,7 +646,7 @@ vec3 ShapeSeries3D::compute_centroid() const
         sy += vertices_[i * 6 + 1];
         sz += vertices_[i * 6 + 2];
     }
-    float fn = static_cast<float>(n);
+    auto fn = static_cast<float>(n);
     return {sx / fn, sy / fn, sz / fn};
 }
 

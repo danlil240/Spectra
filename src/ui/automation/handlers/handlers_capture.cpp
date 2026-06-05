@@ -51,7 +51,7 @@ std::vector<AutomationHandlerEntry> make_capture_handlers()
             if (fig)
             {
                 fig->save_png(path);
-                req.response_json = json_ok(req.id, "{\"path\":\"" + json_escape(path) + "\"}");
+                req.response_json = json_ok(req.id, R"({"path":")" + json_escape(path) + "\"}");
             }
             else
             {
@@ -95,7 +95,7 @@ std::vector<AutomationHandlerEntry> make_capture_handlers()
             SPECTRA_LOG_INFO("automation", "Window screenshot saved: " + path);
             req.response_json =
                 json_ok(req.id,
-                        "{\"path\":\"" + json_escape(path) + "\",\"width\":" + std::to_string(w)
+                        R"({"path":")" + json_escape(path) + R"(","width":)" + std::to_string(w)
                             + ",\"height\":" + std::to_string(h) + "}");
         }));
 
@@ -149,7 +149,7 @@ std::vector<AutomationHandlerEntry> make_capture_handlers()
             req.response_json =
                 json_ok(req.id,
                         "{\"width\":" + std::to_string(w) + ",\"height\":" + std::to_string(h)
-                            + ",\"format\":\"png\",\"data\":\"" + b64 + "\"}");
+                            + R"(,"format":"png","data":")" + b64 + "\"}");
         }));
 
     return entries;

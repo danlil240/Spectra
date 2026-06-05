@@ -62,17 +62,21 @@ class DockSystem
     // ── Convenience split operations ────────────────────────────────────
 
     // Split the active pane right (horizontal split)
-    SplitPane* split_right(FigureId new_figure_id, float ratio = 0.5f);
+    SplitPane* split_right(FigureId new_figure_index, float ratio = 0.5f);
 
     // Split the active pane down (vertical split)
-    SplitPane* split_down(FigureId new_figure_id, float ratio = 0.5f);
+    SplitPane* split_down(FigureId new_figure_index, float ratio = 0.5f);
 
     // Split a specific figure's pane
-    SplitPane* split_figure_right(FigureId figure_id, FigureId new_figure_id, float ratio = 0.5f);
-    SplitPane* split_figure_down(FigureId figure_id, FigureId new_figure_id, float ratio = 0.5f);
+    SplitPane* split_figure_right(FigureId figure_index,
+                                  FigureId new_figure_index,
+                                  float    ratio = 0.5f);
+    SplitPane* split_figure_down(FigureId figure_index,
+                                 FigureId new_figure_index,
+                                 float    ratio = 0.5f);
 
     // Close a split pane (unsplit, keeping sibling)
-    bool close_split(FigureId figure_id);
+    bool close_split(FigureId figure_index);
 
     // Reset to single pane
     void reset_splits();
@@ -80,7 +84,7 @@ class DockSystem
     // ── Drag-to-dock ────────────────────────────────────────────────────
 
     // Begin dragging a tab/figure for docking
-    void begin_drag(FigureId figure_id, float mouse_x, float mouse_y);
+    void begin_drag(FigureId figure_index, float mouse_x, float mouse_y);
 
     // Update drag position — computes drop zone highlights
     DropTarget update_drag(float mouse_x, float mouse_y);
@@ -133,7 +137,7 @@ class DockSystem
     void activate_pane_at(float x, float y);
 
     // Move a figure from one pane to another (cross-pane tab drag)
-    bool move_figure_to_pane(FigureId figure_id, SplitPane::PaneId target_pane_id);
+    bool move_figure_to_pane(FigureId figure_index, SplitPane::PaneId target_pane_id);
 
     // Activate a specific figure within a pane's local tab bar
     void activate_local_tab(SplitPane::PaneId pane_id, size_t local_index);

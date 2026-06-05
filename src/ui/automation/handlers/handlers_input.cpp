@@ -28,8 +28,8 @@ namespace spectra
 
 std::vector<AutomationHandlerEntry> make_input_handlers()
 {
-    using Ctx = AutomationContextFlag;
-    const Ctx kWindowUi = Ctx::UiContext | Ctx::Windowing;
+    using Ctx                                     = AutomationContextFlag;
+    const Ctx                           kWindowUi = Ctx::UiContext | Ctx::Windowing;
     std::vector<AutomationHandlerEntry> entries;
 
     entries.push_back(automation_handler(
@@ -99,68 +99,68 @@ std::vector<AutomationHandlerEntry> make_input_handlers()
             req.response_json = json_ok(req.id);
         }));
 
-    entries.push_back(automation_handler(
-        "mouse_drag",
-        "Drag the mouse from one position to another.",
-        kWindowUi,
-        {{.name = "x1", .kind = ParamKind::Number, .required = true},
-         {.name = "y1", .kind = ParamKind::Number, .required = true},
-         {.name = "x2", .kind = ParamKind::Number, .required = true},
-         {.name = "y2", .kind = ParamKind::Number, .required = true}},
-        [](AutomationRequest& req, App* /*app*/, WindowUIContext* ui_ctx)
-        {
-            double x1    = json_get_number(req.params_json, "x1");
-            double y1    = json_get_number(req.params_json, "y1");
-            double x2    = json_get_number(req.params_json, "x2");
-            double y2    = json_get_number(req.params_json, "y2");
-            int    btn   = json_get_int(req.params_json, "button", 0);
-            int    mod   = json_get_int(req.params_json, "modifiers", 0);
-            int    steps = json_get_int(req.params_json, "steps", 10);
-            if (steps < 2)
-                steps = 2;
+    entries.push_back(
+        automation_handler("mouse_drag",
+                           "Drag the mouse from one position to another.",
+                           kWindowUi,
+                           {{.name = "x1", .kind = ParamKind::Number, .required = true},
+                            {.name = "y1", .kind = ParamKind::Number, .required = true},
+                            {.name = "x2", .kind = ParamKind::Number, .required = true},
+                            {.name = "y2", .kind = ParamKind::Number, .required = true}},
+                           [](AutomationRequest& req, App* /*app*/, WindowUIContext* ui_ctx)
+                           {
+                               double x1    = json_get_number(req.params_json, "x1");
+                               double y1    = json_get_number(req.params_json, "y1");
+                               double x2    = json_get_number(req.params_json, "x2");
+                               double y2    = json_get_number(req.params_json, "y2");
+                               int    btn   = json_get_int(req.params_json, "button", 0);
+                               int    mod   = json_get_int(req.params_json, "modifiers", 0);
+                               int    steps = json_get_int(req.params_json, "steps", 10);
+                               if (steps < 2)
+                                   steps = 2;
 
-            ui_ctx->input_handler.on_mouse_move(x1, y1);
-            ui_ctx->input_handler.on_mouse_button(btn, 1, mod, x1, y1);
-            for (int i = 1; i <= steps; ++i)
-            {
-                double t  = static_cast<double>(i) / steps;
-                double mx = x1 + (x2 - x1) * t;
-                double my = y1 + (y2 - y1) * t;
-                ui_ctx->input_handler.on_mouse_move(mx, my);
-            }
-            ui_ctx->input_handler.on_mouse_button(btn, 0, mod, x2, y2);
-            req.response_json = json_ok(req.id);
-        }));
+                               ui_ctx->input_handler.on_mouse_move(x1, y1);
+                               ui_ctx->input_handler.on_mouse_button(btn, 1, mod, x1, y1);
+                               for (int i = 1; i <= steps; ++i)
+                               {
+                                   double t  = static_cast<double>(i) / steps;
+                                   double mx = x1 + (x2 - x1) * t;
+                                   double my = y1 + (y2 - y1) * t;
+                                   ui_ctx->input_handler.on_mouse_move(mx, my);
+                               }
+                               ui_ctx->input_handler.on_mouse_button(btn, 0, mod, x2, y2);
+                               req.response_json = json_ok(req.id);
+                           }));
 
-    entries.push_back(automation_handler(
-        "scroll",
-        "Scroll at the specified position.",
-        kWindowUi,
-        {{.name = "x", .kind = ParamKind::Number, .required = true},
-         {.name = "y", .kind = ParamKind::Number, .required = true}},
-        [](AutomationRequest& req, App* /*app*/, WindowUIContext* ui_ctx)
-        {
-            double x  = json_get_number(req.params_json, "x");
-            double y  = json_get_number(req.params_json, "y");
-            double dx = json_get_number(req.params_json, "dx", 0.0);
-            double dy = json_get_number(req.params_json, "dy", 1.0);
-            ui_ctx->input_handler.on_scroll(x, y, dx, dy);
-            req.response_json = json_ok(req.id);
-        }));
+    entries.push_back(
+        automation_handler("scroll",
+                           "Scroll at the specified position.",
+                           kWindowUi,
+                           {{.name = "x", .kind = ParamKind::Number, .required = true},
+                            {.name = "y", .kind = ParamKind::Number, .required = true}},
+                           [](AutomationRequest& req, App* /*app*/, WindowUIContext* ui_ctx)
+                           {
+                               double x  = json_get_number(req.params_json, "x");
+                               double y  = json_get_number(req.params_json, "y");
+                               double dx = json_get_number(req.params_json, "dx", 0.0);
+                               double dy = json_get_number(req.params_json, "dy", 1.0);
+                               ui_ctx->input_handler.on_scroll(x, y, dx, dy);
+                               req.response_json = json_ok(req.id);
+                           }));
 
-    entries.push_back(automation_handler(
-        "key_press",
-        "Press and release a keyboard key.",
-        kWindowUi,
-        {{.name = "key", .kind = ParamKind::Int, .required = true}},
-        [](AutomationRequest& req, App* /*app*/, WindowUIContext* ui_ctx)
-        {
-            int key = json_get_int(req.params_json, "key");
-            int mod = json_get_int(req.params_json, "modifiers", 0);
-            ui_ctx->input_handler.on_key(key, 1, mod);
-            ui_ctx->input_handler.on_key(key, 0, mod);
-            req.response_json = json_ok(req.id);
-        }));
+    entries.push_back(
+        automation_handler("key_press",
+                           "Press and release a keyboard key.",
+                           kWindowUi,
+                           {{.name = "key", .kind = ParamKind::Int, .required = true}},
+                           [](AutomationRequest& req, App* /*app*/, WindowUIContext* ui_ctx)
+                           {
+                               int key = json_get_int(req.params_json, "key");
+                               int mod = json_get_int(req.params_json, "modifiers", 0);
+                               ui_ctx->input_handler.on_key(key, 1, mod);
+                               ui_ctx->input_handler.on_key(key, 0, mod);
+                               req.response_json = json_ok(req.id);
+                           }));
 
     entries.push_back(automation_handler(
         "text_input",
@@ -174,31 +174,30 @@ std::vector<AutomationHandlerEntry> make_input_handlers()
             auto&       io   = ImGui::GetIO();
             for (char c : text)
                 io.AddInputCharacter(static_cast<unsigned int>(c));
-            req.response_json =
-                json_ok(req.id, "{\"chars\":" + std::to_string(text.size()) + "}");
+            req.response_json = json_ok(req.id, "{\"chars\":" + std::to_string(text.size()) + "}");
 #else
             req.response_json = json_error(req.id, "ImGui not available");
 #endif
         }));
 
-    entries.push_back(automation_handler(
-        "double_click",
-        "Double-click at the specified position.",
-        kWindowUi,
-        {{.name = "x", .kind = ParamKind::Number, .required = true},
-         {.name = "y", .kind = ParamKind::Number, .required = true}},
-        [](AutomationRequest& req, App* /*app*/, WindowUIContext* ui_ctx)
-        {
-            double x   = json_get_number(req.params_json, "x");
-            double y   = json_get_number(req.params_json, "y");
-            int    btn = json_get_int(req.params_json, "button", 0);
-            int    mod = json_get_int(req.params_json, "modifiers", 0);
-            ui_ctx->input_handler.on_mouse_button(btn, 1, mod, x, y);
-            ui_ctx->input_handler.on_mouse_button(btn, 0, mod, x, y);
-            ui_ctx->input_handler.on_mouse_button(btn, 1, mod, x, y);
-            ui_ctx->input_handler.on_mouse_button(btn, 0, mod, x, y);
-            req.response_json = json_ok(req.id);
-        }));
+    entries.push_back(
+        automation_handler("double_click",
+                           "Double-click at the specified position.",
+                           kWindowUi,
+                           {{.name = "x", .kind = ParamKind::Number, .required = true},
+                            {.name = "y", .kind = ParamKind::Number, .required = true}},
+                           [](AutomationRequest& req, App* /*app*/, WindowUIContext* ui_ctx)
+                           {
+                               double x   = json_get_number(req.params_json, "x");
+                               double y   = json_get_number(req.params_json, "y");
+                               int    btn = json_get_int(req.params_json, "button", 0);
+                               int    mod = json_get_int(req.params_json, "modifiers", 0);
+                               ui_ctx->input_handler.on_mouse_button(btn, 1, mod, x, y);
+                               ui_ctx->input_handler.on_mouse_button(btn, 0, mod, x, y);
+                               ui_ctx->input_handler.on_mouse_button(btn, 1, mod, x, y);
+                               ui_ctx->input_handler.on_mouse_button(btn, 0, mod, x, y);
+                               req.response_json = json_ok(req.id);
+                           }));
 
     return entries;
 }

@@ -34,10 +34,10 @@ void Axes3DRenderer::BoundingBoxData::generate(vec3 min_corner, vec3 max_corner)
                         {2, 6},
                         {3, 7}};
 
-    for (int i = 0; i < 12; ++i)
+    for (auto& edge : edges)
     {
-        edge_vertices.push_back(corners[edges[i][0]]);
-        edge_vertices.push_back(corners[edges[i][1]]);
+        edge_vertices.push_back(corners[edge[0]]);
+        edge_vertices.push_back(corners[edge[1]]);
     }
 }
 
@@ -52,15 +52,15 @@ void Axes3DRenderer::GridPlaneData::generate_xy_plane(vec3  min_corner,
     for (int i = 0; i <= grid_divisions; ++i)
     {
         float x = min_corner.x + i * x_step;
-        vertices.push_back({x, min_corner.y, z_pos});
-        vertices.push_back({x, max_corner.y, z_pos});
+        vertices.emplace_back(x, min_corner.y, z_pos);
+        vertices.emplace_back(x, max_corner.y, z_pos);
     }
 
     for (int i = 0; i <= grid_divisions; ++i)
     {
         float y = min_corner.y + i * y_step;
-        vertices.push_back({min_corner.x, y, z_pos});
-        vertices.push_back({max_corner.x, y, z_pos});
+        vertices.emplace_back(min_corner.x, y, z_pos);
+        vertices.emplace_back(max_corner.x, y, z_pos);
     }
 }
 
@@ -75,15 +75,15 @@ void Axes3DRenderer::GridPlaneData::generate_xz_plane(vec3  min_corner,
     for (int i = 0; i <= grid_divisions; ++i)
     {
         float x = min_corner.x + i * x_step;
-        vertices.push_back({x, y_pos, min_corner.z});
-        vertices.push_back({x, y_pos, max_corner.z});
+        vertices.emplace_back(x, y_pos, min_corner.z);
+        vertices.emplace_back(x, y_pos, max_corner.z);
     }
 
     for (int i = 0; i <= grid_divisions; ++i)
     {
         float z = min_corner.z + i * z_step;
-        vertices.push_back({min_corner.x, y_pos, z});
-        vertices.push_back({max_corner.x, y_pos, z});
+        vertices.emplace_back(min_corner.x, y_pos, z);
+        vertices.emplace_back(max_corner.x, y_pos, z);
     }
 }
 
@@ -98,15 +98,15 @@ void Axes3DRenderer::GridPlaneData::generate_yz_plane(vec3  min_corner,
     for (int i = 0; i <= grid_divisions; ++i)
     {
         float y = min_corner.y + i * y_step;
-        vertices.push_back({x_pos, y, min_corner.z});
-        vertices.push_back({x_pos, y, max_corner.z});
+        vertices.emplace_back(x_pos, y, min_corner.z);
+        vertices.emplace_back(x_pos, y, max_corner.z);
     }
 
     for (int i = 0; i <= grid_divisions; ++i)
     {
         float z = min_corner.z + i * z_step;
-        vertices.push_back({x_pos, min_corner.y, z});
-        vertices.push_back({x_pos, max_corner.y, z});
+        vertices.emplace_back(x_pos, min_corner.y, z);
+        vertices.emplace_back(x_pos, max_corner.y, z);
     }
 }
 
@@ -118,13 +118,13 @@ void Axes3DRenderer::GridPlaneData::generate_xy_plane(vec3                      
 {
     for (float x : x_ticks)
     {
-        vertices.push_back({x, min_corner.y, z_pos});
-        vertices.push_back({x, max_corner.y, z_pos});
+        vertices.emplace_back(x, min_corner.y, z_pos);
+        vertices.emplace_back(x, max_corner.y, z_pos);
     }
     for (float y : y_ticks)
     {
-        vertices.push_back({min_corner.x, y, z_pos});
-        vertices.push_back({max_corner.x, y, z_pos});
+        vertices.emplace_back(min_corner.x, y, z_pos);
+        vertices.emplace_back(max_corner.x, y, z_pos);
     }
 }
 
@@ -136,13 +136,13 @@ void Axes3DRenderer::GridPlaneData::generate_xz_plane(vec3                      
 {
     for (float x : x_ticks)
     {
-        vertices.push_back({x, y_pos, min_corner.z});
-        vertices.push_back({x, y_pos, max_corner.z});
+        vertices.emplace_back(x, y_pos, min_corner.z);
+        vertices.emplace_back(x, y_pos, max_corner.z);
     }
     for (float z : z_ticks)
     {
-        vertices.push_back({min_corner.x, y_pos, z});
-        vertices.push_back({max_corner.x, y_pos, z});
+        vertices.emplace_back(min_corner.x, y_pos, z);
+        vertices.emplace_back(max_corner.x, y_pos, z);
     }
 }
 
@@ -154,13 +154,13 @@ void Axes3DRenderer::GridPlaneData::generate_yz_plane(vec3                      
 {
     for (float y : y_ticks)
     {
-        vertices.push_back({x_pos, y, min_corner.z});
-        vertices.push_back({x_pos, y, max_corner.z});
+        vertices.emplace_back(x_pos, y, min_corner.z);
+        vertices.emplace_back(x_pos, y, max_corner.z);
     }
     for (float z : z_ticks)
     {
-        vertices.push_back({x_pos, min_corner.y, z});
-        vertices.push_back({x_pos, max_corner.y, z});
+        vertices.emplace_back(x_pos, min_corner.y, z);
+        vertices.emplace_back(x_pos, max_corner.y, z);
     }
 }
 
@@ -175,8 +175,8 @@ void Axes3DRenderer::TickMarkData::generate_x_ticks(const Axes3D& axes,
 
     for (size_t i = 0; i < tick_result.positions.size(); ++i)
     {
-        float x = static_cast<float>(tick_result.positions[i]);
-        positions.push_back({x, min_corner.y, min_corner.z});
+        auto x = static_cast<float>(tick_result.positions[i]);
+        positions.emplace_back(x, min_corner.y, min_corner.z);
         labels.push_back(tick_result.labels[i]);
     }
 }
@@ -192,8 +192,8 @@ void Axes3DRenderer::TickMarkData::generate_y_ticks(const Axes3D& axes,
 
     for (size_t i = 0; i < tick_result.positions.size(); ++i)
     {
-        float y = static_cast<float>(tick_result.positions[i]);
-        positions.push_back({min_corner.x, y, min_corner.z});
+        auto y = static_cast<float>(tick_result.positions[i]);
+        positions.emplace_back(min_corner.x, y, min_corner.z);
         labels.push_back(tick_result.labels[i]);
     }
 }
@@ -209,8 +209,8 @@ void Axes3DRenderer::TickMarkData::generate_z_ticks(const Axes3D& axes,
 
     for (size_t i = 0; i < tick_result.positions.size(); ++i)
     {
-        float z = static_cast<float>(tick_result.positions[i]);
-        positions.push_back({min_corner.x, min_corner.y, z});
+        auto z = static_cast<float>(tick_result.positions[i]);
+        positions.emplace_back(min_corner.x, min_corner.y, z);
         labels.push_back(tick_result.labels[i]);
     }
 }

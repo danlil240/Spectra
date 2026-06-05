@@ -221,7 +221,7 @@ class TopicEchoPanel
 
    private:
     // Called from executor thread when a message arrives.
-    void on_message(std::shared_ptr<rclcpp::SerializedMessage> raw_msg);
+    void on_message(const std::shared_ptr<rclcpp::SerializedMessage>& raw_msg);
 
     // Extract wall-clock time in seconds.
     static double wall_time_s_now();

@@ -31,6 +31,7 @@
 
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
+    #include <cmath>
 #endif
 
 #include <algorithm>
@@ -128,7 +129,7 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
     if (vsync_mode && scheduled_animation)
         animation_dt = animation_due_tick ? animation_tick_gate_.consume_accumulated_dt() : 0.0f;
 
-        // ── Unified window update + render loop ───────────────────────
+    // ── Unified window update + render loop ───────────────────────
 #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
     if (window_mgr)
     {
@@ -184,8 +185,7 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
             // Catch resize drift between GLFW callbacks: if the live framebuffer
             // no longer matches the swapchain, queue recreation this frame.
             if (fb_w > 0 && fb_h > 0
-                && (fb_w != wctx->swapchain.extent.width
-                    || fb_h != wctx->swapchain.extent.height))
+                && (fb_w != wctx->swapchain.extent.width || fb_h != wctx->swapchain.extent.height))
             {
                 redraw_tracker_.mark_dirty("resize");
                 wctx->ui_ctx->needs_resize          = true;
@@ -350,7 +350,8 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
                     {
                         wctx->titlebar_dragging = true;
     #ifdef SPECTRA_USE_GLFW
-                        double cx_d, cy_d;
+                        double cx_d = NAN;
+                        double cy_d = NAN;
                         glfwGetCursorPos(glfw_win, &cx_d, &cy_d);
                         wctx->drag_offset_x = cx_d;
                         wctx->drag_offset_y = cy_d;
@@ -366,9 +367,11 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
                         if (ImGui::IsMouseDown(ImGuiMouseButton_Left))
                         {
     #ifdef SPECTRA_USE_GLFW
-                            double sx, sy;
+                            double sx = NAN;
+                            double sy = NAN;
                             glfwGetCursorPos(glfw_win, &sx, &sy);
-                            int wx, wy;
+                            int wx = 0;
+                            int wy = 0;
                             glfwGetWindowPos(glfw_win, &wx, &wy);
                             int new_x = wx + static_cast<int>(sx - wctx->drag_offset_x);
                             int new_y = wy + static_cast<int>(sy - wctx->drag_offset_y);
@@ -578,8 +581,8 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
         {
             renderer_.begin_render_pass();
             renderer_.render_figure_content(*fig);
-            float sw = static_cast<float>(backend_.swapchain_width());
-            float sh = static_cast<float>(backend_.swapchain_height());
+            auto sw = static_cast<float>(backend_.swapchain_width());
+            auto sh = static_cast<float>(backend_.swapchain_height());
             renderer_.render_text(sw, sh);
             renderer_.end_render_pass();
             backend_.end_frame();
@@ -686,10 +689,9 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
         for (auto& pm : pending_moves_)
         {
             SPECTRA_LOG_DEBUG("window_manager",
-                              "Processing cross-window move: fig="
-                                  + std::to_string(pm.figure_id) + " target_wid="
-                                  + std::to_string(pm.target_window_id) + " drop_zone="
-                                  + std::to_string(pm.drop_zone));
+                              "Processing cross-window move: fig=" + std::to_string(pm.figure_id)
+                                  + " target_wid=" + std::to_string(pm.target_window_id)
+                                  + " drop_zone=" + std::to_string(pm.drop_zone));
 
             // Find source window (the one that has this figure)
             WindowContext* src_wctx = nullptr;
@@ -710,11 +712,10 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
             if (!src_wctx || !dst_wctx || src_wctx == dst_wctx)
             {
                 SPECTRA_LOG_DEBUG("window_manager",
-                                  "Skipping cross-window move: fig="
-                                      + std::to_string(pm.figure_id) + " src_valid="
-                                      + std::to_string(src_wctx != nullptr) + " dst_valid="
-                                      + std::to_string(dst_wctx != nullptr) + " same_window="
-                                      + std::to_string(src_wctx == dst_wctx));
+                                  "Skipping cross-window move: fig=" + std::to_string(pm.figure_id)
+                                      + " src_valid=" + std::to_string(src_wctx != nullptr)
+                                      + " dst_valid=" + std::to_string(dst_wctx != nullptr)
+                                      + " same_window=" + std::to_string(src_wctx == dst_wctx));
                 continue;
             }
             if (!src_wctx->ui_ctx || !src_wctx->ui_ctx->fig_mgr)
@@ -837,14 +838,12 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
             }
 
             SPECTRA_LOG_DEBUG("window_manager",
-                              "Cross-window move complete: fig="
-                                  + std::to_string(pm.figure_id) + " "
-                                  + std::to_string(src_wctx->id) + "->"
-                                  + std::to_string(dst_wctx->id) + " src_figs="
-                                  + std::to_string(src_wctx->assigned_figures.size())
-                                  + " dst_figs="
-                                  + std::to_string(dst_wctx->assigned_figures.size()) + " split="
-                                  + std::to_string(dst_dock.is_split() ? 1 : 0));
+                              "Cross-window move complete: fig=" + std::to_string(pm.figure_id)
+                                  + " " + std::to_string(src_wctx->id) + "->"
+                                  + std::to_string(dst_wctx->id)
+                                  + " src_figs=" + std::to_string(src_wctx->assigned_figures.size())
+                                  + " dst_figs=" + std::to_string(dst_wctx->assigned_figures.size())
+                                  + " split=" + std::to_string(dst_dock.is_split() ? 1 : 0));
         }
         pending_moves_.clear();
     }

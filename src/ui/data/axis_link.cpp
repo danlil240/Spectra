@@ -400,7 +400,7 @@ size_t AxisLinkManager::group_count() const
 
 // ─── Serialization ───────────────────────────────────────────────────────────
 
-std::string AxisLinkManager::serialize(AxesToIndex mapper) const
+std::string AxisLinkManager::serialize(const AxesToIndex& mapper) const
 {
     std::lock_guard lock(mutex_);
     if (groups_.empty())
@@ -414,7 +414,7 @@ std::string AxisLinkManager::serialize(AxesToIndex mapper) const
         if (!first)
             ss << ",";
         first = false;
-        ss << "{\"id\":" << id << ",\"name\":\"" << group.name << "\""
+        ss << "{\"id\":" << id << R"(,"name":")" << group.name << "\""
            << ",\"axis\":" << static_cast<int>(group.axis) << ",\"members\":[";
         bool first_m = true;
         for (const Axes* ax : group.members)
@@ -433,7 +433,7 @@ std::string AxisLinkManager::serialize(AxesToIndex mapper) const
     return ss.str();
 }
 
-void AxisLinkManager::deserialize(const std::string& json, IndexToAxes mapper)
+void AxisLinkManager::deserialize(const std::string& json, const IndexToAxes& mapper)
 {
     std::lock_guard lock(mutex_);
     groups_.clear();

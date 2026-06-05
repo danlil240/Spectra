@@ -5,6 +5,7 @@
 #include "../ipc/codec.hpp"
 
 #ifndef _WIN32
+    #include <cmath>
     #include <unistd.h>
 #endif
 
@@ -32,13 +33,19 @@ static void apply_property_update(FigureModel&           fig_model,
     }
     else if (property == "xlim")
     {
-        double cx0, cx1, cy0, cy1;
+        double cx0 = NAN;
+        double cx1 = NAN;
+        double cy0 = NAN;
+        double cy1 = NAN;
         fig_model.get_axis_limits(figure_id, axes_index, cx0, cx1, cy0, cy1);
         diff.ops.push_back(fig_model.set_axis_limits(figure_id, axes_index, f1, f2, cy0, cy1));
     }
     else if (property == "ylim")
     {
-        double cx0, cx1, cy0, cy1;
+        double cx0 = NAN;
+        double cx1 = NAN;
+        double cy0 = NAN;
+        double cy1 = NAN;
         fig_model.get_axis_limits(figure_id, axes_index, cx0, cx1, cy0, cy1);
         diff.ops.push_back(fig_model.set_axis_limits(figure_id, axes_index, cx0, cx1, f1, f2));
     }
@@ -189,10 +196,10 @@ HandleResult handle_req_add_series(DaemonContext& ctx, ClientSlot& slot, const i
 
     uint32_t series_idx = 0;
     auto     add_op     = ctx.fig_model.add_series_with_diff(req->figure_id,
-                                                     req->label,
-                                                     req->series_type,
-                                                     req->axes_index,
-                                                     series_idx);
+                                                             req->label,
+                                                             req->series_type,
+                                                             req->axes_index,
+                                                             series_idx);
 
     SPECTRA_LOG_DEBUG("daemon",
                       "Python: added series {} type={} in figure {}",

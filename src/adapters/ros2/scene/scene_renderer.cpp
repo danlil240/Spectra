@@ -226,7 +226,7 @@ void SceneRenderer::render(Renderer&     renderer,
         {
             const float        half = cell_size * static_cast<float>(cell_count) * 0.5f;
             std::vector<float> verts;
-            verts.reserve(static_cast<size_t>((cell_count + 1) * 2 * 2 * 3));
+            verts.reserve(static_cast<size_t>(cell_count + 1) * 2 * 2 * 3);
 
             for (int i = 0; i <= cell_count; ++i)
             {
@@ -363,13 +363,10 @@ void SceneRenderer::render(Renderer&     renderer,
             if (prim == "text_view_facing")
                 continue;
 
-            if (prim == "cube")
-            {
-                vbo       = gpu_.cube_vbo;
-                ibo       = gpu_.cube_ibo;
-                idx_count = gpu_.cube_index_count;
-            }
-            else if (prim == "sphere")
+            vbo       = gpu_.cube_vbo;
+            ibo       = gpu_.cube_ibo;
+            idx_count = gpu_.cube_index_count;
+            if (prim == "sphere")
             {
                 vbo       = gpu_.sphere_vbo;
                 ibo       = gpu_.sphere_ibo;
@@ -392,12 +389,6 @@ void SceneRenderer::render(Renderer&     renderer,
                 vbo       = gpu_.cone_vbo;
                 ibo       = gpu_.cone_ibo;
                 idx_count = gpu_.cone_index_count;
-            }
-            else
-            {
-                vbo       = gpu_.cube_vbo;
-                ibo       = gpu_.cube_ibo;
-                idx_count = gpu_.cube_index_count;
             }
         }
         else if (entity.type == "tf_frame")
@@ -668,9 +659,8 @@ void SceneRenderer::render(Renderer&     renderer,
     }
 
     // ── Pass 5: textured image billboards ──
-    for (size_t i = 0; i < entities.size(); ++i)
+    for (const auto& entity : entities)
     {
-        const auto& entity = entities[i];
         if (entity.type != "image" || !entity.image.has_value())
             continue;
 

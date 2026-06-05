@@ -183,7 +183,7 @@ bool RecordingSession::begin_multi_pane(const RecordingConfig& config, PaneRende
     else if (config_.pane_count > 1)
     {
         // Auto-grid layout: compute rows/cols
-        uint32_t cols =
+        auto cols =
             static_cast<uint32_t>(std::ceil(std::sqrt(static_cast<float>(config_.pane_count))));
         uint32_t rows = (config_.pane_count + cols - 1) / cols;
         float    pw   = 1.0f / static_cast<float>(cols);
@@ -192,7 +192,8 @@ bool RecordingSession::begin_multi_pane(const RecordingConfig& config, PaneRende
         {
             RecordingConfig::PaneRect r;
             r.x = static_cast<float>(i % cols) * pw;
-            r.y = static_cast<float>(i / cols) * ph;
+            const uint32_t row = i / cols;
+            r.y                = static_cast<float>(row) * ph;
             r.w = pw;
             r.h = ph;
             resolved_pane_rects_.push_back(r);
@@ -216,8 +217,8 @@ bool RecordingSession::begin_multi_pane(const RecordingConfig& config, PaneRende
         for (uint32_t pi = 0; pi < config_.pane_count; ++pi)
         {
             const auto& rect   = resolved_pane_rects_[pi];
-            uint32_t    pane_w = static_cast<uint32_t>(rect.w * static_cast<float>(w));
-            uint32_t    pane_h = static_cast<uint32_t>(rect.h * static_cast<float>(h));
+            auto        pane_w = static_cast<uint32_t>(rect.w * static_cast<float>(w));
+            auto        pane_h = static_cast<uint32_t>(rect.h * static_cast<float>(h));
             if (pane_w == 0 || pane_h == 0)
                 continue;
 
@@ -234,8 +235,8 @@ bool RecordingSession::begin_multi_pane(const RecordingConfig& config, PaneRende
                 return false;
 
             // Blit pane into composite buffer
-            uint32_t dst_x = static_cast<uint32_t>(rect.x * static_cast<float>(w));
-            uint32_t dst_y = static_cast<uint32_t>(rect.y * static_cast<float>(h));
+            auto dst_x = static_cast<uint32_t>(rect.x * static_cast<float>(w));
+            auto dst_y = static_cast<uint32_t>(rect.y * static_cast<float>(h));
 
             for (uint32_t row = 0; row < pane_h && (dst_y + row) < h; ++row)
             {
@@ -384,9 +385,7 @@ bool RecordingSession::finish()
     if (state_ != RecordingState::Recording && state_ != RecordingState::Encoding)
     {
         // Already finished or never started
-        if (state_ == RecordingState::Finished)
-            return true;
-        return false;
+        return state_ == RecordingState::Finished;
     }
 
     state_ = RecordingState::Encoding;
@@ -539,7 +538,7 @@ std::vector<Color> RecordingSession::median_cut(const uint8_t* rgba,
     struct ColorBox
     {
         std::vector<uint32_t> indices;
-        uint8_t               r_min, r_max, g_min, g_max, b_min, b_max;
+        uint8_t               r_min{}, r_max{}, g_min{}, g_max{}, b_min{}, b_max{};
 
         void compute_bounds(const uint8_t* data)
         {
@@ -563,21 +562,23 @@ std::vector<Color> RecordingSession::median_cut(const uint8_t* rgba,
         {
             if (indices.empty())
                 return {};
-            uint64_t sr = 0, sg = 0, sb = 0;
+            uint64_t sr = 0;
+            uint64_t sg = 0;
+            uint64_t sb = 0;
             for (uint32_t idx : indices)
             {
                 sr += data[idx * 4 + 0];
                 sg += data[idx * 4 + 1];
                 sb += data[idx * 4 + 2];
             }
-            float n = static_cast<float>(indices.size());
+            auto n = static_cast<float>(indices.size());
             return Color{static_cast<float>(sr) / (n * 255.0f),
                          static_cast<float>(sg) / (n * 255.0f),
                          static_cast<float>(sb) / (n * 255.0f),
                          1.0f};
         }
 
-        uint8_t longest_axis() const
+        [[nodiscard]] uint8_t longest_axis() const
         {
             uint8_t dr = r_max - r_min;
             uint8_t dg = g_max - g_min;
@@ -903,9 +904,9 @@ bool RecordingSession::write_gif()
         return false;
     }
 
-    uint16_t w             = static_cast<uint16_t>(config_.width);
-    uint16_t h             = static_cast<uint16_t>(config_.height);
-    size_t   palette_count = gif_state_->global_palette.size() / 3;
+    auto   w             = static_cast<uint16_t>(config_.width);
+    auto   h             = static_cast<uint16_t>(config_.height);
+    size_t palette_count = gif_state_->global_palette.size() / 3;
     if (palette_count == 0)
         palette_count = 1;
 
@@ -966,7 +967,7 @@ bool RecordingSession::write_gif()
     }
 
     // Frame delay in centiseconds
-    uint16_t delay_cs = static_cast<uint16_t>(std::round(100.0f / config_.fps));
+    auto delay_cs = static_cast<uint16_t>(std::round(100.0f / config_.fps));
     if (delay_cs < 2)
         delay_cs = 2;   // Minimum GIF delay
 
@@ -974,10 +975,8 @@ bool RecordingSession::write_gif()
     if (min_code_size < 2)
         min_code_size = 2;
 
-    for (size_t fi = 0; fi < gif_state_->frames.size(); ++fi)
+    for (const auto& indexed : gif_state_->frames)
     {
-        const auto& indexed = gif_state_->frames[fi];
-
         // Graphic Control Extension
         uint8_t gce[] = {
             0x21,
@@ -994,7 +993,8 @@ bool RecordingSession::write_gif()
         // Image Descriptor
         uint8_t img_desc = 0x2C;
         std::fwrite(&img_desc, 1, 1, fp);
-        uint16_t left = 0, top = 0;
+        uint16_t left = 0;
+        uint16_t top  = 0;
         std::fwrite(&left, 2, 1, fp);
         std::fwrite(&top, 2, 1, fp);
         std::fwrite(&w, 2, 1, fp);
@@ -1003,7 +1003,7 @@ bool RecordingSession::write_gif()
         std::fwrite(&img_packed, 1, 1, fp);
 
         // LZW Minimum Code Size
-        uint8_t lzw_min = static_cast<uint8_t>(min_code_size);
+        auto lzw_min = static_cast<uint8_t>(min_code_size);
         std::fwrite(&lzw_min, 1, 1, fp);
 
         // Simple uncompressed LZW encoding:
@@ -1048,7 +1048,7 @@ bool RecordingSession::write_gif()
             }
             if (!sub_block.empty())
             {
-                uint8_t sz = static_cast<uint8_t>(sub_block.size());
+                auto sz = static_cast<uint8_t>(sub_block.size());
                 std::fwrite(&sz, 1, 1, fp);
                 std::fwrite(sub_block.data(), 1, sub_block.size(), fp);
                 sub_block.clear();
@@ -1062,9 +1062,9 @@ bool RecordingSession::write_gif()
         int next_code = eoi_code + 1;
         int max_code  = (1 << code_size) - 1;
 
-        for (size_t pi = 0; pi < indexed.size(); ++pi)
+        for (unsigned char pi : indexed)
         {
-            emit_code(indexed[pi]);
+            emit_code(pi);
             next_code++;
             if (next_code > max_code)
             {

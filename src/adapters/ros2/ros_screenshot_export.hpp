@@ -272,7 +272,7 @@ class RosScreenshotExport
     // Sized for ImGui::InputText calls (no dynamic allocation per frame).
     static constexpr int kPathBuf = 512;
 
-    char  dialog_path_buf_[kPathBuf];
+    char  dialog_path_buf_[kPathBuf]{};
     float dialog_fps_         = 30.0f;
     float dialog_duration_s_  = 10.0f;
     int   dialog_format_idx_  = 0;   // 0=PNG_Sequence 1=GIF 2=MP4

@@ -3,8 +3,9 @@
 
 #include "renderer.hpp"
 
-#include <algorithm>
 #include <cmath>
+
+#include <algorithm>
 #include <spectra/axes.hpp>
 #include <spectra/axes3d.hpp>
 #include <spectra/chunked_series.hpp>
@@ -43,7 +44,7 @@ void Renderer::render_series(Series& series,
     // Phase 2 (LT-5): read color/opacity via SeriesViewModel when available,
     // enabling per-view color/opacity overrides.
     Color eff_color;
-    float eff_opacity;
+    float eff_opacity = NAN;
     if (figure_vm_)
     {
         auto& svm   = figure_vm_->get_or_create_series_vm(&series);
@@ -95,7 +96,7 @@ void Renderer::render_series(Series& series,
             uint32_t seg_count =
                 line->point_count() > 1 ? static_cast<uint32_t>(line->point_count()) - 1 : 0;
             uint32_t first_pt = 0;
-            uint32_t pt_count = static_cast<uint32_t>(line->point_count());
+            auto     pt_count = static_cast<uint32_t>(line->point_count());
 
             if (visible && line->point_count() > 2)
             {
@@ -110,21 +111,21 @@ void Renderer::render_series(Series& series,
                     const float* begin = xd.data();
                     const float* end   = begin + n;
                     // Find first point >= x_min (with 1-point margin for segment connectivity)
-                    auto   lo     = std::lower_bound(begin, end, visible->x_min);
-                    size_t lo_idx = static_cast<size_t>(lo - begin);
+                    auto lo     = std::lower_bound(begin, end, visible->x_min);
+                    auto lo_idx = static_cast<size_t>(lo - begin);
                     if (lo_idx > 0)
                         lo_idx--;   // include one segment before visible range
 
                     // Find first point > x_max
-                    auto   hi     = std::upper_bound(begin, end, visible->x_max);
-                    size_t hi_idx = static_cast<size_t>(hi - begin);
+                    auto hi     = std::upper_bound(begin, end, visible->x_max);
+                    auto hi_idx = static_cast<size_t>(hi - begin);
                     if (hi_idx < n)
                         hi_idx++;   // include one segment after visible range
 
                     if (lo_idx < hi_idx && hi_idx <= n)
                     {
-                        first_seg             = static_cast<uint32_t>(lo_idx);
-                        uint32_t last_seg_end = static_cast<uint32_t>(hi_idx);
+                        first_seg         = static_cast<uint32_t>(lo_idx);
+                        auto last_seg_end = static_cast<uint32_t>(hi_idx);
                         if (last_seg_end > 0)
                             last_seg_end--;   // segments = points - 1
                         seg_count = (last_seg_end > first_seg) ? (last_seg_end - first_seg) : 0;
@@ -169,7 +170,7 @@ void Renderer::render_series(Series& series,
             }
 
             uint32_t seg_count = static_cast<uint32_t>(gpu.uploaded_count) - 1;
-            uint32_t pt_count  = static_cast<uint32_t>(gpu.uploaded_count);
+            auto     pt_count  = static_cast<uint32_t>(gpu.uploaded_count);
 
             if (style.has_line() && seg_count > 0)
             {
@@ -208,8 +209,8 @@ void Renderer::render_series(Series& series,
             {
                 const auto& theme_colors = theme_mgr_.colors();
                 float       bg_luma      = 0.2126f * theme_colors.bg_canvas.r
-                                + 0.7152f * theme_colors.bg_canvas.g
-                                + 0.0722f * theme_colors.bg_canvas.b;
+                                           + 0.7152f * theme_colors.bg_canvas.g
+                                           + 0.0722f * theme_colors.bg_canvas.b;
                 pc.marker_type = static_cast<uint32_t>(bg_luma > 0.80f ? MarkerStyle::FilledCircle
                                                                        : MarkerStyle::Circle);
             }
@@ -520,13 +521,14 @@ void Renderer::render_series(Series& series,
                 {
                     float viewport_xywh[4] = {0, 0, 0, 0};   // Set by caller via set_viewport
                     auto  result           = plugin_guard_invoke(entry->type_name.c_str(),
-                                                      [&]() {
+                                                                 [&]()
+                                                                 {
                                                           entry->draw_fn(backend_,
                                                                          entry->pipeline,
                                                                          gpu.plugin_gpu_state,
                                                                          viewport_xywh,
                                                                          pc);
-                                                      });
+                                                                 });
                     if (result != PluginCallResult::Success)
                     {
                         entry->faulted = true;
@@ -597,7 +599,7 @@ void Renderer::render_selection_highlight(AxesBase& axes, const Rect& /*viewport
                 uint32_t first_seg = 0;
                 uint32_t seg_count = static_cast<uint32_t>(line->point_count()) - 1;
                 uint32_t first_pt  = 0;
-                uint32_t pt_count  = static_cast<uint32_t>(line->point_count());
+                auto     pt_count  = static_cast<uint32_t>(line->point_count());
 
                 // Apply visible-range culling (same as normal render path)
                 if (auto* axes2d = dynamic_cast<Axes*>(&axes))
@@ -616,17 +618,17 @@ void Renderer::render_selection_highlight(AxesBase& axes, const Rect& /*viewport
                             const float* begin  = xd.data();
                             const float* end    = begin + n;
                             auto         lo     = std::lower_bound(begin, end, xlim.min);
-                            size_t       lo_idx = static_cast<size_t>(lo - begin);
+                            auto         lo_idx = static_cast<size_t>(lo - begin);
                             if (lo_idx > 0)
                                 lo_idx--;
-                            auto   hi     = std::upper_bound(begin, end, xlim.max);
-                            size_t hi_idx = static_cast<size_t>(hi - begin);
+                            auto hi     = std::upper_bound(begin, end, xlim.max);
+                            auto hi_idx = static_cast<size_t>(hi - begin);
                             if (hi_idx < n)
                                 hi_idx++;
                             if (lo_idx < hi_idx && hi_idx <= n)
                             {
-                                first_seg             = static_cast<uint32_t>(lo_idx);
-                                uint32_t last_seg_end = static_cast<uint32_t>(hi_idx);
+                                first_seg         = static_cast<uint32_t>(lo_idx);
+                                auto last_seg_end = static_cast<uint32_t>(hi_idx);
                                 if (last_seg_end > 0)
                                     last_seg_end--;
                                 seg_count =
@@ -663,7 +665,7 @@ void Renderer::render_selection_highlight(AxesBase& axes, const Rect& /*viewport
                     break;
 
                 uint32_t seg_count = static_cast<uint32_t>(gpu.uploaded_count) - 1;
-                uint32_t pt_count  = static_cast<uint32_t>(gpu.uploaded_count);
+                auto     pt_count  = static_cast<uint32_t>(gpu.uploaded_count);
 
                 if (seg_count > 0)
                 {

@@ -44,7 +44,7 @@ class Animator
    public:
     Animator() = default;
 
-    void evaluate(float time);
+    void evaluate(float time) const;
 
     void pause();
     void resume();

@@ -195,7 +195,7 @@ bool GenericSubscriber::start()
         topic_,
         type_name_,
         qos,
-        [this](std::shared_ptr<rclcpp::SerializedMessage> msg) { on_message(std::move(msg)); });
+        [this](const std::shared_ptr<rclcpp::SerializedMessage>& msg) { on_message(msg); });
 
     if (!subscription_)
         return false;
@@ -217,7 +217,7 @@ void GenericSubscriber::stop()
 // Message delivery (executor thread)
 // ---------------------------------------------------------------------------
 
-void GenericSubscriber::on_message(std::shared_ptr<rclcpp::SerializedMessage> serialized_msg)
+void GenericSubscriber::on_message(const std::shared_ptr<rclcpp::SerializedMessage>& serialized_msg)
 {
     stat_received_.fetch_add(1, std::memory_order_relaxed);
 
@@ -348,7 +348,8 @@ void GenericSubscriber::on_message(std::shared_ptr<rclcpp::SerializedMessage> se
 
     // Try to read header.stamp.sec / header.stamp.nanosec (standard pattern).
     {
-        FieldAccessor sec_acc, nsec_acc;
+        FieldAccessor sec_acc;
+        FieldAccessor nsec_acc;
         if (schema_)
         {
             sec_acc  = intr_.make_accessor(*schema_, "header.stamp.sec");

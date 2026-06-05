@@ -242,7 +242,7 @@ double FieldAccessor::extract_double(const void* msg_ptr, size_t array_index) co
 
     // Walk all steps except the last step to get the parent struct pointer.
     // The leaf_offset_ then points within that struct.
-    const uint8_t* parent = static_cast<const uint8_t*>(msg_ptr);
+    const auto* parent = static_cast<const uint8_t*>(msg_ptr);
 
     // Walk all intermediate steps (everything up to and including steps_).
     for (const auto& step : steps_)
@@ -269,15 +269,15 @@ double FieldAccessor::extract_double(const void* msg_ptr, size_t array_index) co
         {
             // Dynamic array: leaf_ptr points to a std::vector<T>.
             // std::vector layout (libstdc++/libc++): {start, finish, end_of_storage}.
-            const uint8_t* const* start_ptr = reinterpret_cast<const uint8_t* const*>(leaf_ptr);
-            const uint8_t* const* finish_ptr =
+            const auto* const* start_ptr = reinterpret_cast<const uint8_t* const*>(leaf_ptr);
+            const auto* const* finish_ptr =
                 reinterpret_cast<const uint8_t* const*>(leaf_ptr + sizeof(void*));
             const uint8_t* data = *start_ptr;
             if (!data)
                 return std::numeric_limits<double>::quiet_NaN();
 
             // Compute element count from (finish - start) / element_size.
-            const size_t byte_count = static_cast<size_t>(*finish_ptr - data);
+            const auto   byte_count = static_cast<size_t>(*finish_ptr - data);
             const size_t elem_count = element_size_ > 0 ? byte_count / element_size_ : 0;
             if (array_index >= elem_count)
                 return std::numeric_limits<double>::quiet_NaN();
@@ -297,79 +297,79 @@ double FieldAccessor::extract_double(const void* msg_ptr, size_t array_index) co
     {
         case FieldType::Float64:
         {
-            double v;
+            double v = NAN;
             std::memcpy(&v, leaf_ptr, sizeof(v));
             return v;
         }
         case FieldType::Float32:
         {
-            float v;
+            float v = NAN;
             std::memcpy(&v, leaf_ptr, sizeof(v));
             return static_cast<double>(v);
         }
         case FieldType::Int8:
         {
-            int8_t v;
+            int8_t v = 0;
             std::memcpy(&v, leaf_ptr, sizeof(v));
             return static_cast<double>(v);
         }
         case FieldType::Uint8:
         {
-            uint8_t v;
+            uint8_t v = 0;
             std::memcpy(&v, leaf_ptr, sizeof(v));
             return static_cast<double>(v);
         }
         case FieldType::Byte:
         {
-            uint8_t v;
+            uint8_t v = 0;
             std::memcpy(&v, leaf_ptr, sizeof(v));
             return static_cast<double>(v);
         }
         case FieldType::Char:
         {
-            char v;
+            char v = 0;
             std::memcpy(&v, leaf_ptr, sizeof(v));
             return static_cast<double>(v);
         }
         case FieldType::Int16:
         {
-            int16_t v;
+            int16_t v = 0;
             std::memcpy(&v, leaf_ptr, sizeof(v));
             return static_cast<double>(v);
         }
         case FieldType::Uint16:
         {
-            uint16_t v;
+            uint16_t v = 0;
             std::memcpy(&v, leaf_ptr, sizeof(v));
             return static_cast<double>(v);
         }
         case FieldType::Int32:
         {
-            int32_t v;
+            int32_t v = 0;
             std::memcpy(&v, leaf_ptr, sizeof(v));
             return static_cast<double>(v);
         }
         case FieldType::Uint32:
         {
-            uint32_t v;
+            uint32_t v = 0;
             std::memcpy(&v, leaf_ptr, sizeof(v));
             return static_cast<double>(v);
         }
         case FieldType::Int64:
         {
-            int64_t v;
+            int64_t v = 0;
             std::memcpy(&v, leaf_ptr, sizeof(v));
             return static_cast<double>(v);
         }
         case FieldType::Uint64:
         {
-            uint64_t v;
+            uint64_t v = 0;
             std::memcpy(&v, leaf_ptr, sizeof(v));
             return static_cast<double>(v);
         }
         case FieldType::Bool:
         {
-            bool v;
+            bool v = false;
             std::memcpy(&v, leaf_ptr, sizeof(v));
             return v ? 1.0 : 0.0;
         }
@@ -383,7 +383,7 @@ int64_t FieldAccessor::extract_int64(const void* msg_ptr, size_t array_index) co
     if (!valid() || !msg_ptr)
         return 0;
 
-    const uint8_t* parent = static_cast<const uint8_t*>(msg_ptr);
+    const auto* parent = static_cast<const uint8_t*>(msg_ptr);
     for (const auto& step : steps_)
     {
         if (!parent)
@@ -404,13 +404,13 @@ int64_t FieldAccessor::extract_int64(const void* msg_ptr, size_t array_index) co
     {
         if (is_dynamic_array_)
         {
-            const uint8_t* const* start_ptr = reinterpret_cast<const uint8_t* const*>(leaf_ptr);
-            const uint8_t* const* finish_ptr =
+            const auto* const* start_ptr = reinterpret_cast<const uint8_t* const*>(leaf_ptr);
+            const auto* const* finish_ptr =
                 reinterpret_cast<const uint8_t* const*>(leaf_ptr + sizeof(void*));
             const uint8_t* data = *start_ptr;
             if (!data)
                 return 0;
-            const size_t byte_count = static_cast<size_t>(*finish_ptr - data);
+            const auto   byte_count = static_cast<size_t>(*finish_ptr - data);
             const size_t elem_count = element_size_ > 0 ? byte_count / element_size_ : 0;
             if (array_index >= elem_count)
                 return 0;
@@ -428,79 +428,79 @@ int64_t FieldAccessor::extract_int64(const void* msg_ptr, size_t array_index) co
     {
         case FieldType::Int8:
         {
-            int8_t v;
+            int8_t v = 0;
             std::memcpy(&v, leaf_ptr, sizeof(v));
             return v;
         }
         case FieldType::Uint8:
         {
-            uint8_t v;
+            uint8_t v = 0;
             std::memcpy(&v, leaf_ptr, sizeof(v));
             return v;
         }
         case FieldType::Byte:
         {
-            uint8_t v;
+            uint8_t v = 0;
             std::memcpy(&v, leaf_ptr, sizeof(v));
             return v;
         }
         case FieldType::Char:
         {
-            char v;
+            char v = 0;
             std::memcpy(&v, leaf_ptr, sizeof(v));
             return v;
         }
         case FieldType::Int16:
         {
-            int16_t v;
+            int16_t v = 0;
             std::memcpy(&v, leaf_ptr, sizeof(v));
             return v;
         }
         case FieldType::Uint16:
         {
-            uint16_t v;
+            uint16_t v = 0;
             std::memcpy(&v, leaf_ptr, sizeof(v));
             return v;
         }
         case FieldType::Int32:
         {
-            int32_t v;
+            int32_t v = 0;
             std::memcpy(&v, leaf_ptr, sizeof(v));
             return v;
         }
         case FieldType::Uint32:
         {
-            uint32_t v;
+            uint32_t v = 0;
             std::memcpy(&v, leaf_ptr, sizeof(v));
             return v;
         }
         case FieldType::Int64:
         {
-            int64_t v;
+            int64_t v = 0;
             std::memcpy(&v, leaf_ptr, sizeof(v));
             return v;
         }
         case FieldType::Uint64:
         {
-            uint64_t v;
+            uint64_t v = 0;
             std::memcpy(&v, leaf_ptr, sizeof(v));
             return static_cast<int64_t>(v);
         }
         case FieldType::Bool:
         {
-            bool v;
+            bool v = false;
             std::memcpy(&v, leaf_ptr, sizeof(v));
             return v ? 1 : 0;
         }
         case FieldType::Float32:
         {
-            float v;
+            float v = NAN;
             std::memcpy(&v, leaf_ptr, sizeof(v));
             return static_cast<int64_t>(v);
         }
         case FieldType::Float64:
         {
-            double v;
+            double v = NAN;
             std::memcpy(&v, leaf_ptr, sizeof(v));
             return static_cast<int64_t>(v);
         }
@@ -608,7 +608,9 @@ std::shared_ptr<const MessageSchema> MessageIntrospector::introspect(const std::
             return it->second;
     }
 
-    std::string package, subfolder, msg_name;
+    std::string package;
+    std::string subfolder;
+    std::string msg_name;
     if (!parse_type_string(type_name, package, subfolder, msg_name))
         return nullptr;
 
@@ -712,19 +714,17 @@ bool MessageIntrospector::build_accessor_steps(const std::vector<FieldDescriptor
             acc.element_size_     = static_cast<uint32_t>(field_type_size(fd.type));
             return true;
         }
-        else
-        {
-            // Intermediate step — must be a nested message.
-            if (fd.type != FieldType::Message || fd.children.empty())
-                return false;
 
-            FieldAccessor::Step step;
-            step.offset     = fd.offset;
-            step.is_dynamic = fd.is_dynamic_array;
-            steps.push_back(step);
+        // Intermediate step — must be a nested message.
+        if (fd.type != FieldType::Message || fd.children.empty())
+            return false;
 
-            return build_accessor_steps(fd.children, parts, part_idx + 1, steps, acc);
-        }
+        FieldAccessor::Step step;
+        step.offset     = fd.offset;
+        step.is_dynamic = fd.is_dynamic_array;
+        steps.push_back(step);
+
+        return build_accessor_steps(fd.children, parts, part_idx + 1, steps, acc);
     }
 
     return false;

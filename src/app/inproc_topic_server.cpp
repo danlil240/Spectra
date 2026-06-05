@@ -232,8 +232,8 @@ void InprocTopicServer::handle_message(int /*fd*/,
                     Series* s = series_vec[sub.series_index].get();
                     for (size_t k = 0; k < n; ++k)
                     {
-                        float x = static_cast<float>(req->samples[k * stride]);
-                        float y = static_cast<float>(req->samples[k * stride + 1]);
+                        auto x = static_cast<float>(req->samples[k * stride]);
+                        auto y = static_cast<float>(req->samples[k * stride + 1]);
                         s->append(x, y);
                     }
                 }
@@ -248,8 +248,6 @@ void InprocTopicServer::handle_message(int /*fd*/,
             break;
         }
         case MT::EVT_HEARTBEAT:
-            // no-op
-            break;
         default:
             break;
     }
@@ -457,8 +455,8 @@ void InprocTopicServer::wire_topics_panel(ui::topics::TopicsPanel& panel,
                 const size_t n      = retained_samples.size() / stride;
                 for (size_t k = 0; k < n; ++k)
                 {
-                    float x = static_cast<float>(retained_samples[k * stride]);
-                    float y = static_cast<float>(retained_samples[k * stride + 1]);
+                    auto x = static_cast<float>(retained_samples[k * stride]);
+                    auto y = static_cast<float>(retained_samples[k * stride + 1]);
                     ls.append(x, y);
                 }
             }

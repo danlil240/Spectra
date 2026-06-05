@@ -55,7 +55,8 @@ std::vector<std::pair<float, float>> lttb(std::span<const float> x,
                                   : n;
 
         // Compute average of next bucket
-        double            avg_x = 0.0, avg_y = 0.0;
+        double            avg_x      = 0.0;
+        double            avg_y      = 0.0;
         const std::size_t next_count = std::min(next_end, n) - std::min(next_start, n);
         if (next_count > 0)
         {

@@ -368,7 +368,7 @@ void TopicDiscovery::do_refresh(bool full_enrich)
             std::vector<std::string> removed_keys;
             for (const auto& [name, info] : topic_map_)
             {
-                if (fresh_map.count(name) == 0)
+                if (!fresh_map.contains(name))
                 {
                     topic_events.emplace_back(info, false);
                     removed_keys.push_back(name);
@@ -402,7 +402,7 @@ void TopicDiscovery::do_refresh(bool full_enrich)
             std::vector<std::string> removed_keys;
             for (const auto& [name, info] : service_map_)
             {
-                if (fresh_map.count(name) == 0)
+                if (!fresh_map.contains(name))
                 {
                     service_events.emplace_back(info, false);
                     removed_keys.push_back(name);
@@ -413,7 +413,7 @@ void TopicDiscovery::do_refresh(bool full_enrich)
 
             for (const auto& s : fresh_services)
             {
-                if (service_map_.count(s.name) == 0)
+                if (!service_map_.contains(s.name))
                 {
                     service_map_[s.name] = s;
                     service_events.emplace_back(s, true);
@@ -435,7 +435,7 @@ void TopicDiscovery::do_refresh(bool full_enrich)
             std::vector<std::string> removed_keys;
             for (const auto& [name, info] : node_map_)
             {
-                if (fresh_map.count(name) == 0)
+                if (!fresh_map.contains(name))
                 {
                     node_events.emplace_back(info, false);
                     removed_keys.push_back(name);
@@ -448,7 +448,7 @@ void TopicDiscovery::do_refresh(bool full_enrich)
             {
                 if (is_self(n.full_name))
                     continue;
-                if (node_map_.count(n.full_name) == 0)
+                if (!node_map_.contains(n.full_name))
                 {
                     node_map_[n.full_name] = n;
                     node_events.emplace_back(n, true);
@@ -673,7 +673,7 @@ void TopicDiscovery::diff_topics(const std::vector<TopicInfo>& fresh)
     std::vector<std::string> removed_keys;
     for (const auto& [name, info] : topic_map_)
     {
-        if (fresh_map.count(name) == 0)
+        if (!fresh_map.contains(name))
         {
             if (topic_cb_)
                 topic_cb_(info, false);
@@ -714,7 +714,7 @@ void TopicDiscovery::diff_services(const std::vector<ServiceInfo>& fresh)
     std::vector<std::string> removed_keys;
     for (const auto& [name, info] : service_map_)
     {
-        if (fresh_map.count(name) == 0)
+        if (!fresh_map.contains(name))
         {
             if (service_cb_)
                 service_cb_(info, false);
@@ -726,7 +726,7 @@ void TopicDiscovery::diff_services(const std::vector<ServiceInfo>& fresh)
 
     for (const auto& s : fresh)
     {
-        if (service_map_.count(s.name) == 0)
+        if (!service_map_.contains(s.name))
         {
             service_map_[s.name] = s;
             if (service_cb_)
@@ -749,7 +749,7 @@ void TopicDiscovery::diff_nodes(const std::vector<NodeInfo>& fresh)
     std::vector<std::string> removed_keys;
     for (const auto& [name, info] : node_map_)
     {
-        if (fresh_map.count(name) == 0)
+        if (!fresh_map.contains(name))
         {
             if (node_cb_)
                 node_cb_(info, false);
@@ -763,7 +763,7 @@ void TopicDiscovery::diff_nodes(const std::vector<NodeInfo>& fresh)
     {
         if (is_self(n.full_name))
             continue;
-        if (node_map_.count(n.full_name) == 0)
+        if (!node_map_.contains(n.full_name))
         {
             node_map_[n.full_name] = n;
             if (node_cb_)

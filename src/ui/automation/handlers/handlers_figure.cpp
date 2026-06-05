@@ -81,9 +81,8 @@ std::vector<AutomationHandlerEntry> make_figure_handlers()
                     << ((ui_ctx->fig_mgr && ui_ctx->fig_mgr->active_state().is_in_3d_mode())
                             ? "true"
                             : "false")
-                    << ",\"theme\":\""
-                    << json_escape(ui_ctx->theme_mgr ? ui_ctx->theme_mgr->current_theme_name()
-                                                     : "")
+                    << R"(,"theme":")"
+                    << json_escape(ui_ctx->theme_mgr ? ui_ctx->theme_mgr->current_theme_name() : "")
                     << '"';
             }
 #else
@@ -100,10 +99,10 @@ std::vector<AutomationHandlerEntry> make_figure_handlers()
         {},
         [](AutomationRequest& req, App* app, WindowUIContext* /*ui_ctx*/)
         {
-            uint32_t w       = static_cast<uint32_t>(json_get_int(req.params_json, "width", 1280));
-            uint32_t h       = static_cast<uint32_t>(json_get_int(req.params_json, "height", 720));
-            Figure&  new_fig = app->figure({w, h});
-            FigureId new_id  = app->figure_registry().find_id(&new_fig);
+            uint32_t w        = static_cast<uint32_t>(json_get_int(req.params_json, "width", 1280));
+            uint32_t h        = static_cast<uint32_t>(json_get_int(req.params_json, "height", 720));
+            Figure&  new_fig  = app->figure({w, h});
+            FigureId new_id   = app->figure_registry().find_id(&new_fig);
             req.response_json = json_ok(req.id, "{\"figure_id\":" + std::to_string(new_id) + "}");
         }));
 
@@ -134,7 +133,8 @@ std::vector<AutomationHandlerEntry> make_figure_handlers()
             std::vector<float> x_caller = json_get_float_array(req.params_json, "x");
             std::vector<float> y_caller = json_get_float_array(req.params_json, "y");
 
-            std::vector<float> x_gen, y_gen;
+            std::vector<float> x_gen;
+            std::vector<float> y_gen;
             if (x_caller.empty() || y_caller.empty())
             {
                 x_gen.resize(static_cast<size_t>(n_points));
@@ -166,22 +166,22 @@ std::vector<AutomationHandlerEntry> make_figure_handlers()
                 json_ok(req.id, "{\"series_count\":" + std::to_string(ax.series().size()) + "}");
         }));
 
-    entries.push_back(automation_handler(
-        "switch_figure",
-        "Switch to a specific figure by its ID.",
-        Ctx::ImGui | Ctx::FigureMgr,
-        {{.name = "figure_id", .kind = ParamKind::Int, .required = true}},
-        [](AutomationRequest& req, App* /*app*/, WindowUIContext* ui_ctx)
-        {
+    entries.push_back(
+        automation_handler("switch_figure",
+                           "Switch to a specific figure by its ID.",
+                           Ctx::ImGui | Ctx::FigureMgr,
+                           {{.name = "figure_id", .kind = ParamKind::Int, .required = true}},
+                           [](AutomationRequest& req, App* /*app*/, WindowUIContext* ui_ctx)
+                           {
 #ifdef SPECTRA_USE_IMGUI
-            uint64_t fig_id = json_get_uint64(req.params_json, "figure_id", 0);
-            ui_ctx->fig_mgr->queue_switch(static_cast<FigureId>(fig_id));
-            req.response_json = json_ok(req.id);
+                               uint64_t fig_id = json_get_uint64(req.params_json, "figure_id", 0);
+                               ui_ctx->fig_mgr->queue_switch(static_cast<FigureId>(fig_id));
+                               req.response_json = json_ok(req.id);
 #else
             (void)ui_ctx;
             req.response_json = json_error(req.id, "ImGui not available");
 #endif
-        }));
+                           }));
 
     entries.push_back(automation_handler(
         "get_figure_info",
@@ -250,8 +250,8 @@ std::vector<AutomationHandlerEntry> make_figure_handlers()
                         stype  = "histogram";
                         scount = hs->bin_counts().size();
                     }
-                    oss << "{\"label\":\"" << json_escape(s->label()) << "\",\"type\":\"" << stype
-                        << "\",\"visible\":" << (s->visible() ? "true" : "false")
+                    oss << R"({"label":")" << json_escape(s->label()) << R"(","type":")" << stype
+                        << R"(","visible":)" << (s->visible() ? "true" : "false")
                         << ",\"point_count\":" << scount << "}";
                 }
                 oss << "]}";
@@ -274,9 +274,9 @@ std::vector<AutomationHandlerEntry> make_figure_handlers()
                 auto yl = ax3d->y_limits();
                 auto zl = ax3d->z_limits();
                 oss << "{\"index\":" << ai << ",\"x_min\":" << xl.min << ",\"x_max\":" << xl.max
-                    << ",\"y_min\":" << yl.min << ",\"y_max\":" << yl.max
-                    << ",\"z_min\":" << zl.min << ",\"z_max\":" << zl.max
-                    << ",\"series_count\":" << ax3d->series().size() << "}";
+                    << ",\"y_min\":" << yl.min << ",\"y_max\":" << yl.max << ",\"z_min\":" << zl.min
+                    << ",\"z_max\":" << zl.max << ",\"series_count\":" << ax3d->series().size()
+                    << "}";
                 ++a3i;
             }
             oss << "]}";

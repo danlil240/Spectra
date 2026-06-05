@@ -175,8 +175,10 @@ void AnimationCurveEditor::fit_view()
         return;
     }
 
-    float t_min = 1e30f, t_max = -1e30f;
-    float v_min = 1e30f, v_max = -1e30f;
+    float t_min = 1e30f;
+    float t_max = -1e30f;
+    float v_min = 1e30f;
+    float v_max = -1e30f;
     bool  found = false;
 
     for (const auto& [id, ch] : channels)
@@ -502,7 +504,7 @@ void AnimationCurveEditor::update_drag(float screen_x, float screen_y)
                 float len_out = std::sqrt(kf.out_tangent.dt * kf.out_tangent.dt
                                           + kf.out_tangent.dv * kf.out_tangent.dv);
                 float len_in  = std::sqrt(kf.in_tangent.dt * kf.in_tangent.dt
-                                         + kf.in_tangent.dv * kf.in_tangent.dv);
+                                          + kf.in_tangent.dv * kf.in_tangent.dv);
                 if (len_in > 0.0001f)
                 {
                     kf.out_tangent.dt = -kf.in_tangent.dt * (len_out / len_in);
@@ -524,7 +526,7 @@ void AnimationCurveEditor::update_drag(float screen_x, float screen_y)
             if (kf.tangent_mode == TangentMode::Aligned)
             {
                 float len_in  = std::sqrt(kf.in_tangent.dt * kf.in_tangent.dt
-                                         + kf.in_tangent.dv * kf.in_tangent.dv);
+                                          + kf.in_tangent.dv * kf.in_tangent.dv);
                 float len_out = std::sqrt(kf.out_tangent.dt * kf.out_tangent.dt
                                           + kf.out_tangent.dv * kf.out_tangent.dv);
                 if (len_out > 0.0001f)
@@ -627,7 +629,7 @@ void AnimationCurveEditor::draw(float width, float height)
     view_.height = height;
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
-    ImGui::BeginChild("##curve_editor", ImVec2(width, height), true);
+    ImGui::BeginChild("##curve_editor", ImVec2(width, height), 1);
 
     ImDrawList* draw_list = ImGui::GetWindowDrawList();
     ImVec2      origin    = ImGui::GetCursorScreenPos();
@@ -730,11 +732,10 @@ void AnimationCurveEditor::draw(float width, float height)
 
         // ─── Keyframe diamonds + tangent handles ─────────────────
         const auto& kfs = ch.keyframes();
-        for (size_t i = 0; i < kfs.size(); ++i)
+        for (const auto& kf : kfs)
         {
-            const auto& kf = kfs[i];
-            float       kx = view_.time_to_x(kf.time);
-            float       ky = view_.value_to_y(kf.value);
+            float kx = view_.time_to_x(kf.time);
+            float ky = view_.value_to_y(kf.value);
 
             // Tangent handles
             if (show_tangents_ && kf.interp == InterpMode::CubicBezier)

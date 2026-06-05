@@ -68,7 +68,7 @@ bool TopicRegistry::publish(const std::string&              name,
     // Hz estimator: EWMA over inter-arrival times (per call, not per sample).
     if (t.last_publish_ns != 0)
     {
-        double dt = static_cast<double>(now - t.last_publish_ns);
+        auto dt = static_cast<double>(now - t.last_publish_ns);
         if (t.ewma_dt_ns == 0.0)
             t.ewma_dt_ns = dt;
         else

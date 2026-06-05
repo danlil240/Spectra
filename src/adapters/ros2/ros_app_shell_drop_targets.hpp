@@ -15,10 +15,11 @@ constexpr float kPlotAreaGlobalDropHeight = 28.0f;
 
 struct RosPlotDropTargetContext
 {
-    FieldDragDrop*  drag_drop    = nullptr;
-    SubplotManager* subplot_mgr  = nullptr;
+    FieldDragDrop*  drag_drop   = nullptr;
+    SubplotManager* subplot_mgr = nullptr;
 
-    std::function<std::string(const std::string& topic, const std::string& type)> default_numeric_field;
+    std::function<std::string(const std::string& topic, const std::string& type)>
+        default_numeric_field;
 };
 
 // Invisible drop region for one subplot slot (expands to fill remaining slot height).

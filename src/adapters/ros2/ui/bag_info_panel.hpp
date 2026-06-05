@@ -200,7 +200,7 @@ class BagInfoPanel
     void draw_metadata_section();
     void draw_topic_table();
     void draw_drop_zone_overlay();
-    void draw_no_bag_placeholder();
+    void draw_no_bag_placeholder() const;
     void handle_imgui_drag_drop();
 
     // ------------------------------------------------------------------

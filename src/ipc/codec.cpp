@@ -10,24 +10,23 @@ namespace spectra::ipc
 // FlatBuffers payloads are prefixed with 0x01; legacy TLV decode remains in
 // codec_tlv_decode.cpp for a few message types still read from old clients.
 
-#define DECODE_TRY_FB(decode_fb_func, data)                            \
-    do                                                                 \
-    {                                                                  \
-        if (detect_payload_format(data) == PayloadFormat::FLATBUFFERS) \
-        {                                                              \
-            auto _fb_body = strip_fb_prefix(data);                     \
-            return decode_fb_func(std::span<const uint8_t>(            \
-                _fb_body.data(), _fb_body.size()));                    \
-        }                                                              \
+#define DECODE_TRY_FB(decode_fb_func, data)                                                    \
+    do                                                                                         \
+    {                                                                                          \
+        if (detect_payload_format(data) == PayloadFormat::FLATBUFFERS)                         \
+        {                                                                                      \
+            auto _fb_body = strip_fb_prefix(data);                                             \
+            return decode_fb_func(std::span<const uint8_t>(_fb_body.data(), _fb_body.size())); \
+        }                                                                                      \
     } while (0)
 
 #define IPC_ENCODE_FB(name, p) return encode_fb_##name(p)
 
-#define IPC_DECODE_FB_ONLY(fb_name, data) \
-    do                                    \
-    {                                     \
+#define IPC_DECODE_FB_ONLY(fb_name, data)         \
+    do                                            \
+    {                                             \
         DECODE_TRY_FB(decode_fb_##fb_name, data); \
-        return std::nullopt;              \
+        return std::nullopt;                      \
     } while (0)
 
 #define IPC_DECODE_FB_OR_TLV(fb_name, tlv_fn, data) \

@@ -246,7 +246,8 @@ void WindowManager::glfw_mouse_button_callback(GLFWwindow* window, int button, i
     auto& imgui_ui      = ui.imgui_ui;
     auto& dock_system   = ui.dock_system;
 
-    double x = 0.0, y = 0.0;
+    double x = 0.0;
+    double y = 0.0;
     glfwGetCursorPos(window, &x, &y);
 
     bool input_is_dragging = input_handler.mode() == InteractionMode::Dragging
@@ -335,7 +336,8 @@ void WindowManager::glfw_scroll_callback(GLFWwindow* window, double x_offset, do
         return;
     }
 
-    double cx = 0.0, cy = 0.0;
+    double cx = 0.0;
+    double cy = 0.0;
     glfwGetCursorPos(window, &cx, &cy);
 
     if (dock_system.is_split())

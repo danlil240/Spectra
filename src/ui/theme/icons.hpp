@@ -192,8 +192,8 @@ class IconFont
     ImFont* get_font(float size = tokens::ICON_MD) const;
 
     // Draw an icon at current cursor position
-    void draw(Icon icon, float size = tokens::ICON_MD, const Color& color = {});
-    void draw(Icon icon, float size, const ImVec4& color);
+    void draw(Icon icon, float size = tokens::ICON_MD, const Color& color = {}) const;
+    void draw(Icon icon, float size, const ImVec4& color) const;
 
     // Get icon as string (for ImGui text rendering)
     const char* get_icon_string(Icon icon) const;

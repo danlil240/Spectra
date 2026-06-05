@@ -125,11 +125,7 @@ class Renderer
     void render_selection_highlight(AxesBase& axes, const Rect& viewport);
 
     // Build orthographic projection matrix for given axis limits
-    void build_ortho_projection(double left,
-                                double right,
-                                double bottom,
-                                double top,
-                                float* out_mat4);
+    void build_ortho_projection(double left, double right, double bottom, double top, float* m);
     // Build orthographic projection with proper near/far depth (for 3D ortho views)
     void build_ortho_projection_3d(float  left,
                                    float  right,
@@ -137,7 +133,7 @@ class Renderer
                                    float  top,
                                    float  near_clip,
                                    float  far_clip,
-                                   float* out_mat4);
+                                   float* m);
 
     void render_arrows(Axes3D& axes, const Rect& viewport);
 

@@ -1,5 +1,7 @@
 #include "ulog_reader.hpp"
 
+#include <cmath>
+
 #include <algorithm>
 #include <cstring>
 #include <fstream>
@@ -40,35 +42,35 @@ static constexpr size_t MSG_HEADER_SIZE = 3;
 
 static uint16_t read_u16(const uint8_t* p)
 {
-    uint16_t v;
+    uint16_t v = 0;
     std::memcpy(&v, p, 2);
     return v;
 }
 
 static uint32_t read_u32(const uint8_t* p)
 {
-    uint32_t v;
+    uint32_t v = 0;
     std::memcpy(&v, p, 4);
     return v;
 }
 
 static uint64_t read_u64(const uint8_t* p)
 {
-    uint64_t v;
+    uint64_t v = 0;
     std::memcpy(&v, p, 8);
     return v;
 }
 
 static int32_t read_i32(const uint8_t* p)
 {
-    int32_t v;
+    int32_t v = 0;
     std::memcpy(&v, p, 4);
     return v;
 }
 
 static float read_f32(const uint8_t* p)
 {
-    float v;
+    float v = NAN;
     std::memcpy(&v, p, 4);
     return v;
 }
@@ -82,29 +84,21 @@ size_t ulog_field_size(ULogFieldType t)
     switch (t)
     {
         case ULogFieldType::Int8:
-            return 1;
         case ULogFieldType::UInt8:
-            return 1;
-        case ULogFieldType::Int16:
-            return 2;
-        case ULogFieldType::UInt16:
-            return 2;
-        case ULogFieldType::Int32:
-            return 4;
-        case ULogFieldType::UInt32:
-            return 4;
-        case ULogFieldType::Int64:
-            return 8;
-        case ULogFieldType::UInt64:
-            return 8;
-        case ULogFieldType::Float:
-            return 4;
-        case ULogFieldType::Double:
-            return 8;
         case ULogFieldType::Bool:
-            return 1;
         case ULogFieldType::Char:
             return 1;
+        case ULogFieldType::Int16:
+        case ULogFieldType::UInt16:
+            return 2;
+        case ULogFieldType::Float:
+        case ULogFieldType::Int32:
+        case ULogFieldType::UInt32:
+            return 4;
+        case ULogFieldType::Double:
+        case ULogFieldType::Int64:
+        case ULogFieldType::UInt64:
+            return 8;
         case ULogFieldType::Nested:
             return 0;   // depends on nested format
     }
@@ -708,10 +702,6 @@ bool ULogReader::parse_definitions(const uint8_t* data, size_t size, size_t& off
                 break;
 
             case MSG_PARAMETER:
-                if (!parse_parameter_message(payload, msg_size, true))
-                    return false;
-                break;
-
             case MSG_PARAMETER_DEF:
                 if (!parse_parameter_message(payload, msg_size, true))
                     return false;
@@ -893,11 +883,7 @@ bool ULogReader::parse_info_message(const uint8_t* payload, uint16_t len)
     info.type_str = type_str;
 
     // Parse value based on type.
-    if (type_str.find("char[") == 0 || type_str == "char")
-    {
-        info.value = std::string(reinterpret_cast<const char*>(val_ptr), val_len);
-    }
-    else if (type_str == "int32_t" && val_len >= 4)
+    if (type_str == "int32_t" && val_len >= 4)
     {
         info.value = read_i32(val_ptr);
     }

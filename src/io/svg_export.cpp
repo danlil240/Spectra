@@ -75,7 +75,7 @@ struct DataToSvg
     float  vp_x, vp_y, vp_w, vp_h;
     double x_min, x_max, y_min, y_max;
 
-    float map_x(double data_x) const
+    [[nodiscard]] float map_x(double data_x) const
     {
         double range = x_max - x_min;
         if (range == 0.0)
@@ -83,7 +83,7 @@ struct DataToSvg
         return static_cast<float>(vp_x + (data_x - x_min) / range * vp_w);
     }
 
-    float map_y(double data_y) const
+    [[nodiscard]] float map_y(double data_y) const
     {
         double range = y_max - y_min;
         if (range == 0.0)
@@ -156,7 +156,7 @@ void emit_tick_labels(std::ostringstream& svg, const Axes& axes, const DataToSvg
             << "\" y2=\"" << fmt(bottom + tick_len) << "\" stroke=\"#000\" stroke-width=\"1\"/>\n";
         // Label
         svg << "      <text x=\"" << fmt(sx) << "\" y=\"" << fmt(bottom + label_offset)
-            << "\" text-anchor=\"middle\">" << xml_escape(x_ticks.labels[i]) << "</text>\n";
+            << R"(" text-anchor="middle">)" << xml_escape(x_ticks.labels[i]) << "</text>\n";
     }
 
     // Y-axis tick marks and labels (left)
@@ -168,7 +168,7 @@ void emit_tick_labels(std::ostringstream& svg, const Axes& axes, const DataToSvg
             << fmt(m.vp_x) << "\" y2=\"" << fmt(sy) << "\" stroke=\"#000\" stroke-width=\"1\"/>\n";
         // Label
         svg << "      <text x=\"" << fmt(m.vp_x - tick_len - 3.0f) << "\" y=\"" << fmt(sy + 3.5f)
-            << "\" text-anchor=\"end\">" << xml_escape(y_ticks.labels[i]) << "</text>\n";
+            << R"(" text-anchor="end">)" << xml_escape(y_ticks.labels[i]) << "</text>\n";
     }
 
     svg << "    </g>\n";
@@ -188,7 +188,7 @@ void emit_labels(std::ostringstream& svg, const Axes& axes, const DataToSvg& m)
         svg << "    <text x=\"" << fmt(cx) << "\" y=\"" << fmt(ty)
             << "\" text-anchor=\"middle\" font-family=\"sans-serif\" "
                "font-size=\""
-            << fmt(title_font) << "\" font-weight=\"bold\" fill=\"#000\">"
+            << fmt(title_font) << R"(" font-weight="bold" fill="#000">)"
             << xml_escape(axes.get_title()) << "</text>\n";
     }
 
@@ -200,7 +200,7 @@ void emit_labels(std::ostringstream& svg, const Axes& axes, const DataToSvg& m)
         svg << "    <text x=\"" << fmt(cx) << "\" y=\"" << fmt(ly)
             << "\" text-anchor=\"middle\" font-family=\"sans-serif\" "
                "font-size=\""
-            << fmt(label_font) << "\" fill=\"#333\">" << xml_escape(axes.get_xlabel())
+            << fmt(label_font) << R"(" fill="#333">)" << xml_escape(axes.get_xlabel())
             << "</text>\n";
     }
 
@@ -229,9 +229,9 @@ void emit_line_series(std::ostringstream& svg, const LineSeries& series, const D
     auto        y = series.y_data();
     const auto& c = static_cast<const Series&>(series).color();
 
-    svg << "    <polyline fill=\"none\" stroke=\"" << svg_color(c) << "\" stroke-width=\""
+    svg << R"(    <polyline fill="none" stroke=")" << svg_color(c) << "\" stroke-width=\""
         << fmt(series.width()) << "\" stroke-opacity=\"" << fmt(c.a)
-        << "\" stroke-linejoin=\"round\" stroke-linecap=\"round\" points=\"";
+        << R"(" stroke-linejoin="round" stroke-linecap="round" points=")";
 
     for (size_t i = 0; i < series.point_count(); ++i)
     {
@@ -304,7 +304,7 @@ void emit_legend(std::ostringstream& svg, const Axes& axes, const DataToSvg& m)
         << "\" height=\"" << fmt(legend_h)
         << "\" fill=\"white\" fill-opacity=\"0.9\" stroke=\"#ccc\" stroke-width=\"1\" rx=\"3\"/>\n";
 
-    svg << "    <g font-family=\"sans-serif\" font-size=\"" << fmt(font_size)
+    svg << R"(    <g font-family="sans-serif" font-size=")" << fmt(font_size)
         << "\" fill=\"#333\">\n";
 
     for (size_t i = 0; i < entries.size(); ++i)
@@ -323,7 +323,7 @@ void emit_legend(std::ostringstream& svg, const Axes& axes, const DataToSvg& m)
         {
             // Circle swatch
             svg << "      <circle cx=\"" << fmt(ex + swatch_w * 0.5f) << "\" cy=\"" << fmt(ey)
-                << "\" r=\"4\" fill=\"" << svg_color(entries[i].color) << "\"/>\n";
+                << R"(" r="4" fill=")" << svg_color(entries[i].color) << "\"/>\n";
         }
 
         // Label text
@@ -340,7 +340,7 @@ void emit_axes(std::ostringstream& svg, const Axes& axes, const Rect& viewport)
     auto xlim = axes.x_limits();
     auto ylim = axes.y_limits();
 
-    DataToSvg m;
+    DataToSvg m{};
     m.vp_x  = viewport.x;
     m.vp_y  = viewport.y;
     m.vp_w  = viewport.w;

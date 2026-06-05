@@ -292,9 +292,7 @@ TEST(LayoutManager, NavRailScaleFitsContent)
     const float min_h   = LayoutManager::nav_rail_min_content_height();
 
     EXPECT_FLOAT_EQ(LayoutManager::nav_rail_scale_for_height(nominal), 1.0f);
-    EXPECT_NEAR(LayoutManager::nav_rail_scale_for_height(nominal * 0.75f),
-                0.75f,
-                0.01f);
+    EXPECT_NEAR(LayoutManager::nav_rail_scale_for_height(nominal * 0.75f), 0.75f, 0.01f);
     const float min_scale =
         LayoutManager::NAV_RAIL_CELL_HEIGHT_MIN / LayoutManager::NAV_RAIL_CELL_HEIGHT;
     EXPECT_FLOAT_EQ(LayoutManager::nav_rail_scale_for_height(min_h), min_scale);
@@ -303,17 +301,15 @@ TEST(LayoutManager, NavRailScaleFitsContent)
 
 TEST(LayoutManager, MinWindowSizeAccountsForNavRail)
 {
-    const float with_nav =
-        LayoutManager::min_window_height(true, true, true);
-    const float without_nav =
-        LayoutManager::min_window_height(false, true, true);
+    const float with_nav    = LayoutManager::min_window_height(true, true, true);
+    const float without_nav = LayoutManager::min_window_height(false, true, true);
 
     EXPECT_GT(with_nav, without_nav);
     EXPECT_GE(with_nav,
               LayoutManager::COMMAND_BAR_HEIGHT + LayoutManager::STATUS_BAR_HEIGHT
                   + LayoutManager::nav_rail_min_content_height());
 
-    EXPECT_FLOAT_EQ(LayoutManager::min_window_width(true),
-                    LayoutManager::NAV_RAIL_COLLAPSED_WIDTH
-                        + LayoutManager::WINDOW_MIN_CANVAS_WIDTH);
+    EXPECT_FLOAT_EQ(
+        LayoutManager::min_window_width(true),
+        LayoutManager::NAV_RAIL_COLLAPSED_WIDTH + LayoutManager::WINDOW_MIN_CANVAS_WIDTH);
 }

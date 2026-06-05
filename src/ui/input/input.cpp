@@ -1,7 +1,8 @@
 #include "input.hpp"
 
-#include <algorithm>
 #include <cmath>
+
+#include <algorithm>
 #include <limits>
 #include <spectra/logger.hpp>
 
@@ -431,12 +432,14 @@ void InputHandler::on_mouse_move(double x, double y)
         Axes* prev             = active_axes_;
         active_axes_           = hit;
         const auto& vp         = viewport_for_axes(hit);
-        float       saved_vp_x = vp_x_, saved_vp_y = vp_y_;
-        float       saved_vp_w = vp_w_, saved_vp_h = vp_h_;
-        vp_x_ = vp.x;
-        vp_y_ = vp.y;
-        vp_w_ = vp.w;
-        vp_h_ = vp.h;
+        float       saved_vp_x = vp_x_;
+        float       saved_vp_y = vp_y_;
+        float       saved_vp_w = vp_w_;
+        float       saved_vp_h = vp_h_;
+        vp_x_                  = vp.x;
+        vp_y_                  = vp.y;
+        vp_w_                  = vp.w;
+        vp_h_                  = vp.h;
 
         cursor_readout_.valid    = true;
         cursor_readout_.screen_x = x;
@@ -821,14 +824,19 @@ void InputHandler::apply_box_zoom()
     const auto& vp = viewport_for_axes(active_axes_);
 
     // Convert box corners from screen to data space
-    float saved_vp_x = vp_x_, saved_vp_y = vp_y_;
-    float saved_vp_w = vp_w_, saved_vp_h = vp_h_;
-    vp_x_ = vp.x;
-    vp_y_ = vp.y;
-    vp_w_ = vp.w;
-    vp_h_ = vp.h;
+    float saved_vp_x = vp_x_;
+    float saved_vp_y = vp_y_;
+    float saved_vp_w = vp_w_;
+    float saved_vp_h = vp_h_;
+    vp_x_            = vp.x;
+    vp_y_            = vp.y;
+    vp_w_            = vp.w;
+    vp_h_            = vp.h;
 
-    float d_x0, d_y0, d_x1, d_y1;
+    float d_x0 = NAN;
+    float d_y0 = NAN;
+    float d_x1 = NAN;
+    float d_y1 = NAN;
     screen_to_data(box_zoom_.x0, box_zoom_.y0, d_x0, d_y0);
     screen_to_data(box_zoom_.x1, box_zoom_.y1, d_x1, d_y1);
 
@@ -845,8 +853,8 @@ void InputHandler::apply_box_zoom()
 
     // Only apply if the selection is large enough (avoid accidental clicks)
     constexpr float MIN_SELECTION_PIXELS = 5.0f;
-    float           dx_screen = static_cast<float>(std::abs(box_zoom_.x1 - box_zoom_.x0));
-    float           dy_screen = static_cast<float>(std::abs(box_zoom_.y1 - box_zoom_.y0));
+    auto            dx_screen = static_cast<float>(std::abs(box_zoom_.x1 - box_zoom_.x0));
+    auto            dy_screen = static_cast<float>(std::abs(box_zoom_.y1 - box_zoom_.y0));
 
     if (dx_screen > MIN_SELECTION_PIXELS && dy_screen > MIN_SELECTION_PIXELS)
     {
@@ -953,7 +961,7 @@ bool InputHandler::has_active_animations() const
 {
     if (transition_engine_ && transition_engine_->has_active_animations())
         return true;
-    return anim_ctrl_ && anim_ctrl_->has_active_animations();
+    return (anim_ctrl_ != nullptr) && anim_ctrl_->has_active_animations();
 }
 
 }   // namespace spectra

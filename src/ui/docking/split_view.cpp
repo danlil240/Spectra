@@ -1,8 +1,9 @@
 #include "split_view.hpp"
 
+#include <cmath>
+
 #include <algorithm>
 #include <atomic>
-#include <cmath>
 #include <sstream>
 
 namespace spectra
@@ -17,10 +18,10 @@ SplitPane::PaneId SplitPane::next_id()
     return s_next_pane_id.fetch_add(1, std::memory_order_relaxed);
 }
 
-SplitPane::SplitPane(FigureId figure_id) : id_(next_id()), figure_index_(figure_id)
+SplitPane::SplitPane(FigureId figure_id)
+    : id_(next_id()), figure_index_(figure_id) 
 {
     figure_indices_.push_back(figure_id);
-    active_local_ = 0;
 }
 
 void SplitPane::set_active_local_index(size_t local_idx)
@@ -85,7 +86,7 @@ Rect SplitPane::content_bounds() const
     if (!is_leaf())
         return bounds_;
     // Always reserve space for the tab header (unified tab bar)
-    if (figure_indices_.size() > 0)
+    if (!figure_indices_.empty())
     {
         return Rect{bounds_.x,
                     bounds_.y + PANE_TAB_HEIGHT,
@@ -261,11 +262,9 @@ Rect SplitPane::splitter_rect() const
         float split_x = bounds_.x + bounds_.w * split_ratio_;
         return Rect{split_x - half_splitter, bounds_.y, SPLITTER_WIDTH, bounds_.h};
     }
-    else
-    {
-        float split_y = bounds_.y + bounds_.h * split_ratio_;
-        return Rect{bounds_.x, split_y - half_splitter, bounds_.w, SPLITTER_WIDTH};
-    }
+
+    float split_y = bounds_.y + bounds_.h * split_ratio_;
+    return Rect{bounds_.x, split_y - half_splitter, bounds_.w, SPLITTER_WIDTH};
 }
 
 void SplitPane::collect_leaves(std::vector<SplitPane*>& out)
@@ -408,7 +407,7 @@ std::string SplitPane::serialize() const
     }
     else
     {
-        ss << ",\"dir\":\"" << (split_direction_ == SplitDirection::Horizontal ? "h" : "v") << "\"";
+        ss << R"(,"dir":")" << (split_direction_ == SplitDirection::Horizontal ? "h" : "v") << "\"";
         ss << ",\"ratio\":" << split_ratio_;
         if (first_)
             ss << ",\"first\":" << first_->serialize();
@@ -446,7 +445,7 @@ std::unique_ptr<SplitPane> SplitPane::deserialize(const std::string& data)
                 return "";
             return data.substr(pos + 1, end - pos - 1);
         }
-        else if (data[pos] == '{')
+        if (data[pos] == '{')
         {
             // Object value — find matching brace
             int    depth = 0;
@@ -464,14 +463,12 @@ std::unique_ptr<SplitPane> SplitPane::deserialize(const std::string& data)
             }
             return "";
         }
-        else
-        {
-            // Number or bool
-            auto end = data.find_first_of(",}", pos);
-            if (end == std::string::npos)
-                return "";
-            return data.substr(pos, end - pos);
-        }
+
+        // Number or bool
+        auto end = data.find_first_of(",}", pos);
+        if (end == std::string::npos)
+            return "";
+        return data.substr(pos, end - pos);
     };
 
     bool is_leaf = (find_value("leaf") == "true");
@@ -763,7 +760,7 @@ void SplitViewManager::update_splitter_drag(float mouse_pos)
     Rect  b     = dragging_splitter_->bounds();
     float delta = mouse_pos - drag_start_pos_;
 
-    float total_size;
+    float total_size = NAN;
     if (dragging_splitter_->split_direction() == SplitDirection::Horizontal)
     {
         total_size = b.w;
@@ -783,8 +780,8 @@ void SplitViewManager::update_splitter_drag(float mouse_pos)
     float min_ratio = SplitPane::MIN_PANE_SIZE / total_size;
     float max_ratio = 1.0f - min_ratio;
     new_ratio       = std::clamp(new_ratio,
-                           std::max(SplitPane::MIN_RATIO, min_ratio),
-                           std::min(SplitPane::MAX_RATIO, max_ratio));
+                                 std::max(SplitPane::MIN_RATIO, min_ratio),
+                                 std::min(SplitPane::MAX_RATIO, max_ratio));
 
     dragging_splitter_->set_split_ratio(new_ratio);
     recompute_layout();

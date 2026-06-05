@@ -61,13 +61,12 @@ std::vector<AutomationHandlerEntry> make_window_handlers()
         {},
         [](AutomationRequest& req, App* app, WindowUIContext* /*ui_ctx*/)
         {
-            Backend* backend = app->backend();
-            uint32_t w       = backend->swapchain_width();
-            uint32_t h       = backend->swapchain_height();
-            req.response_json =
-                json_ok(req.id,
-                        "{\"width\":" + std::to_string(w) + ",\"height\":" + std::to_string(h)
-                            + "}");
+            Backend* backend  = app->backend();
+            uint32_t w        = backend->swapchain_width();
+            uint32_t h        = backend->swapchain_height();
+            req.response_json = json_ok(
+                req.id,
+                "{\"width\":" + std::to_string(w) + ",\"height\":" + std::to_string(h) + "}");
         }));
 
     return entries;

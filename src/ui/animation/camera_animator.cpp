@@ -112,10 +112,8 @@ Camera CameraAnimator::evaluate(float time) const
     {
         return evaluate_orbit(time);
     }
-    else
-    {
-        return evaluate_free_flight(time);
-    }
+
+    return evaluate_free_flight(time);
 }
 
 void CameraAnimator::apply(float time, Camera& cam) const
@@ -169,12 +167,12 @@ void CameraAnimator::create_orbit_animation(const Camera& base,
     Camera start_cam  = base;
     start_cam.azimuth = start_azimuth;
     start_cam.update_position_from_orbit();
-    keyframes_.push_back(CameraKeyframe{0.0f, start_cam});
+    keyframes_.emplace_back(0.0f, start_cam);
 
     Camera end_cam  = base;
     end_cam.azimuth = end_azimuth;
     end_cam.update_position_from_orbit();
-    keyframes_.push_back(CameraKeyframe{duration_seconds, end_cam});
+    keyframes_.emplace_back(duration_seconds, end_cam);
 }
 
 void CameraAnimator::create_turntable(const Camera& base, float duration_seconds)
@@ -263,7 +261,7 @@ bool CameraAnimator::deserialize(const std::string& json)
 
         Camera cam;
         cam.deserialize(json.substr(cam_start, cam_end - cam_start));
-        keyframes_.push_back(CameraKeyframe{time, cam});
+        keyframes_.emplace_back(time, cam);
 
         pos = cam_end;
     }

@@ -35,11 +35,9 @@ float ease_in_out(float t)
     {
         return 4.0f * t * t * t;
     }
-    else
-    {
-        float u = -2.0f * t + 2.0f;
-        return 1.0f - u * u * u / 2.0f;
-    }
+
+    float u = -2.0f * t + 2.0f;
+    return 1.0f - u * u * u / 2.0f;
 }
 
 float bounce(float t)
@@ -52,21 +50,19 @@ float bounce(float t)
     {
         return n1 * t * t;
     }
-    else if (t < 2.0f / d1)
+    if (t < 2.0f / d1)
     {
         t -= 1.5f / d1;
         return n1 * t * t + 0.75f;
     }
-    else if (t < 2.5f / d1)
+    if (t < 2.5f / d1)
     {
         t -= 2.25f / d1;
         return n1 * t * t + 0.9375f;
     }
-    else
-    {
-        t -= 2.625f / d1;
-        return n1 * t * t + 0.984375f;
-    }
+
+    t -= 2.625f / d1;
+    return n1 * t * t + 0.984375f;
 }
 
 float elastic(float t)

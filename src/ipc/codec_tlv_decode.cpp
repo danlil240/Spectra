@@ -1,5 +1,7 @@
 #include "codec_tlv.hpp"
 
+#include <cmath>
+
 #include <cstring>
 
 #include "codec_fb.hpp"
@@ -78,7 +80,7 @@ std::string PayloadDecoder::as_string() const
 float tlv_payload_as_float(const PayloadDecoder& dec)
 {
     uint32_t bits = dec.as_u32();
-    float    val;
+    float    val  = NAN;
     std::memcpy(&val, &bits, 4);
     return val;
 }
@@ -86,7 +88,7 @@ float tlv_payload_as_float(const PayloadDecoder& dec)
 double tlv_payload_as_double(const PayloadDecoder& dec)
 {
     uint64_t bits = dec.as_u64();
-    double   val;
+    double   val  = NAN;
     std::memcpy(&val, &bits, 8);
     return val;
 }
@@ -101,7 +103,7 @@ std::vector<float> tlv_payload_as_float_array(const PayloadDecoder& dec)
     std::string raw = dec.as_string();
     if (raw.size() < 4)
         return {};
-    uint32_t count;
+    uint32_t count = 0;
     std::memcpy(&count, raw.data(), 4);
     if (raw.size() < 4 + count * 4)
         return {};
@@ -168,7 +170,8 @@ std::optional<ReqAppendDataPayload> tlv_decode_req_append_data(std::span<const u
     return p;
 }
 
-std::optional<ReqUpdatePropertyPayload> tlv_decode_req_update_property(std::span<const uint8_t> data)
+std::optional<ReqUpdatePropertyPayload> tlv_decode_req_update_property(
+    std::span<const uint8_t> data)
 {
     ReqUpdatePropertyPayload p;
     PayloadDecoder           dec(data);
@@ -227,8 +230,8 @@ std::optional<ReqUpdateBatchPayload> tlv_decode_req_update_batch(std::span<const
         if (detect_payload_format(span) == PayloadFormat::FLATBUFFERS)
         {
             auto body = strip_fb_prefix(span);
-            item      = decode_fb_req_update_property(
-                std::span<const uint8_t>(body.data(), body.size()));
+            item =
+                decode_fb_req_update_property(std::span<const uint8_t>(body.data(), body.size()));
         }
         else
         {

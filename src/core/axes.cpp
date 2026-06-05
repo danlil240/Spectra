@@ -1,5 +1,6 @@
-#include <algorithm>
 #include <cmath>
+
+#include <algorithm>
 #include <limits>
 #include <spectra/axes.hpp>
 #include <spectra/chunked_series.hpp>
@@ -556,7 +557,10 @@ AxisLimits Axes::x_limits() const
 
     if (xlim_.has_value() || autoscale_mode_ == AutoscaleMode::Manual)
         return xlim_.value_or(AxisLimits{0.0, 1.0});
-    float xmin, xmax, ymin, ymax;
+    float xmin = NAN;
+    float xmax = NAN;
+    float ymin = NAN;
+    float ymax = NAN;
     data_extent_with_mode(series_, autoscale_mode_, xmin, xmax, ymin, ymax);
     return {xmin, xmax};
 }
@@ -615,7 +619,10 @@ AxisLimits Axes::y_limits() const
         }
     }
 
-    float xmin, xmax, ymin, ymax;
+    float xmin = NAN;
+    float xmax = NAN;
+    float ymin = NAN;
+    float ymax = NAN;
     data_extent_with_mode(series_, autoscale_mode_, xmin, xmax, ymin, ymax);
     return {ymin, ymax};
 }
@@ -704,7 +711,7 @@ static double nice_ceil_d(double x, bool round_flag)
 {
     double exp_v = std::floor(std::log10(x));
     double frac  = x / std::pow(10.0, exp_v);
-    double nice;
+    double nice  = NAN;
     if (round_flag)
     {
         if (frac < 1.5)
@@ -806,12 +813,10 @@ static std::string format_tick_value(double value, double spacing)
         }
         return str;
     }
-    else
-    {
-        // Scientific notation with enough significant digits
-        std::snprintf(buf, sizeof(buf), "%.*e", total_sig_digits - 1, value);
-        return std::string(buf);
-    }
+
+    // Scientific notation with enough significant digits
+    std::snprintf(buf, sizeof(buf), "%.*e", total_sig_digits - 1, value);
+    return std::string(buf);
 }
 
 static TickResult generate_ticks(double dmin, double dmax, int target_ticks = 7)

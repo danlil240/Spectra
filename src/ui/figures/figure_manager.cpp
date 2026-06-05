@@ -849,9 +849,9 @@ void FigureManager::sync_tab_bar()
     // Rebuild tab bar from scratch (clear without firing callbacks)
     tab_bar_->clear_tabs();
 
-    for (size_t i = 0; i < ordered_ids_.size(); ++i)
+    for (unsigned long ordered_id : ordered_ids_)
     {
-        tab_bar_->add_tab(get_title(ordered_ids_[i]));
+        tab_bar_->add_tab(get_title(ordered_id));
     }
 
     // Set active

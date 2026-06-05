@@ -89,7 +89,7 @@ Series* SeriesClipboard::paste_to(AxesBase& axes_base, const SeriesSnapshot& sna
             s.width(snap.line_width);
             return &s;
         }
-        else if (snap.type == SeriesSnapshot::Type::Scatter)
+        if (snap.type == SeriesSnapshot::Type::Scatter)
         {
             auto& s = axes_2d->scatter(snap.x_data, snap.y_data);
             apply_style(s, snap);
@@ -97,14 +97,14 @@ Series* SeriesClipboard::paste_to(AxesBase& axes_base, const SeriesSnapshot& sna
             return &s;
         }
         // 3D → 2D: project by dropping z
-        else if (snap.type == SeriesSnapshot::Type::Line3D)
+        if (snap.type == SeriesSnapshot::Type::Line3D)
         {
             auto& s = axes_2d->line(snap.x_data, snap.y_data);
             apply_style(s, snap);
             s.width(snap.line_width);
             return &s;
         }
-        else if (snap.type == SeriesSnapshot::Type::Scatter3D)
+        if (snap.type == SeriesSnapshot::Type::Scatter3D)
         {
             auto& s = axes_2d->scatter(snap.x_data, snap.y_data);
             apply_style(s, snap);
@@ -123,7 +123,7 @@ Series* SeriesClipboard::paste_to(AxesBase& axes_base, const SeriesSnapshot& sna
             s.width(snap.line_width);
             return &s;
         }
-        else if (snap.type == SeriesSnapshot::Type::Scatter3D)
+        if (snap.type == SeriesSnapshot::Type::Scatter3D)
         {
             auto& s = axes_3d->scatter3d(snap.x_data, snap.y_data, snap.z_data);
             apply_style(s, snap);
@@ -131,7 +131,7 @@ Series* SeriesClipboard::paste_to(AxesBase& axes_base, const SeriesSnapshot& sna
             return &s;
         }
         // 2D → 3D: add z=0
-        else if (snap.type == SeriesSnapshot::Type::Line)
+        if (snap.type == SeriesSnapshot::Type::Line)
         {
             std::vector<float> z(snap.x_data.size(), 0.0f);
             auto&              s = axes_3d->line3d(snap.x_data, snap.y_data, z);
@@ -139,7 +139,7 @@ Series* SeriesClipboard::paste_to(AxesBase& axes_base, const SeriesSnapshot& sna
             s.width(snap.line_width);
             return &s;
         }
-        else if (snap.type == SeriesSnapshot::Type::Scatter)
+        if (snap.type == SeriesSnapshot::Type::Scatter)
         {
             std::vector<float> z(snap.x_data.size(), 0.0f);
             auto&              s = axes_3d->scatter3d(snap.x_data, snap.y_data, z);
@@ -263,7 +263,7 @@ void SeriesClipboard::clear()
 const SeriesSnapshot* SeriesClipboard::peek() const
 {
     std::lock_guard<std::mutex> lock(mutex_);
-    return (has_data_ && !buffers_.empty()) ? &buffers_[0] : nullptr;
+    return (has_data_ && !buffers_.empty()) ? buffers_.data() : nullptr;
 }
 
 const std::vector<SeriesSnapshot>& SeriesClipboard::peek_all() const

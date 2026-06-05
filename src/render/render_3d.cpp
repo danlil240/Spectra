@@ -57,8 +57,8 @@ void Renderer::render_bounding_box(Axes3D& axes, const Rect& /*viewport*/)
     // Check if limits changed — skip regeneration if cached
     auto& bc             = gpu.bbox_cache;
     bool  limits_changed = !bc.valid || bc.xmin != xlim.min || bc.xmax != xlim.max
-                          || bc.ymin != ylim.min || bc.ymax != ylim.max || bc.zmin != zlim.min
-                          || bc.zmax != zlim.max;
+                           || bc.ymin != ylim.min || bc.ymax != ylim.max || bc.zmin != zlim.min
+                           || bc.zmax != zlim.max;
 
     if (limits_changed)
     {
@@ -131,8 +131,8 @@ void Renderer::render_tick_marks(Axes3D& axes, const Rect& /*viewport*/)
     // Check if limits changed — skip regeneration if cached
     auto& tc             = gpu.tick_cache;
     bool  limits_changed = !tc.valid || tc.xmin != xlim.min || tc.xmax != xlim.max
-                          || tc.ymin != ylim.min || tc.ymax != ylim.max || tc.zmin != zlim.min
-                          || tc.zmax != zlim.max;
+                           || tc.ymin != ylim.min || tc.ymax != ylim.max || tc.zmin != zlim.min
+                           || tc.zmax != zlim.max;
 
     if (limits_changed)
     {
@@ -144,9 +144,9 @@ void Renderer::render_tick_marks(Axes3D& axes, const Rect& /*viewport*/)
                            static_cast<float>(zlim.max)};
 
         // Tick length: ~2% of axis range
-        float x_tick_len = static_cast<float>((ylim.max - ylim.min) * 0.02);
-        float y_tick_len = static_cast<float>((xlim.max - xlim.min) * 0.02);
-        float z_tick_len = static_cast<float>((xlim.max - xlim.min) * 0.02);
+        auto x_tick_len = static_cast<float>((ylim.max - ylim.min) * 0.02);
+        auto y_tick_len = static_cast<float>((xlim.max - xlim.min) * 0.02);
+        auto z_tick_len = static_cast<float>((xlim.max - xlim.min) * 0.02);
 
         Axes3DRenderer::TickMarkData x_data;
         x_data.generate_x_ticks(axes, min_corner, max_corner);
@@ -220,9 +220,9 @@ void Renderer::render_tick_marks(Axes3D& axes, const Rect& /*viewport*/)
     SeriesPushConstants pc{};
     const auto&         theme_colors = theme_mgr_.colors();
     ui::Color           tick_color(theme_colors.grid_major.r * 0.8f,
-                         theme_colors.grid_major.g * 0.8f,
-                         theme_colors.grid_major.b * 0.8f,
-                         theme_colors.grid_major.a);
+                                   theme_colors.grid_major.g * 0.8f,
+                                   theme_colors.grid_major.b * 0.8f,
+                                   theme_colors.grid_major.a);
     set_pc_color_3d(pc.color, tick_color, theme_mgr_);
     pc.line_width    = 1.5f;
     pc.data_offset_x = 0.0f;
@@ -240,8 +240,12 @@ void Renderer::render_arrows(Axes3D& axes, const Rect& /*viewport*/)
     auto  zlim = axes.z_limits();
     auto& gpu  = axes_gpu_data_[&axes];
 
-    float x0 = xlim.min, y0 = ylim.min, z0 = zlim.min;
-    float x1 = xlim.max, y1 = ylim.max, z1 = zlim.max;
+    float x0          = xlim.min;
+    float y0          = ylim.min;
+    float z0          = zlim.min;
+    float x1          = xlim.max;
+    float y1          = ylim.max;
+    float z1          = zlim.max;
     float arrow_len_x = (xlim.max - xlim.min) * 0.18f;
     float arrow_len_y = (ylim.max - ylim.min) * 0.18f;
     float arrow_len_z = (zlim.max - zlim.min) * 0.18f;
@@ -267,7 +271,7 @@ void Renderer::render_arrows(Axes3D& axes, const Rect& /*viewport*/)
     vec3 n_z_end   = xform_pt({x0, y0, z1 + arrow_len_z});
 
     // In normalized space, box_half_size is the reference for arrow thickness.
-    float hs = axes.box_half_size();
+    float hs = spectra::Axes3D::box_half_size();
 
     // Geometry parameters for solid lit 3D arrows
     constexpr int   SEGMENTS    = 16;
@@ -322,7 +326,8 @@ void Renderer::render_arrows(Axes3D& axes, const Rect& /*viewport*/)
             return;
         vec3 d = {dir.x / total_len, dir.y / total_len, dir.z / total_len};
 
-        vec3 u{}, v{};
+        vec3 u{};
+        vec3 v{};
         make_basis(d, u, v);
 
         float cone_len  = total_len * CONE_LENGTH;
@@ -453,7 +458,7 @@ void Renderer::render_arrows(Axes3D& axes, const Rect& /*viewport*/)
     // Upload and draw all arrow geometry (Arrow3D pipeline — lit, depth tested).
     // Geometry is in normalized space, so we temporarily set the UBO model matrix
     // to identity (the vertex shader must not re-apply the non-uniform data scale).
-    uint32_t total_floats   = static_cast<uint32_t>(arrow_tri_scratch_.size());
+    auto     total_floats   = static_cast<uint32_t>(arrow_tri_scratch_.size());
     uint32_t tri_vert_count = total_floats / 6;
     if (tri_vert_count > 0)
     {

@@ -95,12 +95,13 @@ static void run_golden_test_3d(const std::string&                 scene_name,
     {
         if (auto* r = app.renderer())
         {
-            fig.for_each_axes([&](AxesBase* axes)
-                              {
-                                  for (auto& ser_ptr : axes->series())
-                                      r->notify_series_removed(ser_ptr.get());
-                                  r->notify_axes_removed(axes);
-                              });
+            fig.for_each_axes(
+                [&](AxesBase* axes)
+                {
+                    for (auto& ser_ptr : axes->series())
+                        r->notify_series_removed(ser_ptr.get());
+                    r->notify_axes_removed(axes);
+                });
             r->notify_figure_removed(&fig);
         }
         app.figure_registry().unregister_figure(fig_id);

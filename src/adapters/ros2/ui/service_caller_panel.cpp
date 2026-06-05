@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <ranges>
 #include <sstream>
 
 #ifdef SPECTRA_USE_IMGUI
@@ -171,21 +172,21 @@ void ServiceCallerPanel::draw(bool* p_open)
     const float avail_h = ImGui::GetContentRegionAvail().y;
 
     // --- Left pane: service list ---
-    ImGui::BeginChild("##svc_list_pane", ImVec2(list_w, avail_h), true);
+    ImGui::BeginChild("##svc_list_pane", ImVec2(list_w, avail_h), 1);
     draw_service_list(list_w);
     ImGui::EndChild();
 
     ImGui::SameLine(0.0f, 4.0f);
 
     // --- Middle pane: request form ---
-    ImGui::BeginChild("##svc_form_pane", ImVec2(form_w, avail_h), true);
+    ImGui::BeginChild("##svc_form_pane", ImVec2(form_w, avail_h), 1);
     draw_request_form(form_w);
     ImGui::EndChild();
 
     ImGui::SameLine(0.0f, 4.0f);
 
     // --- Right pane: history ---
-    ImGui::BeginChild("##svc_hist_pane", ImVec2(hist_w, avail_h), true);
+    ImGui::BeginChild("##svc_hist_pane", ImVec2(hist_w, avail_h), 1);
     draw_history_pane();
     ImGui::EndChild();
 
@@ -468,9 +469,9 @@ void ServiceCallerPanel::draw_history_pane()
         ImGui::TableHeadersRow();
 
         // Iterate newest-first.
-        for (auto it = history_snap_.rbegin(); it != history_snap_.rend(); ++it)
+        for (auto& it : std::ranges::reverse_view(history_snap_))
         {
-            const CallRecord& rec      = **it;
+            const CallRecord& rec      = *it;
             bool              selected = (rec.id == selected_history_);
             draw_history_entry(rec, selected);
         }
@@ -485,7 +486,7 @@ void ServiceCallerPanel::draw_history_pane()
         ImGui::TextDisabled("Response:");
         ImGui::BeginChild("##json_view",
                           ImVec2(-1.0f, 0.0f),
-                          false,
+                          0,
                           ImGuiWindowFlags_HorizontalScrollbar);
         ImGui::TextUnformatted(response_json_preview_.c_str());
         ImGui::EndChild();

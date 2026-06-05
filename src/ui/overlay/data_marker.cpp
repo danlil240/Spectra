@@ -133,15 +133,14 @@ void DataMarkerManager::draw(const Rect& viewport,
     const float ring_r   = 6.0f;         // outer ring radius
     const float gap      = 4.0f;         // gap between dot and arrow tip
 
-    for (size_t i = 0; i < markers_.size(); ++i)
+    for (const auto& m : markers_)
     {
-        const auto& m = markers_[i];
-
         // Filter by axes when requested (multi-subplot support)
         if (filter_axes && m.axes != filter_axes)
             continue;
 
-        float sx, sy;
+        float sx = NAN;
+        float sy = NAN;
         data_to_screen(m.data_x,
                        m.data_y,
                        viewport,
@@ -198,9 +197,11 @@ void DataMarkerManager::draw(const Rect& viewport,
         float box_h = text_h + pad_y * 2.0f;
 
         // ── Position the box above the point (flip below if too close to top)
-        bool  flip   = (sy - ring_r - gap - arrow_h - box_h) < viewport.y;
-        float box_cx = sx;   // centered horizontally on point
-        float box_top, box_bot, arrow_tip_y;
+        bool  flip        = (sy - ring_r - gap - arrow_h - box_h) < viewport.y;
+        float box_cx      = sx;   // centered horizontally on point
+        float box_top     = NAN;
+        float box_bot     = NAN;
+        float arrow_tip_y = NAN;
 
         if (!flip)
         {
@@ -338,7 +339,8 @@ int DataMarkerManager::hit_test(float       screen_x,
         if (filter_axes && m.axes != filter_axes)
             continue;
 
-        float sx, sy;
+        float sx = NAN;
+        float sy = NAN;
         data_to_screen(m.data_x,
                        m.data_y,
                        viewport,
@@ -376,11 +378,12 @@ int DataMarkerManager::hit_test(float       screen_x,
         float text_w = std::max({name_sz.x, coord_sz.x, deriv_sz.x});
         float text_h = coord_sz.y + (has_name ? (name_sz.y + 3.0f) : 0.0f)
                        + (has_deriv ? (deriv_sz.y + 3.0f) : 0.0f);
-        float box_w = text_w + pad_x * 2.0f;
-        float box_h = text_h + pad_y * 2.0f;
+        float box_w  = text_w + pad_x * 2.0f;
+        float box_h  = text_h + pad_y * 2.0f;
 
-        bool  flip = (sy - ring_r - gap - arrow_h - box_h) < viewport.y;
-        float box_top, box_bot;
+        bool  flip    = (sy - ring_r - gap - arrow_h - box_h) < viewport.y;
+        float box_top = NAN;
+        float box_bot = NAN;
         if (!flip)
         {
             float arrow_tip_y = sy - ring_r - gap;

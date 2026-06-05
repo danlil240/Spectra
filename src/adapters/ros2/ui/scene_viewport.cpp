@@ -460,8 +460,8 @@ SceneCanvasResult draw_scene_canvas(SceneManager&               scene,
         {
             if (!center_visible)
                 continue;
-            const float half_w = static_cast<float>(entity.billboard->width * 16.0);
-            const float half_h = static_cast<float>(entity.billboard->height * 16.0);
+            const auto half_w = static_cast<float>(entity.billboard->width * 16.0);
+            const auto half_h = static_cast<float>(entity.billboard->height * 16.0);
             draw_list->AddRect(ImVec2(center.x - half_w, center.y - half_h),
                                ImVec2(center.x + half_w, center.y + half_h),
                                color,
@@ -496,7 +496,10 @@ SceneCanvasResult draw_scene_canvas(SceneManager&               scene,
             {
                 if (prop.key == "color")
                 {
-                    float r = 0.45f, g = 0.45f, b = 0.45f, a = 0.6f;
+                    float r = 0.45f;
+                    float g = 0.45f;
+                    float b = 0.45f;
+                    float a = 0.6f;
                     std::sscanf(prop.value.c_str(), "%f, %f, %f, %f", &r, &g, &b, &a);
                     grid_color = IM_COL32(static_cast<int>(std::clamp(r, 0.0f, 1.0f) * 255.0f),
                                           static_cast<int>(std::clamp(g, 0.0f, 1.0f) * 255.0f),
@@ -511,7 +514,10 @@ SceneCanvasResult draw_scene_canvas(SceneManager&               scene,
             for (int line = 0; line <= cell_count; ++line)
             {
                 const float   t = -half + cell_size * static_cast<float>(line);
-                spectra::vec3 a_world{}, b_world{}, c_world{}, d_world{};
+                spectra::vec3 a_world{};
+                spectra::vec3 b_world{};
+                spectra::vec3 c_world{};
+                spectra::vec3 d_world{};
                 if (plane == "xy")
                 {
                     a_world = {offset.x - half, offset.y + t, offset.z};
@@ -534,7 +540,10 @@ SceneCanvasResult draw_scene_canvas(SceneManager&               scene,
                     d_world = {offset.x + t, offset.y, offset.z + half};
                 }
 
-                ImVec2 sa{}, sb{}, sc{}, sd{};
+                ImVec2 sa{};
+                ImVec2 sb{};
+                ImVec2 sc{};
+                ImVec2 sd{};
                 if (project_line_clipped(camera, a_world, b_world, origin, size, sa, sb))
                 {
                     draw_list->AddLine(sa, sb, grid_color, 1.0f);
@@ -674,7 +683,7 @@ void SceneViewport::draw(bool*              p_open,
 
     ImGui::Separator();
     const float list_height = std::max(60.0f, avail.y * 0.10f);
-    if (ImGui::BeginChild("##scene_entities", ImVec2(0.0f, list_height), true))
+    if (ImGui::BeginChild("##scene_entities", ImVec2(0.0f, list_height), 1))
     {
         const auto selected_index = scene.selected_index();
         if (scene.entities().empty())

@@ -199,7 +199,7 @@ class ShapeSeries3D : public Series
                        float z2,
                        float r_bottom,
                        float r_top,
-                       int   segments,
+                       int   segs,
                        bool  cap_bottom,
                        bool  cap_top);
 };

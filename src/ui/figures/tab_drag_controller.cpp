@@ -9,6 +9,7 @@
     #ifdef SPECTRA_USE_GLFW
         #define GLFW_INCLUDE_NONE
         #include <GLFW/glfw3.h>
+        #include <cmath>
     #elif defined(SPECTRA_USE_SDL3)
         #include <SDL3/SDL.h>
     #endif
@@ -141,9 +142,11 @@ void TabDragController::update(float mouse_x,
                 {
                     if (!wctx || !wctx->glfw_window || wctx->is_preview)
                         continue;
-                    double cx, cy;
+                    double cx = NAN;
+                    double cy = NAN;
                     window_cursor_pos(wctx->glfw_window, cx, cy);
-                    int ww, wh;
+                    int ww = 0;
+                    int wh = 0;
                     window_size(wctx->glfw_window, ww, wh);
                     // Content area check with generous margin for title bar
                     if (cx >= -10 && cx < ww + 10 && cy >= -50 && cy < wh + 10)
@@ -170,7 +173,8 @@ void TabDragController::update(float mouse_x,
                     auto* target_wctx = window_manager_->find_window(last_hovered_window_id_);
                     if (target_wctx && target_wctx->glfw_window)
                     {
-                        double lcx, lcy;
+                        double lcx = NAN;
+                        double lcy = NAN;
                         window_cursor_pos(target_wctx->glfw_window, lcx, lcy);
                         window_manager_->compute_cross_window_drop_zone(last_hovered_window_id_,
                                                                         static_cast<float>(lcx),
@@ -410,9 +414,11 @@ bool TabDragController::is_outside_all_windows(float /*screen_x*/, float /*scree
         if (!wctx || !wctx->glfw_window || wctx->is_preview)
             continue;
 
-        double cx, cy;
+        double cx = NAN;
+        double cy = NAN;
         window_cursor_pos(wctx->glfw_window, cx, cy);
-        int ww, wh;
+        int ww = 0;
+        int wh = 0;
         window_size(wctx->glfw_window, ww, wh);
 
         if (cx >= -SIDE_MARGIN && cx < ww + SIDE_MARGIN && cy >= -TITLE_BAR_MARGIN
@@ -444,9 +450,11 @@ uint32_t TabDragController::find_window_at(float /*screen_x*/, float /*screen_y*
         if (!wctx || !wctx->glfw_window || wctx->is_preview)
             continue;
 
-        double cx, cy;
+        double cx = NAN;
+        double cy = NAN;
         window_cursor_pos(wctx->glfw_window, cx, cy);
-        int ww, wh;
+        int ww = 0;
+        int wh = 0;
         window_size(wctx->glfw_window, ww, wh);
 
         if (cx >= 0 && cx < ww && cy >= 0 && cy < wh)

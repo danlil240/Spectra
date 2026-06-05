@@ -315,7 +315,10 @@ int WindowManager::compute_cross_window_drop_zone(uint32_t target_wid, float loc
         zone = 4;   // Bottom
 
     // Compute highlight rect
-    float hx = b.x, hy = b.y, hw = b.w, hh = b.h;
+    float hx = b.x;
+    float hy = b.y;
+    float hw = b.w;
+    float hh = b.h;
     switch (zone)
     {
         case 1:   // Left
@@ -333,7 +336,6 @@ int WindowManager::compute_cross_window_drop_zone(uint32_t target_wid, float loc
             hh = b.h * 0.5f;
             break;
         case 5:   // Center
-            break;
         default:
             break;
     }
@@ -482,7 +484,8 @@ WindowContext* WindowManager::create_preview_window_impl(uint32_t           widt
         // Update title, resize if needed, and position before showing
         glfwSetWindowTitle(glfw_win, figure_title.c_str());
 
-        int cur_w = 0, cur_h = 0;
+        int cur_w = 0;
+        int cur_h = 0;
         glfwGetWindowSize(glfw_win, &cur_w, &cur_h);
         if (cur_w != static_cast<int>(width) || cur_h != static_cast<int>(height))
         {
@@ -608,7 +611,7 @@ WindowContext* WindowManager::create_preview_window_impl(uint32_t           widt
 #endif
 }
 
-void WindowManager::move_preview_window(int screen_x, int screen_y)
+void WindowManager::move_preview_window(int screen_x, int screen_y) const
 {
 #ifdef SPECTRA_USE_GLFW
     auto* wctx = preview_window();
@@ -616,7 +619,8 @@ void WindowManager::move_preview_window(int screen_x, int screen_y)
         return;
 
     auto* glfw_win = static_cast<GLFWwindow*>(wctx->glfw_window);
-    int   w = 0, h = 0;
+    int   w        = 0;
+    int   h        = 0;
     glfwGetWindowSize(glfw_win, &w, &h);
     glfwSetWindowPos(glfw_win, screen_x - w / 2, screen_y - h / 3);
 #else

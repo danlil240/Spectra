@@ -336,7 +336,9 @@ vec3 SurfaceSeries::compute_centroid() const
         return {0.0f, 0.0f, 0.0f};
     }
 
-    float x_sum = 0.0f, y_sum = 0.0f, z_sum = 0.0f;
+    float x_sum = 0.0f;
+    float y_sum = 0.0f;
+    float z_sum = 0.0f;
     for (float x : x_grid_)
         x_sum += x;
     for (float y : y_grid_)

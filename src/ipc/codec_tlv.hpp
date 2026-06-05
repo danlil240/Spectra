@@ -147,8 +147,9 @@ std::vector<uint8_t> tlv_payload_as_blob(const PayloadDecoder& dec);
 
 std::optional<ReqSetDataPayload>        tlv_decode_req_set_data(std::span<const uint8_t> data);
 std::optional<ReqAppendDataPayload>     tlv_decode_req_append_data(std::span<const uint8_t> data);
-std::optional<ReqUpdatePropertyPayload> tlv_decode_req_update_property(std::span<const uint8_t> data);
-std::optional<ReqUpdateBatchPayload>    tlv_decode_req_update_batch(std::span<const uint8_t> data);
-std::optional<ReqAnimStartPayload>        tlv_decode_req_anim_start(std::span<const uint8_t> data);
+std::optional<ReqUpdatePropertyPayload> tlv_decode_req_update_property(
+    std::span<const uint8_t> data);
+std::optional<ReqUpdateBatchPayload> tlv_decode_req_update_batch(std::span<const uint8_t> data);
+std::optional<ReqAnimStartPayload>   tlv_decode_req_anim_start(std::span<const uint8_t> data);
 
 }   // namespace spectra::ipc

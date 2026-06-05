@@ -230,8 +230,8 @@ static std::vector<std::string> json_get_string_array(const std::string& json,
 
 std::string ExpressionPreset::serialize() const
 {
-    std::string j = "{\"name\":\"" + json_escape(name) + "\",\"expression\":\""
-                    + json_escape(expression) + "\",\"variables\":[";
+    std::string j = R"({"name":")" + json_escape(name) + R"(","expression":")"
+                    + json_escape(expression) + R"(","variables":[)";
     for (size_t i = 0; i < variables.size(); ++i)
     {
         if (i)

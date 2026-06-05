@@ -1428,7 +1428,8 @@ class RosQAAgent
 
         // Wait for all messages to be injected (bag has BAG_MSG_COUNT messages).
         [[maybe_unused]] const bool all_injected = wait_until(
-            [this]() {
+            [this]()
+            {
                 return shell_->bag_player()->total_injected()
                        >= static_cast<uint64_t>(BAG_MSG_COUNT);
             },

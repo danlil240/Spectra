@@ -134,8 +134,8 @@ std::string ShortcutConfig::serialize() const
     {
         const auto& o = overrides_[i];
         os << "    {\n";
-        os << "      \"command\": \"" << escape_json(o.command_id) << "\",\n";
-        os << "      \"shortcut\": \"" << escape_json(o.shortcut_str) << "\",\n";
+        os << R"(      "command": ")" << escape_json(o.command_id) << "\",\n";
+        os << R"(      "shortcut": ")" << escape_json(o.shortcut_str) << "\",\n";
         os << "      \"removed\": " << (o.removed ? "true" : "false") << "\n";
         os << "    }";
         if (i + 1 < overrides_.size())

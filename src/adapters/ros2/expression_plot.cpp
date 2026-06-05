@@ -18,7 +18,7 @@ namespace spectra::adapters::ros2
 // ---------------------------------------------------------------------------
 
 ExpressionPlot::ExpressionPlot(Ros2Bridge& bridge, MessageIntrospector& intr)
-    : bridge_(bridge), intr_(intr)
+    : bridge_(bridge), intr_(intr), axes_(&figure_->subplot(1, 1, 1))
 {
     spectra::FigureConfig cfg;
     cfg.width  = 1280;
@@ -26,7 +26,7 @@ ExpressionPlot::ExpressionPlot(Ros2Bridge& bridge, MessageIntrospector& intr)
     figure_    = std::make_unique<spectra::Figure>(cfg);
 
     // Create a single 1×1 subplot axes.
-    axes_                   = &figure_->subplot(1, 1, 1);
+
     spectra::LineSeries& ls = axes_->line();
     ls.label("expression");
     ls.color(spectra::palette::default_cycle[0]);
@@ -196,8 +196,8 @@ void ExpressionPlot::poll()
     // Prune data older than the visible view plus the configured history buffer.
     if (series_ && pruning_enabled_)
     {
-        const auto  xlim         = axes_->x_limits();
-        const float prune_before = static_cast<float>(xlim.min - prune_buffer_s_);
+        const auto xlim         = axes_->x_limits();
+        const auto prune_before = static_cast<float>(xlim.min - prune_buffer_s_);
         series_->erase_before(prune_before);
     }
 

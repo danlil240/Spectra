@@ -57,8 +57,8 @@ static std::string fmt_float(float v)
 // Render a single 2D series as an HTML <table>.
 static std::string series_2d_table(const Series& s, int series_idx)
 {
-    const LineSeries*    line    = dynamic_cast<const LineSeries*>(&s);
-    const ScatterSeries* scatter = dynamic_cast<const ScatterSeries*>(&s);
+    const auto* line    = dynamic_cast<const LineSeries*>(&s);
+    const auto* scatter = dynamic_cast<const ScatterSeries*>(&s);
 
     if (!line && !scatter)
         return {};
@@ -80,7 +80,8 @@ static std::string series_2d_table(const Series& s, int series_idx)
     size_t n = line ? line->point_count() : (scatter ? scatter->point_count() : 0);
     for (size_t i = 0; i < n; ++i)
     {
-        float x = 0.0f, y = 0.0f;
+        float x = 0.0f;
+        float y = 0.0f;
         if (line)
         {
             x = line->x_data()[i];
@@ -122,7 +123,9 @@ static std::string series_3d_table(const Series& s, int series_idx)
     size_t n = line3 ? line3->point_count() : (scat3 ? scat3->point_count() : 0);
     for (size_t i = 0; i < n; ++i)
     {
-        float x = 0.0f, y = 0.0f, z = 0.0f;
+        float x = 0.0f;
+        float y = 0.0f;
+        float z = 0.0f;
         if (line3)
         {
             x = line3->x_data()[i];

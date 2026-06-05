@@ -61,7 +61,7 @@ std::vector<std::vector<FigureId>> App::compute_window_groups() const
     for (auto id : all_ids)
     {
         FigureId cur = id;
-        while (sibling_map_.count(cur))
+        while (sibling_map_.contains(cur))
             cur = sibling_map_.at(cur);
         root_map[id] = cur;
     }
@@ -92,7 +92,7 @@ void App::run()
     if (!multiproc)
     {
         const char* env = std::getenv("SPECTRA_SOCKET");
-        multiproc       = (env && env[0] != '\0');
+        multiproc       = ((env != nullptr) && env[0] != '\0');
     }
 
     if (multiproc)

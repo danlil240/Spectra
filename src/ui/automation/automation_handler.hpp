@@ -32,14 +32,12 @@ enum class AutomationContextFlag : uint8_t
 
 constexpr AutomationContextFlag operator|(AutomationContextFlag a, AutomationContextFlag b)
 {
-    return static_cast<AutomationContextFlag>(static_cast<uint8_t>(a)
-                                              | static_cast<uint8_t>(b));
+    return static_cast<AutomationContextFlag>(static_cast<uint8_t>(a) | static_cast<uint8_t>(b));
 }
 
 constexpr AutomationContextFlag operator&(AutomationContextFlag a, AutomationContextFlag b)
 {
-    return static_cast<AutomationContextFlag>(static_cast<uint8_t>(a)
-                                              & static_cast<uint8_t>(b));
+    return static_cast<AutomationContextFlag>(static_cast<uint8_t>(a) & static_cast<uint8_t>(b));
 }
 
 constexpr bool has_automation_flag(AutomationContextFlag flags, AutomationContextFlag bit)
@@ -63,18 +61,18 @@ struct ParamSpec
 
 struct AutomationHandlerEntry
 {
-    std::string              method;
-    std::string              description;
-    AutomationContextFlag    context = AutomationContextFlag::None;
-    std::vector<ParamSpec>   params;
-    AutomationHandlerFn      handler;
+    std::string            method;
+    std::string            description;
+    AutomationContextFlag  context = AutomationContextFlag::None;
+    std::vector<ParamSpec> params;
+    AutomationHandlerFn    handler;
 };
 
-inline AutomationHandlerEntry automation_handler(std::string              method,
-                                                 std::string              description,
-                                                 AutomationContextFlag    context,
+inline AutomationHandlerEntry automation_handler(std::string                      method,
+                                                 std::string                      description,
+                                                 AutomationContextFlag            context,
                                                  std::initializer_list<ParamSpec> params,
-                                                 AutomationHandlerFn      handler)
+                                                 AutomationHandlerFn              handler)
 {
     return AutomationHandlerEntry{std::move(method),
                                   std::move(description),

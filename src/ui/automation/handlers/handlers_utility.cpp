@@ -26,21 +26,21 @@ std::vector<AutomationHandlerEntry> make_utility_handlers()
             req.response_json = json_ok(req.id, "{\"pumped\":" + std::to_string(count) + "}");
         }));
 
-    entries.push_back(automation_handler(
-        "wait_frames",
-        "Defer the response until N frames have elapsed.",
-        AutomationContextFlag::None,
-        {},
-        [](AutomationRequest& req, App* /*app*/, WindowUIContext* /*ui_ctx*/)
-        { req.response_json = json_ok(req.id, "{\"waited\":true}"); }));
+    entries.push_back(
+        automation_handler("wait_frames",
+                           "Defer the response until N frames have elapsed.",
+                           AutomationContextFlag::None,
+                           {},
+                           [](AutomationRequest& req, App* /*app*/, WindowUIContext* /*ui_ctx*/)
+                           { req.response_json = json_ok(req.id, "{\"waited\":true}"); }));
 
-    entries.push_back(automation_handler(
-        "ping",
-        "Ping the Spectra application to verify the connection is alive.",
-        AutomationContextFlag::None,
-        {},
-        [](AutomationRequest& req, App* /*app*/, WindowUIContext* /*ui_ctx*/)
-        { req.response_json = json_ok(req.id, "{\"pong\":true}"); }));
+    entries.push_back(
+        automation_handler("ping",
+                           "Ping the Spectra application to verify the connection is alive.",
+                           AutomationContextFlag::None,
+                           {},
+                           [](AutomationRequest& req, App* /*app*/, WindowUIContext* /*ui_ctx*/)
+                           { req.response_json = json_ok(req.id, "{\"pong\":true}"); }));
 
     return entries;
 }

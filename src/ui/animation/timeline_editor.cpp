@@ -14,10 +14,7 @@
 namespace spectra
 {
 
-TimelineEditor::TimelineEditor()
-{
-    view_end_ = duration_;
-}
+TimelineEditor::TimelineEditor() : view_end_(duration_) {}
 
 // ─── Playback ────────────────────────────────────────────────────────────────
 
@@ -972,7 +969,7 @@ std::string TimelineEditor::serialize() const
         if (i > 0)
             ss << ",";
         const auto& t = tracks_[i];
-        ss << "{\"id\":" << t.id << ",\"name\":\"" << t.name << "\""
+        ss << "{\"id\":" << t.id << R"(,"name":")" << t.name << "\""
            << ",\"color\":[" << t.color.r << "," << t.color.g << "," << t.color.b << ","
            << t.color.a << "]"
            << ",\"visible\":" << (t.visible ? "true" : "false")
@@ -1092,7 +1089,7 @@ void TimelineEditor::draw(float width, float height)
     std::lock_guard lock(mutex_);
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
-    ImGui::BeginChild("##timeline_editor", ImVec2(width, height), true);
+    ImGui::BeginChild("##timeline_editor", ImVec2(width, height), 1);
 
     const float track_height      = 28.0f;
     const float ruler_height      = 24.0f;

@@ -79,17 +79,19 @@ void Renderer::render_plot_text(Figure& figure)
 
     auto color_to_rgba = [this](const ui::Color& c) -> uint32_t
     {
-        float cr = c.r, cg = c.g, cb = c.b;
+        float cr = c.r;
+        float cg = c.g;
+        float cb = c.b;
         if (should_linearize_geom(theme_mgr_))
         {
             cr = srgb_chan_to_linear_geom(cr);
             cg = srgb_chan_to_linear_geom(cg);
             cb = srgb_chan_to_linear_geom(cb);
         }
-        uint8_t r = static_cast<uint8_t>(cr * 255);
-        uint8_t g = static_cast<uint8_t>(cg * 255);
-        uint8_t b = static_cast<uint8_t>(cb * 255);
-        uint8_t a = static_cast<uint8_t>(c.a * 255);
+        auto r = static_cast<uint8_t>(cr * 255);
+        auto g = static_cast<uint8_t>(cg * 255);
+        auto b = static_cast<uint8_t>(cb * 255);
+        auto a = static_cast<uint8_t>(c.a * 255);
         return static_cast<uint32_t>(r) | (static_cast<uint32_t>(g) << 8)
                | (static_cast<uint32_t>(b) << 16) | (static_cast<uint32_t>(a) << 24);
     };
@@ -116,7 +118,8 @@ void Renderer::render_plot_text(Figure& figure)
             continue;
 
         // Phase 2 (LT-5): read limits via AxesViewModel when available
-        AxisLimits xlim, ylim;
+        AxisLimits xlim;
+        AxisLimits ylim;
         {
             auto* axes2d_ptr = dynamic_cast<Axes*>(&axes);
             if (figure_vm_ && axes2d_ptr)
@@ -265,10 +268,10 @@ void Renderer::render_plot_text(Figure& figure)
 
                 // Determine text color: use annotation color if set, else series color
                 Color    tc        = (ann.text_color.a > 0.01f) ? ann.text_color : sc;
-                uint8_t  tr        = static_cast<uint8_t>(tc.r * 255);
-                uint8_t  tg        = static_cast<uint8_t>(tc.g * 255);
-                uint8_t  tb        = static_cast<uint8_t>(tc.b * 255);
-                uint8_t  ta        = static_cast<uint8_t>(tc.a * shape->opacity() * 255);
+                auto     tr        = static_cast<uint8_t>(tc.r * 255);
+                auto     tg        = static_cast<uint8_t>(tc.g * 255);
+                auto     tb        = static_cast<uint8_t>(tc.b * 255);
+                auto     ta        = static_cast<uint8_t>(tc.a * shape->opacity() * 255);
                 uint32_t text_rgba = static_cast<uint32_t>(tr) | (static_cast<uint32_t>(tg) << 8)
                                      | (static_cast<uint32_t>(tb) << 16)
                                      | (static_cast<uint32_t>(ta) << 24);
@@ -333,17 +336,17 @@ void Renderer::render_plot_text(Figure& figure)
         auto ylim = axes3d->y_limits();
         auto zlim = axes3d->z_limits();
 
-        float x0 = static_cast<float>(xlim.min);
-        float y0 = static_cast<float>(ylim.min);
-        float z0 = static_cast<float>(zlim.min);
+        auto x0 = static_cast<float>(xlim.min);
+        auto y0 = static_cast<float>(ylim.min);
+        auto z0 = static_cast<float>(zlim.min);
 
         vec3 view_dir       = vec3_normalize(cam.target - cam.position);
         bool looking_down_y = std::abs(view_dir.y) > 0.98f;
         bool looking_down_z = std::abs(view_dir.z) > 0.98f;
 
-        float           x_tick_offset = static_cast<float>((xlim.max - xlim.min) * 0.04);
-        float           y_tick_offset = static_cast<float>((xlim.max - xlim.min) * 0.04);
-        float           z_tick_offset = static_cast<float>((xlim.max - xlim.min) * 0.04);
+        auto            x_tick_offset = static_cast<float>((xlim.max - xlim.min) * 0.04);
+        auto            y_tick_offset = static_cast<float>((xlim.max - xlim.min) * 0.04);
+        auto            z_tick_offset = static_cast<float>((xlim.max - xlim.min) * 0.04);
         constexpr float tick_label_min_spacing_px = 18.0f;
         auto            should_skip_overlapping_tick =
             [&](float sx, float sy, float& last_sx, float& last_sy, bool& has_last) -> bool
@@ -366,8 +369,9 @@ void Renderer::render_plot_text(Figure& figure)
 
         // --- X-axis tick labels ---
         {
-            auto  x_ticks = axes3d->compute_x_ticks();
-            float last_sx = 0.0f, last_sy = 0.0f;
+            auto  x_ticks  = axes3d->compute_x_ticks();
+            float last_sx  = 0.0f;
+            float last_sy  = 0.0f;
             bool  has_last = false;
             for (size_t i = 0; i < x_ticks.positions.size(); ++i)
             {
@@ -393,8 +397,9 @@ void Renderer::render_plot_text(Figure& figure)
         // --- Y-axis tick labels ---
         if (!looking_down_y)
         {
-            auto  y_ticks = axes3d->compute_y_ticks();
-            float last_sx = 0.0f, last_sy = 0.0f;
+            auto  y_ticks  = axes3d->compute_y_ticks();
+            float last_sx  = 0.0f;
+            float last_sy  = 0.0f;
             bool  has_last = false;
             for (size_t i = 0; i < y_ticks.positions.size(); ++i)
             {
@@ -420,8 +425,9 @@ void Renderer::render_plot_text(Figure& figure)
         // --- Z-axis tick labels ---
         if (!looking_down_z)
         {
-            auto  z_ticks = axes3d->compute_z_ticks();
-            float last_sx = 0.0f, last_sy = 0.0f;
+            auto  z_ticks  = axes3d->compute_z_ticks();
+            float last_sx  = 0.0f;
+            float last_sy  = 0.0f;
             bool  has_last = false;
             for (size_t i = 0; i < z_ticks.positions.size(); ++i)
             {
@@ -446,12 +452,12 @@ void Renderer::render_plot_text(Figure& figure)
 
         // --- 3D axis arrow labels ---
         {
-            float x1          = static_cast<float>(xlim.max);
-            float y1          = static_cast<float>(ylim.max);
-            float z1          = static_cast<float>(zlim.max);
-            float arrow_len_x = static_cast<float>((xlim.max - xlim.min) * 0.18);
-            float arrow_len_y = static_cast<float>((ylim.max - ylim.min) * 0.18);
-            float arrow_len_z = static_cast<float>((zlim.max - zlim.min) * 0.18);
+            auto x1          = static_cast<float>(xlim.max);
+            auto y1          = static_cast<float>(ylim.max);
+            auto z1          = static_cast<float>(zlim.max);
+            auto arrow_len_x = static_cast<float>((xlim.max - xlim.min) * 0.18);
+            auto arrow_len_y = static_cast<float>((ylim.max - ylim.min) * 0.18);
+            auto arrow_len_z = static_cast<float>((zlim.max - zlim.min) * 0.18);
 
             auto pack_rgba = [](uint8_t r, uint8_t g, uint8_t b, uint8_t a) -> uint32_t
             {
@@ -533,8 +539,8 @@ void Renderer::render_plot_geometry(Figure& figure)
 {
     uint32_t fig_w = figure.width();
     uint32_t fig_h = figure.height();
-    float    fw    = static_cast<float>(fig_w);
-    float    fh    = static_cast<float>(fig_h);
+    auto     fw    = static_cast<float>(fig_w);
+    auto     fh    = static_cast<float>(fig_h);
 
     // Select the buffer slot for this frame so that the previous in-flight
     // frame's GPU commands still read from the other slot while we write this one.
@@ -589,7 +595,8 @@ void Renderer::render_plot_geometry(Figure& figure)
         }
 
         // Phase 2 (LT-5): read limits via AxesViewModel when available
-        AxisLimits xlim, ylim;
+        AxisLimits xlim;
+        AxisLimits ylim;
         {
             auto* axes2d_ptr = dynamic_cast<Axes*>(&axes);
             if (figure_vm_ && axes2d_ptr)
@@ -626,9 +633,9 @@ void Renderer::render_plot_geometry(Figure& figure)
         auto y_ticks = axes.compute_y_ticks();
 
         // X tick marks (at bottom edge of viewport)
-        for (size_t i = 0; i < x_ticks.positions.size(); ++i)
+        for (double position : x_ticks.positions)
         {
-            float px = data_to_px_x(x_ticks.positions[i]);
+            float px = data_to_px_x(position);
             overlay_line_scratch_.push_back(px);
             overlay_line_scratch_.push_back(vp.y + vp.h);
             overlay_line_scratch_.push_back(px);
@@ -636,9 +643,9 @@ void Renderer::render_plot_geometry(Figure& figure)
         }
 
         // Y tick marks (at left edge of viewport)
-        for (size_t i = 0; i < y_ticks.positions.size(); ++i)
+        for (double position : y_ticks.positions)
         {
-            float py = data_to_px_y(y_ticks.positions[i]);
+            float py = data_to_px_y(position);
             overlay_line_scratch_.push_back(vp.x);
             overlay_line_scratch_.push_back(py);
             overlay_line_scratch_.push_back(vp.x - tl);
@@ -692,7 +699,8 @@ void Renderer::render_plot_geometry(Figure& figure)
         const auto& vp = axes2d->viewport();
 
         // Phase 2 (LT-5): read limits via AxesViewModel when available
-        AxisLimits xlim, ylim;
+        AxisLimits xlim;
+        AxisLimits ylim;
         if (figure_vm_)
         {
             auto& avm = figure_vm_->get_or_create_axes_vm(axes2d);
@@ -747,7 +755,7 @@ void Renderer::render_plot_geometry(Figure& figure)
             grid_scratch_.push_back(py);
         }
 
-        uint32_t grid_vert_count = static_cast<uint32_t>(grid_scratch_.size() / 2);
+        auto grid_vert_count = static_cast<uint32_t>(grid_scratch_.size() / 2);
         if (grid_vert_count == 0)
             continue;
 
@@ -896,7 +904,7 @@ void Renderer::render_plot_geometry(Figure& figure)
             }
         }
 
-        uint32_t minor_vert_count = static_cast<uint32_t>(minor_grid_scratch_.size() / 2);
+        auto minor_vert_count = static_cast<uint32_t>(minor_grid_scratch_.size() / 2);
         if (minor_vert_count > 0)
         {
             size_t minor_bytes = minor_grid_scratch_.size() * sizeof(float);
@@ -935,7 +943,7 @@ void Renderer::render_plot_geometry(Figure& figure)
     // GPU storage.  A single shared buffer is unsafe: all figures render inside
     // ONE render pass / command buffer, so figure N's upload overwrites the
     // data that figure N-1's draw command already recorded a reference to.
-    uint32_t line_vert_count = static_cast<uint32_t>(overlay_line_scratch_.size() / 2);
+    auto line_vert_count = static_cast<uint32_t>(overlay_line_scratch_.size() / 2);
     if (line_vert_count > 0)
     {
         size_t         line_bytes = overlay_line_scratch_.size() * sizeof(float);
@@ -983,9 +991,9 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
         // Check if limits/planes changed — skip regeneration if cached
         auto& gc             = gpu.grid_cache[slot];
         bool  limits_changed = !gc.valid || gc.xmin != xlim.min || gc.xmax != xlim.max
-                              || gc.ymin != ylim.min || gc.ymax != ylim.max || gc.zmin != zlim.min
-                              || gc.zmax != zlim.max
-                              || gpu.cached_grid_planes[slot] != static_cast<int>(gp);
+                               || gc.ymin != ylim.min || gc.ymax != ylim.max || gc.zmin != zlim.min
+                               || gc.zmax != zlim.max
+                               || gpu.cached_grid_planes[slot] != static_cast<int>(gp);
 
         if (limits_changed)
         {
@@ -1075,8 +1083,8 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
         const auto&         theme_colors = theme_mgr_.colors();
         float               blend        = 0.3f;
         ui::Color           blended(theme_colors.grid_major.r * (1.0f - blend) + blend,
-                          theme_colors.grid_major.g * (1.0f - blend) + blend,
-                          theme_colors.grid_major.b * (1.0f - blend) + blend);
+                                    theme_colors.grid_major.g * (1.0f - blend) + blend,
+                                    theme_colors.grid_major.b * (1.0f - blend) + blend);
         set_pc_color_geom(pc.color, blended, 0.35f, theme_mgr_);
         pc.line_width    = 1.0f;
         pc.data_offset_x = 0.0f;
@@ -1106,7 +1114,8 @@ void Renderer::render_axis_border(AxesBase& axes,
         return;   // Border only for 2D axes
 
     // Phase 2 (LT-5): read limits via AxesViewModel when available
-    AxisLimits xlim, ylim;
+    AxisLimits xlim;
+    AxisLimits ylim;
     if (figure_vm_)
     {
         auto& avm = figure_vm_->get_or_create_axes_vm(axes2d);
@@ -1141,10 +1150,10 @@ void Renderer::render_axis_border(AxesBase& axes,
         eps_y = MIN_EPS;
 
     // View-relative border coordinates
-    float x0 = static_cast<float>((xlim.min + eps_x) - vcx);
-    float y0 = static_cast<float>((ylim.min + eps_y) - vcy);
-    float x1 = static_cast<float>((xlim.max - eps_x) - vcx);
-    float y1 = static_cast<float>((ylim.max - eps_y) - vcy);
+    auto x0 = static_cast<float>((xlim.min + eps_x) - vcx);
+    auto y0 = static_cast<float>((ylim.min + eps_y) - vcy);
+    auto x1 = static_cast<float>((xlim.max - eps_x) - vcx);
+    auto y1 = static_cast<float>((ylim.max - eps_y) - vcy);
 
     float border_verts[] = {
         // Bottom edge

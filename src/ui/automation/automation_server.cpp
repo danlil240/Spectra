@@ -53,8 +53,9 @@ void AutomationServer::register_handlers()
     {
         for (auto& e : entries)
         {
+            const std::string method = e.method;
             handler_catalog_.push_back(e);
-            handlers_.emplace(e.method, wrap_automation_handler(std::move(e)));
+            handlers_.emplace(method, wrap_automation_handler(std::move(e)));
         }
     };
     install(make_command_handlers());
@@ -72,11 +73,13 @@ void AutomationServer::register_handlers()
         [this](AutomationRequest& req, App* /*app*/, WindowUIContext* /*ui_ctx*/)
         {
             req.response_json =
-                json_ok(req.id, "{\"methods\":" + serialize_handler_catalog(handler_catalog_) + "}");
+                json_ok(req.id,
+                        "{\"methods\":" + serialize_handler_catalog(handler_catalog_) + "}");
         },
     };
+    const std::string list_method = list_methods.method;
     handler_catalog_.push_back(list_methods);
-    handlers_.emplace(list_methods.method, wrap_automation_handler(std::move(list_methods)));
+    handlers_.emplace(list_method, wrap_automation_handler(std::move(list_methods)));
 }
 
 std::string AutomationServer::default_socket_path()
@@ -106,9 +109,7 @@ bool AutomationServer::start(const std::string& socket_path)
         return false;
     }
 
-    struct sockaddr_un addr
-    {
-    };
+    struct sockaddr_un addr{};
     addr.sun_family = AF_UNIX;
     if (socket_path_.size() >= sizeof(addr.sun_path))
     {
@@ -241,20 +242,16 @@ void AutomationServer::listener_thread_fn()
 #ifndef _WIN32
     while (running_.load(std::memory_order_relaxed))
     {
-        struct pollfd pfd
-        {
-        };
+        struct pollfd pfd{};
         pfd.fd     = listen_fd_;
         pfd.events = POLLIN;
         int ret    = ::poll(&pfd, 1, 200);
         if (ret <= 0 || !(pfd.revents & POLLIN))
             continue;
 
-        struct sockaddr_un ca
-        {
-        };
-        socklen_t cl  = sizeof(ca);
-        int       cfd = ::accept(listen_fd_, reinterpret_cast<struct sockaddr*>(&ca), &cl);
+        struct sockaddr_un ca{};
+        socklen_t          cl  = sizeof(ca);
+        int                cfd = ::accept(listen_fd_, reinterpret_cast<struct sockaddr*>(&ca), &cl);
         if (cfd < 0)
             continue;
 
@@ -281,7 +278,7 @@ void AutomationServer::handle_client(int client_fd)
             break;
         buffer.append(chunk, static_cast<size_t>(n));
 
-        size_t nl;
+        size_t nl = 0;
         while ((nl = buffer.find('\n')) != std::string::npos)
         {
             std::string line = buffer.substr(0, nl);

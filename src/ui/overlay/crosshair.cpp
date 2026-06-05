@@ -69,12 +69,12 @@ void Crosshair::draw(const CursorReadout& cursor,
 
     const auto& colors     = theme_mgr_->colors();
     ImU32       line_color = ImGui::ColorConvertFloat4ToU32(ImVec4(colors.crosshair.r,
-                                                             colors.crosshair.g,
-                                                             colors.crosshair.b,
-                                                             colors.crosshair.a * opacity_));
+                                                                   colors.crosshair.g,
+                                                                   colors.crosshair.b,
+                                                                   colors.crosshair.a * opacity_));
 
-    float sx = static_cast<float>(cursor.screen_x);
-    float sy = static_cast<float>(cursor.screen_y);
+    auto sx = static_cast<float>(cursor.screen_x);
+    auto sy = static_cast<float>(cursor.screen_y);
 
     // Clamp to viewport
     float vx0 = viewport.x;
@@ -150,7 +150,8 @@ void Crosshair::draw(const CursorReadout& cursor,
     ImU32 label_text = ImGui::ColorConvertFloat4ToU32(
         ImVec4(colors.text_primary.r, colors.text_primary.g, colors.text_primary.b, opacity_));
 
-    char x_label[32], y_label[32];
+    char x_label[32];
+    char y_label[32];
     std::snprintf(x_label, sizeof(x_label), "%.4g", cursor.data_x);
     std::snprintf(y_label, sizeof(y_label), "%.4g", cursor.data_y);
 
@@ -214,12 +215,12 @@ void Crosshair::draw_all_axes(const CursorReadout& cursor,
 
     const auto& colors     = theme_mgr_->colors();
     ImU32       line_color = ImGui::ColorConvertFloat4ToU32(ImVec4(colors.crosshair.r,
-                                                             colors.crosshair.g,
-                                                             colors.crosshair.b,
-                                                             colors.crosshair.a * opacity_));
+                                                                   colors.crosshair.g,
+                                                                   colors.crosshair.b,
+                                                                   colors.crosshair.a * opacity_));
 
-    float cx = static_cast<float>(cursor.screen_x);
-    float cy = static_cast<float>(cursor.screen_y);
+    auto cx = static_cast<float>(cursor.screen_x);
+    auto cy = static_cast<float>(cursor.screen_y);
 
     ImDrawList* fg = dl ? dl : ImGui::GetForegroundDrawList();
 
@@ -283,7 +284,7 @@ void Crosshair::draw_all_axes(const CursorReadout& cursor,
         float vy1 = vp.y + vp.h;
 
         // Vertical line at the same data-X on every axes
-        float norm_x = static_cast<float>((data_x - xlim.min) / x_range);
+        auto  norm_x = static_cast<float>((data_x - xlim.min) / x_range);
         float sx     = vp.x + norm_x * vp.w;
 
         if (sx >= vx0 && sx <= vx1)
@@ -353,7 +354,7 @@ void Crosshair::draw_all_axes(const CursorReadout& cursor,
         else
         {
             // Map the hovered axes' data-Y into this subplot's screen coordinates
-            float norm_iy = static_cast<float>((data_y - ylim.min) / y_range);
+            auto  norm_iy = static_cast<float>((data_y - ylim.min) / y_range);
             float sy      = vy0 + (1.0f - norm_iy) * vp.h;
 
             if (sy >= vy0 && sy <= vy1)

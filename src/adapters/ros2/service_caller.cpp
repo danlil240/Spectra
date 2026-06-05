@@ -367,9 +367,8 @@ static void collect_fields(const std::vector<FieldDescriptor>& descs,
 
         if (fd.type == FieldType::Bool)
             fv.value_str = "false";
-        else if (fd.type == FieldType::String || fd.type == FieldType::WString)
-            fv.value_str = "";
-        else if (fd.type == FieldType::Message)
+        else if (fd.type == FieldType::String || fd.type == FieldType::WString
+                 || fd.type == FieldType::Message)
             fv.value_str = "";
         else
             fv.value_str = "0";
@@ -438,7 +437,7 @@ CallHandle ServiceCaller::call(const std::string& service_name,
     return h;
 }
 
-void ServiceCaller::dispatch_call(std::shared_ptr<CallRecord> rec)
+void ServiceCaller::dispatch_call(const std::shared_ptr<CallRecord>& rec)
 {
     if (!node_)
     {
@@ -531,14 +530,14 @@ std::string ServiceCaller::record_to_json(const CallRecord& rec)
     std::ostringstream oss;
     oss << "{"
         << "\"id\": " << rec.id << ", "
-        << "\"service\": \"" << json_escape(rec.service_name) << "\", "
-        << "\"type\": \"" << json_escape(rec.service_type) << "\", "
+        << R"("service": ")" << json_escape(rec.service_name) << "\", "
+        << R"("type": ")" << json_escape(rec.service_type) << "\", "
         << "\"request\": " << (rec.request_json.empty() ? "{}" : rec.request_json) << ", "
         << "\"response\": " << (rec.response_json.empty() ? "{}" : rec.response_json) << ", "
-        << "\"state\": \"" << json_escape(state_str) << "\", "
+        << R"("state": ")" << json_escape(state_str) << "\", "
         << "\"latency_ms\": " << rec.latency_ms << ", "
         << "\"call_time\": " << rec.call_time_s << ", "
-        << "\"error\": \"" << json_escape(rec.error_message) << "\""
+        << R"("error": ")" << json_escape(rec.error_message) << "\""
         << "}";
     return oss.str();
 }

@@ -77,7 +77,8 @@ std::string series_to_tsv(const std::vector<const Series*>& series)
             const auto& col = cols[ci];
             if (row < col.count)
             {
-                float x = 0.0f, y = 0.0f;
+                float x = 0.0f;
+                float y = 0.0f;
                 if (col.line)
                 {
                     x = col.line->x_data()[row];

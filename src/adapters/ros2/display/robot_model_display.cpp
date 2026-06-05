@@ -384,7 +384,7 @@ void RobotModelDisplay::build_kinematic_chain()
 
     for (const auto& link : robot_.links)
     {
-        if (!is_child.count(link.name))
+        if (!is_child.contains(link.name))
         {
             root_link_ = link.name;
             break;

@@ -131,7 +131,7 @@ std::optional<BagTopicInfo> BagReader::topic_info(const std::string& topic_name)
 
 bool BagReader::has_topic(const std::string& topic_name) const
 {
-    return topic_type_map_.count(topic_name) > 0;
+    return topic_type_map_.contains(topic_name);
 }
 
 size_t BagReader::topic_count() const noexcept
@@ -292,8 +292,8 @@ double BagReader::progress() const noexcept
 {
     if (metadata_.duration_ns <= 0)
         return 0.0;
-    const double elapsed = static_cast<double>(current_ts_ns_ - metadata_.start_time_ns);
-    const double total   = static_cast<double>(metadata_.duration_ns);
+    const auto   elapsed = static_cast<double>(current_ts_ns_ - metadata_.start_time_ns);
+    const auto   total   = static_cast<double>(metadata_.duration_ns);
     const double p       = elapsed / total;
     if (p < 0.0)
         return 0.0;

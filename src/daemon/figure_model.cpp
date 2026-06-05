@@ -654,8 +654,7 @@ bool FigureModel::apply_diff_op(const ipc::DiffOp& op)
 
         case ipc::DiffOp::Type::ADD_FIGURE:
         case ipc::DiffOp::Type::REMOVE_FIGURE:
-            // These are handled via create_figure/remove_figure directly
-            return false;
+            return false;   // handled via create_figure/remove_figure directly
 
         default:
             return false;
@@ -688,7 +687,7 @@ std::vector<uint64_t> FigureModel::all_figure_ids() const
 bool FigureModel::has_figure(uint64_t figure_id) const
 {
     std::lock_guard lock(mu_);
-    return figures_.count(figure_id) > 0;
+    return figures_.contains(figure_id);
 }
 
 bool FigureModel::get_axis_limits(uint64_t figure_id,

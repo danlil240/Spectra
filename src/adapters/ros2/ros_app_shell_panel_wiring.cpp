@@ -42,7 +42,7 @@ void RosAppShell::wire_panel_callbacks()
                 bool has_monitor = false;
                 {
                     std::lock_guard<std::mutex> lk(monitor_subs_mutex_);
-                    has_monitor = monitor_subs_.count(topic) > 0;
+                    has_monitor = monitor_subs_.contains(topic);
                 }
                 if (!has_monitor)
                 {

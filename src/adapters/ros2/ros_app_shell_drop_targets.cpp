@@ -14,8 +14,7 @@ namespace
 
 #ifdef SPECTRA_USE_IMGUI
 
-bool accept_field_drop(const RosPlotDropTargetContext& ctx,
-                       FieldDragPayload&               payload_out)
+bool accept_field_drop(const RosPlotDropTargetContext& ctx, FieldDragPayload& payload_out)
 {
     if (!ctx.drag_drop || !ctx.drag_drop->is_dragging())
         return false;
@@ -23,10 +22,9 @@ bool accept_field_drop(const RosPlotDropTargetContext& ctx,
     if (!ImGui::BeginDragDropTarget())
         return false;
 
-    const ImGuiPayload* imgui_payload =
-        ImGui::AcceptDragDropPayload(FieldDragDrop::DRAG_TYPE);
-    const bool accepted =
-        imgui_payload != nullptr && FieldDragDrop::try_parse_imgui_payload(imgui_payload, payload_out);
+    const ImGuiPayload* imgui_payload = ImGui::AcceptDragDropPayload(FieldDragDrop::DRAG_TYPE);
+    const bool accepted = imgui_payload != nullptr
+                          && FieldDragDrop::try_parse_imgui_payload(imgui_payload, payload_out);
     ImGui::EndDragDropTarget();
     return accepted;
 }
@@ -66,9 +64,9 @@ void draw_subplot_slot_drop_target(const RosPlotDropTargetContext& ctx,
     if (!ctx.drag_drop->is_dragging())
         return;
 
-    const bool hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
-    ImDrawList*  dl    = ImGui::GetWindowDrawList();
-    const ImVec2 pmax  = {pos.x + w, pos.y + std::min(remaining, 8.0f)};
+    const bool   hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
+    ImDrawList*  dl      = ImGui::GetWindowDrawList();
+    const ImVec2 pmax    = {pos.x + w, pos.y + std::min(remaining, 8.0f)};
 
     if (hovered)
     {
@@ -100,9 +98,9 @@ void draw_global_plot_drop_target(const RosPlotDropTargetContext& ctx, float wid
     if (!ctx.drag_drop->is_dragging())
         return;
 
-    const bool hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
-    ImDrawList*  dl    = ImGui::GetWindowDrawList();
-    const ImVec2 pmax  = {pos.x + avail.x, pos.y + avail.y};
+    const bool   hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
+    ImDrawList*  dl      = ImGui::GetWindowDrawList();
+    const ImVec2 pmax    = {pos.x + avail.x, pos.y + avail.y};
     dl->AddRectFilled(pos,
                       pmax,
                       hovered ? IM_COL32(60, 200, 100, 55) : IM_COL32(60, 200, 100, 22),

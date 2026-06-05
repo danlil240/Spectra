@@ -141,7 +141,7 @@ extern "C"
 
     /* Create an embed surface from a full configuration struct.
      * Returns NULL on failure or if cfg is NULL. */
-    SpectraEmbed* spectra_embed_create_config(const SpectraEmbedConfig* cfg);
+    SpectraEmbed* spectra_embed_create_config(const SpectraEmbedConfig* in);
 
     /* Destroy an embed surface and free all resources. */
     void spectra_embed_destroy(SpectraEmbed* s);

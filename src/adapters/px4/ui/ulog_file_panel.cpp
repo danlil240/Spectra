@@ -4,6 +4,7 @@
     #include <imgui.h>
     #ifdef IMGUI_HAS_DOCK
         #include <imgui_internal.h>
+        #include <cmath>
     #endif
 #endif
 
@@ -71,7 +72,8 @@ void ULogFilePanel::draw(bool* p_open)
     bool currently_docked = ImGui::IsWindowDocked();
     if (was_docked_ && !currently_docked && detach_ctrl_.is_docked())
     {
-        double sx, sy;
+        double sx = NAN;
+        double sy = NAN;
         detach_ctrl_.get_screen_cursor(sx, sy);
         detach_ctrl_.set_screen_position(static_cast<int>(sx), static_cast<int>(sy));
         detach_ctrl_.detach();
@@ -236,7 +238,7 @@ void ULogFilePanel::draw_topic_tree()
     std::string filter(topic_filter_buf_);
     std::transform(filter.begin(), filter.end(), filter.begin(), ::tolower);
 
-    ImGui::BeginChild("TopicTree", ImVec2(0, 0), true);
+    ImGui::BeginChild("TopicTree", ImVec2(0, 0), 1);
 
     auto topics = plot_mgr_.available_topics();
 

@@ -72,7 +72,7 @@ Axes& Figure::subplot(int rows, int cols, int index)
         grid_cols_ = cols;
 
     // Ensure we have enough axes slots (1-based index)
-    size_t idx = static_cast<size_t>(index - 1);
+    auto idx = static_cast<size_t>(index - 1);
     if (idx >= axes_.size())
     {
         axes_.resize(idx + 1);
@@ -98,7 +98,7 @@ Axes3D& Figure::subplot3d(int rows, int cols, int index)
     if (cols > grid_cols_)
         grid_cols_ = cols;
 
-    size_t idx = static_cast<size_t>(index - 1);
+    auto idx = static_cast<size_t>(index - 1);
     if (idx >= all_axes_.size())
     {
         all_axes_.resize(idx + 1);

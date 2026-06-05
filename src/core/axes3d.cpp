@@ -1,7 +1,8 @@
 #include "axes3d.hpp"
 
-#include <algorithm>
 #include <cmath>
+
+#include <algorithm>
 #include <limits>
 #include <spectra/camera.hpp>
 #include <spectra/series.hpp>
@@ -59,11 +60,9 @@ static std::string format_tick_value_3d(double value, double spacing)
         }
         return str;
     }
-    else
-    {
-        std::snprintf(buf, sizeof(buf), "%.*e", total_sig_digits - 1, value);
-        return std::string(buf);
-    }
+
+    std::snprintf(buf, sizeof(buf), "%.*e", total_sig_digits - 1, value);
+    return std::string(buf);
 }
 
 TickResult compute_ticks_for_range(double dmin, double dmax)
@@ -83,7 +82,7 @@ TickResult compute_ticks_for_range(double dmin, double dmax)
     double magnitude  = std::pow(10.0, std::floor(std::log10(rough_step)));
     double normalized = rough_step / magnitude;
 
-    double nice_step;
+    double nice_step = NAN;
     if (normalized < 1.5)
         nice_step = 1.0;
     else if (normalized < 3.0)
@@ -218,7 +217,8 @@ void Axes3D::auto_fit()
 
     for (auto& s : series_)
     {
-        vec3 s_min, s_max;
+        vec3 s_min;
+        vec3 s_max;
         if (auto* ls = dynamic_cast<LineSeries3D*>(s.get()))
         {
             if (ls->point_count() == 0)
@@ -354,9 +354,9 @@ mat4 Axes3D::data_to_normalized_matrix() const
     float  sz = zr > 1e-30 ? static_cast<float>((2.0 * hs) / zr) : 1.0f;
 
     // Center of data range
-    float cx = static_cast<float>((xl.min + xl.max) * 0.5);
-    float cy = static_cast<float>((yl.min + yl.max) * 0.5);
-    float cz = static_cast<float>((zl.min + zl.max) * 0.5);
+    auto cx = static_cast<float>((xl.min + xl.max) * 0.5);
+    auto cy = static_cast<float>((yl.min + yl.max) * 0.5);
+    auto cz = static_cast<float>((zl.min + zl.max) * 0.5);
 
     // Model = Scale * Translate(-center)
     // result = S * (p - c) = S*p - S*c
@@ -383,7 +383,7 @@ void Axes3D::zoom_limits(float factor)
         double center     = (lim.min + lim.max) * 0.5;
         double half_range = (lim.max - lim.min) * 0.5 * factor;
         double min_half   = std::max(std::abs(lim.min), std::abs(lim.max))
-                          * std::numeric_limits<double>::epsilon() * 16.0;
+                            * std::numeric_limits<double>::epsilon() * 16.0;
         if (min_half < 1e-300)
             min_half = 1e-300;
         if (half_range < min_half)
@@ -406,7 +406,7 @@ void Axes3D::zoom_limits_x(float factor)
     double center     = (xl.min + xl.max) * 0.5;
     double half_range = (xl.max - xl.min) * 0.5 * factor;
     double min_half   = std::max(std::abs(xl.min), std::abs(xl.max))
-                      * std::numeric_limits<double>::epsilon() * 16.0;
+                        * std::numeric_limits<double>::epsilon() * 16.0;
     if (min_half < 1e-300)
         min_half = 1e-300;
     if (half_range < min_half)
@@ -420,7 +420,7 @@ void Axes3D::zoom_limits_y(float factor)
     double center     = (yl.min + yl.max) * 0.5;
     double half_range = (yl.max - yl.min) * 0.5 * factor;
     double min_half   = std::max(std::abs(yl.min), std::abs(yl.max))
-                      * std::numeric_limits<double>::epsilon() * 16.0;
+                        * std::numeric_limits<double>::epsilon() * 16.0;
     if (min_half < 1e-300)
         min_half = 1e-300;
     if (half_range < min_half)
@@ -434,7 +434,7 @@ void Axes3D::zoom_limits_z(float factor)
     double center     = (zl.min + zl.max) * 0.5;
     double half_range = (zl.max - zl.min) * 0.5 * factor;
     double min_half   = std::max(std::abs(zl.min), std::abs(zl.max))
-                      * std::numeric_limits<double>::epsilon() * 16.0;
+                        * std::numeric_limits<double>::epsilon() * 16.0;
     if (min_half < 1e-300)
         min_half = 1e-300;
     if (half_range < min_half)

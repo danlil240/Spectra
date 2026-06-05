@@ -94,7 +94,8 @@ struct EmbedSurface::Impl
                 last_hover_index  = np.point_index;
                 if (s)
                 {
-                    int ai = -1, si = -1;
+                    int ai = -1;
+                    int si = -1;
                     find_series_indices(active_fig, s, ai, si);
                     hover_cb(ai, si, np.point_index, np.data_x, np.data_y);
                 }
@@ -268,7 +269,7 @@ struct EmbedSurface::Impl
     }
 
     // Apply UI chrome visibility from config to the live ImGui layer / overlays.
-    void apply_chrome()
+    void apply_chrome() const
     {
 #ifdef SPECTRA_USE_IMGUI
         if (imgui_ui)
@@ -327,8 +328,8 @@ struct EmbedSurface::Impl
         active_fig->config_.width  = config.width;
         active_fig->config_.height = config.height;
 
-        float sw = static_cast<float>(config.width);
-        float sh = static_cast<float>(config.height);
+        auto sw = static_cast<float>(config.width);
+        auto sh = static_cast<float>(config.height);
 
 #ifdef SPECTRA_USE_IMGUI
         if (imgui_ui)

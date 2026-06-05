@@ -115,7 +115,7 @@ void TopicDetailStats::compute(int64_t now_ns, int64_t window_ns)
         {
             if (s.latency_us >= 0)
             {
-                const double v = static_cast<double>(s.latency_us);
+                const auto v = static_cast<double>(s.latency_us);
                 sum += v;
                 if (v < lmin)
                     lmin = v;
@@ -139,17 +139,8 @@ void TopicDetailStats::compute(int64_t now_ns, int64_t window_ns)
     }
 
     // --- Drop detection ---
-    if (hz_avg > 0.0 && last_gap_ns > 0)
-    {
-        // Use the stored drop_detected flag; caller sets drop_factor externally.
-        // Here we compare: if last_gap_ns > 3× expected, flag it.
-        // The actual factor is applied in TopicStatsOverlay::compute_now().
-        drop_detected = false;   // reset; TopicStatsOverlay sets this.
-    }
-    else
-    {
-        drop_detected = false;
-    }
+    // Reset drop flag; TopicStatsOverlay::compute_now() applies the actual threshold.
+    drop_detected = false;
 }
 
 void TopicDetailStats::reset_window()

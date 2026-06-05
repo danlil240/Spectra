@@ -65,8 +65,8 @@ void InputHandler::handle_mouse_button_annotate(int button, int action, double x
         {
             annotate_press_active_ = false;
             // Only place if mouse didn't move much (click, not drag)
-            float           dx_px              = static_cast<float>(x - annotate_start_x_);
-            float           dy_px              = static_cast<float>(y - annotate_start_y_);
+            auto            dx_px              = static_cast<float>(x - annotate_start_x_);
+            auto            dy_px              = static_cast<float>(y - annotate_start_y_);
             float           move_dist          = std::sqrt(dx_px * dx_px + dy_px * dy_px);
             constexpr float CLICK_THRESHOLD_PX = 5.0f;
             if (move_dist < CLICK_THRESHOLD_PX)

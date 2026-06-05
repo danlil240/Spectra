@@ -104,7 +104,7 @@ ImFont* IconFont::get_font(float size) const
     return font_32_;
 }
 
-void IconFont::draw(Icon icon, float size, const Color& color)
+void IconFont::draw(Icon icon, float size, const Color& color) const
 {
     if (!initialized_)
         return;
@@ -124,7 +124,7 @@ void IconFont::draw(Icon icon, float size, const Color& color)
     ImGui::PopFont();
 }
 
-void IconFont::draw(Icon icon, float size, const ImVec4& color)
+void IconFont::draw(Icon icon, float size, const ImVec4& color) const
 {
     draw(icon, size, Color(color.x, color.y, color.z, color.w));
 }
@@ -304,7 +304,7 @@ void IconFont::build_icon_map()
 
     for (Icon icon : all)
     {
-        uint32_t cp            = static_cast<uint32_t>(icon);
+        auto cp                = static_cast<uint32_t>(icon);
         icon_map_[icon]        = cp;
         codepoint_strings_[cp] = codepoint_to_utf8(cp);
     }

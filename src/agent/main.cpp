@@ -139,7 +139,9 @@ std::unique_ptr<spectra::Figure> build_figure_from_snapshot(
                     continue;
 
                 // Unpack XYZ stride-3 data
-                std::vector<float> xs, ys, zs;
+                std::vector<float> xs;
+                std::vector<float> ys;
+                std::vector<float> zs;
                 for (size_t j = 0; j + 2 < ss.data.size(); j += 3)
                 {
                     xs.push_back(ss.data[j]);
@@ -183,13 +185,13 @@ std::unique_ptr<spectra::Figure> build_figure_from_snapshot(
                     for (size_t k = 0; k < xs.size(); ++k)
                     {
                         // Find column index for xs[k]
-                        auto   cit = std::lower_bound(ux.begin(), ux.end(), xs[k] - 1e-6f);
-                        size_t ci  = static_cast<size_t>(std::distance(ux.begin(), cit));
+                        auto cit = std::lower_bound(ux.begin(), ux.end(), xs[k] - 1e-6f);
+                        auto ci  = static_cast<size_t>(std::distance(ux.begin(), cit));
                         if (ci >= ncols)
                             ci = ncols - 1;
                         // Find row index for ys[k]
-                        auto   rit = std::lower_bound(uy.begin(), uy.end(), ys[k] - 1e-6f);
-                        size_t ri  = static_cast<size_t>(std::distance(uy.begin(), rit));
+                        auto rit = std::lower_bound(uy.begin(), uy.end(), ys[k] - 1e-6f);
+                        auto ri  = static_cast<size_t>(std::distance(uy.begin(), rit));
                         if (ri >= nrows)
                             ri = nrows - 1;
                         z_grid[ri * ncols + ci] = zs[k];
@@ -250,7 +252,8 @@ std::unique_ptr<spectra::Figure> build_figure_from_snapshot(
                 if (ss.axes_index != static_cast<uint32_t>(i))
                     continue;
 
-                std::vector<float> xs, ys;
+                std::vector<float> xs;
+                std::vector<float> ys;
                 for (size_t j = 0; j + 1 < ss.data.size(); j += 2)
                 {
                     xs.push_back(ss.data[j]);
@@ -387,10 +390,8 @@ void apply_diff_op_to_cache(spectra::ipc::SnapshotFigureState& fig, const spectr
             if (op.axes_index < fig.axes.size())
                 fig.axes[op.axes_index].title = op.str_val;
             break;
-        case spectra::ipc::DiffOp::Type::SET_LIVE_FPS:
-            // Handled on the live Figure object, not the cache.
-            break;
         default:
+            // Includes SET_LIVE_FPS (handled on live Figure, not cache).
             break;
     }
 }
@@ -456,7 +457,9 @@ void apply_diff_op_to_figure(spectra::Figure& fig, const spectra::ipc::DiffOp& o
                     if (auto* line3d = dynamic_cast<spectra::LineSeries3D*>(s))
                     {
                         size_t             n = op.data.size() / 3;
-                        std::vector<float> xv(n), yv(n), zv(n);
+                        std::vector<float> xv(n);
+                        std::vector<float> yv(n);
+                        std::vector<float> zv(n);
                         for (size_t i = 0; i < n; ++i)
                         {
                             xv[i] = op.data[i * 3];
@@ -470,7 +473,9 @@ void apply_diff_op_to_figure(spectra::Figure& fig, const spectra::ipc::DiffOp& o
                     else if (auto* scatter3d = dynamic_cast<spectra::ScatterSeries3D*>(s))
                     {
                         size_t             n = op.data.size() / 3;
-                        std::vector<float> xv(n), yv(n), zv(n);
+                        std::vector<float> xv(n);
+                        std::vector<float> yv(n);
+                        std::vector<float> zv(n);
                         for (size_t i = 0; i < n; ++i)
                         {
                             xv[i] = op.data[i * 3];
@@ -484,7 +489,8 @@ void apply_diff_op_to_figure(spectra::Figure& fig, const spectra::ipc::DiffOp& o
                     else if (auto* line = dynamic_cast<spectra::LineSeries*>(s))
                     {
                         size_t             n = op.data.size() / 2;
-                        std::vector<float> xv(n), yv(n);
+                        std::vector<float> xv(n);
+                        std::vector<float> yv(n);
                         for (size_t i = 0; i < n; ++i)
                         {
                             xv[i] = op.data[i * 2];
@@ -496,7 +502,8 @@ void apply_diff_op_to_figure(spectra::Figure& fig, const spectra::ipc::DiffOp& o
                     else if (auto* scatter = dynamic_cast<spectra::ScatterSeries*>(s))
                     {
                         size_t             n = op.data.size() / 2;
-                        std::vector<float> xv(n), yv(n);
+                        std::vector<float> xv(n);
+                        std::vector<float> yv(n);
                         for (size_t i = 0; i < n; ++i)
                         {
                             xv[i] = op.data[i * 2];
@@ -704,7 +711,7 @@ int main(int argc, char* argv[])
         while (!got_snapshot && std::chrono::steady_clock::now() < deadline)
         {
 #ifndef _WIN32
-            struct pollfd pfd;
+            struct pollfd pfd{};
             pfd.fd      = conn->fd();
             pfd.events  = POLLIN;
             pfd.revents = 0;
@@ -1119,7 +1126,8 @@ int main(int argc, char* argv[])
                                     float /*screen_y*/)
             {
                 int   zone = 0;
-                float lx = 0.0f, ly = 0.0f;
+                float lx   = 0.0f;
+                float ly   = 0.0f;
                 if (window_mgr)
                 {
                     auto info = window_mgr->cross_window_drop_info();
@@ -1223,7 +1231,7 @@ int main(int argc, char* argv[])
 #ifndef _WIN32
         for (;;)
         {
-            struct pollfd pfd;
+            struct pollfd pfd{};
             pfd.fd       = conn->fd();
             pfd.events   = POLLIN;
             pfd.revents  = 0;
@@ -1359,12 +1367,10 @@ int main(int argc, char* argv[])
                     pending_topic_list_request.store(true, std::memory_order_relaxed);
                     break;
                 }
-                case spectra::ipc::MessageType::RESP_SUBSCRIBE_TOPIC:
-                    // Series creation arrives via STATE_DIFF; nothing to do here.
-                    break;
     #endif
 
                 default:
+                    // Includes RESP_SUBSCRIBE_TOPIC (series arrives via STATE_DIFF).
                     break;
             }
         }

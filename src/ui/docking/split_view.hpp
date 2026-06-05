@@ -47,7 +47,7 @@ class SplitPane
     // (second) child pane. The original figure_index moves to the first child.
     // new_figure_id is assigned to the second child.
     // Returns nullptr if this pane is already split.
-    SplitPane* split(SplitDirection direction, FigureId new_figure_id, float ratio = 0.5f);
+    SplitPane* split(SplitDirection direction, FigureId new_figure_index, float ratio = 0.5f);
 
     // Unsplit: collapse this internal node back to a leaf, keeping the
     // child identified by keep_first (true = first child, false = second).
@@ -104,8 +104,8 @@ class SplitPane
     void collect_leaves(std::vector<const SplitPane*>& out) const;
 
     // Find the leaf pane containing the given figure id (nullptr if not found)
-    SplitPane*       find_by_figure(FigureId figure_id);
-    const SplitPane* find_by_figure(FigureId figure_id) const;
+    SplitPane*       find_by_figure(FigureId figure_index);
+    const SplitPane* find_by_figure(FigureId figure_index) const;
 
     // Find the leaf pane whose bounds contain the given point
     SplitPane* find_at_point(float x, float y);
@@ -169,16 +169,18 @@ class SplitViewManager
 
     // Split the pane containing figure_index. Returns the new pane, or
     // nullptr if the figure is not found or max splits reached.
-    SplitPane* split_pane(FigureId       figure_id,
+    SplitPane* split_pane(FigureId       figure_index,
                           SplitDirection direction,
-                          FigureId       new_figure_id,
+                          FigureId       new_figure_index,
                           float          ratio = 0.5f);
 
     // Split the active pane (convenience)
-    SplitPane* split_active(SplitDirection direction, FigureId new_figure_id, float ratio = 0.5f);
+    SplitPane* split_active(SplitDirection direction,
+                            FigureId       new_figure_index,
+                            float          ratio = 0.5f);
 
     // Close a split pane (unsplit its parent, keeping the sibling)
-    bool close_pane(FigureId figure_id);
+    bool close_pane(FigureId figure_index);
 
     // Unsplit all — collapse back to single pane
     void unsplit_all();
@@ -207,10 +209,10 @@ class SplitViewManager
     SplitPane* pane_at_point(float x, float y);
 
     // Get the pane for a figure
-    SplitPane* pane_for_figure(FigureId figure_id);
+    SplitPane* pane_for_figure(FigureId figure_index);
 
     // Check if a figure is visible in any pane
-    bool is_figure_visible(FigureId figure_id) const;
+    bool is_figure_visible(FigureId figure_index) const;
 
     // ── Splitter interaction ────────────────────────────────────────────
 

@@ -292,7 +292,8 @@ void ShapeSeries::generate_rect(const ShapeDef& def)
         constexpr int arc_segs = 8;
 
         // Build vertices of rounded rect
-        std::vector<float> vx, vy;
+        std::vector<float> vx;
+        std::vector<float> vy;
         vx.reserve(4 * (arc_segs + 1));
         vy.reserve(4 * (arc_segs + 1));
 
@@ -322,7 +323,8 @@ void ShapeSeries::generate_rect(const ShapeDef& def)
         size_t n = vx.size();
 
         // Fill: fan from center
-        float fcx = cx, fcy = cy;
+        float fcx = cx;
+        float fcy = cy;
         if (def.rotation != 0.0f)
             rotate_point(fcx, fcy, cx, cy, def.rotation);
         for (size_t i = 0; i < n; ++i)
@@ -351,10 +353,14 @@ void ShapeSeries::generate_rect(const ShapeDef& def)
     else
     {
         // Simple rectangle
-        float x0 = x, y0 = y;
-        float x1 = x + w, y1 = y;
-        float x2 = x + w, y2 = y + h;
-        float x3 = x, y3 = y + h;
+        float x0 = x;
+        float y0 = y;
+        float x1 = x + w;
+        float y1 = y;
+        float x2 = x + w;
+        float y2 = y + h;
+        float x3 = x;
+        float y3 = y + h;
 
         if (def.rotation != 0.0f)
         {
@@ -619,7 +625,8 @@ void ShapeSeries::generate_polygon(const ShapeDef& def)
         return;
 
     // Compute centroid for fan triangulation
-    float cx = 0.0f, cy = 0.0f;
+    float cx = 0.0f;
+    float cy = 0.0f;
     for (size_t i = 0; i < n; ++i)
     {
         cx += px[i];
@@ -632,8 +639,10 @@ void ShapeSeries::generate_polygon(const ShapeDef& def)
     for (size_t i = 0; i < n; ++i)
     {
         size_t j   = (i + 1) % n;
-        float  vx0 = px[i], vy0 = py[i];
-        float  vx1 = px[j], vy1 = py[j];
+        float  vx0 = px[i];
+        float  vy0 = py[i];
+        float  vx1 = px[j];
+        float  vy1 = py[j];
 
         if (def.rotation != 0.0f)
         {
@@ -641,7 +650,8 @@ void ShapeSeries::generate_polygon(const ShapeDef& def)
             rotate_point(vx1, vy1, cx, cy, def.rotation);
         }
 
-        float rcx = cx, rcy = cy;
+        float rcx = cx;
+        float rcy = cy;
         if (def.rotation != 0.0f)
             rotate_point(rcx, rcy, cx, cy, def.rotation);
 
@@ -662,12 +672,15 @@ void ShapeSeries::generate_polygon(const ShapeDef& def)
     for (size_t i = 0; i < n; ++i)
     {
         size_t j   = (i + 1) % n;
-        float  vx0 = px[i], vy0 = py[i];
-        float  vx1 = px[j], vy1 = py[j];
+        float  vx0 = px[i];
+        float  vy0 = py[i];
+        float  vx1 = px[j];
+        float  vy1 = py[j];
 
         if (def.rotation != 0.0f)
         {
-            float pcx = cx, pcy = cy;
+            float pcx = cx;
+            float pcy = cy;
             rotate_point(vx0, vy0, pcx, pcy, def.rotation);
             rotate_point(vx1, vy1, pcx, pcy, def.rotation);
         }

@@ -92,8 +92,8 @@ std::string serialize(const SettingsData& d)
     os << "{\n";
     os << "  \"version\": 1,\n";
     os << "  \"ui\": {\n";
-    os << "    \"default_theme\": \"" << escape_json(d.default_theme) << "\",\n";
-    os << "    \"default_data_palette\": \"" << escape_json(d.default_data_palette) << "\",\n";
+    os << R"(    "default_theme": ")" << escape_json(d.default_theme) << "\",\n";
+    os << R"(    "default_data_palette": ")" << escape_json(d.default_data_palette) << "\",\n";
     os << "    \"inspector_visible\": " << (d.inspector_visible ? "true" : "false") << ",\n";
     os << "    \"nav_rail_visible\": " << (d.nav_rail_visible ? "true" : "false") << ",\n";
     os << "    \"timeline_visible\": " << (d.timeline_visible ? "true" : "false") << "\n";

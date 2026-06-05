@@ -1,7 +1,8 @@
 #include "renderer.hpp"
 
-#include <algorithm>
 #include <cmath>
+
+#include <algorithm>
 #include <cstring>
 #include <spectra/axes.hpp>
 #include <spectra/axes3d.hpp>
@@ -112,10 +113,10 @@ void Renderer::notify_figure_removed(const Figure* figure)
     auto it = figure_gpu_data_.find(figure);
     if (it != figure_gpu_data_.end())
     {
-        for (uint32_t s = 0; s < FRAME_BUFFER_SLOTS; ++s)
+        for (auto s : it->second.overlay_line_buffer)
         {
-            if (it->second.overlay_line_buffer[s])
-                backend_.destroy_buffer(it->second.overlay_line_buffer[s]);
+            if (s)
+                backend_.destroy_buffer(s);
         }
         figure_gpu_data_.erase(it);
     }
@@ -187,10 +188,10 @@ Renderer::~Renderer() noexcept
         // Clean up per-figure overlay buffers
         for (auto& [ptr, data] : figure_gpu_data_)
         {
-            for (uint32_t s = 0; s < FRAME_BUFFER_SLOTS; ++s)
+            for (auto s : data.overlay_line_buffer)
             {
-                if (data.overlay_line_buffer[s])
-                    backend_.destroy_buffer(data.overlay_line_buffer[s]);
+                if (s)
+                    backend_.destroy_buffer(s);
             }
         }
         figure_gpu_data_.clear();
@@ -306,9 +307,9 @@ void Renderer::begin_render_pass()
 
     const auto& theme_colors = theme_mgr_.colors();
     Color       bg_color     = Color(theme_colors.bg_canvas.r,
-                           theme_colors.bg_canvas.g,
-                           theme_colors.bg_canvas.b,
-                           theme_colors.bg_canvas.a);
+                                     theme_colors.bg_canvas.g,
+                                     theme_colors.bg_canvas.b,
+                                     theme_colors.bg_canvas.a);
     backend_.begin_render_pass(bg_color);
     backend_.set_line_width(1.0f);   // Set default for VK_DYNAMIC_STATE_LINE_WIDTH
 }
@@ -507,7 +508,8 @@ void Renderer::render_axes(AxesBase&   axes,
 
         // Phase 2 (LT-5): read limits via AxesViewModel when available,
         // enabling per-view overrides and validation.
-        AxisLimits xlim, ylim;
+        AxisLimits xlim;
+        AxisLimits ylim;
         if (figure_vm_)
         {
             auto& axes_vm = figure_vm_->get_or_create_axes_vm(axes2d);
@@ -615,7 +617,7 @@ void Renderer::render_axes(AxesBase&   axes,
                 continue;
 
             // Phase 2 (LT-5): check visibility via SeriesViewModel when available.
-            bool             visible;
+            bool             visible = false;
             SeriesViewModel* svm_ptr = nullptr;
             if (figure_vm_)
             {
@@ -673,7 +675,7 @@ void Renderer::render_axes(AxesBase&   axes,
             auto dist      = static_cast<float>(vec3_length(world_pos - cam_pos));
 
             // Phase 2 (LT-5): read color/opacity via SeriesViewModel when available.
-            float effective_alpha;
+            float effective_alpha = NAN;
             if (svm_ptr)
             {
                 Color eff_color = svm_ptr->effective_color();
@@ -764,7 +766,7 @@ void Renderer::render_axes(AxesBase&   axes,
                 continue;
 
             // Phase 2 (LT-5): check visibility via SeriesViewModel when available
-            bool visible;
+            bool visible = false;
             if (figure_vm_)
             {
                 auto& svm = figure_vm_->get_or_create_series_vm(series_ptr.get());

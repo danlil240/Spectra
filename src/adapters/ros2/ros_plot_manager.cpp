@@ -297,8 +297,8 @@ void RosPlotManager::poll()
             // in thread-safe mode).
             if (entry->base_series && pruning_enabled_ && has_origin)
             {
-                const auto  xlim         = entry->axes->x_limits();
-                const float prune_before = static_cast<float>(xlim.min - prune_buffer_s_);
+                const auto xlim         = entry->axes->x_limits();
+                const auto prune_before = static_cast<float>(xlim.min - prune_buffer_s_);
                 entry->base_series->erase_before(prune_before);
             }
 
@@ -329,8 +329,8 @@ void RosPlotManager::poll()
         // Prune data older than the visible view plus the configured history buffer.
         if (entry->base_series && pruning_enabled_)
         {
-            const auto  xlim         = entry->axes->x_limits();
-            const float prune_before = static_cast<float>(xlim.min - prune_buffer_s_);
+            const auto xlim         = entry->axes->x_limits();
+            const auto prune_before = static_cast<float>(xlim.min - prune_buffer_s_);
             entry->base_series->erase_before(prune_before);
         }
 

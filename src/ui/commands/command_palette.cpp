@@ -5,6 +5,7 @@
     #include <algorithm>
     #include <cstring>
     #include <imgui.h>
+    #include <cmath>
     #include <spectra/logger.hpp>
 
     #include "command_registry.hpp"
@@ -176,7 +177,7 @@ bool CommandPalette::draw(float window_width, float window_height)
     // ─── Compute content height ────────────────────────────────────────────
     // Use measured_content_ from previous frame (actual ImGui cursor delta).
     // Fall back to constant-based estimate when no measurement exists yet.
-    float total_content_h;
+    float total_content_h = NAN;
     if (measured_content_ > 1.0f)
     {
         total_content_h = measured_content_;
@@ -187,13 +188,13 @@ bool CommandPalette::draw(float window_width, float window_height)
         float sp        = ImGui::GetStyle().ItemSpacing.y;
         total_content_h = 0.0f;
         std::string prev_cat;
-        for (int i = 0; i < static_cast<int>(results_.size()); ++i)
+        for (auto& result : results_)
         {
-            if (!results_[i].command)
+            if (!result.command)
                 continue;
-            if (results_[i].command->category != prev_cat)
+            if (result.command->category != prev_cat)
             {
-                prev_cat = results_[i].command->category;
+                prev_cat = result.command->category;
                 // Dummy + text + dummy, each followed by ItemSpacing
                 total_content_h += CATEGORY_HEADER_HEIGHT + sp * 2;
             }
@@ -400,7 +401,7 @@ bool CommandPalette::draw(float window_width, float window_height)
     {
         ImVec2 mp         = ImGui::GetIO().MousePos;
         bool   on_palette = mp.x >= palette_x && mp.x <= palette_x + palette_w && mp.y >= palette_y
-                          && mp.y <= palette_y + palette_h;
+                            && mp.y <= palette_y + palette_h;
         if (!on_palette)
         {
             close();
@@ -496,7 +497,7 @@ bool CommandPalette::draw(float window_width, float window_height)
             visible_height_    = avail;
             ImGui::BeginChild("##palette_results",
                               ImVec2(0, visible_height_),
-                              false,
+                              0,
                               ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
 
             ImGui::SetScrollY(scroll_offset_);

@@ -169,7 +169,7 @@ void PointCloudDisplay::on_update(float)
 
     if (!frame.has_value())
     {
-        status_      = subscribed_topic_.empty() ? DisplayStatus::Warn : DisplayStatus::Warn;
+        status_      = DisplayStatus::Warn;
         status_text_ = subscribed_topic_.empty() ? "Waiting for point cloud topic"
                                                  : "Subscribed, no point cloud received";
         return;

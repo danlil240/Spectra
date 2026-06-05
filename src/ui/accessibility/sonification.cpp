@@ -69,7 +69,7 @@ std::vector<int16_t> sonify_axes(const Axes& axes, const SonificationParams& par
     if (ymax - ymin < std::numeric_limits<float>::epsilon())
         ymax = ymin + 1.0f;   // degenerate — use constant pitch
 
-    const uint32_t total_samples =
+    const auto total_samples =
         static_cast<uint32_t>(params.duration_sec * static_cast<float>(params.sample_rate));
     std::vector<int16_t> pcm(total_samples, 0);
 
@@ -81,7 +81,7 @@ std::vector<int16_t> sonify_axes(const Axes& axes, const SonificationParams& par
     {
         // Which data point does this sample correspond to?
         double t    = static_cast<double>(si) / static_cast<double>(total_samples - 1);
-        size_t di   = static_cast<size_t>(t * static_cast<double>(n - 1));
+        auto   di   = static_cast<size_t>(t * static_cast<double>(n - 1));
         di          = std::min(di, n - 1);
         float y_val = yd[di];
 
@@ -117,7 +117,7 @@ bool write_wav(const std::string& path, const std::vector<int16_t>& pcm, uint32_
     constexpr uint16_t channels    = 1;
     constexpr uint16_t bit_depth   = 16;
     uint32_t           byte_rate   = sample_rate * channels * (bit_depth / 8u);
-    uint16_t           block_align = static_cast<uint16_t>(channels * (bit_depth / 8u));
+    auto               block_align = static_cast<uint16_t>(channels * (bit_depth / 8u));
     uint32_t           data_bytes  = static_cast<uint32_t>(pcm.size()) * sizeof(int16_t);
     uint32_t           riff_size   = 36u + data_bytes;
 

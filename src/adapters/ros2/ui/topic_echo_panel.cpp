@@ -75,8 +75,7 @@ void TopicEchoPanel::set_topic(const std::string& topic_name, const std::string&
         topic_name,
         type_name,
         qos,
-        [this](std::shared_ptr<rclcpp::SerializedMessage> raw_msg)
-        { on_message(std::move(raw_msg)); });
+        [this](const std::shared_ptr<rclcpp::SerializedMessage>& raw_msg) { on_message(raw_msg); });
 }
 
 // ---------------------------------------------------------------------------
@@ -153,7 +152,7 @@ void TopicEchoPanel::inject_message(EchoMessage msg)
 // Message reception (executor thread)
 // ---------------------------------------------------------------------------
 
-void TopicEchoPanel::on_message(std::shared_ptr<rclcpp::SerializedMessage> raw_msg)
+void TopicEchoPanel::on_message(const std::shared_ptr<rclcpp::SerializedMessage>& raw_msg)
 {
     if (paused_.load(std::memory_order_acquire))
         return;
@@ -245,7 +244,7 @@ void TopicEchoPanel::on_message(std::shared_ptr<rclcpp::SerializedMessage> raw_m
         }
     }
 
-    uint64_t seq;
+    uint64_t seq = 0;
     {
         std::lock_guard<std::mutex> lk(ring_mutex_);
         seq = next_seq_++;
@@ -329,44 +328,24 @@ void TopicEchoPanel::on_message(std::shared_ptr<rclcpp::SerializedMessage> raw_m
                 switch (fd.type)
                 {
                     case FieldType::Bool:
-                        elem_sz = 1;
-                        break;
                     case FieldType::Byte:
-                        elem_sz = 1;
-                        break;
                     case FieldType::Char:
-                        elem_sz = 1;
-                        break;
                     case FieldType::Int8:
-                        elem_sz = 1;
-                        break;
                     case FieldType::Uint8:
                         elem_sz = 1;
                         break;
                     case FieldType::Int16:
-                        elem_sz = 2;
-                        break;
                     case FieldType::Uint16:
                         elem_sz = 2;
                         break;
                     case FieldType::Int32:
-                        elem_sz = 4;
-                        break;
                     case FieldType::Uint32:
-                        elem_sz = 4;
-                        break;
                     case FieldType::Float32:
                         elem_sz = 4;
                         break;
                     case FieldType::Float64:
-                        elem_sz = 8;
-                        break;
                     case FieldType::Int64:
-                        elem_sz = 8;
-                        break;
                     case FieldType::Uint64:
-                        elem_sz = 8;
-                        break;
                     default:
                         elem_sz = 8;
                         break;
@@ -425,91 +404,91 @@ void TopicEchoPanel::on_message(std::shared_ptr<rclcpp::SerializedMessage> raw_m
                     {
                         case FieldType::Bool:
                         {
-                            uint8_t v;
+                            uint8_t v = 0;
                             std::memcpy(&v, ep, 1);
                             val = v ? 1.0 : 0.0;
                             break;
                         }
                         case FieldType::Byte:
                         {
-                            uint8_t v;
+                            uint8_t v = 0;
                             std::memcpy(&v, ep, 1);
                             val = static_cast<double>(v);
                             break;
                         }
                         case FieldType::Char:
                         {
-                            int8_t v;
+                            int8_t v = 0;
                             std::memcpy(&v, ep, 1);
                             val = static_cast<double>(v);
                             break;
                         }
                         case FieldType::Int8:
                         {
-                            int8_t v;
+                            int8_t v = 0;
                             std::memcpy(&v, ep, 1);
                             val = static_cast<double>(v);
                             break;
                         }
                         case FieldType::Uint8:
                         {
-                            uint8_t v;
+                            uint8_t v = 0;
                             std::memcpy(&v, ep, 1);
                             val = static_cast<double>(v);
                             break;
                         }
                         case FieldType::Int16:
                         {
-                            int16_t v;
+                            int16_t v = 0;
                             std::memcpy(&v, ep, 2);
                             val = static_cast<double>(v);
                             break;
                         }
                         case FieldType::Uint16:
                         {
-                            uint16_t v;
+                            uint16_t v = 0;
                             std::memcpy(&v, ep, 2);
                             val = static_cast<double>(v);
                             break;
                         }
                         case FieldType::Int32:
                         {
-                            int32_t v;
+                            int32_t v = 0;
                             std::memcpy(&v, ep, 4);
                             val = static_cast<double>(v);
                             break;
                         }
                         case FieldType::Uint32:
                         {
-                            uint32_t v;
+                            uint32_t v = 0;
                             std::memcpy(&v, ep, 4);
                             val = static_cast<double>(v);
                             break;
                         }
                         case FieldType::Float32:
                         {
-                            float v;
+                            float v = NAN;
                             std::memcpy(&v, ep, 4);
                             val = static_cast<double>(v);
                             break;
                         }
                         case FieldType::Float64:
                         {
-                            double v;
+                            double v = NAN;
                             std::memcpy(&v, ep, 8);
                             val = v;
                             break;
                         }
                         case FieldType::Int64:
                         {
-                            int64_t v;
+                            int64_t v = 0;
                             std::memcpy(&v, ep, 8);
                             val = static_cast<double>(v);
                             break;
                         }
                         case FieldType::Uint64:
                         {
-                            uint64_t v;
+                            uint64_t v = 0;
                             std::memcpy(&v, ep, 8);
                             val = static_cast<double>(v);
                             break;
@@ -641,8 +620,8 @@ void TopicEchoPanel::on_message(std::shared_ptr<rclcpp::SerializedMessage> raw_m
         case FieldType::String:
         {
             // std::string layout: SSO or heap pointer at offset 0.
-            const std::string* s = reinterpret_cast<const std::string*>(ptr);
-            fv.kind              = EchoFieldValue::Kind::Text;
+            const auto* s = reinterpret_cast<const std::string*>(ptr);
+            fv.kind       = EchoFieldValue::Kind::Text;
             if (s->size() > 128)
             {
                 fv.text = s->substr(0, 128) + "...";
@@ -774,7 +753,7 @@ void TopicEchoPanel::draw(bool* p_open)
     const float avail_h    = ImGui::GetContentRegionAvail().y;
 
     // Message list pane.
-    ImGui::BeginChild("##msg_list", ImVec2(list_width, avail_h), true);
+    ImGui::BeginChild("##msg_list", ImVec2(list_width, avail_h), 1);
 
     ImGui::TextDisabled("%zu / %zu msg", snap.size(), static_cast<size_t>(total_received_.load()));
     ImGui::Separator();
@@ -802,7 +781,7 @@ void TopicEchoPanel::draw(bool* p_open)
     ImGui::SameLine();
 
     // Detail pane.
-    ImGui::BeginChild("##msg_detail", ImVec2(0, avail_h), true);
+    ImGui::BeginChild("##msg_detail", ImVec2(0, avail_h), 1);
 
     // Resolve which message to display (default: latest = back of snap).
     int display_idx = selected_msg_idx_;

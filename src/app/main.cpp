@@ -24,12 +24,12 @@
 
 #ifndef _WIN32
     #include <fcntl.h>
-    #include <signal.h>
+    #include <csignal>
     #include <sys/socket.h>
     #include <sys/types.h>
     #include <sys/un.h>
     #include <sys/wait.h>
-    #include <time.h>
+    #include <ctime>
     #include <unistd.h>
 #endif
 

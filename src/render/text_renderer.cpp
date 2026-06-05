@@ -5,6 +5,7 @@
 #include <fstream>
 
 #define STB_TRUETYPE_IMPLEMENTATION
+#include <cmath>
 #include <stb_truetype.h>
 
 namespace spectra
@@ -75,8 +76,8 @@ bool TextRenderer::init(Backend& backend, const uint8_t* font_data, size_t font_
     stbtt_PackSetOversampling(&pack_ctx, OVERSAMPLE, OVERSAMPLE);
 
     // Pack all 3 font sizes. Each gets its own chardata array.
-    static constexpr size_t FONT_COUNT = static_cast<size_t>(FontSize::Count);
-    stbtt_packedchar        chardata[FONT_COUNT][NUM_CHARS];
+    static constexpr auto FONT_COUNT = static_cast<size_t>(FontSize::Count);
+    stbtt_packedchar      chardata[FONT_COUNT][NUM_CHARS];
 
     stbtt_pack_range ranges[FONT_COUNT];
     for (size_t si = 0; si < FONT_COUNT; ++si)
@@ -113,7 +114,9 @@ bool TextRenderer::init(Backend& backend, const uint8_t* font_data, size_t font_
         float pixel_size = FONT_PIXEL_SIZES[si];
         float scale      = stbtt_ScaleForPixelHeight(&font_info, pixel_size);
 
-        int ascent_i, descent_i, line_gap_i;
+        int ascent_i   = 0;
+        int descent_i  = 0;
+        int line_gap_i = 0;
         stbtt_GetFontVMetrics(&font_info, &ascent_i, &descent_i, &line_gap_i);
 
         fonts_[si].pixel_size  = pixel_size;
@@ -123,13 +126,14 @@ bool TextRenderer::init(Backend& backend, const uint8_t* font_data, size_t font_
 
         for (int ci = 0; ci < NUM_CHARS; ++ci)
         {
-            uint32_t                cp = static_cast<uint32_t>(FIRST_CHAR + ci);
+            auto                    cp = static_cast<uint32_t>(FIRST_CHAR + ci);
             const stbtt_packedchar& pc = chardata[si][ci];
 
             // stbtt_GetPackedQuad gives us the exact screen-space quad
             // with sub-pixel offsets baked in from oversampling.
             stbtt_aligned_quad q;
-            float              dummy_x = 0.0f, dummy_y = 0.0f;
+            float              dummy_x = 0.0f;
+            float              dummy_y = 0.0f;
             stbtt_GetPackedQuad(chardata[si],
                                 static_cast<int>(atlas_width_),
                                 static_cast<int>(atlas_height_),
@@ -264,7 +268,14 @@ void TextRenderer::append_glyph(std::vector<TextVertex>& target,
         oy       = pivot_y + dx * sin_a + dy * cos_a;
     };
 
-    float rx0, ry0, rx1, ry1, rx2, ry2, rx3, ry3;
+    float rx0 = NAN;
+    float ry0 = NAN;
+    float rx1 = NAN;
+    float ry1 = NAN;
+    float rx2 = NAN;
+    float ry2 = NAN;
+    float rx3 = NAN;
+    float ry3 = NAN;
     if (cos_a != 1.0f || sin_a != 0.0f)
     {
         rotate(x0, y0, rx0, ry0);
@@ -301,8 +312,8 @@ TextRenderer::TextExtent TextRenderer::measure_text(const std::string& text, Fon
 
     for (char c : text)
     {
-        uint32_t cp = static_cast<uint32_t>(static_cast<uint8_t>(c));
-        auto     it = fd.glyphs.find(cp);
+        auto cp = static_cast<uint32_t>(static_cast<uint8_t>(c));
+        auto it = fd.glyphs.find(cp);
         if (it != fd.glyphs.end())
         {
             width += it->second.x_advance;
@@ -349,8 +360,8 @@ void TextRenderer::draw_text(const std::string& text,
 
     for (char c : text)
     {
-        uint32_t cp = static_cast<uint32_t>(static_cast<uint8_t>(c));
-        auto     it = fd.glyphs.find(cp);
+        auto cp = static_cast<uint32_t>(static_cast<uint8_t>(c));
+        auto it = fd.glyphs.find(cp);
         if (it == fd.glyphs.end())
             continue;
 
@@ -399,8 +410,8 @@ void TextRenderer::draw_text_depth(const std::string& text,
 
     for (char c : text)
     {
-        uint32_t cp = static_cast<uint32_t>(static_cast<uint8_t>(c));
-        auto     it = fd.glyphs.find(cp);
+        auto cp = static_cast<uint32_t>(static_cast<uint8_t>(c));
+        auto it = fd.glyphs.find(cp);
         if (it == fd.glyphs.end())
             continue;
 
@@ -452,8 +463,8 @@ void TextRenderer::draw_text_rotated(const std::string& text,
 
     for (char c : text)
     {
-        uint32_t cp = static_cast<uint32_t>(static_cast<uint8_t>(c));
-        auto     it = fd.glyphs.find(cp);
+        auto cp = static_cast<uint32_t>(static_cast<uint8_t>(c));
+        auto it = fd.glyphs.find(cp);
         if (it == fd.glyphs.end())
             continue;
 

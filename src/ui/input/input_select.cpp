@@ -31,8 +31,8 @@ void InputHandler::handle_mouse_button_select(int action, double x, double y)
     }
     else if (action == ACTION_RELEASE && select_rect_active_)
     {
-        float           dx_px              = static_cast<float>(x - select_start_x_);
-        float           dy_px              = static_cast<float>(y - select_start_y_);
+        auto            dx_px              = static_cast<float>(x - select_start_x_);
+        auto            dy_px              = static_cast<float>(y - select_start_y_);
         float           move_dist          = std::sqrt(dx_px * dx_px + dy_px * dy_px);
         constexpr float CLICK_THRESHOLD_PX = 5.0f;
 
@@ -72,8 +72,8 @@ void InputHandler::handle_mouse_button_roi(int action, double x, double y)
     {
         if (data_interaction_)
         {
-            float           dx_px              = static_cast<float>(x - select_start_x_);
-            float           dy_px              = static_cast<float>(y - select_start_y_);
+            auto            dx_px              = static_cast<float>(x - select_start_x_);
+            auto            dy_px              = static_cast<float>(y - select_start_y_);
             float           move_dist          = std::sqrt(dx_px * dx_px + dy_px * dy_px);
             constexpr float CLICK_THRESHOLD_PX = 5.0f;
 

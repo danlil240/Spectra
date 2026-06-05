@@ -173,7 +173,7 @@ class VulkanBackend : public Backend
     // Used before writing to shared GPU resources (text vertex buffers, overlay
     // scratch buffers) to prevent a second window's uploads from corrupting
     // data still being read by the first window's submitted command buffer.
-    void wait_window_fences(WindowContext& wctx);
+    void wait_window_fences(WindowContext& wctx) const;
 
     // Returns true if the Vulkan device has been lost (unrecoverable)
     bool is_device_lost() const { return device_lost_; }
@@ -282,8 +282,8 @@ class VulkanBackend : public Backend
 
    private:
     VkDescriptorSet allocate_descriptor_set(VkDescriptorSetLayout layout);
-    void            update_ubo_descriptor(VkDescriptorSet set, VkBuffer buffer, VkDeviceSize size);
-    void            update_ssbo_descriptor(VkDescriptorSet set, VkBuffer buffer, VkDeviceSize size);
+    void update_ubo_descriptor(VkDescriptorSet set, VkBuffer buffer, VkDeviceSize size) const;
+    void update_ssbo_descriptor(VkDescriptorSet set, VkBuffer buffer, VkDeviceSize size) const;
 
     struct TextureEntry
     {

@@ -119,7 +119,7 @@ bool QtSurfaceHost::create_surface(VkInstance    instance,
         return false;
     }
 
-    out_surface = window_instance->surfaceForWindow(window);
+    out_surface = QVulkanInstance::surfaceForWindow(window);
     return out_surface != VK_NULL_HANDLE;
 }
 

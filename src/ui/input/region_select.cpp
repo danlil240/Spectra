@@ -271,7 +271,10 @@ void RegionSelect::draw(const Rect& viewport,
     ImDrawList* fg     = ImGui::GetForegroundDrawList();
 
     // Convert data rect to screen rect
-    float sx0, sy0, sx1, sy1;
+    float sx0 = NAN;
+    float sy0 = NAN;
+    float sx1 = NAN;
+    float sy1 = NAN;
     data_to_screen(data_x0_, data_y0_, viewport, xlim_min, xlim_max, ylim_min, ylim_max, sx0, sy0);
     data_to_screen(data_x1_, data_y1_, viewport, xlim_min, xlim_max, ylim_min, ylim_max, sx1, sy1);
 
@@ -443,9 +446,9 @@ void RegionSelect::draw_mini_toolbar(float rx0,
     if (ImGui::Begin("##region_stats", nullptr, flags))
     {
         ImU32 text_primary   = ImGui::ColorConvertFloat4ToU32(ImVec4(colors.text_primary.r,
-                                                                   colors.text_primary.g,
-                                                                   colors.text_primary.b,
-                                                                   colors.text_primary.a));
+                                                                     colors.text_primary.g,
+                                                                     colors.text_primary.b,
+                                                                     colors.text_primary.a));
         ImU32 text_secondary = ImGui::ColorConvertFloat4ToU32(ImVec4(colors.text_secondary.r,
                                                                      colors.text_secondary.g,
                                                                      colors.text_secondary.b,

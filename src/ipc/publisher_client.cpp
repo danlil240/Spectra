@@ -1,3 +1,4 @@
+#include <memory>
 #include <spectra/topic.hpp>
 
 #include <atomic>
@@ -105,7 +106,7 @@ struct Publisher::Impl
     std::string                                socket_path;
     std::string                                unit;
     uint32_t                                   ring_capacity = 4096;
-    std::chrono::steady_clock::time_point      next_reconnect_attempt{};
+    std::chrono::steady_clock::time_point      next_reconnect_attempt;
     static constexpr std::chrono::milliseconds reconnect_backoff{500};
 
     // Establish socket + HELLO + DECLARE_TOPIC.  Replaces any existing
@@ -215,7 +216,7 @@ std::unique_ptr<Publisher> Publisher::create(std::string_view name, const Option
     if (name.empty())
         return nullptr;
 
-    auto pub           = std::unique_ptr<Publisher>(new Publisher());
+    auto pub           = std::make_unique<Publisher>();
     pub->impl_         = std::make_unique<Impl>();
     auto& impl         = *pub->impl_;
     impl.name          = std::string(name);

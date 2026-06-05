@@ -403,7 +403,8 @@ void DataEditor::draw_series_selector(AxesBase& axes)
 void DataEditor::draw_data_table_2d(Series& series, int series_idx)
 {
     // Get data spans
-    std::span<const float> x_data, y_data;
+    std::span<const float> x_data;
+    std::span<const float> y_data;
 
     if (auto* ls = dynamic_cast<LineSeries*>(&series))
     {
@@ -467,9 +468,9 @@ void DataEditor::draw_data_table_2d(Series& series, int series_idx)
 
         // Use clipper for performance with large datasets
         ImU32            highlight_col = IM_COL32(static_cast<int>(theme().accent_subtle.r * 255),
-                                       static_cast<int>(theme().accent_subtle.g * 255),
-                                       static_cast<int>(theme().accent_subtle.b * 255),
-                                       96);
+                                                  static_cast<int>(theme().accent_subtle.g * 255),
+                                                  static_cast<int>(theme().accent_subtle.b * 255),
+                                                  96);
         ImGuiListClipper clipper;
         clipper.Begin(static_cast<int>(count));
         while (clipper.Step())
@@ -529,12 +530,6 @@ void DataEditor::draw_data_table_2d(Series& series, int series_idx)
                         }
                         if (ImGui::IsItemDeactivated())
                             editing_ = false;
-                        if (!is_editing)
-                        {
-                        }   // Just set focus on first frame
-                        else if (ImGui::IsItemActive())
-                        {
-                        }
                     }
                     else
                     {
@@ -621,7 +616,9 @@ void DataEditor::draw_data_table_2d(Series& series, int series_idx)
 void DataEditor::draw_data_table_3d(Series& series, int series_idx)
 {
     // Get data spans
-    std::span<const float> x_data, y_data, z_data;
+    std::span<const float> x_data;
+    std::span<const float> y_data;
+    std::span<const float> z_data;
 
     if (auto* ls = dynamic_cast<LineSeries3D*>(&series))
     {
@@ -758,9 +755,9 @@ void DataEditor::draw_data_table_3d(Series& series, int series_idx)
         ImGui::TableHeadersRow();
 
         ImU32            highlight_col = IM_COL32(static_cast<int>(theme().accent_subtle.r * 255),
-                                       static_cast<int>(theme().accent_subtle.g * 255),
-                                       static_cast<int>(theme().accent_subtle.b * 255),
-                                       96);
+                                                  static_cast<int>(theme().accent_subtle.g * 255),
+                                                  static_cast<int>(theme().accent_subtle.b * 255),
+                                                  96);
         ImGuiListClipper clipper;
         clipper.Begin(static_cast<int>(count));
         while (clipper.Step())

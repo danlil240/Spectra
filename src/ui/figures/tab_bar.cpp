@@ -60,7 +60,7 @@ void TabBar::remove_tab(size_t index)
     // Adjust active tab if necessary
     if (active_tab_ >= tabs_.size())
     {
-        active_tab_ = tabs_.size() > 0 ? tabs_.size() - 1 : 0;
+        active_tab_ = !tabs_.empty() ? tabs_.size() - 1 : 0;
     }
     else if (active_tab_ > index)
     {
@@ -92,7 +92,7 @@ void TabBar::set_tab_title(size_t index, const std::string& title)
 
 const std::string& TabBar::get_tab_title(size_t index) const
 {
-    static const std::string empty = "";
+    static const std::string empty;
     return (index < tabs_.size()) ? tabs_[index].title : empty;
 }
 
@@ -185,7 +185,7 @@ void TabBar::handle_input(const Rect& bounds)
 #ifdef SPECTRA_USE_IMGUI
     ImVec2 mouse_pos       = ImGui::GetMousePos();
     bool   mouse_in_bounds = (mouse_pos.x >= bounds.x && mouse_pos.x < bounds.x + bounds.w
-                            && mouse_pos.y >= bounds.y && mouse_pos.y < bounds.y + bounds.h);
+                              && mouse_pos.y >= bounds.y && mouse_pos.y < bounds.y + bounds.h);
 
     // Always process ongoing drags, even when mouse is outside tab bar
     if (is_dragging_)
@@ -286,7 +286,7 @@ void TabBar::draw_tabs(const Rect& bounds, bool menus_open)
         bool        is_dragged = (is_dragging_ && i == dragged_tab_);
 
         // Tab background color from theme
-        ImU32 bg_color;
+        ImU32 bg_color = 0;
         bool  is_active_styled =
             is_active && !menus_open;   // Don't show active styling when menus are open
         if (is_active_styled)
@@ -442,21 +442,21 @@ std::vector<TabBar::TabLayout> TabBar::compute_tab_layouts(const Rect& bounds) c
     float current_x       = bounds.x + scroll_offset_;
     float available_width = bounds.w;
 
-    for (size_t i = 0; i < tabs_.size(); ++i)
+    for (const auto& tab : tabs_)
     {
         TabLayout layout;
 
         // Calculate tab width based on title
-        ImVec2 text_size = ImGui::CalcTextSize(tabs_[i].title.c_str());
+        ImVec2 text_size = ImGui::CalcTextSize(tab.title.c_str());
         float  tab_width =
-            std::clamp(text_size.x + TAB_PADDING * 2 + (tabs_[i].can_close ? CLOSE_BUTTON_SIZE : 0),
+            std::clamp(text_size.x + TAB_PADDING * 2 + (tab.can_close ? CLOSE_BUTTON_SIZE : 0),
                        TAB_MIN_WIDTH,
                        TAB_MAX_WIDTH);
 
         layout.bounds = Rect{current_x, bounds.y, tab_width, TAB_HEIGHT};
 
         // Close button bounds (right side of tab)
-        if (tabs_[i].can_close)
+        if (tab.can_close)
         {
             layout.close_bounds = Rect{current_x + tab_width - CLOSE_BUTTON_SIZE - 4,
                                        bounds.y + (TAB_HEIGHT - CLOSE_BUTTON_SIZE) * 0.5f,
@@ -612,7 +612,7 @@ void TabBar::end_drag()
         // Check if mouse is outside the main window — detach to new window
         ImVec2 display_size   = ImGui::GetIO().DisplaySize;
         bool   outside_window = (mouse_pos.x < 0 || mouse_pos.y < 0 || mouse_pos.x >= display_size.x
-                               || mouse_pos.y >= display_size.y);
+                                 || mouse_pos.y >= display_size.y);
 
         if (outside_window && on_tab_detach_ && tabs_.size() > 1)
         {
@@ -665,7 +665,7 @@ void TabBar::draw_scroll_buttons(const Rect& bounds)
         float lx   = bounds.x;
         float ly   = bounds.y + 2.0f;
         bool  lhov = (mouse_pos.x >= lx && mouse_pos.x < lx + btn_w && mouse_pos.y >= ly
-                     && mouse_pos.y < ly + btn_h);
+                      && mouse_pos.y < ly + btn_h);
         draw_list->AddRectFilled(
             ImVec2(lx, ly),
             ImVec2(lx + btn_w, ly + btn_h),
@@ -687,7 +687,7 @@ void TabBar::draw_scroll_buttons(const Rect& bounds)
         float rx   = bounds.x + bounds.w - btn_w;
         float ry   = bounds.y + 2.0f;
         bool  rhov = (mouse_pos.x >= rx && mouse_pos.x < rx + btn_w && mouse_pos.y >= ry
-                     && mouse_pos.y < ry + btn_h);
+                      && mouse_pos.y < ry + btn_h);
         draw_list->AddRectFilled(
             ImVec2(rx, ry),
             ImVec2(rx + btn_w, ry + btn_h),

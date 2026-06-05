@@ -4,6 +4,7 @@
     #include <imgui.h>
     #ifdef IMGUI_HAS_DOCK
         #include <imgui_internal.h>
+        #include <cmath>
     #endif
 #endif
 
@@ -69,7 +70,8 @@ void LiveConnectionPanel::draw(bool* p_open)
     bool currently_docked = ImGui::IsWindowDocked();
     if (was_docked_ && !currently_docked && detach_ctrl_.is_docked())
     {
-        double sx, sy;
+        double sx = NAN;
+        double sy = NAN;
         detach_ctrl_.get_screen_cursor(sx, sy);
         detach_ctrl_.set_screen_position(static_cast<int>(sx), static_cast<int>(sy));
         detach_ctrl_.detach();
@@ -188,7 +190,7 @@ void LiveConnectionPanel::draw_channel_list()
 {
 #ifdef SPECTRA_USE_IMGUI
     ImGui::Text("Active Channels");
-    ImGui::BeginChild("Channels", ImVec2(0, 0), true);
+    ImGui::BeginChild("Channels", ImVec2(0, 0), 1);
 
     auto channels = bridge_.channel_names();
     for (auto& ch_name : channels)

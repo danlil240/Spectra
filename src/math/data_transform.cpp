@@ -261,12 +261,10 @@ bool DataTransform::changes_length() const
     {
         case TransformType::Derivative:
         case TransformType::Diff:
-            return true;
         case TransformType::Log10:
-        case TransformType::Ln:
-            return true;   // May skip non-positive values
-        case TransformType::FFT:
-            return true;   // Output is N/2+1 frequency bins (left-sided)
+        case TransformType::Ln:   // may skip non-positive values
+        case TransformType::FFT:  // output is N/2+1 frequency bins (left-sided)
+            return true;
         case TransformType::Custom:
             return custom_xy_func_ != nullptr;
         default:
@@ -386,7 +384,8 @@ void DataTransform::apply_normalize(std::span<const float> x_in,
     if (n == 0)
         return;
 
-    float ymin = y_in[0], ymax = y_in[0];
+    float ymin = y_in[0];
+    float ymax = y_in[0];
     for (size_t i = 1; i < n; ++i)
     {
         if (y_in[i] < ymin)
@@ -716,7 +715,10 @@ void TransformPipeline::apply(std::span<const float> x_in,
     }
 
     // Apply first enabled step
-    std::vector<float> tmp_x1, tmp_y1, tmp_x2, tmp_y2;
+    std::vector<float> tmp_x1;
+    std::vector<float> tmp_y1;
+    std::vector<float> tmp_x2;
+    std::vector<float> tmp_y2;
     bool               first_step = true;
 
     for (const auto& step : steps_)
@@ -865,20 +867,20 @@ std::vector<std::string> TransformRegistry::available_transforms() const
     std::vector<std::string> names;
 
     // Built-in transforms
-    names.push_back("Identity");
-    names.push_back("Log10");
-    names.push_back("Ln");
-    names.push_back("Abs");
-    names.push_back("Negate");
-    names.push_back("Normalize");
-    names.push_back("Standardize");
-    names.push_back("Derivative");
-    names.push_back("CumulativeSum");
-    names.push_back("Diff");
-    names.push_back("Scale");
-    names.push_back("Offset");
-    names.push_back("Clamp");
-    names.push_back("FFT");
+    names.emplace_back("Identity");
+    names.emplace_back("Log10");
+    names.emplace_back("Ln");
+    names.emplace_back("Abs");
+    names.emplace_back("Negate");
+    names.emplace_back("Normalize");
+    names.emplace_back("Standardize");
+    names.emplace_back("Derivative");
+    names.emplace_back("CumulativeSum");
+    names.emplace_back("Diff");
+    names.emplace_back("Scale");
+    names.emplace_back("Offset");
+    names.emplace_back("Clamp");
+    names.emplace_back("FFT");
 
     // Custom transforms
     for (const auto& [k, _] : custom_transforms_)
@@ -911,6 +913,7 @@ std::vector<std::string> TransformRegistry::saved_pipelines() const
 {
     std::lock_guard          lock(mutex_);
     std::vector<std::string> names;
+    names.reserve(saved_pipelines_.size());
     for (const auto& [k, _] : saved_pipelines_)
     {
         names.push_back(k);
@@ -956,7 +959,8 @@ std::vector<float> transform_y(std::span<const float> y,
     std::vector<float> x_in(y.size());
     std::iota(x_in.begin(), x_in.end(), 0.0f);
 
-    std::vector<float> x_out, y_out;
+    std::vector<float> x_out;
+    std::vector<float> y_out;
     t.apply_y(x_in, y, x_out, y_out);
     return y_out;
 }

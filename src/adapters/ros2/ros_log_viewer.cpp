@@ -191,7 +191,7 @@ void RosLogViewer::subscribe(const std::string& topic)
         topic_,
         "rcl_interfaces/msg/Log",
         rclcpp::QoS(rclcpp::KeepLast(1000)).reliable().durability_volatile(),
-        [this](std::shared_ptr<rclcpp::SerializedMessage> msg) { on_message(std::move(msg)); });
+        [this](const std::shared_ptr<rclcpp::SerializedMessage>& msg) { on_message(msg); });
 }
 
 void RosLogViewer::unsubscribe()
@@ -301,7 +301,7 @@ std::vector<LogEntry> RosLogViewer::filtered_snapshot()
     return out;
 }
 
-void RosLogViewer::for_each_filtered(std::function<void(const LogEntry&)> cb)
+void RosLogViewer::for_each_filtered(const std::function<void(const LogEntry&)>& cb)
 {
     maybe_recompile_regex();
     const std::regex* re =
@@ -427,7 +427,7 @@ static bool read_cdr_string(const uint8_t* buf, size_t buf_size, size_t& offset,
 
     if (offset + 4 > buf_size)
         return false;
-    uint32_t len;
+    uint32_t len = 0;
     std::memcpy(&len, buf + offset, 4);
     offset += 4;
 
@@ -445,7 +445,7 @@ static bool read_cdr_string(const uint8_t* buf, size_t buf_size, size_t& offset,
     return true;
 }
 
-void RosLogViewer::on_message(std::shared_ptr<rclcpp::SerializedMessage> raw_msg)
+void RosLogViewer::on_message(const std::shared_ptr<rclcpp::SerializedMessage>& raw_msg)
 {
     if (paused_.load(std::memory_order_relaxed))
         return;
@@ -461,8 +461,8 @@ void RosLogViewer::on_message(std::shared_ptr<rclcpp::SerializedMessage> raw_msg
 
     size_t offset = 4;   // skip CDR header
 
-    int32_t  stamp_sec;
-    uint32_t stamp_nanosec;
+    int32_t  stamp_sec     = 0;
+    uint32_t stamp_nanosec = 0;
     std::memcpy(&stamp_sec, buf + offset, 4);
     offset += 4;
     std::memcpy(&stamp_nanosec, buf + offset, 4);
@@ -473,7 +473,10 @@ void RosLogViewer::on_message(std::shared_ptr<rclcpp::SerializedMessage> raw_msg
     const uint8_t level = buf[offset];
     offset += 4;   // level (1 byte) + 3 alignment pad
 
-    std::string node_name, msg_str, file_str, func_str;
+    std::string node_name;
+    std::string msg_str;
+    std::string file_str;
+    std::string func_str;
     uint32_t    line_num = 0;
 
     if (!read_cdr_string(buf, buf_size, offset, node_name))
@@ -493,7 +496,7 @@ void RosLogViewer::on_message(std::shared_ptr<rclcpp::SerializedMessage> raw_msg
     if (offset + 4 <= buf_size)
         std::memcpy(&line_num, buf + offset, 4);
 
-    uint64_t seq;
+    uint64_t seq = 0;
     {
         std::lock_guard<std::mutex> lock(ring_mutex_);
         seq = next_seq_++;

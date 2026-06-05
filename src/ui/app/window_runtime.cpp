@@ -49,10 +49,9 @@ void apply_window_size_limits(WindowUIContext& ui_ctx, ImGuiIntegration& imgui_u
         return;
 
     const float min_w = LayoutManager::min_window_width(imgui_ui.is_nav_rail_visible());
-    const float min_h =
-        LayoutManager::min_window_height(imgui_ui.is_nav_rail_visible(),
-                                         imgui_ui.is_command_bar_visible(),
-                                         imgui_ui.is_status_bar_visible());
+    const float min_h = LayoutManager::min_window_height(imgui_ui.is_nav_rail_visible(),
+                                                         imgui_ui.is_command_bar_visible(),
+                                                         imgui_ui.is_status_bar_visible());
 
     if (min_w == ui_ctx.applied_min_window_w_ && min_h == ui_ctx.applied_min_window_h_)
         return;
@@ -63,7 +62,7 @@ void apply_window_size_limits(WindowUIContext& ui_ctx, ImGuiIntegration& imgui_u
     const int min_wi = static_cast<int>(std::ceil(min_w));
     const int min_hi = static_cast<int>(std::ceil(min_h));
 
-#ifdef SPECTRA_USE_GLFW
+    #ifdef SPECTRA_USE_GLFW
     auto* win = static_cast<GLFWwindow*>(ui_ctx.glfw_window);
     glfwSetWindowSizeLimits(win, min_wi, min_hi, GLFW_DONT_CARE, GLFW_DONT_CARE);
 
@@ -72,7 +71,7 @@ void apply_window_size_limits(WindowUIContext& ui_ctx, ImGuiIntegration& imgui_u
     glfwGetWindowSize(win, &ww, &wh);
     if (ww < min_wi || wh < min_hi)
         glfwSetWindowSize(win, std::max(ww, min_wi), std::max(wh, min_hi));
-#elif defined(SPECTRA_USE_SDL3)
+    #elif defined(SPECTRA_USE_SDL3)
     auto* win = static_cast<SDL_Window*>(ui_ctx.glfw_window);
     SDL_SetWindowMinimumSize(win, min_wi, min_hi);
 
@@ -81,7 +80,7 @@ void apply_window_size_limits(WindowUIContext& ui_ctx, ImGuiIntegration& imgui_u
     SDL_GetWindowSize(win, &ww, &wh);
     if (ww < min_wi || wh < min_hi)
         SDL_SetWindowSize(win, std::max(ww, min_wi), std::max(wh, min_hi));
-#endif
+    #endif
 }
 
 }   // namespace
@@ -378,10 +377,10 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
 #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
     // Keep swapchain extent matched to the live framebuffer BEFORE ImGui
     // new_frame so layout zones and GPU rendering share the same dimensions.
-    bool resize_active         = false;
-    bool swapchain_recreated   = false;
-    uint32_t live_fb_w         = 0;
-    uint32_t live_fb_h         = 0;
+    bool     resize_active       = false;
+    bool     swapchain_recreated = false;
+    uint32_t live_fb_w           = 0;
+    uint32_t live_fb_h           = 0;
     {
         auto& needs_resize = ui_ctx.needs_resize;
         auto& new_width    = ui_ctx.new_width;
@@ -392,12 +391,12 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
         if (aw)
         {
             vk->query_window_framebuffer_size(*aw, live_fb_w, live_fb_h);
-            resize_active = live_fb_w > 0 && live_fb_h > 0
-                            && (live_fb_w != vk->swapchain_width()
-                                || live_fb_h != vk->swapchain_height());
+            resize_active =
+                live_fb_w > 0 && live_fb_h > 0
+                && (live_fb_w != vk->swapchain_width() || live_fb_h != vk->swapchain_height());
 
-            const bool want_recreate = resize_active || needs_resize || aw->swapchain_dirty
-                                       || aw->swapchain_invalidated;
+            const bool want_recreate =
+                resize_active || needs_resize || aw->swapchain_dirty || aw->swapchain_invalidated;
             if (want_recreate && live_fb_w > 0 && live_fb_h > 0)
             {
                 const uint32_t target_w = live_fb_w;
@@ -417,18 +416,17 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                     active_figure->config_.width  = backend_.swapchain_width();
                     active_figure->config_.height = backend_.swapchain_height();
                 }
-            #ifdef SPECTRA_USE_IMGUI
+    #ifdef SPECTRA_USE_IMGUI
                 if (imgui_ui)
                 {
                     imgui_ui->on_swapchain_recreated(*vk);
                 }
-            #endif
+    #endif
             }
             else if (needs_resize)
             {
                 needs_resize = false;
             }
-
         }
     }
 #endif
@@ -449,16 +447,16 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
         if ((resize_active || swapchain_recreated) && ui_ctx.glfw_window)
         {
             auto* win = static_cast<GLFWwindow*>(ui_ctx.glfw_window);
-            int   ww = 0;
-            int   wh = 0;
+            int   ww  = 0;
+            int   wh  = 0;
             int   fbw = 0;
             int   fbh = 0;
             glfwGetWindowSize(win, &ww, &wh);
             glfwGetFramebufferSize(win, &fbw, &fbh);
             if (ww > 0 && wh > 0)
             {
-                ImGuiIO& io     = ImGui::GetIO();
-                io.DisplaySize  = ImVec2(static_cast<float>(ww), static_cast<float>(wh));
+                ImGuiIO& io    = ImGui::GetIO();
+                io.DisplaySize = ImVec2(static_cast<float>(ww), static_cast<float>(wh));
                 io.DisplayFramebufferScale =
                     ImVec2(static_cast<float>(fbw) / static_cast<float>(ww),
                            static_cast<float>(fbh) / static_cast<float>(wh));
@@ -603,7 +601,8 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
 
             if (needs_recompute)
             {
-                float data_min = xlim.max, data_max = xlim.min;
+                float data_min = xlim.max;
+                float data_max = xlim.min;
                 for (auto& s : ax->series())
                 {
                     if (!s)
@@ -936,7 +935,8 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
             return false;   // Timeout — just skip this window
 
         // Swapchain truly unusable — recreate and retry
-        uint32_t target_w = 0, target_h = 0;
+        uint32_t target_w = 0;
+        uint32_t target_h = 0;
         if (aw)
         {
             vk->query_window_framebuffer_size(*aw, target_w, target_h);
@@ -1018,13 +1018,13 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
         // via set_render_figure_enabled(true).
         const bool render_canvas = !ui_ctx.imgui_ui || ui_ctx.imgui_ui->is_canvas_visible()
                                    || ui_ctx.imgui_ui->is_render_figure_enabled();
-        auto& dock_system = ui_ctx.dock_system;
+        auto&      dock_system   = ui_ctx.dock_system;
         if (render_canvas && active_figure && dock_system.is_split())
         {
             uint32_t sw_u       = backend_.swapchain_width();
             uint32_t sh_u       = backend_.swapchain_height();
-            float    sw_f       = static_cast<float>(sw_u);
-            float    sh_f       = static_cast<float>(sh_u);
+            auto     sw_f       = static_cast<float>(sw_u);
+            auto     sh_f       = static_cast<float>(sh_u);
             auto     pane_infos = dock_system.get_pane_infos();
             for (const auto& pinfo : pane_infos)
             {
@@ -1077,9 +1077,9 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
         if (profiler)
             profiler->end_stage("cmd_record");
 
-            // Invoke scene render callback — allows adapter shells (spectra-ros)
-            // to issue GPU draw calls for 3D scene content during the active
-            // Vulkan render pass, before ImGui overlays.
+        // Invoke scene render callback — allows adapter shells (spectra-ros)
+        // to issue GPU draw calls for 3D scene content during the active
+        // Vulkan render pass, before ImGui overlays.
 #ifdef SPECTRA_USE_IMGUI
         if (ui_ctx.imgui_ui)
         {
@@ -1096,8 +1096,8 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
         if (render_canvas)
 #endif
         {
-            float sw = static_cast<float>(backend_.swapchain_width());
-            float sh = static_cast<float>(backend_.swapchain_height());
+            auto sw = static_cast<float>(backend_.swapchain_width());
+            auto sh = static_cast<float>(backend_.swapchain_height());
             renderer_.render_text(sw, sh);
         }
 

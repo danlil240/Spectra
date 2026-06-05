@@ -982,60 +982,66 @@ void ImGuiIntegration::draw_status_bar()
         }
         ImGui::PopStyleColor();
 
-        // Right side: performance info — anchor to right edge of window
-        float perf_width = 160.0f;
-        float abs_x      = ImGui::GetWindowWidth() - perf_width - ui::tokens::SPACE_3;
-        ImGui::SameLine(abs_x > 0.0f ? abs_x : 0.0f);
-
-        // FPS with color coding
-        float fps_val   = io.Framerate;
-        auto  fps_color = theme_colors().success;
-        if (fps_val < 20.0f)
-            fps_color = theme_colors().error;
-        else if (fps_val < 45.0f)
-            fps_color = theme_colors().warning;
-
-        char fps_buf[32];
-        std::snprintf(fps_buf, sizeof(fps_buf), "%d fps", static_cast<int>(fps_val));
+        // Right side: performance info — anchor to right edge when there is room
+        // (narrow status bars: skip perf to avoid overlapping zoom/mode on the left)
+        const float perf_width   = 160.0f;
+        const float perf_anchor  = ImGui::GetWindowWidth() - perf_width - ui::tokens::SPACE_3;
+        const float perf_min_gap = ui::tokens::SPACE_3;
+        const bool  show_perf    = perf_anchor > ImGui::GetCursorPosX() + perf_min_gap;
+        if (show_perf)
         {
-            ImVec2 chip_pos = ImGui::GetCursorScreenPos();
-            ImVec2 chip_sz  = ImGui::CalcTextSize(fps_buf);
-            ImGui::GetWindowDrawList()->AddRectFilled(
-                ImVec2(chip_pos.x - 5.0f, chip_pos.y - 1.0f),
-                ImVec2(chip_pos.x + chip_sz.x + 5.0f, chip_pos.y + chip_sz.y + 1.0f),
-                IM_COL32(static_cast<uint8_t>(fps_color.r * 255),
-                         static_cast<uint8_t>(fps_color.g * 255),
-                         static_cast<uint8_t>(fps_color.b * 255),
-                         34),
-                ui::tokens::RADIUS_SM);
-            ImGui::PushStyleColor(ImGuiCol_Text,
-                                  ImVec4(fps_color.r, fps_color.g, fps_color.b, 1.0f));
-            ImGui::TextUnformatted(fps_buf);
-            ImGui::PopStyleColor();
-        }
+            ImGui::SameLine(perf_anchor);
 
-        // GPU time
-        ImGui::SameLine(0.0f, ui::tokens::SPACE_3);
-        char gpu_buf[32];
-        std::snprintf(gpu_buf, sizeof(gpu_buf), "GPU: %.1fms", gpu_time_ms_);
-        {
-            ImVec2 chip_pos = ImGui::GetCursorScreenPos();
-            ImVec2 chip_sz  = ImGui::CalcTextSize(gpu_buf);
-            ImGui::GetWindowDrawList()->AddRectFilled(
-                ImVec2(chip_pos.x - 5.0f, chip_pos.y - 1.0f),
-                ImVec2(chip_pos.x + chip_sz.x + 5.0f, chip_pos.y + chip_sz.y + 1.0f),
-                IM_COL32(static_cast<uint8_t>(theme_colors().bg_tertiary.r * 255),
-                         static_cast<uint8_t>(theme_colors().bg_tertiary.g * 255),
-                         static_cast<uint8_t>(theme_colors().bg_tertiary.b * 255),
-                         58),
-                ui::tokens::RADIUS_SM);
-            ImGui::PushStyleColor(ImGuiCol_Text,
-                                  ImVec4(theme_colors().text_tertiary.r,
-                                         theme_colors().text_tertiary.g,
-                                         theme_colors().text_tertiary.b,
-                                         theme_colors().text_tertiary.a));
-            ImGui::TextUnformatted(gpu_buf);
-            ImGui::PopStyleColor();
+            // FPS with color coding
+            float fps_val   = io.Framerate;
+            auto  fps_color = theme_colors().success;
+            if (fps_val < 20.0f)
+                fps_color = theme_colors().error;
+            else if (fps_val < 45.0f)
+                fps_color = theme_colors().warning;
+
+            char fps_buf[32];
+            std::snprintf(fps_buf, sizeof(fps_buf), "%d fps", static_cast<int>(fps_val));
+            {
+                ImVec2 chip_pos = ImGui::GetCursorScreenPos();
+                ImVec2 chip_sz  = ImGui::CalcTextSize(fps_buf);
+                ImGui::GetWindowDrawList()->AddRectFilled(
+                    ImVec2(chip_pos.x - 5.0f, chip_pos.y - 1.0f),
+                    ImVec2(chip_pos.x + chip_sz.x + 5.0f, chip_pos.y + chip_sz.y + 1.0f),
+                    IM_COL32(static_cast<uint8_t>(fps_color.r * 255),
+                             static_cast<uint8_t>(fps_color.g * 255),
+                             static_cast<uint8_t>(fps_color.b * 255),
+                             34),
+                    ui::tokens::RADIUS_SM);
+                ImGui::PushStyleColor(ImGuiCol_Text,
+                                      ImVec4(fps_color.r, fps_color.g, fps_color.b, 1.0f));
+                ImGui::TextUnformatted(fps_buf);
+                ImGui::PopStyleColor();
+            }
+
+            // GPU time
+            ImGui::SameLine(0.0f, ui::tokens::SPACE_3);
+            char gpu_buf[32];
+            std::snprintf(gpu_buf, sizeof(gpu_buf), "GPU: %.1fms", gpu_time_ms_);
+            {
+                ImVec2 chip_pos = ImGui::GetCursorScreenPos();
+                ImVec2 chip_sz  = ImGui::CalcTextSize(gpu_buf);
+                ImGui::GetWindowDrawList()->AddRectFilled(
+                    ImVec2(chip_pos.x - 5.0f, chip_pos.y - 1.0f),
+                    ImVec2(chip_pos.x + chip_sz.x + 5.0f, chip_pos.y + chip_sz.y + 1.0f),
+                    IM_COL32(static_cast<uint8_t>(theme_colors().bg_tertiary.r * 255),
+                             static_cast<uint8_t>(theme_colors().bg_tertiary.g * 255),
+                             static_cast<uint8_t>(theme_colors().bg_tertiary.b * 255),
+                             58),
+                    ui::tokens::RADIUS_SM);
+                ImGui::PushStyleColor(ImGuiCol_Text,
+                                      ImVec4(theme_colors().text_tertiary.r,
+                                             theme_colors().text_tertiary.g,
+                                             theme_colors().text_tertiary.b,
+                                             theme_colors().text_tertiary.a));
+                ImGui::TextUnformatted(gpu_buf);
+                ImGui::PopStyleColor();
+            }
         }
 
         ImGui::PopFont();

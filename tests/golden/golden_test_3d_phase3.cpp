@@ -201,10 +201,6 @@ TEST(Golden3DPhase3, LitSurface_HighSpecular)
             for (int j = 0; j < ny; ++j)
                 y_grid.push_back(static_cast<float>(j) / (ny - 1) * 4.0f - 2.0f);
             z_values.reserve(nx * ny);
-            for (int i = 0; i < nx; ++i)
-                x_grid.push_back(static_cast<float>(i) / (nx - 1) * 4.0f - 2.0f);
-            for (int j = 0; j < ny; ++j)
-                y_grid.push_back(static_cast<float>(j) / (ny - 1) * 4.0f - 2.0f);
             for (int j = 0; j < ny; ++j)
                 for (int i = 0; i < nx; ++i)
                 {

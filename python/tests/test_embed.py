@@ -8,7 +8,7 @@ import ctypes
 # Use a flag + @pytest.mark.skipif on each test class instead.
 try:
     from spectra._embed import (
-        _find_library,
+        _load_lib,
         EmbedSurface,
         EmbedFigure,
         EmbedAxes,
@@ -22,7 +22,7 @@ try:
         KEY_R,
         KEY_ESCAPE,
     )
-    _find_library()  # probe now so we know the library is actually present
+    _load_lib()  # probe load (not just path lookup) so missing deps skip cleanly
     _EMBED_AVAILABLE = True
 except (ImportError, FileNotFoundError, OSError):
     _EMBED_AVAILABLE = False

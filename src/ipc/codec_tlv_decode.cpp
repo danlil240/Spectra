@@ -74,7 +74,7 @@ uint64_t PayloadDecoder::as_u64() const
 
 std::string PayloadDecoder::as_string() const
 {
-    return std::string(reinterpret_cast<const char*>(&data_[val_offset_]), len_);
+    return {reinterpret_cast<const char*>(&data_[val_offset_]), len_};
 }
 
 float tlv_payload_as_float(const PayloadDecoder& dec)
@@ -116,7 +116,7 @@ std::vector<float> tlv_payload_as_float_array(const PayloadDecoder& dec)
 std::vector<uint8_t> tlv_payload_as_blob(const PayloadDecoder& dec)
 {
     std::string s = dec.as_string();
-    return std::vector<uint8_t>(s.begin(), s.end());
+    return {s.begin(), s.end()};
 }
 
 std::optional<ReqSetDataPayload> tlv_decode_req_set_data(std::span<const uint8_t> data)

@@ -280,7 +280,7 @@ void LogViewerPanel::draw_filter_bar()
     struct PillDef
     {
         const char* label{};
-        LogSeverity sev;
+        LogSeverity sev{};
         ImVec4      col_on;
         ImVec4      col_off;
     };

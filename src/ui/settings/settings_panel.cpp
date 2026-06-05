@@ -13,7 +13,6 @@
     #include "ui/commands/shortcut_config.hpp"
     #include "ui/commands/shortcut_manager.hpp"
     #include "ui/theme/theme.hpp"
-    #include "ui/theme/design_tokens.hpp"
 
 namespace spectra::ui::settings
 {
@@ -405,7 +404,7 @@ void SettingsPanel::draw_shortcuts_tab()
                     ImGui::PushStyleColor(
                         ImGuiCol_Text,
                         ImVec4(colors.error.r, colors.error.g, colors.error.b, 1.0f));
-                    sc_str = "[!] " + sc_str;
+                    sc_str.insert(0, "[!] ");
                 }
                 ImGui::TextUnformatted(sc_str.c_str());
                 if (conflict)

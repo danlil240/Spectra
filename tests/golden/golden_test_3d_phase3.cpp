@@ -41,7 +41,7 @@ static fs::path output_dir()
 static bool update_baselines()
 {
     const char* env = std::getenv("SPECTRA_UPDATE_BASELINES");
-    return env && std::string(env) == "1";
+    return (env != nullptr) && std::string(env) == "1";
 }
 
 static bool render_headless(Figure& fig, App& app, std::vector<uint8_t>& pixels)
@@ -119,7 +119,8 @@ static void run_golden_test_3d_p3(const std::string&                 scene_name,
     }
 
     std::vector<uint8_t> baseline_pixels;
-    uint32_t             baseline_w, baseline_h;
+    uint32_t             baseline_w = 0;
+    uint32_t             baseline_h = 0;
     ASSERT_TRUE(load_raw_rgba(baseline_path.string(), baseline_pixels, baseline_w, baseline_h))
         << "Failed to load baseline: " << baseline_path;
 
@@ -153,11 +154,16 @@ TEST(Golden3DPhase3, LitSurface_SinCos)
                           {
                               auto& ax = fig.subplot3d(1, 1, 1);
 
-                              const int          nx = 30, ny = 30;
-                              std::vector<float> x_grid, y_grid, z_values;
-                              for (int i = 0; i < nx; ++i)
+                              const int          nx = 30;
+                              const int          ny = 30;
+                              std::vector<float> x_grid;
+                              std::vector<float> y_grid;
+                              std::vector<float> z_values;
+                              x_grid.reserve(nx);
+for (int i = 0; i < nx; ++i)
                                   x_grid.push_back(static_cast<float>(i) / (nx - 1) * 6.0f - 3.0f);
-                              for (int j = 0; j < ny; ++j)
+                              y_grid.reserve(ny);
+for (int j = 0; j < ny; ++j)
                                   y_grid.push_back(static_cast<float>(j) / (ny - 1) * 6.0f - 3.0f);
                               for (int j = 0; j < ny; ++j)
                                   for (int i = 0; i < nx; ++i)
@@ -183,8 +189,18 @@ TEST(Golden3DPhase3, LitSurface_HighSpecular)
         {
             auto& ax = fig.subplot3d(1, 1, 1);
 
-            const int          nx = 25, ny = 25;
-            std::vector<float> x_grid, y_grid, z_values;
+            const int          nx = 25;
+            const int          ny = 25;
+            std::vector<float> x_grid;
+            std::vector<float> y_grid;
+            std::vector<float> z_values;
+            x_grid.reserve(nx);
+            for (int i = 0; i < nx; ++i)
+                x_grid.push_back(static_cast<float>(i) / (nx - 1) * 4.0f - 2.0f);
+            y_grid.reserve(ny);
+            for (int j = 0; j < ny; ++j)
+                y_grid.push_back(static_cast<float>(j) / (ny - 1) * 4.0f - 2.0f);
+            z_values.reserve(nx * ny);
             for (int i = 0; i < nx; ++i)
                 x_grid.push_back(static_cast<float>(i) / (nx - 1) * 4.0f - 2.0f);
             for (int j = 0; j < ny; ++j)
@@ -247,8 +263,14 @@ TEST(Golden3DPhase3, TransparentSurface)
                           {
                               auto& ax = fig.subplot3d(1, 1, 1);
 
-                              const int          nx = 25, ny = 25;
-                              std::vector<float> x_grid, y_grid, z_values;
+                              const int          nx = 25;
+                              const int          ny = 25;
+                              std::vector<float> x_grid;
+                              std::vector<float> y_grid;
+                              std::vector<float> z_values;
+                              x_grid.reserve(nx);
+                              y_grid.reserve(ny);
+                              z_values.reserve(nx * ny);
                               for (int i = 0; i < nx; ++i)
                                   x_grid.push_back(static_cast<float>(i) / (nx - 1) * 4.0f - 2.0f);
                               for (int j = 0; j < ny; ++j)
@@ -280,8 +302,14 @@ TEST(Golden3DPhase3, TransparentScatterOnSurface)
             auto& ax = fig.subplot3d(1, 1, 1);
 
             // Opaque surface
-            const int          nx = 20, ny = 20;
-            std::vector<float> x_grid, y_grid, z_values;
+            const int          nx = 20;
+            const int          ny = 20;
+            std::vector<float> x_grid;
+            std::vector<float> y_grid;
+            std::vector<float> z_values;
+            x_grid.reserve(nx);
+            y_grid.reserve(ny);
+            z_values.reserve(nx * ny);
             for (int i = 0; i < nx; ++i)
                 x_grid.push_back(static_cast<float>(i) / (nx - 1) * 4.0f - 2.0f);
             for (int j = 0; j < ny; ++j)
@@ -297,7 +325,12 @@ TEST(Golden3DPhase3, TransparentScatterOnSurface)
                 .shininess(64.0f);
 
             // Transparent scatter overlay
-            std::vector<float> sx, sy, sz;
+            std::vector<float> sx;
+            std::vector<float> sy;
+            std::vector<float> sz;
+            sx.reserve(200);
+            sy.reserve(200);
+            sz.reserve(200);
             for (int i = 0; i < 200; ++i)
             {
                 float t = static_cast<float>(i) * 0.05f;
@@ -323,8 +356,14 @@ TEST(Golden3DPhase3, WireframeSurface)
         {
             auto& ax = fig.subplot3d(1, 1, 1);
 
-            const int          nx = 20, ny = 20;
-            std::vector<float> x_grid, y_grid, z_values;
+            const int          nx = 20;
+            const int          ny = 20;
+            std::vector<float> x_grid;
+            std::vector<float> y_grid;
+            std::vector<float> z_values;
+            x_grid.reserve(nx);
+            y_grid.reserve(ny);
+            z_values.reserve(nx * ny);
             for (int i = 0; i < nx; ++i)
                 x_grid.push_back(static_cast<float>(i) / (nx - 1) * 6.0f - 3.0f);
             for (int j = 0; j < ny; ++j)
@@ -354,8 +393,14 @@ TEST(Golden3DPhase3, SurfaceColormapAlpha)
         {
             auto& ax = fig.subplot3d(1, 1, 1);
 
-            const int          nx = 30, ny = 30;
-            std::vector<float> x_grid, y_grid, z_values;
+            const int          nx = 30;
+            const int          ny = 30;
+            std::vector<float> x_grid;
+            std::vector<float> y_grid;
+            std::vector<float> z_values;
+            x_grid.reserve(nx);
+            y_grid.reserve(ny);
+            z_values.reserve(nx * ny);
             for (int i = 0; i < nx; ++i)
                 x_grid.push_back(static_cast<float>(i) / (nx - 1) * 6.0f - 3.0f);
             for (int j = 0; j < ny; ++j)
@@ -387,8 +432,14 @@ TEST(Golden3DPhase3, LightingDisabled)
                           {
                               auto& ax = fig.subplot3d(1, 1, 1);
 
-                              const int          nx = 20, ny = 20;
-                              std::vector<float> x_grid, y_grid, z_values;
+                              const int          nx = 20;
+                              const int          ny = 20;
+                              std::vector<float> x_grid;
+                              std::vector<float> y_grid;
+                              std::vector<float> z_values;
+                              x_grid.reserve(nx);
+                              y_grid.reserve(ny);
+                              z_values.reserve(nx * ny);
                               for (int i = 0; i < nx; ++i)
                                   x_grid.push_back(static_cast<float>(i) / (nx - 1) * 4.0f - 2.0f);
                               for (int j = 0; j < ny; ++j)
@@ -415,8 +466,12 @@ TEST(Golden3DPhase3, MultipleTransparentSurfaces)
                           {
                               auto& ax = fig.subplot3d(1, 1, 1);
 
-                              const int          nx = 20, ny = 20;
-                              std::vector<float> x_grid, y_grid;
+                              const int          nx = 20;
+                              const int          ny = 20;
+                              std::vector<float> x_grid;
+                              std::vector<float> y_grid;
+                              x_grid.reserve(nx);
+                              y_grid.reserve(ny);
                               for (int i = 0; i < nx; ++i)
                                   x_grid.push_back(static_cast<float>(i) / (nx - 1) * 4.0f - 2.0f);
                               for (int j = 0; j < ny; ++j)
@@ -463,7 +518,10 @@ TEST(Golden3DPhase3, Mixed2DAndLit3D)
         {
             // 2D line plot
             auto&              ax2d = fig.subplot(2, 1, 1);
-            std::vector<float> x2d, y2d;
+            std::vector<float> x2d;
+            std::vector<float> y2d;
+            x2d.reserve(200);
+            y2d.reserve(200);
             for (int i = 0; i < 200; ++i)
             {
                 float t = static_cast<float>(i) * 0.05f;
@@ -475,8 +533,14 @@ TEST(Golden3DPhase3, Mixed2DAndLit3D)
 
             // 3D lit surface
             auto&              ax3d = fig.subplot3d(2, 1, 2);
-            const int          nx = 25, ny = 25;
-            std::vector<float> x_grid, y_grid, z_values;
+            const int          nx = 25;
+            const int          ny = 25;
+            std::vector<float> x_grid;
+            std::vector<float> y_grid;
+            std::vector<float> z_values;
+            x_grid.reserve(nx);
+            y_grid.reserve(ny);
+            z_values.reserve(nx * ny);
             for (int i = 0; i < nx; ++i)
                 x_grid.push_back(static_cast<float>(i) / (nx - 1) * 4.0f - 2.0f);
             for (int j = 0; j < ny; ++j)
@@ -509,8 +573,14 @@ TEST(Golden3DPhase3, LitSurfaceColormap)
         {
             auto& ax = fig.subplot3d(1, 1, 1);
 
-            const int          nx = 30, ny = 30;
-            std::vector<float> x_grid, y_grid, z_values;
+            const int          nx = 30;
+            const int          ny = 30;
+            std::vector<float> x_grid;
+            std::vector<float> y_grid;
+            std::vector<float> z_values;
+            x_grid.reserve(nx);
+            y_grid.reserve(ny);
+            z_values.reserve(nx * ny);
             for (int i = 0; i < nx; ++i)
                 x_grid.push_back(static_cast<float>(i) / (nx - 1) * 6.0f - 3.0f);
             for (int j = 0; j < ny; ++j)

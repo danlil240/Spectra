@@ -816,7 +816,7 @@ static std::string format_tick_value(double value, double spacing)
 
     // Scientific notation with enough significant digits
     std::snprintf(buf, sizeof(buf), "%.*e", total_sig_digits - 1, value);
-    return std::string(buf);
+    return {buf};
 }
 
 static TickResult generate_ticks(double dmin, double dmax, int target_ticks = 7)

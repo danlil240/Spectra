@@ -126,7 +126,7 @@ TransitionEngine::AnimId TransitionEngine::animate_inertial_pan(Axes& axes,
     anim.duration = duration;
     anim.elapsed  = 0.0f;
     anim.finished = false;
-    inertial_anims_.push_back(std::move(anim));
+    inertial_anims_.push_back(anim);
     return id;
 }
 

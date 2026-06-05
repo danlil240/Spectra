@@ -46,7 +46,7 @@ static fs::path output_dir()
 static bool update_baselines()
 {
     const char* env = std::getenv("SPECTRA_UPDATE_BASELINES");
-    return env && std::string(env) == "1";
+    return (env != nullptr) && std::string(env) == "1";
 }
 
 static bool render_headless(Figure& fig, App& app, std::vector<uint8_t>& pixels)
@@ -129,7 +129,8 @@ static void run_golden_test_3d(const std::string&                 scene_name,
     }
 
     std::vector<uint8_t> baseline_pixels;
-    uint32_t             baseline_w, baseline_h;
+    uint32_t             baseline_w = 0;
+    uint32_t             baseline_h = 0;
     ASSERT_TRUE(load_raw_rgba(baseline_path.string(), baseline_pixels, baseline_w, baseline_h))
         << "Failed to load baseline: " << baseline_path;
 
@@ -186,7 +187,9 @@ TEST(Golden3D, Scatter3D_LargeDataset)
                        {
                            auto& ax = fig.subplot3d(1, 1, 1);
 
-                           std::vector<float> x, y, z;
+                           std::vector<float> x;
+                           std::vector<float> y;
+                           std::vector<float> z;
                            for (int i = 0; i < 1000; ++i)
                            {
                                float t = static_cast<float>(i) * 0.01f;
@@ -223,7 +226,9 @@ TEST(Golden3D, Line3D_Helix)
                        {
                            auto& ax = fig.subplot3d(1, 1, 1);
 
-                           std::vector<float> x, y, z;
+                           std::vector<float> x;
+                           std::vector<float> y;
+                           std::vector<float> z;
                            for (int i = 0; i < 200; ++i)
                            {
                                float t = static_cast<float>(i) * 0.1f;
@@ -244,12 +249,17 @@ TEST(Golden3D, Surface_Basic)
                        {
                            auto& ax = fig.subplot3d(1, 1, 1);
 
-                           std::vector<float> x_grid, y_grid, z_values;
-                           const int          nx = 20, ny = 20;
-
+                           std::vector<float> x_grid;
+                           std::vector<float> y_grid;
+                           std::vector<float> z_values;
+                           const int          nx = 20;
+                           const int          ny = 20;
+                           x_grid.reserve(nx);
+                           y_grid.reserve(ny);
+                           z_values.reserve(nx * ny);
                            for (int i = 0; i < nx; ++i)
                            {
-                               x_grid.push_back(static_cast<float>(i) / (nx - 1) * 4.0f - 2.0f);
+                               x_grid[i] = static_cast<float>(i) / (nx - 1) * 4.0f - 2.0f;
                            }
                            for (int j = 0; j < ny; ++j)
                            {
@@ -479,8 +489,14 @@ TEST(Golden3D, Surface_Colormap)
                        {
                            auto& ax = fig.subplot3d(1, 1, 1);
 
-                           const int          nx = 30, ny = 30;
-                           std::vector<float> x_grid, y_grid, z_values;
+                           const int          nx = 30;
+                           const int          ny = 30;
+                           std::vector<float> x_grid;
+                           std::vector<float> y_grid;
+                           std::vector<float> z_values;
+                           x_grid.reserve(nx);
+                           y_grid.reserve(ny);
+                           z_values.reserve(nx * ny);
 
                            for (int i = 0; i < nx; ++i)
                                x_grid.push_back(static_cast<float>(i) / (nx - 1) * 6.0f - 3.0f);
@@ -553,7 +569,9 @@ TEST(Golden3D, MultiSubplot3D)
             ax1.title("Scatter");
 
             auto&              ax2 = fig.subplot3d(2, 2, 2);
-            std::vector<float> x2, y2, z2;
+            std::vector<float> x2;
+            std::vector<float> y2;
+            std::vector<float> z2;
             for (int i = 0; i < 100; ++i)
             {
                 float t = static_cast<float>(i) * 0.1f;
@@ -565,8 +583,15 @@ TEST(Golden3D, MultiSubplot3D)
             ax2.title("Helix");
 
             auto&              ax3 = fig.subplot3d(2, 2, 3);
-            const int          nx = 15, ny = 15;
-            std::vector<float> xg, yg, zv;
+            const int          nx = 15;
+            const int          ny = 15;
+            std::vector<float> xg;
+            std::vector<float> yg;
+            std::vector<float> zv;
+            xg.reserve(nx);
+            yg.reserve(ny);
+            zv.reserve(nx * ny);
+
             for (int i = 0; i < nx; ++i)
                 xg.push_back(static_cast<float>(i) - 7.0f);
             for (int j = 0; j < ny; ++j)
@@ -595,7 +620,12 @@ TEST(Golden3D, CombinedLineAndScatter3D)
                        {
                            auto& ax = fig.subplot3d(1, 1, 1);
 
-                           std::vector<float> x, y, z;
+                           std::vector<float> x;
+                           std::vector<float> y;
+                           std::vector<float> z;
+                           x.reserve(50);
+                           y.reserve(50);
+                           z.reserve(50);
                            for (int i = 0; i < 50; ++i)
                            {
                                float t = static_cast<float>(i) * 0.2f;

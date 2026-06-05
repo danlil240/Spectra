@@ -51,7 +51,6 @@ Checks: >
   performance-no-automatic-move,
   performance-type-promotion-in-math-fn,
   performance-unnecessary-copy-initialization,
-  performance-unnecessary-value-param,
 
   # Modernization with good signal/noise
   modernize-avoid-bind,
@@ -98,7 +97,6 @@ Checks: >
   readability-redundant-function-ptr-dereference,
   readability-redundant-inline-specifier,
   readability-redundant-member-init,
-  readability-redundant-preprocessor,
   readability-redundant-smartptr-get,
   readability-redundant-string-cstr,
   readability-redundant-string-init,
@@ -135,6 +133,8 @@ Checks: >
   #   cppcoreguidelines-macro-usage      IPC codec dispatch macros
   #   clang-analyzer-*                   slow/noisy in IDE; use dedicated analyzer runs
   #   readability-suspicious-call-argument       false positives on IPC param names
+  #   readability-redundant-preprocessor         nested #if in platform-specific blocks
+  #   performance-unnecessary-value-param        rclcpp requires SharedPtr-by-value callbacks
 
 WarningsAsErrors: ''
 HeaderFilterRegex: '^(src|include|apps|test|tests)/'

@@ -19,7 +19,7 @@ ShapeSeries3D& ShapeSeries3D::box(float cx, float cy, float cz, float sx, float 
     def.params[3] = sx;
     def.params[4] = sy;
     def.params[5] = sz;
-    shapes_.push_back(std::move(def));
+    shapes_.push_back(def);
     dirty_ = true;
     return *this;
 }
@@ -32,7 +32,7 @@ ShapeSeries3D& ShapeSeries3D::sphere(float cx, float cy, float cz, float r)
     def.params[1] = cy;
     def.params[2] = cz;
     def.params[3] = r;
-    shapes_.push_back(std::move(def));
+    shapes_.push_back(def);
     dirty_ = true;
     return *this;
 }
@@ -49,7 +49,7 @@ ShapeSeries3D::cylinder(float x1, float y1, float z1, float x2, float y2, float 
     def.params[4] = y2;
     def.params[5] = z2;
     def.params[6] = radius;
-    shapes_.push_back(std::move(def));
+    shapes_.push_back(def);
     dirty_ = true;
     return *this;
 }
@@ -66,7 +66,7 @@ ShapeSeries3D::cone(float x1, float y1, float z1, float x2, float y2, float z2, 
     def.params[4] = y2;
     def.params[5] = z2;
     def.params[6] = radius;
-    shapes_.push_back(std::move(def));
+    shapes_.push_back(def);
     dirty_ = true;
     return *this;
 }
@@ -88,7 +88,7 @@ ShapeSeries3D& ShapeSeries3D::arrow3d(float x1,
     def.params[4] = y2;
     def.params[5] = z2;
     def.params[6] = shaft_radius;
-    shapes_.push_back(std::move(def));
+    shapes_.push_back(def);
     dirty_ = true;
     return *this;
 }
@@ -105,7 +105,7 @@ ShapeSeries3D::plane(float cx, float cy, float cz, float nx, float ny, float nz,
     def.params[4] = ny;
     def.params[5] = nz;
     def.params[6] = half_size;
-    shapes_.push_back(std::move(def));
+    shapes_.push_back(def);
     dirty_ = true;
     return *this;
 }

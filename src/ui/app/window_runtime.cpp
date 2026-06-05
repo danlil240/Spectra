@@ -32,7 +32,6 @@
 #endif
 
 #include <algorithm>
-#include <chrono>
 #include <span>
 #include <string>
 
@@ -383,10 +382,10 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
     uint32_t live_fb_h           = 0;
     {
         auto& needs_resize = ui_ctx.needs_resize;
-        auto& new_width    = ui_ctx.new_width;
-        auto& new_height   = ui_ctx.new_height;
-        auto* vk           = static_cast<VulkanBackend*>(&backend_);
-        auto* aw           = vk->active_window();
+        // auto& new_width    = ui_ctx.new_width;
+        // auto& new_height   = ui_ctx.new_height;
+        auto* vk = static_cast<VulkanBackend*>(&backend_);
+        auto* aw = vk->active_window();
 
         if (aw)
         {

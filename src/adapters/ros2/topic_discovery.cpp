@@ -62,7 +62,7 @@ std::string normalize_node_namespace(const std::string& ns)
 
 std::string make_fully_qualified_node_name(const std::string& ns, const std::string& name)
 {
-    const std::string normalized_ns = normalize_node_namespace(ns);
+    std::string normalized_ns = normalize_node_namespace(ns);
     if (name.empty())
         return normalized_ns;
     if (normalized_ns == "/")

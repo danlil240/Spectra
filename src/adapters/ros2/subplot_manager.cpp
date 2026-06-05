@@ -1255,7 +1255,7 @@ void SubplotManager::compact()
         std::optional<spectra::AxisLimits>        manual_ylim;
         std::vector<std::unique_ptr<SeriesEntry>> extra_series;
         std::unique_ptr<DirectWriteContext>       direct_ctx;
-        AxisMode                                  axis_mode;
+        AxisMode                                  axis_mode{};
         std::string                               x_field_path;
         std::string                               y_field_path;
         size_t                                    buffer_depth{};

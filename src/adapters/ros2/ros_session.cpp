@@ -818,7 +818,10 @@ std::string RosSessionManager::build_object(
     {
         if (!first)
             out += ",";
-        out += "\n  \"" + k + "\": " + v;
+        out += "\n  \"";
+        out += k;
+        out += "\": ";
+        out += v;
         first = false;
     }
     out += "\n}";

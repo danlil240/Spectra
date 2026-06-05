@@ -97,7 +97,7 @@ void ModeTransition::update(float dt)
     ModeTransitionCompleteCallback complete_cb;
     ModeTransitionCallback         progress_cb;
     float                          eased_t = 0.0f;
-    ModeTransitionDirection        dir;
+    ModeTransitionDirection        dir{};
 
     {
         std::lock_guard lock(mutex_);

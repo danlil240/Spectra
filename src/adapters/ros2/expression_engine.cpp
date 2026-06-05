@@ -61,7 +61,7 @@ enum class Func2Kind
 
 struct ExpressionEngine::AstNode
 {
-    NodeKind kind;
+    NodeKind kind{};
 
     // Number
     double number{0.0};
@@ -1037,7 +1037,7 @@ ExpressionEngine::AstNodePtr ExpressionEngine::parse_function_call(ParseState&  
     ps.advance();
 
     // Map name to Func1Kind.
-    Func1Kind fk;
+    Func1Kind fk{};
     if (name == "sqrt")
         fk = Func1Kind::Sqrt;
     else if (name == "abs")

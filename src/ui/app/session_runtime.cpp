@@ -56,7 +56,7 @@ void SessionRuntime::queue_detach(PendingDetach pd)
 
 void SessionRuntime::queue_move(PendingMove pm)
 {
-    pending_moves_.push_back(std::move(pm));
+    pending_moves_.push_back(pm);
 }
 
 FrameState SessionRuntime::tick(FrameScheduler&  scheduler,

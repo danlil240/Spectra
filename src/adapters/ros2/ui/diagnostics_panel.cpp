@@ -1,6 +1,5 @@
 #include "diagnostics_panel.hpp"
 
-#include <algorithm>
 #include <chrono>
 #include <cstring>
 #include <cstdio>
@@ -146,10 +145,7 @@ void DiagnosticsModel::prune_stale(int64_t now_ns, int64_t stale_ns)
 // DiagnosticsPanel — constructor / destructor
 // ---------------------------------------------------------------------------
 
-DiagnosticsPanel::DiagnosticsPanel()
-{
-    // Ring buffer allocated lazily in start() when ring_depth_ is known.
-}
+DiagnosticsPanel::DiagnosticsPanel() = default;
 
 DiagnosticsPanel::~DiagnosticsPanel()
 {

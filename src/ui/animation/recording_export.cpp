@@ -57,12 +57,7 @@ static float get_wall_time()
 
 // ─── RecordingSession ────────────────────────────────────────────────────────
 
-RecordingSession::RecordingSession()
-#ifdef SPECTRA_USE_FFMPEG
-    : ffmpeg_pipe_(nullptr)
-#endif
-{
-}
+RecordingSession::RecordingSession() = default;
 
 RecordingSession::~RecordingSession()
 {

@@ -7,7 +7,6 @@
 
 #include <spectra/app.hpp>
 
-#include "render/backend.hpp"
 #include "ui/app/window_ui_context.hpp"
 
 #include <sstream>

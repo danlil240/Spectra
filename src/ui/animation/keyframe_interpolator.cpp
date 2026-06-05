@@ -562,7 +562,7 @@ void KeyframeInterpolator::bind_camera(Camera*  cam,
     b.elevation_id  = el_ch;
     b.distance_id   = dist_ch;
     b.fov_id        = fov_ch;
-    camera_bindings_.push_back(std::move(b));
+    camera_bindings_.push_back(b);
 }
 
 void KeyframeInterpolator::unbind_camera(Camera* cam)

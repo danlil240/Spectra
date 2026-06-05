@@ -62,7 +62,7 @@ static std::string format_tick_value_3d(double value, double spacing)
     }
 
     std::snprintf(buf, sizeof(buf), "%.*e", total_sig_digits - 1, value);
-    return std::string(buf);
+    return {buf};
 }
 
 TickResult compute_ticks_for_range(double dmin, double dmax)

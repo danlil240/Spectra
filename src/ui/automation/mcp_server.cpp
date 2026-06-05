@@ -8,7 +8,6 @@
 #include <algorithm>
 #include <array>
 #include <cerrno>
-#include <chrono>
 #include <cctype>
 #include <cstdint>
 #include <cstdlib>
@@ -311,7 +310,7 @@ std::string json_extract_string(const std::string& json, const std::string& key)
 
 std::string json_extract_object(const std::string& json, const std::string& key)
 {
-    const std::string raw = json_extract_raw(json, key);
+    std::string raw = json_extract_raw(json, key);
     if (!raw.empty() && raw.front() == '{')
         return raw;
     return "{}";

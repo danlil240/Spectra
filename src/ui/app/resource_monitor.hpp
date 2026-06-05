@@ -29,10 +29,10 @@ class ResourceMonitor
 {
    public:
     explicit ResourceMonitor(double interval_seconds = 5.0)
-        : interval_s_(interval_seconds), last_log_(Clock::now())
+        : interval_s_(interval_seconds), last_log_(Clock::now()),
+          ticks_per_sec_(static_cast<double>(sysconf(_SC_CLK_TCK)))
     {
 #ifdef __linux__
-        ticks_per_sec_ = static_cast<double>(sysconf(_SC_CLK_TCK));
         sample_cpu_ticks(prev_utime_, prev_stime_, prev_wall_ns_);
 #endif
     }
@@ -118,10 +118,17 @@ class ResourceMonitor
 
         int           pid = 0;
         char          comm[256]{};
-        char          state = 0;
-        int           ppid = 0, pgrp = 0, session = 0, tty = 0, tpgid = 0;
-        unsigned      flags  = 0;
-        unsigned long minflt = 0, cminflt = 0, majflt = 0, cmajflt = 0;
+        char          state   = 0;
+        int           ppid    = 0;
+        int           pgrp    = 0;
+        int           session = 0;
+        int           tty     = 0;
+        int           tpgid   = 0;
+        unsigned      flags   = 0;
+        unsigned long minflt  = 0;
+        unsigned long cminflt = 0;
+        unsigned long majflt  = 0;
+        unsigned long cmajflt = 0;
 
         int nfields = fscanf(f,
                              "%d %255s %c %d %d %d %d %d %u %lu %lu %lu %lu %lu %lu",

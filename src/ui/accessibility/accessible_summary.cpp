@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <limits>
 #include <sstream>
 
 #include <spectra/axes.hpp>

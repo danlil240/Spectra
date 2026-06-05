@@ -489,8 +489,8 @@ class StemSeries : public Series
     size_t                 point_count() const { return line_x_.size(); }
 
     // Access raw data
-    const std::vector<float>& stem_x() const { return x_; }
-    const std::vector<float>& stem_y() const { return y_; }
+    [[nodiscard]] const std::vector<float>& stem_x() const { return x_; }
+    [[nodiscard]] const std::vector<float>& stem_y() const { return y_; }
 
     // Fluent setters
     using Series::color;

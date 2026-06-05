@@ -48,10 +48,8 @@
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
 
-    #include "ui/theme/icons.hpp"
     #include "register_commands.hpp"
     #include "ui/theme/theme.hpp"
-    #include "ui/commands/undoable_property.hpp"
     #include "ui/workspace/workspace.hpp"
 #endif
 
@@ -69,7 +67,6 @@
 #include <chrono>
 #include <cstdlib>
 #include <memory>
-#include <unordered_map>
 
 namespace spectra
 {
@@ -1300,11 +1297,11 @@ void App::shutdown_runtime()
         SPECTRA_LOG_ERROR("shutdown",
                           std::string("Exception during AppRuntime destruction: ") + e.what());
         // Force-null the pointer to avoid double-free in ~App()
-        (void)runtime_.release();
+        runtime_.reset();
     }
     catch (...)
     {
-        (void)runtime_.release();
+        runtime_.reset();
     }
 }
 

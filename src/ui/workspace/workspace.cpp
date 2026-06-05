@@ -711,7 +711,7 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data)
                 step.type    = static_cast<int>(read_number_value(s_json, "type", 0));
                 step.param   = static_cast<float>(read_number_value(s_json, "param", 0));
                 step.enabled = read_bool_value(s_json, "enabled", true);
-                ts.steps.push_back(std::move(step));
+                ts.steps.push_back(step);
             }
             data.transforms.push_back(std::move(ts));
         }

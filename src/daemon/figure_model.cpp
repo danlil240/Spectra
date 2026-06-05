@@ -654,8 +654,6 @@ bool FigureModel::apply_diff_op(const ipc::DiffOp& op)
 
         case ipc::DiffOp::Type::ADD_FIGURE:
         case ipc::DiffOp::Type::REMOVE_FIGURE:
-            return false;   // handled via create_figure/remove_figure directly
-
         default:
             return false;
     }

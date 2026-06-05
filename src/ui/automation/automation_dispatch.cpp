@@ -110,7 +110,7 @@ AutomationHandlerFn wrap_automation_handler(AutomationHandlerEntry entry)
     return [entry = std::move(entry)](AutomationRequest& req, App* app, WindowUIContext* ui_ctx)
     {
         std::string err;
-        if (!check_automation_context(entry.context, &app, ui_ctx, err))
+        if (!check_automation_context(entry.context, app, ui_ctx, err))
         {
             req.response_json = json_error(req.id, err);
             return;

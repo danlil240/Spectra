@@ -72,11 +72,11 @@ static std::string key_to_string(int key)
     using namespace glfw_keys;
     if (key >= KEY_A && key <= KEY_Z)
     {
-        return {1, static_cast<char>(key)};
+        return std::string(1, static_cast<char>(key));
     }
     if (key >= KEY_0 && key <= KEY_9)
     {
-        return {1, static_cast<char>(key)};
+        return std::string(1, static_cast<char>(key));
     }
     if (key >= KEY_F1 && key <= KEY_F12)
     {

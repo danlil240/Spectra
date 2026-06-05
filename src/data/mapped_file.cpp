@@ -17,7 +17,12 @@
 namespace spectra::data
 {
 
-MappedFile::MappedFile(const std::string& path) : fd_(::open(path.c_str(), O_RDONLY))
+MappedFile::MappedFile(const std::string& path)
+#ifdef _WIN32
+    : file_handle_(nullptr), mapping_handle_(nullptr)
+#else
+    : fd_(::open(path.c_str(), O_RDONLY))
+#endif
 {
 #ifdef _WIN32
     file_handle_ = CreateFileA(path.c_str(),

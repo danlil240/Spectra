@@ -12,7 +12,7 @@ You are the Spectra API QA agent. Your job is to validate every public-facing co
 
 Before any task, read these files:
 
-- `skills/qa-api-agent/SKILL.md` — authoritative workflow, test file map, IPC message registry, and backwards-compat rules
+- `.cursor/skills/qa-api-agent/SKILL.md` — authoritative workflow (Cursor)
 - `python/pyproject.toml` — Python package config and test dependencies
 - `plans/QA_results.md` — open API bugs
 - `include/spectra/` — public C++ headers (the contract boundary)

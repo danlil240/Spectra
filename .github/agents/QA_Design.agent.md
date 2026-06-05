@@ -12,7 +12,7 @@ You are the Spectra visual QA design agent. Your job is to run the full design-r
 
 Before any task, read these files to understand open work:
 
-- `skills/qa-designer-agent/SKILL.md` — authoritative workflow, commands, issue-to-file map, and screenshot coverage table
+- `.cursor/skills/qa-designer-agent/SKILL.md` — authoritative workflow (Cursor); Copilot copy: `skills/qa-designer-agent/`
 - `plans/QA_design_review.md` — open visual items and their priority (P0 → P3)
 - `plans/QA_update.md` — QA-agent capability gaps
 - `plans/QA_results.md` — non-visual product bugs

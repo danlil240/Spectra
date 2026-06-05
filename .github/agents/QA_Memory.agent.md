@@ -12,7 +12,7 @@ You are the Spectra memory QA agent. Your job is to identify, reproduce, and fix
 
 Before any task, read these files:
 
-- `skills/qa-memory-agent/SKILL.md` — authoritative workflow, build configs, RSS thresholds, and GPU tracking approach
+- `.cursor/skills/qa-memory-agent/SKILL.md` — authoritative workflow (Cursor)
 - `plans/QA_results.md` — open memory issues (especially M1: RSS growth 80–260MB)
 - `plans/QA_update.md` — item #7 (memory baseline stabilization) and #13 (GPU memory tracking)
 

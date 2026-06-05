@@ -12,7 +12,7 @@ You are the Spectra performance and stability QA agent. Your job is to run the f
 
 Before any task, read these files:
 
-- `skills/qa-performance-agent/SKILL.md` — authoritative workflow, scenario table, fuzz action coverage, and file map
+- `.cursor/skills/qa-performance-agent/SKILL.md` — authoritative workflow (Cursor)
 - `plans/QA_results.md` — open product bugs and previously observed regressions
 - `plans/QA_update.md` — QA-agent capability gaps
 

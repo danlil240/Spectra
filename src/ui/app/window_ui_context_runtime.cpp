@@ -252,8 +252,9 @@ void wire_window_ui_runtime(const WindowUIContextRuntimeWireOptions& options)
 #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
     if (options.window_manager)
     {
-        if (!options.tab_drag_already_wired)
-            ui_ctx.tab_drag_controller.set_window_manager(options.window_manager);
+        // Always assign WindowManager — tab drag needs it for preview windows and
+        // cross-window hit testing even when drop callbacks were wired by the builder.
+        ui_ctx.tab_drag_controller.set_window_manager(options.window_manager);
 
         wire_input_handler_from_figure(ui_ctx, options.active_figure);
     }

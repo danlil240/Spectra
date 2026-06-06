@@ -27,6 +27,8 @@ struct WindowUIContextRuntimeWireOptions
     bool             has_animation = false;
 
     TabSplitMode tab_split_mode             = TabSplitMode::SplitPane;
+    // When true, skip on_drop_outside/on_drop_on_window (builder or WindowManager
+    // already wired them). WindowManager pointer is always assigned when provided.
     bool         tab_drag_already_wired     = false;
     bool         wire_demo_animation_channels = false;
     bool         enable_window_tab_callbacks = true;

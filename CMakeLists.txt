@@ -156,6 +156,8 @@ file(GLOB SPECTRA_UI_SOURCES src/ui/app/app.cpp src/ui/app/app_inproc.cpp src/ui
 foreach(_ui_src
     src/app/inproc_topic_server.cpp
     src/ui/app/window_ui_context_builder.cpp
+    src/ui/app/window_manager_bootstrap.cpp
+    src/ui/app/window_ui_context_runtime.cpp
     src/ui/input/input.cpp
     src/ui/input/input_pan_zoom.cpp
     src/ui/input/input_select.cpp

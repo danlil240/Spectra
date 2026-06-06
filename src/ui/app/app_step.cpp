@@ -23,6 +23,8 @@
 #include "ui/commands/command_queue.hpp"
 #include "session_runtime.hpp"
 #include "window_runtime.hpp"
+#include "window_ui_context_runtime.hpp"
+#include "window_manager_bootstrap.hpp"
 #include "window_ui_context_builder.hpp"
 #include "window_ui_context.hpp"
 #include "ui/workspace/plugin_api.hpp"
@@ -378,38 +380,16 @@ void App::init_runtime()
             // WindowManager requires VulkanBackend — skip for other backends.
             if (config_.backend == RenderBackend::Vulkan)
             {
-                rt.window_mgr = std::make_unique<WindowManager>();
-                rt.window_mgr->init(static_cast<VulkanBackend*>(backend_.get()),
-                                    &registry_,
-                                    renderer_.get(),
-                                    theme_mgr_.get());
-                rt.window_mgr->set_redraw_request_handler(
-                    [&session = rt.session](const char* reason)
-                    { session.redraw_tracker().mark_dirty(reason); });
-                rt.window_mgr->set_plugin_manager(&rt.plugin_manager);
-                rt.window_mgr->set_export_format_registry(&rt.export_format_registry);
-                rt.window_mgr->set_session_runtime(&rt.session);
-                rt.window_mgr->set_settings_store(rt.settings_store.get());
-
-                rt.window_mgr->set_tab_detach_handler(
-                    [&session = rt.session](FigureId           fid,
-                                            uint32_t           w,
-                                            uint32_t           h,
-                                            const std::string& title,
-                                            int                sx,
-                                            int                sy)
-                    { session.queue_detach({fid, w, h, title, sx, sy}); });
-                rt.window_mgr->set_tab_move_handler(
-                    [&session = rt.session](FigureId fid,
-                                            uint32_t target_wid,
-                                            int      drop_zone,
-                                            float    local_x,
-                                            float    local_y,
-                                            FigureId target_figure_id)
-                    {
-                        session.queue_move(
-                            {fid, target_wid, drop_zone, local_x, local_y, target_figure_id});
-                    });
+                WindowManagerBootstrapOptions wm_opts;
+                wm_opts.backend                 = static_cast<VulkanBackend*>(backend_.get());
+                wm_opts.registry                = &registry_;
+                wm_opts.renderer                = renderer_.get();
+                wm_opts.theme_mgr               = theme_mgr_.get();
+                wm_opts.session                 = &rt.session;
+                wm_opts.settings_store          = rt.settings_store.get();
+                wm_opts.plugin_manager          = &rt.plugin_manager;
+                wm_opts.export_format_registry  = &rt.export_format_registry;
+                rt.window_mgr                   = create_configured_window_manager(wm_opts);
 
                 std::vector<FigureId> first_group =
                     window_groups.empty() ? std::vector<FigureId>{} : window_groups[0];
@@ -469,38 +449,16 @@ void App::init_runtime()
 
             if (config_.backend == RenderBackend::Vulkan)
             {
-                rt.window_mgr = std::make_unique<WindowManager>();
-                rt.window_mgr->init(static_cast<VulkanBackend*>(backend_.get()),
-                                    &registry_,
-                                    renderer_.get(),
-                                    theme_mgr_.get());
-                rt.window_mgr->set_redraw_request_handler(
-                    [&session = rt.session](const char* reason)
-                    { session.redraw_tracker().mark_dirty(reason); });
-                rt.window_mgr->set_plugin_manager(&rt.plugin_manager);
-                rt.window_mgr->set_export_format_registry(&rt.export_format_registry);
-                rt.window_mgr->set_session_runtime(&rt.session);
-                rt.window_mgr->set_settings_store(rt.settings_store.get());
-
-                rt.window_mgr->set_tab_detach_handler(
-                    [&session = rt.session](FigureId           fid,
-                                            uint32_t           w,
-                                            uint32_t           h,
-                                            const std::string& title,
-                                            int                sx,
-                                            int                sy)
-                    { session.queue_detach({fid, w, h, title, sx, sy}); });
-                rt.window_mgr->set_tab_move_handler(
-                    [&session = rt.session](FigureId fid,
-                                            uint32_t target_wid,
-                                            int      drop_zone,
-                                            float    local_x,
-                                            float    local_y,
-                                            FigureId target_figure_id)
-                    {
-                        session.queue_move(
-                            {fid, target_wid, drop_zone, local_x, local_y, target_figure_id});
-                    });
+                WindowManagerBootstrapOptions wm_opts;
+                wm_opts.backend                 = static_cast<VulkanBackend*>(backend_.get());
+                wm_opts.registry                = &registry_;
+                wm_opts.renderer                = renderer_.get();
+                wm_opts.theme_mgr               = theme_mgr_.get();
+                wm_opts.session                 = &rt.session;
+                wm_opts.settings_store          = rt.settings_store.get();
+                wm_opts.plugin_manager          = &rt.plugin_manager;
+                wm_opts.export_format_registry  = &rt.export_format_registry;
+                rt.window_mgr                   = create_configured_window_manager(wm_opts);
 
                 std::vector<FigureId> first_group =
                     window_groups.empty() ? std::vector<FigureId>{} : window_groups[0];
@@ -575,149 +533,58 @@ void App::init_runtime()
     }
 
 #ifdef SPECTRA_USE_IMGUI
-    auto& imgui_ui              = rt.ui_ctx_ptr->imgui_ui;
-    auto& figure_tabs           = rt.ui_ctx_ptr->figure_tabs;
-    auto& dock_system           = rt.ui_ctx_ptr->dock_system;
-    auto& timeline_editor       = rt.ui_ctx_ptr->timeline_editor;
-    auto& keyframe_interpolator = rt.ui_ctx_ptr->keyframe_interpolator;
-    // auto& curve_editor          = rt.ui_ctx_ptr->curve_editor;
-    // auto& home_limits           = rt.ui_ctx_ptr->home_limits;
-    // auto& cmd_registry        = rt.ui_ctx_ptr->cmd_registry;
-    // auto& shortcut_mgr        = rt.ui_ctx_ptr->shortcut_mgr;
-    auto& cmd_palette         = rt.ui_ctx_ptr->cmd_palette;
-    auto& tab_drag_controller = rt.ui_ctx_ptr->tab_drag_controller;
-    auto& fig_mgr             = *rt.ui_ctx_ptr->fig_mgr;
-    auto& input_handler       = rt.ui_ctx_ptr->input_handler;
-
-    if (knob_manager_ && !knob_manager_->empty() && imgui_ui)
+    if (knob_manager_ && !knob_manager_->empty() && rt.ui_ctx_ptr->imgui_ui)
     {
-        imgui_ui->set_knob_manager(knob_manager_);
+        rt.ui_ctx_ptr->imgui_ui->set_knob_manager(knob_manager_);
     }
 
-    if (init_active)
+    if (rt.ui_ctx_ptr && rt.ui_ctx_ptr->fig_mgr)
     {
-        if (init_active->anim_.duration > 0.0f)
-        {
-            timeline_editor.set_duration(init_active->anim_.duration);
-        }
-        else if (rt.frame_state.has_animation)
-        {
-            timeline_editor.set_duration(60.0f);
-        }
-        if (init_active->anim_.loop)
-        {
-            timeline_editor.set_loop_mode(LoopMode::Loop);
-        }
-        if (init_active->anim_.fps > 0.0f)
-        {
-            timeline_editor.set_fps(init_active->anim_.fps);
-        }
-        if (rt.frame_state.has_animation)
-        {
-            timeline_editor.play();
-        }
-
-        // ── Wire up animated channels for the curve editor ──────────────
-        // Create keyframe channels for each series' opacity and size/width
-        // so the curve editor and timeline have real, editable curves.
-        float anim_dur = timeline_editor.duration();
-        int   s_idx    = 0;
-        for (auto& ax : init_active->axes())
-        {
-            if (!ax)
-                continue;
-            for (auto& s : ax->series_mut())
-            {
-                if (!s)
-                    continue;
-                std::string prefix =
-                    s->label().empty() ? "Series " + std::to_string(s_idx) : s->label();
-
-                // Opacity channel — ramp from 1.0 to 0.3 and back
-                {
-                    uint32_t ch_id = timeline_editor.add_animated_track(prefix + " Opacity", 1.0f);
-                    timeline_editor.add_animated_keyframe(ch_id, 0.0f, 1.0f, 1);   // Linear
-                    timeline_editor.add_animated_keyframe(ch_id,
-                                                          anim_dur * 0.4f,
-                                                          0.3f,
-                                                          6);   // EaseInOut
-                    timeline_editor.add_animated_keyframe(ch_id,
-                                                          anim_dur * 0.7f,
-                                                          0.8f,
-                                                          4);                          // EaseIn
-                    timeline_editor.add_animated_keyframe(ch_id, anim_dur, 1.0f, 5);   // EaseOut
-
-                    Series* raw = s.get();
-                    keyframe_interpolator.bind_callback(
-                        ch_id,
-                        prefix + " Opacity",
-                        [raw](float v) { raw->opacity(std::clamp(v, 0.0f, 1.0f)); });
-                }
-
-                // Size channel — scatter point_size or line width
-                if (auto* sc = dynamic_cast<ScatterSeries*>(s.get()))
-                {
-                    float    base  = sc->size();
-                    uint32_t ch_id = timeline_editor.add_animated_track(prefix + " Size", base);
-                    timeline_editor.add_animated_keyframe(ch_id, 0.0f, base, 1);
-                    timeline_editor.add_animated_keyframe(ch_id,
-                                                          anim_dur * 0.3f,
-                                                          base * 2.5f,
-                                                          3);   // Spring
-                    timeline_editor.add_animated_keyframe(ch_id,
-                                                          anim_dur * 0.6f,
-                                                          base * 0.5f,
-                                                          6);   // EaseInOut
-                    timeline_editor.add_animated_keyframe(ch_id, anim_dur, base, 5);
-
-                    keyframe_interpolator.bind_callback(ch_id,
-                                                        prefix + " Size",
-                                                        [sc](float v)
-                                                        { sc->size(std::max(v, 1.0f)); });
-                }
-                else if (auto* ln = dynamic_cast<LineSeries*>(s.get()))
-                {
-                    float    base  = ln->width();
-                    uint32_t ch_id = timeline_editor.add_animated_track(prefix + " Width", base);
-                    timeline_editor.add_animated_keyframe(ch_id, 0.0f, base, 1);
-                    timeline_editor.add_animated_keyframe(ch_id,
-                                                          anim_dur * 0.3f,
-                                                          base * 3.0f,
-                                                          3);   // Spring
-                    timeline_editor.add_animated_keyframe(ch_id,
-                                                          anim_dur * 0.6f,
-                                                          base * 0.5f,
-                                                          6);   // EaseInOut
-                    timeline_editor.add_animated_keyframe(ch_id, anim_dur, base, 5);
-
-                    keyframe_interpolator.bind_callback(ch_id,
-                                                        prefix + " Width",
-                                                        [ln](float v)
-                                                        { ln->width(std::max(v, 0.5f)); });
-                }
-
-                ++s_idx;
-            }
-        }
-        keyframe_interpolator.compute_all_auto_tangents();
-    }
-
+        WindowUIContextRuntimeWireOptions wire_opts;
+        wire_opts.ui_ctx                       = rt.ui_ctx_ptr;
+        wire_opts.registry                     = &registry_;
+        wire_opts.session                      = &rt.session;
+        wire_opts.active_figure                = init_active;
+        wire_opts.has_animation                = rt.frame_state.has_animation;
+        wire_opts.tab_split_mode               = TabSplitMode::SplitPane;
+        wire_opts.tab_drag_already_wired       = (rt.window_mgr != nullptr);
+        wire_opts.wire_demo_animation_channels = (init_active != nullptr);
+        wire_opts.enable_window_tab_callbacks  = !config_.headless;
     #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
-    if (rt.window_mgr)
-    {
-        tab_drag_controller.set_window_manager(rt.window_mgr.get());
-        if (init_active)
-        {
-            input_handler.set_figure(init_active);
-            if (!init_active->axes().empty() && init_active->axes()[0])
-            {
-                input_handler.set_active_axes(init_active->axes()[0].get());
-                auto& vp = init_active->axes()[0]->viewport();
-                input_handler.set_viewport(vp.x, vp.y, vp.w, vp.h);
-            }
-        }
-    }
+        wire_opts.window_manager = rt.window_mgr.get();
     #endif
+        wire_window_ui_runtime(wire_opts);
+    }
+
+    if (!config_.headless && rt.ui_ctx_ptr && rt.ui_ctx_ptr->imgui_ui)
+    {
+        auto& fig_mgr  = *rt.ui_ctx_ptr->fig_mgr;
+        auto& imgui_ui = rt.ui_ctx_ptr->imgui_ui;
+        imgui_ui->set_csv_plot_callback(
+            [&fig_mgr, this](const std::string& /*path*/,
+                             const std::vector<float>& x,
+                             const std::vector<float>& y,
+                             const std::string& /* x_label */,
+                             const std::string& y_label,
+                             const std::vector<float>* /*z*/,
+                             const std::string* /*z_label*/)
+            {
+                FigureId active_id = fig_mgr.active_index();
+                Figure*  fig       = registry_.get(active_id);
+                if (!fig)
+                {
+                    active_id = fig_mgr.create_figure(FigureConfig{});
+                    fig       = registry_.get(active_id);
+                    if (!fig)
+                        return;
+                }
+
+                auto& ax   = fig->subplot(1, 1, 1);
+                auto& line = ax.line(x, y);
+                line.label(y_label);
+                ax.auto_fit();
+            });
+    }
 #endif
 
     if (config_.headless)
@@ -727,168 +594,7 @@ void App::init_runtime()
             static_cast<VulkanBackend*>(backend_.get())->ensure_pipelines();
     }
 
-#ifdef SPECTRA_USE_IMGUI
-    if (figure_tabs && !config_.headless)
-    {
-        figure_tabs->set_tab_split_right_callback(
-            [&dock_system, &fig_mgr](size_t pos)
-            {
-                if (pos >= fig_mgr.figure_ids().size())
-                    return;
-                FigureId id   = fig_mgr.figure_ids()[pos];
-                auto*    pane = dock_system.split_view().root()
-                                    ? dock_system.split_view().root()->find_by_figure(id)
-                                    : nullptr;
-                if (!pane || pane->figure_count() < 2)
-                    return;
-                auto* new_pane = dock_system.split_figure_right(id, id);
-                if (!new_pane)
-                    return;
-                auto* parent = new_pane->parent();
-                if (parent && parent->first())
-                    parent->first()->remove_figure(id);
-                dock_system.set_active_figure_index(id);
-            });
-
-        figure_tabs->set_tab_split_down_callback(
-            [&dock_system, &fig_mgr](size_t pos)
-            {
-                if (pos >= fig_mgr.figure_ids().size())
-                    return;
-                FigureId id   = fig_mgr.figure_ids()[pos];
-                auto*    pane = dock_system.split_view().root()
-                                    ? dock_system.split_view().root()->find_by_figure(id)
-                                    : nullptr;
-                if (!pane || pane->figure_count() < 2)
-                    return;
-                auto* new_pane = dock_system.split_figure_down(id, id);
-                if (!new_pane)
-                    return;
-                auto* parent = new_pane->parent();
-                if (parent && parent->first())
-                    parent->first()->remove_figure(id);
-                dock_system.set_active_figure_index(id);
-            });
-
-        figure_tabs->set_tab_detach_callback(
-            [&fig_mgr, &session = rt.session, this](size_t pos, float screen_x, float screen_y)
-            {
-                if (pos >= fig_mgr.figure_ids().size())
-                    return;
-                FigureId id  = fig_mgr.figure_ids()[pos];
-                auto*    fig = registry_.get(id);
-                if (!fig)
-                    return;
-
-                if (fig_mgr.count() <= 1)
-                    return;
-
-                uint32_t    win_w = fig->width() > 0 ? fig->width() : 800;
-                uint32_t    win_h = fig->height() > 0 ? fig->height() : 600;
-                std::string title = fig_mgr.get_title(id);
-
-                session.queue_detach({id,
-                                      win_w,
-                                      win_h,
-                                      title,
-                                      static_cast<int>(screen_x),
-                                      static_cast<int>(screen_y)});
-            });
-    }
-
-    if (!config_.headless && rt.ui_ctx_ptr)
-    {
-        tab_drag_controller.set_on_drop_outside(
-            [&fig_mgr, &session = rt.session, this](FigureId index, float screen_x, float screen_y)
-            {
-                auto* fig = registry_.get(index);
-                if (!fig)
-                    return;
-
-                uint32_t    win_w = fig->width() > 0 ? fig->width() : 800;
-                uint32_t    win_h = fig->height() > 0 ? fig->height() : 600;
-                std::string title = fig_mgr.get_title(index);
-
-                session.queue_detach({index,
-                                      win_w,
-                                      win_h,
-                                      title,
-                                      static_cast<int>(screen_x),
-                                      static_cast<int>(screen_y)});
-            });
-
-        if (imgui_ui)
-        {
-            imgui_ui->set_pane_tab_detach_cb(
-                [&fig_mgr, &session = rt.session, this](FigureId index,
-                                                        float    screen_x,
-                                                        float    screen_y)
-                {
-                    auto* fig = registry_.get(index);
-                    if (!fig)
-                        return;
-
-                    uint32_t    win_w = fig->width() > 0 ? fig->width() : 800;
-                    uint32_t    win_h = fig->height() > 0 ? fig->height() : 600;
-                    std::string title = fig_mgr.get_title(index);
-
-                    session.queue_detach({index,
-                                          win_w,
-                                          win_h,
-                                          title,
-                                          static_cast<int>(screen_x),
-                                          static_cast<int>(screen_y)});
-                });
-        }
-
-        if (imgui_ui)
-        {
-            imgui_ui->set_csv_plot_callback(
-                [&fig_mgr, this](const std::string& /*path*/,
-                                 const std::vector<float>& x,
-                                 const std::vector<float>& y,
-                                 const std::string& /* x_label */,
-                                 const std::string& y_label,
-                                 const std::vector<float>* /*z*/,
-                                 const std::string* /*z_label*/)
-                {
-                    FigureId active_id = fig_mgr.active_index();
-                    Figure*  fig       = registry_.get(active_id);
-                    if (!fig)
-                    {
-                        active_id = fig_mgr.create_figure(FigureConfig{});
-                        fig       = registry_.get(active_id);
-                        if (!fig)
-                            return;
-                    }
-
-                    auto& ax   = fig->subplot(1, 1, 1);
-                    auto& line = ax.line(x, y);
-                    line.label(y_label);
-                    ax.auto_fit();
-                });
-        }
-
-        cmd_palette.set_body_font(nullptr);
-        cmd_palette.set_heading_font(nullptr);
-    }
-#endif
-
     rt.scheduler.reset();
-
-    // Capture initial axes limits for Home button — stored per-figure in ViewModel
-    for (auto id : registry_.all_ids())
-    {
-        Figure* fig_ptr = registry_.get(id);
-        if (!fig_ptr)
-            continue;
-        auto& vm = rt.ui_ctx_ptr->fig_mgr->state(id);
-        for (auto& ax : fig_ptr->axes_mut())
-        {
-            if (ax)
-                vm.set_home_limit(ax.get(), {ax->x_limits(), ax->y_limits()});
-        }
-    }
 
     rt.last_step_time = std::chrono::steady_clock::now();
 

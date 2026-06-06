@@ -31,7 +31,7 @@ These are the next architecture follow-ups worth prioritizing across the repo:
 
 | Priority | Status | Notes |
 |------|--------|-------|
-| `WindowUIContext` initialization/lifecycle refactor | 🔄 Next Up | Prefer a shared `WindowInitializationContext` or builder used by both windowed and headless startup paths. This is the next real architecture project. |
+| `WindowUIContext` initialization/lifecycle refactor | ✅ Complete | Shared builder, `window_manager_bootstrap`, and `wire_window_ui_runtime` unify App and agent startup. |
 | Table-driven command registration | 🔄 Planned | For `register_commands.cpp`, build on existing `CommandBindings` instead of doing a purely mechanical file split or inventing a parallel context object. |
 | Table-driven automation dispatch | 🔄 Planned | For `automation_server.cpp`, prefer descriptor/registration tables over a larger `if (method == ...)` chain. |
 | Theming contextualization | 🔄 Planned | Frame the work around eliminating or contextualizing `ui::theme()` usage, not around chasing a few remaining `ThemeManager::instance()` references. |

@@ -26,6 +26,9 @@
 #include "ui/app/register_commands.hpp"
 #include "ui/app/session_runtime.hpp"
 #include "ui/app/window_runtime.hpp"
+#include "ui/app/window_ui_context_builder.hpp"
+#include "ui/app/window_ui_context_runtime.hpp"
+#include "ui/app/window_manager_bootstrap.hpp"
 #include "ui/app/window_ui_context.hpp"
 #include "ui/theme/theme.hpp"
 
@@ -843,6 +846,8 @@ int main(int argc, char* argv[])
     frame_state.has_animation = active_figure ? active_figure->has_animation() : false;
 
     spectra::WindowUIContext* ui_ctx_ptr = nullptr;
+    spectra::WindowContext* initial_wctx = nullptr;
+    bool                      ui_built_by_builder = false;
 
 #ifdef SPECTRA_USE_GLFW
     std::unique_ptr<spectra::GlfwAdapter>   glfw;
@@ -860,37 +865,18 @@ int main(int argc, char* argv[])
     backend->create_surface(glfw->native_window());
     backend->create_swapchain(initial_w, initial_h);
 
-    window_mgr = std::make_unique<spectra::WindowManager>();
-    window_mgr->init(static_cast<spectra::VulkanBackend*>(backend.get()),
-                     &registry,
-                     renderer_ptr.get(),
-                     &theme_mgr);
+    {
+        spectra::WindowManagerBootstrapOptions wm_opts;
+        wm_opts.backend        = static_cast<spectra::VulkanBackend*>(backend.get());
+        wm_opts.registry       = &registry;
+        wm_opts.renderer       = renderer_ptr.get();
+        wm_opts.theme_mgr      = &theme_mgr;
+        wm_opts.session        = &session;
+        wm_opts.settings_store = &settings_store;
+        window_mgr             = spectra::create_configured_window_manager(wm_opts);
+    }
 
-    // Wire GLFW input events (scroll, mouse, key) to the redraw tracker
-    // so the event loop wakes from glfwWaitEventsTimeout and renders.
-    window_mgr->set_redraw_request_handler([&session](const char* reason)
-                                           { session.redraw_tracker().mark_dirty(reason); });
-
-    window_mgr->set_settings_store(&settings_store);
-
-    // Set tab drag handlers BEFORE creating windows so all windows get them
-    window_mgr->set_tab_detach_handler([&session](spectra::FigureId  fid,
-                                                  uint32_t           w,
-                                                  uint32_t           h,
-                                                  const std::string& title,
-                                                  int                sx,
-                                                  int                sy)
-                                       { session.queue_detach({fid, w, h, title, sx, sy}); });
-    window_mgr->set_tab_move_handler(
-        [&session](spectra::FigureId fid,
-                   uint32_t          target_wid,
-                   int               drop_zone,
-                   float             local_x,
-                   float             local_y,
-                   spectra::FigureId target_figure_id)
-        { session.queue_move({fid, target_wid, drop_zone, local_x, local_y, target_figure_id}); });
-
-    auto* initial_wctx = window_mgr->create_first_window_with_ui(glfw->native_window(), all_ids);
+    initial_wctx = window_mgr->create_first_window_with_ui(glfw->native_window(), all_ids);
 #elif defined(SPECTRA_USE_SDL3)
     std::unique_ptr<spectra::Sdl3Adapter>   sdl3;
     std::unique_ptr<spectra::WindowManager> window_mgr;
@@ -907,40 +893,25 @@ int main(int argc, char* argv[])
     backend->create_surface(sdl3->native_window());
     backend->create_swapchain(initial_w, initial_h);
 
-    window_mgr = std::make_unique<spectra::WindowManager>();
-    window_mgr->init(static_cast<spectra::VulkanBackend*>(backend.get()),
-                     &registry,
-                     renderer_ptr.get(),
-                     &theme_mgr);
+    {
+        spectra::WindowManagerBootstrapOptions wm_opts;
+        wm_opts.backend        = static_cast<spectra::VulkanBackend*>(backend.get());
+        wm_opts.registry       = &registry;
+        wm_opts.renderer       = renderer_ptr.get();
+        wm_opts.theme_mgr      = &theme_mgr;
+        wm_opts.session        = &session;
+        wm_opts.settings_store = &settings_store;
+        window_mgr             = spectra::create_configured_window_manager(wm_opts);
+    }
 
-    window_mgr->set_redraw_request_handler([&session](const char* reason)
-                                           { session.redraw_tracker().mark_dirty(reason); });
-
-    window_mgr->set_settings_store(&settings_store);
-
-    window_mgr->set_tab_detach_handler([&session](spectra::FigureId  fid,
-                                                  uint32_t           w,
-                                                  uint32_t           h,
-                                                  const std::string& title,
-                                                  int                sx,
-                                                  int                sy)
-                                       { session.queue_detach({fid, w, h, title, sx, sy}); });
-    window_mgr->set_tab_move_handler(
-        [&session](spectra::FigureId fid,
-                   uint32_t          target_wid,
-                   int               drop_zone,
-                   float             local_x,
-                   float             local_y,
-                   spectra::FigureId target_figure_id)
-        { session.queue_move({fid, target_wid, drop_zone, local_x, local_y, target_figure_id}); });
-
-    auto* initial_wctx = window_mgr->create_first_window_with_ui(sdl3->native_window(), all_ids);
+    initial_wctx = window_mgr->create_first_window_with_ui(sdl3->native_window(), all_ids);
 #endif
 
 #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
     if (initial_wctx && initial_wctx->ui_ctx)
     {
-        ui_ctx_ptr = initial_wctx->ui_ctx.get();
+        ui_built_by_builder = true;
+        ui_ctx_ptr          = initial_wctx->ui_ctx.get();
         // Set tab titles from snapshot cache (so tabs show "Figure 1", "Figure 2", etc.
         // instead of FigureId-based defaults like "Figure 2", "Figure 3", "Figure 4")
         if (ui_ctx_ptr->fig_mgr)
@@ -989,15 +960,17 @@ int main(int argc, char* argv[])
     window_mgr->warmup_preview_window();
 #endif
 
-    // Headless fallback
+    // Headless fallback (no OS window — e.g. builds without GLFW/SDL3)
     std::unique_ptr<spectra::WindowUIContext> headless_ui_ctx;
     if (!ui_ctx_ptr)
     {
-        headless_ui_ctx                = std::make_unique<spectra::WindowUIContext>();
-        headless_ui_ctx->theme_mgr     = &theme_mgr;
-        headless_ui_ctx->fig_mgr_owned = std::make_unique<spectra::FigureManager>(registry);
-        headless_ui_ctx->fig_mgr       = headless_ui_ctx->fig_mgr_owned.get();
-        ui_ctx_ptr                     = headless_ui_ctx.get();
+        spectra::WindowUIContextBuildOptions headless_opts;
+        headless_opts.registry       = &registry;
+        headless_opts.theme_mgr      = &theme_mgr;
+        headless_opts.mode           = spectra::WindowUIContextBuildMode::Headless;
+        headless_opts.settings_store = &settings_store;
+        headless_ui_ctx              = spectra::build_window_ui_context(headless_opts);
+        ui_ctx_ptr                   = headless_ui_ctx.get();
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -1006,164 +979,35 @@ int main(int argc, char* argv[])
     // ═══════════════════════════════════════════════════════════════════════
 
 #ifdef SPECTRA_USE_IMGUI
-    auto& imgui_ui              = ui_ctx_ptr->imgui_ui;
-    auto& figure_tabs           = ui_ctx_ptr->figure_tabs;
-    auto& dock_system           = ui_ctx_ptr->dock_system;
-    auto& timeline_editor       = ui_ctx_ptr->timeline_editor;
-    auto& keyframe_interpolator = ui_ctx_ptr->keyframe_interpolator;
-    auto& curve_editor          = ui_ctx_ptr->curve_editor;
-    auto& shortcut_mgr          = ui_ctx_ptr->shortcut_mgr;
-    auto& cmd_palette           = ui_ctx_ptr->cmd_palette;
-    auto& cmd_registry          = ui_ctx_ptr->cmd_registry;
-    auto& tab_drag_controller   = ui_ctx_ptr->tab_drag_controller;
-    auto& fig_mgr               = *ui_ctx_ptr->fig_mgr;
-    auto& input_handler         = ui_ctx_ptr->input_handler;
-
-    // Sync timeline with figure animation settings
-    timeline_editor.set_interpolator(&keyframe_interpolator);
-    curve_editor.set_interpolator(&keyframe_interpolator);
-    if (active_figure && active_figure->anim_duration() > 0.0f)
-        timeline_editor.set_duration(active_figure->anim_duration());
-    else if (frame_state.has_animation)
-        timeline_editor.set_duration(60.0f);
-    if (active_figure && active_figure->anim_loop())
-        timeline_editor.set_loop_mode(spectra::LoopMode::Loop);
-    if (active_figure && active_figure->anim_fps() > 0.0f)
-        timeline_editor.set_fps(active_figure->anim_fps());
-    if (frame_state.has_animation)
-        timeline_editor.play();
-
-    shortcut_mgr.set_command_registry(&cmd_registry);
-    shortcut_mgr.register_defaults();
-    cmd_palette.set_command_registry(&cmd_registry);
-    cmd_palette.set_shortcut_manager(&shortcut_mgr);
-
+    if (ui_ctx_ptr && ui_ctx_ptr->fig_mgr)
+    {
+        spectra::WindowUIContextRuntimeWireOptions wire_opts;
+        wire_opts.ui_ctx                       = ui_ctx_ptr;
+        wire_opts.registry                     = &registry;
+        wire_opts.session                      = &session;
+        wire_opts.active_figure                = active_figure;
+        wire_opts.has_animation                = frame_state.has_animation;
+        wire_opts.tab_split_mode               = spectra::TabSplitMode::DuplicateThenSplit;
+        wire_opts.tab_drag_already_wired       = ui_built_by_builder;
+        wire_opts.wire_demo_animation_channels = false;
+        wire_opts.enable_window_tab_callbacks  = true;
     #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
-    if (window_mgr)
-    {
-        tab_drag_controller.set_window_manager(window_mgr.get());
-        input_handler.set_figure(active_figure);
-        if (active_figure && !active_figure->axes().empty() && active_figure->axes()[0])
-        {
-            input_handler.set_active_axes(active_figure->axes()[0].get());
-            auto& vp = active_figure->axes()[0]->viewport();
-            input_handler.set_viewport(vp.x, vp.y, vp.w, vp.h);
-        }
-    }
+        wire_opts.window_manager = window_mgr.get();
     #endif
-
-    // Tab/pane detach callbacks — forward to session.queue_detach()
-    if (figure_tabs)
-    {
-        figure_tabs->set_tab_split_right_callback(
-            [&dock_system, &fig_mgr](size_t pos)
-            {
-                if (pos >= fig_mgr.figure_ids().size())
-                    return;
-                spectra::FigureId id      = fig_mgr.figure_ids()[pos];
-                spectra::FigureId new_fig = fig_mgr.duplicate_figure(id);
-                if (new_fig == spectra::INVALID_FIGURE_ID)
-                    return;
-                dock_system.split_figure_right(id, new_fig);
-                dock_system.set_active_figure_index(id);
-            });
-        figure_tabs->set_tab_split_down_callback(
-            [&dock_system, &fig_mgr](size_t pos)
-            {
-                if (pos >= fig_mgr.figure_ids().size())
-                    return;
-                spectra::FigureId id      = fig_mgr.figure_ids()[pos];
-                spectra::FigureId new_fig = fig_mgr.duplicate_figure(id);
-                if (new_fig == spectra::INVALID_FIGURE_ID)
-                    return;
-                dock_system.split_figure_down(id, new_fig);
-                dock_system.set_active_figure_index(id);
-            });
-        figure_tabs->set_tab_detach_callback(
-            [&fig_mgr, &session, &registry](size_t pos, float screen_x, float screen_y)
-            {
-                if (pos >= fig_mgr.figure_ids().size())
-                    return;
-                spectra::FigureId id  = fig_mgr.figure_ids()[pos];
-                auto*             fig = registry.get(id);
-                if (!fig || fig_mgr.count() <= 1)
-                    return;
-                uint32_t    win_w = fig->width() > 0 ? fig->width() : 800;
-                uint32_t    win_h = fig->height() > 0 ? fig->height() : 600;
-                std::string title = fig_mgr.get_title(id);
-                session.queue_detach({id,
-                                      win_w,
-                                      win_h,
-                                      title,
-                                      static_cast<int>(screen_x),
-                                      static_cast<int>(screen_y)});
-            });
+        spectra::wire_window_ui_runtime(wire_opts);
     }
 
-    if (ui_ctx_ptr)
+    if (!ui_built_by_builder && ui_ctx_ptr)
     {
-        tab_drag_controller.set_on_drop_outside(
-            [&fig_mgr, &session, &registry](spectra::FigureId index, float screen_x, float screen_y)
-            {
-                auto* fig = registry.get(index);
-                if (!fig)
-                    return;
-                uint32_t    win_w = fig->width() > 0 ? fig->width() : 800;
-                uint32_t    win_h = fig->height() > 0 ? fig->height() : 600;
-                std::string title = fig_mgr.get_title(index);
-                session.queue_detach({index,
-                                      win_w,
-                                      win_h,
-                                      title,
-                                      static_cast<int>(screen_x),
-                                      static_cast<int>(screen_y)});
-            });
+        auto& shortcut_mgr = ui_ctx_ptr->shortcut_mgr;
+        auto& cmd_palette  = ui_ctx_ptr->cmd_palette;
+        auto& cmd_registry = ui_ctx_ptr->cmd_registry;
 
-        tab_drag_controller.set_on_drop_on_window(
-            [&session, &window_mgr](spectra::FigureId index,
-                                    uint32_t          target_window_id,
-                                    float /*screen_x*/,
-                                    float /*screen_y*/)
-            {
-                int   zone = 0;
-                float lx   = 0.0f;
-                float ly   = 0.0f;
-                if (window_mgr)
-                {
-                    auto info = window_mgr->cross_window_drop_info();
-                    zone      = info.zone;
-                    lx        = info.hx;
-                    ly        = info.hy;
-                }
-                session.queue_move({index, target_window_id, zone, lx, ly});
-            });
+        shortcut_mgr.set_command_registry(&cmd_registry);
+        shortcut_mgr.register_defaults();
+        cmd_palette.set_command_registry(&cmd_registry);
+        cmd_palette.set_shortcut_manager(&shortcut_mgr);
 
-        if (imgui_ui)
-        {
-            imgui_ui->set_pane_tab_detach_cb(
-                [&fig_mgr, &session, &registry](spectra::FigureId index,
-                                                float             screen_x,
-                                                float             screen_y)
-                {
-                    auto* fig = registry.get(index);
-                    if (!fig)
-                        return;
-                    uint32_t    win_w = fig->width() > 0 ? fig->width() : 800;
-                    uint32_t    win_h = fig->height() > 0 ? fig->height() : 600;
-                    std::string title = fig_mgr.get_title(index);
-                    session.queue_detach({index,
-                                          win_w,
-                                          win_h,
-                                          title,
-                                          static_cast<int>(screen_x),
-                                          static_cast<int>(screen_y)});
-                });
-        }
-
-        cmd_palette.set_body_font(nullptr);
-        cmd_palette.set_heading_font(nullptr);
-
-        // Register ALL standard commands (same as inproc)
         spectra::CommandBindings cb;
         cb.ui_ctx           = ui_ctx_ptr;
         cb.registry         = &registry;
@@ -1178,20 +1022,6 @@ int main(int argc, char* argv[])
 #endif
 
     scheduler.reset();
-
-    // Capture initial axes limits for Home button — stored per-figure in ViewModel
-    for (auto id : registry.all_ids())
-    {
-        spectra::Figure* fig_ptr = registry.get(id);
-        if (!fig_ptr)
-            continue;
-        auto& vm = fig_mgr.state(id);
-        for (auto& ax : fig_ptr->axes_mut())
-        {
-            if (ax)
-                vm.set_home_limit(ax.get(), {ax->x_limits(), ax->y_limits()});
-        }
-    }
 
     SPECTRA_LOG_INFO("window", "Full UI initialized, entering main loop");
 

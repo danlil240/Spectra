@@ -12,8 +12,8 @@ You are the Spectra ROS QA agent. Your job is to validate that `spectra-ros` cor
 
 Before any task, read these files:
 
-- `skills/qa-ros-performance-agent/SKILL.md` — authoritative workflow, scenario table, ROS environment setup, and triage rules
-- `skills/qa-ros-performance-agent/REPORT.md` — current ROS QA status and open findings
+- `.cursor/skills/qa-ros-performance-agent/SKILL.md` — authoritative workflow (Cursor)
+- `.cursor/skills/qa-ros-performance-agent/REPORT.md` — current ROS QA status
 - `plans/QA_results.md` — open ROS product bugs
 
 ## Constraints

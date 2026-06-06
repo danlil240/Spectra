@@ -1,8 +1,69 @@
 # Spectra QA Results — Living Document
 
-**Last updated:** 2026-06-04  
-**QA Agent build:** `build/tests/` (Release, all suites)  
-**Full sweep:** Stability · Pixel · Memory · Design · Accessibility · API
+**Last updated:** 2026-06-05  
+**QA Agent build:** `build/tests/` (Release, QA agent + golden ON)  
+**Last sweep:** Visual design-review (`qa-designer-agent`)
+
+---
+
+## Visual Design Review — 2026-06-05
+
+**Trigger:** `/qa-designer-agent`
+
+| Check | Status | Notes |
+|-------|--------|-------|
+| Design-review capture | ✅ | 63/63 screenshots, seed 42, `/tmp/spectra_qa_design_20260605/design/` |
+| Golden regression | ✅ | 5/5 `golden_image*` ctest targets |
+| Accessibility unit | ✅ | `unit_test_accessibility` 17/17 |
+| Fix applied | ✅ | **D-8** — status bar perf chips hidden when bar too narrow (`imgui_panels.cpp`) |
+
+**Open visual:** A11Y-SP-4 (P2 mitigated) — arrow-key shortcuts table nav deferred (ImGui).
+
+**Repro:**
+
+```bash
+export DISPLAY=:1 XDG_RUNTIME_DIR=/tmp/runtime-$(id -u) VK_ICD_FILENAMES=...lavapipe...
+./build/tests/spectra_qa_agent --seed 42 --design-review --no-fuzz --no-scenarios \
+    --output-dir /tmp/spectra_qa_design_20260605
+```
+
+---
+
+## QA Sweep — 2026-06-05
+
+**Trigger:** `/qa-orchestrator` — changed paths are `.cursor/skills/` and `.github/agents/` only (no product code). Targeted gates: Stability · Pixel · API.
+
+### Gate Results
+
+| Gate | Skill | Status | Notes |
+|------|-------|--------|-------|
+| Stability | qa-performance | ❌ | **CRASH** SIGSEGV seed 42, `rapid_figure_lifecycle`; stack in `libvulkan_lvp.so`; GLFW init failed (no display/Xvfb) |
+| Pixel | qa-regression | ✅ | Golden 5/5 suites pass (59 tests); unit 140/141 — 1 flaky `TopicDiscoveryTest.RemoveCallbackFiredWhenTopicDisappears` under parallel ctest (passes isolated) |
+| Memory | qa-memory | ⏭ | Skipped — no `build-asan/` (G-3) |
+| API | qa-api | ⚠️ | 398/399 pass (excl. embed); `test_version_exists` expects `0.2.0`, package is `0.2.1`; embed tests need `libspectra_embed` |
+
+### Domains (skipped — no matching path changes)
+
+| Domain | Skill | Status |
+|--------|-------|--------|
+| Visual | qa-designer | ⏭ Skipped |
+| Accessibility | qa-accessibility | ⏭ Skipped |
+| ROS | qa-ros-performance | ⏭ Skipped |
+
+### Action items
+
+- [CRITICAL] Stability crash seed 42 / `rapid_figure_lifecycle` → **qa-performance-agent** (repro with Xvfb + lavapipe; check GLFW-less headless path)
+- [LOW] Stale `test_version_exists` (`0.2.0` vs `0.2.1`) → **qa-api-agent**
+- [LOW] Flaky `unit_test_topic_discovery` under parallel ctest → **qa-regression-agent**
+- [INFO] Embed Python tests (55) fail without `SPECTRA_BUILD_EMBED_SHARED` — expected gap (BUG-9)
+
+### Repro
+
+```bash
+export XDG_RUNTIME_DIR=/tmp/runtime-$(id -u) VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json LIBGL_ALWAYS_SOFTWARE=1
+./build/tests/spectra_qa_agent --seed 42 --duration 120 --output-dir /tmp/spectra_qa_repro
+# Crash report: /tmp/spectra_qa_20260605/qa_crash.txt
+```
 
 ---
 

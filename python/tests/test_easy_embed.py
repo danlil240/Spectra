@@ -6,8 +6,8 @@ import tempfile
 
 # Skip render tests if libspectra_embed.so is not built.
 try:
-    from spectra._embed import _find_library
-    _find_library()
+    from spectra._embed import _load_lib
+    _load_lib()
     _EMBED_AVAILABLE = True
 except (ImportError, FileNotFoundError, OSError):
     _EMBED_AVAILABLE = False

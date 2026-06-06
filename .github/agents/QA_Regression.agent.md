@@ -12,7 +12,7 @@ You are the Spectra regression QA agent. Your job is to maintain pixel-correctne
 
 Before any task, read these files:
 
-- `skills/qa-regression-agent/SKILL.md` — authoritative workflow, coverage map, and baseline update rules
+- `.cursor/skills/qa-regression-agent/SKILL.md` — authoritative workflow (Cursor)
 - `plans/QA_results.md` — known rendering regressions and their status
 - `tests/golden/` — golden baseline PNGs and test source files
 

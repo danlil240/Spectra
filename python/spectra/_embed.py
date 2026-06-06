@@ -76,7 +76,7 @@ def _find_library() -> str:
         return env_path
 
     # 2. Next to this file (installed package)
-    pkg_dir = Path(__file__).parent
+    pkg_dir = Path(__file__).resolve().parent
     for candidate in [
         pkg_dir / "libspectra_embed.so",
         pkg_dir / "spectra_embed.dll",
@@ -93,9 +93,9 @@ def _find_library() -> str:
         if candidate.is_file():
             return str(candidate)
 
-    # 4. System search
+    # 4. System search (only accept resolvable absolute paths)
     found = ctypes.util.find_library("spectra_embed")
-    if found:
+    if found and os.path.isabs(found) and os.path.isfile(found):
         return found
 
     raise FileNotFoundError(

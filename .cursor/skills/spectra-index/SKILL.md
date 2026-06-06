@@ -9,46 +9,56 @@ description: >-
 
 # Spectra Skills Index
 
-Spectra is a GPU-accelerated C++20 plotting library (Vulkan, ImGui, multi-process IPC). Project skills live in `.cursor/skills/`. Read `CLAUDE.md` and `BUILD_ENVIRONMENT.md` for build conventions.
+Spectra: GPU C++20 plotting (Vulkan, ImGui, IPC). `CLAUDE.md` + `BUILD_ENVIRONMENT.md` for build rules.
 
-## Development skills
+## Workflow & repo
 
 | Skill | Use when |
 |-------|----------|
-| [build-and-test](build-and-test/SKILL.md) | Build, run `ctest`, verify a change compiles |
-| [build-system](build-system/SKILL.md) | CMake targets, feature flags, shaders in build |
-| [debug-vulkan](debug-vulkan/SKILL.md) | Validation errors, swapchain, pipeline, GPU hangs |
-| [add-shader](add-shader/SKILL.md) | New GLSL/SPIR-V shader pair |
-| [add-series-type](add-series-type/SKILL.md) | New 2D/3D plot series type |
+| [spectra-dev](spectra-dev/SKILL.md) | Full feature cycle (plan → build → QA) |
+| [spectra-implementation](spectra-implementation/SKILL.md) | Plan, design, or write C++/GLSL/Python |
+| [build-and-test](build-and-test/SKILL.md) | Compile, ctest, smoke |
+| [git-manager](git-manager/SKILL.md) | Commits, branches, PRs, releases |
+| [github-ci](github-ci/SKILL.md) | Actions workflows, CI failures |
+| [qa-orchestrator](qa-orchestrator/SKILL.md) | Multi-domain QA sweep |
+
+## Development
+
+| Skill | Use when |
+|-------|----------|
+| [build-system](build-system/SKILL.md) | CMake targets, flags, shaders in build |
+| [debug-vulkan](debug-vulkan/SKILL.md) | Validation, swapchain, pipeline errors |
+| [add-shader](add-shader/SKILL.md) | New GLSL/SPIR-V |
+| [add-series-type](add-series-type/SKILL.md) | New 2D/3D series |
 | [add-command](add-command/SKILL.md) | Command palette + shortcuts |
-| [add-test](add-test/SKILL.md) | Unit, golden, or benchmark tests |
-| [add-example](add-example/SKILL.md) | New `examples/` demo |
-| [3d-rendering](3d-rendering/SKILL.md) | Axes3D, camera, 3D shaders, depth, lighting |
-| [data-pipeline](data-pipeline/SKILL.md) | Decimation, filters, transforms, streaming |
-| [ipc-protocol-dev](ipc-protocol-dev/SKILL.md) | Binary IPC messages, codec, daemon routing |
-| [python-bindings](python-bindings/SKILL.md) | `python/spectra/` API and codec mirror |
-| [code-simplifier](code-simplifier/SKILL.md) | Safe refactors without behavior/API change |
-| [graphical-change-workflow](graphical-change-workflow/SKILL.md) | Any visual/rendering change — build, plot, screenshot |
-| [spectra-mcp](spectra-mcp/SKILL.md) | Live app automation at `http://127.0.0.1:8765/mcp` |
+| [add-test](add-test/SKILL.md) | Unit, golden, benchmark |
+| [add-example](add-example/SKILL.md) | `examples/` demo |
+| [3d-rendering](3d-rendering/SKILL.md) | Axes3D, camera, 3D shaders |
+| [data-pipeline](data-pipeline/SKILL.md) | Decimation, filters, streaming |
+| [ipc-protocol-dev](ipc-protocol-dev/SKILL.md) | IPC messages, daemon |
+| [python-bindings](python-bindings/SKILL.md) | `python/spectra/` |
+| [code-simplifier](code-simplifier/SKILL.md) | Safe refactors, no API change |
+| [graphical-change-workflow](graphical-change-workflow/SKILL.md) | Any pixel/shader/UI change |
+| [spectra-mcp](spectra-mcp/SKILL.md) | Live app `http://127.0.0.1:8765/mcp` |
 
-## QA skills (require display + `SPECTRA_BUILD_QA_AGENT=ON`)
+## QA (`SPECTRA_BUILD_QA_AGENT=ON`)
 
 | Skill | Use when |
 |-------|----------|
-| [qa-designer-agent](qa-designer-agent/SKILL.md) | Visual design review, `plans/QA_design_review.md` |
-| [qa-performance-agent](qa-performance-agent/SKILL.md) | Stress/fuzz, `plans/QA_results.md` |
-| [qa-regression-agent](qa-regression-agent/SKILL.md) | Golden image tests, baseline updates |
-| [qa-api-agent](qa-api-agent/SKILL.md) | Python/C++ API and IPC contract tests |
-| [qa-accessibility-agent](qa-accessibility-agent/SKILL.md) | WCAG contrast, colorblind palettes, keyboard nav |
-| [qa-memory-agent](qa-memory-agent/SKILL.md) | Leaks, ASan, Valgrind, VMA budget |
-| [qa-ros-performance-agent](qa-ros-performance-agent/SKILL.md) | ROS2 adapter QA with `spectra_ros_qa_agent` |
+| [qa-designer-agent](qa-designer-agent/SKILL.md) | Visual design review |
+| [qa-performance-agent](qa-performance-agent/SKILL.md) | Stress/fuzz, crashes |
+| [qa-regression-agent](qa-regression-agent/SKILL.md) | Golden + unit gate |
+| [qa-api-agent](qa-api-agent/SKILL.md) | Python/IPC/public API |
+| [qa-accessibility-agent](qa-accessibility-agent/SKILL.md) | WCAG, colorblind, keyboard |
+| [qa-memory-agent](qa-memory-agent/SKILL.md) | ASan, leaks, VMA |
+| [qa-ros-performance-agent](qa-ros-performance-agent/SKILL.md) | ROS2 adapter |
 
 ## Quick routing
 
-- **Changed pixels or shaders** → `graphical-change-workflow`, then domain skill (`3d-rendering`, etc.)
-- **Python script broke** → `python-bindings` + `qa-api-agent`
-- **IPC framing / daemon** → `ipc-protocol-dev`
-- **CMake / link error** → `build-system`
-- **Simplify without redesign** → `code-simplifier`
+- Pixels/shaders → `graphical-change-workflow` + domain skill
+- Python/IPC break → `python-bindings` + `qa-api-agent`
+- CI red → `github-ci` (+ root fix in code if needed)
+- Commit/PR/release → `git-manager`
+- Simplify only → `code-simplifier`
 
-Legacy copies remain in `skills/` for Windsurf/Claude; **prefer `.cursor/skills/` in Cursor**.
+Converted from `.github/agents/*.agent.md` (2026-06).

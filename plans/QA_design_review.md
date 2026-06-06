@@ -1,8 +1,8 @@
 # Spectra Visual QA Design Review
 
-> **Last Updated:** 2026-06-04
-> **Test Health:** 140/141 ctest (1 ROS topic_discovery flake) · golden_image_tests PASS · unit_test_accessibility 17/17 PASS
-> **Design Health:** ✅ Good — No P0/P1 defects open. Live design-review capture: 57/57 screenshots (seed 42).
+> **Last Updated:** 2026-06-05
+> **Test Health:** golden_image_tests 5/5 PASS · unit_test_accessibility 17/17 PASS
+> **Design Health:** ✅ Good — No P0/P1 defects open. Live design-review capture: **63/63** screenshots (seed 42).
 
 ---
 
@@ -10,7 +10,7 @@
 
 | ID  | Priority | Status | Description | File | Line |
 |-----|----------|--------|-------------|------|------|
-| A11Y-SP-4 | P2 | Open (mitigated) | Keyboard nav burden in Shortcuts table: no arrow-key row navigation; reaching bottom-row buttons still requires O(n) Tab presses. Filter tooltip added 2026-06-04; arrow-key table nav deferred (ImGui limitation). | `src/ui/settings/settings_panel.cpp` | `draw_shortcuts_tab()` |
+| A11Y-SP-4 | P2 | Open (mitigated) | Keyboard nav burden in Shortcuts table: no arrow-key row navigation; reaching bottom-row buttons still requires O(n) Tab presses. Filter tooltip added 2026-06-04; arrow-key table nav deferred (ImGui limitation). Re-verified 2026-06-05 (`60_settings_shortcuts_night.png`). | `src/ui/settings/settings_panel.cpp` | `draw_shortcuts_tab()` |
 
 ---
 
@@ -36,6 +36,7 @@
 | A11Y-001 | P1 | Fixed 2026-05-16 | Dark theme `text_secondary` (#909090) measured 4.25:1 on `bg_secondary` (#2E2E2E) and 3.79:1 on `bg_tertiary` (#363636) — both below WCAG AA 4.5:1 threshold. Affected inspector labels and placeholder text in inputs. | `src/ui/theme/theme.cpp` | `text_secondary` bumped from `0x909090` to `0xA0A0A0`; now 5.19:1 / 4.62:1 / 5.71:1 / 6.16:1 across all dark surfaces. |
 | D-1 | P3 | Fixed 2026-07-08 | Inspector toggle chevron glyph rendered at fractional pixel coordinates — blurry at 125%/150% DPI. Fixed by applying `std::floor()` to both `ix` and `iy` before `AddText`. | `src/ui/imgui/imgui_panels.cpp` | `draw_inspector_toggle()` — `ix`/`iy` now floored |
 | D-2 | P3 | Fixed 2026-07-08 | Inspector tab separator horizontal hairline rendered with un-snapped Y coordinate from `GetCursorScreenPos().y`. Fixed by wrapping in `std::floor()`. | `src/ui/imgui/imgui_panels.cpp` | `draw_inspector()` — `sep_y` now `std::floor(GetCursorScreenPos().y)` |
+| D-8 | P3 | Fixed 2026-06-05 | Status bar FPS/GPU chips overlapped zoom label when the bar was narrower than ~160px + left content (e.g. `56_tiny_window_all_panels_open` at 320×240). | `src/ui/imgui/imgui_panels.cpp` | `draw_status_bar()` — omit perf block unless `perf_anchor > cursor + gap` |
 
 ---
 
@@ -71,9 +72,9 @@ Files reviewed for sub-pixel snapping, border rendering, and theme color correct
 - **Theme engine**: Night/Dark/Light all complete; `apply_to_imgui()` fully token-driven.
 - **Test suite**: 140 unit tests + 59 golden tests all pass.
 
-### Captured 2026-06-04 (seed 42, `spectra_qa_agent --design-review`)
-- **63/63** screenshots expected after G-6 (`57_settings_*` … `62_settings_ui_defaults`); prior pass captured 57 core UI frames only
-- `manifest.txt` complete; `11_theme_dark.png` / `12_theme_light.png` available for tick/warning visual diff
+### Captured 2026-06-05 (seed 42, `spectra_qa_agent --design-review`)
+- **63/63** screenshots in `/tmp/spectra_qa_design_20260605/design/`; post-fix recapture in `/tmp/spectra_qa_design_after_20260605/design/` (D-8)
+- `manifest.txt` complete; settings shots `57`–`62` present; shortcuts tab readable in night/light themes
 
 ### Not Yet Reviewed at Pixel Level
 - Crosshair label clipping at viewport edges
@@ -94,10 +95,10 @@ This review was conducted as a static code analysis sweep using the issue-to-fil
 - `src/ui/overlay/crosshair.cpp` (label positioning)
 - `tests/golden/baseline/` (baseline completeness)
 
-Live screenshot capture performed 2026-06-04 (`SPECTRA_BUILD_QA_AGENT=ON`, DISPLAY=:1).
+Live screenshot capture performed 2026-06-05 (`SPECTRA_BUILD_QA_AGENT=ON`, DISPLAY=:1).
 Command:
 
 ```bash
 ./build/tests/spectra_qa_agent --seed 42 --design-review --no-fuzz --no-scenarios \
-    --output-dir /tmp/spectra_qa_design_20260604
+    --output-dir /tmp/spectra_qa_design_20260605
 ```

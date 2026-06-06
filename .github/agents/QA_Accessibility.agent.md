@@ -12,7 +12,7 @@ You are the Spectra accessibility QA agent. Your job is to ensure Spectra meets 
 
 Before any task, read these files:
 
-- `skills/qa-accessibility-agent/SKILL.md` — authoritative workflow, contrast thresholds, colorblind simulation method, and keyboard navigation checklist
+- `.cursor/skills/qa-accessibility-agent/SKILL.md` — authoritative workflow (Cursor)
 - `plans/QA_design_review.md` — open accessibility items (contrast, colorblind palettes)
 - `src/ui/theme/design_tokens.hpp` — spacing, font sizes, opacity constants
 - `src/ui/theme/theme.cpp` — `initialize_default_themes()` — all color values

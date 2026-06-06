@@ -1,10 +1,23 @@
 # Spectra QA Agent — Capability Gaps & Backlog
 
-**Last updated:** 2026-06-04
+**Last updated:** 2026-06-05
 
 ---
 
 ## Open Gaps
+
+### G-8 — CMake `CMAKE_ROOT` broken in some agent shells
+
+**Observed:** 2026-06-05 design-review — `cmake -B build` fails with `Could not find CMAKE_ROOT`; manual `clang++` + `ar rs` workaround used to relink `spectra_qa_agent`.  
+**Impact:** Agents cannot run canonical `cmake --build` until CMake install is repaired.  
+**Suggested fix:** Reinstall `cmake` package or fix `CMAKE_ROOT` env; prefer `make -f build/Makefile <target>` when CMake CLI is broken.
+
+### G-7 — QA agent crashes without display (GLFW init failure)
+
+**Observed:** 2026-06-05 targeted sweep — `spectra_qa_agent --seed 42` SIGSEGV in `rapid_figure_lifecycle` when GLFW fails to init (no `DISPLAY`/Xvfb on agent VM). Vulkan (lavapipe) initializes; crash stack in `libvulkan_lvp.so`. Golden headless tests pass in same env.  
+**Impact:** Stability gate cannot run on display-less CI/agent hosts without Xvfb.  
+**Suggested fix:** Install `xvfb` and wrap QA agent in `xvfb-run -a`; or add headless GLFW fallback for QA scenarios that do not need a visible window.
+
 
 ### G-6 — Design-review capture does not include Settings panel states
 

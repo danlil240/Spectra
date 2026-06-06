@@ -80,11 +80,7 @@ ctest --test-dir build --output-on-failure
 - `plans/QA_update.md` — any new QA-agent gaps discovered.
 - `plans/QA_results.md` — non-visual bugs or perf findings.
 
----
 ## Extended reference
 
-- Screenshot coverage (57), command reference, issue maps, MCP, guardrails: [references/qa-designer-reference.md](references/qa-designer-reference.md)
-- Session report template: [REPORT.md](REPORT.md)
-## Reference
-
-Detailed tables: [references/qa-designer-reference.md](references/qa-designer-reference.md).
+- Screenshot coverage, issue maps, MCP: [references/qa-designer-reference.md](references/qa-designer-reference.md)
+- Session report: [REPORT.md](REPORT.md)

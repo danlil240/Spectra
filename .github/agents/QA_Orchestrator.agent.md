@@ -15,7 +15,8 @@ Before any task, read these files:
 
 - `plans/QA_results.md` — current open product bugs across all domains
 - `plans/QA_update.md` — QA-agent capability gaps
-- `.github/agents/` — list of available QA agents and their scopes
+- `.cursor/skills/qa-orchestrator/SKILL.md` — Cursor orchestration (preferred)
+- `.github/agents/README.md` — agent → skill map
 
 ## Sub-Agent Roster
 

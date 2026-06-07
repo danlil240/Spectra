@@ -264,7 +264,7 @@ std::unique_ptr<WindowUIContext> build_window_ui_context(const WindowUIContextBu
         ui->imgui_ui->set_export_format_registry(options.export_format_registry);
         ui->imgui_ui->set_series_clipboard(options.series_clipboard);
         ui->imgui_ui->set_topics_panel(&ui->topics_panel);
-    #ifdef SPECTRA_USE_GLFW
+    #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
         ui->tab_drag_controller.set_window_manager(options.window_manager);
         ui->tab_drag_controller.set_dock_system(&ui->dock_system);
         ui->tab_drag_controller.set_source_window_id(options.window_id);
@@ -415,7 +415,7 @@ std::unique_ptr<WindowUIContext> build_window_ui_context(const WindowUIContextBu
     bindings.active_figure    = active_figure_ptr;
     bindings.active_figure_id = active_figure_id_ptr;
     bindings.session          = options.session;
-    #ifdef SPECTRA_USE_GLFW
+    #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
     bindings.window_mgr = options.window_manager;
     #endif
     register_standard_commands(bindings);

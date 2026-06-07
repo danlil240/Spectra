@@ -53,6 +53,15 @@ EOF
 
 **Work committed on main locally:** `git switch -c <branch>` → push → PR → `git switch main && git reset --hard origin/main` (only if safe).
 
+## Branch Cleanup After PR
+
+After a PR is squash-merged into `main`, delete the remote PR branch and clean up the local branch.
+
+Preferred command:
+
+```bash
+gh pr merge --squash --delete-branch
+
 ## Output
 
 ```text

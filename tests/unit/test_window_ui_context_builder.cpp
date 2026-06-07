@@ -5,6 +5,7 @@
 
 #include "io/export_registry.hpp"
 #include "ui/app/window_ui_context_builder.hpp"
+#include "ui/app/window_ui_context_runtime.hpp"
 #include "ui/app/window_ui_context.hpp"
 #include "ui/commands/shortcut_manager.hpp"
 #include "ui/commands/series_clipboard.hpp"
@@ -108,6 +109,34 @@ TEST_F(WindowUIContextBuilderTest, BuildsMinimalHeadlessContext)
     EXPECT_EQ(ui_ctx->fig_mgr->figure_ids().size(), 2u);
     EXPECT_EQ(ui_ctx->imgui_ui, nullptr);
     EXPECT_EQ(ui_ctx->cmd_registry.count(), 0u);
+}
+
+TEST_F(WindowUIContextBuilderTest, CaptureHomeLimitsStoresAxesExtents)
+{
+    WindowUIContextBuildOptions options;
+    options.registry          = &registry_;
+    options.theme_mgr         = &theme_mgr_;
+    options.initial_figure_id = primary_id_;
+
+    auto ui_ctx = build_window_ui_context(options);
+    ASSERT_NE(ui_ctx, nullptr);
+    ASSERT_NE(ui_ctx->fig_mgr, nullptr);
+
+    Figure* fig = registry_.get(primary_id_);
+    ASSERT_NE(fig, nullptr);
+    auto& ax = fig->subplot(1, 1, 1);
+    ax.xlim(1.0, 5.0);
+    ax.ylim(-2.0, 3.0);
+
+    capture_figure_home_limits(registry_, *ui_ctx->fig_mgr);
+
+    const auto& vm = ui_ctx->fig_mgr->state(primary_id_);
+    const auto  it = vm.home_limits().find(&ax);
+    ASSERT_NE(it, vm.home_limits().end());
+    EXPECT_DOUBLE_EQ(it->second.x.min, 1.0);
+    EXPECT_DOUBLE_EQ(it->second.x.max, 5.0);
+    EXPECT_DOUBLE_EQ(it->second.y.min, -2.0);
+    EXPECT_DOUBLE_EQ(it->second.y.max, 3.0);
 }
 
 #endif

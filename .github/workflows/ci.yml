@@ -397,4 +397,5 @@ jobs:
       - name: Run ROS2 unit tests
         run: |
           . /opt/ros/humble/setup.sh
-          ctest --test-dir build -L ros2 -LE gpu --output-on-failure -j$(nproc)
+          # Serial: ROS2 test binaries share one DDS domain; parallel ctest races discovery.
+          ctest --test-dir build -L ros2 -LE gpu --output-on-failure -j1

@@ -124,8 +124,8 @@ class BagInfoPanel
     // Close the current bag and reset state.
     void close_bag();
 
-    // True if a bag is currently open.
-    bool is_open() const noexcept { return reader_.is_open(); }
+    // True if bag metadata is loaded (playback may be owned by BagPlayer).
+    bool is_open() const noexcept { return summary_.is_open; }
 
     // Try to open `path` if it ends with ".db3" or ".mcap".
     // Returns true if the path looks like a bag and open succeeded.

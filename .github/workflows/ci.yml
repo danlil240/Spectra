@@ -464,7 +464,7 @@ jobs:
           export XDG_RUNTIME_DIR="/tmp/runtime-ros-qa-nav"
           mkdir -p "$XDG_RUNTIME_DIR"
           python3 scripts/generate_ros_reference_bags.py
-          xvfb-run -a ./build/tests/spectra_ros_qa_agent \
+          timeout 180 xvfb-run -a ./build/tests/spectra_ros_qa_agent \
             --scenario nav_spatiotemporal \
             --seed 42 \
             --duration 90 \
@@ -480,7 +480,7 @@ jobs:
           mkdir -p "$ROS_LOG_DIR" "$ROS_HOME"
           export XDG_RUNTIME_DIR="/tmp/runtime-ros-qa-first-plot"
           mkdir -p "$XDG_RUNTIME_DIR"
-          xvfb-run -a ./build/tests/spectra_ros_qa_agent \
+          timeout 120 xvfb-run -a ./build/tests/spectra_ros_qa_agent \
             --scenario first_plot \
             --seed 42 \
             --duration 60 \

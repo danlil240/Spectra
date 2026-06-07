@@ -90,6 +90,10 @@ bool BagInfoPanel::open_bag(const std::string& path)
     if (opened_cb_)
         opened_cb_(path);
 
+    // Release storage — BagPlayer owns live playback; keeping two SQLite readers
+    // on the same bag directory can deadlock on some platforms.
+    reader_.close();
+
     return true;
 }
 

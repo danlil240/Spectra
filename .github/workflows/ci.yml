@@ -451,7 +451,7 @@ jobs:
           . /opt/ros/humble/setup.sh
           ./build/tests/bench_ros3d \
             --benchmark_filter='BM_PointCloud(Display|Adapter).*500000' \
-            --benchmark_min_time=0.05
+            --benchmark_min_time=0.05s
 
       - name: ROS QA nav spatiotemporal (Phase C7)
         env:

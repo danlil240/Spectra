@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <filesystem>
 #include <format>
 
 #ifdef SPECTRA_USE_IMGUI
@@ -108,6 +109,9 @@ bool BagInfoPanel::try_open_file(const std::string& path)
 
 bool BagInfoPanel::is_bag_path(const std::string& path)
 {
+    if (path.empty())
+        return false;
+
     if (path.size() >= 4)
     {
         std::string ext = path.substr(path.size() - 4);
@@ -124,6 +128,13 @@ bool BagInfoPanel::is_bag_path(const std::string& path)
         if (ext == ".mcap")
             return true;
     }
+
+    // ROS 2 bag folders (metadata.yaml + storage files).
+    namespace fs = std::filesystem;
+    const fs::path bag_dir(path);
+    if (fs::is_directory(bag_dir) && fs::exists(bag_dir / "metadata.yaml"))
+        return true;
+
     return false;
 }
 

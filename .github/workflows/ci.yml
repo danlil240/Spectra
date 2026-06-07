@@ -382,6 +382,7 @@ jobs:
             vulkan-tools
 
       - name: Pin Vulkan ICD to lavapipe
+        shell: bash
         run: |
           set -e
           ICD_DIRS=(

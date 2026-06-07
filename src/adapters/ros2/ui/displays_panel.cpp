@@ -124,6 +124,11 @@ void DisplaysPanel::draw(bool*                                        p_open,
         return;
     }
 
+    if (displays.empty())
+    {
+        ImGui::TextDisabled("No displays yet. Click Add Display to visualize 3D topics.");
+    }
+
     if (ImGui::Button("Add Display"))
         ImGui::OpenPopup("##add_display_popup");
     ImGui::SameLine();

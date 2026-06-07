@@ -952,6 +952,44 @@
         </div>
       </section>
 
+      <!-- UI WORKSPACE -->
+      <section class="section" id="ui-workspace">
+        <div class="container">
+          <h2>UI Workspace &amp; 3D Studio</h2>
+          <p>
+            <code>spectra-ros</code> uses a single ImGui dockspace with layout presets
+            (<strong>Default</strong>, <strong>Monitor</strong>, <strong>RViz</strong>,
+            <strong>RVizPlot</strong>, <strong>BagReview</strong>). Panel layout persists in
+            <code>.spectra-ros-session</code> files under <code>imgui_layout</code>.
+          </p>
+          <ul>
+            <li>
+              <strong>Plot workflow:</strong> expand a topic in Topic Monitor, drag a numeric field
+              onto a subplot (highlight on hover), or double-click a field to plot in &lt;10 s.
+            </li>
+            <li>
+              <strong>Topic Echo pin:</strong> use <em>Pin</em> to stop auto-following Topic Monitor
+              selection.
+            </li>
+            <li>
+              <strong>Topic Statistics:</strong> per-series color, width, visibility, and remove
+              controls when the selected topic is plotted.
+            </li>
+            <li>
+              <strong>Scene Viewport:</strong> Top / Front / Side views, Fit, Measure tool, fixed
+              frame selector in the menu bar.
+            </li>
+            <li>
+              <strong>Displays:</strong> RViz-style plugins including Grid, TF, markers, point
+              clouds, and <strong>OccupancyGrid</strong> (<code>nav_msgs/OccupancyGrid</code>).
+            </li>
+          </ul>
+          <p>
+            Run visual QA: <code>spectra_ros_qa_agent --design-review --output-dir /tmp/ros_qa</code>
+          </p>
+        </div>
+      </section>
+
       <!-- KEYBOARD SHORTCUTS -->
       <section class="section" id="shortcuts">
         <div class="container">

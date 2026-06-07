@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <format>
 #include <sstream>
 
 #include <spectra/axes.hpp>
@@ -62,9 +63,7 @@ static size_t get_point_count(const Series& s)
 
 static std::string fmt_float(float v)
 {
-    char buf[32];
-    std::snprintf(buf, sizeof(buf), "%.4g", v);
-    return buf;
+    return std::format("{:.4g}", v);
 }
 
 }   // namespace

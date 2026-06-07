@@ -62,6 +62,15 @@ void InprocTopicServer::stop()
 {
     if (!running_.exchange(false))
         return;
+
+    // Drop UI/registry callbacks before joining the worker thread.  When the
+    // user closes the OS window, WindowManager destroys the TopicsPanel (and
+    // figures) during process_pending_closes() — before shutdown_runtime().
+    // A late notify_topic_changed() on the worker thread would otherwise call
+    // into freed panel memory.
+    topic_changed_fn_ = nullptr;
+    fig_registry_     = nullptr;
+
     server_.close();   // wake up poll() and reject new accepts
     if (thread_.joinable())
         thread_.join();

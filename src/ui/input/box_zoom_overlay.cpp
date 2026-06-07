@@ -4,7 +4,7 @@
 
     #include <algorithm>
     #include <cmath>
-    #include <cstdio>
+    #include <format>
     #include <imgui.h>
 
     #include "ui/theme/design_tokens.hpp"
@@ -188,7 +188,7 @@ void BoxZoomOverlay::draw_dimension_label_impl(float        x0,
         return;
 
     // If we have an input handler with active axes, show data-space dimensions
-    char buf[64];
+    std::string buf;
     if (input_handler_ && input_handler_->active_axes())
     {
         // Convert corners to data space for the label
@@ -202,15 +202,15 @@ void BoxZoomOverlay::draw_dimension_label_impl(float        x0,
         ih->screen_to_data(x1, y1, d_x1, d_y1);
         float dw = std::abs(d_x1 - d_x0);
         float dh = std::abs(d_y1 - d_y0);
-        std::snprintf(buf, sizeof(buf), "%.3g \xc3\x97 %.3g", dw, dh);
+        buf      = std::format("{:.3g} \xc3\x97 {:.3g}", dw, dh);
     }
     else
     {
-        std::snprintf(buf, sizeof(buf), "%.0f \xc3\x97 %.0f px", w_px, h_px);
+        buf = std::format("{:.0f} \xc3\x97 {:.0f} px", w_px, h_px);
     }
 
     // Position label below the bottom edge, centered
-    ImVec2 text_size = ImGui::CalcTextSize(buf);
+    ImVec2 text_size = ImGui::CalcTextSize(buf.c_str());
     float  label_x   = (x0 + x1) * 0.5f - text_size.x * 0.5f;
     float  label_y   = std::max(y0, y1) + 6.0f;
 
@@ -233,7 +233,7 @@ void BoxZoomOverlay::draw_dimension_label_impl(float        x0,
                          96),
                 ui::tokens::RADIUS_SM);
 
-    dl->AddText(ImVec2(label_x, label_y), col, buf);
+    dl->AddText(ImVec2(label_x, label_y), col, buf.c_str());
 }
 
 // ─── Zoom crosshair ─────────────────────────────────────────────────────────

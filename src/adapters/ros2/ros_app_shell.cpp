@@ -8,11 +8,13 @@
 #include <cinttypes>
 #include <cmath>
 #include <cstring>
+#include <format>
 #include <string_view>
 #include "display/grid_display.hpp"
 #include "display/image_display.hpp"
 #include "display/laserscan_display.hpp"
 #include "display/marker_display.hpp"
+#include "display/occupancy_grid_display.hpp"
 #include "display/path_display.hpp"
 #include "display/pointcloud_display.hpp"
 #include "display/pose_display.hpp"
@@ -268,6 +270,7 @@ bool RosAppShell::init(int argc, char** argv)
 
     topic_list_->set_title("Topic Monitor");
     topic_stats_->set_title("Topic Statistics");
+    topic_stats_->set_subplot_manager(subplot_mgr_.get());
     topic_echo_->set_title("Topic Echo");
 
     bag_info_ = std::make_unique<BagInfoPanel>();
@@ -356,52 +359,11 @@ bool RosAppShell::init(int argc, char** argv)
 
     topic_list_->set_topic_discovery(discovery_.get());
 
-    // Automatically create lightweight subscriptions for every discovered
-    // topic so the Topic Monitor can show Hz and BW for all topics, not just
-    // the ones that are plotted or currently selected in the echo panel.
     discovery_->set_topic_callback(
         [this](const TopicInfo& info, bool added)
         {
-            if (added)
-            {
-                // Create a monitoring subscription for Hz/BW tracking.
-                if (info.types.empty())
-                    return;
-                auto node = bridge_->node();
-                auto qos  = rclcpp::QoS(rclcpp::KeepLast(1)).best_effort().durability_volatile();
-                const std::string topic = info.name;
-                const std::string type  = info.types.front();
-                try
-                {
-                    auto sub = node->create_generic_subscription(
-                        info.name,
-                        type,
-                        qos,
-                        [this, topic](const std::shared_ptr<rclcpp::SerializedMessage>& msg)
-                        {
-                            const size_t bytes = msg ? msg->size() : 0;
-                            ++total_messages_;
-                            if (topic_list_)
-                                topic_list_->notify_message(topic, bytes);
-                            if (topic_stats_)
-                                topic_stats_->notify_message(topic, bytes, -1);
-                        });
-                    std::lock_guard<std::mutex> lk(monitor_subs_mutex_);
-                    monitor_subs_[info.name] = std::move(sub);
-                }
-                catch (const std::exception& e)
-                {
-                    // Subscription creation can fail for topics with
-                    // unavailable type support — silently ignore.
-                    (void)e;
-                }
-            }
-            else
-            {
-                // Topic removed — drop the monitoring subscription.
-                std::lock_guard<std::mutex> lk(monitor_subs_mutex_);
-                monitor_subs_.erase(info.name);
-            }
+            std::lock_guard<std::mutex> lk(pending_monitor_subs_mutex_);
+            pending_monitor_subs_.emplace_back(info, added);
         });
 
     plot_mgr_->set_on_data(
@@ -410,7 +372,6 @@ bool RosAppShell::init(int argc, char** argv)
             const PlotHandle h = plot_mgr_->handle(id);
             if (!h.valid())
                 return;
-            // Skip if a monitor subscription already handles notify.
             bool has_monitor = false;
             {
                 std::lock_guard<std::mutex> lk(monitor_subs_mutex_);
@@ -432,7 +393,6 @@ bool RosAppShell::init(int argc, char** argv)
             const SubplotHandle h = subplot_mgr_->handle(slot);
             if (!h.valid())
                 return;
-            // Skip if a monitor subscription already handles notify.
             bool has_monitor = false;
             {
                 std::lock_guard<std::mutex> lk(monitor_subs_mutex_);
@@ -468,6 +428,13 @@ bool RosAppShell::init(int argc, char** argv)
     return true;
 }
 
+void RosAppShell::detach_canvas_figure()
+{
+    if (subplot_mgr_)
+        subplot_mgr_->detach_external_figure();
+    canvas_figure_ = nullptr;
+}
+
 void RosAppShell::shutdown()
 {
     if (!bridge_)
@@ -476,10 +443,20 @@ void RosAppShell::shutdown()
     if (session_mgr_ && !session_mgr_->last_path().empty())
         session_mgr_->auto_save(capture_session());
 
+    if (discovery_)
+    {
+        discovery_->set_topic_callback(nullptr);
+        discovery_->stop();
+    }
+
+    // Tear down ROS subscriptions while the executor is still running.
+    clear_monitor_subs();
     if (diag_panel_)
         diag_panel_->stop();
     if (tf_tree_panel_)
         tf_tree_panel_->stop();
+    if (log_viewer_)
+        log_viewer_->unsubscribe();
     for (auto& display : displays_)
     {
         if (display)
@@ -488,6 +465,11 @@ void RosAppShell::shutdown()
     display_activation_state_.clear();
     displays_.clear();
     scene_manager_.clear();
+    subplot_mgr_.reset();
+    plot_mgr_.reset();
+    topic_echo_.reset();
+
+    bridge_->stop_spin();
 
     bag_playback_panel_.reset();
     bag_player_.reset();
@@ -504,28 +486,90 @@ void RosAppShell::shutdown()
     scene_viewport_.reset();
     displays_panel_.reset();
 
-    subplot_mgr_.reset();
-    plot_mgr_.reset();
-    topic_echo_.reset();
     topic_stats_.reset();
     topic_list_.reset();
     drag_drop_.reset();
 
-    // Drop all monitoring subscriptions before destroying the node.
-    {
-        std::lock_guard<std::mutex> lk(monitor_subs_mutex_);
-        monitor_subs_.clear();
-    }
-
-    if (discovery_)
-    {
-        discovery_->stop();
-        discovery_.reset();
-    }
+    discovery_.reset();
 
     bridge_->shutdown();
     bridge_.reset();
     intr_.reset();
+}
+
+void RosAppShell::drain_pending_monitor_subs()
+{
+    std::vector<std::pair<TopicInfo, bool>> pending;
+    {
+        std::lock_guard<std::mutex> lk(pending_monitor_subs_mutex_);
+        pending.swap(pending_monitor_subs_);
+    }
+
+    for (const auto& [info, added] : pending)
+        apply_monitor_sub_change(info, added);
+}
+
+void RosAppShell::apply_monitor_sub_change(const TopicInfo& info, bool added)
+{
+    if (added)
+    {
+        if (info.types.empty())
+            return;
+
+        auto node = bridge_->node();
+        if (!node)
+            return;
+
+        auto qos = rclcpp::QoS(rclcpp::KeepLast(1)).best_effort().durability_volatile();
+        const std::string topic = info.name;
+        const std::string type  = info.types.front();
+        try
+        {
+            auto sub = node->create_generic_subscription(
+                info.name,
+                type,
+                qos,
+                [this, topic](const std::shared_ptr<rclcpp::SerializedMessage>& msg)
+                {
+                    const size_t bytes = msg ? msg->size() : 0;
+                    ++total_messages_;
+                    if (topic_list_)
+                        topic_list_->notify_message(topic, bytes);
+                    if (topic_stats_)
+                        topic_stats_->notify_message(topic, bytes, -1);
+                });
+            std::lock_guard<std::mutex> lk(monitor_subs_mutex_);
+            monitor_subs_[info.name] = std::move(sub);
+        }
+        catch (const std::exception&)
+        {
+        }
+    }
+    else
+    {
+        std::lock_guard<std::mutex> lk(monitor_subs_mutex_);
+        monitor_subs_.erase(info.name);
+    }
+}
+
+void RosAppShell::clear_monitor_subs()
+{
+    {
+        std::lock_guard<std::mutex> lk(pending_monitor_subs_mutex_);
+        pending_monitor_subs_.clear();
+    }
+
+    std::vector<rclcpp::GenericSubscription::SharedPtr> subs;
+    {
+        std::lock_guard<std::mutex> lk(monitor_subs_mutex_);
+        subs.reserve(monitor_subs_.size());
+        for (auto& [_, sub] : monitor_subs_)
+            subs.push_back(std::move(sub));
+        monitor_subs_.clear();
+    }
+
+    for (auto& sub : subs)
+        sub.reset();
 }
 
 void RosAppShell::poll()
@@ -538,6 +582,8 @@ void RosAppShell::poll()
         request_shutdown();
         return;
     }
+
+    drain_pending_monitor_subs();
 
     const double now_s =
         std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
@@ -609,7 +655,15 @@ void RosAppShell::draw()
         const char* ini_ptr = ImGui::SaveIniSettingsToMemory(&ini_sz);
         if (ini_ptr && ini_sz > 0)
             cached_imgui_ini_.assign(ini_ptr, ini_sz);
+        if (layout_change_tracking_enabled_)
+            layout_unsaved_ = true;
         ImGui::GetIO().WantSaveIniSettings = false;
+    }
+
+    if (dock_layout_initialized_ && !layout_change_tracking_enabled_)
+    {
+        if (++layout_settle_frames_ >= 3)
+            layout_change_tracking_enabled_ = true;
     }
     #endif
 
@@ -854,11 +908,11 @@ void RosAppShell::apply_default_dock_layout()
 
     ImGuiID dock_main = dockspace_id_;
     ImGuiID dock_left =
-        ImGui::DockBuilderSplitNode(dock_main, ImGuiDir_Left, 0.24f, nullptr, &dock_main);
+        ImGui::DockBuilderSplitNode(dock_main, ImGuiDir_Left, 0.18f, nullptr, &dock_main);
     ImGuiID dock_right =
-        ImGui::DockBuilderSplitNode(dock_main, ImGuiDir_Right, 0.20f, nullptr, &dock_main);
+        ImGui::DockBuilderSplitNode(dock_main, ImGuiDir_Right, 0.24f, nullptr, &dock_main);
     ImGuiID dock_bottom =
-        ImGui::DockBuilderSplitNode(dock_main, ImGuiDir_Down, 0.22f, nullptr, &dock_main);
+        ImGui::DockBuilderSplitNode(dock_main, ImGuiDir_Down, 0.30f, nullptr, &dock_main);
     ImGuiID dock_right_bottom =
         ImGui::DockBuilderSplitNode(dock_right, ImGuiDir_Down, 0.42f, nullptr, &dock_right);
     ImGuiID dock_bottom_left =
@@ -875,8 +929,8 @@ void RosAppShell::apply_default_dock_layout()
     ImGui::DockBuilderDockWindow("Node Graph###NodeGraphPanel", dock_right_bottom);
 
     ImGui::DockBuilderDockWindow("Topic Echo", dock_bottom);
+    ImGui::DockBuilderDockWindow("ROS2 Log", dock_bottom);
     ImGui::DockBuilderDockWindow("Bag Info", dock_bottom_left);
-    ImGui::DockBuilderDockWindow("ROS2 Log", dock_bottom_right);
 
     ImGui::DockBuilderDockWindow("Bag Playback", dock_bottom);
     ImGui::DockBuilderDockWindow("Diagnostics", dock_right);
@@ -885,7 +939,10 @@ void RosAppShell::apply_default_dock_layout()
     ImGui::DockBuilderDockWindow("Service Caller", dock_bottom);
 
     ImGui::DockBuilderFinish(dockspace_id_);
-    dock_layout_initialized_ = true;
+    dock_layout_initialized_          = true;
+    layout_change_tracking_enabled_   = false;
+    layout_settle_frames_             = 0;
+    layout_unsaved_                   = false;
     #else
     dock_layout_initialized_ = false;
     #endif
@@ -1062,14 +1119,14 @@ void RosAppShell::draw_nav_rail()
         if (nav_rail_expanded_)
         {
             // Icon + label.
-            char buf[256];
-            std::snprintf(buf, sizeof(buf), "%s  %s", ui::icon_str(icon), label);
+            const std::string buf =
+                std::format("{}  {}", ui::icon_str(icon), label);
             ImU32  text_col = active    ? to_u32(th.text_primary, 1.0f)
                               : hovered ? to_u32(th.text_primary, 0.9f)
                                         : to_u32(th.text_secondary, 0.8f);
-            ImVec2 tsz      = ImGui::CalcTextSize(buf);
+            ImVec2 tsz      = ImGui::CalcTextSize(buf.c_str());
             ImVec2 tpos(tl.x + 10.0f, tl.y + (btn_h - tsz.y) * 0.5f);
-            dl->AddText(tpos, text_col, buf);
+            dl->AddText(tpos, text_col, buf.c_str());
         }
         else
         {
@@ -1081,10 +1138,10 @@ void RosAppShell::draw_nav_rail()
             ImVec2      isz      = ImGui::CalcTextSize(icon_s);
             ImVec2      ipos(tl.x + (btn_sz.x - isz.x) * 0.5f, tl.y + (btn_h - isz.y) * 0.5f);
             dl->AddText(ipos, text_col, icon_s);
-
-            if (hovered)
-                ImGui::SetTooltip("%s", label);
         }
+
+        if (hovered)
+            ImGui::SetTooltip("%s", label);
 
         ImGui::PopID();
     };
@@ -1203,7 +1260,11 @@ void RosAppShell::draw_topic_stats(bool* p_open)
 {
 #ifdef SPECTRA_USE_IMGUI
     if (topic_stats_)
-        topic_stats_->draw(p_open);
+    {
+        const int slot = workspace_state_.active_subplot_idx >= 1 ? workspace_state_.active_subplot_idx
+                                                                  : 1;
+        topic_stats_->draw(p_open, slot);
+    }
 #else
     (void)p_open;
 #endif
@@ -1280,53 +1341,76 @@ void RosAppShell::draw_plot_area(bool* p_open)
                 }
             }
             same_line_button();
-            bool prune_enabled = subplot_mgr_->pruning_enabled();
-            if (ImGui::Checkbox("Prune Old", &prune_enabled))
+
+            const bool has_plots = active_plot_count() > 0;
+            if (!has_plots)
             {
-                subplot_mgr_->set_pruning_enabled(prune_enabled);
-                if (plot_mgr_)
-                    plot_mgr_->set_pruning_enabled(prune_enabled);
+                ImGui::TextDisabled("Expand a topic and double-click a field to plot");
             }
-            same_line_button();
-            auto prune_buf = static_cast<float>(subplot_mgr_->prune_buffer());
-            if (!prune_enabled)
-                ImGui::BeginDisabled();
-            ImGui::SetNextItemWidth(90.0f);
-            if (ImGui::SliderFloat("##PruneBuffer", &prune_buf, 0.0f, 600.0f, "%.0f s"))
+
+            auto draw_plot_toolbar_extras = [&]()
             {
-                subplot_mgr_->set_prune_buffer(static_cast<double>(prune_buf));
-                if (plot_mgr_)
-                    plot_mgr_->set_prune_buffer(static_cast<double>(prune_buf));
-            }
-            if (!prune_enabled)
+                bool prune_enabled = subplot_mgr_->pruning_enabled();
+                if (ImGui::Checkbox("Prune Old", &prune_enabled))
+                {
+                    subplot_mgr_->set_pruning_enabled(prune_enabled);
+                    if (plot_mgr_)
+                        plot_mgr_->set_pruning_enabled(prune_enabled);
+                }
+                same_line_button();
+                auto prune_buf = static_cast<float>(subplot_mgr_->prune_buffer());
+                if (!prune_enabled)
+                    ImGui::BeginDisabled();
+                ImGui::SetNextItemWidth(90.0f);
+                if (ImGui::SliderFloat("##PruneBuffer", &prune_buf, 0.0f, 600.0f, "%.0f s"))
+                {
+                    subplot_mgr_->set_prune_buffer(static_cast<double>(prune_buf));
+                    if (plot_mgr_)
+                        plot_mgr_->set_prune_buffer(static_cast<double>(prune_buf));
+                }
+                if (!prune_enabled)
+                    ImGui::EndDisabled();
+                same_line_button();
+                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.15f, 0.55f, 0.15f, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.2f, 0.7f, 0.2f, 1.0f));
+                if (ImGui::SmallButton("Live All"))
+                    subplot_mgr_->resume_all_scroll();
+                ImGui::PopStyleColor(2);
+                same_line_button();
+                if (ImGui::SmallButton("Pause All"))
+                    subplot_mgr_->pause_all_scroll();
+                same_line_button();
+                if (ImGui::SmallButton("Reset"))
+                    reset_plot_display();
+                same_line_button();
+                if (ImGui::SmallButton("Auto Y"))
+                    restore_plot_autofit(workspace_state_.active_subplot_idx);
+                same_line_button();
+                if (ImGui::SmallButton("+Sub"))
+                    subplot_mgr_->add_row();
+                same_line_button();
+                ImGui::BeginDisabled(subplot_mgr_->rows() <= 1);
+                {
+                    if (ImGui::SmallButton("-Sub"))
+                        subplot_mgr_->remove_last_row();
+                }
                 ImGui::EndDisabled();
-            same_line_button();
-            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.15f, 0.55f, 0.15f, 1.0f));
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.2f, 0.7f, 0.2f, 1.0f));
-            if (ImGui::SmallButton("Live All"))
-                subplot_mgr_->resume_all_scroll();
-            ImGui::PopStyleColor(2);
-            same_line_button();
-            if (ImGui::SmallButton("Pause All"))
-                subplot_mgr_->pause_all_scroll();
-            same_line_button();
-            if (ImGui::SmallButton("Reset"))
-                reset_plot_display();
-            same_line_button();
-            if (ImGui::SmallButton("Auto Y"))
-                restore_plot_autofit(workspace_state_.active_subplot_idx);
-            same_line_button();
-            if (ImGui::SmallButton("+Sub"))
+            };
+
+            if (has_plots)
             {
-                subplot_mgr_->add_row();
+                draw_plot_toolbar_extras();
             }
-            same_line_button();
-            ImGui::BeginDisabled(subplot_mgr_->rows() <= 1);
+            else
             {
-                if (ImGui::SmallButton("-Sub"))
-                    subplot_mgr_->remove_last_row();
+                if (ImGui::SmallButton("More..."))
+                    ImGui::OpenPopup("##plot_toolbar_more");
+                if (ImGui::BeginPopup("##plot_toolbar_more"))
+                {
+                    draw_plot_toolbar_extras();
+                    ImGui::EndPopup();
+                }
             }
-            ImGui::EndDisabled();
         }
 
         ImGui::Separator();
@@ -1405,15 +1489,14 @@ void RosAppShell::draw_plot_area(bool* p_open)
                         restore_plot_autofit(s);
 
                     ImGui::SameLine();
-                    char ylim_popup_id[32];
-                    std::snprintf(ylim_popup_id, sizeof(ylim_popup_id), "ylim_%d", s);
+                    const std::string ylim_popup_id = std::format("ylim_{}", s);
                     if (ImGui::SmallButton("Y Limits"))
                     {
                         remember_active_subplot(s);
-                        ImGui::OpenPopup(ylim_popup_id);
+                        ImGui::OpenPopup(ylim_popup_id.c_str());
                     }
 
-                    if (ImGui::BeginPopup(ylim_popup_id))
+                    if (ImGui::BeginPopup(ylim_popup_id.c_str()))
                     {
                         ImGui::TextDisabled("Y-Axis Limits for Plot %d", s);
                         ImGui::Separator();
@@ -1448,15 +1531,14 @@ void RosAppShell::draw_plot_area(bool* p_open)
                     }
 
                     ImGui::SameLine(0.0f, 8.0f);
-                    char style_popup_id[32];
-                    std::snprintf(style_popup_id, sizeof(style_popup_id), "style_%d", s);
+                    const std::string style_popup_id = std::format("style_{}", s);
                     if (ImGui::SmallButton("Style"))
                     {
                         remember_active_subplot(s);
-                        ImGui::OpenPopup(style_popup_id);
+                        ImGui::OpenPopup(style_popup_id.c_str());
                     }
 
-                    if (ImGui::BeginPopup(style_popup_id))
+                    if (ImGui::BeginPopup(style_popup_id.c_str()))
                     {
                         auto* slot_entry = subplot_mgr_->slot_entry_pub(s);
                         if (slot_entry && slot_entry->axes)
@@ -1659,22 +1741,18 @@ void RosAppShell::draw_plot_area(bool* p_open)
                     {
                         // Build summary label for the combo preview.
                         const auto* first_se = subplot_mgr_->slot_series(s, 0);
-                        char        combo_label[256];
-                        if (n_series == 1 && first_se)
-                            std::snprintf(combo_label,
-                                          sizeof(combo_label),
-                                          "%s/%s",
-                                          first_se->topic.c_str(),
-                                          first_se->field_path.c_str());
-                        else
-                            std::snprintf(combo_label, sizeof(combo_label), "%d series", n_series);
+                        const std::string combo_label =
+                            (n_series == 1 && first_se)
+                                ? std::format("{}/{}", first_se->topic, first_se->field_path)
+                                : std::format("{} series", n_series);
 
-                        char combo_id[32];
-                        std::snprintf(combo_id, sizeof(combo_id), "##series_%d", s);
+                        const std::string combo_id = std::format("##series_{}", s);
                         ImGui::SetNextItemWidth(
                             std::max(200.0f, ImGui::GetContentRegionAvail().x * 0.5f));
 
-                        if (ImGui::BeginCombo(combo_id, combo_label, ImGuiComboFlags_HeightLarge))
+                        if (ImGui::BeginCombo(combo_id.c_str(),
+                                              combo_label.c_str(),
+                                              ImGuiComboFlags_HeightLarge))
                         {
                             int remove_si = -1;
                             for (int si = 0; si < n_series; ++si)
@@ -1691,9 +1769,8 @@ void RosAppShell::draw_plot_area(bool* p_open)
                                 ImGui::PushStyleColor(ImGuiCol_Text,
                                                       vis ? ImVec4(0.3f, 0.85f, 0.4f, 1.0f)
                                                           : ImVec4(0.5f, 0.5f, 0.5f, 0.7f));
-                                char eye_id[32];
-                                std::snprintf(eye_id, sizeof(eye_id), "%s##eye", eye_icon);
-                                if (ImGui::SmallButton(eye_id))
+                                const std::string eye_id = std::format("{}##eye", eye_icon);
+                                if (ImGui::SmallButton(eye_id.c_str()))
                                 {
                                     if (se->series)
                                         se->series->visible(!vis);
@@ -1706,12 +1783,9 @@ void RosAppShell::draw_plot_area(bool* p_open)
                                 ImGui::SameLine(0.0f, 6.0f);
                                 ImGui::PushStyleColor(ImGuiCol_Text,
                                                       ImVec4(0.9f, 0.3f, 0.3f, 0.85f));
-                                char trash_id[32];
-                                std::snprintf(trash_id,
-                                              sizeof(trash_id),
-                                              "%s##del",
-                                              ui::icon_str(ui::Icon::Trash));
-                                if (ImGui::SmallButton(trash_id))
+                                const std::string trash_id =
+                                    std::format("{}##del", ui::icon_str(ui::Icon::Trash));
+                                if (ImGui::SmallButton(trash_id.c_str()))
                                     remove_si = si;
                                 ImGui::PopStyleColor();
                                 if (ImGui::IsItemHovered())
@@ -1746,7 +1820,7 @@ void RosAppShell::draw_plot_area(bool* p_open)
                 }
                 else
                 {
-                    ImGui::TextDisabled("Plot %d (empty)  - Drop a topic/field here", s);
+                    ImGui::TextDisabled("Plot %d — drop a topic field here", s);
                 }
 
                 ImGui::EndGroup();
@@ -2287,7 +2361,8 @@ void RosAppShell::draw_inspector_panel(bool* p_open)
 {
 #ifdef SPECTRA_USE_IMGUI
     if (inspector_panel_)
-        inspector_panel_->draw(p_open, scene_manager_);
+        inspector_panel_->draw(
+            p_open, scene_manager_, workspace_state_.fixed_frame, displays_.size());
 #else
     (void)p_open;
 #endif
@@ -2348,17 +2423,27 @@ void RosAppShell::draw_status_bar()
         const uint64_t total = total_messages_.load(std::memory_order_relaxed);
         const int      plots = active_plot_count();
         const size_t   mem   = subplot_mgr_ ? subplot_mgr_->total_memory_bytes() : 0;
-        const char*    fixed_frame =
-            workspace_state_.fixed_frame.empty() ? "(unset)" : workspace_state_.fixed_frame.c_str();
+        const size_t   pts   = subplot_mgr_ ? subplot_mgr_->total_point_count() : 0;
+        const char* fixed_frame =
+            workspace_state_.fixed_frame.empty() ? "(auto)" : workspace_state_.fixed_frame.c_str();
+        const char* layout_note = layout_unsaved_ ? "  |  Layout: unsaved" : "";
+
+        std::string pts_label;
+        if (pts >= 10'000)
+            pts_label = std::format("{:.1f}k", static_cast<double>(pts) / 1000.0);
+        else
+            pts_label = std::to_string(pts);
 
         ImGui::Text("Node: %s  |  Fixed frame: %s  |  Displays: %zu  |  Messages: %" PRIu64
-                    "  |  Active plots: %d  |  Buffer: %.1f KB",
+                    "  |  Active plots: %d  |  Points: %s  |  Buffer: %.1f KB%s",
                     cfg_.node_name.c_str(),
                     fixed_frame,
                     displays_.size(),
                     total,
                     plots,
-                    static_cast<double>(mem) / 1024.0);
+                    pts_label.c_str(),
+                    static_cast<double>(mem) / 1024.0,
+                    layout_note);
     }
     ImGui::End();
 #endif
@@ -2464,7 +2549,10 @@ void RosAppShell::on_topic_selected(const std::string& topic, const std::string&
     workspace_state_.select_topic(topic, type);
 
     if (topic_echo_)
+    {
+        topic_echo_->set_manually_pinned(false);
         topic_echo_->set_topic(topic, type);
+    }
     if (topic_stats_)
         topic_stats_->set_topic(topic);
 }
@@ -2560,11 +2648,12 @@ void RosAppShell::setup_layout_visibility()
         case LayoutMode::Default:
             current_preset_       = LayoutPreset::Default;
             show_topic_list_      = true;
-            show_topic_echo_      = false;
+            show_topic_echo_      = true;
             show_topic_stats_     = true;
             show_plot_area_       = true;
+            show_node_graph_      = true;
             show_inspector_panel_ = false;
-            show_log_viewer_      = false;
+            show_log_viewer_      = true;
             break;
 
         case LayoutMode::PlotOnly:
@@ -2626,6 +2715,7 @@ void RosAppShell::register_builtin_displays()
     display_registry_.register_display<PathDisplay>();
     display_registry_.register_display<PoseDisplay>();
     display_registry_.register_display<RobotModelDisplay>();
+    display_registry_.register_display<OccupancyGridDisplay>();
 }
 
 void RosAppShell::seed_default_rviz_displays_if_needed()
@@ -2703,9 +2793,11 @@ void RosAppShell::apply_layout_preset(LayoutPreset preset)
     {
         case LayoutPreset::Default:
             show_topic_list_  = true;
-            show_topic_echo_  = false;
+            show_topic_echo_  = true;
             show_topic_stats_ = true;
             show_plot_area_   = true;
+            show_node_graph_  = true;
+            show_log_viewer_  = true;
             break;
 
         case LayoutPreset::Debug:
@@ -2751,7 +2843,10 @@ void RosAppShell::apply_layout_preset(LayoutPreset preset)
     }
 
     // Force a dock-layout rebuild on the next frame.
-    dock_layout_initialized_ = false;
+    dock_layout_initialized_           = false;
+    layout_change_tracking_enabled_      = false;
+    layout_settle_frames_                = 0;
+    layout_unsaved_                      = false;
 }
 
 RosSession RosAppShell::capture_session() const
@@ -3125,7 +3220,10 @@ void RosAppShell::draw_session_save_dialog()
 
         static char path_buf[512];
         if (ImGui::IsWindowAppearing())
-            std::snprintf(path_buf, sizeof(path_buf), "%s", session_save_path_buf_.c_str());
+        {
+            session_save_path_buf_.copy(path_buf, sizeof(path_buf) - 1);
+            path_buf[std::min(session_save_path_buf_.size(), sizeof(path_buf) - 1)] = '\0';
+        }
 
         ImGui::SetNextItemWidth(-1.0f);
         ImGui::InputText("##session_path", path_buf, sizeof(path_buf));
@@ -3137,6 +3235,8 @@ void RosAppShell::draw_session_save_dialog()
             SaveResult sr             = save_session(session_save_path_buf_);
             session_status_msg_       = sr.ok ? "Session saved" : ("Save failed: " + sr.error);
             session_status_timer_     = 3.0f;
+            if (sr.ok)
+                layout_unsaved_ = false;
             show_session_save_dialog_ = false;
         }
         ImGui::SameLine();
@@ -3171,7 +3271,10 @@ void RosAppShell::draw_session_load_dialog()
 
         static char load_buf[512];
         if (ImGui::IsWindowAppearing())
-            std::snprintf(load_buf, sizeof(load_buf), "%s", session_save_path_buf_.c_str());
+        {
+            session_save_path_buf_.copy(load_buf, sizeof(load_buf) - 1);
+            load_buf[std::min(session_save_path_buf_.size(), sizeof(load_buf) - 1)] = '\0';
+        }
 
         ImGui::SetNextItemWidth(-1.0f);
         ImGui::InputText("##session_load_path", load_buf, sizeof(load_buf));

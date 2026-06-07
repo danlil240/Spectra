@@ -1,8 +1,8 @@
 #include "ui/log_viewer_panel.hpp"
 
 #include <chrono>
-#include <cinttypes>
 #include <cstring>
+#include <format>
 
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
@@ -301,9 +301,8 @@ void LogViewerPanel::draw_filter_bar()
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
                               ImVec4(col.x * 0.7f, col.y * 0.7f, col.z * 0.7f, 1.0f));
         ImGui::PushStyleColor(ImGuiCol_Text, col);
-        char btn_id[32];
-        std::snprintf(btn_id, sizeof(btn_id), "%s##pill", kPills[pi].label);
-        if (ImGui::SmallButton(btn_id))
+        const std::string btn_id = std::format("{}##pill", kPills[pi].label);
+        if (ImGui::SmallButton(btn_id.c_str()))
         {
             if (idx >= 0 && idx < 6)
                 severity_pill_visible_[idx] = !severity_pill_visible_[idx];
@@ -540,12 +539,9 @@ void LogViewerPanel::draw_detail_pane(const LogEntry& e)
     row("Message:", e.message);
     if (!e.file.empty() || e.line > 0)
     {
-        char loc[512];
-        if (e.line > 0)
-            std::snprintf(loc, sizeof(loc), "%s:%u", e.file.c_str(), e.line);
-        else
-            std::snprintf(loc, sizeof(loc), "%s", e.file.c_str());
-        row("Location:", loc);
+        const std::string loc =
+            e.line > 0 ? std::format("{}:{}", e.file, e.line) : e.file;
+        row("Location:", loc.c_str());
     }
     if (!e.function.empty())
         row("Function:", e.function);
@@ -565,12 +561,14 @@ void LogViewerPanel::draw_status_bar(const std::vector<LogEntry>& entries)
 {
 #ifdef SPECTRA_USE_IMGUI
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.55f, 0.55f, 0.55f, 1.0f));
-    ImGui::Text("Showing %zu / %zu  |  Total received: %" PRIu64 "  |  Buffer: %zu / %zu",
-                entries.size(),
-                visible_count_,
-                viewer_.total_received(),
-                viewer_.entry_count(),
-                viewer_.capacity());
+    const std::string status = std::format(
+        "Showing {} / {}  |  Total received: {}  |  Buffer: {} / {}",
+        entries.size(),
+        visible_count_,
+        viewer_.total_received(),
+        viewer_.entry_count(),
+        viewer_.capacity());
+    ImGui::TextUnformatted(status.c_str());
     ImGui::PopStyleColor();
 #else
     (void)entries;

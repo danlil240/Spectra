@@ -272,3 +272,29 @@ TEST(PendingSeriesData, ConcurrentAppendAndCommit)
     EXPECT_EQ(x.size(), static_cast<size_t>(num_threads * appends));
     EXPECT_EQ(y.size(), x.size());
 }
+
+TEST(PendingSeriesData, EraseAfter)
+{
+    PendingSeriesData  pending;
+    std::vector<float> x = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f};
+    std::vector<float> y = {10.0f, 20.0f, 30.0f, 40.0f, 50.0f};
+
+    pending.erase_after(3.0f);
+    EXPECT_TRUE(pending.commit(x, y));
+
+    EXPECT_EQ(x.size(), 3u);
+    EXPECT_FLOAT_EQ(x.back(), 3.0f);
+}
+
+TEST(PendingSeriesData, TrimToMaxPoints)
+{
+    PendingSeriesData  pending;
+    std::vector<float> x = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f};
+    std::vector<float> y = {10.0f, 20.0f, 30.0f, 40.0f, 50.0f};
+
+    pending.trim_to_max_points(3);
+    EXPECT_TRUE(pending.commit(x, y));
+
+    EXPECT_EQ(x.size(), 3u);
+    EXPECT_FLOAT_EQ(x[0], 3.0f);
+}

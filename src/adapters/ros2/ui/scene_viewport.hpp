@@ -6,6 +6,8 @@
 
 #include <spectra/camera.hpp>
 
+#include "tools/measure_tool.hpp"
+
 namespace spectra
 {
 struct Rect;
@@ -40,6 +42,9 @@ class SceneViewport
               size_t             display_count,
               SceneManager&      scene);
 
+    MeasureTool&       measure_tool() { return measure_tool_; }
+    const MeasureTool& measure_tool() const { return measure_tool_; }
+
    private:
     std::string          title_{"Scene Viewport"};
     spectra::Camera      camera_{};
@@ -51,6 +56,8 @@ class SceneViewport
     float canvas_y_{0.0f};
     float canvas_w_{0.0f};
     float canvas_h_{0.0f};
+
+    MeasureTool measure_tool_;
 };
 
 }   // namespace spectra::adapters::ros2

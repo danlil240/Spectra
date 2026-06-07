@@ -143,6 +143,8 @@ class Series
     // ── Streaming data interface (optional; implemented by LineSeries / ChunkedLineSeries) ──
     virtual void   append(float /*x*/, float /*y*/) {}
     virtual size_t erase_before(float /*x_threshold*/) { return 0; }
+    virtual size_t erase_after(float /*x_threshold*/) { return 0; }
+    virtual size_t trim_to_max_points(size_t /*max_points*/) { return 0; }
     virtual size_t memory_bytes() const { return 0; }
 
    protected:
@@ -186,6 +188,12 @@ class LineSeries : public Series
     // Remove all points with x < x_threshold.  Assumes x is sorted ascending.
     // Returns the number of points removed.
     size_t erase_before(float x_threshold) override;
+
+    // Remove all points with x > x_threshold.  Assumes x is sorted ascending.
+    size_t erase_after(float x_threshold) override;
+
+    // Drop oldest points until at most max_points remain (FIFO).
+    size_t trim_to_max_points(size_t max_points) override;
 
     // Estimated memory consumption in bytes (x + y vectors).
     size_t memory_bytes() const override { return x_.size() * 2 * sizeof(float); }

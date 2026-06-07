@@ -4,7 +4,7 @@
 
     #include <algorithm>
     #include <cmath>
-    #include <cstdio>
+    #include <format>
     #include <imgui.h>
     #include <spectra/axes.hpp>
     #include <spectra/series.hpp>
@@ -372,31 +372,22 @@ void RegionSelect::draw_mini_toolbar(float rx0,
     const auto& colors = theme_mgr_->colors();
 
     // Format statistics
-    char count_buf[64];
-    std::snprintf(count_buf, sizeof(count_buf), "%zu points", stats_.point_count);
-
-    char mean_buf[64];
-    std::snprintf(mean_buf, sizeof(mean_buf), "Mean: %.4g", stats_.y_mean);
-
-    char std_buf[64];
-    std::snprintf(std_buf, sizeof(std_buf), "Std: %.4g", stats_.y_std);
-
-    char range_buf[96];
-    std::snprintf(range_buf,
-                  sizeof(range_buf),
-                  "X: [%.4g, %.4g]  Y: [%.4g, %.4g]",
-                  stats_.x_min,
-                  stats_.x_max,
-                  stats_.y_min,
-                  stats_.y_max);
+    const std::string count_buf = std::format("{} points", stats_.point_count);
+    const std::string mean_buf  = std::format("Mean: {:.4g}", stats_.y_mean);
+    const std::string std_buf   = std::format("Std: {:.4g}", stats_.y_std);
+    const std::string range_buf = std::format("X: [{:.4g}, {:.4g}]  Y: [{:.4g}, {:.4g}]",
+                                              stats_.x_min,
+                                              stats_.x_max,
+                                              stats_.y_min,
+                                              stats_.y_max);
 
     ImFont* font      = font_body_ ? font_body_ : ImGui::GetFont();
     float   font_size = font->LegacySize * 0.85f;
 
-    ImVec2 count_sz = font->CalcTextSizeA(font_size, 400.0f, 0.0f, count_buf);
-    ImVec2 mean_sz  = font->CalcTextSizeA(font_size, 400.0f, 0.0f, mean_buf);
-    ImVec2 std_sz   = font->CalcTextSizeA(font_size, 400.0f, 0.0f, std_buf);
-    ImVec2 range_sz = font->CalcTextSizeA(font_size, 400.0f, 0.0f, range_buf);
+    ImVec2 count_sz = font->CalcTextSizeA(font_size, 400.0f, 0.0f, count_buf.c_str());
+    ImVec2 mean_sz  = font->CalcTextSizeA(font_size, 400.0f, 0.0f, mean_buf.c_str());
+    ImVec2 std_sz   = font->CalcTextSizeA(font_size, 400.0f, 0.0f, std_buf.c_str());
+    ImVec2 range_sz = font->CalcTextSizeA(font_size, 400.0f, 0.0f, range_buf.c_str());
 
     constexpr float pad           = 10.0f;
     constexpr float row_h         = 16.0f;
@@ -460,19 +451,19 @@ void RegionSelect::draw_mini_toolbar(float rx0,
         ImVec2      cursor = ImGui::GetCursorScreenPos();
 
         // Row 1: Point count (accent color, bold)
-        dl->AddText(font, font_size, cursor, accent_col, count_buf);
+        dl->AddText(font, font_size, cursor, accent_col, count_buf.c_str());
         cursor.y += row_h;
 
         // Row 2: Mean
-        dl->AddText(font, font_size, cursor, text_primary, mean_buf);
+        dl->AddText(font, font_size, cursor, text_primary, mean_buf.c_str());
         cursor.y += row_h;
 
         // Row 3: Std
-        dl->AddText(font, font_size, cursor, text_primary, std_buf);
+        dl->AddText(font, font_size, cursor, text_primary, std_buf.c_str());
         cursor.y += row_h;
 
         // Row 4: Range
-        dl->AddText(font, font_size, cursor, text_secondary, range_buf);
+        dl->AddText(font, font_size, cursor, text_secondary, range_buf.c_str());
         cursor.y += row_h + 4.0f;
 
         // Dismiss button

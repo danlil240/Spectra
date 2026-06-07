@@ -166,6 +166,44 @@ size_t LineSeries::erase_before(float x_threshold)
     return lo;
 }
 
+size_t LineSeries::erase_after(float x_threshold)
+{
+    if (thread_safe_ && pending_)
+    {
+        pending_->erase_after(x_threshold);
+        return 0;
+    }
+    if (x_.empty())
+        return 0;
+
+    auto it = std::upper_bound(x_.begin(), x_.end(), x_threshold);
+    const size_t remove = static_cast<size_t>(x_.end() - it);
+    if (remove == 0)
+        return 0;
+
+    x_.erase(it, x_.end());
+    y_.erase(y_.end() - static_cast<ptrdiff_t>(remove), y_.end());
+    dirty_ = true;
+    return remove;
+}
+
+size_t LineSeries::trim_to_max_points(size_t max_points)
+{
+    if (thread_safe_ && pending_)
+    {
+        pending_->trim_to_max_points(max_points);
+        return 0;
+    }
+    if (x_.size() <= max_points)
+        return 0;
+
+    const size_t remove = x_.size() - max_points;
+    x_.erase(x_.begin(), x_.begin() + static_cast<ptrdiff_t>(remove));
+    y_.erase(y_.begin(), y_.begin() + static_cast<ptrdiff_t>(remove));
+    dirty_ = true;
+    return remove;
+}
+
 LineSeries& LineSeries::format(std::string_view fmt)
 {
     Series::apply_format_string(fmt);

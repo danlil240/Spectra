@@ -69,6 +69,41 @@ bool Ros2Bridge::start_spin()
 }
 
 // ---------------------------------------------------------------------------
+// stop_spin
+// ---------------------------------------------------------------------------
+
+void Ros2Bridge::stop_spin()
+{
+    if (state_.load(std::memory_order_acquire) != BridgeState::Spinning)
+        return;
+
+    set_state(BridgeState::ShuttingDown);
+
+    stop_requested_.store(true, std::memory_order_release);
+
+    if (executor_)
+        executor_->cancel();
+
+    if (spin_thread_.joinable())
+        spin_thread_.join();
+
+    // Node remains valid; subscriptions must be dropped before shutdown().
+    set_state(BridgeState::Initialized);
+}
+
+// ---------------------------------------------------------------------------
+// detach_node_from_executor
+// ---------------------------------------------------------------------------
+
+void Ros2Bridge::detach_node_from_executor()
+{
+    if (!executor_ || !node_)
+        return;
+
+    executor_->remove_node(node_);
+}
+
+// ---------------------------------------------------------------------------
 // shutdown
 // ---------------------------------------------------------------------------
 
@@ -78,28 +113,16 @@ void Ros2Bridge::shutdown()
     if (current == BridgeState::Uninitialized || current == BridgeState::Stopped)
         return;
 
-    set_state(BridgeState::ShuttingDown);
+    stop_spin();
 
-    // Signal the spin thread to exit.
-    stop_requested_.store(true, std::memory_order_release);
-
-    // cancel() wakes the executor out of spin_some() / wait_for_work().
-    if (executor_)
-        executor_->cancel();
-
-    // If rclcpp is still running, signal shutdown so any blocking spin ends.
-    if (rclcpp::ok())
-        rclcpp::shutdown();
-
-    if (spin_thread_.joinable())
-        spin_thread_.join();
-
-    // Tear down resources.
-    if (executor_ && node_)
-        executor_->remove_node(node_);
+    // Destroy subscriptions before removing the node from rclcpp.
+    detach_node_from_executor();
 
     executor_.reset();
     node_.reset();
+
+    if (rclcpp::ok())
+        rclcpp::shutdown();
 
     set_state(BridgeState::Stopped);
 }

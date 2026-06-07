@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
+#include <format>
 #include <cstring>
 #include <ctime>
 #include <filesystem>
@@ -618,9 +619,7 @@ std::string RosSessionManager::json_escape(const std::string& s)
             default:
                 if (c < 0x20)
                 {
-                    char buf[8];
-                    std::snprintf(buf, sizeof(buf), "\\u%04x", c);
-                    out += buf;
+                    out += std::format("\\u{:04x}", static_cast<unsigned>(c));
                 }
                 else
                 {
@@ -792,17 +791,13 @@ std::string RosSessionManager::current_iso8601()
 #else
     gmtime_r(&t, &tm_utc);
 #endif
-    char buf[64];
-    std::snprintf(buf,
-                  sizeof(buf),
-                  "%04d-%02d-%02dT%02d:%02d:%02dZ",
-                  tm_utc.tm_year + 1900,
-                  tm_utc.tm_mon + 1,
-                  tm_utc.tm_mday,
-                  tm_utc.tm_hour,
-                  tm_utc.tm_min,
-                  tm_utc.tm_sec);
-    return buf;
+    return std::format("{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
+                       tm_utc.tm_year + 1900,
+                       tm_utc.tm_mon + 1,
+                       tm_utc.tm_mday,
+                       tm_utc.tm_hour,
+                       tm_utc.tm_min,
+                       tm_utc.tm_sec);
 }
 
 // ---------------------------------------------------------------------------

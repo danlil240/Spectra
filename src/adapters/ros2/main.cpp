@@ -20,6 +20,9 @@
 // ASan note: ROS2 Humble's librcl has a known new-delete-type-mismatch in
 // rcl_wait_set_resize.  When running under AddressSanitizer, launch with:
 //   ASAN_OPTIONS=new_delete_type_mismatch=0 ./spectra-ros
+// rmw_cyclonedds may not release rosidl_typesupport_cpp handles for
+// GenericSubscription (~64 B each) at exit; monitor subs are torn down on the
+// app thread while the executor is still running to minimise this.
 // Debug note: spectra-ros disables Vulkan validation by default in debug
 // builds because some drivers spend ~8s in validation startup. Set
 // SPECTRA_ENABLE_VALIDATION=1 to turn it back on for renderer debugging.
@@ -33,6 +36,7 @@
 
 #include <spectra/app.hpp>
 #include <spectra/figure.hpp>
+#include <spectra/logger.hpp>
 #include <spectra/series.hpp>
 
 #include "render/renderer.hpp"
@@ -175,9 +179,10 @@ static void report_fast_vulkan_startup_policy()
     if (manifest == nullptr || manifest[0] == '\0')
         return;
 
-    std::printf("spectra-ros: using %s for faster Vulkan startup. "
-                "Set SPECTRA_PRESERVE_VULKAN_LOADER_ENV=1 to disable.\n",
-                manifest);
+    SPECTRA_LOG_INFO("ros",
+                     "using {} for faster Vulkan startup. "
+                     "Set SPECTRA_PRESERVE_VULKAN_LOADER_ENV=1 to disable.",
+                     manifest);
 
     (void)unset_env_value(k_vulkan_driver_hint_env);
     (void)unset_env_value(k_vulkan_startup_reexec_env);
@@ -195,8 +200,9 @@ static void apply_debug_startup_policy()
 
     if (set_env_if_unset("SPECTRA_NO_VALIDATION", "1"))
     {
-        std::printf("spectra-ros: Vulkan validation disabled by default in debug builds. "
-                    "Set SPECTRA_ENABLE_VALIDATION=1 to re-enable.\n");
+        SPECTRA_LOG_INFO("ros",
+                         "Vulkan validation disabled by default in debug builds. "
+                         "Set SPECTRA_ENABLE_VALIDATION=1 to re-enable.");
     }
 }
 #endif
@@ -229,15 +235,18 @@ int main(int argc, char** argv)
         return is_help ? 0 : 1;
     }
 
+    spectra::setup_dual_logging(spectra::default_console_log_level(),
+                                  spectra::default_file_log_level());
+
 #ifndef NDEBUG
     maybe_reexec_for_fast_vulkan_startup(argc, argv);
 #endif
 
-    // Print version banner.
-    std::printf("spectra-ros %s  |  layout: %s  |  node: %s\n",
-                adapter_version(),
-                layout_mode_name(cfg.layout),
-                cfg.node_name.c_str());
+    SPECTRA_LOG_INFO("ros",
+                     "spectra-ros {}  |  layout: {}  |  node: {}",
+                     adapter_version(),
+                     layout_mode_name(cfg.layout),
+                     cfg.node_name);
 
 #ifndef NDEBUG
     report_fast_vulkan_startup_policy();
@@ -268,23 +277,22 @@ int main(int argc, char** argv)
     // Initialise ROS2, discovery, and all ROS panels.
     if (!shell.init(argc, argv))
     {
-        std::fprintf(stderr,
-                     "spectra-ros: failed to initialise ROS2 node '%s'\n",
-                     cfg.node_name.c_str());
+        SPECTRA_LOG_ERROR("ros", "failed to initialise ROS2 node '{}'", cfg.node_name);
         return 1;
     }
 
-    std::printf("spectra-ros: node '%s' started.  Ctrl+C to exit.\n", cfg.node_name.c_str());
+    SPECTRA_LOG_INFO("ros", "node '{}' started.  Ctrl+C to exit.", cfg.node_name);
 
     if (!cfg.initial_topics.empty())
     {
-        std::printf("Initial topics: ");
+        std::string topics_str;
         for (size_t i = 0; i < cfg.initial_topics.size(); ++i)
         {
-            std::printf("%s%s",
-                        cfg.initial_topics[i].c_str(),
-                        i + 1 < cfg.initial_topics.size() ? ", " : "\n");
+            if (i > 0)
+                topics_str += ", ";
+            topics_str += cfg.initial_topics[i];
         }
+        SPECTRA_LOG_INFO("ros", "Initial topics: {}", topics_str);
     }
 
     // Set up a perpetual animation callback so the render loop stays active
@@ -304,6 +312,20 @@ int main(int argc, char** argv)
     // Initialise the Spectra rendering runtime (GLFW window, Vulkan, ImGui).
     // ---------------------------------------------------------------------------
     app.init_runtime();
+
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
+    // Stop ROS plot subscriptions before WindowManager destroys the canvas
+    // Figure (window close races the ROS2 executor thread).
+    if (auto* wm = app.window_manager())
+    {
+        wm->set_figure_unregistering_handler(
+            [&shell](spectra::FigureId /*id*/, spectra::Figure* fig)
+            {
+                if (fig && shell.canvas_figure() == fig)
+                    shell.detach_canvas_figure();
+            });
+    }
+#endif
 
     if (auto* exporter = shell.screenshot_export())
     {
@@ -418,7 +440,7 @@ int main(int argc, char** argv)
     // Order matters: the animation callback references shell.poll(), so the
     // Spectra runtime must be destroyed before the ROS2 bridge.
     // ---------------------------------------------------------------------------
-    std::printf("spectra-ros: shutting down.\n");
+    SPECTRA_LOG_INFO("ros", "shutting down.");
 
 #ifdef SPECTRA_USE_IMGUI
     // Disconnect ROS2 draw callback before tearing down the render loop.

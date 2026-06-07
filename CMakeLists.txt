@@ -579,6 +579,7 @@ if(SPECTRA_USE_ROS2)
     find_package(std_msgs REQUIRED)
     find_package(geometry_msgs REQUIRED)
     find_package(nav_msgs REQUIRED)
+    find_package(ament_index_cpp REQUIRED)
     find_package(sensor_msgs REQUIRED)
     find_package(diagnostic_msgs REQUIRED)
     find_package(tf2_msgs REQUIRED)
@@ -618,6 +619,9 @@ if(SPECTRA_USE_ROS2)
         src/adapters/ros2/display/path_display.cpp
         src/adapters/ros2/display/pose_display.cpp
         src/adapters/ros2/display/robot_model_display.cpp
+        src/adapters/ros2/display/occupancy_grid_display.cpp
+        src/adapters/ros2/resources/ros_package_resolver.cpp
+        src/adapters/ros2/tools/measure_tool.cpp
         src/adapters/ros2/scene/scene_manager.cpp
         src/adapters/ros2/scene/mesh_primitives.cpp
         src/adapters/ros2/scene/scene_renderer.cpp
@@ -665,6 +669,7 @@ if(SPECTRA_USE_ROS2)
         ${diagnostic_msgs_TARGETS}
         ${tf2_msgs_TARGETS}
         ${visualization_msgs_TARGETS}
+        ament_index_cpp::ament_index_cpp
     )
 
     if(SPECTRA_ROS2_BAG)

@@ -21,6 +21,7 @@
 
 #include <spectra/app.hpp>
 #include <spectra/figure.hpp>
+#include <spectra/logger.hpp>
 
 #ifdef SPECTRA_USE_IMGUI
     #include "ui/app/window_ui_context.hpp"
@@ -64,8 +65,10 @@ int main(int argc, char** argv)
         return is_help ? 0 : 1;
     }
 
-    // Print version banner.
-    std::printf("spectra-px4 %s\n", adapter_version());
+    spectra::setup_dual_logging(spectra::default_console_log_level(),
+                                  spectra::default_file_log_level());
+
+    SPECTRA_LOG_INFO("px4", "spectra-px4 {}", adapter_version());
 
     // Create Spectra App.
     spectra::AppConfig app_cfg;
@@ -85,11 +88,11 @@ int main(int argc, char** argv)
 
     if (!shell.init())
     {
-        std::fprintf(stderr, "spectra-px4: failed to initialise\n");
+        SPECTRA_LOG_ERROR("px4", "failed to initialise");
         return 1;
     }
 
-    std::printf("spectra-px4: ready.  Ctrl+C to exit.\n");
+    SPECTRA_LOG_INFO("px4", "ready.  Ctrl+C to exit.");
 
     // Animation loop.
     fig.animate()
@@ -125,7 +128,7 @@ int main(int argc, char** argv)
     }
 
     // Clean shutdown.
-    std::printf("spectra-px4: shutting down.\n");
+    SPECTRA_LOG_INFO("px4", "shutting down.");
 
 #ifdef SPECTRA_USE_IMGUI
     {

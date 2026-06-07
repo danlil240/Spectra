@@ -5,6 +5,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstring>
+#include <format>
 #include <dlfcn.h>
 
 #ifdef SPECTRA_USE_IMGUI
@@ -651,13 +652,7 @@ void TopicEchoPanel::on_message(const std::shared_ptr<rclcpp::SerializedMessage>
 {
     const int64_t sec  = ns / 1'000'000'000LL;
     const int64_t nsec = ns % 1'000'000'000LL;
-    char          buf[64];
-    std::snprintf(buf,
-                  sizeof(buf),
-                  "%lld.%09lld",
-                  static_cast<long long>(sec),
-                  static_cast<long long>(nsec));
-    return buf;
+    return std::format("{}.{:09}", sec, nsec);
 }
 
 /*static*/ std::string TopicEchoPanel::format_numeric(double v)
@@ -667,17 +662,10 @@ void TopicEchoPanel::on_message(const std::shared_ptr<rclcpp::SerializedMessage>
     if (std::isinf(v))
         return v > 0.0 ? "inf" : "-inf";
 
-    char buf[64];
     // Use shorter representation: if integer-valued, show no decimal.
     if (v == std::floor(v) && std::abs(v) < 1e15)
-    {
-        std::snprintf(buf, sizeof(buf), "%.0f", v);
-    }
-    else
-    {
-        std::snprintf(buf, sizeof(buf), "%g", v);
-    }
-    return buf;
+        return std::format("{:.0f}", v);
+    return std::format("{}", v);
 }
 
 // ---------------------------------------------------------------------------
@@ -723,7 +711,7 @@ void TopicEchoPanel::draw(bool* p_open)
 
     if (topic_name_.empty())
     {
-        ImGui::TextDisabled("No topic selected. Select a topic in the Topic List panel.");
+        ImGui::TextDisabled("Select a topic in Topic Monitor to stream messages here.");
         ImGui::End();
         return;
     }
@@ -761,11 +749,10 @@ void TopicEchoPanel::draw(bool* p_open)
     for (int i = static_cast<int>(snap.size()) - 1; i >= 0; --i)
     {
         const auto& msg = snap[static_cast<size_t>(i)];
-        char        label[64];
-        std::snprintf(label, sizeof(label), "#%llu", static_cast<unsigned long long>(msg.seq));
+        const std::string label = std::format("#{}", msg.seq);
 
         const bool sel = (selected_msg_idx_ == i);
-        if (ImGui::Selectable(label, sel, 0, ImVec2(0, 0)))
+        if (ImGui::Selectable(label.c_str(), sel, 0, ImVec2(0, 0)))
         {
             selected_msg_idx_ = i;
         }
@@ -805,6 +792,17 @@ void TopicEchoPanel::draw(bool* p_open)
     ImGui::End();
 }
 
+void TopicEchoPanel::sync_workspace(const std::string& topic,
+                                    const std::string& type,
+                                    bool               selection_changed)
+{
+    if (manually_pinned_ || !selection_changed || topic.empty())
+        return;
+    if (topic == topic_name_)
+        return;
+    set_topic(topic, type);
+}
+
 void TopicEchoPanel::draw_controls()
 {
     // Topic label.
@@ -825,6 +823,16 @@ void TopicEchoPanel::draw_controls()
                            "%s %s",
                            ui::icon_str(ui::Icon::Circle),
                            topic_name_.c_str());
+    }
+
+    ImGui::SameLine(0, 12.0f);
+    if (ImGui::SmallButton(manually_pinned_ ? "Unpin" : "Pin"))
+        manually_pinned_ = !manually_pinned_;
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
+    {
+        ImGui::SetTooltip(manually_pinned_
+                              ? "Pinned: Topic Monitor selection will not auto-switch echo"
+                              : "Follow Topic Monitor selection automatically");
     }
 
     ImGui::SameLine(0, 16.0f);
@@ -908,14 +916,12 @@ void TopicEchoPanel::draw_field_node(EchoFieldValue&                    fv,
         }
         case EchoFieldValue::Kind::ArrayHead:
         {
-            char label[128];
-            std::snprintf(label,
-                          sizeof(label),
-                          "%s  [%d items]",
-                          fv.display_name.c_str(),
-                          fv.array_len);
-            const bool open =
-                ImGui::TreeNodeEx(fv.path.c_str(), ImGuiTreeNodeFlags_SpanFullWidth, "%s", label);
+            const std::string label =
+                std::format("{}  [{} items]", fv.display_name, fv.array_len);
+            const bool open = ImGui::TreeNodeEx(fv.path.c_str(),
+                                                ImGuiTreeNodeFlags_SpanFullWidth,
+                                                "%s",
+                                                label.c_str());
             fv.is_open = open;
             ++idx;
             const int parent_depth = fv.depth;
@@ -942,10 +948,9 @@ void TopicEchoPanel::draw_field_node(EchoFieldValue&                    fv,
         case EchoFieldValue::Kind::ArrayElement:
         {
             // Invisible selectable so this row gets a drag handle.
-            char sel_id[256];
-            std::snprintf(sel_id, sizeof(sel_id), "##sel_%s", fv.path.c_str());
+            const std::string sel_id = std::format("##sel_{}", fv.path);
             ImGui::Selectable(
-                sel_id,
+                sel_id.c_str(),
                 false,
                 ImGuiSelectableFlags_AllowOverlap | ImGuiSelectableFlags_SpanAllColumns,
                 ImVec2(0, ImGui::GetTextLineHeight()));
@@ -955,9 +960,8 @@ void TopicEchoPanel::draw_field_node(EchoFieldValue&                    fv,
                 hovered_field_ = fv.path;
                 // Small clipboard icon button on hover.
                 ImGui::SameLine(ImGui::GetContentRegionAvail().x - 18.0f);
-                char copy_id[280];
-                std::snprintf(copy_id, sizeof(copy_id), "##cp_%s", fv.path.c_str());
-                if (ImGui::SmallButton(copy_id))
+                const std::string copy_id = std::format("##cp_{}", fv.path);
+                if (ImGui::SmallButton(copy_id.c_str()))
                 {
                     ImGui::SetClipboardText(fv.path.c_str());
                 }
@@ -975,9 +979,8 @@ void TopicEchoPanel::draw_field_node(EchoFieldValue&                    fv,
                 payload.type_name  = type_name_;
                 payload.label      = FieldDragPayload::make_label(topic_name_, fv.path);
                 drag_drop_->begin_drag_source(payload);
-                char ctx_id[280];
-                std::snprintf(ctx_id, sizeof(ctx_id), "##fctx_%s", fv.path.c_str());
-                drag_drop_->show_context_menu(payload, ctx_id);
+                const std::string ctx_id = std::format("##fctx_{}", fv.path);
+                drag_drop_->show_context_menu(payload, ctx_id.c_str());
             }
             ImGui::SameLine();
             ImGui::TextColored(kColorArray, "%-8s", fv.display_name.c_str());
@@ -989,10 +992,9 @@ void TopicEchoPanel::draw_field_node(EchoFieldValue&                    fv,
         case EchoFieldValue::Kind::Numeric:
         {
             // Invisible selectable so this row gets a drag handle.
-            char sel_id[256];
-            std::snprintf(sel_id, sizeof(sel_id), "##sel_%s", fv.path.c_str());
+            const std::string sel_id = std::format("##sel_{}", fv.path);
             ImGui::Selectable(
-                sel_id,
+                sel_id.c_str(),
                 false,
                 ImGuiSelectableFlags_AllowOverlap | ImGuiSelectableFlags_SpanAllColumns,
                 ImVec2(0, ImGui::GetTextLineHeight()));
@@ -1001,9 +1003,8 @@ void TopicEchoPanel::draw_field_node(EchoFieldValue&                    fv,
             {
                 hovered_field_ = fv.path;
                 ImGui::SameLine(ImGui::GetContentRegionAvail().x - 18.0f);
-                char copy_id[280];
-                std::snprintf(copy_id, sizeof(copy_id), "##cp_%s", fv.path.c_str());
-                if (ImGui::SmallButton(copy_id))
+                const std::string copy_id = std::format("##cp_{}", fv.path);
+                if (ImGui::SmallButton(copy_id.c_str()))
                 {
                     ImGui::SetClipboardText(fv.path.c_str());
                 }
@@ -1021,9 +1022,8 @@ void TopicEchoPanel::draw_field_node(EchoFieldValue&                    fv,
                 payload.type_name  = type_name_;
                 payload.label      = FieldDragPayload::make_label(topic_name_, fv.path);
                 drag_drop_->begin_drag_source(payload);
-                char ctx_id[280];
-                std::snprintf(ctx_id, sizeof(ctx_id), "##fctx_%s", fv.path.c_str());
-                drag_drop_->show_context_menu(payload, ctx_id);
+                const std::string ctx_id = std::format("##fctx_{}", fv.path);
+                drag_drop_->show_context_menu(payload, ctx_id.c_str());
             }
             ImGui::SameLine();
             ImGui::TextUnformatted(fv.display_name.c_str());

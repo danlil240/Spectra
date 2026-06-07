@@ -13,6 +13,7 @@
 #include <cassert>
 #include <cmath>
 #include <cstring>
+#include <format>
 
 #ifdef SPECTRA_USE_IMGUI
     #include "imgui.h"
@@ -1122,9 +1123,8 @@ void NodeGraphPanel::draw_toolbar()
             ++vis_edges;
     }
 
-    char stats[64];
-    std::snprintf(stats, sizeof(stats), "%zu nodes  ·  %zu edges", vis_nodes, vis_edges);
-    ImGui::TextDisabled("%s", stats);
+    const std::string stats = std::format("{} nodes  ·  {} edges", vis_nodes, vis_edges);
+    ImGui::TextDisabled("%s", stats.c_str());
 
     if (!layout_converged_)
     {

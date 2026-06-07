@@ -2,6 +2,8 @@
 
     #include "imgui_integration_internal.hpp"
 
+    #include <format>
+
     #ifndef M_PI
         #define M_PI 3.14159265358979323846
     #endif
@@ -179,13 +181,10 @@ void ImGuiIntegration::draw_timeline_panel()
 
         // Time display — right-aligned
         {
-            char time_buf[64];
-            snprintf(time_buf,
-                     sizeof(time_buf),
-                     "%.2f / %.2f",
-                     timeline_editor_->playhead(),
-                     timeline_editor_->duration());
-            float time_w  = ImGui::CalcTextSize(time_buf).x;
+            const std::string time_buf = std::format("{:.2f} / {:.2f}",
+                                                     timeline_editor_->playhead(),
+                                                     timeline_editor_->duration());
+            float time_w  = ImGui::CalcTextSize(time_buf.c_str()).x;
             float avail_w = ImGui::GetContentRegionAvail().x;
             ImGui::SameLine(0, 0);
             ImGui::SetCursorPosX(ImGui::GetCursorPosX() + avail_w - time_w - 8.0f);
@@ -196,7 +195,7 @@ void ImGuiIntegration::draw_timeline_panel()
                                          colors.text_secondary.b,
                                          0.6f));
             ImGui::AlignTextToFramePadding();
-            ImGui::Text("%s", time_buf);
+            ImGui::Text("%s", time_buf.c_str());
             ImGui::PopStyleColor();
         }
 

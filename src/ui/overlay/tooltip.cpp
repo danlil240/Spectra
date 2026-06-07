@@ -4,7 +4,7 @@
 
     #include <algorithm>
     #include <cmath>
-    #include <cstdio>
+    #include <format>
     #include <imgui.h>
     #include <spectra/axes3d.hpp>
 
@@ -62,16 +62,14 @@ void Tooltip::draw(const NearestPointResult& nearest,
     const auto& colors = theme_mgr_->colors();
 
     // Format coordinate strings
-    char x_buf[64];
-    char y_buf[64];
-    std::snprintf(x_buf, sizeof(x_buf), "%.6g", nearest.data_x);
-    std::snprintf(y_buf, sizeof(y_buf), "%.6g", nearest.data_y);
+    const std::string x_buf = std::format("{:.6g}", nearest.data_x);
+    const std::string y_buf = std::format("{:.6g}", nearest.data_y);
 
-    // Format dy/dx string
-    char dydx_line[96] = {};
-    bool show_dydx     = nearest.dy_dx_valid;
+    // Format dy/dx value (label rendered separately)
+    std::string dydx_value;
+    bool        show_dydx = nearest.dy_dx_valid;
     if (show_dydx)
-        std::snprintf(dydx_line, sizeof(dydx_line), "dy/dx: %.6g", nearest.dy_dx);
+        dydx_value = std::format("{:.6g}", nearest.dy_dx);
 
     const char* series_name  = "Unknown";
     Color       series_color = colors::gray;
@@ -103,9 +101,9 @@ void Tooltip::draw(const NearestPointResult& nearest,
                   body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, lbl_y).x,
                   show_dydx ? body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, lbl_dydx).x : 0.0f});
     float val_w = std::max(
-        {body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, x_buf).x,
-         body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, y_buf).x,
-         show_dydx ? body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, dydx_line + 6).x : 0.0f});
+        {body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, x_buf.c_str()).x,
+         body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, y_buf.c_str()).x,
+         show_dydx ? body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, dydx_value.c_str()).x : 0.0f});
     float name_w =
         body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, series_name).x + swatch_r * 2.0f + 6.0f;
     float data_row_w = lbl_w + col_gap + val_w;
@@ -235,10 +233,10 @@ void Tooltip::draw(const NearestPointResult& nearest,
                         value);
         };
 
-        draw_data_row(0, lbl_x, x_buf);
-        draw_data_row(1, lbl_y, y_buf);
+        draw_data_row(0, lbl_x, x_buf.c_str());
+        draw_data_row(1, lbl_y, y_buf.c_str());
         if (show_dydx)
-            draw_data_row(2, lbl_dydx, dydx_line + 6);
+            draw_data_row(2, lbl_dydx, dydx_value.c_str());
     }
 
     // Draw triangular arrow pointer toward data point
@@ -379,12 +377,9 @@ void Tooltip::draw_3d(const NearestPointResult& nearest,
 
     const auto& colors = theme_mgr_->colors();
 
-    char x_buf[64];
-    char y_buf[64];
-    char z_buf[64];
-    std::snprintf(x_buf, sizeof(x_buf), "%.6g", nearest.data_x);
-    std::snprintf(y_buf, sizeof(y_buf), "%.6g", nearest.data_y);
-    std::snprintf(z_buf, sizeof(z_buf), "%.6g", nearest.data_z);
+    const std::string x_buf = std::format("{:.6g}", nearest.data_x);
+    const std::string y_buf = std::format("{:.6g}", nearest.data_y);
+    const std::string z_buf = std::format("{:.6g}", nearest.data_z);
 
     const char* series_name  = "Unknown";
     Color       series_color = colors::gray;
@@ -423,9 +418,9 @@ void Tooltip::draw_3d(const NearestPointResult& nearest,
     float lbl_w = std::max({body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, lbl_x).x,
                             body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, lbl_y).x,
                             body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, lbl_z).x});
-    float val_w = std::max({body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, x_buf).x,
-                            body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, y_buf).x,
-                            body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, z_buf).x});
+    float val_w = std::max({body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, x_buf.c_str()).x,
+                            body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, y_buf.c_str()).x,
+                            body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, z_buf.c_str()).x});
     float name_w =
         body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, series_name).x + swatch_r * 2.0f + 8.0f;
     float content_w = std::max({name_w, lbl_w + col_gap + val_w, min_width});
@@ -543,9 +538,9 @@ void Tooltip::draw_3d(const NearestPointResult& nearest,
                     value);
     };
 
-    draw_coord_row(0, lbl_x, x_buf, false);
-    draw_coord_row(1, lbl_y, y_buf, false);
-    draw_coord_row(2, lbl_z, z_buf, true);
+    draw_coord_row(0, lbl_x, x_buf.c_str(), false);
+    draw_coord_row(1, lbl_y, y_buf.c_str(), false);
+    draw_coord_row(2, lbl_z, z_buf.c_str(), true);
 
     if (nearest.axes3d)
     {

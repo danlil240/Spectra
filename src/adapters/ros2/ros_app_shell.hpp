@@ -155,6 +155,10 @@ class RosAppShell
     // Optional: bind SubplotManager to the application's render figure.
     // Must be called before init().
     void set_canvas_figure(spectra::Figure* fig) { canvas_figure_ = fig; }
+    spectra::Figure* canvas_figure() const { return canvas_figure_; }
+
+    // Stop live plot subscriptions before the canvas Figure is destroyed.
+    void detach_canvas_figure();
 
     // Optional: bind to the Spectra LayoutManager so we can override canvas_rect
     // to match the Plot Area docked panel's position.
@@ -341,6 +345,11 @@ class RosAppShell
     std::string detect_topic_type(const std::string& topic) const;
     std::string default_numeric_field(const std::string& topic, const std::string& type_hint) const;
 
+    // Per-topic monitor subs are created/destroyed on the app thread only.
+    void drain_pending_monitor_subs();
+    void apply_monitor_sub_change(const TopicInfo& info, bool added);
+    void clear_monitor_subs();
+
     RosAppConfig cfg_;
 
     std::unique_ptr<Ros2Bridge>          bridge_;
@@ -379,6 +388,9 @@ class RosAppShell
     std::string                        session_save_path_buf_;
     std::string                        session_status_msg_;
     float                              session_status_timer_{0.0f};
+    bool                               layout_unsaved_{false};
+    bool                               layout_change_tracking_enabled_{false};
+    int                                layout_settle_frames_{0};
 
     std::atomic<bool> shutdown_requested_{false};
 
@@ -414,9 +426,9 @@ class RosAppShell
     // Optional layout manager (owned by ImGuiIntegration; lifetime >= shell).
     spectra::LayoutManager* layout_manager_ = nullptr;
 
-    // Lightweight per-topic subscriptions for Hz/BW monitoring.
-    // Created automatically for every discovered topic so the Topic Monitor
-    // shows Hz and bandwidth columns for all topics, not just plotted ones.
+    // Lightweight per-topic subscriptions for Topic Monitor Hz/BW columns.
+    std::mutex                                                              pending_monitor_subs_mutex_;
+    std::vector<std::pair<TopicInfo, bool>>                                 pending_monitor_subs_;
     std::mutex                                                              monitor_subs_mutex_;
     std::unordered_map<std::string, rclcpp::GenericSubscription::SharedPtr> monitor_subs_;
 

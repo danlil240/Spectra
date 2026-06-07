@@ -2,9 +2,14 @@
 
 #include <algorithm>
 #include <chrono>
-#include <cstdio>
+#include <format>
 #include <cstring>
 #include <numeric>
+
+#include "subplot_manager.hpp"
+
+#include <spectra/color.hpp>
+#include <spectra/series.hpp>
 
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
@@ -267,70 +272,39 @@ std::string TopicStatsOverlay::format_hz(double hz)
 {
     if (hz <= 0.0)
         return "-";
-    char buf[32];
-    std::snprintf(buf, sizeof(buf), "%.1f", hz);
-    return buf;
+    return std::format("{:.1f}", hz);
 }
 
 std::string TopicStatsOverlay::format_bw(double bps)
 {
     if (bps <= 0.0)
         return "-";
-    char buf[32];
     if (bps >= 1024.0 * 1024.0)
-    {
-        std::snprintf(buf, sizeof(buf), "%.2f MB/s", bps / (1024.0 * 1024.0));
-    }
-    else if (bps >= 1024.0)
-    {
-        std::snprintf(buf, sizeof(buf), "%.1f KB/s", bps / 1024.0);
-    }
-    else
-    {
-        std::snprintf(buf, sizeof(buf), "%.0f B/s", bps);
-    }
-    return buf;
+        return std::format("{:.2f} MB/s", bps / (1024.0 * 1024.0));
+    if (bps >= 1024.0)
+        return std::format("{:.1f} KB/s", bps / 1024.0);
+    return std::format("{:.0f} B/s", bps);
 }
 
 std::string TopicStatsOverlay::format_bytes(uint64_t bytes)
 {
-    char buf[32];
     if (bytes >= 1024ULL * 1024ULL * 1024ULL)
-    {
-        std::snprintf(buf,
-                      sizeof(buf),
-                      "%.2f GB",
-                      static_cast<double>(bytes) / (1024.0 * 1024.0 * 1024.0));
-    }
-    else if (bytes >= 1024ULL * 1024ULL)
-    {
-        std::snprintf(buf, sizeof(buf), "%.2f MB", static_cast<double>(bytes) / (1024.0 * 1024.0));
-    }
-    else if (bytes >= 1024ULL)
-    {
-        std::snprintf(buf, sizeof(buf), "%.1f KB", static_cast<double>(bytes) / 1024.0);
-    }
-    else
-    {
-        std::snprintf(buf, sizeof(buf), "%llu B", static_cast<unsigned long long>(bytes));
-    }
-    return buf;
+        return std::format("{:.2f} GB",
+                           static_cast<double>(bytes) / (1024.0 * 1024.0 * 1024.0));
+    if (bytes >= 1024ULL * 1024ULL)
+        return std::format("{:.2f} MB", static_cast<double>(bytes) / (1024.0 * 1024.0));
+    if (bytes >= 1024ULL)
+        return std::format("{:.1f} KB", static_cast<double>(bytes) / 1024.0);
+    return std::format("{} B", bytes);
 }
 
 std::string TopicStatsOverlay::format_latency(double us)
 {
     if (us < 0.0)
         return "-";
-    char buf[32];
     if (us >= 1000.0)
-    {
-        std::snprintf(buf, sizeof(buf), "%.2f ms", us / 1000.0);
-    }
-    else
-    {
-        std::snprintf(buf, sizeof(buf), "%.1f µs", us);
-    }
-    return buf;
+        return std::format("{:.2f} ms", us / 1000.0);
+    return std::format("{:.1f} µs", us);
 }
 
 int64_t TopicStatsOverlay::now_ns()
@@ -377,7 +351,11 @@ void TopicStatsOverlay::draw_inline()
 
     if (snap.topic.empty())
     {
-        ImGui::TextDisabled("No topic selected.");
+        ImGui::TextDisabled("Select a topic in Topic Monitor");
+        ImGui::Spacing();
+        ImGui::TextWrapped(
+            "Click a row for Hz, bandwidth, and publishers. Double-click a numeric field "
+            "in the tree to plot it, or drag a field onto the plot area.");
         return;
     }
 
@@ -395,13 +373,11 @@ void TopicStatsOverlay::draw_inline()
         ImGui::PopStyleColor();
         if (ImGui::IsItemHovered())
         {
-            char tip[128];
-            std::snprintf(tip,
-                          sizeof(tip),
-                          "Last inter-message gap: %.1f ms  (> %.0f× expected)",
-                          static_cast<double>(snap.last_gap_ns) * 1e-6,
-                          drop_factor_);
-            ImGui::SetTooltip("%s", tip);
+            const std::string tip = std::format(
+                "Last inter-message gap: {:.1f} ms  (> {:.0f}× expected)",
+                static_cast<double>(snap.last_gap_ns) * 1e-6,
+                drop_factor_);
+            ImGui::SetTooltip("%s", tip.c_str());
         }
         ImGui::Separator();
     }
@@ -433,12 +409,7 @@ void TopicStatsOverlay::draw_inline()
         ImGui::PopStyleColor();
 
         {
-            char buf[32];
-            std::snprintf(buf,
-                          sizeof(buf),
-                          "%llu",
-                          static_cast<unsigned long long>(snap.total_messages));
-            draw_stat_row("  Total count", buf);
+            draw_stat_row("  Total count", std::format("{}", snap.total_messages));
         }
 
         // --- Bandwidth ---
@@ -476,26 +447,18 @@ void TopicStatsOverlay::draw_inline()
 
         // --- Drop info ---
         {
-            char buf[64];
-            if (snap.last_gap_ns > 0)
-            {
-                std::snprintf(buf,
-                              sizeof(buf),
-                              "%.1f ms",
-                              static_cast<double>(snap.last_gap_ns) * 1e-6);
-            }
-            else
-            {
-                std::snprintf(buf, sizeof(buf), "-");
-            }
-            draw_stat_row("  Last gap", buf, snap.drop_detected);
+            const std::string gap_str =
+                snap.last_gap_ns > 0
+                    ? std::format("{:.1f} ms", static_cast<double>(snap.last_gap_ns) * 1e-6)
+                    : "-";
+            draw_stat_row("  Last gap", gap_str, snap.drop_detected);
         }
 
         ImGui::EndTable();
     }
 }
 
-void TopicStatsOverlay::draw(bool* p_open)
+void TopicStatsOverlay::draw(bool* p_open, int active_subplot_slot)
 {
     if (!ImGui::GetCurrentContext())
         return;
@@ -505,7 +468,71 @@ void TopicStatsOverlay::draw(bool* p_open)
         return;
     }
     draw_inline();
+    draw_series_controls(subplot_mgr_, active_subplot_slot);
     ImGui::End();
+}
+void TopicStatsOverlay::draw_series_controls(SubplotManager* subplot_mgr, int active_slot)
+{
+    if (!subplot_mgr || active_slot < 1)
+        return;
+
+    const StatsSnapshot snap = snapshot();
+    if (snap.topic.empty())
+        return;
+
+    const int n_series = subplot_mgr->slot_series_count(active_slot);
+    if (n_series <= 0)
+        return;
+
+    bool any_for_topic = false;
+    for (int i = 0; i < n_series; ++i)
+    {
+        const SeriesEntry* entry = subplot_mgr->slot_series(active_slot, i);
+        if (entry && entry->topic == snap.topic)
+        {
+            any_for_topic = true;
+            break;
+        }
+    }
+    if (!any_for_topic)
+        return;
+
+    ImGui::Separator();
+    ImGui::TextDisabled("Series on plot %d", active_slot);
+
+    for (int i = 0; i < n_series; ++i)
+    {
+        const SeriesEntry* entry = subplot_mgr->slot_series(active_slot, i);
+        if (!entry || entry->topic != snap.topic || !entry->series)
+            continue;
+
+        ImGui::PushID(i);
+        auto&                series = *entry->series;
+        const spectra::Color c      = series.color();
+        float                rgba[4]  = {c.r, c.g, c.b, c.a};
+        if (ImGui::ColorEdit4("##color", rgba, ImGuiColorEditFlags_NoInputs))
+            series.set_color({rgba[0], rgba[1], rgba[2], rgba[3]});
+
+        ImGui::SameLine();
+        ImGui::TextUnformatted(entry->field_path.c_str());
+
+        ImGui::SameLine();
+        bool visible = series.visible();
+        if (ImGui::Checkbox("##vis", &visible))
+            series.visible(visible);
+
+        ImGui::SameLine();
+        float width = series.width();
+        ImGui::SetNextItemWidth(60.0f);
+        if (ImGui::SliderFloat("##width", &width, 0.5f, 6.0f, "%.1f"))
+            series.width(width);
+
+        ImGui::SameLine();
+        if (ImGui::SmallButton("Remove"))
+            subplot_mgr->remove_series_from_slot(active_slot, entry->topic, entry->field_path);
+
+        ImGui::PopID();
+    }
 }
 
 #else   // SPECTRA_USE_IMGUI
@@ -518,7 +545,8 @@ void TopicStatsOverlay::draw_stat_row(const char* /*label*/,
 
 void TopicStatsOverlay::draw_inline() {}
 
-void TopicStatsOverlay::draw(bool* /*p_open*/) {}
+void TopicStatsOverlay::draw(bool* /*p_open*/, int /*active_subplot_slot*/) {}
+void TopicStatsOverlay::draw_series_controls(SubplotManager*, int) {}
 
 #endif   // SPECTRA_USE_IMGUI
 

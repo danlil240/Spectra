@@ -136,11 +136,15 @@ class TopicStatsOverlay
 
     // Render the overlay as a standalone ImGui window.
     // `p_open` — if non-null, a close button is shown.
-    void draw(bool* p_open = nullptr);
+    void draw(bool* p_open = nullptr, int active_subplot_slot = -1);
 
     // Render statistics inline (no Begin/End window wrapper).
     // Caller must have an active ImGui window.
     void draw_inline();
+
+    // Per-series controls for plots matching the selected topic (requires subplot manager).
+    void draw_series_controls(class SubplotManager* subplot_mgr, int active_slot);
+    void set_subplot_manager(class SubplotManager* mgr) { subplot_mgr_ = mgr; }
 
     // ---------- configuration ------------------------------------------------
 
@@ -225,6 +229,8 @@ class TopicStatsOverlay
     StatsSnapshot            cached_snap_;
     int64_t                  last_snap_ns_{0};
     static constexpr int64_t SNAP_INTERVAL_NS = 250'000'000LL;   // 250 ms
+
+    class SubplotManager* subplot_mgr_{nullptr};
 };
 
 }   // namespace spectra::adapters::ros2

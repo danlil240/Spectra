@@ -10,6 +10,7 @@
 
 #include <spectra/color.hpp>
 
+#include "plot_series_pruning.hpp"
 #include "topic_discovery.hpp"
 
 namespace spectra::adapters::ros2
@@ -132,6 +133,8 @@ PlotHandle RosPlotManager::add_plot(const std::string& topic,
             eid,
             [ctx, base_series, data_cb, entry_id](double t_sec, double val)
             {
+                if (!ctx->active.load(std::memory_order_acquire))
+                    return;
                 std::call_once(ctx->origin_once, [&]() { ctx->origin = t_sec; });
                 const double t_rel = t_sec - ctx->origin;
                 base_series->append(static_cast<float>(t_rel), static_cast<float>(val));
@@ -293,14 +296,10 @@ void RosPlotManager::poll()
             // Commit pending data from the executor thread to the series.
             entry->base_series->commit_pending();
 
-            // Prune old data (erase_before routes through PendingSeriesData
+            // Prune old data (erase_before/after routes through PendingSeriesData
             // in thread-safe mode).
-            if (entry->base_series && pruning_enabled_ && has_origin)
-            {
-                const auto xlim         = entry->axes->x_limits();
-                const auto prune_before = static_cast<float>(xlim.min - prune_buffer_s_);
-                entry->base_series->erase_before(prune_before);
-            }
+            if (entry->base_series && pruning_enabled_ && has_origin && entry->axes)
+                prune_time_series(*entry->base_series, *entry->axes, prune_buffer_s_, true);
 
             // Track samples for auto-fit.
             entry->samples_received =
@@ -326,13 +325,9 @@ void RosPlotManager::poll()
         const double now_rel = wall_now - entry->time_origin;
         entry->axes->set_presented_buffer_right_edge(now_rel);
 
-        // Prune data older than the visible view plus the configured history buffer.
-        if (entry->base_series && pruning_enabled_)
-        {
-            const auto xlim         = entry->axes->x_limits();
-            const auto prune_before = static_cast<float>(xlim.min - prune_buffer_s_);
-            entry->base_series->erase_before(prune_before);
-        }
+        // Prune data outside the visible view plus the configured history buffer.
+        if (entry->base_series && pruning_enabled_ && entry->axes)
+            prune_time_series(*entry->base_series, *entry->axes, prune_buffer_s_, true);
 
         if (!entry->subscriber || !entry->subscriber->is_running())
             continue;

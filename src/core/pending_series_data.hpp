@@ -16,14 +16,17 @@ namespace spectra
 // ═══════════════════════════════════════════════════════════════════════════════
 // PendingSeriesData — accumulates background-thread mutations for a Series.
 //
-// Background (producer) threads call replace_x/y(), append(), erase_before()
+// Background (producer) threads call replace_x/y(), append(), erase_before(),
+// erase_after(), trim_to_max_points()
 // under a lightweight spinlock.  The main (consumer) thread calls commit()
 // at frame boundary to apply all pending operations to the live data vectors.
 //
 // Operation ordering within a single commit:
 //   1. Full replace (set_x / set_y) — if pending, moves replacement into live
 //   2. Erase-before — removes points below threshold
-//   3. Append — appends accumulated points
+//   3. Erase-after — removes points above threshold
+//   4. Trim-to-max — drops oldest points when count exceeds cap
+//   5. Append — appends accumulated points
 //
 // This ordering ensures that a full replace followed by appends within the
 // same frame produces the expected result.
@@ -76,6 +79,22 @@ class PendingSeriesData
         set_pending();
     }
 
+    void erase_after(float threshold)
+    {
+        SpinLockGuard guard(lock_);
+        erase_after_threshold_ = threshold;
+        has_erase_after_       = true;
+        set_pending();
+    }
+
+    void trim_to_max_points(size_t max_points)
+    {
+        SpinLockGuard guard(lock_);
+        trim_max_points_ = max_points;
+        has_trim_        = true;
+        set_pending();
+    }
+
     // ── Consumer methods (main thread only) ──────────────────────────────
 
     // Apply all pending operations to the live data vectors.
@@ -121,7 +140,25 @@ class PendingSeriesData
             has_erase_ = false;
         }
 
-        // 3. Append accumulated points
+        // 3. Erase-after (sorted-x binary search)
+        if (has_erase_after_ && !x.empty())
+        {
+            auto it = std::upper_bound(x.begin(), x.end(), erase_after_threshold_);
+            auto n  = static_cast<ptrdiff_t>(x.end() - it);
+            if (n > 0)
+            {
+                x.erase(it, x.end());
+                y.erase(y.end() - n, y.end());
+                changed = true;
+            }
+            has_erase_after_ = false;
+        }
+        else
+        {
+            has_erase_after_ = false;
+        }
+
+        // 4. Append accumulated points
         if (!append_x_.empty())
         {
             x.insert(x.end(), append_x_.begin(), append_x_.end());
@@ -129,6 +166,20 @@ class PendingSeriesData
             append_x_.clear();
             append_y_.clear();
             changed = true;
+        }
+
+        // 5. Trim oldest points when over cap (FIFO for streaming plots).
+        if (has_trim_ && x.size() > trim_max_points_)
+        {
+            const size_t remove = x.size() - trim_max_points_;
+            x.erase(x.begin(), x.begin() + static_cast<ptrdiff_t>(remove));
+            y.erase(y.begin(), y.begin() + static_cast<ptrdiff_t>(remove));
+            changed = true;
+            has_trim_ = false;
+        }
+        else
+        {
+            has_trim_ = false;
         }
 
         has_pending_.store(false, std::memory_order_relaxed);
@@ -166,9 +217,15 @@ class PendingSeriesData
     std::vector<float> append_x_;
     std::vector<float> append_y_;
 
-    // Erase-before state.
-    float erase_threshold_ = 0.0f;
-    bool  has_erase_       = false;
+    // Erase-before / erase-after state.
+    float erase_threshold_       = 0.0f;
+    float erase_after_threshold_ = 0.0f;
+    bool  has_erase_             = false;
+    bool  has_erase_after_       = false;
+
+    // Trim-to-max state.
+    size_t trim_max_points_ = 0;
+    bool   has_trim_        = false;
 
     // Wake callback (called outside lock via set_pending).
     std::function<void()> wake_fn_;

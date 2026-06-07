@@ -1,7 +1,9 @@
 #include "display/robot_model_display.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <format>
 
 #include "scene/scene_manager.hpp"
 
@@ -33,11 +35,10 @@ std::string geometry_name(UrdfGeometryType type)
 
 RobotModelDisplay::RobotModelDisplay()
 {
-    std::snprintf(parameter_input_.data(), parameter_input_.size(), "%s", parameter_name_.c_str());
-    std::snprintf(joint_topic_input_.data(),
-                  joint_topic_input_.size(),
-                  "%s",
-                  joint_state_topic_.c_str());
+    parameter_name_.copy(parameter_input_.data(), parameter_input_.size() - 1);
+    parameter_input_[std::min(parameter_name_.size(), parameter_input_.size() - 1)] = '\0';
+    joint_state_topic_.copy(joint_topic_input_.data(), joint_topic_input_.size() - 1);
+    joint_topic_input_[std::min(joint_state_topic_.size(), joint_topic_input_.size() - 1)] = '\0';
     status_      = DisplayStatus::Disabled;
     status_text_ = "Disabled";
 }
@@ -285,17 +286,14 @@ void RobotModelDisplay::draw_inspector_ui()
 
 std::string RobotModelDisplay::serialize_config_blob() const
 {
-    char buffer[512];
-    std::snprintf(buffer,
-                  sizeof(buffer),
-                  "parameter=%s;show_collision_shapes=%d;joint_topic=%s;show_frame_axes=%d;show_"
-                  "joint_axes=%d",
-                  parameter_name_.c_str(),
-                  show_collision_shapes_ ? 1 : 0,
-                  joint_state_topic_.c_str(),
-                  show_frame_axes_ ? 1 : 0,
-                  show_joint_axes_ ? 1 : 0);
-    return buffer;
+    return std::format(
+        "parameter={};show_collision_shapes={};joint_topic={};show_frame_axes={};show_joint_axes="
+        "{}",
+        parameter_name_,
+        show_collision_shapes_ ? 1 : 0,
+        joint_state_topic_,
+        show_frame_axes_ ? 1 : 0,
+        show_joint_axes_ ? 1 : 0);
 }
 
 void RobotModelDisplay::deserialize_config_blob(const std::string& blob)
@@ -319,16 +317,13 @@ void RobotModelDisplay::deserialize_config_blob(const std::string& blob)
         >= 1)
     {
         parameter_name_ = parameter_name;
-        std::snprintf(parameter_input_.data(),
-                      parameter_input_.size(),
-                      "%s",
-                      parameter_name_.c_str());
+        parameter_name_.copy(parameter_input_.data(), parameter_input_.size() - 1);
+        parameter_input_[std::min(parameter_name_.size(), parameter_input_.size() - 1)] = '\0';
         show_collision_shapes_ = show_collision_shapes != 0;
         joint_state_topic_     = joint_topic;
-        std::snprintf(joint_topic_input_.data(),
-                      joint_topic_input_.size(),
-                      "%s",
-                      joint_state_topic_.c_str());
+        joint_state_topic_.copy(joint_topic_input_.data(), joint_topic_input_.size() - 1);
+        joint_topic_input_[std::min(joint_state_topic_.size(), joint_topic_input_.size() - 1)] =
+            '\0';
         show_frame_axes_ = show_frame_axes != 0;
         show_joint_axes_ = show_joint_axes != 0;
     }

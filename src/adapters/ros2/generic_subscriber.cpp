@@ -219,6 +219,9 @@ void GenericSubscriber::stop()
 
 void GenericSubscriber::on_message(const std::shared_ptr<rclcpp::SerializedMessage>& serialized_msg)
 {
+    if (!running_.load(std::memory_order_acquire))
+        return;
+
     stat_received_.fetch_add(1, std::memory_order_relaxed);
 
     if (extractors_.empty())

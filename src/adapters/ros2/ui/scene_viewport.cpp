@@ -4,6 +4,7 @@
 #include <array>
 #include <cmath>
 #include <limits>
+#include <optional>
 
 #include <spectra/series.hpp>
 
@@ -294,6 +295,16 @@ spectra::Ray build_pick_ray(const spectra::Camera& camera,
     const spectra::vec3 origin_offset =
         basis.right * (nx * camera.ortho_size * aspect) + basis.up * (ny * camera.ortho_size);
     return {camera.position + origin_offset, basis.forward};
+}
+
+std::optional<spectra::vec3> intersect_ground_plane(const spectra::Ray& ray, double z = 0.0)
+{
+    if (std::abs(ray.direction.z) < 1e-9)
+        return std::nullopt;
+    const double t = (z - ray.origin.z) / ray.direction.z;
+    if (t < 0.0)
+        return std::nullopt;
+    return ray.origin + ray.direction * static_cast<float>(t);
 }
 
 SceneCanvasResult draw_scene_canvas(SceneManager&               scene,
@@ -635,6 +646,24 @@ void SceneViewport::draw(bool*              p_open,
         camera_initialized_ = fit_camera_to_scene(scene, camera_);
     }
     ImGui::SameLine();
+    if (ImGui::SmallButton("Top"))
+    {
+        camera_.align_view_to_axis(spectra::Camera::AxisView::PositiveZ);
+        camera_initialized_ = true;
+    }
+    ImGui::SameLine();
+    if (ImGui::SmallButton("Front"))
+    {
+        camera_.align_view_to_axis(spectra::Camera::AxisView::PositiveY);
+        camera_initialized_ = true;
+    }
+    ImGui::SameLine();
+    if (ImGui::SmallButton("Side"))
+    {
+        camera_.align_view_to_axis(spectra::Camera::AxisView::PositiveX);
+        camera_initialized_ = true;
+    }
+    ImGui::SameLine();
     if (ImGui::SmallButton("Fit View"))
         camera_initialized_ = fit_camera_to_scene(scene, camera_);
     ImGui::SameLine();
@@ -649,6 +678,15 @@ void SceneViewport::draw(bool*              p_open,
     ImGui::ColorEdit4("Background",
                       background_rgba_.data(),
                       ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaPreviewHalf);
+    ImGui::SameLine();
+    bool measure = measure_tool_.active();
+    if (ImGui::Checkbox("Measure", &measure))
+        measure_tool_.set_active(measure);
+    if (measure && measure_tool_.has_result())
+    {
+        ImGui::SameLine();
+        ImGui::TextDisabled("dist: %.3f m", measure_tool_.distance());
+    }
     ImGui::SameLine();
     ImGui::TextDisabled("az %.1f el %.1f d %.2f | %s | %zu disp, %zu ent",
                         camera_.azimuth,
@@ -679,7 +717,20 @@ void SceneViewport::draw(bool*              p_open,
     if (interaction.picked_index.has_value())
         scene.set_selected_index(*interaction.picked_index);
     else if (interaction.clicked)
-        scene.clear_selection();
+    {
+        if (measure_tool_.active())
+        {
+            const ImVec2 origin_screen{canvas_x_, canvas_y_};
+            const spectra::Ray ray = build_pick_ray(
+                camera_, ImGui::GetIO().MousePos, origin_screen, ImVec2(avail.x, canvas_height));
+            if (const auto hit = intersect_ground_plane(ray))
+                measure_tool_.click_point(*hit);
+        }
+        else
+        {
+            scene.clear_selection();
+        }
+    }
 
     ImGui::Separator();
     const float list_height = std::max(60.0f, avail.y * 0.10f);

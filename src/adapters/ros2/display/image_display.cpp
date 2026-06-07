@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <format>
 
 #include "scene/scene_manager.hpp"
 #include "tf/tf_buffer.hpp"
@@ -293,22 +294,20 @@ void ImageDisplay::draw_auxiliary_ui()
 void ImageDisplay::set_topic(const std::string& topic)
 {
     topic_ = topic;
-    std::snprintf(topic_input_.data(), topic_input_.size(), "%s", topic_.c_str());
+    topic_.copy(topic_input_.data(), topic_input_.size() - 1);
+    topic_input_[std::min(topic_.size(), topic_input_.size() - 1)] = '\0';
     resubscribe_requested_ = true;
 }
 
 std::string ImageDisplay::serialize_config_blob() const
 {
-    char buffer[320];
-    std::snprintf(buffer,
-                  sizeof(buffer),
-                  "topic=%s;mode=%d;panel_visible=%d;preview_max_dim=%u;use_message_stamp=%d",
-                  topic_.c_str(),
-                  static_cast<int>(mode_),
-                  panel_visible_ ? 1 : 0,
-                  preview_max_dim_,
-                  use_message_stamp_ ? 1 : 0);
-    return buffer;
+    return std::format(
+        "topic={};mode={};panel_visible={};preview_max_dim={};use_message_stamp={}",
+        topic_,
+        static_cast<int>(mode_),
+        panel_visible_ ? 1 : 0,
+        preview_max_dim_,
+        use_message_stamp_ ? 1 : 0);
 }
 
 void ImageDisplay::deserialize_config_blob(const std::string& blob)

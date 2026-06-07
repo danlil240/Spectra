@@ -2,7 +2,7 @@
 
 #include <cassert>
 #include <chrono>
-#include <cstdio>
+#include <format>
 #include <cstring>
 #include <ctime>
 #include <vector>
@@ -521,12 +521,9 @@ bool RosScreenshotExport::draw_record_dialog(bool* p_open)
         ImGui::Text("Recording: frame %u / %u", prog.current_frame, prog.total_frames);
         ImGui::TextDisabled("Elapsed: %.1f / %.1f s", prog.elapsed_sec, dialog_duration_s_);
         ImGui::ProgressBar(prog.percent / 100.0f, ImVec2(-1.0f, 0.0f));
-        char eta_buf[64];
-        std::snprintf(eta_buf,
-                      sizeof(eta_buf),
-                      "ETA: %.1f s",
-                      static_cast<double>(prog.estimated_remaining_sec));
-        ImGui::TextDisabled("%s", eta_buf);
+        const std::string eta_str =
+            std::format("ETA: {:.1f} s", static_cast<double>(prog.estimated_remaining_sec));
+        ImGui::TextDisabled("%s", eta_str.c_str());
     }
 
     // ── Completion status ─────────────────────────────────────────────────────

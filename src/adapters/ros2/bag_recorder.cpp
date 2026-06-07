@@ -10,7 +10,7 @@
 
     #include <algorithm>
     #include <cassert>
-    #include <cstdio>
+    #include <format>
     #include <filesystem>
     #include <sstream>
     #include <stdexcept>
@@ -570,8 +570,7 @@ std::string BagRecorder::make_split_path(const std::string& base_path, uint32_t 
     const std::string ext    = p.extension().string();
     const fs::path    parent = p.parent_path();
 
-    char suffix[16];
-    std::snprintf(suffix, sizeof(suffix), "_split%03u", idx);
+    const std::string suffix = std::format("_split{:03}", idx);
 
     const fs::path new_name = fs::path(stem + suffix + ext);
     return (parent / new_name).string();

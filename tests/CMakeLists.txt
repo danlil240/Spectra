@@ -873,6 +873,38 @@ if(SPECTRA_USE_ROS2)
         set_tests_properties(unit_test_display_registry PROPERTIES LABELS "ros2")
     endif()
 
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_ros_package_resolver.cpp)
+        add_executable(unit_test_ros_package_resolver
+            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_ros_package_resolver.cpp
+        )
+        target_link_libraries(unit_test_ros_package_resolver PRIVATE
+            spectra_ros2_adapter
+            GTest::gtest_main
+        )
+        target_compile_features(unit_test_ros_package_resolver PRIVATE cxx_std_20)
+        target_include_directories(unit_test_ros_package_resolver PRIVATE
+            ${CMAKE_SOURCE_DIR}/src/adapters/ros2
+        )
+        add_test(NAME unit_test_ros_package_resolver COMMAND unit_test_ros_package_resolver)
+        set_tests_properties(unit_test_ros_package_resolver PROPERTIES LABELS "ros2")
+    endif()
+
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_measure_tool.cpp)
+        add_executable(unit_test_measure_tool
+            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_measure_tool.cpp
+        )
+        target_link_libraries(unit_test_measure_tool PRIVATE
+            spectra_ros2_adapter
+            GTest::gtest_main
+        )
+        target_compile_features(unit_test_measure_tool PRIVATE cxx_std_20)
+        target_include_directories(unit_test_measure_tool PRIVATE
+            ${CMAKE_SOURCE_DIR}/src/adapters/ros2
+        )
+        add_test(NAME unit_test_measure_tool COMMAND unit_test_measure_tool)
+        set_tests_properties(unit_test_measure_tool PROPERTIES LABELS "ros2")
+    endif()
+
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_scene_manager.cpp)
         add_executable(unit_test_scene_manager
             ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_scene_manager.cpp
@@ -1062,6 +1094,22 @@ if(SPECTRA_USE_ROS2)
         )
         add_test(NAME unit_test_subplot_manager COMMAND unit_test_subplot_manager)
         set_tests_properties(unit_test_subplot_manager PROPERTIES LABELS "ros2")
+    endif()
+
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_plot_series_pruning.cpp)
+        add_executable(unit_test_plot_series_pruning
+            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_plot_series_pruning.cpp
+        )
+        target_link_libraries(unit_test_plot_series_pruning PRIVATE
+            spectra
+            GTest::gtest_main
+        )
+        target_compile_features(unit_test_plot_series_pruning PRIVATE cxx_std_20)
+        target_include_directories(unit_test_plot_series_pruning PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_SOURCE_DIR}/src/adapters/ros2
+        )
+        add_test(NAME unit_test_plot_series_pruning COMMAND unit_test_plot_series_pruning)
     endif()
 
     # ExpressionEngine tests — pure C++ logic, no ROS2 runtime needed.

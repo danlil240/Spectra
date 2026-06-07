@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cstring>
+#include <format>
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
 
@@ -312,26 +313,20 @@ void TopicListPanel::rebuild_tree()
 {
     if (hz <= 0.0)
         return "-";
-    char buf[32];
     if (hz >= 1000.0)
-        std::snprintf(buf, sizeof(buf), "%.0f", hz);
-    else
-        std::snprintf(buf, sizeof(buf), "%.2f", hz);
-    return buf;
+        return std::format("{:.0f}", hz);
+    return std::format("{:.2f}", hz);
 }
 
 /*static*/ std::string TopicListPanel::format_bw(double bps)
 {
     if (bps <= 0.0)
         return "-";
-    char buf[32];
     if (bps >= 1024.0 * 1024.0)
-        std::snprintf(buf, sizeof(buf), "%.1f MB/s", bps / (1024.0 * 1024.0));
-    else if (bps >= 1024.0)
-        std::snprintf(buf, sizeof(buf), "%.1f KB/s", bps / 1024.0);
-    else
-        std::snprintf(buf, sizeof(buf), "%.0f B/s", bps);
-    return buf;
+        return std::format("{:.1f} MB/s", bps / (1024.0 * 1024.0));
+    if (bps >= 1024.0)
+        return std::format("{:.1f} KB/s", bps / 1024.0);
+    return std::format("{:.0f} B/s", bps);
 }
 
 /*static*/ int64_t TopicListPanel::now_ns()
@@ -481,6 +476,22 @@ void TopicListPanel::draw(bool* p_open)
                 filter_dirty_ = true;
             }
         }
+
+        // Drop rolling stats for topics that disappeared from discovery.
+        {
+            std::lock_guard<std::mutex> lk(stats_mutex_);
+            for (auto it = stats_map_.begin(); it != stats_map_.end();)
+            {
+                const bool still_live = std::any_of(topics_.begin(),
+                                                    topics_.end(),
+                                                    [&](const TopicInfo& info)
+                                                    { return info.name == it->first; });
+                if (!still_live)
+                    it = stats_map_.erase(it);
+                else
+                    ++it;
+            }
+        }
     }
 
     // --- Window ---
@@ -546,9 +557,9 @@ void TopicListPanel::draw(bool* p_open)
     }
 
     ImGui::TableSetupScrollFreeze(0, 1);   // freeze header row
-    ImGui::TableSetupColumn("Topic", ImGuiTableColumnFlags_WidthStretch, 3.0f);
+    ImGui::TableSetupColumn("Topic", ImGuiTableColumnFlags_WidthStretch, 5.0f);
     if (col_show_type_)
-        ImGui::TableSetupColumn("Type", ImGuiTableColumnFlags_WidthStretch, 2.5f);
+        ImGui::TableSetupColumn("Type", ImGuiTableColumnFlags_WidthStretch, 1.5f);
     if (col_show_hz_)
         ImGui::TableSetupColumn("Hz", ImGuiTableColumnFlags_WidthFixed, 60.0f);
     if (col_show_pubs_)
@@ -970,15 +981,13 @@ void TopicListPanel::draw_echo_field(const std::string&                 topic_na
         }
         case EchoFieldValue::Kind::ArrayHead:
         {
-            char label[128];
-            std::snprintf(label,
-                          sizeof(label),
-                          "%s  [%d items]",
-                          fv.display_name.c_str(),
-                          fv.array_len);
+            const std::string label =
+                std::format("{}  [{} items]", fv.display_name, fv.array_len);
             const std::string tree_id = std::string("##ie_") + topic_name + "_" + fv.path;
-            const bool        open =
-                ImGui::TreeNodeEx(tree_id.c_str(), ImGuiTreeNodeFlags_SpanFullWidth, "%s", label);
+            const bool        open    = ImGui::TreeNodeEx(tree_id.c_str(),
+                                                       ImGuiTreeNodeFlags_SpanFullWidth,
+                                                       "%s",
+                                                       label.c_str());
             fv.is_open = open;
             ++idx;
             const int parent_depth = fv.depth;
@@ -1000,10 +1009,9 @@ void TopicListPanel::draw_echo_field(const std::string&                 topic_na
         }
         case EchoFieldValue::Kind::ArrayElement:
         {
-            char sel_id[256];
-            std::snprintf(sel_id, sizeof(sel_id), "##topic_monitor_sel_%s", fv.path.c_str());
+            const std::string sel_id = std::format("##topic_monitor_sel_{}", fv.path);
             ImGui::Selectable(
-                sel_id,
+                sel_id.c_str(),
                 false,
                 ImGuiSelectableFlags_AllowOverlap | ImGuiSelectableFlags_SpanAllColumns,
                 ImVec2(0, ImGui::GetTextLineHeight()));
@@ -1018,9 +1026,16 @@ void TopicListPanel::draw_echo_field(const std::string&                 topic_na
                                          : std::string();
                 payload.label      = FieldDragPayload::make_label(topic_name, fv.path);
                 drag_drop_->begin_drag_source(payload);
-                char ctx_id[280];
-                std::snprintf(ctx_id, sizeof(ctx_id), "##topic_monitor_ctx_%s", fv.path.c_str());
-                drag_drop_->show_context_menu(payload, ctx_id);
+                const std::string ctx_id = std::format("##topic_monitor_ctx_{}", fv.path);
+                drag_drop_->show_context_menu(payload, ctx_id.c_str());
+            }
+
+            if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(0) && field_plot_cb_)
+            {
+                const std::string type = selected_topic_ == topic_name && echo_panel_
+                                             ? echo_panel_->type_name()
+                                             : std::string();
+                field_plot_cb_(topic_name, fv.path, type);
             }
 
             ImGui::SameLine();
@@ -1034,10 +1049,9 @@ void TopicListPanel::draw_echo_field(const std::string&                 topic_na
         }
         case EchoFieldValue::Kind::Numeric:
         {
-            char sel_id[256];
-            std::snprintf(sel_id, sizeof(sel_id), "##topic_monitor_sel_%s", fv.path.c_str());
+            const std::string sel_id = std::format("##topic_monitor_sel_{}", fv.path);
             ImGui::Selectable(
-                sel_id,
+                sel_id.c_str(),
                 false,
                 ImGuiSelectableFlags_AllowOverlap | ImGuiSelectableFlags_SpanAllColumns,
                 ImVec2(0, ImGui::GetTextLineHeight()));
@@ -1052,9 +1066,16 @@ void TopicListPanel::draw_echo_field(const std::string&                 topic_na
                                          : std::string();
                 payload.label      = FieldDragPayload::make_label(topic_name, fv.path);
                 drag_drop_->begin_drag_source(payload);
-                char ctx_id[280];
-                std::snprintf(ctx_id, sizeof(ctx_id), "##topic_monitor_ctx_%s", fv.path.c_str());
-                drag_drop_->show_context_menu(payload, ctx_id);
+                const std::string ctx_id = std::format("##topic_monitor_ctx_{}", fv.path);
+                drag_drop_->show_context_menu(payload, ctx_id.c_str());
+            }
+
+            if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(0) && field_plot_cb_)
+            {
+                const std::string type = selected_topic_ == topic_name && echo_panel_
+                                             ? echo_panel_->type_name()
+                                             : std::string();
+                field_plot_cb_(topic_name, fv.path, type);
             }
 
             ImGui::SameLine();

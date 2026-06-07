@@ -1560,6 +1560,36 @@ class RosQAAgent
             return fail("design", "Failed to capture bag-review design state");
         }
 
+        shell_->apply_layout_preset(RosAppShell::LayoutPreset::RViz);
+        shell_->set_scene_viewport_visible(true);
+        shell_->set_displays_panel_visible(true);
+        shell_->set_inspector_panel_visible(true);
+        if (!pump_frames(6)
+            || !record_design_capture("06_rviz_layout",
+                                      "RViz layout with scene viewport and displays panel"))
+        {
+            return fail("design", "Failed to capture RViz layout design state");
+        }
+
+        shell_->apply_layout_preset(RosAppShell::LayoutPreset::RVizPlot);
+        shell_->set_plot_area_visible(true);
+        if (!pump_frames(6)
+            || !record_design_capture("07_rviz_plot_layout",
+                                      "RVizPlot layout combining 3D viewport and plot area"))
+        {
+            return fail("design", "Failed to capture RVizPlot layout design state");
+        }
+
+        shell_->apply_layout_preset(RosAppShell::LayoutPreset::Monitor);
+        shell_->set_topic_list_visible(true);
+        shell_->set_topic_stats_visible(true);
+        if (!pump_frames(6)
+            || !record_design_capture("08_monitor_topic_stats",
+                                      "Monitor layout with topic monitor and statistics"))
+        {
+            return fail("design", "Failed to capture monitor/stats design state");
+        }
+
         ui::ThemeManager::instance().set_theme("dark");
         shell_->apply_layout_preset(RosAppShell::LayoutPreset::Default);
         shell_->set_nav_rail_visible(true);
@@ -1567,7 +1597,7 @@ class RosQAAgent
         if (!write_design_manifest())
             return fail("design", "Failed to write design review manifest");
 
-        return pass("Design review captured 5 named ROS shell states with contrast checks");
+        return pass("Design review captured 8 named ROS shell states with contrast checks");
     }
 
     void write_report() const

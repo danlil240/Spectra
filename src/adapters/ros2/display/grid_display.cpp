@@ -1,6 +1,7 @@
 #include "display/grid_display.hpp"
 
 #include <cstdio>
+#include <format>
 
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
@@ -13,22 +14,19 @@ namespace spectra::adapters::ros2
 
 std::string GridDisplay::serialize_config_blob() const
 {
-    char buffer[256];
-    std::snprintf(buffer,
-                  sizeof(buffer),
-                  "cell_size=%.3f;cell_count=%d;plane=%s;color=%.3f,%.3f,%.3f;alpha=%.3f;offset=%."
-                  "3f,%.3f,%.3f",
-                  cell_size_,
-                  cell_count_,
-                  plane_.c_str(),
-                  color_[0],
-                  color_[1],
-                  color_[2],
-                  alpha_,
-                  offset_[0],
-                  offset_[1],
-                  offset_[2]);
-    return buffer;
+    return std::format(
+        "cell_size={:.3f};cell_count={};plane={};color={:.3f},{:.3f},{:.3f};alpha={:.3f};offset={:"
+        "3f},{:.3f},{:.3f}",
+        cell_size_,
+        cell_count_,
+        plane_,
+        color_[0],
+        color_[1],
+        color_[2],
+        alpha_,
+        offset_[0],
+        offset_[1],
+        offset_[2]);
 }
 
 void GridDisplay::deserialize_config_blob(const std::string& blob)
@@ -85,18 +83,12 @@ void GridDisplay::submit_renderables(SceneManager& scene)
     entity.display_name          = display_name();
     entity.transform.translation = {offset_[0], offset_[1], offset_[2]};
     entity.scale                 = {cell_size_, 1.0, static_cast<double>(cell_count_)};
-    char color_buffer[96];
-    std::snprintf(color_buffer,
-                  sizeof(color_buffer),
-                  "%.3f, %.3f, %.3f, %.3f",
-                  color_[0],
-                  color_[1],
-                  color_[2],
-                  alpha_);
+    const std::string color_str =
+        std::format("{:.3f}, {:.3f}, {:.3f}, {:.3f}", color_[0], color_[1], color_[2], alpha_);
     entity.properties.push_back({"plane", plane_});
     entity.properties.push_back({"cell_size", std::to_string(cell_size_)});
     entity.properties.push_back({"cell_count", std::to_string(cell_count_)});
-    entity.properties.push_back({"color", color_buffer});
+    entity.properties.push_back({"color", color_str});
     scene.add_entity(std::move(entity));
 }
 

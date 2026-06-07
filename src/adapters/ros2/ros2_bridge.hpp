@@ -61,6 +61,14 @@ class Ros2Bridge
     // Returns false if already spinning or not yet initialised.
     bool start_spin();
 
+    // Stop the executor thread but keep node() valid so subscriptions can be
+    // destroyed cleanly on the caller thread.  Idempotent.
+    void stop_spin();
+
+    // Remove the node from the executor while keeping it alive so subscriptions
+    // can be destroyed without the spin thread running.  Idempotent.
+    void detach_node_from_executor();
+
     // Stop the spin thread and tear down the node.
     // Blocks until the spin thread has joined (max ~spin_timeout_ms).
     // Safe to call even if not spinning (no-op).

@@ -257,6 +257,11 @@ void WindowManager::destroy_window(uint32_t window_id)
 #endif
         for (FigureId fig_id : wctx.assigned_figures)
         {
+            if (figure_unregistering_handler_)
+            {
+                if (Figure* fig = registry_->get(fig_id))
+                    figure_unregistering_handler_(fig_id, fig);
+            }
             registry_->unregister_figure(fig_id);
             SPECTRA_LOG_INFO("window_manager",
                              "Destroyed figure " + std::to_string(fig_id) + " (window "

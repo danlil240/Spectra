@@ -380,9 +380,14 @@ jobs:
             -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
             -DSPECTRA_USE_ROS2=ON \
             -DSPECTRA_ROS2_BAG=ON \
-            -DSPECTRA_BUILD_TESTS=OFF \
+            -DSPECTRA_BUILD_TESTS=ON \
             -DSPECTRA_BUILD_EXAMPLES=OFF \
             -DSPECTRA_BUILD_GOLDEN_TESTS=OFF
 
       - name: Build ROS2 adapter
         run: cmake --build build --config ${{ env.BUILD_TYPE }} -j$(nproc)
+
+      - name: Run ROS2 unit tests
+        run: |
+          . /opt/ros/humble/setup.sh
+          ctest --test-dir build -L ros2 -LE gpu --output-on-failure -j$(nproc)

@@ -1,6 +1,6 @@
 #include "clipboard_export.hpp"
 
-#include <cstdio>
+#include <format>
 #include <spectra/series.hpp>
 
 namespace spectra
@@ -66,7 +66,6 @@ std::string series_to_tsv(const std::vector<const Series*>& series)
     result += '\n';
 
     // Data rows
-    char buf[64];
     for (size_t row = 0; row < max_rows; ++row)
     {
         for (size_t ci = 0; ci < cols.size(); ++ci)
@@ -89,11 +88,9 @@ std::string series_to_tsv(const std::vector<const Series*>& series)
                     x = col.scatter->x_data()[row];
                     y = col.scatter->y_data()[row];
                 }
-                std::snprintf(buf, sizeof(buf), "%.6g", x);
-                result += buf;
+                result += std::format("{:.6g}", x);
                 result += '\t';
-                std::snprintf(buf, sizeof(buf), "%.6g", y);
-                result += buf;
+                result += std::format("{:.6g}", y);
             }
             else
             {

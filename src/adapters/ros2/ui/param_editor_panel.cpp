@@ -5,7 +5,7 @@
 #include <algorithm>
 #include <cerrno>
 #include <cmath>
-#include <cstdio>
+#include <format>
 #include <cstring>
 #include <fstream>
 #include <sstream>
@@ -191,12 +191,8 @@ std::string ParamValue::to_display_string(size_t max_len) const
             s = std::to_string(int_val);
             break;
         case ParamType::Double:
-        {
-            char buf[64];
-            std::snprintf(buf, sizeof(buf), "%.8g", double_val);
-            s = buf;
+            s = std::format("{:.8g}", double_val);
             break;
-        }
         case ParamType::String:
             s = "\"" + string_val + "\"";
             break;
@@ -207,9 +203,7 @@ std::string ParamValue::to_display_string(size_t max_len) const
             {
                 if (i > 0)
                     s += ",";
-                char hex[8];
-                std::snprintf(hex, sizeof(hex), "0x%02x", byte_array[i]);
-                s += hex;
+                s += std::format("0x{:02x}", byte_array[i]);
             }
             if (byte_array.size() > max_len / 5)
                 s += "...";
@@ -251,9 +245,7 @@ std::string ParamValue::to_display_string(size_t max_len) const
             {
                 if (i > 0)
                     s += ",";
-                char buf[32];
-                std::snprintf(buf, sizeof(buf), "%.4g", double_array[i]);
-                s += buf;
+                s += std::format("{:.4g}", double_array[i]);
             }
             if (s.size() >= max_len)
                 s += "...";
@@ -388,7 +380,8 @@ void ParamEditorPanel::set_target_node(const std::string& node_name)
     if (!node_name.empty())
     {
         create_clients(node_name);
-        std::snprintf(node_input_buf_, sizeof(node_input_buf_), "%s", node_name.c_str());
+        node_name.copy(node_input_buf_, sizeof(node_input_buf_) - 1);
+        node_input_buf_[std::min(node_name.size(), sizeof(node_input_buf_) - 1)] = '\0';
     }
 }
 
@@ -925,11 +918,7 @@ std::string ParamEditorPanel::yaml_scalar(const ParamValue& v)
         case ParamType::Integer:
             return std::to_string(v.int_val);
         case ParamType::Double:
-        {
-            char buf[64];
-            std::snprintf(buf, sizeof(buf), "%.17g", v.double_val);
-            return buf;
-        }
+            return std::format("{:.17g}", v.double_val);
         case ParamType::String:
             return v.string_val;
         default:
@@ -1025,9 +1014,7 @@ std::string ParamEditorPanel::serialize_yaml(
                 {
                     if (i)
                         ss << ", ";
-                    char buf[32];
-                    std::snprintf(buf, sizeof(buf), "%.17g", v.double_array[i]);
-                    ss << buf;
+                    ss << std::format("{:.17g}", v.double_array[i]);
                 }
                 ss << "]\n";
                 break;
@@ -1486,9 +1473,8 @@ void ParamEditorPanel::draw_toolbar()
     {
         ImGui::SameLine();
         size_t dirty = staged_count();
-        char   apply_lbl[32];
-        std::snprintf(apply_lbl, sizeof(apply_lbl), "Apply (%zu)##apply", dirty);
-        if (ImGui::Button(apply_lbl))
+        const std::string apply_lbl = std::format("Apply ({})##apply", dirty);
+        if (ImGui::Button(apply_lbl.c_str()))
             apply_staged();
         ImGui::SameLine();
         if (ImGui::Button("Discard"))

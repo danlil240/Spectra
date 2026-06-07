@@ -10,6 +10,8 @@
 
 #include <spectra/color.hpp>
 
+#include "plot_series_pruning.hpp"
+
 namespace spectra::adapters::ros2
 {
 
@@ -193,13 +195,9 @@ void ExpressionPlot::poll()
     const double now_rel = wall_now - time_origin_;
     axes_->set_presented_buffer_right_edge(now_rel);
 
-    // Prune data older than the visible view plus the configured history buffer.
-    if (series_ && pruning_enabled_)
-    {
-        const auto xlim         = axes_->x_limits();
-        const auto prune_before = static_cast<float>(xlim.min - prune_buffer_s_);
-        series_->erase_before(prune_before);
-    }
+    // Prune data outside the visible view plus the configured history buffer.
+    if (series_ && pruning_enabled_ && axes_)
+        prune_time_series(*series_, *axes_, prune_buffer_s_, true);
 
     if (!engine_.is_compiled())
         return;

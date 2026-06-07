@@ -138,6 +138,16 @@ class TopicEchoPanel
     // p_open — if non-null, a close button is shown.
     void draw(bool* p_open = nullptr);
 
+    // When false (default), follow workspace topic selection via sync_workspace().
+    // When true, user pinned a topic manually — auto-follow is suppressed.
+    bool manually_pinned() const { return manually_pinned_; }
+    void set_manually_pinned(bool pinned) { manually_pinned_ = pinned; }
+
+    // Auto-switch topic when workspace selection changes (unless pinned).
+    void sync_workspace(const std::string& topic,
+                        const std::string& type,
+                        bool               selection_changed);
+
     // ---------- configuration --------------------------------------------
 
     void               set_title(const std::string& t) { title_ = t; }
@@ -293,6 +303,8 @@ class TopicEchoPanel
     HoverCallback hover_cb_;
     std::string   hovered_field_;
     std::string   prev_hovered_field_;   // to detect changes and fire callback once
+
+    bool manually_pinned_{false};
 };
 
 }   // namespace spectra::adapters::ros2

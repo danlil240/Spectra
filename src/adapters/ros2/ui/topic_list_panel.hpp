@@ -152,6 +152,11 @@ class TopicListPanel
     using PlotCallback = std::function<void(const std::string& topic_name)>;
     void set_plot_callback(PlotCallback cb) { plot_cb_ = std::move(cb); }
 
+    // Fired when user double-clicks a numeric field (topic, field_path, type).
+    using FieldPlotCallback =
+        std::function<void(const std::string& topic, const std::string& field, const std::string& type)>;
+    void set_field_plot_callback(FieldPlotCallback cb) { field_plot_cb_ = std::move(cb); }
+
     // ---------- drag-and-drop (C3) -------------------------------------------
 
     // Wire a FieldDragDrop controller so that topic rows become drag sources
@@ -296,9 +301,9 @@ class TopicListPanel
     // Column visibility (render-thread only).
     bool col_show_type_{true};
     bool col_show_hz_{true};
-    bool col_show_pubs_{true};
-    bool col_show_subs_{true};
-    bool col_show_bw_{true};
+    bool col_show_pubs_{false};
+    bool col_show_subs_{false};
+    bool col_show_bw_{false};
 
     // Cached filtered list (rebuilt each frame if dirty).
     mutable bool                     filter_dirty_{true};
@@ -306,7 +311,8 @@ class TopicListPanel
 
     // Callbacks.
     SelectCallback select_cb_;
-    PlotCallback   plot_cb_;
+    PlotCallback       plot_cb_;
+    FieldPlotCallback  field_plot_cb_;
 
     // Drag-and-drop controller (optional, not owned).
     FieldDragDrop* drag_drop_{nullptr};

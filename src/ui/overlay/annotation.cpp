@@ -4,8 +4,8 @@
 
     #include <algorithm>
     #include <cmath>
-    #include <cstdio>
     #include <cstring>
+    #include <format>
     #include <imgui.h>
     #include <spectra/axes.hpp>
 
@@ -284,8 +284,7 @@ void AnnotationManager::draw(const Rect& viewport,
             ImGui::SetNextWindowPos(ImVec2(box_cx - 100.0f, box_cy - 14.0f), ImGuiCond_Always);
             ImGui::SetNextWindowSize(ImVec2(220.0f, 0.0f), ImGuiCond_Always);
 
-            char win_id[64];
-            std::snprintf(win_id, sizeof(win_id), "##ann_edit_%zu", i);
+            const std::string win_id = std::format("##ann_edit_{}", i);
 
             ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(6.0f, 4.0f));
             ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, corner_r);
@@ -301,20 +300,19 @@ void AnnotationManager::draw(const Rect& viewport,
                                          | ImGuiWindowFlags_AlwaysAutoResize
                                          | ImGuiWindowFlags_NoFocusOnAppearing;
 
-            if (ImGui::Begin(win_id, nullptr, win_flags))
+            if (ImGui::Begin(win_id.c_str(), nullptr, win_flags))
             {
                 ImGui::PushFont(font);
                 ImGui::PushItemWidth(200.0f);
 
-                char input_id[64];
-                std::snprintf(input_id, sizeof(input_id), "##ann_input_%zu", i);
+                const std::string input_id = std::format("##ann_input_{}", i);
 
                 // Auto-focus on first frame
                 if (ImGui::IsWindowAppearing())
                     ImGui::SetKeyboardFocusHere();
 
                 bool committed = ImGui::InputText(
-                    input_id,
+                    input_id.c_str(),
                     edit_buf_,
                     sizeof(edit_buf_),
                     ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_AutoSelectAll);

@@ -2,6 +2,8 @@
 
     #include "imgui_integration_internal.hpp"
 
+    #include <format>
+
     #include "../../../third_party/tinyfiledialogs.h"
     #include "../dialog_env_guard.hpp"
     #include "../topics/topics_panel.hpp"
@@ -1076,15 +1078,12 @@ void ImGuiIntegration::draw_command_bar()
                                      theme_colors().text_secondary.b,
                                      theme_colors().text_secondary.a));
 
-        char status[128];
-        std::snprintf(status,
-                      sizeof(status),
-                      "Display: %dx%d | FPS: %.0f | GPU",
-                      static_cast<int>(io.DisplaySize.x),
-                      static_cast<int>(io.DisplaySize.y),
-                      io.Framerate);
+        const std::string status = std::format("Display: {}x{} | FPS: {:.0f} | GPU",
+                                               static_cast<int>(io.DisplaySize.x),
+                                               static_cast<int>(io.DisplaySize.y),
+                                               io.Framerate);
         ImVec2 status_pos = ImGui::GetCursorScreenPos();
-        ImVec2 status_sz  = ImGui::CalcTextSize(status);
+        ImVec2 status_sz  = ImGui::CalcTextSize(status.c_str());
         ImVec2 chip_min(status_pos.x - ui::tokens::SPACE_2, status_pos.y - 3.0f);
         ImVec2 chip_max(status_pos.x + status_sz.x + ui::tokens::SPACE_2,
                         status_pos.y + status_sz.y + 3.0f);
@@ -1104,7 +1103,7 @@ void ImGuiIntegration::draw_command_bar()
                                                   theme_colors().border_subtle.b,
                                                   0.55f)),
             ui::tokens::RADIUS_MD);
-        ImGui::TextUnformatted(status);
+        ImGui::TextUnformatted(status.c_str());
 
         ImGui::PopStyleColor();
         ImGui::PopFont();

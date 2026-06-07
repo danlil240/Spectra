@@ -9,7 +9,10 @@
 namespace spectra::adapters::ros2
 {
 
-void InspectorPanel::draw(bool* p_open, SceneManager& scene)
+void InspectorPanel::draw(bool*              p_open,
+                          SceneManager&      scene,
+                          const std::string& fixed_frame,
+                          size_t             display_count)
 {
 #ifdef SPECTRA_USE_IMGUI
     if (!ImGui::GetCurrentContext())
@@ -62,12 +65,17 @@ void InspectorPanel::draw(bool* p_open, SceneManager& scene)
     {
         ImGui::Separator();
         ImGui::TextDisabled("Select an entity in the scene viewport to inspect it.");
+        ImGui::Text("Fixed frame: %s", fixed_frame.empty() ? "(auto)" : fixed_frame.c_str());
+        ImGui::Text("Entities: %zu", scene.entity_count());
+        ImGui::Text("Displays enabled: %zu", display_count);
     }
 
     ImGui::End();
 #else
     (void)p_open;
     (void)scene;
+    (void)fixed_frame;
+    (void)display_count;
 #endif
 }
 

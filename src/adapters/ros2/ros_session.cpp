@@ -1536,4 +1536,81 @@ bool RosSessionManager::read_file(const std::string& path, std::string& content_
     return true;
 }
 
+namespace
+{
+
+bool same_subscription(const SubscriptionEntry& a, const SubscriptionEntry& b)
+{
+    return a.topic == b.topic && a.field_path == b.field_path && a.subplot_slot == b.subplot_slot;
+}
+
+bool same_expression(const ExpressionEntry& a, const ExpressionEntry& b)
+{
+    return a.expression == b.expression && a.subplot_slot == b.subplot_slot;
+}
+
+}   // namespace
+
+RosSession merge_sessions(const RosSession&   base,
+                          const RosSession&   incoming,
+                          SessionMergeOptions options)
+{
+    RosSession out = base;
+
+    if (options.subscriptions)
+    {
+        for (const auto& entry : incoming.subscriptions)
+        {
+            const bool exists = std::any_of(out.subscriptions.begin(),
+                                            out.subscriptions.end(),
+                                            [&](const SubscriptionEntry& existing)
+                                            { return same_subscription(existing, entry); });
+            if (!exists)
+                out.subscriptions.push_back(entry);
+        }
+    }
+
+    if (options.expressions)
+    {
+        for (const auto& entry : incoming.expressions)
+        {
+            const bool exists = std::any_of(out.expressions.begin(),
+                                            out.expressions.end(),
+                                            [&](const ExpressionEntry& existing)
+                                            { return same_expression(existing, entry); });
+            if (!exists)
+                out.expressions.push_back(entry);
+        }
+    }
+
+    if (options.expression_presets)
+    {
+        for (const auto& preset : incoming.expression_presets)
+        {
+            const bool exists = std::any_of(out.expression_presets.begin(),
+                                            out.expression_presets.end(),
+                                            [&](const ExpressionPresetEntry& existing)
+                                            { return existing.name == preset.name; });
+            if (!exists)
+                out.expression_presets.push_back(preset);
+        }
+    }
+
+    if (options.displays)
+    {
+        for (const auto& display : incoming.displays)
+        {
+            const bool exists = std::any_of(
+                out.displays.begin(),
+                out.displays.end(),
+                [&](const DisplaySessionEntry& existing)
+                { return existing.type_id == display.type_id && existing.topic == display.topic; });
+            if (!exists)
+                out.displays.push_back(display);
+        }
+    }
+
+    return out;
+}
+
 }   // namespace spectra::adapters::ros2

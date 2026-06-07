@@ -18,6 +18,10 @@
 #include <rclcpp/serialization.hpp>
 #include <rosidl_typesupport_introspection_cpp/message_introspection.hpp>
 
+#ifdef SPECTRA_ROS2_BAG
+    #include "bag_reader.hpp"
+#endif
+
 namespace spectra::adapters::ros2
 {
 
@@ -97,9 +101,166 @@ void TopicEchoPanel::clear()
 {
     std::lock_guard<std::mutex> lk(ring_mutex_);
     ring_.clear();
-    next_seq_         = 0;
-    selected_msg_idx_ = -1;
+    next_seq_           = 0;
+    selected_msg_idx_   = -1;
+    bag_manual_msg_idx_ = -1;
 }
+
+void TopicEchoPanel::set_bag_echo_mode(bool enabled)
+{
+    bag_echo_mode_       = enabled;
+    bag_playhead_follow_ = true;
+    bag_manual_msg_idx_  = -1;
+    if (enabled)
+        paused_.store(true, std::memory_order_release);
+    else
+        paused_.store(false, std::memory_order_release);
+}
+
+void TopicEchoPanel::set_bag_playhead(double bag_time_sec)
+{
+    bag_playhead_sec_ = bag_time_sec;
+}
+
+int TopicEchoPanel::find_nearest_bag_message_index(const std::vector<EchoMessage>& snap) const
+{
+    int    best_idx  = -1;
+    double best_dist = 1e300;
+    for (int i = 0; i < static_cast<int>(snap.size()); ++i)
+    {
+        const double bag_t = snap[static_cast<size_t>(i)].bag_time_sec;
+        if (bag_t < 0.0)
+            continue;
+        const double dist = std::abs(bag_t - bag_playhead_sec_);
+        if (dist < best_dist)
+        {
+            best_dist = dist;
+            best_idx  = i;
+        }
+    }
+    return best_idx;
+}
+
+#ifdef SPECTRA_ROS2_BAG
+void TopicEchoPanel::ingest_bag_message(const BagMessage&    msg,
+                                        MessageIntrospector& intr,
+                                        int64_t              bag_start_time_ns)
+{
+    if (!bag_echo_mode_ || msg.serialized_data.size() < 4)
+        return;
+    if (!topic_name_.empty() && msg.topic != topic_name_)
+        return;
+
+    if (type_name_.empty() || type_name_ != msg.type)
+    {
+        if (!msg.type.empty())
+            set_topic(msg.topic, msg.type);
+        else if (topic_name_.empty())
+            return;
+    }
+
+    auto schema = intr.introspect(type_name_);
+    if (!schema)
+        return;
+
+    const std::string type   = type_name_;
+    const size_t      slash1 = type.find('/');
+    if (slash1 == std::string::npos)
+        return;
+    const size_t slash2 = type.find('/', slash1 + 1);
+    if (slash2 == std::string::npos)
+        return;
+    const std::string pkg      = type.substr(0, slash1);
+    const std::string msg_name = type.substr(slash2 + 1);
+
+    const std::string lib_name = "lib" + pkg + "__rosidl_typesupport_introspection_cpp.so";
+    const std::string sym_name =
+        "rosidl_typesupport_introspection_cpp__get_message_type_support_handle__" + pkg + "__msg__"
+        + msg_name;
+
+    void* lib_handle = dlopen(lib_name.c_str(), RTLD_LAZY | RTLD_NOLOAD);
+    if (!lib_handle)
+        lib_handle = dlopen(lib_name.c_str(), RTLD_LAZY | RTLD_GLOBAL);
+    if (!lib_handle)
+        return;
+
+    using GetTSFunc = const rosidl_message_type_support_t* (*)();
+    auto get_ts     = reinterpret_cast<GetTSFunc>(dlsym(lib_handle, sym_name.c_str()));
+    if (!get_ts)
+        return;
+
+    const rosidl_message_type_support_t* ts = get_ts();
+    if (!ts)
+        return;
+
+    const auto* members =
+        reinterpret_cast<const rosidl_typesupport_introspection_cpp::MessageMembers*>(ts->data);
+    if (!members)
+        return;
+
+    const size_t cdr_body_size = msg.serialized_data.size() - 4;
+    if (cdr_body_size < members->size_of_)
+        return;
+
+    std::vector<uint8_t> buf(members->size_of_);
+    members->init_function(buf.data(), rosidl_runtime_cpp::MessageInitialization::ALL);
+
+    rclcpp::SerializedMessage serialized;
+    serialized.reserve(msg.serialized_data.size());
+    std::memcpy(serialized.get_rcl_serialized_message().buffer,
+                msg.serialized_data.data(),
+                msg.serialized_data.size());
+    serialized.get_rcl_serialized_message().buffer_length = msg.serialized_data.size();
+
+    rclcpp::SerializationBase serializer(ts);
+    try
+    {
+        serializer.deserialize_message(&serialized, buf.data());
+    }
+    catch (...)
+    {
+        members->fini_function(buf.data());
+        return;
+    }
+
+    int64_t ts_ns = msg.timestamp_ns;
+    {
+        const auto* hdr_fd = schema->find_field("header.stamp.sec");
+        if (hdr_fd)
+        {
+            FieldAccessor acc_sec  = intr.make_accessor(*schema, "header.stamp.sec");
+            FieldAccessor acc_nsec = intr.make_accessor(*schema, "header.stamp.nanosec");
+            if (acc_sec.valid() && acc_nsec.valid())
+            {
+                const int64_t sec  = acc_sec.extract_int64(buf.data());
+                const int64_t nsec = acc_nsec.extract_int64(buf.data());
+                ts_ns              = sec * 1'000'000'000LL + nsec;
+            }
+        }
+    }
+
+    const double bag_time_sec = static_cast<double>(msg.timestamp_ns - bag_start_time_ns) * 1e-9;
+
+    uint64_t seq = 0;
+    {
+        std::lock_guard<std::mutex> lk(ring_mutex_);
+        seq = next_seq_++;
+    }
+
+    EchoMessage echo  = build_echo_message(buf.data(), *schema, seq, ts_ns, wall_time_s_now());
+    echo.bag_time_sec = bag_time_sec;
+    members->fini_function(buf.data());
+
+    {
+        std::lock_guard<std::mutex> lk(ring_mutex_);
+        if (ring_.size() >= max_messages_)
+            ring_.erase(ring_.begin());
+        ring_.push_back(std::move(echo));
+    }
+
+    total_received_.fetch_add(1, std::memory_order_relaxed);
+}
+#endif   // SPECTRA_ROS2_BAG
 
 void TopicEchoPanel::set_max_messages(size_t n)
 {
@@ -748,13 +909,18 @@ void TopicEchoPanel::draw(bool* p_open)
 
     for (int i = static_cast<int>(snap.size()) - 1; i >= 0; --i)
     {
-        const auto& msg = snap[static_cast<size_t>(i)];
+        const auto&       msg   = snap[static_cast<size_t>(i)];
         const std::string label = std::format("#{}", msg.seq);
 
         const bool sel = (selected_msg_idx_ == i);
         if (ImGui::Selectable(label.c_str(), sel, 0, ImVec2(0, 0)))
         {
             selected_msg_idx_ = i;
+            if (bag_echo_mode_)
+            {
+                bag_manual_msg_idx_  = i;
+                bag_playhead_follow_ = false;
+            }
         }
         if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
         {
@@ -770,19 +936,42 @@ void TopicEchoPanel::draw(bool* p_open)
     // Detail pane.
     ImGui::BeginChild("##msg_detail", ImVec2(0, avail_h), 1);
 
-    // Resolve which message to display (default: latest = back of snap).
+    // Resolve which message to display.
     int display_idx = selected_msg_idx_;
-    if (display_idx < 0 || display_idx >= static_cast<int>(snap.size()))
+    if (bag_echo_mode_ && bag_playhead_follow_)
     {
-        display_idx = static_cast<int>(snap.size()) - 1;
+        const int nearest = find_nearest_bag_message_index(snap);
+        if (nearest >= 0)
+            display_idx = nearest;
     }
+    else if (bag_echo_mode_ && bag_manual_msg_idx_ >= 0)
+    {
+        display_idx = bag_manual_msg_idx_;
+    }
+    if (display_idx < 0 || display_idx >= static_cast<int>(snap.size()))
+        display_idx = static_cast<int>(snap.size()) - 1;
 
     EchoMessage display_msg = snap[static_cast<size_t>(display_idx)];
+
+    if (bag_echo_mode_)
+    {
+        ImGui::TextColored(kColorPaused, "Bag playhead  %.3f s", bag_playhead_sec_);
+        ImGui::SameLine();
+        if (ImGui::SmallButton(bag_playhead_follow_ ? "Follow##bag_echo" : "Pinned##bag_echo"))
+            bag_playhead_follow_ = !bag_playhead_follow_;
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
+            ImGui::SetTooltip("Follow playhead or pin a message from the list");
+    }
 
     // Header: seq + timestamp.
     ImGui::TextDisabled("msg #%llu  |  t = %s",
                         static_cast<unsigned long long>(display_msg.seq),
                         format_timestamp(display_msg.timestamp_ns).c_str());
+    if (display_msg.bag_time_sec >= 0.0)
+    {
+        ImGui::SameLine();
+        ImGui::TextDisabled("|  bag +%.3f s", display_msg.bag_time_sec);
+    }
     ImGui::Separator();
 
     draw_message_tree(display_msg);
@@ -916,13 +1105,12 @@ void TopicEchoPanel::draw_field_node(EchoFieldValue&                    fv,
         }
         case EchoFieldValue::Kind::ArrayHead:
         {
-            const std::string label =
-                std::format("{}  [{} items]", fv.display_name, fv.array_len);
-            const bool open = ImGui::TreeNodeEx(fv.path.c_str(),
-                                                ImGuiTreeNodeFlags_SpanFullWidth,
-                                                "%s",
-                                                label.c_str());
-            fv.is_open = open;
+            const std::string label = std::format("{}  [{} items]", fv.display_name, fv.array_len);
+            const bool        open  = ImGui::TreeNodeEx(fv.path.c_str(),
+                                                        ImGuiTreeNodeFlags_SpanFullWidth,
+                                                        "%s",
+                                                        label.c_str());
+            fv.is_open              = open;
             ++idx;
             const int parent_depth = fv.depth;
             if (open)

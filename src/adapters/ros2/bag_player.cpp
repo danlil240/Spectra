@@ -460,6 +460,12 @@ void BagPlayer::set_on_message(MessageCallback cb)
     on_message_ = std::move(cb);
 }
 
+void BagPlayer::set_on_raw_message(RawMessageCallback cb)
+{
+    std::lock_guard<std::mutex> lk(mutex_);
+    on_raw_message_ = std::move(cb);
+}
+
 void BagPlayer::set_max_inject_per_frame(uint32_t n)
 {
     std::lock_guard<std::mutex> lk(mutex_);
@@ -533,6 +539,9 @@ void BagPlayer::inject_message(const BagMessage& msg)
 
     if (!msg.valid())
         return;
+
+    if (on_raw_message_)
+        on_raw_message_(msg);
 
     // Lazy-build cached accessors for this topic's numeric fields.
     auto& tf = topic_fields_[msg.topic];

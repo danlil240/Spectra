@@ -8,7 +8,8 @@
 //
 // CLI:
 //   --topics TOPIC[:FIELD] ...   subscribe and plot on launch
-//   --bag    FILE                open a bag file on launch (Phase D)
+//   --bag    FILE                open a bag file on launch
+//   --session FILE               load a .spectra-ros-session preset at startup
 //   --layout default|plot-only|monitor
 //   --window-s SECONDS           auto-scroll time window (default 30)
 //   --node-name NAME             ROS2 node name (default spectra_ros)
@@ -54,6 +55,8 @@
 #include <filesystem>
 #include <memory>
 #include <string>
+
+#include <rclcpp/rclcpp.hpp>
 
 #if !defined(_WIN32)
     #include <unistd.h>
@@ -459,5 +462,9 @@ int main(int argc, char** argv)
     app.shutdown_runtime();
     shell.shutdown();
     g_shell = nullptr;
+
+    if (rclcpp::ok())
+        rclcpp::shutdown();
+
     return 0;
 }

@@ -178,8 +178,11 @@ void PointCloudDisplay::on_update(float)
 
     status_      = DisplayStatus::Ok;
     status_text_ = std::to_string(frame->point_count) + " pts";
-    if (frame->original_point_count > frame->point_count)
-        status_text_ += " (decimated)";
+    if (frames_decimated_ > 0)
+    {
+        status_text_ += " (dropped " + std::to_string(points_dropped_total_) + " pts in "
+                         + std::to_string(frames_decimated_) + " frames)";
+    }
 }
 
 void PointCloudDisplay::submit_renderables(SceneManager& scene)
@@ -293,6 +296,9 @@ void PointCloudDisplay::draw_inspector_ui()
         ImGui::Text("Latest points: %zu / %zu", frame->point_count, frame->original_point_count);
         ImGui::Text("Frame: %s", frame->frame_id.empty() ? "(none)" : frame->frame_id.c_str());
     }
+    ImGui::Text("Dropped points (total): %llu",
+                static_cast<unsigned long long>(points_dropped_total_));
+    ImGui::Text("Decimated frames: %llu", static_cast<unsigned long long>(frames_decimated_));
     ImGui::TextWrapped("Status: %s", status_text_.c_str());
 #endif
 }
@@ -347,7 +353,18 @@ void PointCloudDisplay::deserialize_config_blob(const std::string& blob)
 void PointCloudDisplay::ingest_pointcloud_frame(const PointCloudFrame& frame)
 {
     std::lock_guard<std::mutex> lock(frame_mutex_);
+    if (frame.original_point_count > frame.point_count)
+    {
+        points_dropped_total_ += frame.original_point_count - frame.point_count;
+        ++frames_decimated_;
+    }
     latest_frame_ = frame;
+}
+
+void PointCloudDisplay::clear_playback_frame()
+{
+    std::lock_guard<std::mutex> lock(frame_mutex_);
+    latest_frame_.reset();
 }
 
 std::optional<PointCloudFrame> PointCloudDisplay::latest_frame() const

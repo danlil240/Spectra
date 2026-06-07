@@ -382,3 +382,30 @@ TEST(ImageDisplay, TopicSetViaConfig)
         "topic=/webcam/image;mode=0;panel_visible=1;preview_max_dim=48;use_message_stamp=0");
     EXPECT_EQ(display.topic(), "/webcam/image");
 }
+
+TEST(ImageDisplay, EncodingOverrideRoundTripInConfigBlob)
+{
+    ImageDisplay display;
+    display.deserialize_config_blob(
+        "topic=/cam;mode=0;encoding_override=4;panel_visible=1;preview_max_dim=48;"
+        "use_message_stamp=1");
+    const auto blob = display.serialize_config_blob();
+    EXPECT_NE(blob.find("encoding_override=4"), std::string::npos);
+}
+
+TEST(ImageDisplay, EncodingOverrideReDecodesCachedRgbWithoutResubscribe)
+{
+    ImageDisplay   display;
+    DisplayContext context;
+    context.fixed_frame = "world";
+    display.on_enable(context);
+    display.deserialize_config_blob(
+        "topic=/image;mode=0;encoding_override=0;panel_visible=1;preview_max_dim=16;"
+        "use_message_stamp=1");
+
+    auto frame = adapt_image_message(make_rgb_image(), "/image", 16);
+    ASSERT_TRUE(frame.has_value());
+    display.ingest_image_frame(*frame);
+    ASSERT_TRUE(display.latest_frame().has_value());
+    EXPECT_EQ(display.latest_frame()->encoding, "rgb8");
+}

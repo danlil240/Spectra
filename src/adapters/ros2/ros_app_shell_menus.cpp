@@ -195,6 +195,8 @@ void RosAppShell::draw_menu_bar()
         }
         if (ImGui::MenuItem("Load Session..."))
             show_session_load_dialog_ = true;
+        if (ImGui::MenuItem("Import Session (merge)..."))
+            show_session_merge_dialog_ = true;
 
         ImGui::Separator();
 

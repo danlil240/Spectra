@@ -42,6 +42,7 @@ class PathDisplay : public DisplayPlugin
     void        deserialize_config_blob(const std::string& blob) override;
 
     void                     ingest_path_frame(const PathFrame& frame);
+    void                     clear_playback_frame();
     std::optional<PathFrame> latest_frame() const;
 
    private:

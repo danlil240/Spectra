@@ -14,7 +14,6 @@ Before planning any task, read these files to understand project state:
 
 - `CLAUDE.md` — architecture overview, build system, conventions
 - `CODEBASE_MAP.md` — module map and ownership
-- `plans/ROADMAP.md` — current phase and priorities
 - `plans/QA_results.md` — open bugs that may intersect the request
 
 ## Approach

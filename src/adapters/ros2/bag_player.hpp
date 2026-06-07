@@ -271,10 +271,13 @@ class BagPlayer
     // Called each time a message is injected (topic, bag_time_sec, value).
     using MessageCallback =
         std::function<void(const std::string& topic, double bag_time_sec, double value)>;
+    // Called once per bag message before field extraction (echo / log panels).
+    using RawMessageCallback = std::function<void(const BagMessage&)>;
 
     void set_on_state_change(StateCallback cb);
     void set_on_playhead(PlayheadCallback cb);
     void set_on_message(MessageCallback cb);
+    void set_on_raw_message(RawMessageCallback cb);
 
     // ------------------------------------------------------------------
     // Configuration accessors
@@ -371,8 +374,9 @@ class BagPlayer
 
     // Callbacks.
     StateCallback    on_state_change_;
-    PlayheadCallback on_playhead_;
-    MessageCallback  on_message_;
+    PlayheadCallback    on_playhead_;
+    MessageCallback     on_message_;
+    RawMessageCallback  on_raw_message_;
 
     // Topic filter applied to the reader.
     std::vector<std::string> topic_filter_;

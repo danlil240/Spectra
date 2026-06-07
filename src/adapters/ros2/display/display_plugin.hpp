@@ -28,6 +28,9 @@ struct DisplayContext
     std::string     fixed_frame;
     TfBuffer*       tf_buffer{nullptr};
     TopicDiscovery* topic_discovery{nullptr};
+    bool            bag_mode{false};
+    double          bag_playhead_sec{0.0};
+    uint64_t        bag_lookup_time_ns{0};
 #ifdef SPECTRA_USE_ROS2
     rclcpp::Node::SharedPtr node;
 #endif

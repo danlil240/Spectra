@@ -376,7 +376,40 @@ jobs:
             glslang-tools \
             nlohmann-json3-dev \
             libtinyxml2-dev \
-            python3-pillow
+            python3-pillow \
+            xvfb \
+            mesa-vulkan-drivers \
+            vulkan-tools
+
+      - name: Pin Vulkan ICD to lavapipe
+        run: |
+          set -e
+          ICD_DIRS=(
+            /usr/share/vulkan/icd.d
+            /etc/vulkan/icd.d
+            /usr/lib/x86_64-linux-gnu/vulkan/icd.d
+          )
+          LVP_ICD=""
+          for d in "${ICD_DIRS[@]}"; do
+            [ -d "$d" ] || continue
+            for f in "$d"/lvp_icd*.json "$d"/*lavapipe*.json; do
+              [ -f "$f" ] || continue
+              LVP_ICD="$f"
+              break 2
+            done
+          done
+          if [ -z "$LVP_ICD" ]; then
+            F_MATCH="$(grep -rl 'libvulkan_lvp\.so' /usr/share/vulkan/icd.d 2>/dev/null | head -n1 || true)"
+            [ -n "$F_MATCH" ] && LVP_ICD="$F_MATCH"
+          fi
+          if [ -n "$LVP_ICD" ]; then
+            echo "Using lavapipe ICD: $LVP_ICD"
+            echo "VK_ICD_FILENAMES=$LVP_ICD" >> "$GITHUB_ENV"
+            echo "VK_DRIVER_FILES=$LVP_ICD" >> "$GITHUB_ENV"
+          else
+            echo "::error::lavapipe ICD not found"
+            exit 1
+          fi
 
       - name: Configure CMake with ROS2
         run: |
@@ -388,6 +421,8 @@ jobs:
             -DSPECTRA_USE_ROS2=ON \
             -DSPECTRA_ROS2_BAG=ON \
             -DSPECTRA_BUILD_TESTS=ON \
+            -DSPECTRA_BUILD_QA_AGENT=ON \
+            -DSPECTRA_BUILD_BENCHMARKS=ON \
             -DSPECTRA_BUILD_EXAMPLES=OFF \
             -DSPECTRA_BUILD_GOLDEN_TESTS=OFF
 
@@ -399,3 +434,78 @@ jobs:
           . /opt/ros/humble/setup.sh
           # Serial: ROS2 test binaries share one DDS domain; parallel ctest races discovery.
           ctest --test-dir build -L ros2 -LE gpu --output-on-failure -j1
+
+      - name: Headless bag CSV export (Phase B9)
+        run: |
+          . /opt/ros/humble/setup.sh
+          python3 scripts/generate_ros_reference_bags.py
+          ./build/spectra-ros-analyze \
+            --bag tests/data/ros_bags/imu_snippet \
+            --fields /imu/data.linear_acceleration.z \
+            --csv /tmp/imu_z.csv
+          test "$(wc -l < /tmp/imu_z.csv)" -eq 61
+
+      - name: ROS 3D perf smoke (Phase C4)
+        run: |
+          . /opt/ros/humble/setup.sh
+          ./build/tests/bench_ros3d \
+            --benchmark_filter='BM_PointCloud(Display|Adapter).*500000' \
+            --benchmark_min_time=0.05
+
+      - name: ROS QA nav spatiotemporal (Phase C7)
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+          ROS_LOG_DIR: /tmp/ros_logs
+          ROS_HOME: /tmp/spectra_ros_home
+        run: |
+          . /opt/ros/humble/setup.sh
+          mkdir -p "$ROS_LOG_DIR" "$ROS_HOME"
+          export XDG_RUNTIME_DIR="/tmp/runtime-ros-qa-nav"
+          mkdir -p "$XDG_RUNTIME_DIR"
+          python3 scripts/generate_ros_reference_bags.py
+          xvfb-run -a ./build/tests/spectra_ros_qa_agent \
+            --scenario nav_spatiotemporal \
+            --seed 42 \
+            --duration 90 \
+            --output-dir /tmp/spectra_ros_qa_nav
+
+      - name: ROS QA first_plot benchmark (Phase A C1)
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+          ROS_LOG_DIR: /tmp/ros_logs
+          ROS_HOME: /tmp/spectra_ros_home
+        run: |
+          . /opt/ros/humble/setup.sh
+          mkdir -p "$ROS_LOG_DIR" "$ROS_HOME"
+          export XDG_RUNTIME_DIR="/tmp/runtime-ros-qa-first-plot"
+          mkdir -p "$XDG_RUNTIME_DIR"
+          xvfb-run -a ./build/tests/spectra_ros_qa_agent \
+            --scenario first_plot \
+            --seed 42 \
+            --duration 60 \
+            --output-dir /tmp/spectra_ros_qa_first_plot
+
+      - name: ROS QA design review (spectra-ros)
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+          ROS_LOG_DIR: /tmp/ros_logs
+          ROS_HOME: /tmp/spectra_ros_home
+        run: |
+          . /opt/ros/humble/setup.sh
+          mkdir -p "$ROS_LOG_DIR" "$ROS_HOME"
+          export XDG_RUNTIME_DIR="/tmp/runtime-ros-qa"
+          mkdir -p "$XDG_RUNTIME_DIR"
+          xvfb-run -a ./build/tests/spectra_ros_qa_agent \
+            --design-review \
+            --scenario design_review \
+            --seed 42 \
+            --duration 120 \
+            --output-dir /tmp/spectra_ros_qa_ci
+
+      - name: Upload ROS QA artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ros-qa-design-review
+          path: /tmp/spectra_ros_qa_ci/
+          retention-days: 7

@@ -220,6 +220,12 @@ void PathDisplay::ingest_path_frame(const PathFrame& frame)
     latest_frame_ = frame;
 }
 
+void PathDisplay::clear_playback_frame()
+{
+    std::lock_guard<std::mutex> lock(frame_mutex_);
+    latest_frame_.reset();
+}
+
 std::optional<PathFrame> PathDisplay::latest_frame() const
 {
     std::lock_guard<std::mutex> lock(frame_mutex_);

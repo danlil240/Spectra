@@ -42,6 +42,7 @@ class PoseDisplay : public DisplayPlugin
     void        deserialize_config_blob(const std::string& blob) override;
 
     void                     ingest_pose_frame(const PoseFrame& frame);
+    void                     clear_playback_frame();
     std::optional<PoseFrame> latest_frame() const;
 
    private:

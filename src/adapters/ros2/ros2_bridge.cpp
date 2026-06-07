@@ -126,9 +126,9 @@ void Ros2Bridge::shutdown()
     executor_.reset();
     node_.reset();
 
-    if (rclcpp::ok())
-        rclcpp::shutdown();
-
+    // Do not call rclcpp::shutdown() here — unit tests tear down one bridge per
+    // case while keeping a shared process-wide rclcpp context (RclcppEnvironment).
+    // The spectra-ros main() calls rclcpp::shutdown() after shell teardown.
     set_state(BridgeState::Stopped);
 }
 

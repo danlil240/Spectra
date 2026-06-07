@@ -137,12 +137,27 @@ inline bool decode_image_pixel(const sensor_msgs::msg::Image& message,
 
 }   // namespace image_detail
 
+std::optional<ImageFrame> adapt_image_message_with_encoding(const sensor_msgs::msg::Image& message,
+                                                            const std::string& topic,
+                                                            uint32_t           preview_max_dim,
+                                                            bool               retain_full_image,
+                                                            std::string        encoding_override);
+
 inline std::optional<ImageFrame> adapt_image_message(const sensor_msgs::msg::Image& message,
                                                      const std::string&             topic,
                                                      uint32_t preview_max_dim   = 48,
                                                      bool     retain_full_image = false)
 {
-    if (message.width == 0 || message.height == 0 || message.step == 0 || message.data.empty())
+    if (message.width == 0 || message.height == 0 || message.data.empty())
+        return std::nullopt;
+
+    if (message.encoding == "jpeg" || message.encoding == "png")
+    {
+        return adapt_image_message_with_encoding(
+            message, topic, preview_max_dim, retain_full_image, message.encoding);
+    }
+
+    if (message.step == 0)
         return std::nullopt;
 
     ImageFrame frame;
@@ -157,7 +172,8 @@ inline std::optional<ImageFrame> adapt_image_message(const sensor_msgs::msg::Ima
 
     const bool supported     = message.encoding == "rgb8" || message.encoding == "bgr8"
                                || message.encoding == "rgba8" || message.encoding == "mono8"
-                               || message.encoding == "16UC1";
+                               || message.encoding == "16UC1" || message.encoding == "jpeg"
+                               || message.encoding == "png";
     frame.supported_encoding = supported;
     if (!supported)
     {

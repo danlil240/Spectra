@@ -620,6 +620,7 @@ if(SPECTRA_USE_ROS2)
         src/adapters/ros2/display/pose_display.cpp
         src/adapters/ros2/display/robot_model_display.cpp
         src/adapters/ros2/display/occupancy_grid_display.cpp
+        src/adapters/ros2/messages/image_adapter.cpp
         src/adapters/ros2/resources/ros_package_resolver.cpp
         src/adapters/ros2/tools/measure_tool.cpp
         src/adapters/ros2/scene/scene_manager.cpp
@@ -642,10 +643,14 @@ if(SPECTRA_USE_ROS2)
         src/adapters/ros2/ros_app_shell_panel_wiring.cpp
         src/adapters/ros2/ros_app_shell_menus.cpp
         src/adapters/ros2/ros_app_shell_drop_targets.cpp
+        src/adapters/ros2/ros_app_shell_bag_clock.cpp
         src/adapters/ros2/service_caller.cpp
         src/adapters/ros2/ui/service_caller_panel.cpp
         src/adapters/ros2/ui/bag_info_panel.cpp
         src/adapters/ros2/bag_player.cpp
+        src/adapters/ros2/bag_field_spec.cpp
+        src/adapters/ros2/bag_display_sync.cpp
+        src/adapters/ros2/tools/ros_bag_analyze.cpp
         src/adapters/ros2/ui/bag_playback_panel.cpp
         src/adapters/ros2/ui/param_editor_panel.cpp
         src/adapters/ros2/ros_log_viewer.cpp
@@ -721,6 +726,19 @@ if(SPECTRA_USE_ROS2)
             ${CMAKE_CURRENT_SOURCE_DIR}/src
             ${CMAKE_CURRENT_BINARY_DIR}/generated
         )
+    endif()
+
+    if(SPECTRA_ROS2_BAG AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/adapters/ros2/tools/ros_bag_analyze_main.cpp)
+        add_executable(spectra-ros-analyze
+            src/adapters/ros2/tools/ros_bag_analyze_main.cpp
+        )
+        target_link_libraries(spectra-ros-analyze PRIVATE spectra_ros2_adapter)
+        target_compile_features(spectra-ros-analyze PRIVATE cxx_std_20)
+        target_include_directories(spectra-ros-analyze PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/adapters/ros2
+            ${CMAKE_CURRENT_SOURCE_DIR}/src
+        )
+        install(TARGETS spectra-ros-analyze RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
     endif()
 
     message(STATUS "ROS2 adapter enabled (rosbag2: ${SPECTRA_ROS2_BAG})")
@@ -1024,6 +1042,18 @@ if(TARGET spectra_ros2_adapter)
 endif()
 if(TARGET spectra-ros)
     install(TARGETS spectra-ros RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+    if(EXISTS ${CMAKE_SOURCE_DIR}/sessions/presets)
+        install(DIRECTORY sessions/presets/
+            DESTINATION ${CMAKE_INSTALL_DATADIR}/spectra/ros/sessions/presets
+            FILES_MATCHING PATTERN "*.spectra-ros-session"
+        )
+    endif()
+    if(EXISTS ${CMAKE_SOURCE_DIR}/examples/ros2_launch)
+        install(DIRECTORY examples/ros2_launch/
+            DESTINATION ${CMAKE_INSTALL_DATADIR}/spectra/ros/launch
+            FILES_MATCHING PATTERN "*.launch.py"
+        )
+    endif()
 endif()
 
 # PX4 adapter deployment (only when built with SPECTRA_USE_PX4=ON)

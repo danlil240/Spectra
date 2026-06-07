@@ -16,6 +16,34 @@ namespace spectra::adapters::ros2
 
 namespace
 {
+const UrdfJoint* find_parent_joint(const RobotDescription& robot, const std::string& link_name)
+{
+    for (const auto& joint : robot.joints)
+    {
+        if (joint.child_link == link_name)
+            return &joint;
+    }
+    return nullptr;
+}
+
+std::string joint_type_name(UrdfJointType type)
+{
+    switch (type)
+    {
+        case UrdfJointType::Revolute:
+            return "revolute";
+        case UrdfJointType::Continuous:
+            return "continuous";
+        case UrdfJointType::Prismatic:
+            return "prismatic";
+        case UrdfJointType::Fixed:
+            return "fixed";
+        case UrdfJointType::Unknown:
+            return "unknown";
+    }
+    return "unknown";
+}
+
 std::string geometry_name(UrdfGeometryType type)
 {
     switch (type)
@@ -155,6 +183,21 @@ void RobotModelDisplay::submit_renderables(SceneManager& scene)
                 entity.properties.push_back({"link", link.name});
                 entity.properties.push_back({"geometry", geometry_name(collision.geometry.type)});
                 entity.properties.push_back({"parameter", parameter_name_});
+                if (const UrdfJoint* joint = find_parent_joint(robot_, link.name))
+                {
+                    entity.properties.push_back({"joint", joint->name});
+                    entity.properties.push_back({"parent_link", joint->parent_link});
+                    entity.properties.push_back({"joint_type", joint_type_name(joint->type)});
+                    double joint_position = 0.0;
+                    {
+                        std::lock_guard<std::mutex> lock(joint_mutex_);
+                        const auto                  it = joint_positions_.find(joint->name);
+                        if (it != joint_positions_.end())
+                            joint_position = it->second;
+                    }
+                    entity.properties.push_back(
+                        {"joint_position", std::to_string(joint_position)});
+                }
 
                 // Compose FK link transform with collision origin.
                 spectra::Transform link_tf = link_transform(link.name);

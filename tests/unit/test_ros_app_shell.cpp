@@ -278,6 +278,27 @@ TEST(ParseArgs, BagFile)
     EXPECT_EQ(cfg.bag_file, "/data/my.db3");
 }
 
+TEST(ParseArgs, SessionFile)
+{
+    std::vector<std::string> args = {
+        "spectra-ros", "--session", "sessions/presets/tuning.spectra-ros-session"};
+    auto        ptrs = make_argv(args);
+    std::string err;
+    auto        cfg = parse_args(static_cast<int>(ptrs.size()), ptrs.data(), err);
+    EXPECT_TRUE(err.empty());
+    EXPECT_EQ(cfg.session_file, "sessions/presets/tuning.spectra-ros-session");
+}
+
+TEST(ParseArgs, SessionShortFlag)
+{
+    std::vector<std::string> args = {"spectra-ros", "-s", "/tmp/my.spectra-ros-session"};
+    auto                     ptrs = make_argv(args);
+    std::string              err;
+    auto                     cfg = parse_args(static_cast<int>(ptrs.size()), ptrs.data(), err);
+    EXPECT_TRUE(err.empty());
+    EXPECT_EQ(cfg.session_file, "/tmp/my.spectra-ros-session");
+}
+
 TEST(ParseArgs, BagShortFlag)
 {
     std::vector<std::string> args = {"spectra-ros", "-b", "recording.bag"};

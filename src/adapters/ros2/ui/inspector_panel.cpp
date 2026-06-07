@@ -30,6 +30,20 @@ void InspectorPanel::draw(bool*              p_open,
             scene.clear_selection();
 
         ImGui::Separator();
+        if (entity->type.rfind("robot_", 0) == 0)
+        {
+            ImGui::TextUnformatted("Robot link");
+            for (const auto& property : entity->properties)
+            {
+                if (property.key == "link" || property.key == "joint"
+                    || property.key == "joint_type" || property.key == "joint_position"
+                    || property.key == "parent_link" || property.key == "frame")
+                {
+                    ImGui::Text("%s: %s", property.key.c_str(), property.value.c_str());
+                }
+            }
+            ImGui::Separator();
+        }
         ImGui::Text("Selected: %s",
                     entity->label.empty() ? entity->type.c_str() : entity->label.c_str());
         ImGui::Text("Type: %s", entity->type.c_str());

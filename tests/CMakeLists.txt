@@ -534,6 +534,55 @@ if(SPECTRA_USE_ROS2)
         set_tests_properties(unit_test_topic_discovery PROPERTIES LABELS "ros2")
     endif()
 
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_ros_session_merge.cpp)
+        add_executable(unit_test_ros_session_merge
+            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_ros_session_merge.cpp
+        )
+        target_link_libraries(unit_test_ros_session_merge PRIVATE
+            spectra_ros2_adapter
+            GTest::gtest_main
+        )
+        target_compile_features(unit_test_ros_session_merge PRIVATE cxx_std_20)
+        target_include_directories(unit_test_ros_session_merge PRIVATE
+            ${CMAKE_SOURCE_DIR}/src/adapters/ros2
+        )
+        add_test(NAME unit_test_ros_session_merge COMMAND unit_test_ros_session_merge)
+        set_tests_properties(unit_test_ros_session_merge PROPERTIES LABELS "ros2")
+    endif()
+
+    if(SPECTRA_ROS2_BAG AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_ros_bag_analyze.cpp)
+        add_executable(unit_test_ros_bag_analyze
+            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_ros_bag_analyze.cpp
+        )
+        target_link_libraries(unit_test_ros_bag_analyze PRIVATE
+            spectra_ros2_adapter
+            GTest::gtest_main
+        )
+        target_compile_features(unit_test_ros_bag_analyze PRIVATE cxx_std_20)
+        target_include_directories(unit_test_ros_bag_analyze PRIVATE
+            ${CMAKE_SOURCE_DIR}/src/adapters/ros2
+        )
+        target_compile_definitions(unit_test_ros_bag_analyze PRIVATE SPECTRA_ROS2_BAG)
+        add_test(NAME unit_test_ros_bag_analyze COMMAND unit_test_ros_bag_analyze)
+        set_tests_properties(unit_test_ros_bag_analyze PROPERTIES LABELS "ros2")
+    endif()
+
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_ros_time_clock.cpp)
+        add_executable(unit_test_ros_time_clock
+            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_ros_time_clock.cpp
+        )
+        target_link_libraries(unit_test_ros_time_clock PRIVATE
+            spectra_ros2_adapter
+            GTest::gtest_main
+        )
+        target_compile_features(unit_test_ros_time_clock PRIVATE cxx_std_20)
+        target_include_directories(unit_test_ros_time_clock PRIVATE
+            ${CMAKE_SOURCE_DIR}/src/adapters/ros2
+        )
+        add_test(NAME unit_test_ros_time_clock COMMAND unit_test_ros_time_clock)
+        set_tests_properties(unit_test_ros_time_clock PROPERTIES LABELS "ros2")
+    endif()
+
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_message_introspector.cpp)
         add_executable(unit_test_message_introspector
             ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_message_introspector.cpp
@@ -1469,6 +1518,31 @@ if(SPECTRA_USE_ROS2)
         add_test(NAME unit_test_diagnostics_panel COMMAND unit_test_diagnostics_panel)
         set_tests_properties(unit_test_diagnostics_panel PROPERTIES LABELS "ros2")
     endif()
+
+    # ROS2 runtime tests share the process-global DDS graph and flake under parallel ctest.
+    set(SPECTRA_ROS2_DDS_RUNTIME_TESTS
+        unit_test_ros2_bridge
+        unit_test_topic_discovery
+        unit_test_message_introspector
+        unit_test_generic_subscriber
+        unit_test_topic_echo_panel
+        unit_test_ros_plot_manager
+        unit_test_phase_a_integration
+        unit_test_bag_reader
+        unit_test_bag_recorder
+        unit_test_node_graph_panel
+        unit_test_subplot_manager
+        unit_test_phase_c_integration
+        unit_test_ros_clipboard_export
+        unit_test_bag_player
+        unit_test_discovery_introspection
+        unit_test_log_viewer
+    )
+    foreach(_ros2_runtime_test IN LISTS SPECTRA_ROS2_DDS_RUNTIME_TESTS)
+        if(TEST ${_ros2_runtime_test})
+            set_tests_properties(${_ros2_runtime_test} PROPERTIES RESOURCE_LOCK ros2_dds)
+        endif()
+    endforeach()
 
 endif()
 

@@ -1,5 +1,7 @@
 #include "ros_app_shell.hpp"
 
+#include <spectra/logger.hpp>
+
 #include "ros_app_shell_drop_targets.hpp"
 
 #include <algorithm>
@@ -127,9 +129,12 @@ RosAppConfig parse_args(int argc, char** argv, std::string& error_out)
 
         if (arg == "--help" || arg == "-h")
         {
-            error_out = "Usage: spectra-ros [--topics TOPIC[:FIELD] ...] [--bag BAG_FILE] "
-                        "[--layout default|plot-only|monitor|rviz|rviz-plot] [--window-s SECONDS] "
-                        "[--node-name NAME] [--rows N] [--cols N]\n";
+            error_out =
+                "Usage: spectra-ros [--topics TOPIC[:FIELD] ...] [--bag BAG_FILE] "
+                "[--session FILE.spectra-ros-session] "
+                "[--layout default|plot-only|monitor|rviz|rviz-plot] [--window-s SECONDS] "
+                "[--rate R] [--loop true|false] "
+                "[--node-name NAME] [--rows N] [--cols N]\n";
             return cfg;
         }
 
@@ -146,6 +151,33 @@ RosAppConfig parse_args(int argc, char** argv, std::string& error_out)
         if ((arg == "--bag" || arg == "-b") && i + 1 < argc)
         {
             cfg.bag_file = argv[++i];
+            continue;
+        }
+
+        if (arg == "--rate" && i + 1 < argc)
+        {
+            try
+            {
+                cfg.bag_rate = std::stod(argv[++i]);
+            }
+            catch (...)
+            {
+                error_out = "Invalid --rate value";
+                return cfg;
+            }
+            continue;
+        }
+
+        if (arg == "--loop" && i + 1 < argc)
+        {
+            const std::string v = argv[++i];
+            cfg.bag_loop        = (v == "1" || v == "true" || v == "TRUE" || v == "yes");
+            continue;
+        }
+
+        if ((arg == "--session" || arg == "-s") && i + 1 < argc)
+        {
+            cfg.session_file = argv[++i];
             continue;
         }
 
@@ -276,7 +308,8 @@ bool RosAppShell::init(int argc, char** argv)
     bag_info_ = std::make_unique<BagInfoPanel>();
     bag_info_->set_title("Bag Info");
 
-    bag_player_ = std::make_unique<BagPlayer>(*plot_mgr_, *intr_);
+    bag_player_        = std::make_unique<BagPlayer>(*plot_mgr_, *intr_);
+    bag_display_sync_  = std::make_unique<BagDisplaySync>();
     bag_player_->set_subplot_manager(subplot_mgr_.get());
     bag_playback_panel_ = std::make_unique<BagPlaybackPanel>(bag_player_.get());
     bag_playback_panel_->set_title("Bag Playback");
@@ -332,7 +365,7 @@ bool RosAppShell::init(int argc, char** argv)
         {
             if (bag_player_ && bag_player_->open(path))
             {
-                show_bag_playback_ = true;
+                on_bag_opened(path);
 
                 // Auto-create subplots for the first few bag topics so the
                 // user sees data immediately when pressing play.
@@ -409,6 +442,7 @@ bool RosAppShell::init(int argc, char** argv)
         });
 
     wire_panel_callbacks();
+    wire_bag_time_clock();
     setup_layout_visibility();
     seed_default_rviz_displays_if_needed();
 
@@ -422,7 +456,19 @@ bool RosAppShell::init(int argc, char** argv)
         bag_info_->open_bag(cfg_.bag_file);
         show_bag_info_ = true;
         if (bag_player_ && bag_player_->open(cfg_.bag_file))
-            show_bag_playback_ = true;
+            on_bag_opened(cfg_.bag_file);
+    }
+
+    if (!cfg_.session_file.empty())
+    {
+        const LoadResult lr = load_session(cfg_.session_file);
+        if (!lr.ok)
+        {
+            SPECTRA_LOG_WARN("ros",
+                             "failed to load session '{}': {}",
+                             cfg_.session_file,
+                             lr.error);
+        }
     }
 
     return true;
@@ -600,10 +646,25 @@ void RosAppShell::poll()
 
     if (subplot_mgr_)
     {
-        // Establish a shared time origin on first poll so all subplots sync.
-        if (!subplot_mgr_->has_shared_time_origin())
-            subplot_mgr_->set_shared_time_origin(wall_now_s);
-        subplot_mgr_->set_now(wall_now_s);
+        if (bag_player_ && bag_player_->is_open())
+        {
+            if (!workspace_state_.clock.is_bag_mode())
+                on_bag_opened(bag_player_->bag_path());
+
+            const double ph = bag_player_->playhead_sec();
+            workspace_state_.clock.update_bag_transport(ph,
+                                                        bag_player_->is_playing(),
+                                                        bag_player_->rate());
+            subplot_mgr_->set_now(ph);
+            if (topic_echo_)
+                topic_echo_->set_bag_playhead(ph);
+        }
+        else
+        {
+            if (!subplot_mgr_->has_shared_time_origin())
+                subplot_mgr_->set_shared_time_origin(wall_now_s);
+            subplot_mgr_->set_now(wall_now_s);
+        }
     }
 
     if (plot_mgr_)
@@ -746,6 +807,9 @@ void RosAppShell::draw()
         draw_service_caller(&show_service_caller_);
     }
 
+    if (bag_player_ && bag_player_->is_open())
+        draw_unified_transport_bar();
+
     if (drag_drop_)
     {
         FieldDragPayload p;
@@ -779,6 +843,7 @@ void RosAppShell::draw()
 
     draw_session_save_dialog();
     draw_session_load_dialog();
+    draw_session_merge_dialog();
 
     if (session_status_timer_ > 0.0f && !session_status_msg_.empty())
     {
@@ -2587,9 +2652,32 @@ void RosAppShell::refresh_scene_displays(float dt)
     context.fixed_frame     = workspace_state_.fixed_frame;
     context.tf_buffer       = tf_tree_panel_ ? &tf_tree_panel_->buffer() : nullptr;
     context.topic_discovery = discovery_.get();
+    context.bag_mode        = workspace_state_.clock.is_bag_mode();
+    context.bag_playhead_sec = workspace_state_.clock.playhead_sec;
 #ifdef SPECTRA_USE_ROS2
     context.node = bridge_ ? bridge_->node() : nullptr;
 #endif
+
+    if (bag_display_sync_ && bag_display_sync_->is_open() && bag_player_
+        && bag_player_->is_open() && tf_tree_panel_)
+    {
+        const int64_t start_ns = bag_player_->metadata().start_time_ns;
+        context.bag_lookup_time_ns =
+            start_ns + static_cast<int64_t>(workspace_state_.clock.playhead_sec * 1e9);
+
+        std::vector<DisplayPlugin*> display_ptrs;
+        display_ptrs.reserve(displays_.size());
+        for (auto& display : displays_)
+        {
+            if (display)
+                display_ptrs.push_back(display.get());
+        }
+
+        bag_display_sync_->sync_to_playhead(workspace_state_.clock.playhead_sec,
+                                             start_ns,
+                                             tf_tree_panel_->buffer(),
+                                             display_ptrs);
+    }
 
     std::unordered_map<DisplayPlugin*, bool> next_activation_state;
     next_activation_state.reserve(displays_.size());
@@ -2994,8 +3082,57 @@ RosSession RosAppShell::capture_session() const
     return s;
 }
 
+void RosAppShell::apply_subscription_entry(const SubscriptionEntry& e)
+{
+    if (e.topic.empty())
+        return;
+
+    if (e.subplot_slot > 0 && subplot_mgr_)
+    {
+        const auto h = subplot_mgr_->add_plot(e.subplot_slot, e.topic, e.field_path, e.type_name);
+        if (!h.valid())
+            return;
+
+        const bool has_axis_restore = (e.axis_mode != AxisMode::TimeSeries)
+                                      || !e.x_field_path.empty() || !e.y_field_path.empty();
+        if (has_axis_restore)
+        {
+            const std::string restored_x =
+                (e.axis_mode == AxisMode::CustomAxes && !e.x_field_path.empty())
+                    ? e.x_field_path
+                    : std::string(AXIS_SOURCE_TIME);
+            const std::string restored_y = e.y_field_path.empty() ? e.field_path : e.y_field_path;
+
+            std::string error;
+            if (!subplot_mgr_->configure_slot_axes(e.subplot_slot,
+                                                   e.axis_mode,
+                                                   restored_x,
+                                                   restored_y,
+                                                   &error))
+            {
+                session_status_msg_ =
+                    "Plot restore fallback for slot " + std::to_string(e.subplot_slot) + ": "
+                    + error;
+                session_status_timer_ = 4.0f;
+            }
+        }
+
+        if (e.scroll_paused)
+            subplot_mgr_->pause_scroll(e.subplot_slot);
+    }
+    else if (plot_mgr_)
+    {
+        const auto h = plot_mgr_->add_plot(e.topic, e.field_path, e.type_name);
+        if (h.valid() && e.scroll_paused)
+            plot_mgr_->pause_scroll(h.id);
+    }
+}
+
 void RosAppShell::apply_session(const RosSession& session)
 {
+    if (!session.layout.empty())
+        cfg_.layout = parse_layout_mode(session.layout);
+
     if (session.time_window_s > 0.0)
     {
         if (subplot_mgr_)
@@ -3098,50 +3235,7 @@ void RosAppShell::apply_session(const RosSession& session)
     scene_manager_.clear();
 
     for (const auto& e : session.subscriptions)
-    {
-        if (e.topic.empty())
-            continue;
-        if (e.subplot_slot > 0 && subplot_mgr_)
-        {
-            const auto h =
-                subplot_mgr_->add_plot(e.subplot_slot, e.topic, e.field_path, e.type_name);
-            if (!h.valid())
-                continue;
-
-            const bool has_axis_restore = (e.axis_mode != AxisMode::TimeSeries)
-                                          || !e.x_field_path.empty() || !e.y_field_path.empty();
-            if (has_axis_restore)
-            {
-                const std::string restored_x =
-                    (e.axis_mode == AxisMode::CustomAxes && !e.x_field_path.empty())
-                        ? e.x_field_path
-                        : std::string(AXIS_SOURCE_TIME);
-                const std::string restored_y =
-                    e.y_field_path.empty() ? e.field_path : e.y_field_path;
-
-                std::string error;
-                if (!subplot_mgr_->configure_slot_axes(e.subplot_slot,
-                                                       e.axis_mode,
-                                                       restored_x,
-                                                       restored_y,
-                                                       &error))
-                {
-                    session_status_msg_   = "Plot restore fallback for slot "
-                                            + std::to_string(e.subplot_slot) + ": " + error;
-                    session_status_timer_ = 4.0f;
-                }
-            }
-
-            if (e.scroll_paused)
-                subplot_mgr_->pause_scroll(e.subplot_slot);
-        }
-        else if (plot_mgr_)
-        {
-            const auto h = plot_mgr_->add_plot(e.topic, e.field_path, e.type_name);
-            if (h.valid() && e.scroll_paused)
-                plot_mgr_->pause_scroll(h.id);
-        }
-    }
+        apply_subscription_entry(e);
 
     DisplayContext context;
     context.fixed_frame     = workspace_state_.fixed_frame;
@@ -3196,6 +3290,45 @@ LoadResult RosAppShell::load_session(const std::string& path)
         session_status_msg_   = "Session loaded";
         session_status_timer_ = 3.0f;
     }
+    return lr;
+}
+
+LoadResult RosAppShell::merge_session(const std::string& path)
+{
+    if (!session_mgr_)
+    {
+        LoadResult r;
+        r.error = "session manager not initialised";
+        return r;
+    }
+
+    LoadResult lr = session_mgr_->load(path);
+    if (!lr.ok)
+        return lr;
+
+    const RosSession current = capture_session();
+    const RosSession merged  = merge_sessions(current, lr.session);
+
+    size_t added_subs = 0;
+    for (const auto& e : merged.subscriptions)
+    {
+        const bool existed = std::any_of(current.subscriptions.begin(),
+                                         current.subscriptions.end(),
+                                         [&](const SubscriptionEntry& existing)
+                                         {
+                                             return existing.topic == e.topic
+                                                    && existing.field_path == e.field_path
+                                                    && existing.subplot_slot == e.subplot_slot;
+                                         });
+        if (!existed)
+        {
+            apply_subscription_entry(e);
+            ++added_subs;
+        }
+    }
+
+    session_status_msg_   = "Imported " + std::to_string(added_subs) + " plot subscription(s)";
+    session_status_timer_ = 3.0f;
     return lr;
 }
 
@@ -3298,6 +3431,59 @@ void RosAppShell::draw_session_load_dialog()
 
     if (!open)
         show_session_load_dialog_ = false;
+#endif
+}
+
+void RosAppShell::draw_session_merge_dialog()
+{
+#ifdef SPECTRA_USE_IMGUI
+    if (!show_session_merge_dialog_)
+        return;
+
+    ImGui::SetNextWindowSize(ImVec2(520, 150), ImGuiCond_Appearing);
+    ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(),
+                            ImGuiCond_Appearing,
+                            ImVec2(0.5f, 0.5f));
+
+    bool open = true;
+    if (ImGui::Begin("Import Session##merge",
+                     &open,
+                     ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoScrollbar))
+    {
+        ImGui::TextWrapped(
+            "Import plot subscriptions from another session without replacing the current layout.");
+        ImGui::Text("Path:");
+        ImGui::SameLine();
+
+        static char merge_buf[512];
+        if (ImGui::IsWindowAppearing())
+        {
+            session_save_path_buf_.copy(merge_buf, sizeof(merge_buf) - 1);
+            merge_buf[std::min(session_save_path_buf_.size(), sizeof(merge_buf) - 1)] = '\0';
+        }
+
+        ImGui::SetNextItemWidth(-1.0f);
+        ImGui::InputText("##session_merge_path", merge_buf, sizeof(merge_buf));
+
+        ImGui::Spacing();
+        if (ImGui::Button("Import", ImVec2(80, 0)))
+        {
+            LoadResult lr = merge_session(merge_buf);
+            if (!lr.ok)
+            {
+                session_status_msg_   = "Import failed: " + lr.error;
+                session_status_timer_ = 3.0f;
+            }
+            show_session_merge_dialog_ = false;
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel", ImVec2(80, 0)))
+            show_session_merge_dialog_ = false;
+    }
+    ImGui::End();
+
+    if (!open)
+        show_session_merge_dialog_ = false;
 #endif
 }
 

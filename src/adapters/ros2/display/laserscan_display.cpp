@@ -404,6 +404,12 @@ void LaserScanDisplay::ingest_scan_frame(const LaserScanFrame& frame)
         scans_.pop_front();
 }
 
+void LaserScanDisplay::clear_scan_history()
+{
+    std::lock_guard<std::mutex> lock(scans_mutex_);
+    scans_.clear();
+}
+
 size_t LaserScanDisplay::scan_count() const
 {
     std::lock_guard<std::mutex> lock(scans_mutex_);

@@ -12,8 +12,6 @@ Read first: `CLAUDE.md`, `CODEBASE_MAP.md`, affected `src/` / `include/spectra/`
 
 ## 1. Plan (before code)
 
-Read `plans/ROADMAP.md`, `plans/QA_results.md` if relevant.
-
 Output:
 
 ```text

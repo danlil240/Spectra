@@ -186,6 +186,8 @@ bool GenericSubscriber::start()
         // subscriptions used only for statistics.
     }
 
+    running_.store(true, std::memory_order_release);
+
     // Create the generic subscription.
     // Use an explicit keep-last depth tied to the ring buffer so short
     // publisher bursts are queued for the executor instead of being dropped
@@ -198,9 +200,11 @@ bool GenericSubscriber::start()
         [this](const std::shared_ptr<rclcpp::SerializedMessage>& msg) { on_message(msg); });
 
     if (!subscription_)
+    {
+        running_.store(false, std::memory_order_release);
         return false;
+    }
 
-    running_.store(true, std::memory_order_release);
     return true;
 }
 
@@ -209,8 +213,8 @@ void GenericSubscriber::stop()
     if (!running_.load(std::memory_order_acquire))
         return;
 
-    running_.store(false, std::memory_order_release);
     subscription_.reset();
+    running_.store(false, std::memory_order_release);
 }
 
 // ---------------------------------------------------------------------------

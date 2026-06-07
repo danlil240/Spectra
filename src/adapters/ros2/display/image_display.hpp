@@ -26,6 +26,16 @@ class ImageDisplay : public DisplayPlugin
         PanelAndBillboard,
     };
 
+    enum class EncodingOverride
+    {
+        Auto,
+        Rgb8,
+        Bgr8,
+        Mono8,
+        Jpeg,
+        Png,
+    };
+
     ImageDisplay();
 
     std::string type_id() const override { return "image"; }
@@ -54,7 +64,10 @@ class ImageDisplay : public DisplayPlugin
 
    private:
     void               ensure_subscription();
+    void               refresh_decoded_frame();
     static const char* mode_name(Mode mode);
+    static const char* encoding_override_name(EncodingOverride mode);
+    static std::string encoding_override_string(EncodingOverride mode);
 
     const TfBuffer*           tf_buffer_{nullptr};
     TopicDiscovery*           topic_discovery_{nullptr};
@@ -63,6 +76,7 @@ class ImageDisplay : public DisplayPlugin
     std::string               subscribed_topic_;
     bool                      use_message_stamp_{true};
     Mode                      mode_{Mode::Panel2D};
+    EncodingOverride          encoding_override_{EncodingOverride::Auto};
     bool                      panel_visible_{true};
     uint32_t                  preview_max_dim_{48};
     std::array<char, 256>     topic_input_{};
@@ -72,6 +86,7 @@ class ImageDisplay : public DisplayPlugin
 #ifdef SPECTRA_USE_ROS2
     rclcpp::Node::SharedPtr                                  node_;
     rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr subscription_;
+    std::optional<sensor_msgs::msg::Image>                   raw_message_;
 #endif
 };
 

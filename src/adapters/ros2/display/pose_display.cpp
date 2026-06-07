@@ -233,6 +233,12 @@ void PoseDisplay::ingest_pose_frame(const PoseFrame& frame)
     latest_frame_ = frame;
 }
 
+void PoseDisplay::clear_playback_frame()
+{
+    std::lock_guard<std::mutex> lock(frame_mutex_);
+    latest_frame_.reset();
+}
+
 std::optional<PoseFrame> PoseDisplay::latest_frame() const
 {
     std::lock_guard<std::mutex> lock(frame_mutex_);

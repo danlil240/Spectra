@@ -83,6 +83,7 @@ struct EchoMessage
     uint64_t                    seq{0};             // monotonic receive counter
     int64_t                     timestamp_ns{0};    // ROS2 header stamp or wall clock
     double                      wall_time_s{0.0};   // wall clock at receive (for display rate)
+    double                      bag_time_sec{-1.0}; // >= 0 when captured from bag playback
     std::vector<EchoFieldValue> fields;             // flat pre-expanded field list
 };
 
@@ -215,6 +216,19 @@ class TopicEchoPanel
     // Inject a pre-built message directly (for unit tests without a ROS2 node).
     void inject_message(EchoMessage msg);
 
+    // Bag playback: echo shows the message nearest the shared playhead.
+    void set_bag_echo_mode(bool enabled);
+    bool bag_echo_mode() const { return bag_echo_mode_; }
+    void set_bag_playhead(double bag_time_sec);
+    double bag_playhead() const { return bag_playhead_sec_; }
+
+#ifdef SPECTRA_ROS2_BAG
+    // Ingest one deserialized bag message (called from BagPlayer on inject).
+    void ingest_bag_message(const struct BagMessage& msg,
+                            MessageIntrospector&       intr,
+                            int64_t                    bag_start_time_ns);
+#endif
+
     // Build an EchoMessage from a raw deserialized message pointer and schema.
     // Public for testability.
     static EchoMessage build_echo_message(const void*          msg_ptr,
@@ -305,6 +319,13 @@ class TopicEchoPanel
     std::string   prev_hovered_field_;   // to detect changes and fire callback once
 
     bool manually_pinned_{false};
+
+    bool   bag_echo_mode_{false};
+    double bag_playhead_sec_{0.0};
+    bool   bag_playhead_follow_{true};
+    int    bag_manual_msg_idx_{-1};
+
+    int find_nearest_bag_message_index(const std::vector<EchoMessage>& snap) const;
 };
 
 }   // namespace spectra::adapters::ros2

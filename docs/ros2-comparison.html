@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ROS2 Tool Comparison | Spectra Docs</title>
+    <meta
+      name="description"
+      content="Honest comparison of Spectra ROS vs rqt, PlotJuggler, RViz2, and Foxglove — strengths, gaps, and when to use each."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Sora:wght@400;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+    <style>
+      .cmp-yes { color: #30d5c8; font-weight: 700; }
+      .cmp-part { color: var(--warn); font-weight: 700; }
+      .cmp-no { color: #6b7f99; }
+      table.cmp td, table.cmp th { vertical-align: top; }
+      table.cmp td:first-child { font-weight: 600; color: var(--text); }
+    </style>
+  </head>
+  <body id="top" class="docs-page ros2-doc">
+    <nav class="top-nav">
+      <div class="container nav-wrap">
+        <a href="index.html">Home</a>
+        <a href="getting-started.html">Getting Started</a>
+        <a href="features.html">Feature Guide</a>
+        <a href="examples.html">Examples</a>
+        <a href="architecture.html">Architecture</a>
+        <a href="ros2-adapter.html">ROS2</a>
+        <a href="px4-adapter.html">PX4</a>
+        <a href="qt-embed.html">Qt Embed</a>
+        <a href="webgpu.html">WebGPU</a>
+      </div>
+    </nav>
+
+    <header class="page-hero">
+      <div class="container">
+        <div class="breadcrumb">
+          <a href="index.html">Docs</a><span>/</span>
+          <a href="ros2-adapter.html">ROS2</a><span>/</span><span>Comparison</span>
+        </div>
+        <h1>ROS2 Tool Comparison</h1>
+        <p class="lead">
+          Spectra is not trying to replace every ROS GUI — it targets
+          <strong>integrated debug</strong>: signals + spatial context + bags on one
+          timeline, with native GPU performance. This page is intentionally honest about
+          what we do better and what we do not claim yet.
+        </p>
+        <div class="hero-cta" style="margin-top:1.4rem">
+          <a class="btn btn-primary" href="ros2-adapter.html#quick-start">10-Second Quick Start</a>
+          <a class="btn btn-ghost" href="ros2-adapter.html">ROS2 Adapter Guide</a>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="section">
+        <div class="container">
+          <h2>At a Glance</h2>
+          <table class="cmp">
+            <thead>
+              <tr>
+                <th>Capability</th>
+                <th>rqt</th>
+                <th>PlotJuggler</th>
+                <th>RViz2</th>
+                <th>Foxglove</th>
+                <th>Spectra ROS</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Live time-series plots</td>
+                <td class="cmp-part">Basic (Qt)</td>
+                <td class="cmp-yes">Best-in-class</td>
+                <td class="cmp-no">No</td>
+                <td class="cmp-yes">Good (web)</td>
+                <td class="cmp-yes">GPU + introspection</td>
+              </tr>
+              <tr>
+                <td>Plot any numeric field without plugins</td>
+                <td class="cmp-no">Per-type plugins</td>
+                <td class="cmp-part">Plugins / parsers</td>
+                <td class="cmp-no">N/A</td>
+                <td class="cmp-part">Schema-dependent</td>
+                <td class="cmp-yes">Runtime introspection</td>
+              </tr>
+              <tr>
+                <td>Bag scrub + plots synced</td>
+                <td class="cmp-no">Limited</td>
+                <td class="cmp-yes">Excellent</td>
+                <td class="cmp-part">Separate tools</td>
+                <td class="cmp-yes">Good</td>
+                <td class="cmp-yes">Unified session (roadmap)</td>
+              </tr>
+              <tr>
+                <td>3D / TF / robot model</td>
+                <td class="cmp-no">Separate RViz</td>
+                <td class="cmp-no">No</td>
+                <td class="cmp-yes">Industry standard</td>
+                <td class="cmp-yes">Good</td>
+                <td class="cmp-part">Core displays, not full RViz plugins</td>
+              </tr>
+              <tr>
+                <td>Spatiotemporal (bag + 3D + plots)</td>
+                <td class="cmp-no">No</td>
+                <td class="cmp-no">No</td>
+                <td class="cmp-no">No serious plots</td>
+                <td class="cmp-part">Web latency</td>
+                <td class="cmp-yes">Native unified session</td>
+              </tr>
+              <tr>
+                <td>Shareable layout artifact</td>
+                <td class="cmp-part">rqt perspective</td>
+                <td class="cmp-yes">.xml layouts</td>
+                <td class="cmp-yes">.rviz config</td>
+                <td class="cmp-yes">Foxglove layouts</td>
+                <td class="cmp-yes">.spectra-ros-session</td>
+              </tr>
+              <tr>
+                <td>Offline / air-gapped</td>
+                <td class="cmp-yes">Yes</td>
+                <td class="cmp-yes">Yes</td>
+                <td class="cmp-yes">Yes</td>
+                <td class="cmp-part">Cloud features optional</td>
+                <td class="cmp-yes">Native binary</td>
+              </tr>
+              <tr>
+                <td>Expression / derived series</td>
+                <td class="cmp-no">No</td>
+                <td class="cmp-yes">Yes</td>
+                <td class="cmp-no">No</td>
+                <td class="cmp-part">Limited</td>
+                <td class="cmp-yes">Built-in editor</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container">
+          <h2>When Spectra Wins</h2>
+          <div class="grid cards-2">
+            <article class="card">
+              <h3>Live tuning afternoon</h3>
+              <p>
+                You need Topic Monitor, multi-field plots, echo, and stats in one dock —
+                not three apps. Spectra's default cockpit and
+                <code>tuning.spectra-ros-session</code> preset are built for this.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Bag post-mortem with context</h3>
+              <p>
+                PlotJuggler owns raw timeline UX; Spectra adds echo, logs, session
+                persistence, and (Phase C) 3D sync on the same playhead — one native
+                window instead of side-by-side tools.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Nav / mobility debug</h3>
+              <p>
+                cmd_vel + odom plots linked with laser, path, and TF in one session.
+                RViz still wins for exotic display plugins; Spectra wins for the
+                integrated nav post-mortem workflow.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Teams that version debug layouts</h3>
+              <p>
+                Commit <code>.spectra-ros-session</code> next to launch files — plots,
+                expressions, panel visibility, and ImGui dock layout round-trip together.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container">
+          <h2>When to Keep Using Something Else</h2>
+          <ul>
+            <li>
+              <strong>RViz plugin ecosystem</strong> — custom costmap layers, Nav2 panels,
+              vendor-specific displays. Spectra does not claim full RViz parity (Phase C
+              targets a nav reference stack, not every plugin).
+            </li>
+            <li>
+              <strong>PlotJuggler-only bag analytics</strong> — if you only need curves and
+              already have PJ layouts you love, Spectra must earn the switch on
+              bag+echo+session integration, not plots alone.
+            </li>
+            <li>
+              <strong>Remote collaboration</strong> — Foxglove's web sharing and cloud
+              recording are mature; Spectra is native-first and air-gap friendly.
+            </li>
+            <li>
+              <strong>Lightweight echo / CLI</strong> — <code>ros2 topic echo</code> and
+              <code>rqt_topic</code> remain fine for quick one-off checks.
+            </li>
+          </ul>
+
+          <div class="callout warn" style="margin-top:1.2rem">
+            <strong>Claims we ship evidence for.</strong> Phase A–C gates in the product
+            plan define falsifiable benchmarks (time-to-first-plot, bag scrub sync,
+            spatiotemporal nav demo). See the
+            <a href="ros2-adapter.html#workflows">named workflows</a> section for
+            copy-paste commands.
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <span>Spectra · ROS2 comparison</span>
+        <a href="ros2-adapter.html">← Back to ROS2 Adapter</a>
+      </div>
+    </footer>
+  </body>
+</html>

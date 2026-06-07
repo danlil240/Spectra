@@ -50,6 +50,7 @@ class PointCloudDisplay : public DisplayPlugin
     void        deserialize_config_blob(const std::string& blob) override;
 
     void                           ingest_pointcloud_frame(const PointCloudFrame& frame);
+    void                           clear_playback_frame();
     std::optional<PointCloudFrame> latest_frame() const;
 
    private:
@@ -64,7 +65,9 @@ class PointCloudDisplay : public DisplayPlugin
     bool                           use_message_stamp_{true};
     ColorMode                      color_mode_{ColorMode::Flat};
     float                          point_size_{3.0f};
-    int                            max_points_{100'000};
+    int                            max_points_{500'000};
+    uint64_t                       points_dropped_total_{0};
+    uint64_t                       frames_decimated_{0};
     std::array<char, 256>          topic_input_{};
     mutable std::mutex             frame_mutex_;
     std::optional<PointCloudFrame> latest_frame_;

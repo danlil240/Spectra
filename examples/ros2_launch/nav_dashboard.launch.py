@@ -17,6 +17,7 @@ Usage
     ros2 launch spectra nav_dashboard.launch.py
     ros2 launch spectra nav_dashboard.launch.py cmd_vel:=/cmd_vel_mux/input/navi
     ros2 launch spectra nav_dashboard.launch.py odom:=/odometry/filtered
+    ros2 launch spectra nav2_debug.launch.py   # bag post-mortem (Phase C)
 
 Arguments
 ---------

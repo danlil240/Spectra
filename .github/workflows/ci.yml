@@ -356,6 +356,7 @@ jobs:
   # ─── ROS2 Adapter Build (compile-only) ─────────────────────────────────────
   build-ros2:
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
     container:
       image: ros:humble-ros-base
 

@@ -390,6 +390,14 @@ void App::init_runtime()
                 wm_opts.plugin_manager          = &rt.plugin_manager;
                 wm_opts.export_format_registry  = &rt.export_format_registry;
                 rt.window_mgr                   = create_configured_window_manager(wm_opts);
+                rt.window_mgr->set_interactive_frame_handler(
+                    [&rt]()
+                    {
+                        rt.session.pump_interactive_frame(rt.scheduler,
+                                                          rt.animator,
+                                                          rt.window_mgr.get(),
+                                                          rt.frame_state);
+                    });
 
                 std::vector<FigureId> first_group =
                     window_groups.empty() ? std::vector<FigureId>{} : window_groups[0];
@@ -459,6 +467,14 @@ void App::init_runtime()
                 wm_opts.plugin_manager          = &rt.plugin_manager;
                 wm_opts.export_format_registry  = &rt.export_format_registry;
                 rt.window_mgr                   = create_configured_window_manager(wm_opts);
+                rt.window_mgr->set_interactive_frame_handler(
+                    [&rt]()
+                    {
+                        rt.session.pump_interactive_frame(rt.scheduler,
+                                                          rt.animator,
+                                                          rt.window_mgr.get(),
+                                                          rt.frame_state);
+                    });
 
                 std::vector<FigureId> first_group =
                     window_groups.empty() ? std::vector<FigureId>{} : window_groups[0];

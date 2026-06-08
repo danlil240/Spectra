@@ -1,4 +1,4 @@
-#include <eigen3/Eigen/Core>
+#include <Eigen/Core>
 #include <gtest/gtest.h>
 #include <spectra/eigen.hpp>
 

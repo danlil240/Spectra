@@ -257,8 +257,6 @@ void ThemeManager::apply_to_imgui()
     // Apply colors
     ImVec4* imgui_colors = style.Colors;
 
-    // Helper: conditionally linearize sRGB colors for the sRGB framebuffer.
-    // Night theme (linearize_colors=true) needs this; Dark/Light pass through.
     const bool do_lin = current_theme_->linearize_colors;
     auto       lin    = [do_lin](const Color& c, float alpha_override = -1.0f) -> ImVec4
     {

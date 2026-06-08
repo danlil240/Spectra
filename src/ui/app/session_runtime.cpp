@@ -37,6 +37,7 @@
 #include <algorithm>
 #include <chrono>
 #include <string>
+#include <thread>
 
 namespace spectra
 {
@@ -48,6 +49,104 @@ SessionRuntime::SessionRuntime(Backend& backend, Renderer& renderer, FigureRegis
 }
 
 SessionRuntime::~SessionRuntime() = default;
+
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
+void SessionRuntime::pump_interactive_frame(FrameScheduler& scheduler,
+                                            Animator&       animator,
+                                            WindowManager*  window_mgr,
+                                            FrameState&     frame_state)
+{
+    if (!window_mgr || interactive_pump_depth_ > 0)
+        return;
+
+    const auto now = std::chrono::steady_clock::now();
+    if (last_interactive_pump_ != std::chrono::steady_clock::time_point{}
+        && (now - last_interactive_pump_) < std::chrono::milliseconds(8))
+    {
+        return;
+    }
+    last_interactive_pump_ = now;
+
+    interactive_pump_depth_++;
+
+    scheduler.begin_frame();
+    animator.evaluate(scheduler.elapsed_seconds());
+    const float animation_dt = scheduler.dt();
+    redraw_tracker_.mark_dirty("interactive");
+
+    auto* vk = static_cast<VulkanBackend*>(&backend_);
+    vk->advance_deferred_deletion();
+
+    for (auto* wctx : window_mgr->windows())
+    {
+        if (!wctx || wctx->should_close || !wctx->ui_ctx || wctx->is_preview
+            || wctx->panel_draw_callback)
+        {
+            continue;
+        }
+
+        uint32_t fb_w = 0;
+        uint32_t fb_h = 0;
+        if (!vk->query_window_framebuffer_size(*wctx, fb_w, fb_h) || fb_w == 0 || fb_h == 0)
+            continue;
+
+        if (fb_w != wctx->swapchain.extent.width || fb_h != wctx->swapchain.extent.height)
+        {
+            wctx->needs_resize          = true;
+            wctx->pending_width         = fb_w;
+            wctx->pending_height        = fb_h;
+            wctx->resize_time           = now;
+            wctx->ui_ctx->needs_resize  = true;
+            wctx->ui_ctx->new_width     = fb_w;
+            wctx->ui_ctx->new_height    = fb_h;
+            wctx->ui_ctx->resize_requested_time = now;
+        }
+        else if (wctx->needs_resize)
+        {
+            wctx->ui_ctx->needs_resize          = true;
+            wctx->ui_ctx->new_width             = wctx->pending_width;
+            wctx->ui_ctx->new_height            = wctx->pending_height;
+            wctx->ui_ctx->resize_requested_time = wctx->resize_time;
+            wctx->needs_resize                  = false;
+        }
+
+        vk->set_active_window(wctx);
+        if (wctx->imgui_context)
+            ImGui::SetCurrentContext(static_cast<ImGuiContext*>(wctx->imgui_context));
+
+        FrameState win_fs;
+        win_fs.active_figure_id = wctx->active_figure_id;
+        win_fs.active_figure    = registry_.get(win_fs.active_figure_id);
+        if (win_fs.active_figure)
+            win_fs.has_animation = win_fs.active_figure->has_animation();
+
+        win_rt_.update(*wctx->ui_ctx,
+                       win_fs,
+                       scheduler,
+                       /*allow_animation_tick=*/true,
+                       animation_dt,
+                       nullptr,
+                       window_mgr);
+
+        if (wctx->ui_ctx->fig_mgr)
+            wctx->assigned_figures = wctx->ui_ctx->fig_mgr->figure_ids();
+
+        const bool rendered = win_rt_.render(*wctx->ui_ctx, win_fs, nullptr);
+        if (rendered && window_mgr->windows().size() > 1)
+            vkQueueWaitIdle(vk->graphics_queue());
+
+        wctx->active_figure_id                      = win_fs.active_figure_id;
+        wctx->ui_ctx->per_window_active_figure      = win_fs.active_figure;
+        wctx->ui_ctx->per_window_active_figure_id   = win_fs.active_figure_id;
+        wctx->ui_ctx->topics_panel.set_target_figure_id(win_fs.active_figure_id);
+
+        if (!window_mgr->windows().empty() && wctx == window_mgr->windows()[0])
+            frame_state = win_fs;
+    }
+
+    interactive_pump_depth_--;
+}
+#endif
 
 void SessionRuntime::queue_detach(PendingDetach pd)
 {
@@ -900,19 +999,31 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
             redraw_tracker_.mark_dirty("keyboard");
 
         SPECTRA_PROFILE_BEGIN(profiler_, "poll_events");
-        if (redraw_tracker_.is_idle())
+        if (!has_any_animation && redraw_tracker_.is_idle())
         {
             double wait_timeout_s = 0.1;
-            if (vsync_mode && (has_any_animation || scheduled_animation))
+            if (vsync_mode && scheduled_animation)
             {
                 wait_timeout_s =
                     animation_tick_gate_.wait_timeout_seconds(AnimationTickGate::Clock::now(), 0.1);
             }
-
-            // Nothing to render — sleep until an OS event arrives or 100ms timeout.
-            // The timeout ensures we wake periodically for automation polling,
-            // pending detach processing, and other deferred work.
             window_mgr->wait_events_timeout(wait_timeout_s);
+        }
+        else if (has_any_animation && redraw_tracker_.is_idle())
+        {
+            // Poll so Win32 WM_ENTERSIZEMOVE keeps delivering refresh events,
+            // then sleep until the next animation tick (avoids a busy spin).
+            window_mgr->poll_events();
+            const double wait_s = vsync_mode
+                                      ? animation_tick_gate_.wait_timeout_seconds(
+                                            AnimationTickGate::Clock::now(), 0.1)
+                                      : 0.0;
+            if (wait_s > 0.0)
+            {
+                std::this_thread::sleep_for(
+                    std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+                        std::chrono::duration<double>(wait_s)));
+            }
         }
         else
         {

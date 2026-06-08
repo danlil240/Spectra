@@ -4,6 +4,7 @@
 
 #include "window_manager.hpp"
 
+#include "platform/window_system/win32_glfw_hook.hpp"
 #include <spectra/logger.hpp>
 
 #include "render/vulkan/window_context.hpp"
@@ -65,6 +66,10 @@ void WindowManager::glfw_framebuffer_size_callback(GLFWwindow* window, int width
     wctx->resize_time    = std::chrono::steady_clock::now();
     mgr->request_redraw("resize");
 
+    // Only pump during Win32 title-bar move / edge resize (modal loop blocks tick()).
+    if (win32_window_in_size_move(window))
+        mgr->request_interactive_frame();
+
     SPECTRA_LOG_DEBUG("window_manager",
                       "Window " + std::to_string(wctx->id) + " resize: " + std::to_string(width)
                           + "x" + std::to_string(height));
@@ -83,6 +88,34 @@ void WindowManager::glfw_window_close_callback(GLFWwindow* window)
     SPECTRA_LOG_TRACE("input", "Window {} close requested", wctx->id);
     wctx->should_close = true;
     mgr->pending_close_ids_.push_back(wctx->id);
+}
+
+void WindowManager::glfw_window_refresh_callback(GLFWwindow* window)
+{
+    auto* mgr = static_cast<WindowManager*>(glfwGetWindowUserPointer(window));
+    if (!mgr)
+        return;
+
+    WindowContext* wctx = mgr->find_by_glfw_window(window);
+    if (!wctx)
+        return;
+
+    // Win32 fires this during WM_ENTERSIZEMOVE (title-bar move / edge resize).
+    // Sync framebuffer size and keep the render loop alive while the OS modal
+    // loop would otherwise stall glfwWaitEvents.
+    int width = 0;
+    int height = 0;
+    glfwGetFramebufferSize(window, &width, &height);
+    if (width > 0 && height > 0)
+    {
+        wctx->needs_resize   = true;
+        wctx->pending_width  = static_cast<uint32_t>(width);
+        wctx->pending_height = static_cast<uint32_t>(height);
+        wctx->resize_time    = std::chrono::steady_clock::now();
+    }
+    mgr->request_redraw("refresh");
+    if (win32_window_in_size_move(window))
+        mgr->request_interactive_frame();
 }
 
 void WindowManager::glfw_window_focus_callback(GLFWwindow* window, int focused)
@@ -113,15 +146,23 @@ void WindowManager::glfw_window_focus_callback(GLFWwindow* window, int focused)
     #endif
 }
 
+void WindowManager::install_glfw_lifecycle_callbacks(GLFWwindow* glfw_win)
+{
+    if (!glfw_win)
+        return;
+    glfwSetFramebufferSizeCallback(glfw_win, glfw_framebuffer_size_callback);
+    glfwSetWindowCloseCallback(glfw_win, glfw_window_close_callback);
+    glfwSetWindowFocusCallback(glfw_win, glfw_window_focus_callback);
+    glfwSetWindowRefreshCallback(glfw_win, glfw_window_refresh_callback);
+    install_win32_interactive_hook(glfw_win, this);
+}
+
 void WindowManager::install_input_callbacks(WindowContext& wctx)
 {
     auto* glfw_win = static_cast<GLFWwindow*>(wctx.glfw_window);
     if (glfw_win)
     {
-        // Window management callbacks
-        glfwSetFramebufferSizeCallback(glfw_win, glfw_framebuffer_size_callback);
-        glfwSetWindowCloseCallback(glfw_win, glfw_window_close_callback);
-        glfwSetWindowFocusCallback(glfw_win, glfw_window_focus_callback);
+        install_glfw_lifecycle_callbacks(glfw_win);
         // Input callbacks
         glfwSetCursorPosCallback(glfw_win, glfw_cursor_pos_callback);
         glfwSetMouseButtonCallback(glfw_win, glfw_mouse_button_callback);
@@ -534,6 +575,9 @@ void WindowManager::glfw_drop_callback(GLFWwindow* window, int count, const char
 void WindowManager::glfw_framebuffer_size_callback(GLFWwindow*, int, int) {}
 void WindowManager::glfw_window_close_callback(GLFWwindow*) {}
 void WindowManager::glfw_window_focus_callback(GLFWwindow*, int) {}
+void WindowManager::glfw_window_refresh_callback(GLFWwindow*) {}
+
+void WindowManager::install_glfw_lifecycle_callbacks(GLFWwindow*) {}
 void WindowManager::glfw_cursor_pos_callback(GLFWwindow*, double, double) {}
 void WindowManager::glfw_mouse_button_callback(GLFWwindow*, int, int, int) {}
 void WindowManager::glfw_scroll_callback(GLFWwindow*, double, double) {}

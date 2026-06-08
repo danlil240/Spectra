@@ -1,7 +1,7 @@
 // Eigen integration demo — pass Eigen vectors directly to Spectra.
 // Build with: cmake -DSPECTRA_USE_EIGEN=ON ..
 
-#include <eigen3/Eigen/Core>
+#include <Eigen/Core>
 #include <cmath>
 #include <spectra/eigen_easy.hpp>
 

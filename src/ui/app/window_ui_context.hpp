@@ -125,6 +125,7 @@ struct WindowUIContext
     uint32_t                              new_width    = 0;
     uint32_t                              new_height   = 0;
     std::chrono::steady_clock::time_point resize_requested_time;
+    std::chrono::steady_clock::time_point last_swapchain_recreate_time;
 
     // Raw window handle (not owned). Set by app_step after window creation.
     // Used by automation resize_window to call the appropriate resize API.

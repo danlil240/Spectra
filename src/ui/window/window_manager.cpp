@@ -20,6 +20,15 @@
 namespace spectra
 {
 
+void WindowManager::request_interactive_frame()
+{
+    if (!interactive_frame_handler_ || interactive_frame_in_flight_)
+        return;
+    interactive_frame_in_flight_ = true;
+    interactive_frame_handler_();
+    interactive_frame_in_flight_ = false;
+}
+
 void WindowManager::poll_events()
 {
 #ifdef SPECTRA_USE_GLFW

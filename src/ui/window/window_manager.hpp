@@ -260,9 +260,10 @@ class WindowManager
                                                     float    local_x,
                                                     float    local_y,
                                                     FigureId target_figure_id)>;
-    using RedrawRequestHandler = std::function<void(const char* reason)>;
-    using FileDropHandler      = std::function<void(uint32_t window_id, const std::string& path)>;
-    using FigureUnregisteringHandler = std::function<void(FigureId, Figure*)>;
+    using RedrawRequestHandler         = std::function<void(const char* reason)>;
+    using FileDropHandler              = std::function<void(uint32_t window_id, const std::string& path)>;
+    using FigureUnregisteringHandler   = std::function<void(FigureId, Figure*)>;
+    using InteractiveFrameHandler    = std::function<void()>;
 
     void set_tab_detach_handler(TabDetachHandler cb) { tab_detach_handler_ = std::move(cb); }
     void set_tab_move_handler(TabMoveHandler cb) { tab_move_handler_ = std::move(cb); }
@@ -275,6 +276,13 @@ class WindowManager
     {
         figure_unregistering_handler_ = std::move(cb);
     }
+    void set_interactive_frame_handler(InteractiveFrameHandler cb)
+    {
+        interactive_frame_handler_ = std::move(cb);
+    }
+
+    // Render one frame synchronously (Win32 size/move modal loop).
+    void request_interactive_frame();
 
     // Set the event system for cross-subsystem notifications.
     void set_event_system(EventSystem* es) { event_system_ = es; }
@@ -309,6 +317,10 @@ class WindowManager
     static void glfw_framebuffer_size_callback(GLFWwindow* window, int width, int height);
     static void glfw_window_close_callback(GLFWwindow* window);
     static void glfw_window_focus_callback(GLFWwindow* window, int focused);
+    static void glfw_window_refresh_callback(GLFWwindow* window);
+
+    // Framebuffer/close/focus/refresh — shared by all GLFW windows.
+    void install_glfw_lifecycle_callbacks(GLFWwindow* glfw_win);
 
     // Full input callbacks for windows with UI (mouse, key, scroll, char, cursor enter)
     static void glfw_cursor_pos_callback(GLFWwindow* window, double x, double y);
@@ -359,7 +371,9 @@ class WindowManager
     // Tab drag handlers (applied to every new window's TabDragController)
     TabDetachHandler     tab_detach_handler_;
     TabMoveHandler       tab_move_handler_;
-    RedrawRequestHandler redraw_request_handler_;
+    RedrawRequestHandler    redraw_request_handler_;
+    InteractiveFrameHandler interactive_frame_handler_;
+    bool                    interactive_frame_in_flight_ = false;
 
     // OS file drop handler
     FileDropHandler              file_drop_handler_;

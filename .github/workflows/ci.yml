@@ -37,6 +37,7 @@ jobs:
             libvulkan-dev \
             vulkan-validationlayers \
             mesa-vulkan-drivers \
+            libglfw3-dev \
             libwayland-dev \
             libxrandr-dev \
             libxinerama-dev \
@@ -117,7 +118,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          brew install vulkan-headers vulkan-loader glslang molten-vk
+          brew install vulkan-headers vulkan-loader glslang molten-vk glfw
           python -m venv .venv
           source .venv/bin/activate
           python -m pip install --upgrade pip
@@ -212,6 +213,7 @@ jobs:
             vulkan-validationlayers \
             mesa-vulkan-drivers \
             mesa-utils \
+            libglfw3-dev \
             libwayland-dev \
             libxrandr-dev \
             libxinerama-dev \
@@ -320,6 +322,7 @@ jobs:
             libvulkan-dev \
             vulkan-validationlayers \
             mesa-vulkan-drivers \
+            libglfw3-dev \
             libwayland-dev \
             libxrandr-dev \
             libxinerama-dev \

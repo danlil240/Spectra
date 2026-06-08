@@ -337,8 +337,9 @@ if(SPECTRA_USE_GLFW)
         include(FetchContent)
         FetchContent_Declare(
             glfw
-            URL        https://github.com/glfw/glfw/archive/refs/tags/3.4.tar.gz
-            URL_HASH   MD5=7470db601fcf36f0604d32b537281a70
+            GIT_REPOSITORY https://github.com/glfw/glfw.git
+            GIT_TAG        3.4
+            GIT_SHALLOW    TRUE
         )
         set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
         set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)

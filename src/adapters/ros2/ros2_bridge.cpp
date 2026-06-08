@@ -69,6 +69,46 @@ bool Ros2Bridge::start_spin()
 }
 
 // ---------------------------------------------------------------------------
+// stop_spin
+// ---------------------------------------------------------------------------
+
+void Ros2Bridge::stop_spin()
+{
+    // start_spin() launches the thread before state becomes Spinning; join whenever
+    // a spin thread exists so shutdown() never tears down the executor underneath it.
+    if (!spin_thread_.joinable())
+        return;
+
+    const BridgeState current = state_.load(std::memory_order_acquire);
+    if (current == BridgeState::Spinning)
+        set_state(BridgeState::ShuttingDown);
+
+    stop_requested_.store(true, std::memory_order_release);
+
+    if (executor_)
+        executor_->cancel();
+
+    spin_thread_.join();
+    stop_requested_.store(false, std::memory_order_release);
+
+    // Node remains valid; subscriptions must be dropped before shutdown().
+    if (current == BridgeState::Spinning || current == BridgeState::Initialized)
+        set_state(BridgeState::Initialized);
+}
+
+// ---------------------------------------------------------------------------
+// detach_node_from_executor
+// ---------------------------------------------------------------------------
+
+void Ros2Bridge::detach_node_from_executor()
+{
+    if (!executor_ || !node_)
+        return;
+
+    executor_->remove_node(node_);
+}
+
+// ---------------------------------------------------------------------------
 // shutdown
 // ---------------------------------------------------------------------------
 
@@ -78,29 +118,17 @@ void Ros2Bridge::shutdown()
     if (current == BridgeState::Uninitialized || current == BridgeState::Stopped)
         return;
 
-    set_state(BridgeState::ShuttingDown);
+    stop_spin();
 
-    // Signal the spin thread to exit.
-    stop_requested_.store(true, std::memory_order_release);
-
-    // cancel() wakes the executor out of spin_some() / wait_for_work().
-    if (executor_)
-        executor_->cancel();
-
-    // If rclcpp is still running, signal shutdown so any blocking spin ends.
-    if (rclcpp::ok())
-        rclcpp::shutdown();
-
-    if (spin_thread_.joinable())
-        spin_thread_.join();
-
-    // Tear down resources.
-    if (executor_ && node_)
-        executor_->remove_node(node_);
+    // Destroy subscriptions before removing the node from rclcpp.
+    detach_node_from_executor();
 
     executor_.reset();
     node_.reset();
 
+    // Do not call rclcpp::shutdown() here — unit tests tear down one bridge per
+    // case while keeping a shared process-wide rclcpp context (RclcppEnvironment).
+    // The spectra-ros main() calls rclcpp::shutdown() after shell teardown.
     set_state(BridgeState::Stopped);
 }
 

@@ -310,3 +310,55 @@ static void BM_SceneManager_Pick(benchmark::State& state)
     state.SetItemsProcessed(state.iterations());
 }
 BENCHMARK(BM_SceneManager_Pick)->Arg(10)->Arg(100)->Arg(500)->Arg(1000);
+
+// ---------------------------------------------------------------------------
+// Point cloud display — 500k frame budget (Phase C4: ≥30 FPS → <33 ms/frame)
+// ---------------------------------------------------------------------------
+
+static void BM_PointCloudDisplay_500kSubmit(benchmark::State& state)
+{
+    const auto cloud   = make_cloud(500000);
+    const auto adapted = adapt_pointcloud_message(cloud, "/points", 500000);
+    if (!adapted.has_value())
+        return;
+
+    PointCloudDisplay display;
+    DisplayContext    context;
+    context.fixed_frame = "lidar";
+    display.on_enable(context);
+    display.ingest_pointcloud_frame(*adapted);
+
+    for (auto _ : state)
+    {
+        SceneManager scene;
+        display.submit_renderables(scene);
+        benchmark::DoNotOptimize(scene.entity_count());
+    }
+    state.SetItemsProcessed(state.iterations());
+}
+BENCHMARK(BM_PointCloudDisplay_500kSubmit);
+
+static void BM_PointCloudDisplay_10HzBurst(benchmark::State& state)
+{
+    const auto cloud = make_cloud(500000);
+    for (auto _ : state)
+    {
+        PointCloudDisplay display;
+        DisplayContext    context;
+        context.fixed_frame = "lidar";
+        display.on_enable(context);
+
+        for (int frame = 0; frame < 10; ++frame)
+        {
+            const auto adapted = adapt_pointcloud_message(cloud, "/points", 500000);
+            if (!adapted.has_value())
+                continue;
+            display.ingest_pointcloud_frame(*adapted);
+            SceneManager scene;
+            display.submit_renderables(scene);
+            benchmark::DoNotOptimize(scene);
+        }
+    }
+    state.SetItemsProcessed(state.iterations() * 10);
+}
+BENCHMARK(BM_PointCloudDisplay_10HzBurst);

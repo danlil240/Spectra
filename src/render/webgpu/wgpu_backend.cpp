@@ -7,10 +7,12 @@
 
     #include "wgpu_backend.hpp"
 
+    #include <spectra/logger.hpp>
+
     #include <cassert>
-    #include <cstdio>
     #include <cstring>
     #include <stdexcept>
+    #include <string>
 
     // Include the platform-appropriate WebGPU header.
     #ifdef __EMSCRIPTEN__
@@ -77,7 +79,7 @@ bool WebGPUBackend::init(bool headless)
     instance_             = wgpuCreateInstance(&inst_desc);
     if (!instance_)
     {
-        std::fprintf(stderr, "[Spectra/WebGPU] wgpuCreateInstance failed\n");
+        SPECTRA_LOG_ERROR("webgpu", "wgpuCreateInstance failed");
         return false;
     }
 
@@ -292,7 +294,7 @@ bool WebGPUBackend::request_adapter()
     device_ = emscripten_webgpu_get_device();
     if (!device_)
     {
-        std::fprintf(stderr, "[Spectra/WebGPU] emscripten_webgpu_get_device failed\n");
+        SPECTRA_LOG_ERROR("webgpu", "emscripten_webgpu_get_device failed");
         return false;
     }
     return true;
@@ -303,7 +305,7 @@ bool WebGPUBackend::request_adapter()
 
     if (!result.ok || !result.adapter)
     {
-        std::fprintf(stderr, "[Spectra/WebGPU] wgpuInstanceRequestAdapter failed\n");
+        SPECTRA_LOG_ERROR("webgpu", "wgpuInstanceRequestAdapter failed");
         return false;
     }
     adapter_ = result.adapter;
@@ -335,11 +337,10 @@ bool WebGPUBackend::request_device()
                                                    void* /*userdata1*/,
                                                    void* /*userdata2*/)
     {
-        fprintf(stderr,
-                "[Dawn Error type=%d] %.*s\n",
-                (int)type,
-                (int)message.length,
-                message.data);
+        SPECTRA_LOG_ERROR("webgpu",
+                          "Dawn error type={}: {}",
+                          static_cast<int>(type),
+                          std::string(message.data, message.length));
     };
 
     desc.deviceLostCallbackInfo.callback = [](WGPUDevice const* /*device*/,
@@ -348,11 +349,10 @@ bool WebGPUBackend::request_device()
                                               void* /*userdata1*/,
                                               void* /*userdata2*/)
     {
-        fprintf(stderr,
-                "[Dawn DeviceLost reason=%d] %.*s\n",
-                (int)reason,
-                (int)message.length,
-                message.data);
+        SPECTRA_LOG_ERROR("webgpu",
+                          "Dawn device lost reason={}: {}",
+                          static_cast<int>(reason),
+                          std::string(message.data, message.length));
     };
 
     WGPURequestDeviceCallbackInfo cb_info{};
@@ -377,7 +377,7 @@ bool WebGPUBackend::request_device()
 
     if (!result.ok || !result.device)
     {
-        std::fprintf(stderr, "[Spectra/WebGPU] wgpuAdapterRequestDevice failed\n");
+        SPECTRA_LOG_ERROR("webgpu", "wgpuAdapterRequestDevice failed");
         return false;
     }
     device_ = result.device;
@@ -812,9 +812,9 @@ WGPURenderPipeline WebGPUBackend::create_pipeline_for_type(PipelineType type)
     WGPUShaderModule shader = create_shader_module(wgsl_source);
     if (!shader)
     {
-        std::fprintf(stderr,
-                     "[Spectra/WebGPU] Shader module creation failed for type %d\n",
-                     static_cast<int>(type));
+        SPECTRA_LOG_ERROR("webgpu",
+                          "shader module creation failed for type {}",
+                          static_cast<int>(type));
         return nullptr;
     }
 
@@ -1277,7 +1277,7 @@ void WebGPUBackend::bind_pipeline(PipelineHandle handle)
     {
         static int dbg_bp = 0;
         if (dbg_bp++ < 3)
-            fprintf(stderr, "[WebGPU] bind_pipeline: no pass_encoder!\n");
+            SPECTRA_LOG_ERROR("webgpu", "bind_pipeline: no pass_encoder");
         return;
     }
 
@@ -1286,9 +1286,7 @@ void WebGPUBackend::bind_pipeline(PipelineHandle handle)
     {
         static int dbg_bp2 = 0;
         if (dbg_bp2++ < 3)
-            fprintf(stderr,
-                    "[WebGPU] bind_pipeline: invalid handle id=%llu\n",
-                    (unsigned long long)handle.id);
+            SPECTRA_LOG_ERROR("webgpu", "bind_pipeline: invalid handle id={}", handle.id);
         return;
     }
 

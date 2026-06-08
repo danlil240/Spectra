@@ -149,3 +149,28 @@ TEST(ScatterSeries, DefaultSize)
     ScatterSeries s;
     EXPECT_FLOAT_EQ(s.size(), 4.0f);
 }
+
+TEST(LineSeries, EraseAfter)
+{
+    std::vector<float> x = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f};
+    std::vector<float> y = {10.0f, 20.0f, 30.0f, 40.0f, 50.0f};
+    LineSeries         s(x, y);
+
+    const size_t removed = s.erase_after(3.0f);
+    EXPECT_EQ(removed, 2u);
+    EXPECT_EQ(s.point_count(), 3u);
+    EXPECT_FLOAT_EQ(s.x_data().back(), 3.0f);
+}
+
+TEST(LineSeries, TrimToMaxPoints)
+{
+    std::vector<float> x = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f};
+    std::vector<float> y = {10.0f, 20.0f, 30.0f, 40.0f, 50.0f};
+    LineSeries         s(x, y);
+
+    const size_t removed = s.trim_to_max_points(3);
+    EXPECT_EQ(removed, 2u);
+    EXPECT_EQ(s.point_count(), 3u);
+    EXPECT_FLOAT_EQ(s.x_data()[0], 3.0f);
+    EXPECT_FLOAT_EQ(s.y_data()[0], 30.0f);
+}

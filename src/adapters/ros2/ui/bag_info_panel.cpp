@@ -3,7 +3,8 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
-#include <cstdio>
+#include <filesystem>
+#include <format>
 
 #ifdef SPECTRA_USE_IMGUI
     #include "imgui.h"
@@ -27,44 +28,24 @@ std::string BagSummary::duration_string() const
     const int s  = static_cast<int>(total) % 60;
     const int ms = static_cast<int>((total - std::floor(total)) * 1000.0);
 
-    char buf[64];
     if (h > 0)
-        std::snprintf(buf, sizeof(buf), "%dh %02dm %02ds", h, m, s);
-    else if (m > 0)
-        std::snprintf(buf, sizeof(buf), "%dm %02ds", m, s);
-    else
-        std::snprintf(buf, sizeof(buf), "%d.%03d s", s, ms);
-
-    return buf;
+        return std::format("{}h {:02}m {:02}s", h, m, s);
+    if (m > 0)
+        return std::format("{}m {:02}s", m, s);
+    return std::format("{:d}.{:03} s", s, ms);
 }
 
 std::string BagSummary::format_size(uint64_t bytes)
 {
-    char buf[64];
     if (bytes == 0)
-    {
         return "—";
-    }
     if (bytes < 1024ULL)
-    {
-        std::snprintf(buf, sizeof(buf), "%llu B", static_cast<unsigned long long>(bytes));
-    }
-    else if (bytes < 1024ULL * 1024ULL)
-    {
-        std::snprintf(buf, sizeof(buf), "%.1f KB", static_cast<double>(bytes) / 1024.0);
-    }
-    else if (bytes < 1024ULL * 1024ULL * 1024ULL)
-    {
-        std::snprintf(buf, sizeof(buf), "%.2f MB", static_cast<double>(bytes) / (1024.0 * 1024.0));
-    }
-    else
-    {
-        std::snprintf(buf,
-                      sizeof(buf),
-                      "%.2f GB",
-                      static_cast<double>(bytes) / (1024.0 * 1024.0 * 1024.0));
-    }
-    return buf;
+        return std::format("{} B", bytes);
+    if (bytes < 1024ULL * 1024ULL)
+        return std::format("{:.1f} KB", static_cast<double>(bytes) / 1024.0);
+    if (bytes < 1024ULL * 1024ULL * 1024ULL)
+        return std::format("{:.2f} MB", static_cast<double>(bytes) / (1024.0 * 1024.0));
+    return std::format("{:.2f} GB", static_cast<double>(bytes) / (1024.0 * 1024.0 * 1024.0));
 }
 
 std::string BagSummary::format_time(double seconds_epoch)
@@ -79,15 +60,7 @@ std::string BagSummary::format_time(double seconds_epoch)
     const int64_t m = (total_s % 3600) / 60;
     const int64_t s = total_s % 60;
 
-    char buf[64];
-    std::snprintf(buf,
-                  sizeof(buf),
-                  "%02lld:%02lld:%02lld.%03d",
-                  static_cast<long long>(h % 24),
-                  static_cast<long long>(m),
-                  static_cast<long long>(s),
-                  ms);
-    return buf;
+    return std::format("{:02}:{:02}:{:02}.{:03}", h % 24, m, s, ms);
 }
 
 // ---------------------------------------------------------------------------
@@ -117,6 +90,10 @@ bool BagInfoPanel::open_bag(const std::string& path)
     if (opened_cb_)
         opened_cb_(path);
 
+    // Release storage — BagPlayer owns live playback; keeping two SQLite readers
+    // on the same bag directory can deadlock on some platforms.
+    reader_.close();
+
     return true;
 }
 
@@ -136,6 +113,9 @@ bool BagInfoPanel::try_open_file(const std::string& path)
 
 bool BagInfoPanel::is_bag_path(const std::string& path)
 {
+    if (path.empty())
+        return false;
+
     if (path.size() >= 4)
     {
         std::string ext = path.substr(path.size() - 4);
@@ -152,6 +132,13 @@ bool BagInfoPanel::is_bag_path(const std::string& path)
         if (ext == ".mcap")
             return true;
     }
+
+    // ROS 2 bag folders (metadata.yaml + storage files).
+    namespace fs = std::filesystem;
+    const fs::path bag_dir(path);
+    if (fs::is_directory(bag_dir) && fs::exists(bag_dir / "metadata.yaml"))
+        return true;
+
     return false;
 }
 
@@ -308,19 +295,12 @@ void BagInfoPanel::draw_metadata_section()
     row("End", BagSummary::format_time(summary_.end_time_sec));
 
     {
-        char msg_buf[32];
-        std::snprintf(msg_buf,
-                      sizeof(msg_buf),
-                      "%llu",
-                      static_cast<unsigned long long>(summary_.message_count));
-        row("Messages", std::string(msg_buf));
+        row("Messages", std::format("{}", summary_.message_count));
     }
     row("Size", BagSummary::format_size(summary_.compressed_size));
 
     {
-        char topic_buf[32];
-        std::snprintf(topic_buf, sizeof(topic_buf), "%zu", summary_.topic_count());
-        row("Topics", std::string(topic_buf));
+        row("Topics", std::format("{}", summary_.topic_count()));
     }
 
     // Show last error (e.g. from a failed seek) if any.
@@ -382,11 +362,10 @@ void BagInfoPanel::draw_topic_table()
         ImGui::TableSetColumnIndex(0);
 
         const bool is_selected = (selected_index_ == i);
-        char       sel_id[64];
-        std::snprintf(sel_id, sizeof(sel_id), "##sel_%d", i);
+        const std::string sel_id = std::format("##sel_{}", i);
 
         if (ImGui::Selectable(
-                sel_id,
+                sel_id.c_str(),
                 is_selected,
                 ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowOverlap,
                 ImVec2(0.0f, 0.0f)))
@@ -414,12 +393,7 @@ void BagInfoPanel::draw_topic_table()
         ImGui::PopStyleColor();
 
         ImGui::TableSetColumnIndex(2);
-        char msg_buf[32];
-        std::snprintf(msg_buf,
-                      sizeof(msg_buf),
-                      "%llu",
-                      static_cast<unsigned long long>(row.message_count));
-        ImGui::TextUnformatted(msg_buf);
+        ImGui::TextUnformatted(std::format("{}", row.message_count).c_str());
     }
 
     ImGui::EndTable();

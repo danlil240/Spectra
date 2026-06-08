@@ -188,8 +188,9 @@ TEST_F(SubplotManagerTest, ExternalFigureDestroyedBeforeManager_NoUseAfterFree)
     ASSERT_NE(h.series, nullptr);
 
     // Reproduce spectra-ros shutdown ordering:
-    // 1) Window manager destroys figure/axes first
+    // 1) Window manager detaches live subscriptions, then destroys figure
     // 2) SubplotManager is destroyed later
+    mgr->detach_external_figure();
     external_fig.reset();
 
     // Regression: this used to crash under ASAN in ~SubplotManager().
@@ -951,6 +952,36 @@ TEST_F(SubplotManagerLiveTest, MemoryBytesIncreasesAfterData)
         std::chrono::milliseconds(3000));
 
     EXPECT_GT(mgr.total_memory_bytes(), before);
+}
+
+TEST_F(SubplotManagerLiveTest, PointCountBoundedAfterSustainedPublish)
+{
+    auto pub_node = std::make_shared<rclcpp::Node>("test_prune_pub");
+    auto pub      = pub_node->create_publisher<std_msgs::msg::Float64>("/prune_test", 10);
+
+    SubplotManager mgr(bridge_, intr_, 1, 1);
+    mgr.set_time_window(10.0);
+    mgr.set_prune_buffer(5.0);
+    auto h = mgr.add_plot(1, "/prune_test", "data", "std_msgs/msg/Float64");
+    ASSERT_TRUE(h.valid());
+
+    spin_until(pub_node, [&] { return pub->get_subscription_count() >= 1; });
+
+    std_msgs::msg::Float64 msg;
+    for (int batch = 0; batch < 30; ++batch)
+    {
+        for (int i = 0; i < 50; ++i)
+        {
+            msg.data = static_cast<double>(i);
+            pub->publish(msg);
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        for (int p = 0; p < 5; ++p)
+            mgr.poll();
+    }
+
+    EXPECT_GT(h.series->point_count(), 0u);
+    EXPECT_LT(h.series->point_count(), 50'000u);
 }
 
 TEST_F(SubplotManagerLiveTest, LiveYAutoFitStopsAfterManualOverride)

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <format>
 
 #ifdef SPECTRA_USE_IMGUI
     #include "imgui.h"
@@ -786,9 +787,8 @@ void AnimationCurveEditor::draw(float width, float height)
             // Value label
             if (show_value_labels_)
             {
-                char buf[32];
-                snprintf(buf, sizeof(buf), "%.2f", kf.value);
-                draw_list->AddText(ImVec2(kx + 8, ky - 8), IM_COL32(200, 200, 200, 180), buf);
+                const std::string buf = std::format("{:.2f}", kf.value);
+                draw_list->AddText(ImVec2(kx + 8, ky - 8), IM_COL32(200, 200, 200, 180), buf.c_str());
             }
         }
     }

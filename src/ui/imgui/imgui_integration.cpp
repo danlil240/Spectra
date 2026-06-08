@@ -2,6 +2,8 @@
 
     #include "imgui_integration_internal.hpp"
 
+    #include <format>
+
     #define GLFW_INCLUDE_NONE
     #define GLFW_INCLUDE_VULKAN
     #ifdef SPECTRA_USE_GLFW
@@ -759,14 +761,9 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
                 // Distance label at midpoint
                 float mid_x = (scr_sx + scr_ex) * 0.5f;
                 float mid_y = (scr_sy + scr_ey) * 0.5f;
-                char  label[128];
-                std::snprintf(label,
-                              sizeof(label),
-                              "dX: %.4f  dY: %.4f  dist: %.4f",
-                              mdx,
-                              mdy,
-                              dist);
-                ImVec2 tsz = ImGui::CalcTextSize(label);
+                const std::string label =
+                    std::format("dX: {:.4f}  dY: {:.4f}  dist: {:.4f}", mdx, mdy, dist);
+                ImVec2 tsz = ImGui::CalcTextSize(label.c_str());
                 float  pad = 6.0f;
                 dl->AddRectFilled(ImVec2(mid_x - tsz.x * 0.5f - pad, mid_y - tsz.y - pad * 2),
                                   ImVec2(mid_x + tsz.x * 0.5f + pad, mid_y - pad * 0.5f),
@@ -774,7 +771,7 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
                                   4.0f);
                 dl->AddText(ImVec2(mid_x - tsz.x * 0.5f, mid_y - tsz.y - pad),
                             IM_COL32(255, 255, 255, 240),
-                            label);
+                            label.c_str());
             }
         }
     }

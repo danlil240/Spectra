@@ -3,6 +3,7 @@
 #include <cmath>
 
 #include <algorithm>
+#include <format>
 #include <limits>
 #include <spectra/camera.hpp>
 #include <spectra/series.hpp>
@@ -17,8 +18,6 @@ namespace
 // ticks at the given spacing are distinguishable.
 static std::string format_tick_value_3d(double value, double spacing)
 {
-    char buf[64];
-
     if (std::abs(value) < spacing * 1e-6)
         return "0";
 
@@ -49,8 +48,7 @@ static std::string format_tick_value_3d(double value, double spacing)
 
     if (digits_after_decimal <= 9 && abs_val < 1e9 && abs_val >= 0.001)
     {
-        std::snprintf(buf, sizeof(buf), "%.*f", digits_after_decimal, value);
-        std::string str(buf);
+        std::string str = std::format("{:.{}f}", value, digits_after_decimal);
         if (str.find('.') != std::string::npos)
         {
             while (str.back() == '0')
@@ -61,8 +59,7 @@ static std::string format_tick_value_3d(double value, double spacing)
         return str;
     }
 
-    std::snprintf(buf, sizeof(buf), "%.*e", total_sig_digits - 1, value);
-    return {buf};
+    return std::format("{:.{}e}", value, total_sig_digits - 1);
 }
 
 TickResult compute_ticks_for_range(double dmin, double dmax)

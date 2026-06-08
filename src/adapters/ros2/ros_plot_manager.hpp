@@ -66,6 +66,9 @@ struct DirectWriteContext
     std::once_flag        origin_once;
     double                origin{0.0};
     std::atomic<uint64_t> samples_written{0};
+    // Cleared before the target Series is destroyed so late executor callbacks
+    // become no-ops (window-close races the ROS spin thread).
+    std::atomic<bool> active{true};
 };
 
 // ---------------------------------------------------------------------------

@@ -7,6 +7,7 @@
     #include <cmath>
     #include <cstdio>
     #include <cstring>
+    #include <format>
     #include <imgui.h>
     #include <unordered_map>
 
@@ -376,6 +377,15 @@ bool color_field(const char* label, spectra::Color& color)
 
 // ─── Slider Field ───────────────────────────────────────────────────────────
 
+static std::string format_slider_value(const char* fmt, float value)
+{
+    if (std::strcmp(fmt, "%.2f") == 0)
+        return std::format("{:.2f}", value);
+    if (std::strcmp(fmt, "%.1f px") == 0)
+        return std::format("{:.1f} px", value);
+    return std::format("{:.2f}", value);
+}
+
 bool slider_field(const char* label, float& value, float min, float max, const char* fmt)
 {
     const auto& c = theme();
@@ -435,11 +445,10 @@ bool slider_field(const char* label, float& value, float min, float max, const c
         // Floating value label above the thumb while dragging
         if (ImGui::IsItemActive())
         {
-            float thumb_x = frame_min.x + fill_w;
-            char  val_buf[32];
-            std::snprintf(val_buf, sizeof(val_buf), fmt, value);
+            float thumb_x      = frame_min.x + fill_w;
+            const std::string val_buf = format_slider_value(fmt, value);
 
-            ImVec2 val_sz = ImGui::CalcTextSize(val_buf);
+            ImVec2 val_sz = ImGui::CalcTextSize(val_buf.c_str());
             float  lbl_w  = val_sz.x + tokens::SPACE_2 * 2.0f;
             float  lbl_h  = val_sz.y + tokens::SPACE_1 * 2.0f;
             float  lbl_x  = thumb_x - lbl_w * 0.5f;
@@ -463,7 +472,9 @@ bool slider_field(const char* label, float& value, float min, float max, const c
                         ImVec2(lbl_x + lbl_w, lbl_y + lbl_h),
                         lbl_border,
                         tokens::RADIUS_SM);
-            dl->AddText(ImVec2(lbl_x + tokens::SPACE_2, lbl_y + tokens::SPACE_1), lbl_fg, val_buf);
+            dl->AddText(ImVec2(lbl_x + tokens::SPACE_2, lbl_y + tokens::SPACE_1),
+                        lbl_fg,
+                        val_buf.c_str());
         }
     }
 
@@ -1156,9 +1167,8 @@ void stat_row(const char* label, const char* value, const char* unit)
         ImVec4(c.text_primary.r, c.text_primary.g, c.text_primary.b, c.text_primary.a));
     if (unit)
     {
-        char buf[128];
-        std::snprintf(buf, sizeof(buf), "%s %s", value, unit);
-        ImGui::TextUnformatted(buf);
+        const std::string buf = std::format("{} {}", value, unit);
+        ImGui::TextUnformatted(buf.c_str());
     }
     else
     {

@@ -96,6 +96,15 @@ uint64_t to_mb(uint64_t bytes)
     return bytes / (1024ull * 1024ull);
 }
 
+std::string spectra_source_dir()
+{
+#ifdef SPECTRA_SOURCE_DIR
+    return SPECTRA_SOURCE_DIR;
+#else
+    return ".";
+#endif
+}
+
 std::string sanitize_filename(std::string name)
 {
     for (char& c : name)
@@ -827,6 +836,10 @@ class RosQAAgent
         scenarios_.push_back({"boot_and_layout",
                               "Verify shell startup, layout defaults, and preset visibility",
                               [this]() { return scenario_boot_and_layout(); }});
+        scenarios_.push_back(
+            {"first_plot",
+             "Time discovery → topic select → first live plot (Phase A C1 benchmark)",
+             [this]() { return scenario_first_plot(); }});
         scenarios_.push_back({"live_topic_monitoring",
                               "Drive live publishers through discovery, echo, stats, and subplots",
                               [this]() { return scenario_live_topic_monitoring(); }});
@@ -845,6 +858,10 @@ class RosQAAgent
         scenarios_.push_back({"bag_playback",
                               "Open a synthetic bag and validate playback injection when enabled",
                               [this]() { return scenario_bag_playback(); }});
+        scenarios_.push_back(
+            {"nav_spatiotemporal",
+             "Nav2 debug bag scrub syncs TF, displays, and plots (Phase C7)",
+             [this]() { return scenario_nav_spatiotemporal(); }});
         scenarios_.push_back(
             {"design_review",
              "Capture named ROS shell design states and verify theme/layout presentation",
@@ -1002,6 +1019,60 @@ class RosQAAgent
         }
 
         return true;
+    }
+
+    ScenarioOutcome scenario_first_plot()
+    {
+        if (!shell_ || !fixture_)
+            return fail("first_plot", "Shell or helper node was not initialized");
+
+        const auto t0 = std::chrono::steady_clock::now();
+
+        const bool discovered = wait_until(
+            [this]()
+            {
+                shell_->discovery().refresh();
+                return shell_->discovery().has_topic("/qa/float");
+            },
+            5s);
+        if (!discovered)
+            return fail("first_plot", "Timed out waiting for /qa/float in topic discovery");
+
+        shell_->on_topic_selected("/qa/float", "std_msgs/msg/Float64");
+        if (!shell_->add_topic_plot("/qa/float"))
+            return fail("first_plot", "Failed to add /qa/float plot");
+
+        const bool plotted = wait_until(
+            [this]()
+            {
+                fixture_->publish_float(1.0);
+                pump_frames(2);
+                return shell_->active_plot_count() >= 1 && shell_->total_messages() > 0;
+            },
+            10s);
+
+        const auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - t0);
+
+        if (!plotted)
+        {
+            return fail("first_plot",
+                        "Timed out waiting for first plot sample (elapsed "
+                            + std::to_string(elapsed_ms.count()) + " ms)");
+        }
+
+        std::fprintf(stderr,
+                     "[ROS-QA] first_plot elapsed: %.2f s\n",
+                     static_cast<double>(elapsed_ms.count()) / 1000.0);
+
+        if (elapsed_ms > 10s)
+        {
+            return fail("first_plot",
+                        "Time-to-first-plot exceeded 10 s gate ("
+                            + std::to_string(elapsed_ms.count()) + " ms)");
+        }
+
+        return pass("Time-to-first-plot " + std::to_string(elapsed_ms.count()) + " ms");
     }
 
     ScenarioOutcome scenario_boot_and_layout()
@@ -1473,6 +1544,96 @@ class RosQAAgent
 #endif
     }
 
+    ScenarioOutcome scenario_nav_spatiotemporal()
+    {
+#ifdef SPECTRA_ROS2_BAG
+        const std::string bag_path =
+            spectra_source_dir() + "/tests/data/ros_bags/nav2_debug";
+        const std::string session_path =
+            spectra_source_dir() + "/sessions/presets/nav2_debug.spectra-ros-session";
+
+        if (!std::filesystem::exists(bag_path))
+        {
+            return skip("nav2_debug reference bag missing — run scripts/generate_ros_reference_bags.py");
+        }
+        if (!std::filesystem::exists(session_path))
+            return fail("nav", "nav2_debug session preset not found at " + session_path);
+
+        const LoadResult session_lr = shell_->load_session(session_path);
+        if (!session_lr.ok)
+            return fail("nav", "Failed to load nav2_debug session: " + session_lr.error);
+
+        if (shell_->displays().size() < 3)
+        {
+            return fail("nav",
+                        "nav2_debug session did not restore expected 3D displays (got "
+                            + std::to_string(shell_->displays().size()) + ")");
+        }
+        if (!shell_->scene_viewport_visible() || !shell_->plot_area_visible())
+            return fail("nav", "nav2_debug session did not enable rviz-plot panels");
+
+        if (!shell_->bag_info_panel()->try_open_file(bag_path))
+            return fail("nav", "try_open_file rejected nav2_debug bag path");
+
+        const bool bag_opened =
+            wait_until([this]() { return shell_->bag_player() && shell_->bag_player()->is_open(); },
+                       3s);
+        if (!bag_opened)
+            return fail("nav", "BagPlayer did not open nav2_debug reference bag");
+
+        shell_->bag_player()->pause();
+        shell_->bag_player()->seek_fraction(0.75);
+        pump_frames(12);
+
+        const bool tf_ready = wait_until(
+            [this]()
+            {
+                return shell_->tf_tree_panel()->has_frame("base_link")
+                       && shell_->tf_tree_panel()->has_frame("map");
+            },
+            3s);
+        if (!tf_ready)
+            return fail("nav", "TF tree missing map/base_link after bag scrub to 75%");
+
+        const TransformResult lookup =
+            shell_->tf_tree_panel()->lookup_transform("base_link", "map");
+        if (!lookup.ok)
+            return fail("nav", "TF lookup base_link->map failed after scrub: " + lookup.error);
+
+        shell_->bag_player()->play();
+        const bool injected = wait_until(
+            [this]()
+            {
+                return shell_->bag_player()->total_injected() > 0
+                       && shell_->subplot_manager().active_count() > 0;
+            },
+            4s);
+        shell_->bag_player()->pause();
+        if (!injected)
+            return fail("nav", "nav2_debug bag playback did not inject plot samples");
+
+        bool any_series_has_data = false;
+        for (int slot = 1; slot <= shell_->subplot_manager().capacity(); ++slot)
+        {
+            const auto* entry = shell_->subplot_manager().slot_entry_pub(slot);
+            if (entry && entry->active() && entry->series && entry->series->point_count() > 0)
+            {
+                any_series_has_data = true;
+                break;
+            }
+        }
+        if (!any_series_has_data)
+            return fail("nav", "Nav subplots have no data after nav2_debug playback");
+
+        shell_->bag_player()->seek_fraction(0.25);
+        pump_frames(8);
+
+        return pass("nav2_debug: session, bag scrub TF sync, and plot injection verified");
+#else
+        return skip("nav_spatiotemporal skipped because SPECTRA_ROS2_BAG=OFF");
+#endif
+    }
+
     ScenarioOutcome scenario_design_review()
     {
         if (!shell_ || !app_ || !canvas_figure_)
@@ -1560,6 +1721,36 @@ class RosQAAgent
             return fail("design", "Failed to capture bag-review design state");
         }
 
+        shell_->apply_layout_preset(RosAppShell::LayoutPreset::RViz);
+        shell_->set_scene_viewport_visible(true);
+        shell_->set_displays_panel_visible(true);
+        shell_->set_inspector_panel_visible(true);
+        if (!pump_frames(6)
+            || !record_design_capture("06_rviz_layout",
+                                      "RViz layout with scene viewport and displays panel"))
+        {
+            return fail("design", "Failed to capture RViz layout design state");
+        }
+
+        shell_->apply_layout_preset(RosAppShell::LayoutPreset::RVizPlot);
+        shell_->set_plot_area_visible(true);
+        if (!pump_frames(6)
+            || !record_design_capture("07_rviz_plot_layout",
+                                      "RVizPlot layout combining 3D viewport and plot area"))
+        {
+            return fail("design", "Failed to capture RVizPlot layout design state");
+        }
+
+        shell_->apply_layout_preset(RosAppShell::LayoutPreset::Monitor);
+        shell_->set_topic_list_visible(true);
+        shell_->set_topic_stats_visible(true);
+        if (!pump_frames(6)
+            || !record_design_capture("08_monitor_topic_stats",
+                                      "Monitor layout with topic monitor and statistics"))
+        {
+            return fail("design", "Failed to capture monitor/stats design state");
+        }
+
         ui::ThemeManager::instance().set_theme("dark");
         shell_->apply_layout_preset(RosAppShell::LayoutPreset::Default);
         shell_->set_nav_rail_visible(true);
@@ -1567,7 +1758,7 @@ class RosQAAgent
         if (!write_design_manifest())
             return fail("design", "Failed to write design review manifest");
 
-        return pass("Design review captured 5 named ROS shell states with contrast checks");
+        return pass("Design review captured 8 named ROS shell states with contrast checks");
     }
 
     void write_report() const

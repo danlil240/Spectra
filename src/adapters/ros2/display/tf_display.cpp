@@ -1,7 +1,7 @@
 #include "display/tf_display.hpp"
 
 #include <algorithm>
-#include <cstdio>
+#include <format>
 
 #include "scene/scene_manager.hpp"
 #include "tf/tf_buffer.hpp"
@@ -131,14 +131,10 @@ void TfDisplay::draw_inspector_ui()
 
 std::string TfDisplay::serialize_config_blob() const
 {
-    char buffer[128];
-    std::snprintf(buffer,
-                  sizeof(buffer),
-                  "labels=%d;axis_scale=%.3f;max_frames=%d",
-                  show_labels_ ? 1 : 0,
-                  axis_scale_,
-                  max_frames_);
-    return buffer;
+    return std::format("labels={};axis_scale={:.3f};max_frames={}",
+                       show_labels_ ? 1 : 0,
+                       axis_scale_,
+                       max_frames_);
 }
 
 void TfDisplay::deserialize_config_blob(const std::string& blob)

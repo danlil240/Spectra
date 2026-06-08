@@ -19,6 +19,50 @@ TEST(RobotModelDisplay, ConfigBlobRoundTrip)
     EXPECT_NE(blob.find("show_collision_shapes=0"), std::string::npos);
 }
 
+TEST(RobotModelDisplay, CollisionEntitiesExposeJointMetadataForPicking)
+{
+    RobotModelDisplay display;
+    DisplayContext    context;
+    SceneManager      scene;
+
+    display.on_enable(context);
+    display.set_robot_description_xml_for_test(R"(
+<robot name="demo">
+  <link name="base"/>
+  <link name="arm">
+    <collision>
+      <geometry><box size="1 1 1"/></geometry>
+    </collision>
+  </link>
+  <joint name="arm_joint" type="revolute">
+    <parent link="base"/>
+    <child link="arm"/>
+    <axis xyz="0 0 1"/>
+  </joint>
+</robot>)");
+    display.set_joint_positions_for_test({{"arm_joint", 0.42}});
+    display.on_update(0.016f);
+    display.submit_renderables(scene);
+
+    ASSERT_EQ(scene.entity_count(), 1u);
+    const auto& entity = scene.entities().front();
+    auto        find_property = [&](const char* key) -> std::string
+    {
+        for (const auto& property : entity.properties)
+        {
+            if (property.key == key)
+                return property.value;
+        }
+        return {};
+    };
+    EXPECT_EQ(find_property("link"), "arm");
+    EXPECT_EQ(find_property("joint"), "arm_joint");
+    EXPECT_EQ(find_property("parent_link"), "base");
+    EXPECT_EQ(find_property("joint_type"), "revolute");
+    EXPECT_FALSE(find_property("joint_position").empty());
+    EXPECT_NEAR(std::stod(find_property("joint_position")), 0.42, 1e-6);
+}
+
 TEST(RobotModelDisplay, ParsesUrdfAndSubmitsCollisionEntities)
 {
     RobotModelDisplay display;

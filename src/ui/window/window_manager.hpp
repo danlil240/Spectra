@@ -262,6 +262,7 @@ class WindowManager
                                                     FigureId target_figure_id)>;
     using RedrawRequestHandler = std::function<void(const char* reason)>;
     using FileDropHandler      = std::function<void(uint32_t window_id, const std::string& path)>;
+    using FigureUnregisteringHandler = std::function<void(FigureId, Figure*)>;
 
     void set_tab_detach_handler(TabDetachHandler cb) { tab_detach_handler_ = std::move(cb); }
     void set_tab_move_handler(TabMoveHandler cb) { tab_move_handler_ = std::move(cb); }
@@ -270,6 +271,10 @@ class WindowManager
         redraw_request_handler_ = std::move(cb);
     }
     void set_file_drop_handler(FileDropHandler cb) { file_drop_handler_ = std::move(cb); }
+    void set_figure_unregistering_handler(FigureUnregisteringHandler cb)
+    {
+        figure_unregistering_handler_ = std::move(cb);
+    }
 
     // Set the event system for cross-subsystem notifications.
     void set_event_system(EventSystem* es) { event_system_ = es; }
@@ -357,7 +362,8 @@ class WindowManager
     RedrawRequestHandler redraw_request_handler_;
 
     // OS file drop handler
-    FileDropHandler file_drop_handler_;
+    FileDropHandler              file_drop_handler_;
+    FigureUnregisteringHandler   figure_unregistering_handler_;
 
     // Cross-window drag target tracking
     uint32_t            drag_target_window_id_ = 0;

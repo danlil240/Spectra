@@ -109,7 +109,9 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
         event_system_->drain_all_deferred();
 
     // Commit pending thread-safe series data from background threads.
+    SPECTRA_PROFILE_BEGIN(profiler_, "series_commit");
     commit_thread_safe_series();
+    SPECTRA_PROFILE_END(profiler_, "series_commit");
 
     // Evaluate keyframe animations
     SPECTRA_PROFILE_BEGIN(profiler_, "animator");

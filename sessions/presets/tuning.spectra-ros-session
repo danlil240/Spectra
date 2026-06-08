@@ -1,0 +1,107 @@
+{
+  "version": 2,
+  "node_name": "spectra_tuning",
+  "node_ns": "",
+  "layout": "default",
+  "subplot_rows": 2,
+  "subplot_cols": 2,
+  "time_window_s": 30.0,
+  "pruning_enabled": true,
+  "prune_buffer_s": 20.0,
+  "saved_at": "2026-06-07T00:00:00Z",
+  "description": "Live IMU / PID tuning — four acceleration and rate axes on a 2×2 grid",
+  "subscriptions": [
+    {
+      "topic": "/imu/data",
+      "field_path": "linear_acceleration.x",
+      "type_name": "sensor_msgs/msg/Imu",
+      "subplot_slot": 1,
+      "time_window_s": 0.0,
+      "scroll_paused": false,
+      "axis_mode": "time-series",
+      "x_field_path": "",
+      "y_field_path": ""
+    },
+    {
+      "topic": "/imu/data",
+      "field_path": "linear_acceleration.y",
+      "type_name": "sensor_msgs/msg/Imu",
+      "subplot_slot": 2,
+      "time_window_s": 0.0,
+      "scroll_paused": false,
+      "axis_mode": "time-series",
+      "x_field_path": "",
+      "y_field_path": ""
+    },
+    {
+      "topic": "/imu/data",
+      "field_path": "linear_acceleration.z",
+      "type_name": "sensor_msgs/msg/Imu",
+      "subplot_slot": 3,
+      "time_window_s": 0.0,
+      "scroll_paused": false,
+      "axis_mode": "time-series",
+      "x_field_path": "",
+      "y_field_path": ""
+    },
+    {
+      "topic": "/imu/data",
+      "field_path": "angular_velocity.z",
+      "type_name": "sensor_msgs/msg/Imu",
+      "subplot_slot": 4,
+      "time_window_s": 0.0,
+      "scroll_paused": false,
+      "axis_mode": "time-series",
+      "x_field_path": "",
+      "y_field_path": ""
+    }
+  ],
+  "expressions": [],
+  "expression_presets": [],
+  "scene": {
+    "fixed_frame": "map",
+    "camera_pose": {
+      "azimuth": 45.0,
+      "elevation": 30.0,
+      "distance": 5.0,
+      "target": [0.0, 0.0, 0.0],
+      "projection": "perspective",
+      "fov": 45.0
+    },
+    "background_color": [0.08, 0.09, 0.12, 1.0],
+    "displays": []
+  },
+  "ui": {
+    "panels": {
+      "topic_list": true,
+      "topic_echo": true,
+      "topic_stats": true,
+      "plot_area": true,
+      "bag_info": false,
+      "bag_playback": false,
+      "log_viewer": true,
+      "diagnostics": false,
+      "node_graph": true,
+      "tf_tree": false,
+      "param_editor": false,
+      "service_caller": false,
+      "displays_panel": false,
+      "scene_viewport": false,
+      "inspector_panel": false,
+      "nav_rail": true
+    },
+    "topic_monitor": {
+      "show_type": true,
+      "show_hz": true,
+      "show_pubs": true,
+      "show_subs": true,
+      "show_bw": true
+    },
+    "nav_rail": {
+      "visible": true,
+      "expanded": true,
+      "width": 220.0
+    },
+    "imgui_layout": ""
+  }
+}

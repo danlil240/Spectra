@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
+#include <format>
 
 #include "scene/scene_manager.hpp"
 #include "tf/tf_buffer.hpp"
@@ -26,15 +27,7 @@ uint64_t steady_now_ns()
 
 std::string color_string(const spectra::Color& color)
 {
-    char buffer[96];
-    std::snprintf(buffer,
-                  sizeof(buffer),
-                  "%.3f, %.3f, %.3f, %.3f",
-                  color.r,
-                  color.g,
-                  color.b,
-                  color.a);
-    return buffer;
+    return std::format("{:.3f}, {:.3f}, {:.3f}, {:.3f}", color.r, color.g, color.b, color.a);
 }
 
 uint32_t pack_color_rgba(const spectra::Color& color)
@@ -285,20 +278,17 @@ void MarkerDisplay::draw_inspector_ui()
 void MarkerDisplay::set_topic(const std::string& topic)
 {
     topic_ = topic;
-    std::snprintf(topic_input_.data(), topic_input_.size(), "%s", topic_.c_str());
+    topic_.copy(topic_input_.data(), topic_input_.size() - 1);
+    topic_input_[std::min(topic_.size(), topic_input_.size() - 1)] = '\0';
     resubscribe_requested_ = true;
 }
 
 std::string MarkerDisplay::serialize_config_blob() const
 {
-    char buffer[384];
-    std::snprintf(buffer,
-                  sizeof(buffer),
-                  "topic=%s;use_message_stamp=%d;show_expired_count=%d",
-                  topic_.c_str(),
-                  use_message_stamp_ ? 1 : 0,
-                  show_expired_count_ ? 1 : 0);
-    return buffer;
+    return std::format("topic={};use_message_stamp={};show_expired_count={}",
+                       topic_,
+                       use_message_stamp_ ? 1 : 0,
+                       show_expired_count_ ? 1 : 0);
 }
 
 void MarkerDisplay::deserialize_config_blob(const std::string& blob)

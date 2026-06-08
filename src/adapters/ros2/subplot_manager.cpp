@@ -12,6 +12,13 @@
     #include <imgui.h>
 #endif
 
+#include "plot_series_pruning.hpp"
+
+namespace
+{
+constexpr size_t CUSTOM_AXES_MAX_POINTS = 100'000;
+}   // namespace
+
 // AxisLinkManager lives under src/ui/data/ — included here (not in the public
 // header) so that adapter users don't need src/ui on their include path.
 #include "ui/data/axis_link.hpp"
@@ -79,39 +86,55 @@ SubplotManager::SubplotManager(Ros2Bridge&          bridge,
     }
 }
 
+void SubplotManager::detach_external_figure()
+{
+    if (owned_figure_)
+        return;
+
+    for (auto& se : slots_)
+    {
+        if (se.direct_ctx)
+            se.direct_ctx->active.store(false, std::memory_order_release);
+
+        if (se.subscriber)
+        {
+            se.subscriber->stop();
+            se.subscriber.reset();
+        }
+
+        for (auto& es : se.extra_series)
+        {
+            if (es->direct_ctx)
+                es->direct_ctx->active.store(false, std::memory_order_release);
+            if (es->subscriber)
+            {
+                es->subscriber->stop();
+                es->subscriber.reset();
+            }
+            es->series = nullptr;
+        }
+
+        se.extra_series.clear();
+        se.series = nullptr;
+        se.axes   = nullptr;
+        se.topic.clear();
+        se.field_path.clear();
+        se.type_name.clear();
+        se.extractor_id     = -1;
+        se.samples_received = 0;
+        se.auto_fitted      = false;
+        se.drain_buf.clear();
+        se.direct_ctx.reset();
+    }
+}
+
 SubplotManager::~SubplotManager()
 {
     // When bound to an external Figure (spectra-ros main canvas), that figure
     // can be destroyed by WindowManager before RosAppShell shutdown runs.
     if (!owned_figure_)
     {
-        for (auto& se : slots_)
-        {
-            if (se.subscriber)
-            {
-                se.subscriber->stop();
-                se.subscriber.reset();
-            }
-            for (auto& es : se.extra_series)
-            {
-                if (es->subscriber)
-                {
-                    es->subscriber->stop();
-                    es->subscriber.reset();
-                }
-                es->series = nullptr;
-            }
-            se.extra_series.clear();
-            se.series = nullptr;
-            se.axes   = nullptr;
-            se.topic.clear();
-            se.field_path.clear();
-            se.type_name.clear();
-            se.extractor_id     = -1;
-            se.samples_received = 0;
-            se.auto_fitted      = false;
-            se.drain_buf.clear();
-        }
+        detach_external_figure();
         return;
     }
 
@@ -188,22 +211,46 @@ SubplotHandle SubplotManager::add_plot(int                slot,
         ls.width(3.0f);
         entry->series = &ls;
 
-        // Configure subscriber.
+        // Configure subscriber — reuse the primary subscription when the topic
+        // and type match so we deserialize each message only once.
         if (bridge_.is_ok())
         {
-            auto sub = std::make_unique<GenericSubscriber>(bridge_.node(),
-                                                           topic,
-                                                           resolved_type,
-                                                           intr_,
-                                                           buffer_depth);
-            int  eid = sub->add_field(field_path);
-            if (eid < 0)
-                return bad;
-            entry->extractor_id = eid;
+            GenericSubscriber* shared = nullptr;
+            if (se.subscriber && se.subscriber->is_running() && se.topic == topic
+                && se.type_name == resolved_type)
+            {
+                shared = se.subscriber.get();
+            }
+
+            int eid = -1;
+            if (shared)
+            {
+                eid = shared->add_field(field_path);
+                if (eid < 0)
+                    return bad;
+            }
+            else
+            {
+                auto sub = std::make_unique<GenericSubscriber>(bridge_.node(),
+                                                               topic,
+                                                               resolved_type,
+                                                               intr_,
+                                                               buffer_depth);
+                eid = sub->add_field(field_path);
+                if (eid < 0)
+                    return bad;
+                if (!sub->start())
+                    return bad;
+                entry->subscriber       = std::move(sub);
+                entry->owns_subscriber  = true;
+                entry->drain_buf.reserve(std::min(buffer_depth, MAX_DRAIN_PER_POLL));
+            }
 
             // Enable thread-safe series + direct-write callback.
             entry->series->set_thread_safe(true);
             entry->direct_ctx = std::make_unique<DirectWriteContext>();
+            entry->extractor_id    = eid;
+            entry->owns_subscriber = (shared == nullptr);
 
             auto* ctx     = entry->direct_ctx.get();
             auto* origin  = &shared_time_origin_;
@@ -211,27 +258,27 @@ SubplotHandle SubplotManager::add_plot(int                slot,
             auto* series  = entry->series;
             auto* data_cb = &on_data_cb_;
             int   slot_id = slot;
-            sub->set_field_callback(
-                eid,
-                [ctx, origin, has_o, series, data_cb, slot_id](double t_sec, double val)
+            const auto cb = [ctx, origin, has_o, series, data_cb, slot_id](double t_sec, double val)
+            {
+                if (!ctx->active.load(std::memory_order_acquire))
+                    return;
+                if (!*has_o)
                 {
-                    if (!*has_o)
-                    {
-                        *origin = t_sec;
-                        *has_o  = true;
-                    }
-                    const double t_rel = t_sec - *origin;
-                    series->append(static_cast<float>(t_rel), static_cast<float>(val));
-                    ctx->samples_written.fetch_add(1, std::memory_order_relaxed);
+                    *origin = t_sec;
+                    *has_o  = true;
+                }
+                const double t_rel = t_sec - *origin;
+                series->append(static_cast<float>(t_rel), static_cast<float>(val));
+                ctx->samples_written.fetch_add(1, std::memory_order_relaxed);
 
-                    if (*data_cb)
-                        (*data_cb)(slot_id, t_sec, val);
-                });
+                if (*data_cb)
+                    (*data_cb)(slot_id, t_sec, val);
+            };
 
-            if (!sub->start())
-                return bad;
-            entry->drain_buf.reserve(std::min(buffer_depth, MAX_DRAIN_PER_POLL));
-            entry->subscriber = std::move(sub);
+            if (shared)
+                shared->set_field_callback(eid, cb);
+            else
+                entry->subscriber->set_field_callback(eid, cb);
         }
 
         SubplotHandle h;
@@ -381,10 +428,16 @@ bool SubplotManager::remove_series_from_slot(int                slot,
     {
         if ((*it)->topic == topic && (*it)->field_path == field_path)
         {
-            if ((*it)->subscriber)
+            if ((*it)->direct_ctx)
+                (*it)->direct_ctx->active.store(false, std::memory_order_release);
+            if ((*it)->owns_subscriber && (*it)->subscriber)
             {
                 (*it)->subscriber->stop();
                 (*it)->subscriber.reset();
+            }
+            else if (!(*it)->owns_subscriber && se.subscriber && (*it)->extractor_id >= 0)
+            {
+                se.subscriber->remove_field((*it)->extractor_id);
             }
             // Remove the LineSeries from axes.
             const auto& all_series = se.axes->series();
@@ -412,11 +465,8 @@ bool SubplotManager::remove_series_from_slot(int                slot,
         }
 
         // Promote first extra to primary.
-        if (se.subscriber)
-        {
-            se.subscriber->stop();
-            se.subscriber.reset();
-        }
+        if (se.subscriber && se.extractor_id >= 0)
+            se.subscriber->remove_field(se.extractor_id);
 
         // Remove the primary LineSeries from axes.
         const auto& all_series = se.axes->series();
@@ -434,7 +484,8 @@ bool SubplotManager::remove_series_from_slot(int                slot,
         se.field_path       = first->field_path;
         se.type_name        = first->type_name;
         se.series           = first->series;
-        se.subscriber       = std::move(first->subscriber);
+        if (first->owns_subscriber)
+            se.subscriber = std::move(first->subscriber);
         se.extractor_id     = first->extractor_id;
         se.x_extractor_id   = -1;
         se.y_extractor_id   = first->extractor_id;
@@ -908,18 +959,26 @@ void SubplotManager::poll()
         if (se.manual_ylim.has_value())
             se.axes->ylim(se.manual_ylim->min, se.manual_ylim->max);
 
-        // Custom-axis slots retain history conservatively because arbitrary
+        // Custom-axis slots retain conservative FIFO caps because arbitrary
         // x-values are not guaranteed to be safe for time-window pruning.
-        if (pruning_enabled_ && se.axis_mode == AxisMode::TimeSeries)
+        if (se.axis_mode == AxisMode::CustomAxes)
         {
-            const auto xlim         = se.axes->x_limits();
-            const auto prune_before = static_cast<float>(xlim.min - prune_buffer_s_);
             if (se.series)
-                se.series->erase_before(prune_before);
+                se.series->trim_to_max_points(CUSTOM_AXES_MAX_POINTS);
             for (auto& es : se.extra_series)
             {
                 if (es->series)
-                    es->series->erase_before(prune_before);
+                    es->series->trim_to_max_points(CUSTOM_AXES_MAX_POINTS);
+            }
+        }
+        else if (pruning_enabled_ && se.axis_mode == AxisMode::TimeSeries && se.axes)
+        {
+            if (se.series)
+                prune_time_series(*se.series, *se.axes, prune_buffer_s_, true);
+            for (auto& es : se.extra_series)
+            {
+                if (es->series)
+                    prune_time_series(*es->series, *se.axes, prune_buffer_s_, true);
             }
         }
     }
@@ -1048,6 +1107,22 @@ size_t SubplotManager::total_memory_bytes() const
         {
             if (es->series)
                 total += es->series->memory_bytes();
+        }
+    }
+    return total;
+}
+
+size_t SubplotManager::total_point_count() const
+{
+    size_t total = 0;
+    for (const auto& se : slots_)
+    {
+        if (se.series)
+            total += se.series->point_count();
+        for (const auto& es : se.extra_series)
+        {
+            if (es->series)
+                total += es->series->point_count();
         }
     }
     return total;
@@ -1605,6 +1680,8 @@ bool SubplotManager::rebuild_primary_slot_subscription(SlotEntry&   se,
                 new_y_extractor_id,
                 [ctx, origin, has_o, series, data_cb, slot_id](double t_sec, double val)
                 {
+                    if (!ctx->active.load(std::memory_order_acquire))
+                        return;
                     if (!*has_o)
                     {
                         *origin = t_sec;

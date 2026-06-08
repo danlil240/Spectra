@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <format>
 #include <sstream>
 
 #include "ui/animation/camera_animator.hpp"
@@ -1135,9 +1136,8 @@ void TimelineEditor::draw(float width, float height)
                            IM_COL32(120, 120, 120, 255));
         if (major)
         {
-            char buf[16];
-            snprintf(buf, sizeof(buf), "%.1fs", t);
-            draw_list->AddText(ImVec2(px + 2, ruler_y + 2), IM_COL32(180, 180, 180, 255), buf);
+            const std::string buf = std::format("{:.1f}s", t);
+            draw_list->AddText(ImVec2(px + 2, ruler_y + 2), IM_COL32(180, 180, 180, 255), buf.c_str());
         }
         t += tick_spacing;
     }

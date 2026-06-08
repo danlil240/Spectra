@@ -279,6 +279,25 @@ struct LoadResult
 };
 
 // ---------------------------------------------------------------------------
+// SessionMergeOptions — import content from another session without replacing
+// layout / panels (Phase B7).
+// ---------------------------------------------------------------------------
+
+struct SessionMergeOptions
+{
+    bool subscriptions      = true;
+    bool expressions        = true;
+    bool expression_presets = true;
+    bool displays           = false;
+};
+
+// Merge `incoming` into `base`.  Layout, panels, imgui, and camera come from
+// `base`.  Duplicate subscriptions (topic + field + slot) are skipped.
+RosSession merge_sessions(const RosSession&        base,
+                          const RosSession&        incoming,
+                          SessionMergeOptions      options = {});
+
+// ---------------------------------------------------------------------------
 // RosSessionManager — save / load / recent-list management
 // ---------------------------------------------------------------------------
 

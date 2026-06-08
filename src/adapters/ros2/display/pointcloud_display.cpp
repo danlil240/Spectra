@@ -4,6 +4,7 @@
 #include <array>
 #include <cmath>
 #include <cstdio>
+#include <format>
 
 #include "scene/scene_manager.hpp"
 #include "tf/tf_buffer.hpp"
@@ -177,8 +178,11 @@ void PointCloudDisplay::on_update(float)
 
     status_      = DisplayStatus::Ok;
     status_text_ = std::to_string(frame->point_count) + " pts";
-    if (frame->original_point_count > frame->point_count)
-        status_text_ += " (decimated)";
+    if (frames_decimated_ > 0)
+    {
+        status_text_ += " (dropped " + std::to_string(points_dropped_total_) + " pts in "
+                         + std::to_string(frames_decimated_) + " frames)";
+    }
 }
 
 void PointCloudDisplay::submit_renderables(SceneManager& scene)
@@ -253,14 +257,11 @@ void PointCloudDisplay::submit_renderables(SceneManager& scene)
     entity.point_set = std::move(point_set);
 
     const std::array<float, 4> default_color = unpack_rgba(entity.point_set->default_rgba);
-    char                       color_buffer[96];
-    std::snprintf(color_buffer,
-                  sizeof(color_buffer),
-                  "%.3f, %.3f, %.3f, %.3f",
-                  default_color[0],
-                  default_color[1],
-                  default_color[2],
-                  default_color[3]);
+    const std::string          color_str     = std::format("{:.3f}, {:.3f}, {:.3f}, {:.3f}",
+                                                  default_color[0],
+                                                  default_color[1],
+                                                  default_color[2],
+                                                  default_color[3]);
 
     entity.properties.push_back({"points", std::to_string(frame->point_count)});
     entity.properties.push_back({"input_points", std::to_string(frame->original_point_count)});
@@ -270,7 +271,7 @@ void PointCloudDisplay::submit_renderables(SceneManager& scene)
     entity.properties.push_back({"has_rgb", frame->has_rgb ? "true" : "false"});
     entity.properties.push_back({"has_intensity", frame->has_intensity ? "true" : "false"});
     entity.properties.push_back({"fixed_frame", fixed_frame_.empty() ? "(unset)" : fixed_frame_});
-    entity.properties.push_back({"color", color_buffer});
+    entity.properties.push_back({"color", color_str});
     scene.add_entity(std::move(entity));
 }
 
@@ -295,6 +296,9 @@ void PointCloudDisplay::draw_inspector_ui()
         ImGui::Text("Latest points: %zu / %zu", frame->point_count, frame->original_point_count);
         ImGui::Text("Frame: %s", frame->frame_id.empty() ? "(none)" : frame->frame_id.c_str());
     }
+    ImGui::Text("Dropped points (total): %llu",
+                static_cast<unsigned long long>(points_dropped_total_));
+    ImGui::Text("Decimated frames: %llu", static_cast<unsigned long long>(frames_decimated_));
     ImGui::TextWrapped("Status: %s", status_text_.c_str());
 #endif
 }
@@ -302,22 +306,19 @@ void PointCloudDisplay::draw_inspector_ui()
 void PointCloudDisplay::set_topic(const std::string& topic)
 {
     topic_ = topic;
-    std::snprintf(topic_input_.data(), topic_input_.size(), "%s", topic_.c_str());
+    topic_.copy(topic_input_.data(), topic_input_.size() - 1);
+    topic_input_[std::min(topic_.size(), topic_input_.size() - 1)] = '\0';
     resubscribe_requested_ = true;
 }
 
 std::string PointCloudDisplay::serialize_config_blob() const
 {
-    char buffer[256];
-    std::snprintf(buffer,
-                  sizeof(buffer),
-                  "topic=%s;color_mode=%d;point_size=%.2f;max_points=%d;use_message_stamp=%d",
-                  topic_.c_str(),
-                  static_cast<int>(color_mode_),
-                  point_size_,
-                  max_points_,
-                  use_message_stamp_ ? 1 : 0);
-    return buffer;
+    return std::format("topic={};color_mode={};point_size={:.2f};max_points={};use_message_stamp={}",
+                       topic_,
+                       static_cast<int>(color_mode_),
+                       point_size_,
+                       max_points_,
+                       use_message_stamp_ ? 1 : 0);
 }
 
 void PointCloudDisplay::deserialize_config_blob(const std::string& blob)
@@ -352,7 +353,18 @@ void PointCloudDisplay::deserialize_config_blob(const std::string& blob)
 void PointCloudDisplay::ingest_pointcloud_frame(const PointCloudFrame& frame)
 {
     std::lock_guard<std::mutex> lock(frame_mutex_);
+    if (frame.original_point_count > frame.point_count)
+    {
+        points_dropped_total_ += frame.original_point_count - frame.point_count;
+        ++frames_decimated_;
+    }
     latest_frame_ = frame;
+}
+
+void PointCloudDisplay::clear_playback_frame()
+{
+    std::lock_guard<std::mutex> lock(frame_mutex_);
+    latest_frame_.reset();
 }
 
 std::optional<PointCloudFrame> PointCloudDisplay::latest_frame() const

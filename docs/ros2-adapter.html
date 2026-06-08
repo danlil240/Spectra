@@ -208,7 +208,9 @@
           <div class="toc">
             <h3>On This Page</h3>
             <ul>
-              <li><a href="#quick-start">Quick Start</a></li>
+              <li><a href="#quick-start">Quick Start (10 seconds)</a></li>
+              <li><a href="#workflows">Named Workflows &amp; Presets</a></li>
+              <li><a href="ros2-comparison.html">Tool Comparison</a></li>
               <li><a href="#architecture">Architecture</a></li>
               <li><a href="#panels">Panel Overview</a></li>
               <li><a href="#live-plotting">Live Plotting</a></li>
@@ -230,60 +232,120 @@
       <!-- QUICK START -->
       <section class="section" id="quick-start">
         <div class="container">
-          <h2>Quick Start</h2>
+          <h2>Quick Start — First Plot in 10 Seconds</h2>
           <p class="section-intro">
-            Source your ROS2 workspace, then build Spectra with
-            <code>SPECTRA_USE_ROS2=ON</code>. The <code>spectra-ros</code>
-            executable is the standalone entry point.
+            Goal: go from a live ROS graph to a scrolling GPU plot without installing
+            <code>rqt</code>, PlotJuggler, and RViz separately. Build once, then use
+            either <code>--topics</code> or a checked-in session preset.
           </p>
 
           <ol class="step-list">
             <li>
               <div>
-                <strong>Source ROS2 and your workspace</strong>
+                <strong>Source ROS2 and build <code>spectra-ros</code></strong>
                 <div class="cmd-block">
-                  <span class="comment"># Example for ROS2 Humble</span><br>
+                  <span class="comment"># One-time setup (Humble example)</span><br>
                   source /opt/ros/humble/setup.bash<br>
-                  source ~/ros2_ws/install/setup.bash
-                </div>
-              </div>
-            </li>
-            <li>
-              <div>
-                <strong>Configure with ROS2 support</strong>
-                <div class="cmd-block">
-                  cmake -S . -B build-ros2 \<br>
+                  cmake -S . -B build -G Ninja \<br>
                   &nbsp;&nbsp;<span class="flag">-DSPECTRA_USE_ROS2=ON</span> \<br>
                   &nbsp;&nbsp;<span class="flag">-DSPECTRA_ROS2_BAG=ON</span> \<br>
-                  &nbsp;&nbsp;-DCMAKE_BUILD_TYPE=Release
+                  &nbsp;&nbsp;-DCMAKE_BUILD_TYPE=Release<br>
+                  cmake --build build --target spectra-ros -j$(nproc)
                 </div>
               </div>
             </li>
             <li>
               <div>
-                <strong>Build the adapter</strong>
-                <div class="cmd-block">ninja -C build-ros2 spectra-ros</div>
+                <strong>Publish something (terminal 1)</strong>
+                <div class="cmd-block">
+                  ros2 topic pub /cmd_vel geometry_msgs/msg/Twist \<br>
+                  &nbsp;&nbsp;"{ linear: { x: 0.5 } }" --rate 10
+                </div>
               </div>
             </li>
             <li>
               <div>
-                <strong>Launch</strong>
+                <strong>Launch and plot (terminal 2)</strong>
                 <div class="cmd-block">
-                  <span class="comment"># Interactive — default layout</span><br>
-                  ./build-ros2/spectra-ros<br><br>
-                  <span class="comment"># Subscribe specific topics at startup</span><br>
-                  ./build-ros2/spectra-ros --topics /imu/data,/odom<br><br>
-                  <span class="comment"># Open a rosbag directly</span><br>
-                  ./build-ros2/spectra-ros --bag /path/to/recording.db3
+                  <span class="comment"># Fastest path — subscribe + plot at startup</span><br>
+                  ./build/spectra-ros --topics /cmd_vel:linear.x<br><br>
+                  <span class="comment"># Or open the default cockpit and drag a field from Topic Monitor</span><br>
+                  ./build/spectra-ros
                 </div>
               </div>
             </li>
           </ol>
 
+          <p style="margin-top:1.2rem;color:var(--muted)">
+            Default layout opens <strong>Topic Monitor</strong> (left),
+            <strong>Plot Area</strong> (center), <strong>Topic Echo</strong> (bottom), and
+            <strong>Topic Statistics</strong> (right). Select a topic in the monitor — the stats
+            panel shows a hint until you pick a field to plot.
+          </p>
+
           <div class="callout" style="margin-top:1.2rem">
+            <strong>Session presets.</strong> Checked-in layouts live under
+            <code>sessions/presets/</code>. Load at startup with
+            <code>--session</code> — no manual dock setup required.
+            <div class="cmd-block" style="margin-top:0.6rem">
+              ./build/spectra-ros --session sessions/presets/tuning.spectra-ros-session
+            </div>
+          </div>
+
+          <div class="callout" style="margin-top:1rem">
             <strong>Zero impact when OFF.</strong> When <code>SPECTRA_USE_ROS2=OFF</code>
             (the default), no ROS2 headers are included and no ROS2 dependencies
             are required. All adapter code is fully gated behind the CMake option.
+          </div>
+        </div>
+      </section>
+
+      <!-- WORKFLOWS -->
+      <section class="section" id="workflows">
+        <div class="container">
+          <h2>Named Workflows &amp; Presets</h2>
+          <p class="section-intro">
+            Each workflow has a session preset, launch file, and QA scenario.
+            See also <a href="ros2-comparison.html">how Spectra compares</a> to
+            rqt, PlotJuggler, RViz, and Foxglove.
+          </p>
+
+          <div class="panel-grid">
+            <article class="card">
+              <div class="phase-label">W1 · Live tuning</div>
+              <h3>IMU / PID session</h3>
+              <p>Four IMU axes on a 2×2 grid — acceleration and angular rate.</p>
+              <div class="cmd-block">
+                ros2 launch spectra imu_monitor.launch.py<br>
+                <span class="comment"># or</span><br>
+                ./build/spectra-ros --session sessions/presets/tuning.spectra-ros-session
+              </div>
+            </article>
+            <article class="card">
+              <div class="phase-label">W2 · Bag post-mortem</div>
+              <h3>Bag review</h3>
+              <p>Transport bar, bag info, plots, and echo on one timeline.</p>
+              <div class="cmd-block">
+                ./build/spectra-ros --bag recording.db3 \<br>
+                &nbsp;&nbsp;--session sessions/presets/bag_review.spectra-ros-session
+              </div>
+            </article>
+            <article class="card">
+              <div class="phase-label">W3 · Bringup</div>
+              <h3>cmd_vel + odom</h3>
+              <p>Commanded vs measured velocity for integrator bringup.</p>
+              <div class="cmd-block">
+                ros2 launch spectra bringup.launch.py
+              </div>
+            </article>
+            <article class="card">
+              <div class="phase-label">Nav debug</div>
+              <h3>Navigation dashboard</h3>
+              <p>cmd_vel, odom, diagnostics — nav stack at a glance.</p>
+              <div class="cmd-block">
+                ros2 launch spectra nav_dashboard.launch.py
+              </div>
+            </article>
           </div>
         </div>
       </section>
@@ -656,6 +718,19 @@
             </article>
 
             <article class="card">
+              <h3>Headless CSV export (<code>spectra-ros-analyze</code>)</h3>
+              <p>
+                Export numeric bag fields to CSV without the GUI — for CI thresholds
+                and post-run reports. See
+                <a href="ci/bag-analysis.md">docs/ci/bag-analysis.md</a>.
+              </p>
+              <pre><code>./build/spectra-ros-analyze \
+  --bag tests/data/ros_bags/imu_snippet \
+  --fields /imu/data.linear_acceleration.z \
+  --csv /tmp/imu_z.csv</code></pre>
+            </article>
+
+            <article class="card">
               <h3>Playback + Live Overlap</h3>
               <p>
                 Bag messages are fed through the same
@@ -916,39 +991,87 @@
             </thead>
             <tbody>
               <tr>
-                <td><code>--topics</code></td>
-                <td><code>--topics /imu/data.linear_acceleration.x,/odom</code></td>
-                <td>Subscribe and plot these topic/field paths at startup</td>
+                <td><code>--topics</code> / <code>-t</code></td>
+                <td><code>--topics /cmd_vel:linear.x /imu/data:angular_velocity.z</code></td>
+                <td>Subscribe and plot topic or <code>topic:field_path</code> at startup</td>
               </tr>
               <tr>
-                <td><code>--bag</code></td>
+                <td><code>--bag</code> / <code>-b</code></td>
                 <td><code>--bag /path/to/recording.db3</code></td>
                 <td>Open a rosbag immediately on launch</td>
               </tr>
               <tr>
-                <td><code>--layout</code></td>
-                <td><code>--layout compact</code></td>
-                <td>Panel layout preset: <code>default</code>, <code>compact</code>, <code>plot-only</code></td>
+                <td><code>--session</code> / <code>-s</code></td>
+                <td><code>--session sessions/presets/tuning.spectra-ros-session</code></td>
+                <td>Load a <code>.spectra-ros-session</code> preset (plots, panels, layout)</td>
               </tr>
               <tr>
-                <td><code>--node-name</code></td>
+                <td><code>--layout</code> / <code>-l</code></td>
+                <td><code>--layout plot-only</code></td>
+                <td><code>default</code>, <code>plot-only</code>, <code>monitor</code>, <code>rviz</code>, <code>rviz-plot</code></td>
+              </tr>
+              <tr>
+                <td><code>--window-s</code> / <code>-w</code></td>
+                <td><code>--window-s 60</code></td>
+                <td>Auto-scroll time window in seconds (default 30)</td>
+              </tr>
+              <tr>
+                <td><code>--node-name</code> / <code>-n</code></td>
                 <td><code>--node-name spectra_debug</code></td>
                 <td>Override the ROS2 node name (default: <code>spectra_ros</code>)</td>
               </tr>
               <tr>
-                <td><code>--window</code></td>
-                <td><code>--window 1920x1080</code></td>
-                <td>Set initial window resolution</td>
+                <td><code>--rows</code> / <code>--cols</code></td>
+                <td><code>--rows 2 --cols 2</code></td>
+                <td>Initial subplot grid dimensions</td>
               </tr>
             </tbody>
           </table>
 
           <div class="cmd-block" style="margin-top:1rem">
-            <span class="comment"># Example: plot IMU + odometry with default 30 s window</span><br>
+            <span class="comment"># Example: tuning preset + 60 s scroll window</span><br>
             ./spectra-ros \<br>
-            &nbsp;&nbsp;<span class="flag">--topics</span> /imu/data.angular_velocity.z,/odom.twist.twist.linear.x \<br>
-            &nbsp;&nbsp;<span class="flag">--window</span> 1920x1080
+            &nbsp;&nbsp;<span class="flag">--session</span> sessions/presets/tuning.spectra-ros-session \<br>
+            &nbsp;&nbsp;<span class="flag">--window-s</span> 60
           </div>
+        </div>
+      </section>
+
+      <!-- UI WORKSPACE -->
+      <section class="section" id="ui-workspace">
+        <div class="container">
+          <h2>UI Workspace &amp; 3D Studio</h2>
+          <p>
+            <code>spectra-ros</code> uses a single ImGui dockspace with layout presets
+            (<strong>Default</strong>, <strong>Monitor</strong>, <strong>RViz</strong>,
+            <strong>RVizPlot</strong>, <strong>BagReview</strong>). Panel layout persists in
+            <code>.spectra-ros-session</code> files under <code>imgui_layout</code>.
+          </p>
+          <ul>
+            <li>
+              <strong>Plot workflow:</strong> expand a topic in Topic Monitor, drag a numeric field
+              onto a subplot (highlight on hover), or double-click a field to plot in &lt;10 s.
+            </li>
+            <li>
+              <strong>Topic Echo pin:</strong> use <em>Pin</em> to stop auto-following Topic Monitor
+              selection.
+            </li>
+            <li>
+              <strong>Topic Statistics:</strong> per-series color, width, visibility, and remove
+              controls when the selected topic is plotted.
+            </li>
+            <li>
+              <strong>Scene Viewport:</strong> Top / Front / Side views, Fit, Measure tool, fixed
+              frame selector in the menu bar.
+            </li>
+            <li>
+              <strong>Displays:</strong> RViz-style plugins including Grid, TF, markers, point
+              clouds, and <strong>OccupancyGrid</strong> (<code>nav_msgs/OccupancyGrid</code>).
+            </li>
+          </ul>
+          <p>
+            Run visual QA: <code>spectra_ros_qa_agent --design-review --output-dir /tmp/ros_qa</code>
+          </p>
         </div>
       </section>
 

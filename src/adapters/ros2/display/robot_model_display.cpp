@@ -1,7 +1,9 @@
 #include "display/robot_model_display.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <format>
 
 #include "scene/scene_manager.hpp"
 
@@ -14,6 +16,34 @@ namespace spectra::adapters::ros2
 
 namespace
 {
+const UrdfJoint* find_parent_joint(const RobotDescription& robot, const std::string& link_name)
+{
+    for (const auto& joint : robot.joints)
+    {
+        if (joint.child_link == link_name)
+            return &joint;
+    }
+    return nullptr;
+}
+
+std::string joint_type_name(UrdfJointType type)
+{
+    switch (type)
+    {
+        case UrdfJointType::Revolute:
+            return "revolute";
+        case UrdfJointType::Continuous:
+            return "continuous";
+        case UrdfJointType::Prismatic:
+            return "prismatic";
+        case UrdfJointType::Fixed:
+            return "fixed";
+        case UrdfJointType::Unknown:
+            return "unknown";
+    }
+    return "unknown";
+}
+
 std::string geometry_name(UrdfGeometryType type)
 {
     switch (type)
@@ -33,11 +63,10 @@ std::string geometry_name(UrdfGeometryType type)
 
 RobotModelDisplay::RobotModelDisplay()
 {
-    std::snprintf(parameter_input_.data(), parameter_input_.size(), "%s", parameter_name_.c_str());
-    std::snprintf(joint_topic_input_.data(),
-                  joint_topic_input_.size(),
-                  "%s",
-                  joint_state_topic_.c_str());
+    parameter_name_.copy(parameter_input_.data(), parameter_input_.size() - 1);
+    parameter_input_[std::min(parameter_name_.size(), parameter_input_.size() - 1)] = '\0';
+    joint_state_topic_.copy(joint_topic_input_.data(), joint_topic_input_.size() - 1);
+    joint_topic_input_[std::min(joint_state_topic_.size(), joint_topic_input_.size() - 1)] = '\0';
     status_      = DisplayStatus::Disabled;
     status_text_ = "Disabled";
 }
@@ -154,6 +183,21 @@ void RobotModelDisplay::submit_renderables(SceneManager& scene)
                 entity.properties.push_back({"link", link.name});
                 entity.properties.push_back({"geometry", geometry_name(collision.geometry.type)});
                 entity.properties.push_back({"parameter", parameter_name_});
+                if (const UrdfJoint* joint = find_parent_joint(robot_, link.name))
+                {
+                    entity.properties.push_back({"joint", joint->name});
+                    entity.properties.push_back({"parent_link", joint->parent_link});
+                    entity.properties.push_back({"joint_type", joint_type_name(joint->type)});
+                    double joint_position = 0.0;
+                    {
+                        std::lock_guard<std::mutex> lock(joint_mutex_);
+                        const auto                  it = joint_positions_.find(joint->name);
+                        if (it != joint_positions_.end())
+                            joint_position = it->second;
+                    }
+                    entity.properties.push_back(
+                        {"joint_position", std::to_string(joint_position)});
+                }
 
                 // Compose FK link transform with collision origin.
                 spectra::Transform link_tf = link_transform(link.name);
@@ -285,17 +329,14 @@ void RobotModelDisplay::draw_inspector_ui()
 
 std::string RobotModelDisplay::serialize_config_blob() const
 {
-    char buffer[512];
-    std::snprintf(buffer,
-                  sizeof(buffer),
-                  "parameter=%s;show_collision_shapes=%d;joint_topic=%s;show_frame_axes=%d;show_"
-                  "joint_axes=%d",
-                  parameter_name_.c_str(),
-                  show_collision_shapes_ ? 1 : 0,
-                  joint_state_topic_.c_str(),
-                  show_frame_axes_ ? 1 : 0,
-                  show_joint_axes_ ? 1 : 0);
-    return buffer;
+    return std::format(
+        "parameter={};show_collision_shapes={};joint_topic={};show_frame_axes={};show_joint_axes="
+        "{}",
+        parameter_name_,
+        show_collision_shapes_ ? 1 : 0,
+        joint_state_topic_,
+        show_frame_axes_ ? 1 : 0,
+        show_joint_axes_ ? 1 : 0);
 }
 
 void RobotModelDisplay::deserialize_config_blob(const std::string& blob)
@@ -319,16 +360,13 @@ void RobotModelDisplay::deserialize_config_blob(const std::string& blob)
         >= 1)
     {
         parameter_name_ = parameter_name;
-        std::snprintf(parameter_input_.data(),
-                      parameter_input_.size(),
-                      "%s",
-                      parameter_name_.c_str());
+        parameter_name_.copy(parameter_input_.data(), parameter_input_.size() - 1);
+        parameter_input_[std::min(parameter_name_.size(), parameter_input_.size() - 1)] = '\0';
         show_collision_shapes_ = show_collision_shapes != 0;
         joint_state_topic_     = joint_topic;
-        std::snprintf(joint_topic_input_.data(),
-                      joint_topic_input_.size(),
-                      "%s",
-                      joint_state_topic_.c_str());
+        joint_state_topic_.copy(joint_topic_input_.data(), joint_topic_input_.size() - 1);
+        joint_topic_input_[std::min(joint_state_topic_.size(), joint_topic_input_.size() - 1)] =
+            '\0';
         show_frame_axes_ = show_frame_axes != 0;
         show_joint_axes_ = show_joint_axes != 0;
     }

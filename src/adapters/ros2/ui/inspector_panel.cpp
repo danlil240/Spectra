@@ -9,7 +9,10 @@
 namespace spectra::adapters::ros2
 {
 
-void InspectorPanel::draw(bool* p_open, SceneManager& scene)
+void InspectorPanel::draw(bool*              p_open,
+                          SceneManager&      scene,
+                          const std::string& fixed_frame,
+                          size_t             display_count)
 {
 #ifdef SPECTRA_USE_IMGUI
     if (!ImGui::GetCurrentContext())
@@ -27,6 +30,20 @@ void InspectorPanel::draw(bool* p_open, SceneManager& scene)
             scene.clear_selection();
 
         ImGui::Separator();
+        if (entity->type.rfind("robot_", 0) == 0)
+        {
+            ImGui::TextUnformatted("Robot link");
+            for (const auto& property : entity->properties)
+            {
+                if (property.key == "link" || property.key == "joint"
+                    || property.key == "joint_type" || property.key == "joint_position"
+                    || property.key == "parent_link" || property.key == "frame")
+                {
+                    ImGui::Text("%s: %s", property.key.c_str(), property.value.c_str());
+                }
+            }
+            ImGui::Separator();
+        }
         ImGui::Text("Selected: %s",
                     entity->label.empty() ? entity->type.c_str() : entity->label.c_str());
         ImGui::Text("Type: %s", entity->type.c_str());
@@ -62,12 +79,17 @@ void InspectorPanel::draw(bool* p_open, SceneManager& scene)
     {
         ImGui::Separator();
         ImGui::TextDisabled("Select an entity in the scene viewport to inspect it.");
+        ImGui::Text("Fixed frame: %s", fixed_frame.empty() ? "(auto)" : fixed_frame.c_str());
+        ImGui::Text("Entities: %zu", scene.entity_count());
+        ImGui::Text("Displays enabled: %zu", display_count);
     }
 
     ImGui::End();
 #else
     (void)p_open;
     (void)scene;
+    (void)fixed_frame;
+    (void)display_count;
 #endif
 }
 

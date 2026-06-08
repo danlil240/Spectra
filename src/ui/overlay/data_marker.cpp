@@ -4,7 +4,7 @@
 
     #include <algorithm>
     #include <cmath>
-    #include <cstdio>
+    #include <format>
     #include <imgui.h>
     #include <spectra/axes3d.hpp>
 
@@ -214,22 +214,22 @@ void DataMarkerManager::draw(const Rect& viewport,
         fg->AddCircle(ImVec2(sx, sy), ring_r, border_col, 0, 1.0f);
 
         // ── Build label text ────────────────────────────────────────────
-        char coord_buf[64];
-        std::snprintf(coord_buf, sizeof(coord_buf), "X: %.4g   Y: %.4g", m.data_x, m.data_y);
+        const std::string coord_buf =
+            std::format("X: {:.4g}   Y: {:.4g}", m.data_x, m.data_y);
 
-        char deriv_buf[48] = "";
-        bool has_deriv     = m.dy_dx_valid;
+        std::string deriv_buf;
+        bool        has_deriv = m.dy_dx_valid;
         if (has_deriv)
-            std::snprintf(deriv_buf, sizeof(deriv_buf), "dy/dx: %.4g", m.dy_dx);
+            deriv_buf = std::format("dy/dx: {:.4g}", m.dy_dx);
 
         bool has_name = !m.series_label.empty();
 
         // Measure text sizes
         ImVec2 name_sz = has_name ? font->CalcTextSizeA(fs_sm, 300.0f, 0.0f, m.series_label.c_str())
                                   : ImVec2(0, 0);
-        ImVec2 coord_sz = font->CalcTextSizeA(fs_sm, 300.0f, 0.0f, coord_buf);
-        ImVec2 deriv_sz =
-            has_deriv ? font->CalcTextSizeA(fs_sm, 300.0f, 0.0f, deriv_buf) : ImVec2(0, 0);
+        ImVec2 coord_sz = font->CalcTextSizeA(fs_sm, 300.0f, 0.0f, coord_buf.c_str());
+        ImVec2 deriv_sz = has_deriv ? font->CalcTextSizeA(fs_sm, 300.0f, 0.0f, deriv_buf.c_str())
+                                   : ImVec2(0, 0);
 
         float text_w = std::max({name_sz.x, coord_sz.x, deriv_sz.x});
         float text_h = coord_sz.y + (has_name ? (name_sz.y + 3.0f) : 0.0f)
@@ -344,11 +344,11 @@ void DataMarkerManager::draw(const Rect& viewport,
             fg->AddText(font, fs_sm, ImVec2(tx, ty), text_col, m.series_label.c_str());
             ty += name_sz.y + 3.0f;
         }
-        fg->AddText(font, fs_sm, ImVec2(tx, ty), text_dim, coord_buf);
+        fg->AddText(font, fs_sm, ImVec2(tx, ty), text_dim, coord_buf.c_str());
         if (has_deriv)
         {
             ty += coord_sz.y + 3.0f;
-            fg->AddText(font, fs_sm, ImVec2(tx, ty), text_dim, deriv_buf);
+            fg->AddText(font, fs_sm, ImVec2(tx, ty), text_dim, deriv_buf.c_str());
         }
     }
 }
@@ -405,20 +405,20 @@ int DataMarkerManager::hit_test(float       screen_x,
         }
 
         // 2) Check the label box (replicate geometry from draw)
-        char coord_buf[64];
-        std::snprintf(coord_buf, sizeof(coord_buf), "X: %.4g   Y: %.4g", m.data_x, m.data_y);
+        const std::string coord_buf =
+            std::format("X: {:.4g}   Y: {:.4g}", m.data_x, m.data_y);
 
-        char deriv_buf[48] = "";
-        bool has_deriv     = m.dy_dx_valid;
+        std::string deriv_buf;
+        bool        has_deriv = m.dy_dx_valid;
         if (has_deriv)
-            std::snprintf(deriv_buf, sizeof(deriv_buf), "dy/dx: %.4g", m.dy_dx);
+            deriv_buf = std::format("dy/dx: {:.4g}", m.dy_dx);
 
         bool   has_name = !m.series_label.empty();
         ImVec2 name_sz = has_name ? font->CalcTextSizeA(fs_sm, 300.0f, 0.0f, m.series_label.c_str())
                                   : ImVec2(0, 0);
-        ImVec2 coord_sz = font->CalcTextSizeA(fs_sm, 300.0f, 0.0f, coord_buf);
-        ImVec2 deriv_sz =
-            has_deriv ? font->CalcTextSizeA(fs_sm, 300.0f, 0.0f, deriv_buf) : ImVec2(0, 0);
+        ImVec2 coord_sz = font->CalcTextSizeA(fs_sm, 300.0f, 0.0f, coord_buf.c_str());
+        ImVec2 deriv_sz = has_deriv ? font->CalcTextSizeA(fs_sm, 300.0f, 0.0f, deriv_buf.c_str())
+                                   : ImVec2(0, 0);
 
         float text_w = std::max({name_sz.x, coord_sz.x, deriv_sz.x});
         float text_h = coord_sz.y + (has_name ? (name_sz.y + 3.0f) : 0.0f)
@@ -514,13 +514,13 @@ void DataMarkerManager::draw_3d(const Axes3D& axes3d, float opacity, ImDrawList*
             ImGui::ColorConvertFloat4ToU32(ImVec4(m.color.r, m.color.g, m.color.b, opacity));
         fg->AddCircleFilled(ImVec2(sx, sy), dot_r, fill_col);
 
-        char coord_buf[72];
-        std::snprintf(coord_buf, sizeof(coord_buf), "%.4g, %.4g, %.4g", m.data_x, m.data_y, m.data_z);
+        const std::string coord_buf =
+            std::format("{:.4g}, {:.4g}, {:.4g}", m.data_x, m.data_y, m.data_z);
         bool has_name = !m.series_label.empty();
 
         ImVec2 name_sz =
             has_name ? font->CalcTextSizeA(fs_sm, 300.0f, 0.0f, m.series_label.c_str()) : ImVec2(0, 0);
-        ImVec2 coord_sz = font->CalcTextSizeA(fs_sm, 300.0f, 0.0f, coord_buf);
+        ImVec2 coord_sz = font->CalcTextSizeA(fs_sm, 300.0f, 0.0f, coord_buf.c_str());
 
         float text_w = std::max(name_sz.x, coord_sz.x);
         float text_h = coord_sz.y + (has_name ? (name_sz.y + 2.0f) : 0.0f);
@@ -618,7 +618,7 @@ void DataMarkerManager::draw_3d(const Axes3D& axes3d, float opacity, ImDrawList*
             fg->AddText(font, fs_sm, ImVec2(tx, ty), text_col, m.series_label.c_str());
             ty += name_sz.y + 2.0f;
         }
-        fg->AddText(font, fs_sm, ImVec2(tx, ty), text_dim, coord_buf);
+        fg->AddText(font, fs_sm, ImVec2(tx, ty), text_dim, coord_buf.c_str());
     }
 }
 
@@ -655,12 +655,12 @@ int DataMarkerManager::hit_test_3d(float         screen_x,
         if (dx * dx + dy * dy <= radius_px * radius_px)
             return static_cast<int>(i);
 
-        char coord_buf[72];
-        std::snprintf(coord_buf, sizeof(coord_buf), "%.4g, %.4g, %.4g", m.data_x, m.data_y, m.data_z);
+        const std::string coord_buf =
+            std::format("{:.4g}, {:.4g}, {:.4g}", m.data_x, m.data_y, m.data_z);
         bool   has_name  = !m.series_label.empty();
         ImVec2 name_sz   = has_name ? font->CalcTextSizeA(fs_sm, 300.0f, 0.0f, m.series_label.c_str())
                                     : ImVec2(0, 0);
-        ImVec2 coord_sz  = font->CalcTextSizeA(fs_sm, 300.0f, 0.0f, coord_buf);
+        ImVec2 coord_sz  = font->CalcTextSizeA(fs_sm, 300.0f, 0.0f, coord_buf.c_str());
         float  text_w    = std::max(name_sz.x, coord_sz.x);
         float  text_h    = coord_sz.y + (has_name ? (name_sz.y + 2.0f) : 0.0f);
         float  box_w     = text_w + pad_x * 2.0f;

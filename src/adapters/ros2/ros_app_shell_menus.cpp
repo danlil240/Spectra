@@ -195,6 +195,8 @@ void RosAppShell::draw_menu_bar()
         }
         if (ImGui::MenuItem("Load Session..."))
             show_session_load_dialog_ = true;
+        if (ImGui::MenuItem("Import Session (merge)..."))
+            show_session_merge_dialog_ = true;
 
         ImGui::Separator();
 
@@ -232,6 +234,42 @@ void RosAppShell::draw_menu_bar()
         {
         }
         ImGui::EndMenu();
+    }
+
+    if (ImGui::BeginMenu("Help"))
+    {
+        if (ImGui::MenuItem("About Spectra-ROS"))
+            ImGui::OpenPopup("##ros_about_popup");
+        if (ImGui::MenuItem("Keyboard Shortcuts"))
+            ImGui::OpenPopup("##ros_shortcuts_popup");
+        ImGui::EndMenu();
+    }
+
+    ImGui::SetNextWindowSize(ImVec2(420, 0), ImGuiCond_FirstUseEver);
+    if (ImGui::BeginPopupModal("##ros_about_popup", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+    {
+        ImGui::TextUnformatted("Spectra ROS — GPU-accelerated rqt + RViz studio");
+        ImGui::TextDisabled("Node: %s", cfg_.node_name.c_str());
+        if (ImGui::Button("Close##about"))
+            ImGui::CloseCurrentPopup();
+        ImGui::EndPopup();
+    }
+
+    ImGui::SetNextWindowSize(ImVec2(420, 0), ImGuiCond_FirstUseEver);
+    if (ImGui::BeginPopupModal("##ros_shortcuts_popup",
+                               nullptr,
+                               ImGuiWindowFlags_AlwaysAutoResize))
+    {
+        ImGui::TextUnformatted("Ctrl+Shift+S  — Screenshot");
+        ImGui::TextUnformatted("Ctrl+Shift+W  — Save session");
+        ImGui::TextUnformatted("Space         — Toggle pause/live (active plot)");
+        ImGui::TextUnformatted("Home / menu   — Resume all scroll");
+        ImGui::TextUnformatted("G             — Toggle grid (active plot)");
+        ImGui::TextUnformatted("R             — Reset basic plot display");
+        ImGui::TextUnformatted("A             — Auto-fit Y (active plot)");
+        if (ImGui::Button("Close##shortcuts"))
+            ImGui::CloseCurrentPopup();
+        ImGui::EndPopup();
     }
 
     ImGui::Separator();

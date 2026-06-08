@@ -2,7 +2,7 @@
 
 #include <chrono>
 #include <cstring>
-#include <cstdio>
+#include <format>
 
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
@@ -614,20 +614,17 @@ void DiagnosticsPanel::draw_summary_bar()
         const ImVec4 col{r * alpha, g * alpha, bl * alpha, 1.0f};
         const ImVec4 col_hov{r, g, bl, 1.0f};
 
-        char buf[32];
-        std::snprintf(buf,
-                      sizeof(buf),
-                      "%s: %d##badge%d",
-                      level_short(b.lvl),
-                      b.count,
-                      static_cast<int>(b.lvl));
+        const std::string buf = std::format("{}: {}##badge{}",
+                                            level_short(b.lvl),
+                                            b.count,
+                                            static_cast<int>(b.lvl));
 
         ImGui::PushStyleColor(ImGuiCol_Button, col);
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, col_hov);
         ImGui::PushStyleColor(ImGuiCol_ButtonActive, col);
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
 
-        if (ImGui::SmallButton(buf))
+        if (ImGui::SmallButton(buf.c_str()))
             *b.show = !(*b.show);
 
         ImGui::PopStyleColor(4);
@@ -635,12 +632,8 @@ void DiagnosticsPanel::draw_summary_bar()
     }
 
     // Total messages right-aligned.
-    char totbuf[48];
-    std::snprintf(totbuf,
-                  sizeof(totbuf),
-                  "  msgs: %llu",
-                  static_cast<unsigned long long>(model_.total_messages));
-    ImGui::TextDisabled("%s", totbuf);
+    const std::string totbuf = std::format("  msgs: {}", model_.total_messages);
+    ImGui::TextDisabled("%s", totbuf.c_str());
 }
 
 bool DiagnosticsPanel::draw_filter_bar()
@@ -760,13 +753,11 @@ void DiagnosticsPanel::draw_component_row(DiagComponent& comp)
         if (comp.level == DiagLevel::Stale && since_s > 0.5)
         {
             // Show "STALE (Xs)" badge in muted orange before the message.
-            char stale_buf[64];
-            if (since_s < 60.0)
-                std::snprintf(stale_buf, sizeof(stale_buf), "STALE (%.0fs)", since_s);
-            else
-                std::snprintf(stale_buf, sizeof(stale_buf), "STALE (%.0fmin)", since_s / 60.0);
+            const std::string stale_buf =
+                since_s < 60.0 ? std::format("STALE ({:.0f}s)", since_s)
+                               : std::format("STALE ({:.0f}min)", since_s / 60.0);
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.85f, 0.55f, 0.15f, 1.0f));
-            ImGui::TextUnformatted(stale_buf);
+            ImGui::TextUnformatted(stale_buf.c_str());
             ImGui::PopStyleColor();
             if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
                 ImGui::SetTooltip("No update for %.1f seconds", since_s);

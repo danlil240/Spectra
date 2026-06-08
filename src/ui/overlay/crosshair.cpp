@@ -3,7 +3,7 @@
     #include "crosshair.hpp"
 
     #include <cmath>
-    #include <cstdio>
+    #include <format>
     #include <imgui.h>
     #include <spectra/axes.hpp>
     #include <spectra/figure.hpp>
@@ -150,17 +150,15 @@ void Crosshair::draw(const CursorReadout& cursor,
     ImU32 label_text = ImGui::ColorConvertFloat4ToU32(
         ImVec4(colors.text_primary.r, colors.text_primary.g, colors.text_primary.b, opacity_));
 
-    char x_label[32];
-    char y_label[32];
-    std::snprintf(x_label, sizeof(x_label), "%.4g", cursor.data_x);
-    std::snprintf(y_label, sizeof(y_label), "%.4g", cursor.data_y);
+    const std::string x_label = std::format("{:.4g}", cursor.data_x);
+    const std::string y_label = std::format("{:.4g}", cursor.data_y);
 
     ImFont*         font      = ImGui::GetFont();
     constexpr float label_pad = 3.0f;
 
     // X label at bottom of viewport
     {
-        ImVec2 sz = font->CalcTextSizeA(font->LegacySize * 0.85f, 200.0f, 0.0f, x_label);
+        ImVec2 sz = font->CalcTextSizeA(font->LegacySize * 0.85f, 200.0f, 0.0f, x_label.c_str());
         float  lx = sx - sz.x * 0.5f;
         float  ly = vy1 + 2.0f;
         // Clamp horizontally
@@ -177,12 +175,12 @@ void Crosshair::draw(const CursorReadout& cursor,
                     font->LegacySize * 0.85f,
                     ImVec2(lx, ly + label_pad),
                     label_text,
-                    x_label);
+                    x_label.c_str());
     }
 
     // Y label inside left edge of viewport
     {
-        ImVec2 sz = font->CalcTextSizeA(font->LegacySize * 0.85f, 200.0f, 0.0f, y_label);
+        ImVec2 sz = font->CalcTextSizeA(font->LegacySize * 0.85f, 200.0f, 0.0f, y_label.c_str());
         float  lx = vx0 + 4.0f;
         float  ly = sy - sz.y * 0.5f;
         // Clamp vertically
@@ -195,7 +193,7 @@ void Crosshair::draw(const CursorReadout& cursor,
                           ImVec2(lx + sz.x + label_pad, ly + sz.y + label_pad),
                           label_bg,
                           3.0f);
-        fg->AddText(font, font->LegacySize * 0.85f, ImVec2(lx, ly), label_text, y_label);
+        fg->AddText(font, font->LegacySize * 0.85f, ImVec2(lx, ly), label_text, y_label.c_str());
     }
 }
 
@@ -298,9 +296,8 @@ void Crosshair::draw_all_axes(const CursorReadout& cursor,
                              1.0f);
 
             // X label at bottom
-            char x_label[32];
-            std::snprintf(x_label, sizeof(x_label), "%.4g", data_x);
-            ImVec2 sz = font->CalcTextSizeA(font->LegacySize * 0.85f, 200.0f, 0.0f, x_label);
+            const std::string x_label = std::format("{:.4g}", data_x);
+            ImVec2 sz = font->CalcTextSizeA(font->LegacySize * 0.85f, 200.0f, 0.0f, x_label.c_str());
             float  lx = sx - sz.x * 0.5f;
             float  ly = vy1 + 2.0f;
             if (lx < vx0)
@@ -316,7 +313,7 @@ void Crosshair::draw_all_axes(const CursorReadout& cursor,
                         font->LegacySize * 0.85f,
                         ImVec2(lx, ly + label_pad),
                         label_text,
-                        x_label);
+                        x_label.c_str());
         }
 
         // Horizontal line on the hovered axes (at cursor Y)
@@ -333,9 +330,8 @@ void Crosshair::draw_all_axes(const CursorReadout& cursor,
                                  1.0f);
 
                 // Y label inside left edge of viewport
-                char y_label[32];
-                std::snprintf(y_label, sizeof(y_label), "%.4g", data_y);
-                ImVec2 sz  = font->CalcTextSizeA(font->LegacySize * 0.85f, 200.0f, 0.0f, y_label);
+                const std::string y_label = std::format("{:.4g}", data_y);
+                ImVec2 sz  = font->CalcTextSizeA(font->LegacySize * 0.85f, 200.0f, 0.0f, y_label.c_str());
                 float  lx2 = vx0 + 4.0f;
                 float  ly2 = cy - sz.y * 0.5f;
                 if (ly2 < vy0)
@@ -347,7 +343,7 @@ void Crosshair::draw_all_axes(const CursorReadout& cursor,
                                   ImVec2(lx2 + sz.x + label_pad, ly2 + sz.y + label_pad),
                                   label_bg,
                                   3.0f);
-                fg->AddText(font, font->LegacySize * 0.85f, ImVec2(lx2, ly2), label_text, y_label);
+                fg->AddText(font, font->LegacySize * 0.85f, ImVec2(lx2, ly2), label_text, y_label.c_str());
             }
         }
         // Horizontal line on non-hovered axes at the same data-Y
@@ -375,9 +371,8 @@ void Crosshair::draw_all_axes(const CursorReadout& cursor,
                                  1.0f);
 
                 // Y label showing the same data-Y value
-                char y_label[32];
-                std::snprintf(y_label, sizeof(y_label), "%.4g", data_y);
-                ImVec2 sz  = font->CalcTextSizeA(font->LegacySize * 0.85f, 200.0f, 0.0f, y_label);
+                const std::string y_label = std::format("{:.4g}", data_y);
+                ImVec2 sz  = font->CalcTextSizeA(font->LegacySize * 0.85f, 200.0f, 0.0f, y_label.c_str());
                 float  lx2 = vx0 + 4.0f;
                 float  ly2 = sy - sz.y * 0.5f;
                 if (ly2 < vy0)
@@ -398,7 +393,7 @@ void Crosshair::draw_all_axes(const CursorReadout& cursor,
                             font->LegacySize * 0.85f,
                             ImVec2(lx2, ly2),
                             dim_label_text,
-                            y_label);
+                            y_label.c_str());
             }
         }
     }

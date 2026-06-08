@@ -82,6 +82,7 @@ struct SeriesEntry
 
     spectra::LineSeries*               series{nullptr};
     std::unique_ptr<GenericSubscriber> subscriber;
+    bool                               owns_subscriber{true};
     int                                extractor_id{-1};
     size_t                             samples_received{0};
     bool                               auto_fitted{false};
@@ -208,6 +209,11 @@ class SubplotManager
     // Clear all slots (removes all subscriptions, clears series data).
     void clear();
 
+    // Stop live subscriptions and drop series/axes pointers without touching
+    // Figure-owned storage.  Required when an external canvas Figure is
+    // destroyed (e.g. spectra-ros window close) before ~SubplotManager().
+    void detach_external_figure();
+
     // Is slot active (has at least one subscription)?
     bool has_plot(int slot) const;
 
@@ -318,6 +324,9 @@ class SubplotManager
 
     // Total estimated memory across all active series.
     size_t total_memory_bytes() const;
+
+    // Total committed points across all live series (for diagnostics).
+    size_t total_point_count() const;
 
     // -----------------------------------------------------------------
     // Y-axis limit controls

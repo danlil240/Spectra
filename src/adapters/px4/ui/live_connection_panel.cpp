@@ -8,7 +8,7 @@
     #endif
 #endif
 
-#include <cstdio>
+#include <format>
 
 namespace spectra::adapters::px4
 {
@@ -199,25 +199,19 @@ void LiveConnectionPanel::draw_channel_list()
         if (!latest)
             continue;
 
-        char label[128];
-        std::snprintf(label,
-                      sizeof(label),
-                      "%s (%zu fields)",
-                      ch_name.c_str(),
-                      latest->fields.size());
+        const std::string label =
+            std::format("{} ({} fields)", ch_name, latest->fields.size());
 
-        if (ImGui::TreeNode(label))
+        if (ImGui::TreeNode(label.c_str()))
         {
             for (auto& field : latest->fields)
             {
-                char field_label[256];
-                std::snprintf(field_label,
-                              sizeof(field_label),
-                              "%s = %.4f",
-                              field.name.c_str(),
-                              field.value);
+                const std::string field_label =
+                    std::format("{} = {:.4f}", field.name, field.value);
 
-                if (ImGui::Selectable(field_label, false, ImGuiSelectableFlags_AllowDoubleClick))
+                if (ImGui::Selectable(field_label.c_str(),
+                                      false,
+                                      ImGuiSelectableFlags_AllowDoubleClick))
                 {
                     if (ImGui::IsMouseDoubleClicked(0))
                     {

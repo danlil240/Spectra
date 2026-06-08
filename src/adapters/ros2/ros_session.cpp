@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
+#include <format>
 #include <cstring>
 #include <ctime>
 #include <filesystem>
@@ -618,9 +619,7 @@ std::string RosSessionManager::json_escape(const std::string& s)
             default:
                 if (c < 0x20)
                 {
-                    char buf[8];
-                    std::snprintf(buf, sizeof(buf), "\\u%04x", c);
-                    out += buf;
+                    out += std::format("\\u{:04x}", static_cast<unsigned>(c));
                 }
                 else
                 {
@@ -792,17 +791,13 @@ std::string RosSessionManager::current_iso8601()
 #else
     gmtime_r(&t, &tm_utc);
 #endif
-    char buf[64];
-    std::snprintf(buf,
-                  sizeof(buf),
-                  "%04d-%02d-%02dT%02d:%02d:%02dZ",
-                  tm_utc.tm_year + 1900,
-                  tm_utc.tm_mon + 1,
-                  tm_utc.tm_mday,
-                  tm_utc.tm_hour,
-                  tm_utc.tm_min,
-                  tm_utc.tm_sec);
-    return buf;
+    return std::format("{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
+                       tm_utc.tm_year + 1900,
+                       tm_utc.tm_mon + 1,
+                       tm_utc.tm_mday,
+                       tm_utc.tm_hour,
+                       tm_utc.tm_min,
+                       tm_utc.tm_sec);
 }
 
 // ---------------------------------------------------------------------------
@@ -1539,6 +1534,83 @@ bool RosSessionManager::read_file(const std::string& path, std::string& content_
         return false;
     content_out = ss.str();
     return true;
+}
+
+namespace
+{
+
+bool same_subscription(const SubscriptionEntry& a, const SubscriptionEntry& b)
+{
+    return a.topic == b.topic && a.field_path == b.field_path && a.subplot_slot == b.subplot_slot;
+}
+
+bool same_expression(const ExpressionEntry& a, const ExpressionEntry& b)
+{
+    return a.expression == b.expression && a.subplot_slot == b.subplot_slot;
+}
+
+}   // namespace
+
+RosSession merge_sessions(const RosSession&   base,
+                          const RosSession&   incoming,
+                          SessionMergeOptions options)
+{
+    RosSession out = base;
+
+    if (options.subscriptions)
+    {
+        for (const auto& entry : incoming.subscriptions)
+        {
+            const bool exists = std::any_of(out.subscriptions.begin(),
+                                            out.subscriptions.end(),
+                                            [&](const SubscriptionEntry& existing)
+                                            { return same_subscription(existing, entry); });
+            if (!exists)
+                out.subscriptions.push_back(entry);
+        }
+    }
+
+    if (options.expressions)
+    {
+        for (const auto& entry : incoming.expressions)
+        {
+            const bool exists = std::any_of(out.expressions.begin(),
+                                            out.expressions.end(),
+                                            [&](const ExpressionEntry& existing)
+                                            { return same_expression(existing, entry); });
+            if (!exists)
+                out.expressions.push_back(entry);
+        }
+    }
+
+    if (options.expression_presets)
+    {
+        for (const auto& preset : incoming.expression_presets)
+        {
+            const bool exists = std::any_of(out.expression_presets.begin(),
+                                            out.expression_presets.end(),
+                                            [&](const ExpressionPresetEntry& existing)
+                                            { return existing.name == preset.name; });
+            if (!exists)
+                out.expression_presets.push_back(preset);
+        }
+    }
+
+    if (options.displays)
+    {
+        for (const auto& display : incoming.displays)
+        {
+            const bool exists = std::any_of(
+                out.displays.begin(),
+                out.displays.end(),
+                [&](const DisplaySessionEntry& existing)
+                { return existing.type_id == display.type_id && existing.topic == display.topic; });
+            if (!exists)
+                out.displays.push_back(display);
+        }
+    }
+
+    return out;
 }
 
 }   // namespace spectra::adapters::ros2

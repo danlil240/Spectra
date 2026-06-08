@@ -20,12 +20,16 @@
 			"type": "cmake",
 			"label": "CMake: Build",
 			"command": "build",
-			"targets": ["all"],
+			"targets": [
+				"all"
+			],
 			"group": {
 				"kind": "build",
 				"isDefault": true
 			},
-			"problemMatcher": ["$gcc"],
+			"problemMatcher": [
+				"$gcc"
+			],
 			"detail": "Incremental build via CMake Tools (build/)",
 			"presentation": {
 				"reveal": "always",
@@ -40,9 +44,13 @@
 			"label": "CMake: Clean rebuild",
 			"command": "cleanRebuild",
 			"group": "build",
-			"problemMatcher": ["$gcc"],
+			"problemMatcher": [
+				"$gcc"
+			],
 			"detail": "Clean then rebuild all targets",
-			"dependsOn": ["CMake: Configure"]
+			"dependsOn": [
+				"CMake: Configure"
+			]
 		},
 		// ─── Build (Makefile / canonical) ─────────────────────────────────────
 		{
@@ -50,7 +58,9 @@
 			"type": "shell",
 			"command": "make build -j$(nproc)",
 			"group": "build",
-			"problemMatcher": ["$gcc"],
+			"problemMatcher": [
+				"$gcc"
+			],
 			"detail": "Canonical Makefile target (BUILD_ENVIRONMENT.md §2)",
 			"presentation": {
 				"reveal": "always",
@@ -65,7 +75,9 @@
 			"type": "shell",
 			"command": "cmake --build build -j$(nproc)",
 			"group": "build",
-			"problemMatcher": ["$gcc"],
+			"problemMatcher": [
+				"$gcc"
+			],
 			"detail": "Skip configure; use after editing .cpp/.hpp only",
 			"options": {
 				"cwd": "${workspaceFolder}"
@@ -76,7 +88,9 @@
 			"type": "shell",
 			"command": "cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSPECTRA_USE_GLFW=ON -DSPECTRA_USE_IMGUI=ON -DSPECTRA_USE_FFMPEG=ON -DSPECTRA_USE_EIGEN=ON -DSPECTRA_USE_PX4=ON -DSPECTRA_USE_ROS2=OFF -DSPECTRA_BUILD_EXAMPLES=ON -DSPECTRA_BUILD_TESTS=ON -DSPECTRA_BUILD_GOLDEN_TESTS=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && cmake --build build -j$(nproc)",
 			"group": "build",
-			"problemMatcher": ["$gcc"],
+			"problemMatcher": [
+				"$gcc"
+			],
 			"detail": "CI/agent-style configure per BUILD_ENVIRONMENT.md (overwrites build/)",
 			"presentation": {
 				"reveal": "always",
@@ -91,7 +105,9 @@
 			"type": "shell",
 			"command": "make rebuild -j$(nproc)",
 			"group": "build",
-			"problemMatcher": ["$gcc"],
+			"problemMatcher": [
+				"$gcc"
+			],
 			"detail": "rm -rf build/ then configure + build",
 			"options": {
 				"cwd": "${workspaceFolder}"
@@ -102,8 +118,40 @@
 			"type": "shell",
 			"command": "make debug -j$(nproc)",
 			"group": "build",
-			"problemMatcher": ["$gcc"],
+			"problemMatcher": [
+				"$gcc"
+			],
 			"detail": "make build BUILD_TYPE=Debug",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			}
+		},
+		{
+			"label": "Build: ASAN (configure + build, build-asan/)",
+			"type": "shell",
+			"command": "env -u CMAKE_ROOT cmake -B build-asan -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER=clang-18 -DCMAKE_CXX_COMPILER=clang++-18 -DCMAKE_CXX_FLAGS=\"-fsanitize=address -fno-omit-frame-pointer -g\" -DCMAKE_EXE_LINKER_FLAGS=\"-fsanitize=address\" -DCMAKE_SHARED_LINKER_FLAGS=\"-fsanitize=address\" -DSPECTRA_BUILD_TESTS=ON -DSPECTRA_BUILD_GOLDEN_TESTS=ON -DSPECTRA_BUILD_EXAMPLES=ON -DSPECTRA_USE_ROS2=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && cmake --build build-asan -j$(nproc)",
+			"group": "build",
+			"problemMatcher": [
+				"$gcc"
+			],
+			"detail": "AddressSanitizer tree per BUILD_ENVIRONMENT.md §8 (separate from build/)",
+			"presentation": {
+				"reveal": "always",
+				"panel": "shared"
+			},
+			"options": {
+				"cwd": "${workspaceFolder}"
+			}
+		},
+		{
+			"label": "Build: ASAN fast (no reconfigure)",
+			"type": "shell",
+			"command": "env -u CMAKE_ROOT cmake --build build-asan -j$(nproc)",
+			"group": "build",
+			"problemMatcher": [
+				"$gcc"
+			],
+			"detail": "Incremental ASan build; run configure task first if build-asan/ is missing",
 			"options": {
 				"cwd": "${workspaceFolder}"
 			}
@@ -113,7 +161,9 @@
 			"type": "shell",
 			"command": "env -u CMAKE_ROOT cmake -B build-release -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_INSTALL_PREFIX=/usr/local -DSPECTRA_BUILD_EMBED_SHARED=ON && env -u CMAKE_ROOT cmake --build build-release -j$(nproc)",
 			"group": "build",
-			"problemMatcher": ["$gcc"],
+			"problemMatcher": [
+				"$gcc"
+			],
 			"detail": "Separate tree for install / libspectra_embed",
 			"options": {
 				"cwd": "${workspaceFolder}"
@@ -126,7 +176,9 @@
 			"group": "build",
 			"problemMatcher": [],
 			"detail": "Install to /usr/local after Build: Release (embed shared)",
-			"dependsOn": ["Build: Release (embed shared, build-release/)"],
+			"dependsOn": [
+				"Build: Release (embed shared, build-release/)"
+			],
 			"presentation": {
 				"reveal": "always",
 				"focus": true,
@@ -138,6 +190,26 @@
 		},
 		// ─── Test ─────────────────────────────────────────────────────────────
 		{
+			"label": "Test: ASAN unit (no GPU, parallel)",
+			"type": "shell",
+			"command": "ctest --test-dir build-asan -LE gpu --output-on-failure -j$(nproc)",
+			"group": "test",
+			"problemMatcher": [
+				"$gcc"
+			],
+			"detail": "Non-GPU tests under AddressSanitizer; requires Build: ASAN",
+			"presentation": {
+				"reveal": "always",
+				"panel": "shared"
+			},
+			"options": {
+				"cwd": "${workspaceFolder}",
+				"env": {
+					"ASAN_OPTIONS": "detect_leaks=1:halt_on_error=1"
+				}
+			}
+		},
+		{
 			"label": "Test: unit (no GPU, parallel)",
 			"type": "shell",
 			"command": "ctest --test-dir build -LE gpu --output-on-failure -j$(nproc)",
@@ -145,7 +217,9 @@
 				"kind": "test",
 				"isDefault": true
 			},
-			"problemMatcher": ["$gcc"],
+			"problemMatcher": [
+				"$gcc"
+			],
 			"detail": "Default CI-style suite; excludes gpu label",
 			"presentation": {
 				"reveal": "always",
@@ -160,7 +234,9 @@
 			"type": "shell",
 			"command": "ctest --test-dir build -L gpu --output-on-failure -j1",
 			"group": "test",
-			"problemMatcher": ["$gcc"],
+			"problemMatcher": [
+				"$gcc"
+			],
 			"detail": "Requires Vulkan device or lavapipe; serial (-j1) — parallel VkInstance crashes NVIDIA driver",
 			"options": {
 				"cwd": "${workspaceFolder}"
@@ -171,7 +247,9 @@
 			"type": "shell",
 			"command": "export VK_ICD_FILENAMES=$(find /usr/share/vulkan/icd.d -name '*lvp*' 2>/dev/null | head -1) LIBGL_ALWAYS_SOFTWARE=1 && xvfb-run -a ctest --test-dir build -L golden -j1 --output-on-failure",
 			"group": "test",
-			"problemMatcher": ["$gcc"],
+			"problemMatcher": [
+				"$gcc"
+			],
 			"detail": "Pixel baselines; single-threaded (BUILD_ENVIRONMENT.md §3)",
 			"options": {
 				"cwd": "${workspaceFolder}"
@@ -182,7 +260,9 @@
 			"type": "shell",
 			"command": "./build/tests/${input:unitTestBinary}",
 			"group": "test",
-			"problemMatcher": ["$gcc"],
+			"problemMatcher": [
+				"$gcc"
+			],
 			"detail": "Run one Google Test executable directly",
 			"options": {
 				"cwd": "${workspaceFolder}"
@@ -193,9 +273,13 @@
 			"type": "shell",
 			"command": "make test -j$(nproc)",
 			"group": "test",
-			"problemMatcher": ["$gcc"],
+			"problemMatcher": [
+				"$gcc"
+			],
 			"detail": "Build if needed, then full ctest (includes GPU if built)",
-			"dependsOn": ["Build: make (configure + build)"],
+			"dependsOn": [
+				"Build: make (configure + build)"
+			],
 			"options": {
 				"cwd": "${workspaceFolder}"
 			}
@@ -205,7 +289,9 @@
 			"type": "shell",
 			"command": "cmake --build build -j$(nproc) && SPECTRA_UPDATE_BASELINES=1 ctest --test-dir build -L golden --output-on-failure -j1",
 			"group": "test",
-			"problemMatcher": ["$gcc"],
+			"problemMatcher": [
+				"$gcc"
+			],
 			"detail": "Regenerate tests/golden/baseline/ after intentional visual changes",
 			"options": {
 				"cwd": "${workspaceFolder}",
@@ -213,7 +299,9 @@
 					"SPECTRA_UPDATE_BASELINES": "1"
 				}
 			},
-			"dependsOn": ["Build: fast (no reconfigure)"]
+			"dependsOn": [
+				"Build: fast (no reconfigure)"
+			]
 		},
 		{
 			"label": "Verify: build + unit tests",
@@ -225,6 +313,17 @@
 			"group": "test",
 			"problemMatcher": [],
 			"detail": "Quick pre-commit check after small edits"
+		},
+		{
+			"label": "Verify: ASAN build + unit tests",
+			"dependsOn": [
+				"Build: ASAN (configure + build, build-asan/)",
+				"Test: ASAN unit (no GPU, parallel)"
+			],
+			"dependsOrder": "sequence",
+			"group": "test",
+			"problemMatcher": [],
+			"detail": "Full ASan configure, build, and non-GPU ctest (BUILD_ENVIRONMENT.md §8)"
 		},
 		// ─── Quality ──────────────────────────────────────────────────────────
 		{
@@ -264,7 +363,9 @@
 			},
 			"problemMatcher": {
 				"owner": "clang-tidy",
-				"fileLocation": ["absolute"],
+				"fileLocation": [
+					"absolute"
+				],
 				"pattern": {
 					"regexp": "^(.+):(\\d+):(\\d+):\\s+(warning|error):\\s+(.+)\\s+\\[(.+)\\]$",
 					"file": 1,
@@ -357,7 +458,11 @@
 			"id": "parallelJobs",
 			"type": "pickString",
 			"description": "Parallel jobs for clang-tidy",
-			"options": ["4", "8", "16"],
+			"options": [
+				"4",
+				"8",
+				"16"
+			],
 			"default": "8"
 		},
 		{

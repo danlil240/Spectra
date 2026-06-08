@@ -1,6 +1,7 @@
 #include <cmath>
 
 #include <algorithm>
+#include <format>
 #include <limits>
 #include <spectra/axes.hpp>
 #include <spectra/chunked_series.hpp>
@@ -742,8 +743,6 @@ static double nice_ceil_d(double x, bool round_flag)
 // when the offset is large relative to the spacing (deep-zoom regime).
 static std::string format_tick_value(double value, double spacing)
 {
-    char buf[64];
-
     // Snap near-zero to exactly zero
     if (std::abs(value) < spacing * 1e-6)
     {
@@ -787,7 +786,7 @@ static std::string format_tick_value(double value, double spacing)
     if (digits_after_decimal <= 9 && abs_val < 1e9 && abs_val >= 0.001)
     {
         // Fixed notation with enough decimals
-        std::snprintf(buf, sizeof(buf), "%.*f", digits_after_decimal, value);
+        std::string str = std::format("{:.{}f}", value, digits_after_decimal);
         // Trim trailing zeros after decimal point, but keep at least
         // min_digits digits so all ticks at this spacing have consistent
         // digit counts (e.g. "6.0819710" stays, not "6.081971").
@@ -798,7 +797,6 @@ static std::string format_tick_value(double value, double spacing)
             if (min_digits < 0)
                 min_digits = 0;
         }
-        std::string str(buf);
         auto        dot_pos = str.find('.');
         if (dot_pos != std::string::npos)
         {
@@ -815,8 +813,7 @@ static std::string format_tick_value(double value, double spacing)
     }
 
     // Scientific notation with enough significant digits
-    std::snprintf(buf, sizeof(buf), "%.*e", total_sig_digits - 1, value);
-    return {buf};
+    return std::format("{:.{}e}", value, total_sig_digits - 1);
 }
 
 static TickResult generate_ticks(double dmin, double dmax, int target_ticks = 7)

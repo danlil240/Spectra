@@ -37,6 +37,7 @@ jobs:
             libvulkan-dev \
             vulkan-validationlayers \
             mesa-vulkan-drivers \
+            libglfw3-dev \
             libwayland-dev \
             libxrandr-dev \
             libxinerama-dev \
@@ -117,7 +118,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          brew install vulkan-headers vulkan-loader glslang molten-vk
+          brew install vulkan-headers vulkan-loader glslang molten-vk glfw
           python -m venv .venv
           source .venv/bin/activate
           python -m pip install --upgrade pip
@@ -212,6 +213,7 @@ jobs:
             vulkan-validationlayers \
             mesa-vulkan-drivers \
             mesa-utils \
+            libglfw3-dev \
             libwayland-dev \
             libxrandr-dev \
             libxinerama-dev \
@@ -320,6 +322,7 @@ jobs:
             libvulkan-dev \
             vulkan-validationlayers \
             mesa-vulkan-drivers \
+            libglfw3-dev \
             libwayland-dev \
             libxrandr-dev \
             libxinerama-dev \
@@ -356,6 +359,7 @@ jobs:
   # ─── ROS2 Adapter Build (compile-only) ─────────────────────────────────────
   build-ros2:
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
     container:
       image: ros:humble-ros-base
 
@@ -365,24 +369,94 @@ jobs:
       - name: Install ROS2 dependencies
         run: |
           apt-get update
+          apt-get install -y software-properties-common
+          add-apt-repository -y ppa:ubuntu-toolchain-r/test
+          apt-get update
           apt-get install -y \
+            gcc-13 \
+            g++-13 \
             libvulkan-dev \
             libglfw3-dev \
             glslang-tools \
             nlohmann-json3-dev \
             libtinyxml2-dev \
-            python3-pillow
+            python3-pillow \
+            xvfb \
+            mesa-vulkan-drivers \
+            vulkan-tools
+
+      - name: Pin Vulkan ICD to lavapipe
+        shell: bash
+        run: |
+          set -e
+          ICD_DIRS=(
+            /usr/share/vulkan/icd.d
+            /etc/vulkan/icd.d
+            /usr/lib/x86_64-linux-gnu/vulkan/icd.d
+          )
+          LVP_ICD=""
+          for d in "${ICD_DIRS[@]}"; do
+            [ -d "$d" ] || continue
+            for f in "$d"/lvp_icd*.json "$d"/*lavapipe*.json; do
+              [ -f "$f" ] || continue
+              LVP_ICD="$f"
+              break 2
+            done
+          done
+          if [ -z "$LVP_ICD" ]; then
+            F_MATCH="$(grep -rl 'libvulkan_lvp\.so' /usr/share/vulkan/icd.d 2>/dev/null | head -n1 || true)"
+            [ -n "$F_MATCH" ] && LVP_ICD="$F_MATCH"
+          fi
+          if [ -n "$LVP_ICD" ]; then
+            echo "Using lavapipe ICD: $LVP_ICD"
+            echo "VK_ICD_FILENAMES=$LVP_ICD" >> "$GITHUB_ENV"
+            echo "VK_DRIVER_FILES=$LVP_ICD" >> "$GITHUB_ENV"
+          else
+            echo "::error::lavapipe ICD not found"
+            exit 1
+          fi
 
       - name: Configure CMake with ROS2
         run: |
           . /opt/ros/humble/setup.sh
           cmake -B build \
             -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+            -DCMAKE_C_COMPILER=gcc-13 \
+            -DCMAKE_CXX_COMPILER=g++-13 \
             -DSPECTRA_USE_ROS2=ON \
             -DSPECTRA_ROS2_BAG=ON \
-            -DSPECTRA_BUILD_TESTS=OFF \
+            -DSPECTRA_BUILD_TESTS=ON \
+            -DSPECTRA_BUILD_QA_AGENT=ON \
+            -DSPECTRA_BUILD_BENCHMARKS=ON \
             -DSPECTRA_BUILD_EXAMPLES=OFF \
             -DSPECTRA_BUILD_GOLDEN_TESTS=OFF
 
       - name: Build ROS2 adapter
         run: cmake --build build --config ${{ env.BUILD_TYPE }} -j$(nproc)
+
+      - name: Run ROS2 unit tests
+        run: |
+          . /opt/ros/humble/setup.sh
+          # Serial: ROS2 test binaries share one DDS domain; parallel ctest races discovery.
+          ctest --test-dir build -L ros2 -LE gpu --output-on-failure -j1
+
+      - name: Headless bag CSV export (Phase B9)
+        run: |
+          . /opt/ros/humble/setup.sh
+          python3 scripts/generate_ros_reference_bags.py
+          ./build/spectra-ros-analyze \
+            --bag tests/data/ros_bags/imu_snippet \
+            --fields /imu/data.linear_acceleration.z \
+            --csv /tmp/imu_z.csv
+          test "$(wc -l < /tmp/imu_z.csv)" -eq 61
+
+      - name: ROS 3D perf smoke (Phase C4)
+        run: |
+          . /opt/ros/humble/setup.sh
+          ./build/tests/bench_ros3d \
+            --benchmark_filter='BM_PointCloud(Display|Adapter).*500000' \
+            --benchmark_min_time=0.05s
+
+      # GUI spectra_ros_qa_agent scenarios (nav_spatiotemporal, design_review) are
+      # validated locally with Xvfb — lavapipe CI runners cannot complete them in
+      # reasonable time.  See tests/qa/ros_qa_agent.cpp and AGENTS.md.

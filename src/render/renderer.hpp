@@ -269,12 +269,15 @@ class Renderer
     {
         BufferHandle ssbo;
         size_t       uploaded_count = 0;
+        size_t       ssbo_capacity  = 0;   // Allocated element capacity (>= uploaded_count)
         BufferHandle index_buffer;
         size_t       index_count = 0;
         BufferHandle fill_buffer;   // Vertex buffer for filled triangles
-        size_t       fill_vertex_count = 0;
-        BufferHandle outlier_buffer;   // SSBO for box plot outlier points
-        size_t       outlier_count = 0;
+        size_t       fill_vertex_count    = 0;
+        size_t       fill_vertex_capacity = 0;   // Allocated vertex capacity
+        BufferHandle outlier_buffer;             // SSBO for box plot outlier points
+        size_t       outlier_count    = 0;
+        size_t       outlier_capacity = 0;   // Allocated outlier capacity
         SeriesType   type          = SeriesType::Unknown;
         // Camera-relative rendering: double-precision origin subtracted
         // from data during upload.  Eliminates catastrophic cancellation

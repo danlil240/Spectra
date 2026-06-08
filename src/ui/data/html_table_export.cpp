@@ -1,6 +1,6 @@
 #include "html_table_export.hpp"
 
-#include <cstdio>
+#include <format>
 #include <fstream>
 #include <sstream>
 
@@ -49,9 +49,7 @@ static std::string html_escape(const std::string& s)
 
 static std::string fmt_float(float v)
 {
-    char buf[32];
-    std::snprintf(buf, sizeof(buf), "%.6g", v);
-    return buf;
+    return std::format("{:.6g}", v);
 }
 
 // Render a single 2D series as an HTML <table>.

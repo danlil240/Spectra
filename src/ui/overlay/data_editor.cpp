@@ -3,8 +3,8 @@
     #include "data_editor.hpp"
 
     #include <algorithm>
-    #include <cstdio>
     #include <cstring>
+    #include <format>
     #include <spectra/axes.hpp>
     #include <spectra/axes3d.hpp>
     #include <spectra/figure.hpp>
@@ -205,19 +205,16 @@ void DataEditor::draw(Figure& figure)
             const char* lbl  = s->label().empty() ? "Unnamed" : s->label().c_str();
             const char* type = series_type_label(s);
 
-            char header_buf[256];
-            std::snprintf(header_buf,
-                          sizeof(header_buf),
-                          "%s (%s) [%zu pts]##series_%d",
-                          lbl,
-                          type,
-                          get_point_count(s),
-                          i);
+            const std::string header_buf = std::format("{} ({}) [{} pts]##series_{}",
+                                                       lbl,
+                                                       type,
+                                                       get_point_count(s),
+                                                       i);
 
             bool sec_open = true;
-            if (widgets::section_header(header_buf, &sec_open, font_heading_))
+            if (widgets::section_header(header_buf.c_str(), &sec_open, font_heading_))
             {
-                if (widgets::begin_animated_section(header_buf))
+                if (widgets::begin_animated_section(header_buf.c_str()))
                 {
                     if (show_3d || is_series_3d(s))
                         draw_data_table_3d(*s, i);
@@ -262,20 +259,15 @@ void DataEditor::draw_axes_selector(Figure& figure)
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(tokens::SPACE_3, tokens::SPACE_2));
 
     ImGui::SetNextItemWidth(-1);
-    char preview[128];
+    std::string preview;
     {
         AxesBase*   ab    = unified[current];
         bool        is_3d = is_axes_3d(ab);
         const char* title = ab->title().empty() ? "Untitled" : ab->title().c_str();
-        std::snprintf(preview,
-                      sizeof(preview),
-                      "Axes %d: %s%s",
-                      current + 1,
-                      title,
-                      is_3d ? " (3D)" : "");
+        preview           = std::format("Axes {}: {}{}", current + 1, title, is_3d ? " (3D)" : "");
     }
 
-    if (ImGui::BeginCombo("##axes_select", preview))
+    if (ImGui::BeginCombo("##axes_select", preview.c_str()))
     {
         for (int i = 0; i < static_cast<int>(unified.size()); ++i)
         {
@@ -283,17 +275,14 @@ void DataEditor::draw_axes_selector(Figure& figure)
             bool        is_3d = is_axes_3d(ab);
             const char* title = ab->title().empty() ? "Untitled" : ab->title().c_str();
 
-            char item_buf[128];
-            std::snprintf(item_buf,
-                          sizeof(item_buf),
-                          "Axes %d: %s%s (%zu series)",
-                          i + 1,
-                          title,
-                          is_3d ? " (3D)" : "",
-                          ab->series().size());
+            const std::string item_buf = std::format("Axes {}: {}{} ({} series)",
+                                                     i + 1,
+                                                     title,
+                                                     is_3d ? " (3D)" : "",
+                                                     ab->series().size());
 
             bool selected = (i == current);
-            if (ImGui::Selectable(item_buf, selected))
+            if (ImGui::Selectable(item_buf.c_str(), selected))
             {
                 selected_axes_   = i;
                 selected_series_ = -1;   // Reset series selection
@@ -332,27 +321,26 @@ void DataEditor::draw_series_selector(AxesBase& axes)
 
     int current = selected_series_;
 
-    char preview[128];
+    std::string preview;
     if (current >= 0 && current < static_cast<int>(series_vec.size()))
     {
         Series*     s   = series_vec[current].get();
         const char* lbl = (s && !s->label().empty()) ? s->label().c_str() : "Unnamed";
-        std::snprintf(preview, sizeof(preview), "%s (%s)", lbl, series_type_label(s));
+        preview         = std::format("{} ({})", lbl, series_type_label(s));
     }
     else
     {
-        std::snprintf(preview, sizeof(preview), "All Series (%zu)", series_vec.size());
+        preview = std::format("All Series ({})", series_vec.size());
     }
 
     ImGui::SetNextItemWidth(-1);
-    if (ImGui::BeginCombo("##series_select", preview))
+    if (ImGui::BeginCombo("##series_select", preview.c_str()))
     {
         // "All" option
         {
             bool selected = (current < 0);
-            char all_buf[64];
-            std::snprintf(all_buf, sizeof(all_buf), "All Series (%zu)", series_vec.size());
-            if (ImGui::Selectable(all_buf, selected))
+            const std::string all_buf = std::format("All Series ({})", series_vec.size());
+            if (ImGui::Selectable(all_buf.c_str(), selected))
                 selected_series_ = -1;
             if (selected)
                 ImGui::SetItemDefaultFocus();
@@ -375,17 +363,14 @@ void DataEditor::draw_series_selector(AxesBase& axes)
             ImGui::PopStyleColor();
             ImGui::SameLine();
 
-            char item_buf[128];
-            std::snprintf(item_buf,
-                          sizeof(item_buf),
-                          "%s (%s, %zu pts)##s_%d",
-                          lbl,
-                          series_type_label(s),
-                          get_point_count(s),
-                          i);
+            const std::string item_buf = std::format("{} ({}, {} pts)##s_{}",
+                                                     lbl,
+                                                     series_type_label(s),
+                                                     get_point_count(s),
+                                                     i);
 
             bool selected = (i == current);
-            if (ImGui::Selectable(item_buf, selected))
+            if (ImGui::Selectable(item_buf.c_str(), selected))
                 selected_series_ = i;
             if (selected)
                 ImGui::SetItemDefaultFocus();
@@ -442,14 +427,12 @@ void DataEditor::draw_data_table_2d(Series& series, int series_idx)
     };
 
     // Info row
-    char count_buf[64];
-    std::snprintf(count_buf, sizeof(count_buf), "%zu points", count);
-    widgets::info_row("Points", count_buf);
+    const std::string count_buf = std::format("{} points", count);
+    widgets::info_row("Points", count_buf.c_str());
     widgets::small_spacing();
 
     // Table with clipper for large datasets
-    char table_id[64];
-    std::snprintf(table_id, sizeof(table_id), "##data_table_2d_%d", series_idx);
+    const std::string table_id = std::format("##data_table_2d_{}", series_idx);
 
     ImGuiTableFlags table_flags = ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg
                                   | ImGuiTableFlags_Resizable | ImGuiTableFlags_ScrollY
@@ -458,7 +441,7 @@ void DataEditor::draw_data_table_2d(Series& series, int series_idx)
     float avail_h = std::max(120.0f, ImGui::GetContentRegionAvail().y - tokens::SPACE_4);
     avail_h       = std::min(avail_h, 400.0f);
 
-    if (ImGui::BeginTable(table_id, 3, table_flags, ImVec2(0, avail_h)))
+    if (ImGui::BeginTable(table_id.c_str(), 3, table_flags, ImVec2(0, avail_h)))
     {
         ImGui::TableSetupColumn("#", ImGuiTableColumnFlags_WidthFixed, 40.0f);
         ImGui::TableSetupColumn("X", ImGuiTableColumnFlags_WidthStretch);
@@ -495,8 +478,7 @@ void DataEditor::draw_data_table_2d(Series& series, int series_idx)
                 // X value
                 ImGui::TableSetColumnIndex(1);
                 {
-                    char cell_id[32];
-                    std::snprintf(cell_id, sizeof(cell_id), "##x_%d_%d", series_idx, row);
+                    const std::string cell_id = std::format("##x_{}_{}", series_idx, row);
 
                     bool is_editing = (editing_ && edit_row_ == row && edit_col_ == 0
                                        && edit_series_ == series_idx);
@@ -504,7 +486,7 @@ void DataEditor::draw_data_table_2d(Series& series, int series_idx)
                     if (is_editing)
                     {
                         ImGui::SetNextItemWidth(-1);
-                        if (ImGui::InputText(cell_id,
+                        if (ImGui::InputText(cell_id.c_str(),
                                              edit_buf_,
                                              sizeof(edit_buf_),
                                              ImGuiInputTextFlags_EnterReturnsTrue
@@ -533,9 +515,8 @@ void DataEditor::draw_data_table_2d(Series& series, int series_idx)
                     }
                     else
                     {
-                        char val_buf[32];
-                        std::snprintf(val_buf, sizeof(val_buf), "%.6g", x_data[row]);
-                        ImGui::TextUnformatted(val_buf);
+                        const std::string val_buf = std::format("{:.6g}", x_data[row]);
+                        ImGui::TextUnformatted(val_buf.c_str());
                         if (ImGui::IsItemClicked())
                         {
                             select_row(row);
@@ -543,7 +524,10 @@ void DataEditor::draw_data_table_2d(Series& series, int series_idx)
                             edit_row_    = row;
                             edit_col_    = 0;
                             edit_series_ = series_idx;
-                            std::snprintf(edit_buf_, sizeof(edit_buf_), "%.6g", x_data[row]);
+                            std::strncpy(edit_buf_,
+                                         std::format("{:.6g}", x_data[row]).c_str(),
+                                         sizeof(edit_buf_) - 1);
+                            edit_buf_[sizeof(edit_buf_) - 1] = '\0';
                         }
                     }
                 }
@@ -551,8 +535,7 @@ void DataEditor::draw_data_table_2d(Series& series, int series_idx)
                 // Y value
                 ImGui::TableSetColumnIndex(2);
                 {
-                    char cell_id[32];
-                    std::snprintf(cell_id, sizeof(cell_id), "##y_%d_%d", series_idx, row);
+                    const std::string cell_id = std::format("##y_{}_{}", series_idx, row);
 
                     bool is_editing = (editing_ && edit_row_ == row && edit_col_ == 1
                                        && edit_series_ == series_idx);
@@ -560,7 +543,7 @@ void DataEditor::draw_data_table_2d(Series& series, int series_idx)
                     if (is_editing)
                     {
                         ImGui::SetNextItemWidth(-1);
-                        if (ImGui::InputText(cell_id,
+                        if (ImGui::InputText(cell_id.c_str(),
                                              edit_buf_,
                                              sizeof(edit_buf_),
                                              ImGuiInputTextFlags_EnterReturnsTrue
@@ -589,9 +572,8 @@ void DataEditor::draw_data_table_2d(Series& series, int series_idx)
                     }
                     else
                     {
-                        char val_buf[32];
-                        std::snprintf(val_buf, sizeof(val_buf), "%.6g", y_data[row]);
-                        ImGui::TextUnformatted(val_buf);
+                        const std::string val_buf = std::format("{:.6g}", y_data[row]);
+                        ImGui::TextUnformatted(val_buf.c_str());
                         if (ImGui::IsItemClicked())
                         {
                             select_row(row);
@@ -599,7 +581,10 @@ void DataEditor::draw_data_table_2d(Series& series, int series_idx)
                             edit_row_    = row;
                             edit_col_    = 1;
                             edit_series_ = series_idx;
-                            std::snprintf(edit_buf_, sizeof(edit_buf_), "%.6g", y_data[row]);
+                            std::strncpy(edit_buf_,
+                                         std::format("{:.6g}", y_data[row]).c_str(),
+                                         sizeof(edit_buf_) - 1);
+                            edit_buf_[sizeof(edit_buf_) - 1] = '\0';
                         }
                     }
                 }
@@ -640,14 +625,11 @@ void DataEditor::draw_data_table_3d(Series& series, int series_idx)
         z_data = surf->z_values();
 
         // Surface has different layout — show info
-        char info[128];
-        std::snprintf(info,
-                      sizeof(info),
-                      "%d x %d grid (%zu z-values)",
-                      surf->rows(),
-                      surf->cols(),
-                      surf->z_values().size());
-        widgets::info_row("Grid", info);
+        const std::string info = std::format("{} x {} grid ({} z-values)",
+                                             surf->rows(),
+                                             surf->cols(),
+                                             surf->z_values().size());
+        widgets::info_row("Grid", info.c_str());
         widgets::small_spacing();
 
         // Show z_values table only for surface
@@ -657,8 +639,7 @@ void DataEditor::draw_data_table_3d(Series& series, int series_idx)
             return;
         }
 
-        char table_id[64];
-        std::snprintf(table_id, sizeof(table_id), "##data_table_surf_%d", series_idx);
+        const std::string table_id = std::format("##data_table_surf_{}", series_idx);
 
         ImGuiTableFlags table_flags = ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg
                                       | ImGuiTableFlags_Resizable | ImGuiTableFlags_ScrollY
@@ -667,7 +648,7 @@ void DataEditor::draw_data_table_3d(Series& series, int series_idx)
         float avail_h = std::max(120.0f, ImGui::GetContentRegionAvail().y - tokens::SPACE_4);
         avail_h       = std::min(avail_h, 400.0f);
 
-        if (ImGui::BeginTable(table_id, 4, table_flags, ImVec2(0, avail_h)))
+        if (ImGui::BeginTable(table_id.c_str(), 4, table_flags, ImVec2(0, avail_h)))
         {
             ImGui::TableSetupColumn("#", ImGuiTableColumnFlags_WidthFixed, 40.0f);
             ImGui::TableSetupColumn("Row", ImGuiTableColumnFlags_WidthFixed, 40.0f);
@@ -694,9 +675,8 @@ void DataEditor::draw_data_table_3d(Series& series, int series_idx)
                     ImGui::TableSetColumnIndex(2);
                     ImGui::Text("%d", cols > 0 ? idx % cols : 0);
                     ImGui::TableSetColumnIndex(3);
-                    char val_buf[32];
-                    std::snprintf(val_buf, sizeof(val_buf), "%.6g", z_data[idx]);
-                    ImGui::TextUnformatted(val_buf);
+                    const std::string val_buf = std::format("{:.6g}", z_data[idx]);
+                    ImGui::TextUnformatted(val_buf.c_str());
                 }
             }
             ImGui::EndTable();
@@ -729,14 +709,12 @@ void DataEditor::draw_data_table_3d(Series& series, int series_idx)
     };
 
     // Info row
-    char count_buf[64];
-    std::snprintf(count_buf, sizeof(count_buf), "%zu points", count);
-    widgets::info_row("Points", count_buf);
+    const std::string count_buf = std::format("{} points", count);
+    widgets::info_row("Points", count_buf.c_str());
     widgets::small_spacing();
 
     // Table with clipper for large datasets
-    char table_id[64];
-    std::snprintf(table_id, sizeof(table_id), "##data_table_3d_%d", series_idx);
+    const std::string table_id = std::format("##data_table_3d_{}", series_idx);
 
     ImGuiTableFlags table_flags = ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg
                                   | ImGuiTableFlags_Resizable | ImGuiTableFlags_ScrollY
@@ -745,7 +723,7 @@ void DataEditor::draw_data_table_3d(Series& series, int series_idx)
     float avail_h = std::max(120.0f, ImGui::GetContentRegionAvail().y - tokens::SPACE_4);
     avail_h       = std::min(avail_h, 400.0f);
 
-    if (ImGui::BeginTable(table_id, 4, table_flags, ImVec2(0, avail_h)))
+    if (ImGui::BeginTable(table_id.c_str(), 4, table_flags, ImVec2(0, avail_h)))
     {
         ImGui::TableSetupColumn("#", ImGuiTableColumnFlags_WidthFixed, 40.0f);
         ImGui::TableSetupColumn("X", ImGuiTableColumnFlags_WidthStretch);
@@ -782,8 +760,7 @@ void DataEditor::draw_data_table_3d(Series& series, int series_idx)
                 // X value
                 ImGui::TableSetColumnIndex(1);
                 {
-                    char cell_id[32];
-                    std::snprintf(cell_id, sizeof(cell_id), "##x3_%d_%d", series_idx, row);
+                    const std::string cell_id = std::format("##x3_{}_{}", series_idx, row);
 
                     bool is_editing = (editing_ && edit_row_ == row && edit_col_ == 0
                                        && edit_series_ == series_idx);
@@ -791,7 +768,7 @@ void DataEditor::draw_data_table_3d(Series& series, int series_idx)
                     if (is_editing)
                     {
                         ImGui::SetNextItemWidth(-1);
-                        if (ImGui::InputText(cell_id,
+                        if (ImGui::InputText(cell_id.c_str(),
                                              edit_buf_,
                                              sizeof(edit_buf_),
                                              ImGuiInputTextFlags_EnterReturnsTrue
@@ -820,9 +797,8 @@ void DataEditor::draw_data_table_3d(Series& series, int series_idx)
                     }
                     else
                     {
-                        char val_buf[32];
-                        std::snprintf(val_buf, sizeof(val_buf), "%.6g", x_data[row]);
-                        ImGui::TextUnformatted(val_buf);
+                        const std::string val_buf = std::format("{:.6g}", x_data[row]);
+                        ImGui::TextUnformatted(val_buf.c_str());
                         if (ImGui::IsItemClicked())
                         {
                             select_row(row);
@@ -830,7 +806,10 @@ void DataEditor::draw_data_table_3d(Series& series, int series_idx)
                             edit_row_    = row;
                             edit_col_    = 0;
                             edit_series_ = series_idx;
-                            std::snprintf(edit_buf_, sizeof(edit_buf_), "%.6g", x_data[row]);
+                            std::strncpy(edit_buf_,
+                                         std::format("{:.6g}", x_data[row]).c_str(),
+                                         sizeof(edit_buf_) - 1);
+                            edit_buf_[sizeof(edit_buf_) - 1] = '\0';
                         }
                     }
                 }
@@ -838,8 +817,7 @@ void DataEditor::draw_data_table_3d(Series& series, int series_idx)
                 // Y value
                 ImGui::TableSetColumnIndex(2);
                 {
-                    char cell_id[32];
-                    std::snprintf(cell_id, sizeof(cell_id), "##y3_%d_%d", series_idx, row);
+                    const std::string cell_id = std::format("##y3_{}_{}", series_idx, row);
 
                     bool is_editing = (editing_ && edit_row_ == row && edit_col_ == 1
                                        && edit_series_ == series_idx);
@@ -847,7 +825,7 @@ void DataEditor::draw_data_table_3d(Series& series, int series_idx)
                     if (is_editing)
                     {
                         ImGui::SetNextItemWidth(-1);
-                        if (ImGui::InputText(cell_id,
+                        if (ImGui::InputText(cell_id.c_str(),
                                              edit_buf_,
                                              sizeof(edit_buf_),
                                              ImGuiInputTextFlags_EnterReturnsTrue
@@ -876,9 +854,8 @@ void DataEditor::draw_data_table_3d(Series& series, int series_idx)
                     }
                     else
                     {
-                        char val_buf[32];
-                        std::snprintf(val_buf, sizeof(val_buf), "%.6g", y_data[row]);
-                        ImGui::TextUnformatted(val_buf);
+                        const std::string val_buf = std::format("{:.6g}", y_data[row]);
+                        ImGui::TextUnformatted(val_buf.c_str());
                         if (ImGui::IsItemClicked())
                         {
                             select_row(row);
@@ -886,7 +863,10 @@ void DataEditor::draw_data_table_3d(Series& series, int series_idx)
                             edit_row_    = row;
                             edit_col_    = 1;
                             edit_series_ = series_idx;
-                            std::snprintf(edit_buf_, sizeof(edit_buf_), "%.6g", y_data[row]);
+                            std::strncpy(edit_buf_,
+                                         std::format("{:.6g}", y_data[row]).c_str(),
+                                         sizeof(edit_buf_) - 1);
+                            edit_buf_[sizeof(edit_buf_) - 1] = '\0';
                         }
                     }
                 }
@@ -894,8 +874,7 @@ void DataEditor::draw_data_table_3d(Series& series, int series_idx)
                 // Z value
                 ImGui::TableSetColumnIndex(3);
                 {
-                    char cell_id[32];
-                    std::snprintf(cell_id, sizeof(cell_id), "##z3_%d_%d", series_idx, row);
+                    const std::string cell_id = std::format("##z3_{}_{}", series_idx, row);
 
                     bool is_editing = (editing_ && edit_row_ == row && edit_col_ == 2
                                        && edit_series_ == series_idx);
@@ -903,7 +882,7 @@ void DataEditor::draw_data_table_3d(Series& series, int series_idx)
                     if (is_editing)
                     {
                         ImGui::SetNextItemWidth(-1);
-                        if (ImGui::InputText(cell_id,
+                        if (ImGui::InputText(cell_id.c_str(),
                                              edit_buf_,
                                              sizeof(edit_buf_),
                                              ImGuiInputTextFlags_EnterReturnsTrue
@@ -932,9 +911,8 @@ void DataEditor::draw_data_table_3d(Series& series, int series_idx)
                     }
                     else
                     {
-                        char val_buf[32];
-                        std::snprintf(val_buf, sizeof(val_buf), "%.6g", z_data[row]);
-                        ImGui::TextUnformatted(val_buf);
+                        const std::string val_buf = std::format("{:.6g}", z_data[row]);
+                        ImGui::TextUnformatted(val_buf.c_str());
                         if (ImGui::IsItemClicked())
                         {
                             select_row(row);
@@ -942,7 +920,10 @@ void DataEditor::draw_data_table_3d(Series& series, int series_idx)
                             edit_row_    = row;
                             edit_col_    = 2;
                             edit_series_ = series_idx;
-                            std::snprintf(edit_buf_, sizeof(edit_buf_), "%.6g", z_data[row]);
+                            std::strncpy(edit_buf_,
+                                         std::format("{:.6g}", z_data[row]).c_str(),
+                                         sizeof(edit_buf_) - 1);
+                            edit_buf_[sizeof(edit_buf_) - 1] = '\0';
                         }
                     }
                 }

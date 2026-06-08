@@ -4,7 +4,7 @@
 
     #include <algorithm>
     #include <cmath>
-    #include <cstdio>
+    #include <format>
     #include <imgui.h>
     #include <limits>
     #include <numeric>
@@ -103,19 +103,16 @@ void Inspector::draw_figure_properties(Figure& fig)
     ImGui::PushStyleColor(
         ImGuiCol_Text,
         ImVec4(c.text_secondary.r, c.text_secondary.g, c.text_secondary.b, c.text_secondary.a));
-    char subtitle[64];
-    int  total_series = 0;
+    int total_series = 0;
     for (const auto& ax : fig.axes())
     {
         if (ax)
             total_series += static_cast<int>(ax->series().size());
     }
-    std::snprintf(subtitle,
-                  sizeof(subtitle),
-                  "%d axes, %d series",
-                  static_cast<int>(fig.axes().size()),
-                  total_series);
-    ImGui::TextUnformatted(subtitle);
+    const std::string subtitle = std::format("{} axes, {} series",
+                                               static_cast<int>(fig.axes().size()),
+                                               total_series);
+    ImGui::TextUnformatted(subtitle.c_str());
     ImGui::PopStyleColor();
 
     widgets::section_spacing();
@@ -395,12 +392,9 @@ void Inspector::draw_series_browser(Figure& fig)
             return clicked;
         };
 
-        char copy_lbl[32];
-        char cut_lbl[32];
-        char del_lbl[32];
-        std::snprintf(copy_lbl, sizeof(copy_lbl), "Copy %zu", n);
-        std::snprintf(cut_lbl, sizeof(cut_lbl), "Cut %zu", n);
-        std::snprintf(del_lbl, sizeof(del_lbl), "Delete %zu", n);
+        const std::string copy_lbl = std::format("Copy {}", n);
+        const std::string cut_lbl  = std::format("Cut {}", n);
+        const std::string del_lbl  = std::format("Delete {}", n);
 
         ImVec4 muted(c.text_secondary.r, c.text_secondary.g, c.text_secondary.b, 0.75f);
         ImVec4 red(0.85f, 0.35f, 0.35f, 0.85f);
@@ -408,7 +402,7 @@ void Inspector::draw_series_browser(Figure& fig)
         float bx = bar_min.x + pad_h;
 
         // Copy all selected
-        if (bulk_btn("##bulk_cp", icon_str(Icon::Copy), copy_lbl, ImVec2(bx, bar_min.y), muted))
+        if (bulk_btn("##bulk_cp", icon_str(Icon::Copy), copy_lbl.c_str(), ImVec2(bx, bar_min.y), muted))
         {
             std::vector<const Series*> to_copy;
             for (const auto& e : ctx_.selected_series)
@@ -428,7 +422,7 @@ void Inspector::draw_series_browser(Figure& fig)
         std::vector<PendingCutEntry> pending_cuts;
         if (bulk_btn("##bulk_ct",
                      icon_str(Icon::Scissors),
-                     cut_lbl,
+                     cut_lbl.c_str(),
                      ImVec2(bx + btn_w + gap, bar_min.y),
                      muted))
         {
@@ -448,7 +442,7 @@ void Inspector::draw_series_browser(Figure& fig)
         std::vector<PendingCutEntry> pending_deletes;
         if (bulk_btn("##bulk_dl",
                      icon_str(Icon::Trash),
-                     del_lbl,
+                     del_lbl.c_str(),
                      ImVec2(bx + (btn_w + gap) * 2, bar_min.y),
                      red))
         {
@@ -733,17 +727,15 @@ void Inspector::draw_series_browser(Figure& fig)
                 ImVec4 red(0.85f, 0.35f, 0.35f, 0.75f);
 
                 // Copy
-                char copy_id[32];
-                std::snprintf(copy_id, sizeof(copy_id), "##cp%d_%d", ax_idx, s_idx);
-                if (icon_btn(copy_id, icon_str(Icon::Copy), ImVec2(x_btns, btn_y), muted))
+                const std::string copy_id = std::format("##cp{}_{}", ax_idx, s_idx);
+                if (icon_btn(copy_id.c_str(), icon_str(Icon::Copy), ImVec2(x_btns, btn_y), muted))
                     clipboard_->copy(*s);
                 if (ImGui::IsItemHovered())
                     ImGui::SetTooltip("Copy");
 
                 // Cut (scissors)
-                char cut_id[32];
-                std::snprintf(cut_id, sizeof(cut_id), "##ct%d_%d", ax_idx, s_idx);
-                if (icon_btn(cut_id,
+                const std::string cut_id = std::format("##ct{}_{}", ax_idx, s_idx);
+                if (icon_btn(cut_id.c_str(),
                              icon_str(Icon::Scissors),
                              ImVec2(x_btns + btn_w + btn_gap, btn_y),
                              muted))
@@ -761,9 +753,8 @@ void Inspector::draw_series_browser(Figure& fig)
                     ImGui::SetTooltip("Cut");
 
                 // Delete
-                char del_id[32];
-                std::snprintf(del_id, sizeof(del_id), "##dl%d_%d", ax_idx, s_idx);
-                if (icon_btn(del_id,
+                const std::string del_id = std::format("##dl{}_{}", ax_idx, s_idx);
+                if (icon_btn(del_id.c_str(),
                              icon_str(Icon::Trash),
                              ImVec2(x_btns + (btn_w + btn_gap) * 2, btn_y),
                              red))
@@ -834,9 +825,8 @@ void Inspector::draw_axes_properties(Axes& ax, int index)
     ImGui::PushStyleColor(
         ImGuiCol_Text,
         ImVec4(c.text_primary.r, c.text_primary.g, c.text_primary.b, c.text_primary.a));
-    char title[32];
-    std::snprintf(title, sizeof(title), "Axes %d", index + 1);
-    ImGui::TextUnformatted(title);
+    const std::string title = std::format("Axes {}", index + 1);
+    ImGui::TextUnformatted(title.c_str());
     ImGui::PopStyleColor();
     if (font_title_)
         ImGui::PopFont();
@@ -847,9 +837,8 @@ void Inspector::draw_axes_properties(Axes& ax, int index)
     ImGui::PushStyleColor(
         ImGuiCol_Text,
         ImVec4(c.text_secondary.r, c.text_secondary.g, c.text_secondary.b, c.text_secondary.a));
-    char sub[64];
-    std::snprintf(sub, sizeof(sub), "%zu series", ax.series().size());
-    ImGui::TextUnformatted(sub);
+    const std::string sub = std::format("{} series", ax.series().size());
+    ImGui::TextUnformatted(sub.c_str());
     ImGui::PopStyleColor();
 
     widgets::section_spacing();
@@ -997,9 +986,8 @@ void Inspector::draw_series_properties(Series& s, int /*index*/)
         type_name = "Scatter Series";
 
     const char* name = s.label().empty() ? "Unnamed" : s.label().c_str();
-    char        title[128];
-    std::snprintf(title, sizeof(title), "%s: %s", type_name, name);
-    ImGui::TextUnformatted(title);
+    const std::string title = std::format("{}: {}", type_name, name);
+    ImGui::TextUnformatted(title.c_str());
     ImGui::PopStyleColor();
     if (font_title_)
         ImGui::PopFont();
@@ -1228,16 +1216,13 @@ static void get_series_data(const Series&           s,
 
 void Inspector::draw_series_statistics(const Series& s)
 {
-    char buf[96];
-
     std::span<const float> x_data;
     std::span<const float> y_data;
     size_t                 count = 0;
     get_series_data(s, x_data, y_data, count);
 
     // Point count with badge
-    std::snprintf(buf, sizeof(buf), "%zu", count);
-    widgets::stat_row("Points", buf);
+    widgets::stat_row("Points", std::format("{}", count).c_str());
 
     if (count == 0)
         return;
@@ -1253,19 +1238,14 @@ void Inspector::draw_series_statistics(const Series& s)
         float xmin              = *xmin_it;
         float xmax              = *xmax_it;
 
-        std::snprintf(buf, sizeof(buf), "%.6g", static_cast<double>(xmin));
-        widgets::stat_row("Min", buf);
-        std::snprintf(buf, sizeof(buf), "%.6g", static_cast<double>(xmax));
-        widgets::stat_row("Max", buf);
-
-        std::snprintf(buf, sizeof(buf), "%.6g", static_cast<double>(xmax - xmin));
-        widgets::stat_row("Range", buf);
+        widgets::stat_row("Min", std::format("{:.6g}", static_cast<double>(xmin)).c_str());
+        widgets::stat_row("Max", std::format("{:.6g}", static_cast<double>(xmax)).c_str());
+        widgets::stat_row("Range", std::format("{:.6g}", static_cast<double>(xmax - xmin)).c_str());
 
         // X mean
         double x_sum  = std::accumulate(x_data.begin(), x_data.end(), 0.0);
         double x_mean = x_sum / static_cast<double>(count);
-        std::snprintf(buf, sizeof(buf), "%.6g", x_mean);
-        widgets::stat_row("Mean", buf);
+        widgets::stat_row("Mean", std::format("{:.6g}", x_mean).c_str());
     }
 
     widgets::small_spacing();
@@ -1279,26 +1259,20 @@ void Inspector::draw_series_statistics(const Series& s)
         float ymin              = *ymin_it;
         float ymax              = *ymax_it;
 
-        std::snprintf(buf, sizeof(buf), "%.6g", static_cast<double>(ymin));
-        widgets::stat_row("Min", buf);
-        std::snprintf(buf, sizeof(buf), "%.6g", static_cast<double>(ymax));
-        widgets::stat_row("Max", buf);
-
-        std::snprintf(buf, sizeof(buf), "%.6g", static_cast<double>(ymax - ymin));
-        widgets::stat_row("Range", buf);
+        widgets::stat_row("Min", std::format("{:.6g}", static_cast<double>(ymin)).c_str());
+        widgets::stat_row("Max", std::format("{:.6g}", static_cast<double>(ymax)).c_str());
+        widgets::stat_row("Range", std::format("{:.6g}", static_cast<double>(ymax - ymin)).c_str());
 
         // Mean
         double sum  = std::accumulate(y_data.begin(), y_data.end(), 0.0);
         double mean = sum / static_cast<double>(count);
-        std::snprintf(buf, sizeof(buf), "%.6g", mean);
-        widgets::stat_row("Mean", buf);
+        widgets::stat_row("Mean", std::format("{:.6g}", mean).c_str());
 
         // Median (requires sorted copy)
         std::vector<float> sorted(y_data.begin(), y_data.end());
         std::sort(sorted.begin(), sorted.end());
         double median = compute_percentile(sorted, 0.5);
-        std::snprintf(buf, sizeof(buf), "%.6g", median);
-        widgets::stat_row("Median", buf);
+        widgets::stat_row("Median", std::format("{:.6g}", median).c_str());
 
         // Std deviation
         double sq_sum = 0.0;
@@ -1308,8 +1282,7 @@ void Inspector::draw_series_statistics(const Series& s)
             sq_sum += diff * diff;
         }
         double stddev = std::sqrt(sq_sum / static_cast<double>(count));
-        std::snprintf(buf, sizeof(buf), "%.6g", stddev);
-        widgets::stat_row("Std Dev", buf);
+        widgets::stat_row("Std Dev", std::format("{:.6g}", stddev).c_str());
 
         // Percentiles (only for datasets with enough points)
         if (count >= 4)
@@ -1323,20 +1296,14 @@ void Inspector::draw_series_statistics(const Series& s)
             double p05 = compute_percentile(sorted, 0.05);
             double p95 = compute_percentile(sorted, 0.95);
 
-            std::snprintf(buf, sizeof(buf), "%.6g", p05);
-            widgets::stat_row("P5", buf);
-            std::snprintf(buf, sizeof(buf), "%.6g", p25);
-            widgets::stat_row("P25 (Q1)", buf);
-            std::snprintf(buf, sizeof(buf), "%.6g", median);
-            widgets::stat_row("P50 (Med)", buf);
-            std::snprintf(buf, sizeof(buf), "%.6g", p75);
-            widgets::stat_row("P75 (Q3)", buf);
-            std::snprintf(buf, sizeof(buf), "%.6g", p95);
-            widgets::stat_row("P95", buf);
+            widgets::stat_row("P5", std::format("{:.6g}", p05).c_str());
+            widgets::stat_row("P25 (Q1)", std::format("{:.6g}", p25).c_str());
+            widgets::stat_row("P50 (Med)", std::format("{:.6g}", median).c_str());
+            widgets::stat_row("P75 (Q3)", std::format("{:.6g}", p75).c_str());
+            widgets::stat_row("P95", std::format("{:.6g}", p95).c_str());
 
             // IQR
-            std::snprintf(buf, sizeof(buf), "%.6g", p75 - p25);
-            widgets::stat_row("IQR", buf);
+            widgets::stat_row("IQR", std::format("{:.6g}", p75 - p25).c_str());
         }
     }
 }
@@ -1382,8 +1349,6 @@ void Inspector::draw_series_sparkline(const Series& s)
 
 void Inspector::draw_axes_statistics(const Axes& ax)
 {
-    char buf[96];
-
     size_t total_points   = 0;
     size_t visible_series = 0;
     size_t total_series   = ax.series().size();
@@ -1420,11 +1385,8 @@ void Inspector::draw_axes_statistics(const Axes& ax)
         }
     }
 
-    std::snprintf(buf, sizeof(buf), "%zu / %zu", visible_series, total_series);
-    widgets::stat_row("Visible", buf);
-
-    std::snprintf(buf, sizeof(buf), "%zu", total_points);
-    widgets::stat_row("Total Points", buf);
+    widgets::stat_row("Visible", std::format("{} / {}", visible_series, total_series).c_str());
+    widgets::stat_row("Total Points", std::format("{}", total_points).c_str());
 
     if (total_points > 0)
     {
@@ -1432,13 +1394,13 @@ void Inspector::draw_axes_statistics(const Axes& ax)
 
         if (global_xmin <= global_xmax)
         {
-            std::snprintf(buf, sizeof(buf), "[%.4g, %.4g]", global_xmin, global_xmax);
-            widgets::stat_row("X Extent", buf);
+            widgets::stat_row("X Extent",
+                            std::format("[{:.4g}, {:.4g}]", global_xmin, global_xmax).c_str());
         }
         if (global_ymin <= global_ymax)
         {
-            std::snprintf(buf, sizeof(buf), "[%.4g, %.4g]", global_ymin, global_ymax);
-            widgets::stat_row("Y Extent", buf);
+            widgets::stat_row("Y Extent",
+                            std::format("[{:.4g}, {:.4g}]", global_ymin, global_ymax).c_str());
         }
     }
 }

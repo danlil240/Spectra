@@ -4,6 +4,7 @@
 #include <array>
 #include <cmath>
 #include <cstdio>
+#include <format>
 
 #include "scene/scene_manager.hpp"
 #include "tf/tf_buffer.hpp"
@@ -219,14 +220,11 @@ void LaserScanDisplay::submit_renderables(SceneManager& scene)
         const bool use_intensity_color = color_mode_ == ColorMode::Intensity && frame.has_intensity;
         const uint32_t default_rgba    = laserscan_flat_color(fade);
         const auto     default_color   = unpack_rgba(default_rgba);
-        char           color_buffer[96];
-        std::snprintf(color_buffer,
-                      sizeof(color_buffer),
-                      "%.3f, %.3f, %.3f, %.3f",
-                      default_color[0],
-                      default_color[1],
-                      default_color[2],
-                      default_color[3]);
+        std::string color_buffer = std::format("{:.3f}, {:.3f}, {:.3f}, {:.3f}",
+                                               default_color[0],
+                                               default_color[1],
+                                               default_color[2],
+                                               default_color[3]);
 
         if (render_style_ == RenderStyle::Points)
         {
@@ -288,13 +286,11 @@ void LaserScanDisplay::submit_renderables(SceneManager& scene)
             }
 
             const auto line_color = unpack_rgba(line_rgba);
-            std::snprintf(color_buffer,
-                          sizeof(color_buffer),
-                          "%.3f, %.3f, %.3f, %.3f",
-                          line_color[0],
-                          line_color[1],
-                          line_color[2],
-                          line_color[3]);
+            color_buffer          = std::format("{:.3f}, {:.3f}, {:.3f}, {:.3f}",
+                                       line_color[0],
+                                       line_color[1],
+                                       line_color[2],
+                                       line_color[3]);
             entity.properties.push_back({"line_width", "2.0"});
         }
 
@@ -344,25 +340,23 @@ void LaserScanDisplay::draw_inspector_ui()
 void LaserScanDisplay::set_topic(const std::string& topic)
 {
     topic_ = topic;
-    std::snprintf(topic_input_.data(), topic_input_.size(), "%s", topic_.c_str());
+    topic_.copy(topic_input_.data(), topic_input_.size() - 1);
+    topic_input_[std::min(topic_.size(), topic_input_.size() - 1)] = '\0';
     resubscribe_requested_ = true;
 }
 
 std::string LaserScanDisplay::serialize_config_blob() const
 {
-    char buffer[320];
-    std::snprintf(buffer,
-                  sizeof(buffer),
-                  "topic=%s;render_style=%d;color_mode=%d;trail_size=%d;min_range=%.3f;max_range=%."
-                  "3f;use_message_stamp=%d",
-                  topic_.c_str(),
-                  static_cast<int>(render_style_),
-                  static_cast<int>(color_mode_),
-                  trail_size_,
-                  min_range_filter_,
-                  max_range_filter_,
-                  use_message_stamp_ ? 1 : 0);
-    return buffer;
+    return std::format(
+        "topic={};render_style={};color_mode={};trail_size={};min_range={:.3f};max_range={:.3f};"
+        "use_message_stamp={}",
+        topic_,
+        static_cast<int>(render_style_),
+        static_cast<int>(color_mode_),
+        trail_size_,
+        min_range_filter_,
+        max_range_filter_,
+        use_message_stamp_ ? 1 : 0);
 }
 
 void LaserScanDisplay::deserialize_config_blob(const std::string& blob)
@@ -408,6 +402,12 @@ void LaserScanDisplay::ingest_scan_frame(const LaserScanFrame& frame)
     scans_.push_back(frame);
     while (static_cast<int>(scans_.size()) > trail_size_)
         scans_.pop_front();
+}
+
+void LaserScanDisplay::clear_scan_history()
+{
+    std::lock_guard<std::mutex> lock(scans_mutex_);
+    scans_.clear();
 }
 
 size_t LaserScanDisplay::scan_count() const

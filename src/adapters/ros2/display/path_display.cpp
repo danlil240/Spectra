@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <format>
 
 #include "scene/scene_manager.hpp"
 #include "tf/tf_buffer.hpp"
@@ -170,22 +171,19 @@ void PathDisplay::draw_inspector_ui()
 void PathDisplay::set_topic(const std::string& topic)
 {
     topic_ = topic;
-    std::snprintf(topic_input_.data(), topic_input_.size(), "%s", topic_.c_str());
+    topic_.copy(topic_input_.data(), topic_input_.size() - 1);
+    topic_input_[std::min(topic_.size(), topic_input_.size() - 1)] = '\0';
     resubscribe_requested_ = true;
 }
 
 std::string PathDisplay::serialize_config_blob() const
 {
-    char buffer[256];
-    std::snprintf(buffer,
-                  sizeof(buffer),
-                  "topic=%s;line_width=%.2f;alpha=%.2f;pose_arrows=%d;use_message_stamp=%d",
-                  topic_.c_str(),
-                  line_width_,
-                  alpha_,
-                  show_pose_arrows_ ? 1 : 0,
-                  use_message_stamp_ ? 1 : 0);
-    return buffer;
+    return std::format("topic={};line_width={:.2f};alpha={:.2f};pose_arrows={};use_message_stamp={}",
+                       topic_,
+                       line_width_,
+                       alpha_,
+                       show_pose_arrows_ ? 1 : 0,
+                       use_message_stamp_ ? 1 : 0);
 }
 
 void PathDisplay::deserialize_config_blob(const std::string& blob)
@@ -220,6 +218,12 @@ void PathDisplay::ingest_path_frame(const PathFrame& frame)
 {
     std::lock_guard<std::mutex> lock(frame_mutex_);
     latest_frame_ = frame;
+}
+
+void PathDisplay::clear_playback_frame()
+{
+    std::lock_guard<std::mutex> lock(frame_mutex_);
+    latest_frame_.reset();
 }
 
 std::optional<PathFrame> PathDisplay::latest_frame() const

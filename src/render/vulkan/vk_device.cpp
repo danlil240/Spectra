@@ -288,6 +288,21 @@ VkPhysicalDevice pick_physical_device(VkInstance instance, VkSurfaceKHR surface)
     vkGetPhysicalDeviceProperties(best, &props);
     Logger::instance().log(LogLevel::Info, "vulkan", "Using GPU: " + std::string(props.deviceName));
 
+    // A CPU device means software rasterization (e.g. llvmpipe/lavapipe). This
+    // is correct for headless/CI but cripples interactive performance — frame
+    // cost scales with primitive count instead of being GPU-bound. It is almost
+    // always an environment misconfiguration (VK_ICD_FILENAMES pinned to lvp_icd
+    // / LIBGL_ALWAYS_SOFTWARE) masking a real GPU. Warn loudly so it is visible.
+    if (props.deviceType == VK_PHYSICAL_DEVICE_TYPE_CPU)
+    {
+        Logger::instance().log(
+            LogLevel::Warning,
+            "vulkan",
+            "Selected a CPU (software) Vulkan device '" + std::string(props.deviceName)
+                + "' — rendering will be slow and worsen as data grows. If this machine has a "
+                  "GPU, unset VK_ICD_FILENAMES and LIBGL_ALWAYS_SOFTWARE before launching.");
+    }
+
     return best;
 }
 

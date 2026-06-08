@@ -1,4 +1,4 @@
-#include <cstdio>
+#include <format>
 #include <fstream>
 #include <spectra/axes.hpp>
 #include <spectra/export.hpp>
@@ -18,22 +18,16 @@ namespace
 // Convert a Color to an SVG rgb() string
 std::string svg_color(const Color& c)
 {
-    char buf[64];
-    std::snprintf(buf,
-                  sizeof(buf),
-                  "rgb(%d,%d,%d)",
-                  static_cast<int>(c.r * 255.0f),
-                  static_cast<int>(c.g * 255.0f),
-                  static_cast<int>(c.b * 255.0f));
-    return buf;
+    return std::format("rgb({},{},{})",
+                       static_cast<int>(c.r * 255.0f),
+                       static_cast<int>(c.g * 255.0f),
+                       static_cast<int>(c.b * 255.0f));
 }
 
 // Convert a float to a compact string (no trailing zeros)
 std::string fmt(float v)
 {
-    char buf[32];
-    std::snprintf(buf, sizeof(buf), "%.4g", static_cast<double>(v));
-    return buf;
+    return std::format("{:.4g}", static_cast<double>(v));
 }
 
 // XML-escape a string for safe embedding in SVG attributes/text content

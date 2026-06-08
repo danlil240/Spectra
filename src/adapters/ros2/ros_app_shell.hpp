@@ -14,6 +14,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "bag_display_sync.hpp"
 #include "bag_player.hpp"
 #include "display/display_registry.hpp"
 #include "message_introspector.hpp"
@@ -21,6 +22,7 @@
 #include "ros_plot_manager.hpp"
 #include "ros_screenshot_export.hpp"
 #include "ros_session.hpp"
+#include "ros_time_clock.hpp"
 #include "service_caller.hpp"
 #include "scene/scene_manager.hpp"
 #include "subplot_manager.hpp"
@@ -77,9 +79,16 @@ struct RosAppConfig
 
     std::string bag_file;
 
+    // Path to a .spectra-ros-session preset loaded at startup (before dock layout).
+    std::string session_file;
+
     LayoutMode layout = LayoutMode::Default;
 
     double time_window_s = 30.0;
+
+    // Bag playback (used with --bag and bag_replay.launch.py).
+    double bag_rate{1.0};
+    bool   bag_loop{false};
 
     int subplot_rows = 1;
     int subplot_cols = 1;
@@ -109,6 +118,9 @@ struct RosWorkspaceState
 
     // Current TF fixed frame for scene-space displays.
     std::string fixed_frame;
+
+    // Master clock — live wall time or bag playhead (Phase B temporal bus).
+    RosTimeClock clock;
 
     // Per-frame event flags — set by shell actions, consumed during draw().
     bool selection_changed = false;   // topic or field changed this frame
@@ -155,6 +167,10 @@ class RosAppShell
     // Optional: bind SubplotManager to the application's render figure.
     // Must be called before init().
     void set_canvas_figure(spectra::Figure* fig) { canvas_figure_ = fig; }
+    spectra::Figure* canvas_figure() const { return canvas_figure_; }
+
+    // Stop live plot subscriptions before the canvas Figure is destroyed.
+    void detach_canvas_figure();
 
     // Optional: bind to the Spectra LayoutManager so we can override canvas_rect
     // to match the Plot Area docked panel's position.
@@ -176,6 +192,7 @@ class RosAppShell
     void draw_plot_area(bool* p_open = nullptr);
     void draw_bag_info(bool* p_open = nullptr);
     void draw_bag_playback(bool* p_open = nullptr);
+    void draw_unified_transport_bar();
     void draw_log_viewer(bool* p_open = nullptr);
     void draw_diagnostics(bool* p_open = nullptr);
     void draw_displays_panel(bool* p_open = nullptr);
@@ -268,6 +285,8 @@ class RosAppShell
     void       apply_session(const RosSession& session);
     SaveResult save_session(const std::string& path);
     LoadResult load_session(const std::string& path);
+    // Import plots/expressions from another session; keeps current layout.
+    LoadResult merge_session(const std::string& path);
 
     // ------------------------------------------------------------------
     // Named layout presets
@@ -309,6 +328,11 @@ class RosAppShell
    private:
     void subscribe_initial_topics();
     void wire_panel_callbacks();
+    void on_bag_opened(const std::string& path);
+    void on_bag_closed();
+    void apply_subscription_entry(const SubscriptionEntry& entry);
+    void sync_playhead_to_panels(double playhead_sec);
+    void wire_bag_time_clock();
     void handle_plot_request(const FieldDragPayload& payload, PlotTarget target);
     void setup_layout_visibility();
     void register_builtin_displays();
@@ -322,6 +346,7 @@ class RosAppShell
 
     void draw_session_save_dialog();
     void draw_session_load_dialog();
+    void draw_session_merge_dialog();
     void draw_recent_sessions_menu();   // inline submenu items for "Recent"
     void draw_layout_preset_menu();     // inline submenu items for "Layout"
     void handle_plot_shortcuts();
@@ -341,6 +366,11 @@ class RosAppShell
     std::string detect_topic_type(const std::string& topic) const;
     std::string default_numeric_field(const std::string& topic, const std::string& type_hint) const;
 
+    // Per-topic monitor subs are created/destroyed on the app thread only.
+    void drain_pending_monitor_subs();
+    void apply_monitor_sub_change(const TopicInfo& info, bool added);
+    void clear_monitor_subs();
+
     RosAppConfig cfg_;
 
     std::unique_ptr<Ros2Bridge>          bridge_;
@@ -355,6 +385,7 @@ class RosAppShell
     std::unique_ptr<TopicStatsOverlay>  topic_stats_;
     std::unique_ptr<BagInfoPanel>       bag_info_;
     std::unique_ptr<BagPlayer>          bag_player_;
+    std::unique_ptr<BagDisplaySync>     bag_display_sync_;
     std::unique_ptr<BagPlaybackPanel>   bag_playback_panel_;
     std::unique_ptr<RosLogViewer>       log_viewer_;
     std::unique_ptr<LogViewerPanel>     log_viewer_panel_;
@@ -375,10 +406,14 @@ class RosAppShell
 
     std::unique_ptr<RosSessionManager> session_mgr_;
     bool                               show_session_save_dialog_ = false;
-    bool                               show_session_load_dialog_ = false;
+    bool                               show_session_load_dialog_  = false;
+    bool                               show_session_merge_dialog_ = false;
     std::string                        session_save_path_buf_;
     std::string                        session_status_msg_;
     float                              session_status_timer_{0.0f};
+    bool                               layout_unsaved_{false};
+    bool                               layout_change_tracking_enabled_{false};
+    int                                layout_settle_frames_{0};
 
     std::atomic<bool> shutdown_requested_{false};
 
@@ -414,9 +449,9 @@ class RosAppShell
     // Optional layout manager (owned by ImGuiIntegration; lifetime >= shell).
     spectra::LayoutManager* layout_manager_ = nullptr;
 
-    // Lightweight per-topic subscriptions for Hz/BW monitoring.
-    // Created automatically for every discovered topic so the Topic Monitor
-    // shows Hz and bandwidth columns for all topics, not just plotted ones.
+    // Lightweight per-topic subscriptions for Topic Monitor Hz/BW columns.
+    std::mutex                                                              pending_monitor_subs_mutex_;
+    std::vector<std::pair<TopicInfo, bool>>                                 pending_monitor_subs_;
     std::mutex                                                              monitor_subs_mutex_;
     std::unordered_map<std::string, rclcpp::GenericSubscription::SharedPtr> monitor_subs_;
 

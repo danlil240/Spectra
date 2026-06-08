@@ -2,6 +2,8 @@
 
     #include "imgui_integration_internal.hpp"
 
+    #include <format>
+
 namespace spectra
 {
 
@@ -243,8 +245,7 @@ void ImGuiIntegration::draw_pane_tab_headers()
         Rect hr = ph.header_rect;
 
         // Create a tiny ImGui window covering this pane's tab header area
-        char win_id[64];
-        snprintf(win_id, sizeof(win_id), "##pane_tab_%u", ph.pane->id());
+        const std::string win_id = std::format("##pane_tab_{}", ph.pane->id());
         ImGui::SetNextWindowPos(ImVec2(hr.x, hr.y));
         ImGui::SetNextWindowSize(ImVec2(hr.w, hr.h));
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
@@ -253,7 +254,7 @@ void ImGuiIntegration::draw_pane_tab_headers()
         ImGui::PushStyleColor(ImGuiCol_WindowBg,
                               ImVec4(0, 0, 0, 0));   // transparent — we draw bg ourselves
 
-        if (!ImGui::Begin(win_id, nullptr, pane_win_flags))
+        if (!ImGui::Begin(win_id.c_str(), nullptr, pane_win_flags))
         {
             ImGui::End();
             ImGui::PopStyleColor();
@@ -1116,11 +1117,8 @@ void ImGuiIntegration::draw_plot_overlays(Figure& figure)
             chip_y = 4.0f;
         ImVec2 chip_pos = ImVec2(chip_x, chip_y);
 
-        char overlay_id[64];
-        std::snprintf(overlay_id,
-                      sizeof(overlay_id),
-                      "##live_overlay_%p",
-                      static_cast<void*>(&figure));
+        const std::string overlay_id =
+            std::format("##live_overlay_{}", static_cast<void*>(&figure));
 
         ImGui::SetNextWindowPos(chip_pos, ImGuiCond_Always);
         ImGui::SetNextWindowSize(chip_sz, ImGuiCond_Always);
@@ -1134,7 +1132,7 @@ void ImGuiIntegration::draw_plot_overlays(Figure& figure)
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
         ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
 
-        if (ImGui::Begin(overlay_id, nullptr, flags))
+        if (ImGui::Begin(overlay_id.c_str(), nullptr, flags))
         {
             ImGui::SetCursorPos(ImVec2(0.0f, 0.0f));
 

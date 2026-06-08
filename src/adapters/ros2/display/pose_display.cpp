@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <format>
 
 #include "scene/scene_manager.hpp"
 #include "tf/tf_buffer.hpp"
@@ -173,24 +174,22 @@ void PoseDisplay::draw_inspector_ui()
 void PoseDisplay::set_topic(const std::string& topic)
 {
     topic_ = topic;
-    std::snprintf(topic_input_.data(), topic_input_.size(), "%s", topic_.c_str());
+    topic_.copy(topic_input_.data(), topic_input_.size() - 1);
+    topic_input_[std::min(topic_.size(), topic_input_.size() - 1)] = '\0';
     resubscribe_requested_ = true;
 }
 
 std::string PoseDisplay::serialize_config_blob() const
 {
-    char buffer[256];
-    std::snprintf(buffer,
-                  sizeof(buffer),
-                  "topic=%s;shaft_length=%.2f;shaft_width=%.2f;head_length=%.2f;head_width=%.2f;"
-                  "use_message_stamp=%d",
-                  topic_.c_str(),
-                  shaft_length_,
-                  shaft_width_,
-                  head_length_,
-                  head_width_,
-                  use_message_stamp_ ? 1 : 0);
-    return buffer;
+    return std::format(
+        "topic={};shaft_length={:.2f};shaft_width={:.2f};head_length={:.2f};head_width={:.2f};"
+        "use_message_stamp={}",
+        topic_,
+        shaft_length_,
+        shaft_width_,
+        head_length_,
+        head_width_,
+        use_message_stamp_ ? 1 : 0);
 }
 
 void PoseDisplay::deserialize_config_blob(const std::string& blob)
@@ -232,6 +231,12 @@ void PoseDisplay::ingest_pose_frame(const PoseFrame& frame)
 {
     std::lock_guard<std::mutex> lock(frame_mutex_);
     latest_frame_ = frame;
+}
+
+void PoseDisplay::clear_playback_frame()
+{
+    std::lock_guard<std::mutex> lock(frame_mutex_);
+    latest_frame_.reset();
 }
 
 std::optional<PoseFrame> PoseDisplay::latest_frame() const

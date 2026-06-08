@@ -55,6 +55,7 @@ class LaserScanDisplay : public DisplayPlugin
     void        deserialize_config_blob(const std::string& blob) override;
 
     void   ingest_scan_frame(const LaserScanFrame& frame);
+    void   clear_scan_history();
     size_t scan_count() const;
 
    private:

@@ -2,6 +2,8 @@
 
     #include "imgui_integration_internal.hpp"
 
+    #include <format>
+
     #include "../topics/topics_panel.hpp"
 
 namespace spectra
@@ -567,9 +569,8 @@ void ImGuiIntegration::draw_inspector(Figure& figure)
                                                  0.85f));
                 }
 
-                char btn_id[64];
-                std::snprintf(btn_id, sizeof(btn_id), "%s##insp_tab_%d", tabs[i].label, i);
-                if (ImGui::Button(btn_id, ImVec2(tab_w, tab_h)))
+                const std::string btn_id = std::format("{}##insp_tab_{}", tabs[i].label, i);
+                if (ImGui::Button(btn_id.c_str(), ImVec2(tab_w, tab_h)))
                 {
                     active_section_ = tabs[i].section;
                     // Clear stale selection when switching sections
@@ -869,16 +870,12 @@ void ImGuiIntegration::draw_status_bar()
                                      theme_colors().text_secondary.g,
                                      theme_colors().text_secondary.b,
                                      theme_colors().text_secondary.a));
-        char cursor_buf[64];
-        if (cursor_data_valid_)
-            std::snprintf(cursor_buf,
-                          sizeof(cursor_buf),
-                          "X: %.4f  Y: %.4f",
-                          cursor_data_x_,
-                          cursor_data_y_);
-        else
-            std::snprintf(cursor_buf, sizeof(cursor_buf), "X: —  Y: —");
-        ImGui::TextUnformatted(cursor_buf);
+        const std::string cursor_buf = cursor_data_valid_
+                                           ? std::format("X: {:.4f}  Y: {:.4f}",
+                                                         cursor_data_x_,
+                                                         cursor_data_y_)
+                                           : "X: —  Y: —";
+        ImGui::TextUnformatted(cursor_buf.c_str());
         ImGui::PopStyleColor();
 
         // Center: mode indicator with pill background
@@ -953,23 +950,23 @@ void ImGuiIntegration::draw_status_bar()
                                      theme_colors().text_secondary.g,
                                      theme_colors().text_secondary.b,
                                      theme_colors().text_secondary.a));
-        char zoom_buf[48];
+        std::string zoom_buf;
         {
             double zoom_pct = static_cast<double>(zoom_level_) * 100.0;
             if (zoom_pct < 10000.0)
-                std::snprintf(zoom_buf, sizeof(zoom_buf), "Zoom: %.0f%%", zoom_pct);
+                zoom_buf = std::format("Zoom: {:.0f}%", zoom_pct);
             else if (zoom_pct < 1e7)
-                std::snprintf(zoom_buf, sizeof(zoom_buf), "Zoom: %.1fK%%", zoom_pct / 1e3);
+                zoom_buf = std::format("Zoom: {:.1f}K%", zoom_pct / 1e3);
             else if (zoom_pct < 1e10)
-                std::snprintf(zoom_buf, sizeof(zoom_buf), "Zoom: %.1fM%%", zoom_pct / 1e6);
+                zoom_buf = std::format("Zoom: {:.1f}M%", zoom_pct / 1e6);
             else if (zoom_pct < 1e13)
-                std::snprintf(zoom_buf, sizeof(zoom_buf), "Zoom: %.1fG%%", zoom_pct / 1e9);
+                zoom_buf = std::format("Zoom: {:.1f}G%", zoom_pct / 1e9);
             else
-                std::snprintf(zoom_buf, sizeof(zoom_buf), "Zoom: %.2e%%", zoom_pct);
+                zoom_buf = std::format("Zoom: {:.2e}%", zoom_pct);
         }
         {
             ImVec2 chip_pos = ImGui::GetCursorScreenPos();
-            ImVec2 chip_sz  = ImGui::CalcTextSize(zoom_buf);
+            ImVec2 chip_sz  = ImGui::CalcTextSize(zoom_buf.c_str());
             ImGui::GetWindowDrawList()->AddRectFilled(
                 ImVec2(chip_pos.x - 5.0f, chip_pos.y - 1.0f),
                 ImVec2(chip_pos.x + chip_sz.x + 5.0f, chip_pos.y + chip_sz.y + 1.0f),
@@ -978,7 +975,7 @@ void ImGuiIntegration::draw_status_bar()
                          static_cast<uint8_t>(theme_colors().bg_tertiary.b * 255),
                          72),
                 ui::tokens::RADIUS_SM);
-            ImGui::TextUnformatted(zoom_buf);
+            ImGui::TextUnformatted(zoom_buf.c_str());
         }
         ImGui::PopStyleColor();
 
@@ -1000,11 +997,10 @@ void ImGuiIntegration::draw_status_bar()
             else if (fps_val < 45.0f)
                 fps_color = theme_colors().warning;
 
-            char fps_buf[32];
-            std::snprintf(fps_buf, sizeof(fps_buf), "%d fps", static_cast<int>(fps_val));
+            const std::string fps_buf = std::format("{} fps", static_cast<int>(fps_val));
             {
                 ImVec2 chip_pos = ImGui::GetCursorScreenPos();
-                ImVec2 chip_sz  = ImGui::CalcTextSize(fps_buf);
+                ImVec2 chip_sz  = ImGui::CalcTextSize(fps_buf.c_str());
                 ImGui::GetWindowDrawList()->AddRectFilled(
                     ImVec2(chip_pos.x - 5.0f, chip_pos.y - 1.0f),
                     ImVec2(chip_pos.x + chip_sz.x + 5.0f, chip_pos.y + chip_sz.y + 1.0f),
@@ -1015,17 +1011,16 @@ void ImGuiIntegration::draw_status_bar()
                     ui::tokens::RADIUS_SM);
                 ImGui::PushStyleColor(ImGuiCol_Text,
                                       ImVec4(fps_color.r, fps_color.g, fps_color.b, 1.0f));
-                ImGui::TextUnformatted(fps_buf);
+                ImGui::TextUnformatted(fps_buf.c_str());
                 ImGui::PopStyleColor();
             }
 
             // GPU time
             ImGui::SameLine(0.0f, ui::tokens::SPACE_3);
-            char gpu_buf[32];
-            std::snprintf(gpu_buf, sizeof(gpu_buf), "GPU: %.1fms", gpu_time_ms_);
+            const std::string gpu_buf = std::format("GPU: {:.1f}ms", gpu_time_ms_);
             {
                 ImVec2 chip_pos = ImGui::GetCursorScreenPos();
-                ImVec2 chip_sz  = ImGui::CalcTextSize(gpu_buf);
+                ImVec2 chip_sz  = ImGui::CalcTextSize(gpu_buf.c_str());
                 ImGui::GetWindowDrawList()->AddRectFilled(
                     ImVec2(chip_pos.x - 5.0f, chip_pos.y - 1.0f),
                     ImVec2(chip_pos.x + chip_sz.x + 5.0f, chip_pos.y + chip_sz.y + 1.0f),
@@ -1039,7 +1034,7 @@ void ImGuiIntegration::draw_status_bar()
                                              theme_colors().text_tertiary.g,
                                              theme_colors().text_tertiary.b,
                                              theme_colors().text_tertiary.a));
-                ImGui::TextUnformatted(gpu_buf);
+                ImGui::TextUnformatted(gpu_buf.c_str());
                 ImGui::PopStyleColor();
             }
         }

@@ -879,6 +879,16 @@ void App::shutdown_runtime()
 
     SPECTRA_LOG_INFO("main_loop", "Exited main render loop");
 
+#ifndef _WIN32
+    // Stop before MCP/automation: the topic worker may call UI callbacks that
+    // reference TopicsPanel, which is destroyed when the user closes the window.
+    if (rt.topic_server)
+    {
+        rt.topic_server->stop();
+        rt.topic_server.reset();
+    }
+#endif
+
     if (rt.mcp_server)
     {
         rt.mcp_server->stop();
@@ -890,14 +900,6 @@ void App::shutdown_runtime()
         rt.auto_server->stop();
         rt.auto_server.reset();
     }
-
-#ifndef _WIN32
-    if (rt.topic_server)
-    {
-        rt.topic_server->stop();
-        rt.topic_server.reset();
-    }
-#endif
 
 #ifdef SPECTRA_USE_FFMPEG
     if (rt.video_exporter)
@@ -993,6 +995,16 @@ void App::shutdown_runtime()
     {
         backend_->wait_idle();
     }
+
+    // Renderer holds a non-owning pointer into AppRuntime::series_type_registry.
+    // Destroy custom pipelines while both are still alive, then detach so
+    // ~Renderer (in ~App) does not touch freed registry memory.
+    if (renderer_ && backend_)
+    {
+        rt.series_type_registry.destroy_pipelines(*backend_);
+        renderer_->set_series_type_registry(nullptr);
+    }
+    rt.plugin_manager.set_series_type_registry(nullptr);
 
     try
     {

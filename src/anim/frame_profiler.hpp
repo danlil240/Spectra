@@ -12,6 +12,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <format>
 #include <map>
 #include <spectra/logger.hpp>
 #include <string>
@@ -114,8 +115,18 @@ class FrameProfiler
 
     void log_if_ready()
     {
-        if (frame_count_ < log_interval_)
+        // Report when EITHER enough frames have elapsed OR enough wall-clock
+        // time has passed. The wall-clock trigger is essential for diagnosing
+        // severe slowdowns: at 0.5 FPS a 600-frame window would take ~20 min,
+        // so a frame-only gate never reports during the stall it is meant to
+        // diagnose.
+        const double since_report_s =
+            std::chrono::duration<double>(Clock::now() - last_report_time_).count();
+        const bool frame_gate = frame_count_ >= log_interval_;
+        const bool time_gate  = since_report_s >= report_interval_s_ && frame_count_ > 0;
+        if (!frame_gate && !time_gate)
             return;
+        last_report_time_ = Clock::now();
 
         // Compute stats for each stage
         std::string report =
@@ -215,14 +226,8 @@ class FrameProfiler
     static std::string format_us(double us)
     {
         if (us >= 1000.0)
-        {
-            char buf[32];
-            snprintf(buf, sizeof(buf), "%.2fms", us / 1000.0);
-            return buf;
-        }
-        char buf[32];
-        snprintf(buf, sizeof(buf), "%.0fus", us);
-        return buf;
+            return std::format("{:.2f}ms", us / 1000.0);
+        return std::format("{:.0f}us", us);
     }
 
     static std::string pad_right(const std::string& s, size_t width)
@@ -238,11 +243,13 @@ class FrameProfiler
     std::map<std::string, uint32_t>                      counters_;
     std::map<std::string, uint32_t>                      history_counters_;
 
-    uint32_t log_interval_      = 600;
-    uint32_t frame_count_       = 0;
-    uint64_t total_frame_count_ = 0;
-    uint32_t hitch_count_       = 0;
-    double   target_frame_ms_   = 16.667;   // 60 FPS default
+    uint32_t  log_interval_      = 600;
+    uint32_t  frame_count_       = 0;
+    uint64_t  total_frame_count_ = 0;
+    uint32_t  hitch_count_       = 0;
+    double    target_frame_ms_   = 16.667;   // 60 FPS default
+    double    report_interval_s_ = 5.0;      // also report at least every 5 s
+    TimePoint last_report_time_  = Clock::now();
 };
 
 // RAII scope timer

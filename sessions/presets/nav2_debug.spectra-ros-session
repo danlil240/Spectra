@@ -1,0 +1,156 @@
+{
+  "version": 2,
+  "node_name": "spectra_nav2_debug",
+  "node_ns": "",
+  "layout": "rviz-plot",
+  "subplot_rows": 2,
+  "subplot_cols": 2,
+  "time_window_s": 30.0,
+  "pruning_enabled": true,
+  "prune_buffer_s": 15.0,
+  "saved_at": "2026-06-07T00:00:00Z",
+  "description": "Nav2 post-mortem — plots, laser, path, TF, and pose synced to bag playhead",
+  "subscriptions": [
+    {
+      "topic": "/cmd_vel",
+      "field_path": "linear.x",
+      "type_name": "geometry_msgs/msg/Twist",
+      "subplot_slot": 1,
+      "time_window_s": 0.0,
+      "scroll_paused": false,
+      "axis_mode": "time-series",
+      "x_field_path": "",
+      "y_field_path": ""
+    },
+    {
+      "topic": "/cmd_vel",
+      "field_path": "angular.z",
+      "type_name": "geometry_msgs/msg/Twist",
+      "subplot_slot": 1,
+      "time_window_s": 0.0,
+      "scroll_paused": false,
+      "axis_mode": "time-series",
+      "x_field_path": "",
+      "y_field_path": ""
+    },
+    {
+      "topic": "/odom",
+      "field_path": "twist.twist.linear.x",
+      "type_name": "nav_msgs/msg/Odometry",
+      "subplot_slot": 2,
+      "time_window_s": 0.0,
+      "scroll_paused": false,
+      "axis_mode": "time-series",
+      "x_field_path": "",
+      "y_field_path": ""
+    },
+    {
+      "topic": "/odom",
+      "field_path": "twist.twist.angular.z",
+      "type_name": "nav_msgs/msg/Odometry",
+      "subplot_slot": 2,
+      "time_window_s": 0.0,
+      "scroll_paused": false,
+      "axis_mode": "time-series",
+      "x_field_path": "",
+      "y_field_path": ""
+    }
+  ],
+  "expressions": [
+    {
+      "expression": "$cmd - $actual",
+      "label": "linear tracking error",
+      "bindings": [
+        {
+          "variable": "$cmd",
+          "topic": "/cmd_vel",
+          "field_path": "linear.x"
+        },
+        {
+          "variable": "$actual",
+          "topic": "/odom",
+          "field_path": "twist.twist.linear.x"
+        }
+      ],
+      "subplot_slot": 3
+    }
+  ],
+  "expression_presets": [],
+  "scene": {
+    "fixed_frame": "map",
+    "camera_pose": {
+      "azimuth": 60.0,
+      "elevation": 35.0,
+      "distance": 8.0,
+      "target": [0.0, 0.0, 0.0],
+      "projection": "perspective",
+      "fov": 45.0
+    },
+    "background_color": [0.08, 0.09, 0.12, 1.0],
+    "displays": [
+      {
+        "type_id": "grid",
+        "topic": "",
+        "enabled": true,
+        "config_blob": ""
+      },
+      {
+        "type_id": "laserscan",
+        "topic": "/scan",
+        "enabled": true,
+        "config_blob": ""
+      },
+      {
+        "type_id": "path",
+        "topic": "/plan",
+        "enabled": true,
+        "config_blob": ""
+      },
+      {
+        "type_id": "pose",
+        "topic": "/odom",
+        "enabled": true,
+        "config_blob": ""
+      },
+      {
+        "type_id": "robot_model",
+        "topic": "",
+        "enabled": true,
+        "config_blob": ""
+      }
+    ]
+  },
+  "ui": {
+    "panels": {
+      "topic_list": true,
+      "topic_echo": true,
+      "topic_stats": true,
+      "plot_area": true,
+      "bag_info": true,
+      "bag_playback": true,
+      "log_viewer": false,
+      "diagnostics": false,
+      "node_graph": false,
+      "tf_tree": true,
+      "param_editor": false,
+      "service_caller": false,
+      "displays_panel": true,
+      "scene_viewport": true,
+      "inspector_panel": true,
+      "nav_rail": true
+    },
+    "topic_monitor": {
+      "show_type": true,
+      "show_hz": true,
+      "show_pubs": true,
+      "show_subs": true,
+      "show_bw": true
+    },
+    "nav_rail": {
+      "visible": true,
+      "expanded": true,
+      "width": 220.0
+    },
+    "imgui_layout": ""
+  }
+}

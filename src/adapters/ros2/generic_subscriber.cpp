@@ -186,6 +186,8 @@ bool GenericSubscriber::start()
         // subscriptions used only for statistics.
     }
 
+    running_.store(true, std::memory_order_release);
+
     // Create the generic subscription.
     // Use an explicit keep-last depth tied to the ring buffer so short
     // publisher bursts are queued for the executor instead of being dropped
@@ -198,9 +200,11 @@ bool GenericSubscriber::start()
         [this](const std::shared_ptr<rclcpp::SerializedMessage>& msg) { on_message(msg); });
 
     if (!subscription_)
+    {
+        running_.store(false, std::memory_order_release);
         return false;
+    }
 
-    running_.store(true, std::memory_order_release);
     return true;
 }
 
@@ -209,8 +213,8 @@ void GenericSubscriber::stop()
     if (!running_.load(std::memory_order_acquire))
         return;
 
-    running_.store(false, std::memory_order_release);
     subscription_.reset();
+    running_.store(false, std::memory_order_release);
 }
 
 // ---------------------------------------------------------------------------
@@ -219,6 +223,9 @@ void GenericSubscriber::stop()
 
 void GenericSubscriber::on_message(const std::shared_ptr<rclcpp::SerializedMessage>& serialized_msg)
 {
+    if (!running_.load(std::memory_order_acquire))
+        return;
+
     stat_received_.fetch_add(1, std::memory_order_relaxed);
 
     if (extractors_.empty())
@@ -251,51 +258,22 @@ void GenericSubscriber::on_message(const std::shared_ptr<rclcpp::SerializedMessa
     // We allocate a buffer of the right size (from the rosidl members struct)
     // and call the type support's init + deserialize functions.
 
-    // Retrieve type support for deserialization.
-    // schema_ was built from the type support; we need the raw handle again.
-    // Re-use introspector to get the type support pointer.
-    auto ts_schema = intr_.introspect(type_name_);
-    if (!ts_schema)
-    {
-        stat_dropped_.fetch_add(1, std::memory_order_relaxed);
-        return;
-    }
-
-    // Use rclcpp::get_typesupport_handle to obtain the type support needed
-    // for deserialization, then use the serialization callback.
-    //
-    // Portable approach that works without knowing the C++ type at compile
-    // time: ask rclcpp for the serialization type support and call its
-    // deserialize function via the rcutils allocator path.
-    //
-    // rclcpp::SerializedMessage wraps an rcl_serialized_message_t.
-    // We can access the raw CDR bytes via serialized_msg->get_rcl_serialized_message().
-    //
-    // We rely on the fact that rclcpp::GenericSubscription stores a type
-    // support library handle; however the public API exposes only the
-    // serialized bytes.  To deserialize into a raw struct we go through
-    // the type support introspection library's init_function and
-    // deserializer.  These are stored in the rosidl_message_type_support_t
-    // data pointer (cast to MessageMembers).
-
-    // Get the introspection type support to read size/init/fini functions.
-    // MessageIntrospector::introspect_type_support already loaded the lib;
-    // we call it again (cache hit) to get the handle.
-    // However, MessageIntrospector does not expose the raw ts pointer publicly.
-    // We use a workaround: rclcpp provides
-    //   rclcpp::get_typesupport_library(type_name, "rosidl_typesupport_introspection_cpp")
-    // and the corresponding handle.
-
-    // Obtain the type support for introspection.
-    std::shared_ptr<rcpputils::SharedLibrary> ts_lib;
-    const rosidl_message_type_support_t*      ts_handle = nullptr;
+    // Two type-support libraries are required at runtime:
+    //   rosidl_typesupport_cpp — CDR (de)serialization via rmw/rcl
+    //   rosidl_typesupport_introspection_cpp — struct layout for field offsets
+    std::shared_ptr<rcpputils::SharedLibrary> intro_lib;
+    const rosidl_message_type_support_t*      intro_ts = nullptr;
+    std::shared_ptr<rcpputils::SharedLibrary> cpp_lib;
+    const rosidl_message_type_support_t*      cpp_ts = nullptr;
     try
     {
-        ts_lib =
-            rclcpp::get_typesupport_library(type_name_, "rosidl_typesupport_introspection_cpp");
-        ts_handle = rclcpp::get_typesupport_handle(type_name_,
-                                                   "rosidl_typesupport_introspection_cpp",
-                                                   *ts_lib);
+        intro_lib = rclcpp::get_typesupport_library(type_name_,
+                                                    "rosidl_typesupport_introspection_cpp");
+        intro_ts  = rclcpp::get_typesupport_handle(type_name_,
+                                                  "rosidl_typesupport_introspection_cpp",
+                                                  *intro_lib);
+        cpp_lib   = rclcpp::get_typesupport_library(type_name_, "rosidl_typesupport_cpp");
+        cpp_ts    = rclcpp::get_typesupport_handle(type_name_, "rosidl_typesupport_cpp", *cpp_lib);
     }
     catch (const std::exception&)
     {
@@ -303,7 +281,7 @@ void GenericSubscriber::on_message(const std::shared_ptr<rclcpp::SerializedMessa
         return;
     }
 
-    if (!ts_handle)
+    if (!intro_ts || !cpp_ts)
     {
         stat_dropped_.fetch_add(1, std::memory_order_relaxed);
         return;
@@ -311,7 +289,7 @@ void GenericSubscriber::on_message(const std::shared_ptr<rclcpp::SerializedMessa
 
     // Cast to MessageMembers to read size_of_ and call init_function.
     using namespace rosidl_typesupport_introspection_cpp;
-    const auto* members = static_cast<const MessageMembers*>(ts_handle->data);
+    const auto* members = static_cast<const MessageMembers*>(intro_ts->data);
 
     if (!members || members->size_of_ == 0)
     {
@@ -327,7 +305,7 @@ void GenericSubscriber::on_message(const std::shared_ptr<rclcpp::SerializedMessa
     // Deserialize CDR bytes into the buffer.
     // rclcpp's SerializationBase provides the deserialize path.
     {
-        rclcpp::SerializationBase serializer(ts_handle);
+        rclcpp::SerializationBase serializer(cpp_ts);
         try
         {
             serializer.deserialize_message(serialized_msg.get(), msg_buf.data());

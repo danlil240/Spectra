@@ -650,6 +650,46 @@ TEST(Serialize, WritesVersion2NestedSchema)
     EXPECT_EQ(json.find("\"nav_rail_width\""), std::string::npos);
 }
 
+TEST(SessionMigration, Version1LoadSerializesToVersion2)
+{
+    const std::string v1 = R"({
+  "version": 1,
+  "node_name": "legacy_nav",
+  "layout": "rviz-plot",
+  "fixed_frame": "map",
+  "subscriptions": [
+    {"topic":"/cmd_vel","field_path":"linear.x","type_name":"geometry_msgs/msg/Twist","subplot_slot":1}
+  ],
+  "displays": [
+    {"type_id":"grid","topic":"","enabled":true,"config_blob":""}
+  ],
+  "panels": {
+    "scene_viewport": true,
+    "displays_panel": true
+  }
+})";
+
+    RosSession  loaded;
+    std::string err;
+    ASSERT_TRUE(RosSessionManager::deserialize(v1, loaded, err)) << err;
+    EXPECT_EQ(loaded.version, 1);
+    ASSERT_EQ(loaded.subscriptions.size(), 1u);
+    ASSERT_EQ(loaded.displays.size(), 1u);
+
+    const std::string v2_json = RosSessionManager::serialize(loaded);
+    EXPECT_NE(v2_json.find("\"version\": 2"), std::string::npos);
+    EXPECT_NE(v2_json.find("legacy_nav"), std::string::npos);
+    EXPECT_NE(v2_json.find("/cmd_vel"), std::string::npos);
+
+    RosSession  roundtrip;
+    std::string err2;
+    ASSERT_TRUE(RosSessionManager::deserialize(v2_json, roundtrip, err2)) << err2;
+    EXPECT_EQ(roundtrip.version, 2);
+    ASSERT_EQ(roundtrip.subscriptions.size(), 1u);
+    ASSERT_EQ(roundtrip.displays.size(), 1u);
+    EXPECT_EQ(roundtrip.fixed_frame, "map");
+}
+
 TEST(Deserialize, LegacyVersion1SessionRemainsSupported)
 {
     const std::string json = R"({
@@ -1146,4 +1186,48 @@ TEST(EdgeCases, MaxRecentConst)
 TEST(EdgeCases, FormatVersionConst)
 {
     EXPECT_EQ(ros2::SESSION_FORMAT_VERSION, 2);
+}
+
+// ===========================================================================
+// Suite: checked-in Phase A session presets
+// ===========================================================================
+
+TEST(SessionPresets, TuningPresetLoadsWithPlots)
+{
+    const std::string path = std::string(SPECTRA_SOURCE_DIR)
+                             + "/sessions/presets/tuning.spectra-ros-session";
+    ASSERT_TRUE(std::filesystem::exists(path)) << path;
+
+    RosSessionManager mgr;
+    const LoadResult  lr = mgr.load(path);
+    ASSERT_TRUE(lr.ok) << lr.error;
+    EXPECT_GE(lr.session.subscriptions.size(), 2u);
+    EXPECT_EQ(lr.session.layout, "default");
+}
+
+TEST(SessionPresets, BagReviewPresetEnablesBagPanels)
+{
+    const std::string path = std::string(SPECTRA_SOURCE_DIR)
+                             + "/sessions/presets/bag_review.spectra-ros-session";
+    ASSERT_TRUE(std::filesystem::exists(path)) << path;
+
+    RosSessionManager mgr;
+    const LoadResult  lr = mgr.load(path);
+    ASSERT_TRUE(lr.ok) << lr.error;
+    EXPECT_TRUE(lr.session.panels.bag_info);
+    EXPECT_TRUE(lr.session.panels.bag_playback);
+    EXPECT_TRUE(lr.session.panels.plot_area);
+}
+
+TEST(SessionPresets, BringupPresetHasCmdVelPlots)
+{
+    const std::string path = std::string(SPECTRA_SOURCE_DIR)
+                             + "/sessions/presets/bringup.spectra-ros-session";
+    ASSERT_TRUE(std::filesystem::exists(path)) << path;
+
+    RosSessionManager mgr;
+    const LoadResult  lr = mgr.load(path);
+    ASSERT_TRUE(lr.ok) << lr.error;
+    ASSERT_GE(lr.session.subscriptions.size(), 2u);
+    EXPECT_EQ(lr.session.subscriptions[0].topic, "/cmd_vel");
 }

@@ -3,9 +3,9 @@
 #include <algorithm>
 #include <cctype>
 #include <chrono>
-#include <cinttypes>
-#include <cstdio>
-#include <cstring>
+#include <format>
+
+#include <rcl_interfaces/msg/log.hpp>
 
 namespace spectra::adapters::ros2
 {
@@ -143,9 +143,7 @@ std::string RosLogViewer::format_stamp(int64_t stamp_ns)
 {
     const int64_t sec  = stamp_ns / 1'000'000'000LL;
     const int64_t nsec = std::abs(stamp_ns % 1'000'000'000LL);
-    char          buf[32];
-    std::snprintf(buf, sizeof(buf), "%" PRId64 ".%09" PRId64, sec, nsec);
-    return buf;
+    return std::format("{}.{:09}", sec, nsec);
 }
 
 std::string RosLogViewer::format_wall_time(double wall_time_s)
@@ -155,9 +153,7 @@ std::string RosLogViewer::format_wall_time(double wall_time_s)
     const int  hh      = static_cast<int>(total_s / 3600) % 24;
     const int  mm      = static_cast<int>(total_s / 60) % 60;
     const int  ss      = static_cast<int>(total_s) % 60;
-    char       buf[16];
-    std::snprintf(buf, sizeof(buf), "%02d:%02d:%02d.%03d", hh, mm, ss, ms);
-    return buf;
+    return std::format("{:02}:{:02}:{:02}.{:03}", hh, mm, ss, ms);
 }
 
 // ---------------------------------------------------------------------------
@@ -185,13 +181,10 @@ void RosLogViewer::subscribe(const std::string& topic)
     if (!node_)
         return;
 
-    // The /rosout topic uses rcl_interfaces/msg/Log.
-    // We use GenericSubscription so we don't hard-code the type support.
-    subscription_ = node_->create_generic_subscription(
+    subscription_ = node_->create_subscription<rcl_interfaces::msg::Log>(
         topic_,
-        "rcl_interfaces/msg/Log",
         rclcpp::QoS(rclcpp::KeepLast(1000)).reliable().durability_volatile(),
-        [this](const std::shared_ptr<rclcpp::SerializedMessage>& msg) { on_message(msg); });
+        [this](const rcl_interfaces::msg::Log& msg) { on_message(msg); });
 }
 
 void RosLogViewer::unsubscribe()
@@ -388,113 +381,16 @@ LogEntry RosLogViewer::make_entry(uint64_t    seq,
     return e;
 }
 
-// ---------------------------------------------------------------------------
-// on_message — executor thread
-//
-// rcl_interfaces/msg/Log CDR layout (all fields in order):
-//   byte    stamp.sec       (4 bytes, int32)  — but first 4 bytes are CDR header
-//   byte    stamp.nanosec   (4 bytes, uint32)
-//   byte    level           (1 byte,  uint8)  + 3 pad
-//   string  name            (uint32 len + chars + null + pad)
-//   string  msg
-//   string  file
-//   string  function
-//   uint32  line
-//
-// CDR byte layout (OMG CDR, little-endian, header = 0x00 0x01 0x00 0x00):
-//   Offset 0: header (4 bytes): 00 01 00 00
-//   Offset 4: stamp.sec   (int32_t LE, 4 bytes)
-//   Offset 8: stamp.nanosec (uint32_t LE, 4 bytes)
-//   Offset 12: level (uint8_t, 1 byte) + 3 alignment pad
-//   Offset 16: name string length (uint32_t LE) + chars + null + align pad
-//   ... msg, file, function (same string encoding)
-//   ... line (uint32_t LE)
-// ---------------------------------------------------------------------------
-
 static double wall_time_now()
 {
     return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch())
         .count();
 }
 
-// Read a CDR string: [uint32_t len][chars incl null][alignment pad]
-// Returns true on success; advances offset past the field (aligned to 4 bytes).
-static bool read_cdr_string(const uint8_t* buf, size_t buf_size, size_t& offset, std::string& out)
-{
-    // Align to 4-byte boundary for length field.
-    const size_t align = (4 - (offset % 4)) % 4;
-    offset += align;
-
-    if (offset + 4 > buf_size)
-        return false;
-    uint32_t len = 0;
-    std::memcpy(&len, buf + offset, 4);
-    offset += 4;
-
-    if (len == 0)
-    {
-        out.clear();
-        return true;
-    }
-    if (offset + len > buf_size)
-        return false;
-
-    // len includes the null terminator.
-    out.assign(reinterpret_cast<const char*>(buf + offset), len > 0 ? len - 1 : 0);
-    offset += len;
-    return true;
-}
-
-void RosLogViewer::on_message(const std::shared_ptr<rclcpp::SerializedMessage>& raw_msg)
+void RosLogViewer::on_message(const rcl_interfaces::msg::Log& msg)
 {
     if (paused_.load(std::memory_order_relaxed))
         return;
-    if (!raw_msg)
-        return;
-
-    const uint8_t* buf      = raw_msg->get_rcl_serialized_message().buffer;
-    const size_t   buf_size = raw_msg->get_rcl_serialized_message().buffer_length;
-
-    // Minimum: 4 (CDR header) + 4 (sec) + 4 (nanosec) + 4 (level+pad) = 16
-    if (!buf || buf_size < 16)
-        return;
-
-    size_t offset = 4;   // skip CDR header
-
-    int32_t  stamp_sec     = 0;
-    uint32_t stamp_nanosec = 0;
-    std::memcpy(&stamp_sec, buf + offset, 4);
-    offset += 4;
-    std::memcpy(&stamp_nanosec, buf + offset, 4);
-    offset += 4;
-
-    if (offset >= buf_size)
-        return;
-    const uint8_t level = buf[offset];
-    offset += 4;   // level (1 byte) + 3 alignment pad
-
-    std::string node_name;
-    std::string msg_str;
-    std::string file_str;
-    std::string func_str;
-    uint32_t    line_num = 0;
-
-    if (!read_cdr_string(buf, buf_size, offset, node_name))
-        return;
-    if (!read_cdr_string(buf, buf_size, offset, msg_str))
-        return;
-    if (!read_cdr_string(buf, buf_size, offset, file_str))
-    { /* optional */
-    }
-    if (!read_cdr_string(buf, buf_size, offset, func_str))
-    { /* optional */
-    }
-
-    // Align to 4 for line uint32.
-    const size_t align = (4 - (offset % 4)) % 4;
-    offset += align;
-    if (offset + 4 <= buf_size)
-        std::memcpy(&line_num, buf + offset, 4);
 
     uint64_t seq = 0;
     {
@@ -503,15 +399,15 @@ void RosLogViewer::on_message(const std::shared_ptr<rclcpp::SerializedMessage>& 
     }
 
     LogEntry e = make_entry(seq,
-                            level,
-                            stamp_sec,
-                            stamp_nanosec,
+                            msg.level,
+                            msg.stamp.sec,
+                            msg.stamp.nanosec,
                             wall_time_now(),
-                            std::move(node_name),
-                            std::move(msg_str),
-                            std::move(file_str),
-                            std::move(func_str),
-                            line_num);
+                            msg.name,
+                            msg.msg,
+                            msg.file,
+                            msg.function,
+                            msg.line);
     {
         std::lock_guard<std::mutex> lock(ring_mutex_);
         ring_[ring_head_] = std::move(e);

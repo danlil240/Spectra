@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <format>
 
 #include "scene/scene_manager.hpp"
 #include "tf/tf_buffer.hpp"
@@ -130,6 +131,9 @@ void ImageDisplay::on_destroy()
     on_disable();
     std::lock_guard<std::mutex> lock(frame_mutex_);
     latest_frame_.reset();
+#ifdef SPECTRA_USE_ROS2
+    raw_message_.reset();
+#endif
 }
 
 void ImageDisplay::on_update(float)
@@ -231,6 +235,14 @@ void ImageDisplay::draw_inspector_ui()
     if (ImGui::Combo("Mode", &current_mode, modes, 3))
         mode_ = static_cast<Mode>(current_mode);
 
+    const char* encodings[]   = {"Auto", "rgb8", "bgr8", "mono8", "jpeg", "png"};
+    int         encoding_mode = static_cast<int>(encoding_override_);
+    if (ImGui::Combo("Encoding", &encoding_mode, encodings, 6))
+    {
+        encoding_override_ = static_cast<EncodingOverride>(encoding_mode);
+        refresh_decoded_frame();
+    }
+
     ImGui::Checkbox("Preview Window", &panel_visible_);
     int preview_max_dim = static_cast<int>(preview_max_dim_);
     if (ImGui::SliderInt("Preview Max Dim", &preview_max_dim, 16, 96))
@@ -293,22 +305,22 @@ void ImageDisplay::draw_auxiliary_ui()
 void ImageDisplay::set_topic(const std::string& topic)
 {
     topic_ = topic;
-    std::snprintf(topic_input_.data(), topic_input_.size(), "%s", topic_.c_str());
+    topic_.copy(topic_input_.data(), topic_input_.size() - 1);
+    topic_input_[std::min(topic_.size(), topic_input_.size() - 1)] = '\0';
     resubscribe_requested_ = true;
 }
 
 std::string ImageDisplay::serialize_config_blob() const
 {
-    char buffer[320];
-    std::snprintf(buffer,
-                  sizeof(buffer),
-                  "topic=%s;mode=%d;panel_visible=%d;preview_max_dim=%u;use_message_stamp=%d",
-                  topic_.c_str(),
-                  static_cast<int>(mode_),
-                  panel_visible_ ? 1 : 0,
-                  preview_max_dim_,
-                  use_message_stamp_ ? 1 : 0);
-    return buffer;
+    return std::format(
+        "topic={};mode={};encoding_override={};panel_visible={};preview_max_dim={};"
+        "use_message_stamp={}",
+        topic_,
+        static_cast<int>(mode_),
+        static_cast<int>(encoding_override_),
+        panel_visible_ ? 1 : 0,
+        preview_max_dim_,
+        use_message_stamp_ ? 1 : 0);
 }
 
 void ImageDisplay::deserialize_config_blob(const std::string& blob)
@@ -318,18 +330,40 @@ void ImageDisplay::deserialize_config_blob(const std::string& blob)
 
     char     topic[256]        = {};
     int      mode              = static_cast<int>(mode_);
+    int      encoding_override = static_cast<int>(encoding_override_);
     int      panel_visible     = panel_visible_ ? 1 : 0;
     unsigned preview_max_dim   = preview_max_dim_;
     int      use_message_stamp = use_message_stamp_ ? 1 : 0;
-    if (std::sscanf(
-            blob.c_str(),
-            "topic=%255[^;];mode=%d;panel_visible=%d;preview_max_dim=%u;use_message_stamp=%d",
-            topic,
-            &mode,
-            &panel_visible,
-            &preview_max_dim,
-            &use_message_stamp)
-        >= 1)
+    const bool has_encoding_override = blob.find("encoding_override=") != std::string::npos;
+    if (has_encoding_override
+        && std::sscanf(
+               blob.c_str(),
+               "topic=%255[^;];mode=%d;encoding_override=%d;panel_visible=%d;preview_max_dim=%u;"
+               "use_message_stamp=%d",
+               topic,
+               &mode,
+               &encoding_override,
+               &panel_visible,
+               &preview_max_dim,
+               &use_message_stamp)
+               >= 1)
+    {
+        set_topic(topic);
+        mode_              = static_cast<Mode>(std::clamp(mode, 0, 2));
+        encoding_override_ = static_cast<EncodingOverride>(std::clamp(encoding_override, 0, 5));
+        panel_visible_     = panel_visible != 0;
+        preview_max_dim_   = std::clamp(preview_max_dim, 16u, 96u);
+        use_message_stamp_ = use_message_stamp != 0;
+    }
+    else if (std::sscanf(blob.c_str(),
+                         "topic=%255[^;];mode=%d;panel_visible=%d;preview_max_dim=%u;"
+                         "use_message_stamp=%d",
+                         topic,
+                         &mode,
+                         &panel_visible,
+                         &preview_max_dim,
+                         &use_message_stamp)
+                >= 1)
     {
         set_topic(topic);
         mode_              = static_cast<Mode>(std::clamp(mode, 0, 2));
@@ -383,15 +417,36 @@ void ImageDisplay::ensure_subscription()
         rclcpp::QoS(rclcpp::KeepLast(2)).best_effort(),
         [this](const sensor_msgs::msg::Image::SharedPtr msg)
         {
-            const bool need_full = (mode_ == Mode::Billboard3D || mode_ == Mode::PanelAndBillboard);
-            const auto frame     = adapt_image_message(*msg, topic_, preview_max_dim_, need_full);
-            if (frame.has_value())
-                ingest_image_frame(*frame);
+            raw_message_ = *msg;
+            refresh_decoded_frame();
         });
 
     subscribed_topic_ = topic_;
     status_           = DisplayStatus::Ok;
     status_text_      = "Subscribed to " + topic_;
+#endif
+}
+
+void ImageDisplay::refresh_decoded_frame()
+{
+#ifdef SPECTRA_USE_ROS2
+    if (!raw_message_.has_value())
+        return;
+
+    const bool need_full = (mode_ == Mode::Billboard3D || mode_ == Mode::PanelAndBillboard);
+    const std::string override_encoding = encoding_override_string(encoding_override_);
+    const auto        frame             = override_encoding.empty()
+                                              ? adapt_image_message(*raw_message_,
+                                                                    topic_,
+                                                                    preview_max_dim_,
+                                                                    need_full)
+                                              : adapt_image_message_with_encoding(*raw_message_,
+                                                                                  topic_,
+                                                                                  preview_max_dim_,
+                                                                                  need_full,
+                                                                                  override_encoding);
+    if (frame.has_value())
+        ingest_image_frame(*frame);
 #endif
 }
 
@@ -407,6 +462,33 @@ const char* ImageDisplay::mode_name(Mode mode)
             return "panel+billboard";
     }
     return "panel";
+}
+
+const char* ImageDisplay::encoding_override_name(EncodingOverride mode)
+{
+    switch (mode)
+    {
+        case EncodingOverride::Auto:
+            return "auto";
+        case EncodingOverride::Rgb8:
+            return "rgb8";
+        case EncodingOverride::Bgr8:
+            return "bgr8";
+        case EncodingOverride::Mono8:
+            return "mono8";
+        case EncodingOverride::Jpeg:
+            return "jpeg";
+        case EncodingOverride::Png:
+            return "png";
+    }
+    return "auto";
+}
+
+std::string ImageDisplay::encoding_override_string(EncodingOverride mode)
+{
+    if (mode == EncodingOverride::Auto)
+        return {};
+    return encoding_override_name(mode);
 }
 
 }   // namespace spectra::adapters::ros2

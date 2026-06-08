@@ -146,16 +146,30 @@ Live streaming, 3D plots, statistical charts, and the Session API are covered in
 
 ## ROS2 Adapter
 
-Replace the entire `rqt` suite with one GPU-accelerated tool. Topic monitor, live plotter, bag player/recorder, TF tree, node graph, parameter editor, service caller — all in a single window.
+One native app for live plotting, bag review, and 3D context — no juggling `rqt`, PlotJuggler, and RViz.
+
+**First plot in ~10 seconds:**
 
 ```bash
 source /opt/ros/humble/setup.bash
-cmake -S . -B build-ros2 -DSPECTRA_USE_ROS2=ON -DCMAKE_BUILD_TYPE=Release
-ninja -C build-ros2 spectra-ros
-./build-ros2/spectra-ros --topics /imu/data.linear_acceleration.x
+cmake -S . -B build -G Ninja -DSPECTRA_USE_ROS2=ON -DSPECTRA_ROS2_BAG=ON
+cmake --build build --target spectra-ros -j$(nproc)
+
+# Terminal 1 — synthetic publisher
+ros2 topic pub /cmd_vel geometry_msgs/msg/Twist "{ linear: { x: 0.5 } }" --rate 10
+
+# Terminal 2 — plot
+./build/spectra-ros --topics /cmd_vel:linear.x
 ```
 
-> **Full ROS2 documentation →** [ROS2 Adapter Guide](https://danlil240.github.io/Spectra/ros2-adapter.html)
+**Session presets** (checked into `sessions/presets/`):
+
+```bash
+./build/spectra-ros --session sessions/presets/tuning.spectra-ros-session   # IMU / PID
+ros2 launch spectra bringup.launch.py                                        # cmd_vel + odom
+```
+
+> **Docs →** [ROS2 Adapter](https://danlil240.github.io/Spectra/ros2-adapter.html) · [Tool comparison](https://danlil240.github.io/Spectra/ros2-comparison.html)
 
 ---
 

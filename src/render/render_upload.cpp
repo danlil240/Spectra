@@ -158,12 +158,17 @@ void Renderer::upload_series_data(Series& series, double origin_x, double origin
             return;
 
         size_t byte_size = count * 2 * sizeof(float);
-        if (!gpu.ssbo || gpu.uploaded_count < count)
+        if (!gpu.ssbo || gpu.ssbo_capacity < count)
         {
             if (gpu.ssbo)
                 backend_.destroy_buffer(gpu.ssbo);
-            size_t alloc_size = byte_size * 2;
-            gpu.ssbo          = backend_.create_buffer(BufferUsage::Storage, alloc_size);
+            // Over-allocate (2x) so streaming series with steadily growing point
+            // counts don't reallocate the GPU buffer every frame. The guard
+            // compares against ssbo_capacity (element capacity), not uploaded_count,
+            // so the headroom is actually used.
+            size_t alloc_count = count * 2;
+            gpu.ssbo = backend_.create_buffer(BufferUsage::Storage, alloc_count * 2 * sizeof(float));
+            gpu.ssbo_capacity = alloc_count;
         }
 
         size_t floats_needed = count * 2;
@@ -218,11 +223,14 @@ void Renderer::upload_series_data(Series& series, double origin_x, double origin
             // 3 floats per vertex: x, y, alpha — apply origin offset
             size_t fill_bytes  = fill_count * 3 * sizeof(float);
             size_t fill_floats = fill_count * 3;
-            if (!gpu.fill_buffer || gpu.fill_vertex_count < fill_count)
+            if (!gpu.fill_buffer || gpu.fill_vertex_capacity < fill_count)
             {
                 if (gpu.fill_buffer)
                     backend_.destroy_buffer(gpu.fill_buffer);
-                gpu.fill_buffer = backend_.create_buffer(BufferUsage::Vertex, fill_bytes * 2);
+                size_t fill_alloc        = fill_count * 2;
+                gpu.fill_buffer          = backend_.create_buffer(BufferUsage::Vertex,
+                                                         fill_alloc * 3 * sizeof(float));
+                gpu.fill_vertex_capacity = fill_alloc;
             }
 
             if (origin_x != 0.0 || origin_y != 0.0)
@@ -253,12 +261,14 @@ void Renderer::upload_series_data(Series& series, double origin_x, double origin
         {
             size_t out_count     = boxplot->outlier_count();
             size_t out_byte_size = out_count * 2 * sizeof(float);
-            if (!gpu.outlier_buffer || gpu.outlier_count < out_count)
+            if (!gpu.outlier_buffer || gpu.outlier_capacity < out_count)
             {
                 if (gpu.outlier_buffer)
                     backend_.destroy_buffer(gpu.outlier_buffer);
-                gpu.outlier_buffer =
-                    backend_.create_buffer(BufferUsage::Storage, out_byte_size * 2);
+                size_t out_alloc      = out_count * 2;
+                gpu.outlier_buffer    = backend_.create_buffer(BufferUsage::Storage,
+                                                            out_alloc * 2 * sizeof(float));
+                gpu.outlier_capacity  = out_alloc;
             }
             size_t out_floats = out_count * 2;
             if (upload_scratch_.size() < out_floats)
@@ -315,12 +325,13 @@ void Renderer::upload_series_data(Series& series, double origin_x, double origin
         }
 
         size_t byte_size = count * 2 * sizeof(float);
-        if (!gpu.ssbo || gpu.uploaded_count < count)
+        if (!gpu.ssbo || gpu.ssbo_capacity < count)
         {
             if (gpu.ssbo)
                 backend_.destroy_buffer(gpu.ssbo);
-            size_t alloc_size = byte_size * 2;
-            gpu.ssbo          = backend_.create_buffer(BufferUsage::Storage, alloc_size);
+            size_t alloc_count = count * 2;
+            gpu.ssbo = backend_.create_buffer(BufferUsage::Storage, alloc_count * 2 * sizeof(float));
+            gpu.ssbo_capacity = alloc_count;
         }
 
         size_t floats_needed = count * 2;
@@ -369,12 +380,13 @@ void Renderer::upload_series_data(Series& series, double origin_x, double origin
             return;
 
         size_t byte_size = count * 4 * sizeof(float);
-        if (!gpu.ssbo || gpu.uploaded_count < count)
+        if (!gpu.ssbo || gpu.ssbo_capacity < count)
         {
             if (gpu.ssbo)
                 backend_.destroy_buffer(gpu.ssbo);
-            size_t alloc_size = byte_size * 2;
-            gpu.ssbo          = backend_.create_buffer(BufferUsage::Storage, alloc_size);
+            size_t alloc_count = count * 2;
+            gpu.ssbo = backend_.create_buffer(BufferUsage::Storage, alloc_count * 4 * sizeof(float));
+            gpu.ssbo_capacity = alloc_count;
         }
 
         size_t floats_needed = count * 4;

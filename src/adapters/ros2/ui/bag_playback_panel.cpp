@@ -5,7 +5,7 @@
 #include "bag_playback_panel.hpp"
 
 #include <cmath>
-#include <cstdio>
+#include <format>
 #include <string>
 
 #include "../bag_player.hpp"
@@ -53,24 +53,17 @@ std::string BagPlaybackPanel::format_time(double sec)
     const int s       = total_s % 60;
     const int ds      = static_cast<int>(std::lround((sec - std::floor(sec)) * 10.0)) % 10;
 
-    char buf[32];
     if (h > 0)
-        std::snprintf(buf, sizeof(buf), "%d:%02d:%02d", h, m, s);
-    else
-        std::snprintf(buf, sizeof(buf), "%d:%02d.%d", m, s, ds);
-
-    return buf;
+        return std::format("{}:{:02}:{:02}", h, m, s);
+    return std::format("{}:{:02}.{}", m, s, ds);
 }
 
 std::string BagPlaybackPanel::rate_label(double rate)
 {
-    char buf[16];
     // Show one decimal place; trim trailing zero for 1.0×, 2.0×, etc.
     if (std::fabs(rate - std::round(rate)) < 0.05)
-        std::snprintf(buf, sizeof(buf), "%.0f\xc3\x97", rate);   // "N×"
-    else
-        std::snprintf(buf, sizeof(buf), "%.1f\xc3\x97", rate);   // "N.M×"
-    return buf;
+        return std::format("{:.0f}×", rate);
+    return std::format("{:.1f}×", rate);
 }
 
 // ---------------------------------------------------------------------------

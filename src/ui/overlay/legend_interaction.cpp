@@ -4,7 +4,7 @@
 
     #include <algorithm>
     #include <cmath>
-    #include <cstdio>
+    #include <format>
     #include <imgui.h>
     #include <spectra/axes.hpp>
     #include <spectra/figure.hpp>
@@ -211,12 +211,9 @@ bool LegendInteraction::draw(Axes&               axes,
     ly = std::max(viewport.y + 4.0f, std::min(ly, viewport.y + viewport.h - legend_h - 4.0f));
 
     // Draw legend window — use figure_id in the ImGui ID to prevent cross-figure collisions
-    char win_id[64];
-    std::snprintf(win_id,
-                  sizeof(win_id),
-                  "##legend_%lx_%zu",
-                  static_cast<unsigned long>(figure_id),
-                  axes_index);
+    const std::string win_id = std::format("##legend_{:x}_{}",
+                                           static_cast<unsigned long>(figure_id),
+                                           axes_index);
 
     ImGui::SetNextWindowPos(ImVec2(lx, ly));
     ImGui::SetNextWindowSize(ImVec2(legend_w, legend_h));
@@ -267,7 +264,7 @@ bool LegendInteraction::draw(Axes&               axes,
 
     bool consumed = false;
 
-    if (ImGui::Begin(win_id, nullptr, flags))
+    if (ImGui::Begin(win_id.c_str(), nullptr, flags))
     {
         // Handle legend dragging
         if (draggable_)
@@ -353,16 +350,13 @@ bool LegendInteraction::draw(Axes&               axes,
             if (toggleable_)
             {
                 ImGui::SetCursorScreenPos(ImVec2(row_x, row_y));
-                char btn_id[80];
-                std::snprintf(btn_id,
-                              sizeof(btn_id),
-                              "##legend_toggle_%lx_%zu_%d",
-                              static_cast<unsigned long>(figure_id),
-                              axes_index,
-                              row);
+                const std::string btn_id = std::format("##legend_toggle_{:x}_{}_{}",
+                                                       static_cast<unsigned long>(figure_id),
+                                                       axes_index,
+                                                       row);
 
                 float btn_w = swatch_size + swatch_gap + max_label_w;
-                if (ImGui::InvisibleButton(btn_id, ImVec2(btn_w, row_height)))
+                if (ImGui::InvisibleButton(btn_id.c_str(), ImVec2(btn_w, row_height)))
                 {
                     state.user_visible   = !state.user_visible;
                     state.target_opacity = state.user_visible ? 1.0f : 0.15f;

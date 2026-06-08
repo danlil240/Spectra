@@ -14,7 +14,6 @@
 
 #include <chrono>
 #include <cstdint>
-#include <cstdio>
 
 #ifdef __linux__
     #include <sys/resource.h>
@@ -68,17 +67,14 @@ class ResourceMonitor
             return;
         }
 
-        char buf[256];
-        snprintf(buf,
-                 sizeof(buf),
-                 "CPU: %.1f%%  RAM: %.0f MB  frame: %.1f ms (%.0f fps)  GPU: %.2f ms",
-                 cpu_pct,
-                 rss_mb,
-                 avg_frame_ms,
-                 avg_fps,
-                 avg_gpu_ms);
-
-        SPECTRA_LOG_DEBUG("resources", buf);
+        SPECTRA_LOG_DEBUG("resources",
+                          "CPU: {:.1f}%  RAM: {:.0f} MB  frame: {:.1f} ms ({:.0f} fps)  GPU: "
+                          "{:.2f} ms",
+                          cpu_pct,
+                          rss_mb,
+                          avg_frame_ms,
+                          avg_fps,
+                          avg_gpu_ms);
 
         // Reset accumulators
         frame_ms_acc_ = 0.0;

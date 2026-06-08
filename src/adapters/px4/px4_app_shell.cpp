@@ -3,6 +3,7 @@
 #include <spectra/axes.hpp>
 #include <spectra/chunked_series.hpp>
 #include <spectra/figure.hpp>
+#include <spectra/logger.hpp>
 #include <spectra/series.hpp>
 
 #ifdef SPECTRA_USE_IMGUI
@@ -16,7 +17,6 @@
 
 #include <algorithm>
 #include <cstdlib>
-#include <cstdio>
 #include <cstring>
 
 namespace spectra::adapters::px4
@@ -228,9 +228,7 @@ bool Px4AppShell::init()
     {
         if (!open_ulog(cfg_.ulog_file))
         {
-            std::fprintf(stderr,
-                         "spectra-px4: failed to open ULog: %s\n",
-                         reader_.last_error().c_str());
+            SPECTRA_LOG_ERROR("px4", "failed to open ULog: {}", reader_.last_error());
         }
     }
 

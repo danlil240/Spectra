@@ -34,6 +34,7 @@
 #include <string>
 #include <vector>
 
+#include <rcl_interfaces/msg/log.hpp>
 #include <rclcpp/rclcpp.hpp>
 
 namespace spectra::adapters::ros2
@@ -142,7 +143,7 @@ class RosLogViewer
     // Subscription lifecycle
     // -----------------------------------------------------------------------
 
-    // Create the /rosout GenericSubscription (or named_topic).
+    // Create the /rosout subscription (or named_topic).
     // May be called multiple times; drops and recreates the subscription.
     // topic — topic to subscribe (default "/rosout").
     void subscribe(const std::string& topic = "/rosout");
@@ -258,7 +259,7 @@ class RosLogViewer
 
    private:
     // Called from executor thread when a /rosout message arrives.
-    void on_message(const std::shared_ptr<rclcpp::SerializedMessage>& raw_msg);
+    void on_message(const rcl_interfaces::msg::Log& msg);
 
     // Recompile the regex if dirty (render thread only).
     void maybe_recompile_regex();
@@ -272,7 +273,7 @@ class RosLogViewer
 
     // Subscription (executor thread owns create/destroy, protected by sub_mutex_).
     mutable std::mutex                     sub_mutex_;
-    rclcpp::GenericSubscription::SharedPtr subscription_;
+    rclcpp::Subscription<rcl_interfaces::msg::Log>::SharedPtr subscription_;
 
     // Circular ring buffer (protected by ring_mutex_).
     mutable std::mutex    ring_mutex_;

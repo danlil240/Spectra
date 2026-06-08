@@ -13,6 +13,14 @@ void RosAppShell::wire_panel_callbacks()
                                          { on_topic_selected(topic); });
 
         topic_list_->set_plot_callback([this](const std::string& topic) { on_topic_plot(topic); });
+
+        topic_list_->set_field_plot_callback(
+            [this](const std::string& topic, const std::string& field, const std::string& type)
+            {
+                workspace_state_.select_topic(topic, type);
+                workspace_state_.select_field(field);
+                workspace_state_.request_plot();
+            });
     }
 
     drag_drop_ = std::make_unique<FieldDragDrop>();
@@ -35,10 +43,6 @@ void RosAppShell::wire_panel_callbacks()
         topic_echo_->set_message_callback(
             [this](const std::string& topic, size_t bytes)
             {
-                // Only forward to topic_list / topic_stats if there is no
-                // active monitor subscription for this topic — the monitor
-                // sub already calls notify_message, so forwarding here too
-                // would double-count and inflate the displayed Hz.
                 bool has_monitor = false;
                 {
                     std::lock_guard<std::mutex> lk(monitor_subs_mutex_);

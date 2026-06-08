@@ -9,7 +9,7 @@
 #endif
 
 #include <algorithm>
-#include <cstdio>
+#include <format>
 #include <cstring>
 
 namespace spectra::adapters::px4
@@ -257,10 +257,9 @@ void ULogFilePanel::draw_topic_tree()
         auto*  ts    = reader_.data_for(topic);
         size_t count = ts ? ts->rows.size() : 0;
 
-        char label[256];
-        std::snprintf(label, sizeof(label), "%s (%zu)", topic.c_str(), count);
+        const std::string label = std::format("{} ({})", topic, count);
 
-        if (ImGui::TreeNode(label))
+        if (ImGui::TreeNode(label.c_str()))
         {
             auto fields = plot_mgr_.topic_fields(topic);
             for (auto& field : fields)

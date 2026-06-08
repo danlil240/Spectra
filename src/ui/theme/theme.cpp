@@ -3,6 +3,7 @@
 #include <cmath>
 
 #include <algorithm>
+#include <format>
 #include <cassert>
 #include <filesystem>
 #include <fstream>
@@ -528,9 +529,7 @@ namespace
 
 std::string color_to_json(const Color& c)
 {
-    char buf[128];
-    std::snprintf(buf, sizeof(buf), "[%.6f, %.6f, %.6f, %.6f]", c.r, c.g, c.b, c.a);
-    return buf;
+    return std::format("[{:.6f}, {:.6f}, {:.6f}, {:.6f}]", c.r, c.g, c.b, c.a);
 }
 
 std::string escape_json_string(const std::string& s)

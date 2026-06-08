@@ -4,8 +4,9 @@
 
 #include "../ipc/codec.hpp"
 
+#include <cmath>
+
 #ifndef _WIN32
-    #include <cmath>
     #include <unistd.h>
 #endif
 

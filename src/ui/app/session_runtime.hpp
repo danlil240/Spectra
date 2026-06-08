@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <cstdint>
 #include <spectra/fwd.hpp>
 #include <string>
@@ -110,6 +111,14 @@ class SessionRuntime
     // Mark the session as done (called by external termination conditions).
     void request_exit() { running_ = false; }
 
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
+    // Win32: render synchronously while the OS size/move modal loop blocks tick().
+    void pump_interactive_frame(FrameScheduler&  scheduler,
+                                Animator&        animator,
+                                WindowManager*   window_mgr,
+                                FrameState&      frame_state);
+#endif
+
    private:
     // Commit pending thread-safe series data at frame boundary.
     void commit_thread_safe_series();
@@ -143,6 +152,11 @@ class SessionRuntime
 
     // DEBUG-only per-frame performance profiler.
     FrameProfiler profiler_{600};
+
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
+    int                                   interactive_pump_depth_ = 0;
+    std::chrono::steady_clock::time_point last_interactive_pump_{};
+#endif
 };
 
 }   // namespace spectra

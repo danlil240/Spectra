@@ -21,6 +21,7 @@
     #include <GLFW/glfw3.h>
 
     #include "glfw_utils.hpp"
+    #include "platform/window_system/win32_glfw_hook.hpp"
 #endif
 
 #ifdef SPECTRA_USE_SDL3
@@ -163,11 +164,8 @@ WindowContext* WindowManager::create_window(uint32_t           width,
 
     set_window_icon(glfw_win);
 
-    // Set GLFW callbacks for this window
     glfwSetWindowUserPointer(glfw_win, this);
-    glfwSetFramebufferSizeCallback(glfw_win, glfw_framebuffer_size_callback);
-    glfwSetWindowCloseCallback(glfw_win, glfw_window_close_callback);
-    glfwSetWindowFocusCallback(glfw_win, glfw_window_focus_callback);
+    install_glfw_lifecycle_callbacks(glfw_win);
     glfwSetDropCallback(glfw_win, glfw_drop_callback);
 
     WindowContext* ptr = wctx.get();
@@ -308,6 +306,7 @@ void WindowManager::destroy_window(uint32_t window_id)
     if (wctx.glfw_window)
     {
     #ifdef SPECTRA_USE_GLFW
+        remove_win32_interactive_hook(static_cast<GLFWwindow*>(wctx.glfw_window));
         glfwDestroyWindow(static_cast<GLFWwindow*>(wctx.glfw_window));
     #elif defined(SPECTRA_USE_SDL3)
         SDL_DestroyWindow(static_cast<SDL_Window*>(wctx.glfw_window));

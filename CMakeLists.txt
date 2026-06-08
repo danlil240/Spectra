@@ -365,6 +365,10 @@ if(SPECTRA_USE_GLFW)
     # GLFW is an implementation detail: no public header includes glfw3.h.
     target_link_libraries(spectra PRIVATE ${_spectra_glfw_link})
     target_compile_definitions(spectra PUBLIC SPECTRA_USE_GLFW)
+    if(WIN32)
+        target_sources(spectra PRIVATE src/platform/window_system/win32_glfw_hook.cpp)
+        target_link_libraries(spectra PRIVATE comctl32)
+    endif()
 endif()
 
 # SDL3 adapter (optional, mutually exclusive with GLFW)

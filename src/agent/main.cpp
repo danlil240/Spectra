@@ -876,6 +876,12 @@ int main(int argc, char* argv[])
         window_mgr             = spectra::create_configured_window_manager(wm_opts);
     }
 
+    window_mgr->set_interactive_frame_handler(
+        [&session, &scheduler, &animator, &window_mgr, &frame_state]()
+        {
+            session.pump_interactive_frame(scheduler, animator, window_mgr.get(), frame_state);
+        });
+
     initial_wctx = window_mgr->create_first_window_with_ui(glfw->native_window(), all_ids);
 #elif defined(SPECTRA_USE_SDL3)
     std::unique_ptr<spectra::Sdl3Adapter>   sdl3;
@@ -954,10 +960,11 @@ int main(int argc, char* argv[])
                 }
             }
         }
+
+        // Pre-create a hidden preview window so tab tearoff is instant.
+        window_mgr->warmup_preview_window();
     }
 
-    // Pre-create a hidden preview window so tab tearoff is instant.
-    window_mgr->warmup_preview_window();
 #endif
 
     // Headless fallback (no OS window — e.g. builds without GLFW/SDL3)

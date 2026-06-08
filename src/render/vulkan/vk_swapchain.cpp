@@ -40,17 +40,44 @@ SwapchainSupportDetails query_swapchain_support(VkPhysicalDevice device, VkSurfa
 
 VkSurfaceFormatKHR choose_surface_format(const std::vector<VkSurfaceFormatKHR>& formats)
 {
-    // Prefer UNORM so that theme hex values pass through 1:1 to the display
-    // without hardware sRGB gamma expansion.  All themes now store their
-    // intended display colours directly (no pre-gamma compensation needed).
+    // Prefer UNORM so theme hex values pass through 1:1 without hardware gamma.
+    auto find_format = [&](VkFormat fmt) -> const VkSurfaceFormatKHR*
+    {
+        for (const auto& f : formats)
+        {
+            if (f.format == fmt && f.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+                return &f;
+        }
+        return nullptr;
+    };
+
+    if (const auto* f = find_format(VK_FORMAT_B8G8R8A8_UNORM))
+    {
+        SPECTRA_LOG_DEBUG("Vulkan", "swapchain format: B8G8R8A8_UNORM");
+        return *f;
+    }
+    if (const auto* f = find_format(VK_FORMAT_R8G8B8A8_UNORM))
+    {
+        SPECTRA_LOG_DEBUG("Vulkan", "swapchain format: R8G8B8A8_UNORM");
+        return *f;
+    }
+
+    // Avoid SRGB swapchain formats — they apply gamma and shift theme colours.
     for (const auto& f : formats)
     {
-        if (f.format == VK_FORMAT_B8G8R8A8_UNORM
-            && f.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+        if (f.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR
+            && f.format != VK_FORMAT_B8G8R8A8_SRGB && f.format != VK_FORMAT_R8G8B8A8_SRGB)
         {
+            SPECTRA_LOG_WARN("Vulkan",
+                             "swapchain format: UNORM unavailable, using format {}",
+                             static_cast<int>(f.format));
             return f;
         }
     }
+
+    SPECTRA_LOG_WARN("Vulkan",
+                     "swapchain format: falling back to driver default ({})",
+                     static_cast<int>(formats[0].format));
     return formats[0];
 }
 

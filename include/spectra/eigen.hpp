@@ -35,7 +35,7 @@
 //
 // ─────────────────────────────────────────────────────────────────────────────
 
-#include <eigen3/Eigen/Core>
+#include <Eigen/Core>
 #include <span>
 #include <spectra/axes.hpp>
 #include <spectra/axes3d.hpp>

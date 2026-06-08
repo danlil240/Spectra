@@ -94,6 +94,7 @@ struct WindowContext
     uint32_t                              pending_width  = 0;
     uint32_t                              pending_height = 0;
     std::chrono::steady_clock::time_point resize_time;
+    std::chrono::steady_clock::time_point last_swapchain_recreate_time;
 
     // Per-window ImGui context (nullptr if this window has no ImGui).
     // Owned by this WindowContext — destroyed in VulkanBackend::destroy_window_context().

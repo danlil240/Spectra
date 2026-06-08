@@ -420,8 +420,7 @@ void WindowManager::warmup_preview_window(uint32_t width, uint32_t height)
     }
 
     glfwSetWindowUserPointer(glfw_win, this);
-    glfwSetFramebufferSizeCallback(glfw_win, glfw_framebuffer_size_callback);
-    glfwSetWindowCloseCallback(glfw_win, glfw_window_close_callback);
+    install_glfw_lifecycle_callbacks(glfw_win);
     glfwSetMouseButtonCallback(glfw_win, glfw_mouse_button_callback);
 
     if (!init_minimal_window_imgui(*wctx))
@@ -580,8 +579,7 @@ WindowContext* WindowManager::create_preview_window_impl(uint32_t           widt
     // Mouse button callback is needed so we catch ButtonRelease events if the
     // X11 implicit pointer grab transfers to this window during a tab drag.
     glfwSetWindowUserPointer(glfw_win, this);
-    glfwSetFramebufferSizeCallback(glfw_win, glfw_framebuffer_size_callback);
-    glfwSetWindowCloseCallback(glfw_win, glfw_window_close_callback);
+    install_glfw_lifecycle_callbacks(glfw_win);
     glfwSetMouseButtonCallback(glfw_win, glfw_mouse_button_callback);
 
     if (!init_minimal_window_imgui(*wctx))

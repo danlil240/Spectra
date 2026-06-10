@@ -83,3 +83,14 @@ spectra_data.html
 install/
 
 uv.lock
+
+# graphify
+graphify-out/.graphify_python
+graphify-out/.graphify_root
+graphify-out/.graphify_cache/
+graphify-out/cost.json
+graphify-out/.graphify_*.json
+graphify-out/.needs_update
+graphify-out/cache
+
+

@@ -75,6 +75,7 @@ option(SPECTRA_BUILD_EXAMPLES "Build example programs"            ON)
 option(SPECTRA_BUILD_QT_EXAMPLE "Build the Qt6 embed example"     OFF)
 option(SPECTRA_BUILD_TESTS    "Build unit tests and benchmarks"   ON)
 option(SPECTRA_PYTHON_WHEEL  "Install backend into Python package _bin/" OFF)
+option(SPECTRA_USE_POSTGRES  "Enable Postgres session persistence for spectra-backend" OFF)
 
 # Linux wheel builds: keep code generation on portable x86_64 ISA.
 if(SPECTRA_PYTHON_WHEEL
@@ -949,7 +950,7 @@ endif()
 if(SPECTRA_RUNTIME_MODE STREQUAL "multiproc")
     # spectra-backend daemon
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/daemon/main.cpp)
-        add_executable(spectra-backend
+        set(SPECTRA_BACKEND_SOURCES
             src/daemon/main.cpp
             src/daemon/daemon_server.cpp
             src/daemon/agent_message_handler.cpp
@@ -958,15 +959,23 @@ if(SPECTRA_RUNTIME_MODE STREQUAL "multiproc")
             src/daemon/topic_registry.cpp
             src/daemon/heartbeat_monitor.cpp
             src/daemon/session_graph.cpp
+            src/daemon/session_store.cpp
             src/daemon/process_manager.cpp
             src/daemon/figure_model.cpp
         )
+        add_executable(spectra-backend ${SPECTRA_BACKEND_SOURCES})
         target_link_libraries(spectra-backend PRIVATE spectra)
         target_compile_features(spectra-backend PRIVATE cxx_std_20)
         target_include_directories(spectra-backend PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/src
             ${CMAKE_CURRENT_BINARY_DIR}/generated
         )
+        if(SPECTRA_USE_POSTGRES)
+            find_package(PostgreSQL REQUIRED)
+            target_compile_definitions(spectra-backend PRIVATE SPECTRA_USE_POSTGRES)
+            target_link_libraries(spectra-backend PRIVATE PostgreSQL::PostgreSQL)
+            message(STATUS "Postgres session persistence enabled for spectra-backend")
+        endif()
     endif()
 
     # spectra-window agent — uses the SAME UI stack as inproc

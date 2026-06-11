@@ -31,6 +31,29 @@ struct FigureEntry
     std::string   title;
 };
 
+// Serializable session-graph state (live agent connections are not included).
+struct SessionGraphSnapshot
+{
+    ipc::SessionId session_id     = 1;
+    ipc::WindowId  next_window_id = 1;
+    uint64_t       next_figure_id = 1;
+
+    struct FigureRow
+    {
+        uint64_t      figure_id       = 0;
+        ipc::WindowId assigned_window = ipc::INVALID_WINDOW;
+        std::string   title;
+    };
+    std::vector<FigureRow> figures;
+
+    struct PendingWindowRow
+    {
+        ipc::WindowId           window_id = ipc::INVALID_WINDOW;
+        std::vector<uint64_t>   assigned_figures;
+    };
+    std::vector<PendingWindowRow> pending_windows;
+};
+
 // Session graph: the backend daemon's model of the world.
 // Thread-safe — all public methods lock the internal mutex.
 class SessionGraph
@@ -101,11 +124,21 @@ class SessionGraph
     // Get the session ID.
     ipc::SessionId session_id() const { return session_id_; }
 
+    // Monotonic counter bumped on layout mutations (not heartbeats).
+    uint64_t mutation_generation() const;
+
+    // Export/import graph layout for persistence across daemon restarts.
+    void export_snapshot(SessionGraphSnapshot& out) const;
+    void import_snapshot(const SessionGraphSnapshot& snap);
+
    private:
+    void bump_mutation();
+
     mutable std::mutex                            mu_;
     ipc::SessionId                                session_id_     = 1;   // single session for now
     ipc::WindowId                                 next_window_id_ = 1;
     uint64_t                                      next_figure_id_ = 1;
+    uint64_t                                      mutation_gen_   = 0;
     std::unordered_map<ipc::WindowId, AgentEntry> agents_;
     std::unordered_map<uint64_t, FigureEntry>     figures_;
 };

@@ -1,4 +1,5 @@
 #include <atomic>
+#include <chrono>
 #include <csignal>
 #include <cstring>
 #include <iostream>
@@ -15,6 +16,7 @@
 #include "daemon_server.hpp"
 #include "heartbeat_monitor.hpp"
 #include "python_message_handler.hpp"
+#include "session_store.hpp"
 #include "topic_message_handler.hpp"
 #include "topic_registry.hpp"
 
@@ -131,6 +133,7 @@ int main(int argc, char* argv[])
 
     SessionGraph   graph;
     FigureModel    fig_model;
+    SessionStore   session_store;
     ProcessManager proc_mgr;
     proc_mgr.set_agent_path(agent_path);
     proc_mgr.set_socket_path(socket_path);
@@ -143,6 +146,20 @@ int main(int argc, char* argv[])
     DaemonContext ctx{graph, fig_model, proc_mgr, clients, g_running, topics, idle_exit};
 
     bool had_agents = false;
+
+    if (session_store.init())
+    {
+        if (session_store.try_load(graph, fig_model))
+        {
+            std::cerr << "[spectra-backend] Restored session " << graph.session_id()
+                      << " from Postgres (" << graph.figure_count() << " figures)\n";
+        }
+    }
+
+    bool                 session_dirty = false;
+    uint64_t             last_graph_gen = graph.mutation_generation();
+    spectra::ipc::Revision last_fig_rev = fig_model.revision();
+    auto                 last_session_flush = std::chrono::steady_clock::now();
 
     std::cerr << "[spectra-backend] Listening for connections...\n";
 
@@ -374,6 +391,30 @@ int main(int argc, char* argv[])
         // --- Heartbeat monitor: stale agents + process reaping ---
         heartbeat.tick(ctx);
 
+        if (session_store.enabled())
+        {
+            const auto graph_gen = graph.mutation_generation();
+            const auto fig_rev   = fig_model.revision();
+            if (graph_gen != last_graph_gen || fig_rev != last_fig_rev)
+            {
+                session_dirty    = true;
+                last_graph_gen   = graph_gen;
+                last_fig_rev     = fig_rev;
+            }
+
+            const auto now = std::chrono::steady_clock::now();
+            if (session_dirty
+                && std::chrono::duration_cast<std::chrono::seconds>(now - last_session_flush)
+                       .count() >= 5)
+            {
+                if (session_store.save(graph, fig_model))
+                {
+                    session_dirty       = false;
+                    last_session_flush  = now;
+                }
+            }
+        }
+
         // --- Shutdown rule for auto-spawned daemons: exit when no agents remain
         // after at least one connected. Manually started daemons stay alive as
         // brokers until signaled.
@@ -400,6 +441,9 @@ int main(int argc, char* argv[])
             }
         }
     }
+
+    if (session_store.enabled())
+        session_store.save(graph, fig_model);
 
     // Cleanup
     for (auto& c : clients)

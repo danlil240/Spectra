@@ -290,3 +290,43 @@ TEST(SessionGraph, UnassignMultipleFigures)
     EXPECT_TRUE(std::find(figs.begin(), figs.end(), f3) != figs.end());
     EXPECT_TRUE(std::find(figs.begin(), figs.end(), f2) == figs.end());
 }
+
+TEST(SessionGraph, SnapshotRoundTripPreservesLayout)
+{
+    SessionGraph g;
+    auto         w1 = g.add_agent(0, -1);
+    auto         w2 = g.add_agent(0, -1);
+    auto         f1 = g.add_figure("Alpha");
+    auto         f2 = g.add_figure("Beta");
+    g.assign_figure(f1, w1);
+    g.assign_figure(f2, w2);
+
+    SessionGraphSnapshot snap;
+    g.export_snapshot(snap);
+    EXPECT_EQ(snap.figures.size(), 2u);
+    EXPECT_EQ(snap.pending_windows.size(), 2u);
+
+    SessionGraph restored;
+    restored.import_snapshot(snap);
+    EXPECT_EQ(restored.session_id(), g.session_id());
+    EXPECT_EQ(restored.figure_count(), 2u);
+    EXPECT_EQ(restored.agent_count(), 2u);
+    EXPECT_EQ(restored.figures_for_window(w1).size(), 1u);
+    EXPECT_EQ(restored.figures_for_window(w2).size(), 1u);
+}
+
+TEST(SessionGraph, SnapshotExcludesLiveAgents)
+{
+    SessionGraph g;
+    auto         pending = g.add_agent(0, -1);
+    auto         live    = g.add_agent(42, 7);
+    auto         fig     = g.add_figure("Live");
+    g.assign_figure(fig, live);
+
+    SessionGraphSnapshot snap;
+    g.export_snapshot(snap);
+    EXPECT_EQ(snap.pending_windows.size(), 1u);
+    EXPECT_EQ(snap.pending_windows[0].window_id, pending);
+    EXPECT_EQ(snap.figures.size(), 1u);
+    EXPECT_EQ(snap.figures[0].assigned_window, live);
+}

@@ -1,7 +1,9 @@
 #include <cmath>
+#include <filesystem>
 #include <gtest/gtest.h>
 
 #include "ui/theme/design_tokens.hpp"
+#include "ui/theme/glass_tokens.hpp"
 #include "ui/theme/theme.hpp"
 
 using namespace spectra::ui;
@@ -615,5 +617,87 @@ TEST_F(ThemeManagerTest, AllThemesHavePlotColors)
     }
 }
 
-// NOTE: load_default(), export_theme(), import_theme() are declared in
-// theme.hpp but not yet implemented in theme.cpp — tests deferred.
+TEST(GlassTokens, MasterZeroIsNearlyOpaque)
+{
+    ThemeGlassSettings g;
+    g.master_intensity = 0.0f;
+    g.panel_alpha      = 0.62f;
+    EXPECT_NEAR(glass_surface_alpha_value(g, GlassSurface::Panel), 0.92f, 1e-5f);
+}
+
+TEST(GlassTokens, MasterOneUsesTargetAlpha)
+{
+    ThemeGlassSettings g;
+    g.master_intensity = 1.0f;
+    g.panel_alpha      = 0.62f;
+    EXPECT_NEAR(glass_surface_alpha_value(g, GlassSurface::Panel), 0.62f, 1e-5f);
+}
+
+TEST(GlassTokens, PlotAlphaHasReadabilityFloor)
+{
+    ThemeGlassSettings g;
+    g.master_intensity = 1.0f;
+    g.plot_alpha       = 0.05f;
+    EXPECT_GE(glass_surface_alpha_value(g, GlassSurface::Plot),
+              glass_tokens::MIN_PLOT_READABILITY_ALPHA);
+}
+
+TEST_F(ThemeManagerTest, GlassSettingsClampAndApply)
+{
+    ThemeGlassSettings g;
+    g.master_intensity = 2.0f;
+    g.panel_alpha      = -0.5f;
+    g.clamp();
+    EXPECT_FLOAT_EQ(g.master_intensity, 1.0f);
+    EXPECT_FLOAT_EQ(g.panel_alpha, 0.0f);
+
+    tm_.set_theme("night");
+    tm_.set_glass_settings(ThemeGlassSettings::night_defaults(), true);
+    EXPECT_NEAR(tm_.glass_surface_alpha(GlassSurface::Panel), 0.495f, 0.03f);
+}
+
+TEST_F(ThemeManagerTest, ResetGlassDefaultsPerTheme)
+{
+    tm_.set_theme("dark");
+    tm_.glass_mut().master_intensity = 0.95f;
+    tm_.reset_glass_defaults();
+    EXPECT_FLOAT_EQ(tm_.glass().master_intensity,
+                    ThemeGlassSettings::dark_defaults().master_intensity);
+}
+
+TEST_F(ThemeManagerTest, NightGlassAccentIsCyanFamily)
+{
+    tm_.set_theme("night");
+    const auto& accent = tm_.colors().accent;
+    EXPECT_GT(accent.g, accent.r);
+    EXPECT_GT(accent.b, accent.r * 0.5f);
+}
+
+TEST_F(ThemeManagerTest, ExportImportGlassSettings)
+{
+    tm_.set_theme("night");
+    ThemeGlassSettings custom;
+    custom.master_intensity = 0.42f;
+    custom.panel_alpha      = 0.51f;
+    custom.plot_alpha       = 0.33f;
+    custom.toolbar_alpha    = 0.47f;
+    custom.glow_strength    = 0.61f;
+    custom.blur_enabled     = true;
+    tm_.set_glass_settings(custom, true);
+
+    const std::string path = "/tmp/spectra_glass_theme_test.json";
+    ASSERT_TRUE(tm_.export_theme(path));
+
+    ThemeGlassSettings before_import = tm_.glass();
+    before_import.master_intensity   = 0.0f;
+    tm_.set_glass_settings(before_import, true);
+
+    ASSERT_TRUE(tm_.import_theme(path));
+    EXPECT_NEAR(tm_.glass().master_intensity, 0.42f, 1e-4f);
+    EXPECT_NEAR(tm_.glass().panel_alpha, 0.51f, 1e-4f);
+    EXPECT_NEAR(tm_.glass().plot_alpha, 0.33f, 1e-4f);
+    EXPECT_NEAR(tm_.glass().toolbar_alpha, 0.47f, 1e-4f);
+    EXPECT_NEAR(tm_.glass().glow_strength, 0.61f, 1e-4f);
+    EXPECT_TRUE(tm_.glass().blur_enabled);
+    std::filesystem::remove(path);
+}

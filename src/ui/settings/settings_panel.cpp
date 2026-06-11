@@ -4,6 +4,7 @@
 
     #include <algorithm>
     #include <cctype>
+    #include <cfloat>
     #include <string>
     #include <unordered_map>
 
@@ -151,7 +152,7 @@ void SettingsPanel::draw()
     ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f),
                             ImGuiCond_Appearing,
                             ImVec2(0.5f, 0.5f));
-    ImGui::SetNextWindowSizeConstraints(ImVec2(520.0f, 0.0f), ImVec2(640.0f, 720.0f));
+    ImGui::SetNextWindowSizeConstraints(ImVec2(420.0f, 0.0f), ImVec2(FLT_MAX, 900.0f));
 
     // Push fully-opaque window background so the welcome screen does not bleed through.
     const auto& colors = ui::theme();
@@ -243,6 +244,8 @@ void SettingsPanel::draw_appearance_tab()
             {
                 d.default_theme = t;
                 theme_mgr_->set_theme(t);
+                theme_mgr_->reset_glass_defaults();
+                theme_mgr_->save_current_as_default();
                 store_->notify_change();
             }
             if (selected)
@@ -282,12 +285,57 @@ void SettingsPanel::draw_appearance_tab()
     ImGui::Separator();
     ImGui::Spacing();
 
+    ImGui::TextUnformatted("Glass / Transparency");
+    ImGui::Spacing();
+
+    ui::ThemeGlassSettings glass = theme_mgr_->glass();
+    bool                   glass_changed = false;
+
+    auto glass_slider = [&](const char* label, float* value)
+    {
+        ImGui::PushID(label);
+        ImGui::TextUnformatted(label);
+        ImGui::SetNextItemWidth(-1.0f);
+        if (ImGui::SliderFloat("##v", value, 0.0f, 1.0f, "%.2f"))
+            glass_changed = true;
+        ImGui::PopID();
+    };
+
+    glass_slider("Master Glass Intensity", &glass.master_intensity);
+    glass_slider("Panel Transparency", &glass.panel_alpha);
+    glass_slider("Plot Background Transparency", &glass.plot_alpha);
+    glass_slider("Toolbar Transparency", &glass.toolbar_alpha);
+    glass_slider("Glow Strength", &glass.glow_strength);
+
+    if (ImGui::Checkbox("Blur Enabled (experimental)", &glass.blur_enabled))
+        glass_changed = true;
+
+    if (glass_changed)
+    {
+        theme_mgr_->set_glass_settings(glass, true);
+        theme_mgr_->save_current_as_default();
+        store_->notify_change();
+    }
+
+    if (ImGui::Button("Reset Theme Defaults"))
+    {
+        theme_mgr_->reset_glass_defaults();
+        theme_mgr_->save_current_as_default();
+        store_->notify_change();
+    }
+
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Spacing();
+
     if (ImGui::Button("Reset to Defaults"))
     {
         d.default_theme        = "night";
         d.default_data_palette = "default";
         theme_mgr_->set_theme("night");
         theme_mgr_->set_data_palette("default");
+        theme_mgr_->reset_glass_defaults();
+        theme_mgr_->save_current_as_default();
         store_->notify_change();
     }
 }

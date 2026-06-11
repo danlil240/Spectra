@@ -1,5 +1,7 @@
 #include "theme.hpp"
 
+#include "glass_tokens.hpp"
+
 #include <cmath>
 
 #include <algorithm>
@@ -17,6 +19,51 @@
 namespace spectra::ui
 {
 
+void ThemeGlassSettings::clamp()
+{
+    master_intensity = std::clamp(master_intensity, 0.0f, 1.0f);
+    panel_alpha      = std::clamp(panel_alpha, 0.0f, 1.0f);
+    plot_alpha       = std::clamp(plot_alpha, 0.0f, 1.0f);
+    toolbar_alpha    = std::clamp(toolbar_alpha, 0.0f, 1.0f);
+    glow_strength    = std::clamp(glow_strength, 0.0f, 1.0f);
+}
+
+ThemeGlassSettings ThemeGlassSettings::night_defaults()
+{
+    ThemeGlassSettings s;
+    s.master_intensity = 0.85f;
+    s.panel_alpha      = 0.42f;
+    s.plot_alpha       = 0.35f;
+    s.toolbar_alpha    = 0.38f;
+    s.glow_strength    = 0.75f;
+    s.blur_enabled     = false;
+    return s;
+}
+
+ThemeGlassSettings ThemeGlassSettings::dark_defaults()
+{
+    ThemeGlassSettings s;
+    s.master_intensity = 0.20f;
+    s.panel_alpha      = 0.88f;
+    s.plot_alpha       = 0.92f;
+    s.toolbar_alpha    = 0.85f;
+    s.glow_strength    = 0.10f;
+    s.blur_enabled     = false;
+    return s;
+}
+
+ThemeGlassSettings ThemeGlassSettings::light_defaults()
+{
+    ThemeGlassSettings s;
+    s.master_intensity = 0.35f;
+    s.panel_alpha      = 0.78f;
+    s.plot_alpha       = 0.95f;
+    s.toolbar_alpha    = 0.72f;
+    s.glow_strength    = 0.12f;
+    s.blur_enabled     = false;
+    return s;
+}
+
 // Redirectable singleton pointer.  When non-null, instance() returns this
 // instead of the process-wide static fallback.  App sets/clears this pointer
 // in init_runtime() / shutdown_runtime().
@@ -33,6 +80,7 @@ void ThemeManager::ensure_initialized()
     {
         initialize_default_themes();
         initialize_data_palettes();
+        glass_settings_ = ThemeGlassSettings::night_defaults();
         set_theme("night");
     }
 }
@@ -49,6 +97,7 @@ ThemeManager& ThemeManager::instance()
     {
         s_current_instance->initialize_default_themes();
         s_current_instance->initialize_data_palettes();
+        s_current_instance->glass_settings_ = ThemeGlassSettings::night_defaults();
         s_current_instance->set_theme("night");
     }
     return *s_current_instance;
@@ -72,11 +121,65 @@ void ThemeManager::set_theme(const std::string& name)
         SPECTRA_LOG_TRACE("theme", "Theme changed to '{}'", name);
         current_theme_name_ = name;
         current_theme_      = &it->second;
+        if (current_theme_)
+            current_theme_->use_blur = glass_settings_.blur_enabled;
         ++theme_version_;
         apply_to_imgui();
         if (event_system_)
             event_system_->theme_changed().emit(spectra::ThemeChangedEvent{name});
     }
+}
+
+ThemeGlassSettings ThemeManager::glass_defaults_for(const std::string& theme_name) const
+{
+    auto it = themes_.find(theme_name);
+    if (it != themes_.end())
+        return it->second.glass_defaults;
+    return ThemeGlassSettings::night_defaults();
+}
+
+void ThemeManager::set_glass_settings(const ThemeGlassSettings& settings, bool apply)
+{
+    glass_settings_ = settings;
+    glass_settings_.clamp();
+    if (current_theme_)
+        current_theme_->use_blur = glass_settings_.blur_enabled;
+    if (apply)
+    {
+        ++theme_version_;
+        apply_to_imgui();
+        if (event_system_)
+            event_system_->theme_changed().emit(
+                spectra::ThemeChangedEvent{current_theme_name_});
+    }
+}
+
+void ThemeManager::reset_glass_defaults()
+{
+    set_glass_settings(glass_defaults_for(current_theme_name_), true);
+}
+
+float ThemeManager::glass_surface_alpha(GlassSurface surface) const
+{
+    return glass_surface_alpha_value(glass_settings_, surface);
+}
+
+Color ThemeManager::glass_resolved_surface(Color base, GlassSurface surface) const
+{
+    return glass_resolved_surface_color(base, glass_settings_, surface);
+}
+
+Color ThemeManager::glass_resolved_plot_background() const
+{
+    const auto& c = colors();
+    return ::spectra::ui::glass_resolved_plot_background(c.bg_canvas, c.bg_primary, glass_settings_);
+}
+
+float ThemeManager::effective_glow_intensity() const
+{
+    if (!current_theme_)
+        return 0.0f;
+    return glass_effective_glow_strength(glass_settings_, current_theme_->colors.glow_intensity);
 }
 
 const Theme& ThemeManager::current() const
@@ -281,8 +384,11 @@ void ThemeManager::apply_to_imgui()
     Color tab_hover     = colors.bg_tertiary.lerp(colors.accent, 0.22f);
     Color tab_selected  = colors.bg_tertiary.lerp(colors.accent, 0.36f);
 
+    const Color panel_resolved = glass_resolved_surface(colors.bg_secondary, GlassSurface::Panel);
+    current_theme_->opacity_panel = std::max(panel_resolved.a, 0.5f);
+
     // Window and background
-    imgui_colors[ImGuiCol_WindowBg]     = lin(colors.bg_secondary, current_theme_->opacity_panel);
+    imgui_colors[ImGuiCol_WindowBg] = lin(panel_resolved);
     imgui_colors[ImGuiCol_ChildBg]      = ImVec4(0, 0, 0, 0);   // Transparent — inherits parent
     imgui_colors[ImGuiCol_PopupBg]      = lin(colors.tooltip_bg);
     imgui_colors[ImGuiCol_Border]       = lin(colors.border_default);
@@ -738,6 +844,15 @@ bool ThemeManager::export_theme(const std::string& path) const
     f << "  \"animation_speed\": " << t.animation_speed << ",\n";
     f << "  \"enable_animations\": " << (t.enable_animations ? "true" : "false") << ",\n";
     f << "  \"use_blur\": " << (t.use_blur ? "true" : "false") << ",\n";
+    const auto& g = glass_settings_;
+    f << "  \"glass\": {\n";
+    f << "    \"master_intensity\": " << g.master_intensity << ",\n";
+    f << "    \"panel_alpha\": " << g.panel_alpha << ",\n";
+    f << "    \"plot_alpha\": " << g.plot_alpha << ",\n";
+    f << "    \"toolbar_alpha\": " << g.toolbar_alpha << ",\n";
+    f << "    \"glow_strength\": " << g.glow_strength << ",\n";
+    f << "    \"blur_enabled\": " << (g.blur_enabled ? "true" : "false") << "\n";
+    f << "  },\n";
 
     f << "  \"data_palette\": {\n";
     f << "    \"name\": " << escape_json_string(t.data_palette.name) << ",\n";
@@ -836,6 +951,35 @@ bool ThemeManager::import_theme(const std::string& path)
     parse_bool("use_blur", theme.use_blur);
 
     register_theme(name, std::move(theme));
+
+    size_t glass_pos = json.find("\"glass\"");
+    if (glass_pos != std::string::npos)
+    {
+        ThemeGlassSettings g = glass_settings_;
+        auto               parse_glass_float = [&](const char* key, float& out)
+        {
+            std::string needle = std::string("\"") + key + "\"";
+            size_t      p      = json.find(needle, glass_pos);
+            if (p != std::string::npos)
+            {
+                p = json.find(':', p);
+                if (p != std::string::npos)
+                {
+                    char* end = nullptr;
+                    float v   = std::strtof(json.c_str() + p + 1, &end);
+                    if (end != json.c_str() + p + 1)
+                        out = v;
+                }
+            }
+        };
+        parse_glass_float("master_intensity", g.master_intensity);
+        parse_glass_float("panel_alpha", g.panel_alpha);
+        parse_glass_float("plot_alpha", g.plot_alpha);
+        parse_glass_float("toolbar_alpha", g.toolbar_alpha);
+        parse_glass_float("glow_strength", g.glow_strength);
+        parse_bool("blur_enabled", g.blur_enabled);
+        set_glass_settings(g, true);
+    }
     return true;
 }
 
@@ -953,75 +1097,64 @@ void ThemeManager::initialize_default_themes()
         .roi_border        = Color(0.88f, 0.88f, 0.88f, 0.40f)};
     dark.shadow_intensity = 0.0f;
     dark.use_blur         = false;
+    dark.glass_defaults   = ThemeGlassSettings::dark_defaults();
     register_theme("dark", dark);
 
-    // Night theme — deep dark with subtle blue undertones
-    // Design system: 5-level depth hierarchy for floating workspace feel
-    //   L0 bg_primary  — the void (app chrome, deepest)
-    //   L1 bg_canvas   — workspace surface (plot area, slightly lifted)
-    //   L2 bg_secondary — panels float above canvas (inspector, rails)
-    //   L3 bg_tertiary  — interactive surfaces (inputs, cards, chips)
-    //   L4 bg_elevated  — floating surfaces (tooltips, popups, dropdowns)
+    // Night Glass — premium dark glassmorphism (Vision.png target)
     Theme night;
     night.name   = "night";
     night.colors = {
-        // Surfaces — progressive elevation with clear depth steps
-        .bg_canvas    = Color::from_hex(0x132032),   // L1: workspace surface
-        .bg_primary   = Color::from_hex(0x07090D),   // L0: deepest void
-        .bg_secondary = Color::from_hex(0x141A22),   // L2: panels float above canvas
-        .bg_tertiary  = Color::from_hex(0x1D2530),   // L3: inputs, cards (clear lift)
-        .bg_elevated  = Color::from_hex(0x243041),   // L4: tooltips, popups
-        .bg_overlay   = Color(0.0f, 0.02f, 0.04f, 0.60f),
+        .bg_canvas    = Color::from_hex(0x132032),
+        .bg_primary   = Color::from_hex(0x07090D),
+        .bg_secondary = Color::from_hex(0x141A22),
+        .bg_tertiary  = Color::from_hex(0x1D2530),
+        .bg_elevated  = Color::from_hex(0x243041),
+        .bg_overlay   = Color(0.01f, 0.02f, 0.05f, 0.62f),
 
-        // Text — warm blue-white hierarchy with wider contrast steps
-        .text_primary   = Color::from_hex(0xE8ECF4),   // Bright, slightly warm
-        .text_secondary = Color::from_hex(0x9AA6B7),   // Clear readable labels
-        .text_tertiary  = Color::from_hex(0x677487),   // Placeholders, meta
-        .text_inverse   = Color::from_hex(0x080B10),
+        .text_primary   = glass_palette::kTextPrimary,
+        .text_secondary = glass_palette::kTextSecondary,
+        .text_tertiary  = glass_palette::kTextMuted,
+        .text_inverse   = Color::from_hex(0x050810),
 
-        // Borders — material edge definition, slightly blue
-        .border_default = Color(0.30f, 0.35f, 0.42f, 0.68f),   // Panel edges — visible
-        .border_subtle  = Color(0.21f, 0.25f, 0.31f, 0.52f),   // Hairline dividers
-        .border_strong  = Color(0.46f, 0.52f, 0.62f, 0.88f),   // Focused element borders
+        .border_default = glass_palette::kBorderSubtle,
+        .border_subtle  = Color(0.18f, 0.24f, 0.34f, 0.38f),
+        .border_strong  = glass_palette::kBorderActive,
 
-        // Interactive — confident blue accent with clear state changes
-        .accent        = Color::from_hex(0x7C8FD6),           // Muted steel-violet for UI chrome
-        .accent_hover  = Color::from_hex(0x9EAFEE),           // Distinct hover lift
-        .accent_muted  = Color(0.49f, 0.56f, 0.84f, 0.30f),   // Selected bg
-        .accent_subtle = Color(0.49f, 0.56f, 0.84f, 0.12f),   // Hover tint
+        .accent        = Color(0.35f, 0.88f, 1.0f),
+        .accent_hover  = Color(0.55f, 0.92f, 1.0f),
+        .accent_muted  = Color(0.35f, 0.88f, 1.0f, 0.28f),
+        .accent_subtle = Color(0.75f, 0.40f, 0.95f, 0.14f),
 
-        // Semantic — slightly desaturated for calm UI
-        .success = Color::from_hex(0x3FB950),
-        .warning = Color::from_hex(0xD29922),
+        .success = glass_palette::kSuccessGreen,
+        .warning = glass_palette::kWarningAmber,
         .error   = Color::from_hex(0xF85149),
-        .info    = Color::from_hex(0x4D94E8),
+        .info    = glass_palette::kAccentBlue,
 
-        // Plot-specific — grid recedes, data is hero
-        .grid_major     = Color(0.82f, 0.86f, 0.93f, 0.25f),   // Calm scientific paper major lines
-        .grid_minor     = Color(0.82f, 0.86f, 0.93f, 0.07f),
-        .grid_line      = Color(0.82f, 0.86f, 0.93f, 0.25f),   // Compat
-        .axis_line      = Color(0.62f, 0.68f, 0.76f, 0.42f),
-        .tick_label     = Color::from_hex(0x7E8B9B),
-        .crosshair      = Color(0.48f, 0.69f, 0.96f, 0.60f),
-        .selection_fill = Color(0.47f, 0.67f, 0.96f, 0.13f),
-        .selection_border = Color::from_hex(0x76A2E5),
-        .tooltip_bg       = Color(0.11f, 0.14f, 0.20f, 0.97f),   // Near-opaque glass
-        .tooltip_border   = Color(0.30f, 0.38f, 0.48f, 0.45f),
+        .grid_major = Color(0.55f, 0.72f, 0.92f, glass_tokens::grid_major_alpha),
+        .grid_minor = Color(0.55f, 0.72f, 0.92f, glass_tokens::grid_minor_alpha),
+        .grid_line  = Color(0.55f, 0.72f, 0.92f, glass_tokens::grid_major_alpha),
+        .axis_line  = Color(0.48f, 0.58f, 0.72f, 0.38f),
+        .tick_label = glass_palette::kTextMuted,
+        .crosshair  = Color(0.24f, 0.84f, 0.96f, 0.58f),
+        .selection_fill   = Color(0.58f, 0.45f, 0.96f, 0.14f),
+        .selection_border = glass_palette::kAccentViolet,
+        .tooltip_bg       = glass_palette::kSurfacePopup.with_alpha(0.94f),
+        .tooltip_border   = glass_palette::kBorderGlow.with_alpha(0.42f),
 
-        // Visual effects — subtle accent glow for active elements
-        .accent_glow       = Color(0.51f, 0.60f, 0.92f, 0.28f),
-        .glow_intensity    = 0.35f,
-        .focus_ring        = Color::from_hex(0x90A3E9),
-        .scrollbar_thumb   = Color(0.64f, 0.72f, 0.84f, 0.28f),
-        .scrollbar_track   = Color(0.0f, 0.0f, 0.0f, 0.0f),
-        .section_header_bg = Color(0.68f, 0.78f, 1.0f, 0.05f),
-        .input_bg          = Color::from_hex(0x1E2733),
-        .hover_highlight   = Color(0.49f, 0.56f, 0.84f, 0.18f),
-        .annotation_bg     = Color(0.10f, 0.13f, 0.18f, 0.92f),
-        .roi_fill          = Color(0.47f, 0.67f, 0.96f, 0.12f),
-        .roi_border        = Color(0.47f, 0.67f, 0.96f, 0.40f)};
+        .accent_glow    = Color(0.55f, 0.82f, 1.0f, 0.45f),
+        .glow_intensity = 0.55f,
+        .focus_ring     = glass_palette::kAccentCyan,
+        .scrollbar_thumb = Color(0.45f, 0.62f, 0.82f, 0.30f),
+        .scrollbar_track = Color(0.0f, 0.0f, 0.0f, 0.0f),
+        .section_header_bg = Color(0.24f, 0.84f, 0.96f, 0.06f),
+        .input_bg          = glass_palette::kSurfaceControl,
+        .hover_highlight   = Color(0.24f, 0.84f, 0.96f, 0.12f),
+        .annotation_bg     = glass_palette::kSurfacePopup.with_alpha(0.90f),
+        .roi_fill          = Color(0.92f, 0.36f, 0.78f, 0.12f),
+        .roi_border        = glass_palette::kAccentMagenta.with_alpha(0.45f)};
     night.shadow_intensity = 1.0f;
-    night.use_blur         = true;
+    night.use_blur         = false;
+    night.glass_defaults   = ThemeGlassSettings::night_defaults();
     register_theme("night", night);
 
     // Light theme — white canvas, light blue chrome (modern)
@@ -1085,6 +1218,7 @@ void ThemeManager::initialize_default_themes()
         .roi_border        = Color(0.04f, 0.41f, 0.85f, 0.40f)};
     light.shadow_intensity = 0.0f;
     light.use_blur         = false;
+    light.glass_defaults   = ThemeGlassSettings::light_defaults();
     register_theme("light", light);
 
     // High contrast theme
@@ -1145,6 +1279,8 @@ void ThemeManager::initialize_default_themes()
                             .annotation_bg     = Color(0.11f, 0.11f, 0.11f, 0.90f),
                             .roi_fill          = Color(1.0f, 0.84f, 0.0f, 0.15f),
                             .roi_border        = Color(1.0f, 0.84f, 0.0f, 0.60f)};
+    high_contrast.glass_defaults   = ThemeGlassSettings::dark_defaults();
+    high_contrast.glass_defaults.master_intensity = 0.0f;
     register_theme("high_contrast", high_contrast);
 }
 

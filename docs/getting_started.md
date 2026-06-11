@@ -330,12 +330,9 @@ figure_ids = restore_session(new_session, "my_session.json")
 
 ## Architecture Overview
 
-```
-App
- └── Figure(s)
-      └── Axes (subplots)
-           └── Series (LineSeries, ScatterSeries)
-```
+![Spectra data model hierarchy](images/diagrams/data-model.png)
+
+See the [architecture diagrams](diagrams.html) for inproc/multiproc topology, render pipeline, and Python IPC sequence.
 
 - **App**: Top-level container. Owns the Vulkan backend and renderer.
 - **Figure**: A single plot window/image with configurable dimensions.

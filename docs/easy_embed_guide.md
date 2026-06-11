@@ -2,6 +2,10 @@
 
 ## Overview
 
+![Easy embed headless render path](images/figma/easy-embed-headless.png)
+
+Full-size version: [diagram gallery](diagrams.html)
+
 The **Easy Embed API** provides one-liner offscreen rendering for Spectra plots. No windows, no daemon, no event loop — just data in → pixels out. Perfect for:
 
 - **Web services** (plot-as-PNG endpoints)

@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 340" role="img" aria-label="Spectra topics data flow">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#f8fafc"/>
+      <stop offset="100%" stop-color="#eef2f7"/>
+    </linearGradient>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#38dcca"/>
+    </marker>
+    <style>
+      .title { font: 700 28px Sora, sans-serif; fill: #0d1520; }
+      .subtitle { font: 500 15px Sora, sans-serif; fill: #5c6f88; }
+      .box { rx: 12; stroke-width: 2; }
+      .label { font: 700 15px Sora, sans-serif; fill: #eef5ff; }
+      .edge { stroke: #38dcca; stroke-width: 2.5; fill: none; marker-end: url(#arrow); }
+      .edge-muted { stroke: #7bb7ff; stroke-width: 2; stroke-dasharray: 7 5; fill: none; marker-end: url(#arrow); }
+    </style>
+  </defs>
+  <rect width="1120" height="340" fill="url(#bg)"/>
+  <text x="48" y="48" class="title">Live Topics</text>
+  <text x="48" y="78" class="subtitle">Publisher-first streams survive client disconnect; windows subscribe on demand</text>
+
+  <rect class="box" x="40" y="150" width="150" height="72" fill="#151f2c" stroke="#38dcca"/>
+  <text x="115" y="192" text-anchor="middle" class="label">Publisher</text>
+
+  <path class="edge" d="M190 186 H250"/>
+  <rect class="box" x="250" y="140" width="180" height="92" fill="#0d1520" stroke="#7bb7ff"/>
+  <text x="340" y="180" text-anchor="middle" class="label">spectra-backend</text>
+  <text x="340" y="204" text-anchor="middle" style="font:500 13px Sora;fill:#c8d6ea">Topic store</text>
+
+  <path class="edge" d="M430 186 H490"/>
+  <rect class="box" x="490" y="150" width="150" height="72" fill="#101923" stroke="#38dcca"/>
+  <text x="565" y="192" text-anchor="middle" class="label">Subscription</text>
+
+  <path class="edge" d="M640 186 H700"/>
+  <rect class="box" x="700" y="150" width="150" height="72" fill="#101923" stroke="#7bb7ff"/>
+  <text x="775" y="192" text-anchor="middle" class="label">FigureModel</text>
+
+  <path class="edge" d="M850 186 H910"/>
+  <rect class="box" x="910" y="150" width="170" height="72" fill="#151f2c" stroke="#f7b267"/>
+  <text x="995" y="192" text-anchor="middle" class="label">Live plot</text>
+
+  <path class="edge-muted" d="M995 222 V270 H340"/>
+  <text x="660" y="292" text-anchor="middle" style="font:600 13px 'JetBrains Mono',monospace;fill:#2d4a62">drag topic → axes in spectra-window</text>
+</svg>

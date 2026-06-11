@@ -167,6 +167,7 @@
         <a href="features.html">Feature Guide</a>
         <a href="examples.html">Examples</a>
         <a href="architecture.html">Architecture</a>
+        <a href="diagrams.html">Diagrams</a>
         <a href="ros2-adapter.html" aria-current="page">ROS2</a>
         <a href="px4-adapter.html">PX4</a>
         <a href="qt-embed.html">Qt Embed</a>
@@ -360,6 +361,19 @@
             <code>src/adapters/ros2/</code>. It does not modify the Spectra
             core library.
           </p>
+
+          <article class="diagram-feature" style="margin-bottom: 1.25rem">
+            <div class="diagram-feature-head">
+              <h3>ROS2 → Spectra data path</h3>
+              <p>Background executor introspects DDS messages; SPSC ring buffers decouple the Vulkan render thread.</p>
+            </div>
+            <div class="diagram-feature-canvas">
+              <img src="images/figma/ros2-data-path.png" alt="ROS2 adapter data path" width="3076" height="580" />
+            </div>
+            <div class="diagram-feature-foot">
+              <a href="diagrams.html">All diagrams</a>
+            </div>
+          </article>
 
           <div class="arch-row">
             <div class="arch-box">

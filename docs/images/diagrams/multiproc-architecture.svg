@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 520" role="img" aria-label="Spectra multiproc architecture">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f8fafc"/>
+      <stop offset="100%" stop-color="#eef2f7"/>
+    </linearGradient>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#38dcca"/>
+    </marker>
+    <style>
+      .title { font: 700 28px 'Sora', system-ui, sans-serif; fill: #0d1520; }
+      .subtitle { font: 500 15px 'Sora', system-ui, sans-serif; fill: #5c6f88; }
+      .lane { fill: rgba(123,183,255,0.06); stroke: rgba(123,183,255,0.22); stroke-width: 1.5; rx: 18; }
+      .lane-title { font: 700 13px 'Sora', sans-serif; fill: #5c6f88; letter-spacing: 0.08em; text-transform: uppercase; }
+      .box { rx: 12; stroke-width: 2; }
+      .label { font: 700 16px 'Sora', sans-serif; fill: #eef5ff; }
+      .small { font: 500 13px 'Sora', sans-serif; fill: #c8d6ea; }
+      .edge { stroke: #38dcca; stroke-width: 2.5; fill: none; marker-end: url(#arrow); }
+      .edge-back { stroke: #7bb7ff; stroke-width: 2; stroke-dasharray: 7 5; fill: none; marker-end: url(#arrow); }
+    </style>
+  </defs>
+  <rect width="1120" height="520" fill="url(#bg)"/>
+  <text x="48" y="48" class="title">Multiproc Runtime</text>
+  <text x="48" y="78" class="subtitle">Default topology: backend daemon + one or more window agents</text>
+
+  <rect class="lane" x="40" y="108" width="220" height="360"/>
+  <text x="60" y="136" class="lane-title">Clients</text>
+  <rect class="box" x="68" y="168" width="164" height="72" fill="#151f2c" stroke="#38dcca"/>
+  <text x="150" y="200" text-anchor="middle" class="label">Python</text>
+  <text x="150" y="222" text-anchor="middle" class="small">plot() / Session</text>
+  <rect class="box" x="68" y="268" width="164" height="72" fill="#151f2c" stroke="#38dcca"/>
+  <text x="150" y="300" text-anchor="middle" class="label">C++ App</text>
+  <text x="150" y="322" text-anchor="middle" class="small">multiproc mode</text>
+
+  <rect class="lane" x="290" y="108" width="240" height="360"/>
+  <text x="310" y="136" class="lane-title">Backend</text>
+  <rect class="box" x="302" y="196" width="216" height="96" fill="#0d1520" stroke="#7bb7ff"/>
+  <text x="410" y="232" text-anchor="middle" class="label">spectra-backend</text>
+  <text x="410" y="256" text-anchor="middle" class="small">SessionGraph · ClientRouter</text>
+  <rect class="box" x="318" y="330" width="184" height="64" fill="#101923" stroke="#38dcca"/>
+  <text x="410" y="368" text-anchor="middle" class="label" style="font-size:14px">FigureModel</text>
+
+  <rect class="lane" x="560" y="108" width="260" height="360"/>
+  <text x="580" y="136" class="lane-title">Window agents</text>
+  <rect class="box" x="582" y="168" width="216" height="72" fill="#151f2c" stroke="#f7b267"/>
+  <text x="690" y="208" text-anchor="middle" class="label">spectra-window</text>
+  <rect class="box" x="582" y="268" width="216" height="72" fill="#151f2c" stroke="#f7b267"/>
+  <text x="690" y="308" text-anchor="middle" class="label">spectra-window</text>
+  <text x="690" y="348" text-anchor="middle" class="small">Vulkan · ImGui · per swapchain</text>
+
+  <rect class="lane" x="850" y="108" width="230" height="360"/>
+  <text x="870" y="136" class="lane-title">Protocol</text>
+  <rect class="box" x="868" y="196" width="194" height="56" fill="#101923" stroke="#38dcca"/>
+  <text x="965" y="230" text-anchor="middle" class="label" style="font-size:15px">TLV codec</text>
+  <rect class="box" x="868" y="272" width="194" height="56" fill="#101923" stroke="#38dcca"/>
+  <text x="965" y="306" text-anchor="middle" class="label" style="font-size:15px">FlatBuffers</text>
+  <rect class="box" x="868" y="348" width="194" height="56" fill="#101923" stroke="#7bb7ff"/>
+  <text x="965" y="382" text-anchor="middle" class="label" style="font-size:15px">state diff</text>
+
+  <path class="edge" d="M232 204 H302"/>
+  <path class="edge" d="M232 304 H302"/>
+  <path class="edge" d="M518 244 H582"/>
+  <path class="edge-back" d="M582 304 H518"/>
+  <path class="edge" d="M798 244 H868"/>
+</svg>

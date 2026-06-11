@@ -1,0 +1,22 @@
+# Build trees (Spectra uses build/, build-asan/, build-ros2/, etc.)
+build/
+build*/
+build-*
+
+# Agent/skill noise — duplicates concepts without linking to src/
+.cursor/
+.claude/
+.devin/
+skills/
+
+# Archived plans (superseded; active plans/ kept)
+plans/archive/
+
+# CMake/CTest artifacts
+Testing/
+
+# Generated HTML docs (AST noise, no semantic value)
+docs/*.html
+
+# Graphify output (never index self)
+graphify-out/

@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 560" role="img" aria-label="Python IPC sequence">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f8fafc"/>
+      <stop offset="100%" stop-color="#eef2f7"/>
+    </linearGradient>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#38dcca"/>
+    </marker>
+    <style>
+      .title { font: 700 28px Sora, sans-serif; fill: #0d1520; }
+      .subtitle { font: 500 15px Sora, sans-serif; fill: #5c6f88; }
+      .actor { fill: #101923; stroke: #7bb7ff; stroke-width: 2; rx: 10; }
+      .actor-label { font: 700 15px Sora, sans-serif; fill: #eef5ff; }
+      .lifeline { stroke: #9aafc8; stroke-width: 2; stroke-dasharray: 6 5; }
+      .msg { stroke: #38dcca; stroke-width: 2.5; fill: none; marker-end: url(#arrow); }
+      .msg-back { stroke: #7bb7ff; stroke-width: 2; stroke-dasharray: 7 5; fill: none; marker-end: url(#arrow); }
+      .msg-label { font: 600 14px 'JetBrains Mono', monospace; fill: #0d1520; }
+    </style>
+  </defs>
+  <rect width="1120" height="560" fill="url(#bg)"/>
+  <text x="48" y="48" class="title">Python IPC Sequence</text>
+  <text x="48" y="78" class="subtitle">Session connect → figure create → series update → GPU frame</text>
+
+  <rect class="actor" x="60" y="110" width="150" height="48"/><text x="135" y="140" text-anchor="middle" class="actor-label">Python Session</text>
+  <rect class="actor" x="280" y="110" width="130" height="48"/><text x="345" y="140" text-anchor="middle" class="actor-label">Transport</text>
+  <rect class="actor" x="480" y="110" width="170" height="48"/><text x="565" y="140" text-anchor="middle" class="actor-label">spectra-backend</text>
+  <rect class="actor" x="720" y="110" width="160" height="48"/><text x="800" y="140" text-anchor="middle" class="actor-label">spectra-window</text>
+
+  <line class="lifeline" x1="135" y1="158" x2="135" y2="500"/>
+  <line class="lifeline" x1="345" y1="158" x2="345" y2="500"/>
+  <line class="lifeline" x1="565" y1="158" x2="565" y2="500"/>
+  <line class="lifeline" x1="800" y1="158" x2="800" y2="500"/>
+
+  <path class="msg" d="M135 190 H345"/><text x="240" y="182" text-anchor="middle" class="msg-label">connect</text>
+  <path class="msg" d="M345 220 H565"/><text x="455" y="212" text-anchor="middle" class="msg-label">REQ_CREATE_SESSION</text>
+  <path class="msg-back" d="M565 250 H345"/><text x="455" y="242" text-anchor="middle" class="msg-label">ACK session id</text>
+  <path class="msg" d="M135 280 H345"/><text x="240" y="272" text-anchor="middle" class="msg-label">REQ_CREATE_FIGURE</text>
+  <path class="msg" d="M565 310 H800"/><text x="682" y="302" text-anchor="middle" class="msg-label">spawn agent</text>
+  <path class="msg-back" d="M800 340 H565"/><text x="682" y="332" text-anchor="middle" class="msg-label">READY</text>
+  <path class="msg" d="M135 370 H345"/><text x="240" y="362" text-anchor="middle" class="msg-label">REQ_APPEND_SERIES</text>
+  <path class="msg" d="M565 400 H800"/><text x="682" y="392" text-anchor="middle" class="msg-label">PUSH_STATE_DIFF</text>
+  <path class="msg" d="M800 430 H800"/><text x="820" y="422" class="msg-label">render frame</text>
+  <path class="msg-back" d="M800 460 H565"/><text x="682" y="452" text-anchor="middle" class="msg-label">EVENT_FRAME_READY</text>
+</svg>

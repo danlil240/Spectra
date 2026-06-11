@@ -9,6 +9,10 @@ onto an axes to plot them in real time.
 This document covers the Phase 1–2 implementation described in
 [`plans/SPECTRA_TOPICS_PLAN.md`](../plans/SPECTRA_TOPICS_PLAN.md).
 
+![Topics publish and subscribe flow](images/diagrams/topics-flow.png)
+
+Full-size version: [diagrams gallery](diagrams.html)
+
 ---
 
 ## Concepts

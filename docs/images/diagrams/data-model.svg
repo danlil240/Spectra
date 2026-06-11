@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 720" role="img" aria-label="Spectra data model hierarchy">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f8fafc"/>
+      <stop offset="100%" stop-color="#eef2f7"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#081321" flood-opacity="0.12"/>
+    </filter>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#6f829f"/>
+    </marker>
+    <style>
+      .title { font: 700 28px 'Sora', system-ui, sans-serif; fill: #0d1520; }
+      .subtitle { font: 500 15px 'Sora', system-ui, sans-serif; fill: #5c6f88; }
+      .box { stroke-width: 2; rx: 14; filter: url(#shadow); }
+      .label { font: 700 17px 'Sora', system-ui, sans-serif; fill: #eef5ff; }
+      .sublabel { font: 500 13px 'Sora', system-ui, sans-serif; fill: #c8d6ea; }
+      .edge { stroke: #6f829f; stroke-width: 2.5; fill: none; marker-end: url(#arrow); }
+    </style>
+  </defs>
+  <rect width="1120" height="720" fill="url(#bg)"/>
+  <text x="48" y="52" class="title">Core Data Model</text>
+  <text x="48" y="82" class="subtitle">App → Figure → Axes / Axes3D → Series</text>
+
+  <rect class="box" x="430" y="118" width="260" height="72" fill="#0d1520" stroke="#38dcca"/>
+  <text x="560" y="162" text-anchor="middle" class="label">App</text>
+
+  <path class="edge" d="M560 190 V228"/>
+  <rect class="box" x="350" y="228" width="420" height="72" fill="#101923" stroke="#7bb7ff"/>
+  <text x="560" y="272" text-anchor="middle" class="label">Figure</text>
+
+  <path class="edge" d="M430 300 V348"/>
+  <path class="edge" d="M690 300 V348"/>
+
+  <rect class="box" x="120" y="348" width="300" height="88" fill="#151f2c" stroke="#38dcca"/>
+  <text x="270" y="388" text-anchor="middle" class="label">Axes (2D)</text>
+  <text x="270" y="414" text-anchor="middle" class="sublabel">limits, ticks, grid</text>
+
+  <rect class="box" x="700" y="348" width="300" height="88" fill="#151f2c" stroke="#f7b267"/>
+  <text x="850" y="388" text-anchor="middle" class="label">Axes3D</text>
+  <text x="850" y="414" text-anchor="middle" class="sublabel">camera, lighting</text>
+
+  <path class="edge" d="M220 436 V484"/>
+  <path class="edge" d="M320 436 V484"/>
+  <path class="edge" d="M800 436 V484"/>
+  <path class="edge" d="M900 436 V484"/>
+
+  <rect class="box" x="48" y="484" width="180" height="76" fill="#101923" stroke="#7bb7ff"/>
+  <text x="138" y="528" text-anchor="middle" class="label">LineSeries</text>
+
+  <rect class="box" x="252" y="484" width="180" height="76" fill="#101923" stroke="#7bb7ff"/>
+  <text x="342" y="528" text-anchor="middle" class="label">ScatterSeries</text>
+
+  <rect class="box" x="688" y="484" width="180" height="76" fill="#101923" stroke="#f7b267"/>
+  <text x="778" y="528" text-anchor="middle" class="label">MeshSeries</text>
+
+  <rect class="box" x="892" y="484" width="180" height="76" fill="#101923" stroke="#f7b267"/>
+  <text x="982" y="528" text-anchor="middle" class="label">SurfaceSeries</text>
+
+  <rect x="48" y="610" width="1024" height="82" rx="14" fill="rgba(56,220,202,0.08)" stroke="rgba(56,220,202,0.35)" stroke-width="1.5"/>
+  <text x="72" y="644" class="subtitle" fill="#2d4a62">Public API</text>
+  <text x="72" y="672" style="font:600 15px 'JetBrains Mono',monospace; fill:#0d1520">include/spectra/  ·  Python proxies mirror this graph over IPC</text>
+</svg>

@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Architecture Diagrams | Spectra Docs</title>
+    <meta
+      name="description"
+      content="Architecture diagrams for Spectra — multiproc IPC, render pipeline, data model, topics, and runtime modes."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Sora:wght@400;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body id="top" class="docs-page diagrams-doc">
+    <nav class="top-nav">
+      <div class="container nav-wrap">
+        <a href="index.html">Home</a>
+        <a href="getting-started.html">Getting Started</a>
+        <a href="features.html">Feature Guide</a>
+        <a href="examples.html">Examples</a>
+        <a href="architecture.html">Architecture</a>
+        <a href="diagrams.html" aria-current="page">Diagrams</a>
+        <a href="ros2-adapter.html">ROS2</a>
+        <a href="px4-adapter.html">PX4</a>
+        <a href="qt-embed.html">Qt Embed</a>
+        <a href="webgpu.html">WebGPU</a>
+      </div>
+    </nav>
+
+    <header class="page-hero">
+      <div class="container">
+        <div class="breadcrumb"><a href="index.html">Docs</a><span>/</span><span>Diagrams</span></div>
+        <div class="status-row" aria-label="Diagram scope">
+          <span class="status-chip">Architecture</span>
+        </div>
+        <h1>Architecture Diagrams</h1>
+        <p class="lead">
+          Visual maps of Spectra's runtime, rendering pipeline, IPC, and live data topics —
+          embedded across the docs.
+        </p>
+      </div>
+    </header>
+
+    <main>
+      <section class="section section-tight" id="runtime-ipc">
+        <div class="container">
+          <h2>Runtime &amp; IPC</h2>
+          <p class="section-intro">
+            How clients connect to <code>spectra-backend</code>, spawn window agents, and choose
+            in-process vs multi-process mode.
+          </p>
+          <div class="diagram-stack">
+            <article class="diagram-feature">
+              <div class="diagram-feature-head">
+                <h3>Multiproc Architecture</h3>
+                <p>Clients encode IPC messages; the backend daemon owns <code>FigureModel</code> and <code>SessionGraph</code>, then routes work to Vulkan window agents.</p>
+              </div>
+              <div class="diagram-feature-canvas">
+                <img src="images/diagrams/multiproc-architecture.png" alt="Spectra multiproc architecture" width="1120" height="520" />
+              </div>
+              <div class="diagram-feature-foot"><a href="architecture.html#multiproc">Read multiproc docs →</a></div>
+            </article>
+            <article class="diagram-feature">
+              <div class="diagram-feature-head">
+                <h3>Python IPC Sequence</h3>
+                <p>Session lifecycle from socket connect through figure creation, series append, state diff fan-out, and GPU frame render.</p>
+              </div>
+              <div class="diagram-feature-canvas">
+                <img src="images/diagrams/python-ipc-sequence.png" alt="Python IPC sequence diagram" width="1120" height="560" />
+              </div>
+              <div class="diagram-feature-foot"><a href="getting-started.html#python-api">Python quick start →</a></div>
+            </article>
+            <article class="diagram-feature">
+              <div class="diagram-feature-head">
+                <h3>Runtime Modes</h3>
+                <p><code>SPECTRA_RUNTIME_MODE</code> selects in-process <code>build/spectra</code> or the default multiproc backend + agent topology.</p>
+              </div>
+              <div class="diagram-feature-canvas">
+                <img src="images/diagrams/runtime-modes.png" alt="Spectra runtime mode selection" width="1120" height="380" />
+              </div>
+              <div class="diagram-feature-foot"><a href="architecture.html#runtime-modes">Mode selection table →</a></div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="inproc-topology">
+        <div class="container">
+          <h2>Inproc Topology</h2>
+          <p class="section-intro">Single-process <code>build/spectra</code> — UI, plot state, and Vulkan in one binary.</p>
+          <article class="diagram-feature">
+            <div class="diagram-feature-canvas">
+              <img src="images/diagrams/inproc-topology.png" alt="Inproc runtime topology" width="1120" height="640" />
+            </div>
+            <div class="diagram-feature-foot"><a href="architecture.html#inproc">Architecture docs →</a></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container">
+          <h2>Core Model &amp; Rendering</h2>
+          <p class="section-intro">
+            The object hierarchy from <code>App</code> down to series types, and the GPU path from
+            state change to Vulkan draw calls.
+          </p>
+          <div class="diagram-stack">
+            <article class="diagram-feature">
+              <div class="diagram-feature-head">
+                <h3>Data Model Hierarchy</h3>
+                <p><code>App → Figure → Axes / Axes3D → Series</code> — the stable public object graph mirrored by Python proxies over IPC.</p>
+              </div>
+              <div class="diagram-feature-canvas">
+                <img src="images/diagrams/data-model.png" alt="Data model hierarchy" width="1120" height="720" />
+              </div>
+              <div class="diagram-feature-foot"><a href="architecture.html#data-model">Symbol reference →</a></div>
+            </article>
+            <article class="diagram-feature">
+              <div class="diagram-feature-head">
+                <h3>Render Pipeline</h3>
+                <p>State mutations become draw lists; <code>RenderUpload</code> stages CPU data while SPIR-V shaders and <code>ImGuiIntegration</code> share the swapchain pass.</p>
+              </div>
+              <div class="diagram-feature-canvas">
+                <img src="images/diagrams/render-pipeline.png" alt="Render pipeline" width="1120" height="420" />
+              </div>
+              <div class="diagram-feature-foot"><a href="architecture.html#render-pipeline">Pipeline details →</a></div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container">
+          <h2>Adapters &amp; Extensions</h2>
+          <p class="section-intro">
+            ROS2, PX4, Qt embedding, headless export, plugins, and the experimental WebGPU path.
+          </p>
+          <div class="diagram-stack">
+            <article class="diagram-feature">
+              <div class="diagram-feature-head"><h3>ROS2 Data Path</h3><p>Background executor introspects messages; SPSC rings decouple the render thread.</p></div>
+              <div class="diagram-feature-canvas"><img src="images/figma/ros2-data-path.png" alt="ROS2 data path" width="3076" height="580" /></div>
+              <div class="diagram-feature-foot"><a href="ros2-adapter.html#architecture">ROS2 docs →</a></div>
+            </article>
+            <article class="diagram-feature">
+              <div class="diagram-feature-head"><h3>PX4 Workflows</h3><p>Offline ULog browsing and live MAVLink telemetry share one plot stack.</p></div>
+              <div class="diagram-feature-canvas"><img src="images/figma/px4-workflows.png" alt="PX4 workflows" width="2468" height="404" /></div>
+              <div class="diagram-feature-foot"><a href="px4-adapter.html">PX4 docs →</a></div>
+            </article>
+            <article class="diagram-feature">
+              <div class="diagram-feature-head"><h3>Qt Embed</h3><p><code>QtRuntime</code> owns Vulkan init; the Qt event loop drives frames.</p></div>
+              <div class="diagram-feature-canvas"><img src="images/figma/qt-embed.png" alt="Qt embed integration" width="1988" height="437" /></div>
+              <div class="diagram-feature-foot"><a href="qt-embed.html">Qt guide →</a></div>
+            </article>
+            <article class="diagram-feature">
+              <div class="diagram-feature-head"><h3>Plugin Extension Points</h3><p><code>spectra_plugin_init</code> registers commands, transforms, overlays, and more.</p></div>
+              <div class="diagram-feature-canvas"><img src="images/figma/plugin-extension-points.png" alt="Plugin extension points" width="1444" height="1252" /></div>
+              <div class="diagram-feature-foot"><a href="plugin_developer_guide.md">Plugin guide →</a></div>
+            </article>
+            <article class="diagram-feature">
+              <div class="diagram-feature-head"><h3>Easy Embed</h3><p>One-liner offscreen render — no window, no daemon, pixels out.</p></div>
+              <div class="diagram-feature-canvas"><img src="images/figma/easy-embed-headless.png" alt="Easy embed headless path" width="1988" height="356" /></div>
+              <div class="diagram-feature-foot"><a href="easy_embed_guide.md">Embed guide →</a></div>
+            </article>
+            <article class="diagram-feature">
+              <div class="diagram-feature-head"><h3>WebGPU Dual Runtime</h3><p>Same C++ core; experimental 2D path via Dawn or browser WebGPU.</p></div>
+              <div class="diagram-feature-canvas"><img src="images/figma/webgpu-dual-runtime.png" alt="WebGPU dual runtime" width="1636" height="580" /></div>
+              <div class="diagram-feature-foot"><a href="webgpu.html">WebGPU docs →</a></div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container">
+          <h2>Live Data Topics</h2>
+          <p class="section-intro">
+            ROS-style named streams published into the backend and plotted on demand from any window.
+          </p>
+          <article class="diagram-feature">
+            <div class="diagram-feature-head">
+              <h3>Topics Publish &amp; Subscribe</h3>
+              <p>Publishers survive client disconnect; window agents subscribe by dragging topics onto axes.</p>
+            </div>
+            <div class="diagram-feature-canvas">
+              <img src="images/diagrams/topics-flow.png" alt="Topics data flow" width="1120" height="340" />
+            </div>
+            <div class="diagram-feature-foot"><a href="topics.md">Topics guide (C++ and Python APIs) →</a></div>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-wrap">
+        <p>Spectra Docs — architecture diagrams</p>
+        <a href="index.html">Back to home</a>
+      </div>
+    </footer>
+  </body>
+</html>

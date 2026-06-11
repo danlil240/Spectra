@@ -89,6 +89,33 @@ void RosAppShell::draw_menu_bar()
         ImGui::MenuItem("Parameter Editor", nullptr, &show_param_editor_);
         ImGui::MenuItem("Service Caller", nullptr, &show_service_caller_);
 
+        if (show_scene_viewport_ || show_displays_panel_ || show_tf_tree_)
+        {
+            ImGui::SeparatorText("Scene");
+            ImGui::TextUnformatted("Fixed Frame");
+            ImGui::SetNextItemWidth(180.0f);
+            const std::vector<std::string> frames =
+                collect_known_fixed_frames(tf_tree_panel_.get(),
+                                           scene_manager_,
+                                           workspace_state_.fixed_frame);
+            std::string current_label = workspace_state_.fixed_frame.empty()
+                                            ? "(auto)"
+                                            : workspace_state_.fixed_frame;
+            if (ImGui::BeginCombo("##ros_fixed_frame_menu", current_label.c_str()))
+            {
+                const bool is_auto = workspace_state_.fixed_frame.empty();
+                if (ImGui::Selectable("(auto)", is_auto))
+                    workspace_state_.fixed_frame.clear();
+                for (const auto& frame : frames)
+                {
+                    const bool selected = workspace_state_.fixed_frame == frame;
+                    if (ImGui::Selectable(frame.c_str(), selected))
+                        workspace_state_.fixed_frame = frame;
+                }
+                ImGui::EndCombo();
+            }
+        }
+
         ImGui::Separator();
         if (ImGui::MenuItem("Reset Dock Layout"))
             dock_layout_initialized_ = false;
@@ -270,35 +297,6 @@ void RosAppShell::draw_menu_bar()
         if (ImGui::Button("Close##shortcuts"))
             ImGui::CloseCurrentPopup();
         ImGui::EndPopup();
-    }
-
-    ImGui::Separator();
-    ImGui::TextUnformatted("Fixed Frame");
-    ImGui::SameLine();
-    ImGui::SetNextItemWidth(180.0f);
-    const std::vector<std::string> frames =
-        collect_known_fixed_frames(tf_tree_panel_.get(),
-                                   scene_manager_,
-                                   workspace_state_.fixed_frame);
-    std::string current_label =
-        workspace_state_.fixed_frame.empty() ? "(auto)" : workspace_state_.fixed_frame;
-    if (ImGui::BeginCombo("##ros_fixed_frame", current_label.c_str()))
-    {
-        const bool is_auto = workspace_state_.fixed_frame.empty();
-        if (ImGui::Selectable("(auto)", is_auto))
-            workspace_state_.fixed_frame.clear();
-        if (is_auto)
-            ImGui::SetItemDefaultFocus();
-
-        for (const auto& frame : frames)
-        {
-            const bool selected = workspace_state_.fixed_frame == frame;
-            if (ImGui::Selectable(frame.c_str(), selected))
-                workspace_state_.fixed_frame = frame;
-            if (selected)
-                ImGui::SetItemDefaultFocus();
-        }
-        ImGui::EndCombo();
     }
 
     ImGui::EndMainMenuBar();

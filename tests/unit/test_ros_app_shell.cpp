@@ -661,7 +661,7 @@ TEST(LayoutVisibility, SettersWorkWithoutInit)
     EXPECT_FALSE(shell.plot_area_visible());
     EXPECT_TRUE(shell.inspector_panel_visible());
     EXPECT_FALSE(shell.topic_echo_visible());
-    EXPECT_TRUE(shell.topic_stats_visible());
+    EXPECT_FALSE(shell.topic_stats_visible());
 }
 
 // ---------------------------------------------------------------------------

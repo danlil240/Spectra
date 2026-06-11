@@ -1,10 +1,8 @@
 // spectra-ros — standalone ROS2 visualization / debugging application (G1).
 //
 // Default layout:
-//   - Topic monitor panel  (left dock)
-//   - Plot area             (center)
-//   - Statistics overlay    (right dock)
-//   - Topic echo panel      (bottom dock)
+//   - Plot area (maximized center canvas)
+//   - Auxiliary panels hidden; open from View menu when needed
 //
 // CLI:
 //   --topics TOPIC[:FIELD] ...   subscribe and plot on launch

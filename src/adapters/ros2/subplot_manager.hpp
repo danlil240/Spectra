@@ -261,6 +261,9 @@ class SubplotManager
     spectra::Figure&       figure() { return *figure_; }
     const spectra::Figure& figure() const { return *figure_; }
 
+    // Align figure canvas margins, background, and axis chrome with the active UI theme.
+    void apply_plot_theme();
+
     // -----------------------------------------------------------------
     // Axis linking
     // -----------------------------------------------------------------

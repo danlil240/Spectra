@@ -100,3 +100,5 @@ graphify-out/.needs_update
 graphify-out/cache
 
 
+.playwright-mcp/
+graphify-out/2026-06-11/

@@ -24,6 +24,7 @@
         <a href="features.html">Feature Guide</a>
         <a href="examples.html">Examples</a>
         <a href="architecture.html">Architecture</a>
+        <a href="diagrams.html">Diagrams</a>
         <a href="ros2-adapter.html">ROS2</a>
         <a href="px4-adapter.html">PX4</a>
         <a href="qt-embed.html" aria-current="page">Qt Embed</a>
@@ -52,6 +53,16 @@
       <section class="section section-tight">
         <div class="container">
           <h2>When to Use Qt Embedding</h2>
+          <article class="diagram-feature" style="margin-bottom: 1.25rem">
+            <div class="diagram-feature-head">
+              <h3>Qt6 integration path</h3>
+              <p>In-process only — <code>QtRuntime</code> initializes Vulkan and drives frames from the Qt event loop.</p>
+            </div>
+            <div class="diagram-feature-canvas">
+              <img src="images/figma/qt-embed.png" alt="Qt embed integration" width="1988" height="437" />
+            </div>
+            <div class="diagram-feature-foot"><a href="diagrams.html">More diagrams →</a></div>
+          </article>
           <ul>
             <li>You already have a Qt6 desktop application and want Spectra plots inside it.</li>
             <li>You need Spectra to share the application's main event loop and signals/slots.</li>

@@ -25,6 +25,10 @@
 
 ## Overview
 
+![Plugin extension points](images/figma/plugin-extension-points.png)
+
+Full-size version: [diagram gallery](diagrams.html)
+
 Spectra plugins are **shared libraries** (`.so` on Linux, `.dylib` on macOS, `.dll` on Windows) that are discovered and loaded at runtime by `PluginManager`. A plugin exports one mandatory symbol, `spectra_plugin_init`, and an optional `spectra_plugin_shutdown`.
 
 The host calls `spectra_plugin_init` once at load time, passing a `SpectraPluginContext` that provides access to all registries. The plugin fills a `SpectraPluginInfo` struct and registers whatever extension points it needs. No framework inheritance or vtable is required.

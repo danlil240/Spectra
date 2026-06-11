@@ -21,6 +21,7 @@
         <a href="features.html">Feature Guide</a>
         <a href="examples.html">Examples</a>
         <a href="architecture.html" aria-current="page">Architecture</a>
+        <a href="diagrams.html">Diagrams</a>
         <a href="ros2-adapter.html">ROS2</a>
         <a href="px4-adapter.html">PX4</a>
         <a href="qt-embed.html">Qt Embed</a>
@@ -38,10 +39,59 @@
         </div>
         <h1>Architecture Overview</h1>
         <p class="lead">System topology, runtime modes, project structure, and core design decisions.</p>
+        <div class="figma-banner" style="margin-top: 1.25rem">
+          <div>
+            <strong>Visual architecture maps</strong>
+            <p>Diagrams for multiproc IPC, render pipeline, data model, and runtime modes.</p>
+          </div>
+          <a class="btn btn-primary" href="diagrams.html">View all diagrams</a>
+        </div>
       </div>
     </header>
 
     <main>
+
+      <!-- VISUAL OVERVIEW -->
+      <section class="section section-tight" id="visual-overview">
+        <div class="container">
+          <h2>Visual Overview</h2>
+          <p class="section-intro">
+            Full-size diagrams for runtime topology, rendering, data model, and live topics.
+          </p>
+          <div class="diagram-stack">
+            <article class="diagram-feature" id="data-model">
+              <div class="diagram-feature-head">
+                <h3>Data Model</h3>
+                <p>Stable object graph from <code>App</code> through <code>Figure</code>, 2D/3D axes, and series types. Python proxies mirror this hierarchy over IPC.</p>
+              </div>
+              <div class="diagram-feature-canvas">
+                <img src="images/diagrams/data-model.png" alt="Spectra data model hierarchy from App through Figure to Axes and Series types" width="1120" height="720" />
+              </div>
+            </article>
+            <article class="diagram-feature" id="render-pipeline">
+              <div class="diagram-feature-head">
+                <h3>Render Pipeline</h3>
+                <p>State mutations on the app thread become draw lists on the render thread. Uploads, SPIR-V shaders, and ImGui share the Vulkan swapchain pass.</p>
+              </div>
+              <div class="diagram-feature-canvas">
+                <img src="images/diagrams/render-pipeline.png" alt="Spectra render pipeline from state change through Renderer and VulkanBackend to GPU" width="1120" height="420" />
+              </div>
+            </article>
+            <article class="diagram-feature" id="multiproc">
+              <div class="diagram-feature-head">
+                <h3>Multiproc Topology</h3>
+                <p>Clients talk to <code>spectra-backend</code>, which owns session state and routes IPC to one or more <code>spectra-window</code> Vulkan agents.</p>
+              </div>
+              <div class="diagram-feature-canvas">
+                <img src="images/diagrams/multiproc-architecture.png" alt="Spectra multiproc architecture with clients, backend daemon, and window agents" width="1120" height="520" />
+              </div>
+              <div class="diagram-feature-foot">
+                <a href="diagrams.html#runtime-ipc">Full IPC sequence and runtime mode diagrams →</a>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
 
       <!-- HIGH-LEVEL LAYERS -->
       <section class="section section-tight">
@@ -77,52 +127,37 @@
       </section>
 
       <!-- SYSTEM TOPOLOGY -->
-      <section class="section">
+      <section class="section" id="system-topology">
         <div class="container">
           <h2>System Topology</h2>
+          <p class="section-intro">How components are arranged in the default in-process binary versus the multiproc daemon + agent layout.</p>
 
-          <h3>Inproc Mode (Default)</h3>
-          <pre><code>App
-├── FigureRegistry (stable FigureId ownership)
-├── FigureManager (tabs, per-figure state, queued ops)
-├── WindowManager (multi-window, per-window swapchain)
-├── DockSystem → SplitViewManager (binary tree panes)
-├── CommandRegistry (30+ commands, fuzzy search)
-├── ShortcutManager + ShortcutConfig (persistent bindings)
-├── UndoManager (push/undo/redo, grouped operations)
-├── ThemeManager (dark/light, 8 palettes, CVD simulation)
-├── TransitionEngine (float/Color/AxisLimits/Camera anims)
-├── TimelineEditor → KeyframeInterpolator (7 interp modes)
-├── AxisLinkManager (linked axes, shared cursor)
-├── DataInteraction (tooltips, crosshair, markers, regions)
-└── Renderer (Vulkan backend, TextRenderer, GPU pipelines)
-     └── Figure
-          ├── Axes (2D) / Axes3D (3D + Camera + Lighting)
-          └── Series (Line, Scatter, Surface, Mesh, 3D...)</code></pre>
-
-          <h3 style="margin-top:1.5rem">Multiproc Mode (IPC)</h3>
-          <pre><code>┌─────────────┐  Unix socket  ┌──────────────────┐
-│  Python     │──────────────▶│  spectra-backend  │
-│  client     │◀──────────────│  (daemon)         │
-└─────────────┘               │  FigureModel      │
-                              │  SessionGraph     │
-┌─────────────┐               │  ClientRouter     │
-│  C++ App    │──────────────▶│  ProcessManager   │
-│ (multiproc) │◀──────────────└────┬────┬────┬───┘
-└─────────────┘                    │    │    │
-                        ┌──────────┘    │    └──────────┐
-                        ▼               ▼               ▼
-                 ┌───────────┐   ┌───────────┐   ┌───────────┐
-                 │  spectra-  │   │  spectra-  │   │  spectra-  │
-                 │  window    │   │  window    │   │  window    │
-                 │  (agent)   │   │  (agent)   │   │  (agent)   │
-                 │  Vulkan    │   │  Vulkan    │   │  Vulkan    │
-                 └───────────┘   └───────────┘   └───────────┘</code></pre>
+          <div class="diagram-stack">
+            <article class="diagram-feature" id="inproc">
+              <div class="diagram-feature-head">
+                <h3>Inproc Mode (default)</h3>
+                <p>One <code>build/spectra</code> process owns UI managers, plot state, and the Vulkan render thread. Best for desktop apps and lowest latency.</p>
+              </div>
+              <div class="diagram-feature-canvas">
+                <img src="images/diagrams/inproc-topology.png" alt="Spectra inproc runtime: UI, plot state, and render thread inside a single App process" width="1120" height="640" />
+              </div>
+            </article>
+            <article class="diagram-feature">
+              <div class="diagram-feature-head">
+                <h3>Multiproc Mode (IPC)</h3>
+                <p>Clients connect over Unix sockets to <code>spectra-backend</code>; window agents handle Vulkan and ImGui. Default for Python <code>show()</code> and orchestrated sessions.</p>
+              </div>
+              <div class="diagram-feature-canvas">
+                <img src="images/diagrams/multiproc-architecture.png" alt="Spectra multiproc topology with backend daemon and window agents" width="1120" height="520" />
+              </div>
+              <div class="diagram-feature-foot"><a href="diagrams.html#runtime-ipc">Python IPC sequence diagram →</a></div>
+            </article>
+          </div>
         </div>
       </section>
 
       <!-- RUNTIME MODES -->
-      <section class="section">
+      <section class="section" id="runtime-modes">
         <div class="container">
           <h2>Runtime Modes</h2>
           <table>
@@ -153,6 +188,17 @@
             </tbody>
           </table>
           <div class="callout">Both code paths are always compiled — mode is selected at runtime (no <code>#ifdef</code>).</div>
+
+          <article class="diagram-feature" style="margin-top: 1.5rem">
+            <div class="diagram-feature-head">
+              <h3>Mode selection flow</h3>
+              <p><code>SPECTRA_RUNTIME_MODE</code>, <code>AppConfig::socket_path</code>, or <code>SPECTRA_SOCKET</code> pick inproc vs multiproc at startup.</p>
+            </div>
+            <div class="diagram-feature-canvas">
+              <img src="images/diagrams/runtime-modes.png" alt="Spectra runtime mode selection: inproc single binary or multiproc backend and agents" width="1120" height="380" />
+            </div>
+            <div class="diagram-feature-foot"><a href="diagrams.html#runtime-ipc">Python IPC sequence →</a></div>
+          </article>
         </div>
       </section>
 

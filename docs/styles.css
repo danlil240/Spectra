@@ -1358,6 +1358,252 @@ pre code {
   }
 }
 
+/* Figma diagram gallery */
+.figma-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.1rem 1.35rem;
+  border-radius: 14px;
+  border: 1px solid rgba(56, 220, 202, 0.28);
+  background:
+    linear-gradient(135deg, rgba(56, 220, 202, 0.08), rgba(123, 183, 255, 0.06)),
+    var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.figma-banner strong {
+  display: block;
+  font-size: 1.02rem;
+  margin-bottom: 0.25rem;
+}
+
+.figma-banner p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+/* Full-width readable diagrams — use on architecture + diagrams pages */
+.diagram-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 2.5rem;
+  margin-top: 1.5rem;
+}
+
+.diagram-feature {
+  border-radius: 18px;
+  border: 1px solid var(--line-soft);
+  background: linear-gradient(180deg, var(--panel-2) 0%, var(--panel) 100%);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+
+.diagram-feature-head {
+  padding: 1.15rem 1.35rem 0.35rem;
+}
+
+.diagram-feature-head h3 {
+  margin: 0 0 0.45rem;
+  font-size: 1.2rem;
+  color: var(--text);
+}
+
+.diagram-feature-head p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.55;
+  max-width: 72ch;
+}
+
+.diagram-feature-canvas {
+  padding: 1rem 1.15rem 1.2rem;
+  background:
+    linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%),
+    repeating-linear-gradient(
+      -45deg,
+      rgba(123, 183, 255, 0.035) 0,
+      rgba(123, 183, 255, 0.035) 1px,
+      transparent 1px,
+      transparent 14px
+    );
+  border-top: 1px solid rgba(39, 54, 74, 0.28);
+}
+
+.diagram-feature-canvas img,
+.diagram-feature-canvas object {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 12px;
+  border: 1px solid rgba(15, 23, 35, 0.08);
+  box-shadow: 0 14px 40px rgba(8, 13, 20, 0.14);
+}
+
+.diagram-feature-foot {
+  padding: 0.85rem 1.35rem 1.1rem;
+  border-top: 1px solid var(--line-soft);
+  background: var(--panel-2);
+}
+
+.diagram-feature-foot a {
+  color: var(--accent-2);
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-decoration: none;
+}
+
+.diagram-feature-foot a:hover {
+  color: var(--accent);
+}
+
+/* Compact grid — index page previews only */
+.diagram-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.25rem;
+  margin-top: 1.25rem;
+  align-items: start;
+}
+
+.diagram-gallery.compact .diagram-card img {
+  max-height: 220px;
+  object-fit: contain;
+  object-position: top center;
+}
+
+.diagram-card {
+  border-radius: 16px;
+  border: 1px solid var(--line-soft);
+  background: linear-gradient(180deg, var(--panel-2) 0%, var(--panel) 100%);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.diagram-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(56, 220, 202, 0.35);
+}
+
+.diagram-card figure {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  background:
+    linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%),
+    repeating-linear-gradient(
+      -45deg,
+      rgba(123, 183, 255, 0.04) 0,
+      rgba(123, 183, 255, 0.04) 1px,
+      transparent 1px,
+      transparent 12px
+    );
+  border-bottom: 1px solid rgba(39, 54, 74, 0.35);
+  padding: 0.85rem;
+}
+
+.diagram-hero > img {
+  padding: 0.85rem;
+  background:
+    linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%),
+    repeating-linear-gradient(
+      -45deg,
+      rgba(123, 183, 255, 0.04) 0,
+      rgba(123, 183, 255, 0.04) 1px,
+      transparent 1px,
+      transparent 12px
+    );
+}
+
+.diagram-card img,
+.diagram-hero img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 10px;
+  border: 1px solid rgba(15, 23, 35, 0.08);
+  box-shadow: 0 10px 28px rgba(8, 13, 20, 0.12);
+  background: #f4f7fb;
+}
+
+.diagram-card figcaption {
+  padding: 1rem 1.1rem 1.15rem;
+  background: var(--panel-2);
+}
+
+.diagram-card h3 {
+  margin: 0 0 0.4rem;
+  font-size: 1.02rem;
+  color: var(--text);
+}
+
+.diagram-card p {
+  margin: 0 0 0.75rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.diagram-card a {
+  color: var(--accent-2);
+  font-weight: 600;
+  font-size: 0.88rem;
+  text-decoration: none;
+}
+
+.diagram-card a:hover {
+  color: var(--accent);
+}
+
+.diagram-hero {
+  margin: 1.5rem 0 0;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid var(--line-soft);
+  box-shadow: var(--shadow);
+  background: var(--panel);
+}
+
+.diagram-gallery .diagram-card figure {
+  position: relative;
+}
+
+.diagram-gallery:not(.compact) .diagram-card img {
+  width: 100%;
+  height: auto;
+}
+
+.diagram-hero-caption {
+  padding: 0.9rem 1.15rem;
+  background: var(--panel-2);
+  border-top: 1px solid var(--line-soft);
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.diagram-hero-caption a {
+  color: var(--accent-2);
+  font-weight: 600;
+}
+
+.diagram-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .diagram-split {
+    grid-template-columns: 1fr;
+  }
+}
+
 @keyframes fade-up {
   from {
     opacity: 0;

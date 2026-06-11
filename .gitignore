@@ -82,6 +82,12 @@ spectra_data.html
 
 install/
 
+# Docs diagram export tooling (SVG sources + Playwright PNG export)
+docs/images/figma/node_modules/
+docs/images/figma/package.json
+docs/images/figma/package-lock.json
+docs/.playwright-verify/
+
 uv.lock
 
 # graphify
@@ -94,3 +100,5 @@ graphify-out/.needs_update
 graphify-out/cache
 
 
+.playwright-mcp/
+graphify-out/2026-06-11/

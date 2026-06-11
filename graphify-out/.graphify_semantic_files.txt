@@ -1,0 +1,8 @@
+/home/daniel/projects/Spectra/docker/QUICK_START.md
+/home/daniel/projects/Spectra/docker/README_X11.md
+/home/daniel/projects/Spectra/docker/docker-compose.yml
+/home/daniel/projects/Spectra/docs/architecture.md
+/home/daniel/projects/Spectra/spectra_data.html
+/home/daniel/projects/Spectra/tests/data/ros_bags/imu_snippet/metadata.yaml
+/home/daniel/projects/Spectra/tests/data/ros_bags/nav2_debug/metadata.yaml
+/home/daniel/projects/Spectra/tests/data/ros_bags/nav_snippet/metadata.yaml

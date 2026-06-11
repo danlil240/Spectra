@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 640" role="img" aria-label="Spectra inproc runtime topology">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f8fafc"/>
+      <stop offset="100%" stop-color="#eef2f7"/>
+    </linearGradient>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#38dcca"/>
+    </marker>
+  </defs>
+  <rect width="1120" height="640" fill="url(#bg)"/>
+  <text x="48" y="48" font-family="system-ui,sans-serif" font-size="28" font-weight="700" fill="#0d1520">Inproc Runtime</text>
+  <text x="48" y="78" font-family="system-ui,sans-serif" font-size="15" fill="#5c6f88">Single binary — UI, plot state, and Vulkan rendering in one process</text>
+
+  <rect x="40" y="108" width="1040" height="500" rx="18" fill="rgba(123,183,255,0.07)" stroke="rgba(123,183,255,0.25)" stroke-width="1.5"/>
+  <text x="60" y="136" font-family="system-ui,sans-serif" font-size="13" font-weight="700" fill="#5c6f88" letter-spacing="1">BUILD/SPECTRA · APP</text>
+
+  <rect x="80" y="168" width="300" height="200" rx="14" fill="#151f2c" stroke="#7bb7ff" stroke-width="2"/>
+  <text x="230" y="200" text-anchor="middle" font-family="system-ui,sans-serif" font-size="15" font-weight="700" fill="#eef5ff">UI and interaction</text>
+  <text x="100" y="232" font-family="system-ui,sans-serif" font-size="12" fill="#c8d6ea">FigureManager · DockSystem</text>
+  <text x="100" y="254" font-family="system-ui,sans-serif" font-size="12" fill="#c8d6ea">CommandRegistry · UndoManager</text>
+  <text x="100" y="276" font-family="system-ui,sans-serif" font-size="12" fill="#c8d6ea">ImGuiIntegration · InputHandler</text>
+  <text x="100" y="298" font-family="system-ui,sans-serif" font-size="12" fill="#c8d6ea">ThemeManager · Workspace</text>
+  <text x="100" y="320" font-family="system-ui,sans-serif" font-size="12" fill="#c8d6ea">AxisLinkManager · DataInteraction</text>
+
+  <rect x="410" y="168" width="300" height="200" rx="14" fill="#151f2c" stroke="#f7b267" stroke-width="2"/>
+  <text x="560" y="200" text-anchor="middle" font-family="system-ui,sans-serif" font-size="15" font-weight="700" fill="#eef5ff">Plot state</text>
+  <text x="430" y="232" font-family="system-ui,sans-serif" font-size="12" fill="#c8d6ea">FigureRegistry · Figure</text>
+  <text x="430" y="254" font-family="system-ui,sans-serif" font-size="12" fill="#c8d6ea">Axes / Axes3D</text>
+  <text x="430" y="276" font-family="system-ui,sans-serif" font-size="12" fill="#c8d6ea">Line · Scatter · Surface · Mesh</text>
+  <text x="430" y="298" font-family="system-ui,sans-serif" font-size="12" fill="#c8d6ea">TimelineEditor · Animator</text>
+
+  <rect x="740" y="168" width="300" height="200" rx="14" fill="#0d1520" stroke="#38dcca" stroke-width="2"/>
+  <text x="890" y="200" text-anchor="middle" font-family="system-ui,sans-serif" font-size="15" font-weight="700" fill="#eef5ff">Render thread</text>
+  <text x="760" y="232" font-family="system-ui,sans-serif" font-size="12" fill="#c8d6ea">Renderer · RenderUpload</text>
+  <text x="760" y="254" font-family="system-ui,sans-serif" font-size="12" fill="#c8d6ea">VulkanBackend · swapchain</text>
+  <text x="760" y="276" font-family="system-ui,sans-serif" font-size="12" fill="#c8d6ea">SPIR-V shaders · MSAA</text>
+  <text x="760" y="298" font-family="system-ui,sans-serif" font-size="12" fill="#c8d6ea">TextRenderer · headless path</text>
+
+  <path d="M380 268 H410" stroke="#38dcca" stroke-width="2.5" fill="none" marker-end="url(#arrow)"/>
+  <path d="M710 268 H740" stroke="#38dcca" stroke-width="2.5" fill="none" marker-end="url(#arrow)"/>
+
+  <rect x="280" y="420" width="560" height="72" rx="14" fill="#101923" stroke="#38dcca" stroke-width="2"/>
+  <text x="560" y="454" text-anchor="middle" font-family="system-ui,sans-serif" font-size="15" font-weight="700" fill="#eef5ff">WindowManager</text>
+  <text x="560" y="476" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="#c8d6ea">per-window swapchain · tab tear-off · peer-equivalent OS windows</text>
+</svg>

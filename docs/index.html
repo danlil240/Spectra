@@ -24,6 +24,7 @@
         <a href="features.html">Feature Guide</a>
         <a href="examples.html">Examples</a>
         <a href="architecture.html">Architecture</a>
+        <a href="diagrams.html">Diagrams</a>
         <a href="ros2-adapter.html">ROS2</a>
         <a href="px4-adapter.html">PX4</a>
         <a href="qt-embed.html">Qt Embed</a>
@@ -151,6 +152,47 @@
         </div>
       </section>
 
+      <section class="section" id="architecture-diagrams">
+        <div class="container">
+          <h2>Architecture Diagrams</h2>
+          <p class="section-intro">
+            Visual maps for runtime topology, GPU pipeline, and live topics.
+          </p>
+          <div class="diagram-gallery compact">
+            <article class="diagram-card">
+              <figure>
+                <img src="images/diagrams/multiproc-architecture.png" alt="Spectra multiproc architecture diagram" loading="lazy" />
+                <figcaption>
+                  <h3>Multiproc Runtime</h3>
+                  <p>Python and C++ clients, backend daemon, window agents.</p>
+                  <a href="diagrams.html">Explore diagrams</a>
+                </figcaption>
+              </figure>
+            </article>
+            <article class="diagram-card">
+              <figure>
+                <img src="images/diagrams/render-pipeline.png" alt="Spectra Vulkan render pipeline diagram" loading="lazy" />
+                <figcaption>
+                  <h3>Render Pipeline</h3>
+                  <p>From figure state to SPIR-V shaders on the GPU.</p>
+                  <a href="architecture.html#render-pipeline">Read pipeline</a>
+                </figcaption>
+              </figure>
+            </article>
+            <article class="diagram-card">
+              <figure>
+                <img src="images/diagrams/topics-flow.png" alt="Spectra topics publish and subscribe flow" loading="lazy" />
+                <figcaption>
+                  <h3>Live Topics</h3>
+                  <p>Publisher-first streams into any open window.</p>
+                  <a href="topics.md">Topics guide</a>
+                </figcaption>
+              </figure>
+            </article>
+          </div>
+        </div>
+      </section>
+
       <section class="section" id="subpages">
         <div class="container">
           <h2>Browse by Topic</h2>
@@ -177,6 +219,11 @@
               <h3>Architecture</h3>
               <p>Rendering pipeline, window model, and IPC runtime modes.</p>
               <a href="architecture.html">Read architecture →</a>
+            </article>
+            <article class="card link-card">
+              <h3>Architecture Diagrams</h3>
+              <p>Core runtime, adapters, plugins, embed, and WebGPU.</p>
+              <a href="diagrams.html">View diagrams →</a>
             </article>
             <article class="card link-card">
               <h3>ROS2 Adapter</h3>

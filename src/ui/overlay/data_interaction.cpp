@@ -225,8 +225,11 @@ void DataInteraction::update(const CursorReadout& cursor, Figure& figure)
         axis_link_mgr_->clear_shared_cursor();
     }
 
-    // Run nearest-point query
-    nearest_ = find_nearest(cursor, figure);
+    // Run nearest-point query (skip when pointer is outside the plot/window)
+    if (!cursor.valid)
+        nearest_ = {};
+    else
+        nearest_ = find_nearest(cursor, figure);
 }
 
 bool DataInteraction::refresh_pointer_state(double screen_x, double screen_y)

@@ -12,6 +12,7 @@
 
     #include "math/data_transform.hpp"
     #include "math/expression_eval.hpp"
+    #include "ui/imgui/widgets.hpp"
     #include "ui/theme/design_tokens.hpp"
     #include "ui/theme/theme.hpp"
 
@@ -96,29 +97,117 @@ void CustomTransformDialog::draw()
 
     ImGuiIO& io       = ImGui::GetIO();
     float    dialog_w = 620.0f;
-    float    dialog_h = 560.0f;
+    float    dialog_h = 600.0f;
+
+    // ── Modal dim backdrop — focuses attention on the floating card ──
+    {
+        ImDrawList* bd = ImGui::GetBackgroundDrawList();
+        bd->AddRectFilled(
+            ImVec2(0.0f, 0.0f),
+            io.DisplaySize,
+            ImGui::ColorConvertFloat4ToU32(
+                ImVec4(colors.bg_overlay.r, colors.bg_overlay.g, colors.bg_overlay.b, 0.55f)));
+    }
+
     ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f),
                             ImGuiCond_Appearing,
                             ImVec2(0.5f, 0.5f));
     ImGui::SetNextWindowSize(ImVec2(dialog_w, dialog_h), ImGuiCond_Appearing);
-    ImGui::SetNextWindowSizeConstraints(ImVec2(500.0f, 400.0f), ImVec2(900.0f, 800.0f));
+    ImGui::SetNextWindowSizeConstraints(ImVec2(500.0f, 400.0f), ImVec2(900.0f, 860.0f));
 
+    // Refined floating card: elevated surface, large radius, accent hairline.
     ImGui::PushStyleColor(
         ImGuiCol_WindowBg,
-        ImVec4(colors.bg_elevated.r, colors.bg_elevated.g, colors.bg_elevated.b, 0.98f));
-    ImGui::PushStyleColor(
-        ImGuiCol_TitleBg,
-        ImVec4(colors.bg_secondary.r, colors.bg_secondary.g, colors.bg_secondary.b, 1.0f));
-    ImGui::PushStyleColor(ImGuiCol_TitleBgActive,
-                          ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.9f));
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 8.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(tokens::SPACE_4, tokens::SPACE_3));
+        ImVec4(colors.bg_elevated.r, colors.bg_elevated.g, colors.bg_elevated.b, 0.99f));
+    ImGui::PushStyleColor(ImGuiCol_Border,
+                          ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.28f));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, tokens::MODAL_RADIUS);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
 
-    bool still_open = open_;
-    if (ImGui::Begin("Add Custom Transformation##custom_xform",
-                     &still_open,
-                     ImGuiWindowFlags_NoCollapse))
+    bool             still_open = open_;
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar
+                             | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
+    if (ImGui::Begin("##custom_xform", nullptr, flags))
     {
+        ImVec2      win_min = ImGui::GetWindowPos();
+        ImVec2      win_sz  = ImGui::GetWindowSize();
+        ImDrawList* dl      = ImGui::GetWindowDrawList();
+
+        // ── Integrated header strip ──
+        float  header_h   = tokens::MODAL_HEADER_H;
+        ImVec2 header_max = ImVec2(win_min.x + win_sz.x, win_min.y + header_h);
+        dl->AddRectFilledMultiColor(
+            win_min,
+            header_max,
+            ImGui::ColorConvertFloat4ToU32(
+                ImVec4(colors.bg_secondary.r, colors.bg_secondary.g, colors.bg_secondary.b, 1.0f)),
+            ImGui::ColorConvertFloat4ToU32(
+                ImVec4(colors.bg_secondary.r, colors.bg_secondary.g, colors.bg_secondary.b, 1.0f)),
+            ImGui::ColorConvertFloat4ToU32(
+                ImVec4(colors.bg_elevated.r, colors.bg_elevated.g, colors.bg_elevated.b, 1.0f)),
+            ImGui::ColorConvertFloat4ToU32(
+                ImVec4(colors.bg_elevated.r, colors.bg_elevated.g, colors.bg_elevated.b, 1.0f)));
+        // Accent top edge + bottom hairline ground the header.
+        dl->AddRectFilled(win_min,
+                          ImVec2(win_min.x + win_sz.x, win_min.y + 2.0f),
+                          ImGui::ColorConvertFloat4ToU32(
+                              ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.7f)),
+                          tokens::MODAL_RADIUS,
+                          ImDrawFlags_RoundCornersTop);
+        dl->AddLine(ImVec2(win_min.x, header_max.y),
+                    ImVec2(header_max.x, header_max.y),
+                    ImGui::ColorConvertFloat4ToU32(ImVec4(colors.border_subtle.r,
+                                                          colors.border_subtle.g,
+                                                          colors.border_subtle.b,
+                                                          0.6f)),
+                    1.0f);
+
+        // Title
+        if (font_title_)
+            ImGui::PushFont(font_title_);
+        ImVec2 title_sz = ImGui::CalcTextSize("Add Custom Transformation");
+        dl->AddText(
+            ImVec2(win_min.x + tokens::MODAL_PADDING, win_min.y + (header_h - title_sz.y) * 0.5f),
+            ImGui::ColorConvertFloat4ToU32(
+                ImVec4(colors.text_primary.r, colors.text_primary.g, colors.text_primary.b, 1.0f)),
+            "Add Custom Transformation");
+        if (font_title_)
+            ImGui::PopFont();
+
+        // Close button (top-right)
+        {
+            float  cb = 28.0f;
+            ImVec2 cb_min(header_max.x - cb - tokens::SPACE_3, win_min.y + (header_h - cb) * 0.5f);
+            ImGui::SetCursorScreenPos(cb_min);
+            if (ImGui::InvisibleButton("##xform_close", ImVec2(cb, cb)))
+                still_open = false;
+            bool ch = ImGui::IsItemHovered();
+            if (ch)
+                dl->AddRectFilled(
+                    cb_min,
+                    ImVec2(cb_min.x + cb, cb_min.y + cb),
+                    ImGui::ColorConvertFloat4ToU32(
+                        ImVec4(colors.error.r, colors.error.g, colors.error.b, 0.20f)),
+                    tokens::RADIUS_SM);
+            ImVec4 xc = ch ? ImVec4(colors.error.r, colors.error.g, colors.error.b, 1.0f)
+                           : ImVec4(colors.text_secondary.r,
+                                    colors.text_secondary.g,
+                                    colors.text_secondary.b,
+                                    0.8f);
+            ImVec2 xs = ImGui::CalcTextSize("\xC3\x97");
+            dl->AddText(ImVec2(cb_min.x + (cb - xs.x) * 0.5f, cb_min.y + (cb - xs.y) * 0.5f),
+                        ImGui::ColorConvertFloat4ToU32(xc),
+                        "\xC3\x97");
+        }
+
+        // ── Scrollable padded body ──
+        ImGui::SetCursorScreenPos(ImVec2(win_min.x, header_max.y));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
+                            ImVec2(tokens::MODAL_PADDING, tokens::SPACE_4));
+        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(tokens::SPACE_2, tokens::SPACE_2));
+        ImGui::BeginChild("##xform_body", ImVec2(0, 0), ImGuiChildFlags_None);
+
         draw_formula_input();
         ImGui::Spacing();
         draw_variable_reference();
@@ -127,13 +216,22 @@ void CustomTransformDialog::draw()
         ImGui::Spacing();
         draw_preview();
         ImGui::Spacing();
-        ImGui::Separator();
         ImGui::Spacing();
         draw_action_buttons();
+
+        ImGui::EndChild();
+        ImGui::PopStyleVar(2);
+
+        // Preserve ESC-to-dismiss now that the native title bar is gone.
+        if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows)
+            && ImGui::IsKeyPressed(ImGuiKey_Escape))
+        {
+            still_open = false;
+        }
     }
     ImGui::End();
-    ImGui::PopStyleVar(2);
-    ImGui::PopStyleColor(3);
+    ImGui::PopStyleVar(3);
+    ImGui::PopStyleColor(2);
 
     if (!still_open)
         close();

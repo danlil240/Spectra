@@ -90,6 +90,9 @@ class InputHandler
     // Mouse move event: pan if dragging, update cursor readout
     void on_mouse_move(double x, double y);
 
+    // Clear cursor readout when the pointer leaves the window.
+    void clear_cursor_readout();
+
     // Scroll event: zoom around cursor position (animated)
     void on_scroll(double x_offset, double y_offset, double cursor_x, double cursor_y);
 

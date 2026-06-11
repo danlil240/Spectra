@@ -10,6 +10,9 @@
 
 #ifdef SPECTRA_USE_IMGUI
     #include "imgui.h"
+
+    #include "ui/theme/design_tokens.hpp"
+    #include "ui/theme/theme.hpp"
 #endif
 
 namespace spectra
@@ -1089,33 +1092,74 @@ void TimelineEditor::draw(float width, float height)
 {
     std::lock_guard lock(mutex_);
 
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
-    ImGui::BeginChild("##timeline_editor", ImVec2(width, height), 1);
+    namespace tk        = spectra::ui::tokens;
+    const auto& colors  = spectra::ui::theme();
 
-    const float track_height      = 28.0f;
-    const float ruler_height      = 24.0f;
-    const float track_label_width = 140.0f;
+    // Color → ImU32 helper (generic over spectra::Color and spectra::ui::Color).
+    auto col = [](const auto& c, float a) -> ImU32
+    {
+        return IM_COL32(static_cast<int>(c.r * 255.0f),
+                        static_cast<int>(c.g * 255.0f),
+                        static_cast<int>(c.b * 255.0f),
+                        static_cast<int>(a * 255.0f));
+    };
+
+    if (width < 1.0f || height < 1.0f)
+        return;
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+    ImGui::BeginChild("##timeline_editor",
+                      ImVec2(width, height),
+                      ImGuiChildFlags_Borders,
+                      ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+
+    const float track_height      = tk::TIMELINE_TRACK_HEIGHT;
+    const float ruler_height      = tk::TIMELINE_RULER_HEIGHT;
+    const float track_label_width = tk::TIMELINE_LABEL_WIDTH;
+    const float label_pad_x       = tk::SPACE_3;   // shared left inset for TRACKS + names
 
     ImDrawList* draw_list = ImGui::GetWindowDrawList();
     ImVec2      origin    = ImGui::GetCursorScreenPos();
+    float       right_x   = origin.x + width;
 
-    float timeline_width = width - track_label_width;
+    float timeline_width = std::max(1.0f, width - track_label_width);
     float time_range     = view_end_ - view_start_;
     if (time_range <= 0.0f)
         time_range = 1.0f;
     float px_per_sec = timeline_width / time_range;
 
-    auto time_to_px = [&](float t) -> float
+    // Offset from child origin to lane x for time t (excludes origin.x).
+    auto time_to_lane_x = [&](float t) -> float
     { return track_label_width + (t - view_start_) * px_per_sec; };
+    auto time_to_screen_x = [&](float t) -> float { return origin.x + time_to_lane_x(t); };
 
-    // ─── Time ruler ──────────────────────────────────────────────────
-    float ruler_y = origin.y;
+    const float tracks_content_h = static_cast<float>(tracks_.size()) * track_height;
+    const float tracks_view_h    = std::max(0.0f, height - ruler_height);
+
+    // ─── Time ruler (fixed strip) ─────────────────────────────────────
+    const float ruler_y = origin.y;
+    draw_list->AddRectFilled(ImVec2(origin.x, ruler_y),
+                             ImVec2(origin.x + track_label_width, ruler_y + ruler_height),
+                             col(colors.bg_secondary, 0.9f));
     draw_list->AddRectFilled(ImVec2(origin.x + track_label_width, ruler_y),
-                             ImVec2(origin.x + width, ruler_y + ruler_height),
-                             IM_COL32(40, 40, 40, 255));
+                             ImVec2(right_x, ruler_y + ruler_height),
+                             col(colors.bg_tertiary, 0.85f));
+    draw_list->AddText(
+        ImVec2(origin.x + label_pad_x, ruler_y + (ruler_height - ImGui::GetTextLineHeight()) * 0.5f),
+        col(colors.text_tertiary, 0.75f),
+        "TRACKS");
+    draw_list->AddLine(ImVec2(origin.x, ruler_y + ruler_height),
+                       ImVec2(right_x, ruler_y + ruler_height),
+                       col(colors.border_subtle, 0.6f),
+                       1.0f);
+    // Gutter / lanes divider continues through the track viewport below.
+    draw_list->AddLine(ImVec2(origin.x + track_label_width, ruler_y),
+                       ImVec2(origin.x + track_label_width, ruler_y + height),
+                       col(colors.accent, 0.22f),
+                       1.0f);
 
     // Tick marks
-    float tick_spacing = 1.0f;   // 1 second
+    float tick_spacing = 1.0f;
     if (px_per_sec < 30.0f)
         tick_spacing = 5.0f;
     else if (px_per_sec < 60.0f)
@@ -1128,100 +1172,24 @@ void TimelineEditor::draw(float width, float height)
     float t = std::floor(view_start_ / tick_spacing) * tick_spacing;
     while (t <= view_end_)
     {
-        float px     = origin.x + time_to_px(t);
+        float px     = time_to_screen_x(t);
         bool  major  = std::abs(std::fmod(t, tick_spacing * 5.0f)) < 0.001f;
-        float tick_h = major ? ruler_height : ruler_height * 0.5f;
+        float tick_h = major ? ruler_height * 0.55f : ruler_height * 0.30f;
         draw_list->AddLine(ImVec2(px, ruler_y + ruler_height - tick_h),
                            ImVec2(px, ruler_y + ruler_height),
-                           IM_COL32(120, 120, 120, 255));
+                           col(colors.text_tertiary, major ? 0.7f : 0.35f),
+                           1.0f);
         if (major)
         {
             const std::string buf = std::format("{:.1f}s", t);
-            draw_list->AddText(ImVec2(px + 2, ruler_y + 2), IM_COL32(180, 180, 180, 255), buf.c_str());
+            draw_list->AddText(ImVec2(px + 3.0f, ruler_y + 3.0f),
+                               col(colors.text_secondary, 0.85f),
+                               buf.c_str());
         }
         t += tick_spacing;
     }
 
-    // ─── Tracks ──────────────────────────────────────────────────────
-    float track_y = ruler_y + ruler_height;
-    for (size_t i = 0; i < tracks_.size(); ++i)
-    {
-        auto& track = tracks_[i];
-        float y     = track_y + static_cast<float>(i) * track_height;
-
-        // Track label background
-        ImU32 bg = (i % 2 == 0) ? IM_COL32(30, 30, 30, 255) : IM_COL32(35, 35, 35, 255);
-        draw_list->AddRectFilled(ImVec2(origin.x, y),
-                                 ImVec2(origin.x + width, y + track_height),
-                                 bg);
-
-        // Track label
-        ImU32 label_col =
-            track.visible ? IM_COL32(200, 200, 200, 255) : IM_COL32(100, 100, 100, 128);
-        draw_list->AddText(ImVec2(origin.x + 8, y + 6), label_col, track.name.c_str());
-
-        if (track.locked)
-        {
-            draw_list->AddText(ImVec2(origin.x + track_label_width - 20, y + 6),
-                               IM_COL32(200, 100, 100, 200),
-                               "L");
-        }
-
-        // Keyframe diamonds
-        ImU32 kf_color = IM_COL32(static_cast<int>(track.color.r * 255),
-                                  static_cast<int>(track.color.g * 255),
-                                  static_cast<int>(track.color.b * 255),
-                                  static_cast<int>(track.color.a * 255));
-
-        for (auto& kf : track.keyframes)
-        {
-            float kf_px = origin.x + time_to_px(kf.time);
-            float kf_cy = y + track_height * 0.5f;
-            float sz    = kf.selected ? 6.0f : 4.5f;
-
-            // Diamond shape
-            draw_list->AddQuadFilled(ImVec2(kf_px, kf_cy - sz),
-                                     ImVec2(kf_px + sz, kf_cy),
-                                     ImVec2(kf_px, kf_cy + sz),
-                                     ImVec2(kf_px - sz, kf_cy),
-                                     kf.selected ? IM_COL32(255, 255, 100, 255) : kf_color);
-
-            if (kf.selected)
-            {
-                draw_list->AddQuad(ImVec2(kf_px, kf_cy - sz - 1),
-                                   ImVec2(kf_px + sz + 1, kf_cy),
-                                   ImVec2(kf_px, kf_cy + sz + 1),
-                                   ImVec2(kf_px - sz - 1, kf_cy),
-                                   IM_COL32(255, 255, 255, 200));
-            }
-        }
-    }
-
-    // ─── Playhead line ───────────────────────────────────────────────
-    float ph_px = origin.x + time_to_px(playhead_);
-    draw_list->AddLine(ImVec2(ph_px, ruler_y),
-                       ImVec2(ph_px, track_y + static_cast<float>(tracks_.size()) * track_height),
-                       IM_COL32(255, 80, 80, 220),
-                       2.0f);
-
-    // Playhead triangle on ruler
-    draw_list->AddTriangleFilled(ImVec2(ph_px - 5, ruler_y),
-                                 ImVec2(ph_px + 5, ruler_y),
-                                 ImVec2(ph_px, ruler_y + 8),
-                                 IM_COL32(255, 80, 80, 255));
-
-    // ─── Loop region overlay ─────────────────────────────────────────
-    if (has_loop_region_)
-    {
-        float li_px = origin.x + time_to_px(loop_in_);
-        float lo_px = origin.x + time_to_px(loop_out_);
-        draw_list->AddRectFilled(
-            ImVec2(li_px, ruler_y),
-            ImVec2(lo_px, track_y + static_cast<float>(tracks_.size()) * track_height),
-            IM_COL32(80, 140, 255, 30));
-    }
-
-    // ─── Ruler click-to-scrub ────────────────────────────────────────
+    // Ruler click-to-scrub
     ImGui::SetCursorScreenPos(ImVec2(origin.x + track_label_width, ruler_y));
     ImGui::InvisibleButton("##ruler_scrub", ImVec2(timeline_width, ruler_height));
     if (ImGui::IsItemActive())
@@ -1231,6 +1199,138 @@ void TimelineEditor::draw(float width, float height)
         playhead_     = std::clamp(t_click, 0.0f, duration_);
         if (on_scrub_)
             on_scrub_(playhead_);
+    }
+
+    // ─── Scrollable track lanes ───────────────────────────────────────
+    ImGui::SetCursorScreenPos(ImVec2(origin.x, ruler_y + ruler_height));
+    ImGui::BeginChild("##timeline_tracks",
+                      ImVec2(width, tracks_view_h),
+                      ImGuiChildFlags_None,
+                      ImGuiWindowFlags_None);
+
+    ImDrawList* tracks_dl     = ImGui::GetWindowDrawList();
+    ImVec2      tracks_origin = ImGui::GetCursorScreenPos();
+    ImGui::InvisibleButton("##tracks_canvas",
+                           ImVec2(width, std::max(tracks_view_h, tracks_content_h)));
+    const float canvas_bottom = tracks_origin.y + std::max(tracks_view_h, tracks_content_h);
+
+    // Recessed gutter background for the full scrollable content height.
+    tracks_dl->AddRectFilled(ImVec2(tracks_origin.x, tracks_origin.y),
+                             ImVec2(tracks_origin.x + track_label_width, canvas_bottom),
+                             col(colors.bg_primary, 0.45f));
+
+    for (size_t i = 0; i < tracks_.size(); ++i)
+    {
+        auto& track = tracks_[i];
+        float y     = tracks_origin.y + static_cast<float>(i) * track_height;
+
+        ImU32 lane_bg = (i % 2 == 0) ? col(colors.bg_secondary, 0.0f)
+                                     : col(colors.bg_tertiary, 0.25f);
+        tracks_dl->AddRectFilled(ImVec2(tracks_origin.x + track_label_width, y),
+                                 ImVec2(tracks_origin.x + width, y + track_height),
+                                 lane_bg);
+        tracks_dl->AddLine(ImVec2(tracks_origin.x, y + track_height),
+                           ImVec2(tracks_origin.x + width, y + track_height),
+                           col(colors.border_subtle, 0.30f),
+                           1.0f);
+
+        // Color accent strip + dot aligned with the TRACKS label column.
+        tracks_dl->AddRectFilled(ImVec2(tracks_origin.x, y + 4.0f),
+                                 ImVec2(tracks_origin.x + 3.0f, y + track_height - 4.0f),
+                                 col(track.color, track.visible ? 0.95f : 0.35f),
+                                 1.5f);
+        float dot_cx = tracks_origin.x + label_pad_x + 6.0f;
+        float dot_cy = y + track_height * 0.5f;
+        tracks_dl->AddCircleFilled(ImVec2(dot_cx, dot_cy),
+                                   4.0f,
+                                   col(track.color, track.visible ? 1.0f : 0.4f));
+        ImU32 label_col = track.visible ? col(colors.text_primary, 0.95f)
+                                        : col(colors.text_tertiary, 0.5f);
+        tracks_dl->AddText(
+            ImVec2(tracks_origin.x + label_pad_x + 16.0f, dot_cy - ImGui::GetTextLineHeight() * 0.5f),
+            label_col,
+            track.name.c_str());
+
+        if (track.locked)
+        {
+            tracks_dl->AddText(
+                ImVec2(tracks_origin.x + track_label_width - 16.0f,
+                       dot_cy - ImGui::GetTextLineHeight() * 0.5f),
+                col(colors.warning, 0.9f),
+                "L");
+        }
+
+        ImU32 kf_color = col(track.color, track.color.a);
+        for (auto& kf : track.keyframes)
+        {
+            float kf_px = tracks_origin.x + time_to_lane_x(kf.time);
+            if (kf_px < tracks_origin.x + track_label_width)
+                continue;
+            float kf_cy = y + track_height * 0.5f;
+            float sz    = kf.selected ? 6.0f : 4.5f;
+
+            tracks_dl->AddQuadFilled(ImVec2(kf_px, kf_cy - sz),
+                                     ImVec2(kf_px + sz, kf_cy),
+                                     ImVec2(kf_px, kf_cy + sz),
+                                     ImVec2(kf_px - sz, kf_cy),
+                                     kf.selected ? col(colors.accent, 1.0f) : kf_color);
+
+            if (kf.selected)
+            {
+                tracks_dl->AddQuad(ImVec2(kf_px, kf_cy - sz - 1),
+                                   ImVec2(kf_px + sz + 1, kf_cy),
+                                   ImVec2(kf_px, kf_cy + sz + 1),
+                                   ImVec2(kf_px - sz - 1, kf_cy),
+                                   col(colors.text_primary, 0.85f));
+            }
+        }
+    }
+
+    // Loop region overlay (tracks viewport only).
+    if (has_loop_region_)
+    {
+        float li_px = tracks_origin.x + time_to_lane_x(loop_in_);
+        float lo_px = tracks_origin.x + time_to_lane_x(loop_out_);
+        tracks_dl->AddRectFilled(ImVec2(li_px, tracks_origin.y),
+                                 ImVec2(lo_px, canvas_bottom),
+                                 col(colors.accent, 0.10f));
+        tracks_dl->AddLine(ImVec2(li_px, tracks_origin.y),
+                           ImVec2(li_px, canvas_bottom),
+                           col(colors.accent, 0.5f),
+                           1.0f);
+        tracks_dl->AddLine(ImVec2(lo_px, tracks_origin.y),
+                           ImVec2(lo_px, canvas_bottom),
+                           col(colors.accent, 0.5f),
+                           1.0f);
+    }
+
+    ImGui::EndChild();
+
+    // ─── Playhead (spans ruler + visible track viewport) ──────────────
+    float ph_px = time_to_screen_x(playhead_);
+    if (ph_px >= origin.x + track_label_width)
+    {
+        const float ph_bottom = ruler_y + height;
+        draw_list->AddLine(ImVec2(ph_px, ruler_y), ImVec2(ph_px, ph_bottom),
+                           col(colors.accent, 0.20f),
+                           4.0f);
+        draw_list->AddLine(ImVec2(ph_px, ruler_y), ImVec2(ph_px, ph_bottom),
+                           col(colors.accent, 0.95f),
+                           1.5f);
+        draw_list->AddTriangleFilled(ImVec2(ph_px - 6.0f, ruler_y),
+                                     ImVec2(ph_px + 6.0f, ruler_y),
+                                     ImVec2(ph_px, ruler_y + 9.0f),
+                                     col(colors.accent, 1.0f));
+    }
+
+    // Loop region tint on the ruler strip (matches lane overlay).
+    if (has_loop_region_)
+    {
+        float li_px = time_to_screen_x(loop_in_);
+        float lo_px = time_to_screen_x(loop_out_);
+        draw_list->AddRectFilled(ImVec2(li_px, ruler_y),
+                                 ImVec2(lo_px, ruler_y + ruler_height),
+                                 col(colors.accent, 0.10f));
     }
 
     ImGui::EndChild();

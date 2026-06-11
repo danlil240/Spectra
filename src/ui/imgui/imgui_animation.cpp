@@ -127,10 +127,46 @@ void ImGuiIntegration::draw_timeline_panel()
         float btn_sz  = 32.0f;
         float btn_gap = 6.0f;
 
+        // ── Panel eyebrow ──
+        ImGui::PushFont(font_heading_);
+        ImGui::PushStyleColor(ImGuiCol_Text,
+                              ImVec4(colors.text_tertiary.r,
+                                     colors.text_tertiary.g,
+                                     colors.text_tertiary.b,
+                                     0.75f));
+        ImGui::TextUnformatted("TIMELINE");
+        ImGui::PopStyleColor();
+        ImGui::PopFont();
+        ImGui::Dummy(ImVec2(0, 4.0f));
+
         // ── Header row: transport controls (left) + time display (right) ──
         auto pb_state   = timeline_editor_->playback_state();
         bool is_playing = (pb_state == PlaybackState::Playing);
         bool is_paused  = (pb_state == PlaybackState::Paused);
+
+        // Recessed container pill behind the transport cluster (4 buttons).
+        {
+            constexpr int cluster_btns = 4;
+            float         pad          = 5.0f;
+            float         cluster_w =
+                static_cast<float>(cluster_btns) * btn_sz + (cluster_btns - 1) * btn_gap;
+            ImVec2 cp = ImGui::GetCursorScreenPos();
+            ImDrawList* tdl = ImGui::GetWindowDrawList();
+            tdl->AddRectFilled(ImVec2(cp.x - pad, cp.y - pad),
+                               ImVec2(cp.x + cluster_w + pad, cp.y + btn_sz + pad),
+                               IM_COL32(static_cast<int>(colors.bg_primary.r * 255),
+                                        static_cast<int>(colors.bg_primary.g * 255),
+                                        static_cast<int>(colors.bg_primary.b * 255),
+                                        140),
+                               ui::tokens::RADIUS_LG);
+            tdl->AddRect(ImVec2(cp.x - pad, cp.y - pad),
+                         ImVec2(cp.x + cluster_w + pad, cp.y + btn_sz + pad),
+                         IM_COL32(static_cast<int>(colors.border_subtle.r * 255),
+                                  static_cast<int>(colors.border_subtle.g * 255),
+                                  static_cast<int>(colors.border_subtle.b * 255),
+                                  120),
+                         ui::tokens::RADIUS_LG);
+        }
 
         // Step backward
         if (font_icon_)
@@ -215,9 +251,12 @@ void ImGuiIntegration::draw_timeline_panel()
             ImGui::Dummy(ImVec2(0, 1));
         }
 
-        // Draw the timeline editor's ImGui content
+        // Transport row ends with cursor on the right (time display SameLine).
+        // Reset to the content left edge so the timeline fills the full panel width.
+        ImGui::SetCursorPosX(0.0f);
         float remaining_h = ImGui::GetContentRegionAvail().y;
-        timeline_editor_->draw(panel_w - 32, remaining_h);
+        float content_w   = ImGui::GetContentRegionAvail().x;
+        timeline_editor_->draw(content_w, remaining_h);
     }
     ImGui::End();
     ImGui::PopStyleVar(2);

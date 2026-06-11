@@ -540,6 +540,9 @@ void WindowManager::glfw_cursor_enter_callback(GLFWwindow* window, int entered)
     SPECTRA_LOG_TRACE("input", "Cursor {} window {}", entered ? "entered" : "left", wctx->id);
 
     #ifdef SPECTRA_USE_IMGUI
+    if (!entered)
+        wctx->ui_ctx->input_handler.clear_cursor_readout();
+
     // Switch to this window's ImGui context and forward cursor enter/leave
     ImGuiContext* prev_ctx = ImGui::GetCurrentContext();
     if (wctx->imgui_context)

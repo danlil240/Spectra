@@ -6,6 +6,7 @@
     #include <spectra/color.hpp>
     #include <string>
 
+    #include "ui/theme/design_tokens.hpp"
     #include "ui/theme/icons.hpp"
 
 struct ImFont;
@@ -98,6 +99,25 @@ bool icon_button(const char* cmdId,
                  ui::Icon    icon,
                  const char* tooltip = nullptr,
                  bool        active  = false);
+
+// ─── Panel Component Language ─────────────────────────────────────────────────
+
+// Secondary grouped card / sub-panel. Draws a rounded Surface-2 background with
+// a subtle border and internal padding, auto-sizing to its content height.
+// Always pair with end_card(). Returns true if the card body is visible (so the
+// caller can early-out, mirroring BeginChild semantics).
+bool begin_card(const char* id,
+                float       rounding = tokens::CARD_RADIUS,
+                float       padding  = tokens::CARD_PADDING);
+void end_card();
+
+// Interactive chip / pill. Compact rounded control used for quick-insert tokens,
+// filters, and tag-like toggles. Returns true when clicked.
+bool chip(const char* label, bool active = false);
+
+// Panel title block: large primary title with an optional secondary subtitle,
+// used at the top of a primary panel (inspector context header).
+void panel_title(const char* title, const char* subtitle = nullptr, ImFont* title_font = nullptr);
 
 // Indented group (pushes indent + draws subtle left border)
 void begin_group(const char* id);

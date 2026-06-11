@@ -886,6 +886,109 @@ bool icon_button(const char* cmdId, ui::Icon icon, const char* tooltip, bool act
     return clicked;
 }
 
+// ─── Card / Sub-panel ─────────────────────────────────────────────────────────
+
+bool begin_card(const char* id, float rounding, float padding)
+{
+    const auto& c = theme();
+
+    // Surface-2 fill with a subtle hairline border, rounded to match the panel
+    // language. AutoResizeY lets the card hug its content so groups never leave
+    // dead space.
+    ImGui::PushStyleColor(ImGuiCol_ChildBg,
+                          ImVec4(c.bg_tertiary.r, c.bg_tertiary.g, c.bg_tertiary.b, 0.45f));
+    ImGui::PushStyleColor(ImGuiCol_Border,
+                          ImVec4(c.border_subtle.r, c.border_subtle.g, c.border_subtle.b, 0.55f));
+    ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, rounding);
+    ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, tokens::BORDER_WIDTH_NORMAL);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(padding, padding));
+
+    bool visible = ImGui::BeginChild(id,
+                                     ImVec2(0, 0),
+                                     ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_Borders,
+                                     ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+    return visible;
+}
+
+void end_card()
+{
+    ImGui::EndChild();
+    ImGui::PopStyleVar(3);
+    ImGui::PopStyleColor(2);
+}
+
+// ─── Chip / Pill ──────────────────────────────────────────────────────────────
+
+bool chip(const char* label, bool active)
+{
+    const auto& c = theme();
+    ImGui::PushID(label);
+
+    ImVec2 text_sz = ImGui::CalcTextSize(label);
+    float  w       = text_sz.x + tokens::CHIP_PADDING_H * 2.0f;
+    float  h       = tokens::CHIP_HEIGHT;
+    ImVec2 pos     = ImGui::GetCursorScreenPos();
+
+    bool clicked = ImGui::InvisibleButton("##chip", ImVec2(w, h));
+    bool hovered = ImGui::IsItemHovered();
+
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+
+    // Fill: accent tint when active, faint surface otherwise; lifts on hover.
+    Color fill = active ? c.accent.with_alpha(hovered ? 0.30f : 0.22f)
+                        : c.bg_elevated.with_alpha(hovered ? 0.85f : 0.55f);
+    Color border = active ? c.accent.with_alpha(0.65f)
+                          : c.border_subtle.with_alpha(hovered ? 0.7f : 0.45f);
+    Color text = active ? c.accent
+                        : Color{c.text_secondary.r,
+                                c.text_secondary.g,
+                                c.text_secondary.b,
+                                hovered ? 1.0f : 0.85f};
+
+    dl->AddRectFilled(pos,
+                      ImVec2(pos.x + w, pos.y + h),
+                      ImGui::ColorConvertFloat4ToU32(ImVec4(fill.r, fill.g, fill.b, fill.a)),
+                      h * 0.5f);
+    dl->AddRect(pos,
+                ImVec2(pos.x + w, pos.y + h),
+                ImGui::ColorConvertFloat4ToU32(ImVec4(border.r, border.g, border.b, border.a)),
+                h * 0.5f,
+                0,
+                1.0f);
+    dl->AddText(ImVec2(pos.x + tokens::CHIP_PADDING_H, pos.y + (h - text_sz.y) * 0.5f),
+                ImGui::ColorConvertFloat4ToU32(ImVec4(text.r, text.g, text.b, text.a)),
+                label);
+
+    ImGui::PopID();
+    return clicked;
+}
+
+// ─── Panel Title ──────────────────────────────────────────────────────────────
+
+void panel_title(const char* title, const char* subtitle, ImFont* title_font)
+{
+    const auto& c = theme();
+
+    if (title_font)
+        ImGui::PushFont(title_font);
+    ImGui::PushStyleColor(
+        ImGuiCol_Text,
+        ImVec4(c.text_primary.r, c.text_primary.g, c.text_primary.b, c.text_primary.a));
+    ImGui::TextUnformatted(title);
+    ImGui::PopStyleColor();
+    if (title_font)
+        ImGui::PopFont();
+
+    if (subtitle && subtitle[0] != '\0')
+    {
+        ImGui::PushStyleColor(
+            ImGuiCol_Text,
+            ImVec4(c.text_tertiary.r, c.text_tertiary.g, c.text_tertiary.b, 0.9f));
+        ImGui::TextUnformatted(subtitle);
+        ImGui::PopStyleColor();
+    }
+}
+
 // ─── Group ──────────────────────────────────────────────────────────────────
 
 void begin_group(const char* id)

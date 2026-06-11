@@ -62,7 +62,7 @@ constexpr float kPlotAreaMinWindowWidth     = 900.0f;
 constexpr float kPlotAreaMinWindowHeight    = 200.0f;
 constexpr float kPlotAreaTimeSliderMinWidth = 120.0f;
 constexpr float kPlotAreaTimeSliderMaxWidth = 220.0f;
-constexpr float kPlotAreaMinViewportHeight  = 120.0f;
+constexpr float kPlotAreaMinViewportHeight  = 96.0f;
 constexpr float kPlotAreaButtonSpacing      = 4.0f;
 }   // namespace
 
@@ -972,37 +972,25 @@ void RosAppShell::apply_default_dock_layout()
                                   ImVec2(std::max(320.0f, vp->WorkSize.x - rail_w),
                                          std::max(240.0f, vp->WorkSize.y - status_h)));
 
-    ImGuiID dock_main = dockspace_id_;
-    ImGuiID dock_left =
-        ImGui::DockBuilderSplitNode(dock_main, ImGuiDir_Left, 0.18f, nullptr, &dock_main);
-    ImGuiID dock_right =
-        ImGui::DockBuilderSplitNode(dock_main, ImGuiDir_Right, 0.24f, nullptr, &dock_main);
-    ImGuiID dock_bottom =
-        ImGui::DockBuilderSplitNode(dock_main, ImGuiDir_Down, 0.30f, nullptr, &dock_main);
-    ImGuiID dock_right_bottom =
-        ImGui::DockBuilderSplitNode(dock_right, ImGuiDir_Down, 0.42f, nullptr, &dock_right);
-    ImGuiID dock_bottom_left =
-        ImGui::DockBuilderSplitNode(dock_bottom, ImGuiDir_Left, 0.28f, nullptr, &dock_bottom);
-    ImGuiID dock_bottom_right =
-        ImGui::DockBuilderSplitNode(dock_bottom, ImGuiDir_Right, 0.42f, nullptr, &dock_bottom);
+    // Plot-first layout: maximize the central canvas. Auxiliary panels open from
+    // the View menu as floating windows until the user docks them manually.
+    const ImGuiID dock_main = dockspace_id_;
 
-    ImGui::DockBuilderDockWindow("Topic Monitor", dock_left);
-    ImGui::DockBuilderDockWindow("Displays", dock_left);
     ImGui::DockBuilderDockWindow("Plot Area", dock_main);
     ImGui::DockBuilderDockWindow("Scene Viewport", dock_main);
-    ImGui::DockBuilderDockWindow("Inspector", dock_right);
-    ImGui::DockBuilderDockWindow("Topic Statistics", dock_right);
-    ImGui::DockBuilderDockWindow("Node Graph###NodeGraphPanel", dock_right_bottom);
-
-    ImGui::DockBuilderDockWindow("Topic Echo", dock_bottom);
-    ImGui::DockBuilderDockWindow("ROS2 Log", dock_bottom);
-    ImGui::DockBuilderDockWindow("Bag Info", dock_bottom_left);
-
-    ImGui::DockBuilderDockWindow("Bag Playback", dock_bottom);
-    ImGui::DockBuilderDockWindow("Diagnostics", dock_right);
-    ImGui::DockBuilderDockWindow("TF Tree", dock_right_bottom);
-    ImGui::DockBuilderDockWindow("Parameter Editor", dock_right);
-    ImGui::DockBuilderDockWindow("Service Caller", dock_bottom);
+    ImGui::DockBuilderDockWindow("Topic Monitor", dock_main);
+    ImGui::DockBuilderDockWindow("Displays", dock_main);
+    ImGui::DockBuilderDockWindow("Inspector", dock_main);
+    ImGui::DockBuilderDockWindow("Topic Statistics", dock_main);
+    ImGui::DockBuilderDockWindow("Node Graph###NodeGraphPanel", dock_main);
+    ImGui::DockBuilderDockWindow("Topic Echo", dock_main);
+    ImGui::DockBuilderDockWindow("ROS2 Log", dock_main);
+    ImGui::DockBuilderDockWindow("Bag Info", dock_main);
+    ImGui::DockBuilderDockWindow("Bag Playback", dock_main);
+    ImGui::DockBuilderDockWindow("Diagnostics", dock_main);
+    ImGui::DockBuilderDockWindow("TF Tree", dock_main);
+    ImGui::DockBuilderDockWindow("Parameter Editor", dock_main);
+    ImGui::DockBuilderDockWindow("Service Caller", dock_main);
 
     ImGui::DockBuilderFinish(dockspace_id_);
     dock_layout_initialized_          = true;
@@ -1360,6 +1348,12 @@ void RosAppShell::draw_plot_area(bool* p_open)
         float      canvas_bottom    = canvas_top;
         const auto same_line_button = []() { ImGui::SameLine(0.0f, kPlotAreaButtonSpacing); };
 
+        if (subplot_mgr_ && !plot_theme_applied_)
+        {
+            subplot_mgr_->apply_plot_theme();
+            plot_theme_applied_ = true;
+        }
+
         if (subplot_mgr_)
         {
             // Synchronize the slider with the actual visible X extent.
@@ -1381,9 +1375,12 @@ void RosAppShell::draw_plot_area(bool* p_open)
                     }
                 }
             }
-            ImGui::SetNextItemWidth(std::clamp(ImGui::GetContentRegionAvail().x,
-                                               kPlotAreaTimeSliderMinWidth,
-                                               kPlotAreaTimeSliderMaxWidth));
+            const float toolbar_avail = ImGui::GetContentRegionAvail().x;
+            const float tools_btn_w   = 28.0f;
+            ImGui::SetNextItemWidth(
+                std::clamp(toolbar_avail - tools_btn_w - kPlotAreaButtonSpacing,
+                           kPlotAreaTimeSliderMinWidth,
+                           kPlotAreaTimeSliderMaxWidth));
             if (ImGui::SliderFloat("##TimeWindow", &tw, 1.0f, 3600.0f, "%.1f s"))
             {
                 const auto new_tw = static_cast<double>(tw);
@@ -1407,12 +1404,8 @@ void RosAppShell::draw_plot_area(bool* p_open)
                 }
             }
             same_line_button();
-
-            const bool has_plots = active_plot_count() > 0;
-            if (!has_plots)
-            {
-                ImGui::TextDisabled("Expand a topic and double-click a field to plot");
-            }
+            if (ImGui::SmallButton("...##plot_tools"))
+                ImGui::OpenPopup("##plot_toolbar_more");
 
             auto draw_plot_toolbar_extras = [&]()
             {
@@ -1463,23 +1456,13 @@ void RosAppShell::draw_plot_area(bool* p_open)
                 ImGui::EndDisabled();
             };
 
-            if (has_plots)
+            if (ImGui::BeginPopup("##plot_toolbar_more"))
             {
                 draw_plot_toolbar_extras();
-            }
-            else
-            {
-                if (ImGui::SmallButton("More..."))
-                    ImGui::OpenPopup("##plot_toolbar_more");
-                if (ImGui::BeginPopup("##plot_toolbar_more"))
-                {
-                    draw_plot_toolbar_extras();
-                    ImGui::EndPopup();
-                }
+                ImGui::EndPopup();
             }
         }
 
-        ImGui::Separator();
         canvas_top = ImGui::GetCursorScreenPos().y;
 
         // Per-subplot controls and targeted drop zones.
@@ -1488,12 +1471,12 @@ void RosAppShell::draw_plot_area(bool* p_open)
             const int   total_slots     = subplot_mgr_->capacity();
             const auto& fig_style       = subplot_mgr_->figure().style();
             const float min_slot_height = std::max(
-                120.0f,
+                96.0f,
                 fig_style.margin_top + fig_style.margin_bottom + kPlotAreaMinViewportHeight);
             const float avail_h = ImGui::GetContentRegionAvail().y;
-            // Reserve space for the global drop zone at the bottom.
+            const bool  multi_slot = total_slots > 1;
             const float reserved_bottom =
-                kPlotAreaGlobalDropHeight + ImGui::GetStyle().ItemSpacing.y;
+                multi_slot ? kPlotAreaGlobalDropHeight + ImGui::GetStyle().ItemSpacing.y : 0.0f;
             const float usable_h = std::max(0.0f, avail_h - reserved_bottom);
             const float slot_h =
                 (total_slots > 0)
@@ -1508,58 +1491,51 @@ void RosAppShell::draw_plot_area(bool* p_open)
                 const bool has      = subplot_mgr_->has_plot(s);
                 const int  n_series = subplot_mgr_->slot_series_count(s);
 
-                // Slot header — compact single line with controls.
-                ImGui::BeginGroup();
+                const bool show_slot_header = multi_slot || has;
+                if (show_slot_header)
+                    ImGui::BeginGroup();
 
-                if (has)
+                const std::string ylim_popup_id  = std::format("ylim_{}", s);
+                const std::string style_popup_id = std::format("style_{}", s);
+                const std::string slot_tools_id  = std::format("slot_tools_{}", s);
+
+                if (has && show_slot_header)
                 {
-                    // First line: plot title + action buttons, no series text.
                     const bool selected = (workspace_state_.active_subplot_idx == s);
                     ImGui::TextColored(selected ? ImVec4(0.6f, 0.95f, 0.55f, 1.0f)
                                                 : ImVec4(0.4f, 0.85f, 1.0f, 1.0f),
                                        "Plot %d",
                                        s);
-                    ImGui::SameLine();
-                    ImGui::TextDisabled("(%d series)", n_series);
-                    if (selected)
+                    if (n_series > 0)
                     {
                         ImGui::SameLine();
-                        ImGui::TextDisabled("[active]");
+                        ImGui::TextDisabled("(%d)", n_series);
                     }
-
-                    // Scroll control per-slot.
-                    ImGui::SameLine(0.0f, 12.0f);
-                    if (subplot_mgr_->is_scroll_paused(s))
-                    {
-                        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.15f, 0.55f, 0.15f, 1.0f));
-                        ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
-                                              ImVec4(0.2f, 0.7f, 0.2f, 1.0f));
-                        if (ImGui::SmallButton("Live##scroll"))
-                        {
-                            remember_active_subplot(s);
-                            subplot_mgr_->resume_scroll(s);
-                        }
-                        ImGui::PopStyleColor(2);
-                    }
-                    else
-                    {
-                        if (ImGui::SmallButton("Pause##scroll"))
-                        {
-                            remember_active_subplot(s);
-                            subplot_mgr_->pause_scroll(s);
-                        }
-                    }
-
                     ImGui::SameLine(0.0f, 8.0f);
-                    if (ImGui::SmallButton("Auto Y"))
-                        restore_plot_autofit(s);
+                    if (ImGui::SmallButton("...##slot_tools"))
+                        ImGui::OpenPopup(slot_tools_id.c_str());
 
-                    ImGui::SameLine();
-                    const std::string ylim_popup_id = std::format("ylim_{}", s);
-                    if (ImGui::SmallButton("Y Limits"))
+                    if (ImGui::BeginPopup(slot_tools_id.c_str()))
                     {
                         remember_active_subplot(s);
-                        ImGui::OpenPopup(ylim_popup_id.c_str());
+                        if (subplot_mgr_->is_scroll_paused(s))
+                        {
+                            if (ImGui::MenuItem("Resume Live Scroll"))
+                                subplot_mgr_->resume_scroll(s);
+                        }
+                        else if (ImGui::MenuItem("Pause Scroll"))
+                        {
+                            subplot_mgr_->pause_scroll(s);
+                        }
+                        if (ImGui::MenuItem("Auto-Fit Y"))
+                            restore_plot_autofit(s);
+                        if (ImGui::MenuItem("Y Limits..."))
+                            ImGui::OpenPopup(ylim_popup_id.c_str());
+                        if (ImGui::MenuItem("Style..."))
+                            ImGui::OpenPopup(style_popup_id.c_str());
+                        if (ImGui::MenuItem("Clear Plot"))
+                            subplot_mgr_->clear_slot_data(s);
+                        ImGui::EndPopup();
                     }
 
                     if (ImGui::BeginPopup(ylim_popup_id.c_str()))
@@ -1594,14 +1570,6 @@ void RosAppShell::draw_plot_area(bool* p_open)
                             }
                         }
                         ImGui::EndPopup();
-                    }
-
-                    ImGui::SameLine(0.0f, 8.0f);
-                    const std::string style_popup_id = std::format("style_{}", s);
-                    if (ImGui::SmallButton("Style"))
-                    {
-                        remember_active_subplot(s);
-                        ImGui::OpenPopup(style_popup_id.c_str());
                     }
 
                     if (ImGui::BeginPopup(style_popup_id.c_str()))
@@ -1795,101 +1763,14 @@ void RosAppShell::draw_plot_area(bool* p_open)
                         }
                         ImGui::EndPopup();
                     }
-
-                    ImGui::SameLine(0.0f, 8.0f);
-                    if (ImGui::SmallButton("Clear##plot"))
-                    {
-                        remember_active_subplot(s);
-                        subplot_mgr_->clear_slot_data(s);
-                    }
-
-                    // Series dropdown — compact combo with hide/delete per series.
-                    {
-                        // Build summary label for the combo preview.
-                        const auto* first_se = subplot_mgr_->slot_series(s, 0);
-                        const std::string combo_label =
-                            (n_series == 1 && first_se)
-                                ? std::format("{}/{}", first_se->topic, first_se->field_path)
-                                : std::format("{} series", n_series);
-
-                        const std::string combo_id = std::format("##series_{}", s);
-                        ImGui::SetNextItemWidth(
-                            std::max(200.0f, ImGui::GetContentRegionAvail().x * 0.5f));
-
-                        if (ImGui::BeginCombo(combo_id.c_str(),
-                                              combo_label.c_str(),
-                                              ImGuiComboFlags_HeightLarge))
-                        {
-                            int remove_si = -1;
-                            for (int si = 0; si < n_series; ++si)
-                            {
-                                const auto* se = subplot_mgr_->slot_series(s, si);
-                                if (!se)
-                                    continue;
-                                ImGui::PushID(si);
-
-                                // Eye icon — toggle series visibility.
-                                bool        vis      = se->series ? se->series->visible() : true;
-                                const char* eye_icon = vis ? ui::icon_str(ui::Icon::Eye)
-                                                           : ui::icon_str(ui::Icon::EyeOff);
-                                ImGui::PushStyleColor(ImGuiCol_Text,
-                                                      vis ? ImVec4(0.3f, 0.85f, 0.4f, 1.0f)
-                                                          : ImVec4(0.5f, 0.5f, 0.5f, 0.7f));
-                                const std::string eye_id = std::format("{}##eye", eye_icon);
-                                if (ImGui::SmallButton(eye_id.c_str()))
-                                {
-                                    if (se->series)
-                                        se->series->visible(!vis);
-                                }
-                                ImGui::PopStyleColor();
-                                if (ImGui::IsItemHovered())
-                                    ImGui::SetTooltip(vis ? "Hide series" : "Show series");
-
-                                // Trash icon — remove series.
-                                ImGui::SameLine(0.0f, 6.0f);
-                                ImGui::PushStyleColor(ImGuiCol_Text,
-                                                      ImVec4(0.9f, 0.3f, 0.3f, 0.85f));
-                                const std::string trash_id =
-                                    std::format("{}##del", ui::icon_str(ui::Icon::Trash));
-                                if (ImGui::SmallButton(trash_id.c_str()))
-                                    remove_si = si;
-                                ImGui::PopStyleColor();
-                                if (ImGui::IsItemHovered())
-                                    ImGui::SetTooltip("Remove series");
-
-                                // Series label.
-                                ImGui::SameLine(0.0f, 8.0f);
-                                ImGui::TextColored(ImVec4(0.75f, 0.75f, 0.75f, 1.0f),
-                                                   "%s/%s",
-                                                   se->topic.c_str(),
-                                                   se->field_path.c_str());
-
-                                ImGui::PopID();
-                            }
-                            ImGui::EndCombo();
-
-                            // Deferred removal (after EndCombo to avoid iterator invalidation).
-                            if (remove_si >= 0)
-                            {
-                                const auto* rse = subplot_mgr_->slot_series(s, remove_si);
-                                if (rse)
-                                {
-                                    subplot_mgr_->remove_series_from_slot(s,
-                                                                          rse->topic,
-                                                                          rse->field_path);
-                                    if (!subplot_mgr_->has_plot(s))
-                                        subplot_mgr_->compact();
-                                }
-                            }
-                        }
-                    }
                 }
-                else
+                else if (show_slot_header)
                 {
-                    ImGui::TextDisabled("Plot %d — drop a topic field here", s);
+                    ImGui::TextDisabled("Plot %d", s);
                 }
 
-                ImGui::EndGroup();
+                if (show_slot_header)
+                    ImGui::EndGroup();
 
                 // Drop zone — fills remaining slot height so subplots
                 // expand to use all available vertical space.
@@ -1909,11 +1790,9 @@ void RosAppShell::draw_plot_area(bool* p_open)
 
         canvas_bottom = ImGui::GetCursorScreenPos().y;
 
-        // Global drop zone at the bottom — drops to first empty slot or adds a new row.
-        ImGui::Separator();
-        ImGui::TextDisabled("Drop a topic/field here to add to a new subplot");
-
+        if (subplot_mgr_ && subplot_mgr_->capacity() > 1)
         {
+            ImGui::Separator();
             const float drop_w = std::max(1.0f, ImGui::GetContentRegionAvail().x);
             draw_global_plot_drop_target(drop_ctx, drop_w, kPlotAreaGlobalDropHeight);
         }
@@ -2490,26 +2369,22 @@ void RosAppShell::draw_status_bar()
         const int      plots = active_plot_count();
         const size_t   mem   = subplot_mgr_ ? subplot_mgr_->total_memory_bytes() : 0;
         const size_t   pts   = subplot_mgr_ ? subplot_mgr_->total_point_count() : 0;
-        const char* fixed_frame =
-            workspace_state_.fixed_frame.empty() ? "(auto)" : workspace_state_.fixed_frame.c_str();
-        const char* layout_note = layout_unsaved_ ? "  |  Layout: unsaved" : "";
+        const char* layout_note = layout_unsaved_ ? "  |  layout unsaved" : "";
 
-        std::string pts_label;
-        if (pts >= 10'000)
-            pts_label = std::format("{:.1f}k", static_cast<double>(pts) / 1000.0);
-        else
-            pts_label = std::to_string(pts);
-
-        ImGui::Text("Node: %s  |  Fixed frame: %s  |  Displays: %zu  |  Messages: %" PRIu64
-                    "  |  Active plots: %d  |  Points: %s  |  Buffer: %.1f KB%s",
-                    cfg_.node_name.c_str(),
-                    fixed_frame,
-                    displays_.size(),
-                    total,
-                    plots,
-                    pts_label.c_str(),
-                    static_cast<double>(mem) / 1024.0,
-                    layout_note);
+        ImGui::Text("Plots: %d  |  %" PRIu64 " msgs%s", plots, total, layout_note);
+        if (show_scene_viewport_ || show_displays_panel_ || !displays_.empty())
+        {
+            const char* fixed_frame = workspace_state_.fixed_frame.empty()
+                                          ? "(auto)"
+                                          : workspace_state_.fixed_frame.c_str();
+            ImGui::SameLine();
+            ImGui::TextDisabled("|  frame: %s", fixed_frame);
+        }
+        if (plots > 0 && mem > 0)
+        {
+            ImGui::SameLine();
+            ImGui::TextDisabled("|  %.1f KB", static_cast<double>(mem) / 1024.0);
+        }
     }
     ImGui::End();
 #endif
@@ -2736,13 +2611,14 @@ void RosAppShell::setup_layout_visibility()
     {
         case LayoutMode::Default:
             current_preset_       = LayoutPreset::Default;
-            show_topic_list_      = true;
-            show_topic_echo_      = true;
-            show_topic_stats_     = true;
+            show_topic_list_      = false;
+            show_topic_echo_      = false;
+            show_topic_stats_     = false;
             show_plot_area_       = true;
-            show_node_graph_      = true;
+            show_node_graph_      = false;
             show_inspector_panel_ = false;
-            show_log_viewer_      = true;
+            show_log_viewer_      = false;
+            show_nav_rail_        = false;
             break;
 
         case LayoutMode::PlotOnly:
@@ -2881,12 +2757,8 @@ void RosAppShell::apply_layout_preset(LayoutPreset preset)
     switch (preset)
     {
         case LayoutPreset::Default:
-            show_topic_list_  = true;
-            show_topic_echo_  = true;
-            show_topic_stats_ = true;
             show_plot_area_   = true;
-            show_node_graph_  = true;
-            show_log_viewer_  = true;
+            show_nav_rail_    = false;
             break;
 
         case LayoutPreset::Debug:

@@ -147,9 +147,9 @@ struct SceneCameraPose
 
 struct PanelVisibility
 {
-    bool topic_list      = true;
-    bool topic_echo      = true;
-    bool topic_stats     = true;
+    bool topic_list      = false;
+    bool topic_echo      = false;
+    bool topic_stats     = false;
     bool plot_area       = true;
     bool bag_info        = false;
     bool bag_playback    = false;
@@ -162,7 +162,7 @@ struct PanelVisibility
     bool displays_panel  = false;
     bool scene_viewport  = false;
     bool inspector_panel = false;
-    bool nav_rail        = true;
+    bool nav_rail        = false;
 };
 
 struct TopicMonitorState

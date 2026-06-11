@@ -417,9 +417,9 @@ class RosAppShell
 
     std::atomic<bool> shutdown_requested_{false};
 
-    bool show_topic_list_       = true;
+    bool show_topic_list_       = false;
     bool show_topic_echo_       = false;
-    bool show_topic_stats_      = true;
+    bool show_topic_stats_      = false;
     bool show_plot_area_        = true;
     bool plot_area_was_visible_ = true;   // tracks previous frame for close detection
     bool show_bag_info_         = false;
@@ -435,7 +435,8 @@ class RosAppShell
     bool show_service_caller_   = false;
 
     // Shell nav rail (Spectra-ROS specific, independent from core Spectra rail).
-    bool  show_nav_rail_        = true;
+    bool  show_nav_rail_        = false;
+    bool  plot_theme_applied_   = false;
     bool  nav_rail_expanded_    = false;
     float nav_rail_width_       = 220.0f;
     float nav_rail_collapsed_w_ = 44.0f;

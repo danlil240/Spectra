@@ -69,10 +69,10 @@ constexpr float GLOW_RADIUS_MD = 4.0f;   // Standard glow (active elements)
 constexpr float GLOW_RADIUS_LG = 8.0f;   // Emphasis glow (selected items)
 
 // Grid Tokens — per-theme alpha (Night / Dark / Light)
-constexpr float GRID_MAJOR_ALPHA_NIGHT = 0.16f;
+constexpr float GRID_MAJOR_ALPHA_NIGHT = 0.11f;
 constexpr float GRID_MAJOR_ALPHA_DARK  = 0.18f;
 constexpr float GRID_MAJOR_ALPHA_LIGHT = 0.22f;
-constexpr float GRID_MINOR_ALPHA_NIGHT = 0.07f;
+constexpr float GRID_MINOR_ALPHA_NIGHT = 0.045f;
 constexpr float GRID_MINOR_ALPHA_DARK  = 0.08f;
 constexpr float GRID_MINOR_ALPHA_LIGHT = 0.10f;
 

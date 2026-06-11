@@ -10,6 +10,12 @@
 
 struct ImVec4;   // Forward declaration for ImGui
 
+namespace spectra::ui
+{
+struct ThemeGlassSettings;
+enum class GlassSurface;
+}   // namespace spectra::ui
+
 namespace spectra
 {
 class EventSystem;
@@ -258,11 +264,35 @@ struct DataPalette
 // CVD simulation: approximate how a color appears to someone with a given deficiency
 Color simulate_cvd(const Color& c, CVDType type);
 
+struct ThemeGlassSettings
+{
+    float master_intensity = 0.65f;
+    float panel_alpha      = 0.62f;
+    float plot_alpha       = 0.28f;
+    float toolbar_alpha    = 0.58f;
+    float glow_strength    = 0.45f;
+    bool  blur_enabled     = false;
+
+    static ThemeGlassSettings night_defaults();
+    static ThemeGlassSettings dark_defaults();
+    static ThemeGlassSettings light_defaults();
+
+    void clamp();
+};
+
+enum class GlassSurface
+{
+    Panel,
+    Toolbar,
+    Plot,
+};
+
 struct Theme
 {
     std::string name;
     ThemeColors colors;
     DataPalette data_palette;
+    ThemeGlassSettings glass_defaults;
 
     // Visual properties
     float opacity_panel    = 0.95f;   // Panel background opacity (for blur effect)
@@ -323,6 +353,17 @@ class ThemeManager
     bool import_theme(const std::string& path);
     void save_current_as_default();
     void load_default();
+
+    // Glass / transparency (user-adjustable; persisted with default theme export)
+    const ThemeGlassSettings& glass() const { return glass_settings_; }
+    ThemeGlassSettings&       glass_mut() { return glass_settings_; }
+    void                      set_glass_settings(const ThemeGlassSettings& settings,
+                                                 bool                        apply = true);
+    void                      reset_glass_defaults();
+    float                     glass_surface_alpha(GlassSurface surface) const;
+    Color                     glass_resolved_surface(Color base, GlassSurface surface) const;
+    Color                     glass_resolved_plot_background() const;
+    float                     effective_glow_intensity() const;
 
     // Version counter — incremented on every theme color change.
     // Renderers can compare against their cached version to skip redundant uploads.
@@ -390,6 +431,9 @@ class ThemeManager
 
     // Event system for cross-subsystem notifications
     spectra::EventSystem* event_system_ = nullptr;
+
+    ThemeGlassSettings glass_settings_;
+    ThemeGlassSettings glass_defaults_for(const std::string& theme_name) const;
 
     void        initialize_default_themes();
     void        initialize_data_palettes();

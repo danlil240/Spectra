@@ -8,6 +8,7 @@
     #include "../dialog_env_guard.hpp"
     #include "../topics/topics_panel.hpp"
     #include "io/export_registry.hpp"
+    #include "ui/theme/glass_draw.hpp"
     #include "ui/workspace/plugin_api.hpp"
 
 namespace spectra
@@ -28,7 +29,9 @@ static bool icon_label_button(const char* icon_codepoint,
 {
     using namespace ui;
 
-    const auto& colors = theme();
+    const auto& colors     = theme();
+    auto&       tm         = ui::ThemeManager::instance();
+    const float glow_scale = tm.effective_glow_intensity();
     scale = std::max(scale,
                      LayoutManager::NAV_RAIL_CELL_HEIGHT_MIN / LayoutManager::NAV_RAIL_CELL_HEIGHT);
 
@@ -66,63 +69,51 @@ static bool icon_label_button(const char* icon_codepoint,
 
     if (motion_t > 0.01f)
     {
-        ui::Color glow_color =
-            colors.accent_glow.lerp(colors.accent, 0.18f + active_t * 0.18f + hover_t * 0.08f);
-        dl->AddRectFilled(
-            ImVec2(pill_min.x - 1.5f, pill_min.y - 1.0f),
-            ImVec2(pill_max.x + 1.5f, pill_max.y + 1.5f),
-            ImGui::ColorConvertFloat4ToU32(
-                ImVec4(glow_color.r,
-                       glow_color.g,
-                       glow_color.b,
-                       (0.06f + hover_t * 0.06f + active_t * 0.10f) * colors.glow_intensity)),
-            tokens::RADIUS_MD + 1.0f);
+        // Layered outer glow — clearly stronger on the active tool.
+        ui::Color glow_color = glass_palette::kAccentCyan.lerp(colors.accent_glow, 0.4f);
+        for (int gi = 2; gi >= 1; --gi)
+        {
+            float e = static_cast<float>(gi);
+            dl->AddRect(
+                ImVec2(pill_min.x - e, pill_min.y - e),
+                ImVec2(pill_max.x + e, pill_max.y + e),
+                ImGui::ColorConvertFloat4ToU32(
+                    ImVec4(glow_color.r,
+                           glow_color.g,
+                           glow_color.b,
+                           (0.05f + hover_t * 0.04f + active_t * 0.16f) / e * glow_scale)),
+                tokens::RADIUS_MD + e,
+                0,
+                2.0f);
+        }
 
         ui::Color pill_fill = colors.bg_secondary.lerp(colors.bg_tertiary, 0.62f)
-                                  .lerp(colors.accent, 0.06f + active_t * 0.16f + hover_t * 0.10f);
+                                  .lerp(colors.accent, 0.05f + active_t * 0.24f + hover_t * 0.08f);
+        float pill_a = tm.glass_surface_alpha(ui::GlassSurface::Toolbar);
+        pill_a = std::clamp(pill_a * (0.70f + active_t * 0.28f + hover_t * 0.08f), 0.15f, 1.0f);
         dl->AddRectFilled(
             pill_min,
             pill_max,
-            ImGui::ColorConvertFloat4ToU32(ImVec4(pill_fill.r,
-                                                  pill_fill.g,
-                                                  pill_fill.b,
-                                                  0.55f + active_t * 0.36f + hover_t * 0.18f)),
+            ImGui::ColorConvertFloat4ToU32(ImVec4(pill_fill.r, pill_fill.g, pill_fill.b, pill_a)),
             tokens::RADIUS_MD);
+        // Top inner highlight on the pill.
+        dl->AddLine(ImVec2(pill_min.x + 4.0f, pill_min.y + 1.0f),
+                    ImVec2(pill_max.x - 4.0f, pill_min.y + 1.0f),
+                    IM_COL32(225, 244, 255, static_cast<int>(40.0f + 30.0f * active_t)),
+                    1.0f);
         dl->AddRect(
             pill_min,
             pill_max,
             ImGui::ColorConvertFloat4ToU32(ImVec4(
-                colors.border_subtle.r * (1.0f - active_t) + colors.border_strong.r * active_t,
-                colors.border_subtle.g * (1.0f - active_t) + colors.border_strong.g * active_t,
-                colors.border_subtle.b * (1.0f - active_t) + colors.border_strong.b * active_t,
-                0.28f + hover_t * 0.18f + active_t * 0.24f)),
+                colors.border_subtle.r * (1.0f - active_t) + colors.accent.r * active_t,
+                colors.border_subtle.g * (1.0f - active_t) + colors.accent.g * active_t,
+                colors.border_subtle.b * (1.0f - active_t) + colors.accent.b * active_t,
+                0.26f + hover_t * 0.16f + active_t * 0.40f)),
             tokens::RADIUS_MD);
     }
 
-    if (active_t > 0.01f)
-    {
-        float  bar_w   = 3.0f;
-        ImVec2 bar_min = ImVec2(cursor.x, cursor.y + 10.0f - lift);
-        ImVec2 bar_max = ImVec2(cursor.x + bar_w, cursor.y + cell_h - 10.0f - lift);
-        if (colors.glow_intensity > 0.01f)
-        {
-            dl->AddRectFilled(ImVec2(bar_min.x - 1.0f, bar_min.y - 1.0f),
-                              ImVec2(bar_max.x + 2.0f, bar_max.y + 1.0f),
-                              ImGui::ColorConvertFloat4ToU32(
-                                  ImVec4(colors.accent_glow.r,
-                                         colors.accent_glow.g,
-                                         colors.accent_glow.b,
-                                         colors.accent_glow.a * (0.18f + active_t * 0.10f))),
-                              2.0f);
-        }
-        dl->AddRectFilled(bar_min,
-                          bar_max,
-                          ImGui::ColorConvertFloat4ToU32(ImVec4(colors.accent.r,
-                                                                colors.accent.g,
-                                                                colors.accent.b,
-                                                                0.80f + active_t * 0.20f)),
-                          1.0f);
-    }
+    // Single active state = the glowing pill above. No separate left accent bar
+    // (avoids multiple cyan indicators that make several tools look active).
 
     ui::Color icon_color = colors.text_secondary.lerp(colors.text_primary, hover_t * 0.78f)
                                .lerp(colors.accent_hover, active_t * 0.88f);
@@ -197,24 +188,26 @@ void ImGuiIntegration::draw_menubar_menu(const char* label, const std::vector<Me
     bool        menu_is_open = open_menu_label_ == label;
 
     ImGui::PushFont(font_menubar_);
+    // Softer menu text — refined, lower-contrast until hovered/open.
     ImGui::PushStyleColor(ImGuiCol_Text,
-                          ImVec4(colors.text_primary.r,
-                                 colors.text_primary.g,
-                                 colors.text_primary.b,
-                                 menu_is_open ? 1.0f : 0.88f));
+                          ImVec4(colors.text_secondary.r,
+                                 colors.text_secondary.g,
+                                 colors.text_secondary.b,
+                                 menu_is_open ? 1.0f : 0.82f));
+    // Glass-pill open/hover/active states (translucent accent tint, rounded).
     ImGui::PushStyleColor(
         ImGuiCol_Button,
         menu_is_open
-            ? ImVec4(colors.bg_tertiary.r, colors.bg_tertiary.g, colors.bg_tertiary.b, 0.95f)
+            ? ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.16f)
             : ImVec4(0, 0, 0, 0));
     ImGui::PushStyleColor(
         ImGuiCol_ButtonHovered,
-        ImVec4(colors.accent_subtle.r, colors.accent_subtle.g, colors.accent_subtle.b, 0.78f));
+        ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.10f));
     ImGui::PushStyleColor(
         ImGuiCol_ButtonActive,
-        ImVec4(colors.accent_muted.r, colors.accent_muted.g, colors.accent_muted.b, 0.95f));
+        ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.22f));
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
-                        ImVec2(ui::tokens::SPACE_4, ui::tokens::SPACE_2));
+                        ImVec2(ui::tokens::SPACE_4 + 2.0f, ui::tokens::SPACE_2));
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, ui::tokens::RADIUS_MD);
 
     // Remember button rect for popup positioning and auto-close
@@ -458,21 +451,13 @@ void ImGuiIntegration::draw_command_bar()
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove
                              | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings
                              | ImGuiWindowFlags_NoBringToFrontOnFocus
-                             | ImGuiWindowFlags_NoFocusOnAppearing;
+                             | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoBackground;
 
-    // Top bar: slightly darker than panels to push visual focus to canvas
-    float bar_blend = 0.74f;   // Blend toward bg_primary
-    auto  bar_bg_r  = theme_colors().bg_primary.r * bar_blend
-                      + theme_colors().bg_secondary.r * (1.0f - bar_blend);
-    auto  bar_bg_g  = theme_colors().bg_primary.g * bar_blend
-                      + theme_colors().bg_secondary.g * (1.0f - bar_blend);
-    auto  bar_bg_b  = theme_colors().bg_primary.b * bar_blend
-                      + theme_colors().bg_secondary.b * (1.0f - bar_blend);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
-                        ImVec2(ui::tokens::SPACE_5, ui::tokens::SPACE_2));
+                        ImVec2(ui::tokens::SPACE_6, ui::tokens::SPACE_2));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ui::tokens::SPACE_3, 0.0f));
-    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(bar_bg_r, bar_bg_g, bar_bg_b, 1.0f));
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ui::tokens::SPACE_4, 0.0f));
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0, 0, 0, 0));
     ImGui::PushStyleColor(ImGuiCol_Border,
                           ImVec4(theme_colors().border_subtle.r,
                                  theme_colors().border_subtle.g,
@@ -570,8 +555,8 @@ void ImGuiIntegration::draw_command_bar()
                 }
             }
 
-            // Advance ImGui cursor past the entire brand block
-            float brand_w = (text_x - cursor.x) + total_w + 4.0f;
+            // Advance ImGui cursor past the entire brand block (extra breathing room)
+            float brand_w = (text_x - cursor.x) + total_w + 18.0f;
             ImGui::Dummy(ImVec2(brand_w, font_sz));
             ImGui::PopFont();
         }
@@ -1303,49 +1288,55 @@ void ImGuiIntegration::draw_plugins_panel()
 
 void ImGuiIntegration::draw_chrome_backdrops()
 {
-    if (!layout_manager_)
+    if (!layout_manager_ || !theme_mgr_)
         return;
 
-    ImDrawList* bg = ImGui::GetBackgroundDrawList();
-    const auto& c  = theme_colors();
+    ImDrawList*                   bg    = ImGui::GetBackgroundDrawList();
+    const auto&                   c     = theme_colors();
+    const ui::ThemeGlassSettings& glass = theme_mgr_->glass();
+    const float                   glow  = theme_mgr_->effective_glow_intensity();
+
+    // Premium floating app-shell frame — luminous border + edge vignette only.
+    // Strokes/edge bands never fill the canvas (BackgroundDrawList composites over
+    // the Vulkan plot; a full-viewport fill would hide all series).
+    if (ImGuiViewport* vp = ImGui::GetMainViewport())
+    {
+        ImVec2 win_min = ImVec2(vp->Pos.x + 1.0f, vp->Pos.y + 1.0f);
+        ImVec2 win_max = ImVec2(vp->Pos.x + vp->Size.x - 1.0f, vp->Pos.y + vp->Size.y - 1.0f);
+        ui::glass_draw::draw_app_shell_frame(bg, win_min, win_max, glow);
+    }
+
+    auto draw_zone = [&](const Rect& zone, ui::GlassSurface surface, float rounding)
+    {
+        if (zone.w < 1.0f || zone.h < 1.0f)
+            return;
+        ui::glass_draw::draw_glass_rect(bg,
+                                        ImVec2(zone.x, zone.y),
+                                        ImVec2(zone.x + zone.w, zone.y + zone.h),
+                                        rounding,
+                                        c,
+                                        glass,
+                                        surface,
+                                        glow);
+    };
 
     if (command_bar_visible_)
-    {
-        Rect bar = layout_manager_->command_bar_rect();
-        bg->AddRectFilled(ImVec2(bar.x, bar.y),
-                          ImVec2(bar.x + bar.w, bar.y + bar.h),
-                          IM_COL32(static_cast<int>(c.bg_primary.r * 255),
-                                   static_cast<int>(c.bg_primary.g * 255),
-                                   static_cast<int>(c.bg_primary.b * 255),
-                                   255));
-    }
+        draw_zone(layout_manager_->command_bar_rect(), ui::GlassSurface::Toolbar, 0.0f);
 
     if (show_nav_rail_)
     {
-        Rect  nr     = layout_manager_->nav_rail_rect();
-        float rail_w = std::max(nr.w, LayoutManager::NAV_RAIL_COLLAPSED_WIDTH);
-        float rail_y = LayoutManager::COMMAND_BAR_HEIGHT;
-        float rail_h =
-            std::max(nr.h,
-                     ImGui::GetIO().DisplaySize.y - rail_y - LayoutManager::STATUS_BAR_HEIGHT);
-        bg->AddRectFilled(ImVec2(0.0f, rail_y),
-                          ImVec2(rail_w, rail_y + rail_h),
-                          IM_COL32(static_cast<int>(c.bg_secondary.r * 255),
-                                   static_cast<int>(c.bg_secondary.g * 255),
-                                   static_cast<int>(c.bg_secondary.b * 255),
-                                   255));
+        Rect nr = layout_manager_->nav_rail_rect();
+        draw_zone(nr, ui::GlassSurface::Toolbar, ui::tokens::RADIUS_MD);
     }
 
+    if (layout_manager_->is_tab_bar_visible())
+        draw_zone(layout_manager_->tab_bar_rect(), ui::GlassSurface::Toolbar, 0.0f);
+
+    if (layout_manager_->is_inspector_visible())
+        draw_zone(layout_manager_->inspector_rect(), ui::GlassSurface::Panel, ui::tokens::RADIUS_LG);
+
     if (status_bar_visible_)
-    {
-        Rect sb = layout_manager_->status_bar_rect();
-        bg->AddRectFilled(ImVec2(sb.x, sb.y),
-                          ImVec2(sb.x + sb.w, sb.y + sb.h),
-                          IM_COL32(static_cast<int>(c.bg_primary.r * 255),
-                                   static_cast<int>(c.bg_primary.g * 255),
-                                   static_cast<int>(c.bg_primary.b * 255),
-                                   255));
-    }
+        draw_zone(layout_manager_->status_bar_rect(), ui::GlassSurface::Panel, 0.0f);
 }
 
 void ImGuiIntegration::draw_nav_rail()
@@ -1360,21 +1351,17 @@ void ImGuiIntegration::draw_nav_rail()
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove
                              | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings
                              | ImGuiWindowFlags_NoBringToFrontOnFocus
-                             | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoScrollbar;
+                             | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoScrollbar
+                             | ImGuiWindowFlags_NoBackground;
 
     float rail_w = bounds.w;
 
-    // Vision.png style: full-height, bg_primary (darkest), no border, no rounding
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, ui::tokens::SPACE_3));
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ui::tokens::RADIUS_MD);
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowMinSize, ImVec2(0, 0));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
-    ImGui::PushStyleColor(ImGuiCol_WindowBg,
-                          ImVec4(theme_colors().bg_secondary.r,
-                                 theme_colors().bg_secondary.g,
-                                 theme_colors().bg_secondary.b,
-                                 0.98f));
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0, 0, 0, 0));
 
     ImGui::SetNextWindowPos(ImVec2(bounds.x, bounds.y), ImGuiCond_Always);
     ImGui::SetNextWindowSize(ImVec2(rail_w, bounds.h), ImGuiCond_Always);

@@ -27,6 +27,8 @@
     // Embedded Spectra logo icon
     #include "spectra_icon_embedded.hpp"
 
+    #include "ui/theme/glass_draw.hpp"
+
     #include "../../../third_party/tinyfiledialogs.h"
     #include "../dialog_env_guard.hpp"
     #include "../topics/topics_panel.hpp"
@@ -591,23 +593,31 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
         }
         ImGui::BeginTooltip();
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
-                            ImVec2(ui::tokens::SPACE_3, ui::tokens::SPACE_2));
+                            ImVec2(ui::tokens::SPACE_3 + 2.0f, ui::tokens::SPACE_2 + 1.0f));
         ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ui::tokens::RADIUS_MD);
-        ImGui::PushStyleColor(ImGuiCol_PopupBg,
-                              ImVec4(theme_colors().bg_elevated.r,
-                                     theme_colors().bg_elevated.g,
-                                     theme_colors().bg_elevated.b,
-                                     0.95f));
-        ImGui::PushStyleColor(ImGuiCol_Border,
-                              ImVec4(theme_colors().border_subtle.r,
-                                     theme_colors().border_subtle.g,
-                                     theme_colors().border_subtle.b,
-                                     0.3f));
+        // Transparent popup bg — frosted glass card is drawn manually below.
+        ImGui::PushStyleColor(ImGuiCol_PopupBg, ImVec4(0, 0, 0, 0));
+        ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0, 0, 0, 0));
         ImGui::PushStyleColor(ImGuiCol_Text,
                               ImVec4(theme_colors().text_primary.r,
                                      theme_colors().text_primary.g,
                                      theme_colors().text_primary.b,
                                      theme_colors().text_primary.a));
+        {
+            ImDrawList* tdl = ImGui::GetWindowDrawList();
+            ImVec2      tp0 = ImGui::GetWindowPos();
+            ImVec2      tsz = ImGui::GetWindowSize();
+            ImVec2      tp1 = ImVec2(tp0.x + tsz.x, tp0.y + tsz.y);
+            tdl->PushClipRectFullScreen();
+            ui::glass_draw::draw_glass_card(tdl,
+                                            tp0,
+                                            tp1,
+                                            ui::tokens::RADIUS_MD,
+                                            theme_colors(),
+                                            0.78f,
+                                            theme_colors().glow_intensity);
+            tdl->PopClipRect();
+        }
         ImGui::TextUnformatted(deferred_tooltip_);
         ImGui::PopStyleColor(3);
         ImGui::PopStyleVar(2);

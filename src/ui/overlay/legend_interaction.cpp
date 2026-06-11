@@ -11,6 +11,7 @@
     #include <spectra/series.hpp>
 
     #include "ui/theme/design_tokens.hpp"
+    #include "ui/theme/glass_draw.hpp"
     #include "ui/theme/theme.hpp"
 
 namespace spectra
@@ -242,11 +243,15 @@ bool LegendInteraction::draw(Axes&               axes,
                             config.border_color.b,
                             config.border_color.a);
 
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ui::tokens::RADIUS_MD);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(pad_x, pad_y));
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.5f);
-    ImGui::PushStyleColor(ImGuiCol_WindowBg, bg_col);
-    ImGui::PushStyleColor(ImGuiCol_Border, border_col);
+    // Translucent glass card: only honor an explicit user bg_color; otherwise
+    // draw a frosted pane manually (see below) and keep the ImGui WindowBg clear.
+    const bool user_bg = !is_sentinel(config.bg_color);
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ui::tokens::RADIUS_LG);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(pad_x + 4.0f, pad_y + 3.0f));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, user_bg ? 0.5f : 0.0f);
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, user_bg ? bg_col : ImVec4(0, 0, 0, 0));
+    ImGui::PushStyleColor(ImGuiCol_Border, user_bg ? border_col : ImVec4(0, 0, 0, 0));
 
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoSavedSettings
                              | ImGuiWindowFlags_NoBringToFrontOnFocus
@@ -266,6 +271,24 @@ bool LegendInteraction::draw(Axes&               axes,
 
     if (ImGui::Begin(win_id.c_str(), nullptr, flags))
     {
+        // Frosted glass card behind the legend content (skip if user set a bg).
+        if (!user_bg)
+        {
+            ImDrawList* wdl  = ImGui::GetWindowDrawList();
+            ImVec2      wp0  = ImGui::GetWindowPos();
+            ImVec2      wsz  = ImGui::GetWindowSize();
+            ImVec2      wp1  = ImVec2(wp0.x + wsz.x, wp0.y + wsz.y);
+            wdl->PushClipRectFullScreen();
+            ui::glass_draw::draw_glass_card(wdl,
+                                            wp0,
+                                            wp1,
+                                            ui::tokens::RADIUS_LG,
+                                            theme_colors,
+                                            0.52f,
+                                            theme_colors.glow_intensity);
+            wdl->PopClipRect();
+        }
+
         // Handle legend dragging
         if (draggable_)
         {

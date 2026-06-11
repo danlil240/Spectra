@@ -192,26 +192,21 @@ void ImGuiIntegration::draw_theme_settings()
     const auto& colors        = ui::theme();
     auto&       theme_manager = *theme_mgr_;
 
-    // Center the modal window
-    ImGuiIO& io            = ImGui::GetIO();
-    float    window_width  = 360.0f;
-    float    window_height = 320.0f;
-    float    wx            = (io.DisplaySize.x - window_width) * 0.5f;
-    float    wy            = (io.DisplaySize.y - window_height) * 0.5f;
-    ImGui::SetNextWindowPos(ImVec2(wx, wy), ImGuiCond_Always);
-    ImGui::SetNextWindowSize(ImVec2(window_width, window_height));
+    ImGuiIO& io = ImGui::GetIO();
+    ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f),
+                            ImGuiCond_Appearing,
+                            ImVec2(0.5f, 0.5f));
+    ImGui::SetNextWindowSizeConstraints(ImVec2(380.0f, 0.0f), ImVec2(720.0f, 900.0f));
 
-    static std::vector<std::string> available_themes = {"night", "dark", "light", "high_contrast"};
+    static const std::vector<std::pair<std::string, std::string>> available_themes = {
+        {"night", "Night Glass"},
+        {"dark", "Dark"},
+        {"light", "Light"},
+        {"high_contrast", "High Contrast"},
+    };
 
     ImGuiWindowFlags flags =
-        ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoCollapse;
-
-    // Draw shadow behind dialog
-    ImDrawList* bg_dl = ImGui::GetBackgroundDrawList();
-    bg_dl->AddRectFilled(ImVec2(wx - 4, wy - 2),
-                         ImVec2(wx + window_width + 4, wy + window_height + 10),
-                         IM_COL32(0, 0, 0, 35),
-                         ui::tokens::RADIUS_LG + 6);
+        ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize;
 
     // Modern modal styling
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
@@ -251,9 +246,9 @@ void ImGuiIntegration::draw_theme_settings()
         ImGui::Dummy(ImVec2(0, 8));
 
         // Theme selection buttons — card-like
-        for (const auto& theme_name : available_themes)
+        for (const auto& [theme_id, display_name] : available_themes)
         {
-            bool is_current = (theme_manager.current_theme_name() == theme_name);
+            bool is_current = (theme_manager.current_theme_name() == theme_id);
 
             if (is_current)
             {
@@ -290,34 +285,73 @@ void ImGuiIntegration::draw_theme_settings()
             ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
                                 ImVec2(ui::tokens::SPACE_4, ui::tokens::SPACE_3));
 
-            // Capitalize + prettify name
-            std::string display_name = theme_name;
-            if (!display_name.empty())
-            {
-                display_name[0] = static_cast<char>(std::toupper(display_name[0]));
-                size_t pos      = 0;
-                while ((pos = display_name.find('_', pos)) != std::string::npos)
-                {
-                    display_name[pos] = ' ';
-                    if (pos + 1 < display_name.length())
-                        display_name[pos + 1] =
-                            static_cast<char>(std::toupper(display_name[pos + 1]));
-                    pos += 1;
-                }
-            }
-
-            // Prepend checkmark for current theme
             std::string label =
                 is_current ? std::string("  ") + display_name : std::string("    ") + display_name;
 
             if (ImGui::Button(label.c_str(), ImVec2(-1, 0)))
             {
-                theme_manager.set_theme(theme_name);
+                theme_manager.set_theme(theme_id);
+                theme_manager.reset_glass_defaults();
+                theme_manager.save_current_as_default();
             }
 
             ImGui::PopStyleVar(2);
             ImGui::PopStyleColor(4);
             ImGui::Dummy(ImVec2(0, 2));
+        }
+
+        ImGui::Dummy(ImVec2(0, 8));
+        ImGui::PushStyleColor(
+            ImGuiCol_Separator,
+            ImVec4(colors.border_subtle.r, colors.border_subtle.g, colors.border_subtle.b, 0.3f));
+        ImGui::Separator();
+        ImGui::PopStyleColor();
+        ImGui::Dummy(ImVec2(0, 6));
+
+        ImGui::PushFont(font_heading_);
+        ImGui::TextUnformatted("Glass / Transparency");
+        ImGui::PopFont();
+        ImGui::Dummy(ImVec2(0, 4));
+
+        ui::ThemeGlassSettings glass = theme_manager.glass();
+        bool                     glass_changed = false;
+
+        auto glass_slider = [&](const char* label, float* value)
+        {
+            ImGui::PushID(label);
+            ImGui::TextUnformatted(label);
+            ImGui::SetNextItemWidth(-1.0f);
+            if (ImGui::SliderFloat("##v", value, 0.0f, 1.0f, "%.2f"))
+                glass_changed = true;
+            ImGui::PopID();
+        };
+
+        glass_slider("Master Glass Intensity", &glass.master_intensity);
+        glass_slider("Panel Transparency", &glass.panel_alpha);
+        glass_slider("Plot Background Transparency", &glass.plot_alpha);
+        glass_slider("Toolbar Transparency", &glass.toolbar_alpha);
+        glass_slider("Glow Strength", &glass.glow_strength);
+
+        if (ImGui::Checkbox("Blur Enabled (experimental)", &glass.blur_enabled))
+            glass_changed = true;
+        if (ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip(
+                "Real backdrop blur is not enabled in this build.\n"
+                "Glass styling uses layered translucency and glow instead.");
+        }
+
+        if (glass_changed)
+        {
+            theme_manager.set_glass_settings(glass, true);
+            theme_manager.save_current_as_default();
+        }
+
+        ImGui::Dummy(ImVec2(0, 4));
+        if (ImGui::Button("Reset Theme Defaults", ImVec2(-1, 0)))
+        {
+            theme_manager.reset_glass_defaults();
+            theme_manager.save_current_as_default();
         }
 
         ImGui::Dummy(ImVec2(0, 8));

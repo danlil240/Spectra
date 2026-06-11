@@ -1,16 +1,16 @@
 # Graph Report - Spectra  (2026-06-11)
 
 ## Corpus Check
-- 977 files · ~2,001,797 words
+- 978 files · ~2,001,948 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 29605 nodes · 43579 edges · 1478 communities (1235 shown, 243 thin omitted)
+- 29665 nodes · 43680 edges · 1513 communities (1244 shown, 269 thin omitted)
 - Extraction: 97% EXTRACTED · 3% INFERRED · 0% AMBIGUOUS · INFERRED: 1368 edges (avg confidence: 0.7)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `3bc9b695`
+- Built from commit: `40f1b543`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -1205,33 +1205,33 @@
 - [[_COMMUNITY_HelloPayload (codec_fb)|HelloPayload (codec_fb)]]
 - [[_COMMUNITY_ReqAppendDataPayload (codec_fb)|ReqAppendDataPayload (codec_fb)]]
 - [[_COMMUNITY_ReqCloseFigurePayload (codec_fb)|ReqCloseFigurePayload (codec_fb)]]
-- [[_COMMUNITY_ReqCloseWindowPayload (codec_fb)|ReqCloseWindowPayload (codec_fb)]]
+- [[_COMMUNITY_Community 1198|Community 1198]]
 - [[_COMMUNITY_ReqCreateAxesPayload (codec_fb)|ReqCreateAxesPayload (codec_fb)]]
-- [[_COMMUNITY_ReqCreateFigurePayload (codec_fb)|ReqCreateFigurePayload (codec_fb)]]
+- [[_COMMUNITY_Community 1200|Community 1200]]
 - [[_COMMUNITY_ReqCreateWindowPayload (codec_fb)|ReqCreateWindowPayload (codec_fb)]]
 - [[_COMMUNITY_ReqDeclareTopicPayload (codec_fb)|ReqDeclareTopicPayload (codec_fb)]]
-- [[_COMMUNITY_ReqDestroyFigurePayload (codec_fb)|ReqDestroyFigurePayload (codec_fb)]]
-- [[_COMMUNITY_ReqDetachFigurePayload (codec_fb)|ReqDetachFigurePayload (codec_fb)]]
+- [[_COMMUNITY_Community 1203|Community 1203]]
+- [[_COMMUNITY_Community 1204|Community 1204]]
 - [[_COMMUNITY_ReqListTopicsPayload (codec_fb)|ReqListTopicsPayload (codec_fb)]]
 - [[_COMMUNITY_ReqPublishTopicSamplesPayload (codec_fb)|ReqPublishTopicSamplesPayload (codec_fb)]]
 - [[_COMMUNITY_ReqReconnectPayload (codec_fb)|ReqReconnectPayload (codec_fb)]]
-- [[_COMMUNITY_ReqSubscribeTopicPayload (codec_fb)|ReqSubscribeTopicPayload (codec_fb)]]
-- [[_COMMUNITY_ReqUpdateBatchPayload (codec_fb)|ReqUpdateBatchPayload (codec_fb)]]
-- [[_COMMUNITY_RespErrPayload (codec_fb)|RespErrPayload (codec_fb)]]
-- [[_COMMUNITY_Series (data_interaction) 2|Series (data_interaction) #2]]
-- [[_COMMUNITY_SeriesSelectedCallback (data_interaction)|SeriesSelectedCallback (data_interaction)]]
-- [[_COMMUNITY_Figure (data_interaction) 2|Figure (data_interaction) #2]]
-- [[_COMMUNITY_QA_update 2|QA_update #2]]
-- [[_COMMUNITY_imu_monitor.launch|imu_monitor.launch]]
-- [[_COMMUNITY_nav_dashboard.launch|nav_dashboard.launch]]
-- [[_COMMUNITY_service_caller 6|service_caller #6]]
-- [[_COMMUNITY_SlotEntry (subplot_manager) 2|SlotEntry (subplot_manager) #2]]
-- [[_COMMUNITY_measure_tool 2|measure_tool #2]]
+- [[_COMMUNITY_Community 1208|Community 1208]]
+- [[_COMMUNITY_Community 1209|Community 1209]]
+- [[_COMMUNITY_Community 1210|Community 1210]]
+- [[_COMMUNITY_Community 1211|Community 1211]]
+- [[_COMMUNITY_Community 1212|Community 1212]]
+- [[_COMMUNITY_Community 1213|Community 1213]]
+- [[_COMMUNITY_Community 1214|Community 1214]]
+- [[_COMMUNITY_Community 1215|Community 1215]]
+- [[_COMMUNITY_Community 1216|Community 1216]]
+- [[_COMMUNITY_Community 1217|Community 1217]]
+- [[_COMMUNITY_Community 1218|Community 1218]]
+- [[_COMMUNITY_Community 1219|Community 1219]]
 - [[_COMMUNITY_ServiceCaller (service_caller_panel) 2|ServiceCaller (service_caller_panel) #2]]
 - [[_COMMUNITY_figure_view_model 3|figure_view_model #3]]
 - [[_COMMUNITY_FigureId (figure_view_model)|FigureId (figure_view_model)]]
 - [[_COMMUNITY_test_packaging_metadata|test_packaging_metadata]]
-- [[_COMMUNITY_subplot_manager 3|subplot_manager #3]]
+- [[_COMMUNITY_Community 1224|Community 1224]]
 - [[_COMMUNITY_README 2|README #2]]
 - [[_COMMUNITY_animation_curve_editor 2|animation_curve_editor #2]]
 - [[_COMMUNITY_AnimationChannel (animation_curve_editor)|AnimationChannel (animation_curve_editor)]]
@@ -1241,20 +1241,20 @@
 - [[_COMMUNITY_timeline_editor 3|timeline_editor #3]]
 - [[_COMMUNITY_TopicChangedFn (inproc_topic_server)|TopicChangedFn (inproc_topic_server)]]
 - [[_COMMUNITY_README 3|README #3]]
-- [[_COMMUNITY_AttachedCallback (panel_detach_controller)|AttachedCallback (panel_detach_controller)]]
+- [[_COMMUNITY_Community 1234|Community 1234]]
 - [[_COMMUNITY___init__|__init__]]
 - [[_COMMUNITY_CancelCallback (tab_drag_controller)|CancelCallback (tab_drag_controller)]]
 - [[_COMMUNITY_CrossWindowDropInfo (window_manager)|CrossWindowDropInfo (window_manager)]]
-- [[_COMMUNITY_CsvPlotCallback (imgui_integration)|CsvPlotCallback (imgui_integration)]]
+- [[_COMMUNITY_Community 1238|Community 1238]]
 - [[_COMMUNITY_DetachedCallback (panel_detach_controller)|DetachedCallback (panel_detach_controller)]]
 - [[_COMMUNITY_DisplaysPanel (ros_app_shell)|DisplaysPanel (ros_app_shell)]]
 - [[_COMMUNITY_DropOnWindowCallback (tab_drag_controller)|DropOnWindowCallback (tab_drag_controller)]]
 - [[_COMMUNITY_DropOutsideCallback (tab_drag_controller)|DropOutsideCallback (tab_drag_controller)]]
-- [[_COMMUNITY_CursorChangeCallback (embed_surface)|CursorChangeCallback (embed_surface)]]
-- [[_COMMUNITY_FrameCallback (embed_surface)|FrameCallback (embed_surface)]]
+- [[_COMMUNITY_Community 1243|Community 1243]]
+- [[_COMMUNITY_Community 1244|Community 1244]]
 - [[_COMMUNITY_EmbedConfig (spectra_embed_c)|EmbedConfig (spectra_embed_c)]]
-- [[_COMMUNITY_ExpressionPlot (expression_editor)|ExpressionPlot (expression_editor)]]
-- [[_COMMUNITY_ExtraDrawCallback (imgui_integration)|ExtraDrawCallback (imgui_integration)]]
+- [[_COMMUNITY_Community 1271|Community 1271]]
+- [[_COMMUNITY_Community 1272|Community 1272]]
 - [[_COMMUNITY_includespectraeigen.hpp|include/spectra/eigen.hpp]]
 - [[_COMMUNITY_TabDragOutCallback (tab_bar)|TabDragOutCallback (tab_bar)]]
 - [[_COMMUNITY_FigureId (tab_drag_controller) 2|FigureId (tab_drag_controller) #2]]
@@ -1262,11 +1262,14 @@
 - [[_COMMUNITY_FigureUnregisteringHandler (window_manager)|FigureUnregisteringHandler (window_manager)]]
 - [[_COMMUNITY_FileDropHandler (window_manager)|FileDropHandler (window_manager)]]
 - [[_COMMUNITY_format_project|format_project]]
-- [[_COMMUNITY_run-gpu|run-gpu]]
-- [[_COMMUNITY_test-deb-install|test-deb-install]]
-- [[_COMMUNITY_run_tests|run_tests]]
+- [[_COMMUNITY_Community 1280|Community 1280]]
+- [[_COMMUNITY_Community 1281|Community 1281]]
+- [[_COMMUNITY_Community 1282|Community 1282]]
 - [[_COMMUNITY_list_github_models|list_github_models]]
-- [[_COMMUNITY_ToolMode (imgui_integration)|ToolMode (imgui_integration)]]
+- [[_COMMUNITY_Community 1284|Community 1284]]
+- [[_COMMUNITY_Community 1285|Community 1285]]
+- [[_COMMUNITY_Community 1286|Community 1286]]
+- [[_COMMUNITY_Community 1287|Community 1287]]
 - [[_COMMUNITY_LineStyle (series)|LineStyle (series)]]
 - [[_COMMUNITY_SavePngCallback (input)|SavePngCallback (input)]]
 - [[_COMMUNITY_ToolMode (input)|ToolMode (input)]]
@@ -1275,11 +1278,15 @@
 - [[_COMMUNITY_InspectorPanel (ros_app_shell)|InspectorPanel (ros_app_shell)]]
 - [[_COMMUNITY_InteractiveFrameHandler (window_manager)|InteractiveFrameHandler (window_manager)]]
 - [[_COMMUNITY_Rect (layout_manager) 2|Rect (layout_manager) #2]]
+- [[_COMMUNITY_Community 1296|Community 1296]]
 - [[_COMMUNITY_Renderer|Renderer]]
+- [[_COMMUNITY_Community 1298|Community 1298]]
+- [[_COMMUNITY_Community 1299|Community 1299]]
 - [[_COMMUNITY_DrawCallback (panel_detach_controller)|DrawCallback (panel_detach_controller)]]
 - [[_COMMUNITY_State (panel_detach_controller)|State (panel_detach_controller)]]
 - [[_COMMUNITY_App|App]]
 - [[_COMMUNITY_RedrawRequestHandler (window_manager)|RedrawRequestHandler (window_manager)]]
+- [[_COMMUNITY_Community 1306|Community 1306]]
 - [[_COMMUNITY_bag_field_spec|bag_field_spec]]
 - [[_COMMUNITY_LineSeries (expression_plot)|LineSeries (expression_plot)]]
 - [[_COMMUNITY_OnDataCallback (expression_plot)|OnDataCallback (expression_plot)]]
@@ -1307,9 +1314,9 @@
 - [[_COMMUNITY_CallHandle (service_caller_panel)|CallHandle (service_caller_panel)]]
 - [[_COMMUNITY_service_caller_panel 2|service_caller_panel #2]]
 - [[_COMMUNITY_FigureRegistry (figure_manager)|FigureRegistry (figure_manager)]]
-- [[_COMMUNITY_CVDType (theme)|CVDType (theme)]]
-- [[_COMMUNITY_Renderer (theme)|Renderer (theme)]]
-- [[_COMMUNITY_ThemeManager (theme) 2|ThemeManager (theme) #2]]
+- [[_COMMUNITY_Community 1335|Community 1335]]
+- [[_COMMUNITY_Community 1336|Community 1336]]
+- [[_COMMUNITY_Community 1337|Community 1337]]
 - [[_COMMUNITY_ChangeCallback (figure_view_model)|ChangeCallback (figure_view_model)]]
 - [[_COMMUNITY_EventSystem (window_manager)|EventSystem (window_manager)]]
 - [[_COMMUNITY_TabDetachHandler (window_manager)|TabDetachHandler (window_manager)]]
@@ -1422,11 +1429,39 @@
 - [[_COMMUNITY_version|version]]
 - [[_COMMUNITY_Vision|Vision]]
 - [[_COMMUNITY_webgpu_shell|webgpu_shell]]
+- [[_COMMUNITY_Community 1485|Community 1485]]
+- [[_COMMUNITY_Community 1486|Community 1486]]
+- [[_COMMUNITY_Community 1487|Community 1487]]
+- [[_COMMUNITY_Community 1488|Community 1488]]
+- [[_COMMUNITY_Community 1496|Community 1496]]
+- [[_COMMUNITY_Community 1503|Community 1503]]
+- [[_COMMUNITY_Community 1510|Community 1510]]
+- [[_COMMUNITY_Community 1540|Community 1540]]
+- [[_COMMUNITY_Community 1631|Community 1631]]
+- [[_COMMUNITY_Community 1632|Community 1632]]
+- [[_COMMUNITY_Community 1633|Community 1633]]
+- [[_COMMUNITY_Community 1672|Community 1672]]
+- [[_COMMUNITY_Community 1673|Community 1673]]
+- [[_COMMUNITY_Community 1674|Community 1674]]
+- [[_COMMUNITY_Community 1675|Community 1675]]
+- [[_COMMUNITY_Community 1676|Community 1676]]
+- [[_COMMUNITY_Community 1677|Community 1677]]
+- [[_COMMUNITY_Community 1678|Community 1678]]
+- [[_COMMUNITY_Community 1679|Community 1679]]
+- [[_COMMUNITY_Community 1680|Community 1680]]
+- [[_COMMUNITY_Community 1681|Community 1681]]
+- [[_COMMUNITY_Community 1682|Community 1682]]
+- [[_COMMUNITY_Community 1687|Community 1687]]
+- [[_COMMUNITY_Community 1690|Community 1690]]
+- [[_COMMUNITY_Community 1691|Community 1691]]
+- [[_COMMUNITY_Community 1692|Community 1692]]
+- [[_COMMUNITY_Community 1693|Community 1693]]
+- [[_COMMUNITY_Community 1694|Community 1694]]
 
 ## God Nodes (most connected - your core abstractions)
 1. `ImGuiIntegration` - 300 edges
 2. `RosAppShell` - 244 edges
-3. `InputHandler` - 185 edges
+3. `InputHandler` - 186 edges
 4. `VulkanBackend` - 133 edges
 5. `WindowManager` - 133 edges
 6. `PayloadDecoder` - 125 edges
@@ -1442,15 +1477,15 @@
   tests/unit/test_math3d.cpp → src/math/expression_eval.hpp
 - `spectra_plugin_init()` --calls--> `spectra_register_export_format()`  [INFERRED]
   examples/plugins/export_csv.cpp → src/ui/workspace/plugin_api.cpp
+- `main()` --references--> `Spectra Easy API for simple plotting`  [EXTRACTED]
+  examples/transparency_demo.cpp → include/spectra/easy.hpp
 - `scene_dense_styled()` --calls--> `rgb()`  [INFERRED]
-  tests/golden/golden_test_phase3.cpp → include/spectra/color.hpp
-- `scene_filled_markers()` --calls--> `rgb()`  [INFERRED]
   tests/golden/golden_test_phase3.cpp → include/spectra/color.hpp
 
 ## Import Cycles
 - 1-file cycle: `python/spectra/embed.py -> python/spectra/embed.py`
 
-## Communities (1478 total, 243 thin omitted)
+## Communities (1513 total, 269 thin omitted)
 
 ### Community 0 - "RosAppShell (ros_app_shell)"
 Cohesion: 0.01
@@ -1458,23 +1493,23 @@ Nodes (158): BagDisplaySync, active_plot_count, add_topic_plot, apply_default_do
 
 ### Community 1 - "ImGuiIntegration (imgui_integration)"
 Cohesion: 0.01
-Nodes (159): CsvPlotCallback, CustomTransformDialog, DataEditor, ExtraDrawCallback, active_section_, apply_modern_style, axis_link_mgr_, backend_ (+151 more)
+Nodes (150): CustomTransformDialog, DataEditor, active_section_, apply_modern_style, axis_link_mgr_, backend_, build_empty_ui, build_preview_ui (+142 more)
 
 ### Community 2 - "Session"
-Cohesion: 0.04
-Nodes (61): BlobStore, socket, ipc_sleep(), Animation utilities for the Spectra Python client.  Provides IPC-aware sleep and, Axes proxy — lightweight handle to axes within a figure., Stop all live streaming threads., stop_live(), BackendError (+53 more)
+Cohesion: 0.02
+Nodes (96): BlobStore, Publisher, socket, ipc_sleep(), Animation utilities for the Spectra Python client.  Provides IPC-aware sleep and, Axes proxy — lightweight handle to axes within a figure., BackendError, ConnectionError (+88 more)
 
 ### Community 3 - "TestAnimationCodec · python/spectra/_codec.py"
 Cohesion: 0.03
-Nodes (60): decode_anim_tick(), decode_blob_release(), decode_evt_window_closed(), decode_resp_axes_created(), decode_resp_err(), decode_resp_figure_created(), decode_resp_figure_list(), decode_resp_ok() (+52 more)
+Nodes (53): decode_anim_tick(), decode_blob_release(), decode_evt_window_closed(), decode_resp_axes_created(), decode_resp_err(), decode_resp_figure_created(), decode_resp_figure_list(), decode_resp_ok() (+45 more)
 
 ### Community 4 - "Series · python/tests/test_phase5.py"
-Cohesion: 0.03
-Nodes (46): BackendAnimator, Backend-driven animation: the backend controls the clock and sends     ANIM_TICK, Request the backend to start sending ANIM_TICK events., Request the backend to stop sending ANIM_TICK events., Called by Session when an ANIM_TICK is received for this figure., BlobRef, BlobStore, _next_blob_name() (+38 more)
+Cohesion: 0.02
+Nodes (64): Any, Session, Series, BackendAnimator, Backend-driven animation: the backend controls the clock and sends     ANIM_TICK, Request the backend to start sending ANIM_TICK events., Request the backend to stop sending ANIM_TICK events., Called by Session when an ANIM_TICK is received for this figure. (+56 more)
 
 ### Community 5 - "InputHandler (input)"
 Cohesion: 0.01
-Nodes (131): anim_ctrl_, annotate_dragging_, annotate_press_active_, annotate_start_x_, annotate_start_y_, apply_box_zoom, AUTOFIT_ANIM_DURATION, axis_link_mgr_ (+123 more)
+Nodes (132): anim_ctrl_, annotate_dragging_, annotate_press_active_, annotate_start_x_, annotate_start_y_, apply_box_zoom, AUTOFIT_ANIM_DURATION, axis_link_mgr_ (+124 more)
 
 ### Community 6 - "tinyfiledialogs"
 Cohesion: 0.06
@@ -1486,7 +1521,7 @@ Nodes (105): DeferredBufferFree, DeviceContext, PendingCapture, BufferEntry, Off
 
 ### Community 8 - "TestEasyState (_easy)"
 Cohesion: 0.03
-Nodes (96): ArrayLike, _EasyState, gca(), gcf(), grid(), legend(), show(), title() (+88 more)
+Nodes (91): ArrayLike, _EasyState, gca(), gcf(), grid(), legend(), show(), title() (+83 more)
 
 ### Community 9 - "keyframe_interpolator"
 Cohesion: 0.02
@@ -1522,11 +1557,11 @@ Nodes (92): DELETION_RING_SIZE, FigureGpuData, Axes3D, FigureViewModel, Renderer
 
 ### Community 17 - "WelcomePayload (codec)"
 Cohesion: 0.05
-Nodes (98): decode_cmd_remove_figure(), decode_cmd_set_active(), decode_evt_topic_list_changed(), decode_evt_window_closed(), decode_header(), decode_message(), decode_req_add_series(), decode_req_anim_start() (+90 more)
+Nodes (92): decode_cmd_assign_figures(), decode_evt_topic_list_changed(), decode_evt_window_closed(), decode_header(), decode_message(), decode_req_anim_start(), decode_req_append_data(), decode_req_close_figure() (+84 more)
 
 ### Community 18 - "Axes · python/tests/test_phase4.py"
-Cohesion: 0.04
-Nodes (29): Series, Session, Axes, Proxy for an axes object within a figure.      All mutations are sent to the bac, Toggle legend visibility on this axes., Remove a series by index from this axes., Add a line series to this axes., Add a scatter series to this axes. (+21 more)
+Cohesion: 0.03
+Nodes (41): Series, Session, Axes, Proxy for an axes object within a figure.      All mutations are sent to the bac, Toggle legend visibility on this axes., Remove a series by index from this axes., Add a line series to this axes., Add a scatter series to this axes. (+33 more)
 
 ### Community 19 - "ros_csv_export"
 Cohesion: 0.02
@@ -1557,8 +1592,8 @@ Cohesion: 0.02
 Nodes (82): AfterClearAllZero, BlocksBelowLevel, BuildCopyTextContainsEntries, BuildCopyTextEmpty, BuildCopyTextHasHeader, BuildCopyTextSingleEntry, CaseInsensitive, CaseInsensitiveByDefault (+74 more)
 
 ### Community 26 - "Figure · python/tests/test_phase2.py"
-Cohesion: 0.04
-Nodes (22): decode_req_append_data(), encode_req_append_data(), Decode REQ_APPEND_DATA payload (FlatBuffers). Returns dict with figure_id, serie, Phase 2 Python IPC tests — codec, convenience API, streaming, properties.  Tests, Raw and list encoding should produce identical float content., Verify new message type constants are correct., Test module-level convenience functions (no backend needed — just import checks), close() should not raise even if no session exists. (+14 more)
+Cohesion: 0.03
+Nodes (35): Axes, Session, Figure, decode_req_append_data(), encode_req_append_data(), Decode REQ_APPEND_DATA payload (FlatBuffers). Returns dict with figure_id, serie, Show this figure in a window.          Args:             window_id: If non-zero,, Close this figure's window but keep the figure in the model.          The figure (+27 more)
 
 ### Community 27 - "NodeGraphPanel (node_graph_panel)"
 Cohesion: 0.02
@@ -1597,8 +1632,8 @@ Cohesion: 0.03
 Nodes (78): AllColormapsReturnValidColors, AppendPoint, AutoFitEmpty, AutoFitWithLine3D, AutoFitWithSurface, Axes3DIntegration, Colormap, ColormapMarksDirty (+70 more)
 
 ### Community 36 - "DataInteraction (data_interaction)"
-Cohesion: 0.02
-Nodes (71): AnnotationManager, Crosshair, DataMarkerManager, LegendInteraction, DataInteraction, active_axes_, active_axes3d_, active_viewport_ (+63 more)
+Cohesion: 0.03
+Nodes (65): AnnotationManager, Crosshair, DataMarkerManager, LegendInteraction, DataInteraction, active_axes_, active_axes3d_, active_viewport_ (+57 more)
 
 ### Community 37 - "diagnostics_panel"
 Cohesion: 0.03
@@ -1614,7 +1649,7 @@ Nodes (76): ChildrenMapBuildCorrectly, ChildrenMapCorrect, ClearResetsFrameCount
 
 ### Community 40 - "vk_mem_alloc"
 Cohesion: 0.06
-Nodes (78): HANDLE, PFN_vkGetMemoryWin32HandleKHR, VkMemoryPropertyFlags, VkPhysicalDeviceMemoryProperties, VkPhysicalDeviceProperties, VmaAllocator, VkExternalMemoryHandleTypeFlagBits, VMA_CACHE_OPERATION (+70 more)
+Nodes (81): HANDLE, PFN_vkGetMemoryWin32HandleKHR, VkMemoryPropertyFlags, VkPhysicalDeviceMemoryProperties, VkPhysicalDeviceProperties, VmaAllocator, VkExternalMemoryHandleTypeFlagBits, VMA_CACHE_OPERATION (+73 more)
 
 ### Community 41 - "bag_player"
 Cohesion: 0.03
@@ -1645,8 +1680,8 @@ Cohesion: 0.04
 Nodes (36): advance(), camera_animator(), clamp_playhead(), draw(), effective_loop_out(), fire_playback_change(), get_track(), loop_out() (+28 more)
 
 ### Community 48 - "vk_mem_alloc #2"
-Cohesion: 0.05
-Nodes (56): AtomicT, class, ItemType, iterator, RegionInfo, T, AccessNext(), AccessPrev() (+48 more)
+Cohesion: 0.09
+Nodes (48): class, Add(), AddNumber(), AddPointer(), Back(), BeginArray(), BeginObject(), BeginString() (+40 more)
 
 ### Community 49 - "EmbedSeries (_embed)"
 Cohesion: 0.03
@@ -1689,8 +1724,8 @@ Cohesion: 0.03
 Nodes (66): AllSixFieldsExtractIndependently, AngularFieldIsMessage, AngularVelocityYPresent, AngularVelocityZExtract, AngularXYZPresent, CacheSizeGrowsWithNewTypes, ClearCacheAllowsReintrospection, ClearCacheWorks (+58 more)
 
 ### Community 59 - "FramePacer (test_phase3)"
-Cohesion: 0.03
-Nodes (43): Axes, Session, Figure, FramePacer, Simple frame pacer for Python-driven animation loops.      Usage::          pace, Wait until the next frame time, draining events. Returns dt since last call., decode_req_close_figure(), decode_req_remove_series() (+35 more)
+Cohesion: 0.04
+Nodes (32): FramePacer, Simple frame pacer for Python-driven animation loops.      Usage::          pace, Wait until the next frame time, draining events. Returns dt since last call., decode_req_close_figure(), decode_req_remove_series(), encode_req_close_figure(), encode_req_remove_series(), Decode REQ_REMOVE_SERIES payload. Returns dict with figure_id, series_index. (+24 more)
 
 ### Community 60 - "ros_clipboard_export"
 Cohesion: 0.03
@@ -1710,15 +1745,15 @@ Nodes (63): Arithmetic, CenterRay, ColumnMajorLayout, CompoundAdd, Cross, DegRad
 
 ### Community 64 - "series3d #2"
 Cohesion: 0.04
-Nodes (28): Vec2, x, y, BlendMode, span, vector, Series, LineSeries3D (+20 more)
+Nodes (29): BlendMode, span, vector, LineSeries3D, append, compute_centroid, get_bounds, line_width_ (+21 more)
 
 ### Community 65 - "SpectraEmbed (spectra_embed_c)"
 Cohesion: 0.06
 Nodes (61): render_easy(), spectra_embed_active_figure(), spectra_embed_animation_play(), spectra_embed_animation_stop(), spectra_embed_clear_on_frame(), spectra_embed_config_default(), spectra_embed_create(), spectra_embed_create_config() (+53 more)
 
 ### Community 66 - "TestUpdatePropertyCodec · python/spectra/_codec.py"
-Cohesion: 0.07
-Nodes (21): decode_req_update_property(), encode_hello(), encode_req_add_series(), encode_req_create_axes(), encode_req_create_figure(), encode_req_destroy_figure(), encode_req_list_figures(), encode_req_set_data() (+13 more)
+Cohesion: 0.05
+Nodes (21): decode_header(), encode_header(), encode_hello(), encode_req_add_series(), encode_req_create_axes(), encode_req_create_figure(), encode_req_destroy_figure(), encode_req_set_data() (+13 more)
 
 ### Community 67 - "topic_stats_overlay"
 Cohesion: 0.03
@@ -1733,8 +1768,8 @@ Cohesion: 0.03
 Nodes (60): AddMultiple, AddViaCameraKeyframeStruct, AdvanceEvaluatesCameraAnimator, AfterLastKeyframe, AnimateAzimuth, ApplyMethod, AzimuthChannel, BeforeFirstKeyframe (+52 more)
 
 ### Community 70 - "phase3_integration"
-Cohesion: 0.04
-Nodes (62): AnimatedTrackEvaluatesAtPlayhead, ArrowKeysPanBound, AxisLinkStateSavedAndRestored, CloseLinkedPanePreservesLinks, DockStateSavedAndRestored, FormatStringRoundTrip, KeyboardNavShortcuts, LineStyleSavedAndRestored (+54 more)
+Cohesion: 0.05
+Nodes (42): AnimatedTrackEvaluatesAtPlayhead, AxisLinkStateSavedAndRestored, CloseLinkedPanePreservesLinks, DockStateSavedAndRestored, FormatStringRoundTrip, LineStyleSavedAndRestored, LoopModeRestartsInterpolation, MultipleStyledSeriesInWorkspace (+34 more)
 
 ### Community 71 - "ParseState (expression_engine)"
 Cohesion: 0.07
@@ -1750,15 +1785,15 @@ Nodes (58): ActiveAfterSuccessfulScreenshot, AssignFields, BoolOperator, Callbac
 
 ### Community 74 - "vk_mem_alloc #3"
 Cohesion: 0.09
-Nodes (58): Block, VkDeviceSize, VkMappedMemoryRange, VkMemoryAllocateInfo, VkResult, AddAllocation(), Alloc(), Allocate() (+50 more)
+Nodes (57): Block, RegionInfo, VkDeviceSize, VkMemoryAllocateInfo, VkResult, AddAllocation(), Alloc(), Allocate() (+49 more)
 
 ### Community 75 - "GraphLayoutMode (node_graph_panel)"
 Cohesion: 0.05
 Nodes (46): GraphSnapshot, ActivateCallback, GraphLayoutMode, milliseconds, NodeFilterCallback, NodeInfo, SelectCallback, size_t (+38 more)
 
 ### Community 76 - "phase_c_integration"
-Cohesion: 0.05
-Nodes (42): AutoScrollDefaultWindowIs30Seconds, AutoScrollWindowCanBeChanged, AutoScrollWindowClamped, EraseBeforePrunesOldData, FullPipelineC6_ThreeTopicsScrollBoundsPruningLinkedAxes, ManualYOverrideKeepsPresentedBufferFollowing, OnDataCallbackFiresPerSample, PausedPresentedBufferKeepsVisibleWindowYRange (+34 more)
+Cohesion: 0.04
+Nodes (52): AutoScrollDefaultWindowIs30Seconds, AutoScrollWindowCanBeChanged, AutoScrollWindowClamped, EraseBeforePrunesOldData, FullPipelineC6_ThreeTopicsScrollBoundsPruningLinkedAxes, ManualYOverrideKeepsPresentedBufferFollowing, OnDataCallbackFiresPerSample, PausedPresentedBufferKeepsVisibleWindowYRange (+44 more)
 
 ### Community 77 - "bench_phase2"
 Cohesion: 0.07
@@ -1773,8 +1808,8 @@ Cohesion: 0.10
 Nodes (52): stbi__end_write_file(), stbi_flip_vertically_on_write(), stbi__start_write_callbacks(), stbi__start_write_file(), stbi_write_bmp(), stbi_write_bmp_core(), stbi_write_bmp_to_func(), stbi_write_hdr() (+44 more)
 
 ### Community 80 - "figure_manager"
-Cohesion: 0.04
-Nodes (55): ActiveState, AddFigureDuplicateIsNoop, AddFigureFromAnotherManager, CanClose, CannotCloseLastFigure, CloseActiveFigureAdjustsIndex, CloseAllExcept, CloseAllExceptOutOfBounds (+47 more)
+Cohesion: 0.03
+Nodes (60): ActiveState, AddFigureDuplicateIsNoop, AddFigureFromAnotherManager, CanClose, CannotCloseLastFigure, CloseActiveFigureAdjustsIndex, CloseAllExcept, CloseAllExceptOutOfBounds (+52 more)
 
 ### Community 81 - "Before (2026-04-04-last-3-days-branch-walkthrough)"
 Cohesion: 0.14
@@ -1821,8 +1856,8 @@ Cohesion: 0.06
 Nodes (40): BufferHandle, BufferUsage, Color, FrameProfiler, PipelineHandle, PipelineType, SeriesPushConstants, TextureHandle (+32 more)
 
 ### Community 92 - "ThemeManager (theme)"
-Cohesion: 0.04
-Nodes (49): EventSystem, ThemeManager, apply_to_imgui, apply_to_renderer, current_data_palette_name_, current_theme_, current_theme_name_, data_palettes_ (+41 more)
+Cohesion: 0.03
+Nodes (56): ThemeManager, apply_to_imgui, apply_to_renderer, current_data_palette_name_, current_theme_, current_theme_name_, data_palettes_, default_theme_path_ (+48 more)
 
 ### Community 93 - "RecordingSession (recording_export)"
 Cohesion: 0.04
@@ -1849,8 +1884,8 @@ Cohesion: 0.04
 Nodes (48): ActivateCallbackStored, BuildEmpty, BuildGraphAddsEdgesFromTopicEndpoints, BuildMixed, BuildNodesOnly, BuildTopicsOnly, DefaultRefreshInterval, EmptyFilterShowsAll (+40 more)
 
 ### Community 99 - "generic_subscriber"
-Cohesion: 0.06
-Nodes (35): AddFieldByAccessor, AddFieldByPath, AddFieldInvalidAccessor, AddFieldInvalidPath, AddMultipleFields, ConstructNotRunning, CustomBufferDepth, DefaultBufferDepthPow2 (+27 more)
+Cohesion: 0.04
+Nodes (45): AddFieldByAccessor, AddFieldByPath, AddFieldInvalidAccessor, AddFieldInvalidPath, AddMultipleFields, ConstructNotRunning, CustomBufferDepth, DefaultBufferDepthPow2 (+37 more)
 
 ### Community 100 - "easy_api"
 Cohesion: 0.04
@@ -1869,8 +1904,8 @@ Cohesion: 0.05
 Nodes (41): Color, span, string, Type, vector, ShapeDef, arrow_head_frac, arrow_head_width (+33 more)
 
 ### Community 104 - "TimelineEditor (bag_player)"
-Cohesion: 0.08
-Nodes (30): advance(), on_playhead_, on_state_change_, clamp_offset(), duration_sec(), offset_to_ns(), pause(), play() (+22 more)
+Cohesion: 0.07
+Nodes (34): advance(), on_playhead_, on_state_change_, clamp_offset(), duration_sec(), offset_to_ns(), pause(), play() (+26 more)
 
 ### Community 105 - "WorkspaceAutosave (workspace_autosave)"
 Cohesion: 0.05
@@ -1897,8 +1932,8 @@ Cohesion: 0.04
 Nodes (35): begin_drag, cancel_drag, channel_color, channel_displays_, delete_selected, deselect_all, drag_, end_drag (+27 more)
 
 ### Community 111 - "TypedKeyframe (keyframe_interpolator)"
-Cohesion: 0.11
-Nodes (30): add_channel(), add_keyframe(), bind_camera(), channel(), clear(), compute_all_auto_tangents(), compute_auto_tangents(), duration() (+22 more)
+Cohesion: 0.08
+Nodes (41): add_channel(), add_keyframe(), bind_camera(), channel(), clear(), compute_all_auto_tangents(), compute_auto_tangent_at(), compute_auto_tangents() (+33 more)
 
 ### Community 112 - "DemoApp (ros2_demo)"
 Cohesion: 0.04
@@ -1929,8 +1964,8 @@ Cohesion: 0.04
 Nodes (45): ActiveWithinThreshold, BandwidthComputed, ColumnVisibilityRoundTrips, Counters, EmptyStats, ExpansionStateTracksMultipleTopics, FilterAccessor, FilterBySubstring (+37 more)
 
 ### Community 119 - "event_bus"
-Cohesion: 0.04
-Nodes (46): AddedSeriesGetsEventContext, AllBusesAccessible, AnimationEvents, AutoUnsubscribes, AxesLimitsChangedEvent, AxesWithoutEventSystemNoEvent, ClearSeriesEmitsRemoved, DefaultConstructed (+38 more)
+Cohesion: 0.05
+Nodes (44): AddedSeriesGetsEventContext, AllBusesAccessible, AnimationEvents, AutoUnsubscribes, AxesLimitsChangedEvent, AxesWithoutEventSystemNoEvent, ClearSeriesEmitsRemoved, DefaultConstructed (+36 more)
 
 ### Community 120 - "embed_surface"
 Cohesion: 0.04
@@ -1961,8 +1996,8 @@ Cohesion: 0.06
 Nodes (36): mutex, string, TransformRegistry, vector, PluginManager, Backend, CommandRegistry, DataSourceRegistry (+28 more)
 
 ### Community 127 - "ModeTransition (mode_transition)"
-Cohesion: 0.03
-Nodes (69): Axes3D, Figure, ModeTransition, ModeTransition2DState, grid_enabled, title, xlabel, xlim (+61 more)
+Cohesion: 0.04
+Nodes (45): ModeTransition, begin_to_2d, begin_to_3d, cancel, compute_eased_t, current_id_, deserialize, direction (+37 more)
 
 ### Community 128 - "plugin_api"
 Cohesion: 0.05
@@ -1985,16 +2020,16 @@ Cohesion: 0.06
 Nodes (37): ListRequestFn, string, TopicInfoEntry, TopicKind, vector, mutex, string, TopicInfoEntry (+29 more)
 
 ### Community 133 - "TestParseColor (test_easy)"
-Cohesion: 0.17
-Nodes (5): Ensure old API patterns still work., close() should not raise even if no session exists., close_all() should not raise even if no session exists., show() should not raise even if no session exists., TestBackwardCompat
+Cohesion: 0.12
+Nodes (10): close(), close_all(), Close the current figure's window.      The figure is removed from the backend m, Close all windows and clean up the session.      Stops live threads, closes ever, Clean shutdown — stop live threads, close session., Ensure old API patterns still work., close() should not raise even if no session exists., close_all() should not raise even if no session exists. (+2 more)
 
 ### Community 134 - "AutomationServer (automation_server)"
 Cohesion: 0.05
 Nodes (42): App, AutomationHandlerEntry, AutomationRequest, client_fd, id, method, params_json, responded (+34 more)
 
 ### Community 135 - "UndoManager (undoable_property)"
-Cohesion: 0.10
-Nodes (43): make_view_commands(), capture_figure_axes(), FigureAxisSnapshot, entries, entries3d, restore_figure_axes(), undoable_reset_view(), undoable_set() (+35 more)
+Cohesion: 0.14
+Nodes (33): undoable_set(), undoable_set_limits(), undoable_set_line_style(), undoable_set_line_width(), undoable_set_marker_size(), undoable_set_marker_style(), undoable_set_opacity(), undoable_set_series_color() (+25 more)
 
 ### Community 136 - "ImageDisplay (image_display)"
 Cohesion: 0.05
@@ -2025,8 +2060,8 @@ Cohesion: 0.10
 Nodes (42): BM_BoundsComputation_10K(), BM_CameraDeserialize(), BM_CameraOrbit_1000Steps(), BM_CameraProjectionMatrix(), BM_CameraSerialize(), BM_CameraViewMatrix(), BM_CentroidScatter3D_10K(), BM_CentroidSurface_100x100() (+34 more)
 
 ### Community 143 - "phase2_integration"
-Cohesion: 0.06
-Nodes (36): CategoriesGroupCorrectly, CrosshairStatePersists, DisabledCommandNotExecuted, DuplicateThenSave, GroupedUndoWithWorkspaceSave, MarkersPersist, ModifiedFlagSaved, MultiFigureSaveRestore (+28 more)
+Cohesion: 0.05
+Nodes (42): CategoriesGroupCorrectly, CrosshairStatePersists, DisabledCommandNotExecuted, DuplicateThenSave, GroupedUndoWithWorkspaceSave, MarkersPersist, ModifiedFlagSaved, MultiFigureSaveRestore (+34 more)
 
 ### Community 144 - "DockSystem (dock_system)"
 Cohesion: 0.05
@@ -2053,8 +2088,8 @@ Cohesion: 0.06
 Nodes (34): deque, function, mutex, pair, string, vector, KnobType, Knob (+26 more)
 
 ### Community 150 - "RequestId (message)"
-Cohesion: 0.05
-Nodes (42): EvtTopicListChangedPayload, ReqAnimStartPayload, duration, figure_id, fps, ReqCloseFigurePayload, figure_id, ReqDestroyFigurePayload (+34 more)
+Cohesion: 0.04
+Nodes (63): CmdAssignFiguresPayload, active_figure_id, figure_ids, window_id, EvtTopicListChangedPayload, ReqAppendDataPayload, data, figure_id (+55 more)
 
 ### Community 151 - "Image (embed)"
 Cohesion: 0.08
@@ -2074,7 +2109,7 @@ Nodes (31): accumulator_, begin_frame, clear_fixed_timestep, dt_samples_, dt_sor
 
 ### Community 155 - "SpectraWidget (backend_qtagg)"
 Cohesion: 0.12
-Nodes (20): _qt_button(), _qt_key(), _qt_mods(), Qt backend for Spectra — embed GPU-accelerated plots in Qt5/Qt6 applications.  W, Convert Qt key code to Spectra key constant.      Qt and GLFW share the same cod, Convert Qt mouse button to Spectra constant., Convert Qt modifier flags to Spectra modifier mask., _detect() (+12 more)
+Nodes (17): _qt_button(), _qt_key(), _qt_mods(), Qt backend for Spectra — embed GPU-accelerated plots in Qt5/Qt6 applications.  W, Convert Qt key code to Spectra key constant.      Qt and GLFW share the same cod, Convert Qt mouse button to Spectra constant., Convert Qt modifier flags to Spectra modifier mask., _detect() (+9 more)
 
 ### Community 156 - "webgpu_backend"
 Cohesion: 0.05
@@ -2125,16 +2160,16 @@ Cohesion: 0.11
 Nodes (36): active_figure_index(), active_pane(), add_figure(), all_panes(), begin_splitter_drag(), close_pane(), collect_leaves(), count_leaves() (+28 more)
 
 ### Community 169 - "TooltipCallback (embed_surface)"
-Cohesion: 0.05
-Nodes (21): render_to_image(), set_cursor_change_callback(), set_frame_callback(), set_on_hover(), set_on_view_changed(), set_redraw_callback(), set_show_command_bar(), set_show_crosshair() (+13 more)
+Cohesion: 0.07
+Nodes (7): set_show_command_bar(), set_show_crosshair(), set_show_inspector(), set_show_legend(), set_show_nav_rail(), set_show_status_bar(), Renderer
 
 ### Community 170 - "app"
 Cohesion: 0.06
 Nodes (34): AppRuntime, Backend, FigureId, FigureRegistry, KnobManager, Renderer, string, ThemeManager (+26 more)
 
 ### Community 171 - "SurfaceSeries (series3d)"
-Cohesion: 0.05
-Nodes (22): ColormapType, SurfaceMesh, indices, triangle_count, vertex_count, vertices, SurfaceSeries, cmap_alpha_max_ (+14 more)
+Cohesion: 0.06
+Nodes (17): ColormapType, SurfaceSeries, cmap_alpha_max_, cmap_alpha_min_, cmap_max_, cmap_min_, colormap_, compute_centroid (+9 more)
 
 ### Community 172 - "DataMarkerManager (data_marker)"
 Cohesion: 0.06
@@ -2142,7 +2177,7 @@ Nodes (37): Axes, Axes3D, DataMarker, axes, axes3d, color, data_x, data_y (+29 m
 
 ### Community 173 - "tooltip"
 Cohesion: 0.05
-Nodes (32): Axes3D, ImDrawList, ImFont, NearestPointResult, axes3d, data_x, data_y, data_z (+24 more)
+Nodes (33): Axes3D, ImDrawList, ImFont, NearestPointResult, axes3d, data_x, data_y, data_z (+25 more)
 
 ### Community 174 - "RosSessionManager (ros_session)"
 Cohesion: 0.05
@@ -2154,7 +2189,7 @@ Nodes (16): MessageSchema, shared_ptr, BoolAccessorTest, schema_, Float64Accesso
 
 ### Community 176 - "vk_mem_alloc #4"
 Cohesion: 0.15
-Nodes (41): VkBuffer, VkImage, VkBufferCreateInfo, VkImageCreateInfo, VkMemoryRequirements, AllocateMemory(), AllocateMemoryOfType(), BindBufferMemory() (+33 more)
+Nodes (39): VkBuffer, VkImage, VkBufferCreateInfo, VkImageCreateInfo, VkMemoryRequirements, AllocateMemory(), AllocateMemoryOfType(), BindBufferMemory() (+31 more)
 
 ### Community 177 - "transition_engine"
 Cohesion: 0.05
@@ -2193,8 +2228,8 @@ Cohesion: 0.05
 Nodes (37): atomic, FrameSelectCallback, mutex, SharedPtr, string, TfBuffer, TfTreePanel, node() (+29 more)
 
 ### Community 186 - "topic_discovery"
-Cohesion: 0.05
-Nodes (39): AddCallbackFiredForNewTopic, AddCallbackNotFiredForAlreadyKnownTopic, ConstructsWithNode, DestructorWithActiveTimerIsClean, DiscoversMockPublisher, HasTopicReturnsFalseBeforeRefresh, MultipleTopicsDiscovered, NodeAddCallbackFiredOnRefresh (+31 more)
+Cohesion: 0.04
+Nodes (56): AddCallbackFiredForNewTopic, AddCallbackNotFiredForAlreadyKnownTopic, ConstructsWithNode, DestructorWithActiveTimerIsClean, DiscoversMockPublisher, HasTopicReturnsFalseBeforeRefresh, MultipleTopicsDiscovered, NodeAddCallbackFiredOnRefresh (+48 more)
 
 ### Community 187 - "ModeTransition2DState (mode_transition)"
 Cohesion: 0.08
@@ -2217,8 +2252,8 @@ Cohesion: 0.05
 Nodes (30): RegionSelect, begin, border_width_, collect_points, compute_statistics, data_to_screen, data_x0_, data_x1_ (+22 more)
 
 ### Community 192 - "WelcomePayload (message)"
-Cohesion: 0.06
-Nodes (35): EvtFigureDestroyedPayload, figure_id, reason, HelloPayload, agent_build, capabilities, client_type, protocol_major (+27 more)
+Cohesion: 0.07
+Nodes (30): CmdCloseWindowPayload, reason, window_id, EvtFigureDestroyedPayload, figure_id, reason, HelloPayload, agent_build (+22 more)
 
 ### Community 193 - "Kind (publisher_client)"
 Cohesion: 0.08
@@ -2317,16 +2352,20 @@ Cohesion: 0.06
 Nodes (36): add_to_group, add_to_group_3d, clear_shared_cursor, create_group, deserialize, group, group_count, groups_ (+28 more)
 
 ### Community 217 - "ViewChangedCallback (embed_surface)"
-Cohesion: 0.06
-Nodes (39): active_figure(), EmbedSurface(), EmbedSurface::Impl, active_fig, active_fig_id, backend, config, cursor_cb (+31 more)
+Cohesion: 0.08
+Nodes (28): EmbedSurface::Impl, active_fig, active_fig_id, backend, config, cursor_cb, frame_time, has_last_view (+20 more)
 
 ### Community 218 - "examples/webgpu_demo.cpp"
 Cohesion: 0.06
-Nodes (22): overlay_crosshair.cpp plugin source, transform_smooth.cpp plugin source, main(), main(), demo_shortcut_persistence(), main(), demo_shortcut_concepts(), main() (+14 more)
+Nodes (21): overlay_crosshair.cpp plugin source, transform_smooth.cpp plugin source, main(), main(), demo_shortcut_persistence(), main(), demo_shortcut_concepts(), main() (+13 more)
 
 ### Community 219 - "plugin_transforms"
 Cohesion: 0.06
 Nodes (32): SPECTRA_PLUGIN_API, SpectraPluginContext, SpectraPluginInfo, SmoothConfig, window_size, spectra_plugin_init(), spectra_plugin_shutdown(), PluginTransformCAPI (+24 more)
+
+### Community 220 - "ReqUpdateBatchPayload · python/spectra/_fb_generated"
+Cohesion: 0.17
+Nodes (10): AddUpdates(), End(), This method is deprecated. Please switch to GetRootAs., ReqUpdateBatchPayload, ReqUpdateBatchPayloadAddUpdates(), ReqUpdateBatchPayloadEnd(), ReqUpdateBatchPayloadStart(), ReqUpdateBatchPayloadStartUpdatesVector() (+2 more)
 
 ### Community 221 - "BoxZoomOverlay (box_zoom_overlay)"
 Cohesion: 0.06
@@ -2370,7 +2409,7 @@ Nodes (36): AtThreshold, BlendModeChaining, ColormapAlphaDefaults, ColormapAlpha
 
 ### Community 231 - "undo_property"
 Cohesion: 0.06
-Nodes (35): CaptureRestoreFigureAxes, undoable_set_line_width(), DescriptionBorder, DescriptionColor, DescriptionGrid, DescriptionLegend, DescriptionResetView, GenericUndoableSet (+27 more)
+Nodes (33): CaptureRestoreFigureAxes, DescriptionBorder, DescriptionColor, DescriptionGrid, DescriptionLegend, DescriptionResetView, GenericUndoableSet, GenericUndoableSetString (+25 more)
 
 ### Community 232 - "series_view_model"
 Cohesion: 0.06
@@ -2385,8 +2424,8 @@ Cohesion: 0.06
 Nodes (36): spectra_series_append_data(), spectra_series_append_xy(), spectra_series_clear(), spectra_series_set_bar_baseline(), spectra_series_set_bar_gradient(), spectra_series_set_bar_orientation(), spectra_series_set_bar_width(), spectra_series_set_capacity() (+28 more)
 
 ### Community 235 - "ThemeManager (imgui_integration)"
-Cohesion: 0.04
-Nodes (26): CommandPalette, DataInteraction, ExportFormatRegistry, GLFWwindow, ImFont, ImFontAtlas, ImGuiContext, ImVec2 (+18 more)
+Cohesion: 0.06
+Nodes (20): CommandPalette, GLFWwindow, ImFont, ImFontAtlas, ImGuiContext, ImVec2, OverlayRegistry, PluginManager (+12 more)
 
 ### Community 236 - "axes"
 Cohesion: 0.06
@@ -2413,8 +2452,8 @@ Cohesion: 0.06
 Nodes (27): AxesBase, AxisArrowHover, AxisLimits, optional, unique_ptr, vec3, Axes3D, auto_fit (+19 more)
 
 ### Community 242 - "FigureCanvasSpectra (backend_qtagg)"
-Cohesion: 0.05
-Nodes (27): FigureCanvasSpectra, NavigationToolbarSpectra, QWidget that hosts a GPU-accelerated Spectra plot.      This is the Spectra equi, Access the underlying ``EmbedSurface``., Request a re-render on the next timer tick., Request a re-render on the next timer tick (non-blocking).          This is the, Detect and apply device pixel ratio for HiDPI rendering., Save the current frame to a PNG file.          Returns True on success. (+19 more)
+Cohesion: 0.07
+Nodes (15): FigureCanvasSpectra, QWidget that hosts a GPU-accelerated Spectra plot.      This is the Spectra equi, Access the underlying ``EmbedSurface``., Get or create the figure on this canvas., Get or create axes (subplot) on the figure.          Caches the default (1,1,1), Create a 3D subplot on the figure., Request a re-render on the next timer tick., Request a re-render on the next timer tick (non-blocking).          This is the (+7 more)
 
 ### Community 243 - "shared_cursor"
 Cohesion: 0.07
@@ -2441,8 +2480,8 @@ Cohesion: 0.09
 Nodes (32): icon_button(), icon_button_small(), section_header(), separator_label(), Icon, ImFont, Icon, string (+24 more)
 
 ### Community 249 - "WindowId (message)"
-Cohesion: 0.05
-Nodes (39): InputType, CmdCloseWindowPayload, reason, window_id, CmdRemoveFigurePayload, figure_id, window_id, CmdSetActivePayload (+31 more)
+Cohesion: 0.06
+Nodes (33): InputType, CmdRemoveFigurePayload, figure_id, window_id, CmdSetActivePayload, figure_id, window_id, EvtInputPayload (+25 more)
 
 ### Community 250 - "WorkspaceData (workspace)"
 Cohesion: 0.08
@@ -2461,8 +2500,8 @@ Cohesion: 0.08
 Nodes (21): add_plot(), clear(), detect_type(), find_entry(), handle(), handles(), is_scroll_paused(), memory_bytes() (+13 more)
 
 ### Community 254 - "FakeResp · python/spectra/_download.py"
-Cohesion: 0.04
-Nodes (62): backend_main(), Command-line entry points for spectra., Entry point for 'spectra-backend' console script.      Forwards all arguments to, _asset_url(), _cache_dir(), _detect_platform(), _download_and_extract(), download_backend() (+54 more)
+Cohesion: 0.09
+Nodes (30): backend_main(), Command-line entry points for spectra., Entry point for 'spectra-backend' console script.      Forwards all arguments to, _asset_url(), _cache_dir(), _detect_platform(), _download_and_extract(), download_backend() (+22 more)
 
 ### Community 255 - "ServiceCallerPanel (service_caller_panel)"
 Cohesion: 0.06
@@ -2470,7 +2509,7 @@ Nodes (31): CallRecord, ServiceEntry, shared_ptr, ServiceCallerPanel, draw, draw
 
 ### Community 256 - "theme_colorblind #2"
 Cohesion: 0.06
-Nodes (34): AchromatopsiaIsGrayscale, BlackRemainsBlack, ColorUtils, ContrastRatioBlackWhite, ContrastRatioSameColorIsOne, ContrastRatioSymmetric, ContrastRatioWCAGAA, CVDSimulation (+26 more)
+Nodes (36): AchromatopsiaIsGrayscale, BlackRemainsBlack, ColorUtils, ContrastRatioBlackWhite, ContrastRatioSameColorIsOne, ContrastRatioSymmetric, ContrastRatioWCAGAA, CVDSimulation (+28 more)
 
 ### Community 257 - "shortcut_manager"
 Cohesion: 0.06
@@ -2513,12 +2552,12 @@ Cohesion: 0.09
 Nodes (25): RosWorkspaceState, active_subplot_idx, clock, fixed_frame, plot_requested, selected_field, selected_topic, selected_type (+17 more)
 
 ### Community 267 - "RenderedImage (easy_embed)"
-Cohesion: 0.06
-Nodes (65): Axes, Color, EmbedConfig, EmbedSurface, Figure, initializer_list, LegendPosition, LineSeries (+57 more)
+Cohesion: 0.14
+Nodes (29): Axes, EmbedConfig, EmbedSurface, span, string, vector, configure_axes(), make_embed_config() (+21 more)
 
 ### Community 268 - "data_interaction"
-Cohesion: 0.06
-Nodes (41): Axes3DPickTest, DataMarkerTest, FindsNearestScatterPoint, HitTestFindsMarker, HitTestMissesDistantClick, HitTestMultipleMarkers, MarkerPersistsThroughZoom, NearestPointEmptySeriesReturnsNotFound (+33 more)
+Cohesion: 0.08
+Nodes (32): Axes3DPickTest, DataMarkerTest, FindsNearestScatterPoint, HitTestFindsMarker, HitTestMissesDistantClick, HitTestMultipleMarkers, MarkerPersistsThroughZoom, NearestPointEmptySeriesReturnsNotFound (+24 more)
 
 ### Community 269 - "CustomTransformDialog (custom_transform_dialog)"
 Cohesion: 0.06
@@ -2546,11 +2585,11 @@ Nodes (32): ApplyMultipleOverrides, ApplyRebind, ApplyUnbind, ApplyWithNullManag
 
 ### Community 275 - "NavigationToolbarSpectra (backend_qtagg)"
 Cohesion: 0.07
-Nodes (16): Get or create the figure on this canvas., Get or create axes (subplot) on the figure.          Caches the default (1,1,1), Create a 3D subplot on the figure., Display a message in the coordinate/status area., All-in-one Spectra plot widget with canvas and navigation toolbar.      This is, The navigation toolbar., The underlying ``EmbedSurface``., Get or create the figure. (+8 more)
+Nodes (11): Reset view to auto-fit (sends 'A' key to surface)., Display a message in the coordinate/status area., All-in-one Spectra plot widget with canvas and navigation toolbar.      This is, The navigation toolbar., The underlying ``EmbedSurface``., Request a non-blocking redraw (safe from callbacks)., Start the animation timer., Stop the animation timer. (+3 more)
 
 ### Community 276 - "golden_test_3d"
-Cohesion: 0.08
-Nodes (31): BoundingBox, CameraAngle_Front, CameraAngle_Orthographic, CameraAngle_Top, CombinedLineAndScatter3D, DepthOcclusion, Golden3D, baseline_dir() (+23 more)
+Cohesion: 0.10
+Nodes (20): BoundingBox, CameraAngle_Front, CameraAngle_Orthographic, CameraAngle_Top, CombinedLineAndScatter3D, DepthOcclusion, Golden3D, TEST() (+12 more)
 
 ### Community 277 - "phase_a_integration"
 Cohesion: 0.06
@@ -2561,8 +2600,8 @@ Cohesion: 0.08
 Nodes (26): ComparesTimestampsCorrectly, DefaultAutosavePath, HasAutosaveAfterSave, LastSavedPathAfterSave, MarkDirtySetsDirtyFlag, ReturnsFalseWhenNoAutosave, ReturnsTrueWhenReferenceDoesNotExist, SaveNowMarksNotDirty (+18 more)
 
 ### Community 279 - "ros2_bridge"
-Cohesion: 0.07
-Nodes (26): DestructorShutsDownCleanly, ExecutorNullAfterShutdown, FullInitShutdownCycle, InitCreatesExecutor, InitCreatesNode, InitialStateIsUninitialized, InitIdempotentSameName, InitReturnsFalseOnDifferentName (+18 more)
+Cohesion: 0.06
+Nodes (27): DestructorShutsDownCleanly, ExecutorNullAfterShutdown, FullInitShutdownCycle, InitCreatesExecutor, InitCreatesNode, InitialStateIsUninitialized, InitIdempotentSameName, InitReturnsFalseOnDifferentName (+19 more)
 
 ### Community 280 - "OccupancyGridDisplay (occupancy_grid_display)"
 Cohesion: 0.08
@@ -2578,7 +2617,7 @@ Nodes (31): active_figure(), add_figure(), can_close(), close_all_except(), clos
 
 ### Community 283 - "qa_agent"
 Cohesion: 0.07
-Nodes (29): FuzzAction, QAAgent, app_, current_gpu_memory_, design_screenshots_, frame_stats_, gpu_memory_tracking_available_, initial_gpu_memory_ (+21 more)
+Nodes (28): FuzzAction, QAAgent, app_, current_gpu_memory_, design_screenshots_, frame_stats_, gpu_memory_tracking_available_, initial_gpu_memory_ (+20 more)
 
 ### Community 284 - "DataToSvg (svg_export)"
 Cohesion: 0.17
@@ -2601,8 +2640,8 @@ Cohesion: 0.18
 Nodes (23): build_accessor_steps(), build_fields(), build_schema(), cache_size(), collect_numeric_paths_recursive(), find_field(), find_field_recursive(), introspect() (+15 more)
 
 ### Community 289 - "ThemeColors (theme) #2"
-Cohesion: 0.15
-Nodes (30): Color, DataPalette, string, Theme, ThemeColors, apply_to_imgui(), color_to_json(), ensure_initialized() (+22 more)
+Cohesion: 0.12
+Nodes (29): GlassSurface, Renderer, Theme, ThemeColors, ThemeGlassSettings, ThemeManager, apply_to_imgui(), apply_to_renderer() (+21 more)
 
 ### Community 290 - "accessible_summary"
 Cohesion: 0.11
@@ -2614,7 +2653,7 @@ Nodes (31): AllCommandsSorted, CategoriesReturnsUnique, CommandsInCategory, Conc
 
 ### Community 292 - "theme"
 Cohesion: 0.06
-Nodes (32): AllFieldsInitialized, BorderWidthScaleIsMonotonic, CanHoldColors, ConstructFromComponents, DefaultAlphaIsOpaque, DefaultIsTransparentBlack, DesignTokens, DurationScaleIsMonotonic (+24 more)
+Nodes (36): AllFieldsInitialized, BorderWidthScaleIsMonotonic, CanHoldColors, ConstructFromComponents, DefaultAlphaIsOpaque, DefaultIsTransparentBlack, DesignTokens, DurationScaleIsMonotonic (+28 more)
 
 ### Community 293 - "TransitionEngine (transition_engine)"
 Cohesion: 0.07
@@ -2641,16 +2680,16 @@ Cohesion: 0.07
 Nodes (31): Bgr8EncodingSwizzle, BillboardEntityResolvesIntoFixedFrame, BuildsPreviewAndIntensityStats, EmptyImageReturnsNullopt, EncodingOverrideReDecodesCachedRgbWithoutResubscribe, EncodingOverrideRoundTripInConfigBlob, FullImageNotRetainedByDefault, FullImageRetainedWhenRequested (+23 more)
 
 ### Community 299 - "CommandContext · src/ui/app"
-Cohesion: 0.07
-Nodes (27): CommandContext, active_figure, active_figure_id, session, FigureRegistry, SessionRuntime, ThemeManager, WindowManager (+19 more)
+Cohesion: 0.10
+Nodes (19): CommandContext, active_figure, active_figure_id, session, FigureRegistry, SessionRuntime, ThemeManager, WindowManager (+11 more)
 
 ### Community 300 - "plugin_version_negotiation"
 Cohesion: 0.07
 Nodes (29): ContextExposesOverlayRegistryForV1_2, ContextExposesTransformRegistryForV1_1, ContextGatesTransformRegistryForV1_0, HostVersionConstants, MultipleVersionPluginsCoexist, PluginEntryStoresMinorVersion, PluginVersionNegotiation, CommandRegistry (+21 more)
 
 ### Community 301 - "golden_test_phase3"
-Cohesion: 0.11
-Nodes (30): DenseStyled, FilledMarkers, FormatStrings, baseline_dir(), output_dir(), render_headless(), run_golden_test(), scene_dense_styled() (+22 more)
+Cohesion: 0.20
+Nodes (20): baseline_dir(), output_dir(), render_headless(), run_golden_test(), scene_dense_styled(), scene_filled_markers(), scene_format_strings(), scene_line_styles() (+12 more)
 
 ### Community 302 - "Transform (laserscan_display)"
 Cohesion: 0.10
@@ -2694,7 +2733,7 @@ Nodes (24): Px4Bridge Implementation, channel_latest, channel_names, channel_sna
 
 ### Community 312 - "ULogFieldType (ulog_reader)"
 Cohesion: 0.16
-Nodes (21): close(), is_open(), open(), parse_data_message(), parse_data_section(), parse_definitions(), parse_dropout_message(), parse_header() (+13 more)
+Nodes (22): close(), is_open(), open(), parse_data_message(), parse_data_section(), parse_definitions(), parse_dropout_message(), parse_header() (+14 more)
 
 ### Community 313 - "LayoutMode (ros_app_shell)"
 Cohesion: 0.21
@@ -2717,8 +2756,8 @@ Cohesion: 0.07
 Nodes (28): AllPipelineTypesSupported, BufferCreateAndDestroy, DepthBufferCreatedWithSwapchain, DepthBufferExistsForMultiplePipelines, DepthBufferFormatSupported, DepthClearedOnRenderPassBegin, DepthTestingDisabledFor2D, DepthTestingEnabledFor3D (+20 more)
 
 ### Community 318 - "vk_mem_alloc #5"
-Cohesion: 0.09
-Nodes (31): BaseType, FindT, MainT, NewT, VkExternalMemoryHandleTypeFlagsKHR, VkStructureType, AllocateDedicatedMemory(), CalcMemTypeParams() (+23 more)
+Cohesion: 0.08
+Nodes (35): BaseType, FindT, MainT, NewT, VkExternalMemoryHandleTypeFlagsKHR, VkStructureType, AllocateDedicatedMemory(), CalcMemTypeParams() (+27 more)
 
 ### Community 319 - "series_clipboard"
 Cohesion: 0.07
@@ -2749,8 +2788,8 @@ Cohesion: 0.08
 Nodes (7): _AxesBatchContext, Remove all series from this axes., Context manager for batching multiple property updates into one IPC call., Collects property updates and sends them as a single REQ_UPDATE_BATCH., Test Axes.batch() context manager (no backend)., Verify that the context manager collects updates without sending., TestAxesBatchContext
 
 ### Community 326 - "TestCloseFigureCodec · python/tests/test_phase3.py"
-Cohesion: 0.16
-Nodes (6): decode_header(), encode_header(), TestHeader, Verify header encodes correctly with REQ_APPEND_DATA type., Verify REQ_UPDATE_BATCH protocol constants., TestBatchProtocol
+Cohesion: 0.10
+Nodes (26): AtomicT, ItemType, iterator, T, VkMappedMemoryRange, AccessNext(), AccessPrev(), begin() (+18 more)
 
 ### Community 327 - "AxesViewModel (axes_view_model)"
 Cohesion: 0.08
@@ -2765,12 +2804,12 @@ Cohesion: 0.07
 Nodes (29): AddMultipleTabs, AddRemoveAddSequence, AddTabAutoActivates, AddTabDoesNotFireCallback, AddTabIncreasesCount, ConstructorCreatesDefaultTab, ConstructorCustom, ConstructorDefaults (+21 more)
 
 ### Community 330 - "theme #2"
-Cohesion: 0.07
-Nodes (30): AllThemesHaveNonZeroAccent, AllThemesHavePlotColors, AvailablePalettesContainsDefaults, ColorblindPaletteHas8Colors, ColorsMatchesCurrent, CurrentReturnsValidTheme, DarkThemeHasDarkBackground, DefaultPaletteHas10Colors (+22 more)
+Cohesion: 0.06
+Nodes (34): AllThemesHaveNonZeroAccent, AllThemesHavePlotColors, AvailablePalettesContainsDefaults, ColorblindPaletteHas8Colors, ColorsMatchesCurrent, CurrentReturnsValidTheme, DarkThemeHasDarkBackground, DefaultPaletteHas10Colors (+26 more)
 
 ### Community 331 - "camera_animator #2"
-Cohesion: 0.11
-Nodes (33): add_keyframe(), apply(), apply_orientation(), clear(), create_orbit_animation(), create_turntable(), deserialize(), duration() (+25 more)
+Cohesion: 0.14
+Nodes (27): add_keyframe(), apply(), apply_orientation(), clear(), create_orbit_animation(), create_turntable(), deserialize(), duration() (+19 more)
 
 ### Community 332 - "RecordingConfig (recording_export)"
 Cohesion: 0.13
@@ -2797,8 +2836,8 @@ Cohesion: 0.07
 Nodes (28): vec3, ProjectionMode, Camera, azimuth, deserialize, distance, dolly, elevation (+20 more)
 
 ### Community 338 - "ReqUpdatePropertyPayload (message)"
-Cohesion: 0.07
-Nodes (30): CmdAssignFiguresPayload, active_figure_id, figure_ids, window_id, ReqAppendDataPayload, data, figure_id, series_index (+22 more)
+Cohesion: 0.18
+Nodes (11): ReqUpdatePropertyPayload, axes_index, bool_val, f1, f2, f3, f4, figure_id (+3 more)
 
 ### Community 339 - "DataEditor (data_editor)"
 Cohesion: 0.07
@@ -2833,8 +2872,8 @@ Cohesion: 0.11
 Nodes (27): check_automation_context(), context_flag_name(), json_has_key(), param_kind_name(), serialize_handler_catalog(), validate_automation_params(), wrap_automation_handler(), AutomationDispatch (+19 more)
 
 ### Community 347 - "golden_test"
-Cohesion: 0.12
-Nodes (27): BasicLine, DetectsDifference, baseline_dir(), output_dir(), render_headless(), run_golden_test(), scene_basic_line(), scene_empty_axes() (+19 more)
+Cohesion: 0.23
+Nodes (16): baseline_dir(), output_dir(), render_headless(), run_golden_test(), scene_basic_line(), scene_empty_axes(), scene_grid_only(), scene_multi_subplot() (+8 more)
 
 ### Community 348 - "PlotStyle (plot_style)"
 Cohesion: 0.10
@@ -2849,16 +2888,16 @@ Cohesion: 0.10
 Nodes (28): AddAxes(), AddFigureId(), AddGridCols(), AddGridRows(), AddHeight(), AddLiveFps(), AddSeries(), AddTitle() (+20 more)
 
 ### Community 351 - "ReqUpdatePropertyPayload (codec_tlv_decode)"
-Cohesion: 0.17
-Nodes (28): as_string(), as_u16(), as_u32(), as_u64(), next(), PayloadDecoder(), read_u16_le(), read_u32_le() (+20 more)
+Cohesion: 0.14
+Nodes (32): as_string(), as_u16(), as_u32(), as_u64(), next(), PayloadDecoder(), read_u16_le(), read_u32_le() (+24 more)
 
 ### Community 352 - "Px4PlotManager (px4_plot_manager)"
 Cohesion: 0.07
 Nodes (21): Px4AppShell Implementation, Px4PlotManager Implementation, add_field, add_live_field, available_topics, bridge_, clear, fields_ (+13 more)
 
 ### Community 353 - "qa_agent #2"
-Cohesion: 0.10
-Nodes (16): fnv1a64(), format_mb_delta(), FrameStats, ema, ema_alpha, samples, spike_count, get_rss_bytes() (+8 more)
+Cohesion: 0.12
+Nodes (11): format_mb_delta(), FrameStats, ema, ema_alpha, samples, spike_count, severity_str(), signed_byte_delta() (+3 more)
 
 ### Community 355 - "CallRecord (service_caller)"
 Cohesion: 0.13
@@ -2869,20 +2908,20 @@ Cohesion: 0.10
 Nodes (23): FrameSelectCallback, SharedPtr, string, TFMessage, TfTreeSnapshot, TransformResult, TransformStamp, TfTreePanel() (+15 more)
 
 ### Community 357 - "MessageIntrospector (topic_echo_panel)"
-Cohesion: 0.12
-Nodes (23): BagMessage, MessageIntrospector, SerializedMessage, shared_ptr, SharedPtr, string, TopicEchoPanel(), clear() (+15 more)
+Cohesion: 0.13
+Nodes (21): EchoFieldValue, EchoMessage, FieldDescriptor, unique_ptr, vector, clear(), draw(), draw_controls() (+13 more)
 
 ### Community 358 - "VkBuffer (vk_buffer)"
 Cohesion: 0.09
 Nodes (18): VkBuffer, VkDevice, VkDeviceMemory, VkDeviceSize, GpuBuffer, create, destroy, device_ (+10 more)
 
 ### Community 359 - "vk_mem_alloc #6"
-Cohesion: 0.23
-Nodes (29): Add(), AddNumber(), AddPointer(), BeginArray(), BeginObject(), BeginString(), BeginValue(), BuildStatsString() (+21 more)
+Cohesion: 0.10
+Nodes (21): Figure, LegendPosition, optional, pair, configure_figure(), RenderOptions, background_alpha, dpi_scale (+13 more)
 
 ### Community 360 - "vk_mem_alloc #7"
-Cohesion: 0.10
-Nodes (28): AllocatorT, explicit, VkAllocationCallbacks, VkBool32, FreeName(), GetAllocationCallbacks(), SetAllocationUserData(), SetName() (+20 more)
+Cohesion: 0.12
+Nodes (24): AllocatorT, explicit, VkAllocationCallbacks, VkBool32, FreeName(), GetAllocationCallbacks(), ImportVulkanFunctions(), ImportVulkanFunctions_Custom() (+16 more)
 
 ### Community 361 - "window_ui_context_builder"
 Cohesion: 0.08
@@ -2921,16 +2960,16 @@ Cohesion: 0.09
 Nodes (27): adapt_laserscan_message(), LaserScanFrame, average_intensity, average_range, centroid, frame_id, has_intensity, max_bounds (+19 more)
 
 ### Community 370 - "Series (data_interaction)"
-Cohesion: 0.07
-Nodes (32): BoxZoomRect, add_marker(), capture_overlay_snapshot(), clear_markers(), on_rect_series_selected_, on_series_deselected_, on_series_selected_, dispatch_series_selection_from_nearest() (+24 more)
+Cohesion: 0.10
+Nodes (17): add_marker(), on_series_deselected_, on_series_selected_, dispatch_series_selection_from_nearest(), on_mouse_click(), on_mouse_click_datatip_only(), on_mouse_click_series_only(), refresh_pointer_state() (+9 more)
 
 ### Community 371 - "Repro (QA_results)"
 Cohesion: 0.07
 Nodes (28): Action items, API Fix Applied (2026-05-16), Domain Results, Domains (skipped — no matching path changes), FIX-1 — FrameUBO padding mismatch (240 vs 260 bytes), FIX-2 — VkInstance teardown SEGFAULT (per-test App), FIX-3 — GPU data contamination between sequential tests, FIX-4 — Baseline regeneration for shared-App rendering (+20 more)
 
 ### Community 372 - "TestSeriesHelpers · python/spectra/_series.py"
-Cohesion: 0.05
-Nodes (27): Any, Session, Series, load_session_metadata(), Session persistence — save/restore session state to/from disk.  Allows a Python, Save the current session state to a JSON file.      Captures:       - session_id, Load session metadata from a JSON file without connecting.      Returns the pars, Restore a session from a saved JSON file.      This reconnects to the backend (o (+19 more)
+Cohesion: 0.10
+Nodes (13): _interleave_xy(), Set the x/y data for this series.          For arrays exceeding CHUNK_SIZE (~128, Send data in multiple chunks for arrays exceeding CHUNK_SIZE., Convert data to a list of floats. Supports lists and numpy arrays., Append x/y data points to this series (streaming)., Set XYZ data for 3D series. Sends as interleaved [x0,y0,z0, x1,y1,z1, ...]., Interleave x and y into [x0, y0, x1, y1, ...]., Try to interleave using numpy for zero-copy. Returns (raw_bytes, count) or None. (+5 more)
 
 ### Community 373 - "ros_qa_agent #2"
 Cohesion: 0.08
@@ -2953,8 +2992,8 @@ Cohesion: 0.14
 Nodes (27): OffscreenContext, SwapchainContext, vector, VkDevice, VkExtent2D, VkFormat, VkMemoryPropertyFlags, VkPhysicalDevice (+19 more)
 
 ### Community 378 - "bag_player #2"
-Cohesion: 0.07
-Nodes (10): testing::Environment, RclcppEnvironment, RclcppEnvironment, RclcppEnvironment, RclcppEnvironment, RclcppEnvironment, RclcppEnvironment, RclcppEnvironment (+2 more)
+Cohesion: 0.06
+Nodes (12): testing::Environment, RclcppEnvironment, RclcppEnvironment, RclcppEnvironment, RclcppEnvironment, RclcppEnvironment, RclcppEnvironment, RclcppEnvironment (+4 more)
 
 ### Community 379 - "TestKeyMapping (test_qt_backend)"
 Cohesion: 0.07
@@ -2993,12 +3032,12 @@ Cohesion: 0.12
 Nodes (17): BlobEntry, created_at, figure_id, name, pending_acks, released, series_index, size (+9 more)
 
 ### Community 388 - "ExprNodePtr (expression_eval)"
-Cohesion: 0.22
-Nodes (17): ExpressionInfo, advance(), at_end(), collect_variables(), current(), is_ident_char(), make_func(), make_number() (+9 more)
+Cohesion: 0.23
+Nodes (24): advance(), at_end(), current(), is_ident_char(), make_binary(), make_func(), make_number(), make_unary() (+16 more)
 
 ### Community 389 - "Px4AppConfig (px4_app_shell)"
-Cohesion: 0.09
-Nodes (26): AutoPlotField, array_idx, field, label, multi_id, times, topic, values (+18 more)
+Cohesion: 0.15
+Nodes (16): AutoPlotField, array_idx, field, label, multi_id, times, topic, values (+8 more)
 
 ### Community 390 - "ExpressionEntry (ros_session)"
 Cohesion: 0.09
@@ -3101,8 +3140,8 @@ Cohesion: 0.08
 Nodes (23): optional, VkDebugUtilsMessengerEXT, VkDevice, VkInstance, VkPhysicalDevice, VkPhysicalDeviceMemoryProperties, VkPhysicalDeviceProperties, VkQueue (+15 more)
 
 ### Community 415 - "theme #3"
-Cohesion: 0.09
-Nodes (23): CVDType, string, unordered_map, vector, DataPalette, colorblind_safe, colors, description (+15 more)
+Cohesion: 0.15
+Nodes (12): CVDType, string, unordered_map, vector, DataPalette, colorblind_safe, colors, description (+4 more)
 
 ### Community 416 - "figure_view_model"
 Cohesion: 0.11
@@ -3165,8 +3204,8 @@ Cohesion: 0.11
 Nodes (16): AddAgentBuild(), AddCapabilities(), AddClientType(), AddProtocolMajor(), AddProtocolMinor(), End(), HelloPayload, HelloPayloadAddAgentBuild() (+8 more)
 
 ### Community 431 - "ReqCreateAxesPayload"
-Cohesion: 0.11
-Nodes (16): AddFigureId(), AddGridCols(), AddGridIndex(), AddGridRows(), AddIs3d(), End(), This method is deprecated. Please switch to GetRootAs., ReqCreateAxesPayload (+8 more)
+Cohesion: 0.20
+Nodes (14): AddFigureId(), AddGridCols(), AddGridIndex(), AddGridRows(), AddIs3d(), End(), ReqCreateAxesPayloadAddFigureId(), ReqCreateAxesPayloadAddGridCols() (+6 more)
 
 ### Community 432 - "ReqUpdatePropertyPayload"
 Cohesion: 0.12
@@ -3181,8 +3220,8 @@ Cohesion: 0.17
 Nodes (22): FontSize, GlyphInfo, append_glyph(), draw_text(), draw_text_depth(), draw_text_rotated(), flush(), flush_batch() (+14 more)
 
 ### Community 435 - "golden_test_phase2 #2"
-Cohesion: 0.16
-Nodes (24): baseline_dir(), output_dir(), render_headless(), scene_dense_scatter(), scene_minimal_no_grid(), scene_mixed_series(), scene_multi_scatter(), scene_multi_series_line() (+16 more)
+Cohesion: 0.26
+Nodes (18): baseline_dir(), output_dir(), render_headless(), scene_dense_scatter(), scene_minimal_no_grid(), scene_mixed_series(), scene_multi_scatter(), scene_multi_series_line() (+10 more)
 
 ### Community 436 - "FigureRegistry (figure_registry)"
 Cohesion: 0.10
@@ -3201,8 +3240,8 @@ Cohesion: 0.11
 Nodes (24): TelemetryChannel, buffer, capacity, count, latest, mutex, name, push (+16 more)
 
 ### Community 440 - "qa_agent #4"
-Cohesion: 0.10
-Nodes (22): ValidationMessageRecord, message, message_id, severity, ValidationMonitor, destroy_fn_, instance_, messages_ (+14 more)
+Cohesion: 0.12
+Nodes (17): ValidationMonitor, destroy_fn_, instance_, messages_, messenger_, mutex_, next_unreported_index_, VkBool32 (+9 more)
 
 ### Community 441 - "QWindow (qt_runtime)"
 Cohesion: 0.19
@@ -3237,8 +3276,8 @@ Cohesion: 0.13
 Nodes (16): BagPlayer, MessageIntrospector, Ros2Bridge, RosPlotManager, unique_ptr, BagPlayerBagTest, bag_dir_, bridge_ (+8 more)
 
 ### Community 449 - "topic_discovery #2"
-Cohesion: 0.11
-Nodes (17): atomic, milliseconds, Pred, SharedPtr, SingleThreadedExecutor, string, thread, TopicDiscovery (+9 more)
+Cohesion: 0.24
+Nodes (7): decode_req_update_property(), encode_req_update_property(), Decode REQ_UPDATE_PROPERTY payload. Returns dict with all fields., Verify encode_req_update_property for various property types., TestUpdatePropertyCodec, Verify legend property encoding., TestAxesLegend
 
 ### Community 450 - "px4_plot_manager"
 Cohesion: 0.13
@@ -3293,8 +3332,8 @@ Cohesion: 0.18
 Nodes (23): FlatBufferBuilder, build_fb_axis(), build_fb_diff_op(), build_fb_figure(), build_fb_knob(), build_fb_series(), decode_fb_state_diff(), decode_fb_state_snapshot() (+15 more)
 
 ### Community 463 - "SceneRenderer (scene_renderer)"
-Cohesion: 0.09
-Nodes (23): GpuData, ImageTexture, Camera, Rect, Renderer, SceneManager, SceneRenderer, ensure_pipelines (+15 more)
+Cohesion: 0.07
+Nodes (24): Backend, GpuData, ImageTexture, Camera, Rect, Renderer, SceneManager, SceneRenderer (+16 more)
 
 ### Community 464 - "logger"
 Cohesion: 0.12
@@ -3357,8 +3396,8 @@ Cohesion: 0.07
 Nodes (33): BuildRequestJsonFromFields, CallReturnsInvalidWithNullNode, ClearHistory, FindServiceReturnsNulloptWhenEmpty, HistoryFromJsonImportsRecords, HistoryRoundTrip, HistoryToJsonEmpty, InitialHistoryEmpty (+25 more)
 
 ### Community 479 - "src/ui/camera"
-Cohesion: 0.21
-Nodes (16): deserialize(), fit_to_bounds(), orbit(), projection_matrix(), reset(), serialize(), sync_orbit_from_position(), update_position_from_orbit() (+8 more)
+Cohesion: 0.16
+Nodes (22): deserialize(), dolly(), fit_to_bounds(), orbit(), pan(), projection_matrix(), reset(), serialize() (+14 more)
 
 ### Community 480 - "ultra_zoom_precision"
 Cohesion: 0.13
@@ -3397,11 +3436,11 @@ Cohesion: 0.09
 Nodes (22): EasyEmbed, MultipleRendersSequential, PixelsAccessor, RenderBar, RenderHistogram, RenderLargeDataset, RenderLineBasic, RenderLineCustomSize (+14 more)
 
 ### Community 489 - "multi_window_fixture"
-Cohesion: 0.13
-Nodes (11): Func, App, Figure, unique_ptr, vector, measure_ms(), MultiWindowFixture, apps_ (+3 more)
+Cohesion: 0.10
+Nodes (16): Func, App, Figure, unique_ptr, vector, measure_ms(), MultiWindowFixture, apps_ (+8 more)
 
 ### Community 490 - "Axes (input)"
-Cohesion: 0.15
+Cohesion: 0.14
 Nodes (18): apply_box_zoom(), cancel_box_zoom(), clear_figure_cache(), hit_test_all_axes(), hit_test_axes(), save_callback_, on_key(), on_mouse_button() (+10 more)
 
 ### Community 491 - "SnapshotFigureState (message)"
@@ -3502,7 +3541,7 @@ Nodes (21): Axes, Axes3D, DenseBase, PlotStyle, span, VDerived, VectorXi, XDeriv
 
 ### Community 515 - "TransitionEngine (input)"
 Cohesion: 0.09
-Nodes (8): AnimationController, AxisLinkManager, DataInteraction, FigureViewModel, ShortcutManager, TransitionEngine, Axes3D, Figure
+Nodes (8): AnimationController, DataInteraction, FigureViewModel, GestureRecognizer, ShortcutManager, TransitionEngine, Axes3D, Figure
 
 ### Community 516 - "TransformType (data_transform)"
 Cohesion: 0.15
@@ -3513,8 +3552,8 @@ Cohesion: 0.12
 Nodes (21): find_nearest_3d_in_axes(), Nearest3DPickCandidate, data_x, data_y, data_z, distance_px, found, ndc_depth (+13 more)
 
 ### Community 518 - "discovery_introspection #2"
-Cohesion: 0.09
-Nodes (18): Point, atomic, milliseconds, Pred, rosidl_message_type_support_t, SharedPtr, SingleThreadedExecutor, thread (+10 more)
+Cohesion: 0.10
+Nodes (17): Point, atomic, milliseconds, Pred, rosidl_message_type_support_t, SharedPtr, SingleThreadedExecutor, thread (+9 more)
 
 ### Community 519 - "SlotEntry (subplot_manager)"
 Cohesion: 0.23
@@ -3549,8 +3588,8 @@ Cohesion: 0.10
 Nodes (20): AxisLinkState, DataPaletteName, EmptyDashPattern, FullStateRoundTrip, MultipleTransformPipelines, PluginState, ShortcutOverrides, SingleDashValue (+12 more)
 
 ### Community 527 - "AnimatedPlotWindow · python/examples/qt_backend_demo.py"
-Cohesion: 0.16
-Nodes (15): exec_app(), Call app.exec() or app.exec_() depending on Qt version., AnimatedPlotWindow, main(), MultiPlotWindow, Window with an animated plot using the animation timer., # IMPORTANT: Do NOT set background on QMainWindow — it propagates to ALL, Simple window with one Spectra plot + toolbar (like matplotlib). (+7 more)
+Cohesion: 0.10
+Nodes (18): exec_app(), Call app.exec() or app.exec_() depending on Qt version., AnimatedPlotWindow, main(), MultiPlotWindow, Window with an animated plot using the animation timer., # IMPORTANT: Do NOT set background on QMainWindow — it propagates to ALL, Simple window with one Spectra plot + toolbar (like matplotlib). (+10 more)
 
 ### Community 528 - "figure_view_model #2"
 Cohesion: 0.10
@@ -3577,8 +3616,8 @@ Cohesion: 0.13
 Nodes (12): AddFigureIds(), AddRequestId(), End(), This method is deprecated. Please switch to GetRootAs., RespFigureListPayload, RespFigureListPayloadAddFigureIds(), RespFigureListPayloadAddRequestId(), RespFigureListPayloadEnd() (+4 more)
 
 ### Community 534 - "SnapshotKnobState"
-Cohesion: 0.08
-Nodes (22): AddChoices(), AddKnobType(), AddMaxVal(), AddMinVal(), AddName(), AddStep(), AddValue(), End() (+14 more)
+Cohesion: 0.14
+Nodes (20): AddChoices(), AddKnobType(), AddMaxVal(), AddMinVal(), AddName(), AddStep(), AddValue(), End() (+12 more)
 
 ### Community 536 - "animator"
 Cohesion: 0.10
@@ -3587,10 +3626,6 @@ Nodes (17): EasingFn, T, Animator, clear, evaluate, pause, paused_, resume (+9 m
 ### Community 537 - "AxisStyle (axes)"
 Cohesion: 0.11
 Nodes (19): Color, optional, Series, string, vector, AxisLimits, max, min (+11 more)
-
-### Community 538 - "RenderOptions (easy_embed)"
-Cohesion: 0.18
-Nodes (5): Publisher, Publish one or more samples.          For 2D topics, accepts ``(x, y)`` or an it, Open a fresh socket, do HELLO/WELCOME, then DECLARE the topic.          Replaces, Rate-limited reconnect attempt. Returns True when connected., Stream samples to a named topic on the Spectra backend.      Parameters     ----
 
 ### Community 539 - "EmbedConfig (embed)"
 Cohesion: 0.11
@@ -3677,12 +3712,12 @@ Cohesion: 0.11
 Nodes (12): AxisLinkManager, Crosshair, dash_length_, draw, draw_all_axes, gap_length_, opacity_, theme_mgr_ (+4 more)
 
 ### Community 560 - "Px4AppConfig (px4_app_shell) #2"
-Cohesion: 0.22
-Nodes (18): auto_plot_ulog(), choose_ulog_file_path(), close_all_plots(), draw(), draw_menu_bar(), draw_status_bar(), init(), open_ulog() (+10 more)
+Cohesion: 0.25
+Nodes (16): auto_plot_ulog(), choose_ulog_file_path(), close_all_plots(), draw_menu_bar(), init(), open_ulog(), open_ulog_with_dialog(), parse_px4_args() (+8 more)
 
 ### Community 561 - "VkDevice (vk_device) #2"
-Cohesion: 0.22
-Nodes (19): QueueFamilyIndices, SurfaceHost, vector, VkDebugUtilsMessengerEXT, VkDevice, VkInstance, VkPhysicalDevice, VkSurfaceKHR (+11 more)
+Cohesion: 0.15
+Nodes (24): QueueFamilyIndices, SurfaceHost, vector, VKAPI_ATTR, VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT, VkDebugUtilsMessengerCallbackDataEXT, VkDebugUtilsMessengerEXT (+16 more)
 
 ### Community 562 - "ThemeSnapshot (theme_api)"
 Cohesion: 0.10
@@ -3705,8 +3740,8 @@ Cohesion: 0.11
 Nodes (16): Sdl3Adapter, destroy_window, framebuffer_size, hide_window, init, is_mouse_button_pressed, mouse_position, native_window (+8 more)
 
 ### Community 567 - "bag_recorder #2"
-Cohesion: 0.13
-Nodes (13): atomic, SharedPtr, SingleThreadedExecutor, string, thread, unique_ptr, BagRecorderTest, executor_ (+5 more)
+Cohesion: 0.08
+Nodes (25): BagRecorderStub, CallbacksAccepted, ConfigGettersSetters, Copyable, DefaultFields, RecordingSplitInfoTest, StartReturnsFalse, StopIsNoop (+17 more)
 
 ### Community 568 - "scene_manager"
 Cohesion: 0.11
@@ -3725,8 +3760,8 @@ Cohesion: 0.15
 Nodes (18): ExportFormatRegistry, FigureRegistry, PluginManager, Renderer, SessionRuntime, SettingsStore, ThemeManager, VulkanBackend (+10 more)
 
 ### Community 572 - "accessibility #2"
-Cohesion: 0.32
-Nodes (5): SaveLoadRestores2DAxesAndSeries, string, FigureSerializerTest, tmp_path_, TEST_F()
+Cohesion: 0.13
+Nodes (15): ArrowKeysPanBound, KeyboardNavShortcuts, PlusMinusZoomBound, SaveLoadRestores2DAxesAndSeries, testing::Test, Figure, string, HtmlTableTest (+7 more)
 
 ### Community 573 - "AutomationHandlerEntry · src/ui/automation"
 Cohesion: 0.21
@@ -3776,10 +3811,6 @@ Nodes (12): AddAxesIndex(), AddFigureId(), AddSeriesIndex(), End(), This method 
 Cohesion: 0.15
 Nodes (12): AddCode(), AddMessage(), AddRequestId(), End(), This method is deprecated. Please switch to GetRootAs., RespErrPayload, RespErrPayloadAddCode(), RespErrPayloadAddMessage() (+4 more)
 
-### Community 586 - "SnapshotFigureState #2"
-Cohesion: 0.06
-Nodes (7): DiffOpType, InputType, This method is deprecated. Please switch to GetRootAs., SnapshotAxisState, This method is deprecated. Please switch to GetRootAs., SnapshotFigureState, object
-
 ### Community 587 - "BinaryReader (figure_serializer)"
 Cohesion: 0.16
 Nodes (13): ifstream, Axes, Axes3D, Color, Figure, OverlaySnapshot, Series, string (+5 more)
@@ -3797,8 +3828,8 @@ Cohesion: 0.25
 Nodes (17): add(), add_3d(), data_to_screen(), draw(), draw_3d(), find_duplicate(), hit_test(), hit_test_3d() (+9 more)
 
 ### Community 591 - "qa_agent #5"
-Cohesion: 0.17
-Nodes (10): QAIssue, category, frame, message, screenshot_path, severity, severity_str(), IssueSeverity (+2 more)
+Cohesion: 0.09
+Nodes (23): fnv1a64(), main(), parse_args(), QAIssue, category, frame, message, screenshot_path (+15 more)
 
 ### Community 592 - "CsvExportResult (ros_csv_export)"
 Cohesion: 0.25
@@ -3934,7 +3965,7 @@ Nodes (17): unordered_map, WGPUAdapterImpl, WGPUBindGroupImpl, WGPUBindGroupLayo
 
 ### Community 625 - "phase2_integration #2"
 Cohesion: 0.12
-Nodes (17): AnimatedLimitChangeWithUndo, CancelAnimationThenUndo, undoable_xlim(), CommandShortcutUndoRedoIntegration, CommandTriggersUndoableAction, CommandUndoIntegration, CreateSwitchCloseLifecycle, DefaultUndoRedoShortcutsDriveUndoManager (+9 more)
+Nodes (16): AnimatedLimitChangeWithUndo, CancelAnimationThenUndo, CommandShortcutUndoRedoIntegration, CommandTriggersUndoableAction, CommandUndoIntegration, CreateSwitchCloseLifecycle, DefaultUndoRedoShortcutsDriveUndoManager, FigureManagerIntegration (+8 more)
 
 ### Community 626 - "animation_controller"
 Cohesion: 0.13
@@ -3945,8 +3976,8 @@ Cohesion: 0.21
 Nodes (13): animate_axis_limits(), animate_camera(), animate_inertial_pan(), cancel(), cancel_for_axes(), gc(), get_pending_target(), update() (+5 more)
 
 ### Community 628 - "multi_window #2"
-Cohesion: 0.12
-Nodes (17): AnimationCallbacksAfterMove, CloseSourceWindowAfterMove, FigureOwnership, GlfwTerminateNotCalledOnShutdown, GpuBuffersSurviveMove, GpuHangDetectorCompletes, GpuHangDetectorTimeout, MoveFigureBetweenWindows (+9 more)
+Cohesion: 0.08
+Nodes (22): AnimationCallbacksAfterMove, CloseSourceWindowAfterMove, FigureOwnership, GlfwTerminateNotCalledOnShutdown, GpuBuffersSurviveMove, GpuHangDetectorCompletes, GpuHangDetectorTimeout, MoveFigureBetweenWindows (+14 more)
 
 ### Community 629 - "WindowUIContextRuntimeWireOptions (window_ui_context_runtime)"
 Cohesion: 0.13
@@ -3965,16 +3996,16 @@ Cohesion: 0.22
 Nodes (16): default_socket_path(), execute(), handle_client(), invoke(), listener_thread_fn(), parse_request(), poll(), send_response() (+8 more)
 
 ### Community 633 - "Figure (data_interaction)"
-Cohesion: 0.17
-Nodes (10): decode_req_reconnect(), encode_req_reconnect(), Decode REQ_RECONNECT payload. Returns dict with session_id, session_token., Verify encode/decode round-trips for REQ_APPEND_DATA., Verify encode/decode round-trips for REQ_RECONNECT., TestReconnectCodec, Extended reconnect codec verification., Test various session_id values for reconnect. (+2 more)
+Cohesion: 0.18
+Nodes (15): Color, initializer_list, LineSeries, string_view, apply_series_style(), render_multi(), SeriesDesc, color (+7 more)
 
 ### Community 634 - "SeriesClipboard (series_clipboard)"
 Cohesion: 0.12
 Nodes (16): SeriesClipboard, buffers_, clear, copy, copy_multi, count, cut, cut_multi (+8 more)
 
 ### Community 635 - "resize_layout"
-Cohesion: 0.08
-Nodes (22): ConsecutiveResizesProduceDeterministicLayout, compute_subplot_layout(), CustomMargins, frame_cb, render_to_buffer(), update(), Margins, MultiSubplotStaysInBoundsAcrossResizes (+14 more)
+Cohesion: 0.17
+Nodes (11): ConsecutiveResizesProduceDeterministicLayout, compute_subplot_layout(), Margins, MultiSubplotStaysInBoundsAcrossResizes, ResizeLayout, SingleCellShrink, Rect, vector (+3 more)
 
 ### Community 636 - "TopicKind (topic_registry)"
 Cohesion: 0.21
@@ -3989,8 +4020,8 @@ Cohesion: 0.23
 Nodes (16): atomic, string, demo_bag_player(), demo_bag_recorder(), demo_generic_subscriber(), demo_screenshot(), draw_panels(), init_bag_info() (+8 more)
 
 ### Community 639 - "StateSnapshotPayload"
-Cohesion: 0.09
-Nodes (18): AddFigures(), AddKnobs(), AddRevision(), AddSessionId(), End(), This method is deprecated. Please switch to GetRootAs., Start(), StartFiguresVector() (+10 more)
+Cohesion: 0.18
+Nodes (16): AddFigures(), AddKnobs(), AddRevision(), AddSessionId(), End(), Start(), StartFiguresVector(), StartKnobsVector() (+8 more)
 
 ### Community 640 - "VideoExporter (export)"
 Cohesion: 0.12
@@ -4001,8 +4032,8 @@ Cohesion: 0.12
 Nodes (10): ColormapType, ScatterSeries, append, color_values_, colormap_set_, colormap_type_, commit_pending, point_size_ (+2 more)
 
 ### Community 642 - "DiffOp (message)"
-Cohesion: 0.12
-Nodes (17): DiffOp, axes_index, bool_val, data, f1, f2, f3, f4 (+9 more)
+Cohesion: 0.10
+Nodes (20): AckStatePayload, revision, DiffOp, axes_index, bool_val, data, f1, f2 (+12 more)
 
 ### Community 643 - "MessageHeader · src/ipc/message.hpp"
 Cohesion: 0.12
@@ -4165,12 +4196,12 @@ Cohesion: 0.17
 Nodes (10): AddRequestId(), AddSeriesIndex(), End(), This method is deprecated. Please switch to GetRootAs., RespSubscribeTopicPayload, RespSubscribeTopicPayloadAddRequestId(), RespSubscribeTopicPayloadAddSeriesIndex(), RespSubscribeTopicPayloadEnd() (+2 more)
 
 ### Community 683 - "SnapshotAxisState #2"
-Cohesion: 0.13
-Nodes (7): BarOrientation, BarSeries, heights_, line_x_, line_y_, positions_, rebuild_geometry
+Cohesion: 0.15
+Nodes (5): DiffOpType, InputType, This method is deprecated. Please switch to GetRootAs., ReqCreateAxesPayload, object
 
 ### Community 684 - "SnapshotKnobState (message)"
-Cohesion: 0.12
-Nodes (16): AckStatePayload, revision, SnapshotKnobState, choices, max_val, min_val, name, step (+8 more)
+Cohesion: 0.08
+Nodes (24): ReqReconnectPayload, session_id, session_token, SnapshotKnobState, choices, max_val, min_val, name (+16 more)
 
 ### Community 685 - "SurfaceHost (surface_host)"
 Cohesion: 0.15
@@ -4181,8 +4212,8 @@ Cohesion: 0.12
 Nodes (16): ULogLogMessage, level_name, log_level, message, timestamp_us, ULogParameter, is_float, key (+8 more)
 
 ### Community 687 - "qa_agent #6"
-Cohesion: 0.12
-Nodes (15): QAOptions, design_review, duration_sec, fuzz_frames, list_scenarios, no_fuzz, no_scenarios, output_dir (+7 more)
+Cohesion: 0.18
+Nodes (10): QAOptions, design_review, duration_sec, fuzz_frames, list_scenarios, no_fuzz, no_scenarios, output_dir (+2 more)
 
 ### Community 688 - "ros_qa_agent #4"
 Cohesion: 0.15
@@ -4217,8 +4248,8 @@ Cohesion: 0.27
 Nodes (16): stbtt__close_shape(), stbtt__csctx_close_shape(), stbtt__csctx_rccurve_to(), stbtt__csctx_rline_to(), stbtt__csctx_rmove_to(), stbtt__csctx_v(), stbtt_FreeShape(), stbtt_GetCodepointShape() (+8 more)
 
 ### Community 696 - "ros_plot_manager #2"
-Cohesion: 0.11
-Nodes (12): function, MessageIntrospector, Ros2Bridge, RosPlotManager, SharedPtr, unique_ptr, RclcppEnvironment, RosPlotManagerTest (+4 more)
+Cohesion: 0.12
+Nodes (11): function, MessageIntrospector, Ros2Bridge, RosPlotManager, SharedPtr, unique_ptr, RosPlotManagerTest, bridge_ (+3 more)
 
 ### Community 697 - "theme_colorblind #3"
 Cohesion: 0.14
@@ -4245,8 +4276,8 @@ Cohesion: 0.16
 Nodes (13): pump_interactive_frame(), queue_detach(), queue_move(), PendingDetach, Animator, SessionRuntime(), Backend, FigureRegistry (+5 more)
 
 ### Community 703 - "WindowUIContext · src/ui/app"
-Cohesion: 0.16
-Nodes (12): build_window_ui_context(), resolve_build_mode(), PluginManager, WindowUIContext, last_export_dir, theme_mgr, unique_ptr, WindowUIContext (+4 more)
+Cohesion: 0.10
+Nodes (22): init_runtime(), register_standard_commands(), configure_window_manager(), create_configured_window_manager(), build_window_ui_context(), resolve_build_mode(), PluginManager, WindowUIContext (+14 more)
 
 ### Community 704 - "bench_decimation"
 Cohesion: 0.30
@@ -4405,8 +4436,8 @@ Cohesion: 0.15
 Nodes (13): CatchSegfault, CatchStdException, CatchUnknownException, MultipleSuccessfulCalls, NullContextName, OverlayAllFaultedStaysStable, OverlayFaultSkipsFutureInvocations, PluginGuard (+5 more)
 
 ### Community 743 - "inspector #2"
-Cohesion: 0.14
-Nodes (13): ClearResetsAll, HandleEmptyFigureWhenSwitching, MultipleAxesSelection, PreserveAxesIndexWhenSwitchingFigures, SelectAxes, SelectFigure, SelectFigureClearsPrevious, SelectSeries (+5 more)
+Cohesion: 0.05
+Nodes (25): Margins, bottom, left, right, top, Vec2, x, y (+17 more)
 
 ### Community 744 - "clipboard_export"
 Cohesion: 0.12
@@ -4441,8 +4472,8 @@ Cohesion: 0.23
 Nodes (5): EasyEmbedCanvas, main(), MainWindow, Qt widget that displays frames rendered via spectra.embed., QKeyEvent
 
 ### Community 752 - "AllFeaturesScene (qt_embed_demo)"
-Cohesion: 0.23
-Nodes (14): Px4PlotManager, ULogFilePanel(), ULogReader, draw(), draw_content(), draw_context_menu(), draw_file_header(), draw_info_table() (+6 more)
+Cohesion: 0.15
+Nodes (15): BoxZoomRect, capture_overlay_snapshot(), clear_markers(), on_rect_series_selected_, draw_legend_for_figure(), draw_overlays(), find_nearest(), restore_overlay_snapshot() (+7 more)
 
 ### Community 753 - "SnapshotKnobState #2"
 Cohesion: 0.14
@@ -4453,8 +4484,8 @@ Cohesion: 0.27
 Nodes (11): all_ids(), contains(), find_id(), get(), register_figure(), release(), unregister_figure(), Figure (+3 more)
 
 ### Community 755 - "CustomSeries (custom_series)"
-Cohesion: 0.16
-Nodes (6): string, vector, CustomSeries, set_bounds, set_data, type_name_
+Cohesion: 0.23
+Nodes (14): Px4PlotManager, ULogFilePanel(), ULogReader, draw(), draw_content(), draw_context_menu(), draw_file_header(), draw_info_table() (+6 more)
 
 ### Community 756 - "DenseBase (eigen_easy)"
 Cohesion: 0.31
@@ -4469,8 +4500,8 @@ Cohesion: 0.14
 Nodes (14): SnapshotSeriesState, axes_index, color_a, color_b, color_g, color_r, data, line_width (+6 more)
 
 ### Community 759 - "FieldDef (px4_app_shell)"
-Cohesion: 0.19
-Nodes (14): FieldDef, array_idx, field, label_override, multi_id, topic, GroupDef, fields (+6 more)
+Cohesion: 0.16
+Nodes (16): draw(), draw_status_bar(), FieldDef, array_idx, field, label_override, multi_id, topic (+8 more)
 
 ### Community 760 - "SeriesPushConstants (backend)"
 Cohesion: 0.10
@@ -4517,8 +4548,8 @@ Cohesion: 0.67
 Nodes (3): CallRecord, shared_ptr, make_done_record()
 
 ### Community 771 - "subplot_manager #2"
-Cohesion: 0.16
-Nodes (8): MessageIntrospector, Ros2Bridge, SubplotManagerLiveTest, bridge_, intr_, SubplotManagerTest, bridge_, intr_
+Cohesion: 0.11
+Nodes (12): MessageIntrospector, Pred, Ros2Bridge, SharedPtr, RclcppEnvironment, spin_until(), SubplotManagerLiveTest, bridge_ (+4 more)
 
 ### Community 772 - "SpectraSeriesPushConst (plugin_api)"
 Cohesion: 0.14
@@ -4533,12 +4564,12 @@ Cohesion: 0.21
 Nodes (10): read_cpu_percent(), read_rss_mb(), ResourceMonitor, frame_ms_acc_, gpu_ms_acc_, interval_s_, last_log_, sample_count_ (+2 more)
 
 ### Community 775 - "Series3D · src/render/render_upload.cpp"
-Cohesion: 0.09
-Nodes (10): Backend, MeshData, upload_series_data(), Series3D, Series, SurfaceData, App, unique_ptr (+2 more)
+Cohesion: 0.18
+Nodes (6): MeshData, SurfaceData, App, unique_ptr, Regression3DTest, app_
 
 ### Community 776 - "bag_recorder #3"
-Cohesion: 0.15
-Nodes (13): BagRecorderStub, CallbacksAccepted, ConfigGettersSetters, Copyable, DefaultFields, RecordingSplitInfoTest, StartReturnsFalse, StopIsNoop (+5 more)
+Cohesion: 0.26
+Nodes (11): baseline_dir(), output_dir(), render_headless(), run_golden_test_3d(), update_baselines(), App, Figure, function (+3 more)
 
 ### Community 777 - "bench_render"
 Cohesion: 0.47
@@ -4553,16 +4584,16 @@ Cohesion: 0.15
 Nodes (12): CustomDoubleClickDistance, EndPinchResetsState, GestureRecognizer, PinchActivatesOnEvent, PinchInitiallyInactive, ScrollAccumulates, ScrollDxAccumulates, SingleClickNotDouble (+4 more)
 
 ### Community 780 - "Rect (split_view)"
-Cohesion: 0.21
-Nodes (12): compute_layout(), content_bounds(), deserialize(), find_splitter_recursive(), serialize(), splitter_at_point(), splitter_rect(), unsplit() (+4 more)
+Cohesion: 0.20
+Nodes (17): Color, DataPalette, string, color_to_json(), escape_json_string(), export_theme(), get_color(), glass_resolved_plot_background() (+9 more)
 
 ### Community 781 - "command_queue"
 Cohesion: 0.15
 Nodes (12): Drain, DrainEmpty, FullQueue, NullCommandSafe, ProducerConsumerThreaded, Capacity, CommandQueue, FIFO_Order (+4 more)
 
 ### Community 782 - "generic_subscriber #2"
-Cohesion: 0.07
-Nodes (24): DropOldestWhenFull, MultipleRoundsNoDrop, Peek, PeekPartial, PopEmpty, PushPop, RoundsUpLargeCapacity, RoundsUpToPow2 (+16 more)
+Cohesion: 0.18
+Nodes (11): BasicLine, DetectsDifference, TEST(), GoldenImage, GoldenImageFramework, GridOnly, IdenticalImagesPass, MultiSubplot (+3 more)
 
 ### Community 783 - "Figure (qt_embed_demo)"
 Cohesion: 0.19
@@ -4601,8 +4632,8 @@ Cohesion: 0.23
 Nodes (12): AddBaseRevision(), AddNewRevision(), AddOps(), End(), Start(), StartOpsVector(), StateDiffPayloadAddBaseRevision(), StateDiffPayloadAddNewRevision() (+4 more)
 
 ### Community 792 - "StateSnapshotPayload #2"
-Cohesion: 0.45
-Nodes (12): make_binary(), make_unary(), match(), match2(), parse_additive(), parse_comparison(), parse_multiplicative(), parse_power() (+4 more)
+Cohesion: 0.18
+Nodes (10): ShortcutConfig, CommandRegistry, ShortcutManager, UndoManager, ShortcutConfigCommandIntegration, action_count, config, registry (+2 more)
 
 ### Community 793 - "VariableBindingRequest (expression_editor)"
 Cohesion: 0.21
@@ -4641,8 +4672,8 @@ Cohesion: 0.23
 Nodes (9): execute_create_window(), execute_destroy_window(), is_window_alive(), on_attached_, on_detached_, process_pending(), transition_to_detached(), transition_to_docked() (+1 more)
 
 ### Community 802 - "SPECTRA_ROS_PRODUCT_PLAN"
-Cohesion: 0.12
-Nodes (17): 7. Agent Update Protocol, 0. North Star, 10. Performance & Quality Budgets, 12. Competitive Moat (Defensibility), 13. Risk Register, 14. Metrics Dashboard, 15. Agent Update Protocol, 16. Related Documents (+9 more)
+Cohesion: 0.15
+Nodes (12): 0. North Star, 10. Performance & Quality Budgets, 12. Competitive Moat (Defensibility), 13. Risk Register, 14. Metrics Dashboard, 16. Related Documents, 17. Immediate Next Actions (post Phase C), 1. Category Definition — “First in the World” Claims (+4 more)
 
 ### Community 803 - "SPECTRA_ROS_PRODUCT_PLAN #2"
 Cohesion: 0.13
@@ -4664,21 +4695,17 @@ Nodes (14): Figure, LayoutManager, RosTimeClock, bag_duration_sec, bag_start_tim
 Cohesion: 0.32
 Nodes (11): apply_to(), default_path(), escape_json(), load(), read_json_bool(), read_json_string(), save(), serialize() (+3 more)
 
-### Community 808 - "StemSeries (series_stats)"
-Cohesion: 0.18
-Nodes (11): compute_auto_tangent_at(), find_keyframe(), interp_mode_name(), set_keyframe_interp(), set_keyframe_tangent_mode(), set_keyframe_tangents(), set_keyframe_value(), tangent_mode_name() (+3 more)
-
 ### Community 809 - "BagPlayer (bag_playback_panel)"
 Cohesion: 0.32
 Nodes (12): BagPlayer, string, BagPlaybackPanel(), draw(), draw_inline(), draw_progress_bar(), draw_status_line(), draw_timeline() (+4 more)
 
 ### Community 810 - "DiagStatus (diagnostics_panel) #2"
-Cohesion: 0.17
-Nodes (11): string, DiagKeyValue, key, value, DiagStatus, arrival_ns, hardware_id, level (+3 more)
+Cohesion: 0.13
+Nodes (7): BarOrientation, BarSeries, heights_, line_x_, line_y_, positions_, rebuild_geometry
 
 ### Community 811 - "EchoMessage (topic_echo_panel)"
-Cohesion: 0.21
-Nodes (13): EchoFieldValue, EchoMessage, FieldDescriptor, MessageSchema, unique_ptr, vector, build_echo_message(), extract_fields() (+5 more)
+Cohesion: 0.16
+Nodes (15): BagMessage, MessageIntrospector, MessageSchema, SerializedMessage, shared_ptr, SharedPtr, string, TopicEchoPanel() (+7 more)
 
 ### Community 812 - "TopicEchoPanel (topic_list_panel)"
 Cohesion: 0.15
@@ -4725,8 +4752,8 @@ Cohesion: 0.18
 Nodes (11): CommandDescriptor, action, category, icon, id, label, shortcut, CommandRegistry (+3 more)
 
 ### Community 823 - "run-x11"
-Cohesion: 0.39
-Nodes (10): check_prereqs(), cleanup(), log_error(), log_info(), main(), run_example(), setup_x11(), show_help() (+2 more)
+Cohesion: 0.30
+Nodes (14): Color, GlassSurface, ImU32, ThemeColors, ThemeGlassSettings, color_u32(), draw_ambient_gradient(), draw_app_shell_frame() (+6 more)
 
 ### Community 824 - "SPECTRA_PLUGIN_API (export_csv)"
 Cohesion: 0.26
@@ -4773,8 +4800,8 @@ Cohesion: 0.18
 Nodes (6): vec3, MeasureTool, click_count_, click_point, first_, second_
 
 ### Community 835 - "DiagnosticsModel (diagnostics_panel)"
-Cohesion: 0.17
-Nodes (12): unordered_map, DiagnosticsModel, apply, components, count_error, count_ok, count_stale, count_warn (+4 more)
+Cohesion: 0.14
+Nodes (13): ClearResetsAll, HandleEmptyFigureWhenSwitching, MultipleAxesSelection, PreserveAxesIndexWhenSwitchingFigures, SelectAxes, SelectFigure, SelectFigureClearsPrevious, SelectSeries (+5 more)
 
 ### Community 836 - "Series"
 Cohesion: 0.17
@@ -4841,8 +4868,8 @@ Cohesion: 0.20
 Nodes (7): deserialize_config_blob(), on_enable(), serialize_config_blob(), submit_renderables(), DisplayContext, SceneManager, string
 
 ### Community 852 - "architecture"
-Cohesion: 0.18
-Nodes (10): Automation / MCP, Core data model (C++), God-node dependency sketch, IPC and multiprocess runtime, Plugins and workspace, Python bindings, Render pipeline, ROS2 and PX4 adapters (+2 more)
+Cohesion: 0.21
+Nodes (12): compute_layout(), content_bounds(), deserialize(), find_splitter_recursive(), serialize(), splitter_at_point(), splitter_rect(), unsplit() (+4 more)
 
 ### Community 853 - "AnimatedPlot (advanced_animation_demo)"
 Cohesion: 0.22
@@ -4881,8 +4908,8 @@ Cohesion: 0.18
 Nodes (11): April 4 Theme C: Plugin Safety and Cross-Platform Hardening, April 4 Theme G: Logging and Readability, Platform and CI fixes around plugin/build behavior, Plugin crash isolation, Python/client logging, Readability and consistency cleanup, What this means, What this means (+3 more)
 
 ### Community 862 - "DiagRawMessage (diagnostics_panel)"
-Cohesion: 0.20
-Nodes (9): Node, atomic, deque, mutex, vector, DiagRawMessage, arrival_ns, data (+1 more)
+Cohesion: 0.15
+Nodes (13): DropOldestWhenFull, MultipleRoundsNoDrop, Peek, PeekPartial, PopEmpty, PushPop, RoundsUpLargeCapacity, RoundsUpToPow2 (+5 more)
 
 ### Community 863 - "ImVec2 (crosshair)"
 Cohesion: 0.35
@@ -4893,8 +4920,8 @@ Cohesion: 0.42
 Nodes (10): Pattern, collect_metrics(), count_lines(), count_pattern(), count_tree_lines(), find_duplicates(), main(), Path (+2 more)
 
 ### Community 865 - "qa_agent #7"
-Cohesion: 0.18
-Nodes (11): ScenarioMemoryMetric, frame_end, frame_start, gpu_after, gpu_after_valid, gpu_before, gpu_before_valid, name (+3 more)
+Cohesion: 0.11
+Nodes (14): get_rss_bytes(), ScenarioMemoryMetric, frame_end, frame_start, gpu_after, gpu_after_valid, gpu_before, gpu_before_valid (+6 more)
 
 ### Community 866 - "Axes3D (render_3d)"
 Cohesion: 0.36
@@ -4921,12 +4948,12 @@ Cohesion: 0.18
 Nodes (11): SceneManager, add_entity, clear, clear_selection, entities_, entity_count, pick, selected_entity (+3 more)
 
 ### Community 872 - "ColoredFormatter (_log)"
-Cohesion: 0.18
-Nodes (8): MessageIntrospector, Ros2Bridge, SharedPtr, unique_ptr, PhaseCIntegrationTest, bridge_, intr_, pub_node_
+Cohesion: 0.17
+Nodes (11): string, DiagKeyValue, key, value, DiagStatus, arrival_ns, hardware_id, level (+3 more)
 
 ### Community 873 - "DiagLevel (diagnostics_panel)"
-Cohesion: 0.27
-Nodes (11): DiagComponent, DiagLevel, diag_level_name(), draw(), draw_component_row(), draw_component_table(), draw_filter_bar(), draw_sparkline() (+3 more)
+Cohesion: 0.15
+Nodes (13): Theme, animation_speed, border_width, colors, data_palette, enable_animations, glass_defaults, linearize_colors (+5 more)
 
 ### Community 874 - "VkInstance (glfw_surface_host)"
 Cohesion: 0.25
@@ -4961,8 +4988,8 @@ Cohesion: 0.29
 Nodes (4): atomic_flag, SpinLock, flag_, SpinLockGuard
 
 ### Community 883 - "TestIcons · python/spectra/backends"
-Cohesion: 0.33
-Nodes (4): _make_icon(), Create a QIcon from inline SVG data.      Returns an empty QIcon if no QApplicat, Tests for toolbar icon generation., TestIcons
+Cohesion: 0.14
+Nodes (21): _make_icon(), NavigationToolbarSpectra, Set navigation mode: 'pan', 'zoom', or '' (none)., Create a QIcon from inline SVG data.      Returns an empty QIcon if no QApplicat, Navigation toolbar for a Spectra canvas.      This is the Spectra equivalent of, Update the coordinate display., EmbedAxes, EmbedFigure (+13 more)
 
 ### Community 884 - "bag_reader #4"
 Cohesion: 0.20
@@ -4981,16 +5008,16 @@ Cohesion: 0.27
 Nodes (9): create(), list_types(), register_factory(), DisplayTypeInfo, DisplayPlugin, function, string, unique_ptr (+1 more)
 
 ### Community 888 - "Troubleshooting (QUICK_START)"
-Cohesion: 0.20
-Nodes (9): "Authorization required" errors, Development Workflow, "Failed to initialize GLFW" in X11 mode, Option 1: Headless Mode (Working), Option 2: X11 Forwarding (Advanced), Option 3: Simple Docker Run (Original Method), Performance issues, Quick Start: Docker Compose with Spectra (+1 more)
+Cohesion: 0.39
+Nodes (10): check_prereqs(), cleanup(), log_error(), log_info(), main(), run_example(), setup_x11(), show_help() (+2 more)
 
 ### Community 889 - "ExportFormatInfo (export_registry)"
 Cohesion: 0.24
 Nodes (8): ExportCallback, ExportFormatInfo, available_formats(), export_figure(), register_format(), unregister_format(), string, vector
 
 ### Community 890 - "ExprNode (expression_eval) #2"
-Cohesion: 0.70
-Nodes (5): ExprContext, ExprNode, call_function(), evaluate(), resolve_variable()
+Cohesion: 0.33
+Nodes (10): ExprContext, ExpressionInfo, ExprNode, call_function(), collect_variables(), evaluate(), parse_expression(), resolve_variable() (+2 more)
 
 ### Community 892 - "Figure (imgui_panels)"
 Cohesion: 0.24
@@ -5089,8 +5116,8 @@ Cohesion: 0.20
 Nodes (3): Simulate a full pan interaction., Simulate scroll-to-zoom., TestInput
 
 ### Community 916 - "multi_window #3"
-Cohesion: 0.22
-Nodes (5): App, unique_ptr, VulkanBackend, TearOffTest, app_
+Cohesion: 0.24
+Nodes (11): SetAllocationUserData(), vmaClearVirtualBlock(), vmaCreateVirtualBlock(), vmaDestroyVirtualBlock(), vmaGetVirtualAllocationInfo(), vmaSetVirtualAllocationUserData(), vmaVirtualFree(), VmaVirtualAllocation (+3 more)
 
 ### Community 918 - "Troubleshooting (nav-debug-30min)"
 Cohesion: 0.20
@@ -5101,8 +5128,8 @@ Cohesion: 0.22
 Nodes (8): AccumulatesSkippedDtUntilConsumed, ClearResetsPendingDtAndSchedule, ExpiredDeadlineTicksImmediately, InvalidFpsClearsSchedule, ScheduledGateWaitsUntilNextFrameDeadline, AnimationTickGate, TEST(), UnscheduledGateFallsBackToIdleTimeout
 
 ### Community 920 - "series_reorder"
-Cohesion: 0.22
-Nodes (8): AdjacentSwap, MoveBackward, MoveForward, MoveToSameIndex, OutOfRange, SeriesReorder, EmptyAxes, TEST()
+Cohesion: 0.17
+Nodes (12): unordered_map, DiagnosticsModel, apply, components, count_error, count_ok, count_stale, count_warn (+4 more)
 
 ### Community 921 - "Workflow (QA_Orchestrator.agent)"
 Cohesion: 0.22
@@ -5149,16 +5176,16 @@ Cohesion: 0.25
 Nodes (7): close(), stat, subspan_float(), ~MappedFile(), size_t, span, Utility
 
 ### Community 932 - "series_visibility"
-Cohesion: 0.22
-Nodes (8): DefaultVisible, ScatterDefaultVisible, ScatterSetInvisible, SeriesVisibility, SetInvisible, FluentChaining, ToggleBack, TEST()
+Cohesion: 0.18
+Nodes (10): Automation / MCP, Core data model (C++), God-node dependency sketch, IPC and multiprocess runtime, Plugins and workspace, Python bindings, Render pipeline, ROS2 and PX4 adapters (+2 more)
 
 ### Community 933 - "DropTarget (dock_system)"
-Cohesion: 0.22
-Nodes (7): DropTarget, highlight_rect, target_pane, zone, DropZone, Rect, SplitPane
+Cohesion: 0.20
+Nodes (9): Node, atomic, deque, mutex, vector, DiagRawMessage, arrival_ns, data (+1 more)
 
 ### Community 934 - "Figure (embed_surface)"
-Cohesion: 0.33
-Nodes (8): AddUpdates(), End(), ReqUpdateBatchPayloadAddUpdates(), ReqUpdateBatchPayloadEnd(), ReqUpdateBatchPayloadStart(), ReqUpdateBatchPayloadStartUpdatesVector(), Start(), StartUpdatesVector()
+Cohesion: 0.27
+Nodes (11): DiagComponent, DiagLevel, diag_level_name(), draw(), draw_component_row(), draw_component_table(), draw_filter_bar(), draw_sparkline() (+3 more)
 
 ### Community 935 - "ros_bag_analyze"
 Cohesion: 0.36
@@ -5249,8 +5276,8 @@ Cohesion: 0.25
 Nodes (8): vector, VkPresentModeKHR, VkSurfaceCapabilitiesKHR, VkSurfaceFormatKHR, SwapchainSupportDetails, capabilities, formats, present_modes
 
 ### Community 958 - "theme #4"
-Cohesion: 0.22
-Nodes (6): string, Theme, ThemeManager, ThemeManagerTest, original_theme_, tm_
+Cohesion: 0.18
+Nodes (11): ThemeGlassSettings, blur_enabled, clamp, dark_defaults, glow_strength, light_defaults, master_intensity, night_defaults (+3 more)
 
 ### Community 959 - "window_manager #2"
 Cohesion: 0.25
@@ -5297,8 +5324,8 @@ Cohesion: 0.46
 Nodes (8): Derived, LineSeries, LineSeries3D, ScatterSeries, ScatterSeries3D, set_x(), set_y(), set_z()
 
 ### Community 970 - "Rect (dock_system)"
-Cohesion: 0.29
-Nodes (8): compute_drop_highlight(), compute_drop_target(), end_drag(), update_drag(), update_layout(), DropTarget, DropZone, Rect
+Cohesion: 0.20
+Nodes (9): "Authorization required" errors, Development Workflow, "Failed to initialize GLFW" in X11 mode, Option 1: Headless Mode (Working), Option 2: X11 Forwarding (Advanced), Option 3: Simple Docker Run (Original Method), Performance issues, Quick Start: Docker Compose with Spectra (+1 more)
 
 ### Community 971 - "ImGuiKey (settings_panel)"
 Cohesion: 0.50
@@ -5405,8 +5432,8 @@ Cohesion: 0.29
 Nodes (7): RecordingProgress, cancelled, current_frame, elapsed_sec, estimated_remaining_sec, percent, total_frames
 
 ### Community 999 - "WindowManagerBootstrapOptions (window_manager_bootstrap) #2"
-Cohesion: 0.48
-Nodes (6): init_runtime(), configure_window_manager(), create_configured_window_manager(), unique_ptr, WindowManager, WindowManagerBootstrapOptions
+Cohesion: 0.22
+Nodes (7): DropTarget, highlight_rect, target_pane, zone, DropZone, Rect, SplitPane
 
 ### Community 1000 - "ARCHITECTURE_REVIEW_V2 #5"
 Cohesion: 0.29
@@ -5427,6 +5454,10 @@ Nodes (6): close(), draw(), handle_keyboard(), open(), toggle(), update_search()
 ### Community 1004 - "ProcessEntry (process_manager)"
 Cohesion: 0.29
 Nodes (7): ProcessEntry, alive, pid, socket_path, window_id, pid_t, WindowId
+
+### Community 1005 - "SharedCursor (axis_link)"
+Cohesion: 0.22
+Nodes (9): NearestPointResult, data_x, data_y, distance_px, found, point_index, screen_x, screen_y (+1 more)
 
 ### Community 1006 - "Transform (image_display)"
 Cohesion: 0.29
@@ -5469,8 +5500,8 @@ Cohesion: 0.29
 Nodes (7): once_flag, DirectWriteContext, active, origin, origin_once, samples_written, atomic
 
 ### Community 1017 - "NearestPointResult (tooltip)"
-Cohesion: 0.48
-Nodes (6): draw(), draw_3d(), set_fonts(), ImDrawList, ImFont, NearestPointResult
+Cohesion: 0.50
+Nodes (7): draw(), draw_3d(), fade_out_if_no_snap(), set_fonts(), ImDrawList, ImFont, NearestPointResult
 
 ### Community 1018 - "SPECTRA_ROS_PRODUCT_PLAN #3"
 Cohesion: 0.29
@@ -5526,15 +5557,15 @@ Nodes (5): SPECTRA_PLUGIN_API, SpectraPluginContext, SpectraPluginInfo, spectra_
 
 ### Community 1031 - "3d_integration #2"
 Cohesion: 0.29
-Nodes (4): App, unique_ptr, Integration3DTest, app_
+Nodes (8): compute_drop_highlight(), compute_drop_target(), end_drag(), update_drag(), update_layout(), DropTarget, DropZone, Rect
 
 ### Community 1032 - "figure_manager #3"
-Cohesion: 0.29
-Nodes (5): FigureId, FigureRegistry, FigureManagerTest, first_id_, registry_
+Cohesion: 0.38
+Nodes (5): draw_curve_editor_panel(), draw_timeline_panel(), transport_button(), ImFont, ThemeColors
 
 ### Community 1033 - "phase2_integration #3"
-Cohesion: 0.29
-Nodes (6): CommandRegistry, ShortcutManager, CommandShortcutIntegration, action_count, registry, shortcuts
+Cohesion: 0.20
+Nodes (10): ModeTransition3DState, camera, grid_planes, light_dir, lighting_enabled, show_bounding_box, xlim, ylim (+2 more)
 
 ### Community 1034 - "SpectraExportContext (plugin_api)"
 Cohesion: 0.29
@@ -5561,8 +5592,12 @@ Cohesion: 0.40
 Nodes (6): add_animated_track(), add_track(), rename_track(), serialize(), Color, string
 
 ### Community 1040 - "CommandDescriptor · src/ui/app"
-Cohesion: 0.40
-Nodes (4): register_standard_commands(), CommandBindings, CommandContext, CommandDescriptor
+Cohesion: 0.29
+Nodes (4): App, unique_ptr, Integration3DTest, app_
+
+### Community 1041 - "ARCHITECTURE_REVIEW #4"
+Cohesion: 0.20
+Nodes (10): DenseStyled, FilledMarkers, FormatStrings, TEST(), GoldenImagePhase3, LineStyles, LineWithMarkers, MarkerStyles (+2 more)
 
 ### Community 1042 - "_qt_compat"
 Cohesion: 0.29
@@ -5589,8 +5624,8 @@ Cohesion: 0.40
 Nodes (5): make_app_commands(), sanitize_help_launcher_child_environment(), CommandContext, CommandDescriptor, vector
 
 ### Community 1048 - "Margins (layout)"
-Cohesion: 0.33
-Nodes (5): Margins, bottom, left, right, top
+Cohesion: 0.20
+Nodes (8): EmbedSurface(), point_selected_cb, series_selected_cb, set_on_point_selected(), set_on_series_selected(), EmbedConfig, PointSelectedCallback, SeriesSelectedCallback
 
 ### Community 1049 - "examples/axes3d_demo.cpp"
 Cohesion: 0.33
@@ -5625,8 +5660,8 @@ Cohesion: 0.53
 Nodes (5): detect_payload_format(), strip_fb_prefix(), PayloadFormat, span, vector
 
 ### Community 1058 - "ReqCreateAxesPayload (message)"
-Cohesion: 0.33
-Nodes (6): ReqCreateAxesPayload, figure_id, grid_cols, grid_index, grid_rows, is_3d
+Cohesion: 0.20
+Nodes (10): Px4AppConfig, auto_connect, chunked_memory_budget, host, port, time_window_s, ulog_file, use_chunked (+2 more)
 
 ### Community 1059 - "QA_results"
 Cohesion: 0.33
@@ -5765,20 +5800,20 @@ Cohesion: 0.40
 Nodes (3): compute_window_groups(), FigureId, vector
 
 ### Community 1094 - "CommandDescriptor (commands_animation)"
-Cohesion: 0.40
-Nodes (4): make_animation_commands(), CommandContext, CommandDescriptor, vector
+Cohesion: 0.33
+Nodes (4): { chromium }, require, root, sources
 
 ### Community 1095 - "CommandDescriptor (commands_file)"
-Cohesion: 0.40
-Nodes (4): make_file_commands(), CommandContext, CommandDescriptor, vector
+Cohesion: 0.12
+Nodes (17): make_file_commands(), make_view_commands(), capture_figure_axes(), FigureAxisSnapshot, entries, entries3d, restore_figure_axes(), undoable_reset_view() (+9 more)
 
 ### Community 1096 - "CommandDescriptor (commands_panel)"
-Cohesion: 0.40
-Nodes (4): make_panel_commands(), CommandContext, CommandDescriptor, vector
+Cohesion: 0.33
+Nodes (5): { chromium }, figmaDir, outDir, pages, require
 
 ### Community 1097 - "CommandDescriptor (commands_theme)"
-Cohesion: 0.40
-Nodes (4): make_theme_commands(), CommandContext, CommandDescriptor, vector
+Cohesion: 0.60
+Nodes (4): string, make_temp_bag_dir(), remove_bag(), write_float64_bag()
 
 ### Community 1099 - "scene_viewport"
 Cohesion: 0.40
@@ -5849,8 +5884,8 @@ Cohesion: 0.40
 Nodes (5): SessionMergeOptions, displays, expression_presets, expressions, subscriptions
 
 ### Community 1120 - "service_caller #4"
-Cohesion: 0.38
-Nodes (5): draw_curve_editor_panel(), draw_timeline_panel(), transport_button(), ImFont, ThemeColors
+Cohesion: 0.67
+Nodes (3): get_pane_infos(), PaneInfo, vector
 
 ### Community 1121 - "Ros2Bridge (subplot_manager)"
 Cohesion: 0.40
@@ -5865,8 +5900,8 @@ Cohesion: 0.50
 Nodes (5): AgentMessageHandler, ClientRouter, DaemonServer, FigureModel, HeartbeatMonitor
 
 ### Community 1125 - "VkDebugUtilsMessengerCallbackDataEXT (vk_device)"
-Cohesion: 0.40
-Nodes (5): VKAPI_ATTR, VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT, VkDebugUtilsMessengerCallbackDataEXT, debug_callback()
+Cohesion: 0.22
+Nodes (8): AdjacentSwap, MoveBackward, MoveForward, MoveToSameIndex, OutOfRange, SeriesReorder, EmptyAxes, TEST()
 
 ### Community 1126 - "figure_serializer"
 Cohesion: 0.33
@@ -5877,8 +5912,8 @@ Cohesion: 0.60
 Nodes (4): initializer_list, vector, make_x(), make_y()
 
 ### Community 1128 - "multi_window_fixture #2"
-Cohesion: 0.40
-Nodes (5): TimingStats, avg_ms, iterations, max_ms, min_ms
+Cohesion: 0.22
+Nodes (8): CustomMargins, OneByTwoGrid, SingleCell, SubplotLayout, TinyFigureClampsToZero, TwoByOneGrid, TwoByTwoGrid, TEST()
 
 ### Community 1129 - "SpectraViewport (plugin_api)"
 Cohesion: 0.40
@@ -5972,14 +6007,6 @@ Nodes (3): AxesToIndex, serialize(), string
 Cohesion: 0.67
 Nodes (3): docker/docker-compose.yml - Docker Compose Service Definitions, docker/QUICK_START.md - Docker Compose Quick Start Guide, docker/README_X11.md - Docker Compose with X11 Forwarding Guide
 
-### Community 1159 - "PaneInfo (dock_system)"
-Cohesion: 0.67
-Nodes (3): get_pane_infos(), PaneInfo, vector
-
-### Community 1160 - "MarkerStyle (spectra_embed_c)"
-Cohesion: 0.33
-Nodes (4): { chromium }, require, root, sources
-
 ### Community 1161 - "examples/advanced_animation_demo.cpp"
 Cohesion: 0.67
 Nodes (3): Advanced Animation Demo, 3D Camera Animation Demo, Camera Animator Demo
@@ -5996,14 +6023,6 @@ Nodes (6): 1. Finish important seams before piling on more complexity, 2. Prefer
 Cohesion: 0.33
 Nodes (6): Goal, Performance and efficiency track, Phase 2: Make Real User Workflows Faster and More Powerful, Phase 2 success criteria, User-facing and design track, Why this should come second
 
-### Community 1177 - "InputHandler (imgui_integration)"
-Cohesion: 0.33
-Nodes (5): { chromium }, figmaDir, outDir, pages, require
-
-### Community 1178 - "KeyframeInterpolator (imgui_integration)"
-Cohesion: 0.60
-Nodes (4): string, make_temp_bag_dir(), remove_bag(), write_float64_bag()
-
 ### Community 1179 - "KnobManager (imgui_integration)"
 Cohesion: 0.40
 Nodes (5): Design and UX, Efficiency and maintainability, Performance, Product differentiation, Suggested Feature Ideas by Theme
@@ -6017,26 +6036,30 @@ Cohesion: 0.50
 Nodes (4): Later, after foundation is calmer, Must do soon, Priority Matrix, Should do next
 
 ### Community 1183 - "TimelineEditor (imgui_integration)"
-Cohesion: 0.50
-Nodes (4): parse_format_message(), parse_ulog_type(), ulog_field_size(), ULogFieldType
+Cohesion: 0.67
+Nodes (3): parse_format_message(), parse_ulog_type(), ULogFieldType
 
 ### Community 1184 - "TopicsPanel (imgui_integration)"
-Cohesion: 0.33
-Nodes (4): set_on_message(), set_on_playhead(), MessageCallback, PlayheadCallback
+Cohesion: 0.22
+Nodes (6): string, Theme, ThemeManager, ThemeManagerTest, original_theme_, tm_
 
 ### Community 1187 - "AxisLinkManager (input)"
-Cohesion: 0.67
-Nodes (3): spectra_series_set_line_style(), to_line_style(), LineStyle
+Cohesion: 0.25
+Nodes (8): ModeTransition2DState, grid_enabled, title, xlabel, xlim, ylabel, ylim, AxisLimits
 
 ### Community 1195 - "HelloPayload (codec_fb)"
 Cohesion: 0.67
 Nodes (3): decode_fb_hello(), encode_fb_hello(), HelloPayload
 
+### Community 1196 - "ReqAppendDataPayload (codec_fb)"
+Cohesion: 0.29
+Nodes (6): Color, a, b, g, r, rgba()
+
 ### Community 1197 - "ReqCloseFigurePayload (codec_fb)"
 Cohesion: 0.67
 Nodes (3): decode_fb_req_close_figure(), encode_fb_req_close_figure(), ReqCloseFigurePayload
 
-### Community 1198 - "ReqCloseWindowPayload (codec_fb)"
+### Community 1198 - "Community 1198"
 Cohesion: 0.67
 Nodes (3): decode_fb_evt_figure_destroyed(), encode_fb_evt_figure_destroyed(), EvtFigureDestroyedPayload
 
@@ -6044,7 +6067,7 @@ Nodes (3): decode_fb_evt_figure_destroyed(), encode_fb_evt_figure_destroyed(), E
 Cohesion: 0.67
 Nodes (3): decode_fb_evt_topic_list_changed(), encode_fb_evt_topic_list_changed(), EvtTopicListChangedPayload
 
-### Community 1200 - "ReqCreateFigurePayload (codec_fb)"
+### Community 1200 - "Community 1200"
 Cohesion: 0.67
 Nodes (3): decode_fb_evt_window_closed(), encode_fb_evt_window_closed(), EvtWindowClosedPayload
 
@@ -6056,11 +6079,11 @@ Nodes (3): decode_fb_req_create_window(), encode_fb_req_create_window(), ReqCrea
 Cohesion: 0.67
 Nodes (3): decode_fb_req_remove_series(), encode_fb_req_remove_series(), ReqRemoveSeriesPayload
 
-### Community 1203 - "ReqDestroyFigurePayload (codec_fb)"
+### Community 1203 - "Community 1203"
 Cohesion: 0.67
 Nodes (3): decode_fb_req_destroy_figure(), encode_fb_req_destroy_figure(), ReqDestroyFigurePayload
 
-### Community 1204 - "ReqDetachFigurePayload (codec_fb)"
+### Community 1204 - "Community 1204"
 Cohesion: 0.67
 Nodes (3): decode_fb_req_detach_figure(), encode_fb_req_detach_figure(), ReqDetachFigurePayload
 
@@ -6076,57 +6099,105 @@ Nodes (3): decode_fb_req_publish_topic_samples(), encode_fb_req_publish_topic_sa
 Cohesion: 0.67
 Nodes (3): decode_fb_req_reconnect(), encode_fb_req_reconnect(), ReqReconnectPayload
 
-### Community 1208 - "ReqSubscribeTopicPayload (codec_fb)"
+### Community 1208 - "Community 1208"
 Cohesion: 0.67
 Nodes (3): decode_fb_req_subscribe_topic(), encode_fb_req_subscribe_topic(), ReqSubscribeTopicPayload
 
-### Community 1209 - "ReqUpdateBatchPayload (codec_fb)"
+### Community 1209 - "Community 1209"
 Cohesion: 0.67
 Nodes (3): decode_fb_req_update_batch(), encode_fb_req_update_batch(), ReqUpdateBatchPayload
 
-### Community 1210 - "RespErrPayload (codec_fb)"
+### Community 1210 - "Community 1210"
 Cohesion: 0.67
 Nodes (3): decode_fb_resp_axes_created(), encode_fb_resp_axes_created(), RespAxesCreatedPayload
 
-### Community 1211 - "Series (data_interaction) #2"
+### Community 1211 - "Community 1211"
 Cohesion: 0.67
 Nodes (3): decode_fb_resp_topic_list(), encode_fb_resp_topic_list(), RespTopicListPayload
 
-### Community 1212 - "SeriesSelectedCallback (data_interaction)"
+### Community 1212 - "Community 1212"
 Cohesion: 0.67
 Nodes (3): decode_fb_welcome(), encode_fb_welcome(), WelcomePayload
 
-### Community 1213 - "Figure (data_interaction) #2"
+### Community 1213 - "Community 1213"
 Cohesion: 0.67
 Nodes (3): unsubscribe(), RosLogViewer(), SharedPtr
 
-### Community 1214 - "QA_update #2"
+### Community 1214 - "Community 1214"
 Cohesion: 0.67
 Nodes (3): handlers_input.cpp, spectra_qa_agent, src/ui/app/window_manager.cpp
 
-### Community 1224 - "subplot_manager #3"
+### Community 1280 - "Community 1280"
+Cohesion: 0.29
+Nodes (6): Axes3D, Figure, TransitionEngine, Camera, mutex, string
+
+### Community 1281 - "Community 1281"
+Cohesion: 0.40
+Nodes (4): make_figure_commands(), CommandContext, CommandDescriptor, vector
+
+### Community 1282 - "Community 1282"
+Cohesion: 0.40
+Nodes (4): make_panel_commands(), CommandContext, CommandDescriptor, vector
+
+### Community 1285 - "Community 1285"
+Cohesion: 0.50
+Nodes (5): 7. Agent Update Protocol, 15. Agent Update Protocol, Phase A tracker, Phase B tracker, Phase C tracker
+
+### Community 1286 - "Community 1286"
+Cohesion: 0.50
+Nodes (3): active_figure(), set_active_figure(), Figure
+
+### Community 1287 - "Community 1287"
+Cohesion: 0.50
+Nodes (3): frame_cb, render_to_buffer(), update()
+
+### Community 1296 - "Community 1296"
 Cohesion: 0.67
-Nodes (3): Pred, SharedPtr, spin_until()
+Nodes (3): spectra_series_set_marker_style(), to_marker_style(), MarkerStyle
+
+### Community 1299 - "Community 1299"
+Cohesion: 0.67
+Nodes (3): decode_req_add_series(), encode_req_add_series(), ReqAddSeriesPayload
+
+### Community 1306 - "Community 1306"
+Cohesion: 0.67
+Nodes (3): decode_req_show(), encode_req_show(), ReqShowPayload
+
+### Community 1540 - "Community 1540"
+Cohesion: 0.22
+Nodes (4): main(), upload_series_data(), Series3D, Series
+
+### Community 1631 - "Community 1631"
+Cohesion: 0.40
+Nodes (4): make_edit_commands(), CommandContext, CommandDescriptor, vector
+
+### Community 1632 - "Community 1632"
+Cohesion: 0.40
+Nodes (4): make_series_commands(), CommandContext, CommandDescriptor, vector
+
+### Community 1633 - "Community 1633"
+Cohesion: 0.40
+Nodes (4): make_tools_commands(), CommandContext, CommandDescriptor, vector
 
 ## Knowledge Gaps
-- **15192 isolated node(s):** `spectra-automation`, `run-gpu.sh script`, `test-deb-install.sh script`, `entrypoint.sh script`, `XDG_RUNTIME_DIR` (+15187 more)
+- **15225 isolated node(s):** `spectra-automation`, `run-gpu.sh script`, `test-deb-install.sh script`, `entrypoint.sh script`, `XDG_RUNTIME_DIR` (+15220 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **243 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **269 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `json` connect `RosSession (ros_session) #2` to `Path (architecture_metrics)`, `generate_atlas`, `RecentEntry (ros_session)`, `Path (run_simplifier_loop)`, `Series · python/tests/test_phase5.py`, `TestSeriesHelpers · python/spectra/_series.py`, `find_unused`?**
-  _High betweenness centrality (0.084) - this node is a cross-community bridge._
-- **Why does `Series3D` connect `Series3D · src/render/render_upload.cpp` to `DenseBase (eigen)`, `axes3d_pick`, `SnapshotFigureState (main)`, `VulkanBackend (imgui_integration)`, `EasyState (easy)`, `FrameScheduler (frame_scheduler)`, `figure_manager #2`, `GridPlane (axes3d)`, `series3d`, `WorkspaceData (workspace) #2`, `series_clipboard`, `SpectraEmbed (spectra_embed_c)`, `series_clipboard #2`, `BinaryReader (figure_serializer)`, `Figure (renderer)`, `examples/webgpu_demo.cpp`, `qa_agent #2`, `Series (data_editor)`, `data_editor`, `Series (data_interaction)`, `ColormapType (series3d)`, `Series (render_2d)`?**
-  _High betweenness centrality (0.051) - this node is a cross-community bridge._
+- **Why does `json` connect `RosSession (ros_session) #2` to `Path (architecture_metrics)`, `generate_atlas`, `RecentEntry (ros_session)`, `Path (run_simplifier_loop)`, `Series · python/tests/test_phase5.py`, `find_unused`?**
+  _High betweenness centrality (0.090) - this node is a cross-community bridge._
+- **Why does `Series3D` connect `Community 1540` to `DenseBase (eigen)`, `axes3d_pick`, `Series3D · src/render/render_upload.cpp`, `SnapshotFigureState (main)`, `VulkanBackend (imgui_integration)`, `EasyState (easy)`, `figure_manager #2`, `FrameScheduler (frame_scheduler)`, `GridPlane (axes3d)`, `series3d`, `WorkspaceData (workspace) #2`, `series_clipboard`, `SpectraEmbed (spectra_embed_c)`, `series_clipboard #2`, `BinaryReader (figure_serializer)`, `qa_agent #5`, `SceneRenderer (scene_renderer)`, `Figure (renderer)`, `Series (data_editor)`, `data_editor`, `Series (data_interaction)`, `ColormapType (series3d)`, `Series (render_2d)`?**
+  _High betweenness centrality (0.046) - this node is a cross-community bridge._
 - **Why does `socket` connect `Session` to `main #2`, `ToolSpec (mcp_server)`, `Message (transport)`, `App (automation_server)`, `TelemetryMessage (px4_bridge)`?**
-  _High betweenness centrality (0.039) - this node is a cross-community bridge._
+  _High betweenness centrality (0.038) - this node is a cross-community bridge._
 - **What connects `spectra-automation`, `run-gpu.sh script`, `test-deb-install.sh script` to the rest of the system?**
-  _15740 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _15773 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `RosAppShell (ros_app_shell)` be split into smaller, more focused modules?**
   _Cohesion score 0.01015228426395939 - nodes in this community are weakly interconnected._
 - **Should `ImGuiIntegration (imgui_integration)` be split into smaller, more focused modules?**
-  _Cohesion score 0.010492093985517955 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.011049723756906077 - nodes in this community are weakly interconnected._
 - **Should `Session` be split into smaller, more focused modules?**
-  _Cohesion score 0.035897435897435895 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.02311981504147967 - nodes in this community are weakly interconnected._

@@ -441,7 +441,20 @@ void ImGuiIntegration::draw_inspector(Figure& figure)
                         1.0f);
         }
 
-        // ── Inspector tab bar ──
+        // ── Panel eyebrow header ──
+        {
+            const auto& colors = theme_colors();
+            ImGui::PushFont(font_heading_);
+            ImGui::PushStyleColor(
+                ImGuiCol_Text,
+                ImVec4(colors.text_tertiary.r, colors.text_tertiary.g, colors.text_tertiary.b, 0.75f));
+            ImGui::TextUnformatted("INSPECTOR");
+            ImGui::PopStyleColor();
+            ImGui::PopFont();
+            ImGui::Dummy(ImVec2(0, 6.0f));
+        }
+
+        // ── Inspector tab bar (segmented control) ──
         {
             const auto& colors  = theme_colors();
             float       avail_w = ImGui::GetContentRegionAvail().x;
@@ -459,100 +472,97 @@ void ImGuiIntegration::draw_inspector(Figure& figure)
                 {"Data", ui::Icon::Database, Section::DataEditor},
             };
             constexpr int tab_count = 4;
-            float         tab_w     = std::floor(avail_w / static_cast<float>(tab_count));
-            float         tab_h     = 28.0f;
+
+            const float track_pad = ui::tokens::SEGMENT_TRACK_PAD;
+            const float track_h   = ui::tokens::SEGMENT_TAB_H;
+            const float tab_w     = std::floor((avail_w - track_pad * 2.0f) / tab_count);
+
+            ImVec2      track_min = ImGui::GetCursorScreenPos();
+            ImVec2      track_max = ImVec2(track_min.x + avail_w, track_min.y + track_h);
+            ImDrawList* dl        = ImGui::GetWindowDrawList();
+
+            // Recessed track background — establishes the segmented control surface.
+            dl->AddRectFilled(track_min,
+                              track_max,
+                              ImGui::ColorConvertFloat4ToU32(ImVec4(colors.bg_primary.r,
+                                                                    colors.bg_primary.g,
+                                                                    colors.bg_primary.b,
+                                                                    0.55f)),
+                              ui::tokens::RADIUS_MD);
+            dl->AddRect(track_min,
+                        track_max,
+                        ImGui::ColorConvertFloat4ToU32(ImVec4(colors.border_subtle.r,
+                                                              colors.border_subtle.g,
+                                                              colors.border_subtle.b,
+                                                              0.45f)),
+                        ui::tokens::RADIUS_MD);
 
             ImGui::PushFont(font_heading_);
-            ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, ui::tokens::RADIUS_SM);
-            ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(2.0f, 0.0f));
-
             for (int i = 0; i < tab_count; ++i)
             {
-                if (i > 0)
-                    ImGui::SameLine();
+                bool   is_active = (active_section_ == tabs[i].section);
+                float  seg_x     = track_min.x + track_pad + tab_w * static_cast<float>(i);
+                ImVec2 seg_min(seg_x, track_min.y + track_pad);
+                ImVec2 seg_max(seg_x + tab_w, track_max.y - track_pad);
 
-                bool is_active = (active_section_ == tabs[i].section);
-
-                // Tab button colors
-                if (is_active)
-                {
-                    ImGui::PushStyleColor(
-                        ImGuiCol_Button,
-                        ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.18f));
-                    ImGui::PushStyleColor(
-                        ImGuiCol_ButtonHovered,
-                        ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.28f));
-                    ImGui::PushStyleColor(
-                        ImGuiCol_ButtonActive,
-                        ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.35f));
-                    ImGui::PushStyleColor(
-                        ImGuiCol_Text,
-                        ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 1.0f));
-                }
-                else
-                {
-                    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-                    ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
-                                          ImVec4(colors.text_secondary.r,
-                                                 colors.text_secondary.g,
-                                                 colors.text_secondary.b,
-                                                 0.12f));
-                    ImGui::PushStyleColor(ImGuiCol_ButtonActive,
-                                          ImVec4(colors.text_secondary.r,
-                                                 colors.text_secondary.g,
-                                                 colors.text_secondary.b,
-                                                 0.20f));
-                    ImGui::PushStyleColor(ImGuiCol_Text,
-                                          ImVec4(colors.text_secondary.r,
-                                                 colors.text_secondary.g,
-                                                 colors.text_secondary.b,
-                                                 0.85f));
-                }
-
-                const std::string btn_id = std::format("{}##insp_tab_{}", tabs[i].label, i);
-                if (ImGui::Button(btn_id.c_str(), ImVec2(tab_w, tab_h)))
+                ImGui::SetCursorScreenPos(seg_min);
+                const std::string btn_id = std::format("##insp_tab_{}", i);
+                if (ImGui::InvisibleButton(btn_id.c_str(),
+                                           ImVec2(tab_w, seg_max.y - seg_min.y)))
                 {
                     active_section_ = tabs[i].section;
-                    // Clear stale selection when switching sections
                     if (tabs[i].section != Section::Series)
                         selection_ctx_.clear();
                 }
+                bool hovered = ImGui::IsItemHovered();
 
-                // Draw active indicator bar under the tab
+                // Active segment: raised accent-tinted pill with soft glow.
                 if (is_active)
                 {
-                    ImVec2      item_min = ImGui::GetItemRectMin();
-                    ImVec2      item_max = ImGui::GetItemRectMax();
-                    ImDrawList* tdl      = ImGui::GetWindowDrawList();
-                    tdl->AddRectFilled(
-                        ImVec2(item_min.x + 4.0f, item_max.y - 2.0f),
-                        ImVec2(item_max.x - 4.0f, item_max.y),
+                    dl->AddRectFilled(
+                        seg_min,
+                        seg_max,
                         ImGui::ColorConvertFloat4ToU32(
-                            ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.8f)),
+                            ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.20f)),
+                        ui::tokens::RADIUS_SM);
+                    dl->AddRect(
+                        seg_min,
+                        seg_max,
+                        ImGui::ColorConvertFloat4ToU32(
+                            ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.55f)),
+                        ui::tokens::RADIUS_SM,
+                        0,
                         1.0f);
                 }
+                else if (hovered)
+                {
+                    dl->AddRectFilled(seg_min,
+                                      seg_max,
+                                      ImGui::ColorConvertFloat4ToU32(
+                                          ImVec4(colors.text_secondary.r,
+                                                 colors.text_secondary.g,
+                                                 colors.text_secondary.b,
+                                                 0.10f)),
+                                      ui::tokens::RADIUS_SM);
+                }
 
-                ImGui::PopStyleColor(4);
+                // Centered label.
+                ImVec4 txt = is_active
+                                 ? ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 1.0f)
+                                 : ImVec4(colors.text_secondary.r,
+                                          colors.text_secondary.g,
+                                          colors.text_secondary.b,
+                                          hovered ? 1.0f : 0.80f);
+                ImVec2 tsz = ImGui::CalcTextSize(tabs[i].label);
+                dl->AddText(ImVec2(seg_x + (tab_w - tsz.x) * 0.5f,
+                                   seg_min.y + (seg_max.y - seg_min.y - tsz.y) * 0.5f),
+                            ImGui::ColorConvertFloat4ToU32(txt),
+                            tabs[i].label);
             }
-
-            ImGui::PopStyleVar(2);
             ImGui::PopFont();
 
-            // Separator line under tabs
-            ImGui::Dummy(ImVec2(0, 4.0f));
-            {
-                ImDrawList* tdl   = ImGui::GetWindowDrawList();
-                ImVec2      wpos  = ImGui::GetWindowPos();
-                float       sep_y = std::floor(ImGui::GetCursorScreenPos().y);
-                tdl->AddLine(ImVec2(wpos.x + 8.0f, sep_y),
-                             ImVec2(wpos.x + bounds.w - 8.0f, sep_y),
-                             ImGui::ColorConvertFloat4ToU32(ImVec4(colors.border_subtle.r,
-                                                                   colors.border_subtle.g,
-                                                                   colors.border_subtle.b,
-                                                                   0.35f)),
-                             1.0f);
-            }
-            ImGui::Dummy(ImVec2(0, 4.0f));
+            ImGui::SetCursorScreenPos(ImVec2(track_min.x, track_max.y));
+            ImGui::Dummy(ImVec2(0, ui::tokens::SPACE_3));
         }
 
         // Scrollable content area

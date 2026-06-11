@@ -20,12 +20,31 @@ void Tooltip::set_fonts(ImFont* body, ImFont* heading)
     font_heading_ = heading;
 }
 
+void Tooltip::fade_out_if_no_snap(const NearestPointResult& nearest, float dt)
+{
+    if (nearest.found)
+        return;
+
+    // No snap target — hide immediately. Do not keep full opacity during the
+    // snap-radius hysteresis window; that drew a stale box at screen (0, 0).
+    hysteresis_     = 0.0f;
+    target_opacity_ = 0.0f;
+    opacity_ += (target_opacity_ - opacity_) * std::min(1.0f, 10.0f * dt);
+    if (std::abs(opacity_ - target_opacity_) < 0.01f)
+        opacity_ = target_opacity_;
+}
+
 void Tooltip::draw(const NearestPointResult& nearest,
                    float                     window_width,
                    float                     window_height,
                    ImDrawList*               dl)
 {
     if (!enabled_)
+        return;
+
+    float dt = ImGui::GetIO().DeltaTime;
+    fade_out_if_no_snap(nearest, dt);
+    if (!nearest.found)
         return;
 
     if (nearest.is_3d)
@@ -35,8 +54,7 @@ void Tooltip::draw(const NearestPointResult& nearest,
     }
 
     // Hysteresis: keep tooltip visible for 100ms after cursor leaves snap radius
-    float dt       = ImGui::GetIO().DeltaTime;
-    bool  in_range = nearest.found && nearest.distance_px <= snap_radius_px_;
+    bool in_range = nearest.found && nearest.distance_px <= snap_radius_px_;
 
     if (in_range)
     {
@@ -352,8 +370,12 @@ void Tooltip::draw_3d(const NearestPointResult& nearest,
 {
     const float snap_radius = snap_radius_3d_px_;
 
-    float dt       = ImGui::GetIO().DeltaTime;
-    bool  in_range = nearest.found && nearest.distance_px <= snap_radius;
+    float dt = ImGui::GetIO().DeltaTime;
+    fade_out_if_no_snap(nearest, dt);
+    if (!nearest.found)
+        return;
+
+    bool in_range = nearest.found && nearest.distance_px <= snap_radius;
 
     if (in_range)
     {

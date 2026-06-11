@@ -397,6 +397,11 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
 
 // ─── Mouse move ─────────────────────────────────────────────────────────────
 
+void InputHandler::clear_cursor_readout()
+{
+    cursor_readout_.valid = false;
+}
+
 void InputHandler::on_mouse_move(double x, double y)
 {
     SPECTRA_LOG_TRACE(
@@ -475,7 +480,9 @@ void InputHandler::on_mouse_move(double x, double y)
     }
     else
     {
-        cursor_readout_.valid = false;
+        cursor_readout_.valid    = false;
+        cursor_readout_.screen_x = x;
+        cursor_readout_.screen_y = y;
     }
 
     update_axes3d_arrow_hover(hit_base, x, y);

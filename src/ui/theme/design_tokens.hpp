@@ -82,6 +82,25 @@ constexpr float SECTION_CONTENT_INSET  = 12.0f;   // Left indent for section con
 constexpr float INSPECTOR_LABEL_WIDTH  = 80.0f;   // Fixed label column width
 constexpr float INSPECTOR_INPUT_HEIGHT = 28.0f;   // Compact input height
 
+// ─── Panel Component Language ────────────────────────────────────────────────
+// Shared geometry for the reusable panel/card/chip system so every surface
+// (inspector sections, modal groups, timeline header) reads as one design.
+constexpr float CARD_RADIUS    = RADIUS_LG;   // r12: secondary grouped card
+constexpr float CARD_PADDING   = 12.0f;       // internal padding of a card
+constexpr float CARD_GAP       = 10.0f;       // vertical gap between cards
+constexpr float CHIP_HEIGHT    = 24.0f;       // interactive chip / pill height
+constexpr float CHIP_PADDING_H = 10.0f;       // chip horizontal padding
+constexpr float SEGMENT_TAB_H  = 30.0f;       // segmented control tab height
+constexpr float SEGMENT_TRACK_PAD = 3.0f;     // inset of tabs inside the track
+constexpr float MODAL_RADIUS   = 14.0f;       // floating dialog corner radius
+constexpr float MODAL_PADDING  = 20.0f;       // floating dialog content padding
+constexpr float MODAL_HEADER_H = 48.0f;       // floating dialog header strip
+
+// ─── Timeline Editing Surface ────────────────────────────────────────────────
+constexpr float TIMELINE_RULER_HEIGHT = 26.0f;    // time ruler strip
+constexpr float TIMELINE_TRACK_HEIGHT = 30.0f;    // single lane / track row
+constexpr float TIMELINE_LABEL_WIDTH  = 150.0f;   // track-name gutter width
+
 // Focus Ring
 constexpr float FOCUS_RING_WIDTH  = 2.0f;
 constexpr float FOCUS_RING_OFFSET = 2.0f;   // Offset from element edge

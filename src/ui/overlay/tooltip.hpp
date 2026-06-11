@@ -83,6 +83,9 @@ class Tooltip
     float opacity_        = 0.0f;
     float target_opacity_ = 0.0f;
     float hysteresis_     = 0.0f;   // Time since cursor left snap radius
+
+    // Fade out immediately when the snap point is lost (cursor left plot/window).
+    void fade_out_if_no_snap(const NearestPointResult& nearest, float dt);
 };
 
 }   // namespace spectra

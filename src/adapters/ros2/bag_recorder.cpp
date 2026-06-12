@@ -18,6 +18,8 @@
     #include <rosbag2_cpp/writer.hpp>
     #include <rosbag2_storage/storage_options.hpp>
 
+    #include "bag_message_compat.hpp"
+
 namespace spectra::adapters::ros2
 {
 
@@ -339,7 +341,7 @@ bool BagRecorder::subscribe_topics()
                 topic,
                 msg_type,
                 qos,
-                [this, topic, msg_type](const std::shared_ptr<const rclcpp::SerializedMessage>& msg)
+                [this, topic, msg_type](sub_compat::SerializedMessageCallbackArg msg)
                 { on_message(topic, msg_type, msg); });
             subscriptions_.push_back(std::move(sub));
         }
@@ -360,7 +362,7 @@ bool BagRecorder::subscribe_topics()
 
 void BagRecorder::on_message(const std::string& topic_name,
                              const std::string& /*message_type*/,
-                             const std::shared_ptr<const rclcpp::SerializedMessage>& msg)
+                             sub_compat::SerializedMessageCallbackArg msg)
 {
     if (!msg)
     {
@@ -377,7 +379,7 @@ void BagRecorder::on_message(const std::string& topic_name,
     // Build rosbag2 message
     auto bag_msg        = std::make_shared<rosbag2_storage::SerializedBagMessage>();
     bag_msg->topic_name = topic_name;
-    bag_msg->time_stamp = node_->now().nanoseconds();
+    bag_compat::set_bag_message_timestamp(*bag_msg, node_->now().nanoseconds());
 
     // Copy serialized buffer
     const auto& rcl_buf       = msg->get_rcl_serialized_message();

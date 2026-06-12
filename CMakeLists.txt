@@ -590,15 +590,42 @@ if(SPECTRA_USE_ROS2)
     find_package(tf2_msgs REQUIRED)
     find_package(visualization_msgs REQUIRED)
     find_package(rcpputils QUIET)
-    find_path(SPECTRA_NLOHMANN_JSON_INCLUDE_DIR nlohmann/json.hpp)
+
+    set(SPECTRA_NLOHMANN_JSON_INCLUDE_DIR "")
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/nlohmann/json.hpp")
+        set(SPECTRA_NLOHMANN_JSON_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party")
+        message(STATUS "Using bundled nlohmann/json from third_party/")
+    else()
+        find_package(nlohmann_json CONFIG QUIET)
+        if(nlohmann_json_FOUND)
+            set(SPECTRA_NLOHMANN_JSON_INCLUDE_DIR "${nlohmann_json_INCLUDE_DIRS}")
+        else()
+            find_path(SPECTRA_NLOHMANN_JSON_INCLUDE_DIR nlohmann/json.hpp)
+        endif()
+    endif()
 
     if(NOT SPECTRA_NLOHMANN_JSON_INCLUDE_DIR)
-        message(FATAL_ERROR "SPECTRA_USE_ROS2 requires nlohmann/json.hpp to build ros_session.cpp")
+        message(FATAL_ERROR
+            "SPECTRA_USE_ROS2 requires nlohmann/json.hpp to build ros_session.cpp. "
+            "Install nlohmann-json3-dev or ensure third_party/nlohmann/json.hpp exists.")
     endif()
 
     if(SPECTRA_ROS2_BAG)
         find_package(rosbag2_cpp REQUIRED)
         find_package(rosbag2_storage REQUIRED)
+
+        include(CheckCXXSourceCompiles)
+        set(CMAKE_REQUIRED_LIBRARIES rosbag2_storage::rosbag2_storage)
+        check_cxx_source_compiles([=[
+#include <rosbag2_storage/serialized_bag_message.hpp>
+int main()
+{
+    rosbag2_storage::SerializedBagMessage msg;
+    msg.recv_timestamp = 1;
+    return static_cast<int>(msg.recv_timestamp);
+}
+]=] SPECTRA_ROSBAG2_HAS_RECV_TIMESTAMP)
+        unset(CMAKE_REQUIRED_LIBRARIES)
     endif()
 
     # Adapter library — all ROS2 adapter source lives under src/adapters/ros2/
@@ -694,6 +721,9 @@ if(SPECTRA_USE_ROS2)
             rosbag2_storage::rosbag2_storage
         )
         target_compile_definitions(spectra_ros2_adapter PUBLIC SPECTRA_ROS2_BAG)
+        if(SPECTRA_ROSBAG2_HAS_RECV_TIMESTAMP)
+            target_compile_definitions(spectra_ros2_adapter PUBLIC SPECTRA_ROSBAG2_RECV_TIMESTAMP=1)
+        endif()
     endif()
 
     target_compile_features(spectra_ros2_adapter PRIVATE cxx_std_20)
@@ -746,7 +776,16 @@ if(SPECTRA_USE_ROS2)
         install(TARGETS spectra-ros-analyze RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
     endif()
 
-    message(STATUS "ROS2 adapter enabled (rosbag2: ${SPECTRA_ROS2_BAG})")
+    if(SPECTRA_ROS2_BAG)
+        if(SPECTRA_ROSBAG2_HAS_RECV_TIMESTAMP)
+            set(_spectra_rosbag2_ts_api "recv_timestamp/send_timestamp (Jazzy+)")
+        else()
+            set(_spectra_rosbag2_ts_api "time_stamp (Humble)")
+        endif()
+        message(STATUS "ROS2 adapter enabled (rosbag2: ON, timestamp API: ${_spectra_rosbag2_ts_api})")
+    else()
+        message(STATUS "ROS2 adapter enabled (rosbag2: OFF)")
+    endif()
 endif()
 
 # Eigen adapter (optional)

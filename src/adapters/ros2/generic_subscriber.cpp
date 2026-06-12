@@ -197,7 +197,7 @@ bool GenericSubscriber::start()
         topic_,
         type_name_,
         qos,
-        [this](const std::shared_ptr<rclcpp::SerializedMessage>& msg) { on_message(msg); });
+        [this](sub_compat::SerializedMessageCallbackArg msg) { on_message(msg); });
 
     if (!subscription_)
     {
@@ -221,7 +221,7 @@ void GenericSubscriber::stop()
 // Message delivery (executor thread)
 // ---------------------------------------------------------------------------
 
-void GenericSubscriber::on_message(const std::shared_ptr<rclcpp::SerializedMessage>& serialized_msg)
+void GenericSubscriber::on_message(sub_compat::SerializedMessageCallbackArg serialized_msg)
 {
     if (!running_.load(std::memory_order_acquire))
         return;

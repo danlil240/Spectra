@@ -10,6 +10,8 @@
     #include <rosbag2_storage/storage_options.hpp>
     #include <rosbag2_storage/topic_metadata.hpp>
 
+    #include "bag_message_compat.hpp"
+
 namespace spectra::adapters::ros2
 {
 
@@ -181,7 +183,7 @@ bool BagReader::read_next(BagMessage& msg)
         auto bag_msg = reader_->read_next();
 
         msg.topic        = bag_msg->topic_name;
-        msg.timestamp_ns = bag_msg->time_stamp;
+        msg.timestamp_ns = bag_compat::bag_message_timestamp_ns(*bag_msg);
         msg.serialized_data.assign(
             bag_msg->serialized_data->buffer,
             bag_msg->serialized_data->buffer + bag_msg->serialized_data->buffer_length);

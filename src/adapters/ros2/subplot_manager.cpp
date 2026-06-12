@@ -10,6 +10,7 @@
 #include <spectra/color.hpp>
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
+    #include "ui/theme/theme.hpp"
 #endif
 
 #include "plot_series_pruning.hpp"
@@ -57,11 +58,16 @@ SubplotManager::SubplotManager(Ros2Bridge&          bridge,
 
     if (figure_)
     {
-        auto& style         = figure_->style();
-        style.margin_left   = std::max(style.margin_left, 92.0f);
-        style.margin_right  = std::max(style.margin_right, 28.0f);
-        style.margin_top    = std::max(style.margin_top, 52.0f);
-        style.margin_bottom = std::max(style.margin_bottom, 78.0f);
+        auto& style              = figure_->style();
+        style.margin_left        = 52.0f;
+        style.margin_right       = 14.0f;
+        style.margin_top         = 24.0f;
+        style.margin_bottom      = 40.0f;
+        style.subplot_hgap       = 20.0f;
+        style.subplot_vgap       = 24.0f;
+        style.min_subplot_height = 100.0f;
+        // Night-theme bg_canvas fallback until apply_plot_theme() runs on first draw.
+        style.background = spectra::Color(0.075f, 0.125f, 0.196f, 1.0f);
     }
 
     // Pre-create all subplot Axes so they exist in the figure's axes_ list.
@@ -84,6 +90,41 @@ SubplotManager::SubplotManager(Ros2Bridge&          bridge,
         slots_.back().axes = figure_->axes()[static_cast<size_t>(i)].get();
         slots_.back().axes->presented_buffer(static_cast<float>(scroll_window_s_));
     }
+}
+
+void SubplotManager::apply_plot_theme()
+{
+    if (!figure_)
+        return;
+
+    auto& style = figure_->style();
+    style.margin_left         = 52.0f;
+    style.margin_right        = 14.0f;
+    style.margin_top          = 24.0f;
+    style.margin_bottom       = 40.0f;
+    style.subplot_hgap        = 20.0f;
+    style.subplot_vgap        = 24.0f;
+    style.min_subplot_height  = 100.0f;
+
+#ifdef SPECTRA_USE_IMGUI
+    const auto& th = ui::theme();
+    style.background = spectra::Color(th.bg_canvas.r, th.bg_canvas.g, th.bg_canvas.b, 1.0f);
+
+    const spectra::Color tick_color(th.tick_label.r, th.tick_label.g, th.tick_label.b, 1.0f);
+    for (const auto& ax_ptr : figure_->axes())
+    {
+        if (!ax_ptr)
+            continue;
+        ax_ptr->grid(true);
+        ax_ptr->show_border(true);
+        auto& axis_style  = ax_ptr->axis_style();
+        axis_style.tick_color  = tick_color;
+        axis_style.label_color = tick_color;
+        axis_style.grid_color  = {0.0f, 0.0f, 0.0f, 0.0f};
+    }
+#else
+    style.background = spectra::Color(0.075f, 0.125f, 0.196f, 1.0f);
+#endif
 }
 
 void SubplotManager::detach_external_figure()

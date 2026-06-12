@@ -62,7 +62,7 @@ constexpr float kPlotAreaMinWindowWidth     = 900.0f;
 constexpr float kPlotAreaMinWindowHeight    = 200.0f;
 constexpr float kPlotAreaTimeSliderMinWidth = 120.0f;
 constexpr float kPlotAreaTimeSliderMaxWidth = 220.0f;
-constexpr float kPlotAreaMinViewportHeight  = 120.0f;
+constexpr float kPlotAreaMinViewportHeight  = 96.0f;
 constexpr float kPlotAreaButtonSpacing      = 4.0f;
 }   // namespace
 
@@ -130,12 +130,11 @@ RosAppConfig parse_args(int argc, char** argv, std::string& error_out)
 
         if (arg == "--help" || arg == "-h")
         {
-            error_out =
-                "Usage: spectra-ros [--topics TOPIC[:FIELD] ...] [--bag BAG_FILE] "
-                "[--session FILE.spectra-ros-session] "
-                "[--layout default|plot-only|monitor|rviz|rviz-plot] [--window-s SECONDS] "
-                "[--rate R] [--loop true|false] "
-                "[--node-name NAME] [--rows N] [--cols N]\n";
+            error_out = "Usage: spectra-ros [--topics TOPIC[:FIELD] ...] [--bag BAG_FILE] "
+                        "[--session FILE.spectra-ros-session] "
+                        "[--layout default|plot-only|monitor|rviz|rviz-plot] [--window-s SECONDS] "
+                        "[--rate R] [--loop true|false] "
+                        "[--node-name NAME] [--rows N] [--cols N]\n";
             return cfg;
         }
 
@@ -309,8 +308,8 @@ bool RosAppShell::init(int argc, char** argv)
     bag_info_ = std::make_unique<BagInfoPanel>();
     bag_info_->set_title("Bag Info");
 
-    bag_player_        = std::make_unique<BagPlayer>(*plot_mgr_, *intr_);
-    bag_display_sync_  = std::make_unique<BagDisplaySync>();
+    bag_player_       = std::make_unique<BagPlayer>(*plot_mgr_, *intr_);
+    bag_display_sync_ = std::make_unique<BagDisplaySync>();
     bag_player_->set_subplot_manager(subplot_mgr_.get());
     bag_playback_panel_ = std::make_unique<BagPlaybackPanel>(bag_player_.get());
     bag_playback_panel_->set_title("Bag Playback");
@@ -465,10 +464,7 @@ bool RosAppShell::init(int argc, char** argv)
         const LoadResult lr = load_session(cfg_.session_file);
         if (!lr.ok)
         {
-            SPECTRA_LOG_WARN("ros",
-                             "failed to load session '{}': {}",
-                             cfg_.session_file,
-                             lr.error);
+            SPECTRA_LOG_WARN("ros", "failed to load session '{}': {}", cfg_.session_file, lr.error);
         }
     }
 
@@ -972,43 +968,31 @@ void RosAppShell::apply_default_dock_layout()
                                   ImVec2(std::max(320.0f, vp->WorkSize.x - rail_w),
                                          std::max(240.0f, vp->WorkSize.y - status_h)));
 
-    ImGuiID dock_main = dockspace_id_;
-    ImGuiID dock_left =
-        ImGui::DockBuilderSplitNode(dock_main, ImGuiDir_Left, 0.18f, nullptr, &dock_main);
-    ImGuiID dock_right =
-        ImGui::DockBuilderSplitNode(dock_main, ImGuiDir_Right, 0.24f, nullptr, &dock_main);
-    ImGuiID dock_bottom =
-        ImGui::DockBuilderSplitNode(dock_main, ImGuiDir_Down, 0.30f, nullptr, &dock_main);
-    ImGuiID dock_right_bottom =
-        ImGui::DockBuilderSplitNode(dock_right, ImGuiDir_Down, 0.42f, nullptr, &dock_right);
-    ImGuiID dock_bottom_left =
-        ImGui::DockBuilderSplitNode(dock_bottom, ImGuiDir_Left, 0.28f, nullptr, &dock_bottom);
-    ImGuiID dock_bottom_right =
-        ImGui::DockBuilderSplitNode(dock_bottom, ImGuiDir_Right, 0.42f, nullptr, &dock_bottom);
+    // Plot-first layout: maximize the central canvas. Auxiliary panels open from
+    // the View menu as floating windows until the user docks them manually.
+    const ImGuiID dock_main = dockspace_id_;
 
-    ImGui::DockBuilderDockWindow("Topic Monitor", dock_left);
-    ImGui::DockBuilderDockWindow("Displays", dock_left);
     ImGui::DockBuilderDockWindow("Plot Area", dock_main);
     ImGui::DockBuilderDockWindow("Scene Viewport", dock_main);
-    ImGui::DockBuilderDockWindow("Inspector", dock_right);
-    ImGui::DockBuilderDockWindow("Topic Statistics", dock_right);
-    ImGui::DockBuilderDockWindow("Node Graph###NodeGraphPanel", dock_right_bottom);
-
-    ImGui::DockBuilderDockWindow("Topic Echo", dock_bottom);
-    ImGui::DockBuilderDockWindow("ROS2 Log", dock_bottom);
-    ImGui::DockBuilderDockWindow("Bag Info", dock_bottom_left);
-
-    ImGui::DockBuilderDockWindow("Bag Playback", dock_bottom);
-    ImGui::DockBuilderDockWindow("Diagnostics", dock_right);
-    ImGui::DockBuilderDockWindow("TF Tree", dock_right_bottom);
-    ImGui::DockBuilderDockWindow("Parameter Editor", dock_right);
-    ImGui::DockBuilderDockWindow("Service Caller", dock_bottom);
+    ImGui::DockBuilderDockWindow("Topic Monitor", dock_main);
+    ImGui::DockBuilderDockWindow("Displays", dock_main);
+    ImGui::DockBuilderDockWindow("Inspector", dock_main);
+    ImGui::DockBuilderDockWindow("Topic Statistics", dock_main);
+    ImGui::DockBuilderDockWindow("Node Graph###NodeGraphPanel", dock_main);
+    ImGui::DockBuilderDockWindow("Topic Echo", dock_main);
+    ImGui::DockBuilderDockWindow("ROS2 Log", dock_main);
+    ImGui::DockBuilderDockWindow("Bag Info", dock_main);
+    ImGui::DockBuilderDockWindow("Bag Playback", dock_main);
+    ImGui::DockBuilderDockWindow("Diagnostics", dock_main);
+    ImGui::DockBuilderDockWindow("TF Tree", dock_main);
+    ImGui::DockBuilderDockWindow("Parameter Editor", dock_main);
+    ImGui::DockBuilderDockWindow("Service Caller", dock_main);
 
     ImGui::DockBuilderFinish(dockspace_id_);
-    dock_layout_initialized_          = true;
-    layout_change_tracking_enabled_   = false;
-    layout_settle_frames_             = 0;
-    layout_unsaved_                   = false;
+    dock_layout_initialized_        = true;
+    layout_change_tracking_enabled_ = false;
+    layout_settle_frames_           = 0;
+    layout_unsaved_                 = false;
     #else
     dock_layout_initialized_ = false;
     #endif
@@ -1185,13 +1169,12 @@ void RosAppShell::draw_nav_rail()
         if (nav_rail_expanded_)
         {
             // Icon + label.
-            const std::string buf =
-                std::format("{}  {}", ui::icon_str(icon), label);
-            ImU32  text_col = active    ? to_u32(th.text_primary, 1.0f)
-                              : hovered ? to_u32(th.text_primary, 0.9f)
-                                        : to_u32(th.text_secondary, 0.8f);
-            ImVec2 tsz      = ImGui::CalcTextSize(buf.c_str());
-            ImVec2 tpos(tl.x + 10.0f, tl.y + (btn_h - tsz.y) * 0.5f);
+            const std::string buf      = std::format("{}  {}", ui::icon_str(icon), label);
+            ImU32             text_col = active    ? to_u32(th.text_primary, 1.0f)
+                                         : hovered ? to_u32(th.text_primary, 0.9f)
+                                                   : to_u32(th.text_secondary, 0.8f);
+            ImVec2            tsz      = ImGui::CalcTextSize(buf.c_str());
+            ImVec2            tpos(tl.x + 10.0f, tl.y + (btn_h - tsz.y) * 0.5f);
             dl->AddText(tpos, text_col, buf.c_str());
         }
         else
@@ -1327,8 +1310,8 @@ void RosAppShell::draw_topic_stats(bool* p_open)
 #ifdef SPECTRA_USE_IMGUI
     if (topic_stats_)
     {
-        const int slot = workspace_state_.active_subplot_idx >= 1 ? workspace_state_.active_subplot_idx
-                                                                  : 1;
+        const int slot =
+            workspace_state_.active_subplot_idx >= 1 ? workspace_state_.active_subplot_idx : 1;
         topic_stats_->draw(p_open, slot);
     }
 #else
@@ -1360,6 +1343,12 @@ void RosAppShell::draw_plot_area(bool* p_open)
         float      canvas_bottom    = canvas_top;
         const auto same_line_button = []() { ImGui::SameLine(0.0f, kPlotAreaButtonSpacing); };
 
+        if (subplot_mgr_ && !plot_theme_applied_)
+        {
+            subplot_mgr_->apply_plot_theme();
+            plot_theme_applied_ = true;
+        }
+
         if (subplot_mgr_)
         {
             // Synchronize the slider with the actual visible X extent.
@@ -1381,7 +1370,9 @@ void RosAppShell::draw_plot_area(bool* p_open)
                     }
                 }
             }
-            ImGui::SetNextItemWidth(std::clamp(ImGui::GetContentRegionAvail().x,
+            const float toolbar_avail = ImGui::GetContentRegionAvail().x;
+            const float tools_btn_w   = 28.0f;
+            ImGui::SetNextItemWidth(std::clamp(toolbar_avail - tools_btn_w - kPlotAreaButtonSpacing,
                                                kPlotAreaTimeSliderMinWidth,
                                                kPlotAreaTimeSliderMaxWidth));
             if (ImGui::SliderFloat("##TimeWindow", &tw, 1.0f, 3600.0f, "%.1f s"))
@@ -1407,12 +1398,8 @@ void RosAppShell::draw_plot_area(bool* p_open)
                 }
             }
             same_line_button();
-
-            const bool has_plots = active_plot_count() > 0;
-            if (!has_plots)
-            {
-                ImGui::TextDisabled("Expand a topic and double-click a field to plot");
-            }
+            if (ImGui::SmallButton("...##plot_tools"))
+                ImGui::OpenPopup("##plot_toolbar_more");
 
             auto draw_plot_toolbar_extras = [&]()
             {
@@ -1463,23 +1450,13 @@ void RosAppShell::draw_plot_area(bool* p_open)
                 ImGui::EndDisabled();
             };
 
-            if (has_plots)
+            if (ImGui::BeginPopup("##plot_toolbar_more"))
             {
                 draw_plot_toolbar_extras();
-            }
-            else
-            {
-                if (ImGui::SmallButton("More..."))
-                    ImGui::OpenPopup("##plot_toolbar_more");
-                if (ImGui::BeginPopup("##plot_toolbar_more"))
-                {
-                    draw_plot_toolbar_extras();
-                    ImGui::EndPopup();
-                }
+                ImGui::EndPopup();
             }
         }
 
-        ImGui::Separator();
         canvas_top = ImGui::GetCursorScreenPos().y;
 
         // Per-subplot controls and targeted drop zones.
@@ -1488,12 +1465,12 @@ void RosAppShell::draw_plot_area(bool* p_open)
             const int   total_slots     = subplot_mgr_->capacity();
             const auto& fig_style       = subplot_mgr_->figure().style();
             const float min_slot_height = std::max(
-                120.0f,
+                96.0f,
                 fig_style.margin_top + fig_style.margin_bottom + kPlotAreaMinViewportHeight);
-            const float avail_h = ImGui::GetContentRegionAvail().y;
-            // Reserve space for the global drop zone at the bottom.
+            const float avail_h    = ImGui::GetContentRegionAvail().y;
+            const bool  multi_slot = total_slots > 1;
             const float reserved_bottom =
-                kPlotAreaGlobalDropHeight + ImGui::GetStyle().ItemSpacing.y;
+                multi_slot ? kPlotAreaGlobalDropHeight + ImGui::GetStyle().ItemSpacing.y : 0.0f;
             const float usable_h = std::max(0.0f, avail_h - reserved_bottom);
             const float slot_h =
                 (total_slots > 0)
@@ -1508,388 +1485,291 @@ void RosAppShell::draw_plot_area(bool* p_open)
                 const bool has      = subplot_mgr_->has_plot(s);
                 const int  n_series = subplot_mgr_->slot_series_count(s);
 
-                // Slot header — compact single line with controls.
-                ImGui::BeginGroup();
+                const bool show_slot_header = multi_slot || has;
+                if (show_slot_header)
+                    ImGui::BeginGroup();
 
-                if (has)
+                const std::string ylim_popup_id  = std::format("ylim_{}", s);
+                const std::string style_popup_id = std::format("style_{}", s);
+                const std::string slot_tools_id  = std::format("slot_tools_{}", s);
+
+                if (has && show_slot_header)
                 {
-                    // First line: plot title + action buttons, no series text.
                     const bool selected = (workspace_state_.active_subplot_idx == s);
                     ImGui::TextColored(selected ? ImVec4(0.6f, 0.95f, 0.55f, 1.0f)
                                                 : ImVec4(0.4f, 0.85f, 1.0f, 1.0f),
                                        "Plot %d",
                                        s);
-                    ImGui::SameLine();
-                    ImGui::TextDisabled("(%d series)", n_series);
-                    if (selected)
+                    if (n_series > 0)
                     {
                         ImGui::SameLine();
-                        ImGui::TextDisabled("[active]");
+                        ImGui::TextDisabled("(%d)", n_series);
                     }
+                    ImGui::SameLine(0.0f, 8.0f);
+                    if (ImGui::SmallButton("...##slot_tools"))
+                        ImGui::OpenPopup(slot_tools_id.c_str());
 
-                    // Scroll control per-slot.
-                    ImGui::SameLine(0.0f, 12.0f);
-                    if (subplot_mgr_->is_scroll_paused(s))
+                    if (ImGui::BeginPopup(slot_tools_id.c_str()))
                     {
-                        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.15f, 0.55f, 0.15f, 1.0f));
-                        ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
-                                              ImVec4(0.2f, 0.7f, 0.2f, 1.0f));
-                        if (ImGui::SmallButton("Live##scroll"))
+                        remember_active_subplot(s);
+                        if (subplot_mgr_->is_scroll_paused(s))
                         {
-                            remember_active_subplot(s);
-                            subplot_mgr_->resume_scroll(s);
+                            if (ImGui::MenuItem("Resume Live Scroll"))
+                                subplot_mgr_->resume_scroll(s);
                         }
-                        ImGui::PopStyleColor(2);
-                    }
-                    else
-                    {
-                        if (ImGui::SmallButton("Pause##scroll"))
+                        else if (ImGui::MenuItem("Pause Scroll"))
                         {
-                            remember_active_subplot(s);
                             subplot_mgr_->pause_scroll(s);
                         }
-                    }
+                        if (ImGui::MenuItem("Auto-Fit Y"))
+                            restore_plot_autofit(s);
+                        if (ImGui::MenuItem("Y Limits..."))
+                            ImGui::OpenPopup(ylim_popup_id.c_str());
+                        if (ImGui::MenuItem("Style..."))
+                            ImGui::OpenPopup(style_popup_id.c_str());
+                        if (ImGui::MenuItem("Clear Plot"))
+                            subplot_mgr_->clear_slot_data(s);
 
-                    ImGui::SameLine(0.0f, 8.0f);
-                    if (ImGui::SmallButton("Auto Y"))
-                        restore_plot_autofit(s);
-
-                    ImGui::SameLine();
-                    const std::string ylim_popup_id = std::format("ylim_{}", s);
-                    if (ImGui::SmallButton("Y Limits"))
-                    {
-                        remember_active_subplot(s);
-                        ImGui::OpenPopup(ylim_popup_id.c_str());
-                    }
-
-                    if (ImGui::BeginPopup(ylim_popup_id.c_str()))
-                    {
-                        ImGui::TextDisabled("Y-Axis Limits for Plot %d", s);
-                        ImGui::Separator();
-
-                        auto* slot_entry = subplot_mgr_->slot_entry_pub(s);
-                        if (slot_entry && slot_entry->axes)
+                        if (ImGui::BeginPopup(ylim_popup_id.c_str()))
                         {
-                            auto yl     = slot_entry->axes->y_limits();
-                            auto ymin_f = static_cast<float>(yl.min);
-                            auto ymax_f = static_cast<float>(yl.max);
-
-                            ImGui::SetNextItemWidth(120.0f);
-                            ImGui::DragFloat("Y Min", &ymin_f, 0.01f);
-                            ImGui::SetNextItemWidth(120.0f);
-                            ImGui::DragFloat("Y Max", &ymax_f, 0.01f);
-
-                            if (ymin_f < ymax_f)
-                            {
-                                subplot_mgr_->set_slot_ylim(s,
-                                                            static_cast<double>(ymin_f),
-                                                            static_cast<double>(ymax_f));
-                            }
-
+                            ImGui::TextDisabled("Y-Axis Limits for Plot %d", s);
                             ImGui::Separator();
-                            if (ImGui::Button("Reset to Auto"))
+
+                            auto* slot_entry = subplot_mgr_->slot_entry_pub(s);
+                            if (slot_entry && slot_entry->axes)
                             {
-                                subplot_mgr_->auto_fit_slot_y(s);
-                                ImGui::CloseCurrentPopup();
-                            }
-                        }
-                        ImGui::EndPopup();
-                    }
+                                auto yl     = slot_entry->axes->y_limits();
+                                auto ymin_f = static_cast<float>(yl.min);
+                                auto ymax_f = static_cast<float>(yl.max);
 
-                    ImGui::SameLine(0.0f, 8.0f);
-                    const std::string style_popup_id = std::format("style_{}", s);
-                    if (ImGui::SmallButton("Style"))
-                    {
-                        remember_active_subplot(s);
-                        ImGui::OpenPopup(style_popup_id.c_str());
-                    }
+                                ImGui::SetNextItemWidth(120.0f);
+                                ImGui::DragFloat("Y Min", &ymin_f, 0.01f);
+                                ImGui::SetNextItemWidth(120.0f);
+                                ImGui::DragFloat("Y Max", &ymax_f, 0.01f);
 
-                    if (ImGui::BeginPopup(style_popup_id.c_str()))
-                    {
-                        auto* slot_entry = subplot_mgr_->slot_entry_pub(s);
-                        if (slot_entry && slot_entry->axes)
-                        {
-                            auto* axes = slot_entry->axes;
+                                if (ymin_f < ymax_f)
+                                {
+                                    subplot_mgr_->set_slot_ylim(s,
+                                                                static_cast<double>(ymin_f),
+                                                                static_cast<double>(ymax_f));
+                                }
 
-                            auto show_axis_config_error = [&](const std::string& error)
-                            {
-                                session_status_msg_   = "Plot update failed: " + error;
-                                session_status_timer_ = 4.0f;
-                            };
-
-                            const auto  numeric_fields = subplot_mgr_->slot_numeric_fields(s);
-                            std::string custom_axes_unavailable;
-                            const bool  supports_custom_axes =
-                                subplot_mgr_->slot_supports_custom_axes(s,
-                                                                        &custom_axes_unavailable);
-
-                            char title_buf[128];
-                            std::strncpy(title_buf, axes->title().c_str(), sizeof(title_buf) - 1);
-                            title_buf[sizeof(title_buf) - 1] = '\0';
-                            if (ImGui::InputText("Title", title_buf, sizeof(title_buf)))
-                                axes->title(title_buf);
-
-                            char xlabel_buf[128];
-                            std::strncpy(xlabel_buf,
-                                         axes->xlabel().c_str(),
-                                         sizeof(xlabel_buf) - 1);
-                            xlabel_buf[sizeof(xlabel_buf) - 1] = '\0';
-                            if (ImGui::InputText("X Label", xlabel_buf, sizeof(xlabel_buf)))
-                                axes->xlabel(xlabel_buf);
-
-                            char ylabel_buf[128];
-                            std::strncpy(ylabel_buf,
-                                         axes->ylabel().c_str(),
-                                         sizeof(ylabel_buf) - 1);
-                            ylabel_buf[sizeof(ylabel_buf) - 1] = '\0';
-                            if (ImGui::InputText("Y Label", ylabel_buf, sizeof(ylabel_buf)))
-                                axes->ylabel(ylabel_buf);
-
-                            bool show_grid = axes->grid_enabled();
-                            if (ImGui::Checkbox("Show Grid", &show_grid))
-                                axes->grid(show_grid);
-
-                            bool show_border = axes->border_enabled();
-                            if (ImGui::Checkbox("Show Border", &show_border))
-                                axes->show_border(show_border);
-
-                            bool live_auto_y = !slot_entry->manual_ylim.has_value();
-                            if (ImGui::Checkbox("Live Auto-Fit Y", &live_auto_y))
-                            {
-                                if (live_auto_y)
+                                ImGui::Separator();
+                                if (ImGui::Button("Reset to Auto"))
                                 {
                                     subplot_mgr_->auto_fit_slot_y(s);
-                                }
-                                else
-                                {
-                                    auto yl = axes->y_limits();
-                                    subplot_mgr_->set_slot_ylim(s, yl.min, yl.max);
+                                    ImGui::CloseCurrentPopup();
                                 }
                             }
-
-                            ImGui::Separator();
-
-                            const char* axis_mode_preview =
-                                (slot_entry->axis_mode == AxisMode::CustomAxes) ? "Custom Axes"
-                                                                                : "Time Series";
-                            if (ImGui::BeginCombo("Axis Mode", axis_mode_preview))
-                            {
-                                const std::string current_y = slot_entry->y_field_path.empty()
-                                                                  ? slot_entry->field_path
-                                                                  : slot_entry->y_field_path;
-                                const std::string current_x =
-                                    (slot_entry->axis_mode == AxisMode::CustomAxes
-                                     && !slot_entry->x_field_path.empty())
-                                        ? slot_entry->x_field_path
-                                        : std::string(AXIS_SOURCE_TIME);
-
-                                if (ImGui::Selectable(
-                                        "Time Series",
-                                        slot_entry->axis_mode == AxisMode::TimeSeries))
-                                {
-                                    std::string error;
-                                    if (!subplot_mgr_->configure_slot_axes(s,
-                                                                           AxisMode::TimeSeries,
-                                                                           AXIS_SOURCE_TIME,
-                                                                           current_y,
-                                                                           &error))
-                                    {
-                                        show_axis_config_error(error);
-                                    }
-                                }
-
-                                if (!supports_custom_axes)
-                                    ImGui::BeginDisabled();
-                                if (ImGui::Selectable(
-                                        "Custom Axes",
-                                        slot_entry->axis_mode == AxisMode::CustomAxes))
-                                {
-                                    std::string error;
-                                    if (!subplot_mgr_->configure_slot_axes(s,
-                                                                           AxisMode::CustomAxes,
-                                                                           current_x,
-                                                                           current_y,
-                                                                           &error))
-                                    {
-                                        show_axis_config_error(error);
-                                    }
-                                }
-                                if (!supports_custom_axes)
-                                    ImGui::EndDisabled();
-
-                                ImGui::EndCombo();
-                            }
-
-                            if (slot_entry->axis_mode == AxisMode::CustomAxes)
-                            {
-                                std::vector<std::string> x_sources;
-                                x_sources.reserve(numeric_fields.size() + 1);
-                                x_sources.emplace_back(AXIS_SOURCE_TIME);
-                                x_sources.insert(x_sources.end(),
-                                                 numeric_fields.begin(),
-                                                 numeric_fields.end());
-
-                                const std::string current_x = slot_entry->x_field_path.empty()
-                                                                  ? std::string(AXIS_SOURCE_TIME)
-                                                                  : slot_entry->x_field_path;
-                                const std::string current_y = slot_entry->y_field_path.empty()
-                                                                  ? slot_entry->field_path
-                                                                  : slot_entry->y_field_path;
-
-                                const char* x_preview = (current_x == AXIS_SOURCE_TIME)
-                                                            ? "time (s)"
-                                                            : current_x.c_str();
-                                if (ImGui::BeginCombo("X Source", x_preview))
-                                {
-                                    for (const auto& option : x_sources)
-                                    {
-                                        const bool  selected = (option == current_x);
-                                        const char* label    = (option == AXIS_SOURCE_TIME)
-                                                                   ? "time (s)"
-                                                                   : option.c_str();
-                                        if (ImGui::Selectable(label, selected))
-                                        {
-                                            std::string error;
-                                            if (!subplot_mgr_->configure_slot_axes(
-                                                    s,
-                                                    AxisMode::CustomAxes,
-                                                    option,
-                                                    current_y,
-                                                    &error))
-                                            {
-                                                show_axis_config_error(error);
-                                            }
-                                        }
-                                    }
-                                    ImGui::EndCombo();
-                                }
-
-                                const char* y_preview =
-                                    current_y.empty() ? "<select field>" : current_y.c_str();
-                                if (ImGui::BeginCombo("Y Source", y_preview))
-                                {
-                                    for (const auto& option : numeric_fields)
-                                    {
-                                        const bool selected = (option == current_y);
-                                        if (ImGui::Selectable(option.c_str(), selected))
-                                        {
-                                            std::string error;
-                                            if (!subplot_mgr_->configure_slot_axes(
-                                                    s,
-                                                    AxisMode::CustomAxes,
-                                                    current_x,
-                                                    option,
-                                                    &error))
-                                            {
-                                                show_axis_config_error(error);
-                                            }
-                                        }
-                                    }
-                                    ImGui::EndCombo();
-                                }
-                            }
-                            else if (!supports_custom_axes && !custom_axes_unavailable.empty())
-                            {
-                                ImGui::TextDisabled("%s", custom_axes_unavailable.c_str());
-                            }
+                            ImGui::EndPopup();
                         }
+
+                        if (ImGui::BeginPopup(style_popup_id.c_str()))
+                        {
+                            auto* slot_entry = subplot_mgr_->slot_entry_pub(s);
+                            if (slot_entry && slot_entry->axes)
+                            {
+                                auto* axes = slot_entry->axes;
+
+                                auto show_axis_config_error = [&](const std::string& error)
+                                {
+                                    session_status_msg_   = "Plot update failed: " + error;
+                                    session_status_timer_ = 4.0f;
+                                };
+
+                                const auto  numeric_fields = subplot_mgr_->slot_numeric_fields(s);
+                                std::string custom_axes_unavailable;
+                                const bool  supports_custom_axes =
+                                    subplot_mgr_->slot_supports_custom_axes(
+                                        s,
+                                        &custom_axes_unavailable);
+
+                                char title_buf[128];
+                                std::strncpy(title_buf,
+                                             axes->title().c_str(),
+                                             sizeof(title_buf) - 1);
+                                title_buf[sizeof(title_buf) - 1] = '\0';
+                                if (ImGui::InputText("Title", title_buf, sizeof(title_buf)))
+                                    axes->title(title_buf);
+
+                                char xlabel_buf[128];
+                                std::strncpy(xlabel_buf,
+                                             axes->xlabel().c_str(),
+                                             sizeof(xlabel_buf) - 1);
+                                xlabel_buf[sizeof(xlabel_buf) - 1] = '\0';
+                                if (ImGui::InputText("X Label", xlabel_buf, sizeof(xlabel_buf)))
+                                    axes->xlabel(xlabel_buf);
+
+                                char ylabel_buf[128];
+                                std::strncpy(ylabel_buf,
+                                             axes->ylabel().c_str(),
+                                             sizeof(ylabel_buf) - 1);
+                                ylabel_buf[sizeof(ylabel_buf) - 1] = '\0';
+                                if (ImGui::InputText("Y Label", ylabel_buf, sizeof(ylabel_buf)))
+                                    axes->ylabel(ylabel_buf);
+
+                                bool show_grid = axes->grid_enabled();
+                                if (ImGui::Checkbox("Show Grid", &show_grid))
+                                    axes->grid(show_grid);
+
+                                bool show_border = axes->border_enabled();
+                                if (ImGui::Checkbox("Show Border", &show_border))
+                                    axes->show_border(show_border);
+
+                                bool live_auto_y = !slot_entry->manual_ylim.has_value();
+                                if (ImGui::Checkbox("Live Auto-Fit Y", &live_auto_y))
+                                {
+                                    if (live_auto_y)
+                                    {
+                                        subplot_mgr_->auto_fit_slot_y(s);
+                                    }
+                                    else
+                                    {
+                                        auto yl = axes->y_limits();
+                                        subplot_mgr_->set_slot_ylim(s, yl.min, yl.max);
+                                    }
+                                }
+
+                                ImGui::Separator();
+
+                                const char* axis_mode_preview =
+                                    (slot_entry->axis_mode == AxisMode::CustomAxes) ? "Custom Axes"
+                                                                                    : "Time Series";
+                                if (ImGui::BeginCombo("Axis Mode", axis_mode_preview))
+                                {
+                                    const std::string current_y = slot_entry->y_field_path.empty()
+                                                                      ? slot_entry->field_path
+                                                                      : slot_entry->y_field_path;
+                                    const std::string current_x =
+                                        (slot_entry->axis_mode == AxisMode::CustomAxes
+                                         && !slot_entry->x_field_path.empty())
+                                            ? slot_entry->x_field_path
+                                            : std::string(AXIS_SOURCE_TIME);
+
+                                    if (ImGui::Selectable(
+                                            "Time Series",
+                                            slot_entry->axis_mode == AxisMode::TimeSeries))
+                                    {
+                                        std::string error;
+                                        if (!subplot_mgr_->configure_slot_axes(s,
+                                                                               AxisMode::TimeSeries,
+                                                                               AXIS_SOURCE_TIME,
+                                                                               current_y,
+                                                                               &error))
+                                        {
+                                            show_axis_config_error(error);
+                                        }
+                                    }
+
+                                    if (!supports_custom_axes)
+                                        ImGui::BeginDisabled();
+                                    if (ImGui::Selectable(
+                                            "Custom Axes",
+                                            slot_entry->axis_mode == AxisMode::CustomAxes))
+                                    {
+                                        std::string error;
+                                        if (!subplot_mgr_->configure_slot_axes(s,
+                                                                               AxisMode::CustomAxes,
+                                                                               current_x,
+                                                                               current_y,
+                                                                               &error))
+                                        {
+                                            show_axis_config_error(error);
+                                        }
+                                    }
+                                    if (!supports_custom_axes)
+                                        ImGui::EndDisabled();
+
+                                    ImGui::EndCombo();
+                                }
+
+                                if (slot_entry->axis_mode == AxisMode::CustomAxes)
+                                {
+                                    std::vector<std::string> x_sources;
+                                    x_sources.reserve(numeric_fields.size() + 1);
+                                    x_sources.emplace_back(AXIS_SOURCE_TIME);
+                                    x_sources.insert(x_sources.end(),
+                                                     numeric_fields.begin(),
+                                                     numeric_fields.end());
+
+                                    const std::string current_x =
+                                        slot_entry->x_field_path.empty()
+                                            ? std::string(AXIS_SOURCE_TIME)
+                                            : slot_entry->x_field_path;
+                                    const std::string current_y = slot_entry->y_field_path.empty()
+                                                                      ? slot_entry->field_path
+                                                                      : slot_entry->y_field_path;
+
+                                    const char* x_preview = (current_x == AXIS_SOURCE_TIME)
+                                                                ? "time (s)"
+                                                                : current_x.c_str();
+                                    if (ImGui::BeginCombo("X Source", x_preview))
+                                    {
+                                        for (const auto& option : x_sources)
+                                        {
+                                            const bool  selected = (option == current_x);
+                                            const char* label    = (option == AXIS_SOURCE_TIME)
+                                                                       ? "time (s)"
+                                                                       : option.c_str();
+                                            if (ImGui::Selectable(label, selected))
+                                            {
+                                                std::string error;
+                                                if (!subplot_mgr_->configure_slot_axes(
+                                                        s,
+                                                        AxisMode::CustomAxes,
+                                                        option,
+                                                        current_y,
+                                                        &error))
+                                                {
+                                                    show_axis_config_error(error);
+                                                }
+                                            }
+                                        }
+                                        ImGui::EndCombo();
+                                    }
+
+                                    const char* y_preview =
+                                        current_y.empty() ? "<select field>" : current_y.c_str();
+                                    if (ImGui::BeginCombo("Y Source", y_preview))
+                                    {
+                                        for (const auto& option : numeric_fields)
+                                        {
+                                            const bool selected = (option == current_y);
+                                            if (ImGui::Selectable(option.c_str(), selected))
+                                            {
+                                                std::string error;
+                                                if (!subplot_mgr_->configure_slot_axes(
+                                                        s,
+                                                        AxisMode::CustomAxes,
+                                                        current_x,
+                                                        option,
+                                                        &error))
+                                                {
+                                                    show_axis_config_error(error);
+                                                }
+                                            }
+                                        }
+                                        ImGui::EndCombo();
+                                    }
+                                }
+                                else if (!supports_custom_axes && !custom_axes_unavailable.empty())
+                                {
+                                    ImGui::TextDisabled("%s", custom_axes_unavailable.c_str());
+                                }
+                            }
+                            ImGui::EndPopup();
+                        }
+
                         ImGui::EndPopup();
                     }
-
-                    ImGui::SameLine(0.0f, 8.0f);
-                    if (ImGui::SmallButton("Clear##plot"))
-                    {
-                        remember_active_subplot(s);
-                        subplot_mgr_->clear_slot_data(s);
-                    }
-
-                    // Series dropdown — compact combo with hide/delete per series.
-                    {
-                        // Build summary label for the combo preview.
-                        const auto* first_se = subplot_mgr_->slot_series(s, 0);
-                        const std::string combo_label =
-                            (n_series == 1 && first_se)
-                                ? std::format("{}/{}", first_se->topic, first_se->field_path)
-                                : std::format("{} series", n_series);
-
-                        const std::string combo_id = std::format("##series_{}", s);
-                        ImGui::SetNextItemWidth(
-                            std::max(200.0f, ImGui::GetContentRegionAvail().x * 0.5f));
-
-                        if (ImGui::BeginCombo(combo_id.c_str(),
-                                              combo_label.c_str(),
-                                              ImGuiComboFlags_HeightLarge))
-                        {
-                            int remove_si = -1;
-                            for (int si = 0; si < n_series; ++si)
-                            {
-                                const auto* se = subplot_mgr_->slot_series(s, si);
-                                if (!se)
-                                    continue;
-                                ImGui::PushID(si);
-
-                                // Eye icon — toggle series visibility.
-                                bool        vis      = se->series ? se->series->visible() : true;
-                                const char* eye_icon = vis ? ui::icon_str(ui::Icon::Eye)
-                                                           : ui::icon_str(ui::Icon::EyeOff);
-                                ImGui::PushStyleColor(ImGuiCol_Text,
-                                                      vis ? ImVec4(0.3f, 0.85f, 0.4f, 1.0f)
-                                                          : ImVec4(0.5f, 0.5f, 0.5f, 0.7f));
-                                const std::string eye_id = std::format("{}##eye", eye_icon);
-                                if (ImGui::SmallButton(eye_id.c_str()))
-                                {
-                                    if (se->series)
-                                        se->series->visible(!vis);
-                                }
-                                ImGui::PopStyleColor();
-                                if (ImGui::IsItemHovered())
-                                    ImGui::SetTooltip(vis ? "Hide series" : "Show series");
-
-                                // Trash icon — remove series.
-                                ImGui::SameLine(0.0f, 6.0f);
-                                ImGui::PushStyleColor(ImGuiCol_Text,
-                                                      ImVec4(0.9f, 0.3f, 0.3f, 0.85f));
-                                const std::string trash_id =
-                                    std::format("{}##del", ui::icon_str(ui::Icon::Trash));
-                                if (ImGui::SmallButton(trash_id.c_str()))
-                                    remove_si = si;
-                                ImGui::PopStyleColor();
-                                if (ImGui::IsItemHovered())
-                                    ImGui::SetTooltip("Remove series");
-
-                                // Series label.
-                                ImGui::SameLine(0.0f, 8.0f);
-                                ImGui::TextColored(ImVec4(0.75f, 0.75f, 0.75f, 1.0f),
-                                                   "%s/%s",
-                                                   se->topic.c_str(),
-                                                   se->field_path.c_str());
-
-                                ImGui::PopID();
-                            }
-                            ImGui::EndCombo();
-
-                            // Deferred removal (after EndCombo to avoid iterator invalidation).
-                            if (remove_si >= 0)
-                            {
-                                const auto* rse = subplot_mgr_->slot_series(s, remove_si);
-                                if (rse)
-                                {
-                                    subplot_mgr_->remove_series_from_slot(s,
-                                                                          rse->topic,
-                                                                          rse->field_path);
-                                    if (!subplot_mgr_->has_plot(s))
-                                        subplot_mgr_->compact();
-                                }
-                            }
-                        }
-                    }
                 }
-                else
+                else if (show_slot_header)
                 {
-                    ImGui::TextDisabled("Plot %d — drop a topic field here", s);
+                    ImGui::TextDisabled("Plot %d", s);
                 }
 
-                ImGui::EndGroup();
+                if (show_slot_header)
+                    ImGui::EndGroup();
 
                 // Drop zone — fills remaining slot height so subplots
                 // expand to use all available vertical space.
@@ -1909,11 +1789,9 @@ void RosAppShell::draw_plot_area(bool* p_open)
 
         canvas_bottom = ImGui::GetCursorScreenPos().y;
 
-        // Global drop zone at the bottom — drops to first empty slot or adds a new row.
-        ImGui::Separator();
-        ImGui::TextDisabled("Drop a topic/field here to add to a new subplot");
-
+        if (subplot_mgr_ && subplot_mgr_->capacity() > 1)
         {
+            ImGui::Separator();
             const float drop_w = std::max(1.0f, ImGui::GetContentRegionAvail().x);
             draw_global_plot_drop_target(drop_ctx, drop_w, kPlotAreaGlobalDropHeight);
         }
@@ -2427,8 +2305,10 @@ void RosAppShell::draw_inspector_panel(bool* p_open)
 {
 #ifdef SPECTRA_USE_IMGUI
     if (inspector_panel_)
-        inspector_panel_->draw(
-            p_open, scene_manager_, workspace_state_.fixed_frame, displays_.size());
+        inspector_panel_->draw(p_open,
+                               scene_manager_,
+                               workspace_state_.fixed_frame,
+                               displays_.size());
 #else
     (void)p_open;
 #endif
@@ -2486,30 +2366,26 @@ void RosAppShell::draw_status_bar()
 
     if (ImGui::Begin("##ros_status_bar", nullptr, flags))
     {
-        const uint64_t total = total_messages_.load(std::memory_order_relaxed);
-        const int      plots = active_plot_count();
-        const size_t   mem   = subplot_mgr_ ? subplot_mgr_->total_memory_bytes() : 0;
-        const size_t   pts   = subplot_mgr_ ? subplot_mgr_->total_point_count() : 0;
-        const char* fixed_frame =
-            workspace_state_.fixed_frame.empty() ? "(auto)" : workspace_state_.fixed_frame.c_str();
-        const char* layout_note = layout_unsaved_ ? "  |  Layout: unsaved" : "";
+        const uint64_t total       = total_messages_.load(std::memory_order_relaxed);
+        const int      plots       = active_plot_count();
+        const size_t   mem         = subplot_mgr_ ? subplot_mgr_->total_memory_bytes() : 0;
+        const size_t   pts         = subplot_mgr_ ? subplot_mgr_->total_point_count() : 0;
+        const char*    layout_note = layout_unsaved_ ? "  |  layout unsaved" : "";
 
-        std::string pts_label;
-        if (pts >= 10'000)
-            pts_label = std::format("{:.1f}k", static_cast<double>(pts) / 1000.0);
-        else
-            pts_label = std::to_string(pts);
-
-        ImGui::Text("Node: %s  |  Fixed frame: %s  |  Displays: %zu  |  Messages: %" PRIu64
-                    "  |  Active plots: %d  |  Points: %s  |  Buffer: %.1f KB%s",
-                    cfg_.node_name.c_str(),
-                    fixed_frame,
-                    displays_.size(),
-                    total,
-                    plots,
-                    pts_label.c_str(),
-                    static_cast<double>(mem) / 1024.0,
-                    layout_note);
+        ImGui::Text("Plots: %d  |  %" PRIu64 " msgs%s", plots, total, layout_note);
+        if (show_scene_viewport_ || show_displays_panel_ || !displays_.empty())
+        {
+            const char* fixed_frame = workspace_state_.fixed_frame.empty()
+                                          ? "(auto)"
+                                          : workspace_state_.fixed_frame.c_str();
+            ImGui::SameLine();
+            ImGui::TextDisabled("|  frame: %s", fixed_frame);
+        }
+        if (plots > 0 && mem > 0)
+        {
+            ImGui::SameLine();
+            ImGui::TextDisabled("|  %.1f KB", static_cast<double>(mem) / 1024.0);
+        }
     }
     ImGui::End();
 #endif
@@ -2650,17 +2526,17 @@ void RosAppShell::refresh_scene_displays(float dt)
     const bool fixed_frame_changed =
         workspace_state_.fixed_frame != last_display_context_fixed_frame_;
     DisplayContext context;
-    context.fixed_frame     = workspace_state_.fixed_frame;
-    context.tf_buffer       = tf_tree_panel_ ? &tf_tree_panel_->buffer() : nullptr;
-    context.topic_discovery = discovery_.get();
-    context.bag_mode        = workspace_state_.clock.is_bag_mode();
+    context.fixed_frame      = workspace_state_.fixed_frame;
+    context.tf_buffer        = tf_tree_panel_ ? &tf_tree_panel_->buffer() : nullptr;
+    context.topic_discovery  = discovery_.get();
+    context.bag_mode         = workspace_state_.clock.is_bag_mode();
     context.bag_playhead_sec = workspace_state_.clock.playhead_sec;
 #ifdef SPECTRA_USE_ROS2
     context.node = bridge_ ? bridge_->node() : nullptr;
 #endif
 
-    if (bag_display_sync_ && bag_display_sync_->is_open() && bag_player_
-        && bag_player_->is_open() && tf_tree_panel_)
+    if (bag_display_sync_ && bag_display_sync_->is_open() && bag_player_ && bag_player_->is_open()
+        && tf_tree_panel_)
     {
         const int64_t start_ns = bag_player_->metadata().start_time_ns;
         context.bag_lookup_time_ns =
@@ -2675,9 +2551,9 @@ void RosAppShell::refresh_scene_displays(float dt)
         }
 
         bag_display_sync_->sync_to_playhead(workspace_state_.clock.playhead_sec,
-                                             start_ns,
-                                             tf_tree_panel_->buffer(),
-                                             display_ptrs);
+                                            start_ns,
+                                            tf_tree_panel_->buffer(),
+                                            display_ptrs);
     }
 
     std::unordered_map<DisplayPlugin*, bool> next_activation_state;
@@ -2736,13 +2612,14 @@ void RosAppShell::setup_layout_visibility()
     {
         case LayoutMode::Default:
             current_preset_       = LayoutPreset::Default;
-            show_topic_list_      = true;
-            show_topic_echo_      = true;
-            show_topic_stats_     = true;
+            show_topic_list_      = false;
+            show_topic_echo_      = false;
+            show_topic_stats_     = false;
             show_plot_area_       = true;
-            show_node_graph_      = true;
+            show_node_graph_      = false;
             show_inspector_panel_ = false;
-            show_log_viewer_      = true;
+            show_log_viewer_      = false;
+            show_nav_rail_        = false;
             break;
 
         case LayoutMode::PlotOnly:
@@ -2881,12 +2758,8 @@ void RosAppShell::apply_layout_preset(LayoutPreset preset)
     switch (preset)
     {
         case LayoutPreset::Default:
-            show_topic_list_  = true;
-            show_topic_echo_  = true;
-            show_topic_stats_ = true;
-            show_plot_area_   = true;
-            show_node_graph_  = true;
-            show_log_viewer_  = true;
+            show_plot_area_ = true;
+            show_nav_rail_  = false;
             break;
 
         case LayoutPreset::Debug:
@@ -2932,10 +2805,10 @@ void RosAppShell::apply_layout_preset(LayoutPreset preset)
     }
 
     // Force a dock-layout rebuild on the next frame.
-    dock_layout_initialized_           = false;
-    layout_change_tracking_enabled_      = false;
-    layout_settle_frames_                = 0;
-    layout_unsaved_                      = false;
+    dock_layout_initialized_        = false;
+    layout_change_tracking_enabled_ = false;
+    layout_settle_frames_           = 0;
+    layout_unsaved_                 = false;
 }
 
 RosSession RosAppShell::capture_session() const
@@ -3111,9 +2984,8 @@ void RosAppShell::apply_subscription_entry(const SubscriptionEntry& e)
                                                    restored_y,
                                                    &error))
             {
-                session_status_msg_ =
-                    "Plot restore fallback for slot " + std::to_string(e.subplot_slot) + ": "
-                    + error;
+                session_status_msg_ = "Plot restore fallback for slot "
+                                      + std::to_string(e.subplot_slot) + ": " + error;
                 session_status_timer_ = 4.0f;
             }
         }
@@ -3366,9 +3238,9 @@ void RosAppShell::draw_session_save_dialog()
         ImGui::Spacing();
         if (ImGui::Button("Save", ImVec2(80, 0)))
         {
-            SaveResult sr             = save_session(session_save_path_buf_);
-            session_status_msg_       = sr.ok ? "Session saved" : ("Save failed: " + sr.error);
-            session_status_timer_     = 3.0f;
+            SaveResult sr         = save_session(session_save_path_buf_);
+            session_status_msg_   = sr.ok ? "Session saved" : ("Save failed: " + sr.error);
+            session_status_timer_ = 3.0f;
             if (sr.ok)
                 layout_unsaved_ = false;
             show_session_save_dialog_ = false;

@@ -685,14 +685,15 @@ TEST_F(ThemeManagerTest, ExportImportGlassSettings)
     custom.blur_enabled     = true;
     tm_.set_glass_settings(custom, true);
 
-    const std::string path = "/tmp/spectra_glass_theme_test.json";
-    ASSERT_TRUE(tm_.export_theme(path));
+    const std::filesystem::path path =
+        std::filesystem::temp_directory_path() / "spectra_glass_theme_test.json";
+    ASSERT_TRUE(tm_.export_theme(path.string()));
 
     ThemeGlassSettings before_import = tm_.glass();
     before_import.master_intensity   = 0.0f;
     tm_.set_glass_settings(before_import, true);
 
-    ASSERT_TRUE(tm_.import_theme(path));
+    ASSERT_TRUE(tm_.import_theme(path.string()));
     EXPECT_NEAR(tm_.glass().master_intensity, 0.42f, 1e-4f);
     EXPECT_NEAR(tm_.glass().panel_alpha, 0.51f, 1e-4f);
     EXPECT_NEAR(tm_.glass().plot_alpha, 0.33f, 1e-4f);

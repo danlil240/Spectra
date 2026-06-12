@@ -372,6 +372,8 @@ bool deserialize_session_v2_json(const json& root, RosSession& out, std::string&
     const json& ui = root.contains("ui") && root["ui"].is_object() ? root["ui"] : json::object();
     if (const auto it = ui.find("panels"); it != ui.end())
         out.panels = panel_visibility_from_json(*it);
+    else
+        out.panels = panel_visibility_from_json(json::object());
     if (const auto it = ui.find("topic_monitor"); it != ui.end())
         out.topic_monitor = topic_monitor_state_from_json(*it);
     const json& nav_rail =
@@ -1396,10 +1398,7 @@ bool RosSessionManager::deserialize(const std::string& text,
         }
 
         std::string panels_obj = extract_nested_object(text, "panels");
-        if (!panels_obj.empty())
-        {
-            out.panels = deserialize_panels(panels_obj);
-        }
+        out.panels             = deserialize_panels(panels_obj.empty() ? "{}" : panels_obj);
 
         std::string topic_monitor_obj = extract_nested_object(text, "topic_monitor");
         if (!topic_monitor_obj.empty())

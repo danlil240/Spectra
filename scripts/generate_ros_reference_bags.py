@@ -16,6 +16,7 @@ Usage:
 
 from __future__ import annotations
 
+import inspect
 import math
 import sys
 from pathlib import Path
@@ -38,6 +39,14 @@ ROOT = Path(__file__).resolve().parents[1]
 OUT_DIR = ROOT / "tests" / "data" / "ros_bags"
 
 
+def make_topic_metadata(topic_id: int, name: str, typ: str) -> TopicMetadata:
+    """TopicMetadata gained a required id field in ROS 2 Jazzy."""
+    params = inspect.signature(TopicMetadata.__init__).parameters
+    if "id" in params:
+        return TopicMetadata(topic_id, name, typ, "cdr")
+    return TopicMetadata(name=name, type=typ, serialization_format="cdr")
+
+
 def write_bag(uri: Path, topics: list[tuple[str, str]], messages: list[tuple[str, int, bytes]]) -> None:
     if uri.exists():
         import shutil
@@ -50,8 +59,8 @@ def write_bag(uri: Path, topics: list[tuple[str, str]], messages: list[tuple[str
         rosbag2_py_converter_options(),
     )
 
-    for name, typ in topics:
-        meta = TopicMetadata(name=name, type=typ, serialization_format="cdr")
+    for topic_id, (name, typ) in enumerate(topics):
+        meta = make_topic_metadata(topic_id, name, typ)
         writer.create_topic(meta)
 
     for topic, stamp_ns, payload in messages:

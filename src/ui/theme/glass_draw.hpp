@@ -243,8 +243,8 @@ inline void draw_vision_canvas_frame(ImDrawList*        dl,
                     rounding + expand);
     }
 
-    Color cyan_edge = glass_palette::kAccentCyan;
-    Color mag_edge  = glass_palette::kAccentMagenta;
+    Color cyan_edge = colors.accent.lerp(glass_palette::kAccentCyan, 0.40f);
+    Color mag_edge  = colors.accent.lerp(glass_palette::kAccentMagenta, 0.40f);
 
     // Soft outer glow halo around the plot container.
     for (int i = 3; i >= 1; --i)

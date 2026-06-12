@@ -28,6 +28,8 @@
     #include <rcutils/logging_macros.h>
     #include <rosbag2_cpp/writer.hpp>
     #include <rosbag2_storage/serialized_bag_message.hpp>
+
+    #include "bag_message_compat.hpp"
     #include <rosbag2_storage/storage_options.hpp>
     #include <rosbag2_storage/topic_metadata.hpp>
 
@@ -124,7 +126,8 @@ static void write_float64_bag(const std::string& bag_path,
     {
         auto msg                     = std::make_shared<rosbag2_storage::SerializedBagMessage>();
         msg->topic_name              = topic;
-        msg->time_stamp              = start_ts_ns + static_cast<int64_t>(i) * step_ns;
+        bag_compat::set_bag_message_timestamp(
+            *msg, start_ts_ns + static_cast<int64_t>(i) * step_ns);
         const double val             = value_start + static_cast<double>(i) * value_step;
         const auto   cdr             = make_float64_cdr(val);
         msg->serialized_data         = std::make_shared<rcutils_uint8_array_t>();
@@ -168,7 +171,7 @@ static void write_two_topic_bag(const std::string& bag_path,
 
         auto m1                     = std::make_shared<rosbag2_storage::SerializedBagMessage>();
         m1->topic_name              = "/topic_a";
-        m1->time_stamp              = ts;
+        bag_compat::set_bag_message_timestamp(*m1, ts);
         const auto cdr1             = make_float64_cdr(static_cast<double>(i));
         m1->serialized_data         = std::make_shared<rcutils_uint8_array_t>();
         m1->serialized_data->buffer = new uint8_t[cdr1.size()];
@@ -180,7 +183,7 @@ static void write_two_topic_bag(const std::string& bag_path,
 
         auto m2                     = std::make_shared<rosbag2_storage::SerializedBagMessage>();
         m2->topic_name              = "/topic_b";
-        m2->time_stamp              = ts + step_ns / 2;   // interleaved
+        bag_compat::set_bag_message_timestamp(*m2, ts + step_ns / 2);   // interleaved
         const auto cdr2             = make_float64_cdr(static_cast<double>(i) * 2.0);
         m2->serialized_data         = std::make_shared<rcutils_uint8_array_t>();
         m2->serialized_data->buffer = new uint8_t[cdr2.size()];

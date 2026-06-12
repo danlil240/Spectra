@@ -129,12 +129,19 @@ xvfb-run -a ctest --test-dir build -L golden -j1 --output-on-failure
 
 ## 4. ROS2 Adapter Build
 
-The ROS2 adapter requires a sourced ROS2 Humble workspace. Use the official ROS Docker image
-or an Ubuntu 22.04/24.04 machine with ROS2 installed.
+The ROS2 adapter is tested on **Humble** (Ubuntu 22.04) and **Jazzy** (Ubuntu 24.04).
+Use whichever distro matches your machine; CMake auto-detects rosbag2 API differences at
+configure time (see `bag_message_compat.hpp`).
+
+| Distro | Ubuntu | Docker image | Setup |
+|--------|--------|--------------|-------|
+| Humble | 22.04 Jammy | `ros:humble-ros-base` | `source /opt/ros/humble/setup.bash` |
+| Jazzy | 24.04 Noble | `ros:jazzy-ros-base` | `source /opt/ros/jazzy/setup.bash` |
 
 ```bash
-# Option A: Use the official ROS Docker image
-docker run -it --rm ros:humble-ros-base bash
+# Pick one distro (example: Jazzy on Noble)
+export ROS_DISTRO=jazzy   # or humble
+docker run -it --rm ros:${ROS_DISTRO}-ros-base bash
 
 # Inside the container, install additional deps:
 apt-get update && apt-get install -y \
@@ -145,8 +152,7 @@ apt-get update && apt-get install -y \
     libtinyxml2-dev \
     python3-pillow
 
-# Source ROS2 environment, then configure:
-source /opt/ros/humble/setup.bash
+source /opt/ros/${ROS_DISTRO}/setup.bash
 
 cmake -B build -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
@@ -157,6 +163,13 @@ cmake -B build -G Ninja \
 
 cmake --build build -j$(nproc)
 ```
+
+On configure, CMake prints which rosbag2 timestamp API was detected, e.g.
+`timestamp API: time_stamp (Humble)` or `recv_timestamp/send_timestamp (Jazzy+)`.
+
+**Bag file compatibility:** Bags recorded on Jazzy may not open on Humble (rosbag2
+`metadata.yaml` format differs). Bags recorded on Humble generally play on Jazzy.
+Spectra reads/writes bags through the rosbag2 version installed on the build host.
 
 **Additional APT packages required for ROS2:**
 

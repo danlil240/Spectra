@@ -45,6 +45,7 @@
 
 #include <rclcpp/rclcpp.hpp>
 
+#include "generic_subscription_compat.hpp"
 #include "message_introspector.hpp"
 
 namespace spectra::adapters::ros2
@@ -248,7 +249,7 @@ class GenericSubscriber
 
    private:
     // Called by rclcpp on each incoming message.
-    void on_message(const std::shared_ptr<rclcpp::SerializedMessage>& msg);
+    void on_message(sub_compat::SerializedMessageCallbackArg msg);
 
     // Extract a wall-clock timestamp in nanoseconds.
     static int64_t wall_clock_ns();

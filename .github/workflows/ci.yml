@@ -356,12 +356,16 @@ jobs:
           cd build
           ctest --output-on-failure -LE gpu -j$(nproc)
 
-  # ─── ROS2 Adapter Build (compile-only) ─────────────────────────────────────
+  # ─── ROS2 Adapter Build (Humble + Jazzy) ───────────────────────────────────
   build-ros2:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        ros_distro: [humble, jazzy]
     container:
-      image: ros:humble-ros-base
+      image: ros:${{ matrix.ros_distro }}-ros-base
 
     steps:
       - uses: actions/checkout@v4
@@ -418,7 +422,7 @@ jobs:
 
       - name: Configure CMake with ROS2
         run: |
-          . /opt/ros/humble/setup.sh
+          . /opt/ros/${{ matrix.ros_distro }}/setup.sh
           cmake -B build \
             -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
             -DCMAKE_C_COMPILER=gcc-13 \
@@ -436,13 +440,13 @@ jobs:
 
       - name: Run ROS2 unit tests
         run: |
-          . /opt/ros/humble/setup.sh
+          . /opt/ros/${{ matrix.ros_distro }}/setup.sh
           # Serial: ROS2 test binaries share one DDS domain; parallel ctest races discovery.
           ctest --test-dir build -L ros2 -LE gpu --output-on-failure -j1
 
       - name: Headless bag CSV export (Phase B9)
         run: |
-          . /opt/ros/humble/setup.sh
+          . /opt/ros/${{ matrix.ros_distro }}/setup.sh
           python3 scripts/generate_ros_reference_bags.py
           ./build/spectra-ros-analyze \
             --bag tests/data/ros_bags/imu_snippet \
@@ -452,7 +456,7 @@ jobs:
 
       - name: ROS 3D perf smoke (Phase C4)
         run: |
-          . /opt/ros/humble/setup.sh
+          . /opt/ros/${{ matrix.ros_distro }}/setup.sh
           ./build/tests/bench_ros3d \
             --benchmark_filter='BM_PointCloud(Display|Adapter).*500000' \
             --benchmark_min_time=0.05s

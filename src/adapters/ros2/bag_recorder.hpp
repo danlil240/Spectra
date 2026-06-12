@@ -53,6 +53,8 @@
     #include <rosbag2_cpp/writer.hpp>
     #include <rosbag2_storage/storage_options.hpp>
 
+    #include "generic_subscription_compat.hpp"
+
 namespace spectra::adapters::ros2
 {
 
@@ -200,7 +202,7 @@ class BagRecorder
     // Message callback for all subscriptions (executor thread).
     void on_message(const std::string&                                      topic_name,
                     const std::string&                                      message_type,
-                    const std::shared_ptr<const rclcpp::SerializedMessage>& msg);
+                    sub_compat::SerializedMessageCallbackArg msg);
 
     // Check auto-split conditions and perform split if needed.
     // Caller must hold mutex_.

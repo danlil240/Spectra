@@ -22,6 +22,7 @@
 #include "display/pose_display.hpp"
 #include "display/robot_model_display.hpp"
 #include "display/tf_display.hpp"
+#include "generic_subscription_compat.hpp"
 #include "ui/layout/layout_manager.hpp"
 #include "ui/theme/icons.hpp"
 
@@ -575,7 +576,7 @@ void RosAppShell::apply_monitor_sub_change(const TopicInfo& info, bool added)
                 info.name,
                 type,
                 qos,
-                [this, topic](const std::shared_ptr<rclcpp::SerializedMessage>& msg)
+                [this, topic](sub_compat::SerializedMessageCallbackArg msg)
                 {
                     const size_t bytes = msg ? msg->size() : 0;
                     ++total_messages_;

@@ -65,6 +65,8 @@
     #include <rosbag2_storage/serialized_bag_message.hpp>
     #include <rosbag2_storage/storage_options.hpp>
     #include <rosbag2_storage/topic_metadata.hpp>
+
+    #include "bag_message_compat.hpp"
 #endif
 
 using namespace spectra;
@@ -519,7 +521,7 @@ std::string write_float64_bag(const std::string& dir_name,
 
             auto msg             = std::make_shared<rosbag2_storage::SerializedBagMessage>();
             msg->topic_name      = topic;
-            msg->time_stamp      = t_ns;
+            bag_compat::set_bag_message_timestamp(*msg, t_ns);
             msg->serialized_data = std::make_shared<rcutils_uint8_array_t>();
             msg->serialized_data->allocator       = rcutils_get_default_allocator();
             msg->serialized_data->buffer_length   = cdr.size();

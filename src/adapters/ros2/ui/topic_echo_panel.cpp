@@ -80,7 +80,7 @@ void TopicEchoPanel::set_topic(const std::string& topic_name, const std::string&
         topic_name,
         type_name,
         qos,
-        [this](const std::shared_ptr<rclcpp::SerializedMessage>& raw_msg) { on_message(raw_msg); });
+        [this](sub_compat::SerializedMessageCallbackArg raw_msg) { on_message(raw_msg); });
 }
 
 // ---------------------------------------------------------------------------
@@ -314,7 +314,7 @@ void TopicEchoPanel::inject_message(EchoMessage msg)
 // Message reception (executor thread)
 // ---------------------------------------------------------------------------
 
-void TopicEchoPanel::on_message(const std::shared_ptr<rclcpp::SerializedMessage>& raw_msg)
+void TopicEchoPanel::on_message(sub_compat::SerializedMessageCallbackArg raw_msg)
 {
     if (paused_.load(std::memory_order_acquire))
         return;

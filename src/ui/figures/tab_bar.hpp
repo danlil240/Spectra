@@ -147,12 +147,12 @@ class TabBar
     TabDragCancelCallback     on_tab_drag_cancel_;
 
     // Layout constants
-    static constexpr float TAB_HEIGHT        = 34.0f;
-    static constexpr float TAB_MIN_WIDTH     = 84.0f;
+    static constexpr float TAB_HEIGHT        = 38.0f;
+    static constexpr float TAB_MIN_WIDTH     = 96.0f;
     static constexpr float TAB_MAX_WIDTH     = 200.0f;
-    static constexpr float TAB_PADDING       = 14.0f;
-    static constexpr float CLOSE_BUTTON_SIZE = 14.0f;
-    static constexpr float ADD_BUTTON_WIDTH  = 30.0f;
+    static constexpr float TAB_PADDING       = 18.0f;
+    static constexpr float CLOSE_BUTTON_SIZE = 16.0f;
+    static constexpr float ADD_BUTTON_WIDTH  = 36.0f;
     static constexpr float TAB_RADIUS        = 8.0f;
 
     // Context menu state

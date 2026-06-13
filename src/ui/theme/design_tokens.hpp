@@ -43,13 +43,13 @@ constexpr float ICON_BUTTON_HITBOX = 32.0f;   // Standard icon button size
 constexpr float INSPECTOR_HEADER_H = 36.0f;   // Inspector header strip height
 
 // Layout Constants
-constexpr float COMMAND_BAR_HEIGHT      = 44.0f;   // Slimmer top bar
+constexpr float COMMAND_BAR_HEIGHT      = 48.0f;   // Premium top bar
 constexpr float NAV_RAIL_WIDTH          = 56.0f;
 constexpr float NAV_RAIL_WIDTH_EXPANDED = 200.0f;
 constexpr float INSPECTOR_WIDTH         = 320.0f;
 constexpr float INSPECTOR_WIDTH_MIN     = 240.0f;
 constexpr float INSPECTOR_WIDTH_MAX     = 480.0f;
-constexpr float STATUS_BAR_HEIGHT       = 30.0f;
+constexpr float STATUS_BAR_HEIGHT       = 34.0f;   // Roomy status pills
 constexpr float FLOATING_TOOLBAR_HEIGHT = 48.0f;
 
 // Animation Durations (in seconds)
@@ -69,11 +69,11 @@ constexpr float GLOW_RADIUS_MD = 4.0f;   // Standard glow (active elements)
 constexpr float GLOW_RADIUS_LG = 8.0f;   // Emphasis glow (selected items)
 
 // Grid Tokens — per-theme alpha (Night / Dark / Light)
-constexpr float GRID_MAJOR_ALPHA_NIGHT = 0.11f;
-constexpr float GRID_MAJOR_ALPHA_DARK  = 0.18f;
-constexpr float GRID_MAJOR_ALPHA_LIGHT = 0.22f;
-constexpr float GRID_MINOR_ALPHA_NIGHT = 0.045f;
-constexpr float GRID_MINOR_ALPHA_DARK  = 0.08f;
+constexpr float GRID_MAJOR_ALPHA_NIGHT = 0.10f;
+constexpr float GRID_MAJOR_ALPHA_DARK  = 0.14f;
+constexpr float GRID_MAJOR_ALPHA_LIGHT = 0.20f;
+constexpr float GRID_MINOR_ALPHA_NIGHT = 0.035f;
+constexpr float GRID_MINOR_ALPHA_DARK  = 0.05f;
 constexpr float GRID_MINOR_ALPHA_LIGHT = 0.10f;
 
 // Inspector Rhythm
@@ -85,16 +85,16 @@ constexpr float INSPECTOR_INPUT_HEIGHT = 28.0f;   // Compact input height
 // ─── Panel Component Language ────────────────────────────────────────────────
 // Shared geometry for the reusable panel/card/chip system so every surface
 // (inspector sections, modal groups, timeline header) reads as one design.
-constexpr float CARD_RADIUS    = RADIUS_LG;   // r12: secondary grouped card
-constexpr float CARD_PADDING   = 12.0f;       // internal padding of a card
-constexpr float CARD_GAP       = 10.0f;       // vertical gap between cards
-constexpr float CHIP_HEIGHT    = 24.0f;       // interactive chip / pill height
-constexpr float CHIP_PADDING_H = 10.0f;       // chip horizontal padding
-constexpr float SEGMENT_TAB_H  = 30.0f;       // segmented control tab height
-constexpr float SEGMENT_TRACK_PAD = 3.0f;     // inset of tabs inside the track
-constexpr float MODAL_RADIUS   = 14.0f;       // floating dialog corner radius
-constexpr float MODAL_PADDING  = 20.0f;       // floating dialog content padding
-constexpr float MODAL_HEADER_H = 48.0f;       // floating dialog header strip
+constexpr float CARD_RADIUS       = RADIUS_LG;   // r12: secondary grouped card
+constexpr float CARD_PADDING      = 12.0f;       // internal padding of a card
+constexpr float CARD_GAP          = 10.0f;       // vertical gap between cards
+constexpr float CHIP_HEIGHT       = 24.0f;       // interactive chip / pill height
+constexpr float CHIP_PADDING_H    = 10.0f;       // chip horizontal padding
+constexpr float SEGMENT_TAB_H     = 30.0f;       // segmented control tab height
+constexpr float SEGMENT_TRACK_PAD = 3.0f;        // inset of tabs inside the track
+constexpr float MODAL_RADIUS      = 14.0f;       // floating dialog corner radius
+constexpr float MODAL_PADDING     = 20.0f;       // floating dialog content padding
+constexpr float MODAL_HEADER_H    = 48.0f;       // floating dialog header strip
 
 // ─── Timeline Editing Surface ────────────────────────────────────────────────
 constexpr float TIMELINE_RULER_HEIGHT = 26.0f;    // time ruler strip

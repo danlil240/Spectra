@@ -81,7 +81,7 @@ static bool icon_label_button(const char* icon_codepoint,
                             ImVec4(glow_color.r,
                                    glow_color.g,
                                    glow_color.b,
-                                   (0.05f + hover_t * 0.04f + active_t * 0.18f) / e * glow_scale)),
+                                   (0.04f + hover_t * 0.03f + active_t * 0.10f) / e * glow_scale)),
                         tokens::RADIUS_MD + e,
                         0,
                         2.0f);
@@ -89,7 +89,7 @@ static bool icon_label_button(const char* icon_codepoint,
 
         ui::Color pill_fill = ui::control_surface_color(colors, active, hovered);
         float     pill_a    = tm.glass_surface_alpha(ui::GlassSurface::Toolbar);
-        pill_a = std::clamp(pill_a * (0.72f + active_t * 0.26f + hover_t * 0.08f), 0.20f, 1.0f);
+        pill_a = std::clamp(pill_a * (0.72f + active_t * 0.18f + hover_t * 0.08f), 0.20f, 1.0f);
         dl->AddRectFilled(
             pill_min,
             pill_max,
@@ -99,7 +99,7 @@ static bool icon_label_button(const char* icon_codepoint,
         // Top inner highlight on the pill.
         dl->AddLine(ImVec2(pill_min.x + 4.0f * scale, pill_min.y + 1.0f),
                     ImVec2(pill_max.x - 4.0f * scale, pill_min.y + 1.0f),
-                    IM_COL32(225, 244, 255, static_cast<int>(36.0f + 28.0f * active_t)),
+                    IM_COL32(225, 244, 255, static_cast<int>(30.0f + 22.0f * active_t)),
                     1.0f);
 
         ui::Color border = ui::control_border_color(colors, active, hovered);
@@ -107,7 +107,7 @@ static bool icon_label_button(const char* icon_codepoint,
             pill_min,
             pill_max,
             ImGui::ColorConvertFloat4ToU32(
-                ImVec4(border.r, border.g, border.b, 0.28f + hover_t * 0.16f + active_t * 0.44f)),
+                ImVec4(border.r, border.g, border.b, 0.30f + hover_t * 0.16f + active_t * 0.32f)),
             tokens::RADIUS_MD);
     }
 
@@ -119,7 +119,7 @@ static bool icon_label_button(const char* icon_codepoint,
                                  ? colors.accent_hover
                                  : colors.text_secondary.lerp(colors.text_primary, hover_t * 0.65f);
     float     icon_alpha_v = ui::icon_alpha(active, hovered, false);
-    float     text_alpha_v = ui::shell_text_alpha(active ? 1.0f : (0.78f + hover_t * 0.14f));
+    float     text_alpha_v = ui::shell_text_alpha(active ? 1.0f : (0.84f + hover_t * 0.14f));
     ImU32     icon_col     = ImGui::ColorConvertFloat4ToU32(
         ImVec4(icon_color.r, icon_color.g, icon_color.b, icon_alpha_v));
     ImU32 text_col = ImGui::ColorConvertFloat4ToU32(
@@ -183,12 +183,13 @@ void ImGuiIntegration::draw_menubar_menu(const char* label, const std::vector<Me
     bool        menu_is_open = open_menu_label_ == label;
 
     ImGui::PushFont(font_menubar_);
-    ui::Color menu_text = ui::control_text_color(colors, menu_is_open, false);
+    // Menu labels read at the same weight as body text so navigation feels intentional.
+    ui::Color menu_text = menu_is_open ? colors.accent_hover : colors.text_primary;
     ImGui::PushStyleColor(ImGuiCol_Text,
                           ImVec4(menu_text.r,
                                  menu_text.g,
                                  menu_text.b,
-                                 menu_is_open ? 1.0f : ui::shell_text_alpha(0.82f)));
+                                 menu_is_open ? 1.0f : ui::shell_text_alpha(0.90f)));
     // Glass-pill open/hover/active states (translucent accent tint, rounded).
     ui::Color menu_bg = ui::control_surface_color(colors, menu_is_open, false);
     ImGui::PushStyleColor(ImGuiCol_Button,
@@ -373,7 +374,8 @@ void ImGuiIntegration::draw_menubar_menu(const char* label, const std::vector<Me
 void ImGuiIntegration::draw_toolbar_button(const char*                  icon,
                                            const std::function<void()>& callback,
                                            const char*                  tooltip,
-                                           bool                         is_active)
+                                           bool                         is_active,
+                                           float                        icon_scale)
 {
     const auto& colors = theme_colors();
     // Use per-instance font_icon_ (not the IconFont singleton) so that
@@ -389,15 +391,18 @@ void ImGuiIntegration::draw_toolbar_button(const char*                  icon,
         ImVec4(colors.bg_tertiary.r, colors.bg_tertiary.g, colors.bg_tertiary.b, 0.72f));
     ImGui::PushStyleColor(ImGuiCol_ButtonActive,
                           ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.28f));
-    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
-                        ImVec2(ui::tokens::SPACE_2 + 2.0f, ui::tokens::SPACE_2));
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, ui::tokens::RADIUS_MD);
+    const float pad       = ui::tokens::SPACE_2 * icon_scale;
+    const float roundness = ui::tokens::RADIUS_MD * icon_scale;
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(pad + 2.0f, pad));
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, roundness);
 
+    ImGui::SetWindowFontScale(icon_scale);
     if (ImGui::Button(icon))
     {
         if (callback)
             callback();
     }
+    ImGui::SetWindowFontScale(1.0f);
 
     // Store tooltip for deferred rendering at the end of build_ui
     if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort) && tooltip)
@@ -434,7 +439,7 @@ void ImGuiIntegration::draw_command_bar()
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
                         ImVec2(ui::tokens::SPACE_6, ui::tokens::SPACE_2));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ui::tokens::SPACE_4, 0.0f));
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ui::tokens::SPACE_5, 0.0f));
     ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0, 0, 0, 0));
     ImGui::PushStyleColor(ImGuiCol_Border,
                           ImVec4(theme_colors().border_subtle.r,
@@ -487,6 +492,27 @@ void ImGuiIntegration::draw_command_bar()
                                      static_cast<uint8_t>(c.border_subtle.b * 255),
                                      90),
                             1.0f);
+
+            // Subtle header surface fill — anchors the brand/menus without hiding content.
+            bar_dl->AddRectFilledMultiColor(
+                ImVec2(wpos.x, wpos.y),
+                ImVec2(wpos.x + wsz.x, bottom),
+                IM_COL32(static_cast<uint8_t>(c.bg_secondary.r * 255),
+                         static_cast<uint8_t>(c.bg_secondary.g * 255),
+                         static_cast<uint8_t>(c.bg_secondary.b * 255),
+                         static_cast<uint8_t>((0.25f + 0.10f * glow) * 255)),
+                IM_COL32(static_cast<uint8_t>(c.bg_secondary.r * 255),
+                         static_cast<uint8_t>(c.bg_secondary.g * 255),
+                         static_cast<uint8_t>(c.bg_secondary.b * 255),
+                         static_cast<uint8_t>((0.25f + 0.10f * glow) * 255)),
+                IM_COL32(static_cast<uint8_t>(c.bg_primary.r * 255),
+                         static_cast<uint8_t>(c.bg_primary.g * 255),
+                         static_cast<uint8_t>(c.bg_primary.b * 255),
+                         0),
+                IM_COL32(static_cast<uint8_t>(c.bg_primary.r * 255),
+                         static_cast<uint8_t>(c.bg_primary.g * 255),
+                         static_cast<uint8_t>(c.bg_primary.b * 255),
+                         0));
         }
 
         // ── App title/brand on the left — textured S mark + clean wordmark ──
@@ -560,7 +586,9 @@ void ImGuiIntegration::draw_command_bar()
                 reset_view_ = true;
                 SPECTRA_LOG_DEBUG("ui_button", "Reset view flag set successfully");
             },
-            "Reset View (Home)");
+            "Reset View (Home)",
+            false,
+            0.82f);
 
         ImGui::SameLine();
 
@@ -1276,7 +1304,7 @@ void ImGuiIntegration::draw_chrome_backdrops()
     if (show_nav_rail_)
     {
         Rect nr = layout_manager_->nav_rail_rect();
-        draw_zone(nr, ui::GlassSurface::Toolbar, ui::tokens::RADIUS_MD);
+        draw_zone(nr, ui::GlassSurface::Toolbar, 0.0f);
     }
 
     if (layout_manager_->is_tab_bar_visible())

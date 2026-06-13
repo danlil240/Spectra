@@ -761,7 +761,7 @@ void ImGuiIntegration::draw_status_bar()
                              | ImGuiWindowFlags_NoBringToFrontOnFocus
                              | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoBackground;
 
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(ui::tokens::SPACE_3, 0.0f));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(ui::tokens::SPACE_4, 0.0f));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
     ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0, 0, 0, 0));
@@ -810,13 +810,14 @@ void ImGuiIntegration::draw_status_bar()
         const auto& colors = theme_colors();
         ImDrawList* dl     = ImGui::GetWindowDrawList();
 
-        // Helper: draw a clean status pill with consistent padding/radius.
+        // Helper: draw a clean status pill with consistent padding/radius/border.
         auto draw_pill = [&](const char*      label,
                              const ui::Color& text_col,
                              const ui::Color& bg_col,
                              float            bg_alpha,
-                             float            pad_h = 4.0f,
-                             float            pad_v = 2.0f)
+                             const ui::Color& border_col,
+                             float            pad_h = 7.0f,
+                             float            pad_v = 4.0f)
         {
             ImVec2 text_sz  = ImGui::CalcTextSize(label);
             ImVec2 cursor_p = ImGui::GetCursorScreenPos();
@@ -832,10 +833,10 @@ void ImGuiIntegration::draw_status_bar()
                               ui::tokens::RADIUS_MD);
             dl->AddRect(pill_min,
                         pill_max,
-                        IM_COL32(static_cast<uint8_t>(bg_col.r * 255),
-                                 static_cast<uint8_t>(bg_col.g * 255),
-                                 static_cast<uint8_t>(bg_col.b * 255),
-                                 static_cast<uint8_t>((bg_alpha * 0.55f) * 255)),
+                        IM_COL32(static_cast<uint8_t>(border_col.r * 255),
+                                 static_cast<uint8_t>(border_col.g * 255),
+                                 static_cast<uint8_t>(border_col.b * 255),
+                                 static_cast<uint8_t>((bg_alpha * 0.65f) * 255)),
                         ui::tokens::RADIUS_MD,
                         0,
                         1.0f);
@@ -856,9 +857,10 @@ void ImGuiIntegration::draw_status_bar()
             draw_pill(cursor_buf.c_str(),
                       colors.text_secondary,
                       colors.bg_tertiary,
-                      0.40f,
-                      6.0f,
-                      3.0f);
+                      0.36f,
+                      colors.border_subtle,
+                      7.0f,
+                      4.0f);
         }
 
         // Center group: mode + zoom.
@@ -895,7 +897,7 @@ void ImGuiIntegration::draw_status_bar()
                 default:
                     break;
             }
-            draw_pill(mode_label, mode_color, mode_color, 0.13f, 6.0f, 3.0f);
+            draw_pill(mode_label, mode_color, colors.bg_tertiary, 0.22f, mode_color, 7.0f, 4.0f);
         }
 
         ImGui::SameLine(0.0f, ui::tokens::SPACE_3);
@@ -915,19 +917,26 @@ void ImGuiIntegration::draw_status_bar()
             draw_pill(zoom_buf.c_str(),
                       colors.text_secondary,
                       colors.bg_tertiary,
-                      0.32f,
-                      5.0f,
-                      3.0f);
+                      0.28f,
+                      colors.border_subtle,
+                      6.0f,
+                      4.0f);
         }
 
         // Right side: performance pills anchored to the right edge when room allows.
-        const float perf_width   = 170.0f;
-        const float perf_anchor  = ImGui::GetWindowWidth() - perf_width - ui::tokens::SPACE_3;
-        const float perf_min_gap = ui::tokens::SPACE_4;
-        const bool  show_perf    = perf_anchor > ImGui::GetCursorPosX() + perf_min_gap;
+        const std::string fps_buf  = std::format("{} fps", static_cast<int>(io.Framerate));
+        const std::string gpu_buf  = std::format("GPU {:.1f}ms", gpu_time_ms_);
+        const float       perf_gap = ui::tokens::SPACE_3;
+        const float       right_w  = ImGui::CalcTextSize(fps_buf.c_str()).x
+                              + ImGui::CalcTextSize(gpu_buf.c_str()).x + (6.0f + 6.0f) * 2
+                              + perf_gap;
+        const float right_x    = ImGui::GetWindowWidth() - right_w - ui::tokens::SPACE_4;
+        const float center_end = ImGui::GetCursorPosX();
+        const bool  show_perf  = right_x > center_end + ui::tokens::SPACE_4;
         if (show_perf)
         {
-            ImGui::SameLine(perf_anchor);
+            ImGui::SameLine();
+            ImGui::SetCursorPosX(right_x);
 
             // FPS with green health coding.
             float     fps_val   = io.Framerate;
@@ -937,14 +946,18 @@ void ImGuiIntegration::draw_status_bar()
             else if (fps_val < 45.0f)
                 fps_color = colors.warning;
 
-            const std::string fps_buf = std::format("{} fps", static_cast<int>(fps_val));
-            draw_pill(fps_buf.c_str(), fps_color, fps_color, 0.12f, 5.0f, 3.0f);
+            draw_pill(fps_buf.c_str(), fps_color, colors.bg_tertiary, 0.14f, fps_color, 6.0f, 4.0f);
 
             // GPU time in muted blue/purple.
-            ImGui::SameLine(0.0f, ui::tokens::SPACE_3);
-            const std::string gpu_buf  = std::format("GPU {:.1f}ms", gpu_time_ms_);
-            ui::Color         gpu_tint = colors.accent.lerp(ui::Color::from_hex(0xA070F0), 0.45f);
-            draw_pill(gpu_buf.c_str(), colors.text_secondary, gpu_tint, 0.10f, 5.0f, 3.0f);
+            ImGui::SameLine(0.0f, perf_gap);
+            ui::Color gpu_tint = colors.accent.lerp(ui::Color::from_hex(0xA070F0), 0.45f);
+            draw_pill(gpu_buf.c_str(),
+                      colors.text_secondary,
+                      colors.bg_tertiary,
+                      0.12f,
+                      gpu_tint,
+                      6.0f,
+                      4.0f);
         }
 
         ImGui::PopFont();

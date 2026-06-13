@@ -91,11 +91,10 @@ void ImGuiIntegration::draw_canvas(Figure& figure)
             | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings
             | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoFocusOnAppearing;
 
+        ui::Color welcome_bg = theme_mgr_ ? theme_mgr_->glass_resolved_plot_background()
+                                          : theme_colors().bg_canvas;
         ImGui::PushStyleColor(ImGuiCol_WindowBg,
-                              ImVec4(theme_colors().bg_canvas.r,
-                                     theme_colors().bg_canvas.g,
-                                     theme_colors().bg_canvas.b,
-                                     1.0f));
+                              ImVec4(welcome_bg.r, welcome_bg.g, welcome_bg.b, 1.0f));
         ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0, 0, 0, 0));
 
         if (ImGui::Begin("##canvas_welcome", nullptr, empty_flags))

@@ -480,4 +480,54 @@ inline float smooth_hover_state(float current_t, float dt, bool is_hovered)
     return current_t;
 }
 
+// ─── Shell Semantic Helpers ─────────────────────────────────────────────────
+// These helpers centralize the visual language for the app shell so header,
+// tab bar, rail, and status bar share one set of rules instead of magic values.
+
+// Readability-preserving alpha floors for shell surfaces and text.
+inline float shell_surface_alpha(float requested)
+{
+    return std::max(requested, 0.55f);
+}
+
+inline float shell_text_alpha(float requested)
+{
+    return std::max(requested, 0.78f);
+}
+
+// Common shell interaction-state colors derived from the current theme.
+inline Color control_surface_color(const ThemeColors& c, bool active, bool hovered, float t = 1.0f)
+{
+    if (active)
+        return c.bg_tertiary.lerp(c.accent, 0.18f * t);
+    if (hovered)
+        return c.bg_tertiary.lerp(c.accent, 0.08f * t);
+    return c.bg_secondary.lerp(c.bg_tertiary, 0.55f * t);
+}
+
+inline Color control_border_color(const ThemeColors& c, bool active, bool hovered, float t = 1.0f)
+{
+    if (active)
+        return c.accent.lerp(c.border_strong, 0.25f * (1.0f - t));
+    if (hovered)
+        return c.border_default.lerp(c.accent, 0.35f * t);
+    return c.border_subtle;
+}
+
+inline Color control_text_color(const ThemeColors& c, bool active, bool hovered)
+{
+    if (active)
+        return c.accent_hover;
+    if (hovered)
+        return c.text_primary;
+    return c.text_secondary;
+}
+
+// Soft glow color for active/selected shell controls. Intensity is controlled
+// by the caller via alpha; this just returns the hue.
+inline Color control_glow_color(const ThemeColors& c)
+{
+    return c.accent_glow.a > 0.0f ? c.accent_glow : c.accent.lerp(Color::from_hex(0x60E0FF), 0.35f);
+}
+
 }   // namespace spectra::ui

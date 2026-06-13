@@ -26,6 +26,12 @@ void ThemeGlassSettings::clamp()
     plot_alpha       = std::clamp(plot_alpha, 0.0f, 1.0f);
     toolbar_alpha    = std::clamp(toolbar_alpha, 0.0f, 1.0f);
     glow_strength    = std::clamp(glow_strength, 0.0f, 1.0f);
+
+    // Preserve readability: panel/toolbar surfaces must stay sufficiently opaque
+    // so text and borders remain visible at high transparency settings.
+    panel_alpha   = std::max(panel_alpha, 0.35f);
+    toolbar_alpha = std::max(toolbar_alpha, 0.30f);
+    plot_alpha    = std::max(plot_alpha, 0.25f);
 }
 
 ThemeGlassSettings ThemeGlassSettings::night_defaults()

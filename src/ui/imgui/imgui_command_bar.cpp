@@ -188,26 +188,22 @@ void ImGuiIntegration::draw_menubar_menu(const char* label, const std::vector<Me
     bool        menu_is_open = open_menu_label_ == label;
 
     ImGui::PushFont(font_menubar_);
-    // Softer menu text — refined, lower-contrast until hovered/open.
+    ui::Color menu_text = ui::control_text_color(colors, menu_is_open, false);
     ImGui::PushStyleColor(ImGuiCol_Text,
-                          ImVec4(colors.text_secondary.r,
-                                 colors.text_secondary.g,
-                                 colors.text_secondary.b,
-                                 menu_is_open ? 1.0f : 0.82f));
+                          ImVec4(menu_text.r,
+                                 menu_text.g,
+                                 menu_text.b,
+                                 menu_is_open ? 1.0f : ui::shell_text_alpha(0.82f)));
     // Glass-pill open/hover/active states (translucent accent tint, rounded).
-    ImGui::PushStyleColor(
-        ImGuiCol_Button,
-        menu_is_open
-            ? ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.16f)
-            : ImVec4(0, 0, 0, 0));
-    ImGui::PushStyleColor(
-        ImGuiCol_ButtonHovered,
-        ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.10f));
-    ImGui::PushStyleColor(
-        ImGuiCol_ButtonActive,
-        ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.22f));
+    ui::Color menu_bg = ui::control_surface_color(colors, menu_is_open, false);
+    ImGui::PushStyleColor(ImGuiCol_Button,
+                          ImVec4(menu_bg.r, menu_bg.g, menu_bg.b, menu_is_open ? 0.80f : 0.0f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
+                          ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.12f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive,
+                          ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.24f));
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
-                        ImVec2(ui::tokens::SPACE_4 + 2.0f, ui::tokens::SPACE_2));
+                        ImVec2(ui::tokens::SPACE_4, ui::tokens::SPACE_2 + 1.0f));
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, ui::tokens::RADIUS_MD);
 
     // Remember button rect for popup positioning and auto-close
@@ -389,30 +385,18 @@ void ImGuiIntegration::draw_toolbar_button(const char*                  icon,
     // secondary windows use their own atlas font, avoiding TexID mismatch.
     ImGui::PushFont(font_icon_);
 
-    if (is_active)
-    {
-        // Subtle accent pill — consistent with nav rail icon_button
-        ImGui::PushStyleColor(ImGuiCol_Button,
-                              ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.15f));
-        ImGui::PushStyleColor(ImGuiCol_Text,
-                              ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 1.0f));
-    }
-    else
-    {
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-        ImGui::PushStyleColor(ImGuiCol_Text,
-                              ImVec4(colors.text_primary.r,
-                                     colors.text_primary.g,
-                                     colors.text_primary.b,
-                                     0.80f));   // Bright to match nav rail
-    }
+    ui::Color bg  = ui::control_surface_color(colors, is_active, false);
+    ui::Color txt = ui::control_text_color(colors, is_active, false);
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(bg.r, bg.g, bg.b, is_active ? 0.90f : 0.0f));
+    ImGui::PushStyleColor(ImGuiCol_Text,
+                          ImVec4(txt.r, txt.g, txt.b, ui::shell_text_alpha(txt.a)));
     ImGui::PushStyleColor(
         ImGuiCol_ButtonHovered,
-        ImVec4(colors.bg_tertiary.r, colors.bg_tertiary.g, colors.bg_tertiary.b, 0.7f));
+        ImVec4(colors.bg_tertiary.r, colors.bg_tertiary.g, colors.bg_tertiary.b, 0.72f));
     ImGui::PushStyleColor(ImGuiCol_ButtonActive,
-                          ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.25f));
+                          ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.28f));
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
-                        ImVec2(ui::tokens::SPACE_2, ui::tokens::SPACE_2));
+                        ImVec2(ui::tokens::SPACE_2 + 2.0f, ui::tokens::SPACE_2));
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, ui::tokens::RADIUS_MD);
 
     if (ImGui::Button(icon))
@@ -469,12 +453,25 @@ void ImGuiIntegration::draw_command_bar()
     {
         SPECTRA_LOG_TRACE("ui", "Command bar window began successfully");
 
-        // ── Floating surface depth: bottom shadow + hairline border ──
+        // ── Header surface: subtle top accent line + bottom shadow + hairline ──
         {
             ImDrawList* bar_dl = ImGui::GetWindowDrawList();
             ImVec2      wpos   = ImGui::GetWindowPos();
             ImVec2      wsz    = ImGui::GetWindowSize();
             float       bottom = wpos.y + wsz.y;
+            const auto& c      = theme_colors();
+            const float glow   = theme_mgr_ ? theme_mgr_->effective_glow_intensity() : 0.0f;
+
+            // Very subtle top accent line (cyan/purple) — restrained, theme-aware.
+            ui::Color top_line = c.accent.lerp(Color::from_hex(0x60C0FF), 0.35f);
+            int       top_a    = static_cast<int>((18.0f + 24.0f * glow) * c.accent_glow.a);
+            bar_dl->AddLine(ImVec2(wpos.x, wpos.y),
+                            ImVec2(wpos.x + wsz.x, wpos.y),
+                            IM_COL32(static_cast<uint8_t>(top_line.r * 255),
+                                     static_cast<uint8_t>(top_line.g * 255),
+                                     static_cast<uint8_t>(top_line.b * 255),
+                                     std::clamp(top_a, 0, 255)),
+                            1.0f);
 
             // Multi-layer soft shadow below the bar
             float shadow_spread = ui::tokens::ELEVATION_2_SPREAD;
@@ -491,10 +488,10 @@ void ImGuiIntegration::draw_command_bar()
             // Crisp hairline border at bottom edge
             bar_dl->AddLine(ImVec2(wpos.x, std::floor(bottom) - 1.0f),
                             ImVec2(wpos.x + wsz.x, std::floor(bottom) - 1.0f),
-                            IM_COL32(static_cast<uint8_t>(theme_colors().border_subtle.r * 255),
-                                     static_cast<uint8_t>(theme_colors().border_subtle.g * 255),
-                                     static_cast<uint8_t>(theme_colors().border_subtle.b * 255),
-                                     80),
+                            IM_COL32(static_cast<uint8_t>(c.border_subtle.r * 255),
+                                     static_cast<uint8_t>(c.border_subtle.g * 255),
+                                     static_cast<uint8_t>(c.border_subtle.b * 255),
+                                     90),
                             1.0f);
         }
 
@@ -503,11 +500,11 @@ void ImGuiIntegration::draw_command_bar()
             ImDrawList* dl      = ImGui::GetWindowDrawList();
             float       bar_h   = ImGui::GetWindowSize().y;
             ImVec2      cursor  = ImGui::GetCursorScreenPos();
-            float       cy      = cursor.y + (bar_h - ImGui::GetCursorPosY() * 2.0f) * 0.5f;
-            float       logo_sz = 28.0f;
-            float       lx      = cursor.x + 1.0f;
+            float       cy      = cursor.y + bar_h * 0.5f;
+            float       logo_sz = 26.0f;
+            float       lx      = cursor.x;
             float       ly      = cy - logo_sz * 0.5f;
-            float       text_x  = lx + logo_sz + 8.0f;
+            float       text_x  = lx + logo_sz + ui::tokens::SPACE_3;
 
             if (corner_logo_texture_id_)
             {
@@ -518,15 +515,15 @@ void ImGuiIntegration::draw_command_bar()
 
             ImGui::PushFont(font_title_);
             const char* letters = "SPECTRA";
-            float       font_sz = font_title_->LegacySize * 0.92f;
+            float       font_sz = font_title_->LegacySize * 0.90f;
             float       text_y  = cy - font_sz * 0.5f;
-            float       spacing = 2.6f;
+            float       spacing = 2.0f;
 
             float total_w = 0.0f;
             for (const char* p = letters; *p; ++p)
             {
                 char ch[2] = {*p, 0};
-                total_w += ImGui::CalcTextSize(ch).x + (*p ? spacing : 0.0f);
+                total_w += ImGui::CalcTextSize(ch).x + spacing;
             }
             total_w -= spacing;   // no trailing space
 
@@ -539,24 +536,22 @@ void ImGuiIntegration::draw_command_bar()
                     char  ch[2] = {*p, 0};
                     float cw    = ImGui::CalcTextSize(ch).x;
                     float t     = (len > 1) ? static_cast<float>(idx) / (len - 1) : 0.0f;
-                    float mix   = 0.25f + 0.35f * t;
-                    auto  cr    = static_cast<uint8_t>((theme_colors().text_primary.r * (1.0f - mix)
-                                                        + theme_colors().accent.r * mix)
-                                                       * 255);
-                    auto  cg    = static_cast<uint8_t>((theme_colors().text_primary.g * (1.0f - mix)
-                                                        + theme_colors().accent.g * mix)
-                                                       * 255);
-                    auto  cb    = static_cast<uint8_t>((theme_colors().text_primary.b * (1.0f - mix)
-                                                        + theme_colors().accent.b * mix)
-                                                       * 255);
-                    ImU32 col   = IM_COL32(cr, cg, cb, 245);
-                    dl->AddText(font_title_, font_sz, ImVec2(gx, text_y), col, ch);
+                    float mix   = 0.20f + 0.30f * t;
+                    ui::Color base = theme_colors().text_primary.lerp(theme_colors().accent, mix);
+                    dl->AddText(font_title_,
+                                font_sz,
+                                ImVec2(gx, text_y),
+                                IM_COL32(static_cast<uint8_t>(base.r * 255),
+                                         static_cast<uint8_t>(base.g * 255),
+                                         static_cast<uint8_t>(base.b * 255),
+                                         250),
+                                ch);
                     gx += cw + spacing;
                 }
             }
 
             // Advance ImGui cursor past the entire brand block (extra breathing room)
-            float brand_w = (text_x - cursor.x) + total_w + 18.0f;
+            float brand_w = (text_x - cursor.x) + total_w + ui::tokens::SPACE_4;
             ImGui::Dummy(ImVec2(brand_w, font_sz));
             ImGui::PopFont();
         }
@@ -1051,47 +1046,8 @@ void ImGuiIntegration::draw_command_bar()
     #endif
             });
 
-        // Push status info to the right
-        ImGui::SameLine(0.0f, ImGui::GetContentRegionAvail().x - 220.0f);
-
-        // Status info
-        ImGuiIO& io = ImGui::GetIO();
-        ImGui::PushFont(font_heading_);
-        ImGui::PushStyleColor(ImGuiCol_Text,
-                              ImVec4(theme_colors().text_secondary.r,
-                                     theme_colors().text_secondary.g,
-                                     theme_colors().text_secondary.b,
-                                     theme_colors().text_secondary.a));
-
-        const std::string status = std::format("Display: {}x{} | FPS: {:.0f} | GPU",
-                                               static_cast<int>(io.DisplaySize.x),
-                                               static_cast<int>(io.DisplaySize.y),
-                                               io.Framerate);
-        ImVec2 status_pos = ImGui::GetCursorScreenPos();
-        ImVec2 status_sz  = ImGui::CalcTextSize(status.c_str());
-        ImVec2 chip_min(status_pos.x - ui::tokens::SPACE_2, status_pos.y - 3.0f);
-        ImVec2 chip_max(status_pos.x + status_sz.x + ui::tokens::SPACE_2,
-                        status_pos.y + status_sz.y + 3.0f);
-        ImGui::GetWindowDrawList()->AddRectFilled(
-            chip_min,
-            chip_max,
-            ImGui::ColorConvertFloat4ToU32(ImVec4(theme_colors().bg_tertiary.r,
-                                                  theme_colors().bg_tertiary.g,
-                                                  theme_colors().bg_tertiary.b,
-                                                  0.92f)),
-            ui::tokens::RADIUS_MD);
-        ImGui::GetWindowDrawList()->AddRect(
-            chip_min,
-            chip_max,
-            ImGui::ColorConvertFloat4ToU32(ImVec4(theme_colors().border_subtle.r,
-                                                  theme_colors().border_subtle.g,
-                                                  theme_colors().border_subtle.b,
-                                                  0.55f)),
-            ui::tokens::RADIUS_MD);
-        ImGui::TextUnformatted(status.c_str());
-
-        ImGui::PopStyleColor();
-        ImGui::PopFont();
+        // Status info moved to the dedicated bottom status bar; header stays clean.
+        (void)font_heading_;
     }
     ImGui::End();
     ImGui::PopStyleVar(4);

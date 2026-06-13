@@ -82,7 +82,7 @@ class LayoutManager
 
     // Layout constants (matching the design spec)
     static constexpr float COMMAND_BAR_HEIGHT       = 48.0f;
-    static constexpr float STATUS_BAR_HEIGHT        = 28.0f;
+    static constexpr float STATUS_BAR_HEIGHT        = 34.0f;
     static constexpr float NAV_RAIL_COLLAPSED_WIDTH = 72.0f;
     static constexpr float NAV_RAIL_EXPANDED_WIDTH  = 200.0f;
     static constexpr float NAV_TOOLBAR_INSET =
@@ -92,7 +92,7 @@ class LayoutManager
     static constexpr float INSPECTOR_DEFAULT_WIDTH = 320.0f;
     static constexpr float INSPECTOR_MIN_WIDTH     = 240.0f;
     static constexpr float INSPECTOR_MAX_WIDTH     = 480.0f;
-    static constexpr float TAB_BAR_HEIGHT          = 36.0f;
+    static constexpr float TAB_BAR_HEIGHT          = 40.0f;
     static constexpr float RESIZE_HANDLE_WIDTH     = 6.0f;
     static constexpr float ANIM_SPEED              = 12.0f;
 

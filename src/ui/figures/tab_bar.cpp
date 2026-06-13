@@ -300,7 +300,7 @@ void TabBar::draw_tabs(const Rect& bounds, bool menus_open)
         float bg_alpha = is_active_styled ? 0.95f : (is_hovered ? 0.80f : 0.55f);
         draw_list->AddRectFilled(tl, br, to_imcol(bg, bg_alpha), TAB_RADIUS);
 
-        // Active tab: accent border + subtle top glow, no aggressive underline.
+        // Active tab: accent border + subtle top glow + selected underline.
         if (is_active_styled)
         {
             ui::Color glow = ui::control_glow_color(colors);
@@ -309,7 +309,7 @@ void TabBar::draw_tabs(const Rect& bounds, bool menus_open)
                 float e = static_cast<float>(gi);
                 draw_list->AddRect(ImVec2(tl.x - e, tl.y - e),
                                    ImVec2(br.x + e, br.y + e),
-                                   to_imcol(glow, 0.10f / e),
+                                   to_imcol(glow, 0.08f / e),
                                    TAB_RADIUS + e,
                                    0,
                                    1.5f);
@@ -325,8 +325,15 @@ void TabBar::draw_tabs(const Rect& bounds, bool menus_open)
             draw_list->AddLine(
                 ImVec2(tl.x + TAB_RADIUS * 0.5f, tl.y + 1.0f),
                 ImVec2(br.x - TAB_RADIUS * 0.5f, tl.y + 1.0f),
-                to_imcol(colors.accent.lerp(ui::Color(1.0f, 1.0f, 1.0f), 0.70f), 0.35f),
+                to_imcol(colors.accent.lerp(ui::Color(1.0f, 1.0f, 1.0f), 0.70f), 0.38f),
                 1.0f);
+
+            // Selected underline accent
+            const float underline_h = 2.5f;
+            draw_list->AddRectFilled(ImVec2(tl.x + TAB_PADDING * 0.6f, br.y - underline_h + 1.0f),
+                                     ImVec2(br.x - TAB_PADDING * 0.6f, br.y + 1.0f),
+                                     to_imcol(colors.accent),
+                                     underline_h * 0.5f);
         }
         else if (is_hovered)
         {
@@ -342,7 +349,7 @@ void TabBar::draw_tabs(const Rect& bounds, bool menus_open)
         ImVec2 text_size = ImGui::CalcTextSize(tab.title.c_str());
         float  title_x   = layout.bounds.x + TAB_PADDING;
         float  title_w   = layout.bounds.w - TAB_PADDING * 2.0f
-                        - (tab.can_close ? (CLOSE_BUTTON_SIZE + 6.0f) : 0.0f);
+                        - (tab.can_close ? (CLOSE_BUTTON_SIZE + 8.0f) : 0.0f);
         ImVec2 text_pos(title_x, layout.bounds.y + (layout.bounds.h - text_size.y) * 0.5f);
 
         ui::Color text_col = ui::control_text_color(colors, is_active_styled, is_hovered);
@@ -409,9 +416,9 @@ void TabBar::draw_add_button(const Rect& bounds)
     }
 
     float btn_x = last_tab_end + ui::tokens::SPACE_2;
-    float btn_y = bounds.y + 4.0f;
-    float btn_w = ADD_BUTTON_WIDTH - 6.0f;
-    float btn_h = bounds.h - 8.0f;
+    float btn_y = bounds.y + (bounds.h - TAB_HEIGHT) * 0.5f;
+    float btn_w = ADD_BUTTON_WIDTH;
+    float btn_h = TAB_HEIGHT;
 
     // Don't draw if it would overflow
     if (btn_x + btn_w > bounds.x + bounds.w - ui::tokens::SPACE_2)
@@ -425,20 +432,20 @@ void TabBar::draw_add_button(const Rect& bounds)
     ui::Color bg = ui::control_surface_color(colors, false, hovered);
     draw_list->AddRectFilled(ImVec2(btn_x, btn_y),
                              ImVec2(btn_x + btn_w, btn_y + btn_h),
-                             to_imcol(bg, hovered ? 0.75f : 0.45f),
-                             ui::tokens::RADIUS_MD);
+                             to_imcol(bg, hovered ? 0.82f : 0.60f),
+                             TAB_RADIUS);
     draw_list->AddRect(
         ImVec2(btn_x, btn_y),
         ImVec2(btn_x + btn_w, btn_y + btn_h),
-        to_imcol(ui::control_border_color(colors, false, hovered), hovered ? 0.70f : 0.40f),
-        ui::tokens::RADIUS_MD,
+        to_imcol(ui::control_border_color(colors, false, hovered), hovered ? 0.75f : 0.50f),
+        TAB_RADIUS,
         0,
         1.0f);
 
     // Plus sign
     ImVec2 center(btn_x + btn_w * 0.5f, btn_y + btn_h * 0.5f);
-    ImU32  plus_color = hovered ? to_imcol(colors.accent) : to_imcol(colors.text_secondary, 0.80f);
-    float  sz         = 5.0f;
+    ImU32  plus_color = hovered ? to_imcol(colors.accent) : to_imcol(colors.text_secondary, 0.90f);
+    float  sz         = 5.5f;
     draw_list->AddLine(ImVec2(center.x - sz, center.y),
                        ImVec2(center.x + sz, center.y),
                        plus_color,
@@ -482,10 +489,11 @@ std::vector<TabBar::TabLayout> TabBar::compute_tab_layouts(const Rect& bounds) c
         // Close button bounds (right side of tab)
         if (tab.can_close)
         {
-            layout.close_bounds = Rect{current_x + tab_width - CLOSE_BUTTON_SIZE - 4,
-                                       bounds.y + (TAB_HEIGHT - CLOSE_BUTTON_SIZE) * 0.5f,
-                                       CLOSE_BUTTON_SIZE,
-                                       CLOSE_BUTTON_SIZE};
+            layout.close_bounds =
+                Rect{current_x + tab_width - CLOSE_BUTTON_SIZE - TAB_PADDING * 0.55f,
+                     bounds.y + (TAB_HEIGHT - CLOSE_BUTTON_SIZE) * 0.5f,
+                     CLOSE_BUTTON_SIZE,
+                     CLOSE_BUTTON_SIZE};
         }
         else
         {

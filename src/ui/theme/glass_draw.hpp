@@ -12,9 +12,9 @@ namespace spectra::ui::glass_draw
 inline ImU32 color_u32(const Color& c)
 {
     return IM_COL32(static_cast<int>(c.r * 255.0f),
-                  static_cast<int>(c.g * 255.0f),
-                  static_cast<int>(c.b * 255.0f),
-                  static_cast<int>(c.a * 255.0f));
+                    static_cast<int>(c.g * 255.0f),
+                    static_cast<int>(c.b * 255.0f),
+                    static_cast<int>(c.a * 255.0f));
 }
 
 // Rich navy/violet ambience — visible through frosted chrome (fake glass, no blur).
@@ -27,8 +27,8 @@ inline void draw_ambient_gradient(ImDrawList* dl, ImVec2 p0, ImVec2 p1, float gl
                                 IM_COL32(32, 16, 52, 255),
                                 IM_COL32(38, 14, 48, 255),
                                 IM_COL32(12, 26, 54, 255));
-    const int cyan_a = static_cast<int>(42.0f + 70.0f * g);
-    const int mag_a  = static_cast<int>(38.0f + 62.0f * g);
+    const int cyan_a = static_cast<int>(28.0f + 48.0f * g);
+    const int mag_a  = static_cast<int>(26.0f + 42.0f * g);
     dl->AddRectFilledMultiColor(p0,
                                 ImVec2(p0.x + (p1.x - p0.x) * 0.35f, p1.y),
                                 IM_COL32(40, 170, 240, cyan_a),
@@ -68,14 +68,14 @@ inline void draw_window_edge_glow(ImDrawList* dl, ImVec2 p0, ImVec2 p1, float gl
 
 // Frosted glass panel: gradient base + translucent tint + layered highlights,
 // inner bottom shadow, and dual hairline border for real depth.
-inline void draw_glass_rect(ImDrawList*           dl,
-                            ImVec2                p0,
-                            ImVec2                p1,
-                            float                 rounding,
-                            const ThemeColors&    colors,
+inline void draw_glass_rect(ImDrawList*               dl,
+                            ImVec2                    p0,
+                            ImVec2                    p1,
+                            float                     rounding,
+                            const ThemeColors&        colors,
                             const ThemeGlassSettings& glass,
-                            GlassSurface          surface,
-                            float                 glow_strength)
+                            GlassSurface              surface,
+                            float                     glow_strength)
 {
     const float master = std::clamp(glass.master_intensity, 0.0f, 1.0f);
     const float alpha  = glass_surface_alpha_value(glass, surface);
@@ -117,7 +117,7 @@ inline void draw_glass_rect(ImDrawList*           dl,
                 std::max(0.0f, rounding - 1.0f),
                 0,
                 1.0f);
-    Color border = colors.accent.lerp(glass_palette::kAccentMagenta, 0.30f);
+    Color     border   = colors.accent.lerp(glass_palette::kAccentMagenta, 0.30f);
     const int border_a = static_cast<int>((52.0f + 90.0f * glow) * (0.40f + master * 0.60f));
     dl->AddRect(p0,
                 p1,
@@ -166,7 +166,9 @@ inline void draw_glass_card(ImDrawList*        dl,
     }
 
     Color frost = colors.bg_elevated.lerp(glass_palette::kAccentCyan, 0.05f);
-    dl->AddRectFilled(p0, p1, color_u32(frost.with_alpha(std::clamp(fill_alpha, 0.05f, 1.0f))),
+    dl->AddRectFilled(p0,
+                      p1,
+                      color_u32(frost.with_alpha(std::clamp(fill_alpha, 0.05f, 1.0f))),
                       rounding);
     dl->AddRectFilledMultiColor(p0,
                                 ImVec2(p1.x, p0.y + h * 0.5f),
@@ -193,11 +195,11 @@ inline void draw_app_shell_frame(ImDrawList* dl, ImVec2 p0, ImVec2 p1, float glo
     if (g <= 0.02f)
         return;   // No glow budget for non-glass themes.
 
-    // Outer luminous border (cyan→violet) with a faint halo.
+    // Outer luminous border (cyan→violet) with a faint halo — kept restrained.
     for (int i = 3; i >= 1; --i)
     {
         float e = static_cast<float>(i);
-        int   a = static_cast<int>((8.0f + 12.0f * g) * (4 - i) / 3.0f);
+        int   a = static_cast<int>((6.0f + 9.0f * g) * (4 - i) / 3.0f);
         dl->AddRect(ImVec2(p0.x - e, p0.y - e),
                     ImVec2(p1.x + e, p1.y + e),
                     IM_COL32(60, 170, 235, a),
@@ -205,24 +207,40 @@ inline void draw_app_shell_frame(ImDrawList* dl, ImVec2 p0, ImVec2 p1, float glo
                     0,
                     1.5f);
     }
-    dl->AddRect(p0, p1, IM_COL32(120, 190, 245, static_cast<int>(45.0f + 45.0f * g)),
-                radius, 0, 1.25f);
+    dl->AddRect(p0,
+                p1,
+                IM_COL32(120, 190, 245, static_cast<int>(34.0f + 38.0f * g)),
+                radius,
+                0,
+                1.25f);
 
     // Inner edge vignette — soft dark falloff hugging the window border only.
     const float band = 26.0f;
     int         va   = static_cast<int>(26.0f + 20.0f * g);
-    dl->AddRectFilledMultiColor(p0, ImVec2(p1.x, p0.y + band),
-                                IM_COL32(0, 0, 0, va), IM_COL32(0, 0, 0, va),
-                                IM_COL32(0, 0, 0, 0), IM_COL32(0, 0, 0, 0));
-    dl->AddRectFilledMultiColor(ImVec2(p0.x, p1.y - band), p1,
-                                IM_COL32(0, 0, 0, 0), IM_COL32(0, 0, 0, 0),
-                                IM_COL32(0, 0, 0, va), IM_COL32(0, 0, 0, va));
-    dl->AddRectFilledMultiColor(p0, ImVec2(p0.x + band, p1.y),
-                                IM_COL32(0, 0, 0, va), IM_COL32(0, 0, 0, 0),
-                                IM_COL32(0, 0, 0, 0), IM_COL32(0, 0, 0, va));
-    dl->AddRectFilledMultiColor(ImVec2(p1.x - band, p0.y), p1,
-                                IM_COL32(0, 0, 0, 0), IM_COL32(0, 0, 0, va),
-                                IM_COL32(0, 0, 0, va), IM_COL32(0, 0, 0, 0));
+    dl->AddRectFilledMultiColor(p0,
+                                ImVec2(p1.x, p0.y + band),
+                                IM_COL32(0, 0, 0, va),
+                                IM_COL32(0, 0, 0, va),
+                                IM_COL32(0, 0, 0, 0),
+                                IM_COL32(0, 0, 0, 0));
+    dl->AddRectFilledMultiColor(ImVec2(p0.x, p1.y - band),
+                                p1,
+                                IM_COL32(0, 0, 0, 0),
+                                IM_COL32(0, 0, 0, 0),
+                                IM_COL32(0, 0, 0, va),
+                                IM_COL32(0, 0, 0, va));
+    dl->AddRectFilledMultiColor(p0,
+                                ImVec2(p0.x + band, p1.y),
+                                IM_COL32(0, 0, 0, va),
+                                IM_COL32(0, 0, 0, 0),
+                                IM_COL32(0, 0, 0, 0),
+                                IM_COL32(0, 0, 0, va));
+    dl->AddRectFilledMultiColor(ImVec2(p1.x - band, p0.y),
+                                p1,
+                                IM_COL32(0, 0, 0, 0),
+                                IM_COL32(0, 0, 0, va),
+                                IM_COL32(0, 0, 0, va),
+                                IM_COL32(0, 0, 0, 0));
 }
 
 // Refined canvas frame — subtle gradient glow + crisp inner border.
@@ -270,26 +288,54 @@ inline void draw_vision_canvas_frame(ImDrawList*        dl,
     }
 
     // Primary border — crisp but quiet.
-    const int edge_a = static_cast<int>(55.0f + 55.0f * glow * master);
+    const int edge_a = static_cast<int>(68.0f + 50.0f * glow * master);
     dl->AddRect(p0,
                 p1,
                 color_u32(frame_col.with_alpha(static_cast<float>(edge_a) / 255.0f)),
                 rounding,
                 0,
-                1.0f);
+                1.25f);
 
     // Inner rim — gives the plot a recessed, intentional feel.
     dl->AddRect(ImVec2(p0.x + 1.5f, p0.y + 1.5f),
                 ImVec2(p1.x - 1.5f, p1.y - 1.5f),
-                color_u32(colors.border_subtle.with_alpha(0.35f + 0.25f * glow)),
+                color_u32(colors.border_subtle.with_alpha(0.42f + 0.22f * glow)),
                 std::max(0.0f, rounding - 1.5f),
                 0,
                 1.0f);
 
+    // Subtle inner shadow / vignette to integrate the canvas with the chrome.
+    const float vignette_band = std::min(28.0f, (p1.y - p0.y) * 0.12f);
+    const int   vignette_a    = static_cast<int>(22.0f + 18.0f * glow * master);
+    dl->AddRectFilledMultiColor(p0,
+                                ImVec2(p1.x, p0.y + vignette_band),
+                                IM_COL32(0, 0, 0, vignette_a),
+                                IM_COL32(0, 0, 0, vignette_a),
+                                IM_COL32(0, 0, 0, 0),
+                                IM_COL32(0, 0, 0, 0));
+    dl->AddRectFilledMultiColor(ImVec2(p0.x, p1.y - vignette_band),
+                                p1,
+                                IM_COL32(0, 0, 0, 0),
+                                IM_COL32(0, 0, 0, 0),
+                                IM_COL32(0, 0, 0, vignette_a),
+                                IM_COL32(0, 0, 0, vignette_a));
+    dl->AddRectFilledMultiColor(p0,
+                                ImVec2(p0.x + vignette_band, p1.y),
+                                IM_COL32(0, 0, 0, vignette_a),
+                                IM_COL32(0, 0, 0, 0),
+                                IM_COL32(0, 0, 0, 0),
+                                IM_COL32(0, 0, 0, vignette_a));
+    dl->AddRectFilledMultiColor(ImVec2(p1.x - vignette_band, p0.y),
+                                p1,
+                                IM_COL32(0, 0, 0, 0),
+                                IM_COL32(0, 0, 0, vignette_a),
+                                IM_COL32(0, 0, 0, vignette_a),
+                                IM_COL32(0, 0, 0, 0));
+
     // Top edge catch-light (subtle).
     dl->AddLine(ImVec2(p0.x + rounding * 0.5f, p0.y + 1.0f),
                 ImVec2(p1.x - rounding * 0.5f, p0.y + 1.0f),
-                color_u32(cyan_edge.with_alpha(0.18f + 0.16f * glow)),
+                color_u32(cyan_edge.with_alpha(0.22f + 0.18f * glow)),
                 1.0f);
 }
 

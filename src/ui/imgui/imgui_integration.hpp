@@ -505,7 +505,8 @@ class ImGuiIntegration
     void draw_toolbar_button(const char*                  icon,
                              const std::function<void()>& callback,
                              const char*                  tooltip,
-                             bool                         is_active = false);
+                             bool                         is_active  = false,
+                             float                        icon_scale = 1.0f);
     void draw_menubar_menu(const char* label, const std::vector<MenuItem>& items);
     // Legacy methods (to be removed after full migration)
     void draw_menubar();

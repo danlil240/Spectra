@@ -289,9 +289,9 @@ enum class GlassSurface
 
 struct Theme
 {
-    std::string name;
-    ThemeColors colors;
-    DataPalette data_palette;
+    std::string        name;
+    ThemeColors        colors;
+    DataPalette        data_palette;
     ThemeGlassSettings glass_defaults;
 
     // Visual properties
@@ -357,13 +357,12 @@ class ThemeManager
     // Glass / transparency (user-adjustable; persisted with default theme export)
     const ThemeGlassSettings& glass() const { return glass_settings_; }
     ThemeGlassSettings&       glass_mut() { return glass_settings_; }
-    void                      set_glass_settings(const ThemeGlassSettings& settings,
-                                                 bool                        apply = true);
-    void                      reset_glass_defaults();
-    float                     glass_surface_alpha(GlassSurface surface) const;
-    Color                     glass_resolved_surface(Color base, GlassSurface surface) const;
-    Color                     glass_resolved_plot_background() const;
-    float                     effective_glow_intensity() const;
+    void  set_glass_settings(const ThemeGlassSettings& settings, bool apply = true);
+    void  reset_glass_defaults();
+    float glass_surface_alpha(GlassSurface surface) const;
+    Color glass_resolved_surface(Color base, GlassSurface surface) const;
+    Color glass_resolved_plot_background() const;
+    float effective_glow_intensity() const;
 
     // Version counter — incremented on every theme color change.
     // Renderers can compare against their cached version to skip redundant uploads.
@@ -457,12 +456,12 @@ inline const DataPalette& data_palette()
 inline float icon_alpha(bool active, bool hovered, bool disabled)
 {
     if (disabled)
-        return 0.30f;
+        return 0.34f;
     if (active)
         return 1.0f;
     if (hovered)
-        return 0.90f;
-    return 0.68f;
+        return 0.92f;
+    return 0.82f;
 }
 
 // ─── Hover Transition Helper ────────────────────────────────────────────────
@@ -492,14 +491,14 @@ inline float shell_surface_alpha(float requested)
 
 inline float shell_text_alpha(float requested)
 {
-    return std::max(requested, 0.78f);
+    return std::max(requested, 0.86f);
 }
 
 // Common shell interaction-state colors derived from the current theme.
 inline Color control_surface_color(const ThemeColors& c, bool active, bool hovered, float t = 1.0f)
 {
     if (active)
-        return c.bg_tertiary.lerp(c.accent, 0.18f * t);
+        return c.bg_tertiary.lerp(c.accent, 0.12f * t);
     if (hovered)
         return c.bg_tertiary.lerp(c.accent, 0.08f * t);
     return c.bg_secondary.lerp(c.bg_tertiary, 0.55f * t);

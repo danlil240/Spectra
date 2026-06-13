@@ -155,8 +155,7 @@ void ThemeManager::set_glass_settings(const ThemeGlassSettings& settings, bool a
         ++theme_version_;
         apply_to_imgui();
         if (event_system_)
-            event_system_->theme_changed().emit(
-                spectra::ThemeChangedEvent{current_theme_name_});
+            event_system_->theme_changed().emit(spectra::ThemeChangedEvent{current_theme_name_});
     }
 }
 
@@ -178,7 +177,9 @@ Color ThemeManager::glass_resolved_surface(Color base, GlassSurface surface) con
 Color ThemeManager::glass_resolved_plot_background() const
 {
     const auto& c = colors();
-    return ::spectra::ui::glass_resolved_plot_background(c.bg_canvas, c.bg_primary, glass_settings_);
+    return ::spectra::ui::glass_resolved_plot_background(c.bg_canvas,
+                                                         c.bg_primary,
+                                                         glass_settings_);
 }
 
 float ThemeManager::effective_glow_intensity() const
@@ -394,7 +395,7 @@ void ThemeManager::apply_to_imgui()
     current_theme_->opacity_panel = std::max(panel_resolved.a, 0.5f);
 
     // Window and background
-    imgui_colors[ImGuiCol_WindowBg] = lin(panel_resolved);
+    imgui_colors[ImGuiCol_WindowBg]     = lin(panel_resolved);
     imgui_colors[ImGuiCol_ChildBg]      = ImVec4(0, 0, 0, 0);   // Transparent — inherits parent
     imgui_colors[ImGuiCol_PopupBg]      = lin(colors.tooltip_bg);
     imgui_colors[ImGuiCol_Border]       = lin(colors.border_default);
@@ -961,7 +962,7 @@ bool ThemeManager::import_theme(const std::string& path)
     size_t glass_pos = json.find("\"glass\"");
     if (glass_pos != std::string::npos)
     {
-        ThemeGlassSettings g = glass_settings_;
+        ThemeGlassSettings g                 = glass_settings_;
         auto               parse_glass_float = [&](const char* key, float& out)
         {
             std::string needle = std::string("\"") + key + "\"";
@@ -1027,7 +1028,7 @@ void ThemeManager::load_default()
         {
             std::ifstream lf(default_theme_path_);
             std::string   json((std::istreambuf_iterator<char>(lf)),
-                               std::istreambuf_iterator<char>());
+                             std::istreambuf_iterator<char>());
             size_t        np = json.find("\"name\"");
             if (np != std::string::npos)
             {
@@ -1054,11 +1055,10 @@ void ThemeManager::initialize_default_themes()
         .bg_overlay   = Color(0.0f, 0.0f, 0.0f, 0.50f),
 
         // Text — warm gray hierarchy
-        .text_primary = Color::from_hex(0xDCDCDC),
-        .text_secondary =
-            Color::from_hex(0xA0A0A0),   // WCAG AA: ≥4.5:1 on bg_secondary/bg_tertiary
-        .text_tertiary = Color::from_hex(0x5A5A5A),
-        .text_inverse  = Color::from_hex(0x181818),
+        .text_primary   = Color::from_hex(0xE8E8E8),
+        .text_secondary = Color::from_hex(0xB8B8B8),   // brighter labels on dark surfaces
+        .text_tertiary  = Color::from_hex(0x6A6A6A),
+        .text_inverse   = Color::from_hex(0x181818),
 
         // Borders — pure neutral gray (zero blue)
         .border_default = Color(0.30f, 0.30f, 0.30f, 0.65f),   // ~#4D4D4D @ 65%
@@ -1078,11 +1078,11 @@ void ThemeManager::initialize_default_themes()
         .info    = Color::from_hex(0xA0A0A0),
 
         // Plot-specific — grid recedes, data is hero
-        .grid_major       = Color(1.0f, 1.0f, 1.0f, 0.18f),
-        .grid_minor       = Color(1.0f, 1.0f, 1.0f, 0.08f),
-        .grid_line        = Color(1.0f, 1.0f, 1.0f, 0.18f),   // Compat
-        .axis_line        = Color(0.55f, 0.55f, 0.55f, 0.50f),
-        .tick_label       = Color::from_hex(0xA0A0A0),   // Neutral gray (no blue tint)
+        .grid_major       = Color(1.0f, 1.0f, 1.0f, 0.14f),
+        .grid_minor       = Color(1.0f, 1.0f, 1.0f, 0.05f),
+        .grid_line        = Color(1.0f, 1.0f, 1.0f, 0.14f),   // Compat
+        .axis_line        = Color(0.60f, 0.60f, 0.60f, 0.55f),
+        .tick_label       = Color::from_hex(0xB8B8B8),   // brighter tick labels
         .crosshair        = Color(0.88f, 0.88f, 0.88f, 0.70f),
         .selection_fill   = Color(0.88f, 0.88f, 0.88f, 0.15f),
         .selection_border = Color::from_hex(0xE0E0E0),
@@ -1108,56 +1108,55 @@ void ThemeManager::initialize_default_themes()
 
     // Night Glass — premium dark glassmorphism (Vision.png target)
     Theme night;
-    night.name   = "night";
-    night.colors = {
-        .bg_canvas    = Color::from_hex(0x132032),
-        .bg_primary   = Color::from_hex(0x07090D),
-        .bg_secondary = Color::from_hex(0x141A22),
-        .bg_tertiary  = Color::from_hex(0x1D2530),
-        .bg_elevated  = Color::from_hex(0x243041),
-        .bg_overlay   = Color(0.01f, 0.02f, 0.05f, 0.62f),
+    night.name             = "night";
+    night.colors           = {.bg_canvas    = Color::from_hex(0x132032),
+                              .bg_primary   = Color::from_hex(0x07090D),
+                              .bg_secondary = Color::from_hex(0x141A22),
+                              .bg_tertiary  = Color::from_hex(0x1D2530),
+                              .bg_elevated  = Color::from_hex(0x243041),
+                              .bg_overlay   = Color(0.01f, 0.02f, 0.05f, 0.62f),
 
-        .text_primary   = glass_palette::kTextPrimary,
-        .text_secondary = glass_palette::kTextSecondary,
-        .text_tertiary  = glass_palette::kTextMuted,
-        .text_inverse   = Color::from_hex(0x050810),
+                              .text_primary   = glass_palette::kTextPrimary,
+                              .text_secondary = glass_palette::kTextSecondary,
+                              .text_tertiary  = glass_palette::kTextMuted,
+                              .text_inverse   = Color::from_hex(0x050810),
 
-        .border_default = glass_palette::kBorderSubtle,
-        .border_subtle  = Color(0.18f, 0.24f, 0.34f, 0.38f),
-        .border_strong  = glass_palette::kBorderActive,
+                              .border_default = glass_palette::kBorderSubtle,
+                              .border_subtle  = Color(0.18f, 0.24f, 0.34f, 0.38f),
+                              .border_strong  = glass_palette::kBorderActive,
 
-        .accent        = Color(0.35f, 0.88f, 1.0f),
-        .accent_hover  = Color(0.55f, 0.92f, 1.0f),
-        .accent_muted  = Color(0.35f, 0.88f, 1.0f, 0.28f),
-        .accent_subtle = Color(0.75f, 0.40f, 0.95f, 0.14f),
+                              .accent        = Color(0.35f, 0.88f, 1.0f),
+                              .accent_hover  = Color(0.55f, 0.92f, 1.0f),
+                              .accent_muted  = Color(0.35f, 0.88f, 1.0f, 0.28f),
+                              .accent_subtle = Color(0.75f, 0.40f, 0.95f, 0.14f),
 
-        .success = glass_palette::kSuccessGreen,
-        .warning = glass_palette::kWarningAmber,
-        .error   = Color::from_hex(0xF85149),
-        .info    = glass_palette::kAccentBlue,
+                              .success = glass_palette::kSuccessGreen,
+                              .warning = glass_palette::kWarningAmber,
+                              .error   = Color::from_hex(0xF85149),
+                              .info    = glass_palette::kAccentBlue,
 
-        .grid_major = Color(0.55f, 0.72f, 0.92f, glass_tokens::grid_major_alpha),
-        .grid_minor = Color(0.55f, 0.72f, 0.92f, glass_tokens::grid_minor_alpha),
-        .grid_line  = Color(0.55f, 0.72f, 0.92f, glass_tokens::grid_major_alpha),
-        .axis_line  = Color(0.48f, 0.58f, 0.72f, 0.38f),
-        .tick_label = glass_palette::kTextMuted,
-        .crosshair  = Color(0.24f, 0.84f, 0.96f, 0.58f),
-        .selection_fill   = Color(0.58f, 0.45f, 0.96f, 0.14f),
-        .selection_border = glass_palette::kAccentViolet,
-        .tooltip_bg       = glass_palette::kSurfacePopup.with_alpha(0.94f),
-        .tooltip_border   = glass_palette::kBorderGlow.with_alpha(0.42f),
+                              .grid_major       = Color(0.55f, 0.72f, 0.92f, glass_tokens::grid_major_alpha),
+                              .grid_minor       = Color(0.55f, 0.72f, 0.92f, glass_tokens::grid_minor_alpha),
+                              .grid_line        = Color(0.55f, 0.72f, 0.92f, glass_tokens::grid_major_alpha),
+                              .axis_line        = Color(0.48f, 0.58f, 0.72f, 0.38f),
+                              .tick_label       = glass_palette::kTextMuted,
+                              .crosshair        = Color(0.24f, 0.84f, 0.96f, 0.58f),
+                              .selection_fill   = Color(0.58f, 0.45f, 0.96f, 0.14f),
+                              .selection_border = glass_palette::kAccentViolet,
+                              .tooltip_bg       = glass_palette::kSurfacePopup.with_alpha(0.94f),
+                              .tooltip_border   = glass_palette::kBorderGlow.with_alpha(0.42f),
 
-        .accent_glow    = Color(0.55f, 0.82f, 1.0f, 0.45f),
-        .glow_intensity = 0.55f,
-        .focus_ring     = glass_palette::kAccentCyan,
-        .scrollbar_thumb = Color(0.45f, 0.62f, 0.82f, 0.30f),
-        .scrollbar_track = Color(0.0f, 0.0f, 0.0f, 0.0f),
-        .section_header_bg = Color(0.24f, 0.84f, 0.96f, 0.06f),
-        .input_bg          = glass_palette::kSurfaceControl,
-        .hover_highlight   = Color(0.24f, 0.84f, 0.96f, 0.12f),
-        .annotation_bg     = glass_palette::kSurfacePopup.with_alpha(0.90f),
-        .roi_fill          = Color(0.92f, 0.36f, 0.78f, 0.12f),
-        .roi_border        = glass_palette::kAccentMagenta.with_alpha(0.45f)};
+                              .accent_glow       = Color(0.55f, 0.82f, 1.0f, 0.45f),
+                              .glow_intensity    = 0.55f,
+                              .focus_ring        = glass_palette::kAccentCyan,
+                              .scrollbar_thumb   = Color(0.45f, 0.62f, 0.82f, 0.30f),
+                              .scrollbar_track   = Color(0.0f, 0.0f, 0.0f, 0.0f),
+                              .section_header_bg = Color(0.24f, 0.84f, 0.96f, 0.06f),
+                              .input_bg          = glass_palette::kSurfaceControl,
+                              .hover_highlight   = Color(0.24f, 0.84f, 0.96f, 0.12f),
+                              .annotation_bg     = glass_palette::kSurfacePopup.with_alpha(0.90f),
+                              .roi_fill          = Color(0.92f, 0.36f, 0.78f, 0.12f),
+                              .roi_border        = glass_palette::kAccentMagenta.with_alpha(0.45f)};
     night.shadow_intensity = 1.0f;
     night.use_blur         = false;
     night.glass_defaults   = ThemeGlassSettings::night_defaults();
@@ -1176,9 +1175,9 @@ void ThemeManager::initialize_default_themes()
         .bg_overlay   = Color(0.0f, 0.0f, 0.0f, 0.30f),
 
         // Text — dark for readability against gray
-        .text_primary   = Color::from_hex(0x1A1A1A),   // Near-black
-        .text_secondary = Color::from_hex(0x505050),   // Medium gray labels
-        .text_tertiary  = Color::from_hex(0x808080),   // Placeholders
+        .text_primary   = Color::from_hex(0x151515),   // Near-black
+        .text_secondary = Color::from_hex(0x404040),   // Medium gray labels
+        .text_tertiary  = Color::from_hex(0x757575),   // Placeholders
         .text_inverse   = Color::from_hex(0xFFFFFF),
 
         // Borders — soft blue-gray
@@ -1199,11 +1198,11 @@ void ThemeManager::initialize_default_themes()
         .info    = Color::from_hex(0x0969DA),
 
         // Plot-specific — clean academic gridlines
-        .grid_major       = Color(0.0f, 0.0f, 0.0f, 0.28f),
-        .grid_minor       = Color(0.0f, 0.0f, 0.0f, 0.14f),
-        .grid_line        = Color(0.0f, 0.0f, 0.0f, 0.28f),
+        .grid_major       = Color(0.0f, 0.0f, 0.0f, 0.24f),
+        .grid_minor       = Color(0.0f, 0.0f, 0.0f, 0.10f),
+        .grid_line        = Color(0.0f, 0.0f, 0.0f, 0.24f),
         .axis_line        = Color(0.15f, 0.15f, 0.15f, 0.80f),
-        .tick_label       = Color::from_hex(0x303030),
+        .tick_label       = Color::from_hex(0x202020),
         .crosshair        = Color(0.04f, 0.41f, 0.85f, 0.70f),
         .selection_fill   = Color(0.04f, 0.41f, 0.85f, 0.12f),
         .selection_border = Color::from_hex(0x0969DA),
@@ -1229,63 +1228,63 @@ void ThemeManager::initialize_default_themes()
 
     // High contrast theme
     Theme high_contrast;
-    high_contrast.name   = "high_contrast";
-    high_contrast.colors = {// Surfaces
-                            .bg_canvas    = Color::from_hex(0x000000),
-                            .bg_primary   = Color::from_hex(0x000000),
-                            .bg_secondary = Color::from_hex(0x1C1C1C),
-                            .bg_tertiary  = Color::from_hex(0x2D2D2D),
-                            .bg_elevated  = Color::from_hex(0x3D3D3D),
-                            .bg_overlay   = Color::from_hex(0xCC000000),
+    high_contrast.name                            = "high_contrast";
+    high_contrast.colors                          = {// Surfaces
+                                                     .bg_canvas    = Color::from_hex(0x000000),
+                                                     .bg_primary   = Color::from_hex(0x000000),
+                                                     .bg_secondary = Color::from_hex(0x1C1C1C),
+                                                     .bg_tertiary  = Color::from_hex(0x2D2D2D),
+                                                     .bg_elevated  = Color::from_hex(0x3D3D3D),
+                                                     .bg_overlay   = Color::from_hex(0xCC000000),
 
                             // Text
-                            .text_primary   = Color::from_hex(0xFFFFFF),
-                            .text_secondary = Color::from_hex(0xE0E0E0),
-                            .text_tertiary  = Color::from_hex(0xB0B0B0),
-                            .text_inverse   = Color::from_hex(0x000000),
+                                                     .text_primary   = Color::from_hex(0xFFFFFF),
+                                                     .text_secondary = Color::from_hex(0xE0E0E0),
+                                                     .text_tertiary  = Color::from_hex(0xB0B0B0),
+                                                     .text_inverse   = Color::from_hex(0x000000),
 
                             // Borders
-                            .border_default = Color::from_hex(0xFFFFFF),
-                            .border_subtle  = Color::from_hex(0xCCCCCC),
-                            .border_strong  = Color::from_hex(0xFFFFFF),
+                                                     .border_default = Color::from_hex(0xFFFFFF),
+                                                     .border_subtle  = Color::from_hex(0xCCCCCC),
+                                                     .border_strong  = Color::from_hex(0xFFFFFF),
 
                             // Interactive
-                            .accent        = Color::from_hex(0xFFD700),
-                            .accent_hover  = Color::from_hex(0xFFED4E),
-                            .accent_muted  = Color::from_hex(0x4DFFD700),
-                            .accent_subtle = Color::from_hex(0x1AFFD700),
+                                                     .accent        = Color::from_hex(0xFFD700),
+                                                     .accent_hover  = Color::from_hex(0xFFED4E),
+                                                     .accent_muted  = Color::from_hex(0x4DFFD700),
+                                                     .accent_subtle = Color::from_hex(0x1AFFD700),
 
                             // Semantic
-                            .success = Color::from_hex(0x00FF00),
-                            .warning = Color::from_hex(0xFFFF00),
-                            .error   = Color::from_hex(0xFF0000),
-                            .info    = Color::from_hex(0xFFD700),
+                                                     .success = Color::from_hex(0x00FF00),
+                                                     .warning = Color::from_hex(0xFFFF00),
+                                                     .error   = Color::from_hex(0xFF0000),
+                                                     .info    = Color::from_hex(0xFFD700),
 
                             // Plot-specific
-                            .grid_major       = Color::from_hex(0x666666),
-                            .grid_minor       = Color::from_hex(0x444444),
-                            .grid_line        = Color::from_hex(0x666666),
-                            .axis_line        = Color::from_hex(0xFFFFFF),
-                            .tick_label       = Color::from_hex(0xFFFFFF),
-                            .crosshair        = Color::from_hex(0xCCFFD700),
-                            .selection_fill   = Color::from_hex(0x4DFFD700),
-                            .selection_border = Color::from_hex(0xFFD700),
-                            .tooltip_bg       = Color::from_hex(0x1C1C1C),
-                            .tooltip_border   = Color::from_hex(0xFFFFFF),
+                                                     .grid_major       = Color::from_hex(0x666666),
+                                                     .grid_minor       = Color::from_hex(0x444444),
+                                                     .grid_line        = Color::from_hex(0x666666),
+                                                     .axis_line        = Color::from_hex(0xFFFFFF),
+                                                     .tick_label       = Color::from_hex(0xFFFFFF),
+                                                     .crosshair        = Color::from_hex(0xCCFFD700),
+                                                     .selection_fill   = Color::from_hex(0x4DFFD700),
+                                                     .selection_border = Color::from_hex(0xFFD700),
+                                                     .tooltip_bg       = Color::from_hex(0x1C1C1C),
+                                                     .tooltip_border   = Color::from_hex(0xFFFFFF),
 
                             // Visual effects
-                            .accent_glow       = Color(0.0f, 0.0f, 0.0f, 0.0f),
-                            .glow_intensity    = 0.0f,
-                            .focus_ring        = Color::from_hex(0xFFD700),
-                            .scrollbar_thumb   = Color(1.0f, 1.0f, 1.0f, 0.50f),
-                            .scrollbar_track   = Color(0.0f, 0.0f, 0.0f, 0.0f),
-                            .section_header_bg = Color(1.0f, 1.0f, 1.0f, 0.08f),
-                            .input_bg          = Color::from_hex(0x2D2D2D),
-                            .hover_highlight   = Color(1.0f, 0.84f, 0.0f, 0.30f),
-                            .annotation_bg     = Color(0.11f, 0.11f, 0.11f, 0.90f),
-                            .roi_fill          = Color(1.0f, 0.84f, 0.0f, 0.15f),
-                            .roi_border        = Color(1.0f, 0.84f, 0.0f, 0.60f)};
-    high_contrast.glass_defaults   = ThemeGlassSettings::dark_defaults();
+                                                     .accent_glow       = Color(0.0f, 0.0f, 0.0f, 0.0f),
+                                                     .glow_intensity    = 0.0f,
+                                                     .focus_ring        = Color::from_hex(0xFFD700),
+                                                     .scrollbar_thumb   = Color(1.0f, 1.0f, 1.0f, 0.50f),
+                                                     .scrollbar_track   = Color(0.0f, 0.0f, 0.0f, 0.0f),
+                                                     .section_header_bg = Color(1.0f, 1.0f, 1.0f, 0.08f),
+                                                     .input_bg          = Color::from_hex(0x2D2D2D),
+                                                     .hover_highlight   = Color(1.0f, 0.84f, 0.0f, 0.30f),
+                                                     .annotation_bg     = Color(0.11f, 0.11f, 0.11f, 0.90f),
+                                                     .roi_fill          = Color(1.0f, 0.84f, 0.0f, 0.15f),
+                                                     .roi_border        = Color(1.0f, 0.84f, 0.0f, 0.60f)};
+    high_contrast.glass_defaults                  = ThemeGlassSettings::dark_defaults();
     high_contrast.glass_defaults.master_intensity = 0.0f;
     register_theme("high_contrast", high_contrast);
 }

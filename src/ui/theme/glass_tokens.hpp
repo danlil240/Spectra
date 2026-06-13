@@ -54,6 +54,12 @@ constexpr float active_item_glow_alpha = 0.22f;
 
 constexpr float MIN_PLOT_READABILITY_ALPHA = 0.72f;
 constexpr float MIN_TEXT_CONTRAST_ALPHA    = 0.92f;
+
+// Shell-surface alpha floors. Panels, toolbars, and headers may be translucent
+// but must never drop so low that text becomes unreadable or the UI loses structure.
+constexpr float MIN_PANEL_SURFACE_ALPHA   = 0.58f;
+constexpr float MIN_TOOLBAR_SURFACE_ALPHA = 0.52f;
+constexpr float MIN_HEADER_SURFACE_ALPHA  = 0.62f;
 }   // namespace glass_tokens
 
 inline float glass_effective_alpha(float master, float target_alpha)
@@ -91,9 +97,18 @@ inline float glass_surface_alpha_value(const ThemeGlassSettings& glass, GlassSur
     constexpr float k_opaque = 0.92f;
     const float     master   = std::clamp(glass.master_intensity, 0.0f, 1.0f);
     float           effective = k_opaque + (target - k_opaque) * master;
+
     if (surface == GlassSurface::Plot)
     {
         effective = std::max(effective, glass_tokens::MIN_PLOT_READABILITY_ALPHA);
+    }
+    else if (surface == GlassSurface::Toolbar)
+    {
+        effective = std::max(effective, glass_tokens::MIN_TOOLBAR_SURFACE_ALPHA);
+    }
+    else if (surface == GlassSurface::Panel)
+    {
+        effective = std::max(effective, glass_tokens::MIN_PANEL_SURFACE_ALPHA);
     }
     return effective;
 }

@@ -35,12 +35,12 @@ static bool icon_label_button(const char* icon_codepoint,
     scale = std::max(scale,
                      LayoutManager::NAV_RAIL_CELL_HEIGHT_MIN / LayoutManager::NAV_RAIL_CELL_HEIGHT);
 
-    // Vision.png metrics: tall cells, icon above label, centered
+    // Rail metrics: icon above label, centered, with consistent spacing tokens.
     float icon_sz  = (icon_font ? icon_font->LegacySize : 20.0f) * scale;
     float label_sz = (label_font ? (label_font->LegacySize * 0.92f) : 11.0f) * scale;
-    float icon_gap = 3.0f * scale;
+    float icon_gap = ui::tokens::SPACE_1 * 0.75f * scale;
     float cell_h   = LayoutManager::NAV_RAIL_CELL_HEIGHT * scale;
-    float pill_pad = 7.0f * scale;
+    float pill_pad = ui::tokens::SPACE_2 * scale;
     float pill_w   = width - pill_pad * 2.0f;
 
     ImVec2 cursor = ImGui::GetCursorScreenPos();
@@ -64,13 +64,14 @@ static bool icon_label_button(const char* icon_codepoint,
 
     float  motion_t = std::max(hover_t, active_t);
     float  lift     = active_t * 1.5f + hover_t * 0.75f;
-    ImVec2 pill_min = ImVec2(cursor.x + pill_pad, cursor.y + 3.0f - lift);
-    ImVec2 pill_max = ImVec2(cursor.x + pill_pad + pill_w, cursor.y + cell_h - 3.0f - lift);
+    ImVec2 pill_min = ImVec2(cursor.x + pill_pad, cursor.y + 3.0f * scale - lift);
+    ImVec2 pill_max = ImVec2(cursor.x + pill_pad + pill_w,
+                             cursor.y + cell_h - 3.0f * scale - lift);
 
-    if (motion_t > 0.01f)
+    if (motion_t > 0.01f || active)
     {
         // Layered outer glow — clearly stronger on the active tool.
-        ui::Color glow_color = glass_palette::kAccentCyan.lerp(colors.accent_glow, 0.4f);
+        ui::Color glow_color = ui::control_glow_color(colors).lerp(glass_palette::kAccentCyan, 0.3f);
         for (int gi = 2; gi >= 1; --gi)
         {
             float e = static_cast<float>(gi);
@@ -81,57 +82,50 @@ static bool icon_label_button(const char* icon_codepoint,
                     ImVec4(glow_color.r,
                            glow_color.g,
                            glow_color.b,
-                           (0.05f + hover_t * 0.04f + active_t * 0.16f) / e * glow_scale)),
+                           (0.05f + hover_t * 0.04f + active_t * 0.18f) / e * glow_scale)),
                 tokens::RADIUS_MD + e,
                 0,
                 2.0f);
         }
 
-        ui::Color pill_fill = colors.bg_secondary.lerp(colors.bg_tertiary, 0.62f)
-                                  .lerp(colors.accent, 0.05f + active_t * 0.24f + hover_t * 0.08f);
-        float pill_a = tm.glass_surface_alpha(ui::GlassSurface::Toolbar);
-        pill_a = std::clamp(pill_a * (0.70f + active_t * 0.28f + hover_t * 0.08f), 0.15f, 1.0f);
+        ui::Color pill_fill = ui::control_surface_color(colors, active, hovered);
+        float     pill_a    = tm.glass_surface_alpha(ui::GlassSurface::Toolbar);
+        pill_a = std::clamp(pill_a * (0.72f + active_t * 0.26f + hover_t * 0.08f), 0.20f, 1.0f);
         dl->AddRectFilled(
             pill_min,
             pill_max,
             ImGui::ColorConvertFloat4ToU32(ImVec4(pill_fill.r, pill_fill.g, pill_fill.b, pill_a)),
             tokens::RADIUS_MD);
+
         // Top inner highlight on the pill.
-        dl->AddLine(ImVec2(pill_min.x + 4.0f, pill_min.y + 1.0f),
-                    ImVec2(pill_max.x - 4.0f, pill_min.y + 1.0f),
-                    IM_COL32(225, 244, 255, static_cast<int>(40.0f + 30.0f * active_t)),
+        dl->AddLine(ImVec2(pill_min.x + 4.0f * scale, pill_min.y + 1.0f),
+                    ImVec2(pill_max.x - 4.0f * scale, pill_min.y + 1.0f),
+                    IM_COL32(225, 244, 255, static_cast<int>(36.0f + 28.0f * active_t)),
                     1.0f);
-        dl->AddRect(
-            pill_min,
-            pill_max,
-            ImGui::ColorConvertFloat4ToU32(ImVec4(
-                colors.border_subtle.r * (1.0f - active_t) + colors.accent.r * active_t,
-                colors.border_subtle.g * (1.0f - active_t) + colors.accent.g * active_t,
-                colors.border_subtle.b * (1.0f - active_t) + colors.accent.b * active_t,
-                0.26f + hover_t * 0.16f + active_t * 0.40f)),
-            tokens::RADIUS_MD);
+
+        ui::Color border = ui::control_border_color(colors, active, hovered);
+        dl->AddRect(pill_min,
+                    pill_max,
+                    ImGui::ColorConvertFloat4ToU32(
+                        ImVec4(border.r, border.g, border.b,
+                               0.28f + hover_t * 0.16f + active_t * 0.44f)),
+                    tokens::RADIUS_MD);
     }
 
     // Single active state = the glowing pill above. No separate left accent bar
     // (avoids multiple cyan indicators that make several tools look active).
 
-    ui::Color icon_color = colors.text_secondary.lerp(colors.text_primary, hover_t * 0.78f)
-                               .lerp(colors.accent_hover, active_t * 0.88f);
-    ui::Color text_color = colors.text_secondary.lerp(colors.text_primary, hover_t * 0.60f)
-                               .lerp(colors.accent_hover, active_t * 0.80f);
-    ImU32     icon_col =
-        ImGui::ColorConvertFloat4ToU32(ImVec4(icon_color.r,
-                                              icon_color.g,
-                                              icon_color.b,
-                                              0.90f + hover_t * 0.08f + active_t * 0.10f));
-    ImU32 text_col =
-        ImGui::ColorConvertFloat4ToU32(ImVec4(text_color.r,
-                                              text_color.g,
-                                              text_color.b,
-                                              0.82f + hover_t * 0.10f + active_t * 0.08f));
+    ui::Color icon_color = ui::control_text_color(colors, active, hovered);
+    ui::Color text_color = active ? colors.accent_hover
+                                  : colors.text_secondary.lerp(colors.text_primary, hover_t * 0.65f);
+    float icon_alpha_v  = ui::icon_alpha(active, hovered, false);
+    float text_alpha_v  = ui::shell_text_alpha(active ? 1.0f : (0.78f + hover_t * 0.14f));
+    ImU32 icon_col =
+        ImGui::ColorConvertFloat4ToU32(ImVec4(icon_color.r, icon_color.g, icon_color.b, icon_alpha_v));
+    ImU32 text_col = ImGui::ColorConvertFloat4ToU32(ImVec4(text_color.r, text_color.g, text_color.b, text_alpha_v));
 
-    float icon_draw_sz  = icon_sz * (1.0f + hover_t * 0.04f + active_t * 0.05f);
-    float label_draw_sz = label_sz * (1.0f + hover_t * 0.02f + active_t * 0.03f);
+    float icon_draw_sz  = icon_sz * (1.0f + hover_t * 0.03f + active_t * 0.04f);
+    float label_draw_sz = label_sz * (1.0f + hover_t * 0.015f + active_t * 0.02f);
     float content_h     = icon_draw_sz + icon_gap + label_draw_sz;
     float y_start       = std::floor(cursor.y + (cell_h - content_h) * 0.5f - lift * 0.35f);
 
@@ -1313,7 +1307,7 @@ void ImGuiIntegration::draw_nav_rail()
     float rail_w = bounds.w;
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, ui::tokens::SPACE_3));
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ui::tokens::RADIUS_MD);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowMinSize, ImVec2(0, 0));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
@@ -1324,7 +1318,7 @@ void ImGuiIntegration::draw_nav_rail()
 
     if (ImGui::Begin("##navrail", nullptr, flags))
     {
-        // Floating surface depth: soft shadow on right edge
+        // Rail container: subtle right-edge shadow + hairline separator.
         {
             ImDrawList* dl            = ImGui::GetWindowDrawList();
             float       right_edge    = bounds.x + rail_w;
@@ -1332,7 +1326,7 @@ void ImGuiIntegration::draw_nav_rail()
             for (int i = 0; i < 4; ++i)
             {
                 float t     = static_cast<float>(i) / 4.0f;
-                float alpha = 0.10f * (1.0f - t);
+                float alpha = 0.09f * (1.0f - t);
                 float off   = shadow_spread * t;
                 dl->AddRectFilled(ImVec2(right_edge, bounds.y),
                                   ImVec2(right_edge + off + 1.0f, bounds.y + bounds.h),
@@ -1345,7 +1339,7 @@ void ImGuiIntegration::draw_nav_rail()
                         ImGui::ColorConvertFloat4ToU32(ImVec4(theme_colors().border_subtle.r,
                                                               theme_colors().border_subtle.g,
                                                               theme_colors().border_subtle.b,
-                                                              0.48f)),
+                                                              0.52f)),
                         1.0f);
         }
 
@@ -1353,11 +1347,11 @@ void ImGuiIntegration::draw_nav_rail()
         float   btn_w      = rail_w;
         float   btn_scale  = LayoutManager::nav_rail_scale_for_height(bounds.h);
 
-        // Separator: very subtle hairline, Vision.png style
+        // Separator: subtle hairline with spacing tokens.
         auto draw_separator = [&]()
         {
-            ImGui::Dummy(ImVec2(0, 3.0f * btn_scale));
-            float  sep_inset = 14.0f;
+            ImGui::Dummy(ImVec2(0, ui::tokens::SPACE_2 * btn_scale));
+            float  sep_inset = ui::tokens::SPACE_4 * btn_scale;
             ImVec2 p0        = ImVec2(ImGui::GetWindowPos().x + sep_inset,
                                       std::floor(ImGui::GetCursorScreenPos().y));
             ImVec2 p1        = ImVec2(ImGui::GetWindowPos().x + rail_w - sep_inset, p0.y);
@@ -1366,9 +1360,9 @@ void ImGuiIntegration::draw_nav_rail()
                                                 IM_COL32(theme_colors().border_subtle.r * 255,
                                                          theme_colors().border_subtle.g * 255,
                                                          theme_colors().border_subtle.b * 255,
-                                                         25),
+                                                         32),
                                                 1.0f);
-            ImGui::Dummy(ImVec2(0, 3.0f * btn_scale));
+            ImGui::Dummy(ImVec2(0, ui::tokens::SPACE_2 * btn_scale));
         };
 
         // ── Tool mode helper ──

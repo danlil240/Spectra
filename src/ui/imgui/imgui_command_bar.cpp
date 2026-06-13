@@ -32,7 +32,7 @@ static bool icon_label_button(const char* icon_codepoint,
     const auto& colors     = theme();
     auto&       tm         = ui::ThemeManager::instance();
     const float glow_scale = tm.effective_glow_intensity();
-    scale = std::max(scale,
+    scale                  = std::max(scale,
                      LayoutManager::NAV_RAIL_CELL_HEIGHT_MIN / LayoutManager::NAV_RAIL_CELL_HEIGHT);
 
     // Rail metrics: icon above label, centered, with consistent spacing tokens.
@@ -65,27 +65,26 @@ static bool icon_label_button(const char* icon_codepoint,
     float  motion_t = std::max(hover_t, active_t);
     float  lift     = active_t * 1.5f + hover_t * 0.75f;
     ImVec2 pill_min = ImVec2(cursor.x + pill_pad, cursor.y + 3.0f * scale - lift);
-    ImVec2 pill_max = ImVec2(cursor.x + pill_pad + pill_w,
-                             cursor.y + cell_h - 3.0f * scale - lift);
+    ImVec2 pill_max = ImVec2(cursor.x + pill_pad + pill_w, cursor.y + cell_h - 3.0f * scale - lift);
 
     if (motion_t > 0.01f || active)
     {
         // Layered outer glow — clearly stronger on the active tool.
-        ui::Color glow_color = ui::control_glow_color(colors).lerp(glass_palette::kAccentCyan, 0.3f);
+        ui::Color glow_color =
+            ui::control_glow_color(colors).lerp(glass_palette::kAccentCyan, 0.3f);
         for (int gi = 2; gi >= 1; --gi)
         {
             float e = static_cast<float>(gi);
-            dl->AddRect(
-                ImVec2(pill_min.x - e, pill_min.y - e),
-                ImVec2(pill_max.x + e, pill_max.y + e),
-                ImGui::ColorConvertFloat4ToU32(
-                    ImVec4(glow_color.r,
-                           glow_color.g,
-                           glow_color.b,
-                           (0.05f + hover_t * 0.04f + active_t * 0.18f) / e * glow_scale)),
-                tokens::RADIUS_MD + e,
-                0,
-                2.0f);
+            dl->AddRect(ImVec2(pill_min.x - e, pill_min.y - e),
+                        ImVec2(pill_max.x + e, pill_max.y + e),
+                        ImGui::ColorConvertFloat4ToU32(
+                            ImVec4(glow_color.r,
+                                   glow_color.g,
+                                   glow_color.b,
+                                   (0.05f + hover_t * 0.04f + active_t * 0.18f) / e * glow_scale)),
+                        tokens::RADIUS_MD + e,
+                        0,
+                        2.0f);
         }
 
         ui::Color pill_fill = ui::control_surface_color(colors, active, hovered);
@@ -104,25 +103,27 @@ static bool icon_label_button(const char* icon_codepoint,
                     1.0f);
 
         ui::Color border = ui::control_border_color(colors, active, hovered);
-        dl->AddRect(pill_min,
-                    pill_max,
-                    ImGui::ColorConvertFloat4ToU32(
-                        ImVec4(border.r, border.g, border.b,
-                               0.28f + hover_t * 0.16f + active_t * 0.44f)),
-                    tokens::RADIUS_MD);
+        dl->AddRect(
+            pill_min,
+            pill_max,
+            ImGui::ColorConvertFloat4ToU32(
+                ImVec4(border.r, border.g, border.b, 0.28f + hover_t * 0.16f + active_t * 0.44f)),
+            tokens::RADIUS_MD);
     }
 
     // Single active state = the glowing pill above. No separate left accent bar
     // (avoids multiple cyan indicators that make several tools look active).
 
-    ui::Color icon_color = ui::control_text_color(colors, active, hovered);
-    ui::Color text_color = active ? colors.accent_hover
-                                  : colors.text_secondary.lerp(colors.text_primary, hover_t * 0.65f);
-    float icon_alpha_v  = ui::icon_alpha(active, hovered, false);
-    float text_alpha_v  = ui::shell_text_alpha(active ? 1.0f : (0.78f + hover_t * 0.14f));
-    ImU32 icon_col =
-        ImGui::ColorConvertFloat4ToU32(ImVec4(icon_color.r, icon_color.g, icon_color.b, icon_alpha_v));
-    ImU32 text_col = ImGui::ColorConvertFloat4ToU32(ImVec4(text_color.r, text_color.g, text_color.b, text_alpha_v));
+    ui::Color icon_color   = ui::control_text_color(colors, active, hovered);
+    ui::Color text_color   = active
+                                 ? colors.accent_hover
+                                 : colors.text_secondary.lerp(colors.text_primary, hover_t * 0.65f);
+    float     icon_alpha_v = ui::icon_alpha(active, hovered, false);
+    float     text_alpha_v = ui::shell_text_alpha(active ? 1.0f : (0.78f + hover_t * 0.14f));
+    ImU32     icon_col     = ImGui::ColorConvertFloat4ToU32(
+        ImVec4(icon_color.r, icon_color.g, icon_color.b, icon_alpha_v));
+    ImU32 text_col = ImGui::ColorConvertFloat4ToU32(
+        ImVec4(text_color.r, text_color.g, text_color.b, text_alpha_v));
 
     float icon_draw_sz  = icon_sz * (1.0f + hover_t * 0.03f + active_t * 0.04f);
     float label_draw_sz = label_sz * (1.0f + hover_t * 0.015f + active_t * 0.02f);
@@ -382,8 +383,7 @@ void ImGuiIntegration::draw_toolbar_button(const char*                  icon,
     ui::Color bg  = ui::control_surface_color(colors, is_active, false);
     ui::Color txt = ui::control_text_color(colors, is_active, false);
     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(bg.r, bg.g, bg.b, is_active ? 0.90f : 0.0f));
-    ImGui::PushStyleColor(ImGuiCol_Text,
-                          ImVec4(txt.r, txt.g, txt.b, ui::shell_text_alpha(txt.a)));
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(txt.r, txt.g, txt.b, ui::shell_text_alpha(txt.a)));
     ImGui::PushStyleColor(
         ImGuiCol_ButtonHovered,
         ImVec4(colors.bg_tertiary.r, colors.bg_tertiary.g, colors.bg_tertiary.b, 0.72f));
@@ -457,7 +457,7 @@ void ImGuiIntegration::draw_command_bar()
             const float glow   = theme_mgr_ ? theme_mgr_->effective_glow_intensity() : 0.0f;
 
             // Very subtle top accent line (cyan/purple) — restrained, theme-aware.
-            ui::Color top_line = c.accent.lerp(Color::from_hex(0x60C0FF), 0.35f);
+            ui::Color top_line = c.accent.lerp(ui::Color::from_hex(0x60C0FF), 0.35f);
             int       top_a    = static_cast<int>((18.0f + 24.0f * glow) * c.accent_glow.a);
             bar_dl->AddLine(ImVec2(wpos.x, wpos.y),
                             ImVec2(wpos.x + wsz.x, wpos.y),
@@ -527,11 +527,11 @@ void ImGuiIntegration::draw_command_bar()
                 int   len = static_cast<int>(strlen(letters));
                 for (const char* p = letters; *p; ++p, ++idx)
                 {
-                    char  ch[2] = {*p, 0};
-                    float cw    = ImGui::CalcTextSize(ch).x;
-                    float t     = (len > 1) ? static_cast<float>(idx) / (len - 1) : 0.0f;
-                    float mix   = 0.20f + 0.30f * t;
-                    ui::Color base = theme_colors().text_primary.lerp(theme_colors().accent, mix);
+                    char      ch[2] = {*p, 0};
+                    float     cw    = ImGui::CalcTextSize(ch).x;
+                    float     t     = (len > 1) ? static_cast<float>(idx) / (len - 1) : 0.0f;
+                    float     mix   = 0.20f + 0.30f * t;
+                    ui::Color base  = theme_colors().text_primary.lerp(theme_colors().accent, mix);
                     dl->AddText(font_title_,
                                 font_sz,
                                 ImVec2(gx, text_y),
@@ -1075,28 +1075,28 @@ void ImGuiIntegration::draw_plugins_panel()
         DialogEnvGuard env_guard;
     #ifdef _WIN32
         static const char* filters[1] = {"*.dll"};
-        const char*        path = tinyfd_openFileDialog("Load Plugin",
-                                                        PluginManager::default_plugin_dir().c_str(),
-                                                        1,
-                                                        filters,
-                                                        "Plugins",
-                                                        0);
+        const char*        path       = tinyfd_openFileDialog("Load Plugin",
+                                                 PluginManager::default_plugin_dir().c_str(),
+                                                 1,
+                                                 filters,
+                                                 "Plugins",
+                                                 0);
     #elif defined(__APPLE__)
         static const char* filters[1] = {"*.dylib"};
-        const char*        path = tinyfd_openFileDialog("Load Plugin",
-                                                        PluginManager::default_plugin_dir().c_str(),
-                                                        1,
-                                                        filters,
-                                                        "Plugins",
-                                                        0);
+        const char*        path       = tinyfd_openFileDialog("Load Plugin",
+                                                 PluginManager::default_plugin_dir().c_str(),
+                                                 1,
+                                                 filters,
+                                                 "Plugins",
+                                                 0);
     #else
         static const char* filters[1] = {"*.so"};
-        const char*        path = tinyfd_openFileDialog("Load Plugin",
-                                                        PluginManager::default_plugin_dir().c_str(),
-                                                        1,
-                                                        filters,
-                                                        "Plugins",
-                                                        0);
+        const char*        path       = tinyfd_openFileDialog("Load Plugin",
+                                                 PluginManager::default_plugin_dir().c_str(),
+                                                 1,
+                                                 filters,
+                                                 "Plugins",
+                                                 0);
     #endif
         if (path && path[0] != '\0')
         {
@@ -1283,7 +1283,9 @@ void ImGuiIntegration::draw_chrome_backdrops()
         draw_zone(layout_manager_->tab_bar_rect(), ui::GlassSurface::Toolbar, 0.0f);
 
     if (layout_manager_->is_inspector_visible())
-        draw_zone(layout_manager_->inspector_rect(), ui::GlassSurface::Panel, ui::tokens::RADIUS_LG);
+        draw_zone(layout_manager_->inspector_rect(),
+                  ui::GlassSurface::Panel,
+                  ui::tokens::RADIUS_LG);
 
     if (status_bar_visible_)
         draw_zone(layout_manager_->status_bar_rect(), ui::GlassSurface::Panel, 0.0f);
@@ -1353,7 +1355,7 @@ void ImGuiIntegration::draw_nav_rail()
             ImGui::Dummy(ImVec2(0, ui::tokens::SPACE_2 * btn_scale));
             float  sep_inset = ui::tokens::SPACE_4 * btn_scale;
             ImVec2 p0        = ImVec2(ImGui::GetWindowPos().x + sep_inset,
-                                      std::floor(ImGui::GetCursorScreenPos().y));
+                               std::floor(ImGui::GetCursorScreenPos().y));
             ImVec2 p1        = ImVec2(ImGui::GetWindowPos().x + rail_w - sep_inset, p0.y);
             ImGui::GetWindowDrawList()->AddLine(p0,
                                                 p1,

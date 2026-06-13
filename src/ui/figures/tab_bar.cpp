@@ -185,7 +185,7 @@ void TabBar::handle_input(const Rect& bounds)
 #ifdef SPECTRA_USE_IMGUI
     ImVec2 mouse_pos       = ImGui::GetMousePos();
     bool   mouse_in_bounds = (mouse_pos.x >= bounds.x && mouse_pos.x < bounds.x + bounds.w
-                              && mouse_pos.y >= bounds.y && mouse_pos.y < bounds.y + bounds.h);
+                            && mouse_pos.y >= bounds.y && mouse_pos.y < bounds.y + bounds.h);
 
     // Always process ongoing drags, even when mouse is outside tab bar
     if (is_dragging_)
@@ -287,7 +287,7 @@ void TabBar::draw_tabs(const Rect& bounds, bool menus_open)
 
         bool is_active_styled = is_active && !menus_open;
 
-        float  gap   = 3.0f;
+        float  gap = 3.0f;
         ImVec2 tl(layout.bounds.x + gap, layout.bounds.y + 3);
         ImVec2 br(layout.bounds.x + layout.bounds.w - gap, layout.bounds.y + layout.bounds.h - 1);
 
@@ -322,10 +322,11 @@ void TabBar::draw_tabs(const Rect& bounds, bool menus_open)
                                1.0f);
 
             // Subtle top highlight
-            draw_list->AddLine(ImVec2(tl.x + TAB_RADIUS * 0.5f, tl.y + 1.0f),
-                               ImVec2(br.x - TAB_RADIUS * 0.5f, tl.y + 1.0f),
-                               to_imcol(colors.accent.lerp(Color::from_hex(0xFFFFFF), 0.70f), 0.35f),
-                               1.0f);
+            draw_list->AddLine(
+                ImVec2(tl.x + TAB_RADIUS * 0.5f, tl.y + 1.0f),
+                ImVec2(br.x - TAB_RADIUS * 0.5f, tl.y + 1.0f),
+                to_imcol(colors.accent.lerp(ui::Color(1.0f, 1.0f, 1.0f), 0.70f), 0.35f),
+                1.0f);
         }
         else if (is_hovered)
         {
@@ -341,11 +342,13 @@ void TabBar::draw_tabs(const Rect& bounds, bool menus_open)
         ImVec2 text_size = ImGui::CalcTextSize(tab.title.c_str());
         float  title_x   = layout.bounds.x + TAB_PADDING;
         float  title_w   = layout.bounds.w - TAB_PADDING * 2.0f
-                         - (tab.can_close ? (CLOSE_BUTTON_SIZE + 6.0f) : 0.0f);
+                        - (tab.can_close ? (CLOSE_BUTTON_SIZE + 6.0f) : 0.0f);
         ImVec2 text_pos(title_x, layout.bounds.y + (layout.bounds.h - text_size.y) * 0.5f);
 
         ui::Color text_col = ui::control_text_color(colors, is_active_styled, is_hovered);
-        draw_list->PushClipRect(ImVec2(title_x - 2, tl.y), ImVec2(title_x + title_w + 2, br.y), true);
+        draw_list->PushClipRect(ImVec2(title_x - 2, tl.y),
+                                ImVec2(title_x + title_w + 2, br.y),
+                                true);
         draw_list->AddText(text_pos,
                            to_imcol(text_col, ui::shell_text_alpha(text_col.a)),
                            tab.title.c_str());
@@ -355,8 +358,8 @@ void TabBar::draw_tabs(const Rect& bounds, bool menus_open)
         if (tab.can_close)
         {
             bool  close_hovered = (i == hovered_close_);
-            ImU32 close_color   = close_hovered ? to_imcol(colors.error)
-                                                : to_imcol(colors.text_secondary, 0.65f);
+            ImU32 close_color =
+                close_hovered ? to_imcol(colors.error) : to_imcol(colors.text_secondary, 0.65f);
 
             ImVec2 close_center(layout.close_bounds.x + layout.close_bounds.w * 0.5f,
                                 layout.close_bounds.y + layout.close_bounds.h * 0.5f);
@@ -424,13 +427,13 @@ void TabBar::draw_add_button(const Rect& bounds)
                              ImVec2(btn_x + btn_w, btn_y + btn_h),
                              to_imcol(bg, hovered ? 0.75f : 0.45f),
                              ui::tokens::RADIUS_MD);
-    draw_list->AddRect(ImVec2(btn_x, btn_y),
-                       ImVec2(btn_x + btn_w, btn_y + btn_h),
-                       to_imcol(ui::control_border_color(colors, false, hovered),
-                                hovered ? 0.70f : 0.40f),
-                       ui::tokens::RADIUS_MD,
-                       0,
-                       1.0f);
+    draw_list->AddRect(
+        ImVec2(btn_x, btn_y),
+        ImVec2(btn_x + btn_w, btn_y + btn_h),
+        to_imcol(ui::control_border_color(colors, false, hovered), hovered ? 0.70f : 0.40f),
+        ui::tokens::RADIUS_MD,
+        0,
+        1.0f);
 
     // Plus sign
     ImVec2 center(btn_x + btn_w * 0.5f, btn_y + btn_h * 0.5f);
@@ -633,7 +636,7 @@ void TabBar::end_drag()
         // Check if mouse is outside the main window — detach to new window
         ImVec2 display_size   = ImGui::GetIO().DisplaySize;
         bool   outside_window = (mouse_pos.x < 0 || mouse_pos.y < 0 || mouse_pos.x >= display_size.x
-                                 || mouse_pos.y >= display_size.y);
+                               || mouse_pos.y >= display_size.y);
 
         if (outside_window && on_tab_detach_ && tabs_.size() > 1)
         {
@@ -686,7 +689,7 @@ void TabBar::draw_scroll_buttons(const Rect& bounds)
         float lx   = bounds.x;
         float ly   = bounds.y + 2.0f;
         bool  lhov = (mouse_pos.x >= lx && mouse_pos.x < lx + btn_w && mouse_pos.y >= ly
-                      && mouse_pos.y < ly + btn_h);
+                     && mouse_pos.y < ly + btn_h);
         draw_list->AddRectFilled(
             ImVec2(lx, ly),
             ImVec2(lx + btn_w, ly + btn_h),
@@ -708,7 +711,7 @@ void TabBar::draw_scroll_buttons(const Rect& bounds)
         float rx   = bounds.x + bounds.w - btn_w;
         float ry   = bounds.y + 2.0f;
         bool  rhov = (mouse_pos.x >= rx && mouse_pos.x < rx + btn_w && mouse_pos.y >= ry
-                      && mouse_pos.y < ry + btn_h);
+                     && mouse_pos.y < ry + btn_h);
         draw_list->AddRectFilled(
             ImVec2(rx, ry),
             ImVec2(rx + btn_w, ry + btn_h),

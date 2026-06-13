@@ -452,17 +452,17 @@ inline const DataPalette& data_palette()
 
 // ─── Icon Alpha System ──────────────────────────────────────────────────────
 // Returns the appropriate alpha for an icon given its interaction state.
-// Active icons use accent color at full alpha; this returns the alpha for
-// text_primary-colored icons only.
+// Active icons use accent color at full alpha; inactive icons are readable
+// but deliberately quieter than labels.
 inline float icon_alpha(bool active, bool hovered, bool disabled)
 {
     if (disabled)
-        return 0.25f;
+        return 0.30f;
     if (active)
         return 1.0f;
     if (hovered)
-        return 0.85f;
-    return 0.55f;
+        return 0.90f;
+    return 0.68f;
 }
 
 // ─── Hover Transition Helper ────────────────────────────────────────────────

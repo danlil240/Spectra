@@ -775,6 +775,7 @@ void ImGuiIntegration::draw_status_bar()
             ImDrawList* bar_dl = ImGui::GetWindowDrawList();
             ImVec2      wpos   = ImGui::GetWindowPos();
             ImVec2      wsz    = ImGui::GetWindowSize();
+            const auto& c      = theme_colors();
 
             // Multi-layer soft shadow above the bar
             float shadow_spread = ui::tokens::ELEVATION_1_SPREAD;
@@ -791,9 +792,9 @@ void ImGuiIntegration::draw_status_bar()
             // Crisp hairline border at top edge
             bar_dl->AddLine(ImVec2(wpos.x, wpos.y),
                             ImVec2(wpos.x + wsz.x, wpos.y),
-                            IM_COL32(static_cast<uint8_t>(theme_colors().border_subtle.r * 255),
-                                     static_cast<uint8_t>(theme_colors().border_subtle.g * 255),
-                                     static_cast<uint8_t>(theme_colors().border_subtle.b * 255),
+                            IM_COL32(static_cast<uint8_t>(c.border_subtle.r * 255),
+                                     static_cast<uint8_t>(c.border_subtle.g * 255),
+                                     static_cast<uint8_t>(c.border_subtle.b * 255),
                                      80),
                             1.0f);
         }
@@ -807,179 +808,140 @@ void ImGuiIntegration::draw_status_bar()
         float y_offset = (bar_h - text_h) * 0.5f;
         ImGui::SetCursorPosY(y_offset);
 
-        // Left: cursor data readout
-        ImGui::PushStyleColor(ImGuiCol_Text,
-                              ImVec4(theme_colors().text_secondary.r,
-                                     theme_colors().text_secondary.g,
-                                     theme_colors().text_secondary.b,
-                                     theme_colors().text_secondary.a));
-        const std::string cursor_buf = cursor_data_valid_
-                                           ? std::format("X: {:.4f}  Y: {:.4f}",
-                                                         cursor_data_x_,
-                                                         cursor_data_y_)
-                                           : "X: —  Y: —";
-        ImGui::TextUnformatted(cursor_buf.c_str());
-        ImGui::PopStyleColor();
+        const auto& colors = theme_colors();
+        ImDrawList* dl     = ImGui::GetWindowDrawList();
 
-        // Center: mode indicator with pill background
-        ImGui::SameLine(0.0f, ui::tokens::SPACE_6);
+        // Helper: draw a clean status pill with consistent padding/radius.
+        auto draw_pill = [&](const char* label,
+                             const ui::Color& text_col,
+                             const ui::Color& bg_col,
+                             float            bg_alpha,
+                             float            pad_h = 4.0f,
+                             float            pad_v = 2.0f)
+        {
+            ImVec2 text_sz  = ImGui::CalcTextSize(label);
+            ImVec2 cursor_p = ImGui::GetCursorScreenPos();
+            ImVec2 pill_min(cursor_p.x - pad_h, cursor_p.y - pad_v);
+            ImVec2 pill_max(cursor_p.x + text_sz.x + pad_h, cursor_p.y + text_sz.y + pad_v);
+
+            dl->AddRectFilled(pill_min,
+                              pill_max,
+                              IM_COL32(static_cast<uint8_t>(bg_col.r * 255),
+                                       static_cast<uint8_t>(bg_col.g * 255),
+                                       static_cast<uint8_t>(bg_col.b * 255),
+                                       static_cast<uint8_t>(bg_alpha * 255)),
+                              ui::tokens::RADIUS_MD);
+            dl->AddRect(pill_min,
+                        pill_max,
+                        IM_COL32(static_cast<uint8_t>(bg_col.r * 255),
+                                 static_cast<uint8_t>(bg_col.g * 255),
+                                 static_cast<uint8_t>(bg_col.b * 255),
+                                 static_cast<uint8_t>((bg_alpha * 0.55f) * 255)),
+                        ui::tokens::RADIUS_MD,
+                        0,
+                        1.0f);
+
+            ImGui::PushStyleColor(ImGuiCol_Text,
+                                  ImVec4(text_col.r, text_col.g, text_col.b,
+                                         ui::shell_text_alpha(text_col.a)));
+            ImGui::TextUnformatted(label);
+            ImGui::PopStyleColor();
+        };
+
+        // Left: cursor data readout
+        {
+            const std::string cursor_buf = cursor_data_valid_
+                                               ? std::format("X: {:.4f}  Y: {:.4f}",
+                                                             cursor_data_x_,
+                                                             cursor_data_y_)
+                                               : "X: —  Y: —";
+            draw_pill(cursor_buf.c_str(),
+                      colors.text_secondary,
+                      colors.bg_tertiary,
+                      0.40f,
+                      6.0f,
+                      3.0f);
+        }
+
+        // Center group: mode + zoom.
+        ImGui::SameLine(0.0f, ui::tokens::SPACE_4);
         {
             const char* mode_label = "Navigate";
-            auto        mode_color = theme_colors().text_secondary;
+            ui::Color   mode_color = colors.text_secondary;
             switch (interaction_mode_)
             {
                 case ToolMode::Pan:
                     mode_label = "Pan";
-                    mode_color = theme_colors().accent;
+                    mode_color = colors.accent;
                     break;
                 case ToolMode::BoxZoom:
                     mode_label = "Box Zoom";
-                    mode_color = theme_colors().warning;
+                    mode_color = colors.warning;
                     break;
                 case ToolMode::Select:
                     mode_label = "Select";
-                    mode_color = theme_colors().info;
+                    mode_color = colors.info;
                     break;
                 case ToolMode::ROI:
                     mode_label = "ROI";
-                    mode_color = theme_colors().info;
+                    mode_color = colors.info;
                     break;
                 case ToolMode::Measure:
                     mode_label = "Measure";
-                    mode_color = theme_colors().success;
+                    mode_color = colors.success;
                     break;
                 case ToolMode::Annotate:
                     mode_label = "Annotate";
-                    mode_color = theme_colors().accent;
+                    mode_color = colors.accent;
                     break;
                 default:
                     break;
             }
-
-            // Draw pill background behind mode label
-            ImVec2 text_sz  = ImGui::CalcTextSize(mode_label);
-            ImVec2 cursor_p = ImGui::GetCursorScreenPos();
-            float  pill_pad = 4.0f;
-            ImVec2 pill_min = ImVec2(cursor_p.x - pill_pad, cursor_p.y - 1.0f);
-            ImVec2 pill_max =
-                ImVec2(cursor_p.x + text_sz.x + pill_pad, cursor_p.y + text_sz.y + 1.0f);
-            ImU32 pill_bg = ImGui::ColorConvertFloat4ToU32(
-                ImVec4(mode_color.r, mode_color.g, mode_color.b, 0.12f));
-            ImGui::GetWindowDrawList()->AddRectFilled(pill_min,
-                                                      pill_max,
-                                                      pill_bg,
-                                                      ui::tokens::RADIUS_SM);
-
-            ImGui::PushStyleColor(ImGuiCol_Text,
-                                  ImVec4(mode_color.r, mode_color.g, mode_color.b, mode_color.a));
-            ImGui::TextUnformatted(mode_label);
-            ImGui::PopStyleColor();
+            draw_pill(mode_label, mode_color, mode_color, 0.13f, 6.0f, 3.0f);
         }
 
-        // Separator — subtle dot
         ImGui::SameLine(0.0f, ui::tokens::SPACE_3);
-        ImGui::PushStyleColor(ImGuiCol_Text,
-                              ImVec4(theme_colors().text_tertiary.r,
-                                     theme_colors().text_tertiary.g,
-                                     theme_colors().text_tertiary.b,
-                                     0.5f));
-        ImGui::TextUnformatted("\xC2\xB7");
-        ImGui::PopStyleColor();
-
-        // Zoom level
-        ImGui::SameLine(0.0f, ui::tokens::SPACE_3);
-        ImGui::PushStyleColor(ImGuiCol_Text,
-                              ImVec4(theme_colors().text_secondary.r,
-                                     theme_colors().text_secondary.g,
-                                     theme_colors().text_secondary.b,
-                                     theme_colors().text_secondary.a));
-        std::string zoom_buf;
         {
-            double zoom_pct = static_cast<double>(zoom_level_) * 100.0;
+            std::string zoom_buf;
+            double      zoom_pct = static_cast<double>(zoom_level_) * 100.0;
             if (zoom_pct < 10000.0)
-                zoom_buf = std::format("Zoom: {:.0f}%", zoom_pct);
+                zoom_buf = std::format("{:.0f}%", zoom_pct);
             else if (zoom_pct < 1e7)
-                zoom_buf = std::format("Zoom: {:.1f}K%", zoom_pct / 1e3);
+                zoom_buf = std::format("{:.1f}K%", zoom_pct / 1e3);
             else if (zoom_pct < 1e10)
-                zoom_buf = std::format("Zoom: {:.1f}M%", zoom_pct / 1e6);
+                zoom_buf = std::format("{:.1f}M%", zoom_pct / 1e6);
             else if (zoom_pct < 1e13)
-                zoom_buf = std::format("Zoom: {:.1f}G%", zoom_pct / 1e9);
+                zoom_buf = std::format("{:.1f}G%", zoom_pct / 1e9);
             else
-                zoom_buf = std::format("Zoom: {:.2e}%", zoom_pct);
+                zoom_buf = std::format("{:.2e}%", zoom_pct);
+            draw_pill(zoom_buf.c_str(), colors.text_secondary, colors.bg_tertiary, 0.32f, 5.0f, 3.0f);
         }
-        {
-            ImVec2 chip_pos = ImGui::GetCursorScreenPos();
-            ImVec2 chip_sz  = ImGui::CalcTextSize(zoom_buf.c_str());
-            ImGui::GetWindowDrawList()->AddRectFilled(
-                ImVec2(chip_pos.x - 5.0f, chip_pos.y - 1.0f),
-                ImVec2(chip_pos.x + chip_sz.x + 5.0f, chip_pos.y + chip_sz.y + 1.0f),
-                IM_COL32(static_cast<uint8_t>(theme_colors().bg_tertiary.r * 255),
-                         static_cast<uint8_t>(theme_colors().bg_tertiary.g * 255),
-                         static_cast<uint8_t>(theme_colors().bg_tertiary.b * 255),
-                         72),
-                ui::tokens::RADIUS_SM);
-            ImGui::TextUnformatted(zoom_buf.c_str());
-        }
-        ImGui::PopStyleColor();
 
-        // Right side: performance info — anchor to right edge when there is room
-        // (narrow status bars: skip perf to avoid overlapping zoom/mode on the left)
-        const float perf_width   = 160.0f;
+        // Right side: performance pills anchored to the right edge when room allows.
+        const float perf_width   = 170.0f;
         const float perf_anchor  = ImGui::GetWindowWidth() - perf_width - ui::tokens::SPACE_3;
-        const float perf_min_gap = ui::tokens::SPACE_3;
+        const float perf_min_gap = ui::tokens::SPACE_4;
         const bool  show_perf    = perf_anchor > ImGui::GetCursorPosX() + perf_min_gap;
         if (show_perf)
         {
             ImGui::SameLine(perf_anchor);
 
-            // FPS with color coding
-            float fps_val   = io.Framerate;
-            auto  fps_color = theme_colors().success;
+            // FPS with green health coding.
+            float fps_val = io.Framerate;
+            ui::Color fps_color = colors.success;
             if (fps_val < 20.0f)
-                fps_color = theme_colors().error;
+                fps_color = colors.error;
             else if (fps_val < 45.0f)
-                fps_color = theme_colors().warning;
+                fps_color = colors.warning;
 
             const std::string fps_buf = std::format("{} fps", static_cast<int>(fps_val));
-            {
-                ImVec2 chip_pos = ImGui::GetCursorScreenPos();
-                ImVec2 chip_sz  = ImGui::CalcTextSize(fps_buf.c_str());
-                ImGui::GetWindowDrawList()->AddRectFilled(
-                    ImVec2(chip_pos.x - 5.0f, chip_pos.y - 1.0f),
-                    ImVec2(chip_pos.x + chip_sz.x + 5.0f, chip_pos.y + chip_sz.y + 1.0f),
-                    IM_COL32(static_cast<uint8_t>(fps_color.r * 255),
-                             static_cast<uint8_t>(fps_color.g * 255),
-                             static_cast<uint8_t>(fps_color.b * 255),
-                             34),
-                    ui::tokens::RADIUS_SM);
-                ImGui::PushStyleColor(ImGuiCol_Text,
-                                      ImVec4(fps_color.r, fps_color.g, fps_color.b, 1.0f));
-                ImGui::TextUnformatted(fps_buf.c_str());
-                ImGui::PopStyleColor();
-            }
+            draw_pill(fps_buf.c_str(), fps_color, fps_color, 0.12f, 5.0f, 3.0f);
 
-            // GPU time
+            // GPU time in muted blue/purple.
             ImGui::SameLine(0.0f, ui::tokens::SPACE_3);
-            const std::string gpu_buf = std::format("GPU: {:.1f}ms", gpu_time_ms_);
-            {
-                ImVec2 chip_pos = ImGui::GetCursorScreenPos();
-                ImVec2 chip_sz  = ImGui::CalcTextSize(gpu_buf.c_str());
-                ImGui::GetWindowDrawList()->AddRectFilled(
-                    ImVec2(chip_pos.x - 5.0f, chip_pos.y - 1.0f),
-                    ImVec2(chip_pos.x + chip_sz.x + 5.0f, chip_pos.y + chip_sz.y + 1.0f),
-                    IM_COL32(static_cast<uint8_t>(theme_colors().bg_tertiary.r * 255),
-                             static_cast<uint8_t>(theme_colors().bg_tertiary.g * 255),
-                             static_cast<uint8_t>(theme_colors().bg_tertiary.b * 255),
-                             58),
-                    ui::tokens::RADIUS_SM);
-                ImGui::PushStyleColor(ImGuiCol_Text,
-                                      ImVec4(theme_colors().text_tertiary.r,
-                                             theme_colors().text_tertiary.g,
-                                             theme_colors().text_tertiary.b,
-                                             theme_colors().text_tertiary.a));
-                ImGui::TextUnformatted(gpu_buf.c_str());
-                ImGui::PopStyleColor();
-            }
+            const std::string gpu_buf = std::format("GPU {:.1f}ms", gpu_time_ms_);
+            ui::Color gpu_tint = colors.accent.lerp(Color::from_hex(0xA070F0), 0.45f);
+            draw_pill(gpu_buf.c_str(), colors.text_secondary, gpu_tint, 0.10f, 5.0f, 3.0f);
         }
 
         ImGui::PopFont();

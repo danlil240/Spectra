@@ -25,11 +25,11 @@ void ImGuiIntegration::draw_tab_bar()
     // OpenPopup(), and BeginPopup() all work correctly inside TabBar::draw()
     ImGui::SetNextWindowPos(ImVec2(bounds.x, bounds.y));
     ImGui::SetNextWindowSize(ImVec2(bounds.w, bounds.h));
-    ImGuiWindowFlags flags =
-        ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings
-        | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoFocusOnAppearing
-        | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse
-        | ImGuiWindowFlags_NoBackground;
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove
+                             | ImGuiWindowFlags_NoSavedSettings
+                             | ImGuiWindowFlags_NoBringToFrontOnFocus
+                             | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoScrollbar
+                             | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoBackground;
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
@@ -91,8 +91,8 @@ void ImGuiIntegration::draw_canvas(Figure& figure)
             | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings
             | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoFocusOnAppearing;
 
-        ui::Color welcome_bg = theme_mgr_ ? theme_mgr_->glass_resolved_plot_background()
-                                          : theme_colors().bg_canvas;
+        ui::Color welcome_bg =
+            theme_mgr_ ? theme_mgr_->glass_resolved_plot_background() : theme_colors().bg_canvas;
         ImGui::PushStyleColor(ImGuiCol_WindowBg,
                               ImVec4(welcome_bg.r, welcome_bg.g, welcome_bg.b, 1.0f));
         ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0, 0, 0, 0));
@@ -239,12 +239,12 @@ void ImGuiIntegration::draw_canvas(Figure& figure)
     const float glow   = theme_mgr_ ? theme_mgr_->effective_glow_intensity() : 0.45f;
     const float master = theme_mgr_ ? theme_mgr_->glass().master_intensity : 0.65f;
     ui::glass_draw::draw_vision_canvas_frame(dl,
-                                           ImVec2(bounds.x, bounds.y),
-                                           ImVec2(bounds.x + bounds.w, bounds.y + bounds.h),
-                                           16.0f,
-                                           theme_colors(),
-                                           glow,
-                                           master);
+                                             ImVec2(bounds.x, bounds.y),
+                                             ImVec2(bounds.x + bounds.w, bounds.y + bounds.h),
+                                             16.0f,
+                                             theme_colors(),
+                                             glow,
+                                             master);
 
     // Draw interactive page scrollbar when subplots overflow the visible canvas area
     if (figure.needs_scroll(bounds.h))
@@ -315,9 +315,9 @@ void ImGuiIntegration::draw_canvas(Figure& figure)
             auto    accent    = theme_colors().accent;
             uint8_t alpha     = track_active ? 240 : (thumb_hovered ? 210 : 180);
             ImU32   thumb_col = IM_COL32(static_cast<uint8_t>(accent.r * 255),
-                                         static_cast<uint8_t>(accent.g * 255),
-                                         static_cast<uint8_t>(accent.b * 255),
-                                         alpha);
+                                       static_cast<uint8_t>(accent.g * 255),
+                                       static_cast<uint8_t>(accent.b * 255),
+                                       alpha);
             dl->AddRectFilled(ImVec2(sb_x, thumb_y),
                               ImVec2(sb_x + SCROLLBAR_WIDTH, thumb_y + thumb_h),
                               thumb_col,
@@ -382,13 +382,13 @@ void ImGuiIntegration::draw_inspector(Figure& figure)
                 float       line_x   = bounds.x;
                 auto        accent   = theme_colors().accent;
                 ImU32       line_col = active ? IM_COL32(uint8_t(accent.r * 255),
-                                                         uint8_t(accent.g * 255),
-                                                         uint8_t(accent.b * 255),
-                                                         255)
+                                                   uint8_t(accent.g * 255),
+                                                   uint8_t(accent.b * 255),
+                                                   255)
                                               : IM_COL32(uint8_t(accent.r * 255),
-                                                         uint8_t(accent.g * 255),
-                                                         uint8_t(accent.b * 255),
-                                                         120);
+                                                   uint8_t(accent.g * 255),
+                                                   uint8_t(accent.b * 255),
+                                                   120);
                 dl->AddLine(ImVec2(line_x, bounds.y),
                             ImVec2(line_x, bounds.y + bounds.h),
                             line_col,
@@ -403,10 +403,10 @@ void ImGuiIntegration::draw_inspector(Figure& figure)
     ImGui::SetNextWindowPos(ImVec2(bounds.x, bounds.y));
     ImGui::SetNextWindowSize(ImVec2(bounds.w, bounds.h));
 
-    ImGuiWindowFlags flags =
-        ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings
-        | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoFocusOnAppearing
-        | ImGuiWindowFlags_NoBackground;
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove
+                             | ImGuiWindowFlags_NoSavedSettings
+                             | ImGuiWindowFlags_NoBringToFrontOnFocus
+                             | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoBackground;
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
                         ImVec2(ui::tokens::PANEL_PADDING + 4.0f, ui::tokens::PANEL_PADDING));
@@ -447,9 +447,11 @@ void ImGuiIntegration::draw_inspector(Figure& figure)
         {
             const auto& colors = theme_colors();
             ImGui::PushFont(font_heading_);
-            ImGui::PushStyleColor(
-                ImGuiCol_Text,
-                ImVec4(colors.text_tertiary.r, colors.text_tertiary.g, colors.text_tertiary.b, 0.75f));
+            ImGui::PushStyleColor(ImGuiCol_Text,
+                                  ImVec4(colors.text_tertiary.r,
+                                         colors.text_tertiary.g,
+                                         colors.text_tertiary.b,
+                                         0.75f));
             ImGui::TextUnformatted("INSPECTOR");
             ImGui::PopStyleColor();
             ImGui::PopFont();
@@ -484,13 +486,12 @@ void ImGuiIntegration::draw_inspector(Figure& figure)
             ImDrawList* dl        = ImGui::GetWindowDrawList();
 
             // Recessed track background — establishes the segmented control surface.
-            dl->AddRectFilled(track_min,
-                              track_max,
-                              ImGui::ColorConvertFloat4ToU32(ImVec4(colors.bg_primary.r,
-                                                                    colors.bg_primary.g,
-                                                                    colors.bg_primary.b,
-                                                                    0.55f)),
-                              ui::tokens::RADIUS_MD);
+            dl->AddRectFilled(
+                track_min,
+                track_max,
+                ImGui::ColorConvertFloat4ToU32(
+                    ImVec4(colors.bg_primary.r, colors.bg_primary.g, colors.bg_primary.b, 0.55f)),
+                ui::tokens::RADIUS_MD);
             dl->AddRect(track_min,
                         track_max,
                         ImGui::ColorConvertFloat4ToU32(ImVec4(colors.border_subtle.r,
@@ -509,8 +510,7 @@ void ImGuiIntegration::draw_inspector(Figure& figure)
 
                 ImGui::SetCursorScreenPos(seg_min);
                 const std::string btn_id = std::format("##insp_tab_{}", i);
-                if (ImGui::InvisibleButton(btn_id.c_str(),
-                                           ImVec2(tab_w, seg_max.y - seg_min.y)))
+                if (ImGui::InvisibleButton(btn_id.c_str(), ImVec2(tab_w, seg_max.y - seg_min.y)))
                 {
                     active_section_ = tabs[i].section;
                     if (tabs[i].section != Section::Series)
@@ -540,11 +540,10 @@ void ImGuiIntegration::draw_inspector(Figure& figure)
                 {
                     dl->AddRectFilled(seg_min,
                                       seg_max,
-                                      ImGui::ColorConvertFloat4ToU32(
-                                          ImVec4(colors.text_secondary.r,
-                                                 colors.text_secondary.g,
-                                                 colors.text_secondary.b,
-                                                 0.10f)),
+                                      ImGui::ColorConvertFloat4ToU32(ImVec4(colors.text_secondary.r,
+                                                                            colors.text_secondary.g,
+                                                                            colors.text_secondary.b,
+                                                                            0.10f)),
                                       ui::tokens::RADIUS_SM);
                 }
 
@@ -812,7 +811,7 @@ void ImGuiIntegration::draw_status_bar()
         ImDrawList* dl     = ImGui::GetWindowDrawList();
 
         // Helper: draw a clean status pill with consistent padding/radius.
-        auto draw_pill = [&](const char* label,
+        auto draw_pill = [&](const char*      label,
                              const ui::Color& text_col,
                              const ui::Color& bg_col,
                              float            bg_alpha,
@@ -841,20 +840,19 @@ void ImGuiIntegration::draw_status_bar()
                         0,
                         1.0f);
 
-            ImGui::PushStyleColor(ImGuiCol_Text,
-                                  ImVec4(text_col.r, text_col.g, text_col.b,
-                                         ui::shell_text_alpha(text_col.a)));
+            ImGui::PushStyleColor(
+                ImGuiCol_Text,
+                ImVec4(text_col.r, text_col.g, text_col.b, ui::shell_text_alpha(text_col.a)));
             ImGui::TextUnformatted(label);
             ImGui::PopStyleColor();
         };
 
         // Left: cursor data readout
         {
-            const std::string cursor_buf = cursor_data_valid_
-                                               ? std::format("X: {:.4f}  Y: {:.4f}",
-                                                             cursor_data_x_,
-                                                             cursor_data_y_)
-                                               : "X: —  Y: —";
+            const std::string cursor_buf =
+                cursor_data_valid_
+                    ? std::format("X: {:.4f}  Y: {:.4f}", cursor_data_x_, cursor_data_y_)
+                    : "X: —  Y: —";
             draw_pill(cursor_buf.c_str(),
                       colors.text_secondary,
                       colors.bg_tertiary,
@@ -914,7 +912,12 @@ void ImGuiIntegration::draw_status_bar()
                 zoom_buf = std::format("{:.1f}G%", zoom_pct / 1e9);
             else
                 zoom_buf = std::format("{:.2e}%", zoom_pct);
-            draw_pill(zoom_buf.c_str(), colors.text_secondary, colors.bg_tertiary, 0.32f, 5.0f, 3.0f);
+            draw_pill(zoom_buf.c_str(),
+                      colors.text_secondary,
+                      colors.bg_tertiary,
+                      0.32f,
+                      5.0f,
+                      3.0f);
         }
 
         // Right side: performance pills anchored to the right edge when room allows.
@@ -927,7 +930,7 @@ void ImGuiIntegration::draw_status_bar()
             ImGui::SameLine(perf_anchor);
 
             // FPS with green health coding.
-            float fps_val = io.Framerate;
+            float     fps_val   = io.Framerate;
             ui::Color fps_color = colors.success;
             if (fps_val < 20.0f)
                 fps_color = colors.error;
@@ -939,8 +942,8 @@ void ImGuiIntegration::draw_status_bar()
 
             // GPU time in muted blue/purple.
             ImGui::SameLine(0.0f, ui::tokens::SPACE_3);
-            const std::string gpu_buf = std::format("GPU {:.1f}ms", gpu_time_ms_);
-            ui::Color gpu_tint = colors.accent.lerp(Color::from_hex(0xA070F0), 0.45f);
+            const std::string gpu_buf  = std::format("GPU {:.1f}ms", gpu_time_ms_);
+            ui::Color         gpu_tint = colors.accent.lerp(ui::Color::from_hex(0xA070F0), 0.45f);
             draw_pill(gpu_buf.c_str(), colors.text_secondary, gpu_tint, 0.10f, 5.0f, 3.0f);
         }
 
@@ -971,9 +974,9 @@ void ImGuiIntegration::draw_split_view_splitters()
         {
             Rect  hr               = target.highlight_rect;
             ImU32 highlight_color  = IM_COL32(static_cast<int>(theme.accent.r * 255),
-                                              static_cast<int>(theme.accent.g * 255),
-                                              static_cast<int>(theme.accent.b * 255),
-                                              40);
+                                             static_cast<int>(theme.accent.g * 255),
+                                             static_cast<int>(theme.accent.b * 255),
+                                             40);
             ImU32 highlight_border = IM_COL32(static_cast<int>(theme.accent.r * 255),
                                               static_cast<int>(theme.accent.g * 255),
                                               static_cast<int>(theme.accent.b * 255),
@@ -1158,9 +1161,9 @@ void ImGuiIntegration::draw_split_view_splitters()
         {
             Rect  hr               = target.highlight_rect;
             ImU32 highlight_color  = IM_COL32(static_cast<int>(theme.accent.r * 255),
-                                              static_cast<int>(theme.accent.g * 255),
-                                              static_cast<int>(theme.accent.b * 255),
-                                              60);
+                                             static_cast<int>(theme.accent.g * 255),
+                                             static_cast<int>(theme.accent.b * 255),
+                                             60);
             ImU32 highlight_border = IM_COL32(static_cast<int>(theme.accent.r * 255),
                                               static_cast<int>(theme.accent.g * 255),
                                               static_cast<int>(theme.accent.b * 255),
@@ -1207,7 +1210,7 @@ void ImGuiIntegration::draw_topic_drop_target(Figure& figure)
     // subplot the drop will land on.
     ImGuiIO&    io        = ImGui::GetIO();
     AxesBase*   hover_ax  = input_handler_->hit_test_all_axes(static_cast<double>(io.MousePos.x),
-                                                              static_cast<double>(io.MousePos.y));
+                                                           static_cast<double>(io.MousePos.y));
     int         hover_idx = -1;
     const auto& all       = figure.all_axes();
     for (size_t i = 0; i < all.size(); ++i)
@@ -1225,13 +1228,13 @@ void ImGuiIntegration::draw_topic_drop_target(Figure& figure)
         ImDrawList* dl     = ImGui::GetForegroundDrawList();
         const auto& th     = theme_colors();
         ImU32       fill   = IM_COL32(static_cast<int>(th.accent.r * 255),
-                                      static_cast<int>(th.accent.g * 255),
-                                      static_cast<int>(th.accent.b * 255),
-                                      40);
+                              static_cast<int>(th.accent.g * 255),
+                              static_cast<int>(th.accent.b * 255),
+                              40);
         ImU32       border = IM_COL32(static_cast<int>(th.accent.r * 255),
-                                      static_cast<int>(th.accent.g * 255),
-                                      static_cast<int>(th.accent.b * 255),
-                                      220);
+                                static_cast<int>(th.accent.g * 255),
+                                static_cast<int>(th.accent.b * 255),
+                                220);
         dl->AddRectFilled(ImVec2(vp.x, vp.y), ImVec2(vp.x + vp.w, vp.y + vp.h), fill, 4.0f);
         dl->AddRect(ImVec2(vp.x, vp.y), ImVec2(vp.x + vp.w, vp.y + vp.h), border, 4.0f, 0, 2.0f);
     }
@@ -1314,9 +1317,9 @@ void ImGuiIntegration::draw_topic_drop_target_welcome()
     const float margin = 20.0f;
 
     ImU32 fill   = IM_COL32(static_cast<int>(th.accent.r * 255),
-                            static_cast<int>(th.accent.g * 255),
-                            static_cast<int>(th.accent.b * 255),
-                            over_bg ? 40 : 18);
+                          static_cast<int>(th.accent.g * 255),
+                          static_cast<int>(th.accent.b * 255),
+                          over_bg ? 40 : 18);
     ImU32 border = IM_COL32(static_cast<int>(th.accent.r * 255),
                             static_cast<int>(th.accent.g * 255),
                             static_cast<int>(th.accent.b * 255),
@@ -1327,9 +1330,9 @@ void ImGuiIntegration::draw_topic_drop_target_welcome()
     const char* label    = "Drop to create new figure";
     ImVec2      text_sz  = ImGui::CalcTextSize(label);
     ImU32       text_col = IM_COL32(static_cast<int>(th.accent.r * 255),
-                                    static_cast<int>(th.accent.g * 255),
-                                    static_cast<int>(th.accent.b * 255),
-                                    over_bg ? 220 : 100);
+                              static_cast<int>(th.accent.g * 255),
+                              static_cast<int>(th.accent.b * 255),
+                              over_bg ? 220 : 100);
     dl->AddText(ImVec2((w - text_sz.x) * 0.5f, h * 0.65f), text_col, label);
 
     // Viewport-level drop target — bypasses window Z-order requirements.

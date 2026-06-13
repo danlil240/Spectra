@@ -41,10 +41,13 @@ void ImGuiIntegration::draw_tab_bar()
         ImDrawList* dl   = ImGui::GetWindowDrawList();
         ImVec2      wpos = ImGui::GetWindowPos();
         ImVec2      wsz  = ImGui::GetWindowSize();
+        const auto& c    = theme_colors();
+
+        // Subtle shadow beneath the tab bar — shares elevation language with header.
         for (int i = 0; i < 3; ++i)
         {
             float t     = static_cast<float>(i) / 3.0f;
-            float alpha = 0.08f * (1.0f - t);
+            float alpha = 0.07f * (1.0f - t);
             float off   = 1.0f + t * ui::tokens::ELEVATION_1_SPREAD;
             dl->AddRectFilled(ImVec2(wpos.x, wpos.y + wsz.y),
                               ImVec2(wpos.x + wsz.x, wpos.y + wsz.y + off),
@@ -52,10 +55,10 @@ void ImGuiIntegration::draw_tab_bar()
         }
         dl->AddLine(ImVec2(wpos.x, std::floor(wpos.y + wsz.y) - 1.0f),
                     ImVec2(wpos.x + wsz.x, std::floor(wpos.y + wsz.y) - 1.0f),
-                    IM_COL32(static_cast<uint8_t>(theme_colors().border_default.r * 255),
-                             static_cast<uint8_t>(theme_colors().border_default.g * 255),
-                             static_cast<uint8_t>(theme_colors().border_default.b * 255),
-                             90),
+                    IM_COL32(static_cast<uint8_t>(c.border_subtle.r * 255),
+                             static_cast<uint8_t>(c.border_subtle.g * 255),
+                             static_cast<uint8_t>(c.border_subtle.b * 255),
+                             80),
                     1.0f);
         tab_bar_->draw(bounds, dock_system_ != nullptr);
     }

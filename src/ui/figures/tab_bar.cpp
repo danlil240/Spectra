@@ -266,7 +266,7 @@ void TabBar::draw_tabs(const Rect& bounds, bool menus_open)
     ImDrawList* draw_list = ImGui::GetWindowDrawList();
     const auto& colors    = ui::theme();
 
-    // Bottom border line across the full tab bar
+    // Bottom border line across the full tab bar — quiet separator
     draw_list->AddLine(ImVec2(bounds.x, bounds.y + bounds.h - 1),
                        ImVec2(bounds.x + bounds.w, bounds.y + bounds.h - 1),
                        to_imcol(colors.border_subtle),
@@ -285,64 +285,78 @@ void TabBar::draw_tabs(const Rect& bounds, bool menus_open)
         bool        is_hovered = (i == hovered_tab_);
         bool        is_dragged = (is_dragging_ && i == dragged_tab_);
 
-        // Tab background color from theme
-        ImU32 bg_color = 0;
-        bool  is_active_styled =
-            is_active && !menus_open;   // Don't show active styling when menus are open
+        bool is_active_styled = is_active && !menus_open;
+
+        float  gap   = 3.0f;
+        ImVec2 tl(layout.bounds.x + gap, layout.bounds.y + 3);
+        ImVec2 br(layout.bounds.x + layout.bounds.w - gap, layout.bounds.y + layout.bounds.h - 1);
+
+        // Tab background: shared shell control surface language.
+        ui::Color bg = ui::control_surface_color(colors, is_active_styled, is_hovered);
+        if (is_dragged)
+        {
+            bg = colors.bg_elevated;
+        }
+        float bg_alpha = is_active_styled ? 0.95f : (is_hovered ? 0.80f : 0.55f);
+        draw_list->AddRectFilled(tl, br, to_imcol(bg, bg_alpha), TAB_RADIUS);
+
+        // Active tab: accent border + subtle top glow, no aggressive underline.
         if (is_active_styled)
         {
-            bg_color = to_imcol(colors.bg_tertiary);
+            ui::Color glow = ui::control_glow_color(colors);
+            for (int gi = 2; gi >= 1; --gi)
+            {
+                float e = static_cast<float>(gi);
+                draw_list->AddRect(ImVec2(tl.x - e, tl.y - e),
+                                   ImVec2(br.x + e, br.y + e),
+                                   to_imcol(glow, 0.10f / e),
+                                   TAB_RADIUS + e,
+                                   0,
+                                   1.5f);
+            }
+            draw_list->AddRect(tl,
+                               br,
+                               to_imcol(ui::control_border_color(colors, true, false)),
+                               TAB_RADIUS,
+                               0,
+                               1.0f);
+
+            // Subtle top highlight
+            draw_list->AddLine(ImVec2(tl.x + TAB_RADIUS * 0.5f, tl.y + 1.0f),
+                               ImVec2(br.x - TAB_RADIUS * 0.5f, tl.y + 1.0f),
+                               to_imcol(colors.accent.lerp(Color::from_hex(0xFFFFFF), 0.70f), 0.35f),
+                               1.0f);
         }
         else if (is_hovered)
         {
-            bg_color = to_imcol(colors.accent_subtle);
-        }
-        else
-        {
-            bg_color = to_imcol(colors.bg_secondary);
-        }
-
-        // Dragged tab gets elevated look
-        if (is_dragged)
-        {
-            bg_color = to_imcol(colors.bg_elevated);
-        }
-
-        float  inset = 1.0f;
-        ImVec2 tl(layout.bounds.x + inset, layout.bounds.y + 4);
-        ImVec2 br(layout.bounds.x + layout.bounds.w - inset, layout.bounds.y + layout.bounds.h);
-
-        // Draw tab background with rounded top corners
-        draw_list->AddRectFilled(tl,
-                                 br,
-                                 bg_color,
-                                 ui::tokens::RADIUS_SM,
-                                 ImDrawFlags_RoundCornersTop);
-
-        // Active tab: accent underline instead of border (skip when menus are open)
-        if (is_active_styled)
-        {
-            draw_list->AddLine(ImVec2(tl.x + 4, br.y - 1),
-                               ImVec2(br.x - 4, br.y - 1),
-                               to_imcol(colors.accent),
-                               2.0f);
+            draw_list->AddRect(tl,
+                               br,
+                               to_imcol(ui::control_border_color(colors, false, true), 0.65f),
+                               TAB_RADIUS,
+                               0,
+                               1.0f);
         }
 
         // Tab title
         ImVec2 text_size = ImGui::CalcTextSize(tab.title.c_str());
-        ImVec2 text_pos(layout.bounds.x + TAB_PADDING,
-                        layout.bounds.y + (layout.bounds.h - text_size.y) * 0.5f);
+        float  title_x   = layout.bounds.x + TAB_PADDING;
+        float  title_w   = layout.bounds.w - TAB_PADDING * 2.0f
+                         - (tab.can_close ? (CLOSE_BUTTON_SIZE + 6.0f) : 0.0f);
+        ImVec2 text_pos(title_x, layout.bounds.y + (layout.bounds.h - text_size.y) * 0.5f);
 
-        ImU32 text_color =
-            is_active_styled ? to_imcol(colors.text_primary) : to_imcol(colors.text_secondary);
-        draw_list->AddText(text_pos, text_color, tab.title.c_str());
+        ui::Color text_col = ui::control_text_color(colors, is_active_styled, is_hovered);
+        draw_list->PushClipRect(ImVec2(title_x - 2, tl.y), ImVec2(title_x + title_w + 2, br.y), true);
+        draw_list->AddText(text_pos,
+                           to_imcol(text_col, ui::shell_text_alpha(text_col.a)),
+                           tab.title.c_str());
+        draw_list->PopClipRect();
 
         // Close button (always show for closeable tabs)
         if (tab.can_close)
         {
             bool  close_hovered = (i == hovered_close_);
-            ImU32 close_color =
-                close_hovered ? to_imcol(colors.error) : to_imcol(colors.text_tertiary);
+            ImU32 close_color   = close_hovered ? to_imcol(colors.error)
+                                                : to_imcol(colors.text_secondary, 0.65f);
 
             ImVec2 close_center(layout.close_bounds.x + layout.close_bounds.w * 0.5f,
                                 layout.close_bounds.y + layout.close_bounds.h * 0.5f);
@@ -351,12 +365,12 @@ void TabBar::draw_tabs(const Rect& bounds, bool menus_open)
             if (close_hovered)
             {
                 draw_list->AddCircleFilled(close_center,
-                                           CLOSE_BUTTON_SIZE * 0.5f,
-                                           to_imcol(colors.error, 0.15f));
+                                           CLOSE_BUTTON_SIZE * 0.55f,
+                                           to_imcol(colors.error, 0.16f));
             }
 
             // Draw 'X'
-            float sz = CLOSE_BUTTON_SIZE * 0.3f;
+            float sz = CLOSE_BUTTON_SIZE * 0.32f;
             draw_list->AddLine(ImVec2(close_center.x - sz, close_center.y - sz),
                                ImVec2(close_center.x + sz, close_center.y + sz),
                                close_color,
@@ -370,8 +384,8 @@ void TabBar::draw_tabs(const Rect& bounds, bool menus_open)
         // Modified indicator dot
         if (tab.is_modified)
         {
-            ImVec2 dot_pos(layout.bounds.x + 8, layout.bounds.y + 10);
-            draw_list->AddCircleFilled(dot_pos, 3.0f, to_imcol(colors.warning));
+            ImVec2 dot_pos(layout.bounds.x + 9, layout.bounds.y + 10);
+            draw_list->AddCircleFilled(dot_pos, 2.5f, to_imcol(colors.warning));
         }
     }
 #endif
@@ -391,13 +405,13 @@ void TabBar::draw_add_button(const Rect& bounds)
         last_tab_end = last.bounds.x + last.bounds.w;
     }
 
-    float btn_x = last_tab_end + 4.0f;
+    float btn_x = last_tab_end + ui::tokens::SPACE_2;
     float btn_y = bounds.y + 4.0f;
-    float btn_w = ADD_BUTTON_WIDTH - 8.0f;
+    float btn_w = ADD_BUTTON_WIDTH - 6.0f;
     float btn_h = bounds.h - 8.0f;
 
     // Don't draw if it would overflow
-    if (btn_x + btn_w > bounds.x + bounds.w - 4.0f)
+    if (btn_x + btn_w > bounds.x + bounds.w - ui::tokens::SPACE_2)
         return;
 
     ImDrawList* draw_list = ImGui::GetWindowDrawList();
@@ -405,16 +419,23 @@ void TabBar::draw_add_button(const Rect& bounds)
     bool hovered = (mouse_pos.x >= btn_x && mouse_pos.x < btn_x + btn_w && mouse_pos.y >= btn_y
                     && mouse_pos.y < btn_y + btn_h);
 
-    ImU32 bg_color = hovered ? to_imcol(colors.accent_subtle) : to_imcol(colors.bg_secondary, 0.0f);
+    ui::Color bg = ui::control_surface_color(colors, false, hovered);
     draw_list->AddRectFilled(ImVec2(btn_x, btn_y),
                              ImVec2(btn_x + btn_w, btn_y + btn_h),
-                             bg_color,
-                             ui::tokens::RADIUS_SM);
+                             to_imcol(bg, hovered ? 0.75f : 0.45f),
+                             ui::tokens::RADIUS_MD);
+    draw_list->AddRect(ImVec2(btn_x, btn_y),
+                       ImVec2(btn_x + btn_w, btn_y + btn_h),
+                       to_imcol(ui::control_border_color(colors, false, hovered),
+                                hovered ? 0.70f : 0.40f),
+                       ui::tokens::RADIUS_MD,
+                       0,
+                       1.0f);
 
     // Plus sign
     ImVec2 center(btn_x + btn_w * 0.5f, btn_y + btn_h * 0.5f);
-    ImU32  plus_color = hovered ? to_imcol(colors.accent) : to_imcol(colors.text_tertiary);
-    float  sz         = 6.0f;
+    ImU32  plus_color = hovered ? to_imcol(colors.accent) : to_imcol(colors.text_secondary, 0.80f);
+    float  sz         = 5.0f;
     draw_list->AddLine(ImVec2(center.x - sz, center.y),
                        ImVec2(center.x + sz, center.y),
                        plus_color,
@@ -760,12 +781,12 @@ void TabBar::draw_context_menu()
                                       ImVec4(colors.accent_subtle.r,
                                              colors.accent_subtle.g,
                                              colors.accent_subtle.b,
-                                             0.5f));
+                                             0.55f));
                 ImGui::PushStyleColor(ImGuiCol_HeaderActive,
                                       ImVec4(colors.accent_muted.r,
                                              colors.accent_muted.g,
                                              colors.accent_muted.b,
-                                             0.7f));
+                                             0.75f));
                 float item_h = ImGui::GetTextLineHeight() + 8.0f;
                 bool  clicked =
                     ImGui::Selectable(label, false, ImGuiSelectableFlags_None, ImVec2(0, item_h));

@@ -552,6 +552,13 @@ endif()
 
 # ROS2 adapter (optional) — all ROS2 build logic lives in src/adapters/ros2/CMakeLists.txt
 add_subdirectory(src/adapters/ros2)
+# Humble ${std_msgs_TARGETS} genexes reference fastcdr at generate time when tests
+# link spectra_ros2_adapter. find_package in the subdirectory alone is not always
+# visible to add_subdirectory(tests); re-find in parent scope when ROS2 is enabled.
+if(SPECTRA_USE_ROS2)
+    find_package(fastcdr QUIET)
+    find_package(fastrtps QUIET)
+endif()
 # Eigen adapter (optional)
 if(SPECTRA_USE_EIGEN)
     find_package(Eigen3 QUIET)

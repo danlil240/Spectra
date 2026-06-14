@@ -13,12 +13,12 @@ namespace spectra::ui
 namespace glass_palette
 {
 // Night Glass surfaces — lifted from pre-redesign night theme (not near-black)
-constexpr Color kBaseBackground{0.03f, 0.04f, 0.07f, 1.0f};   // ~#07090D
-constexpr Color kSurfacePanel{0.08f, 0.10f, 0.13f, 1.0f};     // ~#141A22
+constexpr Color kBaseBackground{0.063f, 0.102f, 0.169f, 1.0f};   // #101A2B Vision chrome
+constexpr Color kSurfacePanel{0.071f, 0.110f, 0.204f, 1.0f};   // #121C34 nav rail
+constexpr Color kSurfacePlot{0.075f, 0.118f, 0.192f, 1.0f};    // #131E31 plot canvas
 constexpr Color kSurfacePanelHover{0.11f, 0.14f, 0.19f, 1.0f};
 constexpr Color kSurfacePanelActive{0.13f, 0.17f, 0.24f, 1.0f};
-constexpr Color kSurfaceToolbar{0.06f, 0.08f, 0.11f, 1.0f};
-constexpr Color kSurfacePlot{0.07f, 0.13f, 0.19f, 1.0f};      // ~#132032
+constexpr Color kSurfaceToolbar{0.055f, 0.082f, 0.125f, 1.0f};
 constexpr Color kSurfaceControl{0.11f, 0.15f, 0.19f, 1.0f};   // ~#1D2530
 constexpr Color kSurfacePopup{0.14f, 0.19f, 0.25f, 1.0f};     // ~#243041
 constexpr Color kBorderSubtle{0.22f, 0.30f, 0.42f, 0.45f};

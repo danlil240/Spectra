@@ -708,17 +708,26 @@ void ImGuiIntegration::draw_inspector_toggle()
         const auto& colors = theme_colors();
         ImDrawList* dl     = ImGui::GetWindowDrawList();
 
-        // Only show background on hover for a subtle feel
-        if (hovered)
+        // Chevron pill — always visible (Vision.png right-edge collapse control).
         {
             ImU32 bg_col = IM_COL32(static_cast<uint8_t>(colors.bg_tertiary.r * 255),
                                     static_cast<uint8_t>(colors.bg_tertiary.g * 255),
                                     static_cast<uint8_t>(colors.bg_tertiary.b * 255),
-                                    180);
+                                    hovered ? 200 : 130);
             dl->AddRectFilled(ImVec2(btn_x, btn_y),
                               ImVec2(btn_x + BTN_W, btn_y + BTN_H),
                               bg_col,
                               BTN_ROUNDING);
+            ui::Color edge = colors.accent.lerp(ui::glass_palette::kAccentMagenta, 0.30f);
+            dl->AddRect(ImVec2(btn_x, btn_y),
+                        ImVec2(btn_x + BTN_W, btn_y + BTN_H),
+                        IM_COL32(static_cast<uint8_t>(edge.r * 255),
+                                 static_cast<uint8_t>(edge.g * 255),
+                                 static_cast<uint8_t>(edge.b * 255),
+                                 hovered ? 180 : 90),
+                        BTN_ROUNDING,
+                        0,
+                        1.0f);
         }
 
         // Chevron icon centered in the pill
@@ -761,7 +770,8 @@ void ImGuiIntegration::draw_status_bar()
                              | ImGuiWindowFlags_NoBringToFrontOnFocus
                              | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoBackground;
 
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(ui::tokens::SPACE_4, 0.0f));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
+                        ImVec2(ui::tokens::STATUS_BAR_PADDING_H, 0.0f));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
     ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0, 0, 0, 0));
@@ -801,28 +811,33 @@ void ImGuiIntegration::draw_status_bar()
         ImGuiIO& io = ImGui::GetIO();
         ImGui::PushFont(font_heading_);
 
-        // Vertically center all text in the status bar
-        float bar_h    = bounds.h;
-        float text_h   = ImGui::GetTextLineHeight();
-        float y_offset = (bar_h - text_h) * 0.5f;
-        ImGui::SetCursorPosY(y_offset);
-
         const auto& colors = theme_colors();
         ImDrawList* dl     = ImGui::GetWindowDrawList();
+
+        const float bar_h       = bounds.h;
+        const float text_h      = ImGui::GetTextLineHeight();
+        const float pill_h      = ui::tokens::STATUS_BAR_PILL_HEIGHT;
+        const float pill_pad_h  = ui::tokens::STATUS_BAR_PILL_PAD_H;
+        const float pill_pad_v  = ui::tokens::STATUS_BAR_PILL_PAD_V;
+        const float pill_radius = ui::tokens::STATUS_BAR_PILL_RADIUS;
+
+        // Vertically center the pill row.
+        float y_offset = (bar_h - pill_h) * 0.5f;
+        ImGui::SetCursorPosY(y_offset + (pill_h - text_h) * 0.5f);
 
         // Helper: draw a clean status pill with consistent padding/radius/border.
         auto draw_pill = [&](const char*      label,
                              const ui::Color& text_col,
                              const ui::Color& bg_col,
                              float            bg_alpha,
-                             const ui::Color& border_col,
-                             float            pad_h = 7.0f,
-                             float            pad_v = 4.0f)
+                             const ui::Color& border_col)
         {
             ImVec2 text_sz  = ImGui::CalcTextSize(label);
             ImVec2 cursor_p = ImGui::GetCursorScreenPos();
-            ImVec2 pill_min(cursor_p.x - pad_h, cursor_p.y - pad_v);
-            ImVec2 pill_max(cursor_p.x + text_sz.x + pad_h, cursor_p.y + text_sz.y + pad_v);
+            ImVec2 pill_min(cursor_p.x - pill_pad_h,
+                            cursor_p.y - (pill_h - text_h) * 0.5f - pill_pad_v);
+            ImVec2 pill_max(cursor_p.x + text_sz.x + pill_pad_h,
+                            cursor_p.y + text_h + (pill_h - text_h) * 0.5f + pill_pad_v);
 
             dl->AddRectFilled(pill_min,
                               pill_max,
@@ -830,20 +845,23 @@ void ImGuiIntegration::draw_status_bar()
                                        static_cast<uint8_t>(bg_col.g * 255),
                                        static_cast<uint8_t>(bg_col.b * 255),
                                        static_cast<uint8_t>(bg_alpha * 255)),
-                              ui::tokens::RADIUS_MD);
+                              pill_radius);
             dl->AddRect(pill_min,
                         pill_max,
                         IM_COL32(static_cast<uint8_t>(border_col.r * 255),
                                  static_cast<uint8_t>(border_col.g * 255),
                                  static_cast<uint8_t>(border_col.b * 255),
-                                 static_cast<uint8_t>((bg_alpha * 0.65f) * 255)),
-                        ui::tokens::RADIUS_MD,
+                                 static_cast<uint8_t>((bg_alpha * 0.60f) * 255)),
+                        pill_radius,
                         0,
                         1.0f);
 
             ImGui::PushStyleColor(
                 ImGuiCol_Text,
-                ImVec4(text_col.r, text_col.g, text_col.b, ui::shell_text_alpha(text_col.a)));
+                ImVec4(text_col.r,
+                       text_col.g,
+                       text_col.b,
+                       ui::tokens::STATUS_BAR_TEXT_ALPHA));
             ImGui::TextUnformatted(label);
             ImGui::PopStyleColor();
         };
@@ -854,17 +872,11 @@ void ImGuiIntegration::draw_status_bar()
                 cursor_data_valid_
                     ? std::format("X: {:.4f}  Y: {:.4f}", cursor_data_x_, cursor_data_y_)
                     : "X: —  Y: —";
-            draw_pill(cursor_buf.c_str(),
-                      colors.text_secondary,
-                      colors.bg_tertiary,
-                      0.36f,
-                      colors.border_subtle,
-                      7.0f,
-                      4.0f);
+            draw_pill(cursor_buf.c_str(), colors.text_secondary, colors.bg_tertiary, 0.32f, colors.border_subtle);
         }
 
         // Center group: mode + zoom.
-        ImGui::SameLine(0.0f, ui::tokens::SPACE_4);
+        ImGui::SameLine(0.0f, ui::tokens::STATUS_BAR_GROUP_GAP);
         {
             const char* mode_label = "Navigate";
             ui::Color   mode_color = colors.text_secondary;
@@ -897,67 +909,49 @@ void ImGuiIntegration::draw_status_bar()
                 default:
                     break;
             }
-            draw_pill(mode_label, mode_color, colors.bg_tertiary, 0.22f, mode_color, 7.0f, 4.0f);
+            draw_pill(mode_label, mode_color, colors.bg_tertiary, 0.20f, mode_color);
         }
 
-        ImGui::SameLine(0.0f, ui::tokens::SPACE_3);
+        ImGui::SameLine(0.0f, ui::tokens::STATUS_BAR_GROUP_GAP);
         {
             std::string zoom_buf;
             double      zoom_pct = static_cast<double>(zoom_level_) * 100.0;
             if (zoom_pct < 10000.0)
-                zoom_buf = std::format("{:.0f}%", zoom_pct);
+                zoom_buf = std::format("Zoom: {:.0f}%", zoom_pct);
             else if (zoom_pct < 1e7)
-                zoom_buf = std::format("{:.1f}K%", zoom_pct / 1e3);
+                zoom_buf = std::format("Zoom: {:.1f}K%", zoom_pct / 1e3);
             else if (zoom_pct < 1e10)
-                zoom_buf = std::format("{:.1f}M%", zoom_pct / 1e6);
+                zoom_buf = std::format("Zoom: {:.1f}M%", zoom_pct / 1e6);
             else if (zoom_pct < 1e13)
-                zoom_buf = std::format("{:.1f}G%", zoom_pct / 1e9);
+                zoom_buf = std::format("Zoom: {:.1f}G%", zoom_pct / 1e9);
             else
-                zoom_buf = std::format("{:.2e}%", zoom_pct);
-            draw_pill(zoom_buf.c_str(),
-                      colors.text_secondary,
-                      colors.bg_tertiary,
-                      0.28f,
-                      colors.border_subtle,
-                      6.0f,
-                      4.0f);
+                zoom_buf = std::format("Zoom: {:.2e}%", zoom_pct);
+            draw_pill(zoom_buf.c_str(), colors.text_secondary, colors.bg_tertiary, 0.24f, colors.border_subtle);
         }
 
         // Right side: performance pills anchored to the right edge when room allows.
-        const std::string fps_buf  = std::format("{} fps", static_cast<int>(io.Framerate));
-        const std::string gpu_buf  = std::format("GPU {:.1f}ms", gpu_time_ms_);
-        const float       perf_gap = ui::tokens::SPACE_3;
+        const std::string fps_buf = std::format("{} fps", static_cast<int>(io.Framerate));
+        const std::string gpu_buf = std::format("GPU: {:.1f}ms", gpu_time_ms_);
+        const float       perf_gap = ui::tokens::STATUS_BAR_GROUP_GAP;
         const float       right_w  = ImGui::CalcTextSize(fps_buf.c_str()).x
-                              + ImGui::CalcTextSize(gpu_buf.c_str()).x + (6.0f + 6.0f) * 2
-                              + perf_gap;
-        const float right_x    = ImGui::GetWindowWidth() - right_w - ui::tokens::SPACE_4;
+                              + ImGui::CalcTextSize(gpu_buf.c_str()).x
+                              + (pill_pad_h + pill_pad_h) * 2 + perf_gap;
+        const float right_x    = ImGui::GetWindowWidth() - right_w - ui::tokens::STATUS_BAR_PADDING_H;
         const float center_end = ImGui::GetCursorPosX();
-        const bool  show_perf  = right_x > center_end + ui::tokens::SPACE_4;
+        const bool  show_perf  = right_x > center_end + ui::tokens::SPACE_3;
         if (show_perf)
         {
             ImGui::SameLine();
             ImGui::SetCursorPosX(right_x);
 
-            // FPS with green health coding.
-            float     fps_val   = io.Framerate;
-            ui::Color fps_color = colors.success;
-            if (fps_val < 20.0f)
-                fps_color = colors.error;
-            else if (fps_val < 45.0f)
-                fps_color = colors.warning;
-
-            draw_pill(fps_buf.c_str(), fps_color, colors.bg_tertiary, 0.14f, fps_color, 6.0f, 4.0f);
+            // FPS — Vision.png bright green pill with dark text.
+            ui::Color fps_text = ui::Color::from_hex(0x061008);
+            draw_pill(fps_buf.c_str(), fps_text, colors.success, 0.92f, colors.success);
 
             // GPU time in muted blue/purple.
             ImGui::SameLine(0.0f, perf_gap);
             ui::Color gpu_tint = colors.accent.lerp(ui::Color::from_hex(0xA070F0), 0.45f);
-            draw_pill(gpu_buf.c_str(),
-                      colors.text_secondary,
-                      colors.bg_tertiary,
-                      0.12f,
-                      gpu_tint,
-                      6.0f,
-                      4.0f);
+            draw_pill(gpu_buf.c_str(), colors.text_secondary, colors.bg_tertiary, 0.10f, gpu_tint);
         }
 
         ImGui::PopFont();

@@ -36,8 +36,8 @@ static bool icon_label_button(const char* icon_codepoint,
                      LayoutManager::NAV_RAIL_CELL_HEIGHT_MIN / LayoutManager::NAV_RAIL_CELL_HEIGHT);
 
     // Rail metrics: icon above label, centered, with consistent spacing tokens.
-    float icon_sz  = (icon_font ? icon_font->LegacySize : 20.0f) * scale;
-    float label_sz = (label_font ? (label_font->LegacySize * 0.92f) : 11.0f) * scale;
+    float icon_sz  = ui::tokens::NAV_RAIL_ICON_SIZE_BASE * scale;
+    float label_sz = ui::tokens::NAV_RAIL_LABEL_SIZE_BASE * scale;
     float icon_gap = ui::tokens::SPACE_1 * 0.75f * scale;
     float cell_h   = LayoutManager::NAV_RAIL_CELL_HEIGHT * scale;
     float pill_pad = ui::tokens::SPACE_2 * scale;
@@ -69,27 +69,33 @@ static bool icon_label_button(const char* icon_codepoint,
 
     if (motion_t > 0.01f || active)
     {
-        // Layered outer glow — clearly stronger on the active tool.
+        // Layered outer glow — refined and stronger only on the active tool.
         ui::Color glow_color =
-            ui::control_glow_color(colors).lerp(glass_palette::kAccentCyan, 0.3f);
+            ui::control_glow_color(colors).lerp(glass_palette::kAccentCyan, 0.25f);
+        const float glow_a =
+            (ui::tokens::NAV_RAIL_GLOW_ALPHA_HOVER * hover_t
+             + ui::tokens::NAV_RAIL_GLOW_ALPHA_ACTIVE * active_t)
+            * glow_scale;
         for (int gi = 2; gi >= 1; --gi)
         {
             float e = static_cast<float>(gi);
             dl->AddRect(ImVec2(pill_min.x - e, pill_min.y - e),
                         ImVec2(pill_max.x + e, pill_max.y + e),
                         ImGui::ColorConvertFloat4ToU32(
-                            ImVec4(glow_color.r,
-                                   glow_color.g,
-                                   glow_color.b,
-                                   (0.04f + hover_t * 0.03f + active_t * 0.10f) / e * glow_scale)),
+                            ImVec4(glow_color.r, glow_color.g, glow_color.b, glow_a / e)),
                         tokens::RADIUS_MD + e,
                         0,
-                        2.0f);
+                        1.5f);
         }
 
         ui::Color pill_fill = ui::control_surface_color(colors, active, hovered);
-        float     pill_a    = tm.glass_surface_alpha(ui::GlassSurface::Toolbar);
-        pill_a = std::clamp(pill_a * (0.72f + active_t * 0.18f + hover_t * 0.08f), 0.20f, 1.0f);
+        float     pill_a    = ui::tokens::NAV_RAIL_SURFACE_ALPHA_INACTIVE
+                          + active_t
+                                * (ui::tokens::NAV_RAIL_SURFACE_ALPHA_ACTIVE
+                                   - ui::tokens::NAV_RAIL_SURFACE_ALPHA_INACTIVE)
+                          + hover_t
+                                * (ui::tokens::NAV_RAIL_SURFACE_ALPHA_HOVER
+                                   - ui::tokens::NAV_RAIL_SURFACE_ALPHA_INACTIVE);
         dl->AddRectFilled(
             pill_min,
             pill_max,
@@ -99,34 +105,38 @@ static bool icon_label_button(const char* icon_codepoint,
         // Top inner highlight on the pill.
         dl->AddLine(ImVec2(pill_min.x + 4.0f * scale, pill_min.y + 1.0f),
                     ImVec2(pill_max.x - 4.0f * scale, pill_min.y + 1.0f),
-                    IM_COL32(225, 244, 255, static_cast<int>(30.0f + 22.0f * active_t)),
+                    IM_COL32(225, 244, 255, static_cast<int>(24.0f + 18.0f * active_t)),
                     1.0f);
 
         ui::Color border = ui::control_border_color(colors, active, hovered);
-        dl->AddRect(
-            pill_min,
-            pill_max,
-            ImGui::ColorConvertFloat4ToU32(
-                ImVec4(border.r, border.g, border.b, 0.30f + hover_t * 0.16f + active_t * 0.32f)),
-            tokens::RADIUS_MD);
+        float border_a = ui::tokens::NAV_RAIL_BORDER_ALPHA_HOVER * hover_t
+                         + ui::tokens::NAV_RAIL_BORDER_ALPHA_ACTIVE * active_t;
+        dl->AddRect(pill_min,
+                    pill_max,
+                    ImGui::ColorConvertFloat4ToU32(ImVec4(border.r, border.g, border.b, border_a)),
+                    tokens::RADIUS_MD);
     }
 
     // Single active state = the glowing pill above. No separate left accent bar
     // (avoids multiple cyan indicators that make several tools look active).
 
-    ui::Color icon_color   = ui::control_text_color(colors, active, hovered);
-    ui::Color text_color   = active
-                                 ? colors.accent_hover
-                                 : colors.text_secondary.lerp(colors.text_primary, hover_t * 0.65f);
-    float     icon_alpha_v = ui::icon_alpha(active, hovered, false);
-    float     text_alpha_v = ui::shell_text_alpha(active ? 1.0f : (0.84f + hover_t * 0.14f));
-    ImU32     icon_col     = ImGui::ColorConvertFloat4ToU32(
+    ui::Color icon_color = ui::control_text_color(colors, active, hovered);
+    ui::Color text_color = active ? colors.accent_hover : colors.text_secondary;
+    float icon_alpha_v =
+        active ? ui::tokens::NAV_RAIL_ICON_ALPHA_ACTIVE
+               : (hovered ? ui::tokens::NAV_RAIL_ICON_ALPHA_HOVER
+                          : ui::tokens::NAV_RAIL_ICON_ALPHA_INACTIVE);
+    float text_alpha_v =
+        active ? ui::tokens::NAV_RAIL_LABEL_ALPHA_ACTIVE
+               : (hovered ? ui::tokens::NAV_RAIL_LABEL_ALPHA_HOVER
+                          : ui::tokens::NAV_RAIL_LABEL_ALPHA_INACTIVE);
+    ImU32 icon_col = ImGui::ColorConvertFloat4ToU32(
         ImVec4(icon_color.r, icon_color.g, icon_color.b, icon_alpha_v));
     ImU32 text_col = ImGui::ColorConvertFloat4ToU32(
         ImVec4(text_color.r, text_color.g, text_color.b, text_alpha_v));
 
-    float icon_draw_sz  = icon_sz * (1.0f + hover_t * 0.03f + active_t * 0.04f);
-    float label_draw_sz = label_sz * (1.0f + hover_t * 0.015f + active_t * 0.02f);
+    float icon_draw_sz  = icon_sz * (1.0f + active_t * 0.03f);
+    float label_draw_sz = label_sz;
     float content_h     = icon_draw_sz + icon_gap + label_draw_sz;
     float y_start       = std::floor(cursor.y + (cell_h - content_h) * 0.5f - lift * 0.35f);
 
@@ -189,7 +199,7 @@ void ImGuiIntegration::draw_menubar_menu(const char* label, const std::vector<Me
                           ImVec4(menu_text.r,
                                  menu_text.g,
                                  menu_text.b,
-                                 menu_is_open ? 1.0f : ui::shell_text_alpha(0.90f)));
+                                 menu_is_open ? 1.0f : ui::tokens::COMMAND_BAR_MENU_TEXT_ALPHA));
     // Glass-pill open/hover/active states (translucent accent tint, rounded).
     ui::Color menu_bg = ui::control_surface_color(colors, menu_is_open, false);
     ImGui::PushStyleColor(ImGuiCol_Button,
@@ -199,7 +209,7 @@ void ImGuiIntegration::draw_menubar_menu(const char* label, const std::vector<Me
     ImGui::PushStyleColor(ImGuiCol_ButtonActive,
                           ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.24f));
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
-                        ImVec2(ui::tokens::SPACE_4, ui::tokens::SPACE_2 + 1.0f));
+                        ImVec2(ui::tokens::SPACE_3, ui::tokens::SPACE_2 + 1.0f));
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, ui::tokens::RADIUS_MD);
 
     // Remember button rect for popup positioning and auto-close
@@ -437,9 +447,9 @@ void ImGuiIntegration::draw_command_bar()
                              | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoBackground;
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
-                        ImVec2(ui::tokens::SPACE_6, ui::tokens::SPACE_2));
+                        ImVec2(ui::tokens::SPACE_5, ui::tokens::SPACE_2));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ui::tokens::SPACE_5, 0.0f));
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ui::tokens::COMMAND_BAR_ITEM_SPACING, 0.0f));
     ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0, 0, 0, 0));
     ImGui::PushStyleColor(ImGuiCol_Border,
                           ImVec4(theme_colors().border_subtle.r,
@@ -521,23 +531,14 @@ void ImGuiIntegration::draw_command_bar()
             float       bar_h   = ImGui::GetWindowSize().y;
             ImVec2      cursor  = ImGui::GetCursorScreenPos();
             float       cy      = cursor.y + bar_h * 0.5f;
-            float       logo_sz = 26.0f;
-            float       lx      = cursor.x;
-            float       ly      = cy - logo_sz * 0.5f;
-            float       text_x  = lx + logo_sz + ui::tokens::SPACE_3;
-
-            if (corner_logo_texture_id_)
-            {
-                dl->AddImage(imgui_texture_id_from_u64(corner_logo_texture_id_),
-                             ImVec2(lx, ly),
-                             ImVec2(lx + logo_sz, ly + logo_sz));
-            }
+            // Wordmark only — Vision.png omits the hex mark beside SPECTRA.
+            float text_x = cursor.x;
 
             ImGui::PushFont(font_title_);
             const char* letters = "SPECTRA";
-            float       font_sz = font_title_->LegacySize * 0.90f;
+            float       font_sz = font_title_->LegacySize * 0.88f;
             float       text_y  = cy - font_sz * 0.5f;
-            float       spacing = 2.0f;
+            float       spacing = 1.5f;
 
             float total_w = 0.0f;
             for (const char* p = letters; *p; ++p)
@@ -556,7 +557,7 @@ void ImGuiIntegration::draw_command_bar()
                     char      ch[2] = {*p, 0};
                     float     cw    = ImGui::CalcTextSize(ch).x;
                     float     t     = (len > 1) ? static_cast<float>(idx) / (len - 1) : 0.0f;
-                    float     mix   = 0.20f + 0.30f * t;
+                    float     mix   = 0.18f + 0.22f * t;
                     ui::Color base  = theme_colors().text_primary.lerp(theme_colors().accent, mix);
                     dl->AddText(font_title_,
                                 font_sz,
@@ -564,33 +565,113 @@ void ImGuiIntegration::draw_command_bar()
                                 IM_COL32(static_cast<uint8_t>(base.r * 255),
                                          static_cast<uint8_t>(base.g * 255),
                                          static_cast<uint8_t>(base.b * 255),
-                                         250),
+                                         230),
                                 ch);
                     gx += cw + spacing;
                 }
             }
 
-            // Advance ImGui cursor past the entire brand block (extra breathing room)
-            float brand_w = (text_x - cursor.x) + total_w + ui::tokens::SPACE_4;
+            // Advance ImGui cursor past the entire brand block.
+            float brand_w = total_w + ui::tokens::COMMAND_BAR_BRAND_TO_HOME_GAP;
             ImGui::Dummy(ImVec2(brand_w, font_sz));
             ImGui::PopFont();
         }
 
         ImGui::SameLine();
 
-        draw_toolbar_button(
-            ui::icon_str(ui::Icon::Home),
-            [this]()
+        // Home button: Vision.png radial cyan/violet glow in a rounded pill.
+        {
+            const auto& header_colors = theme_colors();
+            const float glow          = theme_mgr_ ? theme_mgr_->effective_glow_intensity() : 0.5f;
+            ImGui::PushFont(font_icon_);
+            const char* home_icon = ui::icon_str(ui::Icon::Home);
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
+                                  ImVec4(header_colors.accent.r,
+                                         header_colors.accent.g,
+                                         header_colors.accent.b,
+                                         0.10f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive,
+                                  ImVec4(header_colors.accent.r,
+                                         header_colors.accent.g,
+                                         header_colors.accent.b,
+                                         0.22f));
+            ImGui::PushStyleColor(ImGuiCol_Text,
+                                  ImVec4(header_colors.accent.r,
+                                         header_colors.accent.g,
+                                         header_colors.accent.b,
+                                         0.92f));
+            ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(ui::tokens::SPACE_2, ui::tokens::SPACE_2));
+            ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, ui::tokens::RADIUS_MD);
+
+            ImGui::SetWindowFontScale(ui::tokens::COMMAND_BAR_HOME_ICON_SCALE);
+            if (ImGui::Button(home_icon))
             {
                 SPECTRA_LOG_DEBUG("ui_button", "Home button clicked - setting reset_view flag");
                 reset_view_ = true;
                 SPECTRA_LOG_DEBUG("ui_button", "Reset view flag set successfully");
-            },
-            "Reset View (Home)",
-            false,
-            0.82f);
+            }
+            ImGui::SetWindowFontScale(1.0f);
 
-        ImGui::SameLine();
+            // Radial glow behind the home pill (drawn after layout is known).
+            {
+                ImVec2      mn  = ImGui::GetItemRectMin();
+                ImVec2      mx  = ImGui::GetItemRectMax();
+                ImDrawList* hdl = ImGui::GetWindowDrawList();
+                ImVec2      ctr((mn.x + mx.x) * 0.5f, (mn.y + mx.y) * 0.5f);
+                for (int ring = 3; ring >= 1; --ring)
+                {
+                    float expand = static_cast<float>(ring) * 3.0f;
+                    int   ca     = static_cast<int>((14.0f + 22.0f * glow) / static_cast<float>(ring));
+                    int   ma     = static_cast<int>((10.0f + 16.0f * glow) / static_cast<float>(ring));
+                    hdl->AddRect(ImVec2(mn.x - expand, mn.y - expand),
+                                 ImVec2(mx.x + expand, mx.y + expand),
+                                 IM_COL32(60, 175, 245, ca),
+                                 ui::tokens::RADIUS_MD + expand,
+                                 0,
+                                 1.5f);
+                    hdl->AddRect(ImVec2(mn.x - expand * 0.5f, mn.y - expand * 0.5f),
+                                 ImVec2(mx.x + expand * 0.5f, mx.y + expand * 0.5f),
+                                 IM_COL32(190, 80, 220, ma),
+                                 ui::tokens::RADIUS_MD + expand * 0.5f,
+                                 0,
+                                 1.0f);
+                }
+                ui::Color fill = header_colors.bg_tertiary.lerp(header_colors.accent, 0.18f);
+                hdl->AddRectFilled(mn, mx, IM_COL32(static_cast<uint8_t>(fill.r * 255),
+                                                    static_cast<uint8_t>(fill.g * 255),
+                                                    static_cast<uint8_t>(fill.b * 255),
+                                                    static_cast<uint8_t>(0.55f * 255)),
+                                   ui::tokens::RADIUS_MD);
+                hdl->AddRect(mn,
+                             mx,
+                             IM_COL32(90, 190, 250, static_cast<int>(80.0f + 60.0f * glow)),
+                             ui::tokens::RADIUS_MD,
+                             0,
+                             1.0f);
+                // Re-draw icon on top of the custom fill.
+                ImVec2 isz = ImGui::CalcTextSize(home_icon);
+                hdl->AddText(font_icon_,
+                             font_icon_->LegacySize * ui::tokens::COMMAND_BAR_HOME_ICON_SCALE,
+                             ImVec2(ctr.x - isz.x * 0.5f, ctr.y - isz.y * 0.5f),
+                             IM_COL32(static_cast<uint8_t>(header_colors.accent.r * 255),
+                                      static_cast<uint8_t>(header_colors.accent.g * 255),
+                                      static_cast<uint8_t>(header_colors.accent.b * 255),
+                                      235),
+                             home_icon);
+            }
+
+            if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
+            {
+                deferred_tooltip_ = "Reset View (Home)";
+            }
+
+            ImGui::PopStyleVar(2);
+            ImGui::PopStyleColor(4);
+            ImGui::PopFont();
+        }
+
+        ImGui::SameLine(0.0f, ui::tokens::COMMAND_BAR_HOME_TO_MENU_GAP);
 
         // File menu — build dynamically to include plugin export formats
         std::vector<MenuItem> file_items;
@@ -1274,11 +1355,13 @@ void ImGuiIntegration::draw_chrome_backdrops()
     const ui::ThemeGlassSettings& glass = theme_mgr_->glass();
     const float                   glow  = theme_mgr_->effective_glow_intensity();
 
-    // Premium floating app-shell frame — luminous border + edge vignette only.
-    // Strokes/edge bands never fill the canvas (BackgroundDrawList composites over
-    // the Vulkan plot; a full-viewport fill would hide all series).
+    // Vision.png outer halo + shell frame (strokes only — never fill the canvas rect).
     if (ImGuiViewport* vp = ImGui::GetMainViewport())
     {
+        ImVec2 vp_min = vp->Pos;
+        ImVec2 vp_max = ImVec2(vp->Pos.x + vp->Size.x, vp->Pos.y + vp->Size.y);
+        ui::glass_draw::draw_window_edge_glow(bg, vp_min, vp_max, glow);
+
         ImVec2 win_min = ImVec2(vp->Pos.x + 1.0f, vp->Pos.y + 1.0f);
         ImVec2 win_max = ImVec2(vp->Pos.x + vp->Size.x - 1.0f, vp->Pos.y + vp->Size.y - 1.0f);
         ui::glass_draw::draw_app_shell_frame(bg, win_min, win_max, glow);
@@ -1304,7 +1387,17 @@ void ImGuiIntegration::draw_chrome_backdrops()
     if (show_nav_rail_)
     {
         Rect nr = layout_manager_->nav_rail_rect();
-        draw_zone(nr, ui::GlassSurface::Toolbar, 0.0f);
+        const float inset = ui::tokens::PANEL_GAP + 2.0f;
+        if (nr.w > inset * 2.0f + 8.0f && nr.h > inset * 2.0f + 8.0f)
+        {
+            draw_zone(Rect{nr.x + inset, nr.y + inset, nr.w - inset * 2.0f, nr.h - inset * 2.0f},
+                      ui::GlassSurface::Toolbar,
+                      ui::tokens::RADIUS_LG);
+        }
+        else
+        {
+            draw_zone(nr, ui::GlassSurface::Toolbar, ui::tokens::RADIUS_LG);
+        }
     }
 
     if (layout_manager_->is_tab_bar_visible())

@@ -37,11 +37,11 @@ void ThemeGlassSettings::clamp()
 ThemeGlassSettings ThemeGlassSettings::night_defaults()
 {
     ThemeGlassSettings s;
-    s.master_intensity = 0.85f;
-    s.panel_alpha      = 0.42f;
-    s.plot_alpha       = 0.35f;
-    s.toolbar_alpha    = 0.38f;
-    s.glow_strength    = 0.75f;
+    s.master_intensity = 0.62f;
+    s.panel_alpha      = 0.38f;
+    s.plot_alpha       = 0.30f;
+    s.toolbar_alpha    = 0.34f;
+    s.glow_strength    = 0.68f;
     s.blur_enabled     = false;
     return s;
 }
@@ -1109,10 +1109,10 @@ void ThemeManager::initialize_default_themes()
     // Night Glass — premium dark glassmorphism (Vision.png target)
     Theme night;
     night.name             = "night";
-    night.colors           = {.bg_canvas    = Color::from_hex(0x132032),
-                              .bg_primary   = Color::from_hex(0x07090D),
-                              .bg_secondary = Color::from_hex(0x141A22),
-                              .bg_tertiary  = Color::from_hex(0x1D2530),
+    night.colors           = {.bg_canvas    = Color::from_hex(0x131E31),
+                              .bg_primary   = Color::from_hex(0x101A2B),
+                              .bg_secondary = Color::from_hex(0x121C34),
+                              .bg_tertiary  = Color::from_hex(0x1E2838),
                               .bg_elevated  = Color::from_hex(0x243041),
                               .bg_overlay   = Color(0.01f, 0.02f, 0.05f, 0.62f),
 
@@ -1136,10 +1136,10 @@ void ThemeManager::initialize_default_themes()
                               .info    = glass_palette::kAccentBlue,
 
                               .grid_major       = Color(0.55f, 0.72f, 0.92f, glass_tokens::grid_major_alpha),
-                              .grid_minor       = Color(0.55f, 0.72f, 0.92f, glass_tokens::grid_minor_alpha),
+                              .grid_minor       = Color(0.55f, 0.72f, 0.92f, 0.025f),
                               .grid_line        = Color(0.55f, 0.72f, 0.92f, glass_tokens::grid_major_alpha),
-                              .axis_line        = Color(0.48f, 0.58f, 0.72f, 0.38f),
-                              .tick_label       = glass_palette::kTextMuted,
+                              .axis_line        = Color(0.52f, 0.62f, 0.76f, 0.45f),
+                              .tick_label       = glass_palette::kTextSecondary,
                               .crosshair        = Color(0.24f, 0.84f, 0.96f, 0.58f),
                               .selection_fill   = Color(0.58f, 0.45f, 0.96f, 0.14f),
                               .selection_border = glass_palette::kAccentViolet,

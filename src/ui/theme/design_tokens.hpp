@@ -154,4 +154,63 @@ constexpr float FRAME_TIME_BUDGET_MS    = 16.67f;   // 60 FPS
 constexpr float UI_FRAME_TIME_TARGET_MS = 2.0f;     // UI rendering budget
 constexpr float TOOLTIP_TIME_TARGET_MS  = 0.1f;     // Tooltip query budget
 
+// ─── Micro-Polish Component Language ─────────────────────────────────────────
+// Shared geometry/effect constants for the app shell so toolbar, tab bar,
+// status bar, command bar, and canvas frame stay visually consistent.
+
+// Nav rail (left toolbar)
+constexpr float NAV_RAIL_ICON_ALPHA_INACTIVE   = 0.86f;   // readable, not disabled
+constexpr float NAV_RAIL_ICON_ALPHA_HOVER      = 0.96f;
+constexpr float NAV_RAIL_ICON_ALPHA_ACTIVE     = 1.00f;
+constexpr float NAV_RAIL_LABEL_ALPHA_INACTIVE  = 0.78f;   // readable tiny labels
+constexpr float NAV_RAIL_LABEL_ALPHA_HOVER     = 0.95f;
+constexpr float NAV_RAIL_LABEL_ALPHA_ACTIVE    = 1.00f;
+constexpr float NAV_RAIL_ICON_SIZE_BASE        = 20.0f;   // matches ICON_MD
+constexpr float NAV_RAIL_LABEL_SIZE_BASE       = 11.0f;   // slightly larger tiny label
+constexpr float NAV_RAIL_GLOW_ALPHA_ACTIVE     = 0.14f;   // refined active glow
+constexpr float NAV_RAIL_GLOW_ALPHA_HOVER      = 0.06f;
+constexpr float NAV_RAIL_SURFACE_ALPHA_INACTIVE = 0.00f;  // no bg until interaction
+constexpr float NAV_RAIL_SURFACE_ALPHA_ACTIVE  = 0.90f;
+constexpr float NAV_RAIL_SURFACE_ALPHA_HOVER   = 0.72f;
+constexpr float NAV_RAIL_BORDER_ALPHA_ACTIVE   = 0.55f;
+constexpr float NAV_RAIL_BORDER_ALPHA_HOVER    = 0.36f;
+
+// Tab bar
+constexpr float TAB_BAR_SELECTED_HEIGHT_EXTRA  = 3.0f;    // selected tab grows upward
+constexpr float TAB_BAR_HORIZONTAL_PADDING     = 22.0f;   // title side padding
+constexpr float TAB_BAR_CLOSE_BTN_SIZE         = 14.0f;
+constexpr float TAB_BAR_CLOSE_BTN_PAD_RIGHT    = 10.0f;
+constexpr float TAB_BAR_PLUS_SIZE              = 6.0f;    // half-bar of plus sign
+constexpr float TAB_BAR_UNDERLINE_HEIGHT       = 2.5f;
+constexpr float TAB_BAR_RADIUS                 = 8.0f;    // r8
+constexpr float TAB_BAR_MIN_WIDTH              = 104.0f;
+constexpr float TAB_BAR_MAX_WIDTH              = 220.0f;
+constexpr float TAB_BAR_ADD_BTN_WIDTH          = 34.0f;
+constexpr float TAB_BAR_ICON_TITLE_GAP         = 4.0f;    // if icon+title
+
+// Command bar / top navigation
+constexpr float COMMAND_BAR_ITEM_SPACING       = 14.0f;   // tighten menu gaps
+constexpr float COMMAND_BAR_HOME_ICON_SCALE    = 0.76f;   // make Home less dominant
+constexpr float COMMAND_BAR_HOME_ALPHA         = 0.80f;   // quieter home icon
+constexpr float COMMAND_BAR_MENU_TEXT_ALPHA    = 0.94f;   // readable menus
+constexpr float COMMAND_BAR_BRAND_TO_HOME_GAP  = 10.0f;   // cohesive group
+constexpr float COMMAND_BAR_HOME_TO_MENU_GAP   = 16.0f;
+
+// Status bar
+constexpr float STATUS_BAR_PADDING_H           = 16.0f;   // left/right room
+constexpr float STATUS_BAR_PILL_HEIGHT         = 22.0f;   // fixed pill height
+constexpr float STATUS_BAR_PILL_PAD_H          = 9.0f;    // horizontal inside pill
+constexpr float STATUS_BAR_PILL_PAD_V          = 3.0f;    // vertical inside pill
+constexpr float STATUS_BAR_PILL_RADIUS         = 11.0f;   // full pill
+constexpr float STATUS_BAR_GROUP_GAP           = 10.0f;
+constexpr float STATUS_BAR_TEXT_ALPHA          = 0.92f;
+
+// Canvas / plot frame
+constexpr float CANVAS_FRAME_ROUNDING          = 14.0f;
+constexpr float CANVAS_FRAME_INSET             = 1.5f;    // inner rim inset
+constexpr float CANVAS_FRAME_BORDER_ALPHA      = 0.55f;
+constexpr float CANVAS_FRAME_INNER_ALPHA       = 0.35f;
+constexpr float CANVAS_FRAME_GLOW_ALPHA        = 0.10f;
+constexpr float CANVAS_VIGNETTE_ALPHA          = 0.16f;
+
 }   // namespace spectra::ui::tokens

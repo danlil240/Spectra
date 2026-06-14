@@ -7,6 +7,10 @@ set(SPECTRA_VERSION_STRING "${SPECTRA_VERSION}")
 
 project(spectra VERSION ${SPECTRA_VERSION} LANGUAGES CXX)
 
+# If a previous configure auto-sourced a ROS2 workspace, restore its
+# environment variables so CMake re-runs triggered by the build still work.
+include(${CMAKE_CURRENT_BINARY_DIR}/src/adapters/ros2/spectra_ros_env.cmake OPTIONAL)
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -546,248 +550,8 @@ if(SPECTRA_USE_IMGUI AND (SPECTRA_USE_GLFW OR SPECTRA_USE_SDL3))
     target_compile_definitions(spectra PUBLIC SPECTRA_USE_IMGUI)
 endif()
 
-# ROS2 adapter (optional) — gated behind SPECTRA_USE_ROS2
-# Requires a sourced ROS2 workspace (Humble+) before running CMake.
-# Zero impact on any target when SPECTRA_USE_ROS2=OFF.
-if(SPECTRA_USE_ROS2)
-    find_package(ament_cmake QUIET)
-    if(NOT ament_cmake_FOUND)
-        message(STATUS "ament_cmake not found — disabling ROS2 adapter (SPECTRA_USE_ROS2=OFF)")
-        set(SPECTRA_USE_ROS2 OFF)
-    endif()
-endif()
-if(SPECTRA_USE_ROS2)
-    find_package(PkgConfig QUIET)
-    if(PkgConfig_FOUND)
-        pkg_check_modules(TINYXML2 QUIET tinyxml2)
-    endif()
-    if(NOT TARGET tinyxml2::tinyxml2)
-        find_path(TINYXML2_INCLUDE_DIR tinyxml2.h HINTS ${TINYXML2_INCLUDE_DIRS})
-        find_library(TINYXML2_LIBRARY NAMES tinyxml2 HINTS ${TINYXML2_LIBRARY_DIRS})
-
-        if(TINYXML2_INCLUDE_DIR AND TINYXML2_LIBRARY)
-            add_library(tinyxml2::tinyxml2 UNKNOWN IMPORTED)
-            set_target_properties(tinyxml2::tinyxml2 PROPERTIES
-                IMPORTED_LOCATION "${TINYXML2_LIBRARY}"
-                INTERFACE_INCLUDE_DIRECTORIES "${TINYXML2_INCLUDE_DIR}"
-            )
-        endif()
-    endif()
-    if(NOT TARGET tinyxml2::tinyxml2)
-        message(FATAL_ERROR
-            "TinyXML2 not found. Install libtinyxml2-dev or make tinyxml2 discoverable via pkg-config/CMAKE_PREFIX_PATH."
-        )
-    endif()
-    find_package(rclcpp REQUIRED)
-    find_package(rcl_interfaces REQUIRED)
-    find_package(rosidl_typesupport_introspection_cpp REQUIRED)
-    find_package(std_msgs REQUIRED)
-    find_package(geometry_msgs REQUIRED)
-    find_package(nav_msgs REQUIRED)
-    find_package(ament_index_cpp REQUIRED)
-    find_package(sensor_msgs REQUIRED)
-    find_package(diagnostic_msgs REQUIRED)
-    find_package(tf2_msgs REQUIRED)
-    find_package(visualization_msgs REQUIRED)
-    find_package(rcpputils QUIET)
-
-    set(SPECTRA_NLOHMANN_JSON_INCLUDE_DIR "")
-    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/nlohmann/json.hpp")
-        set(SPECTRA_NLOHMANN_JSON_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party")
-        message(STATUS "Using bundled nlohmann/json from third_party/")
-    else()
-        find_package(nlohmann_json CONFIG QUIET)
-        if(nlohmann_json_FOUND)
-            set(SPECTRA_NLOHMANN_JSON_INCLUDE_DIR "${nlohmann_json_INCLUDE_DIRS}")
-        else()
-            find_path(SPECTRA_NLOHMANN_JSON_INCLUDE_DIR nlohmann/json.hpp)
-        endif()
-    endif()
-
-    if(NOT SPECTRA_NLOHMANN_JSON_INCLUDE_DIR)
-        message(FATAL_ERROR
-            "SPECTRA_USE_ROS2 requires nlohmann/json.hpp to build ros_session.cpp. "
-            "Install nlohmann-json3-dev or ensure third_party/nlohmann/json.hpp exists.")
-    endif()
-
-    if(SPECTRA_ROS2_BAG)
-        find_package(rosbag2_cpp REQUIRED)
-        find_package(rosbag2_storage REQUIRED)
-
-        include(CheckCXXSourceCompiles)
-        set(CMAKE_REQUIRED_LIBRARIES rosbag2_storage::rosbag2_storage)
-        check_cxx_source_compiles([=[
-#include <rosbag2_storage/serialized_bag_message.hpp>
-int main()
-{
-    rosbag2_storage::SerializedBagMessage msg;
-    msg.recv_timestamp = 1;
-    return static_cast<int>(msg.recv_timestamp);
-}
-]=] SPECTRA_ROSBAG2_HAS_RECV_TIMESTAMP)
-        unset(CMAKE_REQUIRED_LIBRARIES)
-    endif()
-
-    # Adapter library — all ROS2 adapter source lives under src/adapters/ros2/
-    add_library(spectra_ros2_adapter
-        src/adapters/ros2/ros2_adapter.cpp
-        src/adapters/ros2/ros2_bridge.cpp
-        src/adapters/ros2/topic_discovery.cpp
-        src/adapters/ros2/message_introspector.cpp
-        src/adapters/ros2/generic_subscriber.cpp
-        src/adapters/ros2/ros_plot_manager.cpp
-        src/adapters/ros2/ui/topic_list_panel.cpp
-        src/adapters/ros2/ui/topic_echo_panel.cpp
-        src/adapters/ros2/ui/topic_stats_overlay.cpp
-        src/adapters/ros2/ui/field_drag_drop.cpp
-        src/adapters/ros2/ui/node_graph_panel.cpp
-        src/adapters/ros2/display/display_registry.cpp
-        src/adapters/ros2/display/grid_display.cpp
-        src/adapters/ros2/display/tf_display.cpp
-        src/adapters/ros2/display/marker_display.cpp
-        src/adapters/ros2/display/pointcloud_display.cpp
-        src/adapters/ros2/display/laserscan_display.cpp
-        src/adapters/ros2/display/image_display.cpp
-        src/adapters/ros2/display/path_display.cpp
-        src/adapters/ros2/display/pose_display.cpp
-        src/adapters/ros2/display/robot_model_display.cpp
-        src/adapters/ros2/display/occupancy_grid_display.cpp
-        src/adapters/ros2/messages/image_adapter.cpp
-        src/adapters/ros2/resources/ros_package_resolver.cpp
-        src/adapters/ros2/tools/measure_tool.cpp
-        src/adapters/ros2/scene/scene_manager.cpp
-        src/adapters/ros2/scene/mesh_primitives.cpp
-        src/adapters/ros2/scene/scene_renderer.cpp
-        src/adapters/ros2/tf/tf_buffer.cpp
-        src/adapters/ros2/urdf/urdf_parser.cpp
-        src/adapters/ros2/ui/displays_panel.cpp
-        src/adapters/ros2/ui/inspector_panel.cpp
-        src/adapters/ros2/ui/scene_viewport.cpp
-        src/adapters/ros2/ui/tf_tree_panel.cpp
-        src/adapters/ros2/subplot_manager.cpp
-        src/adapters/ros2/expression_engine.cpp
-        src/adapters/ros2/expression_plot.cpp
-        src/adapters/ros2/ui/expression_editor.cpp
-        src/adapters/ros2/ros_csv_export.cpp
-        src/adapters/ros2/ros_screenshot_export.cpp
-        src/adapters/ros2/ros_clipboard_export.cpp
-        src/adapters/ros2/ros_app_shell.cpp
-        src/adapters/ros2/ros_app_shell_panel_wiring.cpp
-        src/adapters/ros2/ros_app_shell_menus.cpp
-        src/adapters/ros2/ros_app_shell_drop_targets.cpp
-        src/adapters/ros2/ros_app_shell_bag_clock.cpp
-        src/adapters/ros2/service_caller.cpp
-        src/adapters/ros2/ui/service_caller_panel.cpp
-        src/adapters/ros2/ui/bag_info_panel.cpp
-        src/adapters/ros2/bag_player.cpp
-        src/adapters/ros2/bag_field_spec.cpp
-        src/adapters/ros2/bag_display_sync.cpp
-        src/adapters/ros2/tools/ros_bag_analyze.cpp
-        src/adapters/ros2/ui/bag_playback_panel.cpp
-        src/adapters/ros2/ui/param_editor_panel.cpp
-        src/adapters/ros2/ros_log_viewer.cpp
-        src/adapters/ros2/ui/log_viewer_panel.cpp
-        src/adapters/ros2/ros_session.cpp
-        src/adapters/ros2/ui/diagnostics_panel.cpp
-    )
-
-    target_link_libraries(spectra_ros2_adapter PUBLIC
-        spectra
-        tinyxml2::tinyxml2
-        rclcpp::rclcpp
-        rosidl_typesupport_introspection_cpp::rosidl_typesupport_introspection_cpp
-    )
-
-    target_link_libraries(spectra_ros2_adapter PUBLIC
-        ${std_msgs_TARGETS}
-        ${geometry_msgs_TARGETS}
-        ${nav_msgs_TARGETS}
-        ${sensor_msgs_TARGETS}
-        ${diagnostic_msgs_TARGETS}
-        ${tf2_msgs_TARGETS}
-        ${visualization_msgs_TARGETS}
-        ament_index_cpp::ament_index_cpp
-    )
-
-    if(SPECTRA_ROS2_BAG)
-        target_sources(spectra_ros2_adapter PRIVATE
-            src/adapters/ros2/bag_reader.cpp
-            src/adapters/ros2/bag_recorder.cpp
-        )
-        # bag_player.cpp is already in the library sources above;
-        # SPECTRA_ROS2_BAG compile definition enables its full implementation.
-        target_link_libraries(spectra_ros2_adapter PUBLIC
-            rosbag2_cpp::rosbag2_cpp
-            rosbag2_storage::rosbag2_storage
-        )
-        target_compile_definitions(spectra_ros2_adapter PUBLIC SPECTRA_ROS2_BAG)
-        if(SPECTRA_ROSBAG2_HAS_RECV_TIMESTAMP)
-            target_compile_definitions(spectra_ros2_adapter PUBLIC SPECTRA_ROSBAG2_RECV_TIMESTAMP=1)
-        endif()
-    endif()
-
-    target_compile_features(spectra_ros2_adapter PRIVATE cxx_std_20)
-
-    target_include_directories(spectra_ros2_adapter PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/adapters/ros2
-    )
-    target_include_directories(spectra_ros2_adapter PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/src
-        ${CMAKE_CURRENT_BINARY_DIR}/generated
-        ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb
-        ${SPECTRA_NLOHMANN_JSON_INCLUDE_DIR}
-    )
-
-    target_compile_definitions(spectra_ros2_adapter PUBLIC SPECTRA_USE_ROS2)
-
-    # Forward ImGui include paths so topic_list_panel.cpp can find imgui.h
-    # when SPECTRA_USE_IMGUI is ON (inherited via spectra PUBLIC definition).
-    if(SPECTRA_USE_IMGUI AND (SPECTRA_USE_GLFW OR SPECTRA_USE_SDL3) AND DEFINED imgui_SOURCE_DIR)
-        target_include_directories(spectra_ros2_adapter PRIVATE
-            ${imgui_SOURCE_DIR}
-            ${imgui_SOURCE_DIR}/backends
-        )
-    endif()
-
-    # spectra-ros standalone executable
-    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/adapters/ros2/main.cpp)
-        add_executable(spectra-ros
-            src/adapters/ros2/main.cpp
-        )
-        target_link_libraries(spectra-ros PRIVATE spectra_ros2_adapter)
-        target_compile_features(spectra-ros PRIVATE cxx_std_20)
-        target_include_directories(spectra-ros PRIVATE
-            ${CMAKE_CURRENT_SOURCE_DIR}/src/adapters/ros2
-            ${CMAKE_CURRENT_SOURCE_DIR}/src
-            ${CMAKE_CURRENT_BINARY_DIR}/generated
-        )
-    endif()
-
-    if(SPECTRA_ROS2_BAG AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/adapters/ros2/tools/ros_bag_analyze_main.cpp)
-        add_executable(spectra-ros-analyze
-            src/adapters/ros2/tools/ros_bag_analyze_main.cpp
-        )
-        target_link_libraries(spectra-ros-analyze PRIVATE spectra_ros2_adapter)
-        target_compile_features(spectra-ros-analyze PRIVATE cxx_std_20)
-        target_include_directories(spectra-ros-analyze PRIVATE
-            ${CMAKE_CURRENT_SOURCE_DIR}/src/adapters/ros2
-            ${CMAKE_CURRENT_SOURCE_DIR}/src
-        )
-        install(TARGETS spectra-ros-analyze RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-    endif()
-
-    if(SPECTRA_ROS2_BAG)
-        if(SPECTRA_ROSBAG2_HAS_RECV_TIMESTAMP)
-            set(_spectra_rosbag2_ts_api "recv_timestamp/send_timestamp (Jazzy+)")
-        else()
-            set(_spectra_rosbag2_ts_api "time_stamp (Humble)")
-        endif()
-        message(STATUS "ROS2 adapter enabled (rosbag2: ON, timestamp API: ${_spectra_rosbag2_ts_api})")
-    else()
-        message(STATUS "ROS2 adapter enabled (rosbag2: OFF)")
-    endif()
-endif()
-
+# ROS2 adapter (optional) — all ROS2 build logic lives in src/adapters/ros2/CMakeLists.txt
+add_subdirectory(src/adapters/ros2)
 # Eigen adapter (optional)
 if(SPECTRA_USE_EIGEN)
     find_package(Eigen3 QUIET)
@@ -1188,8 +952,6 @@ set(CPACK_RESOURCE_FILE_LICENSE ${CMAKE_CURRENT_SOURCE_DIR}/LICENSE)
 set(CPACK_RESOURCE_FILE_README  ${CMAKE_CURRENT_SOURCE_DIR}/README.md)
 
 # Debian
-# Auto-detect shared-library runtime dependencies from built binaries
-# (glibc, X11/Wayland, stdlib, etc.) so apt can resolve them automatically.
 set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
 set(CPACK_DEBIAN_PACKAGE_SECTION "science")
 set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
@@ -1214,3 +976,4 @@ if(SPECTRA_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
 endif()
+

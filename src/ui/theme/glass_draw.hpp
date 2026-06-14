@@ -23,12 +23,12 @@ inline void draw_ambient_gradient(ImDrawList* dl, ImVec2 p0, ImVec2 p1, float gl
     const float g = std::clamp(glow_strength, 0.0f, 1.0f);
     dl->AddRectFilledMultiColor(p0,
                                 p1,
-                                IM_COL32(14, 28, 58, 255),
-                                IM_COL32(32, 16, 52, 255),
-                                IM_COL32(38, 14, 48, 255),
-                                IM_COL32(12, 26, 54, 255));
-    const int cyan_a = static_cast<int>(28.0f + 48.0f * g);
-    const int mag_a  = static_cast<int>(26.0f + 42.0f * g);
+                                IM_COL32(11, 22, 42, 255),
+                                IM_COL32(28, 16, 48, 255),
+                                IM_COL32(32, 14, 44, 255),
+                                IM_COL32(10, 20, 40, 255));
+    const int cyan_a = static_cast<int>(18.0f + 32.0f * g);
+    const int mag_a  = static_cast<int>(16.0f + 28.0f * g);
     dl->AddRectFilledMultiColor(p0,
                                 ImVec2(p0.x + (p1.x - p0.x) * 0.35f, p1.y),
                                 IM_COL32(40, 170, 240, cyan_a),
@@ -255,12 +255,13 @@ inline void draw_vision_canvas_frame(ImDrawList*        dl,
 {
     const float glow   = std::clamp(glow_strength, 0.0f, 1.0f);
     const float master = std::clamp(master_intensity, 0.0f, 1.0f);
+    const float inset  = ui::tokens::CANVAS_FRAME_INSET;
 
     // Soft shadow drop (grounds the canvas).
     for (int i = 3; i >= 1; --i)
     {
         float expand = static_cast<float>(i) * 1.5f;
-        int   a      = static_cast<int>((8.0f + 6.0f * glow) * static_cast<float>(i) / 3.0f);
+        int   a      = static_cast<int>((6.0f + 5.0f * glow) * static_cast<float>(i) / 3.0f);
         dl->AddRect(ImVec2(p0.x - expand, p0.y - expand),
                     ImVec2(p1.x + expand, p1.y + expand),
                     IM_COL32(0, 0, 0, a),
@@ -276,37 +277,40 @@ inline void draw_vision_canvas_frame(ImDrawList*        dl,
     {
         for (int i = 2; i >= 1; --i)
         {
-            float e = static_cast<float>(i) * 1.5f;
-            int   a = static_cast<int>((10.0f + 14.0f * glow * master) * (3 - i) / 2.0f);
+            float e = static_cast<float>(i) * 1.25f;
+            int   a = static_cast<int>(ui::tokens::CANVAS_FRAME_GLOW_ALPHA * 255.0f * glow * master
+                                      * (3 - i) / 2.0f);
             dl->AddRect(ImVec2(p0.x - e, p0.y - e),
                         ImVec2(p1.x + e, p1.y + e),
                         color_u32(frame_col.with_alpha(static_cast<float>(a) / 255.0f)),
                         rounding + e,
                         0,
-                        1.5f);
+                        1.25f);
         }
     }
 
     // Primary border — crisp but quiet.
-    const int edge_a = static_cast<int>(68.0f + 50.0f * glow * master);
+    const float edge_alpha = ui::tokens::CANVAS_FRAME_BORDER_ALPHA + 0.18f * glow * master;
     dl->AddRect(p0,
                 p1,
-                color_u32(frame_col.with_alpha(static_cast<float>(edge_a) / 255.0f)),
+                color_u32(frame_col.with_alpha(edge_alpha)),
                 rounding,
                 0,
                 1.25f);
 
     // Inner rim — gives the plot a recessed, intentional feel.
-    dl->AddRect(ImVec2(p0.x + 1.5f, p0.y + 1.5f),
-                ImVec2(p1.x - 1.5f, p1.y - 1.5f),
-                color_u32(colors.border_subtle.with_alpha(0.42f + 0.22f * glow)),
-                std::max(0.0f, rounding - 1.5f),
+    dl->AddRect(ImVec2(p0.x + inset, p0.y + inset),
+                ImVec2(p1.x - inset, p1.y - inset),
+                color_u32(colors.border_subtle.with_alpha(ui::tokens::CANVAS_FRAME_INNER_ALPHA
+                                                          + 0.18f * glow)),
+                std::max(0.0f, rounding - inset),
                 0,
                 1.0f);
 
     // Subtle inner shadow / vignette to integrate the canvas with the chrome.
-    const float vignette_band = std::min(28.0f, (p1.y - p0.y) * 0.12f);
-    const int   vignette_a    = static_cast<int>(22.0f + 18.0f * glow * master);
+    const float vignette_band = std::min(24.0f, (p1.y - p0.y) * 0.10f);
+    const int   vignette_a    = static_cast<int>(ui::tokens::CANVAS_VIGNETTE_ALPHA * 255.0f
+                                              * (0.7f + 0.3f * glow * master));
     dl->AddRectFilledMultiColor(p0,
                                 ImVec2(p1.x, p0.y + vignette_band),
                                 IM_COL32(0, 0, 0, vignette_a),
@@ -335,7 +339,7 @@ inline void draw_vision_canvas_frame(ImDrawList*        dl,
     // Top edge catch-light (subtle).
     dl->AddLine(ImVec2(p0.x + rounding * 0.5f, p0.y + 1.0f),
                 ImVec2(p1.x - rounding * 0.5f, p0.y + 1.0f),
-                color_u32(cyan_edge.with_alpha(0.22f + 0.18f * glow)),
+                color_u32(cyan_edge.with_alpha(0.18f + 0.14f * glow)),
                 1.0f);
 }
 

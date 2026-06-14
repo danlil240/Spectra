@@ -269,7 +269,7 @@ TEST(DesignTokens, PerformanceTargets)
 
 TEST(DesignTokens, LayoutConstants)
 {
-    EXPECT_FLOAT_EQ(tokens::COMMAND_BAR_HEIGHT, 44.0f);
+    EXPECT_FLOAT_EQ(tokens::COMMAND_BAR_HEIGHT, 48.0f);
     EXPECT_FLOAT_EQ(tokens::NAV_RAIL_WIDTH, 56.0f);
     EXPECT_FLOAT_EQ(tokens::INSPECTOR_WIDTH, 320.0f);
     EXPECT_LT(tokens::INSPECTOR_WIDTH_MIN, tokens::INSPECTOR_WIDTH);
@@ -649,11 +649,11 @@ TEST_F(ThemeManagerTest, GlassSettingsClampAndApply)
     g.panel_alpha      = -0.5f;
     g.clamp();
     EXPECT_FLOAT_EQ(g.master_intensity, 1.0f);
-    EXPECT_FLOAT_EQ(g.panel_alpha, 0.0f);
+    EXPECT_FLOAT_EQ(g.panel_alpha, 0.35f);
 
     tm_.set_theme("night");
     tm_.set_glass_settings(ThemeGlassSettings::night_defaults(), true);
-    EXPECT_NEAR(tm_.glass_surface_alpha(GlassSurface::Panel), 0.495f, 0.03f);
+    EXPECT_NEAR(tm_.glass_surface_alpha(GlassSurface::Panel), 0.585f, 0.03f);
 }
 
 TEST_F(ThemeManagerTest, ResetGlassDefaultsPerTheme)

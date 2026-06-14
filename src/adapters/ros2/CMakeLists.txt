@@ -69,7 +69,7 @@ fi
     endforeach()
     if(NOT ament_cmake_FOUND)
         message(STATUS "ament_cmake not found — disabling ROS2 adapter (SPECTRA_USE_ROS2=OFF)")
-        set(SPECTRA_USE_ROS2 OFF)
+        set(SPECTRA_USE_ROS2 OFF CACHE BOOL "Enable ROS2 adapter (requires sourced ROS2 workspace)" FORCE)
     endif()
     unset(_spectra_ros_setup)
     unset(_spectra_ros_result)
@@ -109,6 +109,10 @@ if(NOT TARGET tinyxml2::tinyxml2)
     )
 endif()
 find_package(rclcpp REQUIRED)
+# Humble message *::Targets genexes reference fastcdr; ensure the target exists
+# before spectra_ros2_adapter propagates ${std_msgs_TARGETS} to tests/.
+find_package(fastcdr QUIET)
+find_package(fastrtps QUIET)
 find_package(rcl_interfaces REQUIRED)
 find_package(rosidl_typesupport_introspection_cpp REQUIRED)
 find_package(std_msgs REQUIRED)
@@ -303,6 +307,10 @@ export AMENT_PREFIX_PATH=\"${_spectra_ros_ament_prefix_path}\${AMENT_PREFIX_PATH
 exec \"\$(dirname \"\$0\")/.spectra-ros-real/spectra-ros\" \"\$@\"
 ")
         file(CHMOD "${CMAKE_BINARY_DIR}/spectra-ros" PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
+    else()
+        set_target_properties(spectra-ros PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
+        )
     endif()
 endif()
 
@@ -328,6 +336,10 @@ export AMENT_PREFIX_PATH=\"${_spectra_ros_ament_prefix_path}\${AMENT_PREFIX_PATH
 exec \"\$(dirname \"\$0\")/.spectra-ros-real/spectra-ros-analyze\" \"\$@\"
 ")
         file(CHMOD "${CMAKE_BINARY_DIR}/spectra-ros-analyze" PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
+    else()
+        set_target_properties(spectra-ros-analyze PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
+        )
     endif()
     install(TARGETS spectra-ros-analyze RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 endif()

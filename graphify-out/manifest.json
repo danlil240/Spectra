@@ -705,262 +705,262 @@
     "semantic_hash": "7d61d3c4271909aa909ab337ad163f22"
   },
   "python/spectra/_fb_generated/spectra/__init__.py": {
-    "mtime": 1781372529.483551,
+    "mtime": 1781409366.0519128,
     "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
     "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
   },
   "python/spectra/_fb_generated/spectra/ipc/__init__.py": {
-    "mtime": 1781372529.483551,
+    "mtime": 1781409366.0519128,
     "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
     "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
   },
   "python/spectra/_fb_generated/spectra/ipc/fb/AckStatePayload.py": {
-    "mtime": 1781372529.4788625,
+    "mtime": 1781409366.0491123,
     "ast_hash": "828318648614544d75555b8bac93773a",
     "semantic_hash": "828318648614544d75555b8bac93773a"
   },
   "python/spectra/_fb_generated/spectra/ipc/fb/CmdAssignFiguresPayload.py": {
-    "mtime": 1781372529.4760296,
+    "mtime": 1781409366.0468383,
     "ast_hash": "9e0be318401d659ea957d8454e67b981",
     "semantic_hash": "9e0be318401d659ea957d8454e67b981"
   },
   "python/spectra/_fb_generated/spectra/ipc/fb/CmdCloseWindowPayload.py": {
-    "mtime": 1781372529.4768367,
+    "mtime": 1781409366.0475416,
     "ast_hash": "14a30e55337b784f7583ed635f52842c",
     "semantic_hash": "14a30e55337b784f7583ed635f52842c"
   },
   "python/spectra/_fb_generated/spectra/ipc/fb/CmdRemoveFigurePayload.py": {
-    "mtime": 1781372529.4765768,
+    "mtime": 1781409366.0473218,
     "ast_hash": "e9b1b742184db0a79494a9c85d408c96",
     "semantic_hash": "e9b1b742184db0a79494a9c85d408c96"
   },
   "python/spectra/_fb_generated/spectra/ipc/fb/CmdSetActivePayload.py": {
-    "mtime": 1781372529.4767084,
+    "mtime": 1781409366.0474381,
     "ast_hash": "eb525b7b8e4aafccd25df0ca03a5d850",
     "semantic_hash": "eb525b7b8e4aafccd25df0ca03a5d850"
   },
   "python/spectra/_fb_generated/spectra/ipc/fb/DiffOp.py": {
-    "mtime": 1781372529.4784925,
+    "mtime": 1781409366.0488977,
     "ast_hash": "2900c1e694011b1cd2a995b88438fd7c",
     "semantic_hash": "2900c1e694011b1cd2a995b88438fd7c"
   },
   "python/spectra/_fb_generated/spectra/ipc/fb/DiffOpType.py": {
-    "mtime": 1781372529.4739819,
+    "mtime": 1781409366.0452027,
     "ast_hash": "b497a5186e8f59f49c33c48bac95cd13",
     "semantic_hash": "b497a5186e8f59f49c33c48bac95cd13"
   },
   "python/spectra/_fb_generated/spectra/ipc/fb/EvtFigureDestroyedPayload.py": {
-    "mtime": 1781372529.4821727,
+    "mtime": 1781409366.0510485,
     "ast_hash": "971630ffac25e5da9e9104a119163ad8",
     "semantic_hash": "971630ffac25e5da9e9104a119163ad8"
   },
   "python/spectra/_fb_generated/spectra/ipc/fb/EvtInputPayload.py": {
-    "mtime": 1781372529.479149,
+    "mtime": 1781409366.0492713,
     "ast_hash": "58747c98f36963a9ab46c40f01ac6864",
     "semantic_hash": "58747c98f36963a9ab46c40f01ac6864"
   },
   "python/spectra/_fb_generated/spectra/ipc/fb/EvtTopicListChangedPayload.py": {
-    "mtime": 1781372529.483551,
+    "mtime": 1781409366.0519128,
     "ast_hash": "1f31fbf873f5cc53394f4a55ec87f927",
     "semantic_hash": "1f31fbf873f5cc53394f4a55ec87f927"
   },
   "python/spectra/_fb_generated/spectra/ipc/fb/EvtWindowClosedPayload.py": {
-    "mtime": 1781372529.4820452,
+    "mtime": 1781409366.0509713,
     "ast_hash": "7b0befef933d3d297aa190595ca74efb",
     "semantic_hash": "7b0befef933d3d297aa190595ca74efb"
   },
   "python/spectra/_fb_generated/spectra/ipc/fb/HelloPayload.py": {
-    "mtime": 1781372529.4754689,
+    "mtime": 1781409366.0463102,
     "ast_hash": "b6cc799366aae34e10de90b2f9a86e5e",
     "semantic_hash": "b6cc799366aae34e10de90b2f9a86e5e"
   },
   "python/spectra/_fb_generated/spectra/ipc/fb/InputType.py": {
-    "mtime": 1781372529.4752746,
+    "mtime": 1781409366.046132,
     "ast_hash": "71192a2dadc46ae14d500a5e93d4eb44",
     "semantic_hash": "71192a2dadc46ae14d500a5e93d4eb44"
   },
   "python/spectra/_fb_generated/spectra/ipc/fb/ReqAddSeriesPayload.py": {
-    "mtime": 1781372529.4798796,
+    "mtime": 1781409366.0496922,
     "ast_hash": "8c75949ea3ca893966de8ca1d58fbd10",
     "semantic_hash": "8c75949ea3ca893966de8ca1d58fbd10"
   },
   "python/spectra/_fb_generated/spectra/ipc/fb/ReqAppendDataPayload.py": {
-    "mtime": 1781372529.4810164,
+    "mtime": 1781409366.0503764,
     "ast_hash": "3528384e3f4bf95fc8b088772c82d98d",
     "semantic_hash": "3528384e3f4bf95fc8b088772c82d98d"
   },
   "python/spectra/_fb_generated/spectra/ipc/fb/ReqCloseFigurePayload.py": {
-    "mtime": 1781372529.4808269,
+    "mtime": 1781409366.05026,
     "ast_hash": "659eb991c22e0574073930f453bf2472",
     "semantic_hash": "659eb991c22e0574073930f453bf2472"
   },
   "python/spectra/_fb_generated/spectra/ipc/fb/ReqCloseWindowPayload.py": {
-    "mtime": 1781372529.476255,
+    "mtime": 1781409366.0470467,
     "ast_hash": "1c7a8c3b525a39785020bef274fb832c",
     "semantic_hash": "1c7a8c3b525a39785020bef274fb832c"
   },
   "python/spectra/_fb_generated/spectra/ipc/fb/ReqCreateAxesPayload.py": {
-    "mtime": 1781372529.4796844,
+    "mtime": 1781409366.0495832,
     "ast_hash": "2f904e9b1423ab29559072c1c1ce36e6",
     "semantic_hash": "2f904e9b1423ab29559072c1c1ce36e6"
   },
   "python/spectra/_fb_generated/spectra/ipc/fb/ReqCreateFigurePayload.py": {
-    "mtime": 1781372529.479329,
+    "mtime": 1781409366.0493712,
     "ast_hash": "f36a3cd12828154764a818f597cb997a",
     "semantic_hash": "f36a3cd12828154764a818f597cb997a"
   },
   "python/spectra/_fb_generated/spectra/ipc/fb/ReqCreateWindowPayload.py": {
-    "mtime": 1781372529.476139,
+    "mtime": 1781409366.0469382,
     "ast_hash": "5e9ac39e5e3110314159a4c14ab8155b",
     "semantic_hash": "5e9ac39e5e3110314159a4c14ab8155b"
   },
   "python/spectra/_fb_generated/spectra/ipc/fb/ReqDeclareTopicPayload.py": {
-    "mtime": 1781372529.482326,
+    "mtime": 1781409366.0511591,
     "ast_hash": "5de093e465c9ce0ee652ba8e45ec1565",
     "semantic_hash": "5de093e465c9ce0ee652ba8e45ec1565"
   },
   "python/spectra/_fb_generated/spectra/ipc/fb/ReqDestroyFigurePayload.py": {
-    "mtime": 1781372529.4794784,
+    "mtime": 1781409366.0494576,
     "ast_hash": "be988a610c0ed5f8cae1ae48f6faadc1",
     "semantic_hash": "be988a610c0ed5f8cae1ae48f6faadc1"
   },
   "python/spectra/_fb_generated/spectra/ipc/fb/ReqDetachFigurePayload.py": {
-    "mtime": 1781372529.476438,
+    "mtime": 1781409366.0472145,
     "ast_hash": "ff7eacd1c4ed8aeea2a8009ef81e7ace",
     "semantic_hash": "ff7eacd1c4ed8aeea2a8009ef81e7ace"
   },
   "python/spectra/_fb_generated/spectra/ipc/fb/ReqListTopicsPayload.py": {
-    "mtime": 1781372529.4829054,
+    "mtime": 1781409366.0515206,
     "ast_hash": "df49f12f1d63893f6eab6158454835d1",
     "semantic_hash": "df49f12f1d63893f6eab6158454835d1"
   },
   "python/spectra/_fb_generated/spectra/ipc/fb/ReqPublishTopicSamplesPayload.py": {
-    "mtime": 1781372529.4824789,
+    "mtime": 1781409366.0512521,
     "ast_hash": "337904495d6570d093516543030ac9fa",
     "semantic_hash": "337904495d6570d093516543030ac9fa"
   },
   "python/spectra/_fb_generated/spectra/ipc/fb/ReqReconnectPayload.py": {
-    "mtime": 1781372529.4813259,
+    "mtime": 1781409366.0505502,
     "ast_hash": "6525486818ade87badf386d4fca61146",
     "semantic_hash": "6525486818ade87badf386d4fca61146"
   },
   "python/spectra/_fb_generated/spectra/ipc/fb/ReqRemoveSeriesPayload.py": {
-    "mtime": 1781372529.4800353,
+    "mtime": 1781409366.0497806,
     "ast_hash": "8bc3a8ae739b197fa1a6c6a10f539b77",
     "semantic_hash": "8bc3a8ae739b197fa1a6c6a10f539b77"
   },
   "python/spectra/_fb_generated/spectra/ipc/fb/ReqSetDataPayload.py": {
-    "mtime": 1781372529.4802427,
+    "mtime": 1781409366.0499089,
     "ast_hash": "3ed4e7b57d9d3cdf0170c85f1bf26b90",
     "semantic_hash": "3ed4e7b57d9d3cdf0170c85f1bf26b90"
   },
   "python/spectra/_fb_generated/spectra/ipc/fb/ReqShowPayload.py": {
-    "mtime": 1781372529.4806902,
+    "mtime": 1781409366.050184,
     "ast_hash": "5fef9bc1de1cac98b4c9068dd30b823c",
     "semantic_hash": "5fef9bc1de1cac98b4c9068dd30b823c"
   },
   "python/spectra/_fb_generated/spectra/ipc/fb/ReqSubscribeTopicPayload.py": {
-    "mtime": 1781372529.4826403,
+    "mtime": 1781409366.051354,
     "ast_hash": "ead1f059ebd8f645b2bcea10ad513d73",
     "semantic_hash": "ead1f059ebd8f645b2bcea10ad513d73"
   },
   "python/spectra/_fb_generated/spectra/ipc/fb/ReqUnsubscribeTopicPayload.py": {
-    "mtime": 1781372529.482788,
+    "mtime": 1781409366.0514512,
     "ast_hash": "bc1d24181ee08899ec4a1d72c9d732f1",
     "semantic_hash": "bc1d24181ee08899ec4a1d72c9d732f1"
   },
   "python/spectra/_fb_generated/spectra/ipc/fb/ReqUpdateBatchPayload.py": {
-    "mtime": 1781372529.4811735,
+    "mtime": 1781409366.0504725,
     "ast_hash": "a61c281f9dae2e3de6c88518d6e45b3e",
     "semantic_hash": "a61c281f9dae2e3de6c88518d6e45b3e"
   },
   "python/spectra/_fb_generated/spectra/ipc/fb/ReqUpdatePropertyPayload.py": {
-    "mtime": 1781372529.480529,
+    "mtime": 1781409366.0500906,
     "ast_hash": "dd2a5c6d1ceea4bfb0ecbed4884d939d",
     "semantic_hash": "dd2a5c6d1ceea4bfb0ecbed4884d939d"
   },
   "python/spectra/_fb_generated/spectra/ipc/fb/RespAxesCreatedPayload.py": {
-    "mtime": 1781372529.4816208,
+    "mtime": 1781409366.0507085,
     "ast_hash": "a4589ccdb22aee3a1aaedeebf7cfe55e",
     "semantic_hash": "a4589ccdb22aee3a1aaedeebf7cfe55e"
   },
   "python/spectra/_fb_generated/spectra/ipc/fb/RespErrPayload.py": {
-    "mtime": 1781372529.47587,
+    "mtime": 1781409366.0466878,
     "ast_hash": "9207e8fd199705e60108a4c2b392a455",
     "semantic_hash": "9207e8fd199705e60108a4c2b392a455"
   },
   "python/spectra/_fb_generated/spectra/ipc/fb/RespFigureCreatedPayload.py": {
-    "mtime": 1781372529.4814827,
+    "mtime": 1781409366.0506296,
     "ast_hash": "9a9bbc42ee0757b48ecc7f05869194d6",
     "semantic_hash": "9a9bbc42ee0757b48ecc7f05869194d6"
   },
   "python/spectra/_fb_generated/spectra/ipc/fb/RespFigureListPayload.py": {
-    "mtime": 1781372529.4819036,
+    "mtime": 1781409366.050883,
     "ast_hash": "4f03ed9450faf2ae457a1905ba316d7d",
     "semantic_hash": "4f03ed9450faf2ae457a1905ba316d7d"
   },
   "python/spectra/_fb_generated/spectra/ipc/fb/RespOkPayload.py": {
-    "mtime": 1781372529.475741,
+    "mtime": 1781409366.0465703,
     "ast_hash": "2d06772a850152f06805aa06e937a97a",
     "semantic_hash": "2d06772a850152f06805aa06e937a97a"
   },
   "python/spectra/_fb_generated/spectra/ipc/fb/RespSeriesAddedPayload.py": {
-    "mtime": 1781372529.481752,
+    "mtime": 1781409366.0507877,
     "ast_hash": "a4e7135b2cc5bb9510b350a55257fd7d",
     "semantic_hash": "a4e7135b2cc5bb9510b350a55257fd7d"
   },
   "python/spectra/_fb_generated/spectra/ipc/fb/RespSubscribeTopicPayload.py": {
-    "mtime": 1781372529.483434,
+    "mtime": 1781409366.0518444,
     "ast_hash": "5bc27147eb51d44c186e1b3506e9d2b1",
     "semantic_hash": "5bc27147eb51d44c186e1b3506e9d2b1"
   },
   "python/spectra/_fb_generated/spectra/ipc/fb/RespTopicListPayload.py": {
-    "mtime": 1781372529.4832973,
+    "mtime": 1781409366.0517642,
     "ast_hash": "092506cbfe86e3656303b6abd76a505f",
     "semantic_hash": "092506cbfe86e3656303b6abd76a505f"
   },
   "python/spectra/_fb_generated/spectra/ipc/fb/SnapshotAxisState.py": {
-    "mtime": 1781372529.4770896,
+    "mtime": 1781409366.047781,
     "ast_hash": "7da02c4539c56c70821770fdc79f2136",
     "semantic_hash": "7da02c4539c56c70821770fdc79f2136"
   },
   "python/spectra/_fb_generated/spectra/ipc/fb/SnapshotFigureState.py": {
-    "mtime": 1781372529.4777093,
+    "mtime": 1781409366.0483184,
     "ast_hash": "d5adbbfccc2ca2c65b53dba04a7c10e3",
     "semantic_hash": "d5adbbfccc2ca2c65b53dba04a7c10e3"
   },
   "python/spectra/_fb_generated/spectra/ipc/fb/SnapshotKnobState.py": {
-    "mtime": 1781372529.4779444,
+    "mtime": 1781409366.0485024,
     "ast_hash": "f483980fff1ba3ba7a61ccfeaeeeaa85",
     "semantic_hash": "f483980fff1ba3ba7a61ccfeaeeeaa85"
   },
   "python/spectra/_fb_generated/spectra/ipc/fb/SnapshotSeriesState.py": {
-    "mtime": 1781372529.4774158,
+    "mtime": 1781409366.0480778,
     "ast_hash": "dd0b35757a37a0b83c24806371ff4e90",
     "semantic_hash": "dd0b35757a37a0b83c24806371ff4e90"
   },
   "python/spectra/_fb_generated/spectra/ipc/fb/StateDiffPayload.py": {
-    "mtime": 1781372529.4787188,
+    "mtime": 1781409366.0490303,
     "ast_hash": "709eb9c5251ddb7b540dfca1855747e3",
     "semantic_hash": "709eb9c5251ddb7b540dfca1855747e3"
   },
   "python/spectra/_fb_generated/spectra/ipc/fb/StateSnapshotPayload.py": {
-    "mtime": 1781372529.4781642,
+    "mtime": 1781409366.048666,
     "ast_hash": "b96f3acfaaed91153a3e29c10bc53ecc",
     "semantic_hash": "b96f3acfaaed91153a3e29c10bc53ecc"
   },
   "python/spectra/_fb_generated/spectra/ipc/fb/TopicInfoEntry.py": {
-    "mtime": 1781372529.4831243,
+    "mtime": 1781409366.0516672,
     "ast_hash": "279cebc88c0e52bb5566edb6f9d34496",
     "semantic_hash": "279cebc88c0e52bb5566edb6f9d34496"
   },
   "python/spectra/_fb_generated/spectra/ipc/fb/WelcomePayload.py": {
-    "mtime": 1781372529.4756331,
+    "mtime": 1781409366.046474,
     "ast_hash": "fb704e977bfe1c17fe3eb2d051c61c58",
     "semantic_hash": "fb704e977bfe1c17fe3eb2d051c61c58"
   },
   "python/spectra/_fb_generated/spectra/ipc/fb/__init__.py": {
-    "mtime": 1781372529.483551,
+    "mtime": 1781409366.0519128,
     "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
     "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
   },
@@ -3020,12 +3020,12 @@
     "semantic_hash": "01f0fe4af59b286cf672db4184d45ca6"
   },
   "src/ui/figures/tab_bar.cpp": {
-    "mtime": 1781379892.921966,
+    "mtime": 1781407269.1883628,
     "ast_hash": "6e6e9b5a2a33a8e21235dfa4e6c94d71",
     "semantic_hash": ""
   },
   "src/ui/figures/tab_bar.hpp": {
-    "mtime": 1781380272.0062978,
+    "mtime": 1781407269.1884177,
     "ast_hash": "caad074bd94fef12c5c534c0d6e24d33",
     "semantic_hash": ""
   },
@@ -3055,8 +3055,8 @@
     "semantic_hash": ""
   },
   "src/ui/imgui/imgui_command_bar.cpp": {
-    "mtime": 1781383898.4208035,
-    "ast_hash": "49edd4cc7fa09e58e09968c027be24b5",
+    "mtime": 1781470903.1448467,
+    "ast_hash": "60ac6b024595be8ac1e2da93255cab60",
     "semantic_hash": ""
   },
   "src/ui/imgui/imgui_dialogs.cpp": {
@@ -3065,12 +3065,12 @@
     "semantic_hash": ""
   },
   "src/ui/imgui/imgui_integration.cpp": {
-    "mtime": 1781351400.8011231,
-    "ast_hash": "6d953757c5ea895430f2bc4f248c6533",
+    "mtime": 1781468894.693451,
+    "ast_hash": "acefdea34bc1844bda9f885068c36e81",
     "semantic_hash": ""
   },
   "src/ui/imgui/imgui_integration.hpp": {
-    "mtime": 1781374959.35363,
+    "mtime": 1781407269.1887748,
     "ast_hash": "ac8ce07c6cd2dea0a47d521872a319b2",
     "semantic_hash": ""
   },
@@ -3085,8 +3085,8 @@
     "semantic_hash": "6f8b2a1e1afd2dce086af8d81bcd736e"
   },
   "src/ui/imgui/imgui_panels.cpp": {
-    "mtime": 1781383765.293801,
-    "ast_hash": "0d40b2a1c056f65532ed12a4e722dbe1",
+    "mtime": 1781468458.9514234,
+    "ast_hash": "c1e04cda5604be48b0d9146bb10dbd9d",
     "semantic_hash": ""
   },
   "src/ui/imgui/imgui_preview.cpp": {
@@ -3180,7 +3180,7 @@
     "semantic_hash": "430b09e76b133c1e8f6894e4d880fe9a"
   },
   "src/ui/layout/layout_manager.hpp": {
-    "mtime": 1781373365.7090642,
+    "mtime": 1781407269.1890152,
     "ast_hash": "c925b9321f77c5b2fc01da99eca7b6d5",
     "semantic_hash": ""
   },
@@ -3345,12 +3345,12 @@
     "semantic_hash": "5f83acc6c2cd1f53375b48c3a2c2e8d2"
   },
   "src/ui/theme/theme.cpp": {
-    "mtime": 1781385233.5772817,
+    "mtime": 1781407269.1893911,
     "ast_hash": "feace08557f2b0e0399c3b5caea710f9",
     "semantic_hash": ""
   },
   "src/ui/theme/theme.hpp": {
-    "mtime": 1781374959.2605736,
+    "mtime": 1781407269.189486,
     "ast_hash": "144f8c727c99d68b086a63bb6b88fb4f",
     "semantic_hash": ""
   },
@@ -4350,8 +4350,8 @@
     "semantic_hash": "7119bee91ba0aeb57058e1b9cf3b01ec"
   },
   "tests/unit/test_theme.cpp": {
-    "mtime": 1781351400.8501253,
-    "ast_hash": "5b9f55ad97135830ceed62b4bdecd307",
+    "mtime": 1781409095.722194,
+    "ast_hash": "84571eb712aa712c249f4e42b3e6de52",
     "semantic_hash": ""
   },
   "tests/unit/test_theme_colorblind.cpp": {
@@ -5065,8 +5065,8 @@
     "semantic_hash": "e7d6e6fbc618774f98b9b513dea9d40c"
   },
   "CMakeLists.txt": {
-    "mtime": 1781379985.8025413,
-    "ast_hash": "53e9537704e7efb5bd6ea6e2db8ae480",
+    "mtime": 1781410723.492005,
+    "ast_hash": "9923de71d4f4c23a9942f13090e8ccd4",
     "semantic_hash": ""
   },
   "FORMAT.md": {
@@ -5600,7 +5600,7 @@
     "semantic_hash": "e6c0764532d8948b71b987f862ff4d54"
   },
   "Vision.png": {
-    "mtime": 1781369941.652654,
+    "mtime": 1781407269.1556737,
     "ast_hash": "a587115873458891d728f8d6daa63fa6",
     "semantic_hash": ""
   },
@@ -5835,8 +5835,8 @@
     "semantic_hash": ""
   },
   "src/ui/theme/glass_draw.hpp": {
-    "mtime": 1781385237.5643806,
-    "ast_hash": "1c00ed72196f2598bd1cc5d224e21936",
+    "mtime": 1781469570.8743143,
+    "ast_hash": "35e48b536473faae7ab58b85340c8ed1",
     "semantic_hash": ""
   },
   "src/adapters/ros2/bag_message_compat.hpp": {
@@ -5855,8 +5855,8 @@
     "semantic_hash": ""
   },
   "src/adapters/ros2/CMakeLists.txt": {
-    "mtime": 1781368382.7401493,
-    "ast_hash": "cbf487640eecd94fc10d596abf27494b",
+    "mtime": 1781409123.103671,
+    "ast_hash": "155ef85b347cd055fdb9785609979afc",
     "semantic_hash": ""
   }
 }

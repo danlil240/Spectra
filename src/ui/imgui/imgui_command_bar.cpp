@@ -503,36 +503,70 @@ void ImGuiIntegration::draw_command_bar()
                                      90),
                             1.0f);
 
-            // Subtle header surface fill — anchors the brand/menus without hiding content.
+            // Solid dark navy base — Vision command bar is #101A2B (bg_primary), opaque.
+            bar_dl->AddRectFilled(ImVec2(wpos.x, wpos.y),
+                                  ImVec2(wpos.x + wsz.x, bottom),
+                                  IM_COL32(16, 26, 43, 255));
+
+            // Violet/magenta aurora glow on the right ~half (Vision top-right wash).
+            float glow_x0 = wpos.x + wsz.x * 0.55f;
+            int   gv_a    = static_cast<int>(38.0f + 26.0f * glow);
+            bar_dl->AddRectFilledMultiColor(ImVec2(glow_x0, wpos.y),
+                                            ImVec2(wpos.x + wsz.x, bottom),
+                                            IM_COL32(150, 60, 140, 0),
+                                            IM_COL32(170, 60, 150, gv_a),
+                                            IM_COL32(170, 60, 150, gv_a),
+                                            IM_COL32(150, 60, 140, 0));
+
+            // Luminous edge around the whole menu bar (Vision): a thin steel-blue
+            // perimeter hairline that blooms into violet on the right side under
+            // the aurora. Drawn last so the opaque navy base does not cover it.
+            const float bx0      = wpos.x;
+            const float by0      = wpos.y;
+            const float bx1      = wpos.x + wsz.x;
+            const float by1      = std::floor(bottom) - 1.0f;
+            ui::Color   cool     = c.accent.lerp(ui::Color::from_hex(0x5C8CC0), 0.30f);
+            int         cool_a   = static_cast<int>(42.0f + 26.0f * glow);
+            const ImU32 cool_col = IM_COL32(static_cast<uint8_t>(cool.r * 255),
+                                            static_cast<uint8_t>(cool.g * 255),
+                                            static_cast<uint8_t>(cool.b * 255),
+                                            std::clamp(cool_a, 0, 255));
+            bar_dl->AddRect(ImVec2(bx0, by0), ImVec2(bx1, by1), cool_col, 0.0f, 0, 1.0f);
+
+            // Violet bloom on the right edge + right portion of the top/bottom
+            // edges, matching the aurora wash that lives on the right half.
+            const int   viol_a = static_cast<int>(80.0f + 55.0f * glow);
+            const ImU32 vio    = IM_COL32(175, 105, 195, std::clamp(viol_a, 0, 255));
+            const ImU32 vio0   = IM_COL32(165, 95, 180, 0);
             bar_dl->AddRectFilledMultiColor(
-                ImVec2(wpos.x, wpos.y),
-                ImVec2(wpos.x + wsz.x, bottom),
-                IM_COL32(static_cast<uint8_t>(c.bg_secondary.r * 255),
-                         static_cast<uint8_t>(c.bg_secondary.g * 255),
-                         static_cast<uint8_t>(c.bg_secondary.b * 255),
-                         static_cast<uint8_t>((0.25f + 0.10f * glow) * 255)),
-                IM_COL32(static_cast<uint8_t>(c.bg_secondary.r * 255),
-                         static_cast<uint8_t>(c.bg_secondary.g * 255),
-                         static_cast<uint8_t>(c.bg_secondary.b * 255),
-                         static_cast<uint8_t>((0.25f + 0.10f * glow) * 255)),
-                IM_COL32(static_cast<uint8_t>(c.bg_primary.r * 255),
-                         static_cast<uint8_t>(c.bg_primary.g * 255),
-                         static_cast<uint8_t>(c.bg_primary.b * 255),
-                         0),
-                IM_COL32(static_cast<uint8_t>(c.bg_primary.r * 255),
-                         static_cast<uint8_t>(c.bg_primary.g * 255),
-                         static_cast<uint8_t>(c.bg_primary.b * 255),
-                         0));
+                ImVec2(bx1 - 1.5f, by0), ImVec2(bx1, by1), vio, vio, vio, vio);
+            bar_dl->AddRectFilledMultiColor(
+                ImVec2(glow_x0, by0), ImVec2(bx1, by0 + 1.5f), vio0, vio, vio, vio0);
+            bar_dl->AddRectFilledMultiColor(
+                ImVec2(glow_x0, by1 - 1.5f), ImVec2(bx1, by1), vio0, vio, vio, vio0);
         }
 
-        // ── App title/brand on the left — textured S mark + clean wordmark ──
+        // ── App title/brand on the left — round S icon + clean wordmark ──
         {
             ImDrawList* dl      = ImGui::GetWindowDrawList();
             float       bar_h   = ImGui::GetWindowSize().y;
             ImVec2      cursor  = ImGui::GetCursorScreenPos();
-            float       cy      = cursor.y + bar_h * 0.5f;
-            // Wordmark only — Vision.png omits the hex mark beside SPECTRA.
-            float text_x = cursor.x;
+            // Center against the true window vertical midline (cursor.y already
+            // includes the bar's top padding, which would bias everything down).
+            float       cy      = ImGui::GetWindowPos().y + bar_h * 0.5f;
+
+            // Round Spectra icon, vertically centered in the bar.
+            float logo_sz = 26.0f;
+            float lx      = std::floor(cursor.x);
+            float ly      = std::floor(cy - logo_sz * 0.5f);
+            float text_x  = lx + logo_sz + ui::tokens::SPACE_3;
+
+            if (corner_logo_texture_id_)
+            {
+                dl->AddImage(imgui_texture_id_from_u64(corner_logo_texture_id_),
+                             ImVec2(lx, ly),
+                             ImVec2(lx + logo_sz, ly + logo_sz));
+            }
 
             ImGui::PushFont(font_title_);
             const char* letters = "SPECTRA";
@@ -554,120 +588,93 @@ void ImGuiIntegration::draw_command_bar()
                 int   len = static_cast<int>(strlen(letters));
                 for (const char* p = letters; *p; ++p, ++idx)
                 {
-                    char      ch[2] = {*p, 0};
-                    float     cw    = ImGui::CalcTextSize(ch).x;
-                    float     t     = (len > 1) ? static_cast<float>(idx) / (len - 1) : 0.0f;
-                    float     mix   = 0.18f + 0.22f * t;
-                    ui::Color base  = theme_colors().text_primary.lerp(theme_colors().accent, mix);
+                    char  ch[2] = {*p, 0};
+                    float cw    = ImGui::CalcTextSize(ch).x;
+                    (void)len;
+                    (void)idx;
+                    // Vision.png: flat muted blue-gray wordmark (#9DB6C8).
                     dl->AddText(font_title_,
                                 font_sz,
                                 ImVec2(gx, text_y),
-                                IM_COL32(static_cast<uint8_t>(base.r * 255),
-                                         static_cast<uint8_t>(base.g * 255),
-                                         static_cast<uint8_t>(base.b * 255),
-                                         230),
+                                IM_COL32(157, 182, 200, 235),
                                 ch);
                     gx += cw + spacing;
                 }
             }
 
-            // Advance ImGui cursor past the entire brand block.
-            float brand_w = total_w + ui::tokens::COMMAND_BAR_BRAND_TO_HOME_GAP;
+            // Advance ImGui cursor past the entire brand block (icon + wordmark).
+            float brand_w = (text_x - cursor.x) + total_w + ui::tokens::COMMAND_BAR_BRAND_TO_HOME_GAP;
             ImGui::Dummy(ImVec2(brand_w, font_sz));
             ImGui::PopFont();
         }
 
         ImGui::SameLine();
 
-        // Home button: Vision.png radial cyan/violet glow in a rounded pill.
+        // Home button — Vision.png: dark glass tile, soft cyan halo, single icon (no double-draw).
         {
             const auto& header_colors = theme_colors();
             const float glow          = theme_mgr_ ? theme_mgr_->effective_glow_intensity() : 0.5f;
-            ImGui::PushFont(font_icon_);
-            const char* home_icon = ui::icon_str(ui::Icon::Home);
-            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
-                                  ImVec4(header_colors.accent.r,
-                                         header_colors.accent.g,
-                                         header_colors.accent.b,
-                                         0.10f));
-            ImGui::PushStyleColor(ImGuiCol_ButtonActive,
-                                  ImVec4(header_colors.accent.r,
-                                         header_colors.accent.g,
-                                         header_colors.accent.b,
-                                         0.22f));
-            ImGui::PushStyleColor(ImGuiCol_Text,
-                                  ImVec4(header_colors.accent.r,
-                                         header_colors.accent.g,
-                                         header_colors.accent.b,
-                                         0.92f));
-            ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(ui::tokens::SPACE_2, ui::tokens::SPACE_2));
-            ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, ui::tokens::RADIUS_MD);
 
-            ImGui::SetWindowFontScale(ui::tokens::COMMAND_BAR_HOME_ICON_SCALE);
-            if (ImGui::Button(home_icon))
+            constexpr float kHomeBtn = 28.0f;
+            ImGui::PushFont(font_icon_);
+            ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0.0f, 0.0f));
+            ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, ui::tokens::RADIUS_MD);
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0, 0, 0, 0));
+
+            if (ImGui::Button("##home_btn", ImVec2(kHomeBtn, kHomeBtn)))
             {
                 SPECTRA_LOG_DEBUG("ui_button", "Home button clicked - setting reset_view flag");
                 reset_view_ = true;
                 SPECTRA_LOG_DEBUG("ui_button", "Reset view flag set successfully");
             }
-            ImGui::SetWindowFontScale(1.0f);
 
-            // Radial glow behind the home pill (drawn after layout is known).
+            ImVec2      mn  = ImGui::GetItemRectMin();
+            ImVec2      mx  = ImGui::GetItemRectMax();
+            ImDrawList* hdl = ImGui::GetWindowDrawList();
+            ImVec2      ctr((mn.x + mx.x) * 0.5f, (mn.y + mx.y) * 0.5f);
+            const bool  hovered  = ImGui::IsItemHovered();
+
+            // Vision.png: soft light house, faint glow, no tile/border/halo.
+            // Only a subtle hover background tile appears on interaction.
+            if (hovered)
             {
-                ImVec2      mn  = ImGui::GetItemRectMin();
-                ImVec2      mx  = ImGui::GetItemRectMax();
-                ImDrawList* hdl = ImGui::GetWindowDrawList();
-                ImVec2      ctr((mn.x + mx.x) * 0.5f, (mn.y + mx.y) * 0.5f);
-                for (int ring = 3; ring >= 1; --ring)
-                {
-                    float expand = static_cast<float>(ring) * 3.0f;
-                    int   ca     = static_cast<int>((14.0f + 22.0f * glow) / static_cast<float>(ring));
-                    int   ma     = static_cast<int>((10.0f + 16.0f * glow) / static_cast<float>(ring));
-                    hdl->AddRect(ImVec2(mn.x - expand, mn.y - expand),
-                                 ImVec2(mx.x + expand, mx.y + expand),
-                                 IM_COL32(60, 175, 245, ca),
-                                 ui::tokens::RADIUS_MD + expand,
-                                 0,
-                                 1.5f);
-                    hdl->AddRect(ImVec2(mn.x - expand * 0.5f, mn.y - expand * 0.5f),
-                                 ImVec2(mx.x + expand * 0.5f, mx.y + expand * 0.5f),
-                                 IM_COL32(190, 80, 220, ma),
-                                 ui::tokens::RADIUS_MD + expand * 0.5f,
-                                 0,
-                                 1.0f);
-                }
-                ui::Color fill = header_colors.bg_tertiary.lerp(header_colors.accent, 0.18f);
-                hdl->AddRectFilled(mn, mx, IM_COL32(static_cast<uint8_t>(fill.r * 255),
-                                                    static_cast<uint8_t>(fill.g * 255),
-                                                    static_cast<uint8_t>(fill.b * 255),
-                                                    static_cast<uint8_t>(0.55f * 255)),
+                ui::Color fill = header_colors.bg_tertiary;
+                hdl->AddRectFilled(mn,
+                                   mx,
+                                   IM_COL32(static_cast<uint8_t>(fill.r * 255),
+                                            static_cast<uint8_t>(fill.g * 255),
+                                            static_cast<uint8_t>(fill.b * 255),
+                                            140),
                                    ui::tokens::RADIUS_MD);
-                hdl->AddRect(mn,
-                             mx,
-                             IM_COL32(90, 190, 250, static_cast<int>(80.0f + 60.0f * glow)),
-                             ui::tokens::RADIUS_MD,
-                             0,
-                             1.0f);
-                // Re-draw icon on top of the custom fill.
-                ImVec2 isz = ImGui::CalcTextSize(home_icon);
-                hdl->AddText(font_icon_,
-                             font_icon_->LegacySize * ui::tokens::COMMAND_BAR_HOME_ICON_SCALE,
-                             ImVec2(ctr.x - isz.x * 0.5f, ctr.y - isz.y * 0.5f),
-                             IM_COL32(static_cast<uint8_t>(header_colors.accent.r * 255),
-                                      static_cast<uint8_t>(header_colors.accent.g * 255),
-                                      static_cast<uint8_t>(header_colors.accent.b * 255),
-                                      235),
-                             home_icon);
             }
+
+            const char* home_icon = ui::icon_str(ui::Icon::Home);
+            const float icon_sz   = font_icon_->LegacySize * 0.70f;
+            ImVec2      isz       = font_icon_->CalcTextSizeA(icon_sz, FLT_MAX, 0.0f, home_icon);
+            ImVec2      ipos(ctr.x - isz.x * 0.5f, ctr.y - isz.y * 0.5f);
+
+            // Faint soft glow behind the glyph.
+            hdl->AddText(font_icon_,
+                         icon_sz,
+                         ImVec2(ipos.x, ipos.y),
+                         IM_COL32(150, 180, 230, static_cast<int>(40.0f + 30.0f * glow)),
+                         home_icon);
+            // Crisp light house on top.
+            hdl->AddText(font_icon_,
+                         icon_sz,
+                         ipos,
+                         IM_COL32(206, 214, 234, 255),
+                         home_icon);
 
             if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
             {
                 deferred_tooltip_ = "Reset View (Home)";
             }
 
+            ImGui::PopStyleColor(3);
             ImGui::PopStyleVar(2);
-            ImGui::PopStyleColor(4);
             ImGui::PopFont();
         }
 
@@ -1408,8 +1415,7 @@ void ImGuiIntegration::draw_chrome_backdrops()
                   ui::GlassSurface::Panel,
                   ui::tokens::RADIUS_LG);
 
-    if (status_bar_visible_)
-        draw_zone(layout_manager_->status_bar_rect(), ui::GlassSurface::Panel, 0.0f);
+    // Status bar uses its own Vision navy + cyan top line in draw_status_bar().
 }
 
 void ImGuiIntegration::draw_nav_rail()

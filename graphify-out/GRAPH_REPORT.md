@@ -1,16 +1,16 @@
-# Graph Report - Spectra  (2026-06-13)
+# Graph Report - Spectra  (2026-06-14)
 
 ## Corpus Check
-- 973 files · ~1,639,674 words
+- 973 files · ~1,640,051 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 29875 nodes · 44482 edges · 1501 communities (1243 shown, 258 thin omitted)
+- 29875 nodes · 44482 edges · 1501 communities (1242 shown, 259 thin omitted)
 - Extraction: 97% EXTRACTED · 3% INFERRED · 0% AMBIGUOUS · INFERRED: 1369 edges (avg confidence: 0.7)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `81281ca9`
+- Built from commit: `f1a12ea3`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -1473,7 +1473,7 @@
 ## Import Cycles
 - 1-file cycle: `python/spectra/embed.py -> python/spectra/embed.py`
 
-## Communities (1501 total, 258 thin omitted)
+## Communities (1501 total, 259 thin omitted)
 
 ### Community 0 - "Community 0"
 Cohesion: 0.01
@@ -2413,7 +2413,7 @@ Nodes (36): spectra_series_append_data(), spectra_series_append_xy(), spectra_se
 
 ### Community 235 - "Community 235"
 Cohesion: 0.05
-Nodes (22): AxisLinkManager, BoxZoomOverlay, DataInteraction, ExportFormatRegistry, GLFWwindow, ImFont, ImFontAtlas, ImGuiContext (+14 more)
+Nodes (22): AxisLinkManager, BoxZoomOverlay, CommandRegistry, DataInteraction, ExportFormatRegistry, GLFWwindow, ImFont, ImFontAtlas (+14 more)
 
 ### Community 236 - "Community 236"
 Cohesion: 0.06
@@ -2545,7 +2545,7 @@ Nodes (65): Axes, Color, EmbedConfig, EmbedSurface, Figure, initializer_list, Le
 
 ### Community 268 - "Community 268"
 Cohesion: 0.08
-Nodes (32): NearestPointEmptySeriesReturnsNotFound, NearestPointFindsClosest, NearestPointFindsExactMatch, NearestPointFirstAndLastPoints, NearestPointHiddenSeriesSkipped, NearestPointScatterSeries, NearestPointSnapsToActualData, Axes (+24 more)
+Nodes (32): Axes3DPickTest, DataMarkerTest, FindsNearestScatterPoint, HitTestFindsMarker, HitTestMissesDistantClick, HitTestMultipleMarkers, MarkerPersistsThroughZoom, NearestPointEmptySeriesReturnsNotFound (+24 more)
 
 ### Community 269 - "Community 269"
 Cohesion: 0.06
@@ -2721,11 +2721,11 @@ Nodes (24): Px4Bridge Implementation, channel_latest, channel_names, channel_sna
 
 ### Community 312 - "Community 312"
 Cohesion: 0.16
-Nodes (22): close(), is_open(), open(), parse_data_message(), parse_data_section(), parse_definitions(), parse_dropout_message(), parse_header() (+14 more)
+Nodes (21): close(), is_open(), open(), parse_data_message(), parse_data_section(), parse_definitions(), parse_dropout_message(), parse_header() (+13 more)
 
 ### Community 313 - "Community 313"
-Cohesion: 0.21
-Nodes (16): add_topic_plot(), apply_subscription_entry(), default_numeric_field(), detect_topic_type(), init(), load_session(), merge_session(), on_topic_plot() (+8 more)
+Cohesion: 0.10
+Nodes (32): add_topic_plot(), apply_session(), apply_subscription_entry(), capture_session(), clear_monitor_subs(), default_numeric_field(), detect_topic_type(), init() (+24 more)
 
 ### Community 314 - "Community 314"
 Cohesion: 0.07
@@ -3084,8 +3084,8 @@ Cohesion: 0.08
 Nodes (25): EmptyDescriptions, EmptyGroupIsNoOp, GroupCombinesActions, GroupDescription, GroupUndoReverseOrder, InGroupQuery, MultipleUndoRedo, NewPushClearsRedoStack (+17 more)
 
 ### Community 404 - "Community 404"
-Cohesion: 0.20
-Nodes (17): compute_tab_layouts(), draw(), draw_add_button(), draw_scroll_buttons(), draw_tabs(), get_close_button_at_position(), get_tab_at_position(), handle_input() (+9 more)
+Cohesion: 0.15
+Nodes (23): add_tab(), compute_tab_layouts(), draw(), draw_add_button(), draw_scroll_buttons(), draw_tabs(), get_close_button_at_position(), get_tab_at_position() (+15 more)
 
 ### Community 405 - "Community 405"
 Cohesion: 0.10
@@ -4020,8 +4020,8 @@ Cohesion: 0.12
 Nodes (14): Config, FILE, Figure, ImageExporter, write_png, write_png_to_memory, SvgExporter, to_string (+6 more)
 
 ### Community 641 - "Community 641"
-Cohesion: 0.10
-Nodes (11): ColormapType, span, ScatterSeries, append, color_values_, colormap_set_, colormap_type_, commit_pending (+3 more)
+Cohesion: 0.12
+Nodes (10): ColormapType, ScatterSeries, append, color_values_, colormap_set_, colormap_type_, commit_pending, point_size_ (+2 more)
 
 ### Community 642 - "Community 642"
 Cohesion: 0.15
@@ -4364,8 +4364,8 @@ Cohesion: 0.16
 Nodes (14): deque, mutex, string, unordered_map, vector, TfTreeSnapshot, children, dynamic_frames (+6 more)
 
 ### Community 727 - "Community 727"
-Cohesion: 0.14
-Nodes (16): apply_session(), capture_session(), clear_monitor_subs(), is_rviz_layout(), layout_mode_name(), parse_args(), parse_layout_mode(), save_session() (+8 more)
+Cohesion: 0.20
+Nodes (10): Px4AppConfig, auto_connect, chunked_memory_budget, host, port, time_window_s, ulog_file, use_chunked (+2 more)
 
 ### Community 728 - "Community 728"
 Cohesion: 0.16
@@ -4768,8 +4768,8 @@ Cohesion: 0.32
 Nodes (11): deselect_series(), select_series(), select_series_in_rect(), select_series_no_toggle(), toggle_series_in_selection(), RectSelectedEntry, Axes, AxesBase (+3 more)
 
 ### Community 829 - "Community 829"
-Cohesion: 0.15
-Nodes (11): atomic, Color, string, vector, PendingSeriesData, PendingSeriesDataDeleter, SeriesStyle, color (+3 more)
+Cohesion: 0.17
+Nodes (10): atomic, string, vector, PendingSeriesData, PendingSeriesDataDeleter, Rect, h, w (+2 more)
 
 ### Community 830 - "Community 830"
 Cohesion: 0.24
@@ -5168,8 +5168,8 @@ Cohesion: 0.18
 Nodes (10): Automation / MCP, Core data model (C++), God-node dependency sketch, IPC and multiprocess runtime, Plugins and workspace, Python bindings, Render pipeline, ROS2 and PX4 adapters (+2 more)
 
 ### Community 934 - "Community 934"
-Cohesion: 0.52
-Nodes (5): draw(), draw_corner_handles_impl(), draw_dashed_line_impl(), draw_dimension_label_impl(), draw_zoom_crosshair_impl()
+Cohesion: 0.22
+Nodes (9): NearestPointResult, data_x, data_y, distance_px, found, point_index, screen_x, screen_y (+1 more)
 
 ### Community 935 - "Community 935"
 Cohesion: 0.36
@@ -5800,8 +5800,8 @@ Cohesion: 0.33
 Nodes (5): { chromium }, figmaDir, outDir, pages, require
 
 ### Community 1097 - "Community 1097"
-Cohesion: 0.20
-Nodes (10): Px4AppConfig, auto_connect, chunked_memory_budget, host, port, time_window_s, ulog_file, use_chunked (+2 more)
+Cohesion: 0.52
+Nodes (5): draw(), draw_corner_handles_impl(), draw_dashed_line_impl(), draw_dimension_label_impl(), draw_zoom_crosshair_impl()
 
 ### Community 1099 - "Community 1099"
 Cohesion: 0.40
@@ -5924,8 +5924,8 @@ Cohesion: 0.50
 Nodes (4): easy_embed_demo.cpp example, Embed C++ Demo, Offscreen Export Example, Qt Embed Demo
 
 ### Community 1136 - "Community 1136"
-Cohesion: 0.18
-Nodes (10): add_tab(), set_active_tab(), set_tab_title(), on_tab_change_, on_tab_drag_out_, on_tab_drag_update_, on_tab_reorder_, update_drag() (+2 more)
+Cohesion: 0.50
+Nodes (4): on_tab_drag_out_, on_tab_drag_update_, on_tab_reorder_, update_drag()
 
 ### Community 1138 - "Community 1138"
 Cohesion: 0.50
@@ -5987,6 +5987,10 @@ Nodes (3): AxesToIndex, serialize(), string
 Cohesion: 0.67
 Nodes (3): docker/docker-compose.yml - Docker Compose Service Definitions, docker/QUICK_START.md - Docker Compose Quick Start Guide, docker/README_X11.md - Docker Compose with X11 Forwarding Guide
 
+### Community 1160 - "Community 1160"
+Cohesion: 0.29
+Nodes (6): Color, SeriesStyle, color, line_width, opacity, point_size
+
 ### Community 1161 - "Community 1161"
 Cohesion: 0.67
 Nodes (3): Advanced Animation Demo, 3D Camera Animation Demo, Camera Animator Demo
@@ -5994,10 +5998,6 @@ Nodes (3): Advanced Animation Demo, 3D Camera Animation Demo, Camera Animator De
 ### Community 1164 - "Community 1164"
 Cohesion: 0.67
 Nodes (3): export_csv.cpp plugin source, series_heatmap.cpp plugin source, CustomSeries class for plugin-defined series types
-
-### Community 1171 - "Community 1171"
-Cohesion: 0.22
-Nodes (9): Axes3DPickTest, DataMarkerTest, FindsNearestScatterPoint, HitTestFindsMarker, HitTestMissesDistantClick, HitTestMultipleMarkers, MarkerPersistsThroughZoom, PrefersFrontmostWhenOverlapping (+1 more)
 
 ### Community 1172 - "Community 1172"
 Cohesion: 0.44
@@ -6032,8 +6032,8 @@ Cohesion: 0.50
 Nodes (4): Later, after foundation is calmer, Must do soon, Priority Matrix, Should do next
 
 ### Community 1183 - "Community 1183"
-Cohesion: 0.67
-Nodes (3): parse_format_message(), parse_ulog_type(), ULogFieldType
+Cohesion: 0.50
+Nodes (4): parse_format_message(), parse_ulog_type(), ulog_field_size(), ULogFieldType
 
 ### Community 1184 - "Community 1184"
 Cohesion: 0.22
@@ -6048,12 +6048,8 @@ Cohesion: 0.40
 Nodes (5): DesignCapture, description, frame, name, path
 
 ### Community 1192 - "Community 1192"
-Cohesion: 0.40
-Nodes (5): Rect, h, w, x, y
-
-### Community 1193 - "Community 1193"
 Cohesion: 0.67
-Nodes (3): spectra_series_set_line_style(), to_line_style(), LineStyle
+Nodes (3): spectra_series_set_marker_style(), to_marker_style(), MarkerStyle
 
 ### Community 1195 - "Community 1195"
 Cohesion: 0.67
@@ -6166,7 +6162,7 @@ Nodes (4): make_tools_commands(), CommandContext, CommandDescriptor, vector
 ## Knowledge Gaps
 - **15230 isolated node(s):** `spectra-automation`, `root`, `require`, `{ chromium }`, `sources` (+15225 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **258 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **259 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_

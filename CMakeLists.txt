@@ -556,7 +556,7 @@ add_subdirectory(src/adapters/ros2)
 # link spectra_ros2_adapter. find_package in the subdirectory alone is not always
 # visible to add_subdirectory(tests); re-find in parent scope when ROS2 is enabled.
 if(SPECTRA_USE_ROS2)
-    find_package(fastcdr QUIET)
+    find_package(fastcdr REQUIRED)
     find_package(fastrtps QUIET)
 endif()
 # Eigen adapter (optional)

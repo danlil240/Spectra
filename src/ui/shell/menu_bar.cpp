@@ -71,6 +71,16 @@ std::vector<MenuAction>& Menu::items_mut()
     return items_;
 }
 
+void Menu::remove_submenu(std::string_view label)
+{
+    const std::string label_str(label);
+    items_.erase(std::remove_if(items_.begin(),
+                                items_.end(),
+                                [&](const MenuAction& action)
+                                { return action.label == label_str && !action.submenu.empty(); }),
+                 items_.end());
+}
+
 Menu& MenuBar::menu(std::string_view name)
 {
     const std::string name_str(name);
@@ -108,18 +118,10 @@ void MenuBar::bind_panel_registry(PanelRegistry&   registry,
                                   std::string_view submenu_label)
 {
     Menu& top_menu = menu(top_level);
-
-    auto&      items             = top_menu.items_mut();
-    const auto submenu_label_str = std::string(submenu_label);
-    items.erase(
-        std::remove_if(items.begin(),
-                       items.end(),
-                       [&](const MenuAction& action)
-                       { return action.label == submenu_label_str && !action.submenu.empty(); }),
-        items.end());
+    top_menu.remove_submenu(submenu_label);
 
     MenuAction panels_action;
-    panels_action.label = submenu_label_str;
+    panels_action.label = std::string(submenu_label);
 
     PanelRegistry* reg_ptr = &registry;
     for (Panel* panel : registry.all())

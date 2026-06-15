@@ -220,10 +220,8 @@ void ImGuiIntegration::draw_timeline_panel()
             const std::string time_buf = std::format("{:.2f} / {:.2f}",
                                                      timeline_editor_->playhead(),
                                                      timeline_editor_->duration());
-            float time_w  = ImGui::CalcTextSize(time_buf.c_str()).x;
-            float avail_w = ImGui::GetContentRegionAvail().x;
-            ImGui::SameLine(0, 0);
-            ImGui::SetCursorPosX(ImGui::GetCursorPosX() + avail_w - time_w - 8.0f);
+            float time_w = ImGui::CalcTextSize(time_buf.c_str()).x;
+            ImGui::SameLine(0.0f, ImGui::GetContentRegionAvail().x - time_w - 8.0f);
 
             ImGui::PushStyleColor(ImGuiCol_Text,
                                   ImVec4(colors.text_secondary.r,
@@ -253,10 +251,14 @@ void ImGuiIntegration::draw_timeline_panel()
 
         // Transport row ends with cursor on the right (time display SameLine).
         // Reset to the content left edge so the timeline fills the full panel width.
+        // ImGui 1.92+ requires an item after SetCursorPos when extending boundaries.
         ImGui::SetCursorPosX(0.0f);
+        ImGui::Dummy(ImVec2(0.0f, 0.0f));
+
         float remaining_h = ImGui::GetContentRegionAvail().y;
         float content_w   = ImGui::GetContentRegionAvail().x;
-        timeline_editor_->draw(content_w, remaining_h);
+        if (remaining_h >= 1.0f && content_w >= 1.0f)
+            timeline_editor_->draw(content_w, remaining_h);
     }
     ImGui::End();
     ImGui::PopStyleVar(2);

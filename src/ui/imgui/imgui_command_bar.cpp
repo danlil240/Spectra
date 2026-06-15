@@ -70,8 +70,9 @@ static bool icon_label_button(const char* icon_codepoint,
     if (motion_t > 0.01f || active)
     {
         // Layered outer glow — refined and stronger only on the active tool.
-        ui::Color glow_color =
-            ui::control_glow_color(colors).lerp(glass_palette::kAccentCyan, 0.25f);
+        ui::Color glow_color = ui::control_glow_color(colors);
+        if (glow_scale > 0.01f)
+            glow_color = glow_color.lerp(glass_palette::kAccentCyan, 0.25f * glow_scale);
         const float glow_a =
             (ui::tokens::NAV_RAIL_GLOW_ALPHA_HOVER * hover_t
              + ui::tokens::NAV_RAIL_GLOW_ALPHA_ACTIVE * active_t)
@@ -102,11 +103,20 @@ static bool icon_label_button(const char* icon_codepoint,
             ImGui::ColorConvertFloat4ToU32(ImVec4(pill_fill.r, pill_fill.g, pill_fill.b, pill_a)),
             tokens::RADIUS_MD);
 
-        // Top inner highlight on the pill.
-        dl->AddLine(ImVec2(pill_min.x + 4.0f * scale, pill_min.y + 1.0f),
-                    ImVec2(pill_max.x - 4.0f * scale, pill_min.y + 1.0f),
-                    IM_COL32(225, 244, 255, static_cast<int>(24.0f + 18.0f * active_t)),
-                    1.0f);
+        // Top inner highlight on the pill (night glass only).
+        if (glow_scale > 0.01f)
+        {
+            ui::Color hi = colors.text_primary;
+            int       hi_a =
+                static_cast<int>((24.0f + 18.0f * active_t) * glow_scale);
+            dl->AddLine(ImVec2(pill_min.x + 4.0f * scale, pill_min.y + 1.0f),
+                        ImVec2(pill_max.x - 4.0f * scale, pill_min.y + 1.0f),
+                        IM_COL32(static_cast<uint8_t>(hi.r * 255),
+                                 static_cast<uint8_t>(hi.g * 255),
+                                 static_cast<uint8_t>(hi.b * 255),
+                                 hi_a),
+                        1.0f);
+        }
 
         ui::Color border = ui::control_border_color(colors, active, hovered);
         float border_a = ui::tokens::NAV_RAIL_BORDER_ALPHA_HOVER * hover_t
@@ -503,51 +513,54 @@ void ImGuiIntegration::draw_command_bar()
                                      90),
                             1.0f);
 
-            // Solid dark navy base — Vision command bar is #101A2B (bg_primary), opaque.
-            bar_dl->AddRectFilled(ImVec2(wpos.x, wpos.y),
-                                  ImVec2(wpos.x + wsz.x, bottom),
-                                  IM_COL32(16, 26, 43, 255));
+            // Opaque command-bar base — follows the active theme (not hardcoded Vision navy).
+            bar_dl->AddRectFilled(
+                ImVec2(wpos.x, wpos.y),
+                ImVec2(wpos.x + wsz.x, bottom),
+                IM_COL32(static_cast<uint8_t>(c.bg_primary.r * 255),
+                         static_cast<uint8_t>(c.bg_primary.g * 255),
+                         static_cast<uint8_t>(c.bg_primary.b * 255),
+                         255));
 
-            // Violet/magenta aurora glow on the right ~half (Vision top-right wash).
-            float glow_x0 = wpos.x + wsz.x * 0.55f;
-            int   gv_a    = static_cast<int>(38.0f + 26.0f * glow);
-            bar_dl->AddRectFilledMultiColor(ImVec2(glow_x0, wpos.y),
-                                            ImVec2(wpos.x + wsz.x, bottom),
-                                            IM_COL32(150, 60, 140, 0),
-                                            IM_COL32(170, 60, 150, gv_a),
-                                            IM_COL32(170, 60, 150, gv_a),
-                                            IM_COL32(150, 60, 140, 0));
+            // Night-only Vision chrome: aurora wash + luminous perimeter.
+            if (glow > 0.01f)
+            {
+                float glow_x0 = wpos.x + wsz.x * 0.55f;
+                int   gv_a    = static_cast<int>((38.0f + 26.0f * glow) * glow);
+                bar_dl->AddRectFilledMultiColor(ImVec2(glow_x0, wpos.y),
+                                                ImVec2(wpos.x + wsz.x, bottom),
+                                                IM_COL32(150, 60, 140, 0),
+                                                IM_COL32(170, 60, 150, gv_a),
+                                                IM_COL32(170, 60, 150, gv_a),
+                                                IM_COL32(150, 60, 140, 0));
 
-            // Luminous edge around the whole menu bar (Vision): a thin steel-blue
-            // perimeter hairline that blooms into violet on the right side under
-            // the aurora. Drawn last so the opaque navy base does not cover it.
-            const float bx0      = wpos.x;
-            const float by0      = wpos.y;
-            const float bx1      = wpos.x + wsz.x;
-            const float by1      = std::floor(bottom) - 1.0f;
-            ui::Color   cool     = c.accent.lerp(ui::Color::from_hex(0x5C8CC0), 0.30f);
-            int         cool_a   = static_cast<int>(42.0f + 26.0f * glow);
-            const ImU32 cool_col = IM_COL32(static_cast<uint8_t>(cool.r * 255),
-                                            static_cast<uint8_t>(cool.g * 255),
-                                            static_cast<uint8_t>(cool.b * 255),
-                                            std::clamp(cool_a, 0, 255));
-            bar_dl->AddRect(ImVec2(bx0, by0), ImVec2(bx1, by1), cool_col, 0.0f, 0, 1.0f);
+                const float bx0      = wpos.x;
+                const float by0      = wpos.y;
+                const float bx1      = wpos.x + wsz.x;
+                const float by1      = std::floor(bottom) - 1.0f;
+                ui::Color   cool     = c.accent.lerp(ui::Color::from_hex(0x5C8CC0), 0.30f);
+                int         cool_a   = static_cast<int>((42.0f + 26.0f * glow) * glow);
+                const ImU32 cool_col = IM_COL32(static_cast<uint8_t>(cool.r * 255),
+                                                static_cast<uint8_t>(cool.g * 255),
+                                                static_cast<uint8_t>(cool.b * 255),
+                                                std::clamp(cool_a, 0, 255));
+                bar_dl->AddRect(ImVec2(bx0, by0), ImVec2(bx1, by1), cool_col, 0.0f, 0, 1.0f);
 
-            // Violet bloom on the right edge + right portion of the top/bottom
-            // edges, matching the aurora wash that lives on the right half.
-            const int   viol_a = static_cast<int>(80.0f + 55.0f * glow);
-            const ImU32 vio    = IM_COL32(175, 105, 195, std::clamp(viol_a, 0, 255));
-            const ImU32 vio0   = IM_COL32(165, 95, 180, 0);
-            bar_dl->AddRectFilledMultiColor(
-                ImVec2(bx1 - 1.5f, by0), ImVec2(bx1, by1), vio, vio, vio, vio);
-            bar_dl->AddRectFilledMultiColor(
-                ImVec2(glow_x0, by0), ImVec2(bx1, by0 + 1.5f), vio0, vio, vio, vio0);
-            bar_dl->AddRectFilledMultiColor(
-                ImVec2(glow_x0, by1 - 1.5f), ImVec2(bx1, by1), vio0, vio, vio, vio0);
+                const int   viol_a = static_cast<int>((80.0f + 55.0f * glow) * glow);
+                const ImU32 vio    = IM_COL32(175, 105, 195, std::clamp(viol_a, 0, 255));
+                const ImU32 vio0   = IM_COL32(165, 95, 180, 0);
+                bar_dl->AddRectFilledMultiColor(
+                    ImVec2(bx1 - 1.5f, by0), ImVec2(bx1, by1), vio, vio, vio, vio);
+                bar_dl->AddRectFilledMultiColor(
+                    ImVec2(glow_x0, by0), ImVec2(bx1, by0 + 1.5f), vio0, vio, vio, vio0);
+                bar_dl->AddRectFilledMultiColor(
+                    ImVec2(glow_x0, by1 - 1.5f), ImVec2(bx1, by1), vio0, vio, vio, vio0);
+            }
         }
 
         // ── App title/brand on the left — round S icon + clean wordmark ──
         {
+            const auto& c       = theme_colors();
             ImDrawList* dl      = ImGui::GetWindowDrawList();
             float       bar_h   = ImGui::GetWindowSize().y;
             ImVec2      cursor  = ImGui::GetCursorScreenPos();
@@ -592,11 +605,13 @@ void ImGuiIntegration::draw_command_bar()
                     float cw    = ImGui::CalcTextSize(ch).x;
                     (void)len;
                     (void)idx;
-                    // Vision.png: flat muted blue-gray wordmark (#9DB6C8).
                     dl->AddText(font_title_,
                                 font_sz,
                                 ImVec2(gx, text_y),
-                                IM_COL32(157, 182, 200, 235),
+                                IM_COL32(static_cast<uint8_t>(c.text_secondary.r * 255),
+                                         static_cast<uint8_t>(c.text_secondary.g * 255),
+                                         static_cast<uint8_t>(c.text_secondary.b * 255),
+                                         235),
                                 ch);
                     gx += cw + spacing;
                 }
@@ -613,7 +628,7 @@ void ImGuiIntegration::draw_command_bar()
         // Home button — Vision.png: dark glass tile, soft cyan halo, single icon (no double-draw).
         {
             const auto& header_colors = theme_colors();
-            const float glow          = theme_mgr_ ? theme_mgr_->effective_glow_intensity() : 0.5f;
+            const float glow          = theme_mgr_ ? theme_mgr_->effective_glow_intensity() : 0.0f;
 
             constexpr float kHomeBtn = 28.0f;
             ImGui::PushFont(font_icon_);
@@ -655,17 +670,26 @@ void ImGuiIntegration::draw_command_bar()
             ImVec2      isz       = font_icon_->CalcTextSizeA(icon_sz, FLT_MAX, 0.0f, home_icon);
             ImVec2      ipos(ctr.x - isz.x * 0.5f, ctr.y - isz.y * 0.5f);
 
-            // Faint soft glow behind the glyph.
-            hdl->AddText(font_icon_,
-                         icon_sz,
-                         ImVec2(ipos.x, ipos.y),
-                         IM_COL32(150, 180, 230, static_cast<int>(40.0f + 30.0f * glow)),
-                         home_icon);
-            // Crisp light house on top.
+            if (glow > 0.01f)
+            {
+                ui::Color halo = header_colors.accent.lerp(ui::Color::from_hex(0x96B4E6), 0.35f);
+                hdl->AddText(font_icon_,
+                             icon_sz,
+                             ImVec2(ipos.x, ipos.y),
+                             IM_COL32(static_cast<uint8_t>(halo.r * 255),
+                                      static_cast<uint8_t>(halo.g * 255),
+                                      static_cast<uint8_t>(halo.b * 255),
+                                      static_cast<int>((40.0f + 30.0f * glow) * glow)),
+                             home_icon);
+            }
+            ui::Color icon_col = header_colors.text_secondary;
             hdl->AddText(font_icon_,
                          icon_sz,
                          ipos,
-                         IM_COL32(206, 214, 234, 255),
+                         IM_COL32(static_cast<uint8_t>(icon_col.r * 255),
+                                  static_cast<uint8_t>(icon_col.g * 255),
+                                  static_cast<uint8_t>(icon_col.b * 255),
+                                  255),
                          home_icon);
 
             if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
@@ -1394,16 +1418,24 @@ void ImGuiIntegration::draw_chrome_backdrops()
     if (show_nav_rail_)
     {
         Rect nr = layout_manager_->nav_rail_rect();
-        const float inset = ui::tokens::PANEL_GAP + 2.0f;
-        if (nr.w > inset * 2.0f + 8.0f && nr.h > inset * 2.0f + 8.0f)
+        if (glow <= 0.01f)
         {
-            draw_zone(Rect{nr.x + inset, nr.y + inset, nr.w - inset * 2.0f, nr.h - inset * 2.0f},
-                      ui::GlassSurface::Toolbar,
-                      ui::tokens::RADIUS_LG);
+            // Dark/light: flush rail panel — no floating glass inset.
+            draw_zone(nr, ui::GlassSurface::Toolbar, 0.0f);
         }
         else
         {
-            draw_zone(nr, ui::GlassSurface::Toolbar, ui::tokens::RADIUS_LG);
+            const float inset = ui::tokens::PANEL_GAP + 2.0f;
+            if (nr.w > inset * 2.0f + 8.0f && nr.h > inset * 2.0f + 8.0f)
+            {
+                draw_zone(Rect{nr.x + inset, nr.y + inset, nr.w - inset * 2.0f, nr.h - inset * 2.0f},
+                          ui::GlassSurface::Toolbar,
+                          ui::tokens::RADIUS_LG);
+            }
+            else
+            {
+                draw_zone(nr, ui::GlassSurface::Toolbar, ui::tokens::RADIUS_LG);
+            }
         }
     }
 

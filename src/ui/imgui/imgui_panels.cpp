@@ -779,20 +779,30 @@ void ImGuiIntegration::draw_status_bar()
 
     if (ImGui::Begin("##statusbar", nullptr, flags))
     {
-        // ── Vision status bar: flat dark navy (#101A2B), faint top hairline only ──
+        // ── Status bar surface — theme bg_primary, subtle top hairline ──
         {
+            const auto& colors = theme_colors();
             ImDrawList* bar_dl = ImGui::GetWindowDrawList();
             ImVec2      wpos   = ImGui::GetWindowPos();
             ImVec2      wsz    = ImGui::GetWindowSize();
             ImVec2      wmax(wpos.x + wsz.x, wpos.y + wsz.y);
 
-            bar_dl->AddRectFilled(wpos, wmax, IM_COL32(16, 26, 43, 255));
+            bar_dl->AddRectFilled(
+                wpos,
+                wmax,
+                IM_COL32(static_cast<uint8_t>(colors.bg_primary.r * 255),
+                         static_cast<uint8_t>(colors.bg_primary.g * 255),
+                         static_cast<uint8_t>(colors.bg_primary.b * 255),
+                         255));
 
-            // Barely-there separator hairline — Vision has no bright accent line.
-            bar_dl->AddLine(wpos,
-                            ImVec2(wmax.x, wpos.y),
-                            IM_COL32(32, 44, 64, 70),
-                            1.0f);
+            bar_dl->AddLine(
+                wpos,
+                ImVec2(wmax.x, wpos.y),
+                IM_COL32(static_cast<uint8_t>(colors.border_subtle.r * 255),
+                         static_cast<uint8_t>(colors.border_subtle.g * 255),
+                         static_cast<uint8_t>(colors.border_subtle.b * 255),
+                         70),
+                1.0f);
         }
 
         ImGuiIO& io = ImGui::GetIO();
@@ -932,7 +942,7 @@ void ImGuiIntegration::draw_status_bar()
             ImGui::SameLine();
             ImGui::SetCursorPosX(right_x);
 
-            // FPS — Vision green capsule: flat fill, dark text, no bloom.
+            // FPS badge — green capsule on night, neutral success pill on dark/light.
             {
                 ImVec2      text_sz  = ImGui::CalcTextSize(fps_buf.c_str());
                 ImVec2      cursor_p = ImGui::GetCursorScreenPos();
@@ -940,9 +950,14 @@ void ImGuiIntegration::draw_status_bar()
                                 cursor_p.y - (pill_h - text_h) * 0.5f - fps_pad_v);
                 ImVec2      pill_max(cursor_p.x + text_sz.x + fps_pad_h,
                                 cursor_p.y + text_h + (pill_h - text_h) * 0.5f + fps_pad_v);
-                const auto& fps_fill   = ui::glass_palette::kFpsPillGreen;
-                const auto& fps_border = ui::glass_palette::kFpsPillBorder;
-                const auto& fps_text   = ui::glass_palette::kFpsPillText;
+                const float glow =
+                    theme_mgr_ ? theme_mgr_->effective_glow_intensity() : 0.0f;
+                const ui::Color& fps_fill =
+                    glow > 0.01f ? ui::glass_palette::kFpsPillGreen : colors.bg_tertiary;
+                const ui::Color& fps_border =
+                    glow > 0.01f ? ui::glass_palette::kFpsPillBorder : colors.border_subtle;
+                const ui::Color& fps_text =
+                    glow > 0.01f ? ui::glass_palette::kFpsPillText : colors.success;
 
                 dl->AddRectFilled(pill_min,
                                   pill_max,
@@ -967,7 +982,10 @@ void ImGuiIntegration::draw_status_bar()
             }
 
             ImGui::SameLine(0.0f, perf_gap);
-            const auto& gpu_text = ui::glass_palette::kStatusGpuText;
+            const ui::Color& gpu_text =
+                (theme_mgr_ && theme_mgr_->effective_glow_intensity() > 0.01f)
+                    ? ui::glass_palette::kStatusGpuText
+                    : colors.text_tertiary;
             ImGui::PushStyleColor(ImGuiCol_Text,
                                   ImVec4(gpu_text.r, gpu_text.g, gpu_text.b, 1.0f));
             ImGui::TextUnformatted(gpu_buf.c_str());

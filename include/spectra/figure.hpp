@@ -12,8 +12,8 @@ namespace spectra
 
 struct FigureConfig
 {
-    uint32_t width  = 1280;
-    uint32_t height = 720;
+    uint32_t width  = 1500;
+    uint32_t height = 900;
 };
 
 enum class LegendPosition

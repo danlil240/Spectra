@@ -17,10 +17,20 @@ inline ImU32 color_u32(const Color& c)
                     static_cast<int>(c.a * 255.0f));
 }
 
-// Rich navy/violet ambience — visible through frosted chrome (fake glass, no blur).
-inline void draw_ambient_gradient(ImDrawList* dl, ImVec2 p0, ImVec2 p1, float glow_strength)
+// Rich navy/violet ambience for Night Glass; neutral theme surfaces otherwise.
+inline void draw_ambient_gradient(ImDrawList*        dl,
+                                  ImVec2             p0,
+                                  ImVec2             p1,
+                                  const ThemeColors& colors,
+                                  float              glow_strength)
 {
     const float g = std::clamp(glow_strength, 0.0f, 1.0f);
+    if (g <= 0.01f)
+    {
+        dl->AddRectFilled(p0, p1, color_u32(colors.bg_secondary));
+        return;
+    }
+
     dl->AddRectFilledMultiColor(p0,
                                 p1,
                                 IM_COL32(11, 22, 42, 255),
@@ -47,6 +57,8 @@ inline void draw_ambient_gradient(ImDrawList* dl, ImVec2 p0, ImVec2 p1, float gl
 inline void draw_window_edge_glow(ImDrawList* dl, ImVec2 p0, ImVec2 p1, float glow_strength)
 {
     const float g = std::clamp(glow_strength, 0.0f, 1.0f);
+    if (g <= 0.02f)
+        return;
     for (int i = 4; i >= 1; --i)
     {
         float expand = static_cast<float>(i) * 2.0f;
@@ -77,48 +89,66 @@ inline void draw_glass_rect(ImDrawList*               dl,
                             GlassSurface              surface,
                             float                     glow_strength)
 {
-    const float master = std::clamp(glass.master_intensity, 0.0f, 1.0f);
-    const float alpha  = glass_surface_alpha_value(glass, surface);
     const float glow   = std::clamp(glow_strength, 0.0f, 1.0f);
+    const float master = std::clamp(glass.master_intensity, 0.0f, 1.0f);
+    const float alpha  = glow > 0.01f ? glass_surface_alpha_value(glass, surface) : 1.0f;
     const float h      = p1.y - p0.y;
 
-    draw_ambient_gradient(dl, p0, p1, glow);
+    draw_ambient_gradient(dl, p0, p1, colors, glow);
 
     Color frost = colors.bg_secondary.lerp(colors.bg_elevated, 0.35f + master * 0.15f);
-    frost       = frost.lerp(glass_palette::kAccentCyan, master * 0.06f);
+    if (glow > 0.01f)
+        frost = frost.lerp(glass_palette::kAccentCyan, master * 0.06f * glow);
     dl->AddRectFilled(p0, p1, color_u32(frost.with_alpha(alpha)), rounding);
 
     // Vertical sheen — brighter at top, settling toward the bottom (glass curvature).
-    dl->AddRectFilledMultiColor(p0,
-                                ImVec2(p1.x, p0.y + h * 0.5f),
-                                IM_COL32(210, 232, 255, static_cast<int>(20.0f + 14.0f * master)),
-                                IM_COL32(210, 232, 255, static_cast<int>(20.0f + 14.0f * master)),
-                                IM_COL32(255, 255, 255, 0),
-                                IM_COL32(255, 255, 255, 0));
-    // Inner bottom shadow — grounds the panel.
-    dl->AddRectFilledMultiColor(ImVec2(p0.x, p0.y + h * 0.6f),
-                                p1,
-                                IM_COL32(0, 0, 0, 0),
-                                IM_COL32(0, 0, 0, 0),
-                                IM_COL32(0, 0, 0, static_cast<int>(26.0f + 20.0f * master)),
-                                IM_COL32(0, 0, 0, static_cast<int>(26.0f + 20.0f * master)));
-
+    if (glow > 0.01f)
+    {
+        const int sheen_a = static_cast<int>((20.0f + 14.0f * master) * glow);
+        dl->AddRectFilledMultiColor(p0,
+                                    ImVec2(p1.x, p0.y + h * 0.5f),
+                                    IM_COL32(210, 232, 255, sheen_a),
+                                    IM_COL32(210, 232, 255, sheen_a),
+                                    IM_COL32(255, 255, 255, 0),
+                                    IM_COL32(255, 255, 255, 0));
+    }
     // Top inner highlight (glass edge catch-light)
-    const int hi_a = static_cast<int>(30.0f + 26.0f * (1.0f - alpha));
-    dl->AddLine(ImVec2(p0.x + rounding * 0.5f, p0.y + 1.0f),
-                ImVec2(p1.x - rounding * 0.5f, p0.y + 1.0f),
-                IM_COL32(225, 244, 255, hi_a),
-                1.0f);
+    if (glow > 0.01f)
+    {
+        const int hi_a =
+            static_cast<int>((30.0f + 26.0f * (1.0f - alpha)) * glow);
+        dl->AddLine(ImVec2(p0.x + rounding * 0.5f, p0.y + 1.0f),
+                    ImVec2(p1.x - rounding * 0.5f, p0.y + 1.0f),
+                    IM_COL32(225, 244, 255, hi_a),
+                    1.0f);
+    }
 
-    // Dual hairline: inner dark seat + outer luminous accent edge.
-    dl->AddRect(ImVec2(p0.x + 1.0f, p0.y + 1.0f),
-                ImVec2(p1.x - 1.0f, p1.y - 1.0f),
-                IM_COL32(0, 0, 0, 50),
-                std::max(0.0f, rounding - 1.0f),
-                0,
-                1.0f);
-    Color     border   = colors.accent.lerp(glass_palette::kAccentMagenta, 0.30f);
-    const int border_a = static_cast<int>((52.0f + 90.0f * glow) * (0.40f + master * 0.60f));
+    // Inner bottom shadow — grounds the panel (night glass only).
+    if (glow > 0.01f)
+    {
+        dl->AddRectFilledMultiColor(ImVec2(p0.x, p0.y + h * 0.6f),
+                                    p1,
+                                    IM_COL32(0, 0, 0, 0),
+                                    IM_COL32(0, 0, 0, 0),
+                                    IM_COL32(0, 0, 0, static_cast<int>(26.0f + 20.0f * master)),
+                                    IM_COL32(0, 0, 0, static_cast<int>(26.0f + 20.0f * master)));
+    }
+
+    // Dual hairline: inner dark seat + outer border.
+    if (glow > 0.01f)
+    {
+        dl->AddRect(ImVec2(p0.x + 1.0f, p0.y + 1.0f),
+                    ImVec2(p1.x - 1.0f, p1.y - 1.0f),
+                    IM_COL32(0, 0, 0, 50),
+                    std::max(0.0f, rounding - 1.0f),
+                    0,
+                    1.0f);
+    }
+    Color     border   = glow > 0.01f ? colors.accent.lerp(glass_palette::kAccentMagenta, 0.30f)
+                                      : colors.border_subtle;
+    const int border_a = glow > 0.01f
+                             ? static_cast<int>((52.0f + 90.0f * glow) * (0.40f + master * 0.60f))
+                             : static_cast<int>(colors.border_subtle.a * 255.0f);
     dl->AddRect(p0,
                 p1,
                 color_u32(border.with_alpha(static_cast<float>(border_a) / 255.0f)),
@@ -267,7 +297,8 @@ inline void draw_vision_canvas_frame(ImDrawList*        dl,
     // glass). Computed exactly like draw_glass_rect()'s frost so the masked top
     // corners blend seamlessly with the color on top.
     Color chrome = colors.bg_secondary.lerp(colors.bg_elevated, 0.35f + master * 0.15f);
-    chrome       = chrome.lerp(glass_palette::kAccentCyan, master * 0.06f);
+    if (glow > 0.01f)
+        chrome = chrome.lerp(glass_palette::kAccentCyan, master * 0.06f * glow);
     const ImU32 chrome_col = color_u32(chrome);
 
     // Mask the two square top corners with the chrome color. Each fill covers
@@ -306,7 +337,7 @@ inline void draw_vision_canvas_frame(ImDrawList*        dl,
 
     Color cyan_edge = colors.accent.lerp(glass_palette::kAccentCyan, 0.35f);
     Color mag_edge  = colors.accent.lerp(glass_palette::kAccentMagenta, 0.35f);
-    Color frame_col = cyan_edge.lerp(mag_edge, 0.45f);
+    Color frame_col = glow > 0.01f ? cyan_edge.lerp(mag_edge, 0.45f) : colors.border_default;
 
     // Single restrained outer glow halo — only visible when glow is high.
     if (glow > 0.05f)

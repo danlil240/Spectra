@@ -526,7 +526,10 @@ inline Color control_text_color(const ThemeColors& c, bool active, bool hovered)
 // by the caller via alpha; this just returns the hue.
 inline Color control_glow_color(const ThemeColors& c)
 {
-    return c.accent_glow.a > 0.0f ? c.accent_glow : c.accent.lerp(Color::from_hex(0x60E0FF), 0.35f);
+    if (c.accent_glow.a > 0.0f)
+        return c.accent_glow;
+    // Neutral themes (dark/light) have no accent_glow — use accent, not cyan fallback.
+    return c.accent;
 }
 
 }   // namespace spectra::ui

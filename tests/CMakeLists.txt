@@ -117,6 +117,7 @@ set(SPECTRA_UNIT_TESTS
     test_shortcut_config
     test_shell_panel
     test_shell_panel_registry
+    test_shell_menu_bar
     test_plugin_api
     test_workspace_v3
     test_phase3_integration

@@ -51,6 +51,23 @@ TEST(ShellMenuBar, MenuGetOrCreateAndOrder)
     EXPECT_EQ(names[2], "View");
 }
 
+TEST(ShellMenuBar, MenuReferencesStayValidAcrossGrowth)
+{
+    MenuBar bar;
+
+    Menu& view = bar.menu("View");
+    bar.menu("File");
+    bar.menu("Edit");
+    bar.menu("Tools");
+
+    MenuAction action;
+    action.label = "Something";
+    view.add(std::move(action));
+
+    EXPECT_EQ(&view, &bar.menu("View"));
+    EXPECT_EQ(bar.menu("View").items().size(), 1u);
+}
+
 TEST(ShellMenuBar, HasMenu)
 {
     MenuBar bar;

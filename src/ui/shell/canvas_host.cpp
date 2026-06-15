@@ -2,7 +2,6 @@
     #include "ui/shell/canvas_host.hpp"
 
     #include "imgui.h"
-    #include <imgui_internal.h>
     #include "ui/layout/layout_manager.hpp"
 
 namespace spectra::ui::shell
@@ -24,21 +23,16 @@ void CanvasHost::draw()
     if (!layout_manager_)
         return;
 
-    Rect rect{};
-    if (ImGui::GetCurrentWindowRead() != nullptr)
-    {
-        const ImVec2 content_min = ImGui::GetWindowContentRegionMin();
-        const ImVec2 content_max = ImGui::GetWindowContentRegionMax();
-        const ImVec2 window_pos  = ImGui::GetWindowPos();
-        rect.x                   = window_pos.x + content_min.x;
-        rect.y                   = window_pos.y + content_min.y;
-        rect.w                   = content_max.x - content_min.x;
-        rect.h                   = content_max.y - content_min.y;
-    }
-    else
-    {
+    const ImVec2 content_min = ImGui::GetWindowContentRegionMin();
+    const ImVec2 content_max = ImGui::GetWindowContentRegionMax();
+    const ImVec2 window_pos  = ImGui::GetWindowPos();
+    Rect         rect{};
+    rect.x = window_pos.x + content_min.x;
+    rect.y = window_pos.y + content_min.y;
+    rect.w = content_max.x - content_min.x;
+    rect.h = content_max.y - content_min.y;
+    if (rect.w <= 0.0f || rect.h <= 0.0f)
         rect = layout_manager_->canvas_rect();
-    }
 
     layout_manager_->set_canvas_override(rect);
 

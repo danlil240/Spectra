@@ -6,9 +6,9 @@
 
 namespace spectra::ui::shell
 {
-AppShell::AppShell(AppShellConfig cfg)
-    : config_(std::move(cfg)), canvas_host_(std::make_unique<CanvasHost>(nullptr))
+AppShell::AppShell(AppShellConfig cfg) : config_(std::move(cfg))
 {
+    canvas_host_ = create_canvas_host();
 }
 
 AppShell::~AppShell() = default;
@@ -51,7 +51,7 @@ void AppShell::draw_frame()
     if (config_.dockspace)
         draw_dockspace();
     else if (canvas_host_)
-        canvas_host_->draw();
+        draw_canvas_host_window();
 
     panels_.draw_all();
 
@@ -84,6 +84,46 @@ StatusBar& AppShell::status_bar()
 CanvasHost& AppShell::canvas_host()
 {
     return *canvas_host_;
+}
+
+std::unique_ptr<CanvasHost> AppShell::create_canvas_host()
+{
+    return std::make_unique<CanvasHost>(layout_manager_);
+}
+
+void AppShell::draw_canvas_host_window()
+{
+    Rect canvas{};
+    if (layout_manager_)
+    {
+        canvas = layout_manager_->canvas_rect();
+    }
+    else
+    {
+        const ImGuiViewport* vp = ImGui::GetMainViewport();
+        canvas.x                = vp->WorkPos.x;
+        canvas.y                = vp->WorkPos.y;
+        canvas.w                = vp->WorkSize.x;
+        canvas.h                = vp->WorkSize.y;
+    }
+
+    ImGui::SetNextWindowPos(ImVec2(canvas.x, canvas.y), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(std::max(160.0f, canvas.w), std::max(120.0f, canvas.h)),
+                             ImGuiCond_Always);
+
+    ImGuiWindowFlags host_flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove
+                                  | ImGuiWindowFlags_NoBringToFrontOnFocus
+                                  | ImGuiWindowFlags_NoSavedSettings
+                                  | ImGuiWindowFlags_NoBackground;
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+    if (ImGui::Begin("##AppShellCanvasHost", nullptr, host_flags))
+    {
+        if (canvas_host_)
+            canvas_host_->draw();
+    }
+    ImGui::End();
+    ImGui::PopStyleVar();
 }
 
 void AppShell::draw_dockspace()

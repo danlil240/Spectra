@@ -116,6 +116,7 @@ void NavRail::build_items(std::vector<NavItem>& out) const
             NavItem item;
             item.icon      = panel->icon();
             item.label     = panel->title();
+            item.id        = id;
             item.tooltip   = panel->title();
             item.section   = category;
             item.is_active = [reg, id]()
@@ -143,6 +144,9 @@ void NavRail::draw()
     std::vector<NavItem> items;
     build_items(items);
 
+    // TODO(integration): per-section open state (e.g. std::unordered_map<std::string,bool> member)
+    // and honor section_header()'s return value to actually collapse rows. Single shared state is a
+    // placeholder until shells wire NavRail.
     static bool section_open = true;
 
     for (const NavItem& item : items)
@@ -154,9 +158,9 @@ void NavRail::draw()
             continue;
         }
 
-        const bool active = item.is_active && item.is_active();
-        const bool clicked =
-            widgets::icon_button(item.label.c_str(), item.icon, item.tooltip.c_str(), active);
+        const char* cmd_id  = item.id.empty() ? item.label.c_str() : item.id.c_str();
+        const bool  active  = item.is_active && item.is_active();
+        const bool  clicked = widgets::icon_button(cmd_id, item.icon, item.tooltip.c_str(), active);
 
         if (expanded_)
             ImGui::SameLine();

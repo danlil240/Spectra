@@ -87,6 +87,14 @@ TEST(ShellNavRail, GroupingAndOrder)
         {false, "Plot Two", "Plots"},
     };
     EXPECT_EQ(item_keys(items), expected);
+
+    ASSERT_EQ(items.size(), 6u);
+    EXPECT_TRUE(items[0].id.empty());   // section header
+    EXPECT_EQ(items[1].id, "t1");
+    EXPECT_EQ(items[2].id, "t2");
+    EXPECT_TRUE(items[3].id.empty());   // section header
+    EXPECT_EQ(items[4].id, "p1");
+    EXPECT_EQ(items[5].id, "p2");
 }
 
 TEST(ShellNavRail, IsActiveAndOnClick)

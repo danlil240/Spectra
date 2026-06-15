@@ -33,6 +33,8 @@ class AppShell
 
     AppShell(const AppShell&)            = delete;
     AppShell& operator=(const AppShell&) = delete;
+    AppShell(AppShell&&)                 = delete;
+    AppShell& operator=(AppShell&&)      = delete;
 
     void                    set_layout_manager(spectra::LayoutManager* lm);
     spectra::LayoutManager* layout_manager() const;
@@ -54,9 +56,14 @@ class AppShell
     virtual void on_populate_nav_rail(NavRail&) {}
     virtual void on_build_status_bar(StatusBar&) {}
     virtual void on_default_layout(unsigned int dockspace_id) {}
+    // Post-chrome hook after all ImGui shell layers; for adapter work outside the dock
+    // canvas region (e.g. Vulkan scene callbacks), not CanvasHost empty/overlays.
     virtual void on_draw_canvas() {}
 
+    virtual std::unique_ptr<CanvasHost> create_canvas_host();
+
     void draw_dockspace();
+    void draw_canvas_host_window();
 
     AppShellConfig              config_;
     PanelRegistry               panels_;

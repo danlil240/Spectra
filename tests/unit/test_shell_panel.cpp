@@ -60,6 +60,24 @@ TEST(ShellPanel, ClosablePanelForwardsNonNullPOpen)
     EXPECT_EQ(received, panel.visible_ptr());
 }
 
+TEST(ShellPanel, ClosablePanelClosesWhenDrawFnClearsPOpen)
+{
+    PanelInfo info;
+    info.closable        = true;
+    info.default_visible = true;
+
+    CallbackPanel panel(info,
+                        [](bool* p_open)
+                        {
+                            if (p_open)
+                                *p_open = false;
+                        });
+
+    ASSERT_TRUE(panel.visible());
+    panel.draw();
+    EXPECT_FALSE(panel.visible());
+}
+
 TEST(ShellPanel, NonClosablePanelForwardsNullPOpen)
 {
     PanelInfo info;

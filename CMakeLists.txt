@@ -184,6 +184,7 @@ foreach(_ui_src
     src/ui/shell/panel.cpp
     src/ui/shell/panel_registry.cpp
     src/ui/shell/menu_bar.cpp
+    src/ui/shell/nav_rail.cpp
     src/ui/data/axis_link.cpp
     src/ui/animation/keyframe_interpolator.cpp
     src/ui/animation/camera_animator.cpp

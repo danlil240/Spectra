@@ -33,6 +33,9 @@ class Panel
     explicit Panel(PanelInfo info) : info_(std::move(info)), visible_(info_.default_visible) {}
     virtual ~Panel() = default;
 
+    Panel(const Panel&)            = delete;
+    Panel& operator=(const Panel&) = delete;
+
     const std::string& id() const { return info_.id; }
     const std::string& title() const { return info_.title; }
     Icon               icon() const { return info_.icon; }

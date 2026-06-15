@@ -116,6 +116,7 @@ set(SPECTRA_UNIT_TESTS
     test_camera_animator
     test_shortcut_config
     test_shell_panel
+    test_shell_panel_registry
     test_plugin_api
     test_workspace_v3
     test_phase3_integration

@@ -118,6 +118,7 @@ set(SPECTRA_UNIT_TESTS
     test_shell_panel
     test_shell_panel_registry
     test_shell_menu_bar
+    test_shell_nav_rail
     test_plugin_api
     test_workspace_v3
     test_phase3_integration

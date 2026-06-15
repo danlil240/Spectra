@@ -2,6 +2,7 @@
 #ifdef SPECTRA_USE_IMGUI
     #include <functional>
     #include <string>
+    #include <string_view>
     #include <vector>
     #include "ui/theme/icons.hpp"
 
@@ -13,6 +14,7 @@ struct NavItem
 {
     Icon                  icon = Icon::WindowIcon;
     std::string           label;
+    std::string           id;   // stable ImGui id (panel id); empty for section headers
     std::string           tooltip;
     std::string           section;
     bool                  is_section_header = false;
@@ -23,12 +25,14 @@ struct NavItem
 class NavRail
 {
    public:
+    // The PanelRegistry must outlive this NavRail and remain valid while nav callbacks run.
     explicit NavRail(PanelRegistry* registry = nullptr);
     virtual ~NavRail() = default;
 
     NavRail(const NavRail&)            = delete;
     NavRail& operator=(const NavRail&) = delete;
 
+    // The PanelRegistry must outlive this NavRail and remain valid while nav callbacks run.
     void           set_registry(PanelRegistry* r);
     PanelRegistry* registry() const;
 

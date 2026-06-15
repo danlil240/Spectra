@@ -10,16 +10,18 @@ Panel* PanelRegistry::add(std::unique_ptr<Panel> p)
     if (!p)
         return nullptr;
 
-    const std::string& id = p->id();
-    if (by_id_.find(id) != by_id_.end())
+    std::string id = p->id();
+    if (by_id_.contains(id))
     {
         // Duplicate ids are rejected (nullptr); callers must use unique ids.
         return nullptr;
     }
 
-    Panel* raw = p.get();
-    by_id_[id] = raw;
+    // Push to the vector first so a throwing push_back cannot leave a dangling
+    // raw pointer in by_id_.
     panels_.push_back(std::move(p));
+    Panel* raw            = panels_.back().get();
+    by_id_[std::move(id)] = raw;
     return raw;
 }
 

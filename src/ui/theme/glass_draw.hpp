@@ -257,6 +257,41 @@ inline void draw_vision_canvas_frame(ImDrawList*        dl,
     const float master = std::clamp(master_intensity, 0.0f, 1.0f);
     const float inset  = ui::tokens::CANVAS_FRAME_INSET;
 
+    // All four corners are rounded so the canvas reads as a single cohesive
+    // panel. The plot is rendered (square) by Vulkan underneath, so the top
+    // corners are masked below with the chrome backdrop color — that hides the
+    // square plot pixels and lets the rounded corner flow into the bar above.
+    const ImDrawFlags corner_flags = ImDrawFlags_RoundCornersAll;
+
+    // Chrome backdrop that sits directly above the canvas (the figure tab bar
+    // glass). Computed exactly like draw_glass_rect()'s frost so the masked top
+    // corners blend seamlessly with the color on top.
+    Color chrome = colors.bg_secondary.lerp(colors.bg_elevated, 0.35f + master * 0.15f);
+    chrome       = chrome.lerp(glass_palette::kAccentCyan, master * 0.06f);
+    const ImU32 chrome_col = color_u32(chrome);
+
+    // Mask the two square top corners with the chrome color. Each fill covers
+    // the wedge between the square corner and the rounded arc, fanned from the
+    // corner vertex (star-shaped → safe for PathFillConvex).
+    if (rounding > 0.5f)
+    {
+        constexpr float kPi = 3.14159265358979f;
+        // Top-left.
+        dl->PathLineTo(ImVec2(p0.x, p0.y));
+        dl->PathLineTo(ImVec2(p0.x + rounding, p0.y));
+        dl->PathArcTo(ImVec2(p0.x + rounding, p0.y + rounding), rounding, kPi * 1.5f, kPi, 16);
+        dl->PathFillConvex(chrome_col);
+        // Top-right.
+        dl->PathLineTo(ImVec2(p1.x, p0.y));
+        dl->PathLineTo(ImVec2(p1.x - rounding, p0.y));
+        dl->PathArcTo(ImVec2(p1.x - rounding, p0.y + rounding),
+                      rounding,
+                      kPi * 1.5f,
+                      kPi * 2.0f,
+                      16);
+        dl->PathFillConvex(chrome_col);
+    }
+
     // Soft shadow drop (grounds the canvas).
     for (int i = 3; i >= 1; --i)
     {
@@ -265,7 +300,8 @@ inline void draw_vision_canvas_frame(ImDrawList*        dl,
         dl->AddRect(ImVec2(p0.x - expand, p0.y - expand),
                     ImVec2(p1.x + expand, p1.y + expand),
                     IM_COL32(0, 0, 0, a),
-                    rounding + expand);
+                    rounding + expand,
+                    corner_flags);
     }
 
     Color cyan_edge = colors.accent.lerp(glass_palette::kAccentCyan, 0.35f);
@@ -284,7 +320,7 @@ inline void draw_vision_canvas_frame(ImDrawList*        dl,
                         ImVec2(p1.x + e, p1.y + e),
                         color_u32(frame_col.with_alpha(static_cast<float>(a) / 255.0f)),
                         rounding + e,
-                        0,
+                        corner_flags,
                         1.25f);
         }
     }
@@ -295,7 +331,7 @@ inline void draw_vision_canvas_frame(ImDrawList*        dl,
                 p1,
                 color_u32(frame_col.with_alpha(edge_alpha)),
                 rounding,
-                0,
+                corner_flags,
                 1.25f);
 
     // Inner rim — gives the plot a recessed, intentional feel.
@@ -304,7 +340,7 @@ inline void draw_vision_canvas_frame(ImDrawList*        dl,
                 color_u32(colors.border_subtle.with_alpha(ui::tokens::CANVAS_FRAME_INNER_ALPHA
                                                           + 0.18f * glow)),
                 std::max(0.0f, rounding - inset),
-                0,
+                corner_flags,
                 1.0f);
 
     // Subtle inner shadow / vignette to integrate the canvas with the chrome.
@@ -336,9 +372,10 @@ inline void draw_vision_canvas_frame(ImDrawList*        dl,
                                 IM_COL32(0, 0, 0, vignette_a),
                                 IM_COL32(0, 0, 0, 0));
 
-    // Top edge catch-light (subtle).
-    dl->AddLine(ImVec2(p0.x + rounding * 0.5f, p0.y + 1.0f),
-                ImVec2(p1.x - rounding * 0.5f, p0.y + 1.0f),
+    // Top edge catch-light — inset by the corner radius so it hugs the rounded
+    // top edge instead of bleeding past the curve.
+    dl->AddLine(ImVec2(p0.x + rounding, p0.y + 1.0f),
+                ImVec2(p1.x - rounding, p0.y + 1.0f),
                 color_u32(cyan_edge.with_alpha(0.18f + 0.14f * glow)),
                 1.0f);
 }

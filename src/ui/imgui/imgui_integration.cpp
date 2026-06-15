@@ -572,23 +572,35 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
             float  margin  = 8.0f;
             float  est_tip_w =
                 ImGui::CalcTextSize(deferred_tooltip_).x + ui::tokens::SPACE_3 * 2.0f + 4.0f;
-            float tip_y = std::clamp(mouse.y - 4.0f, margin + 20.0f, display.y - margin);
+            float est_tip_h =
+                ImGui::GetTextLineHeight() + (ui::tokens::SPACE_2 + 1.0f) * 2.0f + 6.0f;
+
+            // Default: tooltip floats above the cursor (anchored by its bottom).
+            // If there isn't room above (e.g. command-bar controls at the top of
+            // the screen), drop it below the cursor so it never clips off-screen.
+            bool  place_below = (mouse.y - est_tip_h - 4.0f) < margin;
+            float pivot_y     = place_below ? 0.0f : 1.0f;
+            float tip_y       = place_below ? (mouse.y + 24.0f) : (mouse.y - 4.0f);
+            tip_y             = std::clamp(tip_y, margin, display.y - margin);
+
             // If tooltip would clip right edge, anchor from right side
             if (mouse.x + est_tip_w * 0.5f > display.x - margin)
             {
                 float tip_x = display.x - margin;
-                ImGui::SetNextWindowPos(ImVec2(tip_x, tip_y), ImGuiCond_Always, ImVec2(1.0f, 1.0f));
+                ImGui::SetNextWindowPos(
+                    ImVec2(tip_x, tip_y), ImGuiCond_Always, ImVec2(1.0f, pivot_y));
             }
             else if (mouse.x - est_tip_w * 0.5f < margin)
             {
                 float tip_x = margin;
-                ImGui::SetNextWindowPos(ImVec2(tip_x, tip_y), ImGuiCond_Always, ImVec2(0.0f, 1.0f));
+                ImGui::SetNextWindowPos(
+                    ImVec2(tip_x, tip_y), ImGuiCond_Always, ImVec2(0.0f, pivot_y));
             }
             else
             {
                 ImGui::SetNextWindowPos(ImVec2(mouse.x, tip_y),
                                         ImGuiCond_Always,
-                                        ImVec2(0.5f, 1.0f));
+                                        ImVec2(0.5f, pivot_y));
             }
         }
         ImGui::BeginTooltip();

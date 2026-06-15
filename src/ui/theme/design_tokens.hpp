@@ -202,8 +202,11 @@ constexpr float STATUS_BAR_PILL_HEIGHT         = 22.0f;   // fixed pill height
 constexpr float STATUS_BAR_PILL_PAD_H          = 9.0f;    // horizontal inside pill
 constexpr float STATUS_BAR_PILL_PAD_V          = 3.0f;    // vertical inside pill
 constexpr float STATUS_BAR_PILL_RADIUS         = 11.0f;   // full pill
-constexpr float STATUS_BAR_GROUP_GAP           = 10.0f;
+constexpr float STATUS_BAR_GROUP_GAP           = 18.0f;   // breathing room between left items
+constexpr float STATUS_BAR_PERF_GAP            = 16.0f;   // gap between fps and gpu
 constexpr float STATUS_BAR_TEXT_ALPHA          = 0.92f;
+constexpr float STATUS_BAR_FPS_PILL_PAD_H      = 10.0f;   // Vision-scale lime badge
+constexpr float STATUS_BAR_FPS_PILL_PAD_V      = 4.0f;
 
 // Canvas / plot frame
 constexpr float CANVAS_FRAME_ROUNDING          = 14.0f;

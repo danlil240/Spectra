@@ -779,32 +779,19 @@ void ImGuiIntegration::draw_status_bar()
 
     if (ImGui::Begin("##statusbar", nullptr, flags))
     {
-        // ── Floating surface depth: top-edge shadow + hairline border ──
+        // ── Vision status bar: flat dark navy (#101A2B), faint top hairline only ──
         {
             ImDrawList* bar_dl = ImGui::GetWindowDrawList();
             ImVec2      wpos   = ImGui::GetWindowPos();
             ImVec2      wsz    = ImGui::GetWindowSize();
-            const auto& c      = theme_colors();
+            ImVec2      wmax(wpos.x + wsz.x, wpos.y + wsz.y);
 
-            // Multi-layer soft shadow above the bar
-            float shadow_spread = ui::tokens::ELEVATION_1_SPREAD;
-            for (int i = 0; i < 4; ++i)
-            {
-                float t     = static_cast<float>(i) / 4.0f;
-                float alpha = 0.08f * (1.0f - t);
-                float off   = shadow_spread * t;
-                bar_dl->AddRectFilled(ImVec2(wpos.x, wpos.y - off - 1.0f),
-                                      ImVec2(wpos.x + wsz.x, wpos.y),
-                                      IM_COL32(0, 0, 0, static_cast<int>(alpha * 255)));
-            }
+            bar_dl->AddRectFilled(wpos, wmax, IM_COL32(16, 26, 43, 255));
 
-            // Crisp hairline border at top edge
-            bar_dl->AddLine(ImVec2(wpos.x, wpos.y),
-                            ImVec2(wpos.x + wsz.x, wpos.y),
-                            IM_COL32(static_cast<uint8_t>(c.border_subtle.r * 255),
-                                     static_cast<uint8_t>(c.border_subtle.g * 255),
-                                     static_cast<uint8_t>(c.border_subtle.b * 255),
-                                     80),
+            // Barely-there separator hairline — Vision has no bright accent line.
+            bar_dl->AddLine(wpos,
+                            ImVec2(wmax.x, wpos.y),
+                            IM_COL32(32, 44, 64, 70),
                             1.0f);
         }
 
@@ -929,13 +916,14 @@ void ImGuiIntegration::draw_status_bar()
             draw_pill(zoom_buf.c_str(), colors.text_secondary, colors.bg_tertiary, 0.24f, colors.border_subtle);
         }
 
-        // Right side: performance pills anchored to the right edge when room allows.
+        // Right side: FPS badge + plain GPU readout (Vision.png).
         const std::string fps_buf = std::format("{} fps", static_cast<int>(io.Framerate));
         const std::string gpu_buf = std::format("GPU: {:.1f}ms", gpu_time_ms_);
-        const float       perf_gap = ui::tokens::STATUS_BAR_GROUP_GAP;
-        const float       right_w  = ImGui::CalcTextSize(fps_buf.c_str()).x
-                              + ImGui::CalcTextSize(gpu_buf.c_str()).x
-                              + (pill_pad_h + pill_pad_h) * 2 + perf_gap;
+        const float       perf_gap   = ui::tokens::STATUS_BAR_PERF_GAP;
+        const float       fps_pad_h  = ui::tokens::STATUS_BAR_FPS_PILL_PAD_H;
+        const float       fps_pad_v  = ui::tokens::STATUS_BAR_FPS_PILL_PAD_V;
+        const float       right_w    = ImGui::CalcTextSize(fps_buf.c_str()).x + fps_pad_h * 2.0f + perf_gap
+                              + ImGui::CalcTextSize(gpu_buf.c_str()).x;
         const float right_x    = ImGui::GetWindowWidth() - right_w - ui::tokens::STATUS_BAR_PADDING_H;
         const float center_end = ImGui::GetCursorPosX();
         const bool  show_perf  = right_x > center_end + ui::tokens::SPACE_3;
@@ -944,14 +932,46 @@ void ImGuiIntegration::draw_status_bar()
             ImGui::SameLine();
             ImGui::SetCursorPosX(right_x);
 
-            // FPS — Vision.png bright green pill with dark text.
-            ui::Color fps_text = ui::Color::from_hex(0x061008);
-            draw_pill(fps_buf.c_str(), fps_text, colors.success, 0.92f, colors.success);
+            // FPS — Vision green capsule: flat fill, dark text, no bloom.
+            {
+                ImVec2      text_sz  = ImGui::CalcTextSize(fps_buf.c_str());
+                ImVec2      cursor_p = ImGui::GetCursorScreenPos();
+                ImVec2      pill_min(cursor_p.x - fps_pad_h,
+                                cursor_p.y - (pill_h - text_h) * 0.5f - fps_pad_v);
+                ImVec2      pill_max(cursor_p.x + text_sz.x + fps_pad_h,
+                                cursor_p.y + text_h + (pill_h - text_h) * 0.5f + fps_pad_v);
+                const auto& fps_fill   = ui::glass_palette::kFpsPillGreen;
+                const auto& fps_border = ui::glass_palette::kFpsPillBorder;
+                const auto& fps_text   = ui::glass_palette::kFpsPillText;
 
-            // GPU time in muted blue/purple.
+                dl->AddRectFilled(pill_min,
+                                  pill_max,
+                                  IM_COL32(static_cast<uint8_t>(fps_fill.r * 255),
+                                           static_cast<uint8_t>(fps_fill.g * 255),
+                                           static_cast<uint8_t>(fps_fill.b * 255),
+                                           255),
+                                  pill_radius);
+                dl->AddRect(pill_min,
+                            pill_max,
+                            IM_COL32(static_cast<uint8_t>(fps_border.r * 255),
+                                     static_cast<uint8_t>(fps_border.g * 255),
+                                     static_cast<uint8_t>(fps_border.b * 255),
+                                     235),
+                            pill_radius,
+                            0,
+                            1.0f);
+                ImGui::PushStyleColor(ImGuiCol_Text,
+                                      ImVec4(fps_text.r, fps_text.g, fps_text.b, 1.0f));
+                ImGui::TextUnformatted(fps_buf.c_str());
+                ImGui::PopStyleColor();
+            }
+
             ImGui::SameLine(0.0f, perf_gap);
-            ui::Color gpu_tint = colors.accent.lerp(ui::Color::from_hex(0xA070F0), 0.45f);
-            draw_pill(gpu_buf.c_str(), colors.text_secondary, colors.bg_tertiary, 0.10f, gpu_tint);
+            const auto& gpu_text = ui::glass_palette::kStatusGpuText;
+            ImGui::PushStyleColor(ImGuiCol_Text,
+                                  ImVec4(gpu_text.r, gpu_text.g, gpu_text.b, 1.0f));
+            ImGui::TextUnformatted(gpu_buf.c_str());
+            ImGui::PopStyleColor();
         }
 
         ImGui::PopFont();

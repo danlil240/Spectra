@@ -14,13 +14,19 @@
 
 #include <atomic>
 #include <cstdint>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
 
+#ifdef SPECTRA_USE_IMGUI
+    #include "ui/shell/app_shell.hpp"
+#endif
+
 namespace spectra
 {
 class Figure;
+class LayoutManager;
 class WindowManager;
 }   // namespace spectra
 
@@ -82,7 +88,11 @@ struct AutoPlotGroup
 // Px4AppShell
 // ---------------------------------------------------------------------------
 
+#ifdef SPECTRA_USE_IMGUI
+class Px4AppShell : public spectra::ui::shell::AppShell
+#else
 class Px4AppShell
+#endif
 {
    public:
     explicit Px4AppShell(const Px4AppConfig& cfg);
@@ -98,6 +108,16 @@ class Px4AppShell
 
     // Wire WindowManager for OS-level panel tearoff.
     void set_window_manager(spectra::WindowManager* wm);
+
+    void set_layout_manager(spectra::LayoutManager* lm);
+
+    bool panel_visible(const char* id) const;
+    void set_panel_visible(const char* id, bool v);
+
+    bool  nav_rail_visible() const;
+    bool  nav_rail_expanded() const;
+    void  set_nav_rail_visible(bool v);
+    void  set_nav_rail_expanded(bool v);
 
     // Initialise components.
     bool init();
@@ -133,14 +153,25 @@ class Px4AppShell
     Px4PlotManager&     plot_manager() { return plot_mgr_; }
     const Px4AppConfig& config() const { return cfg_; }
 
+#ifdef SPECTRA_USE_IMGUI
+   protected:
+    void on_register_panels() override;
+    void on_populate_menus(spectra::ui::shell::MenuBar& bar) override;
+    void on_populate_nav_rail(spectra::ui::shell::NavRail& rail) override;
+    void on_default_layout(unsigned int dockspace_id) override;
+    void on_build_status_bar(spectra::ui::shell::StatusBar& bar) override;
+#endif
+
    private:
     bool open_ulog_with_dialog();
-    void draw_menu_bar();
-    void draw_status_bar();
     void sync_canvas_figure(bool force = false);
     void sync_auto_plot_figure();
     void sync_manual_plot_figure(bool force);
     void rebuild_figure_axes(int num_groups);
+    void sync_layout_chrome();
+
+    void draw_ulog_file(bool* p_open = nullptr);
+    void draw_live_connection(bool* p_open = nullptr);
 
     Px4AppConfig cfg_;
 
@@ -160,10 +191,11 @@ class Px4AppShell
 
     std::atomic<bool> shutdown_requested_{false};
 
-    bool        show_file_panel_{true};
-    bool        show_live_panel_{false};
-    bool        dock_layout_initialized_{false};
     std::string last_open_error_;
+
+#ifdef SPECTRA_USE_IMGUI
+    std::map<std::string, bool> pending_panel_visibility_;
+#endif
 };
 
 }   // namespace spectra::adapters::px4

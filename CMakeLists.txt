@@ -226,6 +226,7 @@ foreach(_ui_src
     src/ui/automation/handlers/handlers_capture.cpp
     src/ui/automation/handlers/handlers_window.cpp
     src/ui/automation/handlers/handlers_utility.cpp
+    src/ui/automation/handlers/handlers_fuzz.cpp
 )
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${_ui_src})
         list(APPEND SPECTRA_UI_SOURCES ${_ui_src})

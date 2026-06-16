@@ -25,6 +25,7 @@
 
 #ifdef SPECTRA_USE_IMGUI
     #include "ui/app/window_ui_context.hpp"
+    #include "ui/native_dialog_policy.hpp"
 #endif
 
 #include <csignal>
@@ -52,6 +53,10 @@ static void sigint_handler(int /*sig*/)
 int main(int argc, char** argv)
 {
     using namespace spectra::adapters::px4;
+
+#ifdef SPECTRA_USE_IMGUI
+    spectra::init_native_dialog_policy(argc, argv);
+#endif
 
     // Parse CLI args.
     std::string        err;
@@ -104,11 +109,27 @@ int main(int argc, char** argv)
     app.init_runtime();
 
 #ifdef SPECTRA_USE_IMGUI
+    // Hide Spectra's default chrome — spectra-px4 owns menu bar, status bar, and dock layout.
     auto* ui_ctx = app.ui_context();
     if (ui_ctx && ui_ctx->imgui_ui)
     {
         ui_ctx->imgui_ui->enable_docking();
-        ui_ctx->imgui_ui->set_extra_draw_callback([&shell]() { shell.draw(); });
+        auto& lm = ui_ctx->imgui_ui->get_layout_manager();
+        lm.set_inspector_visible(false);
+        lm.set_tab_bar_visible(false);
+        ui_ctx->imgui_ui->set_nav_rail_visible(false);
+        ui_ctx->imgui_ui->set_canvas_visible(false);
+        ui_ctx->imgui_ui->set_render_figure_enabled(true);
+        ui_ctx->imgui_ui->set_command_bar_visible(false);
+        ui_ctx->imgui_ui->set_status_bar_visible(false);
+        shell.set_layout_manager(&lm);
+        ui_ctx->imgui_ui->set_extra_draw_callback(
+            [&shell, ui_ctx]()
+            {
+                if (ui_ctx && ui_ctx->imgui_ui)
+                    ui_ctx->imgui_ui->set_nav_rail_visible(shell.nav_rail_visible());
+                shell.draw();
+            });
     }
 
     // Wire WindowManager so panels can create real OS windows on detach.

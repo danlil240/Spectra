@@ -8,11 +8,11 @@
 
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
-    #ifdef IMGUI_HAS_DOCK
-        #include <imgui_internal.h>
-    #endif
     #include "../../../third_party/tinyfiledialogs.h"
     #include "../../ui/dialog_env_guard.hpp"
+    #include "../../ui/native_dialog_policy.hpp"
+    #include "ui/layout/layout_manager.hpp"
+    #include "ui/shell/app_shell.hpp"
 #endif
 
 #include <algorithm>
@@ -28,6 +28,9 @@ namespace
 #ifdef SPECTRA_USE_IMGUI
 std::string choose_ulog_file_path()
 {
+    if (!spectra::native_dialogs_enabled())
+        return {};
+
     DialogEnvGuard env_guard;
     char const*    filter_patterns[] = {"*.ulg", "*.ulog"};
     const char*    home_env          = std::getenv("HOME");
@@ -186,7 +189,16 @@ Px4AppConfig parse_px4_args(int argc, char** argv, std::string& error_out)
 // Construction / destruction
 // ---------------------------------------------------------------------------
 
-Px4AppShell::Px4AppShell(const Px4AppConfig& cfg) : cfg_(cfg) {}
+Px4AppShell::Px4AppShell(const Px4AppConfig& cfg)
+#ifdef SPECTRA_USE_IMGUI
+    : spectra::ui::shell::AppShell(
+          spectra::ui::shell::AppShellConfig{.nav_rail = false, .app_name = "Spectra PX4"}),
+      cfg_(cfg)
+#else
+    : cfg_(cfg)
+#endif
+{
+}
 
 Px4AppShell::~Px4AppShell()
 {
@@ -238,8 +250,13 @@ bool Px4AppShell::init()
         bridge_.init(cfg_.host, cfg_.port);
         bridge_.start();
         plot_mgr_.set_bridge(&bridge_);
-        show_live_panel_ = true;
+        set_panel_visible("px4.live_connection", true);
     }
+
+#ifdef SPECTRA_USE_IMGUI
+    initialize();
+    nav_rail().set_search_enabled(true);
+#endif
 
     return true;
 }
@@ -298,74 +315,107 @@ void Px4AppShell::poll()
 void Px4AppShell::draw()
 {
 #ifdef SPECTRA_USE_IMGUI
-    draw_menu_bar();
+    if (shutdown_requested())
+        return;
 
-    // Create a dockspace over the main viewport so panels can dock/undock.
-    #ifdef IMGUI_HAS_DOCK
-    ImGuiViewport* viewport     = ImGui::GetMainViewport();
-    float          menu_bar_h   = ImGui::GetFrameHeight();
-    float          status_bar_h = ImGui::GetFrameHeight();
-
-    ImGui::SetNextWindowPos(ImVec2(viewport->WorkPos.x, viewport->WorkPos.y + menu_bar_h));
-    ImGui::SetNextWindowSize(
-        ImVec2(viewport->WorkSize.x, viewport->WorkSize.y - menu_bar_h - status_bar_h));
-
-    ImGuiWindowFlags host_flags =
-        ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize
-        | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBringToFrontOnFocus
-        | ImGuiWindowFlags_NoNavFocus | ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoBackground;
-
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
-    ImGui::Begin("##Px4DockHost", nullptr, host_flags);
-    ImGui::PopStyleVar(3);
-
-    ImGuiID dockspace_id = ImGui::GetID("Px4Dockspace");
-    ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_PassthruCentralNode);
-
-    // Apply default layout once — after DockSpace() has created the node.
-    if (!dock_layout_initialized_)
-    {
-        dock_layout_initialized_ = true;
-
-        // The DockSpace() call above already created/refreshed the node.
-        // Just set its size and split it — do NOT call DockBuilderAddNode
-        // with DockSpace flag (it internally removes-then-recreates via
-        // KeepAliveOnly which fails on the first frame).
-        ImGui::DockBuilderSetNodeSize(dockspace_id, viewport->WorkSize);
-
-        // Split: left panel (30%) | main plot area (70%).
-        ImGuiID dock_left = 0;
-        ImGuiID dock_main = 0;
-        ImGui::DockBuilderSplitNode(dockspace_id, ImGuiDir_Left, 0.30f, &dock_left, &dock_main);
-
-        if (file_panel_)
-            ImGui::DockBuilderDockWindow(file_panel_->title().c_str(), dock_left);
-        if (live_panel_)
-            ImGui::DockBuilderDockWindow(live_panel_->title().c_str(), dock_left);
-
-        ImGui::DockBuilderFinish(dockspace_id);
-    }
-
-    // Store dockspace ID on panels so they can re-attach.
-    if (file_panel_)
-        file_panel_->set_dock_id(dockspace_id);
-    if (live_panel_)
-        live_panel_->set_dock_id(dockspace_id);
-
-    ImGui::End();
-    #endif   // IMGUI_HAS_DOCK
-
-    if (show_file_panel_ && file_panel_)
-        file_panel_->draw(&show_file_panel_);
-
-    if (show_live_panel_ && live_panel_)
-        live_panel_->draw(&show_live_panel_);
-
-    draw_status_bar();
+    sync_layout_chrome();
+    draw_frame();
 #endif
 }
+
+#ifdef SPECTRA_USE_IMGUI
+bool Px4AppShell::panel_visible(const char* id) const
+{
+    if (!is_initialized())
+    {
+        const auto it = pending_panel_visibility_.find(id);
+        if (it != pending_panel_visibility_.end())
+            return it->second;
+        return false;
+    }
+    const auto* panel = panels().find(id);
+    return panel && panel->visible();
+}
+
+void Px4AppShell::set_panel_visible(const char* id, bool v)
+{
+    if (!is_initialized())
+    {
+        pending_panel_visibility_[id] = v;
+        return;
+    }
+    panels().set_visible(id, v);
+}
+
+bool Px4AppShell::nav_rail_visible() const
+{
+    return config_.nav_rail;
+}
+
+bool Px4AppShell::nav_rail_expanded() const
+{
+    return nav_rail().expanded();
+}
+
+void Px4AppShell::set_nav_rail_visible(bool v)
+{
+    config_.nav_rail = v;
+    sync_layout_chrome();
+}
+
+void Px4AppShell::set_nav_rail_expanded(bool v)
+{
+    nav_rail().set_expanded(v);
+    sync_layout_chrome();
+}
+
+void Px4AppShell::set_layout_manager(spectra::LayoutManager* lm)
+{
+    AppShell::set_layout_manager(lm);
+    sync_layout_chrome();
+}
+
+void Px4AppShell::sync_layout_chrome()
+{
+    if (spectra::LayoutManager* lm = layout_manager())
+        lm->set_nav_rail_visible(config_.nav_rail);
+}
+
+void Px4AppShell::draw_ulog_file(bool* p_open)
+{
+    if (file_panel_)
+        file_panel_->draw(p_open);
+}
+
+void Px4AppShell::draw_live_connection(bool* p_open)
+{
+    if (live_panel_)
+        live_panel_->draw(p_open);
+}
+#else
+bool Px4AppShell::panel_visible(const char*) const
+{
+    return false;
+}
+
+void Px4AppShell::set_panel_visible(const char*, bool) {}
+
+bool Px4AppShell::nav_rail_visible() const
+{
+    return false;
+}
+
+bool Px4AppShell::nav_rail_expanded() const
+{
+    return false;
+}
+
+void Px4AppShell::set_nav_rail_visible(bool) {}
+
+void Px4AppShell::set_nav_rail_expanded(bool) {}
+
+void Px4AppShell::set_layout_manager(spectra::LayoutManager*) {}
+#endif
 
 // ---------------------------------------------------------------------------
 // open_ulog
@@ -382,14 +432,14 @@ bool Px4AppShell::open_ulog(const std::string& path)
     if (!reader_.open(path))
     {
         plot_mgr_.clear();
-        show_file_panel_ = true;
+        set_panel_visible("px4.ulog_file", true);
         last_open_error_ = reader_.last_error();
         sync_canvas_figure(true);
         return false;
     }
 
     plot_mgr_.load_ulog(reader_);
-    show_file_panel_ = true;
+    set_panel_visible("px4.ulog_file", true);
     last_open_error_.clear();
 
     // Automatically generate flight-review-style plots on file open.
@@ -742,159 +792,6 @@ bool Px4AppShell::open_ulog_with_dialog()
     return open_ulog(path);
 #else
     return false;
-#endif
-}
-
-// ---------------------------------------------------------------------------
-// draw_menu_bar
-// ---------------------------------------------------------------------------
-
-void Px4AppShell::draw_menu_bar()
-{
-#ifdef SPECTRA_USE_IMGUI
-    if (ImGui::BeginMainMenuBar())
-    {
-        if (ImGui::BeginMenu("File"))
-        {
-            if (ImGui::MenuItem("Open ULog...", "Ctrl+O"))
-            {
-                open_ulog_with_dialog();
-            }
-            ImGui::Separator();
-            if (ImGui::MenuItem("Exit", "Ctrl+Q"))
-                request_shutdown();
-            ImGui::EndMenu();
-        }
-
-        if (ImGui::BeginMenu("Plots"))
-        {
-            const bool has_ulog = reader_.is_open();
-            if (ImGui::MenuItem("Auto Plot", nullptr, false, has_ulog))
-            {
-                auto_plot_ulog();
-            }
-            if (ImGui::IsItemHovered() && !has_ulog)
-                ImGui::SetTooltip("Open a ULog file first");
-
-            ImGui::Separator();
-            const bool has_plots = auto_plot_active_ || plot_mgr_.field_count() > 0;
-            if (ImGui::MenuItem("Close All Plots", nullptr, false, has_plots))
-            {
-                close_all_plots();
-            }
-            ImGui::EndMenu();
-        }
-
-        if (ImGui::BeginMenu("View"))
-        {
-            ImGui::MenuItem("ULog File", nullptr, &show_file_panel_);
-            ImGui::MenuItem("Live Connection", nullptr, &show_live_panel_);
-
-            ImGui::Separator();
-
-            if (file_panel_)
-            {
-                bool detached = file_panel_->is_detached();
-                if (ImGui::MenuItem("Detach ULog Panel", nullptr, detached))
-                {
-                    if (detached)
-                        file_panel_->attach();
-                    else
-                        file_panel_->detach();
-                }
-            }
-            if (live_panel_)
-            {
-                bool detached = live_panel_->is_detached();
-                if (ImGui::MenuItem("Detach Live Panel", nullptr, detached))
-                {
-                    if (detached)
-                        live_panel_->attach();
-                    else
-                        live_panel_->detach();
-                }
-            }
-
-            ImGui::EndMenu();
-        }
-
-        if (ImGui::BeginMenu("Connection"))
-        {
-            if (!bridge_.is_connected())
-            {
-                if (ImGui::MenuItem("Connect"))
-                {
-                    bridge_.init(cfg_.host, cfg_.port);
-                    bridge_.start();
-                    plot_mgr_.set_bridge(&bridge_);
-                    show_live_panel_ = true;
-                }
-            }
-            else
-            {
-                if (ImGui::MenuItem("Disconnect"))
-                {
-                    bridge_.shutdown();
-                    plot_mgr_.set_bridge(nullptr);
-                }
-            }
-            ImGui::EndMenu();
-        }
-
-        ImGui::EndMainMenuBar();
-    }
-#endif
-}
-
-// ---------------------------------------------------------------------------
-// draw_status_bar
-// ---------------------------------------------------------------------------
-
-void Px4AppShell::draw_status_bar()
-{
-#ifdef SPECTRA_USE_IMGUI
-    ImGuiWindowFlags flags = ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings
-                             | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize
-                             | ImGuiWindowFlags_NoMove;
-
-    ImGuiViewport* viewport = ImGui::GetMainViewport();
-    float          bar_h    = ImGui::GetFrameHeight();
-    ImGui::SetNextWindowPos(
-        ImVec2(viewport->WorkPos.x, viewport->WorkPos.y + viewport->WorkSize.y - bar_h));
-    ImGui::SetNextWindowSize(ImVec2(viewport->WorkSize.x, bar_h));
-
-    if (ImGui::Begin("##StatusBar", nullptr, flags))
-    {
-        if (!last_open_error_.empty())
-        {
-            ImGui::Text("ULog open failed: %s", last_open_error_.c_str());
-            ImGui::SameLine();
-        }
-
-        if (reader_.is_open())
-        {
-            ImGui::Text("ULog: %s | Duration: %.1fs | Topics: %zu | Messages: %zu",
-                        reader_.metadata().path.c_str(),
-                        reader_.metadata().duration_sec(),
-                        reader_.topic_count(),
-                        reader_.metadata().message_count);
-        }
-
-        if (bridge_.is_receiving())
-        {
-            if (reader_.is_open())
-                ImGui::SameLine();
-            ImGui::Text("Live: %s:%d (%.0f msg/s)",
-                        bridge_.host().c_str(),
-                        bridge_.port(),
-                        bridge_.message_rate());
-        }
-
-        if (reader_.is_open() || bridge_.is_receiving())
-            ImGui::SameLine();
-        ImGui::Text("Fields: %zu", plot_mgr_.field_count());
-    }
-    ImGui::End();
 #endif
 }
 

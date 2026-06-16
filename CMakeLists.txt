@@ -662,6 +662,7 @@ if(SPECTRA_USE_PX4)
         src/adapters/px4/px4_bridge.cpp
         src/adapters/px4/px4_plot_manager.cpp
         src/adapters/px4/px4_app_shell.cpp
+        src/adapters/px4/px4_app_shell_menus.cpp
         src/adapters/px4/ui/ulog_file_panel.cpp
         src/adapters/px4/ui/live_connection_panel.cpp
     )

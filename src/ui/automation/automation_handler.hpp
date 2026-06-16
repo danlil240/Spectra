@@ -89,5 +89,6 @@ std::vector<AutomationHandlerEntry> make_figure_handlers();
 std::vector<AutomationHandlerEntry> make_capture_handlers();
 std::vector<AutomationHandlerEntry> make_window_handlers();
 std::vector<AutomationHandlerEntry> make_utility_handlers();
+std::vector<AutomationHandlerEntry> make_fuzz_handlers();
 
 }   // namespace spectra

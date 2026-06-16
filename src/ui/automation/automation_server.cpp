@@ -64,6 +64,7 @@ void AutomationServer::register_handlers()
     install(make_capture_handlers());
     install(make_window_handlers());
     install(make_utility_handlers());
+    install(make_fuzz_handlers());
 
     AutomationHandlerEntry list_methods{
         "list_methods",

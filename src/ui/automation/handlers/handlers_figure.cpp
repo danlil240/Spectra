@@ -15,6 +15,7 @@
 
 #include "ui/app/window_ui_context.hpp"
 #include "ui/figures/figure_manager.hpp"
+#include "ui/native_dialog_policy.hpp"
 
 #ifdef SPECTRA_USE_IMGUI
     #include "ui/theme/theme.hpp"
@@ -101,6 +102,7 @@ std::vector<AutomationHandlerEntry> make_figure_handlers()
 #else
             (void)ui_ctx;
 #endif
+            oss << ",\"native_dialogs_enabled\":" << (native_dialogs_enabled() ? "true" : "false");
             oss << "}";
             req.response_json = json_ok(req.id, oss.str());
         }));

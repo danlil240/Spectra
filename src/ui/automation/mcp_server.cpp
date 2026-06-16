@@ -44,7 +44,7 @@ struct ToolSpec
     const char* automation_method;
 };
 
-constexpr std::array<ToolSpec, 22> kTools = {{
+constexpr std::array<ToolSpec, 26> kTools = {{
     {"ping",
      "Ping the Spectra application to verify the connection is alive.",
      R"json({"type":"object","properties":{},"additionalProperties":false})json",
@@ -135,6 +135,23 @@ constexpr std::array<ToolSpec, 22> kTools = {{
      "Get the current window dimensions in pixels.",
      R"json({"type":"object","properties":{},"additionalProperties":false})json",
      "get_window_size"},
+    {"fuzz_step",
+     "Execute one weighted-random QA fuzz action (same distribution as spectra_qa_agent). "
+     "Returns action name, step index, and suggested pump_frames count.",
+     R"json({"type":"object","properties":{"seed":{"type":"integer","description":"Reset RNG to this seed before stepping."},"action":{"type":"string","description":"Force a specific fuzz action name (see list_fuzz_actions)."}},"additionalProperties":false})json",
+     "fuzz_step"},
+    {"fuzz_reset",
+     "Reset fuzz RNG state and step counter.",
+     R"json({"type":"object","properties":{"seed":{"type":"integer","description":"Optional deterministic seed."}},"additionalProperties":false})json",
+     "fuzz_reset"},
+    {"list_fuzz_actions",
+     "List available fuzz action names and their weights.",
+     R"json({"type":"object","properties":{},"additionalProperties":false})json",
+     "list_fuzz_actions"},
+    {"list_methods",
+     "List all automation methods with metadata (parameters and context requirements).",
+     R"json({"type":"object","properties":{},"additionalProperties":false})json",
+     "list_methods"},
 }};
 
 std::string json_escape(const std::string& s)

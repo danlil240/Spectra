@@ -49,9 +49,11 @@ curl -s -X POST http://127.0.0.1:8765/mcp \
 | `capture_screenshot` | Canvas PNG to path |
 | `capture_window` | Full window PNG to path |
 | `get_screenshot_base64` | Inline PNG for review |
-| `get_window_size` / `resize_window` | Window geometry |
 | `mouse_move` / `mouse_click` / `mouse_drag` / `double_click` / `scroll` | Input |
 | `key_press` / `text_input` | Keyboard |
+| `get_window_size` / `resize_window` | Window geometry |
+| `fuzz_reset` / `fuzz_step` / `list_fuzz_actions` | Weighted random QA fuzz (qa_agent parity) |
+| `list_methods` | Full automation method catalog |
 
 ## Typical visual check
 

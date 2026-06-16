@@ -18,6 +18,7 @@
 #include "bag_player.hpp"
 #include "display/display_registry.hpp"
 #include "message_introspector.hpp"
+#include "expression_plot.hpp"
 #include "ros2_bridge.hpp"
 #include "ros_plot_manager.hpp"
 #include "ros_screenshot_export.hpp"
@@ -27,6 +28,7 @@
 #include "scene/scene_manager.hpp"
 #include "subplot_manager.hpp"
 #include "topic_discovery.hpp"
+#include "ui/expression_editor.hpp"
 
 #include <ui/input/input.hpp>
 #include "ui/bag_info_panel.hpp"
@@ -45,11 +47,16 @@
 #include "ui/topic_list_panel.hpp"
 #include "ui/topic_stats_overlay.hpp"
 
+#ifdef SPECTRA_USE_IMGUI
+    #include "ui/shell/app_shell.hpp"
+#endif
+
 namespace spectra
 {
 class Figure;
 class LayoutManager;
-}   // namespace spectra
+class ImGuiIntegration;
+}
 
 namespace spectra::adapters::ros2
 {
@@ -153,7 +160,11 @@ struct RosWorkspaceState
     }
 };
 
+#ifdef SPECTRA_USE_IMGUI
+class RosAppShell : public spectra::ui::shell::AppShell
+#else
 class RosAppShell
+#endif
 {
    public:
     explicit RosAppShell(const RosAppConfig& cfg);
@@ -174,7 +185,14 @@ class RosAppShell
 
     // Optional: bind to the Spectra LayoutManager so we can override canvas_rect
     // to match the Plot Area docked panel's position.
-    void set_layout_manager(spectra::LayoutManager* lm) { layout_manager_ = lm; }
+    void set_layout_manager(spectra::LayoutManager* lm);
+
+#ifdef SPECTRA_USE_IMGUI
+    void bind_imgui(spectra::ImGuiIntegration* imgui);
+#endif
+
+    bool panel_visible(const char* id) const;
+    void set_panel_visible(const char* id, bool v);
 
     bool init(int argc, char** argv);
     void shutdown();
@@ -190,6 +208,7 @@ class RosAppShell
     void draw_topic_echo(bool* p_open = nullptr);
     void draw_topic_stats(bool* p_open = nullptr);
     void draw_plot_area(bool* p_open = nullptr);
+    void draw_expression_editor(bool* p_open = nullptr);
     void draw_bag_info(bool* p_open = nullptr);
     void draw_bag_playback(bool* p_open = nullptr);
     void draw_unified_transport_bar();
@@ -202,48 +221,14 @@ class RosAppShell
     void draw_tf_tree(bool* p_open = nullptr);
     void draw_param_editor(bool* p_open = nullptr);
     void draw_service_caller(bool* p_open = nullptr);
-    void draw_status_bar();
-    void draw_menu_bar();
 
     std::string window_title() const;
 
-    bool topic_list_visible() const { return show_topic_list_; }
-    bool topic_echo_visible() const { return show_topic_echo_; }
-    bool topic_stats_visible() const { return show_topic_stats_; }
-    bool plot_area_visible() const { return show_plot_area_; }
-    bool bag_info_visible() const { return show_bag_info_; }
-    bool bag_playback_visible() const { return show_bag_playback_; }
-    bool log_viewer_visible() const { return show_log_viewer_; }
-    bool diagnostics_visible() const { return show_diagnostics_; }
-    bool displays_panel_visible() const { return show_displays_panel_; }
-    bool node_graph_visible() const { return show_node_graph_; }
-    bool scene_viewport_visible() const { return show_scene_viewport_; }
-    bool inspector_panel_visible() const { return show_inspector_panel_; }
-    bool tf_tree_visible() const { return show_tf_tree_; }
-    bool param_editor_visible() const { return show_param_editor_; }
-    bool service_caller_visible() const { return show_service_caller_; }
-
-    void set_topic_list_visible(bool v) { show_topic_list_ = v; }
-    void set_topic_echo_visible(bool v) { show_topic_echo_ = v; }
-    void set_topic_stats_visible(bool v) { show_topic_stats_ = v; }
-    void set_plot_area_visible(bool v) { show_plot_area_ = v; }
-    void set_bag_info_visible(bool v) { show_bag_info_ = v; }
-    void set_bag_playback_visible(bool v) { show_bag_playback_ = v; }
-    void set_log_viewer_visible(bool v) { show_log_viewer_ = v; }
-    void set_diagnostics_visible(bool v) { show_diagnostics_ = v; }
-    void set_displays_panel_visible(bool v) { show_displays_panel_ = v; }
-    void set_node_graph_visible(bool v) { show_node_graph_ = v; }
-    void set_scene_viewport_visible(bool v) { show_scene_viewport_ = v; }
-    void set_inspector_panel_visible(bool v) { show_inspector_panel_ = v; }
-    void set_tf_tree_visible(bool v) { show_tf_tree_ = v; }
-    void set_param_editor_visible(bool v) { show_param_editor_ = v; }
-    void set_service_caller_visible(bool v) { show_service_caller_ = v; }
-
-    bool  nav_rail_visible() const { return show_nav_rail_; }
-    bool  nav_rail_expanded() const { return nav_rail_expanded_; }
-    float nav_rail_width() const { return nav_rail_width_; }
-    void  set_nav_rail_visible(bool v) { show_nav_rail_ = v; }
-    void  set_nav_rail_expanded(bool v) { nav_rail_expanded_ = v; }
+    bool  nav_rail_visible() const;
+    bool  nav_rail_expanded() const;
+    float nav_rail_width() const;
+    void  set_nav_rail_visible(bool v);
+    void  set_nav_rail_expanded(bool v);
     void  set_nav_rail_width(float px);
 
     Ros2Bridge&          bridge() { return *bridge_; }
@@ -325,7 +310,18 @@ class RosAppShell
     void set_fixed_frame(const std::string& frame_id) { workspace_state_.fixed_frame = frame_id; }
     SceneManager& scene_manager() { return scene_manager_; }
 
+#ifdef SPECTRA_USE_IMGUI
+   protected:
+    void on_register_panels() override;
+    void on_populate_menus(spectra::ui::shell::MenuBar& bar) override;
+    void on_populate_nav_rail(spectra::ui::shell::NavRail& rail) override;
+    void on_default_layout(unsigned int dockspace_id) override;
+    void on_build_status_bar(spectra::ui::shell::StatusBar& bar) override;
+    std::unique_ptr<spectra::ui::shell::CanvasHost> create_canvas_host() override;
+#endif
+
    private:
+    void sync_layout_chrome();
     void subscribe_initial_topics();
     void wire_panel_callbacks();
     void on_bag_opened(const std::string& path);
@@ -339,10 +335,7 @@ class RosAppShell
     void seed_default_rviz_displays_if_needed();
     void refresh_scene_displays(float dt);
     void draw_display_auxiliary_windows();
-
-    void draw_dockspace();
-    void apply_default_dock_layout();
-    void draw_nav_rail();
+    void draw_ros_shell_popups();
 
     void draw_session_save_dialog();
     void draw_session_load_dialog();
@@ -398,6 +391,8 @@ class RosAppShell
     std::unique_ptr<ParamEditorPanel>   param_editor_;
     std::unique_ptr<ServiceCaller>      service_caller_;
     std::unique_ptr<ServiceCallerPanel> service_caller_panel_;
+    std::unique_ptr<ExpressionPlot>     expression_plot_;
+    std::unique_ptr<ExpressionEditor>   expression_editor_;
 
     std::unique_ptr<FieldDragDrop> drag_drop_;
 
@@ -417,38 +412,17 @@ class RosAppShell
 
     std::atomic<bool> shutdown_requested_{false};
 
-    bool show_topic_list_       = false;
-    bool show_topic_echo_       = false;
-    bool show_topic_stats_      = false;
-    bool show_plot_area_        = true;
     bool plot_area_was_visible_ = true;   // tracks previous frame for close detection
-    bool show_bag_info_         = false;
-    bool show_bag_playback_     = false;
-    bool show_log_viewer_       = false;
-    bool show_diagnostics_      = false;
-    bool show_displays_panel_   = false;
-    bool show_node_graph_       = false;
-    bool show_scene_viewport_   = false;
-    bool show_inspector_panel_  = false;
-    bool show_tf_tree_          = false;
-    bool show_param_editor_     = false;
-    bool show_service_caller_   = false;
-
-    // Shell nav rail (Spectra-ROS specific, independent from core Spectra rail).
-    bool  show_nav_rail_        = false;
-    bool  plot_theme_applied_   = false;
-    bool  nav_rail_expanded_    = false;
+    bool plot_theme_applied_    = false;
     float nav_rail_width_       = 220.0f;
-    float nav_rail_collapsed_w_ = 44.0f;
 
-    // Dockspace state.
-    bool dock_layout_initialized_ = false;
+#ifdef SPECTRA_USE_IMGUI
+    std::unordered_map<std::string, bool> pending_panel_visibility_;
+    spectra::ImGuiIntegration*             imgui_ = nullptr;
+#endif
 
     // Optional external render figure for subplot manager integration.
     spectra::Figure* canvas_figure_ = nullptr;
-
-    // Optional layout manager (owned by ImGuiIntegration; lifetime >= shell).
-    spectra::LayoutManager* layout_manager_ = nullptr;
 
     // Lightweight per-topic subscriptions for Topic Monitor Hz/BW columns.
     std::mutex                                                              pending_monitor_subs_mutex_;
@@ -494,7 +468,7 @@ class RosAppShell
     std::string pending_imgui_ini_;
 
 #ifdef SPECTRA_USE_IMGUI
-    unsigned int dockspace_id_ = 0;
+    spectra::ui::shell::CanvasHost* ros_canvas_host_ = nullptr;
 #endif
 };
 

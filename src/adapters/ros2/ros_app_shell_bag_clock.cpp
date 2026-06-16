@@ -68,7 +68,7 @@ void RosAppShell::on_bag_opened(const std::string& path)
     if (bag_display_sync_)
         bag_display_sync_->open(path);
 
-    show_bag_playback_ = true;
+    set_panel_visible("ros.bag_playback", true);
 }
 
 void RosAppShell::on_bag_closed()

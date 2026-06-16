@@ -88,14 +88,14 @@ static RosSession make_session()
     s.camera_pose.fov        = 55.0;
     s.scene_background_color = {0.15, 0.18, 0.24, 1.0};
 
-    s.panels.topic_list      = true;
-    s.panels.topic_echo      = false;
-    s.panels.topic_stats     = true;
-    s.panels.plot_area       = true;
-    s.panels.bag_info        = false;
-    s.panels.displays_panel  = true;
-    s.panels.scene_viewport  = true;
-    s.panels.inspector_panel = true;
+    s.panels.set_visible("ros.topic_list", true);
+    s.panels.set_visible("ros.topic_echo", false);
+    s.panels.set_visible("ros.topic_stats", true);
+    s.panels.set_visible("ros.plot_area", true);
+    s.panels.set_visible("ros.bag_info", false);
+    s.panels.set_visible("ros.displays", true);
+    s.panels.set_visible("ros.scene_viewport", true);
+    s.panels.set_visible("ros.inspector", true);
 
     s.topic_monitor.show_type = false;
     s.topic_monitor.show_hz   = true;
@@ -450,28 +450,28 @@ TEST(RoundTrip, ExpressionPresets)
 TEST(RoundTrip, PanelVisibility)
 {
     RosSession s;
-    s.panels.topic_list      = false;
-    s.panels.topic_echo      = true;
-    s.panels.topic_stats     = false;
-    s.panels.plot_area       = true;
-    s.panels.bag_info        = true;
-    s.panels.displays_panel  = true;
-    s.panels.scene_viewport  = true;
-    s.panels.inspector_panel = true;
+    s.panels.set_visible("ros.topic_list", false);
+    s.panels.set_visible("ros.topic_echo", true);
+    s.panels.set_visible("ros.topic_stats", false);
+    s.panels.set_visible("ros.plot_area", true);
+    s.panels.set_visible("ros.bag_info", true);
+    s.panels.set_visible("ros.displays", true);
+    s.panels.set_visible("ros.scene_viewport", true);
+    s.panels.set_visible("ros.inspector", true);
 
     auto        json = RosSessionManager::serialize(s);
     RosSession  out;
     std::string err;
     ASSERT_TRUE(RosSessionManager::deserialize(json, out, err));
 
-    EXPECT_FALSE(out.panels.topic_list);
-    EXPECT_TRUE(out.panels.topic_echo);
-    EXPECT_FALSE(out.panels.topic_stats);
-    EXPECT_TRUE(out.panels.plot_area);
-    EXPECT_TRUE(out.panels.bag_info);
-    EXPECT_TRUE(out.panels.displays_panel);
-    EXPECT_TRUE(out.panels.scene_viewport);
-    EXPECT_TRUE(out.panels.inspector_panel);
+    EXPECT_FALSE(out.panels.visible("ros.topic_list"));
+    EXPECT_TRUE(out.panels.visible("ros.topic_echo"));
+    EXPECT_FALSE(out.panels.visible("ros.topic_stats"));
+    EXPECT_TRUE(out.panels.visible("ros.plot_area"));
+    EXPECT_TRUE(out.panels.visible("ros.bag_info"));
+    EXPECT_TRUE(out.panels.visible("ros.displays"));
+    EXPECT_TRUE(out.panels.visible("ros.scene_viewport"));
+    EXPECT_TRUE(out.panels.visible("ros.inspector"));
 }
 
 TEST(RoundTrip, FixedFrameAndDisplays)
@@ -645,7 +645,7 @@ TEST(Serialize, WritesVersion2NestedSchema)
     EXPECT_NE(json.find("\"background_color\""), std::string::npos);
     EXPECT_NE(json.find("\"nav_rail\""), std::string::npos);
     EXPECT_NE(json.find("\"topic_monitor\""), std::string::npos);
-    EXPECT_NE(json.find("\"inspector_panel\": true"), std::string::npos);
+    EXPECT_NE(json.find("\"ros.inspector\": true"), std::string::npos);
     EXPECT_EQ(json.find("\"nav_rail_expanded\""), std::string::npos);
     EXPECT_EQ(json.find("\"nav_rail_width\""), std::string::npos);
 }
@@ -732,9 +732,9 @@ TEST(Deserialize, LegacyVersion1SessionRemainsSupported)
     ASSERT_EQ(out.displays.size(), 1u);
     EXPECT_EQ(out.displays[0].type_id, "grid");
     EXPECT_FALSE(out.displays[0].enabled);
-    EXPECT_TRUE(out.panels.displays_panel);
-    EXPECT_TRUE(out.panels.scene_viewport);
-    EXPECT_TRUE(out.panels.inspector_panel);
+    EXPECT_TRUE(out.panels.visible("ros.displays"));
+    EXPECT_TRUE(out.panels.visible("ros.scene_viewport"));
+    EXPECT_TRUE(out.panels.visible("ros.inspector"));
     EXPECT_FALSE(out.panels.nav_rail);
     EXPECT_EQ(out.imgui_ini_data, "[window][legacy]");
 }
@@ -1169,8 +1169,8 @@ TEST(EdgeCases, DefaultPanelsWhenMissing)
     std::string err;
     ASSERT_TRUE(RosSessionManager::deserialize(json, out, err));
     // Defaults: topic_list=true, bag_info=false
-    EXPECT_TRUE(out.panels.topic_list);
-    EXPECT_FALSE(out.panels.bag_info);
+    EXPECT_TRUE(out.panels.visible("ros.topic_list"));
+    EXPECT_FALSE(out.panels.visible("ros.bag_info"));
 }
 
 TEST(EdgeCases, SessionExtConst)
@@ -1214,9 +1214,9 @@ TEST(SessionPresets, BagReviewPresetEnablesBagPanels)
     RosSessionManager mgr;
     const LoadResult  lr = mgr.load(path);
     ASSERT_TRUE(lr.ok) << lr.error;
-    EXPECT_TRUE(lr.session.panels.bag_info);
-    EXPECT_TRUE(lr.session.panels.bag_playback);
-    EXPECT_TRUE(lr.session.panels.plot_area);
+    EXPECT_TRUE(lr.session.panels.visible("ros.bag_info"));
+    EXPECT_TRUE(lr.session.panels.visible("ros.bag_playback"));
+    EXPECT_TRUE(lr.session.panels.visible("ros.plot_area"));
 }
 
 TEST(SessionPresets, BringupPresetHasCmdVelPlots)

@@ -13,6 +13,7 @@
 
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
+    #include "ui/shell/shell_style.hpp"
 #endif
 
 namespace spectra::adapters::ros2
@@ -462,14 +463,14 @@ void TopicStatsOverlay::draw(bool* p_open, int active_subplot_slot)
 {
     if (!ImGui::GetCurrentContext())
         return;
-    if (!ImGui::Begin(title_.c_str(), p_open))
+    if (!spectra::ui::shell::begin_panel(title_.c_str(), p_open))
     {
-        ImGui::End();
+        spectra::ui::shell::end_panel();
         return;
     }
     draw_inline();
     draw_series_controls(subplot_mgr_, active_subplot_slot);
-    ImGui::End();
+    spectra::ui::shell::end_panel();
 }
 void TopicStatsOverlay::draw_series_controls(SubplotManager* subplot_mgr, int active_slot)
 {

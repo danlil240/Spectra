@@ -9,6 +9,7 @@
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
 
+    #include "ui/shell/shell_style.hpp"
     #include "ui/theme/icons.hpp"
 #endif
 
@@ -498,10 +499,9 @@ void TopicListPanel::draw(bool* p_open)
     if (!ImGui::GetCurrentContext())
         return;
     ImGui::SetNextWindowSize(ImVec2(640, 480), ImGuiCond_FirstUseEver);
-    const ImGuiWindowFlags flags = ImGuiWindowFlags_NoCollapse;
-    if (!ImGui::Begin(title_.c_str(), p_open, flags))
+    if (!spectra::ui::shell::begin_panel(title_.c_str(), p_open))
     {
-        ImGui::End();
+        spectra::ui::shell::end_panel();
         return;
     }
 
@@ -631,7 +631,7 @@ void TopicListPanel::draw(bool* p_open)
         ImGui::TextDisabled("Active: %zu / %zu", active_count, topics_.size());
     }
 
-    ImGui::End();
+    spectra::ui::shell::end_panel();
 }
 
 void TopicListPanel::draw_namespace_node(const std::string& ns, int /*depth*/)
@@ -808,6 +808,19 @@ void TopicListPanel::draw_topic_row(const TopicInfo& info, TopicStats& stats)
     {
         if (plot_cb_)
             plot_cb_(info.name);
+    }
+
+    if (plot_cb_)
+    {
+        const float btn_w = ImGui::GetFrameHeight();
+        ImGui::SameLine();
+        ImGui::SetCursorPosX(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x - btn_w);
+        ImGui::PushID(info.name.c_str());
+        if (ImGui::SmallButton(ui::icon_str(ui::Icon::ChartLine)))
+            plot_cb_(info.name);
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
+            ImGui::SetTooltip("Quick plot (default numeric field)");
+        ImGui::PopID();
     }
 
     // Tooltip on hover: full name + type.

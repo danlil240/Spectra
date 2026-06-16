@@ -95,6 +95,7 @@ set(SPECTRA_UNIT_TESTS
     test_undo_redo
     test_workspace
     test_figure_serializer
+    test_native_dialog_policy
     test_region_select
     test_legend_interaction
     test_figure_manager

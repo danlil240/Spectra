@@ -6,6 +6,7 @@
 #include "ui/app/window_ui_context.hpp"
 
 #ifdef SPECTRA_USE_IMGUI
+    #include "ui/shell/spectra_app_shell.hpp"
     #include "ui/theme/icons.hpp"
     #include "ui/topics/topics_panel.hpp"
 #endif
@@ -21,6 +22,19 @@ std::vector<CommandDescriptor> make_panel_commands(CommandContext& ctx)
     auto& ui_ctx   = ctx.ui_ctx;
     auto& imgui_ui = ui_ctx.imgui_ui;
     auto& undo_mgr = ui_ctx.undo_mgr;
+    auto* shell    = ui_ctx.app_shell.get();
+
+    auto toggle_shell_panel = [&](const char* id, const char* undo_show, const char* undo_hide)
+    {
+        if (!shell)
+            return;
+        const bool was = shell->panel_visible(id);
+        shell->toggle_panel(id);
+        undo_mgr.push(UndoAction{
+            was ? undo_hide : undo_show,
+            [shell, id, was]() { shell->set_panel_visible(id, was); },
+            [shell, id, was]() { shell->set_panel_visible(id, !was); }});
+    };
 
     cmds.push_back({"panel.toggle_timeline",
                     "Toggle Timeline Panel",
@@ -29,10 +43,10 @@ std::vector<CommandDescriptor> make_panel_commands(CommandContext& ctx)
                     static_cast<uint16_t>(ui::Icon::Play),
                     [&]()
                     {
-                        if (imgui_ui)
-                        {
+                        if (shell)
+                            toggle_shell_panel("core.timeline", "Show timeline", "Hide timeline");
+                        else if (imgui_ui)
                             imgui_ui->set_timeline_visible(!imgui_ui->is_timeline_visible());
-                        }
                     }});
 
     cmds.push_back({"panel.toggle_curve_editor",
@@ -42,11 +56,12 @@ std::vector<CommandDescriptor> make_panel_commands(CommandContext& ctx)
                     0,
                     [&]()
                     {
-                        if (imgui_ui)
-                        {
+                        if (shell)
+                            toggle_shell_panel(
+                                "core.curve_editor", "Show curve editor", "Hide curve editor");
+                        else if (imgui_ui)
                             imgui_ui->set_curve_editor_visible(
                                 !imgui_ui->is_curve_editor_visible());
-                        }
                     }});
 
     cmds.push_back({"panel.toggle_plugins",
@@ -56,7 +71,9 @@ std::vector<CommandDescriptor> make_panel_commands(CommandContext& ctx)
                     0,
                     [&]()
                     {
-                        if (imgui_ui)
+                        if (shell)
+                            toggle_shell_panel("core.plugins", "Show plugins", "Hide plugins");
+                        else if (imgui_ui)
                             imgui_ui->set_plugins_panel_visible(
                                 !imgui_ui->is_plugins_panel_visible());
                     }});
@@ -66,7 +83,13 @@ std::vector<CommandDescriptor> make_panel_commands(CommandContext& ctx)
                     "Ctrl+Shift+T",
                     "Panel",
                     0,
-                    [&]() { ui_ctx.topics_panel.set_visible(!ui_ctx.topics_panel.is_visible()); }});
+                    [&]()
+                    {
+                        if (shell)
+                            toggle_shell_panel("core.topics", "Show topics", "Hide topics");
+                        else
+                            ui_ctx.topics_panel.set_visible(!ui_ctx.topics_panel.is_visible());
+                    }});
 
     cmds.push_back({"panel.open_settings",
                     "Settings",
@@ -83,7 +106,11 @@ std::vector<CommandDescriptor> make_panel_commands(CommandContext& ctx)
          0,
          [&]()
          {
-             if (imgui_ui)
+             if (shell)
+             {
+                 toggle_shell_panel("core.inspector", "Show inspector", "Hide inspector");
+             }
+             else if (imgui_ui)
              {
                  auto& lm      = imgui_ui->get_layout_manager();
                  bool  old_val = lm.is_inspector_visible();

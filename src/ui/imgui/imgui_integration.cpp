@@ -31,8 +31,10 @@
 
     #include "../../../third_party/tinyfiledialogs.h"
     #include "../dialog_env_guard.hpp"
+    #include "../native_dialog_policy.hpp"
     #include "../topics/topics_panel.hpp"
     #include "../settings/settings_panel.hpp"
+    #include "ui/shell/spectra_app_shell.hpp"
 
     #ifndef M_PI
         #define M_PI 3.14159265358979323846
@@ -488,6 +490,12 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
     current_figure_ = &figure;
     inspector_.set_figure_view_model(vm);
 
+    if (app_shell_)
+        app_shell_->set_current_figure(&figure);
+
+    if (app_shell_)
+        app_shell_->ensure_initialized();
+
     float dt = ImGui::GetIO().DeltaTime;
     if (theme_mgr_)
         theme_mgr_->update(dt);
@@ -534,9 +542,16 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
         draw_axes_context_menu(figure);
         draw_topic_drop_target(figure);
     }
-    if (canvas_visible_ && layout_manager_->is_inspector_visible())
+    if (canvas_visible_)
     {
-        draw_inspector(figure);
+        if (app_shell_)
+        {
+            app_shell_->draw_registered_panels();
+        }
+        else if (layout_manager_->is_inspector_visible())
+        {
+            draw_inspector(figure);
+        }
     }
     if (canvas_visible_)
     {
@@ -550,16 +565,14 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
         draw_split_view_splitters();
     }
 
-    // Draw timeline panel (Agent G — bottom dock)
-    if (show_timeline_ && timeline_editor_)
+    // Draw timeline / curve editor via shell panel registry when available.
+    if (!app_shell_)
     {
-        draw_timeline_panel();
-    }
+        if (show_timeline_ && timeline_editor_)
+            draw_timeline_panel();
 
-    // Draw curve editor window (Agent G — floating)
-    if (show_curve_editor_ && curve_editor_)
-    {
-        draw_curve_editor_panel();
+        if (show_curve_editor_ && curve_editor_)
+            draw_curve_editor_panel();
     }
 
     // Draw deferred tooltip (command bar) on top of everything
@@ -802,7 +815,9 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
     if (pending_open_csv_)
     {
         pending_open_csv_ = false;
-        DialogEnvGuard env_guard;
+        if (native_dialogs_enabled())
+        {
+            DialogEnvGuard env_guard;
         char const*    filters[3] = {"*.csv", "*.tsv", "*.txt"};
         const char*    home_env   = std::getenv("HOME");
         std::string    home_dir   = home_env ? std::string(home_env) + "/" : "/";
@@ -820,6 +835,7 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
             if (csv_data_loaded_)
                 csv_dialog_open_ = true;
         }
+        }
     }
 
     // Draw CSV load dialog if open
@@ -834,16 +850,14 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
         draw_custom_transform_dialog();
     }
 
-    // Draw plugin manager panel if open
-    if (show_plugins_panel_)
+    // Draw plugin / topics panels (legacy path when shell registry is unavailable).
+    if (!app_shell_)
     {
-        draw_plugins_panel();
-    }
+        if (show_plugins_panel_)
+            draw_plugins_panel();
 
-    // Draw Topics panel (Phase 2 of plans/SPECTRA_TOPICS_PLAN.md).
-    if (topics_panel_)
-    {
-        topics_panel_->draw();
+        if (topics_panel_)
+            topics_panel_->draw();
     }
 
     // Draw Settings panel.

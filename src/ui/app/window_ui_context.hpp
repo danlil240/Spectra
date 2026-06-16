@@ -30,6 +30,7 @@
     #include "ui/commands/undo_manager.hpp"
     #include "ui/topics/topics_panel.hpp"
     #include "ui/settings/settings_panel.hpp"
+    #include "ui/shell/spectra_app_shell.hpp"
     #include "ui/settings/settings_store.hpp"
 #endif
 
@@ -99,6 +100,8 @@ struct WindowUIContext
     ShortcutConfig               settings_cfg;
     ui::settings::SettingsPanel  settings_panel;
     ui::settings::SettingsStore* settings_store = nullptr;
+
+    std::unique_ptr<ui::shell::SpectraAppShell> app_shell;
 
     // Plugin overlay registry (shared across windows, not owned — owned by PluginManager)
     OverlayRegistry* overlay_registry = nullptr;

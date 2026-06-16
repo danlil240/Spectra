@@ -17,7 +17,7 @@ class CanvasHost
     void                    set_layout_manager(spectra::LayoutManager* lm);
     spectra::LayoutManager* layout_manager() const;
 
-    void draw();
+    virtual void draw();
 
    protected:
     virtual void draw_empty_state() {}

@@ -264,6 +264,8 @@ std::unique_ptr<WindowUIContext> build_window_ui_context(const WindowUIContextBu
         ui->imgui_ui->set_export_format_registry(options.export_format_registry);
         ui->imgui_ui->set_series_clipboard(options.series_clipboard);
         ui->imgui_ui->set_topics_panel(&ui->topics_panel);
+        ui->app_shell = std::make_unique<ui::shell::SpectraAppShell>(ui->imgui_ui.get());
+        ui->imgui_ui->set_app_shell(ui->app_shell.get());
     #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
         ui->tab_drag_controller.set_window_manager(options.window_manager);
         ui->tab_drag_controller.set_dock_system(&ui->dock_system);

@@ -6,7 +6,9 @@
 
     #include "../../../third_party/tinyfiledialogs.h"
     #include "../dialog_env_guard.hpp"
+    #include "../native_dialog_policy.hpp"
     #include "../topics/topics_panel.hpp"
+    #include "ui/shell/spectra_app_shell.hpp"
     #include "io/export_registry.hpp"
     #include "ui/theme/glass_draw.hpp"
     #include "ui/workspace/plugin_api.hpp"
@@ -168,28 +170,25 @@ static bool icon_label_button(const char* icon_codepoint,
     return clicked;
 }
 
-// ─── Legacy Methods (To be removed after migration) ───────────────────────────
-
-// These methods are kept temporarily for compatibility but will be removed
-// once Agent C implements the proper inspector system
-
-void ImGuiIntegration::draw_menubar()
+bool ImGuiIntegration::icon_label_button_rail(const char* icon_codepoint,
+                                              const char* label,
+                                              bool        active,
+                                              ImFont*     icon_font,
+                                              ImFont*     label_font,
+                                              float       width,
+                                              float       scale)
 {
-    // Legacy method - replaced by draw_command_bar()
-    draw_command_bar();
+    return icon_label_button(
+        icon_codepoint, label, active, icon_font, label_font, width, scale);
 }
 
-void ImGuiIntegration::draw_icon_bar()
+void ImGuiIntegration::render_menubar_menu(const char*                  label,
+                                          const std::vector<MenuItem>& items)
 {
-    // Legacy method - replaced by draw_nav_rail()
-    draw_nav_rail();
+    draw_menubar_menu(label, items);
 }
 
-void ImGuiIntegration::draw_panel(Figure& figure)
-{
-    // Legacy method - replaced by draw_inspector()
-    draw_inspector(figure);
-}
+// ─── Legacy Methods (removed — use SpectraAppShell / draw_command_bar) ────────
 
 // ─── Legacy Panel Drawing Methods (To be removed after Agent C migration) ───
 
@@ -437,15 +436,16 @@ void ImGuiIntegration::draw_toolbar_button(const char*                  icon,
 
 // ─── Layout-Based Drawing Methods ─────────────────────────────────────────────
 
-void ImGuiIntegration::draw_command_bar()
+bool ImGuiIntegration::begin_command_bar()
 {
     if (!layout_manager_)
     {
-        SPECTRA_LOG_WARN("ui", "draw_command_bar called but layout_manager_ is null");
-        return;
+        SPECTRA_LOG_WARN("ui", "begin_command_bar called but layout_manager_ is null");
+        command_bar_began_ = false;
+        return false;
     }
 
-    SPECTRA_LOG_TRACE("ui", "Drawing command bar");
+    SPECTRA_LOG_TRACE("ui", "Beginning command bar");
 
     Rect bounds = layout_manager_->command_bar_rect();
     ImGui::SetNextWindowPos(ImVec2(bounds.x, bounds.y));
@@ -468,96 +468,121 @@ void ImGuiIntegration::draw_command_bar()
                                  0.3f));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
 
-    if (ImGui::Begin("##commandbar", nullptr, flags))
+    command_bar_began_ = ImGui::Begin("##commandbar", nullptr, flags);
+    if (!command_bar_began_)
+        return false;
+
+    SPECTRA_LOG_TRACE("ui", "Command bar window began successfully");
+
+    // ── Header surface: subtle top accent line + bottom shadow + hairline ──
     {
-        SPECTRA_LOG_TRACE("ui", "Command bar window began successfully");
+        ImDrawList* bar_dl = ImGui::GetWindowDrawList();
+        ImVec2      wpos   = ImGui::GetWindowPos();
+        ImVec2      wsz    = ImGui::GetWindowSize();
+        float       bottom = wpos.y + wsz.y;
+        const auto& c      = theme_colors();
+        const float glow   = theme_mgr_ ? theme_mgr_->effective_glow_intensity() : 0.0f;
 
-        // ── Header surface: subtle top accent line + bottom shadow + hairline ──
+        // Very subtle top accent line (cyan/purple) — restrained, theme-aware.
+        ui::Color top_line = c.accent.lerp(ui::Color::from_hex(0x60C0FF), 0.35f);
+        int       top_a    = static_cast<int>((18.0f + 24.0f * glow) * c.accent_glow.a);
+        bar_dl->AddLine(ImVec2(wpos.x, wpos.y),
+                        ImVec2(wpos.x + wsz.x, wpos.y),
+                        IM_COL32(static_cast<uint8_t>(top_line.r * 255),
+                                 static_cast<uint8_t>(top_line.g * 255),
+                                 static_cast<uint8_t>(top_line.b * 255),
+                                 std::clamp(top_a, 0, 255)),
+                        1.0f);
+
+        // Multi-layer soft shadow below the bar
+        float shadow_spread = ui::tokens::ELEVATION_2_SPREAD;
+        for (int i = 0; i < 4; ++i)
         {
-            ImDrawList* bar_dl = ImGui::GetWindowDrawList();
-            ImVec2      wpos   = ImGui::GetWindowPos();
-            ImVec2      wsz    = ImGui::GetWindowSize();
-            float       bottom = wpos.y + wsz.y;
-            const auto& c      = theme_colors();
-            const float glow   = theme_mgr_ ? theme_mgr_->effective_glow_intensity() : 0.0f;
-
-            // Very subtle top accent line (cyan/purple) — restrained, theme-aware.
-            ui::Color top_line = c.accent.lerp(ui::Color::from_hex(0x60C0FF), 0.35f);
-            int       top_a    = static_cast<int>((18.0f + 24.0f * glow) * c.accent_glow.a);
-            bar_dl->AddLine(ImVec2(wpos.x, wpos.y),
-                            ImVec2(wpos.x + wsz.x, wpos.y),
-                            IM_COL32(static_cast<uint8_t>(top_line.r * 255),
-                                     static_cast<uint8_t>(top_line.g * 255),
-                                     static_cast<uint8_t>(top_line.b * 255),
-                                     std::clamp(top_a, 0, 255)),
-                            1.0f);
-
-            // Multi-layer soft shadow below the bar
-            float shadow_spread = ui::tokens::ELEVATION_2_SPREAD;
-            for (int i = 0; i < 4; ++i)
-            {
-                float t     = static_cast<float>(i) / 4.0f;
-                float alpha = 0.10f * (1.0f - t);
-                float off   = shadow_spread * t;
-                bar_dl->AddRectFilled(ImVec2(wpos.x, bottom),
-                                      ImVec2(wpos.x + wsz.x, bottom + off + 1.0f),
-                                      IM_COL32(0, 0, 0, static_cast<int>(alpha * 255)));
-            }
-
-            // Crisp hairline border at bottom edge
-            bar_dl->AddLine(ImVec2(wpos.x, std::floor(bottom) - 1.0f),
-                            ImVec2(wpos.x + wsz.x, std::floor(bottom) - 1.0f),
-                            IM_COL32(static_cast<uint8_t>(c.border_subtle.r * 255),
-                                     static_cast<uint8_t>(c.border_subtle.g * 255),
-                                     static_cast<uint8_t>(c.border_subtle.b * 255),
-                                     90),
-                            1.0f);
-
-            // Opaque command-bar base — follows the active theme (not hardcoded Vision navy).
-            bar_dl->AddRectFilled(
-                ImVec2(wpos.x, wpos.y),
-                ImVec2(wpos.x + wsz.x, bottom),
-                IM_COL32(static_cast<uint8_t>(c.bg_primary.r * 255),
-                         static_cast<uint8_t>(c.bg_primary.g * 255),
-                         static_cast<uint8_t>(c.bg_primary.b * 255),
-                         255));
-
-            // Night-only Vision chrome: aurora wash + luminous perimeter.
-            if (glow > 0.01f)
-            {
-                float glow_x0 = wpos.x + wsz.x * 0.55f;
-                int   gv_a    = static_cast<int>((38.0f + 26.0f * glow) * glow);
-                bar_dl->AddRectFilledMultiColor(ImVec2(glow_x0, wpos.y),
-                                                ImVec2(wpos.x + wsz.x, bottom),
-                                                IM_COL32(150, 60, 140, 0),
-                                                IM_COL32(170, 60, 150, gv_a),
-                                                IM_COL32(170, 60, 150, gv_a),
-                                                IM_COL32(150, 60, 140, 0));
-
-                const float bx0      = wpos.x;
-                const float by0      = wpos.y;
-                const float bx1      = wpos.x + wsz.x;
-                const float by1      = std::floor(bottom) - 1.0f;
-                ui::Color   cool     = c.accent.lerp(ui::Color::from_hex(0x5C8CC0), 0.30f);
-                int         cool_a   = static_cast<int>((42.0f + 26.0f * glow) * glow);
-                const ImU32 cool_col = IM_COL32(static_cast<uint8_t>(cool.r * 255),
-                                                static_cast<uint8_t>(cool.g * 255),
-                                                static_cast<uint8_t>(cool.b * 255),
-                                                std::clamp(cool_a, 0, 255));
-                bar_dl->AddRect(ImVec2(bx0, by0), ImVec2(bx1, by1), cool_col, 0.0f, 0, 1.0f);
-
-                const int   viol_a = static_cast<int>((80.0f + 55.0f * glow) * glow);
-                const ImU32 vio    = IM_COL32(175, 105, 195, std::clamp(viol_a, 0, 255));
-                const ImU32 vio0   = IM_COL32(165, 95, 180, 0);
-                bar_dl->AddRectFilledMultiColor(
-                    ImVec2(bx1 - 1.5f, by0), ImVec2(bx1, by1), vio, vio, vio, vio);
-                bar_dl->AddRectFilledMultiColor(
-                    ImVec2(glow_x0, by0), ImVec2(bx1, by0 + 1.5f), vio0, vio, vio, vio0);
-                bar_dl->AddRectFilledMultiColor(
-                    ImVec2(glow_x0, by1 - 1.5f), ImVec2(bx1, by1), vio0, vio, vio, vio0);
-            }
+            float t     = static_cast<float>(i) / 4.0f;
+            float alpha = 0.10f * (1.0f - t);
+            float off   = shadow_spread * t;
+            bar_dl->AddRectFilled(ImVec2(wpos.x, bottom),
+                                  ImVec2(wpos.x + wsz.x, bottom + off + 1.0f),
+                                  IM_COL32(0, 0, 0, static_cast<int>(alpha * 255)));
         }
 
+        // Crisp hairline border at bottom edge
+        bar_dl->AddLine(ImVec2(wpos.x, std::floor(bottom) - 1.0f),
+                        ImVec2(wpos.x + wsz.x, std::floor(bottom) - 1.0f),
+                        IM_COL32(static_cast<uint8_t>(c.border_subtle.r * 255),
+                                 static_cast<uint8_t>(c.border_subtle.g * 255),
+                                 static_cast<uint8_t>(c.border_subtle.b * 255),
+                                 90),
+                        1.0f);
+
+        // Opaque command-bar base — follows the active theme (not hardcoded Vision navy).
+        bar_dl->AddRectFilled(
+            ImVec2(wpos.x, wpos.y),
+            ImVec2(wpos.x + wsz.x, bottom),
+            IM_COL32(static_cast<uint8_t>(c.bg_primary.r * 255),
+                     static_cast<uint8_t>(c.bg_primary.g * 255),
+                     static_cast<uint8_t>(c.bg_primary.b * 255),
+                     255));
+
+        // Night-only Vision chrome: aurora wash + luminous perimeter.
+        if (glow > 0.01f)
+        {
+            float glow_x0 = wpos.x + wsz.x * 0.55f;
+            int   gv_a    = static_cast<int>((38.0f + 26.0f * glow) * glow);
+            bar_dl->AddRectFilledMultiColor(ImVec2(glow_x0, wpos.y),
+                                            ImVec2(wpos.x + wsz.x, bottom),
+                                            IM_COL32(150, 60, 140, 0),
+                                            IM_COL32(170, 60, 150, gv_a),
+                                            IM_COL32(170, 60, 150, gv_a),
+                                            IM_COL32(150, 60, 140, 0));
+
+            const float bx0      = wpos.x;
+            const float by0      = wpos.y;
+            const float bx1      = wpos.x + wsz.x;
+            const float by1      = std::floor(bottom) - 1.0f;
+            ui::Color   cool     = c.accent.lerp(ui::Color::from_hex(0x5C8CC0), 0.30f);
+            int         cool_a   = static_cast<int>((42.0f + 26.0f * glow) * glow);
+            const ImU32 cool_col = IM_COL32(static_cast<uint8_t>(cool.r * 255),
+                                            static_cast<uint8_t>(cool.g * 255),
+                                            static_cast<uint8_t>(cool.b * 255),
+                                            std::clamp(cool_a, 0, 255));
+            bar_dl->AddRect(ImVec2(bx0, by0), ImVec2(bx1, by1), cool_col, 0.0f, 0, 1.0f);
+
+            const int   viol_a = static_cast<int>((80.0f + 55.0f * glow) * glow);
+            const ImU32 vio    = IM_COL32(175, 105, 195, std::clamp(viol_a, 0, 255));
+            const ImU32 vio0   = IM_COL32(165, 95, 180, 0);
+            bar_dl->AddRectFilledMultiColor(
+                ImVec2(bx1 - 1.5f, by0), ImVec2(bx1, by1), vio, vio, vio, vio);
+            bar_dl->AddRectFilledMultiColor(
+                ImVec2(glow_x0, by0), ImVec2(bx1, by0 + 1.5f), vio0, vio, vio, vio0);
+            bar_dl->AddRectFilledMultiColor(
+                ImVec2(glow_x0, by1 - 1.5f), ImVec2(bx1, by1), vio0, vio, vio, vio0);
+        }
+    }
+
+    return true;
+}
+
+void ImGuiIntegration::end_command_bar()
+{
+    if (command_bar_began_)
+    {
+        ImGui::End();
+        command_bar_began_ = false;
+    }
+    ImGui::PopStyleVar(4);
+    ImGui::PopStyleColor(2);
+}
+
+void ImGuiIntegration::draw_command_bar()
+{
+    if (!begin_command_bar())
+    {
+        end_command_bar();
+        return;
+    }
+
+    {
         // ── App title/brand on the left — round S icon + clean wordmark ──
         {
             const auto& c       = theme_colors();
@@ -704,6 +729,13 @@ void ImGuiIntegration::draw_command_bar()
 
         ImGui::SameLine(0.0f, ui::tokens::COMMAND_BAR_HOME_TO_MENU_GAP);
 
+        if (app_shell_)
+        {
+            app_shell_->sync_before_frame();
+            app_shell_->draw_menus_inline();
+        }
+        else
+        {
         // File menu — build dynamically to include plugin export formats
         std::vector<MenuItem> file_items;
         file_items.emplace_back("New Figure",
@@ -787,37 +819,6 @@ void ImGuiIntegration::draw_command_bar()
                                         command_registry_->execute("app.cancel");
                                 });
         draw_menubar_menu("File", file_items);
-
-        ImGui::SameLine();
-
-        // Data menu
-        draw_menubar_menu(
-            "Data",
-            {MenuItem(
-                "Load from CSV...",
-                [this]()
-                {
-                    // Open native OS file dialog
-                    DialogEnvGuard env_guard;
-                    char const*    filters[3] = {"*.csv", "*.tsv", "*.txt"};
-                    const char*    home_env   = std::getenv("HOME");
-                    std::string    home_dir   = home_env ? std::string(home_env) + "/" : "/";
-                    const char*    home       = home_dir.c_str();
-                    char const*    result =
-                        tinyfd_openFileDialog("Open CSV File", home, 3, filters, "CSV files", 0);
-                    if (result)
-                    {
-                        csv_file_path_   = result;
-                        csv_data_        = parse_csv(csv_file_path_);
-                        csv_data_loaded_ = csv_data_.error.empty();
-                        csv_error_       = csv_data_.error;
-                        csv_col_x_       = 0;
-                        csv_col_y_       = (csv_data_.num_cols > 1) ? 1 : 0;
-                        csv_col_z_       = -1;
-                        if (csv_data_loaded_)
-                            csv_dialog_open_ = true;
-                    }
-                })});
 
         ImGui::SameLine();
 
@@ -1179,13 +1180,242 @@ void ImGuiIntegration::draw_command_bar()
              MenuItem("\xEF\xA0\xAD ROS2 Adapter (not available)", nullptr)
     #endif
             });
+        }
 
-        // Status info moved to the dedicated bottom status bar; header stays clean.
+        ImGui::SameLine();
+
+        // Data menu
+        draw_menubar_menu(
+            "Data",
+            {MenuItem(
+                "Load from CSV...",
+                [this]()
+                {
+                    if (!native_dialogs_enabled())
+                        return;
+                    DialogEnvGuard env_guard;
+                    char const*    filters[3] = {"*.csv", "*.tsv", "*.txt"};
+                    const char*    home_env   = std::getenv("HOME");
+                    std::string    home_dir   = home_env ? std::string(home_env) + "/" : "/";
+                    const char*    home       = home_dir.c_str();
+                    char const*    result =
+                        tinyfd_openFileDialog("Open CSV File", home, 3, filters, "CSV files", 0);
+                    if (result)
+                    {
+                        csv_file_path_   = result;
+                        csv_data_        = parse_csv(csv_file_path_);
+                        csv_data_loaded_ = csv_data_.error.empty();
+                        csv_error_       = csv_data_.error;
+                        csv_col_x_       = 0;
+                        csv_col_y_       = (csv_data_.num_cols > 1) ? 1 : 0;
+                        csv_col_z_       = -1;
+                        if (csv_data_loaded_)
+                            csv_dialog_open_ = true;
+                    }
+                })});
+
+        ImGui::SameLine();
+
+        // Axes menu — link/unlink axes across subplots (2D and 3D)
+        {
+            std::vector<MenuItem> axes_items;
+
+            auto has_enough_axes = [this]() -> bool
+            {
+                if (!axis_link_mgr_ || !current_figure_)
+                    return false;
+                return current_figure_->all_axes().size() >= 2;
+            };
+
+            axes_items.emplace_back(
+                "Link X Axes",
+                [this, has_enough_axes]()
+                {
+                    if (!has_enough_axes())
+                        return;
+                    if (current_figure_->axes().size() >= 2)
+                    {
+                        auto gid = axis_link_mgr_->create_group("X Link", LinkAxis::X);
+                        for (auto& ax : current_figure_->axes_mut())
+                        {
+                            if (ax)
+                                axis_link_mgr_->add_to_group(gid, ax.get());
+                        }
+                    }
+                    {
+                        std::vector<Axes3D*> axes3d_list;
+                        for (auto& ab : current_figure_->all_axes_mut())
+                        {
+                            if (auto* a3 = dynamic_cast<Axes3D*>(ab.get()))
+                                axes3d_list.push_back(a3);
+                        }
+                        for (size_t i = 1; i < axes3d_list.size(); ++i)
+                            axis_link_mgr_->link_3d(axes3d_list[0], axes3d_list[i]);
+                    }
+                    SPECTRA_LOG_INFO("axes_link", "Linked all axes on X");
+                });
+            axes_items.emplace_back(
+                "Link Y Axes",
+                [this, has_enough_axes]()
+                {
+                    if (!has_enough_axes())
+                        return;
+                    if (current_figure_->axes().size() >= 2)
+                    {
+                        auto gid = axis_link_mgr_->create_group("Y Link", LinkAxis::Y);
+                        for (auto& ax : current_figure_->axes_mut())
+                        {
+                            if (ax)
+                                axis_link_mgr_->add_to_group(gid, ax.get());
+                        }
+                    }
+                    {
+                        std::vector<Axes3D*> axes3d_list;
+                        for (auto& ab : current_figure_->all_axes_mut())
+                        {
+                            if (auto* a3 = dynamic_cast<Axes3D*>(ab.get()))
+                                axes3d_list.push_back(a3);
+                        }
+                        for (size_t i = 1; i < axes3d_list.size(); ++i)
+                            axis_link_mgr_->link_3d(axes3d_list[0], axes3d_list[i]);
+                    }
+                    SPECTRA_LOG_INFO("axes_link", "Linked all axes on Y");
+                });
+            axes_items.emplace_back(
+                "Link Z Axes",
+                [this, has_enough_axes]()
+                {
+                    if (!has_enough_axes())
+                        return;
+                    std::vector<Axes3D*> axes3d_list;
+                    for (auto& ab : current_figure_->all_axes_mut())
+                    {
+                        if (auto* a3 = dynamic_cast<Axes3D*>(ab.get()))
+                            axes3d_list.push_back(a3);
+                    }
+                    for (size_t i = 1; i < axes3d_list.size(); ++i)
+                        axis_link_mgr_->link_3d(axes3d_list[0], axes3d_list[i], LinkAxis::Z);
+                    SPECTRA_LOG_INFO("axes_link", "Linked all 3D axes on Z");
+                });
+            axes_items.emplace_back(
+                "Link All Axes",
+                [this, has_enough_axes]()
+                {
+                    if (!has_enough_axes())
+                        return;
+                    if (current_figure_->axes().size() >= 2)
+                    {
+                        auto gid = axis_link_mgr_->create_group("XY Link", LinkAxis::Both);
+                        for (auto& ax : current_figure_->axes_mut())
+                        {
+                            if (ax)
+                                axis_link_mgr_->add_to_group(gid, ax.get());
+                        }
+                    }
+                    {
+                        std::vector<Axes3D*> axes3d_list;
+                        for (auto& ab : current_figure_->all_axes_mut())
+                        {
+                            if (auto* a3 = dynamic_cast<Axes3D*>(ab.get()))
+                                axes3d_list.push_back(a3);
+                        }
+                        for (size_t i = 1; i < axes3d_list.size(); ++i)
+                            axis_link_mgr_->link_3d(axes3d_list[0], axes3d_list[i], LinkAxis::All);
+                    }
+                    SPECTRA_LOG_INFO("axes_link", "Linked all axes on X+Y+Z");
+                });
+            axes_items.emplace_back("", nullptr);
+            axes_items.emplace_back("Unlink All",
+                                    [this]()
+                                    {
+                                        if (!axis_link_mgr_)
+                                            return;
+                                        std::vector<LinkGroupId> ids;
+                                        for (auto& [id, group] : axis_link_mgr_->groups())
+                                            ids.push_back(id);
+                                        for (auto id : ids)
+                                            axis_link_mgr_->remove_group(id);
+                                        if (current_figure_)
+                                        {
+                                            for (auto& ab : current_figure_->all_axes_mut())
+                                            {
+                                                if (auto* a3 = dynamic_cast<Axes3D*>(ab.get()))
+                                                    axis_link_mgr_->remove_from_all_3d(a3);
+                                            }
+                                        }
+                                        axis_link_mgr_->clear_shared_cursor();
+                                        SPECTRA_LOG_INFO("axes_link", "Unlinked all axes");
+                                    });
+
+            draw_menubar_menu("Axes", axes_items);
+        }
+
+        ImGui::SameLine();
+
+        {
+            std::vector<MenuItem> xform_items;
+            auto&                 registry = TransformRegistry::instance();
+            auto                  names    = registry.available_transforms();
+
+            xform_items.reserve(names.size());
+            for (const auto& name : names)
+            {
+                xform_items.emplace_back(
+                    name,
+                    [this, name]()
+                    {
+                        if (!current_figure_)
+                            return;
+                        DataTransform xform;
+                        if (!TransformRegistry::instance().get_transform(name, xform))
+                            return;
+
+                        for (auto& ax : current_figure_->axes_mut())
+                        {
+                            if (!ax)
+                                continue;
+                            for (auto& series_ptr : ax->series_mut())
+                            {
+                                if (!series_ptr || !series_ptr->visible())
+                                    continue;
+
+                                if (auto* ls = dynamic_cast<LineSeries*>(series_ptr.get()))
+                                {
+                                    std::vector<float> rx;
+                                    std::vector<float> ry;
+                                    xform.apply_y(ls->x_data(), ls->y_data(), rx, ry);
+                                    ls->set_x(rx).set_y(ry);
+                                }
+                                else if (auto* sc = dynamic_cast<ScatterSeries*>(series_ptr.get()))
+                                {
+                                    std::vector<float> rx;
+                                    std::vector<float> ry;
+                                    xform.apply_y(sc->x_data(), sc->y_data(), rx, ry);
+                                    sc->set_x(rx).set_y(ry);
+                                }
+                            }
+                            ax->auto_fit();
+                        }
+                        SPECTRA_LOG_INFO("transform", "Applied transform: " + name);
+                    });
+            }
+
+            xform_items.emplace_back("", nullptr);
+            xform_items.emplace_back(
+                "Custom Formula...",
+                [this]()
+                {
+                    custom_transform_dialog_.set_fonts(font_body_, font_heading_, font_title_);
+                    custom_transform_dialog_.open(current_figure_);
+                });
+
+            draw_menubar_menu("Transforms", xform_items);
+        }
+
         (void)font_heading_;
     }
-    ImGui::End();
-    ImGui::PopStyleVar(4);
-    ImGui::PopStyleColor(2);
+
+    end_command_bar();
 }
 
 void ImGuiIntegration::draw_plugins_panel()
@@ -1210,7 +1440,7 @@ void ImGuiIntegration::draw_plugins_panel()
     ImGui::TextUnformatted("Manage runtime plugins and extension points.");
     ImGui::Separator();
 
-    if (ImGui::Button("Load Plugin..."))
+    if (ImGui::Button("Load Plugin...") && native_dialogs_enabled())
     {
         DialogEnvGuard env_guard;
     #ifdef _WIN32
@@ -1452,6 +1682,17 @@ void ImGuiIntegration::draw_chrome_backdrops()
 
 void ImGuiIntegration::draw_nav_rail()
 {
+    // Adapter shells (spectra-ros, spectra-px4) draw their own nav rail in
+    // extra_draw_cb_. show_nav_rail_ still reserves layout width for the rail zone.
+    if (extra_draw_cb_)
+        return;
+
+    if (app_shell_)
+    {
+        app_shell_->draw_nav_rail();
+        return;
+    }
+
     if (!layout_manager_ || !show_nav_rail_)
         return;
 

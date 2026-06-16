@@ -38,6 +38,12 @@ namespace spectra::ui
 {
 struct ThemeColors;
 class ThemeManager;
+namespace shell
+{
+class SpectraAppShell;
+class SpectraNavRail;
+class StatusBar;
+}   // namespace shell
 namespace topics
 {
 class TopicsPanel;
@@ -74,6 +80,9 @@ class WindowManager;
 
 class ImGuiIntegration
 {
+    friend class ui::shell::SpectraAppShell;
+    friend class ui::shell::SpectraNavRail;
+
    public:
     struct MenuItem
     {
@@ -475,6 +484,34 @@ class ImGuiIntegration
 
     bool has_pending_series_removals() const { return !pending_series_removals_.empty(); }
 
+    // Shared shell framework (Phase 3 core unification).
+    void populate_status_bar(ui::shell::StatusBar& bar);
+    void render_menubar_menu(const char* label, const std::vector<MenuItem>& items);
+
+    ui::shell::SpectraAppShell* app_shell() const { return app_shell_; }
+    void                        set_app_shell(ui::shell::SpectraAppShell* shell) { app_shell_ = shell; }
+
+    // Called by SpectraCanvasHost — core canvas window + glass frame + scrollbar.
+    void draw_canvas_content(Figure& figure);
+
+    bool icon_label_button_rail(const char* icon_codepoint,
+                                const char* label,
+                                bool        active,
+                                ImFont*     icon_font,
+                                ImFont*     label_font,
+                                float       width,
+                                float       scale = 1.0f);
+
+    ImFont* icon_font() const { return font_icon_; }
+    ImFont* heading_font() const { return font_heading_; }
+    ImFont* menubar_font() const { return font_menubar_; }
+    ImFont* title_font() const { return font_title_; }
+    ImFont* body_font() const { return font_body_; }
+
+    // Vision command-bar window frame (styled backdrop). Pair with end_command_bar().
+    bool begin_command_bar();
+    void end_command_bar();
+
    private:
     void apply_modern_style();
     void load_fonts();
@@ -508,10 +545,6 @@ class ImGuiIntegration
                              bool                         is_active  = false,
                              float                        icon_scale = 1.0f);
     void draw_menubar_menu(const char* label, const std::vector<MenuItem>& items);
-    // Legacy methods (to be removed after full migration)
-    void draw_menubar();
-    void draw_icon_bar();
-    void draw_panel(Figure& figure);
 
     bool     initialized_        = false;
     bool     headless_           = false;   // True when initialized via init_headless()
@@ -537,6 +570,7 @@ class ImGuiIntegration
 
     // Adapter chrome suppression flags (all default true — safe for normal builds)
     bool command_bar_visible_ = true;   // Spectra command bar / menu
+    bool command_bar_began_   = false;  // ImGui::Begin succeeded for begin_command_bar()
     bool status_bar_visible_  = true;   // Spectra status bar
     bool canvas_visible_      = true;   // Plot canvas, overlays, splitters, tab headers
     bool render_figure_       = true;   // Vulkan figure rendering (independent of canvas UI)
@@ -786,6 +820,7 @@ class ImGuiIntegration
 
     // Extra draw callback (set by spectra-ros or other adapters)
     ExtraDrawCallback extra_draw_cb_;
+    ui::shell::SpectraAppShell* app_shell_ = nullptr;
 
     // Scene render callback (set by spectra-ros for GPU 3D viewport)
     SceneRenderCallback scene_render_cb_;

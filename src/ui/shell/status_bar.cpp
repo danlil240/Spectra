@@ -75,57 +75,47 @@ void StatusBar::draw()
         const float bar_h  = bounds.h;
         const float text_h = ImGui::GetTextLineHeight();
         const float y      = (bar_h - text_h) * 0.5f;
+
+        // Establish window content extents before segment draw_fns adjust cursor Y.
         ImGui::SetCursorPosY(y);
+        ImGui::Dummy(ImVec2(std::max(1.0f, bounds.w), std::max(1.0f, text_h)));
+        ImGui::SetCursorPos(ImVec2(0.0f, y));
 
-        const float content_w = ImGui::GetContentRegionAvail().x;
-        ImGui::Columns(3, "##status_bar_cols", false);
-        ImGui::SetColumnWidth(0, content_w * 0.33f);
-        ImGui::SetColumnWidth(1, content_w * 0.34f);
-        ImGui::SetColumnWidth(2, content_w * 0.33f);
-
-        for (const StatusSegment& segment : segments_)
+        const auto draw_row = [&](StatusAlign align)
         {
-            if (segment.align != StatusAlign::Left || !segment.draw_fn)
-                continue;
-            segment.draw_fn();
-            ImGui::SameLine(0.0f, ui::tokens::STATUS_BAR_GROUP_GAP);
-        }
-
-        ImGui::NextColumn();
-
-        for (const StatusSegment& segment : segments_)
-        {
-            if (segment.align != StatusAlign::Center || !segment.draw_fn)
-                continue;
-            const float col_w  = ImGui::GetColumnWidth();
-            const float prev_x = ImGui::GetCursorPosX();
-            ImGui::SetCursorPosX(prev_x + col_w * 0.5f);
-            segment.draw_fn();
-            ImGui::NewLine();
-        }
-
-        ImGui::NextColumn();
-
-        std::vector<const StatusSegment*> right_segments;
-        for (const StatusSegment& segment : segments_)
-        {
-            if (segment.align == StatusAlign::Right && segment.draw_fn)
-                right_segments.push_back(&segment);
-        }
-
-        if (!right_segments.empty())
-        {
-            float used_w = 0.0f;
-            for (auto it = right_segments.rbegin(); it != right_segments.rend(); ++it)
+            bool first = true;
+            for (const StatusSegment& segment : segments_)
             {
-                used_w += ui::tokens::STATUS_BAR_GROUP_GAP;
-                ImGui::SetCursorPosX(ImGui::GetColumnOffset(2) + ImGui::GetColumnWidth(2) - used_w);
-                (*it)->draw_fn();
-                used_w += ImGui::GetItemRectSize().x;
+                if (segment.align != align || !segment.draw_fn)
+                    continue;
+                if (!first)
+                    ImGui::SameLine(0.0f, ui::tokens::STATUS_BAR_GROUP_GAP);
+                segment.draw_fn();
+                first = false;
             }
-        }
+        };
 
-        ImGui::Columns(1);
+        if (ImGui::BeginTable("##status_bar_tbl",
+                              3,
+                              ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_NoPadInnerX
+                                  | ImGuiTableFlags_NoBordersInBody))
+        {
+            ImGui::TableSetupColumn("left", ImGuiTableColumnFlags_WidthStretch, 0.33f);
+            ImGui::TableSetupColumn("center", ImGuiTableColumnFlags_WidthStretch, 0.34f);
+            ImGui::TableSetupColumn("right", ImGuiTableColumnFlags_WidthStretch, 0.33f);
+            ImGui::TableNextRow();
+
+            ImGui::TableSetColumnIndex(0);
+            draw_row(StatusAlign::Left);
+
+            ImGui::TableSetColumnIndex(1);
+            draw_row(StatusAlign::Center);
+
+            ImGui::TableSetColumnIndex(2);
+            draw_row(StatusAlign::Right);
+
+            ImGui::EndTable();
+        }
     }
     ImGui::End();
 

@@ -6,10 +6,7 @@
 
 namespace spectra::ui::shell
 {
-AppShell::AppShell(AppShellConfig cfg) : config_(std::move(cfg))
-{
-    canvas_host_ = create_canvas_host();
-}
+AppShell::AppShell(AppShellConfig cfg) : config_(std::move(cfg)) {}
 
 AppShell::~AppShell() = default;
 
@@ -17,6 +14,7 @@ void AppShell::set_layout_manager(spectra::LayoutManager* lm)
 {
     layout_manager_ = lm;
     status_bar_.set_layout_manager(lm);
+    nav_rail_.set_layout_manager(lm);
     if (canvas_host_)
         canvas_host_->set_layout_manager(lm);
 }
@@ -26,10 +24,19 @@ spectra::LayoutManager* AppShell::layout_manager() const
     return layout_manager_;
 }
 
+void AppShell::set_chrome_integration(spectra::ImGuiIntegration* imgui)
+{
+    imgui_chrome_ = imgui;
+    nav_rail_.set_chrome(imgui);
+}
+
 void AppShell::initialize()
 {
     if (initialized_)
         return;
+
+    if (!canvas_host_)
+        canvas_host_ = create_canvas_host();
 
     on_register_panels();
     nav_rail_.set_registry(&panels_);
@@ -43,7 +50,12 @@ void AppShell::initialize()
 void AppShell::draw_frame()
 {
     if (config_.menu_bar)
-        menu_bar_.draw();
+    {
+        if (imgui_chrome_)
+            menu_bar_.draw_command_bar(imgui_chrome_);
+        else
+            menu_bar_.draw();
+    }
 
     if (config_.nav_rail)
         nav_rail_.draw();
@@ -66,7 +78,17 @@ PanelRegistry& AppShell::panels()
     return panels_;
 }
 
+const PanelRegistry& AppShell::panels() const
+{
+    return panels_;
+}
+
 NavRail& AppShell::nav_rail()
+{
+    return nav_rail_;
+}
+
+const NavRail& AppShell::nav_rail() const
 {
     return nav_rail_;
 }
@@ -83,6 +105,8 @@ StatusBar& AppShell::status_bar()
 
 CanvasHost& AppShell::canvas_host()
 {
+    if (!canvas_host_)
+        canvas_host_ = create_canvas_host();
     return *canvas_host_;
 }
 
@@ -93,22 +117,22 @@ std::unique_ptr<CanvasHost> AppShell::create_canvas_host()
 
 void AppShell::draw_canvas_host_window()
 {
-    Rect canvas{};
+    Rect workspace{};
     if (layout_manager_)
     {
-        canvas = layout_manager_->canvas_rect();
+        workspace = layout_manager_->workspace_rect();
     }
     else
     {
         const ImGuiViewport* vp = ImGui::GetMainViewport();
-        canvas.x                = vp->WorkPos.x;
-        canvas.y                = vp->WorkPos.y;
-        canvas.w                = vp->WorkSize.x;
-        canvas.h                = vp->WorkSize.y;
+        workspace.x               = vp->WorkPos.x;
+        workspace.y               = vp->WorkPos.y;
+        workspace.w               = vp->WorkSize.x;
+        workspace.h               = vp->WorkSize.y;
     }
 
-    ImGui::SetNextWindowPos(ImVec2(canvas.x, canvas.y), ImGuiCond_Always);
-    ImGui::SetNextWindowSize(ImVec2(std::max(160.0f, canvas.w), std::max(120.0f, canvas.h)),
+    ImGui::SetNextWindowPos(ImVec2(workspace.x, workspace.y), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(std::max(160.0f, workspace.w), std::max(120.0f, workspace.h)),
                              ImGuiCond_Always);
 
     ImGuiWindowFlags host_flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove
@@ -129,22 +153,22 @@ void AppShell::draw_canvas_host_window()
 void AppShell::draw_dockspace()
 {
     #ifdef IMGUI_HAS_DOCK
-    Rect canvas{};
+    Rect workspace{};
     if (layout_manager_)
     {
-        canvas = layout_manager_->canvas_rect();
+        workspace = layout_manager_->workspace_rect();
     }
     else
     {
         const ImGuiViewport* vp = ImGui::GetMainViewport();
-        canvas.x                = vp->WorkPos.x;
-        canvas.y                = vp->WorkPos.y;
-        canvas.w                = vp->WorkSize.x;
-        canvas.h                = vp->WorkSize.y;
+        workspace.x             = vp->WorkPos.x;
+        workspace.y             = vp->WorkPos.y;
+        workspace.w             = vp->WorkSize.x;
+        workspace.h             = vp->WorkSize.y;
     }
 
-    ImGui::SetNextWindowPos(ImVec2(canvas.x, canvas.y), ImGuiCond_Always);
-    ImGui::SetNextWindowSize(ImVec2(std::max(160.0f, canvas.w), std::max(120.0f, canvas.h)),
+    ImGui::SetNextWindowPos(ImVec2(workspace.x, workspace.y), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(std::max(160.0f, workspace.w), std::max(120.0f, workspace.h)),
                              ImGuiCond_Always);
 
     ImGuiWindowFlags host_flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove

@@ -4,10 +4,57 @@
     #include <algorithm>
 
     #include "imgui.h"
+    #include "ui/imgui/imgui_integration.hpp"
     #include "ui/shell/panel_registry.hpp"
 
 namespace spectra::ui::shell
 {
+namespace
+{
+}   // namespace
+
+std::vector<spectra::ImGuiIntegration::MenuItem> to_imgui_menu_items(
+    const std::vector<MenuAction>& actions)
+{
+    std::vector<spectra::ImGuiIntegration::MenuItem> out;
+    out.reserve(actions.size());
+    for (const MenuAction& action : actions)
+    {
+        if (action.separator)
+        {
+            out.emplace_back("", nullptr);
+            continue;
+        }
+        if (!action.submenu.empty())
+        {
+            for (const MenuAction& sub : action.submenu)
+            {
+                if (sub.separator)
+                {
+                    out.emplace_back("", nullptr);
+                    continue;
+                }
+                const bool enabled = !sub.enabled || sub.enabled();
+                if (!enabled)
+                {
+                    out.emplace_back(sub.label, nullptr);
+                    continue;
+                }
+                out.emplace_back(sub.label, sub.on_click);
+            }
+            continue;
+        }
+        const bool enabled = !action.enabled || action.enabled();
+        if (!enabled)
+        {
+            out.emplace_back(action.label, nullptr);
+            continue;
+        }
+        out.emplace_back(action.label, action.on_click);
+    }
+    return out;
+}
+
 namespace
 {
 void render_menu_items(const std::vector<MenuAction>& items)
@@ -143,6 +190,20 @@ void MenuBar::bind_panel_registry(PanelRegistry&   registry,
     top_menu.add(std::move(panels_action));
 }
 
+void MenuBar::draw_inline(
+    const std::function<void(const char* label, const std::vector<MenuAction>& items)>& draw_fn)
+    const
+{
+    if (!draw_fn)
+        return;
+
+    for (const Menu& m : menus_)
+    {
+        draw_fn(m.name().c_str(), m.items());
+        ImGui::SameLine();
+    }
+}
+
 void MenuBar::draw()
 {
     if (!ImGui::BeginMainMenuBar())
@@ -158,6 +219,35 @@ void MenuBar::draw()
     }
 
     ImGui::EndMainMenuBar();
+}
+
+void MenuBar::set_trailing_draw(std::function<void()> fn)
+{
+    trailing_draw_ = std::move(fn);
+}
+
+void MenuBar::draw_command_bar(spectra::ImGuiIntegration* imgui)
+{
+    if (!imgui)
+        return;
+
+    if (!imgui->begin_command_bar())
+    {
+        imgui->end_command_bar();
+        return;
+    }
+
+    for (const Menu& m : menus_)
+    {
+        const auto items = to_imgui_menu_items(m.items());
+        imgui->render_menubar_menu(m.name().c_str(), items);
+        ImGui::SameLine();
+    }
+
+    if (trailing_draw_)
+        trailing_draw_();
+
+    imgui->end_command_bar();
 }
 }   // namespace spectra::ui::shell
 #endif   // SPECTRA_USE_IMGUI

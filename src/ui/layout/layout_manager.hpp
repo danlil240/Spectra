@@ -32,6 +32,8 @@ class LayoutManager
     Rect command_bar_rect() const;
     Rect nav_rail_rect() const;
     Rect canvas_rect() const;
+    // Chrome-based workspace between toolbars; ignores plot-area canvas override.
+    Rect workspace_rect() const;
     Rect inspector_rect() const;
     Rect status_bar_rect() const;
     Rect tab_bar_rect() const;
@@ -123,6 +125,7 @@ class LayoutManager
     Rect command_bar_rect_;
     Rect nav_rail_rect_;
     Rect canvas_rect_;
+    Rect workspace_rect_;
     Rect inspector_rect_;
     Rect status_bar_rect_;
     Rect tab_bar_rect_;
@@ -159,6 +162,7 @@ class LayoutManager
     Rect compute_command_bar() const;
     Rect compute_nav_rail() const;
     Rect compute_canvas() const;
+    Rect compute_workspace() const;
     Rect compute_inspector() const;
     Rect compute_status_bar() const;
     Rect compute_tab_bar() const;

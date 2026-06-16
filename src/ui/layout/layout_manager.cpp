@@ -59,7 +59,8 @@ void LayoutManager::compute_zones()
     inspector_rect_   = compute_inspector();
     status_bar_rect_  = compute_status_bar();
     tab_bar_rect_     = compute_tab_bar();
-    canvas_rect_      = compute_canvas();
+    workspace_rect_   = compute_workspace();
+    canvas_rect_      = canvas_override_set_ ? canvas_override_ : workspace_rect_;
 }
 
 Rect LayoutManager::compute_command_bar() const
@@ -102,12 +103,13 @@ Rect LayoutManager::compute_tab_bar() const
     return Rect{x, COMMAND_BAR_HEIGHT, std::max(0.0f, w), TAB_BAR_HEIGHT};
 }
 
-Rect LayoutManager::compute_canvas() const
+Rect LayoutManager::workspace_rect() const
 {
-    // If an external override is active (e.g. spectra-ros dockspace), use it.
-    if (canvas_override_set_)
-        return canvas_override_;
+    return workspace_rect_;
+}
 
+Rect LayoutManager::compute_workspace() const
+{
     float x = nav_rail_anim_width_;
     float w = window_width_ - nav_rail_anim_width_ - inspector_anim_width_;
     float y = COMMAND_BAR_HEIGHT;
@@ -122,6 +124,13 @@ Rect LayoutManager::compute_canvas() const
     }
 
     return Rect{x, y, std::max(0.0f, w), std::max(0.0f, h)};
+}
+
+Rect LayoutManager::compute_canvas() const
+{
+    if (canvas_override_set_)
+        return canvas_override_;
+    return compute_workspace();
 }
 
 // Zone rectangle getters

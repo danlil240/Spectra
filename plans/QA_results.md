@@ -1,10 +1,12 @@
 # Spectra QA Results — Living Document
 
-**Last updated:** 2026-06-05  
+**Last updated:** 2026-06-16  
+
 **QA Agent build:** `build/tests/` (Release, QA agent + golden ON)  
-**Last sweep:** Visual design-review (`qa-designer-agent`)
+**Last sweep:** MCP fuzz hunt (`spectra-mcp-fuzzer`)
 
 ---
+
 
 ## Visual Design Review — 2026-06-05
 
@@ -344,3 +346,76 @@ Occurred 3× during `command_exhaustion` (frame 1157 region) and fuzz phase (fra
 | BUG-9 | LOW | Python embed/phase5 tests — missing CMake target | Not in scope this run |
 | BUG-10 | LOW | Frame time spikes max 240 ms | Improved — max now 99.7 ms (bounded) |
 | BUG-11 | INFO | Unused variable warning in `ros_qa_agent.cpp` | Not retested |
+
+---
+
+## MCP Fuzz Hunt — 2026-06-16
+
+**Trigger:** `spectra-mcp-fuzzer` agent — dual-binary session (`spectra` + `spectra-ros`), seed 42, 200 fuzz steps each, command exhaustion, isolated export probes. Display `:1`.
+
+### Critical
+
+| ID | Component | Description | Repro |
+|----|-----------|-------------|-------|
+| MCP-C1 | export/clipboard | **SIGSEGV** on `file.copy_to_clipboard` after 200× `fuzz_step` (seed 42) | `fuzz_reset` → figure+series → 200 fuzz → `execute_command file.copy_to_clipboard` |
+| MCP-C2 | export | **SIGSEGV** on `file.copy_to_clipboard` during command exhaustion (~30th command, after `figure.tab_9`) | Fresh instance → iterate `list_commands` until `file.copy_to_clipboard` |
+| MCP-C3 | fuzz/window_manager | **Intermittent SIGSEGV** fuzz step ~41: `CloseFigure` after multi `TabDetach` | `fuzz_reset seed=42`, replay steps 1–41 |
+| MCP-C4 | settings panel | **Intermittent SIGSEGV** on `panel.open_settings` after 200 fuzz steps | Same as MCP-C1 but command `panel.open_settings` |
+| MCP-C5 | export (ros) | **Intermittent SIGSEGV** on `file.export_png` after 200 fuzz on `spectra-ros` | ROS sourced → 200 fuzz → `file.export_png` |
+| MCP-C6 | export | **SIGSEGV** on `file.export_svg` (isolated probe after exhaustion) | `command_probe.py` isolated section |
+| MCP-C7 | fuzz/ros | **SIGSEGV** `spectra-ros` fuzz step 151 (`WindowDrag`, seed 42) | `py_fuzz.py ros` — dies before step 200 |
+
+### Error / Warning
+
+| ID | Severity | Description |
+|----|----------|-------------|
+| MCP-E1 | ERROR | `spectra-ros` fails to launch without `source /opt/ros/jazzy/setup.zsh` (`libservice_msgs__rosidl_generator_py.so`) |
+| MCP-E2 | ERROR | GLFW init fails on `DISPLAY=:99` (Xvfb without GLX) — window 0×0, no screenshots |
+| MCP-W1 | WARNING | `get_state` reports `active_figure_id: 18446744073709551615` when no figures |
+| MCP-W2 | WARNING | `xclip` not installed — clipboard copy fails (`WARN [export] Clipboard image copy failed`) |
+| MCP-W3 | WARNING | `data.export_html_table` / `accessibility.sonify_series` write files to cwd unprompted |
+| MCP-W4 | WARNING | `help.show` opens external browser during MCP automation |
+| MCP-W5 | WARNING | `move_figure` stale ownership during TabDetach fuzz (W-3 pattern) |
+| MCP-W6 | WARNING | `help.show` browser zygote broken pipe in stderr |
+| MCP-W7 | WARNING | Fuzz runner false `get_window_size 0x0` at bootstrap (window actually 1280×720) |
+| MCP-W8 | WARNING | MCP `mouse_click` doesn't reach ImGui — ROS panel/nav-rail clicks ineffective (G-5) |
+| MCP-E3 | ERROR | `view.toggle_3d` in `list_commands` but disabled at runtime |
+| MCP-E4 | ERROR | Stale commands in `list_commands` (`figure.tab_close`, `tab_new`, etc.) |
+
+**Report:** `.cursor/agents/REPORT-spectra-mcp-fuzzer.md`  
+**Logs:** `/tmp/command_probe.json`, `/tmp/pyfuzz_*`, `/tmp/spectra_fuzz_spectra_gpu.jsonl`
+
+### Re-verification — 2026-06-16 15:08 (py_fuzz + command_probe)
+
+| ID | Status | Notes |
+|----|--------|-------|
+| MCP-C1 | **REPRO** | `py_fuzz.py spectra`: 200 steps OK, crash on isolated `file.copy_to_clipboard` |
+| MCP-C2 | **REPRO** | `command_probe.py`: crash at `file.copy_to_clipboard` after `figure.tab_9` |
+| MCP-C3 | Not retested | Prior intermittent CloseFigure+TabDetach ~step 41 |
+| MCP-C4 | Not retested | Prior flaky `panel.open_settings` |
+| MCP-C5 | **NEW variant** | MCP-C6: `spectra-ros` crash step 151 `WindowDrag` (not export_png) |
+| MCP-C6 | **NEW** | `file.export_svg` isolated SIGSEGV (`command_probe.json` isolated section) |
+| MCP-E1 | **REPRO** | `bash -lc` ROS setup fails; `zsh -lc` works |
+| MCP-W1 | **REPRO** | UINT64_MAX at bootstrap both binaries |
+| MCP-W2 | **REPRO** | `xclip` absent on system |
+| MCP-E3/E4 | **REPRO** | Stale/disabled commands confirmed via targeted probe |
+
+### Full session — 2026-06-16 15:09–15:15 (py_fuzz + deep_probe + command_probe)
+
+**Harness:** `python3 scripts/mcp_fuzz/py_fuzz.py spectra|ros`, `/tmp/spectra_deep_probe.py`, `command_probe.py`. Display `:1`, NVIDIA GPU.
+
+| Result | Binary | Detail |
+|--------|--------|--------|
+| **200/200 fuzz PASS** | `spectra` | Process alive after loop; SIGSEGV on post-fuzz `file.copy_to_clipboard` |
+| **151/200 fuzz CRASH** | `spectra-ros` | Step 151 `WindowDrag`; also step 55 crash with seed 1337 in deep probe |
+| **12 issues logged** | both | See `.cursor/agents/REPORT-spectra-mcp-fuzzer.md` |
+
+**New this session:**
+
+| ID | Severity | Description |
+|----|----------|-------------|
+| MCP-E5 | ERROR | MCP port 8765 conflict — `spectra-ros` falls back to 8766 while harness targets 8765 |
+| MCP-C8 | CRITICAL | State-dependent export crash — isolated export OK on fresh instance, SIGSEGV after fuzz/exhaustion |
+| MCP-C9 | CRITICAL | `spectra-ros` fuzz step 55 crash (seed 1337) — distinct from step-151 WindowDrag |
+
+**Evidence paths:** `/tmp/pyfuzz_spectra.jsonl` (200 lines), `/tmp/pyfuzz_ros.jsonl` (151 lines), `/tmp/pyfuzz_step_*.png`, `/tmp/command_probe.json`, `/tmp/spectra_deep_probe_summary.json`

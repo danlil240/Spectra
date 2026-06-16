@@ -1,10 +1,31 @@
 # Spectra QA Agent — Capability Gaps & Backlog
 
-**Last updated:** 2026-06-05
+**Last updated:** 2026-06-16
 
 ---
 
 ## Open Gaps
+
+### G-9 — MCP fuzz: export/clipboard SIGSEGV after stress
+
+**Observed:** 2026-06-16 full MCP fuzz session — `file.copy_to_clipboard` reliably kills process (isolated repro: single command after 50 fuzz steps); `file.export_png` crashes command-exhaustion on both `spectra` and `spectra-ros`. GPU path survives 200 fuzz steps; llvmpipe segfaults at step 41 (TabDetach).  
+**Impact:** Export and clipboard unusable after stress; MCP session dies; blocks full command coverage.  
+**Suggested fix:** ASan repro: `fuzz_reset seed=42` → 50 steps → `file.copy_to_clipboard`; audit export with detached figures / multi-window state; handle missing `xclip` without crashing.
+
+### G-10 — MCP fuzz skip list incomplete for side-effect commands
+
+**Observed:** `help.show`, `data.export_html_table`, `accessibility.sonify_series` execute during fuzz ExecuteCommand hits — write `spectra_sonify.wav`, `spectra_data.html`, open browser (zygote broken pipe in stderr).  
+**Suggested fix:** Denylist in `handlers_fuzz.cpp` ExecuteCommand path; no-op stubs when `SPECTRA_AUTOMATION=1`; sync with fuzz agent skip list.
+
+### G-12 — `list_commands` returns disabled/stale command IDs
+
+**Observed:** `view.toggle_3d`, `figure.tab_close`, `figure.tab_new`, `accessibility.high_contrast`, `data.clear_series` appear in `list_commands` but `execute_command` returns "not found or disabled".  
+**Suggested fix:** Filter `list_commands` to enabled-only; or fix registration so listed commands are runnable.
+
+### G-11 — spectra-ros launch requires manual ROS env in agent shells
+
+**Observed:** `./build/spectra-ros` fails linker without `source /opt/ros/jazzy/setup.zsh`.  
+**Suggested fix:** Wrapper script or RPATH for ROS libs; document in AGENTS.md fuzz section.
 
 ### G-8 — CMake `CMAKE_ROOT` broken in some agent shells
 
@@ -69,6 +90,37 @@ The correct ImGui context must be active (set via `wctx->imgui_context`) before 
 **Impact:** BUG-4 (TLV/FlatBuffers codec mismatch) and BUG-5 (socket API change) are not detected by the QA agent or ctest non-GPU sweep.  
 **Gap:** Python integration tests (`tests/python/`) are not included in the `ctest -LE gpu` sweep.  
 **Suggested fix:** Add Python test suite to the standard QA checklist as a separate step: `cd python && python -m pytest tests/ -x`.
+
+---
+
+### G-6 — `py_fuzz.py` ROS launch uses broken `bash -lc` wrapper
+
+**Impact:** `python3 scripts/mcp_fuzz/py_fuzz.py ros` fails when invoked via `bash -lc 'source /opt/ros/jazzy/setup.zsh'` — zsh-specific setup script errors under bash.  
+**Gap:** Fuzz harness cannot launch `spectra-ros` from bash-only CI shells without manual zsh wrapper.  
+**Suggested fix:** Change `py_fuzz.py` launch to `zsh -lc 'source ... && exec ./build/spectra-ros'` or detect shell and use `setup.bash`.
+
+### G-7 — `spectra-ros` fuzz crash at step 151 (`WindowDrag`)
+
+**Impact:** ROS adapter dies mid-fuzz at seed 42 before completing 200 steps; ROS panel/topic coverage never reached.  
+**Gap:** No unit test or ASan trace for WindowDrag after LargeDataset+TabDetach stress.  
+**Suggested fix:** Add `tests/unit` replay harness for fuzz step 151 with seed 42; run under ASan.
+
+### G-8 — Export/clipboard commands crash only after fuzz state corruption
+
+**Impact:** `file.copy_to_clipboard` and `file.export_svg` pass in isolation but SIGSEGV after fuzz or command exhaustion — hard to catch in unit tests.  
+**Gap:** `handlers_fuzz.cpp` denylist and `py_fuzz.py` SKIP set exist but C++ fuzz path may still hit these via `ExecuteCommand` action.  
+**Suggested fix:** Denylist at command registry level; add post-fuzz integration test: 50 fuzz steps → clipboard probe.
+
+### G-13 — MCP port conflict when fuzzing `spectra-ros` after `spectra`
+
+**Observed:** 2026-06-16 15:09 session — launching `spectra-ros` without killing `spectra` leaves port 8765 bound; ros binds 8766, fuzz harness still POSTs to 8765.  
+**Impact:** Wrong process fuzzed; ros coverage invalid; false PASS/FAIL signals.  
+**Suggested fix:** `py_fuzz.py` launch() must pkill both `spectra` and `spectra-ros`; poll until 8765 free; assert MCP health on expected port before fuzz loop.
+
+### G-14 — `py_fuzz.py` ROS launch uses `setup.bash` but agent docs say `setup.zsh`
+
+**Observed:** `py_fuzz.py` line 129 uses `setup.bash`; user env and terminal history use `setup.zsh`. Both work when shell matches; mismatch causes silent launch failures in zsh-only agent shells.  
+**Suggested fix:** Detect shell or use `zsh -lc` consistently; document in fuzz agent instructions.
 
 ---
 

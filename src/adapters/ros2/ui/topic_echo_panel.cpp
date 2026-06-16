@@ -11,6 +11,7 @@
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
 
+    #include "ui/shell/shell_style.hpp"
     #include "ui/theme/icons.hpp"
 #endif
 
@@ -859,10 +860,9 @@ void TopicEchoPanel::draw(bool* p_open)
         (display_interval_s_ <= 0.0) || (now - last_draw_time_s_ >= display_interval_s_);
 
     ImGui::SetNextWindowSize(ImVec2(600, 520), ImGuiCond_FirstUseEver);
-    const ImGuiWindowFlags flags = ImGuiWindowFlags_NoCollapse;
-    if (!ImGui::Begin(title_.c_str(), p_open, flags))
+    if (!spectra::ui::shell::begin_panel(title_.c_str(), p_open))
     {
-        ImGui::End();
+        spectra::ui::shell::end_panel();
         return;
     }
 
@@ -873,7 +873,7 @@ void TopicEchoPanel::draw(bool* p_open)
     if (topic_name_.empty())
     {
         ImGui::TextDisabled("Select a topic in Topic Monitor to stream messages here.");
-        ImGui::End();
+        spectra::ui::shell::end_panel();
         return;
     }
 
@@ -893,7 +893,7 @@ void TopicEchoPanel::draw(bool* p_open)
     if (snap.empty())
     {
         ImGui::TextDisabled("Waiting for messages on %s …", topic_name_.c_str());
-        ImGui::End();
+        spectra::ui::shell::end_panel();
         return;
     }
 
@@ -978,7 +978,7 @@ void TopicEchoPanel::draw(bool* p_open)
 
     ImGui::EndChild();
 
-    ImGui::End();
+    spectra::ui::shell::end_panel();
 }
 
 void TopicEchoPanel::sync_workspace(const std::string& topic,

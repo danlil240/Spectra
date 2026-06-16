@@ -42,6 +42,7 @@
 
 #ifdef SPECTRA_USE_IMGUI
     #include "ui/app/window_ui_context.hpp"
+    #include "ui/native_dialog_policy.hpp"
 #endif
 #ifdef SPECTRA_USE_GLFW
     #include "ui/window/window_manager.hpp"
@@ -222,6 +223,10 @@ int main(int argc, char** argv)
 {
     using namespace spectra::adapters::ros2;
 
+#ifdef SPECTRA_USE_IMGUI
+    spectra::init_native_dialog_policy(argc, argv);
+#endif
+
     // Parse CLI args.
     std::string        err;
     const RosAppConfig cfg = parse_args(argc, argv, err);
@@ -366,7 +371,9 @@ int main(int argc, char** argv)
         auto& lm = ui_ctx->imgui_ui->get_layout_manager();
         lm.set_inspector_visible(false);
         lm.set_tab_bar_visible(false);
-        ui_ctx->imgui_ui->set_nav_rail_visible(false);
+        // Reserve nav-rail layout width; core SpectraNavRail is suppressed while
+        // extra_draw_cb_ is set (RosAppShell draws the adapter rail instead).
+        ui_ctx->imgui_ui->set_nav_rail_visible(shell.nav_rail_visible());
         // Suppress all Spectra chrome — spectra-ros owns its own menu bar,
         // status bar, and docking layout via RosAppShell.
         // Hide the ImGui canvas overlay (Figure 1 tab, etc.) since the ROS
@@ -378,12 +385,15 @@ int main(int argc, char** argv)
         ui_ctx->imgui_ui->set_command_bar_visible(false);
         ui_ctx->imgui_ui->set_status_bar_visible(false);
         shell.set_layout_manager(&lm);
+        shell.bind_imgui(ui_ctx->imgui_ui.get());
         ui_ctx->imgui_ui->set_extra_draw_callback(
             [&shell, ui_ctx]()
             {
                 if (ui_ctx && ui_ctx->imgui_ui)
                 {
-                    ui_ctx->imgui_ui->set_render_figure_enabled(shell.plot_area_visible());
+                    // Keep layout-manager rail width in sync when toggled from View menu.
+                    ui_ctx->imgui_ui->set_nav_rail_visible(shell.nav_rail_visible());
+                    ui_ctx->imgui_ui->set_render_figure_enabled(shell.panel_visible("ros.plot_area"));
                 }
                 shell.draw();
             });
@@ -395,7 +405,7 @@ int main(int argc, char** argv)
             [&shell, scene_renderer](spectra::Renderer& renderer)
             {
                 auto* sv = shell.scene_viewport();
-                if (!sv || !shell.scene_viewport_visible())
+                if (!sv || !shell.panel_visible("ros.scene_viewport"))
                     return;
                 auto rect = sv->canvas_rect();
                 if (rect.w < 1.0f || rect.h < 1.0f)
@@ -415,7 +425,7 @@ int main(int argc, char** argv)
                 if (auto* panel = shell.bag_info_panel())
                 {
                     if (panel->try_open_file(path))
-                        shell.set_bag_info_visible(true);
+                        shell.set_panel_visible("ros.bag_info", true);
                 }
             });
     }

@@ -7,6 +7,7 @@
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
     #include <cmath>
+    #include "ui/shell/shell_style.hpp"
 #endif
 
 #ifdef SPECTRA_USE_ROS2
@@ -571,9 +572,9 @@ void DiagnosticsPanel::draw(bool* p_open)
 {
     ImGui::SetNextWindowSize(ImVec2(680.0f, 480.0f), ImGuiCond_FirstUseEver);
 
-    if (!ImGui::Begin(title_.c_str(), p_open))
+    if (!spectra::ui::shell::begin_panel(title_.c_str(), p_open))
     {
-        ImGui::End();
+        spectra::ui::shell::end_panel();
         return;
     }
 
@@ -583,7 +584,7 @@ void DiagnosticsPanel::draw(bool* p_open)
     ImGui::Separator();
     draw_component_table();
 
-    ImGui::End();
+    spectra::ui::shell::end_panel();
 }
 
 void DiagnosticsPanel::draw_summary_bar()

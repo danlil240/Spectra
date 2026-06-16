@@ -1094,23 +1094,23 @@ class RosQAAgent
         if (shell_->window_title().find(shell_cfg_.node_name) == std::string::npos)
             return fail("boot", "Window title did not include the shell node name");
 
-        if (!shell_->topic_list_visible() || !shell_->topic_echo_visible()
-            || !shell_->topic_stats_visible() || !shell_->plot_area_visible())
+        if (!shell_->panel_visible("ros.topic_list") || !shell_->panel_visible("ros.topic_echo")
+            || !shell_->panel_visible("ros.topic_stats") || !shell_->panel_visible("ros.plot_area"))
         {
             return fail("layout", "Default layout did not enable the expected core panels");
         }
 
         shell_->apply_layout_preset(RosAppShell::LayoutPreset::Debug);
-        if (!shell_->log_viewer_visible() || shell_->plot_area_visible())
+        if (!shell_->panel_visible("ros.log_viewer") || shell_->panel_visible("ros.plot_area"))
             return fail("layout", "Debug preset visibility did not match expectations");
 
         shell_->apply_layout_preset(RosAppShell::LayoutPreset::Monitor);
-        if (!shell_->diagnostics_visible() || !shell_->plot_area_visible())
+        if (!shell_->panel_visible("ros.diagnostics") || !shell_->panel_visible("ros.plot_area"))
             return fail("layout", "Monitor preset did not expose diagnostics + plot area");
 
         shell_->apply_layout_preset(RosAppShell::LayoutPreset::BagReview);
-        if (!shell_->bag_info_visible() || !shell_->bag_playback_visible()
-            || !shell_->plot_area_visible())
+        if (!shell_->panel_visible("ros.bag_info") || !shell_->panel_visible("ros.bag_playback")
+            || !shell_->panel_visible("ros.plot_area"))
         {
             return fail("layout", "Bag Review preset did not expose bag panels");
         }
@@ -1200,8 +1200,8 @@ class RosQAAgent
 
         shell_->set_nav_rail_width(312.0f);
         shell_->set_nav_rail_expanded(false);
-        shell_->set_log_viewer_visible(true);
-        shell_->set_topic_list_visible(true);
+        shell_->set_panel_visible("ros.log_viewer", true);
+        shell_->set_panel_visible("ros.topic_list", true);
         pump_frames(3);
 
         const RosSession  before = shell_->capture_session();
@@ -1213,7 +1213,7 @@ class RosQAAgent
 
         shell_->clear_plots();
         shell_->apply_layout_preset(RosAppShell::LayoutPreset::Debug);
-        shell_->set_topic_list_visible(false);
+        shell_->set_panel_visible("ros.topic_list", false);
         shell_->set_nav_rail_width(180.0f);
         shell_->set_nav_rail_expanded(true);
         pump_frames(4);
@@ -1227,9 +1227,9 @@ class RosQAAgent
 
         if (after.subscriptions.size() != before.subscriptions.size())
             return fail("session", "Subscription count did not survive save/load");
-        if (after.panels.topic_list != before.panels.topic_list
-            || after.panels.log_viewer != before.panels.log_viewer
-            || after.panels.plot_area != before.panels.plot_area)
+        if (after.panels.visible("ros.topic_list") != before.panels.visible("ros.topic_list")
+            || after.panels.visible("ros.log_viewer") != before.panels.visible("ros.log_viewer")
+            || after.panels.visible("ros.plot_area") != before.panels.visible("ros.plot_area"))
         {
             return fail("session", "Panel visibility was not restored from the saved session");
         }
@@ -1571,7 +1571,7 @@ class RosQAAgent
                         "nav2_debug session did not restore expected 3D displays (got "
                             + std::to_string(shell_->displays().size()) + ")");
         }
-        if (!shell_->scene_viewport_visible() || !shell_->plot_area_visible())
+        if (!shell_->panel_visible("ros.scene_viewport") || !shell_->panel_visible("ros.plot_area"))
             return fail("nav", "nav2_debug session did not enable rviz-plot panels");
 
         if (!shell_->bag_info_panel()->try_open_file(bag_path))
@@ -1655,10 +1655,10 @@ class RosQAAgent
         shell_->apply_layout_preset(RosAppShell::LayoutPreset::Default);
         shell_->set_nav_rail_visible(true);
         shell_->set_nav_rail_expanded(true);
-        shell_->set_topic_list_visible(true);
-        shell_->set_topic_echo_visible(true);
-        shell_->set_topic_stats_visible(true);
-        shell_->set_plot_area_visible(true);
+        shell_->set_panel_visible("ros.topic_list", true);
+        shell_->set_panel_visible("ros.topic_echo", true);
+        shell_->set_panel_visible("ros.topic_stats", true);
+        shell_->set_panel_visible("ros.plot_area", true);
         if (!pump_frames(6)
             || !record_design_capture(
                 "01_dark_default_live",
@@ -1691,7 +1691,7 @@ class RosQAAgent
             return fail("design", "Failed to populate diagnostics/TF state before design capture");
 
         shell_->apply_layout_preset(RosAppShell::LayoutPreset::Monitor);
-        shell_->set_tf_tree_visible(true);
+        shell_->set_panel_visible("ros.tf_tree", true);
         if (!pump_frames(6)
             || !record_design_capture(
                 "03_monitor_diagnostics_tf",
@@ -1724,9 +1724,9 @@ class RosQAAgent
         }
 
         shell_->apply_layout_preset(RosAppShell::LayoutPreset::RViz);
-        shell_->set_scene_viewport_visible(true);
-        shell_->set_displays_panel_visible(true);
-        shell_->set_inspector_panel_visible(true);
+        shell_->set_panel_visible("ros.scene_viewport", true);
+        shell_->set_panel_visible("ros.displays", true);
+        shell_->set_panel_visible("ros.inspector", true);
         if (!pump_frames(6)
             || !record_design_capture("06_rviz_layout",
                                       "RViz layout with scene viewport and displays panel"))
@@ -1735,7 +1735,7 @@ class RosQAAgent
         }
 
         shell_->apply_layout_preset(RosAppShell::LayoutPreset::RVizPlot);
-        shell_->set_plot_area_visible(true);
+        shell_->set_panel_visible("ros.plot_area", true);
         if (!pump_frames(6)
             || !record_design_capture("07_rviz_plot_layout",
                                       "RVizPlot layout combining 3D viewport and plot area"))
@@ -1744,8 +1744,8 @@ class RosQAAgent
         }
 
         shell_->apply_layout_preset(RosAppShell::LayoutPreset::Monitor);
-        shell_->set_topic_list_visible(true);
-        shell_->set_topic_stats_visible(true);
+        shell_->set_panel_visible("ros.topic_list", true);
+        shell_->set_panel_visible("ros.topic_stats", true);
         if (!pump_frames(6)
             || !record_design_capture("08_monitor_topic_stats",
                                       "Monitor layout with topic monitor and statistics"))

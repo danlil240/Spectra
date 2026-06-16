@@ -20,6 +20,86 @@ namespace
 {
 using json = nlohmann::json;
 
+std::string panel_legacy_key_to_id_impl(std::string_view legacy_key)
+{
+    if (legacy_key.starts_with("ros."))
+        return std::string(legacy_key);
+
+    static const std::pair<const char*, const char*> kLegacyToId[] = {
+        {"topic_list", "ros.topic_list"},
+        {"topic_echo", "ros.topic_echo"},
+        {"topic_stats", "ros.topic_stats"},
+        {"plot_area", "ros.plot_area"},
+        {"expression_editor", "ros.expression_editor"},
+        {"bag_info", "ros.bag_info"},
+        {"bag_playback", "ros.bag_playback"},
+        {"log_viewer", "ros.log_viewer"},
+        {"diagnostics", "ros.diagnostics"},
+        {"node_graph", "ros.node_graph"},
+        {"displays_panel", "ros.displays"},
+        {"displays", "ros.displays"},
+        {"scene_viewport", "ros.scene_viewport"},
+        {"inspector_panel", "ros.inspector"},
+        {"inspector", "ros.inspector"},
+        {"tf_tree", "ros.tf_tree"},
+        {"param_editor", "ros.param_editor"},
+        {"service_caller", "ros.service_caller"},
+    };
+
+    for (const auto& [legacy, id] : kLegacyToId)
+    {
+        if (legacy_key == legacy)
+            return id;
+    }
+    return std::string(legacy_key);
+}
+
+}   // namespace
+
+std::string panel_legacy_key_to_id(std::string_view legacy_key)
+{
+    return panel_legacy_key_to_id_impl(legacy_key);
+}
+
+bool PanelVisibility::visible(std::string_view panel_id, bool default_val) const
+{
+    const auto it = by_id.find(std::string(panel_id));
+    return it != by_id.end() ? it->second : default_val;
+}
+
+void PanelVisibility::set_visible(std::string_view panel_id, bool v)
+{
+    by_id[std::string(panel_id)] = v;
+}
+
+PanelVisibility default_panel_visibility()
+{
+    PanelVisibility panels;
+    panels.by_id = {
+        {"ros.topic_list", true},
+        {"ros.topic_echo", false},
+        {"ros.topic_stats", true},
+        {"ros.plot_area", true},
+        {"ros.expression_editor", false},
+        {"ros.bag_info", false},
+        {"ros.bag_playback", false},
+        {"ros.log_viewer", false},
+        {"ros.diagnostics", false},
+        {"ros.node_graph", false},
+        {"ros.displays", false},
+        {"ros.scene_viewport", false},
+        {"ros.inspector", false},
+        {"ros.tf_tree", false},
+        {"ros.param_editor", false},
+        {"ros.service_caller", false},
+    };
+    panels.nav_rail = true;
+    return panels;
+}
+
+namespace
+{
+
 json to_json(const SubscriptionEntry& entry)
 {
     return json{
@@ -91,24 +171,11 @@ json to_json(const SceneCameraPose& pose)
 
 json to_json(const PanelVisibility& panels)
 {
-    return json{
-        {"topic_list", panels.topic_list},
-        {"topic_echo", panels.topic_echo},
-        {"topic_stats", panels.topic_stats},
-        {"plot_area", panels.plot_area},
-        {"bag_info", panels.bag_info},
-        {"bag_playback", panels.bag_playback},
-        {"log_viewer", panels.log_viewer},
-        {"diagnostics", panels.diagnostics},
-        {"node_graph", panels.node_graph},
-        {"tf_tree", panels.tf_tree},
-        {"param_editor", panels.param_editor},
-        {"service_caller", panels.service_caller},
-        {"displays_panel", panels.displays_panel},
-        {"scene_viewport", panels.scene_viewport},
-        {"inspector_panel", panels.inspector_panel},
-        {"nav_rail", panels.nav_rail},
-    };
+    json result = json::object();
+    for (const auto& [id, visible] : panels.by_id)
+        result[id] = visible;
+    result["nav_rail"] = panels.nav_rail;
+    return result;
 }
 
 json to_json(const TopicMonitorState& topic_monitor)
@@ -124,26 +191,23 @@ json to_json(const TopicMonitorState& topic_monitor)
 
 PanelVisibility panel_visibility_from_json(const json& value)
 {
-    PanelVisibility panels;
+    PanelVisibility panels = default_panel_visibility();
     if (!value.is_object())
         return panels;
 
-    panels.topic_list      = value.value("topic_list", true);
-    panels.topic_echo      = value.value("topic_echo", false);
-    panels.topic_stats     = value.value("topic_stats", true);
-    panels.plot_area       = value.value("plot_area", true);
-    panels.bag_info        = value.value("bag_info", false);
-    panels.bag_playback    = value.value("bag_playback", false);
-    panels.log_viewer      = value.value("log_viewer", false);
-    panels.diagnostics     = value.value("diagnostics", false);
-    panels.node_graph      = value.value("node_graph", false);
-    panels.tf_tree         = value.value("tf_tree", false);
-    panels.param_editor    = value.value("param_editor", false);
-    panels.service_caller  = value.value("service_caller", false);
-    panels.displays_panel  = value.value("displays_panel", false);
-    panels.scene_viewport  = value.value("scene_viewport", false);
-    panels.inspector_panel = value.value("inspector_panel", false);
-    panels.nav_rail        = value.value("nav_rail", true);
+    for (auto it = value.begin(); it != value.end(); ++it)
+    {
+        const std::string key = it.key();
+        if (key == "nav_rail")
+        {
+            if (it->is_boolean())
+                panels.nav_rail = it->get<bool>();
+            continue;
+        }
+        if (!it->is_boolean())
+            continue;
+        panels.by_id[panel_legacy_key_to_id_impl(key)] = it->get<bool>();
+    }
     return panels;
 }
 
@@ -914,25 +978,7 @@ std::string RosSessionManager::serialize_display(const DisplaySessionEntry& e)
 
 std::string RosSessionManager::serialize_panels(const PanelVisibility& p)
 {
-    std::string out = "{";
-    out += "\"topic_list\":" + std::string(p.topic_list ? "true" : "false") + ",";
-    out += "\"topic_echo\":" + std::string(p.topic_echo ? "true" : "false") + ",";
-    out += "\"topic_stats\":" + std::string(p.topic_stats ? "true" : "false") + ",";
-    out += "\"plot_area\":" + std::string(p.plot_area ? "true" : "false") + ",";
-    out += "\"bag_info\":" + std::string(p.bag_info ? "true" : "false") + ",";
-    out += "\"bag_playback\":" + std::string(p.bag_playback ? "true" : "false") + ",";
-    out += "\"log_viewer\":" + std::string(p.log_viewer ? "true" : "false") + ",";
-    out += "\"diagnostics\":" + std::string(p.diagnostics ? "true" : "false") + ",";
-    out += "\"node_graph\":" + std::string(p.node_graph ? "true" : "false") + ",";
-    out += "\"tf_tree\":" + std::string(p.tf_tree ? "true" : "false") + ",";
-    out += "\"param_editor\":" + std::string(p.param_editor ? "true" : "false") + ",";
-    out += "\"service_caller\":" + std::string(p.service_caller ? "true" : "false") + ",";
-    out += "\"displays_panel\":" + std::string(p.displays_panel ? "true" : "false") + ",";
-    out += "\"scene_viewport\":" + std::string(p.scene_viewport ? "true" : "false") + ",";
-    out += "\"inspector_panel\":" + std::string(p.inspector_panel ? "true" : "false") + ",";
-    out += "\"nav_rail\":" + std::string(p.nav_rail ? "true" : "false");
-    out += "}";
-    return out;
+    return to_json(p).dump();
 }
 
 // ---------------------------------------------------------------------------
@@ -1284,23 +1330,42 @@ DisplaySessionEntry RosSessionManager::deserialize_display(const std::string& js
 
 PanelVisibility RosSessionManager::deserialize_panels(const std::string& json)
 {
-    PanelVisibility p;
-    p.topic_list      = json_get_bool(json, "topic_list", true);
-    p.topic_echo      = json_get_bool(json, "topic_echo", false);
-    p.topic_stats     = json_get_bool(json, "topic_stats", true);
-    p.plot_area       = json_get_bool(json, "plot_area", true);
-    p.bag_info        = json_get_bool(json, "bag_info", false);
-    p.bag_playback    = json_get_bool(json, "bag_playback", false);
-    p.log_viewer      = json_get_bool(json, "log_viewer", false);
-    p.diagnostics     = json_get_bool(json, "diagnostics", false);
-    p.node_graph      = json_get_bool(json, "node_graph", false);
-    p.tf_tree         = json_get_bool(json, "tf_tree", false);
-    p.param_editor    = json_get_bool(json, "param_editor", false);
-    p.service_caller  = json_get_bool(json, "service_caller", false);
-    p.displays_panel  = json_get_bool(json, "displays_panel", false);
-    p.scene_viewport  = json_get_bool(json, "scene_viewport", false);
-    p.inspector_panel = json_get_bool(json, "inspector_panel", false);
-    p.nav_rail        = json_get_bool(json, "nav_rail", true);
+    PanelVisibility p = default_panel_visibility();
+    if (json.empty())
+        return p;
+
+    try
+    {
+        return panel_visibility_from_json(nlohmann::json::parse(json));
+    }
+    catch (...)
+    {
+        // Fall back to legacy flat-object parsing for hand-rolled v1 sessions.
+    }
+
+    static const std::pair<const char*, bool> kLegacyDefaults[] = {
+        {"topic_list", true},
+        {"topic_echo", false},
+        {"topic_stats", true},
+        {"plot_area", true},
+        {"expression_editor", false},
+        {"bag_info", false},
+        {"bag_playback", false},
+        {"log_viewer", false},
+        {"diagnostics", false},
+        {"node_graph", false},
+        {"displays_panel", false},
+        {"scene_viewport", false},
+        {"inspector_panel", false},
+        {"tf_tree", false},
+        {"param_editor", false},
+        {"service_caller", false},
+    };
+
+    for (const auto& [key, default_val] : kLegacyDefaults)
+        p.by_id[panel_legacy_key_to_id_impl(key)] = json_get_bool(json, key, default_val);
+
+    p.nav_rail = json_get_bool(json, "nav_rail", true);
     return p;
 }
 

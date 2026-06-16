@@ -20,14 +20,14 @@ namespace spectra::adapters::ros2
 // ---------------------------------------------------------------------------
 
 ExpressionPlot::ExpressionPlot(Ros2Bridge& bridge, MessageIntrospector& intr)
-    : bridge_(bridge), intr_(intr), axes_(&figure_->subplot(1, 1, 1))
+    : bridge_(bridge), intr_(intr)
 {
     spectra::FigureConfig cfg;
     cfg.width  = 1280;
     cfg.height = 720;
     figure_    = std::make_unique<spectra::Figure>(cfg);
 
-    // Create a single 1×1 subplot axes.
+    axes_ = &figure_->subplot(1, 1, 1);
 
     spectra::LineSeries& ls = axes_->line();
     ls.label("expression");

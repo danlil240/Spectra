@@ -1480,6 +1480,24 @@ if(SPECTRA_USE_ROS2)
         set_tests_properties(unit_test_ros_session PROPERTIES LABELS "ros2")
     endif()
 
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_ros_session_panels.cpp)
+        add_executable(unit_test_ros_session_panels
+            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_ros_session_panels.cpp
+        )
+        target_link_libraries(unit_test_ros_session_panels PRIVATE
+            spectra_ros2_adapter
+            GTest::gtest_main
+        )
+        target_compile_features(unit_test_ros_session_panels PRIVATE cxx_std_20)
+        target_include_directories(unit_test_ros_session_panels PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_SOURCE_DIR}/src/adapters/ros2
+            ${CMAKE_CURRENT_SOURCE_DIR}/util
+        )
+        add_test(NAME unit_test_ros_session_panels COMMAND unit_test_ros_session_panels)
+        set_tests_properties(unit_test_ros_session_panels PROPERTIES LABELS "ros2")
+    endif()
+
     # LogViewerPanel + RosLogViewer tests (F5) — pure C++ logic, no ROS2 runtime.
     # Uses gtest_main (no custom main) since no RclcppEnvironment is required.
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_log_viewer.cpp)

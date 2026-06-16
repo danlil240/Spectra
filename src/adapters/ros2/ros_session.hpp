@@ -33,7 +33,9 @@
 //   No internal locking.
 
 #include <array>
+#include <map>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "axis_mode.hpp"
@@ -142,28 +144,26 @@ struct SceneCameraPose
 };
 
 // ---------------------------------------------------------------------------
-// PanelVisibility — which panels are shown
+// PanelVisibility — panel registry visibility keyed by panel id
 // ---------------------------------------------------------------------------
 
 struct PanelVisibility
 {
-    bool topic_list      = false;
-    bool topic_echo      = false;
-    bool topic_stats     = false;
-    bool plot_area       = true;
-    bool bag_info        = false;
-    bool bag_playback    = false;
-    bool log_viewer      = false;
-    bool diagnostics     = false;
-    bool node_graph      = false;
-    bool tf_tree         = false;
-    bool param_editor    = false;
-    bool service_caller  = false;
-    bool displays_panel  = false;
-    bool scene_viewport  = false;
-    bool inspector_panel = false;
-    bool nav_rail        = false;
+    // Registry panel ids (e.g. "ros.topic_list") → visible.
+    std::map<std::string, bool> by_id;
+
+    // Nav rail is layout chrome, not a registered panel.
+    bool nav_rail = false;
+
+    bool visible(std::string_view panel_id, bool default_val = false) const;
+    void set_visible(std::string_view panel_id, bool v);
 };
+
+// Map legacy session JSON keys to panel registry ids (e.g. "topic_list" → "ros.topic_list").
+std::string panel_legacy_key_to_id(std::string_view legacy_key);
+
+// Default visibility for ROS panels when a session omits panel flags.
+PanelVisibility default_panel_visibility();
 
 struct TopicMonitorState
 {

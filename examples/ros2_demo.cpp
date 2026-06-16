@@ -51,6 +51,10 @@
 #include <spectra/app.hpp>
 #include <spectra/figure.hpp>
 
+#ifdef SPECTRA_USE_IMGUI
+    #include "ui/app/window_ui_context.hpp"
+#endif
+
 // ── ROS2 Adapter — Phase A ───────────────────────────────────────────────────
 // Include paths are relative to src/adapters/ros2/ (PUBLIC include dir of
 // spectra_ros2_adapter).  These headers are NOT available without a sourced
@@ -913,6 +917,13 @@ int main(int argc, char** argv)
 
     app.init_runtime();
 
+#ifdef SPECTRA_USE_IMGUI
+    if (auto* ui_ctx = app.ui_context(); ui_ctx && ui_ctx->imgui_ui)
+    {
+        ui_ctx->imgui_ui->set_extra_draw_callback([&demo]() { draw_panels(demo); });
+    }
+#endif
+
     while (true)
     {
         // Poll ROS2 data into Spectra series (hot path — no locks in poll())
@@ -925,11 +936,6 @@ int main(int argc, char** argv)
         // D2 — advance BagPlayer each frame (feeds injected bag messages)
         if (demo.bag_player && demo.bag_player->is_open())
             demo.bag_player->advance(1.0 / 60.0);   // assume ~60 fps step
-
-#ifdef SPECTRA_USE_IMGUI
-        if (demo.ready)
-            draw_panels(demo);
-#endif
 
         auto result = app.step();
         if (result.should_exit)

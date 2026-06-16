@@ -654,14 +654,14 @@ TEST(LayoutVisibility, SettersWorkWithoutInit)
 {
     RosAppConfig cfg;
     RosAppShell  shell(cfg);
-    shell.set_topic_list_visible(false);
-    shell.set_plot_area_visible(false);
-    shell.set_inspector_panel_visible(true);
-    EXPECT_FALSE(shell.topic_list_visible());
-    EXPECT_FALSE(shell.plot_area_visible());
-    EXPECT_TRUE(shell.inspector_panel_visible());
-    EXPECT_FALSE(shell.topic_echo_visible());
-    EXPECT_FALSE(shell.topic_stats_visible());
+    shell.set_panel_visible("ros.topic_list", false);
+    shell.set_panel_visible("ros.plot_area", false);
+    shell.set_panel_visible("ros.inspector", true);
+    EXPECT_FALSE(shell.panel_visible("ros.topic_list"));
+    EXPECT_FALSE(shell.panel_visible("ros.plot_area"));
+    EXPECT_TRUE(shell.panel_visible("ros.inspector"));
+    EXPECT_FALSE(shell.panel_visible("ros.topic_echo"));
+    EXPECT_FALSE(shell.panel_visible("ros.topic_stats"));
 }
 
 // ---------------------------------------------------------------------------

@@ -9,6 +9,8 @@
 #include <spectra/frame.hpp>
 #include <spectra/logger.hpp>
 
+#include <algorithm>
+
 #include "anim/frame_scheduler.hpp"
 #include "adapters/data_source_registry.hpp"
 #include "io/export_registry.hpp"
@@ -260,6 +262,7 @@ struct App::AppRuntime
         uint32_t             height            = 0;
         bool                 active            = false;
         bool                 copy_to_clipboard = false;
+        bool                 awaiting_gpu_capture = false;
     } pending_png_capture;
 
     AppRuntime(float fps, Backend& backend, Renderer& renderer, FigureRegistry& registry)
@@ -736,6 +739,12 @@ App::StepResult App::step()
 #endif
                     rt.frame_state);
     rt.active_figure = rt.frame_state.active_figure;
+    if (rt.active_figure && !registry_.get(rt.frame_state.active_figure_id))
+    {
+        rt.active_figure                = nullptr;
+        rt.frame_state.active_figure    = nullptr;
+        rt.frame_state.active_figure_id = INVALID_FIGURE_ID;
+    }
 
 #ifdef SPECTRA_USE_FFMPEG
     if (rt.video_exporter && rt.video_exporter->is_open() && rt.active_figure)
@@ -753,32 +762,43 @@ App::StepResult App::step()
     if (rt.pending_png_capture.active)
     {
         auto& cap = rt.pending_png_capture;
-        if (cap.copy_to_clipboard)
+        auto* vk  = (config_.backend == RenderBackend::Vulkan)
+                        ? static_cast<VulkanBackend*>(backend_.get())
+                        : nullptr;
+        if (cap.awaiting_gpu_capture && vk && vk->has_pending_capture())
         {
-            auto png = ImageExporter::write_png_to_memory(cap.pixels.data(), cap.width, cap.height);
-            if (!png.empty())
-            {
-                if (platform::copy_image_to_clipboard(png.data(), png.size()))
-                    SPECTRA_LOG_INFO("export", "Figure copied to clipboard");
-                else
-                    SPECTRA_LOG_WARN("export", "Clipboard image copy failed");
-            }
+            // GPU readback scheduled last frame is still in flight.
         }
         else
         {
-            if (ImageExporter::write_png(cap.path, cap.pixels.data(), cap.width, cap.height))
+            cap.awaiting_gpu_capture = false;
+            if (cap.copy_to_clipboard)
             {
-                SPECTRA_LOG_INFO("export", "Saved PNG: " + cap.path);
+                auto png = ImageExporter::write_png_to_memory(cap.pixels.data(), cap.width, cap.height);
+                if (!png.empty())
+                {
+                    if (platform::copy_image_to_clipboard(png.data(), png.size()))
+                        SPECTRA_LOG_INFO("export", "Figure copied to clipboard");
+                    else
+                        SPECTRA_LOG_WARN("export", "Clipboard image copy failed");
+                }
             }
-            else
+            else if (!cap.path.empty())
             {
-                SPECTRA_LOG_ERROR("export", "Failed to write PNG: " + cap.path);
+                if (ImageExporter::write_png(cap.path, cap.pixels.data(), cap.width, cap.height))
+                {
+                    SPECTRA_LOG_INFO("export", "Saved PNG: " + cap.path);
+                }
+                else
+                {
+                    SPECTRA_LOG_ERROR("export", "Failed to write PNG: " + cap.path);
+                }
             }
+            cap.active            = false;
+            cap.copy_to_clipboard = false;
+            cap.pixels.clear();
+            cap.path.clear();
         }
-        cap.active            = false;
-        cap.copy_to_clipboard = false;
-        cap.pixels.clear();
-        cap.path.clear();
     }
 
     // Phase 2: Schedule a pre-present capture for figures with pending export.
@@ -786,7 +806,8 @@ App::StepResult App::step()
     // before vkQueuePresentKHR, so the swapchain image contents are valid.
     if (!config_.headless && rt.active_figure
         && (!rt.active_figure->export_req_.png_path.empty()
-            || rt.active_figure->export_req_.copy_to_clipboard))
+            || rt.active_figure->export_req_.copy_to_clipboard)
+        && !rt.pending_png_capture.active)
     {
         uint32_t ew  = rt.active_figure->export_req_.png_width > 0
                            ? rt.active_figure->export_req_.png_width
@@ -794,43 +815,56 @@ App::StepResult App::step()
         uint32_t eh  = rt.active_figure->export_req_.png_height > 0
                            ? rt.active_figure->export_req_.png_height
                            : rt.active_figure->height();
-        auto&    cap = rt.pending_png_capture;
-        cap.pixels.resize(static_cast<size_t>(ew) * eh * 4);
-        cap.path              = rt.active_figure->export_req_.png_path;
-        cap.width             = ew;
-        cap.height            = eh;
-        cap.active            = true;
-        cap.copy_to_clipboard = rt.active_figure->export_req_.copy_to_clipboard;
-
-        auto* vk = (config_.backend == RenderBackend::Vulkan)
-                       ? static_cast<VulkanBackend*>(backend_.get())
-                       : nullptr;
-#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
-        // Target the window that owns this figure so multi-window captures
-        // read the correct swapchain image.
-        WindowContext* target_wctx = nullptr;
-        if (rt.window_mgr)
+        if (ew == 0 || eh == 0)
         {
-            for (auto* wctx : rt.window_mgr->windows())
+            rt.active_figure->export_req_.png_path.clear();
+            rt.active_figure->export_req_.png_width         = 0;
+            rt.active_figure->export_req_.png_height        = 0;
+            rt.active_figure->export_req_.copy_to_clipboard = false;
+        }
+        else
+        {
+            auto&    cap = rt.pending_png_capture;
+            cap.pixels.resize(static_cast<size_t>(ew) * eh * 4);
+            cap.path              = rt.active_figure->export_req_.png_path;
+            cap.width             = ew;
+            cap.height            = eh;
+            cap.active            = true;
+            cap.copy_to_clipboard = rt.active_figure->export_req_.copy_to_clipboard;
+            cap.awaiting_gpu_capture = true;
+
+            auto* vk = (config_.backend == RenderBackend::Vulkan)
+                           ? static_cast<VulkanBackend*>(backend_.get())
+                           : nullptr;
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
+            // Target the window that owns this figure so multi-window captures
+            // read the correct swapchain image.
+            WindowContext* target_wctx = nullptr;
+            if (rt.window_mgr)
             {
-                if (wctx->active_figure_id == rt.frame_state.active_figure_id)
+                const FigureId export_id = rt.frame_state.active_figure_id;
+                for (auto* wctx : rt.window_mgr->windows())
                 {
-                    target_wctx = wctx;
-                    break;
+                    const auto& figs = wctx->assigned_figures;
+                    if (std::find(figs.begin(), figs.end(), export_id) != figs.end())
+                    {
+                        target_wctx = wctx;
+                        break;
+                    }
                 }
             }
-        }
-        if (target_wctx)
-            vk->request_framebuffer_capture(cap.pixels.data(), ew, eh, target_wctx);
-        else
+            if (target_wctx)
+                vk->request_framebuffer_capture(cap.pixels.data(), ew, eh, target_wctx);
+            else
 #endif
-            if (vk)
-            vk->request_framebuffer_capture(cap.pixels.data(), ew, eh);
+                if (vk)
+                vk->request_framebuffer_capture(cap.pixels.data(), ew, eh);
 
-        rt.active_figure->export_req_.png_path.clear();
-        rt.active_figure->export_req_.png_width         = 0;
-        rt.active_figure->export_req_.png_height        = 0;
-        rt.active_figure->export_req_.copy_to_clipboard = false;
+            rt.active_figure->export_req_.png_path.clear();
+            rt.active_figure->export_req_.png_width         = 0;
+            rt.active_figure->export_req_.png_height        = 0;
+            rt.active_figure->export_req_.copy_to_clipboard = false;
+        }
     }
 
     // Check animation duration termination

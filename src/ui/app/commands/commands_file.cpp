@@ -87,7 +87,7 @@ std::vector<CommandDescriptor> make_file_commands(CommandContext& ctx)
                     static_cast<uint16_t>(ui::Icon::Copy),
                     [&]()
                     {
-                        if (!active_figure)
+                        if (!active_figure || !registry.get(registry.find_id(active_figure)))
                             return;
                         active_figure->copy_to_clipboard();
                     }});

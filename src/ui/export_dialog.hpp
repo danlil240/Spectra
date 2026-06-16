@@ -7,6 +7,8 @@
 
 #include <spectra/logger.hpp>
 
+#include "ui/native_dialog_policy.hpp"
+
 #ifndef _WIN32
     #include <fcntl.h>
     #include <sys/wait.h>
@@ -52,6 +54,12 @@ inline std::optional<std::string> ask_export_path(const char*        title,
             base += '/';
     }
     std::string default_path = base + default_name;
+
+    if (!native_dialogs_enabled())
+    {
+        SPECTRA_LOG_INFO("export", "Native save dialog suppressed (automation mode)");
+        return std::nullopt;
+    }
 
     SPECTRA_LOG_INFO("export", "Opening save dialog: title='{}' default='{}'", title, default_path);
 

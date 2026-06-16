@@ -7,6 +7,7 @@
 #include <spectra/axes3d.hpp>
 #include <spectra/camera.hpp>
 #include <spectra/figure.hpp>
+#include <spectra/logger.hpp>
 #include <spectra/series.hpp>
 #include <spectra/series3d.hpp>
 #include <spectra/series_stats.hpp>
@@ -14,6 +15,7 @@
 #include "overlay_snapshot.hpp"
 
 #include "../dialog_env_guard.hpp"
+#include "../native_dialog_policy.hpp"
 #include "../../../third_party/tinyfiledialogs.h"
 
 namespace spectra
@@ -1340,6 +1342,12 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
 
 bool FigureSerializer::save_with_dialog(const Figure& figure, const OverlaySnapshot* overlay)
 {
+    if (!native_dialogs_enabled())
+    {
+        SPECTRA_LOG_INFO("figure_serializer", "Save figure dialog suppressed (automation mode)");
+        return false;
+    }
+
     DialogEnvGuard env_guard;
 
     char const* filter_patterns[] = {"*.spectra"};
@@ -1360,6 +1368,12 @@ bool FigureSerializer::save_with_dialog(const Figure& figure, const OverlaySnaps
 
 bool FigureSerializer::load_with_dialog(Figure& figure, OverlaySnapshot* overlay)
 {
+    if (!native_dialogs_enabled())
+    {
+        SPECTRA_LOG_INFO("figure_serializer", "Load figure dialog suppressed (automation mode)");
+        return false;
+    }
+
     DialogEnvGuard env_guard;
 
     char const* filter_patterns[] = {"*.spectra"};

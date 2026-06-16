@@ -149,6 +149,44 @@ TEST(ShellMenuBar, RebindReplacesPanelsSubmenu)
     }
     EXPECT_EQ(panels_count, 1u);
 }
+
+TEST(ShellMenuBar, ToImguiMenuItemsFlattensSubmenusAndDisabled)
+{
+    bool enabled_clicked = false;
+    bool sub_clicked     = false;
+
+    MenuAction parent;
+    parent.label = "Parent";
+    parent.submenu.push_back({.label = "Sub One", .on_click = [&]() { sub_clicked = true; }});
+    parent.submenu.push_back({.separator = true});
+    parent.submenu.push_back({.label = "Sub Disabled", .enabled = []() { return false; }});
+
+    MenuAction top;
+    top.label    = "Top";
+    top.on_click = [&]() { enabled_clicked = true; };
+
+    MenuAction disabled;
+    disabled.label   = "Disabled Top";
+    disabled.enabled = []() { return false; };
+
+    const auto items = to_imgui_menu_items({top, parent, disabled});
+    ASSERT_EQ(items.size(), 5u);
+    EXPECT_EQ(items[0].label, "Top");
+    EXPECT_TRUE(items[0].callback);
+    EXPECT_EQ(items[1].label, "Sub One");
+    EXPECT_TRUE(items[1].callback);
+    EXPECT_TRUE(items[2].label.empty());
+    EXPECT_FALSE(items[2].callback);
+    EXPECT_EQ(items[3].label, "Sub Disabled");
+    EXPECT_FALSE(items[3].callback);
+    EXPECT_EQ(items[4].label, "Disabled Top");
+    EXPECT_FALSE(items[4].callback);
+
+    items[0].callback();
+    EXPECT_TRUE(enabled_clicked);
+    items[1].callback();
+    EXPECT_TRUE(sub_clicked);
+}
 #else
     #include <gtest/gtest.h>
 TEST(ShellMenuBar, SkippedWithoutImGui)

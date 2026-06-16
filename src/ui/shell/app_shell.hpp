@@ -12,6 +12,7 @@
 namespace spectra
 {
 class LayoutManager;
+class ImGuiIntegration;
 }
 
 namespace spectra::ui::shell
@@ -39,13 +40,19 @@ class AppShell
     void                    set_layout_manager(spectra::LayoutManager* lm);
     spectra::LayoutManager* layout_manager() const;
 
+    // Bind Vision chrome helpers (command bar, nav rail styling). Optional.
+    void set_chrome_integration(spectra::ImGuiIntegration* imgui);
+    spectra::ImGuiIntegration* chrome_integration() const { return imgui_chrome_; }
+
     void initialize();
     void draw_frame();
 
     bool is_initialized() const { return initialized_; }
 
-    PanelRegistry& panels();
-    NavRail&       nav_rail();
+    PanelRegistry&       panels();
+    const PanelRegistry& panels() const;
+    NavRail&             nav_rail();
+    const NavRail&       nav_rail() const;
     MenuBar&       menu_bar();
     StatusBar&     status_bar();
     CanvasHost&    canvas_host();
@@ -65,6 +72,10 @@ class AppShell
     void draw_dockspace();
     void draw_canvas_host_window();
 
+    void request_dock_layout_reset() { dock_layout_initialized_ = false; }
+    void set_dock_layout_initialized(bool v) { dock_layout_initialized_ = v; }
+    bool dock_layout_initialized() const { return dock_layout_initialized_; }
+
     AppShellConfig              config_;
     PanelRegistry               panels_;
     NavRail                     nav_rail_;
@@ -72,6 +83,7 @@ class AppShell
     StatusBar                   status_bar_;
     std::unique_ptr<CanvasHost> canvas_host_;
     spectra::LayoutManager*     layout_manager_          = nullptr;
+    spectra::ImGuiIntegration*  imgui_chrome_            = nullptr;
     bool                        initialized_             = false;
     bool                        dock_layout_initialized_ = false;
     unsigned int                dockspace_id_            = 0;

@@ -5,6 +5,8 @@
     #include <format>
 
     #include "../topics/topics_panel.hpp"
+    #include "ui/shell/spectra_app_shell.hpp"
+    #include "ui/shell/status_bar.hpp"
     #include "ui/theme/glass_draw.hpp"
 
 namespace spectra
@@ -68,6 +70,18 @@ void ImGuiIntegration::draw_tab_bar()
 }
 
 void ImGuiIntegration::draw_canvas(Figure& figure)
+{
+    if (app_shell_)
+    {
+        app_shell_->ensure_initialized();
+        app_shell_->set_current_figure(&figure);
+        app_shell_->spectra_canvas_host().draw();
+        return;
+    }
+    draw_canvas_content(figure);
+}
+
+void ImGuiIntegration::draw_canvas_content(Figure& figure)
 {
     if (!layout_manager_)
         return;
@@ -761,68 +775,46 @@ void ImGuiIntegration::draw_status_bar()
     if (!layout_manager_)
         return;
 
-    Rect bounds = layout_manager_->status_bar_rect();
-    ImGui::SetNextWindowPos(ImVec2(bounds.x, bounds.y));
-    ImGui::SetNextWindowSize(ImVec2(bounds.w, bounds.h));
-
-    ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove
-                             | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings
-                             | ImGuiWindowFlags_NoBringToFrontOnFocus
-                             | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoBackground;
-
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
-                        ImVec2(ui::tokens::STATUS_BAR_PADDING_H, 0.0f));
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
-    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0, 0, 0, 0));
-    ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0, 0, 0, 0));
-
-    if (ImGui::Begin("##statusbar", nullptr, flags))
+    if (app_shell_)
     {
-        // ── Status bar surface — theme bg_primary, subtle top hairline ──
-        {
-            const auto& colors = theme_colors();
-            ImDrawList* bar_dl = ImGui::GetWindowDrawList();
-            ImVec2      wpos   = ImGui::GetWindowPos();
-            ImVec2      wsz    = ImGui::GetWindowSize();
-            ImVec2      wmax(wpos.x + wsz.x, wpos.y + wsz.y);
+        app_shell_->draw_status_bar();
+        return;
+    }
 
-            bar_dl->AddRectFilled(
-                wpos,
-                wmax,
-                IM_COL32(static_cast<uint8_t>(colors.bg_primary.r * 255),
-                         static_cast<uint8_t>(colors.bg_primary.g * 255),
-                         static_cast<uint8_t>(colors.bg_primary.b * 255),
-                         255));
+    ui::shell::StatusBar bar;
+    bar.set_layout_manager(layout_manager_.get());
+    populate_status_bar(bar);
+    bar.draw();
+}
 
-            bar_dl->AddLine(
-                wpos,
-                ImVec2(wmax.x, wpos.y),
-                IM_COL32(static_cast<uint8_t>(colors.border_subtle.r * 255),
-                         static_cast<uint8_t>(colors.border_subtle.g * 255),
-                         static_cast<uint8_t>(colors.border_subtle.b * 255),
-                         70),
-                1.0f);
-        }
+void ImGuiIntegration::populate_status_bar(ui::shell::StatusBar& bar)
+{
+    if (!layout_manager_)
+        return;
 
-        ImGuiIO& io = ImGui::GetIO();
+    bar.clear();
+    bar.set_layout_manager(layout_manager_.get());
+
+    const auto& colors = theme_colors();
+    ImDrawList* dl     = nullptr;
+
+    bar.add_segment({.align = ui::shell::StatusAlign::Left,
+                     .draw_fn = [this, &colors, &dl]()
+                     {
         ImGui::PushFont(font_heading_);
 
-        const auto& colors = theme_colors();
-        ImDrawList* dl     = ImGui::GetWindowDrawList();
-
-        const float bar_h       = bounds.h;
+        const float bar_h       = layout_manager_->status_bar_rect().h;
         const float text_h      = ImGui::GetTextLineHeight();
         const float pill_h      = ui::tokens::STATUS_BAR_PILL_HEIGHT;
         const float pill_pad_h  = ui::tokens::STATUS_BAR_PILL_PAD_H;
         const float pill_pad_v  = ui::tokens::STATUS_BAR_PILL_PAD_V;
         const float pill_radius = ui::tokens::STATUS_BAR_PILL_RADIUS;
 
-        // Vertically center the pill row.
         float y_offset = (bar_h - pill_h) * 0.5f;
         ImGui::SetCursorPosY(y_offset + (pill_h - text_h) * 0.5f);
 
-        // Helper: draw a clean status pill with consistent padding/radius/border.
+        dl = ImGui::GetWindowDrawList();
+
         auto draw_pill = [&](const char*      label,
                              const ui::Color& text_col,
                              const ui::Color& bg_col,
@@ -863,7 +855,6 @@ void ImGuiIntegration::draw_status_bar()
             ImGui::PopStyleColor();
         };
 
-        // Left: cursor data readout
         {
             const std::string cursor_buf =
                 cursor_data_valid_
@@ -872,7 +863,6 @@ void ImGuiIntegration::draw_status_bar()
             draw_pill(cursor_buf.c_str(), colors.text_secondary, colors.bg_tertiary, 0.32f, colors.border_subtle);
         }
 
-        // Center group: mode + zoom.
         ImGui::SameLine(0.0f, ui::tokens::STATUS_BAR_GROUP_GAP);
         {
             const char* mode_label = "Navigate";
@@ -926,7 +916,20 @@ void ImGuiIntegration::draw_status_bar()
             draw_pill(zoom_buf.c_str(), colors.text_secondary, colors.bg_tertiary, 0.24f, colors.border_subtle);
         }
 
-        // Right side: FPS badge + plain GPU readout (Vision.png).
+        ImGui::PopFont();
+                     }});
+
+    bar.add_segment({.align = ui::shell::StatusAlign::Right,
+                     .draw_fn = [this, &colors]()
+                     {
+        ImGuiIO& io = ImGui::GetIO();
+        ImGui::PushFont(font_heading_);
+
+        const float bar_h       = layout_manager_->status_bar_rect().h;
+        const float text_h      = ImGui::GetTextLineHeight();
+        const float pill_h      = ui::tokens::STATUS_BAR_PILL_HEIGHT;
+        const float pill_radius = ui::tokens::STATUS_BAR_PILL_RADIUS;
+
         const std::string fps_buf = std::format("{} fps", static_cast<int>(io.Framerate));
         const std::string gpu_buf = std::format("GPU: {:.1f}ms", gpu_time_ms_);
         const float       perf_gap   = ui::tokens::STATUS_BAR_PERF_GAP;
@@ -937,67 +940,69 @@ void ImGuiIntegration::draw_status_bar()
         const float right_x    = ImGui::GetWindowWidth() - right_w - ui::tokens::STATUS_BAR_PADDING_H;
         const float center_end = ImGui::GetCursorPosX();
         const bool  show_perf  = right_x > center_end + ui::tokens::SPACE_3;
-        if (show_perf)
+        if (!show_perf)
         {
-            ImGui::SameLine();
-            ImGui::SetCursorPosX(right_x);
+            ImGui::PopFont();
+            return;
+        }
 
-            // FPS badge — green capsule on night, neutral success pill on dark/light.
-            {
-                ImVec2      text_sz  = ImGui::CalcTextSize(fps_buf.c_str());
-                ImVec2      cursor_p = ImGui::GetCursorScreenPos();
-                ImVec2      pill_min(cursor_p.x - fps_pad_h,
-                                cursor_p.y - (pill_h - text_h) * 0.5f - fps_pad_v);
-                ImVec2      pill_max(cursor_p.x + text_sz.x + fps_pad_h,
-                                cursor_p.y + text_h + (pill_h - text_h) * 0.5f + fps_pad_v);
-                const float glow =
-                    theme_mgr_ ? theme_mgr_->effective_glow_intensity() : 0.0f;
-                const ui::Color& fps_fill =
-                    glow > 0.01f ? ui::glass_palette::kFpsPillGreen : colors.bg_tertiary;
-                const ui::Color& fps_border =
-                    glow > 0.01f ? ui::glass_palette::kFpsPillBorder : colors.border_subtle;
-                const ui::Color& fps_text =
-                    glow > 0.01f ? ui::glass_palette::kFpsPillText : colors.success;
+        ImGui::SameLine();
+        ImGui::SetCursorPosX(right_x);
 
-                dl->AddRectFilled(pill_min,
-                                  pill_max,
-                                  IM_COL32(static_cast<uint8_t>(fps_fill.r * 255),
-                                           static_cast<uint8_t>(fps_fill.g * 255),
-                                           static_cast<uint8_t>(fps_fill.b * 255),
-                                           255),
-                                  pill_radius);
-                dl->AddRect(pill_min,
-                            pill_max,
-                            IM_COL32(static_cast<uint8_t>(fps_border.r * 255),
-                                     static_cast<uint8_t>(fps_border.g * 255),
-                                     static_cast<uint8_t>(fps_border.b * 255),
-                                     235),
-                            pill_radius,
-                            0,
-                            1.0f);
-                ImGui::PushStyleColor(ImGuiCol_Text,
-                                      ImVec4(fps_text.r, fps_text.g, fps_text.b, 1.0f));
-                ImGui::TextUnformatted(fps_buf.c_str());
-                ImGui::PopStyleColor();
-            }
+        ImDrawList* dl = ImGui::GetWindowDrawList();
 
-            ImGui::SameLine(0.0f, perf_gap);
-            const ui::Color& gpu_text =
-                (theme_mgr_ && theme_mgr_->effective_glow_intensity() > 0.01f)
-                    ? ui::glass_palette::kStatusGpuText
-                    : colors.text_tertiary;
+        {
+            ImVec2      text_sz  = ImGui::CalcTextSize(fps_buf.c_str());
+            ImVec2      cursor_p = ImGui::GetCursorScreenPos();
+            ImVec2      pill_min(cursor_p.x - fps_pad_h,
+                            cursor_p.y - (pill_h - text_h) * 0.5f - fps_pad_v);
+            ImVec2      pill_max(cursor_p.x + text_sz.x + fps_pad_h,
+                            cursor_p.y + text_h + (pill_h - text_h) * 0.5f + fps_pad_v);
+            const float glow =
+                theme_mgr_ ? theme_mgr_->effective_glow_intensity() : 0.0f;
+            const ui::Color& fps_fill =
+                glow > 0.01f ? ui::glass_palette::kFpsPillGreen : colors.bg_tertiary;
+            const ui::Color& fps_border =
+                glow > 0.01f ? ui::glass_palette::kFpsPillBorder : colors.border_subtle;
+            const ui::Color& fps_text =
+                glow > 0.01f ? ui::glass_palette::kFpsPillText : colors.success;
+
+            dl->AddRectFilled(pill_min,
+                              pill_max,
+                              IM_COL32(static_cast<uint8_t>(fps_fill.r * 255),
+                                       static_cast<uint8_t>(fps_fill.g * 255),
+                                       static_cast<uint8_t>(fps_fill.b * 255),
+                                       255),
+                              pill_radius);
+            dl->AddRect(pill_min,
+                        pill_max,
+                        IM_COL32(static_cast<uint8_t>(fps_border.r * 255),
+                                 static_cast<uint8_t>(fps_border.g * 255),
+                                 static_cast<uint8_t>(fps_border.b * 255),
+                                 235),
+                        pill_radius,
+                        0,
+                        1.0f);
             ImGui::PushStyleColor(ImGuiCol_Text,
-                                  ImVec4(gpu_text.r, gpu_text.g, gpu_text.b, 1.0f));
-            ImGui::TextUnformatted(gpu_buf.c_str());
+                                  ImVec4(fps_text.r, fps_text.g, fps_text.b, 1.0f));
+            ImGui::TextUnformatted(fps_buf.c_str());
             ImGui::PopStyleColor();
         }
 
+        ImGui::SameLine(0.0f, perf_gap);
+        const ui::Color& gpu_text =
+            (theme_mgr_ && theme_mgr_->effective_glow_intensity() > 0.01f)
+                ? ui::glass_palette::kStatusGpuText
+                : colors.text_tertiary;
+        ImGui::PushStyleColor(ImGuiCol_Text,
+                              ImVec4(gpu_text.r, gpu_text.g, gpu_text.b, 1.0f));
+        ImGui::TextUnformatted(gpu_buf.c_str());
+        ImGui::PopStyleColor();
+
         ImGui::PopFont();
-    }
-    ImGui::End();
-    ImGui::PopStyleColor(2);
-    ImGui::PopStyleVar(3);
+                     }});
 }
+
 
 void ImGuiIntegration::draw_split_view_splitters()
 {

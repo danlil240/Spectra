@@ -6,6 +6,8 @@
     #include <string_view>
     #include <vector>
 
+    #include "ui/imgui/imgui_integration.hpp"
+
 namespace spectra::ui::shell
 {
 struct MenuAction
@@ -53,10 +55,26 @@ class MenuBar
                              std::string_view top_level     = "View",
                              std::string_view submenu_label = "Panels");
 
+    // Renders top-level menus in the current ImGui window (command bar style).
+    // Each menu is passed to draw_fn for custom rendering (e.g. hover-switch popups).
+    void draw_inline(
+        const std::function<void(const char* label, const std::vector<MenuAction>& items)>& draw_fn)
+        const;
+
+    void set_trailing_draw(std::function<void()> fn);
+
+    // Vision command-bar frame + inline menus (requires bound ImGuiIntegration).
+    void draw_command_bar(spectra::ImGuiIntegration* imgui);
+
     void draw();
 
    private:
-    std::deque<Menu> menus_;
+    std::deque<Menu>        menus_;
+    std::function<void()>   trailing_draw_;
 };
+
+// Shared converter for Vision command-bar menu rendering.
+std::vector<spectra::ImGuiIntegration::MenuItem> to_imgui_menu_items(
+    const std::vector<MenuAction>& actions);
 }   // namespace spectra::ui::shell
 #endif   // SPECTRA_USE_IMGUI

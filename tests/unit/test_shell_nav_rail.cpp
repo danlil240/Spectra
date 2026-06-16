@@ -176,6 +176,35 @@ TEST(ShellNavRail, ExpandedAndSearchEnabledRoundTrip)
     EXPECT_FALSE(rail.expanded());
     EXPECT_FALSE(rail.search_enabled());
 }
+
+TEST(ShellNavRail, CuratedModeOmitsRegistryPanels)
+{
+    PanelRegistry reg;
+    reg.add(make_panel("t1", "Topic One", "Topics"));
+    reg.add(make_panel("p1", "Plot One", "Plots"));
+    reg.add(make_panel("t2", "Topic Two", "Topics"));
+
+    NavItem custom;
+    custom.id    = "custom.action";
+    custom.label = "Custom";
+    custom.icon  = Icon::Home;
+
+    NavRail rail(&reg);
+    rail.add_custom_item(custom);
+    rail.set_show_registry_panels(false);
+
+    std::vector<NavItem> items;
+    rail.build_items(items);
+
+    ASSERT_EQ(items.size(), 1u);
+    EXPECT_EQ(items[0].id, "custom.action");
+    EXPECT_FALSE(items[0].is_section_header);
+
+    rail.set_show_registry_panels(true);
+    items.clear();
+    rail.build_items(items);
+    EXPECT_EQ(items.size(), 6u);
+}
 #else
     #include <gtest/gtest.h>
 TEST(ShellNavRail, SkippedWithoutImGui)

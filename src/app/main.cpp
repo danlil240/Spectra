@@ -9,6 +9,8 @@
 #include <spectra/app.hpp>
 #include <spectra/logger.hpp>
 
+#include "ui/native_dialog_policy.hpp"
+
 #if __has_include(<spectra/version.hpp>)
     #include <spectra/version.hpp>
 #endif
@@ -171,6 +173,8 @@ bool maybe_attach_to_running_daemon()
 
 int main(int argc, char* argv[])
 {
+    spectra::init_native_dialog_policy(argc, argv);
+
     for (int i = 1; i < argc; ++i)
     {
         if (std::strcmp(argv[i], "--version") == 0 || std::strcmp(argv[i], "-v") == 0)
@@ -189,12 +193,16 @@ int main(int argc, char* argv[])
                       << "GPU-accelerated scientific plotting application.\n"
                       << "\n"
                       << "Options:\n"
+                      << "  --no-native-dialogs\n"
+                      << "                   Suppress native OS file dialogs (automation / fuzz).\n"
                       << "  --version, -v    Print version and exit\n"
                       << "  --help, -h       Show this help\n"
                       << "\n"
                       << "Environment:\n"
                       << "  SPECTRA_NO_DAEMON_DISCOVERY=1   Stay in-process even if a\n"
-                      << "                                  Spectra daemon is running.\n";
+                      << "                                  Spectra daemon is running.\n"
+                      << "  SPECTRA_NO_NATIVE_DIALOGS=1     Suppress native file dialogs.\n"
+                      << "  SPECTRA_AUTOMATION=1            Alias for SPECTRA_NO_NATIVE_DIALOGS.\n";
             return 0;
         }
     }

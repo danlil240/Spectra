@@ -59,7 +59,12 @@ std::vector<CommandDescriptor> make_figure_commands(CommandContext& ctx)
                         std::to_string(i + 1),
                         "Figure",
                         0,
-                        [&fig_mgr, i]() { fig_mgr.queue_switch(static_cast<size_t>(i)); }});
+                        [&fig_mgr, i]()
+                        {
+                            const auto& ids = fig_mgr.figure_ids();
+                            if (static_cast<size_t>(i) < ids.size())
+                                fig_mgr.queue_switch(ids[static_cast<size_t>(i)]);
+                        }});
     }
 
     cmds.push_back({"figure.next_tab",

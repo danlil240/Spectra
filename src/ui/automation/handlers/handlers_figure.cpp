@@ -49,7 +49,10 @@ std::vector<AutomationHandlerEntry> make_figure_handlers()
             if (ui_ctx && ui_ctx->fig_mgr)
                 active_id = ui_ctx->fig_mgr->active_index();
 #endif
-            oss << ",\"active_figure_id\":" << active_id;
+            if (active_id == INVALID_FIGURE_ID)
+                oss << ",\"active_figure_id\":null";
+            else
+                oss << ",\"active_figure_id\":" << active_id;
 
             oss << ",\"figures\":[";
             for (size_t i = 0; i < ids.size(); ++i)

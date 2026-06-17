@@ -1,6 +1,6 @@
 # Spectra QA Agent — Capability Gaps & Backlog
 
-**Last updated:** 2026-06-16
+**Last updated:** 2026-06-17
 
 ---
 
@@ -12,10 +12,20 @@
 **Impact:** Export and clipboard unusable after stress; MCP session dies; blocks full command coverage.  
 **Suggested fix:** ASan repro: `fuzz_reset seed=42` → 50 steps → `file.copy_to_clipboard`; audit export with detached figures / multi-window state; handle missing `xclip` without crashing.
 
-### G-10 — MCP fuzz skip list incomplete for side-effect commands
+### G-10 — Side-effect commands not suppressed in automation mode (partial fix)
 
-**Observed:** `help.show`, `data.export_html_table`, `accessibility.sonify_series` execute during fuzz ExecuteCommand hits — write `spectra_sonify.wav`, `spectra_data.html`, open browser (zygote broken pipe in stderr).  
-**Suggested fix:** Denylist in `handlers_fuzz.cpp` ExecuteCommand path; no-op stubs when `SPECTRA_AUTOMATION=1`; sync with fuzz agent skip list.
+**Observed 2026-06-17:** `handlers_fuzz.cpp` denylist now skips `help.show`, `data.export_html_table`, `accessibility.sonify_series` on fuzz ExecuteCommand — but direct `execute_command` and command exhaustion still run them. `data.export_html_table` writes `spectra_data.html`; `help.show` forks `xdg-open` with `SPECTRA_NO_NATIVE_DIALOGS=1`. Skipped fuzz hits log only `kind=fuzz id=ExecuteCommand` (no `result=skipped` audit).  
+**Suggested fix:** No-op stubs in command handlers when `!native_dialogs_enabled()`; log `kind=command id=<cmd> result=skipped`; extend `py_fuzz.py` SKIP for exhaustion.
+
+### G-13 — Fuzz input actions bypass ImGui IO
+
+**Observed 2026-06-17:** Fuzz `MouseClick`, `KeyPress`, `MouseScroll` in `handlers_fuzz.cpp` use `input_handler` only. MCP `mouse_click` injects ImGui IO (`handlers_input.cpp`). Fuzz clicks/scrolls miss menus, panels, and scrollable widgets.  
+**Suggested fix:** Share ImGui injection helper between MCP and fuzz handlers.
+
+### G-14 — py_fuzz false-positive on skipped_command ui.action
+
+**Observed 2026-06-17:** Harness warns when `details.skipped_command` is set but no `kind=command` log appears — expected for denied commands. 11 false WARNINGs in 600-step run.  
+**Suggested fix:** Only check `command_id` (not `skipped_command`); or require product to emit `result=skipped` log.
 
 ### G-12 — `list_commands` returns disabled/stale command IDs
 

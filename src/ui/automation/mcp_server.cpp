@@ -19,6 +19,7 @@
 
 #ifndef _WIN32
     #include <arpa/inet.h>
+    #include <fcntl.h>
     #include <netinet/in.h>
     #include <poll.h>
     #include <sys/socket.h>
@@ -44,7 +45,7 @@ struct ToolSpec
     const char* automation_method;
 };
 
-constexpr std::array<ToolSpec, 26> kTools = {{
+constexpr std::array<ToolSpec, 28> kTools = {{
     {"ping",
      "Ping the Spectra application to verify the connection is alive.",
      R"json({"type":"object","properties":{},"additionalProperties":false})json",
@@ -57,6 +58,10 @@ constexpr std::array<ToolSpec, 26> kTools = {{
      "List all registered UI commands in the Spectra application.",
      R"json({"type":"object","properties":{},"additionalProperties":false})json",
      "list_commands"},
+    {"list_menus",
+     "List top-level menu bar entries and their actionable items.",
+     R"json({"type":"object","properties":{},"additionalProperties":false})json",
+     "list_menus"},
     {"execute_command",
      "Execute a registered Spectra UI command by its ID.",
      R"json({"type":"object","properties":{"command_id":{"type":"string","description":"The command ID to execute."}},"required":["command_id"],"additionalProperties":false})json",
@@ -152,6 +157,10 @@ constexpr std::array<ToolSpec, 26> kTools = {{
      "List all automation methods with metadata (parameters and context requirements).",
      R"json({"type":"object","properties":{},"additionalProperties":false})json",
      "list_methods"},
+    {"dismiss_ui_capture",
+     "Cancel tab drag, dock drag, and open menus so automation is not stuck in drag mode.",
+     R"json({"type":"object","properties":{},"additionalProperties":false})json",
+     "dismiss_ui_capture"},
 }};
 
 std::string json_escape(const std::string& s)
@@ -543,6 +552,10 @@ bool McpServer::start(AutomationServer& automation, const std::string& bind_host
         SPECTRA_LOG_ERROR("mcp", "socket(): " + std::string(std::strerror(errno)));
         return false;
     }
+
+    const int cloexec_flags = ::fcntl(listen_fd_, F_GETFD);
+    if (cloexec_flags >= 0)
+        ::fcntl(listen_fd_, F_SETFD, cloexec_flags | FD_CLOEXEC);
 
     int reuse_addr = 1;
     ::setsockopt(listen_fd_, SOL_SOCKET, SO_REUSEADDR, &reuse_addr, sizeof(reuse_addr));

@@ -146,6 +146,19 @@ void SpectraNavRail::build_items(std::vector<NavItem>& out) const
 
     NavRail::build_items(out);
 
+    if (auto* shell = imgui_->app_shell())
+    {
+        for (NavItem& item : out)
+        {
+            if (item.is_section_header || item.id.empty() || item.id.rfind("core.", 0) != 0)
+                continue;
+            const std::string panel_id = item.id;
+            item.is_active             = [shell, panel_id]()
+            { return shell->panel_visible(panel_id); };
+            item.on_click = [shell, panel_id]() { shell->toggle_panel(panel_id); };
+        }
+    }
+
     NavItem help;
     help.icon    = Icon::Help;
     help.label   = "Help";

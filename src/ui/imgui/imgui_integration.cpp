@@ -28,6 +28,7 @@
     #include "spectra_icon_embedded.hpp"
 
     #include "ui/theme/glass_draw.hpp"
+    #include "ui/ui_interaction_log.hpp"
 
     #include "../../../third_party/tinyfiledialogs.h"
     #include "../dialog_env_guard.hpp"
@@ -1006,6 +1007,8 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
         ImGuiIO& io = ImGui::GetIO();
         command_palette_->draw(io.DisplaySize.x, io.DisplaySize.y);
     }
+
+    ui::log_imgui_frame_activations();
 }
 
 void ImGuiIntegration::build_empty_ui()

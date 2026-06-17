@@ -8,11 +8,49 @@
 #include "ui/app/session_runtime.hpp"
 #include "ui/app/window_ui_context.hpp"
 #include "ui/commands/command_registry.hpp"
+#include "ui/shell/menu_bar.hpp"
 
 #include <sstream>
 
 namespace spectra
 {
+
+#ifdef SPECTRA_USE_IMGUI
+namespace
+{
+void append_menu_actions_json(std::ostringstream& oss,
+                              const std::vector<ui::shell::MenuAction>& actions,
+                              bool&                                     first)
+{
+    for (const ui::shell::MenuAction& action : actions)
+    {
+        if (action.separator)
+        {
+            if (!first)
+                oss << ",";
+            first = false;
+            oss << R"({"separator":true})";
+            continue;
+        }
+        if (!action.submenu.empty())
+        {
+            append_menu_actions_json(oss, action.submenu, first);
+            continue;
+        }
+        if (action.label.empty() || action.label.rfind("##", 0) == 0)
+            continue;
+        if (!first)
+            oss << ",";
+        first = false;
+        const bool enabled = !action.enabled || action.enabled();
+        const bool checkable = static_cast<bool>(action.checked);
+        oss << R"({"label":")" << json_escape(action.label) << R"(","enabled":)"
+            << (enabled ? "true" : "false") << R"(,"checkable":)" << (checkable ? "true" : "false")
+            << "}";
+    }
+}
+}   // namespace
+#endif
 
 std::vector<AutomationHandlerEntry> make_command_handlers()
 {
@@ -60,6 +98,38 @@ std::vector<AutomationHandlerEntry> make_command_handlers()
             }
             oss << "]";
             req.response_json = json_ok(req.id, "{\"commands\":" + oss.str() + "}");
+        }));
+
+    entries.push_back(automation_handler(
+        "list_menus",
+        "List top-level menu bar entries and their actionable items.",
+        AutomationContextFlag::ImGui,
+        {},
+        [](AutomationRequest& req, App* /*app*/, WindowUIContext* ui_ctx)
+        {
+            if (!ui_ctx->app_shell)
+            {
+                req.response_json = json_error(req.id, "App shell not available");
+                return;
+            }
+            ui_ctx->app_shell->sync_before_frame();
+            ui::shell::MenuBar& bar = ui_ctx->app_shell->menu_bar();
+            std::ostringstream        oss;
+            oss << R"({"menus":[)";
+            bool first_menu = true;
+            for (const std::string& menu_name : bar.menu_names())
+            {
+                const ui::shell::Menu& menu = bar.menu(menu_name);
+                if (!first_menu)
+                    oss << ",";
+                first_menu = false;
+                oss << R"({"name":")" << json_escape(menu_name) << R"(","items":[)";
+                bool first_item = true;
+                append_menu_actions_json(oss, menu.items(), first_item);
+                oss << "]}";
+            }
+            oss << "]}";
+            req.response_json = json_ok(req.id, oss.str());
         }));
 
 #else

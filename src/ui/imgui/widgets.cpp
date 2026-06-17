@@ -12,6 +12,7 @@
     #include <unordered_map>
 
     #include "ui/theme/icons.hpp"
+    #include "ui/ui_interaction_log.hpp"
 
 namespace spectra::ui::widgets
 {
@@ -83,6 +84,7 @@ bool section_header(const char* label, bool* open, ImFont* font)
         ImGui::Selectable("##hdr", false, ImGuiSelectableFlags_None, ImVec2(avail, hdr_h));
     if (clicked && open)
     {
+        log_ui_action("widget", label, "ok", "section_header");
         *open = !*open;
         // Update animation target
         auto& anim       = get_section_anim(label);
@@ -267,6 +269,7 @@ bool color_field(const char* label, spectra::Color& color)
     // Invisible button for interaction
     if (ImGui::InvisibleButton("##swatch", ImVec2(swatch_sz, swatch_sz)))
     {
+        log_ui_action("widget", label, "ok", "color_swatch");
         ImGui::OpenPopup("##color_popover");
     }
 
@@ -586,6 +589,8 @@ bool checkbox_field(const char* label, bool& value)
                           ImVec4(c.accent.r, c.accent.g, c.accent.b, c.accent.a));
 
     bool changed = ImGui::Checkbox(label, &value);
+    if (changed)
+        log_ui_action("widget", label, "ok", "checkbox");
 
     draw_focus_ring_if_needed();
 
@@ -622,7 +627,10 @@ bool toggle_field(const char* label, bool& value)
     // Invisible button for interaction
     bool clicked = ImGui::InvisibleButton("##toggle", ImVec2(width, height));
     if (clicked)
+    {
+        log_ui_action("widget", label, "ok", "toggle");
         value = !value;
+    }
 
     // Smooth animation: track knob position with hover system
     ImGuiID wid = ImGui::GetID("##toggle_anim");
@@ -754,6 +762,8 @@ bool button_field(const char* label)
         ImVec4(c.text_primary.r, c.text_primary.g, c.text_primary.b, c.text_primary.a));
 
     bool clicked = ImGui::Button(label, ImVec2(-1, 0));
+    if (clicked)
+        log_ui_action("widget", label, "ok", "button");
 
     ImGui::PopStyleColor(4);
     ImGui::PopStyleVar();
@@ -788,6 +798,8 @@ bool icon_button_small(const char* icon, const char* tooltip, bool active)
         ImGui::PushFont(f);
 
     bool clicked = ImGui::Button(icon, ImVec2(24, 24));
+    if (clicked)
+        log_ui_action("widget", tooltip ? tooltip : icon, "ok", "icon_button_small");
 
     if (f)
         ImGui::PopFont();
@@ -848,6 +860,8 @@ bool icon_button(const char* cmdId, ui::Icon icon, const char* tooltip, bool act
 
     const char* glyph   = icon_str(icon);
     bool        clicked = ImGui::Button(glyph, ImVec2(hitbox, hitbox));
+    if (clicked)
+        log_ui_action("widget", cmdId, "ok", "icon_button");
 
     if (f)
         ImGui::PopFont();
@@ -930,6 +944,8 @@ bool chip(const char* label, bool active)
     ImVec2 pos     = ImGui::GetCursorScreenPos();
 
     bool clicked = ImGui::InvisibleButton("##chip", ImVec2(w, h));
+    if (clicked)
+        log_ui_action("widget", label, "ok", "chip");
     bool hovered = ImGui::IsItemHovered();
 
     ImDrawList* dl = ImGui::GetWindowDrawList();

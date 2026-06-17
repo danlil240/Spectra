@@ -213,6 +213,7 @@ Logger::LogSink console_sink()
         }
 
         std::cout << color_code << format_log_entry(entry) << reset_code << std::endl;
+        std::cout.flush();
     };
 }
 

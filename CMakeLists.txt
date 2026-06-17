@@ -209,6 +209,7 @@ foreach(_ui_src
     src/ui/accessibility/sonification.cpp
     src/ui/accessibility/accessible_summary.cpp
     src/ui/native_dialog_policy.cpp
+    src/ui/ui_interaction_log.cpp
     src/ui/workspace/figure_serializer.cpp
     src/ui/commands/series_clipboard.cpp
     src/ui/overlay/data_editor.cpp

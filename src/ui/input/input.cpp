@@ -3,10 +3,12 @@
 #include <cmath>
 
 #include <algorithm>
+#include <format>
 #include <limits>
 #include <spectra/logger.hpp>
 
 #include "gesture_recognizer.hpp"
+#include "ui/ui_interaction_log.hpp"
 #include "ui/overlay/axes3d_axis_pick.hpp"
 #include "ui/animation/animation_controller.hpp"
 #include "ui/animation/transition_engine.hpp"
@@ -224,11 +226,13 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
     // Update modifier state from the authoritative GLFW mods bitmask
     mods_ = mods;
 
-    // SPECTRA_LOG_DEBUG("input",
-    //                  "Mouse button event - button: " + std::to_string(button)
-    //                      + ", action: " + std::to_string(action) + ", mods: " +
-    //                      std::to_string(mods)
-    //                      + ", pos: (" + std::to_string(x) + ", " + std::to_string(y) + ")");
+    if (action == ACTION_PRESS)
+    {
+        ui::log_ui_action("input",
+                          std::to_string(button),
+                          "ok",
+                          std::format("x={:.0f} y={:.0f}", x, y));
+    }
 
     // Validate cached axes pointers still belong to the current figure.
     // They can become dangling when figures are closed or moved between windows.

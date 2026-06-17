@@ -19,6 +19,8 @@
 
 #ifdef SPECTRA_USE_IMGUI
     #include "ui/theme/theme.hpp"
+    #include "ui/input/input.hpp"
+    #include "ui/shell/spectra_app_shell.hpp"
 #endif
 
 #include <cmath>
@@ -26,6 +28,31 @@
 
 namespace spectra
 {
+
+#ifdef SPECTRA_USE_IMGUI
+namespace
+{
+const char* tool_mode_name(ToolMode mode)
+{
+    switch (mode)
+    {
+        case ToolMode::Pan:
+            return "Pan";
+        case ToolMode::BoxZoom:
+            return "Zoom";
+        case ToolMode::Select:
+            return "Select";
+        case ToolMode::Measure:
+            return "Measure";
+        case ToolMode::Annotate:
+            return "Annotate";
+        case ToolMode::ROI:
+            return "ROI";
+    }
+    return "Unknown";
+}
+}   // namespace
+#endif
 
 std::vector<AutomationHandlerEntry> make_figure_handlers()
 {
@@ -101,6 +128,44 @@ std::vector<AutomationHandlerEntry> make_figure_handlers()
                     << R"(,"theme":")"
                     << json_escape(ui_ctx->theme_mgr ? ui_ctx->theme_mgr->current_theme_name() : "")
                     << '"';
+                if (ui_ctx->imgui_ui)
+                {
+                    auto& imgui = *ui_ctx->imgui_ui;
+                    auto& lm      = imgui.get_layout_manager();
+                    oss << R"(,"ui":{)"
+                        << R"("interaction_mode":")" << tool_mode_name(imgui.get_interaction_mode())
+                        << R"(","timeline_visible":)"
+                        << (imgui.is_timeline_visible() ? "true" : "false")
+                        << R"(,"curve_editor_visible":)"
+                        << (imgui.is_curve_editor_visible() ? "true" : "false")
+                        << R"(,"plugins_panel_visible":)"
+                        << (imgui.is_plugins_panel_visible() ? "true" : "false")
+                        << R"(,"inspector_visible":)" << (lm.is_inspector_visible() ? "true" : "false")
+                        << R"(,"nav_rail_visible":)" << (lm.is_nav_rail_visible() ? "true" : "false")
+                        << R"(,"transform_dialog_open":)"
+                        << (imgui.is_transform_dialog_open() ? "true" : "false")
+                        << R"(,"theme_settings_visible":)"
+                        << (imgui.is_theme_settings_visible() ? "true" : "false")
+                        << R"(,"tab_drag_active":)"
+                        << ((ui_ctx->tab_drag_controller.is_active() || imgui.is_tab_interacting())
+                                ? "true"
+                                : "false")
+                        << "}";
+                    if (auto* shell = imgui.app_shell())
+                    {
+                        oss << R"(,"panels":{)";
+                        bool first = true;
+                        for (const auto& [panel_id, visible] : shell->capture_panel_visibility())
+                        {
+                            if (!first)
+                                oss << ",";
+                            first = false;
+                            oss << "\"" << json_escape(panel_id) << "\":"
+                                << (visible ? "true" : "false");
+                        }
+                        oss << "}";
+                    }
+                }
             }
 #else
             (void)ui_ctx;

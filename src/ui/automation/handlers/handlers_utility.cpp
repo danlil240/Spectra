@@ -1,8 +1,13 @@
 // handlers_utility.cpp — ping, pump_frames, wait_frames handlers.
 
 #include "../automation_handler.hpp"
+#include "../automation_imgui_input.hpp"
 #include "../automation_json.hpp"
 #include "../automation_server.hpp"
+
+#include "ui/app/window_ui_context.hpp"
+
+#include <sstream>
 
 namespace spectra
 {
@@ -41,6 +46,30 @@ std::vector<AutomationHandlerEntry> make_utility_handlers()
                            {},
                            [](AutomationRequest& req, App* /*app*/, WindowUIContext* /*ui_ctx*/)
                            { req.response_json = json_ok(req.id, "{\"pong\":true}"); }));
+
+    entries.push_back(automation_handler(
+        "dismiss_ui_capture",
+        "Cancel tab drag, dock drag, and open menus so MCP clicks are not stuck in drag mode.",
+        AutomationContextFlag::UiContext,
+        {},
+        [](AutomationRequest& req, App* /*app*/, WindowUIContext* ui_ctx)
+        {
+#ifdef SPECTRA_USE_IMGUI
+            const bool tab_drag = ui_ctx->tab_drag_controller.is_active();
+            const bool pane_tab = ui_ctx->imgui_ui && ui_ctx->imgui_ui->is_tab_interacting();
+            const bool menu     = ui_ctx->imgui_ui && ui_ctx->imgui_ui->is_menu_open();
+            automation::dismiss_ui_capture(ui_ctx);
+            std::ostringstream oss;
+            oss << "{\"cleared\":{"
+                << "\"tab_drag\":" << (tab_drag ? "true" : "false") << ",\"pane_tab\":"
+                << (pane_tab ? "true" : "false") << ",\"menu\":" << (menu ? "true" : "false")
+                << "}}";
+            req.response_json = json_ok(req.id, oss.str());
+#else
+            (void)ui_ctx;
+            req.response_json = json_ok(req.id, "{\"cleared\":{}}");
+#endif
+        }));
 
     return entries;
 }

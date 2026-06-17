@@ -115,9 +115,9 @@ bool WindowManager::move_figure(FigureId figure_id, uint32_t from_window_id, uin
         // Fallback: check legacy single-figure field
         if (from_wctx->assigned_figure_index != figure_id)
         {
-            SPECTRA_LOG_WARN("window_manager",
-                             "move_figure: source window " + std::to_string(from_window_id)
-                                 + " does not have figure " + std::to_string(figure_id));
+            SPECTRA_LOG_DEBUG("window_manager",
+                              "move_figure: source window " + std::to_string(from_window_id)
+                                  + " does not have figure " + std::to_string(figure_id));
             return false;
         }
     }

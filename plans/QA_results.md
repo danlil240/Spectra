@@ -1,6 +1,6 @@
 # Spectra QA Results — Living Document
 
-**Last updated:** 2026-06-16  
+**Last updated:** 2026-06-17  
 
 **QA Agent build:** `build/tests/` (Release, QA agent + golden ON)  
 **Last sweep:** MCP fuzz hunt (`spectra-mcp-fuzzer`)
@@ -419,3 +419,52 @@ Occurred 3× during `command_exhaustion` (frame 1157 region) and fuzz phase (fra
 | MCP-C9 | CRITICAL | `spectra-ros` fuzz step 55 crash (seed 1337) — distinct from step-151 WindowDrag |
 
 **Evidence paths:** `/tmp/pyfuzz_spectra.jsonl` (200 lines), `/tmp/pyfuzz_ros.jsonl` (151 lines), `/tmp/pyfuzz_step_*.png`, `/tmp/command_probe.json`, `/tmp/spectra_deep_probe_summary.json`
+
+---
+
+## MCP Fuzz Hunt — 2026-06-17
+
+**Trigger:** `spectra-mcp-fuzzer` — 600 fuzz steps + targeted bursts, goal 10 bugs.
+
+| Gate | Status | Notes |
+|------|--------|-------|
+| Stability | ✅ | 400+200 fuzz steps, no crash; `command_probe` all ok |
+| ui.action audit | ❌ | Skipped fuzz commands lack per-command log; fuzz input paths skip ImGui IO |
+| Automation side-effects | ❌ | `help.show` opens browser; `data.export_html_table` writes cwd file in automation |
+| Visual | ✅ | Burst screenshots non-blank (`/tmp/burst_3d.png` 167 KB) |
+
+| ID | Severity | Description |
+|----|----------|-------------|
+| MCP-L1 | ERROR | Skipped fuzz ExecuteCommand logs only `kind=fuzz id=ExecuteCommand`, not per-command skip audit |
+| MCP-L2 | ERROR | `data.export_html_table` writes `spectra_data.html` with `SPECTRA_NO_NATIVE_DIALOGS=1` |
+| MCP-L3 | ERROR | `help.show` launches browser in automation mode |
+| MCP-L4 | ERROR | `accessibility.sonify_series` writes WAV without automation guard |
+| MCP-L5 | ERROR | Fuzz MouseClick/KeyPress/MouseScroll bypass ImGui IO (unlike MCP `mouse_click`) |
+| MCP-W3 | WARNING | `move_figure` ownership WARN during TabDetach fuzz |
+| MCP-W4 | WARNING | `figure.close` in command exhaustion destabilizes session |
+| MCP-W5 | WARNING | TabDetach no-op with `<2` figures returns empty details |
+
+**Repro:**
+
+```bash
+export SPECTRA_NO_NATIVE_DIALOGS=1 SPECTRA_LOG_LEVEL=debug DISPLAY=:1
+FUZZ_STEPS=400 SEED=42 python3 scripts/mcp_fuzz/py_fuzz.py spectra
+python3 scripts/mcp_fuzz/command_probe.py spectra
+```
+] Skipped fuzz ExecuteCommand lacks per-command ui.action
+When is_fuzz_denied_command skips a command, only kind=fuzz id=ExecuteCommand logs — no kind=command id=<cmd> result=skipped.
+
+Repro: FUZZ_STEPS=400 SEED=42 python3 scripts/mcp_fuzz/py_fuzz.py spectra
+Seed/steps: 42 — steps 27, 95, 115, 127, 180, 207, 240, 267; seed 1337 — steps 50, 134, 178
+Last fuzz action: ExecuteCommand (skipped: file.save_figure, help.show, etc.)
+Log: /tmp/pyfuzz_spectra.log
+2. [ERROR] data.export_html_table writes file in automation mode
+Creates spectra_data.html in cwd with SPECTRA_NO_NATIVE_DIALOGS=1.
+
+Repro: Launch with automation → execute_command {"command_id":"data.export_html_table"}
+Evidence: /tmp/sidefx_test.log, spectra_data.html
+3. [ERROR] help.show opens browser in automation mode
+No automation guard; forks xdg-open.
+
+Repro: execute_command help.show with SPECTRA_NO_NATIVE_DIALOGS=1
+Log: Opening in existing brows

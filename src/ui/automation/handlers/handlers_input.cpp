@@ -4,6 +4,8 @@
 #include "../automation_json.hpp"
 #include "../automation_server.hpp"
 
+#include <format>
+
 #include "ui/app/session_runtime.hpp"
 #include "ui/app/window_ui_context.hpp"
 #include <spectra/app.hpp>
@@ -19,8 +21,10 @@
 #endif
 
 #ifdef SPECTRA_USE_IMGUI
+    #include "../automation_imgui_input.hpp"
     #include "imgui.h"
     #include "ui/imgui/imgui_integration.hpp"
+    #include "ui/ui_interaction_log.hpp"
 #endif
 
 namespace spectra
@@ -78,24 +82,18 @@ std::vector<AutomationHandlerEntry> make_input_handlers()
                 SDL_WarpMouseInWindow(win, static_cast<float>(x), static_cast<float>(y));
 #endif
 #ifdef SPECTRA_USE_IMGUI
-            if (ui_ctx->imgui_ui)
-            {
-                ImGuiContext* prev_ctx = ImGui::GetCurrentContext();
-                ImGuiContext* win_ctx  = ui_ctx->imgui_ui->imgui_context();
-                if (win_ctx)
-                    ImGui::SetCurrentContext(win_ctx);
-                ImGuiIO& io = ImGui::GetIO();
-                io.AddMousePosEvent(static_cast<float>(x), static_cast<float>(y));
-                io.AddMouseButtonEvent(btn, true);
-                io.AddMouseButtonEvent(btn, false);
-                if (win_ctx && prev_ctx != win_ctx)
-                    ImGui::SetCurrentContext(prev_ctx);
-            }
+            automation::inject_mouse_click(ui_ctx, x, y, btn);
 #endif
             ui_ctx->input_handler.on_mouse_button(btn, 1, mod, x, y);
             ui_ctx->input_handler.on_mouse_button(btn, 0, mod, x, y);
+            ui::log_ui_action("mcp_click",
+                              std::to_string(btn),
+                              "ok",
+                              std::format("x={:.0f} y={:.0f}", x, y));
             if (auto* sess = app->session())
                 sess->redraw_tracker().mark_dirty("mouse_click");
+            if (automation::tab_drag_active(ui_ctx))
+                automation::cancel_tab_drag_capture(ui_ctx);
             req.response_json = json_ok(req.id);
         }));
 
@@ -129,6 +127,8 @@ std::vector<AutomationHandlerEntry> make_input_handlers()
                                    ui_ctx->input_handler.on_mouse_move(mx, my);
                                }
                                ui_ctx->input_handler.on_mouse_button(btn, 0, mod, x2, y2);
+                               if (automation::tab_drag_active(ui_ctx))
+                                   automation::cancel_tab_drag_capture(ui_ctx);
                                req.response_json = json_ok(req.id);
                            }));
 
@@ -144,6 +144,9 @@ std::vector<AutomationHandlerEntry> make_input_handlers()
                                double y  = json_get_number(req.params_json, "y");
                                double dx = json_get_number(req.params_json, "dx", 0.0);
                                double dy = json_get_number(req.params_json, "dy", 1.0);
+#ifdef SPECTRA_USE_IMGUI
+                               automation::inject_scroll(ui_ctx, x, y, dx, dy);
+#endif
                                ui_ctx->input_handler.on_scroll(x, y, dx, dy);
                                req.response_json = json_ok(req.id);
                            }));
@@ -157,6 +160,9 @@ std::vector<AutomationHandlerEntry> make_input_handlers()
                            {
                                int key = json_get_int(req.params_json, "key");
                                int mod = json_get_int(req.params_json, "modifiers", 0);
+#ifdef SPECTRA_USE_IMGUI
+                               automation::inject_key(ui_ctx, key, mod);
+#endif
                                ui_ctx->input_handler.on_key(key, 1, mod);
                                ui_ctx->input_handler.on_key(key, 0, mod);
                                req.response_json = json_ok(req.id);

@@ -14,11 +14,17 @@ import os
 import re
 import sys
 import urllib.request
+from pathlib import Path
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
+from ui_action_log import StderrActionTracker  # noqa: E402
 
 MCP = os.environ.get("SPECTRA_MCP_URL", "http://127.0.0.1:8765/mcp")
 ISSUES_PATH = os.environ.get(
     "SPECTRA_BUG_HUNT_ISSUES", "/tmp/spectra_bug_hunt_issues.jsonl"
 )
+FUZZ_LOG = os.environ.get("SPECTRA_FUZZ_LOG", "/tmp/pyfuzz_spectra.log")
 SEED = int(os.environ.get("SEED", "42"))
 FUZZ_STEPS = int(os.environ.get("FUZZ_STEPS", "200"))
 
@@ -95,6 +101,9 @@ def pump(count: int = 2) -> None:
 
 def main() -> int:
     open(ISSUES_PATH, "w").close()
+    tracker = StderrActionTracker(FUZZ_LOG) if Path(FUZZ_LOG).exists() else None
+    if tracker:
+        tracker.mark()
 
     for tool in ("ping", "get_state", "get_window_size", "list_commands", "list_fuzz_actions"):
         response = mcp(tool)
@@ -120,6 +129,8 @@ def main() -> int:
     pump(10)
 
     for step in range(1, FUZZ_STEPS + 1):
+        if tracker:
+            tracker.mark()
         response = mcp("fuzz_step")
         if "_error" in response:
             log_issue("CRITICAL", f"Crash at fuzz step {step}", response["_error"])
@@ -127,6 +138,14 @@ def main() -> int:
         try:
             body = json.loads(text_of(response))
             pump(int(body.get("pump_frames", 2)))
+            if tracker:
+                actions = tracker.wait_for_any_response()
+                if not actions:
+                    log_issue(
+                        "ERROR",
+                        "No ui.action after fuzz step",
+                        f"step={step} action={body.get('action', '')}",
+                    )
         except (json.JSONDecodeError, ValueError, TypeError):
             pump(2)
 
@@ -145,6 +164,8 @@ def main() -> int:
         cid = entry if isinstance(entry, str) else entry.get("id", entry.get("command_id", ""))
         if not cid or cid in SKIP_EXHAUSTION or any(x in cid for x in ("quit", "save", "load")):
             continue
+        if tracker:
+            tracker.mark()
         response = mcp("execute_command", {"command_id": cid}, timeout=15)
         if "_error" in response:
             log_issue("CRITICAL", f"Crash on command {cid}", response["_error"])
@@ -152,6 +173,8 @@ def main() -> int:
         if not ok(response):
             log_issue("WARNING", f"Command error: {cid}", text_of(response)[:200])
         pump(2)
+        if tracker and not tracker.wait_for_command_logged(cid):
+            log_issue("ERROR", "No ui.action for execute_command", cid)
 
     for cid in (
         "file.copy_to_clipboard",

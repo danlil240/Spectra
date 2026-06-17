@@ -158,6 +158,22 @@ class ImGuiIntegration
     bool is_tab_interacting() const { return pane_tab_hovered_ || pane_tab_drag_.dragging; }
     bool is_menu_open() const { return !open_menu_label_.empty(); }
 
+    // Reset pane-tab drag and dock split drag (does not close open menus).
+    void cancel_tab_drag_state()
+    {
+        pane_tab_hovered_ = false;
+        pane_tab_drag_    = PaneTabDragState{};
+        if (dock_system_)
+            dock_system_->cancel_drag();
+    }
+
+    // Reset transient UI capture state after MCP automation clicks (tab drag, open menus).
+    void dismiss_automation_capture()
+    {
+        open_menu_label_.clear();
+        cancel_tab_drag_state();
+    }
+
     // Returns the FigureId being torn off (preview card active), or INVALID_FIGURE_ID if none.
     FigureId tearoff_figure() const
     {
@@ -172,6 +188,8 @@ class ImGuiIntegration
     bool     should_reset_live_view() const { return reset_live_view_; }
     void     clear_reset_live_view() { reset_live_view_ = false; }
     ToolMode get_interaction_mode() const { return interaction_mode_; }
+    bool     is_transform_dialog_open() const { return custom_transform_dialog_.is_open(); }
+    bool     is_theme_settings_visible() const { return show_theme_settings_; }
 
     // Status bar data setters (called by app loop with real data)
     void set_cursor_data(float x, float y, bool valid)

@@ -2,10 +2,32 @@
 
 #include <algorithm>
 #include <cctype>
-#include <spectra/logger.hpp>
+
+#include "ui/native_dialog_policy.hpp"
+#include "ui/ui_interaction_log.hpp"
 
 namespace spectra
 {
+
+namespace
+{
+
+bool is_automation_side_effect_command(const std::string& id)
+{
+    static constexpr const char* kBlocked[] = {
+        "help.show",
+        "accessibility.sonify_series",
+        "data.export_html_table",
+    };
+    for (const char* blocked : kBlocked)
+    {
+        if (id == blocked)
+            return true;
+    }
+    return false;
+}
+
+}   // namespace
 
 // ─── Registration ────────────────────────────────────────────────────────────
 
@@ -46,16 +68,26 @@ bool CommandRegistry::execute(const std::string& id)
     {
         std::lock_guard lock(mutex_);
         auto            it = commands_.find(id);
-        if (it == commands_.end() || !it->second.enabled || !it->second.callback)
+        if (it == commands_.end() || !it->second.callback)
         {
-            SPECTRA_LOG_TRACE("command", "Command '{}' not found or disabled", id);
+            ui::log_ui_action("command", id, "miss", "not_found");
+            return false;
+        }
+        if (!it->second.enabled)
+        {
+            ui::log_ui_action("command", id, "miss", "disabled");
             return false;
         }
         cb = it->second.callback;
     }
-    SPECTRA_LOG_TRACE("command", "Executing command '{}'", id);
+    if (!native_dialogs_enabled() && is_automation_side_effect_command(id))
+    {
+        ui::log_ui_action("command", id, "skipped", "automation");
+        return true;
+    }
     // Execute outside the lock to avoid deadlocks
     cb();
+    ui::log_ui_action("command", id, "ok");
     record_execution(id);
     return true;
 }

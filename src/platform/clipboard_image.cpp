@@ -78,6 +78,11 @@ bool copy_image_to_clipboard(const uint8_t* png_bytes, size_t size)
             ::_exit(127);
         ::close(pipefd[0]);
 
+        // Clipboard helpers must not inherit app sockets (e.g. MCP on 8765).
+        // FD_CLOEXEC does not apply across fork(), only exec().
+        for (int fd = 3; fd < 256; ++fd)
+            ::close(fd);
+
         if (use_wl_copy)
         {
             ::execlp("wl-copy", "wl-copy", "--type", "image/png", static_cast<char*>(nullptr));

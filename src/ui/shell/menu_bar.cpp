@@ -5,6 +5,7 @@
 
     #include "imgui.h"
     #include "ui/imgui/imgui_integration.hpp"
+    #include "ui/ui_interaction_log.hpp"
     #include "ui/shell/panel_registry.hpp"
 
 namespace spectra::ui::shell
@@ -83,7 +84,10 @@ void render_menu_items(const std::vector<MenuAction>& items)
         const char* shortcut_ptr = action.shortcut.empty() ? nullptr : action.shortcut.c_str();
 
         if (ImGui::MenuItem(action.label.c_str(), shortcut_ptr, chk, en) && action.on_click)
+        {
+            log_ui_action("menu", action.label, "ok");
             action.on_click();
+        }
     }
 }
 }   // namespace

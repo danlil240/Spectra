@@ -11,6 +11,7 @@
     #include "ui/shell/spectra_app_shell.hpp"
     #include "io/export_registry.hpp"
     #include "ui/theme/glass_draw.hpp"
+    #include "ui/ui_interaction_log.hpp"
     #include "ui/workspace/plugin_api.hpp"
 
 namespace spectra
@@ -166,6 +167,9 @@ static bool icon_label_button(const char* icon_codepoint,
         float  ly  = std::floor(y_start + icon_draw_sz + icon_gap);
         dl->AddText(label_font, label_draw_sz, ImVec2(lx, ly), text_col, label);
     }
+
+    if (clicked)
+        ui::log_ui_action("nav_rail", label, "ok");
 
     return clicked;
 }
@@ -362,6 +366,7 @@ void ImGuiIntegration::draw_menubar_menu(const char* label, const std::vector<Me
                                       ImGuiSelectableFlags_None,
                                       ImVec2(0, item_h)))
                 {
+                    ui::log_ui_action("menu", item.label.c_str(), "ok");
                     item.callback();
                     open_menu_label_.clear();
                 }

@@ -111,6 +111,7 @@ class TabBar
     // Interaction state
     bool is_tab_hovered(size_t index) const;
     bool is_close_button_hovered(size_t index) const;
+    void cancel_drag();
 
     // Modified indicator
     void set_tab_modified(size_t index, bool modified);

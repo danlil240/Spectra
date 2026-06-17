@@ -3,6 +3,7 @@
 
 #include "../automation_dispatch.hpp"
 #include "../automation_handler.hpp"
+#include "../automation_imgui_input.hpp"
 #include "../automation_json.hpp"
 #include "../automation_server.hpp"
 
@@ -17,6 +18,7 @@
 #include "ui/figures/figure_manager.hpp"
 #include "ui/input/input.hpp"
 #include "ui/native_dialog_policy.hpp"
+#include "ui/ui_interaction_log.hpp"
 #include "ui/window/window_manager.hpp"
 
 #include "render/vulkan/window_context.hpp"
@@ -26,6 +28,8 @@
 #endif
 
 #include <cmath>
+#include <cstdlib>
+#include <format>
 #include <random>
 #include <sstream>
 #include <string>
@@ -166,15 +170,27 @@ bool is_fuzz_denied_command(const std::string& id)
 
 FuzzAction pick_weighted_action(std::mt19937& rng)
 {
+    const bool skip_drag = std::getenv("SPECTRA_FUZZ_SKIP_DRAG") != nullptr;
+
     int total = 0;
     for (const auto& w : kFuzzWeights)
+    {
+        if (skip_drag
+            && (w.action == FuzzAction::TabDetach || w.action == FuzzAction::WindowDrag))
+            continue;
         total += w.weight;
+    }
+    if (total <= 0)
+        return FuzzAction::WaitFrames;
 
     std::uniform_int_distribution<int> dist(0, total - 1);
     const int                          roll = dist(rng);
     int                                cumulative = 0;
     for (const auto& w : kFuzzWeights)
     {
+        if (skip_drag
+            && (w.action == FuzzAction::TabDetach || w.action == FuzzAction::WindowDrag))
+            continue;
         cumulative += w.weight;
         if (roll < cumulative)
             return w.action;
@@ -258,6 +274,7 @@ std::string run_fuzz_action(FuzzAction action,
             }
             else
             {
+                ui::log_ui_action("command", id, "skipped", "fuzz_denied");
                 details << R"("skipped_command":")" << json_escape(id) << '"';
             }
 #else
@@ -279,8 +296,15 @@ std::string run_fuzz_action(FuzzAction action,
             const double                             mx = px(rng);
             const double                             my = py(rng);
             const int                                b  = btn(rng);
+#ifdef SPECTRA_USE_IMGUI
+            automation::inject_mouse_click(ui_ctx, mx, my, b);
+#endif
             ui_ctx->input_handler.on_mouse_button(b, 1, 0, mx, my);
             ui_ctx->input_handler.on_mouse_button(b, 0, 0, mx, my);
+            ui::log_ui_action("fuzz_click",
+                              std::to_string(b),
+                              "ok",
+                              std::format("x={:.0f} y={:.0f}", mx, my));
             mark_dirty(app, "fuzz_mouse_click");
             details << "\"x\":" << mx << ",\"y\":" << my << ",\"button\":" << b;
             break;
@@ -326,7 +350,14 @@ std::string run_fuzz_action(FuzzAction action,
             const double                             x  = px(rng);
             const double                             y  = py(rng);
             const double                             dy = scroll(rng);
+#ifdef SPECTRA_USE_IMGUI
+            automation::inject_scroll(ui_ctx, x, y, 0.0, dy);
+#endif
             ui_ctx->input_handler.on_scroll(x, y, 0.0, dy);
+            ui::log_ui_action("fuzz_scroll",
+                              std::to_string(static_cast<int>(dy)),
+                              "ok",
+                              std::format("x={:.0f} y={:.0f}", x, y));
             mark_dirty(app, "fuzz_mouse_scroll");
             details << "\"x\":" << x << ",\"y\":" << y << ",\"dy\":" << dy;
             break;
@@ -338,8 +369,12 @@ std::string run_fuzz_action(FuzzAction action,
                 break;
             std::uniform_int_distribution<int> key(32, 126);
             const int                          k = key(rng);
+#ifdef SPECTRA_USE_IMGUI
+            automation::inject_key(ui_ctx, k, 0);
+#endif
             ui_ctx->input_handler.on_key(k, 1, 0);
             ui_ctx->input_handler.on_key(k, 0, 0);
+            ui::log_ui_action("fuzz_key", std::to_string(k), "ok");
             mark_dirty(app, "fuzz_key_press");
             details << "\"key\":" << k;
             break;
@@ -561,7 +596,10 @@ std::string run_fuzz_action(FuzzAction action,
                 break;
             const auto ids = app->figure_registry().all_ids();
             if (ids.size() < 2)
+            {
+                details << R"("skipped":"insufficient_figures","figure_count":)" << ids.size();
                 break;
+            }
             std::uniform_int_distribution<size_t> fig_dist(0, ids.size() - 1);
             const FigureId                        fid = ids[fig_dist(rng)];
             if (wm->window_count() < 5)
@@ -593,6 +631,10 @@ std::string run_fuzz_action(FuzzAction action,
     }
 
     details << "}";
+    ui::log_ui_action("fuzz", fuzz_action_name(action), "ok");
+#ifdef SPECTRA_USE_IMGUI
+    automation::dismiss_ui_capture(ui_ctx);
+#endif
     return details.str();
 }
 

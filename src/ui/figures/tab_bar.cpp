@@ -635,6 +635,15 @@ void TabBar::update_drag(float mouse_x)
 #endif
 }
 
+void TabBar::cancel_drag()
+{
+    if (is_dragging_ && on_tab_drag_cancel_)
+        on_tab_drag_cancel_(dragged_tab_);
+    is_dragging_      = false;
+    is_dock_dragging_ = false;
+    dragged_tab_      = SIZE_MAX;
+}
+
 void TabBar::end_drag()
 {
 #ifdef SPECTRA_USE_IMGUI

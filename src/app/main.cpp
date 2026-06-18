@@ -26,7 +26,6 @@
 
 #ifndef _WIN32
     #include <fcntl.h>
-    #include <csignal>
     #include <sys/socket.h>
     #include <sys/types.h>
     #include <sys/un.h>

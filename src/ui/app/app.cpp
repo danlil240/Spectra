@@ -3,6 +3,7 @@
 // must be a complete type for std::unique_ptr<AppRuntime> ctor/dtor).
 // Mode-specific implementations live in app_inproc.cpp and app_multiproc.cpp.
 
+#include <csignal>
 #include <cstdlib>
 #include <memory>
 #include <spectra/app.hpp>
@@ -88,6 +89,16 @@ std::vector<std::vector<FigureId>> App::compute_window_groups() const
 
 void App::run()
 {
+    // Install signal handlers so Ctrl+C (SIGINT) and SIGTERM trigger a
+    // graceful shutdown through shutdown_runtime() instead of killing the
+    // process mid-frame (which would leak Vulkan resources).  This covers
+    // all entry points: the main spectra binary, examples, and the easy API.
+    std::signal(SIGINT,  [](int) { App::request_exit(); });
+    std::signal(SIGTERM, [](int) { App::request_exit(); });
+#ifndef _WIN32
+    std::signal(SIGPIPE, SIG_IGN);
+#endif
+
     bool multiproc = !config_.socket_path.empty();
     if (!multiproc)
     {

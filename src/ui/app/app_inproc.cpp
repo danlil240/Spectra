@@ -14,6 +14,13 @@
 namespace spectra
 {
 
+std::atomic<bool> App::s_exit_requested_{false};
+
+void App::request_exit()
+{
+    s_exit_requested_.store(true, std::memory_order_relaxed);
+}
+
 void App::run_inproc()
 {
     init_runtime();
@@ -21,6 +28,11 @@ void App::run_inproc()
         return;
     for (;;)
     {
+        if (s_exit_requested_.load(std::memory_order_relaxed))
+        {
+            SPECTRA_LOG_INFO("app", "Exit requested (signal) — shutting down");
+            break;
+        }
         auto result = step();
         if (result.should_exit)
             break;

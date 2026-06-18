@@ -463,6 +463,34 @@ void FigureModel::set_live_fps(uint64_t figure_id, float fps)
         it->second.live_fps = fps;
 }
 
+bool FigureModel::add_knob(const ipc::SnapshotKnobState& knob)
+{
+    std::lock_guard lock(mu_);
+    for (const auto& k : knobs_)
+    {
+        if (k.name == knob.name)
+            return false;
+    }
+    knobs_.push_back(knob);
+    bump_revision();
+    return true;
+}
+
+bool FigureModel::set_knob_value(const std::string& name, float value)
+{
+    std::lock_guard lock(mu_);
+    for (auto& k : knobs_)
+    {
+        if (k.name == name)
+        {
+            k.value = value;
+            bump_revision();
+            return true;
+        }
+    }
+    return false;
+}
+
 // --- Load snapshot (app → backend push) ---
 
 std::vector<uint64_t> FigureModel::load_snapshot(const ipc::StateSnapshotPayload& snap)
@@ -651,6 +679,18 @@ bool FigureModel::apply_diff_op(const ipc::DiffOp& op)
                 return false;
             it->second.series[op.series_index].name = op.str_val;
             break;
+
+        case ipc::DiffOp::Type::SET_KNOB_VALUE:
+            for (auto& k : knobs_)
+            {
+                if (k.name == op.str_val)
+                {
+                    k.value = static_cast<float>(op.f1);
+                    bump_revision();
+                    return true;
+                }
+            }
+            return false;
 
         case ipc::DiffOp::Type::ADD_FIGURE:
         case ipc::DiffOp::Type::REMOVE_FIGURE:

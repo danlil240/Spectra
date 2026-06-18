@@ -23,7 +23,7 @@ namespace spectra
 
 // ─── Binary format constants ────────────────────────────────────────────────
 static constexpr uint32_t MAGIC   = 0x53504346;   // "SPCF" — Spectra Figure
-static constexpr uint32_t VERSION = 1;
+static constexpr uint32_t VERSION = 2;
 
 // Chunk tags
 enum ChunkTag : uint16_t
@@ -126,6 +126,7 @@ class BinaryWriter
         write_f32(s.marker_size());
         write_f32(s.opacity());
         write_f32(s.plot_style().line_width);
+        write_u8(static_cast<uint8_t>(s.excluded_from_autoscale()));
     }
 
     [[nodiscard]] bool good() const { return f_.good(); }
@@ -852,6 +853,7 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 float       msz   = r.read_f32();
                 float       opac  = r.read_f32();
                 float       lw    = r.read_f32();
+                bool        excl  = (version >= 2) && (r.read_u8() != 0);
                 float       width = r.read_f32();
 
                 x_data = r.read_floats();
@@ -861,6 +863,7 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 s.label(lbl).color(col).visible(vis);
                 s.line_style(ls_e).marker_style(ms_e).marker_size(msz).opacity(opac);
                 s.width(width);
+                s.set_excluded_from_autoscale(excl);
                 auto ps       = s.plot_style();
                 ps.line_width = lw;
                 s.plot_style(ps);
@@ -890,6 +893,7 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 float       msz  = r.read_f32();
                 float       opac = r.read_f32();
                 float       lw   = r.read_f32();
+                bool        excl = (version >= 2) && (r.read_u8() != 0);
                 float       sz   = r.read_f32();
 
                 auto x_data = r.read_floats();
@@ -899,6 +903,7 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 s.label(lbl).color(col).visible(vis);
                 s.line_style(ls_e).marker_style(ms_e).marker_size(msz).opacity(opac);
                 s.size(sz);
+                s.set_excluded_from_autoscale(excl);
                 auto ps       = s.plot_style();
                 ps.line_width = lw;
                 s.plot_style(ps);
@@ -928,6 +933,7 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 float       msz  = r.read_f32();
                 float       opac = r.read_f32();
                 float       lw   = r.read_f32();
+                bool        excl = (version >= 2) && (r.read_u8() != 0);
 
                 float bw        = r.read_f32();
                 bool  show_outl = r.read_u8() != 0;
@@ -938,6 +944,7 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 bp.label(lbl).color(col).visible(vis);
                 bp.line_style(ls_e).marker_style(ms_e).marker_size(msz).opacity(opac);
                 bp.box_width(bw).show_outliers(show_outl).notched(notch).gradient(grad);
+                bp.set_excluded_from_autoscale(excl);
 
                 uint32_t box_count = r.read_u32();
                 for (uint32_t i = 0; i < box_count; ++i)
@@ -981,6 +988,7 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 float       msz  = r.read_f32();
                 float       opac = r.read_f32();
                 float       lw   = r.read_f32();
+                bool        excl = (version >= 2) && (r.read_u8() != 0);
 
                 float vw      = r.read_f32();
                 int   res     = r.read_i32();
@@ -991,6 +999,7 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 vs.label(lbl).color(col).visible(vis);
                 vs.line_style(ls_e).marker_style(ms_e).marker_size(msz).opacity(opac);
                 vs.violin_width(vw).resolution(res).show_box(show_bx).gradient(grad);
+                vs.set_excluded_from_autoscale(excl);
 
                 uint32_t vcount = r.read_u32();
                 for (uint32_t i = 0; i < vcount; ++i)
@@ -1029,6 +1038,7 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 float       msz  = r.read_f32();
                 float       opac = r.read_f32();
                 float       lw   = r.read_f32();
+                bool        excl = (version >= 2) && (r.read_u8() != 0);
 
                 int  bins = r.read_i32();
                 bool cum  = r.read_u8() != 0;
@@ -1040,6 +1050,7 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 hs.label(lbl).color(col).visible(vis);
                 hs.line_style(ls_e).marker_style(ms_e).marker_size(msz).opacity(opac);
                 hs.cumulative(cum).density(dens).gradient(grad);
+                hs.set_excluded_from_autoscale(excl);
 
                 auto ps       = hs.plot_style();
                 ps.line_width = lw;
@@ -1070,6 +1081,7 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 float       msz  = r.read_f32();
                 float       opac = r.read_f32();
                 float       lw   = r.read_f32();
+                bool        excl = (version >= 2) && (r.read_u8() != 0);
 
                 float bw   = r.read_f32();
                 float base = r.read_f32();
@@ -1082,6 +1094,7 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 bs.label(lbl).color(col).visible(vis);
                 bs.line_style(ls_e).marker_style(ms_e).marker_size(msz).opacity(opac);
                 bs.bar_width(bw).baseline(base).orientation(ori).gradient(grad);
+                bs.set_excluded_from_autoscale(excl);
 
                 auto ps2       = bs.plot_style();
                 ps2.line_width = lw;
@@ -1112,6 +1125,7 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 float       msz  = r.read_f32();
                 float       opac = r.read_f32();
                 float       lw   = r.read_f32();
+                bool        excl = (version >= 2) && (r.read_u8() != 0);
                 float       wid  = r.read_f32();
                 auto        bm   = static_cast<BlendMode>(r.read_u8());
 
@@ -1123,6 +1137,7 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 s.label(lbl).color(col).visible(vis);
                 s.line_style(ls_e).marker_style(ms_e).marker_size(msz).opacity(opac);
                 s.width(wid).blend_mode(bm);
+                s.set_excluded_from_autoscale(excl);
 
                 auto ps       = s.plot_style();
                 ps.line_width = lw;
@@ -1153,6 +1168,7 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 float       msz  = r.read_f32();
                 float       opac = r.read_f32();
                 float       lw   = r.read_f32();
+                bool        excl = (version >= 2) && (r.read_u8() != 0);
                 float       sz   = r.read_f32();
                 auto        bm   = static_cast<BlendMode>(r.read_u8());
 
@@ -1164,6 +1180,7 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 s.label(lbl).color(col).visible(vis);
                 s.line_style(ls_e).marker_style(ms_e).marker_size(msz).opacity(opac);
                 s.size(sz).blend_mode(bm);
+                s.set_excluded_from_autoscale(excl);
 
                 auto ps       = s.plot_style();
                 ps.line_width = lw;
@@ -1194,6 +1211,7 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 float       msz  = r.read_f32();
                 float       opac = r.read_f32();
                 float       lw   = r.read_f32();
+                bool        excl = (version >= 2) && (r.read_u8() != 0);
 
                 auto  cmap     = static_cast<ColormapType>(r.read_u8());
                 float cmap_min = r.read_f32();
@@ -1219,6 +1237,7 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 s.ambient(amb).specular(spec).shininess(shin);
                 s.blend_mode(bm).double_sided(ds).wireframe(wf);
                 s.colormap_alpha(ca).colormap_alpha_range(ca_min, ca_max);
+                s.set_excluded_from_autoscale(excl);
 
                 auto ps       = s.plot_style();
                 ps.line_width = lw;
@@ -1249,6 +1268,7 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 float       msz  = r.read_f32();
                 float       opac = r.read_f32();
                 float       lw   = r.read_f32();
+                bool        excl = (version >= 2) && (r.read_u8() != 0);
 
                 float amb  = r.read_f32();
                 float spec = r.read_f32();
@@ -1265,6 +1285,7 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 s.line_style(ls_e).marker_style(ms_e).marker_size(msz).opacity(opac);
                 s.ambient(amb).specular(spec).shininess(shin);
                 s.blend_mode(bm).double_sided(ds).wireframe(wf);
+                s.set_excluded_from_autoscale(excl);
 
                 auto ps       = s.plot_style();
                 ps.line_width = lw;

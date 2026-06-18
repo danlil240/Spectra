@@ -98,6 +98,16 @@ static void apply_property_update(FigureModel&           fig_model,
     {
         // Legend visibility is client-side UI state; acknowledge silently.
     }
+    else if (property == "add_knob")
+    {
+        ipc::SnapshotKnobState ks;
+        ks.name    = str_val;
+        ks.type    = 0;
+        ks.value   = f1;
+        ks.min_val = f2;
+        ks.max_val = f3;
+        fig_model.add_knob(ks);
+    }
 }
 
 // ─── Handlers ──────────────────────────────────────────────────────────────
@@ -300,7 +310,8 @@ HandleResult handle_req_update_property(DaemonContext&      ctx,
                                         "axes_title",
                                         "label",
                                         "legend",
-                                        "legend_visible"};
+                                        "legend_visible",
+                                        "add_knob"};
     bool               known         = false;
     for (const auto* p : known_props)
     {

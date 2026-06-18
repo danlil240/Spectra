@@ -925,7 +925,6 @@ void ImGuiIntegration::populate_status_bar(ui::shell::StatusBar& bar)
         ImGuiIO& io = ImGui::GetIO();
         ImGui::PushFont(font_heading_);
 
-        const float bar_h       = layout_manager_->status_bar_rect().h;
         const float text_h      = ImGui::GetTextLineHeight();
         const float pill_h      = ui::tokens::STATUS_BAR_PILL_HEIGHT;
         const float pill_radius = ui::tokens::STATUS_BAR_PILL_RADIUS;

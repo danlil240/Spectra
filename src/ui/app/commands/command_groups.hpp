@@ -21,6 +21,7 @@ std::vector<CommandDescriptor> make_panel_commands(CommandContext& ctx);
 std::vector<CommandDescriptor> make_theme_commands(CommandContext& ctx);
 std::vector<CommandDescriptor> make_tools_commands(CommandContext& ctx);
 std::vector<CommandDescriptor> make_data_commands(CommandContext& ctx);
+std::vector<CommandDescriptor> make_plot_commands(CommandContext& ctx);
 std::vector<CommandDescriptor> make_app_commands(CommandContext& ctx);
 
 }   // namespace spectra

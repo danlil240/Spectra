@@ -1185,6 +1185,45 @@ void ImGuiIntegration::draw_command_bar()
              MenuItem("\xEF\xA0\xAD ROS2 Adapter (not available)", nullptr)
     #endif
             });
+
+        ImGui::SameLine();
+
+        // Plot menu — reference lines and function overlays (legacy path without AppShell)
+        draw_menubar_menu(
+            "Plot",
+            {MenuItem("Y = 0 Line",
+                      [this]()
+                      {
+                          if (command_registry_)
+                              command_registry_->execute("plot.hline_zero");
+                      }),
+             MenuItem("X = 0 Line",
+                      [this]()
+                      {
+                          if (command_registry_)
+                              command_registry_->execute("plot.vline_zero");
+                      }),
+             MenuItem("", nullptr),
+             MenuItem("Horizontal Line...",
+                      [this]()
+                      {
+                          if (command_registry_)
+                              command_registry_->execute("plot.hline");
+                      }),
+             MenuItem("Vertical Line...",
+                      [this]()
+                      {
+                          if (command_registry_)
+                              command_registry_->execute("plot.vline");
+                      }),
+             MenuItem("Plot Function...",
+                      [this]()
+                      {
+                          if (command_registry_)
+                              command_registry_->execute("plot.function");
+                      })});
+
+        ImGui::SameLine();
         }
 
         ImGui::SameLine();
@@ -1752,7 +1791,10 @@ void ImGuiIntegration::draw_nav_rail()
 
         ImFont* label_font = font_heading_;   // 12.5px — compact labels
         float   btn_w      = rail_w;
-        float   btn_scale  = LayoutManager::nav_rail_scale_for_height(bounds.h);
+        float   btn_scale  = LayoutManager::nav_rail_scale_for_height(
+            bounds.h,
+            LayoutManager::NAV_RAIL_FALLBACK_BUTTON_COUNT,
+            LayoutManager::NAV_RAIL_SEPARATOR_COUNT);
 
         // Separator: subtle hairline with spacing tokens.
         auto draw_separator = [&]()

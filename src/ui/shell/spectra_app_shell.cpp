@@ -225,7 +225,22 @@ void SpectraNavRail::draw()
 
         ImFont* label_font = imgui_->font_heading_;
         const float btn_w  = rail_w;
-        const float scale  = LayoutManager::nav_rail_scale_for_height(bounds.h);
+
+        std::vector<NavItem> items;
+        build_items(items);
+
+        int button_count = 0;
+        int sep_count    = 0;
+        for (const NavItem& item : items)
+        {
+            if (item.is_section_header)
+                ++sep_count;
+            else
+                ++button_count;
+        }
+
+        const float scale = LayoutManager::nav_rail_scale_for_height(
+            bounds.h, button_count, sep_count);
 
         auto draw_separator = [&]()
         {
@@ -244,9 +259,6 @@ void SpectraNavRail::draw()
                 1.0f);
             ImGui::Dummy(ImVec2(0, ui::tokens::SPACE_2 * scale));
         };
-
-        std::vector<NavItem> items;
-        build_items(items);
 
         for (const NavItem& item : items)
         {
@@ -715,6 +727,29 @@ void SpectraAppShell::on_populate_menus(MenuBar& bar)
                    if (imgui_->command_registry_)
                        imgui_->command_registry_->execute("app.command_palette");
                }});
+
+    auto& plot = bar.menu("Plot");
+    plot.add({.label = "Y = 0 Line", .on_click = [this]() {
+                  if (imgui_->command_registry_)
+                      imgui_->command_registry_->execute("plot.hline_zero");
+              }});
+    plot.add({.label = "X = 0 Line", .on_click = [this]() {
+                  if (imgui_->command_registry_)
+                      imgui_->command_registry_->execute("plot.vline_zero");
+              }});
+    plot.add_separator();
+    plot.add({.label = "Horizontal Line...", .on_click = [this]() {
+                  if (imgui_->command_registry_)
+                      imgui_->command_registry_->execute("plot.hline");
+              }});
+    plot.add({.label = "Vertical Line...", .on_click = [this]() {
+                  if (imgui_->command_registry_)
+                      imgui_->command_registry_->execute("plot.vline");
+              }});
+    plot.add({.label = "Plot Function...", .on_click = [this]() {
+                  if (imgui_->command_registry_)
+                      imgui_->command_registry_->execute("plot.function");
+              }});
 
     menus_populated_ = true;
 }

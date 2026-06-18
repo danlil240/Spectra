@@ -17,6 +17,7 @@
     #include "ui/docking/dock_system.hpp"
     #include "ui/input/input.hpp"
     #include "ui/overlay/custom_transform_dialog.hpp"
+    #include "ui/overlay/plot_overlay_dialog.hpp"
     #include "ui/overlay/data_editor.hpp"
     #include "ui/overlay/data_interaction.hpp"
     #include "ui/overlay/inspector.hpp"
@@ -189,6 +190,9 @@ class ImGuiIntegration
     void     clear_reset_live_view() { reset_live_view_ = false; }
     ToolMode get_interaction_mode() const { return interaction_mode_; }
     bool     is_transform_dialog_open() const { return custom_transform_dialog_.is_open(); }
+    bool     is_plot_overlay_dialog_open() const { return plot_overlay_dialog_.is_open(); }
+    ui::PlotOverlayDialog&       plot_overlay_dialog() { return plot_overlay_dialog_; }
+    const ui::PlotOverlayDialog& plot_overlay_dialog() const { return plot_overlay_dialog_; }
     bool     is_theme_settings_visible() const { return show_theme_settings_; }
 
     // Status bar data setters (called by app loop with real data)
@@ -553,6 +557,7 @@ class ImGuiIntegration
     void draw_knobs_panel();
     void draw_csv_dialog();
     void draw_custom_transform_dialog();
+    void draw_plot_overlay_dialog();
 
     void draw_plot_overlays(Figure& figure);
     void draw_topic_drop_target(Figure& figure);
@@ -578,6 +583,7 @@ class ImGuiIntegration
 
     // Custom transform dialog (user-defined formula transforms)
     ui::CustomTransformDialog custom_transform_dialog_;
+    ui::PlotOverlayDialog     plot_overlay_dialog_;
 
     // Deferred series removal queue (flushed after on_frame callback)
     std::vector<PendingSeriesRemoval> pending_series_removals_;

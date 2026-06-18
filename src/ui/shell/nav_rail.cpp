@@ -185,9 +185,19 @@ void NavRail::draw()
         std::vector<NavItem> items;
         build_items(items);
 
+        int button_count = 0;
+        int sep_count    = 0;
+        for (const NavItem& item : items)
+        {
+            if (item.is_section_header)
+                ++sep_count;
+            else
+                ++button_count;
+        }
+
         const float scale = layout_manager_
                                 ? LayoutManager::nav_rail_scale_for_height(
-                                      layout_manager_->nav_rail_rect().h)
+                                      layout_manager_->nav_rail_rect().h, button_count, sep_count)
                                 : 1.0f;
 
         auto draw_separator = [&]()

@@ -851,6 +851,11 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
         draw_custom_transform_dialog();
     }
 
+    if (plot_overlay_dialog_.is_open())
+    {
+        draw_plot_overlay_dialog();
+    }
+
     // Draw plugin / topics panels (legacy path when shell registry is unavailable).
     if (!app_shell_)
     {

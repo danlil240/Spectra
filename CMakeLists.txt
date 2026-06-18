@@ -214,6 +214,8 @@ foreach(_ui_src
     src/ui/commands/series_clipboard.cpp
     src/ui/overlay/data_editor.cpp
     src/ui/overlay/custom_transform_dialog.cpp
+    src/ui/overlay/plot_overlay_dialog.cpp
+    src/ui/plot/plot_annotations.cpp
     src/ui/overlay/overlay_registry.cpp
     src/adapters/data_source_registry.cpp
     src/embed/embed_surface.cpp
@@ -540,6 +542,7 @@ if(SPECTRA_USE_IMGUI AND (SPECTRA_USE_GLFW OR SPECTRA_USE_SDL3))
         src/ui/app/commands/commands_panel.cpp
         src/ui/app/commands/commands_theme.cpp
         src/ui/app/commands/commands_tools.cpp
+        src/ui/app/commands/commands_plot.cpp
         src/ui/app/commands/commands_data.cpp
         src/ui/app/commands/commands_app.cpp
         src/ui/topics/topics_panel.cpp

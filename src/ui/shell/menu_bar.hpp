@@ -12,7 +12,7 @@ namespace spectra::ui::shell
 {
 struct MenuAction
 {
-    std::string             label;
+    std::string             label         {};
     std::string             shortcut      {};
     std::function<void()>   on_click      {};
     std::function<bool()>   enabled       {};

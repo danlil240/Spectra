@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <cstdint>
 #include <memory>
 #include <spectra/figure.hpp>
@@ -72,6 +73,11 @@ class App
 
     bool is_headless() const { return config_.headless; }
 
+    // Signal-safe: call from SIGINT/SIGTERM handlers to request graceful exit.
+    // The next iteration of the run loop will detect this and break out,
+    // allowing shutdown_runtime() to run.
+    static void request_exit();
+
     // Access internals (for renderer integration)
     Backend*  backend() { return backend_.get(); }
     Renderer* renderer() { return renderer_.get(); }
@@ -106,6 +112,8 @@ class App
 
     // External knob manager (not owned — set by easy API or user)
     KnobManager* knob_manager_ = nullptr;
+
+    static std::atomic<bool> s_exit_requested_;
 };
 
 }   // namespace spectra

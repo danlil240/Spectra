@@ -498,6 +498,12 @@ void App::run_multiproc()
     static constexpr auto HEARTBEAT_INTERVAL = std::chrono::milliseconds(5000);
     while (true)
     {
+        if (s_exit_requested_.load(std::memory_order_relaxed))
+        {
+            SPECTRA_LOG_INFO("app", "Exit requested (signal) — shutting down");
+            break;
+        }
+
         if (scheduler)
             scheduler->begin_frame();
 

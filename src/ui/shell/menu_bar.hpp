@@ -13,12 +13,12 @@ namespace spectra::ui::shell
 struct MenuAction
 {
     std::string             label;
-    std::string             shortcut;
-    std::function<void()>   on_click;
-    std::function<bool()>   enabled;
-    std::function<bool()>   checked;
-    bool                    separator = false;
-    std::vector<MenuAction> submenu;
+    std::string             shortcut      {};
+    std::function<void()>   on_click      {};
+    std::function<bool()>   enabled       {};
+    std::function<bool()>   checked       {};
+    bool                    separator     = false;
+    std::vector<MenuAction> submenu       {};
 };
 
 class Menu

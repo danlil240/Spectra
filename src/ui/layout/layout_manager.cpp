@@ -220,31 +220,42 @@ void LayoutManager::set_tab_bar_visible(bool visible)
     tab_bar_visible_ = visible;
 }
 
-float LayoutManager::nav_rail_nominal_content_height()
+float LayoutManager::nav_rail_content_height(int button_count, int separator_count, float cell_scale)
 {
     return NAV_RAIL_VERTICAL_PADDING
-           + static_cast<float>(NAV_RAIL_BUTTON_COUNT) * NAV_RAIL_CELL_HEIGHT
-           + static_cast<float>(NAV_RAIL_SEPARATOR_COUNT) * NAV_RAIL_SEPARATOR_HEIGHT;
+           + static_cast<float>(button_count) * NAV_RAIL_CELL_HEIGHT * cell_scale
+           + static_cast<float>(separator_count) * NAV_RAIL_SEPARATOR_HEIGHT * cell_scale;
+}
+
+float LayoutManager::nav_rail_nominal_content_height()
+{
+    return nav_rail_content_height(NAV_RAIL_BUTTON_COUNT, NAV_RAIL_SEPARATOR_COUNT, 1.0f);
 }
 
 float LayoutManager::nav_rail_min_content_height()
 {
     const float scale = NAV_RAIL_CELL_HEIGHT_MIN / NAV_RAIL_CELL_HEIGHT;
-    return NAV_RAIL_VERTICAL_PADDING
-           + static_cast<float>(NAV_RAIL_BUTTON_COUNT) * NAV_RAIL_CELL_HEIGHT * scale
-           + static_cast<float>(NAV_RAIL_SEPARATOR_COUNT) * NAV_RAIL_SEPARATOR_HEIGHT * scale;
+    return nav_rail_content_height(NAV_RAIL_BUTTON_COUNT, NAV_RAIL_SEPARATOR_COUNT, scale);
+}
+
+float LayoutManager::nav_rail_scale_for_height(float available_height,
+                                               int    button_count,
+                                               int    separator_count)
+{
+    const float nominal   = nav_rail_content_height(button_count, separator_count, 1.0f);
+    const float min_scale = NAV_RAIL_CELL_HEIGHT_MIN / NAV_RAIL_CELL_HEIGHT;
+    if (available_height >= nominal)
+        return 1.0f;
+    const float min_h = nav_rail_content_height(button_count, separator_count, min_scale);
+    if (available_height <= min_h)
+        return min_scale;
+    return std::max(min_scale, available_height / nominal);
 }
 
 float LayoutManager::nav_rail_scale_for_height(float available_height)
 {
-    const float nominal   = nav_rail_nominal_content_height();
-    const float min_scale = NAV_RAIL_CELL_HEIGHT_MIN / NAV_RAIL_CELL_HEIGHT;
-    if (available_height >= nominal)
-        return 1.0f;
-    const float min_h = nav_rail_min_content_height();
-    if (available_height <= min_h)
-        return min_scale;
-    return std::max(min_scale, available_height / nominal);
+    return nav_rail_scale_for_height(
+        available_height, NAV_RAIL_BUTTON_COUNT, NAV_RAIL_SEPARATOR_COUNT);
 }
 
 float LayoutManager::min_window_height(bool nav_rail_visible,

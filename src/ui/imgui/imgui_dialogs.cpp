@@ -187,6 +187,12 @@ void ImGuiIntegration::draw_custom_transform_dialog()
     custom_transform_dialog_.draw();
 }
 
+void ImGuiIntegration::draw_plot_overlay_dialog()
+{
+    plot_overlay_dialog_.set_fonts(font_body_, font_heading_);
+    plot_overlay_dialog_.draw();
+}
+
 void ImGuiIntegration::draw_theme_settings()
 {
     const auto& colors        = ui::theme();

@@ -312,6 +312,19 @@ TEST(LayoutManager, NavRailScaleFitsContent)
     EXPECT_FLOAT_EQ(LayoutManager::nav_rail_scale_for_height(min_h - 1.0f), min_scale);
 }
 
+TEST(LayoutManager, NavRailScaleUsesItemCounts)
+{
+    const int buttons = LayoutManager::NAV_RAIL_BUTTON_COUNT;
+    const int seps    = LayoutManager::NAV_RAIL_SEPARATOR_COUNT;
+    EXPECT_FLOAT_EQ(LayoutManager::nav_rail_content_height(buttons, seps, 1.0f),
+                    LayoutManager::nav_rail_nominal_content_height());
+
+    const float h = 640.0f;
+    EXPECT_LT(LayoutManager::nav_rail_scale_for_height(h, buttons, seps),
+              LayoutManager::nav_rail_scale_for_height(
+                  h, LayoutManager::NAV_RAIL_FALLBACK_BUTTON_COUNT, seps));
+}
+
 TEST(LayoutManager, MinWindowSizeAccountsForNavRail)
 {
     const float with_nav    = LayoutManager::min_window_height(true, true, true);

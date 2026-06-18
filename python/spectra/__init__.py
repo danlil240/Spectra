@@ -8,6 +8,8 @@ Usage::
 
     sp.plot([1, 4, 9, 16])                    # that's it. window opens.
     sp.plot(x, y, color="red", label="data")   # with style
+    sp.hline(0)                                # horizontal reference line
+    sp.fplot(lambda x: x**2, -2, 2)            # plot a function
     sp.scatter(x, y)                           # scatter plot
     sp.hist(data, bins=50)                     # histogram
     sp.plot3(x, y, z)                          # 3D line
@@ -52,6 +54,10 @@ from ._easy import (
     violin_plot,
     hline,
     vline,
+    fplot,
+    ihline,
+    ivline,
+    ifplot,
     plot3,
     scatter3,
     surf,
@@ -105,6 +111,10 @@ __all__ = [
     "violin_plot",
     "hline",
     "vline",
+    "fplot",
+    "ihline",
+    "ivline",
+    "ifplot",
     "plot3",
     "scatter3",
     "surf",

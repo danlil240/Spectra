@@ -560,3 +560,21 @@ def decode_fb_req_update_property(data: bytes) -> dict:
         "str_val": str_val_raw.decode("utf-8") if str_val_raw else "",
     }
 
+
+def decode_fb_snapshot_knobs(data: bytes) -> dict:
+    """Extract knob name → value from a STATE_SNAPSHOT / RESP_SNAPSHOT payload."""
+    from ._fb_generated.spectra.ipc.fb.StateSnapshotPayload import StateSnapshotPayload
+
+    raw = _strip(data)
+    snap = StateSnapshotPayload.GetRootAs(bytearray(raw), 0)
+    out: dict = {}
+    n = snap.KnobsLength()
+    for i in range(n):
+        k = snap.Knobs(i)
+        if k is None:
+            continue
+        name = k.Name()
+        if name:
+            out[name.decode("utf-8")] = float(k.Value())
+    return out
+

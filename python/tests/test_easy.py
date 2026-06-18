@@ -190,7 +190,7 @@ class TestAPISurface:
     """Verify all expected functions are importable."""
 
     def test_plot_functions(self):
-        from spectra import plot, scatter, stem, hist, bar, hline, vline
+        from spectra import plot, scatter, stem, hist, bar, hline, vline, fplot
         assert callable(plot)
         assert callable(scatter)
         assert callable(stem)
@@ -198,6 +198,7 @@ class TestAPISurface:
         assert callable(bar)
         assert callable(hline)
         assert callable(vline)
+        assert callable(fplot)
 
     def test_3d_functions(self):
         from spectra import plot3, scatter3, surf
@@ -247,7 +248,7 @@ class TestAPISurface:
     def test_all_in_all(self):
         import spectra
         expected = [
-            "plot", "scatter", "stem", "hist", "bar", "hline", "vline",
+            "plot", "scatter", "stem", "hist", "bar", "hline", "vline", "fplot",
             "plot3", "scatter3", "surf", "plotn", "subplots",
             "figure", "subplot", "gcf", "gca",
             "title", "xlabel", "ylabel", "xlim", "ylim", "grid", "legend",

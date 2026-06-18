@@ -75,6 +75,11 @@ class Series
     const Color&       color() const { return color_; }
     bool               visible() const { return visible_; }
 
+    // Reference lines (hline/vline) are excluded from autoscale calculations
+    // so their large span does not pollute axis limits.
+    bool excluded_from_autoscale() const { return excluded_from_autoscale_; }
+    void set_excluded_from_autoscale(bool v) { excluded_from_autoscale_ = v; }
+
     bool is_dirty() const { return dirty_; }
     void clear_dirty() { dirty_ = false; }
     void mark_dirty();
@@ -154,6 +159,7 @@ class Series
     Color             color_ = colors::blue;
     PlotStyle         style_;   // line/marker style, sizes, opacity
     bool              visible_ = true;
+    bool              excluded_from_autoscale_ = false;
     std::atomic<bool> dirty_{true};
     EventSystem*      event_system_ = nullptr;
     AxesBase*         owning_axes_  = nullptr;

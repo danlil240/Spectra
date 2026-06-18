@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <format>
 #include <limits>
+#include <vector>
 #include <spectra/axes.hpp>
 #include <spectra/chunked_series.hpp>
 #include <spectra/event_bus.hpp>
@@ -105,6 +106,48 @@ LineSeries& Axes::plot(std::span<const float> x, std::span<const float> y, const
     auto& ref = line(x, y);
     ref.plot_style(style);
     return ref;
+}
+
+namespace
+{
+constexpr float k_ref_line_span = 1e12f;
+}   // namespace
+
+LineSeries& Axes::hline(double y, std::string_view fmt)
+{
+    const float xs[] = {-k_ref_line_span, k_ref_line_span};
+    const float ys[] = {static_cast<float>(y), static_cast<float>(y)};
+    auto&       line = plot(xs, ys, fmt);
+    line.set_excluded_from_autoscale(true);
+    return line;
+}
+
+LineSeries& Axes::vline(double x, std::string_view fmt)
+{
+    const float xs[] = {static_cast<float>(x), static_cast<float>(x)};
+    const float ys[] = {-k_ref_line_span, k_ref_line_span};
+    auto&       line = plot(xs, ys, fmt);
+    line.set_excluded_from_autoscale(true);
+    return line;
+}
+
+LineSeries& Axes::fplot(std::function<double(double)> func,
+                        double                 xmin,
+                        double                 xmax,
+                        int                    n,
+                        std::string_view       fmt)
+{
+    n = std::max(n, 2);
+    std::vector<float> xs(static_cast<size_t>(n));
+    std::vector<float> ys(static_cast<size_t>(n));
+    const double dx = (xmax - xmin) / static_cast<double>(n - 1);
+    for (int i = 0; i < n; ++i)
+    {
+        const double x = xmin + dx * static_cast<double>(i);
+        xs[static_cast<size_t>(i)] = static_cast<float>(x);
+        ys[static_cast<size_t>(i)]   = static_cast<float>(func(x));
+    }
+    return plot(xs, ys, fmt);
 }
 
 // --- Statistical series creation ---
@@ -279,6 +322,9 @@ static void data_extent(const std::vector<std::unique_ptr<Series>>& series,
 
     for (const auto& s : series)
     {
+        if (s->excluded_from_autoscale())
+            continue;
+
         // Try LineSeries
         if (auto* ls = dynamic_cast<const LineSeries*>(s.get()))
         {
@@ -391,6 +437,8 @@ static void data_extent_with_mode(const std::vector<std::unique_ptr<Series>>& se
         y_max = -std::numeric_limits<float>::max();
         for (const auto& s : series)
         {
+            if (s->excluded_from_autoscale())
+                continue;
             if (auto* ls = dynamic_cast<const LineSeries*>(s.get()))
             {
                 for (auto v : ls->x_data())
@@ -460,6 +508,8 @@ static bool latest_x_value(const std::vector<std::unique_ptr<Series>>& series, f
 
     for (const auto& s : series)
     {
+        if (s->excluded_from_autoscale())
+            continue;
         if (auto* ls = dynamic_cast<const LineSeries*>(s.get()))
         {
             for (float x : ls->x_data())
@@ -518,6 +568,8 @@ static bool windowed_y_extent(const std::vector<std::unique_ptr<Series>>& series
 
     for (const auto& s : series)
     {
+        if (s->excluded_from_autoscale())
+            continue;
         if (auto* ls = dynamic_cast<const LineSeries*>(s.get()))
             consume_xy(ls->x_data(), ls->y_data());
         if (auto* ss = dynamic_cast<const ScatterSeries*>(s.get()))

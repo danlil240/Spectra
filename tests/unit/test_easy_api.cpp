@@ -532,3 +532,53 @@ TEST_F(EasyAPITest, GcaReturnsCorrectAxesAfterTab)
 
     EXPECT_NE(ax1, ax2);   // Different axes on different tabs
 }
+
+// ─── Reference Lines & Function Plots ───────────────────────────────────────
+
+TEST_F(EasyAPITest, HlineCreatesHorizontalReferenceLine)
+{
+    auto& line = spectra::hline(0.0);
+    ASSERT_EQ(line.point_count(), 2u);
+    auto y = line.y_data();
+    EXPECT_FLOAT_EQ(y[0], 0.0f);
+    EXPECT_FLOAT_EQ(y[1], 0.0f);
+}
+
+TEST_F(EasyAPITest, VlineCreatesVerticalReferenceLine)
+{
+    auto& line = spectra::vline(1.5);
+    ASSERT_EQ(line.point_count(), 2u);
+    auto x = line.x_data();
+    EXPECT_FLOAT_EQ(x[0], 1.5f);
+    EXPECT_FLOAT_EQ(x[1], 1.5f);
+}
+
+TEST_F(EasyAPITest, FplotSamplesFunction)
+{
+    auto& line = spectra::fplot([](double x) { return x * x; }, -2.0, 2.0, 5);
+    ASSERT_EQ(line.point_count(), 5u);
+    auto x = line.x_data();
+    auto y = line.y_data();
+    EXPECT_FLOAT_EQ(x[0], -2.0f);
+    EXPECT_FLOAT_EQ(x[4], 2.0f);
+    EXPECT_FLOAT_EQ(y[0], 4.0f);
+    EXPECT_FLOAT_EQ(y[2], 0.0f);
+    EXPECT_FLOAT_EQ(y[4], 4.0f);
+}
+
+TEST_F(EasyAPITest, IhlineCreatesKnobAndBinding)
+{
+    auto& line = spectra::ihline(1.0, -5.0, 5.0);
+    ASSERT_EQ(line.point_count(), 2u);
+    auto& s = spectra::detail::easy_state();
+    EXPECT_EQ(s.interactive_hlines_.size(), 1u);
+    EXPECT_FALSE(s.knob_mgr.empty());
+}
+
+TEST_F(EasyAPITest, IfplotCreatesParamKnobs)
+{
+    auto& line = spectra::ifplot(
+        [](double x, std::span<const double> p) { return p[0] * x; }, -1.0, 1.0, {{"scale", 1.0, 0.0, 2.0}});
+    EXPECT_GT(line.point_count(), 2u);
+    EXPECT_EQ(spectra::detail::easy_state().interactive_fplots_.size(), 1u);
+}

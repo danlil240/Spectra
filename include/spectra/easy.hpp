@@ -97,10 +97,42 @@
 namespace spectra
 {
 
+// Tunable coefficient for interactive function plots (y = f(x, params...)).
+struct FplotParam
+{
+    std::string name;
+    double      value   = 1.0;
+    double      min_val = -10.0;
+    double      max_val = 10.0;
+};
+
 // ─── Internal: Global State ─────────────────────────────────────────────────
 
 namespace detail
 {
+
+struct InteractiveHLine
+{
+    LineSeries* series = nullptr;
+    Knob*       knob   = nullptr;
+};
+
+struct InteractiveVLine
+{
+    LineSeries* series = nullptr;
+    Knob*       knob   = nullptr;
+};
+
+struct InteractiveFplot
+{
+    LineSeries*                                            series = nullptr;
+    std::vector<Knob*>                                     knobs;
+    std::function<double(double, std::span<const double>)> func;
+    int                                                    n = 200;
+    std::vector<float>                                     xs;
+    std::vector<float>                                     ys;
+    std::vector<double>                                    param_scratch;
+};
 
 inline App& global_app()
 {
@@ -130,6 +162,20 @@ struct EasyState
     // Auto-created state tracking
     bool has_explicit_figure  = false;
     bool has_explicit_subplot = false;
+
+    // Interactive reference lines / function plots (see easy_interactive.hpp).
+    std::vector<InteractiveHLine> interactive_hlines_;
+    std::vector<InteractiveVLine> interactive_vlines_;
+    std::vector<InteractiveFplot> interactive_fplots_;
+    bool                          interactive_anim_wired_ = false;
+
+    bool has_interactive_bindings() const
+    {
+        return !interactive_hlines_.empty() || !interactive_vlines_.empty()
+               || !interactive_fplots_.empty();
+    }
+
+    void tick_interactive();
 
     App& ensure_app()
     {
@@ -185,6 +231,10 @@ struct EasyState
         all_figures.clear();
         has_explicit_figure  = false;
         has_explicit_subplot = false;
+        interactive_hlines_.clear();
+        interactive_vlines_.clear();
+        interactive_fplots_.clear();
+        interactive_anim_wired_ = false;
         // Don't reset app — it persists
     }
 };
@@ -342,6 +392,32 @@ inline LineSeries& plot(std::span<const float> x, std::span<const float> y, cons
 inline LineSeries& plot()
 {
     return detail::easy_state().ensure_axes().line();
+}
+
+// Horizontal reference line (e.g. y=0). Default style is dashed gray.
+inline LineSeries& hline(double y, std::string_view fmt = "k--")
+{
+    return detail::easy_state().ensure_axes().hline(y, fmt);
+}
+
+// Vertical reference line (e.g. x=0). Default style is dashed gray.
+inline LineSeries& vline(double x, std::string_view fmt = "k--")
+{
+    return detail::easy_state().ensure_axes().vline(x, fmt);
+}
+
+// Plot a function y = f(x) over [xmin, xmax].
+//
+//   spectra::fplot([](double x) { return x * x; }, -2.0, 2.0);
+//   spectra::fplot([](double x) { return std::sin(x); }, 0.0, 6.28, 300, "r-");
+//
+inline LineSeries& fplot(std::function<double(double)> func,
+                         double                 xmin,
+                         double                 xmax,
+                         int                    n   = 200,
+                         std::string_view       fmt = "-")
+{
+    return detail::easy_state().ensure_axes().fplot(std::move(func), xmin, xmax, n, fmt);
 }
 
 // Scatter plot.
@@ -803,3 +879,5 @@ inline void cla()
 }
 
 }   // namespace spectra
+
+#include <spectra/easy_interactive.hpp>

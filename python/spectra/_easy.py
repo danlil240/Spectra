@@ -137,6 +137,10 @@ class _EasyState:
         self._shutting_down = False
         self._axes_bounds: dict = {}  # id(axes) -> [xmin, xmax, ymin, ymax]
         self._subplot_cache: dict = {}  # (figure_id, rows, cols, index) -> Axes
+        self._pending_knobs: List[dict] = []
+        self._interactive_bindings: List = []
+        self._interactive_started = False
+        self._knob_values: dict = {}
 
     def _ensure_session(self):
         """Lazily create the backend session."""
@@ -160,8 +164,10 @@ class _EasyState:
         """Show the current figure if it hasn't been shown yet."""
         fig = self._current_fig
         if fig is not None and id(fig) in self._pending_show:
+            self._flush_pending_knobs()
             self._pending_show.discard(id(fig))
             fig.show()
+            _ensure_interactive_loop()
 
     def _ensure_axes(self):
         """Lazily create axes on the current figure."""
@@ -178,6 +184,32 @@ class _EasyState:
             self._current_axes3d = fig.subplot3d(1, 1, 1)
         return self._current_axes3d
 
+    def _flush_pending_knobs(self) -> None:
+        """Push queued knob definitions to the backend before the window opens."""
+        if not self._pending_knobs:
+            return
+        from . import _protocol as P
+        from . import _codec as codec
+
+        session = self._ensure_session()
+        for spec in self._pending_knobs:
+            payload = codec.encode_req_update_property(
+                figure_id=spec["figure_id"],
+                axes_index=0,
+                series_index=0,
+                prop="add_knob",
+                f1=spec["value"],
+                f2=spec["min"],
+                f3=spec["max"],
+                str_val=spec["name"],
+            )
+            try:
+                session._request(P.REQ_UPDATE_PROPERTY, payload)
+            except Exception:
+                pass
+            self._knob_values[spec["name"]] = spec["value"]
+        self._pending_knobs.clear()
+
     def shutdown(self):
         """Clean shutdown — stop live threads, close session."""
         self._shutting_down = True
@@ -187,6 +219,10 @@ class _EasyState:
             t.join(timeout=2.0)
         self._live_threads.clear()
         self._live_stop_events.clear()
+        self._pending_knobs.clear()
+        self._interactive_bindings.clear()
+        self._interactive_started = False
+        self._knob_values.clear()
         if self._session is not None:
             try:
                 self._session.close()
@@ -686,8 +722,22 @@ def violin_plot(
     return series
 
 
-def hline(y: float, color: Union[str, Tuple, List, None] = "gray", label: str = ""):
-    """Draw a horizontal line across the plot."""
+def hline(
+    y: float,
+    color: Union[str, Tuple, List, None] = "gray",
+    label: str = "",
+    *,
+    interactive: bool = False,
+    ymin: float = -10.0,
+    ymax: float = 10.0,
+    knob_name: str = "Y line",
+):
+    """Draw a horizontal reference line at y (e.g. ``hline(0)`` for the x-axis).
+
+    Set ``interactive=True`` (or use ``ihline``) to drag a slider that moves the line.
+    """
+    if interactive:
+        return ihline(y, ymin, ymax, color=color, label=label, knob_name=knob_name)
     ax = _state._ensure_axes()
     series = ax.line([-1e12, 1e12], [y, y], label=label)
     c = _parse_color(color)
@@ -697,14 +747,305 @@ def hline(y: float, color: Union[str, Tuple, List, None] = "gray", label: str = 
     return series
 
 
-def vline(x: float, color: Union[str, Tuple, List, None] = "gray", label: str = ""):
-    """Draw a vertical line across the plot."""
+def vline(
+    x: float,
+    color: Union[str, Tuple, List, None] = "gray",
+    label: str = "",
+    *,
+    interactive: bool = False,
+    xmin: float = -10.0,
+    xmax: float = 10.0,
+    knob_name: str = "X line",
+):
+    """Draw a vertical reference line at x (e.g. ``vline(0)`` for the y-axis).
+
+    Set ``interactive=True`` (or use ``ivline``) to drag a slider that moves the line.
+    """
+    if interactive:
+        return ivline(x, xmin, xmax, color=color, label=label, knob_name=knob_name)
     ax = _state._ensure_axes()
     series = ax.line([x, x], [-1e12, 1e12], label=label)
     c = _parse_color(color)
     if c:
         series.set_color(*c)
     series.set_line_width(1.0)
+    return series
+
+
+def fplot(
+    func,
+    xmin: Optional[float] = None,
+    xmax: Optional[float] = None,
+    n: int = 200,
+    color: Union[str, Tuple, List, None] = None,
+    width: Optional[float] = None,
+    label: str = "",
+    *,
+    interactive: bool = False,
+    params: Optional[List[Tuple[str, float, float, float]]] = None,
+    **kwargs,
+):
+    """Plot y = func(x) over an x range.
+
+    Usage::
+
+        sp.fplot(lambda x: x ** 2, -2, 2)
+        sp.fplot(math.sin)                    # uses current axes x-range or [-1, 1]
+        sp.fplot(lambda x: x ** 2, color="red", label="parabola")
+        sp.ifplot(lambda x, a, b: a * x * x + b, -3, 3, params=[("a", 0.2, -1, 1)])
+
+  If *xmin* / *xmax* are omitted, uses accumulated axes bounds from prior plots
+  on the same axes, otherwise ``[-1, 1]``.
+
+  Set ``interactive=True`` with *params* ``[(name, value, min, max), ...]`` to
+  expose sliders for each coefficient (or use ``ifplot``).
+    """
+    if interactive:
+        return ifplot(func, xmin, xmax, n=n, color=color, width=width, label=label,
+                      params=params or [], **kwargs)
+
+    ax = _state._ensure_axes()
+
+    if xmin is None or xmax is None:
+        ax_key = (ax._figure_id, ax._index)
+        if ax_key in _state._axes_bounds:
+            bounds = _state._axes_bounds[ax_key]
+            if xmin is None:
+                xmin = bounds[0]
+            if xmax is None:
+                xmax = bounds[1]
+        else:
+            if xmin is None:
+                xmin = -1.0
+            if xmax is None:
+                xmax = 1.0
+
+    if xmin == xmax:
+        xmax = xmin + 1.0
+
+    n = max(int(n), 2)
+    step = (xmax - xmin) / (n - 1)
+    xs = [xmin + i * step for i in range(n)]
+    ys = [float(func(x)) for x in xs]
+
+    series = ax.line(xs, ys, label=label)
+    _apply_series_style(series, color=color, width=width, **kwargs)
+    _auto_fit_axes(ax, xs, ys)
+    _state._show_if_pending()
+    return series
+
+
+# ─── Interactive reference lines & function plots ─────────────────────────────
+
+_REF_SPAN = 1e12
+
+
+class _InteractiveHLine:
+    __slots__ = ("series", "knob_name")
+
+    def __init__(self, series, knob_name: str) -> None:
+        self.series = series
+        self.knob_name = knob_name
+
+    def apply(self, knobs: dict) -> None:
+        if self.knob_name not in knobs:
+            return
+        y = float(knobs[self.knob_name])
+        self.series.set_data([-_REF_SPAN, _REF_SPAN], [y, y])
+
+
+class _InteractiveVLine:
+    __slots__ = ("series", "knob_name")
+
+    def __init__(self, series, knob_name: str) -> None:
+        self.series = series
+        self.knob_name = knob_name
+
+    def apply(self, knobs: dict) -> None:
+        if self.knob_name not in knobs:
+            return
+        x = float(knobs[self.knob_name])
+        self.series.set_data([x, x], [-_REF_SPAN, _REF_SPAN])
+
+
+class _InteractiveFplot:
+    __slots__ = ("series", "func", "xs", "param_names")
+
+    def __init__(self, series, func, xs: List[float], param_names: List[str]) -> None:
+        self.series = series
+        self.func = func
+        self.xs = xs
+        self.param_names = param_names
+
+    def apply(self, knobs: dict) -> None:
+        pvals = [float(knobs.get(n, 0.0)) for n in self.param_names]
+        ys = [float(self.func(x, *pvals)) for x in self.xs]
+        self.series.set_data(self.xs, ys)
+
+
+def _queue_knob(ax, name: str, value: float, vmin: float, vmax: float) -> None:
+    spec = {
+        "figure_id": ax._figure_id,
+        "name": name,
+        "value": float(value),
+        "min": float(vmin),
+        "max": float(vmax),
+    }
+    _state._knob_values[name] = float(value)
+    fig = _state._current_fig
+    if fig is not None and id(fig) not in _state._pending_show:
+        from . import _protocol as P
+        from . import _codec as codec
+
+        session = _state._ensure_session()
+        payload = codec.encode_req_update_property(
+            figure_id=spec["figure_id"],
+            axes_index=0,
+            series_index=0,
+            prop="add_knob",
+            f1=spec["value"],
+            f2=spec["min"],
+            f3=spec["max"],
+            str_val=spec["name"],
+        )
+        try:
+            session._request(P.REQ_UPDATE_PROPERTY, payload)
+        except Exception:
+            _state._pending_knobs.append(spec)
+    else:
+        _state._pending_knobs.append(spec)
+
+
+def _poll_knob_values(session) -> dict:
+    from . import _protocol as P
+    from . import _codec as codec
+
+    try:
+        resp = session._request(P.REQ_GET_SNAPSHOT, b"")
+        payload = resp["payload"]
+        if payload and payload[0] == P.PAYLOAD_FORMAT_FLATBUFFERS:
+            from . import _codec_fb as fb_codec
+            return fb_codec.decode_fb_snapshot_knobs(payload)
+    except Exception:
+        pass
+    return dict(_state._knob_values)
+
+
+def _ensure_interactive_loop() -> None:
+    if _state._interactive_started or not _state._interactive_bindings:
+        return
+    _state._interactive_started = True
+    from ._animation import ipc_sleep
+    from ._log import log
+
+    stop_event = threading.Event()
+    _state._live_stop_events.append(stop_event)
+
+    def _loop() -> None:
+        session = _state._ensure_session()
+        session._live_thread_count += 1
+        try:
+            while not stop_event.is_set():
+                ipc_sleep(0.05, session)
+                knobs = _poll_knob_values(session)
+                _state._knob_values.update(knobs)
+                for binding in _state._interactive_bindings:
+                    try:
+                        binding.apply(knobs)
+                    except Exception as e:
+                        log.warning("interactive update error: %s", e)
+        finally:
+            session._live_thread_count -= 1
+
+    thread = threading.Thread(target=_loop, daemon=True, name="spectra-interactive")
+    thread.start()
+    _state._live_threads.append(thread)
+
+
+def ihline(
+    y: float,
+    ymin: float = -10.0,
+    ymax: float = 10.0,
+    color: Union[str, Tuple, List, None] = "gray",
+    label: str = "",
+    knob_name: str = "Y line",
+):
+    """Interactive horizontal line — drag the PARAMETERS slider to move y."""
+    series = hline(y, color=color, label=label)
+    ax = _state._ensure_axes()
+    _queue_knob(ax, knob_name, y, ymin, ymax)
+    _state._interactive_bindings.append(_InteractiveHLine(series, knob_name))
+    _state._show_if_pending()
+    return series
+
+
+def ivline(
+    x: float,
+    xmin: float = -10.0,
+    xmax: float = 10.0,
+    color: Union[str, Tuple, List, None] = "gray",
+    label: str = "",
+    knob_name: str = "X line",
+):
+    """Interactive vertical line — drag the PARAMETERS slider to move x."""
+    series = vline(x, color=color, label=label)
+    ax = _state._ensure_axes()
+    _queue_knob(ax, knob_name, x, xmin, xmax)
+    _state._interactive_bindings.append(_InteractiveVLine(series, knob_name))
+    _state._show_if_pending()
+    return series
+
+
+def ifplot(
+    func,
+    xmin: Optional[float] = None,
+    xmax: Optional[float] = None,
+    n: int = 200,
+    color: Union[str, Tuple, List, None] = None,
+    width: Optional[float] = None,
+    label: str = "",
+    params: Optional[List[Tuple[str, float, float, float]]] = None,
+    **kwargs,
+):
+    """Interactive function plot — sliders retune each entry in *params*.
+
+    *func* signature: ``func(x, *param_values)`` matching *params* order::
+
+        sp.ifplot(lambda x, a, b: a * x * x + b, -3, 3,
+                  params=[("a", 0.2, -1, 1), ("b", 0, -2, 2)])
+    """
+    param_specs = params or []
+    ax = _state._ensure_axes()
+
+    if xmin is None or xmax is None:
+        ax_key = (ax._figure_id, ax._index)
+        if ax_key in _state._axes_bounds:
+            bounds = _state._axes_bounds[ax_key]
+            xmin = xmin if xmin is not None else bounds[0]
+            xmax = xmax if xmax is not None else bounds[1]
+        else:
+            xmin = xmin if xmin is not None else -1.0
+            xmax = xmax if xmax is not None else 1.0
+    if xmin == xmax:
+        xmax = xmin + 1.0
+
+    n = max(int(n), 2)
+    step = (xmax - xmin) / (n - 1)
+    xs = [xmin + i * step for i in range(n)]
+    pvals = [p[1] for p in param_specs]
+    ys = [float(func(x, *pvals)) for x in xs]
+
+    series = ax.line(xs, ys, label=label)
+    _apply_series_style(series, color=color, width=width, **kwargs)
+    _auto_fit_axes(ax, xs, ys)
+
+    param_names: List[str] = []
+    for name, value, vmin, vmax in param_specs:
+        _queue_knob(ax, name, value, vmin, vmax)
+        param_names.append(name)
+
+    _state._interactive_bindings.append(_InteractiveFplot(series, func, xs, param_names))
+    _state._show_if_pending()
     return series
 
 

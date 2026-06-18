@@ -140,6 +140,18 @@ class Axes : public AxesBase
                      std::string_view       fmt = "-");
     LineSeries& plot(std::span<const float> x, std::span<const float> y, const PlotStyle& style);
 
+    // Horizontal / vertical reference lines (e.g. y=0, x=0). Span uses sentinel
+    // coordinates so auto_fit ignores them.
+    LineSeries& hline(double y, std::string_view fmt = "-");
+    LineSeries& vline(double x, std::string_view fmt = "-");
+
+    // Sample y = f(x) over [xmin, xmax] with n evenly spaced points.
+    LineSeries& fplot(std::function<double(double)> func,
+                      double                 xmin,
+                      double                 xmax,
+                      int                    n   = 200,
+                      std::string_view       fmt = "-");
+
     // Chunked line series — for large datasets and streaming (ROS2, PX4, etc.)
     ChunkedLineSeries& chunked_line();
 

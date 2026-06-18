@@ -128,6 +128,10 @@ class FigureModel
     // Set live streaming FPS for a figure. 0 disables live streaming.
     void set_live_fps(uint64_t figure_id, float fps);
 
+    // Interactive parameter knobs (shown in the PARAMETERS panel).
+    bool add_knob(const ipc::SnapshotKnobState& knob);
+    bool set_knob_value(const std::string& name, float value);
+
     // --- Snapshot / Diff ---
 
     // Produce a full STATE_SNAPSHOT of all figures (or a subset by ID).

@@ -2,10 +2,33 @@
 
 #include <gtest/gtest.h>
 
+#include <cstdlib>
 #include <cstring>
+#include <string>
 
 namespace
 {
+
+void set_test_env(const char* name, const char* value)
+{
+#ifdef _WIN32
+    const std::string assignment = std::string(name) + "=" + value;
+    _putenv(assignment.c_str());
+#else
+    setenv(name, value, 1);
+#endif
+}
+
+void unset_test_env(const char* name)
+{
+#ifdef _WIN32
+    const std::string assignment = std::string(name) + "=";
+    _putenv(assignment.c_str());
+#else
+    unsetenv(name);
+#endif
+}
+
 
 class NativeDialogPolicyTest : public ::testing::Test
 {
@@ -39,7 +62,7 @@ TEST_F(NativeDialogPolicyTest, StripsNoNativeDialogsFlag)
 TEST_F(NativeDialogPolicyTest, EnvVarDisablesDialogs)
 {
     spectra::set_native_dialogs_enabled(true);
-    setenv("SPECTRA_NO_NATIVE_DIALOGS", "1", 1);
+    set_test_env("SPECTRA_NO_NATIVE_DIALOGS", "1");
 
     char arg0[] = "spectra";
     char* argv[] = {arg0, nullptr};
@@ -47,7 +70,7 @@ TEST_F(NativeDialogPolicyTest, EnvVarDisablesDialogs)
     spectra::init_native_dialog_policy(argc, argv);
 
     EXPECT_FALSE(spectra::native_dialogs_enabled());
-    unsetenv("SPECTRA_NO_NATIVE_DIALOGS");
+    unset_test_env("SPECTRA_NO_NATIVE_DIALOGS");
 }
 
 }   // namespace

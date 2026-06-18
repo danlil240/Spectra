@@ -73,35 +73,35 @@ void Px4AppShell::on_populate_menus(spectra::ui::shell::MenuBar& bar)
 
     auto& plots = bar.menu("Plots");
     plots.add(
-        {.label   = "Auto Plot",
-         .enabled = [this]() { return reader_.is_open(); },
-         .on_click = [this]() { auto_plot_ulog(); }});
+        {.label    = "Auto Plot",
+         .on_click = [this]() { auto_plot_ulog(); },
+         .enabled  = [this]() { return reader_.is_open(); }});
     plots.add_separator();
     plots.add(
-        {.label   = "Close All Plots",
-         .enabled = [this]() { return auto_plot_active_ || plot_mgr_.field_count() > 0; },
-         .on_click = [this]() { close_all_plots(); }});
+        {.label    = "Close All Plots",
+         .on_click = [this]() { close_all_plots(); },
+         .enabled  = [this]() { return auto_plot_active_ || plot_mgr_.field_count() > 0; }});
 
     auto& view = bar.menu("View");
     view.add(
-        {.label   = "Navigation Rail",
-         .checked = [this]() { return nav_rail_visible(); },
+        {.label    = "Navigation Rail",
          .on_click =
              [this]()
              {
                  set_nav_rail_visible(!nav_rail_visible());
                  sync_layout_chrome();
-             }});
+             },
+         .checked = [this]() { return nav_rail_visible(); }});
     view.add(
-        {.label   = "Expand Rail",
-         .enabled = [this]() { return nav_rail_visible(); },
-         .checked = [this]() { return nav_rail_expanded(); },
+        {.label    = "Expand Rail",
          .on_click =
              [this]()
              {
                  set_nav_rail_expanded(!nav_rail_expanded());
                  sync_layout_chrome();
-             }});
+             },
+         .enabled = [this]() { return nav_rail_visible(); },
+         .checked = [this]() { return nav_rail_expanded(); }});
     view.add_separator();
     view.add({.label = "Reset Dock Layout", .on_click = [this]() { request_dock_layout_reset(); }});
     view.add_separator();
@@ -109,8 +109,7 @@ void Px4AppShell::on_populate_menus(spectra::ui::shell::MenuBar& bar)
     if (file_panel_)
     {
         view.add(
-            {.label   = "Detach ULog Panel",
-             .checked = [this]() { return file_panel_->is_detached(); },
+            {.label    = "Detach ULog Panel",
              .on_click =
                  [this]()
                  {
@@ -118,13 +117,13 @@ void Px4AppShell::on_populate_menus(spectra::ui::shell::MenuBar& bar)
                          file_panel_->attach();
                      else
                          file_panel_->detach();
-                 }});
+                 },
+             .checked = [this]() { return file_panel_->is_detached(); }});
     }
     if (live_panel_)
     {
         view.add(
-            {.label   = "Detach Live Panel",
-             .checked = [this]() { return live_panel_->is_detached(); },
+            {.label    = "Detach Live Panel",
              .on_click =
                  [this]()
                  {
@@ -132,13 +131,13 @@ void Px4AppShell::on_populate_menus(spectra::ui::shell::MenuBar& bar)
                          live_panel_->attach();
                      else
                          live_panel_->detach();
-                 }});
+                 },
+             .checked = [this]() { return live_panel_->is_detached(); }});
     }
 
     auto& connection = bar.menu("Connection");
     connection.add(
-        {.label   = "Connect",
-         .enabled = [this]() { return !bridge_.is_connected(); },
+        {.label    = "Connect",
          .on_click =
              [this]()
              {
@@ -146,16 +145,17 @@ void Px4AppShell::on_populate_menus(spectra::ui::shell::MenuBar& bar)
                  bridge_.start();
                  plot_mgr_.set_bridge(&bridge_);
                  set_panel_visible("px4.live_connection", true);
-             }});
+             },
+         .enabled = [this]() { return !bridge_.is_connected(); }});
     connection.add(
-        {.label   = "Disconnect",
-         .enabled = [this]() { return bridge_.is_connected(); },
+        {.label    = "Disconnect",
          .on_click =
              [this]()
              {
                  bridge_.shutdown();
                  plot_mgr_.set_bridge(nullptr);
-             }});
+             },
+         .enabled = [this]() { return bridge_.is_connected(); }});
 }
 
 void Px4AppShell::on_populate_nav_rail(spectra::ui::shell::NavRail& rail)

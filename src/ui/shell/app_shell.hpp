@@ -62,7 +62,7 @@ class AppShell
     virtual void on_populate_menus(MenuBar&) {}
     virtual void on_populate_nav_rail(NavRail&) {}
     virtual void on_build_status_bar(StatusBar&) {}
-    virtual void on_default_layout(unsigned int dockspace_id) {}
+    virtual void on_default_layout(unsigned int /*dockspace_id*/) {}
     // Post-chrome hook after all ImGui shell layers; for adapter work outside the dock
     // canvas region (e.g. Vulkan scene callbacks), not CanvasHost empty/overlays.
     virtual void on_draw_canvas() {}

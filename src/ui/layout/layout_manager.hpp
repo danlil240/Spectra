@@ -65,6 +65,8 @@ class LayoutManager
     bool  is_inspector_visible() const { return inspector_visible_; }
     float inspector_width() const { return inspector_width_; }
     float inspector_animated_width() const { return inspector_anim_width_; }
+    // Normalized open amount [0, 1] for content fade during slide animation.
+    float inspector_open_amount() const;
     bool  is_nav_rail_visible() const { return nav_rail_visible_; }
     bool  is_nav_rail_expanded() const { return nav_rail_expanded_; }
     float nav_rail_width() const;
@@ -96,7 +98,7 @@ class LayoutManager
     static constexpr float INSPECTOR_MAX_WIDTH     = 480.0f;
     static constexpr float TAB_BAR_HEIGHT          = 40.0f;
     static constexpr float RESIZE_HANDLE_WIDTH     = 6.0f;
-    static constexpr float ANIM_SPEED              = 12.0f;
+    static constexpr float ANIM_SPEED = 12.0f;   // Nav rail exponential smoothing
 
     // Nav rail vertical content (icon+label buttons stacked in draw_nav_rail).
     // SpectraNavRail: 8 tools + 6 panels + Help = 15 buttons, 4 section separators.
@@ -149,6 +151,7 @@ class LayoutManager
 
     // Animated state (smoothly interpolated toward targets)
     float inspector_anim_width_ = 0.0f;   // 0 when hidden
+    float inspector_anim_t_     = 0.0f;   // Linear progress 0=closed, 1=open
     float nav_rail_anim_width_  = NAV_RAIL_COLLAPSED_WIDTH;
 
     // Inspector resize interaction state
@@ -161,8 +164,9 @@ class LayoutManager
 
     bool resize_active_ = false;
 
-    // Helper: exponential smoothing toward target
+    // Helper: exponential smoothing toward target (nav rail)
     static float smooth_toward(float current, float target, float speed, float dt);
+    void update_inspector_animation(float dt);
 
     // Helper methods
     void compute_zones();

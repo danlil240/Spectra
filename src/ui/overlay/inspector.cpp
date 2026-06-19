@@ -963,6 +963,144 @@ void Inspector::draw_axes_properties(Axes& ax, int index)
             widgets::end_animated_section();
         }
     }
+
+    // ── Reference Lines (hidden from legend, manageable here)
+    if (widgets::section_header("REFERENCE LINES", &sec_ref_lines_, font_heading_))
+    {
+        if (widgets::begin_animated_section("REFERENCE LINES"))
+        {
+            widgets::begin_group("ref_lines");
+            draw_reference_lines(ax);
+            widgets::end_group();
+            widgets::small_spacing();
+            widgets::end_animated_section();
+        }
+    }
+}
+
+// ─── Reference Lines ─────────────────────────────────────────────────────────
+
+void Inspector::draw_reference_lines(Axes& ax)
+{
+    const auto& c = theme();
+
+    // Collect reference line indices (series excluded from legend = reference lines)
+    struct RefEntry
+    {
+        size_t         index;
+        std::string    label;
+        spectra::Color color;
+    };
+    std::vector<RefEntry> refs;
+
+    auto& series_list = ax.series_mut();
+    for (size_t i = 0; i < series_list.size(); ++i)
+    {
+        if (series_list[i] && !series_list[i]->show_in_legend())
+        {
+            RefEntry e;
+            e.index = i;
+            e.label = series_list[i]->label();
+            e.color = series_list[i]->color();
+            refs.push_back(std::move(e));
+        }
+    }
+
+    if (refs.empty())
+    {
+        ImGui::PushStyleColor(ImGuiCol_Text,
+                              ImVec4(c.text_tertiary.r, c.text_tertiary.g, c.text_tertiary.b, 0.7f));
+        ImGui::TextUnformatted("No reference lines");
+        ImGui::PopStyleColor();
+        return;
+    }
+
+    ImFont* icf = icon_font(tokens::ICON_SM);
+    ImFont* fnt = icf ? icf : ImGui::GetFont();
+    float   gsz = tokens::ICON_SM;
+
+    // Deferred removals (avoid mutating during iteration)
+    std::vector<size_t> to_remove;
+
+    for (size_t ri = 0; ri < refs.size(); ++ri)
+    {
+        ImGui::PushID(static_cast<int>(ri));
+
+        auto&   ref     = refs[ri];
+        float   row_h   = tokens::SERIES_ROW_HEIGHT;
+        ImVec2  row_min = ImGui::GetCursorScreenPos();
+        float   avail_w = ImGui::GetContentRegionAvail().x;
+        ImVec2  row_max = ImVec2(row_min.x + avail_w, row_min.y + row_h);
+        float   cy      = row_min.y + row_h * 0.5f;
+
+        // Hover background
+        bool hovered = ImGui::IsMouseHoveringRect(row_min, row_max);
+        if (hovered)
+        {
+            ImGui::GetWindowDrawList()->AddRectFilled(
+                row_min,
+                row_max,
+                ImGui::ColorConvertFloat4ToU32(
+                    ImVec4(c.bg_tertiary.r, c.bg_tertiary.g, c.bg_tertiary.b, 0.4f)),
+                tokens::RADIUS_MD);
+        }
+
+        // Color dot
+        constexpr float dot_sz = 10.0f;
+        constexpr float pad_l  = 8.0f;
+        float           x_dot  = row_min.x + pad_l;
+        ImU32           dot_col = ImGui::ColorConvertFloat4ToU32(
+            ImVec4(ref.color.r, ref.color.g, ref.color.b, ref.color.a));
+        ImGui::GetWindowDrawList()->AddRectFilled(
+            ImVec2(x_dot, cy - dot_sz * 0.5f),
+            ImVec2(x_dot + dot_sz, cy + dot_sz * 0.5f),
+            dot_col,
+            tokens::RADIUS_SM);
+
+        // Label
+        float label_x = x_dot + dot_sz + 8.0f;
+        ImGui::SetCursorScreenPos(ImVec2(label_x, cy - ImGui::GetTextLineHeight() * 0.5f));
+        ImGui::TextUnformatted(ref.label.c_str());
+
+        // Delete button (trash icon)
+        constexpr float btn_sz = 22.0f;
+        float           btn_x  = row_max.x - btn_sz - 8.0f;
+        float           btn_y  = cy - btn_sz * 0.5f;
+
+        ImGui::SetCursorScreenPos(ImVec2(btn_x, btn_y));
+        std::string del_id = std::format("##refdel_{}", ri);
+        if (ImGui::InvisibleButton(del_id.c_str(), ImVec2(btn_sz, btn_sz)))
+            to_remove.push_back(ref.index);
+
+        if (ImGui::IsItemHovered())
+        {
+            ImGui::GetWindowDrawList()->AddRectFilled(
+                ImVec2(btn_x, btn_y),
+                ImVec2(btn_x + btn_sz, btn_y + btn_sz),
+                ImGui::ColorConvertFloat4ToU32(
+                    ImVec4(0.85f, 0.35f, 0.35f, 0.2f)),
+                tokens::RADIUS_SM);
+            ImGui::SetTooltip("Remove reference line");
+        }
+
+        ImVec4 icon_col(0.85f, 0.35f, 0.35f, 0.75f);
+        ImVec2 tsz = fnt->CalcTextSizeA(gsz, FLT_MAX, 0.0f, icon_str(Icon::Trash));
+        ImGui::GetWindowDrawList()->AddText(
+            fnt, gsz,
+            ImVec2(btn_x + (btn_sz - tsz.x) * 0.5f, btn_y + (btn_sz - gsz) * 0.5f + 1.0f),
+            ImGui::ColorConvertFloat4ToU32(icon_col),
+            icon_str(Icon::Trash));
+
+        // Advance cursor
+        ImGui::SetCursorScreenPos(ImVec2(row_min.x, row_max.y));
+        ImGui::Dummy(ImVec2(0, 0));
+
+        ImGui::PopID();
+    }
+
+    // Apply deferred removals (reverse order to keep indices valid)
+    for (auto it = to_remove.rbegin(); it != to_remove.rend(); ++it)
+        ax.remove_series(*it);
 }
 
 // ─── Series Properties ──────────────────────────────────────────────────────

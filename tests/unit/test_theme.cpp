@@ -280,7 +280,7 @@ TEST(DesignTokens, LayoutConstants)
     EXPECT_FLOAT_EQ(tokens::SECTION_GAP, 12.0f);
     EXPECT_FLOAT_EQ(tokens::SERIES_ROW_HEIGHT, 30.0f);
     EXPECT_FLOAT_EQ(tokens::ICON_BUTTON_HITBOX, 32.0f);
-    EXPECT_FLOAT_EQ(tokens::INSPECTOR_HEADER_H, 36.0f);
+    EXPECT_FLOAT_EQ(tokens::INSPECTOR_HEADER_H, 32.0f);
 }
 
 // ─── ThemeManager ────────────────────────────────────────────────────────────

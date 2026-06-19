@@ -126,11 +126,11 @@ bool LegendInteraction::draw(Axes&               axes,
     if (series_list.empty())
         return false;
 
-    // Count labeled series
+    // Count labeled series (excluding reference lines hidden from legend)
     int labeled_count = 0;
     for (auto& s : series_list)
     {
-        if (s && !s->label().empty())
+        if (s && !s->label().empty() && s->show_in_legend())
             ++labeled_count;
     }
     if (labeled_count == 0)
@@ -155,7 +155,7 @@ bool LegendInteraction::draw(Axes&               axes,
     float max_label_w = 0.0f;
     for (auto& s : series_list)
     {
-        if (!s || s->label().empty())
+        if (!s || s->label().empty() || !s->show_in_legend())
             continue;
         ImVec2 sz   = font->CalcTextSizeA(font_size, 300.0f, 0.0f, s->label().c_str());
         max_label_w = std::max(max_label_w, sz.x);
@@ -327,7 +327,7 @@ bool LegendInteraction::draw(Axes&               axes,
         int row = 0;
         for (auto& s : series_list)
         {
-            if (!s || s->label().empty())
+            if (!s || s->label().empty() || !s->show_in_legend())
                 continue;
 
             auto& state = get_state(s.get());

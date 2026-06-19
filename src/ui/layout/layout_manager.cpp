@@ -3,6 +3,10 @@
 #include <algorithm>
 #include <cmath>
 
+#include <spectra/animator.hpp>
+
+#include "ui/theme/design_tokens.hpp"
+
 namespace spectra
 {
 
@@ -21,13 +25,46 @@ float LayoutManager::smooth_toward(float current, float target, float speed, flo
     return current + diff * std::min(1.0f, speed * dt);
 }
 
+void LayoutManager::update_inspector_animation(float dt)
+{
+    const float target_t = inspector_visible_ ? 1.0f : 0.0f;
+
+    if (resize_active_ || dt <= 0.0f)
+    {
+        inspector_anim_t_     = target_t;
+        inspector_anim_width_ = inspector_visible_ ? inspector_width_ : 0.0f;
+        return;
+    }
+
+    if (std::abs(inspector_anim_t_ - target_t) > 0.001f)
+    {
+        const bool  opening  = target_t > inspector_anim_t_;
+        const float duration = opening ? ui::tokens::DURATION_INSPECTOR_OPEN
+                                       : ui::tokens::DURATION_INSPECTOR_CLOSE;
+        // Cap per-frame progress so a large DeltaTime spike cannot snap the panel.
+        constexpr float kMaxProgressStep = 0.25f;
+        const float     step             = std::min(dt / duration, kMaxProgressStep);
+        if (opening)
+            inspector_anim_t_ = std::min(target_t, inspector_anim_t_ + step);
+        else
+            inspector_anim_t_ = std::max(target_t, inspector_anim_t_ - step);
+    }
+    else
+    {
+        inspector_anim_t_ = target_t;
+    }
+
+    // ease-out when opening (fast start), ease-in feel when closing (slow start).
+    const float eased_t         = ease::ease_out(inspector_anim_t_);
+    inspector_anim_width_       = inspector_width_ * eased_t;
+}
+
 void LayoutManager::update(float window_width, float window_height, float dt)
 {
     window_width_  = window_width;
     window_height_ = window_height;
 
     // Compute animation targets
-    float inspector_target = inspector_visible_ ? inspector_width_ : 0.0f;
     float nav_rail_target = 0.0f;
     if (nav_rail_visible_)
     {
@@ -39,15 +76,13 @@ void LayoutManager::update(float window_width, float window_height, float dt)
     // don't lag behind the swapchain and expose the plot background underneath).
     if (resize_active_)
     {
-        inspector_anim_width_ = inspector_target;
-        nav_rail_anim_width_  = nav_rail_target;
+        nav_rail_anim_width_ = nav_rail_target;
     }
     else
     {
-        inspector_anim_width_ =
-            smooth_toward(inspector_anim_width_, inspector_target, ANIM_SPEED, dt);
         nav_rail_anim_width_ = smooth_toward(nav_rail_anim_width_, nav_rail_target, ANIM_SPEED, dt);
     }
+    update_inspector_animation(dt);
 
     compute_zones();
 }
@@ -169,13 +204,20 @@ float LayoutManager::nav_rail_width() const
 
 bool LayoutManager::is_animating() const
 {
-    float inspector_target = inspector_visible_ ? inspector_width_ : 0.0f;
+    const float inspector_target_t = inspector_visible_ ? 1.0f : 0.0f;
     float nav_target = nav_rail_visible_
                            ? (nav_rail_expanded_ ? nav_rail_expanded_width_
                                                  : nav_rail_collapsed_width_)
                            : 0.0f;
-    return std::abs(inspector_anim_width_ - inspector_target) > 0.5f
+    return std::abs(inspector_anim_t_ - inspector_target_t) > 0.001f
            || std::abs(nav_rail_anim_width_ - nav_target) > 0.5f;
+}
+
+float LayoutManager::inspector_open_amount() const
+{
+    if (inspector_width_ <= 0.0f)
+        return 0.0f;
+    return std::clamp(inspector_anim_width_ / inspector_width_, 0.0f, 1.0f);
 }
 
 // Configuration methods
@@ -190,6 +232,7 @@ void LayoutManager::set_inspector_width(float width)
     // During active drag, snap the animated width to avoid lag
     if (inspector_resize_active_ && inspector_visible_)
     {
+        inspector_anim_t_     = 1.0f;
         inspector_anim_width_ = inspector_width_;
         compute_zones();
     }

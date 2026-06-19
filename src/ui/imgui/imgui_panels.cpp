@@ -583,7 +583,7 @@ void ImGuiIntegration::draw_inspector(Figure& figure)
         // Scrollable content area
         ImGui::BeginChild("##inspector_content", ImVec2(0, 0), 0, ImGuiWindowFlags_NoBackground);
 
-        if (panel_open_)
+        if (panel_open_ || panel_anim_ > 0.01f)
         {
             ImGui::PushStyleVar(ImGuiStyleVar_Alpha, panel_anim_);
 
@@ -678,20 +678,27 @@ void ImGuiIntegration::draw_inspector_toggle()
     Rect canvas  = layout_manager_->canvas_rect();
     bool is_open = layout_manager_->is_inspector_visible();
 
-    // Small pill-shaped chevron toggle on the right edge of the canvas
-    constexpr float BTN_W        = 16.0f;
-    constexpr float BTN_H        = 36.0f;
-    constexpr float BTN_ROUNDING = 8.0f;
-    float           btn_x        = canvas.x + canvas.w - BTN_W;
+    // Chevron tab on the canvas/inspector seam — wide hit target, compact visual pill.
+    constexpr float VIS_W           = 22.0f;
+    constexpr float VIS_H           = 52.0f;
+    constexpr float BTN_ROUNDING    = 11.0f;
+    constexpr float HIT_EXTRA_LEFT  = 12.0f;
+    constexpr float HIT_EXTRA_VERT  = 10.0f;
+    const float     hit_w           = VIS_W + HIT_EXTRA_LEFT;
+    const float     hit_h           = VIS_H + 2.0f * HIT_EXTRA_VERT;
+
+    float vis_x = canvas.x + canvas.w - VIS_W;
     if (is_open)
     {
         Rect insp = layout_manager_->inspector_rect();
-        btn_x     = insp.x - BTN_W;
+        vis_x     = insp.x - VIS_W;
     }
-    float btn_y = canvas.y + (canvas.h - BTN_H) * 0.5f;
+    const float vis_y = canvas.y + (canvas.h - VIS_H) * 0.5f;
+    const float win_x = vis_x - HIT_EXTRA_LEFT;
+    const float win_y = vis_y - HIT_EXTRA_VERT;
 
-    ImGui::SetNextWindowPos(ImVec2(btn_x, btn_y));
-    ImGui::SetNextWindowSize(ImVec2(BTN_W, BTN_H));
+    ImGui::SetNextWindowPos(ImVec2(win_x, win_y));
+    ImGui::SetNextWindowSize(ImVec2(hit_w, hit_h));
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove
                              | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBackground
                              | ImGuiWindowFlags_NoBringToFrontOnFocus
@@ -701,7 +708,7 @@ void ImGuiIntegration::draw_inspector_toggle()
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
     if (ImGui::Begin("##inspector_toggle", nullptr, flags))
     {
-        ImGui::InvisibleButton("##insp_toggle_btn", ImVec2(BTN_W, BTN_H));
+        ImGui::InvisibleButton("##insp_toggle_btn", ImVec2(hit_w, hit_h));
         bool hovered = ImGui::IsItemHovered();
         bool clicked = ImGui::IsItemClicked();
 
@@ -722,29 +729,33 @@ void ImGuiIntegration::draw_inspector_toggle()
         const auto& colors = theme_colors();
         ImDrawList* dl     = ImGui::GetWindowDrawList();
 
-        // Chevron pill — always visible (Vision.png right-edge collapse control).
+        // Chevron tab — always visible (Vision.png right-edge collapse control).
+        const ImDrawFlags tab_corners = ImDrawFlags_RoundCornersLeft;
         {
-            ImU32 bg_col = IM_COL32(static_cast<uint8_t>(colors.bg_tertiary.r * 255),
-                                    static_cast<uint8_t>(colors.bg_tertiary.g * 255),
-                                    static_cast<uint8_t>(colors.bg_tertiary.b * 255),
-                                    hovered ? 200 : 130);
-            dl->AddRectFilled(ImVec2(btn_x, btn_y),
-                              ImVec2(btn_x + BTN_W, btn_y + BTN_H),
+            const uint8_t bg_alpha = hovered ? 230 : 175;
+            ImU32         bg_col   = IM_COL32(static_cast<uint8_t>(colors.bg_tertiary.r * 255),
+                                              static_cast<uint8_t>(colors.bg_tertiary.g * 255),
+                                              static_cast<uint8_t>(colors.bg_tertiary.b * 255),
+                                              bg_alpha);
+            dl->AddRectFilled(ImVec2(vis_x, vis_y),
+                              ImVec2(vis_x + VIS_W, vis_y + VIS_H),
                               bg_col,
-                              BTN_ROUNDING);
+                              BTN_ROUNDING,
+                              tab_corners);
+
             ui::Color edge = colors.accent.lerp(ui::glass_palette::kAccentMagenta, 0.30f);
-            dl->AddRect(ImVec2(btn_x, btn_y),
-                        ImVec2(btn_x + BTN_W, btn_y + BTN_H),
+            dl->AddRect(ImVec2(vis_x, vis_y),
+                        ImVec2(vis_x + VIS_W, vis_y + VIS_H),
                         IM_COL32(static_cast<uint8_t>(edge.r * 255),
                                  static_cast<uint8_t>(edge.g * 255),
                                  static_cast<uint8_t>(edge.b * 255),
-                                 hovered ? 180 : 90),
+                                 hovered ? 210 : 120),
                         BTN_ROUNDING,
-                        0,
-                        1.0f);
+                        tab_corners,
+                        hovered ? 1.5f : 1.0f);
         }
 
-        // Chevron icon centered in the pill
+        // Chevron icon centered in the tab
         ImFont* icon_font_ptr = font_icon_;
         if (icon_font_ptr)
         {
@@ -754,15 +765,15 @@ void ImGuiIntegration::draw_inspector_toggle()
             ImU32 icon_col =
                 hovered ? ImGui::ColorConvertFloat4ToU32(
                               ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 1.0f))
-                        : ImGui::ColorConvertFloat4ToU32(ImVec4(colors.text_secondary.r,
-                                                                colors.text_secondary.g,
-                                                                colors.text_secondary.b,
-                                                                0.45f));
+                        : ImGui::ColorConvertFloat4ToU32(ImVec4(colors.text_primary.r,
+                                                                colors.text_primary.g,
+                                                                colors.text_primary.b,
+                                                                0.72f));
 
-            float  icon_sz = icon_font_ptr->LegacySize;
-            ImVec2 isz     = icon_font_ptr->CalcTextSizeA(icon_sz, FLT_MAX, 0.0f, chevron);
-            float  ix      = std::floor(btn_x + (BTN_W - isz.x) * 0.5f);
-            float  iy      = std::floor(btn_y + (BTN_H - icon_sz) * 0.5f);
+            const float icon_sz = icon_font_ptr->LegacySize * 1.15f;
+            ImVec2      isz     = icon_font_ptr->CalcTextSizeA(icon_sz, FLT_MAX, 0.0f, chevron);
+            const float ix      = std::floor(vis_x + (VIS_W - isz.x) * 0.5f);
+            const float iy      = std::floor(vis_y + (VIS_H - icon_sz) * 0.5f);
             dl->AddText(icon_font_ptr, icon_sz, ImVec2(ix, iy), icon_col, chevron);
         }
     }

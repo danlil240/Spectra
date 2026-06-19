@@ -965,14 +965,12 @@ void InputHandler::handle_scroll_3d(Axes3D* axes3d, double y_offset)
 
 void InputHandler::handle_scroll_2d(double y_offset, double cursor_x, double cursor_y)
 {
-    // 2D hit-test fallback
     Axes* hit = hit_test_axes(cursor_x, cursor_y);
-    if (hit)
-    {
-        active_axes_ = hit;
-    }
-    if (!active_axes_)
+    if (!hit)
         return;
+
+    active_axes_      = hit;
+    active_axes_base_ = hit;
 
     const auto& vp = viewport_for_axes(active_axes_);
 

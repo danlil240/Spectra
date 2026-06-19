@@ -88,9 +88,7 @@ void ImGuiIntegration::draw_timeline_panel()
     float status_bar_h = LayoutManager::STATUS_BAR_HEIGHT;
     float panel_y      = io.DisplaySize.y - status_bar_h - panel_height;
     float nav_w        = layout_manager_ ? layout_manager_->nav_rail_animated_width() : 48.0f;
-    float inspector_w  = (layout_manager_ && layout_manager_->is_inspector_visible())
-                             ? layout_manager_->inspector_animated_width()
-                             : 0.0f;
+    float inspector_w  = layout_manager_ ? layout_manager_->inspector_animated_width() : 0.0f;
     float panel_x      = nav_w;
     float panel_w      = io.DisplaySize.x - nav_w - inspector_w;
 

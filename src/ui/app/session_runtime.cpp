@@ -176,6 +176,7 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
     bool       allow_animation_tick = true;
     bool       should_render_tick   = true;
     bool       has_any_animation    = false;
+    bool       has_ui_chrome_animation = false;
     float      max_animation_fps    = 0.0f;
     float      animation_dt         = 0.0f;
 
@@ -585,7 +586,30 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
             }
 
             if (not should_render_tick)
-                continue;
+            {
+#ifdef SPECTRA_USE_IMGUI
+                if (wctx->ui_ctx && wctx->ui_ctx->imgui_ui
+                    && wctx->ui_ctx->imgui_ui->has_active_chrome_animations())
+                {
+                    has_ui_chrome_animation = true;
+                    redraw_tracker_.mark_dirty("ui_chrome_anim");
+                }
+                else
+#endif
+                {
+                    continue;
+                }
+            }
+            else
+            {
+#ifdef SPECTRA_USE_IMGUI
+                if (wctx->ui_ctx && wctx->ui_ctx->imgui_ui
+                    && wctx->ui_ctx->imgui_ui->has_active_chrome_animations())
+                {
+                    has_ui_chrome_animation = true;
+                }
+#endif
+            }
 
             {
                 SPECTRA_PROFILE_SCOPE(profiler_, "win_update");
@@ -999,7 +1023,8 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
             redraw_tracker_.mark_dirty("keyboard");
 
         SPECTRA_PROFILE_BEGIN(profiler_, "poll_events");
-        if (!has_any_animation && redraw_tracker_.is_idle())
+        const bool keep_animating = has_any_animation || has_ui_chrome_animation;
+        if (!keep_animating && redraw_tracker_.is_idle())
         {
             double wait_timeout_s = 0.1;
             if (vsync_mode && scheduled_animation)
@@ -1009,7 +1034,7 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
             }
             window_mgr->wait_events_timeout(wait_timeout_s);
         }
-        else if (has_any_animation && redraw_tracker_.is_idle())
+        else if (keep_animating && redraw_tracker_.is_idle())
         {
             // Poll so Win32 WM_ENTERSIZEMOVE keeps delivering refresh events,
             // then sleep until the next animation tick (avoids a busy spin).

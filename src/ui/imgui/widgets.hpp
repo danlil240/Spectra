@@ -19,14 +19,18 @@ namespace spectra::ui::widgets
 
 struct SectionAnimState
 {
-    float anim_t      = 1.0f;   // 0 = collapsed, 1 = expanded
-    bool  target_open = true;
-    bool  was_open    = true;   // Previous frame's open state
+    float anim_t              = 1.0f;   // Linear progress: 0 = collapsed, 1 = expanded
+    float content_height      = 0.0f;   // Measured intrinsic height when content is laid out
+    float clip_height         = 0.0f;   // Height baseline frozen when a fold animation starts
+    bool  target_open         = true;
+    bool  was_open            = true;   // Previous frame's open state
+    bool  remeasure_on_expand = false;  // One invisible layout pass before height animation
 };
 
 // Global section animation registry (keyed by section label pointer or ID).
 // Call update_section_animations() once per frame to advance all animations.
 void              update_section_animations(float dt);
+bool              any_section_animations_active();
 SectionAnimState& get_section_anim(const char* id);
 
 // Section header with collapsible state and smooth chevron animation.

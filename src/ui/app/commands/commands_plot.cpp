@@ -40,7 +40,6 @@ std::vector<CommandDescriptor> make_plot_commands(CommandContext& ctx)
                         if (ax)
                         {
                             ui::add_horizontal_reference_line(*ax, 0.0f, "y = 0");
-                            ax->auto_fit();
                         }
                     }});
 
@@ -57,7 +56,6 @@ std::vector<CommandDescriptor> make_plot_commands(CommandContext& ctx)
                         if (ax)
                         {
                             ui::add_vertical_reference_line(*ax, 0.0f, "x = 0");
-                            ax->auto_fit();
                         }
                     }});
 

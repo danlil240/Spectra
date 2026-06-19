@@ -119,6 +119,7 @@ LineSeries& Axes::hline(double y, std::string_view fmt)
     const float ys[] = {static_cast<float>(y), static_cast<float>(y)};
     auto&       line = plot(xs, ys, fmt);
     line.set_excluded_from_autoscale(true);
+    line.set_show_in_legend(false);
     return line;
 }
 
@@ -128,6 +129,7 @@ LineSeries& Axes::vline(double x, std::string_view fmt)
     const float ys[] = {-k_ref_line_span, k_ref_line_span};
     auto&       line = plot(xs, ys, fmt);
     line.set_excluded_from_autoscale(true);
+    line.set_show_in_legend(false);
     return line;
 }
 

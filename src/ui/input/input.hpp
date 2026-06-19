@@ -142,6 +142,9 @@ class InputHandler
     void  set_visible_height(float h) { visible_height_ = h; }
     float visible_height() const { return visible_height_; }
 
+    // Screen rect where plot pan/zoom/scroll may start (layout canvas / pane content).
+    void set_interaction_rect(const Rect& r);
+
     // Current interaction state (dragging)
     InteractionMode mode() const { return mode_; }
     void            set_mode(InteractionMode new_mode) { mode_ = new_mode; }
@@ -272,6 +275,12 @@ class InputHandler
 
     // Visible canvas height for page scroll
     float visible_height_ = 0.0f;
+
+    // Plot interaction bounds (set each frame from LayoutManager / dock content_bounds).
+    Rect interaction_rect_{};
+    bool interaction_rect_set_ = false;
+
+    bool point_in_interaction_rect(double x, double y) const;
 
     // Callbacks
     SavePngCallback save_callback_;

@@ -40,7 +40,7 @@ constexpr float ROW_PADDING_V      = 4.0f;    // Vertical padding inside rows
 constexpr float ROW_PADDING_H      = 8.0f;    // Horizontal padding inside rows
 constexpr float SERIES_ROW_HEIGHT  = 30.0f;   // Series list row height
 constexpr float ICON_BUTTON_HITBOX = 32.0f;   // Standard icon button size
-constexpr float INSPECTOR_HEADER_H = 36.0f;   // Inspector header strip height
+constexpr float INSPECTOR_HEADER_H = 32.0f;   // Inspector section header strip height
 
 // Layout Constants
 constexpr float COMMAND_BAR_HEIGHT      = 48.0f;   // Premium top bar
@@ -61,7 +61,11 @@ constexpr float DURATION_SLOWER      = 0.3f;
 constexpr float DURATION_HOVER       = 0.08f;   // Hover transitions
 constexpr float DURATION_TOOLTIP_IN  = 0.05f;   // Tooltip appear
 constexpr float DURATION_TOOLTIP_OUT = 0.10f;   // Tooltip disappear
-constexpr float DURATION_ZOOM        = 0.12f;   // Plot zoom animation
+constexpr float DURATION_ZOOM            = 0.12f;   // Plot zoom animation
+constexpr float DURATION_INSPECTOR_OPEN  = 0.22f;   // Inspector slide-in (ease-out)
+constexpr float DURATION_INSPECTOR_CLOSE = 0.16f;   // Inspector slide-out (ease-in)
+constexpr float DURATION_SECTION_EXPAND  = 0.18f;   // Inspector section unfold
+constexpr float DURATION_SECTION_COLLAPSE = 0.14f;  // Inspector section fold
 
 // Glow / Accent Effect Tokens
 constexpr float GLOW_RADIUS_SM = 2.0f;   // Subtle inner glow

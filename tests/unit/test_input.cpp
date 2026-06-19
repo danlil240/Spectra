@@ -70,6 +70,35 @@ TEST_F(InputHandlerTest, ScreenToDataBottomRight)
 
 // ─── Pan ────────────────────────────────────────────────────────────────────
 
+TEST_F(InputHandlerTest, PanIgnoredOutsideViewport)
+{
+    auto& vp = axes().viewport();
+    float cx = vp.x + vp.w * 0.5f;
+
+    handler_.set_tool_mode(ToolMode::Pan);
+    handler_.set_active_axes(&axes());
+
+    auto xlim_before = axes().x_limits();
+
+    // Press in the top margin gutter (title area), not inside the data viewport.
+    handler_.on_mouse_button(0, 1, 0, cx, vp.y - 10.0f);
+    EXPECT_EQ(handler_.mode(), InteractionMode::Idle);
+    EXPECT_EQ(axes().x_limits().min, xlim_before.min);
+    EXPECT_EQ(axes().x_limits().max, xlim_before.max);
+}
+
+TEST_F(InputHandlerTest, ScrollIgnoredOutsideViewport)
+{
+    auto& vp = axes().viewport();
+    auto  xlim_before = axes().x_limits();
+
+    handler_.set_active_axes(&axes());
+    handler_.on_scroll(0.0, 1.0, vp.x + vp.w * 0.5f, vp.y - 10.0f);
+
+    EXPECT_EQ(axes().x_limits().min, xlim_before.min);
+    EXPECT_EQ(axes().x_limits().max, xlim_before.max);
+}
+
 TEST_F(InputHandlerTest, PanMovesLimits)
 {
     auto& vp = axes().viewport();
@@ -265,22 +294,21 @@ TEST_F(InputHandlerTest, RightDragSeventyDegreesIsMostlyY)
     EXPECT_GT(dy_range, dx_range);
 }
 
-TEST_F(InputHandlerTest, RightDragCanStartFromLeftGutterWhenAxesAreAlreadyActive)
+TEST_F(InputHandlerTest, RightDragIgnoredFromLeftGutter)
 {
     auto& vp      = axes().viewport();
     float press_x = vp.x - 24.0f;
     float press_y = vp.y + vp.h * 0.5f;
 
-    auto  ylim_before   = axes().y_limits();
-    float yrange_before = ylim_before.max - ylim_before.min;
+    auto ylim_before = axes().y_limits();
 
+    handler_.set_active_axes(&axes());
     handler_.on_mouse_button(1, 1, 0, press_x, press_y);
     handler_.on_mouse_move(press_x, press_y + 50.0f);
     handler_.on_mouse_button(1, 0, 0, press_x, press_y + 50.0f);
 
-    auto  ylim_after   = axes().y_limits();
-    float yrange_after = ylim_after.max - ylim_after.min;
-    EXPECT_GT(yrange_after, yrange_before);
+    EXPECT_EQ(axes().y_limits().min, ylim_before.min);
+    EXPECT_EQ(axes().y_limits().max, ylim_before.max);
 }
 
 // ─── Box zoom ───────────────────────────────────────────────────────────────

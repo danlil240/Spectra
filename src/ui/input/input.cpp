@@ -84,6 +84,23 @@ void InputHandler::set_tool_mode(ToolMode new_tool)
     tool_mode_ = new_tool;
 }
 
+// ─── Interaction bounds ─────────────────────────────────────────────────────
+
+void InputHandler::set_interaction_rect(const Rect& r)
+{
+    interaction_rect_     = r;
+    interaction_rect_set_ = r.w > 0.0f && r.h > 0.0f;
+}
+
+bool InputHandler::point_in_interaction_rect(double x, double y) const
+{
+    if (!interaction_rect_set_)
+        return true;
+    const Rect& r = interaction_rect_;
+    return static_cast<float>(x) >= r.x && static_cast<float>(x) < r.x + r.w
+           && static_cast<float>(y) >= r.y && static_cast<float>(y) < r.y + r.h;
+}
+
 // ─── Hit-testing ────────────────────────────────────────────────────────────
 
 Axes* InputHandler::hit_test_axes(double screen_x, double screen_y) const
@@ -279,14 +296,36 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
     // handling in 3D).
     bool in_active_drag = is_3d_orbit_drag_ || is_3d_pan_drag_ || rclick_zoom_dragging_
                           || mode_ == InteractionMode::Dragging || middle_pan_dragging_;
+
+    // Plot interactions may only start inside the layout canvas (not chrome).
+    if (!in_active_drag && !point_in_interaction_rect(x, y))
+    {
+        if (action == ACTION_PRESS)
+        {
+            active_axes_      = nullptr;
+            active_axes_base_ = nullptr;
+        }
+        return;
+    }
+
     if (!in_active_drag)
     {
         AxesBase* hit_base = hit_test_all_axes(x, y);
+        active_axes_base_  = hit_base;
+        active_axes_       = dynamic_cast<Axes*>(hit_base);
         if (hit_base)
         {
-            active_axes_base_ = hit_base;
-            active_axes_      = dynamic_cast<Axes*>(hit_base);
+            const auto& vp = hit_base->viewport();
+            vp_x_          = vp.x;
+            vp_y_          = vp.y;
+            vp_w_          = vp.w;
+            vp_h_          = vp.h;
         }
+
+        // Plot pan/zoom/tools only start from a press inside the axes viewport
+        // (the inner data area — not title/label gutters or other chrome).
+        if (action == ACTION_PRESS && !hit_base)
+            return;
     }
 
     // Handle 3D axes camera interaction
@@ -294,20 +333,6 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
     {
         handle_mouse_button_3d(axes3d, button, action, x, y);
         return;   // 3D axes don't support other interactions
-    }
-
-    // 2D hit-test (fallback for callers that need Axes*)
-    Axes* hit = hit_test_axes(x, y);
-    if (hit)
-    {
-        active_axes_      = hit;
-        active_axes_base_ = hit;
-        // Sync viewport so screen_to_data works correctly for this axes
-        const auto& vp = hit->viewport();
-        vp_x_          = vp.x;
-        vp_y_          = vp.y;
-        vp_w_          = vp.w;
-        vp_h_          = vp.h;
     }
 
     if (!active_axes_)
@@ -487,6 +512,16 @@ void InputHandler::on_mouse_move(double x, double y)
         cursor_readout_.valid    = false;
         cursor_readout_.screen_x = x;
         cursor_readout_.screen_y = y;
+
+        const bool in_active_drag = is_3d_orbit_drag_ || is_3d_pan_drag_ || rclick_zoom_dragging_
+                                    || mode_ == InteractionMode::Dragging || middle_pan_dragging_;
+        const bool keep_axes_for_measure =
+            tool_mode_ == ToolMode::Measure && measure_click_state_ == 1;
+        if (!in_active_drag && !keep_axes_for_measure)
+        {
+            active_axes_      = nullptr;
+            active_axes_base_ = nullptr;
+        }
     }
 
     update_axes3d_arrow_hover(hit_base, x, y);
@@ -551,6 +586,9 @@ void InputHandler::on_mouse_move(double x, double y)
 
 void InputHandler::on_scroll(double /*x_offset*/, double y_offset, double cursor_x, double cursor_y)
 {
+    if (!point_in_interaction_rect(cursor_x, cursor_y))
+        return;
+
     // Validate cached axes pointers still belong to the current figure.
     // They can become dangling when figures are closed or moved between windows.
     if (active_axes_base_ && figure_)
@@ -589,7 +627,8 @@ void InputHandler::on_scroll(double /*x_offset*/, double y_offset, double cursor
         drag3d_axes_      = nullptr;
     }
 
-    // Hit-test all axes (including 3D) for scroll zoom
+    // Hit-test all axes (including 3D) for scroll zoom — cursor must be over the
+    // plot data viewport, not a stale axes from a prior hover.
     AxesBase* hit_base = hit_test_all_axes(cursor_x, cursor_y);
     if (hit_base)
     {
@@ -616,6 +655,10 @@ void InputHandler::on_scroll(double /*x_offset*/, double y_offset, double cursor
         float max_scroll = std::max(0.0f, figure_->content_height() - visible_height_);
         new_offset       = std::clamp(new_offset, 0.0f, max_scroll);
         figure_->set_scroll_offset_y(new_offset);
+        return;
+    }
+    else
+    {
         return;
     }
 

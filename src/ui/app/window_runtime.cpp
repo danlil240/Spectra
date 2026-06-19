@@ -893,8 +893,13 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
     #ifdef SPECTRA_USE_IMGUI
             if (imgui_ui)
             {
-                const Rect c = imgui_ui->get_layout_manager().canvas_rect();
-                ui_ctx.input_handler.set_visible_height(c.h);
+                const Rect canvas = imgui_ui->get_layout_manager().canvas_rect();
+                ui_ctx.input_handler.set_visible_height(canvas.h);
+
+                SplitPane* root = dock_system.split_view().root();
+                const Rect interaction =
+                    (root && root->is_leaf()) ? root->content_bounds() : canvas;
+                ui_ctx.input_handler.set_interaction_rect(interaction);
             }
     #endif
         }

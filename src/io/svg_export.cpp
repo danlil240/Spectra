@@ -273,7 +273,7 @@ void emit_legend(std::ostringstream& svg, const Axes& axes, const DataToSvg& m)
 
     for (const auto& s : axes.series())
     {
-        if (!s || s->label().empty())
+        if (!s || s->label().empty() || !s->show_in_legend())
             continue;
         bool is_line = (dynamic_cast<const LineSeries*>(s.get()) != nullptr);
         entries.push_back({s->label(), s->color(), is_line});

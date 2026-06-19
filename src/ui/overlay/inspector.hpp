@@ -58,6 +58,9 @@ class Inspector
     // Draw axes-level statistics (aggregate across all series)
     void draw_axes_statistics(const Axes& ax);
 
+    // Draw reference lines management (list + delete)
+    void draw_reference_lines(Axes& ax);
+
     // Draw the series browser (list all series for quick selection)
     void draw_series_browser(Figure& fig);
 
@@ -78,6 +81,7 @@ class Inspector
     bool sec_quick_      = false;
     bool sec_preview_    = true;   // Sparkline preview
     bool sec_axes_stats_ = true;   // Per-axes aggregate stats
+    bool sec_ref_lines_  = true;   // Reference lines management
 
     // Drag-reorder state (deferred to avoid mid-iteration mutation)
     struct PendingMove

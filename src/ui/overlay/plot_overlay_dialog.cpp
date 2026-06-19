@@ -94,7 +94,6 @@ void PlotOverlayDialog::apply()
             break;
         }
     }
-    axes_->auto_fit();
     close();
 }
 

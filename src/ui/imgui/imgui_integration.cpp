@@ -427,6 +427,19 @@ void ImGuiIntegration::update_layout(float window_width, float window_height, fl
     }
 }
 
+bool ImGuiIntegration::has_active_chrome_animations() const
+{
+    if (layout_manager_ && layout_manager_->is_animating())
+        return true;
+    if (ui::widgets::any_section_animations_active())
+        return true;
+    if (theme_mgr_ && theme_mgr_->is_transitioning())
+        return true;
+    if (mode_transition_ && mode_transition_->is_active())
+        return true;
+    return false;
+}
+
 void ImGuiIntegration::set_nav_rail_visible(bool v)
 {
     show_nav_rail_ = v;
@@ -507,12 +520,9 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
     if (layout_manager_)
         panel_open_ = layout_manager_->is_inspector_visible();
 
-    float target = panel_open_ ? 1.0f : 0.0f;
-    // Asymmetric timing: close is 20% faster than open (close feels snappier)
-    float anim_speed = panel_open_ ? 8.0f : 10.0f;
-    panel_anim_ += (target - panel_anim_) * std::min(1.0f, anim_speed * dt);
-    if (std::abs(panel_anim_ - target) < 0.002f)
-        panel_anim_ = target;
+    // Fade tracks the slide animation so open/close feel cohesive.
+    if (layout_manager_)
+        panel_anim_ = layout_manager_->inspector_open_amount();
 
     // Update bottom panel height so canvas shrinks when timeline is open
     if (layout_manager_)
@@ -549,7 +559,7 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
         {
             app_shell_->draw_registered_panels();
         }
-        else if (layout_manager_->is_inspector_visible())
+        else if (layout_manager_->inspector_animated_width() >= 1.0f)
         {
             draw_inspector(figure);
         }
@@ -1286,24 +1296,24 @@ bool ImGuiIntegration::wants_capture_mouse() const
     if (any_item_active)
         return true;
 
-    // If the cursor is inside the canvas area, let mouse events pass through to
-    // InputHandler even when ImGui windows overlap (floating toolbar, status bar
-    // edges, etc.).  The canvas ##window has NoInputs so it shouldn't capture,
-    // but adjacent/overlapping windows cause false positives.
     if (layout_manager_)
     {
         Rect   canvas = layout_manager_->canvas_rect();
         ImVec2 mouse  = ImGui::GetIO().MousePos;
-        if (mouse.x >= canvas.x && mouse.x <= canvas.x + canvas.w && mouse.y >= canvas.y
-            && mouse.y <= canvas.y + canvas.h)
-        {
-            // Capture if an interactive item is hovered OR if the mouse is over
-            // any ImGui window (e.g. the knobs panel title bar being dragged).
-            return any_item_hovered || any_window_hovered;
-        }
+        const bool in_canvas = mouse.x >= canvas.x && mouse.x < canvas.x + canvas.w
+                               && mouse.y >= canvas.y && mouse.y < canvas.y + canvas.h;
+
+        // Outside the plot canvas: never forward pointer events to InputHandler.
+        // Chrome windows (command bar, nav rail, status bar, inspector) may not set
+        // WantCaptureMouse on empty padding, but they still own the pointer.
+        if (!in_canvas)
+            return true;
+
+        // Inside canvas: pass through unless an ImGui item/window is hovered
+        // (floating panels, inspector toggle, pane tab headers, etc.).
+        return any_item_hovered || any_window_hovered;
     }
 
-    // Outside canvas: original logic
     return wants_capture && (any_window_hovered || any_item_hovered);
 }
 bool ImGuiIntegration::wants_capture_keyboard() const

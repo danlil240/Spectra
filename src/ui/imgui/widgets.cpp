@@ -14,10 +14,31 @@
     #include "ui/theme/icons.hpp"
     #include "ui/ui_interaction_log.hpp"
 
+    #include <spectra/animator.hpp>
+
 namespace spectra::ui::widgets
 {
 
 // ─── Section Animation State ─────────────────────────────────────────────────
+
+static const char* current_animated_section_id_ = nullptr;
+static bool        current_section_invisible_measure_ = false;
+
+static float measure_section_content_height()
+{
+    const float cursor_h = ImGui::GetCursorPosY();
+    const ImVec2 content_max = ImGui::GetWindowContentRegionMax();
+    const ImVec2 content_min = ImGui::GetWindowContentRegionMin();
+    const float  region_h    = content_max.y - content_min.y;
+    return std::max(cursor_h, region_h);
+}
+
+static void begin_section_open_anim(SectionAnimState& anim)
+{
+    anim.anim_t              = 0.001f;
+    anim.remeasure_on_expand = true;
+    anim.clip_height         = 0.0f;
+}
 
 static std::unordered_map<std::string, SectionAnimState>& section_anim_map()
 {
@@ -32,22 +53,37 @@ SectionAnimState& get_section_anim(const char* id)
 
 void update_section_animations(float dt)
 {
-    // Asymmetric timing: collapse is faster than expand (per spec: 150ms open, 100ms close)
-    constexpr float EXPAND_SPEED   = 8.0f;    // ~125ms to full open
-    constexpr float COLLAPSE_SPEED = 10.0f;   // ~100ms to full close
     for (auto& [key, state] : section_anim_map())
     {
-        float target = state.target_open ? 1.0f : 0.0f;
-        if (std::abs(state.anim_t - target) > 0.001f)
-        {
-            float speed = state.target_open ? EXPAND_SPEED : COLLAPSE_SPEED;
-            state.anim_t += (target - state.anim_t) * std::min(1.0f, speed * dt);
-        }
-        else
+        const float target = state.target_open ? 1.0f : 0.0f;
+        if (std::abs(state.anim_t - target) <= 0.001f)
         {
             state.anim_t = target;
+            if (state.target_open)
+                state.clip_height = state.content_height;
+            continue;
         }
+
+        const float duration =
+            (target > state.anim_t) ? tokens::DURATION_SECTION_EXPAND : tokens::DURATION_SECTION_COLLAPSE;
+        constexpr float kMaxProgressStep = 0.35f;
+        const float     step             = std::min(dt / duration, kMaxProgressStep);
+        if (target > state.anim_t)
+            state.anim_t = std::min(target, state.anim_t + step);
+        else
+            state.anim_t = std::max(target, state.anim_t - step);
     }
+}
+
+bool any_section_animations_active()
+{
+    for (auto& [key, state] : section_anim_map())
+    {
+        const float target = state.target_open ? 1.0f : 0.0f;
+        if (std::abs(state.anim_t - target) > 0.001f)
+            return true;
+    }
+    return false;
 }
 
 // ─── Section Header ─────────────────────────────────────────────────────────
@@ -58,40 +94,58 @@ bool section_header(const char* label, bool* open, ImFont* font)
 
     ImGui::PushID(label);
 
-    // Full-width clickable area
-    float  avail  = ImGui::GetContentRegionAvail().x;
-    ImVec2 cursor = ImGui::GetCursorScreenPos();
+    const float avail  = ImGui::GetContentRegionAvail().x;
+    const ImVec2 cursor = ImGui::GetCursorScreenPos();
+    const float  hdr_h  = tokens::INSPECTOR_HEADER_H;
 
-    // Section header background + hover highlight using theme tokens
-    ImGui::PushStyleColor(ImGuiCol_Header,
-                          ImVec4(c.section_header_bg.r,
-                                 c.section_header_bg.g,
-                                 c.section_header_bg.b,
-                                 c.section_header_bg.a));
-    ImGui::PushStyleColor(ImGuiCol_HeaderHovered,
-                          ImVec4(c.section_header_bg.r + 0.02f,
-                                 c.section_header_bg.g + 0.02f,
-                                 c.section_header_bg.b + 0.02f,
-                                 0.8f));
-    ImGui::PushStyleColor(ImGuiCol_HeaderActive,
-                          ImVec4(c.section_header_bg.r + 0.04f,
-                                 c.section_header_bg.g + 0.04f,
-                                 c.section_header_bg.b + 0.04f,
-                                 0.9f));
-
-    float hdr_h = tokens::INSPECTOR_HEADER_H;
-    bool  clicked =
-        ImGui::Selectable("##hdr", false, ImGuiSelectableFlags_None, ImVec2(avail, hdr_h));
+    // Invisible hit target — avoids ImGui Header colors that render an opaque accent bar.
+    ImGui::InvisibleButton("##hdr", ImVec2(avail, hdr_h));
+    const bool hovered = ImGui::IsItemHovered();
+    const bool clicked = ImGui::IsItemClicked();
     if (clicked && open)
     {
         log_ui_action("widget", label, "ok", "section_header");
         *open = !*open;
-        // Update animation target
         auto& anim       = get_section_anim(label);
         anim.target_open = *open;
+        if (*open)
+            begin_section_open_anim(anim);
+        else
+        {
+            anim.clip_height         = anim.content_height;
+            anim.remeasure_on_expand = false;
+        }
     }
 
-    ImGui::PopStyleColor(3);
+    // Subtle band behind the header row (rest / hover / pressed).
+    {
+        float bg_alpha = c.section_header_bg.a;
+        if (hovered)
+            bg_alpha = std::min(1.0f, bg_alpha + 0.08f);
+        if (ImGui::IsItemActive())
+            bg_alpha = std::min(1.0f, bg_alpha + 0.12f);
+
+        const ImVec2 hdr_min = cursor;
+        const ImVec2 hdr_max(cursor.x + avail, cursor.y + hdr_h);
+        ImDrawList*  dl      = ImGui::GetWindowDrawList();
+        dl->AddRectFilled(hdr_min,
+                          hdr_max,
+                          IM_COL32(static_cast<uint8_t>(c.section_header_bg.r * 255),
+                                   static_cast<uint8_t>(c.section_header_bg.g * 255),
+                                   static_cast<uint8_t>(c.section_header_bg.b * 255),
+                                   static_cast<uint8_t>(bg_alpha * 255)),
+                          tokens::RADIUS_SM);
+        if (hovered || ImGui::IsItemActive())
+        {
+            dl->AddRect(hdr_min,
+                        hdr_max,
+                        IM_COL32(static_cast<uint8_t>(c.border_subtle.r * 255),
+                                 static_cast<uint8_t>(c.border_subtle.g * 255),
+                                 static_cast<uint8_t>(c.border_subtle.b * 255),
+                                 hovered ? 90 : 60),
+                        tokens::RADIUS_SM);
+        }
+    }
 
     // Sync animation state if open changed externally
     if (open)
@@ -100,14 +154,23 @@ bool section_header(const char* label, bool* open, ImFont* font)
         if (*open != anim.was_open)
         {
             anim.target_open = *open;
-            anim.was_open    = *open;
+            if (*open)
+                begin_section_open_anim(anim);
+            else
+            {
+                anim.clip_height         = anim.content_height;
+                anim.remeasure_on_expand = false;
+            }
+            anim.was_open = *open;
         }
     }
 
-    // Draw chevron + label on top of the selectable
-    ImGui::SetCursorScreenPos(cursor);
+    // Chevron + label vertically centered in the header band.
+    const float text_h    = ImGui::GetTextLineHeight();
+    const float row_y     = cursor.y + std::max(0.0f, (hdr_h - text_h) * 0.5f);
+    const float row_x     = cursor.x + tokens::SPACE_2;
+    ImGui::SetCursorScreenPos(ImVec2(row_x, row_y));
 
-    // Animated chevron rotation: interpolate between right and down
     float chevron_t = 1.0f;
     if (open)
     {
@@ -128,7 +191,6 @@ bool section_header(const char* label, bool* open, ImFont* font)
 
     ImGui::SameLine(0.0f, tokens::SPACE_2);
 
-    // Label text — ALL CAPS, text_secondary (per spec §5.1)
     char upper_buf[128];
     {
         size_t i = 0;
@@ -146,49 +208,63 @@ bool section_header(const char* label, bool* open, ImFont* font)
     if (font)
         ImGui::PopFont();
 
-    // Move cursor past the selectable height
+    // Advance past the header band, then leave a gap before section content.
     ImGui::SetCursorScreenPos(ImVec2(cursor.x, cursor.y + hdr_h));
+    ImGui::Dummy(ImVec2(0.0f, tokens::SPACE_1));
 
     ImGui::PopID();
 
-    // Return true if section should be drawn (either open or animating closed)
     if (!open)
         return true;
     auto& anim = get_section_anim(label);
-    return *open || anim.anim_t > 0.01f;
+    return *open || anim.anim_t > 0.001f;
 }
 
 bool begin_animated_section(const char* id)
 {
-    auto& anim = get_section_anim(id);
-    float t    = anim.anim_t;
+    auto&       anim = get_section_anim(id);
+    const float t    = anim.anim_t;
+    current_animated_section_id_     = id;
+    current_section_invisible_measure_ = false;
 
-    if (t <= 0.01f)
+    if (t <= 0.001f)
     {
-        // Fully collapsed — skip content entirely
+        current_animated_section_id_ = nullptr;
         return false;
     }
 
-    // Apply alpha fade
-    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * t);
+    const float eased = ease::ease_in_out(t);
+    const bool  animating =
+        std::abs(t - (anim.target_open ? 1.0f : 0.0f)) > 0.001f || anim.remeasure_on_expand;
 
-    // Use a clipping child window to animate height
-    // We use a fixed max-height approach: content is drawn at full size,
-    // but the child window clips it based on animation progress.
-    if (t < 0.99f)
+    if (anim.remeasure_on_expand)
     {
-        // Estimate content height — use a generous max, the child will clip
-        float max_h = 600.0f * t;
+        // One-frame layout at 1px height (invisible) — captures ContentSize without
+        // reserving the full expanded height in the parent layout.
+        ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.0f);
+        current_section_invisible_measure_ = true;
         ImGui::BeginChild(id,
-                          ImVec2(0, max_h),
+                          ImVec2(0.0f, 1.0f),
+                          ImGuiChildFlags_None,
+                          ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoBackground);
+        return true;
+    }
+
+    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * eased);
+
+    const float basis = anim.content_height > 1.0f ? anim.content_height : anim.clip_height;
+    if (animating && basis > 1.0f)
+    {
+        const float visible_h = std::max(1.0f, basis * eased);
+        ImGui::BeginChild(id,
+                          ImVec2(0.0f, visible_h),
                           ImGuiChildFlags_None,
                           ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoBackground);
     }
     else
     {
-        // Fully open — auto-resize to content height
         ImGui::BeginChild(id,
-                          ImVec2(0, 0),
+                          ImVec2(0.0f, 0.0f),
                           ImGuiChildFlags_AutoResizeY,
                           ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoBackground);
     }
@@ -198,8 +274,39 @@ bool begin_animated_section(const char* id)
 
 void end_animated_section()
 {
+    const char* id = current_animated_section_id_;
+    if (id)
+    {
+        auto& anim = get_section_anim(id);
+        const float measured = measure_section_content_height();
+        if (measured > 1.0f)
+        {
+            anim.content_height = measured;
+            if (anim.remeasure_on_expand)
+            {
+                anim.clip_height         = measured;
+                anim.remeasure_on_expand = false;
+            }
+            else if (!anim.target_open)
+            {
+                anim.clip_height = measured;
+            }
+        }
+    }
+
     ImGui::EndChild();
-    ImGui::PopStyleVar();   // Alpha
+
+    if (current_section_invisible_measure_)
+    {
+        ImGui::PopStyleVar();   // Alpha (invisible measure)
+        current_section_invisible_measure_ = false;
+    }
+    else
+    {
+        ImGui::PopStyleVar();   // Alpha (eased fade)
+    }
+
+    current_animated_section_id_ = nullptr;
 }
 
 // ─── Separator ──────────────────────────────────────────────────────────────

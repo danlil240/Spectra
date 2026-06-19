@@ -154,6 +154,10 @@ class ImGuiIntegration
     }
     void update_layout(float window_width, float window_height, float dt = 0.0f);
 
+    // True while inspector/nav layout, section fold, theme, or mode transitions run.
+    // Used by the event-driven render loop to avoid sleeping through UI animations.
+    bool has_active_chrome_animations() const;
+
     bool wants_capture_mouse() const;
     bool wants_capture_keyboard() const;
     bool is_tab_interacting() const { return pane_tab_hovered_ || pane_tab_drag_.dragging; }

@@ -50,11 +50,11 @@ ThemeGlassSettings ThemeGlassSettings::night_defaults()
 ThemeGlassSettings ThemeGlassSettings::dark_defaults()
 {
     ThemeGlassSettings s;
-    s.master_intensity = 0.20f;
-    s.panel_alpha      = 0.88f;
-    s.plot_alpha       = 0.92f;
-    s.toolbar_alpha    = 0.85f;
-    s.glow_strength    = 0.10f;
+    s.master_intensity = 0.34f;
+    s.panel_alpha      = 0.72f;
+    s.plot_alpha       = 0.86f;
+    s.toolbar_alpha    = 0.66f;
+    s.glow_strength    = 0.28f;
     s.blur_enabled     = false;
     return s;
 }
@@ -1047,66 +1047,66 @@ void ThemeManager::load_default()
 
 void ThemeManager::initialize_default_themes()
 {
-    // Dark theme (default) — medium-dark neutral gray, no blue tints
+    // Dark Glass — graphite chrome with restrained cool highlights
     Theme dark;
     dark.name   = "dark";
     dark.colors = {
-        // Surfaces — neutral gray, medium-dark
-        .bg_canvas    = Color::from_hex(0x272727),   // Plot area
-        .bg_primary   = Color::from_hex(0x212121),   // App window background
-        .bg_secondary = Color::from_hex(0x2E2E2E),   // Surface-1: panels, inspector, rails
-        .bg_tertiary  = Color::from_hex(0x363636),   // Surface-2: inputs, chips, cards
-        .bg_elevated  = Color::from_hex(0x424242),   // Floating: tooltips, popups
-        .bg_overlay   = Color(0.0f, 0.0f, 0.0f, 0.50f),
+        // Surfaces — separated graphite layers instead of one flat charcoal
+        .bg_canvas    = Color::from_hex(0x202428),   // Plot area
+        .bg_primary   = Color::from_hex(0x171A1D),   // App window background
+        .bg_secondary = Color::from_hex(0x23282D),   // Panels, inspector, rails
+        .bg_tertiary  = Color::from_hex(0x2D343B),   // Inputs, chips, cards
+        .bg_elevated  = Color::from_hex(0x38424B),   // Floating: tooltips, popups
+        .bg_overlay   = Color(0.0f, 0.0f, 0.0f, 0.55f),
 
-        // Text — warm gray hierarchy
-        .text_primary   = Color::from_hex(0xE8E8E8),
-        .text_secondary = Color::from_hex(0xB8B8B8),   // brighter labels on dark surfaces
-        .text_tertiary  = Color::from_hex(0x6A6A6A),
-        .text_inverse   = Color::from_hex(0x181818),
+        // Text — cool gray hierarchy with clearer secondary labels
+        .text_primary   = Color::from_hex(0xF1F5F9),
+        .text_secondary = Color::from_hex(0xCBD5E1),
+        .text_tertiary  = Color::from_hex(0x8A97A6),
+        .text_inverse   = Color::from_hex(0x0C1116),
 
-        // Borders — pure neutral gray (zero blue)
-        .border_default = Color(0.30f, 0.30f, 0.30f, 0.65f),   // ~#4D4D4D @ 65%
-        .border_subtle  = Color(0.24f, 0.24f, 0.24f, 0.45f),   // ~#3D3D3D @ 45%
-        .border_strong  = Color(0.48f, 0.48f, 0.48f, 0.80f),   // ~#7A7A7A @ 80%
+        // Borders — glass rims that define the rail, canvas, and popups
+        .border_default = Color(0.36f, 0.43f, 0.50f, 0.50f),
+        .border_subtle  = Color(0.25f, 0.30f, 0.35f, 0.36f),
+        .border_strong  = Color(0.56f, 0.67f, 0.76f, 0.72f),
 
-        // Interactive — neutral warm accent (no blue)
-        .accent        = Color::from_hex(0xE0E0E0),   // Bright neutral
-        .accent_hover  = Color::from_hex(0xFFFFFF),   // White on hover
-        .accent_muted  = Color(0.88f, 0.88f, 0.88f, 0.20f),
-        .accent_subtle = Color(0.88f, 0.88f, 0.88f, 0.08f),
+        // Interactive — quiet steel-cyan accent for controls and focus
+        .accent        = Color::from_hex(0x8AB4C8),
+        .accent_hover  = Color::from_hex(0xB8D8E6),
+        .accent_muted  = Color(0.54f, 0.71f, 0.78f, 0.18f),
+        .accent_subtle = Color(0.54f, 0.71f, 0.78f, 0.08f),
 
         // Semantic
         .success = Color::from_hex(0x3FB950),
         .warning = Color::from_hex(0xD29922),
         .error   = Color::from_hex(0xFF7575),   // WCAG AA: 4.52:1 on bg_secondary (#2E2E2E)
-        .info    = Color::from_hex(0xA0A0A0),
+        .info    = Color::from_hex(0x7DD3FC),
 
         // Plot-specific — grid recedes, data is hero
-        .grid_major       = Color(1.0f, 1.0f, 1.0f, 0.14f),
-        .grid_minor       = Color(1.0f, 1.0f, 1.0f, 0.05f),
-        .grid_line        = Color(1.0f, 1.0f, 1.0f, 0.14f),   // Compat
-        .axis_line        = Color(0.60f, 0.60f, 0.60f, 0.55f),
-        .tick_label       = Color::from_hex(0xB8B8B8),   // brighter tick labels
-        .crosshair        = Color(0.88f, 0.88f, 0.88f, 0.70f),
-        .selection_fill   = Color(0.88f, 0.88f, 0.88f, 0.15f),
-        .selection_border = Color::from_hex(0xE0E0E0),
-        .tooltip_bg       = Color(0.22f, 0.22f, 0.22f, 0.94f),   // Near-opaque dark
-        .tooltip_border   = Color(0.34f, 0.34f, 0.34f, 0.40f),
+        .grid_major       = Color(0.70f, 0.78f, 0.84f, 0.12f),
+        .grid_minor       = Color(0.70f, 0.78f, 0.84f, 0.045f),
+        .grid_line        = Color(0.70f, 0.78f, 0.84f, 0.12f),   // Compat
+        .axis_line        = Color(0.70f, 0.78f, 0.84f, 0.44f),
+        .tick_label       = Color::from_hex(0xC7D2DE),
+        .crosshair        = Color(0.54f, 0.71f, 0.78f, 0.70f),
+        .selection_fill   = Color(0.54f, 0.71f, 0.78f, 0.12f),
+        .selection_border = Color::from_hex(0x8AB4C8),
+        .tooltip_bg       = Color(0.19f, 0.22f, 0.25f, 0.94f),
+        .tooltip_border   = Color(0.48f, 0.58f, 0.66f, 0.38f),
 
-        // Visual effects — glow off for dark theme
-        .accent_glow       = Color(0.0f, 0.0f, 0.0f, 0.0f),
-        .glow_intensity    = 0.0f,
-        .focus_ring        = Color::from_hex(0xE0E0E0),
-        .scrollbar_thumb   = Color(1.0f, 1.0f, 1.0f, 0.20f),
+        // Visual effects — subtle glass glow without becoming Night theme
+        .accent_glow       = Color(0.48f, 0.78f, 0.88f, 0.28f),
+        .glow_intensity    = 0.22f,
+        .focus_ring        = Color::from_hex(0x8AB4C8),
+        .scrollbar_thumb   = Color(0.70f, 0.78f, 0.84f, 0.24f),
         .scrollbar_track   = Color(0.0f, 0.0f, 0.0f, 0.0f),
-        .section_header_bg = Color(1.0f, 1.0f, 1.0f, 0.04f),
-        .input_bg          = Color::from_hex(0x363636),
-        .hover_highlight   = Color(0.88f, 0.88f, 0.88f, 0.15f),
-        .annotation_bg     = Color(0.22f, 0.22f, 0.22f, 0.88f),
-        .roi_fill          = Color(0.88f, 0.88f, 0.88f, 0.10f),
-        .roi_border        = Color(0.88f, 0.88f, 0.88f, 0.40f)};
-    dark.shadow_intensity = 0.0f;
+        .section_header_bg = Color(0.70f, 0.78f, 0.84f, 0.055f),
+        .input_bg          = Color::from_hex(0x2B3238),
+        .hover_highlight   = Color(0.54f, 0.71f, 0.78f, 0.11f),
+        .annotation_bg     = Color(0.19f, 0.22f, 0.25f, 0.88f),
+        .roi_fill          = Color(0.54f, 0.71f, 0.78f, 0.08f),
+        .roi_border        = Color(0.54f, 0.71f, 0.78f, 0.36f)};
+    dark.shadow_intensity = 0.45f;
     dark.use_blur         = false;
     dark.glass_defaults   = ThemeGlassSettings::dark_defaults();
     register_theme("dark", dark);

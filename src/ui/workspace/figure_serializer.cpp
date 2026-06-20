@@ -857,7 +857,7 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 float       lw    = r.read_f32();
                 bool        excl  = (version >= 2) && (r.read_u8() != 0);
                 bool        inleg = (version >= 3) ? (r.read_u8() != 0) : true;
-                bool        isref = (version >= 4) ? (r.read_u8() != 0) : false;
+                bool        isref = (version >= 4) ? (r.read_u8() != 0) : (excl && !inleg);
                 float       width = r.read_f32();
 
                 x_data = r.read_floats();
@@ -901,7 +901,7 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 float       lw   = r.read_f32();
                 bool        excl = (version >= 2) && (r.read_u8() != 0);
                 bool        inleg = (version >= 3) ? (r.read_u8() != 0) : true;
-                bool        isref = (version >= 4) ? (r.read_u8() != 0) : false;
+                bool        isref = (version >= 4) ? (r.read_u8() != 0) : (excl && !inleg);
                 float       sz   = r.read_f32();
 
                 auto x_data = r.read_floats();
@@ -945,7 +945,7 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 float       lw   = r.read_f32();
                 bool        excl = (version >= 2) && (r.read_u8() != 0);
                 bool        inleg = (version >= 3) ? (r.read_u8() != 0) : true;
-                bool        isref = (version >= 4) ? (r.read_u8() != 0) : false;
+                bool        isref = (version >= 4) ? (r.read_u8() != 0) : (excl && !inleg);
 
                 float bw        = r.read_f32();
                 bool  show_outl = r.read_u8() != 0;
@@ -1004,7 +1004,7 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 float       lw   = r.read_f32();
                 bool        excl = (version >= 2) && (r.read_u8() != 0);
                 bool        inleg = (version >= 3) ? (r.read_u8() != 0) : true;
-                bool        isref = (version >= 4) ? (r.read_u8() != 0) : false;
+                bool        isref = (version >= 4) ? (r.read_u8() != 0) : (excl && !inleg);
 
                 float vw      = r.read_f32();
                 int   res     = r.read_i32();
@@ -1058,7 +1058,7 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 float       lw   = r.read_f32();
                 bool        excl = (version >= 2) && (r.read_u8() != 0);
                 bool        inleg = (version >= 3) ? (r.read_u8() != 0) : true;
-                bool        isref = (version >= 4) ? (r.read_u8() != 0) : false;
+                bool        isref = (version >= 4) ? (r.read_u8() != 0) : (excl && !inleg);
 
                 int  bins = r.read_i32();
                 bool cum  = r.read_u8() != 0;
@@ -1105,7 +1105,7 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 float       lw   = r.read_f32();
                 bool        excl = (version >= 2) && (r.read_u8() != 0);
                 bool        inleg = (version >= 3) ? (r.read_u8() != 0) : true;
-                bool        isref = (version >= 4) ? (r.read_u8() != 0) : false;
+                bool        isref = (version >= 4) ? (r.read_u8() != 0) : (excl && !inleg);
 
                 float bw   = r.read_f32();
                 float base = r.read_f32();
@@ -1153,7 +1153,7 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 float       lw   = r.read_f32();
                 bool        excl = (version >= 2) && (r.read_u8() != 0);
                 bool        inleg = (version >= 3) ? (r.read_u8() != 0) : true;
-                bool        isref = (version >= 4) ? (r.read_u8() != 0) : false;
+                bool        isref = (version >= 4) ? (r.read_u8() != 0) : (excl && !inleg);
                 float       wid  = r.read_f32();
                 auto        bm   = static_cast<BlendMode>(r.read_u8());
 
@@ -1200,7 +1200,7 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 float       lw   = r.read_f32();
                 bool        excl = (version >= 2) && (r.read_u8() != 0);
                 bool        inleg = (version >= 3) ? (r.read_u8() != 0) : true;
-                bool        isref = (version >= 4) ? (r.read_u8() != 0) : false;
+                bool        isref = (version >= 4) ? (r.read_u8() != 0) : (excl && !inleg);
                 float       sz   = r.read_f32();
                 auto        bm   = static_cast<BlendMode>(r.read_u8());
 
@@ -1247,7 +1247,7 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 float       lw   = r.read_f32();
                 bool        excl = (version >= 2) && (r.read_u8() != 0);
                 bool        inleg = (version >= 3) ? (r.read_u8() != 0) : true;
-                bool        isref = (version >= 4) ? (r.read_u8() != 0) : false;
+                bool        isref = (version >= 4) ? (r.read_u8() != 0) : (excl && !inleg);
 
                 auto  cmap     = static_cast<ColormapType>(r.read_u8());
                 float cmap_min = r.read_f32();
@@ -1308,7 +1308,7 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 float       lw   = r.read_f32();
                 bool        excl = (version >= 2) && (r.read_u8() != 0);
                 bool        inleg = (version >= 3) ? (r.read_u8() != 0) : true;
-                bool        isref = (version >= 4) ? (r.read_u8() != 0) : false;
+                bool        isref = (version >= 4) ? (r.read_u8() != 0) : (excl && !inleg);
 
                 float amb  = r.read_f32();
                 float spec = r.read_f32();

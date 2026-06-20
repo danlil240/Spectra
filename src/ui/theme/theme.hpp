@@ -528,7 +528,7 @@ inline Color control_glow_color(const ThemeColors& c)
 {
     if (c.accent_glow.a > 0.0f)
         return c.accent_glow;
-    // Neutral themes (dark/light) have no accent_glow — use accent, not cyan fallback.
+    // Themes without a dedicated glow hue use their normal accent.
     return c.accent;
 }
 

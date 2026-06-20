@@ -18,9 +18,25 @@
 #endif
 
 // rclcpp deserialization helpers
+#include <rclcpp/version.h>
 #include <rclcpp/serialization.hpp>
 #include <rclcpp/typesupport_helpers.hpp>
 #include <rosidl_typesupport_introspection_cpp/message_introspection.hpp>
+
+// Humble uses get_message_type_support_handle; Jazzy uses get_message_typesupport_handle.
+namespace spectra::adapters::ros2::detail
+{
+inline const rosidl_message_type_support_t* get_message_ts_handle(
+    const std::string& type_name, const std::string& ts_id,
+    rcpputils::SharedLibrary& lib)
+{
+#if defined(RCLCPP_VERSION_MAJOR) && RCLCPP_VERSION_MAJOR >= 28
+    return rclcpp::get_message_typesupport_handle(type_name, ts_id, lib);
+#else
+    return rclcpp::get_message_type_support_handle(type_name, ts_id, lib);
+#endif
+}
+}   // namespace spectra::adapters::ros2::detail
 
 #ifdef SPECTRA_ROS2_BAG
     #include "bag_reader.hpp"
@@ -58,13 +74,13 @@ std::optional<RosMessageTypeSupport> resolve_message_typesupport(const std::stri
     {
         out.intro_lib = rclcpp::get_typesupport_library(type_name,
                                                         "rosidl_typesupport_introspection_cpp");
-        out.intro_ts  = rclcpp::get_message_typesupport_handle(type_name,
-                                                               "rosidl_typesupport_introspection_cpp",
-                                                               *out.intro_lib);
+        out.intro_ts  = detail::get_message_ts_handle(type_name,
+                                                       "rosidl_typesupport_introspection_cpp",
+                                                       *out.intro_lib);
         out.cpp_lib   = rclcpp::get_typesupport_library(type_name, "rosidl_typesupport_cpp");
-        out.cpp_ts    = rclcpp::get_message_typesupport_handle(type_name,
-                                                               "rosidl_typesupport_cpp",
-                                                               *out.cpp_lib);
+        out.cpp_ts    = detail::get_message_ts_handle(type_name,
+                                                       "rosidl_typesupport_cpp",
+                                                       *out.cpp_lib);
     }
     catch (const std::exception&)
     {

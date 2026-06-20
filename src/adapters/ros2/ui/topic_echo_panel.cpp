@@ -23,7 +23,7 @@
 #include <rclcpp/typesupport_helpers.hpp>
 #include <rosidl_typesupport_introspection_cpp/message_introspection.hpp>
 
-// Humble uses get_message_type_support_handle; Jazzy uses get_message_typesupport_handle.
+// Humble: get_typesupport_handle; Jazzy (rclcpp >= 28): get_message_typesupport_handle.
 namespace spectra::adapters::ros2::detail
 {
 inline const rosidl_message_type_support_t* get_message_ts_handle(
@@ -33,7 +33,7 @@ inline const rosidl_message_type_support_t* get_message_ts_handle(
 #if defined(RCLCPP_VERSION_MAJOR) && RCLCPP_VERSION_MAJOR >= 28
     return rclcpp::get_message_typesupport_handle(type_name, ts_id, lib);
 #else
-    return rclcpp::get_message_type_support_handle(type_name, ts_id, lib);
+    return rclcpp::get_typesupport_handle(type_name, ts_id, lib);
 #endif
 }
 }   // namespace spectra::adapters::ros2::detail

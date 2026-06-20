@@ -12,6 +12,7 @@
 #include <mutex>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "bag_display_sync.hpp"
@@ -49,6 +50,9 @@
 
 #ifdef SPECTRA_USE_IMGUI
     #include "ui/shell/app_shell.hpp"
+    #include "ui/commands/command_registry.hpp"
+    #include "ui/commands/shortcut_manager.hpp"
+    #include "ui/commands/command_palette.hpp"
 #endif
 
 namespace spectra
@@ -208,7 +212,15 @@ class RosAppShell
     void draw_topic_echo(bool* p_open = nullptr);
     void draw_topic_stats(bool* p_open = nullptr);
     void draw_plot_area(bool* p_open = nullptr);
+    void draw_subplot_legend(int slot);
     void draw_expression_editor(bool* p_open = nullptr);
+
+#ifdef SPECTRA_USE_IMGUI
+    void register_ros_commands();
+    spectra::CommandRegistry&       command_registry() { return cmd_registry_; }
+    spectra::CommandPalette&       command_palette() { return cmd_palette_; }
+    spectra::ShortcutManager&      shortcut_manager() { return shortcut_mgr_; }
+#endif
     void draw_bag_info(bool* p_open = nullptr);
     void draw_bag_playback(bool* p_open = nullptr);
     void draw_unified_transport_bar();
@@ -400,6 +412,7 @@ class RosAppShell
     bool                                 show_record_dialog_ = false;
 
     std::unique_ptr<RosSessionManager> session_mgr_;
+    std::unordered_set<std::string>    favorite_topics_;
     bool                               show_session_save_dialog_ = false;
     bool                               show_session_load_dialog_  = false;
     bool                               show_session_merge_dialog_ = false;
@@ -411,6 +424,10 @@ class RosAppShell
     int                                layout_settle_frames_{0};
 
     std::atomic<bool> shutdown_requested_{false};
+
+    // MRU topics for quick-plot in empty states.
+    std::vector<std::string> recent_topics_;
+    static constexpr size_t  MAX_RECENT_TOPICS = 8;
 
     bool plot_area_was_visible_ = true;   // tracks previous frame for close detection
     bool plot_theme_applied_    = false;
@@ -469,6 +486,11 @@ class RosAppShell
 
 #ifdef SPECTRA_USE_IMGUI
     spectra::ui::shell::CanvasHost* ros_canvas_host_ = nullptr;
+
+    spectra::CommandRegistry  cmd_registry_;
+    spectra::ShortcutManager  shortcut_mgr_;
+    spectra::CommandPalette   cmd_palette_;
+    bool                      ros_commands_registered_ = false;
 #endif
 };
 

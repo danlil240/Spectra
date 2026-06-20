@@ -3,12 +3,16 @@
 #include "ui/topic_echo_panel.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <chrono>
 #include <cstring>
 #include <format>
+#include <functional>
+#include <iterator>
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
 
+    #include "ui/imgui/widgets.hpp"
     #include "ui/shell/shell_style.hpp"
     #include "ui/theme/icons.hpp"
 #endif
@@ -30,6 +34,68 @@ static int displayed_endpoint_count(int total_count, int local_count)
 {
     return std::max(0, total_count - local_count);
 }
+
+static std::string lowercase_copy(std::string text)
+{
+    std::transform(text.begin(),
+                   text.end(),
+                   text.begin(),
+                   [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+    return text;
+}
+
+#ifdef SPECTRA_USE_IMGUI
+static std::string fit_text(std::string text, float max_width)
+{
+    if (ImGui::CalcTextSize(text.c_str()).x <= max_width)
+        return text;
+    while (text.size() > 4 && ImGui::CalcTextSize((text + "...").c_str()).x > max_width)
+        text.pop_back();
+    return text + "...";
+}
+
+static float chip_button_width(const char* label)
+{
+    return ImGui::CalcTextSize(label ? label : "").x
+           + spectra::ui::tokens::CHIP_PADDING_H * 2.0f;
+}
+
+static void draw_wrapped_filter_chips(const TopicListPanel::TopicCategoryFilter* filters,
+                                      const char* const* labels,
+                                      size_t count,
+                                      TopicListPanel::TopicCategoryFilter active,
+                                      const std::function<void(TopicListPanel::TopicCategoryFilter)>& on_select)
+{
+    constexpr float kSpacing = 6.0f;
+    const float     content_right = ImGui::GetWindowContentRegionMax().x;
+    const float     content_left  = ImGui::GetWindowContentRegionMin().x;
+
+    auto draw_chip = [&](size_t index)
+    {
+        if (spectra::ui::widgets::filter_chip(labels[index], active == filters[index]))
+            on_select(filters[index]);
+    };
+
+    for (size_t i = 0; i < count;)
+    {
+        float row_x = content_left;
+        bool  first_in_row = true;
+        while (i < count)
+        {
+            const float chip_w = chip_button_width(labels[i]);
+            const float needed = first_in_row ? chip_w : (kSpacing + chip_w);
+            if (!first_in_row && row_x + needed > content_right - 2.0f)
+                break;
+            if (!first_in_row)
+                ImGui::SameLine(0.0f, kSpacing);
+            draw_chip(i);
+            row_x += needed;
+            first_in_row = false;
+            ++i;
+        }
+    }
+}
+#endif
 
 // ---------------------------------------------------------------------------
 // TopicStats
@@ -126,6 +192,7 @@ void TopicListPanel::set_column_visibility(const ColumnVisibility& visibility)
     col_show_pubs_ = visibility.show_pubs;
     col_show_subs_ = visibility.show_subs;
     col_show_bw_   = visibility.show_bw;
+    col_show_age_   = visibility.show_age;
 }
 
 TopicListPanel::ColumnVisibility TopicListPanel::column_visibility() const
@@ -136,6 +203,7 @@ TopicListPanel::ColumnVisibility TopicListPanel::column_visibility() const
         .show_pubs = col_show_pubs_,
         .show_subs = col_show_subs_,
         .show_bw   = col_show_bw_,
+        .show_age   = col_show_age_,
     };
 }
 
@@ -180,6 +248,14 @@ void TopicListPanel::set_filter(const std::string& f)
     filter_dirty_         = true;
 }
 
+void TopicListPanel::set_category_filter(TopicCategoryFilter filter)
+{
+    if (category_filter_ == filter)
+        return;
+    category_filter_ = filter;
+    filter_dirty_    = true;
+}
+
 TopicListPanel::StatsSnapshot TopicListPanel::stats_for(const std::string& topic_name) const
 {
     const int64_t               now = wall_clock_ns();
@@ -208,9 +284,13 @@ size_t TopicListPanel::filtered_topic_count() const
     {
         filtered_names_.clear();
         std::lock_guard<std::mutex> lk(topics_mutex_);
+        std::lock_guard<std::mutex> lk_s(stats_mutex_);
         for (const auto& t : topics_)
         {
-            if (filter_str_.empty() || t.name.find(filter_str_) != std::string::npos)
+            const auto it = stats_map_.find(t.name);
+            const TopicStats empty_stats;
+            const TopicStats& stats = (it != stats_map_.end()) ? it->second : empty_stats;
+            if (passes_topic_filter(t, stats))
             {
                 filtered_names_.push_back(t.name);
             }
@@ -330,6 +410,20 @@ void TopicListPanel::rebuild_tree()
     return std::format("{:.0f} B/s", bps);
 }
 
+/*static*/ std::string TopicListPanel::format_age(int64_t now_ns_val, int64_t last_msg_ns)
+{
+    if (last_msg_ns <= 0)
+        return "-";
+    const double age_s = std::max(0.0, static_cast<double>(now_ns_val - last_msg_ns) * 1e-9);
+    if (age_s < 1.0)
+        return std::format("{:.0f} ms", age_s * 1000.0);
+    if (age_s < 60.0)
+        return std::format("{:.1f} s", age_s);
+    if (age_s < 3600.0)
+        return std::format("{:.0f} min", age_s / 60.0);
+    return std::format("{:.1f} h", age_s / 3600.0);
+}
+
 /*static*/ int64_t TopicListPanel::now_ns()
 {
     return wall_clock_ns();
@@ -383,6 +477,61 @@ static ImVec4 topic_type_color(const std::string& type_name)
         return {0.20f, 0.90f, 0.70f, 1.0f};
     // Default — neutral gray-white
     return {0.75f, 0.75f, 0.75f, 1.0f};
+}
+
+bool TopicListPanel::matches_text_filter(const TopicInfo& info) const
+{
+    if (filter_str_.empty())
+        return true;
+    const std::string needle = lowercase_copy(filter_str_);
+    if (lowercase_copy(info.name).find(needle) != std::string::npos)
+        return true;
+    for (const auto& type : info.types)
+    {
+        if (lowercase_copy(type).find(needle) != std::string::npos)
+            return true;
+    }
+    return false;
+}
+
+bool TopicListPanel::passes_topic_filter(const TopicInfo& info, const TopicStats& stats) const
+{
+    if (!matches_text_filter(info))
+        return false;
+
+    const std::string type = info.types.empty() ? std::string{} : lowercase_copy(info.types.front());
+    const std::string name = lowercase_copy(info.name);
+    auto has = [](const std::string& haystack, const char* needle)
+    { return haystack.find(needle) != std::string::npos; };
+
+    switch (category_filter_)
+    {
+        case TopicCategoryFilter::All:
+            return true;
+        case TopicCategoryFilter::Numeric:
+            return has(type, "std_msgs/msg/float") || has(type, "std_msgs/msg/int")
+                   || has(type, "std_msgs/msg/u") || has(type, "geometry_msgs/msg/twist")
+                   || has(type, "geometry_msgs/msg/vector3")
+                   || has(type, "sensor_msgs/msg/imu")
+                   || has(type, "sensor_msgs/msg/jointstate")
+                   || has(type, "nav_msgs/msg/odometry");
+        case TopicCategoryFilter::Images:
+            return has(type, "image") || has(type, "camera") || has(name, "image");
+        case TopicCategoryFilter::Tf:
+            return name == "/tf" || name == "/tf_static" || has(type, "tf2_msgs/");
+        case TopicCategoryFilter::Diagnostics:
+            return has(type, "diagnostic_msgs/") || has(name, "diagnostic");
+        case TopicCategoryFilter::Active:
+            return stats.active;
+        case TopicCategoryFilter::HighHz:
+            return stats.displayed_hz >= 10.0;
+    }
+    return true;
+}
+
+bool TopicListPanel::is_favorite(const std::string& topic_name) const
+{
+    return is_favorite_cb_ ? is_favorite_cb_(topic_name) : false;
 }
 
 // Draw a small inline sparkline using ImDrawList.
@@ -505,22 +654,40 @@ void TopicListPanel::draw(bool* p_open)
         return;
     }
 
-    // --- Search bar ---
-    ImGui::SetNextItemWidth(-120.0f);
-    const bool filter_changed =
-        ImGui::InputTextWithHint("##filter", "Search topics...", filter_buf_, sizeof(filter_buf_));
-    if (filter_changed)
+    // --- Search and category filters ---
+    bool filter_changed = false;
+    ImGui::SetNextItemWidth(-1.0f);
+    if (spectra::ui::widgets::search_box(filter_buf_,
+                                         sizeof(filter_buf_),
+                                         "Search topics, types, fields...",
+                                         &filter_changed))
     {
         filter_str_   = filter_buf_;
         filter_dirty_ = true;
     }
-    ImGui::SameLine();
+
+    TopicCategoryFilter filter_values[] = {
+        TopicCategoryFilter::All,
+        TopicCategoryFilter::Numeric,
+        TopicCategoryFilter::Images,
+        TopicCategoryFilter::Tf,
+        TopicCategoryFilter::Diagnostics,
+        TopicCategoryFilter::Active,
+        TopicCategoryFilter::HighHz,
+    };
+    const char* filter_labels[] = {
+        "All", "Numeric", "Images", "TF", "Diagnostics", "Active", "High Hz",
+    };
+    draw_wrapped_filter_chips(filter_values,
+                            filter_labels,
+                            std::size(filter_labels),
+                            category_filter_,
+                            [this](TopicCategoryFilter filter) { set_category_filter(filter); });
 
     // Column visibility settings gear.
-    if (ImGui::SmallButton(ui::icon_str(ui::Icon::Settings)))
+    ImGui::Spacing();
+    if (spectra::ui::widgets::toolbar_button(ui::Icon::Settings, "Column visibility"))
         ImGui::OpenPopup("##col_vis");
-    if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("Column visibility");
     if (ImGui::BeginPopup("##col_vis"))
     {
         ImGui::TextDisabled("Visible columns");
@@ -530,25 +697,79 @@ void TopicListPanel::draw(bool* p_open)
         ImGui::Checkbox("Pubs", &col_show_pubs_);
         ImGui::Checkbox("Subs", &col_show_subs_);
         ImGui::Checkbox("BW", &col_show_bw_);
+        ImGui::Checkbox("Age", &col_show_age_);
         ImGui::EndPopup();
     }
     ImGui::SameLine();
-    ImGui::TextDisabled("%zu topic%s", topics_.size(), topics_.size() == 1 ? "" : "s");
+    spectra::ui::widgets::status_pill(
+        std::format("{} topic{}", topics_.size(), topics_.size() == 1 ? "" : "s").c_str(),
+        spectra::ui::theme().accent,
+        false);
 
     ImGui::Separator();
+
+    if (topics_.empty())
+    {
+        // Show skeleton rows during initial discovery (first ~60 frames ≈ 1s).
+        if (disc_ && refresh_frames_ < 60)
+        {
+            refreshing_ = true;
+            ++refresh_frames_;
+            spectra::ui::widgets::skeleton_rows(6, 24.0f);
+            spectra::ui::shell::end_panel();
+            return;
+        }
+        refreshing_ = false;
+
+        ImGui::Dummy(ImVec2(0.0f, std::max(12.0f, ImGui::GetContentRegionAvail().y * 0.20f)));
+        const spectra::ui::widgets::EmptyStateAction actions[] = {
+            {.label = "Refresh graph", .id = "refresh", .primary = true},
+            {.label = "Connection settings", .id = "settings", .primary = false},
+        };
+        const int action = spectra::ui::widgets::empty_state(
+            ui::Icon::Broadcast,
+            "No topics detected",
+            "Refresh the graph, check ROS_DOMAIN_ID, or verify that your ROS environment is sourced.",
+            actions);
+        if (action == 0 && disc_)
+        {
+            disc_->refresh();
+            refresh_frames_ = 0;
+        }
+        spectra::ui::shell::end_panel();
+        return;
+    }
+    refreshing_ = false;
+    refresh_frames_ = 60;
+
+    const float  footer_h =
+        ImGui::GetTextLineHeightWithSpacing() + ImGui::GetStyle().ItemSpacing.y * 2.0f;
+    const ImVec2 table_sz = {0.0f, std::max(64.0f, ImGui::GetContentRegionAvail().y - footer_h)};
+    const bool compact_list = ImGui::GetContentRegionAvail().x < 360.0f;
+    if (compact_list)
+    {
+        draw_compact_topic_list(table_sz.y);
+        std::lock_guard<std::mutex> lk_s(stats_mutex_);
+        size_t active_count = 0;
+        for (const auto& [name, st] : stats_map_)
+        {
+            if (st.active)
+                ++active_count;
+        }
+        ImGui::TextDisabled("Active: %zu / %zu", active_count, topics_.size());
+        spectra::ui::shell::end_panel();
+        return;
+    }
 
     // --- Column table ---
     constexpr ImGuiTableFlags kTableFlags =
         ImGuiTableFlags_Resizable | ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_ScrollY
         | ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingStretchProp;
 
-    const float  footer_h = ImGui::GetStyle().ItemSpacing.y + ImGui::GetFrameHeightWithSpacing();
-    const ImVec2 table_sz = {0.0f, ImGui::GetContentRegionAvail().y - footer_h};
-
     // Count visible optional columns: always Topic + optionally Type/Hz/Pubs/Subs/BW.
-    const int n_cols = 1 + (col_show_type_ ? 1 : 0) + (col_show_hz_ ? 1 : 0)
+    const int n_cols = 2 + (col_show_type_ ? 1 : 0) + (col_show_hz_ ? 1 : 0)
                        + (col_show_pubs_ ? 1 : 0) + (col_show_subs_ ? 1 : 0)
-                       + (col_show_bw_ ? 1 : 0);
+                       + (col_show_bw_ ? 1 : 0) + (col_show_age_ ? 1 : 0);
 
     spectra::ui::shell::push_data_table_style();
     if (!ImGui::BeginTable("##topics", n_cols, kTableFlags, table_sz))
@@ -570,15 +791,41 @@ void TopicListPanel::draw(bool* p_open)
         ImGui::TableSetupColumn("Subs", ImGuiTableColumnFlags_WidthFixed, 38.0f);
     if (col_show_bw_)
         ImGui::TableSetupColumn("BW", ImGuiTableColumnFlags_WidthFixed, 72.0f);
+    if (col_show_age_)
+        ImGui::TableSetupColumn("Age", ImGuiTableColumnFlags_WidthFixed, 72.0f);
     ImGui::TableHeadersRow();
 
     // --- Rows (already holding topics_mutex_) ---
+    std::vector<const TopicInfo*> favorite_topics;
+    favorite_topics.reserve(topics_.size());
+    {
+        std::lock_guard<std::mutex> lk_s(stats_mutex_);
+        for (const auto& t : topics_)
+        {
+            TopicStats& st = stats_map_[t.name];
+            if (is_favorite(t.name) && passes_topic_filter(t, st))
+                favorite_topics.push_back(&t);
+        }
+    }
+    if (!favorite_topics.empty())
+    {
+        std::sort(favorite_topics.begin(),
+                  favorite_topics.end(),
+                  [](const TopicInfo* a, const TopicInfo* b) { return a->name < b->name; });
+        ImGui::TableNextRow();
+        ImGui::TableSetColumnIndex(0);
+        ImGui::TextDisabled("%s Favorites", ui::icon_str(ui::Icon::Star));
+        std::lock_guard<std::mutex> lk_s(stats_mutex_);
+        for (const TopicInfo* t : favorite_topics)
+            draw_topic_row(*t, stats_map_[t->name]);
+    }
+
     if (group_by_namespace_)
     {
         // Root-level loose topics first (e.g. /rosout at "/").
         for (const auto& tname : root_topics_)
         {
-            if (!filter_str_.empty() && tname.find(filter_str_) == std::string::npos)
+            if (is_favorite(tname))
                 continue;
             auto it = std::find_if(topics_.begin(),
                                    topics_.end(),
@@ -590,6 +837,8 @@ void TopicListPanel::draw(bool* p_open)
                 (void)stats_map_[tname];   // ensure entry exists
             }
             std::lock_guard<std::mutex> lk_s(stats_mutex_);
+            if (!passes_topic_filter(*it, stats_map_[tname]))
+                continue;
             draw_topic_row(*it, stats_map_[tname]);
         }
         // Namespace groups.
@@ -603,10 +852,15 @@ void TopicListPanel::draw(bool* p_open)
         // Flat list, sorted by name.
         std::vector<const TopicInfo*> sorted;
         sorted.reserve(topics_.size());
-        for (const auto& t : topics_)
         {
-            if (filter_str_.empty() || t.name.find(filter_str_) != std::string::npos)
-                sorted.push_back(&t);
+            std::lock_guard<std::mutex> lk_s(stats_mutex_);
+            for (const auto& t : topics_)
+            {
+                if (is_favorite(t.name))
+                    continue;
+                if (passes_topic_filter(t, stats_map_[t.name]))
+                    sorted.push_back(&t);
+            }
         }
         std::sort(sorted.begin(),
                   sorted.end(),
@@ -647,15 +901,16 @@ void TopicListPanel::draw_namespace_node(const std::string& ns, int /*depth*/)
 
     // Check if any topic in this subtree passes the filter.
     bool any_visible = false;
-    if (filter_str_.empty())
     {
-        any_visible = !node.topic_names.empty() || !node.children.empty();
-    }
-    else
-    {
+        std::lock_guard<std::mutex> lk_s(stats_mutex_);
         for (const auto& tname : node.topic_names)
         {
-            if (tname.find(filter_str_) != std::string::npos)
+            if (is_favorite(tname))
+                continue;
+            auto tit = std::find_if(topics_.begin(),
+                                    topics_.end(),
+                                    [&](const TopicInfo& ti) { return ti.name == tname; });
+            if (tit != topics_.end() && passes_topic_filter(*tit, stats_map_[tname]))
             {
                 any_visible = true;
                 break;
@@ -671,7 +926,12 @@ void TopicListPanel::draw_namespace_node(const std::string& ns, int /*depth*/)
                 {
                     for (const auto& tname : cit->second.topic_names)
                     {
-                        if (tname.find(filter_str_) != std::string::npos)
+                        if (is_favorite(tname))
+                            continue;
+                        auto tit = std::find_if(topics_.begin(),
+                                                topics_.end(),
+                                                [&](const TopicInfo& ti) { return ti.name == tname; });
+                        if (tit != topics_.end() && passes_topic_filter(*tit, stats_map_[tname]))
                         {
                             any_visible = true;
                             break;
@@ -705,12 +965,14 @@ void TopicListPanel::draw_namespace_node(const std::string& ns, int /*depth*/)
             std::lock_guard<std::mutex> lk_s(stats_mutex_);
             for (const auto& tname : node.topic_names)
             {
-                if (!filter_str_.empty() && tname.find(filter_str_) == std::string::npos)
+                if (is_favorite(tname))
                     continue;
                 auto tit = std::find_if(topics_.begin(),
                                         topics_.end(),
                                         [&](const TopicInfo& ti) { return ti.name == tname; });
                 if (tit == topics_.end())
+                    continue;
+                if (!passes_topic_filter(*tit, stats_map_[tname]))
                     continue;
                 draw_topic_row(*tit, stats_map_[tname]);
             }
@@ -728,6 +990,209 @@ void TopicListPanel::draw_namespace_node(const std::string& ns, int /*depth*/)
     }
 }
 
+void TopicListPanel::draw_compact_topic_list(float height)
+{
+    const ImVec2 child_size(0.0f, std::max(64.0f, height));
+    ImGui::BeginChild("##compact_topics",
+                      child_size,
+                      false,
+                      ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_AlwaysVerticalScrollbar);
+
+    std::vector<const TopicInfo*> favorites;
+    std::vector<const TopicInfo*> topics;
+    favorites.reserve(topics_.size());
+    topics.reserve(topics_.size());
+    {
+        std::lock_guard<std::mutex> lk_s(stats_mutex_);
+        for (const auto& topic : topics_)
+        {
+            TopicStats& stats = stats_map_[topic.name];
+            if (!passes_topic_filter(topic, stats))
+                continue;
+            if (is_favorite(topic.name))
+                favorites.push_back(&topic);
+            else
+                topics.push_back(&topic);
+        }
+    }
+
+    auto by_name = [](const TopicInfo* a, const TopicInfo* b) { return a->name < b->name; };
+    std::sort(favorites.begin(), favorites.end(), by_name);
+    std::sort(topics.begin(), topics.end(), by_name);
+
+    auto draw_section = [&](const char* label, const std::vector<const TopicInfo*>& items)
+    {
+        if (items.empty())
+            return;
+        ImGui::TextDisabled("%s", label);
+        ImGui::Spacing();
+        std::lock_guard<std::mutex> lk_s(stats_mutex_);
+        for (const TopicInfo* topic : items)
+            draw_topic_card(*topic, stats_map_[topic->name]);
+        ImGui::Spacing();
+    };
+
+    draw_section("Favorites", favorites);
+    draw_section(favorites.empty() ? "Topics" : "All topics", topics);
+
+    if (favorites.empty() && topics.empty())
+    {
+        ImGui::Dummy(ImVec2(0.0f, 24.0f));
+        spectra::ui::widgets::empty_state(ui::Icon::Search,
+                                          "No matching topics",
+                                          "Try another search term or category filter.");
+    }
+
+    ImGui::Dummy(ImVec2(0.0f, spectra::ui::tokens::SPACE_2));
+    ImGui::EndChild();
+}
+
+void TopicListPanel::draw_topic_card(const TopicInfo& info, const TopicStats& stats)
+{
+    const auto& colors = spectra::ui::theme();
+    const float width = std::max(1.0f, ImGui::GetContentRegionAvail().x);
+    const float title_w = std::max(40.0f, width - 34.0f);
+    const std::string display_name = fit_text(info.name, title_w);
+    const ImVec2 title_sz = ImGui::CalcTextSize(display_name.c_str());
+    const float row_h = std::max(64.0f, 11.0f + title_sz.y + 6.0f + 24.0f + 9.0f);
+
+    ImGui::PushID(info.name.c_str());
+    const bool selected = (info.name == selected_topic_);
+    const bool expanded = is_topic_expanded(info.name);
+
+    const bool pressed = ImGui::InvisibleButton("##topic_card", ImVec2(width, row_h));
+    const bool hovered = ImGui::IsItemHovered();
+    const ImVec2 min = ImGui::GetItemRectMin();
+    const ImVec2 max = ImGui::GetItemRectMax();
+    if (pressed)
+    {
+        selected_topic_ = info.name;
+        if (select_cb_)
+            select_cb_(info.name);
+    }
+
+    if (hovered && ImGui::IsMouseDoubleClicked(0) && plot_cb_)
+        plot_cb_(info.name);
+
+    if (ImGui::BeginPopupContextItem("##topic_card_context"))
+    {
+        if (ImGui::MenuItem("Copy topic name"))
+            ImGui::SetClipboardText(info.name.c_str());
+        if (!info.types.empty() && ImGui::MenuItem("Copy topic type"))
+            ImGui::SetClipboardText(info.types.front().c_str());
+        ImGui::EndPopup();
+    }
+
+    if (drag_drop_)
+    {
+        FieldDragPayload payload;
+        payload.topic_name = info.name;
+        payload.field_path = "";
+        payload.type_name  = info.types.empty() ? "" : info.types.front();
+        payload.label      = info.name;
+        drag_drop_->begin_drag_source(payload);
+    }
+
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    const ImU32 bg = ImGui::ColorConvertFloat4ToU32(
+        selected ? ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.18f)
+                 : hovered ? ImVec4(colors.bg_tertiary.r,
+                                     colors.bg_tertiary.g,
+                                     colors.bg_tertiary.b,
+                                     0.62f)
+                           : ImVec4(colors.bg_tertiary.r,
+                                     colors.bg_tertiary.g,
+                                     colors.bg_tertiary.b,
+                                     0.34f));
+    dl->AddRectFilled(min, max, bg, spectra::ui::tokens::RADIUS_MD);
+    dl->AddRect(min,
+                max,
+                ImGui::ColorConvertFloat4ToU32(ImVec4(colors.border_subtle.r,
+                                                       colors.border_subtle.g,
+                                                       colors.border_subtle.b,
+                                                       selected ? 0.65f : 0.32f)),
+                spectra::ui::tokens::RADIUS_MD);
+
+    const ImVec4 status_color = stats.active ? kColorActive : kColorStale;
+    dl->AddCircleFilled(ImVec2(min.x + 12.0f, min.y + 18.0f),
+                        4.0f,
+                        ImGui::ColorConvertFloat4ToU32(status_color));
+
+    dl->AddText(ImVec2(min.x + 24.0f, min.y + 9.0f),
+                ImGui::ColorConvertFloat4ToU32(ImVec4(colors.text_primary.r,
+                                                       colors.text_primary.g,
+                                                       colors.text_primary.b,
+                                                       1.0f)),
+                display_name.c_str());
+
+    std::string type_leaf = info.types.empty() ? "-" : info.types.front();
+    const auto slash = type_leaf.rfind('/');
+    if (slash != std::string::npos)
+        type_leaf = type_leaf.substr(slash + 1);
+    const float actions_w = 88.0f;
+    const std::string meta = fit_text(
+        std::format("{}   {} Hz", type_leaf, format_hz(stats.displayed_hz)),
+        std::max(48.0f, width - actions_w - 30.0f));
+    const float meta_y = min.y + 11.0f + title_sz.y + 5.0f;
+    dl->AddText(ImVec2(min.x + 24.0f, meta_y),
+                ImGui::ColorConvertFloat4ToU32(ImVec4(colors.text_tertiary.r,
+                                                       colors.text_tertiary.g,
+                                                       colors.text_tertiary.b,
+                                                       0.92f)),
+                meta.c_str());
+
+    const float button_y = meta_y - 3.0f;
+    float button_x = max.x - 8.0f;
+    auto place_button = [&]()
+    {
+        button_x -= 26.0f;
+        ImGui::SetCursorScreenPos(ImVec2(button_x, button_y));
+        button_x -= 2.0f;
+    };
+
+    if (plot_cb_)
+    {
+        place_button();
+        if (spectra::ui::widgets::icon_button_small(ui::icon_str(ui::Icon::ChartLine),
+                                                    "Quick plot"))
+            plot_cb_(info.name);
+    }
+    if (toggle_favorite_cb_)
+    {
+        place_button();
+        const bool fav = is_favorite(info.name);
+        if (spectra::ui::widgets::icon_button_small(ui::icon_str(ui::Icon::Star),
+                                                    fav ? "Remove favorite" : "Add favorite",
+                                                    fav))
+            toggle_favorite_cb_(info.name);
+    }
+    if (echo_panel_)
+    {
+        place_button();
+        if (spectra::ui::widgets::icon_button_small(ui::icon_str(ui::Icon::Command),
+                                                    expanded ? "Hide inline echo" : "Quick echo",
+                                                    expanded))
+        {
+            set_topic_expanded(info.name, !expanded);
+            selected_topic_ = info.name;
+            if (select_cb_)
+                select_cb_(info.name);
+        }
+    }
+
+    if (hovered)
+    {
+        ImGui::BeginTooltip();
+        ImGui::TextUnformatted(info.name.c_str());
+        if (!info.types.empty())
+            ImGui::TextDisabled("%s", info.types.front().c_str());
+        ImGui::EndTooltip();
+    }
+
+    ImGui::Dummy(ImVec2(width, 5.0f));
+    ImGui::PopID();
+}
+
 void TopicListPanel::draw_topic_row(const TopicInfo& info, TopicStats& stats)
 {
     ImGui::TableNextRow();
@@ -743,10 +1208,19 @@ void TopicListPanel::draw_topic_row(const TopicInfo& info, TopicStats& stats)
                                ImGui::ColorConvertFloat4ToU32(kColorSelected));
     }
 
+    const int button_count = (plot_cb_ ? 1 : 0) + (echo_panel_ ? 1 : 0)
+                             + (toggle_favorite_cb_ ? 1 : 0);
+    constexpr float kActionBtnSize = 24.0f;
+    constexpr float kActionBtnGap  = 2.0f;
+    const float     actions_w      = button_count > 0
+                                         ? static_cast<float>(button_count) * kActionBtnSize
+                                               + static_cast<float>(button_count - 1) * kActionBtnGap
+                                         : 0.0f;
+
     // Expand/collapse toggle for inline echo (small triangle arrow).
     if (echo_panel_)
     {
-        ImGui::PushID(info.name.c_str());
+        ImGui::PushID((info.name + "#chevron").c_str());
         const char* arrow = is_expanded ? ui::icon_str(ui::Icon::ChevronDown)
                                         : ui::icon_str(ui::Icon::ChevronRight);
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
@@ -761,7 +1235,6 @@ void TopicListPanel::draw_topic_row(const TopicInfo& info, TopicStats& stats)
             {
                 set_topic_expanded(info.name, true);
                 cached_echo_msgs_.erase(info.name);
-                // Select the topic to trigger echo subscription.
                 selected_topic_ = info.name;
                 if (select_cb_)
                     select_cb_(info.name);
@@ -772,69 +1245,103 @@ void TopicListPanel::draw_topic_row(const TopicInfo& info, TopicStats& stats)
         ImGui::SameLine();
     }
 
-    // Reuse Spectra's merged icon font so monitor status markers don't depend
-    // on ad hoc Unicode glyph availability in the current atlas.
     const ImVec4 dot_col = stats.active ? kColorActive : kColorStale;
     ImGui::TextColored(dot_col, "%s", ui::icon_str(ui::Icon::Circle));
     ImGui::SameLine();
 
-    // Leaf topic name (last segment).
-    auto [ns, leaf]                = split_namespace(info.name);
-    const std::string display_name = group_by_namespace_ ? leaf : info.name;
+    const float text_x        = ImGui::GetCursorPosX();
+    const float avail_w       = std::max(0.0f, ImGui::GetContentRegionAvail().x);
+    const float actions_right = text_x + avail_w;
+    const float name_w        = std::max(16.0f, avail_w - actions_w - 4.0f);
 
-    const ImGuiSelectableFlags sel_flags =
-        ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowOverlap;
+    auto [ns, leaf] = split_namespace(info.name);
+    (void)ns;
+    const std::string display_name =
+        fit_text(group_by_namespace_ ? leaf : info.name, std::max(8.0f, name_w - 4.0f));
 
-    if (ImGui::Selectable(display_name.c_str(), is_selected, sel_flags, ImVec2(0, 0)))
+    if (ImGui::Selectable(display_name.c_str(), is_selected, 0, ImVec2(name_w, 0)))
     {
         selected_topic_ = info.name;
         if (select_cb_)
             select_cb_(info.name);
     }
+    if (ImGui::BeginPopupContextItem("##topic_row_context"))
+    {
+        if (ImGui::MenuItem("Copy topic name"))
+            ImGui::SetClipboardText(info.name.c_str());
+        if (!info.types.empty() && ImGui::MenuItem("Copy topic type"))
+            ImGui::SetClipboardText(info.types.front().c_str());
+        ImGui::EndPopup();
+    }
 
-    // Drag source — whole topic with empty field_path.
     if (drag_drop_)
     {
         FieldDragPayload payload;
         payload.topic_name = info.name;
-        payload.field_path = "";   // empty: caller picks first numeric field
+        payload.field_path = "";
         payload.type_name  = info.types.empty() ? "" : info.types[0];
         payload.label      = info.name;
         drag_drop_->begin_drag_source(payload);
-        // Right-click context menu (unique id per row).
         std::string ctx_id = std::string("##tctx_") + info.name;
         drag_drop_->show_context_menu(payload, ctx_id.c_str());
     }
 
-    // Double-click to plot.
     if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(0))
     {
         if (plot_cb_)
             plot_cb_(info.name);
     }
 
-    if (plot_cb_)
+    const bool name_hovered = ImGui::IsItemHovered();
+
+    if (button_count > 0)
     {
-        const float btn_w = ImGui::GetFrameHeight();
-        ImGui::SameLine();
-        ImGui::SetCursorPosX(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x - btn_w);
+        ImGui::SameLine(0.0f, 4.0f);
+        const float actions_x = actions_right - actions_w;
+        if (std::abs(ImGui::GetCursorPosX() - actions_x) > 0.5f)
+            ImGui::SetCursorPosX(actions_x);
         ImGui::PushID(info.name.c_str());
-        if (ImGui::SmallButton(ui::icon_str(ui::Icon::ChartLine)))
-            plot_cb_(info.name);
-        if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
-            ImGui::SetTooltip("Quick plot (default numeric field)");
+        if (echo_panel_)
+        {
+            if (spectra::ui::widgets::icon_button_small(ui::icon_str(ui::Icon::Command),
+                                                        is_expanded ? "Hide inline echo"
+                                                                    : "Quick echo",
+                                                        is_expanded))
+            {
+                const bool next = !is_topic_expanded(info.name);
+                set_topic_expanded(info.name, next);
+                selected_topic_ = info.name;
+                if (select_cb_)
+                    select_cb_(info.name);
+            }
+            if (plot_cb_ || toggle_favorite_cb_)
+                ImGui::SameLine(0.0f, 2.0f);
+        }
+        if (toggle_favorite_cb_)
+        {
+            const bool fav = is_favorite(info.name);
+            if (spectra::ui::widgets::icon_button_small(ui::icon_str(ui::Icon::Star),
+                                                        fav ? "Remove favorite" : "Add favorite",
+                                                        fav))
+                toggle_favorite_cb_(info.name);
+            if (plot_cb_)
+                ImGui::SameLine(0.0f, 2.0f);
+        }
+        if (plot_cb_)
+        {
+            if (spectra::ui::widgets::icon_button_small(ui::icon_str(ui::Icon::ChartLine),
+                                                        "Quick plot (default numeric field)"))
+                plot_cb_(info.name);
+        }
         ImGui::PopID();
     }
 
-    // Tooltip on hover: full name + type.
-    if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
+    if (name_hovered)
     {
         ImGui::BeginTooltip();
         ImGui::TextUnformatted(info.name.c_str());
         if (!info.types.empty())
-        {
             ImGui::TextDisabled("%s", info.types[0].c_str());
-        }
         ImGui::EndTooltip();
     }
 
@@ -847,11 +1354,13 @@ void TopicListPanel::draw_topic_row(const TopicInfo& info, TopicStats& stats)
         {
             const std::string& t  = info.types[0];
             const ImVec4       tc = topic_type_color(t);
-            // Abbreviated leaf name after last '/'.
-            const auto  slash = t.rfind('/');
-            const char* leaf_type =
-                (slash != std::string::npos) ? t.c_str() + slash + 1 : t.c_str();
-            ImGui::TextColored(tc, "%s", leaf_type);
+            const auto         slash = t.rfind('/');
+            std::string        leaf_type =
+                (slash != std::string::npos) ? t.substr(slash + 1) : t;
+            const float type_w =
+                std::max(16.0f, ImGui::GetContentRegionAvail().x - 2.0f);
+            leaf_type = fit_text(leaf_type, type_w);
+            ImGui::TextColored(tc, "%s", leaf_type.c_str());
         }
         else
         {
@@ -903,6 +1412,16 @@ void TopicListPanel::draw_topic_row(const TopicInfo& info, TopicStats& stats)
             ImGui::TextUnformatted(bw_str.c_str());
         else
             ImGui::TextDisabled("%s", bw_str.c_str());
+    }
+
+    if (col_show_age_)
+    {
+        ImGui::TableSetColumnIndex(next_col++);
+        const std::string age_str = format_age(now_ns(), stats.last_msg_ns);
+        if (stats.active)
+            ImGui::TextUnformatted(age_str.c_str());
+        else
+            ImGui::TextDisabled("%s", age_str.c_str());
     }
 
     // --- Inline echo expansion (rqt-style) ---
@@ -1031,6 +1550,14 @@ void TopicListPanel::draw_echo_field(const std::string&                 topic_na
                 false,
                 ImGuiSelectableFlags_AllowOverlap | ImGuiSelectableFlags_SpanAllColumns,
                 ImVec2(0, ImGui::GetTextLineHeight()));
+            if (ImGui::BeginPopupContextItem("##field_context"))
+            {
+                if (ImGui::MenuItem("Copy field path"))
+                    ImGui::SetClipboardText(fv.path.c_str());
+                if (ImGui::MenuItem("Copy topic name"))
+                    ImGui::SetClipboardText(topic_name.c_str());
+                ImGui::EndPopup();
+            }
 
             if (drag_drop_)
             {
@@ -1071,6 +1598,14 @@ void TopicListPanel::draw_echo_field(const std::string&                 topic_na
                 false,
                 ImGuiSelectableFlags_AllowOverlap | ImGuiSelectableFlags_SpanAllColumns,
                 ImVec2(0, ImGui::GetTextLineHeight()));
+            if (ImGui::BeginPopupContextItem("##field_context"))
+            {
+                if (ImGui::MenuItem("Copy field path"))
+                    ImGui::SetClipboardText(fv.path.c_str());
+                if (ImGui::MenuItem("Copy topic name"))
+                    ImGui::SetClipboardText(topic_name.c_str());
+                ImGui::EndPopup();
+            }
 
             if (drag_drop_)
             {

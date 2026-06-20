@@ -102,6 +102,17 @@ struct TopicStats
 class TopicListPanel
 {
    public:
+    enum class TopicCategoryFilter
+    {
+        All,
+        Numeric,
+        Images,
+        Tf,
+        Diagnostics,
+        Active,
+        HighHz,
+    };
+
     struct ColumnVisibility
     {
         bool show_type{true};
@@ -109,6 +120,7 @@ class TopicListPanel
         bool show_pubs{true};
         bool show_subs{true};
         bool show_bw{true};
+        bool show_age{true};
     };
 
     TopicListPanel();
@@ -151,6 +163,15 @@ class TopicListPanel
     // Callback fired when the user double-clicks a topic (plot request).
     using PlotCallback = std::function<void(const std::string& topic_name)>;
     void set_plot_callback(PlotCallback cb) { plot_cb_ = std::move(cb); }
+
+    using FavoriteQueryCallback = std::function<bool(const std::string& topic_name)>;
+    using FavoriteToggleCallback = std::function<void(const std::string& topic_name)>;
+    void set_favorite_callbacks(FavoriteQueryCallback is_favorite,
+                                FavoriteToggleCallback toggle_favorite)
+    {
+        is_favorite_cb_     = std::move(is_favorite);
+        toggle_favorite_cb_ = std::move(toggle_favorite);
+    }
 
     // Fired when user double-clicks a numeric field (topic, field_path, type).
     using FieldPlotCallback =
@@ -228,6 +249,9 @@ class TopicListPanel
     // Set filter programmatically (for testing).
     void set_filter(const std::string& f);
 
+    TopicCategoryFilter category_filter() const { return category_filter_; }
+    void set_category_filter(TopicCategoryFilter filter);
+
    private:
     // ---------- internal helpers ---------------------------------------------
 
@@ -244,6 +268,16 @@ class TopicListPanel
     // Render one topic row (columns already pushed).
     void draw_topic_row(const TopicInfo& info, TopicStats& stats);
 
+    // Render one topic in the adaptive compact list layout.
+    void draw_topic_card(const TopicInfo& info, const TopicStats& stats);
+
+    // Render a compact card list for narrow side-panel widths.
+    void draw_compact_topic_list(float height);
+
+    bool passes_topic_filter(const TopicInfo& info, const TopicStats& stats) const;
+    bool matches_text_filter(const TopicInfo& info) const;
+    bool is_favorite(const std::string& topic_name) const;
+
     // Render inline echo fields for the expanded row.
     void draw_inline_echo(const std::string& topic_name);
 
@@ -258,6 +292,8 @@ class TopicListPanel
 
     // Format bytes/sec as compact string ("1.2 KB/s", "—" if 0).
     static std::string format_bw(double bps);
+
+    static std::string format_age(int64_t now_ns, int64_t last_msg_ns);
 
     // Returns now in nanoseconds (wall clock).
     static int64_t now_ns();
@@ -293,6 +329,7 @@ class TopicListPanel
     std::string selected_topic_;
     char        filter_buf_[256]{};
     std::string filter_str_;
+    TopicCategoryFilter category_filter_{TopicCategoryFilter::All};
     bool        group_by_namespace_{true};
     int         stale_threshold_ms_{2000};
     int         stats_window_ms_{1000};
@@ -304,6 +341,7 @@ class TopicListPanel
     bool col_show_pubs_{false};
     bool col_show_subs_{false};
     bool col_show_bw_{false};
+    bool col_show_age_{true};
 
     // Cached filtered list (rebuilt each frame if dirty).
     mutable bool                     filter_dirty_{true};
@@ -313,6 +351,8 @@ class TopicListPanel
     SelectCallback select_cb_;
     PlotCallback       plot_cb_;
     FieldPlotCallback  field_plot_cb_;
+    FavoriteQueryCallback  is_favorite_cb_;
+    FavoriteToggleCallback toggle_favorite_cb_;
 
     // Drag-and-drop controller (optional, not owned).
     FieldDragDrop* drag_drop_{nullptr};
@@ -321,6 +361,10 @@ class TopicListPanel
     TopicEchoPanel*                                               echo_panel_{nullptr};
     std::unordered_set<std::string>                               expanded_echo_topics_;
     std::unordered_map<std::string, std::unique_ptr<EchoMessage>> cached_echo_msgs_;
+
+    // Refreshing state: show skeleton rows during initial topic discovery.
+    bool refreshing_{false};
+    int  refresh_frames_{0};
 };
 
 }   // namespace spectra::adapters::ros2

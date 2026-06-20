@@ -618,6 +618,77 @@ void RosSessionManager::clear_recent()
     save_recent({});
 }
 
+std::vector<std::string> RosSessionManager::load_favorites()
+{
+    std::string content;
+    if (!read_file(default_favorites_path(), content))
+        return {};
+
+    try
+    {
+        const json parsed = json::parse(content);
+        if (!parsed.is_array())
+            return {};
+        std::vector<std::string> favorites;
+        favorites.reserve(parsed.size());
+        for (const auto& item : parsed)
+        {
+            if (item.is_string())
+                favorites.push_back(item.get<std::string>());
+        }
+        std::sort(favorites.begin(), favorites.end());
+        favorites.erase(std::unique(favorites.begin(), favorites.end()), favorites.end());
+        return favorites;
+    }
+    catch (...)
+    {
+        return {};
+    }
+}
+
+bool RosSessionManager::save_favorites(const std::vector<std::string>& topics)
+{
+    std::vector<std::string> sorted = topics;
+    std::sort(sorted.begin(), sorted.end());
+    sorted.erase(std::unique(sorted.begin(), sorted.end()), sorted.end());
+    if (!ensure_directory(default_favorites_path()))
+        return false;
+
+    json out = json::array();
+    for (const auto& topic : sorted)
+    {
+        if (!topic.empty())
+            out.push_back(topic);
+    }
+    return write_file(default_favorites_path(), out.dump(2));
+}
+
+bool RosSessionManager::toggle_favorite(const std::string& topic)
+{
+    if (topic.empty())
+        return false;
+    auto favorites = load_favorites();
+    const auto it = std::find(favorites.begin(), favorites.end(), topic);
+    bool added = false;
+    if (it == favorites.end())
+    {
+        favorites.push_back(topic);
+        added = true;
+    }
+    else
+    {
+        favorites.erase(it);
+    }
+    save_favorites(favorites);
+    return added;
+}
+
+bool RosSessionManager::is_favorite(const std::string& topic)
+{
+    const auto favorites = load_favorites();
+    return std::find(favorites.begin(), favorites.end(), topic) != favorites.end();
+}
+
 // ---------------------------------------------------------------------------
 // Paths
 // ---------------------------------------------------------------------------
@@ -632,6 +703,17 @@ std::string RosSessionManager::default_recent_path()
     }
     std::string dir = std::string(home) + "/.config/spectra";
     return dir + "/ros_recent.json";
+}
+
+std::string RosSessionManager::default_favorites_path()
+{
+    const char* home = std::getenv("HOME");
+    if (!home || home[0] == '\0')
+    {
+        home = "/tmp";
+    }
+    std::string dir = std::string(home) + "/.config/spectra";
+    return dir + "/ros_favorites.json";
 }
 
 std::string RosSessionManager::default_session_path(const std::string& node_name)

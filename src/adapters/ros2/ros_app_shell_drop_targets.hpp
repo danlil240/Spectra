@@ -11,7 +11,7 @@
 namespace spectra::adapters::ros2
 {
 
-constexpr float kPlotAreaGlobalDropHeight = 14.0f;
+constexpr float kPlotAreaGlobalDropHeight = 44.0f;
 
 struct RosPlotDropTargetContext
 {

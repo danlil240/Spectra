@@ -32,6 +32,7 @@
 
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
+    #include "ui/imgui/widgets.hpp"
     #include "ui/imgui/imgui_integration.hpp"
     #include "ui/shell/app_shell.hpp"
     #include "ui/shell/canvas_host.hpp"
@@ -360,7 +361,7 @@ RosAppConfig parse_args(int argc, char** argv, std::string& error_out)
 RosAppShell::RosAppShell(const RosAppConfig& cfg)
 #ifdef SPECTRA_USE_IMGUI
     : spectra::ui::shell::AppShell(
-          spectra::ui::shell::AppShellConfig{.nav_rail = false, .app_name = "Spectra ROS"}),
+          spectra::ui::shell::AppShellConfig{.nav_rail = true, .app_name = "Spectra ROS"}),
       cfg_(cfg)
 #else
     : cfg_(cfg)
@@ -370,6 +371,14 @@ RosAppShell::RosAppShell(const RosAppConfig& cfg)
     session_mgr_           = std::make_unique<RosSessionManager>();
     session_save_path_buf_ = RosSessionManager::default_session_path(cfg_.node_name);
     session_mgr_->set_last_path(session_save_path_buf_);
+    for (const auto& topic : session_mgr_->load_favorites())
+        favorite_topics_.insert(topic);
+
+#ifdef SPECTRA_USE_IMGUI
+    shortcut_mgr_.set_command_registry(&cmd_registry_);
+    cmd_palette_.set_command_registry(&cmd_registry_);
+    cmd_palette_.set_shortcut_manager(&shortcut_mgr_);
+#endif
 }
 
 RosAppShell::~RosAppShell()
@@ -1069,6 +1078,208 @@ void RosAppShell::draw()
         }
         ImGui::End();
     }
+
+    // Command palette (Ctrl+K)
+    if (!ros_commands_registered_)
+    {
+        register_ros_commands();
+        ros_commands_registered_ = true;
+    }
+
+    if ((ImGui::IsKeyPressed(ImGuiKey_K, false)
+         && (ImGui::IsKeyDown(ImGuiKey_LeftCtrl) || ImGui::IsKeyDown(ImGuiKey_RightCtrl))))
+    {
+        cmd_palette_.toggle();
+    }
+
+    if (cmd_palette_.is_open())
+    {
+        ImGuiIO& io = ImGui::GetIO();
+        cmd_palette_.draw(io.DisplaySize.x, io.DisplaySize.y);
+    }
+#endif
+}
+
+void RosAppShell::register_ros_commands()
+{
+#ifdef SPECTRA_USE_IMGUI
+    using spectra::ui::Icon;
+
+    // ── Panel toggle commands ──
+    auto reg_panel = [this](const char* cmd_id, const char* label, const char* panel_id, Icon icon)
+    {
+        cmd_registry_.register_command(cmd_id, label,
+            [this, panel_id]() { set_panel_visible(panel_id, !panel_visible(panel_id)); },
+            "", "Panels", static_cast<uint16_t>(icon));
+    };
+
+    reg_panel("ros.panel.topic_list", "Topic Monitor", "ros.topic_list", Icon::List);
+    reg_panel("ros.panel.topic_echo", "Topic Echo", "ros.topic_echo", Icon::Command);
+    reg_panel("ros.panel.topic_stats", "Topic Statistics", "ros.topic_stats", Icon::ChartLine);
+    reg_panel("ros.panel.plot_area", "Plot Area", "ros.plot_area", Icon::ChartLine);
+    reg_panel("ros.panel.bag_info", "Bag Info", "ros.bag_info", Icon::Database);
+    reg_panel("ros.panel.bag_playback", "Bag Playback", "ros.bag_playback", Icon::Play);
+    reg_panel("ros.panel.log_viewer", "Log Viewer", "ros.log_viewer", Icon::FileText);
+    reg_panel("ros.panel.diagnostics", "Diagnostics", "ros.diagnostics", Icon::Info);
+    reg_panel("ros.panel.displays", "Displays", "ros.displays", Icon::Grid);
+    reg_panel("ros.panel.node_graph", "Node Graph", "ros.node_graph", Icon::Layout);
+    reg_panel("ros.panel.scene_viewport", "3D Scene", "ros.scene_viewport", Icon::Grid);
+    reg_panel("ros.panel.tf_tree", "TF Tree", "ros.tf_tree", Icon::Layout);
+    reg_panel("ros.panel.param_editor", "Parameter Editor", "ros.param_editor", Icon::Axes);
+    reg_panel("ros.panel.service_caller", "Service Caller", "ros.service_caller", Icon::Command);
+    reg_panel("ros.panel.expression_editor", "Expression Editor", "ros.expression_editor", Icon::Function);
+
+    // ── Plot commands ──
+    cmd_registry_.register_command("ros.plot.pause_all", "Pause All Plots",
+        [this]() { if (subplot_mgr_) subplot_mgr_->pause_all_scroll(); },
+        "Space", "Plot");
+    cmd_registry_.register_command("ros.plot.resume_all", "Resume All Plots",
+        [this]() { if (subplot_mgr_) subplot_mgr_->resume_all_scroll(); },
+        "Home", "Plot");
+    cmd_registry_.register_command("ros.plot.autofit", "Auto-Fit Y (Active Plot)",
+        [this]() { restore_plot_autofit(workspace_state_.active_subplot_idx); },
+        "A", "Plot");
+    cmd_registry_.register_command("ros.plot.reset", "Reset Plot Display",
+        [this]() { reset_plot_display(); },
+        "R", "Plot");
+    cmd_registry_.register_command("ros.plot.toggle_grid", "Toggle Grid (Active Plot)",
+        [this]()
+        {
+            if (!subplot_mgr_) return;
+            int s = workspace_state_.active_subplot_idx;
+            if (s < 1 || s > subplot_mgr_->capacity()) return;
+            auto* se = subplot_mgr_->slot_entry_pub(s);
+            if (se && se->axes) se->axes->grid(!se->axes->grid_enabled());
+        },
+        "G", "Plot");
+    cmd_registry_.register_command("ros.plot.clear_active", "Clear Active Plot",
+        [this]()
+        {
+            if (!subplot_mgr_) return;
+            int s = workspace_state_.active_subplot_idx;
+            if (s >= 1 && s <= subplot_mgr_->capacity())
+                subplot_mgr_->clear_slot_data(s);
+        },
+        "", "Plot");
+    cmd_registry_.register_command("ros.plot.add_subplot", "Add Subplot Row",
+        [this]() { if (subplot_mgr_) subplot_mgr_->add_row(); },
+        "", "Plot");
+
+    // ── Session commands ──
+    cmd_registry_.register_command("ros.session.save", "Save Session",
+        [this]() { show_session_save_dialog_ = true; },
+        "Ctrl+Shift+W", "Session");
+    cmd_registry_.register_command("ros.session.load", "Load Session",
+        [this]() { show_session_load_dialog_ = true; },
+        "", "Session");
+    cmd_registry_.register_command("ros.session.merge", "Merge Session",
+        [this]() { show_session_merge_dialog_ = true; },
+        "", "Session");
+
+    // ── Screenshot ──
+    cmd_registry_.register_command("ros.screenshot", "Screenshot",
+        [this]()
+        {
+            if (!screenshot_export_) return;
+            const std::string path =
+                RosScreenshotExport::make_screenshot_path("/tmp", "spectra_ros");
+            screenshot_export_->take_screenshot(path);
+        },
+        "Ctrl+Shift+S", "Tools");
+
+    // ── App commands ──
+    cmd_registry_.register_command("ros.app.command_palette", "Command Palette",
+        [this]() { cmd_palette_.toggle(); },
+        "Ctrl+K", "App", static_cast<uint16_t>(Icon::Search));
+    cmd_registry_.register_command("ros.app.about", "About Spectra ROS",
+        []() { ImGui::OpenPopup("##ros_about_popup"); },
+        "", "App");
+    cmd_registry_.register_command("ros.app.shortcuts", "Keyboard Shortcuts",
+        []() { ImGui::OpenPopup("##ros_shortcuts_popup"); },
+        "", "App");
+
+    // ── Layout presets ──
+    cmd_registry_.register_command("ros.layout.default", "Layout: Default",
+        [this]() { apply_layout_preset(LayoutPreset::Default); },
+        "", "Layout");
+    cmd_registry_.register_command("ros.layout.debug", "Layout: Debug",
+        [this]() { apply_layout_preset(LayoutPreset::Debug); },
+        "", "Layout");
+    cmd_registry_.register_command("ros.layout.monitor", "Layout: Monitor",
+        [this]() { apply_layout_preset(LayoutPreset::Monitor); },
+        "", "Layout");
+    cmd_registry_.register_command("ros.layout.bag_review", "Layout: Bag Review",
+        [this]() { apply_layout_preset(LayoutPreset::BagReview); },
+        "", "Layout");
+    cmd_registry_.register_command("ros.layout.rviz", "Layout: RViz",
+        [this]() { apply_layout_preset(LayoutPreset::RViz); },
+        "", "Layout");
+    cmd_registry_.register_command("ros.layout.rviz_plot", "Layout: RViz + Plot",
+        [this]() { apply_layout_preset(LayoutPreset::RVizPlot); },
+        "", "Layout");
+
+    // ── Quick-plot templates ──
+    cmd_registry_.register_command("ros.template.compare_fields", "Template: Compare Fields",
+        [this]()
+        {
+            const auto& topic = workspace_state_.selected_topic;
+            if (topic.empty()) return;
+            std::string type_name = detect_topic_type(topic);
+            if (type_name.empty() || !intr_) return;
+            auto schema = intr_->introspect(type_name);
+            if (!schema) return;
+            const auto paths = schema->numeric_paths();
+            if (paths.empty()) return;
+            int slot = -1;
+            for (int s = 1; s <= subplot_mgr_->capacity(); ++s)
+                if (!subplot_mgr_->has_plot(s)) { slot = s; break; }
+            if (slot < 0) slot = subplot_mgr_->add_row();
+            for (const auto& p : paths)
+                subplot_mgr_->add_plot(slot, topic, p, type_name);
+            set_panel_visible("ros.plot_area", true);
+        },
+        "", "Templates");
+    cmd_registry_.register_command("ros.template.multi_axis", "Template: Multi-Axis",
+        [this]()
+        {
+            const auto& topic = workspace_state_.selected_topic;
+            if (topic.empty()) return;
+            std::string type_name = detect_topic_type(topic);
+            if (type_name.empty() || !intr_) return;
+            auto schema = intr_->introspect(type_name);
+            if (!schema) return;
+            const auto paths = schema->numeric_paths();
+            if (paths.empty()) return;
+            const size_t max_fields = std::min(paths.size(), size_t(3));
+            for (size_t i = 0; i < max_fields; ++i)
+            {
+                int slot = -1;
+                for (int s = 1; s <= subplot_mgr_->capacity(); ++s)
+                    if (!subplot_mgr_->has_plot(s)) { slot = s; break; }
+                if (slot < 0) slot = subplot_mgr_->add_row();
+                subplot_mgr_->add_plot(slot, topic, paths[i], type_name);
+            }
+            set_panel_visible("ros.plot_area", true);
+        },
+        "", "Templates");
+    cmd_registry_.register_command("ros.template.diagnostics", "Template: Diagnostics View",
+        [this]()
+        {
+            set_panel_visible("ros.diagnostics", true);
+            set_panel_visible("ros.topic_stats", true);
+            set_panel_visible("ros.plot_area", true);
+        },
+        "", "Templates");
+    cmd_registry_.register_command("ros.template.rate_monitor", "Template: Topic Rate Monitor",
+        [this]()
+        {
+            const auto& topic = workspace_state_.selected_topic;
+            if (!topic.empty())
+                add_topic_plot(topic);
+            set_panel_visible("ros.topic_stats", true);
+            set_panel_visible("ros.plot_area", true);
+        },
+        "", "Templates");
 #endif
 }
 
@@ -1224,6 +1435,11 @@ void RosAppShell::draw_plot_area(bool* p_open)
                 }
             };
             tb_actions.add_subplot = [this]() { subplot_mgr_->add_row(); };
+            tb_actions.remove_subplot = [this]()
+            {
+                if (subplot_mgr_)
+                    subplot_mgr_->remove_last_row();
+            };
             tb_actions.set_x_links = [this](bool enabled)
             { subplot_mgr_->set_x_links_enabled(enabled); };
             tb_actions.export_screenshot = [this]()
@@ -1324,6 +1540,8 @@ void RosAppShell::draw_plot_area(bool* p_open)
                             ImGui::OpenPopup(style_popup_id.c_str());
                         if (ImGui::MenuItem("Clear Plot"))
                             subplot_mgr_->clear_slot_data(s);
+                        if (subplot_mgr_->capacity() > 1 && ImGui::MenuItem("Remove Last Row"))
+                            subplot_mgr_->remove_last_row();
 
                         if (ImGui::BeginPopup(ylim_popup_id.c_str()))
                         {
@@ -1566,13 +1784,99 @@ void RosAppShell::draw_plot_area(bool* p_open)
                 if (show_slot_header)
                     ImGui::EndGroup();
 
+                // Right-click context menu on subplot slot.
+                if (has && ImGui::BeginPopupContextItem("##slot_ctx"))
+                {
+                    if (ImGui::MenuItem("Auto-Fit Y"))
+                        subplot_mgr_->auto_fit_slot_y(s);
+                    if (ImGui::MenuItem("Reset Display"))
+                        reset_plot_display(s);
+                    if (ImGui::MenuItem(subplot_mgr_->is_scroll_paused(s)
+                                            ? "Resume Scroll"
+                                            : "Pause Scroll"))
+                    {
+                        if (subplot_mgr_->is_scroll_paused(s))
+                            subplot_mgr_->resume_scroll(s);
+                        else
+                            subplot_mgr_->pause_scroll(s);
+                    }
+                    ImGui::Separator();
+                    if (ImGui::MenuItem("Clear Plot Data"))
+                        subplot_mgr_->clear_slot_data(s);
+                    if (ImGui::MenuItem("Remove All Series"))
+                        subplot_mgr_->remove_plot(s);
+                    ImGui::Separator();
+                    if (ImGui::MenuItem("Copy Topic Names"))
+                    {
+                        std::string topics;
+                        for (int i = 0; i < n_series; ++i)
+                        {
+                            const SeriesEntry* se = subplot_mgr_->slot_series(s, i);
+                            if (se)
+                            {
+                                if (!topics.empty()) topics += ", ";
+                                topics += se->topic;
+                            }
+                        }
+                        ImGui::SetClipboardText(topics.c_str());
+                    }
+                    ImGui::EndPopup();
+                }
+
+                // Per-subplot in-plot legend: color swatch, field, value, min/max,
+                // visibility toggle, remove button.
+                if (has && n_series > 0)
+                    draw_subplot_legend(s);
+
                 // Drop zone — fills remaining slot height so subplots
                 // expand to use all available vertical space.
                 {
                     const float used_h    = ImGui::GetCursorPosY() - slot_start_y;
                     const float remaining = std::max(8.0f, slot_h - used_h);
                     const float drop_w    = std::max(1.0f, ImGui::GetContentRegionAvail().x);
-                    draw_subplot_slot_drop_target(drop_ctx, s, drop_w, remaining);
+                    const bool dragging = drag_drop_ && drag_drop_->is_dragging();
+                    if (!has && total_slots == 1 && !dragging)
+                    {
+                        ImGui::BeginChild("##plot_empty_state",
+                                          ImVec2(drop_w, remaining),
+                                          ImGuiChildFlags_None,
+                                          ImGuiWindowFlags_NoBackground);
+                        ImGui::Dummy(ImVec2(0.0f, std::max(0.0f, remaining * 0.18f)));
+                        const spectra::ui::widgets::EmptyStateAction actions[] = {
+                            {.label = "Browse topics", .id = "browse", .primary = true},
+                            {.label = "Add plot", .id = "add", .primary = false},
+                            {.label = "Load session", .id = "load", .primary = false},
+                        };
+                        const int action = spectra::ui::widgets::empty_state(
+                            spectra::ui::Icon::ChartLine,
+                            "Drop numeric ROS fields here",
+                            "Select a topic, drag a numeric field, or load a saved ROS plotting session.",
+                            actions);
+                        if (action == 0)
+                            set_panel_visible("ros.topic_list", true);
+                        else if (action == 1)
+                            set_panel_visible("ros.topic_list", true);
+                        else if (action == 2)
+                            show_session_load_dialog_ = true;
+
+                        // Recent topics quick-plot row.
+                        if (!recent_topics_.empty())
+                        {
+                            ImGui::Spacing();
+                            ImGui::TextDisabled("Recent topics");
+                            for (size_t i = 0; i < recent_topics_.size() && i < 4; ++i)
+                            {
+                                if (i > 0) ImGui::SameLine(0.0f, 4.0f);
+                                if (ImGui::SmallButton(recent_topics_[i].c_str()))
+                                    add_topic_plot(recent_topics_[i]);
+                            }
+                        }
+                        ImGui::EndChild();
+                    }
+                    else
+                    {
+                        draw_subplot_slot_drop_target(drop_ctx, s, drop_w, remaining);
+                    }
                 }
 
                 if (s < total_slots)
@@ -1615,18 +1919,6 @@ void RosAppShell::draw_plot_area(bool* p_open)
                     layout_manager_->set_canvas_override(rect);
 
                 const auto& th = spectra::ui::theme();
-                if (subplot_mgr_ && active_plot_count() == 0)
-                {
-                    const char* hint  = "Drag a topic field here, or double-click a numeric field";
-                    const ImVec2 text_sz = ImGui::CalcTextSize(hint);
-                    const float  cx      = canvas_x + canvas_w * 0.5f;
-                    const float  cy      = plot_top + canvas_h * 0.5f;
-                    ImDrawList*  dl      = ImGui::GetWindowDrawList();
-                    dl->AddText({cx - text_sz.x * 0.5f, cy - text_sz.y * 0.5f},
-                                ImGui::ColorConvertFloat4ToU32(theme_to_imvec4(th.text_secondary)),
-                                hint);
-                }
-
                 spectra::ui::glass_draw::draw_vision_canvas_frame(
                     ImGui::GetWindowDrawList(),
                     ImVec2(canvas_x, plot_top),
@@ -1647,6 +1939,147 @@ void RosAppShell::draw_plot_area(bool* p_open)
     ImGui::End();
 #else
     (void)p_open;
+#endif
+}
+
+void RosAppShell::draw_subplot_legend(int slot)
+{
+#ifdef SPECTRA_USE_IMGUI
+    if (!subplot_mgr_ || slot < 1 || slot > subplot_mgr_->capacity())
+        return;
+
+    const int n_series = subplot_mgr_->slot_series_count(slot);
+    if (n_series <= 0)
+        return;
+
+    const auto& th = spectra::ui::theme();
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+
+    // Legend container: a subtle card-like strip below the slot header.
+    const float avail_w = ImGui::GetContentRegionAvail().x;
+    const float row_h   = spectra::ui::tokens::LEGEND_ROW_HEIGHT;
+    const float total_h = row_h * static_cast<float>(n_series) + spectra::ui::tokens::SPACE_2;
+
+    // Background strip.
+    {
+        const ImVec2 pos = ImGui::GetCursorScreenPos();
+        dl->AddRectFilled(pos,
+                          ImVec2(pos.x + avail_w, pos.y + total_h),
+                          ImGui::ColorConvertFloat4ToU32(
+                              ImVec4(th.bg_tertiary.r, th.bg_tertiary.g, th.bg_tertiary.b, 0.35f)),
+                          spectra::ui::tokens::RADIUS_SM);
+    }
+
+    ImGui::BeginGroup();
+
+    for (int i = 0; i < n_series; ++i)
+    {
+        const SeriesEntry* entry = subplot_mgr_->slot_series(slot, i);
+        if (!entry || !entry->series)
+            continue;
+
+        ImGui::PushID(i);
+
+        // Color swatch
+        const spectra::Color sc = entry->series->color();
+        spectra::ui::widgets::color_swatch(sc, spectra::ui::tokens::LEGEND_SWATCH_SIZE);
+        ImGui::SameLine(0.0f, spectra::ui::tokens::SPACE_2);
+
+        // Field label (topic::field_path, abbreviated)
+        const std::string label = entry->field_path.empty()
+                                      ? entry->topic
+                                      : std::format("{}::{}", entry->topic, entry->field_path);
+        const float label_w = std::min(180.0f, avail_w * 0.35f);
+        ImGui::PushStyleColor(ImGuiCol_Text,
+                              ImVec4(th.text_secondary.r, th.text_secondary.g, th.text_secondary.b, th.text_secondary.a));
+        ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + label_w);
+        ImGui::TextUnformatted(label.c_str());
+        ImGui::PopTextWrapPos();
+        ImGui::PopStyleColor();
+
+        // Current value + min/max
+        ImGui::SameLine(0.0f, spectra::ui::tokens::SPACE_3);
+        auto y_data = entry->series->y_data();
+        if (!y_data.empty())
+        {
+            float last_val = y_data.back();
+            float vmin = last_val;
+            float vmax = last_val;
+            for (float v : y_data)
+            {
+                if (v < vmin) vmin = v;
+                if (v > vmax) vmax = v;
+            }
+            ImGui::PushStyleColor(ImGuiCol_Text,
+                                  ImVec4(th.text_primary.r, th.text_primary.g, th.text_primary.b, 0.95f));
+            ImGui::TextUnformatted(std::format("{:.3g}", last_val).c_str());
+            ImGui::PopStyleColor();
+            ImGui::SameLine(0.0f, spectra::ui::tokens::SPACE_2);
+            ImGui::PushStyleColor(ImGuiCol_Text,
+                                  ImVec4(th.text_tertiary.r, th.text_tertiary.g, th.text_tertiary.b, 0.85f));
+            ImGui::TextUnformatted(std::format("[{:.3g}, {:.3g}]", vmin, vmax).c_str());
+            ImGui::PopStyleColor();
+        }
+        else
+        {
+            ImGui::TextDisabled("(no data)");
+        }
+
+        // Right-aligned: visibility toggle + remove
+        {
+            const float btn_w = ImGui::GetFrameHeight();
+            const float right_w = btn_w * 2.0f + spectra::ui::tokens::SPACE_2;
+            ImGui::SameLine(0.0f, std::max(0.0f, ImGui::GetContentRegionAvail().x - right_w));
+
+            // Visibility toggle (eye icon)
+            bool vis = entry->series->visible();
+            if (spectra::ui::widgets::icon_button_small(
+                    ui::icon_str(vis ? ui::Icon::Eye : ui::Icon::EyeOff),
+                    vis ? "Hide series" : "Show series",
+                    !vis))
+            {
+                entry->series->visible(!vis);
+            }
+            ImGui::SameLine(0.0f, spectra::ui::tokens::SPACE_1);
+
+            // Remove button
+            if (spectra::ui::widgets::icon_button_small(ui::icon_str(ui::Icon::Trash),
+                                                        "Remove series"))
+            {
+                subplot_mgr_->remove_series_from_slot(slot, entry->topic, entry->field_path);
+            }
+        }
+
+        // Right-click context menu on legend row
+        if (ImGui::BeginPopupContextItem("##legend_ctx"))
+        {
+            if (ImGui::MenuItem("Remove"))
+                subplot_mgr_->remove_series_from_slot(slot, entry->topic, entry->field_path);
+            bool vis = entry->series->visible();
+            if (ImGui::MenuItem(vis ? "Hide" : "Show", nullptr, !vis))
+                entry->series->visible(!vis);
+            if (ImGui::MenuItem("Auto-fit Y"))
+                subplot_mgr_->auto_fit_slot_y(slot);
+            if (ImGui::MenuItem("Copy field path"))
+                ImGui::SetClipboardText(entry->field_path.c_str());
+            if (ImGui::MenuItem("Copy topic name"))
+                ImGui::SetClipboardText(entry->topic.c_str());
+            if (ImGui::MenuItem("Pause scroll"))
+                subplot_mgr_->pause_scroll(slot);
+            if (ImGui::MenuItem("Clear plot"))
+                subplot_mgr_->clear_slot_data(slot);
+            ImGui::EndPopup();
+        }
+
+        ImGui::PopID();
+        if (i + 1 < n_series)
+            ImGui::Dummy(ImVec2(0.0f, 0.0f));
+    }
+
+    ImGui::EndGroup();
+    ImGui::Dummy(ImVec2(0.0f, spectra::ui::tokens::SPACE_2));
+#else
+    (void)slot;
 #endif
 }
 
@@ -2247,6 +2680,13 @@ bool RosAppShell::add_topic_plot(const std::string& topic_field, const std::stri
         return false;
 
     set_panel_visible("ros.plot_area", true);
+
+    // Track MRU: move topic to front, dedupe, cap at MAX_RECENT_TOPICS.
+    recent_topics_.erase(std::remove(recent_topics_.begin(), recent_topics_.end(), topic),
+                         recent_topics_.end());
+    recent_topics_.insert(recent_topics_.begin(), topic);
+    if (recent_topics_.size() > MAX_RECENT_TOPICS)
+        recent_topics_.resize(MAX_RECENT_TOPICS);
 
     session_status_msg_ =
         "Added plot: " + topic + (field_path.empty() ? "" : (":" + field_path));

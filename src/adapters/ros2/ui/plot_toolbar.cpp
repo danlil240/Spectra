@@ -66,10 +66,20 @@ std::string format_window_value(float seconds)
     return std::format("{:.0f} s", seconds);
 }
 
-bool time_preset_chip(const char* label, float seconds, float current)
+bool labeled_icon_button(const char* cmd_id,
+                         Icon        icon,
+                         const char* label,
+                         const char* tooltip,
+                         bool        selected);
+
+bool time_preset_button(const char* label, float seconds, float current)
 {
     const bool active = std::abs(current - seconds) < 0.5f;
-    return spectra::ui::widgets::chip(label, active);
+    return labeled_icon_button(std::format("plot.range.{}", label).c_str(),
+                               Icon::Clock,
+                               label,
+                               std::format("Set time range to {}", label).c_str(),
+                               active);
 }
 
 void toolbar_label(Icon icon, const char* label)
@@ -227,7 +237,7 @@ void draw_value_pill(const std::string& value)
     const auto&  colors  = theme();
     const ImVec2 text_sz = ImGui::CalcTextSize(value.c_str());
     const float  width   = text_sz.x + tokens::SPACE_3 * 2.0f;
-    const float  height  = tokens::CHIP_HEIGHT;
+    const float  height  = 32.0f;
     const ImVec2 pos     = ImGui::GetCursorScreenPos();
 
     ImGui::Dummy(ImVec2(width, height));
@@ -235,11 +245,11 @@ void draw_value_pill(const std::string& value)
     dl->AddRectFilled(pos,
                       ImVec2(pos.x + width, pos.y + height),
                       color_u32(colors.bg_tertiary, 0.72f),
-                      height * 0.5f);
+                      tokens::RADIUS_MD);
     dl->AddRect(pos,
                 ImVec2(pos.x + width, pos.y + height),
                 color_u32(colors.border_subtle, 0.44f),
-                height * 0.5f);
+                tokens::RADIUS_MD);
     dl->AddText(ImVec2(pos.x + tokens::SPACE_3, pos.y + (height - text_sz.y) * 0.5f),
                 color_u32(colors.text_primary, 0.92f),
                 value.c_str());
@@ -252,12 +262,28 @@ float draw_plot_toolbar(PlotToolbarState& state, const PlotToolbarActions& actio
     using spectra::ui::Icon;
     using spectra::ui::theme;
     using spectra::ui::widgets::icon_button;
-    const auto& colors    = theme();
-    const float toolbar_h = 44.0f;
-    const float avail_w   = ImGui::GetContentRegionAvail().x;
-    const bool  compact   = avail_w < 1080.0f;
+    const auto& colors  = theme();
+    const float avail_w = ImGui::GetContentRegionAvail().x;
+    const bool  tight   = avail_w < 480.0f;
+    const bool  compact = avail_w < 1120.0f;
+    const float content_left = ImGui::GetWindowContentRegionMin().x;
+    const float compact_cluster_w =
+        tokens::ICON_BUTTON_HITBOX * 2.0f + tokens::TOOLBAR_BUTTON_GAP;
+    const float cluster_x = ImGui::GetWindowContentRegionMax().x - compact_cluster_w;
+    const float tool_btn_w = tight ? tokens::ICON_BUTTON_HITBOX
+                                     : labeled_icon_button_width(compact ? "Fit" : "Fit Y");
+    const float tools_row_w =
+        tool_btn_w * 5.0f + tokens::TOOLBAR_BUTTON_GAP * 4.0f;
+    const bool tools_overflow_cluster =
+        compact && (content_left + tools_row_w > cluster_x - tokens::SPACE_2);
+    const float tools_row_y_offset = tight ? 74.0f : 42.0f;
+    const float export_row_y_offset =
+        tools_overflow_cluster ? tools_row_y_offset + 36.0f : tools_row_y_offset;
+    const float toolbar_h = compact ? (export_row_y_offset + 38.0f) : 44.0f;
 
     ImVec2      bar_min = ImGui::GetCursorScreenPos();
+    const float tools_row_y = bar_min.y + tools_row_y_offset;
+    const float export_row_y = bar_min.y + export_row_y_offset;
     ImVec2      bar_max(bar_min.x + avail_w, bar_min.y + toolbar_h);
     ImDrawList* dl = ImGui::GetWindowDrawList();
 
@@ -281,6 +307,39 @@ float draw_plot_toolbar(PlotToolbarState& state, const PlotToolbarActions& actio
 
     toolbar_separator(32.0f);
 
+    if (tight)
+    {
+        const float slider_w_tight =
+            std::max(72.0f, avail_w - tokens::ICON_BUTTON_HITBOX - tokens::SPACE_8);
+        ImGui::SetNextItemWidth(slider_w_tight);
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_PILL);
+        ImGui::PushStyleVar(ImGuiStyleVar_GrabRounding, tokens::RADIUS_PILL);
+        ImGui::PushStyleColor(
+            ImGuiCol_FrameBg,
+            ImVec4(colors.bg_tertiary.r, colors.bg_tertiary.g, colors.bg_tertiary.b, 0.72f));
+        ImGui::PushStyleColor(
+            ImGuiCol_FrameBgHovered,
+            ImVec4(colors.bg_tertiary.r, colors.bg_tertiary.g, colors.bg_tertiary.b, 0.88f));
+        ImGui::PushStyleColor(ImGuiCol_SliderGrab,
+                              ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.95f));
+        ImGui::PushStyleColor(
+            ImGuiCol_SliderGrabActive,
+            ImVec4(colors.accent_hover.r, colors.accent_hover.g, colors.accent_hover.b, 1.0f));
+        if (ImGui::SliderFloat("##plot_tw",
+                               &state.time_window_s,
+                               1.0f,
+                               3600.0f,
+                               "%.0fs",
+                               ImGuiSliderFlags_Logarithmic))
+        {
+            if (actions.set_time_window)
+                actions.set_time_window(state.time_window_s);
+        }
+        ImGui::PopStyleColor(4);
+        ImGui::PopStyleVar(2);
+        ImGui::SetCursorScreenPos(ImVec2(bar_min.x + tokens::SPACE_2, bar_min.y + 38.0f));
+    }
+
     ImGui::AlignTextToFramePadding();
     toolbar_label(Icon::Clock, "Range");
     ImGui::SameLine(0.0f, tokens::SPACE_2);
@@ -291,55 +350,74 @@ float draw_plot_toolbar(PlotToolbarState& state, const PlotToolbarActions& actio
         float       sec;
     } kPresets[] = {{"10s", 10.f}, {"30s", 30.f}, {"60s", 60.f}, {"5m", 300.f}};
 
-    for (const auto& p : kPresets)
+    const float preset_right = ImGui::GetWindowContentRegionMax().x - 2.0f;
+    for (size_t i = 0; i < std::size(kPresets); ++i)
     {
-        if (time_preset_chip(p.label, p.sec, state.time_window_s))
+        const auto& p = kPresets[i];
+        const float preset_w = labeled_icon_button_width(p.label);
+        if (i > 0)
+        {
+            const float next_x = ImGui::GetCursorPosX() + tokens::SPACE_1 + preset_w;
+            if (next_x <= preset_right)
+                ImGui::SameLine(0.0f, tokens::SPACE_1);
+        }
+        if (time_preset_button(p.label, p.sec, state.time_window_s))
         {
             state.time_window_s = p.sec;
             if (actions.set_time_window)
                 actions.set_time_window(state.time_window_s);
         }
-        ImGui::SameLine(0.0f, tokens::SPACE_1);
     }
 
-    const float slider_w = std::clamp(avail_w * (compact ? 0.11f : 0.18f),
-                                      compact ? 88.0f : 112.0f,
-                                      compact ? 132.0f : 220.0f);
-    ImGui::SetNextItemWidth(slider_w);
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_PILL);
-    ImGui::PushStyleVar(ImGuiStyleVar_GrabRounding, tokens::RADIUS_PILL);
-    ImGui::PushStyleColor(
-        ImGuiCol_FrameBg,
-        ImVec4(colors.bg_tertiary.r, colors.bg_tertiary.g, colors.bg_tertiary.b, 0.72f));
-    ImGui::PushStyleColor(
-        ImGuiCol_FrameBgHovered,
-        ImVec4(colors.bg_tertiary.r, colors.bg_tertiary.g, colors.bg_tertiary.b, 0.88f));
-    ImGui::PushStyleColor(ImGuiCol_SliderGrab,
-                          ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.95f));
-    ImGui::PushStyleColor(
-        ImGuiCol_SliderGrabActive,
-        ImVec4(colors.accent_hover.r, colors.accent_hover.g, colors.accent_hover.b, 1.0f));
-    if (ImGui::SliderFloat("##plot_tw",
-                           &state.time_window_s,
-                           1.0f,
-                           3600.0f,
-                           "%.0fs",
-                           ImGuiSliderFlags_Logarithmic))
+    if (!tight)
     {
-        if (actions.set_time_window)
-            actions.set_time_window(state.time_window_s);
-    }
-    ImGui::PopStyleColor(4);
-    ImGui::PopStyleVar(2);
-    if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
-        ImGui::SetTooltip("Visible time window (seconds)");
-    if (avail_w >= 780.0f)
-    {
+        const float slider_w = std::clamp(avail_w * (compact ? 0.11f : 0.18f),
+                                          compact ? 88.0f : 112.0f,
+                                          compact ? 132.0f : 220.0f);
         ImGui::SameLine(0.0f, tokens::SPACE_1);
-        draw_value_pill(format_window_value(state.time_window_s));
+        ImGui::SetNextItemWidth(slider_w);
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_PILL);
+        ImGui::PushStyleVar(ImGuiStyleVar_GrabRounding, tokens::RADIUS_PILL);
+        ImGui::PushStyleColor(
+            ImGuiCol_FrameBg,
+            ImVec4(colors.bg_tertiary.r, colors.bg_tertiary.g, colors.bg_tertiary.b, 0.72f));
+        ImGui::PushStyleColor(
+            ImGuiCol_FrameBgHovered,
+            ImVec4(colors.bg_tertiary.r, colors.bg_tertiary.g, colors.bg_tertiary.b, 0.88f));
+        ImGui::PushStyleColor(ImGuiCol_SliderGrab,
+                              ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.95f));
+        ImGui::PushStyleColor(
+            ImGuiCol_SliderGrabActive,
+            ImVec4(colors.accent_hover.r, colors.accent_hover.g, colors.accent_hover.b, 1.0f));
+        if (ImGui::SliderFloat("##plot_tw",
+                               &state.time_window_s,
+                               1.0f,
+                               3600.0f,
+                               "%.0fs",
+                               ImGuiSliderFlags_Logarithmic))
+        {
+            if (actions.set_time_window)
+                actions.set_time_window(state.time_window_s);
+        }
+        ImGui::PopStyleColor(4);
+        ImGui::PopStyleVar(2);
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
+            ImGui::SetTooltip("Visible time window (seconds)");
+        if (!compact && avail_w >= 780.0f)
+        {
+            ImGui::SameLine(0.0f, tokens::SPACE_1);
+            draw_value_pill(format_window_value(state.time_window_s));
+        }
     }
 
-    toolbar_separator(32.0f);
+    if (compact)
+    {
+        ImGui::SetCursorScreenPos(ImVec2(bar_min.x + tokens::SPACE_2, tools_row_y));
+    }
+    else
+    {
+        toolbar_separator(32.0f);
+    }
 
     if (!compact)
     {
@@ -347,51 +425,100 @@ float draw_plot_toolbar(PlotToolbarState& state, const PlotToolbarActions& actio
         ImGui::SameLine(0.0f, tokens::SPACE_2);
     }
 
-    if (labeled_icon_button("plot.autofit",
-                            Icon::Maximize,
-                            compact ? "Fit" : "Fit Y",
-                            "Auto-fit Y axis"))
+    auto draw_tool = [&](const char* id,
+                         Icon icon,
+                         const char* compact_label,
+                         const char* full_label,
+                         const char* tooltip,
+                         bool selected,
+                         auto&& on_click)
     {
-        if (actions.autofit)
-            actions.autofit();
-    }
-    ImGui::SameLine(0.0f, tokens::TOOLBAR_BUTTON_GAP);
-    if (labeled_icon_button("plot.clear", Icon::Trash, "Clear", "Clear plot data"))
-    {
-        if (actions.clear_plot)
-            actions.clear_plot();
-    }
-    ImGui::SameLine(0.0f, tokens::TOOLBAR_BUTTON_GAP);
-    if (labeled_icon_button("plot.add_sub",
-                            Icon::Plus,
-                            compact ? "Row" : "Add row",
-                            "Add subplot row"))
-    {
-        if (actions.add_subplot)
-            actions.add_subplot();
-    }
-    ImGui::SameLine(0.0f, tokens::TOOLBAR_BUTTON_GAP);
-    if (labeled_icon_button("plot.link_x",
-                            state.x_links_enabled ? Icon::Link : Icon::Unlink,
-                            compact ? "Link" : "Link X",
-                            state.x_links_enabled ? "Unlink X axes" : "Link X axes",
-                            state.x_links_enabled))
-    {
-        state.x_links_enabled = !state.x_links_enabled;
-        if (actions.set_x_links)
-            actions.set_x_links(state.x_links_enabled);
-    }
+        bool clicked = false;
+        if (tight)
+            clicked = icon_button(id, icon, tooltip, selected);
+        else
+            clicked = labeled_icon_button(
+                id, icon, compact ? compact_label : full_label, tooltip, selected);
+        if (clicked)
+            on_click();
+        ImGui::SameLine(0.0f, tokens::TOOLBAR_BUTTON_GAP);
+    };
 
-    // Right-aligned export + settings
-    const float right_cluster_w =
-        (compact ? tokens::ICON_BUTTON_HITBOX : labeled_icon_button_width("Export"))
-        + tokens::ICON_BUTTON_HITBOX + tokens::SPACE_4;
-    const float right_x =
-        std::max(ImGui::GetCursorPosX() + tokens::SPACE_2,
-                 ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x - right_cluster_w);
-    ImGui::SameLine(right_x);
+    draw_tool("plot.autofit",
+              Icon::Maximize,
+              "Fit",
+              "Fit Y",
+              "Auto-fit Y axis",
+              false,
+              [&]() {
+                  if (actions.autofit)
+                      actions.autofit();
+              });
+    draw_tool("plot.clear",
+              Icon::Trash,
+              "Clear",
+              "Clear",
+              "Clear plot data",
+              false,
+              [&]() {
+                  if (actions.clear_plot)
+                      actions.clear_plot();
+              });
+    draw_tool("plot.add_sub",
+              Icon::Plus,
+              "Add",
+              "Add row",
+              "Add subplot row",
+              false,
+              [&]() {
+                  if (actions.add_subplot)
+                      actions.add_subplot();
+              });
+    draw_tool("plot.remove_sub",
+              Icon::Minus,
+              "Remove",
+              "Remove row",
+              "Remove last subplot row",
+              false,
+              [&]() {
+                  if (actions.remove_subplot)
+                      actions.remove_subplot();
+              });
+    draw_tool("plot.link_x",
+              state.x_links_enabled ? Icon::Link : Icon::Unlink,
+              "Link",
+              "Link X",
+              state.x_links_enabled ? "Unlink X axes" : "Link X axes",
+              state.x_links_enabled,
+              [&]() {
+                  state.x_links_enabled = !state.x_links_enabled;
+                  if (actions.set_x_links)
+                      actions.set_x_links(state.x_links_enabled);
+              });
+
+    const float settings_w = tokens::ICON_BUTTON_HITBOX;
+    const float export_label_w = labeled_icon_button_width("Export");
+    const float wide_cluster_w = export_label_w + tokens::TOOLBAR_BUTTON_GAP + settings_w;
+    const float cluster_w      = compact ? compact_cluster_w : wide_cluster_w;
+    const float export_cluster_x = ImGui::GetWindowContentRegionMax().x - cluster_w;
+    const bool  export_fits_right = !compact
+                                    && export_cluster_x > ImGui::GetCursorPosX() + tokens::SPACE_2;
 
     if (compact)
+    {
+        ImGui::SetCursorScreenPos(
+            ImVec2(ImGui::GetWindowPos().x + export_cluster_x, export_row_y));
+    }
+    else if (export_fits_right)
+    {
+        ImGui::SameLine(export_cluster_x);
+    }
+    else
+    {
+        ImGui::SameLine(0.0f, tokens::TOOLBAR_BUTTON_GAP);
+    }
+
+    if (compact || !export_fits_right)
     {
         if (icon_button("plot.export", Icon::Export, "Export plot"))
             ImGui::OpenPopup("##plot_export_popup");

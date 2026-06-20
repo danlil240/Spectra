@@ -43,7 +43,7 @@ void StatusBar::draw()
                              | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoBackground;
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
-                        ImVec2(ui::tokens::STATUS_BAR_PADDING_H, 0.0f));
+                        ImVec2(ui::tokens::STATUS_BAR_PADDING_H, 2.0f));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
     ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0, 0, 0, 0));
@@ -73,16 +73,22 @@ void StatusBar::draw()
                         1.0f);
 
         const float bar_h  = bounds.h;
-        const float text_h = ImGui::GetTextLineHeight();
-        const float y      = (bar_h - text_h) * 0.5f;
+        const float row_h  = ui::tokens::STATUS_BAR_PILL_HEIGHT;
+        const float y      = std::max(1.0f, (bar_h - row_h) * 0.5f - 1.0f);
 
         // Establish window content extents before segment draw_fns adjust cursor Y.
         ImGui::SetCursorPosY(y);
-        ImGui::Dummy(ImVec2(std::max(1.0f, bounds.w), std::max(1.0f, text_h)));
+        ImGui::Dummy(ImVec2(std::max(1.0f, bounds.w), std::max(1.0f, row_h)));
         ImGui::SetCursorPos(ImVec2(0.0f, y));
 
-        const auto draw_row = [&](StatusAlign align)
+        const auto draw_column = [&](StatusAlign align, int column_id)
         {
+            const float col_w = std::max(1.0f, ImGui::GetContentRegionAvail().x);
+            ImGui::PushID(column_id);
+            ImGui::BeginChild("##status_col",
+                              ImVec2(col_w, row_h),
+                              ImGuiChildFlags_None,
+                              ImGuiWindowFlags_HorizontalScrollbar | ImGuiWindowFlags_NoBackground);
             bool first = true;
             for (const StatusSegment& segment : segments_)
             {
@@ -93,6 +99,8 @@ void StatusBar::draw()
                 segment.draw_fn();
                 first = false;
             }
+            ImGui::EndChild();
+            ImGui::PopID();
         };
 
         if (ImGui::BeginTable("##status_bar_tbl",
@@ -106,13 +114,13 @@ void StatusBar::draw()
             ImGui::TableNextRow();
 
             ImGui::TableSetColumnIndex(0);
-            draw_row(StatusAlign::Left);
+            draw_column(StatusAlign::Left, 0);
 
             ImGui::TableSetColumnIndex(1);
-            draw_row(StatusAlign::Center);
+            draw_column(StatusAlign::Center, 1);
 
             ImGui::TableSetColumnIndex(2);
-            draw_row(StatusAlign::Right);
+            draw_column(StatusAlign::Right, 2);
 
             ImGui::EndTable();
         }

@@ -1,5 +1,7 @@
 #include "ros2_bridge.hpp"
 
+#include <cstdlib>
+
 namespace spectra::adapters::ros2
 {
 
@@ -157,6 +159,21 @@ void Ros2Bridge::set_state(BridgeState s)
     state_.store(s, std::memory_order_release);
     if (state_cb_)
         state_cb_(s);
+}
+
+int Ros2Bridge::domain_id() const
+{
+    const char* value = std::getenv("ROS_DOMAIN_ID");
+    if (!value || value[0] == '\0')
+        return 0;
+    try
+    {
+        return std::stoi(value);
+    }
+    catch (...)
+    {
+        return 0;
+    }
 }
 
 }   // namespace spectra::adapters::ros2

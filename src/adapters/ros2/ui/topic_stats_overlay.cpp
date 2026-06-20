@@ -13,6 +13,7 @@
 
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
+    #include "ui/imgui/widgets.hpp"
     #include "ui/shell/shell_style.hpp"
 #endif
 
@@ -262,6 +263,7 @@ TopicStatsOverlay::StatsSnapshot TopicStatsOverlay::snapshot()
     snap.total_bytes    = stats_.total_bytes;
     snap.drop_detected  = stats_.drop_detected;
     snap.last_gap_ns    = stats_.last_gap_ns;
+    snap.last_msg_ns    = stats_.last_msg_ns;
     return snap;
 }
 
@@ -352,11 +354,18 @@ void TopicStatsOverlay::draw_inline()
 
     if (snap.topic.empty())
     {
-        ImGui::TextDisabled("Select a topic in Topic Monitor");
-        ImGui::Spacing();
-        ImGui::TextWrapped(
-            "Click a row for Hz, bandwidth, and publishers. Double-click a numeric field "
-            "in the tree to plot it, or drag a field onto the plot area.");
+        ImGui::Dummy(ImVec2(0.0f, std::max(8.0f, ImGui::GetContentRegionAvail().y * 0.18f)));
+        const spectra::ui::widgets::EmptyStateAction actions[] = {
+            {.label = "Browse topics", .id = "browse", .primary = true},
+            {.label = "Open echo", .id = "echo", .primary = false},
+        };
+        const int action = spectra::ui::widgets::empty_state(
+            spectra::ui::Icon::BarChart,
+            "Select a topic in Topic Monitor",
+            "Inspect frequency, bandwidth, latency, and plotted series.",
+            actions);
+        if (action == 1 && echo_cb_)
+            echo_cb_("");
         return;
     }
 
@@ -365,6 +374,31 @@ void TopicStatsOverlay::draw_inline()
     ImGui::TextUnformatted(snap.topic.c_str());
     ImGui::PopStyleColor();
     ImGui::Separator();
+
+    if (plot_cb_)
+    {
+        if (spectra::ui::widgets::toolbar_button(spectra::ui::Icon::ChartLine,
+                                                 "Plot numeric fields"))
+            plot_cb_(snap.topic);
+        ImGui::SameLine();
+    }
+    if (echo_cb_)
+    {
+        if (spectra::ui::widgets::toolbar_button(spectra::ui::Icon::Command,
+                                                 "Echo topic"))
+            echo_cb_(snap.topic);
+        ImGui::SameLine();
+    }
+    if (ImGui::SmallButton("Copy name"))
+        ImGui::SetClipboardText(snap.topic.c_str());
+    if (favorite_cb_)
+    {
+        ImGui::SameLine();
+        if (spectra::ui::widgets::toolbar_button(spectra::ui::Icon::Star,
+                                                 "Toggle favorite"))
+            favorite_cb_(snap.topic);
+    }
+    ImGui::Spacing();
 
     // Drop warning banner.
     if (snap.drop_detected)
@@ -383,80 +417,70 @@ void TopicStatsOverlay::draw_inline()
         ImGui::Separator();
     }
 
-    constexpr ImGuiTableFlags kTableFlags =
-        ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_NoHostExtendX;
-
-    if (ImGui::BeginTable("##stats_table", 2, kTableFlags))
+    auto age_text = [&]() -> std::string
     {
-        ImGui::TableSetupColumn("Label", ImGuiTableColumnFlags_WidthFixed, 120.0f);
-        ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch);
+        if (snap.last_msg_ns <= 0)
+            return "-";
+        const double age_s = std::max(0.0, static_cast<double>(now - snap.last_msg_ns) * 1e-9);
+        if (age_s < 1.0)
+            return std::format("{:.0f}", age_s * 1000.0);
+        if (age_s < 60.0)
+            return std::format("{:.1f}", age_s);
+        return std::format("{:.0f}", age_s / 60.0);
+    };
+    auto age_unit = [&]() -> const char*
+    {
+        if (snap.last_msg_ns <= 0)
+            return "";
+        const double age_s = std::max(0.0, static_cast<double>(now - snap.last_msg_ns) * 1e-9);
+        if (age_s < 1.0)
+            return "ms ago";
+        if (age_s < 60.0)
+            return "s ago";
+        return "min ago";
+    };
 
-        // --- Hz section ---
-        ImGui::TableNextRow();
-        ImGui::TableSetColumnIndex(0);
-        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.7f, 0.7f, 0.7f, 1.0f));
-        ImGui::TextUnformatted("FREQUENCY");
-        ImGui::PopStyleColor();
-
-        draw_stat_row("  Avg Hz", format_hz(snap.hz_avg));
-        draw_stat_row("  Min Hz", format_hz(snap.hz_min));
-        draw_stat_row("  Max Hz", format_hz(snap.hz_max));
-
-        // --- Message count ---
-        ImGui::TableNextRow();
-        ImGui::TableSetColumnIndex(0);
-        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.7f, 0.7f, 0.7f, 1.0f));
-        ImGui::TextUnformatted("MESSAGES");
-        ImGui::PopStyleColor();
-
-        {
-            draw_stat_row("  Total count", std::format("{}", snap.total_messages));
-        }
-
-        // --- Bandwidth ---
-        ImGui::TableNextRow();
-        ImGui::TableSetColumnIndex(0);
-        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.7f, 0.7f, 0.7f, 1.0f));
-        ImGui::TextUnformatted("BANDWIDTH");
-        ImGui::PopStyleColor();
-
-        draw_stat_row("  Rate", format_bw(snap.bw_bps));
-        draw_stat_row("  Total", format_bytes(snap.total_bytes));
-
-        // --- Latency ---
-        if (snap.latency_avg_us >= 0.0)
-        {
-            ImGui::TableNextRow();
-            ImGui::TableSetColumnIndex(0);
-            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.7f, 0.7f, 0.7f, 1.0f));
-            ImGui::TextUnformatted("LATENCY");
-            ImGui::PopStyleColor();
-
-            draw_stat_row("  Avg", format_latency(snap.latency_avg_us));
-            draw_stat_row("  Min", format_latency(snap.latency_min_us));
-            draw_stat_row("  Max", format_latency(snap.latency_max_us));
-        }
-        else
-        {
-            ImGui::TableNextRow();
-            ImGui::TableSetColumnIndex(0);
-            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.7f, 0.7f, 0.7f, 1.0f));
-            ImGui::TextUnformatted("LATENCY");
-            ImGui::PopStyleColor();
-            draw_stat_row("  Avg", "- (no header)");
-        }
-
-        // --- Drop info ---
-        {
-            const std::string gap_str =
-                snap.last_gap_ns > 0
-                    ? std::format("{:.1f} ms", static_cast<double>(snap.last_gap_ns) * 1e-6)
-                    : "-";
-            draw_stat_row("  Last gap", gap_str, snap.drop_detected);
-        }
-
+    if (ImGui::BeginTable("##stats_cards", 2, ImGuiTableFlags_SizingStretchSame))
+    {
+        ImGui::TableNextColumn();
+        spectra::ui::widgets::stat_card("Average Hz", format_hz(snap.hz_avg).c_str(), "Hz");
+        ImGui::TableNextColumn();
+        spectra::ui::widgets::stat_card("Bandwidth", format_bw(snap.bw_bps).c_str(), nullptr);
+        ImGui::TableNextColumn();
+        spectra::ui::widgets::stat_card("Messages",
+                                        std::format("{}", snap.total_messages).c_str(),
+                                        nullptr);
+        ImGui::TableNextColumn();
+        spectra::ui::widgets::stat_card("Total bytes", format_bytes(snap.total_bytes).c_str(), nullptr);
+        ImGui::TableNextColumn();
+        spectra::ui::widgets::stat_card("Latency",
+                                        snap.latency_avg_us >= 0.0
+                                            ? format_latency(snap.latency_avg_us).c_str()
+                                            : "-",
+                                        snap.latency_avg_us >= 0.0 ? "avg" : "no header");
+        ImGui::TableNextColumn();
+        spectra::ui::widgets::stat_card("Last message", age_text().c_str(), age_unit());
         ImGui::EndTable();
     }
+
+    ImGui::Spacing();
+    if (spectra::ui::widgets::begin_card("##message_structure_preview"))
+    {
+        ImGui::TextUnformatted("Message structure");
+        ImGui::Separator();
+        ImGui::TextWrapped("Use inline echo in Topic Monitor to inspect fields and drag numeric paths onto plots.");
+        const std::string hz_range = std::format("Hz range: {} - {}",
+                                                 format_hz(snap.hz_min),
+                                                 format_hz(snap.hz_max));
+        ImGui::TextDisabled("%s", hz_range.c_str());
+        const std::string gap_str =
+            snap.last_gap_ns > 0
+                ? std::format("Last gap: {:.1f} ms",
+                              static_cast<double>(snap.last_gap_ns) * 1e-6)
+                : "Last gap: -";
+        ImGui::TextDisabled("%s", gap_str.c_str());
+    }
+    spectra::ui::widgets::end_card();
 }
 
 void TopicStatsOverlay::draw(bool* p_open, int active_subplot_slot)

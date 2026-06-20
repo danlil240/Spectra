@@ -550,9 +550,11 @@ void TopicListPanel::draw(bool* p_open)
                        + (col_show_pubs_ ? 1 : 0) + (col_show_subs_ ? 1 : 0)
                        + (col_show_bw_ ? 1 : 0);
 
+    spectra::ui::shell::push_data_table_style();
     if (!ImGui::BeginTable("##topics", n_cols, kTableFlags, table_sz))
     {
-        ImGui::End();
+        spectra::ui::shell::pop_data_table_style();
+        spectra::ui::shell::end_panel();
         return;
     }
 
@@ -618,6 +620,7 @@ void TopicListPanel::draw(bool* p_open)
     }
 
     ImGui::EndTable();
+    spectra::ui::shell::pop_data_table_style();
 
     // --- Status bar ---
     {

@@ -3,6 +3,7 @@
 
     #include "imgui.h"
     #include "ui/layout/layout_manager.hpp"
+    #include "ui/shell/shell_style.hpp"
 
 namespace spectra::ui::shell
 {
@@ -179,6 +180,7 @@ void AppShell::draw_dockspace()
     const ImGuiDockNodeFlags dock_flags = ImGuiDockNodeFlags_PassthruCentralNode;
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+    push_dock_style();
     if (ImGui::Begin("##AppShellDockHost", nullptr, host_flags))
     {
         dockspace_id_ = ImGui::GetID("##AppShellDockSpace");
@@ -198,6 +200,7 @@ void AppShell::draw_dockspace()
     }
     ImGui::End();
     ImGui::PopStyleVar();
+    pop_dock_style();
     #else
     dock_layout_initialized_ = true;
     if (canvas_host_)

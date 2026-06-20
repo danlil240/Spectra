@@ -152,6 +152,24 @@ class TopicEchoPanel
 
     // ---------- configuration --------------------------------------------
 
+    enum class EchoViewMode : uint8_t
+    {
+        Tree,
+        Raw,
+        Json
+    };
+
+    EchoViewMode view_mode() const { return view_mode_; }
+    bool         echo_live() const { return echo_live_; }
+
+    void set_view_mode(EchoViewMode mode) { view_mode_ = mode; }
+    void set_echo_live(bool live)
+    {
+        echo_live_ = live;
+        if (echo_live_)
+            selected_msg_idx_ = -1;
+    }
+
     void               set_title(const std::string& t) { title_ = t; }
     const std::string& title() const { return title_; }
 
@@ -244,6 +262,11 @@ class TopicEchoPanel
     // Format a numeric value compactly.
     static std::string format_numeric(double v);
 
+    // Serialize an echo snapshot for clipboard / raw view.
+    static std::string format_message_raw(const EchoMessage& msg);
+    static std::string format_message_json(const EchoMessage& msg);
+    static std::string field_value_text(const EchoFieldValue& fv);
+
    private:
     // Called from executor thread when a message arrives.
     void on_message(sub_compat::SerializedMessageCallbackArg raw_msg);
@@ -264,12 +287,14 @@ class TopicEchoPanel
 
     // ---------- ImGui draw helpers (SPECTRA_USE_IMGUI guard in .cpp) ----
 
+    void draw_controls();
+    void draw_view_mode_bar();
+    void draw_message_list(const std::vector<EchoMessage>& snap, int display_idx);
+    void draw_message_content(const EchoMessage& msg);
     void draw_message_tree(EchoMessage& msg);
     void draw_field_node(EchoFieldValue&                    fv,
                          size_t&                            idx,
                          const std::vector<EchoFieldValue>& all_fields);
-    void draw_controls();
-    void draw_message_list();
 
     // ---------- members --------------------------------------------------
 
@@ -320,6 +345,10 @@ class TopicEchoPanel
     std::string   prev_hovered_field_;   // to detect changes and fire callback once
 
     bool manually_pinned_{false};
+
+    EchoViewMode view_mode_{EchoViewMode::Tree};
+    bool         echo_live_{true};
+    char         message_filter_[96]{};
 
     bool   bag_echo_mode_{false};
     double bag_playhead_sec_{0.0};

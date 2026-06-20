@@ -172,6 +172,7 @@ add_library(spectra_ros2_adapter
     ros_plot_manager.cpp
     ui/topic_list_panel.cpp
     ui/topic_echo_panel.cpp
+    ui/plot_toolbar.cpp
     ui/topic_stats_overlay.cpp
     ui/field_drag_drop.cpp
     ui/node_graph_panel.cpp

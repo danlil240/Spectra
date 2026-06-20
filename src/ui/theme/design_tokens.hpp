@@ -73,10 +73,10 @@ constexpr float GLOW_RADIUS_MD = 4.0f;   // Standard glow (active elements)
 constexpr float GLOW_RADIUS_LG = 8.0f;   // Emphasis glow (selected items)
 
 // Grid Tokens — per-theme alpha (Night / Dark / Light)
-constexpr float GRID_MAJOR_ALPHA_NIGHT = 0.10f;
+constexpr float GRID_MAJOR_ALPHA_NIGHT = 0.07f;
 constexpr float GRID_MAJOR_ALPHA_DARK  = 0.14f;
 constexpr float GRID_MAJOR_ALPHA_LIGHT = 0.20f;
-constexpr float GRID_MINOR_ALPHA_NIGHT = 0.035f;
+constexpr float GRID_MINOR_ALPHA_NIGHT = 0.025f;
 constexpr float GRID_MINOR_ALPHA_DARK  = 0.05f;
 constexpr float GRID_MINOR_ALPHA_LIGHT = 0.10f;
 
@@ -219,5 +219,26 @@ constexpr float CANVAS_FRAME_BORDER_ALPHA      = 0.55f;
 constexpr float CANVAS_FRAME_INNER_ALPHA       = 0.35f;
 constexpr float CANVAS_FRAME_GLOW_ALPHA        = 0.10f;
 constexpr float CANVAS_VIGNETTE_ALPHA          = 0.16f;
+
+// ROS / product panel component geometry
+constexpr float TOOLBAR_BUTTON_SIZE            = 28.0f;
+constexpr float TOOLBAR_BUTTON_GAP             = 4.0f;
+constexpr float TOOLBAR_HEIGHT                 = 36.0f;
+constexpr float STAT_CARD_MIN_WIDTH            = 120.0f;
+constexpr float STAT_CARD_HEIGHT               = 64.0f;
+constexpr float STAT_CARD_GAP                  = 8.0f;
+constexpr float EMPTY_STATE_ICON_SIZE          = 40.0f;
+constexpr float EMPTY_STATE_MAX_WIDTH          = 360.0f;
+constexpr float EMPTY_STATE_ACTION_GAP         = 8.0f;
+constexpr float DROP_ZONE_BORDER_WIDTH         = 2.0f;
+constexpr float DROP_ZONE_DASH_LEN             = 8.0f;
+constexpr float DROP_ZONE_ALPHA_VALID          = 0.22f;
+constexpr float DROP_ZONE_ALPHA_INVALID        = 0.14f;
+constexpr float PANEL_HEADER_HEIGHT            = 40.0f;
+constexpr float SEARCH_BOX_HEIGHT              = 28.0f;
+constexpr float SEARCH_CLEAR_BTN_SIZE          = 18.0f;
+constexpr float LEGEND_ROW_HEIGHT              = 22.0f;
+constexpr float LEGEND_SWATCH_SIZE             = 10.0f;
+constexpr float TIME_PRESET_BTN_WIDTH          = 36.0f;
 
 }   // namespace spectra::ui::tokens

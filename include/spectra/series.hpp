@@ -84,6 +84,10 @@ class Series
     bool show_in_legend() const { return show_in_legend_; }
     void set_show_in_legend(bool v) { show_in_legend_ = v; }
 
+    // True for Axes::hline / Axes::vline reference lines (not general legend hiding).
+    bool is_reference_line() const { return is_reference_line_; }
+    void set_reference_line(bool v) { is_reference_line_ = v; }
+
     bool is_dirty() const { return dirty_; }
     void clear_dirty() { dirty_ = false; }
     void mark_dirty();
@@ -165,6 +169,7 @@ class Series
     bool              visible_ = true;
     bool              excluded_from_autoscale_ = false;
     bool              show_in_legend_          = true;
+    bool              is_reference_line_       = false;
     std::atomic<bool> dirty_{true};
     EventSystem*      event_system_ = nullptr;
     AxesBase*         owning_axes_  = nullptr;

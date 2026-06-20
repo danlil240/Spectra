@@ -984,7 +984,7 @@ void Inspector::draw_reference_lines(Axes& ax)
 {
     const auto& c = theme();
 
-    // Collect reference line indices (series excluded from legend = reference lines)
+    // Collect reference lines (Axes::hline / Axes::vline only).
     struct RefEntry
     {
         size_t         index;
@@ -996,7 +996,7 @@ void Inspector::draw_reference_lines(Axes& ax)
     auto& series_list = ax.series_mut();
     for (size_t i = 0; i < series_list.size(); ++i)
     {
-        if (series_list[i] && !series_list[i]->show_in_legend())
+        if (series_list[i] && series_list[i]->is_reference_line())
         {
             RefEntry e;
             e.index = i;

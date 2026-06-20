@@ -17,7 +17,8 @@ inline ImU32 color_u32(const Color& c)
                     static_cast<int>(c.a * 255.0f));
 }
 
-// Rich navy/violet ambience for Night Glass; neutral theme surfaces otherwise.
+// Ambient glass backdrop. Night uses a deep aurora wash; light uses a pale
+// cyan/indigo frost so glow-enabled light themes do not inherit dark chrome.
 inline void draw_ambient_gradient(ImDrawList*        dl,
                                   ImVec2             p0,
                                   ImVec2             p1,
@@ -28,6 +29,42 @@ inline void draw_ambient_gradient(ImDrawList*        dl,
     if (g <= 0.01f)
     {
         dl->AddRectFilled(p0, p1, color_u32(colors.bg_secondary));
+        return;
+    }
+
+    const bool light_surface = colors.bg_primary.luminance() > 0.50f;
+    if (light_surface)
+    {
+        const Color top_left     = colors.bg_primary.lerp(colors.bg_secondary, 0.42f);
+        const Color top_right    = colors.bg_elevated.lerp(colors.accent, 0.08f);
+        const Color bottom_right = colors.bg_secondary.lerp(Color::from_hex(0xC8D6E5), 0.45f);
+        const Color bottom_left  = colors.bg_primary.lerp(Color::from_hex(0xCCDCE8), 0.55f);
+        dl->AddRectFilledMultiColor(p0,
+                                    p1,
+                                    color_u32(top_left),
+                                    color_u32(top_right),
+                                    color_u32(bottom_right),
+                                    color_u32(bottom_left));
+
+        const int teal_a   = static_cast<int>(22.0f + 34.0f * g);
+        const int indigo_a = static_cast<int>(14.0f + 26.0f * g);
+        const Color teal   = colors.accent.lerp(Color::from_hex(0x67E8F9), 0.32f);
+        const Color indigo = colors.info.lerp(Color::from_hex(0xA78BFA), 0.40f);
+        dl->AddRectFilledMultiColor(p0,
+                                    ImVec2(p0.x + (p1.x - p0.x) * 0.42f, p1.y),
+                                    color_u32(teal.with_alpha(static_cast<float>(teal_a) / 255.0f)),
+                                    IM_COL32(255, 255, 255, 0),
+                                    IM_COL32(255, 255, 255, 0),
+                                    color_u32(
+                                        teal.with_alpha(static_cast<float>(teal_a / 2) / 255.0f)));
+        dl->AddRectFilledMultiColor(ImVec2(p0.x + (p1.x - p0.x) * 0.55f, p0.y),
+                                    p1,
+                                    IM_COL32(255, 255, 255, 0),
+                                    color_u32(
+                                        indigo.with_alpha(static_cast<float>(indigo_a) / 255.0f)),
+                                    color_u32(
+                                        indigo.with_alpha(static_cast<float>(indigo_a / 2) / 255.0f)),
+                                    IM_COL32(255, 255, 255, 0));
         return;
     }
 

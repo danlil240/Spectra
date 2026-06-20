@@ -120,6 +120,7 @@ LineSeries& Axes::hline(double y, std::string_view fmt)
     auto&       line = plot(xs, ys, fmt);
     line.set_excluded_from_autoscale(true);
     line.set_show_in_legend(false);
+    line.set_reference_line(true);
     return line;
 }
 
@@ -130,6 +131,7 @@ LineSeries& Axes::vline(double x, std::string_view fmt)
     auto&       line = plot(xs, ys, fmt);
     line.set_excluded_from_autoscale(true);
     line.set_show_in_legend(false);
+    line.set_reference_line(true);
     return line;
 }
 

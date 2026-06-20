@@ -6,17 +6,20 @@
 #include <cmath>
 #include <cstring>
 #include <format>
-#include <dlfcn.h>
+#include <optional>
 
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
 
     #include "ui/shell/shell_style.hpp"
+    #include "ui/imgui/widgets.hpp"
+    #include "ui/theme/design_tokens.hpp"
     #include "ui/theme/icons.hpp"
 #endif
 
 // rclcpp deserialization helpers
 #include <rclcpp/serialization.hpp>
+#include <rclcpp/typesupport_helpers.hpp>
 #include <rosidl_typesupport_introspection_cpp/message_introspection.hpp>
 
 #ifdef SPECTRA_ROS2_BAG
@@ -35,6 +38,51 @@ namespace spectra::adapters::ros2
     using namespace std::chrono;
     return duration_cast<duration<double>>(steady_clock::now().time_since_epoch()).count();
 }
+
+namespace
+{
+
+struct RosMessageTypeSupport
+{
+    std::shared_ptr<rcpputils::SharedLibrary> intro_lib;
+    const rosidl_message_type_support_t*      intro_ts{nullptr};
+    std::shared_ptr<rcpputils::SharedLibrary> cpp_lib;
+    const rosidl_message_type_support_t*      cpp_ts{nullptr};
+    const rosidl_typesupport_introspection_cpp::MessageMembers* members{nullptr};
+};
+
+std::optional<RosMessageTypeSupport> resolve_message_typesupport(const std::string& type_name)
+{
+    RosMessageTypeSupport out;
+    try
+    {
+        out.intro_lib = rclcpp::get_typesupport_library(type_name,
+                                                        "rosidl_typesupport_introspection_cpp");
+        out.intro_ts  = rclcpp::get_message_typesupport_handle(type_name,
+                                                               "rosidl_typesupport_introspection_cpp",
+                                                               *out.intro_lib);
+        out.cpp_lib   = rclcpp::get_typesupport_library(type_name, "rosidl_typesupport_cpp");
+        out.cpp_ts    = rclcpp::get_message_typesupport_handle(type_name,
+                                                               "rosidl_typesupport_cpp",
+                                                               *out.cpp_lib);
+    }
+    catch (const std::exception&)
+    {
+        return std::nullopt;
+    }
+
+    if (!out.intro_ts || !out.cpp_ts)
+        return std::nullopt;
+
+    out.members = static_cast<const rosidl_typesupport_introspection_cpp::MessageMembers*>(
+        out.intro_ts->data);
+    if (!out.members || out.members->size_of_ == 0)
+        return std::nullopt;
+
+    return out;
+}
+
+}   // namespace
 
 // ---------------------------------------------------------------------------
 // Construction / Destruction
@@ -164,41 +212,11 @@ void TopicEchoPanel::ingest_bag_message(const BagMessage&    msg,
     if (!schema)
         return;
 
-    const std::string type   = type_name_;
-    const size_t      slash1 = type.find('/');
-    if (slash1 == std::string::npos)
-        return;
-    const size_t slash2 = type.find('/', slash1 + 1);
-    if (slash2 == std::string::npos)
-        return;
-    const std::string pkg      = type.substr(0, slash1);
-    const std::string msg_name = type.substr(slash2 + 1);
-
-    const std::string lib_name = "lib" + pkg + "__rosidl_typesupport_introspection_cpp.so";
-    const std::string sym_name =
-        "rosidl_typesupport_introspection_cpp__get_message_type_support_handle__" + pkg + "__msg__"
-        + msg_name;
-
-    void* lib_handle = dlopen(lib_name.c_str(), RTLD_LAZY | RTLD_NOLOAD);
-    if (!lib_handle)
-        lib_handle = dlopen(lib_name.c_str(), RTLD_LAZY | RTLD_GLOBAL);
-    if (!lib_handle)
-        return;
-
-    using GetTSFunc = const rosidl_message_type_support_t* (*)();
-    auto get_ts     = reinterpret_cast<GetTSFunc>(dlsym(lib_handle, sym_name.c_str()));
-    if (!get_ts)
-        return;
-
-    const rosidl_message_type_support_t* ts = get_ts();
+    const auto ts = resolve_message_typesupport(type_name_);
     if (!ts)
         return;
 
-    const auto* members =
-        reinterpret_cast<const rosidl_typesupport_introspection_cpp::MessageMembers*>(ts->data);
-    if (!members)
-        return;
-
+    const auto* members = ts->members;
     const size_t cdr_body_size = msg.serialized_data.size() - 4;
     if (cdr_body_size < members->size_of_)
         return;
@@ -213,7 +231,7 @@ void TopicEchoPanel::ingest_bag_message(const BagMessage&    msg,
                 msg.serialized_data.size());
     serialized.get_rcl_serialized_message().buffer_length = msg.serialized_data.size();
 
-    rclcpp::SerializationBase serializer(ts);
+    rclcpp::SerializationBase serializer(ts->cpp_ts);
     try
     {
         serializer.deserialize_message(&serialized, buf.data());
@@ -320,60 +338,28 @@ void TopicEchoPanel::on_message(sub_compat::SerializedMessageCallbackArg raw_msg
     if (paused_.load(std::memory_order_acquire))
         return;
 
-    // Snapshot schema pointer under sub_mutex_ to avoid TOCTOU.
+    // Snapshot schema/type under sub_mutex_ to avoid TOCTOU with set_topic().
     std::shared_ptr<const MessageSchema> schema_snap;
+    std::string                          type_snap;
     {
         std::lock_guard<std::mutex> lk(sub_mutex_);
         schema_snap = schema_;
+        type_snap   = type_name_;
     }
-    if (!schema_snap)
+    if (!schema_snap || type_snap.empty())
         return;
 
-    // Deserialize using type support from the library.
-    // We need to get the type support handle to call init/deserialize/fini.
-    const std::string& type   = type_name_;
-    const size_t       slash1 = type.find('/');
-    const size_t       slash2 =
-        (slash1 != std::string::npos) ? type.find('/', slash1 + 1) : std::string::npos;
-    if (slash1 == std::string::npos || slash2 == std::string::npos)
-        return;
-
-    const std::string pkg      = type.substr(0, slash1);
-    const std::string msg_name = type.substr(slash2 + 1);
-
-    // Build the lib + symbol names used by rosidl.
-    const std::string lib_name = "lib" + pkg + "__rosidl_typesupport_introspection_cpp.so";
-    const std::string sym_name =
-        "rosidl_typesupport_introspection_cpp__get_message_type_support_handle__" + pkg + "__msg__"
-        + msg_name;
-
-    void* lib_handle = dlopen(lib_name.c_str(), RTLD_LAZY | RTLD_NOLOAD);
-    if (!lib_handle)
-    {
-        lib_handle = dlopen(lib_name.c_str(), RTLD_LAZY | RTLD_GLOBAL);
-    }
-    if (!lib_handle)
-        return;
-
-    using GetTSFunc = const rosidl_message_type_support_t* (*)();
-    auto get_ts     = reinterpret_cast<GetTSFunc>(dlsym(lib_handle, sym_name.c_str()));
-    if (!get_ts)
-        return;
-
-    const rosidl_message_type_support_t* ts = get_ts();
+    const auto ts = resolve_message_typesupport(type_snap);
     if (!ts)
         return;
 
-    const auto* members =
-        reinterpret_cast<const rosidl_typesupport_introspection_cpp::MessageMembers*>(ts->data);
-    if (!members)
-        return;
+    const auto* members = ts->members;
 
     // Allocate and deserialize message.
     std::vector<uint8_t> buf(members->size_of_);
     members->init_function(buf.data(), rosidl_runtime_cpp::MessageInitialization::ALL);
 
-    rclcpp::SerializationBase serializer(ts);
+    rclcpp::SerializationBase serializer(ts->cpp_ts);
     try
     {
         serializer.deserialize_message(raw_msg.get(), buf.data());
@@ -830,6 +816,109 @@ void TopicEchoPanel::on_message(sub_compat::SerializedMessageCallbackArg raw_msg
     return std::format("{}", v);
 }
 
+/*static*/ std::string TopicEchoPanel::field_value_text(const EchoFieldValue& fv)
+{
+    switch (fv.kind)
+    {
+        case EchoFieldValue::Kind::Numeric:
+        case EchoFieldValue::Kind::ArrayElement:
+            return format_numeric(fv.numeric);
+        case EchoFieldValue::Kind::Text:
+            return fv.text;
+        default:
+            return fv.display_name;
+    }
+}
+
+/*static*/ std::string TopicEchoPanel::format_message_raw(const EchoMessage& msg)
+{
+    std::string out;
+    out += std::format("seq: {}\n", msg.seq);
+    out += std::format("stamp: {}\n", format_timestamp(msg.timestamp_ns));
+    for (const auto& fv : msg.fields)
+    {
+        if (fv.kind == EchoFieldValue::Kind::NestedHead || fv.kind == EchoFieldValue::Kind::ArrayHead)
+            continue;
+        const std::string indent(static_cast<size_t>(fv.depth) * 2, ' ');
+        out += indent + fv.path + ": " + field_value_text(fv) + "\n";
+    }
+    return out;
+}
+
+namespace
+{
+
+std::string json_escape(std::string_view text)
+{
+    std::string out;
+    out.reserve(text.size() + 8);
+    for (const unsigned char uc : text)
+    {
+        const char c = static_cast<char>(uc);
+        switch (c)
+        {
+            case '"':
+                out += "\\\"";
+                break;
+            case '\\':
+                out += "\\\\";
+                break;
+            case '\n':
+                out += "\\n";
+                break;
+            case '\r':
+                out += "\\r";
+                break;
+            case '\t':
+                out += "\\t";
+                break;
+            case '\b':
+                out += "\\b";
+                break;
+            case '\f':
+                out += "\\f";
+                break;
+            default:
+                if (uc < 0x20)
+                    out += std::format("\\u{:04x}", static_cast<unsigned int>(uc));
+                else
+                    out += c;
+                break;
+        }
+    }
+    return out;
+}
+
+}   // namespace
+
+/*static*/ std::string TopicEchoPanel::format_message_json(const EchoMessage& msg)
+{
+    std::string out = "{\n";
+    out += std::format("  \"seq\": {},\n", msg.seq);
+    out += std::format("  \"stamp_ns\": {},\n", msg.timestamp_ns);
+    out += "  \"fields\": {\n";
+    bool first = true;
+    for (const auto& fv : msg.fields)
+    {
+        if (fv.kind == EchoFieldValue::Kind::NestedHead || fv.kind == EchoFieldValue::Kind::ArrayHead)
+            continue;
+        if (!first)
+            out += ",\n";
+        first = false;
+        const std::string value = field_value_text(fv);
+        const bool        numeric =
+            fv.kind == EchoFieldValue::Kind::Numeric || fv.kind == EchoFieldValue::Kind::ArrayElement;
+        const bool        quoted = !numeric || !std::isfinite(fv.numeric);
+        out += std::format("    \"{}\": ", json_escape(fv.path));
+        if (quoted)
+            out += std::format("\"{}\"", json_escape(value));
+        else
+            out += value;
+    }
+    out += "\n  }\n}";
+    return out;
+}
+
 // ---------------------------------------------------------------------------
 // ImGui rendering
 // ---------------------------------------------------------------------------
@@ -867,6 +956,7 @@ void TopicEchoPanel::draw(bool* p_open)
     }
 
     draw_controls();
+    draw_view_mode_bar();
 
     ImGui::Separator();
 
@@ -877,13 +967,9 @@ void TopicEchoPanel::draw(bool* p_open)
         return;
     }
 
-    // Update last draw time only once we start drawing topic content.
     if (should_refresh)
-    {
         last_draw_time_s_ = now;
-    }
 
-    // Snapshot ring buffer for display.
     std::vector<EchoMessage> snap;
     {
         std::lock_guard<std::mutex> lk(ring_mutex_);
@@ -897,47 +983,10 @@ void TopicEchoPanel::draw(bool* p_open)
         return;
     }
 
-    // Two-pane layout: left = message list, right = field tree detail.
-    const float list_width = 200.0f;
-    const float avail_h    = ImGui::GetContentRegionAvail().y;
-
-    // Message list pane.
-    ImGui::BeginChild("##msg_list", ImVec2(list_width, avail_h), 1);
-
-    ImGui::TextDisabled("%zu / %zu msg", snap.size(), static_cast<size_t>(total_received_.load()));
-    ImGui::Separator();
-
-    for (int i = static_cast<int>(snap.size()) - 1; i >= 0; --i)
-    {
-        const auto&       msg   = snap[static_cast<size_t>(i)];
-        const std::string label = std::format("#{}", msg.seq);
-
-        const bool sel = (selected_msg_idx_ == i);
-        if (ImGui::Selectable(label.c_str(), sel, 0, ImVec2(0, 0)))
-        {
-            selected_msg_idx_ = i;
-            if (bag_echo_mode_)
-            {
-                bag_manual_msg_idx_  = i;
-                bag_playhead_follow_ = false;
-            }
-        }
-        if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
-        {
-            ImGui::BeginTooltip();
-            ImGui::Text("t = %s", format_timestamp(msg.timestamp_ns).c_str());
-            ImGui::EndTooltip();
-        }
-    }
-
-    ImGui::EndChild();
-    ImGui::SameLine();
-
-    // Detail pane.
-    ImGui::BeginChild("##msg_detail", ImVec2(0, avail_h), 1);
-
-    // Resolve which message to display.
     int display_idx = selected_msg_idx_;
+    if (echo_live_ || display_idx < 0 || display_idx >= static_cast<int>(snap.size()))
+        display_idx = static_cast<int>(snap.size()) - 1;
+
     if (bag_echo_mode_ && bag_playhead_follow_)
     {
         const int nearest = find_nearest_bag_message_index(snap);
@@ -948,8 +997,14 @@ void TopicEchoPanel::draw(bool* p_open)
     {
         display_idx = bag_manual_msg_idx_;
     }
-    if (display_idx < 0 || display_idx >= static_cast<int>(snap.size()))
-        display_idx = static_cast<int>(snap.size()) - 1;
+
+    const float list_width = 210.0f;
+    const float avail_h      = ImGui::GetContentRegionAvail().y;
+
+    draw_message_list(snap, display_idx);
+
+    ImGui::SameLine();
+    ImGui::BeginChild("##msg_detail", ImVec2(0, avail_h), ImGuiChildFlags_Borders);
 
     EchoMessage display_msg = snap[static_cast<size_t>(display_idx)];
 
@@ -959,26 +1014,136 @@ void TopicEchoPanel::draw(bool* p_open)
         ImGui::SameLine();
         if (ImGui::SmallButton(bag_playhead_follow_ ? "Follow##bag_echo" : "Pinned##bag_echo"))
             bag_playhead_follow_ = !bag_playhead_follow_;
-        if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
-            ImGui::SetTooltip("Follow playhead or pin a message from the list");
     }
 
-    // Header: seq + timestamp.
     ImGui::TextDisabled("msg #%llu  |  t = %s",
                         static_cast<unsigned long long>(display_msg.seq),
                         format_timestamp(display_msg.timestamp_ns).c_str());
-    if (display_msg.bag_time_sec >= 0.0)
+    if (display_idx == static_cast<int>(snap.size()) - 1 && echo_live_)
     {
         ImGui::SameLine();
-        ImGui::TextDisabled("|  bag +%.3f s", display_msg.bag_time_sec);
+        const auto& th = spectra::ui::theme();
+        ImGui::TextColored(ImVec4(th.accent.r, th.accent.g, th.accent.b, 1.0f), "LIVE");
     }
     ImGui::Separator();
 
-    draw_message_tree(display_msg);
+    draw_message_content(display_msg);
 
     ImGui::EndChild();
 
     spectra::ui::shell::end_panel();
+}
+
+void TopicEchoPanel::draw_view_mode_bar()
+{
+    const float avail_w = ImGui::GetContentRegionAvail().x;
+    ImGui::SetNextItemWidth(std::min(avail_w * 0.42f, 220.0f));
+    ImGui::InputTextWithHint("##echo_filter",
+                             "Filter messages…",
+                             message_filter_,
+                             sizeof(message_filter_));
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
+        ImGui::SetTooltip("Filter by sequence number or timestamp");
+
+    ImGui::SameLine();
+    if (spectra::ui::widgets::chip("Tree", view_mode_ == EchoViewMode::Tree))
+        view_mode_ = EchoViewMode::Tree;
+    ImGui::SameLine(0.0f, 4.0f);
+    if (spectra::ui::widgets::chip("Raw", view_mode_ == EchoViewMode::Raw))
+        view_mode_ = EchoViewMode::Raw;
+    ImGui::SameLine(0.0f, 4.0f);
+    if (spectra::ui::widgets::chip("JSON", view_mode_ == EchoViewMode::Json))
+        view_mode_ = EchoViewMode::Json;
+
+    ImGui::SameLine(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x - 72.0f);
+    if (spectra::ui::widgets::icon_button_small(spectra::ui::icon_str(spectra::ui::Icon::Copy),
+                                                "Copy latest message"))
+    {
+        std::lock_guard<std::mutex> lk(ring_mutex_);
+        if (!ring_.empty())
+            ImGui::SetClipboardText(format_message_raw(ring_.back()).c_str());
+    }
+}
+
+void TopicEchoPanel::draw_message_list(const std::vector<EchoMessage>& snap, int display_idx)
+{
+    const float avail_h = ImGui::GetContentRegionAvail().y;
+    ImGui::BeginChild("##msg_list", ImVec2(210.0f, avail_h), ImGuiChildFlags_Borders);
+
+    ImGui::TextDisabled("%zu / %zu msg", snap.size(), static_cast<size_t>(total_received_.load()));
+    ImGui::Separator();
+
+    const std::string filter = message_filter_;
+    const auto&       th     = spectra::ui::theme();
+    const float       row_h  = ImGui::GetTextLineHeight() + spectra::ui::tokens::ROW_PADDING_V * 2.0f;
+
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4.0f, 6.0f));
+    for (int i = static_cast<int>(snap.size()) - 1; i >= 0; --i)
+    {
+        const auto& msg   = snap[static_cast<size_t>(i)];
+        const auto  label = std::format("#{}  {}", msg.seq, format_timestamp(msg.timestamp_ns));
+
+        if (!filter.empty())
+        {
+            const std::string seq_str = std::to_string(msg.seq);
+            if (label.find(filter) == std::string::npos && seq_str.find(filter) == std::string::npos)
+                continue;
+        }
+
+        const bool is_latest = (i == static_cast<int>(snap.size()) - 1);
+        const bool is_sel    = (display_idx == i);
+
+        if (is_latest)
+        {
+            ImGui::PushStyleColor(ImGuiCol_Header,
+                                  ImVec4(th.accent.r, th.accent.g, th.accent.b, 0.18f));
+            ImGui::PushStyleColor(ImGuiCol_HeaderHovered,
+                                  ImVec4(th.accent.r, th.accent.g, th.accent.b, 0.28f));
+        }
+
+        if (ImGui::Selectable(label.c_str(), is_sel, 0, ImVec2(0, row_h)))
+        {
+            selected_msg_idx_ = i;
+            echo_live_        = false;
+            if (bag_echo_mode_)
+            {
+                bag_manual_msg_idx_  = i;
+                bag_playhead_follow_ = false;
+            }
+        }
+
+        if (is_latest)
+            ImGui::PopStyleColor(2);
+    }
+    ImGui::PopStyleVar();
+    ImGui::EndChild();
+}
+
+void TopicEchoPanel::draw_message_content(const EchoMessage& msg)
+{
+    switch (view_mode_)
+    {
+        case EchoViewMode::Tree:
+        {
+            EchoMessage editable = msg;
+            draw_message_tree(editable);
+            break;
+        }
+        case EchoViewMode::Raw:
+        {
+            ImGui::PushStyleColor(ImGuiCol_Text, kColorText);
+            ImGui::TextUnformatted(format_message_raw(msg).c_str());
+            ImGui::PopStyleColor();
+            break;
+        }
+        case EchoViewMode::Json:
+        {
+            ImGui::PushStyleColor(ImGuiCol_Text, kColorNumeric);
+            ImGui::TextUnformatted(format_message_json(msg).c_str());
+            ImGui::PopStyleColor();
+            break;
+        }
+    }
 }
 
 void TopicEchoPanel::sync_workspace(const std::string& topic,
@@ -994,65 +1159,56 @@ void TopicEchoPanel::sync_workspace(const std::string& topic,
 
 void TopicEchoPanel::draw_controls()
 {
-    // Topic label.
+    const auto& th = spectra::ui::theme();
+
     if (topic_name_.empty())
     {
         ImGui::TextColored(kColorDisabled, "%s No topic", ui::icon_str(ui::Icon::Circle));
-    }
-    else if (is_paused())
-    {
-        ImGui::TextColored(kColorPaused,
-                           "%s %s",
-                           ui::icon_str(ui::Icon::Pause),
-                           topic_name_.c_str());
-    }
-    else
-    {
-        ImGui::TextColored(kColorLive,
-                           "%s %s",
-                           ui::icon_str(ui::Icon::Circle),
-                           topic_name_.c_str());
+        return;
     }
 
-    ImGui::SameLine(0, 12.0f);
-    if (ImGui::SmallButton(manually_pinned_ ? "Unpin" : "Pin"))
+    const ImVec4 status_col = is_paused() ? kColorPaused : kColorLive;
+    const ui::Icon status_icon = is_paused() ? ui::Icon::Pause : ui::Icon::Circle;
+    ImGui::TextColored(status_col, "%s %s", ui::icon_str(status_icon), topic_name_.c_str());
+
+    ImGui::SameLine(0.0f, spectra::ui::tokens::SPACE_3);
+    if (ui::widgets::icon_button_small(ui::icon_str(ui::Icon::Pin),
+                                       manually_pinned_ ? "Unpin topic" : "Pin topic",
+                                       manually_pinned_))
         manually_pinned_ = !manually_pinned_;
-    if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
-    {
-        ImGui::SetTooltip(manually_pinned_
-                              ? "Pinned: Topic Monitor selection will not auto-switch echo"
-                              : "Follow Topic Monitor selection automatically");
-    }
 
-    ImGui::SameLine(0, 16.0f);
-
-    // Pause / Resume button.
-    if (is_paused())
+    ImGui::SameLine(0.0f, spectra::ui::tokens::SPACE_2);
+    if (ui::widgets::icon_button_small(ui::icon_str(is_paused() ? ui::Icon::Play : ui::Icon::Pause),
+                                       is_paused() ? "Resume receiving" : "Pause receiving",
+                                       is_paused()))
     {
-        if (ImGui::SmallButton("Resume"))
+        if (is_paused())
             resume();
-    }
-    else
-    {
-        if (ImGui::SmallButton("Pause"))
+        else
             pause();
     }
 
-    ImGui::SameLine();
-
-    if (ImGui::SmallButton("Clear"))
+    ImGui::SameLine(0.0f, spectra::ui::tokens::SPACE_2);
+    ImGui::BeginDisabled(message_count() == 0);
+    if (ui::widgets::icon_button_small(ui::icon_str(ui::Icon::Trash), "Clear captured messages"))
         clear();
+    ImGui::EndDisabled();
 
-    // Right-aligned: total count + type.
+    ImGui::SameLine(0.0f, spectra::ui::tokens::SPACE_3);
+    if (ui::widgets::chip("Echo live", echo_live_))
+        set_echo_live(!echo_live_);
+
     if (!type_name_.empty())
     {
         const auto  slash = type_name_.rfind('/');
         const char* short_type =
             (slash != std::string::npos) ? type_name_.c_str() + slash + 1 : type_name_.c_str();
         const float type_w = ImGui::CalcTextSize(short_type).x + 8.0f;
-        ImGui::SameLine(ImGui::GetContentRegionAvail().x - type_w + ImGui::GetCursorPosX());
+        ImGui::SameLine(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x - type_w);
         ImGui::TextDisabled("%s", short_type);
     }
+
+    (void)th;
 }
 
 void TopicEchoPanel::draw_message_tree(EchoMessage& msg)
@@ -1150,13 +1306,9 @@ void TopicEchoPanel::draw_field_node(EchoFieldValue&                    fv,
                 ImGui::SameLine(ImGui::GetContentRegionAvail().x - 18.0f);
                 const std::string copy_id = std::format("##cp_{}", fv.path);
                 if (ImGui::SmallButton(copy_id.c_str()))
-                {
-                    ImGui::SetClipboardText(fv.path.c_str());
-                }
+                    ImGui::SetClipboardText(field_value_text(fv).c_str());
                 if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
-                {
-                    ImGui::SetTooltip("Copy field path: %s", fv.path.c_str());
-                }
+                    ImGui::SetTooltip("Copy value: %s", field_value_text(fv).c_str());
             }
             // Drag source for numeric array element.
             if (drag_drop_)
@@ -1193,13 +1345,9 @@ void TopicEchoPanel::draw_field_node(EchoFieldValue&                    fv,
                 ImGui::SameLine(ImGui::GetContentRegionAvail().x - 18.0f);
                 const std::string copy_id = std::format("##cp_{}", fv.path);
                 if (ImGui::SmallButton(copy_id.c_str()))
-                {
-                    ImGui::SetClipboardText(fv.path.c_str());
-                }
+                    ImGui::SetClipboardText(field_value_text(fv).c_str());
                 if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
-                {
-                    ImGui::SetTooltip("Copy field path: %s", fv.path.c_str());
-                }
+                    ImGui::SetTooltip("Copy value: %s", field_value_text(fv).c_str());
             }
             // Drag source + right-click menu.
             if (drag_drop_)
@@ -1238,13 +1386,15 @@ void TopicEchoPanel::draw_field_node(EchoFieldValue&                    fv,
 
 void TopicEchoPanel::draw(bool* /*p_open*/) {}
 void TopicEchoPanel::draw_controls() {}
+void TopicEchoPanel::draw_view_mode_bar() {}
+void TopicEchoPanel::draw_message_list(const std::vector<EchoMessage>&, int) {}
+void TopicEchoPanel::draw_message_content(const EchoMessage&) {}
 void TopicEchoPanel::draw_message_tree(EchoMessage& /*msg*/) {}
 void TopicEchoPanel::draw_field_node(EchoFieldValue& /*fv*/,
                                      size_t& /*idx*/,
                                      const std::vector<EchoFieldValue>& /*all_fields*/)
 {
 }
-void TopicEchoPanel::draw_message_list() {}
 
 #endif   // SPECTRA_USE_IMGUI
 

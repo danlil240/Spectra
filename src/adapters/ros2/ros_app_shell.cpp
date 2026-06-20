@@ -24,6 +24,7 @@
 #include "display/tf_display.hpp"
 #include "generic_subscription_compat.hpp"
 #include "ui/layout/layout_manager.hpp"
+#include "ui/plot_toolbar.hpp"
 #include "ui/theme/icons.hpp"
 
 // AxisLinkManager — needed for wiring InputHandler to subplot link manager.
@@ -1127,7 +1128,6 @@ void RosAppShell::draw_plot_area(bool* p_open)
     {
         float      canvas_top       = ImGui::GetCursorScreenPos().y;
         float      canvas_bottom    = canvas_top;
-        const auto same_line_button = []() { ImGui::SameLine(0.0f, kPlotAreaButtonSpacing); };
 
         if (subplot_mgr_ && !plot_theme_applied_)
         {
@@ -1137,13 +1137,20 @@ void RosAppShell::draw_plot_area(bool* p_open)
 
         if (subplot_mgr_)
         {
-            // Synchronize the slider with the actual visible X extent.
-            // When the user right-click-drags (box zoom) or scrolls while paused,
-            // the axes X limits change but subplot_mgr_->time_window() doesn't
-            // update.  Read the actual extent from the active subplot.
-            auto tw = static_cast<float>(subplot_mgr_->time_window());
+            // Synchronize toolbar state with the active subplot view.
+            PlotToolbarState tb_state;
+            tb_state.time_window_s    = static_cast<float>(subplot_mgr_->time_window());
+            tb_state.pruning_enabled  = subplot_mgr_->pruning_enabled();
+            tb_state.prune_buffer_s   = static_cast<float>(subplot_mgr_->prune_buffer());
+            tb_state.x_links_enabled  = subplot_mgr_->x_links_enabled();
+            tb_state.active_slot      =
+                (workspace_state_.active_subplot_idx >= 1
+                 && workspace_state_.active_subplot_idx <= subplot_mgr_->capacity())
+                    ? workspace_state_.active_subplot_idx
+                    : -1;
+
             {
-                int active_slot = workspace_state_.active_subplot_idx;
+                int active_slot = tb_state.active_slot;
                 if (active_slot >= 1 && active_slot <= subplot_mgr_->capacity())
                 {
                     const auto* se = subplot_mgr_->slot_entry_pub(active_slot);
@@ -1152,25 +1159,32 @@ void RosAppShell::draw_plot_area(bool* p_open)
                         auto xl     = se->axes->x_limits();
                         auto actual = static_cast<float>(xl.max - xl.min);
                         if (actual > 0.5f && actual < 86400.0f)
-                            tw = actual;
+                            tb_state.time_window_s = actual;
+                    }
+                    tb_state.live = !subplot_mgr_->is_scroll_paused(active_slot);
+                }
+                else
+                {
+                    tb_state.live = true;
+                    for (int s = 1; s <= subplot_mgr_->capacity(); ++s)
+                    {
+                        if (subplot_mgr_->is_scroll_paused(s))
+                        {
+                            tb_state.live = false;
+                            break;
+                        }
                     }
                 }
             }
-            const float toolbar_avail = ImGui::GetContentRegionAvail().x;
-            const float tools_btn_w   = 28.0f;
-            ImGui::SetNextItemWidth(std::clamp(toolbar_avail - tools_btn_w - kPlotAreaButtonSpacing,
-                                               kPlotAreaTimeSliderMinWidth,
-                                               kPlotAreaTimeSliderMaxWidth));
-            if (ImGui::SliderFloat("##TimeWindow", &tw, 1.0f, 3600.0f, "%.1f s"))
+
+            const int live_slot = tb_state.active_slot;
+            PlotToolbarActions tb_actions;
+            tb_actions.set_time_window = [this, live_slot](float tw)
             {
                 const auto new_tw = static_cast<double>(tw);
                 subplot_mgr_->set_time_window(new_tw);
                 if (plot_mgr_)
                     plot_mgr_->set_time_window(new_tw);
-
-                // When any subplot is paused, apply the new time window as
-                // a zoom centred on the current view so the user sees an
-                // actual zoom instead of a no-op slider change.
                 for (int s = 1; s <= subplot_mgr_->capacity(); ++s)
                 {
                     if (!subplot_mgr_->is_scroll_paused(s))
@@ -1182,69 +1196,59 @@ void RosAppShell::draw_plot_area(bool* p_open)
                     double mid = (xl.min + xl.max) * 0.5;
                     se->axes->xlim(mid - new_tw * 0.5, mid + new_tw * 0.5);
                 }
-            }
-            same_line_button();
-            if (ImGui::SmallButton("...##plot_tools"))
-                ImGui::OpenPopup("##plot_toolbar_more");
-
-            auto draw_plot_toolbar_extras = [&]()
+            };
+            tb_actions.set_live = [this, live_slot](bool live)
             {
-                bool prune_enabled = subplot_mgr_->pruning_enabled();
-                if (ImGui::Checkbox("Prune Old", &prune_enabled))
+                if (live_slot >= 1 && live_slot <= subplot_mgr_->capacity())
                 {
-                    subplot_mgr_->set_pruning_enabled(prune_enabled);
-                    if (plot_mgr_)
-                        plot_mgr_->set_pruning_enabled(prune_enabled);
+                    if (live)
+                        subplot_mgr_->resume_scroll(live_slot);
+                    else
+                        subplot_mgr_->pause_scroll(live_slot);
                 }
-                same_line_button();
-                auto prune_buf = static_cast<float>(subplot_mgr_->prune_buffer());
-                if (!prune_enabled)
-                    ImGui::BeginDisabled();
-                ImGui::SetNextItemWidth(90.0f);
-                if (ImGui::SliderFloat("##PruneBuffer", &prune_buf, 0.0f, 600.0f, "%.0f s"))
-                {
-                    subplot_mgr_->set_prune_buffer(static_cast<double>(prune_buf));
-                    if (plot_mgr_)
-                        plot_mgr_->set_prune_buffer(static_cast<double>(prune_buf));
-                }
-                if (!prune_enabled)
-                    ImGui::EndDisabled();
-                same_line_button();
-                {
-                    const auto& th = spectra::ui::theme();
-                    ImGui::PushStyleColor(ImGuiCol_Button, theme_to_imvec4(th.success.with_alpha(0.55f)));
-                    ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
-                                          theme_to_imvec4(th.success.with_alpha(0.75f)));
-                }
-                if (ImGui::SmallButton("Live All"))
+                else if (live)
                     subplot_mgr_->resume_all_scroll();
-                ImGui::PopStyleColor(2);
-                same_line_button();
-                if (ImGui::SmallButton("Pause All"))
+                else
                     subplot_mgr_->pause_all_scroll();
-                same_line_button();
-                if (ImGui::SmallButton("Reset"))
-                    reset_plot_display();
-                same_line_button();
-                if (ImGui::SmallButton("Auto Y"))
-                    restore_plot_autofit(workspace_state_.active_subplot_idx);
-                same_line_button();
-                if (ImGui::SmallButton("+Sub"))
-                    subplot_mgr_->add_row();
-                same_line_button();
-                ImGui::BeginDisabled(subplot_mgr_->rows() <= 1);
+            };
+            tb_actions.autofit = [this, live_slot]()
+            { restore_plot_autofit(live_slot); };
+            tb_actions.clear_plot = [this, live_slot]()
+            {
+                if (live_slot >= 1 && live_slot <= subplot_mgr_->capacity())
+                    subplot_mgr_->clear_slot_data(live_slot);
+                else
                 {
-                    if (ImGui::SmallButton("-Sub"))
-                        subplot_mgr_->remove_last_row();
+                    for (int s = 1; s <= subplot_mgr_->capacity(); ++s)
+                        subplot_mgr_->clear_slot_data(s);
                 }
-                ImGui::EndDisabled();
+            };
+            tb_actions.add_subplot = [this]() { subplot_mgr_->add_row(); };
+            tb_actions.set_x_links = [this](bool enabled)
+            { subplot_mgr_->set_x_links_enabled(enabled); };
+            tb_actions.export_screenshot = [this]()
+            {
+                if (!screenshot_export_)
+                    return;
+                const std::string path =
+                    RosScreenshotExport::make_screenshot_path("/tmp", "spectra_ros");
+                screenshot_export_->take_screenshot(path);
+            };
+            tb_actions.export_video = [this]() { show_record_dialog_ = true; };
+            tb_actions.set_pruning = [this](bool enabled)
+            {
+                subplot_mgr_->set_pruning_enabled(enabled);
+                if (plot_mgr_)
+                    plot_mgr_->set_pruning_enabled(enabled);
+            };
+            tb_actions.set_prune_buffer = [this](float seconds)
+            {
+                subplot_mgr_->set_prune_buffer(static_cast<double>(seconds));
+                if (plot_mgr_)
+                    plot_mgr_->set_prune_buffer(static_cast<double>(seconds));
             };
 
-            if (ImGui::BeginPopup("##plot_toolbar_more"))
-            {
-                draw_plot_toolbar_extras();
-                ImGui::EndPopup();
-            }
+            draw_plot_toolbar(tb_state, tb_actions);
         }
 
         canvas_top = ImGui::GetCursorScreenPos().y;

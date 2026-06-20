@@ -178,7 +178,9 @@ TEST(TopicListPanel, FilterExactMatch)
 TEST(TopicListPanel, FilterClearedShowsAll)
 {
     TopicListPanel panel;
-    panel.set_topics({make_topic("/a"), make_topic("/b"), make_topic("/c")});
+    panel.set_topics({make_topic("/a", "std_msgs/msg/Int32"),
+                      make_topic("/b", "std_msgs/msg/Int32"),
+                      make_topic("/c", "std_msgs/msg/Int32")});
     panel.set_filter("a");
     EXPECT_EQ(panel.filtered_topic_count(), 1u);
     panel.set_filter("");

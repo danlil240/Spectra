@@ -146,6 +146,11 @@ class TopicStatsOverlay
     void draw_series_controls(class SubplotManager* subplot_mgr, int active_slot);
     void set_subplot_manager(class SubplotManager* mgr) { subplot_mgr_ = mgr; }
 
+    using TopicActionCallback = std::function<void(const std::string& topic_name)>;
+    void set_plot_callback(TopicActionCallback cb) { plot_cb_ = std::move(cb); }
+    void set_echo_callback(TopicActionCallback cb) { echo_cb_ = std::move(cb); }
+    void set_favorite_callback(TopicActionCallback cb) { favorite_cb_ = std::move(cb); }
+
     // ---------- configuration ------------------------------------------------
 
     // Window title (default: "Topic Statistics").
@@ -179,6 +184,7 @@ class TopicStatsOverlay
         uint64_t    total_bytes{0};
         bool        drop_detected{false};
         int64_t     last_gap_ns{0};
+        int64_t     last_msg_ns{0};
     };
 
     // Compute and return a fresh snapshot (acquires lock).
@@ -231,6 +237,9 @@ class TopicStatsOverlay
     static constexpr int64_t SNAP_INTERVAL_NS = 250'000'000LL;   // 250 ms
 
     class SubplotManager* subplot_mgr_{nullptr};
+    TopicActionCallback   plot_cb_;
+    TopicActionCallback   echo_cb_;
+    TopicActionCallback   favorite_cb_;
 };
 
 }   // namespace spectra::adapters::ros2

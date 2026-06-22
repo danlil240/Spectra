@@ -755,6 +755,46 @@ TEST_F(TopicEchoPanelTest, EchoMessageKindVariants)
     EXPECT_EQ(panel_->message_count(), 1u);
 }
 
+TEST_F(TopicEchoPanelTest, FormatMessageJsonQuotesNonFiniteNumbers)
+{
+    ros2::EchoMessage msg;
+    msg.seq          = 7;
+    msg.timestamp_ns = 123;
+
+    ros2::EchoFieldValue nan_value;
+    nan_value.path    = "data";
+    nan_value.kind    = ros2::EchoFieldValue::Kind::Numeric;
+    nan_value.numeric = std::numeric_limits<double>::quiet_NaN();
+    msg.fields.push_back(nan_value);
+
+    ros2::EchoFieldValue inf_value;
+    inf_value.path    = "array[0]";
+    inf_value.kind    = ros2::EchoFieldValue::Kind::ArrayElement;
+    inf_value.numeric = std::numeric_limits<double>::infinity();
+    msg.fields.push_back(inf_value);
+
+    const std::string json = ros2::TopicEchoPanel::format_message_json(msg);
+    EXPECT_NE(json.find("\"data\": \"nan\""), std::string::npos);
+    EXPECT_NE(json.find("\"array[0]\": \"inf\""), std::string::npos);
+}
+
+TEST_F(TopicEchoPanelTest, FormatMessageJsonEscapesTextControlCharacters)
+{
+    ros2::EchoMessage msg;
+    msg.seq          = 8;
+    msg.timestamp_ns = 456;
+
+    ros2::EchoFieldValue text;
+    text.path = "label\nkey";
+    text.kind = ros2::EchoFieldValue::Kind::Text;
+    text.text = "a\t\"quoted\"\nline";
+    msg.fields.push_back(text);
+
+    const std::string json = ros2::TopicEchoPanel::format_message_json(msg);
+    EXPECT_NE(json.find("\"label\\nkey\""), std::string::npos);
+    EXPECT_NE(json.find("\"a\\t\\\"quoted\\\"\\nline\""), std::string::npos);
+}
+
 // ===========================================================================
 // main
 // ===========================================================================

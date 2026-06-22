@@ -2,14 +2,15 @@
 
 #ifdef SPECTRA_USE_IMGUI
 
-    #include <span>
-    #include <spectra/color.hpp>
-    #include <string>
+#include <span>
+#include <spectra/color.hpp>
+#include <string>
 
     #include "ui/theme/design_tokens.hpp"
     #include "ui/theme/icons.hpp"
 
 struct ImFont;
+struct ImVec2;
 
 namespace spectra::ui::widgets
 {
@@ -122,6 +123,69 @@ bool chip(const char* label, bool active = false);
 // Panel title block: large primary title with an optional secondary subtitle,
 // used at the top of a primary panel (inspector context header).
 void panel_title(const char* title, const char* subtitle = nullptr, ImFont* title_font = nullptr);
+
+struct EmptyStateAction
+{
+    const char* label{nullptr};
+    const char* id{nullptr};
+    bool        primary{false};
+};
+
+struct PanelHeaderAction
+{
+    const char* id{nullptr};
+    ui::Icon    icon{ui::Icon::Info};
+    const char* tooltip{nullptr};
+    bool        active{false};
+};
+
+// Centered empty state with an icon, title, subtitle, and optional actions.
+// Returns the clicked action index, or -1 when no action was activated.
+int empty_state(ui::Icon icon,
+                const char* title,
+                const char* subtitle = nullptr,
+                std::span<const EmptyStateAction> actions = {});
+
+// Compact panel header with optional right-aligned icon actions.
+// Returns the clicked action index, or -1 when no action was activated.
+int panel_header(const char* title,
+                 const char* subtitle = nullptr,
+                 std::span<const PanelHeaderAction> right_actions = {});
+
+// Square toolbar control used by ROS and plot tooling.
+bool toolbar_button(ui::Icon icon, const char* tooltip = nullptr, bool active = false);
+
+// Elevated metric card for dense stat grids.
+void stat_card(const char* label,
+               const char* value,
+               const char* unit  = nullptr,
+               const char* trend = nullptr);
+
+// Search input with leading icon and inline clear button.
+bool search_box(char* buf, size_t buf_size, const char* placeholder, bool* changed = nullptr);
+
+// Filter chip convenience wrapper over chip().
+bool filter_chip(const char* label, bool active);
+
+// Status pill with optional dot.
+void status_pill(const char* label, const Color& color = {}, bool dot = true);
+
+struct StatusPillSpec
+{
+    std::string label;
+    Color       color{};
+    bool        dot = false;
+};
+
+float status_pill_width(const char* label, bool dot = false);
+void  draw_status_pills(std::span<const StatusPillSpec> pills,
+                        float                           gap = tokens::STATUS_BAR_GROUP_GAP);
+
+// Dashed drag/drop overlay for target feedback.
+void drop_zone_overlay(const ImVec2& min, const ImVec2& max, const char* label, bool valid);
+
+// Placeholder rows for non-blocking refresh states.
+void skeleton_rows(int count, float row_height = 24.0f);
 
 // Indented group (pushes indent + draws subtle left border)
 void begin_group(const char* id);

@@ -247,6 +247,7 @@ void IconFont::build_icon_map()
         Icon::Clock,
         Icon::Calendar,
         Icon::Tag,
+        Icon::Star,
         Icon::Link,
         Icon::Unlink,
         Icon::Lock,

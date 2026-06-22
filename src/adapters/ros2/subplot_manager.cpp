@@ -1932,13 +1932,21 @@ void SubplotManager::rebuild_x_links()
     for (auto* ax : all_axes)
         link_manager_->unlink(ax);
 
-    if (active_axes.size() < 2)
+    if (!x_links_enabled_ || active_axes.size() < 2)
         return;
 
     // Link all active axes together on X.
     spectra::Axes* leader = active_axes[0];
     for (size_t i = 1; i < active_axes.size(); ++i)
         link_manager_->link(leader, active_axes[i], spectra::LinkAxis::X);
+}
+
+void SubplotManager::set_x_links_enabled(bool enabled)
+{
+    if (x_links_enabled_ == enabled)
+        return;
+    x_links_enabled_ = enabled;
+    rebuild_x_links();
 }
 
 }   // namespace spectra::adapters::ros2

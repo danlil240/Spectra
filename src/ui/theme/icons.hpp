@@ -104,6 +104,7 @@ enum class Icon : uint16_t
     Clock    = 0xF017,   // fa-clock
     Calendar = 0xF073,   // fa-calendar
     Tag      = 0xF02B,   // fa-tag
+    Star     = 0xF005,   // fa-star
     Link     = 0xF0C1,   // fa-link
     Unlink   = 0xF127,   // fa-link-slash
     Lock     = 0xF023,   // fa-lock

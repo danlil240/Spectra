@@ -4,6 +4,7 @@
 
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
+    #include "ui/imgui/widgets.hpp"
 #endif
 
 namespace spectra::adapters::ros2
@@ -65,14 +66,11 @@ void draw_subplot_slot_drop_target(const RosPlotDropTargetContext& ctx,
         return;
 
     const bool   hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
-    ImDrawList*  dl      = ImGui::GetWindowDrawList();
-    const ImVec2 pmax    = {pos.x + w, pos.y + std::min(remaining, 8.0f)};
-
-    if (hovered)
-    {
-        dl->AddRectFilled(pos, pmax, IM_COL32(60, 180, 255, 80), 3.0f);
-        dl->AddRect(pos, pmax, IM_COL32(60, 180, 255, 200), 3.0f, 0, 2.0f);
-    }
+    const ImVec2 pmax    = {pos.x + w, pos.y + remaining};
+    spectra::ui::widgets::drop_zone_overlay(pmax.y - pos.y > 36.0f ? pos : ImVec2(pos.x, pos.y),
+                                            pmax,
+                                            hovered ? "Add to current plot" : "Drop numeric field",
+                                            hovered);
 
     FieldDragPayload payload;
     if (accept_field_drop(ctx, payload))
@@ -99,21 +97,11 @@ void draw_global_plot_drop_target(const RosPlotDropTargetContext& ctx, float wid
         return;
 
     const bool   hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
-    ImDrawList*  dl      = ImGui::GetWindowDrawList();
     const ImVec2 pmax    = {pos.x + avail.x, pos.y + avail.y};
-    dl->AddRectFilled(pos,
-                      pmax,
-                      hovered ? IM_COL32(60, 200, 100, 55) : IM_COL32(60, 200, 100, 22),
-                      4.0f);
-    if (hovered)
-    {
-        dl->AddRect(pos, pmax, IM_COL32(60, 200, 100, 220), 4.0f, 0, 2.0f);
-        const char*  lbl     = "Drop to create new subplot";
-        const ImVec2 text_sz = ImGui::CalcTextSize(lbl);
-        dl->AddText({pos.x + (avail.x - text_sz.x) * 0.5f, pos.y + (avail.y - text_sz.y) * 0.5f},
-                    IM_COL32(60, 200, 100, 240),
-                    lbl);
-    }
+    spectra::ui::widgets::drop_zone_overlay(pos,
+                                            pmax,
+                                            hovered ? "New subplot" : "Drop for new plot",
+                                            hovered);
 
     FieldDragPayload payload;
     if (!accept_field_drop(ctx, payload))

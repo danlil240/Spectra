@@ -377,11 +377,26 @@ class RosSessionManager
     void clear_recent();
 
     // ------------------------------------------------------------------
+    // Favorite topics
+    // ------------------------------------------------------------------
+
+    // Load/save favorite topic names from ~/.config/spectra/ros_favorites.json.
+    std::vector<std::string> load_favorites();
+    bool save_favorites(const std::vector<std::string>& topics);
+
+    // Toggle/query a favorite topic in the persisted favorites list.
+    bool toggle_favorite(const std::string& topic);
+    bool is_favorite(const std::string& topic);
+
+    // ------------------------------------------------------------------
     // Paths
     // ------------------------------------------------------------------
 
     // Default recent-sessions list path: ~/.config/spectra/ros_recent.json
     static std::string default_recent_path();
+
+    // Default favorite topics path: ~/.config/spectra/ros_favorites.json
+    static std::string default_favorites_path();
 
     // Build a suggested save path for `node_name` in the default config dir.
     // E.g. ~/.config/spectra/sessions/<node_name>.spectra-ros-session

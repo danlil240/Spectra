@@ -20,6 +20,7 @@ Series::~Series() = default;
 Series::Series(const Series& other)
     : label_(other.label_), color_(other.color_), style_(other.style_), visible_(other.visible_),
       excluded_from_autoscale_(other.excluded_from_autoscale_),
+      show_in_legend_(other.show_in_legend_), is_reference_line_(other.is_reference_line_),
       dirty_(other.dirty_.load(std::memory_order_relaxed)), event_system_(other.event_system_),
       owning_axes_(other.owning_axes_),   
       pending_(nullptr)
@@ -35,6 +36,8 @@ Series& Series::operator=(const Series& other)
         style_   = other.style_;
         visible_ = other.visible_;
         excluded_from_autoscale_ = other.excluded_from_autoscale_;
+        show_in_legend_          = other.show_in_legend_;
+        is_reference_line_       = other.is_reference_line_;
         dirty_.store(other.dirty_.load(std::memory_order_relaxed), std::memory_order_relaxed);
         event_system_ = other.event_system_;
         owning_axes_  = other.owning_axes_;

@@ -9,7 +9,9 @@
     #include <cstring>
     #include <format>
     #include <imgui.h>
+    #include <span>
     #include <unordered_map>
+    #include <vector>
 
     #include "ui/theme/icons.hpp"
     #include "ui/ui_interaction_log.hpp"
@@ -1109,6 +1111,460 @@ void panel_title(const char* title, const char* subtitle, ImFont* title_font)
             ImVec4(c.text_tertiary.r, c.text_tertiary.g, c.text_tertiary.b, 0.9f));
         ImGui::TextUnformatted(subtitle);
         ImGui::PopStyleColor();
+    }
+}
+
+// ─── Phase ROS UX Primitives ────────────────────────────────────────────────
+
+int empty_state(ui::Icon icon,
+                const char* title,
+                const char* subtitle,
+                std::span<const EmptyStateAction> actions)
+{
+    const auto& c = theme();
+
+    const float avail_w = ImGui::GetContentRegionAvail().x;
+    const float max_w   = std::min(tokens::EMPTY_STATE_MAX_WIDTH, std::max(120.0f, avail_w));
+    const float start_x = ImGui::GetCursorPosX() + std::max(0.0f, (avail_w - max_w) * 0.5f);
+
+    ImGui::PushID(title ? title : "empty_state");
+    ImGui::SetCursorPosX(start_x);
+    ImGui::Dummy(ImVec2(0.0f, 0.0f));
+    ImGui::BeginGroup();
+
+    if (ImFont* f = icon_font(tokens::EMPTY_STATE_ICON_SIZE))
+        ImGui::PushFont(f);
+    ImGui::PushStyleColor(ImGuiCol_Text,
+                          ImVec4(c.accent.r, c.accent.g, c.accent.b, 0.85f));
+    const char* glyph = icon_str(icon);
+    const ImVec2 icon_sz = ImGui::CalcTextSize(glyph);
+    ImGui::SetCursorPosX(start_x + (max_w - icon_sz.x) * 0.5f);
+    ImGui::TextUnformatted(glyph);
+    ImGui::PopStyleColor();
+    if (ImFont* f = icon_font(tokens::EMPTY_STATE_ICON_SIZE); f)
+        ImGui::PopFont();
+
+    ImGui::Dummy(ImVec2(0.0f, tokens::SPACE_2));
+    ImGui::PushStyleColor(
+        ImGuiCol_Text,
+        ImVec4(c.text_primary.r, c.text_primary.g, c.text_primary.b, c.text_primary.a));
+    const ImVec2 title_sz = ImGui::CalcTextSize(title ? title : "");
+    ImGui::SetCursorPosX(start_x + (max_w - title_sz.x) * 0.5f);
+    ImGui::TextUnformatted(title ? title : "");
+    ImGui::PopStyleColor();
+
+    if (subtitle && subtitle[0] != '\0')
+    {
+        ImGui::Dummy(ImVec2(0.0f, tokens::SPACE_1));
+        const float wrap_x = ImGui::GetWindowPos().x + start_x + max_w;
+        ImGui::PushTextWrapPos(wrap_x);
+        ImGui::PushStyleColor(
+            ImGuiCol_Text,
+            ImVec4(c.text_tertiary.r, c.text_tertiary.g, c.text_tertiary.b, 0.9f));
+        ImGui::SetCursorPosX(start_x);
+        ImGui::TextWrapped("%s", subtitle);
+        ImGui::PopStyleColor();
+        ImGui::PopTextWrapPos();
+    }
+
+    int clicked = -1;
+    if (!actions.empty())
+    {
+        ImGui::Dummy(ImVec2(0.0f, tokens::SPACE_2));
+        float total_w = 0.0f;
+        std::vector<ImVec2> sizes;
+        sizes.reserve(actions.size());
+        for (const EmptyStateAction& action : actions)
+        {
+            const ImVec2 text_sz = ImGui::CalcTextSize(action.label ? action.label : "");
+            ImVec2 size(std::max(72.0f, text_sz.x + tokens::SPACE_4 * 2.0f),
+                        ImGui::GetFrameHeight());
+            sizes.push_back(size);
+            total_w += size.x;
+        }
+        total_w += tokens::EMPTY_STATE_ACTION_GAP * static_cast<float>(actions.size() - 1);
+        const bool stack_actions = total_w > max_w;
+        if (!stack_actions)
+            ImGui::SetCursorPosX(start_x + std::max(0.0f, (max_w - total_w) * 0.5f));
+
+        for (size_t i = 0; i < actions.size(); ++i)
+        {
+            const EmptyStateAction& action = actions[i];
+            if (stack_actions && i > 0)
+            {
+                ImGui::SetCursorPosX(start_x + std::max(0.0f, (max_w - sizes[i].x) * 0.5f));
+            }
+            ImGui::PushID(action.id ? action.id : action.label);
+            ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_MD);
+            if (action.primary)
+            {
+                ImGui::PushStyleColor(ImGuiCol_Button,
+                                      ImVec4(c.accent.r, c.accent.g, c.accent.b, 0.85f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
+                                      ImVec4(c.accent_hover.r,
+                                             c.accent_hover.g,
+                                             c.accent_hover.b,
+                                             0.95f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonActive,
+                                      ImVec4(c.accent.r, c.accent.g, c.accent.b, 1.0f));
+            }
+            else
+            {
+                ImGui::PushStyleColor(ImGuiCol_Button,
+                                      ImVec4(c.bg_tertiary.r,
+                                             c.bg_tertiary.g,
+                                             c.bg_tertiary.b,
+                                             0.75f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
+                                      ImVec4(c.bg_elevated.r,
+                                             c.bg_elevated.g,
+                                             c.bg_elevated.b,
+                                             0.95f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonActive,
+                                      ImVec4(c.accent.r, c.accent.g, c.accent.b, 0.25f));
+            }
+            if (ImGui::Button(action.label ? action.label : "", sizes[i]))
+            {
+                clicked = static_cast<int>(i);
+                log_ui_action("widget", action.label ? action.label : "empty_action", "ok", "empty_state");
+            }
+            ImGui::PopStyleColor(3);
+            ImGui::PopStyleVar();
+            ImGui::PopID();
+            if (i + 1 < actions.size())
+                ImGui::SameLine(0.0f, tokens::EMPTY_STATE_ACTION_GAP);
+        }
+    }
+
+    ImGui::EndGroup();
+    ImGui::PopID();
+    return clicked;
+}
+
+int panel_header(const char* title,
+                 const char* subtitle,
+                 std::span<const PanelHeaderAction> right_actions)
+{
+    const auto& c = theme();
+    ImGui::PushID(title ? title : "panel_header");
+
+    const ImVec2 pos = ImGui::GetCursorScreenPos();
+    const float  w   = ImGui::GetContentRegionAvail().x;
+    const float  h   = tokens::PANEL_HEADER_HEIGHT;
+    ImDrawList*  dl  = ImGui::GetWindowDrawList();
+    dl->AddRectFilled(pos,
+                      ImVec2(pos.x + w, pos.y + h),
+                      ImGui::ColorConvertFloat4ToU32(
+                          ImVec4(c.bg_tertiary.r, c.bg_tertiary.g, c.bg_tertiary.b, 0.35f)),
+                      tokens::RADIUS_MD);
+
+    ImGui::SetCursorScreenPos(ImVec2(pos.x + tokens::SPACE_3, pos.y + tokens::SPACE_1));
+    ImGui::PushStyleColor(ImGuiCol_Text,
+                          ImVec4(c.text_primary.r, c.text_primary.g, c.text_primary.b, 1.0f));
+    ImGui::TextUnformatted(title ? title : "");
+    ImGui::PopStyleColor();
+    if (subtitle && subtitle[0] != '\0')
+    {
+        ImGui::SetCursorScreenPos(ImVec2(pos.x + tokens::SPACE_3, pos.y + tokens::SPACE_1 + 17.0f));
+        ImGui::PushStyleColor(
+            ImGuiCol_Text,
+            ImVec4(c.text_tertiary.r, c.text_tertiary.g, c.text_tertiary.b, 0.9f));
+        ImGui::TextUnformatted(subtitle);
+        ImGui::PopStyleColor();
+    }
+
+    int clicked = -1;
+    if (!right_actions.empty())
+    {
+        float x = pos.x + w - tokens::SPACE_2
+                  - static_cast<float>(right_actions.size()) * tokens::TOOLBAR_BUTTON_SIZE
+                  - static_cast<float>(right_actions.size() - 1) * tokens::TOOLBAR_BUTTON_GAP;
+        ImGui::SetCursorScreenPos(ImVec2(x, pos.y + (h - tokens::TOOLBAR_BUTTON_SIZE) * 0.5f));
+        for (size_t i = 0; i < right_actions.size(); ++i)
+        {
+            const auto& action = right_actions[i];
+            ImGui::PushID(action.id ? action.id : action.tooltip);
+            if (toolbar_button(action.icon, action.tooltip, action.active))
+                clicked = static_cast<int>(i);
+            ImGui::PopID();
+            if (i + 1 < right_actions.size())
+                ImGui::SameLine(0.0f, tokens::TOOLBAR_BUTTON_GAP);
+        }
+    }
+
+    ImGui::SetCursorScreenPos(ImVec2(pos.x, pos.y + h + tokens::SPACE_2));
+    ImGui::Dummy(ImVec2(0.0f, 0.0f));
+    ImGui::PopID();
+    return clicked;
+}
+
+bool toolbar_button(ui::Icon icon, const char* tooltip, bool active)
+{
+    const auto& c = theme();
+    ImGui::PushID(tooltip ? tooltip : icon_str(icon));
+
+    if (active)
+    {
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(c.accent.r, c.accent.g, c.accent.b, 0.18f));
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(c.accent.r, c.accent.g, c.accent.b, 1.0f));
+    }
+    else
+    {
+        ImGui::PushStyleColor(ImGuiCol_Button,
+                              ImVec4(c.bg_tertiary.r, c.bg_tertiary.g, c.bg_tertiary.b, 0.35f));
+        ImGui::PushStyleColor(ImGuiCol_Text,
+                              ImVec4(c.text_secondary.r, c.text_secondary.g, c.text_secondary.b, 0.95f));
+    }
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
+                          ImVec4(c.bg_elevated.r, c.bg_elevated.g, c.bg_elevated.b, 0.85f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive,
+                          ImVec4(c.accent.r, c.accent.g, c.accent.b, 0.28f));
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_MD);
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0.0f, 0.0f));
+
+    if (ImFont* f = icon_font(tokens::ICON_SM))
+        ImGui::PushFont(f);
+    const bool clicked = ImGui::Button(icon_str(icon),
+                                       ImVec2(tokens::TOOLBAR_BUTTON_SIZE,
+                                              tokens::TOOLBAR_BUTTON_SIZE));
+    if (ImFont* f = icon_font(tokens::ICON_SM); f)
+        ImGui::PopFont();
+
+    ImGui::PopStyleVar(2);
+    ImGui::PopStyleColor(4);
+
+    if (tooltip && ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
+        ImGui::SetTooltip("%s", tooltip);
+    if (clicked)
+        log_ui_action("widget", tooltip ? tooltip : "toolbar_button", "ok", "toolbar_button");
+
+    ImGui::PopID();
+    return clicked;
+}
+
+void stat_card(const char* label, const char* value, const char* unit, const char* trend)
+{
+    const auto& c = theme();
+    const float w = std::max(tokens::STAT_CARD_MIN_WIDTH, ImGui::GetContentRegionAvail().x);
+    const ImVec2 pos = ImGui::GetCursorScreenPos();
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    dl->AddRectFilled(pos,
+                      ImVec2(pos.x + w, pos.y + tokens::STAT_CARD_HEIGHT),
+                      ImGui::ColorConvertFloat4ToU32(
+                          ImVec4(c.bg_tertiary.r, c.bg_tertiary.g, c.bg_tertiary.b, 0.58f)),
+                      tokens::RADIUS_MD);
+    dl->AddRect(pos,
+                ImVec2(pos.x + w, pos.y + tokens::STAT_CARD_HEIGHT),
+                ImGui::ColorConvertFloat4ToU32(
+                    ImVec4(c.border_subtle.r, c.border_subtle.g, c.border_subtle.b, 0.45f)),
+                tokens::RADIUS_MD);
+
+    ImGui::BeginGroup();
+    ImGui::SetCursorScreenPos(ImVec2(pos.x + tokens::SPACE_3, pos.y + tokens::SPACE_2));
+    ImGui::PushStyleColor(
+        ImGuiCol_Text,
+        ImVec4(c.text_tertiary.r, c.text_tertiary.g, c.text_tertiary.b, 0.9f));
+    ImGui::TextUnformatted(label ? label : "");
+    ImGui::PopStyleColor();
+
+    ImGui::SetCursorScreenPos(ImVec2(pos.x + tokens::SPACE_3, pos.y + 29.0f));
+    ImGui::PushStyleColor(ImGuiCol_Text,
+                          ImVec4(c.text_primary.r, c.text_primary.g, c.text_primary.b, 1.0f));
+    ImGui::TextUnformatted(value ? value : "-");
+    ImGui::PopStyleColor();
+    if (unit && unit[0] != '\0')
+    {
+        ImGui::SameLine(0.0f, tokens::SPACE_1);
+        ImGui::PushStyleColor(
+            ImGuiCol_Text,
+            ImVec4(c.text_tertiary.r, c.text_tertiary.g, c.text_tertiary.b, 0.85f));
+        ImGui::TextUnformatted(unit);
+        ImGui::PopStyleColor();
+    }
+    if (trend && trend[0] != '\0')
+    {
+        ImGui::SetCursorScreenPos(ImVec2(pos.x + w - ImGui::CalcTextSize(trend).x - tokens::SPACE_3,
+                                         pos.y + tokens::SPACE_2));
+        ImGui::PushStyleColor(ImGuiCol_Text,
+                              ImVec4(c.accent.r, c.accent.g, c.accent.b, 0.9f));
+        ImGui::TextUnformatted(trend);
+        ImGui::PopStyleColor();
+    }
+    ImGui::EndGroup();
+    ImGui::SetCursorScreenPos(ImVec2(pos.x, pos.y + tokens::STAT_CARD_HEIGHT + tokens::STAT_CARD_GAP));
+    ImGui::Dummy(ImVec2(0.0f, 0.0f));
+}
+
+bool search_box(char* buf, size_t buf_size, const char* placeholder, bool* changed)
+{
+    const auto& c = theme();
+    bool local_changed = false;
+    ImGui::PushID(placeholder ? placeholder : "search_box");
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_MD);
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(28.0f, 5.0f));
+    ImGui::PushStyleColor(ImGuiCol_FrameBg,
+                          ImVec4(c.bg_tertiary.r, c.bg_tertiary.g, c.bg_tertiary.b, 0.72f));
+    ImGui::PushStyleColor(ImGuiCol_FrameBgHovered,
+                          ImVec4(c.bg_elevated.r, c.bg_elevated.g, c.bg_elevated.b, 0.82f));
+    ImGui::PushItemWidth(-1.0f);
+    local_changed = ImGui::InputTextWithHint("##search", placeholder ? placeholder : "", buf, buf_size);
+    ImVec2 min = ImGui::GetItemRectMin();
+    ImVec2 max = ImGui::GetItemRectMax();
+    ImGui::PopItemWidth();
+    ImGui::PopStyleColor(2);
+    ImGui::PopStyleVar(2);
+
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    dl->AddText(ImVec2(min.x + tokens::SPACE_2, min.y + (max.y - min.y - ImGui::GetTextLineHeight()) * 0.5f),
+                ImGui::ColorConvertFloat4ToU32(
+                    ImVec4(c.text_tertiary.r, c.text_tertiary.g, c.text_tertiary.b, 0.85f)),
+                icon_str(ui::Icon::Search));
+
+    if (buf && buf[0] != '\0')
+    {
+        const float btn = tokens::SEARCH_CLEAR_BTN_SIZE;
+        ImGui::SetCursorScreenPos(ImVec2(max.x - btn - tokens::SPACE_1,
+                                         min.y + (max.y - min.y - btn) * 0.5f));
+        if (toolbar_button(ui::Icon::Close, "Clear search", false))
+        {
+            buf[0] = '\0';
+            local_changed = true;
+        }
+    }
+
+    if (changed)
+        *changed = local_changed;
+    ImGui::PopID();
+    return local_changed;
+}
+
+bool filter_chip(const char* label, bool active)
+{
+    return chip(label, active);
+}
+
+void status_pill(const char* label, const Color& color, bool dot)
+{
+    const auto& c = theme();
+    const Color accent =
+        (color.r > 0.0f || color.g > 0.0f || color.b > 0.0f)
+            ? color
+            : c.accent;
+    const ImVec2 text = ImGui::CalcTextSize(label ? label : "");
+    const float dot_w = dot ? 8.0f + tokens::SPACE_1 : 0.0f;
+    const float w = text.x + dot_w + tokens::STATUS_BAR_PILL_PAD_H * 2.0f;
+    const float h = tokens::STATUS_BAR_PILL_HEIGHT;
+    const ImVec2 pos = ImGui::GetCursorScreenPos();
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    dl->AddRectFilled(pos,
+                      ImVec2(pos.x + w, pos.y + h),
+                      ImGui::ColorConvertFloat4ToU32(
+                          ImVec4(c.bg_tertiary.r, c.bg_tertiary.g, c.bg_tertiary.b, 0.62f)),
+                      tokens::STATUS_BAR_PILL_RADIUS);
+    dl->AddRect(pos,
+                ImVec2(pos.x + w, pos.y + h),
+                ImGui::ColorConvertFloat4ToU32(ImVec4(accent.r, accent.g, accent.b, 0.38f)),
+                tokens::STATUS_BAR_PILL_RADIUS);
+    float x = pos.x + tokens::STATUS_BAR_PILL_PAD_H;
+    if (dot)
+    {
+        dl->AddCircleFilled(ImVec2(x + 3.0f, pos.y + h * 0.5f),
+                            3.0f,
+                            ImGui::ColorConvertFloat4ToU32(ImVec4(accent.r, accent.g, accent.b, 1.0f)));
+        x += 8.0f + tokens::SPACE_1;
+    }
+    dl->AddText(ImVec2(x, pos.y + (h - text.y) * 0.5f),
+                ImGui::ColorConvertFloat4ToU32(
+                    ImVec4(c.text_secondary.r, c.text_secondary.g, c.text_secondary.b, 0.95f)),
+                label ? label : "");
+    ImGui::Dummy(ImVec2(w, h));
+}
+
+float status_pill_width(const char* label, bool dot)
+{
+    const ImVec2 text = ImGui::CalcTextSize(label ? label : "");
+    const float  dot_w = dot ? 8.0f + tokens::SPACE_1 : 0.0f;
+    return text.x + dot_w + tokens::STATUS_BAR_PILL_PAD_H * 2.0f;
+}
+
+void draw_status_pills(std::span<const StatusPillSpec> pills, float gap)
+{
+    const float start_x    = ImGui::GetCursorPosX();
+    const float right_edge = ImGui::GetWindowContentRegionMax().x;
+    const float max_width  = std::max(0.0f, right_edge - start_x);
+    float       used_width = 0.0f;
+    bool        drew_any   = false;
+    for (size_t i = 0; i < pills.size(); ++i)
+    {
+        const float pill_w = status_pill_width(pills[i].label.c_str(), pills[i].dot);
+        const float needed = pill_w + (drew_any ? gap : 0.0f);
+        if (drew_any && used_width + needed > max_width - 1.0f)
+            break;
+        if (!drew_any && pill_w > max_width - 1.0f && max_width > 1.0f)
+        {
+            status_pill(pills[i].label.c_str(), pills[i].color, pills[i].dot);
+            break;
+        }
+        if (drew_any)
+            ImGui::SameLine(0.0f, gap);
+        status_pill(pills[i].label.c_str(), pills[i].color, pills[i].dot);
+        used_width += needed;
+        drew_any = true;
+    }
+}
+
+void drop_zone_overlay(const ImVec2& min, const ImVec2& max, const char* label, bool valid)
+{
+    const auto& c = theme();
+    const spectra::Color accent = valid
+        ? spectra::Color{c.accent.r, c.accent.g, c.accent.b, c.accent.a}
+        : spectra::Color{c.warning.r, c.warning.g, c.warning.b, c.warning.a};
+    const float alpha = valid ? tokens::DROP_ZONE_ALPHA_VALID : tokens::DROP_ZONE_ALPHA_INVALID;
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    dl->AddRectFilled(min,
+                      max,
+                      ImGui::ColorConvertFloat4ToU32(ImVec4(accent.r, accent.g, accent.b, alpha)),
+                      tokens::RADIUS_LG);
+
+    const ImU32 border = ImGui::ColorConvertFloat4ToU32(ImVec4(accent.r, accent.g, accent.b, 0.85f));
+    const float dash = tokens::DROP_ZONE_DASH_LEN;
+    const float gap = dash * 0.65f;
+    for (float x = min.x; x < max.x; x += dash + gap)
+    {
+        dl->AddLine(ImVec2(x, min.y), ImVec2(std::min(x + dash, max.x), min.y), border, tokens::DROP_ZONE_BORDER_WIDTH);
+        dl->AddLine(ImVec2(x, max.y), ImVec2(std::min(x + dash, max.x), max.y), border, tokens::DROP_ZONE_BORDER_WIDTH);
+    }
+    for (float y = min.y; y < max.y; y += dash + gap)
+    {
+        dl->AddLine(ImVec2(min.x, y), ImVec2(min.x, std::min(y + dash, max.y)), border, tokens::DROP_ZONE_BORDER_WIDTH);
+        dl->AddLine(ImVec2(max.x, y), ImVec2(max.x, std::min(y + dash, max.y)), border, tokens::DROP_ZONE_BORDER_WIDTH);
+    }
+    if (label && label[0] != '\0')
+    {
+        const ImVec2 sz = ImGui::CalcTextSize(label);
+        dl->AddText(ImVec2((min.x + max.x - sz.x) * 0.5f, (min.y + max.y - sz.y) * 0.5f),
+                    ImGui::ColorConvertFloat4ToU32(
+                        ImVec4(c.text_primary.r, c.text_primary.g, c.text_primary.b, 0.95f)),
+                    label);
+    }
+}
+
+void skeleton_rows(int count, float row_height)
+{
+    const auto& c = theme();
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    const float w = ImGui::GetContentRegionAvail().x;
+    const float t = static_cast<float>(std::fmod(ImGui::GetTime() * 1.8, 1.0));
+    for (int i = 0; i < count; ++i)
+    {
+        const ImVec2 pos = ImGui::GetCursorScreenPos();
+        const float alpha = 0.25f + 0.18f * std::sin((t + static_cast<float>(i) * 0.16f) * 6.28318f);
+        dl->AddRectFilled(pos,
+                          ImVec2(pos.x + w, pos.y + row_height),
+                          ImGui::ColorConvertFloat4ToU32(
+                              ImVec4(c.bg_tertiary.r, c.bg_tertiary.g, c.bg_tertiary.b, alpha)),
+                          tokens::RADIUS_SM);
+        ImGui::Dummy(ImVec2(w, row_height + tokens::SPACE_1));
     }
 }
 

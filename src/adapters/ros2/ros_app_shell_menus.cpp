@@ -159,8 +159,7 @@ void RosAppShell::on_populate_menus(spectra::ui::shell::MenuBar& bar)
         [this]() { return !workspace_state_.selected_topic.empty(); }));
     plots.add_separator();
     plots.add({.label = "Add Subplot Row", .on_click = [this]() {
-                   if (subplot_mgr_)
-                       subplot_mgr_->add_row();
+                   cmd_registry_.execute("ros.plot.add_subplot");
                }});
     plots.add(make_menu_action(
         "Remove Last Row",
@@ -172,51 +171,27 @@ void RosAppShell::on_populate_menus(spectra::ui::shell::MenuBar& bar)
         {},
         [this]() { return subplot_mgr_ && subplot_mgr_->rows() > 1; }));
     plots.add_separator();
+    plots.add({.label = "Clear Active Plot", .on_click = [this]() {
+                   cmd_registry_.execute("ros.plot.clear_active");
+               }});
     plots.add({.label = "Clear All Plots", .on_click = [this]() { clear_plots(); }});
     plots.add_separator();
     plots.add({.label = "Reset Basic Display", .shortcut = "R", .on_click = [this]() {
-                   reset_plot_display();
+                   cmd_registry_.execute("ros.plot.reset");
                }});
     plots.add(make_menu_action(
         "Auto-Fit Y",
-        [this]() { restore_plot_autofit(workspace_state_.active_subplot_idx); },
+        [this]() { cmd_registry_.execute("ros.plot.autofit"); },
         "A",
         [this]() { return subplot_mgr_ != nullptr; }));
     plots.add_separator();
     plots.add(make_menu_action(
         "Toggle Pause/Live",
-        [this]()
-        {
-            int slot = workspace_state_.active_subplot_idx;
-            if (subplot_mgr_ && slot >= 1 && slot <= subplot_mgr_->capacity())
-            {
-                if (subplot_mgr_->is_scroll_paused(slot))
-                    subplot_mgr_->resume_scroll(slot);
-                else
-                    subplot_mgr_->pause_scroll(slot);
-            }
-            else if (subplot_mgr_)
-            {
-                bool any_live = false;
-                for (int s = 1; s <= subplot_mgr_->capacity(); ++s)
-                {
-                    if (subplot_mgr_->has_plot(s) && !subplot_mgr_->is_scroll_paused(s))
-                    {
-                        any_live = true;
-                        break;
-                    }
-                }
-                if (any_live)
-                    subplot_mgr_->pause_all_scroll();
-                else
-                    subplot_mgr_->resume_all_scroll();
-            }
-        },
+        [this]() { cmd_registry_.execute("ros.live_pause"); },
         "Space",
         [this]() { return subplot_mgr_ != nullptr; }));
     plots.add({.label = "Resume All Scroll", .shortcut = "Home", .on_click = [this]() {
-                   if (subplot_mgr_)
-                       subplot_mgr_->resume_all_scroll();
+                   cmd_registry_.execute("ros.plot.resume_all");
                }});
     plots.add({.label = "Pause All Scroll", .on_click = [this]() {
                    if (subplot_mgr_)
@@ -225,22 +200,13 @@ void RosAppShell::on_populate_menus(spectra::ui::shell::MenuBar& bar)
     plots.add_separator();
     plots.add(make_menu_action(
         "Toggle Grid",
-        [this]()
-        {
-            int slot = workspace_state_.active_subplot_idx;
-            if (subplot_mgr_ && slot >= 1 && slot <= subplot_mgr_->capacity())
-            {
-                auto* se = subplot_mgr_->slot_entry_pub(slot);
-                if (se && se->axes)
-                    se->axes->grid(!se->axes->grid_enabled());
-            }
-        },
+        [this]() { cmd_registry_.execute("ros.plot.toggle_grid"); },
         "G",
         [this]() { return subplot_mgr_ != nullptr; }));
 
     auto& session = bar.menu("Session");
     session.add({.label = "Save Session", .shortcut = "Ctrl+Shift+W", .on_click = [this]() {
-                     show_session_save_dialog_ = true;
+                     cmd_registry_.execute("ros.session.save");
                  }});
     session.add(
         {.label = "Save Session As...",
@@ -248,13 +214,13 @@ void RosAppShell::on_populate_menus(spectra::ui::shell::MenuBar& bar)
              [this]()
              {
                  session_save_path_buf_    = RosSessionManager::default_session_path(cfg_.node_name);
-                 show_session_save_dialog_ = true;
+                 cmd_registry_.execute("ros.session.save");
              }});
     session.add({.label = "Load Session...", .on_click = [this]() {
-                     show_session_load_dialog_ = true;
+                     cmd_registry_.execute("ros.session.load");
                  }});
     session.add({.label = "Import Session (merge)...", .on_click = [this]() {
-                     show_session_merge_dialog_ = true;
+                     cmd_registry_.execute("ros.session.merge");
                  }});
     session.add_separator();
 
@@ -299,13 +265,7 @@ void RosAppShell::on_populate_menus(spectra::ui::shell::MenuBar& bar)
     auto& tools = bar.menu("Tools");
     tools.add(make_menu_action(
         "Screenshot",
-        [this]()
-        {
-            const std::string path =
-                RosScreenshotExport::make_screenshot_path("/tmp", "spectra_ros");
-            if (screenshot_export_)
-                screenshot_export_->take_screenshot(path);
-        },
+        [this]() { cmd_registry_.execute("ros.screenshot"); },
         "Ctrl+Shift+S",
         [this]() { return screenshot_export_ != nullptr; }));
     tools.add(make_menu_action(
@@ -322,7 +282,7 @@ void RosAppShell::on_populate_menus(spectra::ui::shell::MenuBar& bar)
          .on_click = []() { ImGui::OpenPopup("##ros_shortcuts_popup"); }});
     help.add(
         {.label = "Command Palette (Ctrl+K)",
-         .on_click = [this]() { cmd_palette_.toggle(); }});
+         .on_click = [this]() { cmd_registry_.execute("ros.app.command_palette"); }});
 }
 
 void RosAppShell::on_populate_nav_rail(spectra::ui::shell::NavRail& rail)
@@ -721,6 +681,9 @@ void RosAppShell::draw_ros_shell_popups()
         ImGui::TextUnformatted("G               Toggle grid (active plot)");
         ImGui::TextUnformatted("R               Reset plot display");
         ImGui::TextUnformatted("A               Auto-fit Y (active plot)");
+        ImGui::Spacing();
+        ImGui::TextDisabled("ROS");
+        ImGui::TextUnformatted("Ctrl+K          Search commands (echo, refresh, time window...)");
         ImGui::Spacing();
         ImGui::TextDisabled("Tip");
         ImGui::TextDisabled("Press Ctrl+K to search and run any command.");

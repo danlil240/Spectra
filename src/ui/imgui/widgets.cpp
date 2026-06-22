@@ -1489,17 +1489,27 @@ float status_pill_width(const char* label, bool dot)
 
 void draw_status_pills(std::span<const StatusPillSpec> pills, float gap)
 {
+    const float start_x    = ImGui::GetCursorPosX();
     const float right_edge = ImGui::GetWindowContentRegionMax().x;
+    const float max_width  = std::max(0.0f, right_edge - start_x);
+    float       used_width = 0.0f;
+    bool        drew_any   = false;
     for (size_t i = 0; i < pills.size(); ++i)
     {
         const float pill_w = status_pill_width(pills[i].label.c_str(), pills[i].dot);
-        if (i > 0)
+        const float needed = pill_w + (drew_any ? gap : 0.0f);
+        if (drew_any && used_width + needed > max_width - 1.0f)
+            break;
+        if (!drew_any && pill_w > max_width - 1.0f && max_width > 1.0f)
         {
-            const float next_x = ImGui::GetCursorPosX() + gap + pill_w;
-            if (next_x <= right_edge - 1.0f)
-                ImGui::SameLine(0.0f, gap);
+            status_pill(pills[i].label.c_str(), pills[i].color, pills[i].dot);
+            break;
         }
+        if (drew_any)
+            ImGui::SameLine(0.0f, gap);
         status_pill(pills[i].label.c_str(), pills[i].color, pills[i].dot);
+        used_width += needed;
+        drew_any = true;
     }
 }
 

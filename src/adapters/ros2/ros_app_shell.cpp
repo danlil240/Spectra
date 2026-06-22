@@ -1130,8 +1130,35 @@ void RosAppShell::register_ros_commands()
     reg_panel("ros.panel.expression_editor", "Expression Editor", "ros.expression_editor", Icon::Function);
 
     // ── Plot commands ──
-    cmd_registry_.register_command("ros.plot.pause_all", "Pause All Plots",
-        [this]() { if (subplot_mgr_) subplot_mgr_->pause_all_scroll(); },
+    cmd_registry_.register_command("ros.live_pause", "Toggle Pause/Live",
+        [this]()
+        {
+            if (!subplot_mgr_) return;
+            int slot = workspace_state_.active_subplot_idx;
+            if (slot >= 1 && slot <= subplot_mgr_->capacity())
+            {
+                if (subplot_mgr_->is_scroll_paused(slot))
+                    subplot_mgr_->resume_scroll(slot);
+                else
+                    subplot_mgr_->pause_scroll(slot);
+            }
+            else
+            {
+                bool any_live = false;
+                for (int s = 1; s <= subplot_mgr_->capacity(); ++s)
+                {
+                    if (subplot_mgr_->has_plot(s) && !subplot_mgr_->is_scroll_paused(s))
+                    {
+                        any_live = true;
+                        break;
+                    }
+                }
+                if (any_live)
+                    subplot_mgr_->pause_all_scroll();
+                else
+                    subplot_mgr_->resume_all_scroll();
+            }
+        },
         "Space", "Plot");
     cmd_registry_.register_command("ros.plot.resume_all", "Resume All Plots",
         [this]() { if (subplot_mgr_) subplot_mgr_->resume_all_scroll(); },
@@ -1175,6 +1202,44 @@ void RosAppShell::register_ros_commands()
     cmd_registry_.register_command("ros.session.merge", "Merge Session",
         [this]() { show_session_merge_dialog_ = true; },
         "", "Session");
+
+    // ── ROS action commands ──
+    cmd_registry_.register_command("ros.echo", "Echo Selected Topic",
+        [this]()
+        {
+            const auto& topic = workspace_state_.selected_topic;
+            if (topic.empty()) return;
+            if (topic_echo_)
+            {
+                topic_echo_->set_manually_pinned(false);
+                topic_echo_->set_topic(topic, workspace_state_.selected_type);
+            }
+            set_panel_visible("ros.topic_echo", true);
+        },
+        "", "ROS", static_cast<uint16_t>(Icon::Command));
+    cmd_registry_.register_command("ros.refresh_graph", "Refresh Topic Graph",
+        [this]() { if (discovery_) discovery_->refresh(); },
+        "", "ROS", static_cast<uint16_t>(Icon::Refresh));
+    cmd_registry_.register_command("ros.time_window", "Cycle Time Window",
+        [this]()
+        {
+            if (!subplot_mgr_) return;
+            static const double kPresets[] = {5.0, 10.0, 30.0, 60.0, 300.0, 600.0};
+            const double cur = subplot_mgr_->time_window();
+            double next = kPresets[0];
+            for (double p : kPresets)
+            {
+                if (cur < p - 0.5)
+                {
+                    next = p;
+                    break;
+                }
+            }
+            subplot_mgr_->set_time_window(next);
+            if (plot_mgr_)
+                plot_mgr_->set_time_window(next);
+        },
+        "", "Plot", static_cast<uint16_t>(Icon::Clock));
 
     // ── Screenshot ──
     cmd_registry_.register_command("ros.screenshot", "Screenshot",

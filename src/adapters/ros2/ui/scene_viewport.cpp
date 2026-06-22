@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <format>
 #include <limits>
 #include <optional>
 
@@ -12,6 +13,7 @@
 
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
+    #include "ui/theme/theme.hpp"
 #endif
 
 namespace spectra::adapters::ros2
@@ -615,7 +617,10 @@ SceneCanvasResult draw_scene_canvas(SceneManager&               scene,
     }
 
     if (!result.clicked)
+    {
+        draw_list->PopClipRect();
         return result;
+    }
 
     const ImVec2 mouse  = ImGui::GetIO().MousePos;
     result.picked_index = scene.pick(build_pick_ray(camera, mouse, origin, size));
@@ -634,71 +639,112 @@ void SceneViewport::draw(bool*              p_open,
     if (!ImGui::GetCurrentContext())
         return;
     invalidate_canvas_rect();
+    const auto& theme_colors = spectra::ui::theme();
+    ImGui::PushStyleColor(ImGuiCol_WindowBg,
+                          ImVec4(theme_colors.bg_secondary.r,
+                                 theme_colors.bg_secondary.g,
+                                 theme_colors.bg_secondary.b,
+                                 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_ChildBg,
+                          ImVec4(theme_colors.bg_primary.r,
+                                 theme_colors.bg_primary.g,
+                                 theme_colors.bg_primary.b,
+                                 1.0f));
     if (!ImGui::Begin(title_.c_str(), p_open))
     {
         ImGui::End();
+        ImGui::PopStyleColor(2);
         return;
     }
+
+    const ImGuiStyle& style             = ImGui::GetStyle();
+    const auto        same_line_if_fits = [&](float width)
+    {
+        const float needed = width + style.ItemSpacing.x;
+        if (ImGui::GetContentRegionAvail().x >= needed)
+        {
+            ImGui::SameLine();
+            return true;
+        }
+        return false;
+    };
+    const auto small_button_width = [&](const char* label)
+    { return ImGui::CalcTextSize(label).x + style.FramePadding.x * 2.0f; };
+    const auto radio_width = [&](const char* label)
+    { return ImGui::GetFrameHeight() + style.ItemInnerSpacing.x + ImGui::CalcTextSize(label).x; };
+    const auto checkbox_width = radio_width;
 
     if (ImGui::SmallButton("Reset View"))
     {
         camera_.reset();
         camera_initialized_ = fit_camera_to_scene(scene, camera_);
     }
-    ImGui::SameLine();
+    same_line_if_fits(small_button_width("Top"));
     if (ImGui::SmallButton("Top"))
     {
         camera_.align_view_to_axis(spectra::Camera::AxisView::PositiveZ);
         camera_initialized_ = true;
     }
-    ImGui::SameLine();
+    same_line_if_fits(small_button_width("Front"));
     if (ImGui::SmallButton("Front"))
     {
         camera_.align_view_to_axis(spectra::Camera::AxisView::PositiveY);
         camera_initialized_ = true;
     }
-    ImGui::SameLine();
+    same_line_if_fits(small_button_width("Side"));
     if (ImGui::SmallButton("Side"))
     {
         camera_.align_view_to_axis(spectra::Camera::AxisView::PositiveX);
         camera_initialized_ = true;
     }
-    ImGui::SameLine();
+    same_line_if_fits(small_button_width("Fit View"));
     if (ImGui::SmallButton("Fit View"))
         camera_initialized_ = fit_camera_to_scene(scene, camera_);
-    ImGui::SameLine();
+    same_line_if_fits(radio_width("Perspective"));
     int projection =
         camera_.projection_mode == spectra::Camera::ProjectionMode::Perspective ? 0 : 1;
     if (ImGui::RadioButton("Perspective", projection == 0))
         camera_.set_projection(spectra::Camera::ProjectionMode::Perspective);
-    ImGui::SameLine();
+    same_line_if_fits(radio_width("Ortho"));
     if (ImGui::RadioButton("Ortho", projection == 1))
         camera_.set_projection(spectra::Camera::ProjectionMode::Orthographic);
-    ImGui::SameLine();
+    same_line_if_fits(ImGui::GetFrameHeight() + style.ItemInnerSpacing.x
+                      + ImGui::CalcTextSize("Background").x);
     ImGui::ColorEdit4("Background",
                       background_rgba_.data(),
                       ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaPreviewHalf);
-    ImGui::SameLine();
+    same_line_if_fits(checkbox_width("Measure"));
     bool measure = measure_tool_.active();
     if (ImGui::Checkbox("Measure", &measure))
         measure_tool_.set_active(measure);
     if (measure && measure_tool_.has_result())
     {
-        ImGui::SameLine();
+        same_line_if_fits(ImGui::CalcTextSize("dist: 000.000 m").x);
         ImGui::TextDisabled("dist: %.3f m", measure_tool_.distance());
     }
-    ImGui::SameLine();
-    ImGui::TextDisabled("az %.1f el %.1f d %.2f | %s | %zu disp, %zu ent",
-                        camera_.azimuth,
-                        camera_.elevation,
-                        camera_.distance,
-                        fixed_frame.empty() ? "(unset)" : fixed_frame.c_str(),
-                        display_count,
-                        scene.entity_count());
+    const std::string camera_status =
+        std::format("az {:.1f} el {:.1f} d {:.2f} | {} | {} disp, {} ent",
+                    camera_.azimuth,
+                    camera_.elevation,
+                    camera_.distance,
+                    fixed_frame.empty() ? "(unset)" : fixed_frame,
+                    display_count,
+                    scene.entity_count());
+    same_line_if_fits(ImGui::CalcTextSize(camera_status.c_str()).x);
+    ImGui::TextDisabled("%s", camera_status.c_str());
     ImGui::Separator();
 
     const ImVec2 avail         = ImGui::GetContentRegionAvail();
-    const float  canvas_height = std::max(140.0f, avail.y * 0.72f);
+    const bool   has_entities  = !scene.entities().empty();
+    const bool   has_selection = scene.selected_entity() != nullptr;
+    const float  list_height   = has_entities ? std::clamp(avail.y * 0.12f, 72.0f, 160.0f)
+                                              : ImGui::GetTextLineHeightWithSpacing() + 12.0f;
+    const float  details_height =
+        has_selection ? ImGui::GetFrameHeightWithSpacing() : ImGui::GetTextLineHeightWithSpacing();
+    const float footer_height = list_height + details_height + style.ItemSpacing.y * 4.0f + 4.0f;
+    const float min_canvas_h  = std::min(140.0f, std::max(1.0f, avail.y));
+    const float canvas_height =
+        std::clamp(avail.y - footer_height, min_canvas_h, std::max(min_canvas_h, avail.y));
 
     // Record screen-space canvas rect for GPU scene rendering.
     {
@@ -720,9 +766,11 @@ void SceneViewport::draw(bool*              p_open,
     {
         if (measure_tool_.active())
         {
-            const ImVec2 origin_screen{canvas_x_, canvas_y_};
-            const spectra::Ray ray = build_pick_ray(
-                camera_, ImGui::GetIO().MousePos, origin_screen, ImVec2(avail.x, canvas_height));
+            const ImVec2       origin_screen{canvas_x_, canvas_y_};
+            const spectra::Ray ray = build_pick_ray(camera_,
+                                                    ImGui::GetIO().MousePos,
+                                                    origin_screen,
+                                                    ImVec2(avail.x, canvas_height));
             if (const auto hit = intersect_ground_plane(ray))
                 measure_tool_.click_point(*hit);
         }
@@ -733,7 +781,6 @@ void SceneViewport::draw(bool*              p_open,
     }
 
     ImGui::Separator();
-    const float list_height = std::max(60.0f, avail.y * 0.10f);
     if (ImGui::BeginChild("##scene_entities", ImVec2(0.0f, list_height), 1))
     {
         const auto selected_index = scene.selected_index();
@@ -771,6 +818,7 @@ void SceneViewport::draw(bool*              p_open,
         ImGui::TextDisabled("Select an entity, then open Inspector for details.");
     }
     ImGui::End();
+    ImGui::PopStyleColor(2);
 #else
     (void)p_open;
     (void)fixed_frame;

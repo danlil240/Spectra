@@ -56,7 +56,8 @@ _PLATFORM_MAP = {
     ("Linux", "aarch64"): "linux-aarch64",
     ("Darwin", "arm64"): "macos-arm64",
     ("Darwin", "x86_64"): "macos-x86_64",
-    ("Windows", "AMD64"): "windows-x86_64",
+    # No Windows entry: the multi-process backend needs Unix domain sockets,
+    # so Windows backend binaries are not published.
 }
 
 _BINARY_NAMES = ("spectra-backend", "spectra-window")

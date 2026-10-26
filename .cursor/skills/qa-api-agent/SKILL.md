@@ -13,7 +13,7 @@ Validate Spectra's public-facing APIs: the Python IPC bindings, the C++ easy-API
 ## Required Context
 
 Before starting any task, read:
-- `python/pyproject.toml` — Python package config and dependencies
+- `pyproject.toml` (repo root) — Python package config and dependencies
 - `plans/PYTHON_IPC_ARCHITECTURE.md` — IPC protocol architecture
 - `plans/QA_results.md` — open API bugs
 

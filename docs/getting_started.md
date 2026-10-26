@@ -234,8 +234,12 @@ notebooks, or any Python application.
 ### Installation
 
 ```bash
-# From the project root (editable install)
-pip install -e python/
+# Platform wheel from PyPI (bundles spectra-backend + spectra-window)
+pip install spectra-plot
+
+# From the project root: editable install of the Python sources only
+# (uses ./build/spectra-backend from your CMake build)
+pip install -e . -Cwheel.cmake=false
 ```
 
 ### Quick Start

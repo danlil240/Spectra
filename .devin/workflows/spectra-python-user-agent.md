@@ -42,7 +42,7 @@ description: Spectra Python User Agent — Exercise every Python API feature end
 
 3. **Install the Python package** in development mode:
    ```bash
-   cd /home/daniel/projects/Spectra/python && pip install -e . 2>/dev/null || true
+   cd /home/daniel/projects/Spectra && pip install -e . -Cwheel.cmake=false 2>/dev/null || true
    ```
 
 4. **Verify Python can connect** — run a quick smoke test:

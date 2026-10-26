@@ -168,9 +168,14 @@ void AutomationServer::stop()
         return;
     running_.store(false, std::memory_order_release);
 
+    // The listener thread reads listen_fd_, so join it before closing the fd.
+    // shutdown() wakes its poll() without modifying listen_fd_.
+    if (listen_fd_ >= 0)
+        ::shutdown(listen_fd_, SHUT_RDWR);
+    if (listener_thread_.joinable())
+        listener_thread_.join();
     if (listen_fd_ >= 0)
     {
-        ::shutdown(listen_fd_, SHUT_RDWR);
         ::close(listen_fd_);
         listen_fd_ = -1;
     }
@@ -185,8 +190,6 @@ void AutomationServer::stop()
         client_fds_.clear();
     }
 
-    if (listener_thread_.joinable())
-        listener_thread_.join();
     if (!socket_path_.empty())
     {
         ::unlink(socket_path_.c_str());

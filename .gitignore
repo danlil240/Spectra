@@ -99,3 +99,8 @@ python/graphify-out/
 
 
 .ccls-cache/
+# Python packaging outputs
+*.egg-info/
+/dist/
+/wheelhouse/
+python/spectra/_bin/

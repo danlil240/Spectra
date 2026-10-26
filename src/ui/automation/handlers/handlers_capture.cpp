@@ -3,6 +3,7 @@
 
 #include "../automation_handler.hpp"
 #include "../automation_json.hpp"
+#include "../automation_security.hpp"
 #include "../automation_server.hpp"
 
 #include <spectra/app.hpp>
@@ -25,14 +26,23 @@ std::vector<AutomationHandlerEntry> make_capture_handlers()
 
     entries.push_back(automation_handler(
         "capture_screenshot",
-        "Capture the active figure as a PNG file.",
+        "Capture the active figure as a PNG file inside the capture directory "
+        "($SPECTRA_CAPTURE_DIR).",
         Ctx::None,
         {},
         [](AutomationRequest& req, App* app, WindowUIContext* ui_ctx)
         {
-            std::string path = json_get_string(req.params_json, "path");
-            if (path.empty())
-                path = "/tmp/spectra_auto_screenshot.png";
+            // Output is confined to the capture directory (see SECURITY.md).
+            std::string path;
+            std::string path_error;
+            if (!automation_security::resolve_capture_path(json_get_string(req.params_json, "path"),
+                                                           "spectra_auto_screenshot.png",
+                                                           path,
+                                                           path_error))
+            {
+                req.response_json = json_error(req.id, path_error);
+                return;
+            }
 
             FigureId active_id = INVALID_FIGURE_ID;
 #ifdef SPECTRA_USE_IMGUI
@@ -61,14 +71,23 @@ std::vector<AutomationHandlerEntry> make_capture_handlers()
 
     entries.push_back(automation_handler(
         "capture_window",
-        "Capture the full window framebuffer as a PNG file.",
+        "Capture the full window framebuffer as a PNG file inside the capture "
+        "directory ($SPECTRA_CAPTURE_DIR).",
         Ctx::Backend,
         {},
         [](AutomationRequest& req, App* app, WindowUIContext* /*ui_ctx*/)
         {
-            std::string path = json_get_string(req.params_json, "path");
-            if (path.empty())
-                path = "/tmp/spectra_auto_window.png";
+            // Output is confined to the capture directory (see SECURITY.md).
+            std::string path;
+            std::string path_error;
+            if (!automation_security::resolve_capture_path(json_get_string(req.params_json, "path"),
+                                                           "spectra_auto_window.png",
+                                                           path,
+                                                           path_error))
+            {
+                req.response_json = json_error(req.id, path_error);
+                return;
+            }
 
             Backend* backend = app->backend();
             uint32_t w       = backend->swapchain_width();

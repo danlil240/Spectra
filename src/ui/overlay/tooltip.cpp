@@ -92,14 +92,11 @@ void Tooltip::draw(const NearestPointResult& nearest,
     if (show_dydx)
         dydx_value = std::format("{:.6g}", nearest.dy_dx);
 
-    const char* series_name  = "Unknown";
-    Color       series_color = colors::gray;
+    const std::string series_name_str = tooltip_series_name(nearest);
+    const char*       series_name     = series_name_str.c_str();
+    Color             series_color    = colors::gray;
     if (nearest.series)
-    {
-        if (!nearest.series->label().empty())
-            series_name = nearest.series->label().c_str();
         series_color = nearest.series->color();
-    }
 
     // Tooltip layout constants
     constexpr float padding   = 10.0f;
@@ -406,14 +403,11 @@ void Tooltip::draw_3d(const NearestPointResult& nearest,
     const std::string y_buf = std::format("{:.6g}", nearest.data_y);
     const std::string z_buf = std::format("{:.6g}", nearest.data_z);
 
-    const char* series_name  = "Unknown";
-    Color       series_color = colors::gray;
+    const std::string series_name_str = tooltip_series_name(nearest);
+    const char*       series_name     = series_name_str.c_str();
+    Color             series_color    = colors::gray;
     if (nearest.series)
-    {
-        if (!nearest.series->label().empty())
-            series_name = nearest.series->label().c_str();
         series_color = nearest.series->color();
-    }
 
     const char* lbl_x = "X";
     const char* lbl_y = "Y";

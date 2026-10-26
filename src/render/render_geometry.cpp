@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <vector>
 #include <spectra/axes.hpp>
 #include <spectra/axes3d.hpp>
 #include <spectra/camera.hpp>
@@ -367,6 +368,78 @@ void Renderer::render_plot_text(Figure& figure)
             return false;
         };
 
+        // Screen rectangles of every label placed so far (title, ticks of all
+        // three axes, arrow labels).  The three axes' tick labels all meet at
+        // the origin corner, so per-axis spacing alone lets e.g. the X and Y
+        // "0" labels print on top of each other ("00").
+        struct LabelRect
+        {
+            float x0, y0, x1, y1;
+        };
+        std::vector<LabelRect> placed_labels;
+        auto                   label_rect = [&](const std::string& text,
+                              FontSize           size,
+                              float              x,
+                              float              y,
+                              TextAlign          align,
+                              TextVAlign         valign) -> LabelRect
+        {
+            const auto ext = text_renderer_.measure_text(text, size);
+            float      lx  = x;
+            if (align == TextAlign::Center)
+                lx -= ext.width * 0.5f;
+            else if (align == TextAlign::Right)
+                lx -= ext.width;
+            float ty = y;
+            if (valign == TextVAlign::Middle)
+                ty -= ext.height * 0.5f;
+            else if (valign == TextVAlign::Bottom)
+                ty -= ext.height;
+            return {lx, ty, lx + ext.width, ty + ext.height};
+        };
+        auto collides = [&](const LabelRect& r) -> bool
+        {
+            constexpr float gap = 2.0f;
+            for (const auto& o : placed_labels)
+            {
+                if (r.x0 < o.x1 + gap && r.x1 + gap > o.x0 && r.y0 < o.y1 + gap
+                    && r.y1 + gap > o.y0)
+                    return true;
+            }
+            return false;
+        };
+        // Draw a depth-tested tick label unless it would overlap another label.
+        auto place_tick_label = [&](const std::string& text,
+                                    float              x,
+                                    float              y,
+                                    float              depth,
+                                    TextAlign          align,
+                                    TextVAlign         valign)
+        {
+            const LabelRect r = label_rect(text, FontSize::Tick, x, y, align, valign);
+            if (collides(r))
+                return;
+            placed_labels.push_back(r);
+            text_renderer_
+                .draw_text_depth(text, x, y, depth, FontSize::Tick, tick_col, align, valign);
+        };
+
+        // Reserve the title's rectangle first so nothing is drawn over it.
+        float title_py = 0.0f;
+        if (!axes3d->get_title().empty())
+        {
+            auto ext = text_renderer_.measure_text(axes3d->get_title(), FontSize::Title);
+            title_py = vp.y - ext.height - tick_padding;
+            if (title_py < vp.y + 2.0f)
+                title_py = vp.y + 2.0f;
+            placed_labels.push_back(label_rect(axes3d->get_title(),
+                                               FontSize::Title,
+                                               vp.x + vp.w * 0.5f,
+                                               title_py,
+                                               TextAlign::Center,
+                                               TextVAlign::Top));
+        }
+
         // --- X-axis tick labels ---
         {
             auto  x_ticks  = axes3d->compute_x_ticks();
@@ -383,14 +456,12 @@ void Renderer::render_plot_text(Figure& figure)
                     continue;
                 if (should_skip_overlapping_tick(sx, sy, last_sx, last_sy, has_last))
                     continue;
-                text_renderer_.draw_text_depth(x_ticks.labels[i],
-                                               sx,
-                                               sy,
-                                               depth,
-                                               FontSize::Tick,
-                                               tick_col,
-                                               TextAlign::Center,
-                                               TextVAlign::Top);
+                place_tick_label(x_ticks.labels[i],
+                                 sx,
+                                 sy,
+                                 depth,
+                                 TextAlign::Center,
+                                 TextVAlign::Top);
             }
         }
 
@@ -411,14 +482,12 @@ void Renderer::render_plot_text(Figure& figure)
                     continue;
                 if (should_skip_overlapping_tick(sx, sy, last_sx, last_sy, has_last))
                     continue;
-                text_renderer_.draw_text_depth(y_ticks.labels[i],
-                                               sx,
-                                               sy,
-                                               depth,
-                                               FontSize::Tick,
-                                               tick_col,
-                                               TextAlign::Right,
-                                               TextVAlign::Middle);
+                place_tick_label(y_ticks.labels[i],
+                                 sx,
+                                 sy,
+                                 depth,
+                                 TextAlign::Right,
+                                 TextVAlign::Middle);
             }
         }
 
@@ -439,14 +508,12 @@ void Renderer::render_plot_text(Figure& figure)
                     continue;
                 if (should_skip_overlapping_tick(sx, sy, last_sx, last_sy, has_last))
                     continue;
-                text_renderer_.draw_text_depth(z_ticks.labels[i],
-                                               sx - tick_padding,
-                                               sy,
-                                               depth,
-                                               FontSize::Tick,
-                                               tick_col,
-                                               TextAlign::Right,
-                                               TextVAlign::Middle);
+                place_tick_label(z_ticks.labels[i],
+                                 sx - tick_padding,
+                                 sy,
+                                 depth,
+                                 TextAlign::Right,
+                                 TextVAlign::Middle);
             }
         }
 
@@ -490,6 +557,39 @@ void Renderer::render_plot_text(Figure& figure)
                 float       dir_len      = std::sqrt(dir_x * dir_x + dir_y * dir_y);
                 float lx = sx1 + (dir_len > 1.0f ? dir_x / dir_len * label_offset : label_offset);
                 float ly_center = sy1 + (dir_len > 1.0f ? dir_y / dir_len * label_offset : 0.0f);
+                // If the label would land on the title (typical for the
+                // vertical Y arrow), move it beside the arrow tip, below the title.
+                LabelRect r = label_rect(lbl,
+                                         FontSize::Label,
+                                         lx,
+                                         ly_center,
+                                         TextAlign::Left,
+                                         TextVAlign::Middle);
+                if (collides(r))
+                {
+                    lx          = sx1 + label_offset;
+                    float shift = 0.0f;
+                    for (const auto& o : placed_labels)
+                    {
+                        LabelRect moved = label_rect(lbl,
+                                                     FontSize::Label,
+                                                     lx,
+                                                     ly_center + shift,
+                                                     TextAlign::Left,
+                                                     TextVAlign::Middle);
+                        if (moved.x0 < o.x1 && moved.x1 > o.x0 && moved.y0 < o.y1
+                            && moved.y1 > o.y0)
+                            shift += o.y1 - moved.y0 + 2.0f;
+                    }
+                    ly_center += shift;
+                    r = label_rect(lbl,
+                                   FontSize::Label,
+                                   lx,
+                                   ly_center,
+                                   TextAlign::Left,
+                                   TextVAlign::Middle);
+                }
+                placed_labels.push_back(r);
                 text_renderer_.draw_text_depth(lbl,
                                                lx,
                                                ly_center,
@@ -517,17 +617,13 @@ void Renderer::render_plot_text(Figure& figure)
                              axes3d->get_zlabel());
         }
 
-        // --- 3D Title ---
+        // --- 3D Title --- (rectangle reserved above, before the tick labels)
         if (!axes3d->get_title().empty())
         {
-            float cx  = vp.x + vp.w * 0.5f;
-            auto  ext = text_renderer_.measure_text(axes3d->get_title(), FontSize::Title);
-            float py  = vp.y - ext.height - tick_padding;
-            if (py < vp.y + 2.0f)
-                py = vp.y + 2.0f;
+            float cx = vp.x + vp.w * 0.5f;
             text_renderer_.draw_text(axes3d->get_title(),
                                      cx,
-                                     py,
+                                     title_py,
                                      FontSize::Title,
                                      title_col,
                                      TextAlign::Center);
@@ -991,9 +1087,9 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
         // Check if limits/planes changed — skip regeneration if cached
         auto& gc             = gpu.grid_cache[slot];
         bool  limits_changed = !gc.valid || gc.xmin != xlim.min || gc.xmax != xlim.max
-                               || gc.ymin != ylim.min || gc.ymax != ylim.max || gc.zmin != zlim.min
-                               || gc.zmax != zlim.max
-                               || gpu.cached_grid_planes[slot] != static_cast<int>(gp);
+                              || gc.ymin != ylim.min || gc.ymax != ylim.max || gc.zmin != zlim.min
+                              || gc.zmax != zlim.max
+                              || gpu.cached_grid_planes[slot] != static_cast<int>(gp);
 
         if (limits_changed)
         {
@@ -1083,8 +1179,8 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
         const auto&         theme_colors = theme_mgr_.colors();
         float               blend        = 0.3f;
         ui::Color           blended(theme_colors.grid_major.r * (1.0f - blend) + blend,
-                                    theme_colors.grid_major.g * (1.0f - blend) + blend,
-                                    theme_colors.grid_major.b * (1.0f - blend) + blend);
+                          theme_colors.grid_major.g * (1.0f - blend) + blend,
+                          theme_colors.grid_major.b * (1.0f - blend) + blend);
         set_pc_color_geom(pc.color, blended, 0.35f, theme_mgr_);
         pc.line_width    = 1.0f;
         pc.data_offset_x = 0.0f;

@@ -141,6 +141,7 @@ set(SPECTRA_UNIT_TESTS
     test_glfw_platform_policy
     test_window_ui_context_builder
     test_automation_dispatch
+    test_automation_security
     test_figure_registry
     test_event_bus
     test_ipc
@@ -1706,3 +1707,6 @@ if(SPECTRA_BUILD_QA_AGENT)
         )
     endif()
 endif()
+
+# Manual (interactive, not run by CTest) test programs
+add_subdirectory(manual)

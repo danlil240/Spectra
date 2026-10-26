@@ -251,6 +251,7 @@ foreach(_ui_src
     src/embed/spectra_embed_c.cpp
     src/ui/automation/automation_server.cpp
     src/ui/automation/automation_dispatch.cpp
+    src/ui/automation/automation_security.cpp
     src/ui/automation/mcp_server.cpp
     src/ui/automation/handlers/handlers_command.cpp
     src/ui/automation/handlers/handlers_input.cpp
@@ -962,11 +963,21 @@ if(TARGET spectra-px4)
     install(TARGETS spectra-px4 RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 endif()
 
-# Python wheel: bundle backend binary into the Python package
-if(SPECTRA_PYTHON_WHEEL AND TARGET spectra-backend)
-    install(TARGETS spectra-backend
-        RUNTIME DESTINATION spectra/_bin
-    )
+# Python wheel: bundle the backend daemon AND the window agent it spawns
+# (src/daemon/main.cpp resolves spectra-window next to its own binary) into the
+# Python package. Both go into the dedicated "python_wheel" install component;
+# pyproject.toml sets install.components = ["python_wheel"], so the wheel gets
+# only these two binaries and none of the dev/system install (headers, static
+# libs, CMake config, man page, desktop file, fonts, inproc app).
+if(SPECTRA_PYTHON_WHEEL)
+    foreach(_spectra_wheel_bin spectra-backend spectra-window)
+        if(TARGET ${_spectra_wheel_bin})
+            install(TARGETS ${_spectra_wheel_bin}
+                RUNTIME DESTINATION spectra/_bin
+                COMPONENT python_wheel
+            )
+        endif()
+    endforeach()
 endif()
 
 # Data assets (fonts, icons)

@@ -99,3 +99,17 @@ python/graphify-out/
 
 
 .ccls-cache/
+# Python packaging outputs
+*.egg-info/
+/dist/
+/wheelhouse/
+python/spectra/_bin/
+
+# Local / personal files (never commit)
+compile_commands.json
+Testing/
+*.deb
+.live-agents
+docker/.env
+.vscode/settings.json
+.vscode/c_cpp_properties.json

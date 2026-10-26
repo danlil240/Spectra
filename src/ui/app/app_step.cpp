@@ -57,6 +57,7 @@
     #include "ui/workspace/workspace.hpp"
 #endif
 
+#include "ui/automation/automation_security.hpp"
 #include "ui/automation/automation_server.hpp"
 #include "ui/automation/mcp_server.hpp"
 
@@ -645,11 +646,13 @@ void App::init_runtime()
     rt.last_step_time = std::chrono::steady_clock::now();
 
     // Start automation server for MCP-driven testing.
-    // In headless mode, skip unless explicitly requested via environment variable
-    // to avoid thread lifecycle issues during rapid create/destroy cycles in tests.
+    // Opt-in only (AppConfig::enable_automation, SPECTRA_AUTOMATION=1, or an explicit
+    // SPECTRA_AUTO_SOCKET path): the endpoints allow remote input injection, command
+    // execution and file writes, so they must never be on by default.  See SECURITY.md.
     {
         const char* auto_env = std::getenv("SPECTRA_AUTO_SOCKET");
-        bool want_automation = !config_.headless || ((auto_env != nullptr) && auto_env[0] != '\0');
+        const bool  want_automation =
+            automation_security::automation_requested(config_.enable_automation);
 
         if (want_automation)
         {
@@ -670,6 +673,11 @@ void App::init_runtime()
                     if (mcp_bind_env[0] != '\0')
                         mcp_bind = mcp_bind_env;
                 }
+                if (mcp_bind != "127.0.0.1")
+                    SPECTRA_LOG_WARN("app",
+                                     "SPECTRA_MCP_BIND=" + mcp_bind
+                                         + " exposes the MCP server beyond loopback; it is "
+                                           "protected only by its bearer token");
 
                 uint16_t mcp_port        = 8765;
                 bool     mcp_port_pinned = false;

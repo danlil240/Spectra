@@ -382,10 +382,10 @@
 		{
 			"label": "Run: spectra (inproc)",
 			"type": "shell",
-			"command": "SPECTRA_RUNTIME_MODE=inproc ./build/spectra",
+			"command": "SPECTRA_RUNTIME_MODE=inproc SPECTRA_AUTOMATION=1 ./build/spectra",
 			"group": "none",
 			"problemMatcher": [],
-			"detail": "Single-process app; MCP on http://127.0.0.1:8765/mcp when enabled",
+			"detail": "Single-process app, automation opted in; MCP on http://127.0.0.1:8765/mcp (Bearer token: see SECURITY.md)",
 			"isBackground": true,
 			"presentation": {
 				"reveal": "always",

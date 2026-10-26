@@ -22,6 +22,7 @@ struct PendingSeriesDataDeleter
     void operator()(PendingSeriesData* ptr) const;
 };
 
+/// @brief Basic visual style of a series.
 struct SeriesStyle
 {
     Color color      = colors::blue;
@@ -30,6 +31,7 @@ struct SeriesStyle
     float opacity    = 1.0f;
 };
 
+/// @brief Axis-aligned rectangle in pixels (x, y = top-left corner).
 struct Rect
 {
     float x = 0.0f;
@@ -38,6 +40,10 @@ struct Rect
     float h = 0.0f;
 };
 
+/// @brief Base class of everything that can be drawn in an axes.
+///
+/// Setters return a reference so calls can be chained, e.g.
+/// `ax.plot(x, y).label("signal").color(spectra::colors::red);`
 class Series
 {
    public:
@@ -45,47 +51,53 @@ class Series
 
     Series() = default;
 
-    // Move operations — deleted because std::atomic<bool> is not movable.
-    // Series instances are managed by pointer/reference; moves are not needed.
+    /// Move operations — deleted because std::atomic<bool> is not movable.
+    /// Series instances are managed by pointer/reference; moves are not needed.
     Series(Series&&)            = delete;
     Series& operator=(Series&&) = delete;
 
-    // Copy operations — pending buffer is NOT copied (thread-safe state
-    // is per-instance and must be re-enabled on copies).
+    /// Copy operations — pending buffer is NOT copied (thread-safe state
+    /// is per-instance and must be re-enabled on copies).
     Series(const Series& other);
     Series& operator=(const Series& other);
 
+    /// @brief Set the legend label.
     Series& label(const std::string& lbl)
     {
         label_ = lbl;
         return *this;
     }
+    /// @brief Set the series colour.
     Series& color(const Color& c)
     {
         color_ = c;
         dirty_ = true;
         return *this;
     }
+    /// @brief Show or hide the series.
     Series& visible(bool v)
     {
         visible_ = v;
         return *this;
     }
 
+    /// @brief Legend label.
     const std::string& label() const { return label_; }
-    const Color&       color() const { return color_; }
-    bool               visible() const { return visible_; }
+    /// @brief Series colour.
+    const Color& color() const { return color_; }
+    /// @brief Whether the series is drawn.
+    bool visible() const { return visible_; }
 
-    // Reference lines (hline/vline) are excluded from autoscale calculations
-    // so their large span does not pollute axis limits.
+    /// Reference lines (hline/vline) are excluded from autoscale calculations
+    /// so their large span does not pollute axis limits.
     bool excluded_from_autoscale() const { return excluded_from_autoscale_; }
     void set_excluded_from_autoscale(bool v) { excluded_from_autoscale_ = v; }
 
     // ── Double-precision x-axis offset ──
-    // Logical x value = x_offset() + x_data()[i].  Allows plotting data with
-    // large absolute x values (e.g. epoch timestamps ~1.7e9) that exceed
-    // float's ~7-digit precision: the stored floats stay small and precise
-    // while axis limits, ticks, and cursor readouts show absolute values.
+    /// Logical x value = x_offset() + x_data()[i].  Allows plotting data with
+    /// large absolute x values (e.g. epoch timestamps ~1.7e9) that exceed
+    /// float's ~7-digit precision: the stored floats stay small and precise
+    /// while axis limits, ticks, and cursor readouts show absolute values.
     Series& x_offset(double off)
     {
         x_offset_ = off;
@@ -94,31 +106,33 @@ class Series
     }
     double x_offset() const { return x_offset_; }
 
-    // Control whether this series appears in the legend.
+    /// Control whether this series appears in the legend.
     bool show_in_legend() const { return show_in_legend_; }
     void set_show_in_legend(bool v) { show_in_legend_ = v; }
 
-    // True for Axes::hline / Axes::vline reference lines (not general legend hiding).
+    /// True for Axes::hline / Axes::vline reference lines (not general legend hiding).
     bool is_reference_line() const { return is_reference_line_; }
     void set_reference_line(bool v) { is_reference_line_ = v; }
 
+    /// @brief True when the series changed since the last GPU upload.
     bool is_dirty() const { return dirty_; }
     void clear_dirty() { dirty_ = false; }
     void mark_dirty();
 
     // ── Thread-safe data access (opt-in) ──
-    // When enabled, set_x/set_y/append/erase_before route through a pending
-    // buffer that is committed atomically at frame boundary.  Default off
-    // (zero overhead for single-threaded callers).
+    /// When enabled, set_x/set_y/append/erase_before route through a pending
+    /// buffer that is committed atomically at frame boundary.  Default off
+    /// (zero overhead for single-threaded callers).
     void set_thread_safe(bool enabled);
     bool is_thread_safe() const { return thread_safe_; }
 
-    // Apply pending data from background threads.  Called by SessionRuntime
-    // at frame boundary.  Returns true if data was committed.
+    /// Apply pending data from background threads.  Called by SessionRuntime
+    /// at frame boundary.  Returns true if data was committed.
     virtual bool commit_pending();
 
-    // Set a callback invoked when background data arrives (for waking idle loops).
+    /// Set a callback invoked when background data arrives (for waking idle loops).
     void set_wake_fn(std::function<void()> fn);
+    /// @brief Set the colour (non-fluent form).
     void set_color(const Color& c)
     {
         color_ = c;
@@ -126,7 +140,7 @@ class Series
     }
 
     // ── Event system integration ──
-    // Called by AxesBase when the series is added to axes with an event system.
+    /// Called by AxesBase when the series is added to axes with an event system.
     void set_event_context(EventSystem* es, AxesBase* axes)
     {
         event_system_ = es;
@@ -134,30 +148,35 @@ class Series
     }
 
     // ── Plot style (line style, marker style, etc.) ──
+    /// @brief Set the line style (solid, dashed, ...).
     Series& line_style(LineStyle s)
     {
         style_.line_style = s;
         dirty_            = true;
         return *this;
     }
+    /// @brief Set the marker shape.
     Series& marker_style(MarkerStyle s)
     {
         style_.marker_style = s;
         dirty_              = true;
         return *this;
     }
+    /// @brief Set the marker size in pixels.
     Series& marker_size(float s)
     {
         style_.marker_size = s;
         dirty_             = true;
         return *this;
     }
+    /// @brief Set opacity in [0, 1].
     Series& opacity(float o)
     {
         style_.opacity = o;
         dirty_         = true;
         return *this;
     }
+    /// @brief Apply a complete PlotStyle.
     Series& plot_style(const PlotStyle& ps);
 
     LineStyle        line_style() const { return style_.line_style; }
@@ -168,10 +187,15 @@ class Series
     PlotStyle&       plot_style_mut() { return style_; }
 
     // ── Streaming data interface (optional; implemented by LineSeries / ChunkedLineSeries) ──
-    virtual void   append(float /*x*/, float /*y*/) {}
+    /// @brief Append one point (streaming series only).
+    virtual void append(float /*x*/, float /*y*/) {}
+    /// @brief Remove points with x below a threshold; returns how many were removed.
     virtual size_t erase_before(float /*x_threshold*/) { return 0; }
+    /// @brief Remove points with x above a threshold; returns how many were removed.
     virtual size_t erase_after(float /*x_threshold*/) { return 0; }
+    /// @brief Drop the oldest points so at most @p max_points remain.
     virtual size_t trim_to_max_points(size_t /*max_points*/) { return 0; }
+    /// @brief Approximate memory used by the series data.
     virtual size_t memory_bytes() const { return 0; }
 
    protected:
@@ -179,7 +203,7 @@ class Series
 
     std::string       label_;
     Color             color_ = colors::blue;
-    PlotStyle         style_;   // line/marker style, sizes, opacity
+    PlotStyle         style_;   ///< line/marker style, sizes, opacity
     bool              visible_                 = true;
     double            x_offset_                = 0.0;
     bool              excluded_from_autoscale_ = false;
@@ -189,27 +213,34 @@ class Series
     EventSystem*      event_system_ = nullptr;
     AxesBase*         owning_axes_  = nullptr;
 
-    // Thread-safe data buffering (opt-in).
+    /// Thread-safe data buffering (opt-in).
     bool                                                         thread_safe_ = false;
     std::unique_ptr<PendingSeriesData, PendingSeriesDataDeleter> pending_;
 };
 
+/// @brief A polyline through (x, y) points, with optional markers and dash patterns.
 class LineSeries : public Series
 {
    public:
     LineSeries() = default;
+    /// @brief Construct from x/y data (copied).
     LineSeries(std::span<const float> x, std::span<const float> y);
 
+    /// @brief Replace the x data.
     LineSeries& set_x(std::span<const float> x);
+    /// @brief Replace the y data.
     LineSeries& set_y(std::span<const float> y);
-    void        append(float x, float y) override;
+    /// @brief Append one point.
+    void append(float x, float y) override;
 
+    /// @brief Set the line width in pixels.
     LineSeries& width(float w)
     {
         line_width_ = w;
         dirty_      = true;
         return *this;
     }
+    /// @brief Line width in pixels.
     float width() const { return line_width_; }
 
     std::span<const float> x_data() const { return x_; }
@@ -217,17 +248,17 @@ class LineSeries : public Series
     size_t                 point_count() const { return std::min(x_.size(), y_.size()); }
     bool                   x_is_sorted() const { return x_sorted_; }
 
-    // Remove all points with x < x_threshold.  Assumes x is sorted ascending.
-    // Returns the number of points removed.
+    /// Remove all points with x < x_threshold.  Assumes x is sorted ascending.
+    /// Returns the number of points removed.
     size_t erase_before(float x_threshold) override;
 
-    // Remove all points with x > x_threshold.  Assumes x is sorted ascending.
+    /// Remove all points with x > x_threshold.  Assumes x is sorted ascending.
     size_t erase_after(float x_threshold) override;
 
-    // Drop oldest points until at most max_points remain (FIFO).
+    /// Drop oldest points until at most max_points remain (FIFO).
     size_t trim_to_max_points(size_t max_points) override;
 
-    // Estimated memory consumption in bytes (x + y vectors).
+    /// Estimated memory consumption in bytes (x + y vectors).
     size_t memory_bytes() const override { return x_.size() * 2 * sizeof(float); }
 
     // Bring base-class getters into scope (setters below would otherwise hide them)
@@ -270,10 +301,10 @@ class LineSeries : public Series
         return *this;
     }
 
-    // Apply a MATLAB-style format string (e.g. "r--o")
+    /// @brief Apply a MATLAB-style format string (e.g. "r--o").
     LineSeries& format(std::string_view fmt);
 
-    // Thread-safe commit override.
+    /// Thread-safe commit override.
     bool commit_pending() override;
 
    private:
@@ -283,22 +314,29 @@ class LineSeries : public Series
     bool               x_sorted_   = true;
 };
 
+/// @brief Individual markers at (x, y) points, optionally coloured per point through a colormap.
 class ScatterSeries : public Series
 {
    public:
     ScatterSeries() = default;
+    /// @brief Construct from x/y data (copied).
     ScatterSeries(std::span<const float> x, std::span<const float> y);
 
+    /// @brief Replace the x data.
     ScatterSeries& set_x(std::span<const float> x);
+    /// @brief Replace the y data.
     ScatterSeries& set_y(std::span<const float> y);
-    void           append(float x, float y) override;
+    /// @brief Append one point.
+    void append(float x, float y) override;
 
+    /// @brief Set the marker size in pixels.
     ScatterSeries& size(float s)
     {
         point_size_ = s;
         dirty_      = true;
         return *this;
     }
+    /// @brief Marker size in pixels.
     float size() const { return point_size_; }
 
     std::span<const float> x_data() const { return x_; }
@@ -346,15 +384,15 @@ class ScatterSeries : public Series
         return *this;
     }
 
-    // Apply a MATLAB-style format string (e.g. "ro")
+    /// @brief Apply a MATLAB-style format string (e.g. "ro").
     ScatterSeries& format(std::string_view fmt);
 
     // ── Colormap support ────────────────────────────────────────────────
-    // Set per-point color values (one float per point).  Values are mapped
-    // through the active colormap to produce per-point colors.
+    /// Set per-point color values (one float per point).  Values are mapped
+    /// through the active colormap to produce per-point colors.
     ScatterSeries& color_values(std::span<const float> values);
 
-    // Set the colormap type used to map color_values to RGBA.
+    /// Set the colormap type used to map color_values to RGBA.
     ScatterSeries& colormap(ColormapType cm)
     {
         colormap_type_ = cm;
@@ -363,8 +401,8 @@ class ScatterSeries : public Series
     }
     ColormapType colormap() const { return colormap_type_; }
 
-    // Set the colormap value range [min, max]. Values outside this range
-    // are clamped. When not set, uses the data range of color_values_. */
+    /// Set the colormap value range [min, max]. Values outside this range
+    /// are clamped. When not set, uses the data range of color_values_.
     ScatterSeries& colormap_range(float min_val, float max_val)
     {
         colormap_min_ = min_val;
@@ -379,7 +417,7 @@ class ScatterSeries : public Series
         dirty_        = true;
     }
 
-    // Access per-point color values (one float per point).
+    /// Access per-point color values (one float per point).
     std::span<const float> color_values_data() const { return color_values_; }
     bool                   has_colormap() const
     {
@@ -390,7 +428,7 @@ class ScatterSeries : public Series
     float colormap_max() const { return colormap_max_; }
     bool  colormap_range_set() const { return colormap_set_; }
 
-    // Thread-safe commit override.
+    /// Thread-safe commit override.
     bool commit_pending() override;
 
    private:

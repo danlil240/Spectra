@@ -131,6 +131,17 @@ TEST(IpcPaths, RuntimeDirPrefersXdgRuntimeDir)
     EXPECT_EQ(spectra::ipc::default_socket_path().rfind("/run/user/12345/spectra-", 0), 0u);
 }
 
+#ifndef _WIN32
+TEST(IpcPaths, OverlongXdgRuntimeDirFallsBackToTempDirectory)
+{
+    EnvGuard          xdg("XDG_RUNTIME_DIR");
+    const std::string long_dir = "/" + std::string(spectra::ipc::max_socket_path_length(), 'd');
+    xdg.set(long_dir);
+    EXPECT_NE(spectra::ipc::runtime_dir(), long_dir);
+    EXPECT_LE(spectra::ipc::default_socket_path().size(), spectra::ipc::max_socket_path_length());
+}
+#endif
+
 TEST(IpcPaths, RuntimeDirFallsBackToTempDirectory)
 {
     EnvGuard xdg("XDG_RUNTIME_DIR");

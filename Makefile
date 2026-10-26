@@ -47,7 +47,7 @@ check-format: ## Check C++ formatting (no changes)
 # ─── Python ──────────────────────────────────────────────────────────────────
 
 pip-dev: ## Install Python package in dev mode
-	cd python && pip install -e ".[dev]"
+	pip install -e ".[dev]" -Cwheel.cmake=false
 
 pip-test: ## Run Python tests
 	cd python && pytest tests/ -v

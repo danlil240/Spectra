@@ -94,11 +94,29 @@ _default_session = None
 _current_figure = None
 _current_axes = None
 
-try:
-    from importlib.metadata import version as _pkg_version
-    __version__ = _pkg_version("spectra-plot")
-except Exception:
-    __version__ = "0.1.0"
+def _resolve_version() -> str:
+    """Installed distribution metadata first; version.txt for source checkouts."""
+    try:
+        from importlib.metadata import PackageNotFoundError, version as _pkg_version
+    except ImportError:  # pragma: no cover - Python < 3.8
+        PackageNotFoundError, _pkg_version = Exception, None
+    if _pkg_version is not None:
+        try:
+            return _pkg_version("spectra-plot")
+        except PackageNotFoundError:
+            pass
+    # Running from a source checkout without an install: <repo>/python/spectra/
+    import os as _os
+
+    _vfile = _os.path.join(_os.path.dirname(__file__), "..", "..", "version.txt")
+    try:
+        with open(_vfile, encoding="utf-8") as _f:
+            return _f.read().strip()
+    except OSError:
+        return "0+unknown"
+
+
+__version__ = _resolve_version()
 
 __all__ = [
     # Easy API — one-liners

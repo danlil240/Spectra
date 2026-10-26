@@ -360,9 +360,18 @@ std::unique_ptr<Connection> Client::connect(const std::string& path)
 
 std::string runtime_dir()
 {
+    // Keep in sync with _runtime_socket_dir() in python/spectra/_launcher.py.
     const char* xdg = std::getenv("XDG_RUNTIME_DIR");
     if (xdg && xdg[0] != '\0')
-        return xdg;
+    {
+        // Use XDG only when a worst-case `spectra-<pid>.sock` still fits in
+        // sun_path; otherwise binding would fail, so fall back to the temp dir.
+        const size_t max_len = max_socket_path_length();
+        const size_t needed  = std::strlen(xdg) + std::strlen("/spectra-4194304.sock");
+        if (max_len == 0 || needed <= max_len)
+            return xdg;
+        SPECTRA_LOG_DEBUG("ipc", "XDG_RUNTIME_DIR too long for a Unix socket; using temp dir");
+    }
 
     std::error_code ec;
     auto            tmp = std::filesystem::temp_directory_path(ec);
@@ -371,7 +380,13 @@ std::string runtime_dir()
     while (dir.size() > 1 && (dir.back() == '/' || dir.back() == '\\'))
         dir.pop_back();
     if (dir.empty())
+    {
+#ifdef _WIN32
         dir = ".";
+#else
+        dir = "/tmp";   // invalid $TMPDIR: same fallback as the Python launcher
+#endif
+    }
     return dir;
 }
 

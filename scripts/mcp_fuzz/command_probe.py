@@ -18,6 +18,9 @@ import time
 import urllib.request
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from mcp_auth import mcp_headers, prepare_launch_env  # noqa: E402
+
 SCRIPT_DIR = Path(__file__).resolve().parent
 WORKSPACE = Path(os.environ.get("SPECTRA_ROOT", SCRIPT_DIR.parent.parent))
 MCP = os.environ.get("SPECTRA_MCP_URL", "http://127.0.0.1:8765/mcp")
@@ -53,7 +56,7 @@ def mcp(tool: str, args: dict | None = None, timeout: float = 20) -> dict:
     req = urllib.request.Request(
         MCP,
         data=payload,
-        headers={"Content-Type": "application/json"},
+        headers=mcp_headers(),
         method="POST",
     )
     try:
@@ -78,6 +81,7 @@ def launch(ros: bool = False) -> None:
     env["SPECTRA_NO_NATIVE_DIALOGS"] = "1"
     env.pop("VK_ICD_FILENAMES", None)
     env.pop("LIBGL_ALWAYS_SOFTWARE", None)
+    prepare_launch_env(env)
 
     binary = WORKSPACE / "build" / ("spectra-ros" if ros else "spectra")
     stderr_path = Path(f"/tmp/command_probe_{binary.name}.log")

@@ -18,7 +18,7 @@ For released binaries, the requirements are smaller than for source builds:
 
 ## Building
 
-For the complete agent-ready environment and full feature matrix, see
+For the complete list of build dependencies and CMake options, see
 [`../BUILD_ENVIRONMENT.md`](../BUILD_ENVIRONMENT.md).
 
 Ubuntu/Debian source-build dependencies:
@@ -234,8 +234,12 @@ notebooks, or any Python application.
 ### Installation
 
 ```bash
-# From the project root (editable install)
-pip install -e python/
+# Platform wheel from PyPI (bundles spectra-backend + spectra-window)
+pip install spectra-plot
+
+# From the project root: editable install of the Python sources only
+# (uses ./build/spectra-backend from your CMake build)
+pip install -e . -Cwheel.cmake=false
 ```
 
 ### Quick Start

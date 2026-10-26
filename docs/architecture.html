@@ -187,12 +187,12 @@
               <tr><td>Neither</td><td>Inproc (default, single-process)</td></tr>
             </tbody>
           </table>
-          <div class="callout">Both code paths are always compiled — mode is selected at runtime (no <code>#ifdef</code>).</div>
+          <div class="callout">Both code paths are always compiled — mode is selected at runtime (no <code>#ifdef</code>). The CMake option <code>SPECTRA_RUNTIME_MODE</code> (<code>multiproc</code> by default) only controls which binaries are built: <code>multiproc</code> additionally builds <code>spectra-backend</code> and <code>spectra-window</code>. The Python client always uses the multiproc path and auto-launches the backend.</div>
 
           <article class="diagram-feature" style="margin-top: 1.5rem">
             <div class="diagram-feature-head">
               <h3>Mode selection flow</h3>
-              <p><code>SPECTRA_RUNTIME_MODE</code>, <code>AppConfig::socket_path</code>, or <code>SPECTRA_SOCKET</code> pick inproc vs multiproc at startup.</p>
+              <p><code>AppConfig::socket_path</code> or <code>SPECTRA_SOCKET</code> pick multiproc at startup; otherwise the app runs in-process. <code>SPECTRA_RUNTIME_MODE</code> is a build-time option that selects which binaries are built.</p>
             </div>
             <div class="diagram-feature-canvas">
               <img src="images/diagrams/runtime-modes.png" alt="Spectra runtime mode selection: inproc single binary or multiproc backend and agents" width="1120" height="380" />
@@ -281,7 +281,7 @@
 ├── plans/                # Architecture plans, roadmap, UI redesign spec
 ├── cmake/                # CompileShaders, EmbedShaders, EmbedAssets, config
 ├── .github/workflows/    # CI + Release pipeline
-├── version.txt           # Single source of truth: 0.1.0
+├── version.txt           # Single source of truth for the version
 ├── Makefile              # Developer workflow shortcuts
 └── CMakeLists.txt        # Root build configuration</code></pre>
         </div>
@@ -295,12 +295,12 @@
             <article class="card link-card">
               <h3>Multi-Window Architecture</h3>
               <p>WindowContext extraction, per-window swapchain, figure registry, tear-off UX.</p>
-              <a href="https://github.com/danlil240/Spectra/blob/main/plans/MULTI_WINDOW_ARCHITECTURE.md">Read plan →</a>
+              <a href="diagrams.html">View diagrams →</a>
             </article>
             <article class="card link-card">
               <h3>Python IPC Architecture</h3>
               <p>TLV protocol, session management, codec layers, backend daemon design.</p>
-              <a href="https://github.com/danlil240/Spectra/blob/main/plans/PYTHON_IPC_ARCHITECTURE.md">Read plan →</a>
+              <a href="https://github.com/danlil240/Spectra/blob/main/docs/architecture.md#ipc-and-multiprocess-runtime">Read the IPC section →</a>
             </article>
           </div>
         </div>
@@ -310,7 +310,7 @@
       <section class="section">
         <div class="container">
           <h2>Contributing Guidelines</h2>
-          <p>The codebase is organized into independent modules — see <a href="https://github.com/danlil240/Spectra/blob/main/plans/agents_plan.md"><code>plans/agents_plan.md</code></a> for the module decomposition.</p>
+          <p>The codebase is organized into independent modules — see <a href="https://github.com/danlil240/Spectra/blob/main/CONTRIBUTING.md"><code>CONTRIBUTING.md</code></a> for the build, test, and review workflow.</p>
           <ol>
             <li><strong>C++20</strong> — No global state, RAII throughout, thread-safe via <code>std::mutex</code></li>
             <li><strong>Public headers</strong> — Keep <code>include/spectra/</code> minimal; implementation in <code>src/</code></li>

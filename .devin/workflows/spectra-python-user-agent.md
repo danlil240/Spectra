@@ -10,7 +10,7 @@ description: Spectra Python User Agent — Exercise every Python API feature end
 >
 > | Mode | Binary | MCP Available? | Used by |
 > |------|--------|----------------|--------|
-> | In-process | `build/spectra` | Yes (port 8765) | MCP tools, direct UI testing |
+> | In-process | `build/spectra` | Opt-in (`SPECTRA_AUTOMATION=1`, port 8765, bearer token) | MCP tools, direct UI testing |
 > | Multi-process | `build/spectra-backend` + `build/spectra-window` | **No** | Python API |
 >
 > The Python API auto-launches `spectra-backend` (daemon) which spawns `spectra-window` (agent) processes.
@@ -42,7 +42,7 @@ description: Spectra Python User Agent — Exercise every Python API feature end
 
 3. **Install the Python package** in development mode:
    ```bash
-   cd /home/daniel/projects/Spectra/python && pip install -e . 2>/dev/null || true
+   cd /home/daniel/projects/Spectra && pip install -e . -Cwheel.cmake=false 2>/dev/null || true
    ```
 
 4. **Verify Python can connect** — run a quick smoke test:

@@ -47,16 +47,19 @@ After registering a command, verify it appears and executes via the live MCP ser
 
 ```bash
 pkill -f spectra || true; sleep 0.5
+export SPECTRA_AUTOMATION=1 SPECTRA_MCP_TOKEN="${SPECTRA_MCP_TOKEN:-$(openssl rand -hex 32)}"  # automation is opt-in (SECURITY.md)
 ./build/spectra &
 sleep 1
 
 # List all commands (verify yours appears)
 curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Authorization: Bearer $SPECTRA_MCP_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"list_commands","arguments":{}}}'
 
 # Execute your new command
 curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Authorization: Bearer $SPECTRA_MCP_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"execute_command","arguments":{"command_id":"your.command.id"}}}'
 ```
@@ -66,5 +69,5 @@ curl -s -X POST http://127.0.0.1:8765/mcp \
 Automation methods are registered in `src/ui/automation/handlers/`. Use `list_methods` to inspect handler metadata:
 
 ```bash
-echo '{"method":"list_methods","params":{}}' | nc -U /tmp/spectra-auto-<pid>.sock
+echo '{"method":"list_methods","params":{}}' | nc -U "${XDG_RUNTIME_DIR:-/tmp}"/spectra-auto-<pid>.sock   # needs SPECTRA_AUTOMATION=1
 ```

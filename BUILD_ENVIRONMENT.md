@@ -288,25 +288,30 @@ UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 \
 
 ## 9. Python Bindings
 
-```bash
-# Development install (runs backend as a subprocess)
-cd python && pip install -e ".[dev]"
+The only Python packaging definition is the root `pyproject.toml`
+(scikit-build-core); the version comes from `version.txt`.
 
-# Run Python tests
+```bash
+# Development install from the repo root, pure Python (skips the C++ build;
+# the launcher uses ./build/spectra-backend or $SPECTRA_BACKEND_PATH)
+pip install -e ".[dev]" -Cwheel.cmake=false
+
+# Run Python tests (Qt / libspectra_embed tests skip when unavailable)
 cd python && pytest tests/ -v
 ```
 
-To embed the backend binary into the Python wheel:
+Platform wheel (compiles the C++ tree and bundles `spectra-backend` +
+`spectra-window` in `spectra/_bin/`; only the `python_wheel` CMake install
+component goes into the wheel):
 
 ```bash
-cmake -B build -G Ninja \
-    -DCMAKE_BUILD_TYPE=Release \
-    -DSPECTRA_PYTHON_WHEEL=ON \
-    -DSPECTRA_RUNTIME_MODE=multiproc
-
-cmake --build build -j$(nproc)
-cmake --install build --prefix python/spectra/_bin
+CMAKE_BUILD_PARALLEL_LEVEL=$(nproc) pip wheel . -w dist --no-deps
 ```
+
+Without bundled binaries, `spectra-backend --download` (or
+`SPECTRA_AUTO_DOWNLOAD=1`) fetches the release matching the package version
+and verifies it against the release `SHA256SUMS`; it never runs unverified
+binaries.
 
 ---
 

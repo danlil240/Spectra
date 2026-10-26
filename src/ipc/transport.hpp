@@ -102,8 +102,9 @@ class Client
 
 // ─── Utility ─────────────────────────────────────────────────────────────────
 
-// Directory used for Spectra's Unix sockets: $XDG_RUNTIME_DIR when set,
-// otherwise std::filesystem::temp_directory_path() ($TMPDIR or /tmp).
+// Directory used for Spectra's Unix sockets: $XDG_RUNTIME_DIR when set and
+// short enough for a `spectra-<pid>.sock` path to fit in sun_path, otherwise
+// std::filesystem::temp_directory_path() ($TMPDIR or /tmp).
 // All components (app, daemon, publishers) must agree on it for discovery.
 std::string runtime_dir();
 

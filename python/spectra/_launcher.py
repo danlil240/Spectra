@@ -26,8 +26,29 @@ def _runtime_socket_dir() -> str:
         return os.path.join(temp, "spectra")
     xdg = os.environ.get("XDG_RUNTIME_DIR")
     if xdg:
+        # The daemon names its socket `spectra-<pid>.sock`. If that cannot fit
+        # in sockaddr_un.sun_path the daemon fails with "Failed to listen", so
+        # fall back to /tmp (the same dir the C++ side uses without XDG).
+        worst_case = os.path.join(xdg, "spectra-4194304.sock")
+        if not _socket_path_fits(worst_case):
+            log.debug(
+                "launcher XDG_RUNTIME_DIR too long for a UNIX socket (%d bytes), using /tmp",
+                len(xdg),
+            )
+            return "/tmp"
         return xdg
     return "/tmp"
+
+
+def _sun_path_max() -> int:
+    """Usable bytes in sockaddr_un.sun_path (incl. NUL): 108 Linux, 104 BSD/macOS."""
+    return 108 if sys.platform.startswith("linux") else 104
+
+
+def _socket_path_fits(path: str) -> bool:
+    if _IS_WINDOWS:
+        return True
+    return len(os.fsencode(path)) < _sun_path_max()
 
 
 def _discover_live_brokers() -> list[str]:
@@ -172,7 +193,9 @@ def _find_backend_binary() -> Optional[str]:
     2. Bundled binary inside pip-installed package (_bin/spectra-backend[.exe])
     3. Heuristic: common build directories relative to project root
     4. System PATH (filtered — skips script wrappers to avoid exec loops)
-    5. Previously downloaded binary in user cache
+    5. Previously downloaded binary in the user cache, only if it matches the
+       installed package version and passes its SHA-256 manifest check
+       (see ``spectra._download``)
     """
     _exe = ".exe" if _IS_WINDOWS else ""
 
@@ -249,28 +272,48 @@ def ensure_backend(socket_path: str, timeout: float = 5.0) -> str:
 
     binary = _find_backend_binary()
     if binary is None:
-        # No binary found locally — try downloading from GitHub Releases
-        if os.environ.get("SPECTRA_NO_DOWNLOAD", "").lower() not in ("1", "true", "yes"):
+        _dl_hint = ""
+        from ._download import auto_download_enabled
+
+        if auto_download_enabled():
+            # Explicit opt-in (SPECTRA_AUTO_DOWNLOAD=1): fetch the release that
+            # matches this package version, verified against SHA256SUMS.
             try:
                 from ._download import download_backend
-                log.info("launcher attempting backend auto-download")
+
+                log.info("launcher attempting verified backend download")
                 download_backend()
                 binary = _find_backend_binary()
             except Exception as dl_err:
-                # Download failed — fall through to the error below with a hint
-                _dl_hint = f"\nAuto-download failed: {dl_err}"
-            else:
-                _dl_hint = ""
+                _dl_hint = f"\nVerified download failed: {dl_err}"
         else:
-            _dl_hint = "\n(Auto-download disabled by SPECTRA_NO_DOWNLOAD)"
+            _dl_hint = (
+                "\nTo fetch a checksum-verified pre-built backend for this version, run "
+                "`spectra-backend --download` (or set SPECTRA_AUTO_DOWNLOAD=1)."
+            )
         if binary is None:
             raise RuntimeError(
                 "spectra-backend binary not found. "
-                "Install the spectra-plot wheel (includes the binary), "
+                "Install a spectra-plot platform wheel (bundles the binaries), "
                 "set SPECTRA_BACKEND_PATH, or build with CMake "
                 "(cmake -B build -DSPECTRA_RUNTIME_MODE=multiproc)."
                 + _dl_hint
             )
+
+    if socket_path and not _socket_path_fits(socket_path):
+        raise RuntimeError(
+            f"Socket path is too long for a UNIX domain socket "
+            f"({len(os.fsencode(socket_path))} bytes, limit {_sun_path_max() - 1}): "
+            f"{socket_path}\nUse a shorter SPECTRA_SOCKET / XDG_RUNTIME_DIR."
+        )
+
+    if not socket_path and not _IS_WINDOWS:
+        xdg = os.environ.get("XDG_RUNTIME_DIR")
+        if xdg and _runtime_socket_dir() != xdg:
+            # XDG_RUNTIME_DIR is too long: the daemon's default path would not
+            # fit sun_path. Pin a short path in the fallback dir instead.
+            socket_path = os.path.join(_runtime_socket_dir(), f"spectra-{os.getpid()}.sock")
+            log.info("launcher XDG_RUNTIME_DIR too long, pinning socket=%s", socket_path)
 
     # Ensure socket directory exists (only meaningful when we have a path).
     if socket_path:
@@ -286,10 +329,22 @@ def ensure_backend(socket_path: str, timeout: float = 5.0) -> str:
             except OSError:
                 pass
 
-    # Launch backend
+    # Launch backend. Its stderr goes to a file (never an unread PIPE: a
+    # long-lived daemon would block once the pipe buffer fills) so that a
+    # startup failure can be reported with the backend's own error message.
     _debug_log = os.environ.get("SPECTRA_DEBUG_LOG")
-    _stderr_target = open(_debug_log, "w") if _debug_log else subprocess.PIPE
+    if _debug_log:
+        stderr_path = _debug_log
+        _stderr_target = open(_debug_log, "w")
+        _owns_stderr_file = False
+    else:
+        import tempfile
+
+        fd, stderr_path = tempfile.mkstemp(prefix="spectra-backend-", suffix=".log")
+        _stderr_target = os.fdopen(fd, "w")
+        _owns_stderr_file = True
     popen_kwargs: dict = dict(
+        stdin=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,
         stderr=_stderr_target,
     )
@@ -317,19 +372,32 @@ def ensure_backend(socket_path: str, timeout: float = 5.0) -> str:
     argv = [binary]
     if socket_path:
         argv += ["--socket", socket_path]
-    proc = subprocess.Popen(argv, **popen_kwargs)
+    try:
+        proc = subprocess.Popen(argv, **popen_kwargs)
+    finally:
+        _stderr_target.close()  # the child holds its own descriptor
     log.info(
         "launcher started backend pid=%s binary=%s socket=%s",
         proc.pid, binary, socket_path or "<default>",
     )
+
+    def _started(path: str) -> str:
+        log.info("launcher backend ready socket=%s", path)
+        if _owns_stderr_file and not _IS_WINDOWS:
+            # The daemon keeps its descriptor; drop the name so temp logs do
+            # not pile up (set SPECTRA_DEBUG_LOG to keep the backend log).
+            try:
+                os.unlink(stderr_path)
+            except OSError:
+                pass
+        return path
 
     # Wait for socket to appear and be connectable.
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         if socket_path:
             if _can_connect(socket_path):
-                log.info("launcher backend ready socket=%s", socket_path)
-                return socket_path
+                return _started(socket_path)
         else:
             # Find a newly-created spectra-*.sock that wasn't there before.
             try:
@@ -343,22 +411,39 @@ def ensure_backend(socket_path: str, timeout: float = 5.0) -> str:
                 current = set()
             for p in sorted(current - pre_existing):
                 if _can_connect(p):
-                    log.info("launcher backend ready socket=%s", p)
-                    return p
+                    return _started(p)
         # If the process already exited, don't keep waiting
         if proc.poll() is not None:
             break
         time.sleep(0.05)
 
-    # Collect stderr for the error message if available
-    hint = ""
-    if proc.poll() is not None and _stderr_target == subprocess.PIPE:
-        stderr_bytes = proc.stderr.read() if proc.stderr else b""
-        if stderr_bytes:
-            hint = f"\nBackend stderr:\n{stderr_bytes.decode(errors='replace').rstrip()}"
+    exit_code = proc.poll()
+    stderr_text = _read_tail(stderr_path)
+    if _owns_stderr_file:
+        try:
+            os.unlink(stderr_path)
+        except OSError:
+            pass
 
-    raise RuntimeError(
-        f"spectra-backend did not start within {timeout}s. "
-        f"Binary: {binary}\n"
-        f"Socket: {socket_path or '<default>'}{hint}"
-    )
+    if exit_code is not None:
+        what = f"spectra-backend exited during startup with code {exit_code}"
+    else:
+        what = f"spectra-backend did not start within {timeout}s"
+    hint = ""
+    if stderr_text:
+        hint = f"\nBackend stderr:\n{stderr_text}"
+    shown_socket = socket_path or os.path.join(_runtime_socket_dir(), "spectra-<pid>.sock")
+    raise RuntimeError(f"{what}.\nBinary: {binary}\nSocket: {shown_socket}{hint}")
+
+
+def _read_tail(path: str, max_bytes: int = 8192) -> str:
+    """Return the last *max_bytes* of a text file (best effort)."""
+    try:
+        with open(path, "rb") as f:
+            f.seek(0, os.SEEK_END)
+            size = f.tell()
+            f.seek(max(0, size - max_bytes))
+            data = f.read()
+    except OSError:
+        return ""
+    return data.decode(errors="replace").rstrip()

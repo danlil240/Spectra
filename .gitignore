@@ -99,3 +99,5 @@ python/graphify-out/
 
 
 .ccls-cache/
+# clangd/ccls compile database (opt-in symlink: -DSPECTRA_LINK_COMPILE_COMMANDS=ON)
+/compile_commands.json

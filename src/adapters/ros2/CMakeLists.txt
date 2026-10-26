@@ -126,8 +126,8 @@ find_package(visualization_msgs REQUIRED)
 find_package(rcpputils QUIET)
 
 set(SPECTRA_NLOHMANN_JSON_INCLUDE_DIR "")
-if(EXISTS "${CMAKE_SOURCE_DIR}/third_party/nlohmann/json.hpp")
-    set(SPECTRA_NLOHMANN_JSON_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/third_party")
+if(EXISTS "${spectra_SOURCE_DIR}/third_party/nlohmann/json.hpp")
+    set(SPECTRA_NLOHMANN_JSON_INCLUDE_DIR "${spectra_SOURCE_DIR}/third_party")
     message(STATUS "Using bundled nlohmann/json from third_party/")
 else()
     find_package(nlohmann_json CONFIG QUIET)
@@ -267,9 +267,9 @@ target_include_directories(spectra_ros2_adapter PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 target_include_directories(spectra_ros2_adapter PRIVATE
-    ${CMAKE_SOURCE_DIR}/src
-    ${CMAKE_BINARY_DIR}/generated
-    ${CMAKE_SOURCE_DIR}/third_party/stb
+    ${spectra_SOURCE_DIR}/src
+    ${spectra_BINARY_DIR}/generated
+    ${spectra_SOURCE_DIR}/third_party/stb
     ${SPECTRA_NLOHMANN_JSON_INCLUDE_DIR}
 )
 
@@ -293,24 +293,24 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp)
     target_compile_features(spectra-ros PRIVATE cxx_std_20)
     target_include_directories(spectra-ros PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
-        ${CMAKE_SOURCE_DIR}/src
-        ${CMAKE_BINARY_DIR}/generated
+        ${spectra_SOURCE_DIR}/src
+        ${spectra_BINARY_DIR}/generated
     )
     if(_spectra_ros_ld_library_path AND _spectra_ros_ament_prefix_path)
         set_target_properties(spectra-ros PROPERTIES
-            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/.spectra-ros-real"
+            RUNTIME_OUTPUT_DIRECTORY "${spectra_BINARY_DIR}/.spectra-ros-real"
         )
-        file(WRITE "${CMAKE_BINARY_DIR}/spectra-ros" "#!/bin/bash
+        file(WRITE "${spectra_BINARY_DIR}/spectra-ros" "#!/bin/bash
 # Auto-generated wrapper: sources the captured ROS2 environment and re-execs
 # the real binary. Generated because ROS2 was auto-sourced at configure time.
 export LD_LIBRARY_PATH=\"${_spectra_ros_ld_library_path}\${LD_LIBRARY_PATH:+:\$LD_LIBRARY_PATH}\"
 export AMENT_PREFIX_PATH=\"${_spectra_ros_ament_prefix_path}\${AMENT_PREFIX_PATH:+:\$AMENT_PREFIX_PATH}\"
 exec \"\$(dirname \"\$0\")/.spectra-ros-real/spectra-ros\" \"\$@\"
 ")
-        file(CHMOD "${CMAKE_BINARY_DIR}/spectra-ros" PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
+        file(CHMOD "${spectra_BINARY_DIR}/spectra-ros" PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
     else()
         set_target_properties(spectra-ros PROPERTIES
-            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
+            RUNTIME_OUTPUT_DIRECTORY "${spectra_BINARY_DIR}"
         )
     endif()
 endif()
@@ -323,23 +323,23 @@ if(SPECTRA_ROS2_BAG AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/tools/ros_bag_analyze
     target_compile_features(spectra-ros-analyze PRIVATE cxx_std_20)
     target_include_directories(spectra-ros-analyze PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
-        ${CMAKE_SOURCE_DIR}/src
+        ${spectra_SOURCE_DIR}/src
     )
     if(_spectra_ros_ld_library_path AND _spectra_ros_ament_prefix_path)
         set_target_properties(spectra-ros-analyze PROPERTIES
-            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/.spectra-ros-real"
+            RUNTIME_OUTPUT_DIRECTORY "${spectra_BINARY_DIR}/.spectra-ros-real"
         )
-        file(WRITE "${CMAKE_BINARY_DIR}/spectra-ros-analyze" "#!/bin/bash
+        file(WRITE "${spectra_BINARY_DIR}/spectra-ros-analyze" "#!/bin/bash
 # Auto-generated wrapper: sources the captured ROS2 environment and re-execs
 # the real binary. Generated because ROS2 was auto-sourced at configure time.
 export LD_LIBRARY_PATH=\"${_spectra_ros_ld_library_path}\${LD_LIBRARY_PATH:+:\$LD_LIBRARY_PATH}\"
 export AMENT_PREFIX_PATH=\"${_spectra_ros_ament_prefix_path}\${AMENT_PREFIX_PATH:+:\$AMENT_PREFIX_PATH}\"
 exec \"\$(dirname \"\$0\")/.spectra-ros-real/spectra-ros-analyze\" \"\$@\"
 ")
-        file(CHMOD "${CMAKE_BINARY_DIR}/spectra-ros-analyze" PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
+        file(CHMOD "${spectra_BINARY_DIR}/spectra-ros-analyze" PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
     else()
         set_target_properties(spectra-ros-analyze PROPERTIES
-            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
+            RUNTIME_OUTPUT_DIRECTORY "${spectra_BINARY_DIR}"
         )
     endif()
     install(TARGETS spectra-ros-analyze RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
@@ -364,14 +364,14 @@ install(TARGETS spectra_ros2_adapter
 )
 if(TARGET spectra-ros)
     install(TARGETS spectra-ros RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-    if(EXISTS ${CMAKE_SOURCE_DIR}/sessions/presets)
-        install(DIRECTORY ${CMAKE_SOURCE_DIR}/sessions/presets/
+    if(EXISTS ${spectra_SOURCE_DIR}/sessions/presets)
+        install(DIRECTORY ${spectra_SOURCE_DIR}/sessions/presets/
             DESTINATION ${CMAKE_INSTALL_DATADIR}/spectra/ros/sessions/presets
             FILES_MATCHING PATTERN "*.spectra-ros-session"
         )
     endif()
-    if(EXISTS ${CMAKE_SOURCE_DIR}/examples/ros2_launch)
-        install(DIRECTORY ${CMAKE_SOURCE_DIR}/examples/ros2_launch/
+    if(EXISTS ${spectra_SOURCE_DIR}/examples/ros2_launch)
+        install(DIRECTORY ${spectra_SOURCE_DIR}/examples/ros2_launch/
             DESTINATION ${CMAKE_INSTALL_DATADIR}/spectra/ros/launch
             FILES_MATCHING PATTERN "*.launch.py"
         )

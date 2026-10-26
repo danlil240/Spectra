@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.21)
 
 # Read version from single source-of-truth
 file(READ ${CMAKE_CURRENT_SOURCE_DIR}/version.txt _ver_raw)
@@ -7,6 +7,11 @@ set(SPECTRA_VERSION_STRING "${SPECTRA_VERSION}")
 
 project(spectra VERSION ${SPECTRA_VERSION} LANGUAGES CXX)
 
+# PROJECT_IS_TOP_LEVEL is false when Spectra is consumed via add_subdirectory()
+# or FetchContent.  Developer-only conveniences (tests, examples, ROS2/PX4
+# adapters, compile_commands.json, icon generation) default off in that case.
+set(SPECTRA_IS_TOP_LEVEL ${PROJECT_IS_TOP_LEVEL})
+
 # If a previous configure auto-sourced a ROS2 workspace, restore its
 # environment variables so CMake re-runs triggered by the build still work.
 include(${CMAKE_CURRENT_BINARY_DIR}/src/adapters/ros2/spectra_ros_env.cmake OPTIONAL)
@@ -14,38 +19,84 @@ include(${CMAKE_CURRENT_BINARY_DIR}/src/adapters/ros2/spectra_ros_env.cmake OPTI
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+if(SPECTRA_IS_TOP_LEVEL AND NOT DEFINED CMAKE_EXPORT_COMPILE_COMMANDS)
+    set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+endif()
 
-# Symlink compile_commands.json to project root for ccls / clangd indexing.
-# Recreated on every configure so it never goes stale after a clean or rebuild.
-if(EXISTS "${CMAKE_CURRENT_BINARY_DIR}/compile_commands.json")
+# Opt-in: symlink compile_commands.json into the source tree for clangd/ccls.
+# Off by default so a configure never writes into the source directory.
+option(SPECTRA_LINK_COMPILE_COMMANDS
+    "Symlink build/compile_commands.json into the source tree (top-level builds only)" OFF)
+if(SPECTRA_IS_TOP_LEVEL AND SPECTRA_LINK_COMPILE_COMMANDS
+   AND EXISTS "${CMAKE_CURRENT_BINARY_DIR}/compile_commands.json")
     file(CREATE_LINK
         "${CMAKE_CURRENT_BINARY_DIR}/compile_commands.json"
         "${CMAKE_CURRENT_SOURCE_DIR}/compile_commands.json"
         SYMBOLIC)
 endif()
 
-find_package(Python3 COMPONENTS Interpreter REQUIRED)
+# Python is only needed for optional code generators (hicolor icons, Emscripten
+# Vulkan stubs); it is not a hard build requirement.
+find_package(Python3 COMPONENTS Interpreter QUIET)
+
+# Hicolor icon theme PNGs (Linux desktop integration).  Generated from
+# icons/spectra_icon.png with Pillow when available; otherwise the 1024px
+# source icon is installed as-is (see the install section).
+set(SPECTRA_GENERATE_ICONS "AUTO" CACHE STRING
+    "Generate resized hicolor icons with Python+Pillow: AUTO | ON | OFF")
+set_property(CACHE SPECTRA_GENERATE_ICONS PROPERTY STRINGS AUTO ON OFF)
+set(_spectra_have_pillow FALSE)
+if(NOT SPECTRA_GENERATE_ICONS STREQUAL "OFF" AND Python3_Interpreter_FOUND)
+    execute_process(
+        COMMAND ${Python3_EXECUTABLE} -c "import PIL"
+        RESULT_VARIABLE _spectra_pil_result
+        OUTPUT_QUIET ERROR_QUIET
+    )
+    if(_spectra_pil_result EQUAL 0)
+        set(_spectra_have_pillow TRUE)
+    endif()
+endif()
+if(SPECTRA_GENERATE_ICONS STREQUAL "ON" AND NOT _spectra_have_pillow)
+    message(FATAL_ERROR "SPECTRA_GENERATE_ICONS=ON but Python3 with Pillow was not found")
+endif()
 set(SPECTRA_HICOLOR_ICON_SIZES 16 32 48 64 128 256 512)
 set(SPECTRA_HICOLOR_ICON_OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated/icons/hicolor)
-add_custom_command(
-    OUTPUT ${SPECTRA_HICOLOR_ICON_OUTPUT_DIR}/16x16/apps/spectra.png
-    COMMAND ${Python3_EXECUTABLE}
-        ${CMAKE_CURRENT_SOURCE_DIR}/cmake/generate_hicolor_icons.py
-        --input ${CMAKE_CURRENT_SOURCE_DIR}/icons/spectra_icon.png
-        --output-dir ${SPECTRA_HICOLOR_ICON_OUTPUT_DIR}
-        --name spectra.png
-        --sizes ${SPECTRA_HICOLOR_ICON_SIZES}
-    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/icons/spectra_icon.png
-    COMMENT "Generating hicolor icon theme PNGs"
-    VERBATIM
-)
-add_custom_target(spectra_hicolor_icons ALL DEPENDS ${SPECTRA_HICOLOR_ICON_OUTPUT_DIR}/16x16/apps/spectra.png)
+if(_spectra_have_pillow AND SPECTRA_IS_TOP_LEVEL)
+    set(SPECTRA_HICOLOR_ICONS_GENERATED TRUE)
+    add_custom_command(
+        OUTPUT ${SPECTRA_HICOLOR_ICON_OUTPUT_DIR}/16x16/apps/spectra.png
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/cmake/generate_hicolor_icons.py
+            --input ${CMAKE_CURRENT_SOURCE_DIR}/icons/spectra_icon.png
+            --output-dir ${SPECTRA_HICOLOR_ICON_OUTPUT_DIR}
+            --name spectra.png
+            --sizes ${SPECTRA_HICOLOR_ICON_SIZES}
+        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/icons/spectra_icon.png
+        COMMENT "Generating hicolor icon theme PNGs"
+        VERBATIM
+    )
+    add_custom_target(spectra_hicolor_icons ALL
+        DEPENDS ${SPECTRA_HICOLOR_ICON_OUTPUT_DIR}/16x16/apps/spectra.png)
+else()
+    set(SPECTRA_HICOLOR_ICONS_GENERATED FALSE)
+    if(SPECTRA_IS_TOP_LEVEL AND NOT SPECTRA_GENERATE_ICONS STREQUAL "OFF")
+        message(STATUS "Pillow not found: installing the source icon instead of resized hicolor icons")
+    endif()
+endif()
 
-# Generate version header
+include(GNUInstallDirs)
+
+# Generate version header.  generated/spectra/version.hpp is used by internal
+# targets; generated/public/ holds only public generated headers and is part of
+# spectra-core's build-tree include path (find_package from the build dir).
 configure_file(
     ${CMAKE_CURRENT_SOURCE_DIR}/cmake/version.hpp.in
     ${CMAKE_CURRENT_BINARY_DIR}/generated/spectra/version.hpp
+    @ONLY
+)
+configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/version.hpp.in
+    ${CMAKE_CURRENT_BINARY_DIR}/generated/public/spectra/version.hpp
     @ONLY
 )
 
@@ -80,14 +131,23 @@ option(SPECTRA_USE_IMGUI   "Enable Dear ImGui menu bar/settings" ON)
 option(SPECTRA_USE_QT      "Enable Qt adapter scaffolding"        OFF)
 option(SPECTRA_USE_FFMPEG  "Enable video export via ffmpeg pipe"  ON)
 option(SPECTRA_USE_EIGEN   "Enable Eigen vector adapters"         ON)
-option(SPECTRA_USE_ROS2    "Enable ROS2 adapter (requires sourced ROS2 workspace)" ON)
+# Developer/integration features default to ON only for top-level builds so
+# that add_subdirectory()/FetchContent consumers get just the library.
+option(SPECTRA_USE_ROS2    "Enable ROS2 adapter (requires sourced ROS2 workspace)" ${SPECTRA_IS_TOP_LEVEL})
 option(SPECTRA_ROS2_BAG    "Enable rosbag2 support (requires rosbag2 packages)"    ON)
-option(SPECTRA_USE_PX4     "Enable PX4 ULog adapter (ULog visualizer + MAVLink)"   ON)
+option(SPECTRA_USE_PX4     "Enable PX4 ULog adapter (ULog visualizer + MAVLink)"   ${SPECTRA_IS_TOP_LEVEL})
 option(SPECTRA_USE_WEBGPU  "Enable WebGPU/wasm rendering backend (requires Dawn or wgpu-native)" OFF)
-option(SPECTRA_BUILD_EXAMPLES "Build example programs"            ON)
+option(SPECTRA_BUILD_EXAMPLES "Build example programs"            ${SPECTRA_IS_TOP_LEVEL})
 option(SPECTRA_BUILD_QT_EXAMPLE "Build the Qt6 embed example"     OFF)
-option(SPECTRA_BUILD_TESTS    "Build unit tests and benchmarks"   ON)
+option(SPECTRA_BUILD_TESTS    "Build unit tests and benchmarks"   ${SPECTRA_IS_TOP_LEVEL})
+# The multiproc runtime spawns spectra-backend/spectra-window, so the apps are
+# built by default even for subproject consumers.
+option(SPECTRA_BUILD_APPS     "Build spectra, spectra-backend and spectra-window executables" ON)
+option(SPECTRA_INSTALL        "Generate install rules and the spectra CMake package" ON)
 option(SPECTRA_PYTHON_WHEEL  "Install backend into Python package _bin/" OFF)
+
+# SPECTRA_USE_SYSTEM_<DEP> switches (system package vs. pinned FetchContent copy)
+include(cmake/SpectraDependencyOptions.cmake)
 
 # Linux wheel builds: keep code generation on portable x86_64 ISA.
 if(SPECTRA_PYTHON_WHEEL
@@ -109,9 +169,14 @@ set_property(CACHE SPECTRA_RUNTIME_MODE PROPERTY STRINGS "inproc" "multiproc")
 set(SPECTRA_PRESENT_MODE "FIFO" CACHE STRING "Vulkan present mode: FIFO | MAILBOX | IMMEDIATE")
 set_property(CACHE SPECTRA_PRESENT_MODE PROPERTY STRINGS "FIFO" "MAILBOX" "IMMEDIATE")
 
-# Skip git network checks when FetchContent source dirs already exist.
-# On a clean checkout these are absent so the download still happens normally.
-set(FETCHCONTENT_UPDATES_DISCONNECTED ON CACHE BOOL "" FORCE)
+# Skip network update checks when FetchContent source dirs already exist (all
+# dependencies are pinned to tags, so there is nothing to update).  Only a
+# default for top-level builds, never FORCEd, so users and parent projects
+# keep control of FetchContent's behaviour.
+if(SPECTRA_IS_TOP_LEVEL AND NOT DEFINED FETCHCONTENT_UPDATES_DISCONNECTED)
+    set(FETCHCONTENT_UPDATES_DISCONNECTED ON CACHE BOOL
+        "Do not re-check pinned FetchContent dependencies on every configure")
+endif()
 
 message(STATUS "SPECTRA_RUNTIME_MODE: ${SPECTRA_RUNTIME_MODE}")
 message(STATUS "SPECTRA_PRESENT_MODE: ${SPECTRA_PRESENT_MODE}")
@@ -289,7 +354,8 @@ set_target_properties(spectra-core PROPERTIES
 
 target_include_directories(spectra-core PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/generated/public>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 
 target_include_directories(spectra-core PRIVATE
@@ -346,7 +412,7 @@ target_include_directories(spectra PRIVATE
 target_include_directories(spectra SYSTEM PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/vma
-    ${flatbuffers_SOURCE_DIR}/include
+    ${SPECTRA_FLATBUFFERS_INCLUDE_DIRS}
 )
 
 # Suppress warnings in third-party headers (stb_image.h tc16 array — GCC only)
@@ -368,7 +434,10 @@ target_compile_definitions(spectra PRIVATE SPECTRA_PRESENT_MODE_${SPECTRA_PRESEN
 # Emscripten: browsers have no Vulkan, so resolve the Vulkan backend's entry
 # points with generated stubs that fail cleanly at init.
 if(EMSCRIPTEN)
-    set(_spectra_vk_stubs ${CMAKE_CURRENT_BINARY_DIR}/generated/vulkan_stubs.cpp)
+    if(NOT Python3_Interpreter_FOUND)
+        message(FATAL_ERROR "Emscripten builds need Python 3 to generate Vulkan stubs")
+    endif()
+    set(_spectra_vk_stubs${CMAKE_CURRENT_BINARY_DIR}/generated/vulkan_stubs.cpp)
     add_custom_command(
         OUTPUT  ${_spectra_vk_stubs}
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/cmake/generate_vulkan_stubs.py
@@ -398,29 +467,47 @@ if(SPECTRA_USE_GLFW AND EMSCRIPTEN)
     target_link_libraries(spectra PRIVATE glfw)
     target_compile_definitions(spectra PUBLIC SPECTRA_USE_GLFW)
 elseif(SPECTRA_USE_GLFW)
-    # Always build GLFW from source to guarantee the latest Wayland support
-    # and a consistent API version across all platforms.
-    include(FetchContent)
-    FetchContent_Declare(
-        glfw
-        GIT_REPOSITORY https://github.com/glfw/glfw.git
-        GIT_TAG        master
-        GIT_SHALLOW    TRUE
-    )
-    set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
-    set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-    set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-    # Don't install GLFW's own headers/libs into the system prefix — they
-    # conflict with libglfw3-dev on the user's machine when the spectra .deb
-    # is installed.  The install and export of the glfw target is handled in
-    # the Install targets section.
-    set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
-    FetchContent_MakeAvailable(glfw)
-    # Bundle the GLFW static library in the spectra install so consumers
-    # don't need system GLFW.  $<BUILD_INTERFACE:> scopes the build-tree
-    # target; $<INSTALL_INTERFACE:> provides the exported name (spectra::glfw)
-    # for the installed package.
-    set(_spectra_glfw_link "$<BUILD_INTERFACE:glfw>;$<INSTALL_INTERFACE:spectra::glfw>")
+    # Prefer a system GLFW (>= 3.3; 3.4-only features are compile-time
+    # guarded) unless SPECTRA_USE_SYSTEM_GLFW=OFF forces the bundled copy.
+    set(SPECTRA_GLFW_FROM_SYSTEM OFF)
+    if(NOT SPECTRA_USE_SYSTEM_GLFW STREQUAL "OFF")
+        if(SPECTRA_USE_SYSTEM_GLFW STREQUAL "ON")
+            find_package(glfw3 3.3 CONFIG REQUIRED)
+        else()
+            find_package(glfw3 3.3 CONFIG QUIET)
+        endif()
+        if(glfw3_FOUND AND TARGET glfw)
+            set(SPECTRA_GLFW_FROM_SYSTEM ON)
+        endif()
+    endif()
+
+    if(SPECTRA_GLFW_FROM_SYSTEM)
+        message(STATUS "GLFW: using system glfw3 ${glfw3_VERSION} (${glfw3_DIR})")
+        set(_spectra_glfw_link glfw)
+    else()
+        message(STATUS "GLFW: building bundled GLFW 3.4 (FetchContent)")
+        include(FetchContent)
+        FetchContent_Declare(
+            glfw
+            GIT_REPOSITORY https://github.com/glfw/glfw.git
+            GIT_TAG        3.4  # 7b6aead9fb88b3623e3b3725ebb42670cbe4c579
+            GIT_SHALLOW    TRUE
+        )
+        set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+        set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+        set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+        # Don't install GLFW's own headers/libs into the system prefix — they
+        # conflict with libglfw3-dev on the user's machine when the spectra .deb
+        # is installed.  The install and export of the glfw target is handled in
+        # the Install targets section.
+        set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
+        FetchContent_MakeAvailable(glfw)
+        # Bundle the GLFW static library in the spectra install so consumers
+        # don't need system GLFW.  $<BUILD_INTERFACE:> scopes the build-tree
+        # target; $<INSTALL_INTERFACE:> provides the exported name (spectra::glfw)
+        # for the installed package.
+        set(_spectra_glfw_link "$<BUILD_INTERFACE:glfw>;$<INSTALL_INTERFACE:spectra::glfw>")
+    endif()
 
     target_sources(spectra PRIVATE src/ui/window/glfw_adapter.cpp)
     # GLFW is linked PRIVATE (no public header includes glfw3.h), but the
@@ -442,12 +529,30 @@ if(SPECTRA_USE_GLFW AND SPECTRA_USE_SDL3)
 endif()
 
 if(SPECTRA_USE_SDL3)
-    find_package(SDL3 QUIET)
+    set(SDL3_FOUND FALSE)
+    if(SPECTRA_USE_SYSTEM_SDL3 STREQUAL "ON")
+        find_package(SDL3 3.2 CONFIG REQUIRED)
+    elseif(SPECTRA_USE_SYSTEM_SDL3 STREQUAL "AUTO")
+        find_package(SDL3 3.2 CONFIG QUIET)
+    endif()
+    set(SPECTRA_SDL3_FROM_SYSTEM ${SDL3_FOUND})
+    if(SDL3_FOUND AND TARGET SDL3::SDL3-static)
+        set(SPECTRA_SDL3_TARGET SDL3::SDL3-static)
+    elseif(SDL3_FOUND)
+        # Distro packages usually ship only the shared library.
+        set(SPECTRA_SDL3_TARGET SDL3::SDL3)
+    else()
+        set(SPECTRA_SDL3_TARGET SDL3::SDL3-static)
+    endif()
     if(NOT SDL3_FOUND)
         include(FetchContent)
+        # Fetched over git (pinned tag) rather than a release tarball; some
+        # proxies block github.com release downloads but allow git.
         FetchContent_Declare(
             SDL3
-            URL https://github.com/libsdl-org/SDL/releases/download/release-3.2.0/SDL3-3.2.0.tar.gz
+            GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
+            GIT_TAG        release-3.2.0  # 535d80badefc83c5c527ec5748f2a20d6a9310fe
+            GIT_SHALLOW    TRUE
         )
         set(SDL_SHARED  OFF CACHE BOOL "" FORCE)
         set(SDL_STATIC  ON  CACHE BOOL "" FORCE)
@@ -467,9 +572,9 @@ if(SPECTRA_USE_SDL3)
         src/platform/window_system/sdl3_surface_host.cpp
     )
     # Link PRIVATE: SDL3 is an implementation detail; don't export to downstream consumers.
-    target_link_libraries(spectra PRIVATE SDL3::SDL3-static)
+    target_link_libraries(spectra PRIVATE ${SPECTRA_SDL3_TARGET})
     target_include_directories(spectra PRIVATE
-        $<TARGET_PROPERTY:SDL3::SDL3-static,INTERFACE_INCLUDE_DIRECTORIES>
+        $<TARGET_PROPERTY:${SPECTRA_SDL3_TARGET},INTERFACE_INCLUDE_DIRECTORIES>
     )
     target_compile_definitions(spectra PUBLIC SPECTRA_USE_SDL3)
 
@@ -610,7 +715,7 @@ if(SPECTRA_USE_IMGUI AND (SPECTRA_USE_GLFW OR SPECTRA_USE_SDL3))
     )
     if(SPECTRA_USE_SDL3)
         target_include_directories(spectra PRIVATE
-            $<TARGET_PROPERTY:SDL3::SDL3-static,INTERFACE_INCLUDE_DIRECTORIES>
+            $<TARGET_PROPERTY:${SPECTRA_SDL3_TARGET},INTERFACE_INCLUDE_DIRECTORIES>
         )
     endif()
     target_compile_definitions(spectra PUBLIC SPECTRA_USE_IMGUI)
@@ -752,7 +857,7 @@ if(SPECTRA_USE_PX4)
     endif()
 
     # spectra-px4 standalone executable
-    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/adapters/px4/main.cpp)
+    if(SPECTRA_BUILD_APPS AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/adapters/px4/main.cpp)
         add_executable(spectra-px4
             src/adapters/px4/main.cpp
         )
@@ -788,6 +893,11 @@ if(SPECTRA_BUILD_EMBED_SHARED)
     )
     target_link_libraries(spectra_embed PRIVATE spectra)
     target_compile_features(spectra_embed PRIVATE cxx_std_20)
+    # Consumers of the C FFI only need include/spectra/spectra_embed_c.h.
+    target_include_directories(spectra_embed INTERFACE
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+    )
     target_include_directories(spectra_embed PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_BINARY_DIR}/generated
@@ -804,13 +914,11 @@ if(SPECTRA_BUILD_EMBED_SHARED)
         POSITION_INDEPENDENT_CODE ON
         OUTPUT_NAME spectra_embed
     )
-    install(TARGETS spectra_embed
-        LIBRARY DESTINATION lib
-    )
 endif()
 
 # spectra — main application executable (welcome screen, no initial figure)
-if((SPECTRA_USE_GLFW OR SPECTRA_USE_SDL3) AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/app/main.cpp)
+if(SPECTRA_BUILD_APPS AND (SPECTRA_USE_GLFW OR SPECTRA_USE_SDL3)
+   AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/app/main.cpp)
     add_executable(spectra-app src/app/main.cpp)
     target_link_libraries(spectra-app PRIVATE spectra)
     # glfw is PRIVATE to spectra, so its include directories don't propagate;
@@ -827,7 +935,7 @@ if((SPECTRA_USE_GLFW OR SPECTRA_USE_SDL3) AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}
 endif()
 
 # Multi-process daemon + agent binaries (Phase 4 & 5)
-if(SPECTRA_RUNTIME_MODE STREQUAL "multiproc")
+if(SPECTRA_BUILD_APPS AND SPECTRA_RUNTIME_MODE STREQUAL "multiproc")
     # spectra-backend daemon
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/daemon/main.cpp)
         add_executable(spectra-backend
@@ -874,7 +982,7 @@ if(SPECTRA_RUNTIME_MODE STREQUAL "multiproc")
             )
             if(SPECTRA_USE_SDL3)
                 target_include_directories(spectra-window PRIVATE
-                    $<TARGET_PROPERTY:SDL3::SDL3-static,INTERFACE_INCLUDE_DIRECTORIES>
+                    $<TARGET_PROPERTY:${SPECTRA_SDL3_TARGET},INTERFACE_INCLUDE_DIRECTORIES>
                 )
             endif()
         endif()
@@ -882,32 +990,57 @@ if(SPECTRA_RUNTIME_MODE STREQUAL "multiproc")
 endif()
 
 # ─── Install targets ─────────────────────────────────────────────────────────
-include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
+set(SPECTRA_CMAKE_PACKAGE_DIR ${CMAKE_INSTALL_LIBDIR}/cmake/spectra)
+
+# Every target that is part of the spectra:: package.
+set(_spectra_export_targets spectra-core spectra)
+if(TARGET spectra_embed)
+    list(APPEND _spectra_export_targets spectra_embed)
+endif()
+# When GLFW was built from FetchContent it is a real target in this project and
+# must be part of the export set (consumers see it as spectra::glfw).  A system
+# GLFW is an imported target and is re-found by spectraConfig.cmake instead.
+if(SPECTRA_USE_GLFW AND NOT EMSCRIPTEN AND NOT SPECTRA_GLFW_FROM_SYSTEM AND TARGET glfw)
+    set(_spectra_bundled_glfw TRUE)
+else()
+    set(_spectra_bundled_glfw FALSE)
+endif()
+
+if(SPECTRA_INSTALL)
+
 # Library
-install(TARGETS spectra-core spectra EXPORT spectraTargets
+install(TARGETS ${_spectra_export_targets} EXPORT spectraTargets
     ARCHIVE  DESTINATION ${CMAKE_INSTALL_LIBDIR}
     LIBRARY  DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME  DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
-# When GLFW was built from FetchContent, add it to the export set so
-# spectra::glfw is available to consumers via find_package(spectra).
-if(SPECTRA_USE_GLFW AND TARGET glfw)
+if(_spectra_bundled_glfw)
     install(TARGETS glfw EXPORT spectraTargets
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}/spectra
     )
 endif()
 
-# Public headers
+# Public headers (C++ *.hpp and the C FFI header spectra_embed_c.h).  The
+# Eigen adapter headers are only usable when Spectra was built with Eigen.
+set(_spectra_header_excludes)
+if(NOT SPECTRA_USE_EIGEN)
+    list(APPEND _spectra_header_excludes
+        PATTERN "eigen.hpp" EXCLUDE
+        PATTERN "eigen_easy.hpp" EXCLUDE)
+endif()
 install(DIRECTORY include/spectra/
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/spectra
-    FILES_MATCHING PATTERN "*.hpp"
+    FILES_MATCHING
+        PATTERN "*.hpp"
+        PATTERN "*.h"
+        ${_spectra_header_excludes}
 )
 
 # Generated version header
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/generated/spectra/version.hpp
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/generated/public/spectra/version.hpp
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/spectra
 )
 
@@ -936,13 +1069,13 @@ if(TARGET spectra_ros2_adapter)
 endif()
 if(TARGET spectra-ros)
     install(TARGETS spectra-ros RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-    if(EXISTS ${CMAKE_SOURCE_DIR}/sessions/presets)
+    if(EXISTS ${PROJECT_SOURCE_DIR}/sessions/presets)
         install(DIRECTORY sessions/presets/
             DESTINATION ${CMAKE_INSTALL_DATADIR}/spectra/ros/sessions/presets
             FILES_MATCHING PATTERN "*.spectra-ros-session"
         )
     endif()
-    if(EXISTS ${CMAKE_SOURCE_DIR}/examples/ros2_launch)
+    if(EXISTS ${PROJECT_SOURCE_DIR}/examples/ros2_launch)
         install(DIRECTORY examples/ros2_launch/
             DESTINATION ${CMAKE_INSTALL_DATADIR}/spectra/ros/launch
             FILES_MATCHING PATTERN "*.launch.py"
@@ -962,12 +1095,16 @@ if(TARGET spectra-px4)
     install(TARGETS spectra-px4 RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 endif()
 
+endif() # SPECTRA_INSTALL
+
 # Python wheel: bundle backend binary into the Python package
 if(SPECTRA_PYTHON_WHEEL AND TARGET spectra-backend)
     install(TARGETS spectra-backend
         RUNTIME DESTINATION spectra/_bin
     )
 endif()
+
+if(SPECTRA_INSTALL)
 
 # Data assets (fonts, icons)
 install(FILES
@@ -976,10 +1113,19 @@ install(FILES
     third_party/SpectraIcons.otf
     DESTINATION ${CMAKE_INSTALL_DATADIR}/spectra/fonts
 )
-install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/generated/icons/hicolor/
-    DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor
-    FILES_MATCHING PATTERN "spectra.png"
-)
+if(SPECTRA_HICOLOR_ICONS_GENERATED)
+    install(DIRECTORY ${SPECTRA_HICOLOR_ICON_OUTPUT_DIR}/
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor
+        FILES_MATCHING PATTERN "spectra.png"
+    )
+else()
+    # No Pillow: fall back to the committed full-size icon (desktop
+    # environments also look up Icon=spectra in share/pixmaps/).
+    install(FILES icons/spectra_icon.png
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/pixmaps
+        RENAME spectra.png
+    )
+endif()
 install(FILES icons/spectra.desktop
     DESTINATION ${CMAKE_INSTALL_DATADIR}/applications
 )
@@ -1003,30 +1149,76 @@ install(FILES packaging/completions/spectra-backend.fish
     RENAME spectra-backend.fish
 )
 
+# License, third-party notices and the full third-party license texts.  They
+# land in every install and therefore in every CPack package (.deb/.rpm/.tgz).
+install(FILES LICENSE THIRD_PARTY_NOTICES.md
+    DESTINATION ${CMAKE_INSTALL_DOCDIR}
+)
+install(DIRECTORY licenses/
+    DESTINATION ${CMAKE_INSTALL_DOCDIR}/licenses
+)
+
 # CMake package config (find_package(spectra) support)
 install(EXPORT spectraTargets
     FILE spectraTargets.cmake
     NAMESPACE spectra::
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/spectra
+    DESTINATION ${SPECTRA_CMAKE_PACKAGE_DIR}
 )
+
+# Build-tree package: find_package(spectra) also works with
+# -Dspectra_DIR=<build dir>, without an install step.
+export(EXPORT spectraTargets
+    FILE ${CMAKE_CURRENT_BINARY_DIR}/spectraTargets.cmake
+    NAMESPACE spectra::
+)
+
+endif() # SPECTRA_INSTALL
+
+# Values substituted into spectraConfig.cmake so it only looks for the
+# dependencies this particular build actually used.
+set(SPECTRA_CONFIG_USE_EIGEN ${SPECTRA_USE_EIGEN})
+set(SPECTRA_CONFIG_SYSTEM_GLFW OFF)
+if(SPECTRA_USE_GLFW AND SPECTRA_GLFW_FROM_SYSTEM)
+    set(SPECTRA_CONFIG_SYSTEM_GLFW ON)
+endif()
+set(SPECTRA_CONFIG_SYSTEM_SDL3 OFF)
+if(SPECTRA_USE_SDL3 AND SPECTRA_SDL3_FROM_SYSTEM)
+    set(SPECTRA_CONFIG_SYSTEM_SDL3 ON)
+endif()
 
 configure_package_config_file(
     ${CMAKE_CURRENT_SOURCE_DIR}/cmake/spectraConfig.cmake.in
     ${CMAKE_CURRENT_BINARY_DIR}/spectraConfig.cmake
-    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/spectra
+    INSTALL_DESTINATION ${SPECTRA_CMAKE_PACKAGE_DIR}
 )
 
+# While the major version is 0, minor releases may break the API.
+if(PROJECT_VERSION_MAJOR EQUAL 0)
+    set(_spectra_version_compat SameMinorVersion)
+else()
+    set(_spectra_version_compat SameMajorVersion)
+endif()
 write_basic_package_version_file(
     ${CMAKE_CURRENT_BINARY_DIR}/spectraConfigVersion.cmake
     VERSION ${PROJECT_VERSION}
-    COMPATIBILITY SameMajorVersion
+    COMPATIBILITY ${_spectra_version_compat}
 )
 
-install(FILES
-    ${CMAKE_CURRENT_BINARY_DIR}/spectraConfig.cmake
-    ${CMAKE_CURRENT_BINARY_DIR}/spectraConfigVersion.cmake
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/spectra
-)
+if(SPECTRA_INSTALL)
+    install(FILES
+        ${CMAKE_CURRENT_BINARY_DIR}/spectraConfig.cmake
+        ${CMAKE_CURRENT_BINARY_DIR}/spectraConfigVersion.cmake
+        DESTINATION ${SPECTRA_CMAKE_PACKAGE_DIR}
+    )
+endif()
+
+# Namespaced aliases so add_subdirectory()/FetchContent consumers can use the
+# same target names as find_package(spectra) consumers.
+add_library(spectra::spectra ALIAS spectra)
+add_library(spectra::spectra-core ALIAS spectra-core)
+if(TARGET spectra_embed)
+    add_library(spectra::spectra_embed ALIAS spectra_embed)
+endif()
 
 # ─── CPack ───────────────────────────────────────────────────────────────────
 set(CPACK_PACKAGE_NAME "spectra")
@@ -1041,11 +1233,22 @@ set(CPACK_RESOURCE_FILE_README  ${CMAKE_CURRENT_SOURCE_DIR}/README.md)
 set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
 set(CPACK_DEBIAN_PACKAGE_SECTION "science")
 set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
-# SHLIBDEPS only scans executables, not static libraries. libspectra.a has
-# unresolved GLFW symbols, but GLFW 3.4 is bundled as spectra::glfw in the
-# install. Eigen3 is a PUBLIC dependency (find_dependency in spectraConfig).
+# SHLIBDEPS only scans executables and shared libraries, not static
+# libraries.  With the bundled GLFW (SPECTRA_USE_SYSTEM_GLFW=OFF, recommended
+# for release packages) libspectra.a's GLFW symbols are satisfied by the
+# installed spectra::glfw archive; with a system GLFW, find_package(spectra)
+# consumers need its development package.  Eigen3 is re-found by
+# spectraConfig.cmake only when Spectra was built with it.
 set(CPACK_DEBIAN_PACKAGE_DEPENDS "libvulkan1 (>= 1.3.204.0)")
-set(CPACK_DEBIAN_PACKAGE_SUGGESTS "libvulkan-dev, libeigen3-dev, pkg-config, cmake")
+set(_spectra_deb_recommends)
+if(SPECTRA_CONFIG_SYSTEM_GLFW)
+    list(APPEND _spectra_deb_recommends "libglfw3-dev")
+endif()
+if(SPECTRA_USE_EIGEN)
+    list(APPEND _spectra_deb_recommends "libeigen3-dev")
+endif()
+string(REPLACE ";" ", " CPACK_DEBIAN_PACKAGE_RECOMMENDS "${_spectra_deb_recommends}")
+set(CPACK_DEBIAN_PACKAGE_SUGGESTS "libvulkan-dev, pkg-config, cmake")
 if(SPECTRA_PKG_DISTRO_CODENAME)
     set(CPACK_DEBIAN_PACKAGE_RELEASE "1~${SPECTRA_PKG_DISTRO_CODENAME}")
 endif()
@@ -1053,9 +1256,25 @@ endif()
 # RPM
 set(CPACK_RPM_PACKAGE_REQUIRES "vulkan-loader >= 1.2")
 set(CPACK_RPM_PACKAGE_GROUP "Applications/Science")
+set(CPACK_RPM_PACKAGE_LICENSE "MIT")
 set(CPACK_RPM_FILE_NAME RPM-DEFAULT)
 
-include(CPack)
+# Only a top-level build owns packaging; a parent project keeps its own CPack.
+if(SPECTRA_IS_TOP_LEVEL)
+    include(CPack)
+endif()
+
+# ─── Packaging manifests (Homebrew / Scoop / AUR / Doxyfile version) ────────
+# Regenerates packaging/* and docs/Doxyfile's PROJECT_NUMBER from version.txt
+# (see tools/update_packaging.sh; the release job passes the SHA256 values).
+if(SPECTRA_IS_TOP_LEVEL)
+    add_custom_target(spectra_update_packaging
+        COMMAND ${CMAKE_COMMAND} -DSPECTRA_SOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}
+                -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/UpdatePackaging.cmake
+        COMMENT "Updating packaging manifests from version.txt"
+        VERBATIM
+    )
+endif()
 
 # ─── Examples ────────────────────────────────────────────────────────────────
 if(SPECTRA_BUILD_EXAMPLES)
@@ -1066,4 +1285,9 @@ endif()
 if(SPECTRA_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
+    # Packaging manifests (Homebrew/Scoop/AUR/Doxyfile) must track version.txt.
+    add_test(NAME packaging_manifests_match_version
+        COMMAND ${CMAKE_COMMAND} -DSPECTRA_SOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}
+                -DSPECTRA_CHECK=ON -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/UpdatePackaging.cmake)
+    set_tests_properties(packaging_manifests_match_version PROPERTIES LABELS "packaging")
 endif()

@@ -64,6 +64,57 @@ static bool render_headless(Figure& fig, App& app, std::vector<uint8_t>& pixels)
     return backend->readback_framebuffer(pixels.data(), w, h);
 }
 
+// Guard for the headless 3D auto-fit regression: every 3D axes with data must
+// frame all of its data.  (Before the fix, axes without explicit limits stayed
+// at [0,1]^3 in headless renders and the golden baselines captured that.)
+static void expect_3d_data_in_view(Figure& fig, const std::string& scene_name)
+{
+    for (auto& base : fig.all_axes())
+    {
+        auto* ax = dynamic_cast<Axes3D*>(base.get());
+        if (!ax)
+            continue;
+        for (auto& s : ax->series())
+        {
+            vec3 lo{};
+            vec3 hi{};
+            bool ok = false;
+            if (auto* sc = dynamic_cast<ScatterSeries3D*>(s.get()); sc && sc->point_count() > 0)
+            {
+                sc->get_bounds(lo, hi);
+                ok = true;
+            }
+            else if (auto* ln = dynamic_cast<LineSeries3D*>(s.get()); ln && ln->point_count() > 0)
+            {
+                ln->get_bounds(lo, hi);
+                ok = true;
+            }
+            else if (auto* sf = dynamic_cast<SurfaceSeries*>(s.get());
+                     sf && !sf->z_values().empty())
+            {
+                sf->get_bounds(lo, hi);
+                ok = true;
+            }
+            else if (auto* ms = dynamic_cast<MeshSeries*>(s.get()); ms && ms->vertex_count() > 0)
+            {
+                ms->get_bounds(lo, hi);
+                ok = true;
+            }
+            if (!ok)
+                continue;
+            const AxisLimits lims[3] = {ax->x_limits(), ax->y_limits(), ax->z_limits()};
+            for (int i = 0; i < 3; ++i)
+            {
+                const double eps = 1e-6 * std::max(1.0, std::abs(hi[i] - lo[i]));
+                EXPECT_LE(lims[i].min, lo[i] + eps)
+                    << scene_name << ": axis " << "xyz"[i] << " lower limit cuts off data";
+                EXPECT_GE(lims[i].max, hi[i] - eps)
+                    << scene_name << ": axis " << "xyz"[i] << " upper limit cuts off data";
+            }
+        }
+    }
+}
+
 static void run_golden_test_3d(const std::string&                 scene_name,
                                std::function<void(App&, Figure&)> setup_scene,
                                uint32_t                           width             = 640,
@@ -87,6 +138,7 @@ static void run_golden_test_3d(const std::string&                 scene_name,
 
     std::vector<uint8_t> actual_pixels;
     bool                 render_ok = render_headless(fig, app, actual_pixels);
+    expect_3d_data_in_view(fig, scene_name);
     // Clean up figure from registry so subsequent tests start with a fresh state.
     // Notify the renderer to purge cached GPU data for all axes of this figure
     // BEFORE unregistering — once the figure is destroyed the axes pointers are
@@ -579,8 +631,8 @@ TEST(Golden3D, MultiSubplot3D)
             ax2.title("Helix");
 
             auto&              ax3 = fig.subplot3d(2, 2, 3);
-            const int          nx = 15;
-            const int          ny = 15;
+            const int          nx  = 15;
+            const int          ny  = 15;
             std::vector<float> xg;
             std::vector<float> yg;
             std::vector<float> zv;

@@ -122,6 +122,7 @@ bool AutomationServer::start(const std::string& socket_path)
     addr.sun_family = AF_UNIX;
     if (socket_path_.size() >= sizeof(addr.sun_path))
     {
+        SPECTRA_LOG_ERROR("automation", "Socket path too long: " + socket_path_);
         ::close(listen_fd_);
         listen_fd_ = -1;
         return false;

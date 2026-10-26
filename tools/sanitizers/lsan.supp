@@ -13,3 +13,8 @@ leak:libfontconfig.so.1
 
 # Wayland client protocol proxy objects leaked by GLFW's Wayland backend.
 leak:libwayland-client.so.0
+
+# libX11 Display allocations made when GLFW's X11 backend connects (_glfwConnectX11).
+# GLFW dlcloses libX11 in glfwTerminate, so LSan reports XOpenDisplay internals as
+# leaks from an unknown module even though the display was closed.
+leak:_glfwConnectX11

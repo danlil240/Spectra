@@ -9,12 +9,13 @@
 
 #include "ui/native_dialog_policy.hpp"
 
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(__APPLE__)
+    #define SPECTRA_EXPORT_DIALOG_ZENITY 1
     #include <fcntl.h>
     #include <sys/wait.h>
     #include <unistd.h>
 #else
-// Windows fallback: tinyfiledialogs
+// Windows / macOS: tinyfiledialogs (Win32 API / osascript).
 extern "C" char* tinyfd_saveFileDialog(char const*        aTitle,
                                        char const*        aDefaultPathAndFile,
                                        int                aNumOfFilterPatterns,
@@ -29,7 +30,8 @@ namespace spectra
 /// Returns the chosen absolute path, or std::nullopt if the user cancelled.
 /// Updates \p last_dir to the parent of the chosen path for next use.
 ///
-/// On Linux: spawns zenity via fork/exec with a clean minimal environment
+/// On Windows and macOS: uses tinyfiledialogs (native Win32 dialog / osascript).
+/// On Linux and other Unix: spawns zenity via fork/exec with a clean minimal environment
 /// (only DISPLAY, HOME, PATH, GDK_BACKEND=x11).  This avoids the libpthread
 /// symbol-lookup crash that snap-packaged zenity suffers when the caller's
 /// process has a workspace-sourced LD_LIBRARY_PATH containing glibc 2.35+
@@ -63,7 +65,7 @@ inline std::optional<std::string> ask_export_path(const char*        title,
 
     SPECTRA_LOG_INFO("export", "Opening save dialog: title='{}' default='{}'", title, default_path);
 
-#ifndef _WIN32
+#ifdef SPECTRA_EXPORT_DIALOG_ZENITY
     // ── Save env vars needed in the child before any clearenv() ───────────
     auto getenv_str = [](const char* name) -> std::string
     {
@@ -191,7 +193,7 @@ inline std::optional<std::string> ask_export_path(const char*        title,
     return result;
 
 #else
-    // ── Windows fallback: tinyfiledialogs ─────────────────────────────────
+    // ── Windows / macOS: tinyfiledialogs ──────────────────────────────────
     const char* result =
         tinyfd_saveFileDialog(title, default_path.c_str(), num_patterns, patterns, description);
     if (!result)

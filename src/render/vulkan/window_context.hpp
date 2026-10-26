@@ -57,7 +57,10 @@ struct WindowContext
     std::vector<VkSemaphore>  image_available_semaphores;
     std::vector<VkSemaphore>  render_finished_semaphores;
     std::vector<VkFence>      in_flight_fences;
-    uint32_t                  current_flight_frame = 0;
+    // Backend-wide submission index last submitted with each in-flight fence
+    // (0 = none).  Used to learn which submissions have completed on the GPU.
+    std::vector<uint64_t> fence_submit_index;
+    uint32_t              current_flight_frame = 0;
 
     // Per-window frame UBO (different viewport dimensions per window)
     BufferHandle frame_ubo_buffer;

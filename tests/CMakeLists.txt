@@ -96,6 +96,25 @@ endfunction()
 # When adding a new test, just append the name to this list.
 set(SPECTRA_UNIT_TESTS
     test_transform
+    test_bugfix_app_topic
+    test_bugfix_core_axes
+    test_bugfix_core_series
+    test_bugfix_core_stats
+    test_bugfix_daemon_agent
+    test_bugfix_data
+    test_bugfix_embed
+    test_bugfix_io_misc
+    test_bugfix_ipc_tlv
+    test_bugfix_ipc_transport
+    test_bugfix_logger_eventbus
+    test_bugfix_math
+    test_bugfix_render_draw
+    test_bugfix_render_upload_text
+    test_bugfix_vulkan
+    test_bugfix_r2_app_loops
+    test_bugfix_r2_ipc_chunk
+    test_bugfix_r2_series
+    test_bugfix_r2_plugin
     test_layout
     test_easing
     test_ring_buffer
@@ -284,6 +303,7 @@ set_target_properties(mock_integration_plugin PROPERTIES PREFIX "")
 
 # Tests that require a GPU/display (Vulkan + GLFW window)
 set(SPECTRA_GPU_TESTS
+    test_bugfix_embed
     test_3d_pipelines
     test_depth_buffer
     test_3d_integration

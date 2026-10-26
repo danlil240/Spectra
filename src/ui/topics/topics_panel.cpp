@@ -31,6 +31,16 @@ const char* kind_label(ipc::TopicKind k)
 
 }   // namespace
 
+TopicsPanel::~TopicsPanel()
+{
+    if (destroy_cb_)
+    {
+        DestroyFn cb = std::move(destroy_cb_);
+        destroy_cb_  = nullptr;
+        cb();
+    }
+}
+
 void TopicsPanel::set_topics(std::vector<ipc::TopicInfoEntry> topics)
 {
     std::lock_guard<std::mutex> g(mutex_);

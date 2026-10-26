@@ -24,7 +24,8 @@ enum class LogLevel : int
     Info     = 2,
     Warning  = 3,
     Error    = 4,
-    Critical = 5
+    Critical = 5,
+    Off      = 6   // Threshold only: disables all logging when used as a min level
 };
 
 class Logger
@@ -107,11 +108,18 @@ class Logger
         std::string result(format);
         if constexpr (sizeof...(args) > 0)
         {
-            auto replace_next = [&](auto&& arg)
+            // Cursor past the last substitution so placeholder-like text inside
+            // an argument ("{}") is never treated as a placeholder itself.
+            size_t search_from  = 0;
+            auto   replace_next = [&](auto&& arg)
             {
-                auto pos = result.find("{}");
+                auto pos = result.find("{}", search_from);
                 if (pos != std::string::npos)
-                    result.replace(pos, 2, arg_to_string(std::forward<decltype(arg)>(arg)));
+                {
+                    std::string replacement = arg_to_string(std::forward<decltype(arg)>(arg));
+                    result.replace(pos, 2, replacement);
+                    search_from = pos + replacement.size();
+                }
             };
             (replace_next(std::forward<decltype(args)>(args)), ...);
         }
@@ -142,7 +150,7 @@ void Logger::log_formatted(LogLevel         level,
     }
     catch (const std::exception& e)
     {
-        log(LogLevel::Error, "logger", "Format error: {}", e.what());
+        log(LogLevel::Error, "logger", std::string("Format error: ") + e.what());
     }
 }
 

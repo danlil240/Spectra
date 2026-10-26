@@ -814,6 +814,18 @@ void Renderer::render_plot_geometry(Figure& figure)
 
         const auto& vp = axes2d->viewport();
 
+        // Skip axes entirely outside the framebuffer (scrolled off-screen) and
+        // compute a scissor clamped to framebuffer bounds: Vulkan requires
+        // non-negative scissor offsets (VUID-vkCmdSetScissor-x-00595).
+        if (vp.x + vp.w <= 0.0f || vp.y + vp.h <= 0.0f || vp.x >= fw || vp.y >= fh)
+            continue;
+        const float sc_x0 = std::max(0.0f, vp.x);
+        const float sc_y0 = std::max(0.0f, vp.y);
+        const float sc_x1 = std::min(fw, vp.x + vp.w);
+        const float sc_y1 = std::min(fh, vp.y + vp.h);
+        if (!(sc_x1 > sc_x0) || !(sc_y1 > sc_y0))
+            continue;
+
         // Phase 2 (LT-5): read limits via AxesViewModel when available
         AxisLimits xlim;
         AxisLimits ylim;
@@ -887,10 +899,10 @@ void Renderer::render_plot_geometry(Figure& figure)
         backend_.upload_buffer(gpu.grid_buffer[slot], grid_scratch_.data(), grid_bytes);
 
         // Scissor to axes viewport so grid lines don't bleed outside
-        backend_.set_scissor(static_cast<int32_t>(vp.x),
-                             static_cast<int32_t>(vp.y),
-                             static_cast<uint32_t>(vp.w),
-                             static_cast<uint32_t>(vp.h));
+        backend_.set_scissor(static_cast<int32_t>(sc_x0),
+                             static_cast<int32_t>(sc_y0),
+                             static_cast<uint32_t>(sc_x1 - sc_x0),
+                             static_cast<uint32_t>(sc_y1 - sc_y0));
 
         backend_.bind_pipeline(grid_pipeline_);
 
@@ -925,6 +937,11 @@ void Renderer::render_plot_geometry(Figure& figure)
         // padding beyond the data range) show minor grid only inside the rectangle
         // bounded by the outermost ticks, creating a visible "closed square" artifact.
         constexpr int MINOR_SUBDIVISIONS = 5;   // 5 intervals → 4 interior lines
+        // Margin extension normally adds at most one major interval's worth of
+        // minor lines.  Cap it so that ticks computed from limits that diverge
+        // from the visual bounds (or non-finite steps) cannot hang the frame.
+        constexpr int MAX_MARGIN_MINOR_LINES = 4 * MINOR_SUBDIVISIONS;
+        auto valid_minor_step = [](double step) { return std::isfinite(step) && step > 0.0; };
         minor_grid_scratch_.clear();
         // X-axis minor grid (between adjacent tick pairs)
         for (size_t i = 0; i + 1 < num_x; ++i)
@@ -943,7 +960,7 @@ void Renderer::render_plot_geometry(Figure& figure)
         if (num_x >= 2)
         {
             double step = (x_ticks.positions[1] - x_ticks.positions[0]) / MINOR_SUBDIVISIONS;
-            for (int k = 1;; ++k)
+            for (int k = 1; valid_minor_step(step) && k <= MAX_MARGIN_MINOR_LINES; ++k)
             {
                 double x = x_ticks.positions[0] - step * k;
                 if (x < xlim.min)
@@ -960,7 +977,7 @@ void Renderer::render_plot_geometry(Figure& figure)
         {
             double step =
                 (x_ticks.positions[num_x - 1] - x_ticks.positions[num_x - 2]) / MINOR_SUBDIVISIONS;
-            for (int k = 1;; ++k)
+            for (int k = 1; valid_minor_step(step) && k <= MAX_MARGIN_MINOR_LINES; ++k)
             {
                 double x = x_ticks.positions[num_x - 1] + step * k;
                 if (x > xlim.max)
@@ -990,7 +1007,7 @@ void Renderer::render_plot_geometry(Figure& figure)
         if (num_y >= 2)
         {
             double step = (y_ticks.positions[1] - y_ticks.positions[0]) / MINOR_SUBDIVISIONS;
-            for (int k = 1;; ++k)
+            for (int k = 1; valid_minor_step(step) && k <= MAX_MARGIN_MINOR_LINES; ++k)
             {
                 double y = y_ticks.positions[0] - step * k;
                 if (y < ylim.min)
@@ -1007,7 +1024,7 @@ void Renderer::render_plot_geometry(Figure& figure)
         {
             double step =
                 (y_ticks.positions[num_y - 1] - y_ticks.positions[num_y - 2]) / MINOR_SUBDIVISIONS;
-            for (int k = 1;; ++k)
+            for (int k = 1; valid_minor_step(step) && k <= MAX_MARGIN_MINOR_LINES; ++k)
             {
                 double y = y_ticks.positions[num_y - 1] + step * k;
                 if (y > ylim.max)

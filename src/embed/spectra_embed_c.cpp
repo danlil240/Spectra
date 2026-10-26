@@ -9,32 +9,26 @@
 #include <spectra/series3d.hpp>
 #include <spectra/plot_style.hpp>
 
-#include "ui/theme/theme.hpp"
+#include "embed_detail.hpp"
 
 #include <algorithm>
 #include <cstring>
-#include <deque>
+#include <memory>
 #include <span>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 // Opaque handle wrappers — the C API uses pointers to these.
-// EmbedSurface owns all figures/axes/series, so we just wrap pointers.
+// EmbedSurface owns all figures/axes/series; wrappers just carry pointers plus
+// the owning SpectraEmbed, which owns the wrappers themselves (see below).
 
-struct SpectraEmbed
-{
-    spectra::EmbedSurface surface;
-    SpectraFrameCb        frame_cb  = nullptr;
-    void*                 frame_ud  = nullptr;
-    SpectraRedrawCb       redraw_cb = nullptr;
-    void*                 redraw_ud = nullptr;
-    explicit SpectraEmbed(uint32_t w, uint32_t h) : surface(spectra::EmbedConfig{w, h}) {}
-    explicit SpectraEmbed(const spectra::EmbedConfig& cfg) : surface(cfg) {}
-};
+struct SpectraEmbed;
 
 struct SpectraFigure
 {
-    spectra::Figure* ptr;
+    spectra::Figure* ptr   = nullptr;
+    SpectraEmbed*    owner = nullptr;
 };
 
 struct SpectraAxes
@@ -43,6 +37,7 @@ struct SpectraAxes
     spectra::Axes3D*   axes_3d = nullptr;
     spectra::AxesBase* base    = nullptr;
     spectra::Figure*   fig     = nullptr;   // owning figure (for legend control)
+    SpectraEmbed*      owner   = nullptr;
 };
 
 struct SpectraSeries
@@ -51,12 +46,70 @@ struct SpectraSeries
     uint32_t         capacity = 0;   // ring-buffer cap (0 = unbounded)
 };
 
-// Small pool of wrapper objects so the C API can return stable pointers.
-// These are leaked intentionally — the embed surface owns the real objects.
-// A real production API would use a handle table; this is sufficient for FFI demos.
-static thread_local std::deque<SpectraFigure> g_fig_pool;
-static thread_local std::deque<SpectraAxes>   g_ax_pool;
-static thread_local std::deque<SpectraSeries> g_series_pool;
+struct SpectraEmbed
+{
+    spectra::EmbedSurface surface;
+    SpectraFrameCb        frame_cb  = nullptr;
+    void*                 frame_ud  = nullptr;
+    SpectraRedrawCb       redraw_cb = nullptr;
+    void*                 redraw_ud = nullptr;
+
+    // Handle tables: one stable wrapper per underlying object, owned by the
+    // surface so handles live exactly as long as it does (independent of the
+    // calling thread) and repeated lookups don't allocate new wrappers.
+    std::unordered_map<const spectra::Figure*, std::unique_ptr<SpectraFigure>> fig_handles;
+    std::unordered_map<const spectra::AxesBase*, std::unique_ptr<SpectraAxes>> axes_handles;
+    std::unordered_map<const spectra::Series*, std::unique_ptr<SpectraSeries>> series_handles;
+
+    explicit SpectraEmbed(uint32_t w, uint32_t h) : surface(spectra::EmbedConfig{w, h}) {}
+    explicit SpectraEmbed(const spectra::EmbedConfig& cfg) : surface(cfg) {}
+};
+
+static SpectraFigure* figure_handle(SpectraEmbed* owner, spectra::Figure* fig)
+{
+    if (!owner || !fig)
+        return nullptr;
+    auto& slot = owner->fig_handles[fig];
+    if (!slot)
+        slot = std::make_unique<SpectraFigure>();
+    slot->ptr   = fig;
+    slot->owner = owner;
+    return slot.get();
+}
+
+static SpectraAxes* axes_handle(SpectraEmbed*    owner,
+                                spectra::Figure* fig,
+                                spectra::Axes*   axes_2d,
+                                spectra::Axes3D* axes_3d)
+{
+    spectra::AxesBase* base = axes_2d ? static_cast<spectra::AxesBase*>(axes_2d)
+                                      : static_cast<spectra::AxesBase*>(axes_3d);
+    if (!owner || !base)
+        return nullptr;
+    auto& slot = owner->axes_handles[base];
+    if (!slot)
+        slot = std::make_unique<SpectraAxes>();
+    slot->axes_2d = axes_2d;
+    slot->axes_3d = axes_3d;
+    slot->base    = base;
+    slot->fig     = fig;
+    slot->owner   = owner;
+    return slot.get();
+}
+
+static SpectraSeries* series_handle(SpectraEmbed* owner, spectra::Series* series)
+{
+    if (!owner || !series)
+        return nullptr;
+    auto& slot = owner->series_handles[series];
+    if (!slot)
+        slot = std::make_unique<SpectraSeries>();
+    // Only called for freshly created series: a removed series' address may be
+    // reused, so never inherit the previous object's ring-buffer capacity.
+    slot->ptr      = series;
+    slot->capacity = 0;
+    return slot.get();
+}
 
 // ── Enum mapping helpers ─────────────────────────────────────────────────────
 
@@ -154,7 +207,7 @@ static void trim_to_capacity(SpectraSeries* s)
 {
     if (!s || s->capacity == 0)
         return;
-    const auto cap = static_cast<size_t>(s->capacity);
+    const auto cap  = static_cast<size_t>(s->capacity);
     auto       trim = [cap](auto* series)
     {
         auto         x     = series->x_data();
@@ -178,19 +231,54 @@ static void trim_to_capacity(SpectraSeries* s)
         trim(sc);
 }
 
+// ── Exception barrier ───────────────────────────────────────────────────────
+// No C++ exception may cross the extern "C" boundary: FFI callers (C, ctypes,
+// C#, Rust) have no unwind tables and the process would std::terminate.  Every
+// entry point runs its body through one of these guards and reports failure
+// through its documented return value instead.
+
+template <typename R, typename F>
+static R c_guard(R fail, F&& body) noexcept
+{
+    try
+    {
+        return body();
+    }
+    catch (...)
+    {
+        return fail;
+    }
+}
+
+template <typename F>
+static void c_guard_void(F&& body) noexcept
+{
+    try
+    {
+        body();
+    }
+    catch (...)
+    {
+    }
+}
+
 extern "C"
 {
     // ── Lifecycle ───────────────────────────────────────────────────────────────
 
     SpectraEmbed* spectra_embed_create(uint32_t width, uint32_t height)
     {
-        auto* s = new (std::nothrow) SpectraEmbed(width, height);
-        if (!s || !s->surface.is_valid())
+        auto body = [&]() -> SpectraEmbed*
         {
-            delete s;
-            return nullptr;
-        }
-        return s;
+            auto* s = new (std::nothrow) SpectraEmbed(width, height);
+            if (!s || !s->surface.is_valid())
+            {
+                delete s;
+                return nullptr;
+            }
+            return s;
+        };
+        return c_guard<SpectraEmbed*>(nullptr, body);
     }
 
     SpectraEmbed* spectra_embed_create_ex(uint32_t    width,
@@ -200,127 +288,156 @@ extern "C"
                                           uint32_t    msaa,
                                           float       bg_alpha)
     {
-        spectra::EmbedConfig cfg;
-        cfg.width            = width;
-        cfg.height           = height;
-        cfg.dpi_scale        = dpi_scale > 0.0f ? dpi_scale : 1.0f;
-        cfg.msaa             = msaa > 0 ? msaa : 1;
-        cfg.background_alpha = bg_alpha;
-        if (theme)
-            cfg.theme = theme;
-
-        auto* s = new (std::nothrow) SpectraEmbed(cfg);
-        if (!s || !s->surface.is_valid())
+        auto body = [&]() -> SpectraEmbed*
         {
-            delete s;
-            return nullptr;
-        }
-        return s;
+            spectra::EmbedConfig cfg;
+            cfg.width            = width;
+            cfg.height           = height;
+            cfg.dpi_scale        = dpi_scale > 0.0f ? dpi_scale : 1.0f;
+            cfg.msaa             = msaa > 0 ? msaa : 1;
+            cfg.background_alpha = bg_alpha;
+            if (theme)
+                cfg.theme = theme;
+
+            auto* s = new (std::nothrow) SpectraEmbed(cfg);
+            if (!s || !s->surface.is_valid())
+            {
+                delete s;
+                return nullptr;
+            }
+            return s;
+        };
+        return c_guard<SpectraEmbed*>(nullptr, body);
     }
 
     void spectra_embed_config_default(SpectraEmbedConfig* cfg)
     {
-        if (!cfg)
-            return;
-        spectra::EmbedConfig def;
-        cfg->width             = def.width;
-        cfg->height            = def.height;
-        cfg->msaa              = def.msaa;
-        cfg->dpi_scale         = def.dpi_scale;
-        cfg->background_alpha  = def.background_alpha;
-        cfg->theme             = nullptr;
-        cfg->show_imgui_chrome = def.show_imgui_chrome ? 1 : 0;
-        cfg->show_command_bar  = def.show_command_bar ? 1 : 0;
-        cfg->show_status_bar   = def.show_status_bar ? 1 : 0;
-        cfg->show_nav_rail     = def.show_nav_rail ? 1 : 0;
-        cfg->show_inspector    = def.show_inspector ? 1 : 0;
-        cfg->show_legend       = def.show_legend ? 1 : 0;
-        cfg->show_crosshair    = def.show_crosshair ? 1 : 0;
+        auto body = [&]()
+        {
+            if (!cfg)
+                return;
+            spectra::EmbedConfig def;
+            cfg->width             = def.width;
+            cfg->height            = def.height;
+            cfg->msaa              = def.msaa;
+            cfg->dpi_scale         = def.dpi_scale;
+            cfg->background_alpha  = def.background_alpha;
+            cfg->theme             = nullptr;
+            cfg->show_imgui_chrome = def.show_imgui_chrome ? 1 : 0;
+            cfg->show_command_bar  = def.show_command_bar ? 1 : 0;
+            cfg->show_status_bar   = def.show_status_bar ? 1 : 0;
+            cfg->show_nav_rail     = def.show_nav_rail ? 1 : 0;
+            cfg->show_inspector    = def.show_inspector ? 1 : 0;
+            cfg->show_legend       = def.show_legend ? 1 : 0;
+            cfg->show_crosshair    = def.show_crosshair ? 1 : 0;
+        };
+        c_guard_void(body);
     }
 
     SpectraEmbed* spectra_embed_create_config(const SpectraEmbedConfig* in)
     {
-        if (!in)
-            return nullptr;
-
-        spectra::EmbedConfig cfg;
-        cfg.width            = in->width > 0 ? in->width : cfg.width;
-        cfg.height           = in->height > 0 ? in->height : cfg.height;
-        cfg.msaa             = in->msaa > 0 ? in->msaa : 1;
-        cfg.dpi_scale        = in->dpi_scale > 0.0f ? in->dpi_scale : 1.0f;
-        cfg.background_alpha = in->background_alpha;
-        if (in->theme)
-            cfg.theme = in->theme;
-        // Any explicit chrome request implies the ImGui pipeline must run.
-        cfg.show_imgui_chrome = (in->show_imgui_chrome != 0) || (in->show_command_bar != 0)
-                                || (in->show_status_bar != 0) || (in->show_nav_rail != 0)
-                                || (in->show_inspector != 0);
-        cfg.show_command_bar  = in->show_command_bar != 0;
-        cfg.show_status_bar   = in->show_status_bar != 0;
-        cfg.show_nav_rail     = in->show_nav_rail != 0;
-        cfg.show_inspector    = in->show_inspector != 0;
-        cfg.show_legend       = in->show_legend != 0;
-        cfg.show_crosshair    = in->show_crosshair != 0;
-
-        auto* s = new (std::nothrow) SpectraEmbed(cfg);
-        if (!s || !s->surface.is_valid())
+        auto body = [&]() -> SpectraEmbed*
         {
-            delete s;
-            return nullptr;
-        }
-        return s;
+            if (!in)
+                return nullptr;
+
+            spectra::EmbedConfig cfg;
+            cfg.width            = in->width > 0 ? in->width : cfg.width;
+            cfg.height           = in->height > 0 ? in->height : cfg.height;
+            cfg.msaa             = in->msaa > 0 ? in->msaa : 1;
+            cfg.dpi_scale        = in->dpi_scale > 0.0f ? in->dpi_scale : 1.0f;
+            cfg.background_alpha = in->background_alpha;
+            if (in->theme)
+                cfg.theme = in->theme;
+            // Any explicit chrome request implies the ImGui pipeline must run.
+            cfg.show_imgui_chrome = (in->show_imgui_chrome != 0) || (in->show_command_bar != 0)
+                                    || (in->show_status_bar != 0) || (in->show_nav_rail != 0)
+                                    || (in->show_inspector != 0);
+            cfg.show_command_bar = in->show_command_bar != 0;
+            cfg.show_status_bar  = in->show_status_bar != 0;
+            cfg.show_nav_rail    = in->show_nav_rail != 0;
+            cfg.show_inspector   = in->show_inspector != 0;
+            cfg.show_legend      = in->show_legend != 0;
+            cfg.show_crosshair   = in->show_crosshair != 0;
+
+            auto* s = new (std::nothrow) SpectraEmbed(cfg);
+            if (!s || !s->surface.is_valid())
+            {
+                delete s;
+                return nullptr;
+            }
+            return s;
+        };
+        return c_guard<SpectraEmbed*>(nullptr, body);
     }
 
     void spectra_embed_destroy(SpectraEmbed* s)
     {
-        delete s;
+        auto body = [&]() { delete s; };
+        c_guard_void(body);
     }
 
     int spectra_embed_is_valid(const SpectraEmbed* s)
     {
-        return (s && s->surface.is_valid()) ? 1 : 0;
+        auto body = [&]() -> int { return (s && s->surface.is_valid()) ? 1 : 0; };
+        return c_guard<int>(0, body);
     }
 
     // ── Figure management ───────────────────────────────────────────────────────
 
     SpectraFigure* spectra_embed_figure(SpectraEmbed* s)
     {
-        if (!s)
-            return nullptr;
-        auto& fig = s->surface.figure();
-        g_fig_pool.push_back(SpectraFigure{&fig});
-        return &g_fig_pool.back();
+        auto body = [&]() -> SpectraFigure*
+        {
+            if (!s)
+                return nullptr;
+            auto& fig = s->surface.figure();
+            return figure_handle(s, &fig);
+        };
+        return c_guard<SpectraFigure*>(nullptr, body);
     }
 
     SpectraFigure* spectra_embed_active_figure(SpectraEmbed* s)
     {
-        if (!s)
-            return nullptr;
-        auto* fig = s->surface.active_figure();
-        if (!fig)
-            return nullptr;
-        g_fig_pool.push_back(SpectraFigure{fig});
-        return &g_fig_pool.back();
+        auto body = [&]() -> SpectraFigure*
+        {
+            if (!s)
+                return nullptr;
+            auto* fig = s->surface.active_figure();
+            return figure_handle(s, fig);
+        };
+        return c_guard<SpectraFigure*>(nullptr, body);
     }
 
     // ── Axes management ─────────────────────────────────────────────────────────
 
     SpectraAxes* spectra_figure_subplot(SpectraFigure* fig, int rows, int cols, int index)
     {
-        if (!fig || !fig->ptr)
-            return nullptr;
-        auto& ax = fig->ptr->subplot(rows, cols, index);
-        g_ax_pool.push_back(SpectraAxes{&ax, nullptr, &ax, fig->ptr});
-        return &g_ax_pool.back();
+        auto body = [&]() -> SpectraAxes*
+        {
+            if (!fig || !fig->ptr)
+                return nullptr;
+            // Figure::subplot throws on invalid arguments; report NULL instead.
+            if (!spectra::embed_detail::valid_subplot_args(rows, cols, index))
+                return nullptr;
+            auto& ax = fig->ptr->subplot(rows, cols, index);
+            return axes_handle(fig->owner, fig->ptr, &ax, nullptr);
+        };
+        return c_guard<SpectraAxes*>(nullptr, body);
     }
 
     SpectraAxes* spectra_figure_subplot3d(SpectraFigure* fig, int rows, int cols, int index)
     {
-        if (!fig || !fig->ptr)
-            return nullptr;
-        auto& ax = fig->ptr->subplot3d(rows, cols, index);
-        g_ax_pool.push_back(SpectraAxes{nullptr, &ax, &ax, fig->ptr});
-        return &g_ax_pool.back();
+        auto body = [&]() -> SpectraAxes*
+        {
+            if (!fig || !fig->ptr)
+                return nullptr;
+            if (!spectra::embed_detail::valid_subplot_args(rows, cols, index))
+                return nullptr;
+            auto& ax = fig->ptr->subplot3d(rows, cols, index);
+            return axes_handle(fig->owner, fig->ptr, nullptr, &ax);
+        };
+        return c_guard<SpectraAxes*>(nullptr, body);
     }
 
     // ── Series creation ─────────────────────────────────────────────────────────
@@ -331,17 +448,20 @@ extern "C"
                                      uint32_t     count,
                                      const char*  label)
     {
-        if (!ax || !ax->axes_2d || !x || !y || count == 0)
-            return nullptr;
+        auto body = [&]() -> SpectraSeries*
+        {
+            if (!ax || !ax->axes_2d || !x || !y || count == 0)
+                return nullptr;
 
-        std::span<const float> xs(x, count);
-        std::span<const float> ys(y, count);
-        auto&                  series = ax->axes_2d->line(xs, ys);
-        if (label && label[0] != '\0')
-            series.label(label);
+            std::span<const float> xs(x, count);
+            std::span<const float> ys(y, count);
+            auto&                  series = ax->axes_2d->line(xs, ys);
+            if (label && label[0] != '\0')
+                series.label(label);
 
-        g_series_pool.push_back(SpectraSeries{&series});
-        return &g_series_pool.back();
+            return series_handle(ax->owner, &series);
+        };
+        return c_guard<SpectraSeries*>(nullptr, body);
     }
 
     SpectraSeries* spectra_axes_scatter(SpectraAxes* ax,
@@ -350,116 +470,163 @@ extern "C"
                                         uint32_t     count,
                                         const char*  label)
     {
-        if (!ax || !ax->axes_2d || !x || !y || count == 0)
-            return nullptr;
+        auto body = [&]() -> SpectraSeries*
+        {
+            if (!ax || !ax->axes_2d || !x || !y || count == 0)
+                return nullptr;
 
-        std::span<const float> xs(x, count);
-        std::span<const float> ys(y, count);
-        auto&                  series = ax->axes_2d->scatter(xs, ys);
-        if (label && label[0] != '\0')
-            series.label(label);
+            std::span<const float> xs(x, count);
+            std::span<const float> ys(y, count);
+            auto&                  series = ax->axes_2d->scatter(xs, ys);
+            if (label && label[0] != '\0')
+                series.label(label);
 
-        g_series_pool.push_back(SpectraSeries{&series});
-        return &g_series_pool.back();
+            return series_handle(ax->owner, &series);
+        };
+        return c_guard<SpectraSeries*>(nullptr, body);
     }
 
     // ── Series data update ──────────────────────────────────────────────────────
 
     void spectra_series_set_x(SpectraSeries* s, const float* x, uint32_t count)
     {
-        if (!s || !s->ptr || !x || count == 0)
-            return;
-        if (auto* line = dynamic_cast<spectra::LineSeries*>(s->ptr))
-            line->set_x({x, count});
-        else if (auto* sc = dynamic_cast<spectra::ScatterSeries*>(s->ptr))
-            sc->set_x({x, count});
+        auto body = [&]()
+        {
+            if (!s || !s->ptr || !x || count == 0)
+                return;
+            if (auto* line = dynamic_cast<spectra::LineSeries*>(s->ptr))
+                line->set_x({x, count});
+            else if (auto* sc = dynamic_cast<spectra::ScatterSeries*>(s->ptr))
+                sc->set_x({x, count});
+        };
+        c_guard_void(body);
     }
 
     void spectra_series_set_y(SpectraSeries* s, const float* y, uint32_t count)
     {
-        if (!s || !s->ptr || !y || count == 0)
-            return;
-        if (auto* line = dynamic_cast<spectra::LineSeries*>(s->ptr))
-            line->set_y({y, count});
-        else if (auto* sc = dynamic_cast<spectra::ScatterSeries*>(s->ptr))
-            sc->set_y({y, count});
+        auto body = [&]()
+        {
+            if (!s || !s->ptr || !y || count == 0)
+                return;
+            if (auto* line = dynamic_cast<spectra::LineSeries*>(s->ptr))
+                line->set_y({y, count});
+            else if (auto* sc = dynamic_cast<spectra::ScatterSeries*>(s->ptr))
+                sc->set_y({y, count});
+        };
+        c_guard_void(body);
     }
 
     void spectra_series_set_data(SpectraSeries* s, const float* x, const float* y, uint32_t count)
     {
-        if (!s || !s->ptr || !x || !y || count == 0)
-            return;
-        if (auto* line = dynamic_cast<spectra::LineSeries*>(s->ptr))
+        auto body = [&]()
         {
-            line->set_x({x, count});
-            line->set_y({y, count});
-        }
-        else if (auto* sc = dynamic_cast<spectra::ScatterSeries*>(s->ptr))
-        {
-            sc->set_x({x, count});
-            sc->set_y({y, count});
-        }
+            if (!s || !s->ptr || !x || !y || count == 0)
+                return;
+            if (auto* line = dynamic_cast<spectra::LineSeries*>(s->ptr))
+            {
+                line->set_x({x, count});
+                line->set_y({y, count});
+            }
+            else if (auto* sc = dynamic_cast<spectra::ScatterSeries*>(s->ptr))
+            {
+                sc->set_x({x, count});
+                sc->set_y({y, count});
+            }
+        };
+        c_guard_void(body);
     }
 
     // ── Series styling (Phase 1A) ────────────────────────────────────────────
 
     void spectra_series_set_color(SpectraSeries* s, float r, float g, float b, float a)
     {
-        if (!s || !s->ptr)
-            return;
-        s->ptr->set_color(spectra::Color{r, g, b, a});
+        auto body = [&]()
+        {
+            if (!s || !s->ptr)
+                return;
+            s->ptr->set_color(spectra::Color{r, g, b, a});
+        };
+        c_guard_void(body);
     }
 
     void spectra_series_set_opacity(SpectraSeries* s, float v)
     {
-        if (s && s->ptr)
-            s->ptr->opacity(v);
+        auto body = [&]()
+        {
+            if (s && s->ptr)
+                s->ptr->opacity(v);
+        };
+        c_guard_void(body);
     }
 
     void spectra_series_set_line_width(SpectraSeries* s, float v)
     {
-        if (!s || !s->ptr)
-            return;
-        if (auto* line = dynamic_cast<spectra::LineSeries*>(s->ptr))
-            line->width(v);
-        else if (auto* l3 = dynamic_cast<spectra::LineSeries3D*>(s->ptr))
-            l3->width(v);
-        else
-            s->ptr->plot_style_mut().line_width = v;
+        auto body = [&]()
+        {
+            if (!s || !s->ptr)
+                return;
+            if (auto* line = dynamic_cast<spectra::LineSeries*>(s->ptr))
+                line->width(v);
+            else if (auto* l3 = dynamic_cast<spectra::LineSeries3D*>(s->ptr))
+                l3->width(v);
+            else
+                s->ptr->plot_style_mut().line_width = v;
+        };
+        c_guard_void(body);
     }
 
     void spectra_series_set_marker_size(SpectraSeries* s, float v)
     {
-        if (s && s->ptr)
-            s->ptr->marker_size(v);
+        auto body = [&]()
+        {
+            if (s && s->ptr)
+                s->ptr->marker_size(v);
+        };
+        c_guard_void(body);
     }
 
     void spectra_series_set_marker_style(SpectraSeries* s, int style)
     {
-        if (s && s->ptr)
-            s->ptr->marker_style(to_marker_style(style));
+        auto body = [&]()
+        {
+            if (s && s->ptr)
+                s->ptr->marker_style(to_marker_style(style));
+        };
+        c_guard_void(body);
     }
 
     void spectra_series_set_line_style(SpectraSeries* s, int style)
     {
-        if (s && s->ptr)
-            s->ptr->line_style(to_line_style(style));
+        auto body = [&]()
+        {
+            if (s && s->ptr)
+                s->ptr->line_style(to_line_style(style));
+        };
+        c_guard_void(body);
     }
 
     void spectra_series_set_label(SpectraSeries* s, const char* label)
     {
-        if (s && s->ptr && label)
-            s->ptr->label(label);
+        auto body = [&]()
+        {
+            if (s && s->ptr && label)
+                s->ptr->label(label);
+        };
+        c_guard_void(body);
     }
 
     // ── Series streaming helpers (Phase 1G) ──────────────────────────────────
 
     void spectra_series_append_xy(SpectraSeries* s, float x, float y)
     {
-        if (!s || !s->ptr)
-            return;
-        s->ptr->append(x, y);
-        trim_to_capacity(s);
+        auto body = [&]()
+        {
+            if (!s || !s->ptr)
+                return;
+            s->ptr->append(x, y);
+            trim_to_capacity(s);
+        };
+        c_guard_void(body);
     }
 
     void spectra_series_append_data(SpectraSeries* s,
@@ -467,102 +634,146 @@ extern "C"
                                     const float*   y,
                                     uint32_t       count)
     {
-        if (!s || !s->ptr || !x || !y || count == 0)
-            return;
-        for (uint32_t i = 0; i < count; ++i)
-            s->ptr->append(x[i], y[i]);
-        trim_to_capacity(s);
+        auto body = [&]()
+        {
+            if (!s || !s->ptr || !x || !y || count == 0)
+                return;
+            for (uint32_t i = 0; i < count; ++i)
+                s->ptr->append(x[i], y[i]);
+            trim_to_capacity(s);
+        };
+        c_guard_void(body);
     }
 
     void spectra_series_set_capacity(SpectraSeries* s, uint32_t max_points)
     {
-        if (!s)
-            return;
-        s->capacity = max_points;
-        trim_to_capacity(s);
+        auto body = [&]()
+        {
+            if (!s)
+                return;
+            s->capacity = max_points;
+            trim_to_capacity(s);
+        };
+        c_guard_void(body);
     }
 
     void spectra_series_clear(SpectraSeries* s)
     {
-        if (!s || !s->ptr)
-            return;
-        std::span<const float> empty{};
-        if (auto* line = dynamic_cast<spectra::LineSeries*>(s->ptr))
+        auto body = [&]()
         {
-            line->set_x(empty);
-            line->set_y(empty);
-        }
-        else if (auto* sc = dynamic_cast<spectra::ScatterSeries*>(s->ptr))
-        {
-            sc->set_x(empty);
-            sc->set_y(empty);
-        }
+            if (!s || !s->ptr)
+                return;
+            std::span<const float> empty{};
+            if (auto* line = dynamic_cast<spectra::LineSeries*>(s->ptr))
+            {
+                line->set_x(empty);
+                line->set_y(empty);
+            }
+            else if (auto* sc = dynamic_cast<spectra::ScatterSeries*>(s->ptr))
+            {
+                sc->set_x(empty);
+                sc->set_y(empty);
+            }
+        };
+        c_guard_void(body);
     }
 
     // ── Bar series options (Phase 1B) ────────────────────────────────────────
 
     void spectra_series_set_bar_width(SpectraSeries* s, float width)
     {
-        if (auto* bar = (s && s->ptr) ? dynamic_cast<spectra::BarSeries*>(s->ptr) : nullptr)
-            bar->bar_width(width);
+        auto body = [&]()
+        {
+            if (auto* bar = (s && s->ptr) ? dynamic_cast<spectra::BarSeries*>(s->ptr) : nullptr)
+                bar->bar_width(width);
+        };
+        c_guard_void(body);
     }
 
     void spectra_series_set_bar_baseline(SpectraSeries* s, float baseline)
     {
-        if (auto* bar = (s && s->ptr) ? dynamic_cast<spectra::BarSeries*>(s->ptr) : nullptr)
-            bar->baseline(baseline);
+        auto body = [&]()
+        {
+            if (auto* bar = (s && s->ptr) ? dynamic_cast<spectra::BarSeries*>(s->ptr) : nullptr)
+                bar->baseline(baseline);
+        };
+        c_guard_void(body);
     }
 
     void spectra_series_set_bar_orientation(SpectraSeries* s, int orientation)
     {
-        if (auto* bar = (s && s->ptr) ? dynamic_cast<spectra::BarSeries*>(s->ptr) : nullptr)
-            bar->orientation(orientation == SPECTRA_BAR_HORIZONTAL
-                                 ? spectra::BarOrientation::Horizontal
-                                 : spectra::BarOrientation::Vertical);
+        auto body = [&]()
+        {
+            if (auto* bar = (s && s->ptr) ? dynamic_cast<spectra::BarSeries*>(s->ptr) : nullptr)
+                bar->orientation(orientation == SPECTRA_BAR_HORIZONTAL
+                                     ? spectra::BarOrientation::Horizontal
+                                     : spectra::BarOrientation::Vertical);
+        };
+        c_guard_void(body);
     }
 
     void spectra_series_set_bar_gradient(SpectraSeries* s, int enabled)
     {
-        if (auto* bar = (s && s->ptr) ? dynamic_cast<spectra::BarSeries*>(s->ptr) : nullptr)
-            bar->gradient(enabled != 0);
+        auto body = [&]()
+        {
+            if (auto* bar = (s && s->ptr) ? dynamic_cast<spectra::BarSeries*>(s->ptr) : nullptr)
+                bar->gradient(enabled != 0);
+        };
+        c_guard_void(body);
     }
 
     // ── Histogram series options (Phase 1C) ──────────────────────────────────
 
     void spectra_series_set_histogram_bins(SpectraSeries* s, int bins)
     {
-        if (auto* h = (s && s->ptr) ? dynamic_cast<spectra::HistogramSeries*>(s->ptr) : nullptr)
+        auto body = [&]()
         {
-            h->bins(bins > 0 ? bins : 30);
-            h->rebuild_geometry();
-        }
+            if (auto* h = (s && s->ptr) ? dynamic_cast<spectra::HistogramSeries*>(s->ptr) : nullptr)
+            {
+                h->bins(bins > 0 ? bins : 30);
+                h->rebuild_geometry();
+            }
+        };
+        c_guard_void(body);
     }
 
     void spectra_series_set_histogram_cumulative(SpectraSeries* s, int enabled)
     {
-        if (auto* h = (s && s->ptr) ? dynamic_cast<spectra::HistogramSeries*>(s->ptr) : nullptr)
+        auto body = [&]()
         {
-            h->cumulative(enabled != 0);
-            h->rebuild_geometry();
-        }
+            if (auto* h = (s && s->ptr) ? dynamic_cast<spectra::HistogramSeries*>(s->ptr) : nullptr)
+            {
+                h->cumulative(enabled != 0);
+                h->rebuild_geometry();
+            }
+        };
+        c_guard_void(body);
     }
 
     void spectra_series_set_histogram_density(SpectraSeries* s, int enabled)
     {
-        if (auto* h = (s && s->ptr) ? dynamic_cast<spectra::HistogramSeries*>(s->ptr) : nullptr)
+        auto body = [&]()
         {
-            h->density(enabled != 0);
-            h->rebuild_geometry();
-        }
+            if (auto* h = (s && s->ptr) ? dynamic_cast<spectra::HistogramSeries*>(s->ptr) : nullptr)
+            {
+                h->density(enabled != 0);
+                h->rebuild_geometry();
+            }
+        };
+        c_guard_void(body);
     }
 
     void spectra_series_set_histogram_gradient(SpectraSeries* s, int enabled)
     {
-        if (auto* h = (s && s->ptr) ? dynamic_cast<spectra::HistogramSeries*>(s->ptr) : nullptr)
+        auto body = [&]()
         {
-            h->gradient(enabled != 0);
-            h->rebuild_geometry();
-        }
+            if (auto* h = (s && s->ptr) ? dynamic_cast<spectra::HistogramSeries*>(s->ptr) : nullptr)
+            {
+                h->gradient(enabled != 0);
+                h->rebuild_geometry();
+            }
+        };
+        c_guard_void(body);
     }
 
     // ── 3D series (Phase 1D) ─────────────────────────────────────────────────
@@ -574,13 +785,16 @@ extern "C"
                                        uint32_t     count,
                                        const char*  label)
     {
-        if (!ax || !ax->axes_3d || !x || !y || !z || count == 0)
-            return nullptr;
-        auto& series = ax->axes_3d->line3d({x, count}, {y, count}, {z, count});
-        if (label && label[0] != '\0')
-            series.label(label);
-        g_series_pool.push_back(SpectraSeries{&series, 0});
-        return &g_series_pool.back();
+        auto body = [&]() -> SpectraSeries*
+        {
+            if (!ax || !ax->axes_3d || !x || !y || !z || count == 0)
+                return nullptr;
+            auto& series = ax->axes_3d->line3d({x, count}, {y, count}, {z, count});
+            if (label && label[0] != '\0')
+                series.label(label);
+            return series_handle(ax->owner, &series);
+        };
+        return c_guard<SpectraSeries*>(nullptr, body);
     }
 
     SpectraSeries* spectra_axes3d_scatter(SpectraAxes* ax,
@@ -590,13 +804,16 @@ extern "C"
                                           uint32_t     count,
                                           const char*  label)
     {
-        if (!ax || !ax->axes_3d || !x || !y || !z || count == 0)
-            return nullptr;
-        auto& series = ax->axes_3d->scatter3d({x, count}, {y, count}, {z, count});
-        if (label && label[0] != '\0')
-            series.label(label);
-        g_series_pool.push_back(SpectraSeries{&series, 0});
-        return &g_series_pool.back();
+        auto body = [&]() -> SpectraSeries*
+        {
+            if (!ax || !ax->axes_3d || !x || !y || !z || count == 0)
+                return nullptr;
+            auto& series = ax->axes_3d->scatter3d({x, count}, {y, count}, {z, count});
+            if (label && label[0] != '\0')
+                series.label(label);
+            return series_handle(ax->owner, &series);
+        };
+        return c_guard<SpectraSeries*>(nullptr, body);
     }
 
     SpectraSeries* spectra_axes3d_surf(SpectraAxes* ax,
@@ -607,83 +824,118 @@ extern "C"
                                        const float* z_values,
                                        const char*  label)
     {
-        if (!ax || !ax->axes_3d || !x_grid || !y_grid || !z_values || nx == 0 || ny == 0)
-            return nullptr;
-        auto& series = ax->axes_3d->surface({x_grid, nx},
-                                            {y_grid, ny},
-                                            {z_values, static_cast<size_t>(nx) * ny});
-        if (label && label[0] != '\0')
-            series.label(label);
-        g_series_pool.push_back(SpectraSeries{&series, 0});
-        return &g_series_pool.back();
+        auto body = [&]() -> SpectraSeries*
+        {
+            if (!ax || !ax->axes_3d || !x_grid || !y_grid || !z_values || nx == 0 || ny == 0)
+                return nullptr;
+            auto& series = ax->axes_3d->surface({x_grid, nx},
+                                                {y_grid, ny},
+                                                {z_values, static_cast<size_t>(nx) * ny});
+            if (label && label[0] != '\0')
+                series.label(label);
+            return series_handle(ax->owner, &series);
+        };
+        return c_guard<SpectraSeries*>(nullptr, body);
     }
 
     void spectra_series_set_z(SpectraSeries* s, const float* z, uint32_t count)
     {
-        if (!s || !s->ptr || !z || count == 0)
-            return;
-        if (auto* l3 = dynamic_cast<spectra::LineSeries3D*>(s->ptr))
-            l3->set_z({z, count});
-        else if (auto* s3 = dynamic_cast<spectra::ScatterSeries3D*>(s->ptr))
-            s3->set_z({z, count});
+        auto body = [&]()
+        {
+            if (!s || !s->ptr || !z || count == 0)
+                return;
+            if (auto* l3 = dynamic_cast<spectra::LineSeries3D*>(s->ptr))
+                l3->set_z({z, count});
+            else if (auto* s3 = dynamic_cast<spectra::ScatterSeries3D*>(s->ptr))
+                s3->set_z({z, count});
+        };
+        c_guard_void(body);
     }
 
     void spectra_series_set_colormap(SpectraSeries* s, int colormap)
     {
-        if (auto* surf = (s && s->ptr) ? dynamic_cast<spectra::SurfaceSeries*>(s->ptr) : nullptr)
-            surf->colormap(to_colormap(colormap));
+        auto body = [&]()
+        {
+            if (auto* surf =
+                    (s && s->ptr) ? dynamic_cast<spectra::SurfaceSeries*>(s->ptr) : nullptr)
+                surf->colormap(to_colormap(colormap));
+        };
+        c_guard_void(body);
     }
 
     void spectra_series_set_colormap_range(SpectraSeries* s, float min_val, float max_val)
     {
-        if (auto* surf = (s && s->ptr) ? dynamic_cast<spectra::SurfaceSeries*>(s->ptr) : nullptr)
-            surf->colormap_range(min_val, max_val);
+        auto body = [&]()
+        {
+            if (auto* surf =
+                    (s && s->ptr) ? dynamic_cast<spectra::SurfaceSeries*>(s->ptr) : nullptr)
+                surf->colormap_range(min_val, max_val);
+        };
+        c_guard_void(body);
     }
 
     // ── Rendering ───────────────────────────────────────────────────────────────
 
     int spectra_embed_render(SpectraEmbed* s, uint8_t* out_rgba)
     {
-        if (!s || !out_rgba)
-            return 0;
-        return s->surface.render_to_buffer(out_rgba) ? 1 : 0;
+        auto body = [&]() -> int
+        {
+            if (!s || !out_rgba)
+                return 0;
+            return s->surface.render_to_buffer(out_rgba) ? 1 : 0;
+        };
+        return c_guard<int>(0, body);
     }
 
     int spectra_embed_resize(SpectraEmbed* s, uint32_t width, uint32_t height)
     {
-        if (!s)
-            return 0;
-        return s->surface.resize(width, height) ? 1 : 0;
+        auto body = [&]() -> int
+        {
+            if (!s)
+                return 0;
+            return s->surface.resize(width, height) ? 1 : 0;
+        };
+        return c_guard<int>(0, body);
     }
 
     int spectra_embed_render_png(SpectraEmbed* s, const char* path)
     {
-        if (!s || !path)
-            return 0;
-        uint32_t             w = s->surface.width();
-        uint32_t             h = s->surface.height();
-        std::vector<uint8_t> buf(static_cast<size_t>(w) * h * 4);
-        if (!s->surface.render_to_buffer(buf.data()))
-            return 0;
-        return spectra::ImageExporter::write_png(path, buf.data(), w, h) ? 1 : 0;
+        auto body = [&]() -> int
+        {
+            if (!s || !path)
+                return 0;
+            uint32_t             w = s->surface.width();
+            uint32_t             h = s->surface.height();
+            std::vector<uint8_t> buf(static_cast<size_t>(w) * h * 4);
+            if (!s->surface.render_to_buffer(buf.data()))
+                return 0;
+            return spectra::ImageExporter::write_png(path, buf.data(), w, h) ? 1 : 0;
+        };
+        return c_guard<int>(0, body);
     }
 
     uint32_t spectra_embed_width(const SpectraEmbed* s)
     {
-        return s ? s->surface.width() : 0;
+        auto body = [&]() -> uint32_t { return s ? s->surface.width() : 0; };
+        return c_guard<uint32_t>(0, body);
     }
 
     uint32_t spectra_embed_height(const SpectraEmbed* s)
     {
-        return s ? s->surface.height() : 0;
+        auto body = [&]() -> uint32_t { return s ? s->surface.height() : 0; };
+        return c_guard<uint32_t>(0, body);
     }
 
     // ── Input forwarding ────────────────────────────────────────────────────────
 
     void spectra_embed_mouse_move(SpectraEmbed* s, float x, float y)
     {
-        if (s)
-            s->surface.inject_mouse_move(x, y);
+        auto body = [&]()
+        {
+            if (s)
+                s->surface.inject_mouse_move(x, y);
+        };
+        c_guard_void(body);
     }
 
     void spectra_embed_mouse_button(SpectraEmbed* s,
@@ -693,198 +945,272 @@ extern "C"
                                     float         x,
                                     float         y)
     {
-        if (s)
-            s->surface.inject_mouse_button(button, action, mods, x, y);
+        auto body = [&]()
+        {
+            if (s)
+                s->surface.inject_mouse_button(button, action, mods, x, y);
+        };
+        c_guard_void(body);
     }
 
     void spectra_embed_scroll(SpectraEmbed* s, float dx, float dy, float cx, float cy)
     {
-        if (s)
-            s->surface.inject_scroll(dx, dy, cx, cy);
+        auto body = [&]()
+        {
+            if (s)
+                s->surface.inject_scroll(dx, dy, cx, cy);
+        };
+        c_guard_void(body);
     }
 
     void spectra_embed_key(SpectraEmbed* s, int key, int action, int mods)
     {
-        if (s)
-            s->surface.inject_key(key, action, mods);
+        auto body = [&]()
+        {
+            if (s)
+                s->surface.inject_key(key, action, mods);
+        };
+        c_guard_void(body);
     }
 
     void spectra_embed_update(SpectraEmbed* s, float dt)
     {
-        if (s)
-            s->surface.update(dt);
+        auto body = [&]()
+        {
+            if (s)
+                s->surface.update(dt);
+        };
+        c_guard_void(body);
     }
 
     // ── Display configuration ────────────────────────────────────────────────────
 
     void spectra_embed_set_dpi_scale(SpectraEmbed* s, float scale)
     {
-        if (s)
-            s->surface.set_dpi_scale(scale);
+        auto body = [&]()
+        {
+            if (s)
+                s->surface.set_dpi_scale(scale);
+        };
+        c_guard_void(body);
     }
 
     float spectra_embed_get_dpi_scale(const SpectraEmbed* s)
     {
-        return s ? s->surface.dpi_scale() : 1.0f;
+        auto body = [&]() -> float { return s ? s->surface.dpi_scale() : 1.0f; };
+        return c_guard<float>(1.0f, body);
     }
 
     void spectra_embed_set_background_alpha(SpectraEmbed* s, float alpha)
     {
-        if (s)
-            s->surface.set_background_alpha(alpha);
+        auto body = [&]()
+        {
+            if (s)
+                s->surface.set_background_alpha(alpha);
+        };
+        c_guard_void(body);
     }
 
     float spectra_embed_get_background_alpha(const SpectraEmbed* s)
     {
-        return s ? s->surface.background_alpha() : 1.0f;
+        auto body = [&]() -> float { return s ? s->surface.background_alpha() : 1.0f; };
+        return c_guard<float>(1.0f, body);
     }
 
     // ── Theme & UI chrome ────────────────────────────────────────────────────────
 
     void spectra_embed_set_theme(SpectraEmbed* s, const char* theme)
     {
-        if (!s || !theme)
-            return;
-        // Theme is applied via the embed-owned ThemeManager registered through
-        // set_current(); instance() returns that object.
-        spectra::ui::ThemeManager::instance().set_theme(theme);
+        auto body = [&]()
+        {
+            if (!s || !theme)
+                return;
+            // Apply to this surface's own ThemeManager — never the process-wide
+            // redirect, which may belong to a different (or destroyed) surface.
+            s->surface.set_theme(theme);
+        };
+        c_guard_void(body);
     }
 
     void spectra_embed_set_show_command_bar(SpectraEmbed* s, int visible)
     {
-        if (s)
-            s->surface.set_show_command_bar(visible != 0);
+        auto body = [&]()
+        {
+            if (s)
+                s->surface.set_show_command_bar(visible != 0);
+        };
+        c_guard_void(body);
     }
 
     void spectra_embed_set_show_status_bar(SpectraEmbed* s, int visible)
     {
-        if (s)
-            s->surface.set_show_status_bar(visible != 0);
+        auto body = [&]()
+        {
+            if (s)
+                s->surface.set_show_status_bar(visible != 0);
+        };
+        c_guard_void(body);
     }
 
     void spectra_embed_set_show_nav_rail(SpectraEmbed* s, int visible)
     {
-        if (s)
-            s->surface.set_show_nav_rail(visible != 0);
+        auto body = [&]()
+        {
+            if (s)
+                s->surface.set_show_nav_rail(visible != 0);
+        };
+        c_guard_void(body);
     }
 
     void spectra_embed_set_show_inspector(SpectraEmbed* s, int visible)
     {
-        if (s)
-            s->surface.set_show_inspector(visible != 0);
+        auto body = [&]()
+        {
+            if (s)
+                s->surface.set_show_inspector(visible != 0);
+        };
+        c_guard_void(body);
     }
 
     void spectra_embed_set_show_legend(SpectraEmbed* s, int visible)
     {
-        if (s)
-            s->surface.set_show_legend(visible != 0);
+        auto body = [&]()
+        {
+            if (s)
+                s->surface.set_show_legend(visible != 0);
+        };
+        c_guard_void(body);
     }
 
     void spectra_embed_set_show_crosshair(SpectraEmbed* s, int visible)
     {
-        if (s)
-            s->surface.set_show_crosshair(visible != 0);
+        auto body = [&]()
+        {
+            if (s)
+                s->surface.set_show_crosshair(visible != 0);
+        };
+        c_guard_void(body);
     }
 
     int spectra_embed_is_command_bar_visible(const SpectraEmbed* s)
     {
-        return (s && s->surface.show_command_bar()) ? 1 : 0;
+        auto body = [&]() -> int { return (s && s->surface.show_command_bar()) ? 1 : 0; };
+        return c_guard<int>(0, body);
     }
 
     int spectra_embed_is_status_bar_visible(const SpectraEmbed* s)
     {
-        return (s && s->surface.show_status_bar()) ? 1 : 0;
+        auto body = [&]() -> int { return (s && s->surface.show_status_bar()) ? 1 : 0; };
+        return c_guard<int>(0, body);
     }
 
     int spectra_embed_is_nav_rail_visible(const SpectraEmbed* s)
     {
-        return (s && s->surface.show_nav_rail()) ? 1 : 0;
+        auto body = [&]() -> int { return (s && s->surface.show_nav_rail()) ? 1 : 0; };
+        return c_guard<int>(0, body);
     }
 
     int spectra_embed_is_inspector_visible(const SpectraEmbed* s)
     {
-        return (s && s->surface.show_inspector()) ? 1 : 0;
+        auto body = [&]() -> int { return (s && s->surface.show_inspector()) ? 1 : 0; };
+        return c_guard<int>(0, body);
     }
 
     int spectra_embed_is_legend_visible(const SpectraEmbed* s)
     {
-        return (s && s->surface.show_legend()) ? 1 : 0;
+        auto body = [&]() -> int { return (s && s->surface.show_legend()) ? 1 : 0; };
+        return c_guard<int>(0, body);
     }
 
     int spectra_embed_is_crosshair_visible(const SpectraEmbed* s)
     {
-        return (s && s->surface.show_crosshair()) ? 1 : 0;
+        auto body = [&]() -> int { return (s && s->surface.show_crosshair()) ? 1 : 0; };
+        return c_guard<int>(0, body);
     }
 
     // ── Animation & live data (Phase 4) ──────────────────────────────────────
 
     void spectra_embed_set_on_frame(SpectraEmbed* s, SpectraFrameCb cb, void* user_data)
     {
-        if (!s)
-            return;
-        s->frame_cb = cb;
-        s->frame_ud = user_data;
-        if (cb)
+        auto body = [&]()
         {
-            SpectraEmbed* self = s;
-            s->surface.set_frame_callback([self](float t, float dt)
-                                          { self->frame_cb(self, t, dt, self->frame_ud); });
-        }
-        else
-        {
-            s->surface.clear_frame_callback();
-        }
+            if (!s)
+                return;
+            s->frame_cb = cb;
+            s->frame_ud = user_data;
+            if (cb)
+            {
+                SpectraEmbed* self = s;
+                s->surface.set_frame_callback([self](float t, float dt)
+                                              { self->frame_cb(self, t, dt, self->frame_ud); });
+            }
+            else
+            {
+                s->surface.clear_frame_callback();
+            }
+        };
+        c_guard_void(body);
     }
 
     void spectra_embed_clear_on_frame(SpectraEmbed* s)
     {
-        if (!s)
-            return;
-        s->frame_cb = nullptr;
-        s->frame_ud = nullptr;
-        s->surface.clear_frame_callback();
+        auto body = [&]()
+        {
+            if (!s)
+                return;
+            s->frame_cb = nullptr;
+            s->frame_ud = nullptr;
+            s->surface.clear_frame_callback();
+        };
+        c_guard_void(body);
     }
 
     void spectra_embed_set_redraw_callback(SpectraEmbed* s, SpectraRedrawCb cb, void* user_data)
     {
-        if (!s)
-            return;
-        s->redraw_cb = cb;
-        s->redraw_ud = user_data;
-        if (cb)
+        auto body = [&]()
         {
-            SpectraEmbed* self = s;
-            s->surface.set_redraw_callback([self]() { self->redraw_cb(self->redraw_ud); });
-        }
-        else
-        {
-            s->surface.set_redraw_callback(nullptr);
-        }
+            if (!s)
+                return;
+            s->redraw_cb = cb;
+            s->redraw_ud = user_data;
+            if (cb)
+            {
+                SpectraEmbed* self = s;
+                s->surface.set_redraw_callback([self]() { self->redraw_cb(self->redraw_ud); });
+            }
+            else
+            {
+                s->surface.set_redraw_callback(nullptr);
+            }
+        };
+        c_guard_void(body);
     }
 
     int spectra_embed_animation_play(SpectraEmbed* s, float fps, float duration_sec)
     {
-        if (!s)
-            return 0;
-        float step = (fps > 0.0f) ? (1.0f / fps) : (1.0f / 60.0f);
-        if (duration_sec <= 0.0f)
+        auto body = [&]() -> int
         {
-            s->surface.update(step);
-            return 1;
-        }
-        int frames = 0;
-        for (float t = 0.0f; t < duration_sec; t += step)
-        {
-            s->surface.update(step);
-            ++frames;
-        }
-        return frames;
+            if (!s)
+                return 0;
+            // Sanitized step and an integer frame count: a float accumulator
+            // stalls (infinite loop) for fps = inf, huge fps or huge durations.
+            const float step   = spectra::embed_detail::animation_step(fps);
+            const int   frames = spectra::embed_detail::animation_frame_count(fps, duration_sec);
+            for (int i = 0; i < frames; ++i)
+                s->surface.update(step);
+            return frames;
+        };
+        return c_guard<int>(0, body);
     }
 
     void spectra_embed_animation_stop(SpectraEmbed* s)
     {
-        if (s)
-            s->surface.reset_frame_clock();
+        auto body = [&]()
+        {
+            if (s)
+                s->surface.reset_frame_clock();
+        };
+        c_guard_void(body);
     }
 
     // ── Interactive event callbacks (Phase 3) ────────────────────────────────────
@@ -893,176 +1219,241 @@ extern "C"
                                              SpectraPointSelectedCb cb,
                                              void*                  user_data)
     {
-        if (!s)
-            return;
-        if (!cb)
+        auto body = [&]()
         {
-            s->surface.set_on_point_selected(nullptr);
-            return;
-        }
-        s->surface.set_on_point_selected(
-            [cb, user_data](int ai, int si, std::size_t pi, double x, double y)
-            { cb(ai, si, pi, x, y, user_data); });
+            if (!s)
+                return;
+            if (!cb)
+            {
+                s->surface.set_on_point_selected(nullptr);
+                return;
+            }
+            s->surface.set_on_point_selected(
+                [cb, user_data](int ai, int si, std::size_t pi, double x, double y)
+                { cb(ai, si, pi, x, y, user_data); });
+        };
+        c_guard_void(body);
     }
 
     void spectra_embed_set_on_series_selected(SpectraEmbed*           s,
                                               SpectraSeriesSelectedCb cb,
                                               void*                   user_data)
     {
-        if (!s)
-            return;
-        if (!cb)
+        auto body = [&]()
         {
-            s->surface.set_on_series_selected(nullptr);
-            return;
-        }
-        s->surface.set_on_series_selected([cb, user_data](int ai, int si)
-                                          { cb(ai, si, user_data); });
+            if (!s)
+                return;
+            if (!cb)
+            {
+                s->surface.set_on_series_selected(nullptr);
+                return;
+            }
+            s->surface.set_on_series_selected([cb, user_data](int ai, int si)
+                                              { cb(ai, si, user_data); });
+        };
+        c_guard_void(body);
     }
 
     void spectra_embed_set_on_hover(SpectraEmbed* s, SpectraHoverCb cb, void* user_data)
     {
-        if (!s)
-            return;
-        if (!cb)
+        auto body = [&]()
         {
-            s->surface.set_on_hover(nullptr);
-            return;
-        }
-        s->surface.set_on_hover([cb, user_data](int ai, int si, std::size_t pi, double x, double y)
-                                { cb(ai, si, pi, x, y, user_data); });
+            if (!s)
+                return;
+            if (!cb)
+            {
+                s->surface.set_on_hover(nullptr);
+                return;
+            }
+            s->surface.set_on_hover(
+                [cb, user_data](int ai, int si, std::size_t pi, double x, double y)
+                { cb(ai, si, pi, x, y, user_data); });
+        };
+        c_guard_void(body);
     }
 
     void spectra_embed_set_on_view_changed(SpectraEmbed*        s,
                                            SpectraViewChangedCb cb,
                                            void*                user_data)
     {
-        if (!s)
-            return;
-        if (!cb)
+        auto body = [&]()
         {
-            s->surface.set_on_view_changed(nullptr);
-            return;
-        }
-        s->surface.set_on_view_changed(
-            [cb, user_data](double xmin, double xmax, double ymin, double ymax)
-            { cb(xmin, xmax, ymin, ymax, user_data); });
+            if (!s)
+                return;
+            if (!cb)
+            {
+                s->surface.set_on_view_changed(nullptr);
+                return;
+            }
+            s->surface.set_on_view_changed(
+                [cb, user_data](double xmin, double xmax, double ymin, double ymax)
+                { cb(xmin, xmax, ymin, ymax, user_data); });
+        };
+        c_guard_void(body);
     }
 
     // ── Axes configuration ──────────────────────────────────────────────────────
 
     void spectra_axes_set_xlabel(SpectraAxes* ax, const char* label)
     {
-        if (!ax || !ax->axes_2d || !label)
-            return;
-        ax->axes_2d->xlabel(label);
+        auto body = [&]()
+        {
+            if (!ax || !ax->axes_2d || !label)
+                return;
+            ax->axes_2d->xlabel(label);
+        };
+        c_guard_void(body);
     }
 
     void spectra_axes_set_ylabel(SpectraAxes* ax, const char* label)
     {
-        if (!ax || !ax->axes_2d || !label)
-            return;
-        ax->axes_2d->ylabel(label);
+        auto body = [&]()
+        {
+            if (!ax || !ax->axes_2d || !label)
+                return;
+            ax->axes_2d->ylabel(label);
+        };
+        c_guard_void(body);
     }
 
     void spectra_axes_set_title(SpectraAxes* ax, const char* title)
     {
-        if (!ax || !ax->axes_2d || !title)
-            return;
-        ax->axes_2d->title(title);
+        auto body = [&]()
+        {
+            if (!ax || !ax->axes_2d || !title)
+                return;
+            ax->axes_2d->title(title);
+        };
+        c_guard_void(body);
     }
 
     void spectra_axes_set_xlim(SpectraAxes* ax, float min_val, float max_val)
     {
-        if (!ax || !ax->axes_2d)
-            return;
-        ax->axes_2d->xlim(static_cast<double>(min_val), static_cast<double>(max_val));
+        auto body = [&]()
+        {
+            if (!ax || !ax->axes_2d)
+                return;
+            ax->axes_2d->xlim(static_cast<double>(min_val), static_cast<double>(max_val));
+        };
+        c_guard_void(body);
     }
 
     void spectra_axes_set_ylim(SpectraAxes* ax, float min_val, float max_val)
     {
-        if (!ax || !ax->axes_2d)
-            return;
-        ax->axes_2d->ylim(static_cast<double>(min_val), static_cast<double>(max_val));
+        auto body = [&]()
+        {
+            if (!ax || !ax->axes_2d)
+                return;
+            ax->axes_2d->ylim(static_cast<double>(min_val), static_cast<double>(max_val));
+        };
+        c_guard_void(body);
     }
 
     void spectra_axes_set_grid(SpectraAxes* ax, int enabled)
     {
-        if (!ax || !ax->axes_2d)
-            return;
-        ax->axes_2d->grid(enabled != 0);
+        auto body = [&]()
+        {
+            if (!ax || !ax->axes_2d)
+                return;
+            ax->axes_2d->grid(enabled != 0);
+        };
+        c_guard_void(body);
     }
 
     void spectra_axes_show_border(SpectraAxes* ax, int enabled)
     {
-        if (!ax || !ax->axes_2d)
-            return;
-        ax->axes_2d->show_border(enabled != 0);
+        auto body = [&]()
+        {
+            if (!ax || !ax->axes_2d)
+                return;
+            ax->axes_2d->show_border(enabled != 0);
+        };
+        c_guard_void(body);
     }
 
     void spectra_axes_auto_fit(SpectraAxes* ax)
     {
-        if (!ax || !ax->axes_2d)
-            return;
-        ax->axes_2d->auto_fit();
+        auto body = [&]()
+        {
+            if (!ax || !ax->axes_2d)
+                return;
+            ax->axes_2d->auto_fit();
+        };
+        c_guard_void(body);
     }
 
     void spectra_axes_set_xscale(SpectraAxes* ax, int scale_type)
     {
-        if (!ax || !ax->axes_2d)
-            return;
-        switch (scale_type)
+        auto body = [&]()
         {
-            case SPECTRA_SCALE_LOG10:
-                ax->axes_2d->xscale(spectra::ScaleType::Log10);
-                break;
-            case SPECTRA_SCALE_LOG2:
-                ax->axes_2d->xscale(spectra::ScaleType::Log2);
-                break;
-            case SPECTRA_SCALE_SQRT:
-                ax->axes_2d->xscale(spectra::ScaleType::Sqrt);
-                break;
-            default:
-                ax->axes_2d->xscale(spectra::ScaleType::Linear);
-                break;
-        }
+            if (!ax || !ax->axes_2d)
+                return;
+            switch (scale_type)
+            {
+                case SPECTRA_SCALE_LOG10:
+                    ax->axes_2d->xscale(spectra::ScaleType::Log10);
+                    break;
+                case SPECTRA_SCALE_LOG2:
+                    ax->axes_2d->xscale(spectra::ScaleType::Log2);
+                    break;
+                case SPECTRA_SCALE_SQRT:
+                    ax->axes_2d->xscale(spectra::ScaleType::Sqrt);
+                    break;
+                default:
+                    ax->axes_2d->xscale(spectra::ScaleType::Linear);
+                    break;
+            }
+        };
+        c_guard_void(body);
     }
 
     void spectra_axes_set_yscale(SpectraAxes* ax, int scale_type)
     {
-        if (!ax || !ax->axes_2d)
-            return;
-        switch (scale_type)
+        auto body = [&]()
         {
-            case SPECTRA_SCALE_LOG10:
-                ax->axes_2d->yscale(spectra::ScaleType::Log10);
-                break;
-            case SPECTRA_SCALE_LOG2:
-                ax->axes_2d->yscale(spectra::ScaleType::Log2);
-                break;
-            case SPECTRA_SCALE_SQRT:
-                ax->axes_2d->yscale(spectra::ScaleType::Sqrt);
-                break;
-            default:
-                ax->axes_2d->yscale(spectra::ScaleType::Linear);
-                break;
-        }
+            if (!ax || !ax->axes_2d)
+                return;
+            switch (scale_type)
+            {
+                case SPECTRA_SCALE_LOG10:
+                    ax->axes_2d->yscale(spectra::ScaleType::Log10);
+                    break;
+                case SPECTRA_SCALE_LOG2:
+                    ax->axes_2d->yscale(spectra::ScaleType::Log2);
+                    break;
+                case SPECTRA_SCALE_SQRT:
+                    ax->axes_2d->yscale(spectra::ScaleType::Sqrt);
+                    break;
+                default:
+                    ax->axes_2d->yscale(spectra::ScaleType::Linear);
+                    break;
+            }
+        };
+        c_guard_void(body);
     }
 
     void spectra_axes_show_legend(SpectraAxes* ax, int visible)
     {
-        if (!ax || !ax->fig)
-            return;
-        ax->fig->legend().visible = (visible != 0);
+        auto body = [&]()
+        {
+            if (!ax || !ax->fig)
+                return;
+            ax->fig->legend().visible = (visible != 0);
+        };
+        c_guard_void(body);
     }
 
     void spectra_axes_set_legend_position(SpectraAxes* ax, int position)
     {
-        if (!ax || !ax->fig)
-            return;
-        ax->fig->legend().position = to_legend_position(position);
-        if (position == SPECTRA_LEGEND_NONE)
-            ax->fig->legend().visible = false;
+        auto body = [&]()
+        {
+            if (!ax || !ax->fig)
+                return;
+            ax->fig->legend().position = to_legend_position(position);
+            if (position == SPECTRA_LEGEND_NONE)
+                ax->fig->legend().visible = false;
+        };
+        c_guard_void(body);
     }
 
     SpectraSeries* spectra_axes_histogram(SpectraAxes* ax,
@@ -1071,16 +1462,19 @@ extern "C"
                                           int          bins,
                                           const char*  label)
     {
-        if (!ax || !ax->axes_2d || !values || count == 0)
-            return nullptr;
+        auto body = [&]() -> SpectraSeries*
+        {
+            if (!ax || !ax->axes_2d || !values || count == 0)
+                return nullptr;
 
-        std::span<const float> vs(values, count);
-        auto&                  series = ax->axes_2d->histogram(vs, bins > 0 ? bins : 30);
-        if (label && label[0] != '\0')
-            series.label(label);
+            std::span<const float> vs(values, count);
+            auto&                  series = ax->axes_2d->histogram(vs, bins > 0 ? bins : 30);
+            if (label && label[0] != '\0')
+                series.label(label);
 
-        g_series_pool.push_back(SpectraSeries{&series});
-        return &g_series_pool.back();
+            return series_handle(ax->owner, &series);
+        };
+        return c_guard<SpectraSeries*>(nullptr, body);
     }
 
     SpectraSeries* spectra_axes_bar(SpectraAxes* ax,
@@ -1089,17 +1483,20 @@ extern "C"
                                     uint32_t     count,
                                     const char*  label)
     {
-        if (!ax || !ax->axes_2d || !positions || !heights || count == 0)
-            return nullptr;
+        auto body = [&]() -> SpectraSeries*
+        {
+            if (!ax || !ax->axes_2d || !positions || !heights || count == 0)
+                return nullptr;
 
-        std::span<const float> ps(positions, count);
-        std::span<const float> hs(heights, count);
-        auto&                  series = ax->axes_2d->bar(ps, hs);
-        if (label && label[0] != '\0')
-            series.label(label);
+            std::span<const float> ps(positions, count);
+            std::span<const float> hs(heights, count);
+            auto&                  series = ax->axes_2d->bar(ps, hs);
+            if (label && label[0] != '\0')
+                series.label(label);
 
-        g_series_pool.push_back(SpectraSeries{&series});
-        return &g_series_pool.back();
+            return series_handle(ax->owner, &series);
+        };
+        return c_guard<SpectraSeries*>(nullptr, body);
     }
 
     SpectraSeries* spectra_axes_stem(SpectraAxes* ax,
@@ -1108,53 +1505,73 @@ extern "C"
                                      uint32_t     count,
                                      const char*  label)
     {
-        if (!ax || !ax->axes_2d || !x || !y || count == 0)
-            return nullptr;
+        auto body = [&]() -> SpectraSeries*
+        {
+            if (!ax || !ax->axes_2d || !x || !y || count == 0)
+                return nullptr;
 
-        std::span<const float> xs(x, count);
-        std::span<const float> ys(y, count);
-        auto&                  series = ax->axes_2d->stem(xs, ys);
-        if (label && label[0] != '\0')
-            series.label(label);
-        // Default stem appearance: filled circle heads, thin stems
-        series.stem_width(1.5f);
-        series.marker_style(spectra::MarkerStyle::FilledCircle);
-        series.marker_size(6.0f);
+            std::span<const float> xs(x, count);
+            std::span<const float> ys(y, count);
+            auto&                  series = ax->axes_2d->stem(xs, ys);
+            if (label && label[0] != '\0')
+                series.label(label);
+            // Default stem appearance: filled circle heads, thin
+            // stems
+            series.stem_width(1.5f);
+            series.marker_style(spectra::MarkerStyle::FilledCircle);
+            series.marker_size(6.0f);
 
-        g_series_pool.push_back(SpectraSeries{&series});
-        return &g_series_pool.back();
+            return series_handle(ax->owner, &series);
+        };
+        return c_guard<SpectraSeries*>(nullptr, body);
     }
 
     // ── Scatter colormap (Phase 7C) ────────────────────────────────────────
 
     void spectra_series_set_scatter_colors(SpectraSeries* s, const float* values, uint32_t count)
     {
-        if (auto* sc = (s && s->ptr) ? dynamic_cast<spectra::ScatterSeries*>(s->ptr) : nullptr)
-            sc->color_values({values, count});
+        auto body = [&]()
+        {
+            if (auto* sc = (s && s->ptr) ? dynamic_cast<spectra::ScatterSeries*>(s->ptr) : nullptr)
+                sc->color_values({values, count});
+        };
+        c_guard_void(body);
     }
 
     void spectra_series_set_scatter_colormap(SpectraSeries* s, int colormap)
     {
-        if (auto* sc = (s && s->ptr) ? dynamic_cast<spectra::ScatterSeries*>(s->ptr) : nullptr)
-            sc->colormap(to_colormap(colormap));
+        auto body = [&]()
+        {
+            if (auto* sc = (s && s->ptr) ? dynamic_cast<spectra::ScatterSeries*>(s->ptr) : nullptr)
+                sc->colormap(to_colormap(colormap));
+        };
+        c_guard_void(body);
     }
 
     void spectra_series_set_scatter_colormap_range(SpectraSeries* s, float min_val, float max_val)
     {
-        if (auto* sc = (s && s->ptr) ? dynamic_cast<spectra::ScatterSeries*>(s->ptr) : nullptr)
-            sc->colormap_range(min_val, max_val);
+        auto body = [&]()
+        {
+            if (auto* sc = (s && s->ptr) ? dynamic_cast<spectra::ScatterSeries*>(s->ptr) : nullptr)
+                sc->colormap_range(min_val, max_val);
+        };
+        c_guard_void(body);
     }
 
     // ── Figure configuration ────────────────────────────────────────────────────
 
     void spectra_figure_set_title(SpectraFigure* fig, const char* title)
     {
-        if (!fig || !fig->ptr || !title)
-            return;
-        // Figure doesn't have a public set_title; set the first axes title instead.
-        // This is a convenience for single-subplot figures.
-        if (!fig->ptr->axes().empty() && fig->ptr->axes()[0])
-            fig->ptr->axes()[0]->title(title);
+        auto body = [&]()
+        {
+            if (!fig || !fig->ptr || !title)
+                return;
+            // Figure doesn't have a public set_title; set the first axes title instead.
+            // This is a convenience for single-subplot figures.
+            if (!fig->ptr->axes().empty() && fig->ptr->axes()[0])
+                fig->ptr->axes()[0]->title(title);
+        };
+        c_guard_void(body);
     }
 
     // ── Easy Render API ──────────────────────────────────────────────────────────
@@ -1169,7 +1586,9 @@ extern "C"
                                 uint32_t*    out_height,
                                 bool         scatter)
     {
-        if (!x || !y || count == 0 || width == 0 || height == 0)
+        std::size_t buf_size = 0;
+        if (!x || !y || count == 0
+            || !spectra::embed_detail::rgba_buffer_size(width, height, buf_size))
             return nullptr;
 
         spectra::EmbedSurface surface(spectra::EmbedConfig{width, height});
@@ -1189,7 +1608,7 @@ extern "C"
 
         ax.auto_fit();
 
-        auto* buf = new (std::nothrow) uint8_t[width * height * 4];
+        auto* buf = new (std::nothrow) uint8_t[buf_size];
         if (!buf)
             return nullptr;
 
@@ -1214,7 +1633,9 @@ extern "C"
                                  uint32_t*    out_width,
                                  uint32_t*    out_height)
     {
-        return render_easy(x, y, count, width, height, out_width, out_height, false);
+        auto body = [&]() -> uint8_t*
+        { return render_easy(x, y, count, width, height, out_width, out_height, false); };
+        return c_guard<uint8_t*>(nullptr, body);
     }
 
     uint8_t* spectra_render_scatter(const float* x,
@@ -1225,7 +1646,9 @@ extern "C"
                                     uint32_t*    out_width,
                                     uint32_t*    out_height)
     {
-        return render_easy(x, y, count, width, height, out_width, out_height, true);
+        auto body = [&]() -> uint8_t*
+        { return render_easy(x, y, count, width, height, out_width, out_height, true); };
+        return c_guard<uint8_t*>(nullptr, body);
     }
 
     int spectra_render_line_png(const float* x,
@@ -1235,16 +1658,20 @@ extern "C"
                                 uint32_t     height,
                                 const char*  path)
     {
-        if (!path)
-            return 0;
-        uint32_t w   = 0;
-        uint32_t h   = 0;
-        uint8_t* buf = render_easy(x, y, count, width, height, &w, &h, false);
-        if (!buf)
-            return 0;
-        bool ok = spectra::ImageExporter::write_png(path, buf, w, h);
-        delete[] buf;
-        return ok ? 1 : 0;
+        auto body = [&]() -> int
+        {
+            if (!path)
+                return 0;
+            uint32_t w   = 0;
+            uint32_t h   = 0;
+            uint8_t* buf = render_easy(x, y, count, width, height, &w, &h, false);
+            if (!buf)
+                return 0;
+            bool ok = spectra::ImageExporter::write_png(path, buf, w, h);
+            delete[] buf;
+            return ok ? 1 : 0;
+        };
+        return c_guard<int>(0, body);
     }
 
     int spectra_render_scatter_png(const float* x,
@@ -1254,21 +1681,26 @@ extern "C"
                                    uint32_t     height,
                                    const char*  path)
     {
-        if (!path)
-            return 0;
-        uint32_t w   = 0;
-        uint32_t h   = 0;
-        uint8_t* buf = render_easy(x, y, count, width, height, &w, &h, true);
-        if (!buf)
-            return 0;
-        bool ok = spectra::ImageExporter::write_png(path, buf, w, h);
-        delete[] buf;
-        return ok ? 1 : 0;
+        auto body = [&]() -> int
+        {
+            if (!path)
+                return 0;
+            uint32_t w   = 0;
+            uint32_t h   = 0;
+            uint8_t* buf = render_easy(x, y, count, width, height, &w, &h, true);
+            if (!buf)
+                return 0;
+            bool ok = spectra::ImageExporter::write_png(path, buf, w, h);
+            delete[] buf;
+            return ok ? 1 : 0;
+        };
+        return c_guard<int>(0, body);
     }
 
     void spectra_free_pixels(uint8_t* pixels)
     {
-        delete[] pixels;
+        auto body = [&]() { delete[] pixels; };
+        c_guard_void(body);
     }
 
 }   // extern "C"

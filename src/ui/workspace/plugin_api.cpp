@@ -1,5 +1,6 @@
 #include "plugin_api.hpp"
 
+#include <algorithm>
 #include <bit>
 #include <chrono>
 #include <cstdlib>
@@ -506,14 +507,14 @@ extern "C"
 
         // Build CustomPipelineDesc from the C ABI descriptor.
         CustomPipelineDesc pd;
-        pd.vert_spirv           = desc->vert_spirv;
-        pd.vert_spirv_size      = desc->vert_spirv_size;
-        pd.frag_spirv           = desc->frag_spirv;
-        pd.frag_spirv_size      = desc->frag_spirv_size;
-        pd.topology             = desc->topology;
-        pd.enable_depth_test    = (desc->flags & SPECTRA_SERIES_FLAG_3D) != 0;
-        pd.enable_depth_write   = (desc->flags & SPECTRA_SERIES_FLAG_3D) != 0
-                                  && (desc->flags & SPECTRA_SERIES_FLAG_TRANSPARENT) == 0;
+        pd.vert_spirv         = desc->vert_spirv;
+        pd.vert_spirv_size    = desc->vert_spirv_size;
+        pd.frag_spirv         = desc->frag_spirv;
+        pd.frag_spirv_size    = desc->frag_spirv_size;
+        pd.topology           = desc->topology;
+        pd.enable_depth_test  = (desc->flags & SPECTRA_SERIES_FLAG_3D) != 0;
+        pd.enable_depth_write = (desc->flags & SPECTRA_SERIES_FLAG_3D) != 0
+                                && (desc->flags & SPECTRA_SERIES_FLAG_TRANSPARENT) == 0;
         pd.enable_backface_cull = (desc->flags & SPECTRA_SERIES_FLAG_BACKFACE_CULL) != 0;
         pd.enable_blending      = true;
 
@@ -535,13 +536,17 @@ extern "C"
         auto cleanup_cb = desc->cleanup_fn;
         auto ud         = desc->user_data;
 
+        // gpu_state convention (C ABI): every callback receives a pointer to the
+        // host-owned per-series `void*` slot (pointer-to-pointer).  The plugin
+        // allocates its state on the first upload by writing *slot, reads it in
+        // draw, and frees it (and resets *slot) in cleanup.
         auto upload_fn =
             [upload_cb,
-             ud](Backend& backend, const void* data, void* gpu_state, size_t count) -> int
+             ud](Backend& backend, const void* data, void*& gpu_state, size_t count) -> int
         {
             SpectraBackendHandle bh;
             bh.id = reinterpret_cast<uint64_t>(&backend);
-            return upload_cb(bh, data, gpu_state, count, ud);
+            return upload_cb(bh, data, static_cast<void*>(&gpu_state), count, ud);
         };
 
         auto draw_fn = [draw_cb, ud](Backend&                   backend,
@@ -565,7 +570,9 @@ extern "C"
                           "Push constant layout mismatch");
             auto cpc = std::bit_cast<SpectraSeriesPushConst>(pc);
 
-            return draw_cb(bh, ph, gpu_state, &vp, &cpc, ud);
+            // Same pointer-to-slot convention as upload/cleanup.
+            const void* state_slot = gpu_state;
+            return draw_cb(bh, ph, static_cast<const void*>(&state_slot), &vp, &cpc, ud);
         };
 
         CustomBoundsFn bounds_fn;
@@ -589,11 +596,11 @@ extern "C"
         CustomCleanupFn cleanup_fn;
         if (cleanup_cb)
         {
-            cleanup_fn = [cleanup_cb, ud](Backend& backend, void* gpu_state)
+            cleanup_fn = [cleanup_cb, ud](Backend& backend, void*& gpu_state)
             {
                 SpectraBackendHandle bh;
                 bh.id = reinterpret_cast<uint64_t>(&backend);
-                cleanup_cb(bh, gpu_state, ud);
+                cleanup_cb(bh, static_cast<void*>(&gpu_state), ud);
             };
         }
 
@@ -707,6 +714,58 @@ extern "C"
 
 // ─── PluginManager ───────────────────────────────────────────────────────────
 
+namespace
+{
+
+// Series type names present in `after` but not in `before`.
+std::vector<std::string> new_series_types(const std::vector<std::string>& before,
+                                          const std::vector<std::string>& after)
+{
+    std::vector<std::string> added;
+    for (const auto& name : after)
+    {
+        if (std::find(before.begin(), before.end(), name) == before.end())
+            added.push_back(name);
+    }
+    return added;
+}
+
+// Registry entries for `names`, captured right after the plugin's init so
+// later unloads remove exactly these entries.
+std::vector<std::weak_ptr<SeriesTypeEntry>> series_type_entries(
+    SeriesTypeRegistry*             reg,
+    const std::vector<std::string>& names)
+{
+    std::vector<std::weak_ptr<SeriesTypeEntry>> out;
+    if (!reg)
+        return out;
+    for (const auto& name : names)
+    {
+        if (auto e = reg->find_shared(name))
+            out.push_back(e);
+    }
+    return out;
+}
+
+// Remove series types a plugin registered, so no std::function wrapper keeps
+// pointing into the plugin's code once the library is closed.  Must run
+// before dlclose/FreeLibrary.  Only the plugin's own entries are removed: a
+// type the plugin already unregistered and another plugin re-registered under
+// the same name is left alone.
+void unregister_series_types(SeriesTypeRegistry*                                reg,
+                             const std::vector<std::weak_ptr<SeriesTypeEntry>>& entries)
+{
+    if (!reg)
+        return;
+    for (const auto& weak : entries)
+    {
+        if (auto e = weak.lock())
+            reg->unregister_entry(e);
+    }
+}
+
+}   // namespace
+
 PluginManager::~PluginManager()
 {
     unload_all();
@@ -801,6 +860,9 @@ bool PluginManager::load_plugin(const std::string& path)
         return false;
     }
 
+    const std::vector<std::string> series_types_before =
+        series_type_reg_ ? series_type_reg_->type_names() : std::vector<std::string>{};
+
     SpectraPluginContext ctx = make_context(SPECTRA_PLUGIN_API_VERSION_MINOR);
     SpectraPluginInfo    info{};
     auto                 t0     = std::chrono::steady_clock::now();
@@ -808,8 +870,16 @@ bool PluginManager::load_plugin(const std::string& path)
     auto                 t1     = std::chrono::steady_clock::now();
     size_t               init_us =
         static_cast<size_t>(std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count());
+
+    // Track which custom series types this plugin registered during init.
+    std::vector<std::string> plugin_series_types;
+    if (series_type_reg_)
+        plugin_series_types = new_series_types(series_types_before, series_type_reg_->type_names());
+    auto plugin_series_entries = series_type_entries(series_type_reg_, plugin_series_types);
+
     if (result != 0)
     {
+        unregister_series_types(series_type_reg_, plugin_series_entries);
 #ifdef _WIN32
         FreeLibrary(static_cast<HMODULE>(handle));
 #else
@@ -821,6 +891,7 @@ bool PluginManager::load_plugin(const std::string& path)
     // Version compatibility check
     if (info.api_version_major != SPECTRA_PLUGIN_API_VERSION_MAJOR)
     {
+        unregister_series_types(series_type_reg_, plugin_series_entries);
 #ifdef _WIN32
         FreeLibrary(static_cast<HMODULE>(handle));
 #else
@@ -844,18 +915,20 @@ bool PluginManager::load_plugin(const std::string& path)
     }
 
     PluginEntry entry;
-    entry.name                     = info.name ? info.name : "Unknown";
-    entry.version                  = info.version ? info.version : "0.0.0";
-    entry.author                   = info.author ? info.author : "";
-    entry.description              = info.description ? info.description : "";
-    entry.path                     = path;
-    entry.loaded                   = true;
-    entry.enabled                  = true;
-    entry.api_version_minor        = plugin_minor;
-    entry.handle                   = handle;
-    entry.shutdown_fn              = shutdown_fn;
-    entry.diagnostics.init_time_us = init_us;
-    entry.manifest                 = std::move(manifest);
+    entry.name                           = info.name ? info.name : "Unknown";
+    entry.version                        = info.version ? info.version : "0.0.0";
+    entry.author                         = info.author ? info.author : "";
+    entry.description                    = info.description ? info.description : "";
+    entry.path                           = path;
+    entry.loaded                         = true;
+    entry.enabled                        = true;
+    entry.api_version_minor              = plugin_minor;
+    entry.handle                         = handle;
+    entry.shutdown_fn                    = shutdown_fn;
+    entry.diagnostics.init_time_us       = init_us;
+    entry.manifest                       = std::move(manifest);
+    entry.registered_series_types        = std::move(plugin_series_types);
+    entry.registered_series_type_entries = std::move(plugin_series_entries);
 
     plugins_.push_back(std::move(entry));
     return true;
@@ -877,6 +950,13 @@ bool PluginManager::unload_plugin(const std::string& name)
                     registry_->unregister_command(cmd_id);
                 }
             }
+
+            // Drop series types registered by this plugin before shutdown and
+            // before its code is unmapped (their callbacks point into the
+            // library).  Unregistering notifies the Renderer, which runs the
+            // plugin's cleanup_fn for every live series of those types while
+            // the plugin is still fully initialized (mirror of init order).
+            unregister_series_types(series_type_reg_, it->registered_series_type_entries);
 
             // Call shutdown
             if (it->shutdown_fn)
@@ -917,6 +997,9 @@ void PluginManager::unload_all()
                 registry_->unregister_command(cmd_id);
             }
         }
+
+        // Release series types (and their per-series GPU state) before shutdown.
+        unregister_series_types(series_type_reg_, p.registered_series_type_entries);
 
         if (p.shutdown_fn)
         {

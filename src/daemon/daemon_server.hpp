@@ -36,6 +36,8 @@ enum class HandleResult
     Shutdown,           // source client disconnected, shut down
 };
 
+class SetDataChunkAssembler;
+
 // Shared context passed to all message handlers.
 struct DaemonContext
 {
@@ -46,6 +48,8 @@ struct DaemonContext
     std::atomic<bool>&       running;
     TopicRegistry&           topics;
     bool                     idle_exit = false;
+    // Owned by the daemon main loop; reassembles chunked REQ_SET_DATA.
+    SetDataChunkAssembler* set_data_chunks = nullptr;
 };
 
 // ─── Helper functions (shared across handlers) ─────────────────────────────
@@ -102,5 +106,12 @@ void notify_python_window_closed(DaemonContext&     ctx,
 
 // Redistribute orphaned figures to the first remaining agent.
 void redistribute_orphaned_figures(DaemonContext& ctx, const std::vector<uint64_t>& orphaned);
+
+// Release everything a client slot owns before the slot is erased: removes its
+// agent from the session graph (notifying Python clients about orphaned
+// figures with `reason`) and marks the topics it published offline (then
+// broadcasts the topic-list change). Every path that erases a slot must call
+// this first. Idempotent: it clears slot.window_id and slot.client_id.
+void release_client_slot(DaemonContext& ctx, ClientSlot& slot, const std::string& reason);
 
 }   // namespace spectra::daemon

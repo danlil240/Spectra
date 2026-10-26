@@ -52,6 +52,12 @@ VkRenderPass create_render_pass(VkDevice              device,
                                 VkFormat              depth_format = VK_FORMAT_D32_SFLOAT,
                                 VkSampleCountFlagBits msaa_samples = VK_SAMPLE_COUNT_1_BIT);
 
+// Throws std::runtime_error on failure; partially created resources are
+// destroyed before throwing.  When `reuse_render_pass` is set and
+// `required_format` is not VK_FORMAT_UNDEFINED, the swapchain is created with
+// that color format (the reused render pass was built for it); if the surface
+// no longer supports it, creation fails instead of producing framebuffers
+// that are incompatible with the render pass.
 SwapchainContext create_swapchain(VkDevice              device,
                                   VkPhysicalDevice      physical_device,
                                   VkSurfaceKHR          surface,
@@ -61,7 +67,8 @@ SwapchainContext create_swapchain(VkDevice              device,
                                   uint32_t              present_family,
                                   VkSwapchainKHR        old_swapchain     = VK_NULL_HANDLE,
                                   VkRenderPass          reuse_render_pass = VK_NULL_HANDLE,
-                                  VkSampleCountFlagBits msaa_samples      = VK_SAMPLE_COUNT_1_BIT);
+                                  VkSampleCountFlagBits msaa_samples      = VK_SAMPLE_COUNT_1_BIT,
+                                  VkFormat              required_format   = VK_FORMAT_UNDEFINED);
 
 void destroy_swapchain(VkDevice device, SwapchainContext& ctx, bool skip_render_pass = false);
 

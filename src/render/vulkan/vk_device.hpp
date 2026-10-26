@@ -35,6 +35,9 @@ struct DeviceContext
 
     VkPhysicalDeviceProperties       properties{};
     VkPhysicalDeviceMemoryProperties memory_properties{};
+
+    // True when the wideLines feature was enabled on the logical device.
+    bool wide_lines_enabled = false;
 };
 
 // Instance creation

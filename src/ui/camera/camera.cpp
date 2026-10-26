@@ -1,8 +1,12 @@
 #include "camera.hpp"
 
 #include <algorithm>
+#include <cctype>
+#include <cerrno>
 #include <cmath>
+#include <cstdlib>
 #include <iomanip>
+#include <limits>
 #include <sstream>
 
 namespace spectra
@@ -346,67 +350,106 @@ std::string Camera::serialize() const
 
 void Camera::deserialize(const std::string& json)
 {
-    auto parse_vec3 = [](const std::string& s, size_t& pos) -> vec3
+    // Non-throwing parsers: malformed input (hand-edited or truncated workspace
+    // files) leaves the corresponding camera field unchanged.
+    auto parse_number = [](const std::string& s, size_t& pos, float& out) -> bool
     {
-        pos = s.find('[', pos);
-        if (pos == std::string::npos)
-            return {0, 0, 0};
-        pos++;
-
-        float x = std::stof(s.substr(pos));
-        pos     = s.find(',', pos) + 1;
-        float y = std::stof(s.substr(pos));
-        pos     = s.find(',', pos) + 1;
-        float z = std::stof(s.substr(pos));
-        pos     = s.find(']', pos) + 1;
-
-        return {x, y, z};
+        if (pos >= s.size())
+            return false;
+        const char* begin = s.c_str() + pos;
+        char*       end   = nullptr;
+        errno             = 0;
+        const float v     = std::strtof(begin, &end);
+        if (end == begin || errno == ERANGE || !std::isfinite(v))
+            return false;
+        pos += static_cast<size_t>(end - begin);
+        out = v;
+        return true;
     };
 
-    auto parse_float = [](const std::string& s, size_t& pos) -> float
+    auto skip_ws = [](const std::string& s, size_t& pos)
+    {
+        while (pos < s.size() && std::isspace(static_cast<unsigned char>(s[pos])))
+            ++pos;
+    };
+
+    auto expect_char = [&skip_ws](const std::string& s, size_t& pos, char c) -> bool
+    {
+        skip_ws(s, pos);
+        if (pos >= s.size() || s[pos] != c)
+            return false;
+        ++pos;
+        return true;
+    };
+
+    auto parse_vec3 = [&](const std::string& s, size_t pos, vec3& out) -> bool
     {
         pos = s.find(':', pos);
         if (pos == std::string::npos)
-            return 0.0f;
-        pos++;
-        return std::stof(s.substr(pos));
+            return false;
+        ++pos;
+        if (!expect_char(s, pos, '['))
+            return false;
+        float x = 0.0f;
+        float y = 0.0f;
+        float z = 0.0f;
+        if (!parse_number(s, pos, x) || !expect_char(s, pos, ',') || !parse_number(s, pos, y)
+            || !expect_char(s, pos, ',') || !parse_number(s, pos, z) || !expect_char(s, pos, ']'))
+            return false;
+        out = vec3{x, y, z};
+        return true;
     };
 
-    auto parse_int = [](const std::string& s, size_t& pos) -> int
+    auto parse_float = [&](const std::string& s, size_t pos, float& out) -> bool
     {
         pos = s.find(':', pos);
         if (pos == std::string::npos)
-            return 0;
-        pos++;
-        return std::stoi(s.substr(pos));
+            return false;
+        ++pos;
+        return parse_number(s, pos, out);
     };
 
-    size_t pos = 0;
+    auto parse_int = [](const std::string& s, size_t pos, int& out) -> bool
+    {
+        pos = s.find(':', pos);
+        if (pos == std::string::npos)
+            return false;
+        ++pos;
+        const char* begin = s.c_str() + pos;
+        char*       end   = nullptr;
+        errno             = 0;
+        const long v      = std::strtol(begin, &end, 10);
+        if (end == begin || errno == ERANGE || v < std::numeric_limits<int>::min()
+            || v > std::numeric_limits<int>::max())
+            return false;
+        out = static_cast<int>(v);
+        return true;
+    };
 
-    pos = json.find("\"position\"");
+    auto find_key = [&json](const char* key) { return json.find(key); };
+
+    size_t pos = find_key("\"position\"");
     if (pos != std::string::npos)
-        position = parse_vec3(json, pos);
+        parse_vec3(json, pos, position);
 
-    pos = json.find("\"target\"");
+    pos = find_key("\"target\"");
     if (pos != std::string::npos)
-        target = parse_vec3(json, pos);
+        parse_vec3(json, pos, target);
 
-    pos = json.find("\"up\"");
+    pos = find_key("\"up\"");
     if (pos != std::string::npos)
-        up = parse_vec3(json, pos);
+        parse_vec3(json, pos, up);
 
-    pos = json.find("\"projection_mode\"");
+    int ival = 0;
+    pos      = find_key("\"projection_mode\"");
+    if (pos != std::string::npos && parse_int(json, pos, ival))
+        projection_mode = ival == 0 ? ProjectionMode::Perspective : ProjectionMode::Orthographic;
+
+    pos = find_key("\"up_axis\"");
     if (pos != std::string::npos)
     {
-        int mode        = parse_int(json, pos);
-        projection_mode = mode == 0 ? ProjectionMode::Perspective : ProjectionMode::Orthographic;
-    }
-
-    pos = json.find("\"up_axis\"");
-    if (pos != std::string::npos)
-    {
-        int axis = parse_int(json, pos);
-        up_axis  = axis == 1 ? UpAxis::Z : UpAxis::Y;
+        if (parse_int(json, pos, ival))
+            up_axis = ival == 1 ? UpAxis::Z : UpAxis::Y;
     }
     else
     {
@@ -415,33 +458,33 @@ void Camera::deserialize(const std::string& json)
         up_axis = (std::abs(up.z) > std::abs(up.y)) ? UpAxis::Z : UpAxis::Y;
     }
 
-    pos = json.find("\"fov\"");
+    pos = find_key("\"fov\"");
     if (pos != std::string::npos)
-        fov = parse_float(json, pos);
+        parse_float(json, pos, fov);
 
-    pos = json.find("\"near_clip\"");
+    pos = find_key("\"near_clip\"");
     if (pos != std::string::npos)
-        near_clip = parse_float(json, pos);
+        parse_float(json, pos, near_clip);
 
-    pos = json.find("\"far_clip\"");
+    pos = find_key("\"far_clip\"");
     if (pos != std::string::npos)
-        far_clip = parse_float(json, pos);
+        parse_float(json, pos, far_clip);
 
-    pos = json.find("\"ortho_size\"");
+    pos = find_key("\"ortho_size\"");
     if (pos != std::string::npos)
-        ortho_size = parse_float(json, pos);
+        parse_float(json, pos, ortho_size);
 
-    pos = json.find("\"azimuth\"");
+    pos = find_key("\"azimuth\"");
     if (pos != std::string::npos)
-        azimuth = parse_float(json, pos);
+        parse_float(json, pos, azimuth);
 
-    pos = json.find("\"elevation\"");
+    pos = find_key("\"elevation\"");
     if (pos != std::string::npos)
-        elevation = parse_float(json, pos);
+        parse_float(json, pos, elevation);
 
-    pos = json.find("\"distance\"");
+    pos = find_key("\"distance\"");
     if (pos != std::string::npos)
-        distance = parse_float(json, pos);
+        parse_float(json, pos, distance);
 
     remember_orbit();
 }

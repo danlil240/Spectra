@@ -2,7 +2,9 @@
 
 #include <algorithm>
 #include <cctype>
+#include <charconv>
 #include <cmath>
+#include <cstdlib>
 #include <limits>
 #include <sstream>
 #include <stdexcept>
@@ -67,6 +69,63 @@ ExprNodePtr ExprNode::make_func(const std::string& name, ExprNodePtr arg0, ExprN
 
 // ─── Parser ─────────────────────────────────────────────────────────────────
 
+namespace
+{
+
+// Allowed argument counts for user-callable functions. Returns false for unknown names.
+bool function_arity(const std::string& name, int& min_args, int& max_args)
+{
+    struct Entry
+    {
+        const char* name;
+        int         min_args;
+        int         max_args;
+    };
+    static constexpr Entry kFunctions[] = {
+        {"sin", 1, 1},   {"cos", 1, 1},   {"tan", 1, 1},  {"asin", 1, 1},  {"acos", 1, 1},
+        {"atan", 1, 2},  {"atan2", 2, 2}, {"sinh", 1, 1}, {"cosh", 1, 1},  {"tanh", 1, 1},
+        {"exp", 1, 1},   {"log", 1, 1},   {"ln", 1, 1},   {"log2", 1, 1},  {"log10", 1, 1},
+        {"sqrt", 1, 1},  {"cbrt", 1, 1},  {"abs", 1, 1},  {"floor", 1, 1}, {"ceil", 1, 1},
+        {"round", 1, 1}, {"sign", 1, 1},  {"deg", 1, 1},  {"rad", 1, 1},   {"min", 2, 2},
+        {"max", 2, 2},   {"pow", 2, 2},   {"mod", 2, 2},  {"fmod", 2, 2},  {"clamp", 3, 3},
+    };
+    for (const auto& f : kFunctions)
+    {
+        if (name == f.name)
+        {
+            min_args = f.min_args;
+            max_args = f.max_args;
+            return true;
+        }
+    }
+    return false;
+}
+
+bool check_arity(const std::string& name, int nargs, std::string& error)
+{
+    int min_args = 0;
+    int max_args = 0;
+    if (!function_arity(name, min_args, max_args))
+    {
+        error = "Unknown function '" + name + "'";
+        return false;
+    }
+    if (nargs < min_args || nargs > max_args)
+    {
+        error = "Function '" + name + "' expects ";
+        if (min_args == max_args)
+            error += std::to_string(min_args);
+        else
+            error += std::to_string(min_args) + " to " + std::to_string(max_args);
+        error += (max_args == 1 ? " argument" : " arguments");
+        error += ", got " + std::to_string(nargs);
+        return false;
+    }
+    return true;
+}
+
+}   // namespace
+
 ExprNodePtr ExpressionParser::parse(const std::string& expr)
 {
     source_ = expr;
@@ -110,7 +169,8 @@ ExprNodePtr ExpressionParser::parse_ternary()
     skip_whitespace();
     if (match('?'))
     {
-        auto true_expr = parse_comparison();
+        // Branches are full ternaries so that a ? b : c ? d : e is right-associative.
+        auto true_expr = parse_ternary();
         if (!true_expr)
         {
             error_ = "Expected expression after '?'";
@@ -122,7 +182,7 @@ ExprNodePtr ExpressionParser::parse_ternary()
             error_ = "Expected ':' in ternary expression";
             return nullptr;
         }
-        auto false_expr = parse_comparison();
+        auto false_expr = parse_ternary();
         if (!false_expr)
         {
             error_ = "Expected expression after ':'";
@@ -263,7 +323,7 @@ ExprNodePtr ExpressionParser::parse_additive()
 
 ExprNodePtr ExpressionParser::parse_multiplicative()
 {
-    auto left = parse_power();
+    auto left = parse_unary();
     if (!left)
         return nullptr;
 
@@ -272,7 +332,7 @@ ExprNodePtr ExpressionParser::parse_multiplicative()
         skip_whitespace();
         if (match('*'))
         {
-            auto right = parse_power();
+            auto right = parse_unary();
             if (!right)
             {
                 error_ = "Expected expression after '*'";
@@ -282,7 +342,7 @@ ExprNodePtr ExpressionParser::parse_multiplicative()
         }
         else if (match('/'))
         {
-            auto right = parse_power();
+            auto right = parse_unary();
             if (!right)
             {
                 error_ = "Expected expression after '/'";
@@ -292,7 +352,7 @@ ExprNodePtr ExpressionParser::parse_multiplicative()
         }
         else if (match('%'))
         {
-            auto right = parse_power();
+            auto right = parse_unary();
             if (!right)
             {
                 error_ = "Expected expression after '%'";
@@ -309,17 +369,21 @@ ExprNodePtr ExpressionParser::parse_multiplicative()
     return left;
 }
 
+// Grammar (standard math precedence, unary minus binds looser than '^'):
+//   unary := ('-' | '+') unary | power
+//   power := primary ('^' unary)?
+// so -x^2 == -(x^2) while 2^-1 still parses.
 ExprNodePtr ExpressionParser::parse_power()
 {
-    auto base = parse_unary();
+    auto base = parse_primary();
     if (!base)
         return nullptr;
 
     skip_whitespace();
     if (match('^'))
     {
-        // Right-associative
-        auto exponent = parse_power();
+        // Right-associative; exponent may carry its own sign (2^-1)
+        auto exponent = parse_unary();
         if (!exponent)
         {
             error_ = "Expected expression after '^'";
@@ -348,7 +412,7 @@ ExprNodePtr ExpressionParser::parse_unary()
     {
         return parse_unary();
     }
-    return parse_primary();
+    return parse_power();
 }
 
 ExprNodePtr ExpressionParser::parse_primary()
@@ -378,7 +442,10 @@ ExprNodePtr ExpressionParser::parse_primary()
     // Number literal
     if (std::isdigit(static_cast<unsigned char>(current())) || current() == '.')
     {
-        return ExprNode::make_number(read_number());
+        float value = read_number();
+        if (!error_.empty())
+            return nullptr;
+        return ExprNode::make_number(value);
     }
 
     // Identifier (variable, constant, or function)
@@ -432,6 +499,8 @@ ExprNodePtr ExpressionParser::parse_primary()
                         error_ = "Missing closing ')' in function call";
                         return nullptr;
                     }
+                    if (!check_arity(ident, 3, error_))
+                        return nullptr;
                     // For 3-arg functions (clamp), nest: clamp(a, b, c) -> __clamp3(a, __pair(b,
                     // c))
                     auto pair = ExprNode::make_func("__pair", std::move(arg1), std::move(arg2));
@@ -445,6 +514,9 @@ ExprNodePtr ExpressionParser::parse_primary()
                 error_ = "Missing closing ')' in function call";
                 return nullptr;
             }
+
+            if (!check_arity(ident, arg1 ? 2 : 1, error_))
+                return nullptr;
 
             return ExprNode::make_func(ident, std::move(arg0), std::move(arg1));
         }
@@ -534,9 +606,10 @@ std::string ExpressionParser::read_identifier()
 
 float ExpressionParser::read_number()
 {
-    std::string num_str;
-    bool        has_dot = false;
-    bool        has_exp = false;
+    const size_t start_pos = pos_;
+    std::string  num_str;
+    bool         has_dot = false;
+    bool         has_exp = false;
 
     while (pos_ < source_.size())
     {
@@ -570,14 +643,21 @@ float ExpressionParser::read_number()
         }
     }
 
-    try
+    // A literal needs at least one mantissa digit ("." alone is not a number).
+    const bool has_digit =
+        std::any_of(num_str.begin(),
+                    num_str.end(),
+                    [](char ch) { return std::isdigit(static_cast<unsigned char>(ch)) != 0; });
+    if (!has_digit)
     {
-        return std::stof(num_str);
+        error_ = "Invalid number literal at position " + std::to_string(start_pos) + ": '" + num_str
+                 + "'";
+        return std::numeric_limits<float>::quiet_NaN();
     }
-    catch (...)
-    {
-        return 0.0f;
-    }
+
+    // strtof saturates to HUGE_VALF on overflow and returns 0/denormal on underflow,
+    // which is the IEEE behavior we want (stof would throw instead).
+    return std::strtof(num_str.c_str(), nullptr);
 }
 
 // ─── Evaluator ──────────────────────────────────────────────────────────────
@@ -604,8 +684,13 @@ static float resolve_variable(const std::string& name, const ExprContext& ctx)
 
         if (idx_end < name.size() && name[idx_end] == '_' && idx_end + 1 < name.size())
         {
-            size_t series_idx = std::stoul(name.substr(1, idx_end - 1));
-            char   component  = name[idx_end + 1];
+            size_t      series_idx = 0;
+            const char* idx_first  = name.data() + 1;
+            const char* idx_last   = name.data() + idx_end;
+            auto [ptr, ec]         = std::from_chars(idx_first, idx_last, series_idx);
+            if (ec != std::errc{} || ptr != idx_last)
+                return std::numeric_limits<float>::quiet_NaN();   // overflow / bad index
+            char component = name[idx_end + 1];
 
             if (series_idx < ctx.series_data.size())
             {
@@ -699,6 +784,11 @@ static float call_function(const std::string& name,
     {
         float lo = evaluate(*right_node->left, ctx);
         float hi = evaluate(*right_node->right, ctx);
+        if (std::isnan(a) || std::isnan(lo) || std::isnan(hi))
+            return std::numeric_limits<float>::quiet_NaN();
+        // std::clamp requires !(hi < lo); accept reversed bounds instead of invoking UB.
+        if (hi < lo)
+            std::swap(lo, hi);
         return std::clamp(a, lo, hi);
     }
 

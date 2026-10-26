@@ -138,6 +138,11 @@ static constexpr uint8_t TAG_Z_MAX             = 0xA8;
 static constexpr uint8_t TAG_BLOB_INLINE       = 0xB0;
 static constexpr uint8_t TAG_BATCH_ITEM        = 0xB1;
 static constexpr uint8_t TAG_SERIES_AXES_INDEX = 0xB2;
+// Chunked REQ_SET_DATA (python/spectra/_protocol.py). Decoded into
+// ReqSetDataPayload::chunk_*; reassembled by the daemon (SetDataChunkAssembler).
+static constexpr uint8_t TAG_CHUNK_INDEX = 0xB3;
+static constexpr uint8_t TAG_CHUNK_COUNT = 0xB4;
+static constexpr uint8_t TAG_TOTAL_COUNT = 0xB5;
 
 float                tlv_payload_as_float(const PayloadDecoder& dec);
 double               tlv_payload_as_double(const PayloadDecoder& dec);

@@ -1,5 +1,7 @@
 #include "vk_backend.hpp"
 
+#include "vk_frame_utils.hpp"
+
 #include <spectra/logger.hpp>
 
 #include "shader_spirv.hpp"
@@ -163,6 +165,12 @@ bool VulkanBackend::init(bool headless)
         }
         ctx_.device =
             vk::create_logical_device(ctx_.physical_device, ctx_.queue_families, enable_validation);
+        {
+            // create_logical_device enables wideLines exactly when supported.
+            VkPhysicalDeviceFeatures supported{};
+            vkGetPhysicalDeviceFeatures(ctx_.physical_device, &supported);
+            ctx_.wide_lines_enabled = supported.wideLines == VK_TRUE;
+        }
 
         vkGetDeviceQueue(ctx_.device,
                          ctx_.queue_families.graphics.value(),
@@ -256,7 +264,8 @@ void VulkanBackend::wait_idle()
 {
     if (ctx_.device != VK_NULL_HANDLE)
     {
-        vkDeviceWaitIdle(ctx_.device);
+        if (vkDeviceWaitIdle(ctx_.device) == VK_SUCCESS)
+            note_all_submissions_completed();
     }
 }
 
@@ -283,14 +292,7 @@ void VulkanBackend::shutdown()
     // Destroy textures
     for (auto& [id, tex] : textures_)
     {
-        if (tex.sampler != VK_NULL_HANDLE)
-            vkDestroySampler(ctx_.device, tex.sampler, nullptr);
-        if (tex.view != VK_NULL_HANDLE)
-            vkDestroyImageView(ctx_.device, tex.view, nullptr);
-        if (tex.image != VK_NULL_HANDLE)
-            vkDestroyImage(ctx_.device, tex.image, nullptr);
-        if (tex.memory != VK_NULL_HANDLE)
-            vkFreeMemory(ctx_.device, tex.memory, nullptr);
+        destroy_texture_entry_now(tex);
     }
     textures_.clear();
 
@@ -307,6 +309,7 @@ void VulkanBackend::shutdown()
         active_window_->image_available_semaphores.clear();
         active_window_->render_finished_semaphores.clear();
         active_window_->in_flight_fences.clear();
+        active_window_->fence_submit_index.clear();
     }
 
     // Destroy layouts
@@ -322,6 +325,10 @@ void VulkanBackend::shutdown()
         vkDestroyDescriptorSetLayout(ctx_.device, frame_desc_layout_, nullptr);
     if (descriptor_pool_ != VK_NULL_HANDLE)
         vkDestroyDescriptorPool(ctx_.device, descriptor_pool_, nullptr);
+    descriptor_pool_ = VK_NULL_HANDLE;
+    for (auto pool : extra_descriptor_pools_)
+        vkDestroyDescriptorPool(ctx_.device, pool, nullptr);
+    extra_descriptor_pools_.clear();
 
     if (command_pool_ != VK_NULL_HANDLE)
         vkDestroyCommandPool(ctx_.device, command_pool_, nullptr);
@@ -500,18 +507,33 @@ bool VulkanBackend::recreate_swapchain(uint32_t width, uint32_t height)
         "vulkan",
         "recreate_swapchain called: " + std::to_string(width) + "x" + std::to_string(height));
 
+    if (device_lost_ || !active_window_)
+        return false;
+
     // Wait only on in-flight fences instead of vkDeviceWaitIdle (much faster)
     if (!active_window_->in_flight_fences.empty())
     {
         SPECTRA_LOG_DEBUG("vulkan",
                           "Waiting for " + std::to_string(active_window_->in_flight_fences.size())
                               + " in-flight fences before swapchain recreation");
-        auto wait_start = std::chrono::high_resolution_clock::now();
-        vkWaitForFences(ctx_.device,
-                        static_cast<uint32_t>(active_window_->in_flight_fences.size()),
-                        active_window_->in_flight_fences.data(),
-                        VK_TRUE,
-                        UINT64_MAX);
+        auto     wait_start = std::chrono::high_resolution_clock::now();
+        VkResult wait_result =
+            vkWaitForFences(ctx_.device,
+                            static_cast<uint32_t>(active_window_->in_flight_fences.size()),
+                            active_window_->in_flight_fences.data(),
+                            VK_TRUE,
+                            UINT64_MAX);
+        if (wait_result == VK_ERROR_DEVICE_LOST)
+        {
+            device_lost_ = true;
+            SPECTRA_LOG_ERROR("vulkan", "recreate_swapchain: device lost while waiting on fences");
+            return false;
+        }
+        if (wait_result == VK_SUCCESS)
+        {
+            for (uint32_t i = 0; i < active_window_->in_flight_fences.size(); ++i)
+                note_fence_completed(*active_window_, i);
+        }
         auto wait_end = std::chrono::high_resolution_clock::now();
         auto wait_duration =
             std::chrono::duration_cast<std::chrono::milliseconds>(wait_end - wait_start);
@@ -521,23 +543,26 @@ bool VulkanBackend::recreate_swapchain(uint32_t width, uint32_t height)
     }
 
     SPECTRA_LOG_DEBUG("vulkan", "Starting swapchain recreation...");
-    auto         old_swapchain = active_window_->swapchain.swapchain;
-    auto         old_context   = active_window_->swapchain;   // Copy the entire context
-    VkRenderPass reuse_rp      = old_context.render_pass;     // Reuse — format doesn't change
+    VkSwapchainKHR old_swapchain = active_window_->swapchain.swapchain;
+    // Reuse the render pass (pipelines are built against it).  create_swapchain
+    // keeps the same color format so the reused render pass stays compatible.
+    VkRenderPass reuse_rp   = active_window_->swapchain.render_pass;
+    VkFormat     reuse_fmt  = active_window_->swapchain.image_format;
+    VkFormat     req_format = (reuse_rp != VK_NULL_HANDLE) ? reuse_fmt : VK_FORMAT_UNDEFINED;
 
     // Surface lost (compositor restart, display change): the surface itself
     // is dead, so the old swapchain cannot be reused as oldSwapchain and the
     // surface must be recreated from the native window before the new
     // swapchain is created.  Fences were already waited above.
-    const bool surface_was_lost = active_window_->surface_lost;
-    if (surface_was_lost)
+    if (active_window_->surface_lost)
     {
         SPECTRA_LOG_WARN("vulkan", "Surface lost — recreating surface before swapchain");
 
-        // Destroy the old swapchain first (it belongs to the dead surface)
-        vk::destroy_swapchain(ctx_.device, old_context, /*skip_render_pass=*/true);
-        active_window_->swapchain.swapchain = VK_NULL_HANDLE;
-        old_swapchain                       = VK_NULL_HANDLE;
+        // Destroy the old swapchain first (it belongs to the dead surface).
+        // Operate on the live context so no destroyed handle stays behind if
+        // surface recreation fails below.
+        release_swapchain_keep_render_pass(*active_window_);
+        old_swapchain = VK_NULL_HANDLE;
 
         destroy_surface_for(*active_window_);
         // create_surface() also re-queries present-queue support for the new surface
@@ -549,11 +574,12 @@ bool VulkanBackend::recreate_swapchain(uint32_t width, uint32_t height)
         active_window_->surface_lost = false;
     }
 
+    vk::SwapchainContext new_swapchain;
     try
     {
         SPECTRA_LOG_DEBUG("vulkan", "Creating new swapchain...");
-        auto vk_msaa              = static_cast<VkSampleCountFlagBits>(msaa_samples_);
-        active_window_->swapchain = vk::create_swapchain(
+        auto vk_msaa  = static_cast<VkSampleCountFlagBits>(msaa_samples_);
+        new_swapchain = vk::create_swapchain(
             ctx_.device,
             ctx_.physical_device,
             active_window_->surface,
@@ -563,49 +589,68 @@ bool VulkanBackend::recreate_swapchain(uint32_t width, uint32_t height)
             ctx_.queue_families.present.value_or(ctx_.queue_families.graphics.value()),
             old_swapchain,
             reuse_rp,
-            vk_msaa);
-        SPECTRA_LOG_DEBUG(
-            "vulkan",
-            "New swapchain created: " + std::to_string(active_window_->swapchain.extent.width) + "x"
-                + std::to_string(active_window_->swapchain.extent.height));
-
-        // Destroy the old swapchain context (skip render pass — we reused it).
-        // Already destroyed in the surface-lost path above.
-        if (!surface_was_lost)
-        {
-            SPECTRA_LOG_DEBUG("vulkan", "Destroying old swapchain...");
-            vk::destroy_swapchain(ctx_.device, old_context, /*skip_render_pass=*/true);
-        }
-
-        // Recreate sync objects only if image count changed (rare during resize)
-        if (active_window_->swapchain.images.size() != old_context.images.size())
-        {
-            SPECTRA_LOG_DEBUG("vulkan",
-                              "Image count changed " + std::to_string(old_context.images.size())
-                                  + " -> " + std::to_string(active_window_->swapchain.images.size())
-                                  + ", recreating sync objects");
-            for (auto sem : active_window_->image_available_semaphores)
-                vkDestroySemaphore(ctx_.device, sem, nullptr);
-            for (auto sem : active_window_->render_finished_semaphores)
-                vkDestroySemaphore(ctx_.device, sem, nullptr);
-            for (auto fence : active_window_->in_flight_fences)
-                vkDestroyFence(ctx_.device, fence, nullptr);
-            active_window_->image_available_semaphores.clear();
-            active_window_->render_finished_semaphores.clear();
-            active_window_->in_flight_fences.clear();
-            create_sync_objects();
-        }
-        active_window_->current_flight_frame  = 0;
-        active_window_->swapchain_invalidated = false;
-
-        SPECTRA_LOG_DEBUG("vulkan", "Swapchain recreation completed successfully");
-        return true;
+            vk_msaa,
+            req_format);
     }
     catch (const std::exception& e)
     {
         SPECTRA_LOG_ERROR("vulkan", "Swapchain recreation failed: " + std::string(e.what()));
+        // vkCreateSwapchainKHR retires oldSwapchain even when it fails, so the
+        // old swapchain must not be used (or passed as oldSwapchain) again.
+        // Drop it now; the window stays invalidated until a retry succeeds.
+        release_swapchain_keep_render_pass(*active_window_);
+        active_window_->swapchain_invalidated = true;
+        active_window_->swapchain_dirty       = true;
         return false;
     }
+
+    SPECTRA_LOG_DEBUG("vulkan",
+                      "New swapchain created: " + std::to_string(new_swapchain.extent.width) + "x"
+                          + std::to_string(new_swapchain.extent.height));
+
+    // Destroy the old swapchain context (skip render pass — we reused it).
+    // No-op if it was already released in the surface-lost path above.
+    SPECTRA_LOG_DEBUG("vulkan", "Destroying old swapchain...");
+    vk::destroy_swapchain(ctx_.device, active_window_->swapchain, /*skip_render_pass=*/true);
+    active_window_->swapchain = std::move(new_swapchain);
+
+    try
+    {
+        // Recreate sync objects and command buffers if the image count changed
+        // (rare during resize).  Both are indexed by flight frame, whose
+        // range is the number of fences, so they must stay the same size.
+        const size_t image_count = active_window_->swapchain.images.size();
+        if (active_window_->in_flight_fences.size() != image_count
+            || active_window_->command_buffers.size() != image_count)
+        {
+            SPECTRA_LOG_DEBUG("vulkan",
+                              "Image count changed "
+                                  + std::to_string(active_window_->in_flight_fences.size()) + " -> "
+                                  + std::to_string(image_count)
+                                  + ", recreating sync objects and command buffers");
+            destroy_sync_objects_for(*active_window_);
+            create_sync_objects();
+            create_command_buffers();
+        }
+    }
+    catch (const std::exception& e)
+    {
+        SPECTRA_LOG_ERROR("vulkan",
+                          "Swapchain recreation: sync/command buffer allocation failed: "
+                              + std::string(e.what()));
+        // Leave the sync objects empty so begin_frame refuses to run and the
+        // next recreate attempt rebuilds them.
+        destroy_sync_objects_for(*active_window_);
+        active_window_->swapchain_invalidated = true;
+        active_window_->swapchain_dirty       = true;
+        return false;
+    }
+
+    active_window_->current_flight_frame  = 0;
+    active_window_->swapchain_invalidated = false;
+
+    SPECTRA_LOG_DEBUG("vulkan", "Swapchain recreation completed successfully");
+    return true;
 }
 
 bool VulkanBackend::create_offscreen_framebuffer(uint32_t width, uint32_t height)
@@ -1163,7 +1208,7 @@ BufferHandle VulkanBackend::create_buffer(BufferUsage usage, size_t size_bytes)
     // Allocate descriptor set for UBO or SSBO buffers
     if (usage == BufferUsage::Uniform)
     {
-        entry.descriptor_set = allocate_descriptor_set(frame_desc_layout_);
+        entry.descriptor_set = allocate_descriptor_set(frame_desc_layout_, &entry.descriptor_pool);
         if (entry.descriptor_set != VK_NULL_HANDLE)
         {
             // Descriptor range = one aligned slot (dynamic offset selects the slot)
@@ -1174,13 +1219,21 @@ BufferHandle VulkanBackend::create_buffer(BufferUsage usage, size_t size_bytes)
     }
     else if (usage == BufferUsage::Storage)
     {
-        entry.descriptor_set = allocate_descriptor_set(series_desc_layout_);
+        entry.descriptor_set = allocate_descriptor_set(series_desc_layout_, &entry.descriptor_pool);
         if (entry.descriptor_set != VK_NULL_HANDLE)
         {
             update_ssbo_descriptor(entry.descriptor_set,
                                    entry.gpu_buffer.buffer(),
                                    static_cast<VkDeviceSize>(size_bytes));
         }
+    }
+
+    if ((usage == BufferUsage::Uniform || usage == BufferUsage::Storage)
+        && entry.descriptor_set == VK_NULL_HANDLE)
+    {
+        SPECTRA_LOG_ERROR("vulkan",
+                          "create_buffer: descriptor set allocation failed; buffer "
+                              + std::to_string(h.id) + " cannot be bound");
     }
 
     buffers_.emplace(h.id, std::move(entry));
@@ -1204,36 +1257,52 @@ void VulkanBackend::destroy_buffer(BufferHandle handle)
 
 void VulkanBackend::flush_pending_buffer_frees(bool force_all)
 {
-    if (pending_buffer_frees_.empty())
-        return;
-
-    // Only free entries that are old enough: destroyed at least
-    // flight_count_ frames ago, so every flight slot has cycled.
-    uint64_t safe_frame = (frame_counter_ > flight_count_) ? frame_counter_ - flight_count_ : 0;
-
-    size_t write = 0;
-    for (size_t read = 0; read < pending_buffer_frees_.size(); ++read)
+    // An entry is freed only once a fence for a submission made after it was
+    // queued has been observed signalled (see vk::deferred_free_is_safe).
+    if (!pending_buffer_frees_.empty())
     {
-        auto& d = pending_buffer_frees_[read];
-        if (force_all || d.frame_destroyed <= safe_frame)
+        size_t write = 0;
+        for (size_t read = 0; read < pending_buffer_frees_.size(); ++read)
         {
-            // Free descriptor set first (it references the buffer)
-            if (d.entry.descriptor_set != VK_NULL_HANDLE && descriptor_pool_ != VK_NULL_HANDLE)
+            auto& d = pending_buffer_frees_[read];
+            if (force_all || vk::deferred_free_is_safe(d.frame_destroyed, completed_submit_))
             {
-                vkFreeDescriptorSets(ctx_.device, descriptor_pool_, 1, &d.entry.descriptor_set);
+                // Free descriptor set first (it references the buffer)
+                free_descriptor_set(d.entry.descriptor_pool, d.entry.descriptor_set);
                 d.entry.descriptor_set = VK_NULL_HANDLE;
+                // Destroy the buffer now; the slot may be overwritten later.
+                d.entry.gpu_buffer.destroy();
             }
-            // GpuBuffer destructor fires when d goes out of scope (overwritten or erased)
+            else
+            {
+                // Keep this entry — not old enough yet
+                if (write != read)
+                    pending_buffer_frees_[write] = std::move(pending_buffer_frees_[read]);
+                ++write;
+            }
         }
-        else
-        {
-            // Keep this entry — not old enough yet
-            if (write != read)
-                pending_buffer_frees_[write] = std::move(pending_buffer_frees_[read]);
-            ++write;
-        }
+        pending_buffer_frees_.resize(write);
     }
-    pending_buffer_frees_.resize(write);
+
+    if (!pending_texture_frees_.empty())
+    {
+        size_t write = 0;
+        for (size_t read = 0; read < pending_texture_frees_.size(); ++read)
+        {
+            auto& d = pending_texture_frees_[read];
+            if (force_all || vk::deferred_free_is_safe(d.frame_destroyed, completed_submit_))
+            {
+                destroy_texture_entry_now(d.entry);
+            }
+            else
+            {
+                if (write != read)
+                    pending_texture_frees_[write] = pending_texture_frees_[read];
+                ++write;
+            }
+        }
+        pending_texture_frees_.resize(write);
+    }
 }
 
 void VulkanBackend::advance_deferred_deletion()
@@ -1261,8 +1330,39 @@ void VulkanBackend::upload_buffer(BufferHandle handle,
         auto slot_size = static_cast<uint32_t>(ubo_slot_alignment_);
         if (ubo_next_offset_ + slot_size > slot_size * UBO_MAX_SLOTS)
         {
-            ubo_next_offset_ = 0;   // wrap around (shouldn't happen with 64 slots)
+            ubo_next_offset_ = 0;   // wrap around
         }
+
+        // Never overwrite a slot that a recorded or in-flight command buffer
+        // still reads.  The write belongs to the next submission.
+        if (ubo_slot_submit_.size() != UBO_MAX_SLOTS)
+            ubo_slot_submit_.assign(UBO_MAX_SLOTS, 0);
+        const uint32_t slot_index     = ubo_next_offset_ / slot_size;
+        const uint64_t pending_submit = frame_counter_ + 1;
+        switch (vk::classify_ubo_slot_reuse(ubo_slot_submit_[slot_index],
+                                            pending_submit,
+                                            completed_submit_))
+        {
+            case vk::UboSlotReuse::Free:
+                break;
+            case vk::UboSlotReuse::WaitForGpu:
+                // The ring lapped an in-flight frame: wait for the GPU first.
+                if (vkQueueWaitIdle(ctx_.graphics_queue) == VK_SUCCESS)
+                    note_all_submissions_completed();
+                break;
+            case vk::UboSlotReuse::FrameOverflow:
+                if (!ubo_overflow_logged_)
+                {
+                    ubo_overflow_logged_ = true;
+                    SPECTRA_LOG_ERROR("vulkan",
+                                      "upload_buffer: more than " + std::to_string(UBO_MAX_SLOTS)
+                                          + " uniform uploads in one frame; projections will be"
+                                            " overwritten");
+                }
+                break;
+        }
+        ubo_slot_submit_[slot_index] = pending_submit;
+
         ubo_bound_offset_ = ubo_next_offset_;
         buf.upload(data,
                    static_cast<VkDeviceSize>(size_bytes),
@@ -1318,6 +1418,10 @@ void VulkanBackend::create_command_buffers()
                              static_cast<uint32_t>(active_window_->command_buffers.size()),
                              active_window_->command_buffers.data());
     }
+    // Never keep freed handles around: if allocation below fails they would
+    // be freed a second time by the next recreate or by window teardown.
+    active_window_->command_buffers.clear();
+    active_window_->current_cmd = VK_NULL_HANDLE;
 
     uint32_t count = headless_ ? 1 : static_cast<uint32_t>(active_window_->swapchain.images.size());
     active_window_->command_buffers.resize(count);
@@ -1331,6 +1435,7 @@ void VulkanBackend::create_command_buffers()
     if (vkAllocateCommandBuffers(ctx_.device, &info, active_window_->command_buffers.data())
         != VK_SUCCESS)
     {
+        active_window_->command_buffers.clear();
         throw std::runtime_error("Failed to allocate command buffers");
     }
 }
@@ -1346,6 +1451,7 @@ void VulkanBackend::create_sync_objects()
     active_window_->image_available_semaphores.resize(count);
     active_window_->render_finished_semaphores.resize(count);
     active_window_->in_flight_fences.resize(count);
+    active_window_->fence_submit_index.assign(count, 0);
 
     // Track actual flight frame count for deferred deletion
     if (count > flight_count_)
@@ -1402,23 +1508,185 @@ void VulkanBackend::create_descriptor_pool()
     }
 }
 
-VkDescriptorSet VulkanBackend::allocate_descriptor_set(VkDescriptorSetLayout layout)
+VkDescriptorPool VulkanBackend::create_extra_descriptor_pool()
 {
+    // Overflow pool used once descriptor_pool_ (shared with ImGui) is full.
+    VkDescriptorPoolSize pool_sizes[] = {
+        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 64},
+        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 256},
+        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 64},
+    };
+
+    VkDescriptorPoolCreateInfo info{};
+    info.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    info.flags         = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+    info.maxSets       = 256;
+    info.poolSizeCount = 3;
+    info.pPoolSizes    = pool_sizes;
+
+    VkDescriptorPool pool = VK_NULL_HANDLE;
+    if (vkCreateDescriptorPool(ctx_.device, &info, nullptr, &pool) != VK_SUCCESS)
+        return VK_NULL_HANDLE;
+    extra_descriptor_pools_.push_back(pool);
+    SPECTRA_LOG_DEBUG("vulkan",
+                      "Descriptor pool exhausted; created overflow pool #"
+                          + std::to_string(extra_descriptor_pools_.size()));
+    return pool;
+}
+
+VkDescriptorSet VulkanBackend::allocate_descriptor_set(VkDescriptorSetLayout layout,
+                                                       VkDescriptorPool*     out_pool)
+{
+    if (out_pool)
+        *out_pool = VK_NULL_HANDLE;
     if (descriptor_pool_ == VK_NULL_HANDLE || layout == VK_NULL_HANDLE)
         return VK_NULL_HANDLE;
 
-    VkDescriptorSetAllocateInfo alloc_info{};
-    alloc_info.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    alloc_info.descriptorPool     = descriptor_pool_;
-    alloc_info.descriptorSetCount = 1;
-    alloc_info.pSetLayouts        = &layout;
-
-    VkDescriptorSet set = VK_NULL_HANDLE;
-    if (vkAllocateDescriptorSets(ctx_.device, &alloc_info, &set) != VK_SUCCESS)
+    auto try_alloc = [&](VkDescriptorPool pool) -> VkDescriptorSet
     {
-        return VK_NULL_HANDLE;
+        VkDescriptorSetAllocateInfo alloc_info{};
+        alloc_info.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        alloc_info.descriptorPool     = pool;
+        alloc_info.descriptorSetCount = 1;
+        alloc_info.pSetLayouts        = &layout;
+
+        VkDescriptorSet set = VK_NULL_HANDLE;
+        if (vkAllocateDescriptorSets(ctx_.device, &alloc_info, &set) != VK_SUCCESS)
+            return VK_NULL_HANDLE;
+        if (out_pool)
+            *out_pool = pool;
+        return set;
+    };
+
+    if (VkDescriptorSet set = try_alloc(descriptor_pool_); set != VK_NULL_HANDLE)
+        return set;
+    for (auto pool : extra_descriptor_pools_)
+    {
+        if (VkDescriptorSet set = try_alloc(pool); set != VK_NULL_HANDLE)
+            return set;
     }
-    return set;
+
+    VkDescriptorPool pool = create_extra_descriptor_pool();
+    if (pool != VK_NULL_HANDLE)
+    {
+        if (VkDescriptorSet set = try_alloc(pool); set != VK_NULL_HANDLE)
+            return set;
+    }
+
+    SPECTRA_LOG_ERROR("vulkan", "allocate_descriptor_set: all descriptor pools exhausted");
+    return VK_NULL_HANDLE;
+}
+
+void VulkanBackend::free_descriptor_set(VkDescriptorPool pool, VkDescriptorSet set)
+{
+    if (set == VK_NULL_HANDLE || ctx_.device == VK_NULL_HANDLE)
+        return;
+    if (pool == VK_NULL_HANDLE)
+        pool = descriptor_pool_;   // entries created before pool tracking
+    if (pool == VK_NULL_HANDLE)
+        return;
+    vkFreeDescriptorSets(ctx_.device, pool, 1, &set);
+}
+
+void VulkanBackend::destroy_sync_objects_for(WindowContext& wctx)
+{
+    for (auto sem : wctx.image_available_semaphores)
+        if (sem != VK_NULL_HANDLE)
+            vkDestroySemaphore(ctx_.device, sem, nullptr);
+    for (auto sem : wctx.render_finished_semaphores)
+        if (sem != VK_NULL_HANDLE)
+            vkDestroySemaphore(ctx_.device, sem, nullptr);
+    for (auto fence : wctx.in_flight_fences)
+        if (fence != VK_NULL_HANDLE)
+            vkDestroyFence(ctx_.device, fence, nullptr);
+    wctx.image_available_semaphores.clear();
+    wctx.render_finished_semaphores.clear();
+    wctx.in_flight_fences.clear();
+    wctx.fence_submit_index.clear();
+}
+
+void VulkanBackend::release_swapchain_keep_render_pass(WindowContext& wctx)
+{
+    VkRenderPass rp = wctx.swapchain.render_pass;
+    vk::destroy_swapchain(ctx_.device, wctx.swapchain, /*skip_render_pass=*/true);
+    wctx.swapchain.images.clear();
+    wctx.swapchain.render_pass = rp;
+}
+
+void VulkanBackend::replace_fence_signaled(WindowContext& wctx, uint32_t slot)
+{
+    if (slot >= wctx.in_flight_fences.size())
+        return;
+    if (wctx.in_flight_fences[slot] != VK_NULL_HANDLE)
+        vkDestroyFence(ctx_.device, wctx.in_flight_fences[slot], nullptr);
+    wctx.in_flight_fences[slot] = VK_NULL_HANDLE;
+
+    VkFenceCreateInfo fence_info{};
+    fence_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    fence_info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+    if (vkCreateFence(ctx_.device, &fence_info, nullptr, &wctx.in_flight_fences[slot])
+        != VK_SUCCESS)
+    {
+        wctx.in_flight_fences[slot] = VK_NULL_HANDLE;
+        // begin_frame refuses to run with a missing fence; force a rebuild.
+        destroy_sync_objects_for(wctx);
+        wctx.swapchain_invalidated = true;
+        wctx.swapchain_dirty       = true;
+    }
+}
+
+void VulkanBackend::consume_unused_acquire(WindowContext& wctx)
+{
+    const uint32_t slot = wctx.current_flight_frame;
+    if (slot >= wctx.in_flight_fences.size() || slot >= wctx.image_available_semaphores.size())
+        return;
+
+    VkFence fence = wctx.in_flight_fences[slot];
+    vkResetFences(ctx_.device, 1, &fence);
+
+    VkPipelineStageFlags wait_stage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+    VkSubmitInfo         submit{};
+    submit.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submit.waitSemaphoreCount = 1;
+    submit.pWaitSemaphores    = &wctx.image_available_semaphores[slot];
+    submit.pWaitDstStageMask  = &wait_stage;
+
+    VkResult r = vkQueueSubmit(ctx_.graphics_queue, 1, &submit, fence);
+    if (r == VK_SUCCESS)
+        return;   // the fence wait before the slot's next use covers the semaphore
+    if (r == VK_ERROR_DEVICE_LOST)
+    {
+        device_lost_ = true;
+        SPECTRA_LOG_ERROR("vulkan", "consume_unused_acquire: device lost");
+        return;
+    }
+
+    // Could not consume the signal: replace the (now unsignalled) fence and
+    // the semaphore with fresh objects so neither is reused in a bad state.
+    replace_fence_signaled(wctx, slot);
+    if (slot < wctx.image_available_semaphores.size())
+    {
+        vkDestroySemaphore(ctx_.device, wctx.image_available_semaphores[slot], nullptr);
+        wctx.image_available_semaphores[slot] = VK_NULL_HANDLE;
+        VkSemaphoreCreateInfo sem_info{};
+        sem_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+        if (vkCreateSemaphore(ctx_.device,
+                              &sem_info,
+                              nullptr,
+                              &wctx.image_available_semaphores[slot])
+            != VK_SUCCESS)
+        {
+            destroy_sync_objects_for(wctx);
+            wctx.swapchain_invalidated = true;
+            wctx.swapchain_dirty       = true;
+        }
+    }
+}
+
+void VulkanBackend::note_fence_completed(const WindowContext& wctx, uint32_t slot)
+{
+    if (slot < wctx.fence_submit_index.size())
+        completed_submit_ = std::max(completed_submit_, wctx.fence_submit_index[slot]);
 }
 
 void VulkanBackend::update_ubo_descriptor(VkDescriptorSet set,

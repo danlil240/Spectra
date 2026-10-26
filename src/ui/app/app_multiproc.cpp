@@ -260,6 +260,14 @@ void App::run_multiproc()
             fig->config_.height = orig_h;
             fig->compute_layout();
 
+            // Device lost is unrecoverable: the framebuffer holds no valid
+            // image and every further frame would fail, so stop exporting.
+            if (backend_->is_device_lost())
+            {
+                SPECTRA_LOG_CRITICAL("app", "GPU device lost during headless export, aborting");
+                break;
+            }
+
             if (!fig->export_req_.png_path.empty())
             {
                 std::vector<uint8_t> pixels(static_cast<size_t>(export_w) * export_h * 4);
@@ -375,7 +383,9 @@ void App::run_multiproc()
         while (std::chrono::steady_clock::now() < deadline)
         {
 #ifndef _WIN32
-            struct pollfd pfd{};
+            struct pollfd pfd
+            {
+            };
             pfd.fd      = conn->fd();
             pfd.events  = POLLIN;
             pfd.revents = 0;
@@ -520,7 +530,9 @@ void App::run_multiproc()
             scheduler->begin_frame();
 
 #ifndef _WIN32
-        struct pollfd pfd{};
+        struct pollfd pfd
+        {
+        };
         pfd.fd     = conn->fd();
         pfd.events = POLLIN;
 

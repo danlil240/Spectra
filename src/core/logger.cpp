@@ -51,7 +51,7 @@ std::optional<LogLevel> parse_level(const char* s)
     if (v == "critical" || v == "crit" || v == "fatal")
         return LogLevel::Critical;
     if (v == "off" || v == "none" || v == "silent")
-        return LogLevel::Critical;
+        return LogLevel::Off;
     return std::nullopt;
 }
 
@@ -248,6 +248,9 @@ void Logger::log(LogLevel         level,
 
 bool Logger::is_enabled(LogLevel level) const
 {
+    // Off is a threshold, never a message level.
+    if (level >= LogLevel::Off)
+        return false;
     std::lock_guard<std::mutex> lock(mutex_);
     return level >= min_level_;
 }
@@ -268,6 +271,8 @@ std::string Logger::level_to_string(LogLevel level)
             return "ERROR";
         case LogLevel::Critical:
             return "CRITICAL";
+        case LogLevel::Off:
+            return "OFF";
         default:
             return "UNKNOWN";
     }
@@ -360,6 +365,8 @@ Logger::LogSink console_sink(bool use_color)
             case LogLevel::Critical:
                 color_code = "\033[35m";
                 break;
+            default:
+                break;
         }
 
         std::cerr << color_code << format_log_entry(entry) << reset_code << '\n';
@@ -447,7 +454,7 @@ Logger::LogSink filtered_sink(LogLevel min_level, Logger::LogSink inner)
 {
     return [min_level, inner = std::move(inner)](const Logger::LogEntry& entry)
     {
-        if (entry.level >= min_level)
+        if (entry.level >= min_level && min_level < LogLevel::Off)
         {
             inner(entry);
         }

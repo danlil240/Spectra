@@ -12,6 +12,12 @@
 #include "ipc/transport.hpp"
 #include "ui/native_dialog_policy.hpp"
 
+#ifndef _WIN32
+    #include "ipc/codec.hpp"
+    #include "ipc/message.hpp"
+    #include "ipc/transport.hpp"
+#endif
+
 #if __has_include(<spectra/version.hpp>)
     #include <spectra/version.hpp>
 #endif
@@ -48,26 +54,50 @@ std::string socket_dir()
     return spectra::ipc::runtime_dir();
 }
 
-// Probe a Unix socket path: returns true if a server is accepting connections.
-bool socket_is_live(const std::string& path)
+// Upper bound on how long the daemon probe waits for a WELCOME reply, so a
+// wedged or foreign peer cannot hang startup.
+constexpr int DAEMON_PROBE_TIMEOUT_MS = 500;
+
+// Probe a Unix socket path: returns true only if a real multiproc daemon
+// (spectra-backend) answers on it.  Other Spectra sockets share the
+// spectra-*.sock naming — notably the InprocTopicServer of a running in-process
+// `spectra` (WELCOME.mode == "inproc"), which only speaks the publisher subset
+// of the protocol and can never drive a spectra-window agent.
+//
+// The probe identifies itself as a "publisher" so the daemon does not register
+// it as a render agent; it declares no topics and disconnects right away.
+bool socket_is_live_daemon(const std::string& path)
 {
-    int fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
-    if (fd < 0)
+    auto conn = spectra::ipc::Client::connect(path);
+    if (!conn || !conn->is_open())
         return false;
-    sockaddr_un addr{};
-    addr.sun_family = AF_UNIX;
-    if (path.size() >= sizeof(addr.sun_path))
-    {
-        ::close(fd);
+    conn->set_recv_timeout_ms(DAEMON_PROBE_TIMEOUT_MS);
+    conn->set_stall_timeout_ms(DAEMON_PROBE_TIMEOUT_MS);
+
+    spectra::ipc::HelloPayload hello;
+    hello.protocol_major = spectra::ipc::PROTOCOL_MAJOR;
+    hello.protocol_minor = spectra::ipc::PROTOCOL_MINOR;
+    hello.agent_build    = "spectra-daemon-probe";
+    hello.client_type    = "publisher";
+    hello.capabilities   = spectra::ipc::CAPABILITY_FLATBUFFERS;
+
+    spectra::ipc::Message m;
+    m.header.type        = spectra::ipc::MessageType::HELLO;
+    m.payload            = spectra::ipc::encode_hello(hello);
+    m.header.payload_len = static_cast<uint32_t>(m.payload.size());
+    if (!conn->send(m))
         return false;
-    }
-    std::memcpy(addr.sun_path, path.c_str(), path.size());
-    bool ok = ::connect(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == 0;
-    ::close(fd);
-    return ok;
+
+    auto reply = conn->recv();
+    if (!reply || reply->header.type != spectra::ipc::MessageType::WELCOME)
+        return false;
+    auto welcome = spectra::ipc::decode_welcome(reply->payload);
+    if (!welcome)
+        return false;
+    return welcome->mode != "inproc";
 }
 
-// Find a live `spectra-*.sock` in the runtime dir, newest first.
+// Find a live daemon `spectra-*.sock` in the runtime dir, newest first.
 std::string discover_live_daemon_socket()
 {
     namespace fs = std::filesystem;
@@ -80,6 +110,10 @@ std::string discover_live_daemon_socket()
         const auto& p    = e.path();
         const auto  name = p.filename().string();
         if (name.rfind("spectra-", 0) != 0 || p.extension() != ".sock")
+            continue;
+        // The automation server's spectra-auto-<pid>.sock (JSON lines) lands
+        // here too when XDG_RUNTIME_DIR is unset; it is never a daemon.
+        if (name.rfind("spectra-auto-", 0) == 0)
             continue;
         auto mtime = fs::last_write_time(p, ec);
         if (ec)
@@ -94,7 +128,7 @@ std::string discover_live_daemon_socket()
               [](const auto& a, const auto& b) { return a.second > b.second; });
     for (const auto& h : hits)
     {
-        if (socket_is_live(h.first))
+        if (socket_is_live_daemon(h.first))
             return h.first;
     }
     return {};

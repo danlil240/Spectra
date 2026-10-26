@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, List, Union
+from typing import TYPE_CHECKING, List, Optional, Union
 
 from . import _protocol as P
 from . import _codec as codec
@@ -18,7 +18,7 @@ class Axes:
     All mutations are sent to the backend via IPC.
     """
 
-    __slots__ = ("_session", "_figure_id", "_index", "_series_list", "_is_3d")
+    __slots__ = ("_session", "_figure_id", "_index", "_series_list", "_is_3d", "_figure_axes")
 
     def __init__(self, session: Session, figure_id: int, axes_index: int, is_3d: bool = False) -> None:
         self._session = session
@@ -26,6 +26,9 @@ class Axes:
         self._index = axes_index
         self._series_list: List[Series] = []
         self._is_3d = is_3d
+        # The owning Figure's axes list (shared reference), set by Figure. Series
+        # indices are figure-wide, so a removal must re-index every axes.
+        self._figure_axes: Optional[List["Axes"]] = None
 
     @property
     def index(self) -> int:
@@ -194,18 +197,46 @@ class Axes:
             series_index=index,
         )
         self._session._request(P.REQ_REMOVE_SERIES, payload)
-        self._series_list = [s for s in self._series_list if s._index != index]
+        self._on_series_removed(index)
 
     def clear(self) -> None:
         """Remove all series from this axes."""
-        # Remove in reverse order so indices stay valid
-        for s in reversed(list(self._series_list)):
+        # Remove highest index first so the remaining indices in this axes stay
+        # valid; _on_series_removed re-indexes series in sibling axes.
+        for s in sorted(self._series_list, key=lambda s: s._index, reverse=True):
+            index = s._index
             payload = codec.encode_req_remove_series(
                 figure_id=self._figure_id,
-                series_index=s._index,
+                series_index=index,
             )
             self._session._request(P.REQ_REMOVE_SERIES, payload)
+            self._on_series_removed(index)
         self._series_list.clear()
+
+    def _sibling_axes(self) -> List["Axes"]:
+        """All axes of the owning figure (including self), without duplicates."""
+        figure_axes = getattr(self, "_figure_axes", None)
+        axes: List[Axes] = list(figure_axes) if figure_axes is not None else []
+        if not any(a is self for a in axes):
+            axes.append(self)
+        return axes
+
+    def _on_series_removed(self, index: int) -> None:
+        """Mirror the backend after removing figure-wide series ``index``.
+
+        The backend erases the series and shifts every later series index in
+        the figure down by one, so drop the removed proxy from every axes and
+        decrement the index of each later Series proxy (once per object).
+        """
+        seen = set()
+        for ax in self._sibling_axes():
+            ax._series_list = [s for s in ax._series_list if s._index != index]
+            for s in ax._series_list:
+                if id(s) in seen:
+                    continue
+                seen.add(id(s))
+                if s._index > index:
+                    s._index -= 1
 
     def batch(self) -> "_AxesBatchContext":
         """Context manager for batching multiple property updates into one IPC call.

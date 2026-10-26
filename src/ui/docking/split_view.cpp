@@ -18,8 +18,7 @@ SplitPane::PaneId SplitPane::next_id()
     return s_next_pane_id.fetch_add(1, std::memory_order_relaxed);
 }
 
-SplitPane::SplitPane(FigureId figure_id)
-    : id_(next_id()), figure_index_(figure_id) 
+SplitPane::SplitPane(FigureId figure_id) : id_(next_id()), figure_index_(figure_id)
 {
     figure_indices_.push_back(figure_id);
 }
@@ -780,8 +779,8 @@ void SplitViewManager::update_splitter_drag(float mouse_pos)
     float min_ratio = SplitPane::MIN_PANE_SIZE / total_size;
     float max_ratio = 1.0f - min_ratio;
     new_ratio       = std::clamp(new_ratio,
-                                 std::max(SplitPane::MIN_RATIO, min_ratio),
-                                 std::min(SplitPane::MAX_RATIO, max_ratio));
+                           std::max(SplitPane::MIN_RATIO, min_ratio),
+                           std::min(SplitPane::MAX_RATIO, max_ratio));
 
     dragging_splitter_->set_split_ratio(new_ratio);
     recompute_layout();
@@ -813,16 +812,19 @@ bool SplitViewManager::deserialize(const std::string& data)
     if (data.empty())
         return false;
 
-    // Find active figure index
-    auto active_pos = data.find("\"active\":");
+    // Find active figure index (applied only if the layout is accepted)
+    bool     has_active    = false;
+    FigureId parsed_active = active_figure_index_;
+    auto     active_pos    = data.find("\"active\":");
     if (active_pos != std::string::npos)
     {
         active_pos += 9;
         auto end = data.find_first_of(",}", active_pos);
         if (end != std::string::npos)
         {
-            active_figure_index_ =
-                static_cast<size_t>(std::stoul(data.substr(active_pos, end - active_pos)));
+            parsed_active =
+                static_cast<FigureId>(std::stoul(data.substr(active_pos, end - active_pos)));
+            has_active = true;
         }
     }
 
@@ -845,8 +847,12 @@ bool SplitViewManager::deserialize(const std::string& data)
                 {
                     auto root_data = data.substr(start, i - start + 1);
                     auto new_root  = SplitPane::deserialize(root_data);
-                    if (new_root)
+                    // Enforce the same pane limit as split_pane(): reject a
+                    // layout with more leaves than MAX_PANES.
+                    if (new_root && new_root->count_leaves() <= MAX_PANES)
                     {
+                        if (has_active)
+                            active_figure_index_ = parsed_active;
                         root_ = std::move(new_root);
                         recompute_layout();
                         return true;

@@ -307,23 +307,39 @@ bool TextRenderer::init(Backend& backend, const uint8_t* font_data, size_t font_
         atlas_rgba[i * 4 + 3] = a;     // A — coverage from rasterizer
     }
 
+    // Release anything left over from a previous (failed) init attempt so a
+    // retry (e.g. Renderer::init's font-file fallbacks) doesn't leak the atlas
+    // texture or UBO by overwriting their handles.
+    if (atlas_texture_ || text_ubo_)
+        shutdown(backend);
+
     // Upload atlas texture
     atlas_texture_ = backend.create_texture(atlas_width_, atlas_height_, atlas_rgba.data());
     if (!atlas_texture_)
         return false;
 
-    // Create text pipelines
+    // Create text pipelines.  On any failure below, release what was already
+    // created so a failed init leaves no GPU resources behind.
     text_pipeline_ = backend.create_pipeline(PipelineType::Text);
     if (!text_pipeline_)
+    {
+        shutdown(backend);
         return false;
+    }
     text_depth_pipeline_ = backend.create_pipeline(PipelineType::TextDepth);
     if (!text_depth_pipeline_)
+    {
+        shutdown(backend);
         return false;
+    }
 
     // Create UBO for screen-space ortho projection
     text_ubo_ = backend.create_buffer(BufferUsage::Uniform, sizeof(FrameUBO));
     if (!text_ubo_)
+    {
+        shutdown(backend);
         return false;
+    }
 
     initialized_ = true;
     return true;
@@ -716,7 +732,12 @@ void TextRenderer::flush(Backend& backend, float screen_width, float screen_heig
     if (!initialized_)
         return;
     if (flush_cursor_ >= MAX_TEXT_FLUSHES_PER_FRAME)
+    {
+        // Out of per-frame slots: drop the queued text rather than letting it
+        // carry over into the next frame's first flush (wrong pane / late).
+        vertices_.clear();
         return;
+    }
     uint32_t slot = flush_slot_base_ + flush_cursor_;
     ++flush_cursor_;
     flush_batch(backend,
@@ -733,7 +754,12 @@ void TextRenderer::flush_depth(Backend& backend, float screen_width, float scree
     if (!initialized_)
         return;
     if (depth_flush_cursor_ >= MAX_TEXT_FLUSHES_PER_FRAME)
+    {
+        // Out of per-frame slots: drop the queued text rather than letting it
+        // carry over into the next frame's first flush (wrong pane / late).
+        depth_vertices_.clear();
         return;
+    }
     uint32_t slot = flush_slot_base_ + depth_flush_cursor_;
     ++depth_flush_cursor_;
     flush_batch(backend,

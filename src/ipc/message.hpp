@@ -320,8 +320,9 @@ struct DiffOp
         SET_KNOB_VALUE     = 20,   // str_val=knob name, f1=new value
         SET_AXIS_ZLIMITS   = 21,   // f1=z_min, f2=z_max
         ADD_SERIES         = 22,   // str_val=type, axes_index=axes, series_index=new index
-        ADD_AXES           = 23,   // axes_index=new index, bool_val=is_3d
-        SET_LIVE_FPS       = 25,   // f1=target fps, bool_val=enable/disable
+        ADD_AXES =
+            23,   // axes_index=new index, bool_val=is_3d, f1=grid_rows, f2=grid_cols (0 = unknown)
+        SET_LIVE_FPS = 25,   // f1=target fps, bool_val=enable/disable
     };
 
     Type     type         = Type::SET_AXIS_LIMITS;
@@ -423,6 +424,16 @@ struct ReqSetDataPayload
     uint32_t           series_index = 0;
     uint8_t            dtype        = 0;   // 0=float32, 1=float64
     std::vector<float> data;               // interleaved x,y (or x,y,z for 3D)
+
+    // Chunked transfer (TLV only; Python splits arrays > CHUNK_SIZE). A message
+    // with chunk_count <= 1 is a complete, unchunked set_data. Otherwise `data`
+    // holds chunk `chunk_index` of `chunk_count`, and `total_count` is the float
+    // count of the fully reassembled array.
+    uint32_t chunk_index = 0;
+    uint32_t chunk_count = 1;
+    uint32_t total_count = 0;
+
+    bool is_chunked() const { return chunk_count > 1; }
 };
 
 // Python → Backend: update a property on figure/axes/series.

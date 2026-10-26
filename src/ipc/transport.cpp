@@ -33,6 +33,7 @@ inline void fd_close(int fd)
 #else
     #include <cerrno>
     #include <fcntl.h>
+    #include <poll.h>
     #include <sys/socket.h>
     #include <sys/stat.h>
     #include <sys/un.h>
@@ -98,14 +99,45 @@ Connection& Connection::operator=(Connection&& other) noexcept
     return *this;
 }
 
-bool Connection::read_exact(uint8_t* buf, size_t len) const
+bool Connection::read_exact(uint8_t* buf, size_t len, int first_timeout_ms) const
 {
     size_t total = 0;
     while (total < len)
     {
+#ifndef _WIN32
+        // Bound the wait for data: before the first byte by first_timeout_ms,
+        // afterwards by the mid-frame stall timeout.
+        const int timeout_ms = (total == 0) ? first_timeout_ms : stall_timeout_ms_;
+        if (timeout_ms >= 0)
+        {
+            struct pollfd pfd
+            {
+                fd_, POLLIN, 0
+            };
+            int rc = ::poll(&pfd, 1, timeout_ms);
+            if (rc < 0)
+            {
+                if (errno == EINTR)
+                    continue;
+                return false;
+            }
+            if (rc == 0)
+                return false;   // timed out
+        }
+#else
+        (void)first_timeout_ms;
+#endif
         auto n = fd_read(fd_, buf + total, len - total);
-        if (n <= 0)
-            return false;   // EOF or error
+        if (n < 0)
+        {
+#ifndef _WIN32
+            if (errno == EINTR)
+                continue;   // interrupted by a signal handler without SA_RESTART
+#endif
+            return false;
+        }
+        if (n == 0)
+            return false;   // EOF
         total += static_cast<size_t>(n);
     }
     return true;
@@ -117,7 +149,15 @@ bool Connection::write_exact(const uint8_t* buf, size_t len) const
     while (total < len)
     {
         auto n = fd_write(fd_, buf + total, len - total);
-        if (n <= 0)
+        if (n < 0)
+        {
+#ifndef _WIN32
+            if (errno == EINTR)
+                continue;   // interrupted by a signal handler without SA_RESTART
+#endif
+            return false;
+        }
+        if (n == 0)
             return false;
         total += static_cast<size_t>(n);
     }
@@ -142,27 +182,44 @@ std::optional<Message> Connection::recv()
     if (fd_ < 0)
         return std::nullopt;
 
-    // Read fixed header
-    uint8_t hdr_buf[HEADER_SIZE];
-    if (!read_exact(hdr_buf, HEADER_SIZE))
+    // Any failure below leaves the stream at an unknown frame boundary, so the
+    // connection is closed (mirrors send()).
+    auto fail = [this]() -> std::optional<Message>
+    {
+        close();
         return std::nullopt;
+    };
+
+    // Read fixed header.  Only the first byte may wait up to recv_timeout_ms_;
+    // once the frame has started, read_exact() bounds every further wait by
+    // stall_timeout_ms_.
+    uint8_t hdr_buf[HEADER_SIZE];
+    if (!read_exact(hdr_buf, HEADER_SIZE, recv_timeout_ms_))
+        return fail();
 
     auto hdr_opt = decode_header(std::span<const uint8_t>(hdr_buf, HEADER_SIZE));
     if (!hdr_opt)
-        return std::nullopt;
+        return fail();
 
     auto& hdr = *hdr_opt;
     if (hdr.payload_len > MAX_PAYLOAD_SIZE)
-        return std::nullopt;
+        return fail();
 
     Message msg;
     msg.header = hdr;
-    msg.payload.resize(hdr.payload_len);
 
-    if (hdr.payload_len > 0)
+    // Grow the payload buffer as bytes actually arrive instead of committing
+    // up to MAX_PAYLOAD_SIZE on the strength of an untrusted header.
+    static constexpr size_t RECV_CHUNK = 1u << 20;   // 1 MiB
+    const size_t            total_len  = hdr.payload_len;
+    size_t                  received   = 0;
+    while (received < total_len)
     {
-        if (!read_exact(msg.payload.data(), hdr.payload_len))
-            return std::nullopt;
+        const size_t chunk = std::min(RECV_CHUNK, total_len - received);
+        msg.payload.resize(received + chunk);
+        if (!read_exact(msg.payload.data() + received, chunk, stall_timeout_ms_))
+            return fail();
+        received += chunk;
     }
 
     return msg;
@@ -190,11 +247,19 @@ bool Server::listen(const std::string& path)
 {
 #ifndef _WIN32
     // Remove only a stale socket.  Refuse to overwrite regular files, directories,
-    // symlinks, or other filesystem objects that happen to use the requested path.
+    // symlinks, or other filesystem objects that happen to use the requested path,
+    // and refuse to steal a socket another server is still accepting on.
     struct stat existing = {};
     if (::lstat(path.c_str(), &existing) == 0)
     {
-        if (!S_ISSOCK(existing.st_mode) || ::unlink(path.c_str()) != 0)
+        if (!S_ISSOCK(existing.st_mode))
+            return false;
+        if (Client::connect(path))
+        {
+            errno = EADDRINUSE;
+            return false;   // live server — not stale
+        }
+        if (::unlink(path.c_str()) != 0)
             return false;
     }
     else if (errno != ENOENT)
@@ -206,7 +271,9 @@ bool Server::listen(const std::string& path)
     if (fd < 0)
         return false;
 
-    struct sockaddr_un addr{};
+    struct sockaddr_un addr
+    {
+    };
     addr.sun_family = AF_UNIX;
     if (path.size() >= sizeof(addr.sun_path))
     {
@@ -239,8 +306,18 @@ bool Server::listen(const std::string& path)
         return false;
     }
 
+    struct stat bound = {};
+    if (::lstat(path.c_str(), &bound) != 0)
+    {
+        ::close(fd);
+        ::unlink(path.c_str());
+        return false;
+    }
+
     listen_fd_ = fd;
     path_      = path;
+    bound_dev_ = static_cast<uint64_t>(bound.st_dev);
+    bound_ino_ = static_cast<uint64_t>(bound.st_ino);
     return true;
 #else
     (void)path;
@@ -254,15 +331,19 @@ std::unique_ptr<Connection> Server::accept() const
     if (listen_fd_ < 0)
         return nullptr;
 
-    struct sockaddr_un client_addr{};
-    socklen_t          client_len = sizeof(client_addr);
-    int                client_fd =
+    struct sockaddr_un client_addr
+    {
+    };
+    socklen_t client_len = sizeof(client_addr);
+    int       client_fd =
         ::accept(listen_fd_, reinterpret_cast<struct sockaddr*>(&client_addr), &client_len);
     if (client_fd < 0)
         return nullptr;
 
     disable_sigpipe(client_fd);
-    return std::make_unique<Connection>(client_fd);
+    auto conn = std::make_unique<Connection>(client_fd);
+    conn->set_stall_timeout_ms(SERVER_STALL_TIMEOUT_MS);
+    return conn;
 #else
     return nullptr;
 #endif
@@ -279,9 +360,11 @@ std::unique_ptr<Connection> Server::try_accept() const
     if (listen_flags >= 0)
         ::fcntl(listen_fd_, F_SETFL, listen_flags | O_NONBLOCK);
 
-    struct sockaddr_un client_addr{};
-    socklen_t          client_len = sizeof(client_addr);
-    int                client_fd =
+    struct sockaddr_un client_addr
+    {
+    };
+    socklen_t client_len = sizeof(client_addr);
+    int       client_fd =
         ::accept(listen_fd_, reinterpret_cast<struct sockaddr*>(&client_addr), &client_len);
 
     // Restore listen socket to blocking
@@ -296,8 +379,11 @@ std::unique_ptr<Connection> Server::try_accept() const
     if (flags >= 0)
         ::fcntl(client_fd, F_SETFL, flags & ~O_NONBLOCK);
 
+    // A peer that stalls mid-frame must not pin the caller's poll() loop.
     disable_sigpipe(client_fd);
-    return std::make_unique<Connection>(client_fd);
+    auto conn = std::make_unique<Connection>(client_fd);
+    conn->set_stall_timeout_ms(SERVER_STALL_TIMEOUT_MS);
+    return conn;
 #else
     return nullptr;
 #endif
@@ -313,8 +399,18 @@ void Server::close()
     }
     if (!path_.empty())
     {
-        ::unlink(path_.c_str());
+        // Only remove the path if it still refers to the socket we bound; another
+        // server may have replaced it (after our socket went stale) since.
+        struct stat st = {};
+        if (::lstat(path_.c_str(), &st) == 0 && S_ISSOCK(st.st_mode)
+            && static_cast<uint64_t>(st.st_dev) == bound_dev_
+            && static_cast<uint64_t>(st.st_ino) == bound_ino_)
+        {
+            ::unlink(path_.c_str());
+        }
         path_.clear();
+        bound_dev_ = 0;
+        bound_ino_ = 0;
     }
 #endif
 }
@@ -328,7 +424,9 @@ std::unique_ptr<Connection> Client::connect(const std::string& path)
     if (fd < 0)
         return nullptr;
 
-    struct sockaddr_un addr{};
+    struct sockaddr_un addr
+    {
+    };
     addr.sun_family = AF_UNIX;
     if (path.size() >= sizeof(addr.sun_path))
     {

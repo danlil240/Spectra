@@ -3,6 +3,7 @@
 #include <cstring>
 #include <iostream>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #if __has_include(<spectra/version.hpp>)
@@ -140,7 +141,9 @@ int main(int argc, char* argv[])
     TopicRegistry           topics;
     uint64_t                next_client_id = 1;
 
-    DaemonContext ctx{graph, fig_model, proc_mgr, clients, g_running, topics, idle_exit};
+    SetDataChunkAssembler set_data_chunks;
+    DaemonContext
+        ctx{graph, fig_model, proc_mgr, clients, g_running, topics, idle_exit, &set_data_chunks};
 
     bool had_agents = false;
 
@@ -182,6 +185,18 @@ int main(int argc, char* argv[])
             }
         }
 
+        // poll() results keyed by fd. Erasing a slot below shifts every later
+        // client in `clients`, so a positional lookup into pfds would test a
+        // client against its neighbour's revents and could block in recv().
+        // Clients accepted after poll() have no entry and are polled next time.
+        std::unordered_map<int, short> revents_by_fd;
+        revents_by_fd.reserve(pfds.size());
+        for (size_t i = 1; i < pfds.size(); ++i)
+        {
+            if (pfds[i].fd >= 0)
+                revents_by_fd[pfds[i].fd] = pfds[i].revents;
+        }
+
         // Process messages from all connected clients
         for (auto it = clients.begin(); it != clients.end();)
         {
@@ -190,24 +205,17 @@ int main(int argc, char* argv[])
                 // Connection closed — remove agent
                 if (it->window_id != spectra::ipc::INVALID_WINDOW)
                 {
-                    auto orphaned = graph.remove_agent(it->window_id);
                     std::cerr << "[spectra-backend] Agent disconnected (window=" << it->window_id
-                              << ", orphaned_figures=" << orphaned.size() << ")\n";
-                    for (auto fid : orphaned)
-                        notify_python_window_closed(ctx, fid, it->window_id, "agent_disconnected");
+                              << ")\n";
                 }
-                if (it->client_id != 0)
-                {
-                    topics.on_client_disconnect(it->client_id);
-                    broadcast_topic_list_changed(ctx);
-                }
+                release_client_slot(ctx, *it, "agent_disconnected");
                 it = clients.erase(it);
                 continue;
             }
 
-            // Only recv() when poll() says data is ready (index offset by 1 for listen fd)
-            size_t pfd_idx  = 1 + static_cast<size_t>(it - clients.begin());
-            bool   has_data = (pfd_idx < pfds.size()) && ((pfds[pfd_idx].revents & POLLIN) != 0);
+            // Only recv() when poll() says data is ready for this client's fd
+            auto rev_it   = revents_by_fd.find(it->conn->fd());
+            bool has_data = rev_it != revents_by_fd.end() && (rev_it->second & POLLIN) != 0;
             if (!has_data)
             {
                 ++it;
@@ -229,17 +237,11 @@ int main(int argc, char* argv[])
                 }
                 if (it->window_id != spectra::ipc::INVALID_WINDOW)
                 {
-                    auto orphaned = graph.remove_agent(it->window_id);
-                    std::cerr << "[spectra-backend] Agent lost (window=" << it->window_id
-                              << ", orphaned_figures=" << orphaned.size() << ")\n";
-                    for (auto fid : orphaned)
-                        notify_python_window_closed(ctx, fid, it->window_id, "agent_lost");
+                    std::cerr << "[spectra-backend] Agent lost (window=" << it->window_id << ")\n";
                 }
-                if (it->client_id != 0)
-                {
-                    topics.on_client_disconnect(it->client_id);
-                    broadcast_topic_list_changed(ctx);
-                }
+                // Close our end so a release-triggered broadcast skips this slot.
+                it->conn->close();
+                release_client_slot(ctx, *it, "agent_lost");
                 it = clients.erase(it);
                 continue;
             }
@@ -358,6 +360,9 @@ int main(int argc, char* argv[])
             switch (result)
             {
                 case HandleResult::EraseAndContinue:
+                    if (it->conn)
+                        it->conn->close();
+                    release_client_slot(ctx, *it, "disconnected");
                     it = clients.erase(it);
                     break;
                 case HandleResult::Shutdown:

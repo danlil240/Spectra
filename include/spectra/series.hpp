@@ -411,11 +411,8 @@ class ScatterSeries : public Series
         dirty_        = true;
         return *this;
     }
-    void clear_colormap_range()
-    {
-        colormap_set_ = false;
-        dirty_        = true;
-    }
+    // Drop a manual range and fall back to the data range of color_values_.
+    void clear_colormap_range();
 
     /// Access per-point color values (one float per point).
     std::span<const float> color_values_data() const { return color_values_; }
@@ -442,6 +439,9 @@ class ScatterSeries : public Series
     float              colormap_min_  = 0.0f;
     float              colormap_max_  = 1.0f;
     bool               colormap_set_  = false;
+
+    // Derive colormap_min_/colormap_max_ from the finite color_values_.
+    void recompute_colormap_range();
 };
 
 }   // namespace spectra

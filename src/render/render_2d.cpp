@@ -25,8 +25,51 @@
 namespace spectra
 {
 
-void Renderer::render_series(Series& series,
-                             const Rect& /*viewport*/,
+LineDrawRange compute_line_draw_range(std::span<const float> x,
+                                      size_t                 n,
+                                      bool                   x_sorted,
+                                      bool                   cull,
+                                      float                  local_x_min,
+                                      float                  local_x_max)
+{
+    // Never reference points beyond what both the x array and the GPU buffer hold.
+    n = std::min(n, x.size());
+
+    LineDrawRange r;
+    r.pt_count  = static_cast<uint32_t>(n);
+    r.seg_count = n > 1 ? static_cast<uint32_t>(n) - 1 : 0;
+
+    if (!cull || !x_sorted || n <= 2 || std::isnan(local_x_min) || std::isnan(local_x_max))
+        return r;
+
+    const float* begin = x.data();
+    const float* end   = begin + n;
+    // Find first point >= x_min (with 1-point margin for segment connectivity)
+    auto lo_idx = static_cast<size_t>(std::lower_bound(begin, end, local_x_min) - begin);
+    if (lo_idx > 0)
+        lo_idx--;   // include one segment before visible range
+
+    // Find first point > x_max
+    auto hi_idx = static_cast<size_t>(std::upper_bound(begin, end, local_x_max) - begin);
+    if (hi_idx < n)
+        hi_idx++;   // include one segment after visible range
+
+    if (lo_idx < hi_idx && hi_idx <= n)
+    {
+        r.first_seg       = static_cast<uint32_t>(lo_idx);
+        auto last_seg_end = static_cast<uint32_t>(hi_idx);
+        if (last_seg_end > 0)
+            last_seg_end--;   // segments = points - 1
+        r.seg_count = (last_seg_end > r.first_seg) ? (last_seg_end - r.first_seg) : 0;
+
+        r.first_pt = static_cast<uint32_t>(lo_idx);
+        r.pt_count = static_cast<uint32_t>(hi_idx - lo_idx);
+    }
+    return r;
+}
+
+void Renderer::render_series(Series&             series,
+                             const Rect&         viewport,
                              const VisibleRange* visible,
                              double              view_cx,
                              double              view_cy)
@@ -93,52 +136,24 @@ void Renderer::render_series(Series& series,
             }
 
             // Compute visible segment range via binary search on sorted x_data.
-            // For unsorted data, fall back to drawing all segments.
-            uint32_t first_seg = 0;
-            uint32_t seg_count =
-                line->point_count() > 1 ? static_cast<uint32_t>(line->point_count()) - 1 : 0;
-            uint32_t first_pt = 0;
-            auto     pt_count = static_cast<uint32_t>(line->point_count());
-
-            if (visible && line->point_count() > 2)
-            {
-                const auto& xd = line->x_data();
-                size_t      n  = xd.size();
-                if (line->x_is_sorted())
-                {
-                    const float* begin = xd.data();
-                    const float* end   = begin + n;
-                    // Visible range is in absolute coords; x_data is relative
-                    // to the series x_offset.  Convert in double (exact) then
-                    // to float (small values, no precision loss).
-                    const double xoff        = line->x_offset();
-                    const auto   local_x_min = static_cast<float>(visible->x_min - xoff);
-                    const auto   local_x_max = static_cast<float>(visible->x_max - xoff);
-                    // Find first point >= x_min (with 1-point margin for segment connectivity)
-                    auto lo     = std::lower_bound(begin, end, local_x_min);
-                    auto lo_idx = static_cast<size_t>(lo - begin);
-                    if (lo_idx > 0)
-                        lo_idx--;   // include one segment before visible range
-
-                    // Find first point > x_max
-                    auto hi     = std::upper_bound(begin, end, local_x_max);
-                    auto hi_idx = static_cast<size_t>(hi - begin);
-                    if (hi_idx < n)
-                        hi_idx++;   // include one segment after visible range
-
-                    if (lo_idx < hi_idx && hi_idx <= n)
-                    {
-                        first_seg         = static_cast<uint32_t>(lo_idx);
-                        auto last_seg_end = static_cast<uint32_t>(hi_idx);
-                        if (last_seg_end > 0)
-                            last_seg_end--;   // segments = points - 1
-                        seg_count = (last_seg_end > first_seg) ? (last_seg_end - first_seg) : 0;
-
-                        first_pt = static_cast<uint32_t>(lo_idx);
-                        pt_count = static_cast<uint32_t>(hi_idx - lo_idx);
-                    }
-                }
-            }
+            // For unsorted data, fall back to drawing all segments.  Counts are
+            // bounded by the points actually uploaded to the SSBO.
+            // Visible range is in absolute coords; x_data is relative to the
+            // series x_offset.  Convert in double (exact) then to float.
+            const double xoff        = line->x_offset();
+            const float  local_x_min = visible ? static_cast<float>(visible->x_min - xoff) : 0.0f;
+            const float  local_x_max = visible ? static_cast<float>(visible->x_max - xoff) : 0.0f;
+            const auto   range =
+                compute_line_draw_range(line->x_data(),
+                                        std::min(line->point_count(), gpu.uploaded_count),
+                                        line->x_is_sorted(),
+                                        visible != nullptr,
+                                        local_x_min,
+                                        local_x_max);
+            const uint32_t first_seg = range.first_seg;
+            const uint32_t seg_count = range.seg_count;
+            const uint32_t first_pt  = range.first_pt;
+            const uint32_t pt_count  = range.pt_count;
 
             if (style.has_line() && seg_count > 0)
             {
@@ -154,7 +169,9 @@ void Renderer::render_series(Series& series,
                 pc.point_size = style.marker_size;
                 backend_.push_constants(pc);
                 backend_.bind_buffer(gpu.ssbo, 0);
-                backend_.draw_instanced(6, pt_count, first_pt);
+                // first_pt is the first *instance*: scatter.vert reads
+                // points[gl_InstanceIndex] and uses gl_VertexIndex % 6 as the corner.
+                backend_.draw_instanced(6, pt_count, 0, first_pt);
             }
             break;
         }
@@ -493,8 +510,14 @@ void Renderer::render_series(Series& series,
                     pc.marker_type = static_cast<uint32_t>(MarkerStyle::FilledCircle);
                     backend_.push_constants(pc);
                     backend_.bind_buffer(gpu.ssbo, 0);
-                    // Heads are every 2nd vertex (data point, before NaN break)
-                    backend_.draw_instanced(6, static_cast<uint32_t>(stem->stem_x().size()));
+                    // The SSBO holds 3 vertices per stem: (x, baseline), (x, y),
+                    // (NaN, NaN).  The scatter shader reads points[gl_InstanceIndex],
+                    // so draw one instance per stem with firstInstance = 3*i + 1
+                    // to place each head on its tip vertex (first_vertex stays 0 so
+                    // gl_VertexIndex % 6 still enumerates the quad corners).
+                    const size_t stem_count = gpu.uploaded_count / 3;
+                    for (size_t i = 0; i < stem_count; ++i)
+                        backend_.draw_instanced(6, 1, 0, static_cast<uint32_t>(i * 3 + 1));
                 }
             }
             break;
@@ -550,10 +573,14 @@ void Renderer::render_series(Series& series,
         {
             if (series_type_registry_)
             {
-                auto* entry = series_type_registry_->find_mut(gpu.custom_type_name);
+                auto entry = series_type_registry_->find_shared(gpu.custom_type_name);
+                // Types registered after Renderer::init() (i.e. by plugins) have
+                // no pipeline yet: create it lazily here on the render thread.
+                if (entry && !entry->pipeline && !entry->pipeline_failed)
+                    series_type_registry_->create_pipelines(backend_);
                 if (entry && entry->draw_fn && entry->pipeline && !entry->faulted)
                 {
-                    float viewport_xywh[4] = {0, 0, 0, 0};   // Set by caller via set_viewport
+                    float viewport_xywh[4] = {viewport.x, viewport.y, viewport.w, viewport.h};
                     auto  result           = plugin_guard_invoke(entry->type_name.c_str(),
                                                       [&]() {
                                                           entry->draw_fn(backend_,
@@ -629,45 +656,29 @@ void Renderer::render_selection_highlight(AxesBase& axes, const Rect& /*viewport
                 if (line->point_count() < 2)
                     break;
 
-                uint32_t first_seg = 0;
-                uint32_t seg_count = static_cast<uint32_t>(line->point_count()) - 1;
-                uint32_t first_pt  = 0;
-                auto     pt_count  = static_cast<uint32_t>(line->point_count());
-
-                // Apply visible-range culling (same as normal render path)
-                if (auto* axes2d = dynamic_cast<Axes*>(&axes))
+                // Apply visible-range culling (same as normal render path):
+                // same cached per-frame limits, converted to series-local x.
+                const bool is_2d       = dynamic_cast<Axes*>(&axes) != nullptr;
+                const bool cull        = is_2d && agpu_it != axes_gpu_data_.end();
+                float      local_x_min = 0.0f;
+                float      local_x_max = 0.0f;
+                if (cull)
                 {
-                    auto xlim = axes2d->x_limits();
-                    if (line->point_count() > 256)
-                    {
-                        const auto& xd = line->x_data();
-                        size_t      n  = xd.size();
-                        if (line->x_is_sorted())
-                        {
-                            const float* begin  = xd.data();
-                            const float* end    = begin + n;
-                            auto         lo     = std::lower_bound(begin, end, xlim.min);
-                            auto         lo_idx = static_cast<size_t>(lo - begin);
-                            if (lo_idx > 0)
-                                lo_idx--;
-                            auto hi     = std::upper_bound(begin, end, xlim.max);
-                            auto hi_idx = static_cast<size_t>(hi - begin);
-                            if (hi_idx < n)
-                                hi_idx++;
-                            if (lo_idx < hi_idx && hi_idx <= n)
-                            {
-                                first_seg         = static_cast<uint32_t>(lo_idx);
-                                auto last_seg_end = static_cast<uint32_t>(hi_idx);
-                                if (last_seg_end > 0)
-                                    last_seg_end--;
-                                seg_count =
-                                    (last_seg_end > first_seg) ? (last_seg_end - first_seg) : 0;
-                                first_pt = static_cast<uint32_t>(lo_idx);
-                                pt_count = static_cast<uint32_t>(hi_idx - lo_idx);
-                            }
-                        }
-                    }
+                    const double xoff = line->x_offset();
+                    local_x_min       = static_cast<float>(agpu_it->second.cached_xlim_min - xoff);
+                    local_x_max       = static_cast<float>(agpu_it->second.cached_xlim_max - xoff);
                 }
+                const auto range =
+                    compute_line_draw_range(line->x_data(),
+                                            std::min(line->point_count(), gpu.uploaded_count),
+                                            line->x_is_sorted(),
+                                            cull,
+                                            local_x_min,
+                                            local_x_max);
+                const uint32_t first_seg = range.first_seg;
+                const uint32_t seg_count = range.seg_count;
+                const uint32_t first_pt  = range.first_pt;
+                const uint32_t pt_count  = range.pt_count;
 
                 if (seg_count > 0)
                 {
@@ -684,7 +695,7 @@ void Renderer::render_selection_highlight(AxesBase& axes, const Rect& /*viewport
                     pc.marker_type = static_cast<uint32_t>(MarkerStyle::FilledCircle);
                     backend_.push_constants(pc);
                     backend_.bind_buffer(gpu.ssbo, 0);
-                    backend_.draw_instanced(6, pt_count, first_pt);
+                    backend_.draw_instanced(6, pt_count, 0, first_pt);
                 }
                 break;
             }

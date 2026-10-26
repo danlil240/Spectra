@@ -1,6 +1,7 @@
 #include <memory>
 #include <spectra/topic.hpp>
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cstdlib>
@@ -47,8 +48,13 @@ std::vector<std::string> discover_candidate_sockets()
     for (auto it = fs::directory_iterator(dir, ec); !ec && it != fs::directory_iterator{};
          it.increment(ec))
     {
-        const auto& p = it->path();
-        if (p.filename().string().rfind("spectra-", 0) != 0)
+        const auto&       p     = it->path();
+        const std::string fname = p.filename().string();
+        if (fname.rfind("spectra-", 0) != 0)
+            continue;
+        // The automation server (JSON lines, not this protocol) also lives in
+        // the runtime dir as spectra-auto-<pid>.sock when XDG_RUNTIME_DIR is unset.
+        if (fname.rfind("spectra-auto-", 0) == 0)
             continue;
         if (p.extension() != ".sock")
             continue;
@@ -68,22 +74,29 @@ std::vector<std::string> discover_candidate_sockets()
     return out;
 }
 
-// Resolve the socket path with priority:
-//   1. explicit_path (user-supplied)
-//   2. $SPECTRA_SOCKET
-//   3. most-recent spectra-*.sock in the runtime dir (broker discovery)
-//   4. ipc::default_socket_path() as a last resort
-std::string resolve_socket(const std::string& explicit_path)
+// Candidate socket paths, in the order they should be tried:
+//   1. explicit_path (user-supplied, or $SPECTRA_SOCKET) — the only candidate
+//   2. spectra-*.sock in the runtime dir, newest first (broker discovery);
+//      stale sockets left by crashed processes are skipped by trying the next
+//   3. ipc::default_socket_path() as a last resort
+std::vector<std::string> resolve_socket_candidates(const std::string& explicit_path)
 {
     if (!explicit_path.empty())
-        return explicit_path;
+        return {explicit_path};
     if (const char* env = std::getenv("SPECTRA_SOCKET"); env && *env)
-        return env;
+        return {std::string(env)};
     auto candidates = discover_candidate_sockets();
-    if (!candidates.empty())
-        return candidates.front();
-    return ipc::default_socket_path();
+    if (candidates.empty())
+        candidates.push_back(ipc::default_socket_path());
+    return candidates;
 }
+
+// Upper bound on how long the publisher waits for any broker reply
+// (WELCOME, RESP_OK/RESP_ERR) so a wrong or wedged peer cannot hang the caller.
+constexpr int PUBLISHER_REPLY_TIMEOUT_MS = 2000;
+// Ack timeout for steady-state requests (publish) once the broker is known.
+// Kept above ipc::SERVER_STALL_TIMEOUT_MS, which can stall the broker's loop.
+constexpr int PUBLISHER_REQUEST_TIMEOUT_MS = 2 * ipc::SERVER_STALL_TIMEOUT_MS;
 
 }   // namespace
 
@@ -113,13 +126,27 @@ struct Publisher::Impl
     {
         conn.reset();
 
-        // Re-resolve the socket path on every attempt so we pick up the new
-        // broker PID after a Spectra restart.
-        socket_path = resolve_socket(explicit_socket_path);
+        // Re-resolve the candidates on every attempt so we pick up the new
+        // broker PID after a Spectra restart.  Try each one in turn: the
+        // newest socket file may be stale (crashed process) or not a broker.
+        for (const auto& path : resolve_socket_candidates(explicit_socket_path))
+        {
+            socket_path = path;
+            if (try_connect_and_declare(path))
+                return true;
+        }
+        return false;
+    }
 
-        auto c = ipc::Client::connect(socket_path);
+    bool try_connect_and_declare(const std::string& path)
+    {
+        conn.reset();
+
+        auto c = ipc::Client::connect(path);
         if (!c || !c->is_open())
             return false;
+        c->set_recv_timeout_ms(PUBLISHER_REPLY_TIMEOUT_MS);
+        c->set_stall_timeout_ms(PUBLISHER_REPLY_TIMEOUT_MS);
 
         ipc::HelloPayload hello;
         hello.protocol_major = ipc::PROTOCOL_MAJOR;
@@ -157,6 +184,11 @@ struct Publisher::Impl
             conn.reset();
             return false;
         }
+        // The peer is a confirmed broker now: allow it longer than its own
+        // per-peer stall timeout before treating a publish ack as lost, so a
+        // briefly busy broker does not trigger a needless reconnect.
+        conn->set_recv_timeout_ms(PUBLISHER_REQUEST_TIMEOUT_MS);
+        conn->set_stall_timeout_ms(PUBLISHER_REQUEST_TIMEOUT_MS);
         return true;
     }
 

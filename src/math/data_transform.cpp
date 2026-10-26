@@ -262,8 +262,8 @@ bool DataTransform::changes_length() const
         case TransformType::Derivative:
         case TransformType::Diff:
         case TransformType::Log10:
-        case TransformType::Ln:   // may skip non-positive values
-        case TransformType::FFT:  // output is N/2+1 frequency bins (left-sided)
+        case TransformType::Ln:    // may skip non-positive values
+        case TransformType::FFT:   // output is N/2+1 frequency bins (left-sided)
             return true;
         case TransformType::Custom:
             return custom_xy_func_ != nullptr;
@@ -384,28 +384,45 @@ void DataTransform::apply_normalize(std::span<const float> x_in,
     if (n == 0)
         return;
 
-    float ymin = y_in[0];
-    float ymax = y_in[0];
-    for (size_t i = 1; i < n; ++i)
+    // Range over finite samples only: NaN gaps and +/-Inf must not poison every output.
+    double ymin       = std::numeric_limits<double>::infinity();
+    double ymax       = -std::numeric_limits<double>::infinity();
+    bool   any_finite = false;
+    for (size_t i = 0; i < n; ++i)
     {
-        if (y_in[i] < ymin)
-            ymin = y_in[i];
-        if (y_in[i] > ymax)
-            ymax = y_in[i];
+        const float v = y_in[i];
+        if (!std::isfinite(v))
+            continue;
+        any_finite = true;
+        ymin       = std::min(ymin, static_cast<double>(v));
+        ymax       = std::max(ymax, static_cast<double>(v));
     }
 
-    float range = ymax - ymin;
-    if (range == 0.0f)
+    if (!any_finite)
     {
-        // All values are the same — map to 0.5
-        std::fill(y_out.begin(), y_out.end(), 0.5f);
+        std::copy(y_in.begin(), y_in.begin() + static_cast<std::ptrdiff_t>(n), y_out.begin());
         return;
     }
 
-    float inv_range = 1.0f / range;
+    // Range in double so that e.g. [-3e38, 3e38] does not overflow.
+    const double range = ymax - ymin;
     for (size_t i = 0; i < n; ++i)
     {
-        y_out[i] = (y_in[i] - ymin) * inv_range;
+        const float v = y_in[i];
+        if (!std::isfinite(v))
+        {
+            // Pass non-finite samples through (NaN stays a gap, +/-Inf keeps its sign).
+            y_out[i] = v;
+        }
+        else if (range == 0.0)
+        {
+            // All finite values are the same — map to 0.5
+            y_out[i] = 0.5f;
+        }
+        else
+        {
+            y_out[i] = static_cast<float>((static_cast<double>(v) - ymin) / range);
+        }
     }
 }
 
@@ -421,31 +438,44 @@ void DataTransform::apply_standardize(std::span<const float> x_in,
     if (n == 0)
         return;
 
-    // Compute mean
-    double sum = 0.0;
+    // Mean / stddev over finite samples only; non-finite samples pass through unchanged.
+    double sum   = 0.0;
+    size_t count = 0;
     for (size_t i = 0; i < n; ++i)
+    {
+        if (!std::isfinite(y_in[i]))
+            continue;
         sum += static_cast<double>(y_in[i]);
-    double mean = sum / static_cast<double>(n);
-
-    // Compute stddev
-    double var_sum = 0.0;
-    for (size_t i = 0; i < n; ++i)
-    {
-        double d = static_cast<double>(y_in[i]) - mean;
-        var_sum += d * d;
+        ++count;
     }
-    double stddev = std::sqrt(var_sum / static_cast<double>(n));
 
-    if (stddev == 0.0)
+    if (count == 0)
     {
-        std::fill(y_out.begin(), y_out.end(), 0.0f);
+        std::copy(y_in.begin(), y_in.begin() + static_cast<std::ptrdiff_t>(n), y_out.begin());
         return;
     }
 
-    double inv_std = 1.0 / stddev;
+    const double mean = sum / static_cast<double>(count);
+
+    double var_sum = 0.0;
     for (size_t i = 0; i < n; ++i)
     {
-        y_out[i] = static_cast<float>((static_cast<double>(y_in[i]) - mean) * inv_std);
+        if (!std::isfinite(y_in[i]))
+            continue;
+        double d = static_cast<double>(y_in[i]) - mean;
+        var_sum += d * d;
+    }
+    const double stddev = std::sqrt(var_sum / static_cast<double>(count));
+
+    for (size_t i = 0; i < n; ++i)
+    {
+        const float v = y_in[i];
+        if (!std::isfinite(v))
+            y_out[i] = v;
+        else if (stddev == 0.0 || !std::isfinite(stddev))
+            y_out[i] = 0.0f;
+        else
+            y_out[i] = static_cast<float>((static_cast<double>(v) - mean) / stddev);
     }
 }
 
@@ -561,7 +591,8 @@ void DataTransform::apply_clamp(std::span<const float> x_in,
 //   - Outputs N/2+1 frequency bins (DC to Nyquist)
 //   - X-axis: frequency in Hz (using params_.fft_sample_rate)
 //   - Y-axis: magnitude (or dB if params_.fft_db is true)
-//   - Magnitudes are normalized by 2/N (except DC and Nyquist which are 1/N)
+//   - Magnitudes are normalized by 2/n (except DC and Nyquist which are 1/n), where n is
+//     the real (unpadded) sample count
 
 void DataTransform::apply_fft(std::span<const float> x_in,
                               std::span<const float> y_in,
@@ -591,7 +622,9 @@ void DataTransform::apply_fft(std::span<const float> x_in,
 
     // Left-sided: output bins 0..N/2 (DC to Nyquist inclusive)
     const size_t out_n = N / 2 + 1;
-    const float  inv_n = 1.0f / static_cast<float>(N);
+    // Normalize by the real sample count: zero padding adds no energy, so dividing by the
+    // padded length N would under-report amplitudes by n/N (down to ~-6 dB).
+    const float inv_n = 1.0f / static_cast<float>(n);
 
     // Calculate sampling rate: use explicit parameter if provided, otherwise infer from x data
     float sample_rate = 1.0f;   // default fallback

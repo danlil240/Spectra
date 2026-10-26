@@ -273,7 +273,8 @@ void emit_legend(std::ostringstream& svg, const Axes& axes, const DataToSvg& m)
 
     for (const auto& s : axes.series())
     {
-        if (!s || s->label().empty() || !s->show_in_legend())
+        // Hidden series are not drawn, so they get no legend entry either.
+        if (!s || !s->visible() || s->label().empty() || !s->show_in_legend())
             continue;
         bool is_line = (dynamic_cast<const LineSeries*>(s.get()) != nullptr);
         entries.push_back({s->label(), s->color(), is_line});
@@ -365,7 +366,8 @@ void emit_axes(std::ostringstream& svg, const Axes& axes, const Rect& viewport)
 
     for (const auto& series_ptr : axes.series())
     {
-        if (!series_ptr)
+        // Match the renderer: hidden series are not drawn.
+        if (!series_ptr || !series_ptr->visible())
             continue;
 
         if (auto* ls = dynamic_cast<const LineSeries*>(series_ptr.get()))

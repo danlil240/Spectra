@@ -295,11 +295,11 @@ sudo cmake --install build --prefix /usr/local</code></pre>
           <table>
             <thead><tr><th>Format</th><th>Command</th><th>Output</th></tr></thead>
             <tbody>
-              <tr><td>Debian</td><td><code>cpack -G DEB</code></td><td><code>spectra_0.1.0_amd64.deb</code></td></tr>
-              <tr><td>RPM</td><td><code>cpack -G RPM</code></td><td><code>spectra-0.1.0-1.x86_64.rpm</code></td></tr>
-              <tr><td>Tarball</td><td><code>cpack -G TGZ</code></td><td><code>spectra-0.1.0-Linux.tar.gz</code></td></tr>
-              <tr><td>Windows</td><td><code>cpack -G NSIS</code></td><td><code>spectra-0.1.0-win64.exe</code></td></tr>
-              <tr><td>macOS</td><td><code>cpack -G DragNDrop</code></td><td><code>spectra-0.1.0.dmg</code></td></tr>
+              <tr><td>Debian</td><td><code>cpack -G DEB</code></td><td><code>spectra_&lt;version&gt;_amd64.deb</code></td></tr>
+              <tr><td>RPM</td><td><code>cpack -G RPM</code></td><td><code>spectra-&lt;version&gt;-1.x86_64.rpm</code></td></tr>
+              <tr><td>Tarball</td><td><code>cpack -G TGZ</code></td><td><code>spectra-&lt;version&gt;-Linux.tar.gz</code></td></tr>
+              <tr><td>Windows</td><td><code>cpack -G NSIS</code></td><td><code>spectra-&lt;version&gt;-win64.exe</code></td></tr>
+              <tr><td>macOS</td><td><code>cpack -G DragNDrop</code></td><td><code>spectra-&lt;version&gt;.dmg</code></td></tr>
             </tbody>
           </table>
 
@@ -403,7 +403,7 @@ cmake --build build-asan &amp;&amp; cd build-asan &amp;&amp; ctest --output-on-f
             <li><strong>release</strong> — GitHub Release with all artifacts, publishes to PyPI</li>
           </ol>
           <pre><code># Trigger a release
-git tag v0.1.0 &amp;&amp; git push origin v0.1.0</code></pre>
+git tag vX.Y.Z &amp;&amp; git push origin vX.Y.Z</code></pre>
         </div>
       </section>
 

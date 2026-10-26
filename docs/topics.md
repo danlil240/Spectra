@@ -6,8 +6,8 @@ whether or not a UI window is open. When a UI agent (`spectra-window`) is
 attached, users can see live topics in the **Topics panel** and drag them
 onto an axes to plot them in real time.
 
-This document covers the Phase 1–2 implementation described in
-[`plans/SPECTRA_TOPICS_PLAN.md`](../plans/SPECTRA_TOPICS_PLAN.md).
+This document covers the publish/subscribe API, the Topics panel, and the
+wire protocol used between publishers and the backend.
 
 ![Topics publish and subscribe flow](images/diagrams/topics-flow.png)
 

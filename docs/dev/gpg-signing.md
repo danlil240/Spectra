@@ -29,7 +29,7 @@ Each release includes `spectra-release-signing-key.asc`. Download and import it:
 
 ```bash
 # From a specific release:
-curl -fsSL https://github.com/danlil240/Spectra/releases/download/v0.1.0/spectra-release-signing-key.asc | gpg --import
+curl -fsSL https://github.com/danlil240/Spectra/releases/download/vX.Y.Z/spectra-release-signing-key.asc | gpg --import
 
 # Or from the repo:
 curl -fsSL https://raw.githubusercontent.com/danlil240/Spectra/main/packaging/gpg/spectra-release-signing-key.asc | gpg --import
@@ -45,14 +45,14 @@ sha256sum -c SHA256SUMS --ignore-missing
 ### 3. Verify individual artifacts
 
 ```bash
-gpg --verify spectra_0.1.0_amd64_ubuntu24.04.deb.asc \
-             spectra_0.1.0_amd64_ubuntu24.04.deb
+gpg --verify spectra_X.Y.Z_amd64_ubuntu24.04.deb.asc \
+             spectra_X.Y.Z_amd64_ubuntu24.04.deb
 ```
 
 ### 4. Verify a git tag
 
 ```bash
-git verify-tag v0.1.0
+git verify-tag vX.Y.Z
 ```
 
 ---
@@ -104,8 +104,8 @@ git config --global commit.gpgSign true
 ### E. Create a signed release tag
 
 ```bash
-git tag -s v0.2.0 -m "Release v0.2.0"
-git push origin v0.2.0
+git tag -s vX.Y.Z -m "Release vX.Y.Z"
+git push origin vX.Y.Z
 ```
 
 The `-s` flag creates a GPG-signed tag. GitHub will display a **Verified** badge on it.

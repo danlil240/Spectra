@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/danlil240/Spectra/security/advisories/new
+    about: Please report security issues privately, not as public issues. See SECURITY.md.
+  - name: Documentation
+    url: https://danlil240.github.io/Spectra/
+    about: Guides, examples and the API reference.

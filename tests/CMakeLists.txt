@@ -1703,3 +1703,6 @@ if(SPECTRA_BUILD_QA_AGENT)
         )
     endif()
 endif()
+
+# Manual (interactive, not run by CTest) test programs
+add_subdirectory(manual)

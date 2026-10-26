@@ -56,7 +56,15 @@ Public headers live in `include/spectra/` only. Implementation in `src/core/`.
 
 ![Multiproc architecture](images/diagrams/multiproc-architecture.png)
 
-Spectra runs as **inproc** (single `build/spectra`) or **multiproc** (default):
+Two settings are involved, and they are easy to confuse:
+
+- **Build time** — the CMake option `SPECTRA_RUNTIME_MODE` (`multiproc` by default, or `inproc`) only
+  decides which binaries are built. `multiproc` additionally builds `spectra-backend` and `spectra-window`.
+- **Run time** — every `App` runs **in-process** (UI, plot state and renderer in one process) unless a
+  backend socket is given via `AppConfig::socket_path` or the `SPECTRA_SOCKET` environment variable;
+  then it runs in **multiproc** mode and talks to `spectra-backend` over IPC. Both code paths are always
+  compiled (see `App::run()` in `src/ui/app/app.cpp`). The Python client always uses the multiproc path
+  and auto-launches the backend.
 
 ![Python IPC sequence](images/diagrams/python-ipc-sequence.png)
 

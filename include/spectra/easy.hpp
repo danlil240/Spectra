@@ -1,5 +1,12 @@
 #pragma once
 
+/// @file easy.hpp
+/// @brief The Spectra Easy API: MATLAB-style free functions in a single header.
+///
+/// Every function acts on an implicit "current" figure and axes, creating them on first
+/// use, so a complete program can be `plot()` followed by `show()`. See the overview below
+/// and `examples/easy_api_demo.cpp`. Drop down to App / Figure / Axes for full control.
+
 // ─── Spectra Easy API ───────────────────────────────────────────────────────
 //
 // The simplest possible interface for scientific plotting.
@@ -97,7 +104,7 @@
 namespace spectra
 {
 
-// Tunable coefficient for interactive function plots (y = f(x, params...)).
+/// Tunable coefficient for interactive function plots (y = f(x, params...)).
 struct FplotParam
 {
     std::string name;
@@ -249,7 +256,7 @@ inline EasyState& easy_state()
 
 // ─── Figure Management ──────────────────────────────────────────────────────
 
-// Create a new figure (new OS window). Returns the Figure for advanced use.
+/// Create a new figure (new OS window). Returns the Figure for advanced use.
 inline Figure& figure(uint32_t width = 1280, uint32_t height = 720)
 {
     auto& s = detail::easy_state();
@@ -263,10 +270,10 @@ inline Figure& figure(uint32_t width = 1280, uint32_t height = 720)
     return *s.current_fig;
 }
 
-// Create a new figure (new OS window) with a custom tab/window title.
-//
-//   spectra::figure("Trajectory");
-//
+/// Create a new figure (new OS window) with a custom tab/window title.
+///
+///      spectra::figure("Trajectory");
+///
 inline Figure& figure(const std::string& name, uint32_t width = 1280, uint32_t height = 720)
 {
     Figure& fig = figure(width, height);
@@ -274,7 +281,7 @@ inline Figure& figure(const std::string& name, uint32_t width = 1280, uint32_t h
     return fig;
 }
 
-// Create a new figure that opens as a tab next to an existing figure.
+/// Create a new figure that opens as a tab next to an existing figure.
 inline Figure& figure(Figure& tab_next_to, uint32_t /*width*/ = 1280, uint32_t /*height*/ = 720)
 {
     auto& s = detail::easy_state();
@@ -288,18 +295,18 @@ inline Figure& figure(Figure& tab_next_to, uint32_t /*width*/ = 1280, uint32_t /
     return *s.current_fig;
 }
 
-// Create a new figure as a tab in the current window.
-// If no figure exists yet, behaves like figure() (creates a new window).
-//
-//   spectra::figure();          // Window 1
-//   spectra::plot(x, y_sin);    //   tab 1: sine
-//
-//   spectra::tab();             //   tab 2 (same window)
-//   spectra::plot(x, y_cos);    //   tab 2: cosine
-//
-//   spectra::figure();          // Window 2 (new OS window)
-//   spectra::plot(x, y_exp);
-//
+/// Create a new figure as a tab in the current window.
+/// If no figure exists yet, behaves like figure() (creates a new window).
+///
+///      spectra::figure();          // Window 1
+///      spectra::plot(x, y_sin);    //   tab 1: sine
+///
+///      spectra::tab();             //   tab 2 (same window)
+///      spectra::plot(x, y_cos);    //   tab 2: cosine
+///
+///      spectra::figure();          // Window 2 (new OS window)
+///      spectra::plot(x, y_exp);
+///
 inline Figure& tab(uint32_t width = 0, uint32_t height = 0)
 {
     auto& s = detail::easy_state();
@@ -321,14 +328,14 @@ inline Figure& tab(uint32_t width = 0, uint32_t height = 0)
     return *s.current_fig;
 }
 
-// Create a new tab in the current window with a custom title.
-//
-//   spectra::figure("Trajectories");
-//   spectra::plot(x, y);
-//   spectra::tab("XY View");
-//   spectra::plot(x, z);
-//
-// If there is no current figure, opens a new window with the given title.
+/// Create a new tab in the current window with a custom title.
+///
+///      spectra::figure("Trajectories");
+///      spectra::plot(x, y);
+///      spectra::tab("XY View");
+///      spectra::plot(x, z);
+///
+/// If there is no current figure, opens a new window with the given title.
 inline Figure& tab(const std::string& name, uint32_t width = 0, uint32_t height = 0)
 {
     Figure& fig = tab(width, height);
@@ -336,11 +343,11 @@ inline Figure& tab(const std::string& name, uint32_t width = 0, uint32_t height 
     return fig;
 }
 
-// Set (or change) the title of the current tab/figure.
-//
-//   spectra::figure();
-//   spectra::tab_name("Interceptor");
-//
+/// Set (or change) the title of the current tab/figure.
+///
+///      spectra::figure();
+///      spectra::tab_name("Interceptor");
+///
 inline void tab_name(const std::string& name)
 {
     auto& s = detail::easy_state();
@@ -350,7 +357,7 @@ inline void tab_name(const std::string& name)
 
 // ─── Subplot Selection ──────────────────────────────────────────────────────
 
-// Select a 2D subplot (creates the figure if needed). 1-based index.
+/// Select a 2D subplot (creates the figure if needed). 1-based index.
 inline Axes& subplot(int rows, int cols, int index)
 {
     auto& s = detail::easy_state();
@@ -361,7 +368,7 @@ inline Axes& subplot(int rows, int cols, int index)
     return *s.current_ax;
 }
 
-// Select a 3D subplot (creates the figure if needed). 1-based index.
+/// Select a 3D subplot (creates the figure if needed). 1-based index.
 inline Axes3D& subplot3d(int rows, int cols, int index)
 {
     auto& s = detail::easy_state();
@@ -374,7 +381,7 @@ inline Axes3D& subplot3d(int rows, int cols, int index)
 
 // ─── 2D Plotting ────────────────────────────────────────────────────────────
 
-// Plot a line. Auto-creates figure and axes if needed.
+/// Plot a line. Auto-creates figure and axes if needed.
 inline LineSeries& plot(std::span<const float> x,
                         std::span<const float> y,
                         std::string_view       fmt = "-")
@@ -382,35 +389,35 @@ inline LineSeries& plot(std::span<const float> x,
     return detail::easy_state().ensure_axes().plot(x, y, fmt);
 }
 
-// Plot with explicit PlotStyle.
+/// Plot with explicit PlotStyle.
 inline LineSeries& plot(std::span<const float> x, std::span<const float> y, const PlotStyle& style)
 {
     return detail::easy_state().ensure_axes().plot(x, y, style);
 }
 
-// Create an empty line series (for real-time append).
+/// Create an empty line series (for real-time append).
 inline LineSeries& plot()
 {
     return detail::easy_state().ensure_axes().line();
 }
 
-// Horizontal reference line (e.g. y=0). Default style is dashed gray.
+/// Horizontal reference line (e.g. y=0). Default style is dashed gray.
 inline LineSeries& hline(double y, std::string_view fmt = "k--")
 {
     return detail::easy_state().ensure_axes().hline(y, fmt);
 }
 
-// Vertical reference line (e.g. x=0). Default style is dashed gray.
+/// Vertical reference line (e.g. x=0). Default style is dashed gray.
 inline LineSeries& vline(double x, std::string_view fmt = "k--")
 {
     return detail::easy_state().ensure_axes().vline(x, fmt);
 }
 
-// Plot a function y = f(x) over [xmin, xmax].
-//
-//   spectra::fplot([](double x) { return x * x; }, -2.0, 2.0);
-//   spectra::fplot([](double x) { return std::sin(x); }, 0.0, 6.28, 300, "r-");
-//
+/// Plot a function y = f(x) over [xmin, xmax].
+///
+///      spectra::fplot([](double x) { return x * x; }, -2.0, 2.0);
+///      spectra::fplot([](double x) { return std::sin(x); }, 0.0, 6.28, 300, "r-");
+///
 inline LineSeries& fplot(std::function<double(double)> func,
                          double                        xmin,
                          double                        xmax,
@@ -420,13 +427,13 @@ inline LineSeries& fplot(std::function<double(double)> func,
     return detail::easy_state().ensure_axes().fplot(std::move(func), xmin, xmax, n, fmt);
 }
 
-// Scatter plot.
+/// Scatter plot.
 inline ScatterSeries& scatter(std::span<const float> x, std::span<const float> y)
 {
     return detail::easy_state().ensure_axes().scatter(x, y);
 }
 
-// Create an empty scatter series (for real-time append).
+/// Create an empty scatter series (for real-time append).
 inline ScatterSeries& scatter()
 {
     return detail::easy_state().ensure_axes().scatter();
@@ -434,31 +441,31 @@ inline ScatterSeries& scatter()
 
 // ─── Statistical Plots ──────────────────────────────────────────────────────
 
-// Create an empty box plot series. Add boxes with .add_box(x, data).
+/// Create an empty box plot series. Add boxes with .add_box(x, data).
 inline BoxPlotSeries& box_plot()
 {
     return detail::easy_state().ensure_axes().box_plot();
 }
 
-// Create an empty violin series. Add violins with .add_violin(x, data).
+/// Create an empty violin series. Add violins with .add_violin(x, data).
 inline ViolinSeries& violin()
 {
     return detail::easy_state().ensure_axes().violin();
 }
 
-// Histogram from raw data values.
+/// Histogram from raw data values.
 inline HistogramSeries& histogram(std::span<const float> values, int bins = 30)
 {
     return detail::easy_state().ensure_axes().histogram(values, bins);
 }
 
-// Bar chart from positions and heights.
+/// Bar chart from positions and heights.
 inline BarSeries& bar(std::span<const float> positions, std::span<const float> heights)
 {
     return detail::easy_state().ensure_axes().bar(positions, heights);
 }
 
-// Filled uncertainty/confidence envelope between lower and upper samples.
+/// Filled uncertainty/confidence envelope between lower and upper samples.
 inline BandSeries& band(std::span<const float> x,
                         std::span<const float> lower,
                         std::span<const float> upper)
@@ -468,7 +475,7 @@ inline BandSeries& band(std::span<const float> x,
 
 // ─── Shape Annotations ──────────────────────────────────────────────────────
 
-// Create an empty shape series. Add shapes with .rect(), .circle(), .arrow(), etc.
+/// Create an empty shape series. Add shapes with .rect(), .circle(), .arrow(), etc.
 inline ShapeSeries& shapes()
 {
     return detail::easy_state().ensure_axes().shapes();
@@ -481,41 +488,49 @@ inline ShapeSeries& shapes()
 //   spectra::circle(5,5,1).fill_color({0,0,1,1});
 //
 
+/// Add a rectangle at (x, y) with width w and height h (data coordinates).
 inline ShapeSeries& rect(float x, float y, float w, float h)
 {
     return detail::easy_state().ensure_axes().shapes().rect(x, y, w, h);
 }
 
+/// Add a circle centred at (cx, cy) with radius r.
 inline ShapeSeries& circle(float cx, float cy, float r)
 {
     return detail::easy_state().ensure_axes().shapes().circle(cx, cy, r);
 }
 
+/// Add an ellipse centred at (cx, cy) with radii rx and ry.
 inline ShapeSeries& ellipse(float cx, float cy, float rx, float ry)
 {
     return detail::easy_state().ensure_axes().shapes().ellipse(cx, cy, rx, ry);
 }
 
+/// Add an arrow from (x1, y1) to (x2, y2).
 inline ShapeSeries& arrow(float x1, float y1, float x2, float y2)
 {
     return detail::easy_state().ensure_axes().shapes().arrow(x1, y1, x2, y2);
 }
 
+/// Add a ring (annulus) centred at (cx, cy).
 inline ShapeSeries& ring(float cx, float cy, float outer_r, float inner_r)
 {
     return detail::easy_state().ensure_axes().shapes().ring(cx, cy, outer_r, inner_r);
 }
 
+/// Add a closed polygon through the given vertices.
 inline ShapeSeries& polygon(std::span<const float> x, std::span<const float> y)
 {
     return detail::easy_state().ensure_axes().shapes().polygon(x, y);
 }
 
+/// Add a straight line segment from (x1, y1) to (x2, y2).
 inline ShapeSeries& shape_line(float x1, float y1, float x2, float y2)
 {
     return detail::easy_state().ensure_axes().shapes().line(x1, y1, x2, y2);
 }
 
+/// Add a text label anchored at (x, y) in data coordinates.
 inline ShapeSeries& text_annotation(float x, float y, const std::string& content)
 {
     return detail::easy_state().ensure_axes().shapes().text(x, y, content);
@@ -523,7 +538,7 @@ inline ShapeSeries& text_annotation(float x, float y, const std::string& content
 
 // ─── 3D Plotting ────────────────────────────────────────────────────────────
 
-// 3D line plot.
+/// 3D line plot.
 inline LineSeries3D& plot3(std::span<const float> x,
                            std::span<const float> y,
                            std::span<const float> z)
@@ -534,7 +549,7 @@ inline LineSeries3D& plot3(std::span<const float> x,
     return ref;
 }
 
-// 3D scatter plot.
+/// 3D scatter plot.
 inline ScatterSeries3D& scatter3(std::span<const float> x,
                                  std::span<const float> y,
                                  std::span<const float> z)
@@ -545,7 +560,7 @@ inline ScatterSeries3D& scatter3(std::span<const float> x,
     return ref;
 }
 
-// Surface plot.
+/// Surface plot.
 inline SurfaceSeries& surf(std::span<const float> x_grid,
                            std::span<const float> y_grid,
                            std::span<const float> z_values)
@@ -556,7 +571,7 @@ inline SurfaceSeries& surf(std::span<const float> x_grid,
     return ref;
 }
 
-// Mesh plot.
+/// Mesh plot.
 inline MeshSeries& mesh(std::span<const float> vertices, std::span<const uint32_t> indices)
 {
     auto& ax  = detail::easy_state().ensure_axes3d();
@@ -565,7 +580,7 @@ inline MeshSeries& mesh(std::span<const float> vertices, std::span<const uint32_
     return ref;
 }
 
-// Create an empty 3D shape series. Add shapes with .box(), .sphere(), .cylinder(), etc.
+/// Create an empty 3D shape series. Add shapes with .box(), .sphere(), .cylinder(), etc.
 inline ShapeSeries3D& shapes3d()
 {
     return detail::easy_state().ensure_axes3d().shapes3d();
@@ -573,6 +588,7 @@ inline ShapeSeries3D& shapes3d()
 
 // ─── Axes Configuration (applies to current axes) ───────────────────────────
 
+/// Set x-axis limits of the current axes.
 inline void xlim(float min, float max)
 {
     auto& s = detail::easy_state();
@@ -582,6 +598,7 @@ inline void xlim(float min, float max)
         s.ensure_axes().xlim(min, max);
 }
 
+/// Set y-axis limits of the current axes.
 inline void ylim(float min, float max)
 {
     auto& s = detail::easy_state();
@@ -591,11 +608,13 @@ inline void ylim(float min, float max)
         s.ensure_axes().ylim(min, max);
 }
 
+/// Set z-axis limits of the current 3D axes.
 inline void zlim(float min, float max)
 {
     detail::easy_state().ensure_axes3d().zlim(min, max);
 }
 
+/// Set the title of the current axes.
 inline void title(const std::string& t)
 {
     auto& s = detail::easy_state();
@@ -605,6 +624,7 @@ inline void title(const std::string& t)
         s.ensure_axes().title(t);
 }
 
+/// Set the x-axis label of the current axes.
 inline void xlabel(const std::string& lbl)
 {
     auto& s = detail::easy_state();
@@ -614,6 +634,7 @@ inline void xlabel(const std::string& lbl)
         s.ensure_axes().xlabel(lbl);
 }
 
+/// Set the y-axis label of the current axes.
 inline void ylabel(const std::string& lbl)
 {
     auto& s = detail::easy_state();
@@ -623,11 +644,13 @@ inline void ylabel(const std::string& lbl)
         s.ensure_axes().ylabel(lbl);
 }
 
+/// Set the z-axis label of the current 3D axes.
 inline void zlabel(const std::string& lbl)
 {
     detail::easy_state().ensure_axes3d().zlabel(lbl);
 }
 
+/// Show or hide grid lines on the current axes.
 inline void grid(bool enabled = true)
 {
     auto& s = detail::easy_state();
@@ -637,13 +660,14 @@ inline void grid(bool enabled = true)
         s.ensure_axes().grid(enabled);
 }
 
-// Set the visible streaming buffer length (in seconds) for current 2D axes.
-// While enabled, x/y limits follow the latest data window automatically.
+/// Set the visible streaming buffer length (in seconds) for current 2D axes.
+/// While enabled, x/y limits follow the latest data window automatically.
 inline void presented_buffer(float seconds)
 {
     detail::easy_state().ensure_axes().presented_buffer(seconds);
 }
 
+/// Show the legend of the current figure at the given position.
 inline void legend(LegendPosition pos = LegendPosition::TopRight)
 {
     auto& s = detail::easy_state();
@@ -654,17 +678,17 @@ inline void legend(LegendPosition pos = LegendPosition::TopRight)
 
 // ─── Real-Time / Animation ──────────────────────────────────────────────────
 
-// Register a per-frame update callback. Called every frame with (dt, elapsed_seconds).
-// Use this to update data in real-time (e.g. live sensor streams, simulations).
-//
-//   auto& line = spectra::plot(x, y);
-//   spectra::on_update([&](float dt, float t) {
-//       for (int i = 0; i < N; ++i) y[i] = sin(x[i] + t);
-//       line.set_y(y);
-//       spectra::xlim(t - 10, t);  // sliding window
-//   });
-//   spectra::show();
-//
+/// Register a per-frame update callback. Called every frame with (dt, elapsed_seconds).
+/// Use this to update data in real-time (e.g. live sensor streams, simulations).
+///
+///      auto& line = spectra::plot(x, y);
+///      spectra::on_update([&](float dt, float t) {
+///          for (int i = 0; i < N; ++i) y[i] = sin(x[i] + t);
+///          line.set_y(y);
+///          spectra::xlim(t - 10, t);  // sliding window
+///      });
+///      spectra::show();
+///
 inline void on_update(std::function<void(float dt, float elapsed)> callback)
 {
     auto& s = detail::easy_state();
@@ -690,7 +714,7 @@ inline void on_update(std::function<void(float dt, float elapsed)> callback)
     }
 }
 
-// Register per-frame update with explicit FPS target.
+/// Register per-frame update with explicit FPS target.
 inline void on_update(float fps, std::function<void(float dt, float elapsed)> callback)
 {
     auto& s = detail::easy_state();
@@ -742,7 +766,7 @@ inline void on_update(float fps, std::function<void(float dt, float elapsed)> ca
 //   spectra::knob_choice("Waveform", {"Sine", "Square", "Triangle"});
 //
 
-// Add a float slider knob.  Returns reference to the Knob for reading .value.
+/// Add a float slider knob.  Returns reference to the Knob for reading .value.
 inline Knob& knob(const std::string&         name,
                   float                      default_val,
                   float                      min_val,
@@ -753,7 +777,7 @@ inline Knob& knob(const std::string&         name,
         .knob_mgr.add_float(name, default_val, min_val, max_val, 0.0f, std::move(on_change));
 }
 
-// Float knob with explicit step size.
+/// Float knob with explicit step size.
 inline Knob& knob(const std::string&         name,
                   float                      default_val,
                   float                      min_val,
@@ -765,7 +789,7 @@ inline Knob& knob(const std::string&         name,
         .knob_mgr.add_float(name, default_val, min_val, max_val, step, std::move(on_change));
 }
 
-// Integer slider knob.
+/// Integer slider knob.
 inline Knob& knob_int(const std::string&         name,
                       int                        default_val,
                       int                        min_val,
@@ -779,7 +803,7 @@ inline Knob& knob_int(const std::string&         name,
                                                  std::move(on_change));
 }
 
-// Boolean checkbox knob.
+/// Boolean checkbox knob.
 inline Knob& knob_bool(const std::string&         name,
                        bool                       default_val = false,
                        std::function<void(float)> on_change   = nullptr)
@@ -787,7 +811,7 @@ inline Knob& knob_bool(const std::string&         name,
     return detail::easy_state().knob_mgr.add_bool(name, default_val, std::move(on_change));
 }
 
-// Choice dropdown knob.
+/// Choice dropdown knob.
 inline Knob& knob_choice(const std::string&              name,
                          const std::vector<std::string>& choices,
                          int                             default_index = 0,
@@ -799,14 +823,14 @@ inline Knob& knob_choice(const std::string&              name,
                                                     std::move(on_change));
 }
 
-// Set a global callback that fires whenever ANY knob value changes.
-// Useful for batch recomputation of plot data.
+/// Set a global callback that fires whenever ANY knob value changes.
+/// Useful for batch recomputation of plot data.
 inline void on_knob_change(std::function<void()> callback)
 {
     detail::easy_state().knob_mgr.set_on_any_change(std::move(callback));
 }
 
-// Access the knob manager directly (for advanced use).
+/// Access the knob manager directly (for advanced use).
 inline KnobManager& knobs()
 {
     return detail::easy_state().knob_mgr;
@@ -814,25 +838,25 @@ inline KnobManager& knobs()
 
 // ─── Export ─────────────────────────────────────────────────────────────────
 
-// Save current figure as PNG.
+/// Save current figure as PNG.
 inline void save_png(const std::string& path)
 {
     detail::easy_state().ensure_figure().save_png(path);
 }
 
-// Save current figure as PNG with explicit resolution.
+/// Save current figure as PNG with explicit resolution.
 inline void save_png(const std::string& path, uint32_t width, uint32_t height)
 {
     detail::easy_state().ensure_figure().save_png(path, width, height);
 }
 
-// Save current figure as SVG.
+/// Save current figure as SVG.
 inline void save_svg(const std::string& path)
 {
     detail::easy_state().ensure_figure().save_svg(path);
 }
 
-// Copy current figure to the system clipboard as a PNG image.
+/// Copy current figure to the system clipboard as a PNG image.
 inline void copy_to_clipboard()
 {
     detail::easy_state().ensure_figure().copy_to_clipboard();
@@ -840,8 +864,8 @@ inline void copy_to_clipboard()
 
 // ─── Show & Run ─────────────────────────────────────────────────────────────
 
-// Show all figures and enter the interactive event loop (blocking).
-// This is the last call in your program.
+/// Show all figures and enter the interactive event loop (blocking).
+/// This is the last call in your program.
 inline void show()
 {
     auto& s = detail::easy_state();
@@ -858,25 +882,25 @@ inline void show()
 
 // ─── Utility ────────────────────────────────────────────────────────────────
 
-// Get the current axes (2D). Returns nullptr if no axes created yet.
+/// Get the current axes (2D). Returns nullptr if no axes created yet.
 inline Axes* gca()
 {
     return detail::easy_state().current_ax;
 }
 
-// Get the current 3D axes. Returns nullptr if no 3D axes created yet.
+/// Get the current 3D axes. Returns nullptr if no 3D axes created yet.
 inline Axes3D* gca3d()
 {
     return detail::easy_state().current_ax3d;
 }
 
-// Get the current figure. Returns nullptr if no figure created yet.
+/// Get the current figure. Returns nullptr if no figure created yet.
 inline Figure* gcf()
 {
     return detail::easy_state().current_fig;
 }
 
-// Clear the current axes (remove all series).
+/// Clear the current axes (remove all series).
 inline void cla()
 {
     auto& s = detail::easy_state();

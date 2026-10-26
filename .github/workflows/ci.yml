@@ -408,7 +408,11 @@ jobs:
             # Instrument C code too (vendored C libs), otherwise TSan reports
             # false positives through uninstrumented synchronisation.
             cflags: "-fsanitize=thread -fno-omit-frame-pointer -g -O1"
-            test_filter: ""
+            # Excluded (not data races): PluginGuard.CatchSegfault and the
+            # diagnostics tests raise SIGSEGV on purpose; plugin_guard_invoke()
+            # siglongjmps out of the handler and then allocates, which TSan
+            # reports as "signal-unsafe call inside of a signal".
+            test_filter: "unit_test_plugin_guard|unit_test_plugin_diagnostics"
 
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0

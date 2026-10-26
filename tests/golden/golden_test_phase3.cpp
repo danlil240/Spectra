@@ -66,8 +66,8 @@ static void run_golden_test(const std::string&                 scene_name,
                             std::function<void(App&, Figure&)> setup_scene,
                             uint32_t                           width             = 640,
                             uint32_t                           height            = 480,
-                            double                             tolerance_percent = 5.0,
-                            double                             max_mae           = 2.0)
+                            double                             tolerance_percent = 0.5,
+                            double                             max_mae           = 1.0)
 {
     fs::path baseline_path = baseline_dir() / (scene_name + ".raw");
     fs::path actual_path   = output_dir() / (scene_name + "_actual.raw");
@@ -128,20 +128,24 @@ static void run_golden_test(const std::string&                 scene_name,
     ASSERT_EQ(bw, width) << "Baseline width mismatch for: " << scene_name;
     ASSERT_EQ(bh, height) << "Baseline height mismatch for: " << scene_name;
 
-    DiffResult diff = compare_images(actual_pixels.data(), baseline_pixels.data(), width, height);
+    GoldenTolerance tol;
+    tol.max_percent = tolerance_percent;
+    tol.max_mae     = max_mae;
+    DiffResult diff = compare_images(actual_pixels.data(),
+                                     baseline_pixels.data(),
+                                     width,
+                                     height,
+                                     tol.pixel_threshold);
 
-    auto diff_img =
-        generate_diff_image(actual_pixels.data(), baseline_pixels.data(), width, height);
+    auto diff_img = generate_diff_image(actual_pixels.data(),
+                                        baseline_pixels.data(),
+                                        width,
+                                        height,
+                                        tol.pixel_threshold);
     save_raw_rgba(diff_path.string(), diff_img.data(), width, height);
 
-    EXPECT_TRUE(diff.passed(tolerance_percent, max_mae))
-        << "Golden image test FAILED for: " << scene_name << "\n"
-        << "  Mean absolute error: " << diff.mean_absolute_error << " (max allowed: " << max_mae
-        << ")\n"
-        << "  Differing pixels:    " << diff.differing_pixels << " / " << diff.total_pixels << " ("
-        << diff.percent_different << "%, max allowed: " << tolerance_percent << "%)\n"
-        << "  Max channel diff:    " << diff.max_absolute_error << "\n"
-        << "  Diff image saved to: " << diff_path;
+    EXPECT_TRUE(diff.passed(tol)) << "Golden image test FAILED for: " << scene_name << "\n"
+                                  << diff.describe(tol) << "  Diff image saved to: " << diff_path;
 }
 
 // ─── Phase 3 Scene Definitions ──────────────────────────────────────────────

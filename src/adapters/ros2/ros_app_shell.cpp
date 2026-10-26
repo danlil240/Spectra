@@ -1246,8 +1246,7 @@ void RosAppShell::register_ros_commands()
         [this]()
         {
             if (!screenshot_export_) return;
-            const std::string path =
-                RosScreenshotExport::make_screenshot_path("", "spectra_ros");
+            const std::string path = RosScreenshotExport::make_screenshot_path("", "spectra_ros");
             screenshot_export_->take_screenshot(path);
         },
         "Ctrl+Shift+S", "Tools");

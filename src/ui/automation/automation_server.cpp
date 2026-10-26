@@ -106,7 +106,9 @@ bool AutomationServer::start(const std::string& socket_path)
     socket_path_ = socket_path;
     // Only remove a stale *socket*; never unlink an arbitrary file named by the env var.
     {
-        struct stat st{};
+        struct stat st
+        {
+        };
         if (::lstat(socket_path_.c_str(), &st) == 0 && S_ISSOCK(st.st_mode))
             ::unlink(socket_path_.c_str());
     }
@@ -261,8 +263,10 @@ namespace
 bool peer_is_same_user(int fd)
 {
     #if defined(__linux__)
-    struct ucred cred{};
-    socklen_t    len = sizeof(cred);
+    struct ucred cred
+    {
+    };
+    socklen_t len = sizeof(cred);
     if (::getsockopt(fd, SOL_SOCKET, SO_PEERCRED, &cred, &len) != 0)
         return false;
     return cred.uid == ::geteuid();

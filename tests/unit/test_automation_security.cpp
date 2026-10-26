@@ -332,7 +332,9 @@ TEST(CapturePath, ResolveCaptureCreatesPrivateDir)
     ASSERT_TRUE(sec::resolve_capture_path("sub/x.png", "d.png", out, err)) << err;
     EXPECT_EQ(out, (base / "sub" / "x.png").string());
 
-    struct stat st{};
+    struct stat st
+    {
+    };
     ASSERT_EQ(::lstat(base.c_str(), &st), 0);
     EXPECT_TRUE(S_ISDIR(st.st_mode));
     EXPECT_EQ(st.st_mode & 0777, 0700u);
@@ -363,7 +365,9 @@ TEST(AutomationFiles, PrivateFileIsOwnerOnly)
     const auto file = tmp / "tok.json";
     ASSERT_TRUE(sec::write_private_file(file.string(), "secret"));
     ASSERT_TRUE(sec::write_private_file(file.string(), "secret2"));   // overwrite works
-    struct stat st{};
+    struct stat st
+    {
+    };
     ASSERT_EQ(::stat(file.c_str(), &st), 0);
     EXPECT_EQ(st.st_mode & 0777, 0600u);
     std::ifstream in(file);
@@ -388,7 +392,9 @@ TEST(AutomationFiles, SocketCreatedOwnerOnly)
     const std::string path = (tmp / "a.sock").string();
     AutomationServer  server;
     ASSERT_TRUE(server.start(path));
-    struct stat st{};
+    struct stat st
+    {
+    };
     ASSERT_EQ(::lstat(path.c_str(), &st), 0);
     EXPECT_TRUE(S_ISSOCK(st.st_mode));
     EXPECT_EQ(st.st_mode & 077, 0u);
@@ -410,7 +416,9 @@ TEST(McpServerLive, CrossOriginSimpleRequestRefusedAndTokenFilePrivate)
     EXPECT_EQ(mcp.auth_token(), "env-token-xyz");
     ASSERT_FALSE(mcp.token_file().empty());
 
-    struct stat st{};
+    struct stat st
+    {
+    };
     ASSERT_EQ(::stat(mcp.token_file().c_str(), &st), 0);
     EXPECT_EQ(st.st_mode & 0777, 0600u);
     {

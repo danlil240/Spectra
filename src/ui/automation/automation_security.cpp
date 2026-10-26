@@ -203,7 +203,9 @@ bool ensure_private_dir(const std::string& dir, std::string& error)
         error = "Cannot create capture directory " + dir + ": " + std::strerror(errno);
         return false;
     }
-    struct stat st{};
+    struct stat st
+    {
+    };
     if (::lstat(dir.c_str(), &st) != 0)
     {
         error = "Cannot stat capture directory " + dir + ": " + std::strerror(errno);

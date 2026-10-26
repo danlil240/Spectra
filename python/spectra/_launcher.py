@@ -5,6 +5,7 @@ import platform as _platform
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from typing import Optional
 
@@ -27,7 +28,12 @@ def _runtime_socket_dir() -> str:
     xdg = os.environ.get("XDG_RUNTIME_DIR")
     if xdg:
         return xdg
-    return "/tmp"
+    # Mirrors spectra::ipc::runtime_dir(): std::filesystem::temp_directory_path()
+    # ($TMPDIR, falling back to /tmp).
+    tmp = os.environ.get("TMPDIR")
+    if tmp and os.path.isdir(tmp):
+        return tmp.rstrip("/") or "/"
+    return tempfile.gettempdir() if not os.path.isdir("/tmp") else "/tmp"
 
 
 def _discover_live_brokers() -> list[str]:

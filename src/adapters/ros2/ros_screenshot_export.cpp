@@ -5,6 +5,8 @@
 #include <format>
 #include <cstring>
 #include <ctime>
+#include <filesystem>
+#include <system_error>
 #include <vector>
 
 // stb_image_write — PNG screenshot export.
@@ -204,6 +206,12 @@ std::string RosScreenshotExport::make_screenshot_path(const std::string& dir,
     std::strftime(date_buf, sizeof(date_buf), "%Y%m%d_%H%M%S", &tm_buf);
 
     std::string result = dir;
+    if (result.empty())
+    {
+        std::error_code ec;
+        auto            tmp = std::filesystem::temp_directory_path(ec);
+        result              = ec ? std::string(".") : tmp.string();
+    }
     if (!result.empty() && result.back() != '/')
         result += '/';
     result += prefix + '_' + date_buf + ".png";
@@ -422,7 +430,7 @@ bool RosScreenshotExport::draw_record_dialog(bool* p_open)
     ImGui::SameLine();
     if (ImGui::Button("Auto##rec_autopath"))
     {
-        const std::string auto_path = make_screenshot_path("/tmp", "spectra_ros_recording");
+        const std::string auto_path = make_screenshot_path("", "spectra_ros_recording");
         // Change extension to match format.
         std::string ext;
         switch (dialog_format_idx_)

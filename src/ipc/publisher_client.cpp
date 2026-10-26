@@ -32,9 +32,7 @@ size_t stride_for(Publisher::Kind k)
 
 std::string socket_dir()
 {
-    if (const char* xdg = std::getenv("XDG_RUNTIME_DIR"); xdg && *xdg)
-        return xdg;
-    return "/tmp";
+    return ipc::runtime_dir();
 }
 
 // Scan the runtime dir for `spectra-<pid>.sock` entries (most recent first).

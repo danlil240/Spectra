@@ -181,7 +181,9 @@ class RosScreenshotExport
 
     // Static helper: generate a timestamped screenshot filename.
     // Format: <prefix>_YYYYMMDD_HHMMSS.png
-    static std::string make_screenshot_path(const std::string& dir    = "/tmp",
+    // An empty `dir` means the system temp directory
+    // (std::filesystem::temp_directory_path()).
+    static std::string make_screenshot_path(const std::string& dir    = "",
                                             const std::string& prefix = "spectra_ros");
 
     // -----------------------------------------------------------------------

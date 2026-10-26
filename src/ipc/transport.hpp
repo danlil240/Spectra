@@ -102,9 +102,17 @@ class Client
 
 // ─── Utility ─────────────────────────────────────────────────────────────────
 
+// Directory used for Spectra's Unix sockets: $XDG_RUNTIME_DIR when set,
+// otherwise std::filesystem::temp_directory_path() ($TMPDIR or /tmp).
+// All components (app, daemon, publishers) must agree on it for discovery.
+std::string runtime_dir();
+
 // Returns the default socket path for this process:
-//   $XDG_RUNTIME_DIR/spectra-<pid>.sock
-// Falls back to /tmp/spectra-<pid>.sock if XDG_RUNTIME_DIR is not set.
+//   <runtime_dir()>/spectra-<pid>.sock
 std::string default_socket_path();
+
+// Maximum length (in bytes, excluding the terminator) of a Unix socket path
+// on this platform (sizeof(sockaddr_un::sun_path) - 1); 0 where unsupported.
+size_t max_socket_path_length();
 
 }   // namespace spectra::ipc

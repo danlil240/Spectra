@@ -106,10 +106,12 @@ python/graphify-out/
 python/spectra/_bin/
 
 # Local / personal files (never commit)
-compile_commands.json
 Testing/
 *.deb
 .live-agents
 docker/.env
 .vscode/settings.json
 .vscode/c_cpp_properties.json
+
+# clangd/ccls compile database (opt-in symlink: -DSPECTRA_LINK_COMPILE_COMMANDS=ON)
+/compile_commands.json

@@ -2,7 +2,7 @@
 # Run: doxygen docs/Doxyfile
 
 PROJECT_NAME           = "Spectra"
-PROJECT_NUMBER         = "0.1.0"
+PROJECT_NUMBER         = "0.3.0"
 PROJECT_BRIEF          = "GPU-accelerated plotting library for C++20"
 OUTPUT_DIRECTORY       = docs/api
 

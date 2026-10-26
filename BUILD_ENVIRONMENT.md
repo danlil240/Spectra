@@ -15,10 +15,10 @@
 | OS | Ubuntu 24.04 LTS (recommended) |
 | Compiler | GCC 13+ **or** Clang 17+ |
 | C++ Standard | C++20 |
-| Build System | CMake 3.20+ with Ninja (preferred) |
+| Build System | CMake 3.21+ with Ninja (preferred) |
 | Vulkan SDK | `libvulkan-dev` ≥ 1.2 (APT package, no LunarG SDK needed) |
 | Shader compiler | `glslang-tools` (provides `glslangValidator`) |
-| Key fetched deps | GLFW 3.4, ImGui v1.92.6-docking, FlatBuffers, GoogleTest |
+| Key fetched deps | GLFW 3.4 (or system >= 3.3), ImGui v1.92.6-docking, FlatBuffers v25.2.10, GoogleTest v1.14.0 (see §11) |
 
 ---
 
@@ -62,12 +62,11 @@ sudo apt-get install -y \
     libeigen3-dev
 ```
 
-> **Note:** GLFW, Dear ImGui, FlatBuffers, and GoogleTest are automatically downloaded by
-> CMake's `FetchContent` on the first configure — no manual installation needed.
->
-> Dear ImGui is fetched with `git` (tag `v1.92.6-docking`), so it works behind proxies that
-> block GitHub archive downloads. To build offline, clone that tag yourself and pass
-> `-DFETCHCONTENT_SOURCE_DIR_IMGUI=/path/to/imgui`.
+> **Note:** Dear ImGui, FlatBuffers and GoogleTest are downloaded by CMake's `FetchContent`
+> on the first configure (pinned tags, fetched with `git`, so it works behind proxies that
+> block GitHub archive downloads). GLFW uses a system `libglfw3-dev` (>= 3.3) when present
+> and is fetched (3.4) otherwise. Python 3 + Pillow are optional (resized desktop icons).
+> For distro/offline builds see [§11](#11-dependencies-system-vs-fetched-offline-builds).
 
 ---
 
@@ -337,24 +336,112 @@ binaries.
 | `SPECTRA_BUILD_EMBED_SHARED` | OFF | — | `libspectra_embed.so` for C FFI |
 | `SPECTRA_BUILD_QA_AGENT` | OFF | — | QA stress-testing automation agent |
 | `SPECTRA_PYTHON_WHEEL` | OFF | — | Bundle backend into Python package |
+| `SPECTRA_BUILD_APPS` | ON | — | Build `spectra`, `spectra-backend`, `spectra-window`, `spectra-px4` |
+| `SPECTRA_INSTALL` | ON | — | Generate install rules + the `find_package(spectra)` package |
+| `SPECTRA_LINK_COMPILE_COMMANDS` | OFF | — | Symlink `build/compile_commands.json` into the source tree (clangd/ccls) |
+| `SPECTRA_GENERATE_ICONS` | `AUTO` | `python3-pillow` | Resized hicolor icons; without Pillow the 1024px icon is installed to `share/pixmaps` |
+| `SPECTRA_USE_SYSTEM_GLFW` | `AUTO` | `libglfw3-dev` >= 3.3 | `AUTO`/`ON`/`OFF`, see §11 |
+| `SPECTRA_USE_SYSTEM_SDL3` | `AUTO` | SDL3 >= 3.2 | `AUTO`/`ON`/`OFF` |
+| `SPECTRA_USE_SYSTEM_FLATBUFFERS` | OFF | `libflatbuffers-dev` + `flatbuffers-compiler` | `AUTO`/`ON`/`OFF` |
+| `SPECTRA_USE_SYSTEM_GTEST` | OFF | `libgtest-dev` >= 1.11 | `AUTO`/`ON`/`OFF` |
+| `SPECTRA_USE_SYSTEM_BENCHMARK` | OFF | `libbenchmark-dev` | `AUTO`/`ON`/`OFF` |
 | `SPECTRA_RUNTIME_MODE` | `multiproc` | — | `inproc` or `multiproc` |
 | `SPECTRA_PRESENT_MODE` | `FIFO` | — | Vulkan present mode: `FIFO`, `MAILBOX`, `IMMEDIATE` |
 
 > *`SPECTRA_USE_ROS2` and `SPECTRA_ROS2_BAG` default to ON in CMakeLists.txt but
 > **auto-disable** gracefully when `ament_cmake` is not found. They do **not** fail the build.
+>
+> When Spectra is a **subproject** (`add_subdirectory()` / `FetchContent`),
+> `SPECTRA_BUILD_EXAMPLES`, `SPECTRA_BUILD_TESTS`, `SPECTRA_USE_ROS2` and `SPECTRA_USE_PX4`
+> default to OFF (they follow `PROJECT_IS_TOP_LEVEL`), CPack is not included, and nothing is
+> written into the source tree.
 
 ---
 
-## 11. FetchContent Dependencies (Auto-Downloaded)
+## 11. Dependencies: System vs. Fetched, Offline Builds
 
-These are downloaded by CMake at configure time — **no manual installation needed**:
+Every fetched dependency is pinned to a release tag (the commit is noted next to it in CMake):
 
-| Library | Version | Used For |
-|---------|---------|---------|
-| GLFW | 3.4 | Window creation, input (when not found on system) |
-| Dear ImGui | v1.92.6-docking | Full UI stack |
-| FlatBuffers | latest stable | IPC codec v2 |
-| GoogleTest + GoogleMock | latest stable | Unit tests and benchmarks |
+| Library | Pinned tag | Fetched when | System switch (default) |
+|---------|-----------|--------------|-------------------------|
+| GLFW | `3.4` | no system GLFW >= 3.3 found | `SPECTRA_USE_SYSTEM_GLFW` (`AUTO`) |
+| Dear ImGui | `v1.92.6-docking` | always (no usable system package) | none; use `FETCHCONTENT_SOURCE_DIR_IMGUI` |
+| FlatBuffers | `v25.2.10` | by default | `SPECTRA_USE_SYSTEM_FLATBUFFERS` (`OFF`) |
+| SDL3 | `release-3.2.0` | `SPECTRA_USE_SDL3=ON` and no system SDL3 >= 3.2 | `SPECTRA_USE_SYSTEM_SDL3` (`AUTO`) |
+| GoogleTest | `v1.14.0` | `SPECTRA_BUILD_TESTS=ON` | `SPECTRA_USE_SYSTEM_GTEST` (`OFF`) |
+| Google Benchmark | `v1.8.3` | `SPECTRA_BUILD_BENCHMARKS=ON` | `SPECTRA_USE_SYSTEM_BENCHMARK` (`OFF`) |
+| Vulkan-Headers | `v1.3.275` | Emscripten builds only | none |
+
+`SPECTRA_USE_SYSTEM_<DEP>` takes `AUTO` (try `find_package`, otherwise fetch), `ON` (require
+the system package) or `OFF` (always fetch). With `SPECTRA_PYTHON_WHEEL=ON` the `AUTO`
+defaults become `OFF`, so wheels stay self-contained.
+
+**Self-contained release packages** (`.deb`/`.rpm`/AppImage/wheels) should configure with
+`-DSPECTRA_USE_SYSTEM_GLFW=OFF`. The bundled GLFW is then installed as
+`lib/spectra/libglfw3.a` and exported as `spectra::glfw`, so consumers of the package do not
+need `libglfw3-dev`. With a system GLFW, `spectraConfig.cmake` finds `glfw3` again instead.
+
+**Distro or fully offline build** (no network at configure time):
+
+```bash
+sudo apt install libglfw3-dev libgtest-dev libflatbuffers-dev flatbuffers-compiler
+git clone --depth 1 --branch v1.92.6-docking https://github.com/ocornut/imgui.git /src/imgui
+cmake -B build -G Ninja -DSPECTRA_USE_ROS2=OFF \
+  -DSPECTRA_USE_SYSTEM_GLFW=ON -DSPECTRA_USE_SYSTEM_FLATBUFFERS=ON -DSPECTRA_USE_SYSTEM_GTEST=ON \
+  -DFETCHCONTENT_SOURCE_DIR_IMGUI=/src/imgui -DFETCHCONTENT_FULLY_DISCONNECTED=ON
+```
+
+You can point any fetched dependency at a local checkout of its pinned tag with
+`-DFETCHCONTENT_SOURCE_DIR_<NAME>=<path>`, where `<NAME>` is `GLFW`, `IMGUI`,
+`FLATBUFFERS`, `SDL3`, `GOOGLETEST` or `GOOGLEBENCHMARK`. A system FlatBuffers supplies both
+the headers and `flatc`, so the generated code always matches the runtime headers.
+
+**FlatBuffers Python bindings** in `python/spectra/_fb_generated/` are committed and are the
+source of truth for the Python package. A normal build only generates C++ headers, in
+`build/generated/flatbuffers/`. After changing `src/ipc/schemas/*.fbs`, run
+`cmake --build build --target spectra_flatbuffers_python` and commit the result.
+
+### Consuming Spectra from CMake
+
+```cmake
+# (a) Installed package: -Dspectra_DIR=<prefix>/lib/cmake/spectra (or CMAKE_PREFIX_PATH=<prefix>)
+# (b) Build tree, without installing: -Dspectra_DIR=<spectra>/build
+find_package(spectra 0.3 CONFIG REQUIRED)   # SameMinorVersion while the major version is 0
+target_link_libraries(app PRIVATE spectra::spectra)        # C++ API
+target_link_libraries(capp PRIVATE spectra::spectra_embed) # C FFI (SPECTRA_BUILD_EMBED_SHARED=ON)
+
+# (c) Subproject: builds the library and apps only (no tests, examples, ROS2 or PX4)
+add_subdirectory(third_party/spectra)        # or FetchContent_MakeAvailable(spectra)
+target_link_libraries(app PRIVATE spectra::spectra)
+```
+
+The package looks only for the dependencies the build actually used: `Vulkan` and `Threads`,
+plus `Eigen3` if built with `SPECTRA_USE_EIGEN`, and `glfw3`/`SDL3` if system copies were used.
+
+### Packaging manifests and versioning
+
+`version.txt` is the single source of the version. `tools/update_packaging.sh` (or
+`cmake --build build --target spectra_update_packaging`) generates
+`packaging/homebrew/spectra.rb`, `packaging/scoop/spectra.json` and `packaging/aur/PKGBUILD`
+from the `*.in` templates next to them, and rewrites `PROJECT_NUMBER` in `docs/Doxyfile`.
+
+Hashes:
+
+- `--fetch` downloads the published `v<version>` source tarball and
+  `spectra-<version>-win64.zip` and records their sha256.
+- `--source-sha256` and `--win64-sha256` pass the hashes explicitly.
+- Otherwise, hashes already recorded for the same version are kept, and a new version gets
+  `SPECTRA_HASH_PENDING` until the release job fills it in.
+
+The ctest `packaging_manifests_match_version` (label `packaging`) fails when a manifest is
+behind `version.txt`.
+
+### Licensing
+
+`THIRD_PARTY_NOTICES.md` lists the third-party components, their versions and licenses, and
+`licenses/` holds the full license texts. Both are installed with `LICENSE` to
+`share/doc/spectra/`, so they ship in every CPack package. When you bump a dependency,
+update all three.
 
 ---
 
@@ -466,8 +553,9 @@ Expected: **0 tests failed** on `ctest -LE gpu`.
 | `Could not find Vulkan` | Install `libvulkan-dev` |
 | `glslangValidator: command not found` | Install `glslang-tools` |
 | `Python3 not found` | Install `python3`; set `-DPython3_EXECUTABLE=...` |
-| `Pillow not found` (icon gen fails) | Install `python3-pillow` |
-| FetchContent download fails | Check internet access; re-run CMake |
+| `Pillow not found` (status message) | Optional: install `python3-pillow` for resized hicolor icons; without it the source icon is installed to `share/pixmaps` |
+| FetchContent download fails / offline | Use system packages or `FETCHCONTENT_SOURCE_DIR_<NAME>` (§11) |
+| `packaging_manifests_match_version` fails | Run `tools/update_packaging.sh` after bumping `version.txt` and commit |
 | `ament_cmake not found` | Normal — ROS2 auto-disables. Set `-DSPECTRA_USE_ROS2=OFF` to silence |
 | Golden tests fail — no Vulkan device | Use lavapipe (see Section 14) |
 | `GLFW_BUILD_TESTS` conflict | GLFW builds from source; conflict is handled by CMakeLists.txt |

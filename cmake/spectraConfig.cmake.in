@@ -2,16 +2,38 @@
 
 include(CMakeFindDependencyMacro)
 
-# Spectra requires Vulkan
+# Build configuration of this Spectra package (informational).
+set(spectra_USE_EIGEN   @SPECTRA_CONFIG_USE_EIGEN@)
+set(spectra_USE_GLFW    @SPECTRA_USE_GLFW@)
+set(spectra_USE_SDL3    @SPECTRA_USE_SDL3@)
+set(spectra_SYSTEM_GLFW @SPECTRA_CONFIG_SYSTEM_GLFW@)
+set(spectra_SYSTEM_SDL3 @SPECTRA_CONFIG_SYSTEM_SDL3@)
+
+# Spectra always requires Vulkan.
 find_dependency(Vulkan)
 
-# Spectra requires Eigen3 (PUBLIC dependency for vector adapters)
-find_dependency(Eigen3)
+# Eigen3 is a PUBLIC dependency only when Spectra was built with
+# SPECTRA_USE_EIGEN (vector adapters in spectra/eigen.hpp).
+if(spectra_USE_EIGEN)
+    find_dependency(Eigen3)
+endif()
 
-# Threads is needed by the bundled GLFW static library
+# A system GLFW / SDL3 is linked into the static library and has to be
+# re-found here; bundled copies are part of spectraTargets.cmake instead.
+if(spectra_SYSTEM_GLFW)
+    find_dependency(glfw3 3.3)
+endif()
+if(spectra_SYSTEM_SDL3)
+    find_dependency(SDL3 3.2)
+endif()
+
+# Threads is needed by the bundled GLFW / SDL3 static libraries and is cheap
+# to look up (always available), so it is found unconditionally.
 find_dependency(Threads)
 
 # Import targets (includes spectra::glfw when GLFW was bundled via FetchContent)
-include("${CMAKE_CURRENT_LIST_DIR}/spectraTargets.cmake")
+if(NOT TARGET spectra::spectra)
+    include("${CMAKE_CURRENT_LIST_DIR}/spectraTargets.cmake")
+endif()
 
 check_required_components(spectra)

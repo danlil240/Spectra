@@ -1363,6 +1363,30 @@ void ImGuiIntegration::load_fonts()
     //   U+F002–U+F698  (main FA6 block — covers all our icons)
     static const ImWchar icon_ranges[] = {0xE473, 0xE522, 0xF002, 0xF698, 0};
 
+    // Text glyphs baked from Inter: Latin + Latin-1, Greek, General
+    // Punctuation (en/em dash, curly quotes, ellipsis, bullet), super/
+    // subscripts, letterlike symbols, arrows and common math operators.
+    // Must stay in sync (roughly) with TextRenderer's plot-text atlas.
+    static const ImWchar text_ranges[] = {
+        0x0020,
+        0x00FF,   // Basic Latin + Latin-1 Supplement
+        0x0391,
+        0x03C9,   // Greek
+        0x2010,
+        0x205E,   // General Punctuation
+        0x2070,
+        0x209F,   // Superscripts and Subscripts
+        0x20AC,
+        0x20AC,   // Euro sign
+        0x2100,
+        0x214F,   // Letterlike Symbols
+        0x2190,
+        0x21FF,   // Arrows
+        0x2200,
+        0x22FF,   // Mathematical Operators
+        0,
+    };
+
     ImFontConfig cfg;
     cfg.FontDataOwnedByAtlas = false;   // we own the static data
     cfg.OversampleH          = 4;       // sharper horizontal sub-pixel positioning
@@ -1376,7 +1400,8 @@ void ImGuiIntegration::load_fonts()
         ImFont* font   = io.Fonts->AddFontFromMemoryCompressedTTF(InterFont_compressed_data,
                                                                 InterFont_compressed_size,
                                                                 size,
-                                                                &cfg);
+                                                                &cfg,
+                                                                text_ranges);
 
         ImFontConfig icon_cfg;
         icon_cfg.FontDataOwnedByAtlas = false;

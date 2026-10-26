@@ -1094,8 +1094,10 @@ NearestPointResult DataInteraction::find_nearest(const CursorReadout& cursor, Fi
         if (y_range == 0.0)
             y_range = 1.0;
 
+        int series_counter = -1;
         for (auto& series_ptr : axes_ptr->series())
         {
+            ++series_counter;
             if (!series_ptr || !series_ptr->visible())
                 continue;
 
@@ -1165,14 +1167,15 @@ NearestPointResult DataInteraction::find_nearest(const CursorReadout& cursor, Fi
 
                 if (dist2 < best_dist2)
                 {
-                    best.found       = true;
-                    best.series      = series_ptr.get();
-                    best.point_index = i;
-                    best.data_x      = abs_x;
-                    best.data_y      = y_data[i];
-                    best.screen_x    = sx;
-                    best.screen_y    = sy;
-                    best_dist2       = dist2;
+                    best.found        = true;
+                    best.series       = series_ptr.get();
+                    best.series_index = series_counter;
+                    best.point_index  = i;
+                    best.data_x       = abs_x;
+                    best.data_y       = y_data[i];
+                    best.screen_x     = sx;
+                    best.screen_y     = sy;
+                    best_dist2        = dist2;
                 }
             }
         }
@@ -1196,8 +1199,17 @@ NearestPointResult DataInteraction::find_nearest(const CursorReadout& cursor, Fi
 
         if (!best.found || pick.distance_px < best.distance_px)
         {
-            best.found       = true;
-            best.series      = pick.series;
+            best.found        = true;
+            best.series       = pick.series;
+            best.series_index = -1;
+            for (size_t si = 0; si < axes3d->series().size(); ++si)
+            {
+                if (axes3d->series()[si].get() == pick.series)
+                {
+                    best.series_index = static_cast<int>(si);
+                    break;
+                }
+            }
             best.point_index = pick.point_index;
             best.data_x      = pick.data_x;
             best.data_y      = pick.data_y;

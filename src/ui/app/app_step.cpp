@@ -10,6 +10,7 @@
 #include <spectra/logger.hpp>
 
 #include <algorithm>
+#include <cmath>
 
 #include "anim/frame_scheduler.hpp"
 #include "adapters/data_source_registry.hpp"
@@ -57,6 +58,7 @@
     #include "ui/workspace/workspace.hpp"
 #endif
 
+#include "ui/automation/automation_security.hpp"
 #include "ui/automation/automation_server.hpp"
 #include "ui/automation/mcp_server.hpp"
 
@@ -79,8 +81,9 @@ namespace spectra
 // ─── App ctor/dtor (must be here where AppRuntime is complete) ───────────────
 App::App(const AppConfig& config) : config_(config)
 {
-    spectra::setup_dual_logging(spectra::default_console_log_level(),
-                                spectra::default_file_log_level());
+    // Install the default console/file sinks unless the host application has
+    // already configured logging (its own sinks or setup_dual_logging()).
+    spectra::ensure_default_logging();
 
     SPECTRA_LOG_INFO("app",
                      "Initializing Spectra application (headless: "
@@ -116,7 +119,16 @@ App::App(const AppConfig& config) : config_(config)
 #endif
     if (!backend_->init(config_.headless))
     {
-        SPECTRA_LOG_ERROR("app", "Failed to initialize Vulkan backend");
+        SPECTRA_LOG_ERROR("app",
+                          "Failed to initialize Vulkan backend (no usable Vulkan driver/device?). "
+                          "Nothing will be rendered or exported; check App::ok().");
+#ifdef SPECTRA_USE_GLFW
+        // Vulkan instance creation initializes GLFW to query the required surface
+        // extensions. No window will ever be created now, so release the display
+        // connection instead of leaking it for the lifetime of the process.
+        if (!config_.headless)
+            glfwTerminate();
+#endif
         return;
     }
 
@@ -134,6 +146,7 @@ App::App(const AppConfig& config) : config_(config)
         return;
     }
 
+    initialized_ = true;
     SPECTRA_LOG_INFO("app", "Spectra application initialized successfully");
 }
 
@@ -241,7 +254,8 @@ struct App::AppRuntime
 #ifdef SPECTRA_USE_FFMPEG
     std::unique_ptr<VideoExporter> video_exporter;
     std::vector<uint8_t>           video_frame_pixels;
-    bool                           is_recording = false;
+    bool                           is_recording         = false;
+    uint64_t                       video_frames_written = 0;
 #endif
 
     // Wall-clock for frame timing
@@ -321,7 +335,7 @@ void App::init_runtime()
 {
     PerfMetrics::instance().mark_startup_begin();
 
-    if (!backend_ || !renderer_)
+    if (!initialized_ || !backend_ || !renderer_)
     {
         SPECTRA_LOG_ERROR("app", "Cannot run: backend or renderer not initialized");
         return;
@@ -384,6 +398,10 @@ void App::init_runtime()
         vcfg.height       = init_active->height();
         vcfg.fps          = init_active->anim_.fps;
         rt.video_exporter = std::make_unique<VideoExporter>(vcfg);
+        // Offline recording: drive animation time from the frame counter so the
+        // file has exactly duration * fps frames regardless of render speed.
+        rt.scheduler.set_target_fps(init_active->anim_.fps);
+        rt.scheduler.set_mode(FrameScheduler::Mode::Offline);
         if (!rt.video_exporter->is_open())
         {
             SPECTRA_LOG_ERROR("app",
@@ -677,11 +695,13 @@ void App::init_runtime()
     rt.last_step_time = std::chrono::steady_clock::now();
 
     // Start automation server for MCP-driven testing.
-    // In headless mode, skip unless explicitly requested via environment variable
-    // to avoid thread lifecycle issues during rapid create/destroy cycles in tests.
+    // Opt-in only (AppConfig::enable_automation, SPECTRA_AUTOMATION=1, or an explicit
+    // SPECTRA_AUTO_SOCKET path): the endpoints allow remote input injection, command
+    // execution and file writes, so they must never be on by default.  See SECURITY.md.
     {
         const char* auto_env = std::getenv("SPECTRA_AUTO_SOCKET");
-        bool want_automation = !config_.headless || ((auto_env != nullptr) && auto_env[0] != '\0');
+        const bool  want_automation =
+            automation_security::automation_requested(config_.enable_automation);
 
         if (want_automation)
         {
@@ -702,6 +722,11 @@ void App::init_runtime()
                     if (mcp_bind_env[0] != '\0')
                         mcp_bind = mcp_bind_env;
                 }
+                if (mcp_bind != "127.0.0.1")
+                    SPECTRA_LOG_WARN("app",
+                                     "SPECTRA_MCP_BIND=" + mcp_bind
+                                         + " exposes the MCP server beyond loopback; it is "
+                                           "protected only by its bearer token");
 
                 uint16_t mcp_port        = 8765;
                 bool     mcp_port_pinned = false;
@@ -843,7 +868,8 @@ App::StepResult App::step()
                                            rt.active_figure->width(),
                                            rt.active_figure->height()))
         {
-            rt.video_exporter->write_frame(rt.video_frame_pixels.data());
+            if (rt.video_exporter->write_frame(rt.video_frame_pixels.data()))
+                ++rt.video_frames_written;
         }
     }
 #endif
@@ -960,10 +986,21 @@ App::StepResult App::step()
 
     // Check animation duration termination
     if (rt.active_figure && rt.active_figure->anim_.duration > 0.0f
-        && rt.scheduler.elapsed_seconds() >= rt.active_figure->anim_.duration
         && !rt.active_figure->anim_.loop)
     {
-        rt.session.request_exit();
+        if (rt.is_recording && rt.video_exporter)
+        {
+            // Offline recording: stop after exactly duration * fps frames.
+            const auto target_frames = static_cast<uint64_t>(
+                std::llround(static_cast<double>(rt.active_figure->anim_.duration)
+                             * static_cast<double>(rt.active_figure->anim_.fps)));
+            if (rt.video_frames_written >= std::max<uint64_t>(1, target_frames))
+                rt.session.request_exit();
+        }
+        else if (rt.scheduler.elapsed_seconds() >= rt.active_figure->anim_.duration)
+        {
+            rt.session.request_exit();
+        }
     }
 
 #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)

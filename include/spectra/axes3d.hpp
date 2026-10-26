@@ -125,6 +125,12 @@ class Axes3D : public AxesBase
     ShapeSeries3D&   shapes3d();
 
    private:
+    // Padded bounding box of all series data (what auto_fit() would set).
+    // Returns false when there is no data.  Used for axes whose limits were
+    // never set explicitly, so headless/offscreen renders frame the data
+    // the same way an interactive auto-fit does.
+    bool compute_auto_limits(vec3& lo, vec3& hi) const;
+
     std::optional<AxisLimits> xlim_;
     std::optional<AxisLimits> ylim_;
     std::optional<AxisLimits> zlim_;
@@ -134,10 +140,10 @@ class Axes3D : public AxesBase
     std::string zlabel_;
 
     std::unique_ptr<Camera> camera_;
-    int                     grid_planes_       = static_cast<int>(GridPlane::All);
-    bool                    show_bounding_box_ = true;
-    vec3                    light_dir_         = {1.0f, 1.0f, 1.0f};   // Default: top-right-front
-    bool                    lighting_enabled_  = true;
+    int                     grid_planes_        = static_cast<int>(GridPlane::All);
+    bool                    show_bounding_box_  = true;
+    vec3                    light_dir_          = {1.0f, 1.0f, 1.0f};   // Default: top-right-front
+    bool                    lighting_enabled_   = true;
     AxisArrowHover          hovered_axis_arrow_ = AxisArrowHover::None;
 };
 

@@ -24,12 +24,25 @@ try:
     )
     _load_lib()  # probe load (not just path lookup) so missing deps skip cleanly
     _EMBED_AVAILABLE = True
-except (ImportError, FileNotFoundError, OSError):
+    _EMBED_ERROR = None
+except (ImportError, FileNotFoundError, OSError) as _exc:
     _EMBED_AVAILABLE = False
+    _EMBED_ERROR = _exc
+
+def _embed_skip_reason(err):
+    if isinstance(err, FileNotFoundError):
+        return (
+            "libspectra_embed (C FFI shared library) is not built: configure with "
+            "-DSPECTRA_BUILD_EMBED_SHARED=ON and build target spectra_embed, "
+            "or set SPECTRA_EMBED_LIB=/path/to/libspectra_embed.so"
+        )
+    first = str(err).strip().splitlines()[0] if str(err).strip() else type(err).__name__
+    return f"libspectra_embed found but could not be loaded: {first}"
+
 
 _skip_embed = pytest.mark.skipif(
     not _EMBED_AVAILABLE,
-    reason="libspectra_embed.so not found — build with -DSPECTRA_BUILD_EMBED_SHARED=ON",
+    reason=_embed_skip_reason(_EMBED_ERROR) if _EMBED_ERROR else "",
 )
 
 

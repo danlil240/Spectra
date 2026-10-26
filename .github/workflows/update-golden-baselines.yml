@@ -8,6 +8,9 @@ on:
         required: false
         default: 'chore: regenerate golden test baselines on lavapipe'
 
+permissions:
+  contents: read
+
 env:
   BUILD_TYPE: Release
 
@@ -19,7 +22,7 @@ jobs:
       contents: write
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Install dependencies + lavapipe
         run: |
@@ -87,7 +90,7 @@ jobs:
             -DSPECTRA_BUILD_TESTS=ON \
             -DSPECTRA_BUILD_GOLDEN_TESTS=ON \
             -DSPECTRA_BUILD_EXAMPLES=OFF
-          cmake --build build --config ${{ env.BUILD_TYPE }} -j$(nproc)
+          cmake --build build --config ${{ env.BUILD_TYPE }} -j"$(nproc)"
 
       - name: Regenerate baselines
         env:

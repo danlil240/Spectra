@@ -1,5 +1,9 @@
-// File: '/tmp/inter_font/InterVariable.ttf' (879708 bytes)
-// Exported using binary_to_compressed_c.exe -u8 "/tmp/inter_font/InterVariable.ttf" InterFont
+#pragma once
+// Inter (variable font, InterVariable.ttf) — embedded font data
+// Copyright (c) 2016 The Inter Project Authors (https://github.com/rsms/inter)
+// License: SIL Open Font License, Version 1.1 — see licenses/Inter-OFL.txt and
+//          THIRD_PARTY_NOTICES.md (https://openfontlicense.org)
+// Original size: 879708 bytes; stored ImGui-compressed (binary_to_compressed_c -u8).
 static const unsigned int InterFont_compressed_size = 587003;
 static const unsigned char InterFont_compressed_data[587003] =
 {

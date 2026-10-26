@@ -196,7 +196,8 @@ Spectra ships an in-process HTTP MCP server that agents can use to control a liv
 pkill -f spectra || true
 sleep 0.5
 
-# Launch Spectra (MCP server starts automatically on port 8765)
+# Launch Spectra (automation/MCP is opt-in; port 8765; bearer token required — see SECURITY.md)
+export SPECTRA_AUTOMATION=1 SPECTRA_MCP_TOKEN="${SPECTRA_MCP_TOKEN:-$(openssl rand -hex 32)}"  # automation is opt-in (SECURITY.md)
 ./build/app/spectra &
 
 # Override port if needed
@@ -244,15 +245,17 @@ Standard MCP over HTTP (JSON-RPC 2.0). POST to `/mcp` with `Content-Type: applic
 
 ```bash
 # Health check
-curl http://127.0.0.1:8765/
+curl -s -H "Authorization: Bearer $SPECTRA_MCP_TOKEN" http://127.0.0.1:8765/
 
 # List tools
 curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Authorization: Bearer $SPECTRA_MCP_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
 
 # Example: toggle grid
 curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Authorization: Bearer $SPECTRA_MCP_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"execute_command","arguments":{"command_id":"view.toggle_grid"}}}'
 ```
@@ -263,6 +266,9 @@ curl -s -X POST http://127.0.0.1:8765/mcp \
 |---|---|---|
 | `SPECTRA_MCP_PORT` | `8765` | HTTP port for the MCP server |
 | `SPECTRA_MCP_BIND` | `127.0.0.1` | Bind address |
+| `SPECTRA_AUTOMATION` | unset (off) | Set to `1` to start the automation socket + MCP server |
+| `SPECTRA_MCP_TOKEN` | random per process | Bearer token required on every request (also in `$XDG_RUNTIME_DIR/spectra-mcp-<pid>.json`) |
+| `SPECTRA_CAPTURE_DIR` | `$XDG_RUNTIME_DIR/spectra-captures` | Only directory capture tools may write to |
 
 ---
 

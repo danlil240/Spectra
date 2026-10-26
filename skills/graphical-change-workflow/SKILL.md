@@ -63,6 +63,7 @@ Start a fresh Spectra instance. Use the example binary that best exercises the c
 Default to `basic_line` for a minimal 2-D surface. Use a 3D example when the change is 3D-specific.
 
 ```bash
+export SPECTRA_AUTOMATION=1 SPECTRA_MCP_TOKEN="${SPECTRA_MCP_TOKEN:-$(openssl rand -hex 32)}"  # automation is opt-in (SECURITY.md)
 ./build/examples/basic_line &
 SPECTRA_PID=$!
 sleep 1     # allow the MCP server to start and bind on port 8765
@@ -114,8 +115,8 @@ Add additional series / commands as needed to fully exercise the change.
 Capture both a canvas screenshot and a full-window shot:
 
 ```
-mcp: capture_screenshot  { "path": "/tmp/spectra_change_canvas.png" }
-mcp: capture_window      { "path": "/tmp/spectra_change_window.png" }
+mcp: capture_screenshot  { "path": "spectra_change_canvas.png" }
+mcp: capture_window      { "path": "spectra_change_window.png" }
 ```
 
 Then inline the result for immediate visual inspection:
@@ -161,7 +162,7 @@ kill $SPECTRA_PID 2>/dev/null || pkill -f spectra || true
 ## MCP Tool Reference
 
 All MCP tools are available via the `spectra-automation` server at `http://127.0.0.1:8765/mcp`.
-The server is embedded in the Spectra process and starts automatically when the app launches.
+The server is embedded in the Spectra process but is **off by default**: launch with `SPECTRA_AUTOMATION=1` and send `Authorization: Bearer $SPECTRA_MCP_TOKEN` on every request. Capture paths are relative to `$SPECTRA_CAPTURE_DIR` (default `$XDG_RUNTIME_DIR/spectra-captures`); the tool result returns the absolute path. See `SECURITY.md`.
 
 | Tool | Purpose |
 |---|---|

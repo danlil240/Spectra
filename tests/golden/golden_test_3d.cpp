@@ -64,12 +64,63 @@ static bool render_headless(Figure& fig, App& app, std::vector<uint8_t>& pixels)
     return backend->readback_framebuffer(pixels.data(), w, h);
 }
 
+// Guard for the headless 3D auto-fit regression: every 3D axes with data must
+// frame all of its data.  (Before the fix, axes without explicit limits stayed
+// at [0,1]^3 in headless renders and the golden baselines captured that.)
+static void expect_3d_data_in_view(Figure& fig, const std::string& scene_name)
+{
+    for (auto& base : fig.all_axes())
+    {
+        auto* ax = dynamic_cast<Axes3D*>(base.get());
+        if (!ax)
+            continue;
+        for (auto& s : ax->series())
+        {
+            vec3 lo{};
+            vec3 hi{};
+            bool ok = false;
+            if (auto* sc = dynamic_cast<ScatterSeries3D*>(s.get()); sc && sc->point_count() > 0)
+            {
+                sc->get_bounds(lo, hi);
+                ok = true;
+            }
+            else if (auto* ln = dynamic_cast<LineSeries3D*>(s.get()); ln && ln->point_count() > 0)
+            {
+                ln->get_bounds(lo, hi);
+                ok = true;
+            }
+            else if (auto* sf = dynamic_cast<SurfaceSeries*>(s.get());
+                     sf && !sf->z_values().empty())
+            {
+                sf->get_bounds(lo, hi);
+                ok = true;
+            }
+            else if (auto* ms = dynamic_cast<MeshSeries*>(s.get()); ms && ms->vertex_count() > 0)
+            {
+                ms->get_bounds(lo, hi);
+                ok = true;
+            }
+            if (!ok)
+                continue;
+            const AxisLimits lims[3] = {ax->x_limits(), ax->y_limits(), ax->z_limits()};
+            for (int i = 0; i < 3; ++i)
+            {
+                const double eps = 1e-6 * std::max(1.0, std::abs(hi[i] - lo[i]));
+                EXPECT_LE(lims[i].min, lo[i] + eps)
+                    << scene_name << ": axis " << "xyz"[i] << " lower limit cuts off data";
+                EXPECT_GE(lims[i].max, hi[i] - eps)
+                    << scene_name << ": axis " << "xyz"[i] << " upper limit cuts off data";
+            }
+        }
+    }
+}
+
 static void run_golden_test_3d(const std::string&                 scene_name,
                                std::function<void(App&, Figure&)> setup_scene,
                                uint32_t                           width             = 640,
                                uint32_t                           height            = 480,
-                               double                             tolerance_percent = 2.0,
-                               double                             max_mae           = 3.0,
+                               double                             tolerance_percent = 0.5,
+                               double                             max_mae           = 1.0,
                                size_t max_differing_pixels = std::numeric_limits<size_t>::max())
 {
     fs::path baseline_path = baseline_dir() / (scene_name + ".raw");
@@ -87,6 +138,7 @@ static void run_golden_test_3d(const std::string&                 scene_name,
 
     std::vector<uint8_t> actual_pixels;
     bool                 render_ok = render_headless(fig, app, actual_pixels);
+    expect_3d_data_in_view(fig, scene_name);
     // Clean up figure from registry so subsequent tests start with a fresh state.
     // Notify the renderer to purge cached GPU data for all axes of this figure
     // BEFORE unregistering — once the figure is destroyed the axes pointers are
@@ -123,6 +175,12 @@ static void run_golden_test_3d(const std::string&                 scene_name,
 
     if (!fs::exists(baseline_path))
     {
+        if (golden_strict())
+        {
+            FAIL() << "Baseline not found: " << baseline_path
+                   << " (SPECTRA_GOLDEN_STRICT=1; run with SPECTRA_UPDATE_BASELINES=1 to "
+                      "generate it and commit the result)";
+        }
         GTEST_SKIP() << "Baseline not found: " << baseline_path
                      << " (run with SPECTRA_UPDATE_BASELINES=1 to generate)";
         return;
@@ -137,20 +195,24 @@ static void run_golden_test_3d(const std::string&                 scene_name,
     ASSERT_EQ(baseline_w, width) << "Baseline width mismatch for: " << scene_name;
     ASSERT_EQ(baseline_h, height) << "Baseline height mismatch for: " << scene_name;
 
-    DiffResult diff = compare_images(actual_pixels.data(), baseline_pixels.data(), width, height);
+    GoldenTolerance tol;
+    tol.max_percent = tolerance_percent;
+    tol.max_mae     = max_mae;
+    DiffResult diff = compare_images(actual_pixels.data(),
+                                     baseline_pixels.data(),
+                                     width,
+                                     height,
+                                     tol.pixel_threshold);
 
-    std::vector<uint8_t> diff_pixels =
-        generate_diff_image(actual_pixels.data(), baseline_pixels.data(), width, height);
+    auto diff_pixels = generate_diff_image(actual_pixels.data(),
+                                           baseline_pixels.data(),
+                                           width,
+                                           height,
+                                           tol.pixel_threshold);
     save_raw_rgba(diff_path.string(), diff_pixels.data(), width, height);
 
-    EXPECT_LE(diff.percent_different, tolerance_percent)
-        << "Scene: " << scene_name << "\n  MAE: " << diff.mean_absolute_error
-        << "\n  Max error: " << diff.max_absolute_error
-        << "\n  Different pixels: " << diff.percent_different << "%"
-        << "\n  Diff image: " << diff_path;
-
-    EXPECT_LE(diff.mean_absolute_error, max_mae)
-        << "Scene: " << scene_name << " has high mean absolute error";
+    EXPECT_TRUE(diff.passed(tol)) << "Golden image test FAILED for: " << scene_name << "\n"
+                                  << diff.describe(tol) << "  Diff image: " << diff_path;
 
     if (max_differing_pixels != std::numeric_limits<size_t>::max())
     {
@@ -341,9 +403,10 @@ TEST(Golden3D, CameraAngle_Front)
                            std::vector<float> z = {0.0f, 1.0f, 0.5f};
                            ax.scatter3d(x, y, z).color(colors::magenta).size(8.0f);
 
+                           // Raw field assignment: the renderer applies it
+                           // (Camera::apply_orbit_changes) before drawing.
                            ax.camera().azimuth   = 0.0f;
                            ax.camera().elevation = 0.0f;
-                           ax.camera().distance  = 5.0f;
 
                            ax.title("Front View");
                        });
@@ -361,9 +424,10 @@ TEST(Golden3D, CameraAngle_Top)
                            std::vector<float> z = {0.0f, 1.0f, 0.5f};
                            ax.scatter3d(x, y, z).color(colors::yellow).size(8.0f);
 
+                           // Raw field assignment: the renderer applies it
+                           // (Camera::apply_orbit_changes) before drawing.
                            ax.camera().azimuth   = 0.0f;
                            ax.camera().elevation = 90.0f;
-                           ax.camera().distance  = 5.0f;
 
                            ax.title("Top View");
                        });
@@ -376,16 +440,26 @@ TEST(Golden3D, DepthOcclusion)
                        {
                            auto& ax = fig.subplot3d(1, 1, 1);
 
-                           std::vector<float> x_front = {0.0f};
+                           // Both points lie on the line of sight of a +X
+                           // front view, so the nearer red disc must cover
+                           // the middle of the larger blue one.
+                           std::vector<float> x_front = {1.0f};
                            std::vector<float> y_front = {0.0f};
-                           std::vector<float> z_front = {1.0f};
+                           std::vector<float> z_front = {0.0f};
 
-                           std::vector<float> x_back = {0.0f};
+                           std::vector<float> x_back = {-1.0f};
                            std::vector<float> y_back = {0.0f};
-                           std::vector<float> z_back = {-1.0f};
+                           std::vector<float> z_back = {0.0f};
 
-                           ax.scatter3d(x_back, y_back, z_back).color(colors::blue).size(20.0f);
-                           ax.scatter3d(x_front, y_front, z_front).color(colors::red).size(15.0f);
+                           ax.scatter3d(x_back, y_back, z_back)
+                               .color(colors::blue)
+                               .size(40.0f)
+                               .marker_style(MarkerStyle::FilledCircle);
+                           ax.scatter3d(x_front, y_front, z_front)
+                               .color(colors::red)
+                               .size(20.0f)
+                               .marker_style(MarkerStyle::FilledCircle);
+                           ax.camera().set_azimuth(0.0f).set_elevation(0.0f);
 
                            ax.title("Depth Test: Red in Front");
                        });
@@ -449,9 +523,7 @@ TEST(Golden3D, Mesh3D_Triangle)
             ax.title("Mesh: Single Triangle");
         },
         640,
-        480,
-        4.0,
-        4.0);
+        480);
 }
 
 TEST(Golden3D, Mesh3D_Quad)
@@ -473,9 +545,7 @@ TEST(Golden3D, Mesh3D_Quad)
             ax.title("Mesh: Quad");
         },
         640,
-        480,
-        6.0,
-        4.0);
+        480);
 }
 
 TEST(Golden3D, Surface_Colormap)
@@ -543,8 +613,8 @@ TEST(Golden3D, CameraAngle_Orthographic)
         },
         640,
         480,
-        2.0,
-        3.0,
+        0.5,
+        1.0,
         // Orthographic edge rasterization differs slightly across Mesa/LLVM
         // versions on CI (single-digit/low-teens pixels).
         16);
@@ -579,8 +649,8 @@ TEST(Golden3D, MultiSubplot3D)
             ax2.title("Helix");
 
             auto&              ax3 = fig.subplot3d(2, 2, 3);
-            const int          nx = 15;
-            const int          ny = 15;
+            const int          nx  = 15;
+            const int          ny  = 15;
             std::vector<float> xg;
             std::vector<float> yg;
             std::vector<float> zv;

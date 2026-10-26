@@ -6,6 +6,7 @@
 #include "automation_dispatch.hpp"
 #include "automation_handler.hpp"
 #include "automation_json.hpp"
+#include "automation_security.hpp"
 
 #include <chrono>
 #include <spectra/app.hpp>
@@ -86,7 +87,9 @@ void AutomationServer::register_handlers()
 std::string AutomationServer::default_socket_path()
 {
 #ifndef _WIN32
-    return "/tmp/spectra-auto-" + std::to_string(::getpid()) + ".sock";
+    // $XDG_RUNTIME_DIR is per-user (0700); falls back to $TMPDIR or /tmp.
+    return automation_security::runtime_dir() + "/spectra-auto-" + std::to_string(::getpid())
+           + ".sock";
 #else
     return "";
 #endif
@@ -101,7 +104,14 @@ bool AutomationServer::start(const std::string& socket_path)
     if (running_.load())
         return false;
     socket_path_ = socket_path;
-    ::unlink(socket_path_.c_str());
+    // Only remove a stale *socket*; never unlink an arbitrary file named by the env var.
+    {
+        struct stat st
+        {
+        };
+        if (::lstat(socket_path_.c_str(), &st) == 0 && S_ISSOCK(st.st_mode))
+            ::unlink(socket_path_.c_str());
+    }
 
     listen_fd_ = ::socket(AF_UNIX, SOCK_STREAM, 0);
     if (listen_fd_ < 0)
@@ -114,19 +124,27 @@ bool AutomationServer::start(const std::string& socket_path)
     addr.sun_family = AF_UNIX;
     if (socket_path_.size() >= sizeof(addr.sun_path))
     {
+        SPECTRA_LOG_ERROR("automation", "Socket path too long: " + socket_path_);
         ::close(listen_fd_);
         listen_fd_ = -1;
         return false;
     }
     std::strncpy(addr.sun_path, socket_path_.c_str(), sizeof(addr.sun_path) - 1);
 
-    if (::bind(listen_fd_, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) < 0)
+    // Create the socket node with 0600-equivalent permissions atomically (umask 077
+    // during bind) instead of chmod-after-bind, which leaves a race window.
+    const mode_t old_umask = ::umask(077);
+    const int bind_rc = ::bind(listen_fd_, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr));
+    const int bind_errno = errno;
+    ::umask(old_umask);
+    if (bind_rc < 0)
     {
+        SPECTRA_LOG_ERROR("automation",
+                          "bind(" + socket_path_ + "): " + std::string(strerror(bind_errno)));
         ::close(listen_fd_);
         listen_fd_ = -1;
         return false;
     }
-    ::chmod(socket_path_.c_str(), 0700);
 
     if (::listen(listen_fd_, 4) < 0)
     {
@@ -150,9 +168,14 @@ void AutomationServer::stop()
         return;
     running_.store(false, std::memory_order_release);
 
+    // The listener thread reads listen_fd_, so join it before closing the fd.
+    // shutdown() wakes its poll() without modifying listen_fd_.
+    if (listen_fd_ >= 0)
+        ::shutdown(listen_fd_, SHUT_RDWR);
+    if (listener_thread_.joinable())
+        listener_thread_.join();
     if (listen_fd_ >= 0)
     {
-        ::shutdown(listen_fd_, SHUT_RDWR);
         ::close(listen_fd_);
         listen_fd_ = -1;
     }
@@ -167,8 +190,6 @@ void AutomationServer::stop()
         client_fds_.clear();
     }
 
-    if (listener_thread_.joinable())
-        listener_thread_.join();
     if (!socket_path_.empty())
     {
         ::unlink(socket_path_.c_str());
@@ -238,6 +259,34 @@ std::string AutomationServer::invoke(const std::string&        method,
 
 // ─── Listener thread ─────────────────────────────────────────────────────────
 
+#ifndef _WIN32
+namespace
+{
+// Defence in depth on top of the 0600 socket: only the owning uid may connect.
+bool peer_is_same_user(int fd)
+{
+    #if defined(__linux__)
+    struct ucred cred
+    {
+    };
+    socklen_t len = sizeof(cred);
+    if (::getsockopt(fd, SOL_SOCKET, SO_PEERCRED, &cred, &len) != 0)
+        return false;
+    return cred.uid == ::geteuid();
+    #elif defined(__APPLE__) || defined(__FreeBSD__)
+    uid_t euid = 0;
+    gid_t egid = 0;
+    if (::getpeereid(fd, &euid, &egid) != 0)
+        return false;
+    return euid == ::geteuid();
+    #else
+    (void)fd;
+    return true;
+    #endif
+}
+}   // namespace
+#endif
+
 void AutomationServer::listener_thread_fn()
 {
 #ifndef _WIN32
@@ -255,6 +304,13 @@ void AutomationServer::listener_thread_fn()
         int                cfd = ::accept(listen_fd_, reinterpret_cast<struct sockaddr*>(&ca), &cl);
         if (cfd < 0)
             continue;
+
+        if (!peer_is_same_user(cfd))
+        {
+            SPECTRA_LOG_WARN("automation", "Rejected connection from a different user");
+            ::close(cfd);
+            continue;
+        }
 
         {
             std::lock_guard lock(clients_mutex_);

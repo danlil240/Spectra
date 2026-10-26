@@ -1,0 +1,60 @@
+name: "Feature request"
+description: Suggest a new feature or an improvement to Spectra
+title: "[FEATURE] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the suggestion! Please search existing issues first to avoid duplicates.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do, and what makes it hard today?
+      placeholder: "I want to ... but currently I have to ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: How would you like it to work? API sketches (C++ or Python) are very welcome.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Workarounds you use today, or how other tools (matplotlib, ImPlot, PlotJuggler, ...) handle it.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      multiple: true
+      options:
+        - C++ API
+        - Python API
+        - 2D plotting
+        - 3D plotting
+        - UI / interaction
+        - Real-time streaming / topics
+        - Export (PNG/SVG/GIF/MP4)
+        - ROS2 adapter
+        - PX4 / ULog adapter
+        - Qt embedding
+        - WebGPU / WebAssembly
+        - Packaging / install
+        - Documentation
+        - Other
+
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Contribution
+      options:
+        - label: I would be willing to open a pull request for this

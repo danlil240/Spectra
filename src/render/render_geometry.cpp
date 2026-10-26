@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <vector>
 #include <spectra/axes.hpp>
 #include <spectra/axes3d.hpp>
 #include <spectra/camera.hpp>
@@ -340,15 +341,70 @@ void Renderer::render_plot_text(Figure& figure)
         auto y0 = static_cast<float>(ylim.min);
         auto z0 = static_cast<float>(zlim.min);
 
-        vec3 view_dir       = vec3_normalize(cam.target - cam.position);
-        bool looking_down_y = std::abs(view_dir.y) > 0.98f;
-        bool looking_down_z = std::abs(view_dir.z) > 0.98f;
+        vec3 view_dir = vec3_normalize(cam.target - cam.position);
 
-        // X labels are displaced along Y, so size their offset by the Y range;
-        // Y and Z labels are displaced along X, so they use the X range.
-        auto            x_tick_offset = static_cast<float>((ylim.max - ylim.min) * 0.04);
-        auto            y_tick_offset = static_cast<float>((xlim.max - xlim.min) * 0.04);
-        auto            z_tick_offset = static_cast<float>((xlim.max - xlim.min) * 0.04);
+        // Tick-label placement follows the camera's up axis (Z by default):
+        // the two horizontal axes are labelled along the bottom box edge
+        // nearest the camera, the vertical axis along the leftmost vertical
+        // edge on screen -- so labels sit outside the data, as in MATLAB.
+        const int   up_idx     = (cam.up_axis == Camera::UpAxis::Z) ? 2 : 1;
+        const float lo_lim[3]  = {x0, y0, z0};
+        const float hi_lim[3]  = {static_cast<float>(xlim.max),
+                                  static_cast<float>(ylim.max),
+                                  static_cast<float>(zlim.max)};
+        const float cam_pos[3] = {static_cast<float>(cam.position.x),
+                                  static_cast<float>(cam.position.y),
+                                  static_cast<float>(cam.position.z)};
+        const float view_c[3]  = {static_cast<float>(view_dir.x),
+                                  static_cast<float>(view_dir.y),
+                                  static_cast<float>(view_dir.z)};
+        float       tick_off[3];
+        for (int i = 0; i < 3; ++i)
+            tick_off[i] = (hi_lim[i] - lo_lim[i]) * 0.04f;
+        // Normalized box is centred on the origin, so the camera's sign on an
+        // axis tells which face of the box it sees.
+        auto near_edge = [&](int axis) -> float {
+            return cam_pos[axis] >= 0.0f ? hi_lim[axis] + tick_off[axis]
+                                         : lo_lim[axis] - tick_off[axis];
+        };
+        // Leftmost vertical box edge on screen (corner over the two horizontal axes).
+        const int h_a            = 0;   // X is horizontal for both Z-up and Y-up
+        const int h_b            = (up_idx == 2) ? 1 : 2;
+        float     vert_corner[3] = {x0, y0, z0};
+        {
+            float best_sx = 1e30f;
+            for (int ci = 0; ci < 4; ++ci)
+            {
+                float c[3];
+                c[up_idx] = lo_lim[up_idx];
+                c[h_a]    = (ci & 1) ? hi_lim[h_a] : lo_lim[h_a];
+                c[h_b]    = (ci & 2) ? hi_lim[h_b] : lo_lim[h_b];
+                float sx = 0.0f, sy = 0.0f, d = 0.0f;
+                if (world_to_screen({c[0], c[1], c[2]}, sx, sy, d) && sx < best_sx)
+                {
+                    best_sx          = sx;
+                    vert_corner[h_a] = c[h_a];
+                    vert_corner[h_b] = c[h_b];
+                }
+            }
+        }
+        auto tick_anchor = [&](int axis, float value) -> vec3
+        {
+            float p[3];
+            p[axis] = value;
+            if (axis == up_idx)
+            {
+                p[h_a] = vert_corner[h_a];
+                p[h_b] = vert_corner[h_b];
+            }
+            else
+            {
+                const int other = 3 - axis - up_idx;
+                p[other]        = near_edge(other);
+                p[up_idx]       = lo_lim[up_idx];
+            }
+            return {p[0], p[1], p[2]};
+        };
         constexpr float tick_label_min_spacing_px = 18.0f;
         auto            should_skip_overlapping_tick =
             [&](float sx, float sy, float& last_sx, float& last_sy, bool& has_last) -> bool
@@ -369,86 +425,115 @@ void Renderer::render_plot_text(Figure& figure)
             return false;
         };
 
-        // --- X-axis tick labels ---
+        // Screen rectangles of every label placed so far (title, ticks of all
+        // three axes, arrow labels).  The three axes' tick labels all meet at
+        // the origin corner, so per-axis spacing alone lets e.g. the X and Y
+        // "0" labels print on top of each other ("00").
+        struct LabelRect
         {
-            auto  x_ticks  = axes3d->compute_x_ticks();
-            float last_sx  = 0.0f;
-            float last_sy  = 0.0f;
-            bool  has_last = false;
-            for (size_t i = 0; i < x_ticks.positions.size(); ++i)
+            float x0, y0, x1, y1;
+        };
+        std::vector<LabelRect> placed_labels;
+        auto                   label_rect = [&](const std::string& text,
+                              FontSize           size,
+                              float              x,
+                              float              y,
+                              TextAlign          align,
+                              TextVAlign         valign) -> LabelRect
+        {
+            const auto ext = text_renderer_.measure_text(text, size);
+            float      lx  = x;
+            if (align == TextAlign::Center)
+                lx -= ext.width * 0.5f;
+            else if (align == TextAlign::Right)
+                lx -= ext.width;
+            float ty = y;
+            if (valign == TextVAlign::Middle)
+                ty -= ext.height * 0.5f;
+            else if (valign == TextVAlign::Bottom)
+                ty -= ext.height;
+            return {lx, ty, lx + ext.width, ty + ext.height};
+        };
+        auto collides = [&](const LabelRect& r) -> bool
+        {
+            constexpr float gap = 2.0f;
+            for (const auto& o : placed_labels)
             {
-                float sx    = 0.0f;
-                float sy    = 0.0f;
-                float depth = 0.0f;
-                vec3  pos   = {static_cast<float>(x_ticks.positions[i]), y0 - x_tick_offset, z0};
-                if (!world_to_screen(pos, sx, sy, depth))
-                    continue;
-                if (should_skip_overlapping_tick(sx, sy, last_sx, last_sy, has_last))
-                    continue;
-                text_renderer_.draw_text_depth(x_ticks.labels[i],
-                                               sx,
-                                               sy,
-                                               depth,
-                                               FontSize::Tick,
-                                               tick_col,
+                if (r.x0 < o.x1 + gap && r.x1 + gap > o.x0 && r.y0 < o.y1 + gap
+                    && r.y1 + gap > o.y0)
+                    return true;
+            }
+            return false;
+        };
+        // Draw a depth-tested tick label unless it would overlap another label.
+        auto place_tick_label = [&](const std::string& text,
+                                    float              x,
+                                    float              y,
+                                    float              depth,
+                                    TextAlign          align,
+                                    TextVAlign         valign)
+        {
+            const LabelRect r = label_rect(text, FontSize::Tick, x, y, align, valign);
+            if (collides(r))
+                return;
+            placed_labels.push_back(r);
+            text_renderer_
+                .draw_text_depth(text, x, y, depth, FontSize::Tick, tick_col, align, valign);
+        };
+
+        // Reserve the title's rectangle first so nothing is drawn over it.
+        float title_py = 0.0f;
+        if (!axes3d->get_title().empty())
+        {
+            auto ext = text_renderer_.measure_text(axes3d->get_title(), FontSize::Title);
+            title_py = vp.y - ext.height - tick_padding;
+            if (title_py < vp.y + 2.0f)
+                title_py = vp.y + 2.0f;
+            placed_labels.push_back(label_rect(axes3d->get_title(),
+                                               FontSize::Title,
+                                               vp.x + vp.w * 0.5f,
+                                               title_py,
                                                TextAlign::Center,
-                                               TextVAlign::Top);
-            }
+                                               TextVAlign::Top));
         }
 
-        // --- Y-axis tick labels ---
-        if (!looking_down_y)
+        // --- Tick labels for X, Y, Z ---
+        for (int axis = 0; axis < 3; ++axis)
         {
-            auto  y_ticks  = axes3d->compute_y_ticks();
-            float last_sx  = 0.0f;
-            float last_sy  = 0.0f;
-            bool  has_last = false;
-            for (size_t i = 0; i < y_ticks.positions.size(); ++i)
+            // Looking straight down an axis collapses its ticks onto a point.
+            if (std::abs(view_c[axis]) > 0.98f)
+                continue;
+            const auto ticks    = axis == 0   ? axes3d->compute_x_ticks()
+                                  : axis == 1 ? axes3d->compute_y_ticks()
+                                              : axes3d->compute_z_ticks();
+            const bool vertical = (axis == up_idx);
+            float      last_sx  = 0.0f;
+            float      last_sy  = 0.0f;
+            bool       has_last = false;
+            for (size_t i = 0; i < ticks.positions.size(); ++i)
             {
-                float sx    = 0.0f;
-                float sy    = 0.0f;
-                float depth = 0.0f;
-                vec3  pos   = {x0 - y_tick_offset, static_cast<float>(y_ticks.positions[i]), z0};
+                float      sx    = 0.0f;
+                float      sy    = 0.0f;
+                float      depth = 0.0f;
+                const vec3 pos   = tick_anchor(axis, static_cast<float>(ticks.positions[i]));
                 if (!world_to_screen(pos, sx, sy, depth))
                     continue;
                 if (should_skip_overlapping_tick(sx, sy, last_sx, last_sy, has_last))
                     continue;
-                text_renderer_.draw_text_depth(y_ticks.labels[i],
-                                               sx,
-                                               sy,
-                                               depth,
-                                               FontSize::Tick,
-                                               tick_col,
-                                               TextAlign::Right,
-                                               TextVAlign::Middle);
-            }
-        }
-
-        // --- Z-axis tick labels ---
-        if (!looking_down_z)
-        {
-            auto  z_ticks  = axes3d->compute_z_ticks();
-            float last_sx  = 0.0f;
-            float last_sy  = 0.0f;
-            bool  has_last = false;
-            for (size_t i = 0; i < z_ticks.positions.size(); ++i)
-            {
-                float sx    = 0.0f;
-                float sy    = 0.0f;
-                float depth = 0.0f;
-                vec3  pos   = {x0 - z_tick_offset, y0, static_cast<float>(z_ticks.positions[i])};
-                if (!world_to_screen(pos, sx, sy, depth))
-                    continue;
-                if (should_skip_overlapping_tick(sx, sy, last_sx, last_sy, has_last))
-                    continue;
-                text_renderer_.draw_text_depth(z_ticks.labels[i],
-                                               sx - tick_padding,
-                                               sy,
-                                               depth,
-                                               FontSize::Tick,
-                                               tick_col,
-                                               TextAlign::Right,
-                                               TextVAlign::Middle);
+                if (vertical)
+                    place_tick_label(ticks.labels[i],
+                                     sx - tick_padding,
+                                     sy,
+                                     depth,
+                                     TextAlign::Right,
+                                     TextVAlign::Middle);
+                else
+                    place_tick_label(ticks.labels[i],
+                                     sx,
+                                     sy,
+                                     depth,
+                                     TextAlign::Center,
+                                     TextVAlign::Top);
             }
         }
 
@@ -492,6 +577,39 @@ void Renderer::render_plot_text(Figure& figure)
                 float       dir_len      = std::sqrt(dir_x * dir_x + dir_y * dir_y);
                 float lx = sx1 + (dir_len > 1.0f ? dir_x / dir_len * label_offset : label_offset);
                 float ly_center = sy1 + (dir_len > 1.0f ? dir_y / dir_len * label_offset : 0.0f);
+                // If the label would land on the title (typical for the
+                // vertical Y arrow), move it beside the arrow tip, below the title.
+                LabelRect r = label_rect(lbl,
+                                         FontSize::Label,
+                                         lx,
+                                         ly_center,
+                                         TextAlign::Left,
+                                         TextVAlign::Middle);
+                if (collides(r))
+                {
+                    lx          = sx1 + label_offset;
+                    float shift = 0.0f;
+                    for (const auto& o : placed_labels)
+                    {
+                        LabelRect moved = label_rect(lbl,
+                                                     FontSize::Label,
+                                                     lx,
+                                                     ly_center + shift,
+                                                     TextAlign::Left,
+                                                     TextVAlign::Middle);
+                        if (moved.x0 < o.x1 && moved.x1 > o.x0 && moved.y0 < o.y1
+                            && moved.y1 > o.y0)
+                            shift += o.y1 - moved.y0 + 2.0f;
+                    }
+                    ly_center += shift;
+                    r = label_rect(lbl,
+                                   FontSize::Label,
+                                   lx,
+                                   ly_center,
+                                   TextAlign::Left,
+                                   TextVAlign::Middle);
+                }
+                placed_labels.push_back(r);
                 text_renderer_.draw_text_depth(lbl,
                                                lx,
                                                ly_center,
@@ -519,19 +637,13 @@ void Renderer::render_plot_text(Figure& figure)
                              axes3d->get_zlabel());
         }
 
-        // --- 3D Title ---
+        // --- 3D Title --- (rectangle reserved above, before the tick labels)
         if (!axes3d->get_title().empty())
         {
-            float cx  = vp.x + vp.w * 0.5f;
-            auto  ext = text_renderer_.measure_text(axes3d->get_title(), FontSize::Title);
-            float py  = vp.y - ext.height - tick_padding;
-            // Only keep the title from going off the top of the figure (same as
-            // the 2D path); clamping to vp.y would always pull it into the scene.
-            if (py < 2.0f)
-                py = 2.0f;
+            float cx = vp.x + vp.w * 0.5f;
             text_renderer_.draw_text(axes3d->get_title(),
                                      cx,
-                                     py,
+                                     title_py,
                                      FontSize::Title,
                                      title_col,
                                      TextAlign::Center);
@@ -1012,9 +1124,9 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
         // Check if limits/planes changed — skip regeneration if cached
         auto& gc             = gpu.grid_cache[slot];
         bool  limits_changed = !gc.valid || gc.xmin != xlim.min || gc.xmax != xlim.max
-                               || gc.ymin != ylim.min || gc.ymax != ylim.max || gc.zmin != zlim.min
-                               || gc.zmax != zlim.max
-                               || gpu.cached_grid_planes[slot] != static_cast<int>(gp);
+                              || gc.ymin != ylim.min || gc.ymax != ylim.max || gc.zmin != zlim.min
+                              || gc.zmax != zlim.max
+                              || gpu.cached_grid_planes[slot] != static_cast<int>(gp);
 
         if (limits_changed)
         {
@@ -1104,8 +1216,8 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
         const auto&         theme_colors = theme_mgr_.colors();
         float               blend        = 0.3f;
         ui::Color           blended(theme_colors.grid_major.r * (1.0f - blend) + blend,
-                                    theme_colors.grid_major.g * (1.0f - blend) + blend,
-                                    theme_colors.grid_major.b * (1.0f - blend) + blend);
+                          theme_colors.grid_major.g * (1.0f - blend) + blend,
+                          theme_colors.grid_major.b * (1.0f - blend) + blend);
         set_pc_color_geom(pc.color, blended, 0.35f, theme_mgr_);
         pc.line_width    = 1.0f;
         pc.data_offset_x = 0.0f;

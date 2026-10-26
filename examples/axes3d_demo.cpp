@@ -5,7 +5,7 @@ using namespace spectra;
 
 int main()
 {
-    std::cout << "Axes3D Demo - Week 3 Agent 3 Implementation\n";
+    std::cout << "Axes3D Demo\n";
     std::cout << "============================================\n\n";
 
     try

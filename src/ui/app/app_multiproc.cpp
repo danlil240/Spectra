@@ -308,7 +308,19 @@ void App::run_multiproc()
             sock = env;
     }
     if (sock.empty())
-        sock = "/tmp/spectra-" + std::to_string(::getpid()) + ".sock";
+        sock = ipc::default_socket_path();   // $XDG_RUNTIME_DIR or temp dir
+
+    if (const size_t max_len = ipc::max_socket_path_length(); max_len > 0 && sock.size() > max_len)
+    {
+        SPECTRA_LOG_ERROR("app",
+                          "IPC socket path is too long ({} bytes, platform max {}): {} — "
+                          "use a shorter AppConfig::socket_path / SPECTRA_SOCKET or "
+                          "XDG_RUNTIME_DIR",
+                          sock.size(),
+                          max_len,
+                          sock);
+        return;
+    }
 
     std::unique_ptr<ipc::Connection> conn;
 

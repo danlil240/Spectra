@@ -1,7 +1,10 @@
 #pragma once
-// Font Awesome 6 Free Solid 900 — embedded font data
+// Font Awesome Free 6.5.1 — Solid 900 — embedded font data
 // Source: fontawesome-free-6.5.1-web/webfonts/fa-solid-900.ttf
-// License: SIL OFL 1.1 (https://scripts.sil.org/OFL)
+// Copyright (c) 2023 Fonticons, Inc. (https://fontawesome.com)
+// License: font files SIL OFL 1.1 (Reserved Font Name "Font Awesome"); icon
+//          designs CC BY 4.0; code MIT.  See licenses/FontAwesome-Free-LICENSE.txt
+//          and THIRD_PARTY_NOTICES.md.
 // Font size: 419720 bytes
 
 static const unsigned int fa_solid_900_size = 419720;

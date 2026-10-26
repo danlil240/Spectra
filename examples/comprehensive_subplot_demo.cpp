@@ -11,6 +11,7 @@
 //
 // The animation will run automatically. Close the window to exit.
 
+#include <algorithm>
 #include <cmath>
 #include <random>
 #include <spectra/easy.hpp>
@@ -137,15 +138,40 @@ int main()
         .color(spectra::rgb(0.3f, 0.6f, 1.0f))
         .label("Normal Distribution");
 
-    // Add scatter points for statistics
-    std::vector<float> box_x = {50.0f};
-    std::vector<float> box_y = {50.0f};   // Mean
-    spectra::scatter(box_x, box_y).color(spectra::colors::red).label("Mean");
+    // Mark the sample mean and quartiles as vertical lines spanning the
+    // histogram (computed from the data, in the same units as the x axis).
+    std::vector<float> sorted = normal_data;
+    std::sort(sorted.begin(), sorted.end());
+    auto quantile = [&](float q)
+    {
+        const float pos = q * static_cast<float>(sorted.size() - 1);
+        const auto  lo  = static_cast<size_t>(pos);
+        const auto  hi  = std::min(lo + 1, sorted.size() - 1);
+        return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - static_cast<float>(lo));
+    };
+    float mean = 0.0f;
+    for (float v : normal_data)
+        mean += v;
+    mean /= static_cast<float>(normal_data.size());
 
-    // Add percentile lines
-    std::vector<float> percentile_x = {35.0f, 65.0f};
-    std::vector<float> percentile_y = {35.0f, 65.0f};   // Approximate 25th and 75th percentiles
-    spectra::scatter(percentile_x, percentile_y).color(spectra::colors::orange).label("Quartiles");
+    // Peak bin count of the 30-bin histogram, so the markers span its height.
+    std::vector<int> counts(30, 0);
+    const float      lo_v = sorted.front();
+    const float      bw   = (sorted.back() - lo_v) / 30.0f;
+    for (float v : sorted)
+        counts[std::min<size_t>(29, static_cast<size_t>((v - lo_v) / bw))]++;
+    const float peak = static_cast<float>(*std::max_element(counts.begin(), counts.end()));
+
+    std::vector<float> mean_x = {mean, mean};
+    std::vector<float> span_y = {0.0f, peak * 1.05f};
+    spectra::plot(mean_x, span_y, "r-").label("Mean");
+
+    const float        q1   = quantile(0.25f);
+    const float        q3   = quantile(0.75f);
+    std::vector<float> q1_x = {q1, q1};
+    std::vector<float> q3_x = {q3, q3};
+    spectra::plot(q1_x, span_y, "--").color(spectra::colors::orange).label("Quartiles");
+    spectra::plot(q3_x, span_y, "--").color(spectra::colors::orange).set_show_in_legend(false);
 
     spectra::title("Statistical Analysis");
     spectra::xlabel("Value");

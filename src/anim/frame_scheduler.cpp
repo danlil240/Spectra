@@ -53,6 +53,18 @@ void FrameScheduler::begin_frame()
     Duration dt_duration         = frame_start_ - last_frame_start_;
     last_frame_start_            = frame_start_;
 
+    if (mode_ == Mode::Offline)
+    {
+        // Video time, not wall-clock time: rendering speed must not change
+        // the number of frames or the content of each frame.
+        const float fps = target_fps_ > 0.0f ? target_fps_ : 60.0f;
+        frame_.number++;
+        frame_.dt          = 1.0f / fps;
+        frame_.elapsed_sec = static_cast<float>(static_cast<double>(frame_.number) / fps);
+        update_stats(static_cast<float>(dt_duration.count()) * 1000.0f);
+        return;
+    }
+
     auto raw_dt = static_cast<float>(dt_duration.count());
 
     // Clamp dt to avoid spiral of death

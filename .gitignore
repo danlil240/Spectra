@@ -99,3 +99,19 @@ python/graphify-out/
 
 
 .ccls-cache/
+# Python packaging outputs
+*.egg-info/
+/dist/
+/wheelhouse/
+python/spectra/_bin/
+
+# Local / personal files (never commit)
+Testing/
+*.deb
+.live-agents
+docker/.env
+.vscode/settings.json
+.vscode/c_cpp_properties.json
+
+# clangd/ccls compile database (opt-in symlink: -DSPECTRA_LINK_COMPILE_COMMANDS=ON)
+/compile_commands.json

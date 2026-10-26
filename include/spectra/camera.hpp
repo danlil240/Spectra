@@ -29,10 +29,13 @@ class Camera
         PositiveZ
     };
 
-    vec3   position{0.0f, 0.0f, 5.0f};
+    // Z-up by default (MATLAB convention): surf/plot3/scatter3 put the third
+    // coordinate on the vertical axis.  Use set_up_axis(UpAxis::Y) for Y-up.
+    // The default position is the orbit position for azimuth/elevation/distance.
+    vec3   position{3.0618622f, 3.0618622f, 2.5f};
     vec3   target{0.0f, 0.0f, 0.0f};
-    vec3   up{0.0f, 1.0f, 0.0f};
-    UpAxis up_axis = UpAxis::Y;
+    vec3   up{0.0f, 0.0f, 1.0f};
+    UpAxis up_axis = UpAxis::Z;
 
     ProjectionMode projection_mode = ProjectionMode::Perspective;
     float          fov             = 45.0f;
@@ -110,11 +113,32 @@ class Camera
 
     void update_position_from_orbit();
 
+    // The orbit fields (azimuth, elevation, distance, target, up_axis) may be
+    // assigned directly.  This applies such assignments: when any of them changed
+    // since the camera last placed itself, and `position` was not assigned
+    // directly in the meantime, the position is recomputed from the orbit.
+    // Renderers call it once per frame; returns true if the position moved.
+    bool apply_orbit_changes();
+
     // Recompute azimuth/elevation/distance from the current position and target.
     void sync_orbit_from_position();
 
     std::string serialize() const;
     void        deserialize(const std::string& json);
+
+   private:
+    // Orbit state as of the last time the camera derived one from the other.
+    struct OrbitSnapshot
+    {
+        vec3   position{3.0618622f, 3.0618622f, 2.5f};
+        vec3   target{0.0f, 0.0f, 0.0f};
+        float  azimuth   = 45.0f;
+        float  elevation = 30.0f;
+        float  distance  = 5.0f;
+        UpAxis up_axis   = UpAxis::Z;
+    };
+    OrbitSnapshot applied_;
+    void          remember_orbit();
 };
 
 }   // namespace spectra

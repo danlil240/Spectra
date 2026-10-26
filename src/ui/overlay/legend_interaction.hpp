@@ -107,6 +107,10 @@ class LegendInteraction
     // Per-(figure, axes) drag offset
     std::unordered_map<OffsetKey, LegendOffset> legend_offsets_;
 
+    // Last corner chosen for LegendPosition::Best, per (figure, axes) — gives
+    // the auto-placement hysteresis so the legend doesn't jitter.
+    std::unordered_map<OffsetKey, LegendPosition> best_corner_;
+
     // Drag state
     bool   dragging_        = false;
     float  drag_start_mx_   = 0.0f;

@@ -1,5 +1,6 @@
 #include "mcp_server.hpp"
 
+#include "automation_security.hpp"
 #include "automation_server.hpp"
 
 #include <spectra/logger.hpp>
@@ -32,6 +33,8 @@ namespace
 {
 constexpr const char* kProtocolVersion = "2025-06-18";
 constexpr const char* kServerName      = "spectra-automation";
+constexpr size_t      kMaxBodyBytes    = 64u * 1024u * 1024u;
+constexpr size_t      kMaxHeaderBytes  = 64u * 1024u;
 constexpr const char* kInstructions =
     "Control a running Spectra application. Use these tools to interact with Spectra's UI: execute "
     "commands, simulate mouse and keyboard input, create figures, manage series data, and capture "
@@ -104,12 +107,14 @@ constexpr std::array<ToolSpec, 28> kTools = {{
      R"json({"type":"object","properties":{"count":{"type":"integer","default":1}},"additionalProperties":false})json",
      "pump_frames"},
     {"capture_screenshot",
-     "Capture a screenshot of the current active figure.",
-     R"json({"type":"object","properties":{"path":{"type":"string","default":"/tmp/spectra_auto_screenshot.png"}},"additionalProperties":false})json",
+     "Capture a screenshot of the current active figure. path is a file name relative to the "
+     "capture directory ($SPECTRA_CAPTURE_DIR); the result returns the absolute path.",
+     R"json({"type":"object","properties":{"path":{"type":"string","default":"spectra_auto_screenshot.png"}},"additionalProperties":false})json",
      "capture_screenshot"},
     {"capture_window",
-     "Capture a full-window screenshot including UI chrome.",
-     R"json({"type":"object","properties":{"path":{"type":"string","default":"/tmp/spectra_auto_window.png"}},"additionalProperties":false})json",
+     "Capture a full-window screenshot including UI chrome. path is a file name relative to the "
+     "capture directory ($SPECTRA_CAPTURE_DIR); the result returns the absolute path.",
+     R"json({"type":"object","properties":{"path":{"type":"string","default":"spectra_auto_window.png"}},"additionalProperties":false})json",
      "capture_window"},
     {"resize_window",
      "Resize the active Spectra window.",
@@ -364,10 +369,18 @@ std::string http_status_text(int status)
             return "Accepted";
         case 400:
             return "Bad Request";
+        case 401:
+            return "Unauthorized";
+        case 403:
+            return "Forbidden";
         case 404:
             return "Not Found";
         case 405:
             return "Method Not Allowed";
+        case 413:
+            return "Payload Too Large";
+        case 415:
+            return "Unsupported Media Type";
         case 500:
             return "Internal Server Error";
         default:
@@ -377,11 +390,13 @@ std::string http_status_text(int status)
 
 std::string make_http_response(int                status,
                                const std::string& body,
-                               const std::string& content_type = "application/json")
+                               const std::string& content_type  = "application/json",
+                               const std::string& extra_headers = "")
 {
     std::ostringstream oss;
     oss << "HTTP/1.1 " << status << ' ' << http_status_text(status) << "\r\n";
     oss << "Content-Type: " << content_type << "\r\n";
+    oss << extra_headers;
     oss << "Content-Length: " << body.size() << "\r\n";
     oss << "Connection: close\r\n";
     oss << "MCP-Protocol-Version: " << kProtocolVersion << "\r\n\r\n";
@@ -389,35 +404,103 @@ std::string make_http_response(int                status,
     return oss.str();
 }
 
+std::string to_lower(std::string s)
+{
+    std::transform(s.begin(),
+                   s.end(),
+                   s.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    return s;
+}
+
+std::string trim(const std::string& s)
+{
+    size_t b = 0;
+    size_t e = s.size();
+    while (b < e && (s[b] == ' ' || s[b] == '\t'))
+        ++b;
+    while (e > b && (s[e - 1] == ' ' || s[e - 1] == '\t'))
+        --e;
+    return s.substr(b, e - b);
+}
+
+// Line-based header lookup (exact, case-insensitive field-name match; skips the
+// request line).  Returns nullopt when the header is absent.
+std::optional<std::string> find_header(const std::string& headers, const std::string& key)
+{
+    const std::string lower_key = to_lower(key);
+    size_t            pos       = headers.find("\r\n");
+    while (pos != std::string::npos)
+    {
+        pos += 2;
+        size_t end = headers.find("\r\n", pos);
+        if (end == std::string::npos)
+            end = headers.size();
+        if (end == pos)
+            break;   // blank line: end of headers
+        const std::string line  = headers.substr(pos, end - pos);
+        const size_t      colon = line.find(':');
+        if (colon != std::string::npos && to_lower(trim(line.substr(0, colon))) == lower_key)
+            return trim(line.substr(colon + 1));
+        pos = end < headers.size() ? end : std::string::npos;
+    }
+    return std::nullopt;
+}
+
 std::string extract_header_value(const std::string& headers, const std::string& key)
 {
-    std::string lower_headers = headers;
-    std::transform(lower_headers.begin(),
-                   lower_headers.end(),
-                   lower_headers.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    return find_header(headers, key).value_or("");
+}
 
-    std::string lower_key = key;
-    std::transform(lower_key.begin(),
-                   lower_key.end(),
-                   lower_key.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+// Host must name the loopback interface (or the explicit bind host), optionally
+// with our port.  Blocks DNS-rebinding attacks that reach 127.0.0.1 via a foreign name.
+bool host_header_allowed(const std::string& host_value, const std::string& bind_host, uint16_t port)
+{
+    std::string host = to_lower(trim(host_value));
+    if (host.empty())
+        return false;
 
-    const std::string needle = lower_key + ":";
-    size_t            pos    = lower_headers.find(needle);
-    if (pos == std::string::npos)
-        return "";
-
-    size_t value_pos = pos + needle.size();
-    while (value_pos < headers.size() && (headers[value_pos] == ' ' || headers[value_pos] == '\t'))
+    std::string name;
+    std::string port_str;
+    if (host.front() == '[')
     {
-        ++value_pos;
+        const size_t close = host.find(']');
+        if (close == std::string::npos)
+            return false;
+        name = host.substr(0, close + 1);
+        if (close + 1 < host.size())
+        {
+            if (host[close + 1] != ':')
+                return false;
+            port_str = host.substr(close + 2);
+        }
+    }
+    else
+    {
+        const size_t colon = host.find(':');
+        name               = host.substr(0, colon);
+        if (colon != std::string::npos)
+            port_str = host.substr(colon + 1);
     }
 
-    size_t end = headers.find("\r\n", value_pos);
-    if (end == std::string::npos)
-        end = headers.size();
-    return headers.substr(value_pos, end - value_pos);
+    const bool name_ok = name == "127.0.0.1" || name == "localhost" || name == "[::1]"
+                         || (!bind_host.empty() && name == to_lower(bind_host));
+    if (!name_ok)
+        return false;
+
+    if (host.find(':') != std::string::npos && host.front() != '[' && port_str.empty())
+        return false;
+    if (!port_str.empty())
+    {
+        if (port_str.size() > 5
+            || !std::all_of(port_str.begin(),
+                            port_str.end(),
+                            [](unsigned char c) { return std::isdigit(c) != 0; }))
+            return false;
+        if (port != 0 && std::stoul(port_str) != port)
+            return false;
+    }
+    return true;
 }
 
 std::optional<size_t> parse_content_length(const std::string& headers)
@@ -598,13 +681,39 @@ bool McpServer::start(AutomationServer& automation, const std::string& bind_host
     }
 
     struct sockaddr_in bound_addr{};
-    socklen_t          bound_len = sizeof(bound_addr);
+    socklen_t bound_len = sizeof(bound_addr);
     if (::getsockname(listen_fd_, reinterpret_cast<struct sockaddr*>(&bound_addr), &bound_len) == 0)
         port_ = ntohs(bound_addr.sin_port);
 
+    // Auth token: explicit set_auth_token() > SPECTRA_MCP_TOKEN > random per-process.
+    if (auth_token_.empty())
+    {
+        const char* env_token = std::getenv("SPECTRA_MCP_TOKEN");
+        auth_token_           = (env_token && env_token[0] != '\0') ? std::string(env_token)
+                                                                    : automation_security::generate_token();
+    }
+
+    // Publish endpoint + token in a 0600 file so local tooling can discover them.
+    token_file_ =
+        automation_security::runtime_dir() + "/spectra-mcp-" + std::to_string(::getpid()) + ".json";
+    const std::string token_json = R"({"endpoint":")" + json_escape(endpoint()) + R"(","token":")"
+                                   + json_escape(auth_token_) + R"(","pid":)"
+                                   + std::to_string(::getpid()) + "}\n";
+    if (automation_security::write_private_file(token_file_, token_json))
+    {
+        SPECTRA_LOG_INFO("mcp", "Token file: " + token_file_);
+    }
+    else
+    {
+        SPECTRA_LOG_WARN("mcp", "Could not write MCP token file " + token_file_);
+        token_file_.clear();
+    }
+
     running_.store(true, std::memory_order_release);
     listener_thread_ = std::thread(&McpServer::listener_thread_fn, this);
-    SPECTRA_LOG_INFO("mcp", "Listening on " + endpoint());
+    SPECTRA_LOG_INFO("mcp",
+                     "Listening on " + endpoint()
+                         + " (requires 'Authorization: Bearer <token>'; see token file)");
     return true;
 #endif
 }
@@ -617,9 +726,14 @@ void McpServer::stop()
 
     running_.store(false, std::memory_order_release);
 
+    // The listener thread reads listen_fd_, so join it before closing the fd.
+    // shutdown() wakes its poll() without modifying listen_fd_.
+    if (listen_fd_ >= 0)
+        ::shutdown(listen_fd_, SHUT_RDWR);
+    if (listener_thread_.joinable())
+        listener_thread_.join();
     if (listen_fd_ >= 0)
     {
-        ::shutdown(listen_fd_, SHUT_RDWR);
         ::close(listen_fd_);
         listen_fd_ = -1;
     }
@@ -634,8 +748,11 @@ void McpServer::stop()
         client_fds_.clear();
     }
 
-    if (listener_thread_.joinable())
-        listener_thread_.join();
+    if (!token_file_.empty())
+    {
+        ::unlink(token_file_.c_str());
+        token_file_.clear();
+    }
 
     automation_ = nullptr;
     bind_host_.clear();
@@ -691,7 +808,16 @@ void McpServer::handle_client(int client_fd)
         {
             header_end = request.find("\r\n\r\n");
             if (header_end == std::string::npos)
+            {
+                if (request.size() > kMaxHeaderBytes)
+                {
+                    response = make_http_response(
+                        400,
+                        jsonrpc_error("null", -32600, "Request headers too large"));
+                    break;
+                }
                 continue;
+            }
 
             const std::string headers               = request.substr(0, header_end + 4);
             const auto        parsed_content_length = parse_content_length(headers);
@@ -703,138 +829,19 @@ void McpServer::handle_client(int client_fd)
                 break;
             }
             content_length = *parsed_content_length;
+            if (content_length > kMaxBodyBytes)
+            {
+                response =
+                    make_http_response(413, jsonrpc_error("null", -32600, "Request too large"));
+                break;
+            }
         }
 
         if (request.size() >= header_end + 4 + content_length)
         {
             const std::string headers = request.substr(0, header_end + 4);
             const std::string body    = request.substr(header_end + 4, content_length);
-
-            size_t line_end = headers.find("\r\n");
-            if (line_end == std::string::npos)
-            {
-                response =
-                    make_http_response(400, jsonrpc_error("null", -32700, "Invalid HTTP request"));
-                break;
-            }
-
-            const std::string  request_line = headers.substr(0, line_end);
-            std::istringstream iss(request_line);
-            std::string        method;
-            std::string        path;
-            std::string        version;
-            iss >> method >> path >> version;
-
-            if (method == "GET")
-            {
-                const std::string health =
-                    R"({"name":"spectra-automation","status":"ok","endpoint":")"
-                    + json_escape(endpoint()) + "\"}";
-                response = make_http_response(200, health);
-                break;
-            }
-
-            if (method != "POST")
-            {
-                response =
-                    make_http_response(405,
-                                       jsonrpc_error("null", -32600, "Unsupported HTTP method"));
-                break;
-            }
-
-            if (path != "/mcp" && path != "/")
-            {
-                response =
-                    make_http_response(404, jsonrpc_error("null", -32601, "Unknown endpoint"));
-                break;
-            }
-
-            const std::string rpc_method = json_extract_string(body, "method");
-            const std::string id_raw     = json_extract_raw(body, "id");
-
-            if (rpc_method.empty())
-            {
-                response = make_http_response(400, jsonrpc_error(id_raw, -32600, "Missing method"));
-                break;
-            }
-
-            if (rpc_method == "initialize")
-            {
-                const std::string params_json = json_extract_object(body, "params");
-                const std::string protocol_version =
-                    json_extract_string(params_json, "protocolVersion");
-                response = make_http_response(
-                    200,
-                    jsonrpc_result(id_raw, build_initialize_result(protocol_version)));
-                break;
-            }
-
-            if (rpc_method == "notifications/initialized")
-            {
-                response = make_http_response(202, "", "application/json");
-                break;
-            }
-
-            if (rpc_method == "tools/list")
-            {
-                response =
-                    make_http_response(200, jsonrpc_result(id_raw, build_tools_list_result()));
-                break;
-            }
-
-            if (rpc_method == "tools/call")
-            {
-                const std::string params_json    = json_extract_object(body, "params");
-                const std::string tool_name      = json_extract_string(params_json, "name");
-                const ToolSpec*   tool           = find_tool(tool_name);
-                const std::string arguments_json = json_extract_raw(params_json, "arguments");
-
-                if (!tool)
-                {
-                    response = make_http_response(
-                        200,
-                        jsonrpc_result(id_raw,
-                                       build_call_error_result("Unknown tool: " + tool_name)));
-                    break;
-                }
-
-                if (!automation_ || !automation_->is_running())
-                {
-                    response = make_http_response(
-                        200,
-                        jsonrpc_result(
-                            id_raw,
-                            build_call_error_result("Spectra automation server is not running")));
-                    break;
-                }
-
-                const std::string normalized_arguments =
-                    remap_arguments_for_tool(tool_name, arguments_json);
-                const std::string automation_response =
-                    automation_->invoke(tool->automation_method, normalized_arguments);
-                const std::string ok_raw = json_extract_raw(automation_response, "ok");
-
-                if (ok_raw == "true")
-                {
-                    const std::string result_json = json_extract_raw(automation_response, "result");
-                    response                      = make_http_response(
-                        200,
-                        jsonrpc_result(
-                            id_raw,
-                            build_call_result(result_json.empty() ? "{}" : result_json)));
-                    break;
-                }
-
-                const std::string error_text = json_extract_string(automation_response, "error");
-                response                     = make_http_response(
-                    200,
-                    jsonrpc_result(id_raw,
-                                   build_call_error_result(
-                                       error_text.empty() ? "Unknown Spectra error" : error_text)));
-                break;
-            }
-
-            response = make_http_response(400, jsonrpc_error(id_raw, -32601, "Method not found"));
+            response                  = handle_http_request(headers, body);
             break;
         }
     }
@@ -861,6 +868,144 @@ void McpServer::handle_client(int client_fd)
 #else
     (void)client_fd;
 #endif
+}
+
+std::string McpServer::handle_http_request(const std::string& headers, const std::string& body)
+{
+    const size_t line_end = headers.find("\r\n");
+    if (line_end == std::string::npos)
+        return make_http_response(400, jsonrpc_error("null", -32700, "Invalid HTTP request"));
+
+    const std::string  request_line = headers.substr(0, line_end);
+    std::istringstream iss(request_line);
+    std::string        method;
+    std::string        path;
+    std::string        version;
+    iss >> method >> path >> version;
+
+    // ── Security gate (applies to every request, including GET) ──────────────
+    // 1. Host must be loopback: defeats DNS rebinding from a web page.
+    const auto host = find_header(headers, "Host");
+    if (!host || !host_header_allowed(*host, bind_host_, port_))
+        return make_http_response(403, jsonrpc_error("null", -32600, "Forbidden: bad Host"));
+
+    // 2. Browsers attach Origin to cross-site (and most same-site) requests; legitimate
+    //    MCP clients (CLI tools, agents) do not.  Reject any Origin outright.
+    if (find_header(headers, "Origin"))
+        return make_http_response(403,
+                                  jsonrpc_error("null", -32600, "Forbidden: Origin not allowed"));
+
+    // 3. Bearer token (or X-Spectra-Token).  Fail closed when no token is configured.
+    {
+        std::string presented;
+        if (const auto auth = find_header(headers, "Authorization"))
+        {
+            const std::string v = *auth;
+            if (v.size() > 7 && to_lower(v.substr(0, 7)) == "bearer ")
+                presented = trim(v.substr(7));
+        }
+        if (presented.empty())
+            presented = extract_header_value(headers, "X-Spectra-Token");
+
+        const bool ok = !auth_token_.empty() && !presented.empty()
+                        && automation_security::constant_time_equals(presented, auth_token_);
+        if (!ok)
+            return make_http_response(
+                401,
+                jsonrpc_error("null", -32001, "Unauthorized: missing or invalid token"),
+                "application/json",
+                "WWW-Authenticate: Bearer realm=\"spectra\"\r\n");
+    }
+
+    if (method == "GET")
+    {
+        const std::string health = R"({"name":"spectra-automation","status":"ok","endpoint":")"
+                                   + json_escape(endpoint()) + "\"}";
+        return make_http_response(200, health);
+    }
+
+    if (method != "POST")
+        return make_http_response(405, jsonrpc_error("null", -32600, "Unsupported HTTP method"));
+
+    if (path != "/mcp" && path != "/")
+        return make_http_response(404, jsonrpc_error("null", -32601, "Unknown endpoint"));
+
+    // 4. JSON only: text/plain and form posts are "simple" CORS requests that a browser
+    //    sends without a preflight.
+    {
+        std::string ct = to_lower(extract_header_value(headers, "Content-Type"));
+        if (const size_t semi = ct.find(';'); semi != std::string::npos)
+            ct = ct.substr(0, semi);
+        if (trim(ct) != "application/json")
+            return make_http_response(
+                415,
+                jsonrpc_error("null", -32600, "Content-Type must be application/json"));
+    }
+
+    const std::string rpc_method = json_extract_string(body, "method");
+    const std::string id_raw     = json_extract_raw(body, "id");
+
+    if (rpc_method.empty())
+        return make_http_response(400, jsonrpc_error(id_raw, -32600, "Missing method"));
+
+    if (rpc_method == "initialize")
+    {
+        const std::string params_json      = json_extract_object(body, "params");
+        const std::string protocol_version = json_extract_string(params_json, "protocolVersion");
+        return make_http_response(
+            200,
+            jsonrpc_result(id_raw, build_initialize_result(protocol_version)));
+    }
+
+    if (rpc_method == "notifications/initialized")
+        return make_http_response(202, "", "application/json");
+
+    if (rpc_method == "tools/list")
+        return make_http_response(200, jsonrpc_result(id_raw, build_tools_list_result()));
+
+    if (rpc_method == "tools/call")
+    {
+        const std::string params_json    = json_extract_object(body, "params");
+        const std::string tool_name      = json_extract_string(params_json, "name");
+        const ToolSpec*   tool           = find_tool(tool_name);
+        const std::string arguments_json = json_extract_raw(params_json, "arguments");
+
+        if (!tool)
+            return make_http_response(
+                200,
+                jsonrpc_result(id_raw, build_call_error_result("Unknown tool: " + tool_name)));
+
+        if (!automation_ || !automation_->is_running())
+            return make_http_response(
+                200,
+                jsonrpc_result(
+                    id_raw,
+                    build_call_error_result("Spectra automation server is not running")));
+
+        const std::string normalized_arguments =
+            remap_arguments_for_tool(tool_name, arguments_json);
+        const std::string automation_response =
+            automation_->invoke(tool->automation_method, normalized_arguments);
+        const std::string ok_raw = json_extract_raw(automation_response, "ok");
+
+        if (ok_raw == "true")
+        {
+            const std::string result_json = json_extract_raw(automation_response, "result");
+            return make_http_response(
+                200,
+                jsonrpc_result(id_raw,
+                               build_call_result(result_json.empty() ? "{}" : result_json)));
+        }
+
+        const std::string error_text = json_extract_string(automation_response, "error");
+        return make_http_response(
+            200,
+            jsonrpc_result(id_raw,
+                           build_call_error_result(error_text.empty() ? "Unknown Spectra error"
+                                                                      : error_text)));
+    }
+
+    return make_http_response(400, jsonrpc_error(id_raw, -32601, "Method not found"));
 }
 
 }   // namespace spectra

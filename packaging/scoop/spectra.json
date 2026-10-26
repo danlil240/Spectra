@@ -1,15 +1,18 @@
 {
-    "version": "0.1.0",
+    "version": "0.3.0",
     "description": "GPU-accelerated scientific plotting library",
     "homepage": "https://github.com/danlil240/Spectra",
     "license": "MIT",
+    "notes": "Generated from packaging/scoop/spectra.json.in by tools/update_packaging.sh",
     "architecture": {
         "64bit": {
-            "url": "https://github.com/danlil240/Spectra/releases/download/v0.1.0/spectra-0.1.0-win64.zip",
-            "hash": "PLACEHOLDER_SHA256"
+            "url": "https://github.com/danlil240/Spectra/releases/download/v0.3.0/spectra-0.3.0-win64.zip",
+            "hash": "820611b3902c113f47a6ee539c02fc758e659694bbc05320b2db9074b6a4ee41",
+            "extract_dir": "spectra-0.3.0-win64"
         }
     },
     "bin": [
+        "bin\\spectra.exe",
         "bin\\spectra-backend.exe",
         "bin\\spectra-window.exe"
     ],
@@ -19,8 +22,13 @@
     "autoupdate": {
         "architecture": {
             "64bit": {
-                "url": "https://github.com/danlil240/Spectra/releases/download/v$version/spectra-$version-win64.zip"
+                "url": "https://github.com/danlil240/Spectra/releases/download/v$version/spectra-$version-win64.zip",
+                "extract_dir": "spectra-$version-win64"
             }
+        },
+        "hash": {
+            "url": "https://github.com/danlil240/Spectra/releases/download/v$version/SHA256SUMS",
+            "regex": "$sha256\\s+$basename"
         }
     }
 }

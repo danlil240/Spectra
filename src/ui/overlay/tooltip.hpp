@@ -4,6 +4,7 @@
 
     #include <spectra/color.hpp>
     #include <spectra/series.hpp>
+    #include <string>
 
 struct ImDrawList;
 struct ImFont;
@@ -21,9 +22,10 @@ class Axes3D;
 // Result of nearest-point spatial query
 struct NearestPointResult
 {
-    bool          found       = false;
-    const Series* series      = nullptr;
-    size_t        point_index = 0;
+    bool          found        = false;
+    const Series* series       = nullptr;
+    int           series_index = -1;   // 0-based index within its axes (-1 = unknown)
+    size_t        point_index  = 0;
     // Absolute data x (includes series x_offset); double so epoch-scale
     // timestamps keep sub-second precision.
     double        data_x      = 0.0;
@@ -38,6 +40,17 @@ struct NearestPointResult
     bool          is_3d       = false;
     const Axes3D* axes3d      = nullptr;   // Owning 3D axes (for axis labels)
 };
+
+// Display name for the hovered series: its label, or "Series N" (1-based,
+// matching the order the series were added to the axes) when unlabeled.
+inline std::string tooltip_series_name(const NearestPointResult& nearest)
+{
+    if (nearest.series && !nearest.series->label().empty())
+        return nearest.series->label();
+    if (nearest.series_index >= 0)
+        return "Series " + std::to_string(nearest.series_index + 1);
+    return "Series";
+}
 
 // Rich hover tooltip rendered via ImGui over the plot canvas.
 // Shows series name, coordinates, and a color swatch.

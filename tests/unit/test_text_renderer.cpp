@@ -108,6 +108,28 @@ TEST_F(TextRendererCPUTest, TextVertexLayout)
     EXPECT_EQ(reinterpret_cast<uintptr_t>(&v.col) - base, 20u);
 }
 
+TEST_F(TextRendererCPUTest, DecodeUtf8)
+{
+    uint32_t cp = 0;
+    EXPECT_EQ(TextRenderer::decode_utf8("A", 0, cp), 1u);
+    EXPECT_EQ(cp, 0x41u);
+    EXPECT_EQ(TextRenderer::decode_utf8("\xC2\xB0", 0, cp), 2u);   // degree sign
+    EXPECT_EQ(cp, 0xB0u);
+    EXPECT_EQ(TextRenderer::decode_utf8("\xE2\x80\x94", 0, cp), 3u);   // em dash
+    EXPECT_EQ(cp, 0x2014u);
+    EXPECT_EQ(TextRenderer::decode_utf8("\xCE\xBC", 0, cp), 2u);   // Greek mu
+    EXPECT_EQ(cp, 0x03BCu);
+    EXPECT_EQ(TextRenderer::decode_utf8("\xF0\x9F\x98\x80", 0, cp), 4u);
+    EXPECT_EQ(cp, 0x1F600u);
+    // Malformed input never stalls and yields U+FFFD.
+    EXPECT_EQ(TextRenderer::decode_utf8("\x80", 0, cp), 1u);
+    EXPECT_EQ(cp, 0xFFFDu);
+    EXPECT_EQ(TextRenderer::decode_utf8("\xE2\x80", 0, cp), 1u);   // truncated
+    EXPECT_EQ(cp, 0xFFFDu);
+    EXPECT_EQ(TextRenderer::decode_utf8("\xC0\x80", 0, cp), 2u);   // overlong NUL
+    EXPECT_EQ(cp, 0xFFFDu);
+}
+
 // ─── GPU tests (headless backend) ────────────────────────────────────────────
 
 class TextRendererGPUTest : public ::testing::Test
@@ -310,4 +332,48 @@ TEST_F(TextRendererGPUTest, RendererTextRendererIntegration)
 
         tr.shutdown(*backend);
     }
+}
+
+TEST_F(TextRendererGPUTest, NonAsciiGlyphsAreBaked)
+{
+    if (font_data_.empty())
+        GTEST_SKIP() << "Font not found";
+
+    auto* backend = app_->backend();
+    ASSERT_NE(backend, nullptr);
+
+    TextRenderer tr;
+    ASSERT_TRUE(tr.init(*backend, font_data_.data(), font_data_.size()));
+
+    // Common punctuation / symbols / Greek used in plot titles and units.
+    for (uint32_t cp : {0x2014u,
+                        0x2013u,
+                        0x2018u,
+                        0x2019u,
+                        0x201Cu,
+                        0x201Du,
+                        0x2026u,
+                        0x00B0u,
+                        0x00B1u,
+                        0x00B5u,
+                        0x03B1u,
+                        0x03C0u,
+                        0x03A9u,
+                        0x2212u})
+    {
+        for (auto size : {FontSize::Tick, FontSize::Label, FontSize::Title})
+            EXPECT_TRUE(tr.has_glyph(cp, size)) << "missing U+" << std::hex << cp;
+    }
+
+    // "A — B" must be wider than "A  B": the em dash is no longer dropped.
+    auto with_dash = tr.measure_text("A \xE2\x80\x94 B", FontSize::Title);
+    auto without   = tr.measure_text("A  B", FontSize::Title);
+    EXPECT_GT(with_dash.width, without.width + 5.0f);
+
+    // A multi-byte character advances once, not once per byte.
+    auto deg  = tr.measure_text("\xC2\xB0", FontSize::Label);
+    auto deg2 = tr.measure_text("\xC2\xB0\xC2\xB0", FontSize::Label);
+    EXPECT_NEAR(deg2.width, 2.0f * deg.width, 0.01f);
+
+    tr.shutdown(*backend);
 }

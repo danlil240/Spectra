@@ -1,11 +1,18 @@
-# Root pyproject.toml — used by scikit-build-core to build platform wheels
-# that bundle the spectra-backend binary with the Python package.
+# pyproject.toml — the single Python packaging definition for spectra-plot.
 #
-# For pure-Python development: cd python && pip install -e ".[dev]"
-# For wheel builds:            pip install . (or cibuildwheel)
+# Built with scikit-build-core: a regular build (`pip wheel .`, `pip install .`,
+# cibuildwheel) compiles the C++ tree and bundles the `spectra-backend` daemon
+# and the `spectra-window` agent into `spectra/_bin/` inside the wheel.
+#
+# Pure-Python development (no C++ build; the launcher then finds the backend in
+# ./build/ or via $SPECTRA_BACKEND_PATH):
+#     pip install -e ".[dev]" -Cwheel.cmake=false
+#     cd python && pytest tests
+#
+# The version comes from version.txt (the single source of truth).
 
 [build-system]
-requires = ["scikit-build-core>=0.8", "Pillow>=10.0"]
+requires = ["scikit-build-core>=0.10", "Pillow>=10.0"]
 build-backend = "scikit_build_core.build"
 
 [project]
@@ -15,6 +22,10 @@ description = "GPU-accelerated scientific plotting"
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.9"
+dependencies = [
+    # IPC codec (spectra/_codec_fb.py and the generated _fb_generated/ tree)
+    "flatbuffers>=2.0",
+]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
@@ -29,13 +40,17 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
+# numpy: zero-copy array input; Pillow: EmbedSurface.render_image(); Qt: backends.backend_qtagg
 numpy = ["numpy>=1.20"]
-dev = ["pytest>=7.0", "numpy>=1.20"]
+embed = ["Pillow>=10.0"]
+qt = ["PyQt6>=6.4"]
+dev = ["pytest>=7.0", "numpy>=1.20", "tomli>=1.1; python_version < '3.11'"]
 
 [project.scripts]
 spectra-backend = "spectra._cli:backend_main"
 
 [tool.scikit-build]
+minimum-version = "0.10"
 cmake.build-type = "Release"
 cmake.args = [
     "-DSPECTRA_BUILD_EXAMPLES=OFF",
@@ -43,10 +58,27 @@ cmake.args = [
     "-DSPECTRA_PYTHON_WHEEL=ON",
     "-DSPECTRA_RUNTIME_MODE=multiproc",
 ]
+# Python sources: python/spectra -> <site-packages>/spectra
 wheel.packages = ["python/spectra"]
-wheel.install-dir = "spectra"
+# Only install the CMake "python_wheel" component (spectra-backend and
+# spectra-window into spectra/_bin/). Headers, static libs, CMake config,
+# man pages, desktop files etc. belong to the system/dev install, not the wheel.
+install.components = ["python_wheel"]
+# Developer leftovers that must never end up in a wheel.
+wheel.exclude = ["**/__pycache__", "**/*.pyc", "spectra/_bin/.gitignore"]
+# Keep the sdist small: these trees are not needed to build the wheel.
+sdist.exclude = [
+    "tests/golden/baseline",
+    "plans",
+    "python/spectra_plot.egg-info",
+    "build*",
+    "dist",
+]
 
 [tool.scikit-build.metadata.version]
 provider = "scikit_build_core.metadata.regex"
 input = "version.txt"
-regex = "(?P<value>\\d+\\.\\d+\\.\\d+)"
+regex = "(?P<value>\\d+\\.\\d+\\.\\d+(?:[-.]?(?:a|b|rc|dev|post)\\d*)?)"
+
+[tool.pytest.ini_options]
+testpaths = ["python/tests"]

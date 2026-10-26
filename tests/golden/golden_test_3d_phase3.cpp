@@ -63,8 +63,8 @@ static void run_golden_test_3d_p3(const std::string&                 scene_name,
                                   std::function<void(App&, Figure&)> setup_scene,
                                   uint32_t                           width             = 640,
                                   uint32_t                           height            = 480,
-                                  double                             tolerance_percent = 2.0,
-                                  double                             max_mae           = 3.0)
+                                  double                             tolerance_percent = 0.5,
+                                  double                             max_mae           = 1.0)
 {
     fs::path baseline_path = baseline_dir() / (scene_name + ".raw");
     fs::path actual_path   = output_dir() / (scene_name + "_actual.raw");
@@ -113,6 +113,12 @@ static void run_golden_test_3d_p3(const std::string&                 scene_name,
 
     if (!fs::exists(baseline_path))
     {
+        if (golden_strict())
+        {
+            FAIL() << "Baseline not found: " << baseline_path
+                   << " (SPECTRA_GOLDEN_STRICT=1; run with SPECTRA_UPDATE_BASELINES=1 to "
+                      "generate it and commit the result)";
+        }
         GTEST_SKIP() << "Baseline not found: " << baseline_path
                      << " (run with SPECTRA_UPDATE_BASELINES=1 to generate)";
         return;
@@ -127,20 +133,24 @@ static void run_golden_test_3d_p3(const std::string&                 scene_name,
     ASSERT_EQ(baseline_w, width) << "Baseline width mismatch for: " << scene_name;
     ASSERT_EQ(baseline_h, height) << "Baseline height mismatch for: " << scene_name;
 
-    DiffResult diff = compare_images(actual_pixels.data(), baseline_pixels.data(), width, height);
+    GoldenTolerance tol;
+    tol.max_percent = tolerance_percent;
+    tol.max_mae     = max_mae;
+    DiffResult diff = compare_images(actual_pixels.data(),
+                                     baseline_pixels.data(),
+                                     width,
+                                     height,
+                                     tol.pixel_threshold);
 
-    std::vector<uint8_t> diff_pixels =
-        generate_diff_image(actual_pixels.data(), baseline_pixels.data(), width, height);
+    auto diff_pixels = generate_diff_image(actual_pixels.data(),
+                                           baseline_pixels.data(),
+                                           width,
+                                           height,
+                                           tol.pixel_threshold);
     save_raw_rgba(diff_path.string(), diff_pixels.data(), width, height);
 
-    EXPECT_LE(diff.percent_different, tolerance_percent)
-        << "Scene: " << scene_name << "\n  MAE: " << diff.mean_absolute_error
-        << "\n  Max error: " << diff.max_absolute_error
-        << "\n  Different pixels: " << diff.percent_different << "%"
-        << "\n  Diff image: " << diff_path;
-
-    EXPECT_LE(diff.mean_absolute_error, max_mae)
-        << "Scene: " << scene_name << " has high mean absolute error";
+    EXPECT_TRUE(diff.passed(tol)) << "Golden image test FAILED for: " << scene_name << "\n"
+                                  << diff.describe(tol) << "  Diff image: " << diff_path;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -160,10 +170,10 @@ TEST(Golden3DPhase3, LitSurface_SinCos)
                               std::vector<float> y_grid;
                               std::vector<float> z_values;
                               x_grid.reserve(nx);
-for (int i = 0; i < nx; ++i)
+                              for (int i = 0; i < nx; ++i)
                                   x_grid.push_back(static_cast<float>(i) / (nx - 1) * 6.0f - 3.0f);
                               y_grid.reserve(ny);
-for (int j = 0; j < ny; ++j)
+                              for (int j = 0; j < ny; ++j)
                                   y_grid.push_back(static_cast<float>(j) / (ny - 1) * 6.0f - 3.0f);
                               for (int j = 0; j < ny; ++j)
                                   for (int i = 0; i < nx; ++i)
@@ -529,8 +539,8 @@ TEST(Golden3DPhase3, Mixed2DAndLit3D)
 
             // 3D lit surface
             auto&              ax3d = fig.subplot3d(2, 1, 2);
-            const int          nx = 25;
-            const int          ny = 25;
+            const int          nx   = 25;
+            const int          ny   = 25;
             std::vector<float> x_grid;
             std::vector<float> y_grid;
             std::vector<float> z_values;

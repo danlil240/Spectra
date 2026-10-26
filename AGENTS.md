@@ -35,7 +35,7 @@ Canonical flags and package list: [`BUILD_ENVIRONMENT.md`](BUILD_ENVIRONMENT.md)
 
 ### Python (optional)
 
-From `python/`: `pip install -e ".[dev]"` and `pip install flatbuffers` if collection fails. Run `python3 -m pytest tests/ -q` (Qt-related tests skip/fail without PyQt6).
+From the repo root: `pip install -e ".[dev]" -Cwheel.cmake=false` (pure-Python editable install; root `pyproject.toml` is the only packaging definition). Then `cd python && python3 -m pytest tests/ -q` (Qt and libspectra_embed tests skip when unavailable).
 
 ### Services
 

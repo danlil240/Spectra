@@ -207,10 +207,10 @@ TEST_F(Regression3DTest, SurfaceMaterialChainingWithColor)
 {
     SurfaceSeries s;
     auto&         ref = s.color(Color{1.0f, 0.0f, 0.0f, 1.0f})
-                            .ambient(0.3f)
-                            .specular(0.5f)
-                            .shininess(32.0f)
-                            .opacity(0.9f);
+                    .ambient(0.3f)
+                    .specular(0.5f)
+                    .shininess(32.0f)
+                    .opacity(0.9f);
     EXPECT_FLOAT_EQ(ref.ambient(), 0.3f);
     EXPECT_FLOAT_EQ(ref.specular(), 0.5f);
     EXPECT_FLOAT_EQ(ref.shininess(), 32.0f);
@@ -221,10 +221,10 @@ TEST_F(Regression3DTest, MeshMaterialChainingWithColor)
 {
     MeshSeries m;
     auto&      ref = m.color(Color{0.0f, 0.0f, 1.0f, 1.0f})
-                         .ambient(0.1f)
-                         .specular(0.8f)
-                         .shininess(256.0f)
-                         .opacity(0.5f);
+                    .ambient(0.1f)
+                    .specular(0.8f)
+                    .shininess(256.0f)
+                    .opacity(0.5f);
     EXPECT_FLOAT_EQ(ref.ambient(), 0.1f);
     EXPECT_FLOAT_EQ(ref.specular(), 0.8f);
     EXPECT_FLOAT_EQ(ref.shininess(), 256.0f);
@@ -652,10 +652,9 @@ TEST_F(Regression3DTest, AxisArrowPickAndAlignView)
     ax.set_viewport(Rect{0.0f, 0.0f, 800.0f, 600.0f});
     ax.camera().set_azimuth(35.0f).set_elevation(25.0f).set_distance(6.0f);
 
-    const float             arrow_len_x = 0.18f;
-    const Projected3DPoint  px0       = project_axes3d_data_point(ax, {1.0f, 0.0f, 0.0f});
-    const Projected3DPoint  px1 =
-        project_axes3d_data_point(ax, {1.0f + arrow_len_x, 0.0f, 0.0f});
+    const float            arrow_len_x = 0.18f;
+    const Projected3DPoint px0         = project_axes3d_data_point(ax, {1.0f, 0.0f, 0.0f});
+    const Projected3DPoint px1 = project_axes3d_data_point(ax, {1.0f + arrow_len_x, 0.0f, 0.0f});
     ASSERT_TRUE(px0.visible && px1.visible);
 
     const float mid_x = 0.5f * (px0.screen_x + px1.screen_x);
@@ -663,8 +662,12 @@ TEST_F(Regression3DTest, AxisArrowPickAndAlignView)
     EXPECT_EQ(pick_axes3d_axis_arrow(ax, mid_x, mid_y, 32.0f), Axis3DArrowPick::X);
     EXPECT_EQ(pick_axes3d_axis_arrow(ax, mid_x + 200.0f, mid_y, 32.0f), Axis3DArrowPick::None);
 
-    ax.camera().align_view_to_axis(Camera::AxisView::PositiveY);
+    // Z-up default: +Z is the near-top-down view, +Y a side view.
+    ax.camera().align_view_to_axis(Camera::AxisView::PositiveZ);
     EXPECT_NEAR(ax.camera().elevation, 75.0f, 0.1f);
+    ax.camera().align_view_to_axis(Camera::AxisView::PositiveY);
+    EXPECT_NEAR(ax.camera().azimuth, 90.0f, 0.1f);
+    EXPECT_NEAR(ax.camera().elevation, 0.0f, 0.1f);
     ax.camera().align_view_to_axis(Camera::AxisView::PositiveX);
     EXPECT_NEAR(ax.camera().azimuth, 0.0f, 0.1f);
     EXPECT_NEAR(ax.camera().elevation, 0.0f, 0.1f);

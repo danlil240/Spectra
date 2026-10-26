@@ -118,8 +118,9 @@ TickResult compute_ticks_for_range(double dmin, double dmax)
 
 Axes3D::Axes3D() : camera_(std::make_unique<Camera>())
 {
+    // Z-up (MATLAB convention): the Z data axis is vertical on screen.
+    camera_->set_up_axis(Camera::UpAxis::Z);
     camera_->target    = {0.0f, 0.0f, 0.0f};
-    camera_->up        = {0.0f, 1.0f, 0.0f};
     camera_->azimuth   = 45.0f;
     camera_->elevation = 30.0f;
     camera_->distance  = box_half_size() * 2.0f * 2.2f;
@@ -158,10 +159,89 @@ void Axes3D::zlabel(const std::string& lbl)
     zlabel_ = lbl;
 }
 
+bool Axes3D::compute_auto_limits(vec3& lo, vec3& hi) const
+{
+    constexpr double INF = 1e300;
+    vec3             global_min{INF, INF, INF};
+    vec3             global_max{-INF, -INF, -INF};
+    bool             has_bounds = false;
+
+    for (const auto& s : series_)
+    {
+        if (!s)
+            continue;
+        vec3 s_min;
+        vec3 s_max;
+        if (auto* ls = dynamic_cast<const LineSeries3D*>(s.get()))
+        {
+            if (ls->point_count() == 0)
+                continue;
+            ls->get_bounds(s_min, s_max);
+        }
+        else if (auto* ss = dynamic_cast<const ScatterSeries3D*>(s.get()))
+        {
+            if (ss->point_count() == 0)
+                continue;
+            ss->get_bounds(s_min, s_max);
+        }
+        else if (auto* sf = dynamic_cast<const SurfaceSeries*>(s.get()))
+        {
+            if (sf->z_values().empty())
+                continue;
+            sf->get_bounds(s_min, s_max);
+        }
+        else if (auto* ms = dynamic_cast<const MeshSeries*>(s.get()))
+        {
+            if (ms->vertex_count() == 0)
+                continue;
+            ms->get_bounds(s_min, s_max);
+        }
+        else if (auto* sh3d = dynamic_cast<const ShapeSeries3D*>(s.get()))
+        {
+            // Geometry is (re)built by auto_fit() / the renderer; a const
+            // query can only use whatever geometry already exists.
+            if (sh3d->vertex_count() == 0)
+                continue;
+            sh3d->get_bounds(s_min, s_max);
+        }
+        else
+        {
+            continue;
+        }
+        global_min = vec3_min(global_min, s_min);
+        global_max = vec3_max(global_max, s_max);
+        has_bounds = true;
+    }
+
+    if (!has_bounds)
+        return false;
+
+    // Add 5% padding.  Degenerate (flat) axes get a padding that is relative
+    // to the magnitude of the data, so tiny-scale data (e.g. 1e-8 wide) is
+    // still framed instead of collapsing to a dot inside a +-0.5 box.
+    vec3 extent = global_max - global_min;
+    vec3 pad    = extent * 0.05f;
+    for (int i = 0; i < 3; ++i)
+    {
+        const double mag = std::max(std::abs(global_min[i]), std::abs(global_max[i]));
+        if (!(extent[i] > 0.0) || extent[i] <= mag * 1e-6)
+        {
+            // Flat along this axis: pad by 5% of the magnitude, or 0.5 at zero.
+            pad[i] = mag > 0.0 ? mag * 0.05 : 0.5;
+        }
+    }
+    lo = global_min - pad;
+    hi = global_max + pad;
+    return true;
+}
+
 AxisLimits Axes3D::x_limits() const
 {
     if (xlim_)
         return *xlim_;
+    vec3 lo, hi;
+    if (compute_auto_limits(lo, hi))
+        return {lo.x, hi.x};
     return {0.0, 1.0};
 }
 
@@ -169,6 +249,9 @@ AxisLimits Axes3D::y_limits() const
 {
     if (ylim_)
         return *ylim_;
+    vec3 lo, hi;
+    if (compute_auto_limits(lo, hi))
+        return {lo.y, hi.y};
     return {0.0, 1.0};
 }
 
@@ -176,6 +259,9 @@ AxisLimits Axes3D::z_limits() const
 {
     if (zlim_)
         return *zlim_;
+    vec3 lo, hi;
+    if (compute_auto_limits(lo, hi))
+        return {lo.z, hi.z};
     return {0.0, 1.0};
 }
 
@@ -199,64 +285,16 @@ TickResult Axes3D::compute_z_ticks() const
 
 void Axes3D::auto_fit()
 {
-    if (series_.empty())
-    {
-        xlim(-1.0f, 1.0f);
-        ylim(-1.0f, 1.0f);
-        zlim(-1.0f, 1.0f);
-        return;
-    }
-
-    constexpr float INF = 1e30f;
-    vec3            global_min{INF, INF, INF};
-    vec3            global_max{-INF, -INF, -INF};
-    bool            has_bounds = false;
-
+    // Shapes build their vertex data lazily; make sure it exists so the
+    // bounds below include them.
     for (auto& s : series_)
     {
-        vec3 s_min;
-        vec3 s_max;
-        if (auto* ls = dynamic_cast<LineSeries3D*>(s.get()))
-        {
-            if (ls->point_count() == 0)
-                continue;
-            ls->get_bounds(s_min, s_max);
-        }
-        else if (auto* ss = dynamic_cast<ScatterSeries3D*>(s.get()))
-        {
-            if (ss->point_count() == 0)
-                continue;
-            ss->get_bounds(s_min, s_max);
-        }
-        else if (auto* sf = dynamic_cast<SurfaceSeries*>(s.get()))
-        {
-            if (sf->z_values().empty())
-                continue;
-            sf->get_bounds(s_min, s_max);
-        }
-        else if (auto* ms = dynamic_cast<MeshSeries*>(s.get()))
-        {
-            if (ms->vertex_count() == 0)
-                continue;
-            ms->get_bounds(s_min, s_max);
-        }
-        else if (auto* sh3d = dynamic_cast<ShapeSeries3D*>(s.get()))
-        {
+        if (auto* sh3d = dynamic_cast<ShapeSeries3D*>(s.get()))
             sh3d->rebuild_geometry();
-            if (sh3d->vertex_count() == 0)
-                continue;
-            sh3d->get_bounds(s_min, s_max);
-        }
-        else
-        {
-            continue;
-        }
-        global_min = vec3_min(global_min, s_min);
-        global_max = vec3_max(global_max, s_max);
-        has_bounds = true;
     }
 
-    if (!has_bounds)
+    vec3 lo, hi;
+    if (!compute_auto_limits(lo, hi))
     {
         xlim(-1.0f, 1.0f);
         ylim(-1.0f, 1.0f);
@@ -264,20 +302,9 @@ void Axes3D::auto_fit()
         return;
     }
 
-    // Add 5% padding
-    vec3 extent = global_max - global_min;
-    vec3 pad    = extent * 0.05f;
-    for (int i = 0; i < 3; ++i)
-    {
-        if (pad[i] < 1e-6f)
-            pad[i] = 0.5f;
-    }
-    global_min -= pad;
-    global_max += pad;
-
-    xlim(global_min.x, global_max.x);
-    ylim(global_min.y, global_max.y);
-    zlim(global_min.z, global_max.z);
+    xlim(lo.x, hi.x);
+    ylim(lo.y, hi.y);
+    zlim(lo.z, hi.z);
 
     // Camera targets the center of the normalized cube (origin)
     camera_->target = {0.0f, 0.0f, 0.0f};
@@ -380,7 +407,7 @@ void Axes3D::zoom_limits(float factor)
         double center     = (lim.min + lim.max) * 0.5;
         double half_range = (lim.max - lim.min) * 0.5 * factor;
         double min_half   = std::max(std::abs(lim.min), std::abs(lim.max))
-                            * std::numeric_limits<double>::epsilon() * 16.0;
+                          * std::numeric_limits<double>::epsilon() * 16.0;
         if (min_half < 1e-300)
             min_half = 1e-300;
         if (half_range < min_half)
@@ -403,7 +430,7 @@ void Axes3D::zoom_limits_x(float factor)
     double center     = (xl.min + xl.max) * 0.5;
     double half_range = (xl.max - xl.min) * 0.5 * factor;
     double min_half   = std::max(std::abs(xl.min), std::abs(xl.max))
-                        * std::numeric_limits<double>::epsilon() * 16.0;
+                      * std::numeric_limits<double>::epsilon() * 16.0;
     if (min_half < 1e-300)
         min_half = 1e-300;
     if (half_range < min_half)
@@ -417,7 +444,7 @@ void Axes3D::zoom_limits_y(float factor)
     double center     = (yl.min + yl.max) * 0.5;
     double half_range = (yl.max - yl.min) * 0.5 * factor;
     double min_half   = std::max(std::abs(yl.min), std::abs(yl.max))
-                        * std::numeric_limits<double>::epsilon() * 16.0;
+                      * std::numeric_limits<double>::epsilon() * 16.0;
     if (min_half < 1e-300)
         min_half = 1e-300;
     if (half_range < min_half)
@@ -431,7 +458,7 @@ void Axes3D::zoom_limits_z(float factor)
     double center     = (zl.min + zl.max) * 0.5;
     double half_range = (zl.max - zl.min) * 0.5 * factor;
     double min_half   = std::max(std::abs(zl.min), std::abs(zl.max))
-                        * std::numeric_limits<double>::epsilon() * 16.0;
+                      * std::numeric_limits<double>::epsilon() * 16.0;
     if (min_half < 1e-300)
         min_half = 1e-300;
     if (half_range < min_half)

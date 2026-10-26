@@ -2,16 +2,31 @@
 
 include(FetchContent)
 
-# Google Test
-FetchContent_Declare(
-    googletest
-    GIT_REPOSITORY https://github.com/google/googletest.git
-    GIT_TAG        v1.14.0
-    GIT_SHALLOW    TRUE
-)
-set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
-FetchContent_MakeAvailable(googletest)
+# Google Test — pinned FetchContent copy, or the system package with
+# SPECTRA_USE_SYSTEM_GTEST=AUTO|ON (see cmake/SpectraDependencyOptions.cmake).
+set(_spectra_gtest_system FALSE)
+if(NOT SPECTRA_USE_SYSTEM_GTEST STREQUAL "OFF")
+    if(SPECTRA_USE_SYSTEM_GTEST STREQUAL "ON")
+        find_package(GTest 1.11 CONFIG REQUIRED)
+    else()
+        find_package(GTest 1.11 CONFIG QUIET)
+    endif()
+    if(GTest_FOUND AND TARGET GTest::gtest_main)
+        set(_spectra_gtest_system TRUE)
+        message(STATUS "GoogleTest: using system GTest ${GTest_VERSION}")
+    endif()
+endif()
+if(NOT _spectra_gtest_system)
+    FetchContent_Declare(
+        googletest
+        GIT_REPOSITORY https://github.com/google/googletest.git
+        GIT_TAG        v1.14.0  # f8d7d77c06936315286eb55f8de22cd23c188571
+        GIT_SHALLOW    TRUE
+    )
+    set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+    set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(googletest)
+endif()
 
 # Treat Google Test headers as system includes so third-party warnings
 # are not promoted to errors by -Werror.
@@ -28,14 +43,27 @@ endforeach()
 # Google Benchmark (optional)
 option(SPECTRA_BUILD_BENCHMARKS "Build performance benchmarks" OFF)
 if(SPECTRA_BUILD_BENCHMARKS)
-    FetchContent_Declare(
-        googlebenchmark
-        GIT_REPOSITORY https://github.com/google/benchmark.git
-        GIT_TAG        v1.8.3
-        GIT_SHALLOW    TRUE
-    )
-    set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
-    FetchContent_MakeAvailable(googlebenchmark)
+    set(_spectra_benchmark_system FALSE)
+    if(NOT SPECTRA_USE_SYSTEM_BENCHMARK STREQUAL "OFF")
+        if(SPECTRA_USE_SYSTEM_BENCHMARK STREQUAL "ON")
+            find_package(benchmark 1.6 CONFIG REQUIRED)
+        else()
+            find_package(benchmark 1.6 CONFIG QUIET)
+        endif()
+        if(benchmark_FOUND AND TARGET benchmark::benchmark_main)
+            set(_spectra_benchmark_system TRUE)
+        endif()
+    endif()
+    if(NOT _spectra_benchmark_system)
+        FetchContent_Declare(
+            googlebenchmark
+            GIT_REPOSITORY https://github.com/google/benchmark.git
+            GIT_TAG        v1.8.3  # 344117638c8ff7e239044fd0fa7085839fc03021
+            GIT_SHALLOW    TRUE
+        )
+        set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
+        FetchContent_MakeAvailable(googlebenchmark)
+    endif()
 endif()
 
 # Helper function
@@ -53,7 +81,7 @@ function(add_spectra_test subdir name)
         ${CMAKE_BINARY_DIR}/generated/flatbuffers
     )
     target_include_directories(${target_name} SYSTEM PRIVATE
-        ${flatbuffers_SOURCE_DIR}/include
+        ${SPECTRA_FLATBUFFERS_INCLUDE_DIRS}
     )
     # Propagate feature flags to tests for conditional compilation
     target_compile_definitions(${target_name} PRIVATE
@@ -160,6 +188,7 @@ set(SPECTRA_UNIT_TESTS
     test_glfw_platform_policy
     test_window_ui_context_builder
     test_automation_dispatch
+    test_automation_security
     test_figure_registry
     test_event_bus
     test_ipc
@@ -208,6 +237,10 @@ set(SPECTRA_UNIT_TESTS
     test_accessible_summary
     test_webgpu_backend
     test_expression_eval
+    test_visual_correctness
+    test_logger_defaults
+    test_runtime_robustness
+    test_app_init_failure
 )
 
 # Mock transform plugin — shared library loaded by test_plugin_transforms
@@ -367,7 +400,7 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_multi_window.cpp)
         ${CMAKE_BINARY_DIR}/generated/flatbuffers
     )
     target_include_directories(unit_test_multi_window SYSTEM PRIVATE
-        ${flatbuffers_SOURCE_DIR}/include
+        ${SPECTRA_FLATBUFFERS_INCLUDE_DIRS}
     )
     target_compile_definitions(unit_test_multi_window PRIVATE
         $<$<BOOL:${SPECTRA_USE_FFMPEG}>:SPECTRA_USE_FFMPEG>
@@ -1723,3 +1756,6 @@ if(SPECTRA_BUILD_QA_AGENT)
         )
     endif()
 endif()
+
+# Manual (interactive, not run by CTest) test programs
+add_subdirectory(manual)

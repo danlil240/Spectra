@@ -13,6 +13,7 @@
     #include "ui/theme/design_tokens.hpp"
     #include "ui/theme/glass_draw.hpp"
     #include "ui/theme/theme.hpp"
+    #include "legend_layout.hpp"
 
 namespace spectra
 {
@@ -161,32 +162,51 @@ bool LegendInteraction::draw(Axes&               axes,
         max_label_w = std::max(max_label_w, sz.x);
     }
 
-    float legend_w = pad_x * 2.0f + swatch_size + swatch_gap + max_label_w;
+    // One column = swatch + label (+ visibility eye).  Entries flow into
+    // extra columns instead of being cut off; scrolling is only a last resort
+    // when even the widest grid that fits the plot can't hold them all.
+    constexpr float margin  = 12.0f;
+    constexpr float col_gap = 14.0f;
+    float           col_w   = swatch_size + swatch_gap + max_label_w;
     if (toggleable_)
-        legend_w += eye_width + 4.0f;
-    float legend_h = pad_y * 2.0f + static_cast<float>(labeled_count) * row_height;
-
-    // Clamp legend height: max 8 visible rows, scrollable beyond
-    constexpr int MAX_VISIBLE_ROWS = 8;
-    float         max_legend_h = pad_y * 2.0f + static_cast<float>(MAX_VISIBLE_ROWS) * row_height;
-    bool          scrollable   = (labeled_count > MAX_VISIBLE_ROWS);
+        col_w += eye_width + 4.0f;
+    const auto grid       = legend_layout::compute_grid(labeled_count,
+                                                  col_w,
+                                                  row_height,
+                                                  pad_x,
+                                                  pad_y,
+                                                  col_gap,
+                                                  viewport.w - 2.0f * margin,
+                                                  viewport.h - 2.0f * margin);
+    const bool scrollable = grid.scroll;
+    float      legend_w   = grid.width;
+    float      legend_h   = grid.height;
     if (scrollable)
-    {
         legend_w += 8.0f;   // room for scrollbar
-        legend_h = max_legend_h;
+
+    // Resolve LegendPosition::Best to the corner with the least data overlap.
+    LegendPosition position = config.position;
+    if (position == LegendPosition::Best)
+    {
+        const OffsetKey key  = make_offset_key(figure_id, axes_index);
+        auto            it   = best_corner_.find(key);
+        LegendPosition  prev = (it != best_corner_.end()) ? it->second : LegendPosition::None;
+        position =
+            legend_layout::choose_best_corner(axes, viewport, legend_w, legend_h, margin, prev);
+        best_corner_[key] = position;
     }
 
-    // Compute default position from LegendConfig::position
-    constexpr float margin    = 12.0f;
-    float           default_x = viewport.x + viewport.w - legend_w - margin;   // TopRight default
-    float           default_y = viewport.y + margin;
-    switch (config.position)
+    // Compute default position from the resolved corner
+    float default_x = viewport.x + viewport.w - legend_w - margin;   // TopRight default
+    float default_y = viewport.y + margin;
+    switch (position)
     {
         case LegendPosition::TopLeft:
             default_x = viewport.x + margin;
             default_y = viewport.y + margin;
             break;
         case LegendPosition::TopRight:
+        case LegendPosition::Best:
             default_x = viewport.x + viewport.w - legend_w - margin;
             default_y = viewport.y + margin;
             break;
@@ -212,9 +232,8 @@ bool LegendInteraction::draw(Axes&               axes,
     ly = std::max(viewport.y + 4.0f, std::min(ly, viewport.y + viewport.h - legend_h - 4.0f));
 
     // Draw legend window — use figure_id in the ImGui ID to prevent cross-figure collisions
-    const std::string win_id = std::format("##legend_{:x}_{}",
-                                           static_cast<unsigned long>(figure_id),
-                                           axes_index);
+    const std::string win_id =
+        std::format("##legend_{:x}_{}", static_cast<unsigned long>(figure_id), axes_index);
 
     ImGui::SetNextWindowPos(ImVec2(lx, ly));
     ImGui::SetNextWindowSize(ImVec2(legend_w, legend_h));
@@ -274,10 +293,10 @@ bool LegendInteraction::draw(Axes&               axes,
         // Frosted glass card behind the legend content (skip if user set a bg).
         if (!user_bg)
         {
-            ImDrawList* wdl  = ImGui::GetWindowDrawList();
-            ImVec2      wp0  = ImGui::GetWindowPos();
-            ImVec2      wsz  = ImGui::GetWindowSize();
-            ImVec2      wp1  = ImVec2(wp0.x + wsz.x, wp0.y + wsz.y);
+            ImDrawList* wdl = ImGui::GetWindowDrawList();
+            ImVec2      wp0 = ImGui::GetWindowPos();
+            ImVec2      wsz = ImGui::GetWindowSize();
+            ImVec2      wp1 = ImVec2(wp0.x + wsz.x, wp0.y + wsz.y);
             wdl->PushClipRectFullScreen();
             ui::glass_draw::draw_glass_card(wdl,
                                             wp0,
@@ -344,12 +363,15 @@ bool LegendInteraction::draw(Axes&               axes,
                 state.opacity        = state.target_opacity;
             }
 
-            float row_y = cursor.y + static_cast<float>(row) * row_height;
-            float row_x = cursor.x;
+            // Column-major grid placement (see legend_layout::compute_grid)
+            const int grid_col = grid.rows > 0 ? row / grid.rows : 0;
+            const int grid_row = grid.rows > 0 ? row % grid.rows : row;
+            float     row_y    = cursor.y + static_cast<float>(grid_row) * row_height;
+            float     row_x    = cursor.x + static_cast<float>(grid_col) * (col_w + col_gap);
 
             // Determine visual opacity
             float vis_alpha = state.opacity;
-            Color sc        = s->color();
+            Color sc        = ui::adapt_series_color_to_theme(s->color(), theme_colors);
 
             // Color swatch
             ImU32 swatch_col =
@@ -420,6 +442,12 @@ bool LegendInteraction::draw(Axes&               axes,
 
             ++row;
         }
+
+        // Reserve the full grid as window content so a scrollable legend
+        // can actually scroll to its last entries.
+        ImGui::SetCursorScreenPos(cursor);
+        ImGui::Dummy(ImVec2(std::max(1.0f, legend_w - 2.0f * pad_x),
+                            static_cast<float>(grid.rows) * row_height));
     }
     ImGui::End();
 

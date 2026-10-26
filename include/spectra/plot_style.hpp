@@ -294,6 +294,11 @@ inline DashPattern get_dash_pattern(LineStyle style, float line_width = 2.0f)
 //
 // Format: [color][line_style][marker]
 //   Color chars:  r g b c m y k w
+//                 'k' (black) and 'w' (white) are theme-aware when drawn: on a
+//                 dark plot background pure black renders in the theme's
+//                 foreground color (and pure white does on a light one), so a
+//                 "k-" line is always visible.  Use an explicit near-black such
+//                 as rgb(0.05,0.05,0.05) to force a literal black.
 //   Line styles:  - -- : -. -..
 //   Marker chars: . o + x * s d ^ v < > p h O S D A
 //

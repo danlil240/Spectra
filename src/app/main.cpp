@@ -9,6 +9,7 @@
 #include <spectra/app.hpp>
 #include <spectra/logger.hpp>
 
+#include "ipc/transport.hpp"
 #include "ui/native_dialog_policy.hpp"
 
 #ifndef _WIN32
@@ -38,6 +39,9 @@
     #include <sys/wait.h>
     #include <ctime>
     #include <unistd.h>
+    #ifdef __APPLE__
+        #include <mach-o/dyld.h>
+    #endif
 #endif
 
 namespace
@@ -47,9 +51,7 @@ namespace
 
 std::string socket_dir()
 {
-    if (const char* xdg = std::getenv("XDG_RUNTIME_DIR"); xdg && *xdg)
-        return xdg;
-    return "/tmp";
+    return spectra::ipc::runtime_dir();
 }
 
 // Upper bound on how long the daemon probe waits for a WELCOME reply, so a
@@ -132,17 +134,31 @@ std::string discover_live_daemon_socket()
     return {};
 }
 
+// Absolute path of the running executable, or "" if unknown.
+std::string self_exe_path()
+{
+    #if defined(__linux__)
+    char    buf[4096];
+    ssize_t n = ::readlink("/proc/self/exe", buf, sizeof(buf) - 1);
+    if (n > 0)
+        return std::string(buf, static_cast<size_t>(n));
+    #elif defined(__APPLE__)
+    char     buf[4096] = {};
+    uint32_t size      = sizeof(buf);
+    if (::_NSGetExecutablePath(buf, &size) == 0)
+        return std::string(buf);
+    #endif
+    return {};
+}
+
 // Find `spectra-window` next to our own binary or on $PATH.
 std::string locate_spectra_window()
 {
-    char        buf[4096];
-    ssize_t     n = ::readlink("/proc/self/exe", buf, sizeof(buf) - 1);
     std::string dir;
-    if (n > 0)
+    std::string self = self_exe_path();
+    if (!self.empty())
     {
-        buf[n] = '\0';
-        std::string self(buf);
-        auto        slash = self.rfind('/');
+        auto slash = self.rfind('/');
         if (slash != std::string::npos)
             dir = self.substr(0, slash + 1);
     }
@@ -242,11 +258,15 @@ int main(int argc, char* argv[])
 
     // If a publisher (or another tool) has already spawned a daemon, attach
     // to it transparently so its topics are immediately visible.
-    spectra::setup_dual_logging(spectra::default_console_log_level(),
+    spectra::setup_dual_logging(spectra::default_console_log_level(spectra::LogLevel::Info),
                                 spectra::default_file_log_level());
     maybe_attach_to_running_daemon();
 
-    spectra::App app;
+    spectra::AppConfig app_cfg;
+    app_cfg.install_signal_handlers = true;   // Ctrl+C / SIGTERM → graceful shutdown
+    spectra::App app(app_cfg);
+    if (!app.ok())
+        return 1;
     // No figures created → build_empty_ui() renders the welcome screen
     app.run();
     return 0;

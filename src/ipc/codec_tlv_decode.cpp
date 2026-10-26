@@ -74,7 +74,10 @@ uint64_t PayloadDecoder::as_u64() const
 
 std::string PayloadDecoder::as_string() const
 {
-    return {reinterpret_cast<const char*>(&data_[val_offset_]), len_};
+    if (len_ == 0)
+        return {};
+    // Use data() + offset rather than operator[] so we never index one past the end.
+    return {reinterpret_cast<const char*>(data_.data() + val_offset_), len_};
 }
 
 float tlv_payload_as_float(const PayloadDecoder& dec)
@@ -105,11 +108,15 @@ std::vector<float> tlv_payload_as_float_array(const PayloadDecoder& dec)
         return {};
     uint32_t count = 0;
     std::memcpy(&count, raw.data(), 4);
-    if (raw.size() < 4 + count * 4)
+    // Validate in size_t arithmetic: `count` is untrusted wire data and a 32-bit
+    // `4 + count * 4` wraps, which would let a tiny blob request a huge allocation.
+    const size_t avail = (raw.size() - 4) / sizeof(float);
+    if (static_cast<size_t>(count) > avail
+        || static_cast<size_t>(count) > MAX_PAYLOAD_SIZE / sizeof(float))
         return {};
     std::vector<float> arr(count);
     if (count > 0)
-        std::memcpy(arr.data(), raw.data() + 4, count * 4);
+        std::memcpy(arr.data(), raw.data() + 4, static_cast<size_t>(count) * sizeof(float));
     return arr;
 }
 
@@ -139,10 +146,22 @@ std::optional<ReqSetDataPayload> tlv_decode_req_set_data(std::span<const uint8_t
             case TAG_BLOB_INLINE:
                 p.data = tlv_payload_as_float_array(dec);
                 break;
+            case TAG_CHUNK_INDEX:
+                p.chunk_index = dec.as_u32();
+                break;
+            case TAG_CHUNK_COUNT:
+                p.chunk_count = dec.as_u32();
+                break;
+            case TAG_TOTAL_COUNT:
+                p.total_count = dec.as_u32();
+                break;
             default:
                 break;
         }
     }
+    // A zero chunk_count is malformed; treat it as an unchunked message.
+    if (p.chunk_count == 0)
+        p.chunk_count = 1;
     return p;
 }
 

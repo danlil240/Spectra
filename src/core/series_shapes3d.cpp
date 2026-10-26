@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cmath>
 
 #include <spectra/series_shapes3d.hpp>
@@ -126,7 +127,9 @@ ShapeSeries3D& ShapeSeries3D::segments(int n)
 {
     if (!shapes_.empty())
     {
-        shapes_.back().segments = n;
+        // Fewer than 3 segments yields 0/0 (NaN) vertices in sphere/tube
+        // generation; clamp to the smallest meaningful tessellation.
+        shapes_.back().segments = std::max(n, 3);
         dirty_                  = true;
     }
     return *this;
@@ -678,6 +681,12 @@ void ShapeSeries3D::get_bounds(vec3& min_out, vec3& max_out) const
             max_out.y = y;
         if (z > max_out.z)
             max_out.z = z;
+    }
+    // No finite vertex seen: report empty bounds instead of inverted sentinels.
+    if (min_out.x > max_out.x || min_out.y > max_out.y || min_out.z > max_out.z)
+    {
+        min_out = {0, 0, 0};
+        max_out = {0, 0, 0};
     }
 }
 

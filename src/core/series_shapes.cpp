@@ -1,5 +1,8 @@
+#include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <limits>
+#include <vector>
 #include <spectra/series_shapes.hpp>
 
 namespace spectra
@@ -7,6 +10,119 @@ namespace spectra
 
 static constexpr float PI  = 3.14159265358979f;
 static constexpr float NaN = std::numeric_limits<float>::quiet_NaN();
+
+namespace
+{
+
+float cross2(float ax, float ay, float bx, float by, float cx, float cy)
+{
+    return (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
+}
+
+bool point_in_tri(float px, float py, float ax, float ay, float bx, float by, float cx, float cy)
+{
+    // Assumes CCW triangle (a, b, c). Points on the boundary count as inside so
+    // that an ear touching another vertex is rejected.
+    return cross2(ax, ay, bx, by, px, py) >= 0.0f && cross2(bx, by, cx, cy, px, py) >= 0.0f
+           && cross2(cx, cy, ax, ay, px, py) >= 0.0f;
+}
+
+// Ear-clipping triangulation of a simple polygon (convex or concave, either
+// winding). Writes vertex-index triples to `out`. For degenerate or
+// self-intersecting input where no ear can be found, the remainder is fanned
+// so that some fill is still produced.
+void triangulate_polygon(const std::vector<float>& x,
+                         const std::vector<float>& y,
+                         std::vector<size_t>&      out)
+{
+    out.clear();
+    const size_t n = std::min(x.size(), y.size());
+    if (n < 3)
+        return;
+
+    // Signed area: orient the working index list CCW.
+    double area2 = 0.0;
+    for (size_t i = 0; i < n; ++i)
+    {
+        const size_t j = (i + 1) % n;
+        area2 += static_cast<double>(x[i]) * y[j] - static_cast<double>(x[j]) * y[i];
+    }
+
+    std::vector<size_t> idx(n);
+    for (size_t i = 0; i < n; ++i)
+        idx[i] = (area2 >= 0.0) ? i : (n - 1 - i);
+
+    out.reserve((n - 2) * 3);
+
+    size_t guard = 0;
+    size_t i     = 0;
+    while (idx.size() > 3)
+    {
+        const size_t m    = idx.size();
+        const size_t prev = idx[(i + m - 1) % m];
+        const size_t cur  = idx[i % m];
+        const size_t next = idx[(i + 1) % m];
+
+        const float turn = cross2(x[prev], y[prev], x[cur], y[cur], x[next], y[next]);
+        if (turn == 0.0f)
+        {
+            // Collinear (or duplicate) vertex: contributes no area, drop it.
+            idx.erase(idx.begin() + static_cast<ptrdiff_t>(i % m));
+            guard = 0;
+            if (i >= idx.size())
+                i = 0;
+            continue;
+        }
+
+        bool is_ear = turn > 0.0f;
+        if (is_ear)
+        {
+            for (size_t k = 0; k < m; ++k)
+            {
+                const size_t v = idx[k];
+                if (v == prev || v == cur || v == next)
+                    continue;
+                if (point_in_tri(x[v], y[v], x[prev], y[prev], x[cur], y[cur], x[next], y[next]))
+                {
+                    is_ear = false;
+                    break;
+                }
+            }
+        }
+
+        if (is_ear)
+        {
+            out.push_back(prev);
+            out.push_back(cur);
+            out.push_back(next);
+            idx.erase(idx.begin() + static_cast<ptrdiff_t>(i % m));
+            guard = 0;
+            if (i >= idx.size())
+                i = 0;
+            continue;
+        }
+
+        i = (i + 1) % m;
+        if (++guard > m)
+        {
+            // No ear found in a full pass (self-intersecting input): fan the
+            // remainder so some fill is still produced.
+            for (size_t k = 1; k + 1 < idx.size(); ++k)
+            {
+                out.push_back(idx[0]);
+                out.push_back(idx[k]);
+                out.push_back(idx[k + 1]);
+            }
+            return;
+        }
+    }
+
+    out.push_back(idx[0]);
+    out.push_back(idx[1]);
+    out.push_back(idx[2]);
+}
+
+}   // namespace
 
 // ── Shape creation ──────────────────────────────────────────────────────────
 
@@ -282,6 +398,19 @@ void ShapeSeries::generate_rect(const ShapeDef& def)
     float w = def.params[2];
     float h = def.params[3];
 
+    // Normalize negative extents to a flipped rect so the rounded-corner radius
+    // below stays non-negative (the center, and thus rotation, is unchanged).
+    if (w < 0.0f)
+    {
+        x += w;
+        w = -w;
+    }
+    if (h < 0.0f)
+    {
+        y += h;
+        h = -h;
+    }
+
     float cx = x + w * 0.5f;
     float cy = y + h * 0.5f;
 
@@ -490,6 +619,14 @@ void ShapeSeries::generate_line(const ShapeDef& def)
     float x2 = def.params[2];
     float y2 = def.params[3];
 
+    if (def.rotation != 0.0f)
+    {
+        const float cx = (x1 + x2) * 0.5f;
+        const float cy = (y1 + y2) * 0.5f;
+        rotate_point(x1, y1, cx, cy, def.rotation);
+        rotate_point(x2, y2, cx, cy, def.rotation);
+    }
+
     // Lines have no fill, only outline
     if (!line_x_.empty())
         push_nan_break();
@@ -502,6 +639,14 @@ void ShapeSeries::generate_arrow(const ShapeDef& def)
     float y1 = def.params[1];
     float x2 = def.params[2];
     float y2 = def.params[3];
+
+    if (def.rotation != 0.0f)
+    {
+        const float cx = (x1 + x2) * 0.5f;
+        const float cy = (y1 + y2) * 0.5f;
+        rotate_point(x1, y1, cx, cy, def.rotation);
+        rotate_point(x2, y2, cx, cy, def.rotation);
+    }
 
     float dx  = x2 - x1;
     float dy  = y2 - y1;
@@ -624,7 +769,7 @@ void ShapeSeries::generate_polygon(const ShapeDef& def)
     if (n < 3)
         return;
 
-    // Compute centroid for fan triangulation
+    // Rotation pivot: vertex average.
     float cx = 0.0f;
     float cy = 0.0f;
     for (size_t i = 0; i < n; ++i)
@@ -635,34 +780,31 @@ void ShapeSeries::generate_polygon(const ShapeDef& def)
     cx /= static_cast<float>(n);
     cy /= static_cast<float>(n);
 
-    // Fill: fan from centroid
-    for (size_t i = 0; i < n; ++i)
+    // Transformed vertices (rotation applied once).
+    std::vector<float> vx(px.begin(), px.begin() + static_cast<ptrdiff_t>(n));
+    std::vector<float> vy(py.begin(), py.begin() + static_cast<ptrdiff_t>(n));
+    if (def.rotation != 0.0f)
     {
-        size_t j   = (i + 1) % n;
-        float  vx0 = px[i];
-        float  vy0 = py[i];
-        float  vx1 = px[j];
-        float  vy1 = py[j];
+        for (size_t i = 0; i < n; ++i)
+            rotate_point(vx[i], vy[i], cx, cy, def.rotation);
+    }
 
-        if (def.rotation != 0.0f)
-        {
-            rotate_point(vx0, vy0, cx, cy, def.rotation);
-            rotate_point(vx1, vy1, cx, cy, def.rotation);
-        }
-
-        float rcx = cx;
-        float rcy = cy;
-        if (def.rotation != 0.0f)
-            rotate_point(rcx, rcy, cx, cy, def.rotation);
-
-        push_fill_tri(rcx,
-                      rcy,
+    // Fill: ear-clipping triangulation (correct for concave simple polygons).
+    std::vector<size_t> tris;
+    triangulate_polygon(vx, vy, tris);
+    for (size_t t = 0; t + 2 < tris.size(); t += 3)
+    {
+        const size_t a = tris[t];
+        const size_t b = tris[t + 1];
+        const size_t c = tris[t + 2];
+        push_fill_tri(vx[a],
+                      vy[a],
                       def.fill_opacity,
-                      vx0,
-                      vy0,
+                      vx[b],
+                      vy[b],
                       def.fill_opacity,
-                      vx1,
-                      vy1,
+                      vx[c],
+                      vy[c],
                       def.fill_opacity);
     }
 
@@ -671,21 +813,8 @@ void ShapeSeries::generate_polygon(const ShapeDef& def)
         push_nan_break();
     for (size_t i = 0; i < n; ++i)
     {
-        size_t j   = (i + 1) % n;
-        float  vx0 = px[i];
-        float  vy0 = py[i];
-        float  vx1 = px[j];
-        float  vy1 = py[j];
-
-        if (def.rotation != 0.0f)
-        {
-            float pcx = cx;
-            float pcy = cy;
-            rotate_point(vx0, vy0, pcx, pcy, def.rotation);
-            rotate_point(vx1, vy1, pcx, pcy, def.rotation);
-        }
-
-        push_outline_seg(vx0, vy0, vx1, vy1);
+        size_t j = (i + 1) % n;
+        push_outline_seg(vx[i], vy[i], vx[j], vy[j]);
     }
 }
 

@@ -313,7 +313,11 @@ class LodCache
         if (v.empty())
             return {0, 0};
         auto lo = static_cast<std::size_t>(std::lower_bound(v.begin(), v.end(), x_min) - v.begin());
-        auto hi = static_cast<std::size_t>(std::upper_bound(v.begin(), v.end(), x_max) - v.begin());
+        // Start the upper search at lo so an inverted range (x_min > x_max)
+        // yields an empty [lo, lo) instead of hi < lo (count underflow).
+        auto hi = static_cast<std::size_t>(
+            std::upper_bound(v.begin() + static_cast<std::ptrdiff_t>(lo), v.end(), x_max)
+            - v.begin());
         return {lo, hi};
     }
 
@@ -325,7 +329,11 @@ class LodCache
         if (v.empty())
             return {0, 0};
         auto lo = static_cast<std::size_t>(std::lower_bound(v.begin(), v.end(), x_min) - v.begin());
-        auto hi = static_cast<std::size_t>(std::upper_bound(v.begin(), v.end(), x_max) - v.begin());
+        // Start the upper search at lo so an inverted range (x_min > x_max)
+        // yields an empty [lo, lo) instead of hi < lo (count underflow).
+        auto hi = static_cast<std::size_t>(
+            std::upper_bound(v.begin() + static_cast<std::ptrdiff_t>(lo), v.end(), x_max)
+            - v.begin());
         return {lo, hi};
     }
 

@@ -4,7 +4,10 @@
 
 #include "../ipc/codec.hpp"
 
+#include <algorithm>
 #include <cmath>
+#include <iterator>
+#include <utility>
 
 #ifndef _WIN32
     #include <unistd.h>
@@ -173,6 +176,15 @@ HandleResult handle_req_create_axes(DaemonContext& ctx, ClientSlot& slot, const 
         add_op.figure_id  = req->figure_id;
         add_op.axes_index = axes_idx;
         add_op.bool_val   = req->is_3d;
+        // Carry the (grown) subplot grid so agents can lay out the new axes:
+        // f1 = grid_rows, f2 = grid_cols.
+        int32_t grid_rows = 1;
+        int32_t grid_cols = 1;
+        if (ctx.fig_model.get_grid(req->figure_id, grid_rows, grid_cols))
+        {
+            add_op.f1 = grid_rows;
+            add_op.f2 = grid_cols;
+        }
 
         ipc::StateDiffPayload diff;
         diff.base_revision = ctx.fig_model.revision() - 1;
@@ -207,10 +219,10 @@ HandleResult handle_req_add_series(DaemonContext& ctx, ClientSlot& slot, const i
 
     uint32_t series_idx = 0;
     auto     add_op     = ctx.fig_model.add_series_with_diff(req->figure_id,
-                                                             req->label,
-                                                             req->series_type,
-                                                             req->axes_index,
-                                                             series_idx);
+                                                     req->label,
+                                                     req->series_type,
+                                                     req->axes_index,
+                                                     series_idx);
 
     SPECTRA_LOG_DEBUG("daemon",
                       "Python: added series {} type={} in figure {}",
@@ -264,7 +276,45 @@ HandleResult handle_req_set_data(DaemonContext& ctx, ClientSlot& slot, const ipc
         return HandleResult::Continue;
     }
 
-    auto op = ctx.fig_model.set_series_data(req->figure_id, req->series_index, req->data);
+    if (req->is_chunked() && !ctx.set_data_chunks)
+    {
+        send_resp_err(*slot.conn,
+                      ctx.graph.session_id(),
+                      msg.header.request_id,
+                      500,
+                      "Chunked set_data not supported");
+        return HandleResult::Continue;
+    }
+
+    const uint64_t                figure_id    = req->figure_id;
+    const uint32_t                series_index = req->series_index;
+    SetDataChunkAssembler::Result assembled;
+    if (ctx.set_data_chunks)
+    {
+        assembled = ctx.set_data_chunks->add(slot.client_id, std::move(*req));
+    }
+    else
+    {
+        assembled.status = SetDataChunkAssembler::Status::Complete;
+        assembled.data   = std::move(req->data);
+    }
+    if (assembled.status == SetDataChunkAssembler::Status::Error)
+    {
+        send_resp_err(*slot.conn,
+                      ctx.graph.session_id(),
+                      msg.header.request_id,
+                      400,
+                      assembled.error);
+        return HandleResult::Continue;
+    }
+    if (assembled.status == SetDataChunkAssembler::Status::Pending)
+    {
+        // Intermediate chunk buffered; the model is updated on the last chunk.
+        send_resp_ok(*slot.conn, ctx.graph.session_id(), msg.header.request_id);
+        return HandleResult::Continue;
+    }
+
+    auto op = ctx.fig_model.set_series_data(figure_id, series_index, assembled.data);
 
     ipc::StateDiffPayload diff;
     diff.base_revision = ctx.fig_model.revision() - 1;
@@ -468,7 +518,23 @@ HandleResult handle_req_remove_series(DaemonContext& ctx, ClientSlot& slot, cons
         return HandleResult::Continue;
     }
 
-    auto op = ctx.fig_model.remove_series(req->figure_id, req->series_index);
+    bool removed = false;
+    auto op      = ctx.fig_model.remove_series(req->figure_id, req->series_index, &removed);
+    if (!removed)
+    {
+        // Nothing changed: do not broadcast a REMOVE_SERIES that would make
+        // agents erase a series the model still has. Reply OK so that
+        // idempotent clean-up (e.g. Python ax.clear()) keeps working.
+        SPECTRA_LOG_DEBUG("daemon",
+                          "Python: remove_series {} ignored (out of range) in figure {}",
+                          req->series_index,
+                          req->figure_id);
+        send_resp_ok(*slot.conn, ctx.graph.session_id(), msg.header.request_id);
+        return HandleResult::Continue;
+    }
+
+    // Later series shifted down by one index: keep topic routing in step.
+    ctx.topics.on_series_removed(req->figure_id, req->series_index);
 
     SPECTRA_LOG_DEBUG("daemon",
                       "Python: removed series {} from figure {}",

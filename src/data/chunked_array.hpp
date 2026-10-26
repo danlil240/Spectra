@@ -62,13 +62,25 @@ class ChunkedArray
     [[nodiscard]] float operator[](std::size_t index) const
     {
         assert(index < size_);
-        return chunks_[index / chunk_size_][index % chunk_size_];
+        const std::size_t p = index + front_offset_;
+        return chunks_[p / chunk_size_][p % chunk_size_];
     }
 
     float& operator[](std::size_t index)
     {
         assert(index < size_);
-        return chunks_[index / chunk_size_][index % chunk_size_];
+        const std::size_t p = index + front_offset_;
+        return chunks_[p / chunk_size_][p % chunk_size_];
+    }
+
+    /// Number of live elements stored in the first chunk (0 when empty).
+    /// After erase_front() with a partial-chunk count this can be less than
+    /// chunk_size() even when more chunks follow.
+    [[nodiscard]] std::size_t front_chunk_count() const
+    {
+        if (size_ == 0)
+            return 0;
+        return std::min(chunk_size_ - front_offset_, size_);
     }
 
     /// Read a contiguous range of elements into `dest`.
@@ -81,7 +93,7 @@ class ChunkedArray
         count = std::min(count, size_ - offset);
 
         std::size_t remaining = count;
-        std::size_t src_off   = offset;
+        std::size_t src_off   = offset + front_offset_;
 
         while (remaining > 0)
         {
@@ -112,7 +124,8 @@ class ChunkedArray
     void push_back(float value)
     {
         ensure_capacity(size_ + 1);
-        chunks_[size_ / chunk_size_][size_ % chunk_size_] = value;
+        const std::size_t p                       = size_ + front_offset_;
+        chunks_[p / chunk_size_][p % chunk_size_] = value;
         ++size_;
     }
 
@@ -128,8 +141,9 @@ class ChunkedArray
 
         while (remaining > 0)
         {
-            std::size_t ci    = size_ / chunk_size_;
-            std::size_t co    = size_ % chunk_size_;
+            std::size_t p     = size_ + front_offset_;
+            std::size_t ci    = p / chunk_size_;
+            std::size_t co    = p % chunk_size_;
             std::size_t space = chunk_size_ - co;
             std::size_t n     = std::min(space, remaining);
 
@@ -144,7 +158,8 @@ class ChunkedArray
     void clear()
     {
         chunks_.clear();
-        size_ = 0;
+        size_         = 0;
+        front_offset_ = 0;
     }
 
     /// Remove elements before the given index.
@@ -155,8 +170,17 @@ class ChunkedArray
             return 0;
         count = std::min(count, size_);
 
-        // Calculate how many complete chunks to drop
-        std::size_t full_chunks_to_drop = count / chunk_size_;
+        if (count == size_)
+        {
+            clear();
+            return count;
+        }
+
+        // Every chunk keeps a fixed stride of chunk_size_ elements; a partial
+        // erase only advances front_offset_ into chunks_[0].  Chunks whose
+        // elements are all erased are released.
+        std::size_t new_offset          = front_offset_ + count;
+        std::size_t full_chunks_to_drop = new_offset / chunk_size_;
 
         if (full_chunks_to_drop > 0)
         {
@@ -164,13 +188,7 @@ class ChunkedArray
                           chunks_.begin() + static_cast<ptrdiff_t>(full_chunks_to_drop));
         }
 
-        std::size_t leftover = count % chunk_size_;
-        if (leftover > 0 && !chunks_.empty())
-        {
-            chunks_[0].erase(chunks_[0].begin(),
-                             chunks_[0].begin() + static_cast<ptrdiff_t>(leftover));
-        }
-
+        front_offset_ = new_offset % chunk_size_;
         size_ -= count;
         return count;
     }
@@ -179,17 +197,23 @@ class ChunkedArray
     [[nodiscard]] std::span<const float> chunk_data(std::size_t chunk_index) const
     {
         assert(chunk_index < chunks_.size());
+        if (size_ == 0)
+            return {};
         const auto& chunk = chunks_[chunk_index];
-        // Last chunk may be partial
-        if (chunk_index == chunks_.size() - 1 && size_ % chunk_size_ != 0)
-            return {chunk.data(), size_ % chunk_size_};
-        return {chunk.data(), chunk.size()};
+        // First chunk may start at front_offset_, last chunk may be partial.
+        std::size_t begin = (chunk_index == 0) ? front_offset_ : 0;
+        std::size_t end   = chunk_size_;
+        if (chunk_index == chunks_.size() - 1)
+            end = (front_offset_ + size_ - 1) % chunk_size_ + 1;
+        if (end <= begin)
+            return {};
+        return {chunk.data() + begin, end - begin};
     }
 
    private:
     void ensure_capacity(std::size_t required)
     {
-        std::size_t needed_chunks = (required + chunk_size_ - 1) / chunk_size_;
+        std::size_t needed_chunks = (required + front_offset_ + chunk_size_ - 1) / chunk_size_;
         while (chunks_.size() < needed_chunks)
         {
             chunks_.emplace_back(chunk_size_);
@@ -198,7 +222,8 @@ class ChunkedArray
 
     std::vector<std::vector<float>> chunks_;
     std::size_t                     chunk_size_;
-    std::size_t                     size_ = 0;
+    std::size_t                     size_         = 0;
+    std::size_t                     front_offset_ = 0;   // Live data start inside chunks_[0]
 };
 
 }   // namespace spectra::data

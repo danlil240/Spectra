@@ -35,6 +35,9 @@ class FigureModel
     // Update the subplot grid dimensions for a figure.
     void set_grid(uint64_t figure_id, int32_t rows, int32_t cols);
 
+    // Read the current subplot grid dimensions. Returns false if the figure is unknown.
+    bool get_grid(uint64_t figure_id, int32_t& rows, int32_t& cols) const;
+
     // Add an axes to a figure. Returns the axes index.
     uint32_t add_axes(uint64_t figure_id,
                       double   x_min = 0.0,
@@ -110,7 +113,12 @@ class FigureModel
                                  const std::string& label);
 
     // Remove a series from a figure. Returns a DiffOp for broadcasting.
-    ipc::DiffOp remove_series(uint64_t figure_id, uint32_t series_index);
+    // Every later series index shifts down by one. When the figure or index
+    // does not exist nothing changes (no revision bump) and *removed_out is
+    // set to false; callers must not broadcast the returned op in that case.
+    ipc::DiffOp remove_series(uint64_t figure_id,
+                              uint32_t series_index,
+                              bool*    removed_out = nullptr);
 
     // Set series data (raw floats). Returns a DiffOp.
     ipc::DiffOp set_series_data(uint64_t                  figure_id,
@@ -118,9 +126,12 @@ class FigureModel
                                 const std::vector<float>& data);
 
     // Append data to existing series (streaming). Returns a DiffOp.
+    // When max_points > 0 the series is trimmed to its newest max_points
+    // points (rolling window), which also bounds the size of the returned diff.
     ipc::DiffOp append_series_data(uint64_t                  figure_id,
                                    uint32_t                  series_index,
-                                   const std::vector<float>& data);
+                                   const std::vector<float>& data,
+                                   size_t                    max_points = 0);
 
     // Set figure title. Returns a DiffOp.
     ipc::DiffOp set_figure_title(uint64_t figure_id, const std::string& title);

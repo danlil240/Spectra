@@ -319,41 +319,58 @@ void Axes::set_presented_buffer_right_edge(double x)
 
 // --- Limits ---
 
+namespace
+{
+
+// Running min/max of one axis, plus the smallest strictly positive value so
+// log-scaled axes can be fitted without crossing zero.
+struct AxisExtent
+{
+    double min     = std::numeric_limits<double>::max();
+    double max     = -std::numeric_limits<double>::max();
+    double min_pos = std::numeric_limits<double>::max();
+
+    void consume(double value)
+    {
+        if (!std::isfinite(value))
+            return;
+        min = std::min(min, value);
+        max = std::max(max, value);
+        if (value > 0.0)
+            min_pos = std::min(min_pos, value);
+    }
+
+    bool valid() const { return min <= max; }
+    bool has_positive() const { return min_pos <= max; }
+};
+
+}   // namespace
+
 static void consume_finite_extent(std::span<const float> values,
-                                  double&                min_value,
-                                  double&                max_value,
+                                  AxisExtent&            extent,
                                   double                 offset = 0.0)
 {
     for (float value : values)
     {
         if (!std::isfinite(value))
             continue;
-        const double adjusted = static_cast<double>(value) + offset;
-        min_value             = std::min(min_value, adjusted);
-        max_value             = std::max(max_value, adjusted);
+        extent.consume(static_cast<double>(value) + offset);
     }
 }
 
-static void consume_finite_value(float value, double& min_value, double& max_value)
+static void consume_finite_value(float value, AxisExtent& extent)
 {
     if (!std::isfinite(value))
         return;
-    min_value = std::min(min_value, static_cast<double>(value));
-    max_value = std::max(max_value, static_cast<double>(value));
+    extent.consume(static_cast<double>(value));
 }
 
-// Compute data extent across all series
-static void data_extent(const std::vector<std::unique_ptr<Series>>& series,
-                        double&                                     x_min,
-                        double&                                     x_max,
-                        double&                                     y_min,
-                        double&                                     y_max)
+// Compute the raw (unpadded) data extent across all series.  Every autoscale
+// mode shares this so they all cover the same series types.
+static void data_extent_raw(const std::vector<std::unique_ptr<Series>>& series,
+                            AxisExtent&                                 x,
+                            AxisExtent&                                 y)
 {
-    x_min = std::numeric_limits<double>::max();
-    x_max = -std::numeric_limits<double>::max();
-    y_min = std::numeric_limits<double>::max();
-    y_max = -std::numeric_limits<double>::max();
-
     for (const auto& s : series)
     {
         if (s->excluded_from_autoscale())
@@ -363,140 +380,112 @@ static void data_extent(const std::vector<std::unique_ptr<Series>>& series,
         // Accumulating in double preserves precision for epoch-scale offsets.
         const double xoff = s->x_offset();
 
-        // Try LineSeries
-        if (auto* ls = dynamic_cast<const LineSeries*>(s.get()))
+        auto try_xy = [&](std::span<const float> xd, std::span<const float> yd)
         {
-            consume_finite_extent(ls->x_data(), x_min, x_max, xoff);
-            consume_finite_extent(ls->y_data(), y_min, y_max);
-        }
-        // Try ScatterSeries
-        if (auto* ss = dynamic_cast<const ScatterSeries*>(s.get()))
-        {
-            consume_finite_extent(ss->x_data(), x_min, x_max, xoff);
-            consume_finite_extent(ss->y_data(), y_min, y_max);
-        }
-        // Try statistical series (all expose x_data/y_data with NaN breaks)
-        auto try_stat = [&](std::span<const float> xd, std::span<const float> yd)
-        {
-            consume_finite_extent(xd, x_min, x_max, xoff);
-            consume_finite_extent(yd, y_min, y_max);
+            consume_finite_extent(xd, x, xoff);
+            consume_finite_extent(yd, y);
         };
+
+        if (auto* ls = dynamic_cast<const LineSeries*>(s.get()))
+            try_xy(ls->x_data(), ls->y_data());
+        if (auto* ss = dynamic_cast<const ScatterSeries*>(s.get()))
+            try_xy(ss->x_data(), ss->y_data());
+        // Statistical series (all expose x_data/y_data with NaN breaks)
         if (auto* bp = dynamic_cast<const BoxPlotSeries*>(s.get()))
         {
-            try_stat(bp->x_data(), bp->y_data());
+            try_xy(bp->x_data(), bp->y_data());
             // Include outlier extents
-            consume_finite_extent(bp->outlier_y(), y_min, y_max);
+            consume_finite_extent(bp->outlier_y(), y);
         }
         if (auto* vn = dynamic_cast<const ViolinSeries*>(s.get()))
-            try_stat(vn->x_data(), vn->y_data());
+            try_xy(vn->x_data(), vn->y_data());
         if (auto* hs = dynamic_cast<const HistogramSeries*>(s.get()))
-            try_stat(hs->x_data(), hs->y_data());
+            try_xy(hs->x_data(), hs->y_data());
         if (auto* bs = dynamic_cast<const BarSeries*>(s.get()))
-            try_stat(bs->x_data(), bs->y_data());
+            try_xy(bs->x_data(), bs->y_data());
         if (auto* band = dynamic_cast<const BandSeries*>(s.get()))
-            try_stat(band->x_data(), band->y_data());
+        {
+            consume_finite_extent(band->x_values(), x, xoff);
+            consume_finite_extent(band->lower_values(), y);
+            consume_finite_extent(band->upper_values(), y);
+        }
         if (auto* stem = dynamic_cast<const StemSeries*>(s.get()))
         {
-            try_stat(stem->stem_x(), stem->stem_y());
-            consume_finite_value(stem->baseline(), y_min, y_max);
+            try_xy(stem->stem_x(), stem->stem_y());
+            consume_finite_value(stem->baseline(), y);
         }
         if (auto* sh = dynamic_cast<const ShapeSeries*>(s.get()))
-            try_stat(sh->x_data(), sh->y_data());
+            try_xy(sh->x_data(), sh->y_data());
+    }
+}
+
+// Turn a raw extent into axis limits.  `pad` adds 5% of the span on each side
+// (Fit/Padded); otherwise the extent is used as-is (Tight).  For log axes the
+// fit uses only positive values and pads multiplicatively so the lower limit
+// never reaches zero or below.
+static AxisLimits finalize_extent(const AxisExtent& e, bool pad, bool log_scale)
+{
+    if (log_scale && e.has_positive())
+    {
+        double lo = e.min_pos;
+        double hi = e.max;
+        if (hi <= lo)
+        {
+            lo *= 0.5;
+            hi *= 2.0;
+        }
+        else if (pad)
+        {
+            const double factor = std::pow(hi / lo, 0.05);
+            lo /= factor;
+            hi *= factor;
+        }
+        return {lo, hi};
     }
 
-    // Fallback if no data
-    if (x_min > x_max)
+    double lo = 0.0;
+    double hi = 1.0;
+    if (e.valid())
     {
-        x_min = 0.0;
-        x_max = 1.0;
-    }
-    if (y_min > y_max)
-    {
-        y_min = 0.0;
-        y_max = 1.0;
+        lo = e.min;
+        hi = e.max;
     }
 
-    // Add 5% padding
-    double x_pad = (x_max - x_min) * 0.05;
-    double y_pad = (y_max - y_min) * 0.05;
-    if (x_pad == 0.0)
-        x_pad = 0.5;
-    if (y_pad == 0.0)
-        y_pad = 0.5;
-    x_min -= x_pad;
-    x_max += x_pad;
-    y_min -= y_pad;
-    y_max += y_pad;
+    if (pad)
+    {
+        double p = (hi - lo) * 0.05;
+        if (p == 0.0)
+            p = 0.5;
+        lo -= p;
+        hi += p;
+    }
+    else if (hi == lo)
+    {
+        lo -= 0.5;
+        hi += 0.5;
+    }
+    return {lo, hi};
 }
 
 static void data_extent_with_mode(const std::vector<std::unique_ptr<Series>>& series,
                                   AutoscaleMode                               mode,
-                                  double&                                     x_min,
-                                  double&                                     x_max,
-                                  double&                                     y_min,
-                                  double&                                     y_max)
+                                  bool                                        x_log,
+                                  bool                                        y_log,
+                                  AxisLimits&                                 x_lim,
+                                  AxisLimits&                                 y_lim)
 {
-    // Compute raw extent
-    data_extent(series, x_min, x_max, y_min, y_max);
+    AxisExtent x;
+    AxisExtent y;
+    data_extent_raw(series, x, y);
+    // Tight skips padding; Fit and Padded (and Manual's fallback) add 5%.
+    const bool pad = mode != AutoscaleMode::Tight;
+    x_lim          = finalize_extent(x, pad, x_log);
+    y_lim          = finalize_extent(y, pad, y_log);
+}
 
-    if (mode == AutoscaleMode::Tight)
-    {
-        // Re-compute without padding (data_extent adds 5% padding)
-        x_min = std::numeric_limits<double>::max();
-        x_max = -std::numeric_limits<double>::max();
-        y_min = std::numeric_limits<double>::max();
-        y_max = -std::numeric_limits<double>::max();
-        for (const auto& s : series)
-        {
-            if (s->excluded_from_autoscale())
-                continue;
-            const double xoff = s->x_offset();
-            if (auto* ls = dynamic_cast<const LineSeries*>(s.get()))
-            {
-                consume_finite_extent(ls->x_data(), x_min, x_max, xoff);
-                consume_finite_extent(ls->y_data(), y_min, y_max);
-            }
-            if (auto* ss = dynamic_cast<const ScatterSeries*>(s.get()))
-            {
-                consume_finite_extent(ss->x_data(), x_min, x_max, xoff);
-                consume_finite_extent(ss->y_data(), y_min, y_max);
-            }
-            if (auto* band = dynamic_cast<const BandSeries*>(s.get()))
-            {
-                consume_finite_extent(band->x_values(), x_min, x_max, xoff);
-                consume_finite_extent(band->lower_values(), y_min, y_max);
-                consume_finite_extent(band->upper_values(), y_min, y_max);
-            }
-            if (auto* stem = dynamic_cast<const StemSeries*>(s.get()))
-            {
-                consume_finite_extent(stem->stem_x(), x_min, x_max, xoff);
-                consume_finite_extent(stem->stem_y(), y_min, y_max);
-                consume_finite_value(stem->baseline(), y_min, y_max);
-            }
-        }
-        if (x_min > x_max)
-        {
-            x_min = 0.0;
-            x_max = 1.0;
-        }
-        if (y_min > y_max)
-        {
-            y_min = 0.0;
-            y_max = 1.0;
-        }
-        // Handle zero range
-        if (x_max == x_min)
-        {
-            x_min -= 0.5;
-            x_max += 0.5;
-        }
-        if (y_max == y_min)
-        {
-            y_min -= 0.5;
-            y_max += 0.5;
-        }
-    }
-    // Fit and Padded use the default data_extent behavior (with padding)
+static bool is_log_scale(ScaleType s)
+{
+    return s == ScaleType::Log10 || s == ScaleType::Log2;
 }
 
 static bool latest_x_value(const std::vector<std::unique_ptr<Series>>& series, double& latest_x)
@@ -558,11 +547,9 @@ static bool latest_x_value(const std::vector<std::unique_ptr<Series>>& series, d
 static bool windowed_y_extent(const std::vector<std::unique_ptr<Series>>& series,
                               double                                      window_min,
                               double                                      window_max,
-                              float&                                      y_min,
-                              float&                                      y_max)
+                              AxisExtent&                                 y_ext)
 {
-    y_min      = std::numeric_limits<float>::max();
-    y_max      = -std::numeric_limits<float>::max();
+    y_ext      = AxisExtent{};
     bool has_y = false;
 
     double current_xoff = 0.0;
@@ -579,8 +566,7 @@ static bool windowed_y_extent(const std::vector<std::unique_ptr<Series>>& series
             const double abs_x = static_cast<double>(x) + current_xoff;
             if (abs_x < window_min || abs_x > window_max)
                 continue;
-            y_min = std::min(y_min, y);
-            y_max = std::max(y_max, y);
+            y_ext.consume(static_cast<double>(y));
             has_y = true;
         }
     };
@@ -597,13 +583,8 @@ static bool windowed_y_extent(const std::vector<std::unique_ptr<Series>>& series
             const double abs_x = static_cast<double>(xd[i]) + current_xoff;
             if (abs_x < window_min || abs_x > window_max)
                 continue;
-            y_min = std::min(y_min, yd[i]);
-            y_max = std::max(y_max, yd[i]);
-            if (std::isfinite(stem.baseline()))
-            {
-                y_min = std::min(y_min, stem.baseline());
-                y_max = std::max(y_max, stem.baseline());
-            }
+            y_ext.consume(static_cast<double>(yd[i]));
+            consume_finite_value(stem.baseline(), y_ext);
             has_y = true;
         }
     };
@@ -660,12 +641,15 @@ AxisLimits Axes::x_limits() const
 
     if (xlim_.has_value() || autoscale_mode_ == AutoscaleMode::Manual)
         return xlim_.value_or(AxisLimits{0.0, 1.0});
-    double xmin = NAN;
-    double xmax = NAN;
-    double ymin = NAN;
-    double ymax = NAN;
-    data_extent_with_mode(series_, autoscale_mode_, xmin, xmax, ymin, ymax);
-    return {xmin, xmax};
+    AxisLimits xl;
+    AxisLimits yl;
+    data_extent_with_mode(series_,
+                          autoscale_mode_,
+                          is_log_scale(xscale_),
+                          is_log_scale(yscale_),
+                          xl,
+                          yl);
+    return xl;
 }
 
 AxisLimits Axes::y_limits() const
@@ -707,27 +691,25 @@ AxisLimits Axes::y_limits() const
 
         if (have_window)
         {
-            float y_min = 0.0f;
-            float y_max = 0.0f;
-            if (windowed_y_extent(series_, window_min, window_max, y_min, y_max))
+            AxisExtent y_ext;
+            if (windowed_y_extent(series_, window_min, window_max, y_ext))
             {
-                if (autoscale_mode_ == AutoscaleMode::Tight)
-                    return {y_min, y_max};
-
-                float y_pad = (y_max - y_min) * 0.05f;
-                if (y_pad == 0.0f)
-                    y_pad = 0.5f;
-                return {y_min - y_pad, y_max + y_pad};
+                return finalize_extent(y_ext,
+                                       autoscale_mode_ != AutoscaleMode::Tight,
+                                       is_log_scale(yscale_));
             }
         }
     }
 
-    double xmin = NAN;
-    double xmax = NAN;
-    double ymin = NAN;
-    double ymax = NAN;
-    data_extent_with_mode(series_, autoscale_mode_, xmin, xmax, ymin, ymax);
-    return {ymin, ymax};
+    AxisLimits xl;
+    AxisLimits yl;
+    data_extent_with_mode(series_,
+                          autoscale_mode_,
+                          is_log_scale(xscale_),
+                          is_log_scale(yscale_),
+                          xl,
+                          yl);
+    return yl;
 }
 
 void Axes::auto_fit()
@@ -750,6 +732,28 @@ void Axes::topic_auto_zoom_tick()
 {
     if (!topic_auto_zoom_)
         return;
+
+    // ── Step 0: defer to presented-buffer follow ────────────────────────────
+    //
+    // While the axes follows a live presented buffer, x_limits() ignores
+    // xlim_ and slides with every sample, and y_limits() already autoscales Y
+    // over the visible window.  Auto-zoom would misread each slide as a user
+    // override and leave its own stale ylim_ frozen, so hand control over to
+    // the follow logic and release any limits this tick installed.
+    if (presented_buffer_following_ && presented_buffer_seconds_.has_value()
+        && presented_buffer_seconds_.value() > 0.0f)
+    {
+        auto same = [](const std::optional<AxisLimits>& a, const std::optional<AxisLimits>& b)
+        { return a.has_value() && b.has_value() && a->min == b->min && a->max == b->max; };
+        if (same(xlim_, last_auto_xlim_))
+            xlim_.reset();
+        if (same(ylim_, last_auto_ylim_))
+            ylim_.reset();
+        topic_auto_zoom_ = false;
+        last_auto_xlim_.reset();
+        last_auto_ylim_.reset();
+        return;
+    }
 
     // ── Step 1: detect user override ────────────────────────────────────────
     //
@@ -777,22 +781,24 @@ void Axes::topic_auto_zoom_tick()
 
     // ── Step 2: recompute auto-fit limits from current data ────────────────
     //
-    // Temporarily clear any previously-installed explicit limits so x_limits/
-    // y_limits return the live data extent.
-    const auto saved_x = xlim_;
-    const auto saved_y = ylim_;
-    xlim_.reset();
-    ylim_.reset();
-
-    const AxisLimits new_x = x_limits();
-    const AxisLimits new_y = y_limits();
+    // Fit directly from the data rather than via x_limits()/y_limits(): those
+    // return a fixed [0,1] fallback in Manual mode instead of the data extent.
+    // Manual axes get the default padded fit.
+    const AutoscaleMode fit_mode =
+        autoscale_mode_ == AutoscaleMode::Manual ? AutoscaleMode::Padded : autoscale_mode_;
+    AxisLimits new_x;
+    AxisLimits new_y;
+    data_extent_with_mode(series_,
+                          fit_mode,
+                          is_log_scale(xscale_),
+                          is_log_scale(yscale_),
+                          new_x,
+                          new_y);
 
     if (!std::isfinite(new_x.min) || !std::isfinite(new_x.max) || !std::isfinite(new_y.min)
         || !std::isfinite(new_y.max))
     {
-        // Degenerate; restore previous explicit limits and try again next frame.
-        xlim_ = saved_x;
-        ylim_ = saved_y;
+        // Degenerate; keep the previous limits and try again next frame.
         return;
     }
 
@@ -991,100 +997,105 @@ static TickResult generate_ticks(double dmin, double dmax, int target_ticks = 7)
     return result;
 }
 
+// Logarithmic ticks at integer powers of `base` within [lo, hi].
+// `positive_floor` replaces a non-positive lower limit (log is undefined there).
+static TickResult generate_log_ticks(double lo, double hi, double base, double positive_floor)
+{
+    TickResult result;
+    if (lo <= 0.0 && hi > 0.0)
+        lo = (positive_floor > 0.0 && positive_floor < hi) ? positive_floor : hi * 1e-3;
+
+    const double log_min = std::log(lo) / std::log(base);
+    const double log_max = std::log(hi) / std::log(base);
+    if (!std::isfinite(log_min) || !std::isfinite(log_max) || lo <= 0.0)
+    {
+        result.positions.push_back(lo);
+        result.labels.push_back(format_tick_value(lo, hi - lo));
+        return result;
+    }
+    const int lo_exp = static_cast<int>(std::floor(log_min));
+    const int hi_exp = static_cast<int>(std::ceil(log_max));
+    for (int e = lo_exp; e <= hi_exp; ++e)
+    {
+        const double v = std::pow(base, static_cast<double>(e));
+        if (v >= lo * 0.99 && v <= hi * 1.01)
+        {
+            result.positions.push_back(v);
+            result.labels.push_back(format_tick_value(v, v * 0.1));
+        }
+    }
+    if (result.positions.empty())
+    {
+        result.positions.push_back(lo);
+        result.labels.push_back(format_tick_value(lo, hi - lo));
+    }
+    return result;
+}
+
+// Sqrt-scale ticks: evenly spaced in squared space (signed, so negative
+// limits stay monotonic), placed at their square roots and labelled with the
+// coordinate they are actually drawn at.
+static TickResult generate_sqrt_ticks(double lo, double hi)
+{
+    auto signed_sq   = [](double v) { return v < 0.0 ? -v * v : v * v; };
+    auto signed_sqrt = [](double v) { return v < 0.0 ? -std::sqrt(-v) : std::sqrt(v); };
+
+    const TickResult inner = generate_ticks(signed_sq(lo), signed_sq(hi));
+    TickResult       result;
+    result.positions.reserve(inner.positions.size());
+    for (double p : inner.positions)
+        result.positions.push_back(signed_sqrt(p));
+
+    double gap = std::numeric_limits<double>::max();
+    for (size_t i = 1; i < result.positions.size(); ++i)
+    {
+        const double d = std::abs(result.positions[i] - result.positions[i - 1]);
+        if (d > 0.0)
+            gap = std::min(gap, d);
+    }
+    if (gap == std::numeric_limits<double>::max())
+        gap = (hi - lo) > 0.0 ? (hi - lo) : 1.0;
+
+    result.labels.reserve(result.positions.size());
+    for (double p : result.positions)
+        result.labels.push_back(format_tick_value(p, gap));
+    return result;
+}
+
+static double positive_data_floor(const std::vector<std::unique_ptr<Series>>& series, bool x_axis)
+{
+    AxisExtent x;
+    AxisExtent y;
+    data_extent_raw(series, x, y);
+    const AxisExtent& e = x_axis ? x : y;
+    return e.has_positive() ? e.min_pos : 0.0;
+}
+
 TickResult Axes::compute_x_ticks() const
 {
     auto lim = x_limits();
-    if (xscale_ == ScaleType::Log10 || xscale_ == ScaleType::Log2)
+    if (is_log_scale(xscale_))
     {
-        double base = (xscale_ == ScaleType::Log2) ? 2.0 : 10.0;
-        // Generate nice logarithmic ticks
-        TickResult result;
-        double     log_min = std::log(lim.min) / std::log(base);
-        double     log_max = std::log(lim.max) / std::log(base);
-        // Clamp to safe range if limits include non-positive values
-        if (!std::isfinite(log_min) || !std::isfinite(log_max))
-        {
-            result.positions.push_back(lim.min);
-            result.labels.push_back(format_tick_value(lim.min, lim.max - lim.min));
-            return result;
-        }
-        int lo_exp = static_cast<int>(std::floor(log_min));
-        int hi_exp = static_cast<int>(std::ceil(log_max));
-        for (int e = lo_exp; e <= hi_exp; ++e)
-        {
-            double v = std::pow(base, static_cast<double>(e));
-            if (v >= lim.min * 0.99 && v <= lim.max * 1.01)
-            {
-                result.positions.push_back(v);
-                result.labels.push_back(format_tick_value(v, v * 0.1));
-            }
-        }
-        if (result.positions.empty())
-        {
-            result.positions.push_back(lim.min);
-            result.labels.push_back(format_tick_value(lim.min, lim.max - lim.min));
-        }
-        return result;
+        const double base      = (xscale_ == ScaleType::Log2) ? 2.0 : 10.0;
+        const double pos_floor = lim.min > 0.0 ? lim.min : positive_data_floor(series_, true);
+        return generate_log_ticks(lim.min, lim.max, base, pos_floor);
     }
     if (xscale_ == ScaleType::Sqrt)
-    {
-        // Map to squared space, generate linear ticks, map back
-        double     smin  = lim.min * lim.min;
-        double     smax  = lim.max * lim.max;
-        auto       inner = generate_ticks(smin, smax);
-        TickResult result;
-        for (auto& p : inner.positions)
-            result.positions.push_back(std::sqrt(std::max(0.0, p)));
-        result.labels = std::move(inner.labels);
-        return result;
-    }
+        return generate_sqrt_ticks(lim.min, lim.max);
     return generate_ticks(lim.min, lim.max);
 }
 
 TickResult Axes::compute_y_ticks() const
 {
     auto lim = y_limits();
-    if (yscale_ == ScaleType::Log10 || yscale_ == ScaleType::Log2)
+    if (is_log_scale(yscale_))
     {
-        double     base = (yscale_ == ScaleType::Log2) ? 2.0 : 10.0;
-        TickResult result;
-        double     log_min = std::log(lim.min) / std::log(base);
-        double     log_max = std::log(lim.max) / std::log(base);
-        if (!std::isfinite(log_min) || !std::isfinite(log_max))
-        {
-            result.positions.push_back(lim.min);
-            result.labels.push_back(format_tick_value(lim.min, lim.max - lim.min));
-            return result;
-        }
-        int lo_exp = static_cast<int>(std::floor(log_min));
-        int hi_exp = static_cast<int>(std::ceil(log_max));
-        for (int e = lo_exp; e <= hi_exp; ++e)
-        {
-            double v = std::pow(base, static_cast<double>(e));
-            if (v >= lim.min * 0.99 && v <= lim.max * 1.01)
-            {
-                result.positions.push_back(v);
-                result.labels.push_back(format_tick_value(v, v * 0.1));
-            }
-        }
-        if (result.positions.empty())
-        {
-            result.positions.push_back(lim.min);
-            result.labels.push_back(format_tick_value(lim.min, lim.max - lim.min));
-        }
-        return result;
+        const double base      = (yscale_ == ScaleType::Log2) ? 2.0 : 10.0;
+        const double pos_floor = lim.min > 0.0 ? lim.min : positive_data_floor(series_, false);
+        return generate_log_ticks(lim.min, lim.max, base, pos_floor);
     }
     if (yscale_ == ScaleType::Sqrt)
-    {
-        double     smin  = lim.min * lim.min;
-        double     smax  = lim.max * lim.max;
-        auto       inner = generate_ticks(smin, smax);
-        TickResult result;
-        for (auto& p : inner.positions)
-            result.positions.push_back(std::sqrt(std::max(0.0, p)));
-        result.labels = std::move(inner.labels);
-        return result;
-    }
+        return generate_sqrt_ticks(lim.min, lim.max);
     return generate_ticks(lim.min, lim.max);
 }
 

@@ -45,7 +45,8 @@ void Renderer::destroy_series_buffers(SeriesGpuData& gpu)
     // Clean up plugin GPU state for custom series types.
     if (gpu.type == SeriesType::Custom && gpu.plugin_gpu_state && series_type_registry_)
     {
-        auto* entry = series_type_registry_->find_mut(gpu.custom_type_name);
+        // Owning lookup keeps the callbacks alive for the duration of the call.
+        auto entry = series_type_registry_->find_shared(gpu.custom_type_name);
         if (entry && entry->cleanup_fn)
         {
             auto result =
@@ -60,6 +61,103 @@ void Renderer::destroy_series_buffers(SeriesGpuData& gpu)
     }
 }
 
+void Renderer::set_series_type_registry(SeriesTypeRegistry* reg)
+{
+    if (reg == series_type_registry_)
+        return;
+    if (series_type_registry_)
+    {
+        series_type_registry_->remove_unregister_listener(series_type_listener_id_);
+        series_type_listener_id_ = 0;
+        // Plugins whose types live in the old registry may be unloaded once we
+        // detach: release their per-series state while their code is loaded.
+        release_all_custom_state();
+    }
+    series_type_registry_ = reg;
+    if (series_type_registry_)
+    {
+        series_type_listener_id_ = series_type_registry_->add_unregister_listener(
+            [this](SeriesTypeEntry& entry) { release_custom_type_state(entry); });
+    }
+}
+
+void Renderer::release_custom_type_state(std::string_view type_name)
+{
+    if (!series_type_registry_)
+        return;
+    auto entry = series_type_registry_->find_shared(std::string(type_name));
+    if (entry)
+        release_custom_type_state(*entry);
+}
+
+void Renderer::release_custom_type_state(SeriesTypeEntry& entry)
+{
+    auto release = [&](SeriesGpuData& gpu)
+    {
+        if (gpu.plugin_gpu_state && entry.cleanup_fn)
+        {
+            auto result =
+                plugin_guard_invoke(entry.type_name.c_str(),
+                                    [&]() { entry.cleanup_fn(backend_, gpu.plugin_gpu_state); });
+            if (result != PluginCallResult::Success)
+                entry.faulted = true;
+        }
+        gpu.plugin_gpu_state = nullptr;
+    };
+    auto matches = [&](const SeriesGpuData& gpu)
+    { return gpu.type == SeriesType::Custom && gpu.custom_type_name == entry.type_name; };
+
+    for (auto& [series, gpu] : series_gpu_data_)
+    {
+        if (!matches(gpu))
+            continue;
+        release(gpu);
+        // Host-owned buffers (if any) go through the deferred deletion ring.
+        if (gpu.ssbo || gpu.index_buffer || gpu.fill_buffer || gpu.outlier_buffer)
+        {
+            SeriesGpuData retired;
+            retired.ssbo           = gpu.ssbo;
+            retired.index_buffer   = gpu.index_buffer;
+            retired.fill_buffer    = gpu.fill_buffer;
+            retired.outlier_buffer = gpu.outlier_buffer;
+            deletion_ring_[deletion_ring_write_].push_back(std::move(retired));
+            gpu.ssbo                 = BufferHandle{};
+            gpu.index_buffer         = BufferHandle{};
+            gpu.fill_buffer          = BufferHandle{};
+            gpu.outlier_buffer       = BufferHandle{};
+            gpu.ssbo_capacity        = 0;
+            gpu.uploaded_count       = 0;
+            gpu.index_count          = 0;
+            gpu.fill_vertex_count    = 0;
+            gpu.fill_vertex_capacity = 0;
+            gpu.outlier_count        = 0;
+            gpu.outlier_capacity     = 0;
+        }
+        gpu.plugin_state_released = true;
+    }
+
+    // Series removed earlier whose state is still waiting in the deletion
+    // ring: their cleanup must run now too.  Otherwise the flush would run
+    // after the plugin is unloaded (leak), or would hand this plugin's state
+    // to a different plugin that registered the same type name.
+    for (auto& slot : deletion_ring_)
+    {
+        for (auto& gpu : slot)
+        {
+            if (matches(gpu))
+                release(gpu);
+        }
+    }
+}
+
+void Renderer::release_all_custom_state()
+{
+    if (!series_type_registry_)
+        return;
+    for (const auto& name : series_type_registry_->type_names())
+        release_custom_type_state(name);
+}
+
 void Renderer::destroy_axes_buffers(AxesGpuData& gpu)
 {
     for (uint32_t s = 0; s < FRAME_BUFFER_SLOTS; ++s)
@@ -68,17 +166,17 @@ void Renderer::destroy_axes_buffers(AxesGpuData& gpu)
             backend_.destroy_buffer(gpu.grid_buffer[s]);
         if (gpu.minor_grid_buffer[s])
             backend_.destroy_buffer(gpu.minor_grid_buffer[s]);
+        if (gpu.bbox_buffer[s])
+            backend_.destroy_buffer(gpu.bbox_buffer[s]);
+        if (gpu.tick_buffer[s])
+            backend_.destroy_buffer(gpu.tick_buffer[s]);
+        if (gpu.arrow_tri_buffer[s])
+            backend_.destroy_buffer(gpu.arrow_tri_buffer[s]);
     }
     if (gpu.border_buffer)
         backend_.destroy_buffer(gpu.border_buffer);
-    if (gpu.bbox_buffer)
-        backend_.destroy_buffer(gpu.bbox_buffer);
-    if (gpu.tick_buffer)
-        backend_.destroy_buffer(gpu.tick_buffer);
     if (gpu.arrow_line_buffer)
         backend_.destroy_buffer(gpu.arrow_line_buffer);
-    if (gpu.arrow_tri_buffer)
-        backend_.destroy_buffer(gpu.arrow_tri_buffer);
 }
 
 void Renderer::notify_series_removed(const Series* series)
@@ -134,8 +232,22 @@ void Renderer::flush_pending_deletions()
     }
     slot.clear();
 
+    auto& pipeline_slot = pipeline_deletion_ring_[destroy_slot];
+    for (auto& pipeline : pipeline_slot)
+        backend_.destroy_pipeline(pipeline);
+    pipeline_slot.clear();
+
     // Advance write pointer to the slot we just freed.
     deletion_ring_write_ = destroy_slot;
+
+    // Custom-series pipelines retired since the last flush may still be
+    // referenced by in-flight command buffers: queue them in the new write
+    // slot so they are destroyed DELETION_RING_SIZE - 1 frames from now.
+    if (series_type_registry_)
+    {
+        for (auto& pipeline : series_type_registry_->take_retired_pipelines())
+            pipeline_deletion_ring_[deletion_ring_write_].push_back(pipeline);
+    }
 }
 
 void Renderer::render_text(float screen_width, float screen_height)
@@ -164,6 +276,13 @@ Renderer::~Renderer() noexcept
         // Wait for GPU to finish using all resources before destroying them
         backend_.wait_idle();
 
+        // Stop receiving unregister notifications (the registry may outlive us).
+        if (series_type_registry_ && series_type_listener_id_ != 0)
+        {
+            series_type_registry_->remove_unregister_listener(series_type_listener_id_);
+            series_type_listener_id_ = 0;
+        }
+
         // Shutdown text renderer
         text_renderer_.shutdown(backend_);
 
@@ -172,6 +291,12 @@ Renderer::~Renderer() noexcept
         {
             for (auto& gpu : slot)
                 destroy_series_buffers(gpu);
+            slot.clear();
+        }
+        for (auto& slot : pipeline_deletion_ring_)
+        {
+            for (auto& pipeline : slot)
+                backend_.destroy_pipeline(pipeline);
             slot.clear();
         }
 
@@ -413,6 +538,11 @@ void Renderer::render_axes(AxesBase&   axes,
         return;
     if (viewport.x + viewport.w < 0.0f || viewport.x > static_cast<float>(fig_width))
         return;
+    // Skip degenerate (collapsed) axes: a zero-size VkViewport is invalid usage
+    // and a zero height makes the 3D aspect ratio inf/NaN.  Nothing would be
+    // visible anyway since the scissor is empty.
+    if (!(viewport.w >= 1.0f) || !(viewport.h >= 1.0f))
+        return;
 
     // Clamp scissor to framebuffer bounds to avoid negative offsets
     float sx  = std::max(0.0f, viewport.x);
@@ -638,7 +768,8 @@ void Renderer::render_axes(AxesBase&   axes,
 
             auto gpu_it = series_gpu_data_.find(series_ptr.get());
             if (series_ptr->is_dirty() || gpu_it == series_gpu_data_.end()
-                || gpu_it->second.type == SeriesType::Unknown)
+                || gpu_it->second.type == SeriesType::Unknown
+                || gpu_it->second.plugin_state_released)
             {
                 upload_series_data(*series_ptr);
                 gpu_it = series_gpu_data_.find(series_ptr.get());
@@ -786,7 +917,7 @@ void Renderer::render_axes(AxesBase&   axes,
             auto& gpu = series_gpu_data_[series_ptr.get()];
 
             // Determine if camera-relative re-upload is needed
-            bool need_upload = series_ptr->is_dirty();
+            bool need_upload = series_ptr->is_dirty() || gpu.plugin_state_released;
             if (!need_upload && axes2d && gpu.uploaded_count > 0)
             {
                 double drift_x  = std::abs(gpu.origin_x - view_cx);

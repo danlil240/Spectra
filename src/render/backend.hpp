@@ -196,6 +196,10 @@ class Backend
     virtual bool begin_frame(FrameProfiler* profiler = nullptr) = 0;
     virtual void end_frame(FrameProfiler* profiler = nullptr)   = 0;
 
+    // True once the GPU device is lost (unrecoverable).  begin_frame() then
+    // keeps returning false, so frame loops must check this and shut down.
+    virtual bool is_device_lost() const { return false; }
+
     // Render pass
     virtual void begin_render_pass(const Color& clear_color = colors::white) = 0;
     virtual void end_render_pass()                                           = 0;

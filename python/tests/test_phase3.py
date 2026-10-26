@@ -190,6 +190,51 @@ class TestAxesClear:
         assert "5" in repr(ax)
         assert "2" in repr(ax)
 
+    @staticmethod
+    def _make_figure_axes(series_per_axes):
+        """Build sibling Axes sharing one figure axes list, with figure-wide
+        series indices assigned in creation order (as the backend does)."""
+        from spectra._axes import Axes
+        from spectra._series import Series
+
+        class _FakeSession:
+            def __init__(self):
+                self.removed = []
+
+            def _request(self, msg_type, payload):
+                from spectra._codec import decode_req_remove_series
+                self.removed.append(decode_req_remove_series(payload)["series_index"])
+                return {}
+
+        session = _FakeSession()
+        figure_axes = []
+        next_index = 0
+        for ai, n in enumerate(series_per_axes):
+            ax = Axes(session, 1, ai)
+            ax._figure_axes = figure_axes
+            figure_axes.append(ax)
+            for _ in range(n):
+                ax._series_list.append(Series(session, 1, next_index, "line", ""))
+                next_index += 1
+        return session, figure_axes
+
+    def test_remove_series_reindexes_figure_wide(self):
+        session, (ax0, ax1) = self._make_figure_axes([2, 2])   # 0,1 | 2,3
+        later = ax1._series_list[0]
+        ax0.remove_series(0)
+        assert session.removed == [0]
+        assert [s._index for s in ax0._series_list] == [0]
+        assert [s._index for s in ax1._series_list] == [1, 2]
+        assert later._index == 1
+
+    def test_clear_reindexes_sibling_axes(self):
+        session, (ax0, ax1, ax2) = self._make_figure_axes([1, 2, 1])   # 0 | 1,2 | 3
+        ax1.clear()
+        assert session.removed == [2, 1]
+        assert ax1._series_list == []
+        assert [s._index for s in ax0._series_list] == [0]
+        assert [s._index for s in ax2._series_list] == [1]
+
 
 # ─── Figure.close_window() proxy tests ──────────────────────────────────────
 

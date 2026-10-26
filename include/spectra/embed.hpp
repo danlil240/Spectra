@@ -364,6 +364,11 @@ class EmbedSurface
     float    background_alpha() const;
     void     set_background_alpha(float alpha);
 
+    // Theme of this surface ("dark", "night", "light").  Applies to this
+    // surface's own ThemeManager only — other surfaces are unaffected.
+    void        set_theme(const std::string& name);
+    std::string theme() const;
+
     // ── UI chrome visibility ────────────────────────────────────────────
     // Setters persist state in the surface config and route to the live
     // LayoutManager / overlays when an ImGui build is active.  Getters

@@ -284,6 +284,11 @@ void Renderer::upload_series_data(Series& series, double origin_x, double origin
             }
             gpu.fill_vertex_count = fill_count;
         }
+        else
+        {
+            // Fill geometry became empty: stop drawing the stale triangles.
+            gpu.fill_vertex_count = 0;
+        }
 
         // Upload outlier data for box plots (persistent buffer, avoids in-flight destruction)
         if (boxplot && boxplot->outlier_count() > 0)
@@ -340,11 +345,15 @@ void Renderer::upload_series_data(Series& series, double origin_x, double origin
         // WS-5.2: Skip re-upload if data and origin haven't changed significantly.
         // Small pans are handled by the data_offset push constant in render_series()
         // without requiring GPU buffer re-upload.
+        // A dirty series always re-uploads: data mutations (set_data, append_batch,
+        // erase_before, ...) can leave both the total and the visible point count
+        // unchanged (e.g. a sliding window), so counts alone cannot detect them.
+        // The skip only applies to clean series re-uploaded for origin drift.
         const auto current_generation = static_cast<uint64_t>(chunked_line->point_count());
         const bool count_changed      = (count != gpu.uploaded_count);
         const bool origin_moved = (std::abs(static_cast<double>(gpu.origin_x) - origin_x) > 1.0
                                    || std::abs(static_cast<double>(gpu.origin_y) - origin_y) > 1.0);
-        const bool needs_upload = count_changed || origin_moved || !gpu.ssbo
+        const bool needs_upload = series.is_dirty() || count_changed || origin_moved || !gpu.ssbo
                                   || (current_generation != gpu.data_generation);
 
         if (!needs_upload)
@@ -499,12 +508,16 @@ void Renderer::upload_series_data(Series& series, double origin_x, double origin
         size_t vert_byte_size = mesh->vertices().size() * sizeof(float);
         size_t idx_byte_size  = mesh->indices().size() * sizeof(uint32_t);
 
-        // Vertex buffer
-        if (!gpu.ssbo || gpu.uploaded_count < mesh->vertex_count())
+        // Vertex buffer.  Reuse is decided on the allocated float capacity
+        // (ssbo_capacity, in floats here), not the floored vertex_count(): the
+        // upload copies the full float array, which may not be a multiple of 6.
+        const size_t vert_floats = mesh->vertices().size();
+        if (!gpu.ssbo || gpu.ssbo_capacity < vert_floats)
         {
             if (gpu.ssbo)
                 backend_.destroy_buffer(gpu.ssbo);
-            gpu.ssbo = backend_.create_buffer(BufferUsage::Vertex, vert_byte_size);
+            gpu.ssbo          = backend_.create_buffer(BufferUsage::Vertex, vert_byte_size);
+            gpu.ssbo_capacity = vert_floats;
         }
         backend_.upload_buffer(gpu.ssbo, mesh->vertices().data(), vert_byte_size);
         gpu.uploaded_count = mesh->vertex_count();
@@ -532,12 +545,16 @@ void Renderer::upload_series_data(Series& series, double origin_x, double origin
         size_t vert_byte_size = shape3d->vertices().size() * sizeof(float);
         size_t idx_byte_size  = shape3d->indices().size() * sizeof(uint32_t);
 
-        // Vertex buffer
-        if (!gpu.ssbo || gpu.uploaded_count < shape3d->vertex_count())
+        // Vertex buffer.  Reuse is decided on the allocated float capacity
+        // (ssbo_capacity, in floats here), not the floored vertex_count(): the
+        // upload copies the full float array, which may not be a multiple of 6.
+        const size_t vert_floats = shape3d->vertices().size();
+        if (!gpu.ssbo || gpu.ssbo_capacity < vert_floats)
         {
             if (gpu.ssbo)
                 backend_.destroy_buffer(gpu.ssbo);
-            gpu.ssbo = backend_.create_buffer(BufferUsage::Vertex, vert_byte_size);
+            gpu.ssbo          = backend_.create_buffer(BufferUsage::Vertex, vert_byte_size);
+            gpu.ssbo_capacity = vert_floats;
         }
         backend_.upload_buffer(gpu.ssbo, shape3d->vertices().data(), vert_byte_size);
         gpu.uploaded_count = shape3d->vertex_count();
@@ -558,7 +575,11 @@ void Renderer::upload_series_data(Series& series, double origin_x, double origin
     // Custom plugin series upload
     if (custom && series_type_registry_)
     {
-        auto* entry = series_type_registry_->find_mut(custom->type_name());
+        auto entry = series_type_registry_->find_shared(custom->type_name());
+        // State released on unregister is rebuilt once a type of this name is
+        // registered again; until then keep the re-upload request pending.
+        if (entry)
+            gpu.plugin_state_released = false;
         if (entry && entry->upload_fn && !entry->faulted)
         {
             auto result = plugin_guard_invoke(entry->type_name.c_str(),

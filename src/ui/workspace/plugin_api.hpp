@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -27,6 +28,7 @@ class OverlayRegistry;
 class ExportFormatRegistry;
 class DataSourceRegistry;
 class SeriesTypeRegistry;
+struct SeriesTypeEntry;
 class Backend;
 
 // ─── Stable C ABI for plugins ────────────────────────────────────────────────
@@ -425,6 +427,11 @@ extern "C"
         const SpectraVertexAttribute* vertex_attributes;
         uint32_t                      vertex_attribute_count;
 
+        // gpu_state convention: upload_fn, draw_fn and cleanup_fn all receive a
+        // pointer to the host-owned per-series `void*` slot (initially NULL).
+        // Allocate your state in upload_fn (`*(T**)gpu_state = ...`), read it in
+        // draw_fn (`*(T* const*)gpu_state`) and free it in cleanup_fn.
+
         // Upload callback — called when series data is dirty.
         int (*upload_fn)(SpectraBackendHandle backend,
                          const void*          series_data,
@@ -519,7 +526,11 @@ struct PluginEntry
     uint32_t          api_version_minor  = 0;   // API minor version the plugin was built against
     void*             handle             = nullptr;   // dlopen/LoadLibrary handle
     SpectraPluginShutdownFn  shutdown_fn = nullptr;
-    std::vector<std::string> registered_commands;   // Commands registered by this plugin
+    std::vector<std::string> registered_commands;       // Commands registered by this plugin
+    std::vector<std::string> registered_series_types;   // Custom series types from init
+    // The exact registry entries behind registered_series_types: unloading only
+    // removes these, never a same-named type registered later by another plugin.
+    std::vector<std::weak_ptr<SeriesTypeEntry>> registered_series_type_entries;
     PluginManifest manifest;   // Parsed plugin.json manifest (may be empty if no manifest)
 };
 

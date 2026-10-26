@@ -1,6 +1,9 @@
 #include "daemon_server.hpp"
 
+#include "python_message_handler.hpp"
+
 #include "../ipc/codec.hpp"
+#include "topic_message_handler.hpp"
 
 namespace spectra::daemon
 {
@@ -188,6 +191,27 @@ void redistribute_orphaned_figures(DaemonContext& ctx, const std::vector<uint64_
                                 figs.empty() ? 0 : figs[0]);
             break;
         }
+    }
+}
+
+void release_client_slot(DaemonContext& ctx, ClientSlot& slot, const std::string& reason)
+{
+    if (slot.window_id != ipc::INVALID_WINDOW)
+    {
+        const auto wid = slot.window_id;
+        slot.window_id = ipc::INVALID_WINDOW;
+        auto orphaned  = ctx.graph.remove_agent(wid);
+        for (auto fid : orphaned)
+            notify_python_window_closed(ctx, fid, wid, reason);
+    }
+    if (slot.client_id != 0)
+    {
+        const auto cid = slot.client_id;
+        slot.client_id = 0;
+        ctx.topics.on_client_disconnect(cid);
+        if (ctx.set_data_chunks)
+            ctx.set_data_chunks->drop_client(cid);
+        broadcast_topic_list_changed(ctx);
     }
 }
 

@@ -195,9 +195,9 @@ BoxPlotStats BoxPlotSeries::compute_stats(std::span<const float> values)
         return result;
 
     std::vector<float> sorted(values.begin(), values.end());
-    // Remove NaN
+    // Remove non-finite samples (NaN and +/-inf) so quartiles, fences and whiskers stay finite.
     sorted.erase(
-        std::remove_if(sorted.begin(), sorted.end(), [](float v) { return std::isnan(v); }),
+        std::remove_if(sorted.begin(), sorted.end(), [](float v) { return !std::isfinite(v); }),
         sorted.end());
     if (sorted.empty())
         return result;
@@ -373,10 +373,11 @@ ViolinSeries& ViolinSeries::add_violin(float x_position, std::span<const float> 
     ViolinData vd;
     vd.x_position = x_position;
     vd.values.assign(values.begin(), values.end());
-    // Remove NaN
-    vd.values.erase(
-        std::remove_if(vd.values.begin(), vd.values.end(), [](float v) { return std::isnan(v); }),
-        vd.values.end());
+    // Remove non-finite samples (NaN and +/-inf); a single inf would poison the KDE.
+    vd.values.erase(std::remove_if(vd.values.begin(),
+                                   vd.values.end(),
+                                   [](float v) { return !std::isfinite(v); }),
+                    vd.values.end());
     violins_.push_back(std::move(vd));
     dirty_ = true;
     rebuild_geometry();
@@ -399,25 +400,32 @@ void ViolinSeries::rebuild_geometry()
         std::vector<float> sorted = vd.values;
         std::sort(sorted.begin(), sorted.end());
 
-        float data_min = sorted.front();
-        float data_max = sorted.back();
-        float range    = data_max - data_min;
-        if (range == 0.0f)
-            range = 1.0f;
+        // Range math in double: data_max - data_min can exceed FLT_MAX for finite inputs.
+        double data_min = sorted.front();
+        double range    = static_cast<double>(sorted.back()) - data_min;
+        // Constant data: center a window on the value, scaled to its magnitude so that
+        // y samples stay distinct even for large |v| (float spacing grows with magnitude).
+        double const_pad = 0.0;
+        if (range == 0.0)
+        {
+            const_pad = std::max(1.0, std::abs(data_min) * 1e-3);
+            data_min -= const_pad;
+            range = 2.0 * const_pad;
+        }
 
         // Silverman's rule of thumb for bandwidth
-        auto  n       = static_cast<float>(sorted.size());
-        float std_dev = 0.0f;
-        float mean    = 0.0f;
+        auto   n_d     = static_cast<double>(sorted.size());
+        double mean    = 0.0;
+        double std_dev = 0.0;
         for (float v : sorted)
             mean += v;
-        mean /= n;
+        mean /= n_d;
         for (float v : sorted)
             std_dev += (v - mean) * (v - mean);
-        std_dev = std::sqrt(std_dev / n);
-        if (std_dev == 0.0f)
-            std_dev = 1.0f;
-        float bandwidth = 1.06f * std_dev * std::pow(n, -0.2f);
+        std_dev = std::sqrt(std_dev / n_d);
+        if (!(std_dev > 0.0) || !std::isfinite(std_dev))
+            std_dev = const_pad > 0.0 ? const_pad : std::max(1.0, range * 0.25);
+        auto bandwidth = static_cast<float>(1.06 * std_dev * std::pow(n_d, -0.2));
 
         // Evaluate KDE at resolution_ points
         std::vector<float> y_vals(resolution_);
@@ -426,8 +434,8 @@ void ViolinSeries::rebuild_geometry()
 
         for (int i = 0; i < resolution_; ++i)
         {
-            float t     = static_cast<float>(i) / static_cast<float>(resolution_ - 1);
-            float y     = data_min + t * range;
+            double t    = static_cast<double>(i) / static_cast<double>(resolution_ - 1);
+            auto   y    = static_cast<float>(data_min + t * range);
             y_vals[i]   = y;
             kde_vals[i] = gaussian_kde(y, sorted, bandwidth);
             max_kde     = std::max(max_kde, kde_vals[i]);
@@ -450,12 +458,13 @@ void ViolinSeries::rebuild_geometry()
             float y0  = y_vals[i];
             float y1  = y_vals[i + 1];
 
-            // Gradient: center is bright (1.0), edges are dim
+            // Gradient: center is bright (1.0), both outer edges are equally dim.
+            // Alpha depends on distance from the center so the mirrored halves match.
             float ac  = 1.0f;   // center alpha (always bright)
-            float ar0 = grad_alpha(rx0, lx0, rx0, gradient_);
-            float ar1 = grad_alpha(rx1, lx1, rx1, gradient_);
-            float al0 = grad_alpha(lx0, lx0, rx0, gradient_);
-            float al1 = grad_alpha(lx1, lx1, rx1, gradient_);
+            float ar0 = grad_alpha(rx0, vd.x_position, rx0, gradient_);
+            float ar1 = grad_alpha(rx1, vd.x_position, rx1, gradient_);
+            float al0 = ar0;
+            float al1 = ar1;
 
             // Right half quad
             emit_filled_tri(fill_verts_, vd.x_position, y0, ac, rx0, y0, ar0, rx1, y1, ar1);
@@ -577,27 +586,37 @@ void HistogramSeries::rebuild_geometry()
     if (raw_values_.empty() || bins_ <= 0)
         return;
 
-    float lo = *std::min_element(raw_values_.begin(), raw_values_.end());
-    float hi = *std::max_element(raw_values_.begin(), raw_values_.end());
+    // Range and bin math in double: hi - lo can exceed FLT_MAX for finite inputs, and a
+    // fixed +1 widening is lost to rounding once |lo| >= 2^24.
+    double lo = *std::min_element(raw_values_.begin(), raw_values_.end());
+    double hi = *std::max_element(raw_values_.begin(), raw_values_.end());
     if (lo == hi)
-        hi = lo + 1.0f;
+    {
+        double pad = std::max(1.0, std::abs(lo) * 1e-6);
+        if (lo + pad <= static_cast<double>(std::numeric_limits<float>::max()))
+            hi = lo + pad;
+        else
+            lo = hi - pad;
+    }
 
-    float bin_width = (hi - lo) / static_cast<float>(bins_);
+    double bin_width = (hi - lo) / static_cast<double>(bins_);
 
-    // Compute bin edges
+    // Compute bin edges (the last edge is pinned to hi so it never rounds past FLT_MAX)
     bin_edges_.resize(bins_ + 1);
-    for (int i = 0; i <= bins_; ++i)
-        bin_edges_[i] = lo + static_cast<float>(i) * bin_width;
+    for (int i = 0; i < bins_; ++i)
+        bin_edges_[i] = static_cast<float>(lo + static_cast<double>(i) * bin_width);
+    bin_edges_[bins_] = static_cast<float>(hi);
 
     // Count values in each bin
     bin_counts_.resize(bins_, 0.0f);
     for (float v : raw_values_)
     {
-        int idx = static_cast<int>((v - lo) / bin_width);
+        double t   = (static_cast<double>(v) - lo) / bin_width;
+        int    idx = bins_ - 1;
+        if (std::isfinite(t) && t < static_cast<double>(bins_))
+            idx = t <= 0.0 ? 0 : static_cast<int>(t);
         if (idx >= bins_)
             idx = bins_ - 1;
-        if (idx < 0)
-            idx = 0;
         bin_counts_[idx] += 1.0f;
     }
 
@@ -608,12 +627,14 @@ void HistogramSeries::rebuild_geometry()
             bin_counts_[i] += bin_counts_[i - 1];
     }
 
-    // Density normalization
+    // Density normalization. A cumulative density histogram is a CDF, so it is normalized
+    // by the sample count only and ends at 1; a plain density is divided by bin width too.
     if (density_)
     {
-        auto total = static_cast<float>(raw_values_.size());
+        auto   total   = static_cast<double>(raw_values_.size());
+        double divisor = cumulative_ ? total : total * bin_width;
         for (int i = 0; i < bins_; ++i)
-            bin_counts_[i] /= (total * bin_width);
+            bin_counts_[i] = static_cast<float>(bin_counts_[i] / divisor);
     }
 
     // ── Fill: one filled quad per bin ──

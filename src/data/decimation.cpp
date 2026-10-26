@@ -122,9 +122,10 @@ std::vector<std::pair<float, float>> min_max_decimate(std::span<const float> x,
     const float x_max = x.back();
     const float range = x_max - x_min;
 
-    if (range <= 0.0f)
+    if (!(range > 0.0f) || !std::isfinite(range))
     {
-        // All x values are the same; just return first and last
+        // All x values are the same (or the x extent is not finite, so it
+        // cannot be bucketed); just return first and last
         return {{x.front(), y.front()}, {x.back(), y.back()}};
     }
 
@@ -136,19 +137,49 @@ std::vector<std::pair<float, float>> min_max_decimate(std::span<const float> x,
         float       max_y = -std::numeric_limits<float>::max();
         float       min_x = 0.0f, max_x = 0.0f;
         std::size_t min_idx = 0, max_idx = 0;
-        bool        has_data = false;
+        bool        has_data = false;   // At least one non-NaN y in the bucket
+        bool        has_nan  = false;   // At least one NaN y in the bucket
+        float       nan_x    = 0.0f;    // x of the first NaN sample (line break marker)
     };
 
     std::vector<BucketInfo> buckets(bucket_count);
 
     for (std::size_t i = 0; i < n; ++i)
     {
-        auto bi = static_cast<std::size_t>((x[i] - x_min) / bucket_width);
-        if (bi >= bucket_count)
+        // Bucket position; NaN x cannot be placed and casting it (or a negative
+        // value) to size_t is undefined behaviour.
+        const float pos = (x[i] - x_min) / bucket_width;
+        if (std::isnan(pos))
+            continue;
+        std::size_t bi = 0;
+        if (pos >= static_cast<float>(bucket_count))
             bi = bucket_count - 1;
+        else if (pos > 0.0f)
+            bi = std::min(static_cast<std::size_t>(pos), bucket_count - 1);
 
-        auto& b    = buckets[bi];
-        b.has_data = true;
+        auto& b = buckets[bi];
+        if (std::isnan(y[i]))
+        {
+            if (!b.has_nan)
+            {
+                b.has_nan = true;
+                b.nan_x   = x[i];
+            }
+            continue;
+        }
+        if (!b.has_data)
+        {
+            // Seed from the first finite-or-infinite sample so +/-inf values
+            // are handled correctly (inf < FLT_MAX would otherwise never hit).
+            b.has_data = true;
+            b.min_y    = y[i];
+            b.min_x    = x[i];
+            b.min_idx  = i;
+            b.max_y    = y[i];
+            b.max_x    = x[i];
+            b.max_idx  = i;
+            continue;
+        }
         if (y[i] < b.min_y)
         {
             b.min_y   = y[i];
@@ -169,7 +200,13 @@ std::vector<std::pair<float, float>> min_max_decimate(std::span<const float> x,
     for (auto& b : buckets)
     {
         if (!b.has_data)
+        {
+            // Bucket held only NaN y values: keep a single NaN so the line
+            // break survives decimation instead of emitting a bogus point.
+            if (b.has_nan)
+                out.emplace_back(b.nan_x, std::numeric_limits<float>::quiet_NaN());
             continue;
+        }
         // Emit min before max if min comes first in original data, to preserve ordering
         if (b.min_idx <= b.max_idx)
         {

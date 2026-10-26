@@ -25,13 +25,15 @@ void HeartbeatMonitor::tick(DaemonContext& ctx)
 
         auto orphaned = ctx.graph.remove_agent(wid);
 
-        // Close the stale agent's connection
+        // Close the stale agent's connection. The graph entry is already gone,
+        // so detach the slot from the window to avoid a second removal below.
         for (auto& c : ctx.clients)
         {
             if (c.window_id == wid && c.conn)
             {
                 send_close_window(*c.conn, wid, ctx.graph.session_id(), "heartbeat_timeout");
                 c.conn->close();
+                c.window_id = ipc::INVALID_WINDOW;
                 break;
             }
         }
@@ -44,8 +46,24 @@ void HeartbeatMonitor::tick(DaemonContext& ctx)
         redistribute_orphaned_figures(ctx, orphaned);
     }
 
-    // Remove closed connections
+    // Remove closed connections. Release what each closed slot owns first
+    // (agent graph entry, published topics) exactly like the main loop does.
+    // A release may broadcast and thereby close further connections, so repeat
+    // until no closed slot still owns anything.
     auto& clients = ctx.clients;
+    for (bool released = true; released;)
+    {
+        released = false;
+        for (auto& c : clients)
+        {
+            const bool closed = !c.conn || !c.conn->is_open();
+            if (closed && (c.window_id != ipc::INVALID_WINDOW || c.client_id != 0))
+            {
+                release_client_slot(ctx, c, "agent_lost");
+                released = true;
+            }
+        }
+    }
     clients.erase(std::remove_if(clients.begin(),
                                  clients.end(),
                                  [](const ClientSlot& c) { return !c.conn || !c.conn->is_open(); }),

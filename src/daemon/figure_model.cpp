@@ -61,6 +61,17 @@ void FigureModel::set_grid(uint64_t figure_id, int32_t rows, int32_t cols)
         it->second.grid_cols = cols;
 }
 
+bool FigureModel::get_grid(uint64_t figure_id, int32_t& rows, int32_t& cols) const
+{
+    std::lock_guard lock(mu_);
+    auto            it = figures_.find(figure_id);
+    if (it == figures_.end())
+        return false;
+    rows = it->second.grid_rows;
+    cols = it->second.grid_cols;
+    return true;
+}
+
 uint32_t FigureModel::add_axes(uint64_t figure_id,
                                double   x_min,
                                double   x_max,
@@ -367,15 +378,18 @@ ipc::DiffOp FigureModel::set_opacity(uint64_t figure_id, uint32_t series_index, 
     return op;
 }
 
-ipc::DiffOp FigureModel::remove_series(uint64_t figure_id, uint32_t series_index)
+ipc::DiffOp FigureModel::remove_series(uint64_t figure_id, uint32_t series_index, bool* removed_out)
 {
     std::lock_guard lock(mu_);
-    auto            it = figures_.find(figure_id);
-    if (it != figures_.end() && series_index < it->second.series.size())
+    auto            it      = figures_.find(figure_id);
+    const bool      removed = it != figures_.end() && series_index < it->second.series.size();
+    if (removed_out)
+        *removed_out = removed;
+    if (removed)
     {
         it->second.series.erase(it->second.series.begin() + series_index);
+        bump_revision();
     }
-    bump_revision();
 
     ipc::DiffOp op;
     op.type         = ipc::DiffOp::Type::REMOVE_SERIES;
@@ -412,7 +426,8 @@ ipc::DiffOp FigureModel::set_series_data(uint64_t                  figure_id,
 
 ipc::DiffOp FigureModel::append_series_data(uint64_t                  figure_id,
                                             uint32_t                  series_index,
-                                            const std::vector<float>& data)
+                                            const std::vector<float>& data,
+                                            size_t                    max_points)
 {
     std::lock_guard lock(mu_);
     auto            it         = figures_.find(figure_id);
@@ -424,6 +439,19 @@ ipc::DiffOp FigureModel::append_series_data(uint64_t                  figure_id,
         axes_index          = series.axes_index;
         auto& sd            = series.data;
         sd.insert(sd.end(), data.begin(), data.end());
+        if (max_points > 0)
+        {
+            // Rolling window: keep only the newest max_points whole points.
+            // Trimming in whole-point units keeps the interleaved layout aligned.
+            const size_t max_floats = max_points * stride;
+            if (sd.size() > max_floats)
+            {
+                size_t excess = sd.size() - max_floats;
+                excess        = ((excess + stride - 1) / stride) * stride;
+                excess        = std::min(excess, sd.size());
+                sd.erase(sd.begin(), sd.begin() + static_cast<std::ptrdiff_t>(excess));
+            }
+        }
         series.point_count = static_cast<uint32_t>(sd.size() / stride);
     }
     bump_revision();

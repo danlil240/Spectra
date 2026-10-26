@@ -2,8 +2,10 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cmath>
 #include <cstddef>
 #include <functional>
+#include <iterator>
 #include <optional>
 #include <span>
 #include <vector>
@@ -12,6 +14,26 @@
 
 namespace spectra
 {
+
+// True when x is non-decreasing AND contains no NaN.  std::is_sorted alone
+// reports NaN-separated traces (e.g. {0, 1, NaN, 0, 1}) as sorted because every
+// comparison against NaN is false; render culling would then binary-search an
+// unsorted array and drop visible segments.
+template <typename It>
+inline bool x_sorted_without_nan(It first, It last)
+{
+    if (first == last)
+        return true;
+    if (std::isnan(*first))
+        return false;
+    It prev = first;
+    for (It it = std::next(first); it != last; prev = it, ++it)
+    {
+        if (std::isnan(*it) || *it < *prev)
+            return false;
+    }
+    return true;
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PendingSeriesData — accumulates background-thread mutations for a Series.
@@ -114,7 +136,7 @@ class PendingSeriesData
             x = std::move(*pending_x_);
             pending_x_.reset();
             if (x_sorted)
-                *x_sorted = std::is_sorted(x.begin(), x.end());
+                *x_sorted = x_sorted_without_nan(x.begin(), x.end());
             changed = true;
         }
         if (pending_y_.has_value())
@@ -124,41 +146,50 @@ class PendingSeriesData
             changed = true;
         }
 
-        // 2. Erase-before (sorted-x binary search)
-        if (has_erase_ && !x.empty())
+        // 2. Erase-before (sorted-x binary search).
+        // x and y may differ in length (replace_x / replace_y are queued
+        // independently), so all erase counts are derived from the paired
+        // point count min(x, y), matching LineSeries' non-pending paths.
+        if (has_erase_)
         {
-            auto it = std::lower_bound(x.begin(), x.end(), erase_threshold_);
-            auto n  = static_cast<ptrdiff_t>(it - x.begin());
-            if (n > 0)
+            const size_t count = std::min(x.size(), y.size());
+            if (count > 0)
             {
-                x.erase(x.begin(), x.begin() + n);
-                y.erase(y.begin(), y.begin() + n);
-                changed = true;
+                auto it = std::lower_bound(x.begin(),
+                                           x.begin() + static_cast<ptrdiff_t>(count),
+                                           erase_threshold_);
+                auto n  = static_cast<ptrdiff_t>(it - x.begin());
+                if (n > 0)
+                {
+                    x.erase(x.begin(), x.begin() + n);
+                    y.erase(y.begin(), y.begin() + n);
+                    changed = true;
+                }
             }
-            has_erase_ = false;
         }
-        else
-        {
-            has_erase_ = false;
-        }
+        has_erase_ = false;
 
-        // 3. Erase-after (sorted-x binary search)
-        if (has_erase_after_ && !x.empty())
+        // 3. Erase-after (sorted-x binary search). Removes the paired range
+        // [keep, count) from both vectors so x/y pairs stay aligned.
+        if (has_erase_after_)
         {
-            auto it = std::upper_bound(x.begin(), x.end(), erase_after_threshold_);
-            auto n  = static_cast<ptrdiff_t>(x.end() - it);
-            if (n > 0)
+            const size_t count = std::min(x.size(), y.size());
+            if (count > 0)
             {
-                x.erase(it, x.end());
-                y.erase(y.end() - n, y.end());
-                changed = true;
+                auto       it   = std::upper_bound(x.begin(),
+                                           x.begin() + static_cast<ptrdiff_t>(count),
+                                           erase_after_threshold_);
+                const auto keep = static_cast<ptrdiff_t>(it - x.begin());
+                const auto end  = static_cast<ptrdiff_t>(count);
+                if (end > keep)
+                {
+                    x.erase(x.begin() + keep, x.begin() + end);
+                    y.erase(y.begin() + keep, y.begin() + end);
+                    changed = true;
+                }
             }
-            has_erase_after_ = false;
         }
-        else
-        {
-            has_erase_after_ = false;
-        }
+        has_erase_after_ = false;
 
         // 4. Append accumulated points
         if (!append_x_.empty())
@@ -166,7 +197,8 @@ class PendingSeriesData
             if (x_sorted && *x_sorted)
             {
                 const bool boundary_sorted = x.empty() || x.back() <= append_x_.front();
-                *x_sorted = boundary_sorted && std::is_sorted(append_x_.begin(), append_x_.end());
+                *x_sorted =
+                    boundary_sorted && x_sorted_without_nan(append_x_.begin(), append_x_.end());
             }
             x.insert(x.end(), append_x_.begin(), append_x_.end());
             y.insert(y.end(), append_y_.begin(), append_y_.end());
@@ -176,18 +208,18 @@ class PendingSeriesData
         }
 
         // 5. Trim oldest points when over cap (FIFO for streaming plots).
-        if (has_trim_ && x.size() > trim_max_points_)
+        if (has_trim_)
         {
-            const size_t remove = x.size() - trim_max_points_;
-            x.erase(x.begin(), x.begin() + static_cast<ptrdiff_t>(remove));
-            y.erase(y.begin(), y.begin() + static_cast<ptrdiff_t>(remove));
-            changed   = true;
-            has_trim_ = false;
+            const size_t count = std::min(x.size(), y.size());
+            if (count > trim_max_points_)
+            {
+                const auto remove = static_cast<ptrdiff_t>(count - trim_max_points_);
+                x.erase(x.begin(), x.begin() + remove);
+                y.erase(y.begin(), y.begin() + remove);
+                changed = true;
+            }
         }
-        else
-        {
-            has_trim_ = false;
-        }
+        has_trim_ = false;
 
         has_pending_.store(false, std::memory_order_relaxed);
         return changed;

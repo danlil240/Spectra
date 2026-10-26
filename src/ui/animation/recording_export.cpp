@@ -805,7 +805,7 @@ bool RecordingSession::prepare_output()
             };
 
             const std::string cmd = detail::build_ffmpeg_command(ffmpeg_config);
-            ffmpeg_pipe_          = popen(cmd.c_str(), "w");
+            ffmpeg_pipe_          = popen(cmd.c_str(), detail::ffmpeg_pipe_mode());
             if (!ffmpeg_pipe_)
             {
                 set_error("Failed to open ffmpeg pipe");

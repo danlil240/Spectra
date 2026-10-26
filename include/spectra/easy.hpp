@@ -644,7 +644,7 @@ inline void presented_buffer(float seconds)
     detail::easy_state().ensure_axes().presented_buffer(seconds);
 }
 
-inline void legend(LegendPosition pos = LegendPosition::TopRight)
+inline void legend(LegendPosition pos = LegendPosition::Best)
 {
     auto& s = detail::easy_state();
     s.ensure_figure();

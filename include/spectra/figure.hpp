@@ -23,11 +23,12 @@ enum class LegendPosition
     BottomRight,
     BottomLeft,
     None,
+    Best,   // Corner with the least overlap with plotted data (default)
 };
 
 struct LegendConfig
 {
-    LegendPosition position     = LegendPosition::TopRight;
+    LegendPosition position     = LegendPosition::Best;
     bool           visible      = true;
     float          font_size    = 0.0f;   // 0 = use default from font
     Color          bg_color     = {};     // {0,0,0,0} = use theme bg_elevated

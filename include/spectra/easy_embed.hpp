@@ -89,7 +89,7 @@ struct RenderOptions
 
     // Legend (Phase 6A)
     bool           legend     = false;
-    LegendPosition legend_pos = LegendPosition::TopRight;
+    LegendPosition legend_pos = LegendPosition::Best;
 
     // Subplot grid (Phase 6A) — used by render_subplots().
     int subplot_rows = 1;

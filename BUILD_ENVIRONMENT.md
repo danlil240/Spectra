@@ -64,6 +64,10 @@ sudo apt-get install -y \
 
 > **Note:** GLFW, Dear ImGui, FlatBuffers, and GoogleTest are automatically downloaded by
 > CMake's `FetchContent` on the first configure — no manual installation needed.
+>
+> Dear ImGui is fetched with `git` (tag `v1.92.6-docking`), so it works behind proxies that
+> block GitHub archive downloads. To build offline, clone that tag yourself and pass
+> `-DFETCHCONTENT_SOURCE_DIR_IMGUI=/path/to/imgui`.
 
 ---
 

@@ -122,6 +122,13 @@ App::App(const AppConfig& config) : config_(config)
         SPECTRA_LOG_ERROR("app",
                           "Failed to initialize Vulkan backend (no usable Vulkan driver/device?). "
                           "Nothing will be rendered or exported; check App::ok().");
+#ifdef SPECTRA_USE_GLFW
+        // Vulkan instance creation initializes GLFW to query the required surface
+        // extensions. No window will ever be created now, so release the display
+        // connection instead of leaking it for the lifetime of the process.
+        if (!config_.headless)
+            glfwTerminate();
+#endif
         return;
     }
 

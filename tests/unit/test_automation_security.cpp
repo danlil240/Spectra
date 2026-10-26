@@ -11,12 +11,14 @@
 #include <filesystem>
 #include <fstream>
 #include <optional>
+#include <random>
 #include <sstream>
 #include <string>
 
 #include "ui/automation/automation_security.hpp"
 #include "ui/automation/automation_server.hpp"
 #include "ui/automation/mcp_server.hpp"
+#include "env_guard.hpp"
 
 #ifndef _WIN32
     #include <arpa/inet.h>
@@ -41,16 +43,16 @@ class ScopedEnv
         if (const char* old = std::getenv(name))
             old_ = std::string(old);
         if (value)
-            ::setenv(name, value, 1);
+            spectra::test::set_env(name, value);
         else
-            ::unsetenv(name);
+            spectra::test::unset_env(name);
     }
     ~ScopedEnv()
     {
         if (old_)
-            ::setenv(name_.c_str(), old_->c_str(), 1);
+            spectra::test::set_env(name_.c_str(), old_->c_str());
         else
-            ::unsetenv(name_.c_str());
+            spectra::test::unset_env(name_.c_str());
     }
     ScopedEnv(const ScopedEnv&)            = delete;
     ScopedEnv& operator=(const ScopedEnv&) = delete;
@@ -62,11 +64,18 @@ class ScopedEnv
 
 std::filesystem::path make_temp_dir(const std::string& tag)
 {
-    std::string templ =
-        (std::filesystem::temp_directory_path() / ("spectra_sec_" + tag + "_XXXXXX")).string();
-    char* p = ::mkdtemp(templ.data());
-    EXPECT_NE(p, nullptr);
-    return std::filesystem::path(templ);
+    // Portable mkdtemp(): retry random names until create_directory() succeeds.
+    std::random_device rd;
+    for (int attempt = 0; attempt < 100; ++attempt)
+    {
+        const auto dir = std::filesystem::temp_directory_path()
+                         / ("spectra_sec_" + tag + "_" + std::to_string(rd()));
+        std::error_code ec;
+        if (std::filesystem::create_directory(dir, ec))
+            return dir;
+    }
+    ADD_FAILURE() << "could not create a temp directory";
+    return {};
 }
 
 int status_of(const std::string& response)

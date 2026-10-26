@@ -1,12 +1,71 @@
 #include <cassert>
+#include <filesystem>
 #include <spectra/figure.hpp>
+#include <spectra/logger.hpp>
 #include <stdexcept>
+#include <system_error>
 
 #include "axes3d.hpp"
 #include "layout.hpp"
 
+#ifdef _WIN32
+    #include <io.h>
+#else
+    #include <unistd.h>
+#endif
+
 namespace spectra
 {
+
+namespace
+{
+
+// Validate that `path` names a file we can plausibly create: non-empty, not an
+// existing directory, and its parent directory exists and is writable.
+bool export_path_is_writable(const std::string& path, const char* what)
+{
+    namespace fs = std::filesystem;
+    if (path.empty())
+    {
+        SPECTRA_LOG_ERROR("export", "{} export: empty output path", what);
+        return false;
+    }
+
+    std::error_code ec;
+    const fs::path  p(path);
+    if (fs::is_directory(p, ec))
+    {
+        SPECTRA_LOG_ERROR("export", "{} export: '{}' is a directory", what, path);
+        return false;
+    }
+
+    ec.clear();
+    fs::path dir = p.parent_path();
+    if (dir.empty())
+        dir = fs::current_path(ec);
+    if (ec || !fs::is_directory(dir, ec))
+    {
+        SPECTRA_LOG_ERROR("export", "{} export: directory '{}' does not exist", what, dir.string());
+        return false;
+    }
+
+#ifdef _WIN32
+    const bool writable = ::_access(dir.string().c_str(), 2) == 0;
+#else
+    const bool writable = ::access(dir.c_str(), W_OK) == 0;
+#endif
+    if (!writable)
+    {
+        SPECTRA_LOG_ERROR("export",
+                          "{} export: directory '{}' is not writable",
+                          what,
+                          dir.string());
+        return false;
+    }
+    return true;
+}
+
+}   // namespace
 
 // --- AnimationBuilder ---
 
@@ -118,26 +177,29 @@ void Figure::show()
     compute_layout();
 }
 
-void Figure::save_png(const std::string& path)
+bool Figure::save_png(const std::string& path)
 {
-    export_req_.png_path   = path;
-    export_req_.png_width  = 0;
-    export_req_.png_height = 0;
-    compute_layout();
+    return save_png(path, 0, 0);
 }
 
-void Figure::save_png(const std::string& path, uint32_t export_width, uint32_t export_height)
+bool Figure::save_png(const std::string& path, uint32_t export_width, uint32_t export_height)
 {
+    if (!export_path_is_writable(path, "PNG"))
+        return false;
     export_req_.png_path   = path;
     export_req_.png_width  = export_width;
     export_req_.png_height = export_height;
     compute_layout();
+    return true;
 }
 
-void Figure::save_svg(const std::string& path)
+bool Figure::save_svg(const std::string& path)
 {
+    if (!export_path_is_writable(path, "SVG"))
+        return false;
     export_req_.svg_path = path;
     compute_layout();
+    return true;
 }
 
 void Figure::copy_to_clipboard()

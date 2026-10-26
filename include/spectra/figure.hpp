@@ -103,9 +103,15 @@ class Figure
     Axes3D& subplot3d(int rows, int cols, int index);
 
     void show();
-    void save_png(const std::string& path);
-    void save_png(const std::string& path, uint32_t export_width, uint32_t export_height);
-    void save_svg(const std::string& path);
+    // Export requests.  The file is written by the runtime after the figure
+    // has been rendered (during / at the end of App::run()), so these calls
+    // only validate and queue the request.  They return false — and queue
+    // nothing — when the path is empty, its parent directory does not exist,
+    // is not a directory, or is not writable.  Failures that happen later
+    // while rendering or writing are reported through the logger.
+    bool save_png(const std::string& path);
+    bool save_png(const std::string& path, uint32_t export_width, uint32_t export_height);
+    bool save_svg(const std::string& path);
     void copy_to_clipboard();
 
     AnimationBuilder animate();

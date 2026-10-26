@@ -25,6 +25,14 @@ struct AppConfig
     bool          headless = false;
     std::string   socket_path;   // non-empty → multiproc mode; empty → check SPECTRA_SOCKET env
     RenderBackend backend = RenderBackend::Vulkan;
+
+    // When true, App::run() installs process-wide SIGINT/SIGTERM handlers that
+    // request a graceful exit (App::request_exit()), and ignores SIGPIPE.
+    // Off by default so that embedding Spectra in a larger program never
+    // replaces the host's signal dispositions; the standalone `spectra`
+    // executable turns it on.  Programs that want Ctrl+C to close the window
+    // cleanly can opt in.
+    bool install_signal_handlers = false;
 };
 
 class SessionRuntime;
@@ -43,10 +51,16 @@ class App
     App(const App&)            = delete;
     App& operator=(const App&) = delete;
 
+    // True when the render backend and renderer initialized successfully.
+    // When false (e.g. no Vulkan driver / GPU available), run() logs an error
+    // and returns immediately without rendering or exporting anything.
+    bool ok() const { return initialized_; }
+
     Figure& figure(const FigureConfig& config = {});
     Figure& figure(Figure& sibling);
 
-    // Run the application (blocking — processes all figures)
+    // Run the application (blocking — processes all figures).
+    // Returns immediately (after logging an ERROR) when ok() is false.
     void run();
 
     // Frame-by-frame control (alternative to run()).
@@ -101,6 +115,7 @@ class App
     std::vector<std::vector<FigureId>> compute_window_groups() const;
 
     AppConfig                         config_;
+    bool                              initialized_ = false;
     FigureRegistry                    registry_;
     std::unique_ptr<ui::ThemeManager> theme_mgr_;
     std::unique_ptr<Backend>          backend_;

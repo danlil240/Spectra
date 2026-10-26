@@ -79,8 +79,9 @@ namespace spectra
 // ─── App ctor/dtor (must be here where AppRuntime is complete) ───────────────
 App::App(const AppConfig& config) : config_(config)
 {
-    spectra::setup_dual_logging(spectra::default_console_log_level(),
-                                spectra::default_file_log_level());
+    // Install the default console/file sinks unless the host application has
+    // already configured logging (its own sinks or setup_dual_logging()).
+    spectra::ensure_default_logging();
 
     SPECTRA_LOG_INFO("app",
                      "Initializing Spectra application (headless: "
@@ -116,7 +117,9 @@ App::App(const AppConfig& config) : config_(config)
 #endif
     if (!backend_->init(config_.headless))
     {
-        SPECTRA_LOG_ERROR("app", "Failed to initialize Vulkan backend");
+        SPECTRA_LOG_ERROR("app",
+                          "Failed to initialize Vulkan backend (no usable Vulkan driver/device?). "
+                          "Nothing will be rendered or exported; check App::ok().");
         return;
     }
 
@@ -134,6 +137,7 @@ App::App(const AppConfig& config) : config_(config)
         return;
     }
 
+    initialized_ = true;
     SPECTRA_LOG_INFO("app", "Spectra application initialized successfully");
 }
 
@@ -285,7 +289,7 @@ void App::init_runtime()
 {
     PerfMetrics::instance().mark_startup_begin();
 
-    if (!backend_ || !renderer_)
+    if (!initialized_ || !backend_ || !renderer_)
     {
         SPECTRA_LOG_ERROR("app", "Cannot run: backend or renderer not initialized");
         return;

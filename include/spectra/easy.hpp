@@ -79,6 +79,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <initializer_list>
 #include <span>
 #include <spectra/app.hpp>
 #include <spectra/axes.hpp>
@@ -388,6 +389,30 @@ inline LineSeries& plot(std::span<const float> x, std::span<const float> y, cons
     return detail::easy_state().ensure_axes().plot(x, y, style);
 }
 
+// Braced-list convenience overloads (std::span cannot be built from a braced
+// list in C++20), so quick snippets work without declaring vectors:
+//
+//   spectra::plot({0.f, 1.f, 2.f}, {0.f, 1.f, 4.f}, "c-o");
+//
+// The data is copied into the series, so the temporaries may go away.
+inline LineSeries& plot(std::initializer_list<float> x,
+                        std::initializer_list<float> y,
+                        std::string_view             fmt = "-")
+{
+    return plot(std::span<const float>(x.begin(), x.size()),
+                std::span<const float>(y.begin(), y.size()),
+                fmt);
+}
+
+inline LineSeries& plot(std::initializer_list<float> x,
+                        std::initializer_list<float> y,
+                        const PlotStyle&             style)
+{
+    return plot(std::span<const float>(x.begin(), x.size()),
+                std::span<const float>(y.begin(), y.size()),
+                style);
+}
+
 // Create an empty line series (for real-time append).
 inline LineSeries& plot()
 {
@@ -426,6 +451,13 @@ inline ScatterSeries& scatter(std::span<const float> x, std::span<const float> y
     return detail::easy_state().ensure_axes().scatter(x, y);
 }
 
+// Braced-list convenience overload: spectra::scatter({1.f, 2.f}, {3.f, 4.f}).
+inline ScatterSeries& scatter(std::initializer_list<float> x, std::initializer_list<float> y)
+{
+    return scatter(std::span<const float>(x.begin(), x.size()),
+                   std::span<const float>(y.begin(), y.size()));
+}
+
 // Create an empty scatter series (for real-time append).
 inline ScatterSeries& scatter()
 {
@@ -452,10 +484,21 @@ inline HistogramSeries& histogram(std::span<const float> values, int bins = 30)
     return detail::easy_state().ensure_axes().histogram(values, bins);
 }
 
+inline HistogramSeries& histogram(std::initializer_list<float> values, int bins = 30)
+{
+    return histogram(std::span<const float>(values.begin(), values.size()), bins);
+}
+
 // Bar chart from positions and heights.
 inline BarSeries& bar(std::span<const float> positions, std::span<const float> heights)
 {
     return detail::easy_state().ensure_axes().bar(positions, heights);
+}
+
+inline BarSeries& bar(std::initializer_list<float> positions, std::initializer_list<float> heights)
+{
+    return bar(std::span<const float>(positions.begin(), positions.size()),
+               std::span<const float>(heights.begin(), heights.size()));
 }
 
 // Filled uncertainty/confidence envelope between lower and upper samples.
@@ -543,6 +586,25 @@ inline ScatterSeries3D& scatter3(std::span<const float> x,
     auto& ref = ax.scatter3d(x, y, z);
     ax.auto_fit();
     return ref;
+}
+
+// Braced-list convenience overloads for 3D line / scatter plots.
+inline LineSeries3D& plot3(std::initializer_list<float> x,
+                           std::initializer_list<float> y,
+                           std::initializer_list<float> z)
+{
+    return plot3(std::span<const float>(x.begin(), x.size()),
+                 std::span<const float>(y.begin(), y.size()),
+                 std::span<const float>(z.begin(), z.size()));
+}
+
+inline ScatterSeries3D& scatter3(std::initializer_list<float> x,
+                                 std::initializer_list<float> y,
+                                 std::initializer_list<float> z)
+{
+    return scatter3(std::span<const float>(x.begin(), x.size()),
+                    std::span<const float>(y.begin(), y.size()),
+                    std::span<const float>(z.begin(), z.size()));
 }
 
 // Surface plot.
@@ -814,22 +876,24 @@ inline KnobManager& knobs()
 
 // ─── Export ─────────────────────────────────────────────────────────────────
 
-// Save current figure as PNG.
-inline void save_png(const std::string& path)
+// Save current figure as PNG.  The file is written when show() runs; returns
+// false if the request was rejected (empty path, missing or unwritable
+// directory).  See Figure::save_png().
+inline bool save_png(const std::string& path)
 {
-    detail::easy_state().ensure_figure().save_png(path);
+    return detail::easy_state().ensure_figure().save_png(path);
 }
 
 // Save current figure as PNG with explicit resolution.
-inline void save_png(const std::string& path, uint32_t width, uint32_t height)
+inline bool save_png(const std::string& path, uint32_t width, uint32_t height)
 {
-    detail::easy_state().ensure_figure().save_png(path, width, height);
+    return detail::easy_state().ensure_figure().save_png(path, width, height);
 }
 
-// Save current figure as SVG.
-inline void save_svg(const std::string& path)
+// Save current figure as SVG.  Returns false if the request was rejected.
+inline bool save_svg(const std::string& path)
 {
-    detail::easy_state().ensure_figure().save_svg(path);
+    return detail::easy_state().ensure_figure().save_svg(path);
 }
 
 // Copy current figure to the system clipboard as a PNG image.
@@ -841,11 +905,14 @@ inline void copy_to_clipboard()
 // ─── Show & Run ─────────────────────────────────────────────────────────────
 
 // Show all figures and enter the interactive event loop (blocking).
-// This is the last call in your program.
-inline void show()
+// This is the last call in your program.  Returns false when Spectra could not
+// initialize its render backend (e.g. no Vulkan driver), in which case nothing
+// was shown and no pending exports were written; the error is also logged.
+inline bool show()
 {
     auto& s = detail::easy_state();
     s.ensure_app();
+    const bool ok = s.app->ok();
 
     // Transfer easy-API knobs into the App so the window UI context can pick them up.
     // The App stores a pointer to the easy-API KnobManager; the window init code
@@ -854,6 +921,7 @@ inline void show()
 
     s.app->run();
     s.reset();
+    return ok;
 }
 
 // ─── Utility ────────────────────────────────────────────────────────────────

@@ -28,6 +28,109 @@ static constexpr unsigned int OVERSAMPLE = 4;
 static constexpr int FIRST_CHAR = 32;
 static constexpr int NUM_CHARS  = 95;   // 32..126 inclusive
 
+// Extra (non-ASCII) codepoints commonly used in plot titles, labels and units.
+// Codepoints missing from the font are skipped at bake time.
+static std::vector<int> extra_codepoints()
+{
+    std::vector<int> cps;
+    // Latin-1 Supplement (accented letters, degree, plus-minus, micro, ...)
+    for (int c = 0x00A1; c <= 0x00FF; ++c)
+        cps.push_back(c);
+    // Greek capitals and small letters
+    for (int c = 0x0391; c <= 0x03A9; ++c)
+        if (c != 0x03A2)   // unassigned
+            cps.push_back(c);
+    for (int c = 0x03B1; c <= 0x03C9; ++c)
+        cps.push_back(c);
+    // General Punctuation: dashes, quotes, bullet, ellipsis, primes, per-mille
+    for (int c :
+         {0x2010, 0x2011, 0x2012, 0x2013, 0x2014, 0x2015, 0x2018, 0x2019, 0x201A, 0x201C, 0x201D,
+          0x201E, 0x2020, 0x2021, 0x2022, 0x2026, 0x2030, 0x2032, 0x2033, 0x2039, 0x203A})
+        cps.push_back(c);
+    // Superscripts / subscripts, letterlike symbols, arrows, math operators
+    for (int c :
+         {0x2070, 0x2071, 0x2074, 0x2075, 0x2076, 0x2077, 0x2078, 0x2079, 0x207A, 0x207B, 0x2080,
+          0x2081, 0x2082, 0x2083, 0x2084, 0x2085, 0x2086, 0x2087, 0x2088, 0x2089, 0x20AC, 0x2103,
+          0x2109, 0x2116, 0x2122, 0x2126, 0x212B, 0x2190, 0x2191, 0x2192, 0x2193, 0x2194, 0x2202,
+          0x2206, 0x220F, 0x2211, 0x2212, 0x221A, 0x221E, 0x2248, 0x2260, 0x2264, 0x2265})
+        cps.push_back(c);
+    return cps;
+}
+
+size_t TextRenderer::decode_utf8(std::string_view text, size_t i, uint32_t& cp)
+{
+    const auto b0 = static_cast<uint8_t>(text[i]);
+    if (b0 < 0x80)
+    {
+        cp = b0;
+        return 1;
+    }
+
+    int      len = 0;
+    uint32_t v   = 0;
+    if ((b0 & 0xE0) == 0xC0)
+    {
+        len = 2;
+        v   = b0 & 0x1F;
+    }
+    else if ((b0 & 0xF0) == 0xE0)
+    {
+        len = 3;
+        v   = b0 & 0x0F;
+    }
+    else if ((b0 & 0xF8) == 0xF0)
+    {
+        len = 4;
+        v   = b0 & 0x07;
+    }
+    else
+    {
+        cp = 0xFFFD;   // stray continuation byte or invalid lead byte
+        return 1;
+    }
+
+    if (i + static_cast<size_t>(len) > text.size())
+    {
+        cp = 0xFFFD;
+        return 1;
+    }
+    for (int k = 1; k < len; ++k)
+    {
+        const auto b = static_cast<uint8_t>(text[i + static_cast<size_t>(k)]);
+        if ((b & 0xC0) != 0x80)
+        {
+            cp = 0xFFFD;
+            return 1;
+        }
+        v = (v << 6) | (b & 0x3F);
+    }
+    // Reject overlong encodings, surrogates and out-of-range values.
+    static constexpr uint32_t MIN_FOR_LEN[5] = {0, 0, 0x80, 0x800, 0x10000};
+    if (v < MIN_FOR_LEN[len] || v > 0x10FFFF || (v >= 0xD800 && v <= 0xDFFF))
+    {
+        cp = 0xFFFD;
+        return static_cast<size_t>(len);
+    }
+    cp = v;
+    return static_cast<size_t>(len);
+}
+
+const GlyphInfo* TextRenderer::find_glyph(const FontData& fd, uint32_t cp)
+{
+    auto it = fd.glyphs.find(cp);
+    if (it != fd.glyphs.end())
+        return &it->second;
+    // Unknown non-ASCII glyph: draw '?' rather than silently dropping the
+    // character, so missing coverage is visible.
+    if (cp >= 0x80)
+    {
+        it = fd.glyphs.find(static_cast<uint32_t>('?'));
+        if (it != fd.glyphs.end())
+            return &it->second;
+    }
+    return nullptr;
+}
+
 TextRenderer::TextRenderer() = default;
 
 TextRenderer::~TextRenderer() = default;
@@ -48,52 +151,71 @@ bool TextRenderer::init(Backend& backend, const uint8_t* font_data, size_t font_
     if (!valid_sig)
         return false;
 
-    // Atlas size: 1024x1024 is ample for 3 ASCII font sizes with 2x oversampling.
-    atlas_width_  = 1024;
-    atlas_height_ = 1024;
-
-    // Allocate single-channel bitmap for the atlas
-    std::vector<uint8_t> atlas_bitmap(atlas_width_ * atlas_height_, 0);
-
-    // Use stbtt_PackBegin/PackRange/PackEnd for proper rect packing with
-    // oversampling. This is the correct API for high-quality text — it handles
-    // sub-pixel positioning, padding, and anti-aliasing automatically.
-    stbtt_pack_context pack_ctx;
-    if (!stbtt_PackBegin(&pack_ctx,
-                         atlas_bitmap.data(),
-                         static_cast<int>(atlas_width_),
-                         static_cast<int>(atlas_height_),
-                         0,   // stride_in_bytes (0 = tightly packed)
-                         1,   // padding between glyphs
-                         nullptr))
-    {
-        return false;
-    }
-
-    // Enable oversampling for crisp sub-pixel positioning.
-    // This is the single most important setting for text quality.
-    stbtt_PackSetOversampling(&pack_ctx, OVERSAMPLE, OVERSAMPLE);
-
-    // Pack all 3 font sizes. Each gets its own chardata array.
     static constexpr auto FONT_COUNT = static_cast<size_t>(FontSize::Count);
-    stbtt_packedchar      chardata[FONT_COUNT][NUM_CHARS];
 
-    stbtt_pack_range ranges[FONT_COUNT];
-    for (size_t si = 0; si < FONT_COUNT; ++si)
+    // Two ranges per font size: contiguous ASCII and a sparse list of extra
+    // codepoints (punctuation, Greek, symbols).
+    std::vector<int> extras = extra_codepoints();
+    const int        n_ext  = static_cast<int>(extras.size());
+
+    std::vector<stbtt_packedchar> ascii_chardata(FONT_COUNT * NUM_CHARS);
+    std::vector<stbtt_packedchar> extra_chardata(FONT_COUNT * static_cast<size_t>(n_ext));
+    std::vector<uint8_t>          atlas_bitmap;
+
+    // Try increasingly large atlases until everything fits.
+    bool pack_ok = false;
+    for (uint32_t dim : {1024u, 2048u})
     {
-        ranges[si].font_size                        = FONT_PIXEL_SIZES[si];
-        ranges[si].first_unicode_codepoint_in_range = FIRST_CHAR;
-        ranges[si].num_chars                        = NUM_CHARS;
-        ranges[si].chardata_for_range               = chardata[si];
-        ranges[si].array_of_unicode_codepoints      = nullptr;
-    }
+        atlas_width_  = dim;
+        atlas_height_ = dim;
+        atlas_bitmap.assign(static_cast<size_t>(dim) * dim, 0);
 
-    int pack_ok = stbtt_PackFontRanges(&pack_ctx,
+        // Use stbtt_PackBegin/PackRange/PackEnd for proper rect packing with
+        // oversampling. This is the correct API for high-quality text — it
+        // handles sub-pixel positioning, padding, and anti-aliasing.
+        stbtt_pack_context pack_ctx;
+        if (!stbtt_PackBegin(&pack_ctx,
+                             atlas_bitmap.data(),
+                             static_cast<int>(atlas_width_),
+                             static_cast<int>(atlas_height_),
+                             0,   // stride_in_bytes (0 = tightly packed)
+                             1,   // padding between glyphs
+                             nullptr))
+        {
+            return false;
+        }
+
+        // Enable oversampling for crisp sub-pixel positioning.
+        stbtt_PackSetOversampling(&pack_ctx, OVERSAMPLE, OVERSAMPLE);
+
+        stbtt_pack_range ranges[FONT_COUNT * 2];
+        for (size_t si = 0; si < FONT_COUNT; ++si)
+        {
+            stbtt_pack_range& ra                = ranges[si * 2];
+            ra.font_size                        = FONT_PIXEL_SIZES[si];
+            ra.first_unicode_codepoint_in_range = FIRST_CHAR;
+            ra.num_chars                        = NUM_CHARS;
+            ra.chardata_for_range               = &ascii_chardata[si * NUM_CHARS];
+            ra.array_of_unicode_codepoints      = nullptr;
+
+            stbtt_pack_range& re                = ranges[si * 2 + 1];
+            re.font_size                        = FONT_PIXEL_SIZES[si];
+            re.first_unicode_codepoint_in_range = 0;
+            re.num_chars                        = n_ext;
+            re.chardata_for_range               = &extra_chardata[si * static_cast<size_t>(n_ext)];
+            re.array_of_unicode_codepoints      = extras.data();
+        }
+
+        pack_ok = stbtt_PackFontRanges(&pack_ctx,
                                        font_data,
                                        0,   // font_index
                                        ranges,
-                                       static_cast<int>(FONT_COUNT));
-    stbtt_PackEnd(&pack_ctx);
+                                       static_cast<int>(FONT_COUNT * 2))
+                  != 0;
+        stbtt_PackEnd(&pack_ctx);
+        if (pack_ok)
+            break;
+    }
 
     if (!pack_ok)
         return false;
@@ -123,39 +245,54 @@ bool TextRenderer::init(Backend& backend, const uint8_t* font_data, size_t font_
         fonts_[si].descent     = static_cast<float>(descent_i) * scale;
         fonts_[si].line_height = (static_cast<float>(ascent_i - descent_i + line_gap_i)) * scale;
 
-        for (int ci = 0; ci < NUM_CHARS; ++ci)
+        auto add_glyphs = [&](const stbtt_packedchar* chardata, int count, auto cp_of)
         {
-            auto                    cp = static_cast<uint32_t>(FIRST_CHAR + ci);
-            const stbtt_packedchar& pc = chardata[si][ci];
+            for (int ci = 0; ci < count; ++ci)
+            {
+                const uint32_t cp = cp_of(ci);
+                // Skip codepoints the font doesn't contain (they would
+                // render as the .notdef box); find_glyph() falls back to '?'.
+                if (cp > 0x7F && stbtt_FindGlyphIndex(&font_info, static_cast<int>(cp)) == 0)
+                    continue;
 
-            // stbtt_GetPackedQuad gives us the exact screen-space quad
-            // with sub-pixel offsets baked in from oversampling.
-            stbtt_aligned_quad q;
-            float              dummy_x = 0.0f;
-            float              dummy_y = 0.0f;
-            stbtt_GetPackedQuad(chardata[si],
-                                static_cast<int>(atlas_width_),
-                                static_cast<int>(atlas_height_),
-                                ci,
-                                &dummy_x,
-                                &dummy_y,
-                                &q,
-                                0);   // align_to_integer = 0 for sub-pixel
+                const stbtt_packedchar& pc = chardata[ci];
 
-            GlyphInfo gi{};
-            gi.u0 = q.s0;
-            gi.v0 = q.t0;
-            gi.u1 = q.s1;
-            gi.v1 = q.t1;
-            // Quad offsets from the cursor position (baseline-relative)
-            gi.x_offset  = q.x0;
-            gi.y_offset  = q.y0;
-            gi.width     = q.x1 - q.x0;
-            gi.height    = q.y1 - q.y0;
-            gi.x_advance = pc.xadvance;
+                // stbtt_GetPackedQuad gives us the exact screen-space quad
+                // with sub-pixel offsets baked in from oversampling.
+                stbtt_aligned_quad q;
+                float              dummy_x = 0.0f;
+                float              dummy_y = 0.0f;
+                stbtt_GetPackedQuad(chardata,
+                                    static_cast<int>(atlas_width_),
+                                    static_cast<int>(atlas_height_),
+                                    ci,
+                                    &dummy_x,
+                                    &dummy_y,
+                                    &q,
+                                    0);   // align_to_integer = 0 for sub-pixel
 
-            fonts_[si].glyphs[cp] = gi;
-        }
+                GlyphInfo gi{};
+                gi.u0 = q.s0;
+                gi.v0 = q.t0;
+                gi.u1 = q.s1;
+                gi.v1 = q.t1;
+                // Quad offsets from the cursor position (baseline-relative)
+                gi.x_offset  = q.x0;
+                gi.y_offset  = q.y0;
+                gi.width     = q.x1 - q.x0;
+                gi.height    = q.y1 - q.y0;
+                gi.x_advance = pc.xadvance;
+
+                fonts_[si].glyphs[cp] = gi;
+            }
+        };
+
+        add_glyphs(&ascii_chardata[si * NUM_CHARS],
+                   NUM_CHARS,
+                   [](int ci) { return static_cast<uint32_t>(FIRST_CHAR + ci); });
+        add_glyphs(&extra_chardata[si * static_cast<size_t>(n_ext)],
+                   n_ext,
+                   [&](int ci) { return static_cast<uint32_t>(extras[static_cast<size_t>(ci)]); });
     }
 
     // Convert single-channel atlas to RGBA (Backend::create_texture expects RGBA).
@@ -309,14 +446,12 @@ TextRenderer::TextExtent TextRenderer::measure_text(const std::string& text, Fon
     const auto& fd    = font(size);
     float       width = 0.0f;
 
-    for (char c : text)
+    for (size_t i = 0; i < text.size();)
     {
-        auto cp = static_cast<uint32_t>(static_cast<uint8_t>(c));
-        auto it = fd.glyphs.find(cp);
-        if (it != fd.glyphs.end())
-        {
-            width += it->second.x_advance;
-        }
+        uint32_t cp = 0;
+        i += decode_utf8(text, i, cp);
+        if (const GlyphInfo* g = find_glyph(fd, cp))
+            width += g->x_advance;
     }
 
     return {width, fd.line_height};
@@ -357,14 +492,15 @@ void TextRenderer::draw_text(const std::string& text,
     float cursor_x = x + offset_x;
     float cursor_y = y + offset_y + fd.ascent;
 
-    for (char c : text)
+    for (size_t i = 0; i < text.size();)
     {
-        auto cp = static_cast<uint32_t>(static_cast<uint8_t>(c));
-        auto it = fd.glyphs.find(cp);
-        if (it == fd.glyphs.end())
+        uint32_t cp = 0;
+        i += decode_utf8(text, i, cp);
+        const GlyphInfo* gp = find_glyph(fd, cp);
+        if (!gp)
             continue;
 
-        const auto& g = it->second;
+        const auto& g = *gp;
         if (g.width > 0 && g.height > 0)
         {
             append_glyph(vertices_, g, cursor_x, cursor_y, 0.0f, color_rgba);
@@ -407,14 +543,15 @@ void TextRenderer::draw_text_depth(const std::string& text,
     float cursor_x = x + offset_x;
     float cursor_y = y + offset_y + fd.ascent;
 
-    for (char c : text)
+    for (size_t i = 0; i < text.size();)
     {
-        auto cp = static_cast<uint32_t>(static_cast<uint8_t>(c));
-        auto it = fd.glyphs.find(cp);
-        if (it == fd.glyphs.end())
+        uint32_t cp = 0;
+        i += decode_utf8(text, i, cp);
+        const GlyphInfo* gp = find_glyph(fd, cp);
+        if (!gp)
             continue;
 
-        const auto& g = it->second;
+        const auto& g = *gp;
         if (g.width > 0 && g.height > 0)
         {
             append_glyph(depth_vertices_, g, cursor_x, cursor_y, ndc_depth, color_rgba);
@@ -460,14 +597,15 @@ void TextRenderer::draw_text_rotated(const std::string& text,
     float cursor_x = x + offset_x;
     float cursor_y = y + offset_y + fd.ascent;
 
-    for (char c : text)
+    for (size_t i = 0; i < text.size();)
     {
-        auto cp = static_cast<uint32_t>(static_cast<uint8_t>(c));
-        auto it = fd.glyphs.find(cp);
-        if (it == fd.glyphs.end())
+        uint32_t cp = 0;
+        i += decode_utf8(text, i, cp);
+        const GlyphInfo* gp = find_glyph(fd, cp);
+        if (!gp)
             continue;
 
-        const auto& g = it->second;
+        const auto& g = *gp;
         if (g.width > 0 && g.height > 0)
         {
             append_glyph(vertices_, g, cursor_x, cursor_y, 0.0f, color_rgba, cos_a, sin_a, x, y);

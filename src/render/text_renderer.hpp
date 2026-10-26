@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -131,6 +132,17 @@ class TextRenderer
     // Pipeline handle (for external pipeline type registration)
     PipelineHandle pipeline() const { return text_pipeline_; }
 
+    // Decode one UTF-8 codepoint starting at byte index i (i < text.size()).
+    // Writes the codepoint (U+FFFD for malformed input) and returns the number
+    // of bytes consumed (always >= 1).
+    static size_t decode_utf8(std::string_view text, size_t i, uint32_t& cp);
+
+    // True if the atlas contains a glyph for this codepoint at the given size.
+    bool has_glyph(uint32_t cp, FontSize size = FontSize::Label) const
+    {
+        return fonts_[static_cast<size_t>(size)].glyphs.count(cp) != 0;
+    }
+
    private:
     // Per-font-size glyph data
     struct FontData
@@ -143,6 +155,9 @@ class TextRenderer
     };
 
     FontData fonts_[static_cast<size_t>(FontSize::Count)];
+
+    // Glyph lookup with a visible '?' fallback for unsupported codepoints.
+    static const GlyphInfo* find_glyph(const FontData& fd, uint32_t cp);
 
     // Atlas texture
     TextureHandle atlas_texture_;
@@ -163,15 +178,14 @@ class TextRenderer
     // overwrite draws still in the same submission.  Slots are NOT reused until
     // the matching flight frame completes (see begin_frame_recording).
     static constexpr uint32_t MAX_TEXT_FLUSHES_PER_FRAME = 20;   // 10 panes × 2 flushes
-    static constexpr uint32_t TEXT_FLIGHT_FRAMES           = 2;
-    static constexpr uint32_t TEXT_BUFFER_SLOTS =
-        MAX_TEXT_FLUSHES_PER_FRAME * TEXT_FLIGHT_FRAMES;
+    static constexpr uint32_t TEXT_FLIGHT_FRAMES         = 2;
+    static constexpr uint32_t TEXT_BUFFER_SLOTS = MAX_TEXT_FLUSHES_PER_FRAME * TEXT_FLIGHT_FRAMES;
     BufferHandle              vertex_buffer_[TEXT_BUFFER_SLOTS];
     size_t                    vertex_buffer_capacity_[TEXT_BUFFER_SLOTS] = {};
     BufferHandle              depth_vertex_buffer_[TEXT_BUFFER_SLOTS];
     size_t                    depth_vertex_buffer_capacity_[TEXT_BUFFER_SLOTS] = {};
-    uint32_t                  flush_slot_base_    = 0;   // flight_index * MAX_TEXT_FLUSHES_PER_FRAME
-    uint32_t                  flush_cursor_       = 0;   // per-frame flush count (2D text)
+    uint32_t                  flush_slot_base_ = 0;   // flight_index * MAX_TEXT_FLUSHES_PER_FRAME
+    uint32_t                  flush_cursor_    = 0;   // per-frame flush count (2D text)
     uint32_t                  depth_flush_cursor_ = 0;   // per-frame flush count (3D text)
 
     // UBO for screen-space ortho projection

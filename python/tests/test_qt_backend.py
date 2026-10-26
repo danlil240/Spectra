@@ -1,16 +1,37 @@
 """Tests for spectra.backends — Qt compatibility layer and backend_qtagg.
 
 These tests verify the module structure, import mechanics, and non-GUI logic.
-Tests that require a running QApplication or GPU are marked with pytest.mark.skipif.
+Everything that needs a Qt binding (PyQt6 / PySide6 / PyQt5 / PySide2) is
+skipped when none is installed; ``pip install PyQt6`` to run them.
 """
 
 from __future__ import annotations
 
-import pytest  # noqa: F401 — used for marks in future GPU tests
+import pytest
+
+try:
+    import spectra.backends._qt_compat  # noqa: F401
+
+    _QT_IMPORT_ERROR = None
+except ImportError as _exc:  # no Qt binding installed
+    _QT_IMPORT_ERROR = _exc
+
+requires_qt = pytest.mark.skipif(
+    _QT_IMPORT_ERROR is not None,
+    reason="no Qt binding installed (pip install PyQt6 | PySide6 | PyQt5 | PySide2)",
+)
+
+
+@pytest.mark.skipif(_QT_IMPORT_ERROR is None, reason="a Qt binding is installed")
+def test_missing_qt_binding_gives_actionable_error():
+    """Without any binding, importing the Qt backend explains how to fix it."""
+    with pytest.raises(ImportError, match="pip install PyQt6"):
+        import spectra.backends.backend_qtagg  # noqa: F401
 
 
 # ─── Qt compat layer tests ───────────────────────────────────────────────────
 
+@requires_qt
 class TestQtCompat:
     """Tests for spectra.backends._qt_compat auto-detection."""
 
@@ -83,6 +104,7 @@ class TestQtCompat:
 
 # ─── Backend module structure tests ──────────────────────────────────────────
 
+@requires_qt
 class TestBackendStructure:
     """Tests for spectra.backends.backend_qtagg module structure."""
 
@@ -116,6 +138,7 @@ class TestBackendStructure:
 
 # ─── Key/button/modifier mapping tests ──────────────────────────────────────
 
+@requires_qt
 class TestKeyMapping:
     """Tests for Qt → Spectra key/button/modifier translation."""
 
@@ -190,6 +213,7 @@ class TestKeyMapping:
 
 # ─── Icon generation tests ──────────────────────────────────────────────────
 
+@requires_qt
 class TestIcons:
     """Tests for toolbar icon generation."""
 
@@ -220,10 +244,12 @@ class TestBackendsPackage:
         import spectra.backends
         assert spectra.backends is not None
 
+    @requires_qt
     def test_backend_qtagg_importable(self):
         import spectra.backends.backend_qtagg
         assert spectra.backends.backend_qtagg is not None
 
+    @requires_qt
     def test_qt_compat_importable(self):
         import spectra.backends._qt_compat
         assert spectra.backends._qt_compat is not None

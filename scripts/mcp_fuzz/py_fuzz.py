@@ -28,6 +28,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 from ui_action_log import StderrActionTracker  # noqa: E402
+from mcp_auth import capture_dir, mcp_headers, prepare_launch_env  # noqa: E402
 
 WORKSPACE = Path(os.environ.get("SPECTRA_ROOT", SCRIPT_DIR.parent.parent))
 MCP = os.environ.get("SPECTRA_MCP_URL", "http://127.0.0.1:8765/mcp")
@@ -62,7 +63,7 @@ def mcp(tool: str, args: dict | None = None, timeout: float = 30) -> dict:
     req = urllib.request.Request(
         MCP,
         data=payload,
-        headers={"Content-Type": "application/json"},
+        headers=mcp_headers(),
         method="POST",
     )
     try:
@@ -154,6 +155,7 @@ def launch(binary: Path, ros: bool = False) -> str | None:
     env["SPECTRA_NO_NATIVE_DIALOGS"] = "1"
     env.setdefault("SPECTRA_LOG_LEVEL", "debug")
     env.setdefault("SPECTRA_FUZZ_SKIP_DRAG", "1")
+    prepare_launch_env(env)
     if env.get("DISPLAY") == ":99":
         env.setdefault(
             "VK_ICD_FILENAMES",
@@ -258,7 +260,7 @@ def fuzz_loop(steps: int, log_path: Path, tracker: StderrActionTracker) -> int:
                             f"step={step} cmd={cmd_id} got={tracker.summarize(actions)}",
                         )
             if step % 50 == 0:
-                cap = Path(f"/tmp/pyfuzz_step_{step}.png")
+                cap = capture_dir() / f"pyfuzz_step_{step}.png"
                 mcp("wait_frames", {"count": 5})
                 mcp("capture_window", {"path": str(cap)})
                 if not cap.exists() or cap.stat().st_size < 500:
@@ -336,7 +338,7 @@ def ros_panels(tracker: StderrActionTracker) -> None:
                 f"x={x} y={y} got={tracker.summarize(actions)}",
             )
     mcp("wait_frames", {"count": 10})
-    mcp("capture_window", {"path": "/tmp/pyfuzz_ros_panels.png"})
+    mcp("capture_window", {"path": str(capture_dir() / "pyfuzz_ros_panels.png")})
 
 
 def scan_stderr(path: str | None) -> None:

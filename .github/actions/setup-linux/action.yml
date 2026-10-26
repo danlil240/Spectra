@@ -1,0 +1,50 @@
+name: Install Spectra Linux build dependencies
+description: >
+  apt-get install the Vulkan / windowing / shader-compiler packages Spectra needs
+  on Ubuntu runners, plus lavapipe (mesa-vulkan-drivers) and xvfb for tests.
+
+inputs:
+  toolchain-ppa:
+    description: >
+      "true" adds ppa:ubuntu-toolchain-r/test first (Ubuntu 22.04 needs it for
+      gcc-13, because Spectra uses C++20 <format>). Mirrors the release job.
+    required: false
+    default: "false"
+  extra-packages:
+    description: Space-separated extra apt packages.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Install apt packages
+      shell: bash
+      env:
+        TOOLCHAIN_PPA: ${{ inputs.toolchain-ppa }}
+        EXTRA_PACKAGES: ${{ inputs.extra-packages }}
+      run: |
+        set -euo pipefail
+        sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list /etc/apt/sources.list.d/azure-cli.list
+        if [ "$TOOLCHAIN_PPA" = "true" ]; then
+          sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
+        fi
+        sudo apt-get update
+        # shellcheck disable=SC2086  # EXTRA_PACKAGES is a word list on purpose
+        sudo apt-get install -y \
+          libvulkan-dev \
+          vulkan-tools \
+          vulkan-validationlayers \
+          mesa-vulkan-drivers \
+          libwayland-dev \
+          libxrandr-dev \
+          libxinerama-dev \
+          libxcursor-dev \
+          libxi-dev \
+          libxkbcommon-dev \
+          libgl1-mesa-dev \
+          glslang-tools \
+          python3-pillow \
+          xvfb \
+          xauth \
+          $EXTRA_PACKAGES

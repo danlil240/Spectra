@@ -6,6 +6,9 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
+#include <string>
+#include <system_error>
 
 #ifndef _WIN32
     #include <csignal>
@@ -140,6 +143,69 @@ bool copy_image_to_clipboard(const uint8_t* png_bytes, size_t size)
     }
 
     return true;
+#elif defined(__APPLE__)
+    // macOS: pbcopy only handles text, so stage the PNG in a private temp file
+    // and let AppleScript place it on the pasteboard as PNG data.
+    if (png_bytes == nullptr || size == 0)
+    {
+        SPECTRA_LOG_WARN("clipboard", "copy_image_to_clipboard: empty PNG payload");
+        return false;
+    }
+
+    std::error_code ec;
+    auto            tmp_dir = std::filesystem::temp_directory_path(ec);
+    if (ec)
+    {
+        SPECTRA_LOG_WARN("clipboard", "copy_image_to_clipboard: no temp directory");
+        return false;
+    }
+    std::string tmpl = (tmp_dir / "spectra-clip-XXXXXX").string();
+    int         fd   = ::mkstemp(tmpl.data());
+    if (fd < 0)
+    {
+        SPECTRA_LOG_WARN("clipboard", "copy_image_to_clipboard: mkstemp() failed");
+        return false;
+    }
+    size_t      total_written = 0;
+    const char* cursor        = reinterpret_cast<const char*>(png_bytes);
+    while (total_written < size)
+    {
+        const ssize_t n = ::write(fd, cursor + total_written, size - total_written);
+        if (n > 0)
+            total_written += static_cast<size_t>(n);
+        else if (!(n < 0 && errno == EINTR))
+            break;
+    }
+    ::close(fd);
+    if (total_written != size)
+    {
+        ::unlink(tmpl.c_str());
+        SPECTRA_LOG_WARN("clipboard", "copy_image_to_clipboard: failed to write temp file");
+        return false;
+    }
+
+    const std::string script = "set the clipboard to (read (POSIX file \"" + tmpl
+                               + "\") as \xC2\xAB"
+                                 "class PNGf\xC2\xBB)";
+
+    const pid_t pid = ::fork();
+    if (pid == 0)
+    {
+        for (int cfd = 3; cfd < 256; ++cfd)
+            ::close(cfd);
+        ::execlp("osascript", "osascript", "-e", script.c_str(), static_cast<char*>(nullptr));
+        ::_exit(127);
+    }
+    bool ok = false;
+    if (pid > 0)
+    {
+        int status = 0;
+        ok = ::waitpid(pid, &status, 0) == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0;
+    }
+    ::unlink(tmpl.c_str());
+    if (!ok)
+        SPECTRA_LOG_WARN("clipboard", "copy_image_to_clipboard: osascript failed");
+    return ok;
 #else
     (void)png_bytes;
     (void)size;

@@ -70,8 +70,8 @@ int main(int argc, char** argv)
         return is_help ? 0 : 1;
     }
 
-    spectra::setup_dual_logging(spectra::default_console_log_level(),
-                                  spectra::default_file_log_level());
+    spectra::setup_dual_logging(spectra::default_console_log_level(spectra::LogLevel::Info),
+                                spectra::default_file_log_level());
 
     SPECTRA_LOG_INFO("px4", "spectra-px4 {}", adapter_version());
 

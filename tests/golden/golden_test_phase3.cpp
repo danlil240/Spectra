@@ -115,6 +115,12 @@ static void run_golden_test(const std::string&                 scene_name,
 
     if (!fs::exists(baseline_path))
     {
+        if (golden_strict())
+        {
+            FAIL() << "Baseline not found: " << baseline_path
+                   << " (SPECTRA_GOLDEN_STRICT=1; run with SPECTRA_UPDATE_BASELINES=1 to "
+                      "generate it and commit the result)";
+        }
         GTEST_SKIP() << "Baseline not found: " << baseline_path
                      << " (run with SPECTRA_UPDATE_BASELINES=1 to generate)";
         return;

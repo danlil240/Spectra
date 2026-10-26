@@ -15,6 +15,13 @@ namespace spectra::vk
 namespace
 {
 
+// Portability extensions (MoltenVK / macOS).  Spelled out as literals so the
+// code compiles against Vulkan headers that predate them or that keep
+// VK_KHR_portability_subset behind VK_ENABLE_BETA_EXTENSIONS.
+constexpr const char*           kPortabilityEnumerationExt = "VK_KHR_portability_enumeration";
+constexpr const char*           kPortabilitySubsetExt      = "VK_KHR_portability_subset";
+constexpr VkInstanceCreateFlags kEnumeratePortabilityBit = 0x00000001;   // ..._PORTABILITY_BIT_KHR
+
 void append_unique(std::vector<const char*>& extensions, const char* ext)
 {
     if (!ext)
@@ -118,6 +125,16 @@ VkInstance create_instance(bool                         enable_validation,
     VkInstanceCreateInfo create_info{};
     create_info.sType                   = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     create_info.pApplicationInfo        = &app_info;
+
+    // On macOS (MoltenVK) and other non-conformant "portability" drivers, the
+    // loader hides physical devices unless the application opts in through
+    // VK_KHR_portability_enumeration + the ENUMERATE_PORTABILITY create flag.
+    if (has_ext(kPortabilityEnumerationExt))
+    {
+        append_unique(extensions, kPortabilityEnumerationExt);
+        create_info.flags |= kEnumeratePortabilityBit;
+    }
+
     create_info.enabledExtensionCount   = static_cast<uint32_t>(extensions.size());
     create_info.ppEnabledExtensionNames = extensions.data();
 
@@ -331,6 +348,13 @@ std::vector<const char*> get_required_device_extensions(VkPhysicalDevice physica
     if (has_device_extension(physical_device, VK_EXT_MEMORY_BUDGET_EXTENSION_NAME))
     {
         exts.push_back(VK_EXT_MEMORY_BUDGET_EXTENSION_NAME);
+    }
+
+    // The Vulkan spec requires enabling VK_KHR_portability_subset whenever a
+    // device advertises it (MoltenVK on macOS / iOS).
+    if (has_device_extension(physical_device, kPortabilitySubsetExt))
+    {
+        exts.push_back(kPortabilitySubsetExt);
     }
     return exts;
 }

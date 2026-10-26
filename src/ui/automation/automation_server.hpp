@@ -66,7 +66,7 @@ class AutomationServer
     bool is_running() const { return running_.load(std::memory_order_relaxed); }
 
     // Returns the default automation socket path:
-    //   /tmp/spectra-auto-<pid>.sock
+    //   $XDG_RUNTIME_DIR/spectra-auto-<pid>.sock  (fallback: $TMPDIR or /tmp)
     static std::string default_socket_path();
 
    private:

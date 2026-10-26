@@ -259,7 +259,10 @@ class TestConvenienceAPI:
     def test_version_exists(self):
         import spectra as sp
         assert hasattr(sp, "__version__")
-        assert sp.__version__ == "0.2.1"
+        # version.txt at the repo root is the single source of truth
+        version_txt = os.path.join(os.path.dirname(__file__), "..", "..", "version.txt")
+        with open(version_txt) as f:
+            assert sp.__version__ == f.read().strip()
 
     def test_session_class_exported(self):
         from spectra import Session

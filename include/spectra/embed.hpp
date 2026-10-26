@@ -7,7 +7,8 @@
 //
 // Two rendering modes:
 //   1. CPU readback  — render_to_buffer() writes RGBA pixels to caller's buffer
-//   2. Vulkan interop — render_to_image() renders directly into host's VkImage
+//   2. Vulkan interop — render_to_image() (EXPERIMENTAL, not implemented yet:
+//      always returns false; use render_to_buffer())
 //
 // Usage (CPU readback — works with QImage, GdkPixbuf, any CPU-composited UI):
 //
@@ -20,7 +21,7 @@
 //   surface.render_to_buffer(pixels.data());
 //   // ... blit pixels into your UI widget ...
 //
-// Usage (Vulkan interop — zero-copy for QVulkanWindow, game engines):
+// Usage (Vulkan interop — planned zero-copy path; NOT functional yet):
 //
 //   spectra::EmbedSurface surface({800, 600, 1, true});
 //   auto& fig = surface.figure();
@@ -58,8 +59,9 @@ struct EmbedConfig
     uint32_t height = 600;
     uint32_t msaa   = 1;   // 1 = no MSAA, 4 = 4x MSAA
 
-    // When true, render_to_image() is available for zero-copy Vulkan interop.
-    // When false (default), only render_to_buffer() is available.
+    // Reserved for zero-copy Vulkan interop via render_to_image(), which is
+    // experimental and not implemented yet.  Leave false (default) and use
+    // render_to_buffer().
     bool enable_vulkan_interop = false;
 
     // DPI scale factor (1.0 = 96 DPI, 2.0 = Retina/HiDPI).
@@ -85,7 +87,7 @@ struct EmbedConfig
     bool show_legend       = true;    // Series legend overlay (rendered by Vulkan, not ImGui)
     bool show_crosshair    = true;    // Crosshair + cursor readout
 
-    // Fluent builder for EmbedConfig (Phase 6D).  Defined out-of-line below.
+    // Fluent builder for EmbedConfig.  Defined out-of-line below.
     //
     //   auto cfg = EmbedConfig::Builder()
     //                  .size(1280, 720)
@@ -193,7 +195,8 @@ class EmbedConfig::Builder
     EmbedConfig cfg_{};
 };
 
-// Vulkan interop target: host provides these so Spectra renders directly
+// Vulkan interop target for render_to_image() (EXPERIMENTAL, not implemented
+// yet).  The host would provide these so Spectra renders directly
 // into the host's VkImage.  Both semaphores are optional (VK_NULL_HANDLE
 // to skip synchronization when the host manages barriers manually).
 struct VulkanInteropInfo
@@ -227,7 +230,7 @@ using TooltipCallback      = std::function<void(const std::string& text, float x
 // delta of the current step.  Use for live data streaming / animation.
 using FrameCallback = std::function<void(float time_sec, float dt_sec)>;
 
-// ── Interactive event callbacks (Phase 3) ───────────────────────────────────
+// ── Interactive event callbacks ─────────────────────────────────────────────
 // series_index is the index of the series within its axes; point_index is the
 // index of the data point within the series.  axes_index is the index of the
 // axes within the figure.
@@ -335,9 +338,10 @@ class EmbedSurface
     // Returns false on render or readback failure.
     bool render_to_buffer(uint8_t* out_rgba);
 
-    // Vulkan interop mode: render directly into host-provided VkImage.
-    // Only available when EmbedConfig::enable_vulkan_interop is true.
-    // Returns false on failure or if interop is not enabled.
+    // EXPERIMENTAL / NOT IMPLEMENTED: zero-copy rendering into a
+    // host-provided VkImage.  The entry point exists to reserve the API, but
+    // it currently always returns false (logging a warning) and renders
+    // nothing.  Use render_to_buffer() instead.
     bool render_to_image(const VulkanInteropInfo& target);
 
     // ── Input forwarding ────────────────────────────────────────────────
@@ -395,7 +399,7 @@ class EmbedSurface
     // Called when a tooltip should be shown/hidden.
     void set_tooltip_callback(TooltipCallback cb);
 
-    // Per-step frame callback (Phase 4).  Invoked inside update(dt) with the
+    // Per-step frame callback.  Invoked inside update(dt) with the
     // cumulative elapsed time and the current step delta.  Use for live data
     // streaming and animation.  Pass nullptr / call clear_frame_callback() to
     // remove.  reset_frame_clock() rewinds the cumulative time to zero.
@@ -404,7 +408,7 @@ class EmbedSurface
     void  reset_frame_clock();
     float frame_time() const;
 
-    // ── Interactive event callbacks (Phase 3) ───────────────────────────
+    // ── Interactive event callbacks ─────────────────────────────────────
     // Fired when the user selects a concrete data point (left-click near it).
     void set_on_point_selected(PointSelectedCallback cb);
     // Fired when the user selects a series (left-click near it).

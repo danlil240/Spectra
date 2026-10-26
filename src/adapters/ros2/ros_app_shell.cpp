@@ -1018,7 +1018,7 @@ void RosAppShell::draw()
         && (ImGui::IsKeyDown(ImGuiKey_LeftShift) || ImGui::IsKeyDown(ImGuiKey_RightShift))
         && ImGui::IsKeyPressed(ImGuiKey_S, false) && screenshot_export_)
     {
-        const std::string path = RosScreenshotExport::make_screenshot_path("/tmp", "spectra_ros");
+        const std::string path = RosScreenshotExport::make_screenshot_path("", "spectra_ros");
         screenshot_export_->take_screenshot(path);
     }
 
@@ -1246,8 +1246,7 @@ void RosAppShell::register_ros_commands()
         [this]()
         {
             if (!screenshot_export_) return;
-            const std::string path =
-                RosScreenshotExport::make_screenshot_path("/tmp", "spectra_ros");
+            const std::string path = RosScreenshotExport::make_screenshot_path("", "spectra_ros");
             screenshot_export_->take_screenshot(path);
         },
         "Ctrl+Shift+S", "Tools");
@@ -1512,7 +1511,7 @@ void RosAppShell::draw_plot_area(bool* p_open)
                 if (!screenshot_export_)
                     return;
                 const std::string path =
-                    RosScreenshotExport::make_screenshot_path("/tmp", "spectra_ros");
+                    RosScreenshotExport::make_screenshot_path("", "spectra_ros");
                 screenshot_export_->take_screenshot(path);
             };
             tb_actions.export_video = [this]() { show_record_dialog_ = true; };

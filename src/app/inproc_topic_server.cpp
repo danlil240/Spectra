@@ -11,6 +11,7 @@
     #include <unistd.h>
 
     #include "../ipc/codec.hpp"
+    #include "../ipc/transport.hpp"
     #include "spectra/axes.hpp"
     #include "spectra/figure.hpp"
     #include "spectra/figure_registry.hpp"
@@ -22,11 +23,11 @@ namespace spectra
 namespace
 {
 
-// Resolve $XDG_RUNTIME_DIR or fallback to /tmp.
+// $XDG_RUNTIME_DIR, or the system temp directory (shared with the daemon and
+// publishers so they can discover this socket).
 static std::string runtime_dir()
 {
-    const char* d = ::getenv("XDG_RUNTIME_DIR");
-    return (d && d[0]) ? d : "/tmp";
+    return ipc::runtime_dir();
 }
 
 }   // namespace

@@ -161,20 +161,6 @@ TEST_F(SingleWindowFixture, OffscreenFramebufferCreation)
 
 #ifdef SPECTRA_HAS_WINDOW_CONTEXT
 
-TEST(WindowContextPhase1, StructExists)
-{
-    // Verify WindowContext can be instantiated
-    // WindowContext wctx{};
-    // EXPECT_EQ(wctx.id, 0u);
-    GTEST_SKIP() << "WindowContext not yet implemented (Agent A)";
-}
-
-TEST(WindowContextPhase1, SetActiveWindow)
-{
-    // Verify VulkanBackend::set_active_window() works
-    GTEST_SKIP() << "set_active_window not yet implemented (Agent A)";
-}
-
 TEST(WindowContextPhase1, SingleWindowUnchanged)
 {
     // After Agent A refactor, single window must still work identically
@@ -207,57 +193,6 @@ TEST(WindowContextPhase1, GlfwTerminateNotCalledOnShutdown)
 }
 
 #endif   // SPECTRA_HAS_WINDOW_CONTEXT
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// PHASE 2 — Multi-Window Rendering (after Agent B merge)
-// Tests that multiple windows can render simultaneously.
-// ═══════════════════════════════════════════════════════════════════════════════
-
-#ifdef SPECTRA_HAS_WINDOW_MANAGER
-
-TEST_F(MultiWindowFixture, TwoWindowsRender)
-{
-    GTEST_SKIP() << "WindowManager not yet implemented (Agent B)";
-}
-
-TEST_F(MultiWindowFixture, ThreeWindowsRender)
-{
-    GTEST_SKIP() << "WindowManager not yet implemented (Agent B)";
-}
-
-TEST_F(MultiWindowFixture, ResizeOneWindowDoesNotAffectOther)
-{
-    GTEST_SKIP() << "WindowManager not yet implemented (Agent B)";
-}
-
-TEST_F(MultiWindowFixture, CloseOneWindowOtherContinues)
-{
-    GTEST_SKIP() << "WindowManager not yet implemented (Agent B)";
-}
-
-TEST_F(MultiWindowFixture, MinimizedWindowSkipsRender)
-{
-    GTEST_SKIP() << "WindowManager not yet implemented (Agent B)";
-}
-
-TEST_F(MultiWindowFixture, AllWindowsMinimized)
-{
-    GTEST_SKIP() << "WindowManager not yet implemented (Agent B)";
-}
-
-TEST_F(MultiWindowFixture, RapidResizeTorture)
-{
-    // 100 rapid resizes on 3 windows simultaneously
-    GTEST_SKIP() << "WindowManager not yet implemented (Agent B)";
-}
-
-TEST_F(MultiWindowFixture, WindowCloseOrderPermutations)
-{
-    // Close windows in every permutation — no crash
-    GTEST_SKIP() << "WindowManager not yet implemented (Agent B)";
-}
-
-#endif   // SPECTRA_HAS_WINDOW_MANAGER
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PHASE 2 STUB — Multi-Window Simulation (always runs)
@@ -316,40 +251,6 @@ TEST_F(MultiWindowFixture, StubNoHangMultipleWindows)
 }
 
 #endif   // !SPECTRA_HAS_WINDOW_MANAGER
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// PHASE 3 — Figure Ownership (after Agent C merge)
-// Tests that figures have stable IDs and can move between windows.
-// ═══════════════════════════════════════════════════════════════════════════════
-
-#ifdef SPECTRA_HAS_FIGURE_REGISTRY
-
-TEST(FigureOwnership, StableIds)
-{
-    GTEST_SKIP() << "FigureRegistry not yet implemented (Agent C)";
-}
-
-TEST(FigureOwnership, MoveFigureBetweenWindows)
-{
-    GTEST_SKIP() << "FigureRegistry not yet implemented (Agent C)";
-}
-
-TEST(FigureOwnership, GpuBuffersSurviveMove)
-{
-    GTEST_SKIP() << "FigureRegistry not yet implemented (Agent C)";
-}
-
-TEST(FigureOwnership, CloseSourceWindowAfterMove)
-{
-    GTEST_SKIP() << "FigureRegistry not yet implemented (Agent C)";
-}
-
-TEST(FigureOwnership, AnimationCallbacksAfterMove)
-{
-    GTEST_SKIP() << "FigureRegistry not yet implemented (Agent C)";
-}
-
-#endif   // SPECTRA_HAS_FIGURE_REGISTRY
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PHASE 4 — Tab Tear-Off (after Agent D merge)

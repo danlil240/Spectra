@@ -1,12 +1,16 @@
 # Homebrew formula for Spectra
+# GENERATED from packaging/homebrew/spectra.rb.in by tools/update_packaging.sh
+# (version from version.txt, sha256 of the GitHub source tarball).  Edit the
+# template, not this file.
+#
 # Install: brew install spectra (after tap setup)
 # Or:      brew install --build-from-source spectra
 
 class Spectra < Formula
   desc "GPU-accelerated scientific plotting library"
   homepage "https://github.com/danlil240/Spectra"
-  url "https://github.com/danlil240/Spectra/archive/refs/tags/v0.1.0.tar.gz"
-  sha256 "PLACEHOLDER_SHA256"
+  url "https://github.com/danlil240/Spectra/archive/refs/tags/v0.3.0.tar.gz"
+  sha256 "108979bc97c68c67691869a91117a574c7d203e0a69561381aa01dd5f69c39d1"
   license "MIT"
   head "https://github.com/danlil240/Spectra.git", branch: "main"
 
@@ -20,6 +24,8 @@ class Spectra < Formula
   def install
     args = %W[
       -DCMAKE_BUILD_TYPE=Release
+      -DSPECTRA_USE_SYSTEM_GLFW=ON
+      -DSPECTRA_USE_ROS2=OFF
       -DSPECTRA_BUILD_EXAMPLES=OFF
       -DSPECTRA_BUILD_TESTS=OFF
       -DSPECTRA_BUILD_GOLDEN_TESTS=OFF

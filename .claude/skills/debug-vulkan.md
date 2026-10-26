@@ -47,21 +47,24 @@ While Spectra is running, use the MCP server to inspect live state and capture s
 ```bash
 # Kill any stale instance, start fresh
 pkill -f spectra || true; sleep 0.5
+export SPECTRA_AUTOMATION=1 SPECTRA_MCP_TOKEN="${SPECTRA_MCP_TOKEN:-$(openssl rand -hex 32)}"  # automation is opt-in (SECURITY.md)
 VK_INSTANCE_LAYERS=VK_LAYER_KHRONOS_validation ./build/app/spectra &
 sleep 1
 
 # Health check
-curl http://127.0.0.1:8765/
+curl -s -H "Authorization: Bearer $SPECTRA_MCP_TOKEN" http://127.0.0.1:8765/
 
 # Get application state (active figure, window info)
 curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Authorization: Bearer $SPECTRA_MCP_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"get_state","arguments":{}}}'
 
 # Capture screenshot for visual inspection
 curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Authorization: Bearer $SPECTRA_MCP_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"capture_window","arguments":{"path":"/tmp/debug_snap.png"}}}'
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"capture_window","arguments":{"path":"debug_snap.png"}}}'
 ```
 
 See `.windsurf/skills/spectra-skills/SKILL.md` § 12 for the full tool reference (22 tools).

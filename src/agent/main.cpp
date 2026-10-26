@@ -638,7 +638,7 @@ int main(int argc, char* argv[])
 #endif
 
     // Initialize dual logging: console=INFO+, file=TRACE+
-    spectra::setup_dual_logging(spectra::default_console_log_level(),
+    spectra::setup_dual_logging(spectra::default_console_log_level(spectra::LogLevel::Info),
                                 spectra::default_file_log_level());
 
     SPECTRA_LOG_INFO("window", "Connecting to backend: {}", socket_path);

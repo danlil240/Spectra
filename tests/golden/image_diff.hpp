@@ -236,4 +236,12 @@ inline bool save_raw_rgba(const std::string& path,
     return f.good();
 }
 
+// If SPECTRA_GOLDEN_STRICT=1, a missing baseline is a test failure instead of a skip.
+// CI sets this so that a scene added without a committed baseline cannot pass silently.
+inline bool golden_strict()
+{
+    const char* env = std::getenv("SPECTRA_GOLDEN_STRICT");
+    return env && std::string(env) == "1";
+}
+
 }   // namespace spectra::test

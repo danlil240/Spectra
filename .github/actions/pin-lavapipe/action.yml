@@ -1,0 +1,48 @@
+name: Pin Vulkan ICD to lavapipe
+description: >
+  Find the Mesa lavapipe (software Vulkan) ICD manifest and export
+  VK_ICD_FILENAMES / VK_DRIVER_FILES so every later step uses it.
+  Requires mesa-vulkan-drivers to be installed.
+
+runs:
+  using: composite
+  steps:
+    - name: Pin Vulkan ICD to lavapipe
+      shell: bash
+      run: |
+        set -euo pipefail
+        ICD_DIRS=(
+          /usr/share/vulkan/icd.d
+          /etc/vulkan/icd.d
+          /usr/lib/x86_64-linux-gnu/vulkan/icd.d
+          /usr/lib/i386-linux-gnu/vulkan/icd.d
+        )
+        LVP_ICD=""
+        for d in "${ICD_DIRS[@]}"; do
+          [ -d "$d" ] || continue
+          for f in "$d"/lvp_icd*.json "$d"/*lavapipe*.json; do
+            [ -f "$f" ] || continue
+            LVP_ICD="$f"
+            break 2
+          done
+        done
+        # Fallback: detect the lavapipe ICD by JSON content if the filename changed.
+        if [ -z "$LVP_ICD" ]; then
+          for d in "${ICD_DIRS[@]}"; do
+            [ -d "$d" ] || continue
+            F_MATCH="$(grep -l 'libvulkan_lvp\.so' "$d"/*.json 2>/dev/null | head -n1 || true)"
+            if [ -n "$F_MATCH" ]; then
+              LVP_ICD="$F_MATCH"
+              break
+            fi
+          done
+        fi
+        if [ -z "$LVP_ICD" ]; then
+          echo "::error::lavapipe ICD not found"
+          exit 1
+        fi
+        echo "Using lavapipe ICD: $LVP_ICD"
+        echo "VK_ICD_FILENAMES=$LVP_ICD" >> "$GITHUB_ENV"
+        # Newer Vulkan loader env var name; keep both for compatibility.
+        echo "VK_DRIVER_FILES=$LVP_ICD" >> "$GITHUB_ENV"
+        echo "LIBGL_ALWAYS_SOFTWARE=1" >> "$GITHUB_ENV"

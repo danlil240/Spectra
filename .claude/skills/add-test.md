@@ -31,14 +31,16 @@ For UI interaction tests that don't need a C++ test harness, drive a live Spectr
 ```bash
 # Kill existing instance, launch fresh
 pkill -f spectra || true; sleep 0.5
+export SPECTRA_AUTOMATION=1 SPECTRA_MCP_TOKEN="${SPECTRA_MCP_TOKEN:-$(openssl rand -hex 32)}"  # automation is opt-in (SECURITY.md)
 ./build/app/spectra &
 sleep 1
 
 # Verify alive
-curl http://127.0.0.1:8765/
+curl -s -H "Authorization: Bearer $SPECTRA_MCP_TOKEN" http://127.0.0.1:8765/
 
 # Example: create a figure, add series, capture screenshot
 curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Authorization: Bearer $SPECTRA_MCP_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"create_figure","arguments":{"width":1280,"height":720}}}'
 ```

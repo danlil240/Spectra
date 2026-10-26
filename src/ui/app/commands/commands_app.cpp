@@ -21,7 +21,7 @@
 #endif
 
 #ifdef SPECTRA_USE_ROS2
-    #ifdef __unix__
+    #if defined(__unix__) || defined(__APPLE__)
         #include <sys/types.h>
         #include <unistd.h>
     #endif
@@ -212,7 +212,7 @@ std::vector<CommandDescriptor> make_app_commands(CommandContext& ctx)
          static_cast<uint16_t>(ui::Icon::Wrench),
          []()
          {
-        #ifdef __unix__
+        #if defined(__unix__) || defined(__APPLE__)
              pid_t pid = fork();
              if (pid == 0)
              {
@@ -232,6 +232,10 @@ std::vector<CommandDescriptor> make_app_commands(CommandContext& ctx)
              }
         #elif defined(_WIN32)
              std::thread([]() { std::system("start spectra-ros"); }).detach();
+        #else
+             SPECTRA_LOG_ERROR("ros2_adapter", "Launching spectra-ros is not supported here");
+             spectra::ros2_adapter_set_error("Launching spectra-ros is not supported on this "
+                                             "platform.");
         #endif
          }});
     #endif   // SPECTRA_USE_ROS2
@@ -265,6 +269,12 @@ std::vector<CommandDescriptor> make_app_commands(CommandContext& ctx)
              {
                  SPECTRA_LOG_ERROR("help", "fork() failed — cannot open browser");
              }
+    #else
+             SPECTRA_LOG_WARN("help",
+                              std::string("Opening a browser is not supported on this platform; "
+                                          "see ")
+                                  + url);
+             return;
     #endif
              SPECTRA_LOG_INFO("help", std::string("Opening documentation: ") + url);
          }});

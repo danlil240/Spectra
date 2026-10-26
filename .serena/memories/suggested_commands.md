@@ -63,7 +63,7 @@ cmake -B build-debug -G Ninja -DCMAKE_BUILD_TYPE=Debug ...
 ## Python (optional)
 
 ```bash
-cd python && pip install -e ".[dev]"
+pip install -e ".[dev]" -Cwheel.cmake=false   # from repo root
 cd python && pytest tests/ -v
 # or: make pip-dev && make pip-test
 ```

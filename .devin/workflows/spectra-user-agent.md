@@ -11,10 +11,11 @@ description: Spectra User Agent — Act as a real user, explore features via MCP
 ## Pre-Session Checklist
 
 1. Verify Spectra is running and the MCP server is reachable:
-   - Use `run_command` to check: `curl -s -X POST http://127.0.0.1:8765/mcp -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"ping","arguments":{}}}'`
+   - Use `run_command` to check: `curl -s -X POST -H "Authorization: Bearer $SPECTRA_MCP_TOKEN" http://127.0.0.1:8765/mcp -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"ping","arguments":{}}}'`
+   - Automation is opt-in and token-protected: export `SPECTRA_MCP_TOKEN="${SPECTRA_MCP_TOKEN:-$(openssl rand -hex 32)}"` before launching (see `SECURITY.md`).
    - **If ping fails (connection refused / exit code 7)**: Launch Spectra automatically:
      ```
-     /home/daniel/projects/Spectra/build/spectra
+     SPECTRA_AUTOMATION=1 ./build/spectra
      ```
      Run it as a **non-blocking** background command (`Blocking: false`, `WaitMsBeforeAsync: 3000`).
      Then wait 3–4 seconds and ping again. If it still fails after one retry, report the error and stop.
@@ -26,6 +27,7 @@ description: Spectra User Agent — Act as a real user, explore features via MCP
 > **MCP HTTP helper** — all MCP tool calls use:
 > ```
 > curl -s -X POST http://127.0.0.1:8765/mcp \
+>   -H "Authorization: Bearer $SPECTRA_MCP_TOKEN" \
 >   -H "Content-Type: application/json" \
 >   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"<tool>","arguments":{...}}}'
 > ```

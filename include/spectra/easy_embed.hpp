@@ -87,19 +87,19 @@ struct RenderOptions
     bool        grid             = true;
     float       background_alpha = 1.0f;   // 0 = transparent background
 
-    // Legend (Phase 6A)
+    // Draw a legend for labelled series, at `legend_pos`.
     bool           legend     = false;
     LegendPosition legend_pos = LegendPosition::Best;
 
-    // Subplot grid (Phase 6A) — used by render_subplots().
+    // Subplot grid dimensions — used by render_subplots().
     int subplot_rows = 1;
     int subplot_cols = 1;
 
-    // Optional manual axis limits (Phase 6A).
+    // Optional manual axis limits {min, max}; unset = auto-fit to the data.
     std::optional<std::pair<double, double>> xlim;
     std::optional<std::pair<double, double>> ylim;
 
-    // Axis scale types (Phase 7A). Default: "linear".
+    // Axis scale types: "linear" (default), "log" / "log10", "log2" or "sqrt".
     std::string xscale = "linear";
     std::string yscale = "linear";
 };
@@ -113,8 +113,8 @@ struct SeriesDesc
     std::string_view       fmt   = "-";
     std::string_view       label = "";
 
-    // Per-series style overrides (Phase 6B). When set, they override the
-    // values implied by the format string.
+    // Optional per-series style overrides.  When set, they take precedence
+    // over the values implied by the format string.
     std::optional<Color> color       = std::nullopt;   // RGBA override
     float                line_width  = 0.0f;           // 0 = leave default
     float                marker_size = 0.0f;           // 0 = leave default
@@ -340,7 +340,7 @@ inline RenderedImage render_bar(std::span<const float> positions,
     return img;
 }
 
-// ─── Subplot grid render (Phase 6C) ──────────────────────────────────────────
+// ─── Subplot grid render ─────────────────────────────────────────────────────
 
 // A single cell in a subplot grid: one or more series plus per-cell labels.
 struct SubplotDesc

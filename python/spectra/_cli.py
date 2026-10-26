@@ -9,39 +9,42 @@ def backend_main():
     """Entry point for 'spectra-backend' console script.
 
     Forwards all arguments to the bundled spectra-backend binary.
-    Supports --download to pre-fetch the binary without running it.
+    ``--download`` explicitly fetches the pre-built binaries for this package
+    version from GitHub Releases (SHA-256 verified against the release's
+    SHA256SUMS) and exits without running them.
     """
-    # Handle --download: fetch binary and exit
     if len(sys.argv) > 1 and sys.argv[1] == "--download":
         from ._download import download_backend
+
         try:
             path = download_backend()
-            print(f"spectra-backend ready: {path}")
+            print(f"spectra-backend ready (verified): {path}")
         except Exception as exc:
             print(f"Download failed: {exc}", file=sys.stderr)
             sys.exit(1)
         sys.exit(0)
 
+    from ._download import auto_download_enabled
     from ._launcher import _find_backend_binary
 
     binary = _find_backend_binary()
 
-    # If not found locally, try auto-download
-    if binary is None:
+    if binary is None and auto_download_enabled():
         try:
             from ._download import download_backend
+
             download_backend()
             binary = _find_backend_binary()
         except Exception as exc:
-            print(f"Auto-download failed: {exc}", file=sys.stderr)
+            print(f"Verified download failed: {exc}", file=sys.stderr)
 
     if binary is None:
         print(
             "spectra-backend native binary not found.\n"
-            "Install the spectra-plot wheel (includes the binary), "
+            "Install a spectra-plot platform wheel (bundles the binaries), "
             "set SPECTRA_BACKEND_PATH, or build with CMake "
             "(cmake -B build -DSPECTRA_RUNTIME_MODE=multiproc).\n"
-            "Or run: spectra-backend --download",
+            "Or fetch a checksum-verified pre-built binary: spectra-backend --download",
             file=sys.stderr,
         )
         sys.exit(1)

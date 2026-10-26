@@ -936,6 +936,11 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
             imgui_frame_started = false;
         }
 #endif
+        // Device lost is unrecoverable: never try to recreate the swapchain
+        // on a lost device.  The session loop sees is_device_lost() and exits.
+        if (backend_.is_device_lost())
+            return false;
+
         // Only attempt swapchain recreation if it was actually invalidated
         // (OUT_OF_DATE).  Fence/acquire timeouts just mean this window is
         // temporarily busy — skip it without recreation.
@@ -1028,7 +1033,7 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
         // via set_render_figure_enabled(true).
         const bool render_canvas = !ui_ctx.imgui_ui || ui_ctx.imgui_ui->is_canvas_visible()
                                    || ui_ctx.imgui_ui->is_render_figure_enabled();
-        auto&      dock_system   = ui_ctx.dock_system;
+        auto& dock_system = ui_ctx.dock_system;
         if (render_canvas && active_figure && dock_system.is_split())
         {
             uint32_t sw_u       = backend_.swapchain_width();
@@ -1087,9 +1092,9 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
         if (profiler)
             profiler->end_stage("cmd_record");
 
-        // Invoke scene render callback — allows adapter shells (spectra-ros)
-        // to issue GPU draw calls for 3D scene content during the active
-        // Vulkan render pass, before ImGui overlays.
+            // Invoke scene render callback — allows adapter shells (spectra-ros)
+            // to issue GPU draw calls for 3D scene content during the active
+            // Vulkan render pass, before ImGui overlays.
 #ifdef SPECTRA_USE_IMGUI
         if (ui_ctx.imgui_ui)
         {

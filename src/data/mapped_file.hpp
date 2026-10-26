@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <span>
 #include <string>
+#include <vector>
 
 // Platform-specific includes handled in .cpp
 
@@ -41,10 +42,17 @@ class MappedFile
     /// File size in bytes.
     [[nodiscard]] std::size_t size() const { return size_; }
 
-    /// Typed subspan of the mapped region.  `byte_offset` and `count` are
-    /// in units of float.  Returns an empty span if the range is out of bounds.
+    /// Typed subspan of the mapped region.  `byte_offset` is in bytes and
+    /// `count` is in floats (clamped to what is available).  Returns an empty
+    /// span if the range is out of bounds or `byte_offset` is not a multiple of
+    /// alignof(float) (reading through a misaligned float* is undefined
+    /// behaviour); use copy_floats() for unaligned data.
     [[nodiscard]] std::span<const float> subspan_float(std::size_t byte_offset,
                                                        std::size_t count) const;
+
+    /// Copy up to `count` floats starting at `byte_offset` (bytes) into a new
+    /// vector.  Works for any byte offset, including unaligned ones.
+    [[nodiscard]] std::vector<float> copy_floats(std::size_t byte_offset, std::size_t count) const;
 
     /// Close the mapping explicitly (also called by destructor).
     void close();

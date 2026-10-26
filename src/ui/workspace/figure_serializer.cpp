@@ -1,6 +1,7 @@
 #include "figure_serializer.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <fstream>
 #include <spectra/axes.hpp>
@@ -678,6 +679,14 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
     // Track axes as we create them: index -> AxesBase*
     std::vector<AxesBase*> axes_ptrs;
 
+    struct PendingAutoLimits
+    {
+        Axes*      axes;
+        AxisLimits x;
+        AxisLimits y;
+    };
+    std::vector<PendingAutoLimits> pending_auto_limits;
+
     // Read chunks
     while (r.good())
     {
@@ -758,12 +767,22 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 float ymin = r.read_f32();
                 float ymax = r.read_f32();
 
-                // Set Manual first so xlim/ylim stick, then set limits,
-                // then restore the saved autoscale mode without clearing them.
-                axes.autoscale_mode(AutoscaleMode::Manual);
-                axes.xlim(xmin, xmax);
-                axes.ylim(ymin, ymax);
+                // Restore the mode first: switching to a non-Manual mode
+                // clears explicit limits, so limits must be applied after it.
                 axes.autoscale_mode(saved_autoscale);
+                if (saved_autoscale == AutoscaleMode::Manual)
+                {
+                    axes.xlim(xmin, xmax);
+                    axes.ylim(ymin, ymax);
+                }
+                else
+                {
+                    // The file stores the effective limits, not whether they
+                    // were explicit.  Series are not loaded yet, so decide
+                    // after the loop: re-apply only limits that differ from
+                    // the auto-fit (i.e. a saved zoom/pan).
+                    pending_auto_limits.push_back({&axes, {xmin, xmax}, {ymin, ymax}});
+                }
 
                 // Axis style
                 auto& as       = axes.axis_style();
@@ -1479,6 +1498,22 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 r.skip(len);
                 break;
         }
+    }
+
+    // Saved limits were written as float; treat them as the auto-fit when they
+    // match it to float precision, otherwise restore them as an explicit view.
+    auto matches_fit = [](const AxisLimits& saved, const AxisLimits& fit)
+    {
+        const double scale = std::max({std::abs(fit.min), std::abs(fit.max), fit.max - fit.min});
+        const double tol   = std::max(scale, 1.0) * 1e-6;
+        return std::abs(saved.min - fit.min) <= tol && std::abs(saved.max - fit.max) <= tol;
+    };
+    for (const auto& p : pending_auto_limits)
+    {
+        if (!matches_fit(p.x, p.axes->x_limits()))
+            p.axes->xlim(p.x.min, p.x.max);
+        if (!matches_fit(p.y, p.axes->y_limits()))
+            p.axes->ylim(p.y.min, p.y.max);
     }
 
     return r.good() || f.eof();

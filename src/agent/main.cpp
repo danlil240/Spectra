@@ -99,6 +99,24 @@ static bool is_3d_series_type(const std::string& t)
     return t == "line3d" || t == "scatter3d" || t == "surface" || t == "mesh";
 }
 
+// Upper bounds on indices accepted from IPC diffs. Structural ops grow the
+// cache up to the given index, so an unchecked value from a buggy or hostile
+// peer could allocate gigabytes.
+constexpr size_t  MAX_CACHE_AXES   = 1024;
+constexpr size_t  MAX_CACHE_SERIES = size_t(1) << 16;
+constexpr int32_t MAX_GRID_DIM     = 1024;
+
+// Resolve an axes slot on a live Figure. 2D axes live in axes(); 3D axes are
+// created by subplot3d() and only exist in all_axes().
+spectra::AxesBase* live_axes_at(spectra::Figure& fig, uint32_t index)
+{
+    if (index < fig.axes().size() && fig.axes()[index])
+        return fig.axes_mut()[index].get();
+    if (index < fig.all_axes().size() && fig.all_axes()[index])
+        return fig.all_axes_mut()[index].get();
+    return nullptr;
+}
+
 // ─── Build a real Figure from a SnapshotFigureState ──────────────────────────
 std::unique_ptr<spectra::Figure> build_figure_from_snapshot(
     const spectra::ipc::SnapshotFigureState& snap,
@@ -110,10 +128,15 @@ std::unique_ptr<spectra::Figure> build_figure_from_snapshot(
     cfg.height = (override_height > 0) ? override_height : snap.height;
     auto fig   = std::make_unique<spectra::Figure>(cfg);
 
-    int rows = std::max(snap.grid_rows, int32_t(1));
-    int cols = std::max(snap.grid_cols, int32_t(1));
+    int rows = std::clamp(snap.grid_rows, int32_t(1), int32_t(MAX_GRID_DIM));
+    int cols = std::clamp(snap.grid_cols, int32_t(1), int32_t(MAX_GRID_DIM));
 
-    size_t num_axes = std::max(snap.axes.size(), size_t(1));
+    size_t num_axes = std::clamp(snap.axes.size(), size_t(1), MAX_CACHE_AXES);
+    // Figure::subplot()/subplot3d() throw std::out_of_range when the index
+    // exceeds rows*cols. The cached grid can lag behind the axes list (e.g. an
+    // ADD_AXES from an older daemon without grid info), so grow it to fit.
+    while (static_cast<size_t>(rows) * static_cast<size_t>(cols) < num_axes)
+        ++rows;
     for (size_t i = 0; i < num_axes; ++i)
     {
         bool axes_is_3d = (i < snap.axes.size()) && snap.axes[i].is_3d;
@@ -345,8 +368,10 @@ void apply_diff_op_to_cache(spectra::ipc::SnapshotFigureState& fig, const spectr
         case spectra::ipc::DiffOp::Type::SET_SERIES_DATA:
             if (op.series_index < fig.series.size())
             {
-                fig.series[op.series_index].data        = op.data;
-                fig.series[op.series_index].point_count = static_cast<uint32_t>(op.data.size() / 2);
+                auto&        series = fig.series[op.series_index];
+                const size_t stride = is_3d_series_type(series.type) ? 3u : 2u;
+                series.data         = op.data;
+                series.point_count  = static_cast<uint32_t>(op.data.size() / stride);
             }
             break;
         case spectra::ipc::DiffOp::Type::SET_AXIS_ZLIMITS:
@@ -358,23 +383,41 @@ void apply_diff_op_to_cache(spectra::ipc::SnapshotFigureState& fig, const spectr
             break;
         case spectra::ipc::DiffOp::Type::ADD_SERIES:
         {
+            if (op.series_index >= MAX_CACHE_SERIES)
+                break;
             spectra::ipc::SnapshotSeriesState s;
             s.type       = op.str_val;
             s.axes_index = op.axes_index;
             // Grow series list to accommodate the new index
-            while (fig.series.size() <= op.series_index)
-                fig.series.push_back({});
+            if (fig.series.size() <= op.series_index)
+                fig.series.resize(static_cast<size_t>(op.series_index) + 1);
             fig.series[op.series_index] = std::move(s);
             break;
         }
+        case spectra::ipc::DiffOp::Type::REMOVE_SERIES:
+            // Mirrors FigureModel::remove_series: later series shift down by one.
+            if (op.series_index < fig.series.size())
+                fig.series.erase(fig.series.begin() + op.series_index);
+            break;
         case spectra::ipc::DiffOp::Type::ADD_AXES:
         {
+            if (op.axes_index >= MAX_CACHE_AXES)
+                break;
             spectra::ipc::SnapshotAxisState ax;
             ax.is_3d = op.bool_val;
             // Grow axes list to accommodate the new index
-            while (fig.axes.size() <= op.axes_index)
-                fig.axes.push_back({});
+            if (fig.axes.size() <= op.axes_index)
+                fig.axes.resize(static_cast<size_t>(op.axes_index) + 1);
             fig.axes[op.axes_index] = std::move(ax);
+            // f1/f2 carry the daemon's (grown) subplot grid; 0 from older daemons.
+            const auto grid_dim = [](double v) -> int32_t
+            {
+                if (!(v >= 1.0))
+                    return 0;
+                return static_cast<int32_t>(std::min(v, static_cast<double>(MAX_GRID_DIM)));
+            };
+            fig.grid_rows = std::max(fig.grid_rows, grid_dim(op.f1));
+            fig.grid_cols = std::max(fig.grid_cols, grid_dim(op.f2));
             break;
         }
         case spectra::ipc::DiffOp::Type::SET_SERIES_LABEL:
@@ -402,141 +445,148 @@ void apply_diff_op_to_cache(spectra::ipc::SnapshotFigureState& fig, const spectr
 // ─── Apply a DiffOp directly to a live Figure object ─────────────────────────
 void apply_diff_op_to_figure(spectra::Figure& fig, const spectra::ipc::DiffOp& op)
 {
+    // Locate the live series addressed by a series-level op.
+    auto find_live_series = [&]() -> spectra::Series*
+    {
+        auto* ax = live_axes_at(fig, op.axes_index);
+        if (!ax)
+            return nullptr;
+        auto& series_vec = ax->series_mut();
+        if (op.series_index >= series_vec.size() || !series_vec[op.series_index])
+            return nullptr;
+        return series_vec[op.series_index].get();
+    };
+
+    auto* base = live_axes_at(fig, op.axes_index);
+    auto* ax2d = dynamic_cast<spectra::Axes*>(base);
+    auto* ax3d = dynamic_cast<spectra::Axes3D*>(base);
+
     switch (op.type)
     {
         case spectra::ipc::DiffOp::Type::SET_AXIS_LIMITS:
-            if (op.axes_index < fig.axes().size() && fig.axes()[op.axes_index])
+            if (ax2d)
             {
-                fig.axes_mut()[op.axes_index]->xlim(op.f1, op.f2);
-                fig.axes_mut()[op.axes_index]->ylim(op.f3, op.f4);
+                ax2d->xlim(op.f1, op.f2);
+                ax2d->ylim(op.f3, op.f4);
+            }
+            else if (ax3d)
+            {
+                ax3d->xlim(op.f1, op.f2);
+                ax3d->ylim(op.f3, op.f4);
             }
             break;
         case spectra::ipc::DiffOp::Type::SET_GRID_VISIBLE:
-            if (op.axes_index < fig.axes().size() && fig.axes()[op.axes_index])
-            {
-                fig.axes_mut()[op.axes_index]->grid(op.bool_val);
-            }
+            if (ax2d)
+                ax2d->grid(op.bool_val);
+            else if (base)
+                base->grid(op.bool_val);
             break;
         case spectra::ipc::DiffOp::Type::SET_AXIS_ZLIMITS:
-            if (op.axes_index < fig.axes().size() && fig.axes()[op.axes_index])
-            {
-                auto* ax3d = dynamic_cast<spectra::Axes3D*>(fig.axes_mut()[op.axes_index].get());
-                if (ax3d)
-                    ax3d->zlim(op.f1, op.f2);
-            }
+            if (ax3d)
+                ax3d->zlim(op.f1, op.f2);
             break;
         case spectra::ipc::DiffOp::Type::ADD_SERIES:
-            // Series will be populated by the subsequent SET_SERIES_DATA diff.
-            // Add a placeholder so the series_index slot exists in the live figure.
-            if (op.axes_index < fig.axes().size() && fig.axes()[op.axes_index])
+            // Normally handled by a full rebuild from the cache. Add a placeholder
+            // so the slot exists; SET_SERIES_DATA fills it in.
+            if (ax3d)
             {
-                auto* ax   = fig.axes_mut()[op.axes_index].get();
-                auto* ax3d = dynamic_cast<spectra::Axes3D*>(ax);
-                if (ax3d)
-                {
-                    if (op.str_val == "scatter3d")
-                        ax3d->scatter3d({}, {}, {});
-                    else if (op.str_val == "surface")
-                        ax3d->surface({}, {}, {});
-                    else
-                        ax3d->line3d({}, {}, {});
-                }
+                if (op.str_val == "scatter3d")
+                    ax3d->scatter3d({}, {}, {});
+                else if (op.str_val == "surface")
+                    ax3d->surface({}, {}, {});
                 else
-                {
-                    if (op.str_val == "scatter")
-                        ax->scatter({}, {});
-                    else
-                        ax->line({}, {});
-                }
+                    ax3d->line3d({}, {}, {});
+            }
+            else if (ax2d)
+            {
+                if (op.str_val == "scatter")
+                    ax2d->scatter({}, {});
+                else
+                    ax2d->line({}, {});
             }
             break;
         case spectra::ipc::DiffOp::Type::SET_SERIES_DATA:
-            if (op.axes_index < fig.axes().size() && fig.axes()[op.axes_index])
+            if (auto* s = find_live_series())
             {
-                auto& series_vec = fig.axes_mut()[op.axes_index]->series_mut();
-                if (op.series_index < series_vec.size() && series_vec[op.series_index])
+                if (auto* line3d = dynamic_cast<spectra::LineSeries3D*>(s))
                 {
-                    auto* s = series_vec[op.series_index].get();
-                    if (auto* line3d = dynamic_cast<spectra::LineSeries3D*>(s))
+                    size_t             n = op.data.size() / 3;
+                    std::vector<float> xv(n);
+                    std::vector<float> yv(n);
+                    std::vector<float> zv(n);
+                    for (size_t i = 0; i < n; ++i)
                     {
-                        size_t             n = op.data.size() / 3;
-                        std::vector<float> xv(n);
-                        std::vector<float> yv(n);
-                        std::vector<float> zv(n);
-                        for (size_t i = 0; i < n; ++i)
-                        {
-                            xv[i] = op.data[i * 3];
-                            yv[i] = op.data[i * 3 + 1];
-                            zv[i] = op.data[i * 3 + 2];
-                        }
-                        line3d->set_x(xv);
-                        line3d->set_y(yv);
-                        line3d->set_z(zv);
+                        xv[i] = op.data[i * 3];
+                        yv[i] = op.data[i * 3 + 1];
+                        zv[i] = op.data[i * 3 + 2];
                     }
-                    else if (auto* scatter3d = dynamic_cast<spectra::ScatterSeries3D*>(s))
+                    line3d->set_x(xv);
+                    line3d->set_y(yv);
+                    line3d->set_z(zv);
+                }
+                else if (auto* scatter3d = dynamic_cast<spectra::ScatterSeries3D*>(s))
+                {
+                    size_t             n = op.data.size() / 3;
+                    std::vector<float> xv(n);
+                    std::vector<float> yv(n);
+                    std::vector<float> zv(n);
+                    for (size_t i = 0; i < n; ++i)
                     {
-                        size_t             n = op.data.size() / 3;
-                        std::vector<float> xv(n);
-                        std::vector<float> yv(n);
-                        std::vector<float> zv(n);
-                        for (size_t i = 0; i < n; ++i)
-                        {
-                            xv[i] = op.data[i * 3];
-                            yv[i] = op.data[i * 3 + 1];
-                            zv[i] = op.data[i * 3 + 2];
-                        }
-                        scatter3d->set_x(xv);
-                        scatter3d->set_y(yv);
-                        scatter3d->set_z(zv);
+                        xv[i] = op.data[i * 3];
+                        yv[i] = op.data[i * 3 + 1];
+                        zv[i] = op.data[i * 3 + 2];
                     }
-                    else if (auto* line = dynamic_cast<spectra::LineSeries*>(s))
+                    scatter3d->set_x(xv);
+                    scatter3d->set_y(yv);
+                    scatter3d->set_z(zv);
+                }
+                else if (auto* line = dynamic_cast<spectra::LineSeries*>(s))
+                {
+                    size_t             n = op.data.size() / 2;
+                    std::vector<float> xv(n);
+                    std::vector<float> yv(n);
+                    for (size_t i = 0; i < n; ++i)
                     {
-                        size_t             n = op.data.size() / 2;
-                        std::vector<float> xv(n);
-                        std::vector<float> yv(n);
-                        for (size_t i = 0; i < n; ++i)
-                        {
-                            xv[i] = op.data[i * 2];
-                            yv[i] = op.data[i * 2 + 1];
-                        }
-                        line->set_x(xv);
-                        line->set_y(yv);
+                        xv[i] = op.data[i * 2];
+                        yv[i] = op.data[i * 2 + 1];
                     }
-                    else if (auto* scatter = dynamic_cast<spectra::ScatterSeries*>(s))
+                    line->set_x(xv);
+                    line->set_y(yv);
+                }
+                else if (auto* scatter = dynamic_cast<spectra::ScatterSeries*>(s))
+                {
+                    size_t             n = op.data.size() / 2;
+                    std::vector<float> xv(n);
+                    std::vector<float> yv(n);
+                    for (size_t i = 0; i < n; ++i)
                     {
-                        size_t             n = op.data.size() / 2;
-                        std::vector<float> xv(n);
-                        std::vector<float> yv(n);
-                        for (size_t i = 0; i < n; ++i)
-                        {
-                            xv[i] = op.data[i * 2];
-                            yv[i] = op.data[i * 2 + 1];
-                        }
-                        scatter->set_x(xv);
-                        scatter->set_y(yv);
+                        xv[i] = op.data[i * 2];
+                        yv[i] = op.data[i * 2 + 1];
                     }
+                    scatter->set_x(xv);
+                    scatter->set_y(yv);
                 }
             }
             break;
         case spectra::ipc::DiffOp::Type::SET_SERIES_LABEL:
-            if (op.axes_index < fig.axes().size() && fig.axes()[op.axes_index])
-            {
-                auto& series_vec = fig.axes_mut()[op.axes_index]->series_mut();
-                if (op.series_index < series_vec.size() && series_vec[op.series_index])
-                    series_vec[op.series_index]->label(op.str_val);
-            }
+            if (auto* s = find_live_series())
+                s->label(op.str_val);
             break;
         case spectra::ipc::DiffOp::Type::SET_AXIS_XLABEL:
-            if (op.axes_index < fig.axes().size() && fig.axes()[op.axes_index])
-                fig.axes_mut()[op.axes_index]->xlabel(op.str_val);
+            if (ax2d)
+                ax2d->xlabel(op.str_val);
+            else if (ax3d)
+                ax3d->xlabel(op.str_val);
             break;
         case spectra::ipc::DiffOp::Type::SET_AXIS_YLABEL:
-            if (op.axes_index < fig.axes().size() && fig.axes()[op.axes_index])
-                fig.axes_mut()[op.axes_index]->ylabel(op.str_val);
+            if (ax2d)
+                ax2d->ylabel(op.str_val);
+            else if (ax3d)
+                ax3d->ylabel(op.str_val);
             break;
         case spectra::ipc::DiffOp::Type::SET_AXIS_TITLE:
-            if (op.axes_index < fig.axes().size() && fig.axes()[op.axes_index])
-                fig.axes_mut()[op.axes_index]->title(op.str_val);
+            if (base)
+                base->title(op.str_val);
             break;
         case spectra::ipc::DiffOp::Type::SET_LIVE_FPS:
             fig.anim_.live_streaming = op.bool_val;
@@ -1144,9 +1194,11 @@ int main(int argc, char* argv[])
                                     break;
                                 }
                             }
-                            // Structural changes require a full rebuild
+                            // Structural changes require a full rebuild (series
+                            // removal also shifts every later series index).
                             if (op.type == spectra::ipc::DiffOp::Type::ADD_SERIES
-                                || op.type == spectra::ipc::DiffOp::Type::ADD_AXES)
+                                || op.type == spectra::ipc::DiffOp::Type::ADD_AXES
+                                || op.type == spectra::ipc::DiffOp::Type::REMOVE_SERIES)
                             {
                                 needs_rebuild = true;
                             }

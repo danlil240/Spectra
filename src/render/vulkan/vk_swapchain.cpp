@@ -10,29 +10,45 @@ namespace spectra::vk
 
 SwapchainSupportDetails query_swapchain_support(VkPhysicalDevice device, VkSurfaceKHR surface)
 {
+    // On any query failure (e.g. VK_ERROR_SURFACE_LOST_KHR) the corresponding
+    // list is left empty; create_swapchain() rejects empty lists.
     SwapchainSupportDetails details;
-    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &details.capabilities);
+    if (vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &details.capabilities)
+        != VK_SUCCESS)
+    {
+        details.capabilities = {};
+        return details;
+    }
 
     uint32_t format_count = 0;
-    vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &format_count, nullptr);
-    if (format_count > 0)
+    if (vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &format_count, nullptr) == VK_SUCCESS
+        && format_count > 0)
     {
         details.formats.resize(format_count);
-        vkGetPhysicalDeviceSurfaceFormatsKHR(device,
-                                             surface,
-                                             &format_count,
-                                             details.formats.data());
+        VkResult r = vkGetPhysicalDeviceSurfaceFormatsKHR(device,
+                                                          surface,
+                                                          &format_count,
+                                                          details.formats.data());
+        if (r == VK_SUCCESS || r == VK_INCOMPLETE)
+            details.formats.resize(format_count);
+        else
+            details.formats.clear();
     }
 
     uint32_t mode_count = 0;
-    vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &mode_count, nullptr);
-    if (mode_count > 0)
+    if (vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &mode_count, nullptr)
+            == VK_SUCCESS
+        && mode_count > 0)
     {
         details.present_modes.resize(mode_count);
-        vkGetPhysicalDeviceSurfacePresentModesKHR(device,
-                                                  surface,
-                                                  &mode_count,
-                                                  details.present_modes.data());
+        VkResult r = vkGetPhysicalDeviceSurfacePresentModesKHR(device,
+                                                               surface,
+                                                               &mode_count,
+                                                               details.present_modes.data());
+        if (r == VK_SUCCESS || r == VK_INCOMPLETE)
+            details.present_modes.resize(mode_count);
+        else
+            details.present_modes.clear();
     }
 
     return details;
@@ -40,6 +56,12 @@ SwapchainSupportDetails query_swapchain_support(VkPhysicalDevice device, VkSurfa
 
 VkSurfaceFormatKHR choose_surface_format(const std::vector<VkSurfaceFormatKHR>& formats)
 {
+    if (formats.empty())
+    {
+        // Callers must reject an empty list; never index into it.
+        return VkSurfaceFormatKHR{VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR};
+    }
+
     // Prefer UNORM so theme hex values pass through 1:1 without hardware gamma.
     auto find_format = [&](VkFormat fmt) -> const VkSurfaceFormatKHR*
     {
@@ -65,8 +87,8 @@ VkSurfaceFormatKHR choose_surface_format(const std::vector<VkSurfaceFormatKHR>& 
     // Avoid SRGB swapchain formats — they apply gamma and shift theme colours.
     for (const auto& f : formats)
     {
-        if (f.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR
-            && f.format != VK_FORMAT_B8G8R8A8_SRGB && f.format != VK_FORMAT_R8G8B8A8_SRGB)
+        if (f.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR && f.format != VK_FORMAT_B8G8R8A8_SRGB
+            && f.format != VK_FORMAT_R8G8B8A8_SRGB)
         {
             SPECTRA_LOG_WARN("Vulkan",
                              "swapchain format: UNORM unavailable, using format {}",
@@ -107,7 +129,7 @@ VkPresentModeKHR choose_present_mode(const std::vector<VkPresentModeKHR>& modes)
     for (auto m : modes)
         SPECTRA_LOG_DEBUG("Vulkan", "  available present mode: {}", mode_name(m));
 
-    // Select based on compile-time SPECTRA_PRESENT_MODE_* define
+        // Select based on compile-time SPECTRA_PRESENT_MODE_* define
 #if defined(SPECTRA_PRESENT_MODE_MAILBOX)
     VkPresentModeKHR preferred = VK_PRESENT_MODE_MAILBOX_KHR;
 #elif defined(SPECTRA_PRESENT_MODE_IMMEDIATE)
@@ -139,11 +161,11 @@ VkExtent2D choose_extent(const VkSurfaceCapabilitiesKHR& capabilities,
     }
     VkExtent2D extent = {width, height};
     extent.width      = std::clamp(extent.width,
-                                   capabilities.minImageExtent.width,
-                                   capabilities.maxImageExtent.width);
+                              capabilities.minImageExtent.width,
+                              capabilities.maxImageExtent.width);
     extent.height     = std::clamp(extent.height,
-                                   capabilities.minImageExtent.height,
-                                   capabilities.maxImageExtent.height);
+                               capabilities.minImageExtent.height,
+                               capabilities.maxImageExtent.height);
     return extent;
 }
 
@@ -199,13 +221,13 @@ VkRenderPass create_render_pass(VkDevice              device,
         subpass.pDepthStencilAttachment = &depth_ref;
 
         VkSubpassDependency dependency{};
-        dependency.srcSubpass    = VK_SUBPASS_EXTERNAL;
-        dependency.dstSubpass    = 0;
-        dependency.srcStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
-                                   | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+        dependency.srcSubpass   = VK_SUBPASS_EXTERNAL;
+        dependency.dstSubpass   = 0;
+        dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+                                  | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
         dependency.srcAccessMask = 0;
         dependency.dstStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
-                                   | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+                                  | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
         dependency.dstAccessMask =
             VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
@@ -318,12 +340,42 @@ SwapchainContext create_swapchain(VkDevice              device,
                                   uint32_t              present_family,
                                   VkSwapchainKHR        old_swapchain,
                                   VkRenderPass          reuse_render_pass,
-                                  VkSampleCountFlagBits msaa_samples)
+                                  VkSampleCountFlagBits msaa_samples,
+                                  VkFormat              required_format)
 {
     auto support = query_swapchain_support(physical_device, surface);
-    auto format  = choose_surface_format(support.formats);
-    auto mode    = choose_present_mode(support.present_modes);
-    auto extent  = choose_extent(support.capabilities, width, height);
+    if (support.formats.empty() || support.present_modes.empty())
+    {
+        throw std::runtime_error("Surface reports no formats or present modes");
+    }
+
+    VkSurfaceFormatKHR format{};
+    if (reuse_render_pass != VK_NULL_HANDLE && required_format != VK_FORMAT_UNDEFINED)
+    {
+        // The reused render pass (and every pipeline built against it) was
+        // created for `required_format`.  Keep that format; if the surface no
+        // longer offers it, fail rather than build incompatible framebuffers.
+        const VkSurfaceFormatKHR* match = nullptr;
+        for (const auto& f : support.formats)
+        {
+            if (f.format != required_format)
+                continue;
+            if (!match || f.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+                match = &f;
+        }
+        if (!match)
+        {
+            throw std::runtime_error(
+                "Surface no longer supports the swapchain format used by the render pass");
+        }
+        format = *match;
+    }
+    else
+    {
+        format = choose_surface_format(support.formats);
+    }
+    auto mode   = choose_present_mode(support.present_modes);
+    auto extent = choose_extent(support.capabilities, width, height);
 
     uint32_t image_count = support.capabilities.minImageCount + 1;
     if (support.capabilities.maxImageCount > 0 && image_count > support.capabilities.maxImageCount)
@@ -369,200 +421,212 @@ SwapchainContext create_swapchain(VkDevice              device,
         throw std::runtime_error("Failed to create swapchain");
     }
 
-    // Get images
-    vkGetSwapchainImagesKHR(device, ctx.swapchain, &image_count, nullptr);
-    ctx.images.resize(image_count);
-    vkGetSwapchainImagesKHR(device, ctx.swapchain, &image_count, ctx.images.data());
-
-    // Create image views
-    ctx.image_views.resize(image_count);
-    for (uint32_t i = 0; i < image_count; ++i)
+    try
     {
-        VkImageViewCreateInfo view_info{};
-        view_info.sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        view_info.image                           = ctx.images[i];
-        view_info.viewType                        = VK_IMAGE_VIEW_TYPE_2D;
-        view_info.format                          = ctx.image_format;
-        view_info.components                      = {VK_COMPONENT_SWIZZLE_IDENTITY,
-                                                     VK_COMPONENT_SWIZZLE_IDENTITY,
-                                                     VK_COMPONENT_SWIZZLE_IDENTITY,
-                                                     VK_COMPONENT_SWIZZLE_IDENTITY};
-        view_info.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
-        view_info.subresourceRange.baseMipLevel   = 0;
-        view_info.subresourceRange.levelCount     = 1;
-        view_info.subresourceRange.baseArrayLayer = 0;
-        view_info.subresourceRange.layerCount     = 1;
+        // Get images
+        vkGetSwapchainImagesKHR(device, ctx.swapchain, &image_count, nullptr);
+        ctx.images.resize(image_count);
+        vkGetSwapchainImagesKHR(device, ctx.swapchain, &image_count, ctx.images.data());
 
-        if (vkCreateImageView(device, &view_info, nullptr, &ctx.image_views[i]) != VK_SUCCESS)
+        // Create image views
+        ctx.image_views.resize(image_count);
+        for (uint32_t i = 0; i < image_count; ++i)
         {
-            throw std::runtime_error("Failed to create swapchain image view");
-        }
-    }
+            VkImageViewCreateInfo view_info{};
+            view_info.sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+            view_info.image                           = ctx.images[i];
+            view_info.viewType                        = VK_IMAGE_VIEW_TYPE_2D;
+            view_info.format                          = ctx.image_format;
+            view_info.components                      = {VK_COMPONENT_SWIZZLE_IDENTITY,
+                                                         VK_COMPONENT_SWIZZLE_IDENTITY,
+                                                         VK_COMPONENT_SWIZZLE_IDENTITY,
+                                                         VK_COMPONENT_SWIZZLE_IDENTITY};
+            view_info.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+            view_info.subresourceRange.baseMipLevel   = 0;
+            view_info.subresourceRange.levelCount     = 1;
+            view_info.subresourceRange.baseArrayLayer = 0;
+            view_info.subresourceRange.layerCount     = 1;
 
-    // Find supported depth format
-    ctx.depth_format = find_depth_format(physical_device);
-
-    // Reuse existing render pass if provided (during resize — format doesn't change,
-    // so the old render pass is compatible). This avoids invalidating all pipelines.
-    if (reuse_render_pass != VK_NULL_HANDLE)
-    {
-        ctx.render_pass = reuse_render_pass;
-    }
-    else
-    {
-        ctx.render_pass =
-            create_render_pass(device, ctx.image_format, ctx.depth_format, msaa_samples);
-    }
-
-    // Determine depth sample count: MSAA depth when MSAA is enabled
-    VkSampleCountFlagBits depth_samples = use_msaa ? msaa_samples : VK_SAMPLE_COUNT_1_BIT;
-
-    // Create depth image (shared across all framebuffers)
-    {
-        VkImageCreateInfo depth_img_info{};
-        depth_img_info.sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-        depth_img_info.imageType     = VK_IMAGE_TYPE_2D;
-        depth_img_info.format        = ctx.depth_format;
-        depth_img_info.extent        = {extent.width, extent.height, 1};
-        depth_img_info.mipLevels     = 1;
-        depth_img_info.arrayLayers   = 1;
-        depth_img_info.samples       = depth_samples;
-        depth_img_info.tiling        = VK_IMAGE_TILING_OPTIMAL;
-        depth_img_info.usage         = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-        depth_img_info.sharingMode   = VK_SHARING_MODE_EXCLUSIVE;
-        depth_img_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-
-        if (vkCreateImage(device, &depth_img_info, nullptr, &ctx.depth_image) != VK_SUCCESS)
-        {
-            throw std::runtime_error("Failed to create depth image");
+            if (vkCreateImageView(device, &view_info, nullptr, &ctx.image_views[i]) != VK_SUCCESS)
+            {
+                throw std::runtime_error("Failed to create swapchain image view");
+            }
         }
 
-        VkMemoryRequirements mem_reqs;
-        vkGetImageMemoryRequirements(device, ctx.depth_image, &mem_reqs);
+        // Find supported depth format
+        ctx.depth_format = find_depth_format(physical_device);
 
-        VkMemoryAllocateInfo alloc_info{};
-        alloc_info.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-        alloc_info.allocationSize  = mem_reqs.size;
-        alloc_info.memoryTypeIndex = find_memory_type(physical_device,
-                                                      mem_reqs.memoryTypeBits,
-                                                      VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-        if (vkAllocateMemory(device, &alloc_info, nullptr, &ctx.depth_memory) != VK_SUCCESS)
+        // Reuse existing render pass if provided (during resize — format doesn't change,
+        // so the old render pass is compatible). This avoids invalidating all pipelines.
+        if (reuse_render_pass != VK_NULL_HANDLE)
         {
-            throw std::runtime_error("Failed to allocate depth image memory");
-        }
-        vkBindImageMemory(device, ctx.depth_image, ctx.depth_memory, 0);
-
-        VkImageViewCreateInfo depth_view_info{};
-        depth_view_info.sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        depth_view_info.image                           = ctx.depth_image;
-        depth_view_info.viewType                        = VK_IMAGE_VIEW_TYPE_2D;
-        depth_view_info.format                          = ctx.depth_format;
-        depth_view_info.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_DEPTH_BIT;
-        depth_view_info.subresourceRange.baseMipLevel   = 0;
-        depth_view_info.subresourceRange.levelCount     = 1;
-        depth_view_info.subresourceRange.baseArrayLayer = 0;
-        depth_view_info.subresourceRange.layerCount     = 1;
-
-        if (vkCreateImageView(device, &depth_view_info, nullptr, &ctx.depth_view) != VK_SUCCESS)
-        {
-            throw std::runtime_error("Failed to create depth image view");
-        }
-    }
-
-    // Create MSAA color image (shared across all framebuffers) when MSAA is enabled
-    if (use_msaa)
-    {
-        VkImageCreateInfo msaa_img_info{};
-        msaa_img_info.sType       = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-        msaa_img_info.imageType   = VK_IMAGE_TYPE_2D;
-        msaa_img_info.format      = ctx.image_format;
-        msaa_img_info.extent      = {extent.width, extent.height, 1};
-        msaa_img_info.mipLevels   = 1;
-        msaa_img_info.arrayLayers = 1;
-        msaa_img_info.samples     = msaa_samples;
-        msaa_img_info.tiling      = VK_IMAGE_TILING_OPTIMAL;
-        msaa_img_info.usage =
-            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
-        msaa_img_info.sharingMode   = VK_SHARING_MODE_EXCLUSIVE;
-        msaa_img_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-
-        if (vkCreateImage(device, &msaa_img_info, nullptr, &ctx.msaa_color_image) != VK_SUCCESS)
-        {
-            throw std::runtime_error("Failed to create MSAA color image");
-        }
-
-        VkMemoryRequirements mem_reqs;
-        vkGetImageMemoryRequirements(device, ctx.msaa_color_image, &mem_reqs);
-
-        VkMemoryAllocateInfo alloc_info{};
-        alloc_info.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-        alloc_info.allocationSize  = mem_reqs.size;
-        alloc_info.memoryTypeIndex = find_memory_type(physical_device,
-                                                      mem_reqs.memoryTypeBits,
-                                                      VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-        if (vkAllocateMemory(device, &alloc_info, nullptr, &ctx.msaa_color_memory) != VK_SUCCESS)
-        {
-            throw std::runtime_error("Failed to allocate MSAA color image memory");
-        }
-        vkBindImageMemory(device, ctx.msaa_color_image, ctx.msaa_color_memory, 0);
-
-        VkImageViewCreateInfo msaa_view_info{};
-        msaa_view_info.sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        msaa_view_info.image                           = ctx.msaa_color_image;
-        msaa_view_info.viewType                        = VK_IMAGE_VIEW_TYPE_2D;
-        msaa_view_info.format                          = ctx.image_format;
-        msaa_view_info.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
-        msaa_view_info.subresourceRange.baseMipLevel   = 0;
-        msaa_view_info.subresourceRange.levelCount     = 1;
-        msaa_view_info.subresourceRange.baseArrayLayer = 0;
-        msaa_view_info.subresourceRange.layerCount     = 1;
-
-        if (vkCreateImageView(device, &msaa_view_info, nullptr, &ctx.msaa_color_view) != VK_SUCCESS)
-        {
-            throw std::runtime_error("Failed to create MSAA color image view");
-        }
-    }
-
-    // Create framebuffers
-    ctx.framebuffers.resize(image_count);
-    for (uint32_t i = 0; i < image_count; ++i)
-    {
-        // Attachments array must outlive the vkCreateFramebuffer call,
-        // so declare it at function scope (not inside if/else branches).
-        VkImageView fb_attachments[3]{};
-        uint32_t    fb_attachment_count = 0;
-
-        if (use_msaa)
-        {
-            // MSAA: attachment 0 = MSAA color, 1 = MSAA depth, 2 = resolve (swapchain image)
-            fb_attachments[0]   = ctx.msaa_color_view;
-            fb_attachments[1]   = ctx.depth_view;
-            fb_attachments[2]   = ctx.image_views[i];
-            fb_attachment_count = 3;
+            ctx.render_pass = reuse_render_pass;
         }
         else
         {
-            // Non-MSAA: attachment 0 = color (swapchain image), 1 = depth
-            fb_attachments[0]   = ctx.image_views[i];
-            fb_attachments[1]   = ctx.depth_view;
-            fb_attachment_count = 2;
+            ctx.render_pass =
+                create_render_pass(device, ctx.image_format, ctx.depth_format, msaa_samples);
         }
 
-        VkFramebufferCreateInfo fb_info{};
-        fb_info.sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-        fb_info.renderPass      = ctx.render_pass;
-        fb_info.width           = extent.width;
-        fb_info.height          = extent.height;
-        fb_info.layers          = 1;
-        fb_info.attachmentCount = fb_attachment_count;
-        fb_info.pAttachments    = fb_attachments;
+        // Determine depth sample count: MSAA depth when MSAA is enabled
+        VkSampleCountFlagBits depth_samples = use_msaa ? msaa_samples : VK_SAMPLE_COUNT_1_BIT;
 
-        if (vkCreateFramebuffer(device, &fb_info, nullptr, &ctx.framebuffers[i]) != VK_SUCCESS)
+        // Create depth image (shared across all framebuffers)
         {
-            throw std::runtime_error("Failed to create framebuffer");
+            VkImageCreateInfo depth_img_info{};
+            depth_img_info.sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+            depth_img_info.imageType     = VK_IMAGE_TYPE_2D;
+            depth_img_info.format        = ctx.depth_format;
+            depth_img_info.extent        = {extent.width, extent.height, 1};
+            depth_img_info.mipLevels     = 1;
+            depth_img_info.arrayLayers   = 1;
+            depth_img_info.samples       = depth_samples;
+            depth_img_info.tiling        = VK_IMAGE_TILING_OPTIMAL;
+            depth_img_info.usage         = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+            depth_img_info.sharingMode   = VK_SHARING_MODE_EXCLUSIVE;
+            depth_img_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+            if (vkCreateImage(device, &depth_img_info, nullptr, &ctx.depth_image) != VK_SUCCESS)
+            {
+                throw std::runtime_error("Failed to create depth image");
+            }
+
+            VkMemoryRequirements mem_reqs;
+            vkGetImageMemoryRequirements(device, ctx.depth_image, &mem_reqs);
+
+            VkMemoryAllocateInfo alloc_info{};
+            alloc_info.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+            alloc_info.allocationSize  = mem_reqs.size;
+            alloc_info.memoryTypeIndex = find_memory_type(physical_device,
+                                                          mem_reqs.memoryTypeBits,
+                                                          VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+            if (vkAllocateMemory(device, &alloc_info, nullptr, &ctx.depth_memory) != VK_SUCCESS)
+            {
+                throw std::runtime_error("Failed to allocate depth image memory");
+            }
+            vkBindImageMemory(device, ctx.depth_image, ctx.depth_memory, 0);
+
+            VkImageViewCreateInfo depth_view_info{};
+            depth_view_info.sType                       = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+            depth_view_info.image                       = ctx.depth_image;
+            depth_view_info.viewType                    = VK_IMAGE_VIEW_TYPE_2D;
+            depth_view_info.format                      = ctx.depth_format;
+            depth_view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+            depth_view_info.subresourceRange.baseMipLevel   = 0;
+            depth_view_info.subresourceRange.levelCount     = 1;
+            depth_view_info.subresourceRange.baseArrayLayer = 0;
+            depth_view_info.subresourceRange.layerCount     = 1;
+
+            if (vkCreateImageView(device, &depth_view_info, nullptr, &ctx.depth_view) != VK_SUCCESS)
+            {
+                throw std::runtime_error("Failed to create depth image view");
+            }
         }
+
+        // Create MSAA color image (shared across all framebuffers) when MSAA is enabled
+        if (use_msaa)
+        {
+            VkImageCreateInfo msaa_img_info{};
+            msaa_img_info.sType       = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+            msaa_img_info.imageType   = VK_IMAGE_TYPE_2D;
+            msaa_img_info.format      = ctx.image_format;
+            msaa_img_info.extent      = {extent.width, extent.height, 1};
+            msaa_img_info.mipLevels   = 1;
+            msaa_img_info.arrayLayers = 1;
+            msaa_img_info.samples     = msaa_samples;
+            msaa_img_info.tiling      = VK_IMAGE_TILING_OPTIMAL;
+            msaa_img_info.usage =
+                VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
+            msaa_img_info.sharingMode   = VK_SHARING_MODE_EXCLUSIVE;
+            msaa_img_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+            if (vkCreateImage(device, &msaa_img_info, nullptr, &ctx.msaa_color_image) != VK_SUCCESS)
+            {
+                throw std::runtime_error("Failed to create MSAA color image");
+            }
+
+            VkMemoryRequirements mem_reqs;
+            vkGetImageMemoryRequirements(device, ctx.msaa_color_image, &mem_reqs);
+
+            VkMemoryAllocateInfo alloc_info{};
+            alloc_info.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+            alloc_info.allocationSize  = mem_reqs.size;
+            alloc_info.memoryTypeIndex = find_memory_type(physical_device,
+                                                          mem_reqs.memoryTypeBits,
+                                                          VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+            if (vkAllocateMemory(device, &alloc_info, nullptr, &ctx.msaa_color_memory)
+                != VK_SUCCESS)
+            {
+                throw std::runtime_error("Failed to allocate MSAA color image memory");
+            }
+            vkBindImageMemory(device, ctx.msaa_color_image, ctx.msaa_color_memory, 0);
+
+            VkImageViewCreateInfo msaa_view_info{};
+            msaa_view_info.sType                         = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+            msaa_view_info.image                         = ctx.msaa_color_image;
+            msaa_view_info.viewType                      = VK_IMAGE_VIEW_TYPE_2D;
+            msaa_view_info.format                        = ctx.image_format;
+            msaa_view_info.subresourceRange.aspectMask   = VK_IMAGE_ASPECT_COLOR_BIT;
+            msaa_view_info.subresourceRange.baseMipLevel = 0;
+            msaa_view_info.subresourceRange.levelCount   = 1;
+            msaa_view_info.subresourceRange.baseArrayLayer = 0;
+            msaa_view_info.subresourceRange.layerCount     = 1;
+
+            if (vkCreateImageView(device, &msaa_view_info, nullptr, &ctx.msaa_color_view)
+                != VK_SUCCESS)
+            {
+                throw std::runtime_error("Failed to create MSAA color image view");
+            }
+        }
+
+        // Create framebuffers
+        ctx.framebuffers.resize(image_count);
+        for (uint32_t i = 0; i < image_count; ++i)
+        {
+            // Attachments array must outlive the vkCreateFramebuffer call,
+            // so declare it at function scope (not inside if/else branches).
+            VkImageView fb_attachments[3]{};
+            uint32_t    fb_attachment_count = 0;
+
+            if (use_msaa)
+            {
+                // MSAA: attachment 0 = MSAA color, 1 = MSAA depth, 2 = resolve (swapchain image)
+                fb_attachments[0]   = ctx.msaa_color_view;
+                fb_attachments[1]   = ctx.depth_view;
+                fb_attachments[2]   = ctx.image_views[i];
+                fb_attachment_count = 3;
+            }
+            else
+            {
+                // Non-MSAA: attachment 0 = color (swapchain image), 1 = depth
+                fb_attachments[0]   = ctx.image_views[i];
+                fb_attachments[1]   = ctx.depth_view;
+                fb_attachment_count = 2;
+            }
+
+            VkFramebufferCreateInfo fb_info{};
+            fb_info.sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+            fb_info.renderPass      = ctx.render_pass;
+            fb_info.width           = extent.width;
+            fb_info.height          = extent.height;
+            fb_info.layers          = 1;
+            fb_info.attachmentCount = fb_attachment_count;
+            fb_info.pAttachments    = fb_attachments;
+
+            if (vkCreateFramebuffer(device, &fb_info, nullptr, &ctx.framebuffers[i]) != VK_SUCCESS)
+            {
+                throw std::runtime_error("Failed to create framebuffer");
+            }
+        }
+    }
+    catch (...)
+    {
+        // Do not leak the new swapchain or anything created for it.  A reused
+        // render pass belongs to the caller and must survive.
+        destroy_swapchain(device, ctx, /*skip_render_pass=*/reuse_render_pass != VK_NULL_HANDLE);
+        throw;
     }
 
     return ctx;
@@ -853,13 +917,13 @@ OffscreenContext create_offscreen_framebuffer(VkDevice              device,
         subpass.pDepthStencilAttachment = &depth_ref;
 
         VkSubpassDependency dependency{};
-        dependency.srcSubpass    = VK_SUBPASS_EXTERNAL;
-        dependency.dstSubpass    = 0;
-        dependency.srcStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
-                                   | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+        dependency.srcSubpass   = VK_SUBPASS_EXTERNAL;
+        dependency.dstSubpass   = 0;
+        dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+                                  | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
         dependency.srcAccessMask = 0;
         dependency.dstStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
-                                   | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+                                  | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
         dependency.dstAccessMask =
             VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
@@ -932,13 +996,13 @@ OffscreenContext create_offscreen_framebuffer(VkDevice              device,
         subpass.pResolveAttachments     = &resolve_ref;
 
         VkSubpassDependency dependency{};
-        dependency.srcSubpass    = VK_SUBPASS_EXTERNAL;
-        dependency.dstSubpass    = 0;
-        dependency.srcStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
-                                   | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+        dependency.srcSubpass   = VK_SUBPASS_EXTERNAL;
+        dependency.dstSubpass   = 0;
+        dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+                                  | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
         dependency.srcAccessMask = 0;
         dependency.dstStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
-                                   | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+                                  | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
         dependency.dstAccessMask =
             VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 

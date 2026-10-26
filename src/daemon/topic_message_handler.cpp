@@ -129,6 +129,26 @@ HandleResult handle_req_publish_topic_samples(DaemonContext&      ctx,
         return HandleResult::Continue;
     }
 
+    auto declared_kind = ctx.topics.kind_of(req->name);
+    if (!declared_kind)
+    {
+        send_resp_err(*slot.conn,
+                      ctx.graph.session_id(),
+                      msg.header.request_id,
+                      404,
+                      "Topic not declared");
+        return HandleResult::Continue;
+    }
+    if (req->samples.size() % TopicRegistry::stride_for(*declared_kind) != 0)
+    {
+        send_resp_err(*slot.conn,
+                      ctx.graph.session_id(),
+                      msg.header.request_id,
+                      400,
+                      "Sample count is not a multiple of the topic stride");
+        return HandleResult::Continue;
+    }
+
     ipc::TopicKind                 kind = ipc::TopicKind::Scalar2D;
     std::vector<TopicSubscription> subs;
     if (!ctx.topics.publish(req->name, req->samples, &kind, &subs))
@@ -144,7 +164,9 @@ HandleResult handle_req_publish_topic_samples(DaemonContext&      ctx,
     // Fan out to subscribed (figure, series).
     if (!subs.empty() && !req->samples.empty())
     {
-        const size_t       stride = (kind == ipc::TopicKind::Scalar3D) ? 3u : 2u;
+        // Subscribed series keep a rolling window the size of the topic ring so
+        // memory and the per-publish SET_SERIES_DATA diff stay bounded.
+        const size_t       max_points = ctx.topics.ring_capacity_of(req->name).value_or(4096u);
         std::vector<float> fdata;
         fdata.reserve(req->samples.size());
         for (double d : req->samples)
@@ -156,7 +178,8 @@ HandleResult handle_req_publish_topic_samples(DaemonContext&      ctx,
         {
             if (!ctx.fig_model.has_figure(s.figure_id))
                 continue;
-            auto op = ctx.fig_model.append_series_data(s.figure_id, s.series_index, fdata);
+            auto op =
+                ctx.fig_model.append_series_data(s.figure_id, s.series_index, fdata, max_points);
             diff.ops.push_back(std::move(op));
         }
         if (!diff.ops.empty())
@@ -165,7 +188,6 @@ HandleResult handle_req_publish_topic_samples(DaemonContext&      ctx,
             diff.base_revision = diff.new_revision > 0 ? diff.new_revision - 1 : 0;
             broadcast_diff_to_agents(ctx, diff);
         }
-        (void)stride;
     }
 
     send_resp_ok(*slot.conn, ctx.graph.session_id(), msg.header.request_id);
@@ -241,10 +263,10 @@ HandleResult handle_req_subscribe_topic(DaemonContext&      ctx,
         uint32_t              new_index = 0;
         ipc::StateDiffPayload diff;
         auto                  op = ctx.fig_model.add_series_with_diff(req->figure_id,
-                                                                      req->name,
-                                                                      type,
-                                                                      req->axes_index,
-                                                                      new_index);
+                                                     req->name,
+                                                     type,
+                                                     req->axes_index,
+                                                     new_index);
         diff.ops.push_back(std::move(op));
         diff.new_revision  = ctx.fig_model.revision();
         diff.base_revision = diff.new_revision > 0 ? diff.new_revision - 1 : 0;

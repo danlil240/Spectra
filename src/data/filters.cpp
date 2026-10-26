@@ -60,7 +60,9 @@ std::vector<float> gaussian_smooth(std::span<const float> values, float sigma, s
     const std::size_t n = values.size();
     if (n == 0)
         return {};
-    if (sigma <= 0.0f)
+    // Non-positive, NaN, infinite, or so-small-that-1/(2*sigma^2)-overflows
+    // sigma: treat as identity (the kernel would otherwise be all NaN).
+    if (!(sigma > 0.0f) || !std::isfinite(sigma) || !std::isfinite(1.0f / (2.0f * sigma * sigma)))
     {
         return {values.begin(), values.end()};
     }

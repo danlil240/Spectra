@@ -29,16 +29,16 @@ TextureHandle VulkanBackend::create_texture(uint32_t       width,
 
     // Create VkImage
     VkImageCreateInfo image_info{};
-    image_info.sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-    image_info.imageType     = VK_IMAGE_TYPE_2D;
-    image_info.format        = VK_FORMAT_R8G8B8A8_UNORM;
-    image_info.extent        = {width, height, 1};
-    image_info.mipLevels     = mip_levels;
-    image_info.arrayLayers   = 1;
-    image_info.samples       = VK_SAMPLE_COUNT_1_BIT;
-    image_info.tiling        = VK_IMAGE_TILING_OPTIMAL;
-    image_info.usage         = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT
-                               | VK_IMAGE_USAGE_SAMPLED_BIT;
+    image_info.sType       = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    image_info.imageType   = VK_IMAGE_TYPE_2D;
+    image_info.format      = VK_FORMAT_R8G8B8A8_UNORM;
+    image_info.extent      = {width, height, 1};
+    image_info.mipLevels   = mip_levels;
+    image_info.arrayLayers = 1;
+    image_info.samples     = VK_SAMPLE_COUNT_1_BIT;
+    image_info.tiling      = VK_IMAGE_TILING_OPTIMAL;
+    image_info.usage       = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT
+                       | VK_IMAGE_USAGE_SAMPLED_BIT;
     image_info.sharingMode   = VK_SHARING_MODE_EXCLUSIVE;
     image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
@@ -312,7 +312,7 @@ TextureHandle VulkanBackend::create_texture(uint32_t       width,
     }
 
     // Allocate and update descriptor set for this texture
-    tex.descriptor_set = allocate_descriptor_set(texture_desc_layout_);
+    tex.descriptor_set = allocate_descriptor_set(texture_desc_layout_, &tex.descriptor_pool);
     if (tex.descriptor_set != VK_NULL_HANDLE)
     {
         VkDescriptorImageInfo img_info{};
@@ -340,17 +340,28 @@ void VulkanBackend::destroy_texture(TextureHandle handle)
     auto it = textures_.find(handle.id);
     if (it != textures_.end())
     {
-        auto& tex = it->second;
-        if (tex.sampler != VK_NULL_HANDLE)
-            vkDestroySampler(ctx_.device, tex.sampler, nullptr);
-        if (tex.view != VK_NULL_HANDLE)
-            vkDestroyImageView(ctx_.device, tex.view, nullptr);
-        if (tex.image != VK_NULL_HANDLE)
-            vkDestroyImage(ctx_.device, tex.image, nullptr);
-        if (tex.memory != VK_NULL_HANDLE)
-            vkFreeMemory(ctx_.device, tex.memory, nullptr);
+        // Defer destruction: command buffers recorded or still executing on
+        // the GPU may sample this texture through its descriptor set.  The
+        // entry is freed by flush_pending_buffer_frees() once a later
+        // submission has completed (VUID-vkDestroyImage-image-01000).
+        pending_texture_frees_.push_back({it->second, frame_counter_});
         textures_.erase(it);
     }
+}
+
+void VulkanBackend::destroy_texture_entry_now(TextureEntry& tex)
+{
+    free_descriptor_set(tex.descriptor_pool, tex.descriptor_set);
+    tex.descriptor_set = VK_NULL_HANDLE;
+    if (tex.sampler != VK_NULL_HANDLE)
+        vkDestroySampler(ctx_.device, tex.sampler, nullptr);
+    if (tex.view != VK_NULL_HANDLE)
+        vkDestroyImageView(ctx_.device, tex.view, nullptr);
+    if (tex.image != VK_NULL_HANDLE)
+        vkDestroyImage(ctx_.device, tex.image, nullptr);
+    if (tex.memory != VK_NULL_HANDLE)
+        vkFreeMemory(ctx_.device, tex.memory, nullptr);
+    tex = {};
 }
 
 bool VulkanBackend::texture_vulkan_handles(TextureHandle handle,

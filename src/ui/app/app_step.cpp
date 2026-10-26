@@ -252,6 +252,10 @@ struct App::AppRuntime
 
 #ifndef _WIN32
     std::unique_ptr<InprocTopicServer> topic_server;
+    // Window whose TopicsPanel is wired to topic_server (only one at a time).
+    // When that window closes, the panel is rewired to a surviving window.
+    bool     topics_panel_wired     = false;
+    uint32_t topics_panel_window_id = 0;
 #endif
 
     // Pending PNG capture (pre-present path to avoid reading presented images)
@@ -279,6 +283,38 @@ struct App::AppRuntime
     // the exception propagate to callers that have try-catch guards.
     ~AppRuntime() noexcept(false) = default;
 };
+
+#if !defined(_WIN32) && (defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3))
+// Keep exactly one open window's TopicsPanel wired to the topic server.  The
+// panel unwires itself when its window is destroyed; this wires the panel of
+// the first surviving regular window instead.  Main thread only.
+static void rewire_topics_panel_if_needed(InprocTopicServer& server,
+                                          WindowManager&     window_mgr,
+                                          FigureRegistry&    registry,
+                                          bool&              wired,
+                                          uint32_t&          wired_window_id)
+{
+    WindowContext* candidate = nullptr;
+    for (auto* wctx : window_mgr.windows())
+    {
+        if (!wctx || !wctx->ui_ctx || wctx->should_close || wctx->is_preview
+            || wctx->panel_draw_callback)
+            continue;
+        if (wired && wctx->id == wired_window_id)
+            return;   // still wired to an open window
+        if (!candidate)
+            candidate = wctx;
+    }
+
+    wired = false;
+    if (!candidate)
+        return;
+
+    server.wire_topics_panel(candidate->ui_ctx->topics_panel, &registry);
+    wired           = true;
+    wired_window_id = candidate->id;
+}
+#endif
 
 // ─── init_runtime ────────────────────────────────────────────────────────────
 void App::init_runtime()
@@ -718,7 +754,19 @@ void App::init_runtime()
     {
         rt.topic_server = std::make_unique<InprocTopicServer>();
         rt.topic_server->start(&registry_);
-        if (rt.ui_ctx_ptr)
+        bool wired_via_window_mgr = false;
+    #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
+        if (rt.window_mgr)
+        {
+            rewire_topics_panel_if_needed(*rt.topic_server,
+                                          *rt.window_mgr,
+                                          registry_,
+                                          rt.topics_panel_wired,
+                                          rt.topics_panel_window_id);
+            wired_via_window_mgr = true;
+        }
+    #endif
+        if (!wired_via_window_mgr && rt.ui_ctx_ptr)
             rt.topic_server->wire_topics_panel(rt.ui_ctx_ptr->topics_panel, &registry_);
     }
 #endif
@@ -752,6 +800,14 @@ App::StepResult App::step()
         // the tick() will mark dirty when it processes them.
     }
 
+#ifndef _WIN32
+    // Deliver topic samples queued by the topic server's worker thread.  Must
+    // run on this (main) thread before tick() commits pending series data so
+    // the samples show up in this frame.
+    if (rt.topic_server)
+        rt.topic_server->drain_pending();
+#endif
+
     rt.session.tick(rt.scheduler,
                     rt.animator,
                     rt.cmd_queue,
@@ -762,6 +818,17 @@ App::StepResult App::step()
 #endif
                     rt.frame_state);
     rt.active_figure = rt.frame_state.active_figure;
+
+#if !defined(_WIN32) && (defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3))
+    // tick() may have closed the window whose TopicsPanel was wired.
+    if (rt.topic_server && rt.window_mgr)
+        rewire_topics_panel_if_needed(*rt.topic_server,
+                                      *rt.window_mgr,
+                                      registry_,
+                                      rt.topics_panel_wired,
+                                      rt.topics_panel_window_id);
+#endif
+
     if (rt.active_figure && !registry_.get(rt.frame_state.active_figure_id))
     {
         rt.active_figure                = nullptr;
@@ -1021,6 +1088,14 @@ void App::shutdown_runtime()
                 f.config_.width  = orig_w;
                 f.config_.height = orig_h;
                 f.compute_layout();
+            }
+
+            // Device lost is unrecoverable: no valid image can be read back and
+            // every further frame would fail, so stop exporting.
+            if (backend_->is_device_lost())
+            {
+                SPECTRA_LOG_CRITICAL("app", "GPU device lost during export, aborting");
+                break;
             }
 
             std::vector<uint8_t> pixels(static_cast<size_t>(export_w) * export_h * 4);

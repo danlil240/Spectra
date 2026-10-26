@@ -93,14 +93,14 @@ TEST(EventBus, UnsubscribeDuringEmit)
     id2 = bus.subscribe([&](const TestEvent&) { ++count2; });
 
     bus.emit({0});
-    // Both should have fired in the first emit (deferred unsub).
+    // The second handler is deactivated immediately (unsubscribed mid-emit).
     EXPECT_EQ(count1, 1);
-    EXPECT_EQ(count2, 1);
+    EXPECT_EQ(count2, 0);
 
     // Second emit: only first handler should fire.
     bus.emit({0});
     EXPECT_EQ(count1, 2);
-    EXPECT_EQ(count2, 1);
+    EXPECT_EQ(count2, 0);
 }
 
 TEST(EventBus, EmitWithNoSubscribers)

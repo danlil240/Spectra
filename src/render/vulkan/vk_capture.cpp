@@ -6,6 +6,9 @@
 #include <spectra/logger.hpp>
 
 #include <cstring>
+#include <vector>
+
+#include "vk_frame_utils.hpp"
 
 namespace spectra
 {
@@ -15,6 +18,15 @@ bool VulkanBackend::readback_framebuffer(uint8_t* out_rgba, uint32_t width, uint
     // Determine source image and its current layout
     VkImage       src_image  = VK_NULL_HANDLE;
     VkImageLayout src_layout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+    if (!out_rgba || device_lost_ || !active_window_)
+        return false;
+
+    // The caller's buffer is laid out as requested_w x requested_h.  The copy
+    // may be clamped to a smaller surface below; rows are then re-strided to
+    // the caller's width and the remainder zero-filled.
+    const uint32_t requested_w = width;
+    const uint32_t requested_h = height;
 
     if (headless_)
     {
@@ -69,18 +81,32 @@ bool VulkanBackend::readback_framebuffer(uint8_t* out_rgba, uint32_t width, uint
     else if (headless_)
     {
         // Grow persistent staging buffer
-        if (offscreen_.readback_buffer != VK_NULL_HANDLE)
+        auto release_readback = [this]()
         {
-            vkUnmapMemory(ctx_.device, offscreen_.readback_memory);
-            vkDestroyBuffer(ctx_.device, offscreen_.readback_buffer, nullptr);
-            vkFreeMemory(ctx_.device, offscreen_.readback_memory, nullptr);
-        }
+            if (offscreen_.readback_mapped_ptr != nullptr)
+                vkUnmapMemory(ctx_.device, offscreen_.readback_memory);
+            if (offscreen_.readback_buffer != VK_NULL_HANDLE)
+                vkDestroyBuffer(ctx_.device, offscreen_.readback_buffer, nullptr);
+            if (offscreen_.readback_memory != VK_NULL_HANDLE)
+                vkFreeMemory(ctx_.device, offscreen_.readback_memory, nullptr);
+            offscreen_.readback_buffer     = VK_NULL_HANDLE;
+            offscreen_.readback_memory     = VK_NULL_HANDLE;
+            offscreen_.readback_mapped_ptr = nullptr;
+            offscreen_.readback_capacity   = 0;
+        };
+        release_readback();
 
         VkBufferCreateInfo buf_ci{};
         buf_ci.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
         buf_ci.size  = buffer_size;
         buf_ci.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-        vkCreateBuffer(ctx_.device, &buf_ci, nullptr, &offscreen_.readback_buffer);
+        if (vkCreateBuffer(ctx_.device, &buf_ci, nullptr, &offscreen_.readback_buffer)
+            != VK_SUCCESS)
+        {
+            offscreen_.readback_buffer = VK_NULL_HANDLE;
+            SPECTRA_LOG_ERROR("vulkan", "readback_framebuffer: failed to create staging buffer");
+            return false;
+        }
 
         VkMemoryRequirements mem_req;
         vkGetBufferMemoryRequirements(ctx_.device, offscreen_.readback_buffer, &mem_req);
@@ -101,18 +127,44 @@ bool VulkanBackend::readback_framebuffer(uint8_t* out_rgba, uint32_t width, uint
             }
         }
 
+        if (mem_type == UINT32_MAX)
+        {
+            release_readback();
+            SPECTRA_LOG_ERROR("vulkan", "readback_framebuffer: no host-visible memory type");
+            return false;
+        }
+
         VkMemoryAllocateInfo alloc{};
         alloc.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
         alloc.allocationSize  = mem_req.size;
         alloc.memoryTypeIndex = mem_type;
-        vkAllocateMemory(ctx_.device, &alloc, nullptr, &offscreen_.readback_memory);
-        vkBindBufferMemory(ctx_.device, offscreen_.readback_buffer, offscreen_.readback_memory, 0);
-        vkMapMemory(ctx_.device,
-                    offscreen_.readback_memory,
-                    0,
-                    buffer_size,
-                    0,
-                    &offscreen_.readback_mapped_ptr);
+        if (vkAllocateMemory(ctx_.device, &alloc, nullptr, &offscreen_.readback_memory)
+            != VK_SUCCESS)
+        {
+            offscreen_.readback_memory = VK_NULL_HANDLE;
+            release_readback();
+            SPECTRA_LOG_ERROR("vulkan", "readback_framebuffer: staging allocation failed");
+            return false;
+        }
+        if (vkBindBufferMemory(ctx_.device,
+                               offscreen_.readback_buffer,
+                               offscreen_.readback_memory,
+                               0)
+                != VK_SUCCESS
+            || vkMapMemory(ctx_.device,
+                           offscreen_.readback_memory,
+                           0,
+                           buffer_size,
+                           0,
+                           &offscreen_.readback_mapped_ptr)
+                   != VK_SUCCESS
+            || offscreen_.readback_mapped_ptr == nullptr)
+        {
+            offscreen_.readback_mapped_ptr = nullptr;
+            release_readback();
+            SPECTRA_LOG_ERROR("vulkan", "readback_framebuffer: staging bind/map failed");
+            return false;
+        }
 
         offscreen_.readback_capacity = buffer_size;
         staging_buf                  = offscreen_.readback_buffer;
@@ -235,25 +287,45 @@ bool VulkanBackend::readback_framebuffer(uint8_t* out_rgba, uint32_t width, uint
 
     vkFreeCommandBuffers(ctx_.device, command_pool_, 1, &cmd);
 
+    // BGRA swapchain formats are swizzled to RGBA for PNG export; RGBA
+    // formats (and the RGBA offscreen target) are copied as-is.
+    const VkFormat fmt =
+        headless_ ? VK_FORMAT_R8G8B8A8_UNORM : active_window_->swapchain.image_format;
+    const bool swap_rb = fmt == VK_FORMAT_B8G8R8A8_UNORM || fmt == VK_FORMAT_B8G8R8A8_SRGB;
+    const bool clamped = width != requested_w || height != requested_h;
+
     // Read back from staging buffer
     if (owns_staging)
     {
-        temp_staging.read(out_rgba, buffer_size);
+        if (clamped)
+        {
+            std::vector<uint8_t> tight(static_cast<size_t>(buffer_size));
+            temp_staging.read(tight.data(), buffer_size);
+            vk::copy_readback_rows(out_rgba,
+                                   requested_w,
+                                   requested_h,
+                                   tight.data(),
+                                   width,
+                                   height,
+                                   swap_rb);
+        }
+        else
+        {
+            temp_staging.read(out_rgba, buffer_size);
+            vk::copy_readback_rows(out_rgba, width, height, out_rgba, width, height, swap_rb);
+        }
         temp_staging.destroy();
     }
     else
     {
-        // Persistent buffer is already mapped — just memcpy
-        std::memcpy(out_rgba, mapped_ptr, static_cast<size_t>(buffer_size));
-    }
-
-    // Swapchain uses BGRA format — swizzle to RGBA for PNG export.
-    if (!headless_)
-    {
-        for (uint32_t i = 0; i < width * height; ++i)
-        {
-            std::swap(out_rgba[i * 4 + 0], out_rgba[i * 4 + 2]);   // B↔R
-        }
+        // Persistent buffer is already mapped — copy rows with the caller's stride
+        vk::copy_readback_rows(out_rgba,
+                               requested_w,
+                               requested_h,
+                               static_cast<const uint8_t*>(mapped_ptr),
+                               width,
+                               height,
+                               swap_rb);
     }
 
     return true;
@@ -284,6 +356,11 @@ bool VulkanBackend::do_capture_before_present()
 {
     if (!pending_capture_.buffer)
         return false;
+    if (device_lost_)
+    {
+        pending_capture_.buffer = nullptr;
+        return false;
+    }
 
     // If a target window is specified, only capture when active_window_ matches
     if (pending_capture_.target_window && active_window_ != pending_capture_.target_window)
@@ -291,6 +368,9 @@ bool VulkanBackend::do_capture_before_present()
 
     uint32_t width  = pending_capture_.width;
     uint32_t height = pending_capture_.height;
+    // The capture buffer is laid out as requested; a clamped copy is re-strided.
+    const uint32_t requested_w = width;
+    const uint32_t requested_h = height;
 
     VkImage       src_image  = VK_NULL_HANDLE;
     VkImageLayout src_layout = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -429,21 +509,36 @@ bool VulkanBackend::do_capture_before_present()
     vkQueueSubmit(ctx_.graphics_queue, 1, &capture_submit, VK_NULL_HANDLE);
     vkQueueWaitIdle(ctx_.graphics_queue);
 
-    staging.read(pending_capture_.buffer, buffer_size);
+    // Swizzle BGRA → RGBA if needed
+    VkFormat   fmt = headless_ ? VK_FORMAT_R8G8B8A8_UNORM : active_window_->swapchain.image_format;
+    const bool swap_rb = fmt == VK_FORMAT_B8G8R8A8_UNORM || fmt == VK_FORMAT_B8G8R8A8_SRGB;
+
+    if (width != requested_w || height != requested_h)
+    {
+        std::vector<uint8_t> tight(static_cast<size_t>(buffer_size));
+        staging.read(tight.data(), buffer_size);
+        vk::copy_readback_rows(pending_capture_.buffer,
+                               requested_w,
+                               requested_h,
+                               tight.data(),
+                               width,
+                               height,
+                               swap_rb);
+    }
+    else
+    {
+        staging.read(pending_capture_.buffer, buffer_size);
+        vk::copy_readback_rows(pending_capture_.buffer,
+                               width,
+                               height,
+                               pending_capture_.buffer,
+                               width,
+                               height,
+                               swap_rb);
+    }
 
     vkFreeCommandBuffers(ctx_.device, command_pool_, 1, &cmd);
     staging.destroy();
-
-    // Swizzle BGRA → RGBA if needed
-    VkFormat fmt = headless_ ? VK_FORMAT_R8G8B8A8_UNORM : active_window_->swapchain.image_format;
-    if (fmt == VK_FORMAT_B8G8R8A8_UNORM || fmt == VK_FORMAT_B8G8R8A8_SRGB)
-    {
-        size_t pixel_count = static_cast<size_t>(width) * height;
-        for (size_t i = 0; i < pixel_count; ++i)
-        {
-            std::swap(pending_capture_.buffer[i * 4 + 0], pending_capture_.buffer[i * 4 + 2]);
-        }
-    }
 
     pending_capture_.done   = true;
     pending_capture_.buffer = nullptr;

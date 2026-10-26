@@ -130,6 +130,7 @@ TEST(RecordingSessionValidation, NullCallback)
     EXPECT_EQ(rs.state(), RecordingState::Failed);
 }
 
+#if !defined(_WIN32)   // POSIX single-quote quoting; Windows uses cmd.exe double quotes
 TEST(FfmpegCommand, QuotesShellSensitiveArguments)
 {
     const detail::FfmpegCommandConfig cfg{
@@ -149,6 +150,7 @@ TEST(FfmpegCommand, QuotesShellSensitiveArguments)
     EXPECT_NE(cmd.find("-pix_fmt 'yuv420p'"), std::string::npos);
     EXPECT_NE(cmd.find("'/tmp/recordings/clip '\"'\"'final'\"'\"'.mp4'"), std::string::npos);
 }
+#endif
 
 TEST(FfmpegCommand, CreatesOutputParentDirectory)
 {

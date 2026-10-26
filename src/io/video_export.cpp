@@ -34,7 +34,7 @@ VideoExporter::VideoExporter(const Config& config) : config_(config)
     };
 
     const std::string cmd = detail::build_ffmpeg_command(ffmpeg_config);
-    pipe_                 = popen(cmd.c_str(), "w");
+    pipe_                 = popen(cmd.c_str(), detail::ffmpeg_pipe_mode());
 }
 
 VideoExporter::~VideoExporter()

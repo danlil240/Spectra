@@ -43,6 +43,13 @@ TopicRegistry::DeclareResult TopicRegistry::declare(const std::string& name,
     }
 
     // Reclaim or replace: keep accumulated subs, refresh metadata.
+    // The retained ring is interleaved with the old kind's stride; replaying it
+    // under a different stride would scramble every sample, so drop it.
+    if (it->second.kind != kind)
+    {
+        it->second.ring.clear();
+        it->second.total_samples = 0;
+    }
     it->second.kind             = kind;
     it->second.unit             = unit;
     it->second.owner_client_id  = owner_client_id;
@@ -62,7 +69,11 @@ bool TopicRegistry::publish(const std::string&              name,
     if (it == topics_.end())
         return false;
 
-    Topic&   t   = it->second;
+    Topic&       t      = it->second;
+    const size_t stride = stride_for(t.kind);
+    if (samples.size() % stride != 0)
+        return false;
+
     uint64_t now = now_ns();
 
     // Hz estimator: EWMA over inter-arrival times (per call, not per sample).
@@ -78,13 +89,11 @@ bool TopicRegistry::publish(const std::string&              name,
 
     // Append to ring (bounded).
     t.ring.insert(t.ring.end(), samples.begin(), samples.end());
-    size_t stride = (t.kind == ipc::TopicKind::Scalar3D) ? 3u : 2u;
-    size_t cap    = static_cast<size_t>(t.ring_capacity) * stride;
+    size_t cap = static_cast<size_t>(t.ring_capacity) * stride;
     while (t.ring.size() > cap)
         t.ring.pop_front();
 
-    size_t per_sample = stride;
-    t.total_samples += samples.size() / per_sample;
+    t.total_samples += samples.size() / stride;
 
     if (kind_out)
         *kind_out = t.kind;
@@ -138,6 +147,26 @@ void TopicRegistry::unsubscribe(const TopicSubscription& sub)
     }
 }
 
+void TopicRegistry::on_series_removed(uint64_t figure_id, uint32_t series_index)
+{
+    std::lock_guard<std::mutex> lk(mutex_);
+    for (auto& kv : topics_)
+    {
+        auto& subs = kv.second.subs;
+        subs.erase(
+            std::remove_if(subs.begin(),
+                           subs.end(),
+                           [&](const TopicSubscription& s)
+                           { return s.figure_id == figure_id && s.series_index == series_index; }),
+            subs.end());
+        for (auto& s : subs)
+        {
+            if (s.figure_id == figure_id && s.series_index > series_index)
+                --s.series_index;
+        }
+    }
+}
+
 std::vector<TopicRegistry::Info> TopicRegistry::snapshot() const
 {
     std::lock_guard<std::mutex> lk(mutex_);
@@ -172,6 +201,15 @@ std::optional<ipc::TopicKind> TopicRegistry::kind_of(const std::string& name) co
     if (it == topics_.end())
         return std::nullopt;
     return it->second.kind;
+}
+
+std::optional<uint32_t> TopicRegistry::ring_capacity_of(const std::string& name) const
+{
+    std::lock_guard<std::mutex> lk(mutex_);
+    auto                        it = topics_.find(name);
+    if (it == topics_.end())
+        return std::nullopt;
+    return it->second.ring_capacity;
 }
 
 }   // namespace spectra::daemon

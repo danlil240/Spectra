@@ -4,7 +4,8 @@
 #include "vk_backend.hpp"
 
 #include <spectra/logger.hpp>
-#include <stdexcept>
+
+#include "vk_frame_utils.hpp"
 
 #include "../../anim/frame_profiler.hpp"
 
@@ -22,6 +23,11 @@ bool VulkanBackend::begin_frame(FrameProfiler* profiler)
     // corrupting projection matrices (flickering / wrong zoom).
     // The ring wraps automatically in upload_buffer() when it reaches
     // UBO_MAX_SLOTS, giving ~10+ frames of headroom before reuse.
+
+    // Device loss is unrecoverable: report failure (no exceptions escape the
+    // render backend) and let the caller shut down via is_device_lost().
+    if (device_lost_ || !active_window_)
+        return false;
 
     if (headless_)
     {
@@ -42,6 +48,24 @@ bool VulkanBackend::begin_frame(FrameProfiler* profiler)
         return true;
     }
 
+    // Windowed mode — refuse to run on a window whose swapchain or per-frame
+    // objects are missing (failed/partial recreation); the caller recreates it.
+    {
+        auto&        w           = *active_window_;
+        const size_t fence_count = w.in_flight_fences.size();
+        if (w.swapchain.swapchain == VK_NULL_HANDLE || fence_count == 0
+            || w.image_available_semaphores.size() != fence_count
+            || w.command_buffers.size() < fence_count || w.fence_submit_index.size() != fence_count
+            || w.swapchain.framebuffers.size() != w.swapchain.images.size())
+        {
+            w.swapchain_dirty       = true;
+            w.swapchain_invalidated = true;
+            return false;
+        }
+        if (w.current_flight_frame >= fence_count)
+            w.current_flight_frame = 0;
+    }
+
     // Windowed mode — wait for this slot's previous work to finish.
     // Use a bounded timeout (100ms) to prevent indefinite stalls when
     // the presentation engine is backed up (multi-window, resize storms).
@@ -60,7 +84,8 @@ bool VulkanBackend::begin_frame(FrameProfiler* profiler)
     if (fence_status == VK_ERROR_DEVICE_LOST)
     {
         device_lost_ = true;
-        throw std::runtime_error("Vulkan device lost - cannot continue rendering");
+        SPECTRA_LOG_ERROR("vulkan", "begin_frame: device lost while waiting on fence");
+        return false;
     }
     if (fence_status == VK_TIMEOUT)
     {
@@ -70,6 +95,15 @@ bool VulkanBackend::begin_frame(FrameProfiler* profiler)
         SPECTRA_LOG_DEBUG("vulkan", "begin_frame: fence wait timed out, skipping frame");
         return false;
     }
+    if (fence_status != VK_SUCCESS)
+    {
+        SPECTRA_LOG_ERROR("vulkan",
+                          "begin_frame: fence wait failed with result "
+                              + std::to_string(static_cast<int>(fence_status)));
+        return false;
+    }
+    // The slot's previous submission (and every earlier one on the queue) is done.
+    note_fence_completed(*active_window_, active_window_->current_flight_frame);
 
     // Acquire next swapchain image BEFORE resetting fence.
     // Bounded timeout prevents indefinite stalls when the compositor
@@ -113,6 +147,28 @@ bool VulkanBackend::begin_frame(FrameProfiler* profiler)
         // Surface size no longer matches the swapchain.  Skip this frame and
         // let the caller recreate — presenting a stretched image causes
         // visible brightness flicker and misaligned UI chrome during resize.
+        // The acquire succeeded, so the image_available semaphore has a
+        // pending signal that nothing will wait on: consume it now so the
+        // semaphore is never re-acquired while still signalled
+        // (VUID-vkAcquireNextImageKHR-semaphore-01286).
+        consume_unused_acquire(*active_window_);
+        active_window_->swapchain_dirty       = true;
+        active_window_->swapchain_invalidated = true;
+        return false;
+    }
+    if (result == VK_ERROR_DEVICE_LOST)
+    {
+        device_lost_ = true;
+        SPECTRA_LOG_ERROR("vulkan", "begin_frame: device lost during acquire");
+        return false;
+    }
+    if (result != VK_SUCCESS)
+    {
+        // Any other failure leaves the image index undefined and the
+        // semaphore unsignalled: never record or submit with them.
+        SPECTRA_LOG_ERROR(
+            "vulkan",
+            "begin_frame: acquire failed with result " + std::to_string(static_cast<int>(result)));
         active_window_->swapchain_dirty       = true;
         active_window_->swapchain_invalidated = true;
         return false;
@@ -144,14 +200,32 @@ void VulkanBackend::end_frame(FrameProfiler* profiler)
         submit.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO;
         submit.commandBufferCount = 1;
         submit.pCommandBuffers    = &active_window_->current_cmd;
-        vkQueueSubmit(ctx_.graphics_queue, 1, &submit, VK_NULL_HANDLE);
-        vkQueueWaitIdle(ctx_.graphics_queue);
+        VkResult headless_submit  = vkQueueSubmit(ctx_.graphics_queue, 1, &submit, VK_NULL_HANDLE);
+        if (headless_submit != VK_SUCCESS)
+        {
+            if (headless_submit == VK_ERROR_DEVICE_LOST)
+                device_lost_ = true;
+            SPECTRA_LOG_ERROR("vulkan",
+                              "end_frame: headless submit failed with result "
+                                  + std::to_string(static_cast<int>(headless_submit)));
+            return;
+        }
+        if (vkQueueWaitIdle(ctx_.graphics_queue) == VK_ERROR_DEVICE_LOST)
+        {
+            device_lost_ = true;
+            SPECTRA_LOG_ERROR("vulkan", "end_frame: device lost while waiting for headless submit");
+            return;
+        }
 
         // One completed submission; safe-point progression for deferred frees.
         // Keep headless deletion conservative: defer actual descriptor frees
         // to shutdown/explicit flush points to avoid per-frame free churn on
-        // software Vulkan drivers used in CI golden tests.
+        // software Vulkan drivers used in CI golden tests.  Textures are the
+        // exception: they hold large images, so flush once some are pending.
         ++frame_counter_;
+        note_all_submissions_completed();
+        if (!pending_texture_frees_.empty())
+            flush_pending_buffer_frees();
         return;
     }
 
@@ -191,17 +265,27 @@ void VulkanBackend::end_frame(FrameProfiler* profiler)
         if (submit_result == VK_ERROR_DEVICE_LOST)
         {
             device_lost_ = true;
-            throw std::runtime_error("Vulkan device lost - submit failed");
+            SPECTRA_LOG_ERROR("vulkan", "end_frame: device lost during submit");
+            return;
         }
 
         SPECTRA_LOG_ERROR("vulkan",
                           "end_frame: submit failed with result "
                               + std::to_string(static_cast<int>(submit_result)));
+        // A failed submit leaves the slot's fence unsignalled (begin_frame
+        // reset it) and the acquire semaphore signalled.  Restore both so the
+        // window does not freeze and recreate_swapchain cannot hang, and
+        // recreate the swapchain since the acquired image is never presented.
+        consume_unused_acquire(*active_window_);
+        active_window_->swapchain_dirty       = true;
+        active_window_->swapchain_invalidated = true;
         return;
     }
 
     // Progress deferred deletion only when work was actually submitted.
     ++frame_counter_;
+    if (active_window_->current_flight_frame < active_window_->fence_submit_index.size())
+        active_window_->fence_submit_index[active_window_->current_flight_frame] = frame_counter_;
     flush_pending_buffer_frees();
 
     // Save the image index being presented so readback_framebuffer can
@@ -257,7 +341,7 @@ void VulkanBackend::end_frame(FrameProfiler* profiler)
     else if (result == VK_ERROR_DEVICE_LOST)
     {
         device_lost_ = true;
-        throw std::runtime_error("Vulkan device lost - present failed");
+        SPECTRA_LOG_ERROR("vulkan", "end_frame: device lost during present");
     }
     else if (result != VK_SUCCESS)
     {
@@ -424,7 +508,13 @@ void VulkanBackend::set_scissor(int32_t x, int32_t y, uint32_t width, uint32_t h
 
 void VulkanBackend::set_line_width(float width)
 {
-    vkCmdSetLineWidth(active_window_->current_cmd, width);
+    // Without the wideLines feature only 1.0 is valid
+    // (VUID-vkCmdSetLineWidth-lineWidth-00788).
+    const float clamped = vk::clamp_line_width(width,
+                                               ctx_.wide_lines_enabled,
+                                               ctx_.properties.limits.lineWidthRange[0],
+                                               ctx_.properties.limits.lineWidthRange[1]);
+    vkCmdSetLineWidth(active_window_->current_cmd, clamped);
 }
 
 void VulkanBackend::draw(uint32_t vertex_count, uint32_t first_vertex)

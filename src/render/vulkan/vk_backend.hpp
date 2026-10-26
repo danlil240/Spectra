@@ -176,7 +176,7 @@ class VulkanBackend : public Backend
     void wait_window_fences(WindowContext& wctx) const;
 
     // Returns true if the Vulkan device has been lost (unrecoverable)
-    bool is_device_lost() const { return device_lost_; }
+    bool is_device_lost() const override { return device_lost_; }
 
     struct GpuMemoryStats
     {
@@ -206,11 +206,30 @@ class VulkanBackend : public Backend
     VkCommandBuffer current_command_buffer() const { return active_window_->current_cmd; }
 
    private:
-    void       create_command_pool();
-    void       create_command_buffers();
-    void       create_sync_objects();
-    void       create_descriptor_pool();
-    void       destroy_surface_for(WindowContext& wctx);
+    void             create_command_pool();
+    void             create_command_buffers();
+    void             create_sync_objects();
+    void             create_descriptor_pool();
+    VkDescriptorPool create_extra_descriptor_pool();
+    void             destroy_surface_for(WindowContext& wctx);
+
+    // Destroy and clear a window's semaphores/fences (null-safe).
+    void destroy_sync_objects_for(WindowContext& wctx);
+    // Destroy every swapchain-owned resource of a window except the render
+    // pass (shared with pipelines), leaving the context empty but reusable.
+    void release_swapchain_keep_render_pass(WindowContext& wctx);
+    // Replace `wctx`'s fence for `slot` with a new, signalled one.
+    // Used when a submit that should have signalled it failed.
+    void replace_fence_signaled(WindowContext& wctx, uint32_t slot);
+    // An image was acquired (its image_available semaphore has a pending
+    // signal) but no rendering will be submitted for it.  Consume the signal
+    // with an empty batch that also signals the slot's fence, so the
+    // semaphore can be reused safely.
+    void consume_unused_acquire(WindowContext& wctx);
+    // Record that the submission tracked by `wctx`'s fence `slot` completed.
+    void note_fence_completed(const WindowContext& wctx, uint32_t slot);
+    // Record that every submission so far has completed (queue/device idle).
+    void       note_all_submissions_completed() { completed_submit_ = frame_counter_; }
     VkPipeline create_pipeline_for_type(PipelineType type, VkRenderPass rp);
 
    public:
@@ -252,9 +271,10 @@ class VulkanBackend : public Backend
 
     struct BufferEntry
     {
-        vk::GpuBuffer   gpu_buffer;
-        VkDescriptorSet descriptor_set = VK_NULL_HANDLE;
-        BufferUsage     usage          = BufferUsage::Vertex;
+        vk::GpuBuffer    gpu_buffer;
+        VkDescriptorSet  descriptor_set  = VK_NULL_HANDLE;
+        VkDescriptorPool descriptor_pool = VK_NULL_HANDLE;   // pool the set came from
+        BufferUsage      usage           = BufferUsage::Vertex;
     };
     std::unordered_map<uint64_t, BufferEntry>      buffers_;
     std::unordered_map<uint64_t, VkPipeline>       pipelines_;
@@ -262,18 +282,22 @@ class VulkanBackend : public Backend
     std::unordered_map<uint64_t, VkPipelineLayout> pipeline_layouts_;
 
     // Deferred buffer+descriptor deletion.  Each entry is stamped with the
-    // frame counter at destruction time.  At the start of each frame, after
-    // the fence wait, we flush entries that are old enough (>= flight_count
-    // frames ago) so that every in-flight command buffer has completed.
+    // submission counter at destruction time and is freed only after a fence
+    // for a later submission has been observed signalled (completed_submit_).
+    // All windows submit to one graphics queue, so this is safe across
+    // windows, unlike counting frames of whichever window submits.
     struct DeferredBufferFree
     {
         BufferEntry entry;
         uint64_t    frame_destroyed;   // value of frame_counter_ when queued
     };
     std::vector<DeferredBufferFree> pending_buffer_frees_;
-    uint64_t                        frame_counter_ = 0;
-    uint32_t                        flight_count_  = 2;   // updated from in_flight_fences.size()
-    void                            flush_pending_buffer_frees(bool force_all = false);
+    uint64_t                        frame_counter_ = 0;   // number of successful submissions
+    // Highest submission index known to have completed on the GPU.
+    uint64_t completed_submit_ = 0;
+    uint32_t flight_count_     = 2;   // updated from in_flight_fences.size()
+    // Frees deferred buffers AND textures whose last possible use completed.
+    void flush_pending_buffer_frees(bool force_all = false);
 
    public:
     // Lightweight periodic flush hook. Frame progression for deferred
@@ -281,25 +305,44 @@ class VulkanBackend : public Backend
     void advance_deferred_deletion();
 
    private:
-    VkDescriptorSet allocate_descriptor_set(VkDescriptorSetLayout layout);
+    // Allocates from descriptor_pool_, falling back to (and growing) a list of
+    // extra pools when it is exhausted.  `out_pool` receives the owning pool.
+    VkDescriptorSet               allocate_descriptor_set(VkDescriptorSetLayout layout,
+                                                          VkDescriptorPool*     out_pool = nullptr);
+    void                          free_descriptor_set(VkDescriptorPool pool, VkDescriptorSet set);
+    std::vector<VkDescriptorPool> extra_descriptor_pools_;
     void update_ubo_descriptor(VkDescriptorSet set, VkBuffer buffer, VkDeviceSize size) const;
     void update_ssbo_descriptor(VkDescriptorSet set, VkBuffer buffer, VkDeviceSize size) const;
 
     struct TextureEntry
     {
-        VkImage         image          = VK_NULL_HANDLE;
-        VkDeviceMemory  memory         = VK_NULL_HANDLE;
-        VkImageView     view           = VK_NULL_HANDLE;
-        VkSampler       sampler        = VK_NULL_HANDLE;
-        VkDescriptorSet descriptor_set = VK_NULL_HANDLE;
+        VkImage          image           = VK_NULL_HANDLE;
+        VkDeviceMemory   memory          = VK_NULL_HANDLE;
+        VkImageView      view            = VK_NULL_HANDLE;
+        VkSampler        sampler         = VK_NULL_HANDLE;
+        VkDescriptorSet  descriptor_set  = VK_NULL_HANDLE;
+        VkDescriptorPool descriptor_pool = VK_NULL_HANDLE;   // pool the set came from
     };
     std::unordered_map<uint64_t, TextureEntry> textures_;
+
+    // Deferred texture deletion (same rules as pending_buffer_frees_).
+    struct DeferredTextureFree
+    {
+        TextureEntry entry;
+        uint64_t     frame_destroyed;
+    };
+    std::vector<DeferredTextureFree> pending_texture_frees_;
+    void                             destroy_texture_entry_now(TextureEntry& tex);
 
     // Dynamic UBO state (per-draw projection slots)
     VkDeviceSize              ubo_slot_alignment_ = 256;   // minUniformBufferOffsetAlignment
     uint32_t                  ubo_next_offset_    = 0;     // next write offset in dynamic UBO
     uint32_t                  ubo_bound_offset_   = 0;     // offset of last-written slot (for bind)
-    static constexpr uint32_t UBO_MAX_SLOTS       = 64;
+    static constexpr uint32_t UBO_MAX_SLOTS       = 1024;
+    // Submission index that last used each ring slot (0 = never).  Before a
+    // slot is overwritten we make sure that submission has completed.
+    std::vector<uint64_t> ubo_slot_submit_;
+    bool                  ubo_overflow_logged_ = false;
 
     // Pending framebuffer capture (filled by end_frame between submit and present)
     struct PendingCapture

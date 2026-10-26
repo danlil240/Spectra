@@ -41,6 +41,60 @@ inline std::string shell_quote(std::string_view value)
     return quoted;
 }
 
+// Quote one argument for a Windows command line (cmd.exe via _popen, then the
+// MSVCRT argv parser): wrap in double quotes, escape embedded quotes as \" and
+// double any backslashes that precede a quote or the closing quote.
+inline std::string windows_quote(std::string_view value)
+{
+    std::string quoted;
+    quoted.reserve(value.size() + 2);
+    quoted.push_back('"');
+    size_t backslashes = 0;
+    for (char ch : value)
+    {
+        if (ch == '\\')
+        {
+            ++backslashes;
+            continue;
+        }
+        if (ch == '"')
+        {
+            quoted.append(backslashes * 2 + 1, '\\');
+            quoted.push_back('"');
+        }
+        else
+        {
+            quoted.append(backslashes, '\\');
+            quoted.push_back(ch);
+        }
+        backslashes = 0;
+    }
+    quoted.append(backslashes * 2, '\\');
+    quoted.push_back('"');
+    return quoted;
+}
+
+// Quote an argument for the shell that popen() uses on this platform.
+inline std::string platform_quote(std::string_view value)
+{
+#if defined(_WIN32)
+    return windows_quote(value);
+#else
+    return shell_quote(value);
+#endif
+}
+
+// Mode for the ffmpeg stdin pipe.  On Windows the pipe must be opened in binary
+// mode, otherwise MSVCRT translates every 0x0A byte of raw RGBA data to CRLF.
+inline constexpr const char* ffmpeg_pipe_mode()
+{
+#if defined(_WIN32)
+    return "wb";
+#else
+    return "w";
+#endif
+}
+
 inline bool ensure_ffmpeg_output_parent(const std::string& output_path, std::string* error)
 {
     namespace fs = std::filesystem;
@@ -68,20 +122,17 @@ inline bool ensure_ffmpeg_output_parent(const std::string& output_path, std::str
 inline std::string build_ffmpeg_command(const FfmpegCommandConfig& config)
 {
     std::ostringstream cmd;
-    cmd << "ffmpeg -y -hide_banner -loglevel error -nostats"
-        << " -f rawvideo"
-        << " -vcodec rawvideo"
-        << " -pix_fmt rgba"
-        << " -s " << config.width << "x" << config.height << " -r " << std::fixed
-        << std::setprecision(6) << config.fps << " -i -"
-        << " -c:v " << shell_quote(config.codec) << " -pix_fmt " << shell_quote(config.pix_fmt);
+    cmd << "ffmpeg -y -hide_banner -loglevel error -nostats" << " -f rawvideo"
+        << " -vcodec rawvideo" << " -pix_fmt rgba" << " -s " << config.width << "x" << config.height
+        << " -r " << std::fixed << std::setprecision(6) << config.fps << " -i -" << " -c:v "
+        << platform_quote(config.codec) << " -pix_fmt " << platform_quote(config.pix_fmt);
 
     if (config.crf >= 0)
     {
         cmd << " -crf " << config.crf;
     }
 
-    cmd << " " << shell_quote(config.output_path);
+    cmd << " " << platform_quote(config.output_path);
     return cmd.str();
 }
 

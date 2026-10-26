@@ -33,8 +33,17 @@ class Connection
     bool send(const Message& msg);
 
     // Receive a complete message (blocking).
-    // Returns std::nullopt on error or connection closed.
+    // Returns std::nullopt on error, timeout or connection closed.  Any failure
+    // closes the connection: a partially consumed frame leaves the stream
+    // unusable.
     std::optional<Message> recv();
+
+    // Maximum time (ms) recv() waits for the first byte of a message.
+    // Negative (default) waits forever.
+    void set_recv_timeout_ms(int ms) { recv_timeout_ms_ = ms; }
+    // Maximum time (ms) recv() waits for more bytes once a message has started
+    // arriving (a peer that stalls mid-frame).  Negative (default) waits forever.
+    void set_stall_timeout_ms(int ms) { stall_timeout_ms_ = ms; }
 
     // Close the connection.
     void close();
@@ -42,10 +51,14 @@ class Connection
     int fd() const { return fd_; }
 
    private:
-    int fd_ = -1;
+    int fd_               = -1;
+    int recv_timeout_ms_  = -1;
+    int stall_timeout_ms_ = -1;
 
-    // Internal: read exactly `len` bytes into `buf`. Returns false on error/EOF.
-    bool read_exact(uint8_t* buf, size_t len) const;
+    // Internal: read exactly `len` bytes into `buf`. Returns false on error/EOF
+    // or when no data arrives within `first_timeout_ms` (for the first byte) /
+    // stall_timeout_ms_ (for later bytes).  Negative timeouts wait forever.
+    bool read_exact(uint8_t* buf, size_t len, int first_timeout_ms) const;
     // Internal: write exactly `len` bytes from `buf`. Returns false on error.
     bool write_exact(const uint8_t* buf, size_t len) const;
 };
@@ -63,7 +76,8 @@ class Server
     Server& operator=(const Server&) = delete;
 
     // Bind and listen on the given socket path.
-    // Returns true on success. Removes stale socket file if present.
+    // Returns true on success. Removes a stale socket file if present; fails
+    // if another server is still accepting connections on that path.
     bool listen(const std::string& path);
 
     // Accept a new connection (blocking).
@@ -74,7 +88,8 @@ class Server
     // Returns nullptr immediately if no pending connection.
     std::unique_ptr<Connection> try_accept() const;
 
-    // Close the listening socket and remove the socket file.
+    // Close the listening socket and remove the socket file (only if the path
+    // still refers to the socket this server bound).
     void close();
 
     bool               is_listening() const { return listen_fd_ >= 0; }
@@ -84,7 +99,13 @@ class Server
    private:
     int         listen_fd_ = -1;
     std::string path_;
+    uint64_t    bound_dev_ = 0;
+    uint64_t    bound_ino_ = 0;
 };
+
+// Mid-frame stall timeout applied to connections accepted by Server, so a
+// peer that sends a partial message and stops cannot block a poll() loop.
+inline constexpr int SERVER_STALL_TIMEOUT_MS = 5000;
 
 // ─── Client ──────────────────────────────────────────────────────────────────
 // Connects to a Unix domain socket server.

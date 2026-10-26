@@ -79,6 +79,10 @@ void SessionRuntime::pump_interactive_frame(FrameScheduler& scheduler,
 
     for (auto* wctx : window_mgr->windows())
     {
+        // Device lost is unrecoverable: stop issuing GPU work; tick() exits.
+        if (vk->is_device_lost())
+            break;
+
         if (!wctx || wctx->should_close || !wctx->ui_ctx || wctx->is_preview
             || wctx->panel_draw_callback)
         {
@@ -92,13 +96,13 @@ void SessionRuntime::pump_interactive_frame(FrameScheduler& scheduler,
 
         if (fb_w != wctx->swapchain.extent.width || fb_h != wctx->swapchain.extent.height)
         {
-            wctx->needs_resize          = true;
-            wctx->pending_width         = fb_w;
-            wctx->pending_height        = fb_h;
-            wctx->resize_time           = now;
-            wctx->ui_ctx->needs_resize  = true;
-            wctx->ui_ctx->new_width     = fb_w;
-            wctx->ui_ctx->new_height    = fb_h;
+            wctx->needs_resize                  = true;
+            wctx->pending_width                 = fb_w;
+            wctx->pending_height                = fb_h;
+            wctx->resize_time                   = now;
+            wctx->ui_ctx->needs_resize          = true;
+            wctx->ui_ctx->new_width             = fb_w;
+            wctx->ui_ctx->new_height            = fb_h;
             wctx->ui_ctx->resize_requested_time = now;
         }
         else if (wctx->needs_resize)
@@ -135,9 +139,9 @@ void SessionRuntime::pump_interactive_frame(FrameScheduler& scheduler,
         if (rendered && window_mgr->windows().size() > 1)
             vkQueueWaitIdle(vk->graphics_queue());
 
-        wctx->active_figure_id                      = win_fs.active_figure_id;
-        wctx->ui_ctx->per_window_active_figure      = win_fs.active_figure;
-        wctx->ui_ctx->per_window_active_figure_id   = win_fs.active_figure_id;
+        wctx->active_figure_id                    = win_fs.active_figure_id;
+        wctx->ui_ctx->per_window_active_figure    = win_fs.active_figure;
+        wctx->ui_ctx->per_window_active_figure_id = win_fs.active_figure_id;
         wctx->ui_ctx->topics_panel.set_target_figure_id(win_fs.active_figure_id);
 
         if (!window_mgr->windows().empty() && wctx == window_mgr->windows()[0])
@@ -170,15 +174,15 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
 {
     newly_created_window_ids_.clear();
 
-    const bool vsync_mode           = scheduler.mode() == FrameScheduler::Mode::VSync;
-    bool       scheduled_animation  = false;
-    bool       animation_due_tick   = false;
-    bool       allow_animation_tick = true;
-    bool       should_render_tick   = true;
-    bool       has_any_animation    = false;
+    const bool vsync_mode              = scheduler.mode() == FrameScheduler::Mode::VSync;
+    bool       scheduled_animation     = false;
+    bool       animation_due_tick      = false;
+    bool       allow_animation_tick    = true;
+    bool       should_render_tick      = true;
+    bool       has_any_animation       = false;
     bool       has_ui_chrome_animation = false;
-    float      max_animation_fps    = 0.0f;
-    float      animation_dt         = 0.0f;
+    float      max_animation_fps       = 0.0f;
+    float      animation_dt            = 0.0f;
 
     profiler_.begin_frame();
 
@@ -231,7 +235,7 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
     if (vsync_mode && scheduled_animation)
         animation_dt = animation_due_tick ? animation_tick_gate_.consume_accumulated_dt() : 0.0f;
 
-    // ── Unified window update + render loop ───────────────────────
+        // ── Unified window update + render loop ───────────────────────
 #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
     if (window_mgr)
     {
@@ -243,6 +247,11 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
 
         for (auto* wctx : window_mgr->windows())
         {
+            // Device lost is unrecoverable: stop rendering the remaining
+            // windows; the check at the end of tick() shuts the session down.
+            if (vk->is_device_lost())
+                break;
+
             if (wctx->should_close)
                 continue;
 
@@ -587,7 +596,7 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
 
             if (not should_render_tick)
             {
-#ifdef SPECTRA_USE_IMGUI
+    #ifdef SPECTRA_USE_IMGUI
                 if (wctx->ui_ctx && wctx->ui_ctx->imgui_ui
                     && wctx->ui_ctx->imgui_ui->has_active_chrome_animations())
                 {
@@ -595,20 +604,20 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
                     redraw_tracker_.mark_dirty("ui_chrome_anim");
                 }
                 else
-#endif
+    #endif
                 {
                     continue;
                 }
             }
             else
             {
-#ifdef SPECTRA_USE_IMGUI
+    #ifdef SPECTRA_USE_IMGUI
                 if (wctx->ui_ctx && wctx->ui_ctx->imgui_ui
                     && wctx->ui_ctx->imgui_ui->has_active_chrome_animations())
                 {
                     has_ui_chrome_animation = true;
                 }
-#endif
+    #endif
             }
 
             {
@@ -1039,10 +1048,10 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
             // Poll so Win32 WM_ENTERSIZEMOVE keeps delivering refresh events,
             // then sleep until the next animation tick (avoids a busy spin).
             window_mgr->poll_events();
-            const double wait_s = vsync_mode
-                                      ? animation_tick_gate_.wait_timeout_seconds(
-                                            AnimationTickGate::Clock::now(), 0.1)
-                                      : 0.0;
+            const double wait_s = vsync_mode ? animation_tick_gate_.wait_timeout_seconds(
+                                                   AnimationTickGate::Clock::now(),
+                                                   0.1)
+                                             : 0.0;
             if (wait_s > 0.0)
             {
                 std::this_thread::sleep_for(
@@ -1081,6 +1090,15 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
     // Periodic resource utilization log (CPU%, RAM, frame timing).
     double frame_ms = static_cast<double>(scheduler.dt()) * 1000.0;
     resource_monitor_.tick(frame_ms);
+
+    // begin_frame()/end_frame() report VK_ERROR_DEVICE_LOST by returning
+    // instead of throwing.  The device cannot be recovered, so stop the loop
+    // rather than skipping frames forever.
+    if (running_ && backend_.is_device_lost())
+    {
+        SPECTRA_LOG_CRITICAL("main_loop", "GPU device lost, shutting down");
+        running_ = false;
+    }
 
     return frame_state;
 }

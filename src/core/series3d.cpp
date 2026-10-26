@@ -210,27 +210,31 @@ void SurfaceSeries::generate_mesh()
             float y = y_grid_[i];
             float z = z_values_[i * cols_ + j];
 
-            vec3 normal{0.0f, 0.0f, 1.0f};
+            // Central differences in the interior, one-sided differences on the
+            // grid border (neighbour indices clamped), so every vertex gets a
+            // normal that follows the surface slope.
+            const int j0 = (j > 0) ? j - 1 : j;
+            const int j1 = (j < cols_ - 1) ? j + 1 : j;
+            const int i0 = (i > 0) ? i - 1 : i;
+            const int i1 = (i < rows_ - 1) ? i + 1 : i;
 
-            if (i > 0 && i < rows_ - 1 && j > 0 && j < cols_ - 1)
-            {
-                float z_left  = z_values_[i * cols_ + (j - 1)];
-                float z_right = z_values_[i * cols_ + (j + 1)];
-                float z_down  = z_values_[(i - 1) * cols_ + j];
-                float z_up    = z_values_[(i + 1) * cols_ + j];
+            const float span_x = x_grid_[j1] - x_grid_[j0];
+            const float span_y = y_grid_[i1] - y_grid_[i0];
 
-                float dx_left  = x_grid_[j] - x_grid_[j - 1];
-                float dx_right = x_grid_[j + 1] - x_grid_[j];
-                float dy_down  = y_grid_[i] - y_grid_[i - 1];
-                float dy_up    = y_grid_[i + 1] - y_grid_[i];
+            float dz_dx = 0.0f;
+            float dz_dy = 0.0f;
+            if (span_x != 0.0f)
+                dz_dx = (z_values_[i * cols_ + j1] - z_values_[i * cols_ + j0]) / span_x;
+            if (span_y != 0.0f)
+                dz_dy = (z_values_[i1 * cols_ + j] - z_values_[i0 * cols_ + j]) / span_y;
+            if (!std::isfinite(dz_dx))
+                dz_dx = 0.0f;
+            if (!std::isfinite(dz_dy))
+                dz_dy = 0.0f;
 
-                float dz_dx = (z_right - z_left) / (dx_left + dx_right);
-                float dz_dy = (z_up - z_down) / (dy_down + dy_up);
-
-                vec3 tangent_x{1.0f, 0.0f, dz_dx};
-                vec3 tangent_y{0.0f, 1.0f, dz_dy};
-                normal = vec3_normalize(vec3_cross(tangent_x, tangent_y));
-            }
+            vec3 tangent_x{1.0f, 0.0f, dz_dx};
+            vec3 tangent_y{0.0f, 1.0f, dz_dy};
+            vec3 normal = vec3_normalize(vec3_cross(tangent_x, tangent_y));
 
             mesh_.vertices.push_back(x);
             mesh_.vertices.push_back(y);
@@ -377,7 +381,12 @@ MeshSeries::MeshSeries(std::span<const float> vertices, std::span<const uint32_t
 
 void MeshSeries::set_vertices(std::span<const float> vertices)
 {
-    vertices_.assign(vertices.begin(), vertices.end());
+    // Vertices are interleaved {x, y, z, nx, ny, nz}; drop a trailing partial
+    // vertex so every consumer can read vertices_[i * 6 + k] for
+    // i < vertex_count() without running past the end.  Indices that referenced
+    // only complete vertices stay valid because no complete vertex is removed.
+    const size_t usable = vertices.size() - vertices.size() % 6;
+    vertices_.assign(vertices.begin(), vertices.begin() + static_cast<ptrdiff_t>(usable));
     dirty_ = true;
 }
 
@@ -389,7 +398,7 @@ void MeshSeries::set_indices(std::span<const uint32_t> indices)
 
 vec3 MeshSeries::compute_centroid() const
 {
-    if (vertices_.empty())
+    if (vertices_.size() < 6)
         return {0.0f, 0.0f, 0.0f};
 
     vec3   sum{0.0f, 0.0f, 0.0f};
@@ -407,7 +416,7 @@ vec3 MeshSeries::compute_centroid() const
 
 void MeshSeries::get_bounds(vec3& min_out, vec3& max_out) const
 {
-    if (vertices_.empty())
+    if (vertices_.size() < 6)
     {
         min_out = max_out = {0.0f, 0.0f, 0.0f};
         return;

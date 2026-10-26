@@ -21,11 +21,37 @@ class ThemeManager;
 
 #include <array>
 #include <cstdint>
+#include <span>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
 namespace spectra
 {
+
+// Draw range (in segments and points) for a 2D polyline SSBO.
+struct LineDrawRange
+{
+    uint32_t first_seg = 0;
+    uint32_t seg_count = 0;
+    uint32_t first_pt  = 0;
+    uint32_t pt_count  = 0;
+};
+
+// Compute which segments/points of a polyline to draw.
+//   x          — series-local x values (x_data()).
+//   n          — number of points actually present on the GPU; clamped to x.size().
+//   x_sorted   — whether x is monotonically non-decreasing (enables culling).
+//   cull       — whether to cull to [local_x_min, local_x_max].
+//   local_x_*  — visible x range in series-local coordinates (absolute - x_offset).
+// Without culling (or when the range is degenerate) every point/segment is drawn.
+// The result never references indices >= min(n, x.size()).
+LineDrawRange compute_line_draw_range(std::span<const float> x,
+                                      size_t                 n,
+                                      bool                   x_sorted,
+                                      bool                   cull,
+                                      float                  local_x_min,
+                                      float                  local_x_max);
 
 class Renderer
 {
@@ -103,9 +129,27 @@ class Renderer
     void clear_selected_series();
 
     // Set the series type registry for custom plugin series types.
-    void set_series_type_registry(SeriesTypeRegistry* reg) { series_type_registry_ = reg; }
+    // The Renderer subscribes to the registry's unregister notifications so a
+    // plugin's per-series GPU state is released (via its cleanup_fn) before the
+    // type is removed, i.e. while the plugin library is still loaded.  When
+    // detaching from a registry (reg differs from the current one), the state
+    // of every custom series of the old registry is released first.
+    void set_series_type_registry(SeriesTypeRegistry* reg);
+
+    // Release the plugin-owned GPU state of every custom series (live or
+    // pending deferred deletion) of the given type by calling its cleanup_fn
+    // now.  The plugin frees its buffers through Backend::destroy_*, which
+    // defers the actual GPU destruction until in-flight frames are done;
+    // host-owned buffers go through the deletion ring.  Live series are
+    // re-uploaded if a type of the same name is registered again.
+    // Called automatically by SeriesTypeRegistry::unregister_type().
+    // Render thread only.
+    void release_custom_type_state(std::string_view type_name);
 
    private:
+    void release_custom_type_state(SeriesTypeEntry& entry);
+    void release_all_custom_state();
+
     void render_axes(AxesBase& axes, const Rect& viewport, uint32_t fig_width, uint32_t fig_height);
     void render_grid(AxesBase& axes, const Rect& viewport);
     void render_bounding_box(Axes3D& axes, const Rect& viewport);
@@ -144,7 +188,8 @@ class Renderer
     Backend&            backend_;
     ui::ThemeManager&   theme_mgr_;
     TextRenderer        text_renderer_;
-    SeriesTypeRegistry* series_type_registry_ = nullptr;
+    SeriesTypeRegistry* series_type_registry_    = nullptr;
+    uint64_t            series_type_listener_id_ = 0;
 
     // Active FigureViewModel for the current render pass (set by render_figure_content).
     // Enables Phase 2 ViewModel-based rendering: axes limits read via AxesViewModel,
@@ -197,21 +242,23 @@ class Renderer
         size_t       minor_grid_capacity[FRAME_BUFFER_SLOTS] = {};
         BufferHandle border_buffer;
         size_t       border_capacity = 0;
-        // 3D bounding box edges (12 lines = 24 vec3 vertices)
-        BufferHandle bbox_buffer;
-        size_t       bbox_capacity     = 0;
-        uint32_t     bbox_vertex_count = 0;
-        // 3D tick mark lines
-        BufferHandle tick_buffer;
-        size_t       tick_capacity     = 0;
-        uint32_t     tick_vertex_count = 0;
+        // 3D bounding box edges (12 lines = 24 vec3 vertices).
+        // Per-slot (like grid_buffer) so an in-flight frame never reads a
+        // buffer that the next frame is overwriting.
+        BufferHandle bbox_buffer[FRAME_BUFFER_SLOTS];
+        size_t       bbox_capacity[FRAME_BUFFER_SLOTS]     = {};
+        uint32_t     bbox_vertex_count[FRAME_BUFFER_SLOTS] = {};
+        // 3D tick mark lines (per-slot)
+        BufferHandle tick_buffer[FRAME_BUFFER_SLOTS];
+        size_t       tick_capacity[FRAME_BUFFER_SLOTS]     = {};
+        uint32_t     tick_vertex_count[FRAME_BUFFER_SLOTS] = {};
         // 3D arrow shaft lines + arrowhead triangles
         BufferHandle arrow_line_buffer;
         size_t       arrow_line_capacity     = 0;
         uint32_t     arrow_line_vertex_count = 0;
-        BufferHandle arrow_tri_buffer;
-        size_t       arrow_tri_capacity     = 0;
-        uint32_t     arrow_tri_vertex_count = 0;
+        BufferHandle arrow_tri_buffer[FRAME_BUFFER_SLOTS];
+        size_t       arrow_tri_capacity[FRAME_BUFFER_SLOTS]     = {};
+        uint32_t     arrow_tri_vertex_count[FRAME_BUFFER_SLOTS] = {};
 
         // Per-function cached axis limits — each render function (grid, bbox,
         // ticks) needs its own cache because they run sequentially and would
@@ -227,8 +274,8 @@ class Renderer
         // buffer contents are still valid, allowing cache reuse when limits are
         // stable while still performing the upload when a slot first activates.
         CachedLimits grid_cache[FRAME_BUFFER_SLOTS];
-        CachedLimits bbox_cache;
-        CachedLimits tick_cache;
+        CachedLimits bbox_cache[FRAME_BUFFER_SLOTS];
+        CachedLimits tick_cache[FRAME_BUFFER_SLOTS];
         int          cached_grid_planes[FRAME_BUFFER_SLOTS] = {};   // for 3D grid plane mask
         // Camera-relative rendering: current view center for 2D axes.
         // Grid and border vertices are generated relative to this origin.
@@ -270,8 +317,9 @@ class Renderer
     struct SeriesGpuData
     {
         BufferHandle ssbo;
-        size_t       uploaded_count     = 0;
-        size_t       ssbo_capacity      = 0;   // Allocated element capacity (>= uploaded_count)
+        size_t       uploaded_count = 0;
+        size_t       ssbo_capacity =
+            0;   // Allocated element capacity (>= uploaded_count); floats for Mesh/Shape3D
         size_t       ssbo_stride_floats = 0;
         BufferHandle index_buffer;
         size_t       index_count = 0;
@@ -290,8 +338,15 @@ class Renderer
         // Upload skip optimisation (WS-5.2)
         uint64_t data_generation = 0;   // Monotonic counter; incremented when data changes
         // Plugin custom series type fields
-        std::string custom_type_name;             // Links to SeriesTypeRegistry entry
-        void*       plugin_gpu_state = nullptr;   // Opaque state managed by plugin
+        std::string custom_type_name;   // Links to SeriesTypeRegistry entry
+        // Opaque per-series state owned by the plugin.  The plugin allocates it
+        // in upload_fn (which receives this slot by reference) and frees it in
+        // cleanup_fn when the series' GPU data is destroyed.
+        void* plugin_gpu_state = nullptr;
+        // Set when plugin_gpu_state was released because the type was
+        // unregistered: forces a re-upload so a type registered again under
+        // the same name rebuilds its state from scratch.
+        bool plugin_state_released = false;
     };
     std::unordered_map<const Series*, SeriesGpuData> series_gpu_data_;
 
@@ -343,6 +398,9 @@ class Renderer
     static constexpr uint32_t DELETION_RING_SIZE = 4;   // MAX_FRAMES_IN_FLIGHT + 2
     std::array<std::vector<SeriesGpuData>, DELETION_RING_SIZE> deletion_ring_;
     uint32_t                                                   deletion_ring_write_ = 0;
+    // Custom-series pipelines retired by SeriesTypeRegistry::unregister_type,
+    // destroyed with the same frame delay as deletion_ring_.
+    std::array<std::vector<PipelineHandle>, DELETION_RING_SIZE> pipeline_deletion_ring_;
 };
 
 }   // namespace spectra

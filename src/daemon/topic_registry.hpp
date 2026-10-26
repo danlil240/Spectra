@@ -64,7 +64,9 @@ class TopicRegistry
     // 'samples' uses the same interleaved layout as the IPC payload (2 doubles
     // per Scalar2D sample, 3 doubles per Scalar3D sample). 'kind_out' yields
     // the topic kind so the caller can convert to the figure_model float layout.
-    // Returns false if the topic is unknown.
+    // Returns false if the topic is unknown, or if samples.size() is not a
+    // multiple of the topic's stride (the samples are then dropped so the
+    // interleaved ring never becomes misaligned).
     bool publish(const std::string&              name,
                  const std::vector<double>&      samples,
                  ipc::TopicKind*                 kind_out,
@@ -83,12 +85,24 @@ class TopicRegistry
                    std::vector<double>*     retained_samples_out);
     void unsubscribe(const TopicSubscription& sub);
 
+    // A series was erased from a figure, so every later series index in that
+    // figure shifted down by one. Drops subscriptions that targeted the removed
+    // series and re-indexes the ones that pointed past it.
+    void on_series_removed(uint64_t figure_id, uint32_t series_index);
+
     // ─── Discovery ────────────────────────────────────────────────────────
 
     std::vector<Info> snapshot() const;
 
     bool                          exists(const std::string& name) const;
     std::optional<ipc::TopicKind> kind_of(const std::string& name) const;
+    std::optional<uint32_t>       ring_capacity_of(const std::string& name) const;
+
+    // Number of doubles per sample for a topic kind (2 for Scalar2D, 3 for Scalar3D).
+    static size_t stride_for(ipc::TopicKind kind)
+    {
+        return kind == ipc::TopicKind::Scalar3D ? 3u : 2u;
+    }
 
    private:
     struct Topic

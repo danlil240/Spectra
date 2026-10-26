@@ -10,6 +10,7 @@
 #include <spectra/figure_registry.hpp>
 #include "ui/input/input.hpp"
 #include "ui/theme/theme.hpp"
+#include "embed_detail.hpp"
 
 #ifdef SPECTRA_USE_IMGUI
     #include "core/layout.hpp"
@@ -55,31 +56,6 @@ struct EmbedSurface::Impl
     bool                   has_last_view     = false;
     double                 last_view[4]      = {0.0, 0.0, 0.0, 0.0};
 
-    // Locate the (axes_index, series_index) of a series within a figure.
-    static void find_series_indices(Figure* fig, const Series* s, int& out_ai, int& out_si)
-    {
-        out_ai = -1;
-        out_si = -1;
-        if (!fig || !s)
-            return;
-        auto& axes = fig->all_axes_mut();
-        for (std::size_t ai = 0; ai < axes.size(); ++ai)
-        {
-            if (!axes[ai])
-                continue;
-            auto& ser = axes[ai]->series_mut();
-            for (std::size_t si = 0; si < ser.size(); ++si)
-            {
-                if (ser[si].get() == s)
-                {
-                    out_ai = static_cast<int>(ai);
-                    out_si = static_cast<int>(si);
-                    return;
-                }
-            }
-        }
-    }
-
     // Fire hover/view-changed callbacks based on current interaction state.
     void dispatch_interaction_events(Figure* active_fig)
     {
@@ -96,7 +72,7 @@ struct EmbedSurface::Impl
                 {
                     int ai = -1;
                     int si = -1;
-                    find_series_indices(active_fig, s, ai, si);
+                    embed_detail::find_series_indices(active_fig, s, ai, si);
                     hover_cb(ai, si, np.point_index, np.data_x, np.data_y);
                 }
                 else
@@ -126,6 +102,17 @@ struct EmbedSurface::Impl
             }
         }
     }
+
+    // Point ThemeManager::instance() / ui::theme() at this surface's own
+    // ThemeManager.  Called on every entry point that may run subsystems
+    // reading the redirectable instance, so that several live surfaces (or a
+    // temporary one created and destroyed in between) never leave it pointing
+    // at another surface's — possibly freed — ThemeManager.
+    void make_theme_current() { ui::ThemeManager::set_current(&theme_mgr); }
+
+    // Drop the redirect so it never dangles once this Impl is gone.  Other
+    // live surfaces re-register themselves via make_theme_current().
+    void release_theme_current() { ui::ThemeManager::set_current(nullptr); }
 
 #ifdef SPECTRA_USE_IMGUI
     std::unique_ptr<ImGuiIntegration> imgui_ui;
@@ -158,7 +145,7 @@ struct EmbedSurface::Impl
         // Register the embed-owned ThemeManager so all subsystems
         // (renderer, overlays, ui::theme()) use it instead of requiring
         // a global fallback singleton.
-        ui::ThemeManager::set_current(&theme_mgr);
+        make_theme_current();
 
         renderer = std::make_unique<Renderer>(*backend, theme_mgr);
         if (!renderer->init())
@@ -248,7 +235,12 @@ struct EmbedSurface::Impl
     void shutdown()
     {
         if (!initialized)
+        {
+            // init() may have registered theme_mgr before failing part-way.
+            release_theme_current();
             return;
+        }
+        make_theme_current();
 
         if (backend)
         {
@@ -266,6 +258,7 @@ struct EmbedSurface::Impl
         renderer.reset();
         backend.reset();
         initialized = false;
+        release_theme_current();
     }
 
     // Apply UI chrome visibility from config to the live ImGui layer / overlays.
@@ -323,6 +316,13 @@ struct EmbedSurface::Impl
     {
         if (!initialized || !active_fig)
             return false;
+
+        // Device lost is unrecoverable: begin_frame() would fail forever, so
+        // stop rendering and report failure (logged once, when it happens).
+        if (backend->is_device_lost())
+            return false;
+
+        make_theme_current();
 
         // Update figure dimensions to match surface
         active_fig->config_.width  = config.width;
@@ -422,7 +422,10 @@ struct EmbedSurface::Impl
 
         if (!backend->begin_frame())
         {
-            SPECTRA_LOG_ERROR("embed", "begin_frame() failed");
+            if (backend->is_device_lost())
+                SPECTRA_LOG_CRITICAL("embed", "GPU device lost; surface can no longer render");
+            else
+                SPECTRA_LOG_ERROR("embed", "begin_frame() failed");
 #ifdef SPECTRA_USE_IMGUI
             if (imgui_ui)
                 ImGui::EndFrame();
@@ -447,6 +450,12 @@ struct EmbedSurface::Impl
 
         renderer->end_render_pass();
         backend->end_frame();
+
+        if (backend->is_device_lost())
+        {
+            SPECTRA_LOG_CRITICAL("embed", "GPU device lost; surface can no longer render");
+            return false;
+        }
 
         return true;
     }
@@ -600,6 +609,7 @@ void EmbedSurface::inject_mouse_move(float x, float y)
 {
     if (!impl_ || !impl_->initialized)
         return;
+    impl_->make_theme_current();
 #ifdef SPECTRA_USE_IMGUI
     impl_->mouse_x = x;
     impl_->mouse_y = y;
@@ -611,6 +621,7 @@ void EmbedSurface::inject_mouse_button(int button, int action, int mods, float x
 {
     if (!impl_ || !impl_->initialized)
         return;
+    impl_->make_theme_current();
 #ifdef SPECTRA_USE_IMGUI
     impl_->mouse_x = x;
     impl_->mouse_y = y;
@@ -628,6 +639,7 @@ void EmbedSurface::inject_scroll(float dx, float dy, float cursor_x, float curso
 {
     if (!impl_ || !impl_->initialized)
         return;
+    impl_->make_theme_current();
 #ifdef SPECTRA_USE_IMGUI
     impl_->mouse_wheel += dy;
     impl_->mouse_wheel_h += dx;
@@ -642,6 +654,7 @@ void EmbedSurface::inject_key(int key, int action, int mods)
 {
     if (!impl_ || !impl_->initialized)
         return;
+    impl_->make_theme_current();
     impl_->input.on_key(key, action, mods);
 }
 
@@ -655,6 +668,7 @@ void EmbedSurface::update(float dt)
 {
     if (!impl_ || !impl_->initialized)
         return;
+    impl_->make_theme_current();
     impl_->input.update(dt);
 
     // Phase 4: drive the per-frame callback for live data / animation.
@@ -697,6 +711,22 @@ void EmbedSurface::set_background_alpha(float alpha)
 {
     if (impl_)
         impl_->config.background_alpha = alpha;
+}
+
+void EmbedSurface::set_theme(const std::string& name)
+{
+    if (!impl_)
+        return;
+    impl_->config.theme = name;
+    // Apply to this surface's own ThemeManager (not whichever instance is
+    // currently registered process-wide).
+    impl_->theme_mgr.ensure_initialized();
+    impl_->theme_mgr.set_theme(name);
+}
+
+std::string EmbedSurface::theme() const
+{
+    return impl_ ? impl_->theme_mgr.current_theme_name() : std::string{};
 }
 
 // ── UI chrome visibility ──────────────────────────────────────────────────────

@@ -56,11 +56,22 @@ class TopicsPanel
    public:
     using ListRequestFn      = std::function<void()>;
     using SubscribeRequestFn = std::function<void(const SubscribeRequest&)>;
+    using DestroyFn          = std::function<void()>;
+
+    TopicsPanel() = default;
+    ~TopicsPanel();
+    TopicsPanel(const TopicsPanel&)            = delete;
+    TopicsPanel& operator=(const TopicsPanel&) = delete;
 
     // ─── Wiring ──────────────────────────────────────────────────────────
 
     void set_list_request_callback(ListRequestFn cb) { list_cb_ = std::move(cb); }
     void set_subscribe_request_callback(SubscribeRequestFn cb) { subscribe_cb_ = std::move(cb); }
+
+    // Invoked once from the destructor, on the thread that destroys the panel.
+    // Lets a transport that keeps a reference to this panel (e.g. the inproc
+    // topic server) unwire itself before the panel's memory is released.
+    void set_destroy_callback(DestroyFn cb) { destroy_cb_ = std::move(cb); }
 
     // Called by the transport layer with the freshest topic list.
     // Safe to call from any thread.
@@ -105,6 +116,7 @@ class TopicsPanel
 
     ListRequestFn      list_cb_;
     SubscribeRequestFn subscribe_cb_;
+    DestroyFn          destroy_cb_;
 };
 
 }   // namespace spectra::ui::topics

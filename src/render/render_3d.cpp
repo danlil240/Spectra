@@ -54,11 +54,14 @@ void Renderer::render_bounding_box(Axes3D& axes, const Rect& /*viewport*/)
     auto  zlim = axes.z_limits();
     auto& gpu  = axes_gpu_data_[&axes];
 
+    // Per-slot buffer: the previous in-flight frame may still read the other slot.
+    const uint32_t slot = backend_.current_flight_frame() % FRAME_BUFFER_SLOTS;
+
     // Check if limits changed — skip regeneration if cached
-    auto& bc             = gpu.bbox_cache;
+    auto& bc             = gpu.bbox_cache[slot];
     bool  limits_changed = !bc.valid || bc.xmin != xlim.min || bc.xmax != xlim.max
-                           || bc.ymin != ylim.min || bc.ymax != ylim.max || bc.zmin != zlim.min
-                           || bc.zmax != zlim.max;
+                          || bc.ymin != ylim.min || bc.ymax != ylim.max || bc.zmin != zlim.min
+                          || bc.zmax != zlim.max;
 
     if (limits_changed)
     {
@@ -86,25 +89,25 @@ void Renderer::render_bounding_box(Axes3D& axes, const Rect& /*viewport*/)
         }
 
         size_t byte_size = bbox_floats * sizeof(float);
-        if (!gpu.bbox_buffer || gpu.bbox_capacity < byte_size)
+        if (!gpu.bbox_buffer[slot] || gpu.bbox_capacity[slot] < byte_size)
         {
-            if (gpu.bbox_buffer)
-                backend_.destroy_buffer(gpu.bbox_buffer);
-            gpu.bbox_buffer   = backend_.create_buffer(BufferUsage::Vertex, byte_size);
-            gpu.bbox_capacity = byte_size;
+            if (gpu.bbox_buffer[slot])
+                backend_.destroy_buffer(gpu.bbox_buffer[slot]);
+            gpu.bbox_buffer[slot]   = backend_.create_buffer(BufferUsage::Vertex, byte_size);
+            gpu.bbox_capacity[slot] = byte_size;
         }
-        backend_.upload_buffer(gpu.bbox_buffer, bbox_scratch_.data(), byte_size);
-        gpu.bbox_vertex_count = static_cast<uint32_t>(bbox.edge_vertices.size());
-        bc.xmin               = xlim.min;
-        bc.xmax               = xlim.max;
-        bc.ymin               = ylim.min;
-        bc.ymax               = ylim.max;
-        bc.zmin               = zlim.min;
-        bc.zmax               = zlim.max;
-        bc.valid              = true;
+        backend_.upload_buffer(gpu.bbox_buffer[slot], bbox_scratch_.data(), byte_size);
+        gpu.bbox_vertex_count[slot] = static_cast<uint32_t>(bbox.edge_vertices.size());
+        bc.xmin                     = xlim.min;
+        bc.xmax                     = xlim.max;
+        bc.ymin                     = ylim.min;
+        bc.ymax                     = ylim.max;
+        bc.zmin                     = zlim.min;
+        bc.zmax                     = zlim.max;
+        bc.valid                    = true;
     }
 
-    if (!gpu.bbox_buffer || gpu.bbox_vertex_count == 0)
+    if (!gpu.bbox_buffer[slot] || gpu.bbox_vertex_count[slot] == 0)
         return;
 
     backend_.bind_pipeline(grid3d_pipeline_);
@@ -117,8 +120,8 @@ void Renderer::render_bounding_box(Axes3D& axes, const Rect& /*viewport*/)
     pc.data_offset_y = 0.0f;
     backend_.push_constants(pc);
 
-    backend_.bind_buffer(gpu.bbox_buffer, 0);
-    backend_.draw(gpu.bbox_vertex_count);
+    backend_.bind_buffer(gpu.bbox_buffer[slot], 0);
+    backend_.draw(gpu.bbox_vertex_count[slot]);
 }
 
 void Renderer::render_tick_marks(Axes3D& axes, const Rect& /*viewport*/)
@@ -128,11 +131,14 @@ void Renderer::render_tick_marks(Axes3D& axes, const Rect& /*viewport*/)
     auto  zlim = axes.z_limits();
     auto& gpu  = axes_gpu_data_[&axes];
 
+    // Per-slot buffer: the previous in-flight frame may still read the other slot.
+    const uint32_t slot = backend_.current_flight_frame() % FRAME_BUFFER_SLOTS;
+
     // Check if limits changed — skip regeneration if cached
-    auto& tc             = gpu.tick_cache;
+    auto& tc             = gpu.tick_cache[slot];
     bool  limits_changed = !tc.valid || tc.xmin != xlim.min || tc.xmax != xlim.max
-                           || tc.ymin != ylim.min || tc.ymax != ylim.max || tc.zmin != zlim.min
-                           || tc.zmax != zlim.max;
+                          || tc.ymin != ylim.min || tc.ymax != ylim.max || tc.zmin != zlim.min
+                          || tc.zmax != zlim.max;
 
     if (limits_changed)
     {
@@ -194,25 +200,25 @@ void Renderer::render_tick_marks(Axes3D& axes, const Rect& /*viewport*/)
         }
 
         size_t byte_size = wi * sizeof(float);
-        if (!gpu.tick_buffer || gpu.tick_capacity < byte_size)
+        if (!gpu.tick_buffer[slot] || gpu.tick_capacity[slot] < byte_size)
         {
-            if (gpu.tick_buffer)
-                backend_.destroy_buffer(gpu.tick_buffer);
-            gpu.tick_buffer   = backend_.create_buffer(BufferUsage::Vertex, byte_size * 2);
-            gpu.tick_capacity = byte_size * 2;
+            if (gpu.tick_buffer[slot])
+                backend_.destroy_buffer(gpu.tick_buffer[slot]);
+            gpu.tick_buffer[slot]   = backend_.create_buffer(BufferUsage::Vertex, byte_size * 2);
+            gpu.tick_capacity[slot] = byte_size * 2;
         }
-        backend_.upload_buffer(gpu.tick_buffer, tick_scratch_.data(), byte_size);
-        gpu.tick_vertex_count = static_cast<uint32_t>(wi / 3);
-        tc.xmin               = xlim.min;
-        tc.xmax               = xlim.max;
-        tc.ymin               = ylim.min;
-        tc.ymax               = ylim.max;
-        tc.zmin               = zlim.min;
-        tc.zmax               = zlim.max;
-        tc.valid              = true;
+        backend_.upload_buffer(gpu.tick_buffer[slot], tick_scratch_.data(), byte_size);
+        gpu.tick_vertex_count[slot] = static_cast<uint32_t>(wi / 3);
+        tc.xmin                     = xlim.min;
+        tc.xmax                     = xlim.max;
+        tc.ymin                     = ylim.min;
+        tc.ymax                     = ylim.max;
+        tc.zmin                     = zlim.min;
+        tc.zmax                     = zlim.max;
+        tc.valid                    = true;
     }
 
-    if (!gpu.tick_buffer || gpu.tick_vertex_count == 0)
+    if (!gpu.tick_buffer[slot] || gpu.tick_vertex_count[slot] == 0)
         return;
 
     backend_.bind_pipeline(grid3d_pipeline_);
@@ -220,17 +226,17 @@ void Renderer::render_tick_marks(Axes3D& axes, const Rect& /*viewport*/)
     SeriesPushConstants pc{};
     const auto&         theme_colors = theme_mgr_.colors();
     ui::Color           tick_color(theme_colors.grid_major.r * 0.8f,
-                                   theme_colors.grid_major.g * 0.8f,
-                                   theme_colors.grid_major.b * 0.8f,
-                                   theme_colors.grid_major.a);
+                         theme_colors.grid_major.g * 0.8f,
+                         theme_colors.grid_major.b * 0.8f,
+                         theme_colors.grid_major.a);
     set_pc_color_3d(pc.color, tick_color, theme_mgr_);
     pc.line_width    = 1.5f;
     pc.data_offset_x = 0.0f;
     pc.data_offset_y = 0.0f;
     backend_.push_constants(pc);
 
-    backend_.bind_buffer(gpu.tick_buffer, 0);
-    backend_.draw(gpu.tick_vertex_count);
+    backend_.bind_buffer(gpu.tick_buffer[slot], 0);
+    backend_.draw(gpu.tick_vertex_count[slot]);
 }
 
 void Renderer::render_arrows(Axes3D& axes, const Rect& /*viewport*/)
@@ -462,16 +468,19 @@ void Renderer::render_arrows(Axes3D& axes, const Rect& /*viewport*/)
     uint32_t tri_vert_count = total_floats / 6;
     if (tri_vert_count > 0)
     {
-        size_t tri_bytes = arrow_tri_scratch_.size() * sizeof(float);
-        if (!gpu.arrow_tri_buffer || gpu.arrow_tri_capacity < tri_bytes)
+        // Per-slot buffer: re-uploaded every frame, so the previous in-flight
+        // frame must keep reading its own copy.
+        const uint32_t slot      = backend_.current_flight_frame() % FRAME_BUFFER_SLOTS;
+        size_t         tri_bytes = arrow_tri_scratch_.size() * sizeof(float);
+        if (!gpu.arrow_tri_buffer[slot] || gpu.arrow_tri_capacity[slot] < tri_bytes)
         {
-            if (gpu.arrow_tri_buffer)
-                backend_.destroy_buffer(gpu.arrow_tri_buffer);
-            gpu.arrow_tri_buffer   = backend_.create_buffer(BufferUsage::Vertex, tri_bytes * 2);
-            gpu.arrow_tri_capacity = tri_bytes * 2;
+            if (gpu.arrow_tri_buffer[slot])
+                backend_.destroy_buffer(gpu.arrow_tri_buffer[slot]);
+            gpu.arrow_tri_buffer[slot] = backend_.create_buffer(BufferUsage::Vertex, tri_bytes * 2);
+            gpu.arrow_tri_capacity[slot] = tri_bytes * 2;
         }
-        backend_.upload_buffer(gpu.arrow_tri_buffer, arrow_tri_scratch_.data(), tri_bytes);
-        gpu.arrow_tri_vertex_count = tri_vert_count;
+        backend_.upload_buffer(gpu.arrow_tri_buffer[slot], arrow_tri_scratch_.data(), tri_bytes);
+        gpu.arrow_tri_vertex_count[slot] = tri_vert_count;
 
         // Swap model matrix to identity for arrow rendering (geometry already
         // in normalized space). Preserve the rest of the UBO (projection, view,
@@ -542,14 +551,13 @@ void Renderer::render_arrows(Axes3D& axes, const Rect& /*viewport*/)
 
         const Axes3D::AxisArrowHover hover = axes.hovered_axis_arrow();
 
-        backend_.bind_buffer(gpu.arrow_tri_buffer, 0);
+        backend_.bind_buffer(gpu.arrow_tri_buffer[slot], 0);
         uint32_t num_arrows = total_floats / FLOATS_PER_ARROW;
         for (uint32_t i = 0; i < num_arrows && i < 3; ++i)
         {
-            const bool is_hovered =
-                (i == 0 && hover == Axes3D::AxisArrowHover::X)
-                || (i == 1 && hover == Axes3D::AxisArrowHover::Y)
-                || (i == 2 && hover == Axes3D::AxisArrowHover::Z);
+            const bool is_hovered = (i == 0 && hover == Axes3D::AxisArrowHover::X)
+                                    || (i == 1 && hover == Axes3D::AxisArrowHover::Y)
+                                    || (i == 2 && hover == Axes3D::AxisArrowHover::Z);
             const float brighten = is_hovered ? kHoverBrighten : 1.0f;
 
             SeriesPushConstants pc{};

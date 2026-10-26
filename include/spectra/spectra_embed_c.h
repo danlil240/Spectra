@@ -27,7 +27,14 @@ extern "C"
 {
 #endif
 
-    /* Opaque handles */
+    /* Opaque handles.
+     *
+     * Figure, axes and series handles are owned by the SpectraEmbed they were
+     * obtained from: they stay valid (from any thread, with the caller
+     * serializing access) until spectra_embed_destroy() is called on that
+     * surface. Asking for the same underlying object again returns the same
+     * handle. No C API function lets a C++ exception escape: failures are
+     * reported through the documented return values (NULL / 0). */
     typedef struct SpectraEmbed  SpectraEmbed;
     typedef struct SpectraFigure SpectraFigure;
     typedef struct SpectraAxes   SpectraAxes;

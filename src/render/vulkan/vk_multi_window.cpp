@@ -132,7 +132,11 @@ bool VulkanBackend::init_window_context(WindowContext& wctx, uint32_t width, uin
     catch (const std::exception& e)
     {
         SPECTRA_LOG_ERROR("vulkan", "init_window_context failed: " + std::string(e.what()));
-        destroy_surface_for(wctx);
+        // Tear down everything created so far (sync objects, command buffers,
+        // swapchain) BEFORE the surface: a surface must not be destroyed while
+        // a swapchain still uses it (VUID-vkDestroySurfaceKHR-surface-01266).
+        // destroy_window_context is null-safe for the parts never created.
+        destroy_window_context(wctx);
         active_window_ = prev_active;
         return false;
     }
@@ -283,7 +287,8 @@ void VulkanBackend::destroy_window_context(WindowContext& wctx)
     // referenced by pending vkQueueSubmit/vkQueuePresentKHR operations.
     if (ctx_.device != VK_NULL_HANDLE)
     {
-        vkDeviceWaitIdle(ctx_.device);
+        if (vkDeviceWaitIdle(ctx_.device) == VK_SUCCESS)
+            note_all_submissions_completed();
     }
 
 #if defined(SPECTRA_USE_IMGUI) && (defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3))
@@ -314,15 +319,7 @@ void VulkanBackend::destroy_window_context(WindowContext& wctx)
 #endif
 
     // Destroy sync objects
-    for (auto sem : wctx.image_available_semaphores)
-        vkDestroySemaphore(ctx_.device, sem, nullptr);
-    for (auto sem : wctx.render_finished_semaphores)
-        vkDestroySemaphore(ctx_.device, sem, nullptr);
-    for (auto fence : wctx.in_flight_fences)
-        vkDestroyFence(ctx_.device, fence, nullptr);
-    wctx.image_available_semaphores.clear();
-    wctx.render_finished_semaphores.clear();
-    wctx.in_flight_fences.clear();
+    destroy_sync_objects_for(wctx);
 
     // Free command buffers back to the shared pool
     if (!wctx.command_buffers.empty() && command_pool_ != VK_NULL_HANDLE)
@@ -354,6 +351,9 @@ void VulkanBackend::create_command_buffers_for(WindowContext& wctx)
                              static_cast<uint32_t>(wctx.command_buffers.size()),
                              wctx.command_buffers.data());
     }
+    // Drop freed handles so a failed allocation below cannot double-free them.
+    wctx.command_buffers.clear();
+    wctx.current_cmd = VK_NULL_HANDLE;
 
     auto count = static_cast<uint32_t>(wctx.swapchain.images.size());
     wctx.command_buffers.resize(count);
@@ -366,6 +366,7 @@ void VulkanBackend::create_command_buffers_for(WindowContext& wctx)
 
     if (vkAllocateCommandBuffers(ctx_.device, &info, wctx.command_buffers.data()) != VK_SUCCESS)
     {
+        wctx.command_buffers.clear();
         throw std::runtime_error("Failed to allocate command buffers for window "
                                  + std::to_string(wctx.id));
     }
@@ -377,6 +378,7 @@ void VulkanBackend::create_sync_objects_for(WindowContext& wctx)
     wctx.image_available_semaphores.resize(count);
     wctx.render_finished_semaphores.resize(count);
     wctx.in_flight_fences.resize(count);
+    wctx.fence_submit_index.assign(count, 0);
 
     // Track actual flight frame count for deferred deletion
     if (count > flight_count_)

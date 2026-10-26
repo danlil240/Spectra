@@ -61,6 +61,7 @@ class Figure:
         _, axes_index = codec.decode_resp_axes_created(resp["payload"])
 
         ax = Axes(self._session, self._id, axes_index)
+        ax._figure_axes = self._axes_list
         self._axes_list.append(ax)
         return ax
 
@@ -79,6 +80,7 @@ class Figure:
         _, axes_index = codec.decode_resp_axes_created(resp["payload"])
 
         ax = Axes(self._session, self._id, axes_index, is_3d=True)
+        ax._figure_axes = self._axes_list
         self._axes_list.append(ax)
         return ax
 

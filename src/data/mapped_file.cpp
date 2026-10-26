@@ -1,5 +1,8 @@
 #include "data/mapped_file.hpp"
 
+#include <algorithm>
+#include <cstdint>
+#include <cstring>
 #include <stdexcept>
 #include <utility>
 
@@ -74,7 +77,9 @@ MappedFile::MappedFile(const std::string& path)
     if (fd_ < 0)
         throw std::runtime_error("MappedFile: cannot open " + path);
 
-    struct stat st{};
+    struct stat st
+    {
+    };
     if (::fstat(fd_, &st) != 0)
     {
         ::close(fd_);
@@ -144,12 +149,32 @@ std::span<const float> MappedFile::subspan_float(std::size_t byte_offset, std::s
     if (!data_ || byte_offset >= size_)
         return {};
 
+    const auto* base = static_cast<const char*>(data_) + byte_offset;
+    if (reinterpret_cast<std::uintptr_t>(base) % alignof(float) != 0)
+        return {};
+
     std::size_t avail_bytes = size_ - byte_offset;
     std::size_t max_floats  = avail_bytes / sizeof(float);
     count                   = std::min(count, max_floats);
 
-    const auto* base = static_cast<const char*>(data_) + byte_offset;
     return {reinterpret_cast<const float*>(base), count};
+}
+
+std::vector<float> MappedFile::copy_floats(std::size_t byte_offset, std::size_t count) const
+{
+    if (!data_ || byte_offset >= size_)
+        return {};
+
+    std::size_t avail_bytes = size_ - byte_offset;
+    std::size_t max_floats  = avail_bytes / sizeof(float);
+    count                   = std::min(count, max_floats);
+
+    std::vector<float> out(count);
+    if (count > 0)
+        std::memcpy(out.data(),
+                    static_cast<const char*>(data_) + byte_offset,
+                    count * sizeof(float));
+    return out;
 }
 
 void MappedFile::close()

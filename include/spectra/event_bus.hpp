@@ -67,6 +67,15 @@ class EventBus
     SubscriptionId subscribe(Callback cb, Priority priority)
     {
         SubscriptionId id = next_id_++;
+        if (emitting_)
+        {
+            // Defer insertion: mutating subs_ (push_back may reallocate, and
+            // sort_subs() move-assigns elements) would invalidate the iteration
+            // in dispatch().  New subscribers start receiving events from the
+            // next emission.
+            pending_subs_.push_back({id, std::move(cb), priority});
+            return id;
+        }
         subs_.push_back({id, std::move(cb), priority});
         sort_subs();
         return id;
@@ -77,7 +86,25 @@ class EventBus
     {
         if (emitting_)
         {
-            // Defer removal to avoid invalidating the iteration in emit().
+            // A subscription added during this emission is not in subs_ yet.
+            auto pending_it = std::find_if(pending_subs_.begin(),
+                                           pending_subs_.end(),
+                                           [id](const Sub& s) { return s.id == id; });
+            if (pending_it != pending_subs_.end())
+            {
+                pending_subs_.erase(pending_it);
+                return;
+            }
+            // Defer removal to avoid invalidating the iteration in emit(), but
+            // deactivate the subscription now so it receives no further events
+            // in this emission (its captures may already be destroyed).  The
+            // callback object itself is kept alive, since it may be the one
+            // currently executing.
+            for (auto& sub : subs_)
+            {
+                if (sub.id == id)
+                    sub.active = false;
+            }
             pending_unsubs_.push_back(id);
             return;
         }
@@ -115,10 +142,28 @@ class EventBus
         for (auto uid : pending_unsubs_)
             erase_sub(uid);
         pending_unsubs_.clear();
+
+        // Process deferred subscribes.
+        if (!pending_subs_.empty())
+        {
+            for (auto& sub : pending_subs_)
+                subs_.push_back(std::move(sub));
+            pending_subs_.clear();
+            sort_subs();
+        }
     }
 
     // Returns the number of active subscriptions.
-    size_t subscriber_count() const { return subs_.size(); }
+    size_t subscriber_count() const
+    {
+        size_t count = pending_subs_.size();
+        for (const auto& sub : subs_)
+        {
+            if (sub.active)
+                ++count;
+        }
+        return count;
+    }
 
     // ── Thread-safe deferred emission ────────────────────────────────
     // Producer threads call emit_deferred() to queue events for later
@@ -158,13 +203,17 @@ class EventBus
         SubscriptionId id;
         Callback       cb;
         Priority       priority = Priority::Normal;
+        bool           active   = true;   // false once unsubscribed during emit
     };
 
     void dispatch(const Event& event)
     {
-        for (auto& sub : subs_)
+        // subs_ is never resized or reordered while emitting_ is set
+        // (subscribe/unsubscribe defer their changes), so indices stay valid.
+        for (size_t i = 0; i < subs_.size(); ++i)
         {
-            if (sub.cb)
+            auto& sub = subs_[i];
+            if (sub.active && sub.cb)
                 sub.cb(event);
         }
     }
@@ -187,6 +236,7 @@ class EventBus
 
     std::vector<Sub>            subs_;
     std::vector<SubscriptionId> pending_unsubs_;
+    std::vector<Sub>            pending_subs_;
     std::vector<Event>          reentrant_queue_;
     SubscriptionId              next_id_  = 1;
     bool                        emitting_ = false;

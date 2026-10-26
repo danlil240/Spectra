@@ -65,7 +65,17 @@ ChunkedLineSeries& ChunkedLineSeries::load_binary(const std::string& path,
     if (count == 0)
         return *this;
 
-    auto interleaved = file.subspan_float(offset_bytes, count * 2);
+    // Use the zero-copy span when the offset is float-aligned; otherwise copy
+    // the bytes out (reading through a misaligned float* is UB).
+    std::vector<float>     unaligned_copy;
+    std::span<const float> interleaved = file.subspan_float(offset_bytes, count * 2);
+    if (interleaved.size() < count * 2)
+    {
+        unaligned_copy = file.copy_floats(offset_bytes, count * 2);
+        interleaved    = unaligned_copy;
+    }
+    if (interleaved.size() < count * 2)
+        return *this;
 
     impl_->x.clear();
     impl_->y.clear();
@@ -91,8 +101,22 @@ ChunkedLineSeries& ChunkedLineSeries::load_binary_columns(const std::string& pat
     if (!file.is_open())
         return *this;
 
-    auto x_span = file.subspan_float(x_offset_bytes, count);
-    auto y_span = file.subspan_float(y_offset_bytes, count);
+    // Fall back to copying when an offset is not float-aligned (a misaligned
+    // float* read is UB).
+    std::vector<float>     x_copy;
+    std::vector<float>     y_copy;
+    std::span<const float> x_span = file.subspan_float(x_offset_bytes, count);
+    std::span<const float> y_span = file.subspan_float(y_offset_bytes, count);
+    if (x_span.empty())
+    {
+        x_copy = file.copy_floats(x_offset_bytes, count);
+        x_span = x_copy;
+    }
+    if (y_span.empty())
+    {
+        y_copy = file.copy_floats(y_offset_bytes, count);
+        y_span = y_copy;
+    }
 
     std::size_t actual = std::min(x_span.size(), y_span.size());
     if (actual == 0)
@@ -322,7 +346,9 @@ ChunkedLineSeries::VisibleData ChunkedLineSeries::visible_data(float       x_min
     }
 
     // Decimate to fit budget
-    auto        decimated = data::min_max_decimate(vis_x, vis_y, effective_max / 2);
+    // At least one bucket so a budget of 1 still yields a representative point.
+    auto decimated =
+        data::min_max_decimate(vis_x, vis_y, std::max<std::size_t>(1, effective_max / 2));
     VisibleData out;
     out.x.reserve(decimated.size());
     out.y.reserve(decimated.size());
@@ -396,13 +422,26 @@ void ChunkedLineSeries::enforce_memory_budget()
     if (impl_->memory_budget == 0)
         return;
 
+    bool dropped = false;
+    // Never drop the last (partially filled) chunk: memory is accounted per
+    // allocated chunk, so a budget smaller than one chunk per array would
+    // otherwise wipe the whole series on every append.
     while (impl_->x.memory_bytes() + impl_->y.memory_bytes() > impl_->memory_budget
-           && !impl_->x.empty())
+           && impl_->x.chunk_count() > 1)
     {
-        // Drop one chunk worth of data from the front
-        std::size_t drop = std::min(impl_->x.chunk_size(), impl_->x.size());
+        // Release the front chunk (only its live elements are erased).
+        std::size_t drop = impl_->x.front_chunk_count();
+        if (drop == 0)
+            break;
         impl_->x.erase_front(drop);
         impl_->y.erase_front(drop);
+        dropped = true;
+    }
+
+    if (dropped)
+    {
+        impl_->lod_dirty = true;
+        dirty_           = true;
     }
 }
 

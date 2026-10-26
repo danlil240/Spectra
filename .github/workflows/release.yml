@@ -4,17 +4,72 @@ on:
   push:
     tags: ['v*']
 
+# Least privilege by default; jobs that publish raise their own permissions.
 permissions:
-  contents: write
-  id-token: write
+  contents: read
 
 env:
   BUILD_TYPE: Release
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
-  # ─── Linux Packages (.deb, .tar.gz) ────────────────────────────────────
+  # ─── Gate: the tagged commit must have a green CI run ──────────────────
+  # Waits for the CI workflow (ci.yml) run on the tagged SHA and fails unless it
+  # concluded "success". If the tag points at a commit CI never ran on, start CI
+  # for it with "Run workflow" on the tag (ci.yml has workflow_dispatch), then
+  # re-run this workflow.
+  ci-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Wait for CI success on ${{ github.sha }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          start=$(date +%s)
+          no_run_grace=$(( 10 * 60 ))    # CI may start a little after the tag push
+          deadline=$(( 140 * 60 ))
+          while :; do
+            now=$(date +%s)
+            run_json="$(gh api "repos/$REPO/actions/workflows/ci.yml/runs?head_sha=$SHA&per_page=50" \
+              --jq '.workflow_runs | sort_by(.created_at) | last // empty')"
+            if [ -z "$run_json" ]; then
+              if [ $(( now - start )) -gt "$no_run_grace" ]; then
+                echo "::error::No CI run exists for $SHA. Run the CI workflow on this tag, then re-run Release."
+                exit 1
+              fi
+              echo "No CI run for $SHA yet; waiting..."
+              sleep 30
+              continue
+            fi
+            status="$(jq -r .status <<<"$run_json")"
+            conclusion="$(jq -r .conclusion <<<"$run_json")"
+            url="$(jq -r .html_url <<<"$run_json")"
+            if [ "$status" = "completed" ]; then
+              if [ "$conclusion" = "success" ]; then
+                echo "CI passed for $SHA: $url"
+                exit 0
+              fi
+              echo "::error::CI for $SHA concluded '$conclusion': $url"
+              exit 1
+            fi
+            if [ $(( now - start )) -gt "$deadline" ]; then
+              echo "::error::Timed out waiting for CI ($status): $url"
+              exit 1
+            fi
+            echo "CI is $status: $url"
+            sleep 60
+          done
+
+  # ─── Linux Packages (.deb, .rpm, .tar.gz, AppImage) ────────────────────
   package-linux:
+    needs: ci-gate
     strategy:
       matrix:
         include:
@@ -29,7 +84,7 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Install dependencies
         run: |
@@ -72,14 +127,16 @@ jobs:
             -DSPECTRA_BUILD_TESTS=OFF \
             -DSPECTRA_BUILD_EXAMPLES=OFF \
             -DSPECTRA_PKG_DISTRO_CODENAME=${{ matrix.codename }}
-          cmake --build build --config ${{ env.BUILD_TYPE }} -j$(nproc)
+          cmake --build build --config ${{ env.BUILD_TYPE }} -j"$(nproc)"
 
       - name: Package
         run: |
           cd build
           cpack -G TGZ
           cpack -G DEB
-          cpack -G RPM || true
+          # RPM must build: a broken RPM fails the release instead of silently
+          # disappearing from the assets (CI builds it on ubuntu-22.04 too).
+          cpack -G RPM
 
       - name: Inspect DEB metadata
         run: |
@@ -137,13 +194,14 @@ jobs:
           ls -la artifacts
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: linux-packages-${{ matrix.label }}
           path: artifacts/*
 
   # ─── macOS Package (.tar.gz) ────────────────────────────────────────────
   package-macos:
+    needs: ci-gate
     strategy:
       matrix:
         include:
@@ -152,9 +210,9 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.12'
 
@@ -176,7 +234,7 @@ jobs:
             -DPython3_EXECUTABLE:FILEPATH="$PYTHON_VENV" \
             -DSPECTRA_BUILD_TESTS=OFF \
             -DSPECTRA_BUILD_EXAMPLES=OFF
-          cmake --build build --config ${{ env.BUILD_TYPE }} -j$(sysctl -n hw.ncpu)
+          cmake --build build --config ${{ env.BUILD_TYPE }} -j"$(sysctl -n hw.ncpu)"
 
       - name: Package
         run: |
@@ -184,19 +242,22 @@ jobs:
           cpack -G TGZ
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: macos-${{ matrix.os }}-${{ matrix.arch }}-packages
           path: build/*.tar.gz
 
-  # ─── Windows Package (.zip) ─────────────────────────────────────────────
+  # ─── Windows Package (.zip, EXPERIMENTAL C++ library/app only) ──────────
+  # The multiproc backend does not run on Windows (no Unix domain socket
+  # daemon), so no Windows Python wheel or backend archive is published.
   package-windows:
+    needs: ci-gate
     runs-on: windows-2022
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.12'
 
@@ -238,20 +299,24 @@ jobs:
           cpack -G ZIP
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: windows-packages
           path: build/*.zip
 
   # ─── Python Wheels (cibuildwheel) ───────────────────────────────────────
+  # Windows wheels are not built: the Python package drives the multiproc
+  # backend, which exits with "Unix domain socket daemon not supported" there.
   python-wheels:
+    needs: ci-gate
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-24.04, macos-15-intel, macos-15, windows-2022]
+        os: [ubuntu-24.04, macos-15-intel, macos-15]
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Install Vulkan SDK (Linux)
         if: runner.os == 'Linux'
@@ -274,19 +339,7 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install vulkan-headers vulkan-loader glslang molten-vk
 
-      - name: Install Vulkan SDK (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $ver = "1.4.304.1"
-          $url = "https://sdk.lunarg.com/sdk/download/$ver/windows/VulkanSDK-$ver-Installer.exe"
-          Invoke-WebRequest -Uri $url -OutFile VulkanSDK.exe
-          Start-Process -FilePath .\VulkanSDK.exe -Args "--accept-licenses --default-answer --confirm-command install" -Wait
-          $sdkPath = "C:\VulkanSDK\$ver"
-          echo "VULKAN_SDK=$sdkPath" >> $env:GITHUB_ENV
-          echo "$sdkPath\Bin" >> $env:GITHUB_PATH
-
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.12'
 
@@ -300,9 +353,19 @@ jobs:
           CIBW_BUILD: "cp39-* cp310-* cp311-* cp312-* cp313-*"
           CIBW_SKIP: "*-musllinux_* *-manylinux_i686 *-win32 pp*"
           CIBW_BUILD_VERBOSITY: 1
+          # No GPU in the test environment: import + version check, and verify the
+          # multiproc binaries are bundled at spectra/_bin/.
+          CIBW_TEST_COMMAND: >-
+            python -c "import spectra, sys; print(spectra.__version__)" &&
+            python {project}/.github/scripts/check_wheel.py {project}/version.txt
           # manylinux_2_34 is currently emitting x86_64_v2 ISA notes for our wheel.
           # Use manylinux_2_28 for a stable x86_64 baseline auditwheel target.
           CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
+          # spectra/_bin/spectra-backend and spectra-window link the Vulkan loader;
+          # it must come from the user's system (it finds the system ICDs), so
+          # auditwheel must not graft libvulkan into the wheel.
+          CIBW_REPAIR_WHEEL_COMMAND_LINUX: >-
+            auditwheel repair --exclude libvulkan.so.1 -w {dest_dir} {wheel}
           # manylinux_2_28's default gcc-toolset-12 lacks C++20 <format>; use
           # gcc-toolset-13 (installed in CIBW_BEFORE_ALL_LINUX) instead.
           CIBW_ENVIRONMENT_LINUX: >
@@ -337,46 +400,92 @@ jobs:
             CFLAGS="-mmacosx-version-min=15.0"
             CXXFLAGS="-mmacosx-version-min=15.0"
             CMAKE_ARGS="-DCMAKE_OSX_DEPLOYMENT_TARGET=15.0"
-          CIBW_BUILD_MACOS: cp39-* cp310-* cp311-* cp312-* cp313-*
-          CIBW_REPAIR_MACOS: delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel} --macos-version 15.0
-          CIBW_ENVIRONMENT_MACOS_ARM64: >
-            MACOSX_DEPLOYMENT_TARGET=15.0
-            CFLAGS="-mmacosx-version-min=15.0"
-            CXXFLAGS="-mmacosx-version-min=15.0"
-            CMAKE_ARGS="-DCMAKE_OSX_DEPLOYMENT_TARGET=15.0"
-          CIBW_REPAIR_MACOS_ARM64: delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel} --macos-version 15.0
+          # (CIBW_BUILD_MACOS / CIBW_REPAIR_MACOS / *_MACOS_ARM64 were removed: they are
+          # not cibuildwheel options and were silently ignored, so macOS wheels have
+          # always used the default delocate repair, which stays unchanged.)
 
       - name: Upload wheels
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: wheels-${{ matrix.os }}
           path: wheelhouse/*.whl
 
+  # ─── Linux wheel render smoke (lavapipe) ──────────────────────────────
+  # cibuildwheel's manylinux test container has no Xvfb/lavapipe, so the real
+  # "start the bundled backend and render" check runs here on the built wheel.
+  wheel-smoke-linux:
+    needs: python-wheels
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Install lavapipe + Xvfb
+        uses: ./.github/actions/setup-linux
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.12'
+
+      - name: Download Linux wheels
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: wheels-ubuntu-24.04
+          path: wheelhouse/
+
+      - name: Install cp312 wheel
+        run: |
+          set -euo pipefail
+          whl="$(ls wheelhouse/*-cp312-cp312-*manylinux*.whl)"
+          python -m pip install "$whl"
+
+      - name: Pin Vulkan ICD to lavapipe
+        uses: ./.github/actions/pin-lavapipe
+
+      - name: Render smoke test from the installed wheel
+        env:
+          SPECTRA_NO_DOWNLOAD: "1"
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP"   # make sure the installed package is imported, not the checkout
+          python -I "$GITHUB_WORKSPACE/.github/scripts/check_wheel.py" "$GITHUB_WORKSPACE/version.txt"
+          rc=0
+          timeout 300 xvfb-run -a python -I "$GITHUB_WORKSPACE/python/tests/wheel_smoke.py" || rc=$?
+          pkill -f spectra-backend || true
+          exit "$rc"
+
   # ─── Python sdist ──────────────────────────────────────────────────────
   python-sdist:
+    needs: ci-gate
     runs-on: ubuntu-24.04
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.12'
 
       - name: Build sdist
         run: |
           pip install build
-          cp version.txt python/VERSION
-          python -m build --sdist --outdir dist/ python/
+          python -m build --sdist --outdir dist/ .
+          # The sdist builds the backend with CMake, so it must carry the C++ tree.
+          sdist="$(ls dist/*.tar.gz)"
+          tar tzf "$sdist" > sdist-files.txt
+          for f in version.txt CMakeLists.txt pyproject.toml python/spectra/__init__.py; do
+            grep -q "^[^/]*/$f\$" sdist-files.txt || { echo "::error::$f missing from $sdist"; exit 1; }
+          done
 
       - name: Upload sdist
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: sdist
           path: dist/*.tar.gz
 
   # ─── Standalone Backend Binaries (for pure-Python pip install) ──────────
   backend-binaries:
+    needs: ci-gate
     strategy:
       matrix:
         include:
@@ -384,14 +493,12 @@ jobs:
             platform: linux-x86_64
           - os: macos-15
             platform: macos-arm64
-          - os: windows-2022
-            platform: windows-x86_64
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         if: runner.os != 'Linux'
         with:
           python-version: '3.12'
@@ -432,29 +539,6 @@ jobs:
           python -c "from PIL import Image; print(f'Pillow {Image.__version__} installed')"
           echo "PYTHON_VENV=$PWD/.venv/bin/python" >> "$GITHUB_ENV"
 
-      - name: Install Vulkan SDK (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $ver = "1.4.304.1"
-          $url = "https://sdk.lunarg.com/sdk/download/$ver/windows/VulkanSDK-$ver-Installer.exe"
-          Invoke-WebRequest -Uri $url -OutFile VulkanSDK.exe
-          Start-Process -FilePath .\VulkanSDK.exe -Args "--accept-licenses --default-answer --confirm-command install" -Wait
-          $sdkPath = "C:\VulkanSDK\$ver"
-          echo "VULKAN_SDK=$sdkPath" >> $env:GITHUB_ENV
-          echo "$sdkPath\Bin" >> $env:GITHUB_PATH
-
-      - name: Install Python dependencies (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          python -m venv .venv
-          $pythonExe = Join-Path $PWD ".venv\Scripts\python.exe"
-          & $pythonExe -m pip install --upgrade pip
-          & $pythonExe -m pip install Pillow
-          & $pythonExe -c "from PIL import Image; print(f'Pillow {Image.__version__} installed')"
-          "PYTHON_VENV=$pythonExe" | Out-File -FilePath $env:GITHUB_ENV -Append
-
       - name: Configure + Build (multiproc)
         run: |
           python_args=()
@@ -482,39 +566,31 @@ jobs:
           cmake --build build --config ${{ env.BUILD_TYPE }} -j4
         shell: bash
 
-      - name: Package backend binaries (Unix)
-        if: runner.os != 'Windows'
+      - name: Package backend binaries
         run: |
           mkdir -p pkg
           cp build/spectra-backend pkg/
           cp build/spectra-window pkg/
           tar czf spectra-backend-${{ matrix.platform }}.tar.gz -C pkg .
 
-      - name: Package backend binaries (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path pkg
-          Copy-Item build/${{ env.BUILD_TYPE }}/spectra-backend.exe pkg/
-          Copy-Item build/${{ env.BUILD_TYPE }}/spectra-window.exe pkg/
-          Compress-Archive -Path pkg/* -DestinationPath spectra-backend-${{ matrix.platform }}.zip
-
       - name: Upload backend binary archive
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: backend-${{ matrix.platform }}
           path: spectra-backend-${{ matrix.platform }}.*
 
   # ─── Create GitHub Release ─────────────────────────────────────────────
   release:
-    needs: [package-linux, package-macos, package-windows, python-wheels, python-sdist, backend-binaries]
+    needs: [package-linux, package-macos, package-windows, python-wheels, wheel-smoke-linux, python-sdist, backend-binaries]
     runs-on: ubuntu-24.04
+    permissions:
+      contents: write
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           path: dist/
           merge-multiple: true
@@ -524,7 +600,34 @@ jobs:
 
       - name: Read version
         id: version
-        run: echo "version=$(cat version.txt | tr -d '[:space:]')" >> $GITHUB_OUTPUT
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version="$(tr -d '[:space:]' < version.txt)"
+          if [ "$TAG" != "v$version" ]; then
+            echo "::error::Tag $TAG does not match version.txt ($version)"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      # Homebrew and AUR build from the GitHub source tarball of the tag; fill in
+      # its real sha256 and attach the rendered manifests as release assets.
+      # (Scoop is skipped: its manifest only ships the multiproc backend .exe
+      # files, which do not work on Windows.)
+      - name: Render package manifests (Homebrew, AUR)
+        env:
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 5 --retry-delay 5 -o "$RUNNER_TEMP/source.tar.gz" \
+            "https://github.com/$REPO/archive/refs/tags/$TAG.tar.gz"
+          sha="$(sha256sum "$RUNNER_TEMP/source.tar.gz" | cut -d' ' -f1)"
+          echo "source tarball sha256: $sha"
+          python3 .github/scripts/render_manifests.py \
+            --version "$VERSION" --tag "$TAG" --source-sha256 "$sha" \
+            --repo "$REPO" --out dist/
 
       - name: Check GPG key availability
         id: gpg_check
@@ -532,9 +635,9 @@ jobs:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
         run: |
           if [ -n "$GPG_PRIVATE_KEY" ]; then
-            echo "available=true" >> $GITHUB_OUTPUT
+            echo "available=true" >> "$GITHUB_OUTPUT"
           else
-            echo "available=false" >> $GITHUB_OUTPUT
+            echo "available=false" >> "$GITHUB_OUTPUT"
             echo "::warning::GPG_PRIVATE_KEY secret not set — skipping artifact signing"
           fi
 
@@ -546,7 +649,7 @@ jobs:
         run: |
           echo "$GPG_PRIVATE_KEY" | base64 -d | gpg --batch --import
           GPG_KEY_ID=$(gpg --list-secret-keys --keyid-format long | grep sec | head -1 | awk '{print $2}' | cut -d'/' -f2)
-          echo "GPG_KEY_ID=$GPG_KEY_ID" >> $GITHUB_ENV
+          echo "GPG_KEY_ID=$GPG_KEY_ID" >> "$GITHUB_ENV"
           GPG_FINGERPRINT=$(gpg --list-secret-keys --with-colons | grep fpr | head -1 | cut -d':' -f10)
           echo "$GPG_FINGERPRINT:6:" | gpg --import-ownertrust
 
@@ -583,7 +686,7 @@ jobs:
           gpg --armor --export "$GPG_KEY_ID" > dist/spectra-release-signing-key.asc
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           name: Spectra v${{ steps.version.outputs.version }}
           body: |
@@ -591,10 +694,12 @@ jobs:
 
             ### Installation
 
-            **Python (all platforms):**
+            **Python (Linux x86_64, macOS):**
             ```
             pip install spectra-plot
             ```
+            Windows is not supported by the Python package (the multiproc backend
+            needs Unix domain sockets).
 
             **Linux (.deb):**
             ```
@@ -603,6 +708,17 @@ jobs:
             # or:
             sudo apt install -y ./spectra_${{ steps.version.outputs.version }}_amd64_ubuntu24.04.deb
             ```
+
+            **Linux (.rpm, AppImage, .tar.gz):** see the assets below.
+
+            **macOS (Homebrew, builds from source):** `spectra.rb` with the source
+            sha256 filled in is attached; add it to a tap and `brew install spectra`.
+
+            **Arch Linux (AUR):** `PKGBUILD` with the source sha256 is attached.
+
+            **Windows (experimental):** `spectra-${{ steps.version.outputs.version }}-win64.zip`
+            contains the C++ library and in-process app only. It is built but not
+            tested on real GPUs, and the multiproc backend does not run on Windows.
 
             **From source:**
             ```
@@ -648,21 +764,21 @@ jobs:
 
     steps:
       - name: Download wheels
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           path: dist/
           pattern: wheels-*
           merge-multiple: true
 
       - name: Download sdist
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           path: dist/
           pattern: sdist
           merge-multiple: true
 
       - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
         with:
           packages-dir: dist/
           skip-existing: true
@@ -677,10 +793,10 @@ jobs:
       contents: write
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Download Linux artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           path: debs/
           pattern: linux-packages-*
@@ -692,9 +808,9 @@ jobs:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
         run: |
           if [ -n "$GPG_PRIVATE_KEY" ]; then
-            echo "available=true" >> $GITHUB_OUTPUT
+            echo "available=true" >> "$GITHUB_OUTPUT"
           else
-            echo "available=false" >> $GITHUB_OUTPUT
+            echo "available=false" >> "$GITHUB_OUTPUT"
             echo "::error::GPG_PRIVATE_KEY secret is required for APT repo signing"
             exit 1
           fi
@@ -706,7 +822,7 @@ jobs:
         run: |
           echo "$GPG_PRIVATE_KEY" | base64 -d | gpg --batch --import
           GPG_KEY_ID=$(gpg --list-secret-keys --keyid-format long | grep sec | head -1 | awk '{print $2}' | cut -d'/' -f2)
-          echo "GPG_KEY_ID=$GPG_KEY_ID" >> $GITHUB_ENV
+          echo "GPG_KEY_ID=$GPG_KEY_ID" >> "$GITHUB_ENV"
           GPG_FINGERPRINT=$(gpg --list-secret-keys --with-colons | grep fpr | head -1 | cut -d':' -f10)
           echo "$GPG_FINGERPRINT:6:" | gpg --import-ownertrust
 

@@ -212,10 +212,29 @@ cmake -B build -G Ninja \
     -DSPECTRA_USE_WEBGPU=ON \
     -Ddawn_DIR=<dawn_install>/lib/cmake/dawn
 
-# Emscripten/WASM build
+# Emscripten/WASM build (emsdk 4.0.10+; uses the emdawnwebgpu port)
 source /path/to/emsdk/emsdk_env.sh
-emcmake cmake -B build -DSPECTRA_USE_WEBGPU=ON
+emcmake cmake -B build-wasm -G Ninja \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DSPECTRA_USE_WEBGPU=ON \
+    -DSPECTRA_RUNTIME_MODE=inproc \
+    -DSPECTRA_USE_ROS2=OFF -DSPECTRA_USE_PX4=OFF \
+    -DSPECTRA_USE_FFMPEG=OFF -DSPECTRA_USE_EIGEN=OFF \
+    -DSPECTRA_BUILD_TESTS=OFF
+cmake --build build-wasm --target webgpu_demo
+# Serve build-wasm/examples/ over HTTP and open webgpu_demo.html in a WebGPU browser
 ```
+
+Notes for the wasm build:
+
+- No Vulkan SDK is needed. CMake fetches Vulkan-Headers and links generated stubs
+  (`cmake/generate_vulkan_stubs.py`) so App code that references the Vulkan backend
+  links; only the WebGPU backend runs in the browser.
+- FlatBuffers' `flatc` must run on the host. CMake uses `SPECTRA_HOST_FLATC`, a `flatc`
+  on `PATH`, or builds one from the fetched sources with the host compiler.
+- The backend blocks on adapter/device/readback callbacks, so it links with `-sASYNCIFY`.
+- Headless Chromium can render WebGPU offscreen (`AppConfig::headless = true` +
+  `save_png`) but cannot present to a canvas, so use a real browser for the windowed demo.
 
 ---
 

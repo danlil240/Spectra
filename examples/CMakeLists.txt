@@ -143,8 +143,6 @@ if(SPECTRA_USE_WEBGPU AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/webgpu_demo.cpp)
     if(EMSCRIPTEN)
         target_link_options(webgpu_demo PRIVATE
             "SHELL:--shell-file ${CMAKE_CURRENT_SOURCE_DIR}/webgpu_shell.html"
-            "SHELL:-s USE_WEBGPU=1"
-            "SHELL:-s USE_GLFW=3"
         )
         set_target_properties(webgpu_demo PROPERTIES SUFFIX ".html")
     endif()

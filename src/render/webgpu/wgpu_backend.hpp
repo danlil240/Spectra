@@ -158,6 +158,8 @@ class WebGPUBackend : public Backend
                                                    WGPUSampler     smp);
     void          invalidate_bind_group_for_buffer(uint64_t buffer_id);
     void          invalidate_bind_group_for_texture(uint64_t tex_id);
+    // Bind group 0 at the current FrameUBO and SeriesPC ring offsets.
+    void bind_frame_group();
 
     // ── Readback helper (headless / offscreen) ───────────────────────────────
     bool do_readback(uint8_t* out_rgba, uint32_t width, uint32_t height) const;
@@ -201,7 +203,7 @@ class WebGPUBackend : public Backend
 
     // ── Per-frame uniform buffers ────────────────────────────────────────────
     // frame_ubo_ring_: large ring buffer for FrameUBO slots (dynamic offset)
-    // series_pc_buf_: small uniform buffer for SeriesPushConstants per draw
+    // series_pc_buf_: ring buffer of SeriesPushConstants slots (dynamic offset)
     WGPUBuffer frame_ubo_ring_   = nullptr;
     WGPUBuffer series_pc_buf_    = nullptr;
     uint32_t   frame_ubo_offset_ = 0;   // current dynamic offset
@@ -239,6 +241,9 @@ class WebGPUBackend : public Backend
     uint32_t ubo_bound_offset_ = 0;
     // Ring write cursor — advances with each UBO upload, reset per frame.
     uint32_t ubo_ring_write_head_ = 0;
+    // SeriesPC ring: slot used by the next draw, and the write cursor.
+    uint32_t series_pc_bound_offset_ = 0;
+    uint32_t series_pc_write_head_   = 0;
 
     // Currently bound index buffer (for draw_indexed).
     WGPUBuffer current_index_buf_ = nullptr;

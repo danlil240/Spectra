@@ -384,8 +384,10 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
         auto& needs_resize = ui_ctx.needs_resize;
         // auto& new_width    = ui_ctx.new_width;
         // auto& new_height   = ui_ctx.new_height;
-        auto* vk = static_cast<VulkanBackend*>(&backend_);
-        auto* aw = vk->active_window();
+        // Swapchain bookkeeping is Vulkan-only; other backends (WebGPU) have no
+        // active window here.
+        auto* vk = dynamic_cast<VulkanBackend*>(&backend_);
+        auto* aw = vk ? vk->active_window() : nullptr;
 
         if (aw)
         {
@@ -937,8 +939,8 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
         // Only attempt swapchain recreation if it was actually invalidated
         // (OUT_OF_DATE).  Fence/acquire timeouts just mean this window is
         // temporarily busy — skip it without recreation.
-        auto* vk = static_cast<VulkanBackend*>(&backend_);
-        auto* aw = vk->active_window();
+        auto* vk = dynamic_cast<VulkanBackend*>(&backend_);
+        auto* aw = vk ? vk->active_window() : nullptr;
         if (aw && !aw->swapchain_invalidated)
             return false;   // Timeout — just skip this window
 
@@ -1113,11 +1115,12 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
 #ifdef SPECTRA_USE_IMGUI
         // Only render ImGui if we have a valid frame (not a retry frame
         // where we already ended the ImGui frame)
-        if (ui_ctx.imgui_ui && imgui_frame_started)
+        auto* vk_imgui = dynamic_cast<VulkanBackend*>(&backend_);
+        if (ui_ctx.imgui_ui && imgui_frame_started && vk_imgui)
         {
             if (profiler)
                 profiler->begin_stage("imgui_render");
-            ui_ctx.imgui_ui->render(*static_cast<VulkanBackend*>(&backend_));
+            ui_ctx.imgui_ui->render(*vk_imgui);
             if (profiler)
                 profiler->end_stage("imgui_render");
         }
@@ -1135,8 +1138,8 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
         // now so the next frame's begin_frame() starts with a valid swapchain
         // instead of entering the recovery path every frame (infinite loop).
         {
-            auto* vk_post = static_cast<VulkanBackend*>(&backend_);
-            auto* aw_post = vk_post->active_window();
+            auto* vk_post = dynamic_cast<VulkanBackend*>(&backend_);
+            auto* aw_post = vk_post ? vk_post->active_window() : nullptr;
             if (aw_post && aw_post->swapchain_invalidated)
             {
                 aw_post->swapchain_invalidated = false;

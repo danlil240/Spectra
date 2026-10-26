@@ -42,6 +42,11 @@ else
 fi
 
 export SPECTRA_NO_NATIVE_DIALOGS=1
+# Automation/MCP is opt-in and token-protected (see SECURITY.md).
+export SPECTRA_AUTOMATION=1
+export SPECTRA_MCP_TOKEN="${SPECTRA_MCP_TOKEN:-$(python3 -c 'import secrets; print(secrets.token_hex(32))')}"
+export SPECTRA_CAPTURE_DIR="${SPECTRA_CAPTURE_DIR:-/tmp/spectra-qa-captures-$(id -u)}"
+mkdir -p -m 700 "$SPECTRA_CAPTURE_DIR"
 
 SKIP_CMDS='app.quit|help.show|file.export_png|file.export_svg|accessibility.sonify_series|data.export_html_table|file.copy_to_clipboard'
 
@@ -59,6 +64,7 @@ mcp_call() {
   local args="${2:-{}}"
   local timeout_s="${3:-30}"
   curl -s --max-time "$timeout_s" -X POST "$MCP" \
+    -H "Authorization: Bearer $SPECTRA_MCP_TOKEN" \
     -H "Content-Type: application/json" \
     -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"$tool\",\"arguments\":$args}}"
 }
@@ -144,7 +150,8 @@ kill_spectra() {
 }
 
 health_ok() {
-  curl -s --max-time 2 http://127.0.0.1:8765/ 2>/dev/null | grep -q jsonrpc
+  curl -s --max-time 2 -H "Authorization: Bearer $SPECTRA_MCP_TOKEN" "${MCP%/mcp}/" 2>/dev/null \
+    | grep -q spectra-automation
 }
 
 launch() {
@@ -232,7 +239,7 @@ for cmd in view.toggle_grid view.toggle_legend view.toggle_crosshair view.autofi
   mcp_ok "$r" || log_issue WARNING "Warmup command failed" "$cmd: $(extract_text <<<"$r" | head -c 150)"
 done
 
-BASELINE="/tmp/spectra_fuzz_baseline_${SESSION_TAG}.png"
+BASELINE="$SPECTRA_CAPTURE_DIR/spectra_fuzz_baseline_${SESSION_TAG}.png"
 mcp_call wait_frames '{"count":10}' >/dev/null
 r=$(mcp_call capture_window "{\"path\":\"$BASELINE\"}")
 log_json warmup cap baseline "$r"
@@ -259,7 +266,7 @@ for step in $(seq 1 "$FUZZ_STEPS"); do
   fi
 
   if (( step % 50 == 0 )); then
-    cap="/tmp/spectra_fuzz_${SESSION_TAG}_step_${step}.png"
+    cap="$SPECTRA_CAPTURE_DIR/spectra_fuzz_${SESSION_TAG}_step_${step}.png"
     mcp_call wait_frames '{"count":5}' >/dev/null
     mcp_call capture_window "{\"path\":\"$cap\"}" >/dev/null
     check_png_not_blank "$cap"
@@ -343,7 +350,7 @@ for c in cmds:
       mcp_call mouse_click "{\"x\":$1,\"y\":$2}" >/dev/null
       mcp_call pump_frames '{"count":3}' >/dev/null
     done
-    mcp_call capture_window "{\"path\":\"/tmp/spectra_fuzz_ros_${SESSION_TAG}.png\"}" >/dev/null
+    mcp_call capture_window "{\"path\":\"$SPECTRA_CAPTURE_DIR/spectra_fuzz_ros_${SESSION_TAG}.png\"}" >/dev/null
   fi
 fi
 

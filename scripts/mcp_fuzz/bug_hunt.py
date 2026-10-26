@@ -19,6 +19,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 from ui_action_log import StderrActionTracker  # noqa: E402
+from mcp_auth import mcp_headers  # noqa: E402
 
 MCP = os.environ.get("SPECTRA_MCP_URL", "http://127.0.0.1:8765/mcp")
 ISSUES_PATH = os.environ.get(
@@ -62,7 +63,7 @@ def mcp(tool: str, args: dict | None = None, timeout: float = 30) -> dict:
     req = urllib.request.Request(
         MCP,
         data=payload,
-        headers={"Content-Type": "application/json"},
+        headers=mcp_headers(),
         method="POST",
     )
     try:

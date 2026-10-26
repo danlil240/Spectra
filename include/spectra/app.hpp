@@ -29,6 +29,9 @@ struct AppConfig
     std::string socket_path;   ///< non-empty → multiproc mode; empty → check SPECTRA_SOCKET env
     /// Rendering backend.
     RenderBackend backend = RenderBackend::Vulkan;
+    // Start the automation Unix socket + MCP HTTP server (remote UI control).
+    // Off by default; can also be enabled with SPECTRA_AUTOMATION=1. See SECURITY.md.
+    bool enable_automation = false;
 };
 
 class SessionRuntime;

@@ -39,6 +39,7 @@ Fuzz/MCP sessions hang when a native OS file dialog opens (zenity/kdialog blocks
 ```bash
 # Env (preferred for harness scripts)
 export SPECTRA_NO_NATIVE_DIALOGS=1
+export SPECTRA_AUTOMATION=1 SPECTRA_MCP_TOKEN="${SPECTRA_MCP_TOKEN:-$(openssl rand -hex 32)}"  # automation is opt-in (SECURITY.md)
 ./build/spectra &
 
 # Or CLI flag (stripped before other arg parsing)
@@ -61,9 +62,10 @@ Verify via MCP: `get_state` includes `"native_dialogs_enabled": false`.
 pkill -f 'build/spectra' || true
 pkill -f 'build/spectra-ros' || true
 sleep 0.5
+export SPECTRA_AUTOMATION=1 SPECTRA_MCP_TOKEN="${SPECTRA_MCP_TOKEN:-$(openssl rand -hex 32)}"  # automation is opt-in (SECURITY.md)
 ./build/spectra &
 sleep 1
-curl -s http://127.0.0.1:8765/
+curl -s -H "Authorization: Bearer $SPECTRA_MCP_TOKEN" http://127.0.0.1:8765/
 ```
 
 For ROS adapter testing (when built with ROS2):
@@ -71,9 +73,10 @@ For ROS adapter testing (when built with ROS2):
 ```bash
 pkill -f spectra-ros || true
 sleep 0.5
+export SPECTRA_AUTOMATION=1 SPECTRA_MCP_TOKEN="${SPECTRA_MCP_TOKEN:-$(openssl rand -hex 32)}"  # automation is opt-in (SECURITY.md)
 ./build/spectra-ros &
 sleep 2
-curl -s http://127.0.0.1:8765/
+curl -s -H "Authorization: Bearer $SPECTRA_MCP_TOKEN" http://127.0.0.1:8765/
 ```
 
 Health check must return `{"name":"spectra-automation","status":"ok",...}`.
@@ -86,6 +89,7 @@ Endpoint: `POST http://127.0.0.1:8765/mcp`
 
 ```bash
 curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Authorization: Bearer $SPECTRA_MCP_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"TOOL","arguments":{}}}'
 ```
@@ -162,7 +166,7 @@ Before random fuzz, exercise major surfaces once:
    - Figure: `figure.new`
    - Edit: `edit.undo`, `edit.redo` (after a view change)
    - Series: `series.cycle_selection` (if series exist)
-4. `capture_window` to `/tmp/spectra_fuzz_baseline.png`
+4. `capture_window` to `spectra_fuzz_baseline.png` (written under `$SPECTRA_CAPTURE_DIR`)
 5. Open panels via clicks in known regions OR commands:
    - Command palette: key_press key 341 (Ctrl) + key 32 (Space) or menu navigation
    - Prefer `execute_command` when a command exists

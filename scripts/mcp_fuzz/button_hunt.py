@@ -47,6 +47,7 @@ from menu_bar_hunt import (  # noqa: E402
 
 # Reuse launch/MCP helpers from py_fuzz.
 import py_fuzz  # noqa: E402
+from mcp_auth import capture_dir  # noqa: E402
 
 SKIP_COMMANDS = py_fuzz.SKIP | {
     "figure.close",
@@ -241,7 +242,7 @@ def hunt_menus(tracker: StderrActionTracker, width: int, height: int) -> None:
                     f"before_panels={before.get('panels', {})} after_panels={after.get('panels', {})}",
                 )
 
-    cap = Path("/tmp/button_hunt_menus.png")
+    cap = capture_dir() / "button_hunt_menus.png"
     py_fuzz.mcp("wait_frames", {"count": 5})
     py_fuzz.mcp("capture_window", {"path": str(cap)})
 
@@ -305,7 +306,7 @@ def hunt_nav_rail(tracker: StderrActionTracker, height: int, width: int) -> None
                 f"before_panels={before.get('panels', {})} after_panels={after.get('panels', {})}",
             )
 
-    cap = Path("/tmp/button_hunt_nav_rail.png")
+    cap = capture_dir() / "button_hunt_nav_rail.png"
     py_fuzz.mcp("wait_frames", {"count": 5})
     py_fuzz.mcp("capture_window", {"path": str(cap)})
 

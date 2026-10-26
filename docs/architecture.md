@@ -123,6 +123,12 @@ Plugins extend **Series** types and UI overlays without modifying core.
 
 MCP drives a live **Figure** through the same command path as the UI **CommandRegistry**.
 
+Automation is **off by default**. Enable it with `SPECTRA_AUTOMATION=1` (or
+`AppConfig::enable_automation`). The MCP server binds `127.0.0.1` and requires a bearer
+token on every request (`$SPECTRA_MCP_TOKEN`, or the one in
+`$XDG_RUNTIME_DIR/spectra-mcp-<pid>.json`). Screenshot paths are confined to
+`$SPECTRA_CAPTURE_DIR`. See [`SECURITY.md`](../SECURITY.md#automation-and-mcp-server).
+
 ## God-node dependency sketch
 
 See the full-size diagrams in [`architecture.html`](architecture.html#visual-overview) and [`diagrams.html`](diagrams.html): data model hierarchy, render pipeline, inproc vs multiproc topology, and Python IPC sequence.

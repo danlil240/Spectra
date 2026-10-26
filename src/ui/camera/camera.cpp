@@ -1,6 +1,7 @@
 #include "camera.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <iomanip>
 #include <sstream>
 
@@ -9,7 +10,51 @@ namespace spectra
 
 mat4 Camera::view_matrix() const
 {
+    // Looking straight along the up axis (top/bottom view) makes look_at
+    // degenerate.  Use the limit of the orbit's screen-up as elevation -> +/-90:
+    // the horizontal direction from the camera toward the target.
+    const vec3  fwd = target - position;
+    const float len = static_cast<float>(vec3_length(fwd));
+    if (len > 1e-6f)
+    {
+        const vec3 f = fwd * (1.0f / len);
+        if (vec3_length(vec3_cross(f, vec3_normalize(up))) < 1e-3)
+        {
+            const float az     = deg_to_rad(azimuth);
+            const float s      = (vec3_dot(f, up) < 0.0) ? 1.0f : -1.0f;
+            const vec3  alt_up = (up_axis == UpAxis::Z)
+                                     ? vec3{-std::cos(az) * s, -std::sin(az) * s, 0.0f}
+                                     : vec3{-std::cos(az) * s, 0.0f, -std::sin(az) * s};
+            return mat4_look_at(position, target, alt_up);
+        }
+    }
     return mat4_look_at(position, target, up);
+}
+
+void Camera::remember_orbit()
+{
+    applied_.position  = position;
+    applied_.target    = target;
+    applied_.azimuth   = azimuth;
+    applied_.elevation = elevation;
+    applied_.distance  = distance;
+    applied_.up_axis   = up_axis;
+}
+
+bool Camera::apply_orbit_changes()
+{
+    const bool position_assigned = !(position == applied_.position);
+    const bool orbit_changed     = !(target == applied_.target) || azimuth != applied_.azimuth
+                               || elevation != applied_.elevation || distance != applied_.distance
+                               || up_axis != applied_.up_axis;
+    if (position_assigned || !orbit_changed)
+    {
+        // Direct position assignment wins (animations, mode transitions).
+        remember_orbit();
+        return false;
+    }
+    update_position_from_orbit();
+    return true;
 }
 
 mat4 Camera::projection_matrix(float aspect_ratio) const
@@ -26,13 +71,13 @@ mat4 Camera::projection_matrix(float aspect_ratio) const
 
 void Camera::orbit(float d_azimuth, float d_elevation)
 {
-    vec3 offset = position - target;
-    float dist  = vec3_length(offset);
+    apply_orbit_changes();
+    vec3  offset = position - target;
+    float dist   = vec3_length(offset);
     if (dist < 1e-6f)
         return;
 
-    const vec3 world_up =
-        (up_axis == UpAxis::Z) ? vec3{0.0f, 0.0f, 1.0f} : vec3{0.0f, 1.0f, 0.0f};
+    const vec3 world_up = (up_axis == UpAxis::Z) ? vec3{0.0f, 0.0f, 1.0f} : vec3{0.0f, 1.0f, 0.0f};
 
     if (std::abs(d_azimuth) > 1e-6f)
     {
@@ -77,6 +122,7 @@ void Camera::orbit(float d_azimuth, float d_elevation)
 
 void Camera::pan(float dx, float dy, float /*viewport_width*/, float /*viewport_height*/)
 {
+    apply_orbit_changes();
     vec3 forward = vec3_normalize(target - position);
     vec3 right   = vec3_normalize(vec3_cross(forward, up));
     vec3 cam_up  = vec3_cross(right, forward);
@@ -90,10 +136,12 @@ void Camera::pan(float dx, float dy, float /*viewport_width*/, float /*viewport_
     vec3 offset = right * (-dx * scale) + cam_up * (dy * scale);
     position += offset;
     target += offset;
+    remember_orbit();
 }
 
 void Camera::zoom(float factor)
 {
+    apply_orbit_changes();
     if (projection_mode == ProjectionMode::Perspective)
     {
         distance *= factor;
@@ -109,6 +157,7 @@ void Camera::zoom(float factor)
 
 void Camera::dolly(float amount)
 {
+    apply_orbit_changes();
     vec3  forward  = vec3_normalize(target - position);
     vec3  new_pos  = position + forward * amount;
     float new_dist = vec3_length(new_pos - target);
@@ -117,6 +166,7 @@ void Camera::dolly(float amount)
     {
         position = new_pos;
         distance = new_dist;
+        remember_orbit();
     }
 }
 
@@ -152,7 +202,10 @@ void Camera::sync_orbit_from_position()
     vec3 offset = position - target;
     distance    = static_cast<float>(vec3_length(offset));
     if (distance < 1e-6f)
+    {
+        remember_orbit();
         return;
+    }
 
     const vec3 dir = offset * (1.0f / distance);
 
@@ -173,6 +226,7 @@ void Camera::sync_orbit_from_position()
         azimuth -= 360.0f;
 
     elevation = clampf(elevation, -89.0f, 89.0f);
+    remember_orbit();
 }
 
 Camera& Camera::align_view_to_axis(AxisView view)
@@ -256,7 +310,7 @@ void Camera::update_position_from_orbit()
     vec3 offset;
     if (up_axis == UpAxis::Z)
     {
-        // Z-up: azimuth rotates in XY plane, elevation lifts toward +Z
+        // Z-up (default): azimuth rotates in XY plane, elevation lifts toward +Z
         offset = {distance * cos_el * std::cos(az_rad),
                   distance * cos_el * std::sin(az_rad),
                   distance * std::sin(el_rad)};
@@ -264,7 +318,7 @@ void Camera::update_position_from_orbit()
     }
     else
     {
-        // Y-up (default): azimuth rotates in XZ plane, elevation lifts toward +Y
+        // Y-up: azimuth rotates in XZ plane, elevation lifts toward +Y
         offset = {distance * cos_el * std::cos(az_rad),
                   distance * std::sin(el_rad),
                   distance * cos_el * std::sin(az_rad)};
@@ -272,25 +326,21 @@ void Camera::update_position_from_orbit()
     }
 
     position = target + offset;
+    remember_orbit();
 }
 
 std::string Camera::serialize() const
 {
     std::ostringstream oss;
     oss << std::fixed << std::setprecision(6);
-    oss << "{"
-        << "\"position\":[" << position.x << "," << position.y << "," << position.z << "],"
-        << "\"target\":[" << target.x << "," << target.y << "," << target.z << "],"
-        << "\"up\":[" << up.x << "," << up.y << "," << up.z << "],"
+    oss << "{" << "\"position\":[" << position.x << "," << position.y << "," << position.z << "],"
+        << "\"target\":[" << target.x << "," << target.y << "," << target.z << "]," << "\"up\":["
+        << up.x << "," << up.y << "," << up.z << "],"
         << "\"projection_mode\":" << (projection_mode == ProjectionMode::Perspective ? 0 : 1) << ","
-        << "\"up_axis\":" << (up_axis == UpAxis::Z ? 1 : 0) << ","
-        << "\"fov\":" << fov << ","
-        << "\"near_clip\":" << near_clip << ","
-        << "\"far_clip\":" << far_clip << ","
-        << "\"ortho_size\":" << ortho_size << ","
-        << "\"azimuth\":" << azimuth << ","
-        << "\"elevation\":" << elevation << ","
-        << "\"distance\":" << distance << "}";
+        << "\"up_axis\":" << (up_axis == UpAxis::Z ? 1 : 0) << "," << "\"fov\":" << fov << ","
+        << "\"near_clip\":" << near_clip << "," << "\"far_clip\":" << far_clip << ","
+        << "\"ortho_size\":" << ortho_size << "," << "\"azimuth\":" << azimuth << ","
+        << "\"elevation\":" << elevation << "," << "\"distance\":" << distance << "}";
     return oss.str();
 }
 
@@ -358,6 +408,12 @@ void Camera::deserialize(const std::string& json)
         int axis = parse_int(json, pos);
         up_axis  = axis == 1 ? UpAxis::Z : UpAxis::Y;
     }
+    else
+    {
+        // Saved before up_axis was serialized: infer it from the up vector so
+        // old Y-up workspaces keep their orientation under the Z-up default.
+        up_axis = (std::abs(up.z) > std::abs(up.y)) ? UpAxis::Z : UpAxis::Y;
+    }
 
     pos = json.find("\"fov\"");
     if (pos != std::string::npos)
@@ -386,6 +442,8 @@ void Camera::deserialize(const std::string& json)
     pos = json.find("\"distance\"");
     if (pos != std::string::npos)
         distance = parse_float(json, pos);
+
+    remember_orbit();
 }
 
 }   // namespace spectra

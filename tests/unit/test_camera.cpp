@@ -25,9 +25,13 @@ bool mat4_near(const mat4& a, const mat4& b, float eps = EPSILON)
 TEST(CameraTest, DefaultConstruction)
 {
     Camera cam;
-    EXPECT_EQ(cam.position, vec3(0.0f, 0.0f, 5.0f));
     EXPECT_EQ(cam.target, vec3(0.0f, 0.0f, 0.0f));
-    EXPECT_EQ(cam.up, vec3(0.0f, 1.0f, 0.0f));
+    // Z-up by default (MATLAB convention), positioned on its own orbit.
+    EXPECT_EQ(cam.up_axis, Camera::UpAxis::Z);
+    EXPECT_EQ(cam.up, vec3(0.0f, 0.0f, 1.0f));
+    Camera orbit_cam;
+    orbit_cam.update_position_from_orbit();
+    EXPECT_TRUE(vec3_near(cam.position, orbit_cam.position, 1e-4f));
     EXPECT_EQ(cam.projection_mode, Camera::ProjectionMode::Perspective);
     EXPECT_FLOAT_EQ(cam.fov, 45.0f);
     EXPECT_FLOAT_EQ(cam.near_clip, 0.01f);
@@ -99,6 +103,7 @@ TEST(CameraTest, OrthographicProjection)
 TEST(CameraTest, OrbitAzimuth)
 {
     Camera cam;
+    cam.set_up_axis(Camera::UpAxis::Y);   // Y-up orbit math
     cam.target    = {0, 0, 0};
     cam.azimuth   = 0.0f;
     cam.elevation = 0.0f;
@@ -116,6 +121,7 @@ TEST(CameraTest, OrbitAzimuth)
 TEST(CameraTest, OrbitElevation)
 {
     Camera cam;
+    cam.set_up_axis(Camera::UpAxis::Y);   // Y-up orbit math
     cam.target    = {0, 0, 0};
     cam.azimuth   = 0.0f;
     cam.elevation = 0.0f;
@@ -131,6 +137,7 @@ TEST(CameraTest, OrbitElevation)
 TEST(CameraTest, OrbitElevationClamping)
 {
     Camera cam;
+    cam.set_up_axis(Camera::UpAxis::Y);   // Y-up orbit math
     cam.target    = {0, 0, 0};
     cam.azimuth   = 0.0f;
     cam.elevation = 0.0f;
@@ -149,6 +156,7 @@ TEST(CameraTest, OrbitElevationClamping)
 TEST(CameraTest, OrbitAzimuthWrapping)
 {
     Camera cam;
+    cam.set_up_axis(Camera::UpAxis::Y);   // Y-up orbit math
     cam.target    = {0, 0, 0};
     cam.azimuth   = 350.0f;
     cam.elevation = 0.0f;
@@ -283,6 +291,7 @@ TEST(CameraTest, FitToBoundsDegenerateBox)
 TEST(CameraTest, Reset)
 {
     Camera cam;
+    cam.set_up_axis(Camera::UpAxis::Y);   // Y-up orbit math
     cam.position  = {10, 20, 30};
     cam.target    = {5, 5, 5};
     cam.azimuth   = 180.0f;
@@ -310,6 +319,7 @@ TEST(CameraTest, Reset)
 TEST(CameraTest, UpdatePositionFromOrbit)
 {
     Camera cam;
+    cam.set_up_axis(Camera::UpAxis::Y);   // Y-up orbit math
     cam.target    = {0, 0, 0};
     cam.azimuth   = 0.0f;
     cam.elevation = 0.0f;
@@ -334,6 +344,7 @@ TEST(CameraTest, UpdatePositionFromOrbit)
 TEST(CameraTest, UpdatePositionFromOrbitElevation)
 {
     Camera cam;
+    cam.set_up_axis(Camera::UpAxis::Y);   // Y-up orbit math
     cam.target    = {0, 0, 0};
     cam.azimuth   = 0.0f;
     cam.elevation = 90.0f;
@@ -539,4 +550,84 @@ TEST(CameraTest, OrbitEscapesAxisSnappedTopView)
     cam.align_view_to_axis(Camera::AxisView::PositiveY);
     cam.orbit(15.0f, 15.0f);
     EXPECT_GT(vec3_length(cam.position - snapped), 0.35f);
+}
+
+// ─── Orbit fields assigned directly ─────────────────────────────────────────
+
+TEST(CameraTest, DirectOrbitAssignmentIsApplied)
+{
+    Camera cam;
+    cam.azimuth   = 0.0f;
+    cam.elevation = 0.0f;
+    cam.distance  = 4.0f;
+    EXPECT_TRUE(cam.apply_orbit_changes());
+    EXPECT_TRUE(vec3_near(cam.position, {4.0f, 0.0f, 0.0f}, 1e-4f));
+    // Nothing pending afterwards.
+    EXPECT_FALSE(cam.apply_orbit_changes());
+}
+
+TEST(CameraTest, DirectPositionAssignmentWinsOverOrbit)
+{
+    Camera cam;
+    cam.position = {0.0f, 0.0f, 7.0f};
+    cam.azimuth  = 10.0f;   // stale orbit field alongside an explicit position
+    EXPECT_FALSE(cam.apply_orbit_changes());
+    EXPECT_EQ(cam.position, vec3(0.0f, 0.0f, 7.0f));
+}
+
+TEST(CameraTest, OrbitAfterDirectAssignmentStartsFromNewAngles)
+{
+    Camera cam;
+    cam.azimuth   = 90.0f;
+    cam.elevation = 0.0f;
+    cam.orbit(0.0f, 0.0f);
+    EXPECT_TRUE(vec3_near(cam.position, {0.0f, cam.distance, 0.0f}, 1e-3f));
+}
+
+TEST(CameraTest, TopViewZUpIsNotDegenerate)
+{
+    Camera cam;
+    cam.azimuth   = 0.0f;
+    cam.elevation = 90.0f;
+    cam.update_position_from_orbit();
+    mat4 v = cam.view_matrix();
+    for (float f : v.m)
+        EXPECT_TRUE(std::isfinite(f));
+    // A point above the target projects in front of the camera, centred.
+    vec4 p = mat4_mul_vec4(v, {0, 0, 0, 1});
+    EXPECT_NEAR(p.x, 0.0f, 1e-3f);
+    EXPECT_NEAR(p.y, 0.0f, 1e-3f);
+    EXPECT_LT(p.z, 0.0f);
+    // +X maps to a screen axis (not collapsed onto the view direction).
+    vec4 px = mat4_mul_vec4(v, {1, 0, 0, 1});
+    EXPECT_GT(std::abs(px.x) + std::abs(px.y), 0.9f);
+}
+
+TEST(CameraTest, DeserializeWithoutUpAxisInfersFromUpVector)
+{
+    Camera cam;
+    cam.deserialize(R"({"position":[0,0,5],"target":[0,0,0],"up":[0,1,0],"fov":45})");
+    EXPECT_EQ(cam.up_axis, Camera::UpAxis::Y);
+    Camera cam2;
+    cam2.set_up_axis(Camera::UpAxis::Y);
+    cam2.deserialize(R"({"position":[5,0,0],"target":[0,0,0],"up":[0,0,1],"fov":45})");
+    EXPECT_EQ(cam2.up_axis, Camera::UpAxis::Z);
+}
+
+TEST(CameraTest, UpdatePositionFromOrbitZUp)
+{
+    Camera cam;   // Z-up default
+    cam.target    = {0, 0, 0};
+    cam.distance  = 10.0f;
+    cam.azimuth   = 0.0f;
+    cam.elevation = 0.0f;
+    cam.update_position_from_orbit();
+    EXPECT_TRUE(vec3_near(cam.position, {10, 0, 0}, 1e-4f));
+    cam.azimuth = 90.0f;
+    cam.update_position_from_orbit();
+    EXPECT_TRUE(vec3_near(cam.position, {0, 10, 0}, 1e-4f));
+    cam.elevation = 90.0f;
+    cam.update_position_from_orbit();
+    EXPECT_TRUE(vec3_near(cam.position, {0, 0, 10}, 1e-3f));
+    EXPECT_EQ(cam.up, vec3(0.0f, 0.0f, 1.0f));
 }

@@ -438,8 +438,10 @@ void Renderer::render_axes(AxesBase&   axes,
     {
         // 3D projection with camera
         // Build perspective projection
-        float       aspect = viewport.w / viewport.h;
-        const auto& cam    = axes3d->camera();
+        float aspect = viewport.w / viewport.h;
+        // Pick up azimuth/elevation/distance assigned directly on the camera.
+        axes3d->camera().apply_orbit_changes();
+        const auto& cam = axes3d->camera();
 
         if (cam.projection_mode == Camera::ProjectionMode::Perspective)
         {

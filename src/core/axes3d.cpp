@@ -118,8 +118,9 @@ TickResult compute_ticks_for_range(double dmin, double dmax)
 
 Axes3D::Axes3D() : camera_(std::make_unique<Camera>())
 {
+    // Z-up (MATLAB convention): the Z data axis is vertical on screen.
+    camera_->set_up_axis(Camera::UpAxis::Z);
     camera_->target    = {0.0f, 0.0f, 0.0f};
-    camera_->up        = {0.0f, 1.0f, 0.0f};
     camera_->azimuth   = 45.0f;
     camera_->elevation = 30.0f;
     camera_->distance  = box_half_size() * 2.0f * 2.2f;

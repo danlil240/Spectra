@@ -22,7 +22,9 @@ TEST(SceneViewportTest, SetCameraNormalizesRestoredCameraToZUp)
 {
     ros2::SceneViewport viewport;
 
+    // Camera defaults to Z-up; simulate a camera restored from a Y-up session.
     spectra::Camera restored;
+    restored.set_up_axis(spectra::Camera::UpAxis::Y);
     restored.reset();
     restored.set_azimuth(90.0f);
     restored.set_elevation(30.0f);

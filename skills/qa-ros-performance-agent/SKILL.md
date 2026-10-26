@@ -216,7 +216,7 @@ pkill -f spectra-backend || true
 sleep 0.5
 ./build-ros2/app/spectra &
 sleep 1
-curl http://127.0.0.1:8765/   # health check
+curl -s -H "Authorization: Bearer $SPECTRA_MCP_TOKEN" http://127.0.0.1:8765/   # health check
 ```
 
 ### ROS QA-relevant MCP commands
@@ -224,30 +224,35 @@ curl http://127.0.0.1:8765/   # health check
 ```bash
 # Confirm app is alive and responsive
 curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Authorization: Bearer $SPECTRA_MCP_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"get_state","arguments":{}}}'
 
 # Capture screenshot of the ROS shell layout for design review
 curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Authorization: Bearer $SPECTRA_MCP_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"capture_window","arguments":{"path":"/tmp/ros_shell_snap.png"}}}'
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"capture_window","arguments":{"path":"ros_shell_snap.png"}}}'
 
 # Wait frames and capture inline for immediate inspection
 curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Authorization: Bearer $SPECTRA_MCP_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"wait_frames","arguments":{"count":10}}}'
 
 curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Authorization: Bearer $SPECTRA_MCP_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"get_screenshot_base64","arguments":{}}}'
 
 # Get window size (verify layout dimensions are correct)
 curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Authorization: Bearer $SPECTRA_MCP_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"get_window_size","arguments":{}}}'
 ```
 
-MCP env vars: `SPECTRA_MCP_PORT` (default `8765`), `SPECTRA_MCP_BIND` (default `127.0.0.1`).
+Automation is opt-in: launch with `SPECTRA_AUTOMATION=1` and send `Authorization: Bearer $SPECTRA_MCP_TOKEN` on every request; capture paths are relative to `$SPECTRA_CAPTURE_DIR` (see [SECURITY.md](../../SECURITY.md)). MCP env vars: `SPECTRA_MCP_PORT` (default `8765`), `SPECTRA_MCP_BIND` (default `127.0.0.1`).
 
 ---
 

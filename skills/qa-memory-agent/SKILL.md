@@ -257,9 +257,10 @@ Use the MCP server to create controlled allocation scenarios and verify memory i
 
 ```bash
 pkill -f spectra || true; sleep 0.5
+export SPECTRA_AUTOMATION=1 SPECTRA_MCP_TOKEN="${SPECTRA_MCP_TOKEN:-$(openssl rand -hex 32)}"  # automation is opt-in (SECURITY.md)
 ./build/app/spectra &
 sleep 1
-curl http://127.0.0.1:8765/   # health check
+curl -s -H "Authorization: Bearer $SPECTRA_MCP_TOKEN" http://127.0.0.1:8765/   # health check
 ```
 
 ### Memory pressure via MCP
@@ -268,22 +269,25 @@ curl http://127.0.0.1:8765/   # health check
 # Create many figures to stress figure lifecycle (check RSS before/after)
 for i in $(seq 1 10); do
   curl -s -X POST http://127.0.0.1:8765/mcp \
+    -H "Authorization: Bearer $SPECTRA_MCP_TOKEN" \
     -H "Content-Type: application/json" \
     -d "{\"jsonrpc\":\"2.0\",\"id\":$i,\"method\":\"tools/call\",\"params\":{\"name\":\"create_figure\",\"arguments\":{\"width\":800,\"height\":600}}}"
 done
 
 # Add large series to each figure
 curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Authorization: Bearer $SPECTRA_MCP_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":100,"method":"tools/call","params":{"name":"add_series","arguments":{"figure_id":1,"series_type":"line","n_points":100000,"label":"mem_test"}}}'
 
 # Wait frames to ensure GPU work completes before RSS measurement
 curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Authorization: Bearer $SPECTRA_MCP_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":101,"method":"tools/call","params":{"name":"wait_frames","arguments":{"count":30}}}'
 ```
 
-MCP env vars: `SPECTRA_MCP_PORT` (default `8765`), `SPECTRA_MCP_BIND` (default `127.0.0.1`).
+Automation is opt-in: launch with `SPECTRA_AUTOMATION=1` and send `Authorization: Bearer $SPECTRA_MCP_TOKEN` on every request; capture paths are relative to `$SPECTRA_CAPTURE_DIR` (see [SECURITY.md](../../SECURITY.md)). MCP env vars: `SPECTRA_MCP_PORT` (default `8765`), `SPECTRA_MCP_BIND` (default `127.0.0.1`).
 
 ---
 

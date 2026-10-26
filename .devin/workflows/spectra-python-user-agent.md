@@ -10,7 +10,7 @@ description: Spectra Python User Agent — Exercise every Python API feature end
 >
 > | Mode | Binary | MCP Available? | Used by |
 > |------|--------|----------------|--------|
-> | In-process | `build/spectra` | Yes (port 8765) | MCP tools, direct UI testing |
+> | In-process | `build/spectra` | Opt-in (`SPECTRA_AUTOMATION=1`, port 8765, bearer token) | MCP tools, direct UI testing |
 > | Multi-process | `build/spectra-backend` + `build/spectra-window` | **No** | Python API |
 >
 > The Python API auto-launches `spectra-backend` (daemon) which spawns `spectra-window` (agent) processes.

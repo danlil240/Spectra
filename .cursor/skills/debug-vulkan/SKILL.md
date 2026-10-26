@@ -38,6 +38,6 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ./build/examples/ba
 
 ## Live capture
 
-Run with validation, then [spectra-mcp](../spectra-mcp/SKILL.md): `get_state`, `capture_window` to `/tmp/debug_snap.png`.
+Run with validation, then [spectra-mcp](../spectra-mcp/SKILL.md): `get_state`, `capture_window` to `debug_snap.png` (written under `$SPECTRA_CAPTURE_DIR`; launch with `SPECTRA_AUTOMATION=1`).
 
 Resize/sync deep dives: see legacy notes in `skills/` or `plans/archive/`; prefer no `vkDeviceWaitIdle()` in the frame loop.

@@ -297,10 +297,11 @@ Spectra ships an in-process HTTP MCP server for live agent control. **Use it to 
 ```bash
 pkill -f spectra || true
 sleep 0.5
+export SPECTRA_AUTOMATION=1 SPECTRA_MCP_TOKEN="${SPECTRA_MCP_TOKEN:-$(openssl rand -hex 32)}"  # automation is opt-in (SECURITY.md)
 ./build/app/spectra &
 # Wait for ready
 sleep 1
-curl http://127.0.0.1:8765/   # health check
+curl -s -H "Authorization: Bearer $SPECTRA_MCP_TOKEN" http://127.0.0.1:8765/   # health check
 ```
 
 ### MCP endpoint
@@ -342,25 +343,29 @@ http://127.0.0.1:8765/mcp   (default)
 
 ```bash
 # Health check
-curl http://127.0.0.1:8765/
+curl -s -H "Authorization: Bearer $SPECTRA_MCP_TOKEN" http://127.0.0.1:8765/
 
 # Capture screenshot inline (base64 PNG for visual inspection)
 curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Authorization: Bearer $SPECTRA_MCP_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"get_screenshot_base64","arguments":{}}}'
 
 # Save window screenshot to disk
 curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Authorization: Bearer $SPECTRA_MCP_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"capture_window","arguments":{"path":"/tmp/spectra_snap.png"}}}'
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"capture_window","arguments":{"path":"spectra_snap.png"}}}'
 
 # Execute a UI command
 curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Authorization: Bearer $SPECTRA_MCP_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"execute_command","arguments":{"command_id":"view.toggle_grid"}}}'
 
 # Resize window
 curl -s -X POST http://127.0.0.1:8765/mcp \
+  -H "Authorization: Bearer $SPECTRA_MCP_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"resize_window","arguments":{"width":1280,"height":720}}}'
 ```
@@ -371,6 +376,9 @@ curl -s -X POST http://127.0.0.1:8765/mcp \
 |---|---|---|
 | `SPECTRA_MCP_PORT` | `8765` | HTTP port |
 | `SPECTRA_MCP_BIND` | `127.0.0.1` | Bind address |
+| `SPECTRA_AUTOMATION` | unset (off) | Set to `1` to start the automation socket + MCP server |
+| `SPECTRA_MCP_TOKEN` | random per process | Bearer token required on every request (also in `$XDG_RUNTIME_DIR/spectra-mcp-<pid>.json`) |
+| `SPECTRA_CAPTURE_DIR` | `$XDG_RUNTIME_DIR/spectra-captures` | Only directory capture tools may write to |
 
 ---
 

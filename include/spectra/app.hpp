@@ -32,6 +32,12 @@ struct AppConfig
     // Start the automation Unix socket + MCP HTTP server (remote UI control).
     // Off by default; can also be enabled with SPECTRA_AUTOMATION=1. See SECURITY.md.
     bool enable_automation = false;
+
+    /// When true, App::run() installs process-wide SIGINT/SIGTERM handlers that
+    /// request a graceful exit (App::request_exit()) and ignores SIGPIPE.
+    /// Off by default so embedding Spectra never replaces the host's signal
+    /// dispositions; the standalone `spectra` executable turns it on.
+    bool install_signal_handlers = false;
 };
 
 class SessionRuntime;
@@ -62,6 +68,12 @@ class App
     App(const App&)            = delete;
     App& operator=(const App&) = delete;
 
+    /// @brief True when the render backend and renderer initialized successfully.
+    ///
+    /// When false (e.g. no Vulkan driver / GPU available), run() logs an error
+    /// and returns immediately without rendering or exporting anything.
+    bool ok() const { return initialized_; }
+
     /// @brief Create a new figure shown in its own window.
     Figure& figure(const FigureConfig& config = {});
     /// @brief Create a new figure shown as a tab next to @p sibling.
@@ -70,6 +82,8 @@ class App
     /// @brief Run the application until all windows close (blocking).
     ///
     /// Runs in-process, or in multi-process mode when a backend socket is configured.
+    ///
+    /// Returns immediately (after logging an ERROR) when ok() is false.
     void run();
 
     // Frame-by-frame control (alternative to run()).
@@ -138,6 +152,7 @@ class App
     std::vector<std::vector<FigureId>> compute_window_groups() const;
 
     AppConfig                         config_;
+    bool                              initialized_ = false;
     FigureRegistry                    registry_;
     std::unique_ptr<ui::ThemeManager> theme_mgr_;
     std::unique_ptr<Backend>          backend_;

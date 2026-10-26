@@ -107,7 +107,7 @@ class AxesBase
     bool border_enabled() const { return border_enabled_; }
     void show_border(bool enabled) { border_enabled_ = enabled; }
 
-    /// Colormap colorbar visibility.
+    /// Colorbar visibility (for colormapped series).
     bool colorbar_visible() const { return colorbar_visible_; }
     void show_colorbar(bool visible) { colorbar_visible_ = visible; }
 

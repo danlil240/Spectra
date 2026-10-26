@@ -387,7 +387,7 @@ class ScatterSeries : public Series
     /// @brief Apply a MATLAB-style format string (e.g. "ro").
     ScatterSeries& format(std::string_view fmt);
 
-    // ── Colormap support (Phase 7C) ─────────────────────────────────────
+    // ── Colormap support ────────────────────────────────────────────────
     /// Set per-point color values (one float per point).  Values are mapped
     /// through the active colormap to produce per-point colors.
     ScatterSeries& color_values(std::span<const float> values);
@@ -436,7 +436,7 @@ class ScatterSeries : public Series
     std::vector<float> y_;
     float              point_size_ = 4.0f;
     bool               x_sorted_   = true;
-    // Colormap support (Phase 7C)
+    // Colormap support
     std::vector<float> color_values_;
     ColormapType       colormap_type_ = ColormapType::None;
     float              colormap_min_  = 0.0f;

@@ -36,7 +36,16 @@ def test_runtime_dir_uses_short_xdg(monkeypatch):
 def test_runtime_dir_falls_back_when_xdg_too_long(monkeypatch):
     long_dir = "/tmp/" + "x" * 120
     monkeypatch.setenv("XDG_RUNTIME_DIR", long_dir)
+    for var in ("TMPDIR", "TMP", "TEMP", "TEMPDIR"):
+        monkeypatch.delenv(var, raising=False)
     assert _launcher._runtime_socket_dir() == "/tmp"
+
+
+def test_runtime_dir_uses_tmpdir_like_cpp(tmp_path, monkeypatch):
+    # Without XDG, mirror std::filesystem::temp_directory_path() ($TMPDIR).
+    monkeypatch.delenv("XDG_RUNTIME_DIR", raising=False)
+    monkeypatch.setenv("TMPDIR", str(tmp_path) + "/")
+    assert _launcher._runtime_socket_dir() == str(tmp_path)
 
 
 def test_socket_path_fits_limit():
@@ -76,6 +85,8 @@ def test_long_xdg_pins_short_socket(tmp_path, monkeypatch):
     long_dir.mkdir()
     monkeypatch.setenv("XDG_RUNTIME_DIR", str(long_dir))
     monkeypatch.delenv("SPECTRA_SOCKET", raising=False)
+    for var in ("TMPDIR", "TMP", "TEMP", "TEMPDIR"):
+        monkeypatch.delenv(var, raising=False)
     monkeypatch.delenv("SPECTRA_DEBUG_LOG", raising=False)
     argv_file = tmp_path / "argv.txt"
     backend = _fake_backend(

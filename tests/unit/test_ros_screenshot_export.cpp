@@ -301,7 +301,8 @@ TEST(StaticHelpers, MakeScreenshotPath_NonEmpty)
 TEST(StaticHelpers, MakeScreenshotPath_DefaultArgs)
 {
     const std::string p = RosScreenshotExport::make_screenshot_path();
-    EXPECT_NE(p.find("/tmp/spectra_ros_"), std::string::npos);
+    // Default directory is the system temp dir ($TMPDIR or /tmp).
+    EXPECT_NE(p.find("/spectra_ros_"), std::string::npos);
     EXPECT_NE(p.rfind(".png"), std::string::npos);
 }
 

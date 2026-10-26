@@ -3,7 +3,11 @@
 
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <string>
+#include <system_error>
+
+#include <spectra/logger.hpp>
 
 #include "codec.hpp"
 
@@ -41,7 +45,23 @@ inline auto fd_read(int fd, void* buf, size_t len)
 }
 inline auto fd_write(int fd, const void* buf, size_t len)
 {
+    #ifdef MSG_NOSIGNAL
     return ::send(fd, buf, len, MSG_NOSIGNAL);
+    #else
+    // macOS / BSD: no MSG_NOSIGNAL; SO_NOSIGPIPE is set on each socket instead.
+    return ::send(fd, buf, len, 0);
+    #endif
+}
+
+// Suppress SIGPIPE per-socket on platforms without MSG_NOSIGNAL.
+inline void disable_sigpipe(int fd)
+{
+    #if !defined(MSG_NOSIGNAL) && defined(SO_NOSIGPIPE)
+    int one = 1;
+    ::setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof(one));
+    #else
+    (void)fd;
+    #endif
 }
 inline void fd_close(int fd)
 {
@@ -190,19 +210,27 @@ bool Server::listen(const std::string& path)
     addr.sun_family = AF_UNIX;
     if (path.size() >= sizeof(addr.sun_path))
     {
+        SPECTRA_LOG_ERROR("ipc",
+                          "Socket path is too long ({} bytes, max {}): {} — set "
+                          "XDG_RUNTIME_DIR/TMPDIR or pass a shorter --socket path",
+                          path.size(),
+                          sizeof(addr.sun_path) - 1,
+                          path);
         ::close(fd);
         return false;
     }
     std::strncpy(addr.sun_path, path.c_str(), sizeof(addr.sun_path) - 1);
 
-    if (::bind(fd, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) < 0)
+    // Create the socket file owner-only from the start (no window between
+    // bind() and a later chmod() where other users could connect).
+    const mode_t old_umask = ::umask(077);
+    const int    bind_rc   = ::bind(fd, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr));
+    ::umask(old_umask);
+    if (bind_rc < 0)
     {
         ::close(fd);
         return false;
     }
-
-    // Set socket file permissions to owner-only
-    ::chmod(path.c_str(), 0700);
 
     if (::listen(fd, 8) < 0)
     {
@@ -233,6 +261,7 @@ std::unique_ptr<Connection> Server::accept() const
     if (client_fd < 0)
         return nullptr;
 
+    disable_sigpipe(client_fd);
     return std::make_unique<Connection>(client_fd);
 #else
     return nullptr;
@@ -267,6 +296,7 @@ std::unique_ptr<Connection> Server::try_accept() const
     if (flags >= 0)
         ::fcntl(client_fd, F_SETFL, flags & ~O_NONBLOCK);
 
+    disable_sigpipe(client_fd);
     return std::make_unique<Connection>(client_fd);
 #else
     return nullptr;
@@ -302,9 +332,15 @@ std::unique_ptr<Connection> Client::connect(const std::string& path)
     addr.sun_family = AF_UNIX;
     if (path.size() >= sizeof(addr.sun_path))
     {
+        SPECTRA_LOG_ERROR("ipc",
+                          "Socket path is too long ({} bytes, max {}): {}",
+                          path.size(),
+                          sizeof(addr.sun_path) - 1,
+                          path);
         ::close(fd);
         return nullptr;
     }
+    disable_sigpipe(fd);
     std::strncpy(addr.sun_path, path.c_str(), sizeof(addr.sun_path) - 1);
 
     if (::connect(fd, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) < 0)
@@ -322,16 +358,50 @@ std::unique_ptr<Connection> Client::connect(const std::string& path)
 
 // ─── Utility ─────────────────────────────────────────────────────────────────
 
-std::string default_socket_path()
+std::string runtime_dir()
 {
-    std::string dir;
+    // Keep in sync with _runtime_socket_dir() in python/spectra/_launcher.py.
     const char* xdg = std::getenv("XDG_RUNTIME_DIR");
     if (xdg && xdg[0] != '\0')
-        dir = xdg;
-    else
-        dir = "/tmp";
+    {
+        // Use XDG only when a worst-case `spectra-<pid>.sock` still fits in
+        // sun_path; otherwise binding would fail, so fall back to the temp dir.
+        const size_t max_len = max_socket_path_length();
+        const size_t needed  = std::strlen(xdg) + std::strlen("/spectra-4194304.sock");
+        if (max_len == 0 || needed <= max_len)
+            return xdg;
+        SPECTRA_LOG_DEBUG("ipc", "XDG_RUNTIME_DIR too long for a Unix socket; using temp dir");
+    }
 
-    return dir + "/spectra-" + std::to_string(::getpid()) + ".sock";
+    std::error_code ec;
+    auto            tmp = std::filesystem::temp_directory_path(ec);
+    std::string     dir = ec ? std::string() : tmp.string();
+    // Strip a trailing separator (macOS $TMPDIR ends with '/').
+    while (dir.size() > 1 && (dir.back() == '/' || dir.back() == '\\'))
+        dir.pop_back();
+    if (dir.empty())
+    {
+#ifdef _WIN32
+        dir = ".";
+#else
+        dir = "/tmp";   // invalid $TMPDIR: same fallback as the Python launcher
+#endif
+    }
+    return dir;
+}
+
+std::string default_socket_path()
+{
+    return runtime_dir() + "/spectra-" + std::to_string(::getpid()) + ".sock";
+}
+
+size_t max_socket_path_length()
+{
+#ifndef _WIN32
+    return sizeof(sockaddr_un::sun_path) - 1;
+#else
+    return 0;
+#endif
 }
 
 }   // namespace spectra::ipc

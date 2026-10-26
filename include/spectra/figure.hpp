@@ -130,12 +130,18 @@ class Figure
 
     /// @brief Compute the subplot layout. Figures are displayed when App::run() runs.
     void show();
-    /// @brief Request a PNG export at native resolution; written after the next rendered frame.
-    void save_png(const std::string& path);
-    /// @brief Request a PNG export at the given resolution; written after the next rendered frame.
-    void save_png(const std::string& path, uint32_t export_width, uint32_t export_height);
-    /// @brief Request an SVG vector export; written after the next rendered frame.
-    void save_svg(const std::string& path);
+    /// @brief Request a PNG export at native resolution.
+    ///
+    /// Export calls only validate and queue the request; the file is written by
+    /// the runtime after the figure is rendered (during / at the end of
+    /// App::run()).  They return false — and queue nothing — when the path is
+    /// empty, is a directory, or its parent directory is missing or not
+    /// writable.  Later render/write failures are reported through the logger.
+    bool save_png(const std::string& path);
+    /// @brief Request a PNG export at the given resolution (see save_png()).
+    bool save_png(const std::string& path, uint32_t export_width, uint32_t export_height);
+    /// @brief Request an SVG vector export (see save_png() for the return value).
+    bool save_svg(const std::string& path);
     /// @brief Copy a rendered image of the figure to the system clipboard.
     void copy_to_clipboard();
 

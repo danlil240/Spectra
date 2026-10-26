@@ -8,6 +8,7 @@
 #include <memory>
 #include <spectra/app.hpp>
 #include <spectra/figure.hpp>
+#include <spectra/logger.hpp>
 
 #include "ui/app/window_ui_context.hpp"
 #include "ui/figures/figure_manager.hpp"
@@ -89,15 +90,38 @@ std::vector<std::vector<FigureId>> App::compute_window_groups() const
 
 void App::run()
 {
-    // Install signal handlers so Ctrl+C (SIGINT) and SIGTERM trigger a
-    // graceful shutdown through shutdown_runtime() instead of killing the
-    // process mid-frame (which would leak Vulkan resources).  This covers
-    // all entry points: the main spectra binary, examples, and the easy API.
-    std::signal(SIGINT,  [](int) { App::request_exit(); });
-    std::signal(SIGTERM, [](int) { App::request_exit(); });
+    if (!initialized_)
+    {
+        size_t pending_exports = 0;
+        for (auto id : registry_.all_ids())
+        {
+            if (const Figure* f = registry_.get(id))
+            {
+                const auto& req = f->export_req_;
+                if (!req.png_path.empty() || !req.svg_path.empty() || !req.video_path.empty())
+                    ++pending_exports;
+            }
+        }
+        SPECTRA_LOG_ERROR("app",
+                          "App::run(): Spectra failed to initialize its render backend; no window "
+                          "will be shown and {} figure export request(s) will not be written",
+                          pending_exports);
+        return;
+    }
+
+    // Optionally install signal handlers so Ctrl+C (SIGINT) and SIGTERM
+    // trigger a graceful shutdown through shutdown_runtime() instead of
+    // killing the process mid-frame (which would leak Vulkan resources).
+    // Opt-in via AppConfig::install_signal_handlers: a library must not
+    // replace its host process's signal dispositions behind its back.
+    if (config_.install_signal_handlers)
+    {
+        std::signal(SIGINT, [](int) { App::request_exit(); });
+        std::signal(SIGTERM, [](int) { App::request_exit(); });
 #ifndef _WIN32
-    std::signal(SIGPIPE, SIG_IGN);
+        std::signal(SIGPIPE, SIG_IGN);
 #endif
+    }
 
     bool multiproc = !config_.socket_path.empty();
     if (!multiproc)

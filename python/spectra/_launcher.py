@@ -5,6 +5,7 @@ import platform as _platform
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from typing import Optional
 
@@ -24,20 +25,31 @@ def _runtime_socket_dir() -> str:
             ),
         )
         return os.path.join(temp, "spectra")
+    # Mirrors spectra::ipc::runtime_dir() in src/ipc/transport.cpp:
+    # $XDG_RUNTIME_DIR when a `spectra-<pid>.sock` path fits in
+    # sockaddr_un.sun_path, else std::filesystem::temp_directory_path()
+    # ($TMPDIR, falling back to /tmp).
     xdg = os.environ.get("XDG_RUNTIME_DIR")
     if xdg:
-        # The daemon names its socket `spectra-<pid>.sock`. If that cannot fit
-        # in sockaddr_un.sun_path the daemon fails with "Failed to listen", so
-        # fall back to /tmp (the same dir the C++ side uses without XDG).
         worst_case = os.path.join(xdg, "spectra-4194304.sock")
-        if not _socket_path_fits(worst_case):
-            log.debug(
-                "launcher XDG_RUNTIME_DIR too long for a UNIX socket (%d bytes), using /tmp",
-                len(xdg),
-            )
-            return "/tmp"
-        return xdg
-    return "/tmp"
+        if _socket_path_fits(worst_case):
+            return xdg
+        log.debug(
+            "launcher XDG_RUNTIME_DIR too long for a UNIX socket (%d bytes), using temp dir",
+            len(xdg),
+        )
+    return _posix_temp_dir()
+
+
+def _posix_temp_dir() -> str:
+    """Equivalent of libstdc++/libc++ std::filesystem::temp_directory_path()."""
+    for var in ("TMPDIR", "TMP", "TEMP", "TEMPDIR"):
+        val = os.environ.get(var)
+        if val:
+            if os.path.isdir(val):
+                return val.rstrip("/") or "/"
+            break  # C++ reports an error for an invalid first match; fall back
+    return "/tmp" if os.path.isdir("/tmp") else tempfile.gettempdir()
 
 
 def _sun_path_max() -> int:

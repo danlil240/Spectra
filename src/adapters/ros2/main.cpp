@@ -241,8 +241,8 @@ int main(int argc, char** argv)
         return is_help ? 0 : 1;
     }
 
-    spectra::setup_dual_logging(spectra::default_console_log_level(),
-                                  spectra::default_file_log_level());
+    spectra::setup_dual_logging(spectra::default_console_log_level(spectra::LogLevel::Info),
+                                spectra::default_file_log_level());
 
 #ifndef NDEBUG
     maybe_reexec_for_fast_vulkan_startup(argc, argv);

@@ -352,8 +352,12 @@ void Renderer::render_plot_text(Figure& figure)
         const float hi_lim[3]  = {static_cast<float>(xlim.max),
                                   static_cast<float>(ylim.max),
                                   static_cast<float>(zlim.max)};
-        const float cam_pos[3] = {cam.position.x, cam.position.y, cam.position.z};
-        const float view_c[3]  = {view_dir.x, view_dir.y, view_dir.z};
+        const float cam_pos[3] = {static_cast<float>(cam.position.x),
+                                  static_cast<float>(cam.position.y),
+                                  static_cast<float>(cam.position.z)};
+        const float view_c[3]  = {static_cast<float>(view_dir.x),
+                                  static_cast<float>(view_dir.y),
+                                  static_cast<float>(view_dir.z)};
         float       tick_off[3];
         for (int i = 0; i < 3; ++i)
             tick_off[i] = (hi_lim[i] - lo_lim[i]) * 0.04f;

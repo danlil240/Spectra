@@ -128,21 +128,26 @@ fn sdf_cross(p: vec2<f32>, arm_w: f32) -> f32 {
 }
 
 fn sdf_star(p_in: vec2<f32>) -> f32 {
+    // 5-pointed star — Inigo Quilez sdStar(p, r, n=5, m=3), pointing up (+y).
     let PI  = 3.14159265;
-    let an  = PI * 2.0 / 5.0;
-    let en  = PI / 5.0;
+    let r   = 0.9;
+    let an  = PI / 5.0;
+    let en  = PI / 3.0;
     let acs = vec2<f32>(cos(an), sin(an));
     let ecs = vec2<f32>(cos(en), sin(en));
-    let bn  = (atan2(p_in.x, p_in.y) % an) - 0.5 * an;
+    // WGSL `%` truncates toward zero, so use a floor-based modulo.
+    let a   = atan2(p_in.x, p_in.y);
+    let bn  = (a - 2.0 * an * floor(a / (2.0 * an))) - an;
     var p   = length(p_in) * vec2<f32>(cos(bn), abs(sin(bn)));
-    p      -= 0.65 * acs;
-    p      += ecs * clamp(-dot(p, ecs), 0.0, 0.65 * acs.y / ecs.y);
+    p      -= r * acs;
+    p      += ecs * clamp(-dot(p, ecs), 0.0, r * acs.y / ecs.y);
     return length(p) * sign(p.x);
 }
 
 fn sdf_pentagon(p_in: vec2<f32>) -> f32 {
     let k = vec3<f32>(0.809016994, 0.587785252, 0.726542528);
-    var p = vec2<f32>(abs(p_in.x), p_in.y);
+    // The IQ pentagon has its flat edge at +y; flip so the apex points up (+y).
+    var p = vec2<f32>(abs(p_in.x), -p_in.y);
     p    -= 2.0 * min(dot(vec2<f32>(-k.x, k.y), p), 0.0) * vec2<f32>(-k.x, k.y);
     p    -= 2.0 * min(dot(vec2<f32>( k.x, k.y), p), 0.0) * vec2<f32>( k.x, k.y);
     p    -= vec2<f32>(clamp(p.x, -0.7 * k.z, 0.7 * k.z), 0.7);

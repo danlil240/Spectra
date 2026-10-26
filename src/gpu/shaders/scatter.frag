@@ -116,22 +116,26 @@ float sdf_cross(vec2 p, float arm_w) {
 }
 
 float sdf_star(vec2 p) {
-    // 5-pointed star — Inigo Quilez formula
+    // 5-pointed star — Inigo Quilez sdStar(p, r, n=5, m=3).
+    // Points up (+y).  an = PI/n is half the angle between points.
     const float PI = 3.14159265;
-    float an = PI * 2.0 / 5.0;
-    float en = PI / 5.0;
+    const float r  = 0.9;
+    float an = PI / 5.0;
+    float en = PI / 3.0;
     vec2 acs = vec2(cos(an), sin(an));
     vec2 ecs = vec2(cos(en), sin(en));
-    float bn = mod(atan(p.x, p.y), an) - 0.5 * an;
+    float bn = mod(atan(p.x, p.y), 2.0 * an) - an;
     p = length(p) * vec2(cos(bn), abs(sin(bn)));
-    p -= 0.65 * acs;
-    p += ecs * clamp(-dot(p, ecs), 0.0, 0.65 * acs.y / ecs.y);
+    p -= r * acs;
+    p += ecs * clamp(-dot(p, ecs), 0.0, r * acs.y / ecs.y);
     return length(p) * sign(p.x);
 }
 
 float sdf_pentagon(vec2 p) {
     const float PI = 3.14159265;
     const vec3 k = vec3(0.809016994, 0.587785252, 0.726542528); // cos/sin/tan of pi/5
+    // The IQ pentagon has its flat edge at +y; flip so the apex points up (+y).
+    p.y = -p.y;
     p.x = abs(p.x);
     p -= 2.0 * min(dot(vec2(-k.x, k.y), p), 0.0) * vec2(-k.x, k.y);
     p -= 2.0 * min(dot(vec2( k.x, k.y), p), 0.0) * vec2( k.x, k.y);

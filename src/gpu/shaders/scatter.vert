@@ -72,6 +72,8 @@ void main() {
     gl_Position = vec4(ndc * clip_center.w, 0.0, clip_center.w);
 
     // UV for SDF shapes: ranges from -1 to 1 across the quad
-    v_uv = offset;
+    // Vulkan framebuffer Y points down, so flip so that +v_uv.y is "up" on
+    // screen (marker SDFs such as TriangleUp/Star are authored Y-up).
+    v_uv = vec2(offset.x, -offset.y);
     v_color_value = 0.0;
 }

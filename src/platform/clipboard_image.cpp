@@ -185,7 +185,8 @@ bool copy_image_to_clipboard(const uint8_t* png_bytes, size_t size)
     }
 
     const std::string script =
-        "set the clipboard to (read (POSIX file \"" + tmpl + "\") as \xC2\xABclass PNGf\xC2\xBB)";
+        "set the clipboard to (read (POSIX file \"" + tmpl + "\") as \xC2\xAB"
+        "class PNGf\xC2\xBB)";
 
     const pid_t pid = ::fork();
     if (pid == 0)

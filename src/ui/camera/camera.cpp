@@ -20,11 +20,11 @@ mat4 Camera::view_matrix() const
         const vec3 f = fwd * (1.0f / len);
         if (vec3_length(vec3_cross(f, vec3_normalize(up))) < 1e-3)
         {
-            const float az     = deg_to_rad(azimuth);
-            const float s      = (vec3_dot(f, up) < 0.0) ? 1.0f : -1.0f;
-            const vec3  alt_up = (up_axis == UpAxis::Z)
-                                     ? vec3{-std::cos(az) * s, -std::sin(az) * s, 0.0f}
-                                     : vec3{-std::cos(az) * s, 0.0f, -std::sin(az) * s};
+            const double az     = static_cast<double>(deg_to_rad(azimuth));
+            const double s      = (vec3_dot(f, up) < 0.0) ? 1.0 : -1.0;
+            const vec3   alt_up = (up_axis == UpAxis::Z)
+                                      ? vec3{-std::cos(az) * s, -std::sin(az) * s, 0.0}
+                                      : vec3{-std::cos(az) * s, 0.0, -std::sin(az) * s};
             return mat4_look_at(position, target, alt_up);
         }
     }

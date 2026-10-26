@@ -1,0 +1,39 @@
+# Maintainer: danlil240
+# AUR package for Spectra — GPU-accelerated scientific plotting
+# GENERATED from packaging/aur/PKGBUILD.in by tools/update_packaging.sh
+# (version from version.txt, sha256 of the GitHub source tarball).
+# Install: makepkg -si
+
+pkgname=spectra
+pkgver=@SPECTRA_VERSION@
+pkgrel=1
+pkgdesc="GPU-accelerated scientific plotting library"
+arch=('x86_64')
+url="https://github.com/danlil240/Spectra"
+license=('MIT' 'Apache-2.0' 'Zlib' 'OFL-1.1' 'CC-BY-4.0')
+depends=('vulkan-icd-loader' 'glfw' 'vulkan-driver')
+makedepends=('cmake' 'git' 'glslang' 'vulkan-headers')
+optdepends=('eigen: Eigen vector adapters for C++ consumers'
+            'ffmpeg: video export')
+source=("$pkgname-$pkgver.tar.gz::https://github.com/danlil240/Spectra/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('@SPECTRA_SOURCE_SHA256@')
+
+build() {
+    cd "Spectra-$pkgver"
+    cmake -B build \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/usr \
+        -DSPECTRA_USE_SYSTEM_GLFW=ON \
+        -DSPECTRA_USE_ROS2=OFF \
+        -DSPECTRA_BUILD_EXAMPLES=OFF \
+        -DSPECTRA_BUILD_TESTS=OFF \
+        -DSPECTRA_BUILD_GOLDEN_TESTS=OFF
+    cmake --build build -j"$(nproc)"
+}
+
+package() {
+    cd "Spectra-$pkgver"
+    DESTDIR="$pkgdir" cmake --install build
+    install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+    install -Dm644 THIRD_PARTY_NOTICES.md "$pkgdir/usr/share/licenses/$pkgname/THIRD_PARTY_NOTICES.md"
+}

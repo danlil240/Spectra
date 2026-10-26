@@ -3,28 +3,28 @@
 
 #ifndef _WIN32
 
-#include <gtest/gtest.h>
+    #include <gtest/gtest.h>
 
-#include <atomic>
-#include <chrono>
-#include <csignal>
-#include <cstring>
-#include <cstdlib>
-#include <filesystem>
-#include <optional>
-#include <string>
-#include <thread>
+    #include <atomic>
+    #include <chrono>
+    #include <csignal>
+    #include <cstring>
+    #include <cstdlib>
+    #include <filesystem>
+    #include <optional>
+    #include <string>
+    #include <thread>
 
-#include <spectra/topic.hpp>
+    #include <spectra/topic.hpp>
 
-#include "ipc/codec.hpp"
-#include "ipc/message.hpp"
-#include "ipc/transport.hpp"
+    #include "ipc/codec.hpp"
+    #include "ipc/message.hpp"
+    #include "ipc/transport.hpp"
 
-#include <pthread.h>
-#include <sys/socket.h>
-#include <sys/un.h>
-#include <unistd.h>
+    #include <pthread.h>
+    #include <sys/socket.h>
+    #include <sys/un.h>
+    #include <unistd.h>
 
 using namespace spectra::ipc;
 namespace fs = std::filesystem;

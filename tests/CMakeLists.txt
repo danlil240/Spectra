@@ -189,6 +189,7 @@ set(SPECTRA_UNIT_TESTS
     test_accessible_summary
     test_webgpu_backend
     test_expression_eval
+    test_visual_correctness
 )
 
 # Mock transform plugin — shared library loaded by test_plugin_transforms

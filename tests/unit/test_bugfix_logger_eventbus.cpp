@@ -194,16 +194,37 @@ TEST(BugfixLogger, FilteredSinkAtOffDropsEverything)
     EXPECT_EQ(calls, 0);
 }
 
+namespace
+{
+void set_env(const char* name, const char* value)
+{
+#ifdef _WIN32
+    _putenv_s(name, value);
+#else
+    setenv(name, value, 1);
+#endif
+}
+
+void unset_env(const char* name)
+{
+#ifdef _WIN32
+    _putenv_s(name, "");
+#else
+    unsetenv(name);
+#endif
+}
+}   // namespace
+
 TEST(BugfixLogger, EnvOffMapsToOffLevel)
 {
     const char* old     = std::getenv("SPECTRA_LOG_LEVEL");
     std::string old_val = old ? old : "";
-    setenv("SPECTRA_LOG_LEVEL", "off", 1);
+    set_env("SPECTRA_LOG_LEVEL", "off");
     EXPECT_EQ(default_console_log_level(), LogLevel::Off);
-    setenv("SPECTRA_LOG_LEVEL", "silent", 1);
+    set_env("SPECTRA_LOG_LEVEL", "silent");
     EXPECT_EQ(default_console_log_level(), LogLevel::Off);
     if (old)
-        setenv("SPECTRA_LOG_LEVEL", old_val.c_str(), 1);
+        set_env("SPECTRA_LOG_LEVEL", old_val.c_str());
     else
-        unsetenv("SPECTRA_LOG_LEVEL");
+        unset_env("SPECTRA_LOG_LEVEL");
 }

@@ -30,7 +30,9 @@ void expect_within(const LineDrawRange& r, size_t n)
 {
     EXPECT_LE(static_cast<size_t>(r.first_pt) + r.pt_count, n);
     if (r.seg_count > 0)
+    {
         EXPECT_LE(static_cast<size_t>(r.first_seg) + r.seg_count + 1, n);
+    }
 }
 
 }   // namespace

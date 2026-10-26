@@ -1,4 +1,7 @@
 // Regression tests for ipc transport / publisher discovery fixes.
+// POSIX-only: the transport uses Unix domain sockets.
+
+#ifndef _WIN32
 
 #include <gtest/gtest.h>
 
@@ -382,3 +385,5 @@ TEST(BugfixIpcTransport, PublisherDoesNotHangOnSilentPeer)
     EXPECT_LT(dt, std::chrono::seconds(10));
     silent.close();
 }
+
+#endif   // _WIN32

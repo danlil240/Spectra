@@ -108,20 +108,18 @@
         }
     </script>
 
-    <!-- Emscripten-generated JS glue.  The filename matches the CMake
-         target name (webgpu_demo).  Update if the target is renamed. -->
-    <script src="webgpu_demo.js"></script>
-
     <script>
-        // After the WASM module loads, Emscripten calls Module.onRuntimeInitialized.
-        if (typeof Module !== "undefined") {
-            const origInit = Module.onRuntimeInitialized;
-            Module.onRuntimeInitialized = function () {
-                if (origInit) origInit();
+        // Emscripten reads this Module object when the generated glue loads.
+        var Module = {
+            canvas: document.getElementById("canvas"),
+            onRuntimeInitialized: function () {
                 statusEl.textContent = "Running — interact with the plot above.";
                 statusEl.className = "ok";
-            };
-        }
+            },
+        };
     </script>
+
+    <!-- Emscripten replaces this marker with the generated JS glue. -->
+    {{{ SCRIPT }}}
 </body>
 </html>

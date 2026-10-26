@@ -117,7 +117,27 @@ message(STATUS "SPECTRA_RUNTIME_MODE: ${SPECTRA_RUNTIME_MODE}")
 message(STATUS "SPECTRA_PRESENT_MODE: ${SPECTRA_PRESENT_MODE}")
 
 # Find Vulkan SDK
-find_package(Vulkan REQUIRED)
+if(EMSCRIPTEN)
+    # Browser builds render through WebGPU only.  App code still references the
+    # Vulkan backend types, so compile against the Vulkan headers; the Vulkan
+    # entry points resolve to generated stubs (see vulkan_stubs.cpp below).
+    if(NOT SPECTRA_USE_WEBGPU)
+        message(FATAL_ERROR "Emscripten builds require -DSPECTRA_USE_WEBGPU=ON")
+    endif()
+    include(FetchContent)
+    FetchContent_Declare(
+        vulkan_headers
+        GIT_REPOSITORY https://github.com/KhronosGroup/Vulkan-Headers.git
+        GIT_TAG        v1.3.275
+        GIT_SHALLOW    TRUE
+    )
+    FetchContent_MakeAvailable(vulkan_headers)
+    add_library(Vulkan::Vulkan INTERFACE IMPORTED)
+    target_link_libraries(Vulkan::Vulkan INTERFACE Vulkan::Headers)
+    set(Vulkan_INCLUDE_DIR "${vulkan_headers_SOURCE_DIR}/include")
+else()
+    find_package(Vulkan REQUIRED)
+endif()
 
 # Shader compilation (GLSL -> SPIR-V)
 include(cmake/CompileShaders.cmake)
@@ -345,6 +365,21 @@ target_compile_definitions(spectra PRIVATE
 )
 target_compile_definitions(spectra PRIVATE SPECTRA_PRESENT_MODE_${SPECTRA_PRESENT_MODE})
 
+# Emscripten: browsers have no Vulkan, so resolve the Vulkan backend's entry
+# points with generated stubs that fail cleanly at init.
+if(EMSCRIPTEN)
+    set(_spectra_vk_stubs ${CMAKE_CURRENT_BINARY_DIR}/generated/vulkan_stubs.cpp)
+    add_custom_command(
+        OUTPUT  ${_spectra_vk_stubs}
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/cmake/generate_vulkan_stubs.py
+                ${Vulkan_INCLUDE_DIR}/vulkan/vulkan_core.h ${_spectra_vk_stubs}
+        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/cmake/generate_vulkan_stubs.py
+                ${Vulkan_INCLUDE_DIR}/vulkan/vulkan_core.h
+        COMMENT "Generating Vulkan entry-point stubs for Emscripten"
+    )
+    target_sources(spectra PRIVATE ${_spectra_vk_stubs})
+endif()
+
 # Ensure shaders are compiled before the library
 if(TARGET spectra_shaders)
     add_dependencies(spectra spectra_shaders)
@@ -354,7 +389,15 @@ endif()
 add_dependencies(spectra spectra_flatbuffers_gen)
 
 # GLFW adapter (optional)
-if(SPECTRA_USE_GLFW)
+if(SPECTRA_USE_GLFW AND EMSCRIPTEN)
+    # Emscripten ships its own browser GLFW implementation.
+    add_library(glfw INTERFACE)
+    target_link_options(glfw INTERFACE "SHELL:-s USE_GLFW=3")
+    set(_spectra_glfw_link glfw)
+    target_sources(spectra PRIVATE src/ui/window/glfw_adapter.cpp)
+    target_link_libraries(spectra PRIVATE glfw)
+    target_compile_definitions(spectra PUBLIC SPECTRA_USE_GLFW)
+elseif(SPECTRA_USE_GLFW)
     # Always build GLFW from source to guarantee the latest Wayland support
     # and a consistent API version across all platforms.
     include(FetchContent)
@@ -657,9 +700,13 @@ if(SPECTRA_USE_WEBGPU)
             endif()
         endif()
     else()
-        # Emscripten provides WebGPU via USE_WEBGPU linker flag.
-        target_link_options(spectra PUBLIC "SHELL:-s USE_WEBGPU=1")
-        target_compile_options(spectra PUBLIC "SHELL:-s USE_WEBGPU=1")
+        # Emscripten 4.0.10+ replaced -sUSE_WEBGPU with the emdawnwebgpu port,
+        # which tracks the current webgpu.h (WGPUStringView, callback infos).
+        target_link_options(spectra PUBLIC "--use-port=emdawnwebgpu")
+        target_compile_options(spectra PUBLIC "--use-port=emdawnwebgpu")
+        # The backend blocks on adapter/device/map callbacks; ASYNCIFY lets
+        # those waits yield to the browser event loop.
+        target_link_options(spectra PUBLIC "SHELL:-s ASYNCIFY=1" "SHELL:-s ALLOW_MEMORY_GROWTH=1")
     endif()
 
     message(STATUS "SPECTRA_USE_WEBGPU: ON (inproc mode only; IPC/multiproc not supported on wasm)")

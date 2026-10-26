@@ -25,12 +25,15 @@ bool GlfwAdapter::init(uint32_t width, uint32_t height, const std::string& title
         return false;
     }
 
+    #ifndef __EMSCRIPTEN__
+    // Browser builds render through WebGPU onto the canvas, not Vulkan.
     if (!glfwVulkanSupported())
     {
         SPECTRA_LOG_ERROR("glfw", "GLFW: Vulkan not supported");
         glfwTerminate();
         return false;
     }
+    #endif
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);   // No OpenGL context
     glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);

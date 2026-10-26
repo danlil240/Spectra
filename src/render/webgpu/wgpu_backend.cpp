@@ -16,7 +16,7 @@
 
     // Include the platform-appropriate WebGPU header.
     #ifdef __EMSCRIPTEN__
-        #include <emscripten/html5_webgpu.h>
+        #include <emscripten/emscripten.h>
         #include <webgpu/webgpu.h>
     #else
         #include <webgpu/webgpu.h>
@@ -57,6 +57,28 @@ static constexpr uint32_t WGPU_FRAME_UBO_SLOT_SIZE =
     (sizeof(FrameUBO) + WGPU_UBO_ALIGN - 1) & ~(WGPU_UBO_ALIGN - 1);
 static constexpr uint64_t WGPU_FRAME_UBO_RING_SIZE =
     static_cast<uint64_t>(WGPU_FRAME_UBO_SLOT_SIZE) * WGPU_UBO_RING_SLOTS;
+
+// Series push constants get one slot per draw.  Queue writes all land before
+// the frame's commands execute, so a single shared slot would leave every draw
+// seeing the last series' color/style.
+static constexpr uint32_t WGPU_SERIES_PC_RING_SLOTS = 4096;
+static constexpr uint32_t WGPU_SERIES_PC_SLOT_SIZE =
+    (sizeof(SeriesPushConstants) + WGPU_UBO_ALIGN - 1) & ~(WGPU_UBO_ALIGN - 1);
+static constexpr uint64_t WGPU_SERIES_PC_RING_SIZE =
+    static_cast<uint64_t>(WGPU_SERIES_PC_SLOT_SIZE) * WGPU_SERIES_PC_RING_SLOTS;
+
+// ─── Event pump ───────────────────────────────────────────────────────────────
+
+// Drive pending WebGPU callbacks while blocking on an async result.  In the
+// browser the callbacks are delivered by the JS event loop, so yield to it
+// (requires linking with -sASYNCIFY).
+static void pump_events(WGPUInstance instance)
+{
+    #ifdef __EMSCRIPTEN__
+    emscripten_sleep(0);
+    #endif
+    wgpuInstanceProcessEvents(instance);
+}
 
 // ─── Construction / destruction ───────────────────────────────────────────────
 
@@ -288,20 +310,8 @@ bool WebGPUBackend::request_adapter()
 
     wgpuInstanceRequestAdapter(instance_, &opts, cb_info);
 
-    #ifdef __EMSCRIPTEN__
-    // Emscripten: the callback fires asynchronously; we cannot spin here.
-    (void)result;
-    device_ = emscripten_webgpu_get_device();
-    if (!device_)
-    {
-        SPECTRA_LOG_ERROR("webgpu", "emscripten_webgpu_get_device failed");
-        return false;
-    }
-    return true;
-    #else
-    // Dawn native: process events until the callback fires.
     while (!result.done)
-        wgpuInstanceProcessEvents(instance_);
+        pump_events(instance_);
 
     if (!result.ok || !result.adapter)
     {
@@ -310,15 +320,10 @@ bool WebGPUBackend::request_adapter()
     }
     adapter_ = result.adapter;
     return true;
-    #endif
 }
 
 bool WebGPUBackend::request_device()
 {
-    #ifdef __EMSCRIPTEN__
-    // Device already obtained via emscripten_webgpu_get_device() in request_adapter.
-    return device_ != nullptr;
-    #else
     struct Result
     {
         WGPUDevice device = nullptr;
@@ -343,6 +348,7 @@ bool WebGPUBackend::request_device()
                           std::string(message.data, message.length));
     };
 
+    desc.deviceLostCallbackInfo.mode     = WGPUCallbackMode_AllowSpontaneous;
     desc.deviceLostCallbackInfo.callback = [](WGPUDevice const* /*device*/,
                                               WGPUDeviceLostReason reason,
                                               WGPUStringView       message,
@@ -373,7 +379,7 @@ bool WebGPUBackend::request_device()
     wgpuAdapterRequestDevice(adapter_, &desc, cb_info);
 
     while (!result.done)
-        wgpuInstanceProcessEvents(instance_);
+        pump_events(instance_);
 
     if (!result.ok || !result.device)
     {
@@ -382,7 +388,6 @@ bool WebGPUBackend::request_device()
     }
     device_ = result.device;
     return true;
-    #endif
 }
 
 // ─── Bind group layout creation ───────────────────────────────────────────────
@@ -400,11 +405,11 @@ void WebGPUBackend::create_bind_group_layouts()
         entries[0].buffer.hasDynamicOffset = true;
         entries[0].buffer.minBindingSize   = sizeof(FrameUBO);
 
-        // binding 1: SeriesPC (no dynamic offset)
+        // binding 1: SeriesPC with dynamic offset (one ring slot per draw)
         entries[1].binding                 = 1;
         entries[1].visibility              = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment;
         entries[1].buffer.type             = WGPUBufferBindingType_Uniform;
-        entries[1].buffer.hasDynamicOffset = false;
+        entries[1].buffer.hasDynamicOffset = true;
         entries[1].buffer.minBindingSize   = sizeof(SeriesPushConstants);
 
         WGPUBindGroupLayoutDescriptor desc{};
@@ -497,13 +502,12 @@ bool WebGPUBackend::create_default_resources()
             return false;
     }
 
-    // SeriesPC small uniform buffer
+    // SeriesPC ring buffer (one 256-byte-aligned slot per draw)
     {
         WGPUBufferDescriptor desc{};
-        desc.label = WGPU_LABEL("SeriesPC");
-        desc.usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst;
-        // Round up to 256-byte alignment
-        desc.size = (sizeof(SeriesPushConstants) + WGPU_UBO_ALIGN - 1) & ~(WGPU_UBO_ALIGN - 1u);
+        desc.label            = WGPU_LABEL("SeriesPCRing");
+        desc.usage            = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst;
+        desc.size             = WGPU_SERIES_PC_RING_SIZE;
         desc.mappedAtCreation = false;
         series_pc_buf_        = wgpuDeviceCreateBuffer(device_, &desc);
         if (!series_pc_buf_)
@@ -522,8 +526,7 @@ bool WebGPUBackend::create_default_resources()
         entries[1].binding = 1;
         entries[1].buffer  = series_pc_buf_;
         entries[1].offset  = 0;
-        entries[1].size =
-            (sizeof(SeriesPushConstants) + WGPU_UBO_ALIGN - 1) & ~(WGPU_UBO_ALIGN - 1u);
+        entries[1].size    = WGPU_SERIES_PC_SLOT_SIZE;
 
         WGPUBindGroupDescriptor desc{};
         desc.label        = WGPU_LABEL("BG_Group0");
@@ -546,10 +549,11 @@ bool WebGPUBackend::create_surface(void* native_window)
         return false;
 
     #ifdef __EMSCRIPTEN__
-    // In Emscripten, the surface is created from a canvas selector.
+    // In Emscripten, the surface is created from the page's canvas.  The
+    // window handle (Emscripten's GLFW window) always draws to "#canvas".
     WGPUEmscriptenSurfaceSourceCanvasHTMLSelector canvas_desc{};
     canvas_desc.chain.sType = WGPUSType_EmscriptenSurfaceSourceCanvasHTMLSelector;
-    canvas_desc.selector    = WGPU_LABEL(static_cast<const char*>(native_window));
+    canvas_desc.selector    = WGPU_LABEL("#canvas");
 
     WGPUSurfaceDescriptor desc{};
     desc.nextInChain = &canvas_desc.chain;
@@ -906,17 +910,23 @@ WGPURenderPipeline WebGPUBackend::create_pipeline_for_type(PipelineType type)
 
     // ── Depth / stencil state ────────────────────────────────────────────────
 
+    // Headless render passes always carry the offscreen depth attachment, and
+    // WebGPU requires every pipeline used in a pass to declare a matching
+    // depth format.  Pipelines that don't depth-test just always pass.
+    const bool pass_has_depth = headless_;
+
     WGPUDepthStencilState depth_state{};
-    if (enable_depth)
+    if (enable_depth || pass_has_depth)
     {
         depth_state.format            = WGPUTextureFormat_Depth24Plus;
         depth_state.depthWriteEnabled = WGPUOptionalBool_False;
-        depth_state.depthCompare      = WGPUCompareFunction_LessEqual;
-        depth_state.stencilFront      = {WGPUCompareFunction_Always,
-                                         WGPUStencilOperation_Keep,
-                                         WGPUStencilOperation_Keep,
-                                         WGPUStencilOperation_Keep};
-        depth_state.stencilBack       = depth_state.stencilFront;
+        depth_state.depthCompare =
+            enable_depth ? WGPUCompareFunction_LessEqual : WGPUCompareFunction_Always;
+        depth_state.stencilFront = {WGPUCompareFunction_Always,
+                                    WGPUStencilOperation_Keep,
+                                    WGPUStencilOperation_Keep,
+                                    WGPUStencilOperation_Keep};
+        depth_state.stencilBack  = depth_state.stencilFront;
     }
 
     // ── Primitive state ──────────────────────────────────────────────────────
@@ -943,7 +953,7 @@ WGPURenderPipeline WebGPUBackend::create_pipeline_for_type(PipelineType type)
     desc.fragment    = &frag_state;
     desc.primitive   = prim;
     desc.multisample = ms;
-    if (enable_depth)
+    if (enable_depth || pass_has_depth)
         desc.depthStencil = &depth_state;
 
     WGPURenderPipeline pipeline = wgpuDeviceCreateRenderPipeline(device_, &desc);
@@ -1163,7 +1173,8 @@ bool WebGPUBackend::begin_frame(FrameProfiler* /*profiler*/)
         return false;
 
     // Reset the UBO ring write cursor so each frame starts from slot 0.
-    ubo_ring_write_head_ = 0;
+    ubo_ring_write_head_  = 0;
+    series_pc_write_head_ = 0;
 
     // Create the command encoder for this frame.
     WGPUCommandEncoderDescriptor enc_desc{};
@@ -1210,11 +1221,15 @@ void WebGPUBackend::end_frame(FrameProfiler* /*profiler*/)
     wgpuCommandEncoderRelease(encoder_);
     encoder_ = nullptr;
 
+    #ifndef __EMSCRIPTEN__
+    // Browsers present the canvas automatically when control returns to the
+    // event loop; wgpuSurfacePresent is native-only.
     if (!headless_ && surface_)
         wgpuSurfacePresent(surface_);
+    #endif
 
-    // Process pending Dawn callbacks (e.g., map completions, error callbacks).
-    wgpuDeviceTick(device_);
+    // Process pending callbacks (e.g., map completions, error callbacks).
+    wgpuInstanceProcessEvents(instance_);
 
     if (current_frame_view_)
     {
@@ -1317,8 +1332,7 @@ void WebGPUBackend::bind_buffer(BufferHandle handle, uint32_t binding)
     {
         // FrameUBO: bind group 0 with dynamic offset = ubo_bound_offset_.
         // (upload_buffer stored the offset into ubo_bound_offset_)
-        uint32_t dynamic_offset = ubo_bound_offset_;
-        wgpuRenderPassEncoderSetBindGroup(pass_encoder_, 0, frame_bind_group_, 1, &dynamic_offset);
+        bind_frame_group();
     }
     else if (entry.usage == BufferUsage::Storage)
     {
@@ -1384,15 +1398,21 @@ void WebGPUBackend::push_constants(const SeriesPushConstants& pc)
     if (!pass_encoder_ || !series_pc_buf_)
         return;
 
-    // Write series push constants to the small uniform buffer.
-    wgpuQueueWriteBuffer(queue_, series_pc_buf_, 0, &pc, sizeof(pc));
+    // Write this draw's push constants into the next ring slot.
+    series_pc_bound_offset_ = series_pc_write_head_;
+    series_pc_write_head_ =
+        (series_pc_write_head_ + WGPU_SERIES_PC_SLOT_SIZE) % WGPU_SERIES_PC_RING_SIZE;
+    wgpuQueueWriteBuffer(queue_, series_pc_buf_, series_pc_bound_offset_, &pc, sizeof(pc));
 
-    // Re-bind group 0 so the GPU sees the updated series PC data.
-    // We reuse the existing frame_bind_group_; the write above is visible
-    // because we submit before executing commands (WebGPU memory model).
-    // Dynamic offset comes from the last bind_buffer(Uniform) call.
-    uint32_t dynamic_offset = ubo_bound_offset_;
-    wgpuRenderPassEncoderSetBindGroup(pass_encoder_, 0, frame_bind_group_, 1, &dynamic_offset);
+    // Re-bind group 0 so the next draw reads the slot just written.
+    bind_frame_group();
+}
+
+void WebGPUBackend::bind_frame_group()
+{
+    // Dynamic offsets are ordered by binding: FrameUBO (0), SeriesPC (1).
+    const uint32_t offsets[2] = {ubo_bound_offset_, series_pc_bound_offset_};
+    wgpuRenderPassEncoderSetBindGroup(pass_encoder_, 0, frame_bind_group_, 2, offsets);
 }
 
 void WebGPUBackend::set_viewport(float x, float y, float width, float height)
@@ -1511,7 +1531,7 @@ bool WebGPUBackend::readback_framebuffer(uint8_t* out_rgba, uint32_t width, uint
 
     // Spin until the map completes.
     while (!map_result.done)
-        wgpuInstanceProcessEvents(instance_);
+        pump_events(instance_);
 
     if (!map_result.ok)
     {

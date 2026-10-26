@@ -5,100 +5,230 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   BUILD_TYPE: Release
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  # Golden image tests fail (instead of skipping) when a baseline is missing.
+  SPECTRA_GOLDEN_STRICT: "1"
 
 jobs:
-  # ─── Build + Unit Tests (Linux) ─────────────────────────────────────────
-  build-linux:
+  # ─── clang-format (changed lines only) ──────────────────────────────────
+  # The tree is not fully clang-format clean yet, so only the lines a PR / push
+  # touches are checked. Fix locally with `git clang-format <base>` or
+  # `./format_project.sh` (whole tree).
+  format:
     runs-on: ubuntu-24.04
-    strategy:
-      matrix:
-        compiler: [gcc, clang]
-        include:
-          - compiler: gcc
-            cc: gcc-13
-            cxx: g++-13
-          - compiler: clang
-            cc: clang-17
-            cxx: clang++-17
-
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
 
-      - name: Install dependencies
+      - name: Install clang-format 18
         run: |
           sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list /etc/apt/sources.list.d/azure-cli.list
           sudo apt-get update
-          sudo apt-get install -y \
-            vulkan-tools \
-            libvulkan-dev \
-            vulkan-validationlayers \
-            mesa-vulkan-drivers \
-            libglfw3-dev \
-            libwayland-dev \
-            libxrandr-dev \
-            libxinerama-dev \
-            libxcursor-dev \
-            libxi-dev \
-            libxkbcommon-dev \
-            libgl1-mesa-dev \
-            python3-pillow \
-            glslang-tools
+          sudo apt-get install -y --no-install-recommends clang-format-18
+
+      - name: Check formatting of changed lines
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            base="$PR_BASE_SHA"
+          else
+            base="${PUSH_BEFORE_SHA:-}"
+          fi
+          if [ -z "$base" ] || ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+            base="$(git rev-parse HEAD~1)"
+          fi
+          echo "Checking lines changed between $base and $GITHUB_SHA"
+          if ! git clang-format-18 --binary clang-format-18 --diff "$base" "$GITHUB_SHA" \
+               -- src include tests examples; then
+            echo "::error::Changed lines are not clang-format clean. Run: git clang-format-18 $base"
+            exit 1
+          fi
+
+  # ─── Build + Unit Tests (Linux) ─────────────────────────────────────────
+  build-linux:
+    name: build-linux (${{ matrix.os }}, ${{ matrix.compiler }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            compiler: gcc
+            cc: gcc-13
+            cxx: g++-13
+            cxxflags: "-Wall -Wextra -Werror"
+            linker_flags: ""
+            toolchain_ppa: "false"
+            examples: "ON"
+            golden: "ON"
+            gpu_tests: true
+            package: false
+          - os: ubuntu-24.04
+            compiler: clang
+            cc: clang-17
+            cxx: clang++-17
+            cxxflags: "-Wall -Wextra -Werror"
+            linker_flags: ""
+            toolchain_ppa: "false"
+            examples: "ON"
+            golden: "ON"
+            gpu_tests: true
+            package: false
+          # Mirrors the release package-linux ubuntu-22.04 job exactly (gcc-13 from
+          # the toolchain PPA, static libstdc++/libgcc, jammy codename) but with tests
+          # ON, so release-only breakages show up before tagging.
+          - os: ubuntu-22.04
+            compiler: gcc
+            cc: gcc-13
+            cxx: g++-13
+            cxxflags: ""
+            linker_flags: "-static-libstdc++ -static-libgcc"
+            toolchain_ppa: "true"
+            examples: "OFF"
+            golden: "OFF"
+            gpu_tests: false
+            package: true
+            codename: jammy
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Install dependencies
+        uses: ./.github/actions/setup-linux
+        with:
+          toolchain-ppa: ${{ matrix.toolchain_ppa }}
+          extra-packages: >-
+            ${{ matrix.toolchain_ppa == 'true' && 'gcc-13 g++-13 rpm ffmpeg' || '' }}
+
+      - name: ccache
+        uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24
+        with:
+          key: build-linux-${{ matrix.os }}-${{ matrix.compiler }}
+          max-size: 1G
+          save: ${{ github.event_name != 'pull_request' }}
 
       - name: Configure CMake
+        env:
+          CXXFLAGS_EXTRA: ${{ matrix.cxxflags }}
+          LINKER_FLAGS: ${{ matrix.linker_flags }}
+          CODENAME: ${{ matrix.codename }}
         run: |
+          extra=()
+          if [ -n "$CODENAME" ]; then
+            extra+=(-DSPECTRA_PKG_DISTRO_CODENAME="$CODENAME")
+          fi
           cmake -B build \
             -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
             -DCMAKE_C_COMPILER=${{ matrix.cc }} \
             -DCMAKE_CXX_COMPILER=${{ matrix.cxx }} \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_FLAGS="$CXXFLAGS_EXTRA" \
+            -DCMAKE_EXE_LINKER_FLAGS="$LINKER_FLAGS" \
+            -DCMAKE_SHARED_LINKER_FLAGS="$LINKER_FLAGS" \
+            -DSPECTRA_USE_ROS2=OFF \
             -DSPECTRA_BUILD_TESTS=ON \
-            -DSPECTRA_BUILD_EXAMPLES=ON \
-            -DSPECTRA_BUILD_GOLDEN_TESTS=ON \
-            -DCMAKE_CXX_FLAGS="-Wall -Wextra -Werror"
+            -DSPECTRA_BUILD_EXAMPLES=${{ matrix.examples }} \
+            -DSPECTRA_BUILD_GOLDEN_TESTS=${{ matrix.golden }} \
+            "${extra[@]}"
 
       - name: Build
-        run: cmake --build build --config ${{ env.BUILD_TYPE }} -j$(nproc)
+        run: cmake --build build --config ${{ env.BUILD_TYPE }} -j"$(nproc)"
 
       - name: Pin Vulkan ICD to lavapipe
-        run: |
-          set -e
-          ICD_DIRS=(/usr/share/vulkan/icd.d /etc/vulkan/icd.d /usr/lib/x86_64-linux-gnu/vulkan/icd.d)
-          LVP_ICD=""
-          for d in "${ICD_DIRS[@]}"; do
-            [ -d "$d" ] || continue
-            for f in "$d"/lvp_icd*.json "$d"/*lavapipe*.json; do
-              [ -f "$f" ] || continue
-              LVP_ICD="$f"; break 2
-            done
-          done
-          if [ -z "$LVP_ICD" ]; then
-            for d in "${ICD_DIRS[@]}"; do
-              [ -d "$d" ] || continue
-              F_MATCH="$(grep -l 'libvulkan_lvp\.so' "$d"/*.json 2>/dev/null | head -n1 || true)"
-              if [ -n "$F_MATCH" ]; then LVP_ICD="$F_MATCH"; break; fi
-            done
-          fi
-          if [ -n "$LVP_ICD" ]; then
-            echo "VK_ICD_FILENAMES=$LVP_ICD" >> "$GITHUB_ENV"
-            echo "VK_DRIVER_FILES=$LVP_ICD" >> "$GITHUB_ENV"
-          else
-            echo "::error::lavapipe ICD not found"; exit 1
-          fi
+        uses: ./.github/actions/pin-lavapipe
 
       - name: Run unit tests (non-GPU)
-        run: |
-          cd build
-          ctest --output-on-failure -LE "gpu|golden" -j$(nproc)
+        run: ctest --test-dir build --output-on-failure -LE "gpu|golden" -j"$(nproc)"
 
       - name: Run unit tests (GPU, serial)
-        env:
-          LIBGL_ALWAYS_SOFTWARE: "1"
+        if: matrix.gpu_tests
+        run: ctest --test-dir build --output-on-failure -L "gpu" -LE "golden" -j1
+
+      - name: Package (release smoke)
+        if: matrix.package
         run: |
           cd build
-          ctest --output-on-failure -L "gpu" -LE "golden" -j1
+          cpack -G TGZ
+          cpack -G DEB
+          cpack -G RPM
+          ls -la ./*.tar.gz ./*.deb ./*.rpm
+
+  # ─── Python package + pytest (also the SPECTRA_BUILD_EMBED_SHARED build) ──
+  python-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Install dependencies
+        uses: ./.github/actions/setup-linux
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.12'
+
+      - name: ccache
+        uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24
+        with:
+          key: python-tests-ubuntu-24.04
+          max-size: 500M
+          save: ${{ github.event_name != 'pull_request' }}
+
+      # Build only what the Python tests talk to: the multiproc backend + window
+      # agent, and libspectra_embed.so for the ctypes embed API.
+      - name: Build backend + embed library
+        run: |
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DSPECTRA_USE_ROS2=OFF \
+            -DSPECTRA_BUILD_TESTS=OFF \
+            -DSPECTRA_BUILD_EXAMPLES=OFF \
+            -DSPECTRA_BUILD_GOLDEN_TESTS=OFF \
+            -DSPECTRA_BUILD_EMBED_SHARED=ON \
+            -DSPECTRA_RUNTIME_MODE=multiproc
+          cmake --build build --config ${{ env.BUILD_TYPE }} -j"$(nproc)" \
+            --target spectra-backend spectra-window spectra_embed
+          ls -la build/spectra-backend build/spectra-window build/libspectra_embed.so
+
+      # Root pyproject.toml is the only Python project. wheel.cmake=false skips the
+      # scikit-build CMake run (the backend was built above), so this is a plain
+      # editable install of python/spectra plus the [dev] extras.
+      - name: Install Python package
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]" --config-settings=wheel.cmake=false
+          python -c "import spectra; print('spectra', spectra.__version__, spectra.__file__)"
+
+      - name: Pin Vulkan ICD to lavapipe
+        uses: ./.github/actions/pin-lavapipe
+
+      - name: pytest (xvfb + lavapipe)
+        env:
+          SPECTRA_BACKEND_PATH: ${{ github.workspace }}/build/spectra-backend
+          SPECTRA_EMBED_LIB: ${{ github.workspace }}/build/libspectra_embed.so
+          PYTHONFAULTHANDLER: "1"
+        run: xvfb-run -a python -m pytest python/tests -v -rs --durations=20
 
   # ─── Build + Unit Tests (macOS) ─────────────────────────────────────────
   build-macos:
@@ -108,11 +238,12 @@ jobs:
           - os: macos-15     # ARM (M-series)
             arch: arm64
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.12'
 
@@ -137,21 +268,22 @@ jobs:
             -DSPECTRA_BUILD_GOLDEN_TESTS=OFF
 
       - name: Build
-        run: cmake --build build --config ${{ env.BUILD_TYPE }} -j$(sysctl -n hw.ncpu)
+        run: cmake --build build --config ${{ env.BUILD_TYPE }} -j"$(sysctl -n hw.ncpu)"
 
       - name: Run unit tests
         run: |
           cd build
-          ctest --output-on-failure -LE gpu -j$(sysctl -n hw.ncpu)
+          ctest --output-on-failure -LE gpu -j"$(sysctl -n hw.ncpu)"
 
-  # ─── Build + Unit Tests (Windows) ───────────────────────────────────────
+  # ─── Build + Unit Tests (Windows, experimental C++ only) ────────────────
   build-windows:
     runs-on: windows-2022
+    timeout-minutes: 75
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.12'
 
@@ -199,96 +331,50 @@ jobs:
   golden-tests:
     runs-on: ubuntu-24.04
     needs: build-linux
+    timeout-minutes: 45
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Install dependencies + lavapipe
-        run: |
-          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list /etc/apt/sources.list.d/azure-cli.list
-          sudo apt-get update
-          sudo apt-get install -y \
-            vulkan-tools \
-            libvulkan-dev \
-            vulkan-validationlayers \
-            mesa-vulkan-drivers \
-            mesa-utils \
-            libglfw3-dev \
-            libwayland-dev \
-            libxrandr-dev \
-            libxinerama-dev \
-            libxcursor-dev \
-            libxi-dev \
-            libxkbcommon-dev \
-            libgl1-mesa-dev \
-            python3-pillow \
-            xvfb \
-            glslang-tools
+        uses: ./.github/actions/setup-linux
+        with:
+          extra-packages: mesa-utils
 
       - name: Verify lavapipe
         run: |
           echo "Available Vulkan ICDs:"
           ls /usr/share/vulkan/icd.d/ 2>/dev/null || true
-          find /usr -name '*lvp*' -o -name '*lavapipe*' 2>/dev/null || true
           vulkaninfo --summary || echo "vulkaninfo not available, continuing..."
 
       - name: Pin Vulkan ICD to lavapipe
-        run: |
-          set -e
-          ICD_DIRS=(
-            /usr/share/vulkan/icd.d
-            /etc/vulkan/icd.d
-            /usr/lib/x86_64-linux-gnu/vulkan/icd.d
-            /usr/lib/i386-linux-gnu/vulkan/icd.d
-          )
+        uses: ./.github/actions/pin-lavapipe
 
-          LVP_ICD=""
-          for d in "${ICD_DIRS[@]}"; do
-            [ -d "$d" ] || continue
-            for f in "$d"/lvp_icd*.json "$d"/*lavapipe*.json; do
-              [ -f "$f" ] || continue
-              LVP_ICD="$f"
-              break 2
-            done
-          done
-
-          # Fallback: detect lavapipe ICD by JSON content if filename changed.
-          if [ -z "$LVP_ICD" ]; then
-            for d in "${ICD_DIRS[@]}"; do
-              [ -d "$d" ] || continue
-              F_MATCH="$(grep -l 'libvulkan_lvp\.so' "$d"/*.json 2>/dev/null | head -n1 || true)"
-              if [ -n "$F_MATCH" ]; then
-                LVP_ICD="$F_MATCH"
-                break
-              fi
-            done
-          fi
-
-          if [ -n "$LVP_ICD" ]; then
-            echo "Using lavapipe ICD: $LVP_ICD"
-            echo "VK_ICD_FILENAMES=$LVP_ICD" >> "$GITHUB_ENV"
-            # Newer Vulkan loader env var name; keep both for compatibility.
-            echo "VK_DRIVER_FILES=$LVP_ICD" >> "$GITHUB_ENV"
-          else
-            echo "::error::lavapipe ICD not found"
-            exit 1
-          fi
+      - name: ccache
+        uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24
+        with:
+          key: golden-tests-ubuntu-24.04
+          max-size: 500M
+          save: ${{ github.event_name != 'pull_request' }}
 
       - name: Configure + Build
         run: |
           cmake -B build \
             -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DSPECTRA_USE_ROS2=OFF \
             -DSPECTRA_BUILD_TESTS=ON \
             -DSPECTRA_BUILD_GOLDEN_TESTS=ON \
             -DSPECTRA_BUILD_EXAMPLES=OFF
-          cmake --build build --config ${{ env.BUILD_TYPE }} -j$(nproc)
+          cmake --build build --config ${{ env.BUILD_TYPE }} -j"$(nproc)"
 
       - name: Run golden image tests
         env:
           SPECTRA_UPDATE_BASELINES: "0"
+          SPECTRA_GOLDEN_STRICT: "1"
           SPECTRA_GOLDEN_BASELINE_DIR: ${{ github.workspace }}/tests/golden/baseline
           SPECTRA_GOLDEN_OUTPUT_DIR: ${{ github.workspace }}/tests/golden/output
-          LIBGL_ALWAYS_SOFTWARE: "1"
         run: |
           rm -rf tests/golden/output
           mkdir -p tests/golden/output
@@ -297,47 +383,62 @@ jobs:
 
       - name: Upload test artifacts on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: golden-test-output
           path: tests/golden/output/
           retention-days: 14
 
-  # ─── Sanitizers (ASan + UBSan) ──────────────────────────────────────────
+  # ─── Sanitizers (ASan / UBSan / TSan) ───────────────────────────────────
   sanitizers:
+    name: sanitizers (${{ matrix.sanitizer }})
     runs-on: ubuntu-24.04
+    timeout-minutes: 75
     strategy:
+      fail-fast: false
       matrix:
-        sanitizer: [address, undefined]
+        include:
+          - sanitizer: address
+            cflags: ""
+            test_filter: ""
+          - sanitizer: undefined
+            cflags: ""
+            test_filter: ""
+          - sanitizer: thread
+            # Instrument C code too (vendored C libs), otherwise TSan reports
+            # false positives through uninstrumented synchronisation.
+            cflags: "-fsanitize=thread -fno-omit-frame-pointer -g -O1"
+            test_filter: ""
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Install dependencies
-        run: |
-          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list /etc/apt/sources.list.d/azure-cli.list
-          sudo apt-get update
-          sudo apt-get install -y \
-            vulkan-tools \
-            libvulkan-dev \
-            vulkan-validationlayers \
-            mesa-vulkan-drivers \
-            libglfw3-dev \
-            libwayland-dev \
-            libxrandr-dev \
-            libxinerama-dev \
-            libxcursor-dev \
-            libxi-dev \
-            libxkbcommon-dev \
-            glslang-tools \
-            libgl1-mesa-dev \
-            libglu1-mesa-dev \
-            python3-pillow
+        uses: ./.github/actions/setup-linux
+        with:
+          extra-packages: libglu1-mesa-dev
+
+      # Ubuntu 24.04 runner kernels use 32 bits of mmap ASLR entropy, which TSan
+      # (and sometimes ASan) cannot map its shadow memory around.
+      - name: Lower mmap ASLR entropy for sanitizers
+        run: sudo sysctl -w vm.mmap_rnd_bits=28
+
+      - name: ccache
+        uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24
+        with:
+          key: sanitizers-${{ matrix.sanitizer }}
+          max-size: 1G
+          save: ${{ github.event_name != 'pull_request' }}
 
       - name: Configure with sanitizer
+        env:
+          SAN_CFLAGS: ${{ matrix.cflags }}
         run: |
           cmake -B build \
             -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_C_FLAGS="$SAN_CFLAGS" \
             -DCMAKE_CXX_FLAGS="-fsanitize=${{ matrix.sanitizer }} -fno-omit-frame-pointer -g" \
             -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=${{ matrix.sanitizer }}" \
             -DSPECTRA_BUILD_TESTS=ON \
@@ -346,16 +447,21 @@ jobs:
             -DSPECTRA_USE_ROS2=OFF
 
       - name: Build
-        run: cmake --build build --config Debug -j$(nproc)
+        run: cmake --build build --config Debug -j"$(nproc)"
 
       - name: Run tests under sanitizer
         env:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
           LSAN_OPTIONS: suppressions=${{ github.workspace }}/tools/sanitizers/lsan.supp
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+          TSAN_OPTIONS: halt_on_error=1:second_deadlock_stack=1:history_size=4
+          TEST_FILTER: ${{ matrix.test_filter }}
         run: |
-          cd build
-          ctest --output-on-failure -LE gpu -j$(nproc)
+          filter=()
+          if [ -n "$TEST_FILTER" ]; then
+            filter=(-E "$TEST_FILTER")
+          fi
+          ctest --test-dir build --output-on-failure -LE gpu -j"$(nproc)" "${filter[@]}"
 
   # ─── ROS2 Adapter Build (Humble + Jazzy) ───────────────────────────────────
   build-ros2:
@@ -369,7 +475,7 @@ jobs:
       image: ros:${{ matrix.ros_distro }}-ros-base
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Install ROS2 dependencies
         run: |
@@ -398,35 +504,7 @@ jobs:
             vulkan-tools
 
       - name: Pin Vulkan ICD to lavapipe
-        shell: bash
-        run: |
-          set -e
-          ICD_DIRS=(
-            /usr/share/vulkan/icd.d
-            /etc/vulkan/icd.d
-            /usr/lib/x86_64-linux-gnu/vulkan/icd.d
-          )
-          LVP_ICD=""
-          for d in "${ICD_DIRS[@]}"; do
-            [ -d "$d" ] || continue
-            for f in "$d"/lvp_icd*.json "$d"/*lavapipe*.json; do
-              [ -f "$f" ] || continue
-              LVP_ICD="$f"
-              break 2
-            done
-          done
-          if [ -z "$LVP_ICD" ]; then
-            F_MATCH="$(grep -rl 'libvulkan_lvp\.so' /usr/share/vulkan/icd.d 2>/dev/null | head -n1 || true)"
-            [ -n "$F_MATCH" ] && LVP_ICD="$F_MATCH"
-          fi
-          if [ -n "$LVP_ICD" ]; then
-            echo "Using lavapipe ICD: $LVP_ICD"
-            echo "VK_ICD_FILENAMES=$LVP_ICD" >> "$GITHUB_ENV"
-            echo "VK_DRIVER_FILES=$LVP_ICD" >> "$GITHUB_ENV"
-          else
-            echo "::error::lavapipe ICD not found"
-            exit 1
-          fi
+        uses: ./.github/actions/pin-lavapipe
 
       - name: Configure CMake with ROS2
         run: |
@@ -444,7 +522,7 @@ jobs:
             -DSPECTRA_BUILD_GOLDEN_TESTS=OFF
 
       - name: Build ROS2 adapter
-        run: cmake --build build --config ${{ env.BUILD_TYPE }} -j$(nproc)
+        run: cmake --build build --config ${{ env.BUILD_TYPE }} -j"$(nproc)"
 
       - name: Run ROS2 unit tests
         run: |

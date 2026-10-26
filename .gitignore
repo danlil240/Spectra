@@ -99,3 +99,11 @@ python/graphify-out/
 
 
 .ccls-cache/
+# Local / personal files (never commit)
+compile_commands.json
+Testing/
+*.deb
+.live-agents
+docker/.env
+.vscode/settings.json
+.vscode/c_cpp_properties.json

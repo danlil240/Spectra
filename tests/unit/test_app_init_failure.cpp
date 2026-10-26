@@ -67,7 +67,7 @@ TEST(AppInitFailure, OkIsFalseAndRunReturnsWithError)
 {
     ErrorCounter counter;
 
-    spectra::App app({.headless = true});
+    spectra::App app({.headless = true, .socket_path = ""});
     EXPECT_FALSE(app.ok());
     const int errors_after_ctor = counter.errors->load();
     EXPECT_GE(errors_after_ctor, 1) << "backend init failure must be logged as an error";
@@ -91,14 +91,14 @@ TEST(AppInitFailure, RunDoesNotInstallSignalHandlersByDefault)
     using Handler       = void (*)(int);
     Handler      custom = [](int) {};
     const auto   prev   = std::signal(SIGINT, custom);
-    spectra::App app({.headless = true});
+    spectra::App app({.headless = true, .socket_path = ""});
     app.run();
     EXPECT_EQ(std::signal(SIGINT, prev), custom);
 }
 
 TEST(AppInitFailure, StepAfterFailedInitRequestsExit)
 {
-    spectra::App app({.headless = true});
+    spectra::App app({.headless = true, .socket_path = ""});
     ASSERT_FALSE(app.ok());
     app.init_runtime();
     EXPECT_TRUE(app.step().should_exit);

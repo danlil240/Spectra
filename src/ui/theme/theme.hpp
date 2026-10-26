@@ -228,6 +228,32 @@ struct ThemeColors
     Color roi_border;              // Region-of-interest border
 };
 
+// Theme-adaptive series colors.
+//
+// Pure black ('k' / colors::black) is unreadable on a dark plot background and
+// pure white ('w' / colors::white) on a light one.  Like MATLAB's dark mode,
+// such a series is drawn in the theme's primary foreground color instead, so
+// "k-" means "the default ink color" on every theme.  Any other color —
+// including near-blacks such as 0x111111 — is left exactly as requested.
+// Alpha is always preserved.
+template <typename C>
+inline C adapt_series_color_to_theme(const C& c, const ThemeColors& theme)
+{
+    const float bg_luma =
+        0.2126f * theme.bg_canvas.r + 0.7152f * theme.bg_canvas.g + 0.0722f * theme.bg_canvas.b;
+    const bool is_black = c.r == 0.0f && c.g == 0.0f && c.b == 0.0f;
+    const bool is_white = c.r == 1.0f && c.g == 1.0f && c.b == 1.0f;
+    if ((is_black && bg_luma < 0.35f) || (is_white && bg_luma > 0.65f))
+    {
+        C out = c;
+        out.r = theme.text_primary.r;
+        out.g = theme.text_primary.g;
+        out.b = theme.text_primary.b;
+        return out;
+    }
+    return c;
+}
+
 // Color Vision Deficiency types
 enum class CVDType
 {

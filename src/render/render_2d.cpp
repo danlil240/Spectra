@@ -56,6 +56,8 @@ void Renderer::render_series(Series& series,
         eff_color   = series.color();
         eff_opacity = series.opacity();
     }
+    // 'k' / 'w' follow the theme foreground so they stay visible (see theme.hpp).
+    eff_color   = ui::adapt_series_color_to_theme(eff_color, theme_mgr_.colors());
     pc.color[0] = eff_color.r;
     pc.color[1] = eff_color.g;
     pc.color[2] = eff_color.b;

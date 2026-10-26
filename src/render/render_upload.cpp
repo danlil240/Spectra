@@ -53,46 +53,59 @@ void Renderer::upload_series_data(Series& series, double origin_x, double origin
     // Try custom plugin series
     auto* custom = dynamic_cast<CustomSeries*>(&series);
 
+    SeriesType detected = SeriesType::Unknown;
+    if (line)
+        detected = SeriesType::Line2D;
+    else if (scatter)
+        detected = SeriesType::Scatter2D;
+    else if (chunked_line)
+        detected = SeriesType::ChunkedLine2D;
+    else if (line3d)
+        detected = SeriesType::Line3D;
+    else if (scatter3d)
+        detected = SeriesType::Scatter3D;
+    else if (surface)
+        detected = SeriesType::Surface3D;
+    else if (mesh)
+        detected = SeriesType::Mesh3D;
+    else if (boxplot)
+        detected = SeriesType::BoxPlot2D;
+    else if (violin)
+        detected = SeriesType::Violin2D;
+    else if (histogram)
+        detected = SeriesType::Histogram2D;
+    else if (bar)
+        detected = SeriesType::Bar2D;
+    else if (band)
+        detected = SeriesType::Band2D;
+    else if (stem)
+        detected = SeriesType::Stem2D;
+    else if (shape)
+        detected = SeriesType::Shape2D;
+    else if (shape3d)
+        detected = SeriesType::Shape3D;
+    else if (custom)
+        detected = SeriesType::Custom;
+
     auto& gpu = series_gpu_data_[&series];
+
+    // The cache is keyed by address.  A series destroyed without
+    // notify_series_removed() (e.g. its figure was closed) can leave an entry
+    // that a new series allocated at the same address would inherit -- drawing
+    // a line with the old scatter's pipeline.  Retire such stale entries.
+    if (gpu.type != SeriesType::Unknown
+        && (gpu.type != detected || (custom && gpu.custom_type_name != custom->type_name())))
+    {
+        deletion_ring_[deletion_ring_write_].push_back(std::move(gpu));
+        gpu = SeriesGpuData{};
+    }
 
     // Tag series type on first encounter (avoids dynamic_cast in render_series)
     if (gpu.type == SeriesType::Unknown)
     {
-        if (line)
-            gpu.type = SeriesType::Line2D;
-        else if (scatter)
-            gpu.type = SeriesType::Scatter2D;
-        else if (chunked_line)
-            gpu.type = SeriesType::ChunkedLine2D;
-        else if (line3d)
-            gpu.type = SeriesType::Line3D;
-        else if (scatter3d)
-            gpu.type = SeriesType::Scatter3D;
-        else if (surface)
-            gpu.type = SeriesType::Surface3D;
-        else if (mesh)
-            gpu.type = SeriesType::Mesh3D;
-        else if (boxplot)
-            gpu.type = SeriesType::BoxPlot2D;
-        else if (violin)
-            gpu.type = SeriesType::Violin2D;
-        else if (histogram)
-            gpu.type = SeriesType::Histogram2D;
-        else if (bar)
-            gpu.type = SeriesType::Bar2D;
-        else if (band)
-            gpu.type = SeriesType::Band2D;
-        else if (stem)
-            gpu.type = SeriesType::Stem2D;
-        else if (shape)
-            gpu.type = SeriesType::Shape2D;
-        else if (shape3d)
-            gpu.type = SeriesType::Shape3D;
-        else if (custom)
-        {
-            gpu.type             = SeriesType::Custom;
+        gpu.type = detected;
+        if (custom)
             gpu.custom_type_name = custom->type_name();
-        }
     }
 
     // Handle 2D line/scatter and statistical/shape series (vec2 interleaved)

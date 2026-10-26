@@ -248,8 +248,12 @@ void Renderer::render_series(Series& series,
             bool  is_transparent = (pc.color[3] * pc.opacity) < 0.99f;
             backend_.bind_pipeline(is_transparent ? scatter3d_transparent_pipeline_
                                                   : scatter3d_pipeline_);
-            pc.point_size  = scatter3d->size();
-            pc.marker_type = static_cast<uint32_t>(MarkerStyle::Circle);
+            pc.point_size = scatter3d->size();
+            // Honour the series' marker style (filled, square, ...); scatter3
+            // without an explicit style keeps the hollow circle.
+            const MarkerStyle ms3d = scatter3d->marker_style();
+            pc.marker_type =
+                static_cast<uint32_t>(ms3d == MarkerStyle::None ? MarkerStyle::Circle : ms3d);
             backend_.push_constants(pc);
             backend_.bind_buffer(gpu.ssbo, 0);
             backend_.draw_instanced(6, static_cast<uint32_t>(scatter3d->point_count()));

@@ -1,6 +1,8 @@
 #pragma once
 
 #include <chrono>
+#include <cstddef>
+#include <cstdint>
 #include <fstream>
 #include <functional>
 #include <memory>
@@ -9,6 +11,7 @@
 #include <string>
 #include <string_view>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 namespace spectra
@@ -39,14 +42,20 @@ class Logger
     };
 
     using LogSink = std::function<void(const LogEntry&)>;
+    using SinkId  = std::size_t;
 
     static Logger& instance();
 
     void     set_level(LogLevel level);
     LogLevel get_level() const;
 
-    void add_sink(LogSink sink);
+    // Register a sink.  Returns an id that can be passed to remove_sink().
+    SinkId add_sink(LogSink sink);
+    // Remove a single sink by id.  Returns false if the id is unknown.
+    bool remove_sink(SinkId id);
     void clear_sinks();
+    // Number of registered sinks.
+    std::size_t sink_count() const;
 
     void log(LogLevel         level,
              std::string_view category,
@@ -69,9 +78,10 @@ class Logger
     Logger(const Logger&)            = delete;
     Logger& operator=(const Logger&) = delete;
 
-    mutable std::mutex   mutex_;
-    LogLevel             min_level_ = LogLevel::Info;
-    std::vector<LogSink> sinks_;
+    mutable std::mutex                      mutex_;
+    LogLevel                                min_level_ = LogLevel::Info;
+    std::vector<std::pair<SinkId, LogSink>> sinks_;
+    SinkId                                  next_sink_id_ = 1;
 
     template <typename T>
     static std::string arg_to_string(T&& v)
@@ -138,20 +148,58 @@ void Logger::log_formatted(LogLevel         level,
 
 namespace sinks
 {
+// Console sink writing to stderr.  The no-argument overload enables ANSI colors
+// only when stderr is a terminal and NO_COLOR is not set (see
+// console_colors_enabled()).
 Logger::LogSink console_sink();
+Logger::LogSink console_sink(bool use_color);
 Logger::LogSink file_sink(const std::string& filename);
+// Appends to `filename`; when the file grows beyond `max_bytes` it is renamed
+// to `<filename>.1` (replacing any previous backup) and a fresh file is started.
+Logger::LogSink rotating_file_sink(const std::string& filename, std::uintmax_t max_bytes);
 Logger::LogSink null_sink();
 Logger::LogSink filtered_sink(LogLevel min_level, Logger::LogSink inner);
+
+// True when the default console sink should emit ANSI colors: stderr is a TTY
+// and the NO_COLOR environment variable is unset or empty (https://no-color.org).
+bool console_colors_enabled();
+// Pure helper behind console_colors_enabled(), exposed for testing.
+bool should_use_color(bool stream_is_tty, const char* no_color_env);
 }   // namespace sinks
 
+// Default size limit of the rotating log file written by setup_dual_logging().
+inline constexpr std::uintmax_t kDefaultLogFileMaxBytes = 5u * 1024u * 1024u;
+
+// Install Spectra's standard console + file sinks.
+//
+// Only the sinks previously installed by setup_dual_logging() are replaced;
+// sinks added by the application with Logger::add_sink() are kept.  The global
+// level is lowered (never raised) as needed so both sinks receive messages.
+//
+// `log_path` empty → default_log_file_path(); file logging is skipped when
+// that resolves to an empty string (SPECTRA_LOG_FILE=0).
 void setup_dual_logging(LogLevel           console_level = LogLevel::Info,
                         LogLevel           file_level    = LogLevel::Trace,
                         const std::string& log_path      = "");
 
-// Default console log level resolved from build type and SPECTRA_LOG_LEVEL env.
-// Release: Warning, Debug: Info.  Override with
-// SPECTRA_LOG_LEVEL={trace,debug,info,warning,error,critical}.
-LogLevel default_console_log_level();
+// Call setup_dual_logging() with library defaults unless logging was already
+// configured — either by an earlier setup_dual_logging() call or because the
+// application registered its own sinks.  Used by App's constructor.
+void ensure_default_logging();
+
+// Default console log level.  SPECTRA_LOG_LEVEL={trace,debug,info,warning,
+// error,critical,off} overrides it; otherwise `fallback` is returned.  The
+// library default is Warning so that embedding Spectra stays quiet; the
+// Spectra executables pass LogLevel::Info.
+LogLevel default_console_log_level(LogLevel fallback = LogLevel::Warning);
+
+// Resolve the default log file path:
+//   SPECTRA_LOG_FILE=0|off|false|no|none → "" (file logging disabled)
+//   SPECTRA_LOG_FILE=<path>               → <path>
+//   otherwise $XDG_STATE_HOME/spectra/spectra.log, ~/.local/state/spectra/
+//   spectra.log, or <temp dir>/spectra-<uid>/spectra.log as a last resort.
+// Creates the parent directory (mode 0700 on POSIX) when needed.
+std::string default_log_file_path();
 
 // Default file log level resolved from build type and SPECTRA_LOG_FILE_LEVEL env.
 // Release: Info, Debug: Trace.  Override with SPECTRA_LOG_FILE_LEVEL=...

@@ -10,6 +10,7 @@
 #include <spectra/logger.hpp>
 
 #include <algorithm>
+#include <cmath>
 
 #include "anim/frame_scheduler.hpp"
 #include "adapters/data_source_registry.hpp"
@@ -241,7 +242,8 @@ struct App::AppRuntime
 #ifdef SPECTRA_USE_FFMPEG
     std::unique_ptr<VideoExporter> video_exporter;
     std::vector<uint8_t>           video_frame_pixels;
-    bool                           is_recording = false;
+    bool                           is_recording         = false;
+    uint64_t                       video_frames_written = 0;
 #endif
 
     // Wall-clock for frame timing
@@ -348,6 +350,10 @@ void App::init_runtime()
         vcfg.height       = init_active->height();
         vcfg.fps          = init_active->anim_.fps;
         rt.video_exporter = std::make_unique<VideoExporter>(vcfg);
+        // Offline recording: drive animation time from the frame counter so the
+        // file has exactly duration * fps frames regardless of render speed.
+        rt.scheduler.set_target_fps(init_active->anim_.fps);
+        rt.scheduler.set_mode(FrameScheduler::Mode::Offline);
         if (!rt.video_exporter->is_open())
         {
             SPECTRA_LOG_ERROR("app",
@@ -776,7 +782,8 @@ App::StepResult App::step()
                                            rt.active_figure->width(),
                                            rt.active_figure->height()))
         {
-            rt.video_exporter->write_frame(rt.video_frame_pixels.data());
+            if (rt.video_exporter->write_frame(rt.video_frame_pixels.data()))
+                ++rt.video_frames_written;
         }
     }
 #endif
@@ -893,10 +900,21 @@ App::StepResult App::step()
 
     // Check animation duration termination
     if (rt.active_figure && rt.active_figure->anim_.duration > 0.0f
-        && rt.scheduler.elapsed_seconds() >= rt.active_figure->anim_.duration
         && !rt.active_figure->anim_.loop)
     {
-        rt.session.request_exit();
+        if (rt.is_recording && rt.video_exporter)
+        {
+            // Offline recording: stop after exactly duration * fps frames.
+            const auto target_frames = static_cast<uint64_t>(
+                std::llround(static_cast<double>(rt.active_figure->anim_.duration)
+                             * static_cast<double>(rt.active_figure->anim_.fps)));
+            if (rt.video_frames_written >= std::max<uint64_t>(1, target_frames))
+                rt.session.request_exit();
+        }
+        else if (rt.scheduler.elapsed_seconds() >= rt.active_figure->anim_.duration)
+        {
+            rt.session.request_exit();
+        }
     }
 
 #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)

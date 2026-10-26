@@ -17,6 +17,8 @@ class FrameScheduler
         TargetFPS,   // Sleep + short cooperative yield wait to hit target FPS
         VSync,       // Let the swapchain/driver handle pacing
         Uncapped,    // Run as fast as possible
+        Offline,     // Deterministic clock for offline recording: every frame advances
+                     // exactly 1/target_fps (elapsed = frame_number / fps), no waiting
     };
 
     explicit FrameScheduler(float target_fps = 60.0f, Mode mode = Mode::TargetFPS);

@@ -467,10 +467,15 @@ endif()
 # Dear ImGui (optional — requires GLFW or SDL3)
 if(SPECTRA_USE_IMGUI AND (SPECTRA_USE_GLFW OR SPECTRA_USE_SDL3))
     include(FetchContent)
+    # Fetched over git rather than as a release archive: some proxies block
+    # github.com/.../archive downloads but allow git. For offline builds, point
+    # FETCHCONTENT_SOURCE_DIR_IMGUI at a local checkout of the same tag.
+    # v1.92.6-docking = commit 2a1b69f05748ad909f03acf4533447cac1331611
     FetchContent_Declare(
         imgui
-        URL        https://github.com/ocornut/imgui/archive/refs/tags/v1.92.6-docking.tar.gz
-        URL_HASH   SHA256=5e84cdaa6a6041586a0d11a3071b749734a0439d66fdbdad37ae5b27e37d396c
+        GIT_REPOSITORY https://github.com/ocornut/imgui.git
+        GIT_TAG        v1.92.6-docking
+        GIT_SHALLOW    TRUE
     )
     FetchContent_MakeAvailable(imgui)
 

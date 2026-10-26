@@ -14,8 +14,6 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: pages
@@ -26,11 +24,16 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
 
     steps:
       - name: Checkout main
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Checkout apt repo from gh-pages
         run: |
@@ -39,23 +42,76 @@ jobs:
             git worktree add gh-pages-tree origin/gh-pages
           fi
 
-      - name: Assemble site
+      - name: Install Doxygen
         run: |
+          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list /etc/apt/sources.list.d/azure-cli.list
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends doxygen
+
+      # docs/Doxyfile (owned by the docs) writes docs/api/html; the HTML pages
+      # link to api/html/index.html.
+      - name: Generate API docs (Doxygen)
+        run: |
+          set -euo pipefail
+          rm -rf docs/api
+          doxygen docs/Doxyfile 2> doxygen-warnings.log
+          test -f docs/api/html/index.html
+          echo "Doxygen warnings: $(wc -l < doxygen-warnings.log)"
+
+      # Explicit allow-list: docs/ also holds internal material (plans/, archive/,
+      # marketing/, workshops/, dev/, scripts/, review notes, dated walkthroughs,
+      # SVG/.mjs diagram sources) that must not be published. Anything not listed
+      # here stays off the public site.
+      - name: Assemble site (allow-list)
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          rm -rf _site
           mkdir -p _site
-          cp -r docs/. _site/
+          copy() {   # copy docs/<path> to _site/<path>
+            mkdir -p "_site/$(dirname "$1")"
+            cp "docs/$1" "_site/$1"
+          }
+          for f in docs/*.html; do copy "${f#docs/}"; done
+          copy styles.css
+          for f in docs/images/diagrams/*.png docs/images/figma/*.png docs/images/screenshots/*; do
+            [ -f "$f" ] && copy "${f#docs/}"
+          done
+          # User-facing Markdown pages that the HTML pages link to.
+          for f in topics.md easy_embed_guide.md plugin_developer_guide.md ci/bag-analysis.md \
+                   architecture.md getting_started.md; do
+            if [ -f "docs/$f" ]; then copy "$f"; else echo "::warning::docs/$f not found"; fi
+          done
+          mkdir -p _site/api
+          cp -r docs/api/html _site/api/html
           if [ -d gh-pages-tree/apt ]; then
             mkdir -p _site/apt
             cp -r gh-pages-tree/apt/. _site/apt/
           fi
 
+      - name: Refuse internal material
+        run: |
+          set -euo pipefail
+          leaked="$(find _site \( -path '_site/apt' -o -path '_site/api' \) -prune -o \( \
+            -path '*/plans/*' -o -path '*/archive/*' -o -path '*/marketing/*' \
+            -o -path '*/workshops/*' -o -path '*/dev/*' -o -path '*/scripts/*' \
+            -o -name 'ARCHITECTURE_REVIEW_V3.md' -o -name '2026-04-04-*' -o -name 'Doxyfile' \
+            -o -name 'api-mainpage.md' -o -name '*.mjs' -o -name '*.svg' \) -print)"
+          if [ -n "$leaked" ]; then
+            echo "::error::Internal docs would be published:"
+            echo "$leaked"
+            exit 1
+          fi
+          find _site \( -path '_site/api' -o -path '_site/apt' \) -prune -o -type f -print | sort
+
       - name: Setup Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
 
       - name: Upload site artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:
           path: ./_site
 
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5

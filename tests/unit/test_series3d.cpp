@@ -4,6 +4,7 @@
 #include <spectra/figure.hpp>
 #include <spectra/math3d.hpp>
 #include <spectra/series3d.hpp>
+#include <spectra/series_shapes3d.hpp>
 #include <vector>
 
 using namespace spectra;
@@ -1224,4 +1225,85 @@ TEST(Series3D, SurfaceNonUniformGrid)
 
     EXPECT_TRUE(series.is_mesh_generated());
     EXPECT_EQ(series.mesh().vertex_count, 9);
+}
+
+// ─── ShapeSeries3D per-shape colour draw ranges ──────────────────────────────
+
+TEST(ShapeSeries3DColor, UncoloredShapesMergeIntoOneInheritingRange)
+{
+    ShapeSeries3D sh;
+    sh.box(0, 0, 0, 1, 1, 1).sphere(3, 0, 0, 0.5f);
+    sh.rebuild_geometry();
+
+    auto ranges = sh.draw_ranges();
+    ASSERT_EQ(ranges.size(), 1u);
+    EXPECT_EQ(ranges[0].first_index, 0u);
+    EXPECT_EQ(ranges[0].index_count, sh.indices().size());
+    EXPECT_TRUE(ranges[0].inherits_series_color());
+    EXPECT_FALSE(sh.has_transparent_shape());
+}
+
+TEST(ShapeSeries3DColor, PerShapeColorsProduceSeparateRanges)
+{
+    ShapeSeries3D sh;
+    sh.box(0, 0, 0, 1, 1, 1).shape_color(colors::red);
+    sh.sphere(3, 0, 0, 0.5f).shape_color(colors::green);
+    sh.cone(0, 0, 0, 0, 0, 1, 0.5f);   // unspecified: inherits series colour
+    sh.rebuild_geometry();
+
+    auto ranges = sh.draw_ranges();
+    ASSERT_EQ(ranges.size(), 3u);
+    EXPECT_EQ(ranges[0].first_index, 0u);
+    EXPECT_EQ(ranges[0].index_count, 36u);   // 6 faces * 2 tris * 3
+    EXPECT_FLOAT_EQ(ranges[0].color.r, 1.0f);
+    EXPECT_FLOAT_EQ(ranges[0].color.g, 0.0f);
+    EXPECT_EQ(ranges[1].first_index, 36u);
+    EXPECT_FLOAT_EQ(ranges[1].color.g, 1.0f);
+    EXPECT_FALSE(ranges[1].inherits_series_color());
+    EXPECT_TRUE(ranges[2].inherits_series_color());
+
+    // Ranges tile the index buffer exactly.
+    uint32_t total = 0;
+    for (const auto& r : ranges)
+    {
+        EXPECT_EQ(r.first_index, total);
+        total += r.index_count;
+    }
+    EXPECT_EQ(total, sh.indices().size());
+}
+
+TEST(ShapeSeries3DColor, SameColorNeighboursMerge)
+{
+    ShapeSeries3D sh;
+    sh.box(0, 0, 0, 1, 1, 1).shape_color(colors::red);
+    sh.box(3, 0, 0, 1, 1, 1).shape_color(colors::red);
+    sh.rebuild_geometry();
+    ASSERT_EQ(sh.draw_ranges().size(), 1u);
+    EXPECT_EQ(sh.draw_ranges()[0].index_count, 72u);
+}
+
+TEST(ShapeSeries3DColor, ChangingColorMarksDirtyAndRebuildsRanges)
+{
+    ShapeSeries3D sh;
+    sh.box(0, 0, 0, 1, 1, 1).shape_color(colors::red);
+    sh.rebuild_geometry();
+    sh.clear_dirty();
+
+    sh.shape_color(colors::blue);
+    EXPECT_TRUE(sh.is_dirty());
+    sh.rebuild_geometry();
+    ASSERT_EQ(sh.draw_ranges().size(), 1u);
+    EXPECT_FLOAT_EQ(sh.draw_ranges()[0].color.b, 1.0f);
+    EXPECT_FLOAT_EQ(sh.draw_ranges()[0].color.r, 0.0f);
+}
+
+TEST(ShapeSeries3DColor, TranslucentShapeColorFlagsTransparency)
+{
+    ShapeSeries3D sh;
+    sh.box(0, 0, 0, 1, 1, 1).shape_color(Color{1.0f, 0.0f, 0.0f, 0.5f});
+    EXPECT_TRUE(sh.has_transparent_shape());
+
+    sh.clear_shapes();
+    EXPECT_FALSE(sh.has_transparent_shape());
+    EXPECT_TRUE(sh.draw_ranges().empty());
 }

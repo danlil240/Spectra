@@ -963,6 +963,12 @@ void Renderer::render_axes(AxesBase&   axes,
                 effective_alpha = series_ptr->color().a * series_ptr->opacity();
             }
             bool is_transparent = effective_alpha < 0.99f;
+            // A shape series with a translucent per-shape colour must join the
+            // sorted transparent pass even if its series colour is opaque.
+            if (!is_transparent && gpu_it != series_gpu_data_.end()
+                && gpu_it->second.type == SeriesType::Shape3D)
+                is_transparent =
+                    static_cast<ShapeSeries3D*>(series_ptr.get())->has_transparent_shape();
 
             if (is_transparent)
             {

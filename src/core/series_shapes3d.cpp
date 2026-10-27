@@ -151,6 +151,7 @@ ShapeSeries3D& ShapeSeries3D::arrow_head(float length_frac, float radius_mult)
 ShapeSeries3D& ShapeSeries3D::clear_shapes()
 {
     shapes_.clear();
+    draw_ranges_.clear();
     vertices_.clear();
     indices_.clear();
     dirty_ = true;
@@ -607,9 +608,11 @@ void ShapeSeries3D::rebuild_geometry()
 {
     vertices_.clear();
     indices_.clear();
+    draw_ranges_.clear();
 
     for (const auto& def : shapes_)
     {
+        const auto first_index = static_cast<uint32_t>(indices_.size());
         switch (def.type)
         {
             case ShapeDef3D::Type::Box:
@@ -631,7 +634,27 @@ void ShapeSeries3D::rebuild_geometry()
                 generate_plane(def);
                 break;
         }
+
+        const auto count = static_cast<uint32_t>(indices_.size()) - first_index;
+        if (count == 0)
+            continue;
+        // Normalise every inherit sentinel to the same value so they merge.
+        const Color c = def.shape_color.a > 0.0f ? def.shape_color : Color{0.0f, 0.0f, 0.0f, 0.0f};
+        const auto  same = [&c](const Color& o)
+        { return o.r == c.r && o.g == c.g && o.b == c.b && o.a == c.a; };
+        if (!draw_ranges_.empty() && same(draw_ranges_.back().color))
+            draw_ranges_.back().index_count += count;
+        else
+            draw_ranges_.push_back({first_index, count, c});
     }
+}
+
+bool ShapeSeries3D::has_transparent_shape() const
+{
+    return std::any_of(shapes_.begin(),
+                       shapes_.end(),
+                       [](const ShapeDef3D& d)
+                       { return d.shape_color.a > 0.0f && d.shape_color.a < 0.99f; });
 }
 
 vec3 ShapeSeries3D::compute_centroid() const

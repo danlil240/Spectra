@@ -49,9 +49,13 @@ class SpectraAppShell : public AppShell
     std::map<std::string, bool> capture_panel_visibility() const;
     void                        apply_panel_visibility(const std::map<std::string, bool>& vis);
 
+    // Command that toggles a core panel ("core.timeline" -> "panel.toggle_timeline").
+    static std::string panel_command_id(const std::string& panel_id);
+
    protected:
     void on_register_panels() override;
     void on_populate_menus(MenuBar& bar) override;
+    PanelMenuHooks              panel_menu_hooks() override;
     void on_populate_nav_rail(NavRail& rail) override;
     void on_build_status_bar(StatusBar& bar) override;
     std::unique_ptr<CanvasHost> create_canvas_host() override;

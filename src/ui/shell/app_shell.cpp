@@ -43,7 +43,7 @@ void AppShell::initialize()
     nav_rail_.set_registry(&panels_);
     on_populate_nav_rail(nav_rail_);
     on_populate_menus(menu_bar_);
-    menu_bar_.bind_panel_registry(panels_);
+    menu_bar_.bind_panel_registry(panels_, "View", "Panels", panel_menu_hooks());
     on_build_status_bar(status_bar_);
     initialized_ = true;
 }

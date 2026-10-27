@@ -90,7 +90,10 @@ class ImGuiIntegration
     struct MenuItem
     {
         std::string           label;
-        std::function<void()> callback;
+        std::function<void()> callback;   // null = disabled item
+        std::string           shortcut;   // right-aligned hint, e.g. "Ctrl+Shift+T"
+        std::function<bool()> checked;    // set = checkable; returns the current state
+        uint16_t              icon = 0;   // ui::Icon codepoint (0 = none)
         MenuItem(const std::string& l, std::function<void()> cb = nullptr) : label(l), callback(cb)
         {
         }

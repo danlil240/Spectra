@@ -5,6 +5,7 @@
 
 #include <cmath>
 #include <gtest/gtest.h>
+#include <string>
 #include <spectra/axes.hpp>
 #include <spectra/axes3d.hpp>
 #include <spectra/color.hpp>
@@ -239,6 +240,118 @@ TEST(LegendLayout, ScrollsOnlyWhenNothingElseFits)
     EXPECT_EQ(g.rows, 40);
     EXPECT_TRUE(g.scroll);
     EXPECT_LT(g.visible_rows, 40);
+}
+
+// Static (PNG / GPU export) layouts cannot scroll: every entry is either laid
+// out or counted by an explicit "+N more" cell (audit S03).
+TEST(LegendLayoutStatic, MatchesRegularGridWhenEverythingFits)
+{
+    auto g  = legend_layout::compute_grid(17, 120.0f, 22.0f, 10.0f, 8.0f, 14.0f, 800.0f, 380.0f);
+    auto sg = legend_layout::compute_static_grid(17,
+                                                 120.0f,
+                                                 22.0f,
+                                                 18.0f,
+                                                 60.0f,
+                                                 10.0f,
+                                                 8.0f,
+                                                 14.0f,
+                                                 800.0f,
+                                                 380.0f);
+    EXPECT_EQ(sg.cols, g.cols);
+    EXPECT_EQ(sg.rows, g.rows);
+    EXPECT_FLOAT_EQ(sg.width, g.width);
+    EXPECT_FLOAT_EQ(sg.height, g.height);
+    EXPECT_EQ(sg.shown, 17);
+    EXPECT_EQ(sg.overflow, 0);
+    EXPECT_FALSE(sg.scroll);
+}
+
+TEST(LegendLayoutStatic, TighterRowsBeforeSummarising)
+{
+    // 9 rows of 22 px need 214 px; 9 rows of 18 px fit in 200 px.
+    auto g = legend_layout::compute_grid(9, 200.0f, 22.0f, 10.0f, 8.0f, 14.0f, 230.0f, 200.0f);
+    ASSERT_TRUE(g.scroll);
+    auto sg = legend_layout::compute_static_grid(9,
+                                                 200.0f,
+                                                 22.0f,
+                                                 18.0f,
+                                                 60.0f,
+                                                 10.0f,
+                                                 8.0f,
+                                                 14.0f,
+                                                 230.0f,
+                                                 200.0f);
+    EXPECT_FALSE(sg.scroll);
+    EXPECT_EQ(sg.shown, 9);
+    EXPECT_EQ(sg.overflow, 0);
+    EXPECT_FLOAT_EQ(sg.cell_h, 18.0f);
+    EXPECT_LE(sg.height, 200.0f);
+}
+
+TEST(LegendLayoutStatic, FortyEntriesInNarrowSubplotAreAllAccountedFor)
+{
+    // The audit's case: 40 labelled series, one 200 px column, 200 px tall.
+    auto sg = legend_layout::compute_static_grid(40,
+                                                 200.0f,
+                                                 22.0f,
+                                                 18.0f,
+                                                 60.0f,
+                                                 10.0f,
+                                                 8.0f,
+                                                 14.0f,
+                                                 230.0f,
+                                                 200.0f);
+    EXPECT_FALSE(sg.scroll);
+    EXPECT_EQ(sg.cols, 1);
+    EXPECT_EQ(sg.rows, sg.visible_rows);
+    EXPECT_EQ(sg.shown + sg.overflow, 40);
+    EXPECT_GT(sg.overflow, 0);
+    // Every visible cell is used: entries, then the indicator in the last one.
+    EXPECT_EQ(sg.shown + 1, sg.cols * sg.rows);
+    EXPECT_LE(sg.height, 200.0f);
+    EXPECT_LE(sg.width, 230.0f);
+    EXPECT_EQ(legend_layout::overflow_text(sg.overflow),
+              "+" + std::to_string(sg.overflow) + " more");
+}
+
+TEST(LegendLayoutStatic, MultiColumnOverflowFillsEveryColumn)
+{
+    // 50 short entries in a 300 x 150 box: 3 columns x 7 rows.
+    auto sg = legend_layout::compute_static_grid(50,
+                                                 80.0f,
+                                                 22.0f,
+                                                 18.0f,
+                                                 60.0f,
+                                                 10.0f,
+                                                 8.0f,
+                                                 14.0f,
+                                                 300.0f,
+                                                 150.0f);
+    EXPECT_EQ(sg.cols, 3);
+    EXPECT_EQ(sg.rows, 7);
+    EXPECT_EQ(sg.shown, 20);
+    EXPECT_EQ(sg.overflow, 30);
+    EXPECT_LE(sg.width, 300.0f);
+    EXPECT_LE(sg.height, 150.0f);
+}
+
+TEST(LegendLayoutStatic, ColumnsWidenToHoldTheIndicator)
+{
+    // Labels narrower than "+N more": the cell grows so the indicator fits.
+    auto sg = legend_layout::compute_static_grid(40,
+                                                 30.0f,
+                                                 22.0f,
+                                                 18.0f,
+                                                 70.0f,
+                                                 10.0f,
+                                                 8.0f,
+                                                 14.0f,
+                                                 230.0f,
+                                                 120.0f);
+    EXPECT_FLOAT_EQ(sg.cell_w, 70.0f);
+    EXPECT_EQ(sg.shown + sg.overflow, 40);
+    EXPECT_GT(sg.overflow, 0);
+    EXPECT_LE(sg.width, 230.0f);
 }
 
 TEST(LegendLayout, BestCornerAvoidsData)

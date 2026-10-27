@@ -588,3 +588,55 @@ TEST_F(RendererFixture, ColorbarDrawnForColormappedScatterAndSurface)
     render(fig3);
     EXPECT_TRUE(backend.has_color(PipelineType::Overlay, jet_top, 0.03f));
 }
+
+// Audit S03: a static export cannot scroll, so a legend with more entries than
+// fit must not silently drop rows.  The drawn swatches are the first entries
+// in order (no gaps), and the rest are summarised by a "+N more" cell.
+TEST_F(RendererFixture, StaticLegendOverflowKeepsEntriesContiguous)
+{
+    Figure             fig({.width = 800, .height = 600});
+    auto&              ax = fig.subplot(3, 1, 1);   // wide but short panel
+    auto               x  = ramp(20, 0.0f, 1.0f);
+    constexpr int      N  = 40;
+    std::vector<Color> colors;
+    for (int i = 0; i < N; ++i)
+    {
+        // Distinct, theme-independent colours so swatches map back to series.
+        const float t = static_cast<float>(i) / static_cast<float>(N);
+        const Color c{0.2f + 0.6f * t, 0.5f, 0.8f - 0.6f * t, 1.0f};
+        colors.push_back(c);
+        auto& s = ax.plot(x, x, "-").label("Series " + std::to_string(i + 1));
+        s.color(c);
+    }
+
+    const auto& tc = theme.colors();
+    const Color legend_bg{tc.tooltip_bg.r, tc.tooltip_bg.g, tc.tooltip_bg.b, tc.tooltip_bg.a};
+
+    render(fig);
+    // Legend swatches are 2-point segments (6 vertices) drawn after the
+    // legend background; earlier draws are the series themselves.
+    std::vector<int> drawn;
+    bool             in_legend = false;
+    for (const auto& d : backend.draws_)
+    {
+        if (d.pipeline == PipelineType::Overlay && std::abs(d.pc.color[0] - legend_bg.r) < 1e-3f
+            && std::abs(d.pc.color[1] - legend_bg.g) < 1e-3f
+            && std::abs(d.pc.color[2] - legend_bg.b) < 1e-3f)
+            in_legend = true;
+        if (!in_legend || d.pipeline != PipelineType::Line || d.count != 6)
+            continue;
+        for (int i = 0; i < N; ++i)
+        {
+            const Color a = ui::adapt_series_color_to_theme(colors[static_cast<size_t>(i)], tc);
+            if (std::abs(d.pc.color[0] - a.r) < 1e-4f && std::abs(d.pc.color[2] - a.b) < 1e-4f)
+            {
+                drawn.push_back(i);
+                break;
+            }
+        }
+    }
+    ASSERT_FALSE(drawn.empty());
+    ASSERT_LT(drawn.size(), static_cast<size_t>(N)) << "panel is too small for all 40";
+    for (size_t k = 0; k < drawn.size(); ++k)
+        EXPECT_EQ(drawn[k], static_cast<int>(k)) << "legend entries must be contiguous";
+}

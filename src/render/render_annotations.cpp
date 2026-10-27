@@ -356,29 +356,55 @@ void Renderer::build_legend(Axes& axes, const LegendConfig& config)
 
     const auto&    tc   = theme_mgr_.colors();
     const Rect&    vp   = axes.viewport();
-    const FontSize font = legend_font(config.font_size);
+    const float    pad_x = config.padding + 2.0f;   // as LegendInteraction
+    const float    pad_y = config.padding;
 
-    float max_label_w = 0.0f;
-    float text_h      = 0.0f;
-    for (const Series* s : entries)
+    // A static image cannot scroll, so every entry must be represented: see
+    // legend_layout::compute_static_grid for the policy (tighter rows, then
+    // an explicit "+N more" cell).  If the configured font overflows, the
+    // smaller tick font is tried first before entries are summarised.
+    struct Fit
     {
-        const auto ext = text_renderer_.measure_text(s->label(), font);
-        max_label_w    = std::max(max_label_w, ext.width);
-        text_h         = std::max(text_h, ext.height);
+        FontSize                  font;
+        legend_layout::GridLayout grid;
+    };
+    auto fit_with = [&](FontSize f)
+    {
+        float max_label_w = 0.0f;
+        float th          = 0.0f;
+        for (const Series* s : entries)
+        {
+            const auto ext = text_renderer_.measure_text(s->label(), f);
+            max_label_w    = std::max(max_label_w, ext.width);
+            th             = std::max(th, ext.height);
+        }
+        const int   n = static_cast<int>(entries.size());
+        const float overflow_w =
+            text_renderer_.measure_text(legend_layout::overflow_text(n), f).width;
+        const float cw = SWATCH_W + SWATCH_GAP + max_label_w;
+        const auto  g  = legend_layout::compute_static_grid(n,
+                                                          cw,
+                                                          th + 6.0f,
+                                                          th + 2.0f,
+                                                          overflow_w,
+                                                          pad_x,
+                                                          pad_y,
+                                                          legend_layout::COL_GAP,
+                                                          vp.w - 2.0f * legend_layout::MARGIN,
+                                                          vp.h - 2.0f * legend_layout::MARGIN);
+        return Fit{f, g};
+    };
+    Fit fit = fit_with(legend_font(config.font_size));
+    if (fit.grid.overflow > 0 && fit.font != FontSize::Tick)
+    {
+        Fit small = fit_with(FontSize::Tick);
+        if (small.grid.shown > fit.grid.shown)
+            fit = small;
     }
-
-    const float pad_x = config.padding + 2.0f;   // as LegendInteraction
-    const float pad_y = config.padding;
-    const float row_h = text_h + 6.0f;
-    const float col_w = SWATCH_W + SWATCH_GAP + max_label_w;
-    const auto  grid  = legend_layout::compute_grid(static_cast<int>(entries.size()),
-                                                  col_w,
-                                                  row_h,
-                                                  pad_x,
-                                                  pad_y,
-                                                  legend_layout::COL_GAP,
-                                                  vp.w - 2.0f * legend_layout::MARGIN,
-                                                  vp.h - 2.0f * legend_layout::MARGIN);
+    const FontSize font  = fit.font;
+    const auto&    grid  = fit.grid;
+    const float    row_h = grid.cell_h;
+    const float    col_w = grid.cell_w;
     if (grid.rows <= 0)
         return;
 
@@ -421,13 +447,11 @@ void Renderer::build_legend(Axes& axes, const LegendConfig& config)
     const float bg_luma =
         0.2126f * tc.bg_canvas.r + 0.7152f * tc.bg_canvas.g + 0.0722f * tc.bg_canvas.b;
     const Color text_base = theme_color(tc.text_secondary, theme_mgr_);
-    for (size_t i = 0; i < entries.size(); ++i)
+    for (size_t i = 0; i < static_cast<size_t>(grid.shown); ++i)
     {
-        const int row = static_cast<int>(i) % grid.rows;
-        const int col = static_cast<int>(i) / grid.rows;
-        if (row >= grid.visible_rows)
-            continue;   // cannot scroll in a static image
-        const Series& s = *entries[i];
+        const int     row = static_cast<int>(i) % grid.rows;
+        const int     col = static_cast<int>(i) / grid.rows;
+        const Series& s   = *entries[i];
         const float x  = box.x + pad_x + static_cast<float>(col) * (col_w + legend_layout::COL_GAP);
         const float y  = box.y + pad_y + static_cast<float>(row) * row_h;
         const float cy = y + row_h * 0.5f;
@@ -507,6 +531,22 @@ void Renderer::build_legend(Axes& axes, const LegendConfig& config)
                                  cy,
                                  font,
                                  pack_rgba(text),
+                                 TextAlign::Left,
+                                 TextVAlign::Middle);
+    }
+
+    // ── Overflow indicator: the last cell reports entries that did not fit ──
+    if (grid.overflow > 0)
+    {
+        const int   row = grid.shown % grid.rows;
+        const int   col = grid.shown / grid.rows;
+        const float x  = box.x + pad_x + static_cast<float>(col) * (col_w + legend_layout::COL_GAP);
+        const float cy = box.y + pad_y + static_cast<float>(row) * row_h + row_h * 0.5f;
+        text_renderer_.draw_text(legend_layout::overflow_text(grid.overflow),
+                                 x,
+                                 cy,
+                                 font,
+                                 pack_rgba(text_base),
                                  TextAlign::Left,
                                  TextVAlign::Middle);
     }

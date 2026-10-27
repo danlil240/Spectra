@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdlib>
+#include <optional>
 #include <spectra/app.hpp>
 #include <spectra/export.hpp>
 #include <spectra/figure.hpp>
@@ -168,6 +169,11 @@ void App::run_multiproc()
             backend_->create_offscreen_framebuffer(export_w, export_h);
             static_cast<VulkanBackend*>(backend_.get())->ensure_pipelines();
 
+            // Per-export themes (ExportOptions::theme): the PNG render and the
+            // SVG each use their own, restored right after.
+            std::optional<ui::ScopedExportTheme> png_theme;
+            png_theme.emplace(theme_mgr_.get(), fig->export_req_.png_theme);
+
             // A larger-than-figure export keeps the figure's layout and draws it
             // scaled up (HiDPI), so lines, markers and text keep their size.
             ExportViewport ev =
@@ -191,6 +197,7 @@ void App::run_multiproc()
             fig->config_.width  = orig_w;
             fig->config_.height = orig_h;
             fig->compute_layout();
+            png_theme.reset();
 
             // Device lost is unrecoverable: the framebuffer holds no valid
             // image and every further frame would fail, so stop exporting.
@@ -221,6 +228,16 @@ void App::run_multiproc()
 
             if (!fig->export_req_.svg_path.empty())
             {
+                ui::ScopedExportTheme svg_theme(theme_mgr_.get(), fig->export_req_.svg_theme);
+                if (theme_mgr_)
+                {
+                    const ui::ThemeColors surface = theme_mgr_->plot_surface_colors(fig->style());
+                    ui::resolve_auto_series_colors(
+                        *fig,
+                        theme_mgr_->plot_surface_data_palette(fig->style()),
+                        ui::is_light_plot_background(surface),
+                        ui::effective_figure_background(fig->style(), surface));
+                }
                 if (!SvgExporter::write_svg(fig->export_req_.svg_path,
                                             *fig,
                                             theme_mgr_

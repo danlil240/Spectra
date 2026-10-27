@@ -11,6 +11,8 @@
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -135,6 +137,75 @@ TEST(HeadlessExportText, BatchAndScaledExportsDrawText)
 
     // Tick labels below the plot area must be present too.
     EXPECT_GT(ink_in_band(second, static_cast<int>(H) - 40, static_cast<int>(H)), 40);
+
+    fs::remove_all(dir);
+}
+
+namespace
+{
+// Mean luminance (0..255) of a 4x4 block in the top-left corner (figure background).
+float corner_luma(const Image& img)
+{
+    float sum = 0.0f;
+    for (int y = 0; y < 4; ++y)
+        for (int x = 0; x < 4; ++x)
+        {
+            const uint8_t* p = &img.rgba[(static_cast<size_t>(y) * img.w + x) * 4];
+            sum += 0.2126f * p[0] + 0.7152f * p[1] + 0.0722f * p[2];
+        }
+    return sum / 16.0f;
+}
+
+std::string read_text(const fs::path& p)
+{
+    std::ifstream      in(p);
+    std::ostringstream ss;
+    ss << in.rdbuf();
+    return ss.str();
+}
+
+// Luminance (0..255) of the SVG's background rect fill.
+float svg_background_luma(const std::string& svg)
+{
+    const size_t r = svg.find("<rect");
+    const size_t f = svg.find("fill=\"#", r);
+    if (r == std::string::npos || f == std::string::npos)
+        return -1.0f;
+    const unsigned v = static_cast<unsigned>(std::stoul(svg.substr(f + 7, 6), nullptr, 16));
+    return 0.2126f * ((v >> 16) & 0xFF) + 0.7152f * ((v >> 8) & 0xFF) + 0.0722f * (v & 0xFF);
+}
+}   // namespace
+
+// ExportOptions::theme draws one export with its own theme, independent of the
+// app theme and of the other exports of the batch.
+TEST(HeadlessExportText, PerExportThemeIsHonoured)
+{
+    const fs::path dir = fs::temp_directory_path() / "spectra_test_export_theme";
+    fs::create_directories(dir);
+    constexpr uint32_t W = 320, H = 240;
+    {
+        spectra::App app({.headless = true, .socket_path = ""});
+        auto&        light = app.figure({.width = W, .height = H});
+        fill(light, true);
+        light.save_png((dir / "light.png").string(), {.theme = "light"});
+        light.save_svg((dir / "light.svg").string(), {.theme = "light"});
+        auto& dark = app.figure({.width = W, .height = H});
+        fill(dark, true);
+        dark.save_png((dir / "dark.png").string(), {.theme = "dark"});
+        dark.save_svg((dir / "dark.svg").string(), {.theme = "dark"});
+        app.run();
+    }
+    Image light, dark;
+    ASSERT_TRUE(load(dir / "light.png", light));
+    ASSERT_TRUE(load(dir / "dark.png", dark));
+    EXPECT_GT(corner_luma(light), 200.0f);
+    EXPECT_LT(corner_luma(dark), 80.0f);
+
+    const float light_svg = svg_background_luma(read_text(dir / "light.svg"));
+    const float dark_svg  = svg_background_luma(read_text(dir / "dark.svg"));
+    EXPECT_GT(light_svg, 200.0f);
+    EXPECT_GE(dark_svg, 0.0f);
+    EXPECT_LT(dark_svg, 80.0f);
 
     fs::remove_all(dir);
 }

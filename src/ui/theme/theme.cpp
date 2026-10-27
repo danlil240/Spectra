@@ -156,6 +156,70 @@ void ThemeManager::set_theme(const std::string& name)
     }
 }
 
+bool ThemeManager::push_export_theme(const std::string& name)
+{
+    ensure_initialized();
+    if (export_override_.active)
+        return false;
+    auto it = themes_.find(name);
+    if (it == themes_.end())
+    {
+        std::string lower(name);
+        for (auto& ch : lower)
+            ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+        it = themes_.find(lower);
+        if (it == themes_.end())
+            return false;
+    }
+    export_override_       = {true,
+                              current_theme_name_,
+                              current_theme_,
+                              transitioning_,
+                              display_colors_valid_,
+                              palette_transitioning_,
+                              display_palette_valid_};
+    current_theme_name_    = it->first;
+    current_theme_         = &it->second;
+    transitioning_         = false;
+    display_colors_valid_  = false;
+    palette_transitioning_ = false;
+    display_palette_valid_ = false;
+    ++theme_version_;
+    return true;
+}
+
+void ThemeManager::pop_export_theme()
+{
+    if (!export_override_.active)
+        return;
+    current_theme_name_     = export_override_.theme_name;
+    current_theme_          = export_override_.theme;
+    transitioning_          = export_override_.transitioning;
+    display_colors_valid_   = export_override_.display_colors_valid;
+    palette_transitioning_  = export_override_.palette_transitioning;
+    display_palette_valid_  = export_override_.display_palette_valid;
+    export_override_.active = false;
+    ++theme_version_;
+}
+
+ScopedExportTheme::ScopedExportTheme(ThemeManager* tm, const std::string& name) : tm_(tm)
+{
+    if (!tm_ || name.empty())
+        return;
+    active_ = tm_->push_export_theme(name);
+    if (!active_)
+        SPECTRA_LOG_WARN("export",
+                         "Unknown export theme '{}', using the active theme '{}'",
+                         name,
+                         tm_->current_theme_name());
+}
+
+ScopedExportTheme::~ScopedExportTheme()
+{
+    if (active_)
+        tm_->pop_export_theme();
+}
+
 void ThemeManager::notify_public_theme_change()
 {
     ThemeSnapshot snap{};

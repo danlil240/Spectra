@@ -195,7 +195,7 @@ std::vector<CommandSearchResult> CommandRegistry::search(const std::string& quer
         int best = std::max({label_score, id_score, cat_score});
         if (best > 0)
         {
-            results.push_back({&cmd, best});
+            results.push_back({&cmd, best, {}});
         }
     }
 
@@ -215,6 +215,62 @@ std::vector<CommandSearchResult> CommandRegistry::search(const std::string& quer
     {
         results.resize(max_results);
     }
+    return results;
+}
+
+std::vector<CommandSearchResult> CommandRegistry::default_listing(
+    const CommandListingOptions& options) const
+{
+    std::lock_guard                  lock(mutex_);
+    std::vector<CommandSearchResult> results;
+    results.reserve(commands_.size());
+    std::vector<std::string_view> listed;
+
+    auto is_listed = [&listed](std::string_view id)
+    { return std::find(listed.begin(), listed.end(), id) != listed.end(); };
+
+    size_t recent_count = 0;
+    for (const auto& id : recent_ids_)
+    {
+        if (recent_count >= options.max_recent)
+            break;
+        auto it = commands_.find(id);
+        if (it == commands_.end() || is_listed(id)
+            || std::find(options.recent_exclude_ids.begin(), options.recent_exclude_ids.end(), id)
+                   != options.recent_exclude_ids.end())
+        {
+            continue;
+        }
+        results.push_back({&it->second, 0, RECENT_SECTION});
+        listed.push_back(it->first);
+        ++recent_count;
+    }
+
+    for (const auto& id : options.featured_ids)
+    {
+        auto it = commands_.find(id);
+        if (it == commands_.end() || is_listed(id))
+            continue;
+        results.push_back({&it->second, 0, SUGGESTED_SECTION});
+        listed.push_back(it->first);
+    }
+
+    size_t rest_begin = results.size();
+    for (const auto& [id, cmd] : commands_)
+    {
+        if (!is_listed(id))
+            results.push_back({&cmd, 0, {}});
+    }
+    std::sort(results.begin() + static_cast<std::ptrdiff_t>(rest_begin),
+              results.end(),
+              [](const CommandSearchResult& a, const CommandSearchResult& b)
+              {
+                  if (a.command->category != b.command->category)
+                      return a.command->category < b.command->category;
+                  if (a.command->label != b.command->label)
+                      return a.command->label < b.command->label;
+                  return a.command->id < b.command->id;
+              });
     return results;
 }
 

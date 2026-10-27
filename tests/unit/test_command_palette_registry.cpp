@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <atomic>
 #include <gtest/gtest.h>
 #include <string>
@@ -299,6 +300,151 @@ TEST(CommandRegistry, ClearRecent)
 
     reg.clear_recent();
     EXPECT_TRUE(reg.recent_commands(10).empty());
+}
+
+// ─── Default (empty-query) listing ───────────────────────────────────────────
+
+namespace
+{
+
+void register_listing_fixture(CommandRegistry& reg)
+{
+    reg.register_command(
+        "accessibility.sonify",
+        "Sonify Active Series",
+        []() {},
+        "",
+        "Accessibility");
+    reg.register_command("anim.go_to_end", "Go to End", []() {}, "", "Animation");
+    reg.register_command("view.autofit", "Auto-Fit Active Axes", []() {}, "A", "View");
+    reg.register_command("view.reset", "Reset View", []() {}, "R", "View");
+    reg.register_command("view.toggle_grid", "Toggle Grid", []() {}, "G", "View");
+    reg.register_command("file.export_png", "Export PNG", []() {}, "Ctrl+S", "File");
+    reg.register_command("app.command_palette", "Command Palette", []() {}, "Ctrl+K", "App");
+}
+
+CommandListingOptions listing_options()
+{
+    CommandListingOptions opts;
+    opts.featured_ids       = {"view.autofit", "view.reset", "missing.cmd", "file.export_png"};
+    opts.recent_exclude_ids = {"app.command_palette"};
+    opts.max_recent         = 2;
+    return opts;
+}
+
+std::vector<std::string> listing_ids(const std::vector<CommandSearchResult>& results)
+{
+    std::vector<std::string> ids;
+    for (const auto& r : results)
+    {
+        ids.push_back(r.command->id);
+    }
+    return ids;
+}
+
+}   // namespace
+
+TEST(CommandRegistry, DefaultListingWithoutRecentStartsWithFeatured)
+{
+    CommandRegistry reg;
+    register_listing_fixture(reg);
+
+    auto results = reg.default_listing(listing_options());
+    ASSERT_EQ(results.size(), reg.count());
+
+    // Featured commands first, in the given order; unknown ids are skipped.
+    EXPECT_EQ(results[0].command->id, "view.autofit");
+    EXPECT_EQ(results[1].command->id, "view.reset");
+    EXPECT_EQ(results[2].command->id, "file.export_png");
+    for (int i = 0; i < 3; ++i)
+    {
+        EXPECT_EQ(results[i].section, CommandRegistry::SUGGESTED_SECTION);
+    }
+
+    // The rest follow by category then label, grouped under their own category.
+    auto                     ids = listing_ids(results);
+    std::vector<std::string> rest(ids.begin() + 3, ids.end());
+    EXPECT_EQ(rest,
+              (std::vector<std::string>{"accessibility.sonify",
+                                        "anim.go_to_end",
+                                        "app.command_palette",
+                                        "view.toggle_grid"}));
+    for (size_t i = 3; i < results.size(); ++i)
+    {
+        EXPECT_TRUE(results[i].section.empty());
+    }
+}
+
+TEST(CommandRegistry, DefaultListingPutsRecentFirst)
+{
+    CommandRegistry reg;
+    register_listing_fixture(reg);
+    reg.execute("anim.go_to_end");
+    reg.execute("view.reset");
+
+    auto results = reg.default_listing(listing_options());
+    auto ids     = listing_ids(results);
+    ASSERT_EQ(ids.size(), reg.count());
+
+    // Most recent first, under the "Recent" section.
+    EXPECT_EQ(ids[0], "view.reset");
+    EXPECT_EQ(ids[1], "anim.go_to_end");
+    EXPECT_EQ(results[0].section, CommandRegistry::RECENT_SECTION);
+    EXPECT_EQ(results[1].section, CommandRegistry::RECENT_SECTION);
+
+    // Featured follow, without repeating the recent "view.reset".
+    EXPECT_EQ(ids[2], "view.autofit");
+    EXPECT_EQ(ids[3], "file.export_png");
+    EXPECT_EQ(results[2].section, CommandRegistry::SUGGESTED_SECTION);
+
+    // No command is listed twice.
+    std::vector<std::string> sorted = ids;
+    std::sort(sorted.begin(), sorted.end());
+    EXPECT_EQ(std::adjacent_find(sorted.begin(), sorted.end()), sorted.end());
+}
+
+TEST(CommandRegistry, DefaultListingRecentHonoursLimitAndExclusions)
+{
+    CommandRegistry reg;
+    register_listing_fixture(reg);
+    reg.execute("accessibility.sonify");
+    reg.execute("view.toggle_grid");
+    reg.execute("anim.go_to_end");
+    reg.execute("app.command_palette");   // Opening the palette must not crowd out recents
+
+    auto results = reg.default_listing(listing_options());
+    ASSERT_GE(results.size(), 2u);
+    EXPECT_EQ(results[0].command->id, "anim.go_to_end");
+    EXPECT_EQ(results[1].command->id, "view.toggle_grid");
+    EXPECT_NE(results[2].section, CommandRegistry::RECENT_SECTION);
+}
+
+TEST(CommandRegistry, DefaultListingRecentUpdatesAfterExecute)
+{
+    CommandRegistry reg;
+    register_listing_fixture(reg);
+    reg.execute("view.toggle_grid");
+    EXPECT_EQ(reg.default_listing(listing_options())[0].command->id, "view.toggle_grid");
+
+    reg.execute("file.export_png");
+    auto results = reg.default_listing(listing_options());
+    EXPECT_EQ(results[0].command->id, "file.export_png");
+    EXPECT_EQ(results[1].command->id, "view.toggle_grid");
+
+    reg.clear_recent();
+    results = reg.default_listing(listing_options());
+    EXPECT_EQ(results[0].command->id, "view.autofit");
+    EXPECT_EQ(results[0].section, CommandRegistry::SUGGESTED_SECTION);
+}
+
+TEST(CommandRegistry, DefaultListingIsNotTruncated)
+{
+    CommandRegistry reg;
+    for (int i = 0; i < 120; ++i)
+    {
+        reg.register_command("cmd." + std::to_string(i), "Command " + std::to_string(i), []() {});
+    }
+    EXPECT_EQ(reg.default_listing(CommandListingOptions{}).size(), 120u);
 }
 
 // ─── All commands ────────────────────────────────────────────────────────────

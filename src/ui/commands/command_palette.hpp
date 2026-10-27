@@ -14,6 +14,7 @@ namespace spectra
 class CommandRegistry;
 class ShortcutManager;
 struct CommandSearchResult;
+struct CommandListingOptions;
 
 // ImGui-based command palette overlay (Ctrl+K).
 // Renders a centered floating search box with fuzzy-matched command results.
@@ -44,6 +45,9 @@ class CommandPalette
     // Set fonts for rendering (optional — uses defaults if null).
     void set_body_font(ImFont* font) { font_body_ = font; }
     void set_heading_font(ImFont* font) { font_heading_ = font; }
+
+    // Empty-query listing: recent commands, then common actions, then the rest.
+    static CommandListingOptions default_listing_options();
 
    private:
     void update_search();

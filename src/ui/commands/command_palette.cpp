@@ -57,6 +57,32 @@ void CommandPalette::toggle()
 
 // ─── Search ──────────────────────────────────────────────────────────────────
 
+namespace
+{
+
+std::string_view group_label(const CommandSearchResult& result)
+{
+    if (!result.section.empty())
+        return result.section;
+    return result.command->category;
+}
+
+}   // namespace
+
+CommandListingOptions CommandPalette::default_listing_options()
+{
+    CommandListingOptions options;
+    options.featured_ids       = {"view.autofit",
+                                  "view.reset",
+                                  "view.toggle_grid",
+                                  "view.toggle_legend",
+                                  "file.export_png",
+                                  "panel.open_settings"};
+    options.recent_exclude_ids = {"app.command_palette", "app.cancel"};
+    options.max_recent         = 5;
+    return options;
+}
+
 void CommandPalette::update_search()
 {
     if (!registry_)
@@ -69,33 +95,7 @@ void CommandPalette::update_search()
 
     if (query.empty())
     {
-        // Show recent commands first, then all
-        auto recent = registry_->recent_commands(5);
-        auto all    = registry_->search("", 50);
-        results_.clear();
-
-        // Add recent at top (with boosted score)
-        for (const auto* cmd : recent)
-        {
-            results_.push_back({cmd, 1000});
-        }
-        // Add remaining (skip duplicates from recent)
-        for (const auto& r : all)
-        {
-            bool is_recent = false;
-            for (const auto* rc : recent)
-            {
-                if (rc->id == r.command->id)
-                {
-                    is_recent = true;
-                    break;
-                }
-            }
-            if (!is_recent)
-            {
-                results_.push_back(r);
-            }
-        }
+        results_ = registry_->default_listing(default_listing_options());
     }
     else
     {
@@ -187,14 +187,14 @@ bool CommandPalette::draw(float window_width, float window_height)
         // Estimate from constants + actual ImGui item spacing (first frame only)
         float sp        = ImGui::GetStyle().ItemSpacing.y;
         total_content_h = 0.0f;
-        std::string prev_cat;
+        std::string_view prev_cat;
         for (auto& result : results_)
         {
             if (!result.command)
                 continue;
-            if (result.command->category != prev_cat)
+            if (group_label(result) != prev_cat)
             {
-                prev_cat = result.command->category;
+                prev_cat = group_label(result);
                 // Dummy + text + dummy, each followed by ItemSpacing
                 total_content_h += CATEGORY_HEADER_HEIGHT + sp * 2;
             }
@@ -520,8 +520,8 @@ bool CommandPalette::draw(float window_width, float window_height)
 
             ImGui::SetScrollY(scroll_offset_);
 
-            float       content_start_y = ImGui::GetCursorPosY();
-            std::string current_category;
+            float            content_start_y = ImGui::GetCursorPosY();
+            std::string_view current_category;
 
             for (int i = 0; i < static_cast<int>(results_.size()); ++i)
             {
@@ -530,9 +530,9 @@ bool CommandPalette::draw(float window_width, float window_height)
                     continue;
 
                 // Category header
-                if (result.command->category != current_category)
+                if (group_label(result) != current_category)
                 {
-                    current_category = result.command->category;
+                    current_category = group_label(result);
                     if (font_heading_)
                         ImGui::PushFont(font_heading_);
                     ImGui::PushStyleColor(ImGuiCol_Text,
@@ -541,7 +541,8 @@ bool CommandPalette::draw(float window_width, float window_height)
                                                  colors.text_tertiary.b,
                                                  0.8f));
                     ImGui::Dummy(ImVec2(0, ui::tokens::SPACE_1));
-                    ImGui::TextUnformatted(current_category.c_str());
+                    ImGui::TextUnformatted(current_category.data(),
+                                           current_category.data() + current_category.size());
                     ImGui::Dummy(ImVec2(0, ui::tokens::SPACE_1 * 0.5f));
                     ImGui::PopStyleColor();
                     if (font_heading_)
@@ -643,15 +644,15 @@ bool CommandPalette::draw(float window_width, float window_height)
                 && selected_index_ < static_cast<int>(results_.size()))
             {
                 scroll_to_selected_ = false;
-                float       item_y  = 0.0f;
-                std::string cat;
+                float            item_y = 0.0f;
+                std::string_view cat;
                 for (int i = 0; i <= selected_index_; ++i)
                 {
                     if (!results_[i].command)
                         continue;
-                    if (results_[i].command->category != cat)
+                    if (group_label(results_[i]) != cat)
                     {
-                        cat = results_[i].command->category;
+                        cat = group_label(results_[i]);
                         item_y += CATEGORY_HEADER_HEIGHT;
                     }
                     if (i < selected_index_)

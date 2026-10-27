@@ -4,6 +4,7 @@
 #include <functional>
 #include <mutex>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -29,6 +30,17 @@ struct CommandSearchResult
 {
     const Command* command = nullptr;
     int            score   = 0;   // Higher = better match
+    // Display group override (e.g. "Recent"). Empty = group under command->category.
+    // Always points at static storage.
+    std::string_view section;
+};
+
+// Options for the default (empty-query) command listing.
+struct CommandListingOptions
+{
+    std::vector<std::string> featured_ids;         // Common actions, listed in this order
+    std::vector<std::string> recent_exclude_ids;   // Never listed under "Recent"
+    size_t                   max_recent = 5;
 };
 
 // Central registry for all application commands.
@@ -63,6 +75,13 @@ class CommandRegistry
     // Empty query returns all commands (sorted by category, then label).
     std::vector<CommandSearchResult> search(const std::string& query,
                                             size_t             max_results = 50) const;
+
+    // Listing shown for an empty palette query: recently executed commands
+    // (section "Recent"), then the featured commands that exist (section "Suggested"),
+    // then every other command sorted by category, then label. No command appears twice.
+    static constexpr std::string_view RECENT_SECTION    = "Recent";
+    static constexpr std::string_view SUGGESTED_SECTION = "Suggested";
+    std::vector<CommandSearchResult>  default_listing(const CommandListingOptions& options) const;
 
     // Get a command by id. Returns nullptr if not found.
     const Command* find(const std::string& id) const;

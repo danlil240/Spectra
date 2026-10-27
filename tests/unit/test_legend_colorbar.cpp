@@ -169,6 +169,44 @@ TEST(LegendLayoutPlace, ResolveBestAvoidsData)
               LegendPosition::TopRight);
 }
 
+// Audit S02: the shared legend helpers accept 3D axes.  "Best" cannot score
+// a camera-dependent projection, so it resolves to TopRight (as in SVG).
+TEST(LegendLayoutPlace, Axes3DEntriesPositionAndSwatchColour)
+{
+    Axes3D ax;
+    auto   x = ramp(10, 0.0f, 1.0f);
+    ax.line3d(x, x, x).label("line");
+    ax.scatter3d(x, x, x);   // unlabeled: no entry
+    ax.scatter3d(x, x, x).label("hidden from legend").set_show_in_legend(false);
+    auto&              hidden = ax.scatter3d(x, x, x).label("hidden");
+    std::vector<float> g      = ramp(4, -1.0f, 1.0f), z(16, 0.5f);
+    SurfaceSeries&     surf   = ax.surface(g, g, z);
+    surf.label("surf");
+    hidden.visible(false);
+
+    const auto entries = legend_layout::legend_entries(ax);
+    ASSERT_EQ(entries.size(), 3u);
+    EXPECT_EQ(entries[0]->label(), "line");
+    EXPECT_EQ(entries[1]->label(), "hidden");   // listed (dimmed) so it can be re-enabled
+    EXPECT_EQ(entries[2]->label(), "surf");
+
+    const Rect vp{0.0f, 0.0f, 400.0f, 300.0f};
+    EXPECT_EQ(legend_layout::resolve_position(ax, vp, 80, 40, LegendPosition::Best),
+              LegendPosition::TopRight);
+    EXPECT_EQ(legend_layout::resolve_position(ax, vp, 80, 40, LegendPosition::BottomLeft),
+              LegendPosition::BottomLeft);
+
+    surf.color(Color{0.1f, 0.2f, 0.3f, 1.0f});
+    const Color plain = legend_layout::swatch_color(surf);
+    EXPECT_FLOAT_EQ(plain.g, 0.2f);
+    surf.colormap(ColormapType::Jet);
+    const Color mapped = legend_layout::swatch_color(surf);
+    const Color mid    = SurfaceSeries::sample_colormap(ColormapType::Jet, 0.5f);
+    EXPECT_FLOAT_EQ(mapped.r, mid.r);
+    EXPECT_FLOAT_EQ(mapped.g, mid.g);
+    EXPECT_FLOAT_EQ(mapped.b, mid.b);
+}
+
 // ─── "Best" placement against filled areas ─────────────────────────────────
 // Filled series (bars, histograms, boxes, violins, bands, shapes) are scored
 // by the area they cover, not only by their outline vertices, so a legend is
@@ -631,6 +669,132 @@ TEST_F(RendererFixture, StaticLegendOverflowKeepsEntriesContiguous)
             if (std::abs(d.pc.color[0] - a.r) < 1e-4f && std::abs(d.pc.color[2] - a.b) < 1e-4f)
             {
                 drawn.push_back(i);
+                break;
+            }
+        }
+    }
+    ASSERT_FALSE(drawn.empty());
+    ASSERT_LT(drawn.size(), static_cast<size_t>(N)) << "panel is too small for all 40";
+    for (size_t k = 0; k < drawn.size(); ++k)
+        EXPECT_EQ(drawn[k], static_cast<int>(k)) << "legend entries must be contiguous";
+}
+
+namespace
+{
+
+bool same_rgb(const SeriesPushConstants& pc, const Color& c, float tol = 1e-3f)
+{
+    return std::abs(pc.color[0] - c.r) < tol && std::abs(pc.color[1] - c.g) < tol
+           && std::abs(pc.color[2] - c.b) < tol;
+}
+
+// Index of the first legend background draw (theme tooltip colour), or -1.
+int legend_bg_index(const std::vector<RecordingBackend::Draw>& draws, const Color& bg)
+{
+    for (size_t i = 0; i < draws.size(); ++i)
+        if (draws[i].pipeline == PipelineType::Overlay && same_rgb(draws[i].pc, bg))
+            return static_cast<int>(i);
+    return -1;
+}
+
+}   // namespace
+
+// Audit S02: a figure with only 3D axes gets a legend in the GPU / PNG export
+// path, with swatches in series order and in each series' colour.
+TEST_F(RendererFixture, Legend3DOnlyFigureDrawnWithSeriesColours)
+{
+    Figure fig({.width = 800, .height = 600});
+    auto&  ax = fig.subplot3d(1, 1, 1);
+    auto   x  = ramp(20, 0.0f, 1.0f);
+
+    const Color line_c{0.9f, 0.1f, 0.2f, 1.0f};
+    const Color scat_c{0.1f, 0.3f, 0.9f, 1.0f};
+    const Color unlabeled_c{0.7f, 0.6f, 0.1f, 1.0f};
+    ax.line3d(x, x, x).label("trajectory").color(line_c);
+    ax.scatter3d(x, x, x).label("samples").color(scat_c);
+    ax.scatter3d(x, x, x).color(unlabeled_c);   // no label: no entry
+    std::vector<float> g = ramp(8, -1.0f, 1.0f), z(64);
+    for (size_t i = 0; i < z.size(); ++i)
+        z[i] = static_cast<float>(i) / 64.0f;
+    ax.surface(g, g, z).colormap(ColormapType::Jet).label("surface");
+    const Color surf_c = SurfaceSeries::sample_colormap(ColormapType::Jet, 0.5f);
+
+    const auto& tc = theme.colors();
+    const Color legend_bg{tc.tooltip_bg.r, tc.tooltip_bg.g, tc.tooltip_bg.b, tc.tooltip_bg.a};
+
+    render(fig);
+    const auto& d     = backend.draws_;
+    const int   first = legend_bg_index(d, legend_bg);
+    ASSERT_GE(first, 0) << "3D-only figure must get a legend";
+
+    int line_at = -1, scat_at = -1, surf_at = -1;
+    for (size_t i = static_cast<size_t>(first); i < d.size(); ++i)
+    {
+        const int k = static_cast<int>(i);
+        if (line_at < 0 && d[i].pipeline == PipelineType::Line && d[i].count == 6
+            && same_rgb(d[i].pc, ui::adapt_series_color_to_theme(line_c, tc)))
+            line_at = k;
+        if (scat_at < 0 && d[i].pipeline == PipelineType::Scatter
+            && same_rgb(d[i].pc, ui::adapt_series_color_to_theme(scat_c, tc)))
+            scat_at = k;
+        if (surf_at < 0 && d[i].pipeline == PipelineType::Overlay
+            && same_rgb(d[i].pc, ui::adapt_series_color_to_theme(surf_c, tc), 2e-3f))
+            surf_at = k;
+        EXPECT_FALSE(same_rgb(d[i].pc, ui::adapt_series_color_to_theme(unlabeled_c, tc)))
+            << "unlabeled series must not get a swatch";
+    }
+    EXPECT_GE(line_at, 0) << "line swatch (line pipeline) for LineSeries3D";
+    EXPECT_GE(scat_at, 0) << "marker swatch for ScatterSeries3D";
+    EXPECT_GE(surf_at, 0) << "fill swatch in the surface's colormap colour";
+    EXPECT_LT(line_at, scat_at) << "series order";
+    EXPECT_LT(scat_at, surf_at) << "series order";
+
+    // With the interactive ImGui legend active the renderer leaves it alone.
+    renderer.set_legend_overlay_active(true);
+    render(fig);
+    EXPECT_LT(legend_bg_index(backend.draws_, legend_bg), 0);
+    renderer.set_legend_overlay_active(false);
+
+    fig.legend().visible = false;
+    render(fig);
+    EXPECT_LT(legend_bg_index(backend.draws_, legend_bg), 0);
+}
+
+// Audit S02 + S03: a 3D legend with too many entries for its panel keeps the
+// first entries in order, like the 2D legend (the rest go to "+N more").
+TEST_F(RendererFixture, Legend3DOverflowKeepsEntriesContiguous)
+{
+    Figure             fig({.width = 800, .height = 600});
+    auto&              ax = fig.subplot3d(3, 1, 1);   // wide but short panel
+    auto               x  = ramp(20, 0.0f, 1.0f);
+    constexpr int      N  = 40;
+    std::vector<Color> colors;
+    for (int i = 0; i < N; ++i)
+    {
+        const float t = static_cast<float>(i) / static_cast<float>(N);
+        const Color c{0.2f + 0.6f * t, 0.5f, 0.8f - 0.6f * t, 1.0f};
+        colors.push_back(c);
+        ax.line3d(x, x, x).label("Series " + std::to_string(i + 1)).color(c);
+    }
+    const auto& tc = theme.colors();
+    const Color legend_bg{tc.tooltip_bg.r, tc.tooltip_bg.g, tc.tooltip_bg.b, tc.tooltip_bg.a};
+
+    render(fig);
+    const auto& d     = backend.draws_;
+    const int   first = legend_bg_index(d, legend_bg);
+    ASSERT_GE(first, 0);
+    std::vector<int> drawn;
+    for (size_t i = static_cast<size_t>(first); i < d.size(); ++i)
+    {
+        if (d[i].pipeline != PipelineType::Line || d[i].count != 6)
+            continue;
+        for (int k = 0; k < N; ++k)
+        {
+            if (same_rgb(d[i].pc,
+                         ui::adapt_series_color_to_theme(colors[static_cast<size_t>(k)], tc),
+                         1e-4f))
+            {
+                drawn.push_back(k);
                 break;
             }
         }

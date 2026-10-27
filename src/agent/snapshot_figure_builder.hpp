@@ -21,6 +21,7 @@
 #include <memory>
 #include <vector>
 
+#include "../ipc/annotation_state.hpp"
 #include "../ipc/message.hpp"
 #include "live_series_index.hpp"
 #include "ui/app/figure_snapshot.hpp"
@@ -166,6 +167,14 @@ inline void add_2d_series(Axes& ax, const ipc::SnapshotSeriesState& ss)
     }
 }
 
+// ─── Replace a live 2D axes' text annotations with a snapshot list ──────────
+inline void sync_live_annotations(Axes& ax, const std::vector<ipc::SnapshotAnnotationState>& list)
+{
+    ax.clear_annotations();
+    for (const auto& a : list)
+        ipc::apply_annotation_state(ax.text(a.x, a.y, a.text), a);
+}
+
 // ─── Build a real Figure from a SnapshotFigureState ──────────────────────────
 inline std::unique_ptr<Figure> build_figure_from_snapshot(const ipc::SnapshotFigureState& snap,
                                                           uint32_t override_width  = 0,
@@ -226,6 +235,7 @@ inline std::unique_ptr<Figure> build_figure_from_snapshot(const ipc::SnapshotFig
                     ax.ylabel(sa.y_label);
                 if (!sa.title.empty())
                     ax.title(sa.title);
+                sync_live_annotations(ax, sa.annotations);
             }
         }
 

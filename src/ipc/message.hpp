@@ -232,6 +232,23 @@ struct CmdCloseWindowPayload
 
 // ─── State sync payloads ────────────────────────────────────────────────────
 
+// Serialized 2D text annotation (spectra::TextAnnotation) within an axis state.
+struct SnapshotAnnotationState
+{
+    float       x = 0.0f, y = 0.0f;   // anchor, data coordinates
+    std::string text;
+    bool        has_color = false;   // false = theme text colour
+    float       color_r = 0.0f, color_g = 0.0f, color_b = 0.0f, color_a = 1.0f;
+    float       font_size = 0.0f;   // px; 0 = axis-label size
+    uint8_t     halign    = 0;      // TextAnnotation::HAlign (0=Left,1=Center,2=Right)
+    uint8_t     valign    = 2;      // TextAnnotation::VAlign (0=Top,1=Middle,2=Bottom)
+    bool        has_arrow = false;
+    float       arrow_x = 0.0f, arrow_y = 0.0f;
+    bool        visible = true;
+
+    bool operator==(const SnapshotAnnotationState&) const = default;
+};
+
 // Serialized axis state within a figure snapshot.
 struct SnapshotAxisState
 {
@@ -243,6 +260,8 @@ struct SnapshotAxisState
     std::string x_label;
     std::string y_label;
     std::string title;
+    // 2D text annotations (Axes::text / Axes::annotate), in draw order.
+    std::vector<SnapshotAnnotationState> annotations;
 };
 
 // Serialized series metadata within a figure snapshot.
@@ -337,6 +356,10 @@ struct DiffOp
         ADD_AXES =
             23,   // axes_index=new index, bool_val=is_3d, f1=grid_rows, f2=grid_cols (0 = unknown)
         SET_LIVE_FPS = 25,   // f1=target fps, bool_val=enable/disable
+        // Text annotations: str_val=text, data=pack_annotation() floats.
+        ADD_ANNOTATION    = 26,   // append to axes_index
+        SET_ANNOTATION    = 27,   // replace annotation series_index of axes_index
+        CLEAR_ANNOTATIONS = 28,   // remove every annotation of axes_index
     };
 
     Type     type         = Type::SET_AXIS_LIMITS;
@@ -460,6 +483,8 @@ struct ReqUpdatePropertyPayload
     double      f1 = 0.0, f2 = 0.0, f3 = 0.0, f4 = 0.0;
     bool        bool_val = false;
     std::string str_val;
+    // Bulk float payload ("annotation": pack_annotation() layout).
+    std::vector<float> data;
 };
 
 // Python → Backend: show a figure (spawn agent window).

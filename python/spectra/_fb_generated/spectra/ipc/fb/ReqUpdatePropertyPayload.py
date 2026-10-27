@@ -94,8 +94,35 @@ class ReqUpdatePropertyPayload(object):
             return self._tab.String(o + self._tab.Pos)
         return None
 
+    # ReqUpdatePropertyPayload
+    def Data(self, j):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(24))
+        if o != 0:
+            a = self._tab.Vector(o)
+            return self._tab.Get(flatbuffers.number_types.Float32Flags, a + flatbuffers.number_types.UOffsetTFlags.py_type(j * 4))
+        return 0
+
+    # ReqUpdatePropertyPayload
+    def DataAsNumpy(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(24))
+        if o != 0:
+            return self._tab.GetVectorAsNumpy(flatbuffers.number_types.Float32Flags, o)
+        return 0
+
+    # ReqUpdatePropertyPayload
+    def DataLength(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(24))
+        if o != 0:
+            return self._tab.VectorLen(o)
+        return 0
+
+    # ReqUpdatePropertyPayload
+    def DataIsNone(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(24))
+        return o == 0
+
 def ReqUpdatePropertyPayloadStart(builder):
-    builder.StartObject(10)
+    builder.StartObject(11)
 
 def Start(builder):
     ReqUpdatePropertyPayloadStart(builder)
@@ -159,6 +186,18 @@ def ReqUpdatePropertyPayloadAddStrVal(builder, strVal):
 
 def AddStrVal(builder, strVal):
     ReqUpdatePropertyPayloadAddStrVal(builder, strVal)
+
+def ReqUpdatePropertyPayloadAddData(builder, data):
+    builder.PrependUOffsetTRelativeSlot(10, flatbuffers.number_types.UOffsetTFlags.py_type(data), 0)
+
+def AddData(builder, data):
+    ReqUpdatePropertyPayloadAddData(builder, data)
+
+def ReqUpdatePropertyPayloadStartDataVector(builder, numElems):
+    return builder.StartVector(4, numElems, 4)
+
+def StartDataVector(builder, numElems):
+    return ReqUpdatePropertyPayloadStartDataVector(builder, numElems)
 
 def ReqUpdatePropertyPayloadEnd(builder):
     return builder.EndObject()

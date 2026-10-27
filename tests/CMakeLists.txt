@@ -283,6 +283,10 @@ set(SPECTRA_UNIT_TESTS
     test_export_viewport
     test_headless_export_text
     test_window_defaults
+    test_text_annotation_ipc
+    test_text_annotation_persist
+    test_window_placement
+    test_embed_annotations_c
 )
 
 # Mock transform plugin — shared library loaded by test_plugin_transforms
@@ -389,6 +393,7 @@ set(SPECTRA_GPU_TESTS
     test_shape3d_first_frame
     test_shape2d_first_frame
     test_custom_series_gpu
+    test_embed_annotations_c
 )
 
 foreach(_test ${SPECTRA_UNIT_TESTS})

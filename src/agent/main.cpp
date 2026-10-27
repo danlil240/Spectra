@@ -16,6 +16,7 @@
 #include <spectra/window_defaults.hpp>
 
 #include "../anim/frame_scheduler.hpp"
+#include "../ipc/annotation_state.hpp"
 #include "../ipc/codec.hpp"
 #include "live_series_index.hpp"
 #include "snapshot_figure_builder.hpp"
@@ -237,6 +238,12 @@ void apply_diff_op_to_cache(spectra::ipc::SnapshotFigureState& fig, const spectr
         case spectra::ipc::DiffOp::Type::SET_AXIS_TITLE:
             if (op.axes_index < fig.axes.size())
                 fig.axes[op.axes_index].title = op.str_val;
+            break;
+        case spectra::ipc::DiffOp::Type::ADD_ANNOTATION:
+        case spectra::ipc::DiffOp::Type::SET_ANNOTATION:
+        case spectra::ipc::DiffOp::Type::CLEAR_ANNOTATIONS:
+            if (op.axes_index < fig.axes.size())
+                spectra::ipc::apply_annotation_op(fig.axes[op.axes_index].annotations, op);
             break;
         default:
             // Includes SET_LIVE_FPS (handled on live Figure, not cache).
@@ -1059,6 +1066,30 @@ int main(int argc, char* argv[])
                                 || op.type == spectra::ipc::DiffOp::Type::REMOVE_SERIES)
                             {
                                 needs_rebuild = true;
+                            }
+                            else if (spectra::agent::is_annotation_op(op.type))
+                            {
+                                // Re-sync the live axes from the (already updated) cache.
+                                if (cached && op.axes_index < cached->axes.size())
+                                {
+                                    for (size_t mi = 0;
+                                         mi < assigned_figures.size() && mi < all_ids.size();
+                                         ++mi)
+                                    {
+                                        if (assigned_figures[mi] != op.figure_id)
+                                            continue;
+                                        auto* live_fig = registry.get(all_ids[mi]);
+                                        auto* live_ax =
+                                            live_fig ? dynamic_cast<spectra::Axes*>(
+                                                           live_axes_at(*live_fig, op.axes_index))
+                                                     : nullptr;
+                                        if (live_ax)
+                                            spectra::agent::sync_live_annotations(
+                                                *live_ax,
+                                                cached->axes[op.axes_index].annotations);
+                                        break;
+                                    }
+                                }
                             }
                             else
                             {

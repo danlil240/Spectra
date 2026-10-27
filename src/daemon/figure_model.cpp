@@ -1,5 +1,7 @@
 #include "figure_model.hpp"
 
+#include "../ipc/annotation_state.hpp"
+
 #include <algorithm>
 #include <spectra/color.hpp>
 
@@ -217,6 +219,79 @@ ipc::DiffOp FigureModel::set_axis_title(uint64_t           figure_id,
     op.axes_index = axes_index;
     op.str_val    = title;
     return op;
+}
+
+// --- Text annotations ---
+
+bool FigureModel::add_annotation(uint64_t                            figure_id,
+                                 uint32_t                            axes_index,
+                                 const ipc::SnapshotAnnotationState& annotation,
+                                 ipc::DiffOp*                        op_out)
+{
+    std::lock_guard lock(mu_);
+    auto            it = figures_.find(figure_id);
+    if (it == figures_.end() || axes_index >= it->second.axes.size())
+        return false;
+    auto& list = it->second.axes[axes_index].annotations;
+    list.push_back(annotation);
+    bump_revision();
+    if (op_out)
+        *op_out = ipc::make_annotation_op(ipc::DiffOp::Type::ADD_ANNOTATION,
+                                          figure_id,
+                                          axes_index,
+                                          static_cast<uint32_t>(list.size() - 1),
+                                          &annotation);
+    return true;
+}
+
+bool FigureModel::set_annotation(uint64_t                            figure_id,
+                                 uint32_t                            axes_index,
+                                 uint32_t                            index,
+                                 const ipc::SnapshotAnnotationState& annotation,
+                                 ipc::DiffOp*                        op_out)
+{
+    std::lock_guard lock(mu_);
+    auto            it = figures_.find(figure_id);
+    if (it == figures_.end() || axes_index >= it->second.axes.size())
+        return false;
+    auto& list = it->second.axes[axes_index].annotations;
+    if (index >= list.size())
+        return false;
+    list[index] = annotation;
+    bump_revision();
+    if (op_out)
+        *op_out = ipc::make_annotation_op(ipc::DiffOp::Type::SET_ANNOTATION,
+                                          figure_id,
+                                          axes_index,
+                                          index,
+                                          &annotation);
+    return true;
+}
+
+bool FigureModel::clear_annotations(uint64_t figure_id, uint32_t axes_index, ipc::DiffOp* op_out)
+{
+    std::lock_guard lock(mu_);
+    auto            it = figures_.find(figure_id);
+    if (it == figures_.end() || axes_index >= it->second.axes.size())
+        return false;
+    it->second.axes[axes_index].annotations.clear();
+    bump_revision();
+    if (op_out)
+        *op_out = ipc::make_annotation_op(ipc::DiffOp::Type::CLEAR_ANNOTATIONS,
+                                          figure_id,
+                                          axes_index,
+                                          0,
+                                          nullptr);
+    return true;
+}
+
+size_t FigureModel::annotation_count(uint64_t figure_id, uint32_t axes_index) const
+{
+    std::lock_guard lock(mu_);
+    auto            it = figures_.find(figure_id);
+    if (it == figures_.end() || axes_index >= it->second.axes.size())
+        return 0;
+    return it->second.axes[axes_index].annotations.size();
 }
 
 // --- Series management ---
@@ -775,6 +850,15 @@ bool FigureModel::apply_diff_op(const ipc::DiffOp& op)
             if (it == figures_.end() || op.series_index >= it->second.series.size())
                 return false;
             it->second.series[op.series_index].name = op.str_val;
+            break;
+
+        case ipc::DiffOp::Type::ADD_ANNOTATION:
+        case ipc::DiffOp::Type::SET_ANNOTATION:
+        case ipc::DiffOp::Type::CLEAR_ANNOTATIONS:
+            if (it == figures_.end() || op.axes_index >= it->second.axes.size())
+                return false;
+            if (!ipc::apply_annotation_op(it->second.axes[op.axes_index].annotations, op))
+                return false;
             break;
 
         case ipc::DiffOp::Type::SET_KNOB_VALUE:

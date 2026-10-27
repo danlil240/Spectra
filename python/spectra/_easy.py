@@ -1257,6 +1257,46 @@ def legend(visible: bool = True):
     _current_axes_any().legend(visible)
 
 
+def text(
+    x: float,
+    y: float,
+    s: str,
+    color: Union[str, Tuple, List, None] = None,
+    fontsize: float = 0.0,
+    ha: str = "left",
+    va: str = "bottom",
+):
+    """Place text at data coordinates (x, y) on the current 2D axes.
+
+    Usage::
+
+        sp.text(2.0, 0.5, "peak", color="red", fontsize=16)
+    """
+    ax = _state._ensure_axes()
+    ann = ax.text(x, y, s, color=_parse_color(color), fontsize=fontsize, ha=ha, va=va)
+    _state._show_if_pending()
+    return ann
+
+
+def annotate(
+    s: str,
+    xy: Tuple[float, float],
+    xytext: Optional[Tuple[float, float]] = None,
+    color: Union[str, Tuple, List, None] = None,
+    fontsize: float = 0.0,
+):
+    """Label the point ``xy``; with ``xytext`` the text sits there with an arrow to ``xy``.
+
+    Usage::
+
+        sp.annotate("local max", xy=(3.1, 0.9), xytext=(4.0, 1.2))
+    """
+    ax = _state._ensure_axes()
+    ann = ax.annotate(s, xy, xytext, color=_parse_color(color), fontsize=fontsize)
+    _state._show_if_pending()
+    return ann
+
+
 # ─── Live Streaming / Animation ──────────────────────────────────────────────
 
 def live(

@@ -29,7 +29,7 @@ Advanced usage (full control)::
 
 from ._session import Session
 from ._figure import Figure
-from ._axes import Axes
+from ._axes import Axes, TextAnnotation
 from ._series import Series
 from ._errors import (
     SpectraError,
@@ -76,6 +76,8 @@ from ._easy import (
     ylim,
     grid,
     legend,
+    text,
+    annotate,
     live,
     stop_live,
     append,
@@ -151,6 +153,8 @@ __all__ = [
     "ylim",
     "grid",
     "legend",
+    "text",
+    "annotate",
     "live",
     "stop_live",
     "append",
@@ -164,6 +168,7 @@ __all__ = [
     "Session",
     "Figure",
     "Axes",
+    "TextAnnotation",
     "Series",
     "SpectraError",
     "ConnectionError",

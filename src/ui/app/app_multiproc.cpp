@@ -362,7 +362,8 @@ void App::run_multiproc()
         for_each_snapshot_series(*fig,
                                  [](uint32_t, uint32_t, const Series& s)
                                  { const_cast<Series&>(s).clear_dirty(); });
-        fig_snap.title = default_figure_title(reg_to_ipc[id] - 99);
+        if (fig_snap.title.empty())   // tab_title() wins over "Figure N"
+            fig_snap.title = default_figure_title(reg_to_ipc[id] - 99);
         snap.figures.push_back(std::move(fig_snap));
     }
 
@@ -456,6 +457,20 @@ void App::run_multiproc()
         double xmin, xmax, ymin, ymax;
     };
     std::unordered_map<AxisLimitsKey, SentLimits, AxisLimitsKeyHash, AxisLimitsKeyEq> sent_limits;
+
+    // Last-sent text annotations per axes (seeded from the initial snapshot)
+    // so annotations added or edited by user callbacks reach the windows.
+    std::unordered_map<AxisLimitsKey,
+                       std::vector<ipc::SnapshotAnnotationState>,
+                       AxisLimitsKeyHash,
+                       AxisLimitsKeyEq>
+        sent_annotations;
+    for (const auto& fs : snap.figures)
+    {
+        for (size_t ai = 0; ai < fs.axes.size(); ++ai)
+            sent_annotations[AxisLimitsKey{fs.figure_id, static_cast<uint32_t>(ai)}] =
+                fs.axes[ai].annotations;
+    }
 
     // Wait until all agent windows are closed (backend sends CMD_CLOSE_WINDOW or drops connection)
     auto                  last_heartbeat     = std::chrono::steady_clock::now();
@@ -605,6 +620,33 @@ void App::run_multiproc()
                         }
 
                         axes_idx++;
+                    }
+
+                    // Text annotations: emit ops when Axes::text()/annotate()
+                    // changed, addressed by snapshot axes slot.
+                    const size_t slots = snapshot_axes_slot_count(*fig);
+                    for (size_t slot = 0; slot < slots; ++slot)
+                    {
+                        auto* ax2d = dynamic_cast<const Axes*>(snapshot_axes_at(*fig, slot));
+                        if (!ax2d)
+                            continue;
+                        const auto    slot_idx = static_cast<uint32_t>(slot);
+                        AxisLimitsKey key{reg_to_ipc[id], slot_idx};
+                        std::vector<ipc::SnapshotAnnotationState> now_ann;
+                        now_ann.reserve(ax2d->annotations().size());
+                        for (const auto& ann : ax2d->annotations())
+                        {
+                            if (ann)
+                                now_ann.push_back(ipc::annotation_to_state(*ann));
+                        }
+                        auto& sent = sent_annotations[key];
+                        if (now_ann != sent)
+                        {
+                            for (auto& op :
+                                 ipc::diff_annotations(sent, now_ann, reg_to_ipc[id], slot_idx))
+                                diff.ops.push_back(std::move(op));
+                            sent = std::move(now_ann);
+                        }
                     }
 
                     // Series data: index the series figure-wide, in snapshot

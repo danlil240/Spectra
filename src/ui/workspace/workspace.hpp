@@ -75,6 +75,25 @@ struct WorkspaceData
         float shininess     = 0.0f;
     };
 
+    // 2D text annotation (Axes::text / Axes::annotate).  Stored in the
+    // figure-level "text_annotations" array; files without it (v1-v4 and
+    // older builds) load with has_text_annotations == false and apply()
+    // then leaves the axes' annotations untouched.
+    struct TextAnnotationState
+    {
+        size_t      axes_index = 0;
+        float       x = 0.0f, y = 0.0f;
+        std::string text;
+        bool        has_color = false;   // false = theme text colour
+        float       color_r = 0.0f, color_g = 0.0f, color_b = 0.0f, color_a = 1.0f;
+        float       font_size = 0.0f;
+        int         halign    = 0;   // TextAnnotation::HAlign
+        int         valign    = 2;   // TextAnnotation::VAlign
+        bool        has_arrow = false;
+        float       arrow_x = 0.0f, arrow_y = 0.0f;
+        bool        visible = true;
+    };
+
     struct FigureState
     {
         std::string              title;
@@ -87,6 +106,8 @@ struct WorkspaceData
         std::vector<AxisState>   axes;
         std::vector<SeriesState> series;
         std::vector<Axes3DState> axes_3d;   // v4: 3D axes state
+        std::vector<TextAnnotationState> text_annotations;
+        bool                             has_text_annotations = false;   // key present in file
     };
 
     struct PanelState

@@ -228,6 +228,9 @@ std::optional<ReqUpdatePropertyPayload> tlv_decode_req_update_property(
             case TAG_STR_VAL:
                 p.str_val = dec.as_string();
                 break;
+            case TAG_OP_DATA:   // bulk floats ("annotation")
+                p.data = tlv_payload_as_float_array(dec);
+                break;
             default:
                 break;
         }

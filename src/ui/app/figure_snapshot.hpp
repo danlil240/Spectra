@@ -26,6 +26,7 @@
 #include <utility>
 #include <vector>
 
+#include "ipc/annotation_state.hpp"
 #include "ipc/message.hpp"
 
 namespace spectra
@@ -430,7 +431,7 @@ inline ipc::SnapshotFigureState figure_to_snapshot(const Figure& fig, uint64_t f
 {
     ipc::SnapshotFigureState snap;
     snap.figure_id = figure_id;
-    snap.title     = "";
+    snap.title     = fig.tab_title();   // empty = caller / window picks "Figure N"
     snap.width     = fig.width();
     snap.height    = fig.height();
     snap.grid_rows = fig.grid_rows();
@@ -451,6 +452,11 @@ inline ipc::SnapshotFigureState figure_to_snapshot(const Figure& fig, uint64_t f
             sa.y_max   = ax->y_limits().max;
             sa.x_label = ax->xlabel();
             sa.y_label = ax->ylabel();
+            for (const auto& ann : ax->annotations())
+            {
+                if (ann)
+                    sa.annotations.push_back(ipc::annotation_to_state(*ann));
+            }
         }
         else if (auto* ax3 = dynamic_cast<const Axes3D*>(base))
         {

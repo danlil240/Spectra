@@ -57,6 +57,9 @@ enum ChunkTag : uint16_t
     TAG_ANNOTATION     = 0x0040,
     TAG_MARKER         = 0x0041,
     TAG_OVERLAY_CONFIG = 0x0042,
+    // Axes::text()/annotate() annotation of a 2D axes.  Added without a
+    // version bump: older readers skip unknown chunks.
+    TAG_TEXT_ANNOTATION = 0x0043,
 
     TAG_END = 0xFFFF,
 };
@@ -407,6 +410,28 @@ static void write_axes_2d(BinaryWriter& w, const Axes& axes, int axes_index)
             w.write_floats(bs->bar_heights());
             w.end_series_chunk(spos, *sp);
         }
+    }
+
+    // Text annotations, in draw order
+    for (const auto& ann : axes.annotations())
+    {
+        if (!ann)
+            continue;
+        auto apos = w.begin_chunk(TAG_TEXT_ANNOTATION);
+        w.write_i32(axes_index);
+        w.write_f32(ann->x());
+        w.write_f32(ann->y());
+        w.write_string(ann->text());
+        w.write_u8(ann->color() ? 1 : 0);
+        w.write_color(ann->color().value_or(Color{}));
+        w.write_f32(ann->font_size());
+        w.write_u8(static_cast<uint8_t>(ann->halign()));
+        w.write_u8(static_cast<uint8_t>(ann->valign()));
+        w.write_u8(ann->has_arrow() ? 1 : 0);
+        w.write_f32(ann->arrow_x());
+        w.write_f32(ann->arrow_y());
+        w.write_u8(ann->visible() ? 1 : 0);
+        w.end_chunk(apos);
     }
 }
 
@@ -1570,6 +1595,38 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 {
                     r.skip(len);
                 }
+                break;
+            }
+
+            case TAG_TEXT_ANNOTATION:
+            {
+                int32_t     ai        = r.read_i32();
+                float       x         = r.read_f32();
+                float       y         = r.read_f32();
+                std::string text      = r.read_string();
+                bool        has_color = r.read_u8() != 0;
+                Color       color     = r.read_color();
+                float       font_size = r.read_f32();
+                uint8_t     halign    = r.read_u8();
+                uint8_t     valign    = r.read_u8();
+                bool        has_arrow = r.read_u8() != 0;
+                float       arrow_x   = r.read_f32();
+                float       arrow_y   = r.read_f32();
+                bool        visible   = r.read_u8() != 0;
+                Axes*       axes      = (ai >= 0 && static_cast<size_t>(ai) < axes_ptrs.size())
+                                            ? dynamic_cast<Axes*>(axes_ptrs[static_cast<size_t>(ai)])
+                                            : nullptr;
+                if (!axes || !r.good())
+                    break;
+                auto& ann = axes->text(x, y, text);
+                ann.font_size(font_size)
+                    .halign(static_cast<TextAnnotation::HAlign>(halign <= 2 ? halign : 0))
+                    .valign(static_cast<TextAnnotation::VAlign>(valign <= 2 ? valign : 2))
+                    .visible(visible);
+                if (has_color)
+                    ann.color(color);
+                if (has_arrow)
+                    ann.arrow_to(arrow_x, arrow_y);
                 break;
             }
 

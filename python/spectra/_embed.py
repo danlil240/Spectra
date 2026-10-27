@@ -314,6 +314,57 @@ def _load_lib() -> ctypes.CDLL:
     _lib.spectra_embed_set_show_inspector.argtypes = [ctypes.c_void_p, ctypes.c_int]
     _lib.spectra_embed_set_show_inspector.restype = None
 
+    # Text annotations (absent from libraries built before they existed)
+    if hasattr(_lib, "spectra_axes_text"):
+        _lib.spectra_axes_text.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_float,
+            ctypes.c_float,
+            ctypes.c_char_p,
+        ]
+        _lib.spectra_axes_text.restype = ctypes.c_int
+        _lib.spectra_axes_annotate.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_char_p,
+            ctypes.c_float,
+            ctypes.c_float,
+            ctypes.c_float,
+            ctypes.c_float,
+        ]
+        _lib.spectra_axes_annotate.restype = ctypes.c_int
+        _lib.spectra_axes_annotation_count.argtypes = [ctypes.c_void_p]
+        _lib.spectra_axes_annotation_count.restype = ctypes.c_int
+        _lib.spectra_axes_annotation_set_color.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_int,
+            ctypes.c_float,
+            ctypes.c_float,
+            ctypes.c_float,
+            ctypes.c_float,
+        ]
+        _lib.spectra_axes_annotation_set_color.restype = None
+        _lib.spectra_axes_annotation_set_font_size.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_int,
+            ctypes.c_float,
+        ]
+        _lib.spectra_axes_annotation_set_font_size.restype = None
+        _lib.spectra_axes_annotation_set_align.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_int,
+            ctypes.c_int,
+            ctypes.c_int,
+        ]
+        _lib.spectra_axes_annotation_set_align.restype = None
+        _lib.spectra_axes_annotation_set_visible.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_int,
+            ctypes.c_int,
+        ]
+        _lib.spectra_axes_annotation_set_visible.restype = None
+        _lib.spectra_axes_clear_annotations.argtypes = [ctypes.c_void_p]
+        _lib.spectra_axes_clear_annotations.restype = None
+
     # Axes configuration
     _lib.spectra_axes_set_xlabel.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
     _lib.spectra_axes_set_xlabel.restype = None
@@ -973,6 +1024,57 @@ class EmbedAxes:
             series.set_scatter_colormap(cmap or "viridis")
             series.set_scatter_colors(c)
         return series
+
+    def text(
+        self,
+        x: float,
+        y: float,
+        s: str,
+        color: Optional[Tuple[float, float, float, float]] = None,
+        fontsize: float = 0.0,
+        ha: str = "left",
+        va: str = "bottom",
+    ) -> int:
+        """Place text at data coordinates (x, y). Returns the annotation index."""
+        idx = self._lib.spectra_axes_text(self._handle, x, y, s.encode("utf-8"))
+        if idx < 0:
+            raise RuntimeError("Failed to add text annotation")
+        self._style_annotation(idx, color, fontsize, ha, va)
+        return idx
+
+    def annotate(
+        self,
+        s: str,
+        xy: Tuple[float, float],
+        xytext: Tuple[float, float],
+        color: Optional[Tuple[float, float, float, float]] = None,
+        fontsize: float = 0.0,
+    ) -> int:
+        """Place text centred at ``xytext`` with an arrow to ``xy``. Returns its index."""
+        idx = self._lib.spectra_axes_annotate(
+            self._handle, s.encode("utf-8"), xy[0], xy[1], xytext[0], xytext[1]
+        )
+        if idx < 0:
+            raise RuntimeError("Failed to add annotation")
+        self._style_annotation(idx, color, fontsize, None, None)
+        return idx
+
+    def _style_annotation(self, idx, color, fontsize, ha, va) -> None:
+        if color is not None:
+            c = tuple(color) + (1.0,) * (4 - len(color))
+            self._lib.spectra_axes_annotation_set_color(self._handle, idx, *c[:4])
+        if fontsize:
+            self._lib.spectra_axes_annotation_set_font_size(self._handle, idx, fontsize)
+        if ha is not None or va is not None:
+            h = {"left": 0, "center": 1, "right": 2}[ha or "left"]
+            v = {"top": 0, "middle": 1, "center": 1, "bottom": 2}[va or "bottom"]
+            self._lib.spectra_axes_annotation_set_align(self._handle, idx, h, v)
+
+    def annotation_count(self) -> int:
+        return int(self._lib.spectra_axes_annotation_count(self._handle))
+
+    def clear_annotations(self) -> None:
+        self._lib.spectra_axes_clear_annotations(self._handle)
 
     def set_xlabel(self, label: str) -> None:
         """Set the X-axis label."""

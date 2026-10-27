@@ -90,4 +90,12 @@ inline bool is_series_property_op(ipc::DiffOp::Type t)
     }
 }
 
+// True for DiffOps that edit an axes' text annotations (series_index is the
+// annotation index, not a series).
+inline bool is_annotation_op(ipc::DiffOp::Type t)
+{
+    return t == ipc::DiffOp::Type::ADD_ANNOTATION || t == ipc::DiffOp::Type::SET_ANNOTATION
+           || t == ipc::DiffOp::Type::CLEAR_ANNOTATIONS;
+}
+
 }   // namespace spectra::agent

@@ -72,6 +72,29 @@ class FigureModel
     // Set axis title. Returns a DiffOp.
     ipc::DiffOp set_axis_title(uint64_t figure_id, uint32_t axes_index, const std::string& title);
 
+    // --- Text annotations (2D axes) ---
+    // Each returns false (no change, no revision bump) when the figure, axes or
+    // annotation index does not exist; on success *op_out holds the diff.
+
+    // Append an annotation to an axes.
+    bool add_annotation(uint64_t                            figure_id,
+                        uint32_t                            axes_index,
+                        const ipc::SnapshotAnnotationState& annotation,
+                        ipc::DiffOp*                        op_out);
+
+    // Replace annotation @p index of an axes.
+    bool set_annotation(uint64_t                            figure_id,
+                        uint32_t                            axes_index,
+                        uint32_t                            index,
+                        const ipc::SnapshotAnnotationState& annotation,
+                        ipc::DiffOp*                        op_out);
+
+    // Remove every annotation of an axes.
+    bool clear_annotations(uint64_t figure_id, uint32_t axes_index, ipc::DiffOp* op_out);
+
+    // Number of annotations on an axes (0 when unknown).
+    size_t annotation_count(uint64_t figure_id, uint32_t axes_index) const;
+
     // --- Series management ---
 
     // Add a series to a figure's axes. Returns the series index.

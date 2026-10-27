@@ -340,9 +340,9 @@ std::string marker_content(MarkerStyle ms, float size)
         {
             if (i > 0)
                 out += ' ';
-            put_num(out, uv[i].x * k);
+            put_num(out, static_cast<double>(uv[i].x) * k);
             out += ',';
-            put_num(out, -uv[i].y * k);
+            put_num(out, -static_cast<double>(uv[i].y) * k);
         }
         out += "\"";
         if (filled)

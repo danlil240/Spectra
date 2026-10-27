@@ -160,6 +160,7 @@ void main() {
 
     float d;
     bool is_filled = true;
+    bool has_edge = false;
     // Stroke width in UV space — visible and crisp at all sizes
     float stroke_w = clamp(4.0 / point_size, 0.08, 0.25);
 
@@ -168,6 +169,7 @@ void main() {
     // 6=Square, 7=Diamond, 8=TriUp, 9=TriDown, 10=TriLeft, 11=TriRight,
     // 12=Pentagon, 13=Hexagon,
     // 14=FilledCircle, 15=FilledSquare, 16=FilledDiamond, 17=FilledTriUp
+    // 18=default scatter dot (internal): filled circle with a contrasting edge
 
     switch (marker_type) {
         case 1u: // Point — small filled circle
@@ -238,6 +240,11 @@ void main() {
             d = sdf_triangle_up(v_uv);
             is_filled = true;
             break;
+        case 18u: // Default scatter dot (no explicit marker style)
+            d = sdf_circle(v_uv);
+            is_filled = true;
+            has_edge = true;
+            break;
         default: // Fallback: filled circle
             d = sdf_circle(v_uv);
             is_filled = true;
@@ -264,6 +271,15 @@ void main() {
         float range = value_max - value_min;
         float t = abs(range) > 1e-20 ? (v_color_value - value_min) / range : 0.5;
         base_color = apply_colormap(dash_count, t);
+    }
+
+    // Default scatter dot: tint a ~1 px rim towards white (_pad2[1] > 0) or
+    // black (_pad2[1] < 0) so dark or light colors stay visible on the canvas.
+    if (has_edge) {
+        float edge_w = clamp(1.0 / (point_size * 0.5 + 1.0), 0.06, 0.3);
+        float rim = smoothstep(-edge_w - aa, -edge_w + aa, d);
+        vec3 target = _pad2[1] >= 0.0 ? vec3(1.0) : vec3(0.0);
+        base_color = mix(base_color, mix(base_color, target, abs(_pad2[1])), rim);
     }
 
     out_color = vec4(base_color, color.a * opacity * alpha);

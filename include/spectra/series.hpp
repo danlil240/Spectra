@@ -431,7 +431,7 @@ class ScatterSeries : public Series
    private:
     std::vector<float> x_;
     std::vector<float> y_;
-    float              point_size_ = 4.0f;
+    float              point_size_ = 6.0f;   // default marker diameter in pixels
     bool               x_sorted_   = true;
     // Colormap support
     std::vector<float> color_values_;

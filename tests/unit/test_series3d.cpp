@@ -186,7 +186,7 @@ TEST(ScatterSeries3D, DefaultConstruction)
 {
     ScatterSeries3D series;
     EXPECT_EQ(series.point_count(), 0);
-    EXPECT_FLOAT_EQ(series.size(), 4.0f);
+    EXPECT_FLOAT_EQ(series.size(), 6.0f);
 }
 
 TEST(ScatterSeries3D, ConstructionWithData)

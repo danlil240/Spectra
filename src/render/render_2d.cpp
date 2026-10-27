@@ -20,6 +20,7 @@
 #include "ui/viewmodel/series_view_model.hpp"
 #include "ui/workspace/plugin_guard.hpp"
 
+#include "render/scatter_marker.hpp"
 #include "ui/theme/theme.hpp"
 
 namespace spectra
@@ -227,17 +228,14 @@ void Renderer::render_series(Series&             series,
                 pc._pad2[0]        = 1.0f;
             }
             backend_.bind_pipeline(use_colormap ? scatter_colormap_pipeline_ : scatter_pipeline_);
-            pc.point_size  = scatter->size();
-            pc.marker_type = static_cast<uint32_t>(style.marker_style);
-            if (pc.marker_type == 0)
-            {
-                const auto& theme_colors = theme_mgr_.colors();
-                float       bg_luma      = 0.2126f * theme_colors.bg_canvas.r
-                                + 0.7152f * theme_colors.bg_canvas.g
-                                + 0.0722f * theme_colors.bg_canvas.b;
-                pc.marker_type = static_cast<uint32_t>(bg_luma > 0.80f ? MarkerStyle::FilledCircle
-                                                                       : MarkerStyle::Circle);
-            }
+            pc.point_size = scatter->size();
+            // No explicit marker style: filled dot with a theme-contrasting edge.
+            const ScatterMarkerParams marker =
+                resolve_scatter_marker(style.marker_style,
+                                       use_colormap,
+                                       theme_mgr_.colors().bg_canvas.luminance());
+            pc.marker_type = marker.marker_type;
+            pc._pad2[1]    = marker.edge_mix;
             backend_.push_constants(pc);
             backend_.bind_buffer(gpu.ssbo, 0);
             backend_.draw_instanced(6, static_cast<uint32_t>(scatter->point_count()));
@@ -266,11 +264,14 @@ void Renderer::render_series(Series&             series,
             backend_.bind_pipeline(is_transparent ? scatter3d_transparent_pipeline_
                                                   : scatter3d_pipeline_);
             pc.point_size = scatter3d->size();
-            // Honour the series' marker style (filled, square, ...); scatter3
-            // without an explicit style keeps the hollow circle.
-            const MarkerStyle ms3d = scatter3d->marker_style();
-            pc.marker_type =
-                static_cast<uint32_t>(ms3d == MarkerStyle::None ? MarkerStyle::Circle : ms3d);
+            // Honour the series' marker style (filled, square, ...); without an
+            // explicit style use the same default dot as 2D scatter.
+            const ScatterMarkerParams marker =
+                resolve_scatter_marker(scatter3d->marker_style(),
+                                       false,
+                                       theme_mgr_.colors().bg_canvas.luminance());
+            pc.marker_type = marker.marker_type;
+            pc._pad2[1]    = marker.edge_mix;
             backend_.push_constants(pc);
             backend_.bind_buffer(gpu.ssbo, 0);
             backend_.draw_instanced(6, static_cast<uint32_t>(scatter3d->point_count()));

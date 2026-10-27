@@ -680,6 +680,7 @@ if(SPECTRA_USE_IMGUI AND (SPECTRA_USE_GLFW OR SPECTRA_USE_SDL3))
         src/ui/commands/command_palette.cpp
         src/ui/commands/command_registry.cpp
         src/ui/imgui/axes_context_menu_model.cpp
+        src/ui/commands/welcome_actions.cpp
         src/ui/commands/shortcut_manager.cpp
         src/ui/commands/undo_manager.cpp
         src/ui/workspace/workspace.cpp

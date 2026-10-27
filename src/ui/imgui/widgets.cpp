@@ -1113,6 +1113,72 @@ void panel_title(const char* title, const char* subtitle, ImFont* title_font)
 
 // ─── Phase ROS UX Primitives ────────────────────────────────────────────────
 
+int empty_state_actions(std::span<const EmptyStateAction> actions, float start_x, float max_w)
+{
+    if (actions.empty())
+        return -1;
+    const auto&         c       = theme();
+    int                 clicked = -1;
+    float               total_w = 0.0f;
+    std::vector<ImVec2> sizes;
+    sizes.reserve(actions.size());
+    for (const EmptyStateAction& action : actions)
+    {
+        const ImVec2 text_sz = ImGui::CalcTextSize(action.label ? action.label : "");
+        ImVec2 size(std::max(72.0f, text_sz.x + tokens::SPACE_4 * 2.0f), ImGui::GetFrameHeight());
+        sizes.push_back(size);
+        total_w += size.x;
+    }
+    total_w += tokens::EMPTY_STATE_ACTION_GAP * static_cast<float>(actions.size() - 1);
+    const bool stack_actions = total_w > max_w;
+    if (!stack_actions)
+        ImGui::SetCursorPosX(start_x + std::max(0.0f, (max_w - total_w) * 0.5f));
+
+    for (size_t i = 0; i < actions.size(); ++i)
+    {
+        const EmptyStateAction& action = actions[i];
+        if (stack_actions && i > 0)
+        {
+            ImGui::SetCursorPosX(start_x + std::max(0.0f, (max_w - sizes[i].x) * 0.5f));
+        }
+        ImGui::PushID(action.id ? action.id : action.label);
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_MD);
+        if (action.primary)
+        {
+            ImGui::PushStyleColor(ImGuiCol_Button,
+                                  ImVec4(c.accent.r, c.accent.g, c.accent.b, 0.85f));
+            ImGui::PushStyleColor(
+                ImGuiCol_ButtonHovered,
+                ImVec4(c.accent_hover.r, c.accent_hover.g, c.accent_hover.b, 0.95f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive,
+                                  ImVec4(c.accent.r, c.accent.g, c.accent.b, 1.0f));
+        }
+        else
+        {
+            ImGui::PushStyleColor(ImGuiCol_Button,
+                                  ImVec4(c.bg_tertiary.r, c.bg_tertiary.g, c.bg_tertiary.b, 0.75f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
+                                  ImVec4(c.bg_elevated.r, c.bg_elevated.g, c.bg_elevated.b, 0.95f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive,
+                                  ImVec4(c.accent.r, c.accent.g, c.accent.b, 0.25f));
+        }
+        if (ImGui::Button(action.label ? action.label : "", sizes[i]))
+        {
+            clicked = static_cast<int>(i);
+            log_ui_action("widget",
+                          action.label ? action.label : "empty_action",
+                          "ok",
+                          "empty_state");
+        }
+        ImGui::PopStyleColor(3);
+        ImGui::PopStyleVar();
+        ImGui::PopID();
+        if (i + 1 < actions.size())
+            ImGui::SameLine(0.0f, tokens::EMPTY_STATE_ACTION_GAP);
+    }
+    return clicked;
+}
+
 int empty_state(ui::Icon icon,
                 const char* title,
                 const char* subtitle,
@@ -1168,69 +1234,7 @@ int empty_state(ui::Icon icon,
     if (!actions.empty())
     {
         ImGui::Dummy(ImVec2(0.0f, tokens::SPACE_2));
-        float total_w = 0.0f;
-        std::vector<ImVec2> sizes;
-        sizes.reserve(actions.size());
-        for (const EmptyStateAction& action : actions)
-        {
-            const ImVec2 text_sz = ImGui::CalcTextSize(action.label ? action.label : "");
-            ImVec2 size(std::max(72.0f, text_sz.x + tokens::SPACE_4 * 2.0f),
-                        ImGui::GetFrameHeight());
-            sizes.push_back(size);
-            total_w += size.x;
-        }
-        total_w += tokens::EMPTY_STATE_ACTION_GAP * static_cast<float>(actions.size() - 1);
-        const bool stack_actions = total_w > max_w;
-        if (!stack_actions)
-            ImGui::SetCursorPosX(start_x + std::max(0.0f, (max_w - total_w) * 0.5f));
-
-        for (size_t i = 0; i < actions.size(); ++i)
-        {
-            const EmptyStateAction& action = actions[i];
-            if (stack_actions && i > 0)
-            {
-                ImGui::SetCursorPosX(start_x + std::max(0.0f, (max_w - sizes[i].x) * 0.5f));
-            }
-            ImGui::PushID(action.id ? action.id : action.label);
-            ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_MD);
-            if (action.primary)
-            {
-                ImGui::PushStyleColor(ImGuiCol_Button,
-                                      ImVec4(c.accent.r, c.accent.g, c.accent.b, 0.85f));
-                ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
-                                      ImVec4(c.accent_hover.r,
-                                             c.accent_hover.g,
-                                             c.accent_hover.b,
-                                             0.95f));
-                ImGui::PushStyleColor(ImGuiCol_ButtonActive,
-                                      ImVec4(c.accent.r, c.accent.g, c.accent.b, 1.0f));
-            }
-            else
-            {
-                ImGui::PushStyleColor(ImGuiCol_Button,
-                                      ImVec4(c.bg_tertiary.r,
-                                             c.bg_tertiary.g,
-                                             c.bg_tertiary.b,
-                                             0.75f));
-                ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
-                                      ImVec4(c.bg_elevated.r,
-                                             c.bg_elevated.g,
-                                             c.bg_elevated.b,
-                                             0.95f));
-                ImGui::PushStyleColor(ImGuiCol_ButtonActive,
-                                      ImVec4(c.accent.r, c.accent.g, c.accent.b, 0.25f));
-            }
-            if (ImGui::Button(action.label ? action.label : "", sizes[i]))
-            {
-                clicked = static_cast<int>(i);
-                log_ui_action("widget", action.label ? action.label : "empty_action", "ok", "empty_state");
-            }
-            ImGui::PopStyleColor(3);
-            ImGui::PopStyleVar();
-            ImGui::PopID();
-            if (i + 1 < actions.size())
-                ImGui::SameLine(0.0f, tokens::EMPTY_STATE_ACTION_GAP);
-        }
+        clicked = empty_state_actions(actions, start_x, max_w);
     }
 
     ImGui::EndGroup();

@@ -457,6 +457,8 @@ static void populate_all_features_figure(spectra::Figure&  fig,
     ax_signals.ylabel("amplitude");
     ax_signals.grid(true);
     ax_signals.auto_fit();
+    // Headroom above the signals (|y| <= 1.22) leaves the top band free for the legend.
+    ax_signals.ylim(-1.5, 2.4);
 
     // 2) Scatter + trend panel
     reseed_scatter(scene, phase_seed + 0.75f);
@@ -485,6 +487,8 @@ static void populate_all_features_figure(spectra::Figure&  fig,
     ax_phase.ylabel("y");
     ax_phase.grid(true);
     ax_phase.auto_fit();
+    // The animated cloud stays within |y| <= 2.3; keep the legend band above it.
+    ax_phase.ylim(-2.8, 4.4);
 
     // 3) Statistical series panel (histogram + bars)
     std::vector<float> hist_values;
@@ -494,29 +498,52 @@ static void populate_all_features_figure(spectra::Figure&  fig,
         const float t = static_cast<float>(i) * 0.029f;
         hist_values.push_back(std::sin(t) + 0.45f * std::sin(2.7f * t + 0.35f * phase_seed));
     }
-    ax_stats.histogram(hist_values, 28)
+    constexpr int k_hist_bins = 28;
+    ax_stats.histogram(hist_values, k_hist_bins)
         .label("distribution")
         .color(spectra::colors::green)
         .opacity(0.55f);
 
-    std::vector<float> bands_x = {1.f, 2.f, 3.f, 4.f, 5.f, 6.f};
-    std::vector<float> bands_y;
-    bands_y.reserve(bands_x.size());
-    for (float x : bands_x)
+    // "bands": the same samples in 6 coarse bands drawn over the histogram.  Each bar is
+    // the band's mean count per histogram bin, so bars and histogram share one y scale
+    // and one x range (bars used to sit at x = 1..6 with heights below 1 while the
+    // histogram counts reached ~75, which left them as slivers on the axis).
+    constexpr int k_band_count = 6;
+    const auto [lo_it, hi_it]  = std::minmax_element(hist_values.begin(), hist_values.end());
+    const float        lo      = *lo_it;
+    const float        band_w  = (*hi_it - lo) / static_cast<float>(k_band_count);
+    std::vector<float> bands_x(k_band_count), bands_y(k_band_count, 0.0f);
+    for (float v : hist_values)
     {
-        bands_y.push_back(0.25f + 0.35f * (1.0f + std::sin(x * 1.6f + phase_seed)));
+        const int b = std::clamp(static_cast<int>((v - lo) / band_w), 0, k_band_count - 1);
+        bands_y[b] += 1.0f;
+    }
+    const float bins_per_band = static_cast<float>(k_hist_bins) / static_cast<float>(k_band_count);
+    for (int b = 0; b < k_band_count; ++b)
+    {
+        bands_x[b] = lo + band_w * (static_cast<float>(b) + 0.5f);
+        bands_y[b] /= bins_per_band;
     }
     ax_stats.bar(bands_x, bands_y)
-        .label("bands")
+        .label("bands (mean / bin)")
         .color(spectra::Color{0.19f, 0.63f, 0.95f, 1.0f})
-        .bar_width(0.6f)
-        .opacity(0.7f);
+        .bar_width(band_w * 0.8f)
+        .opacity(0.45f);
 
     ax_stats.title("Histogram + Bar");
-    ax_stats.xlabel("bin / category");
-    ax_stats.ylabel("value");
+    ax_stats.xlabel("value");
+    ax_stats.ylabel("count");
     ax_stats.grid(true);
     ax_stats.auto_fit();
+    // Room above the tallest histogram bin for the legend.
+    std::vector<int> bin_counts(k_hist_bins, 0);
+    const float      bin_w = (*hi_it - lo) / static_cast<float>(k_hist_bins);
+    for (float v : hist_values)
+    {
+        ++bin_counts[std::clamp(static_cast<int>((v - lo) / bin_w), 0, k_hist_bins - 1)];
+    }
+    const int max_count = *std::max_element(bin_counts.begin(), bin_counts.end());
+    ax_stats.ylim(0.0, 1.45 * static_cast<double>(max_count));
 
     // 4) 3D panel (line + scatter + lit surface)
     std::vector<float> x3d(220), y3d(220), z3d(220);
@@ -583,8 +610,10 @@ static void populate_all_features_figure(spectra::Figure&  fig,
     ax_3d.lighting_enabled(true);
     ax_3d.auto_fit();
 
+    // Best: each plot's legend goes to the corner with the least data under it (with
+    // hysteresis, so it does not jump around while the signals animate).
     fig.legend().visible  = true;
-    fig.legend().position = spectra::LegendPosition::TopRight;
+    fig.legend().position = spectra::LegendPosition::Best;
 }
 
 static void tick_all_features_scene(AllFeaturesScene& scene, float dt)
@@ -684,6 +713,13 @@ int main(int argc, char* argv[])
         qFatal("Failed to initialize Spectra Vulkan runtime");
         return 1;
     }
+
+    // Native Qt chrome (status bar, splitter, window background) follows the Spectra
+    // theme, including later theme switches made from the in-canvas UI.  Fusion honours
+    // the application palette on every platform.
+    QApplication::setStyle(QStringLiteral("Fusion"));
+    runtime.set_theme_changed_callback([](const QPalette& palette)
+                                       { QApplication::setPalette(palette); });
 
     QMainWindow main_window;
     main_window.setWindowTitle(multi_canvas ? "Spectra — Qt Embed All Features (Multi Canvas)"

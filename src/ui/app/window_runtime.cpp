@@ -13,6 +13,8 @@
 #include "window_ui_context.hpp"
 #include "zoom_level.hpp"
 
+#include <limits>
+
 #ifdef SPECTRA_USE_GLFW
     #define GLFW_INCLUDE_NONE
     #define GLFW_INCLUDE_VULKAN
@@ -611,29 +613,33 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
 
             if (needs_recompute)
             {
-                float data_min = xlim.max;
-                float data_max = xlim.min;
+                float data_min = std::numeric_limits<float>::infinity();
+                float data_max = -std::numeric_limits<float>::infinity();
                 for (auto& s : ax->series())
                 {
-                    if (!s)
+                    // Reference lines (axhline/axvline) span +-1e12: not data.
+                    if (!s || s->is_reference_line())
                         continue;
                     std::span<const float> xd;
                     if (auto* ls = dynamic_cast<LineSeries*>(s.get()))
                         xd = ls->x_data();
                     else if (auto* sc = dynamic_cast<ScatterSeries*>(s.get()))
                         xd = sc->x_data();
-                    if (!xd.empty())
-                    {
-                        auto [it_min, it_max] = std::minmax_element(xd.begin(), xd.end());
-                        data_min              = std::min(data_min, *it_min);
-                        data_max              = std::max(data_max, *it_max);
-                    }
+                    // Also drops sentinel endpoints of reference lines that
+                    // arrived as plain series (Python hline over IPC).
+                    accumulate_zoom_extent(xd, data_min, data_max);
                 }
                 zoom_vm.set_zoom_cache(data_min, data_max, series_count);
             }
 
             float data_range = zoom_vm.cached_data_max() - zoom_vm.cached_data_min();
-            if (view_range > 0.0f && data_range > 0.0f)
+            if (!(data_range > 0.0f))
+            {
+                // No finite data extent (e.g. only reference lines): nothing
+                // to compare the view with, so report the unzoomed level.
+                imgui_ui->set_zoom_level(1.0f);
+            }
+            else if (view_range > 0.0f)
             {
                 // 100% = the autoscaled view (which includes padding), not the raw extent.
                 const double pad =

@@ -129,6 +129,10 @@ void ThemeManager::register_theme(const std::string& name, Theme theme)
 
 void ThemeManager::set_theme(const std::string& name)
 {
+    // A freshly constructed manager has no themes yet; register the built-ins first so a
+    // startup request such as set_theme("dark") is honoured instead of silently ignored
+    // (and later overridden by ensure_initialized()'s "night" fallback).
+    ensure_initialized();
     auto it = themes_.find(name);
     if (it != themes_.end())
     {

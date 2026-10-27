@@ -129,8 +129,17 @@ bool QtRuntime::init()
     // Register the Qt-owned ThemeManager as the active instance.
     ui::ThemeManager::set_current(&theme_mgr_);
 
-    // Apply dark theme by default
-    theme_mgr_.set_theme("dark");
+    // Register the built-in themes before selecting one: set_theme() on an empty manager
+    // used to be a no-op, so the requested theme was lost and ImGui init later fell back
+    // to "night".  Applying it here means the first presented frame already uses it.
+    theme_mgr_.ensure_initialized();
+    theme_mgr_.set_theme(DEFAULT_THEME);
+    if (theme_mgr_.current_theme_name() != DEFAULT_THEME)
+    {
+        SPECTRA_LOG_WARN("qt_runtime",
+                         std::string("Unknown theme '") + DEFAULT_THEME + "', using '"
+                             + theme_mgr_.current_theme_name() + "'");
+    }
 
     initialized_ = true;
     SPECTRA_LOG_INFO("qt_runtime",

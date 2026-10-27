@@ -457,6 +457,10 @@ void Renderer::render_figure_content(Figure& figure)
 void Renderer::render_figure_content(Figure& figure, FigureViewModel* fig_vm)
 {
     figure_vm_ = fig_vm;
+
+    // Auto-coloured series follow the active theme's data palette (P0-6).
+    ui::resolve_auto_series_colors(figure, theme_mgr_.current_data_palette());
+
     uint32_t w = figure.width();
     uint32_t h = figure.height();
 

@@ -10,7 +10,10 @@
 #include <cassert>
 #include <filesystem>
 #include <fstream>
+#include <spectra/axes.hpp>
+#include <spectra/color.hpp>
 #include <spectra/event_bus.hpp>
+#include <spectra/figure.hpp>
 #include <spectra/logger.hpp>
 #include <sstream>
 #include <vector>
@@ -213,14 +216,27 @@ void ThemeManager::set_data_palette(const std::string& palette_name)
     auto it = data_palettes_.find(palette_name);
     if (it != data_palettes_.end())
     {
+        // The selection is global: it does not overwrite the theme's own
+        // default palette, so "default" keeps following the active theme.
         current_data_palette_name_ = palette_name;
-        if (current_theme_)
-        {
-            current_theme_->data_palette = it->second;
-        }
-        display_palette_valid_ = false;
-        palette_transitioning_ = false;
+        display_palette_valid_     = false;
+        palette_transitioning_     = false;
     }
+}
+
+const DataPalette& ThemeManager::resolve_data_palette(const std::string& name) const
+{
+    static const DataPalette fallback;
+    // "default" means "the active theme's default palette" (dark themes use
+    // the vivid palette, the light theme a darker Tableau-style one).
+    if (name == "default" && current_theme_ && !current_theme_->data_palette.colors.empty())
+        return current_theme_->data_palette;
+    auto it = data_palettes_.find(name);
+    if (it != data_palettes_.end())
+        return it->second;
+    if (current_theme_ && !current_theme_->data_palette.colors.empty())
+        return current_theme_->data_palette;
+    return fallback;
 }
 
 void ThemeManager::register_data_palette(const std::string& name, DataPalette palette)
@@ -232,14 +248,9 @@ void ThemeManager::register_data_palette(const std::string& name, DataPalette pa
 
 const DataPalette& ThemeManager::current_data_palette() const
 {
-    static DataPalette fallback;
     if (display_palette_valid_)
         return display_palette_;
-    if (current_theme_)
-    {
-        return current_theme_->data_palette;
-    }
-    return fallback;
+    return resolve_data_palette(current_data_palette_name_);
 }
 
 const DataPalette& ThemeManager::get_data_palette(const std::string& name) const
@@ -278,15 +289,16 @@ void ThemeManager::transition_palette(const std::string& palette_name, float dur
     }
 
     const auto& current_pal         = current_data_palette();
+    const auto& target_pal          = resolve_data_palette(palette_name);
     palette_start_colors_           = current_pal.colors;
-    palette_target_colors_          = it->second.colors;
+    palette_target_colors_          = target_pal.colors;
     palette_transition_target_name_ = palette_name;
     palette_transition_time_        = 0.0f;
     palette_transition_duration_    = duration_sec;
     palette_transitioning_          = true;
 
     // Initialize display palette from target metadata
-    display_palette_        = it->second;
+    display_palette_        = target_pal;
     display_palette_.colors = palette_start_colors_;
     display_palette_valid_  = true;
 }
@@ -1302,19 +1314,26 @@ void ThemeManager::initialize_data_palettes()
     default_palette.description =
         "Spectra vivid — separated from muted UI chrome for scientific plots";
     default_palette.colorblind_safe = false;
-    default_palette.colors          = {
-        Color::from_hex(0x22D3EE),   // vivid cyan
-        Color::from_hex(0xFB923C),   // orange
-        Color::from_hex(0xE879F9),   // magenta
-        Color::from_hex(0xA3E635),   // lime
-        Color::from_hex(0x60A5FA),   // sky blue
-        Color::from_hex(0xFB7185),   // rose
-        Color::from_hex(0xFACC15),   // amber
-        Color::from_hex(0x34D399),   // emerald
-        Color::from_hex(0xC084FC),   // violet
-        Color::from_hex(0xE5E7EB)    // light gray
-    };
+    // Single source of truth shared with the core library (spectra/color.hpp),
+    // which uses it as the provisional colour of auto-coloured series.
+    for (const auto& c : spectra::palette::default_cycle)
+        default_palette.colors.emplace_back(c.r, c.g, c.b, c.a);
     data_palettes_["default"] = default_palette;
+
+    // Theme default palettes.  Selecting "default" picks the active theme's
+    // palette, so each theme gets colours that suit its background.  The light
+    // palette is not registered by name: it is what "default" means on light.
+    DataPalette light_default = default_palette;
+    light_default.description = "Tableau 10 — darker values readable on light backgrounds";
+    light_default.colors.clear();
+    for (const auto& c : spectra::palette::light_cycle)
+        light_default.colors.emplace_back(c.r, c.g, c.b, c.a);
+    for (auto& [theme_name, theme] : themes_)
+    {
+        if (!theme.data_palette.colors.empty())
+            continue;
+        theme.data_palette = (theme_name == "light") ? light_default : default_palette;
+    }
 
     // Okabe-Ito — the gold standard for colorblind-safe palettes
     DataPalette okabe_ito;
@@ -1443,6 +1462,36 @@ void ThemeManager::initialize_data_palettes()
 
     palette_names_dirty_       = true;
     current_data_palette_name_ = "default";
+}
+
+void resolve_auto_series_colors(Figure& figure, const DataPalette& palette)
+{
+    auto resolve_axes = [&](AxesBase& axes)
+    {
+        for (auto& s : axes.series_mut())
+        {
+            if (!s || !s->has_auto_color())
+                continue;
+            const auto     slot = static_cast<size_t>(s->auto_color_index());
+            spectra::Color c;
+            if (!palette.colors.empty())
+            {
+                const auto& pc = palette.colors[slot % palette.colors.size()];
+                c              = spectra::Color{pc.r, pc.g, pc.b, pc.a};
+            }
+            else
+            {
+                c = spectra::palette::default_cycle[slot % spectra::palette::default_cycle_size];
+            }
+            s->resolve_auto_color(c);
+        }
+    };
+    for (auto& ax : figure.axes_mut())
+        if (ax)
+            resolve_axes(*ax);
+    for (auto& ax : figure.all_axes_mut())
+        if (ax)
+            resolve_axes(*ax);
 }
 
 // ─── CVD Simulation ──────────────────────────────────────────────────────────

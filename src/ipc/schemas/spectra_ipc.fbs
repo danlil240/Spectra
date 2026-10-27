@@ -114,6 +114,7 @@ table SnapshotSeriesState {
     point_count: uint32 = 0;
     axes_index: uint32 = 0;
     data: [float];
+    color_index: int32 = -1;   // data-palette slot of an auto-coloured series, -1 = explicit
 }
 
 table SnapshotFigureState {

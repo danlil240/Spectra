@@ -99,6 +99,16 @@ static bool is_3d_series_type(const std::string& t)
     return t == "line3d" || t == "scatter3d" || t == "surface" || t == "mesh";
 }
 
+// Apply a snapshot series colour.  An auto-coloured series (color_index >= 0)
+// keeps following this window's data palette; otherwise the colour is explicit.
+static void apply_snapshot_color(spectra::Series& s, const spectra::ipc::SnapshotSeriesState& ss)
+{
+    if (ss.color_index >= 0)
+        s.set_auto_color_index(ss.color_index);
+    else
+        s.color({ss.color_r, ss.color_g, ss.color_b, ss.color_a});
+}
+
 // Upper bounds on indices accepted from IPC diffs. Structural ops grow the
 // cache up to the given index, so an unchecked value from a buggy or hostile
 // peer could allocate gigabytes.
@@ -178,7 +188,7 @@ std::unique_ptr<spectra::Figure> build_figure_from_snapshot(
                 if (ss.type == "scatter3d")
                 {
                     auto& s = ax3d.scatter3d(xs, ys, zs);
-                    s.color({ss.color_r, ss.color_g, ss.color_b, ss.color_a});
+                    apply_snapshot_color(s, ss);
                     s.visible(ss.visible);
                     s.opacity(ss.opacity);
                     s.size(ss.marker_size);
@@ -224,7 +234,7 @@ std::unique_ptr<spectra::Figure> build_figure_from_snapshot(
                     }
 
                     auto& s = ax3d.surface(ux, uy, z_grid);
-                    s.color({ss.color_r, ss.color_g, ss.color_b, ss.color_a});
+                    apply_snapshot_color(s, ss);
                     s.visible(ss.visible);
                     s.opacity(ss.opacity);
                     if (!ss.name.empty())
@@ -234,7 +244,7 @@ std::unique_ptr<spectra::Figure> build_figure_from_snapshot(
                 {
                     // mesh expects vertices + indices; for now treat as line3d
                     auto& s = ax3d.line3d(xs, ys, zs);
-                    s.color({ss.color_r, ss.color_g, ss.color_b, ss.color_a});
+                    apply_snapshot_color(s, ss);
                     s.visible(ss.visible);
                     s.opacity(ss.opacity);
                     s.width(ss.line_width);
@@ -244,7 +254,7 @@ std::unique_ptr<spectra::Figure> build_figure_from_snapshot(
                 else   // "line3d"
                 {
                     auto& s = ax3d.line3d(xs, ys, zs);
-                    s.color({ss.color_r, ss.color_g, ss.color_b, ss.color_a});
+                    apply_snapshot_color(s, ss);
                     s.visible(ss.visible);
                     s.opacity(ss.opacity);
                     s.width(ss.line_width);
@@ -288,7 +298,7 @@ std::unique_ptr<spectra::Figure> build_figure_from_snapshot(
                 if (ss.type == "scatter")
                 {
                     auto& s = ax.scatter(xs, ys);
-                    s.color({ss.color_r, ss.color_g, ss.color_b, ss.color_a});
+                    apply_snapshot_color(s, ss);
                     s.visible(ss.visible);
                     s.opacity(ss.opacity);
                     s.size(ss.marker_size);
@@ -298,7 +308,7 @@ std::unique_ptr<spectra::Figure> build_figure_from_snapshot(
                 else
                 {
                     auto& s = ax.line(xs, ys);
-                    s.color({ss.color_r, ss.color_g, ss.color_b, ss.color_a});
+                    apply_snapshot_color(s, ss);
                     s.visible(ss.visible);
                     s.opacity(ss.opacity);
                     s.width(ss.line_width);
@@ -336,10 +346,11 @@ void apply_diff_op_to_cache(spectra::ipc::SnapshotFigureState& fig, const spectr
         case spectra::ipc::DiffOp::Type::SET_SERIES_COLOR:
             if (op.series_index < fig.series.size())
             {
-                fig.series[op.series_index].color_r = op.f1;
-                fig.series[op.series_index].color_g = op.f2;
-                fig.series[op.series_index].color_b = op.f3;
-                fig.series[op.series_index].color_a = op.f4;
+                fig.series[op.series_index].color_r     = op.f1;
+                fig.series[op.series_index].color_g     = op.f2;
+                fig.series[op.series_index].color_b     = op.f3;
+                fig.series[op.series_index].color_a     = op.f4;
+                fig.series[op.series_index].color_index = -1;   // explicit colour
             }
             break;
         case spectra::ipc::DiffOp::Type::SET_SERIES_VISIBLE:
@@ -388,6 +399,12 @@ void apply_diff_op_to_cache(spectra::ipc::SnapshotFigureState& fig, const spectr
             spectra::ipc::SnapshotSeriesState s;
             s.type       = op.str_val;
             s.axes_index = op.axes_index;
+            // Auto colour by position in its axes (mirrors FigureModel::add_series).
+            s.color_index = static_cast<int32_t>(std::count_if(
+                fig.series.begin(),
+                fig.series.begin() + std::min<size_t>(op.series_index, fig.series.size()),
+                [&](const spectra::ipc::SnapshotSeriesState& o)
+                { return o.axes_index == op.axes_index; }));
             // Grow series list to accommodate the new index
             if (fig.series.size() <= op.series_index)
                 fig.series.resize(static_cast<size_t>(op.series_index) + 1);

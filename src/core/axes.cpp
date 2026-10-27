@@ -57,7 +57,8 @@ T& Axes::add_series(Args&&... args)
 {
     auto  s   = std::make_unique<T>(std::forward<Args>(args)...);
     auto& ref = *s;
-    ref.set_color(palette::default_cycle[series_.size() % palette::default_cycle_size]);
+    // Auto colour: the renderer resolves the slot from the theme's data palette.
+    ref.set_auto_color_index(static_cast<int>(series_.size()));
     ref.set_event_context(event_system_, this);
     series_.push_back(std::move(s));
     if (event_system_)

@@ -135,8 +135,15 @@ class SnapshotSeriesState(object):
         o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(28))
         return o == 0
 
+    # SnapshotSeriesState
+    def ColorIndex(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(30))
+        if o != 0:
+            return self._tab.Get(flatbuffers.number_types.Int32Flags, o + self._tab.Pos)
+        return -1
+
 def SnapshotSeriesStateStart(builder):
-    builder.StartObject(13)
+    builder.StartObject(14)
 
 def Start(builder):
     SnapshotSeriesStateStart(builder)
@@ -224,6 +231,12 @@ def SnapshotSeriesStateStartDataVector(builder, numElems):
 
 def StartDataVector(builder, numElems):
     return SnapshotSeriesStateStartDataVector(builder, numElems)
+
+def SnapshotSeriesStateAddColorIndex(builder, colorIndex):
+    builder.PrependInt32Slot(13, colorIndex, -1)
+
+def AddColorIndex(builder, colorIndex):
+    SnapshotSeriesStateAddColorIndex(builder, colorIndex)
 
 def SnapshotSeriesStateEnd(builder):
     return builder.EndObject()

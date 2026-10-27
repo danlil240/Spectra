@@ -67,11 +67,11 @@ class Series
         label_ = lbl;
         return *this;
     }
-    /// @brief Set the series colour.
+    /// @brief Set the series colour.  An explicit colour disables automatic
+    /// palette colouring (see has_auto_color()).
     Series& color(const Color& c)
     {
-        color_ = c;
-        dirty_ = true;
+        set_color(c);
         return *this;
     }
     /// @brief Show or hide the series.
@@ -84,7 +84,26 @@ class Series
     /// @brief Legend label.
     const std::string& label() const { return label_; }
     /// @brief Series colour.
+    ///
+    /// For an auto-coloured series (has_auto_color()) this is the colour of its
+    /// palette slot in the active theme's data palette, as resolved at the last
+    /// draw.  Before the first draw (or without a UI theme) it is the slot's
+    /// colour in palette::default_cycle.
     const Color& color() const { return color_; }
+
+    /// @brief True when the colour follows the theme's data palette, i.e. no
+    /// colour was set explicitly (via color(), set_color(), a format string or
+    /// a PlotStyle with a colour).
+    bool has_auto_color() const { return auto_color_index_ >= 0; }
+    /// @brief Palette slot used for automatic colouring, or -1 for an explicit colour.
+    int auto_color_index() const { return auto_color_index_; }
+    /// @brief Make the colour follow palette slot @p index (negative: keep the
+    /// current colour as an explicit one).  Called by Axes / Axes3D when a
+    /// series is created; sets the provisional colour from palette::default_cycle.
+    void set_auto_color_index(int index);
+    /// @brief Set the resolved palette colour of an auto-coloured series.
+    /// No-op for an explicitly coloured series.  Returns true if the colour changed.
+    bool resolve_auto_color(const Color& c);
     /// @brief Whether the series is drawn.
     bool visible() const { return visible_; }
 
@@ -135,8 +154,9 @@ class Series
     /// @brief Set the colour (non-fluent form).
     void set_color(const Color& c)
     {
-        color_ = c;
-        dirty_ = true;
+        color_            = c;
+        auto_color_index_ = -1;
+        dirty_            = true;
     }
 
     // ── Event system integration ──
@@ -202,8 +222,9 @@ class Series
     Series& apply_format_string(std::string_view fmt);
 
     std::string       label_;
-    Color             color_ = colors::blue;
-    PlotStyle         style_;   ///< line/marker style, sizes, opacity
+    Color             color_            = colors::blue;
+    int               auto_color_index_ = -1;   ///< palette slot, -1 = explicit colour
+    PlotStyle         style_;                   ///< line/marker style, sizes, opacity
     bool              visible_                 = true;
     double            x_offset_                = 0.0;
     bool              excluded_from_autoscale_ = false;

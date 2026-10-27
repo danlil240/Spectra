@@ -1844,6 +1844,12 @@ if(SPECTRA_BUILD_QA_AGENT)
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/qa/qa_agent.cpp)
         add_executable(spectra_qa_agent qa/qa_agent.cpp)
         target_link_libraries(spectra_qa_agent PRIVATE spectra)
+        # glfw is PRIVATE to the spectra library target, so its include
+        # directories don't propagate here — link directly so the GLFW/glfw3.h
+        # include in qa_agent.cpp resolves with the bundled (FetchContent) GLFW.
+        if(SPECTRA_USE_GLFW AND DEFINED _spectra_glfw_link)
+            target_link_libraries(spectra_qa_agent PRIVATE ${_spectra_glfw_link})
+        endif()
         target_compile_features(spectra_qa_agent PRIVATE cxx_std_20)
         target_include_directories(spectra_qa_agent PRIVATE
             ${CMAKE_SOURCE_DIR}/src

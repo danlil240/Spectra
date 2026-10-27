@@ -5,6 +5,8 @@
 #include <spectra/series.hpp>
 #include <spectra/series3d.hpp>
 
+#include "../workspace/series_color_source.hpp"
+
 namespace spectra
 {
 
@@ -13,6 +15,10 @@ SeriesSnapshot SeriesClipboard::snapshot(const Series& series)
     SeriesSnapshot snap;
     snap.label   = series.label();
     snap.color   = series.color();
+    // Keep where the colour comes from, so a pasted palette / format-letter
+    // colour keeps following the theme instead of freezing its current RGB.
+    snap.auto_color_index = series.auto_color_index();
+    snap.color_letter     = series.color_letter();
     snap.style   = series.plot_style();
     snap.visible = series.visible();
 
@@ -66,7 +72,12 @@ SeriesSnapshot SeriesClipboard::snapshot(const Series& series)
 static void apply_style(Series& s, const SeriesSnapshot& snap)
 {
     s.label(snap.label.empty() ? "Pasted" : snap.label);
-    s.color(snap.color);
+    SeriesColorSource src;
+    if (snap.auto_color_index >= 0)
+        src = {SeriesColorSource::Kind::Palette, snap.auto_color_index};
+    else if (format_colors::is_letter(snap.color_letter))
+        src = {SeriesColorSource::Kind::Letter, static_cast<int32_t>(snap.color_letter)};
+    apply_color_source(s, src, snap.color);
     s.line_style(snap.style.line_style);
     s.marker_style(snap.style.marker_style);
     s.marker_size(snap.style.marker_size);

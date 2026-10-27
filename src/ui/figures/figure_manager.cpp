@@ -9,6 +9,7 @@
 #include <spectra/window_defaults.hpp>
 
 #include "tab_bar.hpp"
+#include "../workspace/series_color_source.hpp"
 
 namespace spectra
 {
@@ -359,6 +360,7 @@ FigureId FigureManager::duplicate_figure(FigureId index)
         // Deep-copy 2D series
         for (const auto& s : src_ax.series())
         {
+            const size_t before = dst_ax.series().size();
             if (auto* ls = dynamic_cast<const LineSeries*>(s.get()))
             {
                 auto& dup = dst_ax.line(ls->x_data(), ls->y_data());
@@ -452,6 +454,9 @@ FigureId FigureManager::duplicate_figure(FigureId index)
                 dup.visible(bs->visible());
                 dup.opacity(bs->opacity());
             }
+            // Keep palette / format-letter colours theme-aware in the copy.
+            if (s && dst_ax.series().size() > before)
+                copy_color_source(*dst_ax.series_mut().back(), *s);
         }
     }
 
@@ -502,6 +507,7 @@ FigureId FigureManager::duplicate_figure(FigureId index)
         // Deep-copy 3D series
         for (const auto& s : src_ax3d->series())
         {
+            const size_t before = dst_ax3d.series().size();
             if (auto* ls3 = dynamic_cast<const LineSeries3D*>(s.get()))
             {
                 auto& dup = dst_ax3d.line3d(ls3->x_data(), ls3->y_data(), ls3->z_data());
@@ -560,6 +566,8 @@ FigureId FigureManager::duplicate_figure(FigureId index)
                 dup.wireframe(ms->wireframe());
                 dup.opacity(ms->opacity());
             }
+            if (s && dst_ax3d.series().size() > before)
+                copy_color_source(*dst_ax3d.series_mut().back(), *s);
         }
     }
 

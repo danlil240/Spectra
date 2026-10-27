@@ -12,6 +12,8 @@
 #include <spectra/series3d.hpp>
 #include <sstream>
 
+#include "series_color_source.hpp"
+
 namespace spectra
 {
 
@@ -144,6 +146,12 @@ std::string Workspace::serialize_json(const WorkspaceData& data)
             os << "          \"color_g\": " << s.color_g << ",\n";
             os << "          \"color_b\": " << s.color_b << ",\n";
             os << "          \"color_a\": " << s.color_a << ",\n";
+            if (!s.color_source.empty())
+            {
+                os << R"(          "color_source": ")" << escape_json(s.color_source) << "\",\n";
+                os << "          \"color_index\": " << s.color_index << ",\n";
+                os << R"(          "color_letter": ")" << escape_json(s.color_letter) << "\",\n";
+            }
             os << "          \"line_width\": " << s.line_width << ",\n";
             os << "          \"marker_size\": " << s.marker_size << ",\n";
             os << "          \"visible\": " << (s.visible ? "true" : "false") << ",\n";
@@ -545,6 +553,9 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data)
             s.color_g     = static_cast<float>(read_number_value(ser_json, "color_g", 1));
             s.color_b     = static_cast<float>(read_number_value(ser_json, "color_b", 1));
             s.color_a     = static_cast<float>(read_number_value(ser_json, "color_a", 1));
+            s.color_source = read_string_value(ser_json, "color_source");
+            s.color_index  = static_cast<int>(read_number_value(ser_json, "color_index", -1));
+            s.color_letter = read_string_value(ser_json, "color_letter");
             s.line_width  = static_cast<float>(read_number_value(ser_json, "line_width", 2));
             s.marker_size = static_cast<float>(read_number_value(ser_json, "marker_size", 6));
             s.visible     = read_bool_value(ser_json, "visible", true);
@@ -933,6 +944,20 @@ WorkspaceData Workspace::capture(const std::vector<Figure*>& figures,
                 ss.color_g = s->color().g;
                 ss.color_b = s->color().b;
                 ss.color_a = s->color().a;
+                switch (const SeriesColorSource src = color_source_of(*s); src.kind)
+                {
+                    case SeriesColorSource::Kind::Palette:
+                        ss.color_source = "auto";
+                        ss.color_index  = src.value;
+                        break;
+                    case SeriesColorSource::Kind::Letter:
+                        ss.color_source = "letter";
+                        ss.color_letter = std::string(1, static_cast<char>(src.value));
+                        break;
+                    case SeriesColorSource::Kind::Explicit:
+                        ss.color_source = "rgb";
+                        break;
+                }
                 ss.opacity = s->opacity();
 
                 if (auto* ls = dynamic_cast<LineSeries*>(s.get()))
@@ -1074,7 +1099,22 @@ bool Workspace::apply(const WorkspaceData& data, std::vector<Figure*>& figures)
             {
                 if (!s || si >= fs.series.size())
                     return;
-                s->visible(fs.series[si].visible);
+                const auto& ss = fs.series[si];
+                s->visible(ss.visible);
+                // Restore the colour with its source (palette / letter colours
+                // keep following the theme).  Older files have no source.
+                if (!ss.color_source.empty())
+                {
+                    SeriesColorSource src;
+                    if (ss.color_source == "auto")
+                        src = {SeriesColorSource::Kind::Palette, ss.color_index};
+                    else if (ss.color_source == "letter" && ss.color_letter.size() == 1)
+                        src = {SeriesColorSource::Kind::Letter,
+                               static_cast<int32_t>(ss.color_letter[0])};
+                    apply_color_source(*s,
+                                       src,
+                                       Color{ss.color_r, ss.color_g, ss.color_b, ss.color_a});
+                }
                 ++si;
             }
         };

@@ -1,6 +1,7 @@
 #include "figure_model.hpp"
 
 #include <algorithm>
+#include <spectra/color.hpp>
 
 namespace spectra::daemon
 {
@@ -329,6 +330,42 @@ ipc::DiffOp FigureModel::set_series_color(uint64_t figure_id,
     op.f2           = g;
     op.f3           = b;
     op.f4           = a;
+    return op;
+}
+
+ipc::DiffOp FigureModel::set_series_color_letter(uint64_t figure_id,
+                                                 uint32_t series_index,
+                                                 char     letter)
+{
+    std::lock_guard lock(mu_);
+    const bool      valid = format_colors::is_letter(letter);
+    const Color     shade = format_colors::shade(letter);
+    ipc::DiffOp     op;
+    op.type         = ipc::DiffOp::Type::SET_SERIES_COLOR;
+    op.figure_id    = figure_id;
+    op.series_index = series_index;
+
+    auto it = figures_.find(figure_id);
+    if (it != figures_.end() && series_index < it->second.series.size())
+    {
+        auto& s = it->second.series[series_index];
+        if (valid)
+        {
+            s.color_r      = shade.r;
+            s.color_g      = shade.g;
+            s.color_b      = shade.b;
+            s.color_a      = 1.0f;
+            s.color_index  = -1;
+            s.color_letter = static_cast<uint8_t>(letter);
+        }
+        op.f1 = s.color_r;
+        op.f2 = s.color_g;
+        op.f3 = s.color_b;
+        op.f4 = s.color_a;
+        if (s.color_letter != 0)
+            op.str_val = std::string(1, static_cast<char>(s.color_letter));
+    }
+    bump_revision();
     return op;
 }
 
@@ -663,7 +700,11 @@ bool FigureModel::apply_diff_op(const ipc::DiffOp& op)
             it->second.series[op.series_index].color_b      = op.f3;
             it->second.series[op.series_index].color_a      = op.f4;
             it->second.series[op.series_index].color_index  = -1;
-            it->second.series[op.series_index].color_letter = 0;
+            // A format letter in str_val keeps the colour theme-aware.
+            it->second.series[op.series_index].color_letter =
+                (op.str_val.size() == 1 && format_colors::is_letter(op.str_val[0]))
+                    ? static_cast<uint8_t>(op.str_val[0])
+                    : 0;
             break;
 
         case ipc::DiffOp::Type::SET_SERIES_VISIBLE:

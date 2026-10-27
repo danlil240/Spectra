@@ -168,6 +168,7 @@ set(SPECTRA_UNIT_TESTS
     test_palette_visibility
     test_window_agent_state
     test_format_letter_colors
+    test_color_source_persistence
     test_settings_store
     test_settings_appearance
     test_settings_layout

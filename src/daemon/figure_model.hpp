@@ -95,6 +95,12 @@ class FigureModel
                                  float    b,
                                  float    a);
 
+    // Colour a series with MATLAB format letter @p letter (r g b c m y k w).
+    // The window resolves the letter's shade for its theme; the op carries the
+    // dark-background shade in f1..f4 and the letter in str_val.  A non-letter
+    // leaves the series unchanged (the op then carries its current colour).
+    ipc::DiffOp set_series_color_letter(uint64_t figure_id, uint32_t series_index, char letter);
+
     // Set series visibility. Returns a DiffOp.
     ipc::DiffOp set_series_visible(uint64_t figure_id, uint32_t series_index, bool visible);
 

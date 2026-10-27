@@ -2,10 +2,13 @@
 // the framebuffer (audit finding S19).
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
+#include <cstdlib>
 #include <gtest/gtest.h>
 #include <memory>
 #include <spectra/app.hpp>
+#include <spectra/export.hpp>
 #include <spectra/spectra.hpp>
 #include <vector>
 
@@ -153,4 +156,122 @@ TEST_F(Shape3DColorTest, TranslucentShapeBlendsOverBackground)
     ASSERT_GT(opaque.red, kMinPixels);
     ASSERT_GT(translucent.red, kMinPixels / 4);
     EXPECT_LT(translucent.red_saturation, opaque.red_saturation * 0.8);
+}
+
+// ─── R06: mixed opaque/translucent series vs global transparency order ──────
+
+namespace
+{
+
+// Scene laid out along the default camera's view direction u so the centroid
+// distances are controlled: an opaque red box behind an independent translucent
+// blue box, and a translucent green box off to the side, nearer the camera.
+// When red and green share one ShapeSeries3D, the series centroid lies nearer
+// than the blue box, so a per-series transparent sort would draw the blue box
+// first and the red (opaque) member afterwards, overwriting the blended blue.
+struct MixedScene
+{
+    float ux = 0.0f, uy = 0.0f, uz = 0.0f;                  // unit view direction (towards camera)
+    float px = 0.70710678f, py = -0.70710678f, pz = 0.0f;   // perpendicular to u
+};
+
+std::vector<uint8_t> render_mixed_scene(bool mixed)
+{
+    AppConfig config;
+    config.headless = true;
+    App   app(config);
+    auto& fig = app.figure({.width = kW, .height = kH});
+    auto& ax  = fig.subplot3d(1, 1, 1);
+    ax.xlim(-1.5, 1.5);
+    ax.ylim(-1.5, 1.5);
+    ax.zlim(-1.5, 1.5);
+
+    const vec3  cam = ax.camera().position;
+    const float len = std::sqrt(cam.x * cam.x + cam.y * cam.y + cam.z * cam.z);
+    MixedScene  sc;
+    sc.ux = cam.x / len;
+    sc.uy = cam.y / len;
+    sc.uz = cam.z / len;
+
+    const Color red{1.0f, 0.0f, 0.0f, 1.0f};
+    const Color green{0.0f, 1.0f, 0.0f, 0.5f};
+    const float r_d = -0.8f;   // red: behind the origin
+    const float g_d = 1.2f;    // green: in front, offset sideways
+    const float g_p = 1.0f;
+
+    if (mixed)
+    {
+        auto& sh = ax.shapes3d();
+        sh.box(r_d * sc.ux, r_d * sc.uy, r_d * sc.uz, 0.5f, 0.5f, 0.5f).shape_color(red);
+        sh.box(g_d * sc.ux + g_p * sc.px,
+               g_d * sc.uy + g_p * sc.py,
+               g_d * sc.uz + g_p * sc.pz,
+               0.5f,
+               0.5f,
+               0.5f)
+            .shape_color(green);
+    }
+    else
+    {
+        auto& a = ax.shapes3d();
+        a.box(r_d * sc.ux, r_d * sc.uy, r_d * sc.uz, 0.5f, 0.5f, 0.5f).shape_color(red);
+        auto& b = ax.shapes3d();
+        b.box(g_d * sc.ux + g_p * sc.px,
+              g_d * sc.uy + g_p * sc.py,
+              g_d * sc.uz + g_p * sc.pz,
+              0.5f,
+              0.5f,
+              0.5f)
+            .shape_color(green);
+    }
+    // Independent translucent surface between the camera and the red box.
+    auto& surf = ax.shapes3d();
+    surf.color(Color{0.0f, 0.0f, 1.0f, 0.5f});
+    surf.box(0.0f, 0.0f, 0.0f, 0.9f, 0.9f, 0.9f);
+
+    app.run();
+    std::vector<uint8_t> px(static_cast<size_t>(kW) * kH * 4);
+    auto*                backend = app.backend();
+    if (!backend || !backend->readback_framebuffer(px.data(), kW, kH))
+    {
+        ADD_FAILURE() << "readback failed";
+        return {};
+    }
+    if (const char* dir = std::getenv("SPECTRA_TEST_EVIDENCE_DIR"))
+        ImageExporter::write_png(
+            std::string(dir) + (mixed ? "/r06_mixed.png" : "/r06_separate.png"),
+            px.data(),
+            kW,
+            kH);
+    return px;
+}
+
+}   // namespace
+
+TEST(Shape3DMixedTransparency, MixedSeriesMatchesSeparateSeries)
+{
+    const auto separate = render_mixed_scene(false);
+    const auto mixed    = render_mixed_scene(true);
+    ASSERT_EQ(separate.size(), mixed.size());
+    ASSERT_FALSE(separate.empty());
+
+    // Sanity: the reference shows the red box through the blue surface (purple
+    // blend) and contains no pure-red pixels where the surface covers it.
+    int blended = 0;
+    for (size_t i = 0; i + 3 < separate.size(); i += 4)
+        if (separate[i] > 40 && separate[i + 2] > 40 && separate[i + 1] < 40)
+            ++blended;
+    EXPECT_GT(blended, kMinPixels) << "reference scene lacks a red-behind-blue overlap";
+
+    int differing = 0;
+    for (size_t i = 0; i + 3 < separate.size(); i += 4)
+    {
+        int d = 0;
+        for (int c = 0; c < 3; ++c)
+            d = std::max(d, std::abs(int(separate[i + c]) - int(mixed[i + c])));
+        if (d > 8)
+            ++differing;
+    }
+    // Per-range draw order must equal submitting the shapes as separate series.
+    EXPECT_LT(differing, 20) << differing << " pixels differ between mixed and separate series";
 }

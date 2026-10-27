@@ -27,6 +27,47 @@
 namespace spectra
 {
 
+namespace
+{
+
+// Centroid (data space) of the vertices referenced by one ShapeSeries3D draw
+// range.  Each shape owns a contiguous vertex block, so the referenced vertex
+// span [min, max] covers exactly the range's shapes.
+vec3 shape3d_range_centroid(const ShapeSeries3D& series, const ShapeSeries3D::DrawRange& range)
+{
+    const auto indices  = series.indices();
+    const auto vertices = series.vertices();
+    const auto end      = std::min<size_t>(indices.size(),
+                                      static_cast<size_t>(range.first_index) + range.index_count);
+    if (range.first_index >= end)
+        return series.compute_centroid();
+
+    uint32_t vmin = indices[range.first_index];
+    uint32_t vmax = vmin;
+    for (size_t i = range.first_index; i < end; ++i)
+    {
+        vmin = std::min(vmin, indices[i]);
+        vmax = std::max(vmax, indices[i]);
+    }
+    const size_t vcount = vertices.size() / 6;
+    if (vmax >= vcount)
+        return series.compute_centroid();
+
+    float sx = 0.0f;
+    float sy = 0.0f;
+    float sz = 0.0f;
+    for (size_t v = vmin; v <= vmax; ++v)
+    {
+        sx += vertices[v * 6 + 0];
+        sy += vertices[v * 6 + 1];
+        sz += vertices[v * 6 + 2];
+    }
+    const auto n = static_cast<float>(vmax - vmin + 1);
+    return {sx / n, sy / n, sz / n};
+}
+
+}   // namespace
+
 Renderer::Renderer(Backend& backend, ui::ThemeManager& theme_mgr)
     : backend_(backend), theme_mgr_(theme_mgr)
 {
@@ -895,6 +936,7 @@ void Renderer::render_axes(AxesBase&   axes,
         {
             Series* series;
             float   distance;
+            int     shape3d_range = kShape3DAllRanges;
         };
         std::vector<SortEntry> opaque_entries;
         std::vector<SortEntry> transparent_entries;
@@ -977,14 +1019,35 @@ void Renderer::render_axes(AxesBase&   axes,
             {
                 effective_alpha = series_ptr->color().a * series_ptr->opacity();
             }
-            bool is_transparent = effective_alpha < 0.99f;
-            // A shape series with a translucent per-shape colour must join the
-            // sorted transparent pass even if its series colour is opaque.
-            if (!is_transparent && gpu_it != series_gpu_data_.end()
-                && gpu_it->second.type == SeriesType::Shape3D)
-                is_transparent =
-                    static_cast<ShapeSeries3D*>(series_ptr.get())->has_transparent_shape();
+            // A shape series may mix opaque and translucent per-shape colours.
+            // Its opaque ranges draw with the other opaque geometry (depth
+            // write on); each translucent range joins the sorted transparent
+            // pass at its own centroid, exactly as if submitted separately.
+            if (gpu_it != series_gpu_data_.end() && gpu_it->second.type == SeriesType::Shape3D)
+            {
+                const auto* sh3d          = static_cast<ShapeSeries3D*>(series_ptr.get());
+                const float style_opacity = series_ptr->plot_style().opacity;
+                const auto  ranges        = sh3d->draw_ranges();
+                bool        has_opaque    = false;
+                for (size_t ri = 0; ri < ranges.size(); ++ri)
+                {
+                    if (!shape3d_range_transparent(ranges[ri], effective_alpha, style_opacity))
+                    {
+                        has_opaque = true;
+                        continue;
+                    }
+                    const vec3 rc = shape3d_range_centroid(*sh3d, ranges[ri]);
+                    const vec4 rw = mat4_mul_vec4(model_mat, {rc.x, rc.y, rc.z, 1.0f});
+                    const auto rd =
+                        static_cast<float>(vec3_length(vec3{rw.x, rw.y, rw.z} - cam_pos));
+                    transparent_entries.push_back({series_ptr.get(), rd, static_cast<int>(ri)});
+                }
+                if (has_opaque)
+                    opaque_entries.push_back({series_ptr.get(), dist, kShape3DOpaqueRanges});
+                continue;
+            }
 
+            bool is_transparent = effective_alpha < 0.99f;
             if (is_transparent)
             {
                 transparent_entries.push_back({series_ptr.get(), dist});
@@ -1012,11 +1075,11 @@ void Renderer::render_axes(AxesBase&   axes,
         // Render opaque first, then transparent
         for (auto& entry : opaque_entries)
         {
-            render_series(*entry.series, viewport);
+            render_series(*entry.series, viewport, nullptr, 0.0, 0.0, entry.shape3d_range);
         }
         for (auto& entry : transparent_entries)
         {
-            render_series(*entry.series, viewport);
+            render_series(*entry.series, viewport, nullptr, 0.0, 0.0, entry.shape3d_range);
         }
 
         // Selection highlight on top of all 3D series

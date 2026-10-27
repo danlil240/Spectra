@@ -152,6 +152,7 @@ set(SPECTRA_UNIT_TESTS
     test_region_select
     test_legend_interaction
     test_legend_colorbar
+    test_legend_bounds
     test_figure_manager
     test_inspector_stats
     test_box_zoom_overlay
@@ -364,8 +365,9 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
         if(_test STREQUAL "test_eigen_support" AND SPECTRA_USE_EIGEN)
             target_link_libraries(unit_${_test} PRIVATE Eigen3::Eigen)
         endif()
-        # Hover round trip drives DataInteraction, which needs an ImGui context
-        if(_test MATCHES "^test_(double_precision_data|data_interaction)$" AND DEFINED imgui_SOURCE_DIR)
+        # Hover round trip drives DataInteraction (and legend_bounds draws the
+        # interactive legend), which needs an ImGui context
+        if(_test MATCHES "^test_(double_precision_data|data_interaction|legend_bounds)$" AND DEFINED imgui_SOURCE_DIR)
             target_include_directories(unit_${_test} SYSTEM PRIVATE ${imgui_SOURCE_DIR})
         endif()
         # Pass mock plugin path to transform plugin tests

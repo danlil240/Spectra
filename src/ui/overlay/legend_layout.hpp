@@ -58,6 +58,10 @@ inline GridLayout compute_grid(int   n,
     if (n <= 0 || row_h <= 0.0f)
         return g;
 
+    // A single column never grows wider than the legend region: callers fit
+    // (ellipsize) labels to column_width() when drawing (audit S04).
+    col_w = std::min(col_w, std::max(0.0f, max_w - 2.0f * pad_x));
+
     const int rows_fit = std::max(1, static_cast<int>(std::floor((max_h - 2.0f * pad_y) / row_h)));
     const int rows_cap = std::max(1, std::min(rows_fit, max_rows_per_col));
 
@@ -430,8 +434,29 @@ inline LegendPosition resolve_position(const Axes&    axes,
     return choose_best_corner(axes, vp, w, h, MARGIN, previous);
 }
 
+// Width of one legend column of grid `g` (compute_grid may have narrowed it
+// below the requested col_w).  Labels must be fitted to this width minus the
+// swatch / icon space so they stay inside the box.
+inline float column_width(const GridLayout& g, float pad_x, float col_gap)
+{
+    if (g.cols <= 0)
+        return 0.0f;
+    const float inner = g.width - 2.0f * pad_x - static_cast<float>(g.cols - 1) * col_gap;
+    return std::max(0.0f, inner / static_cast<float>(g.cols));
+}
+
+// True if a w x h legend fits inside the viewport with the CLAMP_INSET
+// border.  Legends that do not (e.g. tiny subplot cells where not even one
+// row fits) are skipped rather than drawn over neighbouring plots.
+inline bool fits(const Rect& vp, float w, float h)
+{
+    return w <= vp.w - 2.0f * CLAMP_INSET && h <= vp.h - 2.0f * CLAMP_INSET;
+}
+
 // Final legend rectangle: the corner placement shifted by an optional user
-// drag offset, then clamped to stay inside the viewport.
+// drag offset, then clamped to stay inside the viewport.  The size is clamped
+// too, so the result never extends past the viewport (check fits() first to
+// know whether the content was shrunk).
 inline Rect place(const Rect&    vp,
                   LegendPosition corner,
                   float          w,
@@ -439,6 +464,8 @@ inline Rect place(const Rect&    vp,
                   float          dx = 0.0f,
                   float          dy = 0.0f)
 {
+    w      = std::min(w, std::max(0.0f, vp.w - 2.0f * CLAMP_INSET));
+    h      = std::min(h, std::max(0.0f, vp.h - 2.0f * CLAMP_INSET));
     Rect r = detail::corner_rect(corner, vp, w, h, MARGIN);
     r.x += dx;
     r.y += dy;

@@ -1208,7 +1208,8 @@ void Renderer::render_plot_geometry(Figure& figure)
         constexpr int MAX_MARGIN_MINOR_LINES = 4 * MINOR_SUBDIVISIONS;
         auto valid_minor_step = [](double step) { return std::isfinite(step) && step > 0.0; };
         minor_grid_scratch_.clear();
-        // Log axes: minor lines at 2..9 × 10^k.  Linear subdivision of decade
+        // Log axes: minor lines at 2..9 × 10^k (1.25..1.75 × 2^k on Log2).
+        // Linear subdivision of decade
         // ticks would pile up at the low end of every decade.
         if (is_log_scale(xscale))
         {

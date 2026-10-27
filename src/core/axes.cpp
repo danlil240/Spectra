@@ -1032,24 +1032,37 @@ static std::string format_tick_value(double value, double spacing)
     return std::format("{:.{}e}", value, total_sig_digits - 1);
 }
 
-// Label for base^e on a log axis: plain numbers near 1, compact exponent
-// form ("1e-6", "2^20") for far-away decades.
-static std::string format_log_tick(double base, int e)
+// Plain-number range of log tick labels, as exponents of the base:
+// 0.0001 .. 10000 on Log10, 1/16 .. 65536 on Log2.
+static bool log_tick_plain(double base, int e)
 {
+    return base == 10.0 ? (e >= -4 && e <= 4) : (e >= -4 && e <= 16);
+}
+
+static std::string log_tick_superscript(int e)
+{
+    static constexpr const char* DIGITS[] = {"⁰", "¹", "²", "³", "⁴", "⁵", "⁶", "⁷", "⁸", "⁹"};
+    std::string out;
+    if (e < 0)
+        out += "⁻";
+    for (char c : std::to_string(std::abs(e)))
+        out += DIGITS[c - '0'];
+    return out;
+}
+
+// Label for base^e on a log axis.  `plain` is decided once per axis (every
+// labelled power inside the plain range) so one axis never mixes "10000"
+// with an exponent form: either all plain numbers ("0.01", "1", "100") or all
+// powers ("10⁻⁶", "10⁰", "10⁶" / "2⁻¹⁸", "2⁰").
+static std::string format_log_tick(double base, int e, bool plain)
+{
+    if (!plain)
+        return (base == 10.0 ? "10" : "2") + log_tick_superscript(e);
     const double v = std::pow(base, static_cast<double>(e));
-    if (base == 10.0)
-    {
-        if (e >= 0 && e <= 5)
-            return std::format("{:.0f}", v);
-        if (e < 0 && e >= -4)
-            return std::format("{:.{}f}", v, -e);
-        return std::format("1e{}", e);
-    }
-    if (e >= 0 && e <= 16)
+    if (e >= 0)
         return std::format("{:.0f}", v);
-    if (e < 0 && e >= -4)
-        return std::format("{:.{}f}", v, -e);
-    return std::format("2^{}", e);
+    // 10^-e and 2^-e need exactly -e decimals.
+    return std::format("{:.{}f}", v, -e);
 }
 
 // Logarithmic ticks at integer powers of `base` within [lo, hi] (both > 0).
@@ -1109,10 +1122,13 @@ static TickResult generate_log_ticks(double                   lo,
         if (rem != 0)
             first += stride - rem;
     }
+    bool plain = true;
+    for (int e = first; e <= e_hi; e += stride)
+        plain = plain && log_tick_plain(base, e);
     for (int e = first; e <= e_hi; e += stride)
     {
         result.positions.push_back(std::pow(base, static_cast<double>(e)));
-        result.labels.push_back(format_log_tick(base, e));
+        result.labels.push_back(format_log_tick(base, e, plain));
     }
     return result;
 }

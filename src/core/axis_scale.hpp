@@ -114,31 +114,53 @@ inline AxisLimits pan_limits(ScaleType s, AxisLimits lim, double fraction)
     return {from_axis_space(s, a.min + d), from_axis_space(s, a.max + d)};
 }
 
+/// Shift data-space limits by @p delta axis-space units (pan by an absolute
+/// amount: data units on a linear axis, decades / octaves on a log axis).
+inline AxisLimits translate_limits(ScaleType s, AxisLimits lim, double delta)
+{
+    if (!is_log_scale(s))
+        return {lim.min + delta, lim.max + delta};
+    const AxisLimits a = axis_space_limits(s, lim);
+    return {from_axis_space(s, a.min + delta), from_axis_space(s, a.max + delta)};
+}
+
 /// Minor tick positions (data space) for a log axis within [lo, hi]:
-/// 2..9 × 10^k for Log10.  Log2 has no integer subdivisions and gets none.
-/// Returns nothing when the range spans so many decades that minor lines
-/// would merge into a solid band.
+/// 2..9 × 10^k for Log10 and 1.25, 1.5, 1.75 × 2^k for Log2 (each decade /
+/// octave split into equal linear steps).  Returns nothing for non-log scales,
+/// or when the range spans so many decades / octaves that minor lines would
+/// merge into a solid band.
 inline std::vector<double> log_minor_ticks(ScaleType s, double lo, double hi)
 {
     std::vector<double> out;
-    if (s != ScaleType::Log10 || !(lo > 0.0) || !(hi > lo) || !std::isfinite(hi))
+    if (!is_log_scale(s) || !(lo > 0.0) || !(hi > lo) || !std::isfinite(hi))
         return out;
-    constexpr double MAX_DECADES_WITH_MINORS = 12.0;
-    const double     a_lo                    = std::log10(lo);
-    const double     a_hi                    = std::log10(hi);
-    if (a_hi - a_lo > MAX_DECADES_WITH_MINORS)
+    const bool   log2 = s == ScaleType::Log2;
+    const double base = log_scale_base(s);
+    // Roughly 100 minor lines at most for either base.
+    const double max_powers = log2 ? 32.0 : 12.0;
+    const double a_lo       = to_axis_space(s, lo);
+    const double a_hi       = to_axis_space(s, hi);
+    if (a_hi - a_lo > max_powers)
         return out;
+    static constexpr double SUBS10[] = {2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0};
+    static constexpr double SUBS2[]  = {1.25, 1.5, 1.75};
     const int e_lo = static_cast<int>(std::floor(a_lo));
     const int e_hi = static_cast<int>(std::ceil(a_hi));
     for (int e = e_lo; e <= e_hi; ++e)
     {
-        const double decade = std::pow(10.0, static_cast<double>(e));
-        for (int k = 2; k <= 9; ++k)
+        const double power     = std::pow(base, static_cast<double>(e));
+        auto         add_minor = [&](double k)
         {
-            const double v = k * decade;
+            const double v = k * power;
             if (v >= lo && v <= hi)
                 out.push_back(v);
-        }
+        };
+        if (log2)
+            for (double k : SUBS2)
+                add_minor(k);
+        else
+            for (double k : SUBS10)
+                add_minor(k);
     }
     return out;
 }

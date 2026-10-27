@@ -1417,7 +1417,7 @@ void emit_grid_2d(SvgContext& c, const Axes& axes, const DataToSvg& m)
     };
 
     c.body << "    <g class=\"grid\">\n";
-    // Log axes: minor lines at 2..9 x 10^k (render_geometry.cpp).
+    // Log axes: minor lines at 2..9 x 10^k / 1.25..1.75 x 2^k (render_geometry.cpp).
     auto minor = [](ScaleType sc, const std::vector<double>& t, double lo, double hi)
     {
         return is_log_scale(sc)

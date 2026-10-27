@@ -5,6 +5,7 @@
 
 #include "backend.hpp"
 #include "series_type_registry.hpp"
+#include "text_fit.hpp"
 #include "text_renderer.hpp"
 
 // Forward declarations
@@ -114,6 +115,12 @@ class Renderer
     // Must be called after render_figure_content() and before render_text().
     void render_plot_text(Figure& figure);
 
+    // Labels ellipsized by render_plot_text() since the last begin_render_pass().
+    const std::vector<TruncatedTextRegion>& truncated_text_regions() const
+    {
+        return truncated_text_regions_;
+    }
+
     // Render screen-space plot geometry (2D grid, border, tick marks).
     // Uses Vulkan grid pipeline with a screen-space ortho projection.
     // 3D arrows are rendered inside render_axes() with depth testing.
@@ -190,6 +197,9 @@ class Renderer
     TextRenderer        text_renderer_;
     SeriesTypeRegistry* series_type_registry_    = nullptr;
     uint64_t            series_type_listener_id_ = 0;
+
+    // Labels ellipsized during the current frame (see truncated_text_regions()).
+    std::vector<TruncatedTextRegion> truncated_text_regions_;
 
     // Active FigureViewModel for the current render pass (set by render_figure_content).
     // Enables Phase 2 ViewModel-based rendering: axes limits read via AxesViewModel,

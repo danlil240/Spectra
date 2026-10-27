@@ -15,6 +15,7 @@
 #include <spectra/series.hpp>
 #include <spectra/series_shapes.hpp>
 
+#include "text_fit.hpp"
 #include "ui/imgui/axes3d_renderer.hpp"
 #include "ui/theme/theme.hpp"
 #include "ui/viewmodel/axes_view_model.hpp"
@@ -105,6 +106,23 @@ void Renderer::render_plot_text(Figure& figure)
 
     // uint32_t fig_w = figure.width();
     uint32_t fig_h = figure.height();
+
+    // Shrink (down to `min_size`) or ellipsize a label so it fits `max_width`.
+    auto fit_label = [this](const std::string& text,
+                            float              max_width,
+                            FontSize           preferred,
+                            FontSize           min_size) -> FittedText
+    {
+        const char* ellipsis = text_renderer_.has_glyph(0x2026, min_size) ? "\xE2\x80\xA6" : "...";
+        return fit_text_to_width(
+            text,
+            max_width,
+            preferred,
+            min_size,
+            [this](const std::string& t, FontSize fs)
+            { return text_renderer_.measure_text(t, fs).width; },
+            ellipsis);
+    };
 
     // ── 2D Axes: tick labels, axis labels, title ──
     for (auto& axes_ptr : figure.axes())
@@ -208,40 +226,54 @@ void Renderer::render_plot_text(Figure& figure)
             }
         }
 
-        // X axis label
+        // X axis label (ellipsized to the axes width)
         if (!axes.get_xlabel().empty())
         {
+            const FittedText fit =
+                fit_label(axes.get_xlabel(), vp.w, FontSize::Label, FontSize::Label);
             float cx = vp.x + vp.w * 0.5f;
             float py = vp.y + vp.h + tick_padding + 16.0f + tick_padding;
-            text_renderer_.draw_text(axes.get_xlabel(),
-                                     cx,
-                                     py,
-                                     FontSize::Label,
-                                     label_col,
-                                     TextAlign::Center);
+            text_renderer_.draw_text(fit.text, cx, py, fit.size, label_col, TextAlign::Center);
+            if (fit.truncated)
+            {
+                const auto ext = text_renderer_.measure_text(fit.text, fit.size);
+                truncated_text_regions_.push_back(
+                    {Rect{cx - ext.width * 0.5f, py, ext.width, ext.height}, axes.get_xlabel()});
+            }
         }
 
         // Y axis label (rotated -90°)
         if (!axes.get_ylabel().empty())
         {
-            const auto label_ext = text_renderer_.measure_text(axes.get_ylabel(), FontSize::Label);
+            // Rotated: the label runs along the axes height, so fit it to that.
+            const FittedText fit =
+                fit_label(axes.get_ylabel(), vp.h, FontSize::Label, FontSize::Label);
+            const auto      label_ext = text_renderer_.measure_text(fit.text, fit.size);
             constexpr float label_gap = 6.0f;   // gap between widest tick label and axis label
             float           center_x =
                 vp.x - tl - tick_padding - max_y_tick_width - label_gap - label_ext.height * 0.5f;
             float           center_y   = vp.y + vp.h * 0.5f;
             constexpr float neg_90_deg = -1.5707963f;   // -π/2
-            text_renderer_.draw_text_rotated(axes.get_ylabel(),
-                                             center_x,
-                                             center_y,
-                                             neg_90_deg,
-                                             FontSize::Label,
-                                             label_col);
+            text_renderer_
+                .draw_text_rotated(fit.text, center_x, center_y, neg_90_deg, fit.size, label_col);
+            if (fit.truncated)
+            {
+                truncated_text_regions_.push_back({Rect{center_x - label_ext.height * 0.5f,
+                                                        center_y - label_ext.width * 0.5f,
+                                                        label_ext.height,
+                                                        label_ext.width},
+                                                   axes.get_ylabel()});
+            }
         }
 
         // Title
         if (!axes.get_title().empty())
         {
-            auto  ext = text_renderer_.measure_text(axes.get_title(), FontSize::Title);
+            // Long titles step down to the label size, then get ellipsized, so they
+            // never spill into neighbouring subplots or past the window edge.
+            const FittedText fit =
+                fit_label(axes.get_title(), vp.w, FontSize::Title, FontSize::Label);
+            auto  ext = text_renderer_.measure_text(fit.text, fit.size);
             float cx  = vp.x + vp.w * 0.5f;
             float py  = vp.y - ext.height - tick_padding;
             // Only clamp if the title would go off the top of the figure.
@@ -250,8 +282,12 @@ void Renderer::render_plot_text(Figure& figure)
             // rendering, contributing to flicker in split-view panes.
             if (py < 2.0f)
                 py = 2.0f;
-            text_renderer_
-                .draw_text(axes.get_title(), cx, py, FontSize::Title, title_col, TextAlign::Center);
+            text_renderer_.draw_text(fit.text, cx, py, fit.size, title_col, TextAlign::Center);
+            if (fit.truncated)
+            {
+                truncated_text_regions_.push_back(
+                    {Rect{cx - ext.width * 0.5f, py, ext.width, ext.height}, axes.get_title()});
+            }
         }
 
         // ── ShapeSeries text annotations (data-space text labels) ──
@@ -482,19 +518,27 @@ void Renderer::render_plot_text(Figure& figure)
         };
 
         // Reserve the title's rectangle first so nothing is drawn over it.
-        float title_py = 0.0f;
+        float      title_py = 0.0f;
+        FittedText title_fit;
         if (!axes3d->get_title().empty())
         {
-            auto ext = text_renderer_.measure_text(axes3d->get_title(), FontSize::Title);
-            title_py = vp.y - ext.height - tick_padding;
+            title_fit = fit_label(axes3d->get_title(), vp.w, FontSize::Title, FontSize::Label);
+            auto ext  = text_renderer_.measure_text(title_fit.text, title_fit.size);
+            title_py  = vp.y - ext.height - tick_padding;
             if (title_py < vp.y + 2.0f)
                 title_py = vp.y + 2.0f;
-            placed_labels.push_back(label_rect(axes3d->get_title(),
-                                               FontSize::Title,
+            placed_labels.push_back(label_rect(title_fit.text,
+                                               title_fit.size,
                                                vp.x + vp.w * 0.5f,
                                                title_py,
                                                TextAlign::Center,
                                                TextVAlign::Top));
+            if (title_fit.truncated)
+            {
+                truncated_text_regions_.push_back(
+                    {Rect{vp.x + vp.w * 0.5f - ext.width * 0.5f, title_py, ext.width, ext.height},
+                     axes3d->get_title()});
+            }
         }
 
         // --- Tick labels for X, Y, Z ---
@@ -638,13 +682,13 @@ void Renderer::render_plot_text(Figure& figure)
         }
 
         // --- 3D Title --- (rectangle reserved above, before the tick labels)
-        if (!axes3d->get_title().empty())
+        if (!title_fit.text.empty())
         {
             float cx = vp.x + vp.w * 0.5f;
-            text_renderer_.draw_text(axes3d->get_title(),
+            text_renderer_.draw_text(title_fit.text,
                                      cx,
                                      title_py,
-                                     FontSize::Title,
+                                     title_fit.size,
                                      title_col,
                                      TextAlign::Center);
         }

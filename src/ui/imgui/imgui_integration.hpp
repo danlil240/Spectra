@@ -12,6 +12,7 @@
     #include <vector>
 
     #include "render/backend.hpp"
+    #include "render/text_fit.hpp"
     #include "ui/data/csv_loader.hpp"
 
     #include "ui/docking/dock_system.hpp"
@@ -217,6 +218,12 @@ class ImGuiIntegration
     // Data interaction layer (owned externally by App)
     void             set_data_interaction(DataInteraction* di) { data_interaction_ = di; }
     DataInteraction* data_interaction() const { return data_interaction_; }
+
+    // Plot labels the renderer ellipsized last frame; hovering one shows its full text.
+    void set_truncated_text_regions(std::vector<TruncatedTextRegion> regions)
+    {
+        truncated_text_regions_ = std::move(regions);
+    }
 
     // Box zoom overlay (Agent B Week 7, owned externally by App)
     void            set_box_zoom_overlay(BoxZoomOverlay* bzo) { box_zoom_overlay_ = bzo; }
@@ -879,6 +886,9 @@ class ImGuiIntegration
 
     // Deferred tooltip rendering to ensure tooltips appear above all UI elements
     const char* deferred_tooltip_ = nullptr;
+
+    // Ellipsized plot labels (screen rects + full text), see set_truncated_text_regions().
+    std::vector<TruncatedTextRegion> truncated_text_regions_;
 
     // Knobs panel screen rect (updated each frame) — used to suppress tab bar
     // foreground rendering when the mouse is over the knobs panel.

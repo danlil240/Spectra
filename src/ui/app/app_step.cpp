@@ -1088,6 +1088,7 @@ void App::shutdown_runtime()
 #endif
 
     // Process exports for all figures (headless batch mode)
+    bool framebuffer_holds_active = true;
     for (auto id : registry_.all_ids())
     {
         Figure* fig_ptr = registry_.get(id);
@@ -1101,19 +1102,29 @@ void App::shutdown_runtime()
             uint32_t export_h =
                 f.export_req_.png_height > 0 ? f.export_req_.png_height : f.height();
 
-            bool needs_render =
-                (&f != rt.active_figure) || (export_w != f.width()) || (export_h != f.height());
+            // The framebuffer still holds the active figure's last frame only
+            // until another figure has been re-rendered into it.
+            bool needs_render = (&f != rt.active_figure) || !framebuffer_holds_active
+                                || (export_w != f.width()) || (export_h != f.height());
 
             if (needs_render)
             {
+                framebuffer_holds_active = false;
                 backend_->create_offscreen_framebuffer(export_w, export_h);
                 if (config_.backend == RenderBackend::Vulkan)
                     static_cast<VulkanBackend*>(backend_.get())->ensure_pipelines();
 
+                // A larger-than-figure export keeps the figure's layout and draws
+                // it scaled up (HiDPI), so lines, markers and text keep their size.
+                ExportViewport ev =
+                    compute_export_viewport(f.width(), f.height(), export_w, export_h);
+                backend_->set_pixel_scale(ev.pixel_scale);
+                if (backend_->pixel_scale() != ev.pixel_scale)   // backend cannot scale
+                    ev = {export_w, export_h, 1.0f};
                 uint32_t orig_w  = f.config_.width;
                 uint32_t orig_h  = f.config_.height;
-                f.config_.width  = export_w;
-                f.config_.height = export_h;
+                f.config_.width  = ev.layout_width;
+                f.config_.height = ev.layout_height;
                 f.compute_layout();
 
                 if (backend_->begin_frame())
@@ -1121,6 +1132,7 @@ void App::shutdown_runtime()
                     renderer_->render_figure(f);
                     backend_->end_frame();
                 }
+                backend_->set_pixel_scale(1.0f);
 
                 f.config_.width  = orig_w;
                 f.config_.height = orig_h;

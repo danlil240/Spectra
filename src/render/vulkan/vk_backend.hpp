@@ -93,6 +93,9 @@ class VulkanBackend : public Backend
                         uint32_t first_instance) override;
     void draw_indexed(uint32_t index_count, uint32_t first_index, int32_t vertex_offset) override;
 
+    void  set_pixel_scale(float scale) override { pixel_scale_ = scale > 0.0f ? scale : 1.0f; }
+    float pixel_scale() const override { return pixel_scale_; }
+
     bool readback_framebuffer(uint8_t* out_rgba, uint32_t width, uint32_t height) override;
 
     // Request a framebuffer capture during the next end_frame().
@@ -241,6 +244,7 @@ class VulkanBackend : public Backend
     vk::OffscreenContext offscreen_;
     bool                 headless_    = false;
     bool                 device_lost_ = false;   // set on VK_ERROR_DEVICE_LOST — unrecoverable
+    float                pixel_scale_ = 1.0f;    // framebuffer px per logical px (HiDPI export)
     const platform::SurfaceHost* surface_host_                    = nullptr;
     VmaAllocator                 vma_allocator_                   = nullptr;
     bool                         memory_budget_extension_enabled_ = false;

@@ -244,10 +244,17 @@ void App::run_multiproc()
             backend_->create_offscreen_framebuffer(export_w, export_h);
             static_cast<VulkanBackend*>(backend_.get())->ensure_pipelines();
 
+            // A larger-than-figure export keeps the figure's layout and draws it
+            // scaled up (HiDPI), so lines, markers and text keep their size.
+            ExportViewport ev =
+                compute_export_viewport(fig->width(), fig->height(), export_w, export_h);
+            backend_->set_pixel_scale(ev.pixel_scale);
+            if (backend_->pixel_scale() != ev.pixel_scale)   // backend cannot scale
+                ev = {export_w, export_h, 1.0f};
             uint32_t orig_w     = fig->config_.width;
             uint32_t orig_h     = fig->config_.height;
-            fig->config_.width  = export_w;
-            fig->config_.height = export_h;
+            fig->config_.width  = ev.layout_width;
+            fig->config_.height = ev.layout_height;
             fig->compute_layout();
 
             if (backend_->begin_frame())
@@ -255,6 +262,7 @@ void App::run_multiproc()
                 renderer_->render_figure(*fig);
                 backend_->end_frame();
             }
+            backend_->set_pixel_scale(1.0f);
 
             fig->config_.width  = orig_w;
             fig->config_.height = orig_h;

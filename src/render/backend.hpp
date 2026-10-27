@@ -229,6 +229,14 @@ class Backend
     virtual void     set_msaa_samples(uint32_t samples) { msaa_samples_ = samples; }
     virtual uint32_t msaa_samples() const { return msaa_samples_; }
 
+    // Framebuffer pixels per logical (figure) pixel.  set_viewport(), set_scissor()
+    // and set_line_width() take logical pixels and the backend multiplies them by
+    // this factor, so a figure laid out at its own size renders into a larger
+    // framebuffer with every line width, marker and glyph scaled with it (HiDPI
+    // export).  Backends that do not support it ignore the call and stay at 1.
+    virtual void  set_pixel_scale(float /*scale*/) {}
+    virtual float pixel_scale() const { return 1.0f; }
+
     // Queries
     virtual uint32_t swapchain_width() const  = 0;
     virtual uint32_t swapchain_height() const = 0;

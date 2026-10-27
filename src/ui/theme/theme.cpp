@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <format>
+#include <limits>
 #include <cassert>
 #include <cctype>
 #include <cstddef>
@@ -1601,6 +1602,268 @@ void ThemeManager::initialize_data_palettes()
 
     palette_names_dirty_       = true;
     current_data_palette_name_ = "default";
+}
+
+// ─── Auto series colour visibility (see visible_data_palette in theme.hpp) ──
+
+namespace
+{
+
+struct Rgb
+{
+    double r = 0.0, g = 0.0, b = 0.0;
+};
+
+struct OkLab
+{
+    double L = 0.0, a = 0.0, b = 0.0;
+};
+
+double srgb_to_linear(double c)
+{
+    return (c <= 0.04045) ? c / 12.92 : std::pow((c + 0.055) / 1.055, 2.4);
+}
+
+double linear_to_srgb(double c)
+{
+    return (c <= 0.0031308) ? c * 12.92 : 1.055 * std::pow(c, 1.0 / 2.4) - 0.055;
+}
+
+double clamp_unit(double v)
+{
+    return v < 0.0 ? 0.0 : (v > 1.0 ? 1.0 : v);
+}
+
+// Exact WCAG 2.1 relative luminance of an sRGB colour (piecewise transfer).
+double exact_luminance(const Rgb& c)
+{
+    return 0.2126 * srgb_to_linear(c.r) + 0.7152 * srgb_to_linear(c.g)
+           + 0.0722 * srgb_to_linear(c.b);
+}
+
+double exact_contrast(const Rgb& a, const Rgb& b)
+{
+    const double la = exact_luminance(a);
+    const double lb = exact_luminance(b);
+    return (std::max(la, lb) + 0.05) / (std::min(la, lb) + 0.05);
+}
+
+OkLab srgb_to_oklab(const Rgb& c)
+{
+    const double r = srgb_to_linear(c.r);
+    const double g = srgb_to_linear(c.g);
+    const double b = srgb_to_linear(c.b);
+    const double l = std::cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+    const double m = std::cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+    const double s = std::cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+    return {0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s,
+            1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s,
+            0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s};
+}
+
+// OKLab -> linear sRGB (may fall outside [0, 1]).
+Rgb oklab_to_linear(const OkLab& c)
+{
+    const double l = std::pow(c.L + 0.3963377774 * c.a + 0.2158037573 * c.b, 3.0);
+    const double m = std::pow(c.L - 0.1055613458 * c.a - 0.0638541728 * c.b, 3.0);
+    const double s = std::pow(c.L - 0.0894841775 * c.a - 1.2914855480 * c.b, 3.0);
+    return {4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+            -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+            -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s};
+}
+
+bool in_srgb_gamut(const Rgb& lin)
+{
+    constexpr double EPS = 1e-6;
+    return lin.r >= -EPS && lin.r <= 1.0 + EPS && lin.g >= -EPS && lin.g <= 1.0 + EPS
+           && lin.b >= -EPS && lin.b <= 1.0 + EPS;
+}
+
+// OKLCh -> sRGB at lightness L and hue h, keeping as much of chroma C as the
+// sRGB gamut allows (hue is never changed).
+Rgb oklch_to_srgb_in_gamut(double L, double C, double h)
+{
+    auto lin_at = [&](double chroma)
+    { return oklab_to_linear({L, chroma * std::cos(h), chroma * std::sin(h)}); };
+    double chroma = C;
+    if (!in_srgb_gamut(lin_at(C)))
+    {
+        double lo = 0.0;
+        double hi = C;
+        for (int i = 0; i < 24; ++i)
+        {
+            const double mid = 0.5 * (lo + hi);
+            if (in_srgb_gamut(lin_at(mid)))
+                lo = mid;
+            else
+                hi = mid;
+        }
+        chroma = lo;
+    }
+    const Rgb lin = lin_at(chroma);
+    return {clamp_unit(linear_to_srgb(clamp_unit(lin.r))),
+            clamp_unit(linear_to_srgb(clamp_unit(lin.g))),
+            clamp_unit(linear_to_srgb(clamp_unit(lin.b)))};
+}
+
+// Rounds to the 8-bit value the colour is drawn / exported with, so the
+// contrast measured here is the contrast that reaches the framebuffer or SVG.
+Rgb quantise_8bit(const Rgb& c)
+{
+    return {std::round(c.r * 255.0) / 255.0,
+            std::round(c.g * 255.0) / 255.0,
+            std::round(c.b * 255.0) / 255.0};
+}
+
+// Moves @p src's OKLab lightness toward @p toward_l (0 or 1), keeping hue,
+// until its 8-bit contrast against @p canvas reaches @p goal (or the end is
+// reached).
+Rgb lightness_to_contrast(const Rgb& src, const Rgb& canvas, double toward_l, double goal)
+{
+    const OkLab  lab = srgb_to_oklab(src);
+    const double C   = std::hypot(lab.a, lab.b);
+    const double h   = std::atan2(lab.b, lab.a);
+    auto         at  = [&](double t)
+    { return quantise_8bit(oklch_to_srgb_in_gamut(lab.L + (toward_l - lab.L) * t, C, h)); };
+    double lo = 0.0;
+    double hi = 1.0;
+    for (int i = 0; i < 30; ++i)
+    {
+        const double mid = 0.5 * (lo + hi);
+        if (exact_contrast(at(mid), canvas) >= goal)
+            hi = mid;
+        else
+            lo = mid;
+    }
+    return at(hi);
+}
+
+// Smallest OKLab distance between @p a and @p b under normal vision and the
+// three simulated dichromacies.
+double cvd_aware_distance(const Rgb& a, const Rgb& b)
+{
+    double best = std::numeric_limits<double>::max();
+    for (CVDType t :
+         {CVDType::None, CVDType::Protanopia, CVDType::Deuteranopia, CVDType::Tritanopia})
+    {
+        const Color sa = simulate_cvd(
+            Color(static_cast<float>(a.r), static_cast<float>(a.g), static_cast<float>(a.b)),
+            t);
+        const Color sb = simulate_cvd(
+            Color(static_cast<float>(b.r), static_cast<float>(b.g), static_cast<float>(b.b)),
+            t);
+        const OkLab la = srgb_to_oklab({sa.r, sa.g, sa.b});
+        const OkLab lb = srgb_to_oklab({sb.r, sb.g, sb.b});
+        best           = std::min(best, std::hypot(la.L - lb.L, la.a - lb.a, la.b - lb.b));
+    }
+    return best;
+}
+
+}   // namespace
+
+DataPalette visible_data_palette(const DataPalette&    palette,
+                                 const spectra::Color& canvas,
+                                 float                 min_contrast)
+{
+    // Minimum separation between an adjusted slot and every other slot.
+    constexpr double MIN_DISTANCE = 0.04;
+    // Contrast step used to push an adjusted slot apart from a near neighbour.
+    constexpr double CONTRAST_STEP = 0.25;
+    // Aim slightly above the target so blending / rounding stays above it.
+    constexpr double GOAL_MARGIN = 0.02;
+
+    DataPalette out = palette;
+    if (out.colors.empty())
+        for (const auto& c : spectra::palette::default_cycle)
+            out.colors.emplace_back(c.r, c.g, c.b, c.a);
+
+    const Rgb    bg{clamp_unit(canvas.r), clamp_unit(canvas.g), clamp_unit(canvas.b)};
+    const double target = min_contrast;
+    const size_t n      = out.colors.size();
+
+    std::vector<Rgb>    src(n);
+    std::vector<double> contrast(n);
+    for (size_t i = 0; i < n; ++i)
+    {
+        const auto& c = out.colors[i];
+        src[i]        = {clamp_unit(c.r), clamp_unit(c.g), clamp_unit(c.b)};
+        contrast[i]   = exact_contrast(src[i], bg);
+    }
+
+    // Same thresholds as adapt_series_color_to_theme().
+    const double bg_luma  = 0.2126 * bg.r + 0.7152 * bg.g + 0.0722 * bg.b;
+    auto         ink_slot = [&](const Rgb& c)
+    {
+        const bool black = c.r == 0.0 && c.g == 0.0 && c.b == 0.0;
+        const bool white = c.r == 1.0 && c.g == 1.0 && c.b == 1.0;
+        return (black && bg_luma < 0.35) || (white && bg_luma > 0.65);
+    };
+
+    std::vector<size_t> placed;
+    std::vector<size_t> todo;
+    for (size_t i = 0; i < n; ++i)
+    {
+        if (contrast[i] >= target || ink_slot(src[i]))
+            placed.push_back(i);
+        else
+            todo.push_back(i);
+    }
+    if (todo.empty())
+        return out;
+
+    std::stable_sort(todo.begin(),
+                     todo.end(),
+                     [&](size_t a, size_t b) { return contrast[a] > contrast[b]; });
+
+    const Rgb    white{1.0, 1.0, 1.0};
+    const Rgb    black{0.0, 0.0, 0.0};
+    const bool   lighten   = exact_contrast(white, bg) >= exact_contrast(black, bg);
+    const double toward_l  = lighten ? 1.0 : 0.0;
+    const double max_reach = exact_contrast(lighten ? white : black, bg);
+
+    std::vector<Rgb> result = src;
+    for (size_t i : todo)
+    {
+        double want = MIN_DISTANCE;
+        for (size_t j : placed)
+            want = std::min(want, cvd_aware_distance(src[i], src[j]));
+
+        Rgb    best      = lightness_to_contrast(src[i], bg, toward_l, target + GOAL_MARGIN);
+        double best_dist = -1.0;
+        for (double goal = target + GOAL_MARGIN; goal <= max_reach; goal += CONTRAST_STEP)
+        {
+            const Rgb c    = lightness_to_contrast(src[i], bg, toward_l, goal);
+            double    dist = std::numeric_limits<double>::max();
+            for (size_t j : placed)
+                dist = std::min(dist, cvd_aware_distance(c, result[j]));
+            if (dist >= want)
+            {
+                best = c;
+                break;
+            }
+            if (dist > best_dist + 1e-4)
+            {
+                best_dist = dist;
+                best      = c;
+            }
+        }
+        result[i] = best;
+        placed.push_back(i);
+
+        auto& dst = out.colors[i];
+        dst.r     = static_cast<float>(best.r);
+        dst.g     = static_cast<float>(best.g);
+        dst.b     = static_cast<float>(best.b);
+    }
+    return out;
+}
+
+void resolve_auto_series_colors(Figure&               figure,
+                                const DataPalette&    palette,
+                                bool                  light_background,
+                                const spectra::Color& canvas)
+{
+    resolve_auto_series_colors(figure, visible_data_palette(palette, canvas), light_background);
 }
 
 void resolve_auto_series_colors(Figure& figure, const DataPalette& palette, bool light_background)

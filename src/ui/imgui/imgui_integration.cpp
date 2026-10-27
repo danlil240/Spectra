@@ -525,10 +525,13 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
     if (theme_mgr_)
     {
         theme_mgr_->update(dt);
-        // Resolve palette colours before the legend / inspector read them.
+        // Resolve palette colours before the legend / inspector read them, for
+        // the same plot surface the renderer uses (background override aware).
+        const ui::ThemeColors surface = theme_mgr_->plot_surface_colors(figure.style());
         ui::resolve_auto_series_colors(figure,
-                                       theme_mgr_->current_data_palette(),
-                                       ui::is_light_plot_background(theme_mgr_->colors()));
+                                       theme_mgr_->plot_surface_data_palette(figure.style()),
+                                       ui::is_light_plot_background(surface),
+                                       ui::effective_figure_background(figure.style(), surface));
     }
     ui::widgets::update_section_animations(dt);
 

@@ -1196,10 +1196,13 @@ void App::shutdown_runtime()
             // Same plot surface as the GPU path: the figure's background
             // override (if any) decides ink, letter shades and palette.
             if (theme_mgr_)
-                ui::resolve_auto_series_colors(
-                    f,
-                    theme_mgr_->plot_surface_data_palette(f.style()),
-                    ui::is_light_plot_background(theme_mgr_->plot_surface_colors(f.style())));
+            {
+                const ui::ThemeColors surface = theme_mgr_->plot_surface_colors(f.style());
+                ui::resolve_auto_series_colors(f,
+                                               theme_mgr_->plot_surface_data_palette(f.style()),
+                                               ui::is_light_plot_background(surface),
+                                               ui::effective_figure_background(f.style(), surface));
+            }
             if (!SvgExporter::write_svg(f.export_req_.svg_path,
                                         f,
                                         theme_mgr_ ? ui::svg_style_from_theme(

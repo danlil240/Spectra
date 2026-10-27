@@ -625,6 +625,20 @@ void Renderer::upload_series_data(Series&   series,
                 entry->faulted = true;
             }
         }
+        // Data bounds from the plugin, so host features that need the data
+        // extent (view.zoom_in/out centring) cover plugin series too.
+        if (entry && entry->bounds_fn && !entry->faulted)
+        {
+            float      b[4]   = {0.0f, 1.0f, 0.0f, 1.0f};
+            int        rc     = -1;
+            const auto result = plugin_guard_invoke(
+                entry->type_name.c_str(),
+                [&]() { rc = entry->bounds_fn(custom->data(), custom->element_count(), b); });
+            if (result != PluginCallResult::Success)
+                entry->faulted = true;
+            else if (rc == 0)
+                custom->set_bounds(b[0], b[1], b[2], b[3]);
+        }
         series.clear_dirty();
     }
 }

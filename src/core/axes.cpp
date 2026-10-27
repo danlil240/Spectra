@@ -7,11 +7,13 @@
 #include <vector>
 #include <spectra/axes.hpp>
 #include <spectra/chunked_series.hpp>
+#include <spectra/custom_series.hpp>
 #include <spectra/event_bus.hpp>
 #include <spectra/series_shapes.hpp>
 #include <spectra/series_stats.hpp>
 
 #include "colorbar_layout.hpp"
+#include "core/axes_data_extent.hpp"
 #include "core/axis_scale.hpp"
 #include "core/axis_ticks.hpp"
 #include "core/datetime_ticks.hpp"
@@ -474,13 +476,18 @@ static void consume_chunked_axis(const ChunkedLineSeries& cs,
 
 // Compute the raw (unpadded) data extent across all series.  Every autoscale
 // mode shares this so they all cover the same series types.
+// `zoom_center` selects the view.zoom_in/out variant (see data_center()):
+// visible series only, plus plugin series with host-computed bounds.
 static void data_extent_raw(const std::vector<std::unique_ptr<Series>>& series,
                             AxisExtent&                                 x,
-                            AxisExtent&                                 y)
+                            AxisExtent&                                 y,
+                            bool                                        zoom_center = false)
 {
     for (const auto& s : series)
     {
-        if (s->excluded_from_autoscale())
+        if (!s || s->excluded_from_autoscale())
+            continue;
+        if (zoom_center && !s->visible())
             continue;
 
         // Per-series double offsets: logical x = x_offset + stored float
@@ -530,7 +537,38 @@ static void data_extent_raw(const std::vector<std::unique_ptr<Series>>& series,
             consume_chunked_axis(*cs, false, xoff, x);
             consume_chunked_axis(*cs, true, yoff, y);
         }
+        if (zoom_center)
+        {
+            if (auto* cu = dynamic_cast<const CustomSeries*>(s.get()); cu && cu->has_bounds())
+            {
+                consume_finite_value(cu->bounds_x_min(), x, xoff);
+                consume_finite_value(cu->bounds_x_max(), x, xoff);
+                consume_finite_value(cu->bounds_y_min(), y, yoff);
+                consume_finite_value(cu->bounds_y_max(), y, yoff);
+            }
+        }
     }
+}
+
+bool detail::data_center(const Axes& axes, double& cx, double& cy)
+{
+    AxisExtent x;
+    AxisExtent y;
+    data_extent_raw(axes.series(), x, y, true);
+    if (!x.valid() || !y.valid())
+        return false;
+    // Centre in axis space so a log axis zooms about the geometric middle of
+    // the data it actually draws (only positive values exist on a log axis).
+    auto mid = [](ScaleType s, const AxisExtent& e)
+    {
+        if (is_log_scale(s) && e.has_positive())
+            return from_axis_space(s,
+                                   (to_axis_space(s, e.min_pos) + to_axis_space(s, e.max)) * 0.5);
+        return (e.min + e.max) * 0.5;
+    };
+    cx = mid(axes.xscale(), x);
+    cy = mid(axes.yscale(), y);
+    return std::isfinite(cx) && std::isfinite(cy);
 }
 
 // Turn a raw extent into axis limits.  `pad` adds 5% of the span on each side
@@ -1155,36 +1193,6 @@ static TickResult generate_log_ticks(double                   lo,
     return result;
 }
 
-// Sqrt-scale ticks: evenly spaced in squared space (signed, so negative
-// limits stay monotonic), placed at their square roots and labelled with the
-// coordinate they are actually drawn at.
-static TickResult generate_sqrt_ticks(double lo, double hi, const LinearTickOptions& opt)
-{
-    auto signed_sq   = [](double v) { return v < 0.0 ? -v * v : v * v; };
-    auto signed_sqrt = [](double v) { return v < 0.0 ? -std::sqrt(-v) : std::sqrt(v); };
-
-    const TickResult inner = generate_linear_ticks(signed_sq(lo), signed_sq(hi), opt);
-    TickResult       result;
-    result.positions.reserve(inner.positions.size());
-    for (double p : inner.positions)
-        result.positions.push_back(signed_sqrt(p));
-
-    double gap = std::numeric_limits<double>::max();
-    for (size_t i = 1; i < result.positions.size(); ++i)
-    {
-        const double d = std::abs(result.positions[i] - result.positions[i - 1]);
-        if (d > 0.0)
-            gap = std::min(gap, d);
-    }
-    if (gap == std::numeric_limits<double>::max())
-        gap = (hi - lo) > 0.0 ? (hi - lo) : 1.0;
-
-    result.labels.reserve(result.positions.size());
-    for (double p : result.positions)
-        result.labels.push_back(format_tick_value(p, gap));
-    return result;
-}
-
 // Positions of category-like series (box, violin, bar) along one axis.
 // `along_x` selects vertical categories (box, violin, vertical bars) or
 // horizontal bars.  Sets `any` when such a series is present.
@@ -1322,6 +1330,10 @@ static LinearTickOptions tick_options(const std::vector<std::unique_ptr<Series>>
     return opt;
 }
 
+// Sqrt axes are drawn untransformed (see core/axis_scale.hpp), so their ticks
+// are the ordinary linear ticks: evenly spaced nice values that cover the
+// whole axis.  (Placing ticks evenly in squared space bunched them at the top
+// and left a large gap near zero on the linearly drawn axis.)
 TickResult Axes::compute_x_ticks() const
 {
     auto       lim = x_limits();
@@ -1335,8 +1347,6 @@ TickResult Axes::compute_x_ticks() const
     {
         return generate_log_ticks(lim.min, lim.max, log_scale_base(xscale_), opt);
     }
-    if (xscale_ == ScaleType::Sqrt)
-        return generate_sqrt_ticks(lim.min, lim.max, opt);
     if (x_datetime_)
         return generate_datetime_ticks(lim.min, lim.max, opt);
     return generate_linear_ticks(lim.min, lim.max, opt);
@@ -1355,8 +1365,6 @@ TickResult Axes::compute_y_ticks() const
     {
         return generate_log_ticks(lim.min, lim.max, log_scale_base(yscale_), opt);
     }
-    if (yscale_ == ScaleType::Sqrt)
-        return generate_sqrt_ticks(lim.min, lim.max, opt);
     if (y_datetime_)
         return generate_datetime_ticks(lim.min, lim.max, opt);
     return generate_linear_ticks(lim.min, lim.max, opt);

@@ -1,11 +1,18 @@
 // Axis scale types: axis-space mapping, log autoscale limits and log ticks.
 
 #include <cmath>
+#include <functional>
+#include <memory>
 #include <gtest/gtest.h>
 #include <spectra/axes.hpp>
 #include <string>
 #include <vector>
 
+#include <spectra/custom_series.hpp>
+#include <spectra/series_shapes.hpp>
+#include <spectra/series_stats.hpp>
+
+#include "core/axes_data_extent.hpp"
 #include "core/axis_scale.hpp"
 
 using namespace spectra;
@@ -215,6 +222,35 @@ TEST(AxisScale, SqrtTicksStayInRange)
     }
 }
 
+TEST(AxisScale, SqrtTicksCoverAxisEvenly)
+{
+    // Sqrt axes are drawn untransformed, so their ticks must be evenly spaced
+    // and leave no gap wider than one step at either end of the axis.
+    for (const AxisLimits lim : {AxisLimits{0.0, 10.0},
+                                 AxisLimits{0.0, 100.0},
+                                 AxisLimits{-4.0, 1.0},
+                                 AxisLimits{3.0, 7.0e5}})
+    {
+        Axes ax;
+        ax.xscale(ScaleType::Sqrt);
+        ax.xlim(lim.min, lim.max);
+        const TickResult t = ax.compute_x_ticks();
+        ASSERT_GE(t.positions.size(), 3u) << lim.min << ".." << lim.max;
+        const double step = t.positions[1] - t.positions[0];
+        ASSERT_GT(step, 0.0);
+        for (size_t i = 1; i < t.positions.size(); ++i)
+            EXPECT_NEAR(t.positions[i] - t.positions[i - 1], step, step * 1e-6)
+                << lim.min << ".." << lim.max << " tick " << i;
+        EXPECT_LE(t.positions.front() - lim.min, step + 1e-9);
+        EXPECT_LE(lim.max - t.positions.back(), step + 1e-9);
+
+        Axes linear;
+        linear.xlim(lim.min, lim.max);
+        EXPECT_EQ(t.positions, linear.compute_x_ticks().positions);
+        EXPECT_EQ(t.labels, linear.compute_x_ticks().labels);
+    }
+}
+
 TEST(AxisScale, LinearTicksUnchanged)
 {
     Axes ax;
@@ -333,4 +369,97 @@ TEST(AxisScale, LogPanStaysPositive)
     const AxisLimits lin = pan_limits(ScaleType::Linear, {0.0, 10.0}, 0.5);
     EXPECT_DOUBLE_EQ(lin.min, 5.0);
     EXPECT_DOUBLE_EQ(lin.max, 15.0);
+}
+
+// ─── Zoom centre covers every 2D series type ────────────────────────────────
+
+TEST(ZoomCenter, CoversEveryBuiltInSeriesType)
+{
+    // Each axes holds one series whose data spans x [10, 30], y [100, 300]
+    // (or as close as the type allows); its centre must be found.
+    const std::vector<float>                xs     = {10.0f, 20.0f, 30.0f};
+    const std::vector<float>                ys     = {100.0f, 200.0f, 300.0f};
+    std::vector<std::function<void(Axes&)>> makers = {
+        [&](Axes& ax) { ax.bar(xs, ys); },
+        [&](Axes& ax) { ax.stem(xs, ys); },
+        [&](Axes& ax) { ax.band(xs, std::vector<float>{100, 100, 100}, ys); },
+        [&](Axes& ax) { ax.shapes().rect(10.0, 100.0, 20.0, 200.0); },
+    };
+    for (size_t i = 0; i < makers.size(); ++i)
+    {
+        Axes ax;
+        makers[i](ax);
+        double cx = 0.0, cy = 0.0;
+        ASSERT_TRUE(detail::data_center(ax, cx, cy)) << "series kind " << i;
+        EXPECT_GT(cx, 9.0) << i;
+        EXPECT_LT(cx, 31.0) << i;
+        EXPECT_GT(cy, 0.0) << i;
+        EXPECT_LT(cy, 301.0) << i;
+    }
+
+    // Statistical series have data too (histogram, box plot, violin).
+    const std::vector<float> samples = {1.0f, 2.0f, 2.5f, 3.0f, 4.0f, 9.0f};
+    for (int kind = 0; kind < 3; ++kind)
+    {
+        Axes ax;
+        if (kind == 0)
+            ax.histogram(samples);
+        else if (kind == 1)
+            ax.box_plot().add_box(5.0f, samples);
+        else
+            ax.violin().add_violin(5.0f, samples);
+        double cx = 0.0, cy = 0.0;
+        EXPECT_TRUE(detail::data_center(ax, cx, cy)) << "stat kind " << kind;
+    }
+}
+
+TEST(ZoomCenter, SkipsHiddenSeriesAndHonoursOffsets)
+{
+    Axes ax;
+    ax.line(std::vector<float>{0.0f, 2.0f}, std::vector<float>{0.0f, 2.0f});
+    ax.scatter(std::vector<float>{100.0f, 102.0f}, std::vector<float>{50.0f, 52.0f}).visible(false);
+    double cx = 0.0, cy = 0.0;
+    ASSERT_TRUE(detail::data_center(ax, cx, cy));
+    EXPECT_DOUBLE_EQ(cx, 1.0);
+    EXPECT_DOUBLE_EQ(cy, 1.0);
+
+    Axes empty;
+    EXPECT_FALSE(detail::data_center(empty, cx, cy));
+}
+
+TEST(ZoomCenter, IncludesPluginSeriesOnceBoundsAreKnown)
+{
+    Axes  ax;
+    auto  owned = std::make_unique<CustomSeries>("heatmap");
+    auto* cs    = owned.get();
+    ax.series_mut().push_back(std::move(owned));
+    double cx = 0.0, cy = 0.0;
+    EXPECT_FALSE(detail::data_center(ax, cx, cy)) << "no bounds computed yet";
+    cs->set_bounds(-4.0f, 4.0f, 10.0f, 20.0f);
+    ASSERT_TRUE(detail::data_center(ax, cx, cy));
+    EXPECT_DOUBLE_EQ(cx, 0.0);
+    EXPECT_DOUBLE_EQ(cy, 15.0);
+}
+
+TEST(ZoomCenter, ZoomLimitsCenteredInAxisSpace)
+{
+    // Linear: span scaled about the centre.
+    AxisLimits z = zoom_limits_centered(ScaleType::Linear, {0.0, 10.0}, 2.0, 0.5);
+    EXPECT_DOUBLE_EQ(z.min, -0.5);
+    EXPECT_DOUBLE_EQ(z.max, 4.5);
+    // Log: decades, centred geometrically; never non-positive.
+    z = zoom_limits_centered(ScaleType::Log10, {1.0, 1e4}, 100.0, 0.5);
+    EXPECT_NEAR(z.min, 10.0, 1e-9);
+    EXPECT_NEAR(z.max, 1000.0, 1e-9);
+    // A centre the axis cannot show keeps the view centre.
+    z = zoom_limits_centered(ScaleType::Log10, {1.0, 1e4}, -5.0, 0.5);
+    EXPECT_NEAR(z.min, 10.0, 1e-9);
+    EXPECT_NEAR(z.max, 1000.0, 1e-9);
+    z = zoom_limits_centered(ScaleType::Linear, {0.0, 10.0}, std::nan(""), 2.0);
+    EXPECT_DOUBLE_EQ(z.min, -5.0);
+    EXPECT_DOUBLE_EQ(z.max, 15.0);
+    // Epoch-scale limits keep sub-second precision (double, not float).
+    z = zoom_limits_centered(ScaleType::Linear, {1.7e9, 1.7e9 + 10.0}, 1.7e9 + 5.25, 0.5);
+    EXPECT_DOUBLE_EQ(z.min, 1.7e9 + 2.75);
+    EXPECT_DOUBLE_EQ(z.max, 1.7e9 + 7.75);
 }

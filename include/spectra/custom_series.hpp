@@ -29,6 +29,8 @@ class CustomSeries : public Series
     /// Plugin-computed bounds (set by the host after calling bounds_fn).
     void set_bounds(float x_min, float x_max, float y_min, float y_max);
 
+    /// True once set_bounds() has been called (the host calls it after each upload).
+    bool  has_bounds() const { return has_bounds_; }
     float bounds_x_min() const { return bounds_x_min_; }
     float bounds_x_max() const { return bounds_x_max_; }
     float bounds_y_min() const { return bounds_y_min_; }
@@ -57,6 +59,7 @@ class CustomSeries : public Series
     float                bounds_x_max_  = 1.0f;
     float                bounds_y_min_  = 0.0f;
     float                bounds_y_max_  = 1.0f;
+    bool                 has_bounds_    = false;
 };
 
 }   // namespace spectra

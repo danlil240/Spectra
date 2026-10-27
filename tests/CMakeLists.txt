@@ -200,6 +200,8 @@ set(SPECTRA_UNIT_TESTS
     test_window_ui_context_builder
     test_automation_dispatch
     test_automation_security
+    test_automation_json
+    test_automation_figure_handlers
     test_figure_registry
     test_event_bus
     test_ipc
@@ -322,6 +324,7 @@ set_target_properties(mock_integration_plugin PROPERTIES PREFIX "")
 
 # Tests that require a GPU/display (Vulkan + GLFW window)
 set(SPECTRA_GPU_TESTS
+    test_automation_figure_handlers
     test_bugfix_embed
     test_3d_pipelines
     test_depth_buffer

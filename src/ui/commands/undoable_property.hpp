@@ -142,16 +142,19 @@ inline void undoable_set_series_color(UndoManager* mgr, Series& s, const Color& 
 {
     Color old_color      = s.color();
     int   old_auto_index = s.auto_color_index();
+    char  old_letter     = s.color_letter();
     s.set_color(new_color);
     if (mgr)
     {
         Series* ptr = &s;
         mgr->push(UndoAction{"Change color of " + (s.label().empty() ? "series" : s.label()),
-                             [ptr, old_color, old_auto_index]()
+                             [ptr, old_color, old_auto_index, old_letter]()
                              {
-                                 // Undo back to a palette colour keeps following the palette.
+                                 // Undo back to a palette / format-letter colour keeps
+                                 // following the theme.
                                  ptr->set_color(old_color);
                                  ptr->set_auto_color_index(old_auto_index);
+                                 ptr->set_color_letter(old_letter);
                              },
                              [ptr, new_color]() { ptr->set_color(new_color); }});
     }

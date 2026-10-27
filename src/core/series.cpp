@@ -20,8 +20,8 @@ Series::~Series() = default;
 
 Series::Series(const Series& other)
     : label_(other.label_), color_(other.color_), auto_color_index_(other.auto_color_index_),
-      style_(other.style_), visible_(other.visible_), x_offset_(other.x_offset_),
-      excluded_from_autoscale_(other.excluded_from_autoscale_),
+      color_letter_(other.color_letter_), style_(other.style_), visible_(other.visible_),
+      x_offset_(other.x_offset_), excluded_from_autoscale_(other.excluded_from_autoscale_),
       show_in_legend_(other.show_in_legend_), is_reference_line_(other.is_reference_line_),
       dirty_(other.dirty_.load(std::memory_order_relaxed)), event_system_(other.event_system_),
       owning_axes_(other.owning_axes_), pending_(nullptr)
@@ -35,6 +35,7 @@ Series& Series::operator=(const Series& other)
         label_                   = other.label_;
         color_                   = other.color_;
         auto_color_index_        = other.auto_color_index_;
+        color_letter_            = other.color_letter_;
         style_                   = other.style_;
         visible_                 = other.visible_;
         x_offset_                = other.x_offset_;
@@ -82,6 +83,7 @@ void Series::set_auto_color_index(int index)
         return;
     }
     auto_color_index_ = index;
+    color_letter_     = '\0';
     color_ = palette::default_cycle[static_cast<size_t>(index) % palette::default_cycle_size];
     dirty_ = true;
 }
@@ -97,6 +99,47 @@ bool Series::resolve_auto_color(const Color& c)
     return true;
 }
 
+void Series::set_color_letter(char letter)
+{
+    if (!format_colors::is_letter(letter))
+    {
+        color_letter_ = '\0';
+        return;
+    }
+    color_            = format_colors::shade(letter);
+    color_letter_     = letter;
+    auto_color_index_ = -1;
+    dirty_            = true;
+}
+
+bool Series::resolve_letter_color(const Color& c)
+{
+    if (color_letter_ == '\0')
+        return false;
+    if (color_.r == c.r && color_.g == c.g && color_.b == c.b && color_.a == c.a)
+        return false;
+    color_ = c;
+    dirty_ = true;
+    return true;
+}
+
+namespace
+{
+// A PlotStyle keeps its format letter only while its colour is still one of
+// that letter's shades; a colour edited afterwards counts as explicit.
+char letter_of(const PlotStyle& ps)
+{
+    if (!ps.color.has_value() || !format_colors::is_letter(ps.color_letter))
+        return '\0';
+    auto same = [&](const Color& c)
+    { return ps.color->r == c.r && ps.color->g == c.g && ps.color->b == c.b; };
+    if (same(format_colors::shade(ps.color_letter, false))
+        || same(format_colors::shade(ps.color_letter, true)))
+        return ps.color_letter;
+    return '\0';
+}
+}   // namespace
+
 Series& Series::plot_style(const PlotStyle& ps)
 {
     style_ = ps;
@@ -104,6 +147,7 @@ Series& Series::plot_style(const PlotStyle& ps)
     {
         color_            = *ps.color;
         auto_color_index_ = -1;
+        color_letter_     = letter_of(ps);
     }
     dirty_ = true;
     return *this;
@@ -118,6 +162,7 @@ Series& Series::apply_format_string(std::string_view fmt)
     {
         color_            = *ps.color;
         auto_color_index_ = -1;
+        color_letter_     = letter_of(ps);
     }
     dirty_ = true;
     return *this;

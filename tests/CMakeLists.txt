@@ -155,6 +155,7 @@ set(SPECTRA_UNIT_TESTS
     test_recording_export
     test_theme_colorblind
     test_palette_resolution
+    test_format_letter_colors
     test_phase2_integration
     test_split_view
     test_dock_system

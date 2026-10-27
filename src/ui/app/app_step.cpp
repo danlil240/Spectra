@@ -1156,7 +1156,9 @@ void App::shutdown_runtime()
         {
             f.compute_layout();
             if (theme_mgr_)
-                ui::resolve_auto_series_colors(f, theme_mgr_->current_data_palette());
+                ui::resolve_auto_series_colors(f,
+                                               theme_mgr_->current_data_palette(),
+                                               ui::is_light_plot_background(theme_mgr_->colors()));
             if (!SvgExporter::write_svg(f.export_req_.svg_path, f))
             {
                 SPECTRA_LOG_ERROR("app", "Failed to write SVG: {}", f.export_req_.svg_path);

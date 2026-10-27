@@ -115,6 +115,7 @@ table SnapshotSeriesState {
     axes_index: uint32 = 0;
     data: [float];
     color_index: int32 = -1;   // data-palette slot of an auto-coloured series, -1 = explicit
+    color_letter: ubyte = 0;   // format-string colour letter (r g b c m y k w), 0 = none
 }
 
 table SnapshotFigureState {

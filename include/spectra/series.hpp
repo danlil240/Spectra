@@ -104,6 +104,18 @@ class Series
     /// @brief Set the resolved palette colour of an auto-coloured series.
     /// No-op for an explicitly coloured series.  Returns true if the colour changed.
     bool resolve_auto_color(const Color& c);
+
+    /// @brief MATLAB colour letter (r g b c m y k w) the colour was set from by
+    /// a format string, or '\0'.  Such a colour is a tuned shade that the
+    /// renderer re-resolves for the active theme (format_colors::shade()).
+    char color_letter() const { return color_letter_; }
+    /// @brief Colour the series with the tuned shade of format letter @p letter
+    /// (dark-background shade until the next draw).  A non-letter keeps the
+    /// current colour as an explicit one.
+    void set_color_letter(char letter);
+    /// @brief Set the resolved shade of a letter-coloured series.  No-op for
+    /// other series.  Returns true if the colour changed.
+    bool resolve_letter_color(const Color& c);
     /// @brief Whether the series is drawn.
     bool visible() const { return visible_; }
 
@@ -156,6 +168,7 @@ class Series
     {
         color_            = c;
         auto_color_index_ = -1;
+        color_letter_     = '\0';
         dirty_            = true;
     }
 
@@ -224,6 +237,7 @@ class Series
     std::string       label_;
     Color             color_            = colors::blue;
     int               auto_color_index_ = -1;   ///< palette slot, -1 = explicit colour
+    char              color_letter_     = '\0';   ///< format-string colour letter, '\0' = none
     PlotStyle         style_;                   ///< line/marker style, sizes, opacity
     bool              visible_                 = true;
     double            x_offset_                = 0.0;

@@ -316,7 +316,8 @@ ipc::DiffOp FigureModel::set_series_color(uint64_t figure_id,
         s.color_g     = g;
         s.color_b     = b;
         s.color_a     = a;
-        s.color_index = -1;   // explicit colour
+        s.color_index  = -1;   // explicit colour
+        s.color_letter = 0;
     }
     bump_revision();
 
@@ -655,7 +656,8 @@ bool FigureModel::apply_diff_op(const ipc::DiffOp& op)
             it->second.series[op.series_index].color_g     = op.f2;
             it->second.series[op.series_index].color_b     = op.f3;
             it->second.series[op.series_index].color_a     = op.f4;
-            it->second.series[op.series_index].color_index = -1;
+            it->second.series[op.series_index].color_index  = -1;
+            it->second.series[op.series_index].color_letter = 0;
             break;
 
         case ipc::DiffOp::Type::SET_SERIES_VISIBLE:

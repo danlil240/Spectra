@@ -100,11 +100,14 @@ static bool is_3d_series_type(const std::string& t)
 }
 
 // Apply a snapshot series colour.  An auto-coloured series (color_index >= 0)
-// keeps following this window's data palette; otherwise the colour is explicit.
+// keeps following this window's data palette and a format-letter series
+// (color_letter, e.g. "r--") this window's theme; otherwise the colour is explicit.
 static void apply_snapshot_color(spectra::Series& s, const spectra::ipc::SnapshotSeriesState& ss)
 {
     if (ss.color_index >= 0)
         s.set_auto_color_index(ss.color_index);
+    else if (spectra::format_colors::is_letter(static_cast<char>(ss.color_letter)))
+        s.set_color_letter(static_cast<char>(ss.color_letter));
     else
         s.color({ss.color_r, ss.color_g, ss.color_b, ss.color_a});
 }
@@ -350,7 +353,8 @@ void apply_diff_op_to_cache(spectra::ipc::SnapshotFigureState& fig, const spectr
                 fig.series[op.series_index].color_g     = op.f2;
                 fig.series[op.series_index].color_b     = op.f3;
                 fig.series[op.series_index].color_a     = op.f4;
-                fig.series[op.series_index].color_index = -1;   // explicit colour
+                fig.series[op.series_index].color_index  = -1;   // explicit colour
+                fig.series[op.series_index].color_letter = 0;
             }
             break;
         case spectra::ipc::DiffOp::Type::SET_SERIES_VISIBLE:

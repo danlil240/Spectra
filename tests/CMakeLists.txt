@@ -210,6 +210,7 @@ set(SPECTRA_UNIT_TESTS
     test_cross_codec
     test_text_renderer
     test_text_fit
+    test_font_fallback
     test_eigen_support
     test_csv_loader
     test_series_stats

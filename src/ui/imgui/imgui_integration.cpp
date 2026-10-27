@@ -1436,8 +1436,38 @@ void ImGuiIntegration::load_fonts()
                                        size,
                                        &icon_cfg,
                                        icon_ranges);
+
+        // System fallback fonts for glyphs Inter lacks (maths operators,
+        // CJK, ...).  ImGui 1.92 rasterises glyphs on demand from the first
+        // source that has them, so merging costs nothing until used.
+        for (const auto& file : fallback_font_files_)
+        {
+            ImFontConfig fb_cfg;
+            fb_cfg.FontDataOwnedByAtlas = false;
+            fb_cfg.MergeMode            = true;
+            fb_cfg.OversampleH          = 2;
+            fb_cfg.OversampleV          = 1;
+            fb_cfg.PixelSnapH           = true;
+            io.Fonts->AddFontFromMemoryTTF(const_cast<uint8_t*>(file.data()),
+                                           static_cast<int>(file.size()),
+                                           size,
+                                           &fb_cfg);
+        }
+
+        // No font has the glyph: show a hollow box (U+25A1, in Inter) rather
+        // than '?', which reads as part of the text.
+        if (font && font->IsGlyphInFont(0x25A1))
+            font->FallbackChar = static_cast<ImWchar>(0x25A1);
         return font;
     };
+
+    fallback_font_files_.clear();
+    for (const auto& path : discover_fallback_fonts())
+    {
+        FontFileData file;
+        if (file.load(path) && is_font_signature(file.data(), file.size()))
+            fallback_font_files_.push_back(std::move(file));
+    }
 
     // Body font (16px) + FA6 icon merge
     font_body_ = add_font_pair(16.0f);

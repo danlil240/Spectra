@@ -68,6 +68,14 @@ sudo apt-get install -y \
 > and is fetched (3.4) otherwise. Python 3 + Pillow are optional (resized desktop icons).
 > For distro/offline builds see [§11](#11-dependencies-system-vs-fetched-offline-builds).
 
+> **Fonts (runtime, optional):** only Inter is embedded. Glyphs Inter lacks (most maths
+> operators, CJK, ...) are loaded on demand from installed system fonts, in both the plot-text
+> atlas and the ImGui UI: DejaVu Sans / Noto Sans Math / FreeSans for symbols and Noto Sans CJK /
+> WenQuanYi / Droid Sans Fallback / IPA Gothic for CJK (e.g. `fonts-dejavu-core`,
+> `fonts-noto-cjk`). `SPECTRA_FALLBACK_FONTS=/path/a.ttf:/path/b.otf` adds fonts ahead of
+> those. Without any fallback font, missing glyphs render as a hollow box. See
+> `src/render/font_fallback.hpp`.
+
 ---
 
 ## 2. Standard Build (All Core Features)

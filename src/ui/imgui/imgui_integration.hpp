@@ -13,6 +13,7 @@
 
     #include "render/backend.hpp"
     #include "render/text_fit.hpp"
+    #include "render/font_fallback.hpp"
     #include "ui/data/csv_loader.hpp"
 
     #include "ui/docking/dock_system.hpp"
@@ -641,6 +642,10 @@ class ImGuiIntegration
     ImFont* font_icon_    = nullptr;   // 20px — icon bar symbols
     ImFont* font_title_   = nullptr;   // 18px — panel title
     ImFont* font_menubar_ = nullptr;   // 15px — menubar items
+
+    // System fallback fonts (maths symbols, CJK) merged behind Inter; the
+    // atlas references this data, so it must outlive imgui_context_.
+    std::vector<FontFileData> fallback_font_files_;
 
     // Interaction state
     bool     reset_view_       = false;

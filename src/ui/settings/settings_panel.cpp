@@ -10,6 +10,7 @@
 
     #include <imgui.h>
 
+    #include "settings_layout.hpp"
     #include "settings_store.hpp"
     #include "ui/commands/shortcut_config.hpp"
     #include "ui/commands/shortcut_manager.hpp"
@@ -151,15 +152,43 @@ void SettingsPanel::draw()
     // visible_ stays the source of truth; the popup follows it.
     static constexpr const char* k_popup_id = "Settings##spectra";
     if (visible_ && !ImGui::IsPopupOpen(k_popup_id))
+    {
         ImGui::OpenPopup(k_popup_id);
+        recenter_frames_ = 3;   // hidden auto-fit frame + first visible frames
+    }
     if (!ImGui::IsPopupOpen(k_popup_id))
         return;
 
-    ImGuiIO& io = ImGui::GetIO();
-    ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f),
-                            ImGuiCond_Appearing,
-                            ImVec2(0.5f, 0.5f));
-    ImGui::SetNextWindowSizeConstraints(ImVec2(420.0f, 0.0f), ImVec2(FLT_MAX, 900.0f));
+    // Size to content, but never past the viewport work area (audit Q04): the
+    // tab body scrolls inside a child region and the footer stays pinned.
+    const ImGuiViewport*       vp    = ImGui::GetMainViewport();
+    const ImGuiStyle&          style = ImGui::GetStyle();
+    const float                scale = style.FontScaleMain * style.FontScaleDpi;
+    const SettingsVec2         work_pos{vp->WorkPos.x, vp->WorkPos.y};
+    const SettingsVec2         work_size{vp->WorkSize.x, vp->WorkSize.y};
+    const SettingsWindowLimits lim = compute_settings_window_limits(work_size, scale);
+
+    // Position before Begin (moving the window mid-frame misplaces its
+    // contents).  Centre with a pivot, so it uses the size Begin computes,
+    // while the window settles after opening or when the work area changes;
+    // otherwise only pull last frame's rect back inside the work area.
+    if (work_size.x != last_work_size_.x || work_size.y != last_work_size_.y)
+        recenter_frames_ = std::max(recenter_frames_, 2);
+    last_work_size_ = work_size;
+    if (recenter_frames_ > 0)
+    {
+        --recenter_frames_;
+        ImGui::SetNextWindowPos(vp->GetWorkCenter(), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+    }
+    else
+    {
+        const SettingsVec2 clamped =
+            clamp_settings_window_pos(last_pos_, last_size_, work_pos, work_size, lim.margin);
+        if (clamped.x != last_pos_.x || clamped.y != last_pos_.y)
+            ImGui::SetNextWindowPos(ImVec2(clamped.x, clamped.y), ImGuiCond_Always);
+    }
+    ImGui::SetNextWindowSizeConstraints(ImVec2(lim.min_size.x, lim.min_size.y),
+                                        ImVec2(lim.max_size.x, lim.max_size.y));
 
     // Opaque background: the glass panel transparency would let the plot show
     // through behind the dialog's text.  (Modals draw with ImGuiCol_PopupBg.)
@@ -183,11 +212,23 @@ void SettingsPanel::draw()
         return;
     }
 
+    {
+        const ImVec2 pos  = ImGui::GetWindowPos();
+        const ImVec2 size = ImGui::GetWindowSize();
+        last_pos_         = {pos.x, pos.y};
+        last_size_        = {size.x, size.y};
+    }
+
+    // A programmatic switch (select_tab()) shows its body this frame; the tab
+    // bar itself may only report the new selection on the next frame.
+    const bool forced_tab = pending_tab_ >= 0 && pending_tab_ < 3;
+    if (forced_tab)
+        active_tab_ = pending_tab_;
+
     if (ImGui::BeginTabBar("##settings_tabs"))
     {
         // Apply any programmatic tab switch (e.g. from automation select_tab()).
-        // ImGuiTabItemFlags_SetSelected fires TabBarQueueFocus on the matching tab,
-        // which switches the visible tab on this same frame.
+        // ImGuiTabItemFlags_SetSelected fires TabBarQueueFocus on the matching tab.
         const auto tab_flag = [&](int idx) -> ImGuiTabItemFlags
         {
             if (pending_tab_ == idx)
@@ -198,22 +239,96 @@ void SettingsPanel::draw()
             return ImGuiTabItemFlags_None;
         };
 
-        if (ImGui::BeginTabItem("Appearance", nullptr, tab_flag(0)))
+        // Tab items only pick the active tab; the body is drawn below in a
+        // scrolling child so the footer can stay outside it.
+        static constexpr const char* k_tab_names[] = {"Appearance", "Shortcuts", "UI Defaults"};
+        for (int i = 0; i < 3; ++i)
         {
-            draw_appearance_tab();
-            ImGui::EndTabItem();
-        }
-        if (ImGui::BeginTabItem("Shortcuts", nullptr, tab_flag(1)))
-        {
-            draw_shortcuts_tab();
-            ImGui::EndTabItem();
-        }
-        if (ImGui::BeginTabItem("UI Defaults", nullptr, tab_flag(2)))
-        {
-            draw_ui_defaults_tab();
-            ImGui::EndTabItem();
+            if (ImGui::BeginTabItem(k_tab_names[i], nullptr, tab_flag(i)))
+            {
+                if (!forced_tab)
+                    active_tab_ = i;
+                ImGui::EndTabItem();
+            }
         }
         ImGui::EndTabBar();
+    }
+
+    const bool  has_footer = active_tab_ == 0 || active_tab_ == 1;
+    const float footer_h =
+        has_footer ? style.ItemSpacing.y * 2.0f + 1.0f + ImGui::GetFrameHeightWithSpacing() : 0.0f;
+    // Title bar + tab bar (cursor), footer, bottom padding.
+    const float chrome_h = ImGui::GetCursorPosY() + footer_h + style.WindowPadding.y;
+    body_max_h_ =
+        compute_settings_body_max_height(lim.max_size.y, chrome_h, ImGui::GetFrameHeight());
+
+    // The body is a fixed-height scrolling child sized to its natural content
+    // height measured on the previous frame it was shown.  The first time a
+    // tab is shown that height is unknown: its child starts at 1px and, once
+    // the content has been measured, the parent's layout is extended to the
+    // right height.  The window's first frame is hidden, so the auto-sizing
+    // window is at its final size on the first visible frame.  Each tab has
+    // its own child, so scrollbar state never carries over between tabs.
+    const bool  known  = body_content_h_[active_tab_] >= 0.0f;
+    const float used_h = known ? std::clamp(body_content_h_[active_tab_], 1.0f, body_max_h_) : 1.0f;
+    // Explicit width: a fill-width child inside an auto-resizing window feeds
+    // its own width back into the window and can latch at the maximum.
+    const float body_w = std::max(lim.min_size.x - 2.0f * style.WindowPadding.x, 1.0f);
+    static constexpr const char* k_body_ids[] = {"##settings_body_appearance",
+                                                 "##settings_body_shortcuts",
+                                                 "##settings_body_ui_defaults"};
+    // An explicit content height makes ImGui decide the scrollbar against the
+    // child's current size, not its 1px size from the measuring frame.
+    if (known)
+        ImGui::SetNextWindowContentSize(ImVec2(0.0f, body_content_h_[active_tab_]));
+    if (ImGui::BeginChild(k_body_ids[active_tab_], ImVec2(body_w, used_h)))
+    {
+        body_origin_y_ = ImGui::GetCursorPosY();
+        switch (active_tab_)
+        {
+            case 0:
+                draw_appearance_tab();
+                break;
+            case 1:
+                draw_shortcuts_tab();
+                break;
+            default:
+                draw_ui_defaults_tab();
+                break;
+        }
+        body_content_h_[active_tab_] =
+            std::max(ImGui::GetCursorPosY() - body_origin_y_ - style.ItemSpacing.y, 0.0f);
+    }
+    ImGui::EndChild();
+
+    // ImGui may enforce a minimum child height, so compare with the real one.
+    const float actual_h = ImGui::GetItemRectSize().y;
+    const float need_h   = std::clamp(body_content_h_[active_tab_], 1.0f, body_max_h_);
+    if (need_h > actual_h)
+    {
+        if (has_footer)
+        {
+            // The footer's first item extends the layout from here.
+            ImGui::SetCursorPosY(ImGui::GetCursorPosY() + (need_h - actual_h));
+        }
+        else
+        {
+            // Zero-size item at the body's would-be bottom edge (the cursor
+            // already includes the item spacing after the child).
+            ImGui::SetCursorPosY(ImGui::GetCursorPosY() + (need_h - actual_h)
+                                 - style.ItemSpacing.y);
+            ImGui::Dummy(ImVec2(0.0f, 0.0f));
+        }
+    }
+
+    if (has_footer)
+    {
+        ImGui::Separator();
+        ImGui::Spacing();
+        if (active_tab_ == 0)
+            draw_appearance_footer();
+        else
+            draw_shortcuts_footer();
     }
 
     ImGui::EndPopup();
@@ -367,11 +482,14 @@ void SettingsPanel::draw_appearance_tab()
         theme_mgr_->save_current_as_default();
         store_->notify_change();
     }
+}
 
-    ImGui::Spacing();
-    ImGui::Separator();
-    ImGui::Spacing();
+void SettingsPanel::draw_appearance_footer()
+{
+    if (!store_ || !theme_mgr_)
+        return;
 
+    auto& d = store_->data_mut();
     if (ImGui::Button("Reset to Defaults"))
     {
         d.default_theme        = "night";
@@ -426,7 +544,11 @@ void SettingsPanel::draw_shortcuts_tab()
     constexpr ImGuiTableFlags kTableFlags =
         ImGuiTableFlags_Borders | ImGuiTableFlags_ScrollY | ImGuiTableFlags_RowBg;
 
-    ImVec2 table_size(0.0f, ImGui::GetContentRegionAvail().y - 40.0f);
+    // Fill the body's height budget; the table scrolls its own rows, so the
+    // pinned footer below the body stays reachable.
+    const float table_h = std::max(body_max_h_ - (ImGui::GetCursorPosY() - body_origin_y_),
+                                   ImGui::GetFrameHeightWithSpacing() * 4.0f);
+    ImVec2      table_size(0.0f, table_h);
     if (ImGui::BeginTable("##shortcuts", 3, kTableFlags, table_size))
     {
         ImGui::TableSetupScrollFreeze(0, 1);
@@ -532,8 +654,13 @@ void SettingsPanel::draw_shortcuts_tab()
 
         ImGui::EndTable();
     }
+}
 
-    ImGui::Spacing();
+void SettingsPanel::draw_shortcuts_footer()
+{
+    if (!shortcut_cfg_)
+        return;
+
     if (ImGui::Button("Reset All Shortcuts"))
     {
         shortcut_cfg_->reset_all();

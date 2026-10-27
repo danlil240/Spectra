@@ -98,7 +98,7 @@ TEST(PaletteResolution, FormatStringColorIsExplicitButStyleOnlyKeepsAuto)
     auto&           colored    = ax.plot(kX, kY, "r--");
     auto&           style_only = ax.plot(kX, kY, "--o");
     EXPECT_FALSE(colored.has_auto_color());
-    EXPECT_TRUE(same_rgb(colored.color(), spectra::colors::red));
+    EXPECT_TRUE(same_rgb(colored.color(), spectra::format_colors::shade('r')));
     EXPECT_TRUE(style_only.has_auto_color());
 }
 

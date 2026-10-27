@@ -469,12 +469,25 @@ class ThemeManager
     ThemeColors interpolate_colors(const ThemeColors& start, const ThemeColors& end, float t) const;
 };
 
+// True when the theme's plot canvas is light (format-letter colours then use
+// their light-background shades, see format_colors in spectra/color.hpp).
+inline bool is_light_plot_background(const ThemeColors& theme)
+{
+    const float luma =
+        0.2126f * theme.bg_canvas.r + 0.7152f * theme.bg_canvas.g + 0.0722f * theme.bg_canvas.b;
+    return luma > 0.5f;
+}
+
 // Resolve the colours of auto-coloured series (Series::has_auto_color()) in
-// @p figure from @p palette, by palette slot.  Explicitly coloured series are
-// left untouched.  An empty palette falls back to palette::default_cycle.
+// @p figure from @p palette, by palette slot, and of format-letter series
+// (Series::color_letter(), e.g. "r--") to the letter's tuned shade for a dark
+// or light background.  Explicitly coloured series are left untouched.  An
+// empty palette falls back to palette::default_cycle.
 // Called by the renderer before drawing a figure and by the UI before building
 // overlays (legend), so palette and theme switches recolour existing plots.
-void resolve_auto_series_colors(Figure& figure, const DataPalette& palette);
+void resolve_auto_series_colors(Figure&            figure,
+                                const DataPalette& palette,
+                                bool               light_background = false);
 
 // Convenience accessors
 inline const ThemeColors& theme()

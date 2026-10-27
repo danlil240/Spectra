@@ -236,7 +236,7 @@ TEST(FormatParserTest, ColorOnly_Red)
 {
     auto ps = parse_format_string("r");
     EXPECT_TRUE(ps.color.has_value());
-    EXPECT_TRUE(color_eq(*ps.color, colors::red));
+    EXPECT_TRUE(color_eq(*ps.color, format_colors::shade('r')));
     EXPECT_EQ(ps.line_style, LineStyle::Solid);   // default when only color
     EXPECT_EQ(ps.marker_style, MarkerStyle::None);
 }
@@ -244,43 +244,43 @@ TEST(FormatParserTest, ColorOnly_Red)
 TEST(FormatParserTest, ColorOnly_Green)
 {
     auto ps = parse_format_string("g");
-    EXPECT_TRUE(color_eq(*ps.color, colors::green));
+    EXPECT_TRUE(color_eq(*ps.color, format_colors::shade('g')));
 }
 
 TEST(FormatParserTest, ColorOnly_Blue)
 {
     auto ps = parse_format_string("b");
-    EXPECT_TRUE(color_eq(*ps.color, colors::blue));
+    EXPECT_TRUE(color_eq(*ps.color, format_colors::shade('b')));
 }
 
 TEST(FormatParserTest, ColorOnly_Cyan)
 {
     auto ps = parse_format_string("c");
-    EXPECT_TRUE(color_eq(*ps.color, colors::cyan));
+    EXPECT_TRUE(color_eq(*ps.color, format_colors::shade('c')));
 }
 
 TEST(FormatParserTest, ColorOnly_Magenta)
 {
     auto ps = parse_format_string("m");
-    EXPECT_TRUE(color_eq(*ps.color, colors::magenta));
+    EXPECT_TRUE(color_eq(*ps.color, format_colors::shade('m')));
 }
 
 TEST(FormatParserTest, ColorOnly_Yellow)
 {
     auto ps = parse_format_string("y");
-    EXPECT_TRUE(color_eq(*ps.color, colors::yellow));
+    EXPECT_TRUE(color_eq(*ps.color, format_colors::shade('y')));
 }
 
 TEST(FormatParserTest, ColorOnly_Black)
 {
     auto ps = parse_format_string("k");
-    EXPECT_TRUE(color_eq(*ps.color, colors::black));
+    EXPECT_TRUE(color_eq(*ps.color, format_colors::shade('k')));
 }
 
 TEST(FormatParserTest, ColorOnly_White)
 {
     auto ps = parse_format_string("w");
-    EXPECT_TRUE(color_eq(*ps.color, colors::white));
+    EXPECT_TRUE(color_eq(*ps.color, format_colors::shade('w')));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -434,7 +434,7 @@ TEST(FormatParserTest, MarkerOnly_FilledTriangleUp)
 TEST(FormatParserTest, RedDashedCircle)
 {
     auto ps = parse_format_string("r--o");
-    EXPECT_TRUE(color_eq(*ps.color, colors::red));
+    EXPECT_TRUE(color_eq(*ps.color, format_colors::shade('r')));
     EXPECT_EQ(ps.line_style, LineStyle::Dashed);
     EXPECT_EQ(ps.marker_style, MarkerStyle::Circle);
 }
@@ -442,7 +442,7 @@ TEST(FormatParserTest, RedDashedCircle)
 TEST(FormatParserTest, BlueDottedStar)
 {
     auto ps = parse_format_string("b:*");
-    EXPECT_TRUE(color_eq(*ps.color, colors::blue));
+    EXPECT_TRUE(color_eq(*ps.color, format_colors::shade('b')));
     EXPECT_EQ(ps.line_style, LineStyle::Dotted);
     EXPECT_EQ(ps.marker_style, MarkerStyle::Star);
 }
@@ -450,7 +450,7 @@ TEST(FormatParserTest, BlueDottedStar)
 TEST(FormatParserTest, GreenDashDotSquare)
 {
     auto ps = parse_format_string("g-.s");
-    EXPECT_TRUE(color_eq(*ps.color, colors::green));
+    EXPECT_TRUE(color_eq(*ps.color, format_colors::shade('g')));
     EXPECT_EQ(ps.line_style, LineStyle::DashDot);
     EXPECT_EQ(ps.marker_style, MarkerStyle::Square);
 }
@@ -458,7 +458,7 @@ TEST(FormatParserTest, GreenDashDotSquare)
 TEST(FormatParserTest, BlackSolidDiamond)
 {
     auto ps = parse_format_string("k-d");
-    EXPECT_TRUE(color_eq(*ps.color, colors::black));
+    EXPECT_TRUE(color_eq(*ps.color, format_colors::shade('k')));
     EXPECT_EQ(ps.line_style, LineStyle::Solid);
     EXPECT_EQ(ps.marker_style, MarkerStyle::Diamond);
 }
@@ -466,7 +466,7 @@ TEST(FormatParserTest, BlackSolidDiamond)
 TEST(FormatParserTest, CyanDashDotDotTriangle)
 {
     auto ps = parse_format_string("c-..^");
-    EXPECT_TRUE(color_eq(*ps.color, colors::cyan));
+    EXPECT_TRUE(color_eq(*ps.color, format_colors::shade('c')));
     EXPECT_EQ(ps.line_style, LineStyle::DashDotDot);
     EXPECT_EQ(ps.marker_style, MarkerStyle::TriangleUp);
 }
@@ -474,7 +474,7 @@ TEST(FormatParserTest, CyanDashDotDotTriangle)
 TEST(FormatParserTest, ColorAndMarkerNoLine)
 {
     auto ps = parse_format_string("ro");
-    EXPECT_TRUE(color_eq(*ps.color, colors::red));
+    EXPECT_TRUE(color_eq(*ps.color, format_colors::shade('r')));
     EXPECT_EQ(ps.marker_style, MarkerStyle::Circle);
     EXPECT_EQ(ps.line_style, LineStyle::None);   // marker-only
 }
@@ -490,14 +490,14 @@ TEST(FormatParserTest, LineAndMarkerNoColor)
 TEST(FormatParserTest, FlexibleOrder_LineFirst)
 {
     auto ps = parse_format_string("--r");
-    EXPECT_TRUE(color_eq(*ps.color, colors::red));
+    EXPECT_TRUE(color_eq(*ps.color, format_colors::shade('r')));
     EXPECT_EQ(ps.line_style, LineStyle::Dashed);
 }
 
 TEST(FormatParserTest, FlexibleOrder_MarkerColorLine)
 {
     auto ps = parse_format_string("or--");
-    EXPECT_TRUE(color_eq(*ps.color, colors::red));
+    EXPECT_TRUE(color_eq(*ps.color, format_colors::shade('r')));
     EXPECT_EQ(ps.line_style, LineStyle::Dashed);
     EXPECT_EQ(ps.marker_style, MarkerStyle::Circle);
 }
@@ -517,7 +517,7 @@ TEST(FormatParserTest, EmptyString)
 TEST(FormatParserTest, UnknownCharsIgnored)
 {
     auto ps = parse_format_string("r!@#--o");
-    EXPECT_TRUE(color_eq(*ps.color, colors::red));
+    EXPECT_TRUE(color_eq(*ps.color, format_colors::shade('r')));
     EXPECT_EQ(ps.line_style, LineStyle::Dashed);
     EXPECT_EQ(ps.marker_style, MarkerStyle::Circle);
 }
@@ -525,7 +525,7 @@ TEST(FormatParserTest, UnknownCharsIgnored)
 TEST(FormatParserTest, LastColorWins)
 {
     auto ps = parse_format_string("rb");
-    EXPECT_TRUE(color_eq(*ps.color, colors::blue));
+    EXPECT_TRUE(color_eq(*ps.color, format_colors::shade('b')));
 }
 
 TEST(FormatParserTest, LastMarkerWins)
@@ -581,7 +581,7 @@ TEST(LineSeriesFormatTest, ApplyFormatString)
 {
     LineSeries ls;
     ls.format("r--o");
-    EXPECT_TRUE(color_eq(ls.color(), colors::red));
+    EXPECT_TRUE(color_eq(ls.color(), format_colors::shade('r')));
     EXPECT_EQ(ls.line_style(), LineStyle::Dashed);
     EXPECT_EQ(ls.marker_style(), MarkerStyle::Circle);
 }
@@ -593,7 +593,7 @@ TEST(LineSeriesFormatTest, FormatPreservesData)
     LineSeries         ls(x, y);
     ls.format("b:*");
     EXPECT_EQ(ls.point_count(), 3u);
-    EXPECT_TRUE(color_eq(ls.color(), colors::blue));
+    EXPECT_TRUE(color_eq(ls.color(), format_colors::shade('b')));
     EXPECT_EQ(ls.line_style(), LineStyle::Dotted);
     EXPECT_EQ(ls.marker_style(), MarkerStyle::Star);
 }
@@ -642,7 +642,7 @@ TEST(ScatterSeriesFormatTest, ApplyFormatString)
 {
     ScatterSeries ss;
     ss.format("go");
-    EXPECT_TRUE(color_eq(ss.color(), colors::green));
+    EXPECT_TRUE(color_eq(ss.color(), format_colors::shade('g')));
     EXPECT_EQ(ss.marker_style(), MarkerStyle::Circle);
 }
 
@@ -718,7 +718,7 @@ TEST(AxesPlotTest, PlotWithFormatString)
     std::vector<float> x  = {0, 1, 2};
     std::vector<float> y  = {0, 1, 4};
     auto&              ls = ax.plot(x, y, "r--o");
-    EXPECT_TRUE(color_eq(ls.color(), colors::red));
+    EXPECT_TRUE(color_eq(ls.color(), format_colors::shade('r')));
     EXPECT_EQ(ls.line_style(), LineStyle::Dashed);
     EXPECT_EQ(ls.marker_style(), MarkerStyle::Circle);
     EXPECT_EQ(ls.point_count(), 3u);
@@ -821,18 +821,18 @@ TEST(MatlabCompatTest, AllColorLineMarkerCombinations)
     };
 
     TestCase cases[] = {
-        {"r-o", colors::red, LineStyle::Solid, MarkerStyle::Circle},
-        {"g--s", colors::green, LineStyle::Dashed, MarkerStyle::Square},
-        {"b:d", colors::blue, LineStyle::Dotted, MarkerStyle::Diamond},
-        {"c-.^", colors::cyan, LineStyle::DashDot, MarkerStyle::TriangleUp},
-        {"m-..v", colors::magenta, LineStyle::DashDotDot, MarkerStyle::TriangleDown},
-        {"y-+", colors::yellow, LineStyle::Solid, MarkerStyle::Plus},
-        {"k--x", colors::black, LineStyle::Dashed, MarkerStyle::Cross},
-        {"w:*", colors::white, LineStyle::Dotted, MarkerStyle::Star},
-        {"r-.<", colors::red, LineStyle::DashDot, MarkerStyle::TriangleLeft},
-        {"g-..>", colors::green, LineStyle::DashDotDot, MarkerStyle::TriangleRight},
-        {"b-p", colors::blue, LineStyle::Solid, MarkerStyle::Pentagon},
-        {"c--h", colors::cyan, LineStyle::Dashed, MarkerStyle::Hexagon},
+        {"r-o", format_colors::shade('r'), LineStyle::Solid, MarkerStyle::Circle},
+        {"g--s", format_colors::shade('g'), LineStyle::Dashed, MarkerStyle::Square},
+        {"b:d", format_colors::shade('b'), LineStyle::Dotted, MarkerStyle::Diamond},
+        {"c-.^", format_colors::shade('c'), LineStyle::DashDot, MarkerStyle::TriangleUp},
+        {"m-..v", format_colors::shade('m'), LineStyle::DashDotDot, MarkerStyle::TriangleDown},
+        {"y-+", format_colors::shade('y'), LineStyle::Solid, MarkerStyle::Plus},
+        {"k--x", format_colors::shade('k'), LineStyle::Dashed, MarkerStyle::Cross},
+        {"w:*", format_colors::shade('w'), LineStyle::Dotted, MarkerStyle::Star},
+        {"r-.<", format_colors::shade('r'), LineStyle::DashDot, MarkerStyle::TriangleLeft},
+        {"g-..>", format_colors::shade('g'), LineStyle::DashDotDot, MarkerStyle::TriangleRight},
+        {"b-p", format_colors::shade('b'), LineStyle::Solid, MarkerStyle::Pentagon},
+        {"c--h", format_colors::shade('c'), LineStyle::Dashed, MarkerStyle::Hexagon},
     };
 
     for (const auto& tc : cases)

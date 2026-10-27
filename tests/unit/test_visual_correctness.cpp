@@ -161,12 +161,23 @@ ui::ThemeColors theme_with_bg(float bg, float fg)
 TEST(ThemeSeriesColor, BlackBecomesForegroundOnDarkTheme)
 {
     auto  dark = theme_with_bg(0.05f, 0.9f);
-    Color k    = parse_format_string("k-").color.value();
+    Color k    = colors::black;
     Color out  = ui::adapt_series_color_to_theme(k, dark);
     EXPECT_FLOAT_EQ(out.r, 0.9f);
     EXPECT_FLOAT_EQ(out.g, 0.9f);
     EXPECT_FLOAT_EQ(out.b, 0.9f);
     EXPECT_FLOAT_EQ(out.a, k.a);
+}
+
+TEST(ThemeSeriesColor, FormatLetterKIsATunedShadeNotRemapped)
+{
+    // "k-" resolves to its tuned dark-background shade (P1-5), which already
+    // reads on dark canvases, so the foreground fallback leaves it alone.
+    auto  dark = theme_with_bg(0.05f, 0.9f);
+    Color k    = parse_format_string("k-").color.value();
+    Color out  = ui::adapt_series_color_to_theme(k, dark);
+    EXPECT_FLOAT_EQ(out.r, format_colors::shade('k').r);
+    EXPECT_GT(out.r, 0.75f);
 }
 
 TEST(ThemeSeriesColor, BlackStaysBlackOnLightTheme)

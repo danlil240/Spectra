@@ -142,8 +142,15 @@ class SnapshotSeriesState(object):
             return self._tab.Get(flatbuffers.number_types.Int32Flags, o + self._tab.Pos)
         return -1
 
+    # SnapshotSeriesState
+    def ColorLetter(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(32))
+        if o != 0:
+            return self._tab.Get(flatbuffers.number_types.Uint8Flags, o + self._tab.Pos)
+        return 0
+
 def SnapshotSeriesStateStart(builder):
-    builder.StartObject(14)
+    builder.StartObject(15)
 
 def Start(builder):
     SnapshotSeriesStateStart(builder)
@@ -237,6 +244,12 @@ def SnapshotSeriesStateAddColorIndex(builder, colorIndex):
 
 def AddColorIndex(builder, colorIndex):
     SnapshotSeriesStateAddColorIndex(builder, colorIndex)
+
+def SnapshotSeriesStateAddColorLetter(builder, colorLetter):
+    builder.PrependUint8Slot(14, colorLetter, 0)
+
+def AddColorLetter(builder, colorLetter):
+    SnapshotSeriesStateAddColorLetter(builder, colorLetter)
 
 def SnapshotSeriesStateEnd(builder):
     return builder.EndObject()

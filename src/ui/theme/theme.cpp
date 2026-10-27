@@ -1464,12 +1464,18 @@ void ThemeManager::initialize_data_palettes()
     current_data_palette_name_ = "default";
 }
 
-void resolve_auto_series_colors(Figure& figure, const DataPalette& palette)
+void resolve_auto_series_colors(Figure& figure, const DataPalette& palette, bool light_background)
 {
     auto resolve_axes = [&](AxesBase& axes)
     {
         for (auto& s : axes.series_mut())
         {
+            if (s && s->color_letter() != '\0')
+            {
+                s->resolve_letter_color(
+                    spectra::format_colors::shade(s->color_letter(), light_background));
+                continue;
+            }
             if (!s || !s->has_auto_color())
                 continue;
             const auto     slot = static_cast<size_t>(s->auto_color_index());

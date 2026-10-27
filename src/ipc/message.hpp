@@ -262,6 +262,10 @@ struct SnapshotSeriesState
     // When >= 0 the window resolves the colour from its own theme palette;
     // color_r..a then only carry the sender's resolved colour.
     int32_t color_index = -1;
+    // MATLAB format-string colour letter (r g b c m y k w) of an explicitly
+    // lettered series, 0 otherwise.  The window re-resolves the letter's tuned
+    // shade for its own theme; color_r..a carry the sender's shade.
+    uint8_t color_letter = 0;
 };
 
 // A single figure's full state.

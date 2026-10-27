@@ -357,6 +357,7 @@ static flatbuffers::Offset<fb::SnapshotSeriesState> build_fb_series(
     b.add_point_count(s.point_count);
     b.add_axes_index(s.axes_index);
     b.add_color_index(s.color_index);
+    b.add_color_letter(s.color_letter);
     if (!s.data.empty())
         b.add_data(data_off);
     return b.Finish();
@@ -379,7 +380,8 @@ static SnapshotSeriesState read_fb_series(const fb::SnapshotSeriesState* fb)
     s.opacity     = fb->opacity();
     s.point_count = fb->point_count();
     s.axes_index  = fb->axes_index();
-    s.color_index = fb->color_index();
+    s.color_index  = fb->color_index();
+    s.color_letter = fb->color_letter();
     if (fb->data())
     {
         s.data.reserve(fb->data()->size());

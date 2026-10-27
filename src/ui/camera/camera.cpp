@@ -1,5 +1,7 @@
 #include "camera.hpp"
 
+#include "core/json_key.hpp"
+
 #include <algorithm>
 #include <cctype>
 #include <cerrno>
@@ -426,7 +428,9 @@ void Camera::deserialize(const std::string& json)
         return true;
     };
 
-    auto find_key = [&json](const char* key) { return json.find(key); };
+    // Callers pass the quoted key token; match it as an exact JSON key.
+    auto find_key = [&json](std::string_view quoted)
+    { return json_find_key(json, quoted.substr(1, quoted.size() - 2)); };
 
     size_t pos = find_key("\"position\"");
     if (pos != std::string::npos)

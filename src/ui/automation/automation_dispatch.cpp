@@ -1,6 +1,7 @@
 // automation_dispatch.cpp — Context checks, param validation, handler wrapping.
 
 #include "automation_dispatch.hpp"
+#include "core/json_key.hpp"
 
 #include "automation_json.hpp"
 #include "automation_server.hpp"
@@ -16,8 +17,7 @@ namespace spectra
 
 bool json_has_key(const std::string& json, const std::string& key)
 {
-    const std::string search = "\"" + key + "\"";
-    return json.find(search) != std::string::npos;
+    return json_find_key(json, key) != std::string::npos;
 }
 
 bool check_automation_context(AutomationContextFlag flags,

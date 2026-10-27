@@ -274,7 +274,9 @@ TEST(ColorbarLayout, TicksAreNiceAndInRange)
             EXPECT_GE(ticks[i].value, c.lo - 1e-9);
             EXPECT_LE(ticks[i].value, c.hi + 1e-9);
             if (i > 0)
+            {
                 EXPECT_GT(ticks[i].value, ticks[i - 1].value);
+            }
             EXPECT_FALSE(ticks[i].label.empty());
         }
     }

@@ -1,6 +1,12 @@
-// scatter.wgsl — WGSL port of scatter.vert + scatter.frag for the WebGPU backend.
+// scatter.wgsl — WGSL port of scatter.vert, scatter_colormap.vert and
+// scatter.frag for the WebGPU backend.
 // Renders instanced SDF scatter markers.  Each instance is one data point read
 // from a storage buffer; 6 vertices per instance form a screen-space quad.
+//
+// Two vertex entry points share the fragment shader:
+//   vs_main     — PipelineType::Scatter, SSBO of vec2 (x, y)
+//   vs_colormap — PipelineType::ScatterColormap, SSBO of vec4 (x, y, value, pad)
+// The SSBO is declared as raw floats so both strides can use one binding.
 
 // ── Bind group 0: per-frame and per-series uniforms ─────────────────────────
 
@@ -39,22 +45,20 @@ struct SeriesPC {
 
 // ── Bind group 1: per-series vertex data (SSBO) ─────────────────────────────
 
-@group(1) @binding(0) var<storage, read> vertex_data : array<vec2<f32>>;
+@group(1) @binding(0) var<storage, read> vertex_data : array<f32>;
 
 // ── Vertex output / fragment input ──────────────────────────────────────────
 
 struct VertexOutput {
-    @builtin(position) clip_pos: vec4<f32>,
-    @location(0)       v_uv    : vec2<f32>,
+    @builtin(position)                    clip_pos     : vec4<f32>,
+    @location(0)                          v_uv         : vec2<f32>,
+    @location(1) @interpolate(flat)       v_color_value: f32,
 };
 
 // ── Vertex shader ─────────────────────────────────────────────────────────────
 
-@vertex
-fn vs_main(
-    @builtin(vertex_index)   vertex_index  : u32,
-    @builtin(instance_index) instance_index: u32,
-) -> VertexOutput {
+// Screen-space marker quad around a data-space center.
+fn marker_quad(vertex_index: u32, center_in: vec2<f32>) -> VertexOutput {
     var out: VertexOutput;
 
     let tri_vert   = i32(vertex_index) % 6;
@@ -62,7 +66,7 @@ fn vs_main(
     let corner     = corner_map[tri_vert];
 
     let data_offset  = vec2<f32>(series_pc.data_offset_x, series_pc.data_offset_y);
-    let center       = vertex_data[instance_index] + data_offset;
+    let center       = center_in + data_offset;
 
     let clip_center  = frame.projection * frame.view * frame.model * vec4<f32>(center, 0.0, 1.0);
     let ndc_center   = clip_center.xy / clip_center.w;
@@ -80,8 +84,81 @@ fn vs_main(
     let ndc        = (screen_pos / viewport_size) * 2.0 - vec2<f32>(1.0);
 
     out.clip_pos = vec4<f32>(ndc * clip_center.w, 0.0, clip_center.w);
-    out.v_uv     = offset;
+    // WebGPU clip Y points up, so +offset.y is already "up" on screen (the
+    // Vulkan shader flips it because its clip Y points down).
+    out.v_uv          = offset;
+    out.v_color_value = 0.0;
     return out;
+}
+
+@vertex
+fn vs_main(
+    @builtin(vertex_index)   vertex_index  : u32,
+    @builtin(instance_index) instance_index: u32,
+) -> VertexOutput {
+    let i = instance_index * 2u;
+    return marker_quad(vertex_index, vec2<f32>(vertex_data[i], vertex_data[i + 1u]));
+}
+
+@vertex
+fn vs_colormap(
+    @builtin(vertex_index)   vertex_index  : u32,
+    @builtin(instance_index) instance_index: u32,
+) -> VertexOutput {
+    let i   = instance_index * 4u;
+    var out = marker_quad(vertex_index, vec2<f32>(vertex_data[i], vertex_data[i + 1u]));
+    out.v_color_value = vertex_data[i + 2u];
+    return out;
+}
+
+// ── Colormaps (same control points as scatter.frag) ──────────────────────────
+
+fn mix3(a: vec3<f32>, b: vec3<f32>, c: vec3<f32>, t: f32) -> vec3<f32> {
+    if t < 0.5 {
+        return mix(a, b, t * 2.0);
+    }
+    return mix(b, c, (t - 0.5) * 2.0);
+}
+
+fn apply_colormap(cm_type: i32, t_in: f32) -> vec3<f32> {
+    let t = clamp(t_in, 0.0, 1.0);
+    switch cm_type {
+        case 1: {   // Viridis
+            return mix3(vec3<f32>(0.267, 0.005, 0.329), vec3<f32>(0.128, 0.567, 0.551),
+                        vec3<f32>(0.993, 0.906, 0.144), t);
+        }
+        case 2: {   // Plasma
+            return mix3(vec3<f32>(0.050, 0.030, 0.528), vec3<f32>(0.798, 0.280, 0.470),
+                        vec3<f32>(0.940, 0.975, 0.131), t);
+        }
+        case 3: {   // Inferno
+            return mix3(vec3<f32>(0.001, 0.000, 0.014), vec3<f32>(0.735, 0.216, 0.330),
+                        vec3<f32>(0.988, 0.998, 0.645), t);
+        }
+        case 4: {   // Magma
+            return mix3(vec3<f32>(0.001, 0.000, 0.014), vec3<f32>(0.716, 0.215, 0.475),
+                        vec3<f32>(0.987, 0.991, 0.750), t);
+        }
+        case 5: {   // Jet
+            return clamp(vec3<f32>(1.5) - abs(4.0 * t - vec3<f32>(3.0, 2.0, 1.0)),
+                         vec3<f32>(0.0), vec3<f32>(1.0));
+        }
+        case 6: {   // Coolwarm
+            return mix3(vec3<f32>(0.230, 0.299, 0.754), vec3<f32>(0.865, 0.865, 0.865),
+                        vec3<f32>(0.706, 0.016, 0.150), t);
+        }
+        case 7: {   // Grayscale
+            return vec3<f32>(t);
+        }
+        default: {
+            return series_pc.color.rgb;
+        }
+    }
+}
+
+// WGSL has no isnan/isinf; NaN fails every comparison with itself.
+fn is_finite(v: f32) -> bool {
+    return v == v && abs(v) <= 0x1.fffffep+127f;
 }
 
 // ── SDF helpers ───────────────────────────────────────────────────────────────
@@ -172,6 +249,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     var d         = 0.0;
     var is_filled = true;
+    var has_edge  = false;
 
     switch mt {
         case 1u: { d = length(in.v_uv) - 0.55; is_filled = true; }
@@ -191,6 +269,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         case 15u: { d = sdf_square(in.v_uv);  is_filled = true; }
         case 16u: { d = sdf_diamond(in.v_uv); is_filled = true; }
         case 17u: { d = sdf_triangle_up(in.v_uv); is_filled = true; }
+        // 18 = default scatter dot (no explicit marker): filled circle with a
+        // contrasting edge.
+        case 18u: { d = sdf_circle(in.v_uv);  is_filled = true; has_edge = true; }
         default:  { d = sdf_circle(in.v_uv);  is_filled = true; }
     }
 
@@ -205,5 +286,29 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     if alpha < 0.002 { discard; }
 
-    return vec4<f32>(series_pc.color.rgb, series_pc.color.a * series_pc.opacity * alpha);
+    var base_color = series_pc.color.rgb;
+    if series_pc._pad2.x > 0.5 && series_pc.dash_count > 0 && is_finite(in.v_color_value) {
+        let value_min = series_pc.dash_pattern[0];
+        let value_max = series_pc.dash_pattern[1];
+        let range     = value_max - value_min;
+        var t         = 0.5;
+        if abs(range) > 1e-20 {
+            t = (in.v_color_value - value_min) / range;
+        }
+        base_color = apply_colormap(series_pc.dash_count, t);
+    }
+
+    // Default scatter dot: tint a ~1 px rim towards white (_pad2.y > 0) or
+    // black (_pad2.y < 0) so dark or light colors stay visible on the canvas.
+    if has_edge {
+        let edge_w = clamp(1.0 / (series_pc.point_size * 0.5 + 1.0), 0.06, 0.3);
+        let rim    = smoothstep(-edge_w - aa, -edge_w + aa, d);
+        var edge_target = vec3<f32>(0.0);
+        if series_pc._pad2.y >= 0.0 {
+            edge_target = vec3<f32>(1.0);
+        }
+        base_color = mix(base_color, mix(base_color, edge_target, abs(series_pc._pad2.y)), rim);
+    }
+
+    return vec4<f32>(base_color, series_pc.color.a * series_pc.opacity * alpha);
 }

@@ -96,6 +96,34 @@ TEST(WGSLShaderEmbedding, StatFillShaderContainsAlphaAttribute)
     EXPECT_NE(std::strstr(wgsl::stat_fill_wgsl, "in_alpha"), nullptr);
 }
 
+TEST(WGSLShaderEmbedding, ScatterShaderHasColormapEntryPoint)
+{
+    // PipelineType::ScatterColormap reuses scatter.wgsl with a vertex stage
+    // that reads (x, y, value, pad) and hands the value to the fragment stage.
+    EXPECT_NE(std::strstr(wgsl::scatter_wgsl, "fn vs_colormap"), nullptr);
+    EXPECT_NE(std::strstr(wgsl::scatter_wgsl, "@interpolate(flat)"), nullptr);
+    EXPECT_NE(std::strstr(wgsl::scatter_wgsl, "fn apply_colormap"), nullptr);
+}
+
+TEST(WGSLShaderEmbedding, ScatterShaderHasDefaultDotRim)
+{
+    // Marker type 18 (default scatter dot) draws a contrasting rim, as in
+    // scatter.frag, driven by SeriesPC._pad2.y.
+    EXPECT_NE(std::strstr(wgsl::scatter_wgsl, "case 18u"), nullptr);
+    EXPECT_NE(std::strstr(wgsl::scatter_wgsl, "has_edge = true"), nullptr);
+    EXPECT_NE(std::strstr(wgsl::scatter_wgsl, "_pad2.y"), nullptr);
+}
+
+TEST(WGSLShaderEmbedding, HeatmapShaderEntryPointsAndBindings)
+{
+    ASSERT_NE(wgsl::heatmap_wgsl, nullptr);
+    EXPECT_NE(std::strstr(wgsl::heatmap_wgsl, "fn vs_main"), nullptr);
+    EXPECT_NE(std::strstr(wgsl::heatmap_wgsl, "fn fs_main"), nullptr);
+    EXPECT_NE(std::strstr(wgsl::heatmap_wgsl, "@group(0) @binding(0)"), nullptr);
+    EXPECT_NE(std::strstr(wgsl::heatmap_wgsl, "@group(0) @binding(1)"), nullptr);
+    EXPECT_NE(std::strstr(wgsl::heatmap_wgsl, "@group(1) @binding(0)"), nullptr);
+}
+
 // ─── Struct layout constraints ────────────────────────────────────────────────
 
 TEST(WebGPULayout, SeriesPushConstantsAlignment)

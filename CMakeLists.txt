@@ -213,7 +213,7 @@ include(cmake/CompileShaders.cmake)
 set(WGSL_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/gpu/shaders/wgsl)
 set(WGSL_HEADER     ${CMAKE_CURRENT_BINARY_DIR}/generated/shader_wgsl.hpp)
 if(EXISTS ${WGSL_SOURCE_DIR})
-    file(GLOB _wgsl_inputs "${WGSL_SOURCE_DIR}/*.wgsl")
+    file(GLOB _wgsl_inputs CONFIGURE_DEPENDS "${WGSL_SOURCE_DIR}/*.wgsl")
     if(_wgsl_inputs)
         add_custom_command(
             OUTPUT  ${WGSL_HEADER}

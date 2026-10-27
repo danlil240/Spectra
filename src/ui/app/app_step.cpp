@@ -1036,6 +1036,7 @@ App::StepResult App::step()
     if (rt.active_figure && rt.active_figure->anim_.duration > 0.0f
         && !rt.active_figure->anim_.loop)
     {
+#ifdef SPECTRA_USE_FFMPEG
         if (rt.is_recording && rt.video_exporter)
         {
             // Offline recording: stop after exactly duration * fps frames.
@@ -1045,7 +1046,9 @@ App::StepResult App::step()
             if (rt.video_frames_written >= std::max<uint64_t>(1, target_frames))
                 rt.session.request_exit();
         }
-        else if (rt.scheduler.elapsed_seconds() >= rt.active_figure->anim_.duration)
+        else
+#endif
+            if (rt.scheduler.elapsed_seconds() >= rt.active_figure->anim_.duration)
         {
             rt.session.request_exit();
         }

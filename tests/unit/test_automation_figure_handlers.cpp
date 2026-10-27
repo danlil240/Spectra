@@ -51,5 +51,6 @@ TEST(AutomationAddSeries, EscapedLabelIsDecodedOnSeries)
     EXPECT_NE(req.response_json.find("\"ok\":true"), std::string::npos) << req.response_json;
     ASSERT_FALSE(fig.axes().empty());
     ASSERT_EQ(fig.axes()[0]->series().size(), 1u);
-    EXPECT_EQ(fig.axes()[0]->series()[0]->label(), "Signal A — \"Δt\" 😀\nline2");
+    EXPECT_EQ(fig.axes()[0]->series()[0]->label(),
+              "Signal A \xE2\x80\x94 \"\xCE\x94t\" \xF0\x9F\x98\x80\nline2");
 }

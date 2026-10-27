@@ -653,6 +653,13 @@ void QtRuntime::render_figure(QWindow* window, Figure& figure)
     // render_figure_content() already calls render_plot_text() and
     // render_plot_geometry() internally — do NOT call them again here.
     renderer_->begin_render_pass();
+    // The ImGui overlay (when built) draws the interactive legend; otherwise
+    // the renderer draws it.
+    bool legend_overlay = false;
+#ifdef SPECTRA_USE_IMGUI
+    legend_overlay = imgui_ui_ && data_interaction_;
+#endif
+    renderer_->set_legend_overlay_active(legend_overlay);
     renderer_->render_figure_content(figure);
     renderer_->render_text(sw, sh);
 

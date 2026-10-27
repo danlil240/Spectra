@@ -714,6 +714,7 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
         if (backend_.begin_frame())
         {
             renderer_.begin_render_pass();
+            renderer_.set_legend_overlay_active(false);   // no ImGui overlay here
             renderer_.render_figure_content(*fig);
             auto sw = static_cast<float>(backend_.swapchain_width());
             auto sh = static_cast<float>(backend_.swapchain_height());

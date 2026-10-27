@@ -165,8 +165,8 @@ bool LegendInteraction::draw(Axes&               axes,
     // One column = swatch + label (+ visibility eye).  Entries flow into
     // extra columns instead of being cut off; scrolling is only a last resort
     // when even the widest grid that fits the plot can't hold them all.
-    constexpr float margin  = 12.0f;
-    constexpr float col_gap = 14.0f;
+    constexpr float margin  = legend_layout::MARGIN;
+    constexpr float col_gap = legend_layout::COL_GAP;
     float           col_w   = swatch_size + swatch_gap + max_label_w;
     if (toggleable_)
         col_w += eye_width + 4.0f;
@@ -185,51 +185,21 @@ bool LegendInteraction::draw(Axes&               axes,
         legend_w += 8.0f;   // room for scrollbar
 
     // Resolve LegendPosition::Best to the corner with the least data overlap.
-    LegendPosition position = config.position;
-    if (position == LegendPosition::Best)
-    {
-        const OffsetKey key  = make_offset_key(figure_id, axes_index);
-        auto            it   = best_corner_.find(key);
-        LegendPosition  prev = (it != best_corner_.end()) ? it->second : LegendPosition::None;
-        position =
-            legend_layout::choose_best_corner(axes, viewport, legend_w, legend_h, margin, prev);
+    if (config.position == LegendPosition::None)
+        return false;   // hidden — should have been gated by the caller
+    const OffsetKey      key  = make_offset_key(figure_id, axes_index);
+    auto                 it   = best_corner_.find(key);
+    const LegendPosition prev = (it != best_corner_.end()) ? it->second : LegendPosition::None;
+    const LegendPosition position =
+        legend_layout::resolve_position(axes, viewport, legend_w, legend_h, config.position, prev);
+    if (config.position == LegendPosition::Best)
         best_corner_[key] = position;
-    }
 
-    // Compute default position from the resolved corner
-    float default_x = viewport.x + viewport.w - legend_w - margin;   // TopRight default
-    float default_y = viewport.y + margin;
-    switch (position)
-    {
-        case LegendPosition::TopLeft:
-            default_x = viewport.x + margin;
-            default_y = viewport.y + margin;
-            break;
-        case LegendPosition::TopRight:
-        case LegendPosition::Best:
-            default_x = viewport.x + viewport.w - legend_w - margin;
-            default_y = viewport.y + margin;
-            break;
-        case LegendPosition::BottomLeft:
-            default_x = viewport.x + margin;
-            default_y = viewport.y + viewport.h - legend_h - margin;
-            break;
-        case LegendPosition::BottomRight:
-            default_x = viewport.x + viewport.w - legend_w - margin;
-            default_y = viewport.y + viewport.h - legend_h - margin;
-            break;
-        case LegendPosition::None:
-            // Hidden position — should have been gated by visible check, but just in case
-            return false;
-    }
-
-    auto& offset = get_offset(figure_id, axes_index);
-    float lx     = default_x + offset.dx;
-    float ly     = default_y + offset.dy;
-
-    // Clamp to viewport
-    lx = std::max(viewport.x + 4.0f, std::min(lx, viewport.x + viewport.w - legend_w - 4.0f));
-    ly = std::max(viewport.y + 4.0f, std::min(ly, viewport.y + viewport.h - legend_h - 4.0f));
+    auto&      offset = get_offset(figure_id, axes_index);
+    const Rect box =
+        legend_layout::place(viewport, position, legend_w, legend_h, offset.dx, offset.dy);
+    const float lx = box.x;
+    const float ly = box.y;
 
     // Draw legend window — use figure_id in the ImGui ID to prevent cross-figure collisions
     const std::string win_id =

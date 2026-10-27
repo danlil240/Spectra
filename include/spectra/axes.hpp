@@ -93,7 +93,10 @@ class AxesBase
     void         set_event_system(EventSystem* es) { event_system_ = es; }
     EventSystem* event_system() const { return event_system_; }
 
-    void        set_viewport(const Rect& r) { viewport_ = r; }
+    /// Assign the axes' layout cell.  When a colorbar is shown (see
+    /// show_colorbar), a strip on the right of the cell is reserved for it and
+    /// viewport() is the remaining plot area.
+    void        set_viewport(const Rect& r);
     const Rect& viewport() const { return viewport_; }
 
     /// @brief Axes title.
@@ -107,7 +110,8 @@ class AxesBase
     bool border_enabled() const { return border_enabled_; }
     void show_border(bool enabled) { border_enabled_ = enabled; }
 
-    /// Colorbar visibility (for colormapped series).
+    /// Colorbar visibility.  Drawn (and given layout space) when the axes holds a
+    /// colormapped ScatterSeries or SurfaceSeries.
     bool colorbar_visible() const { return colorbar_visible_; }
     void show_colorbar(bool visible) { colorbar_visible_ = visible; }
 

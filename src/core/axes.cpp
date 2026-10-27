@@ -10,8 +10,15 @@
 #include <spectra/series_shapes.hpp>
 #include <spectra/series_stats.hpp>
 
+#include "colorbar_layout.hpp"
+
 namespace spectra
 {
+
+void AxesBase::set_viewport(const Rect& r)
+{
+    viewport_ = colorbar_layout::wants_colorbar(*this) ? colorbar_layout::shrink_cell(r) : r;
+}
 
 // --- Safe series removal ---
 

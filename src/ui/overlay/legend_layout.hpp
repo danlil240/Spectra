@@ -2,7 +2,9 @@
 
 // Pure (ImGui-free) legend layout helpers: multi-column grid sizing so that
 // legends never silently truncate entries, and "best" corner selection that
-// minimises overlap with plotted data.  Used by LegendInteraction; kept
+// minimises overlap with plotted data.  Shared by the interactive ImGui legend
+// (LegendInteraction) and the renderer's legend for headless/export output
+// (Renderer::render_legends) so both place the legend the same way.  Kept
 // header-only and independent of ImGui so it can be unit tested.
 
 #include <algorithm>
@@ -17,6 +19,11 @@
 
 namespace spectra::legend_layout
 {
+
+// Spacing shared by both legend implementations (pixels).
+inline constexpr float MARGIN      = 12.0f;   // legend box inset from the axes viewport edge
+inline constexpr float COL_GAP     = 14.0f;   // gap between legend columns
+inline constexpr float CLAMP_INSET = 4.0f;    // minimum inset after drag offsets / clamping
 
 struct GridLayout
 {
@@ -313,6 +320,38 @@ inline LegendPosition choose_best_corner(const Axes&    axes,
             return current;
     }
     return best;
+}
+
+// Resolve a configured position to a concrete corner.  Best picks the corner
+// with the least data overlap (with hysteresis against `previous`); None is
+// returned unchanged (callers hide the legend).
+inline LegendPosition resolve_position(const Axes&    axes,
+                                       const Rect&    vp,
+                                       float          w,
+                                       float          h,
+                                       LegendPosition requested,
+                                       LegendPosition previous = LegendPosition::None)
+{
+    if (requested != LegendPosition::Best)
+        return requested;
+    return choose_best_corner(axes, vp, w, h, MARGIN, previous);
+}
+
+// Final legend rectangle: the corner placement shifted by an optional user
+// drag offset, then clamped to stay inside the viewport.
+inline Rect place(const Rect&    vp,
+                  LegendPosition corner,
+                  float          w,
+                  float          h,
+                  float          dx = 0.0f,
+                  float          dy = 0.0f)
+{
+    Rect r = detail::corner_rect(corner, vp, w, h, MARGIN);
+    r.x += dx;
+    r.y += dy;
+    r.x = std::max(vp.x + CLAMP_INSET, std::min(r.x, vp.x + vp.w - w - CLAMP_INSET));
+    r.y = std::max(vp.y + CLAMP_INSET, std::min(r.y, vp.y + vp.h - h - CLAMP_INSET));
+    return r;
 }
 
 }   // namespace spectra::legend_layout

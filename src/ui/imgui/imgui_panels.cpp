@@ -932,92 +932,97 @@ void ImGuiIntegration::populate_status_bar(ui::shell::StatusBar& bar)
         ImGui::PopFont();
                      }});
 
-    bar.add_segment({.align = ui::shell::StatusAlign::Right,
-                     .draw_fn = [this]()
-                     {
-        const auto& colors = theme_colors();
-        ImGuiIO& io = ImGui::GetIO();
-        ImGui::PushFont(font_heading_);
+    bar.add_segment(
+        {.align   = ui::shell::StatusAlign::Right,
+         .draw_fn = [this]()
+         {
+             const auto& colors = theme_colors();
+             ImGui::PushFont(font_heading_);
 
-        const float text_h      = ImGui::GetTextLineHeight();
-        const float pill_h      = ui::tokens::STATUS_BAR_PILL_HEIGHT;
-        const float pill_radius = ui::tokens::STATUS_BAR_PILL_RADIUS;
-        // See left-segment comment: center against the actual column child
-        // height, not the outer bar rect (which includes vertical padding).
-        const float bar_h       = ImGui::GetWindowHeight();
+             const float text_h      = ImGui::GetTextLineHeight();
+             const float pill_h      = ui::tokens::STATUS_BAR_PILL_HEIGHT;
+             const float pill_radius = ui::tokens::STATUS_BAR_PILL_RADIUS;
+             // See left-segment comment: center against the actual column child
+             // height, not the outer bar rect (which includes vertical padding).
+             const float bar_h = ImGui::GetWindowHeight();
 
-        const std::string fps_buf = std::format("{} fps", static_cast<int>(io.Framerate));
-        const std::string gpu_buf = std::format("GPU: {:.1f}ms", gpu_time_ms_);
-        const float       perf_gap   = ui::tokens::STATUS_BAR_PERF_GAP;
-        const float       fps_pad_h  = ui::tokens::STATUS_BAR_FPS_PILL_PAD_H;
-        const float       fps_pad_v  = ui::tokens::STATUS_BAR_FPS_PILL_PAD_V;
-        const float       right_w    = ImGui::CalcTextSize(fps_buf.c_str()).x + fps_pad_h * 2.0f + perf_gap
-                              + ImGui::CalcTextSize(gpu_buf.c_str()).x;
-        const float right_x    = ImGui::GetWindowWidth() - right_w - ui::tokens::STATUS_BAR_PADDING_H;
-        const float center_end = ImGui::GetCursorPosX();
-        const bool  show_perf  = right_x > center_end + ui::tokens::SPACE_3;
-        if (!show_perf)
-        {
-            ImGui::PopFont();
-            return;
-        }
+             // On-demand rendering makes a raw frame rate read "0 fps"; show "Idle"
+             // unless frames are rendered continuously (see FpsBadgeState).
+             fps_badge_.on_frame(ui::FpsBadgeState::Clock::now());
+             const bool        fps_live  = fps_badge_.is_live();
+             const std::string fps_buf   = fps_badge_.label();
+             const std::string gpu_buf   = std::format("GPU: {:.1f}ms", gpu_time_ms_);
+             const float       perf_gap  = ui::tokens::STATUS_BAR_PERF_GAP;
+             const float       fps_pad_h = ui::tokens::STATUS_BAR_FPS_PILL_PAD_H;
+             const float       fps_pad_v = ui::tokens::STATUS_BAR_FPS_PILL_PAD_V;
+             const float       right_w   = ImGui::CalcTextSize(fps_buf.c_str()).x + fps_pad_h * 2.0f
+                                   + perf_gap + ImGui::CalcTextSize(gpu_buf.c_str()).x;
+             const float right_x =
+                 ImGui::GetWindowWidth() - right_w - ui::tokens::STATUS_BAR_PADDING_H;
+             const float center_end = ImGui::GetCursorPosX();
+             const bool  show_perf  = right_x > center_end + ui::tokens::SPACE_3;
+             if (!show_perf)
+             {
+                 ImGui::PopFont();
+                 return;
+             }
 
-        ImGui::SameLine();
-        ImGui::SetCursorPosX(right_x);
-        ImGui::SetCursorPosY((bar_h - text_h) * 0.5f);
+             ImGui::SameLine();
+             ImGui::SetCursorPosX(right_x);
+             ImGui::SetCursorPosY((bar_h - text_h) * 0.5f);
 
-        ImDrawList* dl = ImGui::GetWindowDrawList();
+             ImDrawList* dl = ImGui::GetWindowDrawList();
 
-        {
-            ImVec2      text_sz  = ImGui::CalcTextSize(fps_buf.c_str());
-            ImVec2      cursor_p = ImGui::GetCursorScreenPos();
-            ImVec2      pill_min(cursor_p.x - fps_pad_h,
-                            cursor_p.y - (pill_h - text_h) * 0.5f - fps_pad_v);
-            ImVec2      pill_max(cursor_p.x + text_sz.x + fps_pad_h,
-                            cursor_p.y + text_h + (pill_h - text_h) * 0.5f + fps_pad_v);
-            const float glow =
-                theme_mgr_ ? theme_mgr_->effective_glow_intensity() : 0.0f;
-            const ui::Color& fps_fill =
-                glow > 0.01f ? ui::glass_palette::kFpsPillGreen : colors.bg_tertiary;
-            const ui::Color& fps_border =
-                glow > 0.01f ? ui::glass_palette::kFpsPillBorder : colors.border_subtle;
-            const ui::Color& fps_text =
-                glow > 0.01f ? ui::glass_palette::kFpsPillText : colors.success;
+             {
+                 ImVec2           text_sz  = ImGui::CalcTextSize(fps_buf.c_str());
+                 ImVec2           cursor_p = ImGui::GetCursorScreenPos();
+                 ImVec2           pill_min(cursor_p.x - fps_pad_h,
+                                 cursor_p.y - (pill_h - text_h) * 0.5f - fps_pad_v);
+                 ImVec2           pill_max(cursor_p.x + text_sz.x + fps_pad_h,
+                                 cursor_p.y + text_h + (pill_h - text_h) * 0.5f + fps_pad_v);
+                 const float      glow = theme_mgr_ ? theme_mgr_->effective_glow_intensity() : 0.0f;
+                 const bool       fps_glow = fps_live && glow > 0.01f;
+                 const ui::Color& fps_fill =
+                     fps_glow ? ui::glass_palette::kFpsPillGreen : colors.bg_tertiary;
+                 const ui::Color& fps_border =
+                     fps_glow ? ui::glass_palette::kFpsPillBorder : colors.border_subtle;
+                 const ui::Color& fps_text = fps_glow   ? ui::glass_palette::kFpsPillText
+                                             : fps_live ? colors.success
+                                                        : colors.text_tertiary;
 
-            dl->AddRectFilled(pill_min,
-                              pill_max,
-                              IM_COL32(static_cast<uint8_t>(fps_fill.r * 255),
-                                       static_cast<uint8_t>(fps_fill.g * 255),
-                                       static_cast<uint8_t>(fps_fill.b * 255),
-                                       255),
-                              pill_radius);
-            dl->AddRect(pill_min,
-                        pill_max,
-                        IM_COL32(static_cast<uint8_t>(fps_border.r * 255),
-                                 static_cast<uint8_t>(fps_border.g * 255),
-                                 static_cast<uint8_t>(fps_border.b * 255),
-                                 235),
-                        pill_radius,
-                        0,
-                        1.0f);
-            ImGui::PushStyleColor(ImGuiCol_Text,
-                                  ImVec4(fps_text.r, fps_text.g, fps_text.b, 1.0f));
-            ImGui::TextUnformatted(fps_buf.c_str());
-            ImGui::PopStyleColor();
-        }
+                 dl->AddRectFilled(pill_min,
+                                   pill_max,
+                                   IM_COL32(static_cast<uint8_t>(fps_fill.r * 255),
+                                            static_cast<uint8_t>(fps_fill.g * 255),
+                                            static_cast<uint8_t>(fps_fill.b * 255),
+                                            255),
+                                   pill_radius);
+                 dl->AddRect(pill_min,
+                             pill_max,
+                             IM_COL32(static_cast<uint8_t>(fps_border.r * 255),
+                                      static_cast<uint8_t>(fps_border.g * 255),
+                                      static_cast<uint8_t>(fps_border.b * 255),
+                                      235),
+                             pill_radius,
+                             0,
+                             1.0f);
+                 ImGui::PushStyleColor(ImGuiCol_Text,
+                                       ImVec4(fps_text.r, fps_text.g, fps_text.b, 1.0f));
+                 ImGui::TextUnformatted(fps_buf.c_str());
+                 ImGui::PopStyleColor();
+             }
 
-        ImGui::SameLine(0.0f, perf_gap);
-        const ui::Color& gpu_text =
-            (theme_mgr_ && theme_mgr_->effective_glow_intensity() > 0.01f)
-                ? ui::glass_palette::kStatusGpuText
-                : colors.text_tertiary;
-        ImGui::PushStyleColor(ImGuiCol_Text,
-                              ImVec4(gpu_text.r, gpu_text.g, gpu_text.b, 1.0f));
-        ImGui::TextUnformatted(gpu_buf.c_str());
-        ImGui::PopStyleColor();
+             ImGui::SameLine(0.0f, perf_gap);
+             const ui::Color& gpu_text =
+                 (theme_mgr_ && theme_mgr_->effective_glow_intensity() > 0.01f)
+                     ? ui::glass_palette::kStatusGpuText
+                     : colors.text_tertiary;
+             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(gpu_text.r, gpu_text.g, gpu_text.b, 1.0f));
+             ImGui::TextUnformatted(gpu_buf.c_str());
+             ImGui::PopStyleColor();
 
-        ImGui::PopFont();
-                     }});
+             ImGui::PopFont();
+         }});
 }
 
 

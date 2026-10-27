@@ -23,6 +23,7 @@
     #include "ui/overlay/inspector.hpp"
     #include "ui/layout/layout_manager.hpp"
     #include "ui/input/selection_context.hpp"
+    #include "ui/shell/fps_badge.hpp"
 
     #ifdef SPECTRA_USE_GLFW
 struct GLFWwindow;
@@ -646,6 +647,9 @@ class ImGuiIntegration
     bool   cursor_data_valid_ = false;
     float  zoom_level_        = 1.0f;
     float  gpu_time_ms_       = 0.0f;
+
+    // Status-bar FPS badge: "Idle" when rendering on demand, live FPS otherwise.
+    ui::FpsBadgeState fps_badge_;
 
     // Injected ThemeManager (not owned)
     ui::ThemeManager* theme_mgr_ = nullptr;

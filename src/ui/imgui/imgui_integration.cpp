@@ -437,6 +437,10 @@ bool ImGuiIntegration::has_active_chrome_animations() const
         return true;
     if (mode_transition_ && mode_transition_->is_active())
         return true;
+    // The FPS badge still reads live after rendering stopped: draw one more
+    // frame so it can settle to "Idle".
+    if (fps_badge_.needs_settle_frame(ui::FpsBadgeState::Clock::now()))
+        return true;
     return false;
 }
 

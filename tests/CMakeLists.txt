@@ -121,6 +121,7 @@ set(SPECTRA_UNIT_TESTS
     test_ring_buffer
     test_input
     test_series_data
+    test_scatter_marker_defaults
     test_command_queue
     test_decimation
     test_filters

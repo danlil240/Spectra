@@ -184,7 +184,7 @@ class ScatterSeries3D : public Series
     std::vector<float> x_;
     std::vector<float> y_;
     std::vector<float> z_;
-    float              point_size_ = 4.0f;
+    float              point_size_ = 6.0f;   // default marker diameter in pixels
     BlendMode          blend_mode_ = BlendMode::Alpha;
 };
 

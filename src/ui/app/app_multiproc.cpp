@@ -357,6 +357,11 @@ void App::run_multiproc()
             continue;
         fig->compute_layout();
         auto fig_snap  = figure_to_snapshot(*fig, reg_to_ipc[id]);
+        // The snapshot carries the current data; only later edits need a
+        // SET_SERIES_DATA (a stats series update makes the window rebuild).
+        for_each_snapshot_series(*fig,
+                                 [](uint32_t, uint32_t, const Series& s)
+                                 { const_cast<Series&>(s).clear_dirty(); });
         fig_snap.title = default_figure_title(reg_to_ipc[id] - 99);
         snap.figures.push_back(std::move(fig_snap));
     }
@@ -599,50 +604,31 @@ void App::run_multiproc()
                             }
                         }
 
-                        uint32_t series_idx = 0;
-                        for (const auto& s_ptr : ax_ptr->series())
-                        {
-                            if (s_ptr && s_ptr->is_dirty())
-                            {
-                                ipc::DiffOp op;
-                                op.type         = ipc::DiffOp::Type::SET_SERIES_DATA;
-                                op.figure_id    = reg_to_ipc[id];
-                                op.axes_index   = axes_idx;
-                                op.series_index = series_idx;
-                                op.f1           = s_ptr->x_offset();   // data origins
-                                op.f2           = s_ptr->y_offset();
-
-                                if (auto* line = dynamic_cast<const LineSeries*>(s_ptr.get()))
-                                {
-                                    auto xd = line->x_data();
-                                    auto yd = line->y_data();
-                                    op.data.reserve(xd.size() * 2);
-                                    for (size_t i = 0; i < xd.size() && i < yd.size(); ++i)
-                                    {
-                                        op.data.push_back(xd[i]);
-                                        op.data.push_back(yd[i]);
-                                    }
-                                }
-                                else if (auto* scatter =
-                                             dynamic_cast<const ScatterSeries*>(s_ptr.get()))
-                                {
-                                    auto xd = scatter->x_data();
-                                    auto yd = scatter->y_data();
-                                    op.data.reserve(xd.size() * 2);
-                                    for (size_t i = 0; i < xd.size() && i < yd.size(); ++i)
-                                    {
-                                        op.data.push_back(xd[i]);
-                                        op.data.push_back(yd[i]);
-                                    }
-                                }
-
-                                diff.ops.push_back(std::move(op));
-                                const_cast<Series*>(s_ptr.get())->clear_dirty();
-                            }
-                            series_idx++;
-                        }
                         axes_idx++;
                     }
+
+                    // Series data: index the series figure-wide, in snapshot
+                    // order, as the daemon's FigureModel and the window do.
+                    for_each_snapshot_series(
+                        *fig,
+                        [&](uint32_t slot, uint32_t global_idx, const Series& s)
+                        {
+                            if (!s.is_dirty())
+                                return;
+                            ipc::SnapshotSeriesState payload;
+                            encode_snapshot_series_data(s, payload);
+
+                            ipc::DiffOp op;
+                            op.type         = ipc::DiffOp::Type::SET_SERIES_DATA;
+                            op.figure_id    = reg_to_ipc[id];
+                            op.axes_index   = slot;
+                            op.series_index = global_idx;
+                            op.f1           = s.x_offset();   // data origins
+                            op.f2           = s.y_offset();
+                            op.data         = std::move(payload.data);
+                            diff.ops.push_back(std::move(op));
+                            const_cast<Series&>(s).clear_dirty();
+                        });
                 }
             }
 

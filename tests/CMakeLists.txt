@@ -167,6 +167,7 @@ set(SPECTRA_UNIT_TESTS
     test_palette_resolution
     test_palette_visibility
     test_window_agent_state
+    test_multiproc_snapshot
     test_format_letter_colors
     test_settings_store
     test_settings_appearance

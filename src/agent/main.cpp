@@ -18,6 +18,7 @@
 #include "../anim/frame_scheduler.hpp"
 #include "../ipc/codec.hpp"
 #include "live_series_index.hpp"
+#include "snapshot_figure_builder.hpp"
 #include "../ipc/message.hpp"
 #include "../ipc/transport.hpp"
 #include "../render/renderer.hpp"
@@ -95,254 +96,16 @@ void signal_handler(int /*sig*/)
     g_running.store(false, std::memory_order_relaxed);
 }
 
-// Helper: check if a series type string is a 3D type.
-static bool is_3d_series_type(const std::string& t)
-{
-    return t == "line3d" || t == "scatter3d" || t == "surface" || t == "mesh";
-}
-
-// Apply a snapshot series colour.  An auto-coloured series (color_index >= 0)
-// keeps following this window's data palette and a format-letter series
-// (color_letter, e.g. "r--") this window's theme; otherwise the colour is explicit.
-static void apply_snapshot_color(spectra::Series& s, const spectra::ipc::SnapshotSeriesState& ss)
-{
-    if (ss.color_index >= 0)
-        s.set_auto_color_index(ss.color_index);
-    else if (spectra::format_colors::is_letter(static_cast<char>(ss.color_letter)))
-        s.set_color_letter(static_cast<char>(ss.color_letter));
-    else
-        s.color({ss.color_r, ss.color_g, ss.color_b, ss.color_a});
-}
+using spectra::agent::build_figure_from_snapshot;
+using spectra::agent::is_3d_series_type;
+using spectra::agent::live_axes_at;
 
 // Upper bounds on indices accepted from IPC diffs. Structural ops grow the
 // cache up to the given index, so an unchecked value from a buggy or hostile
 // peer could allocate gigabytes.
-constexpr size_t  MAX_CACHE_AXES   = 1024;
+constexpr size_t  MAX_CACHE_AXES   = spectra::agent::MAX_SNAPSHOT_AXES;
 constexpr size_t  MAX_CACHE_SERIES = size_t(1) << 16;
-constexpr int32_t MAX_GRID_DIM     = 1024;
-
-// Resolve an axes slot on a live Figure. 2D axes live in axes(); 3D axes are
-// created by subplot3d() and only exist in all_axes().
-spectra::AxesBase* live_axes_at(spectra::Figure& fig, uint32_t index)
-{
-    if (index < fig.axes().size() && fig.axes()[index])
-        return fig.axes_mut()[index].get();
-    if (index < fig.all_axes().size() && fig.all_axes()[index])
-        return fig.all_axes_mut()[index].get();
-    return nullptr;
-}
-
-// ─── Build a real Figure from a SnapshotFigureState ──────────────────────────
-std::unique_ptr<spectra::Figure> build_figure_from_snapshot(
-    const spectra::ipc::SnapshotFigureState& snap,
-    uint32_t                                 override_width  = 0,
-    uint32_t                                 override_height = 0)
-{
-    spectra::FigureConfig cfg;
-    // Prefer an explicit override (current swapchain size on rebuild), then
-    // the size the figure was created with, then the shared default.
-    if (override_width > 0)
-        cfg.width = override_width;
-    else if (snap.width > 0)
-        cfg.width = snap.width;
-    if (override_height > 0)
-        cfg.height = override_height;
-    else if (snap.height > 0)
-        cfg.height = snap.height;
-    auto fig   = std::make_unique<spectra::Figure>(cfg);
-
-    int rows = std::clamp(snap.grid_rows, int32_t(1), int32_t(MAX_GRID_DIM));
-    int cols = std::clamp(snap.grid_cols, int32_t(1), int32_t(MAX_GRID_DIM));
-
-    size_t num_axes = std::clamp(snap.axes.size(), size_t(1), MAX_CACHE_AXES);
-    // Figure::subplot()/subplot3d() throw std::out_of_range when the index
-    // exceeds rows*cols. The cached grid can lag behind the axes list (e.g. an
-    // ADD_AXES from an older daemon without grid info), so grow it to fit.
-    while (static_cast<size_t>(rows) * static_cast<size_t>(cols) < num_axes)
-        ++rows;
-    for (size_t i = 0; i < num_axes; ++i)
-    {
-        bool axes_is_3d = (i < snap.axes.size()) && snap.axes[i].is_3d;
-
-        if (axes_is_3d)
-        {
-            auto&       ax3d = fig->subplot3d(rows, cols, static_cast<int>(i + 1));
-            const auto& sa   = snap.axes[i];
-            ax3d.xlim(sa.x_min, sa.x_max);
-            ax3d.ylim(sa.y_min, sa.y_max);
-            ax3d.zlim(sa.z_min, sa.z_max);
-            ax3d.grid(sa.grid_visible);
-            if (!sa.x_label.empty())
-                ax3d.xlabel(sa.x_label);
-            if (!sa.y_label.empty())
-                ax3d.ylabel(sa.y_label);
-            if (!sa.title.empty())
-                ax3d.title(sa.title);
-
-            // Add 3D series that belong to this axes
-            for (const auto& ss : snap.series)
-            {
-                if (!is_3d_series_type(ss.type))
-                    continue;
-                if (ss.axes_index != static_cast<uint32_t>(i))
-                    continue;
-
-                // Unpack XYZ stride-3 data
-                std::vector<float> xs;
-                std::vector<float> ys;
-                std::vector<float> zs;
-                for (size_t j = 0; j + 2 < ss.data.size(); j += 3)
-                {
-                    xs.push_back(ss.data[j]);
-                    ys.push_back(ss.data[j + 1]);
-                    zs.push_back(ss.data[j + 2]);
-                }
-
-                if (ss.type == "scatter3d")
-                {
-                    auto& s = ax3d.scatter3d(xs, ys, zs);
-                    apply_snapshot_color(s, ss);
-                    s.visible(ss.visible);
-                    s.opacity(ss.opacity);
-                    s.size(ss.marker_size);
-                    if (!ss.name.empty())
-                        s.label(ss.name);
-                }
-                else if (ss.type == "surface")
-                {
-                    // SurfaceSeries expects 1D grid vectors (unique sorted X, Y)
-                    // plus a rows*cols Z array.  The IPC data is raveled meshgrid
-                    // (all X, all Y, all Z each of length rows*cols).
-                    // Reconstruct 1D grids by extracting unique sorted values.
-                    std::vector<float> ux(xs.begin(), xs.end());
-                    std::vector<float> uy(ys.begin(), ys.end());
-                    std::sort(ux.begin(), ux.end());
-                    ux.erase(std::unique(ux.begin(),
-                                         ux.end(),
-                                         [](float a, float b) { return std::abs(a - b) < 1e-6f; }),
-                             ux.end());
-                    std::sort(uy.begin(), uy.end());
-                    uy.erase(std::unique(uy.begin(),
-                                         uy.end(),
-                                         [](float a, float b) { return std::abs(a - b) < 1e-6f; }),
-                             uy.end());
-
-                    // Reorder Z into row-major (y-row, x-col) order expected by SurfaceSeries
-                    size_t             ncols = ux.size();
-                    size_t             nrows = uy.size();
-                    std::vector<float> z_grid(nrows * ncols, 0.0f);
-                    for (size_t k = 0; k < xs.size(); ++k)
-                    {
-                        // Find column index for xs[k]
-                        auto cit = std::lower_bound(ux.begin(), ux.end(), xs[k] - 1e-6f);
-                        auto ci  = static_cast<size_t>(std::distance(ux.begin(), cit));
-                        if (ci >= ncols)
-                            ci = ncols - 1;
-                        // Find row index for ys[k]
-                        auto rit = std::lower_bound(uy.begin(), uy.end(), ys[k] - 1e-6f);
-                        auto ri  = static_cast<size_t>(std::distance(uy.begin(), rit));
-                        if (ri >= nrows)
-                            ri = nrows - 1;
-                        z_grid[ri * ncols + ci] = zs[k];
-                    }
-
-                    auto& s = ax3d.surface(ux, uy, z_grid);
-                    apply_snapshot_color(s, ss);
-                    s.visible(ss.visible);
-                    s.opacity(ss.opacity);
-                    if (!ss.name.empty())
-                        s.label(ss.name);
-                }
-                else if (ss.type == "mesh")
-                {
-                    // mesh expects vertices + indices; for now treat as line3d
-                    auto& s = ax3d.line3d(xs, ys, zs);
-                    apply_snapshot_color(s, ss);
-                    s.visible(ss.visible);
-                    s.opacity(ss.opacity);
-                    s.width(ss.line_width);
-                    if (!ss.name.empty())
-                        s.label(ss.name);
-                }
-                else   // "line3d"
-                {
-                    auto& s = ax3d.line3d(xs, ys, zs);
-                    apply_snapshot_color(s, ss);
-                    s.visible(ss.visible);
-                    s.opacity(ss.opacity);
-                    s.width(ss.line_width);
-                    if (!ss.name.empty())
-                        s.label(ss.name);
-                }
-            }
-        }
-        else
-        {
-            auto& ax = fig->subplot(rows, cols, static_cast<int>(i + 1));
-            if (i < snap.axes.size())
-            {
-                const auto& sa = snap.axes[i];
-                ax.xlim(sa.x_min, sa.x_max);
-                ax.ylim(sa.y_min, sa.y_max);
-                ax.grid(sa.grid_visible);
-                if (!sa.x_label.empty())
-                    ax.xlabel(sa.x_label);
-                if (!sa.y_label.empty())
-                    ax.ylabel(sa.y_label);
-                if (!sa.title.empty())
-                    ax.title(sa.title);
-            }
-
-            // Add 2D series that belong to this axes
-            for (const auto& ss : snap.series)
-            {
-                if (is_3d_series_type(ss.type))
-                    continue;
-                if (ss.axes_index != static_cast<uint32_t>(i))
-                    continue;
-
-                std::vector<float> xs;
-                std::vector<float> ys;
-                for (size_t j = 0; j + 1 < ss.data.size(); j += 2)
-                {
-                    xs.push_back(ss.data[j]);
-                    ys.push_back(ss.data[j + 1]);
-                }
-                if (ss.type == "scatter")
-                {
-                    auto& s = ax.scatter(xs, ys);
-                    s.x_offset(ss.x_origin).y_offset(ss.y_origin);
-                    apply_snapshot_color(s, ss);
-                    s.visible(ss.visible);
-                    s.opacity(ss.opacity);
-                    s.size(ss.marker_size);
-                    if (!ss.name.empty())
-                        s.label(ss.name);
-                }
-                else
-                {
-                    auto& s = ax.line(xs, ys);
-                    s.x_offset(ss.x_origin).y_offset(ss.y_origin);
-                    apply_snapshot_color(s, ss);
-                    s.visible(ss.visible);
-                    s.opacity(ss.opacity);
-                    s.width(ss.line_width);
-                    if (!ss.name.empty())
-                        s.label(ss.name);
-                }
-            }
-        }
-    }
-
-    // Apply live streaming FPS from snapshot
-    if (snap.live_fps > 0.0f)
-    {
-        fig->anim_.live_streaming = true;
-        fig->anim_.fps            = snap.live_fps;
-    }
-
-    return fig;
-}
+constexpr int32_t MAX_GRID_DIM     = spectra::agent::MAX_GRID_DIM;
 
 // ─── Apply a DiffOp to a cached SnapshotFigureState ─────────────────────────
 void apply_diff_op_to_cache(spectra::ipc::SnapshotFigureState& fig, const spectra::ipc::DiffOp& op)
@@ -1295,11 +1058,26 @@ int main(int argc, char* argv[])
                                 // the live Figure addresses series per axes.
                                 spectra::agent::LiveSeriesIndex        where;
                                 const spectra::agent::LiveSeriesIndex* where_ptr = nullptr;
-                                if (cached && spectra::agent::is_series_property_op(op.type)
-                                    && spectra::agent::locate_live_series(*cached,
-                                                                          op.series_index,
-                                                                          where))
+                                if (spectra::agent::is_series_property_op(op.type))
                                 {
+                                    // A series the window did not build (unknown
+                                    // figure, or a 3D type in a 2D axes or the
+                                    // reverse) must not fall back to the raw
+                                    // index, which names some other series.
+                                    if (!cached
+                                        || !spectra::agent::locate_live_series(*cached,
+                                                                               op.series_index,
+                                                                               where))
+                                        continue;
+                                    // Stats series are rebuilt from their source
+                                    // data rather than patched in place.
+                                    if (op.type == spectra::ipc::DiffOp::Type::SET_SERIES_DATA
+                                        && spectra::is_stats_series_type(
+                                            cached->series[op.series_index].type))
+                                    {
+                                        needs_rebuild = true;
+                                        continue;
+                                    }
                                     where_ptr = &where;
                                 }
                                 for (size_t mi = 0;

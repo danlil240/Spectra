@@ -10,6 +10,8 @@
 #include "ui/app/window_ui_context_builder.hpp"
 #include "ui/commands/series_clipboard.hpp"
 #include "ui/overlay/overlay_registry.hpp"
+#include "ui/window/window_placement.hpp"
+#include <climits>
 #include <string>
 #include <vector>
 
@@ -117,6 +119,26 @@ class WindowManager
     // Set the screen position of a window (top-left corner).
     void set_window_position(WindowContext& wctx, int x, int y);
 
+    // Pass as create_window_with_ui()'s screen_x/screen_y to cascade the new
+    // window from the existing ones instead of placing it explicitly.
+    static constexpr int WINDOW_POS_AUTO = INT_MIN;
+
+    // Set the OS title of a window (no-op when unchanged); updates wctx.title.
+    void set_window_title(WindowContext& wctx, const std::string& title);
+
+    // Retitle a figure window from its active figure ("<figure> — Spectra").
+    // Preview and panel windows are left alone.
+    void sync_window_title(WindowContext& wctx);
+
+    // Usable area of the primary monitor; false when unknown (e.g. headless).
+    bool primary_work_area(ScreenWorkArea& out) const;
+
+    // Cascade position for a new width x height figure window: offset
+    // WINDOW_CASCADE_STEP px per open figure window from the first one,
+    // wrapped to the work area.  Returns false when no window is open yet
+    // (the OS / window manager then places it).
+    bool next_cascade_position(uint32_t width, uint32_t height, int& x, int& y) const;
+
     // Move a figure from one window to another.
     // Reassigns the figure's FigureId to the target window.
     // Returns true on success, false if source or target window not found.
@@ -151,8 +173,8 @@ class WindowManager
                                          uint32_t           height,
                                          const std::string& title,
                                          FigureId           initial_figure_id,
-                                         int                screen_x = 0,
-                                         int                screen_y = 0);
+                                         int                screen_x = WINDOW_POS_AUTO,
+                                         int                screen_y = WINDOW_POS_AUTO);
 
     // Install full input GLFW callbacks (cursor, mouse, scroll, key, char,
     // cursor_enter) on a WindowContext that already has ui_ctx set.

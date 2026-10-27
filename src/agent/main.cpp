@@ -517,21 +517,22 @@ int main(int argc, char* argv[])
                       << "\n"
                       << "Options:\n"
                       << "  --socket <path>  Unix socket path to connect to\n"
+                      << "  --cascade-index <n>  Offset the window n cascade steps\n"
                       << "  --version, -v    Print version and exit\n"
                       << "  --help, -h       Show this help\n";
             return 0;
         }
     }
 
-    // Parse --socket <path> argument
+    // Parse --socket <path> and --cascade-index <n> arguments
     std::string socket_path;
+    int         cascade_index = 0;
     for (int i = 1; i < argc - 1; ++i)
     {
         if (std::string(argv[i]) == "--socket")
-        {
             socket_path = argv[i + 1];
-            break;
-        }
+        else if (std::string(argv[i]) == "--cascade-index")
+            cascade_index = std::max(0, std::atoi(argv[i + 1]));
     }
     if (socket_path.empty())
     {
@@ -796,6 +797,24 @@ int main(int argc, char* argv[])
         });
 
     initial_wctx = window_mgr->create_first_window_with_ui(glfw->native_window(), all_ids);
+    if (initial_wctx && cascade_index > 0)
+    {
+        // Each agent is its own process: offset from where the window manager
+        // put this window by the slot the backend assigned.
+        int wx = 0;
+        int wy = 0;
+        glfwGetWindowPos(static_cast<GLFWwindow*>(glfw->native_window()), &wx, &wy);
+        spectra::ScreenWorkArea wa;
+        if (!window_mgr->primary_work_area(wa))
+            wa = {};
+        auto pos = spectra::cascade_window_position(wx,
+                                                    wy,
+                                                    cascade_index,
+                                                    static_cast<int>(initial_w),
+                                                    static_cast<int>(initial_h),
+                                                    wa);
+        window_mgr->set_window_position(*initial_wctx, pos.first, pos.second);
+    }
 #elif defined(SPECTRA_USE_SDL3)
     std::unique_ptr<spectra::Sdl3Adapter>   sdl3;
     std::unique_ptr<spectra::WindowManager> window_mgr;
@@ -824,6 +843,22 @@ int main(int argc, char* argv[])
     }
 
     initial_wctx = window_mgr->create_first_window_with_ui(sdl3->native_window(), all_ids);
+    if (initial_wctx && cascade_index > 0)
+    {
+        int wx = 0;
+        int wy = 0;
+        SDL_GetWindowPosition(static_cast<SDL_Window*>(sdl3->native_window()), &wx, &wy);
+        spectra::ScreenWorkArea wa;
+        if (!window_mgr->primary_work_area(wa))
+            wa = {};
+        auto pos = spectra::cascade_window_position(wx,
+                                                    wy,
+                                                    cascade_index,
+                                                    static_cast<int>(initial_w),
+                                                    static_cast<int>(initial_h),
+                                                    wa);
+        window_mgr->set_window_position(*initial_wctx, pos.first, pos.second);
+    }
 #endif
 
 #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)

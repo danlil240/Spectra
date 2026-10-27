@@ -1,6 +1,7 @@
 #include "qt_runtime.hpp"
 
 #include "qt_surface_host.hpp"
+#include "qt_theme.hpp"
 
 #include "render/renderer.hpp"
 #include "render/vulkan/vk_backend.hpp"
@@ -142,6 +143,7 @@ bool QtRuntime::init()
     }
 
     initialized_ = true;
+    (void)poll_theme_change();   // a callback registered before init() gets the palette now
     SPECTRA_LOG_INFO("qt_runtime",
                      "Initialized (swapchain/pipelines deferred until attach_window)");
     return true;
@@ -195,7 +197,8 @@ void QtRuntime::shutdown()
 
     ui::ThemeManager::set_current(nullptr);
 
-    initialized_ = false;
+    theme_notified_ = false;
+    initialized_    = false;
     SPECTRA_LOG_INFO("qt_runtime", "Shutdown complete");
 }
 
@@ -614,7 +617,7 @@ void QtRuntime::render_figure(QWindow* window, Figure& figure)
         const auto& fig_style = figure.style();
         Margins     fig_margins;
         fig_margins.left   = fig_style.margin_left;
-        fig_margins.right  = fig_style.margin_right;
+        fig_margins.right  = LayoutManager::plot_margin_right(fig_style.margin_right);
         fig_margins.top    = fig_style.margin_top;
         fig_margins.bottom = fig_style.margin_bottom;
 
@@ -684,6 +687,39 @@ void QtRuntime::render_figure(QWindow* window, Figure& figure)
 #endif
 
     renderer_->end_render_pass();
+
+    // build_ui() may have switched theme (command palette, theme menu): restyle the
+    // host's native chrome to match.
+    (void)poll_theme_change();
+}
+
+QPalette QtRuntime::theme_palette() const
+{
+    return palette_from_theme(theme_mgr_.colors());
+}
+
+void QtRuntime::set_theme_changed_callback(ThemeChangedCallback cb)
+{
+    theme_changed_cb_ = std::move(cb);
+    theme_notified_   = false;
+    (void)poll_theme_change();
+}
+
+bool QtRuntime::poll_theme_change()
+{
+    if (!initialized_ || !theme_changed_cb_)
+    {
+        return false;
+    }
+    const uint32_t version = theme_mgr_.theme_version();
+    if (theme_notified_ && version == notified_theme_version_)
+    {
+        return false;
+    }
+    theme_notified_         = true;
+    notified_theme_version_ = version;
+    theme_changed_cb_(theme_palette());
+    return true;
 }
 
 void QtRuntime::render_figure(Figure& figure)

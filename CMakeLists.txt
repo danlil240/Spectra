@@ -603,6 +603,7 @@ if(SPECTRA_USE_QT)
     add_library(spectra_qt_adapter
         src/adapters/qt/qt_runtime.cpp
         src/adapters/qt/qt_surface_host.cpp
+        src/adapters/qt/qt_theme.cpp
     )
     target_link_libraries(spectra_qt_adapter PUBLIC spectra Qt6::Gui)
     target_compile_features(spectra_qt_adapter PRIVATE cxx_std_20)

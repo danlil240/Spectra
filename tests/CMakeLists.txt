@@ -136,6 +136,7 @@ set(SPECTRA_UNIT_TESTS
     test_transition_engine
     test_theme
     test_command_registry
+    test_axes_context_menu
     test_undo_manager
     test_command_palette_registry
     test_shortcut_manager

@@ -5,6 +5,9 @@
     #include "imgui_integration_internal.hpp"
 
     #include "../../../third_party/tinyfiledialogs.h"
+    #include "axes_context_menu_model.hpp"
+    #include "ui/shell/spectra_app_shell.hpp"
+    #include "ui/ui_interaction_log.hpp"
 
 namespace spectra
 {
@@ -454,11 +457,11 @@ void ImGuiIntegration::draw_theme_settings()
     }
 }
 
-// ─── Axes Right-Click Context Menu (Axis Linking) ────────────────────────────
+// ─── Axes Right-Click Context Menu ───────────────────────────────────────────
 
 void ImGuiIntegration::draw_axes_context_menu(Figure& figure)
 {
-    if (!input_handler_ || !axis_link_mgr_)
+    if (!input_handler_)
         return;
 
     // Detect right-click context intent on PRESS, but only open on RELEASE
@@ -504,32 +507,33 @@ void ImGuiIntegration::draw_axes_context_menu(Figure& figure)
                     const auto& np = data_interaction_->nearest_point();
                     if (np.found && np.distance_px <= 40.0f && np.series)
                     {
-                        int ax_idx = 0;
-                        for (auto& axes_ptr : figure.all_axes())
+                        // 2D axes live in figure.axes(), 3D axes in all_axes().
+                        auto try_select = [&](AxesBase* axes_ptr, int ax_idx) -> bool
                         {
                             if (!axes_ptr)
-                            {
-                                ax_idx++;
-                                continue;
-                            }
+                                return false;
                             int s_idx = 0;
                             for (auto& sp : axes_ptr->series())
                             {
                                 if (sp.get() == np.series)
                                 {
                                     select_series_no_toggle(&figure,
-                                                            dynamic_cast<Axes*>(axes_ptr.get()),
+                                                            dynamic_cast<Axes*>(axes_ptr),
                                                             ax_idx,
                                                             sp.get(),
                                                             s_idx);
-                                    selection_ctx_.axes_base = axes_ptr.get();
-                                    goto found_series_rc;
+                                    selection_ctx_.axes_base = axes_ptr;
+                                    return true;
                                 }
                                 s_idx++;
                             }
-                            ax_idx++;
-                        }
-                    found_series_rc:;
+                            return false;
+                        };
+                        bool found = false;
+                        for (size_t i = 0; !found && i < figure.axes().size(); ++i)
+                            found = try_select(figure.axes()[i].get(), static_cast<int>(i));
+                        for (size_t i = 0; !found && i < figure.all_axes().size(); ++i)
+                            found = try_select(figure.all_axes()[i].get(), static_cast<int>(i));
                     }
                 }
 
@@ -571,20 +575,46 @@ void ImGuiIntegration::draw_axes_context_menu(Figure& figure)
         Axes* ax_2d = dynamic_cast<Axes*>(ax_base);
         auto* ax_3d = dynamic_cast<Axes3D*>(ax_base);
 
-        // Find axes index in all_axes for display
-        int axes_idx = -1;
-        for (size_t i = 0; i < figure.all_axes().size(); ++i)
+        // 2D axes live in figure.axes(), 3D axes in figure.all_axes(); both
+        // are indexed by subplot slot.
+        int    axes_idx   = -1;
+        int    axes2d_idx = -1;
+        size_t axes_count = 0;
+        for (size_t i = 0; i < figure.axes().size(); ++i)
         {
-            if (figure.all_axes()[i].get() == ax_base)
+            if (!figure.axes()[i])
+                continue;
+            ++axes_count;
+            if (figure.axes()[i].get() == ax_base)
             {
-                axes_idx = static_cast<int>(i);
-                break;
+                axes_idx   = static_cast<int>(i);
+                axes2d_idx = static_cast<int>(i);
             }
         }
+        for (size_t i = 0; i < figure.all_axes().size(); ++i)
+        {
+            if (!figure.all_axes()[i])
+                continue;
+            ++axes_count;
+            if (figure.all_axes()[i].get() == ax_base)
+                axes_idx = static_cast<int>(i);
+        }
         std::string axes_label =
-            (axes_idx >= 0) ? "Subplot " + std::to_string(axes_idx + 1) : "Axes";
+            (axes_idx >= 0 && axes_count > 1) ? "Subplot " + std::to_string(axes_idx + 1) : "Axes";
         if (ax_3d)
             axes_label += " (3D)";
+
+        // Build the menu model
+        AxesContextMenuState menu_state;
+        menu_state.is_3d             = (ax_3d != nullptr);
+        menu_state.has_multiple_axes = axis_link_mgr_ && axes_count > 1;
+        menu_state.is_linked         = axis_link_mgr_ && ax_2d && axis_link_mgr_->is_linked(ax_2d);
+        menu_state.has_series_clipboard = (series_clipboard_ != nullptr);
+        if (selection_ctx_.type == ui::SelectionType::Series)
+            menu_state.selected_series = selection_ctx_.selected_series.size();
+        if (series_clipboard_ && series_clipboard_->has_data())
+            menu_state.clipboard_series = series_clipboard_->count();
+        const auto items = build_axes_context_menu(menu_state, command_registry_);
 
         // Header
         ImGui::PushFont(font_heading_);
@@ -596,112 +626,108 @@ void ImGuiIntegration::draw_axes_context_menu(Figure& figure)
         ImGui::TextUnformatted(axes_label.c_str());
         ImGui::PopStyleColor();
         ImGui::PopFont();
-        ImGui::Dummy(ImVec2(0, 2));
-        ImGui::PushStyleColor(
-            ImGuiCol_Separator,
-            ImVec4(colors.border_subtle.r, colors.border_subtle.g, colors.border_subtle.b, 0.3f));
-        ImGui::Separator();
-        ImGui::PopStyleColor();
-        ImGui::Dummy(ImVec2(0, 2));
+
+        auto draw_separator = [&colors]()
+        {
+            ImGui::Dummy(ImVec2(0, 2));
+            ImGui::PushStyleColor(ImGuiCol_Separator,
+                                  ImVec4(colors.border_subtle.r,
+                                         colors.border_subtle.g,
+                                         colors.border_subtle.b,
+                                         0.3f));
+            ImGui::Separator();
+            ImGui::PopStyleColor();
+            ImGui::Dummy(ImVec2(0, 2));
+        };
+        draw_separator();
+
+        // Width: widest label + shortcut column
+        constexpr float kShortcutGap = 32.0f;
+        constexpr float kItemPadX    = 16.0f;
+        float           item_w       = 200.0f;
+        for (const auto& it : items)
+        {
+            float w = ImGui::CalcTextSize(it.label.c_str()).x + kItemPadX;
+            if (!it.shortcut.empty())
+                w += ImGui::CalcTextSize(it.shortcut.c_str()).x + kShortcutGap;
+            item_w = std::max(item_w, w);
+        }
+        const float item_h = ImGui::GetTextLineHeight() + 10.0f;
 
         // Style for menu items
         ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0, 0, 0, 0));
         ImGui::PushStyleColor(
             ImGuiCol_HeaderHovered,
             ImVec4(colors.accent_subtle.r, colors.accent_subtle.g, colors.accent_subtle.b, 0.5f));
+        ImGui::PushStyleColor(
+            ImGuiCol_HeaderActive,
+            ImVec4(colors.accent_muted.r, colors.accent_muted.g, colors.accent_muted.b, 0.7f));
         ImGui::PushStyleVar(ImGuiStyleVar_SelectableTextAlign, ImVec2(0.0f, 0.5f));
 
-        bool is_linked_2d = (ax_2d != nullptr) && axis_link_mgr_->is_linked(ax_2d);
-        bool has_multi    = figure.all_axes().size() > 1;
-
-        if (has_multi && ax_2d)
+        auto link_all_2d = [&](LinkAxis axis, const char* what)
         {
-            // 2D axes: Link X / Y / Both
-            std::string link_x_label =
-                std::string(reinterpret_cast<const char*>(u8"\xEE\x80\xBD")) + "  Link X-Axis";
-            if (ImGui::Selectable(link_x_label.c_str(), false, 0, ImVec2(200, 24)))
+            for (auto& other : figure.axes_mut())
             {
-                for (auto& other : figure.axes_mut())
-                {
-                    if (other && other.get() != ax_2d)
-                        axis_link_mgr_->link(ax_2d, other.get(), LinkAxis::X);
-                }
-                SPECTRA_LOG_INFO("axes_link",
-                                 "Linked X-axis of subplot " + std::to_string(axes_idx + 1));
+                if (other && other.get() != ax_2d)
+                    axis_link_mgr_->link(ax_2d, other.get(), axis);
             }
+            SPECTRA_LOG_INFO(
+                "axes_link",
+                std::string("Linked ") + what + " of subplot " + std::to_string(axes_idx + 1));
+        };
 
-            std::string link_y_label =
-                std::string(reinterpret_cast<const char*>(u8"\xEE\x80\xBD")) + "  Link Y-Axis";
-            if (ImGui::Selectable(link_y_label.c_str(), false, 0, ImVec2(200, 24)))
-            {
-                for (auto& other : figure.axes_mut())
-                {
-                    if (other && other.get() != ax_2d)
-                        axis_link_mgr_->link(ax_2d, other.get(), LinkAxis::Y);
-                }
-                SPECTRA_LOG_INFO("axes_link",
-                                 "Linked Y-axis of subplot " + std::to_string(axes_idx + 1));
-            }
-
-            std::string link_both_label =
-                std::string(reinterpret_cast<const char*>(u8"\xEE\x80\xBD")) + "  Link Both Axes";
-            if (ImGui::Selectable(link_both_label.c_str(), false, 0, ImVec2(200, 24)))
-            {
-                for (auto& other : figure.axes_mut())
-                {
-                    if (other && other.get() != ax_2d)
-                        axis_link_mgr_->link(ax_2d, other.get(), LinkAxis::Both);
-                }
-                SPECTRA_LOG_INFO("axes_link",
-                                 "Linked both axes of subplot " + std::to_string(axes_idx + 1));
-            }
-        }
-
-        if (has_multi && ax_3d)
+        auto remove_selected_series = [this]()
         {
-            // 3D axes: Link XYZ to all other 3D axes
-            std::string link_3d_label = std::string(reinterpret_cast<const char*>(u8"\xEE\x80\xBD"))
-                                        + "  Link 3D Axes (XYZ)";
-            if (ImGui::Selectable(link_3d_label.c_str(), false, 0, ImVec2(220, 24)))
+            // Defer removal so on_frame callbacks (which may hold
+            // raw Series& refs, e.g. knob_demo) run safely next frame.
+            auto entries = selection_ctx_.selected_series;
+            selection_ctx_.clear();
+            for (auto& entry : std::ranges::reverse_view(entries))
             {
-                for (auto& ab : figure.all_axes_mut())
-                {
-                    if (auto* other_3d = dynamic_cast<Axes3D*>(ab.get()))
-                    {
-                        if (other_3d != ax_3d)
-                            axis_link_mgr_->link_3d(ax_3d, other_3d);
-                    }
-                }
-                SPECTRA_LOG_INFO("axes_link",
-                                 "Linked 3D axes of subplot " + std::to_string(axes_idx + 1));
+                AxesBase* owner =
+                    entry.axes_base ? entry.axes_base : static_cast<AxesBase*>(entry.axes);
+                if (owner && entry.series)
+                    defer_series_removal(owner, const_cast<Series*>(entry.series));
             }
-        }
+        };
 
-        // Show linked status and unlink options
-        bool show_unlink = is_linked_2d;
-        // For 3D, we don't have is_linked query yet — check if any 3D group contains this axes
-        // (simple: try to see if unlink would do anything)
-
-        if (show_unlink)
+        auto copy_selected_series = [this](bool cut)
         {
-            if (has_multi)
+            if (selection_ctx_.has_multi_selection())
             {
-                ImGui::Dummy(ImVec2(0, 2));
-                ImGui::PushStyleColor(ImGuiCol_Separator,
-                                      ImVec4(colors.border_subtle.r,
-                                             colors.border_subtle.g,
-                                             colors.border_subtle.b,
-                                             0.3f));
-                ImGui::Separator();
-                ImGui::PopStyleColor();
-                ImGui::Dummy(ImVec2(0, 2));
+                std::vector<const Series*> list;
+                for (const auto& e : selection_ctx_.selected_series)
+                    if (e.series)
+                        list.push_back(e.series);
+                if (cut)
+                    series_clipboard_->cut_multi(list);
+                else
+                    series_clipboard_->copy_multi(list);
+            }
+            else if (selection_ctx_.series)
+            {
+                if (cut)
+                    series_clipboard_->cut(*selection_ctx_.series);
+                else
+                    series_clipboard_->copy(*selection_ctx_.series);
+            }
+        };
+
+        for (size_t i = 0; i < items.size(); ++i)
+        {
+            const auto& it = items[i];
+            if (it.kind == AxesMenuItemKind::Separator)
+            {
+                draw_separator();
+                continue;
             }
 
-            // Show which groups this axes belongs to
-            if (ax_2d)
+            if (it.kind == AxesMenuItemKind::LinkGroupsInfo)
             {
-                auto group_ids = axis_link_mgr_->groups_for(ax_2d);
-                for (auto gid : group_ids)
+                // Show which link groups this axes belongs to
+                if (!ax_2d || !axis_link_mgr_)
+                    continue;
+                for (auto gid : axis_link_mgr_->groups_for(ax_2d))
                 {
                     const auto* grp = axis_link_mgr_->group(gid);
                     if (!grp)
@@ -730,184 +756,144 @@ void ImGuiIntegration::draw_axes_context_menu(Figure& figure)
                                 grp->members.size());
                     ImGui::PopStyleColor();
                 }
+                continue;
             }
 
-            ImGui::Dummy(ImVec2(0, 2));
-            ImGui::PushStyleColor(ImGuiCol_Separator,
-                                  ImVec4(colors.border_subtle.r,
-                                         colors.border_subtle.g,
-                                         colors.border_subtle.b,
-                                         0.3f));
-            ImGui::Separator();
+            const ui::Color& tc = it.danger ? colors.error : colors.text_primary;
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(tc.r, tc.g, tc.b, 1.0f));
+            const std::string id = it.label + "##axes_ctx_" + std::to_string(i);
+            const bool clicked   = ImGui::Selectable(id.c_str(), false, 0, ImVec2(item_w, item_h));
             ImGui::PopStyleColor();
-            ImGui::Dummy(ImVec2(0, 2));
 
-            // "Unlink this axes"
-            std::string unlink_label = std::string(reinterpret_cast<const char*>(u8"\xEE\x80\xBE"))
-                                       + "  Unlink This Subplot";
-            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.9f, 0.35f, 0.35f, 1.0f));
-            if (ImGui::Selectable(unlink_label.c_str(), false, 0, ImVec2(200, 24)))
+            if (!it.shortcut.empty())
             {
-                if (ax_2d)
-                    axis_link_mgr_->unlink(ax_2d);
-                if (ax_3d)
-                    axis_link_mgr_->remove_from_all_3d(ax_3d);
-                SPECTRA_LOG_INFO("axes_link", "Unlinked subplot " + std::to_string(axes_idx + 1));
-            }
-            ImGui::PopStyleColor();
-        }
-
-        // "Unlink All" — always show if there are any linked axes
-        if (has_multi)
-        {
-            if (!show_unlink)
-            {
-                ImGui::Dummy(ImVec2(0, 2));
-                ImGui::PushStyleColor(ImGuiCol_Separator,
-                                      ImVec4(colors.border_subtle.r,
-                                             colors.border_subtle.g,
-                                             colors.border_subtle.b,
-                                             0.3f));
-                ImGui::Separator();
-                ImGui::PopStyleColor();
-                ImGui::Dummy(ImVec2(0, 2));
+                ImVec2 rmin = ImGui::GetItemRectMin();
+                ImVec2 rmax = ImGui::GetItemRectMax();
+                ImVec2 ts   = ImGui::CalcTextSize(it.shortcut.c_str());
+                ImGui::GetWindowDrawList()->AddText(
+                    ImVec2(rmax.x - ts.x - kItemPadX * 0.5f,
+                           rmin.y + (rmax.y - rmin.y - ts.y) * 0.5f),
+                    ImGui::ColorConvertFloat4ToU32(ImVec4(colors.text_tertiary.r,
+                                                          colors.text_tertiary.g,
+                                                          colors.text_tertiary.b,
+                                                          1.0f)),
+                    it.shortcut.c_str());
             }
 
-            std::string unlink_all_label =
-                std::string(reinterpret_cast<const char*>(u8"\xEE\x80\xBE")) + "  Unlink All";
-            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.9f, 0.35f, 0.35f, 1.0f));
-            if (ImGui::Selectable(unlink_all_label.c_str(), false, 0, ImVec2(200, 24)))
+            if (!clicked)
+                continue;
+
+            ui::log_ui_action("axes_context_menu", it.label.c_str(), "ok");
+            switch (it.kind)
             {
-                // Unlink 2D groups
-                auto groups_copy = axis_link_mgr_->groups();
-                for (auto& [id, grp] : groups_copy)
-                    axis_link_mgr_->remove_group(id);
-                // Unlink 3D groups
-                for (auto& ab : figure.all_axes_mut())
-                {
-                    if (auto* a3 = dynamic_cast<Axes3D*>(ab.get()))
-                        axis_link_mgr_->remove_from_all_3d(a3);
-                }
-                axis_link_mgr_->clear_shared_cursor();
-                SPECTRA_LOG_INFO("axes_link", "Unlinked all axes");
-            }
-            ImGui::PopStyleColor();
-        }
-
-        // ── Series clipboard operations ──────────────────────────────────
-        if (series_clipboard_ && ax_base)
-        {
-            ImGui::Dummy(ImVec2(0, 2));
-            ImGui::PushStyleColor(ImGuiCol_Separator,
-                                  ImVec4(colors.border_subtle.r,
-                                         colors.border_subtle.g,
-                                         colors.border_subtle.b,
-                                         0.3f));
-            ImGui::Separator();
-            ImGui::PopStyleColor();
-            ImGui::Dummy(ImVec2(0, 2));
-
-            bool   has_sel   = (selection_ctx_.type == ui::SelectionType::Series
-                            && !selection_ctx_.selected_series.empty());
-            size_t sel_count = selection_ctx_.selected_count();
-            bool   is_multi  = selection_ctx_.has_multi_selection();
-
-            if (has_sel)
-            {
-                // Copy
-                std::string copy_label =
-                    std::string(ui::icon_str(ui::Icon::Copy))
-                    + (is_multi ? "  Copy " + std::to_string(sel_count) + " Series"
-                                : "  Copy Series");
-                if (ImGui::Selectable(copy_label.c_str(), false, 0, ImVec2(220, 24)))
-                {
-                    if (is_multi)
+                case AxesMenuItemKind::Command:
+                    if (command_registry_)
                     {
-                        std::vector<const Series*> list;
-                        for (const auto& e : selection_ctx_.selected_series)
-                            if (e.series)
-                                list.push_back(e.series);
-                        series_clipboard_->copy_multi(list);
+                        // Scope "active axes" commands (e.g. autofit) to the
+                        // axes that was right-clicked.
+                        if (input_handler_)
+                            input_handler_->set_active_axes_base(ax_base);
+                        command_registry_->execute(it.command_id);
                     }
-                    else if (selection_ctx_.series)
+                    break;
+                case AxesMenuItemKind::AxesProperties:
+                    if (ax_2d && axes2d_idx >= 0)
                     {
-                        series_clipboard_->copy(*selection_ctx_.series);
+                        selection_ctx_.select_axes(&figure, ax_2d, axes2d_idx);
+                        selection_ctx_.axes_base = ax_2d;
+                        active_section_          = Section::Axes;
+                        bool inspector_visible   = app_shell_
+                                                       ? app_shell_->panel_visible("core.inspector")
+                                                       : layout_manager_->is_inspector_visible();
+                        if (!inspector_visible)
+                        {
+                            if (command_registry_
+                                && command_registry_->find("panel.toggle_inspector"))
+                            {
+                                command_registry_->execute("panel.toggle_inspector");
+                            }
+                            else
+                            {
+                                layout_manager_->set_inspector_visible(true);
+                                panel_open_ = true;
+                            }
+                        }
                     }
-                }
-
-                // Cut
-                std::string cut_label =
-                    std::string(ui::icon_str(ui::Icon::Scissors))
-                    + (is_multi ? "  Cut " + std::to_string(sel_count) + " Series"
-                                : "  Cut Series");
-                if (ImGui::Selectable(cut_label.c_str(), false, 0, ImVec2(220, 24)))
+                    break;
+                case AxesMenuItemKind::LinkX:
+                    if (ax_2d)
+                        link_all_2d(LinkAxis::X, "X-axis");
+                    break;
+                case AxesMenuItemKind::LinkY:
+                    if (ax_2d)
+                        link_all_2d(LinkAxis::Y, "Y-axis");
+                    break;
+                case AxesMenuItemKind::LinkBoth:
+                    if (ax_2d)
+                        link_all_2d(LinkAxis::Both, "both axes");
+                    break;
+                case AxesMenuItemKind::Link3D:
+                    if (ax_3d)
+                    {
+                        for (auto& ab : figure.all_axes_mut())
+                        {
+                            if (auto* other_3d = dynamic_cast<Axes3D*>(ab.get()))
+                            {
+                                if (other_3d != ax_3d)
+                                    axis_link_mgr_->link_3d(ax_3d, other_3d);
+                            }
+                        }
+                        SPECTRA_LOG_INFO(
+                            "axes_link",
+                            "Linked 3D axes of subplot " + std::to_string(axes_idx + 1));
+                    }
+                    break;
+                case AxesMenuItemKind::UnlinkThis:
+                    if (ax_2d)
+                        axis_link_mgr_->unlink(ax_2d);
+                    if (ax_3d)
+                        axis_link_mgr_->remove_from_all_3d(ax_3d);
+                    SPECTRA_LOG_INFO("axes_link",
+                                     "Unlinked subplot " + std::to_string(axes_idx + 1));
+                    break;
+                case AxesMenuItemKind::UnlinkAll:
                 {
+                    // Unlink 2D groups
+                    auto groups_copy = axis_link_mgr_->groups();
+                    for (auto& [gid, grp] : groups_copy)
+                        axis_link_mgr_->remove_group(gid);
+                    // Unlink 3D groups
+                    for (auto& ab : figure.all_axes_mut())
+                    {
+                        if (auto* a3 = dynamic_cast<Axes3D*>(ab.get()))
+                            axis_link_mgr_->remove_from_all_3d(a3);
+                    }
+                    axis_link_mgr_->clear_shared_cursor();
+                    SPECTRA_LOG_INFO("axes_link", "Unlinked all axes");
+                    break;
+                }
+                case AxesMenuItemKind::CopySeries:
+                    copy_selected_series(false);
+                    break;
+                case AxesMenuItemKind::CutSeries:
                     // Snapshot clipboard data from live series first
-                    if (is_multi)
-                    {
-                        std::vector<const Series*> list;
-                        for (const auto& e : selection_ctx_.selected_series)
-                            if (e.series)
-                                list.push_back(e.series);
-                        series_clipboard_->cut_multi(list);
-                    }
-                    else if (selection_ctx_.series)
-                    {
-                        series_clipboard_->cut(*selection_ctx_.series);
-                    }
-                    // Defer removal so on_frame callbacks (which may hold
-                    // raw Series& refs, e.g. knob_demo) run safely next frame.
-                    auto entries = selection_ctx_.selected_series;
-                    selection_ctx_.clear();
-                    for (auto& entrie : std::ranges::reverse_view(entries))
-                    {
-                        AxesBase* owner = entrie.axes_base ? entrie.axes_base
-                                                           : static_cast<AxesBase*>(entrie.axes);
-                        if (owner && entrie.series)
-                            defer_series_removal(owner, const_cast<Series*>(entrie.series));
-                    }
-                }
-
-                // Delete
-                std::string del_label =
-                    std::string(ui::icon_str(ui::Icon::Trash))
-                    + (is_multi ? "  Delete " + std::to_string(sel_count) + " Series"
-                                : "  Delete Series");
-                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.9f, 0.35f, 0.35f, 1.0f));
-                if (ImGui::Selectable(del_label.c_str(), false, 0, ImVec2(220, 24)))
-                {
-                    // Defer removal so on_frame callbacks (which may hold
-                    // raw Series& refs, e.g. knob_demo) run safely next frame.
-                    auto entries = selection_ctx_.selected_series;
-                    selection_ctx_.clear();
-                    for (auto& entrie : std::ranges::reverse_view(entries))
-                    {
-                        AxesBase* owner = entrie.axes_base ? entrie.axes_base
-                                                           : static_cast<AxesBase*>(entrie.axes);
-                        if (owner && entrie.series)
-                            defer_series_removal(owner, const_cast<Series*>(entrie.series));
-                    }
-                }
-                ImGui::PopStyleColor();
-            }
-
-            // Paste: always available if clipboard has data
-            if (series_clipboard_->has_data())
-            {
-                size_t      clip_count = series_clipboard_->count();
-                std::string paste_label =
-                    std::string(ui::icon_str(ui::Icon::Duplicate))
-                    + (clip_count > 1 ? "  Paste " + std::to_string(clip_count) + " Series"
-                                      : "  Paste Series");
-                if (ImGui::Selectable(paste_label.c_str(), false, 0, ImVec2(220, 24)))
-                {
+                    copy_selected_series(true);
+                    remove_selected_series();
+                    break;
+                case AxesMenuItemKind::DeleteSeries:
+                    remove_selected_series();
+                    break;
+                case AxesMenuItemKind::PasteSeries:
                     series_clipboard_->paste_all(*ax_base);
-                }
+                    break;
+                case AxesMenuItemKind::Separator:
+                case AxesMenuItemKind::LinkGroupsInfo:
+                    break;
             }
         }
 
         ImGui::PopStyleVar();      // SelectableTextAlign
-        ImGui::PopStyleColor(2);   // Header, HeaderHovered
+        ImGui::PopStyleColor(3);   // Header, HeaderHovered, HeaderActive
 
         ImGui::EndPopup();
     }

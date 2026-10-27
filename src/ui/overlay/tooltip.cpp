@@ -4,16 +4,22 @@
 
     #include <algorithm>
     #include <cmath>
+    #include <cfloat>
     #include <format>
     #include <imgui.h>
+    #include <span>
+    #include <string_view>
     #include <spectra/axes3d.hpp>
 
+    #include "overlay_text_fit.hpp"
     #include "readout_format.hpp"
     #include "ui/theme/design_tokens.hpp"
     #include "ui/theme/theme.hpp"
 
 namespace spectra
 {
+
+namespace overlay_fit = ui::overlay_fit;
 
 void Tooltip::set_fonts(ImFont* body, ImFont* heading)
 {
@@ -92,7 +98,6 @@ void Tooltip::draw(const NearestPointResult& nearest,
         dydx_value = std::format("{:.6g}", nearest.dy_dx);
 
     const std::string series_name_str = tooltip_series_name(nearest);
-    const char*       series_name     = series_name_str.c_str();
     Color             series_color    = colors::gray;
     if (nearest.series)
         series_color = nearest.series->color();
@@ -112,40 +117,47 @@ void Tooltip::draw(const NearestPointResult& nearest,
     const char* lbl_y    = "Y";
     const char* lbl_dydx = "dy/dx";
 
-    // Measure column widths
-    float lbl_w =
-        std::max({body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, lbl_x).x,
-                  body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, lbl_y).x,
-                  show_dydx ? body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, lbl_dydx).x : 0.0f});
-    float val_w = std::max(
-        {body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, x_buf.c_str()).x,
-         body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, y_buf.c_str()).x,
-         show_dydx ? body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, dydx_value.c_str()).x : 0.0f});
-    float name_w =
-        body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, series_name).x + swatch_r * 2.0f + 6.0f;
-    float data_row_w = lbl_w + col_gap + val_w;
-    float content_w  = std::max({name_w, data_row_w, min_width});
-    int   data_rows  = 2 + (show_dydx ? 1 : 0);
-    float divider_h  = 6.0f;
-    float tooltip_w  = content_w + padding * 2.0f;
-    float tooltip_h  = padding * 2.0f + row_h   // name row
-                      + divider_h               // separator gap
+    // Fit the content to the window: values keep their full width, labels and
+    // the series name (wrapped) share what is left.
+    const overlay_fit::MeasureFn measure = [&](std::string_view s)
+    { return body_font->CalcTextSizeA(font_sz, FLT_MAX, 0.0f, s.data(), s.data() + s.size()).x; };
+    const float name_prefix_w = swatch_r * 2.0f + 6.0f;
+    const float max_content_w = window_width - 2.0f * overlay_fit::WINDOW_MARGIN - padding * 2.0f;
+    const std::string_view labels_in[] = {lbl_x, lbl_y, lbl_dydx};
+    const std::string_view values_in[] = {x_buf, y_buf, dydx_value};
+    const size_t           n_rows      = show_dydx ? 3 : 2;
+    const auto             fit         = overlay_fit::fit_tooltip_content(series_name_str,
+                                                      name_prefix_w,
+                                                      std::span(labels_in, n_rows),
+                                                      std::span(values_in, n_rows),
+                                                      col_gap,
+                                                      min_width,
+                                                      max_content_w,
+                                                      overlay_fit::MAX_NAME_LINES,
+                                                      measure);
+    const float            lbl_w       = fit.label_w;
+    const float            content_w   = fit.content_w;
+    const int              name_rows   = static_cast<int>(fit.name_lines.size());
+    int                    data_rows   = static_cast<int>(n_rows);
+    float                  divider_h   = 6.0f;
+    float                  tooltip_w   = content_w + padding * 2.0f;
+    float tooltip_h = padding * 2.0f + row_h * static_cast<float>(name_rows)   // name rows
+                      + divider_h                                              // separator gap
                       + row_h * static_cast<float>(data_rows);
 
-    // Position: above-right of the snap point, clamped to window
-    float offset_x = 14.0f;
-    float offset_y = -tooltip_h - 8.0f;
-    float tx       = nearest.screen_x + offset_x;
-    float ty       = nearest.screen_y + offset_y;
-
-    if (tx + tooltip_w > window_width - 4.0f)
-        tx = nearest.screen_x - tooltip_w - offset_x;
-    if (ty < 4.0f)
-        ty = nearest.screen_y + 16.0f;
-    if (tx < 4.0f)
-        tx = 4.0f;
-    if (ty + tooltip_h > window_height - 4.0f)
-        ty = window_height - tooltip_h - 4.0f;
+    // Position: above-right of the snap point, flipped/clamped to the window.
+    const overlay_fit::Box box      = overlay_fit::place_near_anchor(nearest.screen_x,
+                                                                nearest.screen_y,
+                                                                tooltip_w,
+                                                                tooltip_h,
+                                                                14.0f,
+                                                                8.0f,
+                                                                16.0f,
+                                                                window_width,
+                                                                window_height);
+    const float            tx       = box.x;
+    const float            ty       = box.y;
+    const float            header_h = row_h * static_cast<float>(name_rows);
 
     // Draw entirely on the foreground draw list — this renders above all ImGui windows,
     // including popups and open menus, since the foreground draw list is composited last.
@@ -209,18 +221,25 @@ void Tooltip::draw(const NearestPointResult& nearest,
                       swatch_r,
                       ImGui::ColorConvertFloat4ToU32(ImVec4(1.0f, 1.0f, 1.0f, 0.18f * opacity_)));
 
-        fg->AddText(body_font,
-                    font_sz,
-                    ImVec2(ox + swatch_r * 2.0f + 6.0f, oy + (row_h - font_sz) * 0.5f),
-                    ImGui::ColorConvertFloat4ToU32(ImVec4(colors.text_primary.r,
-                                                          colors.text_primary.g,
-                                                          colors.text_primary.b,
-                                                          colors.text_primary.a * opacity_)),
-                    series_name);
+        const ImU32 name_col =
+            ImGui::ColorConvertFloat4ToU32(ImVec4(colors.text_primary.r,
+                                                  colors.text_primary.g,
+                                                  colors.text_primary.b,
+                                                  colors.text_primary.a * opacity_));
+        for (int i = 0; i < name_rows; ++i)
+        {
+            const std::string& line = fit.name_lines[static_cast<size_t>(i)];
+            fg->AddText(body_font,
+                        font_sz,
+                        ImVec2(ox + name_prefix_w,
+                               oy + row_h * static_cast<float>(i) + (row_h - font_sz) * 0.5f),
+                        name_col,
+                        line.c_str());
+        }
 
         // ── Divider ──
         {
-            float div_y   = oy + row_h + divider_h * 0.5f - 0.5f;
+            float div_y   = oy + header_h + divider_h * 0.5f - 0.5f;
             ImU32 div_col = ImGui::ColorConvertFloat4ToU32(ImVec4(colors.border_subtle.r,
                                                                   colors.border_subtle.g,
                                                                   colors.border_subtle.b,
@@ -231,7 +250,7 @@ void Tooltip::draw(const NearestPointResult& nearest,
         // ── Data rows: label (dim) + value (bright) ──
         auto draw_data_row = [&](int row_idx, const char* label, const char* value)
         {
-            float ry = oy + row_h + divider_h + row_h * static_cast<float>(row_idx);
+            float ry = oy + header_h + divider_h + row_h * static_cast<float>(row_idx);
             fg->AddText(body_font,
                         font_sz,
                         ImVec2(ox, ry + (row_h - font_sz) * 0.5f),
@@ -250,10 +269,10 @@ void Tooltip::draw(const NearestPointResult& nearest,
                         value);
         };
 
-        draw_data_row(0, lbl_x, x_buf.c_str());
-        draw_data_row(1, lbl_y, y_buf.c_str());
+        draw_data_row(0, fit.labels[0].c_str(), x_buf.c_str());
+        draw_data_row(1, fit.labels[1].c_str(), y_buf.c_str());
         if (show_dydx)
-            draw_data_row(2, lbl_dydx, dydx_value.c_str());
+            draw_data_row(2, fit.labels[2].c_str(), dydx_value.c_str());
     }
 
     // Draw triangular arrow pointer toward data point
@@ -403,7 +422,6 @@ void Tooltip::draw_3d(const NearestPointResult& nearest,
     const std::string z_buf = std::format("{:.6g}", nearest.data_z);
 
     const std::string series_name_str = tooltip_series_name(nearest);
-    const char*       series_name     = series_name_str.c_str();
     Color             series_color    = colors::gray;
     if (nearest.series)
         series_color = nearest.series->color();
@@ -433,32 +451,56 @@ void Tooltip::draw_3d(const NearestPointResult& nearest,
     float   font_sz   = ui::tokens::FONT_MONO;
     float   row_h     = font_sz + 6.0f;
 
-    float lbl_w = std::max({body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, lbl_x).x,
-                            body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, lbl_y).x,
-                            body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, lbl_z).x});
-    float val_w = std::max({body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, x_buf.c_str()).x,
-                            body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, y_buf.c_str()).x,
-                            body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, z_buf.c_str()).x});
-    float name_w =
-        body_font->CalcTextSizeA(font_sz, 1000.f, 0.f, series_name).x + swatch_r * 2.0f + 8.0f;
-    float content_w = std::max({name_w, lbl_w + col_gap + val_w, min_width});
-    float divider_h = 8.0f;
-    float tooltip_w = content_w + padding * 2.0f + accent_w;
-    float tooltip_h = padding * 2.0f + row_h + divider_h + row_h * 3.0f + depth_pad + depth_bar_h;
+    // Fit the content to the window (see the 2D path).  The name is drawn one
+    // pixel larger than the rows, so it is measured at that size.
+    const float                  name_sz = font_sz + 1.0f;
+    const overlay_fit::MeasureFn measure = [&](std::string_view s)
+    { return body_font->CalcTextSizeA(font_sz, FLT_MAX, 0.0f, s.data(), s.data() + s.size()).x; };
+    const overlay_fit::MeasureFn measure_name = [&](std::string_view s)
+    { return body_font->CalcTextSizeA(name_sz, FLT_MAX, 0.0f, s.data(), s.data() + s.size()).x; };
+    const float name_prefix_w = swatch_r * 2.0f + 8.0f;
+    const float max_content_w =
+        window_width - 2.0f * overlay_fit::WINDOW_MARGIN - padding * 2.0f - accent_w;
+    const std::string_view labels_in[] = {lbl_x, lbl_y, lbl_z};
+    const std::string_view values_in[] = {x_buf, y_buf, z_buf};
+    auto                   fit         = overlay_fit::fit_tooltip_content({},
+                                                0.0f,
+                                                labels_in,
+                                                values_in,
+                                                col_gap,
+                                                min_width,
+                                                max_content_w,
+                                                overlay_fit::MAX_NAME_LINES,
+                                                measure);
+    fit.name_lines                     = overlay_fit::wrap_lines(series_name_str,
+                                             std::max(0.0f, max_content_w - name_prefix_w),
+                                             overlay_fit::MAX_NAME_LINES,
+                                             measure_name);
+    float name_w                       = 0.0f;
+    for (const auto& line : fit.name_lines)
+        name_w = std::max(name_w, measure_name(line));
+    const float data_w = fit.label_w + col_gap + fit.value_w;
+    const float lbl_w  = fit.label_w;
+    const float content_w =
+        std::max(std::min(std::max(name_w + name_prefix_w, fit.content_w), max_content_w), data_w);
+    const int   name_rows = static_cast<int>(fit.name_lines.size());
+    const float header_h  = row_h * static_cast<float>(name_rows);
+    float       divider_h = 8.0f;
+    float       tooltip_w = content_w + padding * 2.0f + accent_w;
+    float       tooltip_h =
+        padding * 2.0f + header_h + divider_h + row_h * 3.0f + depth_pad + depth_bar_h;
 
-    float offset_x = 18.0f;
-    float offset_y = -tooltip_h - 12.0f;
-    float tx       = nearest.screen_x + offset_x;
-    float ty       = nearest.screen_y + offset_y;
-
-    if (tx + tooltip_w > window_width - 4.0f)
-        tx = nearest.screen_x - tooltip_w - offset_x;
-    if (ty < 4.0f)
-        ty = nearest.screen_y + 20.0f;
-    if (tx < 4.0f)
-        tx = 4.0f;
-    if (ty + tooltip_h > window_height - 4.0f)
-        ty = window_height - tooltip_h - 4.0f;
+    const overlay_fit::Box box = overlay_fit::place_near_anchor(nearest.screen_x,
+                                                                nearest.screen_y,
+                                                                tooltip_w,
+                                                                tooltip_h,
+                                                                18.0f,
+                                                                12.0f,
+                                                                20.0f,
+                                                                window_width,
+                                                                window_height);
+    const float            tx  = box.x;
+    const float            ty  = box.y;
 
     ImDrawList* fg  = dl ? dl : ImGui::GetForegroundDrawList();
     float       rnd = ui::tokens::RADIUS_MD;
@@ -511,17 +553,22 @@ void Tooltip::draw_3d(const NearestPointResult& nearest,
                         swatch_r,
                         ImGui::ColorConvertFloat4ToU32(
                             ImVec4(series_color.r, series_color.g, series_color.b, opacity_)));
-    fg->AddText(body_font,
-                font_sz + 1.0f,
-                ImVec2(ox + swatch_r * 2.0f + 8.0f, oy + (row_h - font_sz - 1.0f) * 0.5f),
-                ImGui::ColorConvertFloat4ToU32(ImVec4(colors.text_primary.r,
-                                                      colors.text_primary.g,
-                                                      colors.text_primary.b,
-                                                      colors.text_primary.a * opacity_)),
-                series_name);
+    const ImU32 name_col = ImGui::ColorConvertFloat4ToU32(ImVec4(colors.text_primary.r,
+                                                                 colors.text_primary.g,
+                                                                 colors.text_primary.b,
+                                                                 colors.text_primary.a * opacity_));
+    for (int i = 0; i < name_rows; ++i)
+    {
+        fg->AddText(body_font,
+                    name_sz,
+                    ImVec2(ox + name_prefix_w,
+                           oy + row_h * static_cast<float>(i) + (row_h - name_sz) * 0.5f),
+                    name_col,
+                    fit.name_lines[static_cast<size_t>(i)].c_str());
+    }
 
     {
-        float div_y   = oy + row_h + divider_h * 0.5f - 0.5f;
+        float div_y   = oy + header_h + divider_h * 0.5f - 0.5f;
         ImU32 div_col = ImGui::ColorConvertFloat4ToU32(ImVec4(colors.border_subtle.r,
                                                               colors.border_subtle.g,
                                                               colors.border_subtle.b,
@@ -531,7 +578,7 @@ void Tooltip::draw_3d(const NearestPointResult& nearest,
 
     auto draw_coord_row = [&](int row_idx, const char* label, const char* value, bool highlight)
     {
-        float ry = oy + row_h + divider_h + row_h * static_cast<float>(row_idx);
+        float ry = oy + header_h + divider_h + row_h * static_cast<float>(row_idx);
         if (highlight)
         {
             ImU32 chip_bg = ImGui::ColorConvertFloat4ToU32(
@@ -559,9 +606,9 @@ void Tooltip::draw_3d(const NearestPointResult& nearest,
                     value);
     };
 
-    draw_coord_row(0, lbl_x, x_buf.c_str(), false);
-    draw_coord_row(1, lbl_y, y_buf.c_str(), false);
-    draw_coord_row(2, lbl_z, z_buf.c_str(), true);
+    draw_coord_row(0, fit.labels[0].c_str(), x_buf.c_str(), false);
+    draw_coord_row(1, fit.labels[1].c_str(), y_buf.c_str(), false);
+    draw_coord_row(2, fit.labels[2].c_str(), z_buf.c_str(), true);
 
     if (nearest.axes3d)
     {
@@ -572,7 +619,7 @@ void Tooltip::draw_3d(const NearestPointResult& nearest,
             z_norm =
                 std::clamp((nearest.data_z - static_cast<float>(zlim.min)) / z_span, 0.0f, 1.0f);
 
-        float bar_y  = oy + row_h + divider_h + row_h * 3.0f + depth_pad;
+        float bar_y  = oy + header_h + divider_h + row_h * 3.0f + depth_pad;
         float bar_x0 = ox;
         float bar_x1 = ox + content_w;
 

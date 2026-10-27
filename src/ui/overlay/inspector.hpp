@@ -51,6 +51,11 @@ class Inspector
    private:
     void draw_figure_properties(Figure& fig);
     void draw_axes_properties(Axes& ax, int index);
+    void draw_axes3d_properties(Axes3D& ax, int index);
+
+    // Axes picker shown above the Axes properties when the figure has several
+    // axes (2D and 3D); changes ctx_ to the picked axes.
+    void draw_axes_picker(Figure& fig);
     void draw_series_properties(Series& s, int index);
     void draw_series_statistics(const Series& s);
     void draw_series_sparkline(const Series& s);
@@ -75,6 +80,9 @@ class Inspector
     bool sec_legend_     = true;
     bool sec_axis_x_     = true;
     bool sec_axis_y_     = true;
+    bool sec_axis_z_     = true;
+    bool sec_lighting_   = true;
+    bool sec_camera_     = true;
     bool sec_grid_       = true;
     bool sec_style_      = true;
     bool sec_stats_      = true;

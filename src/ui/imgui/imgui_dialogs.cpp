@@ -586,7 +586,6 @@ void ImGuiIntegration::draw_axes_context_menu(Figure& figure)
         // 2D axes live in figure.axes(), 3D axes in figure.all_axes(); both
         // are indexed by subplot slot.
         int    axes_idx   = -1;
-        int    axes2d_idx = -1;
         size_t axes_count = 0;
         for (size_t i = 0; i < figure.axes().size(); ++i)
         {
@@ -595,8 +594,7 @@ void ImGuiIntegration::draw_axes_context_menu(Figure& figure)
             ++axes_count;
             if (figure.axes()[i].get() == ax_base)
             {
-                axes_idx   = static_cast<int>(i);
-                axes2d_idx = static_cast<int>(i);
+                axes_idx = static_cast<int>(i);
             }
         }
         for (size_t i = 0; i < figure.all_axes().size(); ++i)
@@ -805,10 +803,10 @@ void ImGuiIntegration::draw_axes_context_menu(Figure& figure)
                     }
                     break;
                 case AxesMenuItemKind::AxesProperties:
-                    if (ax_2d && axes2d_idx >= 0)
+                    if (axes_idx >= 0)
                     {
-                        selection_ctx_.select_axes(&figure, ax_2d, axes2d_idx);
-                        selection_ctx_.axes_base = ax_2d;
+                        selection_ctx_.select_axes(&figure, ax_2d, axes_idx);
+                        selection_ctx_.axes_base = ax_base;
                         active_section_          = Section::Axes;
                         bool inspector_visible   = app_shell_
                                                        ? app_shell_->panel_visible("core.inspector")

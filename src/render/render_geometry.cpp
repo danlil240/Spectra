@@ -639,9 +639,12 @@ void Renderer::render_plot_text(Figure& figure)
             title_fit = to_fitted_text(
                 fit_axes3d_title(axes3d->get_title(), vp.w, label_measure, label_ellipsis));
             auto ext = text_renderer_.measure_text(title_fit.text, title_fit.size);
+            // Same row as a 2D title (2D pass above): above the viewport, in the
+            // margin the layout reserves for it, so 2D and 3D subplot titles line up.
+            // Clamp only at the top of the figure.
             title_py = vp.y - ext.height - tick_padding;
-            if (title_py < vp.y + 2.0f)
-                title_py = vp.y + 2.0f;
+            if (title_py < 2.0f)
+                title_py = 2.0f;
             placed_labels.push_back(label_rect(title_fit.text,
                                                title_fit.size,
                                                vp.x + vp.w * 0.5f,

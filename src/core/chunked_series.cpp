@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cmath>
 #include <cstring>
 
 #include "data/chunked_array.hpp"
@@ -26,8 +27,74 @@ struct ChunkedLineSeries::Impl
     std::size_t max_visible_points = 65536;
     float       prefetch_margin    = 0.1f;
     QueryStats  last_stats;
+    DataBounds  bounds;
+    bool        bounds_dirty = false;   // empty series: default bounds are exact
 
     Impl() = default;
+
+    // Fold values into the cached bounds (only valid while !bounds_dirty).
+    static void consume(float v, bool& has, double& lo, double& hi, bool& has_pos, double& lo_pos)
+    {
+        if (!std::isfinite(v))
+            return;
+        const double d = static_cast<double>(v);
+        if (!has)
+        {
+            lo = hi = d;
+            has     = true;
+        }
+        else
+        {
+            lo = std::min(lo, d);
+            hi = std::max(hi, d);
+        }
+        if (d > 0.0 && (!has_pos || d < lo_pos))
+        {
+            lo_pos  = d;
+            has_pos = true;
+        }
+    }
+
+    void consume_x(std::span<const float> v)
+    {
+        for (float f : v)
+            consume(f,
+                    bounds.has_x,
+                    bounds.x_min,
+                    bounds.x_max,
+                    bounds.has_x_positive,
+                    bounds.x_min_positive);
+    }
+
+    void consume_y(std::span<const float> v)
+    {
+        for (float f : v)
+            consume(f,
+                    bounds.has_y,
+                    bounds.y_min,
+                    bounds.y_max,
+                    bounds.has_y_positive,
+                    bounds.y_min_positive);
+    }
+
+    // Call after appending values; keeps the cache valid when it already was.
+    void bounds_appended(std::span<const float> xv, std::span<const float> yv)
+    {
+        if (bounds_dirty)
+            return;
+        consume_x(xv);
+        consume_y(yv);
+    }
+
+    void recompute_bounds()
+    {
+        bounds = DataBounds{};
+        for (std::size_t i = 0; i < x.chunk_count(); ++i)
+            consume_x(x.chunk_data(i));
+        for (std::size_t i = 0; i < y.chunk_count(); ++i)
+            consume_y(y.chunk_data(i));
+        bounds_dirty = false;
+    }
     explicit Impl(std::size_t chunk_size) : x(chunk_size), y(chunk_size) {}
 };
 
@@ -44,8 +111,9 @@ ChunkedLineSeries& ChunkedLineSeries::set_data(std::span<const float> x, std::sp
     impl_->y.clear();
     impl_->x.append(x);
     impl_->y.append(y);
-    impl_->lod_dirty = true;
-    dirty_           = true;
+    impl_->lod_dirty    = true;
+    impl_->bounds_dirty = true;
+    dirty_              = true;
     return *this;
 }
 
@@ -87,8 +155,9 @@ ChunkedLineSeries& ChunkedLineSeries::load_binary(const std::string& path,
         impl_->y.push_back(interleaved[i * 2 + 1]);
     }
 
-    impl_->lod_dirty = true;
-    dirty_           = true;
+    impl_->lod_dirty    = true;
+    impl_->bounds_dirty = true;
+    dirty_              = true;
     return *this;
 }
 
@@ -127,8 +196,9 @@ ChunkedLineSeries& ChunkedLineSeries::load_binary_columns(const std::string& pat
     impl_->x.append(x_span.subspan(0, actual));
     impl_->y.append(y_span.subspan(0, actual));
 
-    impl_->lod_dirty = true;
-    dirty_           = true;
+    impl_->lod_dirty    = true;
+    impl_->bounds_dirty = true;
+    dirty_              = true;
     return *this;
 }
 
@@ -136,6 +206,7 @@ void ChunkedLineSeries::append(float x, float y)
 {
     impl_->x.push_back(x);
     impl_->y.push_back(y);
+    impl_->bounds_appended(std::span<const float>(&x, 1), std::span<const float>(&y, 1));
     impl_->lod_dirty = true;
     dirty_           = true;
     enforce_memory_budget();
@@ -146,6 +217,7 @@ void ChunkedLineSeries::append_batch(std::span<const float> x, std::span<const f
     assert(x.size() == y.size());
     impl_->x.append(x);
     impl_->y.append(y);
+    impl_->bounds_appended(x, y);
     impl_->lod_dirty = true;
     dirty_           = true;
     enforce_memory_budget();
@@ -173,7 +245,8 @@ std::size_t ChunkedLineSeries::erase_before(float x_threshold)
 
     impl_->x.erase_front(lo);
     impl_->y.erase_front(lo);
-    impl_->lod_dirty = true;
+    impl_->lod_dirty    = true;
+    impl_->bounds_dirty = true;
     dirty_           = true;
     return lo;
 }
@@ -244,6 +317,28 @@ std::size_t ChunkedLineSeries::point_count() const
 std::size_t ChunkedLineSeries::memory_bytes() const
 {
     return impl_->x.memory_bytes() + impl_->y.memory_bytes() + impl_->lod.memory_bytes();
+}
+
+ChunkedLineSeries::DataBounds ChunkedLineSeries::data_bounds() const
+{
+    if (impl_->bounds_dirty)
+        impl_->recompute_bounds();
+    return impl_->bounds;
+}
+
+std::size_t ChunkedLineSeries::storage_chunk_count() const
+{
+    return std::min(impl_->x.chunk_count(), impl_->y.chunk_count());
+}
+
+std::span<const float> ChunkedLineSeries::x_chunk(std::size_t index) const
+{
+    return index < impl_->x.chunk_count() ? impl_->x.chunk_data(index) : std::span<const float>{};
+}
+
+std::span<const float> ChunkedLineSeries::y_chunk(std::size_t index) const
+{
+    return index < impl_->y.chunk_count() ? impl_->y.chunk_data(index) : std::span<const float>{};
 }
 
 std::vector<float> ChunkedLineSeries::x_range(std::size_t offset, std::size_t count) const
@@ -440,7 +535,8 @@ void ChunkedLineSeries::enforce_memory_budget()
 
     if (dropped)
     {
-        impl_->lod_dirty = true;
+        impl_->lod_dirty    = true;
+        impl_->bounds_dirty = true;
         dirty_           = true;
     }
 }

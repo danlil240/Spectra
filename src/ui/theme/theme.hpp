@@ -8,6 +8,7 @@
 
 #include <spectra/color.hpp>
 #include <spectra/fwd.hpp>
+#include <spectra/theme_api.hpp>
 #include <string_view>
 
 #include "design_tokens.hpp"
@@ -24,6 +25,13 @@ namespace spectra
 {
 class EventSystem;
 class Figure;
+
+namespace detail
+{
+// Currently registered public theme-change callback (nullptr when none).
+// Implemented in theme_api.cpp.
+ThemeChangeCallback registered_theme_change_callback();
+}   // namespace detail
 }   // namespace spectra
 
 namespace spectra::ui
@@ -72,25 +80,31 @@ struct Color
                      a + (other.a - a) * t);
     }
 
-    // sRGB relative luminance (BT.709)
-    constexpr float luminance() const
+    // IEC 61966-2-1 sRGB transfer functions for a single channel in [0, 1].
+    // Not constexpr: std::pow is not usable in constant expressions in C++20.
+    static float srgb_to_linear(float c)
     {
-        // Linearize sRGB components
-        auto linearize = [](float c) constexpr -> float
-        {
-            return (c <= 0.04045f)
-                       ? c / 12.92f
-                       :
-                       // Approximate pow((c + 0.055) / 1.055, 2.4) with a polynomial
-                       // For constexpr compatibility, use a simple gamma 2.2 approximation
-                       ((c + 0.055f) / 1.055f) * ((c + 0.055f) / 1.055f)
-                           * ((c + 0.055f) / 1.055f > 0.5f ? 1.16f : 0.87f);
-        };
-        return 0.2126f * linearize(r) + 0.7152f * linearize(g) + 0.0722f * linearize(b);
+        return (c <= 0.04045f) ? c / 12.92f : std::pow((c + 0.055f) / 1.055f, 2.4f);
     }
 
-    // WCAG 2.1 contrast ratio (1:1 to 21:1)
-    constexpr float contrast_ratio(const Color& other) const
+    static float linear_to_srgb(float c)
+    {
+        return (c <= 0.0031308f) ? c * 12.92f : 1.055f * std::pow(c, 1.0f / 2.4f) - 0.055f;
+    }
+
+    // WCAG 2.1 relative luminance (0 = black, 1 = white) of the opaque RGB
+    // channels. Alpha is ignored; use composite_over() first for translucent
+    // colours.
+    float luminance() const
+    {
+        return 0.2126f * srgb_to_linear(r) + 0.7152f * srgb_to_linear(g)
+               + 0.0722f * srgb_to_linear(b);
+    }
+
+    // WCAG 2.1 contrast ratio (1:1 to 21:1) between two colours treated as
+    // opaque. Alpha is ignored; use contrast_ratio_over() for translucent
+    // foregrounds.
+    float contrast_ratio(const Color& other) const
     {
         float l1      = luminance();
         float l2      = other.luminance();
@@ -99,20 +113,34 @@ struct Color
         return (lighter + 0.05f) / (darker + 0.05f);
     }
 
+    // Source-over composite of this colour onto an opaque `bg`, blended in
+    // encoded sRGB like ImGui and the UI pipeline. The result is opaque.
+    constexpr Color composite_over(const Color& bg) const
+    {
+        const float t = (a < 0.0f) ? 0.0f : (a > 1.0f ? 1.0f : a);
+        return Color(r * t + bg.r * (1.0f - t),
+                     g * t + bg.g * (1.0f - t),
+                     b * t + bg.b * (1.0f - t),
+                     1.0f);
+    }
+
+    // WCAG 2.1 contrast ratio of this (possibly translucent) foreground as
+    // displayed over the opaque background `bg`. `bg` alpha is ignored.
+    float contrast_ratio_over(const Color& bg) const
+    {
+        return composite_over(bg).contrast_ratio(bg.with_alpha(1.0f));
+    }
+
     // Convert sRGB to linear RGB
     Color to_linear() const
     {
-        auto lin = [](float c) -> float
-        { return (c <= 0.04045f) ? c / 12.92f : std::pow((c + 0.055f) / 1.055f, 2.4f); };
-        return Color(lin(r), lin(g), lin(b), a);
+        return Color(srgb_to_linear(r), srgb_to_linear(g), srgb_to_linear(b), a);
     }
 
     // Convert linear RGB to sRGB
     Color to_srgb() const
     {
-        auto srgb = [](float c) -> float
-        { return (c <= 0.0031308f) ? c * 12.92f : 1.055f * std::pow(c, 1.0f / 2.4f) - 0.055f; };
-        return Color(srgb(r), srgb(g), srgb(b), a);
+        return Color(linear_to_srgb(r), linear_to_srgb(g), linear_to_srgb(b), a);
     }
 
     // Convert to HSL (h: 0-360, s: 0-1, l: 0-1)
@@ -372,6 +400,18 @@ class ThemeManager
     const std::vector<std::string>& available_data_palettes() const;
     const std::string& current_data_palette_name() const { return current_data_palette_name_; }
 
+    // Plot surface of a figure (S10).  A figure whose FigureStyle::background_override
+    // is set is drawn on that colour instead of the theme canvas, so every
+    // background-dependent choice (format-letter shades, 'k'/'w' remapping, the
+    // "default" palette, axis/tick/title/legend ink) must follow that surface.
+    // plot_surface_colors() returns the active colours with bg_canvas replaced by
+    // the override; when the override's lightness is opposite to the theme
+    // canvas, the plot ink tokens come from the built-in theme of that lightness
+    // ("light" or "dark").  Without an override — or with one equal to the theme
+    // canvas — the result equals colors().
+    ThemeColors        plot_surface_colors(const FigureStyle& style) const;
+    const DataPalette& plot_surface_data_palette(const FigureStyle& style) const;
+
     // Animated palette transition
     void transition_palette(const std::string& palette_name,
                             float              duration_sec = tokens::DURATION_SLOW);
@@ -405,6 +445,9 @@ class ThemeManager
     // Version counter — incremented on every theme color change.
     // Renderers can compare against their cached version to skip redundant uploads.
     uint32_t theme_version() const { return theme_version_; }
+
+    // Fill a public ThemeSnapshot from this instance's current (display) colors.
+    void fill_snapshot(ThemeSnapshot& out) const;
 
     // Utility
     Color get_color(const std::string& color_name) const;
@@ -469,6 +512,13 @@ class ThemeManager
     // Event system for cross-subsystem notifications
     spectra::EventSystem* event_system_ = nullptr;
 
+    // Public ThemeChangeCallback bridge (see include/spectra/theme_api.hpp).
+    // Invokes the registered callback when the snapshot colors differ from the
+    // last snapshot this instance reported; identical snapshots are dropped.
+    void          notify_public_theme_change();
+    ThemeSnapshot last_notified_snapshot_{};
+    bool          last_notified_valid_ = false;
+
     ThemeGlassSettings glass_settings_;
     ThemeGlassSettings glass_defaults_for(const std::string& theme_name) const;
 
@@ -476,6 +526,9 @@ class ThemeManager
     void               initialize_data_palettes();
     const DataPalette& resolve_data_palette(const std::string& name) const;
     ThemeColors interpolate_colors(const ThemeColors& start, const ThemeColors& end, float t) const;
+    // Built-in theme whose ink suits @p style's override surface when that
+    // surface's lightness is opposite to the theme canvas; nullptr otherwise.
+    const Theme* plot_surface_ink_theme(const FigureStyle& style) const;
 };
 
 // True when the theme's plot canvas is light (format-letter colours then use
@@ -497,6 +550,46 @@ inline bool is_light_plot_background(const ThemeColors& theme)
 void resolve_auto_series_colors(Figure&            figure,
                                 const DataPalette& palette,
                                 bool               light_background = false);
+
+// As above, but auto-coloured series take their colour from
+// visible_data_palette(palette, canvas), so every auto slot stays visible on
+// @p canvas, the colour the plot area actually renders with (normally
+// effective_figure_background()).  Format-letter and explicit colours are
+// handled exactly as above.  The renderer, the UI overlays (legend) and SVG
+// export all resolve through this overload, so PNG, SVG and screen agree.
+void resolve_auto_series_colors(Figure&               figure,
+                                const DataPalette&    palette,
+                                bool                  light_background,
+                                const spectra::Color& canvas);
+
+// ─── Auto series colour visibility rule ─────────────────────────────────────
+// Minimum WCAG contrast (exact sRGB relative luminance) between an
+// auto-assigned series colour and the plot canvas: the WCAG 2.1 non-text
+// (graphical object) threshold, applied to line, scatter and marker strokes.
+inline constexpr float AUTO_SERIES_MIN_CONTRAST = 3.0f;
+
+// Returns @p palette with every slot made visible on @p canvas:
+//  * A slot whose contrast against the canvas is already >= @p min_contrast is
+//    kept bit-for-bit.
+//  * Pure black on a dark canvas and pure white on a light one are kept too:
+//    adapt_series_color_to_theme() draws those in the theme foreground.
+//  * Any other slot keeps its OKLCh hue and chroma (chroma is reduced only as
+//    far as the sRGB gamut requires) and only its OKLab lightness moves away
+//    from the canvas (lighter on dark canvases, darker on light ones) until
+//    the contrast reaches @p min_contrast.
+//  * Distinctness: adjusted slots are placed in order of their original
+//    contrast, least deficient first.  A slot that would land within OKLab
+//    distance 0.04 of an already placed slot, under normal vision or
+//    simulated protanopia, deuteranopia or tritanopia, moves further from the
+//    canvas in 0.25 contrast steps until it is that far apart (or as far apart
+//    as the two were in the source palette, if that was closer).
+// Alpha is kept.  An empty palette is treated as palette::default_cycle.  Only
+// auto series colours go through this: the palette swatches in Settings,
+// explicit RGB colours and colormaps (heatmap / surface sampling) are not
+// changed.
+DataPalette visible_data_palette(const DataPalette&    palette,
+                                 const spectra::Color& canvas,
+                                 float                 min_contrast = AUTO_SERIES_MIN_CONTRAST);
 
 // Fallback display name for a theme id without a registered display_name:
 // underscores become spaces and each word is capitalised ("my_theme" -> "My Theme").

@@ -16,6 +16,7 @@
 #include <spectra/series_shapes.hpp>
 
 #include "core/axis_scale.hpp"
+#include "core/label_layout.hpp"
 #include "text_fit.hpp"
 #include "core/annotation_layout.hpp"
 #include "ui/imgui/axes3d_renderer.hpp"
@@ -104,7 +105,7 @@ void Renderer::render_plot_text(Figure& figure)
     if (!text_renderer_.is_initialized())
         return;
 
-    const auto& colors = theme_mgr_.colors();
+    const auto& colors = plot_colors();
 
     auto color_to_rgba = [this](const ui::Color& c) -> uint32_t
     {
@@ -269,8 +270,14 @@ void Renderer::render_plot_text(Figure& figure)
         // x below the right end of the tick labels, y above the top of the axis.
         const float tick_text_h = text_renderer_.measure_text("0", FontSize::Tick).height;
         const float x_label_row = vp.y + vp.h + tl + tick_padding + tick_text_h + 4.0f;
+        // The offsets share their rows with the X label / title: keep their width free so
+        // the centred labels are fitted beside them instead of drawn over them.
+        float x_offset_reserve = 0.0f;
+        float y_offset_reserve = 0.0f;
         if (!x_ticks.offset_label.empty())
         {
+            x_offset_reserve = offset_annotation_reserve(
+                text_renderer_.measure_text(x_ticks.offset_label, FontSize::Tick).width);
             text_renderer_.draw_text(x_ticks.offset_label,
                                      vp.x + vp.w,
                                      x_label_row,
@@ -281,6 +288,8 @@ void Renderer::render_plot_text(Figure& figure)
         }
         if (!y_ticks.offset_label.empty())
         {
+            y_offset_reserve = offset_annotation_reserve(
+                text_renderer_.measure_text(y_ticks.offset_label, FontSize::Tick).width);
             text_renderer_.draw_text(y_ticks.offset_label,
                                      vp.x,
                                      vp.y - 4.0f,
@@ -290,17 +299,18 @@ void Renderer::render_plot_text(Figure& figure)
                                      TextVAlign::Bottom);
         }
 
-        // X axis label (ellipsized to the axes width)
+        // X axis label (ellipsized to the axes width left of the X offset)
         if (!axes.get_xlabel().empty())
         {
-            const FittedText fit =
-                fit_label(axes.get_xlabel(), vp.w, FontSize::Label, FontSize::Label);
-            float cx = vp.x + vp.w * 0.5f;
-            float py = x_label_row;
+            const CenteredLabelSlot slot = centered_label_slot(vp.x, vp.w, 0.0f, x_offset_reserve);
+            const FittedText        fit =
+                fit_label(axes.get_xlabel(), slot.max_width, FontSize::Label, FontSize::Label);
+            const auto ext = text_renderer_.measure_text(fit.text, fit.size);
+            float      cx  = centered_label_x(vp.x, vp.w, slot, ext.width);
+            float      py  = x_label_row;
             text_renderer_.draw_text(fit.text, cx, py, fit.size, label_col, TextAlign::Center);
             if (fit.truncated)
             {
-                const auto ext = text_renderer_.measure_text(fit.text, fit.size);
                 truncated_text_regions_.push_back(
                     {Rect{cx - ext.width * 0.5f, py, ext.width, ext.height}, axes.get_xlabel()});
             }
@@ -335,10 +345,12 @@ void Renderer::render_plot_text(Figure& figure)
         {
             // Long titles step down to the label size, then get ellipsized, so they
             // never spill into neighbouring subplots or past the window edge.
-            const FittedText fit =
-                fit_label(axes.get_title(), vp.w, FontSize::Title, FontSize::Label);
+            // The Y offset sits at the top-left on the title's row: fit beside it.
+            const CenteredLabelSlot slot = centered_label_slot(vp.x, vp.w, y_offset_reserve, 0.0f);
+            const FittedText        fit =
+                fit_label(axes.get_title(), slot.max_width, FontSize::Title, FontSize::Label);
             auto  ext = text_renderer_.measure_text(fit.text, fit.size);
-            float cx  = vp.x + vp.w * 0.5f;
+            float cx  = centered_label_x(vp.x, vp.w, slot, ext.width);
             float py  = vp.y - ext.height - tick_padding;
             // Only clamp if the title would go off the top of the figure.
             // The previous clamp (py < vp.y + 2) always fired and placed the
@@ -919,7 +931,7 @@ void Renderer::render_plot_geometry(Figure& figure)
     // frame's GPU commands still read from the other slot while we write this one.
     const uint32_t slot = backend_.current_flight_frame() % FRAME_BUFFER_SLOTS;
 
-    const auto& colors = theme_mgr_.colors();
+    const auto& colors = plot_colors();
 
     overlay_line_scratch_.clear();
 
@@ -1519,7 +1531,7 @@ void Renderer::render_annotation_arrows(Axes& axes, uint32_t slot, float fw, flo
 
     annotation_tri_scratch_.clear();
     annotation_arrow_draws_.clear();
-    const auto& colors = theme_mgr_.colors();
+    const auto& colors = plot_colors();
     for (const auto& ann : axes.annotations())
     {
         if (!ann || !ann->visible() || !ann->has_arrow())
@@ -1725,7 +1737,7 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
         backend_.bind_pipeline(grid_overlay3d_pipeline_);
 
         SeriesPushConstants pc{};
-        const auto&         theme_colors = theme_mgr_.colors();
+        const auto&         theme_colors = plot_colors();
         float               blend        = 0.3f;
         ui::Color           blended(theme_colors.grid_major.r * (1.0f - blend) + blend,
                           theme_colors.grid_major.g * (1.0f - blend) + blend,
@@ -1842,7 +1854,7 @@ void Renderer::render_axis_border(AxesBase& axes,
     backend_.bind_pipeline(grid_pipeline_);
 
     SeriesPushConstants pc{};
-    const auto&         theme_colors = theme_mgr_.colors();
+    const auto&         theme_colors = plot_colors();
     set_pc_color_geom(pc.color, theme_colors.axis_line, theme_mgr_);
     pc.line_width    = 1.0f;
     pc.data_offset_x = 0.0f;

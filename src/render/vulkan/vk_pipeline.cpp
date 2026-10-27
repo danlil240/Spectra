@@ -7,6 +7,33 @@
 namespace spectra::vk
 {
 
+bool custom_topology_to_vk(uint32_t abi_topology, VkPrimitiveTopology& out)
+{
+    switch (static_cast<CustomTopology>(abi_topology))
+    {
+        case CustomTopology::TriangleList:
+        case CustomTopology::TriangleListVulkan:
+            out = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+            return true;
+        case CustomTopology::LineList:
+            out = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+            return true;
+        case CustomTopology::LineStrip:
+            out = VK_PRIMITIVE_TOPOLOGY_LINE_STRIP;
+            return true;
+        case CustomTopology::TriangleStrip:
+            out = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+            return true;
+        case CustomTopology::TriangleFan:
+            out = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN;
+            return true;
+        case CustomTopology::PointList:
+            out = VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
+            return true;
+    }
+    return false;
+}
+
 VkShaderModule create_shader_module(VkDevice device, const uint8_t* spirv, size_t size)
 {
     VkShaderModuleCreateInfo info{};

@@ -1,7 +1,10 @@
 #include "ulog_file_panel.hpp"
 
+#include "px4_panel_helpers.hpp"
+
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
+    #include "ui/theme/theme_imgui.hpp"
     #ifdef IMGUI_HAS_DOCK
         #include <imgui_internal.h>
         #include <cmath>
@@ -242,6 +245,7 @@ void ULogFilePanel::draw_topic_tree()
 
     auto topics = plot_mgr_.available_topics();
 
+    bool any_shown = false;
     for (auto& topic : topics)
     {
         // Apply filter.
@@ -252,6 +256,7 @@ void ULogFilePanel::draw_topic_tree()
             if (lower_topic.find(filter) == std::string::npos)
                 continue;
         }
+        any_shown = true;
 
         // Get row count for this topic.
         auto*  ts    = reader_.data_for(topic);
@@ -291,6 +296,19 @@ void ULogFilePanel::draw_topic_tree()
                 }
             }
             ImGui::TreePop();
+        }
+    }
+
+    if (!any_shown)
+    {
+        const ImVec4 muted = spectra::ui::to_imvec4(spectra::ui::theme().text_secondary);
+        if (topics.empty())
+            ImGui::TextColored(muted, "This log contains no topics.");
+        else
+        {
+            ImGui::PushStyleColor(ImGuiCol_Text, muted);
+            ImGui::TextWrapped("No topics match \"%s\".", topic_filter_buf_);
+            ImGui::PopStyleColor();
         }
     }
 
@@ -347,18 +365,50 @@ void ULogFilePanel::draw_params_table()
                           ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg
                               | ImGuiTableFlags_Resizable | ImGuiTableFlags_Sortable))
     {
-        ImGui::TableSetupColumn("Name");
-        ImGui::TableSetupColumn("Type");
-        ImGui::TableSetupColumn("Value");
+        ImGui::TableSetupColumn("Name",
+                                ImGuiTableColumnFlags_DefaultSort,
+                                0.0f,
+                                static_cast<ImGuiID>(ParamSortColumn::Name));
+        ImGui::TableSetupColumn("Type", 0, 0.0f, static_cast<ImGuiID>(ParamSortColumn::Type));
+        ImGui::TableSetupColumn("Value", 0, 0.0f, static_cast<ImGuiID>(ParamSortColumn::Value));
         ImGui::TableHeadersRow();
 
-        for (auto& param : params)
+        // Re-sort only when the user changes the sort specs or the parameter
+        // set changes (new file loaded); otherwise reuse the cached order.
+        ImGuiTableSortSpecs* specs        = ImGui::TableGetSortSpecs();
+        const bool           data_changed = param_order_src_ != params.data()
+                                  || param_order_.size() != params.size()
+                                  || param_order_path_ != reader_.metadata().path;
+        if (specs && (specs->SpecsDirty || data_changed))
         {
+            std::vector<ParamSortKey> keys;
+            keys.reserve(static_cast<size_t>(specs->SpecsCount));
+            for (int i = 0; i < specs->SpecsCount; ++i)
+            {
+                const ImGuiTableColumnSortSpecs& s = specs->Specs[i];
+                keys.push_back({static_cast<ParamSortColumn>(s.ColumnUserID),
+                                s.SortDirection != ImGuiSortDirection_Descending});
+            }
+            param_order_      = sorted_parameter_indices(params, keys);
+            param_order_src_  = params.data();
+            param_order_path_ = reader_.metadata().path;
+            specs->SpecsDirty = false;
+        }
+        else if (!specs && data_changed)
+        {
+            param_order_      = sorted_parameter_indices(params, {});
+            param_order_src_  = params.data();
+            param_order_path_ = reader_.metadata().path;
+        }
+
+        for (size_t idx : param_order_)
+        {
+            const auto& param = params[idx];
             ImGui::TableNextRow();
             ImGui::TableNextColumn();
             ImGui::TextUnformatted(param.key.c_str());
             ImGui::TableNextColumn();
-            ImGui::Text("%s", param.is_float ? "float" : "int32");
+            ImGui::TextUnformatted(parameter_type_name(param));
             ImGui::TableNextColumn();
             if (param.is_float)
                 ImGui::Text("%.6f", param.value_float);

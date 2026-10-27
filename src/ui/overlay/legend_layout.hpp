@@ -12,6 +12,7 @@
 #include <cmath>
 #include <cstddef>
 #include <span>
+#include <string>
 #include <spectra/axes.hpp>
 #include <spectra/figure.hpp>
 #include <spectra/series.hpp>
@@ -37,6 +38,10 @@ struct GridLayout
     bool  scroll       = false;   // true if rows > visible_rows (content scrolls)
     float width        = 0.0f;    // total legend width incl. padding
     float height       = 0.0f;    // total legend height incl. padding
+    float cell_w       = 0.0f;    // column width used for the layout
+    float cell_h       = 0.0f;    // row height used for the layout
+    int   shown        = 0;       // entries laid out (all of them unless overflow > 0)
+    int   overflow     = 0;       // entries summarised by a "+N more" cell
 };
 
 // Lay out n entries of width col_w / height row_h into as few columns as
@@ -57,6 +62,10 @@ inline GridLayout compute_grid(int   n,
     g.entries = n;
     if (n <= 0 || row_h <= 0.0f)
         return g;
+
+    // A single column never grows wider than the legend region: callers fit
+    // (ellipsize) labels to column_width() when drawing (audit S04).
+    col_w = std::min(col_w, std::max(0.0f, max_w - 2.0f * pad_x));
 
     const int rows_fit = std::max(1, static_cast<int>(std::floor((max_h - 2.0f * pad_y) / row_h)));
     const int rows_cap = std::max(1, std::min(rows_fit, max_rows_per_col));
@@ -81,6 +90,66 @@ inline GridLayout compute_grid(int   n,
     g.scroll       = rows > rows_fit;
     g.width        = width_for(cols);
     g.height       = 2.0f * pad_y + static_cast<float>(g.visible_rows) * row_h;
+    g.cell_w       = col_w;
+    g.cell_h       = row_h;
+    g.shown        = n;
+    return g;
+}
+
+// Text of the overflow indicator cell drawn by compute_static_grid layouts.
+inline std::string overflow_text(int hidden)
+{
+    return "+" + std::to_string(hidden) + " more";
+}
+
+// Static (non-scrollable) legend layout for image export (PNG / GPU
+// readback), where a scrolling legend would silently lose entries.  Policy:
+//   1. Use the regular compute_grid layout when it needs no scrolling.
+//   2. Otherwise retry with the tighter row height `min_row_h`.
+//   3. If every entry still cannot fit, fill every visible cell but the last
+//      with entries (column-major, in order) and use the last cell for an
+//      explicit "+N more" indicator (overflow_text), so omitted entries are
+//      always reported rather than dropped silently.  `overflow_w` is the
+//      width of the widest possible indicator text; columns are widened to
+//      hold it if needed.
+// The result never scrolls: rows == visible_rows, and `shown` + `overflow`
+// == n.  The interactive ImGui legend keeps using compute_grid and scrolls.
+inline GridLayout compute_static_grid(int   n,
+                                      float col_w,
+                                      float row_h,
+                                      float min_row_h,
+                                      float overflow_w,
+                                      float pad_x,
+                                      float pad_y,
+                                      float col_gap,
+                                      float max_w,
+                                      float max_h,
+                                      int   max_rows_per_col = 12)
+{
+    GridLayout g =
+        compute_grid(n, col_w, row_h, pad_x, pad_y, col_gap, max_w, max_h, max_rows_per_col);
+    if (!g.scroll)
+        return g;
+
+    const float tight_h = min_row_h > 0.0f ? std::min(row_h, min_row_h) : row_h;
+    if (tight_h < row_h)
+    {
+        g = compute_grid(n, col_w, tight_h, pad_x, pad_y, col_gap, max_w, max_h, max_rows_per_col);
+        if (!g.scroll)
+            return g;
+    }
+
+    const float cell_w = std::max(col_w, overflow_w);
+    if (cell_w > col_w)
+        g = compute_grid(n, cell_w, tight_h, pad_x, pad_y, col_gap, max_w, max_h, max_rows_per_col);
+    if (!g.scroll)   // a wider column can only reduce capacity, but be safe
+        return g;
+
+    const int slots = g.cols * g.visible_rows;
+    g.rows          = g.visible_rows;
+    g.scroll        = false;
+    g.shown         = std::max(0, std::min(n, slots - 1));
+    g.overflow      = n - g.shown;
     return g;
 }
 
@@ -430,8 +499,29 @@ inline LegendPosition resolve_position(const Axes&    axes,
     return choose_best_corner(axes, vp, w, h, MARGIN, previous);
 }
 
+// Width of one legend column of grid `g` (compute_grid may have narrowed it
+// below the requested col_w).  Labels must be fitted to this width minus the
+// swatch / icon space so they stay inside the box.
+inline float column_width(const GridLayout& g, float pad_x, float col_gap)
+{
+    if (g.cols <= 0)
+        return 0.0f;
+    const float inner = g.width - 2.0f * pad_x - static_cast<float>(g.cols - 1) * col_gap;
+    return std::max(0.0f, inner / static_cast<float>(g.cols));
+}
+
+// True if a w x h legend fits inside the viewport with the CLAMP_INSET
+// border.  Legends that do not (e.g. tiny subplot cells where not even one
+// row fits) are skipped rather than drawn over neighbouring plots.
+inline bool fits(const Rect& vp, float w, float h)
+{
+    return w <= vp.w - 2.0f * CLAMP_INSET && h <= vp.h - 2.0f * CLAMP_INSET;
+}
+
 // Final legend rectangle: the corner placement shifted by an optional user
-// drag offset, then clamped to stay inside the viewport.
+// drag offset, then clamped to stay inside the viewport.  The size is clamped
+// too, so the result never extends past the viewport (check fits() first to
+// know whether the content was shrunk).
 inline Rect place(const Rect&    vp,
                   LegendPosition corner,
                   float          w,
@@ -439,6 +529,8 @@ inline Rect place(const Rect&    vp,
                   float          dx = 0.0f,
                   float          dy = 0.0f)
 {
+    w      = std::min(w, std::max(0.0f, vp.w - 2.0f * CLAMP_INSET));
+    h      = std::min(h, std::max(0.0f, vp.h - 2.0f * CLAMP_INSET));
     Rect r = detail::corner_rect(corner, vp, w, h, MARGIN);
     r.x += dx;
     r.y += dy;

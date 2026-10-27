@@ -102,6 +102,33 @@ class ChunkedLineSeries : public Series
     [[nodiscard]] std::vector<float> x_range(std::size_t offset, std::size_t count) const;
     [[nodiscard]] std::vector<float> y_range(std::size_t offset, std::size_t count) const;
 
+    /// Full-data bounds over finite samples, in stored (un-offset) coordinates.
+    /// Each axis is summarised independently; non-finite values are skipped.
+    struct DataBounds
+    {
+        bool   has_x          = false;   // at least one finite x
+        bool   has_y          = false;   // at least one finite y
+        double x_min          = 0.0;
+        double x_max          = 0.0;
+        double y_min          = 0.0;
+        double y_max          = 0.0;
+        bool   has_x_positive = false;   // at least one finite x > 0
+        bool   has_y_positive = false;   // at least one finite y > 0
+        double x_min_positive = 0.0;     // smallest finite x > 0
+        double y_min_positive = 0.0;     // smallest finite y > 0
+    };
+
+    /// Cached full-data bounds.  Recomputed lazily (without copying) after
+    /// set_data/erase; appends update the cache incrementally, so repeated
+    /// calls per frame are O(1).
+    [[nodiscard]] DataBounds data_bounds() const;
+
+    /// Zero-copy access to the underlying storage.  x and y share the same
+    /// chunk layout, so x_chunk(i)[k] pairs with y_chunk(i)[k].
+    [[nodiscard]] std::size_t            storage_chunk_count() const;
+    [[nodiscard]] std::span<const float> x_chunk(std::size_t index) const;
+    [[nodiscard]] std::span<const float> y_chunk(std::size_t index) const;
+
     /// Query visible data for the given x-range, returning at most `max_points`.
     /// Uses the LoD cache if available, otherwise falls back to min-max decimation.
     struct VisibleData

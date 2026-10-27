@@ -32,6 +32,7 @@
 
 #include "core/annotation_layout.hpp"
 #include "core/axis_scale.hpp"
+#include "core/label_layout.hpp"
 #include "ui/overlay/legend_layout.hpp"
 
 namespace spectra
@@ -188,6 +189,32 @@ float estimate_text_width(std::string_view s, float font_px)
             em += 0.62f;
     }
     return em * font_px;
+}
+
+// Longest UTF-8 prefix of `s` that, followed by "...", fits `max_width` (estimated);
+// `s` itself when it already fits.  Used only where a label must stay clear of an
+// offset annotation on its row.
+std::string ellipsize_to_width(std::string_view s, float font_px, float max_width)
+{
+    if (estimate_text_width(s, font_px) <= max_width)
+        return std::string(s);
+    constexpr std::string_view ellipsis = "...";
+    size_t                     end      = s.size();
+    while (end > 0)
+    {
+        // Step back one codepoint (skip UTF-8 continuation bytes).
+        do
+            --end;
+        while (end > 0 && (static_cast<unsigned char>(s[end]) & 0xC0u) == 0x80u);
+        std::string candidate(s.substr(0, end));
+        while (!candidate.empty() && candidate.back() == ' ')
+            candidate.pop_back();
+        candidate += ellipsis;
+        if (estimate_text_width(candidate, font_px) <= max_width)
+            return candidate;
+    }
+    return estimate_text_width(ellipsis, font_px) <= max_width ? std::string(ellipsis)
+                                                               : std::string();
 }
 
 // Renderer font sizes (text_renderer.cpp FONT_PIXEL_SIZES).
@@ -1085,6 +1112,45 @@ LegendEntry legend_entry_for(const Series& s, const SvgStyle& st)
     return e;
 }
 
+// Longest UTF-8 prefix of `text` (cut on codepoint boundaries, trailing
+// spaces trimmed) that fits `max_w` together with an ellipsis; the text
+// itself if it already fits, empty if not even the ellipsis does.
+std::string fit_label(std::string_view text, float max_w, float font_px, bool& truncated)
+{
+    truncated = false;
+    if (estimate_text_width(text, font_px) <= max_w)
+        return std::string(text);
+    truncated                           = true;
+    constexpr std::string_view ellipsis = "\xE2\x80\xA6";
+    std::vector<size_t>        ends;   // byte length of each codepoint prefix
+    for (size_t i = 0; i < text.size(); ++i)
+        if ((static_cast<unsigned char>(text[i]) & 0xC0u) != 0x80u)
+            ends.push_back(i);
+    if (ends.empty())
+        return {};
+    auto candidate = [&](size_t k)
+    {
+        size_t len = ends[k];
+        while (len > 0 && text[len - 1] == ' ')
+            --len;
+        std::string out(text.substr(0, len));
+        out.append(ellipsis);
+        return out;
+    };
+    if (estimate_text_width(candidate(0), font_px) > max_w)
+        return {};
+    size_t lo = 0, hi = ends.size() - 1;   // ends.back() + rest is the full text
+    while (lo < hi)
+    {
+        const size_t mid = (lo + hi + 1) / 2;
+        if (estimate_text_width(candidate(mid), font_px) <= max_w)
+            lo = mid;
+        else
+            hi = mid - 1;
+    }
+    return candidate(lo);
+}
+
 void emit_legend(SvgContext& c, const AxesBase& axes, const Rect& vp, const LegendConfig& cfg)
 {
     if (!cfg.visible || cfg.position == LegendPosition::None)
@@ -1113,18 +1179,26 @@ void emit_legend(SvgContext& c, const AxesBase& axes, const Rect& vp, const Lege
     float max_label_w = 0.0f;
     for (const auto& e : entries)
         max_label_w = std::max(max_label_w, estimate_text_width(e.label, font_px));
-    const float col_w = swatch_w + gap + max_label_w;
-    const auto  grid  = legend_layout::compute_grid(static_cast<int>(entries.size()),
-                                                  col_w,
-                                                  row_h,
-                                                  pad_x,
-                                                  pad_y,
-                                                  col_gap,
-                                                  vp.w - 2.0f * margin,
-                                                  vp.h - 2.0f * margin);
+    const int   n          = static_cast<int>(entries.size());
+    const float overflow_w = estimate_text_width(legend_layout::overflow_text(n), font_px);
+    // A static export cannot scroll: the same legend_layout::compute_static_grid
+    // policy as the GPU/PNG legend (tighter rows, then a "+N more" cell), and
+    // the box (and every label) stays inside the axes (audit S03/S04).
+    const auto  grid  = legend_layout::compute_static_grid(n,
+                                                         swatch_w + gap + max_label_w,
+                                                         row_h,
+                                                         font_px + 2.0f,
+                                                         overflow_w,
+                                                         pad_x,
+                                                         pad_y,
+                                                         col_gap,
+                                                         vp.w - 2.0f * margin,
+                                                         vp.h - 2.0f * margin);
     const float w     = grid.width;
-    // A static export cannot scroll: size the box for every row.
-    const float h = 2.0f * pad_y + static_cast<float>(grid.rows) * row_h;
+    const float h     = grid.height;
+    const float col_w = legend_layout::column_width(grid, pad_x, col_gap);
+    if (grid.rows <= 0 || !legend_layout::fits(vp, w, h))
+        return;   // not even one row fits this (tiny) axes
 
     LegendPosition pos = cfg.position;
     if (pos == LegendPosition::Best)
@@ -1134,7 +1208,7 @@ void emit_legend(SvgContext& c, const AxesBase& axes, const Rect& vp, const Lege
         else
             pos = LegendPosition::TopRight;
     }
-    const Rect r = legend_layout::detail::corner_rect(pos, vp, w, h, margin);
+    const Rect r = legend_layout::place(vp, pos, w, h);
 
     // Same "unset" sentinel as LegendInteraction: rgb all zero -> theme colour.
     auto unset = [](const Color& col) { return col.r == 0.0f && col.g == 0.0f && col.b == 0.0f; };
@@ -1146,14 +1220,15 @@ void emit_legend(SvgContext& c, const AxesBase& axes, const Rect& vp, const Lege
            << opacity_attr("fill-opacity", bg.a * 0.92f) << " stroke=\"" << hex(border) << "\""
            << opacity_attr("stroke-opacity", border.a) << " stroke-width=\"1\"/>\n";
 
-    for (size_t i = 0; i < entries.size(); ++i)
+    const float label_w = col_w - swatch_w - gap + 0.5f;   // 0.5: float slack
+    for (size_t i = 0; i < static_cast<size_t>(grid.shown); ++i)
     {
         const auto& e   = entries[i];
         const int   idx = static_cast<int>(i);
-        const int   col = grid.rows > 0 ? idx / grid.rows : 0;
-        const int   row = grid.rows > 0 ? idx % grid.rows : idx;
+        const int   col = idx / grid.rows;
+        const int   row = idx % grid.rows;
         const float ex  = r.x + pad_x + static_cast<float>(col) * (col_w + col_gap);
-        const float ey  = r.y + pad_y + (static_cast<float>(row) + 0.5f) * row_h;
+        const float ey  = r.y + pad_y + (static_cast<float>(row) + 0.5f) * grid.cell_h;
         const float cx  = ex + swatch_w * 0.5f;
 
         switch (e.kind)
@@ -1200,10 +1275,28 @@ void emit_legend(SvgContext& c, const AxesBase& axes, const Rect& vp, const Lege
                        << opacity_attr("stroke-opacity", e.alpha) << "/>\n";
                 break;
         }
+        bool              truncated = false;
+        const std::string label     = fit_label(e.label, label_w, font_px, truncated);
+        if (truncated)   // full text as a hover tooltip in SVG viewers
+            c.body << "      <g><title>" << xml_escape(e.label) << "</title>\n";
         emit_text(c.body,
-                  e.label,
+                  label,
                   ex + swatch_w + gap,
                   ey,
+                  font_px,
+                  st.text_secondary,
+                  "start",
+                  VAlign::Middle);
+        if (truncated)
+            c.body << "      </g>\n";
+    }
+    if (grid.overflow > 0)
+    {
+        const int idx = grid.shown;
+        emit_text(c.body,
+                  legend_layout::overflow_text(grid.overflow),
+                  r.x + pad_x + static_cast<float>(idx / grid.rows) * (col_w + col_gap),
+                  r.y + pad_y + (static_cast<float>(idx % grid.rows) + 0.5f) * grid.cell_h,
                   font_px,
                   st.text_secondary,
                   "start",
@@ -1515,6 +1608,15 @@ void emit_axes_2d(SvgContext& c, const Axes& axes, const LegendConfig& legend)
     // x below the right end of the tick labels, y above the top of the axis
     // (render_geometry.cpp).
     const float x_label_row = vp.y + vp.h + tl + tick_padding + TICK_FONT_PX + 4.0f;
+    // The offsets share their rows with the X label / title: keep their width free.
+    const float x_offset_reserve =
+        x_ticks.offset_label.empty()
+            ? 0.0f
+            : offset_annotation_reserve(estimate_text_width(x_ticks.offset_label, TICK_FONT_PX));
+    const float y_offset_reserve =
+        y_ticks.offset_label.empty()
+            ? 0.0f
+            : offset_annotation_reserve(estimate_text_width(y_ticks.offset_label, TICK_FONT_PX));
     if (!x_ticks.offset_label.empty())
         emit_text(c.body,
                   x_ticks.offset_label,
@@ -1536,15 +1638,29 @@ void emit_axes_2d(SvgContext& c, const Axes& axes, const LegendConfig& legend)
     c.body << "    </g>\n";
 
     // Axis labels and title.
+    // A label next to an offset is placed beside it (and ellipsized if it cannot fit there).
+    auto beside_offset = [&](const std::string& label, float font_px, float res_l, float res_r)
+    {
+        const CenteredLabelSlot slot = centered_label_slot(vp.x, vp.w, res_l, res_r);
+        std::string             text = (res_l > 0.0f || res_r > 0.0f)
+                                           ? ellipsize_to_width(label, font_px, slot.max_width)
+                                           : label;
+        const float cx = centered_label_x(vp.x, vp.w, slot, estimate_text_width(text, font_px));
+        return std::pair<std::string, float>(std::move(text), cx);
+    };
     if (!axes.get_xlabel().empty())
+    {
+        const auto [text, cx] =
+            beside_offset(axes.get_xlabel(), LABEL_FONT_PX, 0.0f, x_offset_reserve);
         emit_text(c.body,
-                  axes.get_xlabel(),
-                  vp.x + vp.w * 0.5f,
+                  text,
+                  cx,
                   x_label_row,
                   LABEL_FONT_PX,
                   st.text_secondary,
                   "middle",
                   VAlign::Top);
+    }
     if (!axes.get_ylabel().empty())
     {
         const float cx = vp.x - tl - tick_padding - max_y_tick_width - 6.0f - LABEL_FONT_PX * 0.5f;
@@ -1560,15 +1676,19 @@ void emit_axes_2d(SvgContext& c, const Axes& axes, const LegendConfig& legend)
                   " transform=\"rotate(-90 " + num(cx) + " " + num(cy) + ")\"");
     }
     if (!axes.get_title().empty())
+    {
+        const auto [text, cx] =
+            beside_offset(axes.get_title(), TITLE_FONT_PX, y_offset_reserve, 0.0f);
         emit_text(c.body,
-                  axes.get_title(),
-                  vp.x + vp.w * 0.5f,
+                  text,
+                  cx,
                   std::max(2.0f, vp.y - TITLE_FONT_PX - tick_padding),
                   TITLE_FONT_PX,
                   st.text_primary,
                   "middle",
                   VAlign::Top,
                   " font-weight=\"500\"");
+    }
 
     // ShapeSeries text annotations (data-space labels).
     static constexpr const char* anchors[] = {"start", "middle", "end"};

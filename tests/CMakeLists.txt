@@ -152,6 +152,7 @@ set(SPECTRA_UNIT_TESTS
     test_region_select
     test_legend_interaction
     test_legend_colorbar
+    test_legend_bounds
     test_figure_manager
     test_inspector_stats
     test_box_zoom_overlay
@@ -160,10 +161,13 @@ set(SPECTRA_UNIT_TESTS
     test_timeline_editor
     test_recording_export
     test_theme_colorblind
+    test_theme_change_callback
     test_palette_resolution
+    test_palette_visibility
     test_window_agent_state
     test_format_letter_colors
     test_settings_store
+    test_settings_appearance
     test_phase2_integration
     test_split_view
     test_dock_system
@@ -186,6 +190,7 @@ set(SPECTRA_UNIT_TESTS
     test_3d_pipelines
     test_camera
     test_axes3d_fit
+    test_shape3d_first_frame
     # test_axes3d  # Not a proper GTEST file, uses plain functions with assert
     test_series3d
     test_depth_buffer
@@ -194,12 +199,16 @@ set(SPECTRA_UNIT_TESTS
     test_mode_transition
     test_workspace_3d
     test_3d_regression
+    test_shape3d_colors
     test_multi_window
     test_window_manager
+    test_window_file_drop
     test_glfw_platform_policy
     test_window_ui_context_builder
     test_automation_dispatch
     test_automation_security
+    test_automation_json
+    test_automation_figure_handlers
     test_figure_registry
     test_event_bus
     test_ipc
@@ -215,6 +224,8 @@ set(SPECTRA_UNIT_TESTS
     test_cross_codec
     test_text_renderer
     test_text_fit
+    test_label_layout
+    test_overlay_text_fit
     test_font_fallback
     test_eigen_support
     test_csv_loader
@@ -234,9 +245,12 @@ set(SPECTRA_UNIT_TESTS
     test_plugin_overlays
     test_plugin_version_negotiation
     test_plugin_export
+    test_export_csv_plugin
     test_plugin_data_source
     test_plugin_integration
     test_plugin_series_type
+    test_custom_series_render
+    test_custom_series_gpu
     test_plugin_guard
     test_plugin_diagnostics
     test_plugin_manifest
@@ -245,6 +259,7 @@ set(SPECTRA_UNIT_TESTS
     test_lod_cache
     test_lod_cache_metrics
     test_chunked_series
+    test_chunked_autoscale
     test_pending_series_data
     test_series_thread_safe
     test_accessibility
@@ -322,6 +337,7 @@ set_target_properties(mock_integration_plugin PROPERTIES PREFIX "")
 
 # Tests that require a GPU/display (Vulkan + GLFW window)
 set(SPECTRA_GPU_TESTS
+    test_automation_figure_handlers
     test_bugfix_embed
     test_3d_pipelines
     test_depth_buffer
@@ -330,6 +346,7 @@ set(SPECTRA_GPU_TESTS
     test_mode_transition
     test_workspace_3d
     test_3d_regression
+    test_shape3d_colors
     test_multi_window
     test_window_manager
     test_figure_registry
@@ -340,6 +357,8 @@ set(SPECTRA_GPU_TESTS
     test_embed_surface
     test_easy_embed
     test_headless_export_text
+    test_shape3d_first_frame
+    test_custom_series_gpu
 )
 
 foreach(_test ${SPECTRA_UNIT_TESTS})
@@ -364,9 +383,23 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
         if(_test STREQUAL "test_eigen_support" AND SPECTRA_USE_EIGEN)
             target_link_libraries(unit_${_test} PRIVATE Eigen3::Eigen)
         endif()
-        # Hover round trip drives DataInteraction, which needs an ImGui context
-        if(_test MATCHES "^test_(double_precision_data|data_interaction)$" AND DEFINED imgui_SOURCE_DIR)
+        # Hover round trip drives DataInteraction (and legend_bounds draws the
+        # interactive legend), which needs an ImGui context; test_theme checks the
+        # ImGui palette apply_to_imgui() writes during a theme transition.
+        if(_test MATCHES "^test_(double_precision_data|data_interaction|legend_bounds|overlay_text_fit|theme)$" AND DEFINED imgui_SOURCE_DIR)
             target_include_directories(unit_${_test} SYSTEM PRIVATE ${imgui_SOURCE_DIR})
+        endif()
+        # CSV writer shared with the export_csv example plugin (header-only)
+        if(_test STREQUAL "test_export_csv_plugin")
+            target_include_directories(unit_${_test} PRIVATE
+                ${CMAKE_SOURCE_DIR}/examples/plugins
+                ${CMAKE_SOURCE_DIR}/src)
+            if(TARGET export_csv AND NOT WIN32)
+                target_compile_definitions(unit_${_test} PRIVATE
+                    SPECTRA_EXPORT_CSV_PLUGIN_PATH="$<TARGET_FILE:export_csv>")
+                target_link_libraries(unit_${_test} PRIVATE ${CMAKE_DL_LIBS})
+                add_dependencies(unit_${_test} export_csv)
+            endif()
         endif()
         # Pass mock plugin path to transform plugin tests
         if(_test STREQUAL "test_plugin_transforms")
@@ -408,12 +441,50 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
             add_dependencies(unit_${_test} spectra_wgsl_shaders)
         endif()
         # Decodes the exported PNGs with the bundled stb_image.
-        if(_test STREQUAL "test_headless_export_text")
+        if(_test MATCHES "^test_(headless_export_text|shape3d_first_frame)$")
             target_include_directories(unit_${_test} SYSTEM PRIVATE
                 ${CMAKE_SOURCE_DIR}/third_party/stb)
         endif()
+        # Loads the series_heatmap example plugin into a headless App and
+        # decodes the exported PNG with the bundled stb_image.
+        if(_test STREQUAL "test_custom_series_gpu")
+            target_include_directories(unit_${_test} SYSTEM PRIVATE
+                ${CMAKE_SOURCE_DIR}/third_party/stb)
+            if(TARGET series_heatmap)
+                target_compile_definitions(unit_${_test} PRIVATE
+                    SPECTRA_HEATMAP_PLUGIN_PATH="$<TARGET_FILE:series_heatmap>"
+                )
+                add_dependencies(unit_${_test} series_heatmap)
+            endif()
+            # Export symbols so the dlopen'd plugin can resolve C ABI functions
+            # from the test executable instead of carrying its own copy.
+            if(NOT WIN32)
+                target_link_options(unit_${_test} PRIVATE -rdynamic)
+            endif()
+        endif()
     endif()
 endforeach()
+
+# Shipped example plug-ins (examples/plugins/) loaded through the real PluginManager.
+# Only available when the examples are built; needs no GPU.
+if(TARGET transform_smooth AND TARGET overlay_crosshair AND TARGET export_csv
+   AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_example_plugins.cpp)
+    add_spectra_test(unit test_example_plugins)
+    target_compile_definitions(unit_test_example_plugins PRIVATE
+        SPECTRA_EXAMPLE_PLUGIN_TRANSFORM_SMOOTH_PATH="$<TARGET_FILE:transform_smooth>"
+        SPECTRA_EXAMPLE_PLUGIN_OVERLAY_CROSSHAIR_PATH="$<TARGET_FILE:overlay_crosshair>"
+        SPECTRA_EXAMPLE_PLUGIN_EXPORT_CSV_PATH="$<TARGET_FILE:export_csv>"
+    )
+    add_dependencies(unit_test_example_plugins transform_smooth overlay_crosshair export_csv)
+    # Export the host's C ABI symbols so the plug-ins bind to the test's copies
+    # instead of the static spectra copy linked into each plug-in.  Windows has
+    # no equivalent (each DLL keeps its own copy); the fixture destroys the
+    # registries before unloading so the plug-in's std::function code is still
+    # mapped when it runs.
+    if(NOT WIN32)
+        target_link_options(unit_test_example_plugins PRIVATE -rdynamic)
+    endif()
+endif()
 
 # test_multi_window uses a custom main() to avoid multi-VkInstance teardown crash on NVIDIA.
 # (Same root cause as the 3D golden test SIGSEGV: the driver crashes when multiple
@@ -1097,6 +1168,11 @@ if(SPECTRA_USE_ROS2)
         target_compile_definitions(unit_test_scene_viewport PRIVATE
             SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
         )
+        # The ImGui canvas-coverage tests need imgui.h, which spectra and
+        # spectra_ros2_adapter only use privately.
+        if(SPECTRA_USE_IMGUI AND DEFINED imgui_SOURCE_DIR)
+            target_include_directories(unit_test_scene_viewport SYSTEM PRIVATE ${imgui_SOURCE_DIR})
+        endif()
         add_test(NAME unit_test_scene_viewport COMMAND unit_test_scene_viewport)
         set_tests_properties(unit_test_scene_viewport PROPERTIES LABELS "ros2")
     endif()
@@ -1694,6 +1770,24 @@ if(SPECTRA_USE_PX4)
         set_tests_properties(unit_test_ulog_reader PROPERTIES LABELS "px4")
     endif()
 
+    # PX4 panel helpers — Parameters sorting and stable live-row widget IDs.
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_px4_panel_helpers.cpp)
+        add_executable(unit_test_px4_panel_helpers
+            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_px4_panel_helpers.cpp
+        )
+        target_link_libraries(unit_test_px4_panel_helpers PRIVATE
+            spectra_px4_adapter
+            GTest::gtest_main
+        )
+        target_compile_features(unit_test_px4_panel_helpers PRIVATE cxx_std_20)
+        target_include_directories(unit_test_px4_panel_helpers PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_SOURCE_DIR}/src/adapters/px4
+        )
+        add_test(NAME unit_test_px4_panel_helpers COMMAND unit_test_px4_panel_helpers)
+        set_tests_properties(unit_test_px4_panel_helpers PROPERTIES LABELS "px4")
+    endif()
+
     # Px4PlotManager tests — field management and data extraction.
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_px4_plot_manager.cpp)
         add_executable(unit_test_px4_plot_manager
@@ -1767,6 +1861,12 @@ if(SPECTRA_BUILD_QA_AGENT)
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/qa/qa_agent.cpp)
         add_executable(spectra_qa_agent qa/qa_agent.cpp)
         target_link_libraries(spectra_qa_agent PRIVATE spectra)
+        # glfw is PRIVATE to the spectra library target, so its include
+        # directories don't propagate here — link directly so the GLFW/glfw3.h
+        # include in qa_agent.cpp resolves with the bundled (FetchContent) GLFW.
+        if(SPECTRA_USE_GLFW AND DEFINED _spectra_glfw_link)
+            target_link_libraries(spectra_qa_agent PRIVATE ${_spectra_glfw_link})
+        endif()
         target_compile_features(spectra_qa_agent PRIVATE cxx_std_20)
         target_include_directories(spectra_qa_agent PRIVATE
             ${CMAKE_SOURCE_DIR}/src
@@ -1798,6 +1898,20 @@ if(SPECTRA_BUILD_QA_AGENT)
             $<$<BOOL:${SPECTRA_USE_IMGUI}>:SPECTRA_USE_IMGUI>
         )
     endif()
+endif()
+
+# Shipped crosshair overlay example drawn into a real ImGui draw list.
+if(TARGET overlay_crosshair AND DEFINED imgui_SOURCE_DIR AND NOT WIN32
+   AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_example_overlay_crosshair.cpp)
+    add_spectra_test(unit test_example_overlay_crosshair)
+    target_include_directories(unit_test_example_overlay_crosshair SYSTEM PRIVATE
+        ${imgui_SOURCE_DIR})
+    target_compile_definitions(unit_test_example_overlay_crosshair PRIVATE
+        SPECTRA_EXAMPLE_OVERLAY_CROSSHAIR_PATH="$<TARGET_FILE:overlay_crosshair>")
+    add_dependencies(unit_test_example_overlay_crosshair overlay_crosshair)
+    # Export the host's C ABI + ImGui symbols so the plug-in binds to the test's
+    # copies (and its ImGui context) instead of the static copy linked into it.
+    target_link_options(unit_test_example_overlay_crosshair PRIVATE -rdynamic)
 endif()
 
 # Manual (interactive, not run by CTest) test programs

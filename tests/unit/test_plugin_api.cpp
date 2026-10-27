@@ -249,7 +249,7 @@ TEST(PluginEntryTest, DefaultValues)
 TEST(PluginContextTest, VersionConstants)
 {
     EXPECT_EQ(SPECTRA_PLUGIN_API_VERSION_MAJOR, 2u);
-    EXPECT_EQ(SPECTRA_PLUGIN_API_VERSION_MINOR, 0u);
+    EXPECT_EQ(SPECTRA_PLUGIN_API_VERSION_MINOR, 1u);
 }
 
 TEST(PluginContextTest, ContextStruct)
@@ -258,7 +258,7 @@ TEST(PluginContextTest, ContextStruct)
     ctx.api_version_major = SPECTRA_PLUGIN_API_VERSION_MAJOR;
     ctx.api_version_minor = SPECTRA_PLUGIN_API_VERSION_MINOR;
     EXPECT_EQ(ctx.api_version_major, 2u);
-    EXPECT_EQ(ctx.api_version_minor, 0u);
+    EXPECT_EQ(ctx.api_version_minor, 1u);
     EXPECT_EQ(ctx.command_registry, nullptr);
     EXPECT_EQ(ctx.shortcut_manager, nullptr);
     EXPECT_EQ(ctx.undo_manager, nullptr);

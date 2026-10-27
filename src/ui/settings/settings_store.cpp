@@ -192,6 +192,46 @@ void SettingsStore::apply_to(ui::ThemeManager& tm) const
         tm.set_data_palette(data_.default_data_palette);
 }
 
+AppearanceState appearance_state(const ui::ThemeManager& tm, const SettingsData& d)
+{
+    return AppearanceState{tm.current_theme_name(),
+                           d.default_theme,
+                           tm.current_data_palette_name(),
+                           d.default_data_palette};
+}
+
+bool select_theme(ui::ThemeManager& tm, SettingsStore& store, const std::string& theme)
+{
+    tm.set_theme(theme);
+    if (tm.current_theme_name() != theme)
+        return false;
+    store.data_mut().default_theme = theme;
+    store.notify_change();
+    return true;
+}
+
+bool select_data_palette(ui::ThemeManager& tm, SettingsStore& store, const std::string& palette)
+{
+    tm.set_data_palette(palette);
+    if (tm.current_data_palette_name() != palette)
+        return false;
+    store.data_mut().default_data_palette = palette;
+    store.notify_change();
+    return true;
+}
+
+void make_active_theme_default(const ui::ThemeManager& tm, SettingsStore& store)
+{
+    store.data_mut().default_theme = tm.current_theme_name();
+    store.notify_change();
+}
+
+void make_active_data_palette_default(const ui::ThemeManager& tm, SettingsStore& store)
+{
+    store.data_mut().default_data_palette = tm.current_data_palette_name();
+    store.notify_change();
+}
+
 void SettingsStore::notify_change()
 {
     if (on_change_)

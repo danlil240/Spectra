@@ -109,12 +109,30 @@ class ShapeSeries3D : public Series
     // ── Geometry access (for renderer — MeshSeries-compatible format) ──
 
     // Flat vertex data: {x,y,z, nx,ny,nz} per vertex
-    std::span<const float> vertices() const { return vertices_; }
-    size_t                 vertex_count() const { return vertices_.size() / 6; }
+    // Geometry is generated lazily from the shape definitions on first access
+    // after a change, so these are always current (no prior render needed).
+    std::span<const float> vertices() const
+    {
+        ensure_geometry();
+        return vertices_;
+    }
+    size_t vertex_count() const
+    {
+        ensure_geometry();
+        return vertices_.size() / 6;
+    }
 
     // Triangle indices
-    std::span<const uint32_t> indices() const { return indices_; }
-    size_t                    triangle_count() const { return indices_.size() / 3; }
+    std::span<const uint32_t> indices() const
+    {
+        ensure_geometry();
+        return indices_;
+    }
+    size_t triangle_count() const
+    {
+        ensure_geometry();
+        return indices_.size() / 3;
+    }
 
     // Rebuild mesh geometry from shape definitions.
     void rebuild_geometry();
@@ -122,6 +140,29 @@ class ShapeSeries3D : public Series
     // 3D bounds for auto_fit
     vec3 compute_centroid() const;
     void get_bounds(vec3& min_out, vec3& max_out) const;
+
+    // Contiguous index ranges sharing one colour, built by rebuild_geometry()
+    // (lazily, together with the geometry, so they always match indices()).
+    // A range whose color has zero alpha inherits the series colour.  Adjacent
+    // shapes with the same colour are merged, so a series without per-shape
+    // colours yields a single range covering all indices.
+    struct DrawRange
+    {
+        uint32_t first_index = 0;
+        uint32_t index_count = 0;
+        Color    color{0.0f, 0.0f, 0.0f, 0.0f};
+
+        bool inherits_series_color() const { return color.a <= 0.0f; }
+    };
+    std::span<const DrawRange> draw_ranges() const
+    {
+        ensure_geometry();
+        return draw_ranges_;
+    }
+
+    // True if any shape carries an explicit colour with alpha below 0.99, so
+    // the series needs the transparent (sorted, no depth write) path.
+    bool has_transparent_shape() const;
 
     // Material properties (forwarded to pipeline push constants)
     ShapeSeries3D& ambient(float a)
@@ -168,13 +209,21 @@ class ShapeSeries3D : public Series
    private:
     std::vector<ShapeDef3D> shapes_;
 
-    // Generated mesh data (MeshSeries-compatible)
-    std::vector<float>    vertices_;   // {x,y,z, nx,ny,nz} per vertex
-    std::vector<uint32_t> indices_;    // triangle indices
+    // Generated mesh data (MeshSeries-compatible).  A cache derived from
+    // shapes_, filled lazily by ensure_geometry() — hence mutable.
+    mutable std::vector<float>    vertices_;   // {x,y,z, nx,ny,nz} per vertex
+    mutable std::vector<uint32_t> indices_;    // triangle indices
+    mutable bool                  geometry_stale_ = false;
+
+    // Regenerate vertices_/indices_ if shapes_ changed since the last build.
+    void ensure_geometry() const;
 
     float ambient_   = 0.0f;
     float specular_  = 0.0f;
     float shininess_ = 0.0f;
+
+    // Per-colour index ranges (see draw_ranges()); part of the lazy geometry cache.
+    mutable std::vector<DrawRange> draw_ranges_;
 
     // Geometry generators
     void generate_box(const ShapeDef3D& def);

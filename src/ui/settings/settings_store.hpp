@@ -41,6 +41,38 @@ inline bool reads_user_settings(bool headless, bool use_user_settings)
     return !headless || use_user_settings;
 }
 
+class SettingsStore;
+
+// What Settings -> Appearance shows.  The combos display the *active* theme
+// and data palette (ThemeManager), which commands, undo/redo and automation
+// may change without touching the saved startup default.  When the two
+// differ the panel shows a secondary "Startup default: ..." hint.
+struct AppearanceState
+{
+    std::string active_theme;
+    std::string startup_theme;
+    std::string active_data_palette;
+    std::string startup_data_palette;
+
+    bool theme_matches_startup() const { return active_theme == startup_theme; }
+    bool data_palette_matches_startup() const
+    {
+        return active_data_palette == startup_data_palette;
+    }
+};
+
+AppearanceState appearance_state(const ui::ThemeManager& tm, const SettingsData& d);
+
+// Settings-panel selection: makes @p theme active and saves it as the
+// startup default (notifies @p store).  Returns false when the theme is not
+// registered, in which case nothing changes.
+bool select_theme(ui::ThemeManager& tm, SettingsStore& store, const std::string& theme);
+bool select_data_palette(ui::ThemeManager& tm, SettingsStore& store, const std::string& palette);
+
+// Save the currently active theme / data palette as the startup default.
+void make_active_theme_default(const ui::ThemeManager& tm, SettingsStore& store);
+void make_active_data_palette_default(const ui::ThemeManager& tm, SettingsStore& store);
+
 class SettingsStore
 {
    public:

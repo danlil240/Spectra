@@ -7,8 +7,11 @@
 
 #include <algorithm>
 #include <format>
+#include <limits>
 #include <cassert>
 #include <cctype>
+#include <cstddef>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <spectra/axes.hpp>
@@ -129,6 +132,13 @@ void ThemeManager::set_theme(const std::string& name)
     auto it = themes_.find(name);
     if (it != themes_.end())
     {
+        // A direct theme choice wins over any in-flight transition_to(): cancel it and drop
+        // the interpolated display colours *before* anything is applied or notified, so
+        // colors(), ImGui and listeners all see the new theme immediately and a later
+        // update() cannot overwrite it with the old transition target.
+        transitioning_        = false;
+        display_colors_valid_ = false;
+
         SPECTRA_LOG_TRACE("theme", "Theme changed to '{}'", name);
         current_theme_name_ = name;
         current_theme_      = &it->second;
@@ -138,7 +148,25 @@ void ThemeManager::set_theme(const std::string& name)
         apply_to_imgui();
         if (event_system_)
             event_system_->theme_changed().emit(spectra::ThemeChangedEvent{name});
+        notify_public_theme_change();
     }
+}
+
+void ThemeManager::notify_public_theme_change()
+{
+    ThemeSnapshot snap{};
+    fill_snapshot(snap);
+    // Compare colors only: the trailing version counter bumps on every change,
+    // including no-op re-applies of the same theme.
+    constexpr size_t COLOR_BYTES = offsetof(ThemeSnapshot, version);
+    if (last_notified_valid_ && std::memcmp(&snap, &last_notified_snapshot_, COLOR_BYTES) == 0)
+        return;
+    // Record before invoking so a callback that re-enters set_theme() with the
+    // same theme terminates.
+    last_notified_snapshot_ = snap;
+    last_notified_valid_    = true;
+    if (auto cb = spectra::detail::registered_theme_change_callback())
+        cb(snap);
 }
 
 ThemeGlassSettings ThemeManager::glass_defaults_for(const std::string& theme_name) const
@@ -251,6 +279,62 @@ spectra::Color effective_figure_background(const FigureStyle& style, const Theme
     return spectra::Color(c.r, c.g, c.b, c.a);
 }
 
+const Theme* ThemeManager::plot_surface_ink_theme(const FigureStyle& style) const
+{
+    if (!style.background_override)
+        return nullptr;
+    const ThemeColors& active  = colors();
+    ThemeColors        surface = active;
+    surface.bg_canvas = Color(style.background.r, style.background.g, style.background.b, 1.0f);
+    const bool light  = is_light_plot_background(surface);
+    if (light == is_light_plot_background(active))
+        return nullptr;
+    auto it = themes_.find(light ? "light" : "dark");
+    return it != themes_.end() ? &it->second : nullptr;
+}
+
+ThemeColors ThemeManager::plot_surface_colors(const FigureStyle& style) const
+{
+    ThemeColors out = colors();
+    if (!style.background_override)
+        return out;
+    out.bg_canvas =
+        Color(style.background.r, style.background.g, style.background.b, style.background.a);
+    if (const Theme* ink = plot_surface_ink_theme(style))
+    {
+        // Everything drawn on (or floating over) the plot surface.
+        const ThemeColors& src = ink->colors;
+        out.text_primary       = src.text_primary;
+        out.text_secondary     = src.text_secondary;
+        out.text_tertiary      = src.text_tertiary;
+        out.border_default     = src.border_default;
+        out.border_subtle      = src.border_subtle;
+        out.border_strong      = src.border_strong;
+        out.grid_major         = src.grid_major;
+        out.grid_minor         = src.grid_minor;
+        out.grid_line          = src.grid_line;
+        out.axis_line          = src.axis_line;
+        out.tick_label         = src.tick_label;
+        out.crosshair          = src.crosshair;
+        out.tooltip_bg         = src.tooltip_bg;
+        out.tooltip_border     = src.tooltip_border;
+        out.bg_elevated        = src.bg_elevated;
+        out.annotation_bg      = src.annotation_bg;
+    }
+    return out;
+}
+
+const DataPalette& ThemeManager::plot_surface_data_palette(const FigureStyle& style) const
+{
+    // Only "default" follows the theme; an explicitly chosen palette (and a
+    // palette transition in progress) is kept as selected.
+    if (current_data_palette_name_ == "default" && !display_palette_valid_)
+        if (const Theme* ink = plot_surface_ink_theme(style);
+            ink && !ink->data_palette.colors.empty())
+            return ink->data_palette;
+    return current_data_palette();
+}
+
 void ThemeManager::set_data_palette(const std::string& palette_name)
 {
     auto it = data_palettes_.find(palette_name);
@@ -353,8 +437,10 @@ void ThemeManager::apply_to_imgui()
     if (!current_theme_ || ImGui::GetCurrentContext() == nullptr)
         return;
 
-    auto&       style  = ImGui::GetStyle();
-    const auto& colors = current_theme_->colors;
+    auto& style = ImGui::GetStyle();
+    // Effective colours: mid-transition this is the interpolated palette, so ImGui chrome
+    // animates in step with the plot colours instead of jumping at the end.
+    const ThemeColors& colors = this->colors();
 
     // ── Modern 2026 styling ───────────────────────────────────────────────────────
     style.AntiAliasedLines       = true;
@@ -1119,7 +1205,7 @@ void ThemeManager::initialize_default_themes()
         // Text — cool gray hierarchy with clearer secondary labels
         .text_primary   = Color::from_hex(0xF1F5F9),
         .text_secondary = Color::from_hex(0xCBD5E1),
-        .text_tertiary  = Color::from_hex(0x8A97A6),
+        .text_tertiary  = Color::from_hex(0xA3ADB9),   // >=4.5:1 on every surface
         .text_inverse   = Color::from_hex(0x0C1116),
 
         // Borders — glass rims that define the rail, canvas, and popups
@@ -1134,11 +1220,11 @@ void ThemeManager::initialize_default_themes()
         .accent_subtle = Color(0.62f, 0.83f, 0.90f, 0.08f),
 
         // Semantic
-        .success  = Color::from_hex(0x3FB950),
-        .warning  = Color::from_hex(0xD29922),
-        .error    = Color::from_hex(0xFF7575),   // WCAG AA: 4.52:1 on bg_secondary (#2E2E2E)
+        .success  = Color::from_hex(0x56C265),   // Semantic text: >=4.5:1 up to bg_elevated
+        .warning  = Color::from_hex(0xD7A439),
+        .error    = Color::from_hex(0xFF8A8A),
         .info     = Color::from_hex(0x7DD3FC),
-        .critical = Color::from_hex(0xF472D0),
+        .critical = Color::from_hex(0xF685D6),
 
         // Plot-specific — grid recedes, data is hero
         .grid_major       = Color(0.70f, 0.78f, 0.84f, 0.12f),
@@ -1183,7 +1269,7 @@ void ThemeManager::initialize_default_themes()
 
                               .text_primary   = glass_palette::kTextPrimary,
                               .text_secondary = Color(0.78f, 0.84f, 0.92f, 0.82f),
-                              .text_tertiary  = Color(0.55f, 0.62f, 0.74f, 0.72f),
+                              .text_tertiary  = Color(0.70f, 0.75f, 0.83f, 0.72f),
                               .text_inverse   = Color::from_hex(0x050810),
 
                               .border_default = Color(0.22f, 0.28f, 0.38f, 0.28f),
@@ -1197,8 +1283,8 @@ void ThemeManager::initialize_default_themes()
 
                               .success  = glass_palette::kSuccessGreen,
                               .warning  = glass_palette::kWarningAmber,
-                              .error    = Color::from_hex(0xF85149),
-                              .info     = glass_palette::kAccentBlue,
+                              .error    = Color::from_hex(0xF9645D),
+                              .info     = Color::from_hex(0x5395F5),
                               .critical = glass_palette::kAccentMagenta,
 
                               .grid_major       = Color(0.55f, 0.72f, 0.92f, tokens::GRID_MAJOR_ALPHA_NIGHT),
@@ -1242,7 +1328,7 @@ void ThemeManager::initialize_default_themes()
                     // Text — blue-black ink against frosted surfaces
                               .text_primary   = Color::from_hex(0x102033),
                               .text_secondary = Color::from_hex(0x33485F),
-                              .text_tertiary  = Color::from_hex(0x64748B),
+                              .text_tertiary  = Color::from_hex(0x566478),
                               .text_inverse   = Color::from_hex(0xFFFFFF),
 
                     // Borders — cool glass rims with enough contrast to define layers
@@ -1257,10 +1343,10 @@ void ThemeManager::initialize_default_themes()
                               .accent_subtle = Color(0.05f, 0.45f, 0.56f, 0.08f),
 
                     // Semantic
-                              .success  = Color::from_hex(0x1A7F37),
+                              .success  = Color::from_hex(0x177231),
                               .warning  = Color::from_hex(0x7A5000),   // WCAG AA on light surfaces
                               .error    = Color::from_hex(0xB91C1C),   // WCAG AA on light surfaces
-                              .info     = Color::from_hex(0x2563EB),
+                              .info     = Color::from_hex(0x225AD5),
                               .critical = Color::from_hex(0xA21CAF),   // WCAG AA on light surfaces
 
                     // Plot-specific — cool academic gridlines on the tinted canvas
@@ -1325,9 +1411,9 @@ void ThemeManager::initialize_default_themes()
                             // Semantic
                                                      .success  = Color::from_hex(0x00FF00),
                                                      .warning  = Color::from_hex(0xFFFF00),
-                                                     .error    = Color::from_hex(0xFF0000),
+                                                     .error    = Color::from_hex(0xFF8585),   // 4.6:1 on bg_elevated
                                                      .info     = Color::from_hex(0xFFD700),
-                                                     .critical = Color::from_hex(0xFF00FF),
+                                                     .critical = Color::from_hex(0xFF6EFF),
 
                             // Plot-specific — text, axes and ticks stay at full contrast;
                             // the grid is a dim reference so it never outweighs the data,
@@ -1516,6 +1602,268 @@ void ThemeManager::initialize_data_palettes()
 
     palette_names_dirty_       = true;
     current_data_palette_name_ = "default";
+}
+
+// ─── Auto series colour visibility (see visible_data_palette in theme.hpp) ──
+
+namespace
+{
+
+struct Rgb
+{
+    double r = 0.0, g = 0.0, b = 0.0;
+};
+
+struct OkLab
+{
+    double L = 0.0, a = 0.0, b = 0.0;
+};
+
+double srgb_to_linear(double c)
+{
+    return (c <= 0.04045) ? c / 12.92 : std::pow((c + 0.055) / 1.055, 2.4);
+}
+
+double linear_to_srgb(double c)
+{
+    return (c <= 0.0031308) ? c * 12.92 : 1.055 * std::pow(c, 1.0 / 2.4) - 0.055;
+}
+
+double clamp_unit(double v)
+{
+    return v < 0.0 ? 0.0 : (v > 1.0 ? 1.0 : v);
+}
+
+// Exact WCAG 2.1 relative luminance of an sRGB colour (piecewise transfer).
+double exact_luminance(const Rgb& c)
+{
+    return 0.2126 * srgb_to_linear(c.r) + 0.7152 * srgb_to_linear(c.g)
+           + 0.0722 * srgb_to_linear(c.b);
+}
+
+double exact_contrast(const Rgb& a, const Rgb& b)
+{
+    const double la = exact_luminance(a);
+    const double lb = exact_luminance(b);
+    return (std::max(la, lb) + 0.05) / (std::min(la, lb) + 0.05);
+}
+
+OkLab srgb_to_oklab(const Rgb& c)
+{
+    const double r = srgb_to_linear(c.r);
+    const double g = srgb_to_linear(c.g);
+    const double b = srgb_to_linear(c.b);
+    const double l = std::cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+    const double m = std::cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+    const double s = std::cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+    return {0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s,
+            1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s,
+            0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s};
+}
+
+// OKLab -> linear sRGB (may fall outside [0, 1]).
+Rgb oklab_to_linear(const OkLab& c)
+{
+    const double l = std::pow(c.L + 0.3963377774 * c.a + 0.2158037573 * c.b, 3.0);
+    const double m = std::pow(c.L - 0.1055613458 * c.a - 0.0638541728 * c.b, 3.0);
+    const double s = std::pow(c.L - 0.0894841775 * c.a - 1.2914855480 * c.b, 3.0);
+    return {4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+            -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+            -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s};
+}
+
+bool in_srgb_gamut(const Rgb& lin)
+{
+    constexpr double EPS = 1e-6;
+    return lin.r >= -EPS && lin.r <= 1.0 + EPS && lin.g >= -EPS && lin.g <= 1.0 + EPS
+           && lin.b >= -EPS && lin.b <= 1.0 + EPS;
+}
+
+// OKLCh -> sRGB at lightness L and hue h, keeping as much of chroma C as the
+// sRGB gamut allows (hue is never changed).
+Rgb oklch_to_srgb_in_gamut(double L, double C, double h)
+{
+    auto lin_at = [&](double chroma)
+    { return oklab_to_linear({L, chroma * std::cos(h), chroma * std::sin(h)}); };
+    double chroma = C;
+    if (!in_srgb_gamut(lin_at(C)))
+    {
+        double lo = 0.0;
+        double hi = C;
+        for (int i = 0; i < 24; ++i)
+        {
+            const double mid = 0.5 * (lo + hi);
+            if (in_srgb_gamut(lin_at(mid)))
+                lo = mid;
+            else
+                hi = mid;
+        }
+        chroma = lo;
+    }
+    const Rgb lin = lin_at(chroma);
+    return {clamp_unit(linear_to_srgb(clamp_unit(lin.r))),
+            clamp_unit(linear_to_srgb(clamp_unit(lin.g))),
+            clamp_unit(linear_to_srgb(clamp_unit(lin.b)))};
+}
+
+// Rounds to the 8-bit value the colour is drawn / exported with, so the
+// contrast measured here is the contrast that reaches the framebuffer or SVG.
+Rgb quantise_8bit(const Rgb& c)
+{
+    return {std::round(c.r * 255.0) / 255.0,
+            std::round(c.g * 255.0) / 255.0,
+            std::round(c.b * 255.0) / 255.0};
+}
+
+// Moves @p src's OKLab lightness toward @p toward_l (0 or 1), keeping hue,
+// until its 8-bit contrast against @p canvas reaches @p goal (or the end is
+// reached).
+Rgb lightness_to_contrast(const Rgb& src, const Rgb& canvas, double toward_l, double goal)
+{
+    const OkLab  lab = srgb_to_oklab(src);
+    const double C   = std::hypot(lab.a, lab.b);
+    const double h   = std::atan2(lab.b, lab.a);
+    auto         at  = [&](double t)
+    { return quantise_8bit(oklch_to_srgb_in_gamut(lab.L + (toward_l - lab.L) * t, C, h)); };
+    double lo = 0.0;
+    double hi = 1.0;
+    for (int i = 0; i < 30; ++i)
+    {
+        const double mid = 0.5 * (lo + hi);
+        if (exact_contrast(at(mid), canvas) >= goal)
+            hi = mid;
+        else
+            lo = mid;
+    }
+    return at(hi);
+}
+
+// Smallest OKLab distance between @p a and @p b under normal vision and the
+// three simulated dichromacies.
+double cvd_aware_distance(const Rgb& a, const Rgb& b)
+{
+    double best = std::numeric_limits<double>::max();
+    for (CVDType t :
+         {CVDType::None, CVDType::Protanopia, CVDType::Deuteranopia, CVDType::Tritanopia})
+    {
+        const Color sa = simulate_cvd(
+            Color(static_cast<float>(a.r), static_cast<float>(a.g), static_cast<float>(a.b)),
+            t);
+        const Color sb = simulate_cvd(
+            Color(static_cast<float>(b.r), static_cast<float>(b.g), static_cast<float>(b.b)),
+            t);
+        const OkLab la = srgb_to_oklab({sa.r, sa.g, sa.b});
+        const OkLab lb = srgb_to_oklab({sb.r, sb.g, sb.b});
+        best           = std::min(best, std::hypot(la.L - lb.L, la.a - lb.a, la.b - lb.b));
+    }
+    return best;
+}
+
+}   // namespace
+
+DataPalette visible_data_palette(const DataPalette&    palette,
+                                 const spectra::Color& canvas,
+                                 float                 min_contrast)
+{
+    // Minimum separation between an adjusted slot and every other slot.
+    constexpr double MIN_DISTANCE = 0.04;
+    // Contrast step used to push an adjusted slot apart from a near neighbour.
+    constexpr double CONTRAST_STEP = 0.25;
+    // Aim slightly above the target so blending / rounding stays above it.
+    constexpr double GOAL_MARGIN = 0.02;
+
+    DataPalette out = palette;
+    if (out.colors.empty())
+        for (const auto& c : spectra::palette::default_cycle)
+            out.colors.emplace_back(c.r, c.g, c.b, c.a);
+
+    const Rgb    bg{clamp_unit(canvas.r), clamp_unit(canvas.g), clamp_unit(canvas.b)};
+    const double target = min_contrast;
+    const size_t n      = out.colors.size();
+
+    std::vector<Rgb>    src(n);
+    std::vector<double> contrast(n);
+    for (size_t i = 0; i < n; ++i)
+    {
+        const auto& c = out.colors[i];
+        src[i]        = {clamp_unit(c.r), clamp_unit(c.g), clamp_unit(c.b)};
+        contrast[i]   = exact_contrast(src[i], bg);
+    }
+
+    // Same thresholds as adapt_series_color_to_theme().
+    const double bg_luma  = 0.2126 * bg.r + 0.7152 * bg.g + 0.0722 * bg.b;
+    auto         ink_slot = [&](const Rgb& c)
+    {
+        const bool black = c.r == 0.0 && c.g == 0.0 && c.b == 0.0;
+        const bool white = c.r == 1.0 && c.g == 1.0 && c.b == 1.0;
+        return (black && bg_luma < 0.35) || (white && bg_luma > 0.65);
+    };
+
+    std::vector<size_t> placed;
+    std::vector<size_t> todo;
+    for (size_t i = 0; i < n; ++i)
+    {
+        if (contrast[i] >= target || ink_slot(src[i]))
+            placed.push_back(i);
+        else
+            todo.push_back(i);
+    }
+    if (todo.empty())
+        return out;
+
+    std::stable_sort(todo.begin(),
+                     todo.end(),
+                     [&](size_t a, size_t b) { return contrast[a] > contrast[b]; });
+
+    const Rgb    white{1.0, 1.0, 1.0};
+    const Rgb    black{0.0, 0.0, 0.0};
+    const bool   lighten   = exact_contrast(white, bg) >= exact_contrast(black, bg);
+    const double toward_l  = lighten ? 1.0 : 0.0;
+    const double max_reach = exact_contrast(lighten ? white : black, bg);
+
+    std::vector<Rgb> result = src;
+    for (size_t i : todo)
+    {
+        double want = MIN_DISTANCE;
+        for (size_t j : placed)
+            want = std::min(want, cvd_aware_distance(src[i], src[j]));
+
+        Rgb    best      = lightness_to_contrast(src[i], bg, toward_l, target + GOAL_MARGIN);
+        double best_dist = -1.0;
+        for (double goal = target + GOAL_MARGIN; goal <= max_reach; goal += CONTRAST_STEP)
+        {
+            const Rgb c    = lightness_to_contrast(src[i], bg, toward_l, goal);
+            double    dist = std::numeric_limits<double>::max();
+            for (size_t j : placed)
+                dist = std::min(dist, cvd_aware_distance(c, result[j]));
+            if (dist >= want)
+            {
+                best = c;
+                break;
+            }
+            if (dist > best_dist + 1e-4)
+            {
+                best_dist = dist;
+                best      = c;
+            }
+        }
+        result[i] = best;
+        placed.push_back(i);
+
+        auto& dst = out.colors[i];
+        dst.r     = static_cast<float>(best.r);
+        dst.g     = static_cast<float>(best.g);
+        dst.b     = static_cast<float>(best.b);
+    }
+    return out;
+}
+
+void resolve_auto_series_colors(Figure&               figure,
+                                const DataPalette&    palette,
+                                bool                  light_background,
+                                const spectra::Color& canvas)
+{
+    resolve_auto_series_colors(figure, visible_data_palette(palette, canvas), light_background);
 }
 
 void resolve_auto_series_colors(Figure& figure, const DataPalette& palette, bool light_background)

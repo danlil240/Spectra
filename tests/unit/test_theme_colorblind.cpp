@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cmath>
 #include <filesystem>
 #include <fstream>
@@ -13,13 +14,67 @@ using namespace spectra::ui;
 TEST(ColorUtils, LuminanceBlackIsZero)
 {
     Color black(0.0f, 0.0f, 0.0f);
-    EXPECT_NEAR(black.luminance(), 0.0f, 0.001f);
+    EXPECT_FLOAT_EQ(black.luminance(), 0.0f);
 }
 
-TEST(ColorUtils, LuminanceWhiteIsHigh)
+TEST(ColorUtils, LuminanceWhiteIsOne)
 {
     Color white(1.0f, 1.0f, 1.0f);
-    EXPECT_GT(white.luminance(), 0.9f);
+    EXPECT_NEAR(white.luminance(), 1.0f, 1e-5f);
+}
+
+TEST(ColorUtils, LuminancePrimariesMatchBT709Weights)
+{
+    EXPECT_NEAR(Color(1.0f, 0.0f, 0.0f).luminance(), 0.2126f, 1e-5f);
+    EXPECT_NEAR(Color(0.0f, 1.0f, 0.0f).luminance(), 0.7152f, 1e-5f);
+    EXPECT_NEAR(Color(0.0f, 0.0f, 1.0f).luminance(), 0.0722f, 1e-5f);
+}
+
+TEST(ColorUtils, LuminanceMidtoneReferences)
+{
+    // Reference values from the IEC 61966-2-1 piecewise sRGB decode.
+    EXPECT_NEAR(Color(0.5f, 0.5f, 0.5f).luminance(), 0.214041f, 1e-5f);
+    EXPECT_NEAR(Color::from_hex(0x808080).luminance(), 0.215861f, 1e-5f);
+    EXPECT_NEAR(Color::from_hex(0x777777).luminance(), 0.184475f, 1e-5f);
+}
+
+TEST(ColorUtils, LuminanceIgnoresAlpha)
+{
+    Color c = Color::from_hex(0x8A97A6);
+    EXPECT_FLOAT_EQ(c.with_alpha(0.3f).luminance(), c.luminance());
+}
+
+TEST(ColorUtils, TransferFunctionAroundLinearSegmentBreakpoint)
+{
+    EXPECT_NEAR(Color::srgb_to_linear(0.04f), 0.00309598f, 1e-7f);
+    EXPECT_NEAR(Color::srgb_to_linear(0.04045f), 0.00313080f, 1e-7f);
+    EXPECT_NEAR(Color::srgb_to_linear(0.0405f), 0.00313474f, 1e-7f);
+    EXPECT_NEAR(Color::srgb_to_linear(0.041f), 0.00317428f, 1e-7f);
+}
+
+TEST(ColorUtils, TransferFunctionIsContinuousAndMonotonic)
+{
+    // The previous approximation jumped by ~33% near encoded 0.47; the real
+    // curve's largest step over a 1/4096 grid is far below 1e-3.
+    float prev = Color::srgb_to_linear(0.0f);
+    for (int i = 1; i <= 4096; ++i)
+    {
+        const float c   = static_cast<float>(i) / 4096.0f;
+        const float cur = Color::srgb_to_linear(c);
+        ASSERT_GT(cur, prev) << "c=" << c;
+        ASSERT_LT(cur - prev, 1e-3f) << "c=" << c;
+        prev = cur;
+    }
+    EXPECT_NEAR(prev, 1.0f, 1e-6f);
+}
+
+TEST(ColorUtils, TransferFunctionRoundTrips)
+{
+    for (int i = 0; i <= 255; ++i)
+    {
+        const float c = static_cast<float>(i) / 255.0f;
+        EXPECT_NEAR(Color::linear_to_srgb(Color::srgb_to_linear(c)), c, 1e-5f) << i;
+    }
 }
 
 TEST(ColorUtils, LuminanceGreenDominates)
@@ -33,8 +88,22 @@ TEST(ColorUtils, ContrastRatioBlackWhite)
 {
     Color black(0.0f, 0.0f, 0.0f);
     Color white(1.0f, 1.0f, 1.0f);
-    float ratio = black.contrast_ratio(white);
-    EXPECT_GT(ratio, 15.0f);   // Should be ~21:1
+    EXPECT_NEAR(black.contrast_ratio(white), 21.0f, 1e-3f);
+}
+
+TEST(ColorUtils, ContrastRatioAuditReferencePair)
+{
+    // Dark-theme tertiary text on tertiary background. The old approximation
+    // reported 4.91:1 (passing AA); the true ratio is below 4.5:1.
+    const Color fg = Color::from_hex(0x8A97A6);
+    const Color bg = Color::from_hex(0x29323A);
+    EXPECT_NEAR(fg.contrast_ratio(bg), 4.3794f, 1e-3f);
+}
+
+TEST(ColorUtils, ContrastRatioMidGrayOnWhite)
+{
+    // #767676 is the well-known darkest-gray-that-passes-AA-on-white reference.
+    EXPECT_NEAR(Color::from_hex(0x767676).contrast_ratio(Color(1.0f, 1.0f, 1.0f)), 4.5422f, 1e-3f);
 }
 
 TEST(ColorUtils, ContrastRatioSymmetric)
@@ -47,7 +116,7 @@ TEST(ColorUtils, ContrastRatioSymmetric)
 TEST(ColorUtils, ContrastRatioSameColorIsOne)
 {
     Color c(0.5f, 0.5f, 0.5f);
-    EXPECT_NEAR(c.contrast_ratio(c), 1.0f, 0.01f);
+    EXPECT_FLOAT_EQ(c.contrast_ratio(c), 1.0f);
 }
 
 TEST(ColorUtils, ContrastRatioWCAGAA)
@@ -56,6 +125,47 @@ TEST(ColorUtils, ContrastRatioWCAGAA)
     Color dark_text(0.1f, 0.1f, 0.1f);
     Color light_bg(0.95f, 0.95f, 0.95f);
     EXPECT_GT(dark_text.contrast_ratio(light_bg), 4.5f);
+}
+
+TEST(ColorUtils, ContrastRatioIgnoresAlpha)
+{
+    const Color fg = Color(1.0f, 1.0f, 1.0f, 0.1f);
+    const Color bg = Color(0.0f, 0.0f, 0.0f);
+    EXPECT_NEAR(fg.contrast_ratio(bg), 21.0f, 1e-3f);
+}
+
+TEST(ColorUtils, CompositeOverBlendsInEncodedSrgb)
+{
+    const Color out = Color(1.0f, 1.0f, 1.0f, 0.5f).composite_over(Color(0.0f, 0.0f, 0.0f));
+    EXPECT_FLOAT_EQ(out.r, 0.5f);
+    EXPECT_FLOAT_EQ(out.g, 0.5f);
+    EXPECT_FLOAT_EQ(out.b, 0.5f);
+    EXPECT_FLOAT_EQ(out.a, 1.0f);
+
+    const Color opaque = Color::from_hex(0x8A97A6).composite_over(Color(0.0f, 0.0f, 0.0f));
+    EXPECT_FLOAT_EQ(opaque.r, Color::from_hex(0x8A97A6).r);
+    const Color clear = Color(1.0f, 0.0f, 0.0f, 0.0f).composite_over(Color::from_hex(0x29323A));
+    EXPECT_FLOAT_EQ(clear.r, Color::from_hex(0x29323A).r);
+}
+
+TEST(ColorUtils, CompositedContrastReferences)
+{
+    // 50% white over black displays as encoded gray 0.5.
+    EXPECT_NEAR(Color(1.0f, 1.0f, 1.0f, 0.5f).contrast_ratio_over(Color(0.0f, 0.0f, 0.0f)),
+                5.2808f,
+                1e-3f);
+    // 72% white over #29323A: alpha matters (opaque white would be 13.03:1).
+    const Color bg = Color::from_hex(0x29323A);
+    EXPECT_NEAR(Color(1.0f, 1.0f, 1.0f, 0.72f).contrast_ratio_over(bg), 7.5677f, 1e-3f);
+    EXPECT_NEAR(Color(1.0f, 1.0f, 1.0f).contrast_ratio_over(bg), 13.0304f, 1e-3f);
+    EXPECT_NEAR(Color(1.0f, 1.0f, 1.0f, 0.0f).contrast_ratio_over(bg), 1.0f, 1e-6f);
+}
+
+TEST(ColorUtils, CompositedContrastIgnoresBackgroundAlpha)
+{
+    const Color fg(1.0f, 1.0f, 1.0f, 0.5f);
+    EXPECT_FLOAT_EQ(fg.contrast_ratio_over(Color(0.0f, 0.0f, 0.0f, 0.2f)),
+                    fg.contrast_ratio_over(Color(0.0f, 0.0f, 0.0f, 1.0f)));
 }
 
 TEST(ColorUtils, ToLinearAndBack)
@@ -830,8 +940,8 @@ TEST_F(ColorblindPaletteTest, HighContrastThemePassesWCAGAA)
     const auto& c = tm.colors();
 
     // Text on background should have >= 4.5:1 contrast (WCAG AA)
-    float ratio = c.text_primary.contrast_ratio(c.bg_primary);
-    EXPECT_GT(ratio, 4.5f) << "High contrast text/bg fails WCAG AA";
+    float ratio = c.text_primary.contrast_ratio_over(c.bg_primary);
+    EXPECT_GE(ratio, 4.5f) << "High contrast text/bg fails WCAG AA";
 }
 
 TEST_F(ColorblindPaletteTest, HighContrastSecondaryTextPassesWCAGAA)
@@ -840,8 +950,8 @@ TEST_F(ColorblindPaletteTest, HighContrastSecondaryTextPassesWCAGAA)
     tm.set_theme("high_contrast");
     const auto& c = tm.colors();
 
-    float ratio = c.text_secondary.contrast_ratio(c.bg_primary);
-    EXPECT_GT(ratio, 4.5f) << "High contrast secondary text fails WCAG AA";
+    float ratio = c.text_secondary.contrast_ratio_over(c.bg_primary);
+    EXPECT_GE(ratio, 4.5f) << "High contrast secondary text fails WCAG AA";
 }
 
 TEST_F(ColorblindPaletteTest, DarkThemeTextIsReadable)
@@ -850,9 +960,9 @@ TEST_F(ColorblindPaletteTest, DarkThemeTextIsReadable)
     tm.set_theme("dark");
     const auto& c = tm.colors();
 
-    // At minimum, primary text should have decent contrast
-    float ratio = c.text_primary.contrast_ratio(c.bg_primary);
-    EXPECT_GT(ratio, 3.0f);
+    // Primary text must meet WCAG AA (4.5:1) for normal text.
+    float ratio = c.text_primary.contrast_ratio_over(c.bg_primary);
+    EXPECT_GE(ratio, 4.5f);
 }
 
 TEST_F(ColorblindPaletteTest, LightThemeTextIsReadable)
@@ -861,6 +971,78 @@ TEST_F(ColorblindPaletteTest, LightThemeTextIsReadable)
     tm.set_theme("light");
     const auto& c = tm.colors();
 
-    float ratio = c.text_primary.contrast_ratio(c.bg_primary);
-    EXPECT_GT(ratio, 3.0f);
+    float ratio = c.text_primary.contrast_ratio_over(c.bg_primary);
+    EXPECT_GE(ratio, 4.5f);
+}
+
+TEST_F(ColorblindPaletteTest, NightThemeTranslucentTextIsReadable)
+{
+    // Night text tokens are translucent; measure them as displayed.
+    auto& tm = ThemeManager::instance();
+    tm.set_theme("night");
+    const auto& c = tm.colors();
+
+    EXPECT_GE(c.text_primary.contrast_ratio_over(c.bg_primary), 4.5f);
+    EXPECT_GE(c.text_secondary.contrast_ratio_over(c.bg_primary), 4.5f);
+}
+
+// ─── Surface-aware UI text contrast (all themes) ─────────────────────────────
+
+namespace
+{
+// WCAG 2.x contrast of `fg` (alpha included) composited over the opaque `bg`,
+// via the shared Color::contrast_ratio_over() helper (exact sRGB transfer).
+double srgb_contrast_over(const Color& fg, const Color& bg)
+{
+    return fg.contrast_ratio_over(bg);
+}
+
+struct NamedColor
+{
+    const char* name;
+    Color       color;
+};
+}   // namespace
+
+// Enabled tertiary and semantic text is drawn on the window background, panels,
+// chips/cards, inputs and popups.  Every pair must meet WCAG AA normal text (4.5:1)
+// on the real composite (token alpha included).  Disabled text and grids are excluded.
+TEST_F(ColorblindPaletteTest, UiTextTokensMeetAAOnEverySurfaceInAllThemes)
+{
+    for (const char* theme : {"dark", "night", "light", "high_contrast"})
+    {
+        tm_.set_theme(theme);
+        const ThemeColors c = tm_.current().colors;
+
+        const NamedColor surfaces[] = {{"bg_primary", c.bg_primary},
+                                       {"bg_secondary", c.bg_secondary},
+                                       {"bg_tertiary", c.bg_tertiary},
+                                       {"bg_elevated", c.bg_elevated},
+                                       {"input_bg", c.input_bg}};
+        const NamedColor texts[]    = {{"text_primary", c.text_primary},
+                                       {"text_secondary", c.text_secondary},
+                                       {"text_tertiary", c.text_tertiary},
+                                       {"success", c.success},
+                                       {"warning", c.warning},
+                                       {"error", c.error},
+                                       {"info", c.info},
+                                       {"critical", c.critical}};
+
+        for (const auto& s : surfaces)
+        {
+            for (const auto& t : texts)
+            {
+                const double ratio = srgb_contrast_over(t.color, s.color);
+                EXPECT_GE(ratio, 4.5)
+                    << theme << ": " << t.name << " on " << s.name << " is " << ratio << ":1";
+            }
+
+            // Hierarchy: tertiary must stay visibly weaker than secondary text.
+            const double sec = srgb_contrast_over(c.text_secondary, s.color);
+            const double ter = srgb_contrast_over(c.text_tertiary, s.color);
+            EXPECT_LT(ter * 1.2, sec)
+                << theme << ": text_tertiary (" << ter
+                << ":1) is not clearly weaker than text_secondary (" << sec << ":1) on " << s.name;
+        }
+    }
 }

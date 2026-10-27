@@ -104,6 +104,8 @@ inline void inject_key(WindowUIContext* ui_ctx, int key, int mods)
         ImGui_ImplGlfw_KeyCallback(win, key, 0, GLFW_RELEASE, mods);
         return;
     }
+    #else
+    (void)mods;
     #endif
     ScopedImGuiContext scope(ui_ctx);
     if (!scope.active())

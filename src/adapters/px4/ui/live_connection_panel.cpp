@@ -1,5 +1,7 @@
 #include "live_connection_panel.hpp"
 
+#include "px4_panel_helpers.hpp"
+
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
     #include "ui/theme/theme_imgui.hpp"
@@ -196,21 +198,23 @@ void LiveConnectionPanel::draw_channel_list()
     ImGui::BeginChild("Channels", ImVec2(0, 0), 1);
 
     auto channels = bridge_.channel_names();
+    bool any_shown = false;
     for (auto& ch_name : channels)
     {
         auto latest = bridge_.channel_latest(ch_name);
         if (!latest)
             continue;
+        any_shown = true;
 
-        const std::string label =
-            std::format("{} ({} fields)", ch_name, latest->fields.size());
+        // Labels carry live values; the "###id" suffix keeps the ImGui ID
+        // stable so open state, hover and double-click survive updates.
+        const std::string label = live_channel_label(ch_name, latest->fields.size());
 
         if (ImGui::TreeNode(label.c_str()))
         {
             for (auto& field : latest->fields)
             {
-                const std::string field_label =
-                    std::format("{} = {:.4f}", field.name, field.value);
+                const std::string field_label = live_field_label(field.name, field.value);
 
                 if (ImGui::Selectable(field_label.c_str(),
                                       false,
@@ -224,6 +228,17 @@ void LiveConnectionPanel::draw_channel_list()
             }
             ImGui::TreePop();
         }
+    }
+
+    if (!any_shown)
+    {
+        const ImVec4 muted = spectra::ui::to_imvec4(spectra::ui::theme().text_secondary);
+        ImGui::PushStyleColor(ImGuiCol_Text, muted);
+        if (bridge_.is_connected())
+            ImGui::TextWrapped("Waiting for telemetry...");
+        else
+            ImGui::TextWrapped("Not connected. Connect to a PX4 vehicle to see live channels.");
+        ImGui::PopStyleColor();
     }
 
     ImGui::EndChild();

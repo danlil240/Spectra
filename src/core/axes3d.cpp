@@ -198,8 +198,8 @@ bool Axes3D::compute_auto_limits(vec3& lo, vec3& hi) const
         }
         else if (auto* sh3d = dynamic_cast<const ShapeSeries3D*>(s.get()))
         {
-            // Geometry is (re)built by auto_fit() / the renderer; a const
-            // query can only use whatever geometry already exists.
+            // vertex_count() lazily generates geometry from the shape
+            // definitions, so this is correct before the first render.
             if (sh3d->vertex_count() == 0)
                 continue;
             sh3d->get_bounds(s_min, s_max);
@@ -361,6 +361,7 @@ ShapeSeries3D& Axes3D::shapes3d()
 {
     auto  series = std::make_unique<ShapeSeries3D>();
     auto* ptr    = series.get();
+    series->set_auto_color_index(static_cast<int>(series_.size()));
     series_.push_back(std::move(series));
     return *ptr;
 }

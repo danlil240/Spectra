@@ -17,6 +17,7 @@
 #include "ui/commands/shortcut_manager.hpp"
 #include "ui/commands/undo_manager.hpp"
 #include "ui/overlay/overlay_registry.hpp"
+#include "ui/theme/theme.hpp"
 
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
@@ -30,6 +31,56 @@
 
 namespace spectra
 {
+
+namespace
+{
+
+// Pack a theme colour in the overlay colour layout (ImGui IM_COL32: red in the low byte).
+uint32_t pack_overlay_color(const ui::Color& c)
+{
+    auto channel = [](float v) -> uint8_t
+    { return static_cast<uint8_t>(std::clamp(v, 0.0f, 1.0f) * 255.0f + 0.5f); };
+    return spectra_overlay_pack_rgba(channel(c.r), channel(c.g), channel(c.b), channel(c.a));
+}
+
+void fill_overlay_theme(const ui::ThemeColors& t, SpectraOverlayTheme& out)
+{
+    out.canvas_bg      = pack_overlay_color(t.bg_canvas);
+    out.crosshair      = pack_overlay_color(t.crosshair);
+    out.text           = pack_overlay_color(t.text_primary);
+    out.text_secondary = pack_overlay_color(t.text_secondary);
+    out.label_bg       = pack_overlay_color(t.tooltip_bg);
+    out.label_border   = pack_overlay_color(t.tooltip_border);
+    out.accent         = pack_overlay_color(t.accent);
+    out.axis_line      = pack_overlay_color(t.axis_line);
+    out.grid_major     = pack_overlay_color(t.grid_major);
+}
+
+// SpectraOverlayContext::measure_text — sizes text in the host's current UI font.
+void overlay_measure_text(const SpectraOverlayContext* /*ctx*/,
+                          const char* text,
+                          float*      out_w,
+                          float*      out_h)
+{
+    float w = 0.0f;
+    float h = 0.0f;
+#ifdef SPECTRA_USE_IMGUI
+    if (text && ImGui::GetCurrentContext())
+    {
+        const ImVec2 size = ImGui::CalcTextSize(text);
+        w                 = size.x;
+        h                 = size.y;
+    }
+#else
+    (void)text;
+#endif
+    if (out_w)
+        *out_w = w;
+    if (out_h)
+        *out_h = h;
+}
+
+}   // namespace
 
 // ─── C ABI host functions ────────────────────────────────────────────────────
 
@@ -208,6 +259,16 @@ extern "C"
                                   c.axes_index   = draw_ctx.axes_index;
                                   c.series_count = draw_ctx.series_count;
                                   c.reserved_    = draw_ctx.draw_list;
+                                  // API v2.1 appearance fields
+                                  c.struct_size = sizeof(SpectraOverlayContext);
+                                  c.ui_scale  = draw_ctx.ui_scale > 0.0f ? draw_ctx.ui_scale : 1.0f;
+                                  c.font_size = draw_ctx.font_size;
+                                  c.measure_text = overlay_measure_text;
+                                  if (draw_ctx.theme)
+                                  {
+                                      fill_overlay_theme(*draw_ctx.theme, c.theme);
+                                      c.flags |= SPECTRA_OVERLAY_FLAG_HAS_THEME;
+                                  }
                                   cb(&c, ud);
                               });
         return 0;
@@ -495,6 +556,19 @@ extern "C"
     }
 
     // ─── Custom series type registration (API v2.0) ──────────────────────────
+
+    // The C ABI topology enum and the backend-neutral CustomTopology share values.
+    static_assert(SPECTRA_TOPOLOGY_TRIANGLE_LIST
+                  == static_cast<uint32_t>(CustomTopology::TriangleList));
+    static_assert(SPECTRA_TOPOLOGY_LINE_LIST == static_cast<uint32_t>(CustomTopology::LineList));
+    static_assert(SPECTRA_TOPOLOGY_LINE_STRIP == static_cast<uint32_t>(CustomTopology::LineStrip));
+    static_assert(SPECTRA_TOPOLOGY_TRIANGLE_LIST_VULKAN
+                  == static_cast<uint32_t>(CustomTopology::TriangleListVulkan));
+    static_assert(SPECTRA_TOPOLOGY_TRIANGLE_STRIP
+                  == static_cast<uint32_t>(CustomTopology::TriangleStrip));
+    static_assert(SPECTRA_TOPOLOGY_TRIANGLE_FAN
+                  == static_cast<uint32_t>(CustomTopology::TriangleFan));
+    static_assert(SPECTRA_TOPOLOGY_POINT_LIST == static_cast<uint32_t>(CustomTopology::PointList));
 
     int spectra_register_series_type(void* registry, const SpectraSeriesTypeDesc* desc)
     {

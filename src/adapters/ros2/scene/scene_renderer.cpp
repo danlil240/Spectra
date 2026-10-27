@@ -1,6 +1,7 @@
 #include "scene/scene_renderer.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -143,26 +144,82 @@ void SceneRenderer::ensure_pipelines(Backend& backend)
     pointcloud_transparent_pipeline_ =
         backend.create_pipeline(PipelineType::PointCloud_Transparent);
     image3d_pipeline_ = backend.create_pipeline(PipelineType::Image3D);
+    overlay_pipeline_ = backend.create_pipeline(PipelineType::Overlay);
     frame_ubo_        = backend.create_buffer(BufferUsage::Uniform, sizeof(FrameUBO));
     pipelines_ready_  = true;
+}
+
+void SceneRenderer::render_background(Backend&                    backend,
+                                      const Rect&                 viewport,
+                                      const std::array<float, 4>& background_rgba)
+{
+    if (!overlay_pipeline_ || background_rgba[3] <= 0.0f || viewport.w < 1.0f || viewport.h < 1.0f)
+        return;
+
+    // Unit quad in viewport-local [0,1]^2, mapped onto the whole viewport.
+    if (!gpu_.background_vbo)
+    {
+        const float quad[12] =
+            {0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f};
+        gpu_.background_vbo = backend.create_buffer(BufferUsage::Vertex, sizeof(quad));
+        backend.upload_buffer(gpu_.background_vbo, quad, sizeof(quad));
+    }
+
+    backend.set_viewport(viewport.x, viewport.y, viewport.w, viewport.h);
+    backend.set_scissor(static_cast<int32_t>(viewport.x),
+                        static_cast<int32_t>(viewport.y),
+                        static_cast<uint32_t>(viewport.w),
+                        static_cast<uint32_t>(viewport.h));
+
+    FrameUBO ubo{};
+    ubo.projection[0]  = 2.0f;
+    ubo.projection[5]  = backend.clip_y_down() ? 2.0f : -2.0f;
+    ubo.projection[10] = -1.0f;
+    ubo.projection[12] = -1.0f;
+    ubo.projection[13] = backend.clip_y_down() ? -1.0f : 1.0f;
+    ubo.projection[15] = 1.0f;
+    for (int d = 0; d < 16; d += 5)   // identity view/model diagonals
+    {
+        ubo.view[d]  = 1.0f;
+        ubo.model[d] = 1.0f;
+    }
+    ubo.viewport_width  = viewport.w;
+    ubo.viewport_height = viewport.h;
+    backend.upload_buffer(frame_ubo_, &ubo, sizeof(FrameUBO));
+    backend.bind_buffer(frame_ubo_, 0);
+
+    backend.bind_pipeline(overlay_pipeline_);
+    SeriesPushConstants pc{};
+    pc.color[0] = background_rgba[0];
+    pc.color[1] = background_rgba[1];
+    pc.color[2] = background_rgba[2];
+    pc.color[3] = background_rgba[3];
+    backend.push_constants(pc);
+    backend.bind_buffer(gpu_.background_vbo, 0);
+    backend.draw(6);
 }
 
 // ──────────────────────────────────────────────────────────────────────
 // Main render dispatch
 // ──────────────────────────────────────────────────────────────────────
 
-void SceneRenderer::render(Renderer&     renderer,
-                           SceneManager& scene,
-                           const Camera& camera,
-                           const Rect&   viewport)
+void SceneRenderer::render(Renderer&                   renderer,
+                           SceneManager&               scene,
+                           const Camera&               camera,
+                           const Rect&                 viewport,
+                           const std::array<float, 4>& background_rgba)
 {
     auto& backend = renderer.backend();
+
+    ensure_pipelines(backend);
+
+    // The ImGui canvas does not paint over the GPU scene, so the scene owns
+    // the viewport background (the Scene Viewport "Background" colour).
+    render_background(backend, viewport, background_rgba);
 
     const auto& entities = scene.entities();
     if (entities.empty())
         return;
-
-    ensure_pipelines(backend);
 
     // Lazily upload primitive mesh buffers
     if (!gpu_.initialized)

@@ -1,6 +1,6 @@
 # Spectra Plugin Developer Guide
 
-> **API version covered**: v2.0 (current stable)  
+> **API version covered**: v2.1 (current stable)  
 > **Phase D — Custom Series Types** is available in API v2.0 via the `custom_series` registry.
 
 ---
@@ -72,7 +72,7 @@ int spectra_plugin_init(const SpectraPluginContext* ctx, SpectraPluginInfo* info
     info->api_version_major = SPECTRA_PLUGIN_API_VERSION_MAJOR;
     info->api_version_minor = SPECTRA_PLUGIN_API_VERSION_MINOR;
 
-    // Register extension points here, gated by api_version_minor.
+    // Register extension points here, gated by spectra_plugin_api_at_least().
 
     return 0;
 }
@@ -170,22 +170,22 @@ The manifest filename must match the library name: `libmy_plugin.so` → `my_plu
 
 ## API version negotiation
 
-The context struct grows with each minor version bump. Fields added in later versions are `nullptr` for plugins built against an older minor version. **Always gate your registration calls on the minor version** to avoid dereferencing a null registry:
+The context struct grows with each version bump. Fields added in later versions are `nullptr` for plugins built against an older version. **Gate registration calls on the `(major, minor)` version pair with `spectra_plugin_api_at_least()`, and null-check the registry** to avoid dereferencing a null registry. Do not test `api_version_minor` on its own: the minor number restarts at 0 on each major bump, so `ctx->api_version_minor >= 1` is false on a v2.0 host even though v2.0 provides every v1.x registry.
 
 ```cpp
 info->api_version_major = SPECTRA_PLUGIN_API_VERSION_MAJOR;
 info->api_version_minor = SPECTRA_PLUGIN_API_VERSION_MINOR;
 
 // v1.1+ required for transform registry
-if (ctx->api_version_minor >= 1 && ctx->transform_registry)
+if (spectra_plugin_api_at_least(ctx, 1, 1) && ctx->transform_registry)
     spectra_register_xy_transform(ctx->transform_registry, ...);
 
 // v1.2+ required for overlay registry
-if (ctx->api_version_minor >= 2 && ctx->overlay_registry)
+if (spectra_plugin_api_at_least(ctx, 1, 2) && ctx->overlay_registry)
     spectra_register_overlay(ctx->overlay_registry, ...);
 
 // v1.3+ required for export format + data source registries
-if (ctx->api_version_minor >= 3 && ctx->export_format_registry)
+if (spectra_plugin_api_at_least(ctx, 1, 3) && ctx->export_format_registry)
     spectra_register_export_format(ctx->export_format_registry, ...);
 ```
 
@@ -197,8 +197,11 @@ A v1.0 plugin that requests only commands and shortcuts loads successfully even 
 
 | Constant | Value | Milestone |
 |---|---|---|
-| `SPECTRA_PLUGIN_API_VERSION_MAJOR` | 1 | Initial C ABI |
-| `SPECTRA_PLUGIN_API_VERSION_MINOR` | 3 | Data source + export formats |
+| `SPECTRA_PLUGIN_API_VERSION_MAJOR` | 2 | Custom series types (`SpectraPluginContext` layout change) |
+| `SPECTRA_PLUGIN_API_VERSION_MINOR` | 1 | Overlay appearance fields (theme, UI scale, font size, text measuring) |
+
+v1.1 added the transform registry, v1.2 overlays, v1.3 data sources and export formats;
+a v2.x host provides all of them (check with `spectra_plugin_api_at_least()`).
 
 ---
 
@@ -268,7 +271,7 @@ static float clamp_transform(float value, void* user_data)
 
 static float g_limit = 1.0f;
 
-// In spectra_plugin_init (requires api_version_minor >= 1):
+// In spectra_plugin_init (requires API v1.1+):
 spectra_register_transform(ctx->transform_registry,
                             "Clamp ±1",
                             clamp_transform,
@@ -300,7 +303,7 @@ static void derivative_xy(const float* x_in, const float* y_in,
     }
 }
 
-// In spectra_plugin_init (requires api_version_minor >= 1):
+// In spectra_plugin_init (requires API v1.1+):
 spectra_register_xy_transform(ctx->transform_registry,
                                "Derivative",
                                derivative_xy,
@@ -326,7 +329,7 @@ static void my_overlay(const SpectraOverlayContext* ctx, void* /*user_data*/)
     spectra_overlay_draw_line(ctx,
         ctx->viewport_x,              ctx->viewport_y,
         ctx->viewport_x + ctx->viewport_w, ctx->viewport_y + ctx->viewport_h,
-        0xFF0000FF,   // RGBA: opaque red
+        SPECTRA_OVERLAY_COLOR(255, 0, 0, 255),   // opaque red (== 0xFF0000FF)
         1.5f);
 
     // Print series count in the top-left corner.
@@ -335,10 +338,10 @@ static void my_overlay(const SpectraOverlayContext* ctx, void* /*user_data*/)
     spectra_overlay_draw_text(ctx,
         ctx->viewport_x + 4.0f, ctx->viewport_y + 4.0f,
         buf,
-        0xFFFFFFFF);  // RGBA: opaque white
+        SPECTRA_OVERLAY_COLOR(255, 255, 255, 255));  // opaque white
 }
 
-// In spectra_plugin_init (requires api_version_minor >= 2):
+// In spectra_plugin_init (requires API v1.2+):
 spectra_register_overlay(ctx->overlay_registry, "My Overlay", my_overlay, nullptr);
 ```
 
@@ -354,6 +357,21 @@ spectra_register_overlay(ctx->overlay_registry, "My Overlay", my_overlay, nullpt
 | `axes_index` | `int` | Index of this axes within the figure |
 | `series_count` | `int` | Number of series on this axes |
 
+**Appearance fields (API v2.1+)** — appended to the end of the struct. Read them only when the
+host reported v2.1 or newer to `spectra_plugin_init` (`major > 2`, or `major == 2 && minor >= 1`);
+older hosts pass a shorter struct.
+
+| Field | Type | Description |
+|---|---|---|
+| `struct_size` | `uint32_t` | `sizeof(SpectraOverlayContext)` as filled by the host |
+| `flags` | `uint32_t` | `SPECTRA_OVERLAY_FLAG_HAS_THEME` when `theme` is valid |
+| `ui_scale` | `float` | UI scale factor (1.0 = 100%); multiply thicknesses, radii, gaps |
+| `font_size` | `float` | Current UI font height in pixels (already scaled) |
+| `theme` | `SpectraOverlayTheme` | Packed host theme colours: `canvas_bg`, `crosshair`, `text`, `text_secondary`, `label_bg`, `label_border`, `accent`, `axis_line`, `grid_major` |
+| `measure_text` | function pointer | Measures text in the host UI font (may be `NULL`) |
+
+Use `spectra_overlay_place_label()` to keep a label beside the cursor but inside the viewport.
+
 **Drawing helpers** — do not link ImGui directly; use these host-provided wrappers:
 
 | Function | Description |
@@ -365,7 +383,11 @@ spectra_register_overlay(ctx->overlay_registry, "My Overlay", my_overlay, nullpt
 | `spectra_overlay_draw_circle` | Outlined circle |
 | `spectra_overlay_draw_circle_filled` | Filled circle |
 
-All colors are `uint32_t` in **RGBA** byte order: `0xRRGGBBAA`.
+All colors are packed `uint32_t` values with **red in the low byte** (ImGui's `IM_COL32`
+layout), so a hex literal reads `0xAABBGGRR`: opaque yellow is `0xFF00FFFF`, and
+`0xFFFFFF00` is opaque cyan. Build colours with `SPECTRA_OVERLAY_COLOR(r, g, b, a)` /
+`spectra_overlay_pack_rgba()`, and prefer `ctx->theme` colours (v2.1+) so overlays stay
+visible on light and dark themes.
 
 Unregister explicitly if needed:
 
@@ -403,7 +425,7 @@ static int my_export(const spectra::SpectraExportContext* ctx, void* /*user_data
     return 0;   // 0 = success
 }
 
-// In spectra_plugin_init (requires api_version_minor >= 3):
+// In spectra_plugin_init (requires API v1.3+):
 spectra_register_export_format(ctx->export_format_registry,
                                 "My Format",     // display name
                                 "myfmt",         // file extension (no dot)
@@ -466,7 +488,7 @@ static void source_ui(void* ud)
     // Do NOT call spectra_overlay_draw_* here — this is a UI callback, not an overlay.
 }
 
-// In spectra_plugin_init (requires api_version_minor >= 3):
+// In spectra_plugin_init (requires API v1.3+):
 spectra::SpectraDataSourceDesc desc{};
 desc.name         = "Sine Generator";
 desc.start_fn     = source_start;
@@ -576,7 +598,7 @@ Overlay callbacks are called inside an active `ImDrawList` scope. No allocations
 
 ### Registration call is silently ignored
 
-- Check that you are gating the call on the correct `api_version_minor` value. If the guard condition is false the registration is skipped without error.
+- Check that you are gating the call with `spectra_plugin_api_at_least(ctx, major, minor)` rather than `api_version_minor` alone. If the guard condition is false the registration is skipped without error.
 - Verify the registry pointer in the context is non-null before calling the register function.
 
 ### Commands registered by the plugin are not in the palette

@@ -55,7 +55,7 @@ jobs:
             base="$(git rev-parse HEAD~1)"
           fi
           echo "Checking lines changed between $base and $GITHUB_SHA"
-          if ! git clang-format-18 --binary clang-format-18 --diff "$base" "$GITHUB_SHA" \
+          if ! git clang-format-18 --binary clang-format-18 --extensions c,cc,cpp,cxx,h,hh,hpp,hxx,inl,m,mm --diff "$base" "$GITHUB_SHA" \
                -- src include tests examples; then
             echo "::error::Changed lines are not clang-format clean. Run: git clang-format-18 $base"
             exit 1
@@ -65,6 +65,19 @@ jobs:
       # every theme. Approved exceptions: tools/color_literals_allowlist.txt.
       - name: Check for hard-coded UI colour literals
         run: python3 tools/check_color_literals.py
+
+      # Scripts must stay LF (see .gitattributes); a CRLF shebang breaks them
+      # under WSL / Linux with "env: 'bash\r': No such file or directory".
+      - name: Check scripts have LF line endings
+        run: |
+          set -euo pipefail
+          crlf="$(git ls-files -z -- '*.sh' '*.bash' '*.zsh' '*.fish' '*.py' \
+                    | xargs -0 -r grep -l $'\r' || true)"
+          if [ -n "$crlf" ]; then
+            echo "::error::Scripts with CRLF line endings (convert to LF):"
+            echo "$crlf"
+            exit 1
+          fi
 
   # ─── Build + Unit Tests (Linux) ─────────────────────────────────────────
   build-linux:
@@ -153,6 +166,7 @@ jobs:
             -DSPECTRA_BUILD_TESTS=ON \
             -DSPECTRA_BUILD_EXAMPLES=${{ matrix.examples }} \
             -DSPECTRA_BUILD_GOLDEN_TESTS=${{ matrix.golden }} \
+            -DSPECTRA_BUILD_QA_AGENT=ON \
             "${extra[@]}"
 
       - name: Build
@@ -176,6 +190,49 @@ jobs:
           cpack -G DEB
           cpack -G RPM
           ls -la ./*.tar.gz ./*.deb ./*.rpm
+
+  # ─── SDL3 windowing build (instead of GLFW) ─────────────────────────────
+  # SDL3 is mutually exclusive with GLFW, so the matrix above never compiles
+  # it. Build-only + non-GPU unit tests keep the SDL3 paths from regressing.
+  build-linux-sdl3:
+    name: build-linux-sdl3 (ubuntu-24.04, gcc)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install dependencies
+        uses: ./.github/actions/setup-linux
+
+      - name: ccache
+        uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24
+        with:
+          key: build-linux-sdl3-ubuntu-24.04-gcc
+          max-size: 1G
+          save: ${{ github.event_name != 'pull_request' }}
+
+      - name: Configure CMake
+        run: |
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+            -DCMAKE_C_COMPILER=gcc-13 \
+            -DCMAKE_CXX_COMPILER=g++-13 \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_FLAGS="-Wall -Wextra -Werror" \
+            -DSPECTRA_USE_GLFW=OFF \
+            -DSPECTRA_USE_SDL3=ON \
+            -DSPECTRA_RUNTIME_MODE=inproc \
+            -DSPECTRA_USE_ROS2=OFF \
+            -DSPECTRA_BUILD_TESTS=ON \
+            -DSPECTRA_BUILD_EXAMPLES=ON \
+            -DSPECTRA_BUILD_GOLDEN_TESTS=OFF
+
+      - name: Build
+        run: cmake --build build --config ${{ env.BUILD_TYPE }} -j"$(nproc)"
+
+      - name: Run unit tests (non-GPU)
+        run: ctest --test-dir build --output-on-failure -LE "gpu|golden" -j"$(nproc)"
 
   # ─── Python package + pytest (also the SPECTRA_BUILD_EMBED_SHARED build) ──
   python-tests:

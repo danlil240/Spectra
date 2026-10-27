@@ -80,7 +80,9 @@ void Renderer::render_series(Series&             series,
         return;
 
     auto& gpu = it->second;
-    if (!gpu.ssbo)
+    // Custom plugin series keep their buffers in plugin-owned plugin_gpu_state
+    // and never allocate the host ssbo; only built-in types need it here.
+    if (!gpu.ssbo && gpu.type != SeriesType::Custom)
         return;
 
     SeriesPushConstants pc{};
@@ -101,7 +103,7 @@ void Renderer::render_series(Series&             series,
         eff_opacity = series.opacity();
     }
     // 'k' / 'w' follow the theme foreground so they stay visible (see theme.hpp).
-    eff_color   = ui::adapt_series_color_to_theme(eff_color, theme_mgr_.colors());
+    eff_color   = ui::adapt_series_color_to_theme(eff_color, plot_colors());
     pc.color[0] = eff_color.r;
     pc.color[1] = eff_color.g;
     pc.color[2] = eff_color.b;
@@ -235,7 +237,7 @@ void Renderer::render_series(Series&             series,
             const ScatterMarkerParams marker =
                 resolve_scatter_marker(style.marker_style,
                                        use_colormap,
-                                       theme_mgr_.colors().bg_canvas.luminance());
+                                       plot_colors().bg_canvas.luminance());
             pc.marker_type = marker.marker_type;
             pc._pad2[1]    = marker.edge_mix;
             backend_.push_constants(pc);
@@ -275,7 +277,7 @@ void Renderer::render_series(Series&             series,
             const ScatterMarkerParams marker =
                 resolve_scatter_marker(scatter3d->marker_style(),
                                        false,
-                                       theme_mgr_.colors().bg_canvas.luminance());
+                                       plot_colors().bg_canvas.luminance());
             pc.marker_type = marker.marker_type;
             pc._pad2[1]    = marker.edge_mix;
             backend_.push_constants(pc);
@@ -577,9 +579,6 @@ void Renderer::render_series(Series&             series,
             auto* sh3d = static_cast<ShapeSeries3D*>(&series);
             if (gpu.index_buffer)
             {
-                bool is_transparent = (pc.color[3] * pc.opacity) < 0.99f;
-                backend_.bind_pipeline(is_transparent ? mesh3d_transparent_pipeline_
-                                                      : mesh3d_pipeline_);
                 pc._pad2[0] = sh3d->ambient();
                 pc._pad2[1] = sh3d->specular();
                 if (sh3d->shininess() > 0.0f)
@@ -587,10 +586,45 @@ void Renderer::render_series(Series&             series,
                     pc.marker_size = sh3d->shininess();
                     pc.marker_type = 0;
                 }
-                backend_.push_constants(pc);
-                backend_.bind_buffer(gpu.ssbo, 0);
-                backend_.bind_index_buffer(gpu.index_buffer);
-                backend_.draw_indexed(static_cast<uint32_t>(gpu.index_count));
+
+                // One indexed draw per colour range.  Ranges with the
+                // zero-alpha sentinel keep the series colour; explicit
+                // per-shape colours replace it.  Opaque ranges are drawn
+                // before transparent ones so the latter blend over them.
+                const auto     ranges    = sh3d->draw_ranges();
+                const auto     idx_limit = static_cast<uint32_t>(gpu.index_count);
+                PipelineHandle bound{};
+                for (int pass = 0; pass < 2; ++pass)
+                {
+                    for (const auto& r : ranges)
+                    {
+                        if (r.first_index >= idx_limit)
+                            continue;
+                        const uint32_t count = std::min(r.index_count, idx_limit - r.first_index);
+                        SeriesPushConstants range_pc = pc;
+                        if (!r.inherits_series_color())
+                        {
+                            range_pc.color[0] = r.color.r;
+                            range_pc.color[1] = r.color.g;
+                            range_pc.color[2] = r.color.b;
+                            range_pc.color[3] = r.color.a;
+                        }
+                        const bool transparent = (range_pc.color[3] * range_pc.opacity) < 0.99f;
+                        if (transparent != (pass == 1))
+                            continue;
+                        const PipelineHandle pipe =
+                            transparent ? mesh3d_transparent_pipeline_ : mesh3d_pipeline_;
+                        if (pipe.id != bound.id)
+                        {
+                            backend_.bind_pipeline(pipe);
+                            backend_.bind_buffer(gpu.ssbo, 0);
+                            backend_.bind_index_buffer(gpu.index_buffer);
+                            bound = pipe;
+                        }
+                        backend_.push_constants(range_pc);
+                        backend_.draw_indexed(count, r.first_index, 0);
+                    }
+                }
             }
             break;
         }
@@ -632,7 +666,7 @@ void Renderer::render_selection_highlight(AxesBase& axes, const Rect& /*viewport
     if (selected_series_.empty())
         return;
 
-    const auto& accent = theme_mgr_.colors().accent;
+    const auto& accent = plot_colors().accent;
 
     for (const auto* sel : selected_series_)
     {

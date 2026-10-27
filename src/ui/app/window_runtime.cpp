@@ -444,17 +444,23 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
         imgui_ui->new_frame();
         fs.imgui_frame_started = true;
     #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
-        // GLFW can report a stale DisplaySize for a frame during live resize.
+        // The window system can report a stale DisplaySize for a frame during live resize.
         // Re-read window dimensions and snap layout so chrome zones stay aligned.
         if ((resize_active || swapchain_recreated) && ui_ctx.glfw_window)
         {
+            int ww  = 0;
+            int wh  = 0;
+            int fbw = 0;
+            int fbh = 0;
+        #ifdef SPECTRA_USE_GLFW
             auto* win = static_cast<GLFWwindow*>(ui_ctx.glfw_window);
-            int   ww  = 0;
-            int   wh  = 0;
-            int   fbw = 0;
-            int   fbh = 0;
             glfwGetWindowSize(win, &ww, &wh);
             glfwGetFramebufferSize(win, &fbw, &fbh);
+        #elif defined(SPECTRA_USE_SDL3)
+            auto* win = static_cast<SDL_Window*>(ui_ctx.glfw_window);
+            SDL_GetWindowSize(win, &ww, &wh);
+            SDL_GetWindowSizeInPixels(win, &fbw, &fbh);
+        #endif
             if (ww > 0 && wh > 0)
             {
                 ImGuiIO& io    = ImGui::GetIO();

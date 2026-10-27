@@ -274,6 +274,12 @@ class WindowManager
         redraw_request_handler_ = std::move(cb);
     }
     void set_file_drop_handler(FileDropHandler cb) { file_drop_handler_ = std::move(cb); }
+
+    // Route one OS file drop to the file drop handler.  Shared by every
+    // windowing backend (GLFW drop callback, SDL_EVENT_DROP_FILE) so drops
+    // behave the same everywhere.  Returns false when no handler is set or
+    // the path is null/empty.
+    bool dispatch_file_drop(uint32_t window_id, const char* path);
     void set_figure_unregistering_handler(FigureUnregisteringHandler cb)
     {
         figure_unregistering_handler_ = std::move(cb);

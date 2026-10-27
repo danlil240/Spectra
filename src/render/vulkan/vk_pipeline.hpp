@@ -28,6 +28,10 @@ struct PipelineConfig
     VkSampleCountFlagBits msaa_samples         = VK_SAMPLE_COUNT_1_BIT;
 };
 
+// Map a plugin ABI topology (CustomTopology / SpectraPrimitiveTopology) to the
+// Vulkan enum.  Returns false, leaving `out` untouched, for an unknown value.
+bool custom_topology_to_vk(uint32_t abi_topology, VkPrimitiveTopology& out);
+
 VkShaderModule create_shader_module(VkDevice device, const uint8_t* spirv, size_t size);
 
 VkPipeline create_graphics_pipeline(VkDevice device, const PipelineConfig& config);

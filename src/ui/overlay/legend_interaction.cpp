@@ -3,18 +3,21 @@
     #include "legend_interaction.hpp"
 
     #include <algorithm>
+    #include <cfloat>
     #include <cmath>
     #include <format>
     #include <imgui.h>
     #include <spectra/axes.hpp>
     #include <spectra/figure.hpp>
     #include <spectra/series.hpp>
+    #include <string>
 
     #include "ui/theme/design_tokens.hpp"
     #include "ui/theme/glass_draw.hpp"
     #include "ui/theme/icons.hpp"
     #include "ui/theme/theme.hpp"
     #include "legend_layout.hpp"
+    #include "render/text_fit.hpp"
 
 namespace spectra
 {
@@ -122,7 +125,8 @@ bool LegendInteraction::draw(Axes&               axes,
                              const Rect&         viewport,
                              size_t              axes_index,
                              const LegendConfig& config,
-                             uintptr_t           figure_id)
+                             uintptr_t           figure_id,
+                             const FigureStyle*  figure_style)
 {
     const auto& series_list = axes.series();
     if (series_list.empty())
@@ -138,7 +142,9 @@ bool LegendInteraction::draw(Axes&               axes,
     if (labeled_count == 0)
         return false;
 
-    const auto& theme_colors = theme_mgr_->colors();
+    // Drawn over the plot surface, so follow its ink (see plot_surface_colors()).
+    const ui::ThemeColors theme_colors =
+        figure_style ? theme_mgr_->plot_surface_colors(*figure_style) : theme_mgr_->colors();
     ImFont*     font         = font_body_ ? font_body_ : ImGui::GetFont();
 
     // Use font size from LegendConfig; fall back to font's native size
@@ -153,14 +159,18 @@ bool LegendInteraction::draw(Axes&               axes,
     float           row_height  = font_size + 6.0f;
     constexpr float eye_width   = 16.0f;
 
-    // Measure legend size
+    // Measure legend size.  Labels are measured at full width but limited
+    // to max_label_budget; longer ones are ellipsized when drawn and show
+    // their full text on hover (audit S04).
+    constexpr float max_label_budget = 300.0f;
+    auto            text_w           = [&](const std::string& t)
+    { return font->CalcTextSizeA(font_size, FLT_MAX, 0.0f, t.c_str()).x; };
     float max_label_w = 0.0f;
     for (auto& s : series_list)
     {
         if (!s || s->label().empty() || !s->show_in_legend())
             continue;
-        ImVec2 sz   = font->CalcTextSizeA(font_size, 300.0f, 0.0f, s->label().c_str());
-        max_label_w = std::max(max_label_w, sz.x);
+        max_label_w = std::max(max_label_w, std::min(text_w(s->label()), max_label_budget));
     }
 
     // One column = swatch + label (+ visibility eye).  Entries flow into
@@ -168,9 +178,8 @@ bool LegendInteraction::draw(Axes&               axes,
     // when even the widest grid that fits the plot can't hold them all.
     constexpr float margin  = legend_layout::MARGIN;
     constexpr float col_gap = legend_layout::COL_GAP;
-    float           col_w   = swatch_size + swatch_gap + max_label_w;
-    if (toggleable_)
-        col_w += eye_width + 4.0f;
+    const float     reserved_w = swatch_size + swatch_gap + (toggleable_ ? eye_width + 4.0f : 0.0f);
+    float           col_w      = reserved_w + max_label_w;
     const auto grid       = legend_layout::compute_grid(labeled_count,
                                                   col_w,
                                                   row_height,
@@ -179,6 +188,11 @@ bool LegendInteraction::draw(Axes&               axes,
                                                   col_gap,
                                                   viewport.w - 2.0f * margin,
                                                   viewport.h - 2.0f * margin);
+    if (!legend_layout::fits(viewport, grid.width, grid.height))
+        return false;   // not even one row fits this (tiny) axes
+    // compute_grid may narrow the column to keep the legend inside the axes.
+    col_w                  = legend_layout::column_width(grid, pad_x, col_gap);
+    const float label_w    = std::max(0.0f, col_w - reserved_w + 0.5f);   // 0.5: float slack
     const bool scrollable = grid.scroll;
     float      legend_w   = grid.width;
     float      legend_h   = grid.height;
@@ -201,6 +215,8 @@ bool LegendInteraction::draw(Axes&               axes,
         legend_layout::place(viewport, position, legend_w, legend_h, offset.dx, offset.dy);
     const float lx = box.x;
     const float ly = box.y;
+    legend_w       = box.w;   // place() keeps the box inside the viewport
+    legend_h       = box.h;
 
     // Draw legend window — use figure_id in the ImGui ID to prevent cross-figure collisions
     const std::string win_id =
@@ -360,7 +376,20 @@ bool LegendInteraction::draw(Axes&               axes,
                                                                    vis_alpha));
             float label_x  = row_x + swatch_size + swatch_gap;
             float label_y  = row_y + (row_height - font_size) * 0.5f;
-            dl->AddText(font, font_size, ImVec2(label_x, label_y), text_col, s->label().c_str());
+            const std::string& full  = s->label();
+            const FittedText   label = fit_text_to_width(
+                full,
+                label_w,
+                FontSize::Label,
+                FontSize::Label,
+                [&](const std::string& t, FontSize) { return text_w(t); },
+                "...");
+            dl->AddText(font, font_size, ImVec2(label_x, label_y), text_col, label.text.c_str());
+            if (label.truncated
+                && ImGui::IsMouseHoveringRect(ImVec2(row_x, row_y),
+                                              ImVec2(row_x + col_w, row_y + row_height))
+                && ImGui::IsWindowHovered())
+                ImGui::SetTooltip("%s", full.c_str());
 
             // Click-to-toggle: invisible button over the whole row, including
             // the visibility icon slot at its right end.

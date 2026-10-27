@@ -151,7 +151,7 @@ extern "C"
         info->api_version_major = SPECTRA_PLUGIN_API_VERSION_MAJOR;
         info->api_version_minor = SPECTRA_PLUGIN_API_VERSION_MINOR;
 
-        if (ctx->api_version_major < 2 || !ctx->series_type_registry)
+        if (!spectra_plugin_api_at_least(ctx, 2, 0) || !ctx->series_type_registry)
             return 0;   // Host too old — silently skip registration
 
         SpectraSeriesTypeDesc desc{};
@@ -161,7 +161,7 @@ extern "C"
         desc.vert_spirv_size = heatmap_shaders::heatmap_vert_size;
         desc.frag_spirv      = heatmap_shaders::heatmap_frag;
         desc.frag_spirv_size = heatmap_shaders::heatmap_frag_size;
-        desc.topology        = 0;   // VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST
+        desc.topology        = SPECTRA_TOPOLOGY_TRIANGLE_LIST;   // 6 vertices = 2 triangles
         desc.upload_fn       = heatmap_upload;
         desc.draw_fn         = heatmap_draw;
         desc.bounds_fn       = heatmap_bounds;

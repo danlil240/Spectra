@@ -10,6 +10,11 @@
 namespace spectra
 {
 
+namespace ui
+{
+struct ThemeColors;
+}
+
 // Context passed to overlay draw callbacks.
 // Provides viewport geometry, mouse state, and figure identification.
 struct OverlayDrawContext
@@ -25,6 +30,11 @@ struct OverlayDrawContext
     int      axes_index;
     int      series_count;
     void*    draw_list;   // opaque ImDrawList* for internal use
+
+    // Appearance for overlays that should follow the host UI.
+    const ui::ThemeColors* theme     = nullptr;   // current theme colours (not owned)
+    float                  ui_scale  = 1.0f;      // UI scale factor (1.0 = 100%)
+    float                  font_size = 0.0f;      // UI font height in pixels; 0 = unknown
 };
 
 // Registry for plugin-driven draw overlays.

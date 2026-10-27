@@ -163,6 +163,40 @@ class Axes : public AxesBase
                      std::string_view       fmt = "-");
     LineSeries& plot(std::span<const float> x, std::span<const float> y, const PlotStyle& style);
 
+    /// Double-precision overloads of line(), scatter() and plot().  Use them for
+    /// data that float cannot hold precisely, such as Unix timestamps
+    /// (~1.7e9 s) or 1e7 + small variations: the series stores float offsets
+    /// from a double origin (see LineSeries::set_x(std::span<const double>)),
+    /// and the plot, axis limits, ticks and readouts show the true values.
+    /// (Templates only so that existing calls such as line({}, {}) still pick
+    /// the float overloads.)
+    template <typename = void>
+    LineSeries& line(std::span<const double> x, std::span<const double> y)
+    {
+        return line_f64(x, y);
+    }
+    template <typename = void>
+    ScatterSeries& scatter(std::span<const double> x, std::span<const double> y)
+    {
+        return scatter_f64(x, y);
+    }
+    template <typename = void>
+    LineSeries& plot(std::span<const double> x,
+                     std::span<const double> y,
+                     std::string_view        fmt = "-")
+    {
+        auto& ref = line_f64(x, y);
+        ref.format(fmt);
+        return ref;
+    }
+    template <typename = void>
+    LineSeries& plot(std::span<const double> x, std::span<const double> y, const PlotStyle& style)
+    {
+        auto& ref = line_f64(x, y);
+        ref.plot_style(style);
+        return ref;
+    }
+
     /// Horizontal / vertical reference lines (e.g. y=0, x=0). Span uses sentinel
     /// coordinates so auto_fit ignores them.
     LineSeries& hline(double y, std::string_view fmt = "-");
@@ -277,6 +311,9 @@ class Axes : public AxesBase
     void topic_auto_zoom_tick();
 
    private:
+    LineSeries&    line_f64(std::span<const double> x, std::span<const double> y);
+    ScatterSeries& scatter_f64(std::span<const double> x, std::span<const double> y);
+
     // Internal helper: construct T(args...), assign default cycle color, push to series_
     template <typename T, typename... Args>
     T& add_series(Args&&... args);

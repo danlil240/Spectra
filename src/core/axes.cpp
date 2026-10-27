@@ -87,6 +87,16 @@ ScatterSeries& Axes::scatter()
     return add_series<ScatterSeries>();
 }
 
+LineSeries& Axes::line_f64(std::span<const double> x, std::span<const double> y)
+{
+    return add_series<LineSeries>(x, y);
+}
+
+ScatterSeries& Axes::scatter_f64(std::span<const double> x, std::span<const double> y)
+{
+    return add_series<ScatterSeries>(x, y);
+}
+
 ChunkedLineSeries& Axes::chunked_line()
 {
     return add_series<ChunkedLineSeries>();
@@ -358,11 +368,11 @@ static void consume_finite_extent(std::span<const float> values,
     }
 }
 
-static void consume_finite_value(float value, AxisExtent& extent)
+static void consume_finite_value(float value, AxisExtent& extent, double offset = 0.0)
 {
     if (!std::isfinite(value))
         return;
-    extent.consume(static_cast<double>(value));
+    extent.consume(static_cast<double>(value) + offset);
 }
 
 // Compute the raw (unpadded) data extent across all series.  Every autoscale
@@ -376,14 +386,16 @@ static void data_extent_raw(const std::vector<std::unique_ptr<Series>>& series,
         if (s->excluded_from_autoscale())
             continue;
 
-        // Per-series double x-offset: logical x = x_offset + stored float.
-        // Accumulating in double preserves precision for epoch-scale offsets.
+        // Per-series double offsets: logical x = x_offset + stored float
+        // (likewise for y).  Accumulating in double preserves precision for
+        // epoch-scale offsets.
         const double xoff = s->x_offset();
+        const double yoff = s->y_offset();
 
         auto try_xy = [&](std::span<const float> xd, std::span<const float> yd)
         {
             consume_finite_extent(xd, x, xoff);
-            consume_finite_extent(yd, y);
+            consume_finite_extent(yd, y, yoff);
         };
 
         if (auto* ls = dynamic_cast<const LineSeries*>(s.get()))
@@ -395,7 +407,7 @@ static void data_extent_raw(const std::vector<std::unique_ptr<Series>>& series,
         {
             try_xy(bp->x_data(), bp->y_data());
             // Include outlier extents
-            consume_finite_extent(bp->outlier_y(), y);
+            consume_finite_extent(bp->outlier_y(), y, yoff);
         }
         if (auto* vn = dynamic_cast<const ViolinSeries*>(s.get()))
             try_xy(vn->x_data(), vn->y_data());
@@ -406,13 +418,13 @@ static void data_extent_raw(const std::vector<std::unique_ptr<Series>>& series,
         if (auto* band = dynamic_cast<const BandSeries*>(s.get()))
         {
             consume_finite_extent(band->x_values(), x, xoff);
-            consume_finite_extent(band->lower_values(), y);
-            consume_finite_extent(band->upper_values(), y);
+            consume_finite_extent(band->lower_values(), y, yoff);
+            consume_finite_extent(band->upper_values(), y, yoff);
         }
         if (auto* stem = dynamic_cast<const StemSeries*>(s.get()))
         {
             try_xy(stem->stem_x(), stem->stem_y());
-            consume_finite_value(stem->baseline(), y);
+            consume_finite_value(stem->baseline(), y, yoff);
         }
         if (auto* sh = dynamic_cast<const ShapeSeries*>(s.get()))
             try_xy(sh->x_data(), sh->y_data());
@@ -553,6 +565,7 @@ static bool windowed_y_extent(const std::vector<std::unique_ptr<Series>>& series
     bool has_y = false;
 
     double current_xoff = 0.0;
+    double current_yoff = 0.0;
 
     auto consume_xy = [&](std::span<const float> xd, std::span<const float> yd)
     {
@@ -566,7 +579,7 @@ static bool windowed_y_extent(const std::vector<std::unique_ptr<Series>>& series
             const double abs_x = static_cast<double>(x) + current_xoff;
             if (abs_x < window_min || abs_x > window_max)
                 continue;
-            y_ext.consume(static_cast<double>(y));
+            y_ext.consume(static_cast<double>(y) + current_yoff);
             has_y = true;
         }
     };
@@ -583,8 +596,8 @@ static bool windowed_y_extent(const std::vector<std::unique_ptr<Series>>& series
             const double abs_x = static_cast<double>(xd[i]) + current_xoff;
             if (abs_x < window_min || abs_x > window_max)
                 continue;
-            y_ext.consume(static_cast<double>(yd[i]));
-            consume_finite_value(stem.baseline(), y_ext);
+            y_ext.consume(static_cast<double>(yd[i]) + current_yoff);
+            consume_finite_value(stem.baseline(), y_ext, current_yoff);
             has_y = true;
         }
     };
@@ -594,6 +607,7 @@ static bool windowed_y_extent(const std::vector<std::unique_ptr<Series>>& series
         if (s->excluded_from_autoscale())
             continue;
         current_xoff = s->x_offset();
+        current_yoff = s->y_offset();
         if (auto* ls = dynamic_cast<const LineSeries*>(s.get()))
             consume_xy(ls->x_data(), ls->y_data());
         if (auto* ss = dynamic_cast<const ScatterSeries*>(s.get()))

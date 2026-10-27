@@ -396,6 +396,22 @@ inline LineSeries& plot(std::span<const float> x, std::span<const float> y, cons
     return detail::easy_state().ensure_axes().plot(x, y, style);
 }
 
+/// Double-precision overloads for data float cannot hold precisely, such as
+/// Unix timestamps or 1e7 + small variations (see Axes::plot).
+inline LineSeries& plot(std::span<const double> x,
+                        std::span<const double> y,
+                        std::string_view        fmt = "-")
+{
+    return detail::easy_state().ensure_axes().plot(x, y, fmt);
+}
+
+inline LineSeries& plot(std::span<const double> x,
+                        std::span<const double> y,
+                        const PlotStyle&        style)
+{
+    return detail::easy_state().ensure_axes().plot(x, y, style);
+}
+
 /// Braced-list convenience overloads (std::span cannot be built from a braced
 /// list in C++20), so quick snippets work without declaring vectors:
 ///
@@ -454,6 +470,12 @@ inline LineSeries& fplot(std::function<double(double)> func,
 
 /// Scatter plot.
 inline ScatterSeries& scatter(std::span<const float> x, std::span<const float> y)
+{
+    return detail::easy_state().ensure_axes().scatter(x, y);
+}
+
+/// Double-precision scatter (see plot(std::span<const double>, ...)).
+inline ScatterSeries& scatter(std::span<const double> x, std::span<const double> y)
 {
     return detail::easy_state().ensure_axes().scatter(x, y);
 }

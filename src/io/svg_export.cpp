@@ -222,6 +222,10 @@ void emit_line_series(std::ostringstream& svg, const LineSeries& series, const D
     auto        x = series.x_data();
     auto        y = series.y_data();
     const auto& c = static_cast<const Series&>(series).color();
+    // Stored data are float offsets from the series' double offsets; add them
+    // in double so large values (timestamps, 1e7 + small) map precisely.
+    const double xoff = series.x_offset();
+    const double yoff = series.y_offset();
 
     svg << R"(    <polyline fill="none" stroke=")" << svg_color(c) << "\" stroke-width=\""
         << fmt(series.width()) << "\" stroke-opacity=\"" << fmt(c.a)
@@ -231,7 +235,7 @@ void emit_line_series(std::ostringstream& svg, const LineSeries& series, const D
     {
         if (i > 0)
             svg << " ";
-        svg << fmt(m.map_x(x[i])) << "," << fmt(m.map_y(y[i]));
+        svg << fmt(m.map_x(xoff + x[i])) << "," << fmt(m.map_y(yoff + y[i]));
     }
 
     svg << "\"/>\n";
@@ -247,13 +251,15 @@ void emit_scatter_series(std::ostringstream& svg, const ScatterSeries& series, c
     auto        y = series.y_data();
     float       r = series.size();
     const auto& c = static_cast<const Series&>(series).color();
+    const double xoff = series.x_offset();
+    const double yoff = series.y_offset();
 
     svg << "    <g fill=\"" << svg_color(c) << "\" fill-opacity=\"" << fmt(c.a) << "\">\n";
 
     for (size_t i = 0; i < series.point_count(); ++i)
     {
-        svg << "      <circle cx=\"" << fmt(m.map_x(x[i])) << "\" cy=\"" << fmt(m.map_y(y[i]))
-            << "\" r=\"" << fmt(r) << "\"/>\n";
+        svg << "      <circle cx=\"" << fmt(m.map_x(xoff + x[i])) << "\" cy=\""
+            << fmt(m.map_y(yoff + y[i])) << "\" r=\"" << fmt(r) << "\"/>\n";
     }
 
     svg << "    </g>\n";

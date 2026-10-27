@@ -106,6 +106,18 @@ class Series
     }
     double x_offset() const { return x_offset_; }
 
+    /// Logical y value = y_offset() + y_data()[i].  Same idea as x_offset() for
+    /// data such as 1e7 + small variations, where float storage would quantise
+    /// the signal into visible stairs.  The double-precision set_y() overloads
+    /// choose this automatically.
+    Series& y_offset(double off)
+    {
+        y_offset_ = off;
+        dirty_    = true;
+        return *this;
+    }
+    double y_offset() const { return y_offset_; }
+
     /// Control whether this series appears in the legend.
     bool show_in_legend() const { return show_in_legend_; }
     void set_show_in_legend(bool v) { show_in_legend_ = v; }
@@ -206,6 +218,7 @@ class Series
     PlotStyle         style_;   ///< line/marker style, sizes, opacity
     bool              visible_                 = true;
     double            x_offset_                = 0.0;
+    double            y_offset_                = 0.0;
     bool              excluded_from_autoscale_ = false;
     bool              show_in_legend_          = true;
     bool              is_reference_line_       = false;
@@ -225,11 +238,41 @@ class LineSeries : public Series
     LineSeries() = default;
     /// @brief Construct from x/y data (copied).
     LineSeries(std::span<const float> x, std::span<const float> y);
+    /// @brief Construct from double x/y data; see set_x(std::span<const double>).
+    template <typename = void>
+    LineSeries(std::span<const double> x, std::span<const double> y)
+    {
+        set_x_f64(x);
+        set_y_f64(y);
+    }
 
     /// @brief Replace the x data.
     LineSeries& set_x(std::span<const float> x);
     /// @brief Replace the y data.
     LineSeries& set_y(std::span<const float> y);
+
+    /// @brief Replace the x data from doubles without losing precision.
+    ///
+    /// When the values are large compared to their spread (e.g. Unix
+    /// timestamps, or 1e7 + small variations), a data origin near the values
+    /// is stored in x_offset() and x_data() holds float offsets from it, so
+    /// the plot, axis limits, ticks and readouts keep full precision.
+    /// Otherwise x_offset() is set to 0 and x_data() holds the plain values.
+    /// (A template only so that an existing call such as set_x({}) still
+    /// picks the float overload.)
+    template <typename = void>
+    LineSeries& set_x(std::span<const double> x)
+    {
+        set_x_f64(x);
+        return *this;
+    }
+    /// @brief Replace the y data from doubles; see set_x(std::span<const double>).
+    template <typename = void>
+    LineSeries& set_y(std::span<const double> y)
+    {
+        set_y_f64(y);
+        return *this;
+    }
     /// @brief Append one point.
     void append(float x, float y) override;
 
@@ -308,6 +351,9 @@ class LineSeries : public Series
     bool commit_pending() override;
 
    private:
+    void set_x_f64(std::span<const double> x);
+    void set_y_f64(std::span<const double> y);
+
     std::vector<float> x_;
     std::vector<float> y_;
     float              line_width_ = 2.0f;
@@ -321,11 +367,41 @@ class ScatterSeries : public Series
     ScatterSeries() = default;
     /// @brief Construct from x/y data (copied).
     ScatterSeries(std::span<const float> x, std::span<const float> y);
+    /// @brief Construct from double x/y data; see set_x(std::span<const double>).
+    template <typename = void>
+    ScatterSeries(std::span<const double> x, std::span<const double> y)
+    {
+        set_x_f64(x);
+        set_y_f64(y);
+    }
 
     /// @brief Replace the x data.
     ScatterSeries& set_x(std::span<const float> x);
     /// @brief Replace the y data.
     ScatterSeries& set_y(std::span<const float> y);
+
+    /// @brief Replace the x data from doubles without losing precision.
+    ///
+    /// When the values are large compared to their spread (e.g. Unix
+    /// timestamps, or 1e7 + small variations), a data origin near the values
+    /// is stored in x_offset() and x_data() holds float offsets from it, so
+    /// the plot, axis limits, ticks and readouts keep full precision.
+    /// Otherwise x_offset() is set to 0 and x_data() holds the plain values.
+    /// (A template only so that an existing call such as set_x({}) still
+    /// picks the float overload.)
+    template <typename = void>
+    ScatterSeries& set_x(std::span<const double> x)
+    {
+        set_x_f64(x);
+        return *this;
+    }
+    /// @brief Replace the y data from doubles; see set_x(std::span<const double>).
+    template <typename = void>
+    ScatterSeries& set_y(std::span<const double> y)
+    {
+        set_y_f64(y);
+        return *this;
+    }
     /// @brief Append one point.
     void append(float x, float y) override;
 
@@ -429,6 +505,9 @@ class ScatterSeries : public Series
     bool commit_pending() override;
 
    private:
+    void set_x_f64(std::span<const double> x);
+    void set_y_f64(std::span<const double> y);
+
     std::vector<float> x_;
     std::vector<float> y_;
     float              point_size_ = 4.0f;

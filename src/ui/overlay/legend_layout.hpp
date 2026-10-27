@@ -203,12 +203,13 @@ inline size_t overlap_score(const Axes&    axes,
             std::vector<std::vector<std::pair<float, float>>> polys(1);
             const size_t                                      n    = std::min(xs.size(), ys.size());
             const double                                      xoff = sp->x_offset();
+            const double                                      yoff = sp->y_offset();
             for (size_t i = 0; i < n; ++i)
             {
                 double sx = 0.0, sy = 0.0;
                 if (!std::isfinite(xs[i]) || !std::isfinite(ys[i])
                     || !detail::apply_scale(axes.xscale(), xoff + xs[i], sx)
-                    || !detail::apply_scale(axes.yscale(), ys[i], sy))
+                    || !detail::apply_scale(axes.yscale(), yoff + ys[i], sy))
                 {
                     if (!polys.back().empty())
                         polys.emplace_back();
@@ -267,11 +268,12 @@ inline size_t overlap_score(const Axes&    axes,
         const size_t n      = std::min(xs.size(), ys.size());
         const size_t stride = std::max<size_t>(1, n / std::max<size_t>(1, max_samples_per_series));
         const double xoff   = sp->x_offset();
+        const double yoff   = sp->y_offset();
         for (size_t i = 0; i < n; i += stride)
         {
             double sx = 0.0, sy = 0.0;
             if (!detail::apply_scale(axes.xscale(), xoff + xs[i], sx)
-                || !detail::apply_scale(axes.yscale(), ys[i], sy))
+                || !detail::apply_scale(axes.yscale(), yoff + ys[i], sy))
                 continue;
             const float px = vp.x + static_cast<float>((sx - x0) / dx) * vp.w;
             const float py = vp.y + static_cast<float>(1.0 - (sy - y0) / dy) * vp.h;

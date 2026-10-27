@@ -143,7 +143,8 @@ ShapeSeries& ShapeSeries::rect(float x, float y, float w, float h)
     def.params[2] = w;
     def.params[3] = h;
     shapes_.push_back(std::move(def));
-    dirty_ = true;
+    dirty_          = true;
+    geometry_stale_ = true;
     return *this;
 }
 
@@ -155,7 +156,8 @@ ShapeSeries& ShapeSeries::circle(float cx, float cy, float r)
     def.params[1] = cy;
     def.params[2] = r;
     shapes_.push_back(std::move(def));
-    dirty_ = true;
+    dirty_          = true;
+    geometry_stale_ = true;
     return *this;
 }
 
@@ -168,7 +170,8 @@ ShapeSeries& ShapeSeries::ellipse(float cx, float cy, float rx, float ry)
     def.params[2] = rx;
     def.params[3] = ry;
     shapes_.push_back(std::move(def));
-    dirty_ = true;
+    dirty_          = true;
+    geometry_stale_ = true;
     return *this;
 }
 
@@ -181,7 +184,8 @@ ShapeSeries& ShapeSeries::line(float x1, float y1, float x2, float y2)
     def.params[2] = x2;
     def.params[3] = y2;
     shapes_.push_back(std::move(def));
-    dirty_ = true;
+    dirty_          = true;
+    geometry_stale_ = true;
     return *this;
 }
 
@@ -194,7 +198,8 @@ ShapeSeries& ShapeSeries::arrow(float x1, float y1, float x2, float y2)
     def.params[2] = x2;
     def.params[3] = y2;
     shapes_.push_back(std::move(def));
-    dirty_ = true;
+    dirty_          = true;
+    geometry_stale_ = true;
     return *this;
 }
 
@@ -207,7 +212,8 @@ ShapeSeries& ShapeSeries::ring(float cx, float cy, float outer_r, float inner_r)
     def.params[2] = outer_r;
     def.params[3] = inner_r;
     shapes_.push_back(std::move(def));
-    dirty_ = true;
+    dirty_          = true;
+    geometry_stale_ = true;
     return *this;
 }
 
@@ -218,7 +224,8 @@ ShapeSeries& ShapeSeries::polygon(std::span<const float> x, std::span<const floa
     def.poly_x = std::vector<float>(x.begin(), x.end());
     def.poly_y = std::vector<float>(y.begin(), y.end());
     shapes_.push_back(std::move(def));
-    dirty_ = true;
+    dirty_          = true;
+    geometry_stale_ = true;
     return *this;
 }
 
@@ -230,7 +237,8 @@ ShapeSeries& ShapeSeries::text(float x, float y, const std::string& content)
     def.params[1]    = y;
     def.text_content = content;
     shapes_.push_back(std::move(def));
-    dirty_ = true;
+    dirty_          = true;
+    geometry_stale_ = true;
     return *this;
 }
 
@@ -242,6 +250,7 @@ ShapeSeries& ShapeSeries::fill_color(const Color& c)
     {
         shapes_.back().fill_color = c;
         dirty_                    = true;
+        geometry_stale_           = true;
     }
     return *this;
 }
@@ -252,6 +261,7 @@ ShapeSeries& ShapeSeries::line_color(const Color& c)
     {
         shapes_.back().line_color = c;
         dirty_                    = true;
+        geometry_stale_           = true;
     }
     return *this;
 }
@@ -262,6 +272,7 @@ ShapeSeries& ShapeSeries::fill_opacity(float opacity)
     {
         shapes_.back().fill_opacity = opacity;
         dirty_                      = true;
+        geometry_stale_             = true;
     }
     return *this;
 }
@@ -272,6 +283,7 @@ ShapeSeries& ShapeSeries::line_width(float w)
     {
         shapes_.back().line_width = w;
         dirty_                    = true;
+        geometry_stale_           = true;
     }
     return *this;
 }
@@ -282,6 +294,7 @@ ShapeSeries& ShapeSeries::corner_radius(float r)
     {
         shapes_.back().corner_radius = r;
         dirty_                       = true;
+        geometry_stale_              = true;
     }
     return *this;
 }
@@ -292,6 +305,7 @@ ShapeSeries& ShapeSeries::rotation(float radians)
     {
         shapes_.back().rotation = radians;
         dirty_                  = true;
+        geometry_stale_         = true;
     }
     return *this;
 }
@@ -302,6 +316,7 @@ ShapeSeries& ShapeSeries::segments(int n)
     {
         shapes_.back().segments = n;
         dirty_                  = true;
+        geometry_stale_         = true;
     }
     return *this;
 }
@@ -314,6 +329,7 @@ ShapeSeries& ShapeSeries::arrow_head(float length_frac, float width)
         shapes_.back().arrow_head_width  = width;
         shapes_.back().arrow_head_custom = true;
         dirty_                           = true;
+        geometry_stale_                  = true;
     }
     return *this;
 }
@@ -324,6 +340,7 @@ ShapeSeries& ShapeSeries::text_align(int align)
     {
         shapes_.back().text_align = align;
         dirty_                    = true;
+        geometry_stale_           = true;
     }
     return *this;
 }
@@ -334,6 +351,7 @@ ShapeSeries& ShapeSeries::text_valign(int valign)
     {
         shapes_.back().text_valign = valign;
         dirty_                     = true;
+        geometry_stale_            = true;
     }
     return *this;
 }
@@ -349,7 +367,8 @@ ShapeSeries& ShapeSeries::clear_shapes()
     solid_fill_verts_.clear();
     solid_fill_first_vertex_ = 0;
     text_annotations_.clear();
-    dirty_ = true;
+    dirty_          = true;
+    geometry_stale_ = false;
     return *this;
 }
 
@@ -851,8 +870,18 @@ void ShapeSeries::generate_polygon(const ShapeDef& def)
 
 // ── Rebuild geometry ────────────────────────────────────────────────────────
 
+void ShapeSeries::ensure_geometry() const
+{
+    // Geometry is a pure function of shapes_ (and the pixel scale), so generating it from a
+    // const query is a cache fill, not an observable mutation.  Doing it here makes bounds and
+    // limits correct on the very first frame, before any GPU upload rebuilds it.
+    if (geometry_stale_)
+        const_cast<ShapeSeries*>(this)->rebuild_geometry();
+}
+
 void ShapeSeries::rebuild_geometry()
 {
+    geometry_stale_ = false;
     line_x_.clear();
     line_y_.clear();
     fill_verts_.clear();
@@ -918,10 +947,13 @@ bool ShapeSeries::set_pixel_scale(float data_per_px_x, float data_per_px_y)
     data_per_px_y_ = data_per_px_y;
 
     // Only pixel-sized arrowheads depend on the scale.
-    return std::any_of(shapes_.begin(),
-                       shapes_.end(),
-                       [](const ShapeDef& d)
-                       { return d.type == ShapeDef::Type::Arrow && !d.arrow_head_custom; });
+    const bool affected = std::any_of(
+        shapes_.begin(),
+        shapes_.end(),
+        [](const ShapeDef& d) { return d.type == ShapeDef::Type::Arrow && !d.arrow_head_custom; });
+    if (affected)
+        geometry_stale_ = true;
+    return affected;
 }
 
 }   // namespace spectra

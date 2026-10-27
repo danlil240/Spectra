@@ -157,22 +157,53 @@ class ShapeSeries : public Series
         int         valign;       // 0=Top, 1=Middle, 2=Bottom
         Color       text_color;   // zero-alpha = use series color
     };
-    const std::vector<TextAnnotation>& text_annotations() const { return text_annotations_; }
+    const std::vector<TextAnnotation>& text_annotations() const
+    {
+        ensure_geometry();
+        return text_annotations_;
+    }
 
     // ── Geometry access (for renderer) ──
+    //
+    // Geometry is generated lazily from the shape definitions on first access after a change,
+    // so these are always current (bounds and autoscale are correct before any render).
 
     // Access outline geometry (line segments with NaN breaks)
-    std::span<const float> x_data() const { return line_x_; }
-    std::span<const float> y_data() const { return line_y_; }
-    size_t                 point_count() const { return line_x_.size(); }
+    std::span<const float> x_data() const
+    {
+        ensure_geometry();
+        return line_x_;
+    }
+    std::span<const float> y_data() const
+    {
+        ensure_geometry();
+        return line_y_;
+    }
+    size_t point_count() const
+    {
+        ensure_geometry();
+        return line_x_.size();
+    }
 
     // Access fill geometry (interleaved x,y,alpha per vertex)
-    std::span<const float> fill_verts() const { return fill_verts_; }
-    size_t                 fill_vertex_count() const { return fill_verts_.size() / 3; }
+    std::span<const float> fill_verts() const
+    {
+        ensure_geometry();
+        return fill_verts_;
+    }
+    size_t fill_vertex_count() const
+    {
+        ensure_geometry();
+        return fill_verts_.size() / 3;
+    }
 
     // Fill vertices from this index on are arrowheads, drawn opaque (the rest of the fill
     // geometry is drawn translucent).
-    size_t solid_fill_first_vertex() const { return solid_fill_first_vertex_; }
+    size_t solid_fill_first_vertex() const
+    {
+        ensure_geometry();
+        return solid_fill_first_vertex_;
+    }
 
     // Data units per screen pixel along x and y, set by the renderer each frame so arrowheads
     // keep a fixed on-screen size and shape. Returns true when the geometry must be rebuilt.
@@ -214,6 +245,12 @@ class ShapeSeries : public Series
     std::vector<float> fill_verts_;         // interleaved {x, y, alpha} per vertex
     std::vector<float> solid_fill_verts_;   // arrowheads; appended to fill_verts_ on rebuild
     size_t             solid_fill_first_vertex_ = 0;
+
+    // True when shapes_ (or the pixel scale) changed since geometry was last generated.
+    mutable bool geometry_stale_ = false;
+
+    // Regenerate geometry if stale (const: a cache fill, see series_shapes.cpp).
+    void ensure_geometry() const;
 
     // Data units per pixel (0 = unknown; arrowheads then fall back to data-unit sizing)
     float data_per_px_x_ = 0.0f;

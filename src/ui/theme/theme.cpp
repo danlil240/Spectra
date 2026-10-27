@@ -165,8 +165,7 @@ void ThemeManager::notify_public_theme_change()
     // same theme terminates.
     last_notified_snapshot_ = snap;
     last_notified_valid_    = true;
-    if (auto cb = spectra::detail::registered_theme_change_callback())
-        cb(snap);
+    spectra::detail::invoke_theme_change_callback(snap);
 }
 
 ThemeGlassSettings ThemeManager::glass_defaults_for(const std::string& theme_name) const

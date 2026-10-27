@@ -197,8 +197,11 @@ A v1.0 plugin that requests only commands and shortcuts loads successfully even 
 
 | Constant | Value | Milestone |
 |---|---|---|
-| `SPECTRA_PLUGIN_API_VERSION_MAJOR` | 1 | Initial C ABI |
-| `SPECTRA_PLUGIN_API_VERSION_MINOR` | 3 | Data source + export formats |
+| `SPECTRA_PLUGIN_API_VERSION_MAJOR` | 2 | Custom series types (`SpectraPluginContext` layout change) |
+| `SPECTRA_PLUGIN_API_VERSION_MINOR` | 1 | Overlay appearance fields (theme, UI scale, font size, text measuring) |
+
+v1.1 added the transform registry, v1.2 overlays, v1.3 data sources and export formats;
+a v2.x host provides all of them (check with `spectra_plugin_api_at_least()`).
 
 ---
 

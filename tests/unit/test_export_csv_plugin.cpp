@@ -112,8 +112,8 @@ TEST(ExportCsvPlugin, MalformedJsonIsRejected)
 #ifdef SPECTRA_EXPORT_CSV_PLUGIN_PATH
 // End-to-end: load the shipped example plug-in, register its format into a real
 // ExportFormatRegistry and export through the registry.  The context is built
-// by hand (minor version 3) so this test does not depend on the host's
-// version-guard behaviour.
+// by hand and reports the current host API version, which the example's
+// spectra_plugin_api_at_least(ctx, 1, 3) guard accepts.
 TEST(ExportCsvPlugin, ShippedPluginWritesNumericCsv)
 {
     void* handle = dlopen(SPECTRA_EXPORT_CSV_PLUGIN_PATH, RTLD_NOW | RTLD_LOCAL);
@@ -125,8 +125,8 @@ TEST(ExportCsvPlugin, ShippedPluginWritesNumericCsv)
     spectra::ExportFormatRegistry reg;
     spectra::SpectraPluginContext ctx{};
     spectra::SpectraPluginInfo    info{};
-    ctx.api_version_major      = 2;
-    ctx.api_version_minor      = 3;
+    ctx.api_version_major      = SPECTRA_PLUGIN_API_VERSION_MAJOR;
+    ctx.api_version_minor      = SPECTRA_PLUGIN_API_VERSION_MINOR;
     ctx.export_format_registry = &reg;
     ASSERT_EQ(init(&ctx, &info), 0);
     ASSERT_EQ(reg.available_formats().size(), 1u);

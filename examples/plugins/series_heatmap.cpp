@@ -151,7 +151,7 @@ extern "C"
         info->api_version_major = SPECTRA_PLUGIN_API_VERSION_MAJOR;
         info->api_version_minor = SPECTRA_PLUGIN_API_VERSION_MINOR;
 
-        if (ctx->api_version_major < 2 || !ctx->series_type_registry)
+        if (!spectra_plugin_api_at_least(ctx, 2, 0) || !ctx->series_type_registry)
             return 0;   // Host too old — silently skip registration
 
         SpectraSeriesTypeDesc desc{};

@@ -200,6 +200,43 @@ TEST(PaletteResolution, Axes3DSeriesAreAutoColoredNotBlue)
     EXPECT_TRUE(same_rgb(sh0.color(), pal.colors[1]));
 }
 
+// S18 + S19 + S20: an auto-coloured ShapeSeries3D (Axes3D::shapes3d()) with a
+// mix of explicit and unspecified per-shape colours.  Draw ranges are built
+// lazily with the geometry (no render, no explicit rebuild), shapes without a
+// colour inherit the series colour, which is the palette's auto colour.
+TEST(PaletteResolution, Shape3DAutoColorFlowsIntoLazyDrawRanges)
+{
+    spectra::Figure fig;
+    auto&           ax = fig.subplot3d(1, 1, 1);
+    auto&           sh = ax.shapes3d();
+    sh.box(0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f).shape_color(spectra::colors::red);
+    sh.sphere(3.0f, 0.0f, 0.0f, 0.5f);   // no shape colour: inherits the series colour
+    ASSERT_TRUE(sh.has_auto_color());
+
+    auto ranges = sh.draw_ranges();   // first access builds geometry + ranges
+    ASSERT_EQ(ranges.size(), 2u);
+    EXPECT_FALSE(ranges[0].inherits_series_color());
+    EXPECT_TRUE(ranges[1].inherits_series_color());
+    EXPECT_EQ(ranges[1].first_index + ranges[1].index_count, sh.indices().size());
+
+    auto pal = make_palette({spectra::ui::Color(0.1f, 0.2f, 0.3f)});
+    spectra::ui::resolve_auto_series_colors(fig, pal);
+    EXPECT_TRUE(same_rgb(sh.color(), pal.colors[0]));
+    EXPECT_FALSE(same_rgb(sh.color(), spectra::colors::blue));
+
+    // Adding a shape after the first build refreshes the ranges lazily too.
+    sh.cone(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.5f);
+    ranges = sh.draw_ranges();
+    ASSERT_EQ(ranges.size(), 2u);   // sphere + cone merge into one inheriting range
+    EXPECT_TRUE(ranges[1].inherits_series_color());
+    EXPECT_EQ(ranges[1].first_index + ranges[1].index_count, sh.indices().size());
+
+    // Bounds (S20) are available without a render as well.
+    spectra::vec3 lo{}, hi{};
+    sh.get_bounds(lo, hi);
+    EXPECT_LT(lo.x, hi.x);
+}
+
 TEST(PaletteResolution, CopyKeepsAutoColorAndIndexCanBeRestored)
 {
     spectra::LineSeries a(kX, kY);

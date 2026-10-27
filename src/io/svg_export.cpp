@@ -1151,57 +1151,6 @@ std::string fit_label(std::string_view text, float max_w, float font_px, bool& t
     return candidate(lo);
 }
 
-// Static (non-scrolling) legend grid for export.  Mirrors the policy of
-// legend_layout::compute_static_grid (PR #115, GPU/PNG path): regular grid,
-// then tighter rows, then the last visible cell becomes "+N more".
-struct StaticLegendGrid
-{
-    legend_layout::GridLayout grid;
-    float                     row_h    = 0.0f;
-    int                       shown    = 0;
-    int                       overflow = 0;
-};
-
-StaticLegendGrid static_legend_grid(int   n,
-                                    float col_w,
-                                    float row_h,
-                                    float min_row_h,
-                                    float overflow_w,
-                                    float pad_x,
-                                    float pad_y,
-                                    float col_gap,
-                                    float max_w,
-                                    float max_h)
-{
-    StaticLegendGrid r;
-    r.row_h = row_h;
-    r.shown = n;
-    r.grid  = legend_layout::compute_grid(n, col_w, row_h, pad_x, pad_y, col_gap, max_w, max_h);
-    if (!r.grid.scroll)
-        return r;
-    r.row_h = std::min(row_h, min_row_h);
-    r.grid  = legend_layout::compute_grid(n, col_w, r.row_h, pad_x, pad_y, col_gap, max_w, max_h);
-    if (!r.grid.scroll)
-        return r;
-    if (overflow_w > col_w)
-        r.grid = legend_layout::compute_grid(n,
-                                             overflow_w,
-                                             r.row_h,
-                                             pad_x,
-                                             pad_y,
-                                             col_gap,
-                                             max_w,
-                                             max_h);
-    if (!r.grid.scroll)
-        return r;
-    const int slots = r.grid.cols * r.grid.visible_rows;
-    r.grid.rows     = r.grid.visible_rows;
-    r.grid.scroll   = false;
-    r.shown         = std::max(0, std::min(n, slots - 1));
-    r.overflow      = n - r.shown;
-    return r;
-}
-
 void emit_legend(SvgContext& c, const AxesBase& axes, const Rect& vp, const LegendConfig& cfg)
 {
     if (!cfg.visible || cfg.position == LegendPosition::None)
@@ -1231,20 +1180,20 @@ void emit_legend(SvgContext& c, const AxesBase& axes, const Rect& vp, const Lege
     for (const auto& e : entries)
         max_label_w = std::max(max_label_w, estimate_text_width(e.label, font_px));
     const int   n          = static_cast<int>(entries.size());
-    const float overflow_w = estimate_text_width("+" + std::to_string(n) + " more", font_px);
-    // A static export cannot scroll: same policy as the GPU/PNG legend, and
-    // the box (and every label) stays inside the axes (audit S04).
-    const auto  fit   = static_legend_grid(n,
-                                        swatch_w + gap + max_label_w,
-                                        row_h,
-                                        font_px + 2.0f,
-                                        overflow_w,
-                                        pad_x,
-                                        pad_y,
-                                        col_gap,
-                                        vp.w - 2.0f * margin,
-                                        vp.h - 2.0f * margin);
-    const auto& grid  = fit.grid;
+    const float overflow_w = estimate_text_width(legend_layout::overflow_text(n), font_px);
+    // A static export cannot scroll: the same legend_layout::compute_static_grid
+    // policy as the GPU/PNG legend (tighter rows, then a "+N more" cell), and
+    // the box (and every label) stays inside the axes (audit S03/S04).
+    const auto  grid  = legend_layout::compute_static_grid(n,
+                                                         swatch_w + gap + max_label_w,
+                                                         row_h,
+                                                         font_px + 2.0f,
+                                                         overflow_w,
+                                                         pad_x,
+                                                         pad_y,
+                                                         col_gap,
+                                                         vp.w - 2.0f * margin,
+                                                         vp.h - 2.0f * margin);
     const float w     = grid.width;
     const float h     = grid.height;
     const float col_w = legend_layout::column_width(grid, pad_x, col_gap);
@@ -1272,14 +1221,14 @@ void emit_legend(SvgContext& c, const AxesBase& axes, const Rect& vp, const Lege
            << opacity_attr("stroke-opacity", border.a) << " stroke-width=\"1\"/>\n";
 
     const float label_w = col_w - swatch_w - gap + 0.5f;   // 0.5: float slack
-    for (size_t i = 0; i < static_cast<size_t>(fit.shown); ++i)
+    for (size_t i = 0; i < static_cast<size_t>(grid.shown); ++i)
     {
         const auto& e   = entries[i];
         const int   idx = static_cast<int>(i);
         const int   col = idx / grid.rows;
         const int   row = idx % grid.rows;
         const float ex  = r.x + pad_x + static_cast<float>(col) * (col_w + col_gap);
-        const float ey  = r.y + pad_y + (static_cast<float>(row) + 0.5f) * fit.row_h;
+        const float ey  = r.y + pad_y + (static_cast<float>(row) + 0.5f) * grid.cell_h;
         const float cx  = ex + swatch_w * 0.5f;
 
         switch (e.kind)
@@ -1341,13 +1290,13 @@ void emit_legend(SvgContext& c, const AxesBase& axes, const Rect& vp, const Lege
         if (truncated)
             c.body << "      </g>\n";
     }
-    if (fit.overflow > 0)
+    if (grid.overflow > 0)
     {
-        const int idx = fit.shown;
+        const int idx = grid.shown;
         emit_text(c.body,
-                  "+" + std::to_string(fit.overflow) + " more",
+                  legend_layout::overflow_text(grid.overflow),
                   r.x + pad_x + static_cast<float>(idx / grid.rows) * (col_w + col_gap),
-                  r.y + pad_y + (static_cast<float>(idx % grid.rows) + 0.5f) * fit.row_h,
+                  r.y + pad_y + (static_cast<float>(idx % grid.rows) + 0.5f) * grid.cell_h,
                   font_px,
                   st.text_secondary,
                   "start",

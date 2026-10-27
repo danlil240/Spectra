@@ -3,8 +3,9 @@
 // it follows the host theme and keeps its coordinate label inside the axes.
 //
 // The plug-in is loaded with dlopen and initialised with a hand-built context that
-// reports a v2.2 host: that satisfies both the example's registration guard and its
-// v2.1 appearance check without depending on the PluginManager's version reporting.
+// reports the current host API version (v2.1): that satisfies both the example's
+// spectra_plugin_api_at_least() registration guard (v1.2+) and its v2.1 appearance
+// check without depending on the PluginManager's version reporting.
 
 #include <gtest/gtest.h>
 #include <imgui.h>
@@ -61,8 +62,8 @@ class ExampleCrosshairTest : public ::testing::Test
         ASSERT_NE(init, nullptr);
 
         SpectraPluginContext ctx{};
-        ctx.api_version_major = 2;
-        ctx.api_version_minor = 2;
+        ctx.api_version_major = SPECTRA_PLUGIN_API_VERSION_MAJOR;
+        ctx.api_version_minor = SPECTRA_PLUGIN_API_VERSION_MINOR;
         ctx.overlay_registry  = static_cast<SpectraOverlayRegistry>(&reg_);
         SpectraPluginInfo info{};
         ASSERT_EQ(init(&ctx, &info), 0);

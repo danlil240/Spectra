@@ -990,25 +990,11 @@ TEST_F(ColorblindPaletteTest, NightThemeTranslucentTextIsReadable)
 
 namespace
 {
-// Exact sRGB (WCAG 2.x) relative luminance of `fg` alpha-composited over the
-// opaque `bg`.  Self-contained so the test does not depend on Color::luminance().
-double srgb_composited_luminance(const Color& fg, const Color& bg)
-{
-    auto lin = [](double c)
-    { return c <= 0.04045 ? c / 12.92 : std::pow((c + 0.055) / 1.055, 2.4); };
-    const double a = fg.a;
-    const double r = fg.r * a + bg.r * (1.0 - a);
-    const double g = fg.g * a + bg.g * (1.0 - a);
-    const double b = fg.b * a + bg.b * (1.0 - a);
-    return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
-}
-
+// WCAG 2.x contrast of `fg` (alpha included) composited over the opaque `bg`,
+// via the shared Color::contrast_ratio_over() helper (exact sRGB transfer).
 double srgb_contrast_over(const Color& fg, const Color& bg)
 {
-    const Color  opaque_bg(bg.r, bg.g, bg.b, 1.0f);
-    const double l_fg = srgb_composited_luminance(fg, opaque_bg);
-    const double l_bg = srgb_composited_luminance(opaque_bg, opaque_bg);
-    return (std::max(l_fg, l_bg) + 0.05) / (std::min(l_fg, l_bg) + 0.05);
+    return fg.contrast_ratio_over(bg);
 }
 
 struct NamedColor

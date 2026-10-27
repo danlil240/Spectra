@@ -354,10 +354,10 @@ void Renderer::build_legend(Axes& axes, const LegendConfig& config)
     if (entries.empty())
         return;
 
-    const auto&    tc   = plot_colors();
-    const Rect&    vp   = axes.viewport();
-    const float    pad_x = config.padding + 2.0f;   // as LegendInteraction
-    const float    pad_y = config.padding;
+    const auto& tc    = plot_colors();
+    const Rect& vp    = axes.viewport();
+    const float pad_x = config.padding + 2.0f;   // as LegendInteraction
+    const float pad_y = config.padding;
 
     // A static image cannot scroll, so every entry must be represented: see
     // legend_layout::compute_static_grid for the policy (tighter rows, then

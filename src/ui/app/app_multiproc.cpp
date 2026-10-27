@@ -25,6 +25,7 @@
 #include "render/renderer.hpp"
 #include "render/vulkan/vk_backend.hpp"
 #include "ui/overlay/knob_manager.hpp"
+#include "ui/theme/svg_style.hpp"
 
 #ifdef _WIN32
     #include <process.h>
@@ -289,7 +290,9 @@ void App::run_multiproc()
 
             if (!fig->export_req_.svg_path.empty())
             {
-                if (!SvgExporter::write_svg(fig->export_req_.svg_path, *fig))
+                if (!SvgExporter::write_svg(fig->export_req_.svg_path,
+                                             *fig,
+                                             theme_mgr_ ? ui::svg_style_from_theme(theme_mgr_->colors()) : SvgStyle{}))
                     SPECTRA_LOG_ERROR("app", "Failed to write SVG: {}", fig->export_req_.svg_path);
             }
         }

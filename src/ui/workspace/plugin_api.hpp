@@ -334,6 +334,22 @@ extern "C"
         uint64_t id;
     } SpectraBufferHandle;
 
+    // Primitive topology of a custom series pipeline (SpectraSeriesTypeDesc::topology).
+    // These are Spectra ABI values, not VkPrimitiveTopology: the host maps them.
+    // 0 (the zero-initialised default) is a triangle list.  1-5 coincide with
+    // the Vulkan enum, so 3 (VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST) is accepted
+    // as a triangle list too.  Point lists use SPECTRA_TOPOLOGY_POINT_LIST.
+    typedef enum SpectraPrimitiveTopology
+    {
+        SPECTRA_TOPOLOGY_TRIANGLE_LIST        = 0,
+        SPECTRA_TOPOLOGY_LINE_LIST            = 1,
+        SPECTRA_TOPOLOGY_LINE_STRIP           = 2,
+        SPECTRA_TOPOLOGY_TRIANGLE_LIST_VULKAN = 3,   // alias of TRIANGLE_LIST
+        SPECTRA_TOPOLOGY_TRIANGLE_STRIP       = 4,
+        SPECTRA_TOPOLOGY_TRIANGLE_FAN         = 5,
+        SPECTRA_TOPOLOGY_POINT_LIST           = 6,
+    } SpectraPrimitiveTopology;
+
     // Vertex format values (match VkFormat).
     typedef enum SpectraVertexFormat
     {
@@ -419,7 +435,7 @@ extern "C"
         size_t         vert_spirv_size;
         const uint8_t* frag_spirv;
         size_t         frag_spirv_size;
-        uint32_t       topology;   // VkPrimitiveTopology (0 = TRIANGLE_LIST)
+        uint32_t       topology;   // SpectraPrimitiveTopology (0 = TRIANGLE_LIST)
 
         // Vertex input layout (NULL / 0 = SSBO-only)
         const SpectraVertexBinding*   vertex_bindings;

@@ -496,6 +496,19 @@ extern "C"
 
     // ─── Custom series type registration (API v2.0) ──────────────────────────
 
+    // The C ABI topology enum and the backend-neutral CustomTopology share values.
+    static_assert(SPECTRA_TOPOLOGY_TRIANGLE_LIST
+                  == static_cast<uint32_t>(CustomTopology::TriangleList));
+    static_assert(SPECTRA_TOPOLOGY_LINE_LIST == static_cast<uint32_t>(CustomTopology::LineList));
+    static_assert(SPECTRA_TOPOLOGY_LINE_STRIP == static_cast<uint32_t>(CustomTopology::LineStrip));
+    static_assert(SPECTRA_TOPOLOGY_TRIANGLE_LIST_VULKAN
+                  == static_cast<uint32_t>(CustomTopology::TriangleListVulkan));
+    static_assert(SPECTRA_TOPOLOGY_TRIANGLE_STRIP
+                  == static_cast<uint32_t>(CustomTopology::TriangleStrip));
+    static_assert(SPECTRA_TOPOLOGY_TRIANGLE_FAN
+                  == static_cast<uint32_t>(CustomTopology::TriangleFan));
+    static_assert(SPECTRA_TOPOLOGY_POINT_LIST == static_cast<uint32_t>(CustomTopology::PointList));
+
     int spectra_register_series_type(void* registry, const SpectraSeriesTypeDesc* desc)
     {
         if (!registry || !desc || !desc->type_name)

@@ -80,7 +80,9 @@ void Renderer::render_series(Series&             series,
         return;
 
     auto& gpu = it->second;
-    if (!gpu.ssbo)
+    // Custom plugin series keep their buffers in plugin-owned plugin_gpu_state
+    // and never allocate the host ssbo; only built-in types need it here.
+    if (!gpu.ssbo && gpu.type != SeriesType::Custom)
         return;
 
     SeriesPushConstants pc{};

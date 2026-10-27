@@ -237,6 +237,8 @@ set(SPECTRA_UNIT_TESTS
     test_plugin_data_source
     test_plugin_integration
     test_plugin_series_type
+    test_custom_series_render
+    test_custom_series_gpu
     test_plugin_guard
     test_plugin_diagnostics
     test_plugin_manifest
@@ -340,6 +342,7 @@ set(SPECTRA_GPU_TESTS
     test_embed_surface
     test_easy_embed
     test_headless_export_text
+    test_custom_series_gpu
 )
 
 foreach(_test ${SPECTRA_UNIT_TESTS})
@@ -411,6 +414,23 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
         if(_test STREQUAL "test_headless_export_text")
             target_include_directories(unit_${_test} SYSTEM PRIVATE
                 ${CMAKE_SOURCE_DIR}/third_party/stb)
+        endif()
+        # Loads the series_heatmap example plugin into a headless App and
+        # decodes the exported PNG with the bundled stb_image.
+        if(_test STREQUAL "test_custom_series_gpu")
+            target_include_directories(unit_${_test} SYSTEM PRIVATE
+                ${CMAKE_SOURCE_DIR}/third_party/stb)
+            if(TARGET series_heatmap)
+                target_compile_definitions(unit_${_test} PRIVATE
+                    SPECTRA_HEATMAP_PLUGIN_PATH="$<TARGET_FILE:series_heatmap>"
+                )
+                add_dependencies(unit_${_test} series_heatmap)
+            endif()
+            # Export symbols so the dlopen'd plugin can resolve C ABI functions
+            # from the test executable instead of carrying its own copy.
+            if(NOT WIN32)
+                target_link_options(unit_${_test} PRIVATE -rdynamic)
+            endif()
         endif()
     endif()
 endforeach()

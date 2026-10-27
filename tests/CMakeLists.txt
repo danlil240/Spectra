@@ -349,7 +349,17 @@ target_include_directories(mock_leaky_plugin PRIVATE
     ${CMAKE_BINARY_DIR}/generated
 )
 target_compile_features(mock_leaky_plugin PRIVATE cxx_std_20)
-target_link_libraries(mock_leaky_plugin PRIVATE spectra)
+if(WIN32)
+    target_link_libraries(mock_leaky_plugin PRIVATE spectra)
+else()
+    # Same as mock_overlay_plugin: resolve the C ABI from the host at dlopen
+    # time.  Linking the static lib duplicates globals (ASan odr-violation).
+    if(APPLE)
+        target_link_options(mock_leaky_plugin PRIVATE -undefined dynamic_lookup)
+    else()
+        target_link_options(mock_leaky_plugin PRIVATE "LINKER:--allow-shlib-undefined")
+    endif()
+endif()
 set_target_properties(mock_leaky_plugin PROPERTIES PREFIX "")
 
 # Tests that require a GPU/display (Vulkan + GLFW window)

@@ -1474,8 +1474,10 @@ void ImGuiIntegration::load_fonts()
                                        icon_ranges);
 
         // System fallback fonts for glyphs Inter lacks (maths operators,
-        // CJK, ...).  ImGui 1.92 rasterises glyphs on demand from the first
-        // source that has them, so merging costs nothing until used.
+        // CJK, monochrome emoji, ...).  ImGui 1.92 rasterises glyphs on demand
+        // from the first source that has them, so merging costs nothing until
+        // used.  No glyph ranges: with IMGUI_USE_WCHAR32 (CMakeLists.txt) this
+        // covers the whole Unicode range, including code points above U+FFFF.
         for (const auto& file : fallback_font_files_)
         {
             ImFontConfig fb_cfg;
@@ -1501,7 +1503,9 @@ void ImGuiIntegration::load_fonts()
     for (const auto& path : discover_fallback_fonts())
     {
         FontFileData file;
-        if (file.load(path) && is_font_signature(file.data(), file.size()))
+        // Outline fonts only: ImGui's stb_truetype loader cannot use colour
+        // bitmap emoji fonts (no glyf/CFF table).
+        if (file.load(path) && is_outline_font(file.data(), file.size()))
             fallback_font_files_.push_back(std::move(file));
     }
 

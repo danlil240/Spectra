@@ -80,10 +80,19 @@ FittedLabel fit_label_to_width(const std::string&  text,
 
     for (int s = hi; s >= lo; --s)
     {
-        const auto f = static_cast<LabelFont>(s);
-        if (measure(text, f) <= max_width)
+        const auto  f = static_cast<LabelFont>(s);
+        const float w = measure(text, f);
+        if (w <= max_width)
         {
             result.font = f;
+            return result;
+        }
+        // Too wide at this tier but fits at the next smaller one: shrink this tier
+        // continuously (to exactly max_width) rather than snapping down a whole tier.
+        if (s > lo && w > 0.0f && measure(text, static_cast<LabelFont>(s - 1)) < max_width)
+        {
+            result.font  = f;
+            result.scale = max_width / w;
             return result;
         }
     }

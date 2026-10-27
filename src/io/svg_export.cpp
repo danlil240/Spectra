@@ -1048,7 +1048,7 @@ void emit_fitted_label(std::ostringstream& o,
         return;
     if (fit.truncated)
         o << "    <g><title>" << xml_escape(full_text) << "</title>\n";
-    emit_text(o, fit.text, x, y, label_font_px(fit.font), col, anchor, valign, extra);
+    emit_text(o, fit.text, x, y, label_font_px(fit.font) * fit.scale, col, anchor, valign, extra);
     if (fit.truncated)
         o << "    </g>\n";
 }
@@ -1702,12 +1702,13 @@ void emit_axes_2d(SvgContext& c, const Axes& axes, const LegendConfig& legend)
         const FittedLabel fit =
             fit_axes_title(axes.get_title(), vp.w, y_offset_reserve, label_width);
         const CenteredLabelSlot slot = centered_label_slot(vp.x, vp.w, y_offset_reserve, 0.0f);
-        const float cx = centered_label_x(vp.x, vp.w, slot, label_width(fit.text, fit.font));
+        const float             cx =
+            centered_label_x(vp.x, vp.w, slot, label_width(fit.text, fit.font) * fit.scale);
         emit_fitted_label(c.body,
                           fit,
                           axes.get_title(),
                           cx,
-                          std::max(2.0f, vp.y - label_font_px(fit.font) - tick_padding),
+                          std::max(2.0f, vp.y - label_font_px(fit.font) * fit.scale - tick_padding),
                           st.text_primary,
                           "middle",
                           VAlign::Top,
@@ -2359,8 +2360,8 @@ void emit_axes_3d(SvgContext& c, const Axes3D& axes, const LegendConfig& legend)
     if (!axes.get_title().empty())
     {
         const FittedLabel fit     = fit_axes3d_title(axes.get_title(), vp.w, label_width);
-        const float       font_px = label_font_px(fit.font);
-        const float       tw      = label_width(fit.text, fit.font);
+        const float       font_px = label_font_px(fit.font) * fit.scale;
+        const float       tw      = label_width(fit.text, fit.font) * fit.scale;
         const float       cx      = vp.x + vp.w * 0.5f;
         const float       ty      = vp.y + 2.0f;
         if (!fit.text.empty())

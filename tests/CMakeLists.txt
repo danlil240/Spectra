@@ -283,6 +283,7 @@ set(SPECTRA_UNIT_TESTS
     test_app_init_failure
     test_export_viewport
     test_headless_export_text
+    test_text_scaling
     test_window_defaults
     test_text_annotation_ipc
     test_text_annotation_persist
@@ -391,6 +392,7 @@ set(SPECTRA_GPU_TESTS
     test_embed_surface
     test_easy_embed
     test_headless_export_text
+    test_text_scaling
     test_shape3d_first_frame
     test_shape2d_first_frame
     test_custom_series_gpu
@@ -422,8 +424,9 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
         # Hover round trip drives DataInteraction (and legend_bounds draws the
         # interactive legend, crosshair_mapping the linked crosshair), which needs an
         # ImGui context; test_theme checks the ImGui palette apply_to_imgui() writes
-        # during a theme transition; settings_layout drives the Settings modal.
-        if(_test MATCHES "^test_(crosshair_mapping|log_overlays|double_precision_data|data_interaction|legend_bounds|legend_font_size|inspector|overlay_text_fit|settings_layout|theme)$" AND DEFINED imgui_SOURCE_DIR)
+        # during a theme transition; settings_layout drives the Settings modal;
+        # font_fallback checks ImGui decodes code points above U+FFFF.
+        if(_test MATCHES "^test_(crosshair_mapping|log_overlays|double_precision_data|data_interaction|legend_bounds|legend_font_size|inspector|overlay_text_fit|settings_layout|theme|font_fallback)$" AND DEFINED imgui_SOURCE_DIR)
             target_include_directories(unit_${_test} SYSTEM PRIVATE ${imgui_SOURCE_DIR})
         endif()
         # CSV writer shared with the export_csv example plugin (header-only)
@@ -490,7 +493,7 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
             add_dependencies(unit_${_test} spectra_wgsl_shaders)
         endif()
         # Decodes the exported PNGs with the bundled stb_image.
-        if(_test MATCHES "^test_(headless_export_text|shape3d_first_frame|shape2d_first_frame)$")
+        if(_test MATCHES "^test_(headless_export_text|text_scaling|shape3d_first_frame|shape2d_first_frame)$")
             target_include_directories(unit_${_test} SYSTEM PRIVATE
                 ${CMAKE_SOURCE_DIR}/third_party/stb)
         endif()

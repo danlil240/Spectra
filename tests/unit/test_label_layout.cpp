@@ -152,7 +152,7 @@ TEST(LabelLayout, LabelAndOffsetBoundsAreDisjoint)
                         fit_text_to_width(label, slot.max_width, fs, FontSize::Label, fake_measure);
                     if (fit.text.empty())
                         continue;
-                    const float    lw = fake_measure(fit.text, fit.size);
+                    const float    lw = fake_measure(fit.text, fit.size) * fit.scale;
                     const float    cx = centered_label_x(x0, w, slot, lw);
                     const Interval lbl{cx - lw * 0.5f, cx + lw * 0.5f};
                     const Interval off =
@@ -401,6 +401,38 @@ TEST(LabelLayoutSvg, NoOffsetKeepsLabelCentred)
     const auto& vp = ax.viewport();
     EXPECT_NEAR(xl->x, vp.x + vp.w * 0.5f, 0.01f);
     EXPECT_NEAR(tt->x, vp.x + vp.w * 0.5f, 0.01f);
+}
+
+// A title too wide for its axes shrinks smoothly from the Title size (18px) to the Label
+// size (14px) as the figure narrows, instead of jumping straight from 18px to 14px.
+TEST(LabelLayoutSvg, TitleShrinksSmoothlyBetweenTiers)
+{
+    const std::string title        = "Acquisition window response of the reference channel";
+    float             prev_px      = 0.0f;
+    int               intermediate = 0;
+    for (uint32_t w = 260; w <= 900; w += 10)
+    {
+        Figure fig({.width = w, .height = 400});
+        auto&  ax = fig.subplot(1, 1, 1);
+        ax.xlim(0.0, 10.0);
+        ax.ylim(0.0, 1.0);
+        ax.title(title);
+        fig.compute_layout();
+        const auto     texts = parse_texts(SvgExporter::to_string(fig));
+        const SvgText* tt    = find_label(texts, title);
+        ASSERT_NE(tt, nullptr) << w;
+        SCOPED_TRACE("width " + std::to_string(w) + " font " + std::to_string(tt->font_px));
+        EXPECT_GE(tt->font_px, 14.0f - 1e-3f);
+        EXPECT_LE(tt->font_px, 18.0f + 1e-3f);
+        EXPECT_GE(tt->font_px, prev_px - 1e-3f);   // never larger in a narrower figure
+        if (tt->font_px > 14.0f + 1e-3f)
+            EXPECT_EQ(tt->content, title);   // only ellipsized at the Label size
+        if (tt->font_px > 14.5f && tt->font_px < 17.5f)
+            ++intermediate;
+        prev_px = tt->font_px;
+    }
+    // The 10px steps cross the 14..18px range in several intermediate sizes.
+    EXPECT_GE(intermediate, 3);
 }
 
 }   // namespace

@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "render/backend.hpp"
+#include "render/font_fallback.hpp"
 #include "render/text_renderer.hpp"
 
 using namespace spectra;
@@ -500,5 +501,33 @@ TEST_F(TextRendererGPUTest, CjkFallbackGrowsAtlas)
     EXPECT_EQ(tr.resolve_glyph(0x4E2D, FontSize::Title), TextRenderer::GlyphSource::Fallback);
     EXPECT_GT(tr.atlas_height(), h0) << "width " << tr.atlas_width();
     EXPECT_LE(tr.atlas_height(), 4096u);
+    tr.shutdown(*backend);
+}
+
+// Emoji are drawn monochrome from an outline font found on the system (the fixed
+// candidate list or fontconfig's per-codepoint choice); colour-only emoji fonts are
+// never used.
+TEST_F(TextRendererGPUTest, EmojiUseMonochromeSystemFont)
+{
+    if (font_data_.empty())
+        GTEST_SKIP() << "Font not found";
+    auto* backend = app_->backend();
+    ASSERT_NE(backend, nullptr);
+
+    TextRenderer tr;   // default: discovered fallback fonts + fontconfig lookup
+    ASSERT_TRUE(tr.init(*backend, font_data_.data(), font_data_.size()));
+    int checked = 0;
+    for (uint32_t cp : {0x1F600u, 0x1F680u, 0x1FA70u})   // 😀 🚀 🩰
+    {
+        SystemFontMatch m;
+        if (!find_system_font_for(cp, m))
+            continue;   // no outline font on this system has it
+        ++checked;
+        EXPECT_EQ(tr.resolve_glyph(cp, FontSize::Label), TextRenderer::GlyphSource::Fallback)
+            << std::hex << cp << " (system font " << m.path << ")";
+        EXPECT_GT(tr.measure_text("\xF0\x9F\x98\x80", FontSize::Label).width, 0.0f);
+    }
+    if (checked == 0)
+        GTEST_SKIP() << "no monochrome emoji font installed";
     tr.shutdown(*backend);
 }

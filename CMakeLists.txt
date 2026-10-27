@@ -422,6 +422,8 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 endif()
 
 target_link_libraries(spectra PUBLIC spectra-core Vulkan::Vulkan)
+# dlopen: fontconfig is loaded at run time for fallback-font lookup (font_fallback.cpp).
+target_link_libraries(spectra PRIVATE ${CMAKE_DL_LIBS})
 
 target_compile_definitions(spectra PUBLIC
     SPECTRA_RUNTIME_MODE_${SPECTRA_RUNTIME_MODE}
@@ -722,7 +724,10 @@ if(SPECTRA_USE_IMGUI AND (SPECTRA_USE_GLFW OR SPECTRA_USE_SDL3))
             $<TARGET_PROPERTY:${SPECTRA_SDL3_TARGET},INTERFACE_INCLUDE_DIRECTORIES>
         )
     endif()
-    target_compile_definitions(spectra PUBLIC SPECTRA_USE_IMGUI)
+    # 32-bit ImWchar: code points above U+FFFF (emoji, maths alphanumerics,
+    # CJK extension B) are decoded instead of shown as U+FFFD.  PUBLIC so every
+    # translation unit that includes imgui.h agrees on sizeof(ImWchar).
+    target_compile_definitions(spectra PUBLIC SPECTRA_USE_IMGUI IMGUI_USE_WCHAR32)
 endif()
 
 # ROS2 adapter (optional) — all ROS2 build logic lives in src/adapters/ros2/CMakeLists.txt

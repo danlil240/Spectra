@@ -948,6 +948,13 @@ void ImGuiIntegration::populate_status_bar(ui::shell::StatusBar& bar)
 
              ImDrawList* dl = ImGui::GetWindowDrawList();
 
+             // Light chrome gets a pale success tint instead of the glass
+             // palette's dark-green badge; all readouts are contrast-checked.
+             const ui::StatusPerfColors perf =
+                 ui::status_perf_colors(colors,
+                                        fps_live,
+                                        theme_mgr_ ? theme_mgr_->effective_glow_intensity() : 0.0f);
+
              {
                  ImVec2           text_sz  = ImGui::CalcTextSize(fps_buf.c_str());
                  ImVec2           cursor_p = ImGui::GetCursorScreenPos();
@@ -955,15 +962,9 @@ void ImGuiIntegration::populate_status_bar(ui::shell::StatusBar& bar)
                                  cursor_p.y - (pill_h - text_h) * 0.5f - fps_pad_v);
                  ImVec2           pill_max(cursor_p.x + text_sz.x + fps_pad_h,
                                  cursor_p.y + text_h + (pill_h - text_h) * 0.5f + fps_pad_v);
-                 const float      glow = theme_mgr_ ? theme_mgr_->effective_glow_intensity() : 0.0f;
-                 const bool       fps_glow = fps_live && glow > 0.01f;
-                 const ui::Color& fps_fill =
-                     fps_glow ? ui::glass_palette::kFpsPillGreen : colors.bg_tertiary;
-                 const ui::Color& fps_border =
-                     fps_glow ? ui::glass_palette::kFpsPillBorder : colors.border_subtle;
-                 const ui::Color& fps_text = fps_glow   ? ui::glass_palette::kFpsPillText
-                                             : fps_live ? colors.success
-                                                        : colors.text_tertiary;
+                 const ui::Color& fps_fill   = perf.fps_fill;
+                 const ui::Color& fps_border = perf.fps_border;
+                 const ui::Color& fps_text   = perf.fps_text;
 
                  dl->AddRectFilled(pill_min,
                                    pill_max,
@@ -988,10 +989,10 @@ void ImGuiIntegration::populate_status_bar(ui::shell::StatusBar& bar)
              }
 
              ImGui::SameLine(0.0f, perf_gap);
-             const ui::Color& gpu_text =
-                 (theme_mgr_ && theme_mgr_->effective_glow_intensity() > 0.01f)
-                     ? ui::glass_palette::kStatusGpuText
-                     : colors.text_tertiary;
+             // SameLine returns to the line's top (the fps text was placed with
+             // SetCursorPosY inside a SameLine), so centre the GPU readout again.
+             ImGui::SetCursorPosY((bar_h - text_h) * 0.5f);
+             const ui::Color& gpu_text = perf.gpu_text;
              ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(gpu_text.r, gpu_text.g, gpu_text.b, 1.0f));
              ImGui::TextUnformatted(gpu_buf.c_str());
              ImGui::PopStyleColor();

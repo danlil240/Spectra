@@ -8,6 +8,7 @@
     #include "../dialog_env_guard.hpp"
     #include "../native_dialog_policy.hpp"
     #include "../topics/topics_panel.hpp"
+    #include "ui/settings/settings_panel.hpp"
     #include "ui/shell/spectra_app_shell.hpp"
     #include "io/export_registry.hpp"
     #include "ui/theme/glass_draw.hpp"
@@ -193,6 +194,62 @@ void ImGuiIntegration::render_menubar_menu(const char*                  label,
                                           const std::vector<MenuItem>& items)
 {
     draw_menubar_menu(label, items);
+}
+
+ui::shell::MenuBar& ImGuiIntegration::fallback_menu_bar()
+{
+    using ui::shell::SpectraAppShell;
+    if (fallback_menu_bar_)
+        return *fallback_menu_bar_;
+
+    fallback_menu_bar_ = std::make_unique<ui::shell::MenuBar>();
+
+    // Without a PanelRegistry the inspector is the layout manager's panel.
+    SpectraAppShell::CoreMenuHooks hooks;
+    hooks.panel_visible = [this](std::string_view id) {
+        return id == "core.inspector" && layout_manager_ && layout_manager_->is_inspector_visible();
+    };
+    hooks.set_panel_visible = [this](std::string_view id, bool visible)
+    {
+        if (id != "core.inspector" || !layout_manager_)
+            return;
+        layout_manager_->set_inspector_visible(visible);
+        panel_open_ = visible;
+    };
+    SpectraAppShell::populate_core_menus(*fallback_menu_bar_, this, hooks);
+
+    ui::shell::PanelMenuHooks panel_hooks;
+    panel_hooks.is_visible = [this](const std::string& id)
+    {
+        if (id == "core.inspector")
+            return layout_manager_ && layout_manager_->is_inspector_visible();
+        if (id == "core.timeline")
+            return show_timeline_;
+        if (id == "core.curve_editor")
+            return show_curve_editor_;
+        if (id == "core.plugins")
+            return show_plugins_panel_;
+        if (id == "core.topics")
+            return topics_panel_ && topics_panel_->is_visible();
+        if (id == "core.settings")
+            return settings_panel_ && settings_panel_->is_visible();
+        return false;
+    };
+    // No toggle hook: each item runs its panel command (panel.toggle_* /
+    // panel.open_settings), which handles the no-shell case itself.
+    SpectraAppShell::add_core_panel_menu(*fallback_menu_bar_, this, panel_hooks);
+    return *fallback_menu_bar_;
+}
+
+void ImGuiIntegration::draw_fallback_menus()
+{
+    ui::shell::MenuBar& bar = fallback_menu_bar();
+    ui::shell::SpectraAppShell::sync_plugin_export_menu(bar, this);
+    bar.draw_inline(
+        [this, &bar](const char* label, const std::vector<ui::shell::MenuAction>& items) {
+            draw_menubar_menu(label,
+                              ui::shell::to_imgui_menu_items(items, bar.shortcut_resolver()));
+        });
 }
 
 // ─── Legacy Methods (removed — use SpectraAppShell / draw_command_bar) ────────
@@ -820,274 +877,9 @@ void ImGuiIntegration::draw_command_bar()
         }
         else
         {
-        // File menu — build dynamically to include plugin export formats
-        std::vector<MenuItem> file_items;
-        file_items.emplace_back("New Figure",
-                                [this]()
-                                {
-                                    if (command_registry_)
-                                        command_registry_->execute("figure.new");
-                                });
-        file_items.emplace_back("", nullptr);   // Separator
-        file_items.emplace_back("Export PNG",
-                                [this]()
-                                {
-                                    if (command_registry_)
-                                        command_registry_->execute("file.export_png");
-                                });
-        file_items.emplace_back("Export SVG",
-                                [this]()
-                                {
-                                    if (command_registry_)
-                                        command_registry_->execute("file.export_svg");
-                                });
-        file_items.emplace_back("Copy as Image\tCtrl+Shift+C",
-                                [this]()
-                                {
-                                    if (command_registry_)
-                                        command_registry_->execute("file.copy_to_clipboard");
-                                });
-
-        // Plugin-registered export formats (API v1.3)
-        if (export_format_registry_)
-        {
-            auto formats = export_format_registry_->available_formats();
-            if (!formats.empty())
-            {
-                file_items.emplace_back("", nullptr);   // Separator
-                for (const auto& fmt : formats)
-                {
-                    std::string label    = "Export " + fmt.name + " (." + fmt.extension + ")";
-                    std::string fmt_name = fmt.name;
-                    file_items.emplace_back(
-                        label,
-                        [this, fmt_name]()
-                        {
-                            if (command_registry_)
-                                command_registry_->execute("file.export_plugin." + fmt_name);
-                        });
-                }
-            }
-        }
-
-        file_items.emplace_back("Save Workspace",
-                                [this]()
-                                {
-                                    if (command_registry_)
-                                        command_registry_->execute("file.save_workspace");
-                                });
-        file_items.emplace_back("Load Workspace",
-                                [this]()
-                                {
-                                    if (command_registry_)
-                                        command_registry_->execute("file.load_workspace");
-                                });
-        file_items.emplace_back("", nullptr);   // Separator
-        file_items.emplace_back("Save Figure...",
-                                [this]()
-                                {
-                                    if (command_registry_)
-                                        command_registry_->execute("file.save_figure");
-                                });
-        file_items.emplace_back("Load Figure...",
-                                [this]()
-                                {
-                                    if (command_registry_)
-                                        command_registry_->execute("file.load_figure");
-                                });
-        file_items.emplace_back("", nullptr);   // Separator
-        file_items.emplace_back("Exit",
-                                [this]()
-                                {
-                                    if (command_registry_)
-                                        command_registry_->execute("app.cancel");
-                                });
-        draw_menubar_menu("File", file_items);
-
-        ImGui::SameLine();
-
-        // View menu
-        draw_menubar_menu(
-            "View",
-            {MenuItem("Toggle Inspector",
-                      [this]()
-                      {
-                          if (command_registry_)
-                              command_registry_->execute("panel.toggle_inspector");
-                          else
-                          {
-                              bool new_vis = !layout_manager_->is_inspector_visible();
-                              layout_manager_->set_inspector_visible(new_vis);
-                              panel_open_ = new_vis;
-                          }
-                      }),
-             MenuItem("Toggle Navigation Rail",
-                      [this]() { set_nav_rail_visible(!show_nav_rail_); }),
-             MenuItem("Zoom to Fit",
-                      [this]()
-                      {
-                          if (command_registry_)
-                              command_registry_->execute("view.autofit");
-                      }),
-             MenuItem("Reset View",
-                      [this]()
-                      {
-                          if (command_registry_)
-                              command_registry_->execute("view.reset");
-                      }),
-             MenuItem("Toggle Grid",
-                      [this]()
-                      {
-                          if (command_registry_)
-                              command_registry_->execute("view.toggle_grid");
-                      }),
-             MenuItem("Toggle Legend",
-                      [this]()
-                      {
-                          if (command_registry_)
-                              command_registry_->execute("view.toggle_legend");
-                      }),
-             MenuItem("Remove All Data Tips",
-                      [this]()
-                      {
-                          if (data_interaction_)
-                              data_interaction_->clear_markers();
-                      }),
-             MenuItem("", nullptr),   // Separator
-             MenuItem("Toggle Timeline",
-                      [this]()
-                      {
-                          if (command_registry_)
-                              command_registry_->execute("panel.toggle_timeline");
-                      }),
-             MenuItem("Toggle Curve Editor",
-                      [this]()
-                      {
-                          if (command_registry_)
-                              command_registry_->execute("panel.toggle_curve_editor");
-                      }),
-             MenuItem("Toggle Parameters",
-                      [this]()
-                      {
-                          if (knob_manager_ && !knob_manager_->empty())
-                              knob_manager_->set_visible(!knob_manager_->is_visible());
-                      }),
-             MenuItem("Toggle Data Editor",
-                      [this]()
-                      {
-                          if (active_section_ == Section::DataEditor && panel_open_)
-                          {
-                              panel_open_ = false;
-                              layout_manager_->set_inspector_visible(false);
-                          }
-                          else
-                          {
-                              active_section_ = Section::DataEditor;
-                              panel_open_     = true;
-                              layout_manager_->set_inspector_visible(true);
-                          }
-                      }),
-             MenuItem("Toggle Topics",
-                      [this]()
-                      {
-                          if (command_registry_)
-                              command_registry_->execute("panel.toggle_topics");
-                      }),
-             MenuItem("Plugins...",
-                      [this]()
-                      {
-                          if (command_registry_)
-                              command_registry_->execute("panel.toggle_plugins");
-                          else
-                              show_plugins_panel_ = !show_plugins_panel_;
-                      })});
-
-        ImGui::SameLine();
-
-        // Tools menu
-        draw_menubar_menu(
-            "Tools",
-            {MenuItem("Screenshot (PNG)",
-                      [this]()
-                      {
-                          if (command_registry_)
-                              command_registry_->execute("file.export_png");
-                      }),
-             MenuItem("Undo",
-                      [this]()
-                      {
-                          if (command_registry_)
-                              command_registry_->execute("edit.undo");
-                      }),
-             MenuItem("Redo",
-                      [this]()
-                      {
-                          if (command_registry_)
-                              command_registry_->execute("edit.redo");
-                      }),
-             MenuItem("", nullptr),   // Separator
-             MenuItem("Theme Settings", [this]() { show_theme_settings_ = !show_theme_settings_; }),
-             MenuItem("Command Palette",
-                      [this]()
-                      {
-                          if (command_registry_)
-                              command_registry_->execute("app.command_palette");
-                      }),
-             MenuItem("", nullptr),   // Separator
-    #ifdef SPECTRA_USE_ROS2
-             MenuItem("ROS2 Adapter",
-                      [this]()
-                      {
-                          if (command_registry_)
-                              command_registry_->execute("tools.ros2_adapter");
-                      })
-    #else
-             // Grayed-out placeholder when compiled without ROS2 support.
-             // draw_menubar_menu skips items with a null callback; we render
-             // a disabled text label instead via a zero-callback sentinel that
-             // is handled specially in draw_menubar_menu.
-             MenuItem("\xEF\xA0\xAD ROS2 Adapter (not available)", nullptr)
-    #endif
-            });
-
-        ImGui::SameLine();
-
-        // Plot menu — reference lines and function overlays (legacy path without AppShell)
-        draw_menubar_menu(
-            "Plot",
-            {MenuItem("Y = 0 Line",
-                      [this]()
-                      {
-                          if (command_registry_)
-                              command_registry_->execute("plot.hline_zero");
-                      }),
-             MenuItem("X = 0 Line",
-                      [this]()
-                      {
-                          if (command_registry_)
-                              command_registry_->execute("plot.vline_zero");
-                      }),
-             MenuItem("", nullptr),
-             MenuItem("Horizontal Line...",
-                      [this]()
-                      {
-                          if (command_registry_)
-                              command_registry_->execute("plot.hline");
-                      }),
-             MenuItem("Vertical Line...",
-                      [this]()
-                      {
-                          if (command_registry_)
-                              command_registry_->execute("plot.vline");
-                      }),
-             MenuItem("Plot Function...",
-                      [this]()
-                      {
-                          if (command_registry_)
-                              command_registry_->execute("plot.function");
-                      })});
-
-        ImGui::SameLine();
+            // No shell bound (e.g. embedded surfaces): same menu model as the
+            // app shell, see SpectraAppShell::populate_core_menus.
+            draw_fallback_menus();
         }
 
         ImGui::SameLine();

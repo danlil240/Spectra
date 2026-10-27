@@ -526,9 +526,11 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
     {
         theme_mgr_->update(dt);
         // Resolve palette colours before the legend / inspector read them.
-        ui::resolve_auto_series_colors(figure,
-                                       theme_mgr_->current_data_palette(),
-                                       ui::is_light_plot_background(theme_mgr_->colors()));
+        ui::resolve_auto_series_colors(
+            figure,
+            theme_mgr_->current_data_palette(),
+            ui::is_light_plot_background(theme_mgr_->colors()),
+            ui::effective_figure_background(figure.style(), theme_mgr_->colors()));
     }
     ui::widgets::update_section_animations(dt);
 

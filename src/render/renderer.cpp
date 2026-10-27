@@ -480,9 +480,12 @@ void Renderer::render_figure_content(Figure& figure, FigureViewModel* fig_vm)
 
     // Auto-coloured series follow the active theme's data palette (P0-6) and
     // format-letter colours ("r--") its dark / light shade set (P1-5).
-    ui::resolve_auto_series_colors(figure,
-                                   theme_mgr_.current_data_palette(),
-                                   ui::is_light_plot_background(theme_mgr_.colors()));
+    // Auto colours are kept visible on the canvas the plot area renders with (S07).
+    ui::resolve_auto_series_colors(
+        figure,
+        theme_mgr_.current_data_palette(),
+        ui::is_light_plot_background(theme_mgr_.colors()),
+        ui::effective_figure_background(figure.style(), theme_mgr_.colors()));
 
     uint32_t w = figure.width();
     uint32_t h = figure.height();

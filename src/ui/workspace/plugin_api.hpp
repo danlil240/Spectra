@@ -43,7 +43,7 @@ extern "C"
 {
 // Plugin API version — bump major on breaking changes.
 #define SPECTRA_PLUGIN_API_VERSION_MAJOR 2
-#define SPECTRA_PLUGIN_API_VERSION_MINOR 0
+#define SPECTRA_PLUGIN_API_VERSION_MINOR 1
 
     // Opaque handles (pointers cast to void* for C ABI stability)
     typedef void* SpectraCommandRegistry;
@@ -149,9 +149,78 @@ extern "C"
                           SpectraCommandCallback redo_fn,
                           void*                  redo_data);
 
+    // ─── Overlay colours ─────────────────────────────────────────────────────────
+    //
+    // Every overlay colour — the `color_rgba` argument of the spectra_overlay_draw_*
+    // helpers and each SpectraOverlayTheme field — is a packed 32-bit value with
+    // RED in the LOW byte (ImGui's IM_COL32 layout):
+    //
+    //     bits  0..7  = R      bits 16..23 = B
+    //     bits  8..15 = G      bits 24..31 = A
+    //
+    // Written as a hex literal that reads 0xAABBGGRR, not 0xRRGGBBAA: opaque yellow
+    // is 0xFF00FFFF, and 0xFFFFFF00 is opaque CYAN.  Build colours with
+    // SPECTRA_OVERLAY_COLOR(r, g, b, a) / spectra_overlay_pack_rgba() instead of
+    // writing literals by hand, and prefer the host theme colours in
+    // SpectraOverlayContext::theme (API v2.1+) so overlays read on every theme.
+
+#define SPECTRA_OVERLAY_COLOR(r, g, b, a)                                         \
+    ((uint32_t)((((uint32_t)(a) & 0xFFu) << 24) | (((uint32_t)(b) & 0xFFu) << 16) \
+                | (((uint32_t)(g) & 0xFFu) << 8) | ((uint32_t)(r) & 0xFFu)))
+
+    // Pack 8-bit channels into an overlay colour (see layout above).
+    static inline uint32_t spectra_overlay_pack_rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a)
+    {
+        return SPECTRA_OVERLAY_COLOR(r, g, b, a);
+    }
+
+    // Return `color` with its alpha multiplied by `alpha_scale` (clamped to [0, 1]).
+    static inline uint32_t spectra_overlay_color_scale_alpha(uint32_t color, float alpha_scale)
+    {
+        if (!(alpha_scale > 0.0f))   // also catches NaN
+            alpha_scale = 0.0f;
+        if (alpha_scale > 1.0f)
+            alpha_scale = 1.0f;
+        const float a = (float)((color >> 24) & 0xFFu) * alpha_scale + 0.5f;
+        return (color & 0x00FFFFFFu) | ((uint32_t)a << 24);
+    }
+
     // ─── Overlay context + drawing helpers (added in API v1.2) ─────────────────────
 
+    // Host theme colours handed to overlays (added in API v2.1).  Packed as described
+    // above, so they can be passed straight to the spectra_overlay_draw_* helpers.
+    typedef struct SpectraOverlayTheme
+    {
+        uint32_t canvas_bg;        // plot area background
+        uint32_t crosshair;        // cursor guide lines (same colour as the built-in crosshair)
+        uint32_t text;             // primary text
+        uint32_t text_secondary;   // secondary / dimmer text
+        uint32_t label_bg;         // tooltip / readout label background
+        uint32_t label_border;     // tooltip / readout label border
+        uint32_t accent;           // theme accent (highlights, markers)
+        uint32_t axis_line;        // axis spine colour
+        uint32_t grid_major;       // major grid line colour
+    } SpectraOverlayTheme;
+
+    // SpectraOverlayContext::flags bits (API v2.1+).
+#define SPECTRA_OVERLAY_FLAG_HAS_THEME 0x1u   // `theme` holds the host's current theme colours
+
+    struct SpectraOverlayContext;
+
+    // Measures `text` in the host UI font; writes its size in pixels (API v2.1+).
+    typedef void (*SpectraOverlayMeasureTextFn)(const struct SpectraOverlayContext* ctx,
+                                                const char*                         text,
+                                                float*                              out_w,
+                                                float*                              out_h);
+
     // Context passed to overlay draw callbacks.
+    //
+    // All coordinates are in host window pixels (the same space as the draw helpers).
+    // The struct only grows at the end.  Fields after `reserved_` exist only when the
+    // host reported API v2.1 or newer to spectra_plugin_init (major > 2, or major == 2
+    // and minor >= 1); an older host passes a shorter struct, so do not read them
+    // otherwise.  Newer hosts may append more fields: `struct_size` is the size the
+    // host filled in.
     struct SpectraOverlayContext
     {
         float    viewport_x;
@@ -165,7 +234,59 @@ extern "C"
         int      axes_index;
         int      series_count;
         void*    reserved_;   // internal draw list — do not use from plugins
+
+        // Added in API v2.1.  ui_scale is the UI scale factor (1.0 = 100%): multiply
+        // pixel constants such as thicknesses, radii and gaps by it.  font_size is the
+        // current UI font height in pixels (already scaled).
+        uint32_t                    struct_size;    // sizeof(SpectraOverlayContext), host build
+        uint32_t                    flags;          // SPECTRA_OVERLAY_FLAG_* bits
+        float                       ui_scale;       // see above
+        float                       font_size;      // see above
+        SpectraOverlayTheme         theme;          // valid if flags & ..._FLAG_HAS_THEME
+        SpectraOverlayMeasureTextFn measure_text;   // may be NULL
     };
+
+    // Position a label_w x label_h label beside an anchor point (e.g. the cursor) so it
+    // stays inside the context's viewport.  The preferred spot is up-and-right of the
+    // anchor, `gap` pixels away; the label flips to the left / below when it would cross
+    // the right / top edge, and is finally clamped `pad` pixels inside the viewport
+    // (left/top edges win when the label is larger than the viewport).  Writes the
+    // label's top-left corner.  Uses only API v1.2 fields.
+    static inline void spectra_overlay_place_label(const struct SpectraOverlayContext* ctx,
+                                                   float                               anchor_x,
+                                                   float                               anchor_y,
+                                                   float                               label_w,
+                                                   float                               label_h,
+                                                   float                               gap,
+                                                   float                               pad,
+                                                   float*                              out_x,
+                                                   float*                              out_y)
+    {
+        if (!ctx || !out_x || !out_y)
+            return;
+        const float left   = ctx->viewport_x + pad;
+        const float top    = ctx->viewport_y + pad;
+        const float right  = ctx->viewport_x + ctx->viewport_w - pad;
+        const float bottom = ctx->viewport_y + ctx->viewport_h - pad;
+
+        float x = anchor_x + gap;
+        if (x + label_w > right)
+            x = anchor_x - gap - label_w;
+        float y = anchor_y - gap - label_h;
+        if (y < top)
+            y = anchor_y + gap;
+
+        if (x + label_w > right)
+            x = right - label_w;
+        if (x < left)
+            x = left;
+        if (y + label_h > bottom)
+            y = bottom - label_h;
+        if (y < top)
+            y = top;
+        *out_x = x;
+        *out_y = y;
+    }
 
     // Overlay draw callback signature.
     typedef void (*SpectraOverlayCallback)(const SpectraOverlayContext* ctx, void* user_data);
@@ -229,6 +350,8 @@ extern "C"
     // ─── Overlay drawing helpers (added in API v1.2) ─────────────────────────────
     // Plugins call these inside their overlay callback to draw shapes.
     // Using helpers avoids plugins linking ImGui directly.
+    // `color_rgba` is a packed overlay colour with red in the LOW byte (0xAABBGGRR as a
+    // hex literal) — see "Overlay colours" above and SPECTRA_OVERLAY_COLOR().
 
     void spectra_overlay_draw_line(const SpectraOverlayContext* ctx,
                                    float                        x1,

@@ -414,7 +414,19 @@ void Renderer::build_legend(Axes& axes, const LegendConfig& config)
         legend_layout::resolve_position(axes, vp, grid.width, grid.height, config.position, prev);
     if (config.position == LegendPosition::Best)
         legend_best_corner_[&axes] = corner;
+    if (!legend_layout::fits(vp, grid.width, grid.height))
+        return;   // not even one row fits this (tiny) axes
     const Rect box = legend_layout::place(vp, corner, grid.width, grid.height);
+
+    // Labels longer than their column are ellipsized (UTF-8 safe) so the
+    // legend never runs past its axes (audit S04).  The 0.5 px slack absorbs
+    // float error from re-deriving the column width, so the widest label
+    // that sized the column is never cut.
+    const float label_w = legend_layout::column_width(grid, pad_x, legend_layout::COL_GAP)
+                          - SWATCH_W - SWATCH_GAP + 0.5f;
+    const char* ellipsis = text_renderer_.has_glyph(0x2026, font) ? "\xE2\x80\xA6" : "...";
+    auto        measure  = [this](const std::string& t, FontSize fs)
+    { return text_renderer_.measure_text(t, fs).width; };
 
     AnnotationBuilder b{annotation_vertex_scratch_, annotation_point_scratch_};
     auto              add = [this](AnnotationDraw::Kind       k,
@@ -526,7 +538,9 @@ void Renderer::build_legend(Axes& axes, const LegendConfig& config)
 
         Color text = text_base;
         text.a *= vis_alpha;
-        text_renderer_.draw_text(s.label(),
+        const FittedText label =
+            fit_text_to_width(s.label(), label_w, font, font, measure, ellipsis);
+        text_renderer_.draw_text(label.text,
                                  x + SWATCH_W + SWATCH_GAP,
                                  cy,
                                  font,

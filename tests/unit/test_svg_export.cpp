@@ -522,5 +522,109 @@ TEST(SvgExport, LegendWidthFitsLongestLabel)
     EXPECT_LT(width, 450.0f);
 }
 
+// Audit S04: a narrow subplot's legend stays inside its plot, long labels are
+// ellipsized on UTF-8 boundaries, and entries that cannot fit are summarised
+// by an explicit "+N more" cell (same policy as the GPU/PNG legend).
+namespace
+{
+struct SvgRect
+{
+    float x = 0, y = 0, w = 0, h = 0;
+};
+
+float attr(const std::string& s, size_t from, const char* name)
+{
+    const std::string key = std::string(" ") + name + "=\"";
+    const size_t      p   = s.find(key, from);
+    return p == std::string::npos ? NAN : std::stof(s.substr(p + key.size()));
+}
+
+// The plot area: the first clipPath rect.
+SvgRect plot_rect(const std::string& svg)
+{
+    const size_t p = svg.find("<clipPath");
+    return {attr(svg, p, "x"), attr(svg, p, "y"), attr(svg, p, "width"), attr(svg, p, "height")};
+}
+}   // namespace
+
+TEST(SvgExport, FortyEntryLegendStaysInsideNarrowPlot)
+{
+    Figure             fig({.width = 320, .height = 260});
+    auto&              ax = fig.subplot(1, 1, 1);
+    std::vector<float> x = {0.0f, 1.0f}, y = {0.0f, 1.0f};
+    for (int i = 0; i < 40; ++i)
+        ax.line(x, y).label("Series " + std::to_string(i + 1));
+    fig.legend().position = LegendPosition::TopLeft;
+    fig.compute_layout();
+    const std::string svg = SvgExporter::to_string(fig);
+
+    const SvgRect plot = plot_rect(svg);
+    const size_t  g    = svg.find("<g class=\"legend\">");
+    ASSERT_NE(g, std::string::npos);
+    const size_t  end = svg.find("</g>", g);
+    const SvgRect box{attr(svg, g, "x"),
+                      attr(svg, g, "y"),
+                      attr(svg, g, "width"),
+                      attr(svg, g, "height")};
+    EXPECT_GE(box.x, plot.x);
+    EXPECT_GE(box.y, plot.y);
+    EXPECT_LE(box.x + box.w, plot.x + plot.w + 0.01f);
+    EXPECT_LE(box.y + box.h, plot.y + plot.h + 0.01f);
+
+    // Every label is inside the box, and shown + hidden == 40.
+    int    shown = 0;
+    int    more  = 0;
+    size_t p     = g;
+    while ((p = svg.find("<text ", p + 1)) != std::string::npos && p < end)
+    {
+        const float ty = attr(svg, p, "y");
+        EXPECT_GE(ty, box.y);
+        EXPECT_LE(ty, box.y + box.h);
+        const size_t gt  = svg.find('>', p);
+        const auto   txt = svg.substr(gt + 1, svg.find('<', gt) - gt - 1);
+        if (txt.rfind("Series ", 0) == 0)
+            ++shown;
+        else if (txt.front() == '+')
+            more = std::stoi(txt.substr(1));
+    }
+    EXPECT_GT(more, 0) << "overflow must be reported, not dropped";
+    EXPECT_EQ(shown + more, 40);
+}
+
+TEST(SvgExport, LongUtf8LegendLabelIsEllipsizedInsidePlot)
+{
+    Figure             fig({.width = 300, .height = 240});
+    auto&              ax = fig.subplot(1, 1, 1);
+    std::vector<float> x = {0.0f, 1.0f}, y = {0.0f, 1.0f};
+    std::string        label = "Temperature ";
+    for (int i = 0; i < 30; ++i)
+        label += "\xce\xbc\xe6\xb8\xa9";   // "μ温"
+    ax.line(x, y).label(label);
+    fig.legend().position = LegendPosition::TopRight;
+    fig.compute_layout();
+    const std::string svg = SvgExporter::to_string(fig);
+
+    const SvgRect plot = plot_rect(svg);
+    const size_t  g    = svg.find("<g class=\"legend\">");
+    ASSERT_NE(g, std::string::npos);
+    const float bx = attr(svg, g, "x");
+    const float bw = attr(svg, g, "width");
+    EXPECT_GE(bx, plot.x);
+    EXPECT_LE(bx + bw, plot.x + plot.w + 0.01f);
+    // Truncated label ends with an ellipsis, keeps whole codepoints, and the
+    // full text is kept as a <title> tooltip.
+    EXPECT_NE(svg.find("<title>" + label + "</title>", g), std::string::npos);
+    const size_t t   = svg.find("<text ", g);
+    const size_t gt  = svg.find('>', t);
+    const auto   txt = svg.substr(gt + 1, svg.find('<', gt) - gt - 1);
+    ASSERT_GE(txt.size(), 3u);
+    EXPECT_EQ(txt.substr(txt.size() - 3), "\xE2\x80\xA6");
+    EXPECT_LT(txt.size(), label.size());
+    const std::string body = txt.substr(0, txt.size() - 3);
+    EXPECT_EQ(label.compare(0, body.size(), body), 0);
+    const auto last = static_cast<unsigned char>(label[body.size()]);
+    EXPECT_NE(last & 0xC0u, 0x80u) << "cut inside a UTF-8 sequence";
+}
+
 }   // namespace
 }   // namespace spectra

@@ -52,8 +52,24 @@ struct ThemeSnapshot
 /// Returns the theme version counter.
 uint32_t get_theme_snapshot(ThemeSnapshot& out);
 
-/// Register a callback invoked whenever the theme changes.
+/// Register a callback invoked whenever the theme colors change.
 /// The callback receives the new snapshot.  Pass nullptr to unregister.
+///
+/// Semantics:
+/// - Fires after a theme switch has been fully applied (ThemeManager::set_theme,
+///   including the end of an animated transition).  Intermediate transition
+///   frames are not reported; poll get_theme_snapshot() if you need them.
+/// - Fires only when the snapshot colors differ from the last snapshot reported
+///   for that theme manager, so re-applying the current theme does not call
+///   it again.  Changes that do not alter any snapshot field (data palette,
+///   glass/translucency settings) do not fire it.
+/// - Called synchronously on the thread that applied the change (the UI
+///   thread), after the new colors are in effect.  Do not block in it.
+/// - The registration is process-wide: one callback at a time (registering
+///   replaces the previous one), shared by every Spectra app instance in the
+///   process.  The snapshot passed in describes the instance that changed.
+/// - The function must stay callable until it is unregistered with nullptr.
+///   Once register_theme_change_callback(nullptr) returns, no new calls start.
 using ThemeChangeCallback = void (*)(const ThemeSnapshot&);
 void register_theme_change_callback(ThemeChangeCallback callback);
 

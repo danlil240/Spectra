@@ -160,6 +160,7 @@ set(SPECTRA_UNIT_TESTS
     test_timeline_editor
     test_recording_export
     test_theme_colorblind
+    test_theme_change_callback
     test_palette_resolution
     test_window_agent_state
     test_format_letter_colors

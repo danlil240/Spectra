@@ -152,11 +152,14 @@ TEST_F(ExamplePluginTest, ExportCsvFileMenuCommandWritesActiveFigure)
     ASSERT_TRUE(load(path)) << path;
 
     ASSERT_TRUE(commands_.execute("file.export_plugin.CSV Data"));
-    std::ifstream     in(out, std::ios::binary);
     std::stringstream ss;
-    ss << in.rdbuf();
+    {
+        std::ifstream in(out, std::ios::binary);
+        ss << in.rdbuf();
+    }   // closed before remove(): Windows refuses to delete an open file
     EXPECT_EQ(ss.str(), "speed x,speed y\r\n0,1.5\r\n1,-2\r\n2,4\r\n");
-    std::filesystem::remove(out);
+    std::error_code ec;
+    std::filesystem::remove(out, ec);
     export_cmds.detach();   // before TearDown destroys the export registry
 }
 

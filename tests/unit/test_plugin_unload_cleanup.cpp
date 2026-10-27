@@ -60,6 +60,10 @@ bool has_format(const ExportFormatRegistry& reg, const std::string& name)
     return false;
 }
 
+// Names the step in a failure (and in an SEH crash report on Windows, where
+// gtest prints the active traces).
+#define LEAKY_STEP(name) SCOPED_TRACE("step: " name)
+
 class PluginUnloadCleanupTest : public ::testing::Test
 {
    protected:
@@ -127,22 +131,31 @@ class PluginUnloadCleanupTest : public ::testing::Test
         EXPECT_EQ(series_types_.count_owned(owner()), 1u);
         EXPECT_EQ(undo_.undo_count(), 1u);
 
-        const int runs = counter("mock_leaky_command_runs");
-        EXPECT_TRUE(commands_.execute("leaky.ping"));
-        EXPECT_EQ(counter("mock_leaky_command_runs"), runs + 1);
-
-        DataTransform t;
-        EXPECT_TRUE(contains(transforms_.available_transforms(), "LeakyShift"));
-        EXPECT_TRUE(transforms_.get_transform("LeakyShift", t));
-        EXPECT_FLOAT_EQ(t.apply_scalar(1.0f), 2.0f);
-
-        const int draws = counter("mock_leaky_overlay_draws");
-        draw_overlays();
-        EXPECT_EQ(counter("mock_leaky_overlay_draws"), draws + 1);
-
-        EXPECT_TRUE(has_format(exports_, "LeakyExport"));
-        EXPECT_TRUE(export_leaky());
-
+        {
+            LEAKY_STEP("command");
+            const int runs = counter("mock_leaky_command_runs");
+            EXPECT_TRUE(commands_.execute("leaky.ping"));
+            EXPECT_EQ(counter("mock_leaky_command_runs"), runs + 1);
+        }
+        {
+            LEAKY_STEP("transform");
+            DataTransform t;
+            EXPECT_TRUE(contains(transforms_.available_transforms(), "LeakyShift"));
+            EXPECT_TRUE(transforms_.get_transform("LeakyShift", t));
+            EXPECT_FLOAT_EQ(t.apply_scalar(1.0f), 2.0f);
+        }
+        {
+            LEAKY_STEP("overlay");
+            const int draws = counter("mock_leaky_overlay_draws");
+            draw_overlays();
+            EXPECT_EQ(counter("mock_leaky_overlay_draws"), draws + 1);
+        }
+        {
+            LEAKY_STEP("export");
+            EXPECT_TRUE(has_format(exports_, "LeakyExport"));
+            EXPECT_TRUE(export_leaky());
+        }
+        LEAKY_STEP("data source / series type");
         EXPECT_TRUE(contains(sources_.source_names(), "LeakySource"));
         EXPECT_NE(sources_.find("LeakySource"), nullptr);
 
@@ -176,8 +189,12 @@ TEST_F(PluginUnloadCleanupTest, UnloadRemovesEveryRegistrationKindAndReloads)
     {
         SCOPED_TRACE(round);
         ASSERT_TRUE(mgr_.load_plugin(path_));
-        expect_all_active();
+        {
+            LEAKY_STEP("load");
+            expect_all_active();
+        }
 
+        LEAKY_STEP("late registration and unload");
         // A registration made after init (from a plug-in command) is tracked too.
         ASSERT_TRUE(commands_.execute("leaky.register_late"));
         EXPECT_EQ(overlays_.count_owned(owner()), 2u);

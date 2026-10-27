@@ -244,29 +244,57 @@ void SettingsPanel::draw_appearance_tab()
         std::max(ImGui::CalcTextSize("Theme").x, ImGui::CalcTextSize("Data Palette").x)
         + ImGui::GetStyle().ItemInnerSpacing.x * 2.0f;
 
+    // Contract: the combos show and select the ACTIVE theme / palette.  A
+    // selection here also saves it as the startup default; commands and
+    // undo/redo change only the active one, so a hint reveals the difference.
+    const AppearanceState state = appearance_state(*theme_mgr_, d);
+
+    // Secondary "Startup default: X  [Make default]" row under a combo.
+    auto startup_hint = [&](const char* id, const std::string& default_label) -> bool
+    {
+        const auto& colors = theme_mgr_->colors();
+        ImGui::PushID(id);
+        ImGui::SetCursorPosX(label_w);   // align with the combo above
+        ImGui::PushStyleColor(ImGuiCol_Text,
+                              ImVec4(colors.text_secondary.r,
+                                     colors.text_secondary.g,
+                                     colors.text_secondary.b,
+                                     colors.text_secondary.a));
+        ImGui::Text("Startup default: %s", default_label.c_str());
+        ImGui::PopStyleColor();
+        ImGui::SameLine();
+        const bool clicked = ImGui::SmallButton("Make default");
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Start Spectra with the current selection");
+        ImGui::PopID();
+        return clicked;
+    };
+
     ImGui::AlignTextToFramePadding();
     ImGui::TextUnformatted("Theme");
     ImGui::SameLine(label_w);
     ImGui::SetNextItemWidth(200.0f);
-    const std::string current_theme_label = theme_mgr_->display_name(d.default_theme);
+    const std::string current_theme_label = theme_mgr_->display_name(state.active_theme);
     if (ImGui::BeginCombo("##theme", current_theme_label.c_str()))
     {
         for (const char* t : k_themes)
         {
-            bool              selected = (d.default_theme == t);
+            bool              selected = (state.active_theme == t);
             const std::string label    = theme_mgr_->display_name(t) + "##" + t;
-            if (ImGui::Selectable(label.c_str(), selected))
+            if (ImGui::Selectable(label.c_str(), selected) && select_theme(*theme_mgr_, *store_, t))
             {
-                d.default_theme = t;
-                theme_mgr_->set_theme(t);
                 theme_mgr_->reset_glass_defaults();
                 theme_mgr_->save_current_as_default();
-                store_->notify_change();
             }
             if (selected)
                 ImGui::SetItemDefaultFocus();
         }
         ImGui::EndCombo();
+    }
+    if (!state.theme_matches_startup()
+        && startup_hint("theme_default", theme_mgr_->display_name(state.startup_theme)))
+    {
+        make_active_theme_default(*theme_mgr_, *store_);
     }
 
     ImGui::Spacing();
@@ -275,25 +303,26 @@ void SettingsPanel::draw_appearance_tab()
     ImGui::TextUnformatted("Data Palette");
     ImGui::SameLine(label_w);
     ImGui::SetNextItemWidth(200.0f);
-    if (ImGui::BeginCombo("##palette", d.default_data_palette.c_str()))
+    if (ImGui::BeginCombo("##palette", state.active_data_palette.c_str()))
     {
         for (const char* p : k_palettes)
         {
             const bool cvd_safe = theme_mgr_->get_data_palette(p).colorblind_safe;
-            const bool selected = (d.default_data_palette == p);
+            const bool selected = (state.active_data_palette == p);
             // Append CVD badge so colorblind users can identify safe choices without
             // relying on prior knowledge of palette names (WCAG 1.3.3 / 1.4.1).
             std::string label = std::string(p) + (cvd_safe ? "  (CVD-safe)" : "  (not CVD-safe)");
             if (ImGui::Selectable(label.c_str(), selected))
-            {
-                d.default_data_palette = p;
-                theme_mgr_->set_data_palette(p);
-                store_->notify_change();
-            }
+                select_data_palette(*theme_mgr_, *store_, p);
             if (selected)
                 ImGui::SetItemDefaultFocus();
         }
         ImGui::EndCombo();
+    }
+    if (!state.data_palette_matches_startup()
+        && startup_hint("palette_default", state.startup_data_palette))
+    {
+        make_active_data_palette_default(*theme_mgr_, *store_);
     }
 
     ImGui::Spacing();

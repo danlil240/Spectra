@@ -1193,14 +1193,18 @@ void App::shutdown_runtime()
         if (!f.export_req_.svg_path.empty())
         {
             f.compute_layout();
+            // Same plot surface as the GPU path: the figure's background
+            // override (if any) decides ink, letter shades and palette.
             if (theme_mgr_)
-                ui::resolve_auto_series_colors(f,
-                                               theme_mgr_->current_data_palette(),
-                                               ui::is_light_plot_background(theme_mgr_->colors()));
-            if (!SvgExporter::write_svg(
-                    f.export_req_.svg_path,
+                ui::resolve_auto_series_colors(
                     f,
-                    theme_mgr_ ? ui::svg_style_from_theme(theme_mgr_->colors()) : SvgStyle{}))
+                    theme_mgr_->plot_surface_data_palette(f.style()),
+                    ui::is_light_plot_background(theme_mgr_->plot_surface_colors(f.style())));
+            if (!SvgExporter::write_svg(f.export_req_.svg_path,
+                                        f,
+                                        theme_mgr_ ? ui::svg_style_from_theme(
+                                                         theme_mgr_->plot_surface_colors(f.style()))
+                                                   : SvgStyle{}))
             {
                 SPECTRA_LOG_ERROR("app", "Failed to write SVG: {}", f.export_req_.svg_path);
             }

@@ -354,7 +354,7 @@ void Renderer::build_legend(Axes& axes, const LegendConfig& config)
     if (entries.empty())
         return;
 
-    const auto&    tc   = theme_mgr_.colors();
+    const auto&    tc   = plot_colors();
     const Rect&    vp   = axes.viewport();
     const FontSize font = legend_font(config.font_size);
 
@@ -520,7 +520,7 @@ void Renderer::build_colorbar(AxesBase& axes)
 
     const bool  is_3d = dynamic_cast<Axes3D*>(&axes) != nullptr;
     const Rect  bar   = colorbar_layout::bar_rect(axes.viewport(), is_3d);
-    const auto& tc    = theme_mgr_.colors();
+    const auto& tc    = plot_colors();
     if (bar.h < 4.0f)
         return;
 

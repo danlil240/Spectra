@@ -104,7 +104,7 @@ void Renderer::render_plot_text(Figure& figure)
     if (!text_renderer_.is_initialized())
         return;
 
-    const auto& colors = theme_mgr_.colors();
+    const auto& colors = plot_colors();
 
     auto color_to_rgba = [this](const ui::Color& c) -> uint32_t
     {
@@ -919,7 +919,7 @@ void Renderer::render_plot_geometry(Figure& figure)
     // frame's GPU commands still read from the other slot while we write this one.
     const uint32_t slot = backend_.current_flight_frame() % FRAME_BUFFER_SLOTS;
 
-    const auto& colors = theme_mgr_.colors();
+    const auto& colors = plot_colors();
 
     overlay_line_scratch_.clear();
 
@@ -1519,7 +1519,7 @@ void Renderer::render_annotation_arrows(Axes& axes, uint32_t slot, float fw, flo
 
     annotation_tri_scratch_.clear();
     annotation_arrow_draws_.clear();
-    const auto& colors = theme_mgr_.colors();
+    const auto& colors = plot_colors();
     for (const auto& ann : axes.annotations())
     {
         if (!ann || !ann->visible() || !ann->has_arrow())
@@ -1725,7 +1725,7 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
         backend_.bind_pipeline(grid_overlay3d_pipeline_);
 
         SeriesPushConstants pc{};
-        const auto&         theme_colors = theme_mgr_.colors();
+        const auto&         theme_colors = plot_colors();
         float               blend        = 0.3f;
         ui::Color           blended(theme_colors.grid_major.r * (1.0f - blend) + blend,
                           theme_colors.grid_major.g * (1.0f - blend) + blend,
@@ -1842,7 +1842,7 @@ void Renderer::render_axis_border(AxesBase& axes,
     backend_.bind_pipeline(grid_pipeline_);
 
     SeriesPushConstants pc{};
-    const auto&         theme_colors = theme_mgr_.colors();
+    const auto&         theme_colors = plot_colors();
     set_pc_color_geom(pc.color, theme_colors.axis_line, theme_mgr_);
     pc.line_width    = 1.0f;
     pc.data_offset_x = 0.0f;

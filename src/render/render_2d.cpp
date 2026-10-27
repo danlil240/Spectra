@@ -101,7 +101,7 @@ void Renderer::render_series(Series&             series,
         eff_opacity = series.opacity();
     }
     // 'k' / 'w' follow the theme foreground so they stay visible (see theme.hpp).
-    eff_color   = ui::adapt_series_color_to_theme(eff_color, theme_mgr_.colors());
+    eff_color   = ui::adapt_series_color_to_theme(eff_color, plot_colors());
     pc.color[0] = eff_color.r;
     pc.color[1] = eff_color.g;
     pc.color[2] = eff_color.b;
@@ -235,7 +235,7 @@ void Renderer::render_series(Series&             series,
             const ScatterMarkerParams marker =
                 resolve_scatter_marker(style.marker_style,
                                        use_colormap,
-                                       theme_mgr_.colors().bg_canvas.luminance());
+                                       plot_colors().bg_canvas.luminance());
             pc.marker_type = marker.marker_type;
             pc._pad2[1]    = marker.edge_mix;
             backend_.push_constants(pc);
@@ -275,7 +275,7 @@ void Renderer::render_series(Series&             series,
             const ScatterMarkerParams marker =
                 resolve_scatter_marker(scatter3d->marker_style(),
                                        false,
-                                       theme_mgr_.colors().bg_canvas.luminance());
+                                       plot_colors().bg_canvas.luminance());
             pc.marker_type = marker.marker_type;
             pc._pad2[1]    = marker.edge_mix;
             backend_.push_constants(pc);
@@ -632,7 +632,7 @@ void Renderer::render_selection_highlight(AxesBase& axes, const Rect& /*viewport
     if (selected_series_.empty())
         return;
 
-    const auto& accent = theme_mgr_.colors().accent;
+    const auto& accent = plot_colors().accent;
 
     for (const auto* sel : selected_series_)
     {

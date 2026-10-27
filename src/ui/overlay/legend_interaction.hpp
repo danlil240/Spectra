@@ -56,7 +56,8 @@ class LegendInteraction
               const Rect&         viewport,
               size_t              axes_index,
               const LegendConfig& config,
-              uintptr_t           figure_id);
+              uintptr_t           figure_id,
+              const FigureStyle*  figure_style = nullptr);
 
     // ─── Queries ────────────────────────────────────────────────────────
 

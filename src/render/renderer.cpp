@@ -478,11 +478,17 @@ void Renderer::render_figure_content(Figure& figure, FigureViewModel* fig_vm)
     figure_vm_ = fig_vm;
     unsupported_series_.clear();
 
+    // Everything below is drawn on the figure's plot surface: its background
+    // override when set, otherwise the theme canvas (see plot_colors()).
+    const ui::ThemeColors surface_colors = theme_mgr_.plot_surface_colors(figure.style());
+    plot_colors_                         = &surface_colors;
+
     // Auto-coloured series follow the active theme's data palette (P0-6) and
-    // format-letter colours ("r--") its dark / light shade set (P1-5).
+    // format-letter colours ("r--") its dark / light shade set (P1-5), both
+    // chosen for the plot surface.
     ui::resolve_auto_series_colors(figure,
-                                   theme_mgr_.current_data_palette(),
-                                   ui::is_light_plot_background(theme_mgr_.colors()));
+                                   theme_mgr_.plot_surface_data_palette(figure.style()),
+                                   ui::is_light_plot_background(surface_colors));
 
     uint32_t w = figure.width();
     uint32_t h = figure.height();
@@ -545,6 +551,13 @@ void Renderer::render_figure_content(Figure& figure, FigureViewModel* fig_vm)
     // Legends and colorbars on top of everything else (text is queued for
     // render_text()).
     render_annotations(figure);
+
+    plot_colors_ = nullptr;
+}
+
+const ui::ThemeColors& Renderer::plot_colors() const
+{
+    return plot_colors_ ? *plot_colors_ : theme_mgr_.colors();
 }
 
 bool Renderer::require_pipeline(PipelineHandle pipeline, std::string_view kind)

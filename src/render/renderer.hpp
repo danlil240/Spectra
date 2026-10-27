@@ -20,6 +20,7 @@ class FigureViewModel;
 namespace spectra::ui
 {
 class ThemeManager;
+struct ThemeColors;
 }
 
 #include <array>
@@ -277,6 +278,11 @@ class Renderer
     // Enables Phase 2 ViewModel-based rendering: axes limits read via AxesViewModel,
     // series properties (visible, color, opacity) read via SeriesViewModel.
     FigureViewModel* figure_vm_ = nullptr;
+
+    // Colours of the figure's plot surface for the current render_figure_content()
+    // call (ThemeManager::plot_surface_colors()); null outside of it.
+    const ui::ThemeColors* plot_colors_ = nullptr;
+    const ui::ThemeColors& plot_colors() const;
 
     // See unsupported_series().  unsupported_warned_ persists across frames so
     // each kind is logged only once.

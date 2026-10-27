@@ -372,6 +372,18 @@ class ThemeManager
     const std::vector<std::string>& available_data_palettes() const;
     const std::string& current_data_palette_name() const { return current_data_palette_name_; }
 
+    // Plot surface of a figure (S10).  A figure whose FigureStyle::background_override
+    // is set is drawn on that colour instead of the theme canvas, so every
+    // background-dependent choice (format-letter shades, 'k'/'w' remapping, the
+    // "default" palette, axis/tick/title/legend ink) must follow that surface.
+    // plot_surface_colors() returns the active colours with bg_canvas replaced by
+    // the override; when the override's lightness is opposite to the theme
+    // canvas, the plot ink tokens come from the built-in theme of that lightness
+    // ("light" or "dark").  Without an override — or with one equal to the theme
+    // canvas — the result equals colors().
+    ThemeColors        plot_surface_colors(const FigureStyle& style) const;
+    const DataPalette& plot_surface_data_palette(const FigureStyle& style) const;
+
     // Animated palette transition
     void transition_palette(const std::string& palette_name,
                             float              duration_sec = tokens::DURATION_SLOW);
@@ -476,6 +488,9 @@ class ThemeManager
     void               initialize_data_palettes();
     const DataPalette& resolve_data_palette(const std::string& name) const;
     ThemeColors interpolate_colors(const ThemeColors& start, const ThemeColors& end, float t) const;
+    // Built-in theme whose ink suits @p style's override surface when that
+    // surface's lightness is opposite to the theme canvas; nullptr otherwise.
+    const Theme* plot_surface_ink_theme(const FigureStyle& style) const;
 };
 
 // True when the theme's plot canvas is light (format-letter colours then use

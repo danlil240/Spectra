@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cmath>
 #include <filesystem>
 #include <fstream>
@@ -371,6 +372,53 @@ TEST_F(ThemeManagerTest, HighContrastThemeHasWhiteText)
     EXPECT_FLOAT_EQ(c.text_primary.r, 1.0f);
     EXPECT_FLOAT_EQ(c.text_primary.g, 1.0f);
     EXPECT_FLOAT_EQ(c.text_primary.b, 1.0f);
+}
+
+namespace
+{
+// WCAG relative luminance of `fg` composited over the opaque `bg`.
+float composited_luminance(const Color& fg, const Color& bg)
+{
+    auto lin = [](float c)
+    { return c <= 0.04045f ? c / 12.92f : std::pow((c + 0.055f) / 1.055f, 2.4f); };
+    float r = fg.r * fg.a + bg.r * (1.0f - fg.a);
+    float g = fg.g * fg.a + bg.g * (1.0f - fg.a);
+    float b = fg.b * fg.a + bg.b * (1.0f - fg.a);
+    return 0.2126f * lin(r) + 0.7152f * lin(g) + 0.0722f * lin(b);
+}
+
+float contrast_on(const Color& fg, const Color& bg)
+{
+    float l_fg = composited_luminance(fg, bg);
+    float l_bg = composited_luminance(bg, bg);
+    return (std::max(l_fg, l_bg) + 0.05f) / (std::min(l_fg, l_bg) + 0.05f);
+}
+}   // namespace
+
+TEST_F(ThemeManagerTest, HighContrastGridIsDimmerThanAxesAndText)
+{
+    auto& tm = ThemeManager::instance();
+    tm.set_theme("high_contrast");
+    const auto& c      = tm.colors();
+    const Color canvas = c.bg_canvas;
+
+    float major = contrast_on(c.grid_major, canvas);
+    float minor = contrast_on(c.grid_minor, canvas);
+
+    // Grid is a reference, so it must sit well below the axis, tick labels and text.
+    EXPECT_LT(major, contrast_on(c.axis_line, canvas) / 6.0f);
+    EXPECT_LT(major, contrast_on(c.tick_label, canvas) / 6.0f);
+    EXPECT_LT(major, contrast_on(c.text_primary, canvas) / 6.0f);
+    EXPECT_LT(contrast_on(c.grid_line, canvas), contrast_on(c.axis_line, canvas) / 6.0f);
+
+    // Major grid stays visible; minor grid is nearly hidden and fainter than major.
+    EXPECT_GE(major, 2.0f);
+    EXPECT_LT(minor, major);
+    EXPECT_LE(minor, 1.4f);
+
+    // Text, axes and ticks keep full high-contrast levels.
+    EXPECT_GE(contrast_on(c.axis_line, canvas), 15.0f);
+    EXPECT_GE(contrast_on(c.tick_label, canvas), 15.0f);
 }
 
 TEST_F(ThemeManagerTest, CurrentReturnsValidTheme)

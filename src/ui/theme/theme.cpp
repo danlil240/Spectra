@@ -1330,10 +1330,12 @@ void ThemeManager::initialize_default_themes()
                                                      .info     = Color::from_hex(0xFFD700),
                                                      .critical = Color::from_hex(0xFF00FF),
 
-                            // Plot-specific
-                                                     .grid_major       = Color::from_hex(0x666666),
-                                                     .grid_minor       = Color::from_hex(0x444444),
-                                                     .grid_line        = Color::from_hex(0x666666),
+                            // Plot-specific — text, axes and ticks stay at full contrast;
+                            // the grid is a dim reference so it never outweighs the data,
+                            // and the minor grid is nearly hidden.
+                                                     .grid_major       = Color::from_hex(0x4D4D4D),
+                                                     .grid_minor       = Color::from_hex(0x1C1C1C),
+                                                     .grid_line        = Color::from_hex(0x4D4D4D),
                                                      .axis_line        = Color::from_hex(0xFFFFFF),
                                                      .tick_label       = Color::from_hex(0xFFFFFF),
                                                      .crosshair        = Color::from_hex(0xCCFFD700),

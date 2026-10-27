@@ -15,6 +15,7 @@
     #include "core/axis_scale.hpp"
     #include "data/sorted_x_query.hpp"
     #include "axes3d_pick.hpp"
+    #include "crosshair_mapping.hpp"
     #include "ui/data/axis_link.hpp"
 
 namespace spectra
@@ -208,13 +209,9 @@ void DataInteraction::update(const CursorReadout& cursor, Figure& figure)
     if (axis_link_mgr_ && active_axes_ && cursor.valid)
     {
         SharedCursor sc;
-        sc.valid  = true;
-        sc.data_x = xlim_min_
-                    + (static_cast<float>(cursor.screen_x) - active_viewport_.x)
-                          / active_viewport_.w * (xlim_max_ - xlim_min_);
-        sc.data_y = ylim_max_
-                    - (static_cast<float>(cursor.screen_y) - active_viewport_.y)
-                          / active_viewport_.h * (ylim_max_ - ylim_min_);
+        sc.valid       = true;
+        sc.data_x      = crosshair_mapping::screen_to_data_x(*active_axes_, cursor.screen_x);
+        sc.data_y      = crosshair_mapping::screen_to_data_y(*active_axes_, cursor.screen_y);
         sc.screen_x    = cursor.screen_x;
         sc.screen_y    = cursor.screen_y;
         sc.source_axes = active_axes_;
@@ -271,14 +268,8 @@ bool DataInteraction::refresh_pointer_state(double screen_x, double screen_y)
             ylim_min_    = yl.min;
             ylim_max_    = yl.max;
 
-            double x_range = xlim_max_ - xlim_min_;
-            double y_range = ylim_max_ - ylim_min_;
-            if (x_range == 0.0)
-                x_range = 1.0;
-            if (y_range == 0.0)
-                y_range = 1.0;
-            cursor.data_x = xlim_min_ + static_cast<double>((sx - vp.x) / vp.w) * x_range;
-            cursor.data_y = ylim_max_ - static_cast<double>((sy - vp.y) / vp.h) * y_range;
+            cursor.data_x = crosshair_mapping::screen_to_data_x(*axes2d, screen_x);
+            cursor.data_y = crosshair_mapping::screen_to_data_y(*axes2d, screen_y);
         }
         else if (auto* axes3d = dynamic_cast<Axes3D*>(axes_base))
         {

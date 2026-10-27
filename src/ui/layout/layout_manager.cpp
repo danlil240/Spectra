@@ -324,7 +324,10 @@ float LayoutManager::nav_rail_scale_for_height(float available_height,
     const float min_h = nav_rail_content_height(button_count, separator_count, min_scale);
     if (available_height <= min_h)
         return min_scale;
-    return std::max(min_scale, available_height / nominal);
+    // Only the cells and separators scale; the window padding is fixed.
+    const float scale =
+        (available_height - NAV_RAIL_VERTICAL_PADDING) / (nominal - NAV_RAIL_VERTICAL_PADDING);
+    return std::max(min_scale, scale);
 }
 
 float LayoutManager::nav_rail_scale_for_height(float available_height)
@@ -347,6 +350,11 @@ float LayoutManager::min_window_height(bool nav_rail_visible,
     else
         h = std::max(h, WINDOW_MIN_HEIGHT_NO_NAV);
     return h;
+}
+
+float LayoutManager::plot_margin_right(float figure_margin_right)
+{
+    return std::max(figure_margin_right, INSPECTOR_TAB_CLEARANCE);
 }
 
 float LayoutManager::min_window_width(bool nav_rail_visible)

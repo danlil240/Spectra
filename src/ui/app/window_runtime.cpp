@@ -855,7 +855,8 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                 const auto& af_style = active_figure->style();
                 Margins     fig_margins;
                 fig_margins.left   = af_style.margin_left;
-                fig_margins.right  = af_style.margin_right;
+                // Keep the plot clear of the inspector tab on the canvas' right edge.
+                fig_margins.right  = LayoutManager::plot_margin_right(af_style.margin_right);
                 fig_margins.top    = af_style.margin_top;
                 fig_margins.bottom = af_style.margin_bottom;
 

@@ -119,13 +119,25 @@ class LayoutManager
     static constexpr int   NAV_RAIL_FALLBACK_BUTTON_COUNT = 12;
     static constexpr float NAV_RAIL_CELL_HEIGHT      = 56.0f;
     static constexpr float NAV_RAIL_CELL_HEIGHT_MIN  = 36.0f;
-    static constexpr float NAV_RAIL_SEPARATOR_HEIGHT = 9.0f;
+    // A rail separator is a SPACE_2 dummy above and below the hairline (2 * 8 px); keep in
+    // sync with draw_separator() in draw_nav_rail() / SpectraNavRail, or the last button
+    // ("Help") is clipped at the bottom of short windows.
+    static constexpr float NAV_RAIL_SEPARATOR_HEIGHT = 16.0f;
     static constexpr float NAV_RAIL_VERTICAL_PADDING = 24.0f;   // top+bottom window padding
     static constexpr float WINDOW_MIN_HEIGHT_NO_NAV  = 240.0f;
     static constexpr float WINDOW_MIN_CANVAS_WIDTH   = 160.0f;
     // Narrowest docked inspector drawn when the window cannot fit
     // INSPECTOR_MIN_WIDTH; below this the inspector is auto-hidden instead.
     static constexpr float INSPECTOR_MIN_FIT_WIDTH = 160.0f;
+    // Inspector open/close tab drawn on the canvas' right edge (draw_inspector_toggle()).
+    static constexpr float INSPECTOR_TAB_WIDTH  = 22.0f;
+    static constexpr float INSPECTOR_TAB_HEIGHT = 52.0f;
+    // Smallest right figure margin that keeps plots clear of the inspector tab.
+    static constexpr float INSPECTOR_TAB_CLEARANCE = INSPECTOR_TAB_WIDTH + 10.0f;
+
+    // Right margin to use for subplot layout in a canvas that shows the inspector tab:
+    // the figure's own margin, widened so the tab never sits on the plot area.
+    static float plot_margin_right(float figure_margin_right);
 
     static float nav_rail_content_height(int button_count, int separator_count, float cell_scale);
     static float nav_rail_nominal_content_height();

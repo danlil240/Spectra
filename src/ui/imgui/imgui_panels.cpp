@@ -654,8 +654,8 @@ void ImGuiIntegration::draw_inspector_toggle()
     bool is_open = layout_manager_->is_inspector_visible();
 
     // Chevron tab on the canvas/inspector seam — wide hit target, compact visual pill.
-    constexpr float VIS_W           = 22.0f;
-    constexpr float VIS_H           = 52.0f;
+    constexpr float VIS_W           = LayoutManager::INSPECTOR_TAB_WIDTH;
+    constexpr float VIS_H           = LayoutManager::INSPECTOR_TAB_HEIGHT;
     constexpr float BTN_ROUNDING    = 11.0f;
     constexpr float HIT_EXTRA_LEFT  = 12.0f;
     constexpr float HIT_EXTRA_VERT  = 10.0f;

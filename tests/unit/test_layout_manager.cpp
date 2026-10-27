@@ -3,6 +3,7 @@
 #include <cstdio>
 
 #include "ui/layout/layout_manager.hpp"
+#include "ui/theme/design_tokens.hpp"
 
 using namespace spectra;
 
@@ -325,6 +326,54 @@ TEST(LayoutManager, NavRailScaleUsesItemCounts)
     EXPECT_LT(LayoutManager::nav_rail_scale_for_height(h, buttons, seps),
               LayoutManager::nav_rail_scale_for_height(
                   h, LayoutManager::NAV_RAIL_FALLBACK_BUTTON_COUNT, seps));
+}
+
+// Height draw_nav_rail() / SpectraNavRail actually use: SPACE_3 window padding top and
+// bottom, NAV_RAIL_CELL_HEIGHT per button and a SPACE_2 dummy above and below each
+// separator hairline, all scaled by the rail scale.
+static float drawn_nav_rail_height(int buttons, int seps, float scale)
+{
+    return 2.0f * ui::tokens::SPACE_3 + buttons * LayoutManager::NAV_RAIL_CELL_HEIGHT * scale
+           + seps * 2.0f * ui::tokens::SPACE_2 * scale;
+}
+
+// Issue #110: the Qt demo's rail (12 buttons, 4 separators) in a 736 px tall rail was
+// drawn at scale 1 and clipped its last button ("Help"), because the layout budgeted
+// 9 px per separator while the rail draws 16 px.
+TEST(LayoutManager, NavRailScaledContentFitsAvailableHeight)
+{
+    EXPECT_FLOAT_EQ(LayoutManager::NAV_RAIL_SEPARATOR_HEIGHT, 2.0f * ui::tokens::SPACE_2);
+    EXPECT_FLOAT_EQ(LayoutManager::NAV_RAIL_VERTICAL_PADDING, 2.0f * ui::tokens::SPACE_3);
+
+    const int seps = LayoutManager::NAV_RAIL_SEPARATOR_COUNT;
+    for (int buttons :
+         {LayoutManager::NAV_RAIL_FALLBACK_BUTTON_COUNT, LayoutManager::NAV_RAIL_BUTTON_COUNT})
+    {
+        const float min_h = LayoutManager::nav_rail_content_height(
+            buttons,
+            seps,
+            LayoutManager::NAV_RAIL_CELL_HEIGHT_MIN / LayoutManager::NAV_RAIL_CELL_HEIGHT);
+        for (float avail : {min_h, 600.0f, 700.0f, 736.0f, 760.0f, 900.0f})
+        {
+            if (avail < min_h)
+                continue;
+            const float scale = LayoutManager::nav_rail_scale_for_height(avail, buttons, seps);
+            EXPECT_LE(drawn_nav_rail_height(buttons, seps, scale), avail + 0.01f)
+                << "buttons=" << buttons << " available=" << avail;
+        }
+    }
+}
+
+// Issue #110: the inspector open/close tab sits on the canvas' right edge; subplot
+// layout must keep the plot area clear of it.
+TEST(LayoutManager, PlotMarginRightClearsInspectorTab)
+{
+    EXPECT_GT(LayoutManager::INSPECTOR_TAB_CLEARANCE, LayoutManager::INSPECTOR_TAB_WIDTH);
+    EXPECT_FLOAT_EQ(LayoutManager::plot_margin_right(20.0f),
+                    LayoutManager::INSPECTOR_TAB_CLEARANCE);
+    EXPECT_FLOAT_EQ(LayoutManager::plot_margin_right(0.0f), LayoutManager::INSPECTOR_TAB_CLEARANCE);
+    // A figure that already asks for more room keeps its own margin.
+    EXPECT_FLOAT_EQ(LayoutManager::plot_margin_right(80.0f), 80.0f);
 }
 
 TEST(LayoutManager, MinWindowSizeAccountsForNavRail)

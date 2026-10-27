@@ -115,6 +115,14 @@ inline std::string overflow_text(int hidden)
 //      hold it if needed.
 // The result never scrolls: rows == visible_rows, and `shown` + `overflow`
 // == n.  The interactive ImGui legend keeps using compute_grid and scrolls.
+//
+// Font size (shared by the GPU/PNG and SVG legends): an explicit
+// LegendConfig::font_size is used exactly, with row_h = font_size + 6 and
+// min_row_h = font_size + 2 (the window legend's row height too), and is
+// never shrunk to make more entries fit.  Only the automatic size (0) may
+// fall back to a smaller font before entries are summarised; the SVG auto
+// size (12.5 px) is already below the GPU tick font, so only the GPU path
+// has a smaller font to try.
 inline GridLayout compute_static_grid(int   n,
                                       float col_w,
                                       float row_h,

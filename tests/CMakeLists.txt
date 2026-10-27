@@ -153,6 +153,7 @@ set(SPECTRA_UNIT_TESTS
     test_legend_interaction
     test_legend_colorbar
     test_legend_bounds
+    test_legend_font_size
     test_figure_manager
     test_inspector_stats
     test_box_zoom_overlay
@@ -386,7 +387,7 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
         # Hover round trip drives DataInteraction (and legend_bounds draws the
         # interactive legend), which needs an ImGui context; test_theme checks the
         # ImGui palette apply_to_imgui() writes during a theme transition.
-        if(_test MATCHES "^test_(double_precision_data|data_interaction|legend_bounds|overlay_text_fit|theme)$" AND DEFINED imgui_SOURCE_DIR)
+        if(_test MATCHES "^test_(double_precision_data|data_interaction|legend_bounds|legend_font_size|overlay_text_fit|theme)$" AND DEFINED imgui_SOURCE_DIR)
             target_include_directories(unit_${_test} SYSTEM PRIVATE ${imgui_SOURCE_DIR})
         endif()
         # CSV writer shared with the export_csv example plugin (header-only)

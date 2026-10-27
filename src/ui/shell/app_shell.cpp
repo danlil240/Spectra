@@ -2,6 +2,9 @@
     #include "ui/shell/app_shell.hpp"
 
     #include "imgui.h"
+    #ifdef IMGUI_HAS_DOCK
+        #include "imgui_internal.h"
+    #endif
     #include "ui/layout/layout_manager.hpp"
     #include "ui/shell/shell_style.hpp"
 
@@ -196,7 +199,17 @@ void AppShell::draw_dockspace()
         }
 
         if (canvas_host_)
+        {
+            // Restrict the canvas to the dockspace's central node so docked
+            // panels push the plot aside instead of floating over it.
+            const ImGuiDockNode* central = ImGui::DockBuilderGetCentralNode(dockspace_id_);
+            if (central && central->Size.x > 0.0f && central->Size.y > 0.0f)
+                canvas_host_->set_region(
+                    Rect{central->Pos.x, central->Pos.y, central->Size.x, central->Size.y});
+            else
+                canvas_host_->clear_region();
             canvas_host_->draw();
+        }
     }
     ImGui::End();
     ImGui::PopStyleVar();

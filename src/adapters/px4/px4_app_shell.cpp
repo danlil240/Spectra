@@ -192,7 +192,7 @@ Px4AppConfig parse_px4_args(int argc, char** argv, std::string& error_out)
 Px4AppShell::Px4AppShell(const Px4AppConfig& cfg)
 #ifdef SPECTRA_USE_IMGUI
     : spectra::ui::shell::AppShell(
-          spectra::ui::shell::AppShellConfig{.nav_rail = false, .app_name = "Spectra PX4"}),
+          spectra::ui::shell::AppShellConfig{.nav_rail = true, .app_name = "Spectra PX4"}),
       cfg_(cfg)
 #else
     : cfg_(cfg)
@@ -246,19 +246,25 @@ bool Px4AppShell::init()
 
     // Auto-connect if requested.
     if (cfg_.auto_connect)
-    {
-        bridge_.init(cfg_.host, cfg_.port);
-        bridge_.start();
-        plot_mgr_.set_bridge(&bridge_);
-        set_panel_visible("px4.live_connection", true);
-    }
+        connect_live();
 
 #ifdef SPECTRA_USE_IMGUI
     initialize();
-    nav_rail().set_search_enabled(true);
 #endif
 
     return true;
+}
+
+// ---------------------------------------------------------------------------
+// connect_live
+// ---------------------------------------------------------------------------
+
+void Px4AppShell::connect_live()
+{
+    bridge_.init(cfg_.host, cfg_.port);
+    bridge_.start();
+    plot_mgr_.set_bridge(&bridge_);
+    set_panel_visible("px4.live_connection", true);
 }
 
 // ---------------------------------------------------------------------------
@@ -542,10 +548,29 @@ void Px4AppShell::close_all_plots()
     sync_canvas_figure(true);
 }
 
+bool Px4AppShell::empty_state_visible() const
+{
+    return !reader_.is_open() && !bridge_.is_connected() && !auto_plot_active_
+           && plot_mgr_.field_count() == 0;
+}
+
 void Px4AppShell::sync_canvas_figure(bool force)
 {
     if (!canvas_figure_)
         return;
+
+    if (empty_state_visible())
+    {
+        // Nothing to plot: drop all axes so the canvas shows the empty state
+        // rather than a meaningless 0-1 grid.
+        if (!canvas_figure_->axes().empty())
+        {
+            rebuild_figure_axes(1);
+            canvas_figure_->legend().visible = false;
+        }
+        last_canvas_revision_ = static_cast<uint64_t>(-1);
+        return;
+    }
 
     if (auto_plot_active_)
     {

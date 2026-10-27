@@ -9,6 +9,7 @@
 #include <spectra/series.hpp>
 #include <spectra/series3d.hpp>
 #include <spectra/series_shapes.hpp>
+#include <spectra/series_shapes3d.hpp>
 #include <spectra/series_stats.hpp>
 #include <string>
 #include <vector>
@@ -17,6 +18,7 @@
 
 #include "core/label_layout.hpp"
 #include "io/svg_label_metrics.hpp"
+#include "io/text_metrics.hpp"
 #include "render/text_fit.hpp"
 
 namespace spectra
@@ -115,8 +117,9 @@ TEST(SvgExport, ContainsCirclesForScatterSeries)
     auto        fig = make_scatter_figure();
     std::string svg = SvgExporter::to_string(fig);
 
-    // One shared marker <symbol>, instanced once per point (+1 legend swatch)
-    EXPECT_EQ(count_of(svg, "<symbol"), 1);
+    // One shared marker <symbol> for the points (the renderer's default dot
+    // with its edge tint) plus the legend's plain disc, instanced with <use>.
+    EXPECT_EQ(count_of(svg, "<symbol"), 2);
     EXPECT_GE(count_of(svg, "<use "), 3);
 }
 
@@ -909,4 +912,219 @@ TEST(SvgExport, FittedLabelsMatchRasterHelper)
 }
 
 }   // namespace
+
+// ─── Issue #106: measured text, renderer marker sizes, lit 3D, ShapeSeries3D ──
+
+namespace
+{
+// Body of the first <symbol> whose content contains `needle` ("" if none).
+std::string symbol_with(const std::string& svg, const std::string& needle)
+{
+    size_t p = 0;
+    while ((p = svg.find("<symbol", p)) != std::string::npos)
+    {
+        const size_t e    = svg.find("</symbol>", p);
+        std::string  body = svg.substr(p, e - p);
+        if (body.find(needle) != std::string::npos)
+            return body;
+        p = e;
+    }
+    return {};
+}
+
+// Every triangle fill colour, in document order.
+std::vector<Color> triangle_fills(const std::string& svg)
+{
+    std::vector<Color> out;
+    const std::string  key = "Z\" fill=\"#";
+    size_t             p   = 0;
+    while ((p = svg.find(key, p)) != std::string::npos)
+    {
+        p += key.size();
+        const unsigned v = static_cast<unsigned>(std::stoul(svg.substr(p, 6), nullptr, 16));
+        out.push_back(Color{static_cast<float>((v >> 16) & 0xFF) / 255.0f,
+                            static_cast<float>((v >> 8) & 0xFF) / 255.0f,
+                            static_cast<float>(v & 0xFF) / 255.0f,
+                            1.0f});
+    }
+    return out;
+}
+
+float max_channel_diff(const Color& a, const Color& b)
+{
+    return std::max({std::fabs(a.r - b.r), std::fabs(a.g - b.g), std::fabs(a.b - b.b)});
+}
+}   // namespace
+
+TEST(SvgExport, TextIsMeasuredWithInterMetrics)
+{
+    ASSERT_TRUE(inter_metrics_available());
+    EXPECT_GT(inter_text_width("W", 10.0f), 2.0f * inter_text_width("i", 10.0f));
+    EXPECT_FLOAT_EQ(inter_text_width("abc", 20.0f), 2.0f * inter_text_width("abc", 10.0f));
+    // Glyphs Inter lacks fall back to a full-width estimate.
+    EXPECT_FLOAT_EQ(inter_text_width("\xe6\xbc\xa2", 10.0f), 10.0f);
+}
+
+TEST(SvgExport, LegendBoxGrowsByMeasuredLabelWidth)
+{
+    auto legend_width = [](const std::string& label)
+    {
+        Figure             fig({.width = 1000, .height = 600});
+        auto&              ax = fig.subplot(1, 1, 1);
+        std::vector<float> x = {0.0f, 1.0f}, y = {0.0f, 1.0f};
+        ax.line(x, y).label(label);
+        fig.compute_layout();
+        const std::string svg = SvgExporter::to_string(fig);
+        const size_t      g   = svg.find("<g class=\"legend\">");
+        return attr(svg, g, "width");
+    };
+    const std::string narrow(24, 'i'), wide(24, 'W');
+    // The box is exactly as much wider as the measured label (font 12.5 px).
+    EXPECT_NEAR(legend_width(wide) - legend_width(narrow),
+                inter_text_width(wide, 12.5f) - inter_text_width(narrow, 12.5f),
+                0.05f);
+}
+
+TEST(SvgExport, MarkerSizeIsADiameterLikeTheRenderer)
+{
+    // scatter.vert: quad half size = size / 2 + 1; scatter.frag: circle radius 0.85 UV.
+    Figure             fig({.width = 640, .height = 480});
+    auto&              ax = fig.subplot(1, 1, 1);
+    std::vector<float> x = {1.0f, 2.0f}, y = {1.0f, 2.0f};
+    ax.scatter(x, y).size(10.0f).marker_style(MarkerStyle::FilledCircle);
+    ax.line(x, y).marker_style(MarkerStyle::FilledCircle).marker_size(16.0f);
+    fig.compute_layout();
+    const std::string svg = SvgExporter::to_string(fig);
+    EXPECT_NE(symbol_with(svg, "<circle r=\"5.1\""), "");    // 0.85 * (10/2 + 1)
+    EXPECT_NE(symbol_with(svg, "<circle r=\"7.65\""), "");   // 0.85 * (16/2 + 1)
+}
+
+TEST(SvgExport, DefaultScatterDotHasRendererEdgeTint)
+{
+    auto svg_for = [](const SvgStyle& st, bool three_d)
+    {
+        Figure             fig({.width = 640, .height = 480});
+        std::vector<float> x = {1.0f, 2.0f}, y = {1.0f, 2.0f}, z = {0.0f, 1.0f};
+        if (three_d)
+            fig.subplot3d(1, 1, 1).scatter3d(x, y, z);
+        else
+            fig.subplot(1, 1, 1).scatter(x, y);
+        fig.compute_layout();
+        return SvgExporter::to_string(fig, st);
+    };
+    SvgStyle dark;
+    dark.background = {0.05f, 0.06f, 0.08f, 1.0f};
+
+    // Filled dot (never a ring) with a rim tinted to black on light, white on dark.
+    for (bool three_d : {false, true})
+    {
+        const std::string light_dot = symbol_with(svg_for(SvgStyle{}, three_d), "stroke=");
+        EXPECT_NE(light_dot.find("fill=\"currentColor\""), std::string::npos);
+        EXPECT_NE(light_dot.find("stroke=\"#000000\""), std::string::npos) << three_d;
+        EXPECT_NE(light_dot.find("opacity=\"0.3\""), std::string::npos);
+        const std::string dark_dot = symbol_with(svg_for(dark, three_d), "stroke=");
+        EXPECT_NE(dark_dot.find("fill=\"currentColor\""), std::string::npos);
+        EXPECT_NE(dark_dot.find("stroke=\"#ffffff\""), std::string::npos) << three_d;
+    }
+}
+
+TEST(SvgExport, MeshShadingUsesVertexNormals)
+{
+    // Two triangles facing different directions.
+    auto fills_for = [](float nz)
+    {
+        Figure                fig({.width = 600, .height = 500});
+        auto&                 ax   = fig.subplot3d(1, 1, 1);
+        std::vector<float>    v    = {0, 0, 0, 0, 0, nz, 1, 0, 0, 0, 0, nz, 0, 1, 0, 0, 0, nz,
+                                      2, 0, 0, 0, 0, nz, 3, 0, 1, 0, 0, nz, 2, 1, 1, 0, 0, nz};
+        std::vector<uint32_t> idx  = {0, 1, 2, 3, 4, 5};
+        auto&                 mesh = ax.mesh(v, idx);
+        mesh.color(rgb(0.2f, 0.5f, 0.8f));
+        mesh.specular(0.002f);
+        ax.show_bounding_box(false);
+        fig.compute_layout();
+        return triangle_fills(SvgExporter::to_string(fig));
+    };
+    const auto smooth = fills_for(1.0f);
+    ASSERT_EQ(smooth.size(), 2u);
+    // Same vertex normals -> same lighting, whatever the face orientation.
+    EXPECT_LE(max_channel_diff(smooth[0], smooth[1]), 2.0f / 255.0f);
+    // Without normals, the face normal is used: the tilted face shades differently.
+    const auto faceted = fills_for(0.0f);
+    ASSERT_EQ(faceted.size(), 2u);
+    EXPECT_GT(max_channel_diff(faceted[0], faceted[1]), 8.0f / 255.0f);
+}
+
+TEST(SvgExport, SurfaceShadingFollowsTheRendererMaterial)
+{
+    // A flat surface facing +Z is lit uniformly: shade = min(0.40 + diffuse + fill, 1)
+    // with the default material, so the base colour is never brightened past itself.
+    Figure             fig({.width = 600, .height = 500});
+    auto&              ax = fig.subplot3d(1, 1, 1);
+    std::vector<float> g  = {0.0f, 1.0f, 2.0f};
+    std::vector<float> z(9, 0.0f);
+    const Color        base = rgb(0.2f, 0.6f, 0.4f);
+    auto&              surf = ax.surface(g, g, z);
+    surf.color(base);
+    surf.specular(0.002f);
+    ax.zlim(-1.0f, 1.0f);
+    fig.compute_layout();
+    const auto fills = triangle_fills(SvgExporter::to_string(fig));
+    ASSERT_EQ(fills.size(), 8u);
+    for (const auto& f : fills)
+    {
+        EXPECT_LE(max_channel_diff(f, fills[0]), 2.0f / 255.0f);
+        EXPECT_LE(f.g, base.g + 1.0f / 255.0f);
+        EXPECT_GE(f.g, base.g * 0.40f);
+        // Hue preserved: shading scales all channels alike.
+        EXPECT_NEAR(f.r / f.g, base.r / base.g, 0.03f);
+    }
+}
+
+TEST(SvgExport, ShapeSeries3DIsExportedWithPerShapeColours)
+{
+    Figure fig({.width = 700, .height = 500});
+    auto&  ax = fig.subplot3d(1, 1, 1);
+    auto&  sh = ax.shapes3d();
+    sh.color(rgb(0.1f, 0.2f, 0.9f));
+    sh.box(0.0f, 0.0f, 0.0f, 0.5f, 0.5f, 0.5f).shape_color(rgb(0.9f, 0.1f, 0.1f));
+    sh.sphere(2.0f, 0.0f, 0.0f, 0.5f).segments(12);
+    sh.box(4.0f, 0.0f, 0.0f, 0.5f, 0.5f, 0.5f).shape_color(Color{0.1f, 0.8f, 0.1f, 0.5f});
+    ax.xlim(-1.0f, 5.0f);
+    ax.ylim(-1.0f, 1.0f);
+    ax.zlim(-1.0f, 1.0f);
+    fig.compute_layout();
+    const std::string svg = SvgExporter::to_string(fig);
+
+    EXPECT_NE(svg.find("<g class=\"shape3d\""), std::string::npos);
+    EXPECT_NE(svg.find("<g class=\"shape3d\" fill-opacity=\"0.5\""), std::string::npos);
+    int red = 0, blue = 0, green = 0;
+    for (const auto& f : triangle_fills(svg))
+    {
+        red += f.r > 2.0f * f.g && f.r > 2.0f * f.b;
+        blue += f.b > 2.0f * f.r && f.b > 2.0f * f.g;
+        green += f.g > 2.0f * f.r && f.g > 2.0f * f.b;
+    }
+    EXPECT_GE(red, 12);     // box: 6 faces x 2 triangles
+    EXPECT_GE(blue, 20);    // sphere
+    EXPECT_GE(green, 12);   // translucent box
+}
+
+TEST(SvgExport, ExportOptionsCarryThePerExportTheme)
+{
+    const auto dir = std::filesystem::temp_directory_path();
+    Figure     fig({.width = 320, .height = 240});
+    fig.subplot(1, 1, 1);
+    ASSERT_TRUE(fig.save_svg((dir / "themed.svg").string(), {.theme = "light"}));
+    EXPECT_EQ(fig.export_req_.svg_theme, "light");
+    ASSERT_TRUE(fig.save_png((dir / "themed.png").string(), {.width = 64, .theme = "dark"}));
+    EXPECT_EQ(fig.export_req_.png_theme, "dark");
+    EXPECT_EQ(fig.export_req_.png_width, 64u);
+    // The original signatures keep working and use the app theme.
+    ASSERT_TRUE(fig.save_png((dir / "plain.png").string(), 32, 32));
+    EXPECT_TRUE(fig.export_req_.png_theme.empty());
+    ASSERT_TRUE(fig.save_svg((dir / "plain.svg").string()));
+    EXPECT_TRUE(fig.export_req_.svg_theme.empty());
+}
+
 }   // namespace spectra

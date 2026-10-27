@@ -500,7 +500,8 @@ class BarSeries : public Series
     std::span<const float> fill_verts() const { return fill_verts_; }
     size_t                 fill_vertex_count() const { return fill_verts_.size() / 3; }
 
-    // Enable/disable horizontal gradient on fills
+    // Enable/disable the fill gradient across the bar thickness (left to right on
+    // vertical bars, top to bottom on horizontal bars)
     BarSeries& gradient(bool g)
     {
         gradient_ = g;

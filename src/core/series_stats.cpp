@@ -167,6 +167,27 @@ static void emit_filled_quad(std::vector<float>& buf,
     emit_vert(buf, x1, y1, a1);
 }
 
+// ─── Helper: emit a filled quad whose gradient runs along y ────────────────
+// Horizontal bars use this so the gradient spans the bar thickness (top edge
+// bright, bottom edge dim), matching vertical bars, whose gradient spans their
+// width.  The shading is then independent of bar length and sign.
+static void emit_filled_quad_ygrad(std::vector<float>& buf,
+                                   float               x0,
+                                   float               y0,
+                                   float               x1,
+                                   float               y1,
+                                   bool                gradient)
+{
+    float a_bot = gradient ? 0.45f : 1.0f;   // y0 edge (dim)
+    float a_top = 1.0f;                      // y1 edge (always bright)
+    emit_vert(buf, x0, y0, a_bot);
+    emit_vert(buf, x1, y0, a_bot);
+    emit_vert(buf, x0, y1, a_top);
+    emit_vert(buf, x0, y1, a_top);
+    emit_vert(buf, x1, y0, a_bot);
+    emit_vert(buf, x1, y1, a_top);
+}
+
 // ─── Helper: emit a filled triangle with per-vertex alpha ──────────────────
 static void emit_filled_tri(std::vector<float>& buf,
                             float               x0,
@@ -719,7 +740,7 @@ void BarSeries::rebuild_geometry()
         else
         {
             // ── Fill: horizontal bar ──
-            emit_filled_quad(fill_verts_, baseline_, pos - hw, h, pos + hw, gradient_);
+            emit_filled_quad_ygrad(fill_verts_, baseline_, pos - hw, h, pos + hw, gradient_);
 
             // ── Outline: horizontal bar border ──
             line_x_.push_back(baseline_);

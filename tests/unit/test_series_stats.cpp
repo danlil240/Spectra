@@ -788,3 +788,149 @@ TEST(ViolinSeries, SettersAfterDataRebuildGeometry)
     vn.violin_width(4.0f * vn.violin_width());
     EXPECT_NEAR(max_finite(vn.x_data()), 4.0f * half_before, 1e-4f);
 }
+
+// ─── Horizontal bars (P0-8) ─────────────────────────────────────────────────
+
+namespace
+{
+float min_finite(std::span<const float> v)
+{
+    float m = std::numeric_limits<float>::infinity();
+    for (float f : v)
+        if (std::isfinite(f))
+            m = std::min(m, f);
+    return m;
+}
+
+float max_finite_h(std::span<const float> v)
+{
+    float m = -std::numeric_limits<float>::infinity();
+    for (float f : v)
+        if (std::isfinite(f))
+            m = std::max(m, f);
+    return m;
+}
+}   // namespace
+
+TEST(BarSeries, HorizontalBarsSitOnCategoryPositionsAlongY)
+{
+    std::vector<float> pos     = {1, 2, 3};
+    std::vector<float> heights = {3, -2, 9};
+    BarSeries          bars(pos, heights);
+    bars.bar_width(0.4f).orientation(BarOrientation::Horizontal);
+
+    // Each bar's outline is 5 points + NaN break: positions on y, values on x.
+    auto x = bars.x_data();
+    auto y = bars.y_data();
+    ASSERT_EQ(x.size(), 6u * pos.size());
+    for (size_t i = 0; i < pos.size(); ++i)
+    {
+        auto bx = x.subspan(i * 6, 5);
+        auto by = y.subspan(i * 6, 5);
+        EXPECT_FLOAT_EQ(min_finite(by), pos[i] - 0.2f);
+        EXPECT_FLOAT_EQ(max_finite_h(by), pos[i] + 0.2f);
+        EXPECT_FLOAT_EQ(min_finite(bx), std::min(0.0f, heights[i]));
+        EXPECT_FLOAT_EQ(max_finite_h(bx), std::max(0.0f, heights[i]));
+    }
+
+    // Fill quads cover the same rectangles.
+    auto fv = bars.fill_verts();
+    ASSERT_EQ(fv.size(), 6u * 3u * pos.size());
+    for (size_t i = 0; i < pos.size(); ++i)
+    {
+        for (size_t k = 0; k < 6; ++k)
+        {
+            const float vx = fv[(i * 6 + k) * 3 + 0];
+            const float vy = fv[(i * 6 + k) * 3 + 1];
+            EXPECT_GE(vy, pos[i] - 0.2f - 1e-6f);
+            EXPECT_LE(vy, pos[i] + 0.2f + 1e-6f);
+            EXPECT_GE(vx, std::min(0.0f, heights[i]) - 1e-6f);
+            EXPECT_LE(vx, std::max(0.0f, heights[i]) + 1e-6f);
+        }
+    }
+}
+
+TEST(BarSeries, HorizontalBarsAutoscaleToValuesOnXAndCategoriesOnY)
+{
+    std::vector<float> p1 = {0.8f, 1.8f, 2.8f}, p2 = {1.2f, 2.2f, 3.2f};
+    std::vector<float> v1 = {3, -4, 9}, v2 = {2, 5, 6};
+    Axes               ax;
+    ax.bar(p1, v1).bar_width(0.4f).orientation(BarOrientation::Horizontal);
+    ax.bar(p2, v2).bar_width(0.4f).orientation(BarOrientation::Horizontal);
+
+    auto xl = ax.x_limits();
+    auto yl = ax.y_limits();
+    // Values (including the negative bar and the longest bar) fit on x.
+    EXPECT_LE(xl.min, -4.0);
+    EXPECT_GE(xl.max, 9.0);
+    // Category extents (incl. half bar width) fit on y, and y does not use the values.
+    EXPECT_LE(yl.min, 0.6);
+    EXPECT_GE(yl.max, 3.4);
+    EXPECT_LT(yl.max, 5.0);
+    EXPECT_GT(yl.min, -1.0);
+}
+
+TEST(BarSeries, HorizontalBarsHonourBaseline)
+{
+    std::vector<float> pos     = {10, 20};
+    std::vector<float> heights = {12, 8};
+    BarSeries          bars(pos, heights);
+    bars.orientation(BarOrientation::Horizontal).baseline(10.0f).bar_width(6.0f);
+
+    EXPECT_FLOAT_EQ(min_finite(bars.x_data()), 8.0f);
+    EXPECT_FLOAT_EQ(max_finite_h(bars.x_data()), 12.0f);
+    EXPECT_FLOAT_EQ(min_finite(bars.y_data()), 7.0f);
+    EXPECT_FLOAT_EQ(max_finite_h(bars.y_data()), 23.0f);
+}
+
+TEST(BarSeries, HorizontalGradientRunsAcrossBarThickness)
+{
+    std::vector<float> pos     = {1, 2};
+    std::vector<float> heights = {5, -5};
+    BarSeries          bars(pos, heights);
+    bars.orientation(BarOrientation::Horizontal).gradient(true);
+
+    // Alpha depends only on y (the thickness edge), never on the bar's length or sign.
+    auto fv = bars.fill_verts();
+    for (size_t v = 0; v < bars.fill_vertex_count(); ++v)
+    {
+        const float vy = fv[v * 3 + 1];
+        const float a  = fv[v * 3 + 2];
+        const float c  = pos[v / 6];
+        if (vy > c)
+        {
+            EXPECT_FLOAT_EQ(a, 1.0f);
+        }
+        else
+        {
+            EXPECT_LT(a, 1.0f);
+        }
+    }
+
+    bars.gradient(false);
+    for (size_t v = 0; v < bars.fill_vertex_count(); ++v)
+    {
+        EXPECT_FLOAT_EQ(bars.fill_verts()[v * 3 + 2], 1.0f);
+    }
+}
+
+TEST(BarSeries, VerticalGradientRunsAcrossBarWidth)
+{
+    std::vector<float> pos     = {1};
+    std::vector<float> heights = {-5};
+    BarSeries          bars(pos, heights);
+    bars.gradient(true);
+
+    auto fv = bars.fill_verts();
+    for (size_t v = 0; v < bars.fill_vertex_count(); ++v)
+    {
+        if (fv[v * 3] < 1.0f)
+        {
+            EXPECT_FLOAT_EQ(fv[v * 3 + 2], 1.0f);
+        }
+        else
+        {
+            EXPECT_LT(fv[v * 3 + 2], 1.0f);
+        }
+    }
+}

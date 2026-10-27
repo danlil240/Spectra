@@ -23,10 +23,12 @@
 #pragma once
 
 #include <algorithm>
-#include <charconv>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <locale>
 #include <optional>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -35,6 +37,8 @@ namespace spectra_examples::csv
 {
 
 // ─── Minimal tolerant JSON reader ────────────────────────────────────────────
+
+struct JsonMember;
 
 struct JsonValue
 {
@@ -53,20 +57,32 @@ struct JsonValue
     double                                         num_v  = 0.0;
     std::string                                    str_v;
     std::vector<JsonValue>                         array_v;
-    std::vector<std::pair<std::string, JsonValue>> object_v;
+    std::vector<JsonMember>                        object_v;
 
-    const JsonValue* find(std::string_view key) const
-    {
-        if (kind != Kind::Object)
-            return nullptr;
-        for (const auto& [k, v] : object_v)
-        {
-            if (k == key)
-                return &v;
-        }
-        return nullptr;
-    }
+    // Returns the value for key in an object, or nullptr.
+    const JsonValue* find(std::string_view key) const;
 };
+
+// Object member.  A named struct rather than std::pair<std::string, JsonValue>:
+// std::pair's constructor traits need JsonValue to be complete, which libc++ and
+// libstdc++ under clang reject inside the recursive definition.
+struct JsonMember
+{
+    std::string key;
+    JsonValue   value;
+};
+
+inline const JsonValue* JsonValue::find(std::string_view key) const
+{
+    if (kind != Kind::Object)
+        return nullptr;
+    for (const auto& [k, v] : object_v)
+    {
+        if (k == key)
+            return &v;
+    }
+    return nullptr;
+}
 
 class JsonReader
 {
@@ -151,16 +167,48 @@ class JsonReader
         return parse_number(out);
     }
 
+    static bool is_digit(char c) { return c >= '0' && c <= '9'; }
+
+    // Scans a JSON number (-?digits[.digits][(e|E)[+-]digits]) and converts it
+    // with the classic "C" locale.  std::from_chars for double is not available
+    // in every standard library (e.g. Apple libc++), so it is not used here.
     bool parse_number(JsonValue& out)
     {
-        const char* begin = text_.data() + pos_;
-        const char* end   = text_.data() + text_.size();
-        // from_chars does not accept a leading '+', which JSON also forbids.
-        double v      = 0.0;
-        auto   result = std::from_chars(begin, end, v);
-        if (result.ec != std::errc{} || result.ptr == begin)
+        const size_t start  = pos_;
+        size_t       p      = pos_;
+        auto         digits = [&]()
+        {
+            const size_t d0 = p;
+            while (p < text_.size() && is_digit(text_[p]))
+                ++p;
+            return p > d0;
+        };
+        if (p < text_.size() && text_[p] == '-')
+            ++p;
+        if (!digits())
             return false;
-        pos_ += static_cast<size_t>(result.ptr - begin);
+        if (p < text_.size() && text_[p] == '.')
+        {
+            ++p;
+            if (!digits())
+                return false;
+        }
+        if (p < text_.size() && (text_[p] == 'e' || text_[p] == 'E'))
+        {
+            ++p;
+            if (p < text_.size() && (text_[p] == '+' || text_[p] == '-'))
+                ++p;
+            if (!digits())
+                return false;
+        }
+
+        std::istringstream in(std::string(text_.substr(start, p - start)));
+        in.imbue(std::locale::classic());
+        double v = 0.0;
+        in >> v;
+        if (in.fail())
+            return false;
+        pos_      = p;
         out.kind  = JsonValue::Kind::Number;
         out.num_v = v;
         return true;
@@ -319,7 +367,7 @@ class JsonReader
             JsonValue value;
             if (!parse_value(value, depth + 1))
                 return false;
-            out.object_v.emplace_back(std::move(key), std::move(value));
+            out.object_v.push_back(JsonMember{std::move(key), std::move(value)});
             if (consume(','))
                 continue;
             return consume('}');
@@ -420,10 +468,37 @@ inline void append_number(std::string& out, const std::optional<double>& v)
 {
     if (!v)
         return;
-    char buf[64];
-    auto result = std::to_chars(buf, buf + sizeof(buf), *v);
-    if (result.ec == std::errc{})
-        out.append(buf, result.ptr);
+    // Shortest decimal (up to 17 significant digits) that round-trips, using the
+    // classic "C" locale.  Avoids std::to_chars(double), which older Apple
+    // deployment targets do not provide.
+    auto format = [](double value, int precision)
+    {
+        std::ostringstream os;
+        os.imbue(std::locale::classic());
+        os.precision(precision);
+        os << value;
+        return os.str();
+    };
+    int         precision = 1;
+    std::string text;
+    for (; precision <= 17; ++precision)
+    {
+        text = format(*v, precision);
+        std::istringstream in(text);
+        in.imbue(std::locale::classic());
+        double back = 0.0;
+        in >> back;
+        if (!in.fail() && back == *v)
+            break;
+    }
+    // Keep whole-number digits out of exponent form ("20", not "2e+01").
+    if (std::isfinite(*v) && *v != 0.0)
+    {
+        const int int_digits = static_cast<int>(std::floor(std::log10(std::fabs(*v)))) + 1;
+        if (int_digits > precision && int_digits <= 17)
+            text = format(*v, int_digits);
+    }
+    out += text;
 }
 
 // Converts figure JSON into CSV text.  Returns false if the JSON is malformed.

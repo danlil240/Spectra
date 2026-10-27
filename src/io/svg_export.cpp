@@ -30,6 +30,7 @@
 #include <utility>
 #include <vector>
 
+#include "core/annotation_layout.hpp"
 #include "core/axis_scale.hpp"
 #include "ui/overlay/legend_layout.hpp"
 
@@ -1315,6 +1316,70 @@ void emit_grid_2d(SvgContext& c, const Axes& axes, const DataToSvg& m)
     c.body << "    </g>\n";
 }
 
+// Axes::text / Axes::annotate annotations, clipped to the plot area.  Font
+// sizes snap to the renderer's presets like TextRenderer::nearest_font_size().
+void emit_annotations(SvgContext& c, const Axes& axes, const DataToSvg& m, const std::string& clip)
+{
+    if (axes.annotations().empty())
+        return;
+    auto snap_font = [](float px)
+    {
+        if (!(px > 0.0f))
+            return LABEL_FONT_PX;
+        float best = TICK_FONT_PX;
+        for (float f : {LABEL_FONT_PX, TITLE_FONT_PX})
+            if (std::fabs(f - px) < std::fabs(best - px))
+                best = f;
+        return best;
+    };
+    static constexpr const char* anchors[] = {"start", "middle", "end"};
+
+    c.body << "    <g class=\"annotations\" clip-path=\"url(#" << clip << ")\">\n";
+    for (const auto& ann : axes.annotations())
+    {
+        if (!ann || !ann->visible() || ann->text().empty())
+            continue;
+        const auto ax = static_cast<float>(m.map_x(ann->x()));
+        const auto ay = static_cast<float>(m.map_y(ann->y()));
+        if (!std::isfinite(ax) || !std::isfinite(ay))
+            continue;
+
+        // Unset colour follows the theme text colour, as in the renderer.
+        const Color col = ann->color().value_or(c.style.text_primary);
+        const float fs  = snap_font(ann->font_size());
+        const float w   = estimate_text_width(ann->text(), fs);
+        const float h   = 1.2f * fs;
+        const auto  box = annotation_layout::text_box(ax, ay, w, h, ann->halign(), ann->valign());
+
+        if (ann->has_arrow())
+        {
+            annotation_layout::Arrow g;
+            const auto               tx = static_cast<float>(m.map_x(ann->arrow_x()));
+            const auto               ty = static_cast<float>(m.map_y(ann->arrow_y()));
+            if (std::isfinite(tx) && std::isfinite(ty)
+                && annotation_layout::arrow_geometry(box, tx, ty, g))
+            {
+                c.body << "      <line x1=\"" << num(g.sx) << "\" y1=\"" << num(g.sy) << "\" x2=\""
+                       << num(g.ex) << "\" y2=\"" << num(g.ey) << "\" stroke=\"" << hex(col)
+                       << "\"" << opacity_attr("stroke-opacity", col.a)
+                       << " stroke-width=\"1.3\"/>\n";
+                c.body << "      <polygon points=\"" << num(g.tx) << "," << num(g.ty) << " "
+                       << num(g.lx) << "," << num(g.ly) << " " << num(g.rx) << "," << num(g.ry)
+                       << "\" fill=\"" << hex(col) << "\"" << opacity_attr("fill-opacity", col.a)
+                       << "/>\n";
+            }
+        }
+
+        // Baseline sits ~0.25 em above the bottom of the 1.2 em line box.
+        c.body << "      <text class=\"annotation\" x=\"" << num(ax) << "\" y=\""
+               << num(box.y1 - 0.25f * fs) << "\" font-size=\"" << num(fs) << "\" text-anchor=\""
+               << anchors[static_cast<int>(ann->halign())] << "\" fill=\"" << hex(col) << "\""
+               << opacity_attr("fill-opacity", col.a) << ">" << xml_escape(ann->text())
+               << "</text>\n";
+    }
+    c.body << "    </g>\n";
+}
+
 void emit_axes_2d(SvgContext& c, const Axes& axes, const LegendConfig& legend)
 {
     const Rect vp = axes.viewport();
@@ -1339,6 +1404,9 @@ void emit_axes_2d(SvgContext& c, const Axes& axes, const LegendConfig& legend)
             emit_series_2d(c, *sp, m);
     }
     c.body << "    </g>\n";
+
+    // Text annotations (above the series, clipped to the plot area).
+    emit_annotations(c, axes, m, clip);
 
     // Border and tick marks (axis_line colour, render_geometry.cpp).
     const auto& as      = axes.axis_style();

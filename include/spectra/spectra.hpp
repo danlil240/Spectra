@@ -1,6 +1,7 @@
 #pragma once
 
 #include <spectra/animator.hpp>
+#include <spectra/annotation.hpp>
 #include <spectra/app.hpp>
 #include <spectra/axes.hpp>
 #include <spectra/axes3d.hpp>

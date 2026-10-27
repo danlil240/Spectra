@@ -624,6 +624,31 @@ void TextRenderer::append_glyph(std::vector<TextVertex>& target,
     float y0 = cursor_y + g.y_offset;
     float x1 = x0 + g.width;
     float y1 = y0 + g.height;
+    float u0 = g.u0;
+    float v0 = g.v0;
+    float u1 = g.u1;
+    float v1 = g.v1;
+
+    // Crop the quad (and its UVs) to the clip rectangle for unrotated text.
+    if (clip_enabled_ && cos_a == 1.0f && sin_a == 0.0f)
+    {
+        float cx0 = std::max(x0, clip_x0_);
+        float cy0 = std::max(y0, clip_y0_);
+        float cx1 = std::min(x1, clip_x1_);
+        float cy1 = std::min(y1, clip_y1_);
+        if (!(cx1 > cx0) || !(cy1 > cy0))
+            return;
+        float du = (u1 - u0) / (x1 - x0);
+        float dv = (v1 - v0) / (y1 - y0);
+        u0 += (cx0 - x0) * du;
+        u1 -= (x1 - cx1) * du;
+        v0 += (cy0 - y0) * dv;
+        v1 -= (y1 - cy1) * dv;
+        x0 = cx0;
+        y0 = cy0;
+        x1 = cx1;
+        y1 = cy1;
+    }
 
     // Apply rotation around pivot if needed
     auto rotate = [&](float px, float py, float& ox, float& oy)
@@ -662,13 +687,36 @@ void TextRenderer::append_glyph(std::vector<TextVertex>& target,
     }
 
     // Two triangles: (0,1,2) and (0,2,3)
-    target.push_back({rx0, ry0, z, g.u0, g.v0, color});
-    target.push_back({rx1, ry1, z, g.u1, g.v0, color});
-    target.push_back({rx2, ry2, z, g.u1, g.v1, color});
+    target.push_back({rx0, ry0, z, u0, v0, color});
+    target.push_back({rx1, ry1, z, u1, v0, color});
+    target.push_back({rx2, ry2, z, u1, v1, color});
 
-    target.push_back({rx0, ry0, z, g.u0, g.v0, color});
-    target.push_back({rx2, ry2, z, g.u1, g.v1, color});
-    target.push_back({rx3, ry3, z, g.u0, g.v1, color});
+    target.push_back({rx0, ry0, z, u0, v0, color});
+    target.push_back({rx2, ry2, z, u1, v1, color});
+    target.push_back({rx3, ry3, z, u0, v1, color});
+}
+
+FontSize TextRenderer::nearest_font_size(float pixel_size)
+{
+    if (!(pixel_size > 0.0f))
+        return FontSize::Label;
+    size_t best = 0;
+    for (size_t i = 1; i < static_cast<size_t>(FontSize::Count); ++i)
+    {
+        if (std::fabs(FONT_PIXEL_SIZES[i] - pixel_size)
+            < std::fabs(FONT_PIXEL_SIZES[best] - pixel_size))
+            best = i;
+    }
+    return static_cast<FontSize>(best);
+}
+
+void TextRenderer::set_clip_rect(float x0, float y0, float x1, float y1)
+{
+    clip_enabled_ = true;
+    clip_x0_      = x0;
+    clip_y0_      = y0;
+    clip_x1_      = x1;
+    clip_y1_      = y1;
 }
 
 TextRenderer::TextExtent TextRenderer::measure_text(const std::string& text, FontSize size) const

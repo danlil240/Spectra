@@ -4,6 +4,7 @@
 #include <memory>
 #include <optional>
 #include <span>
+#include <spectra/annotation.hpp>
 #include <spectra/color.hpp>
 #include <spectra/fwd.hpp>
 #include <spectra/series.hpp>
@@ -238,6 +239,17 @@ class Axes : public AxesBase
     /// Shape annotation series (rectangles, circles, arrows, polygons, etc.)
     ShapeSeries& shapes();
 
+    // Text annotations (drawn on top of the series, clipped to the plot area)
+    /// @brief Place @p text with its anchor at data coordinates (x, y).
+    /// Defaults: left-aligned, text sitting just above the anchor, theme text colour.
+    TextAnnotation& text(float x, float y, std::string_view text);
+    /// @brief Place @p text centred at (text_x, text_y) with an arrow pointing to (x, y).
+    TextAnnotation& annotate(std::string_view text, float x, float y, float text_x, float text_y);
+    /// @brief Annotations in draw order. They do not take part in auto_fit().
+    const std::vector<std::unique_ptr<TextAnnotation>>& annotations() const { return annotations_; }
+    /// @brief Remove all annotations (invalidates references returned by text()/annotate()).
+    void clear_annotations() { annotations_.clear(); }
+
     // Axis configuration
     /// @brief Set fixed x-axis limits (disables x autoscale).
     void xlim(double min, double max);
@@ -331,6 +343,8 @@ class Axes : public AxesBase
 
     std::optional<AxisLimits> xlim_;
     std::optional<AxisLimits> ylim_;
+
+    std::vector<std::unique_ptr<TextAnnotation>> annotations_;
 
     std::string           xlabel_;
     std::string           ylabel_;

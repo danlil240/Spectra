@@ -173,6 +173,8 @@ void Renderer::destroy_axes_buffers(AxesGpuData& gpu)
             backend_.destroy_buffer(gpu.tick_buffer[s]);
         if (gpu.arrow_tri_buffer[s])
             backend_.destroy_buffer(gpu.arrow_tri_buffer[s]);
+        if (gpu.annotation_buffer[s])
+            backend_.destroy_buffer(gpu.annotation_buffer[s]);
     }
     if (gpu.border_buffer)
         backend_.destroy_buffer(gpu.border_buffer);

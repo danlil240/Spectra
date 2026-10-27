@@ -904,6 +904,10 @@ class ImGuiIntegration
     void load_logo_textures(VulkanBackend& backend);
     void destroy_logo_textures();
     void draw_welcome_screen(float display_w, float display_h, float dt);
+
+    // Native "Open CSV" dialog; on success parses the file and opens the column picker.
+    // Shared by Data > Load from CSV, the canvas welcome button and the empty-app welcome.
+    void open_csv_with_dialog();
 };
 
 // Helper factory to construct an ImGuiIntegration instance from translation units

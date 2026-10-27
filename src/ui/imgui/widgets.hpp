@@ -146,6 +146,11 @@ int empty_state(ui::Icon icon,
                 const char* subtitle = nullptr,
                 std::span<const EmptyStateAction> actions = {});
 
+// The empty-state action row on its own: buttons centred in [start_x, start_x + max_w)
+// (window-local x), stacked when they do not fit. Shares empty_state()'s button style.
+// Returns the clicked action index, or -1 when no action was activated.
+int empty_state_actions(std::span<const EmptyStateAction> actions, float start_x, float max_w);
+
 // Compact panel header with optional right-aligned icon actions.
 // Returns the clicked action index, or -1 when no action was activated.
 int panel_header(const char* title,

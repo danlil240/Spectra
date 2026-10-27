@@ -138,6 +138,7 @@ set(SPECTRA_UNIT_TESTS
     test_command_registry
     test_undo_manager
     test_command_palette_registry
+    test_welcome_actions
     test_shortcut_manager
     test_undo_redo
     test_workspace

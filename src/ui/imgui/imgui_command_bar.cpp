@@ -1017,38 +1017,8 @@ void ImGuiIntegration::draw_command_bar()
         ImGui::SameLine();
 
         // Data menu
-        draw_menubar_menu(
-            "Data",
-            {MenuItem(
-                "Load from CSV...",
-                [this]()
-                {
-                    if (!native_dialogs_enabled())
-                        return;
-                    DialogEnvGuard env_guard;
-                    char const*    filters[3] = {"*.csv", "*.tsv", "*.txt"};
-                    const char*    home_env   = std::getenv("HOME");
-                    std::string    home_dir   = home_env ? std::string(home_env) + "/" : "/";
-                    const char*    home       = home_dir.c_str();
-                    char const*    result =
-                        tinyfd_openFileDialog("Open CSV File", home, 3, filters, "CSV files", 0);
-                    if (result)
-                    {
-                        csv_file_path_   = result;
-                        csv_data_        = parse_csv(csv_file_path_);
-                        csv_data_loaded_ = csv_data_.error.empty();
-                        csv_error_       = csv_data_.error;
-                        csv_col_x_       = 0;
-                        csv_selected_y_.clear();
-                        for (size_t c = 1; c < csv_data_.num_cols; ++c)
-                            csv_selected_y_.push_back(static_cast<int>(c));
-                        if (csv_selected_y_.empty() && csv_data_.num_cols > 0)
-                            csv_selected_y_.push_back(0);
-                        csv_col_z_       = -1;
-                        if (csv_data_loaded_)
-                            csv_dialog_open_ = true;
-                    }
-                })});
+        draw_menubar_menu("Data",
+                          {MenuItem("Load from CSV...", [this]() { open_csv_with_dialog(); })});
 
         ImGui::SameLine();
 

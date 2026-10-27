@@ -1156,8 +1156,8 @@ int empty_state(ui::Icon icon,
     if (subtitle && subtitle[0] != '\0')
     {
         ImGui::Dummy(ImVec2(0.0f, tokens::SPACE_1));
-        const float wrap_x = ImGui::GetWindowPos().x + start_x + max_w;
-        ImGui::PushTextWrapPos(wrap_x);
+        // PushTextWrapPos takes a window-local x, like start_x.
+        ImGui::PushTextWrapPos(start_x + max_w);
         ImGui::PushStyleColor(
             ImGuiCol_Text,
             ImVec4(c.text_tertiary.r, c.text_tertiary.g, c.text_tertiary.b, 0.9f));

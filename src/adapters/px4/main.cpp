@@ -109,7 +109,8 @@ int main(int argc, char** argv)
     app.init_runtime();
 
 #ifdef SPECTRA_USE_IMGUI
-    // Hide Spectra's default chrome — spectra-px4 owns menu bar, status bar, and dock layout.
+    // Hide Spectra's default chrome — spectra-px4 draws its own menu bar, nav rail, status bar
+    // and dock layout through the shared AppShell, styled by the main app's ThemeManager.
     auto* ui_ctx = app.ui_context();
     if (ui_ctx && ui_ctx->imgui_ui)
     {
@@ -123,6 +124,8 @@ int main(int argc, char** argv)
         ui_ctx->imgui_ui->set_command_bar_visible(false);
         ui_ctx->imgui_ui->set_status_bar_visible(false);
         shell.set_layout_manager(&lm);
+        // Reuse the main app's chrome: Vision command bar + icon/label nav rail.
+        shell.set_chrome_integration(ui_ctx->imgui_ui.get());
         ui_ctx->imgui_ui->set_extra_draw_callback(
             [&shell, ui_ctx]()
             {

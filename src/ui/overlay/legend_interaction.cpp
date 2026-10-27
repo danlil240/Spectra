@@ -125,7 +125,8 @@ bool LegendInteraction::draw(Axes&               axes,
                              const Rect&         viewport,
                              size_t              axes_index,
                              const LegendConfig& config,
-                             uintptr_t           figure_id)
+                             uintptr_t           figure_id,
+                             const FigureStyle*  figure_style)
 {
     const auto& series_list = axes.series();
     if (series_list.empty())
@@ -141,7 +142,9 @@ bool LegendInteraction::draw(Axes&               axes,
     if (labeled_count == 0)
         return false;
 
-    const auto& theme_colors = theme_mgr_->colors();
+    // Drawn over the plot surface, so follow its ink (see plot_surface_colors()).
+    const ui::ThemeColors theme_colors =
+        figure_style ? theme_mgr_->plot_surface_colors(*figure_style) : theme_mgr_->colors();
     ImFont*     font         = font_body_ ? font_body_ : ImGui::GetFont();
 
     // Use font size from LegendConfig; fall back to font's native size

@@ -113,7 +113,7 @@ void Renderer::render_bounding_box(Axes3D& axes, const Rect& /*viewport*/)
     backend_.bind_pipeline(grid3d_pipeline_);
 
     SeriesPushConstants pc{};
-    const auto&         theme_colors = theme_mgr_.colors();
+    const auto&         theme_colors = plot_colors();
     set_pc_color_3d(pc.color, theme_colors.axis_line, theme_mgr_);
     pc.line_width    = 1.5f;
     pc.data_offset_x = 0.0f;
@@ -224,7 +224,7 @@ void Renderer::render_tick_marks(Axes3D& axes, const Rect& /*viewport*/)
     backend_.bind_pipeline(grid3d_pipeline_);
 
     SeriesPushConstants pc{};
-    const auto&         theme_colors = theme_mgr_.colors();
+    const auto&         theme_colors = plot_colors();
     ui::Color           tick_color(theme_colors.grid_major.r * 0.8f,
                          theme_colors.grid_major.g * 0.8f,
                          theme_colors.grid_major.b * 0.8f,

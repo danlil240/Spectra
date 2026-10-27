@@ -271,6 +271,62 @@ spectra::Color effective_figure_background(const FigureStyle& style, const Theme
     return spectra::Color(c.r, c.g, c.b, c.a);
 }
 
+const Theme* ThemeManager::plot_surface_ink_theme(const FigureStyle& style) const
+{
+    if (!style.background_override)
+        return nullptr;
+    const ThemeColors& active  = colors();
+    ThemeColors        surface = active;
+    surface.bg_canvas = Color(style.background.r, style.background.g, style.background.b, 1.0f);
+    const bool light  = is_light_plot_background(surface);
+    if (light == is_light_plot_background(active))
+        return nullptr;
+    auto it = themes_.find(light ? "light" : "dark");
+    return it != themes_.end() ? &it->second : nullptr;
+}
+
+ThemeColors ThemeManager::plot_surface_colors(const FigureStyle& style) const
+{
+    ThemeColors out = colors();
+    if (!style.background_override)
+        return out;
+    out.bg_canvas =
+        Color(style.background.r, style.background.g, style.background.b, style.background.a);
+    if (const Theme* ink = plot_surface_ink_theme(style))
+    {
+        // Everything drawn on (or floating over) the plot surface.
+        const ThemeColors& src = ink->colors;
+        out.text_primary       = src.text_primary;
+        out.text_secondary     = src.text_secondary;
+        out.text_tertiary      = src.text_tertiary;
+        out.border_default     = src.border_default;
+        out.border_subtle      = src.border_subtle;
+        out.border_strong      = src.border_strong;
+        out.grid_major         = src.grid_major;
+        out.grid_minor         = src.grid_minor;
+        out.grid_line          = src.grid_line;
+        out.axis_line          = src.axis_line;
+        out.tick_label         = src.tick_label;
+        out.crosshair          = src.crosshair;
+        out.tooltip_bg         = src.tooltip_bg;
+        out.tooltip_border     = src.tooltip_border;
+        out.bg_elevated        = src.bg_elevated;
+        out.annotation_bg      = src.annotation_bg;
+    }
+    return out;
+}
+
+const DataPalette& ThemeManager::plot_surface_data_palette(const FigureStyle& style) const
+{
+    // Only "default" follows the theme; an explicitly chosen palette (and a
+    // palette transition in progress) is kept as selected.
+    if (current_data_palette_name_ == "default" && !display_palette_valid_)
+        if (const Theme* ink = plot_surface_ink_theme(style);
+            ink && !ink->data_palette.colors.empty())
+            return ink->data_palette;
+    return current_data_palette();
+}
+
 void ThemeManager::set_data_palette(const std::string& palette_name)
 {
     auto it = data_palettes_.find(palette_name);

@@ -1,12 +1,16 @@
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <filesystem>
 #include <fstream>
 #include <gtest/gtest.h>
+#include <spectra/axes.hpp>
+#include <spectra/export.hpp>
 #include <spectra/figure.hpp>
 
 #include "ui/theme/design_tokens.hpp"
 #include "ui/theme/glass_tokens.hpp"
+#include "ui/theme/svg_style.hpp"
 #include "ui/theme/theme.hpp"
 
 using namespace spectra::ui;
@@ -899,4 +903,189 @@ TEST_F(ThemeManagerTest, ImportWithoutCriticalFallsBackToError)
     EXPECT_EQ(tm_.colors().critical, tm_.colors().error);
     EXPECT_NEAR(tm_.colors().critical.r, 0.8f, 1e-4f);
     std::filesystem::remove(path);
+}
+
+// ─── Plot surface colours for figure background overrides (S10) ──────────────
+
+namespace
+{
+float surface_luma(const Color& c)
+{
+    return 0.2126f * c.r + 0.7152f * c.g + 0.0722f * c.b;
+}
+
+bool same_color(const Color& a, const Color& b)
+{
+    return a.r == b.r && a.g == b.g && a.b == b.b && a.a == b.a;
+}
+
+// Every token plot_surface_colors() may change.
+bool same_plot_tokens(const ThemeColors& a, const ThemeColors& b)
+{
+    return same_color(a.bg_canvas, b.bg_canvas) && same_color(a.text_primary, b.text_primary)
+           && same_color(a.text_secondary, b.text_secondary)
+           && same_color(a.text_tertiary, b.text_tertiary)
+           && same_color(a.border_default, b.border_default)
+           && same_color(a.border_subtle, b.border_subtle)
+           && same_color(a.border_strong, b.border_strong) && same_color(a.grid_major, b.grid_major)
+           && same_color(a.grid_minor, b.grid_minor) && same_color(a.grid_line, b.grid_line)
+           && same_color(a.axis_line, b.axis_line) && same_color(a.tick_label, b.tick_label)
+           && same_color(a.crosshair, b.crosshair) && same_color(a.tooltip_bg, b.tooltip_bg)
+           && same_color(a.tooltip_border, b.tooltip_border)
+           && same_color(a.bg_elevated, b.bg_elevated)
+           && same_color(a.annotation_bg, b.annotation_bg);
+}
+
+spectra::FigureStyle override_style(const spectra::Color& bg)
+{
+    spectra::FigureStyle style;
+    style.background          = bg;
+    style.background_override = true;
+    return style;
+}
+}   // namespace
+
+TEST_F(ThemeManagerTest, PlotSurfaceWithoutOverrideEqualsTheme)
+{
+    for (const char* name : {"dark", "night", "light", "high_contrast"})
+    {
+        tm_.set_theme(name);
+        spectra::FigureStyle style;   // background white, but not overridden
+        EXPECT_TRUE(same_plot_tokens(tm_.plot_surface_colors(style), tm_.colors())) << name;
+        EXPECT_EQ(&tm_.plot_surface_data_palette(style), &tm_.current_data_palette()) << name;
+    }
+}
+
+TEST_F(ThemeManagerTest, PlotSurfaceOverrideEqualToCanvasEqualsTheme)
+{
+    for (const char* name : {"dark", "night", "light", "high_contrast"})
+    {
+        tm_.set_theme(name);
+        const Color& c     = tm_.colors().bg_canvas;
+        const auto   style = override_style(spectra::Color{c.r, c.g, c.b, c.a});
+        EXPECT_TRUE(same_plot_tokens(tm_.plot_surface_colors(style), tm_.colors())) << name;
+        EXPECT_EQ(&tm_.plot_surface_data_palette(style), &tm_.current_data_palette()) << name;
+    }
+}
+
+TEST_F(ThemeManagerTest, WhiteOverrideOnDarkThemesUsesDarkInk)
+{
+    const auto white = override_style(spectra::colors::white);
+    for (const char* name : {"dark", "night", "high_contrast"})
+    {
+        tm_.set_theme(name);
+        const ThemeColors s = tm_.plot_surface_colors(white);
+        EXPECT_TRUE(same_color(s.bg_canvas, Color(1.0f, 1.0f, 1.0f, 1.0f))) << name;
+        EXPECT_TRUE(is_light_plot_background(s)) << name;
+        // Titles, labels and ticks are dark ink, readable on white.
+        EXPECT_LT(surface_luma(s.text_primary), 0.3f) << name;
+        EXPECT_LT(surface_luma(s.text_secondary), 0.4f) << name;
+        EXPECT_LT(surface_luma(s.tick_label), 0.4f) << name;
+        EXPECT_LT(surface_luma(s.axis_line), 0.5f) << name;
+        // Pure white ink is remapped to the dark surface ink; explicit black stays black.
+        const Color w = adapt_series_color_to_theme(Color(1.0f, 1.0f, 1.0f, 1.0f), s);
+        EXPECT_LT(surface_luma(w), 0.3f) << name;
+        const Color k = adapt_series_color_to_theme(Color(0.0f, 0.0f, 0.0f, 1.0f), s);
+        EXPECT_TRUE(same_color(k, Color(0.0f, 0.0f, 0.0f, 1.0f))) << name;
+        // "default" palette follows the surface: the light theme's palette.
+        tm_.set_theme("light");
+        const std::vector<Color> light_palette = tm_.current_data_palette().colors;
+        tm_.set_theme(name);
+        EXPECT_EQ(tm_.plot_surface_data_palette(white).colors.size(), light_palette.size());
+        EXPECT_TRUE(same_color(tm_.plot_surface_data_palette(white).colors[0], light_palette[0]))
+            << name;
+    }
+}
+
+TEST_F(ThemeManagerTest, BlackOverrideOnLightThemeUsesLightInk)
+{
+    tm_.set_theme("light");
+    const auto        black = override_style(spectra::colors::black);
+    const ThemeColors s     = tm_.plot_surface_colors(black);
+    EXPECT_FALSE(is_light_plot_background(s));
+    EXPECT_GT(surface_luma(s.text_primary), 0.6f);
+    EXPECT_GT(surface_luma(s.tick_label), 0.4f);
+    const Color k = adapt_series_color_to_theme(Color(0.0f, 0.0f, 0.0f, 1.0f), s);
+    EXPECT_GT(surface_luma(k), 0.6f);
+    const Color w = adapt_series_color_to_theme(Color(1.0f, 1.0f, 1.0f, 1.0f), s);
+    EXPECT_TRUE(same_color(w, Color(1.0f, 1.0f, 1.0f, 1.0f)));
+}
+
+TEST_F(ThemeManagerTest, SameLightnessOverrideKeepsThemeInk)
+{
+    tm_.set_theme("light");
+    const auto        pale = override_style(spectra::Color{0.92f, 0.92f, 0.88f, 1.0f});
+    const ThemeColors s    = tm_.plot_surface_colors(pale);
+    EXPECT_FLOAT_EQ(s.bg_canvas.r, 0.92f);
+    EXPECT_TRUE(same_color(s.text_primary, tm_.colors().text_primary));
+    EXPECT_TRUE(same_color(s.tick_label, tm_.colors().tick_label));
+}
+
+TEST_F(ThemeManagerTest, ExplicitPaletteIsNotSwappedBySurface)
+{
+    tm_.set_theme("dark");
+    tm_.set_data_palette("tol_bright");
+    const auto white = override_style(spectra::colors::white);
+    EXPECT_EQ(&tm_.plot_surface_data_palette(white), &tm_.current_data_palette());
+    tm_.set_data_palette("default");
+}
+
+TEST_F(ThemeManagerTest, FormatLettersResolveForOverrideSurface)
+{
+    tm_.set_theme("dark");
+    spectra::Figure fig;
+    fig.style().background_override = true;
+    fig.style().background          = spectra::colors::white;
+    auto&             ax            = fig.subplot(1, 1, 1);
+    const float       x[]           = {0.0f, 1.0f};
+    auto&             w_line        = ax.plot(x, x, "w-");
+    auto&             k_line        = ax.plot(x, x, "k-");
+    const ThemeColors s             = tm_.plot_surface_colors(fig.style());
+    resolve_auto_series_colors(fig,
+                               tm_.plot_surface_data_palette(fig.style()),
+                               is_light_plot_background(s));
+    // Light-surface shades: 'w' dark gray, 'k' black — both visible on white.
+    const auto wc = adapt_series_color_to_theme(w_line.color(), s);
+    const auto kc = adapt_series_color_to_theme(k_line.color(), s);
+    EXPECT_LT(0.2126f * wc.r + 0.7152f * wc.g + 0.0722f * wc.b, 0.3f);
+    EXPECT_LT(0.2126f * kc.r + 0.7152f * kc.g + 0.0722f * kc.b, 0.1f);
+}
+
+TEST_F(ThemeManagerTest, SvgExportUsesOverrideSurfaceInk)
+{
+    auto hex = [](const Color& c)
+    {
+        char buf[8];
+        std::snprintf(buf,
+                      sizeof(buf),
+                      "#%02x%02x%02x",
+                      static_cast<int>(std::lround(c.r * 255.0f)),
+                      static_cast<int>(std::lround(c.g * 255.0f)),
+                      static_cast<int>(std::lround(c.b * 255.0f)));
+        return std::string(buf);
+    };
+    tm_.set_theme("light");
+    const Color light_tick = tm_.colors().tick_label;
+    tm_.set_theme("dark");
+    const Color dark_tick = tm_.colors().tick_label;
+    ASSERT_NE(hex(light_tick), hex(dark_tick));
+
+    spectra::Figure fig;
+    fig.style().background_override = true;
+    fig.style().background          = spectra::colors::white;
+    auto&       ax                  = fig.subplot(1, 1, 1);
+    const float x[]                 = {0.0f, 1.0f, 2.0f};
+    ax.plot(x, x, "w-");
+    ax.title("Title");
+    fig.compute_layout();
+    resolve_auto_series_colors(fig,
+                               tm_.plot_surface_data_palette(fig.style()),
+                               is_light_plot_background(tm_.plot_surface_colors(fig.style())));
+    const std::string svg =
+        spectra::SvgExporter::to_string(fig,
+                                        svg_style_from_theme(tm_.plot_surface_colors(fig.style())));
+    EXPECT_NE(svg.find("#ffffff"), std::string::npos);         // white surface painted
+    EXPECT_NE(svg.find(hex(light_tick)), std::string::npos);   // dark tick ink
+    EXPECT_EQ(svg.find(hex(dark_tick)), std::string::npos);    // no pale dark-theme ink
+    EXPECT_NE(svg.find("#292929"), std::string::npos);         // 'w' light-surface shade
 }

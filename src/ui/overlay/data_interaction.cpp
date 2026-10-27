@@ -320,7 +320,7 @@ void DataInteraction::draw_legend_for_figure(Figure& figure)
     {
         if (axes_ptr)
         {
-            legend_.draw(*axes_ptr, axes_ptr->viewport(), idx, config, fig_id);
+            legend_.draw(*axes_ptr, axes_ptr->viewport(), idx, config, fig_id, &figure.style());
         }
         ++idx;
     }

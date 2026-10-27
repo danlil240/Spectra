@@ -542,6 +542,34 @@ static void scene_format_strings(App& /*app*/, Figure& fig)
     ax.grid(true);
 }
 
+// Figure background override opposite to the theme canvas (S10): format
+// letters, automatic colours and plot text must follow the painted surface.
+static void scene_background_override(App& /*app*/, Figure& fig)
+{
+    fig.style().background_override = true;
+    fig.style().background          = colors::white;
+
+    auto&              ax = fig.subplot(1, 1, 1);
+    constexpr size_t   N  = 80;
+    std::vector<float> x(N), y0(N), y1(N), y2(N);
+    for (size_t i = 0; i < N; ++i)
+    {
+        x[i]  = static_cast<float>(i) * 10.0f / static_cast<float>(N - 1);
+        y0[i] = std::sin(x[i]);
+        y1[i] = std::sin(x[i]) + 1.5f;
+        y2[i] = std::cos(x[i]) - 1.5f;
+    }
+    ax.plot(x, y0, "w-").width(3.0f).label("w-");
+    ax.plot(x, y1, "k-").width(3.0f).label("k-");
+    ax.line(x, y2).width(2.0f).label("auto");
+    ax.xlim(0.0f, 10.0f);
+    ax.ylim(-3.0f, 3.0f);
+    ax.title("White figure background");
+    ax.xlabel("x");
+    ax.ylabel("y");
+    ax.grid(true);
+}
+
 // ─── Phase 3 Golden Test Cases ──────────────────────────────────────────────
 
 TEST(GoldenImagePhase3, LineStyles)
@@ -582,6 +610,11 @@ TEST(GoldenImagePhase3, DenseStyled)
 TEST(GoldenImagePhase3, FormatStrings)
 {
     run_golden_test("p3_format_strings", scene_format_strings);
+}
+
+TEST(GoldenImagePhase3, BackgroundOverride)
+{
+    run_golden_test("p3_background_override", scene_background_override);
 }
 
 }   // namespace spectra::test

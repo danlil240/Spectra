@@ -13,6 +13,7 @@
 
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
+    #include <imgui_internal.h>
     #include "ui/theme/theme_imgui.hpp"
     #include "ui/theme/theme.hpp"
 #endif
@@ -310,73 +311,15 @@ std::optional<spectra::vec3> intersect_ground_plane(const spectra::Ray& ray, dou
     return ray.origin + ray.direction * static_cast<float>(t);
 }
 
-SceneCanvasResult draw_scene_canvas(SceneManager&               scene,
-                                    spectra::Camera&            camera,
-                                    const std::array<float, 4>& background_rgba,
-                                    bool&                       camera_initialized,
-                                    const ImVec2&               size)
+// Software preview of the scene (axes and entity approximations).  Only used
+// when no GPU scene renderer draws the canvas.
+void draw_scene_preview(ImDrawList*            draw_list,
+                        const SceneManager&    scene,
+                        const spectra::Camera& camera,
+                        const SceneBounds&     bounds,
+                        const ImVec2&          origin,
+                        const ImVec2&          size)
 {
-    SceneCanvasResult result;
-    if (size.x <= 8.0f || size.y <= 8.0f)
-        return result;
-
-    const ImVec2 origin = ImGui::GetCursorScreenPos();
-    ImGui::InvisibleButton("##scene_canvas", size);
-    result.clicked         = ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left);
-    const bool     hovered = ImGui::IsItemHovered();
-    const ImGuiIO& io      = ImGui::GetIO();
-
-    if (hovered && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
-    {
-        camera.orbit(-io.MouseDelta.x * 0.35f, -io.MouseDelta.y * 0.35f);
-        camera_initialized = true;
-    }
-    if (hovered
-        && (ImGui::IsMouseDragging(ImGuiMouseButton_Right)
-            || ImGui::IsMouseDragging(ImGuiMouseButton_Middle)))
-    {
-        camera.pan(io.MouseDelta.x, io.MouseDelta.y, size.x, size.y);
-        camera_initialized = true;
-    }
-    if (hovered && std::abs(io.MouseWheel) > 1e-5f)
-    {
-        camera.zoom(std::pow(0.9f, io.MouseWheel));
-        camera_initialized = true;
-    }
-
-    ImDrawList* draw_list = ImGui::GetWindowDrawList();
-    draw_list->AddRectFilled(origin,
-                             ImVec2(origin.x + size.x, origin.y + size.y),
-                             color_from_rgba(background_rgba),
-                             6.0f);
-    draw_list->AddRect(origin,
-                       ImVec2(origin.x + size.x, origin.y + size.y),
-                       spectra::ui::to_imu32(spectra::ui::theme().border_default),
-                       6.0f);
-    draw_list->PushClipRect(origin, ImVec2(origin.x + size.x, origin.y + size.y), true);
-
-    SceneBounds bounds;
-    for (const auto& entity : scene.entities())
-        include_entity_bounds(entity, bounds);
-
-    if (!camera_initialized && bounds.valid)
-        camera_initialized = fit_camera_to_bounds(bounds, camera);
-
-    if (!bounds.valid)
-    {
-        draw_list->AddText(ImVec2(origin.x + 12.0f, origin.y + 12.0f),
-                           IM_COL32(170, 170, 170, 255),
-                           "No geometry to preview yet.");
-        draw_list->PopClipRect();
-        return result;
-    }
-
-    if (hovered && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
-    {
-        fit_camera_to_bounds(bounds, camera);
-        camera_initialized = true;
-    }
-
     const double max_extent = std::max({bounds.max.x - bounds.min.x,
                                         bounds.max.y - bounds.min.y,
                                         bounds.max.z - bounds.min.z,
@@ -616,6 +559,81 @@ SceneCanvasResult draw_scene_canvas(SceneManager&               scene,
                                color,
                                entity.label.c_str());
     }
+}
+
+SceneCanvasResult draw_scene_canvas(SceneManager&               scene,
+                                    spectra::Camera&            camera,
+                                    const std::array<float, 4>& background_rgba,
+                                    bool&                       camera_initialized,
+                                    const SceneCanvasPaint&     paint,
+                                    const ImVec2&               size)
+{
+    SceneCanvasResult result;
+    if (size.x <= 8.0f || size.y <= 8.0f)
+        return result;
+
+    const ImVec2 origin = ImGui::GetCursorScreenPos();
+    ImGui::InvisibleButton("##scene_canvas", size);
+    result.clicked         = ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left);
+    const bool     hovered = ImGui::IsItemHovered();
+    const ImGuiIO& io      = ImGui::GetIO();
+
+    if (hovered && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
+    {
+        camera.orbit(-io.MouseDelta.x * 0.35f, -io.MouseDelta.y * 0.35f);
+        camera_initialized = true;
+    }
+    if (hovered
+        && (ImGui::IsMouseDragging(ImGuiMouseButton_Right)
+            || ImGui::IsMouseDragging(ImGuiMouseButton_Middle)))
+    {
+        camera.pan(io.MouseDelta.x, io.MouseDelta.y, size.x, size.y);
+        camera_initialized = true;
+    }
+    if (hovered && std::abs(io.MouseWheel) > 1e-5f)
+    {
+        camera.zoom(std::pow(0.9f, io.MouseWheel));
+        camera_initialized = true;
+    }
+
+    // The GPU scene fills a square rect, so only round the software preview.
+    const float rounding  = paint.fill_canvas_background ? 6.0f : 0.0f;
+    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+    if (paint.fill_canvas_background)
+        draw_list->AddRectFilled(origin,
+                                 ImVec2(origin.x + size.x, origin.y + size.y),
+                                 color_from_rgba(background_rgba),
+                                 rounding);
+    draw_list->AddRect(origin,
+                       ImVec2(origin.x + size.x, origin.y + size.y),
+                       spectra::ui::to_imu32(spectra::ui::theme().border_default),
+                       rounding);
+    draw_list->PushClipRect(origin, ImVec2(origin.x + size.x, origin.y + size.y), true);
+
+    SceneBounds bounds;
+    for (const auto& entity : scene.entities())
+        include_entity_bounds(entity, bounds);
+
+    if (!camera_initialized && bounds.valid)
+        camera_initialized = fit_camera_to_bounds(bounds, camera);
+
+    if (!bounds.valid)
+    {
+        draw_list->AddText(ImVec2(origin.x + 12.0f, origin.y + 12.0f),
+                           IM_COL32(170, 170, 170, 255),
+                           "No geometry to preview yet.");
+        draw_list->PopClipRect();
+        return result;
+    }
+
+    if (hovered && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+    {
+        fit_camera_to_bounds(bounds, camera);
+        camera_initialized = true;
+    }
+
+    if (paint.draw_preview_geometry)
+        draw_scene_preview(draw_list, scene, camera, bounds, origin, size);
 
     if (!result.clicked)
     {
@@ -640,12 +658,17 @@ void SceneViewport::draw(bool*              p_open,
     if (!ImGui::GetCurrentContext())
         return;
     invalidate_canvas_rect();
-    const auto& theme_colors = spectra::ui::theme();
-    ImGui::PushStyleColor(ImGuiCol_WindowBg,
-                          ImVec4(theme_colors.bg_secondary.r,
-                                 theme_colors.bg_secondary.g,
-                                 theme_colors.bg_secondary.b,
-                                 1.0f));
+    const SceneCanvasPaint paint        = canvas_paint();
+    const auto&            theme_colors = spectra::ui::theme();
+    const ImVec4           window_bg(theme_colors.bg_secondary.r,
+                           theme_colors.bg_secondary.g,
+                           theme_colors.bg_secondary.b,
+                           1.0f);
+    // With a GPU scene the window background must not cover the canvas rect;
+    // the areas around the canvas are filled below instead.
+    ImGui::PushStyleColor(
+        ImGuiCol_WindowBg,
+        paint.opaque_window_bg ? window_bg : ImVec4(window_bg.x, window_bg.y, window_bg.z, 0.0f));
     ImGui::PushStyleColor(ImGuiCol_ChildBg,
                           ImVec4(theme_colors.bg_primary.r,
                                  theme_colors.bg_primary.g,
@@ -656,6 +679,15 @@ void SceneViewport::draw(bool*              p_open,
         ImGui::End();
         ImGui::PopStyleColor(2);
         return;
+    }
+
+    // Channel 0: window background around the canvas (GPU mode only), drawn
+    // beneath the widgets in channel 1.
+    ImDrawList* window_draw_list = ImGui::GetWindowDrawList();
+    if (!paint.opaque_window_bg)
+    {
+        window_draw_list->ChannelsSplit(2);
+        window_draw_list->ChannelsSetCurrent(1);
     }
 
     const ImGuiStyle& style             = ImGui::GetStyle();
@@ -760,6 +792,7 @@ void SceneViewport::draw(bool*              p_open,
                                                             camera_,
                                                             background_rgba_,
                                                             camera_initialized_,
+                                                            paint,
                                                             ImVec2(avail.x, canvas_height));
     if (interaction.picked_index.has_value())
         scene.set_selected_index(*interaction.picked_index);
@@ -817,6 +850,28 @@ void SceneViewport::draw(bool*              p_open,
     else
     {
         ImGui::TextDisabled("Select an entity, then open Inspector for details.");
+    }
+    if (!paint.opaque_window_bg)
+    {
+        // Fill the window's inner rect except the canvas, which the GPU scene
+        // has already drawn.  Inset by the border so window borders stay visible.
+        const ImGuiWindow* window = ImGui::GetCurrentWindow();
+        const float        inset  = window->WindowBorderSize;
+        const ImVec2       min(window->InnerRect.Min.x + inset, window->InnerRect.Min.y + inset);
+        const ImVec2       max(window->InnerRect.Max.x - inset, window->InnerRect.Max.y - inset);
+        const ImVec2       c_min(std::clamp(canvas_x_, min.x, max.x),
+                           std::clamp(canvas_y_, min.y, max.y));
+        const ImVec2       c_max(std::clamp(canvas_x_ + canvas_w_, min.x, max.x),
+                           std::clamp(canvas_y_ + canvas_h_, min.y, max.y));
+        const ImU32        bg = ImGui::GetColorU32(window_bg);
+        window_draw_list->ChannelsSetCurrent(0);
+        window_draw_list->PushClipRect(min, max, false);
+        window_draw_list->AddRectFilled(min, ImVec2(max.x, c_min.y), bg);
+        window_draw_list->AddRectFilled(ImVec2(min.x, c_max.y), max, bg);
+        window_draw_list->AddRectFilled(ImVec2(min.x, c_min.y), ImVec2(c_min.x, c_max.y), bg);
+        window_draw_list->AddRectFilled(ImVec2(c_max.x, c_min.y), ImVec2(max.x, c_max.y), bg);
+        window_draw_list->PopClipRect();
+        window_draw_list->ChannelsMerge();
     }
     ImGui::End();
     ImGui::PopStyleColor(2);

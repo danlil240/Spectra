@@ -1189,10 +1189,19 @@ install(EXPORT spectraTargets
 
 # Build-tree package: find_package(spectra) also works with
 # -Dspectra_DIR=<build dir>, without an install step.
-export(EXPORT spectraTargets
-    FILE ${CMAKE_CURRENT_BINARY_DIR}/spectraTargets.cmake
-    NAMESPACE spectra::
-)
+# Skipped with a bundled (FetchContent) SDL3: SDL writes its own build-tree
+# export files (SDL3headersTargets.cmake, ...), and exporting SDL3_Headers here
+# as well puts it in two build-tree export sets, which CMake rejects at
+# generate time.  The installed package is unaffected.
+if(SPECTRA_USE_SDL3 AND NOT SPECTRA_SDL3_FROM_SYSTEM)
+    message(STATUS "Bundled SDL3: build-tree spectraTargets.cmake export disabled "
+                   "(use the installed package)")
+else()
+    export(EXPORT spectraTargets
+        FILE ${CMAKE_CURRENT_BINARY_DIR}/spectraTargets.cmake
+        NAMESPACE spectra::
+    )
+endif()
 
 endif() # SPECTRA_INSTALL
 

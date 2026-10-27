@@ -125,6 +125,15 @@ void WindowManager::rebuild_active_list()
     }
 }
 
+bool WindowManager::dispatch_file_drop(uint32_t window_id, const char* path)
+{
+    if (!file_drop_handler_ || !path || path[0] == '\0')
+        return false;
+    file_drop_handler_(window_id, std::string(path));
+    request_redraw("file_drop");
+    return true;
+}
+
 #ifdef SPECTRA_USE_GLFW
 
 void WindowManager::set_window_position(WindowContext& wctx, int x, int y)

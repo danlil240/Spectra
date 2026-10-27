@@ -44,7 +44,7 @@
     #include "ui/app/window_ui_context.hpp"
     #include "ui/native_dialog_policy.hpp"
 #endif
-#ifdef SPECTRA_USE_GLFW
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
     #include "ui/window/window_manager.hpp"
 #endif
 
@@ -415,7 +415,7 @@ int main(int argc, char** argv)
     }
 #endif
 
-#ifdef SPECTRA_USE_GLFW
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
     // Forward OS file drops to the bag info panel.
     if (auto* wm = app.window_manager())
     {

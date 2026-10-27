@@ -7,6 +7,8 @@
 
     #include "wgpu_backend.hpp"
 
+    #include "wgpu_pipeline_support.hpp"
+
     #include <spectra/logger.hpp>
 
     #include <cassert>
@@ -772,12 +774,6 @@ WGPURenderPipeline WebGPUBackend::create_pipeline_for_type(PipelineType type)
             wgsl_source = wgsl::scatter_wgsl;
             break;
 
-        case PipelineType::ScatterColormap:
-            // The production Vulkan backend supports scalar-valued scatter
-            // buffers. WebGPU remains an experimental 2D subset and falls
-            // back to the series' uniform color in Renderer.
-            return nullptr;
-
         case PipelineType::Grid:
             wgsl_source    = wgsl::grid_wgsl;
             line_topology  = true;
@@ -808,12 +804,9 @@ WGPURenderPipeline WebGPUBackend::create_pipeline_for_type(PipelineType type)
             enable_depth = true;
             break;
 
-        case PipelineType::Heatmap:
-            // Not yet implemented for WebGPU.
-            return nullptr;
-
         default:
-            // 3D pipeline types not yet implemented for WebGPU.
+            // ScatterColormap, Heatmap and 3D types have no WGSL port yet
+            // (see webgpu_supports_pipeline()).
             return nullptr;
     }
 
@@ -964,6 +957,16 @@ WGPURenderPipeline WebGPUBackend::create_pipeline_for_type(PipelineType type)
 
 PipelineHandle WebGPUBackend::create_pipeline(PipelineType type)
 {
+    if (!webgpu_supports_pipeline(type))
+    {
+        // Expected for the experimental 2D subset: the Renderer falls back or
+        // skips the series and shows an in-canvas notice when one is drawn.
+        SPECTRA_LOG_DEBUG("webgpu",
+                          "create_pipeline: type {} not supported by the WebGPU backend",
+                          static_cast<int>(type));
+        return PipelineHandle{};
+    }
+
     WGPURenderPipeline pipeline = create_pipeline_for_type(type);
     if (!pipeline)
         return PipelineHandle{};
@@ -1279,7 +1282,9 @@ void WebGPUBackend::begin_render_pass(const Color& clear_color)
         rp_desc.depthStencilAttachment = &depth_att;
     }
 
-    pass_encoder_ = wgpuCommandEncoderBeginRenderPass(encoder_, &rp_desc);
+    pass_encoder_            = wgpuCommandEncoderBeginRenderPass(encoder_, &rp_desc);
+    current_pipeline_        = nullptr;   // a new pass starts with no pipeline bound
+    current_pipeline_layout_ = nullptr;
 }
 
 void WebGPUBackend::end_render_pass()
@@ -1306,6 +1311,10 @@ void WebGPUBackend::bind_pipeline(PipelineHandle handle)
     auto it = pipelines_.find(handle.id);
     if (it == pipelines_.end() || !it->second.pipeline)
     {
+        // Drop the previous pipeline so the draws that follow are skipped
+        // instead of running with the wrong shader.
+        current_pipeline_        = nullptr;
+        current_pipeline_layout_ = nullptr;
         static int dbg_bp2 = 0;
         if (dbg_bp2++ < 3)
             SPECTRA_LOG_ERROR("webgpu", "bind_pipeline: invalid handle id={}", handle.id);
@@ -1435,7 +1444,7 @@ void WebGPUBackend::set_scissor(int32_t x, int32_t y, uint32_t width, uint32_t h
 
 void WebGPUBackend::draw(uint32_t vertex_count, uint32_t first_vertex)
 {
-    if (!pass_encoder_)
+    if (!pass_encoder_ || !current_pipeline_)
         return;
     wgpuRenderPassEncoderDraw(pass_encoder_, vertex_count, 1, first_vertex, 0);
 }
@@ -1445,7 +1454,7 @@ void WebGPUBackend::draw_instanced(uint32_t vertex_count,
                                    uint32_t first_vertex,
                                    uint32_t first_instance)
 {
-    if (!pass_encoder_)
+    if (!pass_encoder_ || !current_pipeline_)
         return;
     wgpuRenderPassEncoderDraw(pass_encoder_,
                               vertex_count,
@@ -1456,7 +1465,7 @@ void WebGPUBackend::draw_instanced(uint32_t vertex_count,
 
 void WebGPUBackend::draw_indexed(uint32_t index_count, uint32_t first_index, int32_t vertex_offset)
 {
-    if (!pass_encoder_)
+    if (!pass_encoder_ || !current_pipeline_)
         return;
     wgpuRenderPassEncoderDrawIndexed(pass_encoder_, index_count, 1, first_index, vertex_offset, 0);
 }

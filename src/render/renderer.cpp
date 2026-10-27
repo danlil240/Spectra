@@ -457,6 +457,7 @@ void Renderer::render_figure_content(Figure& figure)
 void Renderer::render_figure_content(Figure& figure, FigureViewModel* fig_vm)
 {
     figure_vm_ = fig_vm;
+    unsupported_series_.clear();
     uint32_t w = figure.width();
     uint32_t h = figure.height();
 
@@ -495,16 +496,83 @@ void Renderer::render_figure_content(Figure& figure, FigureViewModel* fig_vm)
             ax.set_series_removed_callback(removal_cb);
         const auto& vp = ax.viewport();
 
+        // Box, grid and ticks of a 3D axes need the 3D grid pipeline.
+        if (dynamic_cast<Axes3D*>(&ax))
+            require_pipeline(grid3d_pipeline_, "3D axes");
+
         render_axes(ax, vp, w, h);
     }
 
     // Queue all plot text (tick labels, axis labels, titles) via Vulkan TextRenderer.
     // Flushed later by render_text().
     render_plot_text(figure);
+    render_unsupported_notice(figure);
 
     // Render screen-space plot geometry (2D grid, border, tick marks) via Vulkan grid pipeline.
     // 3D arrows are rendered inside render_axes() with depth testing.
     render_plot_geometry(figure);
+}
+
+bool Renderer::require_pipeline(PipelineHandle pipeline, std::string_view kind)
+{
+    if (pipeline)
+        return true;
+    note_unsupported(kind);
+    return false;
+}
+
+void Renderer::note_unsupported(std::string_view kind)
+{
+    if (std::find(unsupported_series_.begin(), unsupported_series_.end(), kind)
+        == unsupported_series_.end())
+        unsupported_series_.push_back(kind);
+
+    if (std::find(unsupported_warned_.begin(), unsupported_warned_.end(), kind)
+        == unsupported_warned_.end())
+    {
+        unsupported_warned_.push_back(kind);
+        SPECTRA_LOG_WARN("renderer",
+                         "{} not supported by this render backend (no pipeline); "
+                         "see the in-canvas notice",
+                         kind);
+    }
+}
+
+std::string Renderer::format_unsupported_notice(std::span<const std::string_view> kinds)
+{
+    if (kinds.empty())
+        return {};
+    std::string text = "Not supported by this render backend: ";
+    for (size_t i = 0; i < kinds.size(); ++i)
+    {
+        if (i > 0)
+            text += ", ";
+        text += kinds[i];
+    }
+    return text;
+}
+
+void Renderer::render_unsupported_notice(Figure& figure)
+{
+    if (unsupported_series_.empty() || !text_renderer_.is_initialized())
+        return;
+
+    const auto& c = theme_mgr_.colors().warning;
+    auto        r = static_cast<uint8_t>(std::clamp(c.r, 0.0f, 1.0f) * 255.0f);
+    auto        g = static_cast<uint8_t>(std::clamp(c.g, 0.0f, 1.0f) * 255.0f);
+    auto        b = static_cast<uint8_t>(std::clamp(c.b, 0.0f, 1.0f) * 255.0f);
+    uint32_t    rgba =
+        r | (static_cast<uint32_t>(g) << 8) | (static_cast<uint32_t>(b) << 16) | (0xFFu << 24);
+
+    // Bottom-left corner of the figure, clear of titles and axis labels.
+    constexpr float margin = 8.0f;
+    text_renderer_.draw_text(format_unsupported_notice(unsupported_series_),
+                             margin,
+                             static_cast<float>(figure.height()) - margin,
+                             FontSize::Label,
+                             rgba,
+                             TextAlign::Left,
+                             TextVAlign::Bottom);
 }
 
 // render_plot_text() — moved to render_geometry.cpp

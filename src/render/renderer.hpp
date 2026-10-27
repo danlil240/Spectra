@@ -22,6 +22,7 @@ class ThemeManager;
 #include <array>
 #include <cstdint>
 #include <span>
+#include <string>
 #include <string_view>
 #include <unordered_map>
 #include <vector>
@@ -146,7 +147,24 @@ class Renderer
     // Render thread only.
     void release_custom_type_state(std::string_view type_name);
 
+    // Series kinds the backend could not draw (or drew degraded) during the
+    // most recent render_figure_content() call, e.g. 3D series on the
+    // experimental WebGPU backend, which has no pipeline for them.  Entries are
+    // static strings, in first-seen order.  Always empty on Vulkan.
+    const std::vector<std::string_view>& unsupported_series() const { return unsupported_series_; }
+
+    // Text of the in-canvas notice listing the given kinds ("" when empty).
+    static std::string format_unsupported_notice(std::span<const std::string_view> kinds);
+
    private:
+    // Returns true if `pipeline` is valid.  Otherwise records `kind` as
+    // unsupported for this figure (one log warning per kind) so the caller can
+    // skip the draw and render_figure_content() can show a notice.
+    bool require_pipeline(PipelineHandle pipeline, std::string_view kind);
+    void note_unsupported(std::string_view kind);
+    // Queue the in-canvas notice text for unsupported_series_ (if any).
+    void render_unsupported_notice(Figure& figure);
+
     void release_custom_type_state(SeriesTypeEntry& entry);
     void release_all_custom_state();
 
@@ -195,6 +213,11 @@ class Renderer
     // Enables Phase 2 ViewModel-based rendering: axes limits read via AxesViewModel,
     // series properties (visible, color, opacity) read via SeriesViewModel.
     FigureViewModel* figure_vm_ = nullptr;
+
+    // See unsupported_series().  unsupported_warned_ persists across frames so
+    // each kind is logged only once.
+    std::vector<std::string_view> unsupported_series_;
+    std::vector<std::string_view> unsupported_warned_;
 
     PipelineHandle line_pipeline_;
     PipelineHandle scatter_pipeline_;

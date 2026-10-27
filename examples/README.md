@@ -107,7 +107,7 @@ These are only built when the matching CMake option is enabled.
 | [`ros2_demo.cpp`](ros2_demo.cpp) | `SPECTRA_USE_ROS2=ON` | Tour of the ROS2 adapter. |
 | [`ros2_ui_preview.cpp`](ros2_ui_preview.cpp) | (ImGui build) | Preview of the `spectra-ros` panels with synthetic data, no ROS2 needed. |
 | [`ros2_launch/`](ros2_launch/) | `SPECTRA_USE_ROS2=ON` | ROS2 launch files for common `spectra-ros` layouts. |
-| [`webgpu_demo.cpp`](webgpu_demo.cpp) | `SPECTRA_USE_WEBGPU=ON` | WebGPU backend, native (Dawn) or browser (Emscripten, uses `webgpu_shell.html`). |
+| [`webgpu_demo.cpp`](webgpu_demo.cpp) | `SPECTRA_USE_WEBGPU=ON` | WebGPU backend, native (Dawn) or browser (Emscripten, uses `webgpu_shell.html`). 2D subset only: see [BUILD_ENVIRONMENT.md §6](../BUILD_ENVIRONMENT.md#6-webgpu-backend-experimental). |
 
 Data file: [`sample_data.csv`](sample_data.csv) is a small dataset for the CSV loader.
 

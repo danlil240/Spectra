@@ -87,6 +87,15 @@
             Edge 113+, or Firefox Nightly with <code>dom.webgpu.enabled</code>).
         </p>
         <p style="margin-top: 0.5rem;">
+            <strong>Supported on WebGPU (experimental 2D subset):</strong>
+            line, scatter (single color), bar, histogram, box plot, violin,
+            band, stem and 2D shapes, plus grid, axes text and tick labels.
+            <strong>Not yet supported:</strong> colormapped scatter (drawn in
+            the series color instead), heatmap and every 3D type (3D axes,
+            line, scatter, surface, mesh, shapes).  Unsupported series are
+            skipped and listed in a notice at the bottom-left of the canvas.
+        </p>
+        <p style="margin-top: 0.5rem;">
             Source:
             <a href="https://github.com/danlil240/Spectra/blob/main/examples/webgpu_demo.cpp">
                 examples/webgpu_demo.cpp

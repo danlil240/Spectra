@@ -72,25 +72,31 @@ struct Color
                      a + (other.a - a) * t);
     }
 
-    // sRGB relative luminance (BT.709)
-    constexpr float luminance() const
+    // IEC 61966-2-1 sRGB transfer functions for a single channel in [0, 1].
+    // Not constexpr: std::pow is not usable in constant expressions in C++20.
+    static float srgb_to_linear(float c)
     {
-        // Linearize sRGB components
-        auto linearize = [](float c) constexpr -> float
-        {
-            return (c <= 0.04045f)
-                       ? c / 12.92f
-                       :
-                       // Approximate pow((c + 0.055) / 1.055, 2.4) with a polynomial
-                       // For constexpr compatibility, use a simple gamma 2.2 approximation
-                       ((c + 0.055f) / 1.055f) * ((c + 0.055f) / 1.055f)
-                           * ((c + 0.055f) / 1.055f > 0.5f ? 1.16f : 0.87f);
-        };
-        return 0.2126f * linearize(r) + 0.7152f * linearize(g) + 0.0722f * linearize(b);
+        return (c <= 0.04045f) ? c / 12.92f : std::pow((c + 0.055f) / 1.055f, 2.4f);
     }
 
-    // WCAG 2.1 contrast ratio (1:1 to 21:1)
-    constexpr float contrast_ratio(const Color& other) const
+    static float linear_to_srgb(float c)
+    {
+        return (c <= 0.0031308f) ? c * 12.92f : 1.055f * std::pow(c, 1.0f / 2.4f) - 0.055f;
+    }
+
+    // WCAG 2.1 relative luminance (0 = black, 1 = white) of the opaque RGB
+    // channels. Alpha is ignored; use composite_over() first for translucent
+    // colours.
+    float luminance() const
+    {
+        return 0.2126f * srgb_to_linear(r) + 0.7152f * srgb_to_linear(g)
+               + 0.0722f * srgb_to_linear(b);
+    }
+
+    // WCAG 2.1 contrast ratio (1:1 to 21:1) between two colours treated as
+    // opaque. Alpha is ignored; use contrast_ratio_over() for translucent
+    // foregrounds.
+    float contrast_ratio(const Color& other) const
     {
         float l1      = luminance();
         float l2      = other.luminance();
@@ -99,20 +105,34 @@ struct Color
         return (lighter + 0.05f) / (darker + 0.05f);
     }
 
+    // Source-over composite of this colour onto an opaque `bg`, blended in
+    // encoded sRGB like ImGui and the UI pipeline. The result is opaque.
+    constexpr Color composite_over(const Color& bg) const
+    {
+        const float t = (a < 0.0f) ? 0.0f : (a > 1.0f ? 1.0f : a);
+        return Color(r * t + bg.r * (1.0f - t),
+                     g * t + bg.g * (1.0f - t),
+                     b * t + bg.b * (1.0f - t),
+                     1.0f);
+    }
+
+    // WCAG 2.1 contrast ratio of this (possibly translucent) foreground as
+    // displayed over the opaque background `bg`. `bg` alpha is ignored.
+    float contrast_ratio_over(const Color& bg) const
+    {
+        return composite_over(bg).contrast_ratio(bg.with_alpha(1.0f));
+    }
+
     // Convert sRGB to linear RGB
     Color to_linear() const
     {
-        auto lin = [](float c) -> float
-        { return (c <= 0.04045f) ? c / 12.92f : std::pow((c + 0.055f) / 1.055f, 2.4f); };
-        return Color(lin(r), lin(g), lin(b), a);
+        return Color(srgb_to_linear(r), srgb_to_linear(g), srgb_to_linear(b), a);
     }
 
     // Convert linear RGB to sRGB
     Color to_srgb() const
     {
-        auto srgb = [](float c) -> float
-        { return (c <= 0.0031308f) ? c * 12.92f : 1.055f * std::pow(c, 1.0f / 2.4f) - 0.055f; };
-        return Color(srgb(r), srgb(g), srgb(b), a);
+        return Color(linear_to_srgb(r), linear_to_srgb(g), linear_to_srgb(b), a);
     }
 
     // Convert to HSL (h: 0-360, s: 0-1, l: 0-1)

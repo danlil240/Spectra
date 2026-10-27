@@ -361,6 +361,7 @@ ShapeSeries3D& Axes3D::shapes3d()
 {
     auto  series = std::make_unique<ShapeSeries3D>();
     auto* ptr    = series.get();
+    series->set_auto_color_index(static_cast<int>(series_.size()));
     series_.push_back(std::move(series));
     return *ptr;
 }

@@ -8,6 +8,7 @@
 #include <spectra/figure.hpp>
 #include <spectra/series.hpp>
 #include <spectra/series3d.hpp>
+#include <spectra/series_shapes3d.hpp>
 #include <vector>
 
 #include "daemon/figure_model.hpp"
@@ -152,27 +153,51 @@ TEST(PaletteResolution, Axes3DSeriesAreAutoColoredNotBlue)
     std::vector<float>    verts = {0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1};
     std::vector<uint32_t> idx   = {0, 1, 2};
     auto&                 ms    = ax.mesh(verts, idx);
+    auto&                 sh0   = ax.shapes3d();
+    sh0.box(0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f);
+    auto& sh1 = ax.shapes3d();
+    sh1.sphere(0.0f, 0.0f, 0.0f, 0.5f);
 
     for (const spectra::Series* s : {static_cast<spectra::Series*>(&sc),
                                      static_cast<spectra::Series*>(&ln),
                                      static_cast<spectra::Series*>(&sf),
-                                     static_cast<spectra::Series*>(&ms)})
+                                     static_cast<spectra::Series*>(&ms),
+                                     static_cast<spectra::Series*>(&sh0),
+                                     static_cast<spectra::Series*>(&sh1)})
     {
         EXPECT_TRUE(s->has_auto_color());
         EXPECT_FALSE(same_rgb(s->color(), spectra::colors::blue));
     }
     EXPECT_EQ(sc.auto_color_index(), 0);
     EXPECT_EQ(ms.auto_color_index(), 3);
+    EXPECT_EQ(sh0.auto_color_index(), 4);
+    EXPECT_EQ(sh1.auto_color_index(), 5);
+    EXPECT_FALSE(same_rgb(sh0.color(), sh1.color()));
 
-    auto pal =
-        make_palette({spectra::ui::Color(0.1f, 0.2f, 0.3f), spectra::ui::Color(0.4f, 0.5f, 0.6f)});
+    auto pal = make_palette({spectra::ui::Color(0.1f, 0.2f, 0.3f),
+                             spectra::ui::Color(0.4f, 0.5f, 0.6f),
+                             spectra::ui::Color(0.7f, 0.8f, 0.9f)});
     spectra::ui::resolve_auto_series_colors(fig, pal);
     EXPECT_TRUE(same_rgb(sc.color(), pal.colors[0]));
     EXPECT_TRUE(same_rgb(ln.color(), pal.colors[1]));
+    EXPECT_TRUE(same_rgb(sh0.color(), pal.colors[1]));   // slot 4 % 3
+    EXPECT_TRUE(same_rgb(sh1.color(), pal.colors[2]));   // slot 5 % 3
 
+    // A palette/theme change recolours the shapes again.
+    auto pal2 =
+        make_palette({spectra::ui::Color(1.0f, 0.0f, 0.0f), spectra::ui::Color(0.0f, 1.0f, 0.0f)});
+    spectra::ui::resolve_auto_series_colors(fig, pal2);
+    EXPECT_TRUE(same_rgb(sh0.color(), pal2.colors[0]));   // slot 4 % 2
+    EXPECT_TRUE(same_rgb(sh1.color(), pal2.colors[1]));   // slot 5 % 2
+
+    // Explicit colours stay stable across palette changes.
     ln.color(spectra::colors::red);
+    sh1.color(spectra::colors::cyan);
     spectra::ui::resolve_auto_series_colors(fig, pal);
     EXPECT_TRUE(same_rgb(ln.color(), spectra::colors::red));
+    EXPECT_TRUE(same_rgb(sh1.color(), spectra::colors::cyan));
+    EXPECT_FALSE(sh1.has_auto_color());
+    EXPECT_TRUE(same_rgb(sh0.color(), pal.colors[1]));
 }
 
 TEST(PaletteResolution, CopyKeepsAutoColorAndIndexCanBeRestored)

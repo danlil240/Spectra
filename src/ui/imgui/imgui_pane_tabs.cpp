@@ -1236,6 +1236,8 @@ void ImGuiIntegration::draw_plot_overlays(Figure& figure)
     {
         ImDrawList* overlay_dl = ImGui::GetBackgroundDrawList();
         ImGuiIO&    io         = ImGui::GetIO();
+        const float overlay_ui_scale =
+            ImGui::GetStyle().FontScaleMain * ImGui::GetStyle().FontScaleDpi;
 
         const auto& all_axes = figure.all_axes();
         for (int ai = 0; ai < static_cast<int>(all_axes.size()); ++ai)
@@ -1264,6 +1266,9 @@ void ImGuiIntegration::draw_plot_overlays(Figure& figure)
             ctx.axes_index   = ai;
             ctx.series_count = static_cast<int>(ax->series().size());
             ctx.draw_list    = static_cast<void*>(overlay_dl);
+            ctx.theme        = theme_mgr_ ? &theme_mgr_->colors() : nullptr;
+            ctx.ui_scale     = overlay_ui_scale;
+            ctx.font_size    = ImGui::GetFontSize();
 
             overlay_registry_->draw_all(ctx);
         }

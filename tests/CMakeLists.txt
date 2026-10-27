@@ -1899,5 +1899,19 @@ if(SPECTRA_BUILD_QA_AGENT)
     endif()
 endif()
 
+# Shipped crosshair overlay example drawn into a real ImGui draw list.
+if(TARGET overlay_crosshair AND DEFINED imgui_SOURCE_DIR AND NOT WIN32
+   AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_example_overlay_crosshair.cpp)
+    add_spectra_test(unit test_example_overlay_crosshair)
+    target_include_directories(unit_test_example_overlay_crosshair SYSTEM PRIVATE
+        ${imgui_SOURCE_DIR})
+    target_compile_definitions(unit_test_example_overlay_crosshair PRIVATE
+        SPECTRA_EXAMPLE_OVERLAY_CROSSHAIR_PATH="$<TARGET_FILE:overlay_crosshair>")
+    add_dependencies(unit_test_example_overlay_crosshair overlay_crosshair)
+    # Export the host's C ABI + ImGui symbols so the plug-in binds to the test's
+    # copies (and its ImGui context) instead of the static copy linked into it.
+    target_link_options(unit_test_example_overlay_crosshair PRIVATE -rdynamic)
+endif()
+
 # Manual (interactive, not run by CTest) test programs
 add_subdirectory(manual)

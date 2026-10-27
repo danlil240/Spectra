@@ -2,10 +2,13 @@
 
 #include <gtest/gtest.h>
 
+#include <cstddef>
+
 #include "ui/commands/command_registry.hpp"
 #include "ui/commands/shortcut_manager.hpp"
 #include "ui/commands/undo_manager.hpp"
 #include "ui/overlay/overlay_registry.hpp"
+#include "ui/theme/theme.hpp"
 #include "ui/workspace/plugin_api.hpp"
 
 using namespace spectra;
@@ -358,3 +361,209 @@ TEST_F(PluginOverlayLoadTest, UnloadRemovesOverlay)
 }
 
 #endif   // SPECTRA_MOCK_OVERLAY_PLUGIN_PATH
+
+// ─── Overlay colour packing (API v2.1 docs/helpers) ──────────────────────────
+
+TEST(PluginOverlayColor, PackHelperPutsRedInLowByte)
+{
+    // ImGui's IM_COL32 layout: 0xAABBGGRR.
+    EXPECT_EQ(SPECTRA_OVERLAY_COLOR(0x11, 0x22, 0x33, 0x44), 0x44332211u);
+    EXPECT_EQ(spectra_overlay_pack_rgba(0x11, 0x22, 0x33, 0x44), 0x44332211u);
+
+    // Opaque yellow is 0xFF00FFFF; the old example's "yellow" 0xFFFFFF00 is cyan.
+    EXPECT_EQ(SPECTRA_OVERLAY_COLOR(255, 255, 0, 255), 0xFF00FFFFu);
+    EXPECT_EQ(SPECTRA_OVERLAY_COLOR(0, 255, 255, 255), 0xFFFFFF00u);
+
+    // Channels are masked to 8 bits.
+    EXPECT_EQ(SPECTRA_OVERLAY_COLOR(0x1FF, 0, 0, 0), 0x000000FFu);
+}
+
+TEST(PluginOverlayColor, ScaleAlphaKeepsRgb)
+{
+    const uint32_t c = SPECTRA_OVERLAY_COLOR(10, 20, 30, 200);
+    EXPECT_EQ(spectra_overlay_color_scale_alpha(c, 0.5f), SPECTRA_OVERLAY_COLOR(10, 20, 30, 100));
+    EXPECT_EQ(spectra_overlay_color_scale_alpha(c, 2.0f), c);
+    EXPECT_EQ(spectra_overlay_color_scale_alpha(c, -1.0f), SPECTRA_OVERLAY_COLOR(10, 20, 30, 0));
+}
+
+// ─── Overlay context carries theme + scale (API v2.1) ────────────────────────
+
+namespace
+{
+
+struct CtxCapture
+{
+    int                   calls = 0;
+    SpectraOverlayContext ctx{};
+};
+
+void capture_ctx(const SpectraOverlayContext* ctx, void* user_data)
+{
+    auto* cap = static_cast<CtxCapture*>(user_data);
+    ++cap->calls;
+    cap->ctx = *ctx;
+}
+
+}   // namespace
+
+TEST(PluginOverlayCAPI, ContextCarriesThemeAndScale)
+{
+    OverlayRegistry reg;
+    CtxCapture      cap;
+    ASSERT_EQ(spectra_register_overlay(static_cast<SpectraOverlayRegistry>(&reg),
+                                       "ThemeProbe",
+                                       capture_ctx,
+                                       &cap),
+              0);
+
+    ui::ThemeColors theme{};
+    theme.bg_canvas      = ui::Color(1.0f, 1.0f, 1.0f, 1.0f);
+    theme.crosshair      = ui::Color(0.2f, 0.4f, 0.6f, 0.8f);
+    theme.text_primary   = ui::Color(0.0f, 0.0f, 0.0f, 1.0f);
+    theme.text_secondary = ui::Color(0.25f, 0.25f, 0.25f, 1.0f);
+    theme.tooltip_bg     = ui::Color(1.0f, 1.0f, 0.0f, 1.0f);
+    theme.tooltip_border = ui::Color(0.0f, 1.0f, 0.0f, 0.5f);
+    theme.accent         = ui::Color(1.0f, 0.0f, 0.0f, 1.0f);
+    theme.axis_line      = ui::Color(0.0f, 0.0f, 1.0f, 1.0f);
+    theme.grid_major     = ui::Color(0.5f, 0.5f, 0.5f, 0.25f);
+
+    OverlayDrawContext ctx{};
+    ctx.viewport_w = 100.0f;
+    ctx.viewport_h = 100.0f;
+    ctx.theme      = &theme;
+    ctx.ui_scale   = 2.0f;
+    ctx.font_size  = 26.0f;
+    reg.draw_all(ctx);
+
+    ASSERT_EQ(cap.calls, 1);
+    const SpectraOverlayContext& c = cap.ctx;
+    EXPECT_EQ(c.struct_size, sizeof(SpectraOverlayContext));
+    EXPECT_TRUE(c.flags & SPECTRA_OVERLAY_FLAG_HAS_THEME);
+    EXPECT_FLOAT_EQ(c.ui_scale, 2.0f);
+    EXPECT_FLOAT_EQ(c.font_size, 26.0f);
+    EXPECT_NE(c.measure_text, nullptr);
+
+    EXPECT_EQ(c.theme.canvas_bg, SPECTRA_OVERLAY_COLOR(255, 255, 255, 255));
+    EXPECT_EQ(c.theme.crosshair, SPECTRA_OVERLAY_COLOR(51, 102, 153, 204));
+    EXPECT_EQ(c.theme.text, SPECTRA_OVERLAY_COLOR(0, 0, 0, 255));
+    EXPECT_EQ(c.theme.text_secondary, SPECTRA_OVERLAY_COLOR(64, 64, 64, 255));
+    EXPECT_EQ(c.theme.label_bg, SPECTRA_OVERLAY_COLOR(255, 255, 0, 255));
+    EXPECT_EQ(c.theme.label_border, SPECTRA_OVERLAY_COLOR(0, 255, 0, 128));
+    EXPECT_EQ(c.theme.accent, SPECTRA_OVERLAY_COLOR(255, 0, 0, 255));
+    EXPECT_EQ(c.theme.axis_line, SPECTRA_OVERLAY_COLOR(0, 0, 255, 255));
+    EXPECT_EQ(c.theme.grid_major, SPECTRA_OVERLAY_COLOR(128, 128, 128, 64));
+
+    // Measuring without an ImGui frame is safe and reports zero.
+    float w = -1.0f;
+    float h = -1.0f;
+    c.measure_text(&c, "abc", &w, &h);
+    EXPECT_GE(w, 0.0f);
+    EXPECT_GE(h, 0.0f);
+}
+
+TEST(PluginOverlayCAPI, ContextWithoutThemeHasNoThemeFlag)
+{
+    OverlayRegistry reg;
+    CtxCapture      cap;
+    ASSERT_EQ(spectra_register_overlay(static_cast<SpectraOverlayRegistry>(&reg),
+                                       "NoThemeProbe",
+                                       capture_ctx,
+                                       &cap),
+              0);
+
+    OverlayDrawContext ctx{};
+    ctx.ui_scale = 0.0f;   // invalid scale falls back to 100%
+    reg.draw_all(ctx);
+
+    ASSERT_EQ(cap.calls, 1);
+    EXPECT_EQ(cap.ctx.struct_size, sizeof(SpectraOverlayContext));
+    EXPECT_EQ(cap.ctx.flags & SPECTRA_OVERLAY_FLAG_HAS_THEME, 0u);
+    EXPECT_FLOAT_EQ(cap.ctx.ui_scale, 1.0f);
+}
+
+TEST(PluginOverlayCAPI, AppearanceFieldsAppendedAfterV12Layout)
+{
+    // The v2.1 fields are appended: the v1.2 layout must be unchanged.
+    EXPECT_EQ(offsetof(SpectraOverlayContext, viewport_x), 0u);
+    EXPECT_EQ(offsetof(SpectraOverlayContext, series_count), 9 * sizeof(float));
+    EXPECT_GT(offsetof(SpectraOverlayContext, struct_size),
+              offsetof(SpectraOverlayContext, reserved_));
+    EXPECT_GE(SPECTRA_PLUGIN_API_VERSION_MINOR, 1u);
+}
+
+// ─── Label placement keeps labels inside the viewport ───────────────────────
+
+TEST(PluginOverlayLabel, PrefersUpRightOfAnchor)
+{
+    SpectraOverlayContext ctx{};
+    ctx.viewport_x = 100.0f;
+    ctx.viewport_y = 50.0f;
+    ctx.viewport_w = 400.0f;
+    ctx.viewport_h = 300.0f;
+
+    float x = 0.0f;
+    float y = 0.0f;
+    spectra_overlay_place_label(&ctx, 300.0f, 200.0f, 80.0f, 20.0f, 8.0f, 2.0f, &x, &y);
+    EXPECT_FLOAT_EQ(x, 308.0f);
+    EXPECT_FLOAT_EQ(y, 172.0f);
+}
+
+TEST(PluginOverlayLabel, StaysInsideAtAllCorners)
+{
+    SpectraOverlayContext ctx{};
+    ctx.viewport_x = 100.0f;
+    ctx.viewport_y = 50.0f;
+    ctx.viewport_w = 400.0f;
+    ctx.viewport_h = 300.0f;
+
+    const float w   = 80.0f;
+    const float h   = 20.0f;
+    const float pad = 2.0f;
+
+    const float vx0 = ctx.viewport_x;
+    const float vy0 = ctx.viewport_y;
+    const float vx1 = ctx.viewport_x + ctx.viewport_w;
+    const float vy1 = ctx.viewport_y + ctx.viewport_h;
+
+    const float anchors[][2] = {
+        {vx0, vy0},
+        {vx1, vy0},
+        {vx0, vy1},
+        {vx1, vy1},
+        {vx1 - 1.0f, vy0 + 1.0f},
+        {(vx0 + vx1) * 0.5f, (vy0 + vy1) * 0.5f},
+    };
+    for (const auto& a : anchors)
+    {
+        float x = 0.0f;
+        float y = 0.0f;
+        spectra_overlay_place_label(&ctx, a[0], a[1], w, h, 8.0f, pad, &x, &y);
+        SCOPED_TRACE(::testing::Message() << "anchor (" << a[0] << ", " << a[1] << ")");
+        EXPECT_GE(x, vx0 + pad);
+        EXPECT_GE(y, vy0 + pad);
+        EXPECT_LE(x + w, vx1 - pad);
+        EXPECT_LE(y + h, vy1 - pad);
+    }
+
+    // Top-right corner flips the label to the left of and below the cursor.
+    float x = 0.0f;
+    float y = 0.0f;
+    spectra_overlay_place_label(&ctx, vx1 - 1.0f, vy0 + 1.0f, w, h, 8.0f, pad, &x, &y);
+    EXPECT_LT(x + w, vx1 - 1.0f);
+    EXPECT_GT(y, vy0 + 1.0f);
+}
+
+TEST(PluginOverlayLabel, OversizedLabelPinsToTopLeft)
+{
+    SpectraOverlayContext ctx{};
+    ctx.viewport_x = 10.0f;
+    ctx.viewport_y = 20.0f;
+    ctx.viewport_w = 50.0f;
+    ctx.viewport_h = 30.0f;
+
+    float x = 0.0f;
+    float y = 0.0f;
+    spectra_overlay_place_label(&ctx, 30.0f, 30.0f, 200.0f, 100.0f, 8.0f, 0.0f, &x, &y);
+    EXPECT_FLOAT_EQ(x, 10.0f);
+    EXPECT_FLOAT_EQ(y, 20.0f);
+}

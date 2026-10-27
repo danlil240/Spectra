@@ -1,6 +1,6 @@
 # Spectra Plugin Developer Guide
 
-> **API version covered**: v2.0 (current stable)  
+> **API version covered**: v2.1 (current stable)  
 > **Phase D — Custom Series Types** is available in API v2.0 via the `custom_series` registry.
 
 ---
@@ -326,7 +326,7 @@ static void my_overlay(const SpectraOverlayContext* ctx, void* /*user_data*/)
     spectra_overlay_draw_line(ctx,
         ctx->viewport_x,              ctx->viewport_y,
         ctx->viewport_x + ctx->viewport_w, ctx->viewport_y + ctx->viewport_h,
-        0xFF0000FF,   // RGBA: opaque red
+        SPECTRA_OVERLAY_COLOR(255, 0, 0, 255),   // opaque red (== 0xFF0000FF)
         1.5f);
 
     // Print series count in the top-left corner.
@@ -335,7 +335,7 @@ static void my_overlay(const SpectraOverlayContext* ctx, void* /*user_data*/)
     spectra_overlay_draw_text(ctx,
         ctx->viewport_x + 4.0f, ctx->viewport_y + 4.0f,
         buf,
-        0xFFFFFFFF);  // RGBA: opaque white
+        SPECTRA_OVERLAY_COLOR(255, 255, 255, 255));  // opaque white
 }
 
 // In spectra_plugin_init (requires API v1.2+):
@@ -354,6 +354,21 @@ spectra_register_overlay(ctx->overlay_registry, "My Overlay", my_overlay, nullpt
 | `axes_index` | `int` | Index of this axes within the figure |
 | `series_count` | `int` | Number of series on this axes |
 
+**Appearance fields (API v2.1+)** — appended to the end of the struct. Read them only when the
+host reported v2.1 or newer to `spectra_plugin_init` (`major > 2`, or `major == 2 && minor >= 1`);
+older hosts pass a shorter struct.
+
+| Field | Type | Description |
+|---|---|---|
+| `struct_size` | `uint32_t` | `sizeof(SpectraOverlayContext)` as filled by the host |
+| `flags` | `uint32_t` | `SPECTRA_OVERLAY_FLAG_HAS_THEME` when `theme` is valid |
+| `ui_scale` | `float` | UI scale factor (1.0 = 100%); multiply thicknesses, radii, gaps |
+| `font_size` | `float` | Current UI font height in pixels (already scaled) |
+| `theme` | `SpectraOverlayTheme` | Packed host theme colours: `canvas_bg`, `crosshair`, `text`, `text_secondary`, `label_bg`, `label_border`, `accent`, `axis_line`, `grid_major` |
+| `measure_text` | function pointer | Measures text in the host UI font (may be `NULL`) |
+
+Use `spectra_overlay_place_label()` to keep a label beside the cursor but inside the viewport.
+
 **Drawing helpers** — do not link ImGui directly; use these host-provided wrappers:
 
 | Function | Description |
@@ -365,7 +380,11 @@ spectra_register_overlay(ctx->overlay_registry, "My Overlay", my_overlay, nullpt
 | `spectra_overlay_draw_circle` | Outlined circle |
 | `spectra_overlay_draw_circle_filled` | Filled circle |
 
-All colors are `uint32_t` in **RGBA** byte order: `0xRRGGBBAA`.
+All colors are packed `uint32_t` values with **red in the low byte** (ImGui's `IM_COL32`
+layout), so a hex literal reads `0xAABBGGRR`: opaque yellow is `0xFF00FFFF`, and
+`0xFFFFFF00` is opaque cyan. Build colours with `SPECTRA_OVERLAY_COLOR(r, g, b, a)` /
+`spectra_overlay_pack_rgba()`, and prefer `ctx->theme` colours (v2.1+) so overlays stay
+visible on light and dark themes.
 
 Unregister explicitly if needed:
 

@@ -4,6 +4,8 @@
 
     #include <SDL3/SDL.h>
 
+    #include "event_wait.hpp"
+
 namespace spectra
 {
 
@@ -47,6 +49,32 @@ void Sdl3Adapter::destroy_window()
 void Sdl3Adapter::terminate()
 {
     SDL_Quit();
+}
+
+void Sdl3Adapter::poll_events()
+{
+    SDL_Event ev;
+    while (SDL_PollEvent(&ev))
+    {
+        if (ev.type == SDL_EVENT_QUIT)
+            should_close_ = true;
+        else if (ev.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED && window_
+                 && ev.window.windowID == SDL_GetWindowID(window_))
+            should_close_ = true;
+    }
+}
+
+void Sdl3Adapter::wait_events()
+{
+    SDL_WaitEvent(nullptr);   // leaves the event queued for poll_events()
+    poll_events();
+}
+
+void Sdl3Adapter::wait_events_timeout(double timeout_seconds)
+{
+    if (timeout_seconds > 0.0)
+        SDL_WaitEventTimeout(nullptr, sdl3_wait_timeout_ms(timeout_seconds));
+    poll_events();
 }
 
 void* Sdl3Adapter::native_window() const

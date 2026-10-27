@@ -5,6 +5,7 @@
 
 #include <spectra/logger.hpp>
 
+#include "event_wait.hpp"
 #include "render/vulkan/window_context.hpp"
 #include "ui/app/window_ui_context.hpp"
 
@@ -43,14 +44,13 @@ void WindowManager::wait_events_timeout(double timeout_seconds)
 #ifdef SPECTRA_USE_GLFW
     glfwWaitEventsTimeout(timeout_seconds);
 #elif defined(SPECTRA_USE_SDL3)
-    // SDL3 has no equivalent wait-for-event with timeout — use a brief poll
-    // and sleep to avoid busy-waiting.
-    process_sdl3_events();
+    // Block until an event arrives or the timeout expires (like
+    // glfwWaitEventsTimeout), then drain the queue.  SDL_WaitEventTimeout with
+    // a null event leaves the event queued for process_sdl3_events().
+    // Background threads wake this with SDL_PushEvent (see automation_server).
     if (timeout_seconds > 0.0)
-    {
-        auto ms = static_cast<uint32_t>(timeout_seconds * 1000.0);
-        SDL_Delay(std::min(ms, 100u));
-    }
+        SDL_WaitEventTimeout(nullptr, sdl3_wait_timeout_ms(timeout_seconds));
+    process_sdl3_events();
 #else
     (void)timeout_seconds;
 #endif

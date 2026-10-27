@@ -5,6 +5,7 @@
     #include <format>
 
     #include "../topics/topics_panel.hpp"
+    #include "ui/input/axes_selection.hpp"
     #include "ui/shell/spectra_app_shell.hpp"
     #include "ui/shell/status_bar.hpp"
     #include "ui/theme/glass_draw.hpp"
@@ -619,35 +620,9 @@ void ImGuiIntegration::draw_inspector(Figure& figure)
                         }
                         break;
                     case Section::Axes:
-                        // Only show browser if user hasn't selected a specific axes.
-                        // When switching figures, try to preserve the axes index if valid.
-                        if (figure.axes().empty())
-                        {
-                            // No axes in this figure, clear selection
-                            selection_ctx_.clear();
-                        }
-                        else if (selection_ctx_.type != ui::SelectionType::Axes)
-                        {
-                            selection_ctx_.select_axes(&figure, figure.axes_mut()[0].get(), 0);
-                        }
-                        else if (selection_ctx_.figure != &figure)
-                        {
-                            // User has axes selected but switched to a different figure.
-                            // Try to select the same axes index in the new figure.
-                            int target_idx = selection_ctx_.axes_index;
-                            if (target_idx >= 0
-                                && target_idx < static_cast<int>(figure.axes().size()))
-                            {
-                                selection_ctx_.select_axes(&figure,
-                                                           figure.axes_mut()[target_idx].get(),
-                                                           target_idx);
-                            }
-                            else
-                            {
-                                // Index out of range, fall back to first axes
-                                selection_ctx_.select_axes(&figure, figure.axes_mut()[0].get(), 0);
-                            }
-                        }
+                        // Keep the user's axes (2D or 3D) selected; default to
+                        // the first axes, and keep the slot when switching figures.
+                        ui::sync_axes_section_selection(selection_ctx_, figure);
                         break;
                     case Section::DataEditor:
                         break;   // Handled above

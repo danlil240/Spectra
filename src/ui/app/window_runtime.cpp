@@ -483,6 +483,8 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
     {
         if (profiler)
             profiler->begin_stage("imgui_build");
+        // Labels ellipsized in the previous frame (hover shows the full text).
+        imgui_ui->set_truncated_text_regions(renderer_.truncated_text_regions());
         if (active_figure)
             imgui_ui->build_ui(*active_figure, &fig_mgr.active_state());
         else

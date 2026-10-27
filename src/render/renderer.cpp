@@ -439,6 +439,7 @@ void Renderer::begin_render_pass()
     // completed before any GPU resources are freed.
 
     text_renderer_.begin_frame_recording(backend_.current_flight_frame());
+    truncated_text_regions_.clear();
 
     const auto& theme_colors = theme_mgr_.colors();
     Color       bg_color     = Color(theme_colors.bg_canvas.r,
@@ -452,6 +453,7 @@ void Renderer::begin_render_pass()
 void Renderer::begin_render_pass(const Color& clear_color)
 {
     text_renderer_.begin_frame_recording(backend_.current_flight_frame());
+    truncated_text_regions_.clear();
     backend_.begin_render_pass(clear_color);
     backend_.set_line_width(1.0f);
 }

@@ -592,7 +592,23 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
             draw_curve_editor_panel();
     }
 
-    // Draw deferred tooltip (command bar) on top of everything
+    // Full text of an ellipsized plot title / axis label under the cursor.
+    if (!deferred_tooltip_ && canvas_visible_ && !ImGui::IsAnyItemActive()
+        && !ImGui::IsAnyItemHovered() && !ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow))
+    {
+        const ImVec2 mouse = ImGui::GetIO().MousePos;
+        for (const auto& region : truncated_text_regions_)
+        {
+            const Rect& r = region.rect;
+            if (mouse.x >= r.x && mouse.x < r.x + r.w && mouse.y >= r.y && mouse.y < r.y + r.h)
+            {
+                deferred_tooltip_ = region.full_text.c_str();
+                break;
+            }
+        }
+    }
+
+    // Draw deferred tooltip (command bar, ellipsized plot labels) on top of everything
     if (deferred_tooltip_)
     {
         // Clamp tooltip position to stay within window bounds

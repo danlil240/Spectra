@@ -1753,6 +1753,24 @@ if(SPECTRA_USE_PX4)
         set_tests_properties(unit_test_ulog_reader PROPERTIES LABELS "px4")
     endif()
 
+    # PX4 panel helpers — Parameters sorting and stable live-row widget IDs.
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_px4_panel_helpers.cpp)
+        add_executable(unit_test_px4_panel_helpers
+            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_px4_panel_helpers.cpp
+        )
+        target_link_libraries(unit_test_px4_panel_helpers PRIVATE
+            spectra_px4_adapter
+            GTest::gtest_main
+        )
+        target_compile_features(unit_test_px4_panel_helpers PRIVATE cxx_std_20)
+        target_include_directories(unit_test_px4_panel_helpers PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_SOURCE_DIR}/src/adapters/px4
+        )
+        add_test(NAME unit_test_px4_panel_helpers COMMAND unit_test_px4_panel_helpers)
+        set_tests_properties(unit_test_px4_panel_helpers PROPERTIES LABELS "px4")
+    endif()
+
     # Px4PlotManager tests — field management and data extraction.
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_px4_plot_manager.cpp)
         add_executable(unit_test_px4_plot_manager

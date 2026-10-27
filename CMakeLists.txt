@@ -832,6 +832,7 @@ if(SPECTRA_USE_PX4)
         src/adapters/px4/px4_app_shell_menus.cpp
         src/adapters/px4/ui/ulog_file_panel.cpp
         src/adapters/px4/ui/live_connection_panel.cpp
+        src/adapters/px4/ui/px4_panel_helpers.cpp
     )
 
     target_link_libraries(spectra_px4_adapter PUBLIC spectra)

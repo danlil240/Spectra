@@ -92,6 +92,12 @@ class ULogFilePanel
     // Topic tree filter.
     char topic_filter_buf_[128]{};
 
+    // Cached Parameters-table row order (indices into reader_.parameters()),
+    // rebuilt when the table's sort specs or the parameter set change.
+    std::vector<size_t>  param_order_;
+    const ULogParameter* param_order_src_{nullptr};
+    std::string          param_order_path_;
+
     FieldCallback field_cb_;
     FileCallback  file_cb_;
 };

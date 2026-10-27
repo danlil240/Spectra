@@ -52,12 +52,12 @@ struct JsonValue
         Object
     };
 
-    Kind                                           kind   = Kind::Null;
-    bool                                           bool_v = false;
-    double                                         num_v  = 0.0;
-    std::string                                    str_v;
-    std::vector<JsonValue>                         array_v;
-    std::vector<JsonMember>                        object_v;
+    Kind                    kind   = Kind::Null;
+    bool                    bool_v = false;
+    double                  num_v  = 0.0;
+    std::string             str_v;
+    std::vector<JsonValue>  array_v;
+    std::vector<JsonMember> object_v;
 
     // Returns the value for key in an object, or nullptr.
     const JsonValue* find(std::string_view key) const;

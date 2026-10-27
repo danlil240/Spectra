@@ -21,7 +21,8 @@ ShapeSeries3D& ShapeSeries3D::box(float cx, float cy, float cz, float sx, float 
     def.params[4] = sy;
     def.params[5] = sz;
     shapes_.push_back(def);
-    dirty_ = true;
+    dirty_          = true;
+    geometry_stale_ = true;
     return *this;
 }
 
@@ -34,7 +35,8 @@ ShapeSeries3D& ShapeSeries3D::sphere(float cx, float cy, float cz, float r)
     def.params[2] = cz;
     def.params[3] = r;
     shapes_.push_back(def);
-    dirty_ = true;
+    dirty_          = true;
+    geometry_stale_ = true;
     return *this;
 }
 
@@ -51,7 +53,8 @@ ShapeSeries3D::cylinder(float x1, float y1, float z1, float x2, float y2, float 
     def.params[5] = z2;
     def.params[6] = radius;
     shapes_.push_back(def);
-    dirty_ = true;
+    dirty_          = true;
+    geometry_stale_ = true;
     return *this;
 }
 
@@ -68,7 +71,8 @@ ShapeSeries3D::cone(float x1, float y1, float z1, float x2, float y2, float z2, 
     def.params[5] = z2;
     def.params[6] = radius;
     shapes_.push_back(def);
-    dirty_ = true;
+    dirty_          = true;
+    geometry_stale_ = true;
     return *this;
 }
 
@@ -90,7 +94,8 @@ ShapeSeries3D& ShapeSeries3D::arrow3d(float x1,
     def.params[5] = z2;
     def.params[6] = shaft_radius;
     shapes_.push_back(def);
-    dirty_ = true;
+    dirty_          = true;
+    geometry_stale_ = true;
     return *this;
 }
 
@@ -107,7 +112,8 @@ ShapeSeries3D::plane(float cx, float cy, float cz, float nx, float ny, float nz,
     def.params[5] = nz;
     def.params[6] = half_size;
     shapes_.push_back(def);
-    dirty_ = true;
+    dirty_          = true;
+    geometry_stale_ = true;
     return *this;
 }
 
@@ -119,6 +125,7 @@ ShapeSeries3D& ShapeSeries3D::shape_color(const Color& c)
     {
         shapes_.back().shape_color = c;
         dirty_                     = true;
+        geometry_stale_            = true;
     }
     return *this;
 }
@@ -131,6 +138,7 @@ ShapeSeries3D& ShapeSeries3D::segments(int n)
         // generation; clamp to the smallest meaningful tessellation.
         shapes_.back().segments = std::max(n, 3);
         dirty_                  = true;
+        geometry_stale_         = true;
     }
     return *this;
 }
@@ -142,6 +150,7 @@ ShapeSeries3D& ShapeSeries3D::arrow_head(float length_frac, float radius_mult)
         shapes_.back().arrow_head_length_frac = length_frac;
         shapes_.back().arrow_head_radius_mult = radius_mult;
         dirty_                                = true;
+        geometry_stale_                       = true;
     }
     return *this;
 }
@@ -153,7 +162,8 @@ ShapeSeries3D& ShapeSeries3D::clear_shapes()
     shapes_.clear();
     vertices_.clear();
     indices_.clear();
-    dirty_ = true;
+    dirty_          = true;
+    geometry_stale_ = false;
     return *this;
 }
 
@@ -603,8 +613,18 @@ void ShapeSeries3D::generate_plane(const ShapeDef3D& def)
 
 // ── Rebuild geometry ────────────────────────────────────────────────────────
 
+void ShapeSeries3D::ensure_geometry() const
+{
+    // Geometry is a pure function of shapes_, so generating it from a const
+    // query is a cache fill, not an observable mutation.  Doing it here makes
+    // bounds/limits correct on the very first frame, before any GPU upload.
+    if (geometry_stale_)
+        const_cast<ShapeSeries3D*>(this)->rebuild_geometry();
+}
+
 void ShapeSeries3D::rebuild_geometry()
 {
+    geometry_stale_ = false;
     vertices_.clear();
     indices_.clear();
 
@@ -636,6 +656,7 @@ void ShapeSeries3D::rebuild_geometry()
 
 vec3 ShapeSeries3D::compute_centroid() const
 {
+    ensure_geometry();
     if (vertices_.empty())
         return {0, 0, 0};
 
@@ -655,6 +676,7 @@ vec3 ShapeSeries3D::compute_centroid() const
 
 void ShapeSeries3D::get_bounds(vec3& min_out, vec3& max_out) const
 {
+    ensure_geometry();
     if (vertices_.empty())
     {
         min_out = {0, 0, 0};

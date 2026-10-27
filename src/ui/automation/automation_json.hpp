@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include "core/json_key.hpp"
+
 #include <algorithm>
 #include <cstdint>
 #include <string>
@@ -227,7 +229,7 @@ inline std::string json_unescape(const std::string& body)
 inline std::string json_get_string(const std::string& json, const std::string& key)
 {
     std::string search = "\"" + key + "\"";
-    auto        pos    = json.find(search);
+    auto        pos    = json_find_key(json, key);
     if (pos == std::string::npos)
         return "";
     pos = json.find(':', pos + search.size());
@@ -284,7 +286,7 @@ inline int json_get_int(const std::string& json, const std::string& key, int fb 
 inline std::vector<float> json_get_float_array(const std::string& json, const std::string& key)
 {
     std::string search = "\"" + key + "\"";
-    auto        pos    = json.find(search);
+    auto        pos    = json_find_key(json, key);
     if (pos == std::string::npos)
         return {};
     pos = json.find(':', pos + search.size());
@@ -333,7 +335,7 @@ inline uint64_t json_get_uint64(const std::string& json, const std::string& key,
 inline std::string json_get_object(const std::string& json, const std::string& key)
 {
     std::string search = "\"" + key + "\"";
-    auto        pos    = json.find(search);
+    auto        pos    = json_find_key(json, key);
     if (pos == std::string::npos)
         return "{}";
     pos = json.find('{', pos + search.size());

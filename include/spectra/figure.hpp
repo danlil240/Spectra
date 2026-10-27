@@ -38,9 +38,28 @@ struct LegendConfig
     LegendPosition position     = LegendPosition::Best;
     bool           visible      = true;
     float          font_size    = 0.0f;   ///< 0 = use default from font
-    Color          bg_color     = {};     ///< {0,0,0,0} = use theme bg_elevated
-    Color          border_color = {};     ///< {0,0,0,0} = use theme border_subtle
-    float          padding      = 8.0f;
+    /// Legend fill.  Used when has_bg_color is true or its RGB is not black;
+    /// otherwise (the default) the theme's legend colour is used.
+    Color bg_color = {};
+    /// Legend border.  Same rule as bg_color, with has_border_color.
+    Color border_color = {};
+    float padding      = 8.0f;
+    /// Set to use bg_color / border_color even when it is pure black, which is
+    /// otherwise read as "unset" for backward compatibility.
+    bool has_bg_color     = false;
+    bool has_border_color = false;
+
+    /// True when the legend fill comes from bg_color rather than the theme.
+    constexpr bool uses_bg_color() const
+    {
+        return has_bg_color || bg_color.r != 0.0f || bg_color.g != 0.0f || bg_color.b != 0.0f;
+    }
+    /// True when the legend border comes from border_color rather than the theme.
+    constexpr bool uses_border_color() const
+    {
+        return has_border_color || border_color.r != 0.0f || border_color.g != 0.0f
+               || border_color.b != 0.0f;
+    }
 };
 
 /// @brief Figure background colour, outer margins and subplot spacing (pixels).

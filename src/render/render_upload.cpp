@@ -595,6 +595,7 @@ void Renderer::upload_series_data(Series&   series,
         }
         backend_.upload_buffer(gpu.index_buffer, shape3d->indices().data(), idx_byte_size);
         gpu.index_count = shape3d->indices().size();
+        ++gpu.geometry_serial;   // invalidates the translucent triangle sort
 
         series.clear_dirty();
     }

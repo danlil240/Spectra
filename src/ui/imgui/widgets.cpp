@@ -493,8 +493,9 @@ bool color_field(const char* label, spectra::Color& color)
             changed = true;
         }
 
-        // Palette swatches from current data palette
-        const auto& palette = spectra::ui::data_palette();
+        // Palette swatches from the current data palette, as auto series draw
+        // them on the canvas (contrast-adjusted), so a picked swatch matches.
+        const auto palette = ThemeManager::instance().displayed_data_palette();
         if (!palette.colors.empty())
         {
             ImGui::Spacing();

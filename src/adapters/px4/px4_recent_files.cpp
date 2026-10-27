@@ -1,5 +1,7 @@
 #include "px4_recent_files.hpp"
 
+#include "core/json_key.hpp"
+
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
@@ -183,7 +185,7 @@ std::string Px4RecentFiles::serialize(const std::vector<std::string>& entries)
 std::vector<std::string> Px4RecentFiles::deserialize(const std::string& json)
 {
     std::vector<std::string> out;
-    size_t                   pos = json.find("\"files\"");
+    size_t                   pos = json_find_key(json, "files");
     if (pos == std::string::npos)
         return out;
     pos = json.find('[', pos);

@@ -1,4 +1,5 @@
 #include "workspace.hpp"
+#include "core/json_key.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -485,7 +486,7 @@ static std::string unescape_json(const std::string& s)
 std::string Workspace::read_string_value(const std::string& json, const std::string& key)
 {
     std::string search = "\"" + key + "\"";
-    auto        pos    = json.find(search);
+    auto        pos    = json_find_key(json, key);
     if (pos == std::string::npos)
         return "";
 
@@ -512,7 +513,7 @@ double Workspace::read_number_value(const std::string& json,
                                     double             default_val)
 {
     std::string search = "\"" + key + "\"";
-    auto        pos    = json.find(search);
+    auto        pos    = json_find_key(json, key);
     if (pos == std::string::npos)
         return default_val;
 
@@ -547,7 +548,7 @@ double Workspace::read_number_value(const std::string& json,
 bool Workspace::read_bool_value(const std::string& json, const std::string& key, bool default_val)
 {
     std::string search = "\"" + key + "\"";
-    auto        pos    = json.find(search);
+    auto        pos    = json_find_key(json, key);
     if (pos == std::string::npos)
         return default_val;
 
@@ -568,7 +569,7 @@ static std::vector<std::string> parse_json_array(const std::string& json, const 
 {
     std::vector<std::string> objects;
     std::string              search = "\"" + key + "\"";
-    auto                     pos    = json.find(search);
+    auto                     pos    = json_find_key(json, key);
     if (pos == std::string::npos)
         return objects;
 
@@ -725,7 +726,7 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data)
                 s.line_style   = static_cast<int>(read_number_value(ser_json, "line_style", 1));
                 s.marker_style = static_cast<int>(read_number_value(ser_json, "marker_style", 0));
                 // Parse dash_pattern array
-                auto dp_pos = ser_json.find("\"dash_pattern\"");
+                auto dp_pos = json_find_key(ser_json, "dash_pattern");
                 if (dp_pos != std::string::npos)
                 {
                     auto bracket     = ser_json.find('[', dp_pos);
@@ -788,7 +789,7 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data)
         }
 
         // 2D text annotations (optional key, any version)
-        fig.has_text_annotations = fig_json.find("\"text_annotations\"") != std::string::npos;
+        fig.has_text_annotations = json_find_key(fig_json, "text_annotations") != std::string::npos;
         for (const auto& t_json : parse_json_array(fig_json, "text_annotations"))
         {
             WorkspaceData::TextAnnotationState t;
@@ -821,7 +822,7 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data)
         data.interaction.tooltip_enabled   = read_bool_value(json, "tooltip_enabled", true);
 
         // Parse markers array from interaction object
-        auto interaction_pos = json.find("\"interaction\"");
+        auto interaction_pos = json_find_key(json, "interaction");
         if (interaction_pos != std::string::npos)
         {
             // Extract the interaction object substring
@@ -923,7 +924,7 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data)
         }
 
         // Parse timeline state
-        auto tl_pos = json.find("\"timeline\"");
+        auto tl_pos = json_find_key(json, "timeline");
         if (tl_pos != std::string::npos)
         {
             auto brace = json.find('{', tl_pos);

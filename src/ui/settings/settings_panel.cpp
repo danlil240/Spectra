@@ -5,6 +5,7 @@
     #include <algorithm>
     #include <cctype>
     #include <cfloat>
+    #include <cmath>
     #include <string>
     #include <unordered_map>
 
@@ -355,9 +356,10 @@ void SettingsPanel::draw_appearance_tab()
 
     ImGui::Spacing();
 
-    const float label_w =
-        std::max(ImGui::CalcTextSize("Theme").x, ImGui::CalcTextSize("Data Palette").x)
-        + ImGui::GetStyle().ItemInnerSpacing.x * 2.0f;
+    const float label_w = std::max({ImGui::CalcTextSize("Theme").x,
+                                    ImGui::CalcTextSize("Data Palette").x,
+                                    ImGui::CalcTextSize("UI Scale").x})
+                          + ImGui::GetStyle().ItemInnerSpacing.x * 2.0f;
 
     // Contract: the combos show and select the ACTIVE theme / palette.  A
     // selection here also saves it as the startup default; commands and
@@ -418,8 +420,29 @@ void SettingsPanel::draw_appearance_tab()
     ImGui::TextUnformatted("Data Palette");
     ImGui::SameLine(label_w);
     ImGui::SetNextItemWidth(200.0f);
+    // Swatches show each palette as the plot draws it on the current canvas
+    // (visible_data_palette), not the raw palette definition.
+    auto draw_swatches = [&](const ui::DataPalette& pal, float size)
+    {
+        ImDrawList*  dl    = ImGui::GetWindowDrawList();
+        const ImVec2 at    = ImGui::GetCursorScreenPos();
+        const size_t count = std::min<size_t>(pal.colors.size(), 10);
+        const float  gap   = std::max(1.0f, size * 0.2f);
+        for (size_t i = 0; i < count; ++i)
+        {
+            const auto&  pc = pal.colors[i];
+            const ImVec2 a(at.x + static_cast<float>(i) * (size + gap), at.y);
+            dl->AddRectFilled(a,
+                              ImVec2(a.x + size, a.y + size),
+                              ImGui::ColorConvertFloat4ToU32(ImVec4(pc.r, pc.g, pc.b, 1.0f)),
+                              2.0f);
+        }
+        ImGui::Dummy(ImVec2(count > 0 ? count * (size + gap) - gap : 0.0f, size));
+    };
+
     if (ImGui::BeginCombo("##palette", state.active_data_palette.c_str()))
     {
+        const float sw = ImGui::GetTextLineHeight() * 0.8f;
         for (const char* p : k_palettes)
         {
             const bool cvd_safe = theme_mgr_->get_data_palette(p).colorblind_safe;
@@ -431,13 +454,49 @@ void SettingsPanel::draw_appearance_tab()
                 select_data_palette(*theme_mgr_, *store_, p);
             if (selected)
                 ImGui::SetItemDefaultFocus();
+            ImGui::Indent(ImGui::GetStyle().ItemSpacing.x);
+            draw_swatches(theme_mgr_->displayed_data_palette(p), sw);
+            ImGui::Unindent(ImGui::GetStyle().ItemSpacing.x);
         }
         ImGui::EndCombo();
     }
+    ImGui::SetCursorPosX(label_w);   // align with the combo above
+    draw_swatches(theme_mgr_->displayed_data_palette(), ImGui::GetTextLineHeight());
     if (!state.data_palette_matches_startup()
         && startup_hint("palette_default", state.startup_data_palette))
     {
         make_active_data_palette_default(*theme_mgr_, *store_);
+    }
+
+    ImGui::Spacing();
+
+    // App UI scale: applied when chosen (not while dragging) and saved.
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted("UI Scale");
+    ImGui::SameLine(label_w);
+    ImGui::SetNextItemWidth(200.0f);
+    {
+        static constexpr int k_scales[] = {75, 90, 100, 110, 125, 150, 175, 200};
+        const int         current = static_cast<int>(std::lround(theme_mgr_->ui_scale() * 100.0f));
+        const std::string preview = std::to_string(current) + "%";
+        if (ImGui::BeginCombo("##ui_scale", preview.c_str()))
+        {
+            for (int pct : k_scales)
+            {
+                const std::string item     = std::to_string(pct) + "%";
+                const bool        selected = pct == current;
+                if (ImGui::Selectable(item.c_str(), selected))
+                {
+                    const float scale = static_cast<float>(pct) / 100.0f;
+                    theme_mgr_->set_ui_scale(scale);
+                    d.ui_scale = theme_mgr_->ui_scale();
+                    store_->notify_change();
+                }
+                if (selected)
+                    ImGui::SetItemDefaultFocus();
+            }
+            ImGui::EndCombo();
+        }
     }
 
     ImGui::Spacing();
@@ -496,6 +555,8 @@ void SettingsPanel::draw_appearance_footer()
         d.default_data_palette = "default";
         theme_mgr_->set_theme("night");
         theme_mgr_->set_data_palette("default");
+        d.ui_scale = 1.0f;
+        theme_mgr_->set_ui_scale(1.0f);
         theme_mgr_->reset_glass_defaults();
         theme_mgr_->save_current_as_default();
         store_->notify_change();

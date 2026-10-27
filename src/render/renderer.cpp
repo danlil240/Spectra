@@ -24,6 +24,7 @@
 #include "ui/viewmodel/figure_view_model.hpp"
 #include "ui/viewmodel/series_view_model.hpp"
 #include "ui/workspace/plugin_guard.hpp"
+#include "render/shape3d_sort.hpp"
 
 namespace spectra
 {
@@ -74,6 +75,74 @@ Renderer::Renderer(Backend& backend, ui::ThemeManager& theme_mgr)
 {
 }
 
+void Renderer::prepare_shape3d_sorted_indices(SeriesGpuData&       gpu,
+                                              const ShapeSeries3D& series,
+                                              const mat4&          model,
+                                              const Camera&        cam,
+                                              float                series_alpha,
+                                              float                style_opacity)
+{
+    const auto indices = series.indices();
+    if (indices.empty() || indices.size() != gpu.index_count)
+        return;   // not uploaded yet (or stale): draw unsorted this frame
+
+    const bool ortho   = cam.projection_mode == Camera::ProjectionMode::Orthographic;
+    const vec3 forward = vec3_normalize(cam.target - cam.position);
+
+    std::vector<double> key;
+    key.reserve(30);
+    for (float v : model.m)
+        key.push_back(v);
+    for (double v :
+         {cam.position.x, cam.position.y, cam.position.z, forward.x, forward.y, forward.z})
+        key.push_back(v);
+    key.push_back(ortho ? 1.0 : 0.0);
+    key.push_back(series_alpha);
+    key.push_back(style_opacity);
+    key.push_back(static_cast<double>(gpu.geometry_serial));
+    key.push_back(static_cast<double>(indices.size()));
+
+    if (key != gpu.sort_key)
+    {
+        gpu.sorted_indices.assign(indices.begin(), indices.end());
+        const auto vertices = series.vertices();
+        for (const auto& r : series.draw_ranges())
+        {
+            if (!shape3d_range_transparent(r, series_alpha, style_opacity))
+                continue;
+            sort_triangles_back_to_front(gpu.sorted_indices,
+                                         r.first_index,
+                                         r.index_count,
+                                         vertices,
+                                         model,
+                                         cam.position,
+                                         forward,
+                                         ortho);
+        }
+        gpu.sort_key = std::move(key);
+        ++gpu.sorted_version;
+    }
+
+    const uint32_t slot = backend_.current_flight_frame() % FRAME_BUFFER_SLOTS;
+    if (gpu.sorted_slot_version[slot] != gpu.sorted_version || !gpu.sorted_index_buffer[slot])
+    {
+        const size_t bytes = gpu.sorted_indices.size() * sizeof(uint32_t);
+        if (!gpu.sorted_index_buffer[slot] || gpu.sorted_index_capacity[slot] < bytes)
+        {
+            if (gpu.sorted_index_buffer[slot])
+                backend_.destroy_buffer(gpu.sorted_index_buffer[slot]);
+            gpu.sorted_index_buffer[slot]   = backend_.create_buffer(BufferUsage::Index, bytes);
+            gpu.sorted_index_capacity[slot] = gpu.sorted_index_buffer[slot] ? bytes : 0;
+        }
+        if (!gpu.sorted_index_buffer[slot])
+            return;
+        backend_.upload_buffer(gpu.sorted_index_buffer[slot], gpu.sorted_indices.data(), bytes);
+        gpu.sorted_slot_version[slot] = gpu.sorted_version;
+    }
+    gpu.sorted_ready_slot   = static_cast<int>(slot);
+    gpu.sorted_ready_serial = render_pass_serial_;
+}
+
 void Renderer::destroy_series_buffers(SeriesGpuData& gpu)
 {
     if (gpu.ssbo)
@@ -84,6 +153,9 @@ void Renderer::destroy_series_buffers(SeriesGpuData& gpu)
         backend_.destroy_buffer(gpu.fill_buffer);
     if (gpu.outlier_buffer)
         backend_.destroy_buffer(gpu.outlier_buffer);
+    for (auto& b : gpu.sorted_index_buffer)
+        if (b)
+            backend_.destroy_buffer(b);
 
     // Clean up plugin GPU state for custom series types.
     if (gpu.type == SeriesType::Custom && gpu.plugin_gpu_state && series_type_registry_)
@@ -491,6 +563,7 @@ void Renderer::begin_render_pass()
 
     text_renderer_.begin_frame_recording(backend_.current_flight_frame());
     truncated_text_regions_.clear();
+    ++render_pass_serial_;
 
     const auto& theme_colors = theme_mgr_.colors();
     Color       bg_color     = Color(theme_colors.bg_canvas.r,
@@ -505,6 +578,7 @@ void Renderer::begin_render_pass(const Color& clear_color)
 {
     text_renderer_.begin_frame_recording(backend_.current_flight_frame());
     truncated_text_regions_.clear();
+    ++render_pass_serial_;
     backend_.begin_render_pass(clear_color);
     backend_.set_line_width(1.0f);
 }
@@ -1056,6 +1130,18 @@ void Renderer::render_axes(AxesBase&   axes,
                 const float style_opacity = series_ptr->plot_style().opacity;
                 const auto  ranges        = sh3d->draw_ranges();
                 bool        has_opaque    = false;
+                bool        has_blended   = false;
+                for (const auto& r : ranges)
+                    has_blended =
+                        has_blended || shape3d_range_transparent(r, effective_alpha, style_opacity);
+                gpu_it->second.sorted_ready_slot = -1;
+                if (has_blended)
+                    prepare_shape3d_sorted_indices(gpu_it->second,
+                                                   *sh3d,
+                                                   model_mat,
+                                                   cam,
+                                                   effective_alpha,
+                                                   style_opacity);
                 for (size_t ri = 0; ri < ranges.size(); ++ri)
                 {
                     if (!shape3d_range_transparent(ranges[ri], effective_alpha, style_opacity))

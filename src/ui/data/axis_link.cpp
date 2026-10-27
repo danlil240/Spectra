@@ -4,6 +4,7 @@
 #include <sstream>
 
 #include "core/axis_scale.hpp"
+#include "core/json_key.hpp"
 
 namespace spectra
 {
@@ -447,7 +448,7 @@ void AxisLinkManager::deserialize(const std::string& json, const IndexToAxes& ma
     // Minimal JSON parser — find groups array
     auto find_array = [&](const std::string& key) -> std::pair<size_t, size_t>
     {
-        auto pos = json.find("\"" + key + "\"");
+        auto pos = json_find_key(json, key);
         if (pos == std::string::npos)
             return {std::string::npos, std::string::npos};
         pos = json.find('[', pos);
@@ -496,7 +497,7 @@ void AxisLinkManager::deserialize(const std::string& json, const IndexToAxes& ma
         // Extract fields
         auto extract_int = [&](const std::string& obj_str, const std::string& key) -> int
         {
-            auto kpos = obj_str.find("\"" + key + "\"");
+            auto kpos = json_find_key(obj_str, key);
             if (kpos == std::string::npos)
                 return -1;
             kpos = obj_str.find(':', kpos);
@@ -510,7 +511,7 @@ void AxisLinkManager::deserialize(const std::string& json, const IndexToAxes& ma
 
         auto extract_string = [&](const std::string& obj_str, const std::string& key) -> std::string
         {
-            auto kpos = obj_str.find("\"" + key + "\"");
+            auto kpos = json_find_key(obj_str, key);
             if (kpos == std::string::npos)
                 return "";
             kpos = obj_str.find(':', kpos);

@@ -1,4 +1,5 @@
 #include "split_view.hpp"
+#include "core/json_key.hpp"
 
 #include <cmath>
 
@@ -425,11 +426,10 @@ std::unique_ptr<SplitPane> SplitPane::deserialize(const std::string& data)
 
     auto find_value = [&](const std::string& key) -> std::string
     {
-        std::string search = "\"" + key + "\":";
-        auto        pos    = data.find(search);
+        auto pos = json_find_key(data, key);
         if (pos == std::string::npos)
             return "";
-        pos += search.size();
+        pos = data.find(':', pos + key.size() + 2) + 1;
         // Skip whitespace
         while (pos < data.size() && data[pos] == ' ')
             ++pos;

@@ -637,6 +637,9 @@ bool FigureSerializer::save(const std::string&     path,
         w.write_color(lc.bg_color);
         w.write_color(lc.border_color);
         w.write_f32(lc.padding);
+        // Explicit-colour flags (added after v3; lets opaque black be stored).
+        w.write_u8(
+            static_cast<uint8_t>((lc.has_bg_color ? 1u : 0u) | (lc.has_border_color ? 2u : 0u)));
         w.end_chunk(pos);
     }
 
@@ -833,6 +836,13 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 lc.bg_color     = r.read_color();
                 lc.border_color = r.read_color();
                 lc.padding      = r.read_f32();
+                // backward compat: older chunks end here (42 bytes) and have no
+                // explicit-colour flags, so black still means "theme colour".
+                {
+                    const uint8_t flags = (r.good() && len >= 43) ? r.read_u8() : 0;
+                    lc.has_bg_color     = (flags & 1u) != 0;
+                    lc.has_border_color = (flags & 2u) != 0;
+                }
                 break;
             }
 

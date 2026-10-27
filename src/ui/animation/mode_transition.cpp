@@ -1,4 +1,5 @@
 #include "mode_transition.hpp"
+#include "core/json_key.hpp"
 
 #include <cmath>
 #include <spectra/animator.hpp>
@@ -237,11 +238,10 @@ bool ModeTransition::deserialize(const std::string& json)
     // Minimal parse: extract duration and direction
     auto find_number = [&](const std::string& key) -> float
     {
-        std::string search = "\"" + key + "\":";
-        auto        pos    = json.find(search);
+        auto pos = json_find_key(json, key);
         if (pos == std::string::npos)
             return 0.0f;
-        pos += search.size();
+        pos = json.find(':', pos + key.size() + 2) + 1;
         while (pos < json.size() && json[pos] == ' ')
             ++pos;
         try

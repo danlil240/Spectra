@@ -1,4 +1,5 @@
 #include "shortcut_config.hpp"
+#include "core/json_key.hpp"
 
 #include <cstdlib>
 #include <filesystem>
@@ -151,7 +152,7 @@ std::string ShortcutConfig::serialize() const
 static std::string read_json_string(const std::string& json, const std::string& key)
 {
     std::string search = "\"" + key + "\"";
-    auto        pos    = json.find(search);
+    auto        pos    = json_find_key(json, key);
     if (pos == std::string::npos)
         return "";
     pos = json.find(':', pos + search.size());
@@ -173,7 +174,7 @@ static std::string read_json_string(const std::string& json, const std::string& 
 static bool read_json_bool(const std::string& json, const std::string& key, bool def)
 {
     std::string search = "\"" + key + "\"";
-    auto        pos    = json.find(search);
+    auto        pos    = json_find_key(json, key);
     if (pos == std::string::npos)
         return def;
     pos = json.find(':', pos + search.size());
@@ -194,7 +195,7 @@ static std::vector<std::string> parse_binding_objects(const std::string& json)
 {
     std::vector<std::string> objects;
     std::string              search = "\"bindings\"";
-    auto                     pos    = json.find(search);
+    auto                     pos    = json_find_key(json, "bindings");
     if (pos == std::string::npos)
         return objects;
     pos = json.find('[', pos);
@@ -234,7 +235,7 @@ bool ShortcutConfig::deserialize(const std::string& json)
 
     // Check version
     std::string search = "\"version\"";
-    auto        vpos   = json.find(search);
+    auto        vpos   = json_find_key(json, "version");
     if (vpos != std::string::npos)
     {
         auto cpos = json.find(':', vpos + search.size());

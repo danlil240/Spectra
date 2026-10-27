@@ -1243,3 +1243,32 @@ TEST_F(ThemeManagerTest, ExportThemeSuspendsAndResumesTransition)
     EXPECT_TRUE(tm_.is_transitioning());
     EXPECT_EQ(tm_.colors().bg_canvas, mid);
 }
+
+#ifdef SPECTRA_TEST_THEME_IMGUI
+// App UI scale (Settings -> Appearance) scales the ImGui style once.
+TEST(UiScale, ScalesImGuiStyleWithoutCompounding)
+{
+    ImGuiContext* ctx = ImGui::CreateContext();
+    ThemeManager  tm;
+    tm.ensure_initialized();
+    tm.set_theme("dark");
+    tm.apply_to_imgui();
+    const ImGuiStyle base = ImGui::GetStyle();
+    EXPECT_FLOAT_EQ(base.FontScaleMain, 1.0f);
+
+    tm.set_ui_scale(1.5f);
+    EXPECT_FLOAT_EQ(ImGui::GetStyle().FontScaleMain, 1.5f);
+    EXPECT_NEAR(ImGui::GetStyle().WindowPadding.x, base.WindowPadding.x * 1.5f, 1.0f);
+    EXPECT_NEAR(ImGui::GetStyle().FramePadding.y, base.FramePadding.y * 1.5f, 1.0f);
+
+    // Re-applying (theme change, transition frame) does not scale again.
+    tm.apply_to_imgui();
+    tm.apply_to_imgui();
+    EXPECT_NEAR(ImGui::GetStyle().WindowPadding.x, base.WindowPadding.x * 1.5f, 1.0f);
+
+    tm.set_ui_scale(1.0f);
+    EXPECT_FLOAT_EQ(ImGui::GetStyle().WindowPadding.x, base.WindowPadding.x);
+    EXPECT_FLOAT_EQ(ImGui::GetStyle().FontScaleMain, 1.0f);
+    ImGui::DestroyContext(ctx);
+}
+#endif

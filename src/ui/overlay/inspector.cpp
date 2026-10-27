@@ -230,16 +230,38 @@ void Inspector::draw_figure_properties(Figure& fig)
                 leg.padding = padding;
             }
 
+            // A colour picked here is explicit (pure black included); "Theme"
+            // returns to the theme's legend colours.
             spectra::Color bg_color = leg.bg_color;
             if (widgets::color_field("Background", bg_color))
             {
-                leg.bg_color = bg_color;
+                leg.bg_color     = bg_color;
+                leg.has_bg_color = true;
+            }
+            if (leg.uses_bg_color())
+            {
+                ImGui::SameLine();
+                if (ImGui::SmallButton("Theme##legend_bg"))
+                {
+                    leg.bg_color     = {};
+                    leg.has_bg_color = false;
+                }
             }
 
             spectra::Color border_color = leg.border_color;
             if (widgets::color_field("Border", border_color))
             {
-                leg.border_color = border_color;
+                leg.border_color     = border_color;
+                leg.has_border_color = true;
+            }
+            if (leg.uses_border_color())
+            {
+                ImGui::SameLine();
+                if (ImGui::SmallButton("Theme##legend_border"))
+                {
+                    leg.border_color     = {};
+                    leg.has_border_color = false;
+                }
             }
             widgets::end_group();
             widgets::small_spacing();

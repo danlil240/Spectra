@@ -229,11 +229,10 @@ bool LegendInteraction::draw(AxesBase&           axes,
     ImGui::SetNextWindowPos(ImVec2(lx, ly));
     ImGui::SetNextWindowSize(ImVec2(legend_w, legend_h));
 
-    // Use LegendConfig colors; fall back to theme colors if sentinel.
-    // Color default-constructs to (0,0,0,1) so check RGB only.
-    auto   is_sentinel = [](const Color& c) { return c.r == 0.0f && c.g == 0.0f && c.b == 0.0f; };
+    // Use LegendConfig colors; fall back to theme colors when unset (see
+    // LegendConfig::uses_bg_color: black RGB without has_bg_color = unset).
     ImVec4 bg_col;
-    if (is_sentinel(config.bg_color))
+    if (!config.uses_bg_color())
         bg_col = ImVec4(theme_colors.tooltip_bg.r,
                         theme_colors.tooltip_bg.g,
                         theme_colors.tooltip_bg.b,
@@ -242,7 +241,7 @@ bool LegendInteraction::draw(AxesBase&           axes,
         bg_col = ImVec4(config.bg_color.r, config.bg_color.g, config.bg_color.b, config.bg_color.a);
 
     ImVec4 border_col;
-    if (is_sentinel(config.border_color))
+    if (!config.uses_border_color())
         border_col = ImVec4(theme_colors.border_subtle.r,
                             theme_colors.border_subtle.g,
                             theme_colors.border_subtle.b,
@@ -255,7 +254,7 @@ bool LegendInteraction::draw(AxesBase&           axes,
 
     // Translucent glass card: only honor an explicit user bg_color; otherwise
     // draw a frosted pane manually (see below) and keep the ImGui WindowBg clear.
-    const bool user_bg = !is_sentinel(config.bg_color);
+    const bool user_bg = config.uses_bg_color();
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ui::tokens::RADIUS_LG);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(pad_x + 4.0f, pad_y + 3.0f));

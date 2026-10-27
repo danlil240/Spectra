@@ -394,6 +394,9 @@ void App::init_runtime()
                              "Unknown data palette '{}', using '{}'",
                              startup.data_palette,
                              theme_mgr_->current_data_palette_name());
+        // UI scale is a per-user preference: never applied to headless exports.
+        if (read_user)
+            theme_mgr_->set_ui_scale(rt.settings_store->data().ui_scale);
     }
 
     rt.frame_state.active_figure_id = init_active_id;
@@ -1070,15 +1073,11 @@ App::StepResult App::step()
     #elif defined(SPECTRA_USE_SDL3)
         if (rt.sdl3)
         {
-            // Process events; should_close is set by process_sdl3_events via SDL_EVENT_QUIT.
-            SDL_Event ev;
-            while (SDL_PollEvent(&ev))
+            rt.sdl3->poll_events();
+            if (rt.sdl3->should_close())
             {
-                if (ev.type == SDL_EVENT_QUIT)
-                {
-                    SPECTRA_LOG_INFO("main_loop", "Window closed, exiting loop");
-                    rt.session.request_exit();
-                }
+                SPECTRA_LOG_INFO("main_loop", "Window closed, exiting loop");
+                rt.session.request_exit();
             }
         }
     #endif

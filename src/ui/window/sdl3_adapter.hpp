@@ -26,6 +26,15 @@ class Sdl3Adapter
 
     static void terminate();
 
+    // Event pumping, mirroring GlfwAdapter (single-window path without a
+    // WindowManager).  Drain the SDL queue and set should_close() on quit or
+    // a close request for this adapter's window.
+    void poll_events();
+    // Block until an event arrives, then drain.
+    void wait_events();
+    // Block until an event arrives or timeout_seconds pass, then drain.
+    void wait_events_timeout(double timeout_seconds);
+
     bool  should_close() const { return should_close_; }
     void* native_window() const;
     void  framebuffer_size(uint32_t& width, uint32_t& height) const;

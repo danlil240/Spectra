@@ -1,4 +1,5 @@
 #include "ui/animation/timeline_editor.hpp"
+#include "core/json_key.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -1005,11 +1006,10 @@ bool TimelineEditor::deserialize(const std::string& json)
     // Minimal parsing — extract key fields
     auto extract_float = [&](const std::string& key, float def) -> float
     {
-        std::string search = "\"" + key + "\":";
-        auto        pos    = json.find(search);
+        auto pos = json_find_key(json, key);
         if (pos == std::string::npos)
             return def;
-        pos += search.size();
+        pos = json.find(':', pos + key.size() + 2) + 1;
         try
         {
             return std::stof(json.substr(pos));
@@ -1022,11 +1022,10 @@ bool TimelineEditor::deserialize(const std::string& json)
 
     auto extract_int = [&](const std::string& key, int def) -> int
     {
-        std::string search = "\"" + key + "\":";
-        auto        pos    = json.find(search);
+        auto pos = json_find_key(json, key);
         if (pos == std::string::npos)
             return def;
-        pos += search.size();
+        pos = json.find(':', pos + key.size() + 2) + 1;
         try
         {
             return std::stoi(json.substr(pos));

@@ -1240,10 +1240,9 @@ void emit_legend(SvgContext& c, const AxesBase& axes, const Rect& vp, const Lege
     }
     const Rect r = legend_layout::place(area, pos, w, h);
 
-    // Same "unset" sentinel as LegendInteraction: rgb all zero -> theme colour.
-    auto unset = [](const Color& col) { return col.r == 0.0f && col.g == 0.0f && col.b == 0.0f; };
-    const Color bg     = unset(cfg.bg_color) ? st.legend_bg : cfg.bg_color;
-    const Color border = unset(cfg.border_color) ? st.legend_border : cfg.border_color;
+    // Same rule as LegendInteraction (LegendConfig::uses_bg_color / uses_border_color).
+    const Color bg     = cfg.uses_bg_color() ? cfg.bg_color : st.legend_bg;
+    const Color border = cfg.uses_border_color() ? cfg.border_color : st.legend_border;
     c.body << "    <g class=\"legend\">\n";
     c.body << "      <rect x=\"" << num(r.x) << "\" y=\"" << num(r.y) << "\" width=\"" << num(w)
            << "\" height=\"" << num(h) << "\" rx=\"6\" fill=\"" << hex(bg) << "\""
@@ -2573,13 +2572,50 @@ void emit_axes_3d(SvgContext& c, const Axes3D& axes, const LegendConfig& legend)
     c.body << "  </g>\n";
 }
 
+// Chrome colours for an export without an explicit SvgStyle.  The defaults
+// match the built-in light theme; a figure with FigureStyle::background_override
+// keeps its own background, and a dark override switches the ink (text, axes,
+// grid, legend) to the dark theme's values so labels stay legible — the same
+// rule the app uses for the GPU path (luma > 0.5 = light surface).
+SvgStyle default_svg_style_for(const Figure& figure)
+{
+    SvgStyle           s;
+    const FigureStyle& fs = figure.style();
+    if (!fs.background_override)
+        return s;
+
+    s.background   = fs.background;
+    s.background.a = 1.0f;
+    const float l  = 0.2126f * s.background.r + 0.7152f * s.background.g + 0.0722f * s.background.b;
+    if (l > 0.5f)
+        return s;
+
+    // Dark surface: the built-in dark theme's plot ink.
+    auto hexc = [](uint32_t v)
+    {
+        return Color{((v >> 16) & 0xFF) / 255.0f,
+                     ((v >> 8) & 0xFF) / 255.0f,
+                     (v & 0xFF) / 255.0f,
+                     1.0f};
+    };
+    s.grid_major     = {0.70f, 0.78f, 0.84f, 0.12f};
+    s.grid_minor     = {0.70f, 0.78f, 0.84f, 0.045f};
+    s.axis_line      = {0.70f, 0.78f, 0.84f, 0.48f};
+    s.tick_label     = hexc(0xC7D2DE);
+    s.text_primary   = hexc(0xF1F5F9);
+    s.text_secondary = hexc(0xCBD5E1);
+    s.legend_bg      = hexc(0x35414A);
+    s.legend_border  = {0.25f, 0.32f, 0.38f, 0.38f};
+    return s;
+}
+
 }   // anonymous namespace
 
 // ─── SvgExporter ────────────────────────────────────────────────────────────
 
 std::string SvgExporter::to_string(const Figure& figure)
 {
-    return to_string(figure, SvgStyle{});
+    return to_string(figure, default_svg_style_for(figure));
 }
 
 std::string SvgExporter::to_string(const Figure& figure, const SvgStyle& style)
@@ -2630,7 +2666,7 @@ float svg_plot_label_font_px(LabelFont font)
 
 bool SvgExporter::write_svg(const std::string& path, const Figure& figure)
 {
-    return write_svg(path, figure, SvgStyle{});
+    return write_svg(path, figure, default_svg_style_for(figure));
 }
 
 bool SvgExporter::write_svg(const std::string& path, const Figure& figure, const SvgStyle& style)

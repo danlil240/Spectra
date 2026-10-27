@@ -174,6 +174,8 @@ set(SPECTRA_UNIT_TESTS
     test_format_letter_colors
     test_color_source_persistence
     test_settings_store
+    test_json_key
+    test_r2b_followups
     test_settings_appearance
     test_settings_layout
     test_phase2_integration

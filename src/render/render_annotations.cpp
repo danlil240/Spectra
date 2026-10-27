@@ -41,12 +41,6 @@ constexpr float FILL_SWATCH   = 10.0f;
 constexpr float CORNER_RADIUS = 4.0f;
 constexpr float HIDDEN_ALPHA  = 0.15f;   // same dimming as the ImGui legend
 
-bool is_unset(const Color& c)
-{
-    // LegendConfig uses {} (black) as "use the theme colour"; see figure.hpp.
-    return c.r == 0.0f && c.g == 0.0f && c.b == 0.0f;
-}
-
 float srgb_to_linear(float c)
 {
     return (c <= 0.04045f) ? c / 12.92f : std::pow((c + 0.055f) / 1.055f, 2.4f);
@@ -470,11 +464,11 @@ void Renderer::build_legend(AxesBase& axes, const LegendConfig& config)
 
     // ── Box: background + border ──
     {
-        const Color bg = is_unset(config.bg_color) ? theme_color(tc.tooltip_bg, theme_mgr_, 0.9f)
-                                                   : config.bg_color;
-        const Color border = is_unset(config.border_color)
-                                 ? theme_color(tc.border_subtle, theme_mgr_)
-                                 : config.border_color;
+        // LegendConfig::uses_*_color: black RGB without the has_* flag = theme colour.
+        const Color bg =
+            config.uses_bg_color() ? config.bg_color : theme_color(tc.tooltip_bg, theme_mgr_, 0.9f);
+        const Color         border = config.uses_border_color() ? config.border_color
+                                                                : theme_color(tc.border_subtle, theme_mgr_);
         SeriesPushConstants pc{};
         set_color(pc, bg);
         uint32_t first = b.vertex_count();

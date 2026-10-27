@@ -60,7 +60,9 @@ class ChunkedLineSeries : public Series
                                            std::size_t        y_offset_bytes,
                                            std::size_t        count);
 
-    /// Append a single point (streaming).
+    /// Append a single point (streaming).  A double-precision call
+    /// (Series::append(double, double)) is stored relative to the offsets.
+    using Series::append;
     void append(float x, float y) override;
 
     /// Append a batch of points.
@@ -68,6 +70,7 @@ class ChunkedLineSeries : public Series
 
     /// Remove all points with x < x_threshold (assumes x sorted ascending).
     /// Returns the number of points removed.
+    using Series::erase_before;
     std::size_t erase_before(float x_threshold) override;
 
     // ── Configuration ──

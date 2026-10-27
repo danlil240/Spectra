@@ -670,9 +670,13 @@ bool DataInteraction::on_mouse_click(int button, double screen_x, double screen_
     return false;
 }
 
-void DataInteraction::add_marker(float data_x, float data_y, const Series* series, size_t index)
+void DataInteraction::add_marker(double        data_x,
+                                 double        data_y,
+                                 const Series* series,
+                                 size_t        index,
+                                 const Axes*   axes)
 {
-    markers_.add(data_x, data_y, series, index);
+    markers_.add(data_x, data_y, series, index, axes);
 }
 
 void DataInteraction::remove_marker(size_t idx)
@@ -1325,7 +1329,7 @@ void DataInteraction::restore_overlay_snapshot(const OverlaySnapshot& snapshot, 
                     break;
             }
         }
-        add_marker(me.data_x, me.data_y, series_ptr, me.point_index);
+        add_marker(me.data_x, me.data_y, series_ptr, me.point_index, axes_ptr);
     }
 
     // Restore annotations

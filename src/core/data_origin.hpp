@@ -44,6 +44,22 @@ inline double choose_data_origin(std::span<const double> values)
     return lo + 0.5 * range;
 }
 
+// Pick the origin for the first point streamed into an empty series through
+// the double-precision append(), when the series has no origin yet.
+//
+// One value says nothing about the spread of the data to come, so this rule
+// only looks at magnitude: values of 1000 or more (where float spacing reaches
+// ~6e-5 and grows with the value) become the origin, so later points are
+// stored as small float offsets from it.  Smaller values keep origin 0, so
+// ordinary data keeps its plain values in x_data()/y_data().
+inline double choose_stream_origin(double first_value)
+{
+    constexpr double STREAM_ORIGIN_MIN_ABS = 1000.0;
+    if (!std::isfinite(first_value) || std::abs(first_value) < STREAM_ORIGIN_MIN_ABS)
+        return 0.0;
+    return first_value;
+}
+
 // Convert doubles to float offsets from `origin` (computed in double).
 inline std::vector<float> to_float_offsets(std::span<const double> values, double origin)
 {

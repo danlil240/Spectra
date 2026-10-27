@@ -9,12 +9,27 @@
 #include <spectra/fwd.hpp>
 #include <spectra/plot_style.hpp>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 namespace spectra
 {
 
 class PendingSeriesData;
+
+namespace detail
+{
+// True for the double-precision append()/erase_*() overloads: every argument
+// is arithmetic and at least one is double or long double.  Calls with only
+// float/integer arguments keep using the float overloads, so existing calls
+// such as append(i, 2.0f) or append(1, 2) behave exactly as before.
+template <typename T>
+inline constexpr bool is_wide_float_v = std::is_floating_point_v<T> && (sizeof(T) > sizeof(float));
+
+template <typename... Ts>
+inline constexpr bool wants_f64_overload_v =
+    (std::is_arithmetic_v<Ts> && ...) && (is_wide_float_v<Ts> || ...);
+}   // namespace detail
 
 // Custom deleter for PendingSeriesData (allows incomplete type in unique_ptr).
 struct PendingSeriesDataDeleter
@@ -233,11 +248,49 @@ class Series
 
     // ── Streaming data interface (optional; implemented by LineSeries / ChunkedLineSeries) ──
     /// @brief Append one point (streaming series only).
+    ///
+    /// The float form stores (x, y) as given, i.e. relative to x_offset() /
+    /// y_offset().
     virtual void append(float /*x*/, float /*y*/) {}
+
+    /// @brief Append one point given in absolute, double-precision values.
+    ///
+    /// Chosen whenever either argument is a double (e.g. append(t, 1.5) with
+    /// a double timestamp t); calls with only float/integer arguments use the
+    /// float form above.  The point is stored as float offsets from
+    /// x_offset()/y_offset(), so data such as Unix timestamps or 1e7 + small
+    /// variations keeps its precision.  When the first such point goes into
+    /// an empty series that has no offset yet, a value of magnitude >= 1000
+    /// becomes the offset (smaller values keep offset 0 and are stored as is).
+    template <typename X, typename Y>
+        requires detail::wants_f64_overload_v<X, Y>
+    void append(X x, Y y)
+    {
+        append_f64(static_cast<double>(x), static_cast<double>(y));
+    }
+
     /// @brief Remove points with x below a threshold; returns how many were removed.
+    ///
+    /// The float form compares against the stored values (relative to
+    /// x_offset()); a double threshold (see append(double, double)) is an
+    /// absolute x value.
     virtual size_t erase_before(float /*x_threshold*/) { return 0; }
+    /// @brief Remove points with x below an absolute double x; see erase_before(float).
+    template <typename T>
+        requires detail::wants_f64_overload_v<T>
+    size_t erase_before(T x_threshold)
+    {
+        return erase_before_f64(static_cast<double>(x_threshold));
+    }
     /// @brief Remove points with x above a threshold; returns how many were removed.
     virtual size_t erase_after(float /*x_threshold*/) { return 0; }
+    /// @brief Remove points with x above an absolute double x; see erase_before(float).
+    template <typename T>
+        requires detail::wants_f64_overload_v<T>
+    size_t erase_after(T x_threshold)
+    {
+        return erase_after_f64(static_cast<double>(x_threshold));
+    }
     /// @brief Drop the oldest points so at most @p max_points remain.
     virtual size_t trim_to_max_points(size_t /*max_points*/) { return 0; }
     /// @brief Approximate memory used by the series data.
@@ -245,6 +298,14 @@ class Series
 
    protected:
     Series& apply_format_string(std::string_view fmt);
+
+    // Double-precision streaming hooks behind the append()/erase_*() templates.
+    // The defaults convert to the float forms relative to the current offsets;
+    // LineSeries / ScatterSeries also pick the first origin and stay
+    // consistent in thread-safe mode.
+    virtual void   append_f64(double x, double y);
+    virtual size_t erase_before_f64(double x_threshold);
+    virtual size_t erase_after_f64(double x_threshold);
 
     std::string       label_;
     Color             color_            = colors::blue;
@@ -308,7 +369,9 @@ class LineSeries : public Series
         set_y_f64(y);
         return *this;
     }
-    /// @brief Append one point.
+    /// @brief Append one point; see Series::append(float, float) and the
+    /// double-precision Series::append(double, double).
+    using Series::append;
     void append(float x, float y) override;
 
     /// @brief Set the line width in pixels.
@@ -327,10 +390,13 @@ class LineSeries : public Series
     bool                   x_is_sorted() const { return x_sorted_; }
 
     /// Remove all points with x < x_threshold.  Assumes x is sorted ascending.
-    /// Returns the number of points removed.
+    /// Returns the number of points removed.  A double threshold is an
+    /// absolute x value (see Series::erase_before).
+    using Series::erase_before;
     size_t erase_before(float x_threshold) override;
 
     /// Remove all points with x > x_threshold.  Assumes x is sorted ascending.
+    using Series::erase_after;
     size_t erase_after(float x_threshold) override;
 
     /// Drop oldest points until at most max_points remain (FIFO).
@@ -385,6 +451,11 @@ class LineSeries : public Series
     /// Thread-safe commit override.
     bool commit_pending() override;
 
+   protected:
+    void   append_f64(double x, double y) override;
+    size_t erase_before_f64(double x_threshold) override;
+    size_t erase_after_f64(double x_threshold) override;
+
    private:
     void set_x_f64(std::span<const double> x);
     void set_y_f64(std::span<const double> y);
@@ -437,7 +508,9 @@ class ScatterSeries : public Series
         set_y_f64(y);
         return *this;
     }
-    /// @brief Append one point.
+    /// @brief Append one point; see Series::append(float, float) and the
+    /// double-precision Series::append(double, double).
+    using Series::append;
     void append(float x, float y) override;
 
     /// @brief Set the marker size in pixels.
@@ -538,6 +611,9 @@ class ScatterSeries : public Series
 
     /// Thread-safe commit override.
     bool commit_pending() override;
+
+   protected:
+    void append_f64(double x, double y) override;
 
    private:
     void set_x_f64(std::span<const double> x);

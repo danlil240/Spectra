@@ -129,11 +129,23 @@ std::vector<CommandDescriptor> make_file_commands(CommandContext& ctx)
                             data.interaction.tooltip_enabled = data_interaction->tooltip_active();
                             for (const auto& m : data_interaction->markers())
                             {
+                                if (m.is_3d)
+                                    continue;   // workspace markers are 2D only
                                 OverlaySnapshot::MarkerEntry me;
                                 me.data_x       = m.data_x;
                                 me.data_y       = m.data_y;
                                 me.series_label = m.series_label;
                                 me.point_index  = m.point_index;
+                                for (auto* fig : figs)
+                                {
+                                    if (!fig || !m.axes)
+                                        continue;
+                                    for (size_t ai = 0; ai < fig->axes().size(); ++ai)
+                                    {
+                                        if (fig->axes()[ai].get() == m.axes)
+                                            me.axes_index = ai;
+                                    }
+                                }
                                 data.interaction.markers.push_back(std::move(me));
                             }
 
@@ -240,6 +252,38 @@ std::vector<CommandDescriptor> make_file_commands(CommandContext& ctx)
                  {
                      data_interaction->set_crosshair(data.interaction.crosshair_enabled);
                      data_interaction->set_tooltip(data.interaction.tooltip_enabled);
+
+                     // Markers: find the series by label in the saved axes
+                     // (first figure that has it), keeping absolute x/y.
+                     data_interaction->clear_markers();
+                     for (const auto& me : data.interaction.markers)
+                     {
+                         const Axes*   axes_ptr   = nullptr;
+                         const Series* series_ptr = nullptr;
+                         for (auto* fig : figs)
+                         {
+                             if (!fig || me.axes_index >= fig->axes().size()
+                                 || !fig->axes()[me.axes_index])
+                                 continue;
+                             const Axes* ax = fig->axes()[me.axes_index].get();
+                             for (const auto& sp : ax->series())
+                             {
+                                 if (sp && sp->label() == me.series_label)
+                                 {
+                                     series_ptr = sp.get();
+                                     axes_ptr   = ax;
+                                     break;
+                                 }
+                             }
+                             if (series_ptr)
+                                 break;
+                         }
+                         data_interaction->add_marker(me.data_x,
+                                                      me.data_y,
+                                                      series_ptr,
+                                                      me.point_index,
+                                                      axes_ptr);
+                     }
 
                      data_interaction->annotations().clear();
                      for (const auto& ae : data.interaction.annotations)

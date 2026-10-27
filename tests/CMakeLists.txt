@@ -251,6 +251,7 @@ set(SPECTRA_UNIT_TESTS
     test_workspace_autosave
     test_accessible_summary
     test_webgpu_backend
+    test_render_unsupported_series
     test_expression_eval
     test_visual_correctness
     test_logger_defaults

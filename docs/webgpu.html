@@ -191,7 +191,8 @@
               <div class="panel-kicker">Not yet ported</div>
               <h3>Full desktop runtime features</h3>
               <ul>
-                <li>3D pipelines: surface, mesh, scatter3, line3, and lighting</li>
+                <li>3D pipelines: 3D axes, surface, mesh, scatter3, line3, shapes, and lighting</li>
+                <li>Colormapped scatter (drawn in the series color) and heatmap</li>
                 <li>Multi-process / IPC mode because browsers do not expose Unix sockets</li>
                 <li>Video export to MP4 or GIF</li>
                 <li>Runtime plugin loading because wasm has no <code>dlopen</code></li>
@@ -201,7 +202,8 @@
           <div class="callout warn status-callout">
             <strong>Current status:</strong> experimental and 2D-only. For production scientific
             workflows that need 3D rendering, IPC, plugins, or export pipelines, use the Vulkan
-            backend.
+            backend. Series without a WebGPU pipeline are skipped and listed in a notice at the
+            bottom-left of the canvas.
           </div>
         </div>
       </section>

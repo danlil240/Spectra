@@ -243,6 +243,17 @@ Notes for the wasm build:
 - Headless Chromium can render WebGPU offscreen (`AppConfig::headless = true` +
   `save_png`) but cannot present to a canvas, so use a real browser for the windowed demo.
 
+Supported series (the WebGPU backend is an experimental **2D subset**; the list
+lives in `src/render/webgpu/wgpu_pipeline_support.hpp`):
+
+| Works | Not yet ported (no WGSL pipeline) |
+|-------|-----------------------------------|
+| Line, scatter (single color), bar, histogram, box plot, violin, band, stem, 2D shapes; grid, overlay fills, 2D/3D text | Colormapped scatter (drawn in the series color), heatmap, every 3D type (3D axes, line, scatter, surface, mesh, shapes) |
+
+When a figure uses an unsupported type, the Renderer skips that series, logs a
+one-time warning per kind, and draws a notice at the bottom-left of the canvas
+("Not supported by this render backend: ...").
+
 ---
 
 ## 7. Debug Build

@@ -220,6 +220,8 @@ void Renderer::render_series(Series&             series,
             // the GPU so changing ranges never requires CPU color expansion.
             const bool use_colormap = scatter->has_colormap() && scatter_colormap_pipeline_
                                       && gpu.ssbo_stride_floats == 4;
+            if (scatter->has_colormap() && !scatter_colormap_pipeline_)
+                note_unsupported("colormapped scatter (drawn in one color)");
             if (use_colormap)
             {
                 pc.dash_count      = static_cast<int>(scatter->colormap());
@@ -243,6 +245,8 @@ void Renderer::render_series(Series&             series,
         }
         case SeriesType::Line3D:
         {
+            if (!require_pipeline(line3d_pipeline_, "3D line"))
+                break;
             auto* line3d = static_cast<LineSeries3D*>(&series);
             if (line3d->point_count() > 1)
             {
@@ -259,6 +263,8 @@ void Renderer::render_series(Series&             series,
         }
         case SeriesType::Scatter3D:
         {
+            if (!require_pipeline(scatter3d_pipeline_, "3D scatter"))
+                break;
             auto* scatter3d      = static_cast<ScatterSeries3D*>(&series);
             bool  is_transparent = (pc.color[3] * pc.opacity) < 0.99f;
             backend_.bind_pipeline(is_transparent ? scatter3d_transparent_pipeline_
@@ -279,6 +285,8 @@ void Renderer::render_series(Series&             series,
         }
         case SeriesType::Surface3D:
         {
+            if (!require_pipeline(surface3d_pipeline_, "3D surface"))
+                break;
             auto* surface = static_cast<SurfaceSeries*>(&series);
             if (gpu.index_buffer)
             {
@@ -337,6 +345,8 @@ void Renderer::render_series(Series&             series,
         }
         case SeriesType::Mesh3D:
         {
+            if (!require_pipeline(mesh3d_pipeline_, "3D mesh"))
+                break;
             auto* mesh = static_cast<MeshSeries*>(&series);
             if (gpu.index_buffer)
             {
@@ -562,6 +572,8 @@ void Renderer::render_series(Series&             series,
         }
         case SeriesType::Shape3D:
         {
+            if (!require_pipeline(mesh3d_pipeline_, "3D shape"))
+                break;
             auto* sh3d = static_cast<ShapeSeries3D*>(&series);
             if (gpu.index_buffer)
             {

@@ -1,4 +1,5 @@
 #include <atomic>
+#include <mutex>
 #include <spectra/theme_api.hpp>
 
 #include "ui/theme/theme.hpp"
@@ -9,8 +10,15 @@ namespace spectra
 namespace
 {
 // The public registration API carries no handle, so the registration is
-// process-wide.  Atomic so registering from another thread is not a data race.
-std::atomic<ThemeChangeCallback> s_theme_callback{nullptr};
+// process-wide.  s_callback_mutex guards s_theme_callback and is held for the
+// whole dispatch (load + call), so register_theme_change_callback() from another
+// thread waits for an in-flight call to return; once it returns, no call to the
+// old function can start.  Recursive so a callback may unregister/re-register or
+// switch theme (nested dispatch) on its own thread without deadlocking.
+std::recursive_mutex s_callback_mutex;
+ThemeChangeCallback  s_theme_callback = nullptr;
+
+std::atomic<void (*)()> s_dispatch_hook_for_testing{nullptr};
 
 void fill_rgba(float out[4], const ui::Color& c)
 {
@@ -23,9 +31,19 @@ void fill_rgba(float out[4], const ui::Color& c)
 
 namespace detail
 {
-ThemeChangeCallback registered_theme_change_callback()
+void invoke_theme_change_callback(const ThemeSnapshot& snap)
 {
-    return s_theme_callback.load(std::memory_order_acquire);
+    std::lock_guard<std::recursive_mutex> lock(s_callback_mutex);
+    ThemeChangeCallback                   cb = s_theme_callback;
+    if (auto hook = s_dispatch_hook_for_testing.load(std::memory_order_acquire))
+        hook();
+    if (cb)
+        cb(snap);
+}
+
+void set_theme_callback_dispatch_hook_for_testing(void (*hook)())
+{
+    s_dispatch_hook_for_testing.store(hook, std::memory_order_release);
 }
 }   // namespace detail
 
@@ -69,7 +87,8 @@ uint32_t get_theme_snapshot(ThemeSnapshot& out)
 
 void register_theme_change_callback(ThemeChangeCallback callback)
 {
-    s_theme_callback.store(callback, std::memory_order_release);
+    std::lock_guard<std::recursive_mutex> lock(s_callback_mutex);
+    s_theme_callback = callback;
 }
 
 }   // namespace spectra

@@ -5,6 +5,7 @@
 #include <functional>
 #include <mutex>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace spectra
@@ -35,6 +36,17 @@ class ExportFormatRegistry
    public:
     using ExportCallback = std::function<bool(const ExportContext& ctx)>;
 
+    // Change notification, so hosts can mirror formats as UI commands.
+    // Listeners run on the thread that registers/unregisters the format, after
+    // the registry lock is released (they may call back into the registry).
+    enum class ChangeKind
+    {
+        Registered,
+        Unregistered,
+    };
+    using ChangeListener = std::function<void(const ExportFormatInfo& info, ChangeKind kind)>;
+    using ListenerId     = uint64_t;
+
     ExportFormatRegistry()  = default;
     ~ExportFormatRegistry() = default;
 
@@ -64,6 +76,11 @@ class ExportFormatRegistry
     // Number of registered formats.
     size_t count() const;
 
+    // Subscribe to format registration/unregistration.  Returns an id for
+    // remove_change_listener(); 0 is never returned.
+    ListenerId add_change_listener(ChangeListener listener);
+    void       remove_change_listener(ListenerId id);
+
    private:
     struct Entry
     {
@@ -73,8 +90,14 @@ class ExportFormatRegistry
         bool           faulted = false;   // Set true on crash/exception
     };
 
+    void notify(const ExportFormatInfo& info, ChangeKind kind) const;
+
     mutable std::mutex         mutex_;
     mutable std::vector<Entry> formats_;
+
+    mutable std::mutex                                 listener_mutex_;
+    std::vector<std::pair<ListenerId, ChangeListener>> listeners_;
+    ListenerId                                         next_listener_id_ = 1;
 };
 
 }   // namespace spectra

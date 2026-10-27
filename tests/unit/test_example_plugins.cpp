@@ -6,14 +6,22 @@
 // a v2.0 host reports minor 0.
 
 #include <filesystem>
+#include <fstream>
 #include <memory>
+#include <optional>
+#include <sstream>
 #include <string>
 #include <vector>
 
 #include <gtest/gtest.h>
 
+#include <spectra/axes.hpp>
+#include <spectra/figure.hpp>
+#include <spectra/series.hpp>
+
 #include "io/export_registry.hpp"
 #include "math/data_transform.hpp"
+#include "ui/app/commands/plugin_export_commands.hpp"
 #include "ui/commands/command_registry.hpp"
 #include "ui/commands/shortcut_manager.hpp"
 #include "ui/commands/undo_manager.hpp"
@@ -125,6 +133,42 @@ TEST_F(ExamplePluginTest, ExportCsvRegistersCsvFormat)
     ASSERT_EQ(formats.size(), 1u) << "plug-in loaded but did not register its export format";
     EXPECT_EQ(formats[0].name, "CSV Data");
     EXPECT_EQ(formats[0].extension, "csv");
+}
+
+// File > Export CSV Data: the command the File menus execute must exist once the
+// plug-in is loaded and write the active figure's numeric data.
+TEST_F(ExamplePluginTest, ExportCsvFileMenuCommandWritesActiveFigure)
+{
+    Figure             fig;
+    auto&              ax = fig.subplot(1, 1, 1);
+    std::vector<float> x  = {0.0f, 1.0f, 2.0f};
+    std::vector<float> y  = {1.5f, -2.0f, 4.0f};
+    ax.line(x, y).label("speed");
+    Figure* active = &fig;
+
+    const auto out = std::filesystem::temp_directory_path() / "spectra_example_export_csv.csv";
+    std::filesystem::remove(out);
+
+    PluginExportCommands          export_cmds;
+    PluginExportCommands::Options opts;
+    opts.formats       = exports_.get();
+    opts.commands      = &commands_;
+    opts.active_figure = &active;
+    opts.ask_path      = [&](const ExportFormatInfo&) -> std::optional<std::string>
+    { return out.string(); };
+    export_cmds.attach(std::move(opts));
+
+    const std::string path = SPECTRA_EXAMPLE_PLUGIN_EXPORT_CSV_PATH;
+    ASSERT_FALSE(path.empty()) << "export_csv plug-in path not configured";
+    ASSERT_TRUE(load(path)) << path;
+
+    ASSERT_TRUE(commands_.execute("file.export_plugin.CSV Data"));
+    std::ifstream     in(out, std::ios::binary);
+    std::stringstream ss;
+    ss << in.rdbuf();
+    EXPECT_EQ(ss.str(), "speed x,speed y\r\n0,1.5\r\n1,-2\r\n2,4\r\n");
+    std::filesystem::remove(out);
+    export_cmds.detach();   // before TearDown destroys the export registry
 }
 
 TEST_F(ExamplePluginTest, AllThreeLoadTogether)

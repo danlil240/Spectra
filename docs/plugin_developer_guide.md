@@ -72,7 +72,7 @@ int spectra_plugin_init(const SpectraPluginContext* ctx, SpectraPluginInfo* info
     info->api_version_major = SPECTRA_PLUGIN_API_VERSION_MAJOR;
     info->api_version_minor = SPECTRA_PLUGIN_API_VERSION_MINOR;
 
-    // Register extension points here, gated by api_version_minor.
+    // Register extension points here, gated by spectra_plugin_api_at_least().
 
     return 0;
 }
@@ -170,22 +170,22 @@ The manifest filename must match the library name: `libmy_plugin.so` → `my_plu
 
 ## API version negotiation
 
-The context struct grows with each minor version bump. Fields added in later versions are `nullptr` for plugins built against an older minor version. **Always gate your registration calls on the minor version** to avoid dereferencing a null registry:
+The context struct grows with each version bump. Fields added in later versions are `nullptr` for plugins built against an older version. **Gate registration calls on the `(major, minor)` version pair with `spectra_plugin_api_at_least()`, and null-check the registry** to avoid dereferencing a null registry. Do not test `api_version_minor` on its own: the minor number restarts at 0 on each major bump, so `ctx->api_version_minor >= 1` is false on a v2.0 host even though v2.0 provides every v1.x registry.
 
 ```cpp
 info->api_version_major = SPECTRA_PLUGIN_API_VERSION_MAJOR;
 info->api_version_minor = SPECTRA_PLUGIN_API_VERSION_MINOR;
 
 // v1.1+ required for transform registry
-if (ctx->api_version_minor >= 1 && ctx->transform_registry)
+if (spectra_plugin_api_at_least(ctx, 1, 1) && ctx->transform_registry)
     spectra_register_xy_transform(ctx->transform_registry, ...);
 
 // v1.2+ required for overlay registry
-if (ctx->api_version_minor >= 2 && ctx->overlay_registry)
+if (spectra_plugin_api_at_least(ctx, 1, 2) && ctx->overlay_registry)
     spectra_register_overlay(ctx->overlay_registry, ...);
 
 // v1.3+ required for export format + data source registries
-if (ctx->api_version_minor >= 3 && ctx->export_format_registry)
+if (spectra_plugin_api_at_least(ctx, 1, 3) && ctx->export_format_registry)
     spectra_register_export_format(ctx->export_format_registry, ...);
 ```
 
@@ -268,7 +268,7 @@ static float clamp_transform(float value, void* user_data)
 
 static float g_limit = 1.0f;
 
-// In spectra_plugin_init (requires api_version_minor >= 1):
+// In spectra_plugin_init (requires API v1.1+):
 spectra_register_transform(ctx->transform_registry,
                             "Clamp ±1",
                             clamp_transform,
@@ -300,7 +300,7 @@ static void derivative_xy(const float* x_in, const float* y_in,
     }
 }
 
-// In spectra_plugin_init (requires api_version_minor >= 1):
+// In spectra_plugin_init (requires API v1.1+):
 spectra_register_xy_transform(ctx->transform_registry,
                                "Derivative",
                                derivative_xy,
@@ -338,7 +338,7 @@ static void my_overlay(const SpectraOverlayContext* ctx, void* /*user_data*/)
         0xFFFFFFFF);  // RGBA: opaque white
 }
 
-// In spectra_plugin_init (requires api_version_minor >= 2):
+// In spectra_plugin_init (requires API v1.2+):
 spectra_register_overlay(ctx->overlay_registry, "My Overlay", my_overlay, nullptr);
 ```
 
@@ -403,7 +403,7 @@ static int my_export(const spectra::SpectraExportContext* ctx, void* /*user_data
     return 0;   // 0 = success
 }
 
-// In spectra_plugin_init (requires api_version_minor >= 3):
+// In spectra_plugin_init (requires API v1.3+):
 spectra_register_export_format(ctx->export_format_registry,
                                 "My Format",     // display name
                                 "myfmt",         // file extension (no dot)
@@ -466,7 +466,7 @@ static void source_ui(void* ud)
     // Do NOT call spectra_overlay_draw_* here — this is a UI callback, not an overlay.
 }
 
-// In spectra_plugin_init (requires api_version_minor >= 3):
+// In spectra_plugin_init (requires API v1.3+):
 spectra::SpectraDataSourceDesc desc{};
 desc.name         = "Sine Generator";
 desc.start_fn     = source_start;
@@ -576,7 +576,7 @@ Overlay callbacks are called inside an active `ImDrawList` scope. No allocations
 
 ### Registration call is silently ignored
 
-- Check that you are gating the call on the correct `api_version_minor` value. If the guard condition is false the registration is skipped without error.
+- Check that you are gating the call with `spectra_plugin_api_at_least(ctx, major, minor)` rather than `api_version_minor` alone. If the guard condition is false the registration is skipped without error.
 - Verify the registry pointer in the context is non-null before calling the register function.
 
 ### Commands registered by the plugin are not in the palette

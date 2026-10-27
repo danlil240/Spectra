@@ -25,6 +25,31 @@
 namespace spectra
 {
 
+// Screen-space ortho projection (pixels, Y-down: 0=top, h=bottom) with identity
+// view/model.  Vulkan clip space has Y-down (positive m[5]), WebGPU has Y-up.
+static FrameUBO screen_space_ubo(float fw, float fh, bool clip_y_down)
+{
+    FrameUBO ubo{};   // Value-initializes all members to zero
+    float    y_sign     = clip_y_down ? 1.0f : -1.0f;
+    ubo.projection[0]   = 2.0f / fw;            // X: [0, fw] → [-1, +1]
+    ubo.projection[5]   = y_sign * 2.0f / fh;   // Y: flip for WebGPU
+    ubo.projection[10]  = -1.0f;
+    ubo.projection[12]  = -1.0f;
+    ubo.projection[13]  = y_sign * -1.0f;
+    ubo.projection[15]  = 1.0f;
+    ubo.view[0]         = 1.0f;
+    ubo.view[5]         = 1.0f;
+    ubo.view[10]        = 1.0f;
+    ubo.view[15]        = 1.0f;
+    ubo.model[0]        = 1.0f;
+    ubo.model[5]        = 1.0f;
+    ubo.model[10]       = 1.0f;
+    ubo.model[15]       = 1.0f;
+    ubo.viewport_width  = fw;
+    ubo.viewport_height = fh;
+    return ubo;
+}
+
 // Conditional sRGB-to-linear for themes with linearize_colors enabled.
 static bool should_linearize_geom(const ui::ThemeManager& tm)
 {
@@ -745,31 +770,107 @@ void Renderer::render_plot_text(Figure& figure)
 void Renderer::bind_screen_space_ubo(float fw, float fh)
 {
     // Screen coordinates are Y-down (0=top, h=bottom).
-    // Vulkan clip space has Y-down (positive m[5]), WebGPU has Y-up (negative m[5]).
-    FrameUBO ubo{};   // Value-initializes all members to zero
-    float    y_sign    = backend_.clip_y_down() ? 1.0f : -1.0f;
-    ubo.projection[0]  = 2.0f / fw;            // X: [0, fw] → [-1, +1]
-    ubo.projection[5]  = y_sign * 2.0f / fh;   // Y: flip for WebGPU
-    ubo.projection[10] = -1.0f;
-    ubo.projection[12] = -1.0f;
-    ubo.projection[13] = y_sign * -1.0f;
-    ubo.projection[15] = 1.0f;
-    // Identity view + model
-    ubo.view[0]         = 1.0f;
-    ubo.view[5]         = 1.0f;
-    ubo.view[10]        = 1.0f;
-    ubo.view[15]        = 1.0f;
-    ubo.model[0]        = 1.0f;
-    ubo.model[5]        = 1.0f;
-    ubo.model[10]       = 1.0f;
-    ubo.model[15]       = 1.0f;
-    ubo.viewport_width  = fw;
-    ubo.viewport_height = fh;
-
+    FrameUBO ubo = screen_space_ubo(fw, fh, backend_.clip_y_down());
     backend_.set_viewport(0, 0, fw, fh);
     backend_.set_scissor(0, 0, static_cast<uint32_t>(fw), static_cast<uint32_t>(fh));
     backend_.upload_buffer(frame_ubo_buffer_, &ubo, sizeof(FrameUBO));
     backend_.bind_buffer(frame_ubo_buffer_, 0);
+}
+
+Rect Renderer::figure_background_region(const Figure& figure)
+{
+    const auto  fw    = static_cast<float>(figure.width());
+    const auto  fh    = static_cast<float>(figure.height());
+    const auto& style = figure.style();
+
+    float x0 = 0.0f, y0 = 0.0f, x1 = 0.0f, y1 = 0.0f;
+    bool  any = false;
+    auto  add = [&](const auto& axes_list)
+    {
+        for (const auto& ax : axes_list)
+        {
+            if (!ax)
+                continue;
+            const Rect& vp = ax->viewport();
+            if (!(vp.w > 0.0f) || !(vp.h > 0.0f))
+                continue;
+            if (!any)
+            {
+                x0  = vp.x;
+                y0  = vp.y;
+                x1  = vp.x + vp.w;
+                y1  = vp.y + vp.h;
+                any = true;
+                continue;
+            }
+            x0 = std::min(x0, vp.x);
+            y0 = std::min(y0, vp.y);
+            x1 = std::max(x1, vp.x + vp.w);
+            y1 = std::max(y1, vp.y + vp.h);
+        }
+    };
+    add(figure.axes());
+    add(figure.all_axes());
+    if (!any)
+        return Rect{0.0f, 0.0f, fw, fh};
+
+    x0 = std::clamp(x0 - style.margin_left, 0.0f, fw);
+    y0 = std::clamp(y0 - style.margin_top, 0.0f, fh);
+    x1 = std::clamp(x1 + style.margin_right, 0.0f, fw);
+    y1 = std::clamp(y1 + style.margin_bottom, 0.0f, fh);
+    return Rect{x0, y0, std::max(0.0f, x1 - x0), std::max(0.0f, y1 - y0)};
+}
+
+void Renderer::render_figure_background(Figure& figure)
+{
+    const auto& style = figure.style();
+    if (!style.background_override || !overlay_pipeline_)
+        return;
+
+    const Rect r = figure_background_region(figure);
+    if (!(r.w >= 1.0f) || !(r.h >= 1.0f))
+        return;
+
+    const auto fw = static_cast<float>(figure.width());
+    const auto fh = static_cast<float>(figure.height());
+
+    const float verts[12] = {r.x,
+                             r.y,
+                             r.x + r.w,
+                             r.y,
+                             r.x + r.w,
+                             r.y + r.h,
+                             r.x,
+                             r.y,
+                             r.x + r.w,
+                             r.y + r.h,
+                             r.x,
+                             r.y + r.h};
+
+    // Per-figure, per-slot buffer: split-view figures share one command buffer
+    // and the previous in-flight frame may still read the other slot.
+    const uint32_t slot    = backend_.current_flight_frame() % FRAME_BUFFER_SLOTS;
+    FigureGpuData& fig_gpu = figure_gpu_data_[&figure];
+    if (!fig_gpu.background_buffer[slot])
+        fig_gpu.background_buffer[slot] =
+            backend_.create_buffer(BufferUsage::Vertex, sizeof(verts));
+    backend_.upload_buffer(fig_gpu.background_buffer[slot], verts, sizeof(verts));
+
+    FrameUBO ubo = screen_space_ubo(fw, fh, backend_.clip_y_down());
+    backend_.upload_buffer(frame_ubo_buffer_, &ubo, sizeof(FrameUBO));
+    backend_.bind_buffer(frame_ubo_buffer_, 0);
+
+    backend_.bind_pipeline(overlay_pipeline_);
+    // Same colour space as the theme canvas clear, so an override equal to the
+    // theme colour is indistinguishable from "auto".
+    SeriesPushConstants pc{};
+    pc.color[0] = style.background.r;
+    pc.color[1] = style.background.g;
+    pc.color[2] = style.background.b;
+    pc.color[3] = style.background.a;
+    backend_.push_constants(pc);
+    backend_.bind_buffer(fig_gpu.background_buffer[slot], 0);
+    backend_.draw(6);
 }
 
 void Renderer::render_plot_geometry(Figure& figure)

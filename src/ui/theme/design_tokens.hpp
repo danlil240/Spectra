@@ -83,7 +83,7 @@ constexpr float GRID_MINOR_ALPHA_LIGHT = 0.10f;
 // Inspector Rhythm
 constexpr float SECTION_HEADER_HEIGHT  = 32.0f;
 constexpr float SECTION_CONTENT_INSET  = 12.0f;   // Left indent for section content
-constexpr float INSPECTOR_LABEL_WIDTH  = 80.0f;   // Fixed label column width
+constexpr float INSPECTOR_LABEL_WIDTH  = 88.0f;   // Label column width (from label start)
 constexpr float INSPECTOR_INPUT_HEIGHT = 28.0f;   // Compact input height
 
 // ─── Panel Component Language ────────────────────────────────────────────────

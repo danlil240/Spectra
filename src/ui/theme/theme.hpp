@@ -6,6 +6,10 @@
 #include <unordered_map>
 #include <vector>
 
+#include <spectra/color.hpp>
+#include <spectra/fwd.hpp>
+#include <string_view>
+
 #include "design_tokens.hpp"
 
 struct ImVec4;   // Forward declaration for ImGui
@@ -317,6 +321,7 @@ enum class GlassSurface
 struct Theme
 {
     std::string        name;
+    std::string        display_name;   // Human-readable name for UI ("High Contrast")
     ThemeColors        colors;
     DataPalette        data_palette;   // Theme's default palette (used when "default" is selected)
     ThemeGlassSettings glass_defaults;
@@ -352,6 +357,9 @@ class ThemeManager
     const Theme&       current() const;
     const ThemeColors& colors() const;
     const std::string& current_theme_name() const;
+    // Human-readable name of a theme id for UI labels ("high_contrast" -> "High Contrast").
+    // Uses the registered theme's display_name, falling back to theme_display_name(id).
+    std::string display_name(std::string_view theme_id) const;
 
     // Data palette management.  The selected palette name is global across
     // themes; "default" resolves to the active theme's own default palette
@@ -488,6 +496,14 @@ inline bool is_light_plot_background(const ThemeColors& theme)
 void resolve_auto_series_colors(Figure&            figure,
                                 const DataPalette& palette,
                                 bool               light_background = false);
+
+// Fallback display name for a theme id without a registered display_name:
+// underscores become spaces and each word is capitalised ("my_theme" -> "My Theme").
+std::string theme_display_name(std::string_view theme_id);
+
+// Colour a figure's background actually renders with: the figure's own colour when
+// FigureStyle::background_override is set, otherwise the theme's canvas colour ("auto").
+spectra::Color effective_figure_background(const FigureStyle& style, const ThemeColors& colors);
 
 // Convenience accessors
 inline const ThemeColors& theme()

@@ -537,6 +537,7 @@ bool FigureSerializer::save(const std::string&     path,
         w.write_f32(s.subplot_hgap);
         w.write_f32(s.subplot_vgap);
         w.write_f32(s.min_subplot_height);
+        w.write_u8(static_cast<uint8_t>(s.background_override));
         w.end_chunk(pos);
     }
 
@@ -720,6 +721,9 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 s.subplot_vgap  = r.read_f32();
                 if (r.good() && len >= 32)   // backward compat: field added after v3
                     s.min_subplot_height = r.read_f32();
+                // backward compat: older files have no override flag, so their
+                // figures follow the theme ("auto") as they always rendered.
+                s.background_override = r.good() && len >= 45 && r.read_u8() != 0;
                 break;
             }
 

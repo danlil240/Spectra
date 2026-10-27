@@ -231,7 +231,8 @@ void Renderer::destroy_figure_buffers(FigureGpuData& gpu)
     {
         for (BufferHandle* b : {&gpu.overlay_line_buffer[i],
                                 &gpu.annotation_vertex_buffer[i],
-                                &gpu.annotation_point_buffer[i]})
+                                &gpu.annotation_point_buffer[i],
+                                &gpu.background_buffer[i]})
         {
             if (*b)
                 backend_.destroy_buffer(*b);
@@ -486,6 +487,10 @@ void Renderer::render_figure_content(Figure& figure, FigureViewModel* fig_vm)
     // Set full-figure viewport and scissor
     backend_.set_viewport(0, 0, static_cast<float>(w), static_cast<float>(h));
     backend_.set_scissor(0, 0, w, h);
+
+    // A figure that overrides the theme canvas colour paints its own region
+    // before any axes content.
+    render_figure_background(figure);
 
     // Wire up deferred-deletion callback on every axes so that
     // clear_series() / remove_series() safely defer GPU cleanup.

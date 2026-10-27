@@ -360,6 +360,29 @@ void info_row_mono(const char* label, const char* value)
     ImGui::PopStyleColor();
 }
 
+// ─── Field Label ────────────────────────────────────────────────────────────
+
+// Label column for side-by-side "label | value" rows.  The value column starts
+// INSPECTOR_LABEL_WIDTH after the label's own start (so section indentation does
+// not eat into it) and grows for a label longer than the column, so a value
+// field never overdraws its label.
+static void field_label(const char* label)
+{
+    const auto& c       = theme();
+    const float start_x = ImGui::GetCursorScreenPos().x;
+    ImGui::AlignTextToFramePadding();
+    ImGui::PushStyleColor(
+        ImGuiCol_Text,
+        ImVec4(c.text_secondary.r, c.text_secondary.g, c.text_secondary.b, c.text_secondary.a));
+    ImGui::TextUnformatted(label);
+    ImGui::PopStyleColor();
+    ImGui::SameLine();
+    const float label_w =
+        ImGui::CalcTextSize(label, nullptr, true).x + ImGui::GetStyle().ItemSpacing.x;
+    const float value_x = start_x + std::max(tokens::INSPECTOR_LABEL_WIDTH, label_w);
+    ImGui::SetCursorScreenPos(ImVec2(value_x, ImGui::GetCursorScreenPos().y));
+}
+
 // ─── Color Field ────────────────────────────────────────────────────────────
 
 bool color_field(const char* label, spectra::Color& color)
@@ -503,14 +526,8 @@ bool slider_field(const char* label, float& value, float min, float max, const c
     const auto& c = theme();
     ImGui::PushID(label);
 
-    // Side-by-side label-value layout: 80px label | remaining width input
-    ImGui::AlignTextToFramePadding();
-    ImGui::PushStyleColor(
-        ImGuiCol_Text,
-        ImVec4(c.text_secondary.r, c.text_secondary.g, c.text_secondary.b, c.text_secondary.a));
-    ImGui::TextUnformatted(label);
-    ImGui::PopStyleColor();
-    ImGui::SameLine(tokens::INSPECTOR_LABEL_WIDTH);
+    // Side-by-side label-value layout: label column | remaining width input
+    field_label(label);
 
     // Slider visual: 4px track height via reduced frame padding, pill-shaped thumb
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_PILL);
@@ -607,13 +624,7 @@ bool drag_field(const char* label, float& value, float speed, float min, float m
     ImGui::PushID(label);
 
     // Side-by-side label-value layout
-    ImGui::AlignTextToFramePadding();
-    ImGui::PushStyleColor(
-        ImGuiCol_Text,
-        ImVec4(c.text_secondary.r, c.text_secondary.g, c.text_secondary.b, c.text_secondary.a));
-    ImGui::TextUnformatted(label);
-    ImGui::PopStyleColor();
-    ImGui::SameLine(tokens::INSPECTOR_LABEL_WIDTH);
+    field_label(label);
 
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_MD);
 
@@ -646,13 +657,7 @@ bool drag_field2(const char* label, float& v0, float& v1, float speed, const cha
     ImGui::PushID(label);
 
     // Side-by-side label-value layout
-    ImGui::AlignTextToFramePadding();
-    ImGui::PushStyleColor(
-        ImGuiCol_Text,
-        ImVec4(c.text_secondary.r, c.text_secondary.g, c.text_secondary.b, c.text_secondary.a));
-    ImGui::TextUnformatted(label);
-    ImGui::PopStyleColor();
-    ImGui::SameLine(tokens::INSPECTOR_LABEL_WIDTH);
+    field_label(label);
 
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_MD);
 
@@ -690,7 +695,11 @@ bool checkbox_field(const char* label, bool& value)
     const auto& c = theme();
     ImGui::PushID(label);
 
+    // The box is sized from FramePadding; the app-wide padding is tuned for text
+    // inputs and makes a bare checkbox oversized, so use a compact vertical padding.
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_MD);
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
+                        ImVec2(ImGui::GetStyle().FramePadding.x, tokens::SPACE_1));
     ImGui::PushStyleColor(
         ImGuiCol_FrameBg,
         ImVec4(c.bg_tertiary.r, c.bg_tertiary.g, c.bg_tertiary.b, c.bg_tertiary.a));
@@ -704,7 +713,7 @@ bool checkbox_field(const char* label, bool& value)
     draw_focus_ring_if_needed();
 
     ImGui::PopStyleColor(2);
-    ImGui::PopStyleVar();
+    ImGui::PopStyleVar(2);
     ImGui::PopID();
     return changed;
 }
@@ -774,13 +783,7 @@ bool combo_field(const char* label, int& current, const char* const* items, int 
     ImGui::PushID(label);
 
     // Side-by-side label-value layout
-    ImGui::AlignTextToFramePadding();
-    ImGui::PushStyleColor(
-        ImGuiCol_Text,
-        ImVec4(c.text_secondary.r, c.text_secondary.g, c.text_secondary.b, c.text_secondary.a));
-    ImGui::TextUnformatted(label);
-    ImGui::PopStyleColor();
-    ImGui::SameLine(tokens::INSPECTOR_LABEL_WIDTH);
+    field_label(label);
 
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_MD);
     ImGui::PushStyleVar(ImGuiStyleVar_PopupRounding, tokens::RADIUS_LG);
@@ -814,13 +817,7 @@ bool text_field(const char* label, std::string& value)
     ImGui::PushID(label);
 
     // Side-by-side label-value layout
-    ImGui::AlignTextToFramePadding();
-    ImGui::PushStyleColor(
-        ImGuiCol_Text,
-        ImVec4(c.text_secondary.r, c.text_secondary.g, c.text_secondary.b, c.text_secondary.a));
-    ImGui::TextUnformatted(label);
-    ImGui::PopStyleColor();
-    ImGui::SameLine(tokens::INSPECTOR_LABEL_WIDTH);
+    field_label(label);
 
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_MD);
 
@@ -1798,13 +1795,7 @@ bool int_drag_field(const char* label, int& value, int speed, int min, int max, 
     ImGui::PushID(label);
 
     // Side-by-side label-value layout
-    ImGui::AlignTextToFramePadding();
-    ImGui::PushStyleColor(
-        ImGuiCol_Text,
-        ImVec4(c.text_secondary.r, c.text_secondary.g, c.text_secondary.b, c.text_secondary.a));
-    ImGui::TextUnformatted(label);
-    ImGui::PopStyleColor();
-    ImGui::SameLine(tokens::INSPECTOR_LABEL_WIDTH);
+    field_label(label);
 
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_SM);
 

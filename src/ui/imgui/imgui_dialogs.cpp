@@ -255,6 +255,14 @@ void ImGuiIntegration::draw_plot_overlay_dialog()
 
 void ImGuiIntegration::draw_theme_settings()
 {
+    // Modal: ImGui dims everything behind it with a scrim (ImGuiCol_ModalWindowDimBg).
+    // show_theme_settings_ stays the source of truth; the popup follows it.
+    static constexpr const char* k_popup_id = "Theme Settings";
+    if (show_theme_settings_ && !ImGui::IsPopupOpen(k_popup_id))
+        ImGui::OpenPopup(k_popup_id);
+    if (!ImGui::IsPopupOpen(k_popup_id))
+        return;
+
     const auto& colors        = ui::theme();
     auto&       theme_manager = *theme_mgr_;
 
@@ -264,24 +272,20 @@ void ImGuiIntegration::draw_theme_settings()
                             ImVec2(0.5f, 0.5f));
     ImGui::SetNextWindowSizeConstraints(ImVec2(380.0f, 0.0f), ImVec2(720.0f, 900.0f));
 
-    static const std::vector<std::pair<std::string, std::string>> available_themes = {
-        {"night", "Night Glass"},
-        {"dark", "Dark"},
-        {"light", "Light"},
-        {"high_contrast", "High Contrast"},
-    };
+    static const char* const available_themes[] = {"night", "dark", "light", "high_contrast"};
 
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoCollapse
                              | ImGuiWindowFlags_AlwaysAutoResize;
 
-    // Modern modal styling
+    // Modern modal styling (opaque background: the glass panel transparency would
+    // let the plot show through behind the dialog's text)
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
                         ImVec2(ui::tokens::SPACE_6, ui::tokens::SPACE_5));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ui::tokens::RADIUS_LG);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.5f);
     ImGui::PushStyleColor(
-        ImGuiCol_WindowBg,
-        ImVec4(colors.bg_elevated.r, colors.bg_elevated.g, colors.bg_elevated.b, 0.98f));
+        ImGuiCol_PopupBg,   // modals draw their background with PopupBg
+        ImVec4(colors.bg_elevated.r, colors.bg_elevated.g, colors.bg_elevated.b, 1.0f));
     ImGui::PushStyleColor(
         ImGuiCol_Border,
         ImVec4(colors.border_subtle.r, colors.border_subtle.g, colors.border_subtle.b, 0.3f));
@@ -292,8 +296,8 @@ void ImGuiIntegration::draw_theme_settings()
         ImGuiCol_TitleBgActive,
         ImVec4(colors.bg_elevated.r, colors.bg_elevated.g, colors.bg_elevated.b, 1.0f));
 
-    bool is_open = true;
-    if (ImGui::Begin("Theme Settings", &is_open, flags))
+    bool is_open = show_theme_settings_;
+    if (ImGui::BeginPopupModal(k_popup_id, &is_open, flags))
     {
         ImGui::PushFont(font_heading_);
         ImGui::PushStyleColor(
@@ -312,8 +316,9 @@ void ImGuiIntegration::draw_theme_settings()
         ImGui::Dummy(ImVec2(0, 8));
 
         // Theme selection buttons — card-like
-        for (const auto& [theme_id, display_name] : available_themes)
+        for (const char* theme_id : available_themes)
         {
+            const std::string display_name = theme_manager.display_name(theme_id);
             bool is_current = (theme_manager.current_theme_name() == theme_id);
 
             if (is_current)
@@ -398,7 +403,7 @@ void ImGuiIntegration::draw_theme_settings()
         glass_slider("Toolbar Transparency", &glass.toolbar_alpha);
         glass_slider("Glow Strength", &glass.glow_strength);
 
-        if (ImGui::Checkbox("Blur Enabled (experimental)", &glass.blur_enabled))
+        if (ui::widgets::checkbox_field("Blur Enabled (experimental)", glass.blur_enabled))
             glass_changed = true;
         if (ImGui::IsItemHovered())
         {
@@ -445,9 +450,11 @@ void ImGuiIntegration::draw_theme_settings()
         }
         ImGui::PopStyleColor(2);
         ImGui::PopStyleVar(2);
-    }
 
-    ImGui::End();
+        if (!is_open)
+            ImGui::CloseCurrentPopup();
+        ImGui::EndPopup();
+    }
     ImGui::PopStyleColor(4);
     ImGui::PopStyleVar(3);
 

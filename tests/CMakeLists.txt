@@ -427,7 +427,10 @@ if(TARGET transform_smooth AND TARGET overlay_crosshair AND TARGET export_csv
     )
     add_dependencies(unit_test_example_plugins transform_smooth overlay_crosshair export_csv)
     # Export the host's C ABI symbols so the plug-ins bind to the test's copies
-    # instead of the static spectra copy linked into each plug-in.
+    # instead of the static spectra copy linked into each plug-in.  Windows has
+    # no equivalent (each DLL keeps its own copy); the fixture destroys the
+    # registries before unloading so the plug-in's std::function code is still
+    # mapped when it runs.
     if(NOT WIN32)
         target_link_options(unit_test_example_plugins PRIVATE -rdynamic)
     endif()

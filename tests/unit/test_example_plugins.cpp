@@ -6,6 +6,7 @@
 // a v2.0 host reports minor 0.
 
 #include <filesystem>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -42,12 +43,27 @@ class ExamplePluginTest : public ::testing::Test
         manager_.set_command_registry(&commands_);
         manager_.set_shortcut_manager(&shortcuts_);
         manager_.set_undo_manager(&undo_);
-        manager_.set_transform_registry(&transforms_);
-        manager_.set_overlay_registry(&overlays_);
-        manager_.set_export_format_registry(&exports_);
+        manager_.set_transform_registry(transforms_.get());
+        manager_.set_overlay_registry(overlays_.get());
+        manager_.set_export_format_registry(exports_.get());
     }
 
-    void TearDown() override { manager_.unload_all(); }
+    void TearDown() override
+    {
+        // Destroy the registries BEFORE unloading the plug-ins.  Where the plug-in
+        // carries its own copy of the C ABI helpers (Windows DLLs always do), the
+        // std::function wrappers around its callbacks were instantiated inside the
+        // plug-in, so destroying them after FreeLibrary/dlclose jumps into unmapped
+        // code.  PluginManager does not unregister transforms, overlays or export
+        // formats on unload, so the registries must go first.
+        manager_.set_transform_registry(nullptr);
+        manager_.set_overlay_registry(nullptr);
+        manager_.set_export_format_registry(nullptr);
+        transforms_.reset();
+        overlays_.reset();
+        exports_.reset();
+        manager_.unload_all();
+    }
 
     // Loads the plug-in; false when the build did not produce it or loading failed.
     bool load(const std::string& path)
@@ -57,13 +73,13 @@ class ExamplePluginTest : public ::testing::Test
         return manager_.load_plugin(path);
     }
 
-    CommandRegistry      commands_;
-    ShortcutManager      shortcuts_;
-    UndoManager          undo_;
-    TransformRegistry    transforms_;
-    OverlayRegistry      overlays_;
-    ExportFormatRegistry exports_;
-    PluginManager        manager_;
+    CommandRegistry                       commands_;
+    ShortcutManager                       shortcuts_;
+    UndoManager                           undo_;
+    std::unique_ptr<TransformRegistry>    transforms_ = std::make_unique<TransformRegistry>();
+    std::unique_ptr<OverlayRegistry>      overlays_   = std::make_unique<OverlayRegistry>();
+    std::unique_ptr<ExportFormatRegistry> exports_    = std::make_unique<ExportFormatRegistry>();
+    PluginManager                         manager_;
 };
 
 }   // namespace
@@ -75,7 +91,7 @@ TEST_F(ExamplePluginTest, TransformSmoothRegistersMovingAverage)
     ASSERT_TRUE(load(path)) << path;
 
     DataTransform t;
-    ASSERT_TRUE(transforms_.get_transform("Moving Average (5-pt)", t))
+    ASSERT_TRUE(transforms_->get_transform("Moving Average (5-pt)", t))
         << "plug-in loaded but did not register its transform";
 
     // Constant input is a fixed point of any moving average.
@@ -94,7 +110,7 @@ TEST_F(ExamplePluginTest, OverlayCrosshairRegistersOverlay)
     ASSERT_FALSE(path.empty()) << "overlay_crosshair plug-in path not configured";
     ASSERT_TRUE(load(path)) << path;
 
-    const auto names = overlays_.overlay_names();
+    const auto names = overlays_->overlay_names();
     ASSERT_EQ(names.size(), 1u) << "plug-in loaded but did not register its overlay";
     EXPECT_EQ(names[0], "Crosshair");
 }
@@ -105,7 +121,7 @@ TEST_F(ExamplePluginTest, ExportCsvRegistersCsvFormat)
     ASSERT_FALSE(path.empty()) << "export_csv plug-in path not configured";
     ASSERT_TRUE(load(path)) << path;
 
-    const auto formats = exports_.available_formats();
+    const auto formats = exports_->available_formats();
     ASSERT_EQ(formats.size(), 1u) << "plug-in loaded but did not register its export format";
     EXPECT_EQ(formats[0].name, "CSV Data");
     EXPECT_EQ(formats[0].extension, "csv");
@@ -119,7 +135,7 @@ TEST_F(ExamplePluginTest, AllThreeLoadTogether)
     EXPECT_EQ(manager_.plugins().size(), 3u);
 
     DataTransform t;
-    EXPECT_TRUE(transforms_.get_transform("Moving Average (5-pt)", t));
-    EXPECT_EQ(overlays_.count(), 1u);
-    EXPECT_EQ(exports_.available_formats().size(), 1u);
+    EXPECT_TRUE(transforms_->get_transform("Moving Average (5-pt)", t));
+    EXPECT_EQ(overlays_->count(), 1u);
+    EXPECT_EQ(exports_->available_formats().size(), 1u);
 }

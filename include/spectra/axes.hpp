@@ -285,6 +285,10 @@ class Axes : public AxesBase
     template <typename T, typename... Args>
     T& add_series(Args&&... args);
 
+    // Limits before log-axis clamping (see x_limits()).
+    AxisLimits x_limits_unclamped() const;
+    AxisLimits y_limits_unclamped() const;
+
     std::optional<AxisLimits> xlim_;
     std::optional<AxisLimits> ylim_;
 

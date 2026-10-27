@@ -1,6 +1,7 @@
 #pragma once
 
 #include <spectra/figure.hpp>
+#include <spectra/axes.hpp>
 #include <spectra/fwd.hpp>
 #include <spectra/series.hpp>
 
@@ -98,7 +99,13 @@ class Renderer
     void upload_series_data(Series& series);
     // Upload series data relative to a double-precision origin (camera-relative rendering).
     // Subtracts (origin_x, origin_y) from each data point in double before converting to float.
-    void upload_series_data(Series& series, double origin_x, double origin_y);
+    // The origin is in axis space: for log scales, x/y are mapped through
+    // to_axis_space() (core/axis_scale.hpp) before the origin is subtracted.
+    void upload_series_data(Series&   series,
+                            double    origin_x,
+                            double    origin_y,
+                            ScaleType xscale = ScaleType::Linear,
+                            ScaleType yscale = ScaleType::Linear);
 
     // Notify the renderer that a Series object is about to be destroyed.
     // Moves its GPU resources into a deferred-deletion queue so they are
@@ -325,6 +332,12 @@ class Renderer
         double cached_xlim_max = 1.0;
         double cached_ylim_min = 0.0;
         double cached_ylim_max = 1.0;
+        // Scale types and axis-space half ranges used for this frame's
+        // projection (equal to the data half ranges on linear axes).
+        ScaleType xscale            = ScaleType::Linear;
+        ScaleType yscale            = ScaleType::Linear;
+        double    axis_half_range_x = 0.5;
+        double    axis_half_range_y = 0.5;
     };
     std::unordered_map<const AxesBase*, AxesGpuData> axes_gpu_data_;
 
@@ -372,6 +385,10 @@ class Renderer
         // at deep zoom by keeping GPU floats small.
         double origin_x = 0.0;
         double origin_y = 0.0;
+        // Scale types the data was mapped through at upload; a change of axis
+        // scale forces a re-upload.
+        ScaleType upload_xscale = ScaleType::Linear;
+        ScaleType upload_yscale = ScaleType::Linear;
         // Upload skip optimisation (WS-5.2)
         uint64_t data_generation = 0;   // Monotonic counter; incremented when data changes
         // Plugin custom series type fields

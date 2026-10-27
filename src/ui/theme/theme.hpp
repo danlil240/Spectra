@@ -310,6 +310,10 @@ struct DataPalette
     std::vector<Color>   colors;
     bool                 colorblind_safe = false;
     std::vector<CVDType> safe_for;   // Which CVD types this palette is safe for
+    // Ordered ramp (viridis, monochrome): the slots' lightness order carries
+    // meaning, so visible_data_palette() keeps it monotonic instead of moving
+    // each low-contrast slot on its own.
+    bool sequential = false;
 
     // Get color by index (wraps around)
     const Color& operator[](size_t index) const { return colors[index % colors.size()]; }
@@ -417,10 +421,26 @@ class ThemeManager
     ThemeColors        plot_surface_colors(const FigureStyle& style) const;
     const DataPalette& plot_surface_data_palette(const FigureStyle& style) const;
 
+    // Palette swatches as the plot actually draws them: palette `name` ("" =
+    // the current palette, "default" = the theme's own) passed through
+    // visible_data_palette() against the theme canvas.  Settings and colour
+    // picker swatches use this so they match auto-coloured series.
+    DataPalette displayed_data_palette(const std::string& name = {}) const;
+
     // Animated palette transition
     void transition_palette(const std::string& palette_name,
                             float              duration_sec = tokens::DURATION_SLOW);
     bool is_palette_transitioning() const;
+
+    // App UI scale (1.0 = 100%), clamped to [UI_SCALE_MIN, UI_SCALE_MAX].
+    // apply_to_imgui() scales ImGui sizes and fonts by it; overlays receive it
+    // through ImGui's FontScaleMain.  set_ui_scale() re-applies to the current
+    // ImGui context.
+    static constexpr float UI_SCALE_MIN = 0.75f;
+    static constexpr float UI_SCALE_MAX = 2.0f;
+    static float           clamp_ui_scale(float scale);
+    void                   set_ui_scale(float scale);
+    float                  ui_scale() const { return ui_scale_; }
 
     // Theme application
     void apply_to_imgui();                              // Updates all ImGui style colors
@@ -550,6 +570,20 @@ class ThemeManager
         bool        display_palette_valid = false;
     } export_override_;
 
+    // displayed_data_palette() cache: recomputed only when the source colours,
+    // the ramp flag or the canvas change.
+    struct DisplayedPaletteCache
+    {
+        std::vector<Color> src;
+        bool               sequential = false;
+        Color              canvas;
+        DataPalette        result;
+        bool               valid = false;
+    };
+    mutable DisplayedPaletteCache displayed_palette_cache_;
+
+    float ui_scale_ = 1.0f;
+
     void               initialize_default_themes();
     void               initialize_data_palettes();
     const DataPalette& resolve_data_palette(const std::string& name) const;
@@ -629,10 +663,18 @@ inline constexpr float AUTO_SERIES_MIN_CONTRAST = 3.0f;
 //    simulated protanopia, deuteranopia or tritanopia, moves further from the
 //    canvas in 0.25 contrast steps until it is that far apart (or as far apart
 //    as the two were in the source palette, if that was closer).
+// Sequential palettes (DataPalette::sequential, with OKLab lightness strictly
+// monotonic over the non-ink slots) are handled as a ramp instead: every
+// slot's OKLab lightness is scaled toward the ramp end farthest from the
+// canvas (the anchor) by the largest common factor that brings all slots to
+// @p min_contrast; if that would leave neighbours closer than the distinctness
+// rule above allows, the anchor moves outward just enough to make room.  The
+// lightness order of the ramp survives (hue and chroma are kept as above;
+// passing slots may move too).
 // Alpha is kept.  An empty palette is treated as palette::default_cycle.  Only
-// auto series colours go through this: the palette swatches in Settings,
-// explicit RGB colours and colormaps (heatmap / surface sampling) are not
-// changed.
+// auto series colours (and the palette swatches that preview them, see
+// ThemeManager::displayed_data_palette) go through this: explicit RGB colours
+// and colormaps (heatmap / surface sampling) are not changed.
 DataPalette visible_data_palette(const DataPalette&    palette,
                                  const spectra::Color& canvas,
                                  float                 min_contrast = AUTO_SERIES_MIN_CONTRAST);

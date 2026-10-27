@@ -470,6 +470,10 @@ void ImGuiIntegration::new_frame()
     #elif defined(SPECTRA_USE_SDL3)
     ImGui_ImplSDL3_NewFrame();
     #endif
+    // Follow the app UI scale (Settings -> Appearance) in every ImGui context:
+    // a change made in another window re-styles this one before its frame.
+    if (theme_mgr_ && ImGui::GetStyle().FontScaleMain != theme_mgr_->ui_scale())
+        theme_mgr_->apply_to_imgui();
     ImGui::NewFrame();
 
     // Update layout with current window size and delta time
@@ -500,6 +504,10 @@ void ImGuiIntegration::new_frame_headless(const HeadlessFrameInput& input)
     io.DisplayFramebufferScale = ImVec2(input.dpi_scale, input.dpi_scale);
 
     ImGui_ImplVulkan_NewFrame();
+    // Follow the app UI scale (Settings -> Appearance) in every ImGui context:
+    // a change made in another window re-styles this one before its frame.
+    if (theme_mgr_ && ImGui::GetStyle().FontScaleMain != theme_mgr_->ui_scale())
+        theme_mgr_->apply_to_imgui();
     ImGui::NewFrame();
 
     // Update layout with current display size and delta time

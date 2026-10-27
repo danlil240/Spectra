@@ -487,8 +487,38 @@ class Renderer
         // unregistered: forces a re-upload so a type registered again under
         // the same name rebuilds its state from scratch.
         bool plugin_state_released = false;
+
+        // ShapeSeries3D: indices() with each translucent range's triangles
+        // sorted back to front for the camera in sort_key (see
+        // prepare_shape3d_sorted_indices).  Uploaded per frame slot so the
+        // in-flight frame's copy is never overwritten.
+        uint64_t              geometry_serial = 0;
+        std::vector<uint32_t> sorted_indices;
+        std::vector<double>   sort_key;
+        uint64_t              sorted_version = 0;
+        BufferHandle          sorted_index_buffer[FRAME_BUFFER_SLOTS];
+        size_t                sorted_index_capacity[FRAME_BUFFER_SLOTS] = {};
+        uint64_t              sorted_slot_version[FRAME_BUFFER_SLOTS]   = {};
+        // Slot whose sorted buffer is current, and the render pass
+        // (render_pass_serial_) it was prepared for; used only within it.
+        int      sorted_ready_slot   = -1;
+        uint64_t sorted_ready_serial = 0;
     };
     std::unordered_map<const Series*, SeriesGpuData> series_gpu_data_;
+    // Incremented by begin_render_pass(); tags per-pass state such as
+    // SeriesGpuData::sorted_ready_serial.
+    uint64_t render_pass_serial_ = 0;
+
+    // Sorts the triangles of @p series' translucent ranges back to front for
+    // @p cam (re-sorting only when the camera, model matrix, geometry or
+    // transparency changed) and uploads them into this frame slot's sorted
+    // index buffer; sets gpu.sorted_ready_slot.  Render thread only.
+    void prepare_shape3d_sorted_indices(SeriesGpuData&       gpu,
+                                        const ShapeSeries3D& series,
+                                        const mat4&          model,
+                                        const Camera&        cam,
+                                        float                series_alpha,
+                                        float                style_opacity);
 
     // Destroy all GPU buffer handles held by a SeriesGpuData or AxesGpuData.
     void destroy_series_buffers(SeriesGpuData& gpu);

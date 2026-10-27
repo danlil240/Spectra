@@ -626,7 +626,16 @@ void Renderer::render_series(Series&             series,
                         {
                             backend_.bind_pipeline(pipe);
                             backend_.bind_buffer(gpu.ssbo, 0);
-                            backend_.bind_index_buffer(gpu.index_buffer);
+                            // Translucent ranges use this frame's back-to-front
+                            // triangle order when one was prepared (3D pass).
+                            const int  sorted_slot = gpu.sorted_ready_slot;
+                            const bool use_sorted =
+                                transparent && sorted_slot >= 0
+                                && gpu.sorted_ready_serial == render_pass_serial_
+                                && gpu.sorted_index_buffer[sorted_slot];
+                            backend_.bind_index_buffer(use_sorted
+                                                           ? gpu.sorted_index_buffer[sorted_slot]
+                                                           : gpu.index_buffer);
                             bound = pipe;
                         }
                         backend_.push_constants(range_pc);

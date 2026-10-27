@@ -277,18 +277,16 @@ class PluginTransformLoadTest : public ::testing::Test
         mgr_.set_transform_registry(&transform_reg_);
     }
 
-    // No explicit TearDown — destruction order matters:
-    // transform_reg_ is declared last so it is destroyed first (while the
-    // plugin .so is still loaded).  Then mgr_ destruction calls unload_all()
-    // which dlcloses the library safely.
+    // Unload first: unload removes the plug-in's transforms from
+    // transform_reg_, so the registry must still be alive.
+    void TearDown() override { mgr_.unload_all(); }
 
-    std::string     plugin_path_;
-    CommandRegistry cmd_reg_;
-    ShortcutManager shortcut_mgr_;
-    UndoManager     undo_mgr_;
-    PluginManager   mgr_;
-    // Must be destroyed before mgr_ closes the plugin .so, so declared last.
+    std::string       plugin_path_;
+    CommandRegistry   cmd_reg_;
+    ShortcutManager   shortcut_mgr_;
+    UndoManager       undo_mgr_;
     TransformRegistry transform_reg_;
+    PluginManager     mgr_;
 };
 
 TEST_F(PluginTransformLoadTest, LoadPluginRegistersTransforms)

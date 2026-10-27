@@ -267,6 +267,11 @@ struct SnapshotSeriesState
     // lettered series, 0 otherwise.  The window re-resolves the letter's tuned
     // shade for its own theme; color_r..a carry the sender's shade.
     uint8_t color_letter = 0;
+    // Double-precision data origins (Series::x_offset()/y_offset()): logical
+    // value = origin + data[i].  Non-zero when the sender stored large values
+    // (e.g. epoch timestamps) as float offsets from a nearby origin.
+    double x_origin = 0.0;
+    double y_origin = 0.0;
 };
 
 // A single figure's full state.
@@ -320,7 +325,7 @@ struct DiffOp
         SET_OPACITY        = 8,
         ADD_FIGURE         = 10,
         REMOVE_FIGURE      = 11,
-        SET_SERIES_DATA    = 12,
+        SET_SERIES_DATA    = 12,   // data=interleaved floats, f1=x origin, f2=y origin (2D)
         SET_AXIS_XLABEL    = 13,   // str_val=label text
         SET_AXIS_YLABEL    = 14,   // str_val=label text
         SET_AXIS_TITLE     = 15,   // str_val=title text

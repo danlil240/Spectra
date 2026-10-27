@@ -311,6 +311,7 @@ std::unique_ptr<spectra::Figure> build_figure_from_snapshot(
                 if (ss.type == "scatter")
                 {
                     auto& s = ax.scatter(xs, ys);
+                    s.x_offset(ss.x_origin).y_offset(ss.y_origin);
                     apply_snapshot_color(s, ss);
                     s.visible(ss.visible);
                     s.opacity(ss.opacity);
@@ -321,6 +322,7 @@ std::unique_ptr<spectra::Figure> build_figure_from_snapshot(
                 else
                 {
                     auto& s = ax.line(xs, ys);
+                    s.x_offset(ss.x_origin).y_offset(ss.y_origin);
                     apply_snapshot_color(s, ss);
                     s.visible(ss.visible);
                     s.opacity(ss.opacity);
@@ -397,6 +399,8 @@ void apply_diff_op_to_cache(spectra::ipc::SnapshotFigureState& fig, const spectr
                 const size_t stride = is_3d_series_type(series.type) ? 3u : 2u;
                 series.data         = op.data;
                 series.point_count  = static_cast<uint32_t>(op.data.size() / stride);
+                series.x_origin     = op.f1;   // 2D data origins (0 for 3D senders)
+                series.y_origin     = op.f2;
             }
             break;
         case spectra::ipc::DiffOp::Type::SET_AXIS_ZLIMITS:
@@ -589,6 +593,7 @@ void apply_diff_op_to_figure(spectra::Figure&                       fig,
                     }
                     line->set_x(xv);
                     line->set_y(yv);
+                    line->x_offset(op.f1).y_offset(op.f2);
                 }
                 else if (auto* scatter = dynamic_cast<spectra::ScatterSeries*>(s))
                 {
@@ -602,6 +607,7 @@ void apply_diff_op_to_figure(spectra::Figure&                       fig,
                     }
                     scatter->set_x(xv);
                     scatter->set_y(yv);
+                    scatter->x_offset(op.f1).y_offset(op.f2);
                 }
             }
             break;

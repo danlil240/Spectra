@@ -430,6 +430,8 @@ ipc::DiffOp FigureModel::set_series_data(uint64_t                  figure_id,
         axes_index          = series.axes_index;
         series.data         = data;
         series.point_count  = static_cast<uint32_t>(data.size() / stride);
+        series.x_origin     = 0.0;   // publisher data holds absolute values
+        series.y_origin     = 0.0;
     }
     bump_revision();
 
@@ -482,7 +484,11 @@ ipc::DiffOp FigureModel::append_series_data(uint64_t                  figure_id,
     op.axes_index   = axes_index;
     op.series_index = series_index;
     if (it != figures_.end() && series_index < it->second.series.size())
+    {
         op.data = it->second.series[series_index].data;
+        op.f1   = it->second.series[series_index].x_origin;
+        op.f2   = it->second.series[series_index].y_origin;
+    }
     return op;
 }
 
@@ -702,6 +708,8 @@ bool FigureModel::apply_diff_op(const ipc::DiffOp& op)
             it->second.series[op.series_index].data = op.data;
             it->second.series[op.series_index].point_count =
                 static_cast<uint32_t>(op.data.size() / 2);
+            it->second.series[op.series_index].x_origin = op.f1;   // 2D data origins
+            it->second.series[op.series_index].y_origin = op.f2;
             break;
 
         case ipc::DiffOp::Type::SET_AXIS_XLABEL:

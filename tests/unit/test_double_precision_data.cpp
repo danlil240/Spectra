@@ -6,6 +6,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <filesystem>
 #include <gtest/gtest.h>
 #include <set>
 #include <spectra/axes.hpp>
@@ -16,9 +17,12 @@
 #include <vector>
 
 #include "core/data_origin.hpp"
+#include "ipc/codec.hpp"
 #include "render/backend.hpp"
 #include "render/renderer.hpp"
+#include "ui/app/figure_snapshot.hpp"
 #include "ui/theme/theme.hpp"
+#include "ui/workspace/figure_serializer.hpp"
 
 #if defined(SPECTRA_USE_IMGUI) && __has_include(<imgui.h>)
     #define SPECTRA_TEST_HOVER 1
@@ -369,3 +373,143 @@ TEST(DoubleDataApi, PickedValueRoundTrip)
     EXPECT_LT(np.distance_px, 1.0f);
 }
 #endif
+
+// ─── Persistence: IPC snapshot and .spectra files keep the origins ──────────
+
+namespace
+{
+
+// Absolute value of point i of a series (origin + stored float offset).
+double abs_x(const Series& s, std::span<const float> xs, size_t i)
+{
+    return s.x_offset() + static_cast<double>(xs[i]);
+}
+double abs_y(const Series& s, std::span<const float> ys, size_t i)
+{
+    return s.y_offset() + static_cast<double>(ys[i]);
+}
+
+}   // namespace
+
+TEST(DoubleDataApi, SnapshotRoundTripKeepsOrigins)
+{
+    const auto s = make_signal(101);
+    Figure     fig({.width = 800, .height = 600});
+    auto&      ax   = fig.subplot(1, 1, 1);
+    auto&      line = ax.line(std::span<const double>(s.t), std::span<const double>(s.y));
+    auto&      sc   = ax.scatter(std::span<const double>(s.t), std::span<const double>(s.y));
+    ASSERT_NE(line.x_offset(), 0.0);
+    ASSERT_NE(line.y_offset(), 0.0);
+
+    ipc::StateSnapshotPayload payload;
+    payload.figures.push_back(figure_to_snapshot(fig, 1));
+    const auto bytes   = ipc::encode_state_snapshot(payload);
+    const auto decoded = ipc::decode_state_snapshot(bytes);
+    ASSERT_TRUE(decoded.has_value());
+    ASSERT_EQ(decoded->figures.size(), 1u);
+    const auto& series = decoded->figures[0].series;
+    ASSERT_EQ(series.size(), 2u);
+
+    const Series* originals[] = {&line, &sc};
+    for (size_t k = 0; k < series.size(); ++k)
+    {
+        const auto& ss = series[k];
+        EXPECT_DOUBLE_EQ(ss.x_origin, originals[k]->x_offset());
+        EXPECT_DOUBLE_EQ(ss.y_origin, originals[k]->y_offset());
+
+        // Rebuild the series the way the window agent does and compare the
+        // absolute positions with the source data.
+        std::vector<float> xs, ys;
+        for (size_t j = 0; j + 1 < ss.data.size(); j += 2)
+        {
+            xs.push_back(ss.data[j]);
+            ys.push_back(ss.data[j + 1]);
+        }
+        ASSERT_EQ(xs.size(), s.t.size());
+        Axes  rebuilt;
+        auto& r = rebuilt.line(xs, ys);
+        r.x_offset(ss.x_origin).y_offset(ss.y_origin);
+        for (size_t i = 0; i < xs.size(); ++i)
+        {
+            EXPECT_NEAR(abs_x(r, r.x_data(), i), s.t[i], 1e-3);
+            EXPECT_NEAR(abs_y(r, r.y_data(), i), s.y[i], 1e-8);
+        }
+    }
+
+    // Incremental data updates carry the origins in f1/f2.
+    ipc::StateDiffPayload diff;
+    ipc::DiffOp           op;
+    op.type = ipc::DiffOp::Type::SET_SERIES_DATA;
+    op.f1   = line.x_offset();
+    op.f2   = line.y_offset();
+    op.data = {0.5f, 0.25f};
+    diff.ops.push_back(op);
+    const auto dec_diff = ipc::decode_state_diff(ipc::encode_state_diff(diff));
+    ASSERT_TRUE(dec_diff.has_value());
+    ASSERT_EQ(dec_diff->ops.size(), 1u);
+    EXPECT_DOUBLE_EQ(dec_diff->ops[0].f1, line.x_offset());
+    EXPECT_DOUBLE_EQ(dec_diff->ops[0].f2, line.y_offset());
+}
+
+TEST(DoubleDataApi, SnapshotDefaultsOriginsToZero)
+{
+    Figure             fig({.width = 400, .height = 300});
+    auto&              ax = fig.subplot(1, 1, 1);
+    std::vector<float> x  = {1.0f, 2.0f};
+    ax.line(x, x);
+    ipc::StateSnapshotPayload payload;
+    payload.figures.push_back(figure_to_snapshot(fig, 1));
+    const auto decoded = ipc::decode_state_snapshot(ipc::encode_state_snapshot(payload));
+    ASSERT_TRUE(decoded.has_value());
+    ASSERT_EQ(decoded->figures[0].series.size(), 1u);
+    EXPECT_EQ(decoded->figures[0].series[0].x_origin, 0.0);
+    EXPECT_EQ(decoded->figures[0].series[0].y_origin, 0.0);
+}
+
+TEST(DoubleDataApi, SerializerRoundTripKeepsOriginsAndLimits)
+{
+    const auto        s = make_signal(101);
+    const std::string path =
+        (std::filesystem::temp_directory_path() / "spectra_test_double_origin.spectra").string();
+
+    Figure src({.width = 800, .height = 600});
+    auto&  ax = src.subplot(1, 1, 1);
+    ax.line(std::span<const double>(s.t), std::span<const double>(s.y));
+    ax.scatter(std::span<const double>(s.t), std::span<const double>(s.y));
+    ax.xlim(kEpoch + 100.0, kEpoch + 200.0);   // a zoom finer than float limits can hold
+    ax.ylim(kBigY - kSmallA, kBigY + kSmallA);
+    ASSERT_TRUE(FigureSerializer::save(path, src));
+
+    Figure dst({.width = 800, .height = 600});
+    ASSERT_TRUE(FigureSerializer::load(path, dst));
+    std::remove(path.c_str());
+
+    ASSERT_EQ(dst.axes().size(), 1u);
+    const auto& dax = *dst.axes()[0];
+    ASSERT_EQ(dax.series().size(), 2u);
+    for (const auto& sp : dax.series())
+    {
+        std::span<const float> xs, ys;
+        if (auto* l = dynamic_cast<const LineSeries*>(sp.get()))
+        {
+            xs = l->x_data();
+            ys = l->y_data();
+        }
+        else if (auto* c = dynamic_cast<const ScatterSeries*>(sp.get()))
+        {
+            xs = c->x_data();
+            ys = c->y_data();
+        }
+        ASSERT_EQ(xs.size(), s.t.size());
+        EXPECT_NE(sp->x_offset(), 0.0);
+        for (size_t i = 0; i < xs.size(); ++i)
+        {
+            EXPECT_NEAR(abs_x(*sp, xs, i), s.t[i], 1e-3);
+            EXPECT_NEAR(abs_y(*sp, ys, i), s.y[i], 1e-8);
+        }
+    }
+    EXPECT_NEAR(dax.x_limits().min, kEpoch + 100.0, 1e-6);
+    EXPECT_NEAR(dax.x_limits().max, kEpoch + 200.0, 1e-6);
+    EXPECT_NEAR(dax.y_limits().min, kBigY - kSmallA, 1e-9);
+    EXPECT_NEAR(dax.y_limits().max, kBigY + kSmallA, 1e-9);
+}

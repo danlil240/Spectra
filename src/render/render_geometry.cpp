@@ -338,7 +338,7 @@ void Renderer::render_plot_text(Figure& figure)
         // Title
         if (!axes.get_title().empty())
         {
-            // Long titles step down to the label size, then get ellipsized, so they
+            // Long titles shrink smoothly to the label size, then get ellipsized, so they
             // never spill into neighbouring subplots or past the window edge.
             // The Y offset sits at the top-left on the title's row: fit beside it.
             const CenteredLabelSlot slot = centered_label_slot(vp.x, vp.w, y_offset_reserve, 0.0f);
@@ -347,8 +347,8 @@ void Renderer::render_plot_text(Figure& figure)
                                                                  y_offset_reserve,
                                                                  label_measure,
                                                                  label_ellipsis));
-            auto                    ext  = text_renderer_.measure_text(fit.text, fit.size);
-            float                   cx   = centered_label_x(vp.x, vp.w, slot, ext.width);
+            auto  ext = text_renderer_.measure_text(fit.text, fit.size, fit.scale);
+            float cx  = centered_label_x(vp.x, vp.w, slot, ext.width);
             float                   py   = vp.y - ext.height - tick_padding;
             // Only clamp if the title would go off the top of the figure.
             // The previous clamp (py < vp.y + 2) always fired and placed the
@@ -356,7 +356,14 @@ void Renderer::render_plot_text(Figure& figure)
             // rendering, contributing to flicker in split-view panes.
             if (py < 2.0f)
                 py = 2.0f;
-            text_renderer_.draw_text(fit.text, cx, py, fit.size, title_col, TextAlign::Center);
+            text_renderer_.draw_text(fit.text,
+                                     cx,
+                                     py,
+                                     fit.size,
+                                     title_col,
+                                     TextAlign::Center,
+                                     TextVAlign::Top,
+                                     fit.scale);
             if (fit.truncated)
             {
                 truncated_text_regions_.push_back(
@@ -387,11 +394,19 @@ void Renderer::render_plot_text(Figure& figure)
                                      | (static_cast<uint32_t>(tb) << 16)
                                      | (static_cast<uint32_t>(ta) << 24);
 
-                auto fs        = FontSize::Label;   // default
-                auto ta_align  = static_cast<TextAlign>(std::clamp(ann.align, 0, 2));
-                auto ta_valign = static_cast<TextVAlign>(std::clamp(ann.valign, 0, 2));
+                // Explicit sizes are drawn at exactly that pixel size; 0 = Label.
+                const auto sf        = TextRenderer::scaled_font(ann.font_size);
+                auto       ta_align  = static_cast<TextAlign>(std::clamp(ann.align, 0, 2));
+                auto       ta_valign = static_cast<TextVAlign>(std::clamp(ann.valign, 0, 2));
 
-                text_renderer_.draw_text(ann.content, px, py, fs, text_rgba, ta_align, ta_valign);
+                text_renderer_.draw_text(ann.content,
+                                         px,
+                                         py,
+                                         sf.preset,
+                                         text_rgba,
+                                         ta_align,
+                                         ta_valign,
+                                         sf.scale);
             }
         }
 
@@ -418,13 +433,17 @@ void Renderer::render_plot_text(Figure& figure)
                            | (static_cast<uint32_t>(c.b * 255.0f) << 16)
                            | (static_cast<uint32_t>(c.a * 255.0f) << 24);
                 }
+                // Drawn at exactly font_size() pixels (a baked preset scaled), not
+                // snapped to the nearest preset; 0 keeps the Label preset.
+                const auto sf = TextRenderer::scaled_font(ann->font_size());
                 text_renderer_.draw_text(ann->text(),
                                          px,
                                          py,
-                                         TextRenderer::nearest_font_size(ann->font_size()),
+                                         sf.preset,
                                          rgba,
                                          static_cast<TextAlign>(ann->halign()),
-                                         static_cast<TextVAlign>(ann->valign()));
+                                         static_cast<TextVAlign>(ann->valign()),
+                                         sf.scale);
             }
             text_renderer_.clear_clip_rect();
         }
@@ -582,9 +601,10 @@ void Renderer::render_plot_text(Figure& figure)
                               float              x,
                               float              y,
                               TextAlign          align,
-                              TextVAlign         valign) -> LabelRect
+                              TextVAlign         valign,
+                              float              scale = 1.0f) -> LabelRect
         {
-            const auto ext = text_renderer_.measure_text(text, size);
+            const auto ext = text_renderer_.measure_text(text, size, scale);
             float      lx  = x;
             if (align == TextAlign::Center)
                 lx -= ext.width * 0.5f;
@@ -644,7 +664,7 @@ void Renderer::render_plot_text(Figure& figure)
         {
             title_fit = to_fitted_text(
                 fit_axes3d_title(axes3d->get_title(), vp.w, label_measure, label_ellipsis));
-            auto ext = text_renderer_.measure_text(title_fit.text, title_fit.size);
+            auto ext = text_renderer_.measure_text(title_fit.text, title_fit.size, title_fit.scale);
             // Same row as a 2D title (2D pass above): above the viewport, in the
             // margin the layout reserves for it, so 2D and 3D subplot titles line up.
             // Clamp only at the top of the figure.
@@ -656,7 +676,8 @@ void Renderer::render_plot_text(Figure& figure)
                                                vp.x + vp.w * 0.5f,
                                                title_py,
                                                TextAlign::Center,
-                                               TextVAlign::Top));
+                                               TextVAlign::Top,
+                                               title_fit.scale));
             if (title_fit.truncated)
             {
                 truncated_text_regions_.push_back(
@@ -815,7 +836,9 @@ void Renderer::render_plot_text(Figure& figure)
                                      title_py,
                                      title_fit.size,
                                      title_col,
-                                     TextAlign::Center);
+                                     TextAlign::Center,
+                                     TextVAlign::Top,
+                                     title_fit.scale);
         }
     }
 }
@@ -1555,9 +1578,8 @@ void Renderer::render_annotation_arrows(Axes& axes, uint32_t slot, float fw, flo
         float h = 0.0f;
         if (text_renderer_.is_initialized() && !ann->text().empty())
         {
-            auto ext =
-                text_renderer_.measure_text(ann->text(),
-                                            TextRenderer::nearest_font_size(ann->font_size()));
+            const auto sf  = TextRenderer::scaled_font(ann->font_size());
+            auto       ext = text_renderer_.measure_text(ann->text(), sf.preset, sf.scale);
             w = ext.width;
             h = ext.height;
         }

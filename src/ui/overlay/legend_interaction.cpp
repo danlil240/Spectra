@@ -12,6 +12,7 @@
 
     #include "ui/theme/design_tokens.hpp"
     #include "ui/theme/glass_draw.hpp"
+    #include "ui/theme/icons.hpp"
     #include "ui/theme/theme.hpp"
     #include "legend_layout.hpp"
 
@@ -361,7 +362,8 @@ bool LegendInteraction::draw(Axes&               axes,
             float label_y  = row_y + (row_height - font_size) * 0.5f;
             dl->AddText(font, font_size, ImVec2(label_x, label_y), text_col, s->label().c_str());
 
-            // Click-to-toggle: invisible button over the row
+            // Click-to-toggle: invisible button over the whole row, including
+            // the visibility icon slot at its right end.
             if (toggleable_)
             {
                 ImGui::SetCursorScreenPos(ImVec2(row_x, row_y));
@@ -370,7 +372,7 @@ bool LegendInteraction::draw(Axes&               axes,
                                                        axes_index,
                                                        row);
 
-                float btn_w = swatch_size + swatch_gap + max_label_w;
+                const float btn_w = col_w;
                 if (ImGui::InvisibleButton(btn_id.c_str(), ImVec2(btn_w, row_height)))
                 {
                     state.user_visible   = !state.user_visible;
@@ -382,7 +384,8 @@ bool LegendInteraction::draw(Axes&               axes,
                 }
 
                 // Hover highlight
-                if (ImGui::IsItemHovered())
+                const bool hovered = ImGui::IsItemHovered();
+                if (hovered)
                 {
                     ImU32 hover_col =
                         ImGui::ColorConvertFloat4ToU32(ImVec4(theme_colors.accent_subtle.r,
@@ -398,16 +401,22 @@ bool LegendInteraction::draw(Axes&               axes,
                     ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
                 }
 
-                // Eye icon (visibility indicator) on the right
-                float       eye_x     = row_x + btn_w + 4.0f;
-                float       eye_y     = row_y + (row_height - font_size * 0.7f) * 0.5f;
-                const char* eye_label = state.user_visible ? "o" : "-";
-                ImU32       eye_col =
-                    ImGui::ColorConvertFloat4ToU32(ImVec4(theme_colors.text_tertiary.r,
-                                                          theme_colors.text_tertiary.g,
-                                                          theme_colors.text_tertiary.b,
-                                                          theme_colors.text_tertiary.a));
-                dl->AddText(font, font_size * 0.7f, ImVec2(eye_x, eye_y), eye_col, eye_label);
+                // Visibility icon: an eye appears only while the row is
+                // hovered, so idle legends stay clean.  A hidden series keeps
+                // an eye-slash so it is clear why its row is dimmed.
+                ImFont* icon_f = ui::icon_font(ui::tokens::ICON_XS);
+                if (icon_f && (hovered || !state.user_visible))
+                {
+                    const char* icon_s =
+                        ui::icon_str(state.user_visible ? ui::Icon::Eye : ui::Icon::EyeOff);
+                    const float icon_sz = ui::tokens::ICON_XS;
+                    const float eye_x   = row_x + btn_w - eye_width;
+                    const float eye_y   = row_y + (row_height - icon_sz) * 0.5f;
+                    const auto& ec =
+                        hovered ? theme_colors.text_secondary : theme_colors.text_tertiary;
+                    ImU32 eye_col = ImGui::ColorConvertFloat4ToU32(ImVec4(ec.r, ec.g, ec.b, ec.a));
+                    dl->AddText(icon_f, icon_sz, ImVec2(eye_x, eye_y), eye_col, icon_s);
+                }
             }
 
             ++row;

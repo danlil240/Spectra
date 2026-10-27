@@ -12,6 +12,8 @@
 #include <spectra/figure.hpp>
 #include <spectra/series.hpp>
 #include <spectra/series3d.hpp>
+#include <spectra/series_shapes.hpp>
+#include <spectra/series_stats.hpp>
 #include <unordered_map>
 #include <vector>
 
@@ -164,6 +166,169 @@ TEST(LegendLayoutPlace, ResolveBestAvoidsData)
     EXPECT_EQ(legend_layout::resolve_position(ax, vp, 80, 40, LegendPosition::BottomLeft),
               LegendPosition::BottomLeft);
     EXPECT_NE(legend_layout::resolve_position(ax, vp, 80, 40, LegendPosition::Best),
+              LegendPosition::TopRight);
+}
+
+// ─── "Best" placement against filled areas ─────────────────────────────────
+// Filled series (bars, histograms, boxes, violins, bands, shapes) are scored
+// by the area they cover, not only by their outline vertices, so a legend is
+// not placed on top of a bar or violin whose outline lies outside the box.
+
+TEST(LegendLayoutBestFilled, TriangleRectOverlapArea)
+{
+    const Rect r{0.0f, 0.0f, 10.0f, 10.0f};
+    // Fully inside: area of the triangle itself.
+    EXPECT_NEAR(legend_layout::detail::triangle_rect_overlap({1, 1, 5, 1, 1, 5}, r), 8.0f, 1e-4f);
+    // Fully covering the rect: area of the rect.
+    EXPECT_NEAR(legend_layout::detail::triangle_rect_overlap({-50, -50, 100, -50, -50, 100}, r),
+                100.0f,
+                1e-3f);
+    // Half the rect (diagonal split).
+    EXPECT_NEAR(legend_layout::detail::triangle_rect_overlap({0, 0, 10, 0, 0, 10}, r),
+                50.0f,
+                1e-4f);
+    // Disjoint.
+    EXPECT_NEAR(legend_layout::detail::triangle_rect_overlap({20, 20, 30, 20, 20, 30}, r),
+                0.0f,
+                1e-6f);
+}
+
+namespace
+{
+const Rect  kVp{0.0f, 0.0f, 400.0f, 300.0f};
+const float kW = 90.0f;
+const float kH = 32.0f;
+
+size_t score(const Axes& ax, LegendPosition pos)
+{
+    return legend_layout::overlap_score(ax, kVp, pos, kW, kH, legend_layout::MARGIN);
+}
+
+// A wide filled block covering the top-right corner whose outline vertices
+// all lie far outside the legend box: only area scoring can see it.
+void expect_avoids_top_right(const Axes& ax)
+{
+    EXPECT_GE(score(ax, LegendPosition::TopRight),
+              static_cast<size_t>(legend_layout::FILL_OVERLAP_WEIGHT * 0.9f));
+    const LegendPosition best =
+        legend_layout::choose_best_corner(ax, kVp, kW, kH, legend_layout::MARGIN);
+    EXPECT_NE(best, LegendPosition::TopRight);
+    EXPECT_EQ(score(ax, best), 0u);
+    // Even when the legend currently sits there (hysteresis), it moves off.
+    EXPECT_NE(legend_layout::choose_best_corner(ax,
+                                                kVp,
+                                                kW,
+                                                kH,
+                                                legend_layout::MARGIN,
+                                                LegendPosition::TopRight),
+              LegendPosition::TopRight);
+}
+}   // namespace
+
+TEST(LegendLayoutBestFilled, AvoidsWideBar)
+{
+    Axes               ax;
+    std::vector<float> pos = {7.5f};
+    std::vector<float> h   = {100.0f};
+    auto&              bar = ax.bar(pos, h);
+    bar.bar_width(5.0f);
+    bar.rebuild_geometry();
+    ax.xlim(0.0, 10.0);
+    ax.ylim(0.0, 100.0);
+    expect_avoids_top_right(ax);
+}
+
+TEST(LegendLayoutBestFilled, AvoidsBand)
+{
+    Axes               ax;
+    std::vector<float> x  = {5.0f, 10.0f};
+    std::vector<float> lo = {50.0f, 50.0f};
+    std::vector<float> hi = {100.0f, 100.0f};
+    ax.band(x, lo, hi);
+    ax.xlim(0.0, 10.0);
+    ax.ylim(0.0, 100.0);
+    expect_avoids_top_right(ax);
+}
+
+TEST(LegendLayoutBestFilled, AvoidsShape)
+{
+    Axes  ax;
+    auto& sh = ax.shapes();
+    sh.rect(5.0f, 50.0f, 5.0f, 50.0f);
+    sh.rebuild_geometry();
+    ax.xlim(0.0, 10.0);
+    ax.ylim(0.0, 100.0);
+    expect_avoids_top_right(ax);
+}
+
+TEST(LegendLayoutBestFilled, AvoidsBoxBody)
+{
+    Axes               ax;
+    std::vector<float> v  = ramp(101, 0.0f, 100.0f);
+    auto&              bp = ax.box_plot();
+    bp.box_width(5.0f).add_box(7.5f, v);
+    bp.rebuild_geometry();
+    ax.xlim(0.0, 10.0);
+    ax.ylim(35.0, 65.0);   // zoomed into the box body: its edges are off-screen
+    expect_avoids_top_right(ax);
+}
+
+TEST(LegendLayoutBestFilled, AvoidsViolinBody)
+{
+    Axes               ax;
+    std::vector<float> v  = ramp(201, 0.0f, 100.0f);
+    auto&              vn = ax.violin();
+    vn.violin_width(5.0f).add_violin(7.5f, v);
+    vn.rebuild_geometry();
+    ax.xlim(0.0, 10.0);
+    ax.ylim(40.0, 60.0);   // zoomed into the violin body
+    expect_avoids_top_right(ax);
+}
+
+TEST(LegendLayoutBestFilled, AvoidsHistogramBins)
+{
+    Axes ax;
+    // All samples in the upper half of the range: tall bins on the right.
+    std::vector<float> v;
+    for (int i = 0; i < 400; ++i)
+        v.push_back(i < 4 ? 0.0f : 6.0f + 4.0f * static_cast<float>(i % 100) / 100.0f);
+    auto& hs = ax.histogram(v, 10);
+    hs.rebuild_geometry();
+    ax.xlim(0.0, 10.0);
+    ax.ylim(0.0, 30.0);
+    EXPECT_GT(score(ax, LegendPosition::TopRight), score(ax, LegendPosition::TopLeft));
+    EXPECT_NE(legend_layout::choose_best_corner(ax, kVp, kW, kH, legend_layout::MARGIN),
+              LegendPosition::TopRight);
+}
+
+TEST(LegendLayoutBestFilled, HiddenFillIgnored)
+{
+    Axes               ax;
+    std::vector<float> pos = {7.5f};
+    std::vector<float> h   = {100.0f};
+    auto&              bar = ax.bar(pos, h);
+    bar.bar_width(5.0f);
+    bar.rebuild_geometry();
+    bar.visible(false);
+    ax.xlim(0.0, 10.0);
+    ax.ylim(0.0, 100.0);
+    EXPECT_EQ(score(ax, LegendPosition::TopRight), 0u);
+    EXPECT_EQ(legend_layout::choose_best_corner(ax, kVp, kW, kH, legend_layout::MARGIN),
+              LegendPosition::TopRight);
+}
+
+TEST(LegendLayoutBestFilled, DataGrazingTheBoxEdgeCounts)
+{
+    // A point a few pixels left of the top-right legend box still crowds it.
+    Axes ax;
+    ax.xlim(0.0, 400.0);
+    ax.ylim(0.0, 300.0);
+    const float        box_left = kVp.w - legend_layout::MARGIN - kW;
+    std::vector<float> x        = {box_left - 0.5f * legend_layout::CLEARANCE};
+    std::vector<float> y        = {300.0f - legend_layout::MARGIN - 0.5f * kH};
+    ax.scatter(x, y);
+    EXPECT_GT(score(ax, LegendPosition::TopRight), 0u);
+    EXPECT_NE(legend_layout::choose_best_corner(ax, kVp, kW, kH, legend_layout::MARGIN),
               LegendPosition::TopRight);
 }
 

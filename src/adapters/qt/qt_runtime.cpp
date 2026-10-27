@@ -255,6 +255,9 @@ bool QtRuntime::attach_window(QWindow* window, uint32_t width, uint32_t height)
     if (!imgui_ui_)
     {
         imgui_ui_ = make_imgui_integration();
+        // Must be wired before init_headless(): it initializes the theme and the
+        // overlay draw path dereferences the theme manager unconditionally.
+        imgui_ui_->set_theme_manager(&theme_mgr_);
         if (!imgui_ui_->init_headless(*backend_, width, height))
         {
             SPECTRA_LOG_WARN(
@@ -265,6 +268,7 @@ bool QtRuntime::attach_window(QWindow* window, uint32_t width, uint32_t height)
         else
         {
             data_interaction_ = std::make_unique<DataInteraction>();
+            data_interaction_->set_theme_manager(&theme_mgr_);
             imgui_ui_->set_data_interaction(data_interaction_.get());
             if (state->input_handler)
             {
@@ -653,6 +657,13 @@ void QtRuntime::render_figure(QWindow* window, Figure& figure)
     // render_figure_content() already calls render_plot_text() and
     // render_plot_geometry() internally — do NOT call them again here.
     renderer_->begin_render_pass();
+    // The ImGui overlay (when built) draws the interactive legend; otherwise
+    // the renderer draws it.
+    bool legend_overlay = false;
+#ifdef SPECTRA_USE_IMGUI
+    legend_overlay = imgui_ui_ && data_interaction_;
+#endif
+    renderer_->set_legend_overlay_active(legend_overlay);
     renderer_->render_figure_content(figure);
     renderer_->render_text(sw, sh);
 

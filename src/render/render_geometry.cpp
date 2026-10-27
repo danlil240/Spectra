@@ -15,6 +15,9 @@
 #include <spectra/series.hpp>
 #include <spectra/series_shapes.hpp>
 
+#include "core/axis_scale.hpp"
+#include "text_fit.hpp"
+#include "core/annotation_layout.hpp"
 #include "ui/imgui/axes3d_renderer.hpp"
 #include "ui/theme/theme.hpp"
 #include "ui/viewmodel/axes_view_model.hpp"
@@ -22,6 +25,31 @@
 
 namespace spectra
 {
+
+// Screen-space ortho projection (pixels, Y-down: 0=top, h=bottom) with identity
+// view/model.  Vulkan clip space has Y-down (positive m[5]), WebGPU has Y-up.
+static FrameUBO screen_space_ubo(float fw, float fh, bool clip_y_down)
+{
+    FrameUBO ubo{};   // Value-initializes all members to zero
+    float    y_sign     = clip_y_down ? 1.0f : -1.0f;
+    ubo.projection[0]   = 2.0f / fw;            // X: [0, fw] → [-1, +1]
+    ubo.projection[5]   = y_sign * 2.0f / fh;   // Y: flip for WebGPU
+    ubo.projection[10]  = -1.0f;
+    ubo.projection[12]  = -1.0f;
+    ubo.projection[13]  = y_sign * -1.0f;
+    ubo.projection[15]  = 1.0f;
+    ubo.view[0]         = 1.0f;
+    ubo.view[5]         = 1.0f;
+    ubo.view[10]        = 1.0f;
+    ubo.view[15]        = 1.0f;
+    ubo.model[0]        = 1.0f;
+    ubo.model[5]        = 1.0f;
+    ubo.model[10]       = 1.0f;
+    ubo.model[15]       = 1.0f;
+    ubo.viewport_width  = fw;
+    ubo.viewport_height = fh;
+    return ubo;
+}
 
 // Conditional sRGB-to-linear for themes with linearize_colors enabled.
 static bool should_linearize_geom(const ui::ThemeManager& tm)
@@ -106,6 +134,23 @@ void Renderer::render_plot_text(Figure& figure)
     // uint32_t fig_w = figure.width();
     uint32_t fig_h = figure.height();
 
+    // Shrink (down to `min_size`) or ellipsize a label so it fits `max_width`.
+    auto fit_label = [this](const std::string& text,
+                            float              max_width,
+                            FontSize           preferred,
+                            FontSize           min_size) -> FittedText
+    {
+        const char* ellipsis = text_renderer_.has_glyph(0x2026, min_size) ? "\xE2\x80\xA6" : "...";
+        return fit_text_to_width(
+            text,
+            max_width,
+            preferred,
+            min_size,
+            [this](const std::string& t, FontSize fs)
+            { return text_renderer_.measure_text(t, fs).width; },
+            ellipsis);
+    };
+
     // ── 2D Axes: tick labels, axis labels, title ──
     for (auto& axes_ptr : figure.axes())
     {
@@ -136,17 +181,29 @@ void Renderer::render_plot_text(Figure& figure)
             }
         }
 
-        double x_range = xlim.max - xlim.min;
-        double y_range = ylim.max - ylim.min;
+        // Map through axis space so log axes place ticks/grid in decades.
+        const auto*      scale_axes = dynamic_cast<const Axes*>(&axes);
+        const ScaleType  xscale     = scale_axes ? scale_axes->xscale() : ScaleType::Linear;
+        const ScaleType  yscale     = scale_axes ? scale_axes->yscale() : ScaleType::Linear;
+        const AxisLimits ax_x       = axis_space_limits(xscale, xlim);
+        const AxisLimits ax_y       = axis_space_limits(yscale, ylim);
+
+        double x_range = ax_x.max - ax_x.min;
+        double y_range = ax_y.max - ax_y.min;
         if (x_range == 0.0)
             x_range = 1.0;
         if (y_range == 0.0)
             y_range = 1.0;
 
-        auto data_to_px_x = [&](double dx) -> float
-        { return static_cast<float>(vp.x + (dx - xlim.min) / x_range * vp.w); };
+        auto data_to_px_x = [&](double dx) -> float {
+            return static_cast<float>(vp.x
+                                      + (to_axis_space(xscale, dx) - ax_x.min) / x_range * vp.w);
+        };
         auto data_to_px_y = [&](double dy) -> float
-        { return static_cast<float>(vp.y + (1.0 - (dy - ylim.min) / y_range) * vp.h); };
+        {
+            return static_cast<float>(
+                vp.y + (1.0 - (to_axis_space(yscale, dy) - ax_y.min) / y_range) * vp.h);
+        };
 
         const auto& as = axes.axis_style();
         float       tl = as.tick_length;
@@ -208,40 +265,79 @@ void Renderer::render_plot_text(Figure& figure)
             }
         }
 
-        // X axis label
+        // Shared offset / multiplier of the tick labels ("×10⁻⁶", "+1.7×10⁹"):
+        // x below the right end of the tick labels, y above the top of the axis.
+        const float tick_text_h = text_renderer_.measure_text("0", FontSize::Tick).height;
+        const float x_label_row = vp.y + vp.h + tl + tick_padding + tick_text_h + 4.0f;
+        if (!x_ticks.offset_label.empty())
+        {
+            text_renderer_.draw_text(x_ticks.offset_label,
+                                     vp.x + vp.w,
+                                     x_label_row,
+                                     FontSize::Tick,
+                                     tick_col,
+                                     TextAlign::Right,
+                                     TextVAlign::Top);
+        }
+        if (!y_ticks.offset_label.empty())
+        {
+            text_renderer_.draw_text(y_ticks.offset_label,
+                                     vp.x,
+                                     vp.y - 4.0f,
+                                     FontSize::Tick,
+                                     tick_col,
+                                     TextAlign::Left,
+                                     TextVAlign::Bottom);
+        }
+
+        // X axis label (ellipsized to the axes width)
         if (!axes.get_xlabel().empty())
         {
+            const FittedText fit =
+                fit_label(axes.get_xlabel(), vp.w, FontSize::Label, FontSize::Label);
             float cx = vp.x + vp.w * 0.5f;
-            float py = vp.y + vp.h + tick_padding + 16.0f + tick_padding;
-            text_renderer_.draw_text(axes.get_xlabel(),
-                                     cx,
-                                     py,
-                                     FontSize::Label,
-                                     label_col,
-                                     TextAlign::Center);
+            float py = x_label_row;
+            text_renderer_.draw_text(fit.text, cx, py, fit.size, label_col, TextAlign::Center);
+            if (fit.truncated)
+            {
+                const auto ext = text_renderer_.measure_text(fit.text, fit.size);
+                truncated_text_regions_.push_back(
+                    {Rect{cx - ext.width * 0.5f, py, ext.width, ext.height}, axes.get_xlabel()});
+            }
         }
 
         // Y axis label (rotated -90°)
         if (!axes.get_ylabel().empty())
         {
-            const auto label_ext = text_renderer_.measure_text(axes.get_ylabel(), FontSize::Label);
+            // Rotated: the label runs along the axes height, so fit it to that.
+            const FittedText fit =
+                fit_label(axes.get_ylabel(), vp.h, FontSize::Label, FontSize::Label);
+            const auto      label_ext = text_renderer_.measure_text(fit.text, fit.size);
             constexpr float label_gap = 6.0f;   // gap between widest tick label and axis label
             float           center_x =
                 vp.x - tl - tick_padding - max_y_tick_width - label_gap - label_ext.height * 0.5f;
             float           center_y   = vp.y + vp.h * 0.5f;
             constexpr float neg_90_deg = -1.5707963f;   // -π/2
-            text_renderer_.draw_text_rotated(axes.get_ylabel(),
-                                             center_x,
-                                             center_y,
-                                             neg_90_deg,
-                                             FontSize::Label,
-                                             label_col);
+            text_renderer_
+                .draw_text_rotated(fit.text, center_x, center_y, neg_90_deg, fit.size, label_col);
+            if (fit.truncated)
+            {
+                truncated_text_regions_.push_back({Rect{center_x - label_ext.height * 0.5f,
+                                                        center_y - label_ext.width * 0.5f,
+                                                        label_ext.height,
+                                                        label_ext.width},
+                                                   axes.get_ylabel()});
+            }
         }
 
         // Title
         if (!axes.get_title().empty())
         {
-            auto  ext = text_renderer_.measure_text(axes.get_title(), FontSize::Title);
+            // Long titles step down to the label size, then get ellipsized, so they
+            // never spill into neighbouring subplots or past the window edge.
+            const FittedText fit =
+                fit_label(axes.get_title(), vp.w, FontSize::Title, FontSize::Label);
+            auto  ext = text_renderer_.measure_text(fit.text, fit.size);
             float cx  = vp.x + vp.w * 0.5f;
             float py  = vp.y - ext.height - tick_padding;
             // Only clamp if the title would go off the top of the figure.
@@ -250,8 +346,12 @@ void Renderer::render_plot_text(Figure& figure)
             // rendering, contributing to flicker in split-view panes.
             if (py < 2.0f)
                 py = 2.0f;
-            text_renderer_
-                .draw_text(axes.get_title(), cx, py, FontSize::Title, title_col, TextAlign::Center);
+            text_renderer_.draw_text(fit.text, cx, py, fit.size, title_col, TextAlign::Center);
+            if (fit.truncated)
+            {
+                truncated_text_regions_.push_back(
+                    {Rect{cx - ext.width * 0.5f, py, ext.width, ext.height}, axes.get_title()});
+            }
         }
 
         // ── ShapeSeries text annotations (data-space text labels) ──
@@ -284,6 +384,40 @@ void Renderer::render_plot_text(Figure& figure)
                 text_renderer_.draw_text(ann.content, px, py, fs, text_rgba, ta_align, ta_valign);
             }
         }
+
+        // ── Axes text annotations (Axes::text / Axes::annotate), clipped to the plot area ──
+        if (!axes.annotations().empty() && vp.w > 0.0f && vp.h > 0.0f)
+        {
+            const uint32_t default_rgba = color_to_rgba(colors.text_primary);
+            text_renderer_.set_clip_rect(vp.x, vp.y, vp.x + vp.w, vp.y + vp.h);
+            for (const auto& ann : axes.annotations())
+            {
+                if (!ann || !ann->visible() || ann->text().empty())
+                    continue;
+                float px = data_to_px_x(ann->x());
+                float py = data_to_px_y(ann->y());
+                if (!std::isfinite(px) || !std::isfinite(py))
+                    continue;
+
+                uint32_t rgba = default_rgba;
+                if (ann->color())
+                {
+                    const Color& c = *ann->color();
+                    rgba           = static_cast<uint32_t>(c.r * 255.0f)
+                           | (static_cast<uint32_t>(c.g * 255.0f) << 8)
+                           | (static_cast<uint32_t>(c.b * 255.0f) << 16)
+                           | (static_cast<uint32_t>(c.a * 255.0f) << 24);
+                }
+                text_renderer_.draw_text(ann->text(),
+                                         px,
+                                         py,
+                                         TextRenderer::nearest_font_size(ann->font_size()),
+                                         rgba,
+                                         static_cast<TextAlign>(ann->halign()),
+                                         static_cast<TextVAlign>(ann->valign()));
+            }
+            text_renderer_.clear_clip_rect();
+        }
     }
 
     // ── 3D Axes: billboarded tick labels, axis labels, title ──
@@ -299,8 +433,7 @@ void Renderer::render_plot_text(Figure& figure)
         const auto& cam = axes3d->camera();
 
         // Build MVP matrix: projection * view * model
-        float aspect = vp.w / std::max(vp.h, 1.0f);
-        mat4  proj   = cam.projection_matrix(aspect);
+        mat4  proj   = axes3d->projection_matrix(vp);
         mat4  view   = cam.view_matrix();
         mat4  model  = axes3d->data_to_normalized_matrix();
         mat4  mvp    = mat4_mul(proj, mat4_mul(view, model));
@@ -465,6 +598,14 @@ void Renderer::render_plot_text(Figure& figure)
             }
             return false;
         };
+        // 3D text is not scissored, so a label sticking out of this viewport
+        // would print over a neighbouring subplot; drop it instead.
+        auto outside_viewport = [&](const LabelRect& r) -> bool
+        {
+            constexpr float tol = 1.0f;
+            return r.x0 < vp.x - tol || r.x1 > vp.x + vp.w + tol || r.y0 < vp.y - tol
+                   || r.y1 > vp.y + vp.h + tol;
+        };
         // Draw a depth-tested tick label unless it would overlap another label.
         auto place_tick_label = [&](const std::string& text,
                                     float              x,
@@ -474,7 +615,7 @@ void Renderer::render_plot_text(Figure& figure)
                                     TextVAlign         valign)
         {
             const LabelRect r = label_rect(text, FontSize::Tick, x, y, align, valign);
-            if (collides(r))
+            if (collides(r) || outside_viewport(r))
                 return;
             placed_labels.push_back(r);
             text_renderer_
@@ -482,19 +623,27 @@ void Renderer::render_plot_text(Figure& figure)
         };
 
         // Reserve the title's rectangle first so nothing is drawn over it.
-        float title_py = 0.0f;
+        float      title_py = 0.0f;
+        FittedText title_fit;
         if (!axes3d->get_title().empty())
         {
-            auto ext = text_renderer_.measure_text(axes3d->get_title(), FontSize::Title);
-            title_py = vp.y - ext.height - tick_padding;
+            title_fit = fit_label(axes3d->get_title(), vp.w, FontSize::Title, FontSize::Label);
+            auto ext  = text_renderer_.measure_text(title_fit.text, title_fit.size);
+            title_py  = vp.y - ext.height - tick_padding;
             if (title_py < vp.y + 2.0f)
                 title_py = vp.y + 2.0f;
-            placed_labels.push_back(label_rect(axes3d->get_title(),
-                                               FontSize::Title,
+            placed_labels.push_back(label_rect(title_fit.text,
+                                               title_fit.size,
                                                vp.x + vp.w * 0.5f,
                                                title_py,
                                                TextAlign::Center,
                                                TextVAlign::Top));
+            if (title_fit.truncated)
+            {
+                truncated_text_regions_.push_back(
+                    {Rect{vp.x + vp.w * 0.5f - ext.width * 0.5f, title_py, ext.width, ext.height},
+                     axes3d->get_title()});
+            }
         }
 
         // --- Tick labels for X, Y, Z ---
@@ -609,6 +758,8 @@ void Renderer::render_plot_text(Figure& figure)
                                    TextAlign::Left,
                                    TextVAlign::Middle);
                 }
+                if (outside_viewport(r))
+                    return;
                 placed_labels.push_back(r);
                 text_renderer_.draw_text_depth(lbl,
                                                lx,
@@ -638,17 +789,123 @@ void Renderer::render_plot_text(Figure& figure)
         }
 
         // --- 3D Title --- (rectangle reserved above, before the tick labels)
-        if (!axes3d->get_title().empty())
+        if (!title_fit.text.empty())
         {
             float cx = vp.x + vp.w * 0.5f;
-            text_renderer_.draw_text(axes3d->get_title(),
+            text_renderer_.draw_text(title_fit.text,
                                      cx,
                                      title_py,
-                                     FontSize::Title,
+                                     title_fit.size,
                                      title_col,
                                      TextAlign::Center);
         }
     }
+}
+
+void Renderer::bind_screen_space_ubo(float fw, float fh)
+{
+    // Screen coordinates are Y-down (0=top, h=bottom).
+    FrameUBO ubo = screen_space_ubo(fw, fh, backend_.clip_y_down());
+    backend_.set_viewport(0, 0, fw, fh);
+    backend_.set_scissor(0, 0, static_cast<uint32_t>(fw), static_cast<uint32_t>(fh));
+    backend_.upload_buffer(frame_ubo_buffer_, &ubo, sizeof(FrameUBO));
+    backend_.bind_buffer(frame_ubo_buffer_, 0);
+}
+
+Rect Renderer::figure_background_region(const Figure& figure)
+{
+    const auto  fw    = static_cast<float>(figure.width());
+    const auto  fh    = static_cast<float>(figure.height());
+    const auto& style = figure.style();
+
+    float x0 = 0.0f, y0 = 0.0f, x1 = 0.0f, y1 = 0.0f;
+    bool  any = false;
+    auto  add = [&](const auto& axes_list)
+    {
+        for (const auto& ax : axes_list)
+        {
+            if (!ax)
+                continue;
+            const Rect& vp = ax->viewport();
+            if (!(vp.w > 0.0f) || !(vp.h > 0.0f))
+                continue;
+            if (!any)
+            {
+                x0  = vp.x;
+                y0  = vp.y;
+                x1  = vp.x + vp.w;
+                y1  = vp.y + vp.h;
+                any = true;
+                continue;
+            }
+            x0 = std::min(x0, vp.x);
+            y0 = std::min(y0, vp.y);
+            x1 = std::max(x1, vp.x + vp.w);
+            y1 = std::max(y1, vp.y + vp.h);
+        }
+    };
+    add(figure.axes());
+    add(figure.all_axes());
+    if (!any)
+        return Rect{0.0f, 0.0f, fw, fh};
+
+    x0 = std::clamp(x0 - style.margin_left, 0.0f, fw);
+    y0 = std::clamp(y0 - style.margin_top, 0.0f, fh);
+    x1 = std::clamp(x1 + style.margin_right, 0.0f, fw);
+    y1 = std::clamp(y1 + style.margin_bottom, 0.0f, fh);
+    return Rect{x0, y0, std::max(0.0f, x1 - x0), std::max(0.0f, y1 - y0)};
+}
+
+void Renderer::render_figure_background(Figure& figure)
+{
+    const auto& style = figure.style();
+    if (!style.background_override || !overlay_pipeline_)
+        return;
+
+    const Rect r = figure_background_region(figure);
+    if (!(r.w >= 1.0f) || !(r.h >= 1.0f))
+        return;
+
+    const auto fw = static_cast<float>(figure.width());
+    const auto fh = static_cast<float>(figure.height());
+
+    const float verts[12] = {r.x,
+                             r.y,
+                             r.x + r.w,
+                             r.y,
+                             r.x + r.w,
+                             r.y + r.h,
+                             r.x,
+                             r.y,
+                             r.x + r.w,
+                             r.y + r.h,
+                             r.x,
+                             r.y + r.h};
+
+    // Per-figure, per-slot buffer: split-view figures share one command buffer
+    // and the previous in-flight frame may still read the other slot.
+    const uint32_t slot    = backend_.current_flight_frame() % FRAME_BUFFER_SLOTS;
+    FigureGpuData& fig_gpu = figure_gpu_data_[&figure];
+    if (!fig_gpu.background_buffer[slot])
+        fig_gpu.background_buffer[slot] =
+            backend_.create_buffer(BufferUsage::Vertex, sizeof(verts));
+    backend_.upload_buffer(fig_gpu.background_buffer[slot], verts, sizeof(verts));
+
+    FrameUBO ubo = screen_space_ubo(fw, fh, backend_.clip_y_down());
+    backend_.upload_buffer(frame_ubo_buffer_, &ubo, sizeof(FrameUBO));
+    backend_.bind_buffer(frame_ubo_buffer_, 0);
+
+    backend_.bind_pipeline(overlay_pipeline_);
+    // Same colour space as the theme canvas clear, so an override equal to the
+    // theme colour is indistinguishable from "auto".
+    SeriesPushConstants pc{};
+    pc.color[0] = style.background.r;
+    pc.color[1] = style.background.g;
+    pc.color[2] = style.background.b;
+    pc.color[3] = style.background.a;
+    backend_.push_constants(pc);
+    backend_.bind_buffer(fig_gpu.background_buffer[slot], 0);
+    backend_.draw(6);
 }
 
 void Renderer::render_plot_geometry(Figure& figure)
@@ -728,17 +985,29 @@ void Renderer::render_plot_geometry(Figure& figure)
             }
         }
 
-        double x_range = xlim.max - xlim.min;
-        double y_range = ylim.max - ylim.min;
+        // Map through axis space so log axes place ticks/grid in decades.
+        const auto*      scale_axes = dynamic_cast<const Axes*>(&axes);
+        const ScaleType  xscale     = scale_axes ? scale_axes->xscale() : ScaleType::Linear;
+        const ScaleType  yscale     = scale_axes ? scale_axes->yscale() : ScaleType::Linear;
+        const AxisLimits ax_x       = axis_space_limits(xscale, xlim);
+        const AxisLimits ax_y       = axis_space_limits(yscale, ylim);
+
+        double x_range = ax_x.max - ax_x.min;
+        double y_range = ax_y.max - ax_y.min;
         if (x_range == 0.0)
             x_range = 1.0;
         if (y_range == 0.0)
             y_range = 1.0;
 
-        auto data_to_px_x = [&](double dx) -> float
-        { return static_cast<float>(vp.x + (dx - xlim.min) / x_range * vp.w); };
+        auto data_to_px_x = [&](double dx) -> float {
+            return static_cast<float>(vp.x
+                                      + (to_axis_space(xscale, dx) - ax_x.min) / x_range * vp.w);
+        };
         auto data_to_px_y = [&](double dy) -> float
-        { return static_cast<float>(vp.y + (1.0 - (dy - ylim.min) / y_range) * vp.h); };
+        {
+            return static_cast<float>(
+                vp.y + (1.0 - (to_axis_space(yscale, dy) - ax_y.min) / y_range) * vp.h);
+        };
 
         const auto& as = axes.axis_style();
         float       tl = as.tick_length;
@@ -773,32 +1042,7 @@ void Renderer::render_plot_geometry(Figure& figure)
     // with depth testing, so they are properly occluded by 3D geometry.
 
     // ── Set up screen-space ortho projection in UBO ──
-    // Screen coordinates are Y-down (0=top, h=bottom).
-    // Vulkan clip space has Y-down (positive m[5]), WebGPU has Y-up (negative m[5]).
-    FrameUBO ubo{};   // Value-initializes all members to zero
-    float    y_sign    = backend_.clip_y_down() ? 1.0f : -1.0f;
-    ubo.projection[0]  = 2.0f / fw;            // X: [0, fw] → [-1, +1]
-    ubo.projection[5]  = y_sign * 2.0f / fh;   // Y: flip for WebGPU
-    ubo.projection[10] = -1.0f;
-    ubo.projection[12] = -1.0f;
-    ubo.projection[13] = y_sign * -1.0f;
-    ubo.projection[15] = 1.0f;
-    // Identity view + model
-    ubo.view[0]         = 1.0f;
-    ubo.view[5]         = 1.0f;
-    ubo.view[10]        = 1.0f;
-    ubo.view[15]        = 1.0f;
-    ubo.model[0]        = 1.0f;
-    ubo.model[5]        = 1.0f;
-    ubo.model[10]       = 1.0f;
-    ubo.model[15]       = 1.0f;
-    ubo.viewport_width  = fw;
-    ubo.viewport_height = fh;
-
-    backend_.set_viewport(0, 0, fw, fh);
-    backend_.set_scissor(0, 0, fig_w, fig_h);
-    backend_.upload_buffer(frame_ubo_buffer_, &ubo, sizeof(FrameUBO));
-    backend_.bind_buffer(frame_ubo_buffer_, 0);
+    bind_screen_space_ubo(fw, fh);
 
     // ── Draw 2D grid lines per-axes (screen-space, scissored to viewport) ──
     // Rendered in screen-space to avoid the same GPU buffer race that
@@ -841,17 +1085,28 @@ void Renderer::render_plot_geometry(Figure& figure)
             ylim = axes2d->y_limits();
         }
 
-        double x_range = xlim.max - xlim.min;
-        double y_range = ylim.max - ylim.min;
+        // Map through axis space so log axes place ticks/grid in decades.
+        const ScaleType  xscale = axes2d ? axes2d->xscale() : ScaleType::Linear;
+        const ScaleType  yscale = axes2d ? axes2d->yscale() : ScaleType::Linear;
+        const AxisLimits ax_x   = axis_space_limits(xscale, xlim);
+        const AxisLimits ax_y   = axis_space_limits(yscale, ylim);
+
+        double x_range = ax_x.max - ax_x.min;
+        double y_range = ax_y.max - ax_y.min;
         if (x_range == 0.0)
             x_range = 1.0;
         if (y_range == 0.0)
             y_range = 1.0;
 
-        auto data_to_px_x = [&](double dx) -> float
-        { return static_cast<float>(vp.x + (dx - xlim.min) / x_range * vp.w); };
+        auto data_to_px_x = [&](double dx) -> float {
+            return static_cast<float>(vp.x
+                                      + (to_axis_space(xscale, dx) - ax_x.min) / x_range * vp.w);
+        };
         auto data_to_px_y = [&](double dy) -> float
-        { return static_cast<float>(vp.y + (1.0 - (dy - ylim.min) / y_range) * vp.h); };
+        {
+            return static_cast<float>(
+                vp.y + (1.0 - (to_axis_space(yscale, dy) - ax_y.min) / y_range) * vp.h);
+        };
 
         auto x_ticks = axes2d->compute_x_ticks();
         auto y_ticks = axes2d->compute_y_ticks();
@@ -943,28 +1198,14 @@ void Renderer::render_plot_geometry(Figure& figure)
         constexpr int MAX_MARGIN_MINOR_LINES = 4 * MINOR_SUBDIVISIONS;
         auto valid_minor_step = [](double step) { return std::isfinite(step) && step > 0.0; };
         minor_grid_scratch_.clear();
-        // X-axis minor grid (between adjacent tick pairs)
-        for (size_t i = 0; i + 1 < num_x; ++i)
+        // Log axes: minor lines at 2..9 × 10^k.  Linear subdivision of decade
+        // ticks would pile up at the low end of every decade.
+        if (is_log_scale(xscale))
         {
-            double step = (x_ticks.positions[i + 1] - x_ticks.positions[i]) / MINOR_SUBDIVISIONS;
-            for (int s = 1; s < MINOR_SUBDIVISIONS; ++s)
+            for (double x : log_minor_ticks(xscale,
+                                            from_axis_space(xscale, ax_x.min),
+                                            from_axis_space(xscale, ax_x.max)))
             {
-                float px = data_to_px_x(x_ticks.positions[i] + step * s);
-                minor_grid_scratch_.push_back(px);
-                minor_grid_scratch_.push_back(fy_top);
-                minor_grid_scratch_.push_back(px);
-                minor_grid_scratch_.push_back(fy_bottom);
-            }
-        }
-        // X-axis minor grid — extend into left margin (before first tick)
-        if (num_x >= 2)
-        {
-            double step = (x_ticks.positions[1] - x_ticks.positions[0]) / MINOR_SUBDIVISIONS;
-            for (int k = 1; valid_minor_step(step) && k <= MAX_MARGIN_MINOR_LINES; ++k)
-            {
-                double x = x_ticks.positions[0] - step * k;
-                if (x < xlim.min)
-                    break;
                 float px = data_to_px_x(x);
                 minor_grid_scratch_.push_back(px);
                 minor_grid_scratch_.push_back(fy_top);
@@ -972,46 +1213,62 @@ void Renderer::render_plot_geometry(Figure& figure)
                 minor_grid_scratch_.push_back(fy_bottom);
             }
         }
-        // X-axis minor grid — extend into right margin (after last tick)
-        if (num_x >= 2)
+        else
         {
-            double step =
-                (x_ticks.positions[num_x - 1] - x_ticks.positions[num_x - 2]) / MINOR_SUBDIVISIONS;
-            for (int k = 1; valid_minor_step(step) && k <= MAX_MARGIN_MINOR_LINES; ++k)
+            // X-axis minor grid (between adjacent tick pairs)
+            for (size_t i = 0; i + 1 < num_x; ++i)
             {
-                double x = x_ticks.positions[num_x - 1] + step * k;
-                if (x > xlim.max)
-                    break;
-                float px = data_to_px_x(x);
-                minor_grid_scratch_.push_back(px);
-                minor_grid_scratch_.push_back(fy_top);
-                minor_grid_scratch_.push_back(px);
-                minor_grid_scratch_.push_back(fy_bottom);
+                double step =
+                    (x_ticks.positions[i + 1] - x_ticks.positions[i]) / MINOR_SUBDIVISIONS;
+                for (int s = 1; s < MINOR_SUBDIVISIONS; ++s)
+                {
+                    float px = data_to_px_x(x_ticks.positions[i] + step * s);
+                    minor_grid_scratch_.push_back(px);
+                    minor_grid_scratch_.push_back(fy_top);
+                    minor_grid_scratch_.push_back(px);
+                    minor_grid_scratch_.push_back(fy_bottom);
+                }
+            }
+            // X-axis minor grid — extend into left margin (before first tick)
+            if (num_x >= 2)
+            {
+                double step = (x_ticks.positions[1] - x_ticks.positions[0]) / MINOR_SUBDIVISIONS;
+                for (int k = 1; valid_minor_step(step) && k <= MAX_MARGIN_MINOR_LINES; ++k)
+                {
+                    double x = x_ticks.positions[0] - step * k;
+                    if (x < xlim.min)
+                        break;
+                    float px = data_to_px_x(x);
+                    minor_grid_scratch_.push_back(px);
+                    minor_grid_scratch_.push_back(fy_top);
+                    minor_grid_scratch_.push_back(px);
+                    minor_grid_scratch_.push_back(fy_bottom);
+                }
+            }
+            // X-axis minor grid — extend into right margin (after last tick)
+            if (num_x >= 2)
+            {
+                double step = (x_ticks.positions[num_x - 1] - x_ticks.positions[num_x - 2])
+                              / MINOR_SUBDIVISIONS;
+                for (int k = 1; valid_minor_step(step) && k <= MAX_MARGIN_MINOR_LINES; ++k)
+                {
+                    double x = x_ticks.positions[num_x - 1] + step * k;
+                    if (x > xlim.max)
+                        break;
+                    float px = data_to_px_x(x);
+                    minor_grid_scratch_.push_back(px);
+                    minor_grid_scratch_.push_back(fy_top);
+                    minor_grid_scratch_.push_back(px);
+                    minor_grid_scratch_.push_back(fy_bottom);
+                }
             }
         }
-        // Y-axis minor grid (between adjacent tick pairs)
-        for (size_t i = 0; i + 1 < num_y; ++i)
+        if (is_log_scale(yscale))
         {
-            double step = (y_ticks.positions[i + 1] - y_ticks.positions[i]) / MINOR_SUBDIVISIONS;
-            for (int s = 1; s < MINOR_SUBDIVISIONS; ++s)
+            for (double y : log_minor_ticks(yscale,
+                                            from_axis_space(yscale, ax_y.min),
+                                            from_axis_space(yscale, ax_y.max)))
             {
-                float py = data_to_px_y(y_ticks.positions[i] + step * s);
-                minor_grid_scratch_.push_back(fx_left);
-                minor_grid_scratch_.push_back(py);
-                minor_grid_scratch_.push_back(fx_right);
-                minor_grid_scratch_.push_back(py);
-            }
-        }
-        // Y-axis minor grid — extend into bottom margin (below first tick in data space,
-        // which is the top tick position in screen space since Y is flipped)
-        if (num_y >= 2)
-        {
-            double step = (y_ticks.positions[1] - y_ticks.positions[0]) / MINOR_SUBDIVISIONS;
-            for (int k = 1; valid_minor_step(step) && k <= MAX_MARGIN_MINOR_LINES; ++k)
-            {
-                double y = y_ticks.positions[0] - step * k;
-                if (y < ylim.min)
-                    break;
                 float py = data_to_px_y(y);
                 minor_grid_scratch_.push_back(fx_left);
                 minor_grid_scratch_.push_back(py);
@@ -1019,21 +1276,55 @@ void Renderer::render_plot_geometry(Figure& figure)
                 minor_grid_scratch_.push_back(py);
             }
         }
-        // Y-axis minor grid — extend into top margin (above last tick in data space)
-        if (num_y >= 2)
+        else
         {
-            double step =
-                (y_ticks.positions[num_y - 1] - y_ticks.positions[num_y - 2]) / MINOR_SUBDIVISIONS;
-            for (int k = 1; valid_minor_step(step) && k <= MAX_MARGIN_MINOR_LINES; ++k)
+            // Y-axis minor grid (between adjacent tick pairs)
+            for (size_t i = 0; i + 1 < num_y; ++i)
             {
-                double y = y_ticks.positions[num_y - 1] + step * k;
-                if (y > ylim.max)
-                    break;
-                float py = data_to_px_y(y);
-                minor_grid_scratch_.push_back(fx_left);
-                minor_grid_scratch_.push_back(py);
-                minor_grid_scratch_.push_back(fx_right);
-                minor_grid_scratch_.push_back(py);
+                double step =
+                    (y_ticks.positions[i + 1] - y_ticks.positions[i]) / MINOR_SUBDIVISIONS;
+                for (int s = 1; s < MINOR_SUBDIVISIONS; ++s)
+                {
+                    float py = data_to_px_y(y_ticks.positions[i] + step * s);
+                    minor_grid_scratch_.push_back(fx_left);
+                    minor_grid_scratch_.push_back(py);
+                    minor_grid_scratch_.push_back(fx_right);
+                    minor_grid_scratch_.push_back(py);
+                }
+            }
+            // Y-axis minor grid — extend into bottom margin (below first tick in data space,
+            // which is the top tick position in screen space since Y is flipped)
+            if (num_y >= 2)
+            {
+                double step = (y_ticks.positions[1] - y_ticks.positions[0]) / MINOR_SUBDIVISIONS;
+                for (int k = 1; valid_minor_step(step) && k <= MAX_MARGIN_MINOR_LINES; ++k)
+                {
+                    double y = y_ticks.positions[0] - step * k;
+                    if (y < ylim.min)
+                        break;
+                    float py = data_to_px_y(y);
+                    minor_grid_scratch_.push_back(fx_left);
+                    minor_grid_scratch_.push_back(py);
+                    minor_grid_scratch_.push_back(fx_right);
+                    minor_grid_scratch_.push_back(py);
+                }
+            }
+            // Y-axis minor grid — extend into top margin (above last tick in data space)
+            if (num_y >= 2)
+            {
+                double step = (y_ticks.positions[num_y - 1] - y_ticks.positions[num_y - 2])
+                              / MINOR_SUBDIVISIONS;
+                for (int k = 1; valid_minor_step(step) && k <= MAX_MARGIN_MINOR_LINES; ++k)
+                {
+                    double y = y_ticks.positions[num_y - 1] + step * k;
+                    if (y > ylim.max)
+                        break;
+                    float py = data_to_px_y(y);
+                    minor_grid_scratch_.push_back(fx_left);
+                    minor_grid_scratch_.push_back(py);
+                    minor_grid_scratch_.push_back(fx_right);
+                    minor_grid_scratch_.push_back(py);
+                }
             }
         }
 
@@ -1065,6 +1356,16 @@ void Renderer::render_plot_geometry(Figure& figure)
             backend_.bind_buffer(gpu.minor_grid_buffer[slot], 0);
             backend_.draw(minor_vert_count);
             backend_.set_line_width(1.0f);
+        }
+    }
+
+    // ── Text-annotation arrows (screen-space triangles, scissored to the plot area) ──
+    {
+        for (auto& axes_ptr : figure.axes())
+        {
+            if (!axes_ptr)
+                continue;
+            render_annotation_arrows(*axes_ptr, slot, fw, fh);
         }
     }
 
@@ -1102,6 +1403,217 @@ void Renderer::render_plot_geometry(Figure& figure)
 
         backend_.bind_buffer(fig_gpu.overlay_line_buffer[slot], 0);
         backend_.draw(line_vert_count);
+    }
+}
+
+// Append a convex polygon (screen px, `n` xy pairs) as {x, y, alpha} triangles
+// for the stat_fill pipeline: an opaque fan plus a 1 px fringe fading to zero
+// alpha, which anti-aliases the edges without MSAA.
+static void append_aa_convex_polygon(std::vector<float>& out, const float* pts, int n)
+{
+    constexpr float fringe = 1.0f;
+    constexpr int   max_n  = 8;
+    if (n < 3 || n > max_n)
+        return;
+
+    float area2 = 0.0f;
+    for (int i = 0; i < n; ++i)
+    {
+        int j = (i + 1) % n;
+        area2 += pts[2 * i] * pts[2 * j + 1] - pts[2 * j] * pts[2 * i + 1];
+    }
+    if (std::fabs(area2) < 1e-6f)
+        return;
+    const float orient = area2 > 0.0f ? 1.0f : -1.0f;
+
+    // Outward edge normals, then mitred outer vertices.
+    float enx[max_n];
+    float eny[max_n];
+    for (int i = 0; i < n; ++i)
+    {
+        int   j   = (i + 1) % n;
+        float dx  = pts[2 * j] - pts[2 * i];
+        float dy  = pts[2 * j + 1] - pts[2 * i + 1];
+        float len = std::sqrt(dx * dx + dy * dy);
+        if (len < 1e-6f)
+            len = 1.0f;
+        enx[i] = orient * dy / len;
+        eny[i] = -orient * dx / len;
+    }
+    float ox[max_n];
+    float oy[max_n];
+    for (int i = 0; i < n; ++i)
+    {
+        int   p     = (i + n - 1) % n;
+        float mx    = enx[p] + enx[i];
+        float my    = eny[p] + eny[i];
+        float denom = std::max(0.25f, 1.0f + enx[p] * enx[i] + eny[p] * eny[i]);
+        ox[i]       = pts[2 * i] + mx / denom * fringe;
+        oy[i]       = pts[2 * i + 1] + my / denom * fringe;
+    }
+
+    auto push = [&out](float x, float y, float a)
+    {
+        out.push_back(x);
+        out.push_back(y);
+        out.push_back(a);
+    };
+    for (int i = 1; i + 1 < n; ++i)
+    {
+        push(pts[0], pts[1], 1.0f);
+        push(pts[2 * i], pts[2 * i + 1], 1.0f);
+        push(pts[2 * (i + 1)], pts[2 * (i + 1) + 1], 1.0f);
+    }
+    for (int i = 0; i < n; ++i)
+    {
+        int j = (i + 1) % n;
+        push(pts[2 * i], pts[2 * i + 1], 1.0f);
+        push(pts[2 * j], pts[2 * j + 1], 1.0f);
+        push(ox[j], oy[j], 0.0f);
+        push(pts[2 * i], pts[2 * i + 1], 1.0f);
+        push(ox[j], oy[j], 0.0f);
+        push(ox[i], oy[i], 0.0f);
+    }
+}
+
+void Renderer::render_annotation_arrows(Axes& axes, uint32_t slot, float fw, float fh)
+{
+    const auto& vp = axes.viewport();
+    if (axes.annotations().empty() || vp.x + vp.w <= 0.0f || vp.y + vp.h <= 0.0f || vp.x >= fw
+        || vp.y >= fh)
+        return;
+
+    AxisLimits xlim;
+    AxisLimits ylim;
+    if (figure_vm_)
+    {
+        auto& avm = figure_vm_->get_or_create_axes_vm(&axes);
+        xlim      = avm.visual_xlim();
+        ylim      = avm.visual_ylim();
+    }
+    else
+    {
+        xlim = axes.x_limits();
+        ylim = axes.y_limits();
+    }
+    // Map through axis space so arrows land on log axes like the text does.
+    const ScaleType  xscale  = axes.xscale();
+    const ScaleType  yscale  = axes.yscale();
+    const AxisLimits ax_x    = axis_space_limits(xscale, xlim);
+    const AxisLimits ax_y    = axis_space_limits(yscale, ylim);
+    double           x_range = ax_x.max - ax_x.min;
+    double           y_range = ax_y.max - ax_y.min;
+    if (x_range == 0.0)
+        x_range = 1.0;
+    if (y_range == 0.0)
+        y_range = 1.0;
+    auto data_to_px_x = [&](double dx) -> float
+    { return static_cast<float>(vp.x + (to_axis_space(xscale, dx) - ax_x.min) / x_range * vp.w); };
+    auto data_to_px_y = [&](double dy) -> float
+    {
+        return static_cast<float>(
+            vp.y + (1.0 - (to_axis_space(yscale, dy) - ax_y.min) / y_range) * vp.h);
+    };
+
+    constexpr float shaft_half_w = 0.5f;   // 1 px core + 1 px anti-aliased fringe
+
+    annotation_tri_scratch_.clear();
+    annotation_arrow_draws_.clear();
+    const auto& colors = theme_mgr_.colors();
+    for (const auto& ann : axes.annotations())
+    {
+        if (!ann || !ann->visible() || !ann->has_arrow())
+            continue;
+
+        const float ax = data_to_px_x(ann->x());
+        const float ay = data_to_px_y(ann->y());
+        const float tx = data_to_px_x(ann->arrow_x());
+        const float ty = data_to_px_y(ann->arrow_y());
+        if (!std::isfinite(ax) || !std::isfinite(ay) || !std::isfinite(tx) || !std::isfinite(ty))
+            continue;
+
+        float w = 0.0f;
+        float h = 0.0f;
+        if (text_renderer_.is_initialized() && !ann->text().empty())
+        {
+            auto ext =
+                text_renderer_.measure_text(ann->text(),
+                                            TextRenderer::nearest_font_size(ann->font_size()));
+            w = ext.width;
+            h = ext.height;
+        }
+        const auto box = annotation_layout::text_box(ax, ay, w, h, ann->halign(), ann->valign());
+        annotation_layout::Arrow g;
+        if (!annotation_layout::arrow_geometry(box, tx, ty, g))
+            continue;
+
+        const auto  first   = static_cast<uint32_t>(annotation_tri_scratch_.size() / 3);
+        const float hw      = shaft_half_w;
+        const float shaft[] = {g.sx + g.nx * hw,
+                               g.sy + g.ny * hw,
+                               g.ex + g.nx * hw,
+                               g.ey + g.ny * hw,
+                               g.ex - g.nx * hw,
+                               g.ey - g.ny * hw,
+                               g.sx - g.nx * hw,
+                               g.sy - g.ny * hw};
+        const float head[]  = {g.tx, g.ty, g.lx, g.ly, g.rx, g.ry};
+        append_aa_convex_polygon(annotation_tri_scratch_, shaft, 4);
+        append_aa_convex_polygon(annotation_tri_scratch_, head, 3);
+
+        AnnotationArrowDraw d{};
+        d.first = first;
+        d.count = static_cast<uint32_t>(annotation_tri_scratch_.size() / 3) - first;
+        if (ann->color())
+        {
+            const Color& c = *ann->color();
+            d.color[0]     = c.r;
+            d.color[1]     = c.g;
+            d.color[2]     = c.b;
+            d.color[3]     = c.a;
+        }
+        else
+        {
+            set_pc_color_geom(d.color, colors.text_primary, theme_mgr_);
+        }
+        annotation_arrow_draws_.push_back(d);
+    }
+    if (annotation_arrow_draws_.empty())
+        return;
+
+    if (!stat_fill_pipeline_)
+        return;
+    const size_t bytes = annotation_tri_scratch_.size() * sizeof(float);
+    auto&        gpu   = axes_gpu_data_[&axes];
+    if (!gpu.annotation_buffer[slot] || gpu.annotation_capacity[slot] < bytes)
+    {
+        if (gpu.annotation_buffer[slot])
+            backend_.destroy_buffer(gpu.annotation_buffer[slot]);
+        gpu.annotation_buffer[slot]   = backend_.create_buffer(BufferUsage::Vertex, bytes * 2);
+        gpu.annotation_capacity[slot] = bytes * 2;
+    }
+    backend_.upload_buffer(gpu.annotation_buffer[slot], annotation_tri_scratch_.data(), bytes);
+
+    const float sc_x0 = std::max(0.0f, vp.x);
+    const float sc_y0 = std::max(0.0f, vp.y);
+    const float sc_x1 = std::min(fw, vp.x + vp.w);
+    const float sc_y1 = std::min(fh, vp.y + vp.h);
+    if (!(sc_x1 > sc_x0) || !(sc_y1 > sc_y0))
+        return;
+    backend_.set_scissor(static_cast<int32_t>(sc_x0),
+                         static_cast<int32_t>(sc_y0),
+                         static_cast<uint32_t>(sc_x1 - sc_x0),
+                         static_cast<uint32_t>(sc_y1 - sc_y0));
+
+    backend_.bind_pipeline(stat_fill_pipeline_);
+    backend_.bind_buffer(gpu.annotation_buffer[slot], 0);
+    for (const auto& d : annotation_arrow_draws_)
+    {
+        SeriesPushConstants pc{};
+        std::copy(std::begin(d.color), std::end(d.color), pc.color);
+        pc.line_width = 1.0f;
+        backend_.push_constants(pc);
+        backend_.draw(d.count, d.first);
     }
 }
 

@@ -12,6 +12,7 @@
 
     #include "ui/theme/design_tokens.hpp"
     #include "ui/theme/glass_draw.hpp"
+    #include "ui/theme/icons.hpp"
     #include "ui/theme/theme.hpp"
     #include "legend_layout.hpp"
 
@@ -165,8 +166,8 @@ bool LegendInteraction::draw(Axes&               axes,
     // One column = swatch + label (+ visibility eye).  Entries flow into
     // extra columns instead of being cut off; scrolling is only a last resort
     // when even the widest grid that fits the plot can't hold them all.
-    constexpr float margin  = 12.0f;
-    constexpr float col_gap = 14.0f;
+    constexpr float margin  = legend_layout::MARGIN;
+    constexpr float col_gap = legend_layout::COL_GAP;
     float           col_w   = swatch_size + swatch_gap + max_label_w;
     if (toggleable_)
         col_w += eye_width + 4.0f;
@@ -185,51 +186,21 @@ bool LegendInteraction::draw(Axes&               axes,
         legend_w += 8.0f;   // room for scrollbar
 
     // Resolve LegendPosition::Best to the corner with the least data overlap.
-    LegendPosition position = config.position;
-    if (position == LegendPosition::Best)
-    {
-        const OffsetKey key  = make_offset_key(figure_id, axes_index);
-        auto            it   = best_corner_.find(key);
-        LegendPosition  prev = (it != best_corner_.end()) ? it->second : LegendPosition::None;
-        position =
-            legend_layout::choose_best_corner(axes, viewport, legend_w, legend_h, margin, prev);
+    if (config.position == LegendPosition::None)
+        return false;   // hidden — should have been gated by the caller
+    const OffsetKey      key  = make_offset_key(figure_id, axes_index);
+    auto                 it   = best_corner_.find(key);
+    const LegendPosition prev = (it != best_corner_.end()) ? it->second : LegendPosition::None;
+    const LegendPosition position =
+        legend_layout::resolve_position(axes, viewport, legend_w, legend_h, config.position, prev);
+    if (config.position == LegendPosition::Best)
         best_corner_[key] = position;
-    }
 
-    // Compute default position from the resolved corner
-    float default_x = viewport.x + viewport.w - legend_w - margin;   // TopRight default
-    float default_y = viewport.y + margin;
-    switch (position)
-    {
-        case LegendPosition::TopLeft:
-            default_x = viewport.x + margin;
-            default_y = viewport.y + margin;
-            break;
-        case LegendPosition::TopRight:
-        case LegendPosition::Best:
-            default_x = viewport.x + viewport.w - legend_w - margin;
-            default_y = viewport.y + margin;
-            break;
-        case LegendPosition::BottomLeft:
-            default_x = viewport.x + margin;
-            default_y = viewport.y + viewport.h - legend_h - margin;
-            break;
-        case LegendPosition::BottomRight:
-            default_x = viewport.x + viewport.w - legend_w - margin;
-            default_y = viewport.y + viewport.h - legend_h - margin;
-            break;
-        case LegendPosition::None:
-            // Hidden position — should have been gated by visible check, but just in case
-            return false;
-    }
-
-    auto& offset = get_offset(figure_id, axes_index);
-    float lx     = default_x + offset.dx;
-    float ly     = default_y + offset.dy;
-
-    // Clamp to viewport
-    lx = std::max(viewport.x + 4.0f, std::min(lx, viewport.x + viewport.w - legend_w - 4.0f));
-    ly = std::max(viewport.y + 4.0f, std::min(ly, viewport.y + viewport.h - legend_h - 4.0f));
+    auto&      offset = get_offset(figure_id, axes_index);
+    const Rect box =
+        legend_layout::place(viewport, position, legend_w, legend_h, offset.dx, offset.dy);
+    const float lx = box.x;
+    const float ly = box.y;
 
     // Draw legend window — use figure_id in the ImGui ID to prevent cross-figure collisions
     const std::string win_id =
@@ -391,7 +362,8 @@ bool LegendInteraction::draw(Axes&               axes,
             float label_y  = row_y + (row_height - font_size) * 0.5f;
             dl->AddText(font, font_size, ImVec2(label_x, label_y), text_col, s->label().c_str());
 
-            // Click-to-toggle: invisible button over the row
+            // Click-to-toggle: invisible button over the whole row, including
+            // the visibility icon slot at its right end.
             if (toggleable_)
             {
                 ImGui::SetCursorScreenPos(ImVec2(row_x, row_y));
@@ -400,7 +372,7 @@ bool LegendInteraction::draw(Axes&               axes,
                                                        axes_index,
                                                        row);
 
-                float btn_w = swatch_size + swatch_gap + max_label_w;
+                const float btn_w = col_w;
                 if (ImGui::InvisibleButton(btn_id.c_str(), ImVec2(btn_w, row_height)))
                 {
                     state.user_visible   = !state.user_visible;
@@ -412,7 +384,8 @@ bool LegendInteraction::draw(Axes&               axes,
                 }
 
                 // Hover highlight
-                if (ImGui::IsItemHovered())
+                const bool hovered = ImGui::IsItemHovered();
+                if (hovered)
                 {
                     ImU32 hover_col =
                         ImGui::ColorConvertFloat4ToU32(ImVec4(theme_colors.accent_subtle.r,
@@ -428,16 +401,22 @@ bool LegendInteraction::draw(Axes&               axes,
                     ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
                 }
 
-                // Eye icon (visibility indicator) on the right
-                float       eye_x     = row_x + btn_w + 4.0f;
-                float       eye_y     = row_y + (row_height - font_size * 0.7f) * 0.5f;
-                const char* eye_label = state.user_visible ? "o" : "-";
-                ImU32       eye_col =
-                    ImGui::ColorConvertFloat4ToU32(ImVec4(theme_colors.text_tertiary.r,
-                                                          theme_colors.text_tertiary.g,
-                                                          theme_colors.text_tertiary.b,
-                                                          theme_colors.text_tertiary.a));
-                dl->AddText(font, font_size * 0.7f, ImVec2(eye_x, eye_y), eye_col, eye_label);
+                // Visibility icon: an eye appears only while the row is
+                // hovered, so idle legends stay clean.  A hidden series keeps
+                // an eye-slash so it is clear why its row is dimmed.
+                ImFont* icon_f = ui::icon_font(ui::tokens::ICON_XS);
+                if (icon_f && (hovered || !state.user_visible))
+                {
+                    const char* icon_s =
+                        ui::icon_str(state.user_visible ? ui::Icon::Eye : ui::Icon::EyeOff);
+                    const float icon_sz = ui::tokens::ICON_XS;
+                    const float eye_x   = row_x + btn_w - eye_width;
+                    const float eye_y   = row_y + (row_height - icon_sz) * 0.5f;
+                    const auto& ec =
+                        hovered ? theme_colors.text_secondary : theme_colors.text_tertiary;
+                    ImU32 eye_col = ImGui::ColorConvertFloat4ToU32(ImVec4(ec.r, ec.g, ec.b, ec.a));
+                    dl->AddText(icon_f, icon_sz, ImVec2(eye_x, eye_y), eye_col, icon_s);
+                }
             }
 
             ++row;

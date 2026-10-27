@@ -114,6 +114,10 @@ table SnapshotSeriesState {
     point_count: uint32 = 0;
     axes_index: uint32 = 0;
     data: [float];
+    color_index: int32 = -1;   // data-palette slot of an auto-coloured series, -1 = explicit
+    color_letter: ubyte = 0;   // format-string colour letter (r g b c m y k w), 0 = none
+    x_origin: double = 0.0;    // double-precision data origin: x = x_origin + data x
+    y_origin: double = 0.0;    // double-precision data origin: y = y_origin + data y
 }
 
 table SnapshotFigureState {

@@ -4,6 +4,7 @@
 #include <memory>
 #include <spectra/axes.hpp>
 #include <spectra/fwd.hpp>
+#include <spectra/window_defaults.hpp>
 #include <string>
 #include <vector>
 
@@ -14,9 +15,9 @@ namespace spectra
 struct FigureConfig
 {
     /// Figure width in pixels.
-    uint32_t width = 1500;
+    uint32_t width = DEFAULT_WINDOW_WIDTH;
     /// Figure height in pixels.
-    uint32_t height = 900;
+    uint32_t height = DEFAULT_WINDOW_HEIGHT;
 };
 
 /// @brief Where the legend is drawn inside each axes.
@@ -44,7 +45,10 @@ struct LegendConfig
 /// @brief Figure background colour, outer margins and subplot spacing (pixels).
 struct FigureStyle
 {
+    /// Figure background, used only when @ref background_override is true.
     Color background         = colors::white;
+    /// When false (default) the figure follows the active theme's canvas colour.
+    bool  background_override = false;
     float margin_top         = 40.0f;
     float margin_bottom      = 60.0f;
     float margin_left        = 70.0f;

@@ -12,6 +12,7 @@
 
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
+    #include "ui/theme/theme_imgui.hpp"
 #endif
 
 namespace spectra::adapters::ros2
@@ -302,7 +303,7 @@ void ExpressionEditor::draw_error_banner()
     if (last_ok_ || last_error_.empty())
         return;
 
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.35f, 0.35f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_Text, spectra::ui::to_imvec4(spectra::ui::theme().error));
     if (last_error_col_ >= 0)
         ImGui::Text("[col %d] %s", last_error_col_, last_error_.c_str());
     else
@@ -348,16 +349,16 @@ void ExpressionEditor::draw_variable_table()
             if (bound)
                 ImGui::TextDisabled("—");
             else
-                ImGui::TextColored(ImVec4(1, 0.6f, 0, 1), "unbound");
+                ImGui::TextColored(spectra::ui::to_imvec4(spectra::ui::theme().warning), "unbound");
 
             ImGui::TableSetColumnIndex(2);
             ImGui::TextDisabled("—");
 
             ImGui::TableSetColumnIndex(3);
             if (bound)
-                ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "Yes");
+                ImGui::TextColored(spectra::ui::to_imvec4(spectra::ui::theme().success), "Yes");
             else
-                ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.4f, 1.0f), "No");
+                ImGui::TextColored(spectra::ui::to_imvec4(spectra::ui::theme().error), "No");
         }
 
         ImGui::EndTable();

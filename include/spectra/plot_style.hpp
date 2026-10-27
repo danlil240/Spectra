@@ -55,6 +55,10 @@ struct PlotStyle
     LineStyle            line_style   = LineStyle::Solid;
     MarkerStyle          marker_style = MarkerStyle::None;
     std::optional<Color> color;   // nullopt = use auto-cycle color
+    // MATLAB colour letter (r g b c m y k w) that set `color` in a format
+    // string, or '\0' for an explicit colour.  A lettered colour is a tuned
+    // shade that follows the theme (see format_colors in color.hpp).
+    char                 color_letter = '\0';
     float                line_width  = 2.0f;
     float                marker_size = 6.0f;
     float                opacity     = 1.0f;
@@ -294,11 +298,11 @@ inline DashPattern get_dash_pattern(LineStyle style, float line_width = 2.0f)
 //
 // Format: [color][line_style][marker]
 //   Color chars:  r g b c m y k w
-//                 'k' (black) and 'w' (white) are theme-aware when drawn: on a
-//                 dark plot background pure black renders in the theme's
-//                 foreground color (and pure white does on a light one), so a
-//                 "k-" line is always visible.  Use an explicit near-black such
-//                 as rgb(0.05,0.05,0.05) to force a literal black.
+//                 Letters map to tuned, theme-aware shades of the same hue
+//                 (format_colors in color.hpp), not raw primaries: one set for
+//                 dark backgrounds, one for light.  'k' and 'w' stay visible and
+//                 distinct on every theme.  Use an explicit colour (color(),
+//                 rgb(), hex) for an exact value; those are never remapped.
 //   Line styles:  - -- : -. -..
 //   Marker chars: . o + x * s d ^ v < > p h O S D A
 //
@@ -326,35 +330,13 @@ inline PlotStyle parse_format_string(std::string_view fmt)
         // ── Color specifiers ──
         auto try_color = [&]() -> bool
         {
-            switch (c)
-            {
-                case 'r':
-                    style.color = colors::red;
-                    return true;
-                case 'g':
-                    style.color = colors::green;
-                    return true;
-                case 'b':
-                    style.color = colors::blue;
-                    return true;
-                case 'c':
-                    style.color = colors::cyan;
-                    return true;
-                case 'm':
-                    style.color = colors::magenta;
-                    return true;
-                case 'y':
-                    style.color = colors::yellow;
-                    return true;
-                case 'k':
-                    style.color = colors::black;
-                    return true;
-                case 'w':
-                    style.color = colors::white;
-                    return true;
-                default:
-                    return false;
-            }
+            if (!format_colors::is_letter(c))
+                return false;
+            // Provisional dark-background shade; the renderer re-resolves it
+            // for the active theme (Series::color_letter()).
+            style.color        = format_colors::shade(c);
+            style.color_letter = c;
+            return true;
         };
 
         // ── Line style specifiers (must check multi-char first) ──
@@ -514,7 +496,11 @@ inline std::string to_format_string(const PlotStyle& style)
     std::string result;
 
     // Color
-    if (style.color.has_value())
+    if (style.color.has_value() && format_colors::is_letter(style.color_letter))
+    {
+        result += style.color_letter;
+    }
+    else if (style.color.has_value())
     {
         const auto& c = *style.color;
         if (c.r >= 0.9f && c.g < 0.1f && c.b < 0.1f)

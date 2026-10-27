@@ -16,6 +16,7 @@
 #include <spectra/series_stats.hpp>
 #include <vector>
 
+#include "core/axis_scale.hpp"
 #include "ui/imgui/axes3d_renderer.hpp"
 #include "ui/theme/theme.hpp"
 #include "ui/viewmodel/axes_view_model.hpp"
@@ -172,6 +173,8 @@ void Renderer::destroy_axes_buffers(AxesGpuData& gpu)
             backend_.destroy_buffer(gpu.tick_buffer[s]);
         if (gpu.arrow_tri_buffer[s])
             backend_.destroy_buffer(gpu.arrow_tri_buffer[s]);
+        if (gpu.annotation_buffer[s])
+            backend_.destroy_buffer(gpu.annotation_buffer[s]);
     }
     if (gpu.border_buffer)
         backend_.destroy_buffer(gpu.border_buffer);
@@ -204,19 +207,39 @@ void Renderer::notify_axes_removed(const AxesBase* axes)
         destroy_axes_buffers(it->second);
         axes_gpu_data_.erase(it);
     }
+    legend_best_corner_.erase(axes);
 }
 
 void Renderer::notify_figure_removed(const Figure* figure)
 {
+    // Drop "Best" legend hysteresis for the figure's 2D axes too, so a later
+    // axes allocated at a recycled address does not inherit a stale corner.
+    if (figure)
+    {
+        for (const auto& axes_ptr : figure->axes())
+            legend_best_corner_.erase(axes_ptr.get());
+    }
     auto it = figure_gpu_data_.find(figure);
     if (it != figure_gpu_data_.end())
     {
-        for (auto s : it->second.overlay_line_buffer)
-        {
-            if (s)
-                backend_.destroy_buffer(s);
-        }
+        destroy_figure_buffers(it->second);
         figure_gpu_data_.erase(it);
+    }
+}
+
+void Renderer::destroy_figure_buffers(FigureGpuData& gpu)
+{
+    for (uint32_t i = 0; i < FRAME_BUFFER_SLOTS; ++i)
+    {
+        for (BufferHandle* b : {&gpu.overlay_line_buffer[i],
+                                &gpu.annotation_vertex_buffer[i],
+                                &gpu.annotation_point_buffer[i],
+                                &gpu.background_buffer[i]})
+        {
+            if (*b)
+                backend_.destroy_buffer(*b);
+            *b = BufferHandle{};
+        }
     }
 }
 
@@ -312,13 +335,7 @@ Renderer::~Renderer() noexcept
 
         // Clean up per-figure overlay buffers
         for (auto& [ptr, data] : figure_gpu_data_)
-        {
-            for (auto s : data.overlay_line_buffer)
-            {
-                if (s)
-                    backend_.destroy_buffer(s);
-            }
-        }
+            destroy_figure_buffers(data);
         figure_gpu_data_.clear();
 
         // Destroy custom series type pipelines
@@ -432,6 +449,7 @@ void Renderer::begin_render_pass()
     // completed before any GPU resources are freed.
 
     text_renderer_.begin_frame_recording(backend_.current_flight_frame());
+    truncated_text_regions_.clear();
 
     const auto& theme_colors = theme_mgr_.colors();
     Color       bg_color     = Color(theme_colors.bg_canvas.r,
@@ -445,6 +463,7 @@ void Renderer::begin_render_pass()
 void Renderer::begin_render_pass(const Color& clear_color)
 {
     text_renderer_.begin_frame_recording(backend_.current_flight_frame());
+    truncated_text_regions_.clear();
     backend_.begin_render_pass(clear_color);
     backend_.set_line_width(1.0f);
 }
@@ -457,12 +476,24 @@ void Renderer::render_figure_content(Figure& figure)
 void Renderer::render_figure_content(Figure& figure, FigureViewModel* fig_vm)
 {
     figure_vm_ = fig_vm;
+    unsupported_series_.clear();
+
+    // Auto-coloured series follow the active theme's data palette (P0-6) and
+    // format-letter colours ("r--") its dark / light shade set (P1-5).
+    ui::resolve_auto_series_colors(figure,
+                                   theme_mgr_.current_data_palette(),
+                                   ui::is_light_plot_background(theme_mgr_.colors()));
+
     uint32_t w = figure.width();
     uint32_t h = figure.height();
 
     // Set full-figure viewport and scissor
     backend_.set_viewport(0, 0, static_cast<float>(w), static_cast<float>(h));
     backend_.set_scissor(0, 0, w, h);
+
+    // A figure that overrides the theme canvas colour paints its own region
+    // before any axes content.
+    render_figure_background(figure);
 
     // Wire up deferred-deletion callback on every axes so that
     // clear_series() / remove_series() safely defer GPU cleanup.
@@ -495,16 +526,87 @@ void Renderer::render_figure_content(Figure& figure, FigureViewModel* fig_vm)
             ax.set_series_removed_callback(removal_cb);
         const auto& vp = ax.viewport();
 
+        // Box, grid and ticks of a 3D axes need the 3D grid pipeline.
+        if (dynamic_cast<Axes3D*>(&ax))
+            require_pipeline(grid3d_pipeline_, "3D axes");
+
         render_axes(ax, vp, w, h);
     }
 
     // Queue all plot text (tick labels, axis labels, titles) via Vulkan TextRenderer.
     // Flushed later by render_text().
     render_plot_text(figure);
+    render_unsupported_notice(figure);
 
     // Render screen-space plot geometry (2D grid, border, tick marks) via Vulkan grid pipeline.
     // 3D arrows are rendered inside render_axes() with depth testing.
     render_plot_geometry(figure);
+
+    // Legends and colorbars on top of everything else (text is queued for
+    // render_text()).
+    render_annotations(figure);
+}
+
+bool Renderer::require_pipeline(PipelineHandle pipeline, std::string_view kind)
+{
+    if (pipeline)
+        return true;
+    note_unsupported(kind);
+    return false;
+}
+
+void Renderer::note_unsupported(std::string_view kind)
+{
+    if (std::find(unsupported_series_.begin(), unsupported_series_.end(), kind)
+        == unsupported_series_.end())
+        unsupported_series_.push_back(kind);
+
+    if (std::find(unsupported_warned_.begin(), unsupported_warned_.end(), kind)
+        == unsupported_warned_.end())
+    {
+        unsupported_warned_.push_back(kind);
+        SPECTRA_LOG_WARN("renderer",
+                         "{} not supported by this render backend (no pipeline); "
+                         "see the in-canvas notice",
+                         kind);
+    }
+}
+
+std::string Renderer::format_unsupported_notice(std::span<const std::string_view> kinds)
+{
+    if (kinds.empty())
+        return {};
+    std::string text = "Not supported by this render backend: ";
+    for (size_t i = 0; i < kinds.size(); ++i)
+    {
+        if (i > 0)
+            text += ", ";
+        text += kinds[i];
+    }
+    return text;
+}
+
+void Renderer::render_unsupported_notice(Figure& figure)
+{
+    if (unsupported_series_.empty() || !text_renderer_.is_initialized())
+        return;
+
+    const auto& c = theme_mgr_.colors().warning;
+    auto        r = static_cast<uint8_t>(std::clamp(c.r, 0.0f, 1.0f) * 255.0f);
+    auto        g = static_cast<uint8_t>(std::clamp(c.g, 0.0f, 1.0f) * 255.0f);
+    auto        b = static_cast<uint8_t>(std::clamp(c.b, 0.0f, 1.0f) * 255.0f);
+    uint32_t    rgba =
+        r | (static_cast<uint32_t>(g) << 8) | (static_cast<uint32_t>(b) << 16) | (0xFFu << 24);
+
+    // Bottom-left corner of the figure, clear of titles and axis labels.
+    constexpr float margin = 8.0f;
+    text_renderer_.draw_text(format_unsupported_notice(unsupported_series_),
+                             margin,
+                             static_cast<float>(figure.height()) - margin,
+                             FontSize::Label,
+                             rgba,
+                             TextAlign::Left,
+                             TextVAlign::Bottom);
 }
 
 // render_plot_text() — moved to render_geometry.cpp
@@ -521,9 +623,35 @@ void Renderer::render_figure(Figure& figure)
     // Use begin_render_pass / render_figure_content / end_render_pass
     // separately when ImGui or other overlays need to render inside the
     // same render pass.
+    // Nothing else draws into this pass, so the legend comes from the renderer
+    // even if the interactive window's ImGui overlay normally provides it.
+    const bool overlay_legend = legend_overlay_active_;
+    legend_overlay_active_    = false;
     begin_render_pass();
     render_figure_content(figure);
+    render_text(static_cast<float>(figure.width()), static_cast<float>(figure.height()));
     end_render_pass();
+    legend_overlay_active_ = overlay_legend;
+}
+
+ExportViewport compute_export_viewport(uint32_t figure_width,
+                                       uint32_t figure_height,
+                                       uint32_t export_width,
+                                       uint32_t export_height)
+{
+    ExportViewport ev{export_width, export_height, 1.0f};
+    if (figure_width == 0 || figure_height == 0 || export_width == 0 || export_height == 0)
+        return ev;
+
+    const float scale = std::min(static_cast<float>(export_width) / figure_width,
+                                 static_cast<float>(export_height) / figure_height);
+    if (scale <= 1.0f)
+        return ev;
+
+    ev.pixel_scale   = scale;
+    ev.layout_width  = std::max(1u, static_cast<uint32_t>(std::lround(export_width / scale)));
+    ev.layout_height = std::max(1u, static_cast<uint32_t>(std::lround(export_height / scale)));
+    return ev;
 }
 
 // upload_series_data() — moved to render_upload.cpp
@@ -572,12 +700,14 @@ void Renderer::render_axes(AxesBase&   axes,
         // Pick up azimuth/elevation/distance assigned directly on the camera.
         axes3d->camera().apply_orbit_changes();
         const auto& cam = axes3d->camera();
+        // Widen the view so the box, arrows and labels fit this viewport.
+        const float fit = axes3d->projection_fit_scale(viewport);
 
         if (cam.projection_mode == Camera::ProjectionMode::Perspective)
         {
             // Perspective projection matrix
             float fov_rad      = cam.fov * 3.14159265f / 180.0f;
-            float f            = 1.0f / tanf(fov_rad * 0.5f);
+            float f            = 1.0f / (tanf(fov_rad * 0.5f) * fit);
             float y_sign       = backend_.clip_y_down() ? -1.0f : 1.0f;
             ubo.projection[0]  = f / aspect;
             ubo.projection[5]  = y_sign * f;
@@ -589,9 +719,9 @@ void Renderer::render_axes(AxesBase&   axes,
         {
             // Orthographic projection with proper near/far depth
             // Must match Camera::projection_matrix() convention:
-            // half_w = ortho_size * aspect, half_h = ortho_size
-            float half_w = cam.ortho_size * aspect;
-            float half_h = cam.ortho_size;
+            // half_w = ortho_size * aspect, half_h = ortho_size (times the fit)
+            float half_w = cam.ortho_size * aspect * fit;
+            float half_h = cam.ortho_size * fit;
             build_ortho_projection_3d(-half_w,
                                       half_w,
                                       -half_h,
@@ -658,10 +788,16 @@ void Renderer::render_axes(AxesBase&   axes,
             ylim = axes2d->y_limits();
         }
 
-        double view_cx = (xlim.min + xlim.max) * 0.5;
-        double view_cy = (ylim.min + ylim.max) * 0.5;
-        double half_rx = (xlim.max - xlim.min) * 0.5;
-        double half_ry = (ylim.max - ylim.min) * 0.5;
+        // The projection works in axis space (log10/log2 of the data on log
+        // axes) so a log axis is drawn in evenly spaced decades.
+        const ScaleType  xscale  = axes2d->xscale();
+        const ScaleType  yscale  = axes2d->yscale();
+        const AxisLimits ax_x    = axis_space_limits(xscale, xlim);
+        const AxisLimits ax_y    = axis_space_limits(yscale, ylim);
+        double           view_cx = (ax_x.min + ax_x.max) * 0.5;
+        double           view_cy = (ax_y.min + ax_y.max) * 0.5;
+        double           half_rx = (ax_x.max - ax_x.min) * 0.5;
+        double           half_ry = (ax_y.max - ax_y.min) * 0.5;
 
         // Cache limits and view center for all sub-functions this frame.
         // Reading x_limits()/y_limits() only once prevents mid-frame
@@ -673,6 +809,10 @@ void Renderer::render_axes(AxesBase&   axes,
         axes_gpu.cached_xlim_max = xlim.max;
         axes_gpu.cached_ylim_min = ylim.min;
         axes_gpu.cached_ylim_max = ylim.max;
+        axes_gpu.xscale            = xscale;
+        axes_gpu.yscale            = yscale;
+        axes_gpu.axis_half_range_x = half_rx;
+        axes_gpu.axis_half_range_y = half_ry;
 
         // Centered projection: maps [-half_range, +half_range] → NDC.
         // Translation term m[12] = 0 exactly, avoiding catastrophic cancellation.
@@ -870,14 +1010,18 @@ void Renderer::render_axes(AxesBase&   axes,
         double view_cx = 0.0;
         double view_cy = 0.0;
         double half_rx = 0.0;
-        double half_ry = 0.0;
+        double    half_ry = 0.0;
+        ScaleType xscale  = ScaleType::Linear;
+        ScaleType yscale  = ScaleType::Linear;
         if (axes2d)
         {
             auto& agpu = axes_gpu_data_[&axes];
             view_cx    = agpu.view_center_x;
             view_cy    = agpu.view_center_y;
-            half_rx    = (agpu.cached_xlim_max - agpu.cached_xlim_min) * 0.5;
-            half_ry    = (agpu.cached_ylim_max - agpu.cached_ylim_min) * 0.5;
+            half_rx    = agpu.axis_half_range_x;
+            half_ry    = agpu.axis_half_range_y;
+            xscale     = agpu.xscale;
+            yscale     = agpu.yscale;
         }
 
         // Pass visible x-range for draw-call culling on large series.
@@ -919,7 +1063,24 @@ void Renderer::render_axes(AxesBase&   axes,
             auto& gpu = series_gpu_data_[series_ptr.get()];
 
             // Determine if camera-relative re-upload is needed
-            bool need_upload = series_ptr->is_dirty() || gpu.plugin_state_released;
+            bool need_upload = series_ptr->is_dirty() || gpu.plugin_state_released
+                               || gpu.upload_xscale != xscale || gpu.upload_yscale != yscale;
+
+            // Shape arrowheads are sized in screen pixels: rebuild them when the
+            // data-per-pixel scale changes (zoom, pan across limits, resize).
+            if (axes2d && (gpu.type == SeriesType::Shape2D || gpu.type == SeriesType::Unknown))
+            {
+                if (auto* shape = dynamic_cast<ShapeSeries*>(series_ptr.get()))
+                {
+                    const auto& agpu = axes_gpu_data_[&axes];
+                    float dppx = static_cast<float>((agpu.cached_xlim_max - agpu.cached_xlim_min)
+                                                    / viewport.w);
+                    float dppy = static_cast<float>((agpu.cached_ylim_max - agpu.cached_ylim_min)
+                                                    / viewport.h);
+                    if (shape->set_pixel_scale(dppx, dppy))
+                        need_upload = true;
+                }
+            }
             if (!need_upload && axes2d && gpu.uploaded_count > 0)
             {
                 double drift_x  = std::abs(gpu.origin_x - view_cx);
@@ -932,7 +1093,7 @@ void Renderer::render_axes(AxesBase&   axes,
 
             if (need_upload)
             {
-                upload_series_data(*series_ptr, view_cx, view_cy);
+                upload_series_data(*series_ptr, view_cx, view_cy, xscale, yscale);
             }
 
             render_series(*series_ptr, viewport, vis_ptr, view_cx, view_cy);

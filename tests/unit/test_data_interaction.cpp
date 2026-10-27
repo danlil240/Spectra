@@ -9,6 +9,13 @@
 #include "ui/overlay/axes3d_pick.hpp"
 #include "data/sorted_x_query.hpp"
 
+#if defined(SPECTRA_USE_IMGUI) && __has_include(<imgui.h>)
+    #define SPECTRA_TEST_HOVER 1
+    #include <imgui.h>
+
+    #include "ui/overlay/data_interaction.hpp"
+#endif
+
 // DataInteraction and its components are ImGui-guarded.
 // These tests exercise the pure-logic parts (nearest-point, markers)
 // without requiring a running ImGui context, by testing the underlying
@@ -434,3 +441,85 @@ TEST(Axes3DPickTest, PrefersFrontmostWhenOverlapping)
     ASSERT_TRUE(pick.found);
     EXPECT_FLOAT_EQ(pick.data_z, 1.0f);
 }
+
+// ─── Real DataInteraction picking on log axes ───────────────────────────────
+
+#ifdef SPECTRA_TEST_HOVER
+namespace
+{
+
+// Hover (sx, sy) over a 900x600 viewport at the origin; return the pick.
+spectra::NearestPointResult hover_pick(Figure& fig, double sx, double sy)
+{
+    DataInteraction di;
+    ImGui::CreateContext();
+    ImGui::GetIO().DeltaTime = 1.0f / 60.0f;
+    CursorReadout cur;
+    cur.valid    = true;
+    cur.screen_x = sx;
+    cur.screen_y = sy;
+    di.update(cur, fig);
+    ImGui::DestroyContext();
+    return di.nearest_point();
+}
+
+}   // namespace
+
+TEST(DataInteractionLog, PicksPointInLogAxisSpace)
+{
+    // Limits [1, 1000] on a log10 x axis: x = 10 is drawn one third across.
+    // A linear mapping would put it at ~0.9% and pick x = 1 instead.
+    Figure             fig({.width = 900, .height = 600});
+    auto&              ax = fig.subplot(1, 1, 1);
+    std::vector<float> x  = {1.0f, 10.0f, 100.0f, 1000.0f};
+    std::vector<float> y  = {5.0f, 5.0f, 5.0f, 5.0f};
+    ax.line(x, y);
+    ax.xscale(ScaleType::Log10);
+    ax.xlim(1.0, 1000.0);
+    ax.ylim(0.0, 10.0);
+    ax.set_viewport(Rect{0.0f, 0.0f, 900.0f, 600.0f});
+
+    const auto np = hover_pick(fig, 300.0, 300.0);
+    ASSERT_TRUE(np.found);
+    EXPECT_EQ(np.point_index, 1u);
+    EXPECT_NEAR(np.screen_x, 300.0f, 0.5f);
+    EXPECT_LT(np.distance_px, 1.0f);
+}
+
+TEST(DataInteractionLog, SortedQueryUsesLogBoundsAndSkipsNonPositive)
+{
+    // > 64 sorted points takes the binary-searched snap window; it must be
+    // computed in log space too.  Non-positive values are not drawn on a log
+    // axis and must never be picked.
+    Figure             fig({.width = 900, .height = 600});
+    auto&              ax = fig.subplot(1, 1, 1);
+    std::vector<float> x, y;
+    x.push_back(-5.0f);
+    y.push_back(1.0f);
+    x.push_back(0.0f);
+    y.push_back(1.0f);
+    for (int i = 0; i <= 300; ++i)   // 1 .. 1000, log-spaced
+    {
+        x.push_back(static_cast<float>(std::pow(10.0, i / 100.0)));
+        y.push_back(1.0f);
+    }
+    ax.line(x, y);
+    ax.xscale(ScaleType::Log10);
+    ax.yscale(ScaleType::Log10);
+    ax.xlim(1.0, 1000.0);
+    ax.ylim(0.1, 10.0);
+    ax.set_viewport(Rect{0.0f, 0.0f, 900.0f, 600.0f});
+
+    // x = 100 is two thirds across; y = 1 is half way up on [0.1, 10].
+    const auto np = hover_pick(fig, 600.0, 300.0);
+    ASSERT_TRUE(np.found);
+    EXPECT_EQ(np.point_index, 2u + 200u);
+    EXPECT_NEAR(np.data_x, 100.0, 1e-3);
+    EXPECT_LT(np.distance_px, 1.0f);
+
+    // At the far left the nearest drawn point is x = 1, not 0 or -5.
+    const auto left = hover_pick(fig, 0.0, 300.0);
+    ASSERT_TRUE(left.found);
+    EXPECT_EQ(left.point_index, 2u);
+}
+#endif

@@ -1,9 +1,11 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "backend.hpp"
@@ -29,15 +31,15 @@ enum class TextVAlign : uint8_t
 // Font size presets matching the 3 sizes used for plot text
 enum class FontSize : uint8_t
 {
-    Tick  = 0,   // ~13px — tick labels
-    Label = 1,   // ~15px — axis labels
-    Title = 2,   // ~18px — plot title
+    Tick  = 0,   // 13px — tick labels
+    Label = 1,   // 14px — axis labels
+    Title = 2,   // 18px — plot title
     Count = 3,
 };
 
 struct GlyphInfo
 {
-    float u0, v0, u1, v1;   // atlas UV coordinates
+    float u0, v0, u1, v1;   // atlas texel coordinates (normalised to UV at flush time)
     float x_offset;         // horizontal offset from cursor to glyph left edge
     float y_offset;         // vertical offset from baseline to glyph top edge
     float x_advance;        // horizontal advance after this glyph
@@ -93,6 +95,15 @@ class TextRenderer
                            TextAlign          align  = TextAlign::Center,
                            TextVAlign         valign = TextVAlign::Middle);
 
+    // Clip subsequently queued unrotated 2D text to a screen-space rectangle
+    // (glyph quads are cropped, so text can be partially visible).  Rotated
+    // text is not clipped.  Stays active until clear_clip_rect().
+    void set_clip_rect(float x0, float y0, float x1, float y1);
+    void clear_clip_rect() { clip_enabled_ = false; }
+
+    // Nearest baked preset for a requested pixel size (<= 0 maps to Label).
+    static FontSize nearest_font_size(float pixel_size);
+
     // Measure text dimensions without drawing
     struct TextExtent
     {
@@ -137,11 +148,37 @@ class TextRenderer
     // of bytes consumed (always >= 1).
     static size_t decode_utf8(std::string_view text, size_t i, uint32_t& cp);
 
-    // True if the atlas contains a glyph for this codepoint at the given size.
+    // True if the atlas currently contains a glyph for this codepoint at the
+    // given size (does not trigger lazy loading; see resolve_glyph()).
     bool has_glyph(uint32_t cp, FontSize size = FontSize::Label) const
     {
         return fonts_[static_cast<size_t>(size)].glyphs.count(cp) != 0;
     }
+
+    // Where a codepoint's glyph comes from once resolved.
+    enum class GlyphSource : uint8_t
+    {
+        Primary,    // the font passed to init() (Inter)
+        Fallback,   // a system fallback font (symbols / CJK), added on demand
+        Missing,    // no font has it: drawn as a hollow "tofu" box
+        Ignored,    // control / default-ignorable character: not drawn
+    };
+
+    // Resolve (and lazily rasterise into the atlas) the glyph for cp.
+    // Glyphs not in the pre-baked set are taken from the primary font if it has
+    // them, otherwise from the first fallback font that does (see
+    // font_fallback.hpp), otherwise a tofu box is used.  New glyphs are uploaded
+    // on the next flush().  Not thread-safe: call from the render thread only.
+    GlyphSource resolve_glyph(uint32_t cp, FontSize size = FontSize::Label) const;
+
+    // Override the fallback font files (in priority order).  An empty list
+    // disables fallback fonts.  Without a call, system fonts are discovered on
+    // the first glyph the primary font lacks (discover_fallback_fonts()).
+    void set_fallback_font_paths(std::vector<std::string> paths);
+
+    // Current atlas dimensions in texels (the atlas grows in height on demand).
+    uint32_t atlas_width() const { return atlas_width_; }
+    uint32_t atlas_height() const { return atlas_height_; }
 
    private:
     // Per-font-size glyph data
@@ -151,18 +188,58 @@ class TextRenderer
         float                                   ascent      = 0.0f;
         float                                   descent     = 0.0f;
         float                                   line_height = 0.0f;
-        std::unordered_map<uint32_t, GlyphInfo> glyphs;   // codepoint -> glyph
+        float                                   em_pixels   = 0.0f;   // primary font em size
+        std::unordered_map<uint32_t, GlyphInfo> glyphs;               // codepoint -> glyph
+        std::unordered_set<uint32_t>            fallback_cps;         // glyphs from fallback fonts
+        std::unordered_set<uint32_t>            missing_cps;          // resolved to tofu / ignored
+        GlyphInfo                               tofu{};               // hollow missing-glyph box
+        bool                                    has_tofu = false;
     };
 
-    FontData fonts_[static_cast<size_t>(FontSize::Count)];
+    // Lazily-populated glyph cache: measure_text() is const but may rasterise
+    // new glyphs, so the cache and the CPU-side atlas are mutable.
+    mutable FontData fonts_[static_cast<size_t>(FontSize::Count)];
 
-    // Glyph lookup with a visible '?' fallback for unsupported codepoints.
-    static const GlyphInfo* find_glyph(const FontData& fd, uint32_t cp);
+    // Glyph lookup: cached, lazily rasterised, or the tofu box.  Returns
+    // nullptr only for characters that are not drawn at all (controls).
+    const GlyphInfo* glyph_for(size_t size_index, uint32_t cp) const;
+    bool             rasterize_glyph(size_t         size_index,
+                                     uint32_t       cp,
+                                     const uint8_t* font_data,
+                                     float          pack_size) const;
+    bool             add_tofu_glyph(size_t size_index);
+    bool             alloc_atlas_rect(int w, int h, int& out_x, int& out_y) const;
+    bool             upload_atlas(Backend& backend);
+    void             prepare_atlas(Backend& backend);
 
-    // Atlas texture
-    TextureHandle atlas_texture_;
-    uint32_t      atlas_width_  = 0;
-    uint32_t      atlas_height_ = 0;
+    // Primary font bytes, parsed font info and fallback chain (pimpl keeps
+    // stb_truetype out of this header).
+    struct GlyphSources;
+    std::unique_ptr<GlyphSources> sources_;
+
+    // Atlas: CPU copy (single channel) plus GPU texture.  Glyphs are added
+    // with a simple shelf packer below the pre-baked region; the atlas grows
+    // in height (up to MAX_ATLAS_HEIGHT) when full.
+    static constexpr uint32_t    MAX_ATLAS_HEIGHT = 4096;
+    TextureHandle                atlas_texture_;
+    uint32_t                     atlas_tex_width_  = 0;   // size of atlas_texture_
+    uint32_t                     atlas_tex_height_ = 0;
+    mutable uint32_t             atlas_width_      = 0;
+    mutable uint32_t             atlas_height_     = 0;
+    mutable std::vector<uint8_t> atlas_bitmap_;
+    mutable int                  shelf_x_     = 0;
+    mutable int                  shelf_y_     = 0;
+    mutable int                  shelf_h_     = 0;
+    mutable bool                 atlas_dirty_ = false;
+
+    // Replaced atlas textures still referenced by in-flight frames.
+    struct RetiredTexture
+    {
+        TextureHandle handle;
+        uint64_t      retired_at_frame = 0;
+    };
+    std::vector<RetiredTexture> retired_textures_;
+    uint64_t                    frame_serial_ = 0;
 
     // Text pipelines
     PipelineHandle text_pipeline_;
@@ -192,6 +269,13 @@ class TextRenderer
     BufferHandle text_ubo_;
 
     bool initialized_ = false;
+
+    // Optional clip rectangle for draw_text() (screen pixels).
+    bool  clip_enabled_ = false;
+    float clip_x0_      = 0.0f;
+    float clip_y0_      = 0.0f;
+    float clip_x1_      = 0.0f;
+    float clip_y1_      = 0.0f;
 
     // Helper: append quad vertices for a single glyph
     void append_glyph(std::vector<TextVertex>& target,

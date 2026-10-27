@@ -258,7 +258,8 @@ inline EasyState& easy_state()
 // ─── Figure Management ──────────────────────────────────────────────────────
 
 /// Create a new figure (new OS window). Returns the Figure for advanced use.
-inline Figure& figure(uint32_t width = 1280, uint32_t height = 720)
+inline Figure& figure(uint32_t width  = DEFAULT_WINDOW_WIDTH,
+                      uint32_t height = DEFAULT_WINDOW_HEIGHT)
 {
     auto& s = detail::easy_state();
     s.ensure_app();
@@ -275,7 +276,9 @@ inline Figure& figure(uint32_t width = 1280, uint32_t height = 720)
 ///
 ///      spectra::figure("Trajectory");
 ///
-inline Figure& figure(const std::string& name, uint32_t width = 1280, uint32_t height = 720)
+inline Figure& figure(const std::string& name,
+                      uint32_t           width  = DEFAULT_WINDOW_WIDTH,
+                      uint32_t           height = DEFAULT_WINDOW_HEIGHT)
 {
     Figure& fig = figure(width, height);
     fig.set_tab_title(name);
@@ -283,7 +286,9 @@ inline Figure& figure(const std::string& name, uint32_t width = 1280, uint32_t h
 }
 
 /// Create a new figure that opens as a tab next to an existing figure.
-inline Figure& figure(Figure& tab_next_to, uint32_t /*width*/ = 1280, uint32_t /*height*/ = 720)
+inline Figure& figure(Figure& tab_next_to,
+                      uint32_t /*width*/  = DEFAULT_WINDOW_WIDTH,
+                      uint32_t /*height*/ = DEFAULT_WINDOW_HEIGHT)
 {
     auto& s = detail::easy_state();
     s.ensure_app();
@@ -316,7 +321,8 @@ inline Figure& tab(uint32_t width = 0, uint32_t height = 0)
     if (!s.current_fig)
     {
         // No current figure — just create a new window
-        return figure(width ? width : 1280, height ? height : 720);
+        return figure(width ? width : DEFAULT_WINDOW_WIDTH,
+                      height ? height : DEFAULT_WINDOW_HEIGHT);
     }
 
     // Create a new figure as a tab next to the current figure
@@ -396,6 +402,22 @@ inline LineSeries& plot(std::span<const float> x, std::span<const float> y, cons
     return detail::easy_state().ensure_axes().plot(x, y, style);
 }
 
+/// Double-precision overloads for data float cannot hold precisely, such as
+/// Unix timestamps or 1e7 + small variations (see Axes::plot).
+inline LineSeries& plot(std::span<const double> x,
+                        std::span<const double> y,
+                        std::string_view        fmt = "-")
+{
+    return detail::easy_state().ensure_axes().plot(x, y, fmt);
+}
+
+inline LineSeries& plot(std::span<const double> x,
+                        std::span<const double> y,
+                        const PlotStyle&        style)
+{
+    return detail::easy_state().ensure_axes().plot(x, y, style);
+}
+
 /// Braced-list convenience overloads (std::span cannot be built from a braced
 /// list in C++20), so quick snippets work without declaring vectors:
 ///
@@ -454,6 +476,12 @@ inline LineSeries& fplot(std::function<double(double)> func,
 
 /// Scatter plot.
 inline ScatterSeries& scatter(std::span<const float> x, std::span<const float> y)
+{
+    return detail::easy_state().ensure_axes().scatter(x, y);
+}
+
+/// Double-precision scatter (see plot(std::span<const double>, ...)).
+inline ScatterSeries& scatter(std::span<const double> x, std::span<const double> y)
 {
     return detail::easy_state().ensure_axes().scatter(x, y);
 }

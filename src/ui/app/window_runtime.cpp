@@ -11,6 +11,7 @@
 #include "render/vulkan/vk_backend.hpp"
 #include <spectra/figure_registry.hpp>
 #include "window_ui_context.hpp"
+#include "zoom_level.hpp"
 
 #ifdef SPECTRA_USE_GLFW
     #define GLFW_INCLUDE_NONE
@@ -483,6 +484,8 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
     {
         if (profiler)
             profiler->begin_stage("imgui_build");
+        // Labels ellipsized in the previous frame (hover shows the full text).
+        imgui_ui->set_truncated_text_regions(renderer_.truncated_text_regions());
         if (active_figure)
             imgui_ui->build_ui(*active_figure, &fig_mgr.active_state());
         else
@@ -626,7 +629,11 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
             float data_range = zoom_vm.cached_data_max() - zoom_vm.cached_data_min();
             if (view_range > 0.0f && data_range > 0.0f)
             {
-                imgui_ui->set_zoom_level(data_range / view_range);
+                // 100% = the autoscaled view (which includes padding), not the raw extent.
+                const double pad =
+                    ax->autoscale_mode() == AutoscaleMode::Tight ? 0.0 : AUTOSCALE_PAD_FRACTION;
+                imgui_ui->set_zoom_level(
+                    static_cast<float>(zoom_level_for_ranges(data_range, view_range, pad)));
             }
         }
 
@@ -1000,6 +1007,14 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
         renderer_.flush_pending_deletions();
 
         renderer_.begin_render_pass();
+
+        // The ImGui overlay (when present) draws the interactive legend on top
+        // of this frame; otherwise the renderer draws it (headless export).
+        bool legend_overlay = false;
+#ifdef SPECTRA_USE_IMGUI
+        legend_overlay = ui_ctx.imgui_ui && ui_ctx.imgui_ui->data_interaction();
+#endif
+        renderer_.set_legend_overlay_active(legend_overlay);
 
 #ifdef SPECTRA_USE_IMGUI
         // Pass selected series to the renderer for GPU-rendered highlight

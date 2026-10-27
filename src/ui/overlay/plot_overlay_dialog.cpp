@@ -10,6 +10,7 @@
     #include "ui/plot/plot_annotations.hpp"
     #include "ui/theme/design_tokens.hpp"
     #include "ui/theme/theme.hpp"
+    #include "ui/theme/theme_imgui.hpp"
 
 namespace spectra::ui
 {
@@ -146,7 +147,7 @@ void PlotOverlayDialog::draw()
             if (samples_ < 2)
                 samples_ = 2;
             if (!formula_valid_ && !validation_error_.empty())
-                ImGui::TextColored(ImVec4(1, 0.35f, 0.35f, 1), "%s", validation_error_.c_str());
+                ImGui::TextColored(to_imvec4(theme().error), "%s", validation_error_.c_str());
             ImGui::TextDisabled("Use variable x; e.g. x^2, sin(x), 2*x+1");
             break;
     }

@@ -28,6 +28,7 @@
     #include "spectra_icon_embedded.hpp"
 
     #include "ui/theme/glass_draw.hpp"
+    #include "ui/theme/theme_imgui.hpp"
     #include "ui/ui_interaction_log.hpp"
 
     #include "../../../third_party/tinyfiledialogs.h"
@@ -36,6 +37,7 @@
     #include "../topics/topics_panel.hpp"
     #include "../settings/settings_panel.hpp"
     #include "ui/shell/spectra_app_shell.hpp"
+    #include "ui/commands/welcome_actions.hpp"
 
     #ifndef M_PI
         #define M_PI 3.14159265358979323846
@@ -437,6 +439,15 @@ bool ImGuiIntegration::has_active_chrome_animations() const
         return true;
     if (mode_transition_ && mode_transition_->is_active())
         return true;
+    // Modal scrim fading in/out (Settings, Theme Settings): ImGui advances the
+    // dim ratio per frame, so keep frames coming until it settles.
+    if (const ImGuiContext* g = ImGui::GetCurrentContext();
+        g && g->DimBgRatio > 0.0f && g->DimBgRatio < 1.0f)
+        return true;
+    // The FPS badge still reads live after rendering stopped: draw one more
+    // frame so it can settle to "Idle".
+    if (fps_badge_.needs_settle_frame(ui::FpsBadgeState::Clock::now()))
+        return true;
     return false;
 }
 
@@ -512,7 +523,13 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
 
     float dt = ImGui::GetIO().DeltaTime;
     if (theme_mgr_)
+    {
         theme_mgr_->update(dt);
+        // Resolve palette colours before the legend / inspector read them.
+        ui::resolve_auto_series_colors(figure,
+                                       theme_mgr_->current_data_palette(),
+                                       ui::is_light_plot_background(theme_mgr_->colors()));
+    }
     ui::widgets::update_section_animations(dt);
 
     // Sync panel_open_ from layout manager so external toggles (commands, undo)
@@ -586,7 +603,23 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
             draw_curve_editor_panel();
     }
 
-    // Draw deferred tooltip (command bar) on top of everything
+    // Full text of an ellipsized plot title / axis label under the cursor.
+    if (!deferred_tooltip_ && canvas_visible_ && !ImGui::IsAnyItemActive()
+        && !ImGui::IsAnyItemHovered() && !ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow))
+    {
+        const ImVec2 mouse = ImGui::GetIO().MousePos;
+        for (const auto& region : truncated_text_regions_)
+        {
+            const Rect& r = region.rect;
+            if (mouse.x >= r.x && mouse.x < r.x + r.w && mouse.y >= r.y && mouse.y < r.y + r.h)
+            {
+                deferred_tooltip_ = region.full_text.c_str();
+                break;
+            }
+        }
+    }
+
+    // Draw deferred tooltip (command bar, ellipsized plot labels) on top of everything
     if (deferred_tooltip_)
     {
         // Clamp tooltip position to stay within window bounds
@@ -818,7 +851,7 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
                                   bg_col,
                                   4.0f);
                 dl->AddText(ImVec2(mid_x - tsz.x * 0.5f, mid_y - tsz.y - pad),
-                            IM_COL32(255, 255, 255, 240),
+                            ui::to_imu32(theme_colors().text_primary, 0.94f),
                             label.c_str());
             }
         }
@@ -828,35 +861,7 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
     if (pending_open_csv_)
     {
         pending_open_csv_ = false;
-        if (native_dialogs_enabled())
-        {
-            DialogEnvGuard env_guard;
-            char const*    filters[3] = {"*.csv", "*.tsv", "*.txt"};
-            const char*    home_env   = std::getenv("HOME");
-            std::string    home_dir   = home_env ? std::string(home_env) + "/" : "/";
-            char const*    result     = tinyfd_openFileDialog("Open CSV File",
-                                                       home_dir.c_str(),
-                                                       3,
-                                                       filters,
-                                                       "CSV files",
-                                                       0);
-            if (result)
-            {
-                csv_file_path_   = result;
-                csv_data_        = parse_csv(csv_file_path_);
-                csv_data_loaded_ = csv_data_.error.empty();
-                csv_error_       = csv_data_.error;
-                csv_col_x_       = 0;
-                csv_selected_y_.clear();
-                for (size_t c = 1; c < csv_data_.num_cols; ++c)
-                    csv_selected_y_.push_back(static_cast<int>(c));
-                if (csv_selected_y_.empty() && csv_data_.num_cols > 0)
-                    csv_selected_y_.push_back(0);
-                csv_col_z_ = -1;
-                if (csv_data_loaded_)
-                    csv_dialog_open_ = true;
-            }
-        }
+        open_csv_with_dialog();
     }
 
     // Handle CSV file dropped via OS drag-and-drop
@@ -912,11 +917,9 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
         settings_panel_->draw();
     }
 
-    // Draw theme settings window if open
-    if (show_theme_settings_)
-    {
-        draw_theme_settings();
-    }
+    // Theme settings modal (draws nothing unless open; called every frame so the
+    // popup also closes when show_theme_settings_ is cleared elsewhere)
+    draw_theme_settings();
 
     // ── ROS2 Adapter error modal ──────────────────────────────────────────────
     // Shown when the tools.ros2_adapter command encounters a launch failure.
@@ -1024,7 +1027,7 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
                 float  pad = 10.0f;
                 dl->AddRectFilled(ImVec2(lx - pad, ly - pad),
                                   ImVec2(lx + lsz.x + pad, ly + lsz.y + pad),
-                                  IM_COL32(30, 30, 30, 200),
+                                  ui::to_imu32(theme.bg_elevated, 0.92f),
                                   6.0f);
                 dl->AddText(ImVec2(lx, ly),
                             IM_COL32(static_cast<int>(theme.accent.r * 255),
@@ -1166,33 +1169,85 @@ void ImGuiIntegration::destroy_logo_textures()
     welcome_logo_height_ = 0;
 }
 
+void ImGuiIntegration::open_csv_with_dialog()
+{
+    if (!native_dialogs_enabled())
+        return;
+    DialogEnvGuard env_guard;
+    char const*    filters[3] = {"*.csv", "*.tsv", "*.txt"};
+    const char*    home_env   = std::getenv("HOME");
+    std::string    home_dir   = home_env ? std::string(home_env) + "/" : "/";
+    char const*    result =
+        tinyfd_openFileDialog("Open CSV File", home_dir.c_str(), 3, filters, "CSV files", 0);
+    if (!result)
+        return;
+    csv_file_path_   = result;
+    csv_data_        = parse_csv(csv_file_path_);
+    csv_data_loaded_ = csv_data_.error.empty();
+    csv_error_       = csv_data_.error;
+    csv_col_x_       = 0;
+    csv_selected_y_.clear();
+    for (size_t c = 1; c < csv_data_.num_cols; ++c)
+        csv_selected_y_.push_back(static_cast<int>(c));
+    if (csv_selected_y_.empty() && csv_data_.num_cols > 0)
+        csv_selected_y_.push_back(0);
+    csv_col_z_ = -1;
+    if (csv_data_loaded_)
+        csv_dialog_open_ = true;
+}
+
 void ImGuiIntegration::draw_welcome_screen(float display_w, float display_h, float dt)
 {
     (void)dt;
     const auto& colors = theme_colors();
     ImDrawList* fg     = ImGui::GetBackgroundDrawList();
 
+    auto rgba = [](const ui::Color& c, int alpha)
+    {
+        return IM_COL32(static_cast<int>(c.r * 255),
+                        static_cast<int>(c.g * 255),
+                        static_cast<int>(c.b * 255),
+                        alpha);
+    };
+
     // Menu bar height offset
     float menu_h    = ImGui::GetFrameHeight() + 2.0f;
     float content_h = display_h - menu_h;
-    float cx        = display_w * 0.5f;
+    float cx        = std::floor(display_w * 0.5f);
 
-    // Vertical center of the content area (below menu bar)
-    float center_y = menu_h + content_h * 0.45f;
+    // Draws `text` centred on cx, measured at the same size it is drawn with.
+    auto centered_text = [&](ImFont* font, float size, float y, ImU32 col, const char* text)
+    {
+        ImVec2 sz = font->CalcTextSizeA(size, FLT_MAX, 0.0f, text);
+        fg->AddText(font, size, ImVec2(std::floor(cx - sz.x * 0.5f), y), col, text);
+    };
+
+    const std::vector<WelcomeAction> actions =
+        build_welcome_actions(command_registry_, shortcut_manager_);
+    const std::string hint = build_welcome_hint(actions);
+
+    ImFont* title_font = font_title_ ? font_title_ : ImGui::GetFont();
+    float   title_size = font_title_ ? font_title_->LegacySize : 26.0f;
+    ImFont* body_font  = ImGui::GetFont();
+    float   button_h   = ImGui::GetFrameHeight();
+
+    // Vertical stack: logo glow, title, subtitle, actions, hint. Centre the whole
+    // stack (slightly above the middle) instead of only the logo, so the actions
+    // and hint sit directly under it.
+    float logo_draw_sz = std::clamp(content_h * 0.28f, 140.0f, 220.0f);
+    float glow_r       = logo_draw_sz * 0.62f;
+    float title_gap    = ui::tokens::SPACE_4 + 2.0f;
+    float stack_h      = glow_r * 2.0f + title_gap + title_size + ui::tokens::SPACE_2 + 12.0f
+                    + ui::tokens::SPACE_6 + button_h + ui::tokens::SPACE_4 + 12.0f;
+    float stack_top = menu_h + std::max(ui::tokens::SPACE_4, (content_h - stack_h) * 0.42f);
+    float center_y  = stack_top + glow_r;
 
     // ── Logo image ──
     if (welcome_logo_texture_id_)
     {
-        float logo_draw_sz = std::clamp(content_h * 0.28f, 180.0f, 220.0f);
-        float lx           = cx - logo_draw_sz * 0.5f;
-        float ly           = center_y - logo_draw_sz * 0.5f;
-        fg->AddCircleFilled(ImVec2(cx, center_y),
-                            logo_draw_sz * 0.62f,
-                            IM_COL32(static_cast<int>(colors.accent.r * 255),
-                                     static_cast<int>(colors.accent.g * 255),
-                                     static_cast<int>(colors.accent.b * 255),
-                                     16),
-                            96);
+        float lx = cx - logo_draw_sz * 0.5f;
+        float ly = center_y - logo_draw_sz * 0.5f;
+        fg->AddCircleFilled(ImVec2(cx, center_y), glow_r, rgba(colors.accent, 16), 96);
         fg->AddImage(imgui_texture_id_from_u64(welcome_logo_texture_id_),
                      ImVec2(lx, ly),
                      ImVec2(lx + logo_draw_sz, ly + logo_draw_sz));
@@ -1207,10 +1262,7 @@ void ImGuiIntegration::draw_welcome_screen(float display_w, float display_h, flo
             float a = 0.10f - static_cast<float>(i) * 0.03f;
             fg->AddCircleFilled(ImVec2(cx, icon_cy),
                                 r,
-                                IM_COL32(static_cast<int>(colors.accent.r * 255),
-                                         static_cast<int>(colors.accent.g * 255),
-                                         static_cast<int>(colors.accent.b * 255),
-                                         static_cast<int>(a * 255)),
+                                rgba(colors.accent, static_cast<int>(a * 255)),
                                 64);
         }
         ImFont* ifont = ui::icon_font(ui::tokens::ICON_XL);
@@ -1221,60 +1273,72 @@ void ImGuiIntegration::draw_welcome_screen(float display_w, float display_h, flo
             fg->AddText(ifont,
                         ui::tokens::ICON_XL,
                         ImVec2(cx - sz.x * 0.5f, icon_cy - sz.y * 0.5f),
-                        IM_COL32(static_cast<int>(colors.accent.r * 255),
-                                 static_cast<int>(colors.accent.g * 255),
-                                 static_cast<int>(colors.accent.b * 255),
-                                 255),
+                        rgba(colors.accent, 255),
                         icon);
         }
     }
 
-    // ── "Spectra" title ──
+    // ── "Spectra" title + subtitle ──
+    float y = center_y + glow_r + title_gap;
+    centered_text(title_font, title_size, y, rgba(colors.text_primary, 255), "Spectra");
+    y += title_size + ui::tokens::SPACE_2;
+    centered_text(body_font,
+                  12.0f,
+                  y,
+                  rgba(colors.text_secondary, 220),
+                  "GPU-Accelerated Scientific Visualization");
+    y += 12.0f + ui::tokens::SPACE_6;
+
+    // ── Actions (same button style as widgets::empty_state) ──
+    if (!actions.empty())
     {
-        const char* title     = "Spectra";
-        ImFont*     font      = font_title_ ? font_title_ : ImGui::GetFont();
-        float       font_size = font_title_ ? font_title_->LegacySize : 26.0f;
-        ImVec2      sz        = font->CalcTextSizeA(font_size, FLT_MAX, 0.0f, title);
-        fg->AddText(font,
-                    font_size,
-                    ImVec2(cx - sz.x * 0.5f, center_y + 155.0f),
-                    IM_COL32(static_cast<int>(colors.text_primary.r * 255),
-                             static_cast<int>(colors.text_primary.g * 255),
-                             static_cast<int>(colors.text_primary.b * 255),
-                             255),
-                    title);
+        std::vector<ui::widgets::EmptyStateAction> buttons;
+        buttons.reserve(actions.size());
+        for (const WelcomeAction& a : actions)
+            buttons.push_back({a.label.c_str(), a.id.c_str(), a.primary});
+
+        const float max_w = std::max(
+            120.0f,
+            std::min(display_w - 2.0f * ui::tokens::SPACE_4, ui::tokens::EMPTY_STATE_MAX_WIDTH));
+        // Stacked buttons (narrow windows) need one row per action.
+        const float win_h = (button_h + ui::tokens::SPACE_2) * static_cast<float>(buttons.size());
+        ImGui::SetNextWindowPos(ImVec2(0.0f, y));
+        ImGui::SetNextWindowSize(ImVec2(display_w, win_h));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+        const ImGuiWindowFlags flags =
+            ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove
+            | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBackground
+            | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoFocusOnAppearing
+            | ImGuiWindowFlags_NoScrollWithMouse;
+        int clicked = -1;
+        if (ImGui::Begin("##welcome_actions", nullptr, flags))
+        {
+            clicked = ui::widgets::empty_state_actions(buttons,
+                                                       std::floor((display_w - max_w) * 0.5f),
+                                                       max_w);
+            y       = ImGui::GetItemRectMax().y;
+        }
+        ImGui::End();
+        ImGui::PopStyleVar(2);
+
+        if (clicked >= 0)
+        {
+            const WelcomeAction& a = actions[static_cast<size_t>(clicked)];
+            if (a.id == WELCOME_OPEN_CSV_ID)
+                open_csv_with_dialog();
+            else if (command_registry_)
+                command_registry_->execute(a.id);
+        }
     }
 
-    // ── Subtitle ──
-    {
-        const char* sub  = "GPU-Accelerated Scientific Visualization";
-        ImFont*     font = ImGui::GetFont();
-        ImVec2      sz   = font->CalcTextSizeA(12.0f, FLT_MAX, 0.0f, sub);
-        fg->AddText(font,
-                    12.0f,
-                    ImVec2(cx - sz.x * 0.5f, center_y + 187.0f),
-                    IM_COL32(static_cast<int>(colors.text_secondary.r * 255),
-                             static_cast<int>(colors.text_secondary.g * 255),
-                             static_cast<int>(colors.text_secondary.b * 255),
-                             220),
-                    sub);
-    }
-
-    // ── Keyboard hint ──
-    {
-        const char* hint   = "Press Ctrl+T to create a new figure";
-        ImFont*     font   = ImGui::GetFont();
-        ImVec2      sz     = font->CalcTextSizeA(11.0f, FLT_MAX, 0.0f, hint);
-        float       hint_y = display_h - 52.0f;
-        fg->AddText(font,
-                    12.0f,
-                    ImVec2(cx - sz.x * 0.5f, hint_y),
-                    IM_COL32(static_cast<int>(colors.text_tertiary.r * 255),
-                             static_cast<int>(colors.text_tertiary.g * 255),
-                             static_cast<int>(colors.text_tertiary.b * 255),
-                             220),
-                    hint);
-    }
+    // ── Keyboard hint, centred under the actions ──
+    if (!hint.empty())
+        centered_text(body_font,
+                      12.0f,
+                      y + ui::tokens::SPACE_4,
+                      rgba(colors.text_tertiary, 220),
+                      hint.c_str());
 
     // ── Version ──
     {
@@ -1283,16 +1347,7 @@ void ImGuiIntegration::draw_welcome_screen(float display_w, float display_h, flo
     #else
         const char* ver = "v0.1.2";
     #endif
-        ImFont* font = ImGui::GetFont();
-        ImVec2  sz   = font->CalcTextSizeA(10.0f, FLT_MAX, 0.0f, ver);
-        fg->AddText(font,
-                    11.0f,
-                    ImVec2(cx - sz.x * 0.5f, display_h - 30.0f),
-                    IM_COL32(static_cast<int>(colors.text_tertiary.r * 255),
-                             static_cast<int>(colors.text_tertiary.g * 255),
-                             static_cast<int>(colors.text_tertiary.b * 255),
-                             220),
-                    ver);
+        centered_text(body_font, 11.0f, display_h - 30.0f, rgba(colors.text_tertiary, 220), ver);
     }
 }
 
@@ -1414,8 +1469,38 @@ void ImGuiIntegration::load_fonts()
                                        size,
                                        &icon_cfg,
                                        icon_ranges);
+
+        // System fallback fonts for glyphs Inter lacks (maths operators,
+        // CJK, ...).  ImGui 1.92 rasterises glyphs on demand from the first
+        // source that has them, so merging costs nothing until used.
+        for (const auto& file : fallback_font_files_)
+        {
+            ImFontConfig fb_cfg;
+            fb_cfg.FontDataOwnedByAtlas = false;
+            fb_cfg.MergeMode            = true;
+            fb_cfg.OversampleH          = 2;
+            fb_cfg.OversampleV          = 1;
+            fb_cfg.PixelSnapH           = true;
+            io.Fonts->AddFontFromMemoryTTF(const_cast<uint8_t*>(file.data()),
+                                           static_cast<int>(file.size()),
+                                           size,
+                                           &fb_cfg);
+        }
+
+        // No font has the glyph: show a hollow box (U+25A1, in Inter) rather
+        // than '?', which reads as part of the text.
+        if (font && font->IsGlyphInFont(0x25A1))
+            font->FallbackChar = static_cast<ImWchar>(0x25A1);
         return font;
     };
+
+    fallback_font_files_.clear();
+    for (const auto& path : discover_fallback_fonts())
+    {
+        FontFileData file;
+        if (file.load(path) && is_font_signature(file.data(), file.size()))
+            fallback_font_files_.push_back(std::move(file));
+    }
 
     // Body font (16px) + FA6 icon merge
     font_body_ = add_font_pair(16.0f);

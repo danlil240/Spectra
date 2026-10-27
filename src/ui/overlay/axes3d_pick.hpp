@@ -27,8 +27,7 @@ inline Projected3DPoint project_axes3d_data_point(const Axes3D& axes, vec3 data_
     if (vp.w <= 0.0f || vp.h <= 0.0f)
         return out;
 
-    const float aspect = vp.w / std::max(vp.h, 1.0f);
-    const mat4  proj   = cam.projection_matrix(aspect);
+    const mat4  proj   = axes.projection_matrix(vp);
     const mat4  view   = cam.view_matrix();
     const mat4  model  = axes.data_to_normalized_matrix();
     const mat4  mvp    = mat4_mul(proj, mat4_mul(view, model));

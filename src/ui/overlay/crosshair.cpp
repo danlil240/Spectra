@@ -8,6 +8,7 @@
     #include <spectra/axes.hpp>
     #include <spectra/figure.hpp>
 
+    #include "readout_format.hpp"
     #include "ui/input/input.hpp"
     #include "ui/theme/theme.hpp"
 
@@ -150,11 +151,9 @@ void Crosshair::draw(const CursorReadout& cursor,
     ImU32 label_text = ImGui::ColorConvertFloat4ToU32(
         ImVec4(colors.text_primary.r, colors.text_primary.g, colors.text_primary.b, opacity_));
 
-    // Large x values (epoch timestamps) use fixed notation to stay precise.
-    const std::string x_label = std::abs(cursor.data_x) >= 1e6
-                                    ? std::format("{:.3f}", cursor.data_x)
-                                    : std::format("{:.4g}", cursor.data_x);
-    const std::string y_label = std::format("{:.4g}", cursor.data_y);
+    // Large values (epoch timestamps, big offsets) use fixed notation.
+    const std::string x_label = ui::format_readout_value(cursor.data_x, 4);
+    const std::string y_label = ui::format_readout_value(cursor.data_y, 4);
 
     ImFont*         font      = ImGui::GetFont();
     constexpr float label_pad = 3.0f;
@@ -255,14 +254,15 @@ void Crosshair::draw_all_axes(const CursorReadout& cursor,
     auto        ylim_h   = hovered_axes->y_limits();
     const auto& vp_h     = hovered_axes->viewport();
     float       norm_x_h = (cx - vp_h.x) / vp_h.w;
-    float       data_x   = xlim_h.min + norm_x_h * (xlim_h.max - xlim_h.min);
+    // Double so epoch-scale x and large y offsets keep their precision.
+    double data_x = xlim_h.min + norm_x_h * (xlim_h.max - xlim_h.min);
 
     // Get the data-Y coordinate from the hovered axes
     double y_range_h = ylim_h.max - ylim_h.min;
     if (y_range_h == 0.0)
         y_range_h = 1.0;
-    float norm_y_h = 1.0f - (cy - vp_h.y) / vp_h.h;
-    float data_y   = ylim_h.min + norm_y_h * y_range_h;
+    float  norm_y_h = 1.0f - (cy - vp_h.y) / vp_h.h;
+    double data_y   = ylim_h.min + norm_y_h * y_range_h;
 
     // Draw on ALL axes
     for (auto& axes_ptr : figure.axes())
@@ -299,7 +299,7 @@ void Crosshair::draw_all_axes(const CursorReadout& cursor,
                              1.0f);
 
             // X label at bottom
-            const std::string x_label = std::format("{:.4g}", data_x);
+            const std::string x_label = ui::format_readout_value(data_x, 4);
             ImVec2            sz =
                 font->CalcTextSizeA(font->LegacySize * 0.85f, 200.0f, 0.0f, x_label.c_str());
             float lx = sx - sz.x * 0.5f;
@@ -334,7 +334,7 @@ void Crosshair::draw_all_axes(const CursorReadout& cursor,
                                  1.0f);
 
                 // Y label inside left edge of viewport
-                const std::string y_label = std::format("{:.4g}", data_y);
+                const std::string y_label = ui::format_readout_value(data_y, 4);
                 ImVec2            sz =
                     font->CalcTextSizeA(font->LegacySize * 0.85f, 200.0f, 0.0f, y_label.c_str());
                 float lx2 = vx0 + 4.0f;
@@ -380,7 +380,7 @@ void Crosshair::draw_all_axes(const CursorReadout& cursor,
                                  1.0f);
 
                 // Y label showing the same data-Y value
-                const std::string y_label = std::format("{:.4g}", data_y);
+                const std::string y_label = ui::format_readout_value(data_y, 4);
                 ImVec2            sz =
                     font->CalcTextSizeA(font->LegacySize * 0.85f, 200.0f, 0.0f, y_label.c_str());
                 float lx2 = vx0 + 4.0f;

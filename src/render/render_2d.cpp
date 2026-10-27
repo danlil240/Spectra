@@ -20,6 +20,7 @@
 #include "ui/viewmodel/series_view_model.hpp"
 #include "ui/workspace/plugin_guard.hpp"
 
+#include "render/scatter_marker.hpp"
 #include "ui/theme/theme.hpp"
 
 namespace spectra
@@ -219,6 +220,8 @@ void Renderer::render_series(Series&             series,
             // the GPU so changing ranges never requires CPU color expansion.
             const bool use_colormap = scatter->has_colormap() && scatter_colormap_pipeline_
                                       && gpu.ssbo_stride_floats == 4;
+            if (scatter->has_colormap() && !scatter_colormap_pipeline_)
+                note_unsupported("colormapped scatter (drawn in one color)");
             if (use_colormap)
             {
                 pc.dash_count      = static_cast<int>(scatter->colormap());
@@ -227,17 +230,14 @@ void Renderer::render_series(Series&             series,
                 pc._pad2[0]        = 1.0f;
             }
             backend_.bind_pipeline(use_colormap ? scatter_colormap_pipeline_ : scatter_pipeline_);
-            pc.point_size  = scatter->size();
-            pc.marker_type = static_cast<uint32_t>(style.marker_style);
-            if (pc.marker_type == 0)
-            {
-                const auto& theme_colors = theme_mgr_.colors();
-                float       bg_luma      = 0.2126f * theme_colors.bg_canvas.r
-                                + 0.7152f * theme_colors.bg_canvas.g
-                                + 0.0722f * theme_colors.bg_canvas.b;
-                pc.marker_type = static_cast<uint32_t>(bg_luma > 0.80f ? MarkerStyle::FilledCircle
-                                                                       : MarkerStyle::Circle);
-            }
+            pc.point_size = scatter->size();
+            // No explicit marker style: filled dot with a theme-contrasting edge.
+            const ScatterMarkerParams marker =
+                resolve_scatter_marker(style.marker_style,
+                                       use_colormap,
+                                       theme_mgr_.colors().bg_canvas.luminance());
+            pc.marker_type = marker.marker_type;
+            pc._pad2[1]    = marker.edge_mix;
             backend_.push_constants(pc);
             backend_.bind_buffer(gpu.ssbo, 0);
             backend_.draw_instanced(6, static_cast<uint32_t>(scatter->point_count()));
@@ -245,6 +245,8 @@ void Renderer::render_series(Series&             series,
         }
         case SeriesType::Line3D:
         {
+            if (!require_pipeline(line3d_pipeline_, "3D line"))
+                break;
             auto* line3d = static_cast<LineSeries3D*>(&series);
             if (line3d->point_count() > 1)
             {
@@ -261,16 +263,21 @@ void Renderer::render_series(Series&             series,
         }
         case SeriesType::Scatter3D:
         {
+            if (!require_pipeline(scatter3d_pipeline_, "3D scatter"))
+                break;
             auto* scatter3d      = static_cast<ScatterSeries3D*>(&series);
             bool  is_transparent = (pc.color[3] * pc.opacity) < 0.99f;
             backend_.bind_pipeline(is_transparent ? scatter3d_transparent_pipeline_
                                                   : scatter3d_pipeline_);
             pc.point_size = scatter3d->size();
-            // Honour the series' marker style (filled, square, ...); scatter3
-            // without an explicit style keeps the hollow circle.
-            const MarkerStyle ms3d = scatter3d->marker_style();
-            pc.marker_type =
-                static_cast<uint32_t>(ms3d == MarkerStyle::None ? MarkerStyle::Circle : ms3d);
+            // Honour the series' marker style (filled, square, ...); without an
+            // explicit style use the same default dot as 2D scatter.
+            const ScatterMarkerParams marker =
+                resolve_scatter_marker(scatter3d->marker_style(),
+                                       false,
+                                       theme_mgr_.colors().bg_canvas.luminance());
+            pc.marker_type = marker.marker_type;
+            pc._pad2[1]    = marker.edge_mix;
             backend_.push_constants(pc);
             backend_.bind_buffer(gpu.ssbo, 0);
             backend_.draw_instanced(6, static_cast<uint32_t>(scatter3d->point_count()));
@@ -278,6 +285,8 @@ void Renderer::render_series(Series&             series,
         }
         case SeriesType::Surface3D:
         {
+            if (!require_pipeline(surface3d_pipeline_, "3D surface"))
+                break;
             auto* surface = static_cast<SurfaceSeries*>(&series);
             if (gpu.index_buffer)
             {
@@ -336,6 +345,8 @@ void Renderer::render_series(Series&             series,
         }
         case SeriesType::Mesh3D:
         {
+            if (!require_pipeline(mesh3d_pipeline_, "3D mesh"))
+                break;
             auto* mesh = static_cast<MeshSeries*>(&series);
             if (gpu.index_buffer)
             {
@@ -525,15 +536,27 @@ void Renderer::render_series(Series&             series,
         case SeriesType::Shape2D:
         {
             auto* sh = static_cast<ShapeSeries*>(&series);
-            // Draw fill with per-vertex gradient alpha
+            // Draw fill with per-vertex gradient alpha; arrowheads (the tail of the
+            // fill buffer) are drawn opaque.
             if (gpu.fill_buffer && gpu.fill_vertex_count > 0)
             {
+                const auto total = static_cast<uint32_t>(gpu.fill_vertex_count);
+                const auto solid_first =
+                    std::min(total, static_cast<uint32_t>(sh->solid_fill_first_vertex()));
                 backend_.bind_pipeline(stat_fill_pipeline_);
-                SeriesPushConstants fill_pc = pc;
-                fill_pc.color[3] *= 0.50f;
-                backend_.push_constants(fill_pc);
                 backend_.bind_buffer(gpu.fill_buffer, 0);
-                backend_.draw(static_cast<uint32_t>(gpu.fill_vertex_count));
+                if (solid_first > 0)
+                {
+                    SeriesPushConstants fill_pc = pc;
+                    fill_pc.color[3] *= 0.50f;
+                    backend_.push_constants(fill_pc);
+                    backend_.draw(solid_first);
+                }
+                if (solid_first < total)
+                {
+                    backend_.push_constants(pc);
+                    backend_.draw(total - solid_first, solid_first);
+                }
             }
             // Draw outline
             if (sh->point_count() > 1)
@@ -549,6 +572,8 @@ void Renderer::render_series(Series&             series,
         }
         case SeriesType::Shape3D:
         {
+            if (!require_pipeline(mesh3d_pipeline_, "3D shape"))
+                break;
             auto* sh3d = static_cast<ShapeSeries3D*>(&series);
             if (gpu.index_buffer)
             {

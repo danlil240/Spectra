@@ -125,4 +125,12 @@ class ShortcutManager
     static constexpr int kGlfwPress = 1;
 };
 
+// Shortcut text to show next to a command in a menu, e.g. "Ctrl+Shift+T".
+// Uses the command's registered shortcut while `shortcuts` still binds it to the
+// command, otherwise the command's live binding (so rebinding updates menus).
+// Without a shortcut manager it returns the registered text. Empty = no shortcut.
+std::string menu_shortcut_text(const ShortcutManager* shortcuts,
+                               const CommandRegistry* registry,
+                               const std::string&     command_id);
+
 }   // namespace spectra

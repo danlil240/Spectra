@@ -10,8 +10,17 @@
 #include <spectra/series_shapes.hpp>
 #include <spectra/series_stats.hpp>
 
+#include "colorbar_layout.hpp"
+#include "core/axis_scale.hpp"
+#include "core/axis_ticks.hpp"
+
 namespace spectra
 {
+
+void AxesBase::set_viewport(const Rect& r)
+{
+    viewport_ = colorbar_layout::wants_colorbar(*this) ? colorbar_layout::shrink_cell(r) : r;
+}
 
 // --- Safe series removal ---
 
@@ -57,7 +66,8 @@ T& Axes::add_series(Args&&... args)
 {
     auto  s   = std::make_unique<T>(std::forward<Args>(args)...);
     auto& ref = *s;
-    ref.set_color(palette::default_cycle[series_.size() % palette::default_cycle_size]);
+    // Auto colour: the renderer resolves the slot from the theme's data palette.
+    ref.set_auto_color_index(static_cast<int>(series_.size()));
     ref.set_event_context(event_system_, this);
     series_.push_back(std::move(s));
     if (event_system_)
@@ -85,6 +95,16 @@ ScatterSeries& Axes::scatter(std::span<const float> x, std::span<const float> y)
 ScatterSeries& Axes::scatter()
 {
     return add_series<ScatterSeries>();
+}
+
+LineSeries& Axes::line_f64(std::span<const double> x, std::span<const double> y)
+{
+    return add_series<LineSeries>(x, y);
+}
+
+ScatterSeries& Axes::scatter_f64(std::span<const double> x, std::span<const double> y)
+{
+    return add_series<ScatterSeries>(x, y);
 }
 
 ChunkedLineSeries& Axes::chunked_line()
@@ -193,6 +213,21 @@ StemSeries& Axes::stem(std::span<const float> x, std::span<const float> y)
 ShapeSeries& Axes::shapes()
 {
     return add_series<ShapeSeries>();
+}
+
+// --- Text annotations ---
+
+TextAnnotation& Axes::text(float x, float y, std::string_view text)
+{
+    annotations_.push_back(std::make_unique<TextAnnotation>(x, y, text));
+    return *annotations_.back();
+}
+
+TextAnnotation& Axes::annotate(std::string_view text, float x, float y, float text_x, float text_y)
+{
+    auto& a = this->text(text_x, text_y, text);
+    a.halign(TextAnnotation::HAlign::Center).valign(TextAnnotation::VAlign::Middle).arrow_to(x, y);
+    return a;
 }
 
 // --- Axis configuration ---
@@ -358,11 +393,11 @@ static void consume_finite_extent(std::span<const float> values,
     }
 }
 
-static void consume_finite_value(float value, AxisExtent& extent)
+static void consume_finite_value(float value, AxisExtent& extent, double offset = 0.0)
 {
     if (!std::isfinite(value))
         return;
-    extent.consume(static_cast<double>(value));
+    extent.consume(static_cast<double>(value) + offset);
 }
 
 // Compute the raw (unpadded) data extent across all series.  Every autoscale
@@ -376,14 +411,16 @@ static void data_extent_raw(const std::vector<std::unique_ptr<Series>>& series,
         if (s->excluded_from_autoscale())
             continue;
 
-        // Per-series double x-offset: logical x = x_offset + stored float.
-        // Accumulating in double preserves precision for epoch-scale offsets.
+        // Per-series double offsets: logical x = x_offset + stored float
+        // (likewise for y).  Accumulating in double preserves precision for
+        // epoch-scale offsets.
         const double xoff = s->x_offset();
+        const double yoff = s->y_offset();
 
         auto try_xy = [&](std::span<const float> xd, std::span<const float> yd)
         {
             consume_finite_extent(xd, x, xoff);
-            consume_finite_extent(yd, y);
+            consume_finite_extent(yd, y, yoff);
         };
 
         if (auto* ls = dynamic_cast<const LineSeries*>(s.get()))
@@ -395,7 +432,7 @@ static void data_extent_raw(const std::vector<std::unique_ptr<Series>>& series,
         {
             try_xy(bp->x_data(), bp->y_data());
             // Include outlier extents
-            consume_finite_extent(bp->outlier_y(), y);
+            consume_finite_extent(bp->outlier_y(), y, yoff);
         }
         if (auto* vn = dynamic_cast<const ViolinSeries*>(s.get()))
             try_xy(vn->x_data(), vn->y_data());
@@ -406,13 +443,13 @@ static void data_extent_raw(const std::vector<std::unique_ptr<Series>>& series,
         if (auto* band = dynamic_cast<const BandSeries*>(s.get()))
         {
             consume_finite_extent(band->x_values(), x, xoff);
-            consume_finite_extent(band->lower_values(), y);
-            consume_finite_extent(band->upper_values(), y);
+            consume_finite_extent(band->lower_values(), y, yoff);
+            consume_finite_extent(band->upper_values(), y, yoff);
         }
         if (auto* stem = dynamic_cast<const StemSeries*>(s.get()))
         {
             try_xy(stem->stem_x(), stem->stem_y());
-            consume_finite_value(stem->baseline(), y);
+            consume_finite_value(stem->baseline(), y, yoff);
         }
         if (auto* sh = dynamic_cast<const ShapeSeries*>(s.get()))
             try_xy(sh->x_data(), sh->y_data());
@@ -483,11 +520,6 @@ static void data_extent_with_mode(const std::vector<std::unique_ptr<Series>>& se
     y_lim          = finalize_extent(y, pad, y_log);
 }
 
-static bool is_log_scale(ScaleType s)
-{
-    return s == ScaleType::Log10 || s == ScaleType::Log2;
-}
-
 static bool latest_x_value(const std::vector<std::unique_ptr<Series>>& series, double& latest_x)
 {
     bool has_value = false;
@@ -553,6 +585,7 @@ static bool windowed_y_extent(const std::vector<std::unique_ptr<Series>>& series
     bool has_y = false;
 
     double current_xoff = 0.0;
+    double current_yoff = 0.0;
 
     auto consume_xy = [&](std::span<const float> xd, std::span<const float> yd)
     {
@@ -566,7 +599,7 @@ static bool windowed_y_extent(const std::vector<std::unique_ptr<Series>>& series
             const double abs_x = static_cast<double>(x) + current_xoff;
             if (abs_x < window_min || abs_x > window_max)
                 continue;
-            y_ext.consume(static_cast<double>(y));
+            y_ext.consume(static_cast<double>(y) + current_yoff);
             has_y = true;
         }
     };
@@ -583,8 +616,8 @@ static bool windowed_y_extent(const std::vector<std::unique_ptr<Series>>& series
             const double abs_x = static_cast<double>(xd[i]) + current_xoff;
             if (abs_x < window_min || abs_x > window_max)
                 continue;
-            y_ext.consume(static_cast<double>(yd[i]));
-            consume_finite_value(stem.baseline(), y_ext);
+            y_ext.consume(static_cast<double>(yd[i]) + current_yoff);
+            consume_finite_value(stem.baseline(), y_ext, current_yoff);
             has_y = true;
         }
     };
@@ -594,6 +627,7 @@ static bool windowed_y_extent(const std::vector<std::unique_ptr<Series>>& series
         if (s->excluded_from_autoscale())
             continue;
         current_xoff = s->x_offset();
+        current_yoff = s->y_offset();
         if (auto* ls = dynamic_cast<const LineSeries*>(s.get()))
             consume_xy(ls->x_data(), ls->y_data());
         if (auto* ss = dynamic_cast<const ScatterSeries*>(s.get()))
@@ -620,7 +654,39 @@ static bool windowed_y_extent(const std::vector<std::unique_ptr<Series>>& series
     return has_y;
 }
 
+static double positive_data_floor(const std::vector<std::unique_ptr<Series>>& series, bool x_axis)
+{
+    AxisExtent x;
+    AxisExtent y;
+    data_extent_raw(series, x, y);
+    const AxisExtent& e = x_axis ? x : y;
+    return e.has_positive() ? e.min_pos : 0.0;
+}
+
+// Log axes cannot show non-positive limits (e.g. a user xlim(0, 100)): clamp
+// the lower limit to the smallest positive datum so ticks, rendering and
+// interaction all agree on one valid range.
+static AxisLimits sanitize_limits(ScaleType                                   scale,
+                                  AxisLimits                                  lim,
+                                  const std::vector<std::unique_ptr<Series>>& series,
+                                  bool                                        x_axis)
+{
+    if (!is_log_scale(scale) || (lim.min > 0.0 && lim.max > 0.0))
+        return lim;
+    return sanitize_log_limits(scale, lim, positive_data_floor(series, x_axis));
+}
+
 AxisLimits Axes::x_limits() const
+{
+    return sanitize_limits(xscale_, x_limits_unclamped(), series_, true);
+}
+
+AxisLimits Axes::y_limits() const
+{
+    return sanitize_limits(yscale_, y_limits_unclamped(), series_, false);
+}
+
+AxisLimits Axes::x_limits_unclamped() const
 {
     if (presented_buffer_following_ && presented_buffer_seconds_.has_value()
         && presented_buffer_seconds_.value() > 0.0f)
@@ -652,7 +718,7 @@ AxisLimits Axes::x_limits() const
     return xl;
 }
 
-AxisLimits Axes::y_limits() const
+AxisLimits Axes::y_limits_unclamped() const
 {
     if (ylim_.has_value() || autoscale_mode_ == AutoscaleMode::Manual)
         return ylim_.value_or(AxisLimits{0.0, 1.0});
@@ -813,38 +879,7 @@ void Axes::topic_auto_zoom_tick()
 }
 
 // --- Tick generation ---
-// Simple "nice numbers" algorithm: pick tick spacing as 1, 2, or 5 × 10^n
-// to produce roughly 5–10 ticks in the given range.
-
-static double nice_ceil_d(double x, bool round_flag)
-{
-    double exp_v = std::floor(std::log10(x));
-    double frac  = x / std::pow(10.0, exp_v);
-    double nice  = NAN;
-    if (round_flag)
-    {
-        if (frac < 1.5)
-            nice = 1.0;
-        else if (frac < 3.0)
-            nice = 2.0;
-        else if (frac < 7.0)
-            nice = 5.0;
-        else
-            nice = 10.0;
-    }
-    else
-    {
-        if (frac <= 1.0)
-            nice = 1.0;
-        else if (frac <= 2.0)
-            nice = 2.0;
-        else if (frac <= 5.0)
-            nice = 5.0;
-        else
-            nice = 10.0;
-    }
-    return nice * std::pow(10.0, exp_v);
-}
+// Linear ticks and their labels come from core/axis_ticks.cpp.
 
 // Format a tick value smartly: use enough decimal digits so that ticks at
 // the given spacing are distinguishable.  Falls back to scientific notation
@@ -926,108 +961,87 @@ static std::string format_tick_value(double value, double spacing)
     return std::format("{:.{}e}", value, total_sig_digits - 1);
 }
 
-static TickResult generate_ticks(double dmin, double dmax, int target_ticks = 7)
+// Label for base^e on a log axis: plain numbers near 1, compact exponent
+// form ("1e-6", "2^20") for far-away decades.
+static std::string format_log_tick(double base, int e)
 {
-    TickResult result;
-
-    double range = dmax - dmin;
-
-    // Edge case: zero or negative range
-    if (range <= 0.0)
+    const double v = std::pow(base, static_cast<double>(e));
+    if (base == 10.0)
     {
-        if (range == 0.0 && dmin != 0.0)
-        {
-            double half = std::abs(dmin) * 0.1;
-            if (half == 0.0)
-                half = 0.5;
-            return generate_ticks(dmin - half, dmin + half, target_ticks);
-        }
-        result.positions.push_back(dmin);
-        result.labels.push_back(format_tick_value(dmin, 1.0));
-        return result;
+        if (e >= 0 && e <= 5)
+            return std::format("{:.0f}", v);
+        if (e < 0 && e >= -4)
+            return std::format("{:.{}f}", v, -e);
+        return std::format("1e{}", e);
     }
-
-    // Minimum range: limited by double precision of the values themselves.
-    // For value V stored as double, the smallest distinguishable step is
-    // ~|V| * DBL_EPSILON.  Below that, ticks would be identical.
-    double abs_max   = std::max(std::abs(dmin), std::abs(dmax));
-    double min_range = abs_max * std::numeric_limits<double>::epsilon() * 16.0;
-    if (min_range < 1e-300)
-        min_range = 1e-300;   // absolute floor for values near zero
-
-    if (range < min_range)
-    {
-        // Range is at double precision limit — show a single centered tick
-        double mid = (dmin + dmax) * 0.5;
-        result.positions.push_back(mid);
-        result.labels.push_back(format_tick_value(mid, range));
-        return result;
-    }
-
-    double nice_range = nice_ceil_d(range, false);
-    double spacing    = nice_ceil_d(nice_range / static_cast<double>(target_ticks - 1), true);
-
-    // Guard against degenerate spacing
-    if (spacing <= 0.0 || !std::isfinite(spacing))
-    {
-        result.positions.push_back(dmin);
-        result.labels.push_back(format_tick_value(dmin, range));
-        return result;
-    }
-
-    double nice_min = std::floor(dmin / spacing) * spacing;
-    double nice_max = std::ceil(dmax / spacing) * spacing;
-
-    // Safety: cap iterations to avoid infinite loops
-    int max_iters = target_ticks * 3;
-    int iters     = 0;
-    for (double v = nice_min; v <= nice_max + spacing * 0.5 && iters < max_iters;
-         v += spacing, ++iters)
-    {
-        if (v >= dmin - spacing * 0.01 && v <= dmax + spacing * 0.01)
-        {
-            // Snap near-zero values to exactly zero to avoid "-0" labels
-            if (std::abs(v) < spacing * 1e-6)
-                v = 0.0;
-            result.positions.push_back(v);
-            result.labels.push_back(format_tick_value(v, spacing));
-        }
-    }
-
-    return result;
+    if (e >= 0 && e <= 16)
+        return std::format("{:.0f}", v);
+    if (e < 0 && e >= -4)
+        return std::format("{:.{}f}", v, -e);
+    return std::format("2^{}", e);
 }
 
-// Logarithmic ticks at integer powers of `base` within [lo, hi].
-// `positive_floor` replaces a non-positive lower limit (log is undefined there).
-static TickResult generate_log_ticks(double lo, double hi, double base, double positive_floor)
+// Logarithmic ticks at integer powers of `base` within [lo, hi] (both > 0).
+// Wide ranges step over decades so at most ~8 labels appear; ranges holding
+// fewer than two powers fall back to ordinary "nice" ticks, which still read
+// correctly on the log axis.
+static TickResult generate_log_ticks(double                   lo,
+                                     double                   hi,
+                                     double                   base,
+                                     const LinearTickOptions& opt)
 {
     TickResult result;
-    if (lo <= 0.0 && hi > 0.0)
-        lo = (positive_floor > 0.0 && positive_floor < hi) ? positive_floor : hi * 1e-3;
-
-    const double log_min = std::log(lo) / std::log(base);
-    const double log_max = std::log(hi) / std::log(base);
-    if (!std::isfinite(log_min) || !std::isfinite(log_max) || lo <= 0.0)
+    if (!(lo > 0.0) || !(hi > lo) || !std::isfinite(hi))
     {
-        result.positions.push_back(lo);
-        result.labels.push_back(format_tick_value(lo, hi - lo));
+        const double v = lo > 0.0 ? lo : 1.0;
+        result.positions.push_back(v);
+        result.labels.push_back(format_tick_value(v, v * 0.1));
         return result;
     }
-    const int lo_exp = static_cast<int>(std::floor(log_min));
-    const int hi_exp = static_cast<int>(std::ceil(log_max));
-    for (int e = lo_exp; e <= hi_exp; ++e)
+
+    const double log_base = std::log(base);
+    const double a_lo     = std::log(lo) / log_base;
+    const double a_hi     = std::log(hi) / log_base;
+    // Tolerance so a limit sitting exactly on a power still gets its tick.
+    constexpr double EPS  = 1e-9;
+    const int        e_lo = static_cast<int>(std::ceil(a_lo - EPS));
+    const int        e_hi = static_cast<int>(std::floor(a_hi + EPS));
+
+    if (e_hi - e_lo + 1 < 2)
     {
-        const double v = std::pow(base, static_cast<double>(e));
-        if (v >= lo * 0.99 && v <= hi * 1.01)
+        const TickResult lin = generate_linear_ticks(lo, hi, opt);
+        for (size_t i = 0; i < lin.positions.size(); ++i)
         {
-            result.positions.push_back(v);
-            result.labels.push_back(format_tick_value(v, v * 0.1));
+            if (lin.positions[i] > 0.0)
+            {
+                result.positions.push_back(lin.positions[i]);
+                result.labels.push_back(lin.labels[i]);
+            }
         }
+        result.offset_label = lin.offset_label;
+        if (result.positions.empty())
+        {
+            result.positions.push_back(lo);
+            result.labels.push_back(format_tick_value(lo, hi - lo));
+        }
+        return result;
     }
-    if (result.positions.empty())
+
+    constexpr int MAX_LOG_TICKS = 8;
+    const int     n_powers      = e_hi - e_lo + 1;
+    const int     stride        = (n_powers + MAX_LOG_TICKS - 1) / MAX_LOG_TICKS;
+    // Align strided ticks to multiples of the stride so they include 10^0.
+    int first = e_lo;
+    if (stride > 1)
     {
-        result.positions.push_back(lo);
-        result.labels.push_back(format_tick_value(lo, hi - lo));
+        const int rem = ((e_lo % stride) + stride) % stride;
+        if (rem != 0)
+            first += stride - rem;
+    }
+    for (int e = first; e <= e_hi; e += stride)
+    {
+        result.positions.push_back(std::pow(base, static_cast<double>(e)));
+        result.labels.push_back(format_log_tick(base, e));
     }
     return result;
 }
@@ -1035,12 +1049,12 @@ static TickResult generate_log_ticks(double lo, double hi, double base, double p
 // Sqrt-scale ticks: evenly spaced in squared space (signed, so negative
 // limits stay monotonic), placed at their square roots and labelled with the
 // coordinate they are actually drawn at.
-static TickResult generate_sqrt_ticks(double lo, double hi)
+static TickResult generate_sqrt_ticks(double lo, double hi, const LinearTickOptions& opt)
 {
     auto signed_sq   = [](double v) { return v < 0.0 ? -v * v : v * v; };
     auto signed_sqrt = [](double v) { return v < 0.0 ? -std::sqrt(-v) : std::sqrt(v); };
 
-    const TickResult inner = generate_ticks(signed_sq(lo), signed_sq(hi));
+    const TickResult inner = generate_linear_ticks(signed_sq(lo), signed_sq(hi), opt);
     TickResult       result;
     result.positions.reserve(inner.positions.size());
     for (double p : inner.positions)
@@ -1062,41 +1076,90 @@ static TickResult generate_sqrt_ticks(double lo, double hi)
     return result;
 }
 
-static double positive_data_floor(const std::vector<std::unique_ptr<Series>>& series, bool x_axis)
+// Positions of category-like series (box, violin, bar) along one axis.
+// `along_x` selects vertical categories (box, violin, vertical bars) or
+// horizontal bars.  Sets `any` when such a series is present.
+static std::vector<double> category_positions(const std::vector<std::unique_ptr<Series>>& series,
+                                              bool                                        along_x,
+                                              bool&                                       any)
 {
-    AxisExtent x;
-    AxisExtent y;
-    data_extent_raw(series, x, y);
-    const AxisExtent& e = x_axis ? x : y;
-    return e.has_positive() ? e.min_pos : 0.0;
+    std::vector<double> out;
+    any = false;
+    for (const auto& s : series)
+    {
+        if (!s || !s->visible())
+            continue;
+        if (along_x)
+        {
+            if (const auto* box = dynamic_cast<const BoxPlotSeries*>(s.get()))
+            {
+                any = true;
+                out.insert(out.end(), box->positions().begin(), box->positions().end());
+            }
+            else if (const auto* vio = dynamic_cast<const ViolinSeries*>(s.get()))
+            {
+                any = true;
+                for (const auto& v : vio->violins())
+                    out.push_back(v.x_position);
+            }
+        }
+        if (const auto* bar = dynamic_cast<const BarSeries*>(s.get()))
+        {
+            if ((bar->orientation() == BarOrientation::Vertical) == along_x)
+            {
+                any = true;
+                out.insert(out.end(), bar->bar_positions().begin(), bar->bar_positions().end());
+            }
+        }
+    }
+    std::sort(out.begin(), out.end());
+    out.erase(std::unique(out.begin(), out.end()), out.end());
+    // Ticks sit exactly on categories only when every category is an integer
+    // (grouped bars at 0.8 / 1.2 get ordinary integer-step ticks instead).
+    for (double v : out)
+    {
+        if (!std::isfinite(v) || v != std::round(v))
+            return {};
+    }
+    return out;
+}
+
+static LinearTickOptions tick_options(const std::vector<std::unique_ptr<Series>>& series,
+                                      bool                                        along_x,
+                                      double                                      axis_px)
+{
+    LinearTickOptions opt;
+    opt.axis_px             = axis_px;
+    opt.target_px           = along_x ? X_TICK_TARGET_PX : Y_TICK_TARGET_PX;
+    opt.labels_side_by_side = along_x;
+    opt.categories          = category_positions(series, along_x, opt.integer_steps);
+    return opt;
 }
 
 TickResult Axes::compute_x_ticks() const
 {
-    auto lim = x_limits();
+    auto       lim = x_limits();
+    const auto opt = tick_options(series_, true, viewport_.w);
     if (is_log_scale(xscale_))
     {
-        const double base      = (xscale_ == ScaleType::Log2) ? 2.0 : 10.0;
-        const double pos_floor = lim.min > 0.0 ? lim.min : positive_data_floor(series_, true);
-        return generate_log_ticks(lim.min, lim.max, base, pos_floor);
+        return generate_log_ticks(lim.min, lim.max, log_scale_base(xscale_), opt);
     }
     if (xscale_ == ScaleType::Sqrt)
-        return generate_sqrt_ticks(lim.min, lim.max);
-    return generate_ticks(lim.min, lim.max);
+        return generate_sqrt_ticks(lim.min, lim.max, opt);
+    return generate_linear_ticks(lim.min, lim.max, opt);
 }
 
 TickResult Axes::compute_y_ticks() const
 {
-    auto lim = y_limits();
+    auto       lim = y_limits();
+    const auto opt = tick_options(series_, false, viewport_.h);
     if (is_log_scale(yscale_))
     {
-        const double base      = (yscale_ == ScaleType::Log2) ? 2.0 : 10.0;
-        const double pos_floor = lim.min > 0.0 ? lim.min : positive_data_floor(series_, false);
-        return generate_log_ticks(lim.min, lim.max, base, pos_floor);
+        return generate_log_ticks(lim.min, lim.max, log_scale_base(yscale_), opt);
     }
     if (yscale_ == ScaleType::Sqrt)
-        return generate_sqrt_ticks(lim.min, lim.max);
-    return generate_ticks(lim.min, lim.max);
+        return generate_sqrt_ticks(lim.min, lim.max, opt);
+    return generate_linear_ticks(lim.min, lim.max, opt);
 }
 
 }   // namespace spectra

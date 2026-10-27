@@ -67,11 +67,11 @@ class Series
         label_ = lbl;
         return *this;
     }
-    /// @brief Set the series colour.
+    /// @brief Set the series colour.  An explicit colour disables automatic
+    /// palette colouring (see has_auto_color()).
     Series& color(const Color& c)
     {
-        color_ = c;
-        dirty_ = true;
+        set_color(c);
         return *this;
     }
     /// @brief Show or hide the series.
@@ -84,7 +84,38 @@ class Series
     /// @brief Legend label.
     const std::string& label() const { return label_; }
     /// @brief Series colour.
+    ///
+    /// For an auto-coloured series (has_auto_color()) this is the colour of its
+    /// palette slot in the active theme's data palette, as resolved at the last
+    /// draw.  Before the first draw (or without a UI theme) it is the slot's
+    /// colour in palette::default_cycle.
     const Color& color() const { return color_; }
+
+    /// @brief True when the colour follows the theme's data palette, i.e. no
+    /// colour was set explicitly (via color(), set_color(), a format string or
+    /// a PlotStyle with a colour).
+    bool has_auto_color() const { return auto_color_index_ >= 0; }
+    /// @brief Palette slot used for automatic colouring, or -1 for an explicit colour.
+    int auto_color_index() const { return auto_color_index_; }
+    /// @brief Make the colour follow palette slot @p index (negative: keep the
+    /// current colour as an explicit one).  Called by Axes / Axes3D when a
+    /// series is created; sets the provisional colour from palette::default_cycle.
+    void set_auto_color_index(int index);
+    /// @brief Set the resolved palette colour of an auto-coloured series.
+    /// No-op for an explicitly coloured series.  Returns true if the colour changed.
+    bool resolve_auto_color(const Color& c);
+
+    /// @brief MATLAB colour letter (r g b c m y k w) the colour was set from by
+    /// a format string, or '\0'.  Such a colour is a tuned shade that the
+    /// renderer re-resolves for the active theme (format_colors::shade()).
+    char color_letter() const { return color_letter_; }
+    /// @brief Colour the series with the tuned shade of format letter @p letter
+    /// (dark-background shade until the next draw).  A non-letter keeps the
+    /// current colour as an explicit one.
+    void set_color_letter(char letter);
+    /// @brief Set the resolved shade of a letter-coloured series.  No-op for
+    /// other series.  Returns true if the colour changed.
+    bool resolve_letter_color(const Color& c);
     /// @brief Whether the series is drawn.
     bool visible() const { return visible_; }
 
@@ -105,6 +136,18 @@ class Series
         return *this;
     }
     double x_offset() const { return x_offset_; }
+
+    /// Logical y value = y_offset() + y_data()[i].  Same idea as x_offset() for
+    /// data such as 1e7 + small variations, where float storage would quantise
+    /// the signal into visible stairs.  The double-precision set_y() overloads
+    /// choose this automatically.
+    Series& y_offset(double off)
+    {
+        y_offset_ = off;
+        dirty_    = true;
+        return *this;
+    }
+    double y_offset() const { return y_offset_; }
 
     /// Control whether this series appears in the legend.
     bool show_in_legend() const { return show_in_legend_; }
@@ -135,8 +178,10 @@ class Series
     /// @brief Set the colour (non-fluent form).
     void set_color(const Color& c)
     {
-        color_ = c;
-        dirty_ = true;
+        color_            = c;
+        auto_color_index_ = -1;
+        color_letter_     = '\0';
+        dirty_            = true;
     }
 
     // ── Event system integration ──
@@ -202,10 +247,13 @@ class Series
     Series& apply_format_string(std::string_view fmt);
 
     std::string       label_;
-    Color             color_ = colors::blue;
-    PlotStyle         style_;   ///< line/marker style, sizes, opacity
+    Color             color_            = colors::blue;
+    int               auto_color_index_ = -1;     ///< palette slot, -1 = explicit colour
+    char              color_letter_     = '\0';   ///< format-string colour letter, '\0' = none
+    PlotStyle         style_;                     ///< line/marker style, sizes, opacity
     bool              visible_                 = true;
     double            x_offset_                = 0.0;
+    double            y_offset_                = 0.0;
     bool              excluded_from_autoscale_ = false;
     bool              show_in_legend_          = true;
     bool              is_reference_line_       = false;
@@ -225,11 +273,41 @@ class LineSeries : public Series
     LineSeries() = default;
     /// @brief Construct from x/y data (copied).
     LineSeries(std::span<const float> x, std::span<const float> y);
+    /// @brief Construct from double x/y data; see set_x(std::span<const double>).
+    template <typename = void>
+    LineSeries(std::span<const double> x, std::span<const double> y)
+    {
+        set_x_f64(x);
+        set_y_f64(y);
+    }
 
     /// @brief Replace the x data.
     LineSeries& set_x(std::span<const float> x);
     /// @brief Replace the y data.
     LineSeries& set_y(std::span<const float> y);
+
+    /// @brief Replace the x data from doubles without losing precision.
+    ///
+    /// When the values are large compared to their spread (e.g. Unix
+    /// timestamps, or 1e7 + small variations), a data origin near the values
+    /// is stored in x_offset() and x_data() holds float offsets from it, so
+    /// the plot, axis limits, ticks and readouts keep full precision.
+    /// Otherwise x_offset() is set to 0 and x_data() holds the plain values.
+    /// (A template only so that an existing call such as set_x({}) still
+    /// picks the float overload.)
+    template <typename = void>
+    LineSeries& set_x(std::span<const double> x)
+    {
+        set_x_f64(x);
+        return *this;
+    }
+    /// @brief Replace the y data from doubles; see set_x(std::span<const double>).
+    template <typename = void>
+    LineSeries& set_y(std::span<const double> y)
+    {
+        set_y_f64(y);
+        return *this;
+    }
     /// @brief Append one point.
     void append(float x, float y) override;
 
@@ -308,6 +386,9 @@ class LineSeries : public Series
     bool commit_pending() override;
 
    private:
+    void set_x_f64(std::span<const double> x);
+    void set_y_f64(std::span<const double> y);
+
     std::vector<float> x_;
     std::vector<float> y_;
     float              line_width_ = 2.0f;
@@ -321,11 +402,41 @@ class ScatterSeries : public Series
     ScatterSeries() = default;
     /// @brief Construct from x/y data (copied).
     ScatterSeries(std::span<const float> x, std::span<const float> y);
+    /// @brief Construct from double x/y data; see set_x(std::span<const double>).
+    template <typename = void>
+    ScatterSeries(std::span<const double> x, std::span<const double> y)
+    {
+        set_x_f64(x);
+        set_y_f64(y);
+    }
 
     /// @brief Replace the x data.
     ScatterSeries& set_x(std::span<const float> x);
     /// @brief Replace the y data.
     ScatterSeries& set_y(std::span<const float> y);
+
+    /// @brief Replace the x data from doubles without losing precision.
+    ///
+    /// When the values are large compared to their spread (e.g. Unix
+    /// timestamps, or 1e7 + small variations), a data origin near the values
+    /// is stored in x_offset() and x_data() holds float offsets from it, so
+    /// the plot, axis limits, ticks and readouts keep full precision.
+    /// Otherwise x_offset() is set to 0 and x_data() holds the plain values.
+    /// (A template only so that an existing call such as set_x({}) still
+    /// picks the float overload.)
+    template <typename = void>
+    ScatterSeries& set_x(std::span<const double> x)
+    {
+        set_x_f64(x);
+        return *this;
+    }
+    /// @brief Replace the y data from doubles; see set_x(std::span<const double>).
+    template <typename = void>
+    ScatterSeries& set_y(std::span<const double> y)
+    {
+        set_y_f64(y);
+        return *this;
+    }
     /// @brief Append one point.
     void append(float x, float y) override;
 
@@ -429,9 +540,12 @@ class ScatterSeries : public Series
     bool commit_pending() override;
 
    private:
+    void set_x_f64(std::span<const double> x);
+    void set_y_f64(std::span<const double> y);
+
     std::vector<float> x_;
     std::vector<float> y_;
-    float              point_size_ = 4.0f;
+    float              point_size_ = 6.0f;   // default marker diameter in pixels
     bool               x_sorted_   = true;
     // Colormap support
     std::vector<float> color_values_;

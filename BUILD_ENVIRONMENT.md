@@ -68,6 +68,14 @@ sudo apt-get install -y \
 > and is fetched (3.4) otherwise. Python 3 + Pillow are optional (resized desktop icons).
 > For distro/offline builds see [§11](#11-dependencies-system-vs-fetched-offline-builds).
 
+> **Fonts (runtime, optional):** only Inter is embedded. Glyphs Inter lacks (most maths
+> operators, CJK, ...) are loaded on demand from installed system fonts, in both the plot-text
+> atlas and the ImGui UI: DejaVu Sans / Noto Sans Math / FreeSans for symbols and Noto Sans CJK /
+> WenQuanYi / Droid Sans Fallback / IPA Gothic for CJK (e.g. `fonts-dejavu-core`,
+> `fonts-noto-cjk`). `SPECTRA_FALLBACK_FONTS=/path/a.ttf:/path/b.otf` adds fonts ahead of
+> those. Without any fallback font, missing glyphs render as a hollow box. See
+> `src/render/font_fallback.hpp`.
+
 ---
 
 ## 2. Standard Build (All Core Features)
@@ -234,6 +242,17 @@ Notes for the wasm build:
 - The backend blocks on adapter/device/readback callbacks, so it links with `-sASYNCIFY`.
 - Headless Chromium can render WebGPU offscreen (`AppConfig::headless = true` +
   `save_png`) but cannot present to a canvas, so use a real browser for the windowed demo.
+
+Supported series (the WebGPU backend is an experimental **2D subset**; the list
+lives in `src/render/webgpu/wgpu_pipeline_support.hpp`):
+
+| Works | Not yet ported (no WGSL pipeline) |
+|-------|-----------------------------------|
+| Line, scatter (single color), bar, histogram, box plot, violin, band, stem, 2D shapes; grid, overlay fills, 2D/3D text | Colormapped scatter (drawn in the series color), heatmap, every 3D type (3D axes, line, scatter, surface, mesh, shapes) |
+
+When a figure uses an unsupported type, the Renderer skips that series, logs a
+one-time warning per kind, and draws a notice at the bottom-left of the canvas
+("Not supported by this render backend: ...").
 
 ---
 

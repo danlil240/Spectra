@@ -17,6 +17,7 @@
     #include "ui/theme/design_tokens.hpp"
     #include "ui/theme/icons.hpp"
     #include "ui/theme/theme.hpp"
+    #include "ui/theme/theme_imgui.hpp"
     #include "ui/viewmodel/axes_view_model.hpp"
     #include "ui/viewmodel/series_view_model.hpp"
     #include "ui/imgui/widgets.hpp"
@@ -125,7 +126,33 @@ void Inspector::draw_figure_properties(Figure& fig)
         if (widgets::begin_animated_section("BACKGROUND"))
         {
             widgets::begin_group("bg");
-            widgets::color_field("Background Color", sty.background);
+            // Show the colour the figure actually renders with.  Until the user picks
+            // one the figure follows the theme canvas colour ("auto"); picking sets an
+            // override, and "Use theme" returns to auto.
+            spectra::Color bg = effective_figure_background(sty, c);
+            if (widgets::color_field("Background Color", bg))
+            {
+                sty.background          = bg;
+                sty.background_override = true;
+            }
+            ImGui::SameLine();
+            ImGui::PushStyleColor(
+                ImGuiCol_Text,
+                ImVec4(c.text_tertiary.r, c.text_tertiary.g, c.text_tertiary.b, c.text_tertiary.a));
+            if (sty.background_override)
+            {
+                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+                if (ImGui::SmallButton("Use theme"))
+                    sty.background_override = false;
+                ImGui::PopStyleColor();
+                if (ImGui::IsItemHovered())
+                    ImGui::SetTooltip("Follow the theme's canvas colour again");
+            }
+            else
+            {
+                ImGui::TextUnformatted("auto (theme)");
+            }
+            ImGui::PopStyleColor();
             widgets::end_group();
             widgets::small_spacing();
             widgets::end_animated_section();
@@ -393,7 +420,7 @@ void Inspector::draw_series_browser(Figure& fig)
         const std::string del_lbl  = std::format("Delete {}", n);
 
         ImVec4 muted(c.text_secondary.r, c.text_secondary.g, c.text_secondary.b, 0.75f);
-        ImVec4 red(0.85f, 0.35f, 0.35f, 0.85f);
+        ImVec4 red = to_imvec4(c.error, 0.85f);
 
         float bx = bar_min.x + pad_h;
 
@@ -724,7 +751,7 @@ void Inspector::draw_series_browser(Figure& fig)
                 };
 
                 ImVec4 muted(c.text_secondary.r, c.text_secondary.g, c.text_secondary.b, 0.65f);
-                ImVec4 red(0.85f, 0.35f, 0.35f, 0.75f);
+                ImVec4 red = to_imvec4(c.error, 0.75f);
 
                 // Copy
                 const std::string copy_id = std::format("##cp{}_{}", ax_idx, s_idx);
@@ -1074,15 +1101,14 @@ void Inspector::draw_reference_lines(Axes& ax)
 
         if (ImGui::IsItemHovered())
         {
-            ImGui::GetWindowDrawList()->AddRectFilled(
-                ImVec2(btn_x, btn_y),
-                ImVec2(btn_x + btn_sz, btn_y + btn_sz),
-                ImGui::ColorConvertFloat4ToU32(ImVec4(0.85f, 0.35f, 0.35f, 0.2f)),
-                tokens::RADIUS_SM);
+            ImGui::GetWindowDrawList()->AddRectFilled(ImVec2(btn_x, btn_y),
+                                                      ImVec2(btn_x + btn_sz, btn_y + btn_sz),
+                                                      to_imu32(theme().error, 0.2f),
+                                                      tokens::RADIUS_SM);
             ImGui::SetTooltip("Remove reference line");
         }
 
-        ImVec4 icon_col(0.85f, 0.35f, 0.35f, 0.75f);
+        ImVec4 icon_col = to_imvec4(theme().error, 0.75f);
         ImVec2 tsz = fnt->CalcTextSizeA(gsz, FLT_MAX, 0.0f, icon_str(Icon::Trash));
         ImGui::GetWindowDrawList()->AddText(
             fnt,

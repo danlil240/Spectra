@@ -8,6 +8,7 @@
 
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
+    #include "ui/theme/theme_imgui.hpp"
 #endif
 
 namespace spectra::adapters::ros2
@@ -197,7 +198,7 @@ void draw_tree_node(const std::string&                      frame_id,
 
     ImGui::SameLine();
     if (stats->is_static)
-        ImGui::TextColored(ImVec4(0.55f, 0.85f, 0.55f, 1.0f), "[S]");
+        ImGui::TextColored(spectra::ui::to_imvec4(spectra::ui::theme().success), "[S]");
     else if (stats->hz > 0.0)
         ImGui::Text("%.1f Hz", stats->hz);
     else
@@ -206,7 +207,7 @@ void draw_tree_node(const std::string&                      frame_id,
     if (stats->stale)
     {
         ImGui::SameLine();
-        ImGui::TextColored(ImVec4(1.0f, 0.35f, 0.1f, 1.0f), "STALE");
+        ImGui::TextColored(spectra::ui::to_imvec4(spectra::ui::theme().warning), "STALE");
     }
 
     if (has_children && opened)
@@ -334,7 +335,7 @@ void TfTreePanel::draw_inline()
             const TransformResult result = buffer_.lookup_transform(lookup_source_, lookup_target_);
             if (result.ok)
             {
-                ImGui::TextColored(ImVec4(0.5f, 1.0f, 0.5f, 1.0f), "OK");
+                ImGui::TextColored(spectra::ui::to_imvec4(spectra::ui::theme().success), "OK");
                 ImGui::Text("Translation: (%.3f, %.3f, %.3f)", result.tx, result.ty, result.tz);
                 ImGui::Text("Euler: roll %.1f pitch %.1f yaw %.1f",
                             result.roll_deg,
@@ -343,7 +344,9 @@ void TfTreePanel::draw_inline()
             }
             else
             {
-                ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.1f, 1.0f), "%s", result.error.c_str());
+                ImGui::TextColored(spectra::ui::to_imvec4(spectra::ui::theme().error),
+                                   "%s",
+                                   result.error.c_str());
             }
         }
     }

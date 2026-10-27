@@ -22,18 +22,21 @@ std::vector<CommandDescriptor> make_panel_commands(CommandContext& ctx)
     auto& ui_ctx   = ctx.ui_ctx;
     auto& imgui_ui = ui_ctx.imgui_ui;
     auto& undo_mgr = ui_ctx.undo_mgr;
-    auto* shell    = ui_ctx.app_shell.get();
+    // The command lambdas outlive this function: capture only references to
+    // objects owned by ui_ctx, and copy the helper lambda into each command.
+    auto& app_shell = ui_ctx.app_shell;
 
-    auto toggle_shell_panel = [&](const char* id, const char* undo_show, const char* undo_hide)
+    auto toggle_shell_panel =
+        [&app_shell, &undo_mgr](const char* id, const char* undo_show, const char* undo_hide)
     {
+        auto* shell = app_shell.get();
         if (!shell)
             return;
         const bool was = shell->panel_visible(id);
         shell->toggle_panel(id);
-        undo_mgr.push(UndoAction{
-            was ? undo_hide : undo_show,
-            [shell, id, was]() { shell->set_panel_visible(id, was); },
-            [shell, id, was]() { shell->set_panel_visible(id, !was); }});
+        undo_mgr.push(UndoAction{was ? undo_hide : undo_show,
+                                 [shell, id, was]() { shell->set_panel_visible(id, was); },
+                                 [shell, id, was]() { shell->set_panel_visible(id, !was); }});
     };
 
     cmds.push_back({"panel.toggle_timeline",
@@ -41,37 +44,36 @@ std::vector<CommandDescriptor> make_panel_commands(CommandContext& ctx)
                     "T",
                     "Panel",
                     static_cast<uint16_t>(ui::Icon::Play),
-                    [&]()
+                    [&, toggle_shell_panel]()
                     {
-                        if (shell)
+                        if (app_shell)
                             toggle_shell_panel("core.timeline", "Show timeline", "Hide timeline");
                         else if (imgui_ui)
                             imgui_ui->set_timeline_visible(!imgui_ui->is_timeline_visible());
                     }});
 
-    cmds.push_back({"panel.toggle_curve_editor",
-                    "Toggle Curve Editor",
-                    "",
-                    "Panel",
-                    0,
-                    [&]()
-                    {
-                        if (shell)
-                            toggle_shell_panel(
-                                "core.curve_editor", "Show curve editor", "Hide curve editor");
-                        else if (imgui_ui)
-                            imgui_ui->set_curve_editor_visible(
-                                !imgui_ui->is_curve_editor_visible());
-                    }});
+    cmds.push_back(
+        {"panel.toggle_curve_editor",
+         "Toggle Curve Editor",
+         "",
+         "Panel",
+         0,
+         [&, toggle_shell_panel]()
+         {
+             if (app_shell)
+                 toggle_shell_panel("core.curve_editor", "Show curve editor", "Hide curve editor");
+             else if (imgui_ui)
+                 imgui_ui->set_curve_editor_visible(!imgui_ui->is_curve_editor_visible());
+         }});
 
     cmds.push_back({"panel.toggle_plugins",
                     "Toggle Plugins Panel",
                     "",
                     "Panel",
                     0,
-                    [&]()
+                    [&, toggle_shell_panel]()
                     {
-                        if (shell)
+                        if (app_shell)
                             toggle_shell_panel("core.plugins", "Show plugins", "Hide plugins");
                         else if (imgui_ui)
                             imgui_ui->set_plugins_panel_visible(
@@ -83,20 +85,17 @@ std::vector<CommandDescriptor> make_panel_commands(CommandContext& ctx)
                     "Ctrl+Shift+T",
                     "Panel",
                     0,
-                    [&]()
+                    [&, toggle_shell_panel]()
                     {
-                        if (shell)
+                        if (app_shell)
                             toggle_shell_panel("core.topics", "Show topics", "Hide topics");
                         else
                             ui_ctx.topics_panel.set_visible(!ui_ctx.topics_panel.is_visible());
                     }});
 
-    cmds.push_back({"panel.open_settings",
-                    "Settings",
-                    "",
-                    "Panel",
-                    0,
-                    [&]() { ui_ctx.settings_panel.open(); }});
+    cmds.push_back({"panel.open_settings", "Settings", "", "Panel", 0, [&]() {
+                        ui_ctx.settings_panel.open();
+                    }});
 
     cmds.push_back(
         {"panel.toggle_inspector",
@@ -104,9 +103,9 @@ std::vector<CommandDescriptor> make_panel_commands(CommandContext& ctx)
          "",
          "Panel",
          0,
-         [&]()
+         [&, toggle_shell_panel]()
          {
-             if (shell)
+             if (app_shell)
              {
                  toggle_shell_panel("core.inspector", "Show inspector", "Hide inspector");
              }

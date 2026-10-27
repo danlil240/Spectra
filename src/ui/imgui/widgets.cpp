@@ -360,6 +360,29 @@ void info_row_mono(const char* label, const char* value)
     ImGui::PopStyleColor();
 }
 
+// ─── Field Label ────────────────────────────────────────────────────────────
+
+// Label column for side-by-side "label | value" rows.  The value column starts
+// INSPECTOR_LABEL_WIDTH after the label's own start (so section indentation does
+// not eat into it) and grows for a label longer than the column, so a value
+// field never overdraws its label.
+static void field_label(const char* label)
+{
+    const auto& c       = theme();
+    const float start_x = ImGui::GetCursorScreenPos().x;
+    ImGui::AlignTextToFramePadding();
+    ImGui::PushStyleColor(
+        ImGuiCol_Text,
+        ImVec4(c.text_secondary.r, c.text_secondary.g, c.text_secondary.b, c.text_secondary.a));
+    ImGui::TextUnformatted(label);
+    ImGui::PopStyleColor();
+    ImGui::SameLine();
+    const float label_w =
+        ImGui::CalcTextSize(label, nullptr, true).x + ImGui::GetStyle().ItemSpacing.x;
+    const float value_x = start_x + std::max(tokens::INSPECTOR_LABEL_WIDTH, label_w);
+    ImGui::SetCursorScreenPos(ImVec2(value_x, ImGui::GetCursorScreenPos().y));
+}
+
 // ─── Color Field ────────────────────────────────────────────────────────────
 
 bool color_field(const char* label, spectra::Color& color)
@@ -503,14 +526,8 @@ bool slider_field(const char* label, float& value, float min, float max, const c
     const auto& c = theme();
     ImGui::PushID(label);
 
-    // Side-by-side label-value layout: 80px label | remaining width input
-    ImGui::AlignTextToFramePadding();
-    ImGui::PushStyleColor(
-        ImGuiCol_Text,
-        ImVec4(c.text_secondary.r, c.text_secondary.g, c.text_secondary.b, c.text_secondary.a));
-    ImGui::TextUnformatted(label);
-    ImGui::PopStyleColor();
-    ImGui::SameLine(tokens::INSPECTOR_LABEL_WIDTH);
+    // Side-by-side label-value layout: label column | remaining width input
+    field_label(label);
 
     // Slider visual: 4px track height via reduced frame padding, pill-shaped thumb
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_PILL);
@@ -607,13 +624,7 @@ bool drag_field(const char* label, float& value, float speed, float min, float m
     ImGui::PushID(label);
 
     // Side-by-side label-value layout
-    ImGui::AlignTextToFramePadding();
-    ImGui::PushStyleColor(
-        ImGuiCol_Text,
-        ImVec4(c.text_secondary.r, c.text_secondary.g, c.text_secondary.b, c.text_secondary.a));
-    ImGui::TextUnformatted(label);
-    ImGui::PopStyleColor();
-    ImGui::SameLine(tokens::INSPECTOR_LABEL_WIDTH);
+    field_label(label);
 
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_MD);
 
@@ -646,13 +657,7 @@ bool drag_field2(const char* label, float& v0, float& v1, float speed, const cha
     ImGui::PushID(label);
 
     // Side-by-side label-value layout
-    ImGui::AlignTextToFramePadding();
-    ImGui::PushStyleColor(
-        ImGuiCol_Text,
-        ImVec4(c.text_secondary.r, c.text_secondary.g, c.text_secondary.b, c.text_secondary.a));
-    ImGui::TextUnformatted(label);
-    ImGui::PopStyleColor();
-    ImGui::SameLine(tokens::INSPECTOR_LABEL_WIDTH);
+    field_label(label);
 
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_MD);
 
@@ -690,7 +695,11 @@ bool checkbox_field(const char* label, bool& value)
     const auto& c = theme();
     ImGui::PushID(label);
 
+    // The box is sized from FramePadding; the app-wide padding is tuned for text
+    // inputs and makes a bare checkbox oversized, so use a compact vertical padding.
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_MD);
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
+                        ImVec2(ImGui::GetStyle().FramePadding.x, tokens::SPACE_1));
     ImGui::PushStyleColor(
         ImGuiCol_FrameBg,
         ImVec4(c.bg_tertiary.r, c.bg_tertiary.g, c.bg_tertiary.b, c.bg_tertiary.a));
@@ -704,7 +713,7 @@ bool checkbox_field(const char* label, bool& value)
     draw_focus_ring_if_needed();
 
     ImGui::PopStyleColor(2);
-    ImGui::PopStyleVar();
+    ImGui::PopStyleVar(2);
     ImGui::PopID();
     return changed;
 }
@@ -774,13 +783,7 @@ bool combo_field(const char* label, int& current, const char* const* items, int 
     ImGui::PushID(label);
 
     // Side-by-side label-value layout
-    ImGui::AlignTextToFramePadding();
-    ImGui::PushStyleColor(
-        ImGuiCol_Text,
-        ImVec4(c.text_secondary.r, c.text_secondary.g, c.text_secondary.b, c.text_secondary.a));
-    ImGui::TextUnformatted(label);
-    ImGui::PopStyleColor();
-    ImGui::SameLine(tokens::INSPECTOR_LABEL_WIDTH);
+    field_label(label);
 
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_MD);
     ImGui::PushStyleVar(ImGuiStyleVar_PopupRounding, tokens::RADIUS_LG);
@@ -814,13 +817,7 @@ bool text_field(const char* label, std::string& value)
     ImGui::PushID(label);
 
     // Side-by-side label-value layout
-    ImGui::AlignTextToFramePadding();
-    ImGui::PushStyleColor(
-        ImGuiCol_Text,
-        ImVec4(c.text_secondary.r, c.text_secondary.g, c.text_secondary.b, c.text_secondary.a));
-    ImGui::TextUnformatted(label);
-    ImGui::PopStyleColor();
-    ImGui::SameLine(tokens::INSPECTOR_LABEL_WIDTH);
+    field_label(label);
 
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_MD);
 
@@ -1116,6 +1113,72 @@ void panel_title(const char* title, const char* subtitle, ImFont* title_font)
 
 // ─── Phase ROS UX Primitives ────────────────────────────────────────────────
 
+int empty_state_actions(std::span<const EmptyStateAction> actions, float start_x, float max_w)
+{
+    if (actions.empty())
+        return -1;
+    const auto&         c       = theme();
+    int                 clicked = -1;
+    float               total_w = 0.0f;
+    std::vector<ImVec2> sizes;
+    sizes.reserve(actions.size());
+    for (const EmptyStateAction& action : actions)
+    {
+        const ImVec2 text_sz = ImGui::CalcTextSize(action.label ? action.label : "");
+        ImVec2 size(std::max(72.0f, text_sz.x + tokens::SPACE_4 * 2.0f), ImGui::GetFrameHeight());
+        sizes.push_back(size);
+        total_w += size.x;
+    }
+    total_w += tokens::EMPTY_STATE_ACTION_GAP * static_cast<float>(actions.size() - 1);
+    const bool stack_actions = total_w > max_w;
+    if (!stack_actions)
+        ImGui::SetCursorPosX(start_x + std::max(0.0f, (max_w - total_w) * 0.5f));
+
+    for (size_t i = 0; i < actions.size(); ++i)
+    {
+        const EmptyStateAction& action = actions[i];
+        if (stack_actions && i > 0)
+        {
+            ImGui::SetCursorPosX(start_x + std::max(0.0f, (max_w - sizes[i].x) * 0.5f));
+        }
+        ImGui::PushID(action.id ? action.id : action.label);
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_MD);
+        if (action.primary)
+        {
+            ImGui::PushStyleColor(ImGuiCol_Button,
+                                  ImVec4(c.accent.r, c.accent.g, c.accent.b, 0.85f));
+            ImGui::PushStyleColor(
+                ImGuiCol_ButtonHovered,
+                ImVec4(c.accent_hover.r, c.accent_hover.g, c.accent_hover.b, 0.95f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive,
+                                  ImVec4(c.accent.r, c.accent.g, c.accent.b, 1.0f));
+        }
+        else
+        {
+            ImGui::PushStyleColor(ImGuiCol_Button,
+                                  ImVec4(c.bg_tertiary.r, c.bg_tertiary.g, c.bg_tertiary.b, 0.75f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
+                                  ImVec4(c.bg_elevated.r, c.bg_elevated.g, c.bg_elevated.b, 0.95f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive,
+                                  ImVec4(c.accent.r, c.accent.g, c.accent.b, 0.25f));
+        }
+        if (ImGui::Button(action.label ? action.label : "", sizes[i]))
+        {
+            clicked = static_cast<int>(i);
+            log_ui_action("widget",
+                          action.label ? action.label : "empty_action",
+                          "ok",
+                          "empty_state");
+        }
+        ImGui::PopStyleColor(3);
+        ImGui::PopStyleVar();
+        ImGui::PopID();
+        if (i + 1 < actions.size())
+            ImGui::SameLine(0.0f, tokens::EMPTY_STATE_ACTION_GAP);
+    }
+    return clicked;
+}
+
 int empty_state(ui::Icon icon,
                 const char* title,
                 const char* subtitle,
@@ -1156,8 +1219,8 @@ int empty_state(ui::Icon icon,
     if (subtitle && subtitle[0] != '\0')
     {
         ImGui::Dummy(ImVec2(0.0f, tokens::SPACE_1));
-        const float wrap_x = ImGui::GetWindowPos().x + start_x + max_w;
-        ImGui::PushTextWrapPos(wrap_x);
+        // PushTextWrapPos takes a window-local x, like start_x.
+        ImGui::PushTextWrapPos(start_x + max_w);
         ImGui::PushStyleColor(
             ImGuiCol_Text,
             ImVec4(c.text_tertiary.r, c.text_tertiary.g, c.text_tertiary.b, 0.9f));
@@ -1171,69 +1234,7 @@ int empty_state(ui::Icon icon,
     if (!actions.empty())
     {
         ImGui::Dummy(ImVec2(0.0f, tokens::SPACE_2));
-        float total_w = 0.0f;
-        std::vector<ImVec2> sizes;
-        sizes.reserve(actions.size());
-        for (const EmptyStateAction& action : actions)
-        {
-            const ImVec2 text_sz = ImGui::CalcTextSize(action.label ? action.label : "");
-            ImVec2 size(std::max(72.0f, text_sz.x + tokens::SPACE_4 * 2.0f),
-                        ImGui::GetFrameHeight());
-            sizes.push_back(size);
-            total_w += size.x;
-        }
-        total_w += tokens::EMPTY_STATE_ACTION_GAP * static_cast<float>(actions.size() - 1);
-        const bool stack_actions = total_w > max_w;
-        if (!stack_actions)
-            ImGui::SetCursorPosX(start_x + std::max(0.0f, (max_w - total_w) * 0.5f));
-
-        for (size_t i = 0; i < actions.size(); ++i)
-        {
-            const EmptyStateAction& action = actions[i];
-            if (stack_actions && i > 0)
-            {
-                ImGui::SetCursorPosX(start_x + std::max(0.0f, (max_w - sizes[i].x) * 0.5f));
-            }
-            ImGui::PushID(action.id ? action.id : action.label);
-            ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_MD);
-            if (action.primary)
-            {
-                ImGui::PushStyleColor(ImGuiCol_Button,
-                                      ImVec4(c.accent.r, c.accent.g, c.accent.b, 0.85f));
-                ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
-                                      ImVec4(c.accent_hover.r,
-                                             c.accent_hover.g,
-                                             c.accent_hover.b,
-                                             0.95f));
-                ImGui::PushStyleColor(ImGuiCol_ButtonActive,
-                                      ImVec4(c.accent.r, c.accent.g, c.accent.b, 1.0f));
-            }
-            else
-            {
-                ImGui::PushStyleColor(ImGuiCol_Button,
-                                      ImVec4(c.bg_tertiary.r,
-                                             c.bg_tertiary.g,
-                                             c.bg_tertiary.b,
-                                             0.75f));
-                ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
-                                      ImVec4(c.bg_elevated.r,
-                                             c.bg_elevated.g,
-                                             c.bg_elevated.b,
-                                             0.95f));
-                ImGui::PushStyleColor(ImGuiCol_ButtonActive,
-                                      ImVec4(c.accent.r, c.accent.g, c.accent.b, 0.25f));
-            }
-            if (ImGui::Button(action.label ? action.label : "", sizes[i]))
-            {
-                clicked = static_cast<int>(i);
-                log_ui_action("widget", action.label ? action.label : "empty_action", "ok", "empty_state");
-            }
-            ImGui::PopStyleColor(3);
-            ImGui::PopStyleVar();
-            ImGui::PopID();
-            if (i + 1 < actions.size())
-                ImGui::SameLine(0.0f, tokens::EMPTY_STATE_ACTION_GAP);
-        }
+        clicked = empty_state_actions(actions, start_x, max_w);
     }
 
     ImGui::EndGroup();
@@ -1798,13 +1799,7 @@ bool int_drag_field(const char* label, int& value, int speed, int min, int max, 
     ImGui::PushID(label);
 
     // Side-by-side label-value layout
-    ImGui::AlignTextToFramePadding();
-    ImGui::PushStyleColor(
-        ImGuiCol_Text,
-        ImVec4(c.text_secondary.r, c.text_secondary.g, c.text_secondary.b, c.text_secondary.a));
-    ImGui::TextUnformatted(label);
-    ImGui::PopStyleColor();
-    ImGui::SameLine(tokens::INSPECTOR_LABEL_WIDTH);
+    field_label(label);
 
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_SM);
 

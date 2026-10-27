@@ -6,6 +6,7 @@
 #include <limits>
 #include <spectra/logger.hpp>
 
+#include "core/axis_scale.hpp"
 #include "gesture_recognizer.hpp"
 #include "ui/animation/animation_controller.hpp"
 #include "ui/animation/transition_engine.hpp"
@@ -223,8 +224,7 @@ void InputHandler::handle_mouse_button_3d(Axes3D* axes3d,
         {
             const auto& vp     = axes3d->viewport();
             const auto& cam    = axes3d->camera();
-            float       aspect = vp.w / std::max(vp.h, 1.0f);
-            mat4        proj   = cam.projection_matrix(aspect);
+            mat4        proj   = axes3d->projection_matrix(vp);
             mat4        view   = cam.view_matrix();
             mat4        model  = axes3d->data_to_normalized_matrix();
             mat4        mvp    = mat4_mul(proj, mat4_mul(view, model));
@@ -830,9 +830,12 @@ void InputHandler::handle_mouse_move_rclick_zoom(double x, double y)
             else if (rclick_zoom_axis_ == ZoomAxis::X || rclick_zoom_axis_ == ZoomAxis::XY)
             {
                 // Zoom anchored at drag-start X position:
-                auto   xlim     = active_axes_->x_limits();
-                double new_xmin = anchor_x - (anchor_x - xlim.min) * factor_x;
-                double new_xmax = anchor_x + (xlim.max - anchor_x) * factor_x;
+                const AxisLimits z        = zoom_limits_about(active_axes_->xscale(),
+                                                       active_axes_->x_limits(),
+                                                       anchor_x,
+                                                       factor_x);
+                double           new_xmin = z.min;
+                double           new_xmax = z.max;
                 {
                     double abs_max   = std::max(std::abs(new_xmin), std::abs(new_xmax));
                     double min_range = abs_max * std::numeric_limits<double>::epsilon() * 16.0;
@@ -851,9 +854,12 @@ void InputHandler::handle_mouse_move_rclick_zoom(double x, double y)
             if (rclick_zoom_axis_ == ZoomAxis::Y || rclick_zoom_axis_ == ZoomAxis::XY)
             {
                 // Zoom anchored at drag-start Y position
-                auto   ylim     = active_axes_->y_limits();
-                double new_ymin = anchor_y - (anchor_y - ylim.min) * factor_y;
-                double new_ymax = anchor_y + (ylim.max - anchor_y) * factor_y;
+                const AxisLimits z        = zoom_limits_about(active_axes_->yscale(),
+                                                       active_axes_->y_limits(),
+                                                       anchor_y,
+                                                       factor_y);
+                double           new_ymin = z.min;
+                double           new_ymax = z.max;
                 {
                     double abs_max   = std::max(std::abs(new_ymin), std::abs(new_ymax));
                     double min_range = abs_max * std::numeric_limits<double>::epsilon() * 16.0;
@@ -902,16 +908,18 @@ void InputHandler::handle_mouse_move_pan_drag(double x, double y)
         double dx_screen = x - drag_start_x_;
         double dy_screen = y - drag_start_y_;
 
-        // Convert pixel delta to data-space delta (double precision
-        // to avoid catastrophic cancellation at deep zoom)
-        double x_range = drag_start_xlim_max_ - drag_start_xlim_min_;
-        double y_range = drag_start_ylim_max_ - drag_start_ylim_min_;
+        // Convert pixel delta to a fraction of the axis span and shift in
+        // axis space (double precision to avoid catastrophic cancellation at
+        // deep zoom; log axes pan by whole ratios instead of going negative).
+        const AxisLimits new_x = pan_limits(active_axes_->xscale(),
+                                            {drag_start_xlim_min_, drag_start_xlim_max_},
+                                            -dx_screen / vp.w);
+        const AxisLimits new_y = pan_limits(active_axes_->yscale(),
+                                            {drag_start_ylim_min_, drag_start_ylim_max_},
+                                            dy_screen / vp.h);
 
-        double dx_data = -dx_screen * x_range / vp.w;
-        double dy_data = dy_screen * y_range / vp.h;
-
-        active_axes_->xlim(drag_start_xlim_min_ + dx_data, drag_start_xlim_max_ + dx_data);
-        active_axes_->ylim(drag_start_ylim_min_ + dy_data, drag_start_ylim_max_ + dy_data);
+        active_axes_->xlim(new_x.min, new_x.max);
+        active_axes_->ylim(new_y.min, new_y.max);
 
         // Propagate pan to linked axes
         if (axis_link_mgr_)
@@ -1025,12 +1033,13 @@ void InputHandler::handle_scroll_2d(double y_offset, double cursor_x, double cur
     // Apply zoom instantly — scroll zoom must be immediate and responsive.
     // (Animations are used for auto-fit, box zoom, and inertial pan instead.)
     // Use double arithmetic to preserve precision at deep zoom levels.
-    const double dx       = data_x;
-    const double dy       = data_y;
-    double       new_xmin = dx + (xlim.min - dx) * factor;
-    double       new_xmax = dx + (xlim.max - dx) * factor;
-    double       new_ymin = dy + (ylim.min - dy) * factor;
-    double       new_ymax = dy + (ylim.max - dy) * factor;
+    // Log axes zoom in axis space so the cursor stays fixed on screen.
+    const AxisLimits zx       = zoom_limits_about(active_axes_->xscale(), xlim, data_x, factor);
+    const AxisLimits zy       = zoom_limits_about(active_axes_->yscale(), ylim, data_y, factor);
+    double           new_xmin = zx.min;
+    double           new_xmax = zx.max;
+    double           new_ymin = zy.min;
+    double           new_ymax = zy.max;
 
     // Clamp to double precision limits — prevent zooming past what double can represent
     {

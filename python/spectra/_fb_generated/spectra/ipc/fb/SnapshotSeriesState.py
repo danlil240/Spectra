@@ -135,8 +135,36 @@ class SnapshotSeriesState(object):
         o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(28))
         return o == 0
 
+    # SnapshotSeriesState
+    def ColorIndex(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(30))
+        if o != 0:
+            return self._tab.Get(flatbuffers.number_types.Int32Flags, o + self._tab.Pos)
+        return -1
+
+    # SnapshotSeriesState
+    def ColorLetter(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(32))
+        if o != 0:
+            return self._tab.Get(flatbuffers.number_types.Uint8Flags, o + self._tab.Pos)
+        return 0
+
+    # SnapshotSeriesState
+    def XOrigin(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(34))
+        if o != 0:
+            return self._tab.Get(flatbuffers.number_types.Float64Flags, o + self._tab.Pos)
+        return 0.0
+
+    # SnapshotSeriesState
+    def YOrigin(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(36))
+        if o != 0:
+            return self._tab.Get(flatbuffers.number_types.Float64Flags, o + self._tab.Pos)
+        return 0.0
+
 def SnapshotSeriesStateStart(builder):
-    builder.StartObject(13)
+    builder.StartObject(17)
 
 def Start(builder):
     SnapshotSeriesStateStart(builder)
@@ -224,6 +252,30 @@ def SnapshotSeriesStateStartDataVector(builder, numElems):
 
 def StartDataVector(builder, numElems):
     return SnapshotSeriesStateStartDataVector(builder, numElems)
+
+def SnapshotSeriesStateAddColorIndex(builder, colorIndex):
+    builder.PrependInt32Slot(13, colorIndex, -1)
+
+def AddColorIndex(builder, colorIndex):
+    SnapshotSeriesStateAddColorIndex(builder, colorIndex)
+
+def SnapshotSeriesStateAddColorLetter(builder, colorLetter):
+    builder.PrependUint8Slot(14, colorLetter, 0)
+
+def AddColorLetter(builder, colorLetter):
+    SnapshotSeriesStateAddColorLetter(builder, colorLetter)
+
+def SnapshotSeriesStateAddXOrigin(builder, xOrigin):
+    builder.PrependFloat64Slot(15, xOrigin, 0.0)
+
+def AddXOrigin(builder, xOrigin):
+    SnapshotSeriesStateAddXOrigin(builder, xOrigin)
+
+def SnapshotSeriesStateAddYOrigin(builder, yOrigin):
+    builder.PrependFloat64Slot(16, yOrigin, 0.0)
+
+def AddYOrigin(builder, yOrigin):
+    SnapshotSeriesStateAddYOrigin(builder, yOrigin)
 
 def SnapshotSeriesStateEnd(builder):
     return builder.EndObject()

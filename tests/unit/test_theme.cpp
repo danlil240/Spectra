@@ -1,6 +1,9 @@
+#include <algorithm>
 #include <cmath>
 #include <filesystem>
+#include <fstream>
 #include <gtest/gtest.h>
+#include <spectra/figure.hpp>
 
 #include "ui/theme/design_tokens.hpp"
 #include "ui/theme/glass_tokens.hpp"
@@ -371,6 +374,53 @@ TEST_F(ThemeManagerTest, HighContrastThemeHasWhiteText)
     EXPECT_FLOAT_EQ(c.text_primary.b, 1.0f);
 }
 
+namespace
+{
+// WCAG relative luminance of `fg` composited over the opaque `bg`.
+float composited_luminance(const Color& fg, const Color& bg)
+{
+    auto lin = [](float c)
+    { return c <= 0.04045f ? c / 12.92f : std::pow((c + 0.055f) / 1.055f, 2.4f); };
+    float r = fg.r * fg.a + bg.r * (1.0f - fg.a);
+    float g = fg.g * fg.a + bg.g * (1.0f - fg.a);
+    float b = fg.b * fg.a + bg.b * (1.0f - fg.a);
+    return 0.2126f * lin(r) + 0.7152f * lin(g) + 0.0722f * lin(b);
+}
+
+float contrast_on(const Color& fg, const Color& bg)
+{
+    float l_fg = composited_luminance(fg, bg);
+    float l_bg = composited_luminance(bg, bg);
+    return (std::max(l_fg, l_bg) + 0.05f) / (std::min(l_fg, l_bg) + 0.05f);
+}
+}   // namespace
+
+TEST_F(ThemeManagerTest, HighContrastGridIsDimmerThanAxesAndText)
+{
+    auto& tm = ThemeManager::instance();
+    tm.set_theme("high_contrast");
+    const auto& c      = tm.colors();
+    const Color canvas = c.bg_canvas;
+
+    float major = contrast_on(c.grid_major, canvas);
+    float minor = contrast_on(c.grid_minor, canvas);
+
+    // Grid is a reference, so it must sit well below the axis, tick labels and text.
+    EXPECT_LT(major, contrast_on(c.axis_line, canvas) / 6.0f);
+    EXPECT_LT(major, contrast_on(c.tick_label, canvas) / 6.0f);
+    EXPECT_LT(major, contrast_on(c.text_primary, canvas) / 6.0f);
+    EXPECT_LT(contrast_on(c.grid_line, canvas), contrast_on(c.axis_line, canvas) / 6.0f);
+
+    // Major grid stays visible; minor grid is nearly hidden and fainter than major.
+    EXPECT_GE(major, 2.0f);
+    EXPECT_LT(minor, major);
+    EXPECT_LE(minor, 1.4f);
+
+    // Text, axes and ticks keep full high-contrast levels.
+    EXPECT_GE(contrast_on(c.axis_line, canvas), 15.0f);
+    EXPECT_GE(contrast_on(c.tick_label, canvas), 15.0f);
+}
+
 TEST_F(ThemeManagerTest, CurrentReturnsValidTheme)
 {
     auto& tm = ThemeManager::instance();
@@ -700,5 +750,153 @@ TEST_F(ThemeManagerTest, ExportImportGlassSettings)
     EXPECT_NEAR(tm_.glass().toolbar_alpha, 0.47f, 1e-4f);
     EXPECT_NEAR(tm_.glass().glow_strength, 0.61f, 1e-4f);
     EXPECT_TRUE(tm_.glass().blur_enabled);
+    std::filesystem::remove(path);
+}
+
+// ─── Theme display names ─────────────────────────────────────────────────────
+
+TEST(ThemeDisplayName, FallbackTitleCasesIds)
+{
+    EXPECT_EQ(theme_display_name("light"), "Light");
+    EXPECT_EQ(theme_display_name("high_contrast"), "High Contrast");
+    EXPECT_EQ(theme_display_name("my-custom_theme"), "My Custom Theme");
+    EXPECT_EQ(theme_display_name("_odd__id_"), "Odd Id");
+    EXPECT_EQ(theme_display_name(""), "");
+}
+
+TEST_F(ThemeManagerTest, DisplayNamesForBuiltInThemes)
+{
+    EXPECT_EQ(tm_.display_name("night"), "Night");
+    EXPECT_EQ(tm_.display_name("dark"), "Dark");
+    EXPECT_EQ(tm_.display_name("light"), "Light");
+    EXPECT_EQ(tm_.display_name("high_contrast"), "High Contrast");
+}
+
+TEST_F(ThemeManagerTest, DisplayNameFallsBackForUnknownOrUnnamedThemes)
+{
+    EXPECT_EQ(tm_.display_name("not_registered"), "Not Registered");
+
+    Theme custom;   // registered without a display_name
+    tm_.register_theme("solar_flare", custom);
+    EXPECT_EQ(tm_.display_name("solar_flare"), "Solar Flare");
+}
+
+// ─── Effective figure background ─────────────────────────────────────────────
+
+TEST(EffectiveFigureBackground, DefaultFollowsThemeCanvas)
+{
+    spectra::FigureStyle style;   // background defaults to white, but not overridden
+    EXPECT_FALSE(style.background_override);
+
+    ThemeColors colors{};
+    colors.bg_canvas = Color(0.05f, 0.07f, 0.11f, 1.0f);
+
+    const spectra::Color bg = effective_figure_background(style, colors);
+    EXPECT_FLOAT_EQ(bg.r, 0.05f);
+    EXPECT_FLOAT_EQ(bg.g, 0.07f);
+    EXPECT_FLOAT_EQ(bg.b, 0.11f);
+    EXPECT_FLOAT_EQ(bg.a, 1.0f);
+}
+
+TEST(EffectiveFigureBackground, OverrideUsesFigureColour)
+{
+    spectra::FigureStyle style;
+    style.background          = spectra::Color(0.9f, 0.2f, 0.1f, 1.0f);
+    style.background_override = true;
+
+    ThemeColors colors{};
+    colors.bg_canvas = Color(0.05f, 0.07f, 0.11f, 1.0f);
+
+    const spectra::Color bg = effective_figure_background(style, colors);
+    EXPECT_FLOAT_EQ(bg.r, 0.9f);
+    EXPECT_FLOAT_EQ(bg.g, 0.2f);
+    EXPECT_FLOAT_EQ(bg.b, 0.1f);
+
+    // Back to auto: the stored colour is kept but the theme wins again.
+    style.background_override = false;
+    EXPECT_FLOAT_EQ(effective_figure_background(style, colors).r, 0.05f);
+}
+
+TEST_F(ThemeManagerTest, EffectiveFigureBackgroundTracksThemeSwitch)
+{
+    spectra::FigureStyle style;
+    tm_.set_theme("light");
+    const spectra::Color light_bg = effective_figure_background(style, tm_.colors());
+    tm_.set_theme("night");
+    const spectra::Color night_bg = effective_figure_background(style, tm_.colors());
+    EXPECT_GT(light_bg.r + light_bg.g + light_bg.b, 2.0f);   // light canvas
+    EXPECT_LT(night_bg.r + night_bg.g + night_bg.b, 0.5f);   // dark canvas, not white
+}
+
+// ─── Semantic status tokens (used by ROS2 / UI panels instead of literals) ───
+
+TEST_F(ThemeManagerTest, CriticalTokenPresentAndDistinctInAllThemes)
+{
+    for (const char* name : {"dark", "night", "light", "high_contrast"})
+    {
+        SCOPED_TRACE(name);
+        tm_.set_theme(name);
+        const ThemeColors& c = tm_.colors();
+        EXPECT_FLOAT_EQ(c.critical.a, 1.0f);
+        EXPECT_NE(c.critical, Color{});
+        EXPECT_NE(c.critical, c.error);
+        EXPECT_NE(c.critical, c.warning);
+        EXPECT_NE(c.critical, c.success);
+        EXPECT_NE(c.critical, c.info);
+        EXPECT_NE(c.critical, c.accent);
+        EXPECT_NE(c.critical, c.text_primary);
+        EXPECT_EQ(tm_.get_color("critical"), c.critical);
+    }
+}
+
+TEST_F(ThemeManagerTest, StatusTokensReadableOnPanelsInAllThemes)
+{
+    // Log levels, diagnostics badges and error messages draw these on panel
+    // surfaces; each must stay readable in every built-in theme.
+    for (const char* name : {"dark", "night", "light", "high_contrast"})
+    {
+        SCOPED_TRACE(name);
+        tm_.set_theme(name);
+        const ThemeColors& c  = tm_.colors();
+        const Color        bg = c.bg_secondary;
+        EXPECT_GE(c.text_primary.contrast_ratio(bg), 4.5f);
+        EXPECT_GE(c.warning.contrast_ratio(bg), 3.0f);
+        EXPECT_GE(c.error.contrast_ratio(bg), 3.0f);
+        EXPECT_GE(c.success.contrast_ratio(bg), 3.0f);
+        EXPECT_GE(c.critical.contrast_ratio(bg), 3.0f);
+    }
+}
+
+TEST_F(ThemeManagerTest, CriticalTokenSurvivesExportImport)
+{
+    tm_.set_theme("light");
+    const Color                 expected = tm_.colors().critical;
+    const std::filesystem::path path =
+        std::filesystem::temp_directory_path() / "spectra_critical_theme_test.json";
+    ASSERT_TRUE(tm_.export_theme(path.string()));
+    tm_.set_theme("dark");
+    ASSERT_TRUE(tm_.import_theme(path.string()));
+    tm_.set_theme("light");
+    EXPECT_NEAR(tm_.colors().critical.r, expected.r, 1e-3f);
+    EXPECT_NEAR(tm_.colors().critical.g, expected.g, 1e-3f);
+    EXPECT_NEAR(tm_.colors().critical.b, expected.b, 1e-3f);
+    std::filesystem::remove(path);
+}
+
+TEST_F(ThemeManagerTest, ImportWithoutCriticalFallsBackToError)
+{
+    // Themes exported before the `critical` token existed must not import it as black.
+    const std::filesystem::path path =
+        std::filesystem::temp_directory_path() / "spectra_legacy_theme_test.json";
+    {
+        std::ofstream f(path);
+        f << "{\n  \"name\": \"legacy_no_critical\",\n  \"colors\": {\n"
+             "    \"error\": [0.8, 0.1, 0.1, 1.0]\n  }\n}\n";
+    }
+    ASSERT_TRUE(tm_.import_theme(path.string()));
+    tm_.set_theme("legacy_no_critical");
+    ASSERT_EQ(tm_.current_theme_name(), "legacy_no_critical");
+    EXPECT_EQ(tm_.colors().critical, tm_.colors().error);
+    EXPECT_NEAR(tm_.colors().critical.r, 0.8f, 1e-4f);
     std::filesystem::remove(path);
 }

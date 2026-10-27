@@ -459,4 +459,43 @@ void ShortcutManager::clear()
     bindings_.clear();
 }
 
+std::string menu_shortcut_text(const ShortcutManager* shortcuts,
+                               const CommandRegistry* registry,
+                               const std::string&     command_id)
+{
+    if (command_id.empty())
+        return {};
+
+    // The command's registered shortcut is its canonical one (the command palette
+    // shows it too); use it while it is still bound to this command.
+    std::string registered;
+    if (registry)
+    {
+        if (const Command* cmd = registry->find(command_id))
+            registered = cmd->shortcut;
+    }
+    if (!shortcuts)
+        return registered;
+    if (!registered.empty())
+    {
+        const Shortcut sc = Shortcut::from_string(registered);
+        if (sc.valid() && shortcuts->command_for_shortcut(sc) == command_id)
+            return sc.to_string();
+    }
+
+    // Otherwise any live binding. Pick deterministically when a command has
+    // several (shortest text first) since the binding map is unordered.
+    std::string best;
+    for (const ShortcutBinding& b : shortcuts->all_bindings())
+    {
+        if (b.command_id != command_id)
+            continue;
+        std::string text = b.shortcut.to_string();
+        if (best.empty() || text.size() < best.size()
+            || (text.size() == best.size() && text < best))
+            best = std::move(text);
+    }
+    return best;
+}
+
 }   // namespace spectra

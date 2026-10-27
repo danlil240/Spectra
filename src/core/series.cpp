@@ -4,6 +4,7 @@
 #include <spectra/event_bus.hpp>
 #include <spectra/series.hpp>
 
+#include "data_origin.hpp"
 #include "pending_series_data.hpp"
 
 namespace spectra
@@ -19,8 +20,10 @@ void PendingSeriesDataDeleter::operator()(PendingSeriesData* ptr) const
 Series::~Series() = default;
 
 Series::Series(const Series& other)
-    : label_(other.label_), color_(other.color_), style_(other.style_), visible_(other.visible_),
-      x_offset_(other.x_offset_), excluded_from_autoscale_(other.excluded_from_autoscale_),
+    : label_(other.label_), color_(other.color_), auto_color_index_(other.auto_color_index_),
+      color_letter_(other.color_letter_), style_(other.style_), visible_(other.visible_),
+      x_offset_(other.x_offset_), y_offset_(other.y_offset_),
+      excluded_from_autoscale_(other.excluded_from_autoscale_),
       show_in_legend_(other.show_in_legend_), is_reference_line_(other.is_reference_line_),
       dirty_(other.dirty_.load(std::memory_order_relaxed)), event_system_(other.event_system_),
       owning_axes_(other.owning_axes_), pending_(nullptr)
@@ -33,9 +36,12 @@ Series& Series::operator=(const Series& other)
     {
         label_                   = other.label_;
         color_                   = other.color_;
+        auto_color_index_        = other.auto_color_index_;
+        color_letter_            = other.color_letter_;
         style_                   = other.style_;
         visible_                 = other.visible_;
         x_offset_                = other.x_offset_;
+        y_offset_                = other.y_offset_;
         excluded_from_autoscale_ = other.excluded_from_autoscale_;
         show_in_legend_          = other.show_in_legend_;
         is_reference_line_       = other.is_reference_line_;
@@ -72,12 +78,79 @@ void Series::set_wake_fn(std::function<void()> fn)
         pending_->set_wake_fn(std::move(fn));
 }
 
+void Series::set_auto_color_index(int index)
+{
+    if (index < 0)
+    {
+        auto_color_index_ = -1;
+        return;
+    }
+    auto_color_index_ = index;
+    color_letter_     = '\0';
+    color_ = palette::default_cycle[static_cast<size_t>(index) % palette::default_cycle_size];
+    dirty_ = true;
+}
+
+bool Series::resolve_auto_color(const Color& c)
+{
+    if (auto_color_index_ < 0)
+        return false;
+    if (color_.r == c.r && color_.g == c.g && color_.b == c.b && color_.a == c.a)
+        return false;
+    color_ = c;
+    dirty_ = true;
+    return true;
+}
+
+void Series::set_color_letter(char letter)
+{
+    if (!format_colors::is_letter(letter))
+    {
+        color_letter_ = '\0';
+        return;
+    }
+    color_            = format_colors::shade(letter);
+    color_letter_     = letter;
+    auto_color_index_ = -1;
+    dirty_            = true;
+}
+
+bool Series::resolve_letter_color(const Color& c)
+{
+    if (color_letter_ == '\0')
+        return false;
+    if (color_.r == c.r && color_.g == c.g && color_.b == c.b && color_.a == c.a)
+        return false;
+    color_ = c;
+    dirty_ = true;
+    return true;
+}
+
+namespace
+{
+// A PlotStyle keeps its format letter only while its colour is still one of
+// that letter's shades; a colour edited afterwards counts as explicit.
+char letter_of(const PlotStyle& ps)
+{
+    if (!ps.color.has_value() || !format_colors::is_letter(ps.color_letter))
+        return '\0';
+    auto same = [&](const Color& c)
+    { return ps.color->r == c.r && ps.color->g == c.g && ps.color->b == c.b; };
+    if (same(format_colors::shade(ps.color_letter, false))
+        || same(format_colors::shade(ps.color_letter, true)))
+        return ps.color_letter;
+    return '\0';
+}
+}   // namespace
+
 Series& Series::plot_style(const PlotStyle& ps)
 {
     style_ = ps;
     if (ps.color.has_value())
     {
-        color_ = *ps.color;
+        color_            = *ps.color;
+        auto_color_index_ = -1;
+        color_letter_     = letter_of(ps);
     }
     dirty_ = true;
     return *this;
@@ -90,7 +163,9 @@ Series& Series::apply_format_string(std::string_view fmt)
     style_.marker_style = ps.marker_style;
     if (ps.color.has_value())
     {
-        color_ = *ps.color;
+        color_            = *ps.color;
+        auto_color_index_ = -1;
+        color_letter_     = letter_of(ps);
     }
     dirty_ = true;
     return *this;
@@ -128,6 +203,35 @@ LineSeries& LineSeries::set_y(std::span<const float> y)
     y_.assign(y.begin(), y.end());
     dirty_ = true;
     return *this;
+}
+
+void LineSeries::set_x_f64(std::span<const double> x)
+{
+    const double origin = detail::choose_data_origin(x);
+    auto         xf     = detail::to_float_offsets(x, origin);
+    if (thread_safe_ && pending_)
+    {
+        pending_->replace_x(std::move(xf), origin);
+        return;
+    }
+    x_        = std::move(xf);
+    x_offset_ = origin;
+    x_sorted_ = x_sorted_without_nan(x_.begin(), x_.end());
+    dirty_    = true;
+}
+
+void LineSeries::set_y_f64(std::span<const double> y)
+{
+    const double origin = detail::choose_data_origin(y);
+    auto         yf     = detail::to_float_offsets(y, origin);
+    if (thread_safe_ && pending_)
+    {
+        pending_->replace_y(std::move(yf), origin);
+        return;
+    }
+    y_        = std::move(yf);
+    y_offset_ = origin;
+    dirty_    = true;
 }
 
 void LineSeries::append(float x, float y)
@@ -228,7 +332,7 @@ bool LineSeries::commit_pending()
 {
     if (!pending_ || !pending_->has_pending())
         return false;
-    if (pending_->commit(x_, y_, &x_sorted_))
+    if (pending_->commit(x_, y_, &x_sorted_, &x_offset_, &y_offset_))
     {
         mark_dirty();
         return true;
@@ -270,6 +374,35 @@ ScatterSeries& ScatterSeries::set_y(std::span<const float> y)
     return *this;
 }
 
+void ScatterSeries::set_x_f64(std::span<const double> x)
+{
+    const double origin = detail::choose_data_origin(x);
+    auto         xf     = detail::to_float_offsets(x, origin);
+    if (thread_safe_ && pending_)
+    {
+        pending_->replace_x(std::move(xf), origin);
+        return;
+    }
+    x_        = std::move(xf);
+    x_offset_ = origin;
+    x_sorted_ = x_sorted_without_nan(x_.begin(), x_.end());
+    dirty_    = true;
+}
+
+void ScatterSeries::set_y_f64(std::span<const double> y)
+{
+    const double origin = detail::choose_data_origin(y);
+    auto         yf     = detail::to_float_offsets(y, origin);
+    if (thread_safe_ && pending_)
+    {
+        pending_->replace_y(std::move(yf), origin);
+        return;
+    }
+    y_        = std::move(yf);
+    y_offset_ = origin;
+    dirty_    = true;
+}
+
 void ScatterSeries::append(float x, float y)
 {
     if (thread_safe_ && pending_)
@@ -294,7 +427,7 @@ bool ScatterSeries::commit_pending()
 {
     if (!pending_ || !pending_->has_pending())
         return false;
-    if (pending_->commit(x_, y_, &x_sorted_))
+    if (pending_->commit(x_, y_, &x_sorted_, &x_offset_, &y_offset_))
     {
         mark_dirty();
         return true;

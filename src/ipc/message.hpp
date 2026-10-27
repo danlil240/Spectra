@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <string>
 #include <vector>
+#include <spectra/window_defaults.hpp>
 
 namespace spectra::ipc
 {
@@ -258,6 +259,19 @@ struct SnapshotSeriesState
     uint32_t    axes_index  = 0;   // Which axes this series belongs to
     // Raw data (x, y interleaved floats for 2D; x, y, z for 3D)
     std::vector<float> data;
+    // Data-palette slot for an auto-coloured series, -1 for an explicit colour.
+    // When >= 0 the window resolves the colour from its own theme palette;
+    // color_r..a then only carry the sender's resolved colour.
+    int32_t color_index = -1;
+    // MATLAB format-string colour letter (r g b c m y k w) of an explicitly
+    // lettered series, 0 otherwise.  The window re-resolves the letter's tuned
+    // shade for its own theme; color_r..a carry the sender's shade.
+    uint8_t color_letter = 0;
+    // Double-precision data origins (Series::x_offset()/y_offset()): logical
+    // value = origin + data[i].  Non-zero when the sender stored large values
+    // (e.g. epoch timestamps) as float offsets from a nearby origin.
+    double x_origin = 0.0;
+    double y_origin = 0.0;
 };
 
 // A single figure's full state.
@@ -265,8 +279,8 @@ struct SnapshotFigureState
 {
     uint64_t    figure_id = 0;
     std::string title;
-    uint32_t    width        = 1280;
-    uint32_t    height       = 720;
+    uint32_t    width        = DEFAULT_WINDOW_WIDTH;
+    uint32_t    height       = DEFAULT_WINDOW_HEIGHT;
     int32_t     grid_rows    = 1;
     int32_t     grid_cols    = 1;
     uint32_t    window_group = 0;      // Figures with the same non-zero group share one window
@@ -311,7 +325,7 @@ struct DiffOp
         SET_OPACITY        = 8,
         ADD_FIGURE         = 10,
         REMOVE_FIGURE      = 11,
-        SET_SERIES_DATA    = 12,
+        SET_SERIES_DATA    = 12,   // data=interleaved floats, f1=x origin, f2=y origin (2D)
         SET_AXIS_XLABEL    = 13,   // str_val=label text
         SET_AXIS_YLABEL    = 14,   // str_val=label text
         SET_AXIS_TITLE     = 15,   // str_val=title text
@@ -381,8 +395,8 @@ struct EvtInputPayload
 struct ReqCreateFigurePayload
 {
     std::string title;
-    uint32_t    width  = 1280;
-    uint32_t    height = 720;
+    uint32_t    width  = DEFAULT_WINDOW_WIDTH;
+    uint32_t    height = DEFAULT_WINDOW_HEIGHT;
 };
 
 // Python → Backend: destroy a figure.

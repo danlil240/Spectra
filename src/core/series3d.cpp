@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <cmath>
 #include <spectra/series3d.hpp>
@@ -443,6 +444,25 @@ void MeshSeries::get_bounds(vec3& min_out, vec3& max_out) const
 
 // ─── Colormap Support ─────────────────────────────────────────────────────────
 
+namespace
+{
+
+// Evaluates a degree-6 RGB polynomial c[0] + c[1] t + ... + c[6] t^6, clamped to [0, 1].
+Color colormap_poly(float t, const std::array<std::array<float, 3>, 7>& c)
+{
+    float rgb[3];
+    for (int ch = 0; ch < 3; ++ch)
+    {
+        float v = c[6][ch];
+        for (int i = 5; i >= 0; --i)
+            v = v * t + c[i][ch];
+        rgb[ch] = std::fmax(0.0f, std::fmin(1.0f, v));
+    }
+    return {rgb[0], rgb[1], rgb[2], 1.0f};
+}
+
+}   // namespace
+
 SurfaceSeries& SurfaceSeries::colormap(const std::string& name)
 {
     if (name == "viridis")
@@ -471,47 +491,48 @@ Color SurfaceSeries::sample_colormap(ColormapType cm, float t)
 
     switch (cm)
     {
+        // Viridis, plasma, inferno and magma: degree-6 polynomial fits of the matplotlib
+        // maps (max error about 0.02 per channel). Keep in sync with surface3d.frag.
         case ColormapType::Viridis:
-        {
-            // Simplified viridis: dark purple → teal → yellow
-            float r =
-                std::fmax(0.0f,
-                          std::fmin(1.0f, -0.35f + 1.7f * t - 0.9f * t * t + 0.55f * t * t * t));
-            float g = std::fmax(0.0f, std::fmin(1.0f, -0.05f + 0.7f * t + 0.3f * t * t));
-            float b =
-                std::fmax(0.0f,
-                          std::fmin(1.0f, 0.33f + 0.7f * t - 1.6f * t * t + 0.6f * t * t * t));
-            return {r, g, b, 1.0f};
-        }
+            return colormap_poly(
+                t,
+                {{{0.2777273272234177f, 0.005407344544966578f, 0.3340998053353061f},
+                  {0.1050930431085774f, 1.404613529898575f, 1.384590162594685f},
+                  {-0.3308618287255563f, 0.214847559468213f, 0.09509516302823659f},
+                  {-4.634230498983486f, -5.799100973351585f, -19.33244095627987f},
+                  {6.228269936347081f, 14.17993336680509f, 56.69055260068105f},
+                  {4.776384997670288f, -13.74514537774601f, -65.35303263337234f},
+                  {-5.435455855934631f, 4.645852612178535f, 26.3124352495832f}}});
         case ColormapType::Plasma:
-        {
-            // Simplified plasma: dark blue → magenta → yellow
-            float r = std::fmax(0.0f, std::fmin(1.0f, 0.05f + 2.2f * t - 1.3f * t * t));
-            float g = std::fmax(0.0f, std::fmin(1.0f, -0.2f + 1.2f * t));
-            float b =
-                std::fmax(0.0f,
-                          std::fmin(1.0f, 0.53f + 0.5f * t - 2.0f * t * t + 1.0f * t * t * t));
-            return {r, g, b, 1.0f};
-        }
+            return colormap_poly(
+                t,
+                {{{0.05873234392399702f, 0.02333670892565664f, 0.5433401826748754f},
+                  {2.176514634195958f, 0.2383834171260182f, 0.7539604599784036f},
+                  {-2.689460476458034f, -7.455851135738909f, 3.110799939717086f},
+                  {6.130348345893603f, 42.3461881477227f, -28.51885465332158f},
+                  {-11.10743619062271f, -82.66631109428045f, 60.13984767418263f},
+                  {10.02306557647065f, 71.41361770095349f, -54.07218655560067f},
+                  {-3.658713842777788f, -22.93153465461149f, 18.19190778539828f}}});
         case ColormapType::Inferno:
-        {
-            // Simplified inferno: black → red → yellow
-            float r = std::fmax(0.0f, std::fmin(1.0f, -0.1f + 2.5f * t - 1.5f * t * t));
-            float g = std::fmax(0.0f, std::fmin(1.0f, -0.3f + 1.5f * t));
-            float b =
-                std::fmax(0.0f, std::fmin(1.0f, 0.1f + 2.0f * t - 3.5f * t * t + 1.5f * t * t * t));
-            return {r, g, b, 1.0f};
-        }
+            return colormap_poly(
+                t,
+                {{{0.0002189403691192265f, 0.001651004631001012f, -0.01948089843709184f},
+                  {0.1065134194856116f, 0.5639564367884091f, 3.932712388889277f},
+                  {11.60249308247187f, -3.972853965665698f, -15.9423941062914f},
+                  {-41.70399613139459f, 17.43639888205313f, 44.35414519872813f},
+                  {77.162935699427f, -33.40235894210092f, -81.80730925738993f},
+                  {-71.31942824499214f, 32.62606426397723f, 73.20951985803202f},
+                  {25.13112622477341f, -12.24266895238567f, -23.07032500287172f}}});
         case ColormapType::Magma:
-        {
-            // Simplified magma: black → purple → orange → white
-            float r = std::fmax(0.0f, std::fmin(1.0f, -0.05f + 2.0f * t - 0.8f * t * t));
-            float g = std::fmax(0.0f, std::fmin(1.0f, -0.3f + 1.3f * t + 0.1f * t * t));
-            float b =
-                std::fmax(0.0f,
-                          std::fmin(1.0f, 0.15f + 1.5f * t - 2.5f * t * t + 1.5f * t * t * t));
-            return {r, g, b, 1.0f};
-        }
+            return colormap_poly(
+                t,
+                {{{-0.002136485053939582f, -0.000749655052795221f, -0.005386127855323933f},
+                  {0.2516605407371642f, 0.6775232436837668f, 2.494026599312351f},
+                  {8.353717279216625f, -3.577719514958484f, 0.3144679030132573f},
+                  {-27.66873308576866f, 14.26473078096533f, -13.64921318813922f},
+                  {52.17613981234068f, -27.94360607168351f, 12.94416944238394f},
+                  {-50.76852536473588f, 29.04658282127291f, 4.23415299384598f},
+                  {18.65570506591883f, -11.48977351997711f, -5.601961508734096f}}});
         case ColormapType::Jet:
         {
             // Classic jet: blue → cyan → green → yellow → red

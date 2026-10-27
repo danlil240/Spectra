@@ -7,6 +7,7 @@
 
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
+    #include "ui/theme/theme_imgui.hpp"
 #endif
 
 namespace spectra::adapters::ros2
@@ -88,16 +89,19 @@ void ServiceCallerPanel::push_state_color(CallState s)
     switch (s)
     {
         case CallState::Pending:
-            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.8f, 0.8f, 0.2f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_Text, spectra::ui::to_imvec4(spectra::ui::theme().info));
             break;
         case CallState::Done:
-            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.2f, 0.85f, 0.4f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_Text,
+                                  spectra::ui::to_imvec4(spectra::ui::theme().success));
             break;
         case CallState::TimedOut:
-            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.9f, 0.5f, 0.1f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_Text,
+                                  spectra::ui::to_imvec4(spectra::ui::theme().warning));
             break;
         case CallState::Error:
-            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.9f, 0.2f, 0.2f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_Text,
+                                  spectra::ui::to_imvec4(spectra::ui::theme().error));
             break;
     }
 #else
@@ -256,7 +260,8 @@ void ServiceCallerPanel::draw_request_form(float /*pane_width*/)
     // Schema status.
     if (!entry)
     {
-        ImGui::TextColored(ImVec4(0.9f, 0.4f, 0.1f, 1.f), "Service not in discovery list");
+        ImGui::TextColored(spectra::ui::to_imvec4(spectra::ui::theme().warning),
+                           "Service not in discovery list");
         ImGui::Separator();
     }
     else if (!entry->schema_loaded)
@@ -269,7 +274,8 @@ void ServiceCallerPanel::draw_request_form(float /*pane_width*/)
     }
     else if (!entry->schema_ok)
     {
-        ImGui::TextColored(ImVec4(0.9f, 0.2f, 0.2f, 1.f), "Schema unavailable");
+        ImGui::TextColored(spectra::ui::to_imvec4(spectra::ui::theme().error),
+                           "Schema unavailable");
         ImGui::Separator();
     }
     else
@@ -317,7 +323,9 @@ void ServiceCallerPanel::draw_request_form(float /*pane_width*/)
     if (!form_error_.empty())
     {
         ImGui::Spacing();
-        ImGui::TextColored(ImVec4(0.9f, 0.2f, 0.2f, 1.f), "%s", form_error_.c_str());
+        ImGui::TextColored(spectra::ui::to_imvec4(spectra::ui::theme().error),
+                           "%s",
+                           form_error_.c_str());
     }
 
     // Show latest call status inline.
@@ -341,7 +349,7 @@ void ServiceCallerPanel::draw_request_form(float /*pane_width*/)
             else if (s == CallState::Error || s == CallState::TimedOut)
             {
                 ImGui::SameLine();
-                ImGui::TextColored(ImVec4(0.9f, 0.4f, 0.1f, 1.f),
+                ImGui::TextColored(spectra::ui::to_imvec4(spectra::ui::theme().warning),
                                    "  %s",
                                    rec->error_message.c_str());
             }

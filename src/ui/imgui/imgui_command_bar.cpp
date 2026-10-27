@@ -311,6 +311,61 @@ void ImGuiIntegration::draw_menubar_menu(const char* label, const std::vector<Me
                 ui::tokens::RADIUS_LG + soff * 0.5f);
         }
 
+        // ── Row layout: [check] [icon] label ............ shortcut ──
+        // Columns are reserved only when some item in this menu uses them, so
+        // plain menus keep their compact look.
+        struct RowText
+        {
+            std::string_view label;
+            std::string_view shortcut;
+        };
+        auto split_row = [](const ImGuiIntegration::MenuItem& it) -> RowText
+        {
+            // Legacy items may still encode the shortcut as "Label\tShortcut".
+            std::string_view l   = it.label;
+            const size_t     tab = l.find('\t');
+            if (tab != std::string_view::npos && it.shortcut.empty())
+                return {l.substr(0, tab), l.substr(tab + 1)};
+            return {l, it.shortcut};
+        };
+
+        const float pad_x     = ui::tokens::SPACE_2;
+        const float line_h    = ImGui::GetTextLineHeight();
+        const float item_h    = line_h + 10.0f;
+        const float check_w   = line_h * 0.8f;
+        bool        has_check = false;
+        bool        has_icon  = false;
+        float       max_label = 0.0f;
+        float       max_short = 0.0f;
+        for (const auto& item : items)
+        {
+            if (item.label.empty())
+                continue;
+            const RowText row = split_row(item);
+            has_check         = has_check || static_cast<bool>(item.checked);
+            has_icon          = has_icon || item.icon != 0;
+            max_label         = std::max(
+                max_label,
+                ImGui::CalcTextSize(row.label.data(), row.label.data() + row.label.size()).x);
+            if (!row.shortcut.empty())
+            {
+                max_short = std::max(max_short,
+                                     ImGui::CalcTextSize(row.shortcut.data(),
+                                                         row.shortcut.data() + row.shortcut.size())
+                                         .x);
+            }
+        }
+        const float check_col = has_check ? check_w + ui::tokens::SPACE_2 : 0.0f;
+        const float icon_sz   = line_h;
+        const float icon_col  = has_icon ? icon_sz + ui::tokens::SPACE_2 : 0.0f;
+        const float label_x   = pad_x + check_col + icon_col;
+        const float short_gap = max_short > 0.0f ? ui::tokens::SPACE_6 : 0.0f;
+        const float row_w     = label_x + max_label + short_gap + max_short + pad_x;
+
+        auto to_u32 = [](const ui::Color& c, float a)
+        { return ImGui::ColorConvertFloat4ToU32(ImVec4(c.r, c.g, c.b, a)); };
+
+        int row_index = 0;
         for (const auto& item : items)
         {
             if (item.label.empty())
@@ -324,58 +379,79 @@ void ImGuiIntegration::draw_menubar_menu(const char* label, const std::vector<Me
                 ImGui::Separator();
                 ImGui::PopStyleColor();
                 ImGui::Dummy(ImVec2(0, 2));
+                continue;
             }
-            else if (!item.callback)
+
+            // Null callback + non-empty label → disabled / grayed-out item.
+            // text_tertiary is the theme field for placeholders / disabled text.
+            const bool    enabled = static_cast<bool>(item.callback);
+            const RowText row     = split_row(item);
+            const bool    checked = item.checked && item.checked();
+
+            ImGui::PushID(row_index++);
+            ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0, 0, 0, 0));
+            ImGui::PushStyleColor(ImGuiCol_HeaderHovered,
+                                  ImVec4(colors.accent_subtle.r,
+                                         colors.accent_subtle.g,
+                                         colors.accent_subtle.b,
+                                         0.5f));
+            ImGui::PushStyleColor(
+                ImGuiCol_HeaderActive,
+                ImVec4(colors.accent_muted.r, colors.accent_muted.g, colors.accent_muted.b, 0.7f));
+            const bool clicked = ImGui::Selectable(
+                "##menu_item",
+                false,
+                enabled ? ImGuiSelectableFlags_None : ImGuiSelectableFlags_Disabled,
+                ImVec2(row_w, item_h));
+            ImGui::PopStyleColor(3);
+
+            const ImVec2 rmin     = ImGui::GetItemRectMin();
+            const ImVec2 rmax     = ImGui::GetItemRectMax();
+            const float  text_y   = rmin.y + (item_h - line_h) * 0.5f;
+            ImDrawList*  dl       = ImGui::GetWindowDrawList();
+            const ImU32  text_col = enabled ? to_u32(colors.text_primary, colors.text_primary.a)
+                                            : to_u32(colors.text_tertiary, colors.text_tertiary.a);
+
+            if (checked)
             {
-                // Null callback + non-empty label → disabled / grayed-out text item.
-                // text_tertiary is the theme field for placeholders / disabled text.
-                ImGui::PushStyleColor(ImGuiCol_Text,
-                                      ImVec4(colors.text_tertiary.r,
-                                             colors.text_tertiary.g,
-                                             colors.text_tertiary.b,
-                                             colors.text_tertiary.a));
-                float item_h = ImGui::GetTextLineHeight() + 10.0f;
-                ImGui::PushStyleVar(ImGuiStyleVar_SelectableTextAlign, ImVec2(0.0f, 0.5f));
-                ImGui::Selectable(item.label.c_str(),
-                                  false,
-                                  ImGuiSelectableFlags_Disabled,
-                                  ImVec2(0, item_h));
-                ImGui::PopStyleVar();
-                ImGui::PopStyleColor();
+                ImGui::RenderCheckMark(dl,
+                                       ImVec2(rmin.x + pad_x, rmin.y + (item_h - check_w) * 0.5f),
+                                       to_u32(colors.accent, enabled ? 1.0f : 0.5f),
+                                       check_w);
             }
-            else
+            if (item.icon != 0 && font_icon_)
             {
-                ImGui::PushStyleColor(ImGuiCol_Text,
-                                      ImVec4(colors.text_primary.r,
-                                             colors.text_primary.g,
-                                             colors.text_primary.b,
-                                             colors.text_primary.a));
-                ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0, 0, 0, 0));
-                ImGui::PushStyleColor(ImGuiCol_HeaderHovered,
-                                      ImVec4(colors.accent_subtle.r,
-                                             colors.accent_subtle.g,
-                                             colors.accent_subtle.b,
-                                             0.5f));
-                ImGui::PushStyleColor(ImGuiCol_HeaderActive,
-                                      ImVec4(colors.accent_muted.r,
-                                             colors.accent_muted.g,
-                                             colors.accent_muted.b,
-                                             0.7f));
-                ImGui::PushStyleVar(ImGuiStyleVar_SelectableTextAlign, ImVec2(0.0f, 0.5f));
+                const char* glyph = ui::icon_str(static_cast<ui::Icon>(item.icon));
+                const ImU32 icon_col_u32 =
+                    checked ? to_u32(colors.accent, enabled ? 1.0f : 0.5f)
+                            : to_u32(colors.text_secondary, enabled ? 0.9f : 0.5f);
+                dl->AddText(font_icon_,
+                            icon_sz * 0.9f,
+                            ImVec2(rmin.x + pad_x + check_col, rmin.y + (item_h - icon_sz) * 0.5f),
+                            icon_col_u32,
+                            glyph);
+            }
+            dl->AddText(ImVec2(rmin.x + label_x, text_y),
+                        text_col,
+                        row.label.data(),
+                        row.label.data() + row.label.size());
+            if (!row.shortcut.empty())
+            {
+                const float sw = ImGui::CalcTextSize(row.shortcut.data(),
+                                                     row.shortcut.data() + row.shortcut.size())
+                                     .x;
+                dl->AddText(ImVec2(rmax.x - pad_x - sw, text_y),
+                            to_u32(colors.text_tertiary, enabled ? 1.0f : 0.6f),
+                            row.shortcut.data(),
+                            row.shortcut.data() + row.shortcut.size());
+            }
+            ImGui::PopID();
 
-                float item_h = ImGui::GetTextLineHeight() + 10.0f;
-                if (ImGui::Selectable(item.label.c_str(),
-                                      false,
-                                      ImGuiSelectableFlags_None,
-                                      ImVec2(0, item_h)))
-                {
-                    ui::log_ui_action("menu", item.label.c_str(), "ok");
-                    item.callback();
-                    open_menu_label_.clear();
-                }
-
-                ImGui::PopStyleVar();
-                ImGui::PopStyleColor(4);
+            if (clicked && enabled)
+            {
+                ui::log_ui_action("menu", row.label, "ok");
+                item.callback();
+                open_menu_label_.clear();
             }
         }
 
@@ -1017,38 +1093,8 @@ void ImGuiIntegration::draw_command_bar()
         ImGui::SameLine();
 
         // Data menu
-        draw_menubar_menu(
-            "Data",
-            {MenuItem(
-                "Load from CSV...",
-                [this]()
-                {
-                    if (!native_dialogs_enabled())
-                        return;
-                    DialogEnvGuard env_guard;
-                    char const*    filters[3] = {"*.csv", "*.tsv", "*.txt"};
-                    const char*    home_env   = std::getenv("HOME");
-                    std::string    home_dir   = home_env ? std::string(home_env) + "/" : "/";
-                    const char*    home       = home_dir.c_str();
-                    char const*    result =
-                        tinyfd_openFileDialog("Open CSV File", home, 3, filters, "CSV files", 0);
-                    if (result)
-                    {
-                        csv_file_path_   = result;
-                        csv_data_        = parse_csv(csv_file_path_);
-                        csv_data_loaded_ = csv_data_.error.empty();
-                        csv_error_       = csv_data_.error;
-                        csv_col_x_       = 0;
-                        csv_selected_y_.clear();
-                        for (size_t c = 1; c < csv_data_.num_cols; ++c)
-                            csv_selected_y_.push_back(static_cast<int>(c));
-                        if (csv_selected_y_.empty() && csv_data_.num_cols > 0)
-                            csv_selected_y_.push_back(0);
-                        csv_col_z_       = -1;
-                        if (csv_data_loaded_)
-                            csv_dialog_open_ = true;
-                    }
-                })});
+        draw_menubar_menu("Data",
+                          {MenuItem("Load from CSV...", [this]() { open_csv_with_dialog(); })});
 
         ImGui::SameLine();
 

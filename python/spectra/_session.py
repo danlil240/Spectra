@@ -210,7 +210,9 @@ class Session:
             if blob_name:
                 self._blob_store.release_blob(blob_name)
 
-    def figure(self, title: str = "", width: int = 1280, height: int = 720) -> "Figure":
+    def figure(
+        self, title: str = "", width: int = P.DEFAULT_WINDOW_WIDTH, height: int = P.DEFAULT_WINDOW_HEIGHT
+    ) -> "Figure":
         """Create a new figure. Returns a Figure proxy."""
         from ._figure import Figure
 

@@ -9,6 +9,8 @@
 #include "px4_plot_manager.hpp"
 #include "ulog_reader.hpp"
 
+#include <spectra/fwd.hpp>
+
 #include "ui/live_connection_panel.hpp"
 #include "ui/ulog_file_panel.hpp"
 
@@ -147,6 +149,14 @@ class Px4AppShell
     // Close all auto-generated and manually added plots.
     void close_all_plots();
 
+    // True when there is nothing to plot (no ULog open, no MAVLink link, no
+    // fields): the canvas shows an "Open ULog" empty state instead of an
+    // empty 0-1 axes, and the canvas figure has no axes.
+    bool empty_state_visible() const;
+
+    // Start the MAVLink bridge with the configured host/port.
+    void connect_live();
+
     // Accessors.
     ULogReader&         reader() { return reader_; }
     Px4Bridge&          bridge() { return bridge_; }
@@ -160,6 +170,7 @@ class Px4AppShell
     void on_populate_nav_rail(spectra::ui::shell::NavRail& rail) override;
     void on_default_layout(unsigned int dockspace_id) override;
     void on_build_status_bar(spectra::ui::shell::StatusBar& bar) override;
+    std::unique_ptr<spectra::ui::shell::CanvasHost> create_canvas_host() override;
 #endif
 
    private:
@@ -172,6 +183,9 @@ class Px4AppShell
 
     void draw_ulog_file(bool* p_open = nullptr);
     void draw_live_connection(bool* p_open = nullptr);
+    void draw_canvas_empty_state(const spectra::Rect& region);
+
+    friend class Px4CanvasHost;
 
     Px4AppConfig cfg_;
 

@@ -13,6 +13,7 @@
 #include <spectra/export.hpp>
 #include <spectra/figure.hpp>
 #include <spectra/logger.hpp>
+#include <spectra/window_defaults.hpp>
 #include <string>
 #include <thread>
 #include <unordered_map>
@@ -24,7 +25,9 @@
 #include "ipc/transport.hpp"
 #include "render/renderer.hpp"
 #include "render/vulkan/vk_backend.hpp"
+#include "ui/app/figure_snapshot.hpp"
 #include "ui/overlay/knob_manager.hpp"
+#include "ui/theme/svg_style.hpp"
 
 #ifdef _WIN32
     #include <process.h>
@@ -117,85 +120,6 @@ static pid_t spawn_backend(const std::string& sock_path)
 #endif
 }
 
-// ─── Serialize a Figure into a SnapshotFigureState ──────────────────────────
-static ipc::SnapshotFigureState figure_to_snapshot(const Figure& fig, uint64_t figure_id)
-{
-    ipc::SnapshotFigureState snap;
-    snap.figure_id = figure_id;
-    snap.title     = "";
-    snap.width     = fig.width();
-    snap.height    = fig.height();
-    snap.grid_rows = fig.grid_rows();
-    snap.grid_cols = fig.grid_cols();
-
-    for (const auto& ax_ptr : fig.axes())
-    {
-        if (!ax_ptr)
-            continue;
-        const auto&            ax = *ax_ptr;
-        ipc::SnapshotAxisState sa;
-        sa.x_min        = ax.x_limits().min;
-        sa.x_max        = ax.x_limits().max;
-        sa.y_min        = ax.y_limits().min;
-        sa.y_max        = ax.y_limits().max;
-        sa.grid_visible = ax.grid_enabled();
-        sa.x_label      = ax.xlabel();
-        sa.y_label      = ax.ylabel();
-        sa.title        = ax.title();
-        snap.axes.push_back(std::move(sa));
-
-        for (const auto& s_ptr : ax.series())
-        {
-            if (!s_ptr)
-                continue;
-            const auto&              s = *s_ptr;
-            ipc::SnapshotSeriesState ss;
-            ss.name    = s.label();
-            ss.color_r = s.color().r;
-            ss.color_g = s.color().g;
-            ss.color_b = s.color().b;
-            ss.color_a = s.color().a;
-            ss.visible = s.visible();
-            ss.opacity = s.opacity();
-
-            if (auto* line = dynamic_cast<const LineSeries*>(&s))
-            {
-                ss.type        = "line";
-                ss.line_width  = line->width();
-                ss.marker_size = s.marker_size();
-                auto xd        = line->x_data();
-                auto yd        = line->y_data();
-                ss.data.reserve(xd.size() * 2);
-                for (size_t i = 0; i < xd.size() && i < yd.size(); ++i)
-                {
-                    ss.data.push_back(xd[i]);
-                    ss.data.push_back(yd[i]);
-                }
-                ss.point_count = static_cast<uint32_t>(xd.size());
-            }
-            else if (auto* scatter = dynamic_cast<const ScatterSeries*>(&s))
-            {
-                ss.type        = "scatter";
-                ss.marker_size = scatter->size();
-                ss.line_width  = 2.0f;
-                auto xd        = scatter->x_data();
-                auto yd        = scatter->y_data();
-                ss.data.reserve(xd.size() * 2);
-                for (size_t i = 0; i < xd.size() && i < yd.size(); ++i)
-                {
-                    ss.data.push_back(xd[i]);
-                    ss.data.push_back(yd[i]);
-                }
-                ss.point_count = static_cast<uint32_t>(xd.size());
-            }
-
-            snap.series.push_back(std::move(ss));
-        }
-    }
-
-    return snap;
-}
-
 // ─── Send an IPC message helper ─────────────────────────────────────────────
 static bool send_msg(ipc::Connection&     conn,
                      ipc::MessageType     type,
@@ -244,10 +168,17 @@ void App::run_multiproc()
             backend_->create_offscreen_framebuffer(export_w, export_h);
             static_cast<VulkanBackend*>(backend_.get())->ensure_pipelines();
 
+            // A larger-than-figure export keeps the figure's layout and draws it
+            // scaled up (HiDPI), so lines, markers and text keep their size.
+            ExportViewport ev =
+                compute_export_viewport(fig->width(), fig->height(), export_w, export_h);
+            backend_->set_pixel_scale(ev.pixel_scale);
+            if (backend_->pixel_scale() != ev.pixel_scale)   // backend cannot scale
+                ev = {export_w, export_h, 1.0f};
             uint32_t orig_w     = fig->config_.width;
             uint32_t orig_h     = fig->config_.height;
-            fig->config_.width  = export_w;
-            fig->config_.height = export_h;
+            fig->config_.width  = ev.layout_width;
+            fig->config_.height = ev.layout_height;
             fig->compute_layout();
 
             if (backend_->begin_frame())
@@ -255,6 +186,7 @@ void App::run_multiproc()
                 renderer_->render_figure(*fig);
                 backend_->end_frame();
             }
+            backend_->set_pixel_scale(1.0f);
 
             fig->config_.width  = orig_w;
             fig->config_.height = orig_h;
@@ -289,7 +221,10 @@ void App::run_multiproc()
 
             if (!fig->export_req_.svg_path.empty())
             {
-                if (!SvgExporter::write_svg(fig->export_req_.svg_path, *fig))
+                if (!SvgExporter::write_svg(
+                        fig->export_req_.svg_path,
+                        *fig,
+                        theme_mgr_ ? ui::svg_style_from_theme(theme_mgr_->colors()) : SvgStyle{}))
                     SPECTRA_LOG_ERROR("app", "Failed to write SVG: {}", fig->export_req_.svg_path);
             }
         }
@@ -420,7 +355,7 @@ void App::run_multiproc()
             continue;
         fig->compute_layout();
         auto fig_snap  = figure_to_snapshot(*fig, reg_to_ipc[id]);
-        fig_snap.title = "Figure " + std::to_string(reg_to_ipc[id] - 99);
+        fig_snap.title = default_figure_title(reg_to_ipc[id] - 99);
         snap.figures.push_back(std::move(fig_snap));
     }
 
@@ -672,6 +607,8 @@ void App::run_multiproc()
                                 op.figure_id    = reg_to_ipc[id];
                                 op.axes_index   = axes_idx;
                                 op.series_index = series_idx;
+                                op.f1           = s_ptr->x_offset();   // data origins
+                                op.f2           = s_ptr->y_offset();
 
                                 if (auto* line = dynamic_cast<const LineSeries*>(s_ptr.get()))
                                 {

@@ -5,6 +5,8 @@
 
 int main()
 {
+    // Headless exports use the fixed "night" theme regardless of the user's
+    // settings; set .theme / .data_palette (e.g. .theme = "light") to change it.
     spectra::App app({.headless = true, .socket_path = ""});
     auto&        fig = app.figure({.width = 1920, .height = 1080});
     auto&        ax  = fig.subplot(1, 1, 1);

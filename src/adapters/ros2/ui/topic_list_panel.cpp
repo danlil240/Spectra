@@ -11,6 +11,7 @@
 #include <iterator>
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
+    #include "ui/theme/theme_imgui.hpp"
 
     #include "ui/imgui/widgets.hpp"
     #include "ui/shell/shell_style.hpp"
@@ -552,7 +553,10 @@ static void draw_hz_sparkline(const std::deque<float>& history, float width, flo
     {
         // No data — draw a flat baseline.
         const float y = p.y + height;
-        dl->AddLine({p.x, y}, {p.x + width, y}, IM_COL32(80, 80, 80, 180), 1.0f);
+        dl->AddLine({p.x, y},
+                    {p.x + width, y},
+                    spectra::ui::to_imu32(spectra::ui::theme().border_default),
+                    1.0f);
         ImGui::Dummy({width, height});
         return;
     }
@@ -567,7 +571,10 @@ static void draw_hz_sparkline(const std::deque<float>& history, float width, flo
         const float x1 = p.x + static_cast<float>(i) * step;
         const float y0 = p.y + height * (1.0f - history[i - 1] * inv_max);
         const float y1 = p.y + height * (1.0f - history[i] * inv_max);
-        dl->AddLine({x0, y0}, {x1, y1}, IM_COL32(80, 200, 120, 200), 1.0f);
+        dl->AddLine({x0, y0},
+                    {x1, y1},
+                    spectra::ui::to_imu32(spectra::ui::theme().success, 0.8f),
+                    1.0f);
     }
     ImGui::Dummy({width, height});
 }
@@ -1224,7 +1231,8 @@ void TopicListPanel::draw_topic_row(const TopicInfo& info, TopicStats& stats)
         const char* arrow = is_expanded ? ui::icon_str(ui::Icon::ChevronDown)
                                         : ui::icon_str(ui::Icon::ChevronRight);
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(1, 1, 1, 0.1f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
+                              spectra::ui::to_imvec4(spectra::ui::theme().hover_highlight));
         if (ImGui::SmallButton(arrow))
         {
             if (is_expanded)

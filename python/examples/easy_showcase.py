@@ -34,9 +34,9 @@ x = [i * 0.05 for i in range(200)]
 sp.subplot(2, 2, 1)
 sp.plot(x, [math.sin(xi) for xi in x], color="red", label="sin")
 sp.plot(x, [math.cos(xi) for xi in x], color="blue", label="cos")
-    sp.hline(0.0)
-    sp.vline(0.0, color="gray")
-    sp.fplot(lambda xi: xi * xi, -3, 3, color="green", label="x²")
+sp.hline(0.0)
+sp.vline(0.0, color="gray")
+sp.fplot(lambda xi: xi * xi, -3, 3, color="green", label="x²")
 sp.title("Line Plot")
 sp.legend()
 sp.grid()
@@ -88,7 +88,9 @@ s1_buf = []
 s2_buf = []
 
 
-def stream(t, dt):
+def stream(t, dt, ax):
+    # Use the axes handed in by sp.live(): the module-level sp.xlim/sp.ylim act on the
+    # *current* axes, which is the last subplot of window 3 once the script continues.
     t_buf.append(t)
     s1_buf.append(math.sin(t * 2) + random.gauss(0, 0.1))
     s2_buf.append(math.cos(t * 1.5) * 0.8 + random.gauss(0, 0.05))
@@ -101,8 +103,8 @@ def stream(t, dt):
     sig2.set_data(t_buf, s2_buf)
 
     if len(t_buf) > 1:
-        sp.xlim(t_buf[0], t_buf[-1])
-    sp.ylim(-2.0, 2.0)
+        ax.set_xlim(t_buf[0], t_buf[-1])
+    ax.set_ylim(-2.0, 2.0)
 
 
 sp.live(stream, fps=30)

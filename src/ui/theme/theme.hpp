@@ -6,6 +6,10 @@
 #include <unordered_map>
 #include <vector>
 
+#include <spectra/color.hpp>
+#include <spectra/fwd.hpp>
+#include <string_view>
+
 #include "design_tokens.hpp"
 
 struct ImVec4;   // Forward declaration for ImGui
@@ -19,6 +23,7 @@ enum class GlassSurface;
 namespace spectra
 {
 class EventSystem;
+class Figure;
 }   // namespace spectra
 
 namespace spectra::ui
@@ -201,6 +206,7 @@ struct ThemeColors
     Color warning;
     Color error;
     Color info;
+    Color critical;   // Highest severity (fatal / crash); distinct from error
 
     // Plot-specific
     Color grid_major;   // Major gridlines (labeled tick positions)
@@ -316,8 +322,9 @@ enum class GlassSurface
 struct Theme
 {
     std::string        name;
+    std::string        display_name;   // Human-readable name for UI ("High Contrast")
     ThemeColors        colors;
-    DataPalette        data_palette;
+    DataPalette        data_palette;   // Theme's default palette (used when "default" is selected)
     ThemeGlassSettings glass_defaults;
 
     // Visual properties
@@ -351,8 +358,13 @@ class ThemeManager
     const Theme&       current() const;
     const ThemeColors& colors() const;
     const std::string& current_theme_name() const;
+    // Human-readable name of a theme id for UI labels ("high_contrast" -> "High Contrast").
+    // Uses the registered theme's display_name, falling back to theme_display_name(id).
+    std::string display_name(std::string_view theme_id) const;
 
-    // Data palette management
+    // Data palette management.  The selected palette name is global across
+    // themes; "default" resolves to the active theme's own default palette
+    // (Theme::data_palette), so it suits the theme's background.
     void               set_data_palette(const std::string& palette_name);
     void               register_data_palette(const std::string& name, DataPalette palette);
     const DataPalette& current_data_palette() const;
@@ -460,10 +472,39 @@ class ThemeManager
     ThemeGlassSettings glass_settings_;
     ThemeGlassSettings glass_defaults_for(const std::string& theme_name) const;
 
-    void        initialize_default_themes();
-    void        initialize_data_palettes();
+    void               initialize_default_themes();
+    void               initialize_data_palettes();
+    const DataPalette& resolve_data_palette(const std::string& name) const;
     ThemeColors interpolate_colors(const ThemeColors& start, const ThemeColors& end, float t) const;
 };
+
+// True when the theme's plot canvas is light (format-letter colours then use
+// their light-background shades, see format_colors in spectra/color.hpp).
+inline bool is_light_plot_background(const ThemeColors& theme)
+{
+    const float luma =
+        0.2126f * theme.bg_canvas.r + 0.7152f * theme.bg_canvas.g + 0.0722f * theme.bg_canvas.b;
+    return luma > 0.5f;
+}
+
+// Resolve the colours of auto-coloured series (Series::has_auto_color()) in
+// @p figure from @p palette, by palette slot, and of format-letter series
+// (Series::color_letter(), e.g. "r--") to the letter's tuned shade for a dark
+// or light background.  Explicitly coloured series are left untouched.  An
+// empty palette falls back to palette::default_cycle.
+// Called by the renderer before drawing a figure and by the UI before building
+// overlays (legend), so palette and theme switches recolour existing plots.
+void resolve_auto_series_colors(Figure&            figure,
+                                const DataPalette& palette,
+                                bool               light_background = false);
+
+// Fallback display name for a theme id without a registered display_name:
+// underscores become spaces and each word is capitalised ("my_theme" -> "My Theme").
+std::string theme_display_name(std::string_view theme_id);
+
+// Colour a figure's background actually renders with: the figure's own colour when
+// FigureStyle::background_override is set, otherwise the theme's canvas colour ("auto").
+spectra::Color effective_figure_background(const FigureStyle& style, const ThemeColors& colors);
 
 // Convenience accessors
 inline const ThemeColors& theme()

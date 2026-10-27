@@ -213,7 +213,9 @@ def decode_welcome(data: bytes) -> dict:
     return result
 
 
-def encode_req_create_figure(title: str = "", width: int = 1280, height: int = 720) -> bytes:
+def encode_req_create_figure(
+    title: str = "", width: int = P.DEFAULT_WINDOW_WIDTH, height: int = P.DEFAULT_WINDOW_HEIGHT
+) -> bytes:
     return fb_codec.encode_fb_req_create_figure(title=title, width=width, height=height)
 
 def encode_req_create_axes(figure_id: int, rows: int, cols: int, index: int, is_3d: bool = False) -> bytes:

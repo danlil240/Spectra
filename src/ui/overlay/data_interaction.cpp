@@ -12,6 +12,7 @@
     #include <spectra/series.hpp>
     #include <spectra/series3d.hpp>
 
+    #include "core/axis_scale.hpp"
     #include "data/sorted_x_query.hpp"
     #include "axes3d_pick.hpp"
     #include "ui/data/axis_link.hpp"
@@ -124,18 +125,19 @@ bool DataInteraction::select_point(const Series* series, size_t point_index)
         }
     }
 
-    // Absolute x = series x_offset + stored relative float.
+    // Absolute x/y = series x_offset/y_offset + stored relative float.
     const double abs_x = static_cast<double>(x_data[point_index]) + series->x_offset();
+    const double abs_y = static_cast<double>(y_data[point_index]) + series->y_offset();
 
     markers_.clear();
-    markers_.add(abs_x, y_data[point_index], series, point_index, target_axes, dy_dx, dy_dx_valid);
+    markers_.add(abs_x, abs_y, series, point_index, target_axes, dy_dx, dy_dx_valid);
 
     // Keep nearest cache coherent so tooltip/cursor feedback remains aligned.
     nearest_.found       = true;
     nearest_.series      = series;
     nearest_.point_index = point_index;
     nearest_.data_x      = abs_x;
-    nearest_.data_y      = y_data[point_index];
+    nearest_.data_y      = abs_y;
 
     return true;
 }
@@ -269,14 +271,14 @@ bool DataInteraction::refresh_pointer_state(double screen_x, double screen_y)
             ylim_min_    = yl.min;
             ylim_max_    = yl.max;
 
-            float x_range = xlim_max_ - xlim_min_;
-            float y_range = ylim_max_ - ylim_min_;
-            if (x_range == 0.0f)
-                x_range = 1.0f;
-            if (y_range == 0.0f)
-                y_range = 1.0f;
-            cursor.data_x = xlim_min_ + (sx - vp.x) / vp.w * x_range;
-            cursor.data_y = ylim_max_ - (sy - vp.y) / vp.h * y_range;
+            double x_range = xlim_max_ - xlim_min_;
+            double y_range = ylim_max_ - ylim_min_;
+            if (x_range == 0.0)
+                x_range = 1.0;
+            if (y_range == 0.0)
+                y_range = 1.0;
+            cursor.data_x = xlim_min_ + static_cast<double>((sx - vp.x) / vp.w) * x_range;
+            cursor.data_y = ylim_max_ - static_cast<double>((sy - vp.y) / vp.h) * y_range;
         }
         else if (auto* axes3d = dynamic_cast<Axes3D*>(axes_base))
         {
@@ -1085,10 +1087,16 @@ NearestPointResult DataInteraction::find_nearest(const CursorReadout& cursor, Fi
         if (cx < vp.x || cx > vp.x + vp.w || cy < vp.y || cy > vp.y + vp.h)
             continue;
 
-        auto   xlim    = axes_ptr->x_limits();
-        auto   ylim    = axes_ptr->y_limits();
-        double x_range = xlim.max - xlim.min;
-        double y_range = ylim.max - ylim.min;
+        // Project in axis space (log10/log2 for log axes) exactly like the
+        // renderer, so the picked point is the one drawn under the cursor.
+        const ScaleType  xscale  = axes_ptr->xscale();
+        const ScaleType  yscale  = axes_ptr->yscale();
+        const bool       x_log   = is_log_scale(xscale);
+        const bool       y_log   = is_log_scale(yscale);
+        const AxisLimits xlim    = axis_space_limits(xscale, axes_ptr->x_limits());
+        const AxisLimits ylim    = axis_space_limits(yscale, axes_ptr->y_limits());
+        double           x_range = xlim.max - xlim.min;
+        double           y_range = ylim.max - ylim.min;
         if (x_range == 0.0)
             x_range = 1.0;
         if (y_range == 0.0)
@@ -1124,8 +1132,9 @@ NearestPointResult DataInteraction::find_nearest(const CursorReadout& cursor, Fi
             if (!x_data || !y_data || count == 0)
                 continue;
 
-            // x_data is relative to the series x_offset; limits are absolute.
+            // x/y data are relative to the series offsets; limits are absolute.
             const double xoff = series_ptr->x_offset();
+            const double yoff = series_ptr->y_offset();
 
             size_t query_begin = 0;
             size_t query_end   = count;
@@ -1137,13 +1146,19 @@ NearestPointResult DataInteraction::find_nearest(const CursorReadout& cursor, Fi
             // full scan and therefore identical behavior.
             if (x_sorted && count > 64 && vp.w > 0.0f)
             {
-                const double cursor_abs_x =
+                // Snap window in axis space, mapped back to data space (the
+                // inverse mapping is not symmetric about the cursor on a log
+                // axis, so query the centre/half-width of [lo, hi]).
+                const double cursor_ax_x =
                     xlim.min + (static_cast<double>(cx - vp.x) / vp.w) * x_range;
-                const double local_cursor_x = cursor_abs_x - xoff;
-                const double local_radius =
+                const double radius_ax =
                     std::abs(x_range) * static_cast<double>(tooltip_.snap_radius()) / vp.w;
-                const auto query = sorted_x_query_range(std::span<const float>(x_data, count),
-                                                        local_cursor_x,
+                const double lo           = from_axis_space(xscale, cursor_ax_x - radius_ax);
+                const double hi           = from_axis_space(xscale, cursor_ax_x + radius_ax);
+                const double local_center = (lo + hi) * 0.5 - xoff;
+                const double local_radius = (hi - lo) * 0.5;
+                const auto   query = sorted_x_query_range(std::span<const float>(x_data, count),
+                                                        local_center,
                                                         local_radius);
                 query_begin      = query.begin;
                 query_end        = query.end;
@@ -1153,13 +1168,18 @@ NearestPointResult DataInteraction::find_nearest(const CursorReadout& cursor, Fi
             for (size_t i = query_begin; i < query_end; ++i)
             {
                 // Convert data point to screen coordinates.  Compute the
-                // x normalization in double: (x + xoff - xlim.min) stays
+                // normalization in double: (x + xoff - xlim.min) stays
                 // small and precise even for epoch-scale offsets.
-                const double abs_x  = static_cast<double>(x_data[i]) + xoff;
-                auto         norm_x = static_cast<float>((abs_x - xlim.min) / x_range);
-                float        norm_y = (y_data[i] - ylim.min) / y_range;
-                float        sx     = vp.x + norm_x * vp.w;
-                float        sy     = vp.y + (1.0f - norm_y) * vp.h;
+                const double abs_x = static_cast<double>(x_data[i]) + xoff;
+                const double abs_y = static_cast<double>(y_data[i]) + yoff;
+                if ((x_log && !(abs_x > 0.0)) || (y_log && !(abs_y > 0.0)))
+                    continue;   // not drawn on a log axis
+                const auto norm_x =
+                    static_cast<float>((to_axis_space(xscale, abs_x) - xlim.min) / x_range);
+                const auto norm_y =
+                    static_cast<float>((to_axis_space(yscale, abs_y) - ylim.min) / y_range);
+                float sx = vp.x + norm_x * vp.w;
+                float sy = vp.y + (1.0f - norm_y) * vp.h;
 
                 float dx    = cx - sx;
                 float dy    = cy - sy;
@@ -1172,7 +1192,7 @@ NearestPointResult DataInteraction::find_nearest(const CursorReadout& cursor, Fi
                     best.series_index = series_counter;
                     best.point_index  = i;
                     best.data_x       = abs_x;
-                    best.data_y       = y_data[i];
+                    best.data_y       = abs_y;
                     best.screen_x     = sx;
                     best.screen_y     = sy;
                     best_dist2        = dist2;

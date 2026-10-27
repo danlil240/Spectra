@@ -13,6 +13,7 @@
     #include "settings_store.hpp"
     #include "ui/commands/shortcut_config.hpp"
     #include "ui/commands/shortcut_manager.hpp"
+    #include "ui/imgui/widgets.hpp"
     #include "ui/theme/theme.hpp"
 
 namespace spectra::ui::settings
@@ -145,7 +146,13 @@ static const ImGuiKey k_capturable_keys[] = {
 
 void SettingsPanel::draw()
 {
-    if (!visible_)
+    // Settings is a modal: ImGui dims everything behind it with a scrim
+    // (ImGuiCol_ModalWindowDimBg) and keeps input away from the plot underneath.
+    // visible_ stays the source of truth; the popup follows it.
+    static constexpr const char* k_popup_id = "Settings##spectra";
+    if (visible_ && !ImGui::IsPopupOpen(k_popup_id))
+        ImGui::OpenPopup(k_popup_id);
+    if (!ImGui::IsPopupOpen(k_popup_id))
         return;
 
     ImGuiIO& io = ImGui::GetIO();
@@ -154,19 +161,25 @@ void SettingsPanel::draw()
                             ImVec2(0.5f, 0.5f));
     ImGui::SetNextWindowSizeConstraints(ImVec2(420.0f, 0.0f), ImVec2(FLT_MAX, 900.0f));
 
-    // Push fully-opaque window background so the welcome screen does not bleed through.
+    // Opaque background: the glass panel transparency would let the plot show
+    // through behind the dialog's text.  (Modals draw with ImGuiCol_PopupBg.)
     const auto& colors = ui::theme();
     ImGui::PushStyleColor(
-        ImGuiCol_WindowBg,
-        ImVec4(colors.bg_secondary.r, colors.bg_secondary.g, colors.bg_secondary.b, 0.98f));
+        ImGuiCol_PopupBg,
+        ImVec4(colors.bg_secondary.r, colors.bg_secondary.g, colors.bg_secondary.b, 1.0f));
 
-    const bool open = ImGui::Begin("Settings##spectra",
-                                   &visible_,
-                                   ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize);
+    const bool open =
+        ImGui::BeginPopupModal(k_popup_id,
+                               &visible_,
+                               ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize);
     ImGui::PopStyleColor();
     if (!open)
+        return;
+    if (!visible_)
     {
-        ImGui::End();
+        // Hidden programmatically (command, automation) while open.
+        ImGui::CloseCurrentPopup();
+        ImGui::EndPopup();
         return;
     }
 
@@ -203,7 +216,7 @@ void SettingsPanel::draw()
         ImGui::EndTabBar();
     }
 
-    ImGui::End();
+    ImGui::EndPopup();
 }
 
 // ─── Appearance tab ───────────────────────────────────────────────────────────
@@ -235,12 +248,14 @@ void SettingsPanel::draw_appearance_tab()
     ImGui::TextUnformatted("Theme");
     ImGui::SameLine(label_w);
     ImGui::SetNextItemWidth(200.0f);
-    if (ImGui::BeginCombo("##theme", d.default_theme.c_str()))
+    const std::string current_theme_label = theme_mgr_->display_name(d.default_theme);
+    if (ImGui::BeginCombo("##theme", current_theme_label.c_str()))
     {
         for (const char* t : k_themes)
         {
-            bool selected = (d.default_theme == t);
-            if (ImGui::Selectable(t, selected))
+            bool              selected = (d.default_theme == t);
+            const std::string label    = theme_mgr_->display_name(t) + "##" + t;
+            if (ImGui::Selectable(label.c_str(), selected))
             {
                 d.default_theme = t;
                 theme_mgr_->set_theme(t);
@@ -307,7 +322,7 @@ void SettingsPanel::draw_appearance_tab()
     glass_slider("Toolbar Transparency", &glass.toolbar_alpha);
     glass_slider("Glow Strength", &glass.glow_strength);
 
-    if (ImGui::Checkbox("Blur Enabled (experimental)", &glass.blur_enabled))
+    if (widgets::checkbox_field("Blur Enabled (experimental)", glass.blur_enabled))
         glass_changed = true;
 
     if (glass_changed)
@@ -509,17 +524,17 @@ void SettingsPanel::draw_ui_defaults_tab()
 
     ImGui::Spacing();
 
-    if (ImGui::Checkbox("Show Inspector by default", &d.inspector_visible))
+    if (widgets::checkbox_field("Show Inspector by default", d.inspector_visible))
         store_->notify_change();
 
     ImGui::Spacing();
 
-    if (ImGui::Checkbox("Show Navigation Rail by default", &d.nav_rail_visible))
+    if (widgets::checkbox_field("Show Navigation Rail by default", d.nav_rail_visible))
         store_->notify_change();
 
     ImGui::Spacing();
 
-    if (ImGui::Checkbox("Show Timeline by default", &d.timeline_visible))
+    if (widgets::checkbox_field("Show Timeline by default", d.timeline_visible))
         store_->notify_change();
 }
 

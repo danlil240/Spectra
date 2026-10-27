@@ -18,23 +18,42 @@ spectra::LayoutManager* CanvasHost::layout_manager() const
     return layout_manager_;
 }
 
+void CanvasHost::set_region(const spectra::Rect& r)
+{
+    region_       = r;
+    region_valid_ = true;
+}
+
+void CanvasHost::clear_region()
+{
+    region_valid_ = false;
+}
+
 void CanvasHost::draw()
 {
     if (!layout_manager_)
         return;
 
-    const ImVec2 content_min = ImGui::GetWindowContentRegionMin();
-    const ImVec2 content_max = ImGui::GetWindowContentRegionMax();
-    const ImVec2 window_pos  = ImGui::GetWindowPos();
-    Rect         rect{};
-    rect.x = window_pos.x + content_min.x;
-    rect.y = window_pos.y + content_min.y;
-    rect.w = content_max.x - content_min.x;
-    rect.h = content_max.y - content_min.y;
+    Rect rect{};
+    if (region_valid_)
+    {
+        rect = region_;
+    }
+    else
+    {
+        const ImVec2 content_min = ImGui::GetWindowContentRegionMin();
+        const ImVec2 content_max = ImGui::GetWindowContentRegionMax();
+        const ImVec2 window_pos  = ImGui::GetWindowPos();
+        rect.x                   = window_pos.x + content_min.x;
+        rect.y                   = window_pos.y + content_min.y;
+        rect.w                   = content_max.x - content_min.x;
+        rect.h                   = content_max.y - content_min.y;
+    }
     if (rect.w <= 0.0f || rect.h <= 0.0f)
         rect = layout_manager_->canvas_rect();
 
     layout_manager_->set_canvas_override(rect);
+    canvas_rect_ = rect;
 
     ImGui::BeginChild("##canvas_host",
                       ImVec2(0.0f, 0.0f),

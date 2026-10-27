@@ -238,6 +238,20 @@ ipc::DiffOp FigureModel::set_series_label(uint64_t           figure_id,
     return op;
 }
 
+namespace
+{
+// Palette slot for a new series: its position among the series of its axes,
+// like Axes::add_series.  The window resolves it from its own data palette.
+int32_t next_auto_color_index(const std::vector<ipc::SnapshotSeriesState>& series,
+                              uint32_t                                     axes_index)
+{
+    return static_cast<int32_t>(std::count_if(series.begin(),
+                                              series.end(),
+                                              [&](const ipc::SnapshotSeriesState& o)
+                                              { return o.axes_index == axes_index; }));
+}
+}   // namespace
+
 uint32_t FigureModel::add_series(uint64_t           figure_id,
                                  const std::string& name,
                                  const std::string& type)
@@ -247,8 +261,9 @@ uint32_t FigureModel::add_series(uint64_t           figure_id,
     if (it == figures_.end())
         return 0;
     ipc::SnapshotSeriesState s;
-    s.name = name;
-    s.type = type;
+    s.name        = name;
+    s.type        = type;
+    s.color_index = next_auto_color_index(it->second.series, s.axes_index);
     it->second.series.push_back(std::move(s));
     bump_revision();
     return static_cast<uint32_t>(it->second.series.size() - 1);
@@ -268,9 +283,10 @@ ipc::DiffOp FigureModel::add_series_with_diff(uint64_t           figure_id,
         return {};
     }
     ipc::SnapshotSeriesState s;
-    s.name       = name;
-    s.type       = type;
-    s.axes_index = axes_index;
+    s.name        = name;
+    s.type        = type;
+    s.axes_index  = axes_index;
+    s.color_index = next_auto_color_index(it->second.series, axes_index);
     it->second.series.push_back(std::move(s));
     out_index = static_cast<uint32_t>(it->second.series.size() - 1);
     bump_revision();
@@ -295,11 +311,13 @@ ipc::DiffOp FigureModel::set_series_color(uint64_t figure_id,
     auto            it = figures_.find(figure_id);
     if (it != figures_.end() && series_index < it->second.series.size())
     {
-        auto& s   = it->second.series[series_index];
-        s.color_r = r;
-        s.color_g = g;
-        s.color_b = b;
-        s.color_a = a;
+        auto& s        = it->second.series[series_index];
+        s.color_r      = r;
+        s.color_g      = g;
+        s.color_b      = b;
+        s.color_a      = a;
+        s.color_index  = -1;   // explicit colour
+        s.color_letter = 0;
     }
     bump_revision();
 
@@ -412,6 +430,8 @@ ipc::DiffOp FigureModel::set_series_data(uint64_t                  figure_id,
         axes_index          = series.axes_index;
         series.data         = data;
         series.point_count  = static_cast<uint32_t>(data.size() / stride);
+        series.x_origin     = 0.0;   // publisher data holds absolute values
+        series.y_origin     = 0.0;
     }
     bump_revision();
 
@@ -464,7 +484,11 @@ ipc::DiffOp FigureModel::append_series_data(uint64_t                  figure_id,
     op.axes_index   = axes_index;
     op.series_index = series_index;
     if (it != figures_.end() && series_index < it->second.series.size())
+    {
         op.data = it->second.series[series_index].data;
+        op.f1   = it->second.series[series_index].x_origin;
+        op.f2   = it->second.series[series_index].y_origin;
+    }
     return op;
 }
 
@@ -634,10 +658,12 @@ bool FigureModel::apply_diff_op(const ipc::DiffOp& op)
         case ipc::DiffOp::Type::SET_SERIES_COLOR:
             if (it == figures_.end() || op.series_index >= it->second.series.size())
                 return false;
-            it->second.series[op.series_index].color_r = op.f1;
-            it->second.series[op.series_index].color_g = op.f2;
-            it->second.series[op.series_index].color_b = op.f3;
-            it->second.series[op.series_index].color_a = op.f4;
+            it->second.series[op.series_index].color_r      = op.f1;
+            it->second.series[op.series_index].color_g      = op.f2;
+            it->second.series[op.series_index].color_b      = op.f3;
+            it->second.series[op.series_index].color_a      = op.f4;
+            it->second.series[op.series_index].color_index  = -1;
+            it->second.series[op.series_index].color_letter = 0;
             break;
 
         case ipc::DiffOp::Type::SET_SERIES_VISIBLE:
@@ -682,6 +708,8 @@ bool FigureModel::apply_diff_op(const ipc::DiffOp& op)
             it->second.series[op.series_index].data = op.data;
             it->second.series[op.series_index].point_count =
                 static_cast<uint32_t>(op.data.size() / 2);
+            it->second.series[op.series_index].x_origin = op.f1;   // 2D data origins
+            it->second.series[op.series_index].y_origin = op.f2;
             break;
 
         case ipc::DiffOp::Type::SET_AXIS_XLABEL:

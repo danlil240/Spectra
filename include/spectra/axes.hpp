@@ -4,6 +4,7 @@
 #include <memory>
 #include <optional>
 #include <span>
+#include <spectra/annotation.hpp>
 #include <spectra/color.hpp>
 #include <spectra/fwd.hpp>
 #include <spectra/series.hpp>
@@ -56,6 +57,9 @@ struct TickResult
 {
     std::vector<double>      positions;
     std::vector<std::string> labels;
+    /// Offset / multiplier shared by all labels ("×10⁻⁶", "+1.7×10⁹"), drawn in
+    /// the axis corner; value = label × 10^n + offset.  Empty for plain labels.
+    std::string offset_label;
 };
 
 /// @brief Common base of 2D Axes and 3D Axes3D: owns series, title, grid and border state.
@@ -93,7 +97,10 @@ class AxesBase
     void         set_event_system(EventSystem* es) { event_system_ = es; }
     EventSystem* event_system() const { return event_system_; }
 
-    void        set_viewport(const Rect& r) { viewport_ = r; }
+    /// Assign the axes' layout cell.  When a colorbar is shown (see
+    /// show_colorbar), a strip on the right of the cell is reserved for it and
+    /// viewport() is the remaining plot area.
+    void        set_viewport(const Rect& r);
     const Rect& viewport() const { return viewport_; }
 
     /// @brief Axes title.
@@ -107,7 +114,8 @@ class AxesBase
     bool border_enabled() const { return border_enabled_; }
     void show_border(bool enabled) { border_enabled_ = enabled; }
 
-    /// Colorbar visibility (for colormapped series).
+    /// Colorbar visibility.  Drawn (and given layout space) when the axes holds a
+    /// colormapped ScatterSeries or SurfaceSeries.
     bool colorbar_visible() const { return colorbar_visible_; }
     void show_colorbar(bool visible) { colorbar_visible_ = visible; }
 
@@ -163,6 +171,40 @@ class Axes : public AxesBase
                      std::string_view       fmt = "-");
     LineSeries& plot(std::span<const float> x, std::span<const float> y, const PlotStyle& style);
 
+    /// Double-precision overloads of line(), scatter() and plot().  Use them for
+    /// data that float cannot hold precisely, such as Unix timestamps
+    /// (~1.7e9 s) or 1e7 + small variations: the series stores float offsets
+    /// from a double origin (see LineSeries::set_x(std::span<const double>)),
+    /// and the plot, axis limits, ticks and readouts show the true values.
+    /// (Templates only so that existing calls such as line({}, {}) still pick
+    /// the float overloads.)
+    template <typename = void>
+    LineSeries& line(std::span<const double> x, std::span<const double> y)
+    {
+        return line_f64(x, y);
+    }
+    template <typename = void>
+    ScatterSeries& scatter(std::span<const double> x, std::span<const double> y)
+    {
+        return scatter_f64(x, y);
+    }
+    template <typename = void>
+    LineSeries& plot(std::span<const double> x,
+                     std::span<const double> y,
+                     std::string_view        fmt = "-")
+    {
+        auto& ref = line_f64(x, y);
+        ref.format(fmt);
+        return ref;
+    }
+    template <typename = void>
+    LineSeries& plot(std::span<const double> x, std::span<const double> y, const PlotStyle& style)
+    {
+        auto& ref = line_f64(x, y);
+        ref.plot_style(style);
+        return ref;
+    }
+
     /// Horizontal / vertical reference lines (e.g. y=0, x=0). Span uses sentinel
     /// coordinates so auto_fit ignores them.
     LineSeries& hline(double y, std::string_view fmt = "-");
@@ -196,6 +238,17 @@ class Axes : public AxesBase
 
     /// Shape annotation series (rectangles, circles, arrows, polygons, etc.)
     ShapeSeries& shapes();
+
+    // Text annotations (drawn on top of the series, clipped to the plot area)
+    /// @brief Place @p text with its anchor at data coordinates (x, y).
+    /// Defaults: left-aligned, text sitting just above the anchor, theme text colour.
+    TextAnnotation& text(float x, float y, std::string_view text);
+    /// @brief Place @p text centred at (text_x, text_y) with an arrow pointing to (x, y).
+    TextAnnotation& annotate(std::string_view text, float x, float y, float text_x, float text_y);
+    /// @brief Annotations in draw order. They do not take part in auto_fit().
+    const std::vector<std::unique_ptr<TextAnnotation>>& annotations() const { return annotations_; }
+    /// @brief Remove all annotations (invalidates references returned by text()/annotate()).
+    void clear_annotations() { annotations_.clear(); }
 
     // Axis configuration
     /// @brief Set fixed x-axis limits (disables x autoscale).
@@ -277,12 +330,21 @@ class Axes : public AxesBase
     void topic_auto_zoom_tick();
 
    private:
+    LineSeries&    line_f64(std::span<const double> x, std::span<const double> y);
+    ScatterSeries& scatter_f64(std::span<const double> x, std::span<const double> y);
+
     // Internal helper: construct T(args...), assign default cycle color, push to series_
     template <typename T, typename... Args>
     T& add_series(Args&&... args);
 
+    // Limits before log-axis clamping (see x_limits()).
+    AxisLimits x_limits_unclamped() const;
+    AxisLimits y_limits_unclamped() const;
+
     std::optional<AxisLimits> xlim_;
     std::optional<AxisLimits> ylim_;
+
+    std::vector<std::unique_ptr<TextAnnotation>> annotations_;
 
     std::string           xlabel_;
     std::string           ylabel_;

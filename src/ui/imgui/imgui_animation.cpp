@@ -33,7 +33,8 @@ static bool transport_button(const char*            icon_label,
         bg_hover = ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 1.0f);
         bg_active =
             ImVec4(colors.accent.r * 0.8f, colors.accent.g * 0.8f, colors.accent.b * 0.8f, 1.0f);
-        text_col = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
+        text_col =
+            ImVec4(colors.text_inverse.r, colors.text_inverse.g, colors.text_inverse.b, 1.0f);
     }
     else if (active)
     {

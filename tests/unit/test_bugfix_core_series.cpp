@@ -250,8 +250,121 @@ TEST(BugfixCoreSeries, ArrowRotationApplied)
         maxy = std::max(maxy, ys[i]);
         miny = std::min(miny, ys[i]);
     }
+    // The tip is part of the solid arrowhead fill, not the outline.
+    auto fv = sh.fill_verts();
+    for (size_t v = 0; v < sh.fill_vertex_count(); ++v)
+    {
+        EXPECT_NEAR(fv[v * 3], 1.0f, 0.1f);
+        maxy = std::max(maxy, fv[v * 3 + 1]);
+        miny = std::min(miny, fv[v * 3 + 1]);
+    }
     EXPECT_NEAR(maxy, 1.0f, 1e-4f);
     EXPECT_NEAR(miny, -1.0f, 1e-4f);
+}
+
+// ── P1-11: arrowheads are solid triangles aligned to the arrow on screen ──
+
+TEST(BugfixCoreSeries, ArrowHeadIsSolidTriangle)
+{
+    ShapeSeries sh;
+    sh.rect(0, 0, 1, 1).arrow(0, 0, 3, 0);
+    sh.rebuild_geometry();
+
+    // The rect's translucent fill comes first; the arrowhead is the opaque tail.
+    ASSERT_EQ(sh.solid_fill_first_vertex(), 6u);
+    ASSERT_EQ(sh.fill_vertex_count(), 9u);
+    auto fv = sh.fill_verts();
+    for (size_t v = 6; v < 9; ++v)
+    {
+        EXPECT_FLOAT_EQ(fv[v * 3 + 2], 1.0f);
+    }
+    EXPECT_FLOAT_EQ(fv[6 * 3], 3.0f);   // tip
+    EXPECT_FLOAT_EQ(fv[6 * 3 + 1], 0.0f);
+    // Data-unit fallback (no pixel scale): length = 0.15 * len, half-width 0.08.
+    EXPECT_NEAR(fv[7 * 3], 3.0f - 0.45f, 1e-5f);
+    EXPECT_NEAR(fv[8 * 3], 3.0f - 0.45f, 1e-5f);
+    EXPECT_NEAR(std::abs(fv[7 * 3 + 1] - fv[8 * 3 + 1]), 0.16f, 1e-5f);
+}
+
+TEST(BugfixCoreSeries, ArrowHeadSizedInPixelsAndAlignedOnScreen)
+{
+    // Non-uniform data-per-pixel scale: a data-space perpendicular would look crooked.
+    const float sx = 0.01f, sy = 0.02f;
+    ShapeSeries sh;
+    sh.arrow(0, 0, 4, 2);
+    EXPECT_TRUE(sh.set_pixel_scale(sx, sy));
+    EXPECT_FALSE(sh.set_pixel_scale(sx, sy));   // unchanged -> no rebuild needed
+    sh.rebuild_geometry();
+
+    ASSERT_EQ(sh.fill_vertex_count() - sh.solid_fill_first_vertex(), 3u);
+    auto   fv = sh.fill_verts();
+    auto   px = [&](size_t v) { return fv[v * 3] / sx; };
+    auto   py = [&](size_t v) { return fv[v * 3 + 1] / sy; };
+    size_t t  = sh.solid_fill_first_vertex();
+    // Tip at the arrow end.
+    EXPECT_NEAR(px(t), 400.0f, 1e-2f);
+    EXPECT_NEAR(py(t), 100.0f, 1e-2f);
+
+    // Screen direction of the arrow.
+    float dl = std::hypot(400.0f, 100.0f);
+    float nx = 400.0f / dl, ny = 100.0f / dl;
+
+    float bx = 0.5f * (px(t + 1) + px(t + 2));
+    float by = 0.5f * (py(t + 1) + py(t + 2));
+    // Base midpoint sits on the shaft, 14 px (minimum head length) behind the tip.
+    EXPECT_NEAR(px(t) - bx, 14.0f * nx, 1e-2f);
+    EXPECT_NEAR(py(t) - by, 14.0f * ny, 1e-2f);
+    // Base is perpendicular to the arrow on screen and symmetric (half-width 0.4 * 14).
+    float ex = px(t + 1) - px(t + 2), ey = py(t + 1) - py(t + 2);
+    EXPECT_NEAR(ex * nx + ey * ny, 0.0f, 1e-2f);
+    EXPECT_NEAR(std::hypot(ex, ey), 2.0f * 5.6f, 1e-2f);
+
+    // Thicker line -> bigger head (7 px per unit of line width).
+    sh.line_width(3.0f);
+    sh.rebuild_geometry();
+    fv = sh.fill_verts();
+    t  = sh.solid_fill_first_vertex();
+    bx = 0.5f * (px(t + 1) + px(t + 2));
+    by = 0.5f * (py(t + 1) + py(t + 2));
+    ASSERT_EQ(sh.fill_vertex_count(), 3u);
+    EXPECT_NEAR(std::hypot(px(t) - bx, py(t) - by), 21.0f, 1e-2f);
+
+    // The shaft ends inside the head, never past its base toward the tip.
+    auto xs = sh.x_data();
+    auto ys = sh.y_data();
+    ASSERT_EQ(xs.size(), 7u);   // shaft (2) + NaN break + closed head outline (4)
+    EXPECT_TRUE(std::isnan(xs[2]));
+    EXPECT_FLOAT_EQ(xs[3], fv[t * 3]);
+    EXPECT_FLOAT_EQ(xs[6], fv[t * 3]);
+    EXPECT_FLOAT_EQ(ys[4], fv[(t + 1) * 3 + 1]);
+    EXPECT_FLOAT_EQ(ys[5], fv[(t + 2) * 3 + 1]);
+    float shaft_end_along = (xs[1] / sx) * nx + (ys[1] / sy) * ny;
+    float base_along      = bx * nx + by * ny;
+    float tip_along       = px(t) * nx + py(t) * ny;
+    EXPECT_GT(shaft_end_along, base_along);
+    EXPECT_LT(shaft_end_along, tip_along);
+}
+
+TEST(BugfixCoreSeries, ArrowPixelScaleIgnoredForCustomHeadsAndOtherShapes)
+{
+    ShapeSeries plain;
+    plain.rect(0, 0, 1, 1).line(0, 0, 1, 1);
+    EXPECT_FALSE(plain.set_pixel_scale(0.01f, 0.01f));
+
+    ShapeSeries custom;
+    custom.arrow(0, 0, 2, 0).arrow_head(0.25f, 0.1f);
+    EXPECT_FALSE(custom.set_pixel_scale(0.01f, 0.01f));
+    custom.rebuild_geometry();
+    auto   fv = custom.fill_verts();
+    size_t t  = custom.solid_fill_first_vertex();
+    EXPECT_NEAR(fv[(t + 1) * 3], 1.5f, 1e-5f);
+    EXPECT_NEAR(std::abs(fv[(t + 1) * 3 + 1] - fv[(t + 2) * 3 + 1]), 0.2f, 1e-5f);
+
+    ShapeSeries arrow;
+    arrow.arrow(0, 0, 1, 1);
+    EXPECT_FALSE(arrow.set_pixel_scale(0.0f, 1.0f));   // invalid scales rejected
+    EXPECT_FALSE(arrow.set_pixel_scale(std::numeric_limits<float>::infinity(), 1.0f));
+    EXPECT_TRUE(arrow.set_pixel_scale(0.5f, 1.0f));
 }
 
 // ── Bug #75: ShapeSeries3D segments validation ─────────────────────────────

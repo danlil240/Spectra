@@ -1,8 +1,11 @@
 #include "text_renderer.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <fstream>
+
+#include "font_fallback.hpp"
 
 #define STB_TRUETYPE_IMPLEMENTATION
 #include <stb_truetype.h>
@@ -13,9 +16,9 @@ namespace spectra
 // Pixel sizes for each FontSize preset — typography hierarchy for premium visualization.
 // Tick < Label < Title: clear visual ranking, data-first aesthetic.
 static constexpr float FONT_PIXEL_SIZES[] = {
-    11.5f,   // Tick  — tick labels (calm, recedes behind data)
-    13.5f,   // Label — axis labels (readable, secondary)
-    21.0f,   // Title — plot title (dominant hierarchy)
+    13.0f,   // Tick  — tick labels (readable at a glance, still below labels)
+    14.0f,   // Label — axis labels (readable, secondary)
+    18.0f,   // Title — plot title (leads without dwarfing the tick labels)
 };
 
 // Oversampling factor: 4x gives the sharpest sub-pixel positioning and
@@ -28,8 +31,12 @@ static constexpr unsigned int OVERSAMPLE = 4;
 static constexpr int FIRST_CHAR = 32;
 static constexpr int NUM_CHARS  = 95;   // 32..126 inclusive
 
-// Extra (non-ASCII) codepoints commonly used in plot titles, labels and units.
-// Codepoints missing from the font are skipped at bake time.
+// Extra (non-ASCII) codepoints commonly used in plot titles, labels and units,
+// pre-baked at init.  Codepoints missing from the font are skipped at bake
+// time.  Everything else (rest of the Mathematical Operators and Arrows
+// blocks, Cyrillic, CJK, ...) is rasterised lazily on first use, from the
+// primary font or a system fallback font (see glyph_for()).  Keep this list
+// stable: changing it moves glyphs in the atlas and perturbs golden images.
 static std::vector<int> extra_codepoints()
 {
     std::vector<int> cps;
@@ -115,40 +122,256 @@ size_t TextRenderer::decode_utf8(std::string_view text, size_t i, uint32_t& cp)
     return static_cast<size_t>(len);
 }
 
-const GlyphInfo* TextRenderer::find_glyph(const FontData& fd, uint32_t cp)
+struct TextRenderer::GlyphSources
 {
-    auto it = fd.glyphs.find(cp);
-    if (it != fd.glyphs.end())
-        return &it->second;
-    // Unknown non-ASCII glyph: draw '?' rather than silently dropping the
-    // character, so missing coverage is visible.
-    if (cp >= 0x80)
-    {
-        it = fd.glyphs.find(static_cast<uint32_t>('?'));
-        if (it != fd.glyphs.end())
-            return &it->second;
-    }
-    return nullptr;
-}
+    std::vector<uint8_t>     primary_data;   // owned copy: glyphs are rasterised lazily
+    stbtt_fontinfo           primary_info{};
+    bool                     paths_explicit = false;
+    std::vector<std::string> explicit_paths;
+    bool                     chain_ready = false;
+    FontFallbackChain        chain;
 
-TextRenderer::TextRenderer() = default;
+    FontFallbackChain& fallback()
+    {
+        if (!chain_ready)
+        {
+            chain_ready = true;
+            chain = FontFallbackChain(paths_explicit ? explicit_paths : discover_fallback_fonts());
+        }
+        return chain;
+    }
+};
+
+TextRenderer::TextRenderer() : sources_(std::make_unique<GlyphSources>()) {}
 
 TextRenderer::~TextRenderer() = default;
 
-bool TextRenderer::init(Backend& backend, const uint8_t* font_data, size_t font_data_size)
+void TextRenderer::set_fallback_font_paths(std::vector<std::string> paths)
 {
-    if (!font_data || font_data_size < 12)
+    sources_->paths_explicit = true;
+    sources_->explicit_paths = std::move(paths);
+    sources_->chain_ready    = false;
+    // Forget earlier misses / fallback decisions so the new chain is consulted.
+    for (auto& fd : fonts_)
+    {
+        for (uint32_t cp : fd.fallback_cps)
+            fd.glyphs.erase(cp);
+        fd.fallback_cps.clear();
+        fd.missing_cps.clear();
+    }
+}
+
+bool TextRenderer::alloc_atlas_rect(int w, int h, int& out_x, int& out_y) const
+{
+    if (w <= 0 || h <= 0 || w > static_cast<int>(atlas_width_))
+        return false;
+    if (shelf_x_ + w > static_cast<int>(atlas_width_))
+    {
+        shelf_y_ += shelf_h_;
+        shelf_x_ = 0;
+        shelf_h_ = 0;
+    }
+    while (shelf_y_ + h > static_cast<int>(atlas_height_))
+    {
+        // Grow in height only: glyph texel coordinates stay valid.
+        const uint32_t new_h = atlas_height_ * 2;
+        if (new_h > MAX_ATLAS_HEIGHT)
+            return false;
+        atlas_bitmap_.resize(static_cast<size_t>(atlas_width_) * new_h, 0);
+        atlas_height_ = new_h;
+    }
+    out_x = shelf_x_;
+    out_y = shelf_y_;
+    shelf_x_ += w;
+    shelf_h_ = std::max(shelf_h_, h);
+    return true;
+}
+
+bool TextRenderer::rasterize_glyph(size_t         si,
+                                   uint32_t       cp,
+                                   const uint8_t* font_data,
+                                   float          pack_size) const
+{
+    // Rasterise into a scratch bitmap with the same stb_truetype packing path
+    // (and oversampling) as the pre-baked glyphs, then copy into the atlas.
+    const float px  = fonts_[si].pixel_size;
+    const int   dim = static_cast<int>(std::ceil(px * static_cast<float>(OVERSAMPLE) * 3.0f)) + 8;
+    std::vector<uint8_t> scratch(static_cast<size_t>(dim) * static_cast<size_t>(dim), 0);
+
+    stbtt_pack_context ctx;
+    if (!stbtt_PackBegin(&ctx, scratch.data(), dim, dim, 0, 1, nullptr))
+        return false;
+    stbtt_PackSetOversampling(&ctx, OVERSAMPLE, OVERSAMPLE);
+    stbtt_packedchar pc{};
+    const int ok = stbtt_PackFontRange(&ctx, font_data, 0, pack_size, static_cast<int>(cp), 1, &pc);
+    stbtt_PackEnd(&ctx);
+    if (!ok)
         return false;
 
+    const int w  = pc.x1 - pc.x0;
+    const int h  = pc.y1 - pc.y0;
+    int       ax = 0;
+    int       ay = 0;
+    if (!alloc_atlas_rect(w, h, ax, ay))
+        return false;
+    for (int row = 0; row < h; ++row)
+    {
+        std::memcpy(
+            &atlas_bitmap_[static_cast<size_t>(ay + row) * atlas_width_ + static_cast<size_t>(ax)],
+            &scratch[static_cast<size_t>(pc.y0 + row) * static_cast<size_t>(dim) + pc.x0],
+            static_cast<size_t>(w));
+    }
+
+    stbtt_aligned_quad q;
+    float              dummy_x = 0.0f;
+    float              dummy_y = 0.0f;
+    // Unit "atlas" size: quad s/t come back in texel units.
+    stbtt_GetPackedQuad(&pc, 1, 1, 0, &dummy_x, &dummy_y, &q, 0);
+
+    GlyphInfo gi{};
+    gi.u0                 = static_cast<float>(ax);
+    gi.v0                 = static_cast<float>(ay);
+    gi.u1                 = static_cast<float>(ax + w);
+    gi.v1                 = static_cast<float>(ay + h);
+    gi.x_offset           = q.x0;
+    gi.y_offset           = q.y0;
+    gi.width              = q.x1 - q.x0;
+    gi.height             = q.y1 - q.y0;
+    gi.x_advance          = pc.xadvance;
+    fonts_[si].glyphs[cp] = gi;
+    atlas_dirty_          = true;
+    return true;
+}
+
+bool TextRenderer::add_tofu_glyph(size_t si)
+{
+    // Hollow box, the conventional "missing glyph" marker: unlike '?', it is
+    // clearly not part of the text.
+    FontData& fd = fonts_[si];
+    const int w  = std::max(4, static_cast<int>(std::lround(fd.pixel_size * 0.5f)));
+    const int h  = std::max(6, static_cast<int>(std::lround(fd.pixel_size * 0.72f)));
+    int       ax = 0;
+    int       ay = 0;
+    if (!alloc_atlas_rect(w + 1, h + 1, ax, ay))
+        return false;
+    for (int y = 0; y < h; ++y)
+    {
+        for (int x = 0; x < w; ++x)
+        {
+            const bool edge = x == 0 || y == 0 || x == w - 1 || y == h - 1;
+            atlas_bitmap_[static_cast<size_t>(ay + y) * atlas_width_
+                          + static_cast<size_t>(ax + x)] = edge ? 255 : 0;
+        }
+    }
+    const float side  = std::round(fd.pixel_size * 0.08f);
+    fd.tofu.u0        = static_cast<float>(ax);
+    fd.tofu.v0        = static_cast<float>(ay);
+    fd.tofu.u1        = static_cast<float>(ax + w);
+    fd.tofu.v1        = static_cast<float>(ay + h);
+    fd.tofu.x_offset  = side;
+    fd.tofu.y_offset  = -static_cast<float>(h);
+    fd.tofu.width     = static_cast<float>(w);
+    fd.tofu.height    = static_cast<float>(h);
+    fd.tofu.x_advance = static_cast<float>(w) + 2.0f * side;
+    fd.has_tofu       = true;
+    atlas_dirty_      = true;
+    return true;
+}
+
+const GlyphInfo* TextRenderer::glyph_for(size_t si, uint32_t cp) const
+{
+    FontData& fd = fonts_[si];
+    auto      it = fd.glyphs.find(cp);
+    if (it != fd.glyphs.end())
+        return &it->second;
+
+    // C0/C1 controls and DEL are never drawn.
+    if (cp < 0x20 || (cp >= 0x7F && cp < 0xA0) || atlas_bitmap_.empty())
+        return nullptr;
+
+    if (fd.missing_cps.count(cp) == 0)
+    {
+        GlyphSources& src = *sources_;
+        if (stbtt_FindGlyphIndex(&src.primary_info, static_cast<int>(cp)) != 0)
+        {
+            if (rasterize_glyph(si, cp, src.primary_data.data(), fd.pixel_size))
+                return &fd.glyphs[cp];
+        }
+        else
+        {
+            FontFallbackChain& chain = src.fallback();
+            const int          idx   = chain.find(cp);
+            // Match the primary font's em size (STBTT_POINT_SIZE) so symbols
+            // from another font sit at the same visual size as the text.
+            if (idx >= 0 && rasterize_glyph(si, cp, chain.font_data(idx), -fd.em_pixels))
+            {
+                fd.fallback_cps.insert(cp);
+                return &fd.glyphs[cp];
+            }
+        }
+        fd.missing_cps.insert(cp);
+    }
+
+    if (is_default_ignorable(cp) || !fd.has_tofu)
+        return nullptr;
+    return &fd.tofu;
+}
+
+TextRenderer::GlyphSource TextRenderer::resolve_glyph(uint32_t cp, FontSize size) const
+{
+    const auto       si = static_cast<size_t>(size);
+    const GlyphInfo* g  = glyph_for(si, cp);
+    if (!g)
+        return GlyphSource::Ignored;
+    if (g == &fonts_[si].tofu)
+        return GlyphSource::Missing;
+    if (fonts_[si].fallback_cps.count(cp) != 0)
+        return GlyphSource::Fallback;
+    return GlyphSource::Primary;
+}
+
+bool TextRenderer::upload_atlas(Backend& backend)
+{
+    // Convert single-channel atlas to RGBA (Backend::create_texture expects RGBA).
+    // Coverage goes in alpha with a white glyph colour.
+    std::vector<uint8_t> atlas_rgba(static_cast<size_t>(atlas_width_) * atlas_height_ * 4);
+    for (size_t i = 0; i < atlas_bitmap_.size(); ++i)
+    {
+        atlas_rgba[i * 4 + 0] = 255;
+        atlas_rgba[i * 4 + 1] = 255;
+        atlas_rgba[i * 4 + 2] = 255;
+        atlas_rgba[i * 4 + 3] = atlas_bitmap_[i];
+    }
+    TextureHandle tex = backend.create_texture(atlas_width_, atlas_height_, atlas_rgba.data());
+    if (!tex)
+        return false;
+    if (atlas_texture_)
+    {
+        // Text drawn earlier in this (or a still in-flight) frame samples the
+        // old texture: defer its destruction.
+        retired_textures_.push_back({atlas_texture_, frame_serial_});
+    }
+    atlas_texture_    = tex;
+    atlas_tex_width_  = atlas_width_;
+    atlas_tex_height_ = atlas_height_;
+    atlas_dirty_      = false;
+    return true;
+}
+
+bool TextRenderer::init(Backend& backend, const uint8_t* font_data, size_t font_data_size)
+{
     // Validate TrueType/OpenType signature before passing to stb_truetype.
-    // TrueType: 00 01 00 00, OpenType: 4F 54 54 4F ('OTTO'), TTC: 74 74 63 66
-    uint32_t tag =
-        (static_cast<uint32_t>(font_data[0]) << 24) | (static_cast<uint32_t>(font_data[1]) << 16)
-        | (static_cast<uint32_t>(font_data[2]) << 8) | static_cast<uint32_t>(font_data[3]);
-    bool valid_sig = (tag == 0x00010000u)       // TrueType
-                     || (tag == 0x4F54544Fu)    // 'OTTO' (OpenType/CFF)
-                     || (tag == 0x74746366u);   // 'ttcf' (TrueType Collection)
-    if (!valid_sig)
+    if (!is_font_signature(font_data, font_data_size))
+        return false;
+
+    // Keep a copy of the font: glyphs outside the pre-baked set are rasterised
+    // on demand (callers may pass a temporary buffer, see init_from_file()).
+    GlyphSources& src = *sources_;
+    src.primary_data.assign(font_data, font_data + font_data_size);
+    font_data = src.primary_data.data();
+
+    const int font_offset = stbtt_GetFontOffsetForIndex(font_data, 0);
+    if (font_offset < 0 || !stbtt_InitFont(&src.primary_info, font_data, font_offset))
         return false;
 
     static constexpr auto FONT_COUNT = static_cast<size_t>(FontSize::Count);
@@ -160,22 +383,23 @@ bool TextRenderer::init(Backend& backend, const uint8_t* font_data, size_t font_
 
     std::vector<stbtt_packedchar> ascii_chardata(FONT_COUNT * NUM_CHARS);
     std::vector<stbtt_packedchar> extra_chardata(FONT_COUNT * static_cast<size_t>(n_ext));
-    std::vector<uint8_t>          atlas_bitmap;
 
-    // Try increasingly large atlases until everything fits.
-    bool pack_ok = false;
-    for (uint32_t dim : {1024u, 2048u})
+    // Try increasingly large atlases until everything fits.  The atlas only
+    // grows in height afterwards (for lazily added glyphs), so prefer a wide,
+    // short atlas over a large square one.
+    bool                      pack_ok         = false;
+    static constexpr uint32_t ATLAS_DIMS[][2] = {{1024u, 1024u}, {2048u, 1024u}, {2048u, 2048u}};
+    for (const auto& dims : ATLAS_DIMS)
     {
-        atlas_width_  = dim;
-        atlas_height_ = dim;
-        atlas_bitmap.assign(static_cast<size_t>(dim) * dim, 0);
+        atlas_width_  = dims[0];
+        atlas_height_ = dims[1];
+        atlas_bitmap_.assign(static_cast<size_t>(atlas_width_) * atlas_height_, 0);
 
-        // Use stbtt_PackBegin/PackRange/PackEnd for proper rect packing with
-        // oversampling. This is the correct API for high-quality text — it
-        // handles sub-pixel positioning, padding, and anti-aliasing.
+        // stbtt_PackBegin/PackRange/PackEnd: rect packing with oversampling
+        // for sub-pixel positioning, padding and anti-aliasing.
         stbtt_pack_context pack_ctx;
         if (!stbtt_PackBegin(&pack_ctx,
-                             atlas_bitmap.data(),
+                             atlas_bitmap_.data(),
                              static_cast<int>(atlas_width_),
                              static_cast<int>(atlas_height_),
                              0,   // stride_in_bytes (0 = tightly packed)
@@ -220,16 +444,20 @@ bool TextRenderer::init(Backend& backend, const uint8_t* font_data, size_t font_
     if (!pack_ok)
         return false;
 
-    // Extract font metrics and glyph info from packed chardata.
-    // stbtt_PackFontRanges produces sub-pixel-accurate quad coordinates
-    // that we store in our GlyphInfo for use at draw time.
-    stbtt_fontinfo font_info;
-    int            offset = stbtt_GetFontOffsetForIndex(font_data, 0);
-    if (offset < 0)
-        return false;
-    if (!stbtt_InitFont(&font_info, font_data, offset))
-        return false;
+    // Lazily added glyphs go on shelves below the pre-baked region.
+    int baked_bottom = 0;
+    for (const auto& pc : ascii_chardata)
+        baked_bottom = std::max(baked_bottom, static_cast<int>(pc.y1));
+    for (const auto& pc : extra_chardata)
+        baked_bottom = std::max(baked_bottom, static_cast<int>(pc.y1));
+    // Start on a 16-texel boundary so the mip levels the sampler uses for the
+    // 4x-oversampled glyphs never mix baked and lazily added glyphs.
+    shelf_x_ = 0;
+    shelf_y_ = (baked_bottom + 16) & ~15;
+    shelf_h_ = 0;
 
+    // Extract font metrics and glyph info from packed chardata.
+    const stbtt_fontinfo& font_info = src.primary_info;
     for (size_t si = 0; si < FONT_COUNT; ++si)
     {
         float pixel_size = FONT_PIXEL_SIZES[si];
@@ -240,43 +468,37 @@ bool TextRenderer::init(Backend& backend, const uint8_t* font_data, size_t font_
         int line_gap_i = 0;
         stbtt_GetFontVMetrics(&font_info, &ascent_i, &descent_i, &line_gap_i);
 
+        fonts_[si]             = FontData{};
         fonts_[si].pixel_size  = pixel_size;
         fonts_[si].ascent      = static_cast<float>(ascent_i) * scale;
         fonts_[si].descent     = static_cast<float>(descent_i) * scale;
         fonts_[si].line_height = (static_cast<float>(ascent_i - descent_i + line_gap_i)) * scale;
+        fonts_[si].em_pixels   = scale / stbtt_ScaleForMappingEmToPixels(&font_info, 1.0f);
 
         auto add_glyphs = [&](const stbtt_packedchar* chardata, int count, auto cp_of)
         {
             for (int ci = 0; ci < count; ++ci)
             {
                 const uint32_t cp = cp_of(ci);
-                // Skip codepoints the font doesn't contain (they would
-                // render as the .notdef box); find_glyph() falls back to '?'.
+                // Skip codepoints the font doesn't contain (they were packed
+                // as the .notdef box); glyph_for() resolves them lazily.
                 if (cp > 0x7F && stbtt_FindGlyphIndex(&font_info, static_cast<int>(cp)) == 0)
                     continue;
 
                 const stbtt_packedchar& pc = chardata[ci];
 
-                // stbtt_GetPackedQuad gives us the exact screen-space quad
-                // with sub-pixel offsets baked in from oversampling.
+                // Unit atlas size: s/t in texels (normalised at flush time),
+                // x/y offsets sub-pixel accurate from oversampling.
                 stbtt_aligned_quad q;
                 float              dummy_x = 0.0f;
                 float              dummy_y = 0.0f;
-                stbtt_GetPackedQuad(chardata,
-                                    static_cast<int>(atlas_width_),
-                                    static_cast<int>(atlas_height_),
-                                    ci,
-                                    &dummy_x,
-                                    &dummy_y,
-                                    &q,
-                                    0);   // align_to_integer = 0 for sub-pixel
+                stbtt_GetPackedQuad(chardata, 1, 1, ci, &dummy_x, &dummy_y, &q, 0);
 
                 GlyphInfo gi{};
-                gi.u0 = q.s0;
-                gi.v0 = q.t0;
-                gi.u1 = q.s1;
-                gi.v1 = q.t1;
-                // Quad offsets from the cursor position (baseline-relative)
+                gi.u0        = static_cast<float>(pc.x0);
+                gi.v0        = static_cast<float>(pc.y0);
+                gi.u1        = static_cast<float>(pc.x1);
+                gi.v1        = static_cast<float>(pc.y1);
                 gi.x_offset  = q.x0;
                 gi.y_offset  = q.y0;
                 gi.width     = q.x1 - q.x0;
@@ -293,29 +515,18 @@ bool TextRenderer::init(Backend& backend, const uint8_t* font_data, size_t font_
         add_glyphs(&extra_chardata[si * static_cast<size_t>(n_ext)],
                    n_ext,
                    [&](int ci) { return static_cast<uint32_t>(extras[static_cast<size_t>(ci)]); });
-    }
 
-    // Convert single-channel atlas to RGBA (Backend::create_texture expects RGBA).
-    // Store coverage in all channels — the fragment shader reads .r as alpha.
-    std::vector<uint8_t> atlas_rgba(atlas_width_ * atlas_height_ * 4);
-    for (uint32_t i = 0; i < atlas_width_ * atlas_height_; ++i)
-    {
-        uint8_t a             = atlas_bitmap[i];
-        atlas_rgba[i * 4 + 0] = 255;   // R — white glyph
-        atlas_rgba[i * 4 + 1] = 255;   // G
-        atlas_rgba[i * 4 + 2] = 255;   // B
-        atlas_rgba[i * 4 + 3] = a;     // A — coverage from rasterizer
+        add_tofu_glyph(si);
     }
 
     // Release anything left over from a previous (failed) init attempt so a
     // retry (e.g. Renderer::init's font-file fallbacks) doesn't leak the atlas
     // texture or UBO by overwriting their handles.
-    if (atlas_texture_ || text_ubo_)
+    if (atlas_texture_ || text_ubo_ || !retired_textures_.empty())
         shutdown(backend);
 
     // Upload atlas texture
-    atlas_texture_ = backend.create_texture(atlas_width_, atlas_height_, atlas_rgba.data());
-    if (!atlas_texture_)
+    if (!upload_atlas(backend))
         return false;
 
     // Create text pipelines.  On any failure below, release what was already
@@ -386,6 +597,9 @@ void TextRenderer::shutdown(Backend& backend)
         backend.destroy_texture(atlas_texture_);
         atlas_texture_ = {};
     }
+    for (auto& r : retired_textures_)
+        backend.destroy_texture(r.handle);
+    retired_textures_.clear();
     if (text_ubo_)
     {
         backend.destroy_buffer(text_ubo_);
@@ -410,6 +624,31 @@ void TextRenderer::append_glyph(std::vector<TextVertex>& target,
     float y0 = cursor_y + g.y_offset;
     float x1 = x0 + g.width;
     float y1 = y0 + g.height;
+    float u0 = g.u0;
+    float v0 = g.v0;
+    float u1 = g.u1;
+    float v1 = g.v1;
+
+    // Crop the quad (and its UVs) to the clip rectangle for unrotated text.
+    if (clip_enabled_ && cos_a == 1.0f && sin_a == 0.0f)
+    {
+        float cx0 = std::max(x0, clip_x0_);
+        float cy0 = std::max(y0, clip_y0_);
+        float cx1 = std::min(x1, clip_x1_);
+        float cy1 = std::min(y1, clip_y1_);
+        if (!(cx1 > cx0) || !(cy1 > cy0))
+            return;
+        float du = (u1 - u0) / (x1 - x0);
+        float dv = (v1 - v0) / (y1 - y0);
+        u0 += (cx0 - x0) * du;
+        u1 -= (x1 - cx1) * du;
+        v0 += (cy0 - y0) * dv;
+        v1 -= (y1 - cy1) * dv;
+        x0 = cx0;
+        y0 = cy0;
+        x1 = cx1;
+        y1 = cy1;
+    }
 
     // Apply rotation around pivot if needed
     auto rotate = [&](float px, float py, float& ox, float& oy)
@@ -448,25 +687,49 @@ void TextRenderer::append_glyph(std::vector<TextVertex>& target,
     }
 
     // Two triangles: (0,1,2) and (0,2,3)
-    target.push_back({rx0, ry0, z, g.u0, g.v0, color});
-    target.push_back({rx1, ry1, z, g.u1, g.v0, color});
-    target.push_back({rx2, ry2, z, g.u1, g.v1, color});
+    target.push_back({rx0, ry0, z, u0, v0, color});
+    target.push_back({rx1, ry1, z, u1, v0, color});
+    target.push_back({rx2, ry2, z, u1, v1, color});
 
-    target.push_back({rx0, ry0, z, g.u0, g.v0, color});
-    target.push_back({rx2, ry2, z, g.u1, g.v1, color});
-    target.push_back({rx3, ry3, z, g.u0, g.v1, color});
+    target.push_back({rx0, ry0, z, u0, v0, color});
+    target.push_back({rx2, ry2, z, u1, v1, color});
+    target.push_back({rx3, ry3, z, u0, v1, color});
+}
+
+FontSize TextRenderer::nearest_font_size(float pixel_size)
+{
+    if (!(pixel_size > 0.0f))
+        return FontSize::Label;
+    size_t best = 0;
+    for (size_t i = 1; i < static_cast<size_t>(FontSize::Count); ++i)
+    {
+        if (std::fabs(FONT_PIXEL_SIZES[i] - pixel_size)
+            < std::fabs(FONT_PIXEL_SIZES[best] - pixel_size))
+            best = i;
+    }
+    return static_cast<FontSize>(best);
+}
+
+void TextRenderer::set_clip_rect(float x0, float y0, float x1, float y1)
+{
+    clip_enabled_ = true;
+    clip_x0_      = x0;
+    clip_y0_      = y0;
+    clip_x1_      = x1;
+    clip_y1_      = y1;
 }
 
 TextRenderer::TextExtent TextRenderer::measure_text(const std::string& text, FontSize size) const
 {
     const auto& fd    = font(size);
+    const auto  si    = static_cast<size_t>(size);
     float       width = 0.0f;
 
     for (size_t i = 0; i < text.size();)
     {
         uint32_t cp = 0;
         i += decode_utf8(text, i, cp);
-        if (const GlyphInfo* g = find_glyph(fd, cp))
+        if (const GlyphInfo* g = glyph_for(si, cp))
             width += g->x_advance;
     }
 
@@ -512,7 +775,7 @@ void TextRenderer::draw_text(const std::string& text,
     {
         uint32_t cp = 0;
         i += decode_utf8(text, i, cp);
-        const GlyphInfo* gp = find_glyph(fd, cp);
+        const GlyphInfo* gp = glyph_for(static_cast<size_t>(size), cp);
         if (!gp)
             continue;
 
@@ -563,7 +826,7 @@ void TextRenderer::draw_text_depth(const std::string& text,
     {
         uint32_t cp = 0;
         i += decode_utf8(text, i, cp);
-        const GlyphInfo* gp = find_glyph(fd, cp);
+        const GlyphInfo* gp = glyph_for(static_cast<size_t>(size), cp);
         if (!gp)
             continue;
 
@@ -617,7 +880,7 @@ void TextRenderer::draw_text_rotated(const std::string& text,
     {
         uint32_t cp = 0;
         i += decode_utf8(text, i, cp);
-        const GlyphInfo* gp = find_glyph(fd, cp);
+        const GlyphInfo* gp = glyph_for(static_cast<size_t>(size), cp);
         if (!gp)
             continue;
 
@@ -674,6 +937,16 @@ void TextRenderer::flush_batch(Backend&                 backend,
     // Upload UBO data (must happen before bind, but bind must happen after pipeline)
     backend.upload_buffer(text_ubo_, &ubo, sizeof(FrameUBO));
 
+    // Glyph texel coordinates -> normalised UV for the current atlas size
+    // (the atlas may have grown since the text was queued).
+    const float inv_w = 1.0f / static_cast<float>(std::max(1u, atlas_tex_width_));
+    const float inv_h = 1.0f / static_cast<float>(std::max(1u, atlas_tex_height_));
+    for (auto& v : verts)
+    {
+        v.u *= inv_w;
+        v.v *= inv_h;
+    }
+
     // Upload vertex data
     size_t byte_size = verts.size() * sizeof(TextVertex);
 
@@ -722,15 +995,34 @@ void TextRenderer::flush_batch(Backend&                 backend,
 
 void TextRenderer::begin_frame_recording(uint32_t flight_index)
 {
+    ++frame_serial_;
     flush_slot_base_    = (flight_index % TEXT_FLIGHT_FRAMES) * MAX_TEXT_FLUSHES_PER_FRAME;
     flush_cursor_       = 0;
     depth_flush_cursor_ = 0;
+}
+
+void TextRenderer::prepare_atlas(Backend& backend)
+{
+    // Free replaced atlases once every frame that could sample them is done.
+    std::erase_if(retired_textures_,
+                  [&](const RetiredTexture& r)
+                  {
+                      if (frame_serial_ < r.retired_at_frame + TEXT_FLIGHT_FRAMES + 1)
+                          return false;
+                      backend.destroy_texture(r.handle);
+                      return true;
+                  });
+    // Upload glyphs rasterised since the last flush.  Text already recorded
+    // this frame keeps sampling the previous texture (same texel layout).
+    if (atlas_dirty_)
+        upload_atlas(backend);
 }
 
 void TextRenderer::flush(Backend& backend, float screen_width, float screen_height)
 {
     if (!initialized_)
         return;
+    prepare_atlas(backend);
     if (flush_cursor_ >= MAX_TEXT_FLUSHES_PER_FRAME)
     {
         // Out of per-frame slots: drop the queued text rather than letting it
@@ -753,6 +1045,7 @@ void TextRenderer::flush_depth(Backend& backend, float screen_width, float scree
 {
     if (!initialized_)
         return;
+    prepare_atlas(backend);
     if (depth_flush_cursor_ >= MAX_TEXT_FLUSHES_PER_FRAME)
     {
         // Out of per-frame slots: drop the queued text rather than letting it

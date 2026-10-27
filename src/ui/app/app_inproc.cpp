@@ -94,6 +94,8 @@ void App::render_secondary_window(WindowContext* wctx)
     if (sec_ok)
     {
         renderer_->begin_render_pass();
+        // No ImGui overlay in this path: the renderer draws the legend.
+        renderer_->set_legend_overlay_active(false);
         renderer_->render_figure_content(*fig);
         {
             auto sw = static_cast<float>(backend_->swapchain_width());

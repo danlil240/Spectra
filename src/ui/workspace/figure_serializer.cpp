@@ -24,7 +24,9 @@ namespace spectra
 
 // ─── Binary format constants ────────────────────────────────────────────────
 static constexpr uint32_t MAGIC   = 0x53504346;   // "SPCF" — Spectra Figure
-static constexpr uint32_t VERSION = 5;
+// v6: double axis limits on 2D axes and double data origins
+// (Series::x_offset()/y_offset()) on line and scatter series.
+static constexpr uint32_t VERSION = 6;
 
 // Chunk tags
 enum ChunkTag : uint16_t
@@ -66,6 +68,7 @@ class BinaryWriter
     void write_u32(uint32_t v) { f_.write(reinterpret_cast<const char*>(&v), 4); }
     void write_i32(int32_t v) { f_.write(reinterpret_cast<const char*>(&v), 4); }
     void write_f32(float v) { f_.write(reinterpret_cast<const char*>(&v), 4); }
+    void write_f64(double v) { f_.write(reinterpret_cast<const char*>(&v), 8); }
     void write_u8(uint8_t v) { f_.write(reinterpret_cast<const char*>(&v), 1); }
 
     void write_color(const Color& c)
@@ -169,6 +172,12 @@ class BinaryReader
         f_.read(reinterpret_cast<char*>(&v), 4);
         return v;
     }
+    double read_f64()
+    {
+        double v = 0.0;
+        f_.read(reinterpret_cast<char*>(&v), 8);
+        return v;
+    }
     uint8_t read_u8()
     {
         uint8_t v = 0;
@@ -260,6 +269,13 @@ static void write_axes_2d(BinaryWriter& w, const Axes& axes, int axes_index)
     w.write_f32(as.title_size);
     w.write_f32(as.grid_width);
 
+    // v6: full-precision limits (the f32 copies above lose precision for
+    // large values such as epoch timestamps).
+    w.write_f64(xl.min);
+    w.write_f64(xl.max);
+    w.write_f64(yl.min);
+    w.write_f64(yl.max);
+
     w.end_chunk(pos);
 
     // Write series for this axes
@@ -273,6 +289,8 @@ static void write_axes_2d(BinaryWriter& w, const Axes& axes, int axes_index)
             w.write_f32(ls->width());
             w.write_floats(ls->x_data());
             w.write_floats(ls->y_data());
+            w.write_f64(ls->x_offset());   // v6: data origins
+            w.write_f64(ls->y_offset());
             w.end_chunk(spos);
         }
         else if (auto* ss = dynamic_cast<ScatterSeries*>(sp.get()))
@@ -288,6 +306,8 @@ static void write_axes_2d(BinaryWriter& w, const Axes& axes, int axes_index)
             w.write_f32(ss->colormap_max());
             w.write_u8(static_cast<uint8_t>(ss->colormap_range_set()));
             w.write_floats(ss->color_values_data());
+            w.write_f64(ss->x_offset());   // v6: data origins
+            w.write_f64(ss->y_offset());
             w.end_chunk(spos);
         }
         else if (auto* band = dynamic_cast<BandSeries*>(sp.get()))
@@ -537,6 +557,7 @@ bool FigureSerializer::save(const std::string&     path,
         w.write_f32(s.subplot_hgap);
         w.write_f32(s.subplot_vgap);
         w.write_f32(s.min_subplot_height);
+        w.write_u8(static_cast<uint8_t>(s.background_override));
         w.end_chunk(pos);
     }
 
@@ -720,6 +741,9 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 s.subplot_vgap  = r.read_f32();
                 if (r.good() && len >= 32)   // backward compat: field added after v3
                     s.min_subplot_height = r.read_f32();
+                // backward compat: older files have no override flag, so their
+                // figures follow the theme ("auto") as they always rendered.
+                s.background_override = r.good() && len >= 45 && r.read_u8() != 0;
                 break;
             }
 
@@ -762,10 +786,28 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 axes.show_border(r.read_u8() != 0);
                 auto saved_autoscale = static_cast<AutoscaleMode>(r.read_u8());
 
-                float xmin = r.read_f32();
-                float xmax = r.read_f32();
-                float ymin = r.read_f32();
-                float ymax = r.read_f32();
+                double xmin = r.read_f32();
+                double xmax = r.read_f32();
+                double ymin = r.read_f32();
+                double ymax = r.read_f32();
+
+                // Axis style
+                auto& as       = axes.axis_style();
+                as.tick_color  = r.read_color();
+                as.label_color = r.read_color();
+                as.grid_color  = r.read_color();
+                as.tick_length = r.read_f32();
+                as.label_size  = r.read_f32();
+                as.title_size  = r.read_f32();
+                as.grid_width  = r.read_f32();
+
+                if (version >= 6)   // full-precision limits
+                {
+                    xmin = r.read_f64();
+                    xmax = r.read_f64();
+                    ymin = r.read_f64();
+                    ymax = r.read_f64();
+                }
 
                 // Restore the mode first: switching to a non-Manual mode
                 // clears explicit limits, so limits must be applied after it.
@@ -783,16 +825,6 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                     // the auto-fit (i.e. a saved zoom/pan).
                     pending_auto_limits.push_back({&axes, {xmin, xmax}, {ymin, ymax}});
                 }
-
-                // Axis style
-                auto& as       = axes.axis_style();
-                as.tick_color  = r.read_color();
-                as.label_color = r.read_color();
-                as.grid_color  = r.read_color();
-                as.tick_length = r.read_f32();
-                as.label_size  = r.read_f32();
-                as.title_size  = r.read_f32();
-                as.grid_width  = r.read_f32();
 
                 axes_ptrs.push_back(&axes);
                 break;
@@ -901,7 +933,12 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 x_data = r.read_floats();
                 y_data = r.read_floats();
 
+                // v6: double data origins; older files hold absolute values.
+                const double x_origin = (version >= 6) ? r.read_f64() : 0.0;
+                const double y_origin = (version >= 6) ? r.read_f64() : 0.0;
+
                 auto& s = axes->line(x_data, y_data);
+                s.x_offset(x_origin).y_offset(y_origin);
                 s.label(lbl).color(col).visible(vis);
                 s.line_style(ls_e).marker_style(ms_e).marker_size(msz).opacity(opac);
                 s.width(width);
@@ -958,8 +995,12 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                     cmap_explicit = r.read_u8() != 0;
                     color_values  = r.read_floats();
                 }
+                // v6: double data origins; older files hold absolute values.
+                const double x_origin = (version >= 6) ? r.read_f64() : 0.0;
+                const double y_origin = (version >= 6) ? r.read_f64() : 0.0;
 
                 auto& s = axes->scatter(x_data, y_data);
+                s.x_offset(x_origin).y_offset(y_origin);
                 s.label(lbl).color(col).visible(vis);
                 s.line_style(ls_e).marker_style(ms_e).marker_size(msz).opacity(opac);
                 s.size(sz);
@@ -1500,12 +1541,16 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
         }
     }
 
-    // Saved limits were written as float; treat them as the auto-fit when they
-    // match it to float precision, otherwise restore them as an explicit view.
-    auto matches_fit = [](const AxisLimits& saved, const AxisLimits& fit)
+    // Treat saved limits as the auto-fit when they match it to the precision
+    // they were stored with, otherwise restore them as an explicit view.
+    // Before v6 they were float; v6 stores doubles, so compare relative to the
+    // span (data far from zero, e.g. timestamps, has a tiny span/magnitude).
+    auto matches_fit = [version](const AxisLimits& saved, const AxisLimits& fit)
     {
-        const double scale = std::max({std::abs(fit.min), std::abs(fit.max), fit.max - fit.min});
-        const double tol   = std::max(scale, 1.0) * 1e-6;
+        const double span = fit.max - fit.min;
+        double       tol  = std::abs(span) * 1e-9;
+        if (version < 6)
+            tol = std::max({std::abs(fit.min), std::abs(fit.max), span, 1.0}) * 1e-6;
         return std::abs(saved.min - fit.min) <= tol && std::abs(saved.max - fit.max) <= tol;
     };
     for (const auto& p : pending_auto_limits)

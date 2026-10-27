@@ -111,6 +111,7 @@ struct BoxPlotStats
     float              whisker_low  = 0.0f;
     float              whisker_high = 0.0f;
     std::vector<float> outliers;
+    std::size_t        count = 0;   // number of finite samples (0 = unknown; no notch drawn)
 };
 
 class BoxPlotSeries : public Series
@@ -130,11 +131,15 @@ class BoxPlotSeries : public Series
                            float                  whisker_high,
                            std::span<const float> outliers = {});
 
+    // Add a box from a full statistics record (keeps the sample count used for notches).
+    BoxPlotSeries& add_box(float x_position, BoxPlotStats stats);
+
     // Box visual width (in data units). Default: 0.6
     BoxPlotSeries& box_width(float w)
     {
         box_width_ = w;
         dirty_     = true;
+        rebuild_geometry();
         return *this;
     }
     float box_width() const { return box_width_; }
@@ -144,15 +149,19 @@ class BoxPlotSeries : public Series
     {
         show_outliers_ = show;
         dirty_         = true;
+        rebuild_geometry();
         return *this;
     }
     bool show_outliers() const { return show_outliers_; }
 
-    // Notched box plot (narrows at median)
+    // Notched box plot: the box narrows to a waist at the median, with notches spanning
+    // median +/- 1.57 * IQR / sqrt(n) (clamped to the box). Needs the sample count, so boxes
+    // added from bare precomputed statistics (count unknown) are drawn without a notch.
     BoxPlotSeries& notched(bool n)
     {
         notched_ = n;
         dirty_   = true;
+        rebuild_geometry();
         return *this;
     }
     bool notched() const { return notched_; }
@@ -171,6 +180,7 @@ class BoxPlotSeries : public Series
     {
         gradient_ = g;
         dirty_    = true;
+        rebuild_geometry();
         return *this;
     }
     bool gradient() const { return gradient_; }
@@ -242,6 +252,7 @@ class ViolinSeries : public Series
     {
         violin_width_ = w;
         dirty_        = true;
+        rebuild_geometry();
         return *this;
     }
     float violin_width() const { return violin_width_; }
@@ -251,6 +262,7 @@ class ViolinSeries : public Series
     {
         resolution_ = (n < 2) ? 2 : n;
         dirty_      = true;
+        rebuild_geometry();
         return *this;
     }
     int resolution() const { return resolution_; }
@@ -260,6 +272,7 @@ class ViolinSeries : public Series
     {
         show_box_ = show;
         dirty_    = true;
+        rebuild_geometry();
         return *this;
     }
     bool show_box() const { return show_box_; }
@@ -278,6 +291,7 @@ class ViolinSeries : public Series
     {
         gradient_ = g;
         dirty_    = true;
+        rebuild_geometry();
         return *this;
     }
     bool gradient() const { return gradient_; }
@@ -337,11 +351,15 @@ class HistogramSeries : public Series
     // Set data and recompute bins
     HistogramSeries& set_data(std::span<const float> values, int bins = 30);
 
+    // Setters that change counts or geometry rebuild immediately, so autoscale and data
+    // bounds (which read x_data()/y_data()) always match what the renderer uploads.
+
     // Number of bins
     HistogramSeries& bins(int n)
     {
         bins_  = n;
         dirty_ = true;
+        rebuild_geometry();
         return *this;
     }
     int bins() const { return bins_; }
@@ -351,6 +369,7 @@ class HistogramSeries : public Series
     {
         cumulative_ = c;
         dirty_      = true;
+        rebuild_geometry();
         return *this;
     }
     bool cumulative() const { return cumulative_; }
@@ -360,6 +379,7 @@ class HistogramSeries : public Series
     {
         density_ = d;
         dirty_   = true;
+        rebuild_geometry();
         return *this;
     }
     bool density() const { return density_; }
@@ -378,6 +398,7 @@ class HistogramSeries : public Series
     {
         gradient_ = g;
         dirty_    = true;
+        rebuild_geometry();
         return *this;
     }
     bool gradient() const { return gradient_; }
@@ -451,6 +472,7 @@ class BarSeries : public Series
     {
         bar_width_ = w;
         dirty_     = true;
+        rebuild_geometry();
         return *this;
     }
     float bar_width() const { return bar_width_; }
@@ -460,6 +482,7 @@ class BarSeries : public Series
     {
         baseline_ = b;
         dirty_    = true;
+        rebuild_geometry();
         return *this;
     }
     float baseline() const { return baseline_; }
@@ -469,6 +492,7 @@ class BarSeries : public Series
     {
         orientation_ = o;
         dirty_       = true;
+        rebuild_geometry();
         return *this;
     }
     BarOrientation orientation() const { return orientation_; }
@@ -482,11 +506,13 @@ class BarSeries : public Series
     std::span<const float> fill_verts() const { return fill_verts_; }
     size_t                 fill_vertex_count() const { return fill_verts_.size() / 3; }
 
-    // Enable/disable horizontal gradient on fills
+    // Enable/disable the fill gradient across the bar thickness (left to right on
+    // vertical bars, top to bottom on horizontal bars)
     BarSeries& gradient(bool g)
     {
         gradient_ = g;
         dirty_    = true;
+        rebuild_geometry();
         return *this;
     }
     bool gradient() const { return gradient_; }

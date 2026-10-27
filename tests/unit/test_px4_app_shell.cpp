@@ -231,11 +231,93 @@ TEST(Px4AppShellTest, FailedOpenClearsCanvasSeries)
     EXPECT_FALSE(shell.open_ulog("/tmp/this_file_should_not_exist_canvas_clear.ulg"));
     shell.poll();
 
-    ASSERT_EQ(fig.axes().size(), 1u);
-    EXPECT_TRUE(fig.axes()[0]->series().empty());
+    // Nothing is loaded any more: the canvas falls back to the empty state,
+    // which has no axes (and therefore no stale series).
+    EXPECT_TRUE(shell.empty_state_visible());
+    EXPECT_TRUE(fig.axes().empty());
 
     std::remove(path.c_str());
 }
+
+// ---------------------------------------------------------------------------
+// Empty state: with nothing loaded the canvas figure has no axes, so the
+// viewer shows an "Open ULog" empty state instead of an empty 0-1 plot.
+// ---------------------------------------------------------------------------
+
+TEST(Px4AppShellTest, EmptyStateWhenNothingLoaded)
+{
+    Px4AppShell     shell(Px4AppConfig{});
+    spectra::Figure fig({.width = 800, .height = 600});
+    fig.subplot(1, 1, 1);   // a default axes, as a fresh figure may have
+    shell.set_canvas_figure(&fig);
+
+    EXPECT_TRUE(shell.empty_state_visible());
+    shell.poll();
+    EXPECT_TRUE(fig.axes().empty());
+
+    // Repeated polls keep the figure empty.
+    shell.poll();
+    EXPECT_TRUE(fig.axes().empty());
+}
+
+TEST(Px4AppShellTest, EmptyStateHiddenOnceUlogIsOpen)
+{
+    ULogBuilder builder;
+    builder.add_format("vehicle_attitude:uint64_t timestamp;float roll");
+    builder.add_subscription(0, 1, "vehicle_attitude");
+    float roll = 0.5f;
+    builder.add_data(1, 1000000, reinterpret_cast<const uint8_t*>(&roll), sizeof(roll));
+    std::string path = builder.write_to_file(temp_path("empty_state_hidden"));
+
+    Px4AppShell     shell(Px4AppConfig{});
+    spectra::Figure fig({.width = 800, .height = 600});
+    shell.set_canvas_figure(&fig);
+    shell.poll();
+    ASSERT_TRUE(fig.axes().empty());
+
+    ASSERT_TRUE(shell.open_ulog(path));
+    shell.poll();
+    EXPECT_FALSE(shell.empty_state_visible());
+    // No known auto-plot topics: a single (empty) axes ready for manual fields.
+    ASSERT_EQ(fig.axes().size(), 1u);
+
+    shell.plot_manager().add_field("vehicle_attitude", "roll");
+    shell.poll();
+    ASSERT_EQ(fig.axes().size(), 1u);
+    EXPECT_EQ(fig.axes()[0]->series().size(), 1u);
+
+    std::remove(path.c_str());
+}
+
+#ifdef SPECTRA_USE_IMGUI
+// ---------------------------------------------------------------------------
+// Nav rail: each PX4 panel appears once (custom items, no registry duplicates).
+// ---------------------------------------------------------------------------
+
+TEST(Px4AppShellTest, NavRailListsEachPanelOnce)
+{
+    Px4AppShell shell(Px4AppConfig{});
+    ASSERT_TRUE(shell.init());
+    EXPECT_TRUE(shell.nav_rail_visible());
+
+    std::vector<spectra::ui::shell::NavItem> items;
+    shell.nav_rail().build_items(items);
+
+    int ulog_items = 0;
+    int live_items = 0;
+    for (const auto& item : items)
+    {
+        if (item.is_section_header)
+            continue;
+        if (item.label == "ULog File")
+            ++ulog_items;
+        if (item.label == "PX4 Live")
+            ++live_items;
+    }
+    EXPECT_EQ(ulog_items, 1);
+    EXPECT_EQ(live_items, 1);
+}
+#endif
 
 // ---------------------------------------------------------------------------
 // AutoPlotUlog: verifies that opening a ULog with known interesting topics

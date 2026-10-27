@@ -100,6 +100,16 @@ class Axes3D : public AxesBase
     // The half-size of the fixed normalized bounding box in world units.
     static constexpr float box_half_size() { return 3.0f; }
 
+    // Factor (>= 1) by which the camera projection is widened in viewport `vp`
+    // so the bounding box with its axis arrows, tick labels and title fits the
+    // viewport at the default camera distance.  Depends only on the viewport
+    // size (and whether a title is set) -- not on orientation, zoom or FOV --
+    // so the box keeps a steady size while orbiting.
+    float projection_fit_scale(const Rect& vp) const;
+
+    // Camera projection for viewport `vp` with projection_fit_scale() applied.
+    mat4 projection_matrix(const Rect& vp) const;
+
     // Zoom by scaling axis limits (bounding box stays fixed, data range changes)
     void zoom_limits(float factor);
 

@@ -215,7 +215,7 @@ HandleResult handle_req_subscribe_topic(DaemonContext&      ctx,
         auto kind  = ctx.topics.kind_of(req->name).value_or(ipc::TopicKind::Scalar2D);
         bool is_3d = (kind == ipc::TopicKind::Scalar3D);
 
-        auto fid = ctx.fig_model.create_figure(req->name, 1280, 720);
+        auto fid = ctx.fig_model.create_figure(req->name);
         ctx.graph.register_figure(fid, req->name);
         ctx.fig_model.add_axes(fid, 0.0f, 1.0f, 0.0f, 1.0f, is_3d);
         ctx.graph.assign_figure(fid, slot.window_id);

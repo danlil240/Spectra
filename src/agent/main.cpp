@@ -13,9 +13,11 @@
 #include <spectra/logger.hpp>
 #include <spectra/series.hpp>
 #include <spectra/series3d.hpp>
+#include <spectra/window_defaults.hpp>
 
 #include "../anim/frame_scheduler.hpp"
 #include "../ipc/codec.hpp"
+#include "live_series_index.hpp"
 #include "../ipc/message.hpp"
 #include "../ipc/transport.hpp"
 #include "../render/renderer.hpp"
@@ -99,6 +101,19 @@ static bool is_3d_series_type(const std::string& t)
     return t == "line3d" || t == "scatter3d" || t == "surface" || t == "mesh";
 }
 
+// Apply a snapshot series colour.  An auto-coloured series (color_index >= 0)
+// keeps following this window's data palette and a format-letter series
+// (color_letter, e.g. "r--") this window's theme; otherwise the colour is explicit.
+static void apply_snapshot_color(spectra::Series& s, const spectra::ipc::SnapshotSeriesState& ss)
+{
+    if (ss.color_index >= 0)
+        s.set_auto_color_index(ss.color_index);
+    else if (spectra::format_colors::is_letter(static_cast<char>(ss.color_letter)))
+        s.set_color_letter(static_cast<char>(ss.color_letter));
+    else
+        s.color({ss.color_r, ss.color_g, ss.color_b, ss.color_a});
+}
+
 // Upper bounds on indices accepted from IPC diffs. Structural ops grow the
 // cache up to the given index, so an unchecked value from a buggy or hostile
 // peer could allocate gigabytes.
@@ -124,8 +139,16 @@ std::unique_ptr<spectra::Figure> build_figure_from_snapshot(
     uint32_t                                 override_height = 0)
 {
     spectra::FigureConfig cfg;
-    cfg.width  = (override_width > 0) ? override_width : snap.width;
-    cfg.height = (override_height > 0) ? override_height : snap.height;
+    // Prefer an explicit override (current swapchain size on rebuild), then
+    // the size the figure was created with, then the shared default.
+    if (override_width > 0)
+        cfg.width = override_width;
+    else if (snap.width > 0)
+        cfg.width = snap.width;
+    if (override_height > 0)
+        cfg.height = override_height;
+    else if (snap.height > 0)
+        cfg.height = snap.height;
     auto fig   = std::make_unique<spectra::Figure>(cfg);
 
     int rows = std::clamp(snap.grid_rows, int32_t(1), int32_t(MAX_GRID_DIM));
@@ -178,7 +201,7 @@ std::unique_ptr<spectra::Figure> build_figure_from_snapshot(
                 if (ss.type == "scatter3d")
                 {
                     auto& s = ax3d.scatter3d(xs, ys, zs);
-                    s.color({ss.color_r, ss.color_g, ss.color_b, ss.color_a});
+                    apply_snapshot_color(s, ss);
                     s.visible(ss.visible);
                     s.opacity(ss.opacity);
                     s.size(ss.marker_size);
@@ -224,7 +247,7 @@ std::unique_ptr<spectra::Figure> build_figure_from_snapshot(
                     }
 
                     auto& s = ax3d.surface(ux, uy, z_grid);
-                    s.color({ss.color_r, ss.color_g, ss.color_b, ss.color_a});
+                    apply_snapshot_color(s, ss);
                     s.visible(ss.visible);
                     s.opacity(ss.opacity);
                     if (!ss.name.empty())
@@ -234,7 +257,7 @@ std::unique_ptr<spectra::Figure> build_figure_from_snapshot(
                 {
                     // mesh expects vertices + indices; for now treat as line3d
                     auto& s = ax3d.line3d(xs, ys, zs);
-                    s.color({ss.color_r, ss.color_g, ss.color_b, ss.color_a});
+                    apply_snapshot_color(s, ss);
                     s.visible(ss.visible);
                     s.opacity(ss.opacity);
                     s.width(ss.line_width);
@@ -244,7 +267,7 @@ std::unique_ptr<spectra::Figure> build_figure_from_snapshot(
                 else   // "line3d"
                 {
                     auto& s = ax3d.line3d(xs, ys, zs);
-                    s.color({ss.color_r, ss.color_g, ss.color_b, ss.color_a});
+                    apply_snapshot_color(s, ss);
                     s.visible(ss.visible);
                     s.opacity(ss.opacity);
                     s.width(ss.line_width);
@@ -288,7 +311,8 @@ std::unique_ptr<spectra::Figure> build_figure_from_snapshot(
                 if (ss.type == "scatter")
                 {
                     auto& s = ax.scatter(xs, ys);
-                    s.color({ss.color_r, ss.color_g, ss.color_b, ss.color_a});
+                    s.x_offset(ss.x_origin).y_offset(ss.y_origin);
+                    apply_snapshot_color(s, ss);
                     s.visible(ss.visible);
                     s.opacity(ss.opacity);
                     s.size(ss.marker_size);
@@ -298,7 +322,8 @@ std::unique_ptr<spectra::Figure> build_figure_from_snapshot(
                 else
                 {
                     auto& s = ax.line(xs, ys);
-                    s.color({ss.color_r, ss.color_g, ss.color_b, ss.color_a});
+                    s.x_offset(ss.x_origin).y_offset(ss.y_origin);
+                    apply_snapshot_color(s, ss);
                     s.visible(ss.visible);
                     s.opacity(ss.opacity);
                     s.width(ss.line_width);
@@ -336,10 +361,12 @@ void apply_diff_op_to_cache(spectra::ipc::SnapshotFigureState& fig, const spectr
         case spectra::ipc::DiffOp::Type::SET_SERIES_COLOR:
             if (op.series_index < fig.series.size())
             {
-                fig.series[op.series_index].color_r = op.f1;
-                fig.series[op.series_index].color_g = op.f2;
-                fig.series[op.series_index].color_b = op.f3;
-                fig.series[op.series_index].color_a = op.f4;
+                fig.series[op.series_index].color_r      = op.f1;
+                fig.series[op.series_index].color_g      = op.f2;
+                fig.series[op.series_index].color_b      = op.f3;
+                fig.series[op.series_index].color_a      = op.f4;
+                fig.series[op.series_index].color_index  = -1;   // explicit colour
+                fig.series[op.series_index].color_letter = 0;
             }
             break;
         case spectra::ipc::DiffOp::Type::SET_SERIES_VISIBLE:
@@ -372,6 +399,8 @@ void apply_diff_op_to_cache(spectra::ipc::SnapshotFigureState& fig, const spectr
                 const size_t stride = is_3d_series_type(series.type) ? 3u : 2u;
                 series.data         = op.data;
                 series.point_count  = static_cast<uint32_t>(op.data.size() / stride);
+                series.x_origin     = op.f1;   // 2D data origins (0 for 3D senders)
+                series.y_origin     = op.f2;
             }
             break;
         case spectra::ipc::DiffOp::Type::SET_AXIS_ZLIMITS:
@@ -388,6 +417,12 @@ void apply_diff_op_to_cache(spectra::ipc::SnapshotFigureState& fig, const spectr
             spectra::ipc::SnapshotSeriesState s;
             s.type       = op.str_val;
             s.axes_index = op.axes_index;
+            // Auto colour by position in its axes (mirrors FigureModel::add_series).
+            s.color_index = static_cast<int32_t>(std::count_if(
+                fig.series.begin(),
+                fig.series.begin() + std::min<size_t>(op.series_index, fig.series.size()),
+                [&](const spectra::ipc::SnapshotSeriesState& o)
+                { return o.axes_index == op.axes_index; }));
             // Grow series list to accommodate the new index
             if (fig.series.size() <= op.series_index)
                 fig.series.resize(static_cast<size_t>(op.series_index) + 1);
@@ -443,18 +478,24 @@ void apply_diff_op_to_cache(spectra::ipc::SnapshotFigureState& fig, const spectr
 }
 
 // ─── Apply a DiffOp directly to a live Figure object ─────────────────────────
-void apply_diff_op_to_figure(spectra::Figure& fig, const spectra::ipc::DiffOp& op)
+// `where` locates a series op's target in the live Figure (op.series_index is
+// figure-wide); without it op.axes_index / op.series_index are used as is.
+void apply_diff_op_to_figure(spectra::Figure&                       fig,
+                             const spectra::ipc::DiffOp&            op,
+                             const spectra::agent::LiveSeriesIndex* where = nullptr)
 {
     // Locate the live series addressed by a series-level op.
     auto find_live_series = [&]() -> spectra::Series*
     {
-        auto* ax = live_axes_at(fig, op.axes_index);
+        const uint32_t axes_index   = where ? where->axes_index : op.axes_index;
+        const uint32_t series_index = where ? where->series_index : op.series_index;
+        auto*          ax           = live_axes_at(fig, axes_index);
         if (!ax)
             return nullptr;
         auto& series_vec = ax->series_mut();
-        if (op.series_index >= series_vec.size() || !series_vec[op.series_index])
+        if (series_index >= series_vec.size() || !series_vec[series_index])
             return nullptr;
-        return series_vec[op.series_index].get();
+        return series_vec[series_index].get();
     };
 
     auto* base = live_axes_at(fig, op.axes_index);
@@ -552,6 +593,7 @@ void apply_diff_op_to_figure(spectra::Figure& fig, const spectra::ipc::DiffOp& o
                     }
                     line->set_x(xv);
                     line->set_y(yv);
+                    line->x_offset(op.f1).y_offset(op.f2);
                 }
                 else if (auto* scatter = dynamic_cast<spectra::ScatterSeries*>(s))
                 {
@@ -565,12 +607,48 @@ void apply_diff_op_to_figure(spectra::Figure& fig, const spectra::ipc::DiffOp& o
                     }
                     scatter->set_x(xv);
                     scatter->set_y(yv);
+                    scatter->x_offset(op.f1).y_offset(op.f2);
                 }
             }
             break;
         case spectra::ipc::DiffOp::Type::SET_SERIES_LABEL:
             if (auto* s = find_live_series())
                 s->label(op.str_val);
+            break;
+        case spectra::ipc::DiffOp::Type::SET_SERIES_COLOR:
+            if (auto* s = find_live_series())
+                s->color(spectra::Color(static_cast<float>(op.f1),
+                                        static_cast<float>(op.f2),
+                                        static_cast<float>(op.f3),
+                                        static_cast<float>(op.f4)));
+            break;
+        case spectra::ipc::DiffOp::Type::SET_SERIES_VISIBLE:
+            if (auto* s = find_live_series())
+                s->visible(op.bool_val);
+            break;
+        case spectra::ipc::DiffOp::Type::SET_OPACITY:
+            if (auto* s = find_live_series())
+                s->opacity(static_cast<float>(op.f1));
+            break;
+        case spectra::ipc::DiffOp::Type::SET_LINE_WIDTH:
+            if (auto* s = find_live_series())
+            {
+                if (auto* line = dynamic_cast<spectra::LineSeries*>(s))
+                    line->width(static_cast<float>(op.f1));
+                else if (auto* line3d = dynamic_cast<spectra::LineSeries3D*>(s))
+                    line3d->width(static_cast<float>(op.f1));
+            }
+            break;
+        case spectra::ipc::DiffOp::Type::SET_MARKER_SIZE:
+            if (auto* s = find_live_series())
+            {
+                if (auto* scatter = dynamic_cast<spectra::ScatterSeries*>(s))
+                    scatter->size(static_cast<float>(op.f1));
+                else if (auto* scatter3d = dynamic_cast<spectra::ScatterSeries3D*>(s))
+                    scatter3d->size(static_cast<float>(op.f1));
+                else
+                    s->marker_size(static_cast<float>(op.f1));
+            }
             break;
         case spectra::ipc::DiffOp::Type::SET_AXIS_XLABEL:
             if (ax2d)
@@ -818,12 +896,14 @@ int main(int argc, char* argv[])
     // Phase 2: Build figures into FigureRegistry
     // ═══════════════════════════════════════════════════════════════════════
 
-    constexpr uint32_t INITIAL_WIDTH  = 1280;
-    constexpr uint32_t INITIAL_HEIGHT = 720;
+    // Shared with the in-process app so both runtime modes open at the same size.
+    constexpr uint32_t INITIAL_WIDTH  = spectra::DEFAULT_WINDOW_WIDTH;
+    constexpr uint32_t INITIAL_HEIGHT = spectra::DEFAULT_WINDOW_HEIGHT;
 
+    // No size override: each figure keeps the size it was created with
+    // (FigureConfig / REQ_CREATE_FIGURE), exactly like App::run_inproc.
     spectra::FigureRegistry registry;
-    auto                    all_ids =
-        rebuild_registry_from_cache(registry, figure_cache, INITIAL_WIDTH, INITIAL_HEIGHT);
+    auto                    all_ids = rebuild_registry_from_cache(registry, figure_cache, 0, 0);
     cache_dirty = false;
 
     // If the daemon has no figures yet (e.g. a publisher launched it before
@@ -873,10 +953,13 @@ int main(int argc, char* argv[])
     // this object for all subsystems (register_commands, renderers, overlays).
     spectra::ui::ThemeManager theme_mgr;
     spectra::ui::ThemeManager::set_current(&theme_mgr);
+    theme_mgr.ensure_initialized();
 
+    // Saved preferences (theme, data palette), as App::run does in-process.
     spectra::ui::settings::SettingsStore settings_store;
     settings_store.load();
     settings_store.apply_to(theme_mgr);
+    settings_store.set_on_change([&settings_store]() { settings_store.save(); });
 
     auto renderer_ptr = std::make_unique<spectra::Renderer>(*backend, theme_mgr);
     if (!renderer_ptr->init())
@@ -1186,11 +1269,13 @@ int main(int argc, char* argv[])
                         bool needs_rebuild = false;
                         for (const auto& op : diff->ops)
                         {
+                            const spectra::ipc::SnapshotFigureState* cached = nullptr;
                             for (auto& fig : figure_cache)
                             {
                                 if (fig.figure_id == op.figure_id)
                                 {
                                     apply_diff_op_to_cache(fig, op);
+                                    cached = &fig;
                                     break;
                                 }
                             }
@@ -1205,7 +1290,18 @@ int main(int argc, char* argv[])
                             else
                             {
                                 // Apply directly to the matching live Figure object
-                                // (fast path for axis limits, grid toggle, series data).
+                                // (fast path for axis limits, grid toggle, series data
+                                // and style).  Series ops carry a figure-wide index;
+                                // the live Figure addresses series per axes.
+                                spectra::agent::LiveSeriesIndex        where;
+                                const spectra::agent::LiveSeriesIndex* where_ptr = nullptr;
+                                if (cached && spectra::agent::is_series_property_op(op.type)
+                                    && spectra::agent::locate_live_series(*cached,
+                                                                          op.series_index,
+                                                                          where))
+                                {
+                                    where_ptr = &where;
+                                }
                                 for (size_t mi = 0;
                                      mi < assigned_figures.size() && mi < all_ids.size();
                                      ++mi)
@@ -1214,7 +1310,7 @@ int main(int argc, char* argv[])
                                     {
                                         auto* live_fig = registry.get(all_ids[mi]);
                                         if (live_fig)
-                                            apply_diff_op_to_figure(*live_fig, op);
+                                            apply_diff_op_to_figure(*live_fig, op, where_ptr);
                                         break;
                                     }
                                 }

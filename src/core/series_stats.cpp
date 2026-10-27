@@ -167,6 +167,27 @@ static void emit_filled_quad(std::vector<float>& buf,
     emit_vert(buf, x1, y1, a1);
 }
 
+// ─── Helper: emit a filled quad whose gradient runs along y ────────────────
+// Horizontal bars use this so the gradient spans the bar thickness (top edge
+// bright, bottom edge dim), matching vertical bars, whose gradient spans their
+// width.  The shading is then independent of bar length and sign.
+static void emit_filled_quad_ygrad(std::vector<float>& buf,
+                                   float               x0,
+                                   float               y0,
+                                   float               x1,
+                                   float               y1,
+                                   bool                gradient)
+{
+    float a_bot = gradient ? 0.45f : 1.0f;   // y0 edge (dim)
+    float a_top = 1.0f;                      // y1 edge (always bright)
+    emit_vert(buf, x0, y0, a_bot);
+    emit_vert(buf, x1, y0, a_bot);
+    emit_vert(buf, x0, y1, a_top);
+    emit_vert(buf, x0, y1, a_top);
+    emit_vert(buf, x1, y0, a_bot);
+    emit_vert(buf, x1, y1, a_top);
+}
+
 // ─── Helper: emit a filled triangle with per-vertex alpha ──────────────────
 static void emit_filled_tri(std::vector<float>& buf,
                             float               x0,
@@ -204,6 +225,7 @@ BoxPlotStats BoxPlotSeries::compute_stats(std::span<const float> values)
 
     std::sort(sorted.begin(), sorted.end());
 
+    result.count  = sorted.size();
     result.median = percentile(sorted, 0.5f);
     result.q1     = percentile(sorted, 0.25f);
     result.q3     = percentile(sorted, 0.75f);
@@ -277,6 +299,15 @@ BoxPlotSeries& BoxPlotSeries::add_box(float                  x_position,
     return *this;
 }
 
+BoxPlotSeries& BoxPlotSeries::add_box(float x_position, BoxPlotStats stats)
+{
+    positions_.push_back(x_position);
+    stats_.push_back(std::move(stats));
+    dirty_ = true;
+    rebuild_geometry();
+    return *this;
+}
+
 void BoxPlotSeries::rebuild_geometry()
 {
     line_x_.clear();
@@ -292,27 +323,115 @@ void BoxPlotSeries::rebuild_geometry()
         float               x = positions_[i];
         const BoxPlotStats& s = stats_[i];
 
-        // ── Fill: box rectangle (Q1 to Q3) ──
-        emit_filled_quad(fill_verts_, x - hw, s.q1, x + hw, s.q3, gradient_);
+        // Notch extent: median +/- 1.57 * IQR / sqrt(n) (McGill et al. 1978), clamped to the box.
+        float notch_lo  = s.median;
+        float notch_hi  = s.median;
+        bool  has_notch = false;
+        float median_hw = hw;
+        if (notched_ && s.count > 0)
+        {
+            float half = 1.57f * (s.q3 - s.q1) / std::sqrt(static_cast<float>(s.count));
+            notch_lo   = std::max(s.q1, s.median - half);
+            notch_hi   = std::min(s.q3, s.median + half);
+            has_notch  = std::isfinite(notch_lo) && std::isfinite(notch_hi) && notch_hi > notch_lo;
+            if (has_notch)
+                median_hw = hw * 0.5f;   // box waist at the median
+        }
 
-        // ── Outline: box rectangle ──
-        line_x_.push_back(x - hw);
-        line_y_.push_back(s.q1);
-        line_x_.push_back(x - hw);
-        line_y_.push_back(s.q3);
-        line_x_.push_back(x + hw);
-        line_y_.push_back(s.q3);
-        line_x_.push_back(x + hw);
-        line_y_.push_back(s.q1);
-        line_x_.push_back(x - hw);
-        line_y_.push_back(s.q1);
-        line_x_.push_back(NAN_BREAK);
-        line_y_.push_back(NAN_BREAK);
+        if (has_notch)
+        {
+            // ── Fill: notched box as four horizontal bands (Q1..lo, lo..med, med..hi, hi..Q3) ──
+            const float a_left   = 1.0f;
+            const float a_right  = gradient_ ? 0.45f : 1.0f;
+            auto        alpha_at = [&](float px)
+            {
+                float t = hw > 0.0f ? (px - (x - hw)) / (2.0f * hw) : 0.0f;
+                return a_left + (a_right - a_left) * t;
+            };
+            auto band = [&](float y0, float hw0, float y1, float hw1)
+            {
+                float bl = x - hw0, br = x + hw0, tl = x - hw1, tr = x + hw1;
+                emit_filled_tri(fill_verts_,
+                                bl,
+                                y0,
+                                alpha_at(bl),
+                                br,
+                                y0,
+                                alpha_at(br),
+                                tl,
+                                y1,
+                                alpha_at(tl));
+                emit_filled_tri(fill_verts_,
+                                tl,
+                                y1,
+                                alpha_at(tl),
+                                br,
+                                y0,
+                                alpha_at(br),
+                                tr,
+                                y1,
+                                alpha_at(tr));
+            };
+            band(s.q1, hw, notch_lo, hw);
+            band(notch_lo, hw, s.median, median_hw);
+            band(s.median, median_hw, notch_hi, hw);
+            band(notch_hi, hw, s.q3, hw);
 
-        // ── Median line (thicker, rendered as outline) ──
-        line_x_.push_back(x - hw);
+            // ── Outline: notched box polygon ──
+            const float ox[] = {x - hw,
+                                x - hw,
+                                x - median_hw,
+                                x - hw,
+                                x - hw,
+                                x + hw,
+                                x + hw,
+                                x + median_hw,
+                                x + hw,
+                                x + hw,
+                                x - hw};
+            const float oy[] = {s.q1,
+                                notch_lo,
+                                s.median,
+                                notch_hi,
+                                s.q3,
+                                s.q3,
+                                notch_hi,
+                                s.median,
+                                notch_lo,
+                                s.q1,
+                                s.q1};
+            for (size_t k = 0; k < std::size(ox); ++k)
+            {
+                line_x_.push_back(ox[k]);
+                line_y_.push_back(oy[k]);
+            }
+            line_x_.push_back(NAN_BREAK);
+            line_y_.push_back(NAN_BREAK);
+        }
+        else
+        {
+            // ── Fill: box rectangle (Q1 to Q3) ──
+            emit_filled_quad(fill_verts_, x - hw, s.q1, x + hw, s.q3, gradient_);
+
+            // ── Outline: box rectangle ──
+            line_x_.push_back(x - hw);
+            line_y_.push_back(s.q1);
+            line_x_.push_back(x - hw);
+            line_y_.push_back(s.q3);
+            line_x_.push_back(x + hw);
+            line_y_.push_back(s.q3);
+            line_x_.push_back(x + hw);
+            line_y_.push_back(s.q1);
+            line_x_.push_back(x - hw);
+            line_y_.push_back(s.q1);
+            line_x_.push_back(NAN_BREAK);
+            line_y_.push_back(NAN_BREAK);
+        }
+
+        // ── Median line (spans the waist of a notched box) ──
+        line_x_.push_back(x - median_hw);
         line_y_.push_back(s.median);
-        line_x_.push_back(x + hw);
+        line_x_.push_back(x + median_hw);
         line_y_.push_back(s.median);
         line_x_.push_back(NAN_BREAK);
         line_y_.push_back(NAN_BREAK);
@@ -719,7 +838,7 @@ void BarSeries::rebuild_geometry()
         else
         {
             // ── Fill: horizontal bar ──
-            emit_filled_quad(fill_verts_, baseline_, pos - hw, h, pos + hw, gradient_);
+            emit_filled_quad_ygrad(fill_verts_, baseline_, pos - hw, h, pos + hw, gradient_);
 
             // ── Outline: horizontal bar border ──
             line_x_.push_back(baseline_);

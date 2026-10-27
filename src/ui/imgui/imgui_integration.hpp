@@ -12,6 +12,8 @@
     #include <vector>
 
     #include "render/backend.hpp"
+    #include "render/text_fit.hpp"
+    #include "render/font_fallback.hpp"
     #include "ui/data/csv_loader.hpp"
 
     #include "ui/docking/dock_system.hpp"
@@ -23,6 +25,7 @@
     #include "ui/overlay/inspector.hpp"
     #include "ui/layout/layout_manager.hpp"
     #include "ui/input/selection_context.hpp"
+    #include "ui/shell/fps_badge.hpp"
 
     #ifdef SPECTRA_USE_GLFW
 struct GLFWwindow;
@@ -88,7 +91,10 @@ class ImGuiIntegration
     struct MenuItem
     {
         std::string           label;
-        std::function<void()> callback;
+        std::function<void()> callback;   // null = disabled item
+        std::string           shortcut;   // right-aligned hint, e.g. "Ctrl+Shift+T"
+        std::function<bool()> checked;    // set = checkable; returns the current state
+        uint16_t              icon = 0;   // ui::Icon codepoint (0 = none)
         MenuItem(const std::string& l, std::function<void()> cb = nullptr) : label(l), callback(cb)
         {
         }
@@ -217,6 +223,12 @@ class ImGuiIntegration
     // Data interaction layer (owned externally by App)
     void             set_data_interaction(DataInteraction* di) { data_interaction_ = di; }
     DataInteraction* data_interaction() const { return data_interaction_; }
+
+    // Plot labels the renderer ellipsized last frame; hovering one shows its full text.
+    void set_truncated_text_regions(std::vector<TruncatedTextRegion> regions)
+    {
+        truncated_text_regions_ = std::move(regions);
+    }
 
     // Box zoom overlay (Agent B Week 7, owned externally by App)
     void            set_box_zoom_overlay(BoxZoomOverlay* bzo) { box_zoom_overlay_ = bzo; }
@@ -635,6 +647,10 @@ class ImGuiIntegration
     ImFont* font_title_   = nullptr;   // 18px — panel title
     ImFont* font_menubar_ = nullptr;   // 15px — menubar items
 
+    // System fallback fonts (maths symbols, CJK) merged behind Inter; the
+    // atlas references this data, so it must outlive imgui_context_.
+    std::vector<FontFileData> fallback_font_files_;
+
     // Interaction state
     bool     reset_view_       = false;
     bool     reset_live_view_  = false;
@@ -646,6 +662,9 @@ class ImGuiIntegration
     bool   cursor_data_valid_ = false;
     float  zoom_level_        = 1.0f;
     float  gpu_time_ms_       = 0.0f;
+
+    // Status-bar FPS badge: "Idle" when rendering on demand, live FPS otherwise.
+    ui::FpsBadgeState fps_badge_;
 
     // Injected ThemeManager (not owned)
     ui::ThemeManager* theme_mgr_ = nullptr;
@@ -880,6 +899,9 @@ class ImGuiIntegration
     // Deferred tooltip rendering to ensure tooltips appear above all UI elements
     const char* deferred_tooltip_ = nullptr;
 
+    // Ellipsized plot labels (screen rects + full text), see set_truncated_text_regions().
+    std::vector<TruncatedTextRegion> truncated_text_regions_;
+
     // Knobs panel screen rect (updated each frame) — used to suppress tab bar
     // foreground rendering when the mouse is over the knobs panel.
     struct
@@ -904,6 +926,10 @@ class ImGuiIntegration
     void load_logo_textures(VulkanBackend& backend);
     void destroy_logo_textures();
     void draw_welcome_screen(float display_w, float display_h, float dt);
+
+    // Native "Open CSV" dialog; on success parses the file and opens the column picker.
+    // Shared by Data > Load from CSV, the canvas welcome button and the empty-app welcome.
+    void open_csv_with_dialog();
 };
 
 // Helper factory to construct an ImGuiIntegration instance from translation units

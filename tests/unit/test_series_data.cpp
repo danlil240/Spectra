@@ -206,7 +206,7 @@ TEST(ScatterSeries, FluentAPI)
 TEST(ScatterSeries, DefaultSize)
 {
     ScatterSeries s;
-    EXPECT_FLOAT_EQ(s.size(), 4.0f);
+    EXPECT_FLOAT_EQ(s.size(), 6.0f);
 }
 
 TEST(ScatterSeries, ColormapRequiresOneScalarPerPoint)

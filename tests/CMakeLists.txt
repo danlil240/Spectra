@@ -98,6 +98,7 @@ set(SPECTRA_UNIT_TESTS
     test_transform
     test_bugfix_app_topic
     test_bugfix_core_axes
+    test_axis_scale
     test_bugfix_core_series
     test_bugfix_core_stats
     test_bugfix_daemon_agent
@@ -120,6 +121,7 @@ set(SPECTRA_UNIT_TESTS
     test_ring_buffer
     test_input
     test_series_data
+    test_scatter_marker_defaults
     test_command_queue
     test_decimation
     test_filters
@@ -127,6 +129,7 @@ set(SPECTRA_UNIT_TESTS
     test_series_visibility
     test_ui_icons
     test_svg_export
+    test_annotations
     test_resize_layout
     test_layout_manager
     test_inspector
@@ -136,8 +139,10 @@ set(SPECTRA_UNIT_TESTS
     test_transition_engine
     test_theme
     test_command_registry
+    test_axes_context_menu
     test_undo_manager
     test_command_palette_registry
+    test_welcome_actions
     test_shortcut_manager
     test_undo_redo
     test_workspace
@@ -146,6 +151,7 @@ set(SPECTRA_UNIT_TESTS
     test_clipboard_image
     test_region_select
     test_legend_interaction
+    test_legend_colorbar
     test_figure_manager
     test_inspector_stats
     test_box_zoom_overlay
@@ -154,6 +160,10 @@ set(SPECTRA_UNIT_TESTS
     test_timeline_editor
     test_recording_export
     test_theme_colorblind
+    test_palette_resolution
+    test_window_agent_state
+    test_format_letter_colors
+    test_settings_store
     test_phase2_integration
     test_split_view
     test_dock_system
@@ -175,6 +185,7 @@ set(SPECTRA_UNIT_TESTS
     test_math3d
     test_3d_pipelines
     test_camera
+    test_axes3d_fit
     # test_axes3d  # Not a proper GTEST file, uses plain functions with assert
     test_series3d
     test_depth_buffer
@@ -196,15 +207,19 @@ set(SPECTRA_UNIT_TESTS
     test_session_graph
     test_process_manager
     test_animation_tick_gate
+    test_fps_badge
     test_easy_api
     test_plot_annotations
     test_knob_manager
     test_python_ipc
     test_cross_codec
     test_text_renderer
+    test_text_fit
+    test_font_fallback
     test_eigen_support
     test_csv_loader
     test_series_stats
+    test_double_precision_data
     test_series_clipboard
     test_clipboard_export
     test_series_reorder
@@ -236,11 +251,15 @@ set(SPECTRA_UNIT_TESTS
     test_workspace_autosave
     test_accessible_summary
     test_webgpu_backend
+    test_render_unsupported_series
     test_expression_eval
     test_visual_correctness
     test_logger_defaults
     test_runtime_robustness
     test_app_init_failure
+    test_export_viewport
+    test_headless_export_text
+    test_window_defaults
 )
 
 # Mock transform plugin — shared library loaded by test_plugin_transforms
@@ -320,6 +339,7 @@ set(SPECTRA_GPU_TESTS
     test_text_renderer
     test_embed_surface
     test_easy_embed
+    test_headless_export_text
 )
 
 foreach(_test ${SPECTRA_UNIT_TESTS})
@@ -343,6 +363,10 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
         # Link Eigen3 for Eigen-specific tests
         if(_test STREQUAL "test_eigen_support" AND SPECTRA_USE_EIGEN)
             target_link_libraries(unit_${_test} PRIVATE Eigen3::Eigen)
+        endif()
+        # Hover round trip drives DataInteraction, which needs an ImGui context
+        if(_test MATCHES "^test_(double_precision_data|data_interaction)$" AND DEFINED imgui_SOURCE_DIR)
+            target_include_directories(unit_${_test} SYSTEM PRIVATE ${imgui_SOURCE_DIR})
         endif()
         # Pass mock plugin path to transform plugin tests
         if(_test STREQUAL "test_plugin_transforms")
@@ -383,6 +407,11 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
         if(_test STREQUAL "test_webgpu_backend" AND TARGET spectra_wgsl_shaders)
             add_dependencies(unit_${_test} spectra_wgsl_shaders)
         endif()
+        # Decodes the exported PNGs with the bundled stb_image.
+        if(_test STREQUAL "test_headless_export_text")
+            target_include_directories(unit_${_test} SYSTEM PRIVATE
+                ${CMAKE_SOURCE_DIR}/third_party/stb)
+        endif()
     endif()
 endforeach()
 
@@ -412,6 +441,20 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_multi_window.cpp)
         LABELS "gpu"
         RESOURCE_LOCK gpu)
 endif()
+
+# Qt embed demo smoke tests: launch each demo under an X display (xvfb-run when
+# DISPLAY is unset) and check it survives its first frames.
+foreach(qt_demo qt_embed_demo qt_multi_canvas_demo)
+    if(TARGET ${qt_demo})
+        add_test(NAME smoke_${qt_demo}
+            COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/smoke/qt_demo_smoke.sh $<TARGET_FILE:${qt_demo}>)
+        set_tests_properties(smoke_${qt_demo} PROPERTIES
+            LABELS "gpu;qt"
+            RESOURCE_LOCK gpu
+            SKIP_RETURN_CODE 77
+            TIMEOUT 60)
+    endif()
+endforeach()
 
 # Golden image tests (require Vulkan — headless via lavapipe in CI)
 option(SPECTRA_BUILD_GOLDEN_TESTS "Build golden image regression tests" ON)

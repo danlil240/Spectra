@@ -61,6 +61,11 @@ jobs:
             exit 1
           fi
 
+      # UI colours must come from ThemeManager tokens so panels stay readable in
+      # every theme. Approved exceptions: tools/color_literals_allowlist.txt.
+      - name: Check for hard-coded UI colour literals
+        run: python3 tools/check_color_literals.py
+
   # ─── Build + Unit Tests (Linux) ─────────────────────────────────────────
   build-linux:
     name: build-linux (${{ matrix.os }}, ${{ matrix.compiler }})
@@ -185,6 +190,10 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.12'
+
+      # Cheap guard so a broken example (e.g. a stray indent) fails fast, before the build.
+      - name: Byte-compile Python examples
+        run: python -m py_compile python/examples/*.py
 
       - name: ccache
         uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24

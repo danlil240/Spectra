@@ -3,7 +3,12 @@
 #include <spectra/axes.hpp>
 #include <spectra/series_stats.hpp>
 
+#include <algorithm>
 #include <cmath>
+#include <limits>
+#include <memory>
+#include <span>
+#include <utility>
 #include <vector>
 
 using namespace spectra;
@@ -201,6 +206,134 @@ TEST(BoxPlotSeries, FluentAPI)
     EXPECT_EQ(bp.label(), "test");
     EXPECT_FLOAT_EQ(bp.box_width(), 0.4f);
     EXPECT_FALSE(bp.show_outliers());
+}
+
+namespace
+{
+// Leading outline polyline of the first box (up to the first NaN break).
+std::vector<std::pair<float, float>> first_outline(const BoxPlotSeries& bp)
+{
+    std::vector<std::pair<float, float>> pts;
+    for (size_t i = 0; i < bp.x_data().size() && !std::isnan(bp.x_data()[i]); ++i)
+        pts.emplace_back(bp.x_data()[i], bp.y_data()[i]);
+    return pts;
+}
+}   // namespace
+
+TEST(BoxPlotSeries, NotchedOutlineNarrowsAtMedian)
+{
+    std::vector<float> data(100);
+    for (int i = 0; i < 100; ++i)
+        data[i] = static_cast<float>(i + 1);
+
+    BoxPlotSeries bp;
+    bp.box_width(0.6f).notched(true);
+    bp.add_box(2.0f, data);
+
+    const auto& s = bp.stats()[0];
+    ASSERT_EQ(s.count, 100u);
+    const float half = 1.57f * (s.q3 - s.q1) / 10.0f;
+    const float hw   = 0.3f;
+
+    auto pts = first_outline(bp);
+    ASSERT_EQ(pts.size(), 11u);   // closed notched polygon
+    const float ex[] = {2 - hw,
+                        2 - hw,
+                        2 - hw / 2,
+                        2 - hw,
+                        2 - hw,
+                        2 + hw,
+                        2 + hw,
+                        2 + hw / 2,
+                        2 + hw,
+                        2 + hw,
+                        2 - hw};
+    const float ey[] = {s.q1,
+                        s.median - half,
+                        s.median,
+                        s.median + half,
+                        s.q3,
+                        s.q3,
+                        s.median + half,
+                        s.median,
+                        s.median - half,
+                        s.q1,
+                        s.q1};
+    for (size_t i = 0; i < pts.size(); ++i)
+    {
+        EXPECT_NEAR(pts[i].first, ex[i], 1e-5f) << "point " << i;
+        EXPECT_NEAR(pts[i].second, ey[i], 1e-4f) << "point " << i;
+    }
+
+    // Median line spans only the waist.
+    const auto& xs = bp.x_data();
+    const auto& ys = bp.y_data();
+    size_t      m  = pts.size() + 1;
+    EXPECT_NEAR(xs[m], 2 - hw / 2, 1e-5f);
+    EXPECT_NEAR(xs[m + 1], 2 + hw / 2, 1e-5f);
+    EXPECT_FLOAT_EQ(ys[m], s.median);
+
+    // Fill: 4 bands x 2 triangles; nothing at the median row extends past the waist.
+    ASSERT_EQ(bp.fill_vertex_count(), 24u);
+    auto fv = bp.fill_verts();
+    for (size_t v = 0; v < bp.fill_vertex_count(); ++v)
+    {
+        float fx = fv[v * 3], fy = fv[v * 3 + 1];
+        EXPECT_GE(fy, s.q1 - 1e-4f);
+        EXPECT_LE(fy, s.q3 + 1e-4f);
+        if (std::abs(fy - s.median) < 1e-5f)
+        {
+            EXPECT_LE(std::abs(fx - 2.0f), hw / 2 + 1e-5f);
+        }
+    }
+}
+
+TEST(BoxPlotSeries, NotchClampedToBox)
+{
+    // Few samples: 1.57 * IQR / sqrt(n) exceeds the box, so the notch is clamped to Q1..Q3.
+    std::vector<float> data = {0.0f, 1.0f, 9.0f, 10.0f};
+    BoxPlotSeries      bp;
+    bp.notched(true);
+    bp.add_box(0.0f, data);
+    const auto& s   = bp.stats()[0];
+    auto        pts = first_outline(bp);
+    ASSERT_EQ(pts.size(), 11u);
+    EXPECT_FLOAT_EQ(pts[1].second, s.q1);
+    EXPECT_FLOAT_EQ(pts[3].second, s.q3);
+    for (const auto& p : pts)
+    {
+        EXPECT_GE(p.second, s.q1);
+        EXPECT_LE(p.second, s.q3);
+    }
+}
+
+TEST(BoxPlotSeries, NotchNeedsSampleCount)
+{
+    BoxPlotSeries bp;
+    bp.notched(true);
+    // Bare precomputed statistics: sample count unknown -> plain box.
+    bp.add_box(0.0f, 5.0f, 3.0f, 7.0f, 1.0f, 9.0f);
+    EXPECT_EQ(first_outline(bp).size(), 5u);
+
+    // Full statistics record keeps the count, so the notch is drawn.
+    BoxPlotStats st = BoxPlotSeries::compute_stats(std::vector<float>(50, 0.0f));
+    st.median       = 5.0f;
+    st.q1           = 3.0f;
+    st.q3           = 7.0f;
+    BoxPlotSeries bp2;
+    bp2.notched(true);
+    bp2.add_box(0.0f, st);
+    EXPECT_EQ(first_outline(bp2).size(), 11u);
+}
+
+TEST(BoxPlotSeries, NotNotchedByDefault)
+{
+    std::vector<float> data = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+    BoxPlotSeries      bp;
+    bp.add_box(0.0f, data);
+    EXPECT_FALSE(bp.notched());
+    EXPECT_EQ(first_outline(bp).size(), 5u);
+    EXPECT_EQ(bp.fill_vertex_count(), 6u);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -585,4 +718,348 @@ TEST(AxesStats, MixedSeriesTypes)
 
     EXPECT_EQ(ax.series().size(), 2u);
     ax.auto_fit();
+}
+
+// ─── Fluent setters must rebuild geometry and bounds immediately ────────────
+// Regression for P0-7: ax.histogram(v).density(true) autoscaled from stale count
+// geometry, so the GPU projection disagreed with the rebuilt data.
+
+namespace
+{
+
+std::vector<float> normal_like_samples(size_t n)
+{
+    std::vector<float> v(n);
+    for (size_t i = 0; i < n; ++i)
+    {
+        // Deterministic, roughly bell-shaped: sum of three uniform-ish terms.
+        float a = static_cast<float>((i * 7919) % 1000) / 1000.0f;
+        float b = static_cast<float>((i * 104729) % 997) / 997.0f;
+        float c = static_cast<float>((i * 1299709) % 991) / 991.0f;
+        v[i]    = (a + b + c) * 4.0f;
+    }
+    return v;
+}
+
+float max_finite(std::span<const float> s)
+{
+    float m = -std::numeric_limits<float>::infinity();
+    for (float f : s)
+        if (std::isfinite(f))
+            m = std::max(m, f);
+    return m;
+}
+
+float max_fill_y(std::span<const float> verts)
+{
+    float m = -std::numeric_limits<float>::infinity();
+    for (size_t i = 1; i < verts.size(); i += 3)
+        m = std::max(m, verts[i]);
+    return m;
+}
+
+// Reference histogram: flags set before data, which always produced correct output.
+std::unique_ptr<HistogramSeries> reference_histogram(std::span<const float> v,
+                                                     int                    bins,
+                                                     bool                   density,
+                                                     bool                   cumulative)
+{
+    auto ref = std::make_unique<HistogramSeries>();
+    ref->density(density).cumulative(cumulative);
+    ref->set_data(v, bins);
+    return ref;
+}
+
+void expect_histogram_matches(const HistogramSeries& h, const HistogramSeries& ref)
+{
+    ASSERT_EQ(h.bin_counts().size(), ref.bin_counts().size());
+    for (size_t i = 0; i < ref.bin_counts().size(); ++i)
+        EXPECT_FLOAT_EQ(h.bin_counts()[i], ref.bin_counts()[i]) << "bin " << i;
+    const float peak = max_finite(ref.bin_counts());
+    EXPECT_FLOAT_EQ(max_finite(h.y_data()), peak);
+    EXPECT_FLOAT_EQ(max_fill_y(h.fill_verts()), peak);
+    EXPECT_EQ(h.point_count(), ref.point_count());
+    EXPECT_EQ(h.fill_vertex_count(), ref.fill_vertex_count());
+}
+
+void expect_ylim_fits(const Axes& ax, float peak)
+{
+    const auto ylim = ax.y_limits();
+    EXPECT_LE(ylim.min, 0.0);
+    EXPECT_GE(ylim.max, peak);
+    // Not autoscaled from a stale, much taller geometry.
+    EXPECT_LE(ylim.max, peak * 1.5);
+}
+
+}   // namespace
+
+TEST(HistogramSeries, DensitySetterAfterConstructionRebuildsBoundsAndGeometry)
+{
+    const auto v = normal_like_samples(5000);
+    Axes       ax;
+    auto&      h = ax.histogram(v, 40).density(true).gradient(true);
+
+    const auto ref = reference_histogram(v, 40, true, false);
+    expect_histogram_matches(h, *ref);
+    const float peak = max_finite(ref->bin_counts());
+    EXPECT_LT(peak, 1.0f);   // density, not counts
+    expect_ylim_fits(ax, peak);
+}
+
+TEST(HistogramSeries, CumulativeSetterAfterConstructionRebuildsBoundsAndGeometry)
+{
+    const auto v = normal_like_samples(5000);
+    Axes       ax;
+    auto&      h = ax.histogram(v, 40).cumulative(true);
+
+    const auto ref = reference_histogram(v, 40, false, true);
+    expect_histogram_matches(h, *ref);
+    EXPECT_FLOAT_EQ(max_finite(ref->bin_counts()), 5000.0f);
+    expect_ylim_fits(ax, 5000.0f);
+}
+
+TEST(HistogramSeries, DensityCumulativeAnySetterOrder)
+{
+    const auto v = normal_like_samples(5000);
+
+    using Setter                      = void (*)(HistogramSeries&);
+    const std::vector<Setter> setters = {
+        [](HistogramSeries& h) { h.density(true); },
+        [](HistogramSeries& h) { h.cumulative(true); },
+        [](HistogramSeries& h) { h.gradient(false); },
+        [](HistogramSeries& h) { h.bins(25); },
+    };
+    std::vector<int> order = {0, 1, 2, 3};
+    const auto       ref   = reference_histogram(v, 25, true, true);
+    int              runs  = 0;
+    do
+    {
+        Axes  ax;
+        auto& h = ax.histogram(v, 40);
+        for (int idx : order)
+            setters[idx](h);
+        SCOPED_TRACE(::testing::Message()
+                     << "order " << order[0] << order[1] << order[2] << order[3]);
+        expect_histogram_matches(h, *ref);
+        EXPECT_FLOAT_EQ(h.bin_counts().back(), 1.0f);   // CDF ends at 1
+        expect_ylim_fits(ax, 1.0f);
+        ++runs;
+    } while (std::next_permutation(order.begin(), order.end()));
+    EXPECT_EQ(runs, 24);
+}
+
+TEST(HistogramSeries, BinsSetterRebuildsAndTogglingBackRestoresCounts)
+{
+    const auto v = normal_like_samples(1000);
+    Axes       ax;
+    auto&      h = ax.histogram(v, 10);
+    h.bins(20);
+    EXPECT_EQ(h.bin_counts().size(), 20u);
+    EXPECT_EQ(h.bin_edges().size(), 21u);
+
+    h.density(true).cumulative(true);
+    h.density(false).cumulative(false);
+    expect_histogram_matches(h, *reference_histogram(v, 20, false, false));
+}
+
+TEST(BarSeries, SettersAfterDataRebuildGeometryAndBounds)
+{
+    std::vector<float> pos     = {1, 2, 3};
+    std::vector<float> heights = {10, 20, 15};
+    Axes               ax;
+    auto&              bars = ax.bar(pos, heights).baseline(-5.0f).bar_width(0.4f);
+
+    EXPECT_FLOAT_EQ(*std::min_element(bars.y_data().begin(),
+                                      bars.y_data().end(),
+                                      [](float a, float b)
+                                      { return std::isnan(b) || (!std::isnan(a) && a < b); }),
+                    -5.0f);
+    const float xmin = *std::min_element(bars.x_data().begin(),
+                                         bars.x_data().end(),
+                                         [](float a, float b)
+                                         { return std::isnan(b) || (!std::isnan(a) && a < b); });
+    EXPECT_FLOAT_EQ(xmin, 0.8f);
+    EXPECT_LE(ax.y_limits().min, -5.0);
+
+    // Horizontal orientation swaps the extents: heights run along x.
+    bars.orientation(BarOrientation::Horizontal);
+    EXPECT_FLOAT_EQ(max_finite(bars.x_data()), 20.0f);
+    EXPECT_FLOAT_EQ(max_finite(bars.y_data()), 3.2f);
+    EXPECT_GE(ax.x_limits().max, 20.0);
+}
+
+TEST(BoxPlotSeries, SettersAfterDataRebuildGeometry)
+{
+    std::vector<float> data = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+    BoxPlotSeries      bp;
+    bp.add_box(0.0f, data);
+    bp.box_width(2.0f);
+    EXPECT_FLOAT_EQ(max_finite(bp.x_data()), 1.0f);
+
+    std::vector<float> with_outlier = {1, 2, 3, 4, 5, 6, 7, 8, 9, 100};
+    BoxPlotSeries      bp2;
+    bp2.add_box(0.0f, with_outlier);
+    ASSERT_GT(bp2.outlier_count(), 0u);
+    bp2.show_outliers(false);
+    EXPECT_EQ(bp2.outlier_count(), 0u);
+}
+
+TEST(ViolinSeries, SettersAfterDataRebuildGeometry)
+{
+    std::vector<float> data = {1, 2, 2, 3, 3, 3, 4, 4, 5};
+    ViolinSeries       vn;
+    vn.add_violin(0.0f, data);
+    const size_t before = vn.point_count();
+    vn.resolution(120);
+    EXPECT_GT(vn.point_count(), before);
+
+    const float half_before = max_finite(vn.x_data());
+    vn.violin_width(4.0f * vn.violin_width());
+    EXPECT_NEAR(max_finite(vn.x_data()), 4.0f * half_before, 1e-4f);
+}
+
+// ─── Horizontal bars (P0-8) ─────────────────────────────────────────────────
+
+namespace
+{
+float min_finite(std::span<const float> v)
+{
+    float m = std::numeric_limits<float>::infinity();
+    for (float f : v)
+        if (std::isfinite(f))
+            m = std::min(m, f);
+    return m;
+}
+
+float max_finite_h(std::span<const float> v)
+{
+    float m = -std::numeric_limits<float>::infinity();
+    for (float f : v)
+        if (std::isfinite(f))
+            m = std::max(m, f);
+    return m;
+}
+}   // namespace
+
+TEST(BarSeries, HorizontalBarsSitOnCategoryPositionsAlongY)
+{
+    std::vector<float> pos     = {1, 2, 3};
+    std::vector<float> heights = {3, -2, 9};
+    BarSeries          bars(pos, heights);
+    bars.bar_width(0.4f).orientation(BarOrientation::Horizontal);
+
+    // Each bar's outline is 5 points + NaN break: positions on y, values on x.
+    auto x = bars.x_data();
+    auto y = bars.y_data();
+    ASSERT_EQ(x.size(), 6u * pos.size());
+    for (size_t i = 0; i < pos.size(); ++i)
+    {
+        auto bx = x.subspan(i * 6, 5);
+        auto by = y.subspan(i * 6, 5);
+        EXPECT_FLOAT_EQ(min_finite(by), pos[i] - 0.2f);
+        EXPECT_FLOAT_EQ(max_finite_h(by), pos[i] + 0.2f);
+        EXPECT_FLOAT_EQ(min_finite(bx), std::min(0.0f, heights[i]));
+        EXPECT_FLOAT_EQ(max_finite_h(bx), std::max(0.0f, heights[i]));
+    }
+
+    // Fill quads cover the same rectangles.
+    auto fv = bars.fill_verts();
+    ASSERT_EQ(fv.size(), 6u * 3u * pos.size());
+    for (size_t i = 0; i < pos.size(); ++i)
+    {
+        for (size_t k = 0; k < 6; ++k)
+        {
+            const float vx = fv[(i * 6 + k) * 3 + 0];
+            const float vy = fv[(i * 6 + k) * 3 + 1];
+            EXPECT_GE(vy, pos[i] - 0.2f - 1e-6f);
+            EXPECT_LE(vy, pos[i] + 0.2f + 1e-6f);
+            EXPECT_GE(vx, std::min(0.0f, heights[i]) - 1e-6f);
+            EXPECT_LE(vx, std::max(0.0f, heights[i]) + 1e-6f);
+        }
+    }
+}
+
+TEST(BarSeries, HorizontalBarsAutoscaleToValuesOnXAndCategoriesOnY)
+{
+    std::vector<float> p1 = {0.8f, 1.8f, 2.8f}, p2 = {1.2f, 2.2f, 3.2f};
+    std::vector<float> v1 = {3, -4, 9}, v2 = {2, 5, 6};
+    Axes               ax;
+    ax.bar(p1, v1).bar_width(0.4f).orientation(BarOrientation::Horizontal);
+    ax.bar(p2, v2).bar_width(0.4f).orientation(BarOrientation::Horizontal);
+
+    auto xl = ax.x_limits();
+    auto yl = ax.y_limits();
+    // Values (including the negative bar and the longest bar) fit on x.
+    EXPECT_LE(xl.min, -4.0);
+    EXPECT_GE(xl.max, 9.0);
+    // Category extents (incl. half bar width) fit on y, and y does not use the values.
+    EXPECT_LE(yl.min, 0.6);
+    EXPECT_GE(yl.max, 3.4);
+    EXPECT_LT(yl.max, 5.0);
+    EXPECT_GT(yl.min, -1.0);
+}
+
+TEST(BarSeries, HorizontalBarsHonourBaseline)
+{
+    std::vector<float> pos     = {10, 20};
+    std::vector<float> heights = {12, 8};
+    BarSeries          bars(pos, heights);
+    bars.orientation(BarOrientation::Horizontal).baseline(10.0f).bar_width(6.0f);
+
+    EXPECT_FLOAT_EQ(min_finite(bars.x_data()), 8.0f);
+    EXPECT_FLOAT_EQ(max_finite_h(bars.x_data()), 12.0f);
+    EXPECT_FLOAT_EQ(min_finite(bars.y_data()), 7.0f);
+    EXPECT_FLOAT_EQ(max_finite_h(bars.y_data()), 23.0f);
+}
+
+TEST(BarSeries, HorizontalGradientRunsAcrossBarThickness)
+{
+    std::vector<float> pos     = {1, 2};
+    std::vector<float> heights = {5, -5};
+    BarSeries          bars(pos, heights);
+    bars.orientation(BarOrientation::Horizontal).gradient(true);
+
+    // Alpha depends only on y (the thickness edge), never on the bar's length or sign.
+    auto fv = bars.fill_verts();
+    for (size_t v = 0; v < bars.fill_vertex_count(); ++v)
+    {
+        const float vy = fv[v * 3 + 1];
+        const float a  = fv[v * 3 + 2];
+        const float c  = pos[v / 6];
+        if (vy > c)
+        {
+            EXPECT_FLOAT_EQ(a, 1.0f);
+        }
+        else
+        {
+            EXPECT_LT(a, 1.0f);
+        }
+    }
+
+    bars.gradient(false);
+    for (size_t v = 0; v < bars.fill_vertex_count(); ++v)
+    {
+        EXPECT_FLOAT_EQ(bars.fill_verts()[v * 3 + 2], 1.0f);
+    }
+}
+
+TEST(BarSeries, VerticalGradientRunsAcrossBarWidth)
+{
+    std::vector<float> pos     = {1};
+    std::vector<float> heights = {-5};
+    BarSeries          bars(pos, heights);
+    bars.gradient(true);
+
+    auto fv = bars.fill_verts();
+    for (size_t v = 0; v < bars.fill_vertex_count(); ++v)
+    {
+        if (fv[v * 3] < 1.0f)
+        {
+            EXPECT_FLOAT_EQ(fv[v * 3 + 2], 1.0f);
+        }
+        else
+        {
+            EXPECT_LT(fv[v * 3 + 2], 1.0f);
+        }
+    }
 }

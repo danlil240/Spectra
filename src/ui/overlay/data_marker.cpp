@@ -9,13 +9,14 @@
     #include <spectra/axes3d.hpp>
 
     #include "axes3d_pick.hpp"
+    #include "readout_format.hpp"
     #include "ui/theme/theme.hpp"
 
 namespace spectra
 {
 
 void DataMarkerManager::add(double        data_x,
-                            float         data_y,
+                            double        data_y,
                             const Series* series,
                             size_t        index,
                             const Axes*   axes,
@@ -36,7 +37,7 @@ void DataMarkerManager::add(double        data_x,
 }
 
 bool DataMarkerManager::toggle_or_add(double        data_x,
-                                      float         data_y,
+                                      double        data_y,
                                       const Series* series,
                                       size_t        index,
                                       const Axes*   axes,
@@ -122,26 +123,26 @@ void DataMarkerManager::clear()
 }
 
 void DataMarkerManager::data_to_screen(double      data_x,
-                                       float       data_y,
+                                       double      data_y,
                                        const Rect& viewport,
                                        double      xlim_min,
                                        double      xlim_max,
-                                       float       ylim_min,
-                                       float       ylim_max,
+                                       double      ylim_min,
+                                       double      ylim_max,
                                        float&      screen_x,
                                        float&      screen_y)
 {
     double x_range = xlim_max - xlim_min;
-    float  y_range = ylim_max - ylim_min;
+    double y_range = ylim_max - ylim_min;
     if (x_range == 0.0)
         x_range = 1.0;
-    if (y_range == 0.0f)
-        y_range = 1.0f;
+    if (y_range == 0.0)
+        y_range = 1.0;
 
-    // Subtract in double first: at epoch-scale x the difference is small
-    // and converts to float without precision loss.
-    auto  norm_x = static_cast<float>((data_x - xlim_min) / x_range);
-    float norm_y = (data_y - ylim_min) / y_range;
+    // Subtract in double first: at epoch-scale x (or large y offsets) the
+    // difference is small and converts to float without precision loss.
+    auto norm_x = static_cast<float>((data_x - xlim_min) / x_range);
+    auto norm_y = static_cast<float>((data_y - ylim_min) / y_range);
 
     screen_x = viewport.x + norm_x * viewport.w;
     // Y is inverted (screen Y goes down, data Y goes up)
@@ -151,8 +152,8 @@ void DataMarkerManager::data_to_screen(double      data_x,
 void DataMarkerManager::draw(const Rect& viewport,
                              double      xlim_min,
                              double      xlim_max,
-                             float       ylim_min,
-                             float       ylim_max,
+                             double      ylim_min,
+                             double      ylim_max,
                              float       opacity,
                              const Axes* filter_axes,
                              ImDrawList* dl)
@@ -216,10 +217,9 @@ void DataMarkerManager::draw(const Rect& viewport,
         fg->AddCircle(ImVec2(sx, sy), ring_r, border_col, 0, 1.0f);
 
         // ── Build label text ────────────────────────────────────────────
-        // Large x values (epoch timestamps) use fixed notation to stay precise.
-        const std::string coord_buf =
-            std::abs(m.data_x) >= 1e6 ? std::format("X: {:.3f}   Y: {:.4g}", m.data_x, m.data_y)
-                                      : std::format("X: {:.4g}   Y: {:.4g}", m.data_x, m.data_y);
+        // Large values (epoch timestamps, big offsets) use fixed notation.
+        const std::string coord_buf = "X: " + ui::format_readout_value(m.data_x, 4)
+                                      + "   Y: " + ui::format_readout_value(m.data_y, 4);
 
         std::string deriv_buf;
         bool        has_deriv = m.dy_dx_valid;
@@ -362,8 +362,8 @@ int DataMarkerManager::hit_test(float       screen_x,
                                 const Rect& viewport,
                                 double      xlim_min,
                                 double      xlim_max,
-                                float       ylim_min,
-                                float       ylim_max,
+                                double      ylim_min,
+                                double      ylim_max,
                                 float       radius_px,
                                 const Axes* filter_axes) const
 {
@@ -409,9 +409,8 @@ int DataMarkerManager::hit_test(float       screen_x,
         }
 
         // 2) Check the label box (replicate geometry from draw)
-        const std::string coord_buf =
-            std::abs(m.data_x) >= 1e6 ? std::format("X: {:.3f}   Y: {:.4g}", m.data_x, m.data_y)
-                                      : std::format("X: {:.4g}   Y: {:.4g}", m.data_x, m.data_y);
+        const std::string coord_buf = "X: " + ui::format_readout_value(m.data_x, 4)
+                                      + "   Y: " + ui::format_readout_value(m.data_y, 4);
 
         std::string deriv_buf;
         bool        has_deriv = m.dy_dx_valid;

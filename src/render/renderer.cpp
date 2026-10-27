@@ -209,6 +209,13 @@ void Renderer::notify_axes_removed(const AxesBase* axes)
 
 void Renderer::notify_figure_removed(const Figure* figure)
 {
+    // Drop "Best" legend hysteresis for the figure's 2D axes too, so a later
+    // axes allocated at a recycled address does not inherit a stale corner.
+    if (figure)
+    {
+        for (const auto& axes_ptr : figure->axes())
+            legend_best_corner_.erase(axes_ptr.get());
+    }
     auto it = figure_gpu_data_.find(figure);
     if (it != figure_gpu_data_.end())
     {

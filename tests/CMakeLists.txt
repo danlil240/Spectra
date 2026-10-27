@@ -198,6 +198,7 @@ set(SPECTRA_UNIT_TESTS
     test_mode_transition
     test_workspace_3d
     test_3d_regression
+    test_shape3d_colors
     test_multi_window
     test_window_manager
     test_window_file_drop
@@ -344,6 +345,7 @@ set(SPECTRA_GPU_TESTS
     test_mode_transition
     test_workspace_3d
     test_3d_regression
+    test_shape3d_colors
     test_multi_window
     test_window_manager
     test_figure_registry

@@ -141,6 +141,24 @@ class ShapeSeries3D : public Series
     vec3 compute_centroid() const;
     void get_bounds(vec3& min_out, vec3& max_out) const;
 
+    // Contiguous index ranges sharing one colour, built by rebuild_geometry().
+    // A range whose color has zero alpha inherits the series colour.  Adjacent
+    // shapes with the same colour are merged, so a series without per-shape
+    // colours yields a single range covering all indices.
+    struct DrawRange
+    {
+        uint32_t first_index = 0;
+        uint32_t index_count = 0;
+        Color    color{0.0f, 0.0f, 0.0f, 0.0f};
+
+        bool inherits_series_color() const { return color.a <= 0.0f; }
+    };
+    std::span<const DrawRange> draw_ranges() const { return draw_ranges_; }
+
+    // True if any shape carries an explicit colour with alpha below 0.99, so
+    // the series needs the transparent (sorted, no depth write) path.
+    bool has_transparent_shape() const;
+
     // Material properties (forwarded to pipeline push constants)
     ShapeSeries3D& ambient(float a)
     {
@@ -198,6 +216,8 @@ class ShapeSeries3D : public Series
     float ambient_   = 0.0f;
     float specular_  = 0.0f;
     float shininess_ = 0.0f;
+
+    std::vector<DrawRange> draw_ranges_;   // per-colour index ranges (see draw_ranges())
 
     // Geometry generators
     void generate_box(const ShapeDef3D& def);

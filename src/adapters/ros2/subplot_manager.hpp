@@ -498,9 +498,8 @@ class SubplotManager
 
     void reset_slot_axis_config(SlotEntry& se);
 
-    // Assign next palette color.
-    spectra::Color next_color();
-
+    // Take the next data-palette slot (auto colour that follows the theme).
+    int next_color_slot();
 
     // Update slot labels based on its configured axis mode and series layout.
     void update_slot_labels(SlotEntry& se);

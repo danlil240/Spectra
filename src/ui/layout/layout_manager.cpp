@@ -32,7 +32,7 @@ void LayoutManager::update_inspector_animation(float dt)
     if (resize_active_ || dt <= 0.0f)
     {
         inspector_anim_t_     = target_t;
-        inspector_anim_width_ = inspector_visible_ ? inspector_width_ : 0.0f;
+        inspector_anim_width_ = inspector_visible_ ? inspector_fit_width_ : 0.0f;
         return;
     }
 
@@ -56,7 +56,36 @@ void LayoutManager::update_inspector_animation(float dt)
 
     // ease-out when opening (fast start), ease-in feel when closing (slow start).
     const float eased_t         = ease::ease_out(inspector_anim_t_);
-    inspector_anim_width_       = inspector_width_ * eased_t;
+    inspector_anim_width_       = inspector_fit_width_ * eased_t;
+}
+
+void LayoutManager::fit_to_window()
+{
+    // Responsive chrome: keep at least WINDOW_MIN_CANVAS_WIDTH of plot area.
+    // 1. An expanded nav rail is drawn collapsed when it would not leave room for the
+    //    minimum canvas (plus a minimum-width inspector when the inspector is open).
+    // 2. The docked inspector shrinks to the space left beside the minimum canvas.
+    // 3. If that space is too small for any usable inspector content, the inspector
+    //    is hidden (width 0) rather than pushed off-screen or squeezing the plot.
+    // User preferences (inspector_width_, nav_rail_expanded_, inspector_visible_) are
+    // never modified, so widening the window restores the saved layout.
+    const float inspector_need = inspector_visible_ ? INSPECTOR_MIN_WIDTH : 0.0f;
+
+    nav_rail_auto_collapsed_ =
+        nav_rail_visible_ && nav_rail_expanded_
+        && window_width_ < nav_rail_expanded_width_ + WINDOW_MIN_CANVAS_WIDTH + inspector_need;
+
+    nav_rail_fit_target_ = 0.0f;
+    if (nav_rail_visible_)
+    {
+        nav_rail_fit_target_ = (nav_rail_expanded_ && !nav_rail_auto_collapsed_)
+                                   ? nav_rail_expanded_width_
+                                   : nav_rail_collapsed_width_;
+    }
+
+    const float space      = window_width_ - nav_rail_fit_target_ - WINDOW_MIN_CANVAS_WIDTH;
+    inspector_auto_hidden_ = space < INSPECTOR_MIN_FIT_WIDTH;
+    inspector_fit_width_   = inspector_auto_hidden_ ? 0.0f : std::min(inspector_width_, space);
 }
 
 void LayoutManager::update(float window_width, float window_height, float dt)
@@ -64,13 +93,8 @@ void LayoutManager::update(float window_width, float window_height, float dt)
     window_width_  = window_width;
     window_height_ = window_height;
 
-    // Compute animation targets
-    float nav_rail_target = 0.0f;
-    if (nav_rail_visible_)
-    {
-        nav_rail_target =
-            nav_rail_expanded_ ? nav_rail_expanded_width_ : nav_rail_collapsed_width_;
-    }
+    fit_to_window();
+    const float nav_rail_target = nav_rail_fit_target_;
 
     // Animate toward targets (snap instantly during live resize so chrome zones
     // don't lag behind the swapchain and expose the plot background underneath).
@@ -83,6 +107,12 @@ void LayoutManager::update(float window_width, float window_height, float dt)
         nav_rail_anim_width_ = smooth_toward(nav_rail_anim_width_, nav_rail_target, ANIM_SPEED, dt);
     }
     update_inspector_animation(dt);
+
+    // While the nav rail animates (e.g. auto-collapsing as the inspector opens), keep
+    // the in-flight inspector from eating into the minimum canvas.
+    const float inspector_room =
+        std::max(0.0f, window_width_ - nav_rail_anim_width_ - WINDOW_MIN_CANVAS_WIDTH);
+    inspector_anim_width_ = std::min(inspector_anim_width_, inspector_room);
 
     compute_zones();
 }
@@ -205,35 +235,33 @@ float LayoutManager::nav_rail_width() const
 bool LayoutManager::is_animating() const
 {
     const float inspector_target_t = inspector_visible_ ? 1.0f : 0.0f;
-    float nav_target = nav_rail_visible_
-                           ? (nav_rail_expanded_ ? nav_rail_expanded_width_
-                                                 : nav_rail_collapsed_width_)
-                           : 0.0f;
     return std::abs(inspector_anim_t_ - inspector_target_t) > 0.001f
-           || std::abs(nav_rail_anim_width_ - nav_target) > 0.5f;
+           || std::abs(nav_rail_anim_width_ - nav_rail_fit_target_) > 0.5f;
 }
 
 float LayoutManager::inspector_open_amount() const
 {
-    if (inspector_width_ <= 0.0f)
-        return 0.0f;
-    return std::clamp(inspector_anim_width_ / inspector_width_, 0.0f, 1.0f);
+    if (inspector_fit_width_ <= 0.0f)
+        return inspector_anim_t_ > 0.0f ? 1.0f : 0.0f;
+    return std::clamp(inspector_anim_width_ / inspector_fit_width_, 0.0f, 1.0f);
 }
 
 // Configuration methods
 void LayoutManager::set_inspector_visible(bool visible)
 {
     inspector_visible_ = visible;
+    fit_to_window();
 }
 
 void LayoutManager::set_inspector_width(float width)
 {
     inspector_width_ = std::clamp(width, INSPECTOR_MIN_WIDTH, INSPECTOR_MAX_WIDTH);
+    fit_to_window();
     // During active drag, snap the animated width to avoid lag
     if (inspector_resize_active_ && inspector_visible_)
     {
         inspector_anim_t_     = 1.0f;
-        inspector_anim_width_ = inspector_width_;
+        inspector_anim_width_ = inspector_fit_width_;
         compute_zones();
     }
 }
@@ -241,21 +269,25 @@ void LayoutManager::set_inspector_width(float width)
 void LayoutManager::reset_inspector_width()
 {
     inspector_width_ = INSPECTOR_DEFAULT_WIDTH;
+    fit_to_window();
 }
 
 void LayoutManager::set_nav_rail_width(float width)
 {
     nav_rail_expanded_width_ = std::max(width, NAV_RAIL_COLLAPSED_WIDTH);
+    fit_to_window();
 }
 
 void LayoutManager::set_nav_rail_visible(bool visible)
 {
     nav_rail_visible_ = visible;
+    fit_to_window();
 }
 
 void LayoutManager::set_nav_rail_expanded(bool expanded)
 {
     nav_rail_expanded_ = expanded;
+    fit_to_window();
 }
 
 void LayoutManager::set_tab_bar_visible(bool visible)

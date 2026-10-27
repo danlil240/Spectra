@@ -65,6 +65,17 @@ class LayoutManager
     bool  is_inspector_visible() const { return inspector_visible_; }
     float inspector_width() const { return inspector_width_; }
     float inspector_animated_width() const { return inspector_anim_width_; }
+    // Width the inspector occupies when fully open at the current window size.
+    // Equals inspector_width() unless the window is too narrow, in which case it is
+    // clamped to the space left (the saved inspector_width() is never modified).
+    float inspector_fitted_width() const { return inspector_fit_width_; }
+    // True when the window is too narrow to fit even INSPECTOR_MIN_FIT_WIDTH of
+    // inspector beside the minimum canvas: the inspector is then drawn at width 0
+    // (still logically visible; it reappears when the window widens).
+    bool is_inspector_auto_hidden() const { return inspector_auto_hidden_; }
+    // True when the nav rail is expanded but drawn collapsed because the window
+    // is too narrow; the expanded preference is kept and restored on widen.
+    bool is_nav_rail_auto_collapsed() const { return nav_rail_auto_collapsed_; }
     // Normalized open amount [0, 1] for content fade during slide animation.
     float inspector_open_amount() const;
     bool  is_nav_rail_visible() const { return nav_rail_visible_; }
@@ -112,6 +123,9 @@ class LayoutManager
     static constexpr float NAV_RAIL_VERTICAL_PADDING = 24.0f;   // top+bottom window padding
     static constexpr float WINDOW_MIN_HEIGHT_NO_NAV  = 240.0f;
     static constexpr float WINDOW_MIN_CANVAS_WIDTH   = 160.0f;
+    // Narrowest docked inspector drawn when the window cannot fit
+    // INSPECTOR_MIN_WIDTH; below this the inspector is auto-hidden instead.
+    static constexpr float INSPECTOR_MIN_FIT_WIDTH = 160.0f;
 
     static float nav_rail_content_height(int button_count, int separator_count, float cell_scale);
     static float nav_rail_nominal_content_height();
@@ -154,6 +168,12 @@ class LayoutManager
     float inspector_anim_t_     = 0.0f;   // Linear progress 0=closed, 1=open
     float nav_rail_anim_width_  = NAV_RAIL_COLLAPSED_WIDTH;
 
+    // Responsive fit for the current window width (see fit_to_window()).
+    float nav_rail_fit_target_     = NAV_RAIL_COLLAPSED_WIDTH;
+    float inspector_fit_width_     = INSPECTOR_DEFAULT_WIDTH;
+    bool  inspector_auto_hidden_   = false;
+    bool  nav_rail_auto_collapsed_ = false;
+
     // Inspector resize interaction state
     bool inspector_resize_hovered_ = false;
     bool inspector_resize_active_  = false;
@@ -167,6 +187,7 @@ class LayoutManager
     // Helper: exponential smoothing toward target (nav rail)
     static float smooth_toward(float current, float target, float speed, float dt);
     void update_inspector_animation(float dt);
+    void         fit_to_window();
 
     // Helper methods
     void compute_zones();

@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include <cstdio>
+
 #include "ui/layout/layout_manager.hpp"
 
 using namespace spectra;
@@ -335,7 +337,206 @@ TEST(LayoutManager, MinWindowSizeAccountsForNavRail)
               LayoutManager::COMMAND_BAR_HEIGHT + LayoutManager::STATUS_BAR_HEIGHT
                   + LayoutManager::nav_rail_min_content_height());
 
+    // The OS minimum stays rail + minimum canvas; open panels are fitted
+    // responsively inside that (see NarrowWindow* tests below).
     EXPECT_FLOAT_EQ(
         LayoutManager::min_window_width(true),
         LayoutManager::NAV_RAIL_COLLAPSED_WIDTH + LayoutManager::WINDOW_MIN_CANVAS_WIDTH);
+}
+
+// ─── Responsive fit at narrow window widths ─────────────────────────────────
+
+namespace
+{
+
+struct PanelCombo
+{
+    bool  rail_visible;
+    bool  rail_expanded;
+    bool  inspector_visible;
+    float inspector_width;
+};
+
+void expect_layout_usable(const LayoutManager& lm, float win_w, const char* ctx)
+{
+    const Rect nr = lm.nav_rail_rect();
+    const Rect cv = lm.canvas_rect();
+    const Rect in = lm.inspector_rect();
+
+    // Every zone is on-screen.
+    EXPECT_GE(nr.x, 0.0f) << ctx;
+    EXPECT_LE(nr.x + nr.w, win_w + 0.01f) << ctx;
+    EXPECT_GE(cv.x, 0.0f) << ctx;
+    EXPECT_LE(cv.x + cv.w, win_w + 0.01f) << ctx;
+    if (lm.is_inspector_visible() && !lm.is_inspector_auto_hidden())
+    {
+        EXPECT_GE(in.x, nr.x + nr.w - 0.01f) << ctx << " inspector overlaps rail";
+        EXPECT_NEAR(in.x + in.w, win_w, 0.01f) << ctx;
+        EXPECT_GE(in.w, LayoutManager::INSPECTOR_MIN_FIT_WIDTH - 0.01f) << ctx;
+        // Docked inspector sits right of the canvas.
+        EXPECT_NEAR(cv.x + cv.w, in.x, 0.01f) << ctx;
+    }
+    else
+    {
+        EXPECT_FLOAT_EQ(in.w, 0.0f) << ctx;
+    }
+
+    // The plot keeps at least the minimum canvas width (never squeezed to zero).
+    EXPECT_GE(cv.w, LayoutManager::WINDOW_MIN_CANVAS_WIDTH - 0.01f) << ctx;
+}
+
+}   // namespace
+
+TEST(LayoutManager, NarrowWindowEveryPanelComboKeepsCanvasAndControlsOnScreen)
+{
+    const PanelCombo combos[] = {
+        {true, false, false, LayoutManager::INSPECTOR_DEFAULT_WIDTH},
+        {true, true, false, LayoutManager::INSPECTOR_DEFAULT_WIDTH},
+        {true, false, true, LayoutManager::INSPECTOR_DEFAULT_WIDTH},
+        {true, true, true, LayoutManager::INSPECTOR_DEFAULT_WIDTH},
+        {true, true, true, LayoutManager::INSPECTOR_MAX_WIDTH},
+        {false, false, true, LayoutManager::INSPECTOR_DEFAULT_WIDTH},
+        {false, false, true, LayoutManager::INSPECTOR_MAX_WIDTH},
+    };
+    const float min_w = LayoutManager::min_window_width(true);
+    for (const PanelCombo& c : combos)
+    {
+        for (float w = min_w; w <= 1400.0f; w += 8.0f)
+        {
+            LayoutManager lm;
+            lm.set_nav_rail_visible(c.rail_visible);
+            lm.set_nav_rail_expanded(c.rail_expanded);
+            lm.set_inspector_width(c.inspector_width);
+            lm.set_inspector_visible(c.inspector_visible);
+            lm.update(w, 600.0f);
+
+            char ctx[160];
+            std::snprintf(ctx,
+                          sizeof(ctx),
+                          "w=%.0f rail=%d expanded=%d inspector=%d insp_w=%.0f",
+                          w,
+                          c.rail_visible,
+                          c.rail_expanded,
+                          c.inspector_visible,
+                          c.inspector_width);
+            expect_layout_usable(lm, w, ctx);
+
+            // Saved preferences are never rewritten by the fit.
+            EXPECT_FLOAT_EQ(lm.inspector_width(), c.inspector_width) << ctx;
+            EXPECT_EQ(lm.is_nav_rail_expanded(), c.rail_expanded) << ctx;
+        }
+    }
+}
+
+TEST(LayoutManager, NarrowWindow400ClampsDefaultInspectorInsteadOfEightPixelCanvas)
+{
+    // Audit S11: at 400 px with collapsed rail + default inspector only 8 px of canvas
+    // remained. Now the inspector shrinks to 400 - 72 - 160 = 168 px.
+    LayoutManager lm;
+    lm.set_inspector_visible(true);
+    lm.update(400.0f, 600.0f);
+
+    EXPECT_FALSE(lm.is_inspector_auto_hidden());
+    const Rect cv = lm.canvas_rect();
+    const Rect in = lm.inspector_rect();
+    EXPECT_FLOAT_EQ(cv.x, LayoutManager::NAV_RAIL_COLLAPSED_WIDTH);
+    EXPECT_FLOAT_EQ(cv.w, LayoutManager::WINDOW_MIN_CANVAS_WIDTH);
+    EXPECT_FLOAT_EQ(
+        in.x,
+        LayoutManager::NAV_RAIL_COLLAPSED_WIDTH + LayoutManager::WINDOW_MIN_CANVAS_WIDTH);
+    EXPECT_FLOAT_EQ(in.w, 168.0f);
+    EXPECT_FLOAT_EQ(lm.inspector_width(), LayoutManager::INSPECTOR_DEFAULT_WIDTH);
+
+    // Same result with an expanded rail: it auto-collapses first.
+    lm.set_nav_rail_expanded(true);
+    lm.update(400.0f, 600.0f);
+    EXPECT_TRUE(lm.is_nav_rail_auto_collapsed());
+    EXPECT_FLOAT_EQ(lm.inspector_rect().w, 168.0f);
+    EXPECT_FLOAT_EQ(lm.canvas_rect().w, LayoutManager::WINDOW_MIN_CANVAS_WIDTH);
+}
+
+TEST(LayoutManager, NarrowWindowAtMinimumHidesInspectorInsteadOfOffscreen)
+{
+    // Audit S11: at the 232 px minimum the inspector started at X = -88.
+    const float   w = LayoutManager::min_window_width(true);
+    LayoutManager lm;
+    lm.set_inspector_visible(true);
+    lm.update(w, 600.0f);
+
+    EXPECT_TRUE(lm.is_inspector_visible());
+    EXPECT_TRUE(lm.is_inspector_auto_hidden());
+    const Rect in = lm.inspector_rect();
+    EXPECT_FLOAT_EQ(in.w, 0.0f);
+    EXPECT_FLOAT_EQ(in.x, w);
+    EXPECT_FLOAT_EQ(lm.canvas_rect().w, LayoutManager::WINDOW_MIN_CANVAS_WIDTH);
+
+    // Widening brings it back at its saved width.
+    lm.update(1280.0f, 600.0f);
+    EXPECT_FALSE(lm.is_inspector_auto_hidden());
+    EXPECT_FLOAT_EQ(lm.inspector_rect().w, LayoutManager::INSPECTOR_DEFAULT_WIDTH);
+}
+
+TEST(LayoutManager, MediumWindowShrinksDockedInspectorToFit)
+{
+    // 560 - 72 - 160 = 328 available: a 480 px inspector docks at 328 px.
+    LayoutManager lm;
+    lm.set_inspector_width(LayoutManager::INSPECTOR_MAX_WIDTH);
+    lm.set_inspector_visible(true);
+    lm.update(560.0f, 600.0f);
+
+    EXPECT_FALSE(lm.is_inspector_auto_hidden());
+    EXPECT_FLOAT_EQ(lm.inspector_rect().w, 328.0f);
+    EXPECT_FLOAT_EQ(lm.inspector_fitted_width(), 328.0f);
+    EXPECT_FLOAT_EQ(lm.canvas_rect().w, LayoutManager::WINDOW_MIN_CANVAS_WIDTH);
+    EXPECT_FLOAT_EQ(lm.inspector_width(), LayoutManager::INSPECTOR_MAX_WIDTH);
+    EXPECT_FLOAT_EQ(lm.inspector_open_amount(), 1.0f);
+
+    // Widening restores the saved width.
+    lm.update(1280.0f, 600.0f);
+    EXPECT_FLOAT_EQ(lm.inspector_rect().w, LayoutManager::INSPECTOR_MAX_WIDTH);
+}
+
+TEST(LayoutManager, NarrowWindowAutoCollapsesExpandedRailAndRestoresIt)
+{
+    LayoutManager lm;
+    lm.set_nav_rail_expanded(true);
+    lm.update(320.0f, 600.0f);   // 320 < 200 + 160
+
+    EXPECT_TRUE(lm.is_nav_rail_expanded());
+    EXPECT_TRUE(lm.is_nav_rail_auto_collapsed());
+    EXPECT_FLOAT_EQ(lm.nav_rail_rect().w, LayoutManager::NAV_RAIL_COLLAPSED_WIDTH);
+    EXPECT_FALSE(lm.is_animating());
+
+    // With the inspector open the rail needs room for a minimum inspector too.
+    lm.set_inspector_visible(true);
+    lm.update(560.0f, 600.0f);   // 560 < 200 + 160 + 240
+    EXPECT_TRUE(lm.is_nav_rail_auto_collapsed());
+    EXPECT_FALSE(lm.is_inspector_auto_hidden());
+
+    lm.update(600.0f, 600.0f);
+    EXPECT_FALSE(lm.is_nav_rail_auto_collapsed());
+    EXPECT_FLOAT_EQ(lm.nav_rail_rect().w, LayoutManager::NAV_RAIL_EXPANDED_WIDTH);
+    EXPECT_FLOAT_EQ(lm.inspector_rect().w, LayoutManager::INSPECTOR_MIN_WIDTH);
+    EXPECT_FLOAT_EQ(lm.canvas_rect().w, LayoutManager::WINDOW_MIN_CANVAS_WIDTH);
+}
+
+TEST(LayoutManager, NarrowWindowAnimationStaysOnScreen)
+{
+    LayoutManager lm;
+    lm.set_nav_rail_expanded(true);
+    lm.update(400.0f, 600.0f);
+    lm.set_inspector_visible(true);
+    for (int i = 0; i < 60; ++i)
+    {
+        lm.update(400.0f, 600.0f, 1.0f / 60.0f);
+        const Rect in = lm.inspector_rect();
+        if (in.w > 0.0f)
+        {
+            EXPECT_GE(in.x, lm.nav_rail_rect().x + lm.nav_rail_rect().w - 0.01f) << i;
+            EXPECT_NEAR(in.x + in.w, 400.0f, 0.01f) << i;
+        }
+        EXPECT_GE(lm.canvas_rect().w, LayoutManager::WINDOW_MIN_CANVAS_WIDTH - 0.01f) << i;
+    }
+    EXPECT_FALSE(lm.is_animating());
+    EXPECT_FLOAT_EQ(lm.inspector_open_amount(), 1.0f);
 }

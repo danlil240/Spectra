@@ -544,6 +544,9 @@ void Renderer::render_figure_content(Figure& figure, FigureViewModel* fig_vm)
     // before any axes content.
     render_figure_background(figure);
 
+    // 2D grid below every series (built-in and plugin): opaque data covers it.
+    render_grid_2d(figure);
+
     // Wire up deferred-deletion callback on every axes so that
     // clear_series() / remove_series() safely defer GPU cleanup.
     // Only install the renderer-only fallback if no callback is already set;
@@ -594,7 +597,8 @@ void Renderer::render_figure_content(Figure& figure, FigureViewModel* fig_vm)
     render_plot_text(figure);
     render_unsupported_notice(figure);
 
-    // Render screen-space plot geometry (2D grid, border, tick marks) via Vulkan grid pipeline.
+    // Render screen-space plot geometry (border, tick marks, annotation arrows) via Vulkan grid
+    // pipeline; the 2D grid was drawn by render_grid_2d() before the series.
     // 3D arrows are rendered inside render_axes() with depth testing.
     render_plot_geometry(figure);
 
@@ -688,13 +692,17 @@ void Renderer::render_figure(Figure& figure)
     // same render pass.
     // Nothing else draws into this pass, so the legend comes from the renderer
     // even if the interactive window's ImGui overlay normally provides it.
+    // It is also an image, never a hover state: no "+N more" tooltip.
     const bool overlay_legend = legend_overlay_active_;
+    const bool pointer        = pointer_valid_;
     legend_overlay_active_    = false;
+    pointer_valid_            = false;
     begin_render_pass();
     render_figure_content(figure);
     render_text(static_cast<float>(figure.width()), static_cast<float>(figure.height()));
     end_render_pass();
     legend_overlay_active_ = overlay_legend;
+    pointer_valid_         = pointer;
 }
 
 vec3 shader_light_dir(const Axes3D& axes)

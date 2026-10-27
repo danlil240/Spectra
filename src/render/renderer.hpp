@@ -165,6 +165,8 @@ class Renderer
     // Uses Vulkan grid pipeline with a screen-space ortho projection.
     // 3D arrows are rendered inside render_axes() with depth testing.
     void render_plot_geometry(Figure& figure);
+    // 2D grid lines (screen-space), drawn before the series so data covers them.
+    void render_grid_2d(Figure& figure);
     // Text-annotation arrows of one 2D axes (screen-space, called by render_plot_geometry).
     void render_annotation_arrows(Axes& axes, uint32_t slot, float fw, float fh);
 
@@ -184,6 +186,33 @@ class Renderer
     // drawn by the renderer (there is no overlay version).
     void set_legend_overlay_active(bool active) { legend_overlay_active_ = active; }
     bool legend_overlay_active() const { return legend_overlay_active_; }
+
+    // Pointer position (figure pixels) for hover feedback of the renderer-drawn
+    // legend: hovering a "+N more" cell shows a tooltip naming the entries it
+    // summarises.  Interactive overlay-less windows set it each frame; headless
+    // export never does (and render_figure() ignores it), so images keep the
+    // plain "+N more" cell.
+    void set_pointer(float x, float y)
+    {
+        pointer_valid_ = true;
+        pointer_x_     = x;
+        pointer_y_     = y;
+    }
+    void clear_pointer() { pointer_valid_ = false; }
+
+    // "+N more" cells of the legends drawn in the last render_annotations()
+    // pass (for hit-testing and tests).
+    struct LegendOverflowCell
+    {
+        const AxesBase*          axes = nullptr;
+        Rect                     cell;     // figure pixels
+        std::vector<std::string> hidden;   // tooltip lines (see overflow_tooltip_lines)
+        bool                     hovered = false;
+    };
+    const std::vector<LegendOverflowCell>& legend_overflow_cells() const
+    {
+        return legend_overflow_cells_;
+    }
 
     // Set the currently selected series for highlight rendering.
     // The renderer draws a thin accent-colored line on top of selected series
@@ -289,6 +318,11 @@ class Renderer
     // and colorbar, drawn after the series and plot geometry so they sit on top.
     void render_annotations(Figure& figure);
     void build_legend(AxesBase& axes, const LegendConfig& config);
+    void build_overflow_tooltip(const LegendOverflowCell& cell,
+                                const Rect&               legend_box,
+                                FontSize                  font,
+                                float                     font_scale,
+                                float                     row_h);
     void build_colorbar(AxesBase& axes);
 
     // Upload a screen-space (pixel, Y-down) orthographic projection into the
@@ -545,6 +579,12 @@ class Renderer
 
     // Legend / colorbar annotation state (render_annotations.cpp).
     bool legend_overlay_active_ = false;
+    bool                            pointer_valid_         = false;
+    float                           pointer_x_             = 0.0f;
+    float                           pointer_y_             = 0.0f;
+    std::vector<LegendOverflowCell> legend_overflow_cells_;
+    float                           annotation_fig_w_ = 0.0f;   // figure size during
+    float                           annotation_fig_h_ = 0.0f;   // render_annotations()
     // One recorded draw of the annotation pass.  Vertex kinds index
     // annotation_vertex_scratch_ (in vertices); Segment / Marker index
     // annotation_point_scratch_ (in points).

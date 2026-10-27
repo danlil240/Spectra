@@ -14,6 +14,8 @@
 #include <spectra/series3d.hpp>
 #include <spectra/series_shapes.hpp>
 #include <spectra/series_stats.hpp>
+#include <span>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
@@ -677,6 +679,77 @@ TEST_F(RendererFixture, StaticLegendOverflowKeepsEntriesContiguous)
     ASSERT_LT(drawn.size(), static_cast<size_t>(N)) << "panel is too small for all 40";
     for (size_t k = 0; k < drawn.size(); ++k)
         EXPECT_EQ(drawn[k], static_cast<int>(k)) << "legend entries must be contiguous";
+}
+
+// Round-2 follow-up: "+N more" names the hidden entries on hover.
+TEST(LegendLayoutOverflow, TooltipListsHiddenEntriesInOrder)
+{
+    std::vector<std::string> labels;
+    for (int i = 0; i < 30; ++i)
+        labels.push_back("S" + std::to_string(i));
+    auto lines = legend_layout::overflow_tooltip_lines(std::span<const std::string>(labels), 25);
+    EXPECT_EQ(lines, (std::vector<std::string>{"S25", "S26", "S27", "S28", "S29"}));
+    // Capped: 20 names, then a count of the rest.
+    lines = legend_layout::overflow_tooltip_lines(std::span<const std::string>(labels), 2, 20);
+    ASSERT_EQ(lines.size(), 21u);
+    EXPECT_EQ(lines.front(), "S2");
+    EXPECT_EQ(lines[19], "S21");
+    EXPECT_EQ(lines.back(), "\xE2\x80\xA6 and 8 more");
+    // One over the cap is listed rather than summarised as "and 1 more".
+    lines = legend_layout::overflow_tooltip_lines(std::span<const std::string>(labels), 9, 20);
+    EXPECT_EQ(lines.size(), 21u);
+    EXPECT_EQ(lines.back(), "S29");
+    EXPECT_TRUE(
+        legend_layout::overflow_tooltip_lines(std::span<const std::string>(labels), 30).empty());
+}
+
+TEST_F(RendererFixture, OverflowCellShowsHiddenNamesOnHoverButNotInExport)
+{
+    Figure fig({.width = 800, .height = 600});
+    auto&  ax = fig.subplot(3, 1, 1);   // wide but short panel
+    auto   x  = ramp(20, 0.0f, 1.0f);
+    for (int i = 0; i < 40; ++i)
+        ax.plot(x, x, "-").label("Series " + std::to_string(i + 1));
+
+    auto overlay_draws = [&]
+    {
+        return std::count_if(backend.draws_.begin(),
+                             backend.draws_.end(),
+                             [](const RecordingBackend::Draw& d)
+                             { return d.pipeline == PipelineType::Overlay; });
+    };
+
+    render(fig);
+    ASSERT_EQ(renderer.legend_overflow_cells().size(), 1u);
+    const auto cell = renderer.legend_overflow_cells()[0];
+    EXPECT_FALSE(cell.hovered);
+    ASSERT_FALSE(cell.hidden.empty());
+    // The tooltip starts at the first entry without a swatch (Series K).
+    ASSERT_EQ(cell.hidden.front().rfind("Series ", 0), 0u);
+    const int  first_hidden = std::stoi(cell.hidden.front().substr(7));
+    const auto entries      = legend_layout::legend_entries(ax);
+    EXPECT_GT(first_hidden, 1);
+    EXPECT_EQ(cell.hidden, legend_layout::overflow_tooltip_lines(entries, first_hidden - 1));
+    const auto plain = overlay_draws();
+
+    // Hovering the cell adds the tooltip card.
+    renderer.set_pointer(cell.cell.x + 2.0f, cell.cell.y + cell.cell.h * 0.5f);
+    render(fig);
+    ASSERT_EQ(renderer.legend_overflow_cells().size(), 1u);
+    EXPECT_TRUE(renderer.legend_overflow_cells()[0].hovered);
+    EXPECT_GT(overlay_draws(), plain);
+
+    // Elsewhere: no tooltip.
+    renderer.set_pointer(1.0f, 1.0f);
+    render(fig);
+    EXPECT_FALSE(renderer.legend_overflow_cells()[0].hovered);
+    EXPECT_EQ(overlay_draws(), plain);
+
+    // An export (render_figure) is never a hover state.
+    renderer.set_pointer(cell.cell.x + 2.0f, cell.cell.y + cell.cell.h * 0.5f);
+    backend.draws_.clear();
+    renderer.render_figure(fig);
+    EXPECT_FALSE(renderer.legend_overflow_cells()[0].hovered);
 }
 
 namespace

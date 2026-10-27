@@ -616,6 +616,18 @@ TEST(SvgExport, FortyEntryLegendStaysInsideNarrowPlot)
     }
     EXPECT_GT(more, 0) << "overflow must be reported, not dropped";
     EXPECT_EQ(shown + more, 40);
+
+    // The "+N more" cell names the hidden entries in a hover <title>.
+    const size_t ov = svg.find("<g class=\"legend-overflow\"><title>", g);
+    ASSERT_NE(ov, std::string::npos);
+    const size_t      ts    = svg.find("<title>", ov) + 7;
+    const std::string title = svg.substr(ts, svg.find("</title>", ts) - ts);
+    EXPECT_EQ(title.substr(0, title.find('\n')), "Series " + std::to_string(shown + 1));
+    if (more <= 21)
+        EXPECT_NE(title.find("Series 40"), std::string::npos) << title;
+    else
+        EXPECT_NE(title.find("and " + std::to_string(more - 20) + " more"), std::string::npos)
+            << title;
 }
 
 TEST(SvgExport, LongUtf8LegendLabelIsEllipsizedInsidePlot)

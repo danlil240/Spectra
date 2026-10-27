@@ -12,7 +12,11 @@
 // CPU-only: uses a fake backend, so it runs without a GPU.
 
 #include <gtest/gtest.h>
+#include <algorithm>
 #include <memory>
+#include <optional>
+#include <string>
+#include <unordered_map>
 #include <spectra/axes.hpp>
 #include <spectra/custom_series.hpp>
 #include <spectra/figure.hpp>
@@ -41,7 +45,12 @@ class FakeBackend : public Backend
     bool recreate_swapchain(uint32_t, uint32_t) override { return true; }
     bool create_offscreen_framebuffer(uint32_t, uint32_t) override { return true; }
 
-    PipelineHandle create_pipeline(PipelineType) override { return PipelineHandle{next_id_++}; }
+    PipelineHandle create_pipeline(PipelineType type) override
+    {
+        PipelineHandle h{next_id_++};
+        pipeline_types[h.id] = type;
+        return h;
+    }
     PipelineHandle create_custom_pipeline(const CustomPipelineDesc& desc) override
     {
         ++custom_pipelines;
@@ -62,7 +71,11 @@ class FakeBackend : public Backend
     void     end_frame(FrameProfiler*) override {}
     void     begin_render_pass(const Color&) override {}
     void     end_render_pass() override {}
-    void     bind_pipeline(PipelineHandle) override {}
+    void     bind_pipeline(PipelineHandle h) override
+    {
+        auto it = pipeline_types.find(h.id);
+        bound = it != pipeline_types.end() ? std::optional<PipelineType>(it->second) : std::nullopt;
+    }
     void     bind_buffer(BufferHandle, uint32_t) override {}
     void     bind_index_buffer(BufferHandle) override {}
     void     bind_texture(TextureHandle, uint32_t) override {}
@@ -70,7 +83,11 @@ class FakeBackend : public Backend
     void     set_viewport(float, float, float, float) override {}
     void     set_scissor(int32_t, int32_t, uint32_t, uint32_t) override {}
     void     set_line_width(float) override {}
-    void     draw(uint32_t, uint32_t) override {}
+    void     draw(uint32_t, uint32_t) override
+    {
+        if (events)
+            events->push_back(bound == PipelineType::Grid ? "grid" : "draw");
+    }
     void     draw_instanced(uint32_t, uint32_t, uint32_t, uint32_t) override {}
     void     draw_indexed(uint32_t, uint32_t, int32_t) override {}
     bool     readback_framebuffer(uint8_t*, uint32_t, uint32_t) override { return false; }
@@ -79,6 +96,11 @@ class FakeBackend : public Backend
 
     int      custom_pipelines = 0;
     uint32_t last_topology    = 0xFFFFFFFFu;
+
+    // Draw order log ("grid" for grid-pipeline draws), shared with plugin callbacks.
+    std::vector<std::string>*                  events = nullptr;
+    std::unordered_map<uint64_t, PipelineType> pipeline_types;
+    std::optional<PipelineType>                bound;
 
    private:
     uint64_t next_id_ = 1;
@@ -187,6 +209,76 @@ TEST(CustomSeriesRender, DrawsCustomSeriesWithPluginOwnedState)
     renderer.render_figure_content(fig);
     EXPECT_EQ(counts.uploads, 1);
     EXPECT_EQ(counts.draws, 2);
+
+    renderer.set_series_type_registry(nullptr);
+}
+
+// ─── Grid below series; plugin bounds recorded ──────────────────────────────
+
+TEST(CustomSeriesRender, GridIsDrawnBeforeSeriesAndPluginBoundsAreRecorded)
+{
+    std::vector<std::string> events;
+    SeriesTypeRegistry       reg;
+    CustomPipelineDesc       desc;
+    desc.vert_spirv      = kStubSpirv;
+    desc.vert_spirv_size = sizeof(kStubSpirv);
+    desc.frag_spirv      = kStubSpirv;
+    desc.frag_spirv_size = sizeof(kStubSpirv);
+    desc.topology        = static_cast<uint32_t>(CustomTopology::TriangleList);
+    reg.register_type(
+        "opaque",
+        desc,
+        [](Backend&, const void*, void*&, size_t) -> int { return 0; },
+        [&events](Backend&, PipelineHandle, const void*, const float*, const SeriesPushConstants&)
+            -> int
+        {
+            events.push_back("custom");
+            return 0;
+        },
+        [](const void*, size_t, float* b) -> int
+        {
+            b[0] = -2.0f;
+            b[1] = 6.0f;
+            b[2] = 10.0f;
+            b[3] = 30.0f;
+            return 0;
+        },
+        [](Backend&, void*&) {});
+
+    FakeBackend backend;
+    backend.events = &events;
+    ui::ThemeManager theme;
+    Renderer         renderer(backend, theme);
+    ASSERT_TRUE(renderer.init());
+    renderer.set_series_type_registry(&reg);
+
+    Figure fig;
+    auto&  ax      = fig.subplot(1, 1, 1);
+    auto   owned   = std::make_unique<CustomSeries>("opaque");
+    auto*  series  = owned.get();
+    float  blob[4] = {0.0f, 1.0f, 2.0f, 3.0f};
+    series->set_data(blob, sizeof(blob), 4);
+    ax.series_mut().push_back(std::move(owned));
+    ax.plot(std::vector<float>{0.0f, 1.0f}, std::vector<float>{0.0f, 1.0f});
+    ax.xlim(0.0, 1.0);
+    ax.ylim(0.0, 1.0);
+    ax.grid(true);
+    fig.compute_layout();
+
+    renderer.render_figure_content(fig);
+
+    const auto grid   = std::find(events.begin(), events.end(), "grid");
+    const auto custom = std::find(events.begin(), events.end(), "custom");
+    ASSERT_NE(grid, events.end()) << "grid was not drawn";
+    ASSERT_NE(custom, events.end()) << "custom series was not drawn";
+    EXPECT_LT(grid - events.begin(), custom - events.begin())
+        << "the grid must be drawn below (before) opaque plugin series";
+    // The host asked the plugin for its data bounds after the upload.
+    ASSERT_TRUE(series->has_bounds());
+    EXPECT_FLOAT_EQ(series->bounds_x_min(), -2.0f);
+    EXPECT_FLOAT_EQ(series->bounds_x_max(), 6.0f);
+    EXPECT_FLOAT_EQ(series->bounds_y_min(), 10.0f);
+    EXPECT_FLOAT_EQ(series->bounds_y_max(), 30.0f);
 
     renderer.set_series_type_registry(nullptr);
 }

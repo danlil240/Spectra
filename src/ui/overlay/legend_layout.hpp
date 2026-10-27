@@ -115,6 +115,39 @@ inline std::string overflow_text(int hidden)
     return "+" + std::to_string(hidden) + " more";
 }
 
+// Lines of the hover tooltip of a "+N more" cell: the labels of the entries
+// the cell summarises (entries[shown..]), in legend order.  At most
+// `max_lines` labels are listed; the rest are counted on a final
+// "... and K more" line so the tooltip itself stays bounded.
+inline std::vector<std::string> overflow_tooltip_lines(std::span<const std::string> labels,
+                                                       int                          shown,
+                                                       int                          max_lines = 20)
+{
+    std::vector<std::string> out;
+    const int                n      = static_cast<int>(labels.size());
+    const int                first  = std::clamp(shown, 0, n);
+    const int                hidden = n - first;
+    if (hidden <= 0)
+        return out;
+    // List every label when only one more would be summarised by the last line.
+    const int listed = hidden <= max_lines + 1 ? hidden : std::max(0, max_lines);
+    out.assign(labels.begin() + first, labels.begin() + first + listed);
+    if (listed < hidden)
+        out.push_back("\xE2\x80\xA6 and " + std::to_string(hidden - listed) + " more");
+    return out;
+}
+
+inline std::vector<std::string> overflow_tooltip_lines(std::span<Series* const> entries,
+                                                       int                      shown,
+                                                       int                      max_lines = 20)
+{
+    std::vector<std::string> labels;
+    labels.reserve(entries.size());
+    for (const Series* s : entries)
+        labels.push_back(s ? s->label() : std::string{});
+    return overflow_tooltip_lines(std::span<const std::string>(labels), shown, max_lines);
+}
+
 // Static (non-scrollable) legend layout for image export (PNG / GPU
 // readback), where a scrolling legend would silently lose entries.  Policy:
 //   1. Use the regular compute_grid layout when it needs no scrolling.
@@ -190,12 +223,7 @@ inline bool apply_scale(ScaleType s, double v, double& out)
                 return false;
             out = std::log2(v);
             return true;
-        case ScaleType::Sqrt:
-            if (v < 0.0)
-                return false;
-            out = std::sqrt(v);
-            return true;
-        default:
+        default:   // Linear and Sqrt: Sqrt axes are drawn untransformed (core/axis_scale.hpp)
             out = v;
             return std::isfinite(v);
     }

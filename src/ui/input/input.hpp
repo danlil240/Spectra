@@ -46,6 +46,9 @@ struct CursorReadout
     double data_y   = 0.0;
     double screen_x = 0.0;
     double screen_y = 0.0;
+    // Pointer inside the window (screen_x/y current), even when not over an
+    // axes (valid == false), e.g. over an outside-right legend.
+    bool in_window = false;
 };
 
 // Box zoom selection rectangle (screen coordinates)

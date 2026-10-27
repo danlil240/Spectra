@@ -76,9 +76,12 @@ struct ShapeDef
     // Number of segments for circles/ellipses/rings
     int segments = 64;
 
-    // Arrow head size as fraction of arrow length
-    float arrow_head_frac  = 0.15f;
-    float arrow_head_width = 0.08f;
+    // Arrow head size. By default the head is a solid triangle sized in screen pixels from
+    // line_width (see ShapeSeries::set_pixel_scale). After arrow_head() it is sized in data
+    // units instead: length as a fraction of the arrow length, half-width in data units.
+    float arrow_head_frac   = 0.15f;
+    float arrow_head_width  = 0.08f;
+    bool  arrow_head_custom = false;
 
     // Text params (only used when type == Text)
     std::string text_content;
@@ -167,6 +170,14 @@ class ShapeSeries : public Series
     std::span<const float> fill_verts() const { return fill_verts_; }
     size_t                 fill_vertex_count() const { return fill_verts_.size() / 3; }
 
+    // Fill vertices from this index on are arrowheads, drawn opaque (the rest of the fill
+    // geometry is drawn translucent).
+    size_t solid_fill_first_vertex() const { return solid_fill_first_vertex_; }
+
+    // Data units per screen pixel along x and y, set by the renderer each frame so arrowheads
+    // keep a fixed on-screen size and shape. Returns true when the geometry must be rebuilt.
+    bool set_pixel_scale(float data_per_px_x, float data_per_px_y);
+
     // Rebuild geometry from shape definitions.
     void rebuild_geometry();
 
@@ -200,7 +211,13 @@ class ShapeSeries : public Series
     // Generated geometry
     std::vector<float> line_x_;
     std::vector<float> line_y_;
-    std::vector<float> fill_verts_;   // interleaved {x, y, alpha} per vertex
+    std::vector<float> fill_verts_;         // interleaved {x, y, alpha} per vertex
+    std::vector<float> solid_fill_verts_;   // arrowheads; appended to fill_verts_ on rebuild
+    size_t             solid_fill_first_vertex_ = 0;
+
+    // Data units per pixel (0 = unknown; arrowheads then fall back to data-unit sizing)
+    float data_per_px_x_ = 0.0f;
+    float data_per_px_y_ = 0.0f;
 
     // Geometry generation helpers
     void generate_rect(const ShapeDef& def);

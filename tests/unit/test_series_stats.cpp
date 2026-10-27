@@ -4,6 +4,7 @@
 #include <spectra/series_stats.hpp>
 
 #include <cmath>
+#include <utility>
 #include <vector>
 
 using namespace spectra;
@@ -201,6 +202,134 @@ TEST(BoxPlotSeries, FluentAPI)
     EXPECT_EQ(bp.label(), "test");
     EXPECT_FLOAT_EQ(bp.box_width(), 0.4f);
     EXPECT_FALSE(bp.show_outliers());
+}
+
+namespace
+{
+// Leading outline polyline of the first box (up to the first NaN break).
+std::vector<std::pair<float, float>> first_outline(const BoxPlotSeries& bp)
+{
+    std::vector<std::pair<float, float>> pts;
+    for (size_t i = 0; i < bp.x_data().size() && !std::isnan(bp.x_data()[i]); ++i)
+        pts.emplace_back(bp.x_data()[i], bp.y_data()[i]);
+    return pts;
+}
+}   // namespace
+
+TEST(BoxPlotSeries, NotchedOutlineNarrowsAtMedian)
+{
+    std::vector<float> data(100);
+    for (int i = 0; i < 100; ++i)
+        data[i] = static_cast<float>(i + 1);
+
+    BoxPlotSeries bp;
+    bp.box_width(0.6f).notched(true);
+    bp.add_box(2.0f, data);
+
+    const auto& s = bp.stats()[0];
+    ASSERT_EQ(s.count, 100u);
+    const float half = 1.57f * (s.q3 - s.q1) / 10.0f;
+    const float hw   = 0.3f;
+
+    auto pts = first_outline(bp);
+    ASSERT_EQ(pts.size(), 11u);   // closed notched polygon
+    const float ex[] = {2 - hw,
+                        2 - hw,
+                        2 - hw / 2,
+                        2 - hw,
+                        2 - hw,
+                        2 + hw,
+                        2 + hw,
+                        2 + hw / 2,
+                        2 + hw,
+                        2 + hw,
+                        2 - hw};
+    const float ey[] = {s.q1,
+                        s.median - half,
+                        s.median,
+                        s.median + half,
+                        s.q3,
+                        s.q3,
+                        s.median + half,
+                        s.median,
+                        s.median - half,
+                        s.q1,
+                        s.q1};
+    for (size_t i = 0; i < pts.size(); ++i)
+    {
+        EXPECT_NEAR(pts[i].first, ex[i], 1e-5f) << "point " << i;
+        EXPECT_NEAR(pts[i].second, ey[i], 1e-4f) << "point " << i;
+    }
+
+    // Median line spans only the waist.
+    const auto& xs = bp.x_data();
+    const auto& ys = bp.y_data();
+    size_t      m  = pts.size() + 1;
+    EXPECT_NEAR(xs[m], 2 - hw / 2, 1e-5f);
+    EXPECT_NEAR(xs[m + 1], 2 + hw / 2, 1e-5f);
+    EXPECT_FLOAT_EQ(ys[m], s.median);
+
+    // Fill: 4 bands x 2 triangles; nothing at the median row extends past the waist.
+    ASSERT_EQ(bp.fill_vertex_count(), 24u);
+    auto fv = bp.fill_verts();
+    for (size_t v = 0; v < bp.fill_vertex_count(); ++v)
+    {
+        float fx = fv[v * 3], fy = fv[v * 3 + 1];
+        EXPECT_GE(fy, s.q1 - 1e-4f);
+        EXPECT_LE(fy, s.q3 + 1e-4f);
+        if (std::abs(fy - s.median) < 1e-5f)
+        {
+            EXPECT_LE(std::abs(fx - 2.0f), hw / 2 + 1e-5f);
+        }
+    }
+}
+
+TEST(BoxPlotSeries, NotchClampedToBox)
+{
+    // Few samples: 1.57 * IQR / sqrt(n) exceeds the box, so the notch is clamped to Q1..Q3.
+    std::vector<float> data = {0.0f, 1.0f, 9.0f, 10.0f};
+    BoxPlotSeries      bp;
+    bp.notched(true);
+    bp.add_box(0.0f, data);
+    const auto& s   = bp.stats()[0];
+    auto        pts = first_outline(bp);
+    ASSERT_EQ(pts.size(), 11u);
+    EXPECT_FLOAT_EQ(pts[1].second, s.q1);
+    EXPECT_FLOAT_EQ(pts[3].second, s.q3);
+    for (const auto& p : pts)
+    {
+        EXPECT_GE(p.second, s.q1);
+        EXPECT_LE(p.second, s.q3);
+    }
+}
+
+TEST(BoxPlotSeries, NotchNeedsSampleCount)
+{
+    BoxPlotSeries bp;
+    bp.notched(true);
+    // Bare precomputed statistics: sample count unknown -> plain box.
+    bp.add_box(0.0f, 5.0f, 3.0f, 7.0f, 1.0f, 9.0f);
+    EXPECT_EQ(first_outline(bp).size(), 5u);
+
+    // Full statistics record keeps the count, so the notch is drawn.
+    BoxPlotStats st = BoxPlotSeries::compute_stats(std::vector<float>(50, 0.0f));
+    st.median       = 5.0f;
+    st.q1           = 3.0f;
+    st.q3           = 7.0f;
+    BoxPlotSeries bp2;
+    bp2.notched(true);
+    bp2.add_box(0.0f, st);
+    EXPECT_EQ(first_outline(bp2).size(), 11u);
+}
+
+TEST(BoxPlotSeries, NotNotchedByDefault)
+{
+    std::vector<float> data = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+    BoxPlotSeries      bp;
+    bp.add_box(0.0f, data);
+    EXPECT_FALSE(bp.notched());
+    EXPECT_EQ(first_outline(bp).size(), 5u);
+    EXPECT_EQ(bp.fill_vertex_count(), 6u);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

@@ -111,6 +111,7 @@ struct BoxPlotStats
     float              whisker_low  = 0.0f;
     float              whisker_high = 0.0f;
     std::vector<float> outliers;
+    std::size_t        count = 0;   // number of finite samples (0 = unknown; no notch drawn)
 };
 
 class BoxPlotSeries : public Series
@@ -130,6 +131,9 @@ class BoxPlotSeries : public Series
                            float                  whisker_high,
                            std::span<const float> outliers = {});
 
+    // Add a box from a full statistics record (keeps the sample count used for notches).
+    BoxPlotSeries& add_box(float x_position, BoxPlotStats stats);
+
     // Box visual width (in data units). Default: 0.6
     BoxPlotSeries& box_width(float w)
     {
@@ -148,7 +152,9 @@ class BoxPlotSeries : public Series
     }
     bool show_outliers() const { return show_outliers_; }
 
-    // Notched box plot (narrows at median)
+    // Notched box plot: the box narrows to a waist at the median, with notches spanning
+    // median +/- 1.57 * IQR / sqrt(n) (clamped to the box). Needs the sample count, so boxes
+    // added from bare precomputed statistics (count unknown) are drawn without a notch.
     BoxPlotSeries& notched(bool n)
     {
         notched_ = n;

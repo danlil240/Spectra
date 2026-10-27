@@ -920,6 +920,22 @@ void Renderer::render_axes(AxesBase&   axes,
 
             // Determine if camera-relative re-upload is needed
             bool need_upload = series_ptr->is_dirty() || gpu.plugin_state_released;
+
+            // Shape arrowheads are sized in screen pixels: rebuild them when the
+            // data-per-pixel scale changes (zoom, pan across limits, resize).
+            if (axes2d && (gpu.type == SeriesType::Shape2D || gpu.type == SeriesType::Unknown))
+            {
+                if (auto* shape = dynamic_cast<ShapeSeries*>(series_ptr.get()))
+                {
+                    const auto& agpu = axes_gpu_data_[&axes];
+                    float dppx = static_cast<float>((agpu.cached_xlim_max - agpu.cached_xlim_min)
+                                                    / viewport.w);
+                    float dppy = static_cast<float>((agpu.cached_ylim_max - agpu.cached_ylim_min)
+                                                    / viewport.h);
+                    if (shape->set_pixel_scale(dppx, dppy))
+                        need_upload = true;
+                }
+            }
             if (!need_upload && axes2d && gpu.uploaded_count > 0)
             {
                 double drift_x  = std::abs(gpu.origin_x - view_cx);

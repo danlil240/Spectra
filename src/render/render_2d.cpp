@@ -525,15 +525,27 @@ void Renderer::render_series(Series&             series,
         case SeriesType::Shape2D:
         {
             auto* sh = static_cast<ShapeSeries*>(&series);
-            // Draw fill with per-vertex gradient alpha
+            // Draw fill with per-vertex gradient alpha; arrowheads (the tail of the
+            // fill buffer) are drawn opaque.
             if (gpu.fill_buffer && gpu.fill_vertex_count > 0)
             {
+                const auto total = static_cast<uint32_t>(gpu.fill_vertex_count);
+                const auto solid_first =
+                    std::min(total, static_cast<uint32_t>(sh->solid_fill_first_vertex()));
                 backend_.bind_pipeline(stat_fill_pipeline_);
-                SeriesPushConstants fill_pc = pc;
-                fill_pc.color[3] *= 0.50f;
-                backend_.push_constants(fill_pc);
                 backend_.bind_buffer(gpu.fill_buffer, 0);
-                backend_.draw(static_cast<uint32_t>(gpu.fill_vertex_count));
+                if (solid_first > 0)
+                {
+                    SeriesPushConstants fill_pc = pc;
+                    fill_pc.color[3] *= 0.50f;
+                    backend_.push_constants(fill_pc);
+                    backend_.draw(solid_first);
+                }
+                if (solid_first < total)
+                {
+                    backend_.push_constants(pc);
+                    backend_.draw(total - solid_first, solid_first);
+                }
             }
             // Draw outline
             if (sh->point_count() > 1)

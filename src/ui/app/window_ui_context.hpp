@@ -10,6 +10,7 @@
     #include <spectra/camera.hpp>
 
     #include "ui/animation/animation_curve_editor.hpp"
+    #include "ui/app/commands/plugin_export_commands.hpp"
     #include "ui/data/axis_link.hpp"
     #include "ui/input/box_zoom_overlay.hpp"
     #include "ui/commands/command_palette.hpp"
@@ -141,6 +142,13 @@ struct WindowUIContext
 
     // Runtime copy of last export directory. Synced to WorkspaceData on save/load.
     std::string last_export_dir;
+
+#ifdef SPECTRA_USE_IMGUI
+    // "file.export_plugin.<name>" commands mirroring the shared export format
+    // registry.  Declared last so it detaches (and unregisters its commands)
+    // before anything its command callbacks reference is destroyed.
+    PluginExportCommands plugin_export_commands;
+#endif
 
     // Non-copyable, non-movable (contains unique_ptrs and non-movable types)
     WindowUIContext()                                  = default;

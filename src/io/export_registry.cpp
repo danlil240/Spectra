@@ -12,34 +12,49 @@ void ExportFormatRegistry::register_format(const std::string& name,
                                            const std::string& extension,
                                            ExportCallback     callback)
 {
-    std::lock_guard lock(mutex_);
-
-    // Check for duplicate
-    for (const auto& entry : formats_)
     {
-        if (entry.name == name)
-        {
-            SPECTRA_LOG_WARN("export_registry", "Export format '{}' already registered", name);
-            return;
-        }
-    }
+        std::lock_guard lock(mutex_);
 
-    formats_.push_back({name, extension, std::move(callback)});
-    SPECTRA_LOG_INFO("export_registry", "Registered export format '{}'  (.{})", name, extension);
+        // Check for duplicate
+        for (const auto& entry : formats_)
+        {
+            if (entry.name == name)
+            {
+                SPECTRA_LOG_WARN("export_registry", "Export format '{}' already registered", name);
+                return;
+            }
+        }
+
+        formats_.push_back({name, extension, std::move(callback)});
+        SPECTRA_LOG_INFO("export_registry",
+                         "Registered export format '{}'  (.{})",
+                         name,
+                         extension);
+    }
+    notify({name, extension}, ChangeKind::Registered);
 }
 
 void ExportFormatRegistry::unregister_format(const std::string& name)
 {
-    std::lock_guard lock(mutex_);
-
-    auto it = std::remove_if(formats_.begin(),
-                             formats_.end(),
-                             [&](const Entry& e) { return e.name == name; });
-    if (it != formats_.end())
+    ExportFormatInfo removed;
+    bool             found = false;
     {
-        formats_.erase(it, formats_.end());
-        SPECTRA_LOG_INFO("export_registry", "Unregistered export format '{}'", name);
+        std::lock_guard lock(mutex_);
+
+        // Names are unique (register_format rejects duplicates).
+        auto it = std::find_if(formats_.begin(),
+                               formats_.end(),
+                               [&](const Entry& e) { return e.name == name; });
+        if (it != formats_.end())
+        {
+            removed = {it->name, it->extension};
+            found   = true;
+            formats_.erase(it);
+            SPECTRA_LOG_INFO("export_registry", "Unregistered export format '{}'", name);
+        }
     }
+    if (found)
+        notify(removed, ChangeKind::Unregistered);
 }
 
 std::vector<ExportFormatInfo> ExportFormatRegistry::available_formats() const
@@ -114,6 +129,36 @@ size_t ExportFormatRegistry::count() const
 {
     std::lock_guard lock(mutex_);
     return formats_.size();
+}
+
+ExportFormatRegistry::ListenerId ExportFormatRegistry::add_change_listener(ChangeListener listener)
+{
+    if (!listener)
+        return 0;
+    std::lock_guard  lock(listener_mutex_);
+    const ListenerId id = next_listener_id_++;
+    listeners_.emplace_back(id, std::move(listener));
+    return id;
+}
+
+void ExportFormatRegistry::remove_change_listener(ListenerId id)
+{
+    std::lock_guard lock(listener_mutex_);
+    std::erase_if(listeners_, [id](const auto& l) { return l.first == id; });
+}
+
+void ExportFormatRegistry::notify(const ExportFormatInfo& info, ChangeKind kind) const
+{
+    // Copy so listeners can add/remove listeners or touch the registry.
+    std::vector<ChangeListener> snapshot;
+    {
+        std::lock_guard lock(listener_mutex_);
+        snapshot.reserve(listeners_.size());
+        for (const auto& [id, listener] : listeners_)
+            snapshot.push_back(listener);
+    }
+    for (const auto& listener : snapshot)
+        listener(info, kind);
 }
 
 }   // namespace spectra

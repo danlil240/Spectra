@@ -704,6 +704,7 @@ if(SPECTRA_USE_IMGUI AND (SPECTRA_USE_GLFW OR SPECTRA_USE_SDL3))
         src/ui/app/commands/commands_plot.cpp
         src/ui/app/commands/commands_data.cpp
         src/ui/app/commands/commands_app.cpp
+        src/ui/app/commands/plugin_export_commands.cpp
         src/ui/topics/topics_panel.cpp
         src/ui/settings/settings_store.cpp
         src/ui/settings/settings_panel.cpp

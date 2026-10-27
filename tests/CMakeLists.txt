@@ -246,6 +246,7 @@ set(SPECTRA_UNIT_TESTS
     test_plugin_version_negotiation
     test_plugin_export
     test_export_csv_plugin
+    test_plugin_export_command
     test_plugin_data_source
     test_plugin_integration
     test_plugin_series_type

@@ -613,12 +613,14 @@ void Renderer::render_axes(AxesBase&   axes,
         // Pick up azimuth/elevation/distance assigned directly on the camera.
         axes3d->camera().apply_orbit_changes();
         const auto& cam = axes3d->camera();
+        // Widen the view so the box, arrows and labels fit this viewport.
+        const float fit = axes3d->projection_fit_scale(viewport);
 
         if (cam.projection_mode == Camera::ProjectionMode::Perspective)
         {
             // Perspective projection matrix
             float fov_rad      = cam.fov * 3.14159265f / 180.0f;
-            float f            = 1.0f / tanf(fov_rad * 0.5f);
+            float f            = 1.0f / (tanf(fov_rad * 0.5f) * fit);
             float y_sign       = backend_.clip_y_down() ? -1.0f : 1.0f;
             ubo.projection[0]  = f / aspect;
             ubo.projection[5]  = y_sign * f;
@@ -630,9 +632,9 @@ void Renderer::render_axes(AxesBase&   axes,
         {
             // Orthographic projection with proper near/far depth
             // Must match Camera::projection_matrix() convention:
-            // half_w = ortho_size * aspect, half_h = ortho_size
-            float half_w = cam.ortho_size * aspect;
-            float half_h = cam.ortho_size;
+            // half_w = ortho_size * aspect, half_h = ortho_size (times the fit)
+            float half_w = cam.ortho_size * aspect * fit;
+            float half_h = cam.ortho_size * fit;
             build_ortho_projection_3d(-half_w,
                                       half_w,
                                       -half_h,

@@ -255,6 +255,7 @@ set(SPECTRA_UNIT_TESTS
     test_app_init_failure
     test_export_viewport
     test_headless_export_text
+    test_window_defaults
 )
 
 # Mock transform plugin — shared library loaded by test_plugin_transforms

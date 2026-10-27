@@ -1,6 +1,7 @@
 #include "agent_message_handler.hpp"
 
 #include <iostream>
+#include <spectra/window_defaults.hpp>
 #include <unordered_map>
 
 #include "../ipc/codec.hpp"
@@ -351,9 +352,8 @@ HandleResult handle_state_snapshot(DaemonContext& ctx,
     for (size_t i = 0; i < new_ids.size(); ++i)
     {
         const auto& fig = incoming->figures[i];
-        ctx.graph.register_figure(
-            new_ids[i],
-            fig.title.empty() ? "Figure " + std::to_string(i + 1) : fig.title);
+        ctx.graph.register_figure(new_ids[i],
+                                  fig.title.empty() ? default_figure_title(i + 1) : fig.title);
     }
 
     // Group figures by window_group and spawn one agent per group.

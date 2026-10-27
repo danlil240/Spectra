@@ -13,6 +13,7 @@
 #include <spectra/export.hpp>
 #include <spectra/figure.hpp>
 #include <spectra/logger.hpp>
+#include <spectra/window_defaults.hpp>
 #include <string>
 #include <thread>
 #include <unordered_map>
@@ -434,7 +435,7 @@ void App::run_multiproc()
             continue;
         fig->compute_layout();
         auto fig_snap  = figure_to_snapshot(*fig, reg_to_ipc[id]);
-        fig_snap.title = "Figure " + std::to_string(reg_to_ipc[id] - 99);
+        fig_snap.title = default_figure_title(reg_to_ipc[id] - 99);
         snap.figures.push_back(std::move(fig_snap));
     }
 

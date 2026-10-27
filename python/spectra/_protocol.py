@@ -11,6 +11,11 @@ MAX_PAYLOAD_SIZE = 256 * 1024 * 1024  # 256 MiB
 PROTOCOL_MAJOR = 1
 PROTOCOL_MINOR = 1
 
+# Default figure window size, mirroring include/spectra/window_defaults.hpp so
+# Python-created windows match the in-process C++ app.
+DEFAULT_WINDOW_WIDTH = 1500
+DEFAULT_WINDOW_HEIGHT = 900
+
 # Capability bits
 CAPABILITY_FLATBUFFERS = 0x0001
 

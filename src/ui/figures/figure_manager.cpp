@@ -6,6 +6,7 @@
 #include <spectra/logger.hpp>
 #include <spectra/series3d.hpp>
 #include <spectra/series_stats.hpp>
+#include <spectra/window_defaults.hpp>
 
 #include "tab_bar.hpp"
 
@@ -847,7 +848,7 @@ void FigureManager::restore_state(FigureId index)
 
 std::string FigureManager::default_title(FigureId index)
 {
-    return "Figure " + std::to_string(index);
+    return default_figure_title(index);
 }
 
 void FigureManager::sync_tab_bar()

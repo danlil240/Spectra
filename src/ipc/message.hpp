@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <string>
 #include <vector>
+#include <spectra/window_defaults.hpp>
 
 namespace spectra::ipc
 {
@@ -273,8 +274,8 @@ struct SnapshotFigureState
 {
     uint64_t    figure_id = 0;
     std::string title;
-    uint32_t    width        = 1280;
-    uint32_t    height       = 720;
+    uint32_t    width        = DEFAULT_WINDOW_WIDTH;
+    uint32_t    height       = DEFAULT_WINDOW_HEIGHT;
     int32_t     grid_rows    = 1;
     int32_t     grid_cols    = 1;
     uint32_t    window_group = 0;      // Figures with the same non-zero group share one window
@@ -389,8 +390,8 @@ struct EvtInputPayload
 struct ReqCreateFigurePayload
 {
     std::string title;
-    uint32_t    width  = 1280;
-    uint32_t    height = 720;
+    uint32_t    width  = DEFAULT_WINDOW_WIDTH;
+    uint32_t    height = DEFAULT_WINDOW_HEIGHT;
 };
 
 // Python → Backend: destroy a figure.

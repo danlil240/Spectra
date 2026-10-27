@@ -6,14 +6,17 @@
 // the viewport midpoint reads 50.5 instead of 10 and a linked linear subplot
 // draws its line at 50.5.
 
+#include <algorithm>
 #include <cmath>
 #include <gtest/gtest.h>
 #include <limits>
 #include <memory>
 #include <spectra/axes.hpp>
 #include <spectra/figure.hpp>
+#include <string>
 
 #include "ui/overlay/crosshair_mapping.hpp"
+#include "ui/overlay/readout_format.hpp"
 
 #if defined(SPECTRA_USE_IMGUI) && __has_include(<imgui.h>)
     #define SPECTRA_TEST_CROSSHAIR_DRAW 1
@@ -183,6 +186,54 @@ TEST(CrosshairMapping, DegenerateRangeStaysFinite)
     EXPECT_TRUE(std::isfinite(cm::data_to_screen_x(t.top, 5.0)));
     EXPECT_TRUE(std::isfinite(cm::data_to_screen_y(t.top, 5.0)));
     EXPECT_TRUE(std::isfinite(cm::screen_to_data_x(t.top, mid_x(TOP_VP))));
+}
+
+// ─── Compact crosshair label format ─────────────────────────────────────────
+
+TEST(CrosshairLabelFormat, EpochValuesNeverOverflowTheLabel)
+{
+    using ui::format_compact_value;
+    // Unix timestamps at second / centisecond / no resolution: <= 12 chars.
+    for (double res : {0.0, 86.4, 1.0, 0.01, 1e-6})
+    {
+        for (double v : {1.7e9 + 43210.123, -1.7e9 - 0.5, 1.0e12 + 7.0, 3.0e20})
+        {
+            const std::string s = format_compact_value(v, res);
+            EXPECT_LE(s.size(), 12u) << v << " res " << res << " -> " << s;
+            EXPECT_NEAR(std::stod(s), v, std::max(std::abs(v) * 1e-5, res)) << s;
+        }
+    }
+    // The previous fixed "%.3f" readout was 14 characters for an epoch.
+    EXPECT_EQ(format_compact_value(1700043210.123, 86.4), "1700043210");
+    EXPECT_EQ(format_compact_value(1700043210.123, 0.0), "1.70004e+09");
+}
+
+TEST(CrosshairLabelFormat, DigitsFollowPixelResolution)
+{
+    using ui::format_compact_value;
+    EXPECT_EQ(format_compact_value(0.5, 0.001), "0.500");
+    EXPECT_EQ(format_compact_value(12345.678, 0.1), "12345.7");
+    EXPECT_EQ(format_compact_value(42.0, 0.0), "42");
+    EXPECT_EQ(format_compact_value(2.5e-6, 1e-9), "2.5e-06");
+    // Closer to zero than one pixel: reads as zero, not 1e-17.
+    EXPECT_EQ(format_compact_value(1e-17, 0.002), "0.000");
+    EXPECT_EQ(format_compact_value(0.0, 0.0), "0");
+    EXPECT_EQ(format_compact_value(std::numeric_limits<double>::infinity()), "inf");
+    EXPECT_EQ(format_compact_value(std::nan("")), "nan");
+}
+
+TEST(CrosshairLabelFormat, PixelResolutionFollowsScale)
+{
+    TwoAxes t;
+    t.top.xlim(0.0, 800.0);   // 800 px wide viewport: 1 data unit per pixel
+    EXPECT_NEAR(cm::pixel_resolution_x(t.top, mid_x(TOP_VP)), 1.0, 1e-9);
+    t.top.xscale(ScaleType::Log10);
+    t.top.xlim(1.0, 1e8);   // 8 decades over 800 px: finer near the left edge
+    const double left  = cm::pixel_resolution_x(t.top, TOP_VP.x + 10.0);
+    const double right = cm::pixel_resolution_x(t.top, TOP_VP.x + TOP_VP.w - 10.0);
+    EXPECT_GT(right, left * 1e6);
+    t.top.ylim(-1.0, 2.0);   // 300 px tall: 0.01 per pixel
+    EXPECT_NEAR(cm::pixel_resolution_y(t.top, mid_y(TOP_VP)), 0.01, 1e-12);
 }
 
 // ─── Real Crosshair::draw_all_axes output ───────────────────────────────────

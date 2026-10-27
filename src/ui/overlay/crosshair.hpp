@@ -14,6 +14,7 @@ class ThemeManager;
 namespace spectra
 {
 
+class Axes;
 class Figure;
 class AxisLinkManager;
 struct CursorReadout;
@@ -33,13 +34,16 @@ class Crosshair
     // Draw crosshair lines and axis labels for the given cursor position.
     // viewport is the axes Rect in screen coordinates.
     // When dl is non-null, draws into the given draw list instead of GetForegroundDrawList().
+    // When axes is given, the labels carry as many digits as one pixel resolves
+    // on its (possibly log) scale; otherwise the limits are used, linearly.
     void draw(const CursorReadout& cursor,
               const Rect&          viewport,
               float                xlim_min,
               float                xlim_max,
               float                ylim_min,
               float                ylim_max,
-              ImDrawList*          dl = nullptr);
+              ImDrawList*          dl   = nullptr,
+              const Axes*          axes = nullptr);
 
     // Draw crosshair across ALL subplots in the figure.
     // The vertical line is drawn at the same data-X on every axes.

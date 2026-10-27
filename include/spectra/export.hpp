@@ -29,16 +29,16 @@ class ImageExporter
 // this from the active theme so an export looks like the on-screen plot.
 struct SvgStyle
 {
-    Color background      = {0.969f, 0.980f, 1.000f, 1.0f};   ///< figure + plot area
-    Color grid_major      = {0.32f, 0.40f, 0.48f, 0.24f};
-    Color grid_minor      = {0.32f, 0.40f, 0.48f, 0.10f};
-    Color axis_line       = {0.08f, 0.16f, 0.23f, 0.78f};   ///< border, tick marks, 3D box
-    Color tick_label      = {0.125f, 0.196f, 0.278f, 1.0f};
-    Color text_primary    = {0.063f, 0.125f, 0.200f, 1.0f};   ///< titles; 'k'/'w' series remap
-    Color text_secondary  = {0.200f, 0.282f, 0.373f, 1.0f};   ///< axis labels, legend text
-    Color legend_bg       = {0.973f, 0.984f, 1.000f, 1.0f};
-    Color legend_border   = {0.61f, 0.72f, 0.82f, 0.44f};
-    std::string font_family = "Inter, 'Helvetica Neue', Arial, sans-serif";
+    Color       background     = {0.969f, 0.980f, 1.000f, 1.0f};   ///< figure + plot area
+    Color       grid_major     = {0.32f, 0.40f, 0.48f, 0.24f};
+    Color       grid_minor     = {0.32f, 0.40f, 0.48f, 0.10f};
+    Color       axis_line      = {0.08f, 0.16f, 0.23f, 0.78f};   ///< border, tick marks, 3D box
+    Color       tick_label     = {0.125f, 0.196f, 0.278f, 1.0f};
+    Color       text_primary   = {0.063f, 0.125f, 0.200f, 1.0f};   ///< titles; 'k'/'w' series remap
+    Color       text_secondary = {0.200f, 0.282f, 0.373f, 1.0f};   ///< axis labels, legend text
+    Color       legend_bg      = {0.973f, 0.984f, 1.000f, 1.0f};
+    Color       legend_border  = {0.61f, 0.72f, 0.82f, 0.44f};
+    std::string font_family    = "Inter, 'Helvetica Neue', Arial, sans-serif";
 };
 
 class SvgExporter

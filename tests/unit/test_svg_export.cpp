@@ -285,16 +285,15 @@ TEST(SvgExport, GridDisabledOmitsGridGroup)
     EXPECT_EQ(svg.find("class=\"grid\""), std::string::npos);
 }
 
-
 // ─── Theme, styles, markers, stat/shape series, 3D (P0-5) ───────────────────
 
 TEST(SvgExport, BackgroundAndChromeFollowStyle)
 {
     auto     fig = make_line_figure();
     SvgStyle st;
-    st.background = Color{0.1f, 0.2f, 0.3f, 1.0f};
-    st.grid_major = Color{0.0f, 1.0f, 0.0f, 0.5f};
-    st.tick_label = Color{1.0f, 0.0f, 1.0f, 1.0f};
+    st.background   = Color{0.1f, 0.2f, 0.3f, 1.0f};
+    st.grid_major   = Color{0.0f, 1.0f, 0.0f, 0.5f};
+    st.tick_label   = Color{1.0f, 0.0f, 1.0f, 1.0f};
     std::string svg = SvgExporter::to_string(fig, st);
 
     EXPECT_NE(svg.find("class=\"background\" width=\"100%\" height=\"100%\" fill=\"#1a334d\""),
@@ -307,8 +306,8 @@ TEST(SvgExport, BackgroundAndChromeFollowStyle)
 
 TEST(SvgExport, BlackSeriesFollowsForegroundOnDarkBackground)
 {
-    Figure fig({.width = 400, .height = 300});
-    auto&  ax = fig.subplot(1, 1, 1);
+    Figure             fig({.width = 400, .height = 300});
+    auto&              ax = fig.subplot(1, 1, 1);
     std::vector<float> x = {0.0f, 1.0f}, y = {0.0f, 1.0f};
     ax.plot(x, y, "k-");
     fig.compute_layout();
@@ -322,8 +321,8 @@ TEST(SvgExport, BlackSeriesFollowsForegroundOnDarkBackground)
 
 TEST(SvgExport, LineStylesEmitRendererDashPatterns)
 {
-    Figure fig({.width = 800, .height = 600});
-    auto&  ax = fig.subplot(1, 1, 1);
+    Figure             fig({.width = 800, .height = 600});
+    auto&              ax = fig.subplot(1, 1, 1);
     std::vector<float> x = {0.0f, 1.0f, 2.0f}, y = {0.0f, 1.0f, 0.0f};
     ax.plot(x, y, "--").width(2.0f);
     ax.plot(x, y, ":").width(2.0f);
@@ -343,8 +342,8 @@ TEST(SvgExport, LineStylesEmitRendererDashPatterns)
 
 TEST(SvgExport, ReferenceLinesAreClippedToSaneCoordinates)
 {
-    Figure fig({.width = 640, .height = 480});
-    auto&  ax = fig.subplot(1, 1, 1);
+    Figure             fig({.width = 640, .height = 480});
+    auto&              ax = fig.subplot(1, 1, 1);
     std::vector<float> x = {0.0f, 1.0f}, y = {0.0f, 1.0f};
     ax.line(x, y);
     ax.hline(0.5, "k--");
@@ -357,10 +356,10 @@ TEST(SvgExport, ReferenceLinesAreClippedToSaneCoordinates)
 
 TEST(SvgExport, EveryMarkerStyleBecomesOneSymbol)
 {
-    Figure fig({.width = 800, .height = 600});
-    auto&  ax = fig.subplot(1, 1, 1);
-    std::vector<float> x = {0.0f, 1.0f, 2.0f};
-    int                k = 0;
+    Figure             fig({.width = 800, .height = 600});
+    auto&              ax     = fig.subplot(1, 1, 1);
+    std::vector<float> x      = {0.0f, 1.0f, 2.0f};
+    int                k      = 0;
     int                styles = 0;
     for (auto ms : ALL_MARKER_STYLES)
     {
@@ -369,7 +368,8 @@ TEST(SvgExport, EveryMarkerStyleBecomesOneSymbol)
             continue;
         }
         ++styles;
-        std::vector<float> y = {static_cast<float>(k), static_cast<float>(k) + 0.5f,
+        std::vector<float> y = {static_cast<float>(k),
+                                static_cast<float>(k) + 0.5f,
                                 static_cast<float>(k)};
         ax.line(x, y).marker_style(ms).marker_size(8.0f);
         ++k;
@@ -384,8 +384,8 @@ TEST(SvgExport, EveryMarkerStyleBecomesOneSymbol)
 
 TEST(SvgExport, ColormappedScatterHasPerPointColours)
 {
-    Figure fig({.width = 640, .height = 480});
-    auto&  ax = fig.subplot(1, 1, 1);
+    Figure             fig({.width = 640, .height = 480});
+    auto&              ax = fig.subplot(1, 1, 1);
     std::vector<float> x = {0.0f, 1.0f, 2.0f}, y = {0.0f, 1.0f, 2.0f}, v = {0.0f, 0.5f, 1.0f};
     ax.scatter(x, y).color_values(v).colormap(ColormapType::Grayscale).colormap_range(0.0f, 1.0f);
     fig.compute_layout();
@@ -397,9 +397,9 @@ TEST(SvgExport, ColormappedScatterHasPerPointColours)
 
 TEST(SvgExport, BarsEmitFillAndOutline)
 {
-    Figure fig({.width = 800, .height = 600});
-    auto&  v = fig.subplot(1, 2, 1);
-    auto&  h = fig.subplot(1, 2, 2);
+    Figure             fig({.width = 800, .height = 600});
+    auto&              v = fig.subplot(1, 2, 1);
+    auto&              h = fig.subplot(1, 2, 2);
     std::vector<float> p = {1.0f, 2.0f, 3.0f}, hh = {3.0f, 1.0f, 2.0f};
     v.bar(p, hh).label("vertical");
     h.bar(p, hh).orientation(BarOrientation::Horizontal).label("horizontal");
@@ -415,7 +415,7 @@ TEST(SvgExport, BarsEmitFillAndOutline)
 
 TEST(SvgExport, StatisticalSeriesAreNotEmpty)
 {
-    Figure fig({.width = 1200, .height = 800});
+    Figure             fig({.width = 1200, .height = 800});
     std::vector<float> vals(200);
     for (size_t i = 0; i < vals.size(); ++i)
         vals[i] = std::sin(static_cast<float>(i) * 0.37f) * 10.0f + 50.0f;
@@ -426,8 +426,14 @@ TEST(SvgExport, StatisticalSeriesAreNotEmpty)
     std::vector<float> x = {0.0f, 1.0f, 2.0f}, lo = {0.0f, 0.5f, 0.0f}, hi = {1.0f, 1.5f, 1.0f};
     fig.subplot(2, 3, 4).band(x, lo, hi);
     fig.subplot(2, 3, 5).stem(x, hi);
-    fig.subplot(2, 3, 6).shapes().rect(0, 0, 1, 1).circle(2, 2, 1).ellipse(4, 2, 1, 0.5f)
-        .line(0, 0, 4, 4).arrow(0, 4, 2, 3).ring(2, 5, 1, 0.5f);
+    fig.subplot(2, 3, 6)
+        .shapes()
+        .rect(0, 0, 1, 1)
+        .circle(2, 2, 1)
+        .ellipse(4, 2, 1, 0.5f)
+        .line(0, 0, 4, 4)
+        .arrow(0, 4, 2, 3)
+        .ring(2, 5, 1, 0.5f);
     fig.compute_layout();
     std::string svg = SvgExporter::to_string(fig);
 
@@ -443,12 +449,12 @@ TEST(SvgExport, StatisticalSeriesAreNotEmpty)
 
 TEST(SvgExport, ThreeDAxesAreProjectedNotBlank)
 {
-    Figure fig({.width = 800, .height = 600});
-    auto&  ax = fig.subplot3d(1, 1, 1);
+    Figure             fig({.width = 800, .height = 600});
+    auto&              ax = fig.subplot3d(1, 1, 1);
     std::vector<float> x = {-1.0f, 0.0f, 1.0f}, y = {-1.0f, 0.5f, 1.0f}, z = {0.0f, 1.0f, 0.5f};
     ax.scatter3d(x, y, z).label("pts");
     ax.line3d(x, y, z);
-    std::vector<float> g = {-1.0f, 0.0f, 1.0f};
+    std::vector<float> g  = {-1.0f, 0.0f, 1.0f};
     std::vector<float> zz = {0.0f, 0.2f, 0.0f, 0.2f, 1.0f, 0.2f, 0.0f, 0.2f, 0.0f};
     ax.surface(g, g, zz).colormap(ColormapType::Viridis);
     ax.title("3D");
@@ -469,8 +475,8 @@ TEST(SvgExport, ThreeDAxesAreProjectedNotBlank)
 
 TEST(SvgExport, UnicodeTextIsKeptAndControlCharsDropped)
 {
-    Figure fig({.width = 640, .height = 480});
-    auto&  ax = fig.subplot(1, 1, 1);
+    Figure             fig({.width = 640, .height = 480});
+    auto&              ax = fig.subplot(1, 1, 1);
     std::vector<float> x = {0.0f, 1.0f}, y = {0.0f, 1.0f};
     ax.line(x, y).label("\xce\xbc \xc2\xb1 \xcf\x83 \xe6\xb8\xa9\xe5\xba\xa6 <&>\x01");
     ax.title("\xce\x94t [\xc2\xb5s] \"q\"");
@@ -484,8 +490,8 @@ TEST(SvgExport, UnicodeTextIsKeptAndControlCharsDropped)
 
 TEST(SvgExport, LegendWidthFitsLongestLabel)
 {
-    Figure fig({.width = 1000, .height = 600});
-    auto&  ax = fig.subplot(1, 1, 1);
+    Figure             fig({.width = 1000, .height = 600});
+    auto&              ax = fig.subplot(1, 1, 1);
     std::vector<float> x = {0.0f, 1.0f}, y = {0.0f, 1.0f};
     ax.line(x, y).label("a");
     ax.line(x, y).label("a much much longer legend label for this series");

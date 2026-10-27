@@ -334,7 +334,7 @@ std::string marker_content(MarkerStyle ms, float size)
     // the stroke lies inside the shape boundary like the SDF ring.
     auto polygon = [&](const std::vector<P>& uv, bool filled, float inradius_uv)
     {
-        const float k = filled ? s : s * std::max(0.1f, 1.0f - sw / (2.0f * inradius_uv * s));
+        const float k   = filled ? s : s * std::max(0.1f, 1.0f - sw / (2.0f * inradius_uv * s));
         std::string out = "<polygon points=\"";
         for (size_t i = 0; i < uv.size(); ++i)
         {
@@ -387,7 +387,7 @@ std::string marker_content(MarkerStyle ms, float size)
             if (ms == MarkerStyle::Plus)
             {
                 const float a = 0.75f * s;
-                d = "M" + num(-a) + " 0H" + num(a) + "M0 " + num(-a) + "V" + num(a);
+                d             = "M" + num(-a) + " 0H" + num(a) + "M0 " + num(-a) + "V" + num(a);
             }
             else
             {
@@ -483,12 +483,18 @@ struct DataToSvg
 
 // Clip segment a-b to the rectangle [x0,x1]x[y0,y1] (Liang-Barsky).
 // Returns false when nothing is inside; t0/t1 give the visible parameter range.
-bool clip_segment(double ax, double ay, double bx, double by, const double r[4], double& t0, double& t1)
+bool clip_segment(double       ax,
+                  double       ay,
+                  double       bx,
+                  double       by,
+                  const double r[4],
+                  double&      t0,
+                  double&      t1)
 {
-    t0               = 0.0;
-    t1               = 1.0;
-    const double dx  = bx - ax;
-    const double dy  = by - ay;
+    t0                = 0.0;
+    t1                = 1.0;
+    const double dx   = bx - ax;
+    const double dy   = by - ay;
     const double p[4] = {-dx, dx, -dy, dy};
     const double q[4] = {ax - r[0], r[1] - ax, ay - r[2], r[3] - ay};
     for (int i = 0; i < 4; ++i)
@@ -519,14 +525,16 @@ std::string polyline_path(std::span<const float> x,
                           double                 x_offset)
 {
     const double margin  = std::max(m.vp_w, m.vp_h) + 50.0;
-    const double rect[4] = {m.vp_x - margin, m.vp_x + m.vp_w + margin, m.vp_y - margin,
+    const double rect[4] = {m.vp_x - margin,
+                            m.vp_x + m.vp_w + margin,
+                            m.vp_y - margin,
                             m.vp_y + m.vp_h + margin};
     std::string  d;
-    const size_t n       = std::min(x.size(), y.size());
-    bool         pen     = false;   // path currently ends exactly at the previous sample
-    bool         have    = false;   // previous sample is valid
+    const size_t n    = std::min(x.size(), y.size());
+    bool         pen  = false;   // path currently ends exactly at the previous sample
+    bool         have = false;   // previous sample is valid
     double       px = 0, py = 0;
-    auto         put_pt  = [&](char cmd, double ux, double uy)
+    auto         put_pt = [&](char cmd, double ux, double uy)
     {
         d += cmd;
         put_num(d, ux);
@@ -622,8 +630,7 @@ void emit_markers(SvgContext&               c,
     const std::string id     = c.marker_symbol(ms, size);
     const float       margin = size + 2.0f;
     c.body << "      <g class=\"markers\" color=\"" << hex(col) << "\""
-           << opacity_attr("fill-opacity", alpha) << opacity_attr("stroke-opacity", alpha)
-           << ">\n";
+           << opacity_attr("fill-opacity", alpha) << opacity_attr("stroke-opacity", alpha) << ">\n";
     for (size_t i = 0; i < n; ++i)
     {
         if (!std::isfinite(x[i]) || !std::isfinite(y[i]))
@@ -685,7 +692,7 @@ void emit_fill(SvgContext&            c,
             const double cy = 0.5 * (g.min_y + g.max_y);
             const auto   a  = static_cast<float>(g.c0 + g.gx * cx + g.gy * cy);
             out << " fill=\"" << hex(col) << "\""
-                   << opacity_attr("fill-opacity", clamp01(a) * alpha_scale) << "/>\n";
+                << opacity_attr("fill-opacity", clamp01(a) * alpha_scale) << "/>\n";
             return;
         }
         // Gradient along the alpha slope, spanning the group's bounding box.
@@ -733,9 +740,9 @@ void emit_fill(SvgContext&            c,
         if (std::fabs(det) < 1e-9)
             continue;
         const double da1 = pa[1] - pa[0], da2 = pa[2] - pa[0];
-        const double gx  = (da1 * e2y - da2 * e1y) / det;
-        const double gy  = (e1x * da2 - e2x * da1) / det;
-        const double c0  = pa[0] - gx * px[0] - gy * py[0];
+        const double gx = (da1 * e2y - da2 * e1y) / det;
+        const double gy = (e1x * da2 - e2x * da1) / det;
+        const double c0 = pa[0] - gx * px[0] - gy * py[0];
 
         if (open)
         {
@@ -866,7 +873,7 @@ void emit_series_2d(SvgContext& c, const Series& s, const DataToSvg& m)
     else if (auto* bp_src = dynamic_cast<const BoxPlotSeries*>(&s))
     {
         std::unique_ptr<BoxPlotSeries> bp_copy;
-        const BoxPlotSeries*          bp = fresh_geometry(bp_src, bp_copy);
+        const BoxPlotSeries*           bp = fresh_geometry(bp_src, bp_copy);
         fill_and_outline(bp->fill_verts(), bp->x_data(), bp->y_data(), 0.45f, 1.5f, "box");
         if (bp->outlier_count() > 0)
             emit_markers(c,
@@ -882,25 +889,25 @@ void emit_series_2d(SvgContext& c, const Series& s, const DataToSvg& m)
     else if (auto* vn_src = dynamic_cast<const ViolinSeries*>(&s))
     {
         std::unique_ptr<ViolinSeries> vn_copy;
-        const ViolinSeries*          vn = fresh_geometry(vn_src, vn_copy);
+        const ViolinSeries*           vn = fresh_geometry(vn_src, vn_copy);
         fill_and_outline(vn->fill_verts(), vn->x_data(), vn->y_data(), 0.40f, 1.5f, "violin");
     }
     else if (auto* hs_src = dynamic_cast<const HistogramSeries*>(&s))
     {
         std::unique_ptr<HistogramSeries> hs_copy;
-        const HistogramSeries*          hs = fresh_geometry(hs_src, hs_copy);
+        const HistogramSeries*           hs = fresh_geometry(hs_src, hs_copy);
         fill_and_outline(hs->fill_verts(), hs->x_data(), hs->y_data(), 0.65f, 1.0f, "histogram");
     }
     else if (auto* bs_src = dynamic_cast<const BarSeries*>(&s))
     {
         std::unique_ptr<BarSeries> bs_copy;
-        const BarSeries*          bs = fresh_geometry(bs_src, bs_copy);
+        const BarSeries*           bs = fresh_geometry(bs_src, bs_copy);
         fill_and_outline(bs->fill_verts(), bs->x_data(), bs->y_data(), 0.75f, 1.5f, "bar");
     }
     else if (auto* band_src = dynamic_cast<const BandSeries*>(&s))
     {
         std::unique_ptr<BandSeries> band_copy;
-        const BandSeries*          band = fresh_geometry(band_src, band_copy);
+        const BandSeries*           band = fresh_geometry(band_src, band_copy);
         emit_fill(c, band->fill_verts(), m, xoff, col, alpha * band->fill_opacity(), "band");
         if (band->show_edges() && band->edge_width() > 0.0f && band->point_count() > 1)
             emit_stroke_path(c,
@@ -913,7 +920,7 @@ void emit_series_2d(SvgContext& c, const Series& s, const DataToSvg& m)
     else if (auto* stem_src = dynamic_cast<const StemSeries*>(&s))
     {
         std::unique_ptr<StemSeries> stem_copy;
-        const StemSeries*          stem = fresh_geometry(stem_src, stem_copy);
+        const StemSeries*           stem = fresh_geometry(stem_src, stem_copy);
         if (stem->point_count() > 1)
         {
             emit_stroke_path(c,
@@ -948,7 +955,7 @@ void emit_series_2d(SvgContext& c, const Series& s, const DataToSvg& m)
     else if (auto* sh_src = dynamic_cast<const ShapeSeries*>(&s))
     {
         std::unique_ptr<ShapeSeries> sh_copy;
-        const ShapeSeries*          sh = fresh_geometry(sh_src, sh_copy, true);
+        const ShapeSeries*           sh = fresh_geometry(sh_src, sh_copy, true);
         fill_and_outline(sh->fill_verts(), sh->x_data(), sh->y_data(), 0.50f, 1.5f, "shape");
     }
 }
@@ -1109,7 +1116,7 @@ void emit_legend(SvgContext& c, const AxesBase& axes, const Rect& vp, const Lege
     const Rect r = legend_layout::detail::corner_rect(pos, vp, w, h, margin);
 
     // Same "unset" sentinel as LegendInteraction: rgb all zero -> theme colour.
-    auto        unset  = [](const Color& col) { return col.r == 0.0f && col.g == 0.0f && col.b == 0.0f; };
+    auto unset = [](const Color& col) { return col.r == 0.0f && col.g == 0.0f && col.b == 0.0f; };
     const Color bg     = unset(cfg.bg_color) ? st.legend_bg : cfg.bg_color;
     const Color border = unset(cfg.border_color) ? st.legend_border : cfg.border_color;
     c.body << "    <g class=\"legend\">\n";
@@ -1143,9 +1150,9 @@ void emit_legend(SvgContext& c, const AxesBase& axes, const Rect& vp, const Lege
                 c.body << "/>\n";
                 if (e.marker != MarkerStyle::None)
                     c.body << "      <use xlink:href=\"#"
-                           << c.marker_symbol(e.marker, std::min(e.marker_size, 10.0f))
-                           << "\" x=\"" << num(cx) << "\" y=\"" << num(ey) << "\" color=\""
-                           << hex(e.color) << "\"" << opacity_attr("opacity", e.alpha) << "/>\n";
+                           << c.marker_symbol(e.marker, std::min(e.marker_size, 10.0f)) << "\" x=\""
+                           << num(cx) << "\" y=\"" << num(ey) << "\" color=\"" << hex(e.color)
+                           << "\"" << opacity_attr("opacity", e.alpha) << "/>\n";
                 break;
             }
             case SwatchKind::Marker:
@@ -1189,9 +1196,8 @@ void emit_legend(SvgContext& c, const AxesBase& axes, const Rect& vp, const Lege
 std::string clip_rect(SvgContext& c, const Rect& vp)
 {
     const std::string id = c.new_id("clip");
-    c.defs << "    <clipPath id=\"" << id << "\"><rect x=\"" << num(vp.x) << "\" y=\""
-           << num(vp.y) << "\" width=\"" << num(vp.w) << "\" height=\"" << num(vp.h)
-           << "\"/></clipPath>\n";
+    c.defs << "    <clipPath id=\"" << id << "\"><rect x=\"" << num(vp.x) << "\" y=\"" << num(vp.y)
+           << "\" width=\"" << num(vp.w) << "\" height=\"" << num(vp.h) << "\"/></clipPath>\n";
     return id;
 }
 
@@ -1243,10 +1249,8 @@ void emit_grid_2d(SvgContext& c, const Axes& axes, const DataToSvg& m)
     const double left    = m.vp_x;
     const double right   = m.vp_x + m.vp_w;
 
-    auto emit_lines = [&](const std::vector<double>& xs,
-                          const std::vector<double>& ys,
-                          const Color&               col,
-                          float                      w)
+    auto emit_lines =
+        [&](const std::vector<double>& xs, const std::vector<double>& ys, const Color& col, float w)
     {
         std::string d;
         for (double v : xs)
@@ -1395,8 +1399,7 @@ void emit_axes_2d(SvgContext& c, const Axes& axes, const LegendConfig& legend)
     }
     {
         float     last_bottom = -1e30f;
-        const int n =
-            static_cast<int>(std::min(y_ticks.positions.size(), y_ticks.labels.size()));
+        const int n = static_cast<int>(std::min(y_ticks.positions.size(), y_ticks.labels.size()));
         for (int i = n - 1; i >= 0; --i)
         {
             const auto idx = static_cast<size_t>(i);
@@ -1411,9 +1414,9 @@ void emit_axes_2d(SvgContext& c, const Axes& axes, const LegendConfig& legend)
                       st.tick_label,
                       "end",
                       VAlign::Middle);
-            last_bottom      = py + TICK_FONT_PX * 0.5f;
-            max_y_tick_width = std::max(max_y_tick_width,
-                                        estimate_text_width(y_ticks.labels[idx], TICK_FONT_PX));
+            last_bottom = py + TICK_FONT_PX * 0.5f;
+            max_y_tick_width =
+                std::max(max_y_tick_width, estimate_text_width(y_ticks.labels[idx], TICK_FONT_PX));
         }
     }
     c.body << "    </g>\n";
@@ -1463,7 +1466,7 @@ void emit_axes_2d(SvgContext& c, const Axes& axes, const LegendConfig& legend)
             continue;
         std::unique_ptr<ShapeSeries> shape_copy;
         const ShapeSeries*           shape = fresh_geometry(shape_src, shape_copy, true);
-        const Color sc = theme_series_color(*shape, st);
+        const Color                  sc    = theme_series_color(*shape, st);
         for (const auto& ann : shape->text_annotations())
         {
             Color tc = ann.text_color.a > 0.01f ? ann.text_color : sc;
@@ -1498,7 +1501,7 @@ struct Prim3D
     uint32_t group = 0;      // index into the style groups
     Kind     kind  = Segment;
     float    p[6]{};
-    Color    color;              // triangle fill / per-segment stroke
+    Color    color;   // triangle fill / per-segment stroke
     bool     has_color = false;
 };
 
@@ -1506,7 +1509,7 @@ struct Prim3D
 struct Group3D
 {
     std::string open_tag;
-    std::string symbol;              // marker symbol id (markers)
+    std::string symbol;                // marker symbol id (markers)
     bool        seam_stroke = false;   // stroke triangles in their fill colour
 };
 
@@ -1729,9 +1732,9 @@ void emit_axes_3d(SvgContext& c, const Axes3D& axes, const LegendConfig& legend)
             for (int k = 0; k < 4; ++k)
             {
                 double p0[3], p1[3];
-                p0[a]  = lo[a];
-                p1[a]  = hi[a];
-                p0[b]  = p1[b]  = (k & 1) ? hi[b] : lo[b];
+                p0[a] = lo[a];
+                p1[a] = hi[a];
+                p0[b] = p1[b] = (k & 1) ? hi[b] : lo[b];
                 p0[cc] = p1[cc] = (k & 2) ? hi[cc] : lo[cc];
                 add_segment(gi, {p0[0], p0[1], p0[2]}, {p1[0], p1[1], p1[2]}, nullptr);
             }
@@ -1742,9 +1745,7 @@ void emit_axes_3d(SvgContext& c, const Axes3D& axes, const LegendConfig& legend)
     vec3 ld = axes.lighting_enabled() ? axes.light_dir() : vec3{0, 0, 0};
     if (vec3_dot(ld, ld) < 0.001)
         ld = {0.5, 0.7, 1.0};
-    const Lighting3D base_light{cam.position,
-                                pj.model_dir(ld),
-                                pj.model_dir({-0.3, -0.5, 0.4})};
+    const Lighting3D base_light{cam.position, pj.model_dir(ld), pj.model_dir({-0.3, -0.5, 0.4})};
     auto             material = [&](float amb, float spec, float shin)
     {
         Lighting3D l = base_light;
@@ -1773,8 +1774,8 @@ void emit_axes_3d(SvgContext& c, const Axes3D& axes, const LegendConfig& legend)
         if (auto* l3 = dynamic_cast<const LineSeries3D*>(&s))
         {
             groups.push_back({"<g class=\"line3d\" fill=\"none\" stroke=\"" + hex(col)
-                                  + "\" stroke-width=\"" + num(l3->width() + LINE_AA_EXTRA_PX) + "\""
-                                  + opacity_attr("stroke-opacity", alpha)
+                                  + "\" stroke-width=\"" + num(l3->width() + LINE_AA_EXTRA_PX)
+                                  + "\"" + opacity_attr("stroke-opacity", alpha)
                                   + " stroke-linecap=\"round\">",
                               {},
                               false});
@@ -1866,12 +1867,13 @@ void emit_axes_3d(SvgContext& c, const Axes3D& axes, const LegendConfig& legend)
                      opaque});
                 const Lighting3D lt =
                     material(surf->ambient(), surf->specular(), surf->shininess());
-                static constexpr std::array<std::array<int, 3>, 2> tris = {
-                    {{0, 1, 2}, {0, 2, 3}}};
+                static constexpr std::array<std::array<int, 3>, 2> tris = {{{0, 1, 2}, {0, 2, 3}}};
                 for (size_t i = 0; i + 1 < ur; ++i)
                     for (size_t j = 0; j + 1 < uc; ++j)
                     {
-                        const vec3 q[4] = {vtx(i, j), vtx(i, j + 1), vtx(i + 1, j + 1),
+                        const vec3 q[4] = {vtx(i, j),
+                                           vtx(i, j + 1),
+                                           vtx(i + 1, j + 1),
                                            vtx(i + 1, j)};
                         for (const auto& tri : tris)
                         {
@@ -1998,7 +2000,7 @@ void emit_axes_3d(SvgContext& c, const Axes3D& axes, const LegendConfig& legend)
         const char*        fallback;
         const std::string& label;
     };
-    const double len[3]    = {(hi[0] - lo[0]) * 0.18, (hi[1] - lo[1]) * 0.18, (hi[2] - lo[2]) * 0.18};
+    const double len[3] = {(hi[0] - lo[0]) * 0.18, (hi[1] - lo[1]) * 0.18, (hi[2] - lo[2]) * 0.18};
     const Arrow  arrows[3] = {
         {{hi[0], lo[1], lo[2]},
           {hi[0] + len[0], lo[1], lo[2]},
@@ -2035,9 +2037,8 @@ void emit_axes_3d(SvgContext& c, const Axes3D& axes, const LegendConfig& legend)
             const float uy = dy / dl;
             const float hl = std::min(9.0f, dl * 0.5f);
             c.body << "    <polygon points=\"" << num(bx + ux * hl * 0.6f) << ','
-                   << num(by + uy * hl * 0.6f) << ' '
-                   << num(bx - ux * hl * 0.4f - uy * hl * 0.45f) << ','
-                   << num(by - uy * hl * 0.4f + ux * hl * 0.45f) << ' '
+                   << num(by + uy * hl * 0.6f) << ' ' << num(bx - ux * hl * 0.4f - uy * hl * 0.45f)
+                   << ',' << num(by - uy * hl * 0.4f + ux * hl * 0.45f) << ' '
                    << num(bx - ux * hl * 0.4f + uy * hl * 0.45f) << ','
                    << num(by - uy * hl * 0.4f - ux * hl * 0.45f) << "\" fill=\"" << hex(a.color)
                    << "\"" << opacity_attr("fill-opacity", a.color.a) << "/>\n";
@@ -2148,7 +2149,14 @@ void emit_axes_3d(SvgContext& c, const Axes3D& axes, const LegendConfig& legend)
                               "end",
                               VAlign::Middle);
                 else
-                    emit_text(c.body, t, sx, sy, TICK_FONT_PX, st.tick_label, "middle", VAlign::Top);
+                    emit_text(c.body,
+                              t,
+                              sx,
+                              sy,
+                              TICK_FONT_PX,
+                              st.tick_label,
+                              "middle",
+                              VAlign::Top);
             }
         }
         c.body << "    </g>\n";
@@ -2191,8 +2199,8 @@ std::string SvgExporter::to_string(const Figure& figure, const SvgStyle& style)
     svg << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
     svg << "<svg xmlns=\"http://www.w3.org/2000/svg\" "
            "xmlns:xlink=\"http://www.w3.org/1999/xlink\" width=\""
-        << w << "\" height=\"" << h << "\" viewBox=\"0 0 " << w << " " << h
-        << "\" font-family=\"" << xml_escape(style.font_family) << "\">\n";
+        << w << "\" height=\"" << h << "\" viewBox=\"0 0 " << w << " " << h << "\" font-family=\""
+        << xml_escape(style.font_family) << "\">\n";
     const std::string defs = c.defs.str();
     if (!defs.empty())
         svg << "  <defs>\n" << defs << "  </defs>\n";

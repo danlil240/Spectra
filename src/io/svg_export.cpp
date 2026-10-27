@@ -526,7 +526,8 @@ bool clip_segment(double       ax,
 std::string polyline_path(std::span<const float> x,
                           std::span<const float> y,
                           const DataToSvg&       m,
-                          double                 x_offset)
+                          double                 x_offset,
+                          double                 y_offset)
 {
     const double margin  = std::max(m.vp_w, m.vp_h) + 50.0;
     const double rect[4] = {m.vp_x - margin,
@@ -554,7 +555,7 @@ std::string polyline_path(std::span<const float> x,
             continue;
         }
         const double cx = m.map_x(x_offset + x[i]);
-        const double cy = m.map_y(y[i]);
+        const double cy = m.map_y(y_offset + y[i]);
         if (have)
         {
             double t0 = 0, t1 = 1;
@@ -622,6 +623,7 @@ void emit_markers(SvgContext&               c,
                   std::span<const float>    y,
                   const DataToSvg&          m,
                   double                    x_offset,
+                  double                    y_offset,
                   MarkerStyle               ms,
                   float                     size,
                   const Color&              col,
@@ -640,7 +642,7 @@ void emit_markers(SvgContext&               c,
         if (!std::isfinite(x[i]) || !std::isfinite(y[i]))
             continue;
         const double px = m.map_x(x_offset + x[i]);
-        const double py = m.map_y(y[i]);
+        const double py = m.map_y(y_offset + y[i]);
         if (px < m.vp_x - margin || px > m.vp_x + m.vp_w + margin || py < m.vp_y - margin
             || py > m.vp_y + m.vp_h + margin)
             continue;
@@ -662,6 +664,7 @@ void emit_fill(SvgContext&            c,
                std::span<const float> verts,
                const DataToSvg&       m,
                double                 x_offset,
+               double                 y_offset,
                const Color&           col,
                float                  alpha_scale,
                const char*            cls)
@@ -733,7 +736,7 @@ void emit_fill(SvgContext&            c,
             if (!std::isfinite(v[0]) || !std::isfinite(v[1]) || !std::isfinite(v[2]))
                 ok = false;
             px[k] = m.map_x(x_offset + v[0]);
-            py[k] = m.map_y(v[1]);
+            py[k] = m.map_y(y_offset + v[1]);
             pa[k] = v[2];
         }
         if (!ok)
@@ -812,6 +815,7 @@ void emit_series_2d(SvgContext& c, const Series& s, const DataToSvg& m)
     const Color     col   = theme_series_color(s, st);
     const float     alpha = series_alpha(s);
     const double    xoff  = s.x_offset();
+    const double    yoff  = s.y_offset();
     const auto&     style = s.plot_style();
 
     // Fill + outline series (render_2d.cpp: per-type fill alpha / outline width).
@@ -822,16 +826,16 @@ void emit_series_2d(SvgContext& c, const Series& s, const DataToSvg& m)
                                 float                  outline_w,
                                 const char*            cls)
     {
-        emit_fill(c, fill, m, xoff, col, alpha * fill_alpha, cls);
+        emit_fill(c, fill, m, xoff, yoff, col, alpha * fill_alpha, cls);
         if (lx.size() > 1)
-            emit_stroke_path(c, polyline_path(lx, ly, m, xoff), cls, col, alpha, outline_w);
+            emit_stroke_path(c, polyline_path(lx, ly, m, xoff, yoff), cls, col, alpha, outline_w);
     };
 
     if (auto* ls = dynamic_cast<const LineSeries*>(&s))
     {
         if (style.has_line() && ls->point_count() >= 2)
             emit_stroke_path(c,
-                             polyline_path(ls->x_data(), ls->y_data(), m, xoff),
+                             polyline_path(ls->x_data(), ls->y_data(), m, xoff, yoff),
                              "line",
                              col,
                              alpha,
@@ -843,6 +847,7 @@ void emit_series_2d(SvgContext& c, const Series& s, const DataToSvg& m)
                          ls->y_data(),
                          m,
                          xoff,
+                         yoff,
                          style.marker_style,
                          style.marker_size,
                          col,
@@ -868,6 +873,7 @@ void emit_series_2d(SvgContext& c, const Series& s, const DataToSvg& m)
                      sc->y_data(),
                      m,
                      xoff,
+                     yoff,
                      default_scatter_marker(style.marker_style, st),
                      sc->size(),
                      col,
@@ -885,6 +891,7 @@ void emit_series_2d(SvgContext& c, const Series& s, const DataToSvg& m)
                          bp->outlier_y(),
                          m,
                          xoff,
+                         yoff,
                          MarkerStyle::Circle,
                          5.0f,
                          col,
@@ -912,10 +919,10 @@ void emit_series_2d(SvgContext& c, const Series& s, const DataToSvg& m)
     {
         std::unique_ptr<BandSeries> band_copy;
         const BandSeries*           band = fresh_geometry(band_src, band_copy);
-        emit_fill(c, band->fill_verts(), m, xoff, col, alpha * band->fill_opacity(), "band");
+        emit_fill(c, band->fill_verts(), m, xoff, yoff, col, alpha * band->fill_opacity(), "band");
         if (band->show_edges() && band->edge_width() > 0.0f && band->point_count() > 1)
             emit_stroke_path(c,
-                             polyline_path(band->x_data(), band->y_data(), m, xoff),
+                             polyline_path(band->x_data(), band->y_data(), m, xoff, yoff),
                              "band",
                              col,
                              alpha,
@@ -928,7 +935,7 @@ void emit_series_2d(SvgContext& c, const Series& s, const DataToSvg& m)
         if (stem->point_count() > 1)
         {
             emit_stroke_path(c,
-                             polyline_path(stem->x_data(), stem->y_data(), m, xoff),
+                             polyline_path(stem->x_data(), stem->y_data(), m, xoff, yoff),
                              "stem",
                              col,
                              alpha,
@@ -949,6 +956,7 @@ void emit_series_2d(SvgContext& c, const Series& s, const DataToSvg& m)
                              hy,
                              m,
                              xoff,
+                             yoff,
                              MarkerStyle::FilledCircle,
                              style.marker_size > 0.0f ? style.marker_size : 6.0f,
                              col,
@@ -1508,7 +1516,7 @@ void emit_axes_2d(SvgContext& c, const Axes& axes, const LegendConfig& legend)
             emit_text(c.body,
                       ann.content,
                       m.map_x(shape->x_offset() + ann.x),
-                      m.map_y(ann.y),
+                      m.map_y(shape->y_offset() + ann.y),
                       ann.font_size > 0.0f ? ann.font_size : LABEL_FONT_PX,
                       tc,
                       anchors[std::clamp(ann.align, 0, 2)],

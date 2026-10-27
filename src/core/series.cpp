@@ -4,6 +4,7 @@
 #include <spectra/event_bus.hpp>
 #include <spectra/series.hpp>
 
+#include "data_origin.hpp"
 #include "pending_series_data.hpp"
 
 namespace spectra
@@ -21,7 +22,8 @@ Series::~Series() = default;
 Series::Series(const Series& other)
     : label_(other.label_), color_(other.color_), auto_color_index_(other.auto_color_index_),
       color_letter_(other.color_letter_), style_(other.style_), visible_(other.visible_),
-      x_offset_(other.x_offset_), excluded_from_autoscale_(other.excluded_from_autoscale_),
+      x_offset_(other.x_offset_), y_offset_(other.y_offset_),
+      excluded_from_autoscale_(other.excluded_from_autoscale_),
       show_in_legend_(other.show_in_legend_), is_reference_line_(other.is_reference_line_),
       dirty_(other.dirty_.load(std::memory_order_relaxed)), event_system_(other.event_system_),
       owning_axes_(other.owning_axes_), pending_(nullptr)
@@ -39,6 +41,7 @@ Series& Series::operator=(const Series& other)
         style_                   = other.style_;
         visible_                 = other.visible_;
         x_offset_                = other.x_offset_;
+        y_offset_                = other.y_offset_;
         excluded_from_autoscale_ = other.excluded_from_autoscale_;
         show_in_legend_          = other.show_in_legend_;
         is_reference_line_       = other.is_reference_line_;
@@ -202,6 +205,35 @@ LineSeries& LineSeries::set_y(std::span<const float> y)
     return *this;
 }
 
+void LineSeries::set_x_f64(std::span<const double> x)
+{
+    const double origin = detail::choose_data_origin(x);
+    auto         xf     = detail::to_float_offsets(x, origin);
+    if (thread_safe_ && pending_)
+    {
+        pending_->replace_x(std::move(xf), origin);
+        return;
+    }
+    x_        = std::move(xf);
+    x_offset_ = origin;
+    x_sorted_ = x_sorted_without_nan(x_.begin(), x_.end());
+    dirty_    = true;
+}
+
+void LineSeries::set_y_f64(std::span<const double> y)
+{
+    const double origin = detail::choose_data_origin(y);
+    auto         yf     = detail::to_float_offsets(y, origin);
+    if (thread_safe_ && pending_)
+    {
+        pending_->replace_y(std::move(yf), origin);
+        return;
+    }
+    y_        = std::move(yf);
+    y_offset_ = origin;
+    dirty_    = true;
+}
+
 void LineSeries::append(float x, float y)
 {
     if (thread_safe_ && pending_)
@@ -300,7 +332,7 @@ bool LineSeries::commit_pending()
 {
     if (!pending_ || !pending_->has_pending())
         return false;
-    if (pending_->commit(x_, y_, &x_sorted_))
+    if (pending_->commit(x_, y_, &x_sorted_, &x_offset_, &y_offset_))
     {
         mark_dirty();
         return true;
@@ -342,6 +374,35 @@ ScatterSeries& ScatterSeries::set_y(std::span<const float> y)
     return *this;
 }
 
+void ScatterSeries::set_x_f64(std::span<const double> x)
+{
+    const double origin = detail::choose_data_origin(x);
+    auto         xf     = detail::to_float_offsets(x, origin);
+    if (thread_safe_ && pending_)
+    {
+        pending_->replace_x(std::move(xf), origin);
+        return;
+    }
+    x_        = std::move(xf);
+    x_offset_ = origin;
+    x_sorted_ = x_sorted_without_nan(x_.begin(), x_.end());
+    dirty_    = true;
+}
+
+void ScatterSeries::set_y_f64(std::span<const double> y)
+{
+    const double origin = detail::choose_data_origin(y);
+    auto         yf     = detail::to_float_offsets(y, origin);
+    if (thread_safe_ && pending_)
+    {
+        pending_->replace_y(std::move(yf), origin);
+        return;
+    }
+    y_        = std::move(yf);
+    y_offset_ = origin;
+    dirty_    = true;
+}
+
 void ScatterSeries::append(float x, float y)
 {
     if (thread_safe_ && pending_)
@@ -366,7 +427,7 @@ bool ScatterSeries::commit_pending()
 {
     if (!pending_ || !pending_->has_pending())
         return false;
-    if (pending_->commit(x_, y_, &x_sorted_))
+    if (pending_->commit(x_, y_, &x_sorted_, &x_offset_, &y_offset_))
     {
         mark_dirty();
         return true;

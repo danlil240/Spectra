@@ -218,6 +218,7 @@ set(SPECTRA_UNIT_TESTS
     test_eigen_support
     test_csv_loader
     test_series_stats
+    test_double_precision_data
     test_series_clipboard
     test_clipboard_export
     test_series_reorder
@@ -360,6 +361,10 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
         # Link Eigen3 for Eigen-specific tests
         if(_test STREQUAL "test_eigen_support" AND SPECTRA_USE_EIGEN)
             target_link_libraries(unit_${_test} PRIVATE Eigen3::Eigen)
+        endif()
+        # Hover round trip drives DataInteraction, which needs an ImGui context
+        if(_test STREQUAL "test_double_precision_data" AND DEFINED imgui_SOURCE_DIR)
+            target_include_directories(unit_${_test} SYSTEM PRIVATE ${imgui_SOURCE_DIR})
         endif()
         # Pass mock plugin path to transform plugin tests
         if(_test STREQUAL "test_plugin_transforms")

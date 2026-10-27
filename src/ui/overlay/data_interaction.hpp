@@ -259,7 +259,7 @@ class DataInteraction
     Rect          active_viewport_;
     // Double precision for x: limits can sit at epoch scale (~1.7e9).
     double xlim_min_ = 0.0, xlim_max_ = 1.0;
-    float  ylim_min_ = 0.0f, ylim_max_ = 1.0f;
+    double ylim_min_ = 0.0, ylim_max_ = 1.0;
 
     // Region selection: remember which axes the ROI was started in
     // so it stays in the correct subplot when the cursor moves.

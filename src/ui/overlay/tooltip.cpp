@@ -8,6 +8,7 @@
     #include <imgui.h>
     #include <spectra/axes3d.hpp>
 
+    #include "readout_format.hpp"
     #include "ui/theme/design_tokens.hpp"
     #include "ui/theme/theme.hpp"
 
@@ -79,12 +80,10 @@ void Tooltip::draw(const NearestPointResult& nearest,
 
     const auto& colors = theme_mgr_->colors();
 
-    // Format coordinate strings.  Large x values (epoch timestamps) use
-    // fixed notation with full precision instead of lossy scientific form.
-    const std::string x_buf = std::abs(nearest.data_x) >= 1e6
-                                  ? std::format("{:.3f}", nearest.data_x)
-                                  : std::format("{:.6g}", nearest.data_x);
-    const std::string y_buf = std::format("{:.6g}", nearest.data_y);
+    // Format coordinate strings.  Large values (epoch timestamps, big
+    // offsets) use fixed notation instead of lossy scientific form.
+    const std::string x_buf = ui::format_readout_value(nearest.data_x, 6);
+    const std::string y_buf = ui::format_readout_value(nearest.data_y, 6);
 
     // Format dy/dx value (label rendered separately)
     std::string dydx_value;

@@ -26,10 +26,10 @@ struct NearestPointResult
     const Series* series       = nullptr;
     int           series_index = -1;   // 0-based index within its axes (-1 = unknown)
     size_t        point_index  = 0;
-    // Absolute data x (includes series x_offset); double so epoch-scale
-    // timestamps keep sub-second precision.
+    // Absolute data x/y (include the series x_offset/y_offset); double so
+    // epoch-scale timestamps and large offsets keep their precision.
     double        data_x      = 0.0;
-    float         data_y      = 0.0f;
+    double        data_y      = 0.0;
     float         data_z      = 0.0f;
     float         screen_x    = 0.0f;
     float         screen_y    = 0.0f;

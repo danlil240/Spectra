@@ -215,14 +215,15 @@ void Renderer::upload_series_data(Series&   series,
         // Camera-relative upload: subtract origin in double precision
         // before converting to float.  Keeps GPU floats small, eliminating
         // catastrophic cancellation at deep zoom.
-        // The series x_offset (logical x = x_offset + stored float) folds
-        // into the effective origin: uploaded = (x + xoff) - origin_x.
+        // The series offsets (logical x = x_offset + stored float, same for
+        // y) fold into the effective origin: uploaded = (x + xoff) - origin_x.
         const double xoff = series.x_offset();
+        const double yoff = series.y_offset();
         for (size_t i = 0; i < count; ++i)
         {
             const size_t base         = i * stride_floats;
             upload_scratch_[base]     = map_x(static_cast<double>(x_data[i]) + xoff);
-            upload_scratch_[base + 1] = map_y(static_cast<double>(y_data[i]));
+            upload_scratch_[base + 1] = map_y(static_cast<double>(y_data[i]) + yoff);
             if (use_scatter_colormap)
             {
                 upload_scratch_[base + 2] = scatter->color_values_data()[i];
@@ -286,7 +287,8 @@ void Renderer::upload_series_data(Series&   series,
                 gpu.fill_vertex_capacity = fill_alloc;
             }
 
-            if (xoff != origin_x || origin_y != 0.0 || is_log_scale(xscale) || is_log_scale(yscale))
+            if (xoff != origin_x || yoff != origin_y || is_log_scale(xscale)
+                || is_log_scale(yscale))
             {
                 // Re-center fill vertices (stride=3: x, y, alpha)
                 if (upload_scratch_.size() < fill_floats)
@@ -295,7 +297,7 @@ void Renderer::upload_series_data(Series&   series,
                 for (size_t i = 0; i < fill_count; ++i)
                 {
                     upload_scratch_[i * 3]     = map_x(static_cast<double>(fv[i * 3]) + xoff);
-                    upload_scratch_[i * 3 + 1] = map_y(static_cast<double>(fv[i * 3 + 1]));
+                    upload_scratch_[i * 3 + 1] = map_y(static_cast<double>(fv[i * 3 + 1]) + yoff);
                     upload_scratch_[i * 3 + 2] = fv[i * 3 + 2];   // alpha unchanged
                 }
                 backend_.upload_buffer(gpu.fill_buffer, upload_scratch_.data(), fill_bytes);
@@ -334,7 +336,7 @@ void Renderer::upload_series_data(Series&   series,
             for (size_t i = 0; i < out_count; ++i)
             {
                 upload_scratch_[i * 2]     = map_x(static_cast<double>(ox[i]) + xoff);
-                upload_scratch_[i * 2 + 1] = map_y(static_cast<double>(oy[i]));
+                upload_scratch_[i * 2 + 1] = map_y(static_cast<double>(oy[i]) + yoff);
             }
             backend_.upload_buffer(gpu.outlier_buffer, upload_scratch_.data(), out_byte_size);
             gpu.outlier_count = out_count;
@@ -401,10 +403,11 @@ void Renderer::upload_series_data(Series&   series,
             upload_scratch_.resize(floats_needed);
 
         const double xoff = series.x_offset();
+        const double yoff = series.y_offset();
         for (size_t i = 0; i < count; ++i)
         {
             upload_scratch_[i * 2]     = map_x(static_cast<double>(vis.x[i]) + xoff);
-            upload_scratch_[i * 2 + 1] = map_y(static_cast<double>(vis.y[i]));
+            upload_scratch_[i * 2 + 1] = map_y(static_cast<double>(vis.y[i]) + yoff);
         }
 
         backend_.upload_buffer(gpu.ssbo, upload_scratch_.data(), byte_size);

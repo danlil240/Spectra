@@ -317,11 +317,12 @@ inline size_t overlap_score(const Axes&    axes,
         return 0;
 
     double xoff     = 0.0;
+    double yoff     = 0.0;
     auto   to_pixel = [&](double x, double y, float& px, float& py)
     {
         double sx = 0.0, sy = 0.0;
         if (!detail::apply_scale(axes.xscale(), xoff + x, sx)
-            || !detail::apply_scale(axes.yscale(), y, sy))
+            || !detail::apply_scale(axes.yscale(), yoff + y, sy))
             return false;
         px = vp.x + static_cast<float>((sx - x0) / dx) * vp.w;
         py = vp.y + static_cast<float>(1.0 - (sy - y0) / dy) * vp.h;
@@ -351,6 +352,7 @@ inline size_t overlap_score(const Axes&    axes,
         if (!sp || !sp->visible() || !detail::scored_geometry(*sp, g))
             continue;
         xoff = sp->x_offset();
+        yoff = sp->y_offset();
         count += count_points(g.xs, g.ys);
         count += count_points(g.extra_xs, g.extra_ys);
 

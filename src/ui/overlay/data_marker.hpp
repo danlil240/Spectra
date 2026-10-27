@@ -23,10 +23,10 @@ class Axes3D;
 // A persistent data marker pinned to a specific data point.
 struct DataMarker
 {
-    // Absolute data x (includes series x_offset); double so epoch-scale
-    // timestamps keep sub-second precision.
+    // Absolute data x/y (include the series x_offset/y_offset); double so
+    // epoch-scale timestamps and large offsets keep their precision.
     double        data_x      = 0.0;
-    float         data_y      = 0.0f;
+    double        data_y      = 0.0;
     float         data_z      = 0.0f;
     const Series* series      = nullptr;
     size_t        point_index = 0;
@@ -47,7 +47,7 @@ class DataMarkerManager
     DataMarkerManager() = default;
 
     void add(double        data_x,
-             float         data_y,
+             double        data_y,
              const Series* series,
              size_t        index,
              const Axes*   axes        = nullptr,
@@ -62,7 +62,7 @@ class DataMarkerManager
     // Toggle a data label: if a marker already exists at this (series, index),
     // remove it; otherwise add a new one. Returns true if a label was added.
     bool toggle_or_add(double        data_x,
-                       float         data_y,
+                       double        data_y,
                        const Series* series,
                        size_t        index,
                        const Axes*   axes        = nullptr,
@@ -91,8 +91,8 @@ class DataMarkerManager
     void draw(const Rect& viewport,
               double      xlim_min,
               double      xlim_max,
-              float       ylim_min,
-              float       ylim_max,
+              double      ylim_min,
+              double      ylim_max,
               float       opacity     = 1.0f,
               const Axes* filter_axes = nullptr,
               ImDrawList* dl          = nullptr);
@@ -106,8 +106,8 @@ class DataMarkerManager
                  const Rect& viewport,
                  double      xlim_min,
                  double      xlim_max,
-                 float       ylim_min,
-                 float       ylim_max,
+                 double      ylim_min,
+                 double      ylim_max,
                  float       radius_px   = 10.0f,
                  const Axes* filter_axes = nullptr) const;
 
@@ -128,12 +128,12 @@ class DataMarkerManager
 
     // Convert data coordinates to screen coordinates
     static void data_to_screen(double      data_x,
-                               float       data_y,
+                               double      data_y,
                                const Rect& viewport,
                                double      xlim_min,
                                double      xlim_max,
-                               float       ylim_min,
-                               float       ylim_max,
+                               double      ylim_min,
+                               double      ylim_max,
                                float&      screen_x,
                                float&      screen_y);
 };

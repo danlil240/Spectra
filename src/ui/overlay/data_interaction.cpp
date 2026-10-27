@@ -124,18 +124,19 @@ bool DataInteraction::select_point(const Series* series, size_t point_index)
         }
     }
 
-    // Absolute x = series x_offset + stored relative float.
+    // Absolute x/y = series x_offset/y_offset + stored relative float.
     const double abs_x = static_cast<double>(x_data[point_index]) + series->x_offset();
+    const double abs_y = static_cast<double>(y_data[point_index]) + series->y_offset();
 
     markers_.clear();
-    markers_.add(abs_x, y_data[point_index], series, point_index, target_axes, dy_dx, dy_dx_valid);
+    markers_.add(abs_x, abs_y, series, point_index, target_axes, dy_dx, dy_dx_valid);
 
     // Keep nearest cache coherent so tooltip/cursor feedback remains aligned.
     nearest_.found       = true;
     nearest_.series      = series;
     nearest_.point_index = point_index;
     nearest_.data_x      = abs_x;
-    nearest_.data_y      = y_data[point_index];
+    nearest_.data_y      = abs_y;
 
     return true;
 }
@@ -269,14 +270,14 @@ bool DataInteraction::refresh_pointer_state(double screen_x, double screen_y)
             ylim_min_    = yl.min;
             ylim_max_    = yl.max;
 
-            float x_range = xlim_max_ - xlim_min_;
-            float y_range = ylim_max_ - ylim_min_;
-            if (x_range == 0.0f)
-                x_range = 1.0f;
-            if (y_range == 0.0f)
-                y_range = 1.0f;
-            cursor.data_x = xlim_min_ + (sx - vp.x) / vp.w * x_range;
-            cursor.data_y = ylim_max_ - (sy - vp.y) / vp.h * y_range;
+            double x_range = xlim_max_ - xlim_min_;
+            double y_range = ylim_max_ - ylim_min_;
+            if (x_range == 0.0)
+                x_range = 1.0;
+            if (y_range == 0.0)
+                y_range = 1.0;
+            cursor.data_x = xlim_min_ + static_cast<double>((sx - vp.x) / vp.w) * x_range;
+            cursor.data_y = ylim_max_ - static_cast<double>((sy - vp.y) / vp.h) * y_range;
         }
         else if (auto* axes3d = dynamic_cast<Axes3D*>(axes_base))
         {
@@ -1124,8 +1125,9 @@ NearestPointResult DataInteraction::find_nearest(const CursorReadout& cursor, Fi
             if (!x_data || !y_data || count == 0)
                 continue;
 
-            // x_data is relative to the series x_offset; limits are absolute.
+            // x/y data are relative to the series offsets; limits are absolute.
             const double xoff = series_ptr->x_offset();
+            const double yoff = series_ptr->y_offset();
 
             size_t query_begin = 0;
             size_t query_end   = count;
@@ -1153,11 +1155,12 @@ NearestPointResult DataInteraction::find_nearest(const CursorReadout& cursor, Fi
             for (size_t i = query_begin; i < query_end; ++i)
             {
                 // Convert data point to screen coordinates.  Compute the
-                // x normalization in double: (x + xoff - xlim.min) stays
+                // normalization in double: (x + xoff - xlim.min) stays
                 // small and precise even for epoch-scale offsets.
                 const double abs_x  = static_cast<double>(x_data[i]) + xoff;
+                const double abs_y  = static_cast<double>(y_data[i]) + yoff;
                 auto         norm_x = static_cast<float>((abs_x - xlim.min) / x_range);
-                float        norm_y = (y_data[i] - ylim.min) / y_range;
+                auto         norm_y = static_cast<float>((abs_y - ylim.min) / y_range);
                 float        sx     = vp.x + norm_x * vp.w;
                 float        sy     = vp.y + (1.0f - norm_y) * vp.h;
 
@@ -1172,7 +1175,7 @@ NearestPointResult DataInteraction::find_nearest(const CursorReadout& cursor, Fi
                     best.series_index = series_counter;
                     best.point_index  = i;
                     best.data_x       = abs_x;
-                    best.data_y       = y_data[i];
+                    best.data_y       = abs_y;
                     best.screen_x     = sx;
                     best.screen_y     = sy;
                     best_dist2        = dist2;

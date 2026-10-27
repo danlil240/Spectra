@@ -85,6 +85,25 @@ class PendingSeriesData
         set_pending();
     }
 
+    // Full replace from the double-precision setters: the data are already
+    // float offsets from `offset`, which is applied together with them at
+    // commit so the series never pairs new data with an old offset.
+    void replace_x(std::vector<float>&& x, double offset)
+    {
+        SpinLockGuard guard(lock_);
+        pending_x_        = std::move(x);
+        pending_x_offset_ = offset;
+        set_pending();
+    }
+
+    void replace_y(std::vector<float>&& y, double offset)
+    {
+        SpinLockGuard guard(lock_);
+        pending_y_        = std::move(y);
+        pending_y_offset_ = offset;
+        set_pending();
+    }
+
     void append(float x, float y)
     {
         SpinLockGuard guard(lock_);
@@ -121,7 +140,13 @@ class PendingSeriesData
 
     // Apply all pending operations to the live data vectors.
     // Returns true if any data was modified.
-    bool commit(std::vector<float>& x, std::vector<float>& y, bool* x_sorted = nullptr)
+    // x_offset / y_offset receive the offsets queued by the double-precision
+    // replace_x / replace_y overloads (left untouched when none is queued).
+    bool commit(std::vector<float>& x,
+                std::vector<float>& y,
+                bool*               x_sorted = nullptr,
+                double*             x_offset = nullptr,
+                double*             y_offset = nullptr)
     {
         SpinLockGuard guard(lock_);
 
@@ -143,6 +168,20 @@ class PendingSeriesData
         {
             y = std::move(*pending_y_);
             pending_y_.reset();
+            changed = true;
+        }
+        if (pending_x_offset_.has_value())
+        {
+            if (x_offset)
+                *x_offset = *pending_x_offset_;
+            pending_x_offset_.reset();
+            changed = true;
+        }
+        if (pending_y_offset_.has_value())
+        {
+            if (y_offset)
+                *y_offset = *pending_y_offset_;
+            pending_y_offset_.reset();
             changed = true;
         }
 
@@ -251,6 +290,8 @@ class PendingSeriesData
     // Full-replace buffers (applied as move, so zero-copy for large datasets).
     std::optional<std::vector<float>> pending_x_;
     std::optional<std::vector<float>> pending_y_;
+    std::optional<double>             pending_x_offset_;
+    std::optional<double>             pending_y_offset_;
 
     // Append accumulator.
     std::vector<float> append_x_;

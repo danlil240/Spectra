@@ -318,3 +318,36 @@ TEST_F(PaletteVisibilityTest, UsesEffectiveSurfaceNotThemeCanvas)
                                           spectra::Color(dark.r, dark.g, dark.b));
     EXPECT_TRUE(same_rgb(on_dark.colors[3], tm_.current_data_palette().colors[3]));
 }
+
+// Issue #104: Tableau 10's olive (#BCBD22) and cyan (#17BECF) sit near 2:1 on a
+// white canvas.  The draw-time adjustment must lift them (and every other weak
+// slot) to >= 3:1 on the light theme canvas and on pure white, keeping their hue.
+TEST_F(PaletteVisibilityTest, TableauOliveAndCyanReadableOnWhite)
+{
+    tm_.set_theme("light");
+    tm_.set_data_palette("default");
+    const DataPalette& src = tm_.current_data_palette();
+    ASSERT_EQ(src.colors.size(), spectra::palette::light_cycle_size);
+
+    constexpr size_t OLIVE = 8;
+    constexpr size_t CYAN  = 9;
+    const UiColor    white(1.0f, 1.0f, 1.0f);
+    EXPECT_LT(contrast(src.colors[OLIVE], white), 3.0);   // weak as authored
+    EXPECT_LT(contrast(src.colors[CYAN], white), 3.0);
+
+    const UiColor theme_canvas = tm_.colors().bg_canvas;
+    for (const UiColor& canvas : {white, theme_canvas})
+    {
+        const DataPalette vis =
+            spectra::ui::visible_data_palette(src, spectra::Color(canvas.r, canvas.g, canvas.b));
+        for (size_t i = 0; i < vis.colors.size(); ++i)
+            EXPECT_GE(contrast(quantise(vis.colors[i]), canvas), 3.0) << "slot " << i;
+        for (size_t i : {OLIVE, CYAN})
+        {
+            const Lab    a   = oklab(src.colors[i]);
+            const Lab    b   = oklab(vis.colors[i]);
+            const double hue = std::abs(std::atan2(a.b, a.a) - std::atan2(b.b, b.a));
+            EXPECT_LT(hue, 0.15) << "slot " << i << " changed hue";
+        }
+    }
+}

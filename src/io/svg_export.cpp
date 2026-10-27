@@ -23,10 +23,12 @@
 #include <spectra/series.hpp>
 #include <spectra/series3d.hpp>
 #include <spectra/series_shapes.hpp>
+#include <spectra/series_shapes3d.hpp>
 #include <spectra/series_stats.hpp>
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -34,6 +36,8 @@
 #include "core/axis_scale.hpp"
 #include "core/label_layout.hpp"
 #include "io/svg_label_metrics.hpp"
+#include "io/text_metrics.hpp"
+#include "render/scatter_marker.hpp"
 #include "ui/overlay/legend_layout.hpp"
 
 namespace spectra
@@ -140,56 +144,12 @@ std::string xml_escape(std::string_view s)
     return out;
 }
 
-// Rough advance width of a UTF-8 string in a proportional sans-serif face.
-// Only used for layout decisions (legend width, label overlap), so a
-// per-class estimate is sufficient.
-float estimate_text_width(std::string_view s, float font_px)
+// Advance width of a UTF-8 string set at font-size `font_px`, measured with
+// the embedded Inter font's real metrics (the exporter's first font-family
+// choice).  Drives every layout decision (legend box, label fitting, overlap).
+float measure_text_width(std::string_view s, float font_px)
 {
-    float  em = 0.0f;
-    size_t i  = 0;
-    while (i < s.size())
-    {
-        const auto c0  = static_cast<unsigned char>(s[i]);
-        uint32_t   cp  = c0;
-        size_t     len = 1;
-        if (c0 >= 0xF0)
-            len = 4;
-        else if (c0 >= 0xE0)
-            len = 3;
-        else if (c0 >= 0xC0)
-            len = 2;
-        if (len > 1 && i + len <= s.size())
-        {
-            cp = c0 & (0xFFu >> (len + 1));
-            for (size_t k = 1; k < len; ++k)
-                cp = (cp << 6) | (static_cast<unsigned char>(s[i + k]) & 0x3Fu);
-        }
-        i += len;
-
-        if (cp == ' ')
-            em += 0.28f;
-        else if (cp < 0x80)
-        {
-            const char c = static_cast<char>(cp);
-            if (std::string_view("iljI.,:;!|'`").find(c) != std::string_view::npos)
-                em += 0.28f;
-            else if (std::string_view("mwMW@%").find(c) != std::string_view::npos)
-                em += 0.86f;
-            else if (c >= 'A' && c <= 'Z')
-                em += 0.66f;
-            else if (c >= '0' && c <= '9')
-                em += 0.58f;
-            else if (std::string_view("()[]{}-/\\ftr").find(c) != std::string_view::npos)
-                em += 0.36f;
-            else
-                em += 0.54f;
-        }
-        else if (cp >= 0x2E80)
-            em += 1.0f;   // CJK and other full-width scripts
-        else
-            em += 0.62f;
-    }
-    return em * font_px;
+    return inter_text_width(s, font_px);
 }
 
 // Renderer font sizes (text_renderer.cpp FONT_PIXEL_SIZES).
@@ -211,11 +171,11 @@ float label_font_px(LabelFont f)
     return TITLE_FONT_PX;
 }
 
-// Plot label metrics for the shared fitting rules (core/label_layout): the same width
-// estimate the exporter uses for every other layout decision (legend, ticks, offsets).
+// Plot label metrics for the shared fitting rules (core/label_layout): the same measured
+// widths the exporter uses for every other layout decision (legend, ticks, offsets).
 float label_width(const std::string& text, LabelFont f)
 {
-    return estimate_text_width(text, label_font_px(f));
+    return measure_text_width(text, label_font_px(f));
 }
 
 enum class VAlign
@@ -292,8 +252,8 @@ struct SvgContext
     std::ostringstream defs;
     std::ostringstream body;
     int                next_id = 0;
-    // (marker style, size in 1/100 px) -> symbol id
-    std::map<std::pair<int, int>, std::string> marker_ids;
+    // (marker style, size in 1/100 px, edge mix in 1/1000) -> symbol id
+    std::map<std::tuple<int, int, int>, std::string> marker_ids;
 
     explicit SvgContext(const SvgStyle& s) : style(s) {}
 
@@ -302,7 +262,9 @@ struct SvgContext
         return std::string(prefix) + std::to_string(next_id++);
     }
 
-    std::string marker_symbol(MarkerStyle ms, float size);
+    // `edge_mix` != 0 selects the renderer's default scatter dot: a filled
+    // circle whose ~1 px rim is tinted towards white (> 0) or black (< 0).
+    std::string marker_symbol(MarkerStyle ms, float size, float edge_mix = 0.0f);
 };
 
 float luma(const Color& c)
@@ -340,9 +302,35 @@ float series_alpha(const Series& s)
     return clamp01(s.color().a * s.opacity());
 }
 
-// Scatter without an explicit marker uses the renderer's theme default:
+// WCAG relative luminance, as ui::Color::luminance() (the renderer's
+// scatter-marker rule uses it).
+float wcag_luminance(const Color& c)
+{
+    auto lin = [](float v)
+    { return v <= 0.04045f ? v / 12.92f : std::pow((v + 0.055f) / 1.055f, 2.4f); };
+    return 0.2126f * lin(c.r) + 0.7152f * lin(c.g) + 0.0722f * lin(c.b);
+}
+
+// Marker drawn for a scatter series (2D or 3D): an explicit style as is; no
+// style selects the renderer's default dot (resolve_scatter_marker()).
+struct ScatterMarker
+{
+    MarkerStyle style    = MarkerStyle::FilledCircle;
+    float       edge_mix = 0.0f;
+};
+
+ScatterMarker scatter_marker(MarkerStyle ms, bool has_colormap, const SvgStyle& st)
+{
+    const ScatterMarkerParams p =
+        resolve_scatter_marker(ms, has_colormap, wcag_luminance(st.background));
+    if (p.marker_type == DEFAULT_SCATTER_MARKER_CODE)
+        return {MarkerStyle::FilledCircle, p.edge_mix};
+    return {ms, 0.0f};
+}
+
+// Legend swatch of a 2D scatter without an explicit marker (render_annotations.cpp):
 // filled discs on light backgrounds, rings on dark ones.
-MarkerStyle default_scatter_marker(MarkerStyle ms, const SvgStyle& st)
+MarkerStyle legend_scatter_marker(MarkerStyle ms, const SvgStyle& st)
 {
     if (ms != MarkerStyle::None)
         return ms;
@@ -354,7 +342,7 @@ MarkerStyle default_scatter_marker(MarkerStyle ms, const SvgStyle& st)
 // Geometry follows the SDFs in scatter.frag.  The shader quad spans
 // ±(size/2 + 1) px for UV ±1; outline shapes draw a ring of width
 // clamp(4/size, 0.08, 0.25) UV inside the shape boundary.
-std::string marker_content(MarkerStyle ms, float size)
+std::string marker_content(MarkerStyle ms, float size, float edge_mix)
 {
     const float s  = size * 0.5f + 1.0f;
     const float sw = std::clamp(4.0f / std::max(size, 1e-3f), 0.08f, 0.25f) * s;
@@ -469,22 +457,36 @@ std::string marker_content(MarkerStyle ms, float size)
         case MarkerStyle::FilledCircle:
         case MarkerStyle::None:
         default:
-            return "<circle r=\"" + num(0.85f * s) + "\" fill=\"currentColor\"/>";
+        {
+            std::string out = "<circle r=\"" + num(0.85f * s) + "\" fill=\"currentColor\"/>";
+            if (edge_mix != 0.0f)
+            {
+                // Default scatter dot (scatter.frag case 18): the rim band
+                // [-edge_w, 0] of the SDF is mixed towards white/black by
+                // |edge_mix|, i.e. an overlay ring of that opacity.
+                const float rim = std::clamp(1.0f / s, 0.06f, 0.3f) * s;
+                out += "<circle r=\"" + num(0.85f * s - rim * 0.5f) + "\" fill=\"none\" stroke=\""
+                       + (edge_mix > 0.0f ? "#ffffff" : "#000000") + "\" stroke-width=\"" + num(rim)
+                       + "\" opacity=\"" + num(std::fabs(edge_mix)) + "\"/>";
+            }
+            return out;
+        }
     }
 }
 
-std::string SvgContext::marker_symbol(MarkerStyle ms, float size)
+std::string SvgContext::marker_symbol(MarkerStyle ms, float size, float edge_mix)
 {
     if (!(size > 0.0f) || !std::isfinite(size))
         size = 6.0f;
-    const auto key =
-        std::make_pair(static_cast<int>(ms), static_cast<int>(std::lround(size * 100.0f)));
+    const auto key = std::make_tuple(static_cast<int>(ms),
+                                     static_cast<int>(std::lround(size * 100.0f)),
+                                     static_cast<int>(std::lround(edge_mix * 1000.0f)));
     auto it = marker_ids.find(key);
     if (it != marker_ids.end())
         return it->second;
     std::string id = "mk" + std::to_string(marker_ids.size());
-    defs << "    <symbol id=\"" << id << "\" overflow=\"visible\">" << marker_content(ms, size)
-         << "</symbol>\n";
+    defs << "    <symbol id=\"" << id << "\" overflow=\"visible\">"
+         << marker_content(ms, size, edge_mix) << "</symbol>\n";
     marker_ids.emplace(key, id);
     return id;
 }
@@ -660,12 +662,13 @@ void emit_markers(SvgContext&               c,
                   float                     size,
                   const Color&              col,
                   float                     alpha,
-                  const std::vector<Color>& colors = {})
+                  const std::vector<Color>& colors   = {},
+                  float                     edge_mix = 0.0f)
 {
     const size_t n = std::min(x.size(), y.size());
     if (n == 0 || ms == MarkerStyle::None)
         return;
-    const std::string id     = c.marker_symbol(ms, size);
+    const std::string id     = c.marker_symbol(ms, size, edge_mix);
     const float       margin = size + 2.0f;
     c.body << "      <g class=\"markers\" color=\"" << hex(col) << "\""
            << opacity_attr("fill-opacity", alpha) << opacity_attr("stroke-opacity", alpha) << ">\n";
@@ -900,17 +903,21 @@ void emit_series_2d(SvgContext& c, const Series& s, const DataToSvg& m)
                 per_point.push_back(std::isfinite(v) ? scatter_colormap(sc->colormap(), t) : col);
             }
         }
+        // Same marker as the renderer; the colormap is drawn when the
+        // colour values cover the points (otherwise the series colour).
+        const ScatterMarker mk = scatter_marker(style.marker_style, !per_point.empty(), st);
         emit_markers(c,
                      sc->x_data(),
                      sc->y_data(),
                      m,
                      xoff,
                      yoff,
-                     default_scatter_marker(style.marker_style, st),
+                     mk.style,
                      sc->size(),
                      col,
                      alpha,
-                     per_point);
+                     per_point,
+                     mk.edge_mix);
     }
     else if (auto* bp_src = dynamic_cast<const BoxPlotSeries*>(&s))
     {
@@ -1089,16 +1096,16 @@ LegendEntry legend_entry_for(const Series& s, const SvgStyle& st)
     else if (auto* sc = dynamic_cast<const ScatterSeries*>(&s))
     {
         e.kind        = SwatchKind::Marker;
-        e.marker      = default_scatter_marker(style.marker_style, st);
+        e.marker      = legend_scatter_marker(style.marker_style, st);
         e.marker_size = sc->size();
         if (sc->has_colormap())
             e.color = scatter_colormap(sc->colormap(), 0.5f);
     }
     else if (auto* s3 = dynamic_cast<const ScatterSeries3D*>(&s))
     {
-        e.kind = SwatchKind::Marker;
-        e.marker =
-            s3->marker_style() == MarkerStyle::None ? MarkerStyle::Circle : s3->marker_style();
+        // Legend draws the 3D default dot without its edge tint: a plain disc.
+        e.kind        = SwatchKind::Marker;
+        e.marker      = scatter_marker(s3->marker_style(), false, st).style;
         e.marker_size = s3->size();
     }
     else if (dynamic_cast<const StemSeries*>(&s))
@@ -1134,7 +1141,7 @@ LegendEntry legend_entry_for(const Series& s, const SvgStyle& st)
 std::string fit_label(std::string_view text, float max_w, float font_px, bool& truncated)
 {
     truncated = false;
-    if (estimate_text_width(text, font_px) <= max_w)
+    if (measure_text_width(text, font_px) <= max_w)
         return std::string(text);
     truncated                           = true;
     constexpr std::string_view ellipsis = "\xE2\x80\xA6";
@@ -1153,13 +1160,13 @@ std::string fit_label(std::string_view text, float max_w, float font_px, bool& t
         out.append(ellipsis);
         return out;
     };
-    if (estimate_text_width(candidate(0), font_px) > max_w)
+    if (measure_text_width(candidate(0), font_px) > max_w)
         return {};
     size_t lo = 0, hi = ends.size() - 1;   // ends.back() + rest is the full text
     while (lo < hi)
     {
         const size_t mid = (lo + hi + 1) / 2;
-        if (estimate_text_width(candidate(mid), font_px) <= max_w)
+        if (measure_text_width(candidate(mid), font_px) <= max_w)
             lo = mid;
         else
             hi = mid - 1;
@@ -1196,9 +1203,9 @@ void emit_legend(SvgContext& c, const AxesBase& axes, const Rect& vp, const Lege
 
     float max_label_w = 0.0f;
     for (const auto& e : entries)
-        max_label_w = std::max(max_label_w, estimate_text_width(e.label, font_px));
+        max_label_w = std::max(max_label_w, measure_text_width(e.label, font_px));
     const int   n          = static_cast<int>(entries.size());
-    const float overflow_w = estimate_text_width(legend_layout::overflow_text(n), font_px);
+    const float overflow_w = measure_text_width(legend_layout::overflow_text(n), font_px);
     // A static export cannot scroll: the same legend_layout::compute_static_grid
     // policy as the GPU/PNG legend (tighter rows, then a "+N more" cell), and
     // the box (and every label) stays inside the axes (audit S03/S04).
@@ -1253,7 +1260,7 @@ void emit_legend(SvgContext& c, const AxesBase& axes, const Rect& vp, const Lege
         {
             case SwatchKind::Line:
             {
-                const float       lw   = std::clamp(e.line_width, 1.0f, 3.0f);
+                const float       lw   = std::clamp(e.line_width, 1.0f, 4.0f);
                 const std::string dash = dash_array(e.line_style, std::min(lw, 1.5f));
                 c.body << "      <line x1=\"" << num(ex) << "\" y1=\"" << num(ey) << "\" x2=\""
                        << num(ex + swatch_w) << "\" y2=\"" << num(ey) << "\" stroke=\""
@@ -1264,14 +1271,14 @@ void emit_legend(SvgContext& c, const AxesBase& axes, const Rect& vp, const Lege
                 c.body << "/>\n";
                 if (e.marker != MarkerStyle::None)
                     c.body << "      <use xlink:href=\"#"
-                           << c.marker_symbol(e.marker, std::min(e.marker_size, 10.0f)) << "\" x=\""
-                           << num(cx) << "\" y=\"" << num(ey) << "\" color=\"" << hex(e.color)
-                           << "\"" << opacity_attr("opacity", e.alpha) << "/>\n";
+                           << c.marker_symbol(e.marker, std::clamp(e.marker_size, 4.0f, 10.0f))
+                           << "\" x=\"" << num(cx) << "\" y=\"" << num(ey) << "\" color=\""
+                           << hex(e.color) << "\"" << opacity_attr("opacity", e.alpha) << "/>\n";
                 break;
             }
             case SwatchKind::Marker:
                 c.body << "      <use xlink:href=\"#"
-                       << c.marker_symbol(e.marker, std::clamp(e.marker_size, 4.0f, 10.0f))
+                       << c.marker_symbol(e.marker, std::clamp(e.marker_size, 5.0f, 10.0f))
                        << "\" x=\"" << num(cx) << "\" y=\"" << num(ey) << "\" color=\""
                        << hex(e.color) << "\"" << opacity_attr("opacity", e.alpha) << "/>\n";
                 break;
@@ -1455,7 +1462,7 @@ void emit_annotations(SvgContext& c, const Axes& axes, const DataToSvg& m, const
         // Unset colour follows the theme text colour, as in the renderer.
         const Color col = ann->color().value_or(c.style.text_primary);
         const float fs  = ann->font_size() > 0.0f ? ann->font_size() : LABEL_FONT_PX;
-        const float w   = estimate_text_width(ann->text(), fs);
+        const float w   = measure_text_width(ann->text(), fs);
         const float h   = 1.2f * fs;
         const auto  box = annotation_layout::text_box(ax, ay, w, h, ann->halign(), ann->valign());
 
@@ -1586,7 +1593,7 @@ void emit_axes_2d(SvgContext& c, const Axes& axes, const LegendConfig& legend)
         for (size_t i = 0; i < x_ticks.positions.size() && i < x_ticks.labels.size(); ++i)
         {
             const auto  px = static_cast<float>(m.map_x(x_ticks.positions[i]));
-            const float w  = estimate_text_width(x_ticks.labels[i], TICK_FONT_PX);
+            const float w  = measure_text_width(x_ticks.labels[i], TICK_FONT_PX);
             if (i > 0 && px - w * 0.5f < last_right + 6.0f)
                 continue;
             emit_text(c.body,
@@ -1619,7 +1626,7 @@ void emit_axes_2d(SvgContext& c, const Axes& axes, const LegendConfig& legend)
                       VAlign::Middle);
             last_bottom = py + TICK_FONT_PX * 0.5f;
             max_y_tick_width =
-                std::max(max_y_tick_width, estimate_text_width(y_ticks.labels[idx], TICK_FONT_PX));
+                std::max(max_y_tick_width, measure_text_width(y_ticks.labels[idx], TICK_FONT_PX));
         }
     }
     // Shared offset / multiplier of the tick labels ("x10^-6", "+1.7x10^9"):
@@ -1630,11 +1637,11 @@ void emit_axes_2d(SvgContext& c, const Axes& axes, const LegendConfig& legend)
     const float x_offset_reserve =
         x_ticks.offset_label.empty()
             ? 0.0f
-            : offset_annotation_reserve(estimate_text_width(x_ticks.offset_label, TICK_FONT_PX));
+            : offset_annotation_reserve(measure_text_width(x_ticks.offset_label, TICK_FONT_PX));
     const float y_offset_reserve =
         y_ticks.offset_label.empty()
             ? 0.0f
-            : offset_annotation_reserve(estimate_text_width(y_ticks.offset_label, TICK_FONT_PX));
+            : offset_annotation_reserve(measure_text_width(y_ticks.offset_label, TICK_FONT_PX));
     if (!x_ticks.offset_label.empty())
         emit_text(c.body,
                   x_ticks.offset_label,
@@ -1805,36 +1812,75 @@ struct Projector3D
     }
 };
 
-// Flat-shaded colour of one triangle, following surface3d.frag.
+// Lit colour of one triangle, following surface3d.frag / mesh3d.frag (the
+// SVG keeps its own copy of the model so it never depends on renderer state).
+// The shader lights every fragment with the interpolated vertex normal; a
+// triangle here gets the mean of that lighting at its three vertices and its
+// centroid, so curved surfaces read smooth rather than faceted.
 struct Lighting3D
 {
     vec3  cam_pos;
-    vec3  light;
-    vec3  fill_light;
-    float ambient   = 0.15f;
-    float specular  = 0.3f;
+    vec3  light;        // key light, normalized box space
+    vec3  fill_light;   // soft fill light, normalized box space
+    vec3  nm[3];        // columns of the normal matrix (inverse transpose of the model)
+    float ambient   = 0.40f;
+    float specular  = 0.12f;
     float shininess = 32.0f;
 
-    [[nodiscard]] Color shade(const Color& base, vec3 w0, vec3 w1, vec3 w2) const
+    // Data-space normal -> normalized box space (unit length), or zero.
+    [[nodiscard]] vec3 world_normal(const vec3& n) const
     {
-        vec3 n = vec3_cross(w1 - w0, w2 - w0);
-        if (vec3_length_sq(n) < 1e-20)
-            return base;
-        n                = vec3_normalize(n);
-        const vec3 centr = (w0 + w1 + w2) * (1.0 / 3.0);
-        const vec3 v     = vec3_normalize(cam_pos - centr);
+        const vec3 w = nm[0] * n.x + nm[1] * n.y + nm[2] * n.z;
+        return vec3_length_sq(w) > 1e-24 ? vec3_normalize(w) : vec3{0, 0, 0};
+    }
+
+    // Shade `base` at world position `p` with unit normal `n`.
+    [[nodiscard]] vec3 shade_point(const vec3& base, const vec3& p, vec3 n) const
+    {
+        const vec3 v = vec3_normalize(cam_pos - p);
         if (vec3_dot(n, v) < 0.0)
             n = n * -1.0;
-        const double diffuse = std::max(vec3_dot(n, light), 0.0) * 0.65;
-        const double fill    = std::max(vec3_dot(n, fill_light), 0.0) * 0.15;
+        const double diffuse = std::max(vec3_dot(n, light), 0.0) * 0.55;
+        const double fill    = std::max(vec3_dot(n, fill_light), 0.0) * 0.25;
+        const double shade   = std::min(static_cast<double>(ambient) + diffuse + fill, 1.0);
         const vec3   h       = vec3_normalize(light + v);
         const double spec =
             std::pow(std::max(vec3_dot(n, h), 0.0), static_cast<double>(shininess)) * specular;
-        const double lit = ambient + diffuse + fill;
-        return Color{clamp01(static_cast<float>(base.r * lit + spec)),
-                     clamp01(static_cast<float>(base.g * lit + spec)),
-                     clamp01(static_cast<float>(base.b * lit + spec)),
-                     base.a};
+        const vec3 spec_col = (base * 0.65 + vec3{0.35, 0.35, 0.35}) * spec;
+        const vec3 lit      = base * shade + spec_col;
+        return {std::clamp(lit.x, 0.0, 1.0),
+                std::clamp(lit.y, 0.0, 1.0),
+                std::clamp(lit.z, 0.0, 1.0)};
+    }
+
+    // `w`: world positions, `n`: world unit normals (zero = use the face normal),
+    // `base`: per-vertex base colours (rgb; alpha from base[0]).
+    [[nodiscard]] Color shade(const std::array<Color, 3>& base,
+                              const std::array<vec3, 3>&  w,
+                              std::array<vec3, 3>         n) const
+    {
+        vec3 face = vec3_cross(w[1] - w[0], w[2] - w[0]);
+        face      = vec3_length_sq(face) > 1e-24 ? vec3_normalize(face) : vec3{0, 0, 1};
+        vec3 b[3];
+        for (size_t k = 0; k < 3; ++k)
+        {
+            if (!(vec3_length_sq(n[k]) > 0.5))
+                n[k] = face;
+            b[k] = {base[k].r, base[k].g, base[k].b};
+        }
+        vec3 sum{0, 0, 0};
+        for (size_t k = 0; k < 3; ++k)
+            sum += shade_point(b[k], w[k], n[k]);
+        // Centroid sample with the interpolated normal and colour.
+        vec3 nc = n[0] + n[1] + n[2];
+        nc      = vec3_length_sq(nc) > 1e-24 ? vec3_normalize(nc) : face;
+        sum +=
+            shade_point((b[0] + b[1] + b[2]) * (1.0 / 3.0), (w[0] + w[1] + w[2]) * (1.0 / 3.0), nc);
+        sum = sum * 0.25;
+        return Color{static_cast<float>(sum.x),
+                     static_cast<float>(sum.y),
+                     static_cast<float>(sum.z),
+                     base[0].a};
     }
 };
 
@@ -1996,12 +2042,27 @@ void emit_axes_3d(SvgContext& c, const Axes3D& axes, const LegendConfig& legend)
     vec3 ld = axes.lighting_enabled() ? axes.light_dir() : vec3{0, 0, 0};
     if (vec3_dot(ld, ld) < 0.001)
         ld = {0.5, 0.7, 1.0};
-    const Lighting3D base_light{cam.position, pj.model_dir(ld), pj.model_dir({-0.3, -0.5, 0.4})};
-    auto             material = [&](float amb, float spec, float shin)
+    Lighting3D base_light;
+    base_light.cam_pos    = cam.position;
+    base_light.light      = pj.model_dir(ld);
+    base_light.fill_light = pj.model_dir({-0.3, -0.5, 0.4});
+    {
+        // Normal matrix = inverse transpose of the model's 3x3 part, whose
+        // columns are the cross products of the model columns (over det).
+        const auto&  m = pj.model.m;
+        const vec3   c0{m[0], m[1], m[2]}, c1{m[4], m[5], m[6]}, c2{m[8], m[9], m[10]};
+        const double det = vec3_dot(c0, vec3_cross(c1, c2));
+        const double inv = std::fabs(det) > 1e-30 ? 1.0 / det : 1.0;
+        base_light.nm[0] = vec3_cross(c1, c2) * inv;
+        base_light.nm[1] = vec3_cross(c2, c0) * inv;
+        base_light.nm[2] = vec3_cross(c0, c1) * inv;
+    }
+    // Material defaults as in surface3d.frag / mesh3d.frag.
+    auto material = [&](float amb, float spec, float shin)
     {
         Lighting3D l = base_light;
-        l.ambient    = amb > 0.001f ? amb : 0.15f;
-        l.specular   = spec > 0.001f ? spec : 0.3f;
+        l.ambient    = amb > 0.001f ? amb : 0.40f;
+        l.specular   = spec > 0.001f ? spec : 0.12f;
         l.shininess  = shin > 1.0f ? shin : 32.0f;
         return l;
     };
@@ -2012,6 +2073,39 @@ void emit_axes_3d(SvgContext& c, const Axes3D& axes, const LegendConfig& legend)
     { return std::fabs(w.x) <= BOX && std::fabs(w.y) <= BOX && std::fabs(w.z) <= BOX; };
     auto finite3 = [](const vec3& v)
     { return std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z); };
+
+    // Lit triangles of MeshSeries-style geometry ({x,y,z, nx,ny,nz} per vertex),
+    // indices [first, first + count).  Like mesh3d.frag, geometry outside the
+    // normalized box is dropped and zero normals fall back to the face normal.
+    auto add_lit_triangles = [&](uint32_t                  group,
+                                 std::span<const float>    v,
+                                 std::span<const uint32_t> idx,
+                                 size_t                    first,
+                                 size_t                    count,
+                                 const Color&              base,
+                                 const Lighting3D&         lt)
+    {
+        const size_t nv   = v.size() / 6;
+        const size_t last = std::min(idx.size(), first + count);
+        for (size_t t = first; t + 2 < last; t += 3)
+        {
+            std::array<vec3, 3> dv, wv, nn;
+            bool                ok = true;
+            for (size_t k = 0; k < 3 && ok; ++k)
+            {
+                const size_t vi = idx[t + k];
+                ok              = vi < nv;
+                if (!ok)
+                    break;
+                dv[k] = {v[vi * 6], v[vi * 6 + 1], v[vi * 6 + 2]};
+                wv[k] = pj.to_world(dv[k]);
+                nn[k] = lt.world_normal({v[vi * 6 + 3], v[vi * 6 + 4], v[vi * 6 + 5]});
+                ok    = finite3(dv[k]) && inside_box(wv[k]);
+            }
+            if (ok)
+                add_triangle(group, dv, lt.shade({base, base, base}, wv, nn));
+        }
+    };
 
     for (const auto& sp : axes.series())
     {
@@ -2041,12 +2135,12 @@ void emit_axes_3d(SvgContext& c, const Axes3D& axes, const LegendConfig& legend)
         }
         else if (auto* s3 = dynamic_cast<const ScatterSeries3D*>(&s))
         {
-            const MarkerStyle ms =
-                s3->marker_style() == MarkerStyle::None ? MarkerStyle::Circle : s3->marker_style();
+            // Same marker as render_2d.cpp's Scatter3D draw (default dot when unset).
+            const ScatterMarker mk = scatter_marker(s3->marker_style(), false, st);
             groups.push_back({"<g class=\"scatter3d\" color=\"" + hex(col) + "\""
                                   + opacity_attr("fill-opacity", alpha)
                                   + opacity_attr("stroke-opacity", alpha) + ">",
-                              c.marker_symbol(ms, s3->size()),
+                              c.marker_symbol(mk.style, s3->size(), mk.edge_mix),
                               false});
             const auto x = s3->x_data(), y = s3->y_data(), z = s3->z_data();
             for (size_t i = 0; i < s3->point_count(); ++i)
@@ -2118,64 +2212,100 @@ void emit_axes_3d(SvgContext& c, const Axes3D& axes, const LegendConfig& legend)
                      opaque});
                 const Lighting3D lt =
                     material(surf->ambient(), surf->specular(), surf->shininess());
+                // Smooth vertex normals exactly as SurfaceSeries::generate_mesh():
+                // central differences inside, one-sided on the border.
+                auto normal_at = [&](size_t i, size_t j)
+                {
+                    const size_t j0 = j > 0 ? j - 1 : j, j1 = j + 1 < uc ? j + 1 : j;
+                    const size_t i0 = i > 0 ? i - 1 : i, i1 = i + 1 < ur ? i + 1 : i;
+                    const float  span_x = xg[j1] - xg[j0];
+                    const float  span_y = yg[i1] - yg[i0];
+                    float        dzdx   = 0.0f;
+                    float        dzdy   = 0.0f;
+                    if (span_x != 0.0f)
+                        dzdx = (zv[i * uc + j1] - zv[i * uc + j0]) / span_x;
+                    if (span_y != 0.0f)
+                        dzdy = (zv[i1 * uc + j] - zv[i0 * uc + j]) / span_y;
+                    if (!std::isfinite(dzdx))
+                        dzdx = 0.0f;
+                    if (!std::isfinite(dzdy))
+                        dzdy = 0.0f;
+                    return lt.world_normal(
+                        vec3_normalize(vec3_cross({1.0, 0.0, dzdx}, {0.0, 1.0, dzdy})));
+                };
                 static constexpr std::array<std::array<int, 3>, 2> tris = {{{0, 1, 2}, {0, 2, 3}}};
+                static constexpr std::array<std::array<size_t, 2>, 4> quad = {
+                    {{0, 0}, {0, 1}, {1, 1}, {1, 0}}};
                 for (size_t i = 0; i + 1 < ur; ++i)
                     for (size_t j = 0; j + 1 < uc; ++j)
                     {
-                        const vec3 q[4] = {vtx(i, j),
-                                           vtx(i, j + 1),
-                                           vtx(i + 1, j + 1),
-                                           vtx(i + 1, j)};
                         for (const auto& tri : tris)
                         {
-                            std::array<vec3, 3> dv{q[tri[0]], q[tri[1]], q[tri[2]]};
-                            std::array<vec3, 3> wv;
-                            bool                ok = true;
+                            std::array<vec3, 3>  dv, wv, nv;
+                            std::array<Color, 3> base;
+                            bool                 ok = true;
                             for (size_t k = 0; k < 3 && ok; ++k)
                             {
-                                wv[k] = pj.to_world(dv[k]);
-                                ok    = finite3(dv[k]) && inside_box(wv[k]);
+                                const auto& q = quad[static_cast<size_t>(tri[k])];
+                                dv[k]         = vtx(i + q[0], j + q[1]);
+                                wv[k]         = pj.to_world(dv[k]);
+                                ok            = finite3(dv[k]) && inside_box(wv[k]);
+                                if (ok)
+                                {
+                                    nv[k]   = normal_at(i + q[0], j + q[1]);
+                                    base[k] = cmap(wv[k].z);
+                                }
                             }
                             if (!ok)
                                 continue;
-                            const Color base = cmap((wv[0].z + wv[1].z + wv[2].z) / 3.0);
-                            add_triangle(gi, dv, lt.shade(base, wv[0], wv[1], wv[2]));
+                            add_triangle(gi, dv, lt.shade(base, wv, nv));
                         }
                     }
             }
         }
         else if (auto* mesh = dynamic_cast<const MeshSeries*>(&s))
         {
-            const auto v      = mesh->vertices();
-            const auto idx    = mesh->indices();
             const bool opaque = alpha >= 0.999f;
             groups.push_back(
                 {std::string("<g class=\"mesh\"") + opacity_attr("fill-opacity", alpha)
                      + (opaque ? " stroke-width=\"0.6\" stroke-linejoin=\"round\"" : "") + ">",
                  {},
                  opaque});
-            const Lighting3D lt = material(mesh->ambient(), mesh->specular(), mesh->shininess());
-            const size_t     nv = v.size() / 6;   // {x, y, z, nx, ny, nz} per vertex
-            for (size_t t = 0; t + 2 < idx.size(); t += 3)
+            add_lit_triangles(gi,
+                              mesh->vertices(),
+                              mesh->indices(),
+                              0,
+                              mesh->indices().size(),
+                              col,
+                              material(mesh->ambient(), mesh->specular(), mesh->shininess()));
+        }
+        else if (auto* sh3 = dynamic_cast<const ShapeSeries3D*>(&s))
+        {
+            // One group per colour range, like the renderer's per-range draws:
+            // a zero-alpha range keeps the series colour, others their own.
+            const Lighting3D lt = material(sh3->ambient(), sh3->specular(), sh3->shininess());
+            for (const auto& r : sh3->draw_ranges())
             {
-                std::array<vec3, 3> dv, wv;
-                bool                ok = true;
-                for (size_t k = 0; k < 3 && ok; ++k)
-                {
-                    const size_t vi = idx[t + k];
-                    ok              = vi < nv;
-                    if (ok)
-                    {
-                        dv[k] = {v[vi * 6], v[vi * 6 + 1], v[vi * 6 + 2]};
-                        wv[k] = pj.to_world(dv[k]);
-                        ok    = finite3(dv[k]);
-                    }
-                }
-                if (ok)
-                    add_triangle(gi, dv, lt.shade(col, wv[0], wv[1], wv[2]));
+                const bool  inherit = r.inherits_series_color();
+                const Color rc      = inherit ? col : Color{r.color.r, r.color.g, r.color.b, 1.0f};
+                const float ra      = inherit ? alpha : clamp01(r.color.a * s.opacity());
+                const bool  opaque  = ra >= 0.999f;
+                const auto  rgi     = static_cast<uint32_t>(groups.size());
+                groups.push_back(
+                    {std::string("<g class=\"shape3d\"") + opacity_attr("fill-opacity", ra)
+                         + (opaque ? " stroke-width=\"0.6\" stroke-linejoin=\"round\"" : "") + ">",
+                     {},
+                     opaque});
+                add_lit_triangles(rgi,
+                                  sh3->vertices(),
+                                  sh3->indices(),
+                                  r.first_index,
+                                  r.index_count,
+                                  rc,
+                                  lt);
             }
         }
-        // ShapeSeries3D and plugin series are not exported (documented limitation).
+        // Plugin series are not exported (documented limitation).
     }
 
     // Far to near.
@@ -2300,7 +2430,7 @@ void emit_axes_3d(SvgContext& c, const Axes3D& axes, const LegendConfig& legend)
         const std::string lbl = a.label.empty() ? a.fallback : a.label;
         float             lx  = bx + (dl > 1.0f ? dx / dl * 8.0f : 8.0f);
         float             ly  = by + (dl > 1.0f ? dy / dl * 8.0f : 0.0f);
-        const float       lw  = estimate_text_width(lbl, LABEL_FONT_PX);
+        const float       lw  = measure_text_width(lbl, LABEL_FONT_PX);
         const float       hh  = LABEL_FONT_PX * 0.5f;
         Box2              r{lx, ly - hh, lx + lw, ly + hh};
         if (overlaps_any(r, placed, 2.0f))
@@ -2386,7 +2516,7 @@ void emit_axes_3d(SvgContext& c, const Axes3D& axes, const LegendConfig& legend)
                 last_y               = sy;
                 has_last             = true;
                 const std::string& t = ticks.labels[i];
-                const float        w = estimate_text_width(t, TICK_FONT_PX);
+                const float        w = measure_text_width(t, TICK_FONT_PX);
                 const float        h = TICK_FONT_PX * 0.5f;
                 const Box2         r = vertical ? Box2{sx - 5.0f - w, sy - h, sx - 5.0f, sy + h}
                                                 : Box2{sx - w * 0.5f, sy, sx + w * 0.5f, sy + 2 * h};

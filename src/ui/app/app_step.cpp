@@ -364,10 +364,35 @@ void App::init_runtime()
     runtime_ = std::make_unique<AppRuntime>(init_fps, *backend_, *renderer_, registry_);
     auto& rt = *runtime_;
 
+    // Headless apps ignore ~/.config/spectra/settings.json unless asked
+    // (AppConfig::use_user_settings) so exports look the same on every machine;
+    // explicit AppConfig::theme / data_palette override either source.
     rt.settings_store = std::make_unique<ui::settings::SettingsStore>();
-    rt.settings_store->load();
-    rt.settings_store->apply_to(*theme_mgr_);
-    rt.settings_store->set_on_change([&store = *rt.settings_store]() { store.save(); });
+    const bool read_user =
+        ui::settings::reads_user_settings(config_.headless, config_.use_user_settings);
+    if (read_user)
+    {
+        rt.settings_store->load();
+        rt.settings_store->set_on_change([&store = *rt.settings_store]() { store.save(); });
+    }
+    {
+        const auto startup =
+            ui::settings::resolve_startup_theme(read_user ? &rt.settings_store->data() : nullptr,
+                                                config_.theme,
+                                                config_.data_palette);
+        theme_mgr_->set_theme(startup.theme);
+        if (theme_mgr_->current_theme_name() != startup.theme)
+            SPECTRA_LOG_WARN("app",
+                             "Unknown theme '{}', using '{}'",
+                             startup.theme,
+                             theme_mgr_->current_theme_name());
+        theme_mgr_->set_data_palette(startup.data_palette);
+        if (theme_mgr_->current_data_palette_name() != startup.data_palette)
+            SPECTRA_LOG_WARN("app",
+                             "Unknown data palette '{}', using '{}'",
+                             startup.data_palette,
+                             theme_mgr_->current_data_palette_name());
+    }
 
     rt.frame_state.active_figure_id = init_active_id;
     rt.frame_state.active_figure    = init_active;

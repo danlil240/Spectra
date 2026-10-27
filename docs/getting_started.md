@@ -136,6 +136,19 @@ int main() {
 }
 ```
 
+Headless exports always use the `"night"` theme and its default data palette, so a
+script renders the same on every machine; `~/.config/spectra/settings.json` is ignored.
+Choose a theme or palette explicitly with `AppConfig`, or opt in to the user's saved
+settings:
+
+```cpp
+spectra::App app({.headless = true, .theme = "light", .data_palette = "colorblind"});
+spectra::App user({.headless = true, .use_user_settings = true});   // honour settings.json
+```
+
+Windowed apps keep using the user's saved theme unless `AppConfig::theme` /
+`data_palette` are set.
+
 ### Scatter Plot
 
 ```cpp

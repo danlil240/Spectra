@@ -476,7 +476,7 @@ bool color_field(const char* label, spectra::Color& color)
             ImGui::Spacing();
             ImGui::PushStyleColor(
                 ImGuiCol_Text,
-                ImVec4(c.text_tertiary.r, c.text_tertiary.g, c.text_tertiary.b, 0.7f));
+                ImVec4(c.text_tertiary.r, c.text_tertiary.g, c.text_tertiary.b, c.text_tertiary.a));
             ImGui::TextUnformatted("Palette");
             ImGui::PopStyleColor();
 
@@ -1105,7 +1105,7 @@ void panel_title(const char* title, const char* subtitle, ImFont* title_font)
     {
         ImGui::PushStyleColor(
             ImGuiCol_Text,
-            ImVec4(c.text_tertiary.r, c.text_tertiary.g, c.text_tertiary.b, 0.9f));
+            ImVec4(c.text_tertiary.r, c.text_tertiary.g, c.text_tertiary.b, c.text_tertiary.a));
         ImGui::TextUnformatted(subtitle);
         ImGui::PopStyleColor();
     }
@@ -1223,7 +1223,7 @@ int empty_state(ui::Icon icon,
         ImGui::PushTextWrapPos(start_x + max_w);
         ImGui::PushStyleColor(
             ImGuiCol_Text,
-            ImVec4(c.text_tertiary.r, c.text_tertiary.g, c.text_tertiary.b, 0.9f));
+            ImVec4(c.text_tertiary.r, c.text_tertiary.g, c.text_tertiary.b, c.text_tertiary.a));
         ImGui::SetCursorPosX(start_x);
         ImGui::TextWrapped("%s", subtitle);
         ImGui::PopStyleColor();
@@ -1269,7 +1269,7 @@ int panel_header(const char* title,
         ImGui::SetCursorScreenPos(ImVec2(pos.x + tokens::SPACE_3, pos.y + tokens::SPACE_1 + 17.0f));
         ImGui::PushStyleColor(
             ImGuiCol_Text,
-            ImVec4(c.text_tertiary.r, c.text_tertiary.g, c.text_tertiary.b, 0.9f));
+            ImVec4(c.text_tertiary.r, c.text_tertiary.g, c.text_tertiary.b, c.text_tertiary.a));
         ImGui::TextUnformatted(subtitle);
         ImGui::PopStyleColor();
     }
@@ -1364,7 +1364,7 @@ void stat_card(const char* label, const char* value, const char* unit, const cha
     ImGui::SetCursorScreenPos(ImVec2(pos.x + tokens::SPACE_3, pos.y + tokens::SPACE_2));
     ImGui::PushStyleColor(
         ImGuiCol_Text,
-        ImVec4(c.text_tertiary.r, c.text_tertiary.g, c.text_tertiary.b, 0.9f));
+        ImVec4(c.text_tertiary.r, c.text_tertiary.g, c.text_tertiary.b, c.text_tertiary.a));
     ImGui::TextUnformatted(label ? label : "");
     ImGui::PopStyleColor();
 
@@ -1378,7 +1378,7 @@ void stat_card(const char* label, const char* value, const char* unit, const cha
         ImGui::SameLine(0.0f, tokens::SPACE_1);
         ImGui::PushStyleColor(
             ImGuiCol_Text,
-            ImVec4(c.text_tertiary.r, c.text_tertiary.g, c.text_tertiary.b, 0.85f));
+            ImVec4(c.text_tertiary.r, c.text_tertiary.g, c.text_tertiary.b, c.text_tertiary.a));
         ImGui::TextUnformatted(unit);
         ImGui::PopStyleColor();
     }

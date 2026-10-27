@@ -1209,20 +1209,24 @@ void emit_legend(SvgContext& c, const AxesBase& axes, const Rect& vp, const Lege
     // A static export cannot scroll: the same legend_layout::compute_static_grid
     // policy as the GPU/PNG legend (tighter rows, then a "+N more" cell), and
     // the box (and every label) stays inside the axes (audit S03/S04).
-    const auto  grid  = legend_layout::compute_static_grid(n,
-                                                         swatch_w + gap + max_label_w,
-                                                         row_h,
-                                                         font_px + 2.0f,
-                                                         overflow_w,
-                                                         pad_x,
-                                                         pad_y,
-                                                         col_gap,
-                                                         vp.w - 2.0f * margin,
-                                                         vp.h - 2.0f * margin);
+    // OutsideRight lays out in the strip reserved right of the axes.
+    const bool outside = cfg.position == LegendPosition::OutsideRight;
+    const Rect area    = outside ? legend_layout::legend_area(axes, cfg.position) : vp;
+    const auto grid =
+        legend_layout::compute_static_grid(n,
+                                           swatch_w + gap + max_label_w,
+                                           row_h,
+                                           font_px + 2.0f,
+                                           overflow_w,
+                                           pad_x,
+                                           pad_y,
+                                           col_gap,
+                                           legend_layout::max_box_w(area, cfg.position),
+                                           legend_layout::max_box_h(area, cfg.position));
     const float w     = grid.width;
     const float h     = grid.height;
     const float col_w = legend_layout::column_width(grid, pad_x, col_gap);
-    if (grid.rows <= 0 || !legend_layout::fits(vp, w, h))
+    if (grid.rows <= 0 || !legend_layout::fits(area, w, h, cfg.position))
         return;   // not even one row fits this (tiny) axes
 
     LegendPosition pos = cfg.position;
@@ -1233,7 +1237,7 @@ void emit_legend(SvgContext& c, const AxesBase& axes, const Rect& vp, const Lege
         else
             pos = LegendPosition::TopRight;
     }
-    const Rect r = legend_layout::place(vp, pos, w, h);
+    const Rect r = legend_layout::place(area, pos, w, h);
 
     // Same "unset" sentinel as LegendInteraction: rgb all zero -> theme colour.
     auto unset = [](const Color& col) { return col.r == 0.0f && col.g == 0.0f && col.b == 0.0f; };

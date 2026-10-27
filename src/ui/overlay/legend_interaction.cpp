@@ -177,19 +177,22 @@ bool LegendInteraction::draw(AxesBase&           axes,
     // One column = swatch + label (+ visibility eye).  Entries flow into
     // extra columns instead of being cut off; scrolling is only a last resort
     // when even the widest grid that fits the plot can't hold them all.
-    constexpr float margin  = legend_layout::MARGIN;
     constexpr float col_gap = legend_layout::COL_GAP;
     const float     reserved_w = swatch_size + swatch_gap + (toggleable_ ? eye_width + 4.0f : 0.0f);
     float           col_w      = reserved_w + max_label_w;
-    const auto grid       = legend_layout::compute_grid(labeled_count,
-                                                  col_w,
-                                                  row_height,
-                                                  pad_x,
-                                                  pad_y,
-                                                  col_gap,
-                                                  viewport.w - 2.0f * margin,
-                                                  viewport.h - 2.0f * margin);
-    if (!legend_layout::fits(viewport, grid.width, grid.height))
+    // OutsideRight lays out in the strip the figure layout reserved right of the axes.
+    const bool outside = config.position == LegendPosition::OutsideRight;
+    const Rect region  = outside ? legend_layout::legend_area(axes, config.position) : viewport;
+    const auto grid =
+        legend_layout::compute_grid(labeled_count,
+                                    col_w,
+                                    row_height,
+                                    pad_x,
+                                    pad_y,
+                                    col_gap,
+                                    legend_layout::max_box_w(region, config.position),
+                                    legend_layout::max_box_h(region, config.position));
+    if (!legend_layout::fits(region, grid.width, grid.height, config.position))
         return false;   // not even one row fits this (tiny) axes
     // compute_grid may narrow the column to keep the legend inside the axes.
     col_w                  = legend_layout::column_width(grid, pad_x, col_gap);
@@ -213,7 +216,7 @@ bool LegendInteraction::draw(AxesBase&           axes,
 
     auto&      offset = get_offset(figure_id, axes_index);
     const Rect box =
-        legend_layout::place(viewport, position, legend_w, legend_h, offset.dx, offset.dy);
+        legend_layout::place(region, position, legend_w, legend_h, offset.dx, offset.dy);
     const float lx = box.x;
     const float ly = box.y;
     legend_w       = box.w;   // place() keeps the box inside the viewport

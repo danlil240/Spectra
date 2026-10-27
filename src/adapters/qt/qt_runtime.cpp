@@ -9,6 +9,7 @@
 #include "ui/theme/theme.hpp"
 
 #ifdef SPECTRA_USE_IMGUI
+    #include "core/figure_layout.hpp"
     #include "core/layout.hpp"
     #include "ui/imgui/imgui_integration.hpp"
     #include "ui/overlay/data_interaction.hpp"
@@ -626,20 +627,7 @@ void QtRuntime::render_figure(QWindow* window, Figure& figure)
                                                   canvas.x,
                                                   canvas.y);
 
-        for (size_t i = 0; i < figure.axes_mut().size() && i < rects.size(); ++i)
-        {
-            if (figure.axes_mut()[i])
-            {
-                figure.axes_mut()[i]->set_viewport(rects[i]);
-            }
-        }
-        for (size_t i = 0; i < figure.all_axes_mut().size() && i < rects.size(); ++i)
-        {
-            if (figure.all_axes_mut()[i])
-            {
-                figure.all_axes_mut()[i]->set_viewport(rects[i]);
-            }
-        }
+        apply_subplot_layout(figure, rects, fig_margins);
 
         layout_applied = true;
     }

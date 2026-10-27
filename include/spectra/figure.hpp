@@ -20,7 +20,7 @@ struct FigureConfig
     uint32_t height = DEFAULT_WINDOW_HEIGHT;
 };
 
-/// @brief Where the legend is drawn inside each axes.
+/// @brief Where the legend of each axes is drawn.
 enum class LegendPosition
 {
     TopRight,
@@ -28,7 +28,8 @@ enum class LegendPosition
     BottomRight,
     BottomLeft,
     None,
-    Best,   // Corner with the least overlap with plotted data (default)
+    Best,           // Corner with the least overlap with plotted data (default)
+    OutsideRight,   // Right of the axes, top-aligned; the plot area shrinks to make room
 };
 
 /// @brief Legend placement and appearance for a Figure.

@@ -29,6 +29,10 @@ inline constexpr double Y_TICK_TARGET_PX = 80.0;
 inline constexpr double TICK_LABEL_CHAR_PX = 8.0;
 /// Minimum free space between two neighbouring x tick labels, in pixels.
 inline constexpr double TICK_LABEL_GAP_PX = 16.0;
+/// Tick label font size in pixels (FontSize::Tick, the SVG tick font).
+inline constexpr float TICK_LABEL_FONT_PX = 13.0f;
+/// Minimum distance between two stacked (y axis) category name ticks, in pixels.
+inline constexpr double CATEGORY_ROW_PX = 18.0;
 
 struct LinearTickOptions
 {

@@ -205,10 +205,15 @@ void Inspector::draw_figure_properties(Figure& fig)
                 leg.visible = show_legend;
             }
 
-            const char* positions[] =
-                {"Top Right", "Top Left", "Bottom Right", "Bottom Left", "Hidden", "Best"};
-            int pos = static_cast<int>(leg.position);
-            if (widgets::combo_field("Position", pos, positions, 6))
+            const char* positions[] = {"Top Right",
+                                       "Top Left",
+                                       "Bottom Right",
+                                       "Bottom Left",
+                                       "Hidden",
+                                       "Best",
+                                       "Outside Right"};
+            int         pos         = static_cast<int>(leg.position);
+            if (widgets::combo_field("Position", pos, positions, 7))
             {
                 leg.position = static_cast<LegendPosition>(pos);
             }

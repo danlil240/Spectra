@@ -379,6 +379,7 @@ void Renderer::build_legend(AxesBase& axes, const LegendConfig& config)
 
     const auto& tc    = plot_colors();
     const Rect& vp    = axes.viewport();
+    const Rect  area  = legend_layout::legend_area(axes, config.position);
     const float pad_x = config.padding + 2.0f;   // as LegendInteraction
     const float pad_y = config.padding;
 
@@ -408,16 +409,17 @@ void Renderer::build_legend(AxesBase& axes, const LegendConfig& config)
         const float overflow_w =
             text_renderer_.measure_text(legend_layout::overflow_text(n), f.preset, f.scale).width;
         const float cw = SWATCH_W + SWATCH_GAP + max_label_w;
-        const auto  g  = legend_layout::compute_static_grid(n,
-                                                          cw,
-                                                          th + 6.0f,
-                                                          th + 2.0f,
-                                                          overflow_w,
-                                                          pad_x,
-                                                          pad_y,
-                                                          legend_layout::COL_GAP,
-                                                          vp.w - 2.0f * legend_layout::MARGIN,
-                                                          vp.h - 2.0f * legend_layout::MARGIN);
+        const auto  g =
+            legend_layout::compute_static_grid(n,
+                                               cw,
+                                               th + 6.0f,
+                                               th + 2.0f,
+                                               overflow_w,
+                                               pad_x,
+                                               pad_y,
+                                               legend_layout::COL_GAP,
+                                               legend_layout::max_box_w(area, config.position),
+                                               legend_layout::max_box_h(area, config.position));
         return Fit{f, g};
     };
     Fit fit = fit_with(legend_font(config.font_size));
@@ -441,9 +443,10 @@ void Renderer::build_legend(AxesBase& axes, const LegendConfig& config)
         legend_layout::resolve_position(axes, vp, grid.width, grid.height, config.position, prev);
     if (config.position == LegendPosition::Best)
         legend_best_corner_[&axes] = corner;
-    if (!legend_layout::fits(vp, grid.width, grid.height))
+    const Rect region = corner == LegendPosition::OutsideRight ? area : vp;
+    if (!legend_layout::fits(region, grid.width, grid.height, corner))
         return;   // not even one row fits this (tiny) axes
-    const Rect box = legend_layout::place(vp, corner, grid.width, grid.height);
+    const Rect box = legend_layout::place(region, corner, grid.width, grid.height);
 
     // Labels longer than their column are ellipsized (UTF-8 safe) so the
     // legend never runs past its axes (audit S04).  The 0.5 px slack absorbs

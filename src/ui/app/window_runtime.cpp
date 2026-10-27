@@ -6,6 +6,7 @@
 #include <spectra/logger.hpp>
 
 #include "anim/frame_scheduler.hpp"
+#include "core/figure_layout.hpp"
 #include "core/layout.hpp"
 #include "render/renderer.hpp"
 #include "render/vulkan/vk_backend.hpp"
@@ -830,20 +831,7 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                         if (fig->scroll_offset_y() < 0.0f)
                             fig->set_scroll_offset_y(0.0f);
 
-                        for (size_t i = 0; i < fig->axes_mut().size() && i < rects.size(); ++i)
-                        {
-                            if (fig->axes_mut()[i])
-                            {
-                                fig->axes_mut()[i]->set_viewport(rects[i]);
-                            }
-                        }
-                        for (size_t i = 0; i < fig->all_axes_mut().size() && i < rects.size(); ++i)
-                        {
-                            if (fig->all_axes_mut()[i])
-                            {
-                                fig->all_axes_mut()[i]->set_viewport(rects[i]);
-                            }
-                        }
+                        apply_subplot_layout(*fig, rects, pane_margins);
                     }
                 }
             }
@@ -881,21 +869,7 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                 if (active_figure->scroll_offset_y() < 0.0f)
                     active_figure->set_scroll_offset_y(0.0f);
 
-                for (size_t i = 0; i < active_figure->axes_mut().size() && i < rects.size(); ++i)
-                {
-                    if (active_figure->axes_mut()[i])
-                    {
-                        active_figure->axes_mut()[i]->set_viewport(rects[i]);
-                    }
-                }
-                for (size_t i = 0; i < active_figure->all_axes_mut().size() && i < rects.size();
-                     ++i)
-                {
-                    if (active_figure->all_axes_mut()[i])
-                    {
-                        active_figure->all_axes_mut()[i]->set_viewport(rects[i]);
-                    }
-                }
+                apply_subplot_layout(*active_figure, rects, fig_margins);
             }
         }
         else if (active_figure)

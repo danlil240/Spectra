@@ -39,6 +39,48 @@ TEST(QtRuntimeTheme, InitAppliesDefaultThemeBeforeFirstFrame)
     rt.shutdown();
 }
 
+// Issue #110: native Qt chrome (status bar) must follow the theme, including later
+// theme switches made in the canvas UI.
+TEST(QtRuntimeTheme, ThemeCallbackDeliversPaletteAndFollowsChanges)
+{
+    spectra::adapters::qt::QtRuntime rt;
+    int                              calls = 0;
+    QPalette                         last;
+    // Registered before init(): delivered as soon as init() has applied the theme.
+    rt.set_theme_changed_callback(
+        [&](const QPalette& p)
+        {
+            ++calls;
+            last = p;
+        });
+    EXPECT_EQ(calls, 0);
+    if (!rt.init())
+        GTEST_SKIP() << "QtRuntime::init() failed (no Vulkan-capable Qt platform/ICD)";
+
+    ASSERT_EQ(calls, 1);
+    EXPECT_EQ(last.color(QPalette::Window), rt.theme_palette().color(QPalette::Window));
+    EXPECT_LT(last.color(QPalette::Window).lightnessF(), 0.25);   // dark default
+
+    // No change, no call.
+    EXPECT_FALSE(rt.poll_theme_change());
+    EXPECT_EQ(calls, 1);
+
+    rt.theme_manager().set_theme("light");
+    EXPECT_TRUE(rt.poll_theme_change());
+    EXPECT_EQ(calls, 2);
+    EXPECT_GT(last.color(QPalette::Window).lightnessF(), 0.75);
+
+    // Re-registering delivers the current palette straight away.
+    int second = 0;
+    rt.set_theme_changed_callback([&](const QPalette&) { ++second; });
+    EXPECT_EQ(second, 1);
+    rt.set_theme_changed_callback(nullptr);
+    rt.theme_manager().set_theme("dark");
+    EXPECT_FALSE(rt.poll_theme_change());
+
+    rt.shutdown();
+}
+
 }   // namespace
 
 int main(int argc, char** argv)

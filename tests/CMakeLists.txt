@@ -590,6 +590,19 @@ foreach(qt_demo qt_embed_demo qt_multi_canvas_demo)
     endif()
 endforeach()
 
+# Qt palette from the Spectra theme: pure colour conversion, no display needed.
+if(TARGET spectra_qt_adapter)
+    add_executable(unit_test_qt_theme unit/test_qt_theme.cpp)
+    target_link_libraries(unit_test_qt_theme PRIVATE spectra_qt_adapter GTest::gtest_main)
+    target_compile_features(unit_test_qt_theme PRIVATE cxx_std_20)
+    target_include_directories(unit_test_qt_theme PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_BINARY_DIR}/generated
+    )
+    add_test(NAME unit_test_qt_theme COMMAND unit_test_qt_theme)
+    set_tests_properties(unit_test_qt_theme PROPERTIES LABELS "qt")
+endif()
+
 # QtRuntime startup theme: needs an X display with Vulkan (xvfb-run + lavapipe).
 if(TARGET spectra_qt_adapter)
     add_executable(unit_test_qt_runtime_theme unit/test_qt_runtime_theme.cpp)

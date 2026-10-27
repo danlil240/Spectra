@@ -4,9 +4,11 @@
 
 #include <chrono>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <unordered_map>
 
+#include <QtGui/QPalette>
 #include <QtGui/QVulkanInstance>
 
 #include "ui/theme/theme.hpp"
@@ -114,6 +116,22 @@ class QtRuntime
     ui::ThemeManager&       theme_manager() { return theme_mgr_; }
     const ui::ThemeManager& theme_manager() const { return theme_mgr_; }
 
+    // QPalette matching the current Spectra theme (see palette_from_theme()).  Apply it to
+    // the host's native widgets (QApplication::setPalette, QStatusBar, ...) so the chrome
+    // around the canvas follows the plot UI instead of the platform's light default.
+    QPalette theme_palette() const;
+
+    // Called with the theme palette once on registration (when init() has run) and again
+    // whenever the theme colours change — e.g. the user picks another theme in the
+    // command palette or an animated transition advances.  Changes are detected once per
+    // rendered frame; poll_theme_change() checks immediately.  Pass nullptr to clear.
+    using ThemeChangedCallback = std::function<void(const QPalette&)>;
+    void set_theme_changed_callback(ThemeChangedCallback cb);
+
+    // Invoke the theme callback if the theme changed since it was last notified.
+    // Returns true when the callback ran.
+    bool poll_theme_change();
+
    private:
     struct WindowState
     {
@@ -129,6 +147,10 @@ class QtRuntime
     const WindowState* find_window_state(QWindow* window) const;
 
     bool initialized_ = false;
+
+    ThemeChangedCallback theme_changed_cb_;
+    uint32_t             notified_theme_version_ = 0;
+    bool                 theme_notified_         = false;
 
     ui::ThemeManager                                           theme_mgr_;
     std::unique_ptr<QtSurfaceHost>                             surface_host_;

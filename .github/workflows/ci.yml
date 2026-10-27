@@ -234,6 +234,53 @@ jobs:
       - name: Run unit tests (non-GPU)
         run: ctest --test-dir build --output-on-failure -LE "gpu|golden" -j"$(nproc)"
 
+  # Qt6 adapter + Qt embed examples (SPECTRA_USE_QT is OFF everywhere else).
+  # Build-only for the Qt targets plus the display-free Qt unit test, so it stays cheap.
+  build-linux-qt:
+    name: build-linux-qt (ubuntu-24.04, gcc)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install dependencies
+        uses: ./.github/actions/setup-linux
+
+      - name: Install Qt6
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends qt6-base-dev
+
+      - name: ccache
+        uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24
+        with:
+          key: build-linux-qt-ubuntu-24.04-gcc
+          max-size: 1G
+          save: ${{ github.event_name != 'pull_request' }}
+
+      - name: Configure CMake
+        run: |
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+            -DCMAKE_C_COMPILER=gcc-13 \
+            -DCMAKE_CXX_COMPILER=g++-13 \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DSPECTRA_USE_ROS2=OFF \
+            -DSPECTRA_USE_QT=ON \
+            -DSPECTRA_BUILD_QT_EXAMPLE=ON \
+            -DSPECTRA_BUILD_EXAMPLES=ON \
+            -DSPECTRA_BUILD_TESTS=ON \
+            -DSPECTRA_BUILD_GOLDEN_TESTS=OFF
+
+      - name: Build Qt adapter and examples
+        run: |
+          cmake --build build --config ${{ env.BUILD_TYPE }} -j"$(nproc)" \
+            --target spectra_qt_adapter qt_embed_demo qt_multi_canvas_demo unit_test_qt_theme
+
+      - name: Run Qt unit tests (no display)
+        run: ctest --test-dir build --output-on-failure -R '^unit_test_qt_theme$'
+
   # ─── Python package + pytest (also the SPECTRA_BUILD_EMBED_SHARED build) ──
   python-tests:
     runs-on: ubuntu-24.04

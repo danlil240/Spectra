@@ -223,8 +223,7 @@ void InputHandler::handle_mouse_button_3d(Axes3D* axes3d,
         {
             const auto& vp     = axes3d->viewport();
             const auto& cam    = axes3d->camera();
-            float       aspect = vp.w / std::max(vp.h, 1.0f);
-            mat4        proj   = cam.projection_matrix(aspect);
+            mat4        proj   = axes3d->projection_matrix(vp);
             mat4        view   = cam.view_matrix();
             mat4        model  = axes3d->data_to_normalized_matrix();
             mat4        mvp    = mat4_mul(proj, mat4_mul(view, model));

@@ -299,8 +299,7 @@ void Renderer::render_plot_text(Figure& figure)
         const auto& cam = axes3d->camera();
 
         // Build MVP matrix: projection * view * model
-        float aspect = vp.w / std::max(vp.h, 1.0f);
-        mat4  proj   = cam.projection_matrix(aspect);
+        mat4  proj   = axes3d->projection_matrix(vp);
         mat4  view   = cam.view_matrix();
         mat4  model  = axes3d->data_to_normalized_matrix();
         mat4  mvp    = mat4_mul(proj, mat4_mul(view, model));
@@ -465,6 +464,14 @@ void Renderer::render_plot_text(Figure& figure)
             }
             return false;
         };
+        // 3D text is not scissored, so a label sticking out of this viewport
+        // would print over a neighbouring subplot; drop it instead.
+        auto outside_viewport = [&](const LabelRect& r) -> bool
+        {
+            constexpr float tol = 1.0f;
+            return r.x0 < vp.x - tol || r.x1 > vp.x + vp.w + tol || r.y0 < vp.y - tol
+                   || r.y1 > vp.y + vp.h + tol;
+        };
         // Draw a depth-tested tick label unless it would overlap another label.
         auto place_tick_label = [&](const std::string& text,
                                     float              x,
@@ -474,7 +481,7 @@ void Renderer::render_plot_text(Figure& figure)
                                     TextVAlign         valign)
         {
             const LabelRect r = label_rect(text, FontSize::Tick, x, y, align, valign);
-            if (collides(r))
+            if (collides(r) || outside_viewport(r))
                 return;
             placed_labels.push_back(r);
             text_renderer_
@@ -609,6 +616,8 @@ void Renderer::render_plot_text(Figure& figure)
                                    TextAlign::Left,
                                    TextVAlign::Middle);
                 }
+                if (outside_viewport(r))
+                    return;
                 placed_labels.push_back(r);
                 text_renderer_.draw_text_depth(lbl,
                                                lx,

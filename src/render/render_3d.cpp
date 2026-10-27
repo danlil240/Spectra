@@ -491,11 +491,12 @@ void Renderer::render_arrows(Axes3D& axes, const Rect& /*viewport*/)
         {
             const auto& vp     = axes.viewport();
             float       aspect = vp.w / std::max(vp.h, 1.0f);
+            const float fit    = axes.projection_fit_scale(vp);
             // Copy projection
             if (cam.projection_mode == Camera::ProjectionMode::Perspective)
             {
                 float fov_rad            = cam.fov * PI / 180.0f;
-                float f                  = 1.0f / std::tan(fov_rad * 0.5f);
+                float f                  = 1.0f / (std::tan(fov_rad * 0.5f) * fit);
                 arrow_ubo.projection[0]  = f / aspect;
                 arrow_ubo.projection[5]  = -f;
                 arrow_ubo.projection[10] = cam.far_clip / (cam.near_clip - cam.far_clip);
@@ -505,8 +506,8 @@ void Renderer::render_arrows(Axes3D& axes, const Rect& /*viewport*/)
             }
             else
             {
-                float half_w = cam.ortho_size * aspect;
-                float half_h = cam.ortho_size;
+                float half_w = cam.ortho_size * aspect * fit;
+                float half_h = cam.ortho_size * fit;
                 build_ortho_projection_3d(-half_w,
                                           half_w,
                                           -half_h,

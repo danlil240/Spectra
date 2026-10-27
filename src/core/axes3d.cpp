@@ -361,6 +361,48 @@ ShapeSeries3D& Axes3D::shapes3d()
     return *ptr;
 }
 
+float Axes3D::projection_fit_scale(const Rect& vp) const
+{
+    // Bounding sphere of the normalized box: the box projects inside it for
+    // every orientation, so fitting the sphere never jumps while orbiting.
+    // Measured at the default camera distance and FOV so user zoom (distance,
+    // ortho size, FOV) still works on top of the fit.
+    constexpr float kRefDistance = box_half_size() * 2.0f * 2.2f;   // Axes3D() default
+    constexpr float kRefTanHalf  = 0.41421356f;                     // tan(45 deg / 2)
+    const float     radius       = box_half_size() * std::sqrt(3.0f);
+    const float     tan_sphere = radius / std::sqrt(kRefDistance * kRefDistance - radius * radius);
+
+    // Pixels kept free around the sphere for tick labels and arrow tips, plus
+    // the title band drawn inside the top of the viewport.
+    constexpr float kLabelMarginPx = 22.0f;
+    constexpr float kTitleMarginPx = 14.0f;
+    const float     margin_x       = kLabelMarginPx;
+    const float     margin_y       = kLabelMarginPx + (title().empty() ? 0.0f : kTitleMarginPx);
+
+    const float half_w = vp.w * 0.5f;
+    const float half_h = vp.h * 0.5f;
+    if (!(half_w > 0.0f) || !(half_h > 0.0f))
+        return 1.0f;
+    // Never let margins eat more than half of a tiny viewport.
+    const float usable_w = std::max(half_w - margin_x, half_w * 0.5f);
+    const float usable_h = std::max(half_h - margin_y, half_h * 0.5f);
+
+    // At scale 1 a view-space tangent t maps to t / kRefTanHalf * half_h pixels
+    // on both screen axes; widen until the sphere fits the tighter one.
+    const float scale = tan_sphere / kRefTanHalf * half_h / std::min(usable_w, usable_h);
+    return std::max(1.0f, scale);
+}
+
+mat4 Axes3D::projection_matrix(const Rect& vp) const
+{
+    const float aspect = vp.w / std::max(vp.h, 1.0f);
+    mat4        proj   = camera_->projection_matrix(aspect);
+    const float inv    = 1.0f / projection_fit_scale(vp);
+    proj.m[0] *= inv;
+    proj.m[5] *= inv;
+    return proj;
+}
+
 mat4 Axes3D::data_to_normalized_matrix() const
 {
     auto xl = x_limits();

@@ -2,18 +2,41 @@
 
     #include "crosshair.hpp"
 
+    #include <cfloat>
     #include <cmath>
     #include <format>
     #include <imgui.h>
     #include <spectra/axes.hpp>
     #include <spectra/figure.hpp>
 
+    #include "overlay_text_fit.hpp"
     #include "readout_format.hpp"
     #include "ui/input/input.hpp"
     #include "ui/theme/theme.hpp"
 
 namespace spectra
 {
+
+// Fitted crosshair readout: the text to draw and its measured size.
+struct FittedLabel
+{
+    std::string text;
+    ImVec2      size;
+};
+
+// Measure a readout at full width (no measuring cap) and, if it is wider than
+// max_w, ellipsize it (UTF-8 safe) so its box stays inside the viewport.
+static FittedLabel fit_label(ImFont* font, float font_size, const std::string& text, float max_w)
+{
+    const ui::overlay_fit::MeasureFn measure = [&](std::string_view s)
+    { return font->CalcTextSizeA(font_size, FLT_MAX, 0.0f, s.data(), s.data() + s.size()).x; };
+    FittedLabel out;
+    out.text = ui::overlay_fit::ellipsize(text, std::max(0.0f, max_w), measure);
+    out.size = font->CalcTextSizeA(font_size, FLT_MAX, 0.0f, out.text.c_str());
+    if (out.size.y <= 0.0f)
+        out.size.y = font_size;
+    return out;
+}
 
 // Helper: draw a dashed line on an ImDrawList
 static void draw_dashed_line(ImDrawList* dl,
@@ -160,14 +183,16 @@ void Crosshair::draw(const CursorReadout& cursor,
 
     // X label at bottom of viewport
     {
-        ImVec2 sz = font->CalcTextSizeA(font->LegacySize * 0.85f, 200.0f, 0.0f, x_label.c_str());
-        float  lx = sx - sz.x * 0.5f;
-        float  ly = vy1 + 2.0f;
-        // Clamp horizontally
-        if (lx < vx0)
-            lx = vx0;
-        if (lx + sz.x + label_pad * 2.0f > vx1)
-            lx = vx1 - sz.x - label_pad * 2.0f;
+        const FittedLabel fl =
+            fit_label(font, font->LegacySize * 0.85f, x_label, (vx1 - vx0) - label_pad * 2.0f);
+        const ImVec2 sz = fl.size;
+        // Keep the whole label box inside the viewport horizontally.
+        float lx = ui::overlay_fit::clamp_span(sx - sz.x * 0.5f - label_pad,
+                                               sz.x + label_pad * 2.0f,
+                                               vx0,
+                                               vx1)
+                   + label_pad;
+        float ly = vy1 + 2.0f;
 
         fg->AddRectFilled(ImVec2(lx - label_pad, ly),
                           ImVec2(lx + sz.x + label_pad, ly + sz.y + label_pad * 2.0f),
@@ -177,25 +202,27 @@ void Crosshair::draw(const CursorReadout& cursor,
                     font->LegacySize * 0.85f,
                     ImVec2(lx, ly + label_pad),
                     label_text,
-                    x_label.c_str());
+                    fl.text.c_str());
     }
 
     // Y label inside left edge of viewport
     {
-        ImVec2 sz = font->CalcTextSizeA(font->LegacySize * 0.85f, 200.0f, 0.0f, y_label.c_str());
-        float  lx = vx0 + 4.0f;
-        float  ly = sy - sz.y * 0.5f;
-        // Clamp vertically
-        if (ly < vy0)
-            ly = vy0;
-        if (ly + sz.y + label_pad * 2.0f > vy1)
-            ly = vy1 - sz.y - label_pad * 2.0f;
+        const float       lx = vx0 + 4.0f;
+        const FittedLabel fl =
+            fit_label(font, font->LegacySize * 0.85f, y_label, vx1 - lx - label_pad);
+        const ImVec2 sz = fl.size;
+        // Keep the whole label box inside the viewport vertically.
+        float ly = ui::overlay_fit::clamp_span(sy - sz.y * 0.5f - label_pad,
+                                               sz.y + label_pad * 2.0f,
+                                               vy0,
+                                               vy1)
+                   + label_pad;
 
         fg->AddRectFilled(ImVec2(lx - label_pad, ly - label_pad),
                           ImVec2(lx + sz.x + label_pad, ly + sz.y + label_pad),
                           label_bg,
                           3.0f);
-        fg->AddText(font, font->LegacySize * 0.85f, ImVec2(lx, ly), label_text, y_label.c_str());
+        fg->AddText(font, font->LegacySize * 0.85f, ImVec2(lx, ly), label_text, fl.text.c_str());
     }
 }
 
@@ -300,14 +327,15 @@ void Crosshair::draw_all_axes(const CursorReadout& cursor,
 
             // X label at bottom
             const std::string x_label = ui::format_readout_value(data_x, 4);
-            ImVec2            sz =
-                font->CalcTextSizeA(font->LegacySize * 0.85f, 200.0f, 0.0f, x_label.c_str());
-            float lx = sx - sz.x * 0.5f;
+            const FittedLabel fl =
+                fit_label(font, font->LegacySize * 0.85f, x_label, (vx1 - vx0) - label_pad * 2.0f);
+            const ImVec2 sz = fl.size;
+            float        lx = ui::overlay_fit::clamp_span(sx - sz.x * 0.5f - label_pad,
+                                                   sz.x + label_pad * 2.0f,
+                                                   vx0,
+                                                   vx1)
+                       + label_pad;
             float ly = vy1 + 2.0f;
-            if (lx < vx0)
-                lx = vx0;
-            if (lx + sz.x + label_pad * 2.0f > vx1)
-                lx = vx1 - sz.x - label_pad * 2.0f;
 
             fg->AddRectFilled(ImVec2(lx - label_pad, ly),
                               ImVec2(lx + sz.x + label_pad, ly + sz.y + label_pad * 2.0f),
@@ -317,7 +345,7 @@ void Crosshair::draw_all_axes(const CursorReadout& cursor,
                         font->LegacySize * 0.85f,
                         ImVec2(lx, ly + label_pad),
                         label_text,
-                        x_label.c_str());
+                        fl.text.c_str());
         }
 
         // Horizontal line on the hovered axes (at cursor Y)
@@ -335,14 +363,15 @@ void Crosshair::draw_all_axes(const CursorReadout& cursor,
 
                 // Y label inside left edge of viewport
                 const std::string y_label = ui::format_readout_value(data_y, 4);
-                ImVec2            sz =
-                    font->CalcTextSizeA(font->LegacySize * 0.85f, 200.0f, 0.0f, y_label.c_str());
-                float lx2 = vx0 + 4.0f;
-                float ly2 = cy - sz.y * 0.5f;
-                if (ly2 < vy0)
-                    ly2 = vy0;
-                if (ly2 + sz.y + label_pad * 2.0f > vy1)
-                    ly2 = vy1 - sz.y - label_pad * 2.0f;
+                const float       lx2     = vx0 + 4.0f;
+                const FittedLabel fl =
+                    fit_label(font, font->LegacySize * 0.85f, y_label, vx1 - lx2 - label_pad);
+                const ImVec2 sz  = fl.size;
+                float        ly2 = ui::overlay_fit::clamp_span(cy - sz.y * 0.5f - label_pad,
+                                                        sz.y + label_pad * 2.0f,
+                                                        vy0,
+                                                        vy1)
+                            + label_pad;
 
                 fg->AddRectFilled(ImVec2(lx2 - label_pad, ly2 - label_pad),
                                   ImVec2(lx2 + sz.x + label_pad, ly2 + sz.y + label_pad),
@@ -352,7 +381,7 @@ void Crosshair::draw_all_axes(const CursorReadout& cursor,
                             font->LegacySize * 0.85f,
                             ImVec2(lx2, ly2),
                             label_text,
-                            y_label.c_str());
+                            fl.text.c_str());
             }
         }
         // Horizontal line on non-hovered axes at the same data-Y
@@ -381,14 +410,15 @@ void Crosshair::draw_all_axes(const CursorReadout& cursor,
 
                 // Y label showing the same data-Y value
                 const std::string y_label = ui::format_readout_value(data_y, 4);
-                ImVec2            sz =
-                    font->CalcTextSizeA(font->LegacySize * 0.85f, 200.0f, 0.0f, y_label.c_str());
-                float lx2 = vx0 + 4.0f;
-                float ly2 = sy - sz.y * 0.5f;
-                if (ly2 < vy0)
-                    ly2 = vy0;
-                if (ly2 + sz.y + label_pad * 2.0f > vy1)
-                    ly2 = vy1 - sz.y - label_pad * 2.0f;
+                const float       lx2     = vx0 + 4.0f;
+                const FittedLabel fl =
+                    fit_label(font, font->LegacySize * 0.85f, y_label, vx1 - lx2 - label_pad);
+                const ImVec2 sz  = fl.size;
+                float        ly2 = ui::overlay_fit::clamp_span(sy - sz.y * 0.5f - label_pad,
+                                                        sz.y + label_pad * 2.0f,
+                                                        vy0,
+                                                        vy1)
+                            + label_pad;
 
                 ImU32 dim_label_text = ImGui::ColorConvertFloat4ToU32(ImVec4(colors.text_primary.r,
                                                                              colors.text_primary.g,
@@ -403,7 +433,7 @@ void Crosshair::draw_all_axes(const CursorReadout& cursor,
                             font->LegacySize * 0.85f,
                             ImVec2(lx2, ly2),
                             dim_label_text,
-                            y_label.c_str());
+                            fl.text.c_str());
             }
         }
     }

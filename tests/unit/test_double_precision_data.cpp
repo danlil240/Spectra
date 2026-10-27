@@ -302,11 +302,19 @@ TEST(DoubleDataApi, SvgExportUsesTrueValues)
 
     fig.compute_layout();
     const std::string svg = SvgExporter::to_string(fig);
-    const auto        pos = svg.find("points=\"");
+    const std::string key = "<path class=\"line\" d=\"M";
+    const auto        pos = svg.find(key);
     ASSERT_NE(pos, std::string::npos);
     // Three points spread over the plot area: distinct x and y coordinates.
     float x0 = 0, y0 = 0, x1 = 0, y1 = 0, x2 = 0, y2 = 0;
-    ASSERT_EQ(std::sscanf(svg.c_str() + pos + 8, "%f,%f %f,%f %f,%f", &x0, &y0, &x1, &y1, &x2, &y2),
+    ASSERT_EQ(std::sscanf(svg.c_str() + pos + key.size(),
+                          "%f %f %f %f %f %f",
+                          &x0,
+                          &y0,
+                          &x1,
+                          &y1,
+                          &x2,
+                          &y2),
               6);
     EXPECT_LT(x0, x1);
     EXPECT_LT(x1, x2);

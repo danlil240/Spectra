@@ -287,12 +287,20 @@ float luma(const Color& c)
     return 0.2126f * c.r + 0.7152f * c.g + 0.0722f * c.b;
 }
 
-// Same rule as ui::adapt_series_color_to_theme(): pure black on a dark
-// background (or pure white on a light one) is drawn in the theme foreground.
+// Same rule as ui::adapt_series_color_to_theme(): explicit pure black on a
+// dark background (or pure white on a light one) is drawn in the theme
+// foreground.
 Color theme_series_color(const Series& s, const SvgStyle& st)
 {
     Color       c        = s.color();
     const float bg_luma  = luma(st.background);
+    // Format-letter colours ("r--") use the shade tuned for the background,
+    // as ui::resolve_auto_series_colors() does for the renderer.
+    if (format_colors::is_letter(s.color_letter()))
+    {
+        const Color shade = format_colors::shade(s.color_letter(), bg_luma > 0.5f);
+        return Color{shade.r, shade.g, shade.b, c.a};
+    }
     const bool  is_black = c.r == 0.0f && c.g == 0.0f && c.b == 0.0f;
     const bool  is_white = c.r == 1.0f && c.g == 1.0f && c.b == 1.0f;
     if ((is_black && bg_luma < 0.35f) || (is_white && bg_luma > 0.65f))
@@ -1316,22 +1324,11 @@ void emit_grid_2d(SvgContext& c, const Axes& axes, const DataToSvg& m)
     c.body << "    </g>\n";
 }
 
-// Axes::text / Axes::annotate annotations, clipped to the plot area.  Font
-// sizes snap to the renderer's presets like TextRenderer::nearest_font_size().
+// Axes::text / Axes::annotate annotations, clipped to the plot area.
 void emit_annotations(SvgContext& c, const Axes& axes, const DataToSvg& m, const std::string& clip)
 {
     if (axes.annotations().empty())
         return;
-    auto snap_font = [](float px)
-    {
-        if (!(px > 0.0f))
-            return LABEL_FONT_PX;
-        float best = TICK_FONT_PX;
-        for (float f : {LABEL_FONT_PX, TITLE_FONT_PX})
-            if (std::fabs(f - px) < std::fabs(best - px))
-                best = f;
-        return best;
-    };
     static constexpr const char* anchors[] = {"start", "middle", "end"};
 
     c.body << "    <g class=\"annotations\" clip-path=\"url(#" << clip << ")\">\n";
@@ -1346,7 +1343,7 @@ void emit_annotations(SvgContext& c, const Axes& axes, const DataToSvg& m, const
 
         // Unset colour follows the theme text colour, as in the renderer.
         const Color col = ann->color().value_or(c.style.text_primary);
-        const float fs  = snap_font(ann->font_size());
+        const float fs  = ann->font_size() > 0.0f ? ann->font_size() : LABEL_FONT_PX;
         const float w   = estimate_text_width(ann->text(), fs);
         const float h   = 1.2f * fs;
         const auto  box = annotation_layout::text_box(ax, ay, w, h, ann->halign(), ann->valign());

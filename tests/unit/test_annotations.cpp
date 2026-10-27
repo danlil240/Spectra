@@ -203,7 +203,7 @@ TEST(AnnotationSvg, TextIsExported)
     EXPECT_NE(svg.find("class=\"annotations\""), std::string::npos);
     EXPECT_NE(svg.find(">hello &lt;world&gt;</text>"), std::string::npos);
     EXPECT_NE(svg.find("font-size=\"20\""), std::string::npos);
-    EXPECT_NE(svg.find("fill=\"rgb(255,0,0)\""), std::string::npos);
+    EXPECT_NE(svg.find("fill=\"#ff0000\""), std::string::npos);
     EXPECT_EQ(svg.find("<polygon"), std::string::npos);   // no arrow for text()
 }
 

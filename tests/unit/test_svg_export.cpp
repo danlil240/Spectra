@@ -309,7 +309,7 @@ TEST(SvgExport, BlackSeriesFollowsForegroundOnDarkBackground)
     Figure             fig({.width = 400, .height = 300});
     auto&              ax = fig.subplot(1, 1, 1);
     std::vector<float> x = {0.0f, 1.0f}, y = {0.0f, 1.0f};
-    ax.plot(x, y, "k-");
+    ax.plot(x, y, "-").color(Color{0.0f, 0.0f, 0.0f, 1.0f});
     fig.compute_layout();
     SvgStyle st;
     st.background   = Color{0.05f, 0.05f, 0.08f, 1.0f};
@@ -317,6 +317,21 @@ TEST(SvgExport, BlackSeriesFollowsForegroundOnDarkBackground)
     std::string svg = SvgExporter::to_string(fig, st);
     EXPECT_NE(svg.find("<path class=\"line\" d=\"M"), std::string::npos);
     EXPECT_NE(svg.find("stroke=\"#e6e6e6\""), std::string::npos);
+}
+
+TEST(SvgExport, FormatLetterUsesShadeForBackground)
+{
+    Figure             fig({.width = 400, .height = 300});
+    auto&              ax = fig.subplot(1, 1, 1);
+    std::vector<float> x = {0.0f, 1.0f}, y = {0.0f, 1.0f};
+    ax.plot(x, y, "k-");
+    fig.compute_layout();
+    SvgStyle dark;
+    dark.background = Color{0.05f, 0.05f, 0.08f, 1.0f};
+    EXPECT_NE(SvgExporter::to_string(fig, dark).find("stroke=\"#d6d6d6\""), std::string::npos);
+    SvgStyle light;
+    light.background = Color{1.0f, 1.0f, 1.0f, 1.0f};
+    EXPECT_NE(SvgExporter::to_string(fig, light).find("stroke=\"#000000\""), std::string::npos);
 }
 
 TEST(SvgExport, LineStylesEmitRendererDashPatterns)

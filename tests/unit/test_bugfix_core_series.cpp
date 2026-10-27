@@ -2,8 +2,10 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cmath>
 #include <limits>
+#include <spectra/axes.hpp>
 #include <spectra/series.hpp>
 #include <spectra/series3d.hpp>
 #include <spectra/series_shapes.hpp>
@@ -365,6 +367,72 @@ TEST(BugfixCoreSeries, ArrowPixelScaleIgnoredForCustomHeadsAndOtherShapes)
     EXPECT_FALSE(arrow.set_pixel_scale(0.0f, 1.0f));   // invalid scales rejected
     EXPECT_FALSE(arrow.set_pixel_scale(std::numeric_limits<float>::infinity(), 1.0f));
     EXPECT_TRUE(arrow.set_pixel_scale(0.5f, 1.0f));
+}
+
+// ── R00: 2D shape geometry is generated lazily (first-frame limits) ───────
+
+TEST(BugfixCoreSeries, ShapeGeometryAvailableWithoutRebuild)
+{
+    ShapeSeries sh;
+    sh.rect(2, 3, 4, 5).circle(10, 10, 1).text(1, 1, "label");
+    // No rebuild_geometry() / render: queries must still see current geometry.
+    EXPECT_GT(sh.point_count(), 0u);
+    EXPECT_EQ(sh.x_data().size(), sh.point_count());
+    EXPECT_EQ(sh.y_data().size(), sh.point_count());
+    EXPECT_GT(sh.fill_vertex_count(), 0u);
+    EXPECT_EQ(sh.solid_fill_first_vertex(), sh.fill_vertex_count());
+    ASSERT_EQ(sh.text_annotations().size(), 1u);
+    EXPECT_EQ(sh.text_annotations()[0].content, "label");
+}
+
+TEST(BugfixCoreSeries, FreshShapeAxesAutoscaleIncludesShapes)
+{
+    Axes ax;
+    ax.shapes().rect(10, 20, 5, 4).circle(30, 40, 2);
+
+    const AxisLimits xl = ax.x_limits();
+    const AxisLimits yl = ax.y_limits();
+    EXPECT_LE(xl.min, 10.0);
+    EXPECT_GE(xl.max, 32.0);
+    EXPECT_GT(xl.min, 5.0);   // not the empty-data default [-0.05, 1.05]
+    EXPECT_LE(yl.min, 20.0);
+    EXPECT_GE(yl.max, 42.0);
+    EXPECT_GT(yl.min, 15.0);
+}
+
+TEST(BugfixCoreSeries, ShapeMutationAfterRebuildUpdatesBounds)
+{
+    Axes  ax;
+    auto& sh = ax.shapes();
+    sh.rect(0, 0, 1, 1);
+    sh.rebuild_geometry();   // what the renderer's upload does on the first frame
+    EXPECT_LE(ax.x_limits().max, 2.0);
+
+    // Shape added after the first frame: limits must include it before any upload.
+    sh.circle(100, 50, 5);
+    EXPECT_GE(ax.x_limits().max, 105.0);
+    EXPECT_GE(ax.y_limits().max, 55.0);
+
+    // A style modifier on the last shape (rotation) also regenerates geometry.
+    ShapeSeries line;
+    line.line(0, 0, 10, 0);
+    line.rebuild_geometry();
+    float ymax_before = -1.0f;
+    for (float y : line.y_data())
+        if (std::isfinite(y))
+            ymax_before = std::max(ymax_before, y);
+    line.rotation(kPi / 2.0f);
+    float ymax_after = -1.0f;
+    for (float y : line.y_data())
+        if (std::isfinite(y))
+            ymax_after = std::max(ymax_after, y);
+    EXPECT_NEAR(ymax_before, 0.0f, 1e-5f);
+    EXPECT_NEAR(ymax_after, 5.0f, 1e-4f);
+
+    // clear_shapes() leaves no geometry behind.
+    sh.clear_shapes();
+    EXPECT_EQ(sh.point_count(), 0u);
+    EXPECT_EQ(sh.fill_vertex_count(), 0u);
 }
 
 // ── Bug #75: ShapeSeries3D segments validation ─────────────────────────────

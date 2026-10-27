@@ -191,6 +191,7 @@ set(SPECTRA_UNIT_TESTS
     test_camera
     test_axes3d_fit
     test_shape3d_first_frame
+    test_shape2d_first_frame
     # test_axes3d  # Not a proper GTEST file, uses plain functions with assert
     test_series3d
     test_depth_buffer
@@ -358,6 +359,7 @@ set(SPECTRA_GPU_TESTS
     test_easy_embed
     test_headless_export_text
     test_shape3d_first_frame
+    test_shape2d_first_frame
     test_custom_series_gpu
 )
 
@@ -441,7 +443,7 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
             add_dependencies(unit_${_test} spectra_wgsl_shaders)
         endif()
         # Decodes the exported PNGs with the bundled stb_image.
-        if(_test MATCHES "^test_(headless_export_text|shape3d_first_frame)$")
+        if(_test MATCHES "^test_(headless_export_text|shape3d_first_frame|shape2d_first_frame)$")
             target_include_directories(unit_${_test} SYSTEM PRIVATE
                 ${CMAKE_SOURCE_DIR}/third_party/stb)
         endif()

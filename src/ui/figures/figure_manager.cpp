@@ -400,16 +400,7 @@ FigureId FigureManager::duplicate_figure(FigureId index)
             {
                 auto& dup = dst_ax.box_plot();
                 for (size_t bi = 0; bi < bp->positions().size(); ++bi)
-                {
-                    const auto& st = bp->stats()[bi];
-                    dup.add_box(bp->positions()[bi],
-                                st.median,
-                                st.q1,
-                                st.q3,
-                                st.whisker_low,
-                                st.whisker_high,
-                                st.outliers);
-                }
+                    dup.add_box(bp->positions()[bi], bp->stats()[bi]);
                 dup.color(bp->color());
                 dup.box_width(bp->box_width());
                 dup.show_outliers(bp->show_outliers());

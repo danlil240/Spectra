@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <iterator>
 #include <limits>
 #include <vector>
 #include <spectra/series_shapes.hpp>
@@ -10,6 +11,13 @@ namespace spectra
 
 static constexpr float PI  = 3.14159265358979f;
 static constexpr float NaN = std::numeric_limits<float>::quiet_NaN();
+
+// Pixel-sized arrowheads: length = max(MIN_PX, PER_LINE_WIDTH * line_width), capped at
+// MAX_FRAC of the arrow's on-screen length; half-width = ASPECT * length.
+static constexpr float ARROW_HEAD_MIN_PX         = 14.0f;
+static constexpr float ARROW_HEAD_PER_LINE_WIDTH = 7.0f;
+static constexpr float ARROW_HEAD_MAX_FRAC       = 0.6f;
+static constexpr float ARROW_HEAD_ASPECT         = 0.4f;
 
 namespace
 {
@@ -302,9 +310,10 @@ ShapeSeries& ShapeSeries::arrow_head(float length_frac, float width)
 {
     if (!shapes_.empty())
     {
-        shapes_.back().arrow_head_frac  = length_frac;
-        shapes_.back().arrow_head_width = width;
-        dirty_                          = true;
+        shapes_.back().arrow_head_frac   = length_frac;
+        shapes_.back().arrow_head_width  = width;
+        shapes_.back().arrow_head_custom = true;
+        dirty_                           = true;
     }
     return *this;
 }
@@ -337,6 +346,8 @@ ShapeSeries& ShapeSeries::clear_shapes()
     line_x_.clear();
     line_y_.clear();
     fill_verts_.clear();
+    solid_fill_verts_.clear();
+    solid_fill_first_vertex_ = 0;
     text_annotations_.clear();
     dirty_ = true;
     return *this;
@@ -648,47 +659,67 @@ void ShapeSeries::generate_arrow(const ShapeDef& def)
         rotate_point(x2, y2, cx, cy, def.rotation);
     }
 
-    float dx  = x2 - x1;
-    float dy  = y2 - y1;
+    // The head is built in a "head space" in which the triangle is symmetric about the shaft:
+    // screen pixels when the pixel scale is known (so it stays a crisp isosceles triangle
+    // whatever the axes aspect ratio), plain data units otherwise.  (ux, uy) converts one
+    // head-space unit back to data units along each axis.
+    const bool pixel_head =
+        !def.arrow_head_custom && data_per_px_x_ > 0.0f && data_per_px_y_ > 0.0f;
+    const float ux = pixel_head ? data_per_px_x_ : 1.0f;
+    const float uy = pixel_head ? data_per_px_y_ : 1.0f;
+
+    float dx  = (x2 - x1) / ux;
+    float dy  = (y2 - y1) / uy;
     float len = std::sqrt(dx * dx + dy * dy);
-    if (len < 1e-8f)
+    if (!(len > 1e-8f))
         return;
 
-    float nx = dx / len;   // unit direction
+    float nx = dx / len;   // unit direction (head space)
     float ny = dy / len;
     float px = -ny;   // perpendicular
     float py = nx;
 
-    float head_len = len * def.arrow_head_frac;
-    float head_w   = def.arrow_head_width;
+    float head_len;
+    float head_half_w;
+    if (pixel_head)
+    {
+        head_len    = std::max(ARROW_HEAD_MIN_PX, ARROW_HEAD_PER_LINE_WIDTH * def.line_width);
+        head_len    = std::min(head_len, len * ARROW_HEAD_MAX_FRAC);
+        head_half_w = head_len * ARROW_HEAD_ASPECT;
+    }
+    else
+    {
+        head_len    = len * def.arrow_head_frac;
+        head_half_w = def.arrow_head_width;
+    }
 
-    // Shaft line (from start to base of arrowhead)
-    float shaft_end_x = x2 - nx * head_len;
-    float shaft_end_y = y2 - ny * head_len;
+    // Head-space point -> data space, relative to the tip.
+    auto to_data_x = [&](float hx) { return x2 + hx * ux; };
+    auto to_data_y = [&](float hy) { return y2 + hy * uy; };
+
+    float base_x  = -nx * head_len;
+    float base_y  = -ny * head_len;
+    float left_x  = to_data_x(base_x + px * head_half_w);
+    float left_y  = to_data_y(base_y + py * head_half_w);
+    float right_x = to_data_x(base_x - px * head_half_w);
+    float right_y = to_data_y(base_y - py * head_half_w);
+
+    // Shaft stops halfway into the head so its round cap is hidden under the solid triangle
+    // instead of blunting the tip.
+    float shaft_end_x = to_data_x(base_x * 0.5f);
+    float shaft_end_y = to_data_y(base_y * 0.5f);
 
     if (!line_x_.empty())
         push_nan_break();
     push_outline_seg(x1, y1, shaft_end_x, shaft_end_y);
 
-    // Arrowhead: filled triangle
-    float left_x  = shaft_end_x + px * head_w;
-    float left_y  = shaft_end_y + py * head_w;
-    float right_x = shaft_end_x - px * head_w;
-    float right_y = shaft_end_y - py * head_w;
+    // Arrowhead: solid triangle (drawn opaque by the renderer), traced with a closed outline
+    // so its edges get the same antialiasing as the shaft.
+    const float tri[] = {x2, y2, 1.0f, left_x, left_y, 1.0f, right_x, right_y, 1.0f};
+    solid_fill_verts_.insert(solid_fill_verts_.end(), std::begin(tri), std::end(tri));
 
-    push_fill_tri(x2,
-                  y2,
-                  def.fill_opacity,
-                  left_x,
-                  left_y,
-                  def.fill_opacity,
-                  right_x,
-                  right_y,
-                  def.fill_opacity);
-
-    // Arrowhead outline
+    push_nan_break();
     push_outline_seg(x2, y2, left_x, left_y);
-    push_outline_seg(left_x, left_y, right_x, right_y);
     push_outline_seg(right_x, right_y, x2, y2);
 }
 
@@ -825,6 +856,7 @@ void ShapeSeries::rebuild_geometry()
     line_x_.clear();
     line_y_.clear();
     fill_verts_.clear();
+    solid_fill_verts_.clear();
     text_annotations_.clear();
 
     for (const auto& def : shapes_)
@@ -867,6 +899,29 @@ void ShapeSeries::rebuild_geometry()
             }
         }
     }
+
+    solid_fill_first_vertex_ = fill_verts_.size() / 3;
+    fill_verts_.insert(fill_verts_.end(), solid_fill_verts_.begin(), solid_fill_verts_.end());
+}
+
+bool ShapeSeries::set_pixel_scale(float data_per_px_x, float data_per_px_y)
+{
+    if (!(data_per_px_x > 0.0f) || !(data_per_px_y > 0.0f) || !std::isfinite(data_per_px_x)
+        || !std::isfinite(data_per_px_y))
+        return false;
+
+    auto changed = [](float a, float b) { return std::abs(a - b) > 1e-4f * std::abs(b); };
+    if (!changed(data_per_px_x, data_per_px_x_) && !changed(data_per_px_y, data_per_px_y_))
+        return false;
+
+    data_per_px_x_ = data_per_px_x;
+    data_per_px_y_ = data_per_px_y;
+
+    // Only pixel-sized arrowheads depend on the scale.
+    return std::any_of(shapes_.begin(),
+                       shapes_.end(),
+                       [](const ShapeDef& d)
+                       { return d.type == ShapeDef::Type::Arrow && !d.arrow_head_custom; });
 }
 
 }   // namespace spectra

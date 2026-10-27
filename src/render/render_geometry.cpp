@@ -221,11 +221,36 @@ void Renderer::render_plot_text(Figure& figure)
             }
         }
 
+        // Shared offset / multiplier of the tick labels ("×10⁻⁶", "+1.7×10⁹"):
+        // x below the right end of the tick labels, y above the top of the axis.
+        const float tick_text_h = text_renderer_.measure_text("0", FontSize::Tick).height;
+        const float x_label_row = vp.y + vp.h + tl + tick_padding + tick_text_h + 4.0f;
+        if (!x_ticks.offset_label.empty())
+        {
+            text_renderer_.draw_text(x_ticks.offset_label,
+                                     vp.x + vp.w,
+                                     x_label_row,
+                                     FontSize::Tick,
+                                     tick_col,
+                                     TextAlign::Right,
+                                     TextVAlign::Top);
+        }
+        if (!y_ticks.offset_label.empty())
+        {
+            text_renderer_.draw_text(y_ticks.offset_label,
+                                     vp.x,
+                                     vp.y - 4.0f,
+                                     FontSize::Tick,
+                                     tick_col,
+                                     TextAlign::Left,
+                                     TextVAlign::Bottom);
+        }
+
         // X axis label
         if (!axes.get_xlabel().empty())
         {
             float cx = vp.x + vp.w * 0.5f;
-            float py = vp.y + vp.h + tick_padding + 16.0f + tick_padding;
+            float py = x_label_row;
             text_renderer_.draw_text(axes.get_xlabel(),
                                      cx,
                                      py,

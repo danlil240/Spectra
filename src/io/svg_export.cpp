@@ -139,8 +139,8 @@ void emit_tick_labels(std::ostringstream& svg, const Axes& axes, const DataToSvg
     auto y_ticks = axes.compute_y_ticks();
 
     constexpr float tick_len     = 5.0f;
-    constexpr float label_offset = 14.0f;
-    constexpr float font_size    = 10.0f;
+    constexpr float label_offset = 17.0f;
+    constexpr float font_size    = 12.0f;
 
     svg << "    <g class=\"tick-labels\" font-family=\"sans-serif\" "
            "font-size=\""
@@ -167,8 +167,23 @@ void emit_tick_labels(std::ostringstream& svg, const Axes& axes, const DataToSvg
         svg << "      <line x1=\"" << fmt(m.vp_x - tick_len) << "\" y1=\"" << fmt(sy) << "\" x2=\""
             << fmt(m.vp_x) << "\" y2=\"" << fmt(sy) << "\" stroke=\"#000\" stroke-width=\"1\"/>\n";
         // Label
-        svg << "      <text x=\"" << fmt(m.vp_x - tick_len - 3.0f) << "\" y=\"" << fmt(sy + 3.5f)
+        svg << "      <text x=\"" << fmt(m.vp_x - tick_len - 3.0f) << "\" y=\"" << fmt(sy + 4.0f)
             << R"(" text-anchor="end">)" << xml_escape(y_ticks.labels[i]) << "</text>\n";
+    }
+
+    // Shared offset / multiplier ("×10⁻⁶", "+1.7×10⁹"): x below the right end
+    // of the tick labels, y above the top-left corner of the plot area.
+    if (!x_ticks.offset_label.empty())
+    {
+        svg << "      <text class=\"tick-offset\" x=\"" << fmt(m.vp_x + m.vp_w) << "\" y=\""
+            << fmt(m.vp_y + m.vp_h + label_offset + 15.0f) << R"(" text-anchor="end">)"
+            << xml_escape(x_ticks.offset_label) << "</text>\n";
+    }
+    if (!y_ticks.offset_label.empty())
+    {
+        svg << "      <text class=\"tick-offset\" x=\"" << fmt(m.vp_x) << "\" y=\""
+            << fmt(m.vp_y - 4.0f) << R"(" text-anchor="start">)" << xml_escape(y_ticks.offset_label)
+            << "</text>\n";
     }
 
     svg << "    </g>\n";
@@ -177,8 +192,8 @@ void emit_tick_labels(std::ostringstream& svg, const Axes& axes, const DataToSvg
 // Emit axis labels and title
 void emit_labels(std::ostringstream& svg, const Axes& axes, const DataToSvg& m)
 {
-    constexpr float title_font = 14.0f;
-    constexpr float label_font = 12.0f;
+    constexpr float title_font = 15.0f;
+    constexpr float label_font = 13.0f;
 
     // Title (centered above plot area)
     if (!axes.get_title().empty())
@@ -196,7 +211,7 @@ void emit_labels(std::ostringstream& svg, const Axes& axes, const DataToSvg& m)
     if (!axes.get_xlabel().empty())
     {
         float cx = m.vp_x + m.vp_w * 0.5f;
-        float ly = m.vp_y + m.vp_h + 35.0f;
+        float ly = m.vp_y + m.vp_h + 38.0f;
         svg << "    <text x=\"" << fmt(cx) << "\" y=\"" << fmt(ly)
             << "\" text-anchor=\"middle\" font-family=\"sans-serif\" "
                "font-size=\""

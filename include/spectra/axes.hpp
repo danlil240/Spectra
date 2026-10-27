@@ -56,6 +56,9 @@ struct TickResult
 {
     std::vector<double>      positions;
     std::vector<std::string> labels;
+    /// Offset / multiplier shared by all labels ("×10⁻⁶", "+1.7×10⁹"), drawn in
+    /// the axis corner; value = label × 10^n + offset.  Empty for plain labels.
+    std::string offset_label;
 };
 
 /// @brief Common base of 2D Axes and 3D Axes3D: owns series, title, grid and border state.

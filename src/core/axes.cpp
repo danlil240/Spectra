@@ -11,6 +11,7 @@
 #include <spectra/series_stats.hpp>
 
 #include "core/axis_scale.hpp"
+#include "core/axis_ticks.hpp"
 
 namespace spectra
 {
@@ -842,38 +843,7 @@ void Axes::topic_auto_zoom_tick()
 }
 
 // --- Tick generation ---
-// Simple "nice numbers" algorithm: pick tick spacing as 1, 2, or 5 × 10^n
-// to produce roughly 5–10 ticks in the given range.
-
-static double nice_ceil_d(double x, bool round_flag)
-{
-    double exp_v = std::floor(std::log10(x));
-    double frac  = x / std::pow(10.0, exp_v);
-    double nice  = NAN;
-    if (round_flag)
-    {
-        if (frac < 1.5)
-            nice = 1.0;
-        else if (frac < 3.0)
-            nice = 2.0;
-        else if (frac < 7.0)
-            nice = 5.0;
-        else
-            nice = 10.0;
-    }
-    else
-    {
-        if (frac <= 1.0)
-            nice = 1.0;
-        else if (frac <= 2.0)
-            nice = 2.0;
-        else if (frac <= 5.0)
-            nice = 5.0;
-        else
-            nice = 10.0;
-    }
-    return nice * std::pow(10.0, exp_v);
-}
+// Linear ticks and their labels come from core/axis_ticks.cpp.
 
 // Format a tick value smartly: use enough decimal digits so that ticks at
 // the given spacing are distinguishable.  Falls back to scientific notation
@@ -955,77 +925,6 @@ static std::string format_tick_value(double value, double spacing)
     return std::format("{:.{}e}", value, total_sig_digits - 1);
 }
 
-static TickResult generate_ticks(double dmin, double dmax, int target_ticks = 7)
-{
-    TickResult result;
-
-    double range = dmax - dmin;
-
-    // Edge case: zero or negative range
-    if (range <= 0.0)
-    {
-        if (range == 0.0 && dmin != 0.0)
-        {
-            double half = std::abs(dmin) * 0.1;
-            if (half == 0.0)
-                half = 0.5;
-            return generate_ticks(dmin - half, dmin + half, target_ticks);
-        }
-        result.positions.push_back(dmin);
-        result.labels.push_back(format_tick_value(dmin, 1.0));
-        return result;
-    }
-
-    // Minimum range: limited by double precision of the values themselves.
-    // For value V stored as double, the smallest distinguishable step is
-    // ~|V| * DBL_EPSILON.  Below that, ticks would be identical.
-    double abs_max   = std::max(std::abs(dmin), std::abs(dmax));
-    double min_range = abs_max * std::numeric_limits<double>::epsilon() * 16.0;
-    if (min_range < 1e-300)
-        min_range = 1e-300;   // absolute floor for values near zero
-
-    if (range < min_range)
-    {
-        // Range is at double precision limit — show a single centered tick
-        double mid = (dmin + dmax) * 0.5;
-        result.positions.push_back(mid);
-        result.labels.push_back(format_tick_value(mid, range));
-        return result;
-    }
-
-    double nice_range = nice_ceil_d(range, false);
-    double spacing    = nice_ceil_d(nice_range / static_cast<double>(target_ticks - 1), true);
-
-    // Guard against degenerate spacing
-    if (spacing <= 0.0 || !std::isfinite(spacing))
-    {
-        result.positions.push_back(dmin);
-        result.labels.push_back(format_tick_value(dmin, range));
-        return result;
-    }
-
-    double nice_min = std::floor(dmin / spacing) * spacing;
-    double nice_max = std::ceil(dmax / spacing) * spacing;
-
-    // Safety: cap iterations to avoid infinite loops
-    int max_iters = target_ticks * 3;
-    int iters     = 0;
-    for (double v = nice_min; v <= nice_max + spacing * 0.5 && iters < max_iters;
-         v += spacing, ++iters)
-    {
-        if (v >= dmin - spacing * 0.01 && v <= dmax + spacing * 0.01)
-        {
-            // Snap near-zero values to exactly zero to avoid "-0" labels
-            if (std::abs(v) < spacing * 1e-6)
-                v = 0.0;
-            result.positions.push_back(v);
-            result.labels.push_back(format_tick_value(v, spacing));
-        }
-    }
-
-    return result;
-}
-
 // Label for base^e on a log axis: plain numbers near 1, compact exponent
 // form ("1e-6", "2^20") for far-away decades.
 static std::string format_log_tick(double base, int e)
@@ -1050,7 +949,10 @@ static std::string format_log_tick(double base, int e)
 // Wide ranges step over decades so at most ~8 labels appear; ranges holding
 // fewer than two powers fall back to ordinary "nice" ticks, which still read
 // correctly on the log axis.
-static TickResult generate_log_ticks(double lo, double hi, double base)
+static TickResult generate_log_ticks(double                   lo,
+                                     double                   hi,
+                                     double                   base,
+                                     const LinearTickOptions& opt)
 {
     TickResult result;
     if (!(lo > 0.0) || !(hi > lo) || !std::isfinite(hi))
@@ -1071,7 +973,7 @@ static TickResult generate_log_ticks(double lo, double hi, double base)
 
     if (e_hi - e_lo + 1 < 2)
     {
-        const TickResult lin = generate_ticks(lo, hi, 5);
+        const TickResult lin = generate_linear_ticks(lo, hi, opt);
         for (size_t i = 0; i < lin.positions.size(); ++i)
         {
             if (lin.positions[i] > 0.0)
@@ -1080,6 +982,7 @@ static TickResult generate_log_ticks(double lo, double hi, double base)
                 result.labels.push_back(lin.labels[i]);
             }
         }
+        result.offset_label = lin.offset_label;
         if (result.positions.empty())
         {
             result.positions.push_back(lo);
@@ -1110,12 +1013,12 @@ static TickResult generate_log_ticks(double lo, double hi, double base)
 // Sqrt-scale ticks: evenly spaced in squared space (signed, so negative
 // limits stay monotonic), placed at their square roots and labelled with the
 // coordinate they are actually drawn at.
-static TickResult generate_sqrt_ticks(double lo, double hi)
+static TickResult generate_sqrt_ticks(double lo, double hi, const LinearTickOptions& opt)
 {
     auto signed_sq   = [](double v) { return v < 0.0 ? -v * v : v * v; };
     auto signed_sqrt = [](double v) { return v < 0.0 ? -std::sqrt(-v) : std::sqrt(v); };
 
-    const TickResult inner = generate_ticks(signed_sq(lo), signed_sq(hi));
+    const TickResult inner = generate_linear_ticks(signed_sq(lo), signed_sq(hi), opt);
     TickResult       result;
     result.positions.reserve(inner.positions.size());
     for (double p : inner.positions)
@@ -1137,28 +1040,90 @@ static TickResult generate_sqrt_ticks(double lo, double hi)
     return result;
 }
 
+// Positions of category-like series (box, violin, bar) along one axis.
+// `along_x` selects vertical categories (box, violin, vertical bars) or
+// horizontal bars.  Sets `any` when such a series is present.
+static std::vector<double> category_positions(const std::vector<std::unique_ptr<Series>>& series,
+                                              bool                                        along_x,
+                                              bool&                                       any)
+{
+    std::vector<double> out;
+    any = false;
+    for (const auto& s : series)
+    {
+        if (!s || !s->visible())
+            continue;
+        if (along_x)
+        {
+            if (const auto* box = dynamic_cast<const BoxPlotSeries*>(s.get()))
+            {
+                any = true;
+                out.insert(out.end(), box->positions().begin(), box->positions().end());
+            }
+            else if (const auto* vio = dynamic_cast<const ViolinSeries*>(s.get()))
+            {
+                any = true;
+                for (const auto& v : vio->violins())
+                    out.push_back(v.x_position);
+            }
+        }
+        if (const auto* bar = dynamic_cast<const BarSeries*>(s.get()))
+        {
+            if ((bar->orientation() == BarOrientation::Vertical) == along_x)
+            {
+                any = true;
+                out.insert(out.end(), bar->bar_positions().begin(), bar->bar_positions().end());
+            }
+        }
+    }
+    std::sort(out.begin(), out.end());
+    out.erase(std::unique(out.begin(), out.end()), out.end());
+    // Ticks sit exactly on categories only when every category is an integer
+    // (grouped bars at 0.8 / 1.2 get ordinary integer-step ticks instead).
+    for (double v : out)
+    {
+        if (!std::isfinite(v) || v != std::round(v))
+            return {};
+    }
+    return out;
+}
+
+static LinearTickOptions tick_options(const std::vector<std::unique_ptr<Series>>& series,
+                                      bool                                        along_x,
+                                      double                                      axis_px)
+{
+    LinearTickOptions opt;
+    opt.axis_px             = axis_px;
+    opt.target_px           = along_x ? X_TICK_TARGET_PX : Y_TICK_TARGET_PX;
+    opt.labels_side_by_side = along_x;
+    opt.categories          = category_positions(series, along_x, opt.integer_steps);
+    return opt;
+}
+
 TickResult Axes::compute_x_ticks() const
 {
-    auto lim = x_limits();
+    auto       lim = x_limits();
+    const auto opt = tick_options(series_, true, viewport_.w);
     if (is_log_scale(xscale_))
     {
-        return generate_log_ticks(lim.min, lim.max, log_scale_base(xscale_));
+        return generate_log_ticks(lim.min, lim.max, log_scale_base(xscale_), opt);
     }
     if (xscale_ == ScaleType::Sqrt)
-        return generate_sqrt_ticks(lim.min, lim.max);
-    return generate_ticks(lim.min, lim.max);
+        return generate_sqrt_ticks(lim.min, lim.max, opt);
+    return generate_linear_ticks(lim.min, lim.max, opt);
 }
 
 TickResult Axes::compute_y_ticks() const
 {
-    auto lim = y_limits();
+    auto       lim = y_limits();
+    const auto opt = tick_options(series_, false, viewport_.h);
     if (is_log_scale(yscale_))
     {
-        return generate_log_ticks(lim.min, lim.max, log_scale_base(yscale_));
+        return generate_log_ticks(lim.min, lim.max, log_scale_base(yscale_), opt);
     }
     if (yscale_ == ScaleType::Sqrt)
-        return generate_sqrt_ticks(lim.min, lim.max);
-    return generate_ticks(lim.min, lim.max);
+        return generate_sqrt_ticks(lim.min, lim.max, opt);
+    return generate_linear_ticks(lim.min, lim.max, opt);
 }
 
 }   // namespace spectra

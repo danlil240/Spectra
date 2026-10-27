@@ -13,9 +13,9 @@ namespace spectra
 // Pixel sizes for each FontSize preset — typography hierarchy for premium visualization.
 // Tick < Label < Title: clear visual ranking, data-first aesthetic.
 static constexpr float FONT_PIXEL_SIZES[] = {
-    11.5f,   // Tick  — tick labels (calm, recedes behind data)
-    13.5f,   // Label — axis labels (readable, secondary)
-    21.0f,   // Title — plot title (dominant hierarchy)
+    13.0f,   // Tick  — tick labels (readable at a glance, still below labels)
+    14.0f,   // Label — axis labels (readable, secondary)
+    18.0f,   // Title — plot title (leads without dwarfing the tick labels)
 };
 
 // Oversampling factor: 4x gives the sharpest sub-pixel positioning and

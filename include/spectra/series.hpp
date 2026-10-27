@@ -248,9 +248,9 @@ class Series
 
     std::string       label_;
     Color             color_            = colors::blue;
-    int               auto_color_index_ = -1;   ///< palette slot, -1 = explicit colour
+    int               auto_color_index_ = -1;     ///< palette slot, -1 = explicit colour
     char              color_letter_     = '\0';   ///< format-string colour letter, '\0' = none
-    PlotStyle         style_;                   ///< line/marker style, sizes, opacity
+    PlotStyle         style_;                     ///< line/marker style, sizes, opacity
     bool              visible_                 = true;
     double            x_offset_                = 0.0;
     double            y_offset_                = 0.0;

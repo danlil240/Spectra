@@ -1360,9 +1360,8 @@ void emit_annotations(SvgContext& c, const Axes& axes, const DataToSvg& m, const
                 && annotation_layout::arrow_geometry(box, tx, ty, g))
             {
                 c.body << "      <line x1=\"" << num(g.sx) << "\" y1=\"" << num(g.sy) << "\" x2=\""
-                       << num(g.ex) << "\" y2=\"" << num(g.ey) << "\" stroke=\"" << hex(col)
-                       << "\"" << opacity_attr("stroke-opacity", col.a)
-                       << " stroke-width=\"1.3\"/>\n";
+                       << num(g.ex) << "\" y2=\"" << num(g.ey) << "\" stroke=\"" << hex(col) << "\""
+                       << opacity_attr("stroke-opacity", col.a) << " stroke-width=\"1.3\"/>\n";
                 c.body << "      <polygon points=\"" << num(g.tx) << "," << num(g.ty) << " "
                        << num(g.lx) << "," << num(g.ly) << " " << num(g.rx) << "," << num(g.ry)
                        << "\" fill=\"" << hex(col) << "\"" << opacity_attr("fill-opacity", col.a)
@@ -1388,8 +1387,16 @@ void emit_axes_2d(SvgContext& c, const Axes& axes, const LegendConfig& legend)
     const SvgStyle& st   = c.style;
     const auto      xlim = axis_space_limits(axes.xscale(), axes.x_limits());
     const auto      ylim = axis_space_limits(axes.yscale(), axes.y_limits());
-    const DataToSvg m{
-        vp.x, vp.y, vp.w, vp.h, xlim.min, xlim.max, ylim.min, ylim.max, axes.xscale(), axes.yscale()};
+    const DataToSvg m{vp.x,
+                      vp.y,
+                      vp.w,
+                      vp.h,
+                      xlim.min,
+                      xlim.max,
+                      ylim.min,
+                      ylim.max,
+                      axes.xscale(),
+                      axes.yscale()};
 
     c.body << "  <g class=\"axes\">\n";
     emit_grid_2d(c, axes, m);

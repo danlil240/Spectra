@@ -152,15 +152,15 @@ static ipc::SnapshotFigureState figure_to_snapshot(const Figure& fig, uint64_t f
                 continue;
             const auto&              s = *s_ptr;
             ipc::SnapshotSeriesState ss;
-            ss.name        = s.label();
-            ss.color_r     = s.color().r;
-            ss.color_g     = s.color().g;
-            ss.color_b     = s.color().b;
-            ss.color_a     = s.color().a;
-            ss.color_index = s.auto_color_index();   // window resolves from its palette
+            ss.name         = s.label();
+            ss.color_r      = s.color().r;
+            ss.color_g      = s.color().g;
+            ss.color_b      = s.color().b;
+            ss.color_a      = s.color().a;
+            ss.color_index  = s.auto_color_index();   // window resolves from its palette
             ss.color_letter = static_cast<uint8_t>(s.color_letter());   // ... or letter shade
-            ss.visible     = s.visible();
-            ss.opacity     = s.opacity();
+            ss.visible      = s.visible();
+            ss.opacity      = s.opacity();
 
             if (auto* line = dynamic_cast<const LineSeries*>(&s))
             {

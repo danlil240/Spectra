@@ -359,10 +359,10 @@ void apply_diff_op_to_cache(spectra::ipc::SnapshotFigureState& fig, const spectr
         case spectra::ipc::DiffOp::Type::SET_SERIES_COLOR:
             if (op.series_index < fig.series.size())
             {
-                fig.series[op.series_index].color_r     = op.f1;
-                fig.series[op.series_index].color_g     = op.f2;
-                fig.series[op.series_index].color_b     = op.f3;
-                fig.series[op.series_index].color_a     = op.f4;
+                fig.series[op.series_index].color_r      = op.f1;
+                fig.series[op.series_index].color_g      = op.f2;
+                fig.series[op.series_index].color_b      = op.f3;
+                fig.series[op.series_index].color_a      = op.f4;
                 fig.series[op.series_index].color_index  = -1;   // explicit colour
                 fig.series[op.series_index].color_letter = 0;
             }

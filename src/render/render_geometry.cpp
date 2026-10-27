@@ -1511,8 +1511,8 @@ void Renderer::render_annotation_arrows(Axes& axes, uint32_t slot, float fw, flo
     { return static_cast<float>(vp.x + (to_axis_space(xscale, dx) - ax_x.min) / x_range * vp.w); };
     auto data_to_px_y = [&](double dy) -> float
     {
-        return static_cast<float>(vp.y
-                                  + (1.0 - (to_axis_space(yscale, dy) - ax_y.min) / y_range) * vp.h);
+        return static_cast<float>(
+            vp.y + (1.0 - (to_axis_space(yscale, dy) - ax_y.min) / y_range) * vp.h);
     };
 
     constexpr float shaft_half_w = 0.5f;   // 1 px core + 1 px anti-aliased fringe

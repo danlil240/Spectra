@@ -311,11 +311,11 @@ ipc::DiffOp FigureModel::set_series_color(uint64_t figure_id,
     auto            it = figures_.find(figure_id);
     if (it != figures_.end() && series_index < it->second.series.size())
     {
-        auto& s       = it->second.series[series_index];
-        s.color_r     = r;
-        s.color_g     = g;
-        s.color_b     = b;
-        s.color_a     = a;
+        auto& s        = it->second.series[series_index];
+        s.color_r      = r;
+        s.color_g      = g;
+        s.color_b      = b;
+        s.color_a      = a;
         s.color_index  = -1;   // explicit colour
         s.color_letter = 0;
     }
@@ -652,10 +652,10 @@ bool FigureModel::apply_diff_op(const ipc::DiffOp& op)
         case ipc::DiffOp::Type::SET_SERIES_COLOR:
             if (it == figures_.end() || op.series_index >= it->second.series.size())
                 return false;
-            it->second.series[op.series_index].color_r     = op.f1;
-            it->second.series[op.series_index].color_g     = op.f2;
-            it->second.series[op.series_index].color_b     = op.f3;
-            it->second.series[op.series_index].color_a     = op.f4;
+            it->second.series[op.series_index].color_r      = op.f1;
+            it->second.series[op.series_index].color_g      = op.f2;
+            it->second.series[op.series_index].color_b      = op.f3;
+            it->second.series[op.series_index].color_a      = op.f4;
             it->second.series[op.series_index].color_index  = -1;
             it->second.series[op.series_index].color_letter = 0;
             break;

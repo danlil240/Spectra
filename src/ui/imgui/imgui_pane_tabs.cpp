@@ -3,6 +3,7 @@
     #include "imgui_integration_internal.hpp"
 
     #include <format>
+    #include <spectra/window_defaults.hpp>
 
 namespace spectra
 {
@@ -44,7 +45,7 @@ void ImGuiIntegration::draw_pane_tab_headers()
     {
         if (get_figure_title_)
             return get_figure_title_(fig_idx);
-        return "Figure " + std::to_string(fig_idx + 1);
+        return default_figure_title(fig_idx + 1);
     };
 
     // Helper: ImU32 from theme color

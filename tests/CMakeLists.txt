@@ -241,6 +241,7 @@ set(SPECTRA_UNIT_TESTS
     test_logger_defaults
     test_runtime_robustness
     test_app_init_failure
+    test_window_defaults
 )
 
 # Mock transform plugin — shared library loaded by test_plugin_transforms

@@ -55,6 +55,8 @@ from typing import (
     Union,
 )
 
+from ._protocol import DEFAULT_WINDOW_HEIGHT, DEFAULT_WINDOW_WIDTH
+
 # Type alias for data that can be list, tuple, or numpy array
 ArrayLike = Union[List[float], Tuple[float, ...], Sequence[float], Any]
 
@@ -244,7 +246,7 @@ atexit.register(_state.shutdown)
 
 # ─── Figure / Axes Management ────────────────────────────────────────────────
 
-def figure(title: str = "", width: int = 1280, height: int = 720):
+def figure(title: str = "", width: int = DEFAULT_WINDOW_WIDTH, height: int = DEFAULT_WINDOW_HEIGHT):
     """Create a new figure window. All subsequent plots go here.
 
     Returns the Figure object for advanced use.

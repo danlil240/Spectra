@@ -357,8 +357,8 @@ void App::init_runtime()
             init_fps = init_active->anim_.fps;
     }
 
-    uint32_t init_w = init_active ? init_active->width() : 1280;
-    uint32_t init_h = init_active ? init_active->height() : 720;
+    uint32_t init_w = init_active ? init_active->width() : DEFAULT_WINDOW_WIDTH;
+    uint32_t init_h = init_active ? init_active->height() : DEFAULT_WINDOW_HEIGHT;
 
     runtime_ = std::make_unique<AppRuntime>(init_fps, *backend_, *renderer_, registry_);
     auto& rt = *runtime_;

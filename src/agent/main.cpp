@@ -13,6 +13,7 @@
 #include <spectra/logger.hpp>
 #include <spectra/series.hpp>
 #include <spectra/series3d.hpp>
+#include <spectra/window_defaults.hpp>
 
 #include "../anim/frame_scheduler.hpp"
 #include "../ipc/codec.hpp"
@@ -124,8 +125,16 @@ std::unique_ptr<spectra::Figure> build_figure_from_snapshot(
     uint32_t                                 override_height = 0)
 {
     spectra::FigureConfig cfg;
-    cfg.width  = (override_width > 0) ? override_width : snap.width;
-    cfg.height = (override_height > 0) ? override_height : snap.height;
+    // Prefer an explicit override (current swapchain size on rebuild), then
+    // the size the figure was created with, then the shared default.
+    if (override_width > 0)
+        cfg.width = override_width;
+    else if (snap.width > 0)
+        cfg.width = snap.width;
+    if (override_height > 0)
+        cfg.height = override_height;
+    else if (snap.height > 0)
+        cfg.height = snap.height;
     auto fig   = std::make_unique<spectra::Figure>(cfg);
 
     int rows = std::clamp(snap.grid_rows, int32_t(1), int32_t(MAX_GRID_DIM));
@@ -818,12 +827,14 @@ int main(int argc, char* argv[])
     // Phase 2: Build figures into FigureRegistry
     // ═══════════════════════════════════════════════════════════════════════
 
-    constexpr uint32_t INITIAL_WIDTH  = 1280;
-    constexpr uint32_t INITIAL_HEIGHT = 720;
+    // Shared with the in-process app so both runtime modes open at the same size.
+    constexpr uint32_t INITIAL_WIDTH  = spectra::DEFAULT_WINDOW_WIDTH;
+    constexpr uint32_t INITIAL_HEIGHT = spectra::DEFAULT_WINDOW_HEIGHT;
 
+    // No size override: each figure keeps the size it was created with
+    // (FigureConfig / REQ_CREATE_FIGURE), exactly like App::run_inproc.
     spectra::FigureRegistry registry;
-    auto                    all_ids =
-        rebuild_registry_from_cache(registry, figure_cache, INITIAL_WIDTH, INITIAL_HEIGHT);
+    auto                    all_ids = rebuild_registry_from_cache(registry, figure_cache, 0, 0);
     cache_dirty = false;
 
     // If the daemon has no figures yet (e.g. a publisher launched it before
@@ -873,6 +884,11 @@ int main(int argc, char* argv[])
     // this object for all subsystems (register_commands, renderers, overlays).
     spectra::ui::ThemeManager theme_mgr;
     spectra::ui::ThemeManager::set_current(&theme_mgr);
+    // Register the built-in themes before applying saved settings, exactly like
+    // App::run_inproc.  Otherwise apply_to() cannot select the saved theme and
+    // the lazy first-use initialisation later falls back to "night", so the
+    // multi-process window ignored the user's theme.
+    theme_mgr.ensure_initialized();
 
     spectra::ui::settings::SettingsStore settings_store;
     settings_store.load();

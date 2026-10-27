@@ -24,8 +24,8 @@ class FigureModel
 
     // Create a new figure with default state. Returns the figure ID.
     uint64_t create_figure(const std::string& title  = "Figure",
-                           uint32_t           width  = 1280,
-                           uint32_t           height = 720);
+                           uint32_t           width  = DEFAULT_WINDOW_WIDTH,
+                           uint32_t           height = DEFAULT_WINDOW_HEIGHT);
 
     // Remove a figure by ID. Returns true if found and removed.
     bool remove_figure(uint64_t figure_id);
@@ -184,8 +184,8 @@ class FigureModel
     {
         uint64_t                              id = 0;
         std::string                           title;
-        uint32_t                              width     = 1280;
-        uint32_t                              height    = 720;
+        uint32_t                              width     = DEFAULT_WINDOW_WIDTH;
+        uint32_t                              height    = DEFAULT_WINDOW_HEIGHT;
         int32_t                               grid_rows = 1;
         int32_t                               grid_cols = 1;
         float                                 live_fps  = 0.0f;

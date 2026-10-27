@@ -1,6 +1,7 @@
 #include "python_message_handler.hpp"
 
 #include <spectra/logger.hpp>
+#include <spectra/window_defaults.hpp>
 
 #include "../ipc/codec.hpp"
 
@@ -128,10 +129,12 @@ HandleResult handle_req_create_figure(DaemonContext& ctx, ClientSlot& slot, cons
         return HandleResult::Continue;
     }
 
-    auto fid = ctx.fig_model.create_figure(req->title.empty() ? "Figure" : req->title,
-                                           req->width,
-                                           req->height);
-    ctx.graph.register_figure(fid, req->title);
+    // Untitled figures get the same numbered default title ("Figure N") as the
+    // in-process app so tabs read identically in both runtime modes.
+    const std::string title =
+        req->title.empty() ? default_figure_title(ctx.fig_model.figure_count() + 1) : req->title;
+    auto fid = ctx.fig_model.create_figure(title, req->width, req->height);
+    ctx.graph.register_figure(fid, title);
 
     SPECTRA_LOG_DEBUG("daemon", "Python: created figure {} title={}", fid, req->title);
 

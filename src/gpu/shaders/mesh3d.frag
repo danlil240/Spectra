@@ -38,12 +38,20 @@ layout(location = 2) in vec3 v_view_dir;
 layout(location = 0) out vec4 out_color;
 
 void main() {
+    // Flat face normal, computed in uniform control flow (before any discard)
+    vec3 face_normal = cross(dFdx(v_world_pos), dFdy(v_world_pos));
+
     // Discard fragments outside the bounding box
     const float BOX_HS = 3.0; // must match Axes3D::box_half_size()
     if (any(greaterThan(abs(v_world_pos), vec3(BOX_HS)))) discard;
 
-    // Normalize interpolated vectors
-    vec3 N = normalize(v_normal);
+    // Normalize interpolated vectors. Meshes supplied without normals (all
+    // zero) fall back to the flat face normal from screen-space derivatives.
+    vec3 N = v_normal;
+    if (!(dot(N, N) > 1e-8)) {
+        N = face_normal;
+    }
+    N = normalize(N);
     vec3 V = normalize(v_view_dir);
 
     // Ensure normal faces the viewer (for back-face rendering)
@@ -51,13 +59,18 @@ void main() {
         N = -N;
     }
 
-    // Decode material properties from push constants:
-    // _pad2[0] = ambient strength  (0 = use default 0.15)
-    // _pad2[1] = specular strength (0 = use default 0.3)
-    float ambient_strength  = _pad2[0] > 0.001 ? _pad2[0] : 0.15;
-    float specular_strength = _pad2[1] > 0.001 ? _pad2[1] : 0.3;
+    vec3 base_color = color.rgb;
 
-    // Primary light direction from UBO (fallback to default if zero).
+    // Decode material properties from push constants:
+    // _pad2[0] = ambient strength  (0 = use default 0.40)
+    // _pad2[1] = specular strength (0 = use default 0.12)
+    // Defaults keep the base colour readable: a high ambient floor plus a soft
+    // fill light so faces turned away from the key light keep their hue, and a
+    // weak, base-tinted specular so highlights do not bleach the colour to white.
+    float ambient_strength  = _pad2[0] > 0.001 ? _pad2[0] : 0.40;
+    float specular_strength = _pad2[1] > 0.001 ? _pad2[1] : 0.12;
+
+    // Primary (key) light direction from UBO (fallback to default if zero).
     // Transform from data space into model space to match normals.
     vec3 L = light_dir;
     if (dot(L, L) < 0.001) {
@@ -65,30 +78,26 @@ void main() {
     }
     L = normalize(mat3(model) * L);
 
-    // Ambient
-    float ambient = ambient_strength;
+    // Diffuse (Lambertian) from the key light
+    float diffuse = max(dot(N, L), 0.0) * 0.55;
 
-    // Diffuse (Lambertian)
-    float NdotL = max(dot(N, L), 0.0);
-    float diffuse = NdotL * 0.65;
+    // Soft fill light from the opposite side so shadowed faces are not crushed
+    vec3 L2 = normalize(mat3(model) * vec3(-0.3, -0.5, 0.4));
+    float fill = max(dot(N, L2), 0.0) * 0.25;
 
-    // Specular (Blinn-Phong)
-    // marker_size encodes shininess when used for mesh (0 = use default 32)
+    // Shading only scales the base colour (hue and chroma ratios are preserved)
+    // and never brightens it past the true colour, so colormaps stay faithful.
+    float shade = min(ambient_strength + diffuse + fill, 1.0);
+
+    // Specular (Blinn-Phong), tinted by the base colour.
+    // marker_size encodes shininess (0 = use default 32)
     float shininess = (marker_type == 0u && marker_size > 1.0) ? marker_size : 32.0;
     vec3 H = normalize(L + V);
     float NdotH = max(dot(N, H), 0.0);
     float specular = pow(NdotH, shininess) * specular_strength;
+    vec3 spec_color = mix(base_color, vec3(1.0), 0.35) * specular;
 
-    // Secondary fill light from opposite side (softer)
-    vec3 L2 = normalize(mat3(model) * vec3(-0.3, -0.5, 0.4));
-    float fill = max(dot(N, L2), 0.0) * 0.15;
-
-    // Combine lighting
-    float lighting = ambient + diffuse + fill;
-    vec3 lit_color = color.rgb * lighting + vec3(specular);
-
-    // Clamp to valid range
-    lit_color = clamp(lit_color, 0.0, 1.0);
+    vec3 lit_color = clamp(base_color * shade + spec_color, 0.0, 1.0);
 
     out_color = vec4(lit_color, color.a * opacity);
 }

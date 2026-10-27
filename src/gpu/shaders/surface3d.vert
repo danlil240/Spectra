@@ -47,7 +47,10 @@ void main() {
     // Transform normal by the normal matrix (inverse-transpose of model).
     // For non-uniform scale, mat3(model) distorts normals incorrectly.
     mat3 normal_matrix = transpose(inverse(mat3(model)));
-    v_normal = normalize(normal_matrix * in_normal);
+    // Zero normals (mesh supplied without normals) stay zero instead of NaN;
+    // the fragment shader then uses the flat face normal.
+    vec3 n = normal_matrix * in_normal;
+    v_normal = dot(n, n) > 1e-12 ? normalize(n) : vec3(0.0);
 
     // View direction from surface point to camera
     v_view_dir = normalize(camera_pos - world_pos.xyz);

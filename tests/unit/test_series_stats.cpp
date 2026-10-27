@@ -3,7 +3,11 @@
 #include <spectra/axes.hpp>
 #include <spectra/series_stats.hpp>
 
+#include <algorithm>
 #include <cmath>
+#include <limits>
+#include <memory>
+#include <span>
 #include <vector>
 
 using namespace spectra;
@@ -585,4 +589,202 @@ TEST(AxesStats, MixedSeriesTypes)
 
     EXPECT_EQ(ax.series().size(), 2u);
     ax.auto_fit();
+}
+
+// ─── Fluent setters must rebuild geometry and bounds immediately ────────────
+// Regression for P0-7: ax.histogram(v).density(true) autoscaled from stale count
+// geometry, so the GPU projection disagreed with the rebuilt data.
+
+namespace
+{
+
+std::vector<float> normal_like_samples(size_t n)
+{
+    std::vector<float> v(n);
+    for (size_t i = 0; i < n; ++i)
+    {
+        // Deterministic, roughly bell-shaped: sum of three uniform-ish terms.
+        float a = static_cast<float>((i * 7919) % 1000) / 1000.0f;
+        float b = static_cast<float>((i * 104729) % 997) / 997.0f;
+        float c = static_cast<float>((i * 1299709) % 991) / 991.0f;
+        v[i]    = (a + b + c) * 4.0f;
+    }
+    return v;
+}
+
+float max_finite(std::span<const float> s)
+{
+    float m = -std::numeric_limits<float>::infinity();
+    for (float f : s)
+        if (std::isfinite(f))
+            m = std::max(m, f);
+    return m;
+}
+
+float max_fill_y(std::span<const float> verts)
+{
+    float m = -std::numeric_limits<float>::infinity();
+    for (size_t i = 1; i < verts.size(); i += 3)
+        m = std::max(m, verts[i]);
+    return m;
+}
+
+// Reference histogram: flags set before data, which always produced correct output.
+std::unique_ptr<HistogramSeries> reference_histogram(std::span<const float> v,
+                                                     int                    bins,
+                                                     bool                   density,
+                                                     bool                   cumulative)
+{
+    auto ref = std::make_unique<HistogramSeries>();
+    ref->density(density).cumulative(cumulative);
+    ref->set_data(v, bins);
+    return ref;
+}
+
+void expect_histogram_matches(const HistogramSeries& h, const HistogramSeries& ref)
+{
+    ASSERT_EQ(h.bin_counts().size(), ref.bin_counts().size());
+    for (size_t i = 0; i < ref.bin_counts().size(); ++i)
+        EXPECT_FLOAT_EQ(h.bin_counts()[i], ref.bin_counts()[i]) << "bin " << i;
+    const float peak = max_finite(ref.bin_counts());
+    EXPECT_FLOAT_EQ(max_finite(h.y_data()), peak);
+    EXPECT_FLOAT_EQ(max_fill_y(h.fill_verts()), peak);
+    EXPECT_EQ(h.point_count(), ref.point_count());
+    EXPECT_EQ(h.fill_vertex_count(), ref.fill_vertex_count());
+}
+
+void expect_ylim_fits(const Axes& ax, float peak)
+{
+    const auto ylim = ax.y_limits();
+    EXPECT_LE(ylim.min, 0.0);
+    EXPECT_GE(ylim.max, peak);
+    // Not autoscaled from a stale, much taller geometry.
+    EXPECT_LE(ylim.max, peak * 1.5);
+}
+
+}   // namespace
+
+TEST(HistogramSeries, DensitySetterAfterConstructionRebuildsBoundsAndGeometry)
+{
+    const auto v = normal_like_samples(5000);
+    Axes       ax;
+    auto&      h = ax.histogram(v, 40).density(true).gradient(true);
+
+    const auto ref = reference_histogram(v, 40, true, false);
+    expect_histogram_matches(h, *ref);
+    const float peak = max_finite(ref->bin_counts());
+    EXPECT_LT(peak, 1.0f);   // density, not counts
+    expect_ylim_fits(ax, peak);
+}
+
+TEST(HistogramSeries, CumulativeSetterAfterConstructionRebuildsBoundsAndGeometry)
+{
+    const auto v = normal_like_samples(5000);
+    Axes       ax;
+    auto&      h = ax.histogram(v, 40).cumulative(true);
+
+    const auto ref = reference_histogram(v, 40, false, true);
+    expect_histogram_matches(h, *ref);
+    EXPECT_FLOAT_EQ(max_finite(ref->bin_counts()), 5000.0f);
+    expect_ylim_fits(ax, 5000.0f);
+}
+
+TEST(HistogramSeries, DensityCumulativeAnySetterOrder)
+{
+    const auto v = normal_like_samples(5000);
+
+    using Setter                      = void (*)(HistogramSeries&);
+    const std::vector<Setter> setters = {
+        [](HistogramSeries& h) { h.density(true); },
+        [](HistogramSeries& h) { h.cumulative(true); },
+        [](HistogramSeries& h) { h.gradient(false); },
+        [](HistogramSeries& h) { h.bins(25); },
+    };
+    std::vector<int> order = {0, 1, 2, 3};
+    const auto       ref   = reference_histogram(v, 25, true, true);
+    int              runs  = 0;
+    do
+    {
+        Axes  ax;
+        auto& h = ax.histogram(v, 40);
+        for (int idx : order)
+            setters[idx](h);
+        SCOPED_TRACE(::testing::Message()
+                     << "order " << order[0] << order[1] << order[2] << order[3]);
+        expect_histogram_matches(h, *ref);
+        EXPECT_FLOAT_EQ(h.bin_counts().back(), 1.0f);   // CDF ends at 1
+        expect_ylim_fits(ax, 1.0f);
+        ++runs;
+    } while (std::next_permutation(order.begin(), order.end()));
+    EXPECT_EQ(runs, 24);
+}
+
+TEST(HistogramSeries, BinsSetterRebuildsAndTogglingBackRestoresCounts)
+{
+    const auto v = normal_like_samples(1000);
+    Axes       ax;
+    auto&      h = ax.histogram(v, 10);
+    h.bins(20);
+    EXPECT_EQ(h.bin_counts().size(), 20u);
+    EXPECT_EQ(h.bin_edges().size(), 21u);
+
+    h.density(true).cumulative(true);
+    h.density(false).cumulative(false);
+    expect_histogram_matches(h, *reference_histogram(v, 20, false, false));
+}
+
+TEST(BarSeries, SettersAfterDataRebuildGeometryAndBounds)
+{
+    std::vector<float> pos     = {1, 2, 3};
+    std::vector<float> heights = {10, 20, 15};
+    Axes               ax;
+    auto&              bars = ax.bar(pos, heights).baseline(-5.0f).bar_width(0.4f);
+
+    EXPECT_FLOAT_EQ(*std::min_element(bars.y_data().begin(),
+                                      bars.y_data().end(),
+                                      [](float a, float b)
+                                      { return std::isnan(b) || (!std::isnan(a) && a < b); }),
+                    -5.0f);
+    const float xmin = *std::min_element(bars.x_data().begin(),
+                                         bars.x_data().end(),
+                                         [](float a, float b)
+                                         { return std::isnan(b) || (!std::isnan(a) && a < b); });
+    EXPECT_FLOAT_EQ(xmin, 0.8f);
+    EXPECT_LE(ax.y_limits().min, -5.0);
+
+    // Horizontal orientation swaps the extents: heights run along x.
+    bars.orientation(BarOrientation::Horizontal);
+    EXPECT_FLOAT_EQ(max_finite(bars.x_data()), 20.0f);
+    EXPECT_FLOAT_EQ(max_finite(bars.y_data()), 3.2f);
+    EXPECT_GE(ax.x_limits().max, 20.0);
+}
+
+TEST(BoxPlotSeries, SettersAfterDataRebuildGeometry)
+{
+    std::vector<float> data = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+    BoxPlotSeries      bp;
+    bp.add_box(0.0f, data);
+    bp.box_width(2.0f);
+    EXPECT_FLOAT_EQ(max_finite(bp.x_data()), 1.0f);
+
+    std::vector<float> with_outlier = {1, 2, 3, 4, 5, 6, 7, 8, 9, 100};
+    BoxPlotSeries      bp2;
+    bp2.add_box(0.0f, with_outlier);
+    ASSERT_GT(bp2.outlier_count(), 0u);
+    bp2.show_outliers(false);
+    EXPECT_EQ(bp2.outlier_count(), 0u);
+}
+
+TEST(ViolinSeries, SettersAfterDataRebuildGeometry)
+{
+    std::vector<float> data = {1, 2, 2, 3, 3, 3, 4, 4, 5};
+    ViolinSeries       vn;
+    vn.add_violin(0.0f, data);
+    const size_t before = vn.point_count();
+    vn.resolution(120);
+    EXPECT_GT(vn.point_count(), before);
+
+    const float half_before = max_finite(vn.x_data());
+    vn.violin_width(4.0f * vn.violin_width());
+    EXPECT_NEAR(max_finite(vn.x_data()), 4.0f * half_before, 1e-4f);
 }

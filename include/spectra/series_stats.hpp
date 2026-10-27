@@ -135,6 +135,7 @@ class BoxPlotSeries : public Series
     {
         box_width_ = w;
         dirty_     = true;
+        rebuild_geometry();
         return *this;
     }
     float box_width() const { return box_width_; }
@@ -144,6 +145,7 @@ class BoxPlotSeries : public Series
     {
         show_outliers_ = show;
         dirty_         = true;
+        rebuild_geometry();
         return *this;
     }
     bool show_outliers() const { return show_outliers_; }
@@ -153,6 +155,7 @@ class BoxPlotSeries : public Series
     {
         notched_ = n;
         dirty_   = true;
+        rebuild_geometry();
         return *this;
     }
     bool notched() const { return notched_; }
@@ -171,6 +174,7 @@ class BoxPlotSeries : public Series
     {
         gradient_ = g;
         dirty_    = true;
+        rebuild_geometry();
         return *this;
     }
     bool gradient() const { return gradient_; }
@@ -242,6 +246,7 @@ class ViolinSeries : public Series
     {
         violin_width_ = w;
         dirty_        = true;
+        rebuild_geometry();
         return *this;
     }
     float violin_width() const { return violin_width_; }
@@ -251,6 +256,7 @@ class ViolinSeries : public Series
     {
         resolution_ = (n < 2) ? 2 : n;
         dirty_      = true;
+        rebuild_geometry();
         return *this;
     }
     int resolution() const { return resolution_; }
@@ -260,6 +266,7 @@ class ViolinSeries : public Series
     {
         show_box_ = show;
         dirty_    = true;
+        rebuild_geometry();
         return *this;
     }
     bool show_box() const { return show_box_; }
@@ -278,6 +285,7 @@ class ViolinSeries : public Series
     {
         gradient_ = g;
         dirty_    = true;
+        rebuild_geometry();
         return *this;
     }
     bool gradient() const { return gradient_; }
@@ -337,11 +345,15 @@ class HistogramSeries : public Series
     // Set data and recompute bins
     HistogramSeries& set_data(std::span<const float> values, int bins = 30);
 
+    // Setters that change counts or geometry rebuild immediately, so autoscale and data
+    // bounds (which read x_data()/y_data()) always match what the renderer uploads.
+
     // Number of bins
     HistogramSeries& bins(int n)
     {
         bins_  = n;
         dirty_ = true;
+        rebuild_geometry();
         return *this;
     }
     int bins() const { return bins_; }
@@ -351,6 +363,7 @@ class HistogramSeries : public Series
     {
         cumulative_ = c;
         dirty_      = true;
+        rebuild_geometry();
         return *this;
     }
     bool cumulative() const { return cumulative_; }
@@ -360,6 +373,7 @@ class HistogramSeries : public Series
     {
         density_ = d;
         dirty_   = true;
+        rebuild_geometry();
         return *this;
     }
     bool density() const { return density_; }
@@ -378,6 +392,7 @@ class HistogramSeries : public Series
     {
         gradient_ = g;
         dirty_    = true;
+        rebuild_geometry();
         return *this;
     }
     bool gradient() const { return gradient_; }
@@ -451,6 +466,7 @@ class BarSeries : public Series
     {
         bar_width_ = w;
         dirty_     = true;
+        rebuild_geometry();
         return *this;
     }
     float bar_width() const { return bar_width_; }
@@ -460,6 +476,7 @@ class BarSeries : public Series
     {
         baseline_ = b;
         dirty_    = true;
+        rebuild_geometry();
         return *this;
     }
     float baseline() const { return baseline_; }
@@ -469,6 +486,7 @@ class BarSeries : public Series
     {
         orientation_ = o;
         dirty_       = true;
+        rebuild_geometry();
         return *this;
     }
     BarOrientation orientation() const { return orientation_; }
@@ -487,6 +505,7 @@ class BarSeries : public Series
     {
         gradient_ = g;
         dirty_    = true;
+        rebuild_geometry();
         return *this;
     }
     bool gradient() const { return gradient_; }

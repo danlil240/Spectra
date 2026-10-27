@@ -31,6 +31,7 @@
 #include <vector>
 
 #include "core/annotation_layout.hpp"
+#include "core/axes3d.hpp"
 #include "core/axis_scale.hpp"
 #include "core/label_layout.hpp"
 #include "io/svg_label_metrics.hpp"
@@ -1814,9 +1815,12 @@ struct Lighting3D
     float ambient   = 0.15f;
     float specular  = 0.3f;
     float shininess = 32.0f;
+    bool  enabled   = true;   // Axes3D::lighting_enabled(): false draws the flat base colour
 
     [[nodiscard]] Color shade(const Color& base, vec3 w0, vec3 w1, vec3 w2) const
     {
+        if (!enabled)
+            return base;
         vec3 n = vec3_cross(w1 - w0, w2 - w0);
         if (vec3_length_sq(n) < 1e-20)
             return base;
@@ -1864,7 +1868,12 @@ void emit_axes_3d(SvgContext& c, const Axes3D& axes, const LegendConfig& legend)
     const float aspect = vp.w / std::max(vp.h, 1.0f);
     Projector3D pj;
     pj.model = axes.data_to_normalized_matrix();
-    pj.mvp   = mat4_mul(cam.projection_matrix(aspect), mat4_mul(cam.view_matrix(), pj.model));
+    // Same widened projection as the raster renderer (Axes3D::projection_matrix).
+    mat4        proj = cam.projection_matrix(aspect);
+    const float fit  = axes.projection_fit_scale(vp);
+    proj.m[0] /= fit;
+    proj.m[5] /= fit;
+    pj.mvp   = mat4_mul(proj, mat4_mul(cam.view_matrix(), pj.model));
     pj.vp    = vp;
 
     const auto   xlim  = axes.x_limits();
@@ -1996,7 +2005,8 @@ void emit_axes_3d(SvgContext& c, const Axes3D& axes, const LegendConfig& legend)
     vec3 ld = axes.lighting_enabled() ? axes.light_dir() : vec3{0, 0, 0};
     if (vec3_dot(ld, ld) < 0.001)
         ld = {0.5, 0.7, 1.0};
-    const Lighting3D base_light{cam.position, pj.model_dir(ld), pj.model_dir({-0.3, -0.5, 0.4})};
+    Lighting3D base_light{cam.position, pj.model_dir(ld), pj.model_dir({-0.3, -0.5, 0.4})};
+    base_light.enabled        = axes.lighting_enabled();
     auto             material = [&](float amb, float spec, float shin)
     {
         Lighting3D l = base_light;
@@ -2232,7 +2242,8 @@ void emit_axes_3d(SvgContext& c, const Axes3D& axes, const LegendConfig& legend)
         const float       font_px = label_font_px(fit.font);
         const float       tw      = label_width(fit.text, fit.font);
         const float       cx      = vp.x + vp.w * 0.5f;
-        const float       ty      = vp.y + 2.0f;
+        // Above the viewport, in the cell's top margin (as in the raster export).
+        const float ty = std::max(vp.y - font_px - 5.0f, 2.0f);
         if (!fit.text.empty())
             placed.push_back({cx - tw * 0.5f, ty, cx + tw * 0.5f, ty + font_px});
         emit_fitted_label(c.body,
@@ -2249,28 +2260,24 @@ void emit_axes_3d(SvgContext& c, const Axes3D& axes, const LegendConfig& legend)
     // Axis arrows (X red, Y green, Z blue) leaving the max corners (render_arrows).
     struct Arrow
     {
-        vec3               a, b;
-        Color              color;
-        const char*        fallback;
-        const std::string& label;
+        vec3        a, b;
+        Color       color;
+        std::string label;
     };
     const double len[3] = {(hi[0] - lo[0]) * 0.18, (hi[1] - lo[1]) * 0.18, (hi[2] - lo[2]) * 0.18};
     const Arrow  arrows[3] = {
         {{hi[0], lo[1], lo[2]},
           {hi[0] + len[0], lo[1], lo[2]},
           {0.90f, 0.27f, 0.27f, 0.86f},
-          "X",
-          axes.get_xlabel()},
+          axes3d_arrow_label(axes.get_xlabel(), "X", axes.compute_x_ticks().offset_label)},
         {{lo[0], hi[1], lo[2]},
           {lo[0], hi[1] + len[1], lo[2]},
           {0.27f, 0.78f, 0.27f, 0.86f},
-          "Y",
-          axes.get_ylabel()},
+          axes3d_arrow_label(axes.get_ylabel(), "Y", axes.compute_y_ticks().offset_label)},
         {{lo[0], lo[1], hi[2]},
           {lo[0], lo[1], hi[2] + len[2]},
           {0.31f, 0.51f, 1.00f, 0.86f},
-          "Z",
-          axes.get_zlabel()},
+          axes3d_arrow_label(axes.get_zlabel(), "Z", axes.compute_z_ticks().offset_label)},
     };
     for (const auto& a : arrows)
     {
@@ -2297,7 +2304,7 @@ void emit_axes_3d(SvgContext& c, const Axes3D& axes, const LegendConfig& legend)
                    << num(by - uy * hl * 0.4f - ux * hl * 0.45f) << "\" fill=\"" << hex(a.color)
                    << "\"" << opacity_attr("fill-opacity", a.color.a) << "/>\n";
         }
-        const std::string lbl = a.label.empty() ? a.fallback : a.label;
+        const std::string& lbl = a.label;
         float             lx  = bx + (dl > 1.0f ? dx / dl * 8.0f : 8.0f);
         float             ly  = by + (dl > 1.0f ? dy / dl * 8.0f : 0.0f);
         const float       lw  = estimate_text_width(lbl, LABEL_FONT_PX);

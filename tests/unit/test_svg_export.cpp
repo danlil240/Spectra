@@ -492,6 +492,26 @@ TEST(SvgExport, ThreeDAxesAreProjectedNotBlank)
     EXPECT_NE(svg.find("class=\"axis-arrow\""), std::string::npos);
 }
 
+// Issue #105: lighting_enabled(false) exports flat base colours, like the raster path.
+TEST(SvgExport, ThreeDLightingDisabledIsFlat)
+{
+    auto make_svg = [](bool lit)
+    {
+        Figure             fig({.width = 640, .height = 480});
+        auto&              ax = fig.subplot3d(1, 1, 1);
+        std::vector<float> g  = {-1.0f, 0.0f, 1.0f};
+        std::vector<float> zz = {0.0f, 0.4f, 0.0f, 0.4f, 1.0f, 0.4f, 0.0f, 0.4f, 0.0f};
+        ax.surface(g, g, zz).color(rgb(1.0f, 0.0f, 0.0f));
+        ax.lighting_enabled(lit);
+        fig.compute_layout();
+        return SvgExporter::to_string(fig);
+    };
+    const std::string flat = make_svg(false);
+    EXPECT_EQ(count_of(flat, "Z\" fill=\"#ff0000\""), 8);
+    const std::string lit = make_svg(true);
+    EXPECT_LT(count_of(lit, "Z\" fill=\"#ff0000\""), 8);
+}
+
 TEST(SvgExport, UnicodeTextIsKeptAndControlCharsDropped)
 {
     Figure             fig({.width = 640, .height = 480});

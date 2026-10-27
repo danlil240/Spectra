@@ -15,6 +15,7 @@
 #include <spectra/series.hpp>
 #include <spectra/series_shapes.hpp>
 
+#include "core/axes3d.hpp"
 #include "core/axis_scale.hpp"
 #include "core/label_layout.hpp"
 #include "text_fit.hpp"
@@ -607,13 +608,18 @@ void Renderer::render_plot_text(Figure& figure)
             }
             return false;
         };
-        // 3D text is not scissored, so a label sticking out of this viewport
-        // would print over a neighbouring subplot; drop it instead.
-        auto outside_viewport = [&](const LabelRect& r) -> bool
+        // Labels may use the layout margins of this subplot's cell (like 2D
+        // tick labels), but 3D text is not scissored, so a label sticking out
+        // of the cell would print over a neighbouring subplot; drop it instead.
+        const Rect cell             = axes3d_cell_rect(vp,
+                                           figure.style(),
+                                           static_cast<float>(figure.width()),
+                                           static_cast<float>(figure.height()));
+        auto       outside_viewport = [&](const LabelRect& r) -> bool
         {
             constexpr float tol = 1.0f;
-            return r.x0 < vp.x - tol || r.x1 > vp.x + vp.w + tol || r.y0 < vp.y - tol
-                   || r.y1 > vp.y + vp.h + tol;
+            return r.x0 < cell.x - tol || r.x1 > cell.x + cell.w + tol || r.y0 < cell.y - tol
+                   || r.y1 > cell.y + cell.h + tol;
         };
         // Draw a depth-tested tick label unless it would overlap another label.
         auto place_tick_label = [&](const std::string& text,
@@ -639,9 +645,9 @@ void Renderer::render_plot_text(Figure& figure)
             title_fit = to_fitted_text(
                 fit_axes3d_title(axes3d->get_title(), vp.w, label_measure, label_ellipsis));
             auto ext = text_renderer_.measure_text(title_fit.text, title_fit.size);
-            title_py = vp.y - ext.height - tick_padding;
-            if (title_py < vp.y + 2.0f)
-                title_py = vp.y + 2.0f;
+            // Above the viewport, in the cell's top margin, like a 2D title:
+            // the 3D box fills the viewport.
+            title_py = std::max(vp.y - ext.height - tick_padding, 2.0f);
             placed_labels.push_back(label_rect(title_fit.text,
                                                title_fit.size,
                                                vp.x + vp.w * 0.5f,
@@ -715,11 +721,8 @@ void Renderer::render_plot_text(Figure& figure)
             uint32_t vk_z_arrow_col = pack_rgba(80, 130, 255, 220);
 
             // Helper: draw arrow label text at the tip of an axis arrow
-            auto draw_arrow_label = [&](vec3               start,
-                                        vec3               end,
-                                        uint32_t           vk_col,
-                                        const char*        default_lbl,
-                                        const std::string& user_lbl)
+            auto draw_arrow_label =
+                [&](vec3 start, vec3 end, uint32_t vk_col, const std::string& lbl)
             {
                 float sx0 = 0.0f;
                 float sy0 = 0.0f;
@@ -729,7 +732,6 @@ void Renderer::render_plot_text(Figure& figure)
                 float d1  = 0.0f;
                 if (!world_to_screen(start, sx0, sy0, d0) || !world_to_screen(end, sx1, sy1, d1))
                     return;
-                const char* lbl          = user_lbl.empty() ? default_lbl : user_lbl.c_str();
                 float       label_offset = 8.0f;
                 float       dir_x        = sx1 - sx0;
                 float       dir_y        = sy1 - sy0;
@@ -784,18 +786,21 @@ void Renderer::render_plot_text(Figure& figure)
             draw_arrow_label({x1, y0, z0},
                              {x1 + arrow_len_x, y0, z0},
                              vk_x_arrow_col,
-                             "X",
-                             axes3d->get_xlabel());
+                             axes3d_arrow_label(axes3d->get_xlabel(),
+                                                "X",
+                                                axes3d->compute_x_ticks().offset_label));
             draw_arrow_label({x0, y1, z0},
                              {x0, y1 + arrow_len_y, z0},
                              vk_y_arrow_col,
-                             "Y",
-                             axes3d->get_ylabel());
+                             axes3d_arrow_label(axes3d->get_ylabel(),
+                                                "Y",
+                                                axes3d->compute_y_ticks().offset_label));
             draw_arrow_label({x0, y0, z1},
                              {x0, y0, z1 + arrow_len_z},
                              vk_z_arrow_col,
-                             "Z",
-                             axes3d->get_zlabel());
+                             axes3d_arrow_label(axes3d->get_zlabel(),
+                                                "Z",
+                                                axes3d->compute_z_ticks().offset_label));
         }
 
         // --- 3D Title --- (rectangle reserved above, before the tick labels)

@@ -158,9 +158,11 @@ TEST(AxisScale, Log10WideRangeStridesDecades)
     Axes ax;
     make_square_loglog(ax);
 
-    // 13 decades (1e-6..1e6) → every second decade, aligned on 10^0.
+    // 13 decades (1e-6..1e6) → every second decade, aligned on 10^0.  The
+    // ends leave the plain range, so every label is a power (never "10000"
+    // next to an exponent form).
     const TickResult               yt     = ax.compute_y_ticks();
-    const std::vector<std::string> want_y = {"1e-6", "0.0001", "0.01", "1", "100", "10000", "1e6"};
+    const std::vector<std::string> want_y = {"10⁻⁶", "10⁻⁴", "10⁻²", "10⁰", "10²", "10⁴", "10⁶"};
     EXPECT_EQ(yt.labels, want_y);
     EXPECT_LE(yt.positions.size(), 8u);
 }
@@ -179,8 +181,10 @@ TEST(AxisScale, Log2Ticks)
     ax.xlim(1.0 / 1048576.0, 0.5);
     const TickResult small = ax.compute_x_ticks();
     ASSERT_FALSE(small.labels.empty());
-    // 20 powers → stride 3, aligned on 2^0: first label is 2^-18.
-    EXPECT_EQ(small.labels.front(), "2^-18");
+    // 20 powers → stride 3, aligned on 2^0: first label is 2^-18, and the
+    // whole axis switches to power labels.
+    const std::vector<std::string> want_small = {"2⁻¹⁸", "2⁻¹⁵", "2⁻¹²", "2⁻⁹", "2⁻⁶", "2⁻³"};
+    EXPECT_EQ(small.labels, want_small);
 }
 
 TEST(AxisScale, LogNarrowRangeFallsBackToPositiveLinearTicks)
@@ -235,9 +239,76 @@ TEST(AxisScale, LogMinorTicks)
     for (size_t i = 0; i < want.size(); ++i)
         EXPECT_NEAR(part[i], want[i], 1e-12);
 
-    EXPECT_TRUE(log_minor_ticks(ScaleType::Log2, 1.0, 1024.0).empty());
     EXPECT_TRUE(log_minor_ticks(ScaleType::Linear, 1.0, 100.0).empty());
+    EXPECT_TRUE(log_minor_ticks(ScaleType::Sqrt, 1.0, 100.0).empty());
     EXPECT_TRUE(log_minor_ticks(ScaleType::Log10, 1e-10, 1e10).empty());   // too dense
+}
+
+TEST(AxisScale, Log2MinorTicksSplitOctaves)
+{
+    // 1.25, 1.5, 1.75 × 2^k: each octave split into four equal linear steps.
+    const std::vector<double> m    = log_minor_ticks(ScaleType::Log2, 1.0, 4.0);
+    const std::vector<double> want = {1.25, 1.5, 1.75, 2.5, 3.0, 3.5};
+    ASSERT_EQ(m.size(), want.size());
+    for (size_t i = 0; i < want.size(); ++i)
+        EXPECT_DOUBLE_EQ(m[i], want[i]);
+
+    // Clipped to a partial octave.
+    const std::vector<double> part = log_minor_ticks(ScaleType::Log2, 0.3, 0.45);
+    ASSERT_EQ(part.size(), 3u);   // 0.3125, 0.375, 0.4375
+    EXPECT_DOUBLE_EQ(part[0], 0.3125);
+    EXPECT_DOUBLE_EQ(part[1], 0.375);
+    EXPECT_DOUBLE_EQ(part[2], 0.4375);
+
+    EXPECT_EQ(log_minor_ticks(ScaleType::Log2, 1.0, 1024.0).size(), 30u);
+    EXPECT_TRUE(log_minor_ticks(ScaleType::Log2, 1.0, std::pow(2.0, 40.0)).empty());   // too dense
+}
+
+TEST(AxisScale, LogTickLabelsUseOneFormatPerAxis)
+{
+    auto is_power = [](const std::string& s)
+    { return s.rfind("10", 0) == 0 && s.size() > 2 && static_cast<unsigned char>(s[2]) >= 0x80; };
+    Axes ax;
+    ax.yscale(ScaleType::Log10);
+
+    // Inside 1e-4..1e4: all plain numbers.
+    ax.ylim(1e-4, 1e4);
+    TickResult t = ax.compute_y_ticks();
+    ASSERT_GE(t.labels.size(), 2u);
+    for (const auto& l : t.labels)
+        EXPECT_FALSE(is_power(l)) << l;
+    EXPECT_EQ(t.labels.back(), "10000");
+
+    // One decade beyond: every label is a power, including 10^0..10^4.
+    ax.ylim(1.0, 1e6);
+    t = ax.compute_y_ticks();
+    const std::vector<std::string> want = {"10⁰", "10¹", "10²", "10³", "10⁴", "10⁵", "10⁶"};
+    EXPECT_EQ(t.labels, want);
+
+    // Log2 within 1/16 .. 65536 stays plain.
+    Axes a2;
+    a2.xscale(ScaleType::Log2);
+    a2.xlim(0.0625, 16.0);
+    t = a2.compute_x_ticks();
+    // 9 powers → stride 2 aligned on 2^0.
+    const std::vector<std::string> want2 = {"0.0625", "0.25", "1", "4", "16"};
+    EXPECT_EQ(t.labels, want2);
+}
+
+TEST(AxisScale, TranslateLimitsMovesInAxisSpace)
+{
+    const AxisLimits lin = translate_limits(ScaleType::Linear, {0.0, 10.0}, 2.5);
+    EXPECT_DOUBLE_EQ(lin.min, 2.5);
+    EXPECT_DOUBLE_EQ(lin.max, 12.5);
+
+    // One decade on a log10 axis: ratios are kept, nothing crosses zero.
+    const AxisLimits lg = translate_limits(ScaleType::Log10, {1.0, 100.0}, -1.0);
+    EXPECT_NEAR(lg.min, 0.1, 1e-14);
+    EXPECT_NEAR(lg.max, 10.0, 1e-12);
+
+    const AxisLimits l2 = translate_limits(ScaleType::Log2, {1.0, 8.0}, 1.0);
+    EXPECT_NEAR(l2.min, 2.0, 1e-14);
+    EXPECT_NEAR(l2.max, 16.0, 1e-12);
 }
 
 // ─── Pan / zoom in axis space ───────────────────────────────────────────────

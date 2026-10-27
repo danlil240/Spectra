@@ -159,11 +159,14 @@ class AxisLinkManager
 
     // Propagate a zoom centered on (data_x, data_y) with the given
     // factor to all axes linked to source. The source itself is NOT
-    // modified (caller already did that).
-    void propagate_zoom(Axes* source, float data_x, float data_y, float factor);
+    // modified (caller already did that).  Each peer zooms in its own axis
+    // space (about log(anchor) on a log axis), matching the source.
+    void propagate_zoom(Axes* source, double data_x, double data_y, double factor);
 
-    // Propagate a pan delta (in data-space) to all axes linked to source.
-    void propagate_pan(Axes* source, float dx_data, float dy_data);
+    // Propagate a pan delta to all axes linked to source.  The delta is in
+    // axis-space units: data units on a linear peer, decades / octaves on a
+    // log peer.
+    void propagate_pan(Axes* source, double dx, double dy);
 
     // Propagate absolute limits to all axes linked to source.
     void propagate_limits(Axes* source, AxisLimits new_xlim, AxisLimits new_ylim);

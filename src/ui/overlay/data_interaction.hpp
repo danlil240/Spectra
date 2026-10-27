@@ -7,6 +7,7 @@
     #include <spectra/fwd.hpp>
 
     #include "annotation.hpp"
+    #include "axis_mapping.hpp"
     #include "crosshair.hpp"
     #include "data_marker.hpp"
     #include "ui/input/input.hpp"
@@ -230,6 +231,14 @@ class DataInteraction
 
     // Pin / unpin a datatip at the current nearest point (2D or 3D). Returns true if handled.
     bool try_toggle_datatip_at_nearest();
+
+    // Screen <-> data mapping of the hovered 2D axes (through its axis scales).
+    AxisMapping active_mapping() const
+    {
+        if (active_axes_)
+            return AxisMapping(*active_axes_);
+        return AxisMapping(active_viewport_, {xlim_min_, xlim_max_}, {ylim_min_, ylim_max_});
+    }
 
     NearestPointResult nearest_;
     Tooltip            tooltip_;

@@ -216,6 +216,11 @@ void Renderer::notify_figure_removed(const Figure* figure)
             if (s)
                 backend_.destroy_buffer(s);
         }
+        for (auto s : it->second.background_buffer)
+        {
+            if (s)
+                backend_.destroy_buffer(s);
+        }
         figure_gpu_data_.erase(it);
     }
 }
@@ -314,6 +319,11 @@ Renderer::~Renderer() noexcept
         for (auto& [ptr, data] : figure_gpu_data_)
         {
             for (auto s : data.overlay_line_buffer)
+            {
+                if (s)
+                    backend_.destroy_buffer(s);
+            }
+            for (auto s : data.background_buffer)
             {
                 if (s)
                     backend_.destroy_buffer(s);
@@ -463,6 +473,10 @@ void Renderer::render_figure_content(Figure& figure, FigureViewModel* fig_vm)
     // Set full-figure viewport and scissor
     backend_.set_viewport(0, 0, static_cast<float>(w), static_cast<float>(h));
     backend_.set_scissor(0, 0, w, h);
+
+    // A figure that overrides the theme canvas colour paints its own region
+    // before any axes content.
+    render_figure_background(figure);
 
     // Wire up deferred-deletion callback on every axes so that
     // clear_series() / remove_series() safely defer GPU cleanup.

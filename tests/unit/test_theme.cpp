@@ -1,6 +1,7 @@
 #include <cmath>
 #include <filesystem>
 #include <gtest/gtest.h>
+#include <spectra/figure.hpp>
 
 #include "ui/theme/design_tokens.hpp"
 #include "ui/theme/glass_tokens.hpp"
@@ -701,4 +702,79 @@ TEST_F(ThemeManagerTest, ExportImportGlassSettings)
     EXPECT_NEAR(tm_.glass().glow_strength, 0.61f, 1e-4f);
     EXPECT_TRUE(tm_.glass().blur_enabled);
     std::filesystem::remove(path);
+}
+
+// ─── Theme display names ─────────────────────────────────────────────────────
+
+TEST(ThemeDisplayName, FallbackTitleCasesIds)
+{
+    EXPECT_EQ(theme_display_name("light"), "Light");
+    EXPECT_EQ(theme_display_name("high_contrast"), "High Contrast");
+    EXPECT_EQ(theme_display_name("my-custom_theme"), "My Custom Theme");
+    EXPECT_EQ(theme_display_name("_odd__id_"), "Odd Id");
+    EXPECT_EQ(theme_display_name(""), "");
+}
+
+TEST_F(ThemeManagerTest, DisplayNamesForBuiltInThemes)
+{
+    EXPECT_EQ(tm_.display_name("night"), "Night");
+    EXPECT_EQ(tm_.display_name("dark"), "Dark");
+    EXPECT_EQ(tm_.display_name("light"), "Light");
+    EXPECT_EQ(tm_.display_name("high_contrast"), "High Contrast");
+}
+
+TEST_F(ThemeManagerTest, DisplayNameFallsBackForUnknownOrUnnamedThemes)
+{
+    EXPECT_EQ(tm_.display_name("not_registered"), "Not Registered");
+
+    Theme custom;   // registered without a display_name
+    tm_.register_theme("solar_flare", custom);
+    EXPECT_EQ(tm_.display_name("solar_flare"), "Solar Flare");
+}
+
+// ─── Effective figure background ─────────────────────────────────────────────
+
+TEST(EffectiveFigureBackground, DefaultFollowsThemeCanvas)
+{
+    spectra::FigureStyle style;   // background defaults to white, but not overridden
+    EXPECT_FALSE(style.background_override);
+
+    ThemeColors colors{};
+    colors.bg_canvas = Color(0.05f, 0.07f, 0.11f, 1.0f);
+
+    const spectra::Color bg = effective_figure_background(style, colors);
+    EXPECT_FLOAT_EQ(bg.r, 0.05f);
+    EXPECT_FLOAT_EQ(bg.g, 0.07f);
+    EXPECT_FLOAT_EQ(bg.b, 0.11f);
+    EXPECT_FLOAT_EQ(bg.a, 1.0f);
+}
+
+TEST(EffectiveFigureBackground, OverrideUsesFigureColour)
+{
+    spectra::FigureStyle style;
+    style.background          = spectra::Color(0.9f, 0.2f, 0.1f, 1.0f);
+    style.background_override = true;
+
+    ThemeColors colors{};
+    colors.bg_canvas = Color(0.05f, 0.07f, 0.11f, 1.0f);
+
+    const spectra::Color bg = effective_figure_background(style, colors);
+    EXPECT_FLOAT_EQ(bg.r, 0.9f);
+    EXPECT_FLOAT_EQ(bg.g, 0.2f);
+    EXPECT_FLOAT_EQ(bg.b, 0.1f);
+
+    // Back to auto: the stored colour is kept but the theme wins again.
+    style.background_override = false;
+    EXPECT_FLOAT_EQ(effective_figure_background(style, colors).r, 0.05f);
+}
+
+TEST_F(ThemeManagerTest, EffectiveFigureBackgroundTracksThemeSwitch)
+{
+    spectra::FigureStyle style;
+    tm_.set_theme("light");
+    const spectra::Color light_bg = effective_figure_background(style, tm_.colors());
+    tm_.set_theme("night");
+    const spectra::Color night_bg = effective_figure_background(style, tm_.colors());
+    EXPECT_GT(light_bg.r + light_bg.g + light_bg.b, 2.0f);   // light canvas
+    EXPECT_LT(night_bg.r + night_bg.g + night_bg.b, 0.5f);   // dark canvas, not white
 }

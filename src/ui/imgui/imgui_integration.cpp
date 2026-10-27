@@ -437,6 +437,11 @@ bool ImGuiIntegration::has_active_chrome_animations() const
         return true;
     if (mode_transition_ && mode_transition_->is_active())
         return true;
+    // Modal scrim fading in/out (Settings, Theme Settings): ImGui advances the
+    // dim ratio per frame, so keep frames coming until it settles.
+    if (const ImGuiContext* g = ImGui::GetCurrentContext();
+        g && g->DimBgRatio > 0.0f && g->DimBgRatio < 1.0f)
+        return true;
     return false;
 }
 
@@ -912,11 +917,9 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
         settings_panel_->draw();
     }
 
-    // Draw theme settings window if open
-    if (show_theme_settings_)
-    {
-        draw_theme_settings();
-    }
+    // Theme settings modal (draws nothing unless open; called every frame so the
+    // popup also closes when show_theme_settings_ is cleared elsewhere)
+    draw_theme_settings();
 
     // ── ROS2 Adapter error modal ──────────────────────────────────────────────
     // Shown when the tools.ros2_adapter command encounters a launch failure.

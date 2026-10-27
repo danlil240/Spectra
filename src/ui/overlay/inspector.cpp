@@ -125,7 +125,33 @@ void Inspector::draw_figure_properties(Figure& fig)
         if (widgets::begin_animated_section("BACKGROUND"))
         {
             widgets::begin_group("bg");
-            widgets::color_field("Background Color", sty.background);
+            // Show the colour the figure actually renders with.  Until the user picks
+            // one the figure follows the theme canvas colour ("auto"); picking sets an
+            // override, and "Use theme" returns to auto.
+            spectra::Color bg = effective_figure_background(sty, c);
+            if (widgets::color_field("Background Color", bg))
+            {
+                sty.background          = bg;
+                sty.background_override = true;
+            }
+            ImGui::SameLine();
+            ImGui::PushStyleColor(
+                ImGuiCol_Text,
+                ImVec4(c.text_tertiary.r, c.text_tertiary.g, c.text_tertiary.b, c.text_tertiary.a));
+            if (sty.background_override)
+            {
+                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+                if (ImGui::SmallButton("Use theme"))
+                    sty.background_override = false;
+                ImGui::PopStyleColor();
+                if (ImGui::IsItemHovered())
+                    ImGui::SetTooltip("Follow the theme's canvas colour again");
+            }
+            else
+            {
+                ImGui::TextUnformatted("auto (theme)");
+            }
+            ImGui::PopStyleColor();
             widgets::end_group();
             widgets::small_spacing();
             widgets::end_animated_section();

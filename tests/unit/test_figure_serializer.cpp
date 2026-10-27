@@ -105,3 +105,26 @@ TEST_F(FigureSerializerTest, RoundTripsScatterColormapAndUncertaintyBand)
     EXPECT_FLOAT_EQ(band->edge_width(), 2.0f);
     EXPECT_FALSE(band->show_edges());
 }
+
+TEST_F(FigureSerializerTest, RoundTripsFigureBackgroundOverride)
+{
+    Figure src({800, 600});
+    src.subplot(1, 1, 1);
+    src.style().background          = Color(0.2f, 0.3f, 0.4f, 1.0f);
+    src.style().background_override = true;
+    ASSERT_TRUE(FigureSerializer::save(tmp_path_, src));
+
+    Figure dst({640, 480});
+    ASSERT_TRUE(FigureSerializer::load(tmp_path_, dst));
+    EXPECT_TRUE(dst.style().background_override);
+    EXPECT_FLOAT_EQ(dst.style().background.g, 0.3f);
+
+    // A figure that follows the theme stays on "auto" after a round trip.
+    Figure auto_src({800, 600});
+    auto_src.subplot(1, 1, 1);
+    ASSERT_TRUE(FigureSerializer::save(tmp_path_, auto_src));
+    Figure auto_dst({640, 480});
+    auto_dst.style().background_override = true;
+    ASSERT_TRUE(FigureSerializer::load(tmp_path_, auto_dst));
+    EXPECT_FALSE(auto_dst.style().background_override);
+}

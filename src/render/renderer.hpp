@@ -119,6 +119,11 @@ class Renderer
     // 3D arrows are rendered inside render_axes() with depth testing.
     void render_plot_geometry(Figure& figure);
 
+    // Screen-space region a figure's background covers: the bounding box of its
+    // axes viewports grown by the figure margins, clamped to the figure size
+    // (the whole figure when it has no axes).
+    static Rect figure_background_region(const Figure& figure);
+
     // Render queued text (call after render_figure_content, before end_render_pass)
     void render_text(float screen_width, float screen_height);
 
@@ -150,6 +155,9 @@ class Renderer
     void release_custom_type_state(SeriesTypeEntry& entry);
     void release_all_custom_state();
 
+    // Paint FigureStyle::background over the figure region when the figure
+    // overrides the theme canvas colour (the render-pass clear always uses the theme).
+    void render_figure_background(Figure& figure);
     void render_axes(AxesBase& axes, const Rect& viewport, uint32_t fig_width, uint32_t fig_height);
     void render_grid(AxesBase& axes, const Rect& viewport);
     void render_bounding_box(Axes3D& axes, const Rect& viewport);
@@ -379,6 +387,8 @@ class Renderer
         // Per-slot to avoid CPU/GPU hazard during continuous zoom/resize.
         BufferHandle overlay_line_buffer[FRAME_BUFFER_SLOTS];
         size_t       overlay_line_capacity[FRAME_BUFFER_SLOTS] = {};
+        // Two triangles covering the figure background (override colour only).
+        BufferHandle background_buffer[FRAME_BUFFER_SLOTS];
     };
     std::unordered_map<const Figure*, FigureGpuData> figure_gpu_data_;
 

@@ -8,9 +8,11 @@
 #include <algorithm>
 #include <format>
 #include <cassert>
+#include <cctype>
 #include <filesystem>
 #include <fstream>
 #include <spectra/event_bus.hpp>
+#include <spectra/figure.hpp>
 #include <spectra/logger.hpp>
 #include <sstream>
 #include <vector>
@@ -206,6 +208,45 @@ const ThemeColors& ThemeManager::colors() const
 const std::string& ThemeManager::current_theme_name() const
 {
     return current_theme_name_;
+}
+
+std::string ThemeManager::display_name(std::string_view theme_id) const
+{
+    auto it = themes_.find(std::string(theme_id));
+    if (it != themes_.end() && !it->second.display_name.empty())
+        return it->second.display_name;
+    return theme_display_name(theme_id);
+}
+
+std::string theme_display_name(std::string_view theme_id)
+{
+    std::string out;
+    out.reserve(theme_id.size());
+    bool word_start = true;
+    for (char ch : theme_id)
+    {
+        if (ch == '_' || ch == '-' || ch == ' ')
+        {
+            if (!out.empty() && out.back() != ' ')
+                out.push_back(' ');
+            word_start = true;
+            continue;
+        }
+        const auto uch = static_cast<unsigned char>(ch);
+        out.push_back(word_start ? static_cast<char>(std::toupper(uch)) : ch);
+        word_start = false;
+    }
+    while (!out.empty() && out.back() == ' ')
+        out.pop_back();
+    return out;
+}
+
+spectra::Color effective_figure_background(const FigureStyle& style, const ThemeColors& colors)
+{
+    if (style.background_override)
+        return style.background;
+    const Color& c = colors.bg_canvas;
+    return spectra::Color(c.r, c.g, c.b, c.a);
 }
 
 void ThemeManager::set_data_palette(const std::string& palette_name)
@@ -1050,6 +1091,7 @@ void ThemeManager::initialize_default_themes()
     // Dark Glass — graphite chrome with restrained cool highlights
     Theme dark;
     dark.name   = "dark";
+    dark.display_name = "Dark";
     dark.colors = {
         // Surfaces — separated graphite layers instead of one flat charcoal
         .bg_canvas    = Color::from_hex(0x1B2026),   // Plot area
@@ -1114,6 +1156,7 @@ void ThemeManager::initialize_default_themes()
     // Night Glass — premium dark glassmorphism (Vision.png target)
     Theme night;
     night.name             = "night";
+    night.display_name     = "Night";
     night.colors           = {.bg_canvas    = Color::from_hex(0x0C121C),
                               .bg_primary   = Color::from_hex(0x0A0F18),
                               .bg_secondary = Color::from_hex(0x111827),
@@ -1170,6 +1213,7 @@ void ThemeManager::initialize_default_themes()
     // Light Glass — frosted blue-slate chrome with restrained aurora accents
     Theme light;
     light.name   = "light";
+    light.display_name = "Light";
     light.colors = {
         // Surfaces — still light, but no longer flat white-on-white
         .bg_canvas    = Color::from_hex(0xF7FAFF),   // Plot area: faint cool glass tint
@@ -1234,6 +1278,7 @@ void ThemeManager::initialize_default_themes()
     // High contrast theme
     Theme high_contrast;
     high_contrast.name                            = "high_contrast";
+    high_contrast.display_name                    = "High Contrast";
     high_contrast.colors                          = {// Surfaces
                                                      .bg_canvas    = Color::from_hex(0x000000),
                                                      .bg_primary   = Color::from_hex(0x000000),

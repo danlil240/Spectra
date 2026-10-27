@@ -7,6 +7,8 @@
 #include <vector>
 
 #include <gtest/gtest.h>
+#include <spectra/axes.hpp>
+#include <spectra/figure.hpp>
 
 #include "render/renderer.hpp"
 #include "render/series_type_registry.hpp"
@@ -261,4 +263,54 @@ TEST(BugfixRenderDraw, UnregisterWithoutPipelineRetiresNothing)
     register_with_stack_layout(reg, "no_pipeline");
     reg.unregister_type("no_pipeline");
     EXPECT_TRUE(reg.take_retired_pipelines().empty());
+}
+
+// ─── Renderer::figure_background_region ──────────────────────────────────────
+// A figure that overrides its background paints this region; it must cover the
+// figure's canvas (axes plus margins) and never spill past the figure.
+
+TEST(FigureBackgroundRegion, CoversAxesPlusMarginsWithinFigure)
+{
+    Figure fig({800, 600});
+    fig.subplot(2, 2, 1);
+    fig.subplot(2, 2, 4);
+
+    const Rect r = Renderer::figure_background_region(fig);
+    EXPECT_FLOAT_EQ(r.x, 0.0f);
+    EXPECT_FLOAT_EQ(r.y, 0.0f);
+    EXPECT_FLOAT_EQ(r.w, 800.0f);
+    EXPECT_FLOAT_EQ(r.h, 600.0f);
+}
+
+TEST(FigureBackgroundRegion, FollowsCanvasOffsetAndClamps)
+{
+    Figure fig({1000, 800});
+    auto&  ax = fig.subplot(1, 1, 1);
+    // Window layout: canvas at (100, 50) of size 600x400 with the default margins.
+    const auto& st = fig.style();
+    ax.set_viewport(Rect{100.0f + st.margin_left,
+                         50.0f + st.margin_top,
+                         600.0f - st.margin_left - st.margin_right,
+                         400.0f - st.margin_top - st.margin_bottom});
+
+    Rect r = Renderer::figure_background_region(fig);
+    EXPECT_FLOAT_EQ(r.x, 100.0f);
+    EXPECT_FLOAT_EQ(r.y, 50.0f);
+    EXPECT_FLOAT_EQ(r.w, 600.0f);
+    EXPECT_FLOAT_EQ(r.h, 400.0f);
+
+    // Scrolled content above the figure is clamped to the framebuffer.
+    ax.set_viewport(Rect{10.0f, -300.0f, 500.0f, 900.0f});
+    r = Renderer::figure_background_region(fig);
+    EXPECT_FLOAT_EQ(r.x, 0.0f);
+    EXPECT_FLOAT_EQ(r.y, 0.0f);
+    EXPECT_FLOAT_EQ(r.h, 600.0f + st.margin_bottom);
+}
+
+TEST(FigureBackgroundRegion, NoAxesCoversWholeFigure)
+{
+    Figure     fig({320, 240});
+    const Rect r = Renderer::figure_background_region(fig);
+    EXPECT_FLOAT_EQ(r.w, 320.0f);
+    EXPECT_FLOAT_EQ(r.h, 240.0f);
 }

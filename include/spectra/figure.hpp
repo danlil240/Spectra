@@ -44,7 +44,10 @@ struct LegendConfig
 /// @brief Figure background colour, outer margins and subplot spacing (pixels).
 struct FigureStyle
 {
+    /// Figure background, used only when @ref background_override is true.
     Color background         = colors::white;
+    /// When false (default) the figure follows the active theme's canvas colour.
+    bool  background_override = false;
     float margin_top         = 40.0f;
     float margin_bottom      = 60.0f;
     float margin_left        = 70.0f;

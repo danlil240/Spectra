@@ -6,6 +6,9 @@
 
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
+
+    #include "ui/theme/theme.hpp"
+    #include "ui/theme/theme_imgui.hpp"
 #endif
 
 namespace spectra::adapters::ros2
@@ -32,6 +35,30 @@ const LogSeverity LogViewerPanel::severity_values_[] = {
     LogSeverity::Error,
     LogSeverity::Fatal,
 };
+
+#ifdef SPECTRA_USE_IMGUI
+// Severity text colour, taken from the active theme so every level stays
+// readable on light and dark surfaces.
+static spectra::ui::Color severity_colour(LogSeverity s)
+{
+    const auto& th = spectra::ui::theme();
+    switch (s)
+    {
+        case LogSeverity::Debug:
+            return th.text_tertiary;
+        case LogSeverity::Info:
+            return th.text_primary;
+        case LogSeverity::Warn:
+            return th.warning;
+        case LogSeverity::Error:
+            return th.error;
+        case LogSeverity::Fatal:
+            return th.critical;
+        default:
+            return th.text_secondary;
+    }
+}
+#endif
 
 // ---------------------------------------------------------------------------
 // Construction
@@ -176,7 +203,8 @@ void LogViewerPanel::draw_toolbar()
     // Pause / Resume
     if (paused)
     {
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.6f, 0.3f, 0.0f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Button,
+                              spectra::ui::to_imvec4(spectra::ui::theme().warning, 0.35f));
         if (ImGui::Button("Resume"))
             viewer_.resume();
         ImGui::PopStyleColor();
@@ -216,7 +244,8 @@ void LogViewerPanel::draw_toolbar()
     // Follow toggle
     if (auto_scroll_)
     {
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.1f, 0.4f, 0.1f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Button,
+                              spectra::ui::to_imvec4(spectra::ui::theme().success, 0.35f));
         if (ImGui::Button("Following"))
             auto_scroll_ = false;
         ImGui::PopStyleColor();
@@ -240,27 +269,32 @@ void LogViewerPanel::draw_toolbar()
     // indices: Debug=1, Info=2, Warn=3, Error=4, Fatal=5
     ImGui::SameLine(ImGui::GetContentRegionAvail().x - 280.0f + ImGui::GetCursorPosX());
 
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.5f, 0.5f, 0.5f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_Text,
+                          spectra::ui::to_imvec4(severity_colour(LogSeverity::Debug)));
     ImGui::Text("D:%u", counts[1]);
     ImGui::PopStyleColor();
     ImGui::SameLine();
 
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_Text,
+                          spectra::ui::to_imvec4(severity_colour(LogSeverity::Info)));
     ImGui::Text("I:%u", counts[2]);
     ImGui::PopStyleColor();
     ImGui::SameLine();
 
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.85f, 0.0f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_Text,
+                          spectra::ui::to_imvec4(severity_colour(LogSeverity::Warn)));
     ImGui::Text("W:%u", counts[3]);
     ImGui::PopStyleColor();
     ImGui::SameLine();
 
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.3f, 0.3f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_Text,
+                          spectra::ui::to_imvec4(severity_colour(LogSeverity::Error)));
     ImGui::Text("E:%u", counts[4]);
     ImGui::PopStyleColor();
     ImGui::SameLine();
 
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.2f, 0.8f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_Text,
+                          spectra::ui::to_imvec4(severity_colour(LogSeverity::Fatal)));
     ImGui::Text("F:%u", counts[5]);
     ImGui::PopStyleColor();
 #endif
@@ -281,26 +315,25 @@ void LogViewerPanel::draw_filter_bar()
     {
         const char* label{};
         LogSeverity sev{};
-        ImVec4      col_on;
-        ImVec4      col_off;
     };
     static const PillDef kPills[] = {
-        {"DBG", LogSeverity::Debug, {0.55f, 0.55f, 0.55f, 1.0f}, {0.25f, 0.25f, 0.25f, 0.6f}},
-        {"INFO", LogSeverity::Info, {0.85f, 0.85f, 0.85f, 1.0f}, {0.25f, 0.25f, 0.25f, 0.6f}},
-        {"WARN", LogSeverity::Warn, {0.95f, 0.75f, 0.10f, 1.0f}, {0.25f, 0.25f, 0.25f, 0.6f}},
-        {"ERROR", LogSeverity::Error, {0.95f, 0.30f, 0.30f, 1.0f}, {0.25f, 0.25f, 0.25f, 0.6f}},
-        {"FATAL", LogSeverity::Fatal, {1.00f, 0.30f, 0.80f, 1.0f}, {0.25f, 0.25f, 0.25f, 0.6f}},
+        {"DBG", LogSeverity::Debug},
+        {"INFO", LogSeverity::Info},
+        {"WARN", LogSeverity::Warn},
+        {"ERROR", LogSeverity::Error},
+        {"FATAL", LogSeverity::Fatal},
     };
     for (int pi = 0; pi < 5; ++pi)
     {
-        const int     idx = static_cast<int>(kPills[pi].sev);
-        const bool    on  = (idx >= 0 && idx < 6) ? severity_pill_visible_[idx] : true;
-        const ImVec4& col = on ? kPills[pi].col_on : kPills[pi].col_off;
-        ImGui::PushStyleColor(ImGuiCol_Button,
-                              ImVec4(col.x * 0.5f, col.y * 0.5f, col.z * 0.5f, 0.8f));
+        const int   idx = static_cast<int>(kPills[pi].sev);
+        const bool  on  = (idx >= 0 && idx < 6) ? severity_pill_visible_[idx] : true;
+        const auto& th  = spectra::ui::theme();
+        // On: tinted pill in the severity colour. Off: muted text, faint fill.
+        const spectra::ui::Color col = on ? severity_colour(kPills[pi].sev) : th.text_tertiary;
+        ImGui::PushStyleColor(ImGuiCol_Button, spectra::ui::to_imvec4(col, on ? 0.18f : 0.06f));
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
-                              ImVec4(col.x * 0.7f, col.y * 0.7f, col.z * 0.7f, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_Text, col);
+                              spectra::ui::to_imvec4(col, on ? 0.30f : 0.14f));
+        ImGui::PushStyleColor(ImGuiCol_Text, spectra::ui::to_imvec4(col, on ? 1.0f : 0.6f));
         const std::string btn_id = std::format("{}##pill", kPills[pi].label);
         if (ImGui::SmallButton(btn_id.c_str()))
         {
@@ -316,7 +349,7 @@ void LogViewerPanel::draw_filter_bar()
 
     // Node filter.
     ImGui::SetNextItemWidth(160.0f);
-    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.15f, 0.15f, 0.20f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_FrameBg, spectra::ui::to_imvec4(spectra::ui::theme().input_bg));
     if (ImGui::InputText("##node", node_filter_buf_, sizeof(node_filter_buf_)))
     {
         viewer_.set_node_filter(node_filter_buf_);
@@ -330,9 +363,11 @@ void LogViewerPanel::draw_filter_bar()
     // Regex filter.
     const bool has_regex_error = !viewer_.regex_error().empty();
     if (has_regex_error)
-        ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.4f, 0.1f, 0.1f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_FrameBg,
+                              spectra::ui::to_imvec4(spectra::ui::theme().error, 0.25f));
     else
-        ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.15f, 0.15f, 0.20f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_FrameBg,
+                              spectra::ui::to_imvec4(spectra::ui::theme().input_bg));
 
     ImGui::SetNextItemWidth(200.0f);
     if (ImGui::InputText("##regex", regex_filter_buf_, sizeof(regex_filter_buf_)))
@@ -347,7 +382,7 @@ void LogViewerPanel::draw_filter_bar()
     if (has_regex_error)
     {
         ImGui::SameLine();
-        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.4f, 0.4f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Text, spectra::ui::to_imvec4(spectra::ui::theme().error));
         ImGui::TextUnformatted("[bad regex]");
         if (ImGui::IsItemHovered())
             ImGui::SetTooltip("%s", viewer_.regex_error().c_str());
@@ -385,21 +420,7 @@ void LogViewerPanel::draw_filter_bar()
 #ifdef SPECTRA_USE_IMGUI
 static ImVec4 severity_row_colour(LogSeverity s)
 {
-    switch (s)
-    {
-        case LogSeverity::Debug:
-            return {0.55f, 0.55f, 0.55f, 1.0f};
-        case LogSeverity::Info:
-            return {0.90f, 0.90f, 0.90f, 1.0f};
-        case LogSeverity::Warn:
-            return {1.00f, 0.85f, 0.10f, 1.0f};
-        case LogSeverity::Error:
-            return {1.00f, 0.35f, 0.35f, 1.0f};
-        case LogSeverity::Fatal:
-            return {1.00f, 0.20f, 0.80f, 1.0f};
-        default:
-            return {0.60f, 0.60f, 0.60f, 1.0f};
-    }
+    return spectra::ui::to_imvec4(severity_colour(s));
 }
 #endif
 
@@ -516,11 +537,12 @@ void LogViewerPanel::draw_table(const std::vector<LogEntry>& entries)
 void LogViewerPanel::draw_detail_pane(const LogEntry& e)
 {
 #ifdef SPECTRA_USE_IMGUI
-    ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.10f, 0.10f, 0.14f, 1.0f));
+    const auto& th = spectra::ui::theme();
+    ImGui::PushStyleColor(ImGuiCol_ChildBg, spectra::ui::to_imvec4(th.bg_tertiary));
     ImGui::BeginChild("##detail", ImVec2(0.0f, 106.0f), 0, ImGuiWindowFlags_HorizontalScrollbar);
 
-    const ImVec4 label_col = ImVec4(0.55f, 0.75f, 1.0f, 1.0f);
-    const ImVec4 val_col   = ImVec4(0.90f, 0.90f, 0.90f, 1.0f);
+    const ImVec4 label_col = spectra::ui::to_imvec4(th.accent);
+    const ImVec4 val_col   = spectra::ui::to_imvec4(th.text_primary);
 
     auto row = [&](const char* lbl, const std::string& val)
     {
@@ -560,7 +582,8 @@ void LogViewerPanel::draw_detail_pane(const LogEntry& e)
 void LogViewerPanel::draw_status_bar(const std::vector<LogEntry>& entries)
 {
 #ifdef SPECTRA_USE_IMGUI
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.55f, 0.55f, 0.55f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_Text,
+                          spectra::ui::to_imvec4(spectra::ui::theme().text_tertiary));
     const std::string status = std::format(
         "Showing {} / {}  |  Total received: {}  |  Buffer: {} / {}",
         entries.size(),

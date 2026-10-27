@@ -8,6 +8,7 @@
 
 #ifdef SPECTRA_USE_IMGUI
     #include "imgui.h"
+    #include "ui/theme/theme_imgui.hpp"
 #endif
 
 namespace spectra::adapters::ros2
@@ -268,7 +269,7 @@ void BagInfoPanel::draw_metadata_section()
 #ifdef SPECTRA_USE_IMGUI
     const float label_w = 130.0f;
 
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.85f, 1.0f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_Text, spectra::ui::to_imvec4(spectra::ui::theme().accent));
     ImGui::TextUnformatted("  Bag Metadata");
     ImGui::PopStyleColor();
     ImGui::Separator();
@@ -276,7 +277,8 @@ void BagInfoPanel::draw_metadata_section()
     auto row = [&](const char* label, const std::string& value)
     {
         ImGui::SetNextItemWidth(label_w);
-        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.7f, 0.7f, 0.7f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Text,
+                              spectra::ui::to_imvec4(spectra::ui::theme().text_secondary));
         ImGui::TextUnformatted(label);
         ImGui::PopStyleColor();
         ImGui::SameLine(label_w + 8.0f);
@@ -307,7 +309,7 @@ void BagInfoPanel::draw_metadata_section()
     if (!summary_.last_error.empty())
     {
         ImGui::Spacing();
-        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.45f, 0.45f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Text, spectra::ui::to_imvec4(spectra::ui::theme().error));
         ImGui::TextWrapped("Error: %s", summary_.last_error.c_str());
         ImGui::PopStyleColor();
     }
@@ -330,11 +332,12 @@ void BagInfoPanel::draw_metadata_section()
 void BagInfoPanel::draw_topic_table()
 {
 #ifdef SPECTRA_USE_IMGUI
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.85f, 1.0f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_Text, spectra::ui::to_imvec4(spectra::ui::theme().accent));
     ImGui::TextUnformatted("  Topics");
     ImGui::PopStyleColor();
     ImGui::SameLine();
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.5f, 0.5f, 0.5f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_Text,
+                          spectra::ui::to_imvec4(spectra::ui::theme().text_tertiary));
     ImGui::Text("(%zu  — click to select, double-click to plot)", summary_.topic_count());
     ImGui::PopStyleColor();
     ImGui::Separator();
@@ -388,7 +391,8 @@ void BagInfoPanel::draw_topic_table()
         const auto  slash_pos  = row.type.rfind('/');
         if (slash_pos != std::string::npos && slash_pos + 1 < row.type.size())
             short_type = row.type.substr(slash_pos + 1);
-        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.7f, 0.7f, 0.7f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Text,
+                              spectra::ui::to_imvec4(spectra::ui::theme().text_secondary));
         ImGui::TextUnformatted(short_type.c_str());
         ImGui::PopStyleColor();
 
@@ -414,19 +418,21 @@ void BagInfoPanel::draw_no_bag_placeholder() const
     ImGui::SetCursorPosX(ImGui::GetCursorPosX() + cx - 120.0f);
     ImGui::SetCursorPosY(ImGui::GetCursorPosY() + cy - 32.0f);
 
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.45f, 0.45f, 0.45f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_Text,
+                          spectra::ui::to_imvec4(spectra::ui::theme().text_secondary));
     ImGui::TextUnformatted("No bag open");
     ImGui::PopStyleColor();
 
     ImGui::SetCursorPosX(ImGui::GetCursorPosX() + cx - 120.0f);
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.35f, 0.35f, 0.35f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_Text,
+                          spectra::ui::to_imvec4(spectra::ui::theme().text_tertiary));
     ImGui::TextUnformatted("Drop a .db3 or .mcap file here");
     ImGui::PopStyleColor();
 
     if (!summary_.last_error.empty())
     {
         ImGui::Spacing();
-        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.45f, 0.45f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Text, spectra::ui::to_imvec4(spectra::ui::theme().error));
         ImGui::TextWrapped("Error: %s", summary_.last_error.c_str());
         ImGui::PopStyleColor();
     }

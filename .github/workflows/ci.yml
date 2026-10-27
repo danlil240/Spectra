@@ -61,6 +61,11 @@ jobs:
             exit 1
           fi
 
+      # UI colours must come from ThemeManager tokens so panels stay readable in
+      # every theme. Approved exceptions: tools/color_literals_allowlist.txt.
+      - name: Check for hard-coded UI colour literals
+        run: python3 tools/check_color_literals.py
+
   # ─── Build + Unit Tests (Linux) ─────────────────────────────────────────
   build-linux:
     name: build-linux (${{ matrix.os }}, ${{ matrix.compiler }})

@@ -17,6 +17,7 @@
 
 #ifdef SPECTRA_USE_IMGUI
     #include "imgui.h"
+    #include "ui/theme/theme_imgui.hpp"
 #endif
 
 namespace spectra::adapters::ros2
@@ -1075,8 +1076,9 @@ void NodeGraphPanel::draw_toolbar()
 
     // Namespace filter — styled frame
     ImGui::SetNextItemWidth(200.0f);
-    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.13f, 0.16f, 0.20f, 1.0f));
-    ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0.17f, 0.20f, 0.26f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_FrameBg, spectra::ui::to_imvec4(spectra::ui::theme().input_bg));
+    ImGui::PushStyleColor(ImGuiCol_FrameBgHovered,
+                          spectra::ui::to_imvec4(spectra::ui::theme().bg_elevated));
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f);
     char buf[256];
     std::strncpy(buf, namespace_filter_.c_str(), sizeof(buf) - 1);
@@ -1088,8 +1090,10 @@ void NodeGraphPanel::draw_toolbar()
 
     ImGui::SameLine(0.0f, 6.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f);
-    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.17f, 0.20f, 0.26f, 1.0f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.22f, 0.26f, 0.34f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_Button,
+                          spectra::ui::to_imvec4(spectra::ui::theme().bg_tertiary));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
+                          spectra::ui::to_imvec4(spectra::ui::theme().bg_elevated));
     if (ImGui::Button("Re-layout"))
     {
         reset_layout_unlocked();
@@ -1129,7 +1133,7 @@ void NodeGraphPanel::draw_toolbar()
     if (!layout_converged_)
     {
         ImGui::SameLine(0.0f, 8.0f);
-        ImGui::TextColored(ImVec4(0.35f, 0.65f, 1.0f, 0.7f), "settling…");
+        ImGui::TextColored(spectra::ui::to_imvec4(spectra::ui::theme().accent, 0.7f), "settling…");
     }
 
     // Display mode toggle — Nodes / Both / Topics
@@ -1142,13 +1146,17 @@ void NodeGraphPanel::draw_toolbar()
         const bool active = (show_mode_ == mode);
         if (active)
         {
-            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.23f, 0.51f, 0.97f, 0.85f));
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.30f, 0.58f, 1.00f, 0.95f));
+            ImGui::PushStyleColor(ImGuiCol_Button,
+                                  spectra::ui::to_imvec4(spectra::ui::theme().accent, 0.35f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
+                                  spectra::ui::to_imvec4(spectra::ui::theme().accent, 0.50f));
         }
         else
         {
-            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.17f, 0.20f, 0.26f, 1.0f));
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.22f, 0.26f, 0.34f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_Button,
+                                  spectra::ui::to_imvec4(spectra::ui::theme().bg_tertiary));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
+                                  spectra::ui::to_imvec4(spectra::ui::theme().bg_elevated));
         }
         if (ImGui::Button(label))
             show_mode_ = mode;
@@ -1171,13 +1179,17 @@ void NodeGraphPanel::draw_toolbar()
         const bool active = (layout_mode_ == lm);
         if (active)
         {
-            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.18f, 0.42f, 0.22f, 0.90f));
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.22f, 0.52f, 0.28f, 1.00f));
+            ImGui::PushStyleColor(ImGuiCol_Button,
+                                  spectra::ui::to_imvec4(spectra::ui::theme().success, 0.35f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
+                                  spectra::ui::to_imvec4(spectra::ui::theme().success, 0.50f));
         }
         else
         {
-            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.17f, 0.20f, 0.26f, 1.0f));
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.22f, 0.26f, 0.34f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_Button,
+                                  spectra::ui::to_imvec4(spectra::ui::theme().bg_tertiary));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
+                                  spectra::ui::to_imvec4(spectra::ui::theme().bg_elevated));
         }
         if (ImGui::Button(label))
         {
@@ -1201,13 +1213,17 @@ void NodeGraphPanel::draw_toolbar()
         const bool active = hide_debug_;
         if (active)
         {
-            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.55f, 0.30f, 0.12f, 0.85f));
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.65f, 0.38f, 0.16f, 1.00f));
+            ImGui::PushStyleColor(ImGuiCol_Button,
+                                  spectra::ui::to_imvec4(spectra::ui::theme().warning, 0.35f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
+                                  spectra::ui::to_imvec4(spectra::ui::theme().warning, 0.50f));
         }
         else
         {
-            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.17f, 0.20f, 0.26f, 1.0f));
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.22f, 0.26f, 0.34f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_Button,
+                                  spectra::ui::to_imvec4(spectra::ui::theme().bg_tertiary));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
+                                  spectra::ui::to_imvec4(spectra::ui::theme().bg_elevated));
         }
         if (ImGui::Button(active ? "Debug Hidden" : "Show All"))
             hide_debug_ = !hide_debug_;
@@ -1226,10 +1242,12 @@ void NodeGraphPanel::draw_graph_canvas()
 
     ImDrawList* dl = ImGui::GetWindowDrawList();
 
+    const auto& th = spectra::ui::theme();
+
     // Background — matches theme bg_secondary
     dl->AddRectFilled(canvas_pos,
                       ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + canvas_size.y),
-                      IM_COL32(18, 21, 28, 255));
+                      spectra::ui::to_imu32(th.bg_secondary));
     // Subtle dot-grid
     {
         constexpr float GRID = 28.0f;
@@ -1237,12 +1255,14 @@ void NodeGraphPanel::draw_graph_canvas()
         float           goy  = std::fmod(view_oy_, GRID);
         for (float gx = canvas_pos.x + gox; gx < canvas_pos.x + canvas_size.x; gx += GRID)
             for (float gy = canvas_pos.y + goy; gy < canvas_pos.y + canvas_size.y; gy += GRID)
-                dl->AddCircleFilled(ImVec2(gx, gy), 1.0f, IM_COL32(60, 68, 82, 140));
+                dl->AddCircleFilled(ImVec2(gx, gy),
+                                    1.0f,
+                                    spectra::ui::to_imu32(th.text_tertiary, 0.35f));
     }
     // Border
     dl->AddRect(canvas_pos,
                 ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + canvas_size.y),
-                IM_COL32(38, 44, 56, 200));
+                spectra::ui::to_imu32(th.border_subtle));
 
     // Invisible button for mouse interaction (pan + zoom)
     ImGui::SetCursorScreenPos(canvas_pos);
@@ -1511,6 +1531,7 @@ void NodeGraphPanel::draw_node(const GraphNode& n, float ox, float oy, float sca
     if (!passes_filter(n))
         return;
 
+    const auto& th = spectra::ui::theme();
     ImDrawList* dl = ImGui::GetWindowDrawList();
     float       cx = ox + n.px * scale;
     float       cy = oy + n.py * scale;
@@ -1534,14 +1555,15 @@ void NodeGraphPanel::draw_node(const GraphNode& n, float ox, float oy, float sca
                                 static_cast<int>(nb * 255),
                                 200);
 
-        // Fill: dark panel
-        ImU32 fill = n.selected ? IM_COL32(30, 38, 58, 245) : IM_COL32(26, 31, 42, 235);
+        // Fill: raised panel
+        ImU32 fill = n.selected ? spectra::ui::to_imu32(th.bg_elevated, 0.96f)
+                                : spectra::ui::to_imu32(th.bg_tertiary, 0.92f);
 
         // Selection glow shadow
         if (n.selected)
             dl->AddRectFilled(ImVec2(cx - hw - 3.0f * scale, cy - hh - 3.0f * scale),
                               ImVec2(cx + hw + 3.0f * scale, cy + hh + 3.0f * scale),
-                              IM_COL32(59, 130, 246, 60),
+                              spectra::ui::to_imu32(th.accent, 0.24f),
                               rr + 2.0f * scale);
 
         dl->AddRectFilled(ImVec2(cx - hw, cy - hh), ImVec2(cx + hw, cy + hh), fill, rr);
@@ -1553,7 +1575,8 @@ void NodeGraphPanel::draw_node(const GraphNode& n, float ox, float oy, float sca
                           ns_col);
 
         // Border
-        ImU32 border_col = n.selected ? IM_COL32(59, 130, 246, 220) : IM_COL32(55, 65, 85, 200);
+        ImU32 border_col = n.selected ? spectra::ui::to_imu32(th.accent, 0.86f)
+                                      : spectra::ui::to_imu32(th.border_default);
         dl->AddRect(ImVec2(cx - hw, cy - hh),
                     ImVec2(cx + hw, cy + hh),
                     border_col,
@@ -1566,7 +1589,8 @@ void NodeGraphPanel::draw_node(const GraphNode& n, float ox, float oy, float sca
         {
             const char* label = n.display_name.c_str();
             ImVec2      tsz   = ImGui::CalcTextSize(label);
-            ImU32 tcol = n.selected ? IM_COL32(220, 235, 255, 255) : IM_COL32(180, 195, 215, 230);
+            ImU32       tcol  = n.selected ? spectra::ui::to_imu32(th.text_primary)
+                                           : spectra::ui::to_imu32(th.text_secondary);
             // Clamp text inside node
             float text_x = cx - tsz.x * 0.5f + bar_w * 0.5f;
             float text_y = cy - tsz.y * 0.5f;
@@ -1581,13 +1605,13 @@ void NodeGraphPanel::draw_node(const GraphNode& n, float ox, float oy, float sca
         float hh = 10.0f * scale;
         float rr = hh;   // fully rounded
 
-        ImU32 fill       = n.selected ? IM_COL32(28, 40, 60, 230) : IM_COL32(22, 30, 44, 210);
-        ImU32 border_col = n.selected ? IM_COL32(59, 130, 246, 200) : IM_COL32(50, 75, 110, 160);
+        ImU32 fill       = spectra::ui::to_imu32(th.info, n.selected ? 0.22f : 0.12f);
+        ImU32 border_col = spectra::ui::to_imu32(th.info, n.selected ? 0.80f : 0.45f);
 
         if (n.selected)
             dl->AddRectFilled(ImVec2(cx - hw - 2.0f * scale, cy - hh - 2.0f * scale),
                               ImVec2(cx + hw + 2.0f * scale, cy + hh + 2.0f * scale),
-                              IM_COL32(59, 130, 246, 40),
+                              spectra::ui::to_imu32(th.accent, 0.16f),
                               rr + 2.0f * scale);
 
         dl->AddRectFilled(ImVec2(cx - hw, cy - hh), ImVec2(cx + hw, cy + hh), fill, rr);
@@ -1602,7 +1626,8 @@ void NodeGraphPanel::draw_node(const GraphNode& n, float ox, float oy, float sca
         {
             const char* label = n.display_name.c_str();
             ImVec2      tsz   = ImGui::CalcTextSize(label);
-            ImU32 tcol = n.selected ? IM_COL32(160, 210, 255, 255) : IM_COL32(120, 170, 210, 200);
+            ImU32       tcol  = n.selected ? spectra::ui::to_imu32(th.text_primary)
+                                           : spectra::ui::to_imu32(th.info);
             dl->AddText(ImVec2(cx - tsz.x * 0.5f, cy - tsz.y * 0.5f), tcol, label);
         }
     }
@@ -1623,9 +1648,11 @@ void NodeGraphPanel::draw_edge(const GraphEdge& e, float ox, float oy, float sca
 
     ImDrawList* dl = ImGui::GetWindowDrawList();
 
-    // Publish = accent blue, subscribe = muted teal
-    ImU32 col  = e.is_publish ? IM_COL32(59, 130, 246, 80) : IM_COL32(56, 178, 172, 65);
-    ImU32 acol = e.is_publish ? IM_COL32(59, 130, 246, 160) : IM_COL32(56, 178, 172, 130);
+    // Publish = accent, subscribe = success (distinct hue in every theme)
+    const auto&              th       = spectra::ui::theme();
+    const spectra::ui::Color edge_col = e.is_publish ? th.accent : th.success;
+    ImU32                    col      = spectra::ui::to_imu32(edge_col, 0.31f);
+    ImU32                    acol     = spectra::ui::to_imu32(edge_col, 0.63f);
 
     if (layout_mode_ == GraphLayoutMode::Hierarchical)
     {
@@ -1720,7 +1747,7 @@ void NodeGraphPanel::draw_detail_popup(const GraphNode& n)
 
     if (ImGui::BeginTooltip())
     {
-        ImGui::TextColored(ImVec4(0.9f, 0.8f, 0.4f, 1.0f),
+        ImGui::TextColored(spectra::ui::to_imvec4(spectra::ui::theme().accent),
                            "%s",
                            n.kind == GraphNodeKind::RosNode ? "ROS2 Node" : "Topic");
         ImGui::Separator();

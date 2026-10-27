@@ -619,6 +619,8 @@ Color ThemeManager::get_color(const std::string& color_name) const
         return c.error;
     if (color_name == "info")
         return c.info;
+    if (color_name == "critical")
+        return c.critical;
     if (color_name == "grid_major")
         return c.grid_major;
     if (color_name == "grid_minor")
@@ -696,6 +698,7 @@ std::string theme_colors_to_json(const ThemeColors& c, int indent = 4)
     TC_FIELD(warning) << ",\n";
     TC_FIELD(error) << ",\n";
     TC_FIELD(info) << ",\n";
+    TC_FIELD(critical) << ",\n";
     TC_FIELD(grid_major) << ",\n";
     TC_FIELD(grid_minor) << ",\n";
     TC_FIELD(grid_line) << ",\n";
@@ -794,6 +797,8 @@ bool parse_theme_colors_from_json(const std::string& json, ThemeColors& out)
     PARSE_TC(warning);
     PARSE_TC(error);
     PARSE_TC(info);
+    out.critical = out.error;   // Themes exported before `critical` existed
+    PARSE_TC(critical);
     PARSE_TC(grid_major);
     PARSE_TC(grid_minor);
     PARSE_TC(grid_line);
@@ -1077,10 +1082,11 @@ void ThemeManager::initialize_default_themes()
         .accent_subtle = Color(0.62f, 0.83f, 0.90f, 0.08f),
 
         // Semantic
-        .success = Color::from_hex(0x3FB950),
-        .warning = Color::from_hex(0xD29922),
-        .error   = Color::from_hex(0xFF7575),   // WCAG AA: 4.52:1 on bg_secondary (#2E2E2E)
-        .info    = Color::from_hex(0x7DD3FC),
+        .success  = Color::from_hex(0x3FB950),
+        .warning  = Color::from_hex(0xD29922),
+        .error    = Color::from_hex(0xFF7575),   // WCAG AA: 4.52:1 on bg_secondary (#2E2E2E)
+        .info     = Color::from_hex(0x7DD3FC),
+        .critical = Color::from_hex(0xF472D0),
 
         // Plot-specific — grid recedes, data is hero
         .grid_major       = Color(0.70f, 0.78f, 0.84f, 0.12f),
@@ -1135,10 +1141,11 @@ void ThemeManager::initialize_default_themes()
                               .accent_muted  = Color(0.42f, 0.78f, 0.95f, 0.20f),
                               .accent_subtle = Color(0.42f, 0.78f, 0.95f, 0.08f),
 
-                              .success = glass_palette::kSuccessGreen,
-                              .warning = glass_palette::kWarningAmber,
-                              .error   = Color::from_hex(0xF85149),
-                              .info    = glass_palette::kAccentBlue,
+                              .success  = glass_palette::kSuccessGreen,
+                              .warning  = glass_palette::kWarningAmber,
+                              .error    = Color::from_hex(0xF85149),
+                              .info     = glass_palette::kAccentBlue,
+                              .critical = glass_palette::kAccentMagenta,
 
                               .grid_major       = Color(0.55f, 0.72f, 0.92f, tokens::GRID_MAJOR_ALPHA_NIGHT),
                               .grid_minor       = Color(0.55f, 0.72f, 0.92f, tokens::GRID_MINOR_ALPHA_NIGHT),
@@ -1170,62 +1177,62 @@ void ThemeManager::initialize_default_themes()
     // Light Glass — frosted blue-slate chrome with restrained aurora accents
     Theme light;
     light.name   = "light";
-    light.colors = {
-        // Surfaces — still light, but no longer flat white-on-white
-        .bg_canvas    = Color::from_hex(0xF7FAFF),   // Plot area: faint cool glass tint
-        .bg_primary   = Color::from_hex(0xD9E4EE),   // App chrome backdrop
-        .bg_secondary = Color::from_hex(0xEAF1F7),   // Panels, sidebar, rails
-        .bg_tertiary  = Color::from_hex(0xD5E3EF),   // Inputs, chips, buttons
-        .bg_elevated  = Color::from_hex(0xF8FBFF),   // Tooltips and popups
-        .bg_overlay   = Color(0.0f, 0.0f, 0.0f, 0.30f),
+    light.colors           = {// Surfaces — still light, but no longer flat white-on-white
+                              .bg_canvas    = Color::from_hex(0xF7FAFF),   // Plot area: faint cool glass tint
+                              .bg_primary   = Color::from_hex(0xD9E4EE),   // App chrome backdrop
+                              .bg_secondary = Color::from_hex(0xEAF1F7),   // Panels, sidebar, rails
+                              .bg_tertiary  = Color::from_hex(0xD5E3EF),   // Inputs, chips, buttons
+                              .bg_elevated  = Color::from_hex(0xF8FBFF),   // Tooltips and popups
+                              .bg_overlay   = Color(0.0f, 0.0f, 0.0f, 0.30f),
 
-        // Text — blue-black ink against frosted surfaces
-        .text_primary   = Color::from_hex(0x102033),
-        .text_secondary = Color::from_hex(0x33485F),
-        .text_tertiary  = Color::from_hex(0x64748B),
-        .text_inverse   = Color::from_hex(0xFFFFFF),
+                    // Text — blue-black ink against frosted surfaces
+                              .text_primary   = Color::from_hex(0x102033),
+                              .text_secondary = Color::from_hex(0x33485F),
+                              .text_tertiary  = Color::from_hex(0x64748B),
+                              .text_inverse   = Color::from_hex(0xFFFFFF),
 
-        // Borders — cool glass rims with enough contrast to define layers
-        .border_default = Color(0.39f, 0.52f, 0.66f, 0.58f),
-        .border_subtle  = Color(0.61f, 0.72f, 0.82f, 0.44f),
-        .border_strong  = Color(0.17f, 0.33f, 0.48f, 0.80f),
+                    // Borders — cool glass rims with enough contrast to define layers
+                              .border_default = Color(0.39f, 0.52f, 0.66f, 0.58f),
+                              .border_subtle  = Color(0.61f, 0.72f, 0.82f, 0.44f),
+                              .border_strong  = Color(0.17f, 0.33f, 0.48f, 0.80f),
 
-        // Interactive
-        .accent        = Color::from_hex(0x0E7490),
-        .accent_hover  = Color::from_hex(0x0F5F78),
-        .accent_muted  = Color(0.05f, 0.45f, 0.56f, 0.17f),
-        .accent_subtle = Color(0.05f, 0.45f, 0.56f, 0.08f),
+                    // Interactive
+                              .accent        = Color::from_hex(0x0E7490),
+                              .accent_hover  = Color::from_hex(0x0F5F78),
+                              .accent_muted  = Color(0.05f, 0.45f, 0.56f, 0.17f),
+                              .accent_subtle = Color(0.05f, 0.45f, 0.56f, 0.08f),
 
-        // Semantic
-        .success = Color::from_hex(0x1A7F37),
-        .warning = Color::from_hex(0x7A5000),   // WCAG AA on light surfaces
-        .error   = Color::from_hex(0xB91C1C),   // WCAG AA on light surfaces
-        .info    = Color::from_hex(0x2563EB),
+                    // Semantic
+                              .success  = Color::from_hex(0x1A7F37),
+                              .warning  = Color::from_hex(0x7A5000),   // WCAG AA on light surfaces
+                              .error    = Color::from_hex(0xB91C1C),   // WCAG AA on light surfaces
+                              .info     = Color::from_hex(0x2563EB),
+                              .critical = Color::from_hex(0xA21CAF),   // WCAG AA on light surfaces
 
-        // Plot-specific — cool academic gridlines on the tinted canvas
-        .grid_major       = Color(0.32f, 0.40f, 0.48f, 0.24f),
-        .grid_minor       = Color(0.32f, 0.40f, 0.48f, 0.10f),
-        .grid_line        = Color(0.32f, 0.40f, 0.48f, 0.24f),
-        .axis_line        = Color(0.08f, 0.16f, 0.23f, 0.78f),
-        .tick_label       = Color::from_hex(0x203247),
-        .crosshair        = Color(0.05f, 0.45f, 0.56f, 0.70f),
-        .selection_fill   = Color(0.05f, 0.45f, 0.56f, 0.12f),
-        .selection_border = Color::from_hex(0x0E7490),
-        .tooltip_bg       = Color(0.97f, 0.99f, 1.0f, 0.96f),
-        .tooltip_border   = Color(0.45f, 0.57f, 0.70f, 0.48f),
+                    // Plot-specific — cool academic gridlines on the tinted canvas
+                              .grid_major       = Color(0.32f, 0.40f, 0.48f, 0.24f),
+                              .grid_minor       = Color(0.32f, 0.40f, 0.48f, 0.10f),
+                              .grid_line        = Color(0.32f, 0.40f, 0.48f, 0.24f),
+                              .axis_line        = Color(0.08f, 0.16f, 0.23f, 0.78f),
+                              .tick_label       = Color::from_hex(0x203247),
+                              .crosshair        = Color(0.05f, 0.45f, 0.56f, 0.70f),
+                              .selection_fill   = Color(0.05f, 0.45f, 0.56f, 0.12f),
+                              .selection_border = Color::from_hex(0x0E7490),
+                              .tooltip_bg       = Color(0.97f, 0.99f, 1.0f, 0.96f),
+                              .tooltip_border   = Color(0.45f, 0.57f, 0.70f, 0.48f),
 
-        // Visual effects — subtle daylight glow, not night neon
-        .accent_glow       = Color(0.25f, 0.73f, 0.88f, 0.38f),
-        .glow_intensity    = 0.36f,
-        .focus_ring        = Color::from_hex(0x0E7490),
-        .scrollbar_thumb   = Color(0.24f, 0.34f, 0.44f, 0.32f),
-        .scrollbar_track   = Color(0.0f, 0.0f, 0.0f, 0.0f),
-        .section_header_bg = Color(0.33f, 0.50f, 0.64f, 0.10f),
-        .input_bg          = Color::from_hex(0xD8E6F2),
-        .hover_highlight   = Color(0.05f, 0.45f, 0.56f, 0.13f),
-        .annotation_bg     = Color(0.97f, 0.99f, 1.0f, 0.92f),
-        .roi_fill          = Color(0.05f, 0.45f, 0.56f, 0.08f),
-        .roi_border        = Color(0.05f, 0.45f, 0.56f, 0.42f)};
+                    // Visual effects — subtle daylight glow, not night neon
+                              .accent_glow       = Color(0.25f, 0.73f, 0.88f, 0.38f),
+                              .glow_intensity    = 0.36f,
+                              .focus_ring        = Color::from_hex(0x0E7490),
+                              .scrollbar_thumb   = Color(0.24f, 0.34f, 0.44f, 0.32f),
+                              .scrollbar_track   = Color(0.0f, 0.0f, 0.0f, 0.0f),
+                              .section_header_bg = Color(0.33f, 0.50f, 0.64f, 0.10f),
+                              .input_bg          = Color::from_hex(0xD8E6F2),
+                              .hover_highlight   = Color(0.05f, 0.45f, 0.56f, 0.13f),
+                              .annotation_bg     = Color(0.97f, 0.99f, 1.0f, 0.92f),
+                              .roi_fill          = Color(0.05f, 0.45f, 0.56f, 0.08f),
+                              .roi_border        = Color(0.05f, 0.45f, 0.56f, 0.42f)};
     light.shadow_intensity = 0.35f;
     light.use_blur         = false;
     light.glass_defaults   = ThemeGlassSettings::light_defaults();
@@ -1260,10 +1267,11 @@ void ThemeManager::initialize_default_themes()
                                                      .accent_subtle = Color::from_hex(0x1AFFD700),
 
                             // Semantic
-                                                     .success = Color::from_hex(0x00FF00),
-                                                     .warning = Color::from_hex(0xFFFF00),
-                                                     .error   = Color::from_hex(0xFF0000),
-                                                     .info    = Color::from_hex(0xFFD700),
+                                                     .success  = Color::from_hex(0x00FF00),
+                                                     .warning  = Color::from_hex(0xFFFF00),
+                                                     .error    = Color::from_hex(0xFF0000),
+                                                     .info     = Color::from_hex(0xFFD700),
+                                                     .critical = Color::from_hex(0xFF00FF),
 
                             // Plot-specific
                                                      .grid_major       = Color::from_hex(0x666666),
@@ -1528,7 +1536,8 @@ ThemeColors ThemeManager::interpolate_colors(const ThemeColors& start,
     result.success = start.success.lerp(end.success, t);
     result.warning = start.warning.lerp(end.warning, t);
     result.error   = start.error.lerp(end.error, t);
-    result.info    = start.info.lerp(end.info, t);
+    result.info     = start.info.lerp(end.info, t);
+    result.critical = start.critical.lerp(end.critical, t);
 
     result.grid_major       = start.grid_major.lerp(end.grid_major, t);
     result.grid_minor       = start.grid_minor.lerp(end.grid_minor, t);

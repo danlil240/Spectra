@@ -10,6 +10,7 @@
 
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
+    #include "ui/theme/theme_imgui.hpp"
 #endif
 
 namespace spectra::adapters::ros2
@@ -92,7 +93,7 @@ void draw_preview(const ImageFrame& frame)
     }
     draw_list->AddRect(origin,
                        ImVec2(origin.x + canvas_size.x, origin.y + canvas_size.y),
-                       IM_COL32(180, 180, 180, 255));
+                       spectra::ui::to_imu32(spectra::ui::theme().border_default));
 }
 #endif
 }   // namespace
@@ -288,7 +289,9 @@ void ImageDisplay::draw_auxiliary_ui()
     }
     else if (!frame->supported_encoding)
     {
-        ImGui::TextColored(ImVec4(1.0f, 0.45f, 0.25f, 1.0f), "%s", frame->warning.c_str());
+        ImGui::TextColored(spectra::ui::to_imvec4(spectra::ui::theme().warning),
+                           "%s",
+                           frame->warning.c_str());
     }
     else
     {

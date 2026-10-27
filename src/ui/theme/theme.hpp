@@ -201,6 +201,7 @@ struct ThemeColors
     Color warning;
     Color error;
     Color info;
+    Color critical;   // Highest severity (fatal / crash); distinct from error
 
     // Plot-specific
     Color grid_major;   // Major gridlines (labeled tick positions)

@@ -3,6 +3,7 @@
     #include <ranges>
 
     #include "imgui_integration_internal.hpp"
+    #include "ui/theme/theme_imgui.hpp"
 
     #include "../../../third_party/tinyfiledialogs.h"
 
@@ -46,7 +47,7 @@ void ImGuiIntegration::draw_csv_dialog()
 
         if (!csv_error_.empty())
         {
-            ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.3f, 1.0f), "Error: %s", csv_error_.c_str());
+            ImGui::TextColored(ui::to_imvec4(colors.error), "Error: %s", csv_error_.c_str());
         }
 
         if (csv_data_loaded_ && csv_data_.num_cols > 0)
@@ -745,7 +746,7 @@ void ImGuiIntegration::draw_axes_context_menu(Figure& figure)
             // "Unlink this axes"
             std::string unlink_label = std::string(reinterpret_cast<const char*>(u8"\xEE\x80\xBE"))
                                        + "  Unlink This Subplot";
-            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.9f, 0.35f, 0.35f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_Text, ui::to_imvec4(ui::theme().error));
             if (ImGui::Selectable(unlink_label.c_str(), false, 0, ImVec2(200, 24)))
             {
                 if (ax_2d)
@@ -775,7 +776,7 @@ void ImGuiIntegration::draw_axes_context_menu(Figure& figure)
 
             std::string unlink_all_label =
                 std::string(reinterpret_cast<const char*>(u8"\xEE\x80\xBE")) + "  Unlink All";
-            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.9f, 0.35f, 0.35f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_Text, ui::to_imvec4(ui::theme().error));
             if (ImGui::Selectable(unlink_all_label.c_str(), false, 0, ImVec2(200, 24)))
             {
                 // Unlink 2D groups
@@ -873,7 +874,7 @@ void ImGuiIntegration::draw_axes_context_menu(Figure& figure)
                     std::string(ui::icon_str(ui::Icon::Trash))
                     + (is_multi ? "  Delete " + std::to_string(sel_count) + " Series"
                                 : "  Delete Series");
-                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.9f, 0.35f, 0.35f, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_Text, ui::to_imvec4(ui::theme().error));
                 if (ImGui::Selectable(del_label.c_str(), false, 0, ImVec2(220, 24)))
                 {
                     // Defer removal so on_frame callbacks (which may hold

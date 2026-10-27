@@ -28,6 +28,7 @@
     #include "spectra_icon_embedded.hpp"
 
     #include "ui/theme/glass_draw.hpp"
+    #include "ui/theme/theme_imgui.hpp"
     #include "ui/ui_interaction_log.hpp"
 
     #include "../../../third_party/tinyfiledialogs.h"
@@ -818,7 +819,7 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
                                   bg_col,
                                   4.0f);
                 dl->AddText(ImVec2(mid_x - tsz.x * 0.5f, mid_y - tsz.y - pad),
-                            IM_COL32(255, 255, 255, 240),
+                            ui::to_imu32(theme_colors().text_primary, 0.94f),
                             label.c_str());
             }
         }
@@ -1024,7 +1025,7 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
                 float  pad = 10.0f;
                 dl->AddRectFilled(ImVec2(lx - pad, ly - pad),
                                   ImVec2(lx + lsz.x + pad, ly + lsz.y + pad),
-                                  IM_COL32(30, 30, 30, 200),
+                                  ui::to_imu32(theme.bg_elevated, 0.92f),
                                   6.0f);
                 dl->AddText(ImVec2(lx, ly),
                             IM_COL32(static_cast<int>(theme.accent.r * 255),

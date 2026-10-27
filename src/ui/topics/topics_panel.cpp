@@ -8,6 +8,7 @@
 
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
+    #include "ui/theme/theme_imgui.hpp"
 #endif
 
 namespace spectra::ui::topics
@@ -142,7 +143,7 @@ bool TopicsPanel::draw()
             // Status dot
             ImGui::TableSetColumnIndex(0);
             const ImU32 dot =
-                t.publisher_online ? IM_COL32(80, 200, 120, 255) : IM_COL32(140, 140, 140, 255);
+                t.publisher_online ? to_imu32(theme().success) : to_imu32(theme().text_tertiary);
             ImVec2 p = ImGui::GetCursorScreenPos();
             ImGui::GetWindowDrawList()->AddCircleFilled(
                 ImVec2(p.x + 7.0f, p.y + ImGui::GetTextLineHeight() * 0.5f + 2.0f),

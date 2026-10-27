@@ -13,6 +13,7 @@
 
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
+    #include "ui/theme/theme_imgui.hpp"
 #endif
 
 namespace spectra::adapters::ros2
@@ -1520,7 +1521,7 @@ void ParamEditorPanel::draw_error_banner()
     }
     if (err.empty())
         return;
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.4f, 0.3f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_Text, spectra::ui::to_imvec4(spectra::ui::theme().error));
     ImGui::TextWrapped("Error: %s", err.c_str());
     ImGui::PopStyleColor();
     ImGui::SameLine();
@@ -1619,13 +1620,14 @@ void ParamEditorPanel::draw_param_row(ParamEntry& entry)
     // Name (+ read-only indicator)
     if (entry.descriptor.read_only)
     {
-        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.55f, 0.55f, 0.55f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Text,
+                              spectra::ui::to_imvec4(spectra::ui::theme().text_tertiary));
         ImGui::TextUnformatted(entry.name.c_str());
         ImGui::PopStyleColor();
     }
     else if (entry.staged_dirty)
     {
-        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.85f, 0.3f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Text, spectra::ui::to_imvec4(spectra::ui::theme().warning));
         ImGui::TextUnformatted(entry.name.c_str());
         ImGui::PopStyleColor();
     }
@@ -1644,7 +1646,7 @@ void ParamEditorPanel::draw_param_row(ParamEntry& entry)
 
     if (entry.set_error)
     {
-        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.3f, 0.3f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Text, spectra::ui::to_imvec4(spectra::ui::theme().error));
         ImGui::TextUnformatted("Error");
         ImGui::PopStyleColor();
         if (ImGui::IsItemHovered())

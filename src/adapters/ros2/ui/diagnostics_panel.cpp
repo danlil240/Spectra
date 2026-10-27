@@ -6,6 +6,7 @@
 
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
+    #include "ui/theme/theme_imgui.hpp"
     #include <cmath>
     #include "ui/shell/shell_style.hpp"
 #endif
@@ -587,6 +588,25 @@ void DiagnosticsPanel::draw(bool* p_open)
     spectra::ui::shell::end_panel();
 }
 
+// Theme-aware level colour used for drawing (level_color() is the
+// theme-independent fallback used by headless code and tests).
+static spectra::ui::Color level_theme_color(DiagLevel l)
+{
+    const auto& th = spectra::ui::theme();
+    switch (l)
+    {
+        case DiagLevel::OK:
+            return th.success;
+        case DiagLevel::Warn:
+            return th.warning;
+        case DiagLevel::Error:
+            return th.error;
+        case DiagLevel::Stale:
+        default:
+            return th.text_tertiary;
+    }
+}
+
 void DiagnosticsPanel::draw_summary_bar()
 {
     // Coloured badge: [OK: N] [WARN: N] [ERR: N] [STALE: N]
@@ -604,16 +624,13 @@ void DiagnosticsPanel::draw_summary_bar()
 
     for (const auto& b : badges)
     {
-        float r  = NAN;
-        float g  = NAN;
-        float bl = NAN;
-        float a  = NAN;
-        level_color(b.lvl, r, g, bl, a);
+        const spectra::ui::Color lc = level_theme_color(b.lvl);
 
-        // Dim the badge if the filter is off.
-        const float  alpha = *b.show ? 1.0f : 0.35f;
-        const ImVec4 col{r * alpha, g * alpha, bl * alpha, 1.0f};
-        const ImVec4 col_hov{r, g, bl, 1.0f};
+        // Filter on: solid badge with inverse text. Off: faint tint, coloured text.
+        const ImVec4 col     = spectra::ui::to_imvec4(lc, *b.show ? 1.0f : 0.18f);
+        const ImVec4 col_hov = spectra::ui::to_imvec4(lc, *b.show ? 0.85f : 0.30f);
+        const ImVec4 txt_col = *b.show ? spectra::ui::to_imvec4(spectra::ui::theme().text_inverse)
+                                       : spectra::ui::to_imvec4(lc);
 
         const std::string buf = std::format("{}: {}##badge{}",
                                             level_short(b.lvl),
@@ -623,7 +640,7 @@ void DiagnosticsPanel::draw_summary_bar()
         ImGui::PushStyleColor(ImGuiCol_Button, col);
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, col_hov);
         ImGui::PushStyleColor(ImGuiCol_ButtonActive, col);
-        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Text, txt_col);
 
         if (ImGui::SmallButton(buf.c_str()))
             *b.show = !(*b.show);
@@ -716,12 +733,7 @@ void DiagnosticsPanel::draw_component_table()
 
 void DiagnosticsPanel::draw_component_row(DiagComponent& comp)
 {
-    float r = NAN;
-    float g = NAN;
-    float b = NAN;
-    float a = NAN;
-    level_color(comp.level, r, g, b, a);
-    const ImVec4 badge_col{r, g, b, 1.0f};
+    const ImVec4 badge_col = spectra::ui::to_imvec4(level_theme_color(comp.level));
 
     ImGui::PushID(comp.name.c_str());
 
@@ -757,7 +769,8 @@ void DiagnosticsPanel::draw_component_row(DiagComponent& comp)
             const std::string stale_buf =
                 since_s < 60.0 ? std::format("STALE ({:.0f}s)", since_s)
                                : std::format("STALE ({:.0f}min)", since_s / 60.0);
-            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.85f, 0.55f, 0.15f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_Text,
+                                  spectra::ui::to_imvec4(spectra::ui::theme().warning));
             ImGui::TextUnformatted(stale_buf.c_str());
             ImGui::PopStyleColor();
             if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
@@ -813,12 +826,7 @@ void DiagnosticsPanel::draw_sparkline(const DiagComponent& comp, float width, fl
 
     for (size_t i = 0; i < n; ++i)
     {
-        const DiagSparkEntry& e  = comp.history[i];
-        float                 cr = NAN;
-        float                 cg = NAN;
-        float                 cb = NAN;
-        float                 ca = NAN;
-        level_color(e.level, cr, cg, cb, ca);
+        const DiagSparkEntry& e = comp.history[i];
 
         // Map level to Y: OK=bottom, ERROR=top.
         float y_norm = 0.9f;
@@ -840,10 +848,7 @@ void DiagnosticsPanel::draw_sparkline(const DiagComponent& comp, float width, fl
 
         const float x   = p0.x + static_cast<float>(i) * step;
         const float y   = p0.y + height * y_norm;
-        const ImU32 col = IM_COL32(static_cast<int>(cr * 255),
-                                   static_cast<int>(cg * 255),
-                                   static_cast<int>(cb * 255),
-                                   200);
+        const ImU32 col = spectra::ui::to_imu32(level_theme_color(e.level), 0.78f);
 
         // Draw line segment to next point.
         if (i + 1 < n)

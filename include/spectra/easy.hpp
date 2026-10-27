@@ -949,6 +949,18 @@ inline bool save_svg(const std::string& path)
     return detail::easy_state().ensure_figure().save_svg(path);
 }
 
+/// Save current figure as PNG with per-export options, e.g. {.theme = "light"}.
+inline bool save_png(const std::string& path, const ExportOptions& options)
+{
+    return detail::easy_state().ensure_figure().save_png(path, options);
+}
+
+/// Save current figure as SVG with per-export options, e.g. {.theme = "light"}.
+inline bool save_svg(const std::string& path, const ExportOptions& options)
+{
+    return detail::easy_state().ensure_figure().save_svg(path, options);
+}
+
 /// Copy current figure to the system clipboard as a PNG image.
 inline void copy_to_clipboard()
 {

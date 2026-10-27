@@ -12,10 +12,17 @@
 #include <spectra/series3d.hpp>
 #include <sstream>
 
+#include "series_color_source.hpp"
+
 namespace spectra
 {
 
 // ─── Simple JSON writer ──────────────────────────────────────────────────────
+
+// Like escape_json(), but also writes JSON structural characters as \u
+// escapes.  The minimal reader below finds objects by counting braces, so
+// free text inside an array element (annotation text) must not contain them.
+static std::string escape_json_text(const std::string& s);
 
 static std::string escape_json(const std::string& s)
 {
@@ -39,6 +46,33 @@ static std::string escape_json(const std::string& s)
                 break;
             case '\t':
                 out += "\\t";
+                break;
+            default:
+                out += c;
+                break;
+        }
+    }
+    return out;
+}
+
+static std::string escape_json_text(const std::string& s)
+{
+    std::string out;
+    for (char c : escape_json(s))
+    {
+        switch (c)
+        {
+            case '{':
+                out += "\\u007b";
+                break;
+            case '}':
+                out += "\\u007d";
+                break;
+            case '[':
+                out += "\\u005b";
+                break;
+            case ']':
+                out += "\\u005d";
                 break;
             default:
                 out += c;
@@ -144,6 +178,12 @@ std::string Workspace::serialize_json(const WorkspaceData& data)
             os << "          \"color_g\": " << s.color_g << ",\n";
             os << "          \"color_b\": " << s.color_b << ",\n";
             os << "          \"color_a\": " << s.color_a << ",\n";
+            if (!s.color_source.empty())
+            {
+                os << R"(          "color_source": ")" << escape_json(s.color_source) << "\",\n";
+                os << "          \"color_index\": " << s.color_index << ",\n";
+                os << R"(          "color_letter": ")" << escape_json(s.color_letter) << "\",\n";
+            }
             os << "          \"line_width\": " << s.line_width << ",\n";
             os << "          \"marker_size\": " << s.marker_size << ",\n";
             os << "          \"visible\": " << (s.visible ? "true" : "false") << ",\n";
@@ -165,6 +205,36 @@ std::string Workspace::serialize_json(const WorkspaceData& data)
             os << "]\n";
             os << "        }";
             if (si + 1 < fig.series.size())
+                os << ",";
+            os << "\n";
+        }
+        os << "      ],\n";
+
+        // 2D text annotations (written last: the reader looks keys up by
+        // first occurrence, so they must not precede the figure's own keys)
+        os << "      \"text_annotations\": [\n";
+        for (size_t ti = 0; ti < fig.text_annotations.size(); ++ti)
+        {
+            const auto& t = fig.text_annotations[ti];
+            os << "        {\n";
+            os << "          \"axes_index\": " << t.axes_index << ",\n";
+            os << "          \"x\": " << t.x << ",\n";
+            os << "          \"y\": " << t.y << ",\n";
+            os << R"(          "text": ")" << escape_json_text(t.text) << "\",\n";
+            os << "          \"has_color\": " << (t.has_color ? "true" : "false") << ",\n";
+            os << "          \"color_r\": " << t.color_r << ",\n";
+            os << "          \"color_g\": " << t.color_g << ",\n";
+            os << "          \"color_b\": " << t.color_b << ",\n";
+            os << "          \"color_a\": " << t.color_a << ",\n";
+            os << "          \"font_size\": " << t.font_size << ",\n";
+            os << "          \"halign\": " << t.halign << ",\n";
+            os << "          \"valign\": " << t.valign << ",\n";
+            os << "          \"has_arrow\": " << (t.has_arrow ? "true" : "false") << ",\n";
+            os << "          \"arrow_x\": " << t.arrow_x << ",\n";
+            os << "          \"arrow_y\": " << t.arrow_y << ",\n";
+            os << "          \"visible\": " << (t.visible ? "true" : "false") << "\n";
+            os << "        }";
+            if (ti + 1 < fig.text_annotations.size())
                 os << ",";
             os << "\n";
         }
@@ -342,6 +412,45 @@ static std::string unescape_json(const std::string& s)
                     out += '\t';
                     ++i;
                     break;
+                case 'u':
+                {
+                    // \uXXXX (BMP code point) -> UTF-8
+                    unsigned cp = 0;
+                    bool     ok = i + 5 < s.size();
+                    for (size_t k = 0; ok && k < 4; ++k)
+                    {
+                        const char h = s[i + 2 + k];
+                        cp <<= 4;
+                        if (h >= '0' && h <= '9')
+                            cp |= static_cast<unsigned>(h - '0');
+                        else if (h >= 'a' && h <= 'f')
+                            cp |= static_cast<unsigned>(h - 'a' + 10);
+                        else if (h >= 'A' && h <= 'F')
+                            cp |= static_cast<unsigned>(h - 'A' + 10);
+                        else
+                            ok = false;
+                    }
+                    if (!ok)
+                    {
+                        out += s[i];
+                        break;
+                    }
+                    if (cp < 0x80)
+                        out += static_cast<char>(cp);
+                    else if (cp < 0x800)
+                    {
+                        out += static_cast<char>(0xC0 | (cp >> 6));
+                        out += static_cast<char>(0x80 | (cp & 0x3F));
+                    }
+                    else
+                    {
+                        out += static_cast<char>(0xE0 | (cp >> 12));
+                        out += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
+                        out += static_cast<char>(0x80 | (cp & 0x3F));
+                    }
+                    i += 5;
+                    break;
+                }
                 default:
                     out += s[i];
                     break;
@@ -545,6 +654,9 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data)
             s.color_g     = static_cast<float>(read_number_value(ser_json, "color_g", 1));
             s.color_b     = static_cast<float>(read_number_value(ser_json, "color_b", 1));
             s.color_a     = static_cast<float>(read_number_value(ser_json, "color_a", 1));
+            s.color_source = read_string_value(ser_json, "color_source");
+            s.color_index  = static_cast<int>(read_number_value(ser_json, "color_index", -1));
+            s.color_letter = read_string_value(ser_json, "color_letter");
             s.line_width  = static_cast<float>(read_number_value(ser_json, "line_width", 2));
             s.marker_size = static_cast<float>(read_number_value(ser_json, "marker_size", 6));
             s.visible     = read_bool_value(ser_json, "visible", true);
@@ -617,6 +729,30 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data)
                 a3.light_dir_z = static_cast<float>(read_number_value(a3_json, "light_dir_z", 1));
                 fig.axes_3d.push_back(std::move(a3));
             }
+        }
+
+        // 2D text annotations (optional key, any version)
+        fig.has_text_annotations = fig_json.find("\"text_annotations\"") != std::string::npos;
+        for (const auto& t_json : parse_json_array(fig_json, "text_annotations"))
+        {
+            WorkspaceData::TextAnnotationState t;
+            t.axes_index = static_cast<size_t>(read_number_value(t_json, "axes_index", 0));
+            t.x          = static_cast<float>(read_number_value(t_json, "x", 0));
+            t.y          = static_cast<float>(read_number_value(t_json, "y", 0));
+            t.text       = read_string_value(t_json, "text");
+            t.has_color  = read_bool_value(t_json, "has_color", false);
+            t.color_r    = static_cast<float>(read_number_value(t_json, "color_r", 0));
+            t.color_g    = static_cast<float>(read_number_value(t_json, "color_g", 0));
+            t.color_b    = static_cast<float>(read_number_value(t_json, "color_b", 0));
+            t.color_a    = static_cast<float>(read_number_value(t_json, "color_a", 1));
+            t.font_size  = static_cast<float>(read_number_value(t_json, "font_size", 0));
+            t.halign     = static_cast<int>(read_number_value(t_json, "halign", 0));
+            t.valign     = static_cast<int>(read_number_value(t_json, "valign", 2));
+            t.has_arrow  = read_bool_value(t_json, "has_arrow", false);
+            t.arrow_x    = static_cast<float>(read_number_value(t_json, "arrow_x", 0));
+            t.arrow_y    = static_cast<float>(read_number_value(t_json, "arrow_y", 0));
+            t.visible    = read_bool_value(t_json, "visible", true);
+            fig.text_annotations.push_back(std::move(t));
         }
 
         data.figures.push_back(std::move(fig));
@@ -831,6 +967,7 @@ WorkspaceData Workspace::capture(const std::vector<Figure*>& figures,
             continue;
 
         WorkspaceData::FigureState fs;
+        fs.has_text_annotations = true;   // captured from live axes (possibly none)
         fs.title     = "";   // Figure has no title accessor yet
         fs.width     = fig->width();
         fs.height    = fig->height();
@@ -893,6 +1030,33 @@ WorkspaceData Workspace::capture(const std::vector<Figure*>& figures,
                 as.x_label      = ax2d->get_xlabel();
                 as.y_label      = ax2d->get_ylabel();
                 as.title        = ax2d->get_title();
+
+                for (const auto& ann : ax2d->annotations())
+                {
+                    if (!ann)
+                        continue;
+                    WorkspaceData::TextAnnotationState t;
+                    t.axes_index = axes_idx;
+                    t.x          = ann->x();
+                    t.y          = ann->y();
+                    t.text       = ann->text();
+                    if (ann->color())
+                    {
+                        t.has_color = true;
+                        t.color_r   = ann->color()->r;
+                        t.color_g   = ann->color()->g;
+                        t.color_b   = ann->color()->b;
+                        t.color_a   = ann->color()->a;
+                    }
+                    t.font_size = ann->font_size();
+                    t.halign    = static_cast<int>(ann->halign());
+                    t.valign    = static_cast<int>(ann->valign());
+                    t.has_arrow = ann->has_arrow();
+                    t.arrow_x   = ann->arrow_x();
+                    t.arrow_y   = ann->arrow_y();
+                    t.visible   = ann->visible();
+                    fs.text_annotations.push_back(std::move(t));
+                }
             }
 
             fs.axes.push_back(std::move(as));
@@ -933,6 +1097,20 @@ WorkspaceData Workspace::capture(const std::vector<Figure*>& figures,
                 ss.color_g = s->color().g;
                 ss.color_b = s->color().b;
                 ss.color_a = s->color().a;
+                switch (const SeriesColorSource src = color_source_of(*s); src.kind)
+                {
+                    case SeriesColorSource::Kind::Palette:
+                        ss.color_source = "auto";
+                        ss.color_index  = src.value;
+                        break;
+                    case SeriesColorSource::Kind::Letter:
+                        ss.color_source = "letter";
+                        ss.color_letter = std::string(1, static_cast<char>(src.value));
+                        break;
+                    case SeriesColorSource::Kind::Explicit:
+                        ss.color_source = "rgb";
+                        break;
+                }
                 ss.opacity = s->opacity();
 
                 if (auto* ls = dynamic_cast<LineSeries*>(s.get()))
@@ -1050,6 +1228,28 @@ bool Workspace::apply(const WorkspaceData& data, std::vector<Figure*>& figures)
                 ax2d->xlim(as.x_min, as.x_max);
                 ax2d->ylim(as.y_min, as.y_max);
                 ax2d->set_grid_enabled(as.grid_visible);
+
+                // Files without the key (older formats) keep the current ones.
+                if (fs.has_text_annotations)
+                {
+                    ax2d->clear_annotations();
+                    for (const auto& t : fs.text_annotations)
+                    {
+                        if (t.axes_index != ai)
+                            continue;
+                        auto& ann = ax2d->text(t.x, t.y, t.text);
+                        ann.font_size(t.font_size)
+                            .halign(static_cast<TextAnnotation::HAlign>(
+                                t.halign >= 0 && t.halign <= 2 ? t.halign : 0))
+                            .valign(static_cast<TextAnnotation::VAlign>(
+                                t.valign >= 0 && t.valign <= 2 ? t.valign : 2))
+                            .visible(t.visible);
+                        if (t.has_color)
+                            ann.color(Color(t.color_r, t.color_g, t.color_b, t.color_a));
+                        if (t.has_arrow)
+                            ann.arrow_to(t.arrow_x, t.arrow_y);
+                    }
+                }
             }
         };
 
@@ -1074,7 +1274,22 @@ bool Workspace::apply(const WorkspaceData& data, std::vector<Figure*>& figures)
             {
                 if (!s || si >= fs.series.size())
                     return;
-                s->visible(fs.series[si].visible);
+                const auto& ss = fs.series[si];
+                s->visible(ss.visible);
+                // Restore the colour with its source (palette / letter colours
+                // keep following the theme).  Older files have no source.
+                if (!ss.color_source.empty())
+                {
+                    SeriesColorSource src;
+                    if (ss.color_source == "auto")
+                        src = {SeriesColorSource::Kind::Palette, ss.color_index};
+                    else if (ss.color_source == "letter" && ss.color_letter.size() == 1)
+                        src = {SeriesColorSource::Kind::Letter,
+                               static_cast<int32_t>(ss.color_letter[0])};
+                    apply_color_source(*s,
+                                       src,
+                                       Color{ss.color_r, ss.color_g, ss.color_b, ss.color_a});
+                }
                 ++si;
             }
         };

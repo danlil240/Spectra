@@ -299,6 +299,27 @@ std::optional<CmdCloseWindowPayload> decode_fb_cmd_close_window(std::span<const 
 static flatbuffers::Offset<fb::SnapshotAxisState> build_fb_axis(flatbuffers::FlatBufferBuilder& fbb,
                                                                 const SnapshotAxisState&        ax)
 {
+    std::vector<flatbuffers::Offset<fb::SnapshotAnnotationState>> ann_offsets;
+    ann_offsets.reserve(ax.annotations.size());
+    for (const auto& a : ax.annotations)
+    {
+        ann_offsets.push_back(fb::CreateSnapshotAnnotationStateDirect(fbb,
+                                                                      a.x,
+                                                                      a.y,
+                                                                      a.text.c_str(),
+                                                                      a.has_color,
+                                                                      a.color_r,
+                                                                      a.color_g,
+                                                                      a.color_b,
+                                                                      a.color_a,
+                                                                      a.font_size,
+                                                                      a.halign,
+                                                                      a.valign,
+                                                                      a.has_arrow,
+                                                                      a.arrow_x,
+                                                                      a.arrow_y,
+                                                                      a.visible));
+    }
     return fb::CreateSnapshotAxisStateDirect(fbb,
                                              ax.x_min,
                                              ax.x_max,
@@ -310,7 +331,8 @@ static flatbuffers::Offset<fb::SnapshotAxisState> build_fb_axis(flatbuffers::Fla
                                              ax.is_3d,
                                              ax.x_label.c_str(),
                                              ax.y_label.c_str(),
-                                             ax.title.c_str());
+                                             ax.title.c_str(),
+                                             ann_offsets.empty() ? nullptr : &ann_offsets);
 }
 
 static SnapshotAxisState read_fb_axis(const fb::SnapshotAxisState* fb)
@@ -330,6 +352,32 @@ static SnapshotAxisState read_fb_axis(const fb::SnapshotAxisState* fb)
         ax.y_label = fb->y_label()->str();
     if (fb->title())
         ax.title = fb->title()->str();
+    if (fb->annotations())
+    {
+        for (const auto* fa : *fb->annotations())
+        {
+            if (!fa)
+                continue;
+            SnapshotAnnotationState a;
+            a.x = fa->x();
+            a.y = fa->y();
+            if (fa->text())
+                a.text = fa->text()->str();
+            a.has_color = fa->has_color();
+            a.color_r   = fa->color_r();
+            a.color_g   = fa->color_g();
+            a.color_b   = fa->color_b();
+            a.color_a   = fa->color_a();
+            a.font_size = fa->font_size();
+            a.halign    = fa->halign();
+            a.valign    = fa->valign();
+            a.has_arrow = fa->has_arrow();
+            a.arrow_x   = fa->arrow_x();
+            a.arrow_y   = fa->arrow_y();
+            a.visible   = fa->visible();
+            ax.annotations.push_back(std::move(a));
+        }
+    }
     return ax;
 }
 
@@ -840,13 +888,18 @@ std::optional<ReqSetDataPayload> decode_fb_req_set_data(std::span<const uint8_t>
     return p;
 }
 
-std::vector<uint8_t> encode_fb_req_update_property(const ReqUpdatePropertyPayload& p)
+// Shared by REQ_UPDATE_PROPERTY and each REQ_UPDATE_BATCH item.
+static flatbuffers::Offset<fb::ReqUpdatePropertyPayload> build_fb_update_property(
+    flatbuffers::FlatBufferBuilder& fbb,
+    const ReqUpdatePropertyPayload& p)
 {
-    flatbuffers::FlatBufferBuilder           fbb(512);
     auto                                     prop_off = fbb.CreateString(p.property);
     flatbuffers::Offset<flatbuffers::String> str_off;
     if (!p.str_val.empty())
         str_off = fbb.CreateString(p.str_val);
+    flatbuffers::Offset<flatbuffers::Vector<float>> data_off;
+    if (!p.data.empty())
+        data_off = fbb.CreateVector(p.data);
 
     fb::ReqUpdatePropertyPayloadBuilder b(fbb);
     b.add_figure_id(p.figure_id);
@@ -860,17 +913,13 @@ std::vector<uint8_t> encode_fb_req_update_property(const ReqUpdatePropertyPayloa
     b.add_bool_val(p.bool_val);
     if (!p.str_val.empty())
         b.add_str_val(str_off);
-    fbb.Finish(b.Finish());
-    return finalize(fbb);
+    if (!p.data.empty())
+        b.add_data(data_off);
+    return b.Finish();
 }
 
-std::optional<ReqUpdatePropertyPayload> decode_fb_req_update_property(std::span<const uint8_t> data)
+static ReqUpdatePropertyPayload read_fb_update_property(const fb::ReqUpdatePropertyPayload* fb)
 {
-    flatbuffers::Verifier v(data.data(), data.size());
-    if (!v.VerifyBuffer<fb::ReqUpdatePropertyPayload>())
-        return std::nullopt;
-
-    auto                     fb = flatbuffers::GetRoot<fb::ReqUpdatePropertyPayload>(data.data());
     ReqUpdatePropertyPayload p;
     p.figure_id    = fb->figure_id();
     p.axes_index   = fb->axes_index();
@@ -884,7 +933,25 @@ std::optional<ReqUpdatePropertyPayload> decode_fb_req_update_property(std::span<
     p.bool_val = fb->bool_val();
     if (fb->str_val())
         p.str_val = fb->str_val()->str();
+    if (fb->data())
+        p.data.assign(fb->data()->begin(), fb->data()->end());
     return p;
+}
+
+std::vector<uint8_t> encode_fb_req_update_property(const ReqUpdatePropertyPayload& p)
+{
+    flatbuffers::FlatBufferBuilder fbb(512);
+    fbb.Finish(build_fb_update_property(fbb, p));
+    return finalize(fbb);
+}
+
+std::optional<ReqUpdatePropertyPayload> decode_fb_req_update_property(std::span<const uint8_t> data)
+{
+    flatbuffers::Verifier v(data.data(), data.size());
+    if (!v.VerifyBuffer<fb::ReqUpdatePropertyPayload>())
+        return std::nullopt;
+
+    return read_fb_update_property(flatbuffers::GetRoot<fb::ReqUpdatePropertyPayload>(data.data()));
 }
 
 std::vector<uint8_t> encode_fb_req_show(const ReqShowPayload& p)
@@ -969,26 +1036,7 @@ std::vector<uint8_t> encode_fb_req_update_batch(const ReqUpdateBatchPayload& p)
 
     std::vector<flatbuffers::Offset<fb::ReqUpdatePropertyPayload>> upd_offsets;
     for (const auto& upd : p.updates)
-    {
-        auto                                     prop_off = fbb.CreateString(upd.property);
-        flatbuffers::Offset<flatbuffers::String> str_off;
-        if (!upd.str_val.empty())
-            str_off = fbb.CreateString(upd.str_val);
-
-        fb::ReqUpdatePropertyPayloadBuilder b(fbb);
-        b.add_figure_id(upd.figure_id);
-        b.add_axes_index(upd.axes_index);
-        b.add_series_index(upd.series_index);
-        b.add_property(prop_off);
-        b.add_f1(upd.f1);
-        b.add_f2(upd.f2);
-        b.add_f3(upd.f3);
-        b.add_f4(upd.f4);
-        b.add_bool_val(upd.bool_val);
-        if (!upd.str_val.empty())
-            b.add_str_val(str_off);
-        upd_offsets.push_back(b.Finish());
-    }
+        upd_offsets.push_back(build_fb_update_property(fbb, upd));
     auto upds_off = fbb.CreateVector(upd_offsets);
 
     auto offset = fb::CreateReqUpdateBatchPayload(fbb, upds_off);
@@ -1007,22 +1055,7 @@ std::optional<ReqUpdateBatchPayload> decode_fb_req_update_batch(std::span<const 
     if (fb->updates())
     {
         for (const auto* upd : *fb->updates())
-        {
-            ReqUpdatePropertyPayload u;
-            u.figure_id    = upd->figure_id();
-            u.axes_index   = upd->axes_index();
-            u.series_index = upd->series_index();
-            if (upd->property())
-                u.property = upd->property()->str();
-            u.f1       = upd->f1();
-            u.f2       = upd->f2();
-            u.f3       = upd->f3();
-            u.f4       = upd->f4();
-            u.bool_val = upd->bool_val();
-            if (upd->str_val())
-                u.str_val = upd->str_val()->str();
-            p.updates.push_back(std::move(u));
-        }
+            p.updates.push_back(read_fb_update_property(upd));
     }
     return p;
 }

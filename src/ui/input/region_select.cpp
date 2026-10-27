@@ -21,61 +21,9 @@ void RegionSelect::set_fonts(ImFont* body, ImFont* heading)
     font_heading_ = heading;
 }
 
-// ─── Coordinate conversion ──────────────────────────────────────────────────
-
-void RegionSelect::data_to_screen(float       data_x,
-                                  float       data_y,
-                                  const Rect& viewport,
-                                  float       xlim_min,
-                                  float       xlim_max,
-                                  float       ylim_min,
-                                  float       ylim_max,
-                                  float&      screen_x,
-                                  float&      screen_y)
-{
-    float x_range = xlim_max - xlim_min;
-    float y_range = ylim_max - ylim_min;
-    if (x_range == 0.0f)
-        x_range = 1.0f;
-    if (y_range == 0.0f)
-        y_range = 1.0f;
-
-    float norm_x = (data_x - xlim_min) / x_range;
-    float norm_y = (data_y - ylim_min) / y_range;
-
-    screen_x = viewport.x + norm_x * viewport.w;
-    screen_y = viewport.y + (1.0f - norm_y) * viewport.h;
-}
-
-void RegionSelect::screen_to_data(double      screen_x,
-                                  double      screen_y,
-                                  const Rect& viewport,
-                                  float       xlim_min,
-                                  float       xlim_max,
-                                  float       ylim_min,
-                                  float       ylim_max,
-                                  float&      data_x,
-                                  float&      data_y)
-{
-    float x_range = xlim_max - xlim_min;
-    float y_range = ylim_max - ylim_min;
-
-    float norm_x = (static_cast<float>(screen_x) - viewport.x) / viewport.w;
-    float norm_y = 1.0f - (static_cast<float>(screen_y) - viewport.y) / viewport.h;
-
-    data_x = xlim_min + norm_x * x_range;
-    data_y = ylim_min + norm_y * y_range;
-}
-
 // ─── Selection lifecycle ────────────────────────────────────────────────────
 
-void RegionSelect::begin(double      screen_x,
-                         double      screen_y,
-                         const Rect& viewport,
-                         float       xlim_min,
-                         float       xlim_max,
-                         float       ylim_min,
-                         float       ylim_max)
+void RegionSelect::begin(double screen_x, double screen_y, const AxisMapping& map)
 {
     dragging_      = true;
     has_selection_ = false;
@@ -87,28 +35,15 @@ void RegionSelect::begin(double      screen_x,
     screen_end_x_   = screen_x;
     screen_end_y_   = screen_y;
 
-    screen_to_data(screen_x,
-                   screen_y,
-                   viewport,
-                   xlim_min,
-                   xlim_max,
-                   ylim_min,
-                   ylim_max,
-                   data_x0_,
-                   data_y0_);
+    data_x0_ = static_cast<float>(map.to_data_x(screen_x));
+    data_y0_ = static_cast<float>(map.to_data_y(screen_y));
     data_x1_ = data_x0_;
     data_y1_ = data_y0_;
 
     opacity_ = 0.0f;
 }
 
-void RegionSelect::update_drag(double      screen_x,
-                               double      screen_y,
-                               const Rect& viewport,
-                               float       xlim_min,
-                               float       xlim_max,
-                               float       ylim_min,
-                               float       ylim_max)
+void RegionSelect::update_drag(double screen_x, double screen_y, const AxisMapping& map)
 {
     if (!dragging_)
         return;
@@ -116,15 +51,8 @@ void RegionSelect::update_drag(double      screen_x,
     screen_end_x_ = screen_x;
     screen_end_y_ = screen_y;
 
-    screen_to_data(screen_x,
-                   screen_y,
-                   viewport,
-                   xlim_min,
-                   xlim_max,
-                   ylim_min,
-                   ylim_max,
-                   data_x1_,
-                   data_y1_);
+    data_x1_ = static_cast<float>(map.to_data_x(screen_x));
+    data_y1_ = static_cast<float>(map.to_data_y(screen_y));
 }
 
 void RegionSelect::finish(const Axes* axes)
@@ -248,14 +176,9 @@ void RegionSelect::compute_statistics()
 
 // ─── Drawing ────────────────────────────────────────────────────────────────
 
-void RegionSelect::draw(const Rect& viewport,
-                        float       xlim_min,
-                        float       xlim_max,
-                        float       ylim_min,
-                        float       ylim_max,
-                        float       window_width,
-                        float       window_height)
+void RegionSelect::draw(const AxisMapping& map, float window_width, float window_height)
 {
+    const Rect& viewport = map.viewport();
     bool visible = dragging_ || has_selection_;
 
     // Animate opacity
@@ -271,12 +194,10 @@ void RegionSelect::draw(const Rect& viewport,
     ImDrawList* fg     = ImGui::GetForegroundDrawList();
 
     // Convert data rect to screen rect
-    float sx0 = NAN;
-    float sy0 = NAN;
-    float sx1 = NAN;
-    float sy1 = NAN;
-    data_to_screen(data_x0_, data_y0_, viewport, xlim_min, xlim_max, ylim_min, ylim_max, sx0, sy0);
-    data_to_screen(data_x1_, data_y1_, viewport, xlim_min, xlim_max, ylim_min, ylim_max, sx1, sy1);
+    const auto sx0 = static_cast<float>(map.to_screen_x(data_x0_));
+    const auto sy0 = static_cast<float>(map.to_screen_y(data_y0_));
+    const auto sx1 = static_cast<float>(map.to_screen_x(data_x1_));
+    const auto sy1 = static_cast<float>(map.to_screen_y(data_y1_));
 
     // Normalize to min/max
     float rx0 = std::min(sx0, sx1);

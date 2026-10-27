@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <optional>
 
 #include "anim/frame_scheduler.hpp"
 #include "adapters/data_source_registry.hpp"
@@ -278,6 +279,7 @@ struct App::AppRuntime
     {
         std::vector<uint8_t> pixels;
         std::string          path;
+        std::string          theme;   // per-export theme (empty = app theme)
         uint32_t             width                = 0;
         uint32_t             height               = 0;
         bool                 active               = false;
@@ -859,6 +861,17 @@ App::StepResult App::step()
         rt.topic_server->drain_pending();
 #endif
 
+    // A PNG capture with its own theme: the frame it reads back is drawn with
+    // that theme (only the plot follows it; ImGui keeps its applied style),
+    // then the window is redrawn in the app theme.
+    std::optional<ui::ScopedExportTheme> capture_theme;
+    if (rt.pending_png_capture.active && rt.pending_png_capture.awaiting_gpu_capture
+        && !rt.pending_png_capture.theme.empty())
+    {
+        capture_theme.emplace(theme_mgr_.get(), rt.pending_png_capture.theme);
+        rt.session.redraw_tracker().mark_dirty("themed export");
+    }
+
     rt.session.tick(rt.scheduler,
                     rt.animator,
                     rt.cmd_queue,
@@ -869,6 +882,11 @@ App::StepResult App::step()
 #endif
                     rt.frame_state);
     rt.active_figure = rt.frame_state.active_figure;
+    if (capture_theme)
+    {
+        capture_theme.reset();
+        rt.session.redraw_tracker().mark_dirty("themed export done");
+    }
 
 #if !defined(_WIN32) && (defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3))
     // tick() may have closed the window whose TopicsPanel was wired.
@@ -941,6 +959,7 @@ App::StepResult App::step()
             cap.copy_to_clipboard = false;
             cap.pixels.clear();
             cap.path.clear();
+            cap.theme.clear();
         }
     }
 
@@ -961,6 +980,7 @@ App::StepResult App::step()
         if (ew == 0 || eh == 0)
         {
             rt.active_figure->export_req_.png_path.clear();
+            rt.active_figure->export_req_.png_theme.clear();
             rt.active_figure->export_req_.png_width         = 0;
             rt.active_figure->export_req_.png_height        = 0;
             rt.active_figure->export_req_.copy_to_clipboard = false;
@@ -970,6 +990,7 @@ App::StepResult App::step()
             auto& cap = rt.pending_png_capture;
             cap.pixels.resize(static_cast<size_t>(ew) * eh * 4);
             cap.path                 = rt.active_figure->export_req_.png_path;
+            cap.theme                = rt.active_figure->export_req_.png_theme;
             cap.width                = ew;
             cap.height               = eh;
             cap.active               = true;
@@ -1004,6 +1025,7 @@ App::StepResult App::step()
                 vk->request_framebuffer_capture(cap.pixels.data(), ew, eh);
 
             rt.active_figure->export_req_.png_path.clear();
+            rt.active_figure->export_req_.png_theme.clear();
             rt.active_figure->export_req_.png_width         = 0;
             rt.active_figure->export_req_.png_height        = 0;
             rt.active_figure->export_req_.copy_to_clipboard = false;
@@ -1130,8 +1152,11 @@ void App::shutdown_runtime()
 
             // The framebuffer still holds the active figure's last frame only
             // until another figure has been re-rendered into it.
+            // A per-export theme draws this figure (only) with that theme.
+            ui::ScopedExportTheme export_theme(theme_mgr_.get(), f.export_req_.png_theme);
             bool needs_render = (&f != rt.active_figure) || !framebuffer_holds_active
-                                || (export_w != f.width()) || (export_h != f.height());
+                                || (export_w != f.width()) || (export_h != f.height())
+                                || export_theme.active();
 
             if (needs_render)
             {
@@ -1192,6 +1217,7 @@ void App::shutdown_runtime()
 
         if (!f.export_req_.svg_path.empty())
         {
+            ui::ScopedExportTheme export_theme(theme_mgr_.get(), f.export_req_.svg_theme);
             f.compute_layout();
             // Same plot surface as the GPU path: the figure's background
             // override (if any) decides ink, letter shades and palette.

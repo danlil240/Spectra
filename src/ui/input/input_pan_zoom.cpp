@@ -616,9 +616,14 @@ void InputHandler::handle_mouse_button_pan(int action, int mods, double x, doubl
 
                 if (dist_px >= MIN_RELEASE_DIST_PX)
                 {
-                    const auto& vp   = viewport_for_axes(active_axes_);
-                    auto        xlim = active_axes_->x_limits();
-                    auto        ylim = active_axes_->y_limits();
+                    // Velocity in axis space (decades / octaves per second on a
+                    // log axis) so the glide continues the drag at the same
+                    // screen speed; the animation applies it the same way.
+                    const auto&      vp = viewport_for_axes(active_axes_);
+                    const AxisLimits xlim =
+                        axis_space_limits(active_axes_->xscale(), active_axes_->x_limits());
+                    const AxisLimits ylim =
+                        axis_space_limits(active_axes_->yscale(), active_axes_->y_limits());
 
                     double x_range = xlim.max - xlim.min;
                     double y_range = ylim.max - ylim.min;
@@ -628,7 +633,7 @@ void InputHandler::handle_mouse_button_pan(int action, int mods, double x, doubl
                     constexpr float MIN_DT_SEC   = 0.008f;   // 8ms floor
                     float           effective_dt = std::max(dt_sec, MIN_DT_SEC);
 
-                    // Screen velocity → data velocity
+                    // Screen velocity → axis-space velocity
                     double vx_screen = dx_px / effective_dt;
                     double vy_screen = dy_px / effective_dt;
 

@@ -351,17 +351,7 @@ void DataInteraction::draw_overlays(float       window_width,
         {
             if (!axes_ptr)
                 continue;
-            const auto& vp = axes_ptr->viewport();
-            auto        xl = axes_ptr->x_limits();
-            auto        yl = axes_ptr->y_limits();
-            markers_.draw(vp,
-                          xl.min,
-                          xl.max,
-                          static_cast<float>(yl.min),
-                          static_cast<float>(yl.max),
-                          1.0f,
-                          axes_ptr.get(),
-                          dl);
+            markers_.draw(AxisMapping(*axes_ptr), 1.0f, axes_ptr.get(), dl);
         }
         for (auto& axes_ptr : overlay_figure->all_axes())
         {
@@ -377,16 +367,7 @@ void DataInteraction::draw_overlays(float       window_width,
     Axes* roi_axes = region_axes_ ? region_axes_ : active_axes_;
     if (roi_axes && (region_.is_dragging() || region_.has_selection()))
     {
-        const auto& vp = roi_axes->viewport();
-        auto        xl = roi_axes->x_limits();
-        auto        yl = roi_axes->y_limits();
-        region_.draw(vp,
-                     static_cast<float>(xl.min),
-                     static_cast<float>(xl.max),
-                     static_cast<float>(yl.min),
-                     static_cast<float>(yl.max),
-                     window_width,
-                     window_height);
+        region_.draw(AxisMapping(*roi_axes), window_width, window_height);
     }
 
     // Draw crosshair: use multi-axes mode if figure has multiple axes
@@ -407,17 +388,7 @@ void DataInteraction::draw_overlays(float       window_width,
         {
             if (!axes_ptr)
                 continue;
-            const auto& vp = axes_ptr->viewport();
-            auto        xl = axes_ptr->x_limits();
-            auto        yl = axes_ptr->y_limits();
-            annotations_.draw(vp,
-                              static_cast<float>(xl.min),
-                              static_cast<float>(xl.max),
-                              static_cast<float>(yl.min),
-                              static_cast<float>(yl.max),
-                              1.0f,
-                              axes_ptr.get(),
-                              dl);
+            annotations_.draw(AxisMapping(*axes_ptr), 1.0f, axes_ptr.get(), dl);
         }
     }
 
@@ -548,11 +519,7 @@ bool DataInteraction::on_mouse_click_datatip_only(int button, double screen_x, d
         {
             int marker_hit = markers_.hit_test(static_cast<float>(screen_x),
                                                static_cast<float>(screen_y),
-                                               active_viewport_,
-                                               xlim_min_,
-                                               xlim_max_,
-                                               ylim_min_,
-                                               ylim_max_,
+                                               active_mapping(),
                                                10.0f,
                                                active_axes_);
             if (marker_hit >= 0)
@@ -585,11 +552,7 @@ bool DataInteraction::on_mouse_click_datatip_only(int button, double screen_x, d
         {
             int idx = markers_.hit_test(static_cast<float>(screen_x),
                                         static_cast<float>(screen_y),
-                                        active_viewport_,
-                                        xlim_min_,
-                                        xlim_max_,
-                                        ylim_min_,
-                                        ylim_max_,
+                                        active_mapping(),
                                         10.0f,
                                         active_axes_);
             if (idx >= 0)
@@ -651,11 +614,7 @@ bool DataInteraction::on_mouse_click(int button, double screen_x, double screen_
         {
             int marker_hit = markers_.hit_test(static_cast<float>(screen_x),
                                                static_cast<float>(screen_y),
-                                               active_viewport_,
-                                               xlim_min_,
-                                               xlim_max_,
-                                               ylim_min_,
-                                               ylim_max_,
+                                               active_mapping(),
                                                10.0f,
                                                active_axes_);
             if (marker_hit >= 0)
@@ -697,11 +656,7 @@ bool DataInteraction::on_mouse_click(int button, double screen_x, double screen_
         {
             int idx = markers_.hit_test(static_cast<float>(screen_x),
                                         static_cast<float>(screen_y),
-                                        active_viewport_,
-                                        xlim_min_,
-                                        xlim_max_,
-                                        ylim_min_,
-                                        ylim_max_,
+                                        active_mapping(),
                                         10.0f,
                                         active_axes_);
             if (idx >= 0)
@@ -742,7 +697,7 @@ void DataInteraction::begin_region_select(double screen_x, double screen_y)
     if (!active_axes_)
         return;
     region_axes_ = active_axes_;
-    region_.begin(screen_x, screen_y, active_viewport_, xlim_min_, xlim_max_, ylim_min_, ylim_max_);
+    region_.begin(screen_x, screen_y, AxisMapping(*active_axes_));
 }
 
 void DataInteraction::update_region_drag(double screen_x, double screen_y)
@@ -750,16 +705,7 @@ void DataInteraction::update_region_drag(double screen_x, double screen_y)
     // Use the axes where the ROI was started, not whatever the cursor is over now
     if (!region_axes_)
         return;
-    const auto& vp = region_axes_->viewport();
-    auto        xl = region_axes_->x_limits();
-    auto        yl = region_axes_->y_limits();
-    region_.update_drag(screen_x,
-                        screen_y,
-                        vp,
-                        static_cast<float>(xl.min),
-                        static_cast<float>(xl.max),
-                        static_cast<float>(yl.min),
-                        static_cast<float>(yl.max));
+    region_.update_drag(screen_x, screen_y, AxisMapping(*region_axes_));
 }
 
 void DataInteraction::finish_region_select()
@@ -791,15 +737,8 @@ void DataInteraction::select_series_in_rect(const BoxZoomRect& rect, Figure& fig
             ax_idx++;
             continue;
         }
-        const auto& vp   = axes_ptr->viewport();
-        auto        xlim = axes_ptr->x_limits();
-        auto        ylim = axes_ptr->y_limits();
-        double      xr   = xlim.max - xlim.min;
-        double      yr   = ylim.max - ylim.min;
-        if (xr == 0.0)
-            xr = 1.0;
-        if (yr == 0.0)
-            yr = 1.0;
+        // Map through the axis scale (log axes are linear in log(v)).
+        const AxisMapping map(*axes_ptr);
 
         int s_idx = 0;
         for (auto& series_ptr : axes_ptr->series())
@@ -833,15 +772,28 @@ void DataInteraction::select_series_in_rect(const BoxZoomRect& rect, Figure& fig
                 continue;
             }
 
+            // x/y data are relative to the series offsets; limits are absolute.
+            const double xoff     = series_ptr->x_offset();
+            const double yoff     = series_ptr->y_offset();
+            auto         drawable = [&](size_t i)
+            {
+                return map.x_drawable(static_cast<double>(x_data[i]) + xoff)
+                       && map.y_drawable(static_cast<double>(y_data[i]) + yoff);
+            };
+            auto scr_x = [&](size_t i)
+            { return map.to_screen_x(static_cast<double>(x_data[i]) + xoff); };
+            auto scr_y = [&](size_t i)
+            { return map.to_screen_y(static_cast<double>(y_data[i]) + yoff); };
+
             // Check if any data point maps to a screen position inside the rectangle
             bool hit = false;
             for (size_t i = 0; i < count && !hit; ++i)
             {
-                double norm_x = (static_cast<double>(x_data[i]) - xlim.min) / xr;
-                double norm_y = (static_cast<double>(y_data[i]) - ylim.min) / yr;
-                double scr_x  = vp.x + norm_x * vp.w;
-                double scr_y  = vp.y + (1.0 - norm_y) * vp.h;
-                if (scr_x >= rx0 && scr_x <= rx1 && scr_y >= ry0 && scr_y <= ry1)
+                if (!drawable(i))
+                    continue;   // not drawn on a log axis
+                const double px = scr_x(i);
+                const double py = scr_y(i);
+                if (px >= rx0 && px <= rx1 && py >= ry0 && py <= ry1)
                     hit = true;
             }
 
@@ -850,15 +802,12 @@ void DataInteraction::select_series_in_rect(const BoxZoomRect& rect, Figure& fig
             {
                 for (size_t i = 0; i + 1 < count && !hit; ++i)
                 {
-                    double nx0 = (static_cast<double>(x_data[i]) - xlim.min) / xr;
-                    double ny0 = (static_cast<double>(y_data[i]) - ylim.min) / yr;
-                    double nx1 = (static_cast<double>(x_data[i + 1]) - xlim.min) / xr;
-                    double ny1 = (static_cast<double>(y_data[i + 1]) - ylim.min) / yr;
-
-                    double sx0 = vp.x + nx0 * vp.w;
-                    double sy0 = vp.y + (1.0 - ny0) * vp.h;
-                    double sx1 = vp.x + nx1 * vp.w;
-                    double sy1 = vp.y + (1.0 - ny1) * vp.h;
+                    if (!drawable(i) || !drawable(i + 1))
+                        continue;
+                    double sx0 = scr_x(i);
+                    double sy0 = scr_y(i);
+                    double sx1 = scr_x(i + 1);
+                    double sy1 = scr_y(i + 1);
 
                     // Cohen-Sutherland: if the segment can be clipped to the rectangle, it
                     // intersects
@@ -954,11 +903,7 @@ bool DataInteraction::on_mouse_click_annotate(int button, double screen_x, doubl
     {
         int idx = annotations_.hit_test(static_cast<float>(screen_x),
                                         static_cast<float>(screen_y),
-                                        active_viewport_,
-                                        xlim_min_,
-                                        xlim_max_,
-                                        ylim_min_,
-                                        ylim_max_,
+                                        active_mapping(),
                                         10.0f,
                                         active_axes_);
         if (idx >= 0)
@@ -978,11 +923,7 @@ bool DataInteraction::on_mouse_click_annotate(int button, double screen_x, doubl
         // Hit-test existing annotations — clicking on one starts editing
         int hit = annotations_.hit_test(static_cast<float>(screen_x),
                                         static_cast<float>(screen_y),
-                                        active_viewport_,
-                                        xlim_min_,
-                                        xlim_max_,
-                                        ylim_min_,
-                                        ylim_max_,
+                                        active_mapping(),
                                         10.0f,
                                         active_axes_);
         if (hit >= 0)
@@ -993,21 +934,12 @@ bool DataInteraction::on_mouse_click_annotate(int button, double screen_x, doubl
             return true;
         }
 
-        // Place a new annotation at the click position (data coordinates)
-        float x_range = xlim_max_ - xlim_min_;
-        float y_range = ylim_max_ - ylim_min_;
-        if (x_range == 0.0f)
-            x_range = 1.0f;
-        if (y_range == 0.0f)
-            y_range = 1.0f;
-
-        float norm_x = (static_cast<float>(screen_x) - active_viewport_.x) / active_viewport_.w;
-        float norm_y =
-            1.0f - (static_cast<float>(screen_y) - active_viewport_.y) / active_viewport_.h;
-        float data_x = xlim_min_ + norm_x * x_range;
-        float data_y = ylim_min_ + norm_y * y_range;
-
-        annotations_.add(data_x, data_y, active_axes_);
+        // Place a new annotation at the click position (data coordinates,
+        // through the axis scale so it lands under the cursor on log axes).
+        const AxisMapping map = active_mapping();
+        annotations_.add(static_cast<float>(map.to_data_x(screen_x)),
+                         static_cast<float>(map.to_data_y(screen_y)),
+                         active_axes_);
         return true;
     }
 
@@ -1021,11 +953,7 @@ void DataInteraction::begin_annotation_drag(double screen_x, double screen_y)
 
     int hit = annotations_.hit_test(static_cast<float>(screen_x),
                                     static_cast<float>(screen_y),
-                                    active_viewport_,
-                                    xlim_min_,
-                                    xlim_max_,
-                                    ylim_min_,
-                                    ylim_max_,
+                                    active_mapping(),
                                     10.0f,
                                     active_axes_);
     if (hit >= 0)
@@ -1090,18 +1018,10 @@ NearestPointResult DataInteraction::find_nearest(const CursorReadout& cursor, Fi
 
         // Project in axis space (log10/log2 for log axes) exactly like the
         // renderer, so the picked point is the one drawn under the cursor.
-        const ScaleType  xscale  = axes_ptr->xscale();
-        const ScaleType  yscale  = axes_ptr->yscale();
-        const bool       x_log   = is_log_scale(xscale);
-        const bool       y_log   = is_log_scale(yscale);
-        const AxisLimits xlim    = axis_space_limits(xscale, axes_ptr->x_limits());
-        const AxisLimits ylim    = axis_space_limits(yscale, axes_ptr->y_limits());
-        double           x_range = xlim.max - xlim.min;
-        double           y_range = ylim.max - ylim.min;
-        if (x_range == 0.0)
-            x_range = 1.0;
-        if (y_range == 0.0)
-            y_range = 1.0;
+        const AxisMapping map(*axes_ptr);
+        const ScaleType   xscale  = axes_ptr->xscale();
+        const AxisLimits  xlim    = axis_space_limits(xscale, axes_ptr->x_limits());
+        const double      x_range = axis_mapping::axis_span(xlim);
 
         int series_counter = -1;
         for (auto& series_ptr : axes_ptr->series())
@@ -1173,14 +1093,10 @@ NearestPointResult DataInteraction::find_nearest(const CursorReadout& cursor, Fi
                 // small and precise even for epoch-scale offsets.
                 const double abs_x = static_cast<double>(x_data[i]) + xoff;
                 const double abs_y = static_cast<double>(y_data[i]) + yoff;
-                if ((x_log && !(abs_x > 0.0)) || (y_log && !(abs_y > 0.0)))
+                if (!map.x_drawable(abs_x) || !map.y_drawable(abs_y))
                     continue;   // not drawn on a log axis
-                const auto norm_x =
-                    static_cast<float>((to_axis_space(xscale, abs_x) - xlim.min) / x_range);
-                const auto norm_y =
-                    static_cast<float>((to_axis_space(yscale, abs_y) - ylim.min) / y_range);
-                float sx = vp.x + norm_x * vp.w;
-                float sy = vp.y + (1.0f - norm_y) * vp.h;
+                const auto sx = static_cast<float>(map.to_screen_x(abs_x));
+                const auto sy = static_cast<float>(map.to_screen_y(abs_y));
 
                 float dx    = cx - sx;
                 float dy    = cy - sy;

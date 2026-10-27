@@ -5,7 +5,9 @@
 
 #include <spectra/figure_registry.hpp>
 
+#include <algorithm>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <optional>
 #include <vector>
@@ -684,4 +686,64 @@ TEST(EmbedCApi, AutoFit)
     spectra_axes_auto_fit(ax);   // Must not crash
 
     spectra_embed_destroy(s);
+}
+
+// ─── Subplot title placement (issue #105) ──────────────────────────────────
+
+namespace
+{
+// First row (from the top) in columns [x0, x1) whose pixels differ from the
+// background colour, or -1 if the column band is empty.
+int first_ink_row(const std::vector<uint8_t>& px, int w, int h, int x0, int x1)
+{
+    const uint8_t* bg = px.data();   // top-left pixel is plain figure background
+    for (int y = 0; y < h; ++y)
+    {
+        for (int x = std::max(0, x0); x < std::min(w, x1); ++x)
+        {
+            const uint8_t* p = px.data() + (static_cast<size_t>(y) * w + x) * 4;
+            const int d = std::abs(p[0] - bg[0]) + std::abs(p[1] - bg[1]) + std::abs(p[2] - bg[2]);
+            if (d > 60)
+                return y;
+        }
+    }
+    return -1;
+}
+}   // namespace
+
+TEST(EmbedSurface, TitlesOf2DAnd3DSubplotsShareARow)
+{
+    constexpr int W = 800;
+    constexpr int H = 400;
+    EmbedConfig   cfg;
+    cfg.width  = W;
+    cfg.height = H;
+    EmbedSurface surface(cfg);
+    auto&        fig = surface.figure();
+
+    std::vector<float> x = {0, 1, 2, 3}, y = {0, 1, 0, 1}, z = {1, 0, 1, 0};
+    auto&              ax2 = fig.subplot(1, 2, 1);
+    ax2.line(x, y);
+    ax2.title("Title");
+    auto& ax3 = fig.subplot3d(1, 2, 2);
+    ax3.line3d(x, y, z);
+    ax3.title("Title");
+
+    std::vector<uint8_t> px(static_cast<size_t>(W) * H * 4, 0);
+    ASSERT_TRUE(surface.render_to_buffer(px.data()));
+
+    // Narrow band around each subplot's centre: only the title is drawn above
+    // the plot box there.
+    const auto vp2 = ax2.viewport();
+    const auto vp3 = ax3.viewport();
+    const int  c2  = static_cast<int>(vp2.x + vp2.w * 0.5f);
+    const int  c3  = static_cast<int>(vp3.x + vp3.w * 0.5f);
+    const int  t2  = first_ink_row(px, W, H, c2 - 15, c2 + 15);
+    const int  t3  = first_ink_row(px, W, H, c3 - 15, c3 + 15);
+    ASSERT_GE(t2, 0);
+    ASSERT_GE(t3, 0);
+    // Both titles sit above their viewport, on the same row.
+    EXPECT_LT(t2, static_cast<int>(vp2.y));
+    EXPECT_LT(t3, static_cast<int>(vp3.y));
+    EXPECT_LE(std::abs(t2 - t3), 2) << "2D title top " << t2 << ", 3D title top " << t3;
 }

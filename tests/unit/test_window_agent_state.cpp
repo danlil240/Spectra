@@ -44,6 +44,7 @@ TEST(WindowAgentSettings, ApplyToFreshThemeManagerAppliesSavedTheme)
 TEST(WindowAgentSeries, LocateLiveSeriesCountsWithinItsAxes)
 {
     spectra::ipc::SnapshotFigureState fig;
+    fig.axes.resize(2);   // series only map to axes the window builds
     fig.series.resize(4);
     fig.series[0].axes_index = 0;
     fig.series[1].axes_index = 1;

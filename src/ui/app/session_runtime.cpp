@@ -276,6 +276,9 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
                 continue;
             }
 
+            // OS title follows the active figure ("<figure> — Spectra").
+            window_mgr->sync_window_title(*wctx);
+
             // Set active window for Vulkan operations
             vk->set_active_window(wctx);
 

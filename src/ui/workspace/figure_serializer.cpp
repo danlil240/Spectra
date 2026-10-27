@@ -14,6 +14,7 @@
 #include <spectra/series_stats.hpp>
 
 #include "overlay_snapshot.hpp"
+#include "series_color_source.hpp"
 
 #include "../dialog_env_guard.hpp"
 #include "../native_dialog_policy.hpp"
@@ -26,7 +27,9 @@ namespace spectra
 static constexpr uint32_t MAGIC   = 0x53504346;   // "SPCF" — Spectra Figure
 // v6: double axis limits on 2D axes and double data origins
 // (Series::x_offset()/y_offset()) on line and scatter series.
-static constexpr uint32_t VERSION = 6;
+// v7: every series chunk ends with its colour source (palette slot / format
+// letter / explicit RGB), and box plots store each box's sample count.
+static constexpr uint32_t VERSION = 7;
 
 // Chunk tags
 enum ChunkTag : uint16_t
@@ -54,6 +57,9 @@ enum ChunkTag : uint16_t
     TAG_ANNOTATION     = 0x0040,
     TAG_MARKER         = 0x0041,
     TAG_OVERLAY_CONFIG = 0x0042,
+    // Axes::text()/annotate() annotation of a 2D axes.  Added without a
+    // version bump: older readers skip unknown chunks.
+    TAG_TEXT_ANNOTATION = 0x0043,
 
     TAG_END = 0xFFFF,
 };
@@ -136,6 +142,16 @@ class BinaryWriter
         write_u8(static_cast<uint8_t>(s.is_reference_line()));
     }
 
+    // v7: ends a series chunk with the series' colour source, so palette and
+    // format-letter colours keep following the theme after a reload.
+    void end_series_chunk(std::streampos length_pos, const Series& s)
+    {
+        const SeriesColorSource src = color_source_of(s);
+        write_u8(static_cast<uint8_t>(src.kind));
+        write_i32(src.value);
+        end_chunk(length_pos);
+    }
+
     [[nodiscard]] bool good() const { return f_.good(); }
 
    private:
@@ -216,6 +232,8 @@ class BinaryReader
     }
 
     void skip(uint32_t bytes) { f_.seekg(bytes, std::ios::cur); }
+    std::streampos tell() { return f_.tellg(); }
+    void           seek(std::streampos pos) { f_.seekg(pos); }
 
     void read_series_common(Series& s)
     {
@@ -291,7 +309,7 @@ static void write_axes_2d(BinaryWriter& w, const Axes& axes, int axes_index)
             w.write_floats(ls->y_data());
             w.write_f64(ls->x_offset());   // v6: data origins
             w.write_f64(ls->y_offset());
-            w.end_chunk(spos);
+            w.end_series_chunk(spos, *sp);
         }
         else if (auto* ss = dynamic_cast<ScatterSeries*>(sp.get()))
         {
@@ -308,7 +326,7 @@ static void write_axes_2d(BinaryWriter& w, const Axes& axes, int axes_index)
             w.write_floats(ss->color_values_data());
             w.write_f64(ss->x_offset());   // v6: data origins
             w.write_f64(ss->y_offset());
-            w.end_chunk(spos);
+            w.end_series_chunk(spos, *sp);
         }
         else if (auto* band = dynamic_cast<BandSeries*>(sp.get()))
         {
@@ -321,7 +339,7 @@ static void write_axes_2d(BinaryWriter& w, const Axes& axes, int axes_index)
             w.write_floats(band->x_values());
             w.write_floats(band->lower_values());
             w.write_floats(band->upper_values());
-            w.end_chunk(spos);
+            w.end_series_chunk(spos, *sp);
         }
         else if (auto* bp = dynamic_cast<BoxPlotSeries*>(sp.get()))
         {
@@ -345,8 +363,9 @@ static void write_axes_2d(BinaryWriter& w, const Axes& axes, int axes_index)
                 w.write_f32(st.whisker_low);
                 w.write_f32(st.whisker_high);
                 w.write_floats(st.outliers);
+                w.write_u32(static_cast<uint32_t>(st.count));   // v7: sample count (notches)
             }
-            w.end_chunk(spos);
+            w.end_series_chunk(spos, *sp);
         }
         else if (auto* vs = dynamic_cast<ViolinSeries*>(sp.get()))
         {
@@ -364,7 +383,7 @@ static void write_axes_2d(BinaryWriter& w, const Axes& axes, int axes_index)
                 w.write_f32(vd.x_position);
                 w.write_floats(vd.values);
             }
-            w.end_chunk(spos);
+            w.end_series_chunk(spos, *sp);
         }
         else if (auto* hs = dynamic_cast<HistogramSeries*>(sp.get()))
         {
@@ -376,7 +395,7 @@ static void write_axes_2d(BinaryWriter& w, const Axes& axes, int axes_index)
             w.write_u8(static_cast<uint8_t>(hs->density()));
             w.write_u8(static_cast<uint8_t>(hs->gradient()));
             w.write_floats(hs->raw_values());
-            w.end_chunk(spos);
+            w.end_series_chunk(spos, *sp);
         }
         else if (auto* bs = dynamic_cast<BarSeries*>(sp.get()))
         {
@@ -389,8 +408,30 @@ static void write_axes_2d(BinaryWriter& w, const Axes& axes, int axes_index)
             w.write_u8(static_cast<uint8_t>(bs->gradient()));
             w.write_floats(bs->bar_positions());
             w.write_floats(bs->bar_heights());
-            w.end_chunk(spos);
+            w.end_series_chunk(spos, *sp);
         }
+    }
+
+    // Text annotations, in draw order
+    for (const auto& ann : axes.annotations())
+    {
+        if (!ann)
+            continue;
+        auto apos = w.begin_chunk(TAG_TEXT_ANNOTATION);
+        w.write_i32(axes_index);
+        w.write_f32(ann->x());
+        w.write_f32(ann->y());
+        w.write_string(ann->text());
+        w.write_u8(ann->color() ? 1 : 0);
+        w.write_color(ann->color().value_or(Color{}));
+        w.write_f32(ann->font_size());
+        w.write_u8(static_cast<uint8_t>(ann->halign()));
+        w.write_u8(static_cast<uint8_t>(ann->valign()));
+        w.write_u8(ann->has_arrow() ? 1 : 0);
+        w.write_f32(ann->arrow_x());
+        w.write_f32(ann->arrow_y());
+        w.write_u8(ann->visible() ? 1 : 0);
+        w.end_chunk(apos);
     }
 }
 
@@ -469,7 +510,7 @@ static void write_axes_3d(BinaryWriter& w, const Axes3D& axes, int axes_index)
             w.write_floats(ls->x_data());
             w.write_floats(ls->y_data());
             w.write_floats(ls->z_data());
-            w.end_chunk(spos);
+            w.end_series_chunk(spos, *sp);
         }
         else if (auto* ss = dynamic_cast<ScatterSeries3D*>(sp.get()))
         {
@@ -481,7 +522,7 @@ static void write_axes_3d(BinaryWriter& w, const Axes3D& axes, int axes_index)
             w.write_floats(ss->x_data());
             w.write_floats(ss->y_data());
             w.write_floats(ss->z_data());
-            w.end_chunk(spos);
+            w.end_series_chunk(spos, *sp);
         }
         else if (auto* surf = dynamic_cast<SurfaceSeries*>(sp.get()))
         {
@@ -503,7 +544,7 @@ static void write_axes_3d(BinaryWriter& w, const Axes3D& axes, int axes_index)
             w.write_floats(surf->x_grid());
             w.write_floats(surf->y_grid());
             w.write_floats(surf->z_values());
-            w.end_chunk(spos);
+            w.end_series_chunk(spos, *sp);
         }
         else if (auto* ms = dynamic_cast<MeshSeries*>(sp.get()))
         {
@@ -518,7 +559,7 @@ static void write_axes_3d(BinaryWriter& w, const Axes3D& axes, int axes_index)
             w.write_u8(static_cast<uint8_t>(ms->wireframe()));
             w.write_floats(ms->vertices());
             w.write_u32s(ms->indices());
-            w.end_chunk(spos);
+            w.end_series_chunk(spos, *sp);
         }
     }
 }
@@ -719,6 +760,15 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
 
         if (tag == TAG_END)
             break;
+
+        // Series created by this chunk and the RGB saved with it (v7: the
+        // colour source at the end of the chunk is applied after the switch).
+        struct LoadedSeries
+        {
+            Series* series = nullptr;
+            Color   color;
+        } loaded;
+        const std::streampos chunk_start = r.tell();
 
         switch (static_cast<ChunkTag>(tag))
         {
@@ -948,6 +998,7 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 auto ps       = s.plot_style();
                 ps.line_width = lw;
                 s.plot_style(ps);
+                loaded = {&s, col};
                 break;
             }
 
@@ -1014,6 +1065,7 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 auto ps       = s.plot_style();
                 ps.line_width = lw;
                 s.plot_style(ps);
+                loaded = {&s, col};
                 break;
             }
 
@@ -1060,6 +1112,7 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 auto ps       = band.plot_style();
                 ps.line_width = lw;
                 band.plot_style(ps);
+                loaded = {&band, col};
                 break;
             }
 
@@ -1106,19 +1159,23 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 uint32_t box_count = r.read_u32();
                 for (uint32_t i = 0; i < box_count; ++i)
                 {
-                    float xpos     = r.read_f32();
-                    float median   = r.read_f32();
-                    float q1       = r.read_f32();
-                    float q3       = r.read_f32();
-                    float wlo      = r.read_f32();
-                    float whi      = r.read_f32();
-                    auto  outliers = r.read_floats();
-                    bp.add_box(xpos, median, q1, q3, wlo, whi, outliers);
+                    float        xpos = r.read_f32();
+                    BoxPlotStats st;
+                    st.median       = r.read_f32();
+                    st.q1           = r.read_f32();
+                    st.q3           = r.read_f32();
+                    st.whisker_low  = r.read_f32();
+                    st.whisker_high = r.read_f32();
+                    st.outliers     = r.read_floats();
+                    // v7: sample count; older files leave it unknown (no notch).
+                    st.count = (version >= 7) ? r.read_u32() : 0;
+                    bp.add_box(xpos, std::move(st));
                 }
 
                 auto ps       = bp.plot_style();
                 ps.line_width = lw;
                 bp.plot_style(ps);
+                loaded = {&bp, col};
                 break;
             }
 
@@ -1173,6 +1230,7 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 auto ps       = vs.plot_style();
                 ps.line_width = lw;
                 vs.plot_style(ps);
+                loaded = {&vs, col};
                 break;
             }
 
@@ -1220,6 +1278,7 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 auto ps       = hs.plot_style();
                 ps.line_width = lw;
                 hs.plot_style(ps);
+                loaded = {&hs, col};
                 break;
             }
 
@@ -1268,6 +1327,7 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 auto ps2       = bs.plot_style();
                 ps2.line_width = lw;
                 bs.plot_style(ps2);
+                loaded = {&bs, col};
                 break;
             }
 
@@ -1315,6 +1375,7 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 auto ps       = s.plot_style();
                 ps.line_width = lw;
                 s.plot_style(ps);
+                loaded = {&s, col};
                 break;
             }
 
@@ -1362,6 +1423,7 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 auto ps       = s.plot_style();
                 ps.line_width = lw;
                 s.plot_style(ps);
+                loaded = {&s, col};
                 break;
             }
 
@@ -1423,6 +1485,7 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 auto ps       = s.plot_style();
                 ps.line_width = lw;
                 s.plot_style(ps);
+                loaded = {&s, col};
                 break;
             }
 
@@ -1475,6 +1538,7 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 auto ps       = s.plot_style();
                 ps.line_width = lw;
                 s.plot_style(ps);
+                loaded = {&s, col};
                 break;
             }
 
@@ -1534,10 +1598,55 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 break;
             }
 
+            case TAG_TEXT_ANNOTATION:
+            {
+                int32_t     ai        = r.read_i32();
+                float       x         = r.read_f32();
+                float       y         = r.read_f32();
+                std::string text      = r.read_string();
+                bool        has_color = r.read_u8() != 0;
+                Color       color     = r.read_color();
+                float       font_size = r.read_f32();
+                uint8_t     halign    = r.read_u8();
+                uint8_t     valign    = r.read_u8();
+                bool        has_arrow = r.read_u8() != 0;
+                float       arrow_x   = r.read_f32();
+                float       arrow_y   = r.read_f32();
+                bool        visible   = r.read_u8() != 0;
+                Axes*       axes      = (ai >= 0 && static_cast<size_t>(ai) < axes_ptrs.size())
+                                            ? dynamic_cast<Axes*>(axes_ptrs[static_cast<size_t>(ai)])
+                                            : nullptr;
+                if (!axes || !r.good())
+                    break;
+                auto& ann = axes->text(x, y, text);
+                ann.font_size(font_size)
+                    .halign(static_cast<TextAnnotation::HAlign>(halign <= 2 ? halign : 0))
+                    .valign(static_cast<TextAnnotation::VAlign>(valign <= 2 ? valign : 2))
+                    .visible(visible);
+                if (has_color)
+                    ann.color(color);
+                if (has_arrow)
+                    ann.arrow_to(arrow_x, arrow_y);
+                break;
+            }
+
             default:
                 // Unknown chunk — skip
                 r.skip(len);
                 break;
+        }
+
+        // v7: palette / format-letter colours are restored as such, so they
+        // keep following the theme.  Older files keep the saved RGB.
+        constexpr uint32_t COLOR_SOURCE_BYTES = 5;   // u8 kind + i32 value
+        if (loaded.series && version >= 7 && len >= COLOR_SOURCE_BYTES && r.good())
+        {
+            r.seek(chunk_start + static_cast<std::streamoff>(len - COLOR_SOURCE_BYTES));
+            SeriesColorSource src;
+            src.kind  = static_cast<SeriesColorSource::Kind>(r.read_u8());
+            src.value = r.read_i32();
+            if (r.good())
+                apply_color_source(*loaded.series, src, loaded.color);
         }
     }
 

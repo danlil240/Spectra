@@ -7,6 +7,8 @@
     #include <spectra/series.hpp>
     #include <vector>
 
+    #include "ui/overlay/axis_mapping.hpp"
+
 struct ImFont;
 
 namespace spectra::ui
@@ -57,23 +59,12 @@ class RegionSelect
 
     // ─── Selection lifecycle ────────────────────────────────────────────
 
-    // Begin a new selection at the given screen position.
-    void begin(double      screen_x,
-               double      screen_y,
-               const Rect& viewport,
-               float       xlim_min,
-               float       xlim_max,
-               float       ylim_min,
-               float       ylim_max);
+    // Begin a new selection at the given screen position.  @p map is the
+    // screen <-> data mapping of the axes (viewport, limits, axis scales).
+    void begin(double screen_x, double screen_y, const AxisMapping& map);
 
     // Update the selection end point (while dragging).
-    void update_drag(double      screen_x,
-                     double      screen_y,
-                     const Rect& viewport,
-                     float       xlim_min,
-                     float       xlim_max,
-                     float       ylim_min,
-                     float       ylim_max);
+    void update_drag(double screen_x, double screen_y, const AxisMapping& map);
 
     // Finish the selection (mouse release). Computes statistics.
     void finish(const Axes* axes);
@@ -99,13 +90,7 @@ class RegionSelect
 
     // Draw the selection rectangle and floating mini-toolbar.
     // Call inside ImGui frame, after build_ui.
-    void draw(const Rect& viewport,
-              float       xlim_min,
-              float       xlim_max,
-              float       ylim_min,
-              float       ylim_max,
-              float       window_width,
-              float       window_height);
+    void draw(const AxisMapping& map, float window_width, float window_height);
 
     // ─── Configuration ──────────────────────────────────────────────────
 
@@ -121,28 +106,6 @@ class RegionSelect
                            float ry1,
                            float window_width,
                            float window_height);
-
-    // Convert data coordinates to screen coordinates
-    static void data_to_screen(float       data_x,
-                               float       data_y,
-                               const Rect& viewport,
-                               float       xlim_min,
-                               float       xlim_max,
-                               float       ylim_min,
-                               float       ylim_max,
-                               float&      screen_x,
-                               float&      screen_y);
-
-    // Convert screen coordinates to data coordinates
-    static void screen_to_data(double      screen_x,
-                               double      screen_y,
-                               const Rect& viewport,
-                               float       xlim_min,
-                               float       xlim_max,
-                               float       ylim_min,
-                               float       ylim_max,
-                               float&      data_x,
-                               float&      data_y);
 
     // Collect all data points inside the selection rectangle
     void collect_points(const Axes* axes);

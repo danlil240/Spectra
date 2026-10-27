@@ -431,6 +431,17 @@ class ThemeManager
     void update(float dt);   // Update ongoing transitions
     bool is_transitioning() const;
 
+    // Per-export theme (Figure::save_png / save_svg with ExportOptions::theme).
+    // push_export_theme() makes colors(), current() and the "default" data palette
+    // follow the registered theme `name` until pop_export_theme(), without
+    // touching ImGui, theme listeners or the persisted selection; any running
+    // theme or palette transition is suspended and resumed afterwards.  Returns
+    // false (and changes nothing) for an unknown name or while another export
+    // theme is active.  Prefer ScopedExportTheme.
+    bool push_export_theme(const std::string& name);
+    void pop_export_theme();
+    bool export_theme_active() const { return export_override_.active; }
+
     // Theme persistence
     bool export_theme(const std::string& path) const;
     bool import_theme(const std::string& path);
@@ -527,6 +538,18 @@ class ThemeManager
     ThemeGlassSettings glass_settings_;
     ThemeGlassSettings glass_defaults_for(const std::string& theme_name) const;
 
+    // State saved by push_export_theme(), restored by pop_export_theme().
+    struct ExportOverride
+    {
+        bool        active = false;
+        std::string theme_name;
+        Theme*      theme                 = nullptr;
+        bool        transitioning         = false;
+        bool        display_colors_valid  = false;
+        bool        palette_transitioning = false;
+        bool        display_palette_valid = false;
+    } export_override_;
+
     void               initialize_default_themes();
     void               initialize_data_palettes();
     const DataPalette& resolve_data_palette(const std::string& name) const;
@@ -534,6 +557,24 @@ class ThemeManager
     // Built-in theme whose ink suits @p style's override surface when that
     // surface's lightness is opposite to the theme canvas; nullptr otherwise.
     const Theme* plot_surface_ink_theme(const FigureStyle& style) const;
+};
+
+// RAII guard for ThemeManager::push_export_theme(): renders with theme `name`
+// for the guard's lifetime.  An empty name or null manager does nothing; an
+// unknown name logs a warning and keeps the active theme.
+class ScopedExportTheme
+{
+   public:
+    ScopedExportTheme(ThemeManager* tm, const std::string& name);
+    ~ScopedExportTheme();
+    ScopedExportTheme(const ScopedExportTheme&)            = delete;
+    ScopedExportTheme& operator=(const ScopedExportTheme&) = delete;
+
+    bool active() const { return active_; }
+
+   private:
+    ThemeManager* tm_     = nullptr;
+    bool          active_ = false;
 };
 
 // True when the theme's plot canvas is light (format-letter colours then use

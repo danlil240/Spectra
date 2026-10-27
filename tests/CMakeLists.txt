@@ -100,6 +100,7 @@ set(SPECTRA_UNIT_TESTS
     test_bugfix_core_axes
     test_axis_scale
     test_crosshair_mapping
+    test_log_overlays
     test_bugfix_core_series
     test_bugfix_core_stats
     test_bugfix_daemon_agent
@@ -167,7 +168,9 @@ set(SPECTRA_UNIT_TESTS
     test_palette_resolution
     test_palette_visibility
     test_window_agent_state
+    test_multiproc_snapshot
     test_format_letter_colors
+    test_color_source_persistence
     test_settings_store
     test_settings_appearance
     test_settings_layout
@@ -283,6 +286,10 @@ set(SPECTRA_UNIT_TESTS
     test_export_viewport
     test_headless_export_text
     test_window_defaults
+    test_text_annotation_ipc
+    test_text_annotation_persist
+    test_window_placement
+    test_embed_annotations_c
 )
 
 # Mock transform plugin — shared library loaded by test_plugin_transforms
@@ -390,6 +397,7 @@ set(SPECTRA_GPU_TESTS
     test_shape2d_first_frame
     test_custom_series_gpu
     test_3d_lighting
+    test_embed_annotations_c
 )
 
 foreach(_test ${SPECTRA_UNIT_TESTS})
@@ -418,7 +426,7 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
         # interactive legend, crosshair_mapping the linked crosshair), which needs an
         # ImGui context; test_theme checks the ImGui palette apply_to_imgui() writes
         # during a theme transition; settings_layout drives the Settings modal.
-        if(_test MATCHES "^test_(crosshair_mapping|double_precision_data|data_interaction|legend_bounds|legend_font_size|overlay_text_fit|settings_layout|theme)$" AND DEFINED imgui_SOURCE_DIR)
+        if(_test MATCHES "^test_(crosshair_mapping|log_overlays|double_precision_data|data_interaction|legend_bounds|legend_font_size|inspector|overlay_text_fit|settings_layout|theme)$" AND DEFINED imgui_SOURCE_DIR)
             target_include_directories(unit_${_test} SYSTEM PRIVATE ${imgui_SOURCE_DIR})
         endif()
         # CSV writer shared with the export_csv example plugin (header-only)

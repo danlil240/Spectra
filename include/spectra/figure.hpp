@@ -99,9 +99,22 @@ struct FigureExportRequest
     std::string png_path;
     uint32_t    png_width         = 0;   ///< 0 = use figure's native resolution
     uint32_t    png_height        = 0;
+    std::string png_theme;   ///< empty = active app theme
     bool        copy_to_clipboard = false;
     std::string svg_path;
+    std::string svg_theme;   ///< empty = active app theme
     std::string video_path;
+};
+
+/// @brief Optional settings for one Figure::save_png() / save_svg() call.
+struct ExportOptions
+{
+    uint32_t width  = 0;   ///< PNG width in pixels (0 = figure width); ignored for SVG
+    uint32_t height = 0;   ///< PNG height in pixels (0 = figure height); ignored for SVG
+    /// Theme this export is drawn with, e.g. "light" or "dark" (any registered
+    /// theme name).  Empty uses the app's active theme.  Only this file is
+    /// affected; an unknown name logs a warning and falls back to the active theme.
+    std::string theme;
 };
 
 /// @brief Animation state set by AnimationBuilder, driven by WindowRuntime.
@@ -145,8 +158,12 @@ class Figure
     bool save_png(const std::string& path);
     /// @brief Request a PNG export at the given resolution (see save_png()).
     bool save_png(const std::string& path, uint32_t export_width, uint32_t export_height);
+    /// @brief Request a PNG export with per-export options (size, theme).
+    bool save_png(const std::string& path, const ExportOptions& options);
     /// @brief Request an SVG vector export (see save_png() for the return value).
     bool save_svg(const std::string& path);
+    /// @brief Request an SVG vector export with per-export options (theme).
+    bool save_svg(const std::string& path, const ExportOptions& options);
     /// @brief Copy a rendered image of the figure to the system clipboard.
     void copy_to_clipboard();
 

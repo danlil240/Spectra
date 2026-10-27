@@ -7,6 +7,8 @@
     #include <string>
     #include <vector>
 
+    #include "axis_mapping.hpp"
+
 struct ImDrawList;
 
 namespace spectra::ui
@@ -85,31 +87,24 @@ class DataMarkerManager
     const std::vector<DataMarker>& markers() const { return markers_; }
     size_t                         count() const { return markers_.size(); }
 
-    // Draw all markers. Converts data coords to screen coords using the viewport and limits.
+    // Draw all markers. Converts data coords to screen coords through @p map
+    // (viewport, limits and axis scales of the owning axes).
     // When filter_axes is non-null, only markers belonging to that axes are drawn.
     // When dl is non-null, draws into the given draw list instead of GetForegroundDrawList().
-    void draw(const Rect& viewport,
-              double      xlim_min,
-              double      xlim_max,
-              double      ylim_min,
-              double      ylim_max,
-              float       opacity     = 1.0f,
-              const Axes* filter_axes = nullptr,
-              ImDrawList* dl          = nullptr);
+    void draw(const AxisMapping& map,
+              float              opacity     = 1.0f,
+              const Axes*        filter_axes = nullptr,
+              ImDrawList*        dl          = nullptr);
 
     void set_theme_manager(ui::ThemeManager* tm) { theme_mgr_ = tm; }
 
     // Hit-test: returns index of marker near screen position, or -1.
     // When filter_axes is non-null, only markers belonging to that axes are tested.
-    int hit_test(float       screen_x,
-                 float       screen_y,
-                 const Rect& viewport,
-                 double      xlim_min,
-                 double      xlim_max,
-                 double      ylim_min,
-                 double      ylim_max,
-                 float       radius_px   = 10.0f,
-                 const Axes* filter_axes = nullptr) const;
+    int hit_test(float              screen_x,
+                 float              screen_y,
+                 const AxisMapping& map,
+                 float              radius_px   = 10.0f,
+                 const Axes*        filter_axes = nullptr) const;
 
     // Draw / hit-test compact pinned labels on 3D axes (camera-projected).
     void draw_3d(const Axes3D& axes3d, float opacity = 1.0f, ImDrawList* dl = nullptr);
@@ -125,17 +120,6 @@ class DataMarkerManager
 
     // Find existing marker for the same series + point_index, or -1
     int find_duplicate(const Series* series, size_t point_index) const;
-
-    // Convert data coordinates to screen coordinates
-    static void data_to_screen(double      data_x,
-                               double      data_y,
-                               const Rect& viewport,
-                               double      xlim_min,
-                               double      xlim_max,
-                               double      ylim_min,
-                               double      ylim_max,
-                               float&      screen_x,
-                               float&      screen_y);
 };
 
 }   // namespace spectra

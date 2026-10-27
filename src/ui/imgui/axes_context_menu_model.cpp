@@ -137,8 +137,7 @@ std::vector<AxesMenuItem> build_axes_context_menu(const AxesContextMenuState& st
     m.separator();
 
     // ── Properties ───────────────────────────────────────────────────────
-    if (!state.is_3d)
-        m.action(AxesMenuItemKind::AxesProperties, "Axes Properties...");
+    m.action(AxesMenuItemKind::AxesProperties, "Axes Properties...");
 
     return m.finish();
 }

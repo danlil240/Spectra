@@ -1183,3 +1183,63 @@ TEST_F(ThemeManagerTest, SvgExportUsesOverrideSurfaceInk)
     EXPECT_EQ(svg.find(hex(dark_tick)), std::string::npos);    // no pale dark-theme ink
     EXPECT_NE(svg.find("#292929"), std::string::npos);         // 'w' light-surface shade
 }
+
+// ─── Per-export theme (ExportOptions::theme) ─────────────────────────────────
+
+TEST_F(ThemeManagerTest, ExportThemeOverridesAndRestores)
+{
+    tm_.set_theme("dark");
+    const Color dark_bg            = tm_.colors().bg_canvas;
+    const auto  dark_palette_first = tm_.current_data_palette().colors.at(0);
+    {
+        ScopedExportTheme guard(&tm_, "light");
+        ASSERT_TRUE(guard.active());
+        EXPECT_TRUE(tm_.export_theme_active());
+        EXPECT_EQ(tm_.current_theme_name(), "light");
+        EXPECT_GT(tm_.colors().bg_canvas.luminance(), 0.5f);
+        EXPECT_NE(tm_.colors().bg_canvas, dark_bg);
+        // The "default" data palette follows the export theme too.
+        EXPECT_NE(tm_.current_data_palette().colors.at(0), dark_palette_first);
+        // Nested overrides are refused.
+        EXPECT_FALSE(tm_.push_export_theme("night"));
+    }
+    EXPECT_FALSE(tm_.export_theme_active());
+    EXPECT_EQ(tm_.current_theme_name(), "dark");
+    EXPECT_EQ(tm_.colors().bg_canvas, dark_bg);
+    EXPECT_EQ(tm_.current_data_palette().colors.at(0), dark_palette_first);
+}
+
+TEST_F(ThemeManagerTest, UnknownOrEmptyExportThemeKeepsActiveTheme)
+{
+    tm_.set_theme("dark");
+    {
+        ScopedExportTheme unknown(&tm_, "no_such_theme");
+        EXPECT_FALSE(unknown.active());
+        EXPECT_EQ(tm_.current_theme_name(), "dark");
+        ScopedExportTheme empty(&tm_, "");
+        EXPECT_FALSE(empty.active());
+    }
+    ScopedExportTheme null_mgr(nullptr, "light");
+    EXPECT_FALSE(null_mgr.active());
+    // Names are matched case-insensitively.
+    ScopedExportTheme upper(&tm_, "LIGHT");
+    EXPECT_TRUE(upper.active());
+    EXPECT_EQ(tm_.current_theme_name(), "light");
+}
+
+TEST_F(ThemeManagerTest, ExportThemeSuspendsAndResumesTransition)
+{
+    tm_.set_theme("dark");
+    tm_.transition_to("light", 1.0f);
+    tm_.update(0.5f);
+    ASSERT_TRUE(tm_.is_transitioning());
+    const Color mid = tm_.colors().bg_canvas;
+    {
+        ScopedExportTheme guard(&tm_, "night");
+        ASSERT_TRUE(guard.active());
+        EXPECT_FALSE(tm_.is_transitioning());
+        EXPECT_EQ(tm_.current_theme_name(), "night");
+    }
+    EXPECT_TRUE(tm_.is_transitioning());
+    EXPECT_EQ(tm_.colors().bg_canvas, mid);
+}

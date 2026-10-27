@@ -29,6 +29,8 @@ class AnimationController
                                EasingFn   easing);
 
     // Animate inertial pan: applies a velocity that decelerates to zero.
+    // Velocities are in axis-space units/sec: data units on a linear axis,
+    // decades (Log10) or octaves (Log2) on a log axis.
     AnimId animate_inertial_pan(Axes& axes, float vx_data, float vy_data, float duration_sec);
 
     // Animate camera from current state to target over duration_sec.
@@ -76,7 +78,7 @@ class AnimationController
     {
         AnimId id;
         Axes*  axes;
-        float  vx_data;   // initial velocity in data-space units/sec
+        float  vx_data;   // initial velocity in axis-space units/sec
         float  vy_data;
         float  elapsed  = 0.0f;
         float  duration = 0.3f;

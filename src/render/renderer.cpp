@@ -17,6 +17,7 @@
 #include <vector>
 
 #include "core/axis_scale.hpp"
+#include "io/text_metrics.hpp"
 #include "ui/imgui/axes3d_renderer.hpp"
 #include "ui/theme/theme.hpp"
 #include "ui/viewmodel/axes_view_model.hpp"
@@ -444,10 +445,10 @@ bool Renderer::init()
 
     // Initialize text renderer — prefer embedded font data (zero file dependencies),
     // fall back to disk paths for development builds.
-#if __has_include("inter_font_embedded.hpp")
+    // The embedded copy lives in spectra-core (shared with the SVG exporter's text metrics).
+    if (const auto font = embedded_inter_font(); !font.empty())
     {
-    #include "inter_font_embedded.hpp"
-        if (text_renderer_.init(backend_, InterFont_ttf_data, InterFont_ttf_size))
+        if (text_renderer_.init(backend_, font.data(), font.size()))
         {
             SPECTRA_LOG_INFO("renderer", "TextRenderer initialized from embedded font data");
         }
@@ -457,7 +458,6 @@ bool Renderer::init()
                              "TextRenderer init from embedded data failed — trying disk");
         }
     }
-#endif
     if (!text_renderer_.is_initialized())
     {
         const char* font_paths[] = {

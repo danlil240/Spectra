@@ -199,5 +199,6 @@ TEST(AxesContextMenu, Axes3DMenu)
     // 2D-only items
     EXPECT_EQ(find_command(items, "view.toggle_legend"), nullptr);
     EXPECT_EQ(find_command(items, "file.export_svg"), nullptr);
-    EXPECT_EQ(find_kind(items, AxesMenuItemKind::AxesProperties), nullptr);
+    // The inspector has a 3D axes page, so 3D axes offer it too (issue #105).
+    EXPECT_NE(find_kind(items, AxesMenuItemKind::AxesProperties), nullptr);
 }

@@ -86,6 +86,25 @@ table CmdCloseWindowPayload {
 
 // ─── State sync ──────────────────────────────────────────────────────────────
 
+// 2D text annotation (spectra::TextAnnotation).
+table SnapshotAnnotationState {
+    x: float = 0.0;
+    y: float = 0.0;
+    text: string;
+    has_color: bool = false;
+    color_r: float = 0.0;
+    color_g: float = 0.0;
+    color_b: float = 0.0;
+    color_a: float = 1.0;
+    font_size: float = 0.0;
+    halign: uint8 = 0;
+    valign: uint8 = 2;
+    has_arrow: bool = false;
+    arrow_x: float = 0.0;
+    arrow_y: float = 0.0;
+    visible: bool = true;
+}
+
 table SnapshotAxisState {
     x_min: double = 0.0;
     x_max: double = 1.0;
@@ -98,6 +117,7 @@ table SnapshotAxisState {
     x_label: string;
     y_label: string;
     title: string;
+    annotations: [SnapshotAnnotationState];
 }
 
 table SnapshotSeriesState {
@@ -172,6 +192,9 @@ enum DiffOpType : uint8 {
     ADD_SERIES         = 22,
     ADD_AXES           = 23,
     SET_LIVE_FPS       = 25,
+    ADD_ANNOTATION     = 26,
+    SET_ANNOTATION     = 27,
+    CLEAR_ANNOTATIONS  = 28,
 }
 
 table DiffOp {
@@ -269,6 +292,7 @@ table ReqUpdatePropertyPayload {
     f4: double = 0.0;
     bool_val: bool = false;
     str_val: string;
+    data: [float];   // bulk payload ("annotation": packed annotation floats)
 }
 
 table ReqShowPayload {

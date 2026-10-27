@@ -24,3 +24,6 @@ class DiffOpType(object):
     ADD_SERIES = 22
     ADD_AXES = 23
     SET_LIVE_FPS = 25
+    ADD_ANNOTATION = 26
+    SET_ANNOTATION = 27
+    CLEAR_ANNOTATIONS = 28

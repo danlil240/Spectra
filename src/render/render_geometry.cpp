@@ -645,9 +645,12 @@ void Renderer::render_plot_text(Figure& figure)
             title_fit = to_fitted_text(
                 fit_axes3d_title(axes3d->get_title(), vp.w, label_measure, label_ellipsis));
             auto ext = text_renderer_.measure_text(title_fit.text, title_fit.size);
-            // Above the viewport, in the cell's top margin, like a 2D title:
-            // the 3D box fills the viewport.
-            title_py = std::max(vp.y - ext.height - tick_padding, 2.0f);
+            // Same row as a 2D title (2D pass above): above the viewport, in the
+            // margin the layout reserves for it, so 2D and 3D subplot titles line up.
+            // Clamp only at the top of the figure.
+            title_py = vp.y - ext.height - tick_padding;
+            if (title_py < 2.0f)
+                title_py = 2.0f;
             placed_labels.push_back(label_rect(title_fit.text,
                                                title_fit.size,
                                                vp.x + vp.w * 0.5f,
@@ -1213,7 +1216,8 @@ void Renderer::render_plot_geometry(Figure& figure)
         constexpr int MAX_MARGIN_MINOR_LINES = 4 * MINOR_SUBDIVISIONS;
         auto valid_minor_step = [](double step) { return std::isfinite(step) && step > 0.0; };
         minor_grid_scratch_.clear();
-        // Log axes: minor lines at 2..9 × 10^k.  Linear subdivision of decade
+        // Log axes: minor lines at 2..9 × 10^k (1.25..1.75 × 2^k on Log2).
+        // Linear subdivision of decade
         // ticks would pile up at the low end of every decade.
         if (is_log_scale(xscale))
         {

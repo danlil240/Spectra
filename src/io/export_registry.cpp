@@ -10,7 +10,8 @@ namespace spectra
 
 void ExportFormatRegistry::register_format(const std::string& name,
                                            const std::string& extension,
-                                           ExportCallback     callback)
+                                           ExportCallback     callback,
+                                           const void*        owner)
 {
     std::lock_guard lock(mutex_);
 
@@ -24,7 +25,12 @@ void ExportFormatRegistry::register_format(const std::string& name,
         }
     }
 
-    formats_.push_back({name, extension, std::move(callback)});
+    Entry entry;
+    entry.name      = name;
+    entry.extension = extension;
+    entry.callback  = std::move(callback);
+    entry.owner     = owner;
+    formats_.push_back(std::move(entry));
     SPECTRA_LOG_INFO("export_registry", "Registered export format '{}'  (.{})", name, extension);
 }
 
@@ -42,6 +48,36 @@ void ExportFormatRegistry::unregister_format(const std::string& name)
     }
 }
 
+size_t ExportFormatRegistry::unregister_owner(const void* owner)
+{
+    if (!owner)
+        return 0;
+    std::lock_guard lock(mutex_);
+    return std::erase_if(formats_, [owner](const Entry& e) { return e.owner == owner; });
+}
+
+void ExportFormatRegistry::set_owner_enabled(const void* owner, bool enabled)
+{
+    if (!owner)
+        return;
+    std::lock_guard lock(mutex_);
+    for (auto& entry : formats_)
+    {
+        if (entry.owner == owner)
+            entry.enabled = enabled;
+    }
+}
+
+size_t ExportFormatRegistry::count_owned(const void* owner) const
+{
+    if (!owner)
+        return 0;
+    std::lock_guard lock(mutex_);
+    return static_cast<size_t>(std::count_if(formats_.begin(),
+                                             formats_.end(),
+                                             [owner](const Entry& e) { return e.owner == owner; }));
+}
+
 std::vector<ExportFormatInfo> ExportFormatRegistry::available_formats() const
 {
     std::lock_guard               lock(mutex_);
@@ -49,7 +85,8 @@ std::vector<ExportFormatInfo> ExportFormatRegistry::available_formats() const
     result.reserve(formats_.size());
     for (const auto& entry : formats_)
     {
-        result.push_back({entry.name, entry.extension});
+        if (entry.enabled)
+            result.push_back({entry.name, entry.extension});
     }
     return result;
 }
@@ -66,7 +103,7 @@ bool ExportFormatRegistry::export_figure(const std::string& format_name,
         std::lock_guard lock(mutex_);
         for (const auto& entry : formats_)
         {
-            if (entry.name == format_name && !entry.faulted)
+            if (entry.name == format_name && !entry.faulted && entry.enabled)
             {
                 cb = entry.callback;
                 break;

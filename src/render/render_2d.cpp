@@ -633,6 +633,9 @@ void Renderer::render_series(Series&             series,
             if (series_type_registry_)
             {
                 auto entry = series_type_registry_->find_shared(gpu.custom_type_name);
+                // Series of a disabled plugin's type are not drawn.
+                if (entry && !entry->enabled.load(std::memory_order_relaxed))
+                    break;
                 // Types registered after Renderer::init() (i.e. by plugins) have
                 // no pipeline yet: create it lazily here on the render thread.
                 if (entry && !entry->pipeline && !entry->pipeline_failed)

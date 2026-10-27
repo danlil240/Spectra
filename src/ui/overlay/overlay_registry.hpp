@@ -50,13 +50,29 @@ class OverlayRegistry
     OverlayRegistry(const OverlayRegistry&)            = delete;
     OverlayRegistry& operator=(const OverlayRegistry&) = delete;
 
-    // Register an overlay with a unique name.
-    void register_overlay(const std::string& name, DrawCallback callback);
+    // Register an overlay with a unique name.  Re-registering a name replaces
+    // the callback and owner and re-enables it.  `owner` is an opaque token (the
+    // plugin module that registered it, nullptr for the host) used by
+    // unregister_owner() / set_owner_enabled().
+    void register_overlay(const std::string& name,
+                          DrawCallback       callback,
+                          const void*        owner = nullptr);
 
     // Remove a previously registered overlay.
     void unregister_overlay(const std::string& name);
 
-    // Invoke all registered overlay callbacks for the given context.
+    // Remove every overlay registered with `owner` (nullptr: none).
+    // Returns the number removed.
+    size_t unregister_owner(const void* owner);
+
+    // Enable/disable every overlay registered with `owner`.  Disabled overlays
+    // stay registered (and listed) but draw_all() skips them.
+    void set_owner_enabled(const void* owner, bool enabled);
+
+    // Number of overlays registered with `owner`.
+    size_t count_owned(const void* owner) const;
+
+    // Invoke all enabled overlay callbacks for the given context.
     // Must be called from the UI/render thread.
     void draw_all(const OverlayDrawContext& ctx) const;
 
@@ -72,6 +88,8 @@ class OverlayRegistry
         std::string  name;
         DrawCallback callback;
         bool         faulted = false;   // Set true on crash/exception to skip future invocations
+        const void*  owner   = nullptr;
+        bool         enabled = true;
     };
 
     mutable std::mutex         mutex_;

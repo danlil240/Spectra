@@ -41,18 +41,33 @@ class ExportFormatRegistry
     ExportFormatRegistry(const ExportFormatRegistry&)            = delete;
     ExportFormatRegistry& operator=(const ExportFormatRegistry&) = delete;
 
-    // Register an export format with a unique name.
+    // Register an export format with a unique name.  `owner` is an opaque token
+    // (the plugin module that registered it, nullptr for the host) used by
+    // unregister_owner() / set_owner_enabled().
     void register_format(const std::string& name,
                          const std::string& extension,
-                         ExportCallback     callback);
+                         ExportCallback     callback,
+                         const void*        owner = nullptr);
 
     // Remove a previously registered export format.
     void unregister_format(const std::string& name);
 
-    // List all registered format names.
+    // Remove every format registered with `owner` (nullptr: none).
+    // Returns the number removed.
+    size_t unregister_owner(const void* owner);
+
+    // Enable/disable every format registered with `owner`.  Disabled formats
+    // stay registered but are not listed by available_formats() and
+    // export_figure() refuses them.
+    void set_owner_enabled(const void* owner, bool enabled);
+
+    // Number of formats (enabled or not) registered with `owner`.
+    size_t count_owned(const void* owner) const;
+
+    // List all enabled format names.
     std::vector<ExportFormatInfo> available_formats() const;
 
-    // Export a figure using the named format.
+    // Export a figure using the named (enabled) format.
     // Returns true on success.
     bool export_figure(const std::string& format_name,
                        const std::string& figure_json,
@@ -71,6 +86,8 @@ class ExportFormatRegistry
         std::string    extension;
         ExportCallback callback;
         bool           faulted = false;   // Set true on crash/exception
+        const void*    owner   = nullptr;
+        bool           enabled = true;
     };
 
     mutable std::mutex         mutex_;

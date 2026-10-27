@@ -835,18 +835,20 @@ TransformRegistry& TransformRegistry::instance()
 
 void TransformRegistry::register_transform(const std::string&        name,
                                            DataTransform::CustomFunc func,
-                                           const std::string&        desc)
+                                           const std::string&        desc,
+                                           const void*               owner)
 {
     std::lock_guard lock(mutex_);
-    custom_transforms_[name] = {DataTransform(name, std::move(func)), desc};
+    custom_transforms_[name] = {DataTransform(name, std::move(func)), desc, owner};
 }
 
 void TransformRegistry::register_xy_transform(const std::string&          name,
                                               DataTransform::CustomXYFunc func,
-                                              const std::string&          desc)
+                                              const std::string&          desc,
+                                              const void*                 owner)
 {
     std::lock_guard lock(mutex_);
-    custom_transforms_[name] = {DataTransform(name, std::move(func)), desc};
+    custom_transforms_[name] = {DataTransform(name, std::move(func)), desc, owner};
 }
 
 bool TransformRegistry::unregister_transform(const std::string& name)
@@ -855,13 +857,49 @@ bool TransformRegistry::unregister_transform(const std::string& name)
     return custom_transforms_.erase(name) > 0;
 }
 
+size_t TransformRegistry::unregister_owner(const void* owner)
+{
+    if (!owner)
+        return 0;
+    std::lock_guard lock(mutex_);
+    return std::erase_if(custom_transforms_,
+                         [owner](const auto& kv) { return kv.second.owner == owner; });
+}
+
+void TransformRegistry::set_owner_enabled(const void* owner, bool enabled)
+{
+    if (!owner)
+        return;
+    std::lock_guard lock(mutex_);
+    for (auto& [name, entry] : custom_transforms_)
+    {
+        if (entry.owner == owner)
+            entry.enabled = enabled;
+    }
+}
+
+size_t TransformRegistry::count_owned(const void* owner) const
+{
+    if (!owner)
+        return 0;
+    std::lock_guard lock(mutex_);
+    size_t          n = 0;
+    for (const auto& [name, entry] : custom_transforms_)
+    {
+        if (entry.owner == owner)
+            ++n;
+    }
+    return n;
+}
+
 bool TransformRegistry::get_transform(const std::string& name, DataTransform& out) const
 {
     std::lock_guard lock(mutex_);
 
     // Check custom transforms first
     auto it = custom_transforms_.find(name);
-    if (it != custom_transforms_.end())
+    // (Transforms of a disabled plugin are skipped.)
+    if (it != custom_transforms_.end() && it->second.enabled)
     {
         out = it->second.transform;
         return true;
@@ -916,9 +954,10 @@ std::vector<std::string> TransformRegistry::available_transforms() const
     names.emplace_back("FFT");
 
     // Custom transforms
-    for (const auto& [k, _] : custom_transforms_)
+    for (const auto& [k, entry] : custom_transforms_)
     {
-        names.push_back(k);
+        if (entry.enabled)
+            names.push_back(k);
     }
 
     return names;

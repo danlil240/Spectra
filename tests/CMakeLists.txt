@@ -383,8 +383,9 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
             target_link_libraries(unit_${_test} PRIVATE Eigen3::Eigen)
         endif()
         # Hover round trip drives DataInteraction (and legend_bounds draws the
-        # interactive legend), which needs an ImGui context
-        if(_test MATCHES "^test_(double_precision_data|data_interaction|legend_bounds|overlay_text_fit)$" AND DEFINED imgui_SOURCE_DIR)
+        # interactive legend), which needs an ImGui context; test_theme checks the
+        # ImGui palette apply_to_imgui() writes during a theme transition.
+        if(_test MATCHES "^test_(double_precision_data|data_interaction|legend_bounds|overlay_text_fit|theme)$" AND DEFINED imgui_SOURCE_DIR)
             target_include_directories(unit_${_test} SYSTEM PRIVATE ${imgui_SOURCE_DIR})
         endif()
         # CSV writer shared with the export_csv example plugin (header-only)

@@ -13,6 +13,11 @@
 #include "ui/theme/svg_style.hpp"
 #include "ui/theme/theme.hpp"
 
+#if defined(SPECTRA_USE_IMGUI) && __has_include(<imgui.h>)
+    #define SPECTRA_TEST_THEME_IMGUI 1
+    #include <imgui.h>
+#endif
+
 using namespace spectra::ui;
 
 // ─── Color struct ────────────────────────────────────────────────────────────
@@ -510,6 +515,73 @@ TEST_F(ThemeManagerTest, TransitionInterpolatesColors)
         EXPECT_NE(mid_bg_r, end_bg_r);
     }
 }
+
+TEST_F(ThemeManagerTest, SetThemeCancelsActiveTransition)
+{
+    auto& tm = ThemeManager::instance();
+    tm.set_theme("light");
+    const ThemeColors light = tm.colors();
+    tm.set_theme("dark");
+    const ThemeColors dark = tm.colors();
+    ASSERT_NE(dark.bg_primary.r, light.bg_primary.r);
+
+    tm.transition_to("light", 1.0f);
+    tm.update(0.5f);
+    ASSERT_TRUE(tm.is_transitioning());
+    ASSERT_NE(tm.colors().bg_primary.r, dark.bg_primary.r);   // mid-transition blend
+
+    // A direct choice must win immediately: no interpolated colours left over.
+    tm.set_theme("dark");
+    EXPECT_FALSE(tm.is_transitioning());
+    EXPECT_EQ(tm.current_theme_name(), "dark");
+    EXPECT_FLOAT_EQ(tm.colors().bg_primary.r, dark.bg_primary.r);
+    EXPECT_FLOAT_EQ(tm.colors().text_primary.r, dark.text_primary.r);
+    EXPECT_FLOAT_EQ(tm.colors().accent.g, dark.accent.g);
+
+    // ...and the stale transition target must never take over later.
+    tm.update(0.6f);
+    tm.update(1.0f);
+    EXPECT_FALSE(tm.is_transitioning());
+    EXPECT_EQ(tm.current_theme_name(), "dark");
+    EXPECT_FLOAT_EQ(tm.colors().bg_primary.r, dark.bg_primary.r);
+}
+
+#ifdef SPECTRA_TEST_THEME_IMGUI
+TEST_F(ThemeManagerTest, ApplyToImguiFollowsTransitionColors)
+{
+    ImGuiContext* ctx = ImGui::CreateContext();
+    auto&         tm  = ThemeManager::instance();
+    tm.set_theme("light");
+    const ThemeColors light = tm.colors();
+    tm.set_theme("dark");
+    const ThemeColors dark = tm.colors();
+    ASSERT_NE(dark.text_primary.r, light.text_primary.r);
+
+    const bool do_lin   = tm.current().linearize_colors;
+    auto       expected = [do_lin](const Color& c) { return do_lin ? c.to_linear() : c; };
+
+    tm.transition_to("light", 1.0f);
+    tm.update(0.5f);   // update() calls apply_to_imgui()
+    ASSERT_TRUE(tm.is_transitioning());
+
+    const Color   mid_text   = expected(tm.colors().text_primary);
+    const Color   dark_text  = expected(dark.text_primary);
+    const ImVec4& imgui_text = ImGui::GetStyle().Colors[ImGuiCol_Text];
+    ASSERT_NE(mid_text.r, dark_text.r);
+    EXPECT_NEAR(imgui_text.x, mid_text.r, 1e-5f);
+    EXPECT_NEAR(imgui_text.y, mid_text.g, 1e-5f);
+    EXPECT_NEAR(imgui_text.z, mid_text.b, 1e-5f);
+
+    const Color   mid_check   = expected(tm.colors().accent);
+    const ImVec4& imgui_check = ImGui::GetStyle().Colors[ImGuiCol_CheckMark];
+    EXPECT_NEAR(imgui_check.x, mid_check.r, 1e-5f);
+    EXPECT_NEAR(imgui_check.y, mid_check.g, 1e-5f);
+    EXPECT_NEAR(imgui_check.z, mid_check.b, 1e-5f);
+
+    tm.update(10.0f);
+    ImGui::DestroyContext(ctx);
+}
+#endif
 
 TEST_F(ThemeManagerTest, TransitionToInvalidNameIsNoOp)
 {

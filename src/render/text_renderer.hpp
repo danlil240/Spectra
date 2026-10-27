@@ -93,6 +93,15 @@ class TextRenderer
                            TextAlign          align  = TextAlign::Center,
                            TextVAlign         valign = TextVAlign::Middle);
 
+    // Clip subsequently queued unrotated 2D text to a screen-space rectangle
+    // (glyph quads are cropped, so text can be partially visible).  Rotated
+    // text is not clipped.  Stays active until clear_clip_rect().
+    void set_clip_rect(float x0, float y0, float x1, float y1);
+    void clear_clip_rect() { clip_enabled_ = false; }
+
+    // Nearest baked preset for a requested pixel size (<= 0 maps to Label).
+    static FontSize nearest_font_size(float pixel_size);
+
     // Measure text dimensions without drawing
     struct TextExtent
     {
@@ -192,6 +201,13 @@ class TextRenderer
     BufferHandle text_ubo_;
 
     bool initialized_ = false;
+
+    // Optional clip rectangle for draw_text() (screen pixels).
+    bool  clip_enabled_ = false;
+    float clip_x0_      = 0.0f;
+    float clip_y0_      = 0.0f;
+    float clip_x1_      = 0.0f;
+    float clip_y1_      = 0.0f;
 
     // Helper: append quad vertices for a single glyph
     void append_glyph(std::vector<TextVertex>& target,

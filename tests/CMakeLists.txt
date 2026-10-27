@@ -127,6 +127,7 @@ set(SPECTRA_UNIT_TESTS
     test_series_visibility
     test_ui_icons
     test_svg_export
+    test_annotations
     test_resize_layout
     test_layout_manager
     test_inspector

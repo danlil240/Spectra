@@ -15,6 +15,7 @@
 #include <spectra/series.hpp>
 #include <spectra/series_shapes.hpp>
 
+#include "core/annotation_layout.hpp"
 #include "ui/imgui/axes3d_renderer.hpp"
 #include "ui/theme/theme.hpp"
 #include "ui/viewmodel/axes_view_model.hpp"
@@ -283,6 +284,40 @@ void Renderer::render_plot_text(Figure& figure)
 
                 text_renderer_.draw_text(ann.content, px, py, fs, text_rgba, ta_align, ta_valign);
             }
+        }
+
+        // ── Axes text annotations (Axes::text / Axes::annotate), clipped to the plot area ──
+        if (!axes.annotations().empty() && vp.w > 0.0f && vp.h > 0.0f)
+        {
+            const uint32_t default_rgba = color_to_rgba(colors.text_primary);
+            text_renderer_.set_clip_rect(vp.x, vp.y, vp.x + vp.w, vp.y + vp.h);
+            for (const auto& ann : axes.annotations())
+            {
+                if (!ann || !ann->visible() || ann->text().empty())
+                    continue;
+                float px = data_to_px_x(ann->x());
+                float py = data_to_px_y(ann->y());
+                if (!std::isfinite(px) || !std::isfinite(py))
+                    continue;
+
+                uint32_t rgba = default_rgba;
+                if (ann->color())
+                {
+                    const Color& c = *ann->color();
+                    rgba           = static_cast<uint32_t>(c.r * 255.0f)
+                           | (static_cast<uint32_t>(c.g * 255.0f) << 8)
+                           | (static_cast<uint32_t>(c.b * 255.0f) << 16)
+                           | (static_cast<uint32_t>(c.a * 255.0f) << 24);
+                }
+                text_renderer_.draw_text(ann->text(),
+                                         px,
+                                         py,
+                                         TextRenderer::nearest_font_size(ann->font_size()),
+                                         rgba,
+                                         static_cast<TextAlign>(ann->halign()),
+                                         static_cast<TextVAlign>(ann->valign()));
+            }
+            text_renderer_.clear_clip_rect();
         }
     }
 
@@ -1068,6 +1103,16 @@ void Renderer::render_plot_geometry(Figure& figure)
         }
     }
 
+    // ── Text-annotation arrows (screen-space triangles, scissored to the plot area) ──
+    {
+        for (auto& axes_ptr : figure.axes())
+        {
+            if (!axes_ptr)
+                continue;
+            render_annotation_arrows(*axes_ptr, slot, fw, fh);
+        }
+    }
+
     // Restore full-figure scissor for border + tick overlay
     backend_.set_scissor(0, 0, fig_w, fig_h);
 
@@ -1102,6 +1147,209 @@ void Renderer::render_plot_geometry(Figure& figure)
 
         backend_.bind_buffer(fig_gpu.overlay_line_buffer[slot], 0);
         backend_.draw(line_vert_count);
+    }
+}
+
+// Append a convex polygon (screen px, `n` xy pairs) as {x, y, alpha} triangles
+// for the stat_fill pipeline: an opaque fan plus a 1 px fringe fading to zero
+// alpha, which anti-aliases the edges without MSAA.
+static void append_aa_convex_polygon(std::vector<float>& out, const float* pts, int n)
+{
+    constexpr float fringe = 1.0f;
+    constexpr int   max_n  = 8;
+    if (n < 3 || n > max_n)
+        return;
+
+    float area2 = 0.0f;
+    for (int i = 0; i < n; ++i)
+    {
+        int j = (i + 1) % n;
+        area2 += pts[2 * i] * pts[2 * j + 1] - pts[2 * j] * pts[2 * i + 1];
+    }
+    if (std::fabs(area2) < 1e-6f)
+        return;
+    const float orient = area2 > 0.0f ? 1.0f : -1.0f;
+
+    // Outward edge normals, then mitred outer vertices.
+    float enx[max_n];
+    float eny[max_n];
+    for (int i = 0; i < n; ++i)
+    {
+        int   j   = (i + 1) % n;
+        float dx  = pts[2 * j] - pts[2 * i];
+        float dy  = pts[2 * j + 1] - pts[2 * i + 1];
+        float len = std::sqrt(dx * dx + dy * dy);
+        if (len < 1e-6f)
+            len = 1.0f;
+        enx[i] = orient * dy / len;
+        eny[i] = -orient * dx / len;
+    }
+    float ox[max_n];
+    float oy[max_n];
+    for (int i = 0; i < n; ++i)
+    {
+        int   p     = (i + n - 1) % n;
+        float mx    = enx[p] + enx[i];
+        float my    = eny[p] + eny[i];
+        float denom = std::max(0.25f, 1.0f + enx[p] * enx[i] + eny[p] * eny[i]);
+        ox[i]       = pts[2 * i] + mx / denom * fringe;
+        oy[i]       = pts[2 * i + 1] + my / denom * fringe;
+    }
+
+    auto push = [&out](float x, float y, float a)
+    {
+        out.push_back(x);
+        out.push_back(y);
+        out.push_back(a);
+    };
+    for (int i = 1; i + 1 < n; ++i)
+    {
+        push(pts[0], pts[1], 1.0f);
+        push(pts[2 * i], pts[2 * i + 1], 1.0f);
+        push(pts[2 * (i + 1)], pts[2 * (i + 1) + 1], 1.0f);
+    }
+    for (int i = 0; i < n; ++i)
+    {
+        int j = (i + 1) % n;
+        push(pts[2 * i], pts[2 * i + 1], 1.0f);
+        push(pts[2 * j], pts[2 * j + 1], 1.0f);
+        push(ox[j], oy[j], 0.0f);
+        push(pts[2 * i], pts[2 * i + 1], 1.0f);
+        push(ox[j], oy[j], 0.0f);
+        push(ox[i], oy[i], 0.0f);
+    }
+}
+
+void Renderer::render_annotation_arrows(Axes& axes, uint32_t slot, float fw, float fh)
+{
+    const auto& vp = axes.viewport();
+    if (axes.annotations().empty() || vp.x + vp.w <= 0.0f || vp.y + vp.h <= 0.0f || vp.x >= fw
+        || vp.y >= fh)
+        return;
+
+    AxisLimits xlim;
+    AxisLimits ylim;
+    if (figure_vm_)
+    {
+        auto& avm = figure_vm_->get_or_create_axes_vm(&axes);
+        xlim      = avm.visual_xlim();
+        ylim      = avm.visual_ylim();
+    }
+    else
+    {
+        xlim = axes.x_limits();
+        ylim = axes.y_limits();
+    }
+    double x_range = xlim.max - xlim.min;
+    double y_range = ylim.max - ylim.min;
+    if (x_range == 0.0)
+        x_range = 1.0;
+    if (y_range == 0.0)
+        y_range = 1.0;
+    auto data_to_px_x = [&](double dx) -> float
+    { return static_cast<float>(vp.x + (dx - xlim.min) / x_range * vp.w); };
+    auto data_to_px_y = [&](double dy) -> float
+    { return static_cast<float>(vp.y + (1.0 - (dy - ylim.min) / y_range) * vp.h); };
+
+    constexpr float shaft_half_w = 0.5f;   // 1 px core + 1 px anti-aliased fringe
+
+    annotation_tri_scratch_.clear();
+    annotation_draws_.clear();
+    const auto& colors = theme_mgr_.colors();
+    for (const auto& ann : axes.annotations())
+    {
+        if (!ann || !ann->visible() || !ann->has_arrow())
+            continue;
+
+        const float ax = data_to_px_x(ann->x());
+        const float ay = data_to_px_y(ann->y());
+        const float tx = data_to_px_x(ann->arrow_x());
+        const float ty = data_to_px_y(ann->arrow_y());
+        if (!std::isfinite(ax) || !std::isfinite(ay) || !std::isfinite(tx) || !std::isfinite(ty))
+            continue;
+
+        float w = 0.0f;
+        float h = 0.0f;
+        if (text_renderer_.is_initialized() && !ann->text().empty())
+        {
+            auto ext =
+                text_renderer_.measure_text(ann->text(),
+                                            TextRenderer::nearest_font_size(ann->font_size()));
+            w = ext.width;
+            h = ext.height;
+        }
+        const auto box = annotation_layout::text_box(ax, ay, w, h, ann->halign(), ann->valign());
+        annotation_layout::Arrow g;
+        if (!annotation_layout::arrow_geometry(box, tx, ty, g))
+            continue;
+
+        const auto  first   = static_cast<uint32_t>(annotation_tri_scratch_.size() / 3);
+        const float hw      = shaft_half_w;
+        const float shaft[] = {g.sx + g.nx * hw,
+                               g.sy + g.ny * hw,
+                               g.ex + g.nx * hw,
+                               g.ey + g.ny * hw,
+                               g.ex - g.nx * hw,
+                               g.ey - g.ny * hw,
+                               g.sx - g.nx * hw,
+                               g.sy - g.ny * hw};
+        const float head[]  = {g.tx, g.ty, g.lx, g.ly, g.rx, g.ry};
+        append_aa_convex_polygon(annotation_tri_scratch_, shaft, 4);
+        append_aa_convex_polygon(annotation_tri_scratch_, head, 3);
+
+        AnnotationArrowDraw d{};
+        d.first = first;
+        d.count = static_cast<uint32_t>(annotation_tri_scratch_.size() / 3) - first;
+        if (ann->color())
+        {
+            const Color& c = *ann->color();
+            d.color[0]     = c.r;
+            d.color[1]     = c.g;
+            d.color[2]     = c.b;
+            d.color[3]     = c.a;
+        }
+        else
+        {
+            set_pc_color_geom(d.color, colors.text_primary, theme_mgr_);
+        }
+        annotation_draws_.push_back(d);
+    }
+    if (annotation_draws_.empty())
+        return;
+
+    if (!stat_fill_pipeline_)
+        return;
+    const size_t bytes = annotation_tri_scratch_.size() * sizeof(float);
+    auto&        gpu   = axes_gpu_data_[&axes];
+    if (!gpu.annotation_buffer[slot] || gpu.annotation_capacity[slot] < bytes)
+    {
+        if (gpu.annotation_buffer[slot])
+            backend_.destroy_buffer(gpu.annotation_buffer[slot]);
+        gpu.annotation_buffer[slot]   = backend_.create_buffer(BufferUsage::Vertex, bytes * 2);
+        gpu.annotation_capacity[slot] = bytes * 2;
+    }
+    backend_.upload_buffer(gpu.annotation_buffer[slot], annotation_tri_scratch_.data(), bytes);
+
+    const float sc_x0 = std::max(0.0f, vp.x);
+    const float sc_y0 = std::max(0.0f, vp.y);
+    const float sc_x1 = std::min(fw, vp.x + vp.w);
+    const float sc_y1 = std::min(fh, vp.y + vp.h);
+    if (!(sc_x1 > sc_x0) || !(sc_y1 > sc_y0))
+        return;
+    backend_.set_scissor(static_cast<int32_t>(sc_x0),
+                         static_cast<int32_t>(sc_y0),
+                         static_cast<uint32_t>(sc_x1 - sc_x0),
+                         static_cast<uint32_t>(sc_y1 - sc_y0));
+
+    backend_.bind_pipeline(stat_fill_pipeline_);
+    backend_.bind_buffer(gpu.annotation_buffer[slot], 0);
+    for (const auto& d : annotation_draws_)
+    {
+        SeriesPushConstants pc{};
+        std::copy(std::begin(d.color), std::end(d.color), pc.color);
+        pc.line_width = 1.0f;
+        backend_.push_constants(pc);
+        backend_.draw(d.count, d.first);
     }
 }
 

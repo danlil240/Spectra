@@ -1,3 +1,4 @@
+#include <cmath>
 #include <format>
 #include <fstream>
 #include <spectra/axes.hpp>
@@ -6,6 +7,8 @@
 #include <spectra/series.hpp>
 #include <sstream>
 #include <vector>
+
+#include "core/annotation_layout.hpp"
 
 namespace spectra
 {
@@ -329,6 +332,68 @@ void emit_legend(std::ostringstream& svg, const Axes& axes, const DataToSvg& m)
     svg << "    </g>\n";
 }
 
+// Emit Axes::text / Axes::annotate annotations, clipped to the plot area.
+// Self-contained so it can be dropped into a reworked exporter unchanged.
+void emit_annotations(std::ostringstream& svg,
+                      const Axes&         axes,
+                      const DataToSvg&    m,
+                      const std::string&  clip_id)
+{
+    if (axes.annotations().empty())
+        return;
+
+    constexpr float              default_font = 12.0f;   // matches the SVG axis-label size
+    static constexpr const char* anchors[]    = {"start", "middle", "end"};
+
+    svg << "    <g class=\"annotations\" font-family=\"sans-serif\" clip-path=\"url(#" << clip_id
+        << ")\">\n";
+    for (const auto& ann : axes.annotations())
+    {
+        if (!ann || !ann->visible() || ann->text().empty())
+            continue;
+        const float ax = m.map_x(ann->x());
+        const float ay = m.map_y(ann->y());
+        if (!std::isfinite(ax) || !std::isfinite(ay))
+            continue;
+
+        const Color c  = ann->color().value_or(Color{0.0f, 0.0f, 0.0f, 1.0f});
+        const float fs = ann->font_size() > 0.0f ? ann->font_size() : default_font;
+
+        // Estimated text box (no font metrics here): ~0.55 em per character.
+        size_t chars = 0;
+        for (unsigned char ch : ann->text())
+            chars += (ch & 0xC0) != 0x80 ? 1 : 0;
+        const float w   = 0.55f * fs * static_cast<float>(chars);
+        const float h   = 1.2f * fs;
+        const auto  box = annotation_layout::text_box(ax, ay, w, h, ann->halign(), ann->valign());
+
+        if (ann->has_arrow())
+        {
+            annotation_layout::Arrow g;
+            const float              tx = m.map_x(ann->arrow_x());
+            const float              ty = m.map_y(ann->arrow_y());
+            if (std::isfinite(tx) && std::isfinite(ty)
+                && annotation_layout::arrow_geometry(box, tx, ty, g))
+            {
+                svg << "      <line x1=\"" << fmt(g.sx) << "\" y1=\"" << fmt(g.sy) << "\" x2=\""
+                    << fmt(g.ex) << "\" y2=\"" << fmt(g.ey) << "\" stroke=\"" << svg_color(c)
+                    << "\" stroke-opacity=\"" << fmt(c.a) << "\" stroke-width=\"1.3\"/>\n";
+                svg << "      <polygon points=\"" << fmt(g.tx) << "," << fmt(g.ty) << " "
+                    << fmt(g.lx) << "," << fmt(g.ly) << " " << fmt(g.rx) << "," << fmt(g.ry)
+                    << "\" fill=\"" << svg_color(c) << "\" fill-opacity=\"" << fmt(c.a) << "\"/>\n";
+            }
+        }
+
+        // Baseline sits ~0.25 em above the bottom of the 1.2 em line box.
+        const float baseline = box.y1 - 0.25f * fs;
+        svg << "      <text class=\"annotation\" x=\"" << fmt(ax) << "\" y=\"" << fmt(baseline)
+            << "\" font-size=\"" << fmt(fs) << "\" text-anchor=\""
+            << anchors[static_cast<int>(ann->halign())] << "\" fill=\"" << svg_color(c)
+            << "\" fill-opacity=\"" << fmt(c.a) << "\">" << xml_escape(ann->text()) << "</text>\n";
+    }
+    svg << "    </g>\n";
+}
+
 // Emit a single Axes (subplot)
 void emit_axes(std::ostringstream& svg, const Axes& axes, const Rect& viewport)
 {
@@ -381,6 +446,9 @@ void emit_axes(std::ostringstream& svg, const Axes& axes, const Rect& viewport)
     }
 
     svg << "    </g>\n";
+
+    // Text annotations (above the series, clipped to the plot area)
+    emit_annotations(svg, axes, m, "clip-" + fmt(viewport.x) + "-" + fmt(viewport.y));
 
     // Tick labels
     emit_tick_labels(svg, axes, m);

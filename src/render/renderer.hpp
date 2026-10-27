@@ -118,6 +118,8 @@ class Renderer
     // Uses Vulkan grid pipeline with a screen-space ortho projection.
     // 3D arrows are rendered inside render_axes() with depth testing.
     void render_plot_geometry(Figure& figure);
+    // Text-annotation arrows of one 2D axes (screen-space, called by render_plot_geometry).
+    void render_annotation_arrows(Axes& axes, uint32_t slot, float fw, float fh);
 
     // Render queued text (call after render_figure_content, before end_render_pass)
     void render_text(float screen_width, float screen_height);
@@ -242,6 +244,9 @@ class Renderer
         size_t       minor_grid_capacity[FRAME_BUFFER_SLOTS] = {};
         BufferHandle border_buffer;
         size_t       border_capacity = 0;
+        // 2D text-annotation arrows (screen-space triangles, per-slot)
+        BufferHandle annotation_buffer[FRAME_BUFFER_SLOTS];
+        size_t       annotation_capacity[FRAME_BUFFER_SLOTS] = {};
         // 3D bounding box edges (12 lines = 24 vec3 vertices).
         // Per-slot (like grid_buffer) so an in-flight frame never reads a
         // buffer that the next frame is overwriting.
@@ -384,6 +389,15 @@ class Renderer
 
     // Reusable scratch buffer for screen-space overlay vertex generation.
     std::vector<float> overlay_line_scratch_;
+    std::vector<float> annotation_tri_scratch_;
+    // Per-annotation {first_vertex, vertex_count, rgba} for the arrow draws of one axes.
+    struct AnnotationArrowDraw
+    {
+        uint32_t first;
+        uint32_t count;
+        float    color[4];
+    };
+    std::vector<AnnotationArrowDraw> annotation_draws_;
 
     // Legend GPU buffers
     BufferHandle       legend_line_buffer_;

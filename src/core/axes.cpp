@@ -195,6 +195,21 @@ ShapeSeries& Axes::shapes()
     return add_series<ShapeSeries>();
 }
 
+// --- Text annotations ---
+
+TextAnnotation& Axes::text(float x, float y, std::string_view text)
+{
+    annotations_.push_back(std::make_unique<TextAnnotation>(x, y, text));
+    return *annotations_.back();
+}
+
+TextAnnotation& Axes::annotate(std::string_view text, float x, float y, float text_x, float text_y)
+{
+    auto& a = this->text(text_x, text_y, text);
+    a.halign(TextAnnotation::HAlign::Center).valign(TextAnnotation::VAlign::Middle).arrow_to(x, y);
+    return a;
+}
+
 // --- Axis configuration ---
 
 void Axes::xlim(double min, double max)

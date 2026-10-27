@@ -12,6 +12,7 @@
     #include <spectra/series.hpp>
     #include <spectra/series3d.hpp>
 
+    #include "core/axis_scale.hpp"
     #include "data/sorted_x_query.hpp"
     #include "axes3d_pick.hpp"
     #include "ui/data/axis_link.hpp"
@@ -1086,10 +1087,16 @@ NearestPointResult DataInteraction::find_nearest(const CursorReadout& cursor, Fi
         if (cx < vp.x || cx > vp.x + vp.w || cy < vp.y || cy > vp.y + vp.h)
             continue;
 
-        auto   xlim    = axes_ptr->x_limits();
-        auto   ylim    = axes_ptr->y_limits();
-        double x_range = xlim.max - xlim.min;
-        double y_range = ylim.max - ylim.min;
+        // Project in axis space (log10/log2 for log axes) exactly like the
+        // renderer, so the picked point is the one drawn under the cursor.
+        const ScaleType  xscale  = axes_ptr->xscale();
+        const ScaleType  yscale  = axes_ptr->yscale();
+        const bool       x_log   = is_log_scale(xscale);
+        const bool       y_log   = is_log_scale(yscale);
+        const AxisLimits xlim    = axis_space_limits(xscale, axes_ptr->x_limits());
+        const AxisLimits ylim    = axis_space_limits(yscale, axes_ptr->y_limits());
+        double           x_range = xlim.max - xlim.min;
+        double           y_range = ylim.max - ylim.min;
         if (x_range == 0.0)
             x_range = 1.0;
         if (y_range == 0.0)
@@ -1139,13 +1146,19 @@ NearestPointResult DataInteraction::find_nearest(const CursorReadout& cursor, Fi
             // full scan and therefore identical behavior.
             if (x_sorted && count > 64 && vp.w > 0.0f)
             {
-                const double cursor_abs_x =
+                // Snap window in axis space, mapped back to data space (the
+                // inverse mapping is not symmetric about the cursor on a log
+                // axis, so query the centre/half-width of [lo, hi]).
+                const double cursor_ax_x =
                     xlim.min + (static_cast<double>(cx - vp.x) / vp.w) * x_range;
-                const double local_cursor_x = cursor_abs_x - xoff;
-                const double local_radius =
+                const double radius_ax =
                     std::abs(x_range) * static_cast<double>(tooltip_.snap_radius()) / vp.w;
-                const auto query = sorted_x_query_range(std::span<const float>(x_data, count),
-                                                        local_cursor_x,
+                const double lo           = from_axis_space(xscale, cursor_ax_x - radius_ax);
+                const double hi           = from_axis_space(xscale, cursor_ax_x + radius_ax);
+                const double local_center = (lo + hi) * 0.5 - xoff;
+                const double local_radius = (hi - lo) * 0.5;
+                const auto   query = sorted_x_query_range(std::span<const float>(x_data, count),
+                                                        local_center,
                                                         local_radius);
                 query_begin      = query.begin;
                 query_end        = query.end;
@@ -1157,12 +1170,16 @@ NearestPointResult DataInteraction::find_nearest(const CursorReadout& cursor, Fi
                 // Convert data point to screen coordinates.  Compute the
                 // normalization in double: (x + xoff - xlim.min) stays
                 // small and precise even for epoch-scale offsets.
-                const double abs_x  = static_cast<double>(x_data[i]) + xoff;
-                const double abs_y  = static_cast<double>(y_data[i]) + yoff;
-                auto         norm_x = static_cast<float>((abs_x - xlim.min) / x_range);
-                auto         norm_y = static_cast<float>((abs_y - ylim.min) / y_range);
-                float        sx     = vp.x + norm_x * vp.w;
-                float        sy     = vp.y + (1.0f - norm_y) * vp.h;
+                const double abs_x = static_cast<double>(x_data[i]) + xoff;
+                const double abs_y = static_cast<double>(y_data[i]) + yoff;
+                if ((x_log && !(abs_x > 0.0)) || (y_log && !(abs_y > 0.0)))
+                    continue;   // not drawn on a log axis
+                const auto norm_x =
+                    static_cast<float>((to_axis_space(xscale, abs_x) - xlim.min) / x_range);
+                const auto norm_y =
+                    static_cast<float>((to_axis_space(yscale, abs_y) - ylim.min) / y_range);
+                float sx = vp.x + norm_x * vp.w;
+                float sy = vp.y + (1.0f - norm_y) * vp.h;
 
                 float dx    = cx - sx;
                 float dy    = cy - sy;

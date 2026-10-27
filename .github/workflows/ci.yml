@@ -153,6 +153,7 @@ jobs:
             -DSPECTRA_BUILD_TESTS=ON \
             -DSPECTRA_BUILD_EXAMPLES=${{ matrix.examples }} \
             -DSPECTRA_BUILD_GOLDEN_TESTS=${{ matrix.golden }} \
+            -DSPECTRA_BUILD_QA_AGENT=ON \
             "${extra[@]}"
 
       - name: Build

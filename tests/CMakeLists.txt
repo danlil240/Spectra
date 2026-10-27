@@ -205,6 +205,7 @@ set(SPECTRA_UNIT_TESTS
     test_session_graph
     test_process_manager
     test_animation_tick_gate
+    test_fps_badge
     test_easy_api
     test_plot_annotations
     test_knob_manager

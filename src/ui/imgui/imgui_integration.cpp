@@ -443,6 +443,10 @@ bool ImGuiIntegration::has_active_chrome_animations() const
     if (const ImGuiContext* g = ImGui::GetCurrentContext();
         g && g->DimBgRatio > 0.0f && g->DimBgRatio < 1.0f)
         return true;
+    // The FPS badge still reads live after rendering stopped: draw one more
+    // frame so it can settle to "Idle".
+    if (fps_badge_.needs_settle_frame(ui::FpsBadgeState::Clock::now()))
+        return true;
     return false;
 }
 

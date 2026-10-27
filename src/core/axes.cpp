@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <format>
 #include <limits>
+#include <optional>
 #include <vector>
 #include <spectra/axes.hpp>
 #include <spectra/chunked_series.hpp>
@@ -13,13 +14,23 @@
 #include "colorbar_layout.hpp"
 #include "core/axis_scale.hpp"
 #include "core/axis_ticks.hpp"
+#include "core/datetime_ticks.hpp"
+#include "io/text_metrics.hpp"
 
 namespace spectra
 {
 
-void AxesBase::set_viewport(const Rect& r)
+void AxesBase::set_viewport(const Rect& r, float outside_legend_width)
 {
-    viewport_ = colorbar_layout::wants_colorbar(*this) ? colorbar_layout::shrink_cell(r) : r;
+    Rect cell            = r;
+    outside_legend_area_ = Rect{0.0f, 0.0f, 0.0f, 0.0f};
+    if (outside_legend_width > 0.0f && cell.w > 0.0f)
+    {
+        const float w        = std::min(outside_legend_width, cell.w * 0.5f);
+        outside_legend_area_ = Rect{cell.x + cell.w - w, cell.y, w, cell.h};
+        cell.w -= w;
+    }
+    viewport_ = colorbar_layout::wants_colorbar(*this) ? colorbar_layout::shrink_cell(cell) : cell;
 }
 
 // --- Safe series removal ---
@@ -194,6 +205,17 @@ HistogramSeries& Axes::histogram(std::span<const float> values, int bins)
 BarSeries& Axes::bar(std::span<const float> positions, std::span<const float> heights)
 {
     return add_series<BarSeries>(positions, heights);
+}
+
+BarSeries& Axes::bar(const std::vector<std::string>& categories, std::span<const float> heights)
+{
+    const size_t       n = std::min(categories.size(), heights.size());
+    std::vector<float> positions(n);
+    for (size_t i = 0; i < n; ++i)
+        positions[i] = static_cast<float>(i);
+    auto& s = add_series<BarSeries>(std::span<const float>(positions), heights.first(n));
+    s.categories(std::vector<std::string>(categories.begin(), categories.begin() + n));
+    return s;
 }
 
 BandSeries& Axes::band(std::span<const float> x,
@@ -1211,6 +1233,83 @@ static std::vector<double> category_positions(const std::vector<std::unique_ptr<
     return out;
 }
 
+// One tick per named bar category (BarSeries::categories()) along one axis,
+// labelled with the category name.  nullopt when no visible bar series on that
+// axis has names.  Names that would collide are thinned to every k-th one.
+static std::optional<TickResult> named_category_ticks(
+    const std::vector<std::unique_ptr<Series>>& series,
+    bool                                        along_x,
+    AxisLimits                                  lim,
+    double                                      axis_px)
+{
+    std::vector<std::pair<double, std::string>> cats;
+    for (const auto& s : series)
+    {
+        const auto* bar = dynamic_cast<const BarSeries*>(s.get());
+        if (!bar || !bar->visible() || bar->categories().empty()
+            || (bar->orientation() == BarOrientation::Vertical) != along_x)
+            continue;
+        const auto& pos   = bar->bar_positions();
+        const auto& names = bar->categories();
+        for (size_t i = 0; i < pos.size() && i < names.size(); ++i)
+            cats.emplace_back(
+                static_cast<double>(pos[i]) + (along_x ? bar->x_offset() : bar->y_offset()),
+                names[i]);
+    }
+    if (cats.empty())
+        return std::nullopt;
+    std::stable_sort(cats.begin(),
+                     cats.end(),
+                     [](const auto& a, const auto& b) { return a.first < b.first; });
+    cats.erase(std::unique(cats.begin(),
+                           cats.end(),
+                           [](const auto& a, const auto& b) { return a.first == b.first; }),
+               cats.end());
+
+    double lo = lim.min;
+    double hi = lim.max;
+    if (hi < lo)
+        std::swap(lo, hi);
+    const double tol = (hi - lo) * 1e-9;
+    TickResult   all;
+    for (const auto& [p, name] : cats)
+    {
+        if (p >= lo - tol && p <= hi + tol)
+        {
+            all.positions.push_back(p);
+            all.labels.push_back(name);
+        }
+    }
+    if (all.positions.size() < 2 || !(hi > lo))
+        return all;
+
+    // Thin out names that would overlap: x labels sit side by side, y labels
+    // are stacked one text row apart.
+    double gap = std::numeric_limits<double>::max();
+    for (size_t i = 1; i < all.positions.size(); ++i)
+        gap = std::min(gap, all.positions[i] - all.positions[i - 1]);
+    const double px     = axis_px > 1.0 ? axis_px : DEFAULT_TICK_AXIS_PX;
+    const double gap_px = gap * px / (hi - lo);
+    double       need   = CATEGORY_ROW_PX;
+    if (along_x)
+    {
+        float w = 0.0f;
+        for (const auto& l : all.labels)
+            w = std::max(w, inter_text_width(l, TICK_LABEL_FONT_PX));
+        need = static_cast<double>(w) + TICK_LABEL_GAP_PX;
+    }
+    if (gap_px >= need || !(gap_px > 0.0))
+        return all;
+    const auto stride = static_cast<size_t>(std::ceil(need / gap_px));
+    TickResult thinned;
+    for (size_t i = 0; i < all.positions.size(); i += stride)
+    {
+        thinned.positions.push_back(all.positions[i]);
+        thinned.labels.push_back(all.labels[i]);
+    }
+    return thinned;
+}
+
 static LinearTickOptions tick_options(const std::vector<std::unique_ptr<Series>>& series,
                                       bool                                        along_x,
                                       double                                      axis_px)
@@ -1227,12 +1326,19 @@ TickResult Axes::compute_x_ticks() const
 {
     auto       lim = x_limits();
     const auto opt = tick_options(series_, true, viewport_.w);
+    if (xscale_ == ScaleType::Linear)
+    {
+        if (auto named = named_category_ticks(series_, true, lim, viewport_.w))
+            return std::move(*named);
+    }
     if (is_log_scale(xscale_))
     {
         return generate_log_ticks(lim.min, lim.max, log_scale_base(xscale_), opt);
     }
     if (xscale_ == ScaleType::Sqrt)
         return generate_sqrt_ticks(lim.min, lim.max, opt);
+    if (x_datetime_)
+        return generate_datetime_ticks(lim.min, lim.max, opt);
     return generate_linear_ticks(lim.min, lim.max, opt);
 }
 
@@ -1240,12 +1346,19 @@ TickResult Axes::compute_y_ticks() const
 {
     auto       lim = y_limits();
     const auto opt = tick_options(series_, false, viewport_.h);
+    if (yscale_ == ScaleType::Linear)
+    {
+        if (auto named = named_category_ticks(series_, false, lim, viewport_.h))
+            return std::move(*named);
+    }
     if (is_log_scale(yscale_))
     {
         return generate_log_ticks(lim.min, lim.max, log_scale_base(yscale_), opt);
     }
     if (yscale_ == ScaleType::Sqrt)
         return generate_sqrt_ticks(lim.min, lim.max, opt);
+    if (y_datetime_)
+        return generate_datetime_ticks(lim.min, lim.max, opt);
     return generate_linear_ticks(lim.min, lim.max, opt);
 }
 

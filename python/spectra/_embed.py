@@ -769,6 +769,9 @@ _LEGEND_POSITIONS = {
     "bottom_left": 3,
     "lower left": 3,
     "none": 4,
+    "best": 5,
+    "outside_right": 6,
+    "outside right": 6,
 }
 
 # Axis scale types (spectra::ScaleType)

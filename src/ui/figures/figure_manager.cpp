@@ -449,6 +449,7 @@ FigureId FigureManager::duplicate_figure(FigureId index)
                 dup.baseline(bs->baseline());
                 dup.orientation(bs->orientation());
                 dup.gradient(bs->gradient());
+                dup.categories(bs->categories());
                 if (!bs->label().empty())
                     dup.label(bs->label());
                 dup.visible(bs->visible());

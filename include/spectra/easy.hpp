@@ -536,6 +536,18 @@ inline BarSeries& bar(std::initializer_list<float> positions, std::initializer_l
                std::span<const float>(heights.begin(), heights.size()));
 }
 
+/// Bar chart of named categories: bar i at x = i, one x tick per category name.
+inline BarSeries& bar(const std::vector<std::string>& categories, std::span<const float> heights)
+{
+    return detail::easy_state().ensure_axes().bar(categories, heights);
+}
+
+inline BarSeries& bar(const std::vector<std::string>& categories,
+                      std::initializer_list<float>    heights)
+{
+    return bar(categories, std::span<const float>(heights.begin(), heights.size()));
+}
+
 /// Filled uncertainty/confidence envelope between lower and upper samples.
 inline BandSeries& band(std::span<const float> x,
                         std::span<const float> lower,

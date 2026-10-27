@@ -21,6 +21,8 @@
 #include <spectra/series_stats.hpp>
 #include <vector>
 
+#include "io/text_metrics.hpp"
+
 namespace spectra::legend_layout
 {
 
@@ -29,6 +31,16 @@ inline constexpr float MARGIN      = 12.0f;   // legend box inset from the axes 
 inline constexpr float COL_GAP     = 14.0f;   // gap between legend columns
 inline constexpr float CLAMP_INSET = 4.0f;    // minimum inset after drag offsets / clamping
 inline constexpr float CLEARANCE   = 8.0f;    // "Best" also avoids data this close to the box
+// LegendPosition::OutsideRight: gap between the plot area (or its colorbar)
+// and the legend box, and the largest share of a layout cell it may take.
+inline constexpr float OUTSIDE_GAP          = 12.0f;
+inline constexpr float OUTSIDE_MAX_FRACTION = 0.4f;
+// Widest swatch column (+ visibility eye) of the three legend drawers, and the
+// label size assumed when LegendConfig::font_size is automatic (Label tier).
+inline constexpr float OUTSIDE_SWATCH_W     = 36.0f;
+inline constexpr float OUTSIDE_AUTO_FONT_PX = 14.0f;
+// "Best": one overlap point per this many pixels of line running under the legend.
+inline constexpr float SEGMENT_PX_PER_POINT = 4.0f;
 
 struct GridLayout
 {
@@ -208,6 +220,10 @@ inline Rect corner_rect(LegendPosition pos, const Rect& vp, float w, float h, fl
             r.x = vp.x + vp.w - w - margin;
             r.y = vp.y + vp.h - h - margin;
             break;
+        case LegendPosition::OutsideRight:   // vp is the outside strip (legend_area)
+            r.x = vp.x;
+            r.y = vp.y;
+            break;
         case LegendPosition::TopRight:
         default:
             r.x = vp.x + vp.w - w - margin;
@@ -244,19 +260,25 @@ struct ScoredGeometry
     std::span<const float> extra_xs;   // e.g. box-plot outliers
     std::span<const float> extra_ys;
     std::span<const float> fill_verts;
+    bool                   connected = false;   // xs/ys form a polyline (NaN = break)
+    float                  radius    = 0.0f;    // marker radius in pixels (points)
 };
 
 inline bool scored_geometry(const Series& s, ScoredGeometry& g)
 {
     if (auto* ls = dynamic_cast<const LineSeries*>(&s))
     {
-        g.xs = ls->x_data();
-        g.ys = ls->y_data();
+        g.xs        = ls->x_data();
+        g.ys        = ls->y_data();
+        g.connected = ls->plot_style().has_line();
+        if (ls->plot_style().has_marker())
+            g.radius = 0.5f * ls->marker_size();
     }
     else if (auto* ss = dynamic_cast<const ScatterSeries*>(&s))
     {
-        g.xs = ss->x_data();
-        g.ys = ss->y_data();
+        g.xs     = ss->x_data();
+        g.ys     = ss->y_data();
+        g.radius = 0.5f * std::max(ss->size(), ss->marker_size());
     }
     else if (auto* bs = dynamic_cast<const BarSeries*>(&s))
     {
@@ -298,14 +320,43 @@ inline bool scored_geometry(const Series& s, ScoredGeometry& g)
     }
     else if (auto* st = dynamic_cast<const StemSeries*>(&s))
     {
-        g.xs = st->x_data();
-        g.ys = st->y_data();
+        g.xs        = st->x_data();
+        g.ys        = st->y_data();
+        g.connected = true;
     }
     else
     {
         return false;
     }
     return true;
+}
+
+// Length of segment (x0, y0)-(x1, y1) inside rectangle r (Liang-Barsky clip).
+inline float segment_rect_length(float x0, float y0, float x1, float y1, const Rect& r)
+{
+    const float dx   = x1 - x0;
+    const float dy   = y1 - y0;
+    float       t0   = 0.0f;
+    float       t1   = 1.0f;
+    const float p[4] = {-dx, dx, -dy, dy};
+    const float q[4] = {x0 - r.x, r.x + r.w - x0, y0 - r.y, r.y + r.h - y0};
+    for (int i = 0; i < 4; ++i)
+    {
+        if (p[i] == 0.0f)
+        {
+            if (q[i] < 0.0f)
+                return 0.0f;   // parallel and outside
+            continue;
+        }
+        const float t = q[i] / p[i];
+        if (p[i] < 0.0f)
+            t0 = std::max(t0, t);
+        else
+            t1 = std::min(t1, t);
+        if (t0 > t1)
+            return 0.0f;
+    }
+    return (t1 - t0) * std::sqrt(dx * dx + dy * dy);
 }
 
 // Area of the intersection of triangle (a, b, c) with rectangle r, by
@@ -363,8 +414,11 @@ inline float triangle_rect_overlap(const std::array<float, 6>& tri, const Rect& 
 
 // Overlap of a legend of size w x h placed at the given corner with the
 // visible 2D series: one per (sampled) data / outline point inside the
-// legend (grown by CLEARANCE), plus FILL_OVERLAP_WEIGHT times the fraction of the legend covered
-// by filled areas (bars, histograms, boxes, violins, bands, shapes).
+// legend (grown by CLEARANCE, and by the marker radius for markers), one per
+// SEGMENT_PX_PER_POINT pixels of line segment crossing it (so a sparse line
+// that cuts through the box between two samples still counts), plus
+// FILL_OVERLAP_WEIGHT times the fraction of the legend covered by filled
+// areas (bars, histograms, boxes, violins, bands, shapes).
 inline size_t overlap_score(const Axes&    axes,
                             const Rect&    vp,
                             LegendPosition pos,
@@ -406,8 +460,12 @@ inline size_t overlap_score(const Axes&    axes,
         py = vp.y + static_cast<float>(1.0 - (sy - y0) / dy) * vp.h;
         return true;
     };
-    auto in_rect = [&](float px, float py)
-    { return px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h; };
+    float radius  = 0.0f;   // marker radius of the series being scored
+    auto  in_rect = [&](float px, float py)
+    {
+        return px >= r.x - radius && px <= r.x + r.w + radius && py >= r.y - radius
+               && py <= r.y + r.h + radius;
+    };
     auto count_points = [&](std::span<const float> xs, std::span<const float> ys)
     {
         size_t       c      = 0;
@@ -421,18 +479,47 @@ inline size_t overlap_score(const Axes&    axes,
         }
         return c;
     };
+    // Pixels of polyline inside the box (between consecutive sampled points).
+    auto segment_length = [&](std::span<const float> xs, std::span<const float> ys)
+    {
+        float        len    = 0.0f;
+        const size_t n      = std::min(xs.size(), ys.size());
+        const size_t stride = std::max<size_t>(1, n / std::max<size_t>(1, max_samples_per_series));
+        bool         have   = false;
+        float        lx = 0.0f, ly = 0.0f;
+        for (size_t i = 0; i < n; i += stride)
+        {
+            float px = 0.0f, py = 0.0f;
+            if (!std::isfinite(xs[i]) || !std::isfinite(ys[i]) || !to_pixel(xs[i], ys[i], px, py))
+            {
+                have = false;   // NaN gap or unplottable point breaks the line
+                continue;
+            }
+            if (have)
+                len += detail::segment_rect_length(lx, ly, px, py, r);
+            lx   = px;
+            ly   = py;
+            have = true;
+        }
+        return len;
+    };
 
     size_t count        = 0;
     float  covered_area = 0.0f;   // legend pixels covered by filled areas
+    float  line_px      = 0.0f;   // pixels of line segments under the legend
     for (const auto& sp : axes.series())
     {
         detail::ScoredGeometry g;
         if (!sp || !sp->visible() || !detail::scored_geometry(*sp, g))
             continue;
-        xoff = sp->x_offset();
-        yoff = sp->y_offset();
+        xoff   = sp->x_offset();
+        yoff   = sp->y_offset();
+        radius = g.radius;
         count += count_points(g.xs, g.ys);
+        radius = 0.0f;
         count += count_points(g.extra_xs, g.extra_ys);
+        if (g.connected)
+            line_px += segment_length(g.xs, g.ys);
 
         const size_t tris = g.fill_verts.size() / 9;   // 3 vertices of {x, y, alpha}
         for (size_t t = 0; t < tris; ++t)
@@ -457,7 +544,8 @@ inline size_t overlap_score(const Axes&    axes,
         }
     }
     const float coverage = std::min(1.0f, covered_area / (r.w * r.h));
-    return count + static_cast<size_t>(std::lround(coverage * FILL_OVERLAP_WEIGHT));
+    return count + static_cast<size_t>(std::lround(coverage * FILL_OVERLAP_WEIGHT))
+           + static_cast<size_t>(std::lround(line_px / SEGMENT_PX_PER_POINT));
 }
 
 // Pick the corner whose legend rectangle covers the fewest data points.
@@ -512,6 +600,35 @@ inline LegendPosition resolve_position(const AxesBase& axes,
     return LegendPosition::TopRight;
 }
 
+// Region a legend lays itself out in: the plot area for the inside
+// positions, the strip the figure layout reserved right of the axes
+// (AxesBase::outside_legend_area(), minus OUTSIDE_GAP) for OutsideRight.
+// Callers size the legend grid to this region and pass it to fits()/place().
+inline Rect legend_area(const AxesBase& axes, LegendPosition pos)
+{
+    if (pos != LegendPosition::OutsideRight)
+        return axes.viewport();
+    Rect a = axes.outside_legend_area();
+    a.x += OUTSIDE_GAP;
+    a.w = std::max(0.0f, a.w - OUTSIDE_GAP);
+    // Top-aligned with the plot area (the strip spans the layout cell).
+    a.y = axes.viewport().y;
+    a.h = axes.viewport().h;
+    return a;
+}
+
+// Largest legend box (width, height) the grid layout may use inside
+// legend_area(): the area minus the corner MARGIN on both sides for inside
+// positions, the whole strip for OutsideRight.
+inline float max_box_w(const Rect& area, LegendPosition pos)
+{
+    return pos == LegendPosition::OutsideRight ? area.w : area.w - 2.0f * MARGIN;
+}
+inline float max_box_h(const Rect& area, LegendPosition pos)
+{
+    return pos == LegendPosition::OutsideRight ? area.h : area.h - 2.0f * MARGIN;
+}
+
 // Series that get a legend entry, in axes order: labeled and not hidden from
 // the legend.  Works for 2D and 3D axes alike, so the window (ImGui) and the
 // GPU / PNG export legends list the same entries.  Hidden series stay listed
@@ -549,11 +666,33 @@ inline float column_width(const GridLayout& g, float pad_x, float col_gap)
     return std::max(0.0f, inner / static_cast<float>(g.cols));
 }
 
+// Width the figure layout reserves on the right of a layout cell of width
+// @p cell_w for an OutsideRight legend of @p axes: the gap plus a one-column
+// legend box sized from the labels (Inter metrics, so window, PNG and SVG
+// share one layout), capped at OUTSIDE_MAX_FRACTION of the cell.  0 when the
+// legend is hidden, not OutsideRight, or the axes has no legend entries.
+inline float outside_reserved_width(const AxesBase& axes, const LegendConfig& cfg, float cell_w)
+{
+    if (!cfg.visible || cfg.position != LegendPosition::OutsideRight || !(cell_w > 0.0f))
+        return 0.0f;
+    const auto entries = legend_entries(axes);
+    if (entries.empty())
+        return 0.0f;
+    const float font_px = cfg.font_size > 0.0f ? cfg.font_size : OUTSIDE_AUTO_FONT_PX;
+    float       label_w = 0.0f;
+    for (const Series* s : entries)
+        label_w = std::max(label_w, inter_text_width(s->label(), font_px));
+    const float box_w = 2.0f * (cfg.padding + 2.0f) + OUTSIDE_SWATCH_W + label_w + 2.0f;
+    return std::min(OUTSIDE_GAP + box_w + CLAMP_INSET, cell_w * OUTSIDE_MAX_FRACTION);
+}
+
 // True if a w x h legend fits inside the viewport with the CLAMP_INSET
 // border.  Legends that do not (e.g. tiny subplot cells where not even one
 // row fits) are skipped rather than drawn over neighbouring plots.
-inline bool fits(const Rect& vp, float w, float h)
+inline bool fits(const Rect& vp, float w, float h, LegendPosition pos = LegendPosition::TopRight)
 {
+    if (pos == LegendPosition::OutsideRight)   // vp is the outside strip: no inset
+        return w > 0.0f && w <= vp.w + 0.5f && h <= vp.h;
     return w <= vp.w - 2.0f * CLAMP_INSET && h <= vp.h - 2.0f * CLAMP_INSET;
 }
 
@@ -568,6 +707,16 @@ inline Rect place(const Rect&    vp,
                   float          dx = 0.0f,
                   float          dy = 0.0f)
 {
+    if (corner == LegendPosition::OutsideRight)
+    {
+        // vp is the outside strip (legend_area): fill it from its top-left.
+        w      = std::min(w, std::max(0.0f, vp.w));
+        h      = std::min(h, std::max(0.0f, vp.h));
+        Rect r = detail::corner_rect(corner, vp, w, h, 0.0f);
+        r.x    = std::max(vp.x, std::min(r.x + dx, vp.x + vp.w - w));
+        r.y    = std::max(vp.y, std::min(r.y + dy, vp.y + vp.h - h));
+        return r;
+    }
     w      = std::min(w, std::max(0.0f, vp.w - 2.0f * CLAMP_INSET));
     h      = std::min(h, std::max(0.0f, vp.h - 2.0f * CLAMP_INSET));
     Rect r = detail::corner_rect(corner, vp, w, h, MARGIN);

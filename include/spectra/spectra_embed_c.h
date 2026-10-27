@@ -90,11 +90,13 @@ extern "C"
     /* Legend position (spectra::LegendPosition) */
     enum
     {
-        SPECTRA_LEGEND_TOP_RIGHT    = 0,
-        SPECTRA_LEGEND_TOP_LEFT     = 1,
-        SPECTRA_LEGEND_BOTTOM_RIGHT = 2,
-        SPECTRA_LEGEND_BOTTOM_LEFT  = 3,
-        SPECTRA_LEGEND_NONE         = 4
+        SPECTRA_LEGEND_TOP_RIGHT     = 0,
+        SPECTRA_LEGEND_TOP_LEFT      = 1,
+        SPECTRA_LEGEND_BOTTOM_RIGHT  = 2,
+        SPECTRA_LEGEND_BOTTOM_LEFT   = 3,
+        SPECTRA_LEGEND_NONE          = 4,
+        SPECTRA_LEGEND_BEST          = 5,
+        SPECTRA_LEGEND_OUTSIDE_RIGHT = 6
     };
 
     /* Axis scale type (spectra::ScaleType) */

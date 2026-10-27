@@ -6,6 +6,7 @@
 #include <system_error>
 
 #include "axes3d.hpp"
+#include "core/figure_layout.hpp"
 #include "layout.hpp"
 
 #ifdef _WIN32
@@ -240,23 +241,7 @@ void Figure::compute_layout()
                                         grid_cols_,
                                         fig_margins);
 
-    // Assign viewport rects to 2D axes
-    for (size_t i = 0; i < axes_.size() && i < rects.size(); ++i)
-    {
-        if (axes_[i])
-        {
-            axes_[i]->set_viewport(rects[i]);
-        }
-    }
-
-    // Assign viewport rects to all axes (including 3D)
-    for (size_t i = 0; i < all_axes_.size() && i < rects.size(); ++i)
-    {
-        if (all_axes_[i])
-        {
-            all_axes_[i]->set_viewport(rects[i]);
-        }
-    }
+    apply_subplot_layout(*this, rects, fig_margins);
 }
 
 }   // namespace spectra

@@ -128,6 +128,7 @@ set(SPECTRA_UNIT_TESTS
     test_decimation
     test_filters
     test_tick_generation
+    test_axes_layout_fit
     test_series_visibility
     test_ui_icons
     test_svg_export

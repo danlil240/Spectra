@@ -197,6 +197,10 @@ static spectra::LegendPosition to_legend_position(int v)
             return L::BottomLeft;
         case SPECTRA_LEGEND_NONE:
             return L::None;
+        case SPECTRA_LEGEND_BEST:
+            return L::Best;
+        case SPECTRA_LEGEND_OUTSIDE_RIGHT:
+            return L::OutsideRight;
         default:
             return L::TopRight;
     }

@@ -559,17 +559,14 @@ void WindowManager::glfw_cursor_enter_callback(GLFWwindow* window, int entered)
 void WindowManager::glfw_drop_callback(GLFWwindow* window, int count, const char** paths)
 {
     auto* mgr = static_cast<WindowManager*>(glfwGetWindowUserPointer(window));
-    if (!mgr || !mgr->file_drop_handler_)
+    if (!mgr || !paths)
         return;
 
     WindowContext* wctx = mgr->find_by_glfw_window(window);
     uint32_t       wid  = wctx ? wctx->id : 0;
 
     for (int i = 0; i < count; ++i)
-    {
-        if (paths[i])
-            mgr->file_drop_handler_(wid, std::string(paths[i]));
-    }
+        mgr->dispatch_file_drop(wid, paths[i]);
 }
 
 #else

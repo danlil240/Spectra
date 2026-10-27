@@ -13,6 +13,7 @@
 namespace spectra::platform
 {
 
+#ifdef SPECTRA_USE_GLFW
 namespace
 {
 
@@ -29,6 +30,7 @@ void append_unique(std::vector<const char*>& extensions, const char* ext)
 }
 
 }   // namespace
+#endif
 
 void GlfwSurfaceHost::append_instance_extensions(std::vector<const char*>& extensions) const
 {

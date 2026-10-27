@@ -315,7 +315,6 @@ void WindowManager::process_sdl3_events()
 
             case SDL_EVENT_MOUSE_WHEEL:
             {
-                int mods = sdl3_to_spectra_mods(SDL_GetModState());
                 for (auto* wctx : active_ptrs_)
                 {
                     if (!wctx || !wctx->glfw_window)
@@ -460,6 +459,26 @@ void WindowManager::process_sdl3_events()
                         break;
                     }
                 }
+                break;
+            }
+
+            case SDL_EVENT_DROP_FILE:
+            {
+                // Same routing as the GLFW drop callback.  event.drop.data is
+                // owned by SDL and valid until the next SDL_PollEvent.
+                uint32_t wid = 0;
+                for (auto* wctx : active_ptrs_)
+                {
+                    if (!wctx || !wctx->glfw_window)
+                        continue;
+                    auto* sdl_win = static_cast<SDL_Window*>(wctx->glfw_window);
+                    if (SDL_GetWindowID(sdl_win) == event.drop.windowID)
+                    {
+                        wid = wctx->id;
+                        break;
+                    }
+                }
+                dispatch_file_drop(wid, event.drop.data);
                 break;
             }
 

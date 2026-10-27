@@ -439,6 +439,9 @@ void WindowManager::warmup_preview_window(uint32_t width, uint32_t height)
 
     SPECTRA_LOG_INFO("window_manager",
                      "Warmed up preview window (id=" + std::to_string(pooled_preview_->id) + ")");
+#else
+    (void)width;
+    (void)height;
 #endif
 }
 

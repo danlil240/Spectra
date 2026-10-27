@@ -234,6 +234,7 @@ set(SPECTRA_UNIT_TESTS
     test_plugin_overlays
     test_plugin_version_negotiation
     test_plugin_export
+    test_export_csv_plugin
     test_plugin_data_source
     test_plugin_integration
     test_plugin_series_type
@@ -367,6 +368,18 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
         # Hover round trip drives DataInteraction, which needs an ImGui context
         if(_test MATCHES "^test_(double_precision_data|data_interaction)$" AND DEFINED imgui_SOURCE_DIR)
             target_include_directories(unit_${_test} SYSTEM PRIVATE ${imgui_SOURCE_DIR})
+        endif()
+        # CSV writer shared with the export_csv example plugin (header-only)
+        if(_test STREQUAL "test_export_csv_plugin")
+            target_include_directories(unit_${_test} PRIVATE
+                ${CMAKE_SOURCE_DIR}/examples/plugins
+                ${CMAKE_SOURCE_DIR}/src)
+            if(TARGET export_csv AND NOT WIN32)
+                target_compile_definitions(unit_${_test} PRIVATE
+                    SPECTRA_EXPORT_CSV_PLUGIN_PATH="$<TARGET_FILE:export_csv>")
+                target_link_libraries(unit_${_test} PRIVATE ${CMAKE_DL_LIBS})
+                add_dependencies(unit_${_test} export_csv)
+            endif()
         endif()
         # Pass mock plugin path to transform plugin tests
         if(_test STREQUAL "test_plugin_transforms")

@@ -250,6 +250,8 @@ static void scene_marker_styles(App& /*app*/, Figure& fig)
     ax.xlabel("Sample");
     ax.ylabel("Type");
     ax.grid(true);
+    // Markers fill every corner: keep the legend outside the axes (issue #108).
+    fig.legend().position = LegendPosition::OutsideRight;
 }
 
 // Filled markers: FilledCircle, FilledSquare, FilledDiamond, FilledTriangleUp

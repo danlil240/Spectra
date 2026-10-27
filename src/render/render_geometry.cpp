@@ -15,6 +15,7 @@
 #include <spectra/series.hpp>
 #include <spectra/series_shapes.hpp>
 
+#include "core/axis_scale.hpp"
 #include "ui/imgui/axes3d_renderer.hpp"
 #include "ui/theme/theme.hpp"
 #include "ui/viewmodel/axes_view_model.hpp"
@@ -136,17 +137,29 @@ void Renderer::render_plot_text(Figure& figure)
             }
         }
 
-        double x_range = xlim.max - xlim.min;
-        double y_range = ylim.max - ylim.min;
+        // Map through axis space so log axes place ticks/grid in decades.
+        const auto*      scale_axes = dynamic_cast<const Axes*>(&axes);
+        const ScaleType  xscale     = scale_axes ? scale_axes->xscale() : ScaleType::Linear;
+        const ScaleType  yscale     = scale_axes ? scale_axes->yscale() : ScaleType::Linear;
+        const AxisLimits ax_x       = axis_space_limits(xscale, xlim);
+        const AxisLimits ax_y       = axis_space_limits(yscale, ylim);
+
+        double x_range = ax_x.max - ax_x.min;
+        double y_range = ax_y.max - ax_y.min;
         if (x_range == 0.0)
             x_range = 1.0;
         if (y_range == 0.0)
             y_range = 1.0;
 
-        auto data_to_px_x = [&](double dx) -> float
-        { return static_cast<float>(vp.x + (dx - xlim.min) / x_range * vp.w); };
+        auto data_to_px_x = [&](double dx) -> float {
+            return static_cast<float>(vp.x
+                                      + (to_axis_space(xscale, dx) - ax_x.min) / x_range * vp.w);
+        };
         auto data_to_px_y = [&](double dy) -> float
-        { return static_cast<float>(vp.y + (1.0 - (dy - ylim.min) / y_range) * vp.h); };
+        {
+            return static_cast<float>(
+                vp.y + (1.0 - (to_axis_space(yscale, dy) - ax_y.min) / y_range) * vp.h);
+        };
 
         const auto& as = axes.axis_style();
         float       tl = as.tick_length;
@@ -728,17 +741,29 @@ void Renderer::render_plot_geometry(Figure& figure)
             }
         }
 
-        double x_range = xlim.max - xlim.min;
-        double y_range = ylim.max - ylim.min;
+        // Map through axis space so log axes place ticks/grid in decades.
+        const auto*      scale_axes = dynamic_cast<const Axes*>(&axes);
+        const ScaleType  xscale     = scale_axes ? scale_axes->xscale() : ScaleType::Linear;
+        const ScaleType  yscale     = scale_axes ? scale_axes->yscale() : ScaleType::Linear;
+        const AxisLimits ax_x       = axis_space_limits(xscale, xlim);
+        const AxisLimits ax_y       = axis_space_limits(yscale, ylim);
+
+        double x_range = ax_x.max - ax_x.min;
+        double y_range = ax_y.max - ax_y.min;
         if (x_range == 0.0)
             x_range = 1.0;
         if (y_range == 0.0)
             y_range = 1.0;
 
-        auto data_to_px_x = [&](double dx) -> float
-        { return static_cast<float>(vp.x + (dx - xlim.min) / x_range * vp.w); };
+        auto data_to_px_x = [&](double dx) -> float {
+            return static_cast<float>(vp.x
+                                      + (to_axis_space(xscale, dx) - ax_x.min) / x_range * vp.w);
+        };
         auto data_to_px_y = [&](double dy) -> float
-        { return static_cast<float>(vp.y + (1.0 - (dy - ylim.min) / y_range) * vp.h); };
+        {
+            return static_cast<float>(
+                vp.y + (1.0 - (to_axis_space(yscale, dy) - ax_y.min) / y_range) * vp.h);
+        };
 
         const auto& as = axes.axis_style();
         float       tl = as.tick_length;
@@ -841,17 +866,28 @@ void Renderer::render_plot_geometry(Figure& figure)
             ylim = axes2d->y_limits();
         }
 
-        double x_range = xlim.max - xlim.min;
-        double y_range = ylim.max - ylim.min;
+        // Map through axis space so log axes place ticks/grid in decades.
+        const ScaleType  xscale = axes2d ? axes2d->xscale() : ScaleType::Linear;
+        const ScaleType  yscale = axes2d ? axes2d->yscale() : ScaleType::Linear;
+        const AxisLimits ax_x   = axis_space_limits(xscale, xlim);
+        const AxisLimits ax_y   = axis_space_limits(yscale, ylim);
+
+        double x_range = ax_x.max - ax_x.min;
+        double y_range = ax_y.max - ax_y.min;
         if (x_range == 0.0)
             x_range = 1.0;
         if (y_range == 0.0)
             y_range = 1.0;
 
-        auto data_to_px_x = [&](double dx) -> float
-        { return static_cast<float>(vp.x + (dx - xlim.min) / x_range * vp.w); };
+        auto data_to_px_x = [&](double dx) -> float {
+            return static_cast<float>(vp.x
+                                      + (to_axis_space(xscale, dx) - ax_x.min) / x_range * vp.w);
+        };
         auto data_to_px_y = [&](double dy) -> float
-        { return static_cast<float>(vp.y + (1.0 - (dy - ylim.min) / y_range) * vp.h); };
+        {
+            return static_cast<float>(
+                vp.y + (1.0 - (to_axis_space(yscale, dy) - ax_y.min) / y_range) * vp.h);
+        };
 
         auto x_ticks = axes2d->compute_x_ticks();
         auto y_ticks = axes2d->compute_y_ticks();
@@ -943,28 +979,14 @@ void Renderer::render_plot_geometry(Figure& figure)
         constexpr int MAX_MARGIN_MINOR_LINES = 4 * MINOR_SUBDIVISIONS;
         auto valid_minor_step = [](double step) { return std::isfinite(step) && step > 0.0; };
         minor_grid_scratch_.clear();
-        // X-axis minor grid (between adjacent tick pairs)
-        for (size_t i = 0; i + 1 < num_x; ++i)
+        // Log axes: minor lines at 2..9 × 10^k.  Linear subdivision of decade
+        // ticks would pile up at the low end of every decade.
+        if (is_log_scale(xscale))
         {
-            double step = (x_ticks.positions[i + 1] - x_ticks.positions[i]) / MINOR_SUBDIVISIONS;
-            for (int s = 1; s < MINOR_SUBDIVISIONS; ++s)
+            for (double x : log_minor_ticks(xscale,
+                                            from_axis_space(xscale, ax_x.min),
+                                            from_axis_space(xscale, ax_x.max)))
             {
-                float px = data_to_px_x(x_ticks.positions[i] + step * s);
-                minor_grid_scratch_.push_back(px);
-                minor_grid_scratch_.push_back(fy_top);
-                minor_grid_scratch_.push_back(px);
-                minor_grid_scratch_.push_back(fy_bottom);
-            }
-        }
-        // X-axis minor grid — extend into left margin (before first tick)
-        if (num_x >= 2)
-        {
-            double step = (x_ticks.positions[1] - x_ticks.positions[0]) / MINOR_SUBDIVISIONS;
-            for (int k = 1; valid_minor_step(step) && k <= MAX_MARGIN_MINOR_LINES; ++k)
-            {
-                double x = x_ticks.positions[0] - step * k;
-                if (x < xlim.min)
-                    break;
                 float px = data_to_px_x(x);
                 minor_grid_scratch_.push_back(px);
                 minor_grid_scratch_.push_back(fy_top);
@@ -972,46 +994,62 @@ void Renderer::render_plot_geometry(Figure& figure)
                 minor_grid_scratch_.push_back(fy_bottom);
             }
         }
-        // X-axis minor grid — extend into right margin (after last tick)
-        if (num_x >= 2)
+        else
         {
-            double step =
-                (x_ticks.positions[num_x - 1] - x_ticks.positions[num_x - 2]) / MINOR_SUBDIVISIONS;
-            for (int k = 1; valid_minor_step(step) && k <= MAX_MARGIN_MINOR_LINES; ++k)
+            // X-axis minor grid (between adjacent tick pairs)
+            for (size_t i = 0; i + 1 < num_x; ++i)
             {
-                double x = x_ticks.positions[num_x - 1] + step * k;
-                if (x > xlim.max)
-                    break;
-                float px = data_to_px_x(x);
-                minor_grid_scratch_.push_back(px);
-                minor_grid_scratch_.push_back(fy_top);
-                minor_grid_scratch_.push_back(px);
-                minor_grid_scratch_.push_back(fy_bottom);
+                double step =
+                    (x_ticks.positions[i + 1] - x_ticks.positions[i]) / MINOR_SUBDIVISIONS;
+                for (int s = 1; s < MINOR_SUBDIVISIONS; ++s)
+                {
+                    float px = data_to_px_x(x_ticks.positions[i] + step * s);
+                    minor_grid_scratch_.push_back(px);
+                    minor_grid_scratch_.push_back(fy_top);
+                    minor_grid_scratch_.push_back(px);
+                    minor_grid_scratch_.push_back(fy_bottom);
+                }
+            }
+            // X-axis minor grid — extend into left margin (before first tick)
+            if (num_x >= 2)
+            {
+                double step = (x_ticks.positions[1] - x_ticks.positions[0]) / MINOR_SUBDIVISIONS;
+                for (int k = 1; valid_minor_step(step) && k <= MAX_MARGIN_MINOR_LINES; ++k)
+                {
+                    double x = x_ticks.positions[0] - step * k;
+                    if (x < xlim.min)
+                        break;
+                    float px = data_to_px_x(x);
+                    minor_grid_scratch_.push_back(px);
+                    minor_grid_scratch_.push_back(fy_top);
+                    minor_grid_scratch_.push_back(px);
+                    minor_grid_scratch_.push_back(fy_bottom);
+                }
+            }
+            // X-axis minor grid — extend into right margin (after last tick)
+            if (num_x >= 2)
+            {
+                double step = (x_ticks.positions[num_x - 1] - x_ticks.positions[num_x - 2])
+                              / MINOR_SUBDIVISIONS;
+                for (int k = 1; valid_minor_step(step) && k <= MAX_MARGIN_MINOR_LINES; ++k)
+                {
+                    double x = x_ticks.positions[num_x - 1] + step * k;
+                    if (x > xlim.max)
+                        break;
+                    float px = data_to_px_x(x);
+                    minor_grid_scratch_.push_back(px);
+                    minor_grid_scratch_.push_back(fy_top);
+                    minor_grid_scratch_.push_back(px);
+                    minor_grid_scratch_.push_back(fy_bottom);
+                }
             }
         }
-        // Y-axis minor grid (between adjacent tick pairs)
-        for (size_t i = 0; i + 1 < num_y; ++i)
+        if (is_log_scale(yscale))
         {
-            double step = (y_ticks.positions[i + 1] - y_ticks.positions[i]) / MINOR_SUBDIVISIONS;
-            for (int s = 1; s < MINOR_SUBDIVISIONS; ++s)
+            for (double y : log_minor_ticks(yscale,
+                                            from_axis_space(yscale, ax_y.min),
+                                            from_axis_space(yscale, ax_y.max)))
             {
-                float py = data_to_px_y(y_ticks.positions[i] + step * s);
-                minor_grid_scratch_.push_back(fx_left);
-                minor_grid_scratch_.push_back(py);
-                minor_grid_scratch_.push_back(fx_right);
-                minor_grid_scratch_.push_back(py);
-            }
-        }
-        // Y-axis minor grid — extend into bottom margin (below first tick in data space,
-        // which is the top tick position in screen space since Y is flipped)
-        if (num_y >= 2)
-        {
-            double step = (y_ticks.positions[1] - y_ticks.positions[0]) / MINOR_SUBDIVISIONS;
-            for (int k = 1; valid_minor_step(step) && k <= MAX_MARGIN_MINOR_LINES; ++k)
-            {
-                double y = y_ticks.positions[0] - step * k;
-                if (y < ylim.min)
-                    break;
                 float py = data_to_px_y(y);
                 minor_grid_scratch_.push_back(fx_left);
                 minor_grid_scratch_.push_back(py);
@@ -1019,21 +1057,55 @@ void Renderer::render_plot_geometry(Figure& figure)
                 minor_grid_scratch_.push_back(py);
             }
         }
-        // Y-axis minor grid — extend into top margin (above last tick in data space)
-        if (num_y >= 2)
+        else
         {
-            double step =
-                (y_ticks.positions[num_y - 1] - y_ticks.positions[num_y - 2]) / MINOR_SUBDIVISIONS;
-            for (int k = 1; valid_minor_step(step) && k <= MAX_MARGIN_MINOR_LINES; ++k)
+            // Y-axis minor grid (between adjacent tick pairs)
+            for (size_t i = 0; i + 1 < num_y; ++i)
             {
-                double y = y_ticks.positions[num_y - 1] + step * k;
-                if (y > ylim.max)
-                    break;
-                float py = data_to_px_y(y);
-                minor_grid_scratch_.push_back(fx_left);
-                minor_grid_scratch_.push_back(py);
-                minor_grid_scratch_.push_back(fx_right);
-                minor_grid_scratch_.push_back(py);
+                double step =
+                    (y_ticks.positions[i + 1] - y_ticks.positions[i]) / MINOR_SUBDIVISIONS;
+                for (int s = 1; s < MINOR_SUBDIVISIONS; ++s)
+                {
+                    float py = data_to_px_y(y_ticks.positions[i] + step * s);
+                    minor_grid_scratch_.push_back(fx_left);
+                    minor_grid_scratch_.push_back(py);
+                    minor_grid_scratch_.push_back(fx_right);
+                    minor_grid_scratch_.push_back(py);
+                }
+            }
+            // Y-axis minor grid — extend into bottom margin (below first tick in data space,
+            // which is the top tick position in screen space since Y is flipped)
+            if (num_y >= 2)
+            {
+                double step = (y_ticks.positions[1] - y_ticks.positions[0]) / MINOR_SUBDIVISIONS;
+                for (int k = 1; valid_minor_step(step) && k <= MAX_MARGIN_MINOR_LINES; ++k)
+                {
+                    double y = y_ticks.positions[0] - step * k;
+                    if (y < ylim.min)
+                        break;
+                    float py = data_to_px_y(y);
+                    minor_grid_scratch_.push_back(fx_left);
+                    minor_grid_scratch_.push_back(py);
+                    minor_grid_scratch_.push_back(fx_right);
+                    minor_grid_scratch_.push_back(py);
+                }
+            }
+            // Y-axis minor grid — extend into top margin (above last tick in data space)
+            if (num_y >= 2)
+            {
+                double step = (y_ticks.positions[num_y - 1] - y_ticks.positions[num_y - 2])
+                              / MINOR_SUBDIVISIONS;
+                for (int k = 1; valid_minor_step(step) && k <= MAX_MARGIN_MINOR_LINES; ++k)
+                {
+                    double y = y_ticks.positions[num_y - 1] + step * k;
+                    if (y > ylim.max)
+                        break;
+                    float py = data_to_px_y(y);
+                    minor_grid_scratch_.push_back(fx_left);
+                    minor_grid_scratch_.push_back(py);
+                    minor_grid_scratch_.push_back(fx_right);
+                    minor_grid_scratch_.push_back(py);
+                }
             }
         }
 

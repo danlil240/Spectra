@@ -13,6 +13,7 @@
 #include <spectra/series_shapes3d.hpp>
 #include <spectra/series_stats.hpp>
 
+#include "core/axis_scale.hpp"
 #include "ui/workspace/plugin_guard.hpp"
 
 namespace spectra
@@ -23,8 +24,17 @@ void Renderer::upload_series_data(Series& series)
     upload_series_data(series, 0.0, 0.0);
 }
 
-void Renderer::upload_series_data(Series& series, double origin_x, double origin_y)
+void Renderer::upload_series_data(Series&   series,
+                                  double    origin_x,
+                                  double    origin_y,
+                                  ScaleType xscale,
+                                  ScaleType yscale)
 {
+    // Map a logical (offset-applied) data value into axis space relative to
+    // the upload origin.  Identity + subtraction on linear axes.
+    auto map_x = [&](double x) { return static_cast<float>(to_axis_space(xscale, x) - origin_x); };
+    auto map_y = [&](double y) { return static_cast<float>(to_axis_space(yscale, y) - origin_y); };
+
     // Try 2D series first
     auto* line    = dynamic_cast<LineSeries*>(&series);
     auto* scatter = dynamic_cast<ScatterSeries*>(&series);
@@ -207,13 +217,12 @@ void Renderer::upload_series_data(Series& series, double origin_x, double origin
         // catastrophic cancellation at deep zoom.
         // The series x_offset (logical x = x_offset + stored float) folds
         // into the effective origin: uploaded = (x + xoff) - origin_x.
-        const double x_org = origin_x - series.x_offset();
+        const double xoff = series.x_offset();
         for (size_t i = 0; i < count; ++i)
         {
-            const size_t base     = i * stride_floats;
-            upload_scratch_[base] = static_cast<float>(static_cast<double>(x_data[i]) - x_org);
-            upload_scratch_[base + 1] =
-                static_cast<float>(static_cast<double>(y_data[i]) - origin_y);
+            const size_t base         = i * stride_floats;
+            upload_scratch_[base]     = map_x(static_cast<double>(x_data[i]) + xoff);
+            upload_scratch_[base + 1] = map_y(static_cast<double>(y_data[i]));
             if (use_scatter_colormap)
             {
                 upload_scratch_[base + 2] = scatter->color_values_data()[i];
@@ -225,6 +234,8 @@ void Renderer::upload_series_data(Series& series, double origin_x, double origin
         gpu.uploaded_count = count;
         gpu.origin_x       = origin_x;
         gpu.origin_y       = origin_y;
+        gpu.upload_xscale  = xscale;
+        gpu.upload_yscale  = yscale;
 
         // Upload fill geometry for statistical series (interleaved {x,y,alpha} vertex buffer)
         std::span<const float> fill_verts;
@@ -275,7 +286,7 @@ void Renderer::upload_series_data(Series& series, double origin_x, double origin
                 gpu.fill_vertex_capacity = fill_alloc;
             }
 
-            if (x_org != 0.0 || origin_y != 0.0)
+            if (xoff != origin_x || origin_y != 0.0 || is_log_scale(xscale) || is_log_scale(yscale))
             {
                 // Re-center fill vertices (stride=3: x, y, alpha)
                 if (upload_scratch_.size() < fill_floats)
@@ -283,10 +294,8 @@ void Renderer::upload_series_data(Series& series, double origin_x, double origin
                 const float* fv = fill_verts.data();
                 for (size_t i = 0; i < fill_count; ++i)
                 {
-                    upload_scratch_[i * 3] =
-                        static_cast<float>(static_cast<double>(fv[i * 3]) - x_org);
-                    upload_scratch_[i * 3 + 1] =
-                        static_cast<float>(static_cast<double>(fv[i * 3 + 1]) - origin_y);
+                    upload_scratch_[i * 3]     = map_x(static_cast<double>(fv[i * 3]) + xoff);
+                    upload_scratch_[i * 3 + 1] = map_y(static_cast<double>(fv[i * 3 + 1]));
                     upload_scratch_[i * 3 + 2] = fv[i * 3 + 2];   // alpha unchanged
                 }
                 backend_.upload_buffer(gpu.fill_buffer, upload_scratch_.data(), fill_bytes);
@@ -324,9 +333,8 @@ void Renderer::upload_series_data(Series& series, double origin_x, double origin
             const float* oy = boxplot->outlier_y().data();
             for (size_t i = 0; i < out_count; ++i)
             {
-                upload_scratch_[i * 2] = static_cast<float>(static_cast<double>(ox[i]) - x_org);
-                upload_scratch_[i * 2 + 1] =
-                    static_cast<float>(static_cast<double>(oy[i]) - origin_y);
+                upload_scratch_[i * 2]     = map_x(static_cast<double>(ox[i]) + xoff);
+                upload_scratch_[i * 2 + 1] = map_y(static_cast<double>(oy[i]));
             }
             backend_.upload_buffer(gpu.outlier_buffer, upload_scratch_.data(), out_byte_size);
             gpu.outlier_count = out_count;
@@ -366,7 +374,9 @@ void Renderer::upload_series_data(Series& series, double origin_x, double origin
         const bool count_changed      = (count != gpu.uploaded_count);
         const bool origin_moved = (std::abs(static_cast<double>(gpu.origin_x) - origin_x) > 1.0
                                    || std::abs(static_cast<double>(gpu.origin_y) - origin_y) > 1.0);
-        const bool needs_upload = series.is_dirty() || count_changed || origin_moved || !gpu.ssbo
+        const bool scale_changed      = gpu.upload_xscale != xscale || gpu.upload_yscale != yscale;
+        const bool needs_upload       = series.is_dirty() || count_changed || origin_moved
+                                  || scale_changed || !gpu.ssbo
                                   || (current_generation != gpu.data_generation);
 
         if (!needs_upload)
@@ -390,12 +400,11 @@ void Renderer::upload_series_data(Series& series, double origin_x, double origin
         if (upload_scratch_.size() < floats_needed)
             upload_scratch_.resize(floats_needed);
 
-        const double x_org = origin_x - series.x_offset();
+        const double xoff = series.x_offset();
         for (size_t i = 0; i < count; ++i)
         {
-            upload_scratch_[i * 2] = static_cast<float>(static_cast<double>(vis.x[i]) - x_org);
-            upload_scratch_[i * 2 + 1] =
-                static_cast<float>(static_cast<double>(vis.y[i]) - origin_y);
+            upload_scratch_[i * 2]     = map_x(static_cast<double>(vis.x[i]) + xoff);
+            upload_scratch_[i * 2 + 1] = map_y(static_cast<double>(vis.y[i]));
         }
 
         backend_.upload_buffer(gpu.ssbo, upload_scratch_.data(), byte_size);
@@ -403,6 +412,8 @@ void Renderer::upload_series_data(Series& series, double origin_x, double origin
         gpu.origin_x        = origin_x;
         gpu.origin_y        = origin_y;
         gpu.data_generation = current_generation;
+        gpu.upload_xscale   = xscale;
+        gpu.upload_yscale   = yscale;
 
         series.clear_dirty();
     }

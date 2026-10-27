@@ -10,6 +10,8 @@
 #include <spectra/series_shapes.hpp>
 #include <spectra/series_stats.hpp>
 
+#include "core/axis_scale.hpp"
+
 namespace spectra
 {
 
@@ -483,11 +485,6 @@ static void data_extent_with_mode(const std::vector<std::unique_ptr<Series>>& se
     y_lim          = finalize_extent(y, pad, y_log);
 }
 
-static bool is_log_scale(ScaleType s)
-{
-    return s == ScaleType::Log10 || s == ScaleType::Log2;
-}
-
 static bool latest_x_value(const std::vector<std::unique_ptr<Series>>& series, double& latest_x)
 {
     bool has_value = false;
@@ -620,7 +617,39 @@ static bool windowed_y_extent(const std::vector<std::unique_ptr<Series>>& series
     return has_y;
 }
 
+static double positive_data_floor(const std::vector<std::unique_ptr<Series>>& series, bool x_axis)
+{
+    AxisExtent x;
+    AxisExtent y;
+    data_extent_raw(series, x, y);
+    const AxisExtent& e = x_axis ? x : y;
+    return e.has_positive() ? e.min_pos : 0.0;
+}
+
+// Log axes cannot show non-positive limits (e.g. a user xlim(0, 100)): clamp
+// the lower limit to the smallest positive datum so ticks, rendering and
+// interaction all agree on one valid range.
+static AxisLimits sanitize_limits(ScaleType                                   scale,
+                                  AxisLimits                                  lim,
+                                  const std::vector<std::unique_ptr<Series>>& series,
+                                  bool                                        x_axis)
+{
+    if (!is_log_scale(scale) || (lim.min > 0.0 && lim.max > 0.0))
+        return lim;
+    return sanitize_log_limits(scale, lim, positive_data_floor(series, x_axis));
+}
+
 AxisLimits Axes::x_limits() const
+{
+    return sanitize_limits(xscale_, x_limits_unclamped(), series_, true);
+}
+
+AxisLimits Axes::y_limits() const
+{
+    return sanitize_limits(yscale_, y_limits_unclamped(), series_, false);
+}
+
+AxisLimits Axes::x_limits_unclamped() const
 {
     if (presented_buffer_following_ && presented_buffer_seconds_.has_value()
         && presented_buffer_seconds_.value() > 0.0f)
@@ -652,7 +681,7 @@ AxisLimits Axes::x_limits() const
     return xl;
 }
 
-AxisLimits Axes::y_limits() const
+AxisLimits Axes::y_limits_unclamped() const
 {
     if (ylim_.has_value() || autoscale_mode_ == AutoscaleMode::Manual)
         return ylim_.value_or(AxisLimits{0.0, 1.0});
@@ -997,37 +1026,83 @@ static TickResult generate_ticks(double dmin, double dmax, int target_ticks = 7)
     return result;
 }
 
-// Logarithmic ticks at integer powers of `base` within [lo, hi].
-// `positive_floor` replaces a non-positive lower limit (log is undefined there).
-static TickResult generate_log_ticks(double lo, double hi, double base, double positive_floor)
+// Label for base^e on a log axis: plain numbers near 1, compact exponent
+// form ("1e-6", "2^20") for far-away decades.
+static std::string format_log_tick(double base, int e)
+{
+    const double v = std::pow(base, static_cast<double>(e));
+    if (base == 10.0)
+    {
+        if (e >= 0 && e <= 5)
+            return std::format("{:.0f}", v);
+        if (e < 0 && e >= -4)
+            return std::format("{:.{}f}", v, -e);
+        return std::format("1e{}", e);
+    }
+    if (e >= 0 && e <= 16)
+        return std::format("{:.0f}", v);
+    if (e < 0 && e >= -4)
+        return std::format("{:.{}f}", v, -e);
+    return std::format("2^{}", e);
+}
+
+// Logarithmic ticks at integer powers of `base` within [lo, hi] (both > 0).
+// Wide ranges step over decades so at most ~8 labels appear; ranges holding
+// fewer than two powers fall back to ordinary "nice" ticks, which still read
+// correctly on the log axis.
+static TickResult generate_log_ticks(double lo, double hi, double base)
 {
     TickResult result;
-    if (lo <= 0.0 && hi > 0.0)
-        lo = (positive_floor > 0.0 && positive_floor < hi) ? positive_floor : hi * 1e-3;
-
-    const double log_min = std::log(lo) / std::log(base);
-    const double log_max = std::log(hi) / std::log(base);
-    if (!std::isfinite(log_min) || !std::isfinite(log_max) || lo <= 0.0)
+    if (!(lo > 0.0) || !(hi > lo) || !std::isfinite(hi))
     {
-        result.positions.push_back(lo);
-        result.labels.push_back(format_tick_value(lo, hi - lo));
+        const double v = lo > 0.0 ? lo : 1.0;
+        result.positions.push_back(v);
+        result.labels.push_back(format_tick_value(v, v * 0.1));
         return result;
     }
-    const int lo_exp = static_cast<int>(std::floor(log_min));
-    const int hi_exp = static_cast<int>(std::ceil(log_max));
-    for (int e = lo_exp; e <= hi_exp; ++e)
+
+    const double log_base = std::log(base);
+    const double a_lo     = std::log(lo) / log_base;
+    const double a_hi     = std::log(hi) / log_base;
+    // Tolerance so a limit sitting exactly on a power still gets its tick.
+    constexpr double EPS  = 1e-9;
+    const int        e_lo = static_cast<int>(std::ceil(a_lo - EPS));
+    const int        e_hi = static_cast<int>(std::floor(a_hi + EPS));
+
+    if (e_hi - e_lo + 1 < 2)
     {
-        const double v = std::pow(base, static_cast<double>(e));
-        if (v >= lo * 0.99 && v <= hi * 1.01)
+        const TickResult lin = generate_ticks(lo, hi, 5);
+        for (size_t i = 0; i < lin.positions.size(); ++i)
         {
-            result.positions.push_back(v);
-            result.labels.push_back(format_tick_value(v, v * 0.1));
+            if (lin.positions[i] > 0.0)
+            {
+                result.positions.push_back(lin.positions[i]);
+                result.labels.push_back(lin.labels[i]);
+            }
         }
+        if (result.positions.empty())
+        {
+            result.positions.push_back(lo);
+            result.labels.push_back(format_tick_value(lo, hi - lo));
+        }
+        return result;
     }
-    if (result.positions.empty())
+
+    constexpr int MAX_LOG_TICKS = 8;
+    const int     n_powers      = e_hi - e_lo + 1;
+    const int     stride        = (n_powers + MAX_LOG_TICKS - 1) / MAX_LOG_TICKS;
+    // Align strided ticks to multiples of the stride so they include 10^0.
+    int first = e_lo;
+    if (stride > 1)
     {
-        result.positions.push_back(lo);
-        result.labels.push_back(format_tick_value(lo, hi - lo));
+        const int rem = ((e_lo % stride) + stride) % stride;
+        if (rem != 0)
+            first += stride - rem;
+    }
+    for (int e = first; e <= e_hi; e += stride)
+    {
+        result.positions.push_back(std::pow(base, static_cast<double>(e)));
+        result.labels.push_back(format_log_tick(base, e));
     }
     return result;
 }
@@ -1062,23 +1137,12 @@ static TickResult generate_sqrt_ticks(double lo, double hi)
     return result;
 }
 
-static double positive_data_floor(const std::vector<std::unique_ptr<Series>>& series, bool x_axis)
-{
-    AxisExtent x;
-    AxisExtent y;
-    data_extent_raw(series, x, y);
-    const AxisExtent& e = x_axis ? x : y;
-    return e.has_positive() ? e.min_pos : 0.0;
-}
-
 TickResult Axes::compute_x_ticks() const
 {
     auto lim = x_limits();
     if (is_log_scale(xscale_))
     {
-        const double base      = (xscale_ == ScaleType::Log2) ? 2.0 : 10.0;
-        const double pos_floor = lim.min > 0.0 ? lim.min : positive_data_floor(series_, true);
-        return generate_log_ticks(lim.min, lim.max, base, pos_floor);
+        return generate_log_ticks(lim.min, lim.max, log_scale_base(xscale_));
     }
     if (xscale_ == ScaleType::Sqrt)
         return generate_sqrt_ticks(lim.min, lim.max);
@@ -1090,9 +1154,7 @@ TickResult Axes::compute_y_ticks() const
     auto lim = y_limits();
     if (is_log_scale(yscale_))
     {
-        const double base      = (yscale_ == ScaleType::Log2) ? 2.0 : 10.0;
-        const double pos_floor = lim.min > 0.0 ? lim.min : positive_data_floor(series_, false);
-        return generate_log_ticks(lim.min, lim.max, base, pos_floor);
+        return generate_log_ticks(lim.min, lim.max, log_scale_base(yscale_));
     }
     if (yscale_ == ScaleType::Sqrt)
         return generate_sqrt_ticks(lim.min, lim.max);

@@ -98,6 +98,7 @@ set(SPECTRA_UNIT_TESTS
     test_transform
     test_bugfix_app_topic
     test_bugfix_core_axes
+    test_axis_scale
     test_bugfix_core_series
     test_bugfix_core_stats
     test_bugfix_daemon_agent

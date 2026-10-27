@@ -7,6 +7,8 @@
 #include <sstream>
 #include <vector>
 
+#include "core/axis_scale.hpp"
+
 namespace spectra
 {
 
@@ -64,17 +66,20 @@ std::string xml_escape(const std::string& s)
 
 // Map data coordinates to SVG pixel coordinates within a viewport.
 // SVG has Y-down, data has Y-up, so we flip Y.
+// Limits are in axis space (log of the data on log axes).
 struct DataToSvg
 {
-    float  vp_x, vp_y, vp_w, vp_h;
-    double x_min, x_max, y_min, y_max;
+    float     vp_x, vp_y, vp_w, vp_h;
+    double    x_min, x_max, y_min, y_max;
+    ScaleType xscale = ScaleType::Linear;
+    ScaleType yscale = ScaleType::Linear;
 
     [[nodiscard]] float map_x(double data_x) const
     {
         double range = x_max - x_min;
         if (range == 0.0)
             range = 1.0;
-        return static_cast<float>(vp_x + (data_x - x_min) / range * vp_w);
+        return static_cast<float>(vp_x + (to_axis_space(xscale, data_x) - x_min) / range * vp_w);
     }
 
     [[nodiscard]] float map_y(double data_y) const
@@ -83,7 +88,8 @@ struct DataToSvg
         if (range == 0.0)
             range = 1.0;
         // Flip Y: data y_max maps to vp_y (top), y_min maps to vp_y + vp_h (bottom)
-        return static_cast<float>(vp_y + (1.0 - (data_y - y_min) / range) * vp_h);
+        return static_cast<float>(vp_y
+                                  + (1.0 - (to_axis_space(yscale, data_y) - y_min) / range) * vp_h);
     }
 };
 
@@ -332,10 +338,12 @@ void emit_legend(std::ostringstream& svg, const Axes& axes, const DataToSvg& m)
 // Emit a single Axes (subplot)
 void emit_axes(std::ostringstream& svg, const Axes& axes, const Rect& viewport)
 {
-    auto xlim = axes.x_limits();
-    auto ylim = axes.y_limits();
+    auto xlim = axis_space_limits(axes.xscale(), axes.x_limits());
+    auto ylim = axis_space_limits(axes.yscale(), axes.y_limits());
 
     DataToSvg m{};
+    m.xscale = axes.xscale();
+    m.yscale = axes.yscale();
     m.vp_x  = viewport.x;
     m.vp_y  = viewport.y;
     m.vp_w  = viewport.w;

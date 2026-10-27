@@ -7,6 +7,7 @@
 #include <limits>
 #include <spectra/logger.hpp>
 
+#include "core/axis_scale.hpp"
 #include "gesture_recognizer.hpp"
 #include "ui/ui_interaction_log.hpp"
 #include "ui/overlay/axes3d_axis_pick.hpp"
@@ -998,9 +999,13 @@ void InputHandler::screen_to_data(double  screen_x,
     // Invert Y (screen Y goes down, data Y goes up)
     norm_y = 1.0 - norm_y;
 
-    // Map to data space
-    data_x = xlim.min + norm_x * (xlim.max - xlim.min);
-    data_y = ylim.min + norm_y * (ylim.max - ylim.min);
+    // Map to data space (through axis space so log axes invert correctly)
+    const ScaleType  xscale = active_axes_->xscale();
+    const ScaleType  yscale = active_axes_->yscale();
+    const AxisLimits ax_x   = axis_space_limits(xscale, xlim);
+    const AxisLimits ax_y   = axis_space_limits(yscale, ylim);
+    data_x                  = from_axis_space(xscale, ax_x.min + norm_x * (ax_x.max - ax_x.min));
+    data_y                  = from_axis_space(yscale, ax_y.min + norm_y * (ax_y.max - ax_y.min));
 }
 
 // ─── Per-frame update ───────────────────────────────────────────────────────

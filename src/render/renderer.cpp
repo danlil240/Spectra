@@ -16,6 +16,7 @@
 #include <spectra/series_stats.hpp>
 #include <vector>
 
+#include "core/axis_scale.hpp"
 #include "ui/imgui/axes3d_renderer.hpp"
 #include "ui/theme/theme.hpp"
 #include "ui/viewmodel/axes_view_model.hpp"
@@ -658,10 +659,16 @@ void Renderer::render_axes(AxesBase&   axes,
             ylim = axes2d->y_limits();
         }
 
-        double view_cx = (xlim.min + xlim.max) * 0.5;
-        double view_cy = (ylim.min + ylim.max) * 0.5;
-        double half_rx = (xlim.max - xlim.min) * 0.5;
-        double half_ry = (ylim.max - ylim.min) * 0.5;
+        // The projection works in axis space (log10/log2 of the data on log
+        // axes) so a log axis is drawn in evenly spaced decades.
+        const ScaleType  xscale  = axes2d->xscale();
+        const ScaleType  yscale  = axes2d->yscale();
+        const AxisLimits ax_x    = axis_space_limits(xscale, xlim);
+        const AxisLimits ax_y    = axis_space_limits(yscale, ylim);
+        double           view_cx = (ax_x.min + ax_x.max) * 0.5;
+        double           view_cy = (ax_y.min + ax_y.max) * 0.5;
+        double           half_rx = (ax_x.max - ax_x.min) * 0.5;
+        double           half_ry = (ax_y.max - ax_y.min) * 0.5;
 
         // Cache limits and view center for all sub-functions this frame.
         // Reading x_limits()/y_limits() only once prevents mid-frame
@@ -673,6 +680,10 @@ void Renderer::render_axes(AxesBase&   axes,
         axes_gpu.cached_xlim_max = xlim.max;
         axes_gpu.cached_ylim_min = ylim.min;
         axes_gpu.cached_ylim_max = ylim.max;
+        axes_gpu.xscale            = xscale;
+        axes_gpu.yscale            = yscale;
+        axes_gpu.axis_half_range_x = half_rx;
+        axes_gpu.axis_half_range_y = half_ry;
 
         // Centered projection: maps [-half_range, +half_range] → NDC.
         // Translation term m[12] = 0 exactly, avoiding catastrophic cancellation.
@@ -870,14 +881,18 @@ void Renderer::render_axes(AxesBase&   axes,
         double view_cx = 0.0;
         double view_cy = 0.0;
         double half_rx = 0.0;
-        double half_ry = 0.0;
+        double    half_ry = 0.0;
+        ScaleType xscale  = ScaleType::Linear;
+        ScaleType yscale  = ScaleType::Linear;
         if (axes2d)
         {
             auto& agpu = axes_gpu_data_[&axes];
             view_cx    = agpu.view_center_x;
             view_cy    = agpu.view_center_y;
-            half_rx    = (agpu.cached_xlim_max - agpu.cached_xlim_min) * 0.5;
-            half_ry    = (agpu.cached_ylim_max - agpu.cached_ylim_min) * 0.5;
+            half_rx    = agpu.axis_half_range_x;
+            half_ry    = agpu.axis_half_range_y;
+            xscale     = agpu.xscale;
+            yscale     = agpu.yscale;
         }
 
         // Pass visible x-range for draw-call culling on large series.
@@ -919,7 +934,8 @@ void Renderer::render_axes(AxesBase&   axes,
             auto& gpu = series_gpu_data_[series_ptr.get()];
 
             // Determine if camera-relative re-upload is needed
-            bool need_upload = series_ptr->is_dirty() || gpu.plugin_state_released;
+            bool need_upload = series_ptr->is_dirty() || gpu.plugin_state_released
+                               || gpu.upload_xscale != xscale || gpu.upload_yscale != yscale;
             if (!need_upload && axes2d && gpu.uploaded_count > 0)
             {
                 double drift_x  = std::abs(gpu.origin_x - view_cx);
@@ -932,7 +948,7 @@ void Renderer::render_axes(AxesBase&   axes,
 
             if (need_upload)
             {
-                upload_series_data(*series_ptr, view_cx, view_cy);
+                upload_series_data(*series_ptr, view_cx, view_cy, xscale, yscale);
             }
 
             render_series(*series_ptr, viewport, vis_ptr, view_cx, view_cy);

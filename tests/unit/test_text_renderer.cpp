@@ -1,6 +1,8 @@
 #include <algorithm>
 #include <cstring>
 #include <fstream>
+#include <initializer_list>
+#include <string>
 #include <gtest/gtest.h>
 #include <spectra/app.hpp>
 #include <vector>
@@ -375,5 +377,128 @@ TEST_F(TextRendererGPUTest, NonAsciiGlyphsAreBaked)
     auto deg2 = tr.measure_text("\xC2\xB0\xC2\xB0", FontSize::Label);
     EXPECT_NEAR(deg2.width, 2.0f * deg.width, 0.01f);
 
+    tr.shutdown(*backend);
+}
+
+// ─── Lazy glyphs / fallback fonts / missing-glyph box ────────────────────────
+
+static std::string first_existing(std::initializer_list<const char*> paths)
+{
+    for (const char* p : paths)
+    {
+        std::ifstream f(p, std::ios::binary);
+        if (f.is_open())
+            return p;
+    }
+    return {};
+}
+
+TEST_F(TextRendererGPUTest, MissingGlyphResolvesToBoxNotQuestionMark)
+{
+    if (font_data_.empty())
+        GTEST_SKIP() << "Font not found";
+    auto* backend = app_->backend();
+    ASSERT_NE(backend, nullptr);
+
+    TextRenderer tr;
+    tr.set_fallback_font_paths({});   // primary font only
+    ASSERT_TRUE(tr.init(*backend, font_data_.data(), font_data_.size()));
+
+    using GS = TextRenderer::GlyphSource;
+    EXPECT_EQ(tr.resolve_glyph('A'), GS::Primary);
+    EXPECT_EQ(tr.resolve_glyph(0x222B), GS::Primary);   // ∫ is in Inter
+    EXPECT_TRUE(tr.has_glyph(0x222B));
+    EXPECT_EQ(tr.resolve_glyph(0x6E29), GS::Missing);   // 温: no CJK font
+    EXPECT_FALSE(tr.has_glyph(0x6E29));
+    EXPECT_EQ(tr.resolve_glyph(0xE0001), GS::Ignored);   // language tag (invisible)
+    EXPECT_EQ(tr.resolve_glyph('\n'), GS::Ignored);
+
+    // The box has its own advance (not that of '?') and is not dropped.
+    const float box = tr.measure_text("\xE6\xB8\xA9", FontSize::Label).width;
+    EXPECT_GT(box, 0.0f);
+    EXPECT_NE(box, tr.measure_text("?", FontSize::Label).width);
+    EXPECT_EQ(tr.measure_text("a\xF3\xA0\x80\x81"
+                              "b",
+                              FontSize::Label)
+                  .width,
+              tr.measure_text("ab", FontSize::Label).width);
+
+    tr.draw_text("x \xE6\xB8\xA9 \xE2\x88\xAB", 10, 10, FontSize::Title, 0xFFFFFFFF);
+    tr.shutdown(*backend);
+}
+
+TEST_F(TextRendererGPUTest, PrimaryGlyphsOutsideBakedSetLoadLazily)
+{
+    if (font_data_.empty())
+        GTEST_SKIP() << "Font not found";
+    auto* backend = app_->backend();
+    ASSERT_NE(backend, nullptr);
+
+    TextRenderer tr;
+    tr.set_fallback_font_paths({});
+    ASSERT_TRUE(tr.init(*backend, font_data_.data(), font_data_.size()));
+
+    // Cyrillic is in Inter but not pre-baked.
+    EXPECT_FALSE(tr.has_glyph(0x0416, FontSize::Tick));
+    EXPECT_EQ(tr.resolve_glyph(0x0416, FontSize::Tick), TextRenderer::GlyphSource::Primary);
+    EXPECT_TRUE(tr.has_glyph(0x0416, FontSize::Tick));
+    // Only the requested size is rasterised.
+    EXPECT_FALSE(tr.has_glyph(0x0416, FontSize::Title));
+    tr.shutdown(*backend);
+}
+
+TEST_F(TextRendererGPUTest, MathSymbolsComeFromFallbackFont)
+{
+    if (font_data_.empty())
+        GTEST_SKIP() << "Font not found";
+    const std::string sym = first_existing({"/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+                                            "/usr/share/fonts/TTF/DejaVuSans.ttf",
+                                            "/usr/share/fonts/dejavu-sans-fonts/DejaVuSans.ttf"});
+    if (sym.empty())
+        GTEST_SKIP() << "DejaVu Sans not installed";
+    auto* backend = app_->backend();
+    ASSERT_NE(backend, nullptr);
+
+    TextRenderer tr;
+    tr.set_fallback_font_paths({"/nonexistent/font.ttf", sym});
+    ASSERT_TRUE(tr.init(*backend, font_data_.data(), font_data_.size()));
+
+    using GS = TextRenderer::GlyphSource;
+    for (uint32_t cp : {0x2207u, 0x2208u, 0x221Du, 0x2218u})   // ∇ ∈ ∝ ∘ (not in Inter)
+    {
+        EXPECT_EQ(tr.resolve_glyph(cp, FontSize::Title), GS::Fallback) << std::hex << cp;
+        EXPECT_TRUE(tr.has_glyph(cp, FontSize::Title));
+    }
+    // Primary font still wins where it has the glyph.
+    EXPECT_EQ(tr.resolve_glyph(0x2211, FontSize::Title), GS::Primary);   // ∑
+    tr.shutdown(*backend);
+}
+
+TEST_F(TextRendererGPUTest, CjkFallbackGrowsAtlas)
+{
+    if (font_data_.empty())
+        GTEST_SKIP() << "Font not found";
+    const std::string cjk =
+        first_existing({"/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+                        "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+                        "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
+                        "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf"});
+    if (cjk.empty())
+        GTEST_SKIP() << "No CJK font installed";
+    auto* backend = app_->backend();
+    ASSERT_NE(backend, nullptr);
+
+    TextRenderer tr;
+    tr.set_fallback_font_paths({cjk});
+    ASSERT_TRUE(tr.init(*backend, font_data_.data(), font_data_.size()));
+
+    const uint32_t h0 = tr.atlas_height();
+    for (uint32_t cp = 0x4E00; cp < 0x4E00 + 400; ++cp)
+    {
+        EXPECT_NE(tr.resolve_glyph(cp, FontSize::Title), TextRenderer::GlyphSource::Primary);
+    }
+    EXPECT_EQ(tr.resolve_glyph(0x4E2D, FontSize::Title), TextRenderer::GlyphSource::Fallback);
+    EXPECT_GT(tr.atlas_height(), h0) << "width " << tr.atlas_width();
+    EXPECT_LE(tr.atlas_height(), 4096u);
     tr.shutdown(*backend);
 }

@@ -204,6 +204,7 @@ void Renderer::notify_axes_removed(const AxesBase* axes)
         destroy_axes_buffers(it->second);
         axes_gpu_data_.erase(it);
     }
+    legend_best_corner_.erase(axes);
 }
 
 void Renderer::notify_figure_removed(const Figure* figure)
@@ -211,12 +212,23 @@ void Renderer::notify_figure_removed(const Figure* figure)
     auto it = figure_gpu_data_.find(figure);
     if (it != figure_gpu_data_.end())
     {
-        for (auto s : it->second.overlay_line_buffer)
-        {
-            if (s)
-                backend_.destroy_buffer(s);
-        }
+        destroy_figure_buffers(it->second);
         figure_gpu_data_.erase(it);
+    }
+}
+
+void Renderer::destroy_figure_buffers(FigureGpuData& gpu)
+{
+    for (uint32_t i = 0; i < FRAME_BUFFER_SLOTS; ++i)
+    {
+        for (BufferHandle* b : {&gpu.overlay_line_buffer[i],
+                                &gpu.annotation_vertex_buffer[i],
+                                &gpu.annotation_point_buffer[i]})
+        {
+            if (*b)
+                backend_.destroy_buffer(*b);
+            *b = BufferHandle{};
+        }
     }
 }
 
@@ -312,13 +324,7 @@ Renderer::~Renderer() noexcept
 
         // Clean up per-figure overlay buffers
         for (auto& [ptr, data] : figure_gpu_data_)
-        {
-            for (auto s : data.overlay_line_buffer)
-            {
-                if (s)
-                    backend_.destroy_buffer(s);
-            }
-        }
+            destroy_figure_buffers(data);
         figure_gpu_data_.clear();
 
         // Destroy custom series type pipelines
@@ -509,6 +515,10 @@ void Renderer::render_figure_content(Figure& figure, FigureViewModel* fig_vm)
     // Render screen-space plot geometry (2D grid, border, tick marks) via Vulkan grid pipeline.
     // 3D arrows are rendered inside render_axes() with depth testing.
     render_plot_geometry(figure);
+
+    // Legends and colorbars on top of everything else (text is queued for
+    // render_text()).
+    render_annotations(figure);
 }
 
 // render_plot_text() — moved to render_geometry.cpp
@@ -525,10 +535,15 @@ void Renderer::render_figure(Figure& figure)
     // Use begin_render_pass / render_figure_content / end_render_pass
     // separately when ImGui or other overlays need to render inside the
     // same render pass.
+    // Nothing else draws into this pass, so the legend comes from the renderer
+    // even if the interactive window's ImGui overlay normally provides it.
+    const bool overlay_legend = legend_overlay_active_;
+    legend_overlay_active_    = false;
     begin_render_pass();
     render_figure_content(figure);
     render_text(static_cast<float>(figure.width()), static_cast<float>(figure.height()));
     end_render_pass();
+    legend_overlay_active_ = overlay_legend;
 }
 
 ExportViewport compute_export_viewport(uint32_t figure_width,

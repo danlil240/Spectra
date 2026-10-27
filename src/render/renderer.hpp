@@ -1,5 +1,6 @@
 #pragma once
 
+#include <spectra/figure.hpp>
 #include <spectra/fwd.hpp>
 #include <spectra/series.hpp>
 
@@ -139,6 +140,15 @@ class Renderer
     // Render queued text (call after render_figure_content, before end_render_pass)
     void render_text(float screen_width, float screen_height);
 
+    // Legends are drawn by the renderer (quads + TextRenderer) unless an
+    // interactive legend overlay (the ImGui LegendInteraction) draws them on
+    // top of this frame.  Runtimes that build the ImGui overlay set this to
+    // true for the frames they render with it; headless export, canvas-only
+    // embeds and other overlay-less paths leave it false.  Colorbars are always
+    // drawn by the renderer (there is no overlay version).
+    void set_legend_overlay_active(bool active) { legend_overlay_active_ = active; }
+    bool legend_overlay_active() const { return legend_overlay_active_; }
+
     // Set the currently selected series for highlight rendering.
     // The renderer draws a thin accent-colored line on top of selected series
     // using the same GPU pipeline — no ImGui overlay needed.
@@ -197,6 +207,16 @@ class Renderer
                                    float* m);
 
     void render_arrows(Axes3D& axes, const Rect& viewport);
+
+    // Screen-space plot annotations (render_annotations.cpp): per-axes legend
+    // and colorbar, drawn after the series and plot geometry so they sit on top.
+    void render_annotations(Figure& figure);
+    void build_legend(Axes& axes, const LegendConfig& config);
+    void build_colorbar(AxesBase& axes);
+
+    // Upload a screen-space (pixel, Y-down) orthographic projection into the
+    // frame UBO and bind it.
+    void bind_screen_space_ubo(float fig_width, float fig_height);
 
     void                render_axis_border(AxesBase&   axes,
                                            const Rect& viewport,
@@ -396,19 +416,44 @@ class Renderer
         // Per-slot to avoid CPU/GPU hazard during continuous zoom/resize.
         BufferHandle overlay_line_buffer[FRAME_BUFFER_SLOTS];
         size_t       overlay_line_capacity[FRAME_BUFFER_SLOTS] = {};
+        // Legend / colorbar geometry: vec2 vertices (triangles + line lists)
+        // and vec2 SSBO points (line and marker swatches).
+        BufferHandle annotation_vertex_buffer[FRAME_BUFFER_SLOTS];
+        size_t       annotation_vertex_capacity[FRAME_BUFFER_SLOTS] = {};
+        BufferHandle annotation_point_buffer[FRAME_BUFFER_SLOTS];
+        size_t       annotation_point_capacity[FRAME_BUFFER_SLOTS] = {};
     };
+    void                                             destroy_figure_buffers(FigureGpuData& gpu);
     std::unordered_map<const Figure*, FigureGpuData> figure_gpu_data_;
 
     // Reusable scratch buffer for screen-space overlay vertex generation.
     std::vector<float> overlay_line_scratch_;
 
-    // Legend GPU buffers
-    BufferHandle       legend_line_buffer_;
-    size_t             legend_line_capacity_ = 0;
-    BufferHandle       legend_tri_buffer_;
-    size_t             legend_tri_capacity_ = 0;
-    std::vector<float> legend_line_scratch_;
-    std::vector<float> legend_tri_scratch_;
+    // Legend / colorbar annotation state (render_annotations.cpp).
+    bool legend_overlay_active_ = false;
+    // One recorded draw of the annotation pass.  Vertex kinds index
+    // annotation_vertex_scratch_ (in vertices); Segment / Marker index
+    // annotation_point_scratch_ (in points).
+    struct AnnotationDraw
+    {
+        enum class Kind : uint8_t
+        {
+            Triangles,   // overlay pipeline, triangle list
+            Lines,       // grid pipeline, line list
+            Segment,     // line pipeline, one segment points[first]..points[first+1]
+            Marker,      // scatter pipeline, one marker at points[first]
+        };
+        Kind                kind  = Kind::Triangles;
+        uint32_t            first = 0;
+        uint32_t            count = 0;
+        SeriesPushConstants pc{};
+    };
+    std::vector<AnnotationDraw> annotation_draws_;
+    std::vector<float>          annotation_vertex_scratch_;
+    std::vector<float>          annotation_point_scratch_;
+    // Last corner chosen for LegendPosition::Best per axes (hysteresis, so a
+    // streaming plot's legend does not jump between corners every frame).
+    std::unordered_map<const AxesBase*, LegendPosition> legend_best_corner_;
 
     // Double-buffered deferred deletion: resources removed in frame N are
     // destroyed in frame N+2 (after MAX_FRAMES_IN_FLIGHT fence waits).

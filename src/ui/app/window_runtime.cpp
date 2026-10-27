@@ -1001,6 +1001,14 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
 
         renderer_.begin_render_pass();
 
+        // The ImGui overlay (when present) draws the interactive legend on top
+        // of this frame; otherwise the renderer draws it (headless export).
+        bool legend_overlay = false;
+#ifdef SPECTRA_USE_IMGUI
+        legend_overlay = ui_ctx.imgui_ui && ui_ctx.imgui_ui->data_interaction();
+#endif
+        renderer_.set_legend_overlay_active(legend_overlay);
+
 #ifdef SPECTRA_USE_IMGUI
         // Pass selected series to the renderer for GPU-rendered highlight
         if (ui_ctx.imgui_ui)

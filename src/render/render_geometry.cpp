@@ -651,6 +651,36 @@ void Renderer::render_plot_text(Figure& figure)
     }
 }
 
+void Renderer::bind_screen_space_ubo(float fw, float fh)
+{
+    // Screen coordinates are Y-down (0=top, h=bottom).
+    // Vulkan clip space has Y-down (positive m[5]), WebGPU has Y-up (negative m[5]).
+    FrameUBO ubo{};   // Value-initializes all members to zero
+    float    y_sign    = backend_.clip_y_down() ? 1.0f : -1.0f;
+    ubo.projection[0]  = 2.0f / fw;            // X: [0, fw] → [-1, +1]
+    ubo.projection[5]  = y_sign * 2.0f / fh;   // Y: flip for WebGPU
+    ubo.projection[10] = -1.0f;
+    ubo.projection[12] = -1.0f;
+    ubo.projection[13] = y_sign * -1.0f;
+    ubo.projection[15] = 1.0f;
+    // Identity view + model
+    ubo.view[0]         = 1.0f;
+    ubo.view[5]         = 1.0f;
+    ubo.view[10]        = 1.0f;
+    ubo.view[15]        = 1.0f;
+    ubo.model[0]        = 1.0f;
+    ubo.model[5]        = 1.0f;
+    ubo.model[10]       = 1.0f;
+    ubo.model[15]       = 1.0f;
+    ubo.viewport_width  = fw;
+    ubo.viewport_height = fh;
+
+    backend_.set_viewport(0, 0, fw, fh);
+    backend_.set_scissor(0, 0, static_cast<uint32_t>(fw), static_cast<uint32_t>(fh));
+    backend_.upload_buffer(frame_ubo_buffer_, &ubo, sizeof(FrameUBO));
+    backend_.bind_buffer(frame_ubo_buffer_, 0);
+}
+
 void Renderer::render_plot_geometry(Figure& figure)
 {
     uint32_t fig_w = figure.width();
@@ -773,32 +803,7 @@ void Renderer::render_plot_geometry(Figure& figure)
     // with depth testing, so they are properly occluded by 3D geometry.
 
     // ── Set up screen-space ortho projection in UBO ──
-    // Screen coordinates are Y-down (0=top, h=bottom).
-    // Vulkan clip space has Y-down (positive m[5]), WebGPU has Y-up (negative m[5]).
-    FrameUBO ubo{};   // Value-initializes all members to zero
-    float    y_sign    = backend_.clip_y_down() ? 1.0f : -1.0f;
-    ubo.projection[0]  = 2.0f / fw;            // X: [0, fw] → [-1, +1]
-    ubo.projection[5]  = y_sign * 2.0f / fh;   // Y: flip for WebGPU
-    ubo.projection[10] = -1.0f;
-    ubo.projection[12] = -1.0f;
-    ubo.projection[13] = y_sign * -1.0f;
-    ubo.projection[15] = 1.0f;
-    // Identity view + model
-    ubo.view[0]         = 1.0f;
-    ubo.view[5]         = 1.0f;
-    ubo.view[10]        = 1.0f;
-    ubo.view[15]        = 1.0f;
-    ubo.model[0]        = 1.0f;
-    ubo.model[5]        = 1.0f;
-    ubo.model[10]       = 1.0f;
-    ubo.model[15]       = 1.0f;
-    ubo.viewport_width  = fw;
-    ubo.viewport_height = fh;
-
-    backend_.set_viewport(0, 0, fw, fh);
-    backend_.set_scissor(0, 0, fig_w, fig_h);
-    backend_.upload_buffer(frame_ubo_buffer_, &ubo, sizeof(FrameUBO));
-    backend_.bind_buffer(frame_ubo_buffer_, 0);
+    bind_screen_space_ubo(fw, fh);
 
     // ── Draw 2D grid lines per-axes (screen-space, scissored to viewport) ──
     // Rendered in screen-space to avoid the same GPU buffer race that

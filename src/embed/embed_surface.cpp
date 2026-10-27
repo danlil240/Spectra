@@ -436,6 +436,12 @@ struct EmbedSurface::Impl
         renderer->flush_pending_deletions();
 
         renderer->begin_render_pass();
+        // Canvas-only embeds have no ImGui legend: the renderer draws it.
+        bool legend_overlay = false;
+#ifdef SPECTRA_USE_IMGUI
+        legend_overlay = imgui_ui && data_interaction;
+#endif
+        renderer->set_legend_overlay_active(legend_overlay);
         renderer->render_figure_content(*active_fig);
 
         // Flush Vulkan plot text BEFORE ImGui so UI overlays render on top

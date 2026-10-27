@@ -146,6 +146,7 @@ set(SPECTRA_UNIT_TESTS
     test_clipboard_image
     test_region_select
     test_legend_interaction
+    test_legend_colorbar
     test_figure_manager
     test_inspector_stats
     test_box_zoom_overlay

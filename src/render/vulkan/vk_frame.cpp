@@ -11,6 +11,9 @@
 
 #include <vk_mem_alloc.h>
 
+#include <algorithm>
+#include <cmath>
+
 namespace spectra
 {
 
@@ -489,10 +492,10 @@ void VulkanBackend::push_constants(const SeriesPushConstants& pc)
 void VulkanBackend::set_viewport(float x, float y, float width, float height)
 {
     VkViewport vp{};
-    vp.x        = x;
-    vp.y        = y;
-    vp.width    = width;
-    vp.height   = height;
+    vp.x        = x * pixel_scale_;
+    vp.y        = y * pixel_scale_;
+    vp.width    = width * pixel_scale_;
+    vp.height   = height * pixel_scale_;
     vp.minDepth = 0.0f;
     vp.maxDepth = 1.0f;
     vkCmdSetViewport(active_window_->current_cmd, 0, 1, &vp);
@@ -501,8 +504,24 @@ void VulkanBackend::set_viewport(float x, float y, float width, float height)
 void VulkanBackend::set_scissor(int32_t x, int32_t y, uint32_t width, uint32_t height)
 {
     VkRect2D scissor{};
-    scissor.offset = {x, y};
-    scissor.extent = {width, height};
+    if (pixel_scale_ == 1.0f)
+    {
+        scissor.offset = {x, y};
+        scissor.extent = {width, height};
+    }
+    else
+    {
+        // Cover every framebuffer pixel the scaled logical rect touches.
+        const float x0 = std::floor(static_cast<float>(x) * pixel_scale_);
+        const float y0 = std::floor(static_cast<float>(y) * pixel_scale_);
+        const float x1 =
+            std::ceil(static_cast<float>(x + static_cast<int64_t>(width)) * pixel_scale_);
+        const float y1 =
+            std::ceil(static_cast<float>(y + static_cast<int64_t>(height)) * pixel_scale_);
+        scissor.offset = {static_cast<int32_t>(x0), static_cast<int32_t>(y0)};
+        scissor.extent = {static_cast<uint32_t>(std::max(0.0f, x1 - x0)),
+                          static_cast<uint32_t>(std::max(0.0f, y1 - y0))};
+    }
     vkCmdSetScissor(active_window_->current_cmd, 0, 1, &scissor);
 }
 
@@ -510,7 +529,7 @@ void VulkanBackend::set_line_width(float width)
 {
     // Without the wideLines feature only 1.0 is valid
     // (VUID-vkCmdSetLineWidth-lineWidth-00788).
-    const float clamped = vk::clamp_line_width(width,
+    const float clamped = vk::clamp_line_width(width * pixel_scale_,
                                                ctx_.wide_lines_enabled,
                                                ctx_.properties.limits.lineWidthRange[0],
                                                ctx_.properties.limits.lineWidthRange[1]);

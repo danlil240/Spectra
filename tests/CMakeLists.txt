@@ -241,6 +241,8 @@ set(SPECTRA_UNIT_TESTS
     test_logger_defaults
     test_runtime_robustness
     test_app_init_failure
+    test_export_viewport
+    test_headless_export_text
 )
 
 # Mock transform plugin — shared library loaded by test_plugin_transforms
@@ -320,6 +322,7 @@ set(SPECTRA_GPU_TESTS
     test_text_renderer
     test_embed_surface
     test_easy_embed
+    test_headless_export_text
 )
 
 foreach(_test ${SPECTRA_UNIT_TESTS})
@@ -382,6 +385,11 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
         # the wgsl source dir exists, regardless of SPECTRA_USE_WEBGPU).
         if(_test STREQUAL "test_webgpu_backend" AND TARGET spectra_wgsl_shaders)
             add_dependencies(unit_${_test} spectra_wgsl_shaders)
+        endif()
+        # Decodes the exported PNGs with the bundled stb_image.
+        if(_test STREQUAL "test_headless_export_text")
+            target_include_directories(unit_${_test} SYSTEM PRIVATE
+                ${CMAKE_SOURCE_DIR}/third_party/stb)
         endif()
     endif()
 endforeach()

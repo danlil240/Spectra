@@ -53,6 +53,23 @@ LineDrawRange compute_line_draw_range(std::span<const float> x,
                                       float                  local_x_min,
                                       float                  local_x_max);
 
+// Layout size and pixel scale for exporting a figure at export_width x export_height.
+// An export larger than the figure is a HiDPI export: the figure keeps (about) its own
+// layout size and everything is drawn pixel_scale times larger, so line widths, markers
+// and text keep their proportions.  An export at or below the figure size re-lays the
+// figure out at the export size with pixel_scale 1 (text stays legible in thumbnails).
+// When the aspect ratios differ the smaller of the two ratios is used.
+struct ExportViewport
+{
+    uint32_t layout_width  = 0;
+    uint32_t layout_height = 0;
+    float    pixel_scale   = 1.0f;
+};
+ExportViewport compute_export_viewport(uint32_t figure_width,
+                                       uint32_t figure_height,
+                                       uint32_t export_width,
+                                       uint32_t export_height);
+
 class Renderer
 {
    public:
@@ -65,7 +82,7 @@ class Renderer
     // Initialize pipelines for all series types
     bool init();
 
-    // Render a complete figure (starts and ends its own render pass)
+    // Render a complete figure including its text (starts and ends its own render pass)
     void render_figure(Figure& figure);
 
     // Split render pass management: call begin, then render_figure_content,

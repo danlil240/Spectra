@@ -523,7 +523,28 @@ void Renderer::render_figure(Figure& figure)
     // same render pass.
     begin_render_pass();
     render_figure_content(figure);
+    render_text(static_cast<float>(figure.width()), static_cast<float>(figure.height()));
     end_render_pass();
+}
+
+ExportViewport compute_export_viewport(uint32_t figure_width,
+                                       uint32_t figure_height,
+                                       uint32_t export_width,
+                                       uint32_t export_height)
+{
+    ExportViewport ev{export_width, export_height, 1.0f};
+    if (figure_width == 0 || figure_height == 0 || export_width == 0 || export_height == 0)
+        return ev;
+
+    const float scale = std::min(static_cast<float>(export_width) / figure_width,
+                                 static_cast<float>(export_height) / figure_height);
+    if (scale <= 1.0f)
+        return ev;
+
+    ev.pixel_scale   = scale;
+    ev.layout_width  = std::max(1u, static_cast<uint32_t>(std::lround(export_width / scale)));
+    ev.layout_height = std::max(1u, static_cast<uint32_t>(std::lround(export_height / scale)));
+    return ev;
 }
 
 // upload_series_data() — moved to render_upload.cpp

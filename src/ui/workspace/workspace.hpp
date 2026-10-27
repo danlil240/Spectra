@@ -31,6 +31,11 @@ struct WorkspaceData
         std::string y_label;
         std::string title;
         bool        is_3d = false;   // v4: true if this axes is an Axes3D
+        // Optional keys (absent in older files: defaults = linear, numeric).
+        int  x_scale    = 0;   // ScaleType
+        int  y_scale    = 0;
+        bool x_datetime = false;
+        bool y_datetime = false;
     };
 
     // v4: 3D axes state (one per 3D axes, indexed parallel to AxisState)
@@ -74,6 +79,8 @@ struct WorkspaceData
         float ambient       = 0.0f;
         float specular      = 0.0f;
         float shininess     = 0.0f;
+        // Bar category names (optional "categories" key; empty = none).
+        std::vector<std::string> categories;
     };
 
     // 2D text annotation (Axes::text / Axes::annotate).  Stored in the
@@ -109,6 +116,9 @@ struct WorkspaceData
         std::vector<Axes3DState> axes_3d;   // v4: 3D axes state
         std::vector<TextAnnotationState> text_annotations;
         bool                             has_text_annotations = false;   // key present in file
+        // LegendPosition (optional "legend_position" key); -1 = not in the
+        // file, so apply() keeps the figure's current position.
+        int legend_position = -1;
     };
 
     struct PanelState

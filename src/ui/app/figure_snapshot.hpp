@@ -27,6 +27,7 @@
 #include <vector>
 
 #include "ipc/annotation_state.hpp"
+#include "ipc/axes_format_state.hpp"
 #include "ipc/message.hpp"
 
 namespace spectra
@@ -330,6 +331,8 @@ inline Series* add_stats_series_from_snapshot(Axes& ax, const ipc::SnapshotSerie
         s.bar_width(p[0]).baseline(p[1]);
         s.orientation(b2 ? BarOrientation::Horizontal : BarOrientation::Vertical);
         s.gradient(b3);
+        if (!ss.categories.empty())
+            s.categories(ss.categories);
         return &s;
     }
     if (ss.type == "histogram")
@@ -436,6 +439,7 @@ inline ipc::SnapshotFigureState figure_to_snapshot(const Figure& fig, uint64_t f
     snap.height    = fig.height();
     snap.grid_rows = fig.grid_rows();
     snap.grid_cols = fig.grid_cols();
+    snap.legend_position = ipc::legend_position_to_wire(fig.legend().position);
 
     // One axes entry per grid slot so axes_index == subplot index - 1 on both
     // sides; an empty slot (gap in the grid) becomes a blank 2D axes.
@@ -452,6 +456,7 @@ inline ipc::SnapshotFigureState figure_to_snapshot(const Figure& fig, uint64_t f
             sa.y_max   = ax->y_limits().max;
             sa.x_label = ax->xlabel();
             sa.y_label = ax->ylabel();
+            ipc::axis_format_to_state(*ax, sa);
             for (const auto& ann : ax->annotations())
             {
                 if (ann)
@@ -510,6 +515,8 @@ inline ipc::SnapshotFigureState figure_to_snapshot(const Figure& fig, uint64_t f
                 ss.marker_size = s3->size();
 
             encode_snapshot_series_data(s, ss);
+            if (auto* bar = dynamic_cast<const BarSeries*>(&s))
+                ss.categories = bar->categories();
             snap.series.push_back(std::move(ss));
         });
 

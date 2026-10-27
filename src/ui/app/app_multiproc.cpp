@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "anim/frame_scheduler.hpp"
+#include "ipc/axes_format_state.hpp"
 #include "ipc/codec.hpp"
 #include "ipc/message.hpp"
 #include "ipc/transport.hpp"
@@ -482,11 +483,26 @@ void App::run_multiproc()
                        AxisLimitsKeyHash,
                        AxisLimitsKeyEq>
         sent_annotations;
+    // Last-sent axis scales / date-time modes per axes, legend position per
+    // figure and bar category names per (figure, figure-wide series index),
+    // so changes made by user callbacks reach the windows.
+    std::unordered_map<AxisLimitsKey, ipc::SnapshotAxisState, AxisLimitsKeyHash, AxisLimitsKeyEq>
+                                          sent_formats;
+    std::unordered_map<uint64_t, uint8_t> sent_legend_pos;
+    std::unordered_map<AxisLimitsKey, std::vector<std::string>, AxisLimitsKeyHash, AxisLimitsKeyEq>
+        sent_categories;
     for (const auto& fs : snap.figures)
     {
         for (size_t ai = 0; ai < fs.axes.size(); ++ai)
-            sent_annotations[AxisLimitsKey{fs.figure_id, static_cast<uint32_t>(ai)}] =
-                fs.axes[ai].annotations;
+        {
+            const AxisLimitsKey key{fs.figure_id, static_cast<uint32_t>(ai)};
+            sent_annotations[key] = fs.axes[ai].annotations;
+            sent_formats[key]     = fs.axes[ai];
+        }
+        sent_legend_pos[fs.figure_id] = fs.legend_position;
+        for (size_t si = 0; si < fs.series.size(); ++si)
+            sent_categories[AxisLimitsKey{fs.figure_id, static_cast<uint32_t>(si)}] =
+                fs.series[si].categories;
     }
 
     // Wait until all agent windows are closed (backend sends CMD_CLOSE_WINDOW or drops connection)
@@ -666,12 +682,59 @@ void App::run_multiproc()
                         }
                     }
 
+                    // Axis scales / date-time tick mode of the 2D axes.
+                    for (size_t slot = 0; slot < slots; ++slot)
+                    {
+                        auto* ax2d = dynamic_cast<const Axes*>(snapshot_axes_at(*fig, slot));
+                        if (!ax2d)
+                            continue;
+                        const auto             slot_idx = static_cast<uint32_t>(slot);
+                        ipc::SnapshotAxisState now;
+                        ipc::axis_format_to_state(*ax2d, now);
+                        auto& sent = sent_formats[AxisLimitsKey{reg_to_ipc[id], slot_idx}];
+                        if (!ipc::same_axis_format(now, sent))
+                        {
+                            diff.ops.push_back(
+                                ipc::make_axis_scale_op(reg_to_ipc[id], slot_idx, now));
+                            ipc::apply_axis_scale_op(
+                                sent,
+                                ipc::make_axis_scale_op(reg_to_ipc[id], slot_idx, now));
+                        }
+                    }
+
+                    // Legend position.
+                    {
+                        const uint8_t pos   = ipc::legend_position_to_wire(fig->legend().position);
+                        auto [lp, inserted] = sent_legend_pos.try_emplace(reg_to_ipc[id], pos);
+                        if (!inserted && lp->second != pos)
+                        {
+                            diff.ops.push_back(
+                                ipc::make_legend_position_op(reg_to_ipc[id],
+                                                             fig->legend().position));
+                            lp->second = pos;
+                        }
+                    }
+
                     // Series data: index the series figure-wide, in snapshot
                     // order, as the daemon's FigureModel and the window do.
                     for_each_snapshot_series(
                         *fig,
                         [&](uint32_t slot, uint32_t global_idx, const Series& s)
                         {
+                            if (auto* bar = dynamic_cast<const BarSeries*>(&s))
+                            {
+                                auto& sent =
+                                    sent_categories[AxisLimitsKey{reg_to_ipc[id], global_idx}];
+                                if (sent != bar->categories())
+                                {
+                                    diff.ops.push_back(
+                                        ipc::make_series_categories_op(reg_to_ipc[id],
+                                                                       slot,
+                                                                       global_idx,
+                                                                       bar->categories()));
+                                    sent = bar->categories();
+                                }
+                            }
                             if (!s.is_dirty())
                                 return;
                             ipc::SnapshotSeriesState payload;

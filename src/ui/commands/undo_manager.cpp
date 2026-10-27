@@ -146,7 +146,15 @@ void UndoManager::end_group()
 
     UndoAction combined;
     combined.description = desc;
-    combined.undo_fn     = [actions]()
+    for (const auto& a : actions)
+    {
+        if (a.owner)
+        {
+            combined.owner = a.owner;
+            break;
+        }
+    }
+    combined.undo_fn = [actions]()
     {
         // Undo in reverse order
         for (const auto& action : std::ranges::reverse_view(actions))
@@ -173,6 +181,17 @@ void UndoManager::end_group()
     {
         undo_stack_.erase(undo_stack_.begin());
     }
+}
+
+size_t UndoManager::remove_owned(const void* owner)
+{
+    if (!owner)
+        return 0;
+    std::lock_guard lock(mutex_);
+    size_t          removed = 0;
+    for (auto* stack : {&undo_stack_, &redo_stack_, &group_actions_})
+        removed += std::erase_if(*stack, [owner](const UndoAction& a) { return a.owner == owner; });
+    return removed;
 }
 
 bool UndoManager::in_group() const

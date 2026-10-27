@@ -319,6 +319,28 @@ class ThemeManagerTest : public ::testing::Test
     std::string  original_theme_;
 };
 
+// Startup sequence used by embedders (Qt adapter): a fresh manager is made current and a
+// theme is requested before anything has registered the built-ins.  The request must stick,
+// including across the ensure_initialized() call ImGui init makes later.
+TEST(ThemeManagerStartup, SetThemeOnFreshManagerIsHonoured)
+{
+    ThemeManager tm;
+    ThemeManager::set_current(&tm);
+    tm.set_theme("dark");
+    EXPECT_EQ(tm.current_theme_name(), "dark");
+    tm.ensure_initialized();   // what ImGuiIntegration::init() does
+    EXPECT_EQ(tm.current_theme_name(), "dark");
+    EXPECT_EQ(ThemeManager::instance().current_theme_name(), "dark");
+    ThemeManager::set_current(nullptr);
+}
+
+TEST(ThemeManagerStartup, UnknownThemeOnFreshManagerFallsBackToDefault)
+{
+    ThemeManager tm;
+    tm.set_theme("nonexistent_theme_xyz");
+    EXPECT_EQ(tm.current_theme_name(), "night");
+}
+
 TEST_F(ThemeManagerTest, SingletonReturnsSameInstance)
 {
     auto& a = ThemeManager::instance();

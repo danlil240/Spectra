@@ -8,7 +8,9 @@
 namespace spectra
 {
 
-void OverlayRegistry::register_overlay(const std::string& name, DrawCallback callback)
+void OverlayRegistry::register_overlay(const std::string& name,
+                                       DrawCallback       callback,
+                                       const void*        owner)
 {
     std::lock_guard lock(mutex_);
 
@@ -18,11 +20,47 @@ void OverlayRegistry::register_overlay(const std::string& name, DrawCallback cal
         if (entry.name == name)
         {
             entry.callback = std::move(callback);
+            entry.owner    = owner;
+            entry.enabled  = true;
             return;
         }
     }
 
-    overlays_.push_back({name, std::move(callback)});
+    Entry entry;
+    entry.name     = name;
+    entry.callback = std::move(callback);
+    entry.owner    = owner;
+    overlays_.push_back(std::move(entry));
+}
+
+size_t OverlayRegistry::unregister_owner(const void* owner)
+{
+    if (!owner)
+        return 0;
+    std::lock_guard lock(mutex_);
+    return std::erase_if(overlays_, [owner](const Entry& e) { return e.owner == owner; });
+}
+
+void OverlayRegistry::set_owner_enabled(const void* owner, bool enabled)
+{
+    if (!owner)
+        return;
+    std::lock_guard lock(mutex_);
+    for (auto& entry : overlays_)
+    {
+        if (entry.owner == owner)
+            entry.enabled = enabled;
+    }
+}
+
+size_t OverlayRegistry::count_owned(const void* owner) const
+{
+    if (!owner)
+        return 0;
+    std::lock_guard lock(mutex_);
+    return static_cast<size_t>(std::count_if(overlays_.begin(),
+                                             overlays_.end(),
+                                             [owner](const Entry& e) { return e.owner == owner; }));
 }
 
 void OverlayRegistry::unregister_overlay(const std::string& name)
@@ -41,7 +79,7 @@ void OverlayRegistry::draw_all(const OverlayDrawContext& ctx) const
 
     for (auto& entry : overlays_)
     {
-        if (entry.faulted)
+        if (entry.faulted || !entry.enabled)
             continue;
 
         auto result = plugin_guard_invoke(entry.name.c_str(), [&]() { entry.callback(ctx); });

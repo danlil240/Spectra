@@ -52,7 +52,7 @@ class LegendInteraction
     // Draw the interactive legend overlay for the given axes.
     // figure_id disambiguates state across figures in split mode.
     // Returns true if the legend consumed a mouse event this frame.
-    bool draw(Axes&               axes,
+    bool draw(AxesBase&           axes,
               const Rect&         viewport,
               size_t              axes_index,
               const LegendConfig& config,

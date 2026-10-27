@@ -73,22 +73,23 @@ void LegendInteraction::update(float dt, Figure& figure)
     {
         for (auto it = series_states_.begin(); it != series_states_.end();)
         {
-            bool found = false;
-            for (auto& axes_ptr : figure.axes())
+            bool found   = false;
+            auto in_axes = [&](const AxesBase* axes)
             {
-                if (!axes_ptr)
-                    continue;
-                for (auto& s : axes_ptr->series())
-                {
+                if (!axes)
+                    return false;
+                for (auto& s : axes->series())
                     if (s.get() == it->first)
-                    {
-                        found = true;
-                        break;
-                    }
-                }
-                if (found)
+                        return true;
+                return false;
+            };
+            for (auto& axes_ptr : figure.axes())
+                if ((found = in_axes(axes_ptr.get())))
                     break;
-            }
+            if (!found)   // 3D axes have legend entries too
+                for (auto& axes_ptr : figure.all_axes())
+                    if ((found = in_axes(axes_ptr.get())))
+                        break;
             if (!found)
             {
                 it = series_states_.erase(it);
@@ -121,7 +122,7 @@ bool LegendInteraction::is_series_visible(const Series* series) const
 
 // ─── Drawing ────────────────────────────────────────────────────────────────
 
-bool LegendInteraction::draw(Axes&               axes,
+bool LegendInteraction::draw(AxesBase&           axes,
                              const Rect&         viewport,
                              size_t              axes_index,
                              const LegendConfig& config,
@@ -358,7 +359,8 @@ bool LegendInteraction::draw(Axes&               axes,
 
             // Determine visual opacity
             float vis_alpha = state.opacity;
-            Color sc        = ui::adapt_series_color_to_theme(s->color(), theme_colors);
+            Color sc =
+                ui::adapt_series_color_to_theme(legend_layout::swatch_color(*s), theme_colors);
 
             // Color swatch
             ImU32 swatch_col =

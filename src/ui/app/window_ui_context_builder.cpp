@@ -422,6 +422,16 @@ std::unique_ptr<WindowUIContext> build_window_ui_context(const WindowUIContextBu
     #endif
     register_standard_commands(bindings);
 
+    if (options.export_format_registry)
+    {
+        PluginExportCommands::Options export_opts;
+        export_opts.formats         = options.export_format_registry;
+        export_opts.commands        = &ui->cmd_registry;
+        export_opts.active_figure   = active_figure_ptr;
+        export_opts.last_export_dir = &ui->last_export_dir;
+        ui->plugin_export_commands.attach(std::move(export_opts));
+    }
+
     ui->settings_cfg.set_shortcut_manager(&ui->shortcut_mgr);
     ui->settings_cfg.load(ShortcutConfig::default_path());
     ui->settings_cfg.apply_overrides();

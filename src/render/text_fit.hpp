@@ -5,6 +5,7 @@
 #include <string_view>
 #include <spectra/series.hpp>
 
+#include "core/label_layout.hpp"
 #include "text_renderer.hpp"
 
 namespace spectra
@@ -41,5 +42,16 @@ FittedText fit_text_to_width(const std::string& text,
                              FontSize           min_size,
                              const TextWidthFn& measure,
                              std::string_view   ellipsis = "...");
+
+// Conversions between the renderer's types and the shared plot-label fitting rules in
+// core/label_layout.hpp (fit_axes_title(), fit_axes_xlabel(), ...).  The returned
+// LabelWidthFn refers to `measure`, which must outlive it.
+FittedText   to_fitted_text(FittedLabel&& label);
+LabelWidthFn to_label_width_fn(const TextWidthFn& measure);
+
+static_assert(static_cast<int>(FontSize::Tick) == static_cast<int>(LabelFont::Tick)
+                  && static_cast<int>(FontSize::Label) == static_cast<int>(LabelFont::Label)
+                  && static_cast<int>(FontSize::Title) == static_cast<int>(LabelFont::Title),
+              "LabelFont must mirror FontSize");
 
 }   // namespace spectra

@@ -28,9 +28,14 @@ class Figure;
 
 namespace detail
 {
-// Currently registered public theme-change callback (nullptr when none).
-// Implemented in theme_api.cpp.
-ThemeChangeCallback registered_theme_change_callback();
+// Invokes the registered public theme-change callback (if any) with `snap`.
+// Holds the registration lock for the whole call, so it is synchronized with
+// register_theme_change_callback().  Implemented in theme_api.cpp.
+void invoke_theme_change_callback(const ThemeSnapshot& snap);
+
+// Test-only: called inside invoke_theme_change_callback() after the registered
+// pointer is loaded and before it is called (nullptr disables).
+void set_theme_callback_dispatch_hook_for_testing(void (*hook)());
 }   // namespace detail
 }   // namespace spectra
 

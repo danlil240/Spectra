@@ -69,7 +69,16 @@ uint32_t get_theme_snapshot(ThemeSnapshot& out);
 ///   replaces the previous one), shared by every Spectra app instance in the
 ///   process.  The snapshot passed in describes the instance that changed.
 /// - The function must stay callable until it is unregistered with nullptr.
-///   Once register_theme_change_callback(nullptr) returns, no new calls start.
+///   register_theme_change_callback() (nullptr or a replacement) waits for any
+///   call already in progress on another thread to return; once it returns, no
+///   call to the previous function is running or can start.
+/// - Calls are serialized: the registration lock is held while the callback
+///   runs.  On the calling thread the lock is re-entrant, so the callback may
+///   unregister or replace itself (the current call still runs to completion;
+///   later calls use the new registration) or switch theme (a nested call is
+///   delivered before the outer set_theme returns).  The callback must not
+///   wait for another thread that registers a callback or applies a theme
+///   change, or both threads deadlock.
 using ThemeChangeCallback = void (*)(const ThemeSnapshot&);
 void register_theme_change_callback(ThemeChangeCallback callback);
 

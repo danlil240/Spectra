@@ -23,6 +23,10 @@ struct Command
 
     // Icon hint (maps to ui::Icon enum value, 0 = none)
     uint16_t icon = 0;
+
+    // Opaque owner token (e.g. the plugin module that registered the command);
+    // nullptr for host commands.  Used to remove a plugin's commands on unload.
+    const void* owner = nullptr;
 };
 
 // Result from a fuzzy search query.
@@ -100,6 +104,9 @@ class CommandRegistry
 
     // Enable/disable a command.
     void set_enabled(const std::string& id, bool enabled);
+
+    // Ids of all commands whose Command::owner is `owner` (empty for nullptr).
+    std::vector<std::string> ids_owned_by(const void* owner) const;
 
     // Track recent commands (for "recent" section in palette).
     void                        record_execution(const std::string& id);

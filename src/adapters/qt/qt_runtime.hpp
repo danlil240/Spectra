@@ -107,6 +107,13 @@ class QtRuntime
     WindowContext*   window_context(QWindow* window) const;
     WindowContext*   window_context() const;
 
+    // Theme applied by init() before the first frame.
+    static constexpr const char* DEFAULT_THEME = "dark";
+
+    // The runtime-owned theme manager (registered as current by init()).
+    ui::ThemeManager&       theme_manager() { return theme_mgr_; }
+    const ui::ThemeManager& theme_manager() const { return theme_mgr_; }
+
    private:
     struct WindowState
     {

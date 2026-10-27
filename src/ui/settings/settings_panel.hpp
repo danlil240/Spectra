@@ -2,6 +2,8 @@
 
 #include <string>
 
+#include "settings_layout.hpp"
+
 namespace spectra
 {
 class ShortcutConfig;
@@ -36,15 +38,26 @@ class SettingsPanel
 
    private:
     void draw_appearance_tab();
+    void draw_appearance_footer();
     void draw_shortcuts_tab();
+    void draw_shortcuts_footer();
     void draw_ui_defaults_tab();
 
     SettingsStore*    store_           = nullptr;
     ui::ThemeManager* theme_mgr_       = nullptr;
     ShortcutConfig*   shortcut_cfg_    = nullptr;
     bool              visible_         = false;
-    int               pending_tab_     = -1;   // tab to switch to (-1 = no pending switch)
+    int               pending_tab_     = -1;     // tab to switch to (-1 = no pending switch)
+    int               active_tab_      = 0;      // tab whose body is drawn
+    int               recenter_frames_ = 0;      // frames left to re-center after opening
+    float             body_max_h_      = 0.0f;   // height budget of the scrolling tab body
+    float             body_origin_y_   = 0.0f;   // cursor y where the tab body starts
     char              filter_buf_[128] = {};
+    SettingsVec2      last_pos_;   // window rect last frame
+    SettingsVec2      last_size_;
+    SettingsVec2      last_work_size_;
+    // Natural tab-body height per tab, measured when last shown (-1 = unknown).
+    float body_content_h_[3] = {-1.0f, -1.0f, -1.0f};
 
     bool        capturing_shortcut_ = false;
     std::string capturing_command_id_;

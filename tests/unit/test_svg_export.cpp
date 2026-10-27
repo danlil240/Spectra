@@ -15,6 +15,10 @@
 #include <filesystem>
 #include <random>
 
+#include "core/label_layout.hpp"
+#include "io/svg_label_metrics.hpp"
+#include "render/text_fit.hpp"
+
 namespace spectra
 {
 namespace
@@ -624,6 +628,284 @@ TEST(SvgExport, LongUtf8LegendLabelIsEllipsizedInsidePlot)
     EXPECT_EQ(label.compare(0, body.size(), body), 0);
     const auto last = static_cast<unsigned char>(label[body.size()]);
     EXPECT_NE(last & 0xC0u, 0x80u) << "cut inside a UTF-8 sequence";
+}
+
+// Audit S06: long titles / axis labels are fitted to their subplot in SVG exactly as in
+// the GPU/raster path (shared rules in core/label_layout), with or without tick offsets.
+namespace
+{
+struct SvgLabel
+{
+    float       x = 0, y = 0, font_px = 0;
+    std::string anchor = "start";
+    std::string content;
+    bool        rotated = false;
+};
+
+std::vector<SvgLabel> parse_labels(const std::string& svg)
+{
+    std::vector<SvgLabel> out;
+    size_t                pos = 0;
+    while ((pos = svg.find("<text ", pos)) != std::string::npos)
+    {
+        const size_t gt  = svg.find('>', pos);
+        const size_t end = svg.find("</text>", gt);
+        if (gt == std::string::npos || end == std::string::npos)
+            break;
+        const std::string tag = svg.substr(pos, gt - pos);
+        SvgLabel          t;
+        t.x            = attr(tag, 0, "x");
+        t.y            = attr(tag, 0, "y");
+        t.font_px      = attr(tag, 0, "font-size");
+        const size_t a = tag.find(" text-anchor=\"");
+        if (a != std::string::npos)
+            t.anchor = tag.substr(a + 14, tag.find('"', a + 14) - (a + 14));
+        const size_t r = tag.find("rotate(");
+        if (r != std::string::npos)
+        {
+            // "rotate(<angle> <cx> <cy>)": keep the rotation centre.
+            t.rotated       = true;
+            const size_t cx = tag.find(' ', r) + 1;
+            const size_t cy = tag.find(' ', cx) + 1;
+            t.x             = std::stof(tag.substr(cx));
+            t.y             = std::stof(tag.substr(cy));
+        }
+        t.content = svg.substr(gt + 1, end - gt - 1);
+        out.push_back(t);
+        pos = end;
+    }
+    return out;
+}
+
+LabelFont font_of(float px)
+{
+    if (std::abs(px - svg_plot_label_font_px(LabelFont::Title)) < 0.01f)
+        return LabelFont::Title;
+    if (std::abs(px - svg_plot_label_font_px(LabelFont::Label)) < 0.01f)
+        return LabelFont::Label;
+    return LabelFont::Tick;
+}
+
+float svg_width(const SvgLabel& t)
+{
+    return svg_plot_label_width(t.content, font_of(t.font_px));
+}
+
+const SvgLabel* find_prefixed(const std::vector<SvgLabel>& labels, const std::string& prefix)
+{
+    for (const auto& t : labels)
+        if (t.content.rfind(prefix, 0) == 0)
+            return &t;
+    return nullptr;
+}
+
+bool ends_with_ellipsis(const std::string& s)
+{
+    return s.size() >= LABEL_ELLIPSIS.size()
+           && s.compare(s.size() - LABEL_ELLIPSIS.size(), LABEL_ELLIPSIS.size(), LABEL_ELLIPSIS)
+                  == 0;
+}
+
+std::string long_text(const std::string& head)
+{
+    return head + " with a very long description that cannot possibly fit inside one subplot";
+}
+}   // namespace
+
+TEST(SvgExport, LongLabelsStayInsideTheirSubplot)
+{
+    const uint32_t     fig_w = 800, fig_h = 600;
+    Figure             fig({.width = fig_w, .height = fig_h});
+    std::vector<float> x = {0.0f, 10.0f}, y = {0.0f, 1.0f};
+    Axes*              axes[4];
+    for (int i = 0; i < 4; ++i)
+    {
+        auto& ax = fig.subplot(2, 2, i + 1);
+        ax.line(x, y);
+        ax.xlim(0.0, 10.0);
+        ax.ylim(0.0, 1.0);
+        const std::string tag = "P" + std::to_string(i);
+        ax.title(long_text(tag + " title"));
+        ax.xlabel(long_text(tag + " xlabel"));
+        ax.ylabel(long_text(tag + " ylabel"));
+        axes[i] = &ax;
+    }
+    fig.compute_layout();
+    const std::string svg    = SvgExporter::to_string(fig);
+    const auto        labels = parse_labels(svg);
+
+    for (int i = 0; i < 4; ++i)
+    {
+        const Axes& ax = *axes[i];
+        ASSERT_TRUE(ax.compute_x_ticks().offset_label.empty());
+        ASSERT_TRUE(ax.compute_y_ticks().offset_label.empty());
+        const auto&       vp  = ax.viewport();
+        const std::string tag = "P" + std::to_string(i);
+        SCOPED_TRACE(tag);
+
+        for (const char* kind : {" title", " xlabel"})
+        {
+            const SvgLabel* t = find_prefixed(labels, tag + kind);
+            ASSERT_NE(t, nullptr) << kind;
+            ASSERT_EQ(t->anchor, "middle");
+            EXPECT_TRUE(ends_with_ellipsis(t->content)) << t->content;
+            const float w = svg_width(*t);
+            EXPECT_GE(t->x - w * 0.5f, vp.x - 0.5f) << kind;
+            EXPECT_LE(t->x + w * 0.5f, vp.x + vp.w + 0.5f) << kind;
+            EXPECT_GE(t->x - w * 0.5f, 0.0f);
+            EXPECT_LE(t->x + w * 0.5f, static_cast<float>(fig_w));
+            // The full text stays available as a tooltip.
+            EXPECT_NE(svg.find("<title>" + long_text(tag + kind) + "</title>"), std::string::npos);
+        }
+        // Long titles step down to the label size before being ellipsized (GPU rule).
+        EXPECT_FLOAT_EQ(find_prefixed(labels, tag + " title")->font_px,
+                        svg_plot_label_font_px(LabelFont::Label));
+
+        const SvgLabel* yl = find_prefixed(labels, tag + " ylabel");
+        ASSERT_NE(yl, nullptr);
+        ASSERT_TRUE(yl->rotated);
+        EXPECT_TRUE(ends_with_ellipsis(yl->content)) << yl->content;
+        const float h = svg_width(*yl);   // runs vertically
+        EXPECT_GE(yl->y - h * 0.5f, vp.y - 0.5f);
+        EXPECT_LE(yl->y + h * 0.5f, vp.y + vp.h + 0.5f);
+        EXPECT_GE(yl->y - h * 0.5f, 0.0f);
+        EXPECT_LE(yl->y + h * 0.5f, static_cast<float>(fig_h));
+    }
+}
+
+TEST(SvgExport, ShortLabelsAreNotShortened)
+{
+    Figure             fig({.width = 800, .height = 600});
+    std::vector<float> x = {0.0f, 10.0f}, y = {0.0f, 1.0f};
+    for (int i = 0; i < 4; ++i)
+    {
+        auto& ax = fig.subplot(2, 2, i + 1);
+        ax.line(x, y);
+        ax.title("Response");
+        ax.xlabel("Time (s)");
+        ax.ylabel("Amplitude");
+    }
+    fig.compute_layout();
+    const std::string svg    = SvgExporter::to_string(fig);
+    const auto        labels = parse_labels(svg);
+    int               title = 0, xl = 0, yl = 0;
+    for (const auto& t : labels)
+    {
+        if (t.content == "Response")
+        {
+            ++title;
+            EXPECT_FLOAT_EQ(t.font_px, svg_plot_label_font_px(LabelFont::Title));
+        }
+        xl += t.content == "Time (s)";
+        yl += t.content == "Amplitude";
+    }
+    EXPECT_EQ(title, 4);
+    EXPECT_EQ(xl, 4);
+    EXPECT_EQ(yl, 4);
+    EXPECT_EQ(svg.find("\xE2\x80\xA6"), std::string::npos);
+    EXPECT_EQ(svg.find("<title>"), std::string::npos);
+}
+
+TEST(SvgExport, Long3DTitleStaysInsideItsSubplot)
+{
+    Figure  fig({.width = 640, .height = 320});
+    Axes3D* axes[2];
+    for (int i = 0; i < 2; ++i)
+    {
+        auto& ax             = fig.subplot3d(1, 2, i + 1);
+        axes[i]              = &ax;
+        std::vector<float> v = {0.0f, 1.0f};
+        ax.line3d(v, v, v);
+        ax.title(long_text("P" + std::to_string(i) + " 3d title"));
+    }
+    fig.compute_layout();
+    const auto labels = parse_labels(SvgExporter::to_string(fig));
+    for (int i = 0; i < 2; ++i)
+    {
+        const auto&     vp = axes[i]->viewport();
+        const SvgLabel* t  = find_prefixed(labels, "P" + std::to_string(i) + " 3d title");
+        ASSERT_NE(t, nullptr);
+        EXPECT_TRUE(ends_with_ellipsis(t->content)) << t->content;
+        const float w = svg_width(*t);
+        EXPECT_GE(t->x - w * 0.5f, vp.x - 0.5f);
+        EXPECT_LE(t->x + w * 0.5f, vp.x + vp.w + 0.5f);
+    }
+}
+
+// The SVG exporter and the GPU/raster path (render_geometry.cpp: fit_text_to_width /
+// to_fitted_text over the same core rules) produce the same fitted strings and sizes for the
+// same metrics, with and without tick offsets.
+TEST(SvgExport, FittedLabelsMatchRasterHelper)
+{
+    // Raster-side measure in the renderer's own types, fed with the SVG metrics.
+    const TextWidthFn raster_measure = [](const std::string& t, FontSize fs)
+    { return svg_plot_label_width(t, static_cast<LabelFont>(fs)); };
+    const LabelWidthFn raster_label_measure = to_label_width_fn(raster_measure);
+
+    struct Case
+    {
+        double xlo, xhi, ylo, yhi;
+    };
+    const Case cases[] = {
+        {0.0, 10.0, 0.0, 1.0},                                      // no offsets
+        {1720000000.0, 1720000001.2, 1.0e7 - 0.02, 1.0e7 + 0.02},   // offsets
+        {0.0, 3.0e-7, 0.0, 4.0e9},                                  // multipliers
+    };
+    const std::string titles[] = {"Short", long_text("A title"), "Medium length plot title"};
+    for (uint32_t fig_w : {500u, 900u})
+        for (const auto& c : cases)
+            for (const auto& text : titles)
+            {
+                SCOPED_TRACE("w=" + std::to_string(fig_w) + " x=" + std::to_string(c.xhi) + " "
+                             + text);
+                Figure fig({.width = fig_w, .height = 400});
+                auto&  ax = fig.subplot(2, 2, 1);
+                fig.subplot(2, 2, 2);
+                ax.xlim(c.xlo, c.xhi);
+                ax.ylim(c.ylo, c.yhi);
+                ax.title("T:" + text);
+                ax.xlabel("X:" + text);
+                ax.ylabel("Y:" + text);
+                fig.compute_layout();
+                const auto  labels = parse_labels(SvgExporter::to_string(fig));
+                const auto& vp     = ax.viewport();
+
+                const auto  xo = ax.compute_x_ticks().offset_label;
+                const auto  yo = ax.compute_y_ticks().offset_label;
+                const float x_res =
+                    xo.empty()
+                        ? 0.0f
+                        : offset_annotation_reserve(svg_plot_label_width(xo, LabelFont::Tick));
+                const float y_res =
+                    yo.empty()
+                        ? 0.0f
+                        : offset_annotation_reserve(svg_plot_label_width(yo, LabelFont::Tick));
+
+                const FittedText rt =
+                    to_fitted_text(fit_axes_title("T:" + text, vp.w, y_res, raster_label_measure));
+                const FittedText rx =
+                    to_fitted_text(fit_axes_xlabel("X:" + text, vp.w, x_res, raster_label_measure));
+                const FittedText ry =
+                    to_fitted_text(fit_axes_ylabel("Y:" + text, vp.h, raster_label_measure));
+
+                const std::pair<const FittedText*, const char*> expect[] = {{&rt, "T:"},
+                                                                            {&rx, "X:"},
+                                                                            {&ry, "Y:"}};
+                for (const auto& [fit, prefix] : expect)
+                {
+                    const SvgLabel* t = find_prefixed(labels, prefix);
+                    if (fit->text.empty())
+                    {
+                        EXPECT_EQ(t, nullptr) << prefix;
+                        continue;
+                    }
+                    ASSERT_NE(t, nullptr) << prefix;
+                    EXPECT_EQ(t->content, fit->text) << prefix;
+                    EXPECT_FLOAT_EQ(t->font_px,
+                                    svg_plot_label_font_px(static_cast<LabelFont>(fit->size)))
+                        << prefix;
+                }
+            }
 }
 
 }   // namespace

@@ -5,6 +5,7 @@
 #include <functional>
 #include <mutex>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace spectra
@@ -35,24 +36,50 @@ class ExportFormatRegistry
    public:
     using ExportCallback = std::function<bool(const ExportContext& ctx)>;
 
+    // Change notification, so hosts can mirror formats as UI commands.
+    // Listeners run on the thread that registers/unregisters the format, after
+    // the registry lock is released (they may call back into the registry).
+    enum class ChangeKind
+    {
+        Registered,
+        Unregistered,
+    };
+    using ChangeListener = std::function<void(const ExportFormatInfo& info, ChangeKind kind)>;
+    using ListenerId     = uint64_t;
+
     ExportFormatRegistry()  = default;
     ~ExportFormatRegistry() = default;
 
     ExportFormatRegistry(const ExportFormatRegistry&)            = delete;
     ExportFormatRegistry& operator=(const ExportFormatRegistry&) = delete;
 
-    // Register an export format with a unique name.
+    // Register an export format with a unique name.  `owner` is an opaque token
+    // (the plugin module that registered it, nullptr for the host) used by
+    // unregister_owner() / set_owner_enabled().
     void register_format(const std::string& name,
                          const std::string& extension,
-                         ExportCallback     callback);
+                         ExportCallback     callback,
+                         const void*        owner = nullptr);
 
     // Remove a previously registered export format.
     void unregister_format(const std::string& name);
 
-    // List all registered format names.
+    // Remove every format registered with `owner` (nullptr: none).
+    // Returns the number removed.
+    size_t unregister_owner(const void* owner);
+
+    // Enable/disable every format registered with `owner`.  Disabled formats
+    // stay registered but are not listed by available_formats() and
+    // export_figure() refuses them.
+    void set_owner_enabled(const void* owner, bool enabled);
+
+    // Number of formats (enabled or not) registered with `owner`.
+    size_t count_owned(const void* owner) const;
+
+    // List all enabled format names.
     std::vector<ExportFormatInfo> available_formats() const;
 
-    // Export a figure using the named format.
+    // Export a figure using the named (enabled) format.
     // Returns true on success.
     bool export_figure(const std::string& format_name,
                        const std::string& figure_json,
@@ -64,6 +91,11 @@ class ExportFormatRegistry
     // Number of registered formats.
     size_t count() const;
 
+    // Subscribe to format registration/unregistration.  Returns an id for
+    // remove_change_listener(); 0 is never returned.
+    ListenerId add_change_listener(ChangeListener listener);
+    void       remove_change_listener(ListenerId id);
+
    private:
     struct Entry
     {
@@ -71,10 +103,18 @@ class ExportFormatRegistry
         std::string    extension;
         ExportCallback callback;
         bool           faulted = false;   // Set true on crash/exception
+        const void*    owner   = nullptr;
+        bool           enabled = true;
     };
+
+    void notify(const ExportFormatInfo& info, ChangeKind kind) const;
 
     mutable std::mutex         mutex_;
     mutable std::vector<Entry> formats_;
+
+    mutable std::mutex                                 listener_mutex_;
+    std::vector<std::pair<ListenerId, ChangeListener>> listeners_;
+    ListenerId                                         next_listener_id_ = 1;
 };
 
 }   // namespace spectra

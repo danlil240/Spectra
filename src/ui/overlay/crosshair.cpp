@@ -9,6 +9,7 @@
     #include <spectra/axes.hpp>
     #include <spectra/figure.hpp>
 
+    #include "crosshair_mapping.hpp"
     #include "overlay_text_fit.hpp"
     #include "readout_format.hpp"
     #include "ui/input/input.hpp"
@@ -276,35 +277,17 @@ void Crosshair::draw_all_axes(const CursorReadout& cursor,
     if (!hovered_axes)
         return;
 
-    // Get the data-X coordinate from the hovered axes
-    auto        xlim_h   = hovered_axes->x_limits();
-    auto        ylim_h   = hovered_axes->y_limits();
-    const auto& vp_h     = hovered_axes->viewport();
-    float       norm_x_h = (cx - vp_h.x) / vp_h.w;
-    // Double so epoch-scale x and large y offsets keep their precision.
-    double data_x = xlim_h.min + norm_x_h * (xlim_h.max - xlim_h.min);
-
-    // Get the data-Y coordinate from the hovered axes
-    double y_range_h = ylim_h.max - ylim_h.min;
-    if (y_range_h == 0.0)
-        y_range_h = 1.0;
-    float  norm_y_h = 1.0f - (cy - vp_h.y) / vp_h.h;
-    double data_y   = ylim_h.min + norm_y_h * y_range_h;
+    // Unproject the cursor on the hovered axes through its scale transform
+    // (log axes are linear in log(v)); double keeps epoch-scale precision.
+    const double data_x = crosshair_mapping::screen_to_data_x(*hovered_axes, cx);
+    const double data_y = crosshair_mapping::screen_to_data_y(*hovered_axes, cy);
 
     // Draw on ALL axes
     for (auto& axes_ptr : figure.axes())
     {
         if (!axes_ptr)
             continue;
-        const auto& vp      = axes_ptr->viewport();
-        auto        xlim    = axes_ptr->x_limits();
-        auto        ylim    = axes_ptr->y_limits();
-        double      x_range = xlim.max - xlim.min;
-        double      y_range = ylim.max - ylim.min;
-        if (x_range == 0.0)
-            x_range = 1.0;
-        if (y_range == 0.0)
-            y_range = 1.0;
+        const auto& vp = axes_ptr->viewport();
 
         float vx0 = vp.x;
         float vy0 = vp.y;
@@ -312,8 +295,7 @@ void Crosshair::draw_all_axes(const CursorReadout& cursor,
         float vy1 = vp.y + vp.h;
 
         // Vertical line at the same data-X on every axes
-        auto  norm_x = static_cast<float>((data_x - xlim.min) / x_range);
-        float sx     = vp.x + norm_x * vp.w;
+        auto sx = static_cast<float>(crosshair_mapping::data_to_screen_x(*axes_ptr, data_x));
 
         if (sx >= vx0 && sx <= vx1)
         {
@@ -388,8 +370,7 @@ void Crosshair::draw_all_axes(const CursorReadout& cursor,
         else
         {
             // Map the hovered axes' data-Y into this subplot's screen coordinates
-            auto  norm_iy = static_cast<float>((data_y - ylim.min) / y_range);
-            float sy      = vy0 + (1.0f - norm_iy) * vp.h;
+            auto sy = static_cast<float>(crosshair_mapping::data_to_screen_y(*axes_ptr, data_y));
 
             if (sy >= vy0 && sy <= vy1)
             {

@@ -710,6 +710,28 @@ FontSize TextRenderer::nearest_font_size(float pixel_size)
     return static_cast<FontSize>(best);
 }
 
+float TextRenderer::preset_pixel_size(FontSize size)
+{
+    const auto i = static_cast<size_t>(size);
+    return i < static_cast<size_t>(FontSize::Count) ? FONT_PIXEL_SIZES[i] : FONT_PIXEL_SIZES[1];
+}
+
+TextRenderer::ScaledFont TextRenderer::scaled_font(float pixel_size)
+{
+    if (!(pixel_size > 0.0f))
+        return {};
+    size_t best = static_cast<size_t>(FontSize::Count) - 1;
+    for (size_t i = 0; i < static_cast<size_t>(FontSize::Count); ++i)
+    {
+        if (FONT_PIXEL_SIZES[i] >= pixel_size)
+        {
+            best = i;
+            break;
+        }
+    }
+    return {static_cast<FontSize>(best), pixel_size / FONT_PIXEL_SIZES[best]};
+}
+
 void TextRenderer::set_clip_rect(float x0, float y0, float x1, float y1)
 {
     clip_enabled_ = true;
@@ -719,7 +741,9 @@ void TextRenderer::set_clip_rect(float x0, float y0, float x1, float y1)
     clip_y1_      = y1;
 }
 
-TextRenderer::TextExtent TextRenderer::measure_text(const std::string& text, FontSize size) const
+TextRenderer::TextExtent TextRenderer::measure_text(const std::string& text,
+                                                    FontSize           size,
+                                                    float              scale) const
 {
     const auto& fd    = font(size);
     const auto  si    = static_cast<size_t>(size);
@@ -733,7 +757,7 @@ TextRenderer::TextExtent TextRenderer::measure_text(const std::string& text, Fon
             width += g->x_advance;
     }
 
-    return {width, fd.line_height};
+    return {width * scale, fd.line_height * scale};
 }
 
 void TextRenderer::draw_text(const std::string& text,
@@ -742,12 +766,16 @@ void TextRenderer::draw_text(const std::string& text,
                              FontSize           size,
                              uint32_t           color_rgba,
                              TextAlign          align,
-                             TextVAlign         valign)
+                             TextVAlign         valign,
+                             float              scale)
 {
     if (!initialized_ || text.empty())
         return;
+    if (!(scale > 0.0f))
+        scale = 1.0f;
 
-    const auto& fd = font(size);
+    const auto& fd          = font(size);
+    const float line_height = fd.line_height * scale;
 
     // Compute alignment offset
     float offset_x = 0.0f;
@@ -755,7 +783,7 @@ void TextRenderer::draw_text(const std::string& text,
 
     if (align != TextAlign::Left)
     {
-        auto ext = measure_text(text, size);
+        auto ext = measure_text(text, size, scale);
         if (align == TextAlign::Center)
             offset_x = -ext.width * 0.5f;
         else if (align == TextAlign::Right)
@@ -763,13 +791,13 @@ void TextRenderer::draw_text(const std::string& text,
     }
 
     if (valign == TextVAlign::Middle)
-        offset_y = -fd.line_height * 0.5f;
+        offset_y = -line_height * 0.5f;
     else if (valign == TextVAlign::Bottom)
-        offset_y = -fd.line_height;
+        offset_y = -line_height;
 
     // Cursor positioned at baseline. GetPackedQuad offsets are baseline-relative.
     float cursor_x = x + offset_x;
-    float cursor_y = y + offset_y + fd.ascent;
+    float cursor_y = y + offset_y + fd.ascent * scale;
 
     for (size_t i = 0; i < text.size();)
     {
@@ -779,7 +807,16 @@ void TextRenderer::draw_text(const std::string& text,
         if (!gp)
             continue;
 
-        const auto& g = *gp;
+        GlyphInfo g = *gp;
+        if (scale != 1.0f)
+        {
+            // Same atlas texels, magnified / minified quad.
+            g.x_offset *= scale;
+            g.y_offset *= scale;
+            g.width *= scale;
+            g.height *= scale;
+            g.x_advance *= scale;
+        }
         if (g.width > 0 && g.height > 0)
         {
             append_glyph(vertices_, g, cursor_x, cursor_y, 0.0f, color_rgba);

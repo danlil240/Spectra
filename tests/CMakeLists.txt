@@ -99,6 +99,7 @@ set(SPECTRA_UNIT_TESTS
     test_bugfix_app_topic
     test_bugfix_core_axes
     test_axis_scale
+    test_crosshair_mapping
     test_bugfix_core_series
     test_bugfix_core_stats
     test_bugfix_daemon_agent
@@ -153,6 +154,7 @@ set(SPECTRA_UNIT_TESTS
     test_legend_interaction
     test_legend_colorbar
     test_legend_bounds
+    test_legend_font_size
     test_figure_manager
     test_inspector_stats
     test_box_zoom_overlay
@@ -168,6 +170,7 @@ set(SPECTRA_UNIT_TESTS
     test_format_letter_colors
     test_settings_store
     test_settings_appearance
+    test_settings_layout
     test_phase2_integration
     test_split_view
     test_dock_system
@@ -191,6 +194,7 @@ set(SPECTRA_UNIT_TESTS
     test_camera
     test_axes3d_fit
     test_shape3d_first_frame
+    test_shape2d_first_frame
     # test_axes3d  # Not a proper GTEST file, uses plain functions with assert
     test_series3d
     test_depth_buffer
@@ -246,8 +250,10 @@ set(SPECTRA_UNIT_TESTS
     test_plugin_version_negotiation
     test_plugin_export
     test_export_csv_plugin
+    test_plugin_export_command
     test_plugin_data_source
     test_plugin_integration
+    test_plugin_unload_cleanup
     test_plugin_series_type
     test_custom_series_render
     test_custom_series_gpu
@@ -335,6 +341,27 @@ target_compile_features(mock_integration_plugin PRIVATE cxx_std_20)
 target_link_libraries(mock_integration_plugin PRIVATE spectra)
 set_target_properties(mock_integration_plugin PROPERTIES PREFIX "")
 
+# Mock plugin that registers every extension kind and never unregisters —
+# loaded by test_plugin_unload_cleanup
+add_library(mock_leaky_plugin SHARED unit/mock_leaky_plugin.cpp)
+target_include_directories(mock_leaky_plugin PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_BINARY_DIR}/generated
+)
+target_compile_features(mock_leaky_plugin PRIVATE cxx_std_20)
+if(WIN32)
+    target_link_libraries(mock_leaky_plugin PRIVATE spectra)
+else()
+    # Same as mock_overlay_plugin: resolve the C ABI from the host at dlopen
+    # time.  Linking the static lib duplicates globals (ASan odr-violation).
+    if(APPLE)
+        target_link_options(mock_leaky_plugin PRIVATE -undefined dynamic_lookup)
+    else()
+        target_link_options(mock_leaky_plugin PRIVATE "LINKER:--allow-shlib-undefined")
+    endif()
+endif()
+set_target_properties(mock_leaky_plugin PROPERTIES PREFIX "")
+
 # Tests that require a GPU/display (Vulkan + GLFW window)
 set(SPECTRA_GPU_TESTS
     test_automation_figure_handlers
@@ -358,6 +385,7 @@ set(SPECTRA_GPU_TESTS
     test_easy_embed
     test_headless_export_text
     test_shape3d_first_frame
+    test_shape2d_first_frame
     test_custom_series_gpu
 )
 
@@ -384,9 +412,10 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
             target_link_libraries(unit_${_test} PRIVATE Eigen3::Eigen)
         endif()
         # Hover round trip drives DataInteraction (and legend_bounds draws the
-        # interactive legend), which needs an ImGui context; test_theme checks the
-        # ImGui palette apply_to_imgui() writes during a theme transition.
-        if(_test MATCHES "^test_(double_precision_data|data_interaction|legend_bounds|overlay_text_fit|theme)$" AND DEFINED imgui_SOURCE_DIR)
+        # interactive legend, crosshair_mapping the linked crosshair), which needs an
+        # ImGui context; test_theme checks the ImGui palette apply_to_imgui() writes
+        # during a theme transition; settings_layout drives the Settings modal.
+        if(_test MATCHES "^test_(crosshair_mapping|double_precision_data|data_interaction|legend_bounds|legend_font_size|overlay_text_fit|settings_layout|theme)$" AND DEFINED imgui_SOURCE_DIR)
             target_include_directories(unit_${_test} SYSTEM PRIVATE ${imgui_SOURCE_DIR})
         endif()
         # CSV writer shared with the export_csv example plugin (header-only)
@@ -429,6 +458,18 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
             )
             add_dependencies(unit_${_test} mock_plugin_v1_0 mock_plugin_v1_1 mock_plugin_v1_99)
         endif()
+        if(_test STREQUAL "test_plugin_unload_cleanup")
+            target_compile_definitions(unit_${_test} PRIVATE
+                SPECTRA_MOCK_LEAKY_PLUGIN_PATH="$<TARGET_FILE:mock_leaky_plugin>"
+            )
+            target_link_libraries(unit_${_test} PRIVATE ${CMAKE_DL_LIBS})
+            add_dependencies(unit_${_test} mock_leaky_plugin)
+            # Export the host's C ABI symbols so the plug-in binds to the test's
+            # copies instead of the static spectra copy linked into it.
+            if(NOT WIN32)
+                target_link_options(unit_${_test} PRIVATE -rdynamic)
+            endif()
+        endif()
         if(_test STREQUAL "test_plugin_integration")
             target_compile_definitions(unit_${_test} PRIVATE
                 SPECTRA_MOCK_INTEGRATION_PLUGIN_PATH="$<TARGET_FILE:mock_integration_plugin>"
@@ -441,7 +482,7 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
             add_dependencies(unit_${_test} spectra_wgsl_shaders)
         endif()
         # Decodes the exported PNGs with the bundled stb_image.
-        if(_test MATCHES "^test_(headless_export_text|shape3d_first_frame)$")
+        if(_test MATCHES "^test_(headless_export_text|shape3d_first_frame|shape2d_first_frame)$")
             target_include_directories(unit_${_test} SYSTEM PRIVATE
                 ${CMAKE_SOURCE_DIR}/third_party/stb)
         endif()
@@ -526,6 +567,31 @@ foreach(qt_demo qt_embed_demo qt_multi_canvas_demo)
             TIMEOUT 60)
     endif()
 endforeach()
+
+# QtRuntime startup theme: needs an X display with Vulkan (xvfb-run + lavapipe).
+if(TARGET spectra_qt_adapter)
+    add_executable(unit_test_qt_runtime_theme unit/test_qt_runtime_theme.cpp)
+    target_link_libraries(unit_test_qt_runtime_theme PRIVATE spectra_qt_adapter GTest::gtest)
+    target_compile_features(unit_test_qt_runtime_theme PRIVATE cxx_std_20)
+    target_include_directories(unit_test_qt_runtime_theme PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_BINARY_DIR}/generated
+    )
+    # Run under xvfb-run when available so the test works without a display; the binary
+    # exits 77 (skip) when no display can be found.
+    find_program(SPECTRA_XVFB_RUN xvfb-run)
+    if(SPECTRA_XVFB_RUN)
+        add_test(NAME unit_test_qt_runtime_theme
+            COMMAND ${SPECTRA_XVFB_RUN} -a $<TARGET_FILE:unit_test_qt_runtime_theme>)
+    else()
+        add_test(NAME unit_test_qt_runtime_theme COMMAND unit_test_qt_runtime_theme)
+    endif()
+    set_tests_properties(unit_test_qt_runtime_theme PROPERTIES
+        LABELS "gpu;qt"
+        RESOURCE_LOCK gpu
+        SKIP_RETURN_CODE 77
+        ENVIRONMENT "QT_QPA_PLATFORM=xcb")
+endif()
 
 # Golden image tests (require Vulkan — headless via lavapipe in CI)
 option(SPECTRA_BUILD_GOLDEN_TESTS "Build golden image regression tests" ON)

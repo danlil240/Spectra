@@ -33,6 +33,7 @@
 #include "core/annotation_layout.hpp"
 #include "core/axis_scale.hpp"
 #include "core/label_layout.hpp"
+#include "io/svg_label_metrics.hpp"
 #include "ui/overlay/legend_layout.hpp"
 
 namespace spectra
@@ -191,36 +192,31 @@ float estimate_text_width(std::string_view s, float font_px)
     return em * font_px;
 }
 
-// Longest UTF-8 prefix of `s` that, followed by "...", fits `max_width` (estimated);
-// `s` itself when it already fits.  Used only where a label must stay clear of an
-// offset annotation on its row.
-std::string ellipsize_to_width(std::string_view s, float font_px, float max_width)
-{
-    if (estimate_text_width(s, font_px) <= max_width)
-        return std::string(s);
-    constexpr std::string_view ellipsis = "...";
-    size_t                     end      = s.size();
-    while (end > 0)
-    {
-        // Step back one codepoint (skip UTF-8 continuation bytes).
-        do
-            --end;
-        while (end > 0 && (static_cast<unsigned char>(s[end]) & 0xC0u) == 0x80u);
-        std::string candidate(s.substr(0, end));
-        while (!candidate.empty() && candidate.back() == ' ')
-            candidate.pop_back();
-        candidate += ellipsis;
-        if (estimate_text_width(candidate, font_px) <= max_width)
-            return candidate;
-    }
-    return estimate_text_width(ellipsis, font_px) <= max_width ? std::string(ellipsis)
-                                                               : std::string();
-}
-
 // Renderer font sizes (text_renderer.cpp FONT_PIXEL_SIZES).
 constexpr float TICK_FONT_PX  = 13.0f;
 constexpr float LABEL_FONT_PX = 14.0f;
 constexpr float TITLE_FONT_PX = 18.0f;
+
+float label_font_px(LabelFont f)
+{
+    switch (f)
+    {
+        case LabelFont::Tick:
+            return TICK_FONT_PX;
+        case LabelFont::Label:
+            return LABEL_FONT_PX;
+        case LabelFont::Title:
+            break;
+    }
+    return TITLE_FONT_PX;
+}
+
+// Plot label metrics for the shared fitting rules (core/label_layout): the same width
+// estimate the exporter uses for every other layout decision (legend, ticks, offsets).
+float label_width(const std::string& text, LabelFont f)
+{
+    return estimate_text_width(text, label_font_px(f));
+}
 
 enum class VAlign
 {
@@ -1030,6 +1026,26 @@ void emit_text(std::ostringstream& o,
     o << extra << ">" << xml_escape(text) << "</text>\n";
 }
 
+// Emits a fitted plot label; a shortened one keeps its full text as a hover tooltip.
+void emit_fitted_label(std::ostringstream& o,
+                       const FittedLabel&  fit,
+                       const std::string&  full_text,
+                       double              x,
+                       double              y,
+                       const Color&        col,
+                       const char*         anchor,
+                       VAlign              valign,
+                       std::string_view    extra = {})
+{
+    if (fit.text.empty())
+        return;
+    if (fit.truncated)
+        o << "    <g><title>" << xml_escape(full_text) << "</title>\n";
+    emit_text(o, fit.text, x, y, label_font_px(fit.font), col, anchor, valign, extra);
+    if (fit.truncated)
+        o << "    </g>\n";
+}
+
 // ─── Legend ─────────────────────────────────────────────────────────────────
 
 enum class SwatchKind
@@ -1167,6 +1183,8 @@ void emit_legend(SvgContext& c, const AxesBase& axes, const Rect& vp, const Lege
     if (entries.empty())
         return;
 
+    // Explicit sizes are honoured exactly (no shrink-to-fit); see the font
+    // size rule at legend_layout::compute_static_grid.
     const float     font_px  = cfg.font_size > 0.0f ? cfg.font_size : 12.5f;
     const float     pad_x    = cfg.padding + 2.0f;
     const float     pad_y    = cfg.padding;
@@ -1637,57 +1655,56 @@ void emit_axes_2d(SvgContext& c, const Axes& axes, const LegendConfig& legend)
                   VAlign::Bottom);
     c.body << "    </g>\n";
 
-    // Axis labels and title.
-    // A label next to an offset is placed beside it (and ellipsized if it cannot fit there).
-    auto beside_offset = [&](const std::string& label, float font_px, float res_l, float res_r)
-    {
-        const CenteredLabelSlot slot = centered_label_slot(vp.x, vp.w, res_l, res_r);
-        std::string             text = (res_l > 0.0f || res_r > 0.0f)
-                                           ? ellipsize_to_width(label, font_px, slot.max_width)
-                                           : label;
-        const float cx = centered_label_x(vp.x, vp.w, slot, estimate_text_width(text, font_px));
-        return std::pair<std::string, float>(std::move(text), cx);
-    };
+    // Axis labels and title, fitted by the rules shared with the GPU/raster text path
+    // (core/label_layout): the X label and title keep clear of the offsets on their rows,
+    // the rotated Y label fits the axes height, and long labels are shortened instead of
+    // running into neighbouring subplots or past the image edge.
     if (!axes.get_xlabel().empty())
     {
-        const auto [text, cx] =
-            beside_offset(axes.get_xlabel(), LABEL_FONT_PX, 0.0f, x_offset_reserve);
-        emit_text(c.body,
-                  text,
-                  cx,
-                  x_label_row,
-                  LABEL_FONT_PX,
-                  st.text_secondary,
-                  "middle",
-                  VAlign::Top);
+        const FittedLabel fit =
+            fit_axes_xlabel(axes.get_xlabel(), vp.w, x_offset_reserve, label_width);
+        const CenteredLabelSlot slot = centered_label_slot(vp.x, vp.w, 0.0f, x_offset_reserve);
+        const float cx = centered_label_x(vp.x, vp.w, slot, label_width(fit.text, fit.font));
+        emit_fitted_label(c.body,
+                          fit,
+                          axes.get_xlabel(),
+                          cx,
+                          x_label_row,
+                          st.text_secondary,
+                          "middle",
+                          VAlign::Top);
     }
     if (!axes.get_ylabel().empty())
     {
-        const float cx = vp.x - tl - tick_padding - max_y_tick_width - 6.0f - LABEL_FONT_PX * 0.5f;
+        const FittedLabel fit = fit_axes_ylabel(axes.get_ylabel(), vp.h, label_width);
+        const float       cx =
+            vp.x - tl - tick_padding - max_y_tick_width - 6.0f - label_font_px(fit.font) * 0.5f;
         const float cy = vp.y + vp.h * 0.5f;
-        emit_text(c.body,
-                  axes.get_ylabel(),
-                  cx,
-                  cy,
-                  LABEL_FONT_PX,
-                  st.text_secondary,
-                  "middle",
-                  VAlign::Middle,
-                  " transform=\"rotate(-90 " + num(cx) + " " + num(cy) + ")\"");
+        emit_fitted_label(c.body,
+                          fit,
+                          axes.get_ylabel(),
+                          cx,
+                          cy,
+                          st.text_secondary,
+                          "middle",
+                          VAlign::Middle,
+                          " transform=\"rotate(-90 " + num(cx) + " " + num(cy) + ")\"");
     }
     if (!axes.get_title().empty())
     {
-        const auto [text, cx] =
-            beside_offset(axes.get_title(), TITLE_FONT_PX, y_offset_reserve, 0.0f);
-        emit_text(c.body,
-                  text,
-                  cx,
-                  std::max(2.0f, vp.y - TITLE_FONT_PX - tick_padding),
-                  TITLE_FONT_PX,
-                  st.text_primary,
-                  "middle",
-                  VAlign::Top,
-                  " font-weight=\"500\"");
+        const FittedLabel fit =
+            fit_axes_title(axes.get_title(), vp.w, y_offset_reserve, label_width);
+        const CenteredLabelSlot slot = centered_label_slot(vp.x, vp.w, y_offset_reserve, 0.0f);
+        const float cx = centered_label_x(vp.x, vp.w, slot, label_width(fit.text, fit.font));
+        emit_fitted_label(c.body,
+                          fit,
+                          axes.get_title(),
+                          cx,
+                          std::max(2.0f, vp.y - label_font_px(fit.font) - tick_padding),
+                          st.text_primary,
+                          "middle",
+                          VAlign::Top,
+                          " font-weight=\"500\"");
     }
 
     // ShapeSeries text annotations (data-space labels).
@@ -2211,19 +2228,22 @@ void emit_axes_3d(SvgContext& c, const Axes3D& axes, const LegendConfig& legend)
     std::vector<Box2> placed;
     if (!axes.get_title().empty())
     {
-        const float tw = estimate_text_width(axes.get_title(), TITLE_FONT_PX);
-        const float cx = vp.x + vp.w * 0.5f;
-        const float ty = vp.y + 2.0f;
-        placed.push_back({cx - tw * 0.5f, ty, cx + tw * 0.5f, ty + TITLE_FONT_PX});
-        emit_text(c.body,
-                  axes.get_title(),
-                  cx,
-                  ty,
-                  TITLE_FONT_PX,
-                  st.text_primary,
-                  "middle",
-                  VAlign::Top,
-                  " font-weight=\"500\"");
+        const FittedLabel fit     = fit_axes3d_title(axes.get_title(), vp.w, label_width);
+        const float       font_px = label_font_px(fit.font);
+        const float       tw      = label_width(fit.text, fit.font);
+        const float       cx      = vp.x + vp.w * 0.5f;
+        const float       ty      = vp.y + 2.0f;
+        if (!fit.text.empty())
+            placed.push_back({cx - tw * 0.5f, ty, cx + tw * 0.5f, ty + font_px});
+        emit_fitted_label(c.body,
+                          fit,
+                          axes.get_title(),
+                          cx,
+                          ty,
+                          st.text_primary,
+                          "middle",
+                          VAlign::Top,
+                          " font-weight=\"500\"");
     }
 
     // Axis arrows (X red, Y green, Z blue) leaving the max corners (render_arrows).
@@ -2443,6 +2463,16 @@ std::string SvgExporter::to_string(const Figure& figure, const SvgStyle& style)
     svg << c.body.str();
     svg << "</svg>\n";
     return svg.str();
+}
+
+float svg_plot_label_width(const std::string& text, LabelFont font)
+{
+    return label_width(text, font);
+}
+
+float svg_plot_label_font_px(LabelFont font)
+{
+    return label_font_px(font);
 }
 
 bool SvgExporter::write_svg(const std::string& path, const Figure& figure)

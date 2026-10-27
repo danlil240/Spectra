@@ -40,7 +40,8 @@ void SeriesTypeRegistry::register_type(const std::string&        type_name,
                                        CustomUploadFn            upload_fn,
                                        CustomDrawFn              draw_fn,
                                        CustomBoundsFn            bounds_fn,
-                                       CustomCleanupFn           cleanup_fn)
+                                       CustomCleanupFn           cleanup_fn,
+                                       const void*               owner)
 {
     std::lock_guard lock(mutex_);
 
@@ -66,6 +67,7 @@ void SeriesTypeRegistry::register_type(const std::string&        type_name,
     entry.draw_fn       = std::move(draw_fn);
     entry.bounds_fn     = std::move(bounds_fn);
     entry.cleanup_fn    = std::move(cleanup_fn);
+    entry.owner         = owner;
 
     // Copy SPIR-V bytecode so it persists beyond plugin init.
     if (pipeline_desc.vert_spirv && pipeline_desc.vert_spirv_size > 0)
@@ -139,6 +141,51 @@ bool SeriesTypeRegistry::unregister_entry(const std::shared_ptr<SeriesTypeEntry>
                      "Unregistered custom series type '{}'",
                      entry->type_name);
     return true;
+}
+
+size_t SeriesTypeRegistry::unregister_owner(const void* owner)
+{
+    if (!owner)
+        return 0;
+    std::vector<std::shared_ptr<SeriesTypeEntry>> owned;
+    {
+        std::lock_guard lock(mutex_);
+        for (const auto& entry : types_)
+        {
+            if (entry->owner == owner)
+                owned.push_back(entry);
+        }
+    }
+    size_t removed = 0;
+    for (const auto& entry : owned)
+    {
+        if (unregister_entry(entry))
+            ++removed;
+    }
+    return removed;
+}
+
+void SeriesTypeRegistry::set_owner_enabled(const void* owner, bool enabled)
+{
+    if (!owner)
+        return;
+    std::lock_guard lock(mutex_);
+    for (auto& entry : types_)
+    {
+        if (entry->owner == owner)
+            entry->enabled.store(enabled, std::memory_order_relaxed);
+    }
+}
+
+size_t SeriesTypeRegistry::count_owned(const void* owner) const
+{
+    if (!owner)
+        return 0;
+    std::lock_guard lock(mutex_);
+    return static_cast<size_t>(std::count_if(types_.begin(),
+                                             types_.end(),
+                                             [owner](const auto& entry)
+                                             { return entry->owner == owner; }));
 }
 
 uint64_t SeriesTypeRegistry::add_unregister_listener(UnregisterListener listener)

@@ -4,6 +4,7 @@
 #include <spectra/axes.hpp>
 #include <spectra/fwd.hpp>
 #include <spectra/series.hpp>
+#include <spectra/series_shapes3d.hpp>
 
 #include "backend.hpp"
 #include "series_type_registry.hpp"
@@ -231,11 +232,27 @@ class Renderer
         double x_min;
         double x_max;
     };
+    // ShapeSeries3D draw-range selection for render_series(): all ranges (opaque
+    // then translucent), only the opaque ranges, or a single range index (>= 0).
+    // Lets the 3D pass draw a mixed series' opaque ranges with opaque geometry
+    // and sort each translucent range into the global transparent pass.
+    static constexpr int kShape3DAllRanges    = -1;
+    static constexpr int kShape3DOpaqueRanges = -2;
+    // True if a ShapeSeries3D draw range blends (same test for sort and draw).
+    static bool shape3d_range_transparent(const ShapeSeries3D::DrawRange& range,
+                                          float                           series_alpha,
+                                          float                           style_opacity)
+    {
+        const float a = range.inherits_series_color() ? series_alpha : range.color.a;
+        return a * style_opacity < 0.99f;
+    }
+
     void render_series(Series&             series,
                        const Rect&         viewport,
-                       const VisibleRange* visible = nullptr,
-                       double              view_cx = 0.0,
-                       double              view_cy = 0.0);
+                       const VisibleRange* visible       = nullptr,
+                       double              view_cx       = 0.0,
+                       double              view_cy       = 0.0,
+                       int                 shape3d_range = kShape3DAllRanges);
     void render_selection_highlight(AxesBase& axes, const Rect& viewport);
 
     // Build orthographic projection matrix for given axis limits
@@ -254,7 +271,7 @@ class Renderer
     // Screen-space plot annotations (render_annotations.cpp): per-axes legend
     // and colorbar, drawn after the series and plot geometry so they sit on top.
     void render_annotations(Figure& figure);
-    void build_legend(Axes& axes, const LegendConfig& config);
+    void build_legend(AxesBase& axes, const LegendConfig& config);
     void build_colorbar(AxesBase& axes);
 
     // Upload a screen-space (pixel, Y-down) orthographic projection into the

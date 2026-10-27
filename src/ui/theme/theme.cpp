@@ -129,6 +129,10 @@ void ThemeManager::register_theme(const std::string& name, Theme theme)
 
 void ThemeManager::set_theme(const std::string& name)
 {
+    // A freshly constructed manager has no themes yet; register the built-ins first so a
+    // startup request such as set_theme("dark") is honoured instead of silently ignored
+    // (and later overridden by ensure_initialized()'s "night" fallback).
+    ensure_initialized();
     auto it = themes_.find(name);
     if (it != themes_.end())
     {
@@ -165,8 +169,7 @@ void ThemeManager::notify_public_theme_change()
     // same theme terminates.
     last_notified_snapshot_ = snap;
     last_notified_valid_    = true;
-    if (auto cb = spectra::detail::registered_theme_change_callback())
-        cb(snap);
+    spectra::detail::invoke_theme_change_callback(snap);
 }
 
 ThemeGlassSettings ThemeManager::glass_defaults_for(const std::string& theme_name) const

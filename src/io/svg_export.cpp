@@ -292,8 +292,8 @@ float luma(const Color& c)
 // foreground.
 Color theme_series_color(const Series& s, const SvgStyle& st)
 {
-    Color       c        = s.color();
-    const float bg_luma  = luma(st.background);
+    Color       c       = s.color();
+    const float bg_luma = luma(st.background);
     // Format-letter colours ("r--") use the shade tuned for the background,
     // as ui::resolve_auto_series_colors() does for the renderer.
     if (format_colors::is_letter(s.color_letter()))
@@ -301,8 +301,8 @@ Color theme_series_color(const Series& s, const SvgStyle& st)
         const Color shade = format_colors::shade(s.color_letter(), bg_luma > 0.5f);
         return Color{shade.r, shade.g, shade.b, c.a};
     }
-    const bool  is_black = c.r == 0.0f && c.g == 0.0f && c.b == 0.0f;
-    const bool  is_white = c.r == 1.0f && c.g == 1.0f && c.b == 1.0f;
+    const bool is_black = c.r == 0.0f && c.g == 0.0f && c.b == 0.0f;
+    const bool is_white = c.r == 1.0f && c.g == 1.0f && c.b == 1.0f;
     if ((is_black && bg_luma < 0.35f) || (is_white && bg_luma > 0.65f))
     {
         c.r = st.text_primary.r;

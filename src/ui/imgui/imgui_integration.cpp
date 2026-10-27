@@ -512,7 +512,11 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
 
     float dt = ImGui::GetIO().DeltaTime;
     if (theme_mgr_)
+    {
         theme_mgr_->update(dt);
+        // Resolve palette colours before the legend / inspector read them.
+        ui::resolve_auto_series_colors(figure, theme_mgr_->current_data_palette());
+    }
     ui::widgets::update_section_animations(dt);
 
     // Sync panel_open_ from layout manager so external toggles (commands, undo)

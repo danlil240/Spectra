@@ -19,8 +19,9 @@ void PendingSeriesDataDeleter::operator()(PendingSeriesData* ptr) const
 Series::~Series() = default;
 
 Series::Series(const Series& other)
-    : label_(other.label_), color_(other.color_), style_(other.style_), visible_(other.visible_),
-      x_offset_(other.x_offset_), excluded_from_autoscale_(other.excluded_from_autoscale_),
+    : label_(other.label_), color_(other.color_), auto_color_index_(other.auto_color_index_),
+      style_(other.style_), visible_(other.visible_), x_offset_(other.x_offset_),
+      excluded_from_autoscale_(other.excluded_from_autoscale_),
       show_in_legend_(other.show_in_legend_), is_reference_line_(other.is_reference_line_),
       dirty_(other.dirty_.load(std::memory_order_relaxed)), event_system_(other.event_system_),
       owning_axes_(other.owning_axes_), pending_(nullptr)
@@ -33,6 +34,7 @@ Series& Series::operator=(const Series& other)
     {
         label_                   = other.label_;
         color_                   = other.color_;
+        auto_color_index_        = other.auto_color_index_;
         style_                   = other.style_;
         visible_                 = other.visible_;
         x_offset_                = other.x_offset_;
@@ -72,12 +74,36 @@ void Series::set_wake_fn(std::function<void()> fn)
         pending_->set_wake_fn(std::move(fn));
 }
 
+void Series::set_auto_color_index(int index)
+{
+    if (index < 0)
+    {
+        auto_color_index_ = -1;
+        return;
+    }
+    auto_color_index_ = index;
+    color_ = palette::default_cycle[static_cast<size_t>(index) % palette::default_cycle_size];
+    dirty_ = true;
+}
+
+bool Series::resolve_auto_color(const Color& c)
+{
+    if (auto_color_index_ < 0)
+        return false;
+    if (color_.r == c.r && color_.g == c.g && color_.b == c.b && color_.a == c.a)
+        return false;
+    color_ = c;
+    dirty_ = true;
+    return true;
+}
+
 Series& Series::plot_style(const PlotStyle& ps)
 {
     style_ = ps;
     if (ps.color.has_value())
     {
-        color_ = *ps.color;
+        color_            = *ps.color;
+        auto_color_index_ = -1;
     }
     dirty_ = true;
     return *this;
@@ -90,7 +116,8 @@ Series& Series::apply_format_string(std::string_view fmt)
     style_.marker_style = ps.marker_style;
     if (ps.color.has_value())
     {
-        color_ = *ps.color;
+        color_            = *ps.color;
+        auto_color_index_ = -1;
     }
     dirty_ = true;
     return *this;

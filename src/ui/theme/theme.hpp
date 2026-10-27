@@ -19,6 +19,7 @@ enum class GlassSurface;
 namespace spectra
 {
 class EventSystem;
+class Figure;
 }   // namespace spectra
 
 namespace spectra::ui
@@ -317,7 +318,7 @@ struct Theme
 {
     std::string        name;
     ThemeColors        colors;
-    DataPalette        data_palette;
+    DataPalette        data_palette;   // Theme's default palette (used when "default" is selected)
     ThemeGlassSettings glass_defaults;
 
     // Visual properties
@@ -352,7 +353,9 @@ class ThemeManager
     const ThemeColors& colors() const;
     const std::string& current_theme_name() const;
 
-    // Data palette management
+    // Data palette management.  The selected palette name is global across
+    // themes; "default" resolves to the active theme's own default palette
+    // (Theme::data_palette), so it suits the theme's background.
     void               set_data_palette(const std::string& palette_name);
     void               register_data_palette(const std::string& name, DataPalette palette);
     const DataPalette& current_data_palette() const;
@@ -460,10 +463,18 @@ class ThemeManager
     ThemeGlassSettings glass_settings_;
     ThemeGlassSettings glass_defaults_for(const std::string& theme_name) const;
 
-    void        initialize_default_themes();
-    void        initialize_data_palettes();
+    void               initialize_default_themes();
+    void               initialize_data_palettes();
+    const DataPalette& resolve_data_palette(const std::string& name) const;
     ThemeColors interpolate_colors(const ThemeColors& start, const ThemeColors& end, float t) const;
 };
+
+// Resolve the colours of auto-coloured series (Series::has_auto_color()) in
+// @p figure from @p palette, by palette slot.  Explicitly coloured series are
+// left untouched.  An empty palette falls back to palette::default_cycle.
+// Called by the renderer before drawing a figure and by the UI before building
+// overlays (legend), so palette and theme switches recolour existing plots.
+void resolve_auto_series_colors(Figure& figure, const DataPalette& palette);
 
 // Convenience accessors
 inline const ThemeColors& theme()

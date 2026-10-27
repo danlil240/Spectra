@@ -321,6 +321,7 @@ LineSeries3D& Axes3D::line3d(std::span<const float> x,
 {
     auto  series = std::make_unique<LineSeries3D>(x, y, z);
     auto* ptr    = series.get();
+    series->set_auto_color_index(static_cast<int>(series_.size()));
     series_.push_back(std::move(series));
     return *ptr;
 }
@@ -331,6 +332,7 @@ ScatterSeries3D& Axes3D::scatter3d(std::span<const float> x,
 {
     auto  series = std::make_unique<ScatterSeries3D>(x, y, z);
     auto* ptr    = series.get();
+    series->set_auto_color_index(static_cast<int>(series_.size()));
     series_.push_back(std::move(series));
     return *ptr;
 }
@@ -341,6 +343,7 @@ SurfaceSeries& Axes3D::surface(std::span<const float> x_grid,
 {
     auto  series = std::make_unique<SurfaceSeries>(x_grid, y_grid, z_values);
     auto* ptr    = series.get();
+    series->set_auto_color_index(static_cast<int>(series_.size()));
     series_.push_back(std::move(series));
     return *ptr;
 }
@@ -349,6 +352,7 @@ MeshSeries& Axes3D::mesh(std::span<const float> vertices, std::span<const uint32
 {
     auto  series = std::make_unique<MeshSeries>(vertices, indices);
     auto* ptr    = series.get();
+    series->set_auto_color_index(static_cast<int>(series_.size()));
     series_.push_back(std::move(series));
     return *ptr;
 }

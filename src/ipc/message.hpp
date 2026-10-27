@@ -258,6 +258,10 @@ struct SnapshotSeriesState
     uint32_t    axes_index  = 0;   // Which axes this series belongs to
     // Raw data (x, y interleaved floats for 2D; x, y, z for 3D)
     std::vector<float> data;
+    // Data-palette slot for an auto-coloured series, -1 for an explicit colour.
+    // When >= 0 the window resolves the colour from its own theme palette;
+    // color_r..a then only carry the sender's resolved colour.
+    int32_t color_index = -1;
 };
 
 // A single figure's full state.

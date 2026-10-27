@@ -1097,6 +1097,11 @@ if(SPECTRA_USE_ROS2)
         target_compile_definitions(unit_test_scene_viewport PRIVATE
             SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
         )
+        # The ImGui canvas-coverage tests need imgui.h, which spectra and
+        # spectra_ros2_adapter only use privately.
+        if(SPECTRA_USE_IMGUI AND DEFINED imgui_SOURCE_DIR)
+            target_include_directories(unit_test_scene_viewport SYSTEM PRIVATE ${imgui_SOURCE_DIR})
+        endif()
         add_test(NAME unit_test_scene_viewport COMMAND unit_test_scene_viewport)
         set_tests_properties(unit_test_scene_viewport PROPERTIES LABELS "ros2")
     endif()

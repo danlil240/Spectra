@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <string>
 #include <unordered_map>
@@ -29,13 +30,18 @@ class SceneRenderer
    public:
     /// Render all entities in \p scene using the given camera and viewport.
     /// \p renderer provides the backend for pipeline and buffer operations.
-    void render(Renderer&     renderer,
-                SceneManager& scene,
-                const Camera& camera,
-                const Rect&   viewport);
+    /// \p background_rgba fills the viewport first (skipped when alpha is 0).
+    void render(Renderer&                   renderer,
+                SceneManager&               scene,
+                const Camera&               camera,
+                const Rect&                 viewport,
+                const std::array<float, 4>& background_rgba);
 
    private:
     void ensure_pipelines(Backend& backend);
+    void render_background(Backend&                    backend,
+                           const Rect&                 viewport,
+                           const std::array<float, 4>& background_rgba);
 
     struct GpuData
     {
@@ -75,6 +81,8 @@ class SceneRenderer
         size_t       line_capacity{0};
 
         BufferHandle image_quad_vbo;
+
+        BufferHandle background_vbo;
     };
 
     GpuData gpu_;
@@ -86,6 +94,7 @@ class SceneRenderer
     PipelineHandle pointcloud_pipeline_;
     PipelineHandle pointcloud_transparent_pipeline_;
     PipelineHandle image3d_pipeline_;
+    PipelineHandle overlay_pipeline_;
     BufferHandle   frame_ubo_;
     bool           pipelines_ready_{false};
 

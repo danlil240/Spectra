@@ -16,6 +16,7 @@
 #include <spectra/axes.hpp>
 #include <spectra/figure.hpp>
 #include <spectra/series.hpp>
+#include <spectra/series3d.hpp>
 #include <spectra/series_shapes.hpp>
 #include <spectra/series_stats.hpp>
 #include <vector>
@@ -486,17 +487,47 @@ inline LegendPosition choose_best_corner(const Axes&    axes,
 
 // Resolve a configured position to a concrete corner.  Best picks the corner
 // with the least data overlap (with hysteresis against `previous`); None is
-// returned unchanged (callers hide the legend).
-inline LegendPosition resolve_position(const Axes&    axes,
-                                       const Rect&    vp,
-                                       float          w,
-                                       float          h,
-                                       LegendPosition requested,
-                                       LegendPosition previous = LegendPosition::None)
+// returned unchanged (callers hide the legend).  Data overlap is only scored
+// for 2D axes: a 3D view's projection changes with the camera, so Best maps
+// to TopRight there (as in the SVG exporter).
+inline LegendPosition resolve_position(const AxesBase& axes,
+                                       const Rect&     vp,
+                                       float           w,
+                                       float           h,
+                                       LegendPosition  requested,
+                                       LegendPosition  previous = LegendPosition::None)
 {
     if (requested != LegendPosition::Best)
         return requested;
-    return choose_best_corner(axes, vp, w, h, MARGIN, previous);
+    if (const auto* a2 = dynamic_cast<const Axes*>(&axes))
+        return choose_best_corner(*a2, vp, w, h, MARGIN, previous);
+    return LegendPosition::TopRight;
+}
+
+// Series that get a legend entry, in axes order: labeled and not hidden from
+// the legend.  Works for 2D and 3D axes alike, so the window (ImGui) and the
+// GPU / PNG export legends list the same entries.  Hidden series stay listed
+// (dimmed) so they can be toggled back on.
+inline std::vector<Series*> legend_entries(const AxesBase& axes)
+{
+    std::vector<Series*> out;
+    for (const auto& s : axes.series())
+    {
+        if (s && !s->label().empty() && s->show_in_legend())
+            out.push_back(s.get());
+    }
+    return out;
+}
+
+// Base (un-themed) swatch colour of a series.  Colormapped surfaces are drawn
+// from their colormap, not series.color(), so their swatch shows the middle
+// of the map (as in the SVG exporter).
+inline Color swatch_color(const Series& s)
+{
+    if (const auto* surf = dynamic_cast<const SurfaceSeries*>(&s);
+        surf && surf->colormap_type() != ColormapType::None)
+        return SurfaceSeries::sample_colormap(surf->colormap_type(), 0.5f);
+    return s.color();
 }
 
 // Width of one legend column of grid `g` (compute_grid may have narrowed it

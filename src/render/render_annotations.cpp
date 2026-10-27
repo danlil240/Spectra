@@ -18,10 +18,12 @@
 #include <spectra/figure.hpp>
 #include <spectra/plot_style.hpp>
 #include <spectra/series.hpp>
+#include <spectra/series3d.hpp>
 #include <spectra/series_stats.hpp>
 
 #include "core/colorbar_layout.hpp"
 #include "renderer.hpp"
+#include "scatter_marker.hpp"
 #include "ui/overlay/legend_layout.hpp"
 #include "ui/theme/theme.hpp"
 
@@ -87,8 +89,12 @@ enum class SwatchKind
 
 SwatchKind swatch_kind(const Series& s)
 {
-    if (dynamic_cast<const ScatterSeries*>(&s))
+    if (dynamic_cast<const ScatterSeries*>(&s) || dynamic_cast<const ScatterSeries3D*>(&s))
         return SwatchKind::Marker;
+    if (dynamic_cast<const LineSeries3D*>(&s))
+        return SwatchKind::Line;
+    if (const auto* surf = dynamic_cast<const SurfaceSeries*>(&s); surf && surf->wireframe())
+        return SwatchKind::Line;
     if (dynamic_cast<const LineSeries*>(&s) || dynamic_cast<const ChunkedLineSeries*>(&s)
         || dynamic_cast<const StemSeries*>(&s))
     {
@@ -104,6 +110,10 @@ float series_line_width(const Series& s)
         return l->width();
     if (const auto* c = dynamic_cast<const ChunkedLineSeries*>(&s))
         return c->width();
+    if (const auto* l3 = dynamic_cast<const LineSeries3D*>(&s))
+        return l3->width();
+    if (dynamic_cast<const SurfaceSeries*>(&s))
+        return 1.5f;   // wireframe
     return 2.0f;
 }
 
@@ -137,6 +147,16 @@ void Renderer::render_annotations(Figure& figure)
     if (!legend_overlay_active_ && legend.visible && legend.position != LegendPosition::None)
     {
         for (auto& axes_ptr : figure.axes())
+        {
+            if (!axes_ptr)
+                continue;
+            const Rect& vp = axes_ptr->viewport();
+            if (vp.y + vp.h < 0.0f || vp.y > fh)
+                continue;
+            build_legend(*axes_ptr, legend);
+        }
+        // 3D axes live in all_axes() (same order as the SVG exporter).
+        for (auto& axes_ptr : figure.all_axes())
         {
             if (!axes_ptr)
                 continue;
@@ -340,17 +360,12 @@ void set_color(SeriesPushConstants& pc, const Color& c)
 
 }   // namespace
 
-void Renderer::build_legend(Axes& axes, const LegendConfig& config)
+void Renderer::build_legend(AxesBase& axes, const LegendConfig& config)
 {
     if (!text_renderer_.is_initialized())
         return;
 
-    std::vector<const Series*> entries;
-    for (const auto& s : axes.series())
-    {
-        if (s && !s->label().empty() && s->show_in_legend())
-            entries.push_back(s.get());
-    }
+    const std::vector<Series*> entries = legend_layout::legend_entries(axes);
     if (entries.empty())
         return;
 
@@ -469,7 +484,7 @@ void Renderer::build_legend(Axes& axes, const LegendConfig& config)
         const float cy = y + row_h * 0.5f;
 
         const float vis_alpha = s.visible() ? 1.0f : HIDDEN_ALPHA;
-        Color       sc        = ui::adapt_series_color_to_theme(s.color(), tc);
+        Color       sc        = ui::adapt_series_color_to_theme(legend_layout::swatch_color(s), tc);
         if (const auto* scat = dynamic_cast<const ScatterSeries*>(&s); scat && scat->has_colormap())
             sc = colorbar_layout::sample(scat->colormap(), colorbar_layout::Mapping::Scatter, 0.6f);
         sc.a *= s.opacity() * vis_alpha;
@@ -519,6 +534,11 @@ void Renderer::build_legend(Axes& axes, const LegendConfig& config)
                     if (marker == 0)   // same default as render_series()
                         marker = static_cast<uint32_t>(bg_luma > 0.80f ? MarkerStyle::FilledCircle
                                                                        : MarkerStyle::Circle);
+                }
+                else if (const auto* s3 = dynamic_cast<const ScatterSeries3D*>(&s))
+                {
+                    size   = s3->size();   // same marker as the 3D scatter draw
+                    marker = resolve_scatter_marker(s3->marker_style(), false, bg_luma).marker_type;
                 }
                 pc.marker_type = marker;
                 pc.point_size  = std::clamp(size, 5.0f, 10.0f);

@@ -254,7 +254,7 @@ class Renderer
     // Screen-space plot annotations (render_annotations.cpp): per-axes legend
     // and colorbar, drawn after the series and plot geometry so they sit on top.
     void render_annotations(Figure& figure);
-    void build_legend(Axes& axes, const LegendConfig& config);
+    void build_legend(AxesBase& axes, const LegendConfig& config);
     void build_colorbar(AxesBase& axes);
 
     // Upload a screen-space (pixel, Y-down) orthographic projection into the

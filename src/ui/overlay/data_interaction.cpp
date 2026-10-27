@@ -315,6 +315,16 @@ void DataInteraction::draw_legend_for_figure(Figure& figure)
         }
         ++idx;
     }
+    // 3D axes (all_axes()) get a legend too; their indices continue after the
+    // 2D ones so drag offsets and ImGui ids stay distinct.
+    for (auto& axes_ptr : figure.all_axes())
+    {
+        if (axes_ptr)
+        {
+            legend_.draw(*axes_ptr, axes_ptr->viewport(), idx, config, fig_id, &figure.style());
+        }
+        ++idx;
+    }
 }
 
 void DataInteraction::draw_overlays(float       window_width,

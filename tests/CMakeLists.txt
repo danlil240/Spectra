@@ -421,6 +421,20 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_multi_window.cpp)
         RESOURCE_LOCK gpu)
 endif()
 
+# Qt embed demo smoke tests: launch each demo under an X display (xvfb-run when
+# DISPLAY is unset) and check it survives its first frames.
+foreach(qt_demo qt_embed_demo qt_multi_canvas_demo)
+    if(TARGET ${qt_demo})
+        add_test(NAME smoke_${qt_demo}
+            COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/smoke/qt_demo_smoke.sh $<TARGET_FILE:${qt_demo}>)
+        set_tests_properties(smoke_${qt_demo} PROPERTIES
+            LABELS "gpu;qt"
+            RESOURCE_LOCK gpu
+            SKIP_RETURN_CODE 77
+            TIMEOUT 60)
+    endif()
+endforeach()
+
 # Golden image tests (require Vulkan — headless via lavapipe in CI)
 option(SPECTRA_BUILD_GOLDEN_TESTS "Build golden image regression tests" ON)
 if(SPECTRA_BUILD_GOLDEN_TESTS)

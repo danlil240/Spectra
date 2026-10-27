@@ -55,7 +55,7 @@ jobs:
             base="$(git rev-parse HEAD~1)"
           fi
           echo "Checking lines changed between $base and $GITHUB_SHA"
-          if ! git clang-format-18 --binary clang-format-18 --diff "$base" "$GITHUB_SHA" \
+          if ! git clang-format-18 --binary clang-format-18 --extensions c,cc,cpp,cxx,h,hh,hpp,hxx,inl,m,mm --diff "$base" "$GITHUB_SHA" \
                -- src include tests examples; then
             echo "::error::Changed lines are not clang-format clean. Run: git clang-format-18 $base"
             exit 1

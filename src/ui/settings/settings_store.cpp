@@ -104,6 +104,23 @@ std::string serialize(const SettingsData& d)
 
 }   // namespace
 
+StartupTheme resolve_startup_theme(const SettingsData* user,
+                                   const std::string&  theme,
+                                   const std::string&  data_palette)
+{
+    const SettingsData  defaults;
+    const SettingsData& base = user ? *user : defaults;
+
+    StartupTheme out;
+    out.theme        = !theme.empty() ? theme : base.default_theme;
+    out.data_palette = !data_palette.empty() ? data_palette : base.default_data_palette;
+    if (out.theme.empty())
+        out.theme = defaults.default_theme;
+    if (out.data_palette.empty())
+        out.data_palette = defaults.default_data_palette;
+    return out;
+}
+
 // ─── SettingsStore ───────────────────────────────────────────────────────────
 
 std::string SettingsStore::default_path()

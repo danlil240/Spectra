@@ -20,6 +20,27 @@ struct SettingsData
     bool        timeline_visible     = false;
 };
 
+// Theme and data palette an App starts with.
+struct StartupTheme
+{
+    std::string theme;
+    std::string data_palette;
+};
+
+// Resolve the startup theme/palette.  Precedence: explicit (non-empty)
+// @p theme / @p data_palette, then @p user settings when non-null, then the
+// built-in defaults (SettingsData{}).  Pure; does not touch the filesystem.
+StartupTheme resolve_startup_theme(const SettingsData* user,
+                                   const std::string&  theme,
+                                   const std::string&  data_palette);
+
+// Whether an App should read the user's settings file: windowed apps always
+// do; headless apps only when explicitly asked, so exports are reproducible.
+inline bool reads_user_settings(bool headless, bool use_user_settings)
+{
+    return !headless || use_user_settings;
+}
+
 class SettingsStore
 {
    public:

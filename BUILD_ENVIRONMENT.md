@@ -248,7 +248,7 @@ lives in `src/render/webgpu/wgpu_pipeline_support.hpp`):
 
 | Works | Not yet ported (no WGSL pipeline) |
 |-------|-----------------------------------|
-| Line, scatter (single color), bar, histogram, box plot, violin, band, stem, 2D shapes; grid, overlay fills, 2D/3D text | Colormapped scatter (drawn in the series color), heatmap, every 3D type (3D axes, line, scatter, surface, mesh, shapes) |
+| Line, scatter (incl. colormapped scatter and the default-dot rim), bar, histogram, box plot, violin, band, stem, 2D shapes; grid, overlay fills, 2D/3D text; `PipelineType::Heatmap` (same SSBO layout as the example heatmap plug-in) | Every 3D type (3D axes, line, scatter, surface, mesh, shapes); plug-in series that ship SPIR-V shaders |
 
 When a figure uses an unsupported type, the Renderer skips that series, logs a
 one-time warning per kind, and draws a notice at the bottom-left of the canvas

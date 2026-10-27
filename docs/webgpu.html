@@ -182,7 +182,8 @@
               <h3>2D plotting primitives</h3>
               <ul>
                 <li>Line series with SDF anti-aliasing</li>
-                <li>Scatter series with all 18 marker types</li>
+                <li>Scatter series with all 18 marker types, colormapped scatter and the default-dot rim</li>
+                <li>Heatmap pipeline (<code>PipelineType::Heatmap</code>)</li>
                 <li>Grid lines, axes, and MSDF text rendering</li>
                 <li>Statistical series: histogram, bar, box, and violin</li>
               </ul>
@@ -192,7 +193,6 @@
               <h3>Full desktop runtime features</h3>
               <ul>
                 <li>3D pipelines: 3D axes, surface, mesh, scatter3, line3, shapes, and lighting</li>
-                <li>Colormapped scatter (drawn in the series color) and heatmap</li>
                 <li>Multi-process / IPC mode because browsers do not expose Unix sockets</li>
                 <li>Video export to MP4 or GIF</li>
                 <li>Runtime plugin loading because wasm has no <code>dlopen</code></li>

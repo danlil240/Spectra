@@ -1,5 +1,10 @@
 #pragma once
 
+#include <cstdint>
+#include <functional>
+#include <string>
+#include <string_view>
+
 namespace spectra
 {
 
@@ -36,5 +41,75 @@ float centered_label_x(float                    span_x,
                        float                    span_w,
                        const CenteredLabelSlot& slot,
                        float                    label_width);
+
+// ─── Plot label fitting (title, X/Y axis labels, 3D title) ──────────────────
+//
+// One rule shared by the GPU/raster text path (render_geometry.cpp) and the SVG exporter
+// (svg_export.cpp) so both fit long labels the same way: same width budget, same font
+// step-down, same ellipsis.  Each path supplies its own text metrics.
+
+// Font tiers a plot label may use.  Same order and values as the renderer's FontSize
+// (Tick < Label < Title), which converts to and from it with a static_cast.
+enum class LabelFont : uint8_t
+{
+    Tick  = 0,
+    Label = 1,
+    Title = 2,
+};
+
+// Ellipsis appended to shortened plot labels ("…", U+2026).
+inline constexpr std::string_view LABEL_ELLIPSIS = "\xE2\x80\xA6";
+
+struct FittedLabel
+{
+    std::string text;                           // text to draw (possibly ellipsized)
+    LabelFont   font      = LabelFont::Title;   // font tier to draw it at
+    bool        truncated = false;              // true when characters were dropped
+};
+
+// Measures the drawn width (pixels) of `text` at font tier `font`.
+using LabelWidthFn = std::function<float(const std::string& text, LabelFont font)>;
+
+// Fit text into max_width pixels.
+//   1. Try each font tier from `preferred` down to `min_font` (inclusive); the first tier
+//      at which the whole text fits is used.
+//   2. Otherwise, at `min_font`, keep the longest UTF-8 prefix (on codepoint boundaries,
+//      trailing spaces trimmed) that fits together with `ellipsis`.
+//   3. If not even the ellipsis fits (e.g. a zero budget), the text is empty.
+FittedLabel fit_label_to_width(const std::string&  text,
+                               float               max_width,
+                               LabelFont           preferred,
+                               LabelFont           min_font,
+                               const LabelWidthFn& measure,
+                               std::string_view    ellipsis = "...");
+
+// Axes title over a span of `span_w` pixels, with `reserve_left` kept free for the Y
+// offset annotation: Title size, stepping down to Label size, then ellipsized.
+FittedLabel fit_axes_title(const std::string&  title,
+                           float               span_w,
+                           float               reserve_left,
+                           const LabelWidthFn& measure,
+                           std::string_view    ellipsis = LABEL_ELLIPSIS);
+
+// X axis label under a span of `span_w` pixels, with `reserve_right` kept free for the
+// X offset annotation: Label size, ellipsized.
+FittedLabel fit_axes_xlabel(const std::string&  label,
+                            float               span_w,
+                            float               reserve_right,
+                            const LabelWidthFn& measure,
+                            std::string_view    ellipsis = LABEL_ELLIPSIS);
+
+// Y axis label, drawn rotated along the axes height `span_h`: Label size, ellipsized.
+FittedLabel fit_axes_ylabel(const std::string&  label,
+                            float               span_h,
+                            const LabelWidthFn& measure,
+                            std::string_view    ellipsis = LABEL_ELLIPSIS);
+
+// 3D axes title over the viewport width `span_w`: Title size, stepping down to Label
+// size, then ellipsized.
+FittedLabel fit_axes3d_title(const std::string&  title,
+                             float               span_w,
+                             const LabelWidthFn& measure,
+                             std::string_view    ellipsis = LABEL_ELLIPSIS);
 
 }   // namespace spectra

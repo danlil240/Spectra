@@ -135,22 +135,13 @@ void Renderer::render_plot_text(Figure& figure)
     // uint32_t fig_w = figure.width();
     uint32_t fig_h = figure.height();
 
-    // Shrink (down to `min_size`) or ellipsize a label so it fits `max_width`.
-    auto fit_label = [this](const std::string& text,
-                            float              max_width,
-                            FontSize           preferred,
-                            FontSize           min_size) -> FittedText
-    {
-        const char* ellipsis = text_renderer_.has_glyph(0x2026, min_size) ? "\xE2\x80\xA6" : "...";
-        return fit_text_to_width(
-            text,
-            max_width,
-            preferred,
-            min_size,
-            [this](const std::string& t, FontSize fs)
-            { return text_renderer_.measure_text(t, fs).width; },
-            ellipsis);
-    };
+    // Plot labels (title, axis labels, 3D title) are fitted by the rules shared with the
+    // SVG exporter (core/label_layout): shrunk where allowed, then ellipsized.
+    const TextWidthFn measure_px = [this](const std::string& t, FontSize fs)
+    { return text_renderer_.measure_text(t, fs).width; };
+    const LabelWidthFn     label_measure = to_label_width_fn(measure_px);
+    const std::string_view label_ellipsis =
+        text_renderer_.has_glyph(0x2026, FontSize::Label) ? LABEL_ELLIPSIS : "...";
 
     // ── 2D Axes: tick labels, axis labels, title ──
     for (auto& axes_ptr : figure.axes())
@@ -303,11 +294,14 @@ void Renderer::render_plot_text(Figure& figure)
         if (!axes.get_xlabel().empty())
         {
             const CenteredLabelSlot slot = centered_label_slot(vp.x, vp.w, 0.0f, x_offset_reserve);
-            const FittedText        fit =
-                fit_label(axes.get_xlabel(), slot.max_width, FontSize::Label, FontSize::Label);
-            const auto ext = text_renderer_.measure_text(fit.text, fit.size);
-            float      cx  = centered_label_x(vp.x, vp.w, slot, ext.width);
-            float      py  = x_label_row;
+            const FittedText        fit  = to_fitted_text(fit_axes_xlabel(axes.get_xlabel(),
+                                                                  vp.w,
+                                                                  x_offset_reserve,
+                                                                  label_measure,
+                                                                  label_ellipsis));
+            const auto              ext  = text_renderer_.measure_text(fit.text, fit.size);
+            float                   cx   = centered_label_x(vp.x, vp.w, slot, ext.width);
+            float                   py   = x_label_row;
             text_renderer_.draw_text(fit.text, cx, py, fit.size, label_col, TextAlign::Center);
             if (fit.truncated)
             {
@@ -320,8 +314,8 @@ void Renderer::render_plot_text(Figure& figure)
         if (!axes.get_ylabel().empty())
         {
             // Rotated: the label runs along the axes height, so fit it to that.
-            const FittedText fit =
-                fit_label(axes.get_ylabel(), vp.h, FontSize::Label, FontSize::Label);
+            const FittedText fit = to_fitted_text(
+                fit_axes_ylabel(axes.get_ylabel(), vp.h, label_measure, label_ellipsis));
             const auto      label_ext = text_renderer_.measure_text(fit.text, fit.size);
             constexpr float label_gap = 6.0f;   // gap between widest tick label and axis label
             float           center_x =
@@ -347,11 +341,14 @@ void Renderer::render_plot_text(Figure& figure)
             // never spill into neighbouring subplots or past the window edge.
             // The Y offset sits at the top-left on the title's row: fit beside it.
             const CenteredLabelSlot slot = centered_label_slot(vp.x, vp.w, y_offset_reserve, 0.0f);
-            const FittedText        fit =
-                fit_label(axes.get_title(), slot.max_width, FontSize::Title, FontSize::Label);
-            auto  ext = text_renderer_.measure_text(fit.text, fit.size);
-            float cx  = centered_label_x(vp.x, vp.w, slot, ext.width);
-            float py  = vp.y - ext.height - tick_padding;
+            const FittedText        fit  = to_fitted_text(fit_axes_title(axes.get_title(),
+                                                                 vp.w,
+                                                                 y_offset_reserve,
+                                                                 label_measure,
+                                                                 label_ellipsis));
+            auto                    ext  = text_renderer_.measure_text(fit.text, fit.size);
+            float                   cx   = centered_label_x(vp.x, vp.w, slot, ext.width);
+            float                   py   = vp.y - ext.height - tick_padding;
             // Only clamp if the title would go off the top of the figure.
             // The previous clamp (py < vp.y + 2) always fired and placed the
             // title inside the axes viewport where it competed with grid/series
@@ -445,10 +442,10 @@ void Renderer::render_plot_text(Figure& figure)
         const auto& cam = axes3d->camera();
 
         // Build MVP matrix: projection * view * model
-        mat4  proj   = axes3d->projection_matrix(vp);
-        mat4  view   = cam.view_matrix();
-        mat4  model  = axes3d->data_to_normalized_matrix();
-        mat4  mvp    = mat4_mul(proj, mat4_mul(view, model));
+        mat4 proj  = axes3d->projection_matrix(vp);
+        mat4 view  = cam.view_matrix();
+        mat4 model = axes3d->data_to_normalized_matrix();
+        mat4 mvp   = mat4_mul(proj, mat4_mul(view, model));
 
         // Helper: project a 3D world point to screen coords within the viewport
         // Also outputs NDC depth in [0,1] for depth-tested text rendering.
@@ -639,9 +636,10 @@ void Renderer::render_plot_text(Figure& figure)
         FittedText title_fit;
         if (!axes3d->get_title().empty())
         {
-            title_fit = fit_label(axes3d->get_title(), vp.w, FontSize::Title, FontSize::Label);
-            auto ext  = text_renderer_.measure_text(title_fit.text, title_fit.size);
-            title_py  = vp.y - ext.height - tick_padding;
+            title_fit = to_fitted_text(
+                fit_axes3d_title(axes3d->get_title(), vp.w, label_measure, label_ellipsis));
+            auto ext = text_renderer_.measure_text(title_fit.text, title_fit.size);
+            title_py = vp.y - ext.height - tick_padding;
             if (title_py < vp.y + 2.0f)
                 title_py = vp.y + 2.0f;
             placed_labels.push_back(label_rect(title_fit.text,

@@ -274,16 +274,20 @@ const SvgText* find_text(const std::vector<SvgText>& texts, std::string_view con
     return nullptr;
 }
 
-// Text whose content is `full` or an ellipsized prefix of it.
+// Text whose content is `full` or an ellipsized ("..." or U+2026) prefix of it.
 const SvgText* find_label(const std::vector<SvgText>& texts, const std::string& full)
 {
     for (const auto& t : texts)
     {
         if (t.content == full)
             return &t;
-        if (t.content.size() > 3 && t.content.compare(t.content.size() - 3, 3, "...") == 0
-            && full.compare(0, t.content.size() - 3, t.content, 0, t.content.size() - 3) == 0)
-            return &t;
+        for (std::string_view ell : {std::string_view("..."), LABEL_ELLIPSIS})
+        {
+            const size_t n = ell.size();
+            if (t.content.size() > n && t.content.compare(t.content.size() - n, n, ell) == 0
+                && full.compare(0, t.content.size() - n, t.content, 0, t.content.size() - n) == 0)
+                return &t;
+        }
     }
     return nullptr;
 }

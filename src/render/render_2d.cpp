@@ -73,7 +73,8 @@ void Renderer::render_series(Series&             series,
                              const Rect&         viewport,
                              const VisibleRange* visible,
                              double              view_cx,
-                             double              view_cy)
+                             double              view_cy,
+                             int                 shape3d_range)
 {
     auto it = series_gpu_data_.find(&series);
     if (it == series_gpu_data_.end())
@@ -591,13 +592,19 @@ void Renderer::render_series(Series&             series,
                 // zero-alpha sentinel keep the series colour; explicit
                 // per-shape colours replace it.  Opaque ranges are drawn
                 // before transparent ones so the latter blend over them.
+                // shape3d_range restricts the draw to the opaque ranges or to
+                // one range, for the 3D opaque/transparent passes.
                 const auto     ranges    = sh3d->draw_ranges();
                 const auto     idx_limit = static_cast<uint32_t>(gpu.index_count);
+                const int      last_pass = shape3d_range == kShape3DOpaqueRanges ? 1 : 2;
                 PipelineHandle bound{};
-                for (int pass = 0; pass < 2; ++pass)
+                for (int pass = 0; pass < last_pass; ++pass)
                 {
-                    for (const auto& r : ranges)
+                    for (size_t ri = 0; ri < ranges.size(); ++ri)
                     {
+                        const auto& r = ranges[ri];
+                        if (shape3d_range >= 0 && ri != static_cast<size_t>(shape3d_range))
+                            continue;
                         if (r.first_index >= idx_limit)
                             continue;
                         const uint32_t count = std::min(r.index_count, idx_limit - r.first_index);
@@ -609,7 +616,8 @@ void Renderer::render_series(Series&             series,
                             range_pc.color[2] = r.color.b;
                             range_pc.color[3] = r.color.a;
                         }
-                        const bool transparent = (range_pc.color[3] * range_pc.opacity) < 0.99f;
+                        const bool transparent =
+                            shape3d_range_transparent(r, pc.color[3], pc.opacity);
                         if (transparent != (pass == 1))
                             continue;
                         const PipelineHandle pipe =

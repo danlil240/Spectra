@@ -235,6 +235,7 @@ inline std::unique_ptr<Figure> build_figure_from_snapshot(const ipc::SnapshotFig
                     ax.ylabel(sa.y_label);
                 if (!sa.title.empty())
                     ax.title(sa.title);
+                ipc::apply_axis_format_state(ax, sa);
                 sync_live_annotations(ax, sa.annotations);
             }
         }
@@ -252,6 +253,8 @@ inline std::unique_ptr<Figure> build_figure_from_snapshot(const ipc::SnapshotFig
                 add_2d_series(*ax2d, ss);
         }
     }
+
+    fig->legend().position = ipc::legend_position_from_wire(snap.legend_position);
 
     // Apply live streaming FPS from snapshot
     if (snap.live_fps > 0.0f)

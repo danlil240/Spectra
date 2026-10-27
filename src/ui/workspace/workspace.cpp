@@ -12,6 +12,7 @@
 #include <spectra/figure.hpp>
 #include <spectra/series.hpp>
 #include <spectra/series3d.hpp>
+#include <spectra/series_stats.hpp>
 #include <sstream>
 
 #include "series_color_source.hpp"
@@ -118,6 +119,8 @@ std::string Workspace::serialize_json(const WorkspaceData& data)
         os << "      \"grid_cols\": " << fig.grid_cols << ",\n";
         os << "      \"is_modified\": " << (fig.is_modified ? "true" : "false") << ",\n";
         os << R"(      "custom_tab_title": ")" << escape_json(fig.custom_tab_title) << "\",\n";
+        if (fig.legend_position >= 0)
+            os << "      \"legend_position\": " << fig.legend_position << ",\n";
 
         // Axes
         os << "      \"axes\": [\n";
@@ -134,7 +137,11 @@ std::string Workspace::serialize_json(const WorkspaceData& data)
             os << R"(          "x_label": ")" << escape_json(ax.x_label) << "\",\n";
             os << R"(          "y_label": ")" << escape_json(ax.y_label) << "\",\n";
             os << R"(          "title": ")" << escape_json(ax.title) << "\",\n";
-            os << "          \"is_3d\": " << (ax.is_3d ? "true" : "false") << "\n";
+            os << "          \"is_3d\": " << (ax.is_3d ? "true" : "false") << ",\n";
+            os << "          \"x_scale\": " << ax.x_scale << ",\n";
+            os << "          \"y_scale\": " << ax.y_scale << ",\n";
+            os << "          \"x_datetime\": " << (ax.x_datetime ? "true" : "false") << ",\n";
+            os << "          \"y_datetime\": " << (ax.y_datetime ? "true" : "false") << "\n";
             os << "        }";
             if (ai + 1 < fig.axes.size())
                 os << ",";
@@ -197,6 +204,13 @@ std::string Workspace::serialize_json(const WorkspaceData& data)
             os << "          \"ambient\": " << s.ambient << ",\n";
             os << "          \"specular\": " << s.specular << ",\n";
             os << "          \"shininess\": " << s.shininess << ",\n";
+            if (!s.categories.empty())
+            {
+                os << "          \"categories\": [";
+                for (size_t ci = 0; ci < s.categories.size(); ++ci)
+                    os << (ci > 0 ? ", " : "") << '"' << escape_json_text(s.categories[ci]) << '"';
+                os << "],\n";
+            }
             os << "          \"dash_pattern\": [";
             for (size_t di = 0; di < s.dash_pattern.size(); ++di)
             {
@@ -589,6 +603,35 @@ static std::vector<std::string> parse_json_array(const std::string& json, const 
     return objects;
 }
 
+// Parse an array of strings (finds [...] after key).  Empty when absent.
+static std::vector<std::string> parse_json_string_array(const std::string& json,
+                                                        const std::string& key)
+{
+    std::vector<std::string> out;
+    const std::string        search = "\"" + key + "\"";
+    auto                     pos    = json.find(search);
+    if (pos == std::string::npos)
+        return out;
+    pos = json.find('[', pos + search.size());
+    if (pos == std::string::npos)
+        return out;
+    for (size_t i = pos + 1; i < json.size(); ++i)
+    {
+        if (json[i] == ']')
+            break;
+        if (json[i] != '"')
+            continue;
+        size_t end = i + 1;
+        while (end < json.size() && json[end] != '"')
+            end += json[end] == '\\' ? 2 : 1;
+        if (end >= json.size())
+            break;
+        out.push_back(unescape_json(json.substr(i + 1, end - i - 1)));
+        i = end;
+    }
+    return out;
+}
+
 bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data)
 {
     data.version = static_cast<uint32_t>(read_number_value(json, "version", 1));
@@ -625,6 +668,9 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data)
             fig.custom_tab_title = read_string_value(fig_json, "custom_tab_title");
         }
 
+        // Optional key (any version); -1 = absent
+        fig.legend_position = static_cast<int>(read_number_value(fig_json, "legend_position", -1));
+
         // Axes
         auto ax_objects = parse_json_array(fig_json, "axes");
         for (const auto& ax_json : ax_objects)
@@ -644,6 +690,11 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data)
             {
                 ax.is_3d = read_bool_value(ax_json, "is_3d", false);
             }
+            // Optional keys (any version)
+            ax.x_scale    = static_cast<int>(read_number_value(ax_json, "x_scale", 0));
+            ax.y_scale    = static_cast<int>(read_number_value(ax_json, "y_scale", 0));
+            ax.x_datetime = read_bool_value(ax_json, "x_datetime", false);
+            ax.y_datetime = read_bool_value(ax_json, "y_datetime", false);
             fig.axes.push_back(std::move(ax));
         }
 
@@ -665,6 +716,7 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data)
             s.marker_size = static_cast<float>(read_number_value(ser_json, "marker_size", 6));
             s.visible     = read_bool_value(ser_json, "visible", true);
             s.point_count = static_cast<size_t>(read_number_value(ser_json, "point_count", 0));
+            s.categories   = parse_json_string_array(ser_json, "categories");
             // v2 field
             s.opacity = static_cast<float>(read_number_value(ser_json, "opacity", 1.0));
             // v3 fields
@@ -977,6 +1029,7 @@ WorkspaceData Workspace::capture(const std::vector<Figure*>& figures,
         fs.height    = fig->height();
         fs.grid_rows = fig->grid_rows();
         fs.grid_cols = fig->grid_cols();
+        fs.legend_position      = static_cast<int>(fig->legend().position);
 
         // Capture axes: use all_axes() if populated (mixed/3D figures),
         // otherwise fall back to axes() (2D-only figures).
@@ -1034,6 +1087,10 @@ WorkspaceData Workspace::capture(const std::vector<Figure*>& figures,
                 as.x_label      = ax2d->get_xlabel();
                 as.y_label      = ax2d->get_ylabel();
                 as.title        = ax2d->get_title();
+                as.x_scale      = static_cast<int>(ax2d->xscale());
+                as.y_scale      = static_cast<int>(ax2d->yscale());
+                as.x_datetime   = ax2d->xaxis_datetime();
+                as.y_datetime   = ax2d->yaxis_datetime();
 
                 for (const auto& ann : ax2d->annotations())
                 {
@@ -1150,6 +1207,12 @@ WorkspaceData Workspace::capture(const std::vector<Figure*>& figures,
                     ss.specular      = sf->specular();
                     ss.shininess     = sf->shininess();
                 }
+                else if (auto* bar = dynamic_cast<BarSeries*>(s.get()))
+                {
+                    ss.type        = "bar";
+                    ss.point_count = bar->bar_positions().size();
+                    ss.categories  = bar->categories();
+                }
                 else if (auto* ms = dynamic_cast<MeshSeries*>(s.get()))
                 {
                     ss.type        = "mesh";
@@ -1217,6 +1280,11 @@ bool Workspace::apply(const WorkspaceData& data, std::vector<Figure*>& figures)
         if (!fig)
             continue;
 
+        // Files without the key keep the figure's legend position.
+        if (fs.legend_position >= 0
+            && fs.legend_position <= static_cast<int>(LegendPosition::OutsideRight))
+            fig->legend().position = static_cast<LegendPosition>(fs.legend_position);
+
         // Apply axes: use all_axes() if populated, else axes()
         const bool has_all_axes = !fig->all_axes().empty();
 
@@ -1259,6 +1327,12 @@ bool Workspace::apply(const WorkspaceData& data, std::vector<Figure*>& figures)
                 ax2d->xlim(as.x_min, as.x_max);
                 ax2d->ylim(as.y_min, as.y_max);
                 ax2d->set_grid_enabled(as.grid_visible);
+                auto to_scale = [](int v)
+                { return v >= 0 && v <= 3 ? static_cast<ScaleType>(v) : ScaleType::Linear; };
+                ax2d->xscale(to_scale(as.x_scale));
+                ax2d->yscale(to_scale(as.y_scale));
+                ax2d->xaxis_datetime(as.x_datetime);
+                ax2d->yaxis_datetime(as.y_datetime);
 
                 // Files without the key (older formats) keep the current ones.
                 if (fs.has_text_annotations)
@@ -1307,6 +1381,8 @@ bool Workspace::apply(const WorkspaceData& data, std::vector<Figure*>& figures)
                     return;
                 const auto& ss = fs.series[si];
                 s->visible(ss.visible);
+                if (auto* bar = dynamic_cast<BarSeries*>(s.get()); bar && !ss.categories.empty())
+                    bar->categories(ss.categories);
                 // Restore the colour with its source (palette / letter colours
                 // keep following the theme).  Older files have no source.
                 if (!ss.color_source.empty())

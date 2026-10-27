@@ -332,7 +332,11 @@ static flatbuffers::Offset<fb::SnapshotAxisState> build_fb_axis(flatbuffers::Fla
                                              ax.x_label.c_str(),
                                              ax.y_label.c_str(),
                                              ax.title.c_str(),
-                                             ann_offsets.empty() ? nullptr : &ann_offsets);
+                                             ann_offsets.empty() ? nullptr : &ann_offsets,
+                                             ax.x_scale,
+                                             ax.y_scale,
+                                             ax.x_datetime,
+                                             ax.y_datetime);
 }
 
 static SnapshotAxisState read_fb_axis(const fb::SnapshotAxisState* fb)
@@ -352,6 +356,10 @@ static SnapshotAxisState read_fb_axis(const fb::SnapshotAxisState* fb)
         ax.y_label = fb->y_label()->str();
     if (fb->title())
         ax.title = fb->title()->str();
+    ax.x_scale    = fb->x_scale();
+    ax.y_scale    = fb->y_scale();
+    ax.x_datetime = fb->x_datetime();
+    ax.y_datetime = fb->y_datetime();
     if (fb->annotations())
     {
         for (const auto* fa : *fb->annotations())
@@ -390,6 +398,9 @@ static flatbuffers::Offset<fb::SnapshotSeriesState> build_fb_series(
     flatbuffers::Offset<flatbuffers::Vector<float>> data_off;
     if (!s.data.empty())
         data_off = fbb.CreateVector(s.data);
+    flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>>> cat_off;
+    if (!s.categories.empty())
+        cat_off = fbb.CreateVectorOfStrings(s.categories);
 
     fb::SnapshotSeriesStateBuilder b(fbb);
     b.add_name(name_off);
@@ -410,6 +421,8 @@ static flatbuffers::Offset<fb::SnapshotSeriesState> build_fb_series(
     b.add_y_origin(s.y_origin);
     if (!s.data.empty())
         b.add_data(data_off);
+    if (!s.categories.empty())
+        b.add_categories(cat_off);
     return b.Finish();
 }
 
@@ -439,6 +452,12 @@ static SnapshotSeriesState read_fb_series(const fb::SnapshotSeriesState* fb)
         s.data.reserve(fb->data()->size());
         for (auto v : *fb->data())
             s.data.push_back(v);
+    }
+    if (fb->categories())
+    {
+        s.categories.reserve(fb->categories()->size());
+        for (const auto* c : *fb->categories())
+            s.categories.push_back(c ? c->str() : std::string());
     }
     return s;
 }
@@ -472,6 +491,7 @@ static flatbuffers::Offset<fb::SnapshotFigureState> build_fb_figure(
     b.add_axes(axes_off);
     b.add_series(series_off);
     b.add_live_fps(fig.live_fps);
+    b.add_legend_position(fig.legend_position);
     return b.Finish();
 }
 
@@ -485,6 +505,7 @@ static SnapshotFigureState read_fb_figure(const fb::SnapshotFigureState* fb)
     fig.grid_cols    = fb->grid_cols();
     fig.window_group = fb->window_group();
     fig.live_fps     = fb->live_fps();
+    fig.legend_position = fb->legend_position();
     if (fb->title())
         fig.title = fb->title()->str();
     if (fb->axes())

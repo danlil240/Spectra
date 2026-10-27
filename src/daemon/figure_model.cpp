@@ -1,6 +1,7 @@
 #include "figure_model.hpp"
 
 #include "../ipc/annotation_state.hpp"
+#include "../ipc/axes_format_state.hpp"
 
 #include <algorithm>
 #include <spectra/color.hpp>
@@ -681,6 +682,7 @@ std::vector<uint64_t> FigureModel::load_snapshot(const ipc::StateSnapshotPayload
         fd.grid_rows = fig.grid_rows;
         fd.grid_cols = fig.grid_cols;
         fd.live_fps  = fig.live_fps;
+        fd.legend_position = fig.legend_position;
         fd.axes      = fig.axes;
         fd.series    = fig.series;
         figures_[id] = std::move(fd);
@@ -713,6 +715,7 @@ ipc::StateSnapshotPayload FigureModel::snapshot() const
         fig.grid_rows = fd.grid_rows;
         fig.grid_cols = fd.grid_cols;
         fig.live_fps  = fd.live_fps;
+        fig.legend_position = fd.legend_position;
         fig.axes      = fd.axes;
         fig.series    = fd.series;
         snap.figures.push_back(std::move(fig));
@@ -741,6 +744,7 @@ ipc::StateSnapshotPayload FigureModel::snapshot(const std::vector<uint64_t>& fig
         fig.grid_rows = fd.grid_rows;
         fig.grid_cols = fd.grid_cols;
         fig.live_fps  = fd.live_fps;
+        fig.legend_position = fd.legend_position;
         fig.axes      = fd.axes;
         fig.series    = fd.series;
         snap.figures.push_back(std::move(fig));
@@ -860,6 +864,29 @@ bool FigureModel::apply_diff_op(const ipc::DiffOp& op)
             if (!ipc::apply_annotation_op(it->second.axes[op.axes_index].annotations, op))
                 return false;
             break;
+
+        case ipc::DiffOp::Type::SET_AXIS_SCALE:
+            if (it == figures_.end() || op.axes_index >= it->second.axes.size())
+                return false;
+            ipc::apply_axis_scale_op(it->second.axes[op.axes_index], op);
+            break;
+
+        case ipc::DiffOp::Type::SET_LEGEND_POSITION:
+            if (it == figures_.end())
+                return false;
+            it->second.legend_position =
+                ipc::legend_position_to_wire(ipc::legend_position_from_wire(op.f1));
+            break;
+
+        case ipc::DiffOp::Type::SET_SERIES_CATEGORIES:
+        {
+            std::vector<std::string> names;
+            if (it == figures_.end() || op.series_index >= it->second.series.size()
+                || !ipc::categories_from_op(op, names))
+                return false;
+            it->second.series[op.series_index].categories = std::move(names);
+            break;
+        }
 
         case ipc::DiffOp::Type::SET_KNOB_VALUE:
             for (auto& k : knobs_)

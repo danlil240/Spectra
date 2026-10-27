@@ -63,6 +63,10 @@ enum ChunkTag : uint16_t
     // Data marker with double (absolute) x/y.  Written instead of the f32
     // TAG_MARKER, also without a version bump (older readers skip it).
     TAG_MARKER_F64 = 0x0044,
+    // Axis scales + date-time mode of a 2D axes, and the category names of the
+    // bar series in the preceding TAG_SERIES_BAR chunk.  Also version-free.
+    TAG_BAR_CATEGORIES = 0x0045,
+    TAG_AXES_FORMAT    = 0x0046,
 
     TAG_END = 0xFFFF,
 };
@@ -299,6 +303,16 @@ static void write_axes_2d(BinaryWriter& w, const Axes& axes, int axes_index)
 
     w.end_chunk(pos);
 
+    {
+        auto fpos = w.begin_chunk(TAG_AXES_FORMAT);
+        w.write_i32(axes_index);
+        w.write_u8(static_cast<uint8_t>(axes.xscale()));
+        w.write_u8(static_cast<uint8_t>(axes.yscale()));
+        w.write_u8(axes.xaxis_datetime() ? 1 : 0);
+        w.write_u8(axes.yaxis_datetime() ? 1 : 0);
+        w.end_chunk(fpos);
+    }
+
     // Write series for this axes
     for (const auto& sp : axes.series())
     {
@@ -412,6 +426,14 @@ static void write_axes_2d(BinaryWriter& w, const Axes& axes, int axes_index)
             w.write_floats(bs->bar_positions());
             w.write_floats(bs->bar_heights());
             w.end_series_chunk(spos, *sp);
+            if (!bs->categories().empty())
+            {
+                auto cpos = w.begin_chunk(TAG_BAR_CATEGORIES);
+                w.write_u32(static_cast<uint32_t>(bs->categories().size()));
+                for (const auto& name : bs->categories())
+                    w.write_string(name);
+                w.end_chunk(cpos);
+            }
         }
     }
 
@@ -743,6 +765,8 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
 
     // Track axes as we create them: index -> AxesBase*
     std::vector<AxesBase*> axes_ptrs;
+    // Bar series of the last TAG_SERIES_BAR chunk (target of TAG_BAR_CATEGORIES).
+    BarSeries* last_bar = nullptr;
 
     struct PendingAutoLimits
     {
@@ -1287,7 +1311,8 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
 
             case TAG_SERIES_BAR:
             {
-                int idx = r.read_i32();
+                last_bar = nullptr;
+                int idx  = r.read_i32();
                 if (idx < 0 || idx >= static_cast<int>(axes_ptrs.size()))
                 {
                     r.skip(len - 4);
@@ -1330,7 +1355,8 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 auto ps2       = bs.plot_style();
                 ps2.line_width = lw;
                 bs.plot_style(ps2);
-                loaded = {&bs, col};
+                loaded   = {&bs, col};
+                last_bar = &bs;
                 break;
             }
 
@@ -1632,6 +1658,45 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                     ann.color(color);
                 if (has_arrow)
                     ann.arrow_to(arrow_x, arrow_y);
+                break;
+            }
+
+            case TAG_AXES_FORMAT:
+            {
+                const int32_t ai   = r.read_i32();
+                const uint8_t xs   = r.read_u8();
+                const uint8_t ys   = r.read_u8();
+                const bool    xd   = r.read_u8() != 0;
+                const bool    yd   = r.read_u8() != 0;
+                Axes*         axes = (ai >= 0 && static_cast<size_t>(ai) < axes_ptrs.size())
+                                         ? dynamic_cast<Axes*>(axes_ptrs[static_cast<size_t>(ai)])
+                                         : nullptr;
+                if (!axes || !r.good())
+                    break;
+                auto to_scale = [](uint8_t v)
+                { return v <= 3 ? static_cast<ScaleType>(v) : ScaleType::Linear; };
+                axes->xscale(to_scale(xs));
+                axes->yscale(to_scale(ys));
+                axes->xaxis_datetime(xd);
+                axes->yaxis_datetime(yd);
+                break;
+            }
+
+            case TAG_BAR_CATEGORIES:
+            {
+                const uint32_t n = r.read_u32();
+                // Each name takes at least its 4-byte length: bound the count by the chunk.
+                if (!last_bar || len < 4 || n > (len - 4) / 4)
+                {
+                    r.skip(len - 4);
+                    break;
+                }
+                std::vector<std::string> names;
+                names.reserve(n);
+                for (uint32_t i = 0; i < n && r.good(); ++i)
+                    names.push_back(r.read_string());
+                if (r.good())
+                    last_bar->categories(std::move(names));
                 break;
             }
 

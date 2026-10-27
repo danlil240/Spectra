@@ -3,6 +3,7 @@
     #include <ranges>
 
     #include "imgui_integration_internal.hpp"
+    #include "ui/theme/theme_imgui.hpp"
 
     #include "../../../third_party/tinyfiledialogs.h"
     #include "axes_context_menu_model.hpp"
@@ -49,7 +50,7 @@ void ImGuiIntegration::draw_csv_dialog()
 
         if (!csv_error_.empty())
         {
-            ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.3f, 1.0f), "Error: %s", csv_error_.c_str());
+            ImGui::TextColored(ui::to_imvec4(colors.error), "Error: %s", csv_error_.c_str());
         }
 
         if (csv_data_loaded_ && csv_data_.num_cols > 0)

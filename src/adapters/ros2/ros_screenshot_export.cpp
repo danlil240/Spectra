@@ -46,6 +46,7 @@
 
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
+    #include "ui/theme/theme_imgui.hpp"
 #endif
 
 namespace spectra::adapters::ros2
@@ -475,7 +476,7 @@ bool RosScreenshotExport::draw_record_dialog(bool* p_open)
 
     if (!kMp4Available && dialog_format_idx_ == 2)
     {
-        ImGui::TextColored(ImVec4(1.0f, 0.65f, 0.2f, 1.0f),
+        ImGui::TextColored(spectra::ui::to_imvec4(spectra::ui::theme().warning),
                            "MP4 export requires a build with SPECTRA_USE_FFMPEG=ON.");
     }
 
@@ -539,18 +540,22 @@ bool RosScreenshotExport::draw_record_dialog(bool* p_open)
     {
         if (last_record_ok_)
         {
-            ImGui::TextColored(ImVec4(0.2f, 1.0f, 0.2f, 1.0f), "Done: %s", dialog_path_buf_);
+            ImGui::TextColored(spectra::ui::to_imvec4(spectra::ui::theme().success),
+                               "Done: %s",
+                               dialog_path_buf_);
         }
         else
         {
-            ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.3f, 1.0f),
+            ImGui::TextColored(spectra::ui::to_imvec4(spectra::ui::theme().error),
                                "Failed: %s",
                                session_->error().c_str());
         }
     }
     else if (session_ && session_->state() == spectra::RecordingState::Failed)
     {
-        ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.3f, 1.0f), "Failed: %s", session_->error().c_str());
+        ImGui::TextColored(spectra::ui::to_imvec4(spectra::ui::theme().error),
+                           "Failed: %s",
+                           session_->error().c_str());
     }
 
     // ── Buttons ───────────────────────────────────────────────────────────────

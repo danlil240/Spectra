@@ -2,6 +2,7 @@
 
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
+    #include "ui/theme/theme_imgui.hpp"
     #ifdef IMGUI_HAS_DOCK
         #include <imgui_internal.h>
         #include <cmath>
@@ -178,7 +179,9 @@ void LiveConnectionPanel::draw_status()
     ImGui::Text("Rate: %.1f msg/s", bridge_.message_rate());
 
     if (!bridge_.last_error().empty())
-        ImGui::TextColored(ImVec4(1, 0.3f, 0.3f, 1), "Error: %s", bridge_.last_error().c_str());
+        ImGui::TextColored(spectra::ui::to_imvec4(spectra::ui::theme().error),
+                           "Error: %s",
+                           bridge_.last_error().c_str());
 #endif
 }
 

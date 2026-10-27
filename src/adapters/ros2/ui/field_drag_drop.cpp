@@ -4,6 +4,7 @@
 
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
+    #include "ui/theme/theme_imgui.hpp"
 #endif
 
 namespace spectra::adapters::ros2
@@ -86,7 +87,7 @@ bool FieldDragDrop::begin_drag_source(const FieldDragPayload& payload)
 
     ImGui::TextUnformatted("Plot:");
     ImGui::SameLine();
-    ImGui::TextColored(ImVec4(0.4f, 0.8f, 1.0f, 1.0f), "%s", lbl.c_str());
+    ImGui::TextColored(spectra::ui::to_imvec4(spectra::ui::theme().accent), "%s", lbl.c_str());
 
     ImGui::EndDragDropSource();
     return true;
@@ -221,9 +222,10 @@ bool FieldDragDrop::draw_drop_zone()
     if (is_dragging())
     {
         const bool  hovered  = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
-        const ImU32 fill_col = hovered ? IM_COL32(60, 180, 255, 55) : IM_COL32(60, 180, 255, 22);
+        const ImU32 fill_col =
+            spectra::ui::to_imu32(spectra::ui::theme().accent, hovered ? 0.22f : 0.09f);
         const ImU32 border_col =
-            hovered ? IM_COL32(60, 180, 255, 220) : IM_COL32(60, 180, 255, 100);
+            spectra::ui::to_imu32(spectra::ui::theme().accent, hovered ? 0.86f : 0.40f);
 
         ImDrawList*  dl   = ImGui::GetWindowDrawList();
         const ImVec2 pmax = {pos.x + avail.x, pos.y + avail.y};
@@ -237,7 +239,7 @@ bool FieldDragDrop::draw_drop_zone()
             const ImVec2 text_sz  = ImGui::CalcTextSize(lbl);
             const ImVec2 text_pos = {pos.x + (avail.x - text_sz.x) * 0.5f,
                                      pos.y + (avail.y - text_sz.y) * 0.5f};
-            dl->AddText(text_pos, IM_COL32(60, 180, 255, 240), lbl);
+            dl->AddText(text_pos, spectra::ui::to_imu32(spectra::ui::theme().accent), lbl);
         }
     }
 

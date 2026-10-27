@@ -31,6 +31,7 @@
 
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
+    #include "ui/theme/theme_imgui.hpp"
     #include <cmath>
 #endif
 
@@ -368,13 +369,14 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
                     constexpr float kCornerR   = 8.0f;
                     constexpr float kBorderW   = 1.0f;
 
-                    const ImU32 col_title_bg    = IM_COL32(30, 30, 34, 255);      // Dark surface
-                    const ImU32 col_title_text  = IM_COL32(210, 210, 215, 255);   // Soft white text
-                    const ImU32 col_close_hover = IM_COL32(220, 60, 60, 200);     // Red close hover
-                    const ImU32 col_close_icon =
-                        IM_COL32(180, 180, 185, 255);                      // Close icon normal
-                    const ImU32 col_border  = IM_COL32(55, 55, 62, 255);   // Subtle border
-                    const ImU32 col_body_bg = IM_COL32(22, 22, 26, 255);   // Body background
+                    // Theme-aware chrome so panel windows match the active theme.
+                    const ui::ThemeColors& th              = ui::theme();
+                    const ImU32            col_title_bg    = ui::to_imu32(th.bg_secondary, 1.0f);
+                    const ImU32            col_title_text  = ui::to_imu32(th.text_primary);
+                    const ImU32            col_close_hover = ui::to_imu32(th.error, 0.80f);
+                    const ImU32            col_close_icon  = ui::to_imu32(th.text_secondary);
+                    const ImU32            col_border      = ui::to_imu32(th.border_subtle);
+                    const ImU32            col_body_bg     = ui::to_imu32(th.bg_primary, 1.0f);
 
                     ImVec2 wp = pvp->WorkPos;
                     ImVec2 ws = pvp->WorkSize;
@@ -432,7 +434,8 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
                         float cx    = close_x + kBtnSize * 0.5f;
                         float cy    = close_y + kBtnSize * 0.5f;
                         float half  = 5.0f;
-                        ImU32 x_col = close_hovered ? IM_COL32(255, 255, 255, 255) : col_close_icon;
+                        ImU32 x_col =
+                            close_hovered ? ui::to_imu32(th.text_inverse) : col_close_icon;
                         bg_dl->AddLine(ImVec2(cx - half, cy - half),
                                        ImVec2(cx + half, cy + half),
                                        x_col,

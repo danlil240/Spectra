@@ -671,6 +671,8 @@ Color ThemeManager::get_color(const std::string& color_name) const
         return c.error;
     if (color_name == "info")
         return c.info;
+    if (color_name == "critical")
+        return c.critical;
     if (color_name == "grid_major")
         return c.grid_major;
     if (color_name == "grid_minor")
@@ -748,6 +750,7 @@ std::string theme_colors_to_json(const ThemeColors& c, int indent = 4)
     TC_FIELD(warning) << ",\n";
     TC_FIELD(error) << ",\n";
     TC_FIELD(info) << ",\n";
+    TC_FIELD(critical) << ",\n";
     TC_FIELD(grid_major) << ",\n";
     TC_FIELD(grid_minor) << ",\n";
     TC_FIELD(grid_line) << ",\n";
@@ -846,6 +849,8 @@ bool parse_theme_colors_from_json(const std::string& json, ThemeColors& out)
     PARSE_TC(warning);
     PARSE_TC(error);
     PARSE_TC(info);
+    out.critical = out.error;   // Themes exported before `critical` existed
+    PARSE_TC(critical);
     PARSE_TC(grid_major);
     PARSE_TC(grid_minor);
     PARSE_TC(grid_line);
@@ -1130,10 +1135,11 @@ void ThemeManager::initialize_default_themes()
         .accent_subtle = Color(0.62f, 0.83f, 0.90f, 0.08f),
 
         // Semantic
-        .success = Color::from_hex(0x3FB950),
-        .warning = Color::from_hex(0xD29922),
-        .error   = Color::from_hex(0xFF7575),   // WCAG AA: 4.52:1 on bg_secondary (#2E2E2E)
-        .info    = Color::from_hex(0x7DD3FC),
+        .success  = Color::from_hex(0x3FB950),
+        .warning  = Color::from_hex(0xD29922),
+        .error    = Color::from_hex(0xFF7575),   // WCAG AA: 4.52:1 on bg_secondary (#2E2E2E)
+        .info     = Color::from_hex(0x7DD3FC),
+        .critical = Color::from_hex(0xF472D0),
 
         // Plot-specific — grid recedes, data is hero
         .grid_major       = Color(0.70f, 0.78f, 0.84f, 0.12f),
@@ -1189,10 +1195,11 @@ void ThemeManager::initialize_default_themes()
                               .accent_muted  = Color(0.42f, 0.78f, 0.95f, 0.20f),
                               .accent_subtle = Color(0.42f, 0.78f, 0.95f, 0.08f),
 
-                              .success = glass_palette::kSuccessGreen,
-                              .warning = glass_palette::kWarningAmber,
-                              .error   = Color::from_hex(0xF85149),
-                              .info    = glass_palette::kAccentBlue,
+                              .success  = glass_palette::kSuccessGreen,
+                              .warning  = glass_palette::kWarningAmber,
+                              .error    = Color::from_hex(0xF85149),
+                              .info     = glass_palette::kAccentBlue,
+                              .critical = glass_palette::kAccentMagenta,
 
                               .grid_major       = Color(0.55f, 0.72f, 0.92f, tokens::GRID_MAJOR_ALPHA_NIGHT),
                               .grid_minor       = Color(0.55f, 0.72f, 0.92f, tokens::GRID_MINOR_ALPHA_NIGHT),
@@ -1256,6 +1263,7 @@ void ThemeManager::initialize_default_themes()
         .warning = Color::from_hex(0x7A5000),   // WCAG AA on light surfaces
         .error   = Color::from_hex(0xB91C1C),   // WCAG AA on light surfaces
         .info    = Color::from_hex(0x2563EB),
+        .critical = Color::from_hex(0xA21CAF),   // WCAG AA on light surfaces
 
         // Plot-specific — cool academic gridlines on the tinted canvas
         .grid_major       = Color(0.32f, 0.40f, 0.48f, 0.24f),
@@ -1316,10 +1324,11 @@ void ThemeManager::initialize_default_themes()
                                                      .accent_subtle = Color::from_hex(0x1AFFD700),
 
                             // Semantic
-                                                     .success = Color::from_hex(0x00FF00),
-                                                     .warning = Color::from_hex(0xFFFF00),
-                                                     .error   = Color::from_hex(0xFF0000),
-                                                     .info    = Color::from_hex(0xFFD700),
+                                                     .success  = Color::from_hex(0x00FF00),
+                                                     .warning  = Color::from_hex(0xFFFF00),
+                                                     .error    = Color::from_hex(0xFF0000),
+                                                     .info     = Color::from_hex(0xFFD700),
+                                                     .critical = Color::from_hex(0xFF00FF),
 
                             // Plot-specific
                                                      .grid_major       = Color::from_hex(0x666666),
@@ -1627,7 +1636,8 @@ ThemeColors ThemeManager::interpolate_colors(const ThemeColors& start,
     result.success = start.success.lerp(end.success, t);
     result.warning = start.warning.lerp(end.warning, t);
     result.error   = start.error.lerp(end.error, t);
-    result.info    = start.info.lerp(end.info, t);
+    result.info     = start.info.lerp(end.info, t);
+    result.critical = start.critical.lerp(end.critical, t);
 
     result.grid_major       = start.grid_major.lerp(end.grid_major, t);
     result.grid_minor       = start.grid_minor.lerp(end.grid_minor, t);

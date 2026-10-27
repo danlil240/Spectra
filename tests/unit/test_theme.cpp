@@ -1,5 +1,6 @@
 #include <cmath>
 #include <filesystem>
+#include <fstream>
 #include <gtest/gtest.h>
 #include <spectra/figure.hpp>
 
@@ -777,4 +778,77 @@ TEST_F(ThemeManagerTest, EffectiveFigureBackgroundTracksThemeSwitch)
     const spectra::Color night_bg = effective_figure_background(style, tm_.colors());
     EXPECT_GT(light_bg.r + light_bg.g + light_bg.b, 2.0f);   // light canvas
     EXPECT_LT(night_bg.r + night_bg.g + night_bg.b, 0.5f);   // dark canvas, not white
+}
+
+// ─── Semantic status tokens (used by ROS2 / UI panels instead of literals) ───
+
+TEST_F(ThemeManagerTest, CriticalTokenPresentAndDistinctInAllThemes)
+{
+    for (const char* name : {"dark", "night", "light", "high_contrast"})
+    {
+        SCOPED_TRACE(name);
+        tm_.set_theme(name);
+        const ThemeColors& c = tm_.colors();
+        EXPECT_FLOAT_EQ(c.critical.a, 1.0f);
+        EXPECT_NE(c.critical, Color{});
+        EXPECT_NE(c.critical, c.error);
+        EXPECT_NE(c.critical, c.warning);
+        EXPECT_NE(c.critical, c.success);
+        EXPECT_NE(c.critical, c.info);
+        EXPECT_NE(c.critical, c.accent);
+        EXPECT_NE(c.critical, c.text_primary);
+        EXPECT_EQ(tm_.get_color("critical"), c.critical);
+    }
+}
+
+TEST_F(ThemeManagerTest, StatusTokensReadableOnPanelsInAllThemes)
+{
+    // Log levels, diagnostics badges and error messages draw these on panel
+    // surfaces; each must stay readable in every built-in theme.
+    for (const char* name : {"dark", "night", "light", "high_contrast"})
+    {
+        SCOPED_TRACE(name);
+        tm_.set_theme(name);
+        const ThemeColors& c  = tm_.colors();
+        const Color        bg = c.bg_secondary;
+        EXPECT_GE(c.text_primary.contrast_ratio(bg), 4.5f);
+        EXPECT_GE(c.warning.contrast_ratio(bg), 3.0f);
+        EXPECT_GE(c.error.contrast_ratio(bg), 3.0f);
+        EXPECT_GE(c.success.contrast_ratio(bg), 3.0f);
+        EXPECT_GE(c.critical.contrast_ratio(bg), 3.0f);
+    }
+}
+
+TEST_F(ThemeManagerTest, CriticalTokenSurvivesExportImport)
+{
+    tm_.set_theme("light");
+    const Color                 expected = tm_.colors().critical;
+    const std::filesystem::path path =
+        std::filesystem::temp_directory_path() / "spectra_critical_theme_test.json";
+    ASSERT_TRUE(tm_.export_theme(path.string()));
+    tm_.set_theme("dark");
+    ASSERT_TRUE(tm_.import_theme(path.string()));
+    tm_.set_theme("light");
+    EXPECT_NEAR(tm_.colors().critical.r, expected.r, 1e-3f);
+    EXPECT_NEAR(tm_.colors().critical.g, expected.g, 1e-3f);
+    EXPECT_NEAR(tm_.colors().critical.b, expected.b, 1e-3f);
+    std::filesystem::remove(path);
+}
+
+TEST_F(ThemeManagerTest, ImportWithoutCriticalFallsBackToError)
+{
+    // Themes exported before the `critical` token existed must not import it as black.
+    const std::filesystem::path path =
+        std::filesystem::temp_directory_path() / "spectra_legacy_theme_test.json";
+    {
+        std::ofstream f(path);
+        f << "{\n  \"name\": \"legacy_no_critical\",\n  \"colors\": {\n"
+             "    \"error\": [0.8, 0.1, 0.1, 1.0]\n  }\n}\n";
+    }
+    ASSERT_TRUE(tm_.import_theme(path.string()));
+    tm_.set_theme("legacy_no_critical");
+    ASSERT_EQ(tm_.current_theme_name(), "legacy_no_critical");
+    EXPECT_EQ(tm_.colors().critical, tm_.colors().error);
+    EXPECT_NEAR(tm_.colors().critical.r, 0.8f, 1e-4f);
+    std::filesystem::remove(path);
 }

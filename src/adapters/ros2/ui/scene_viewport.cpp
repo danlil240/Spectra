@@ -13,6 +13,7 @@
 
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
+    #include "ui/theme/theme_imgui.hpp"
     #include "ui/theme/theme.hpp"
 #endif
 
@@ -350,7 +351,7 @@ SceneCanvasResult draw_scene_canvas(SceneManager&               scene,
                              6.0f);
     draw_list->AddRect(origin,
                        ImVec2(origin.x + size.x, origin.y + size.y),
-                       IM_COL32(75, 82, 92, 255),
+                       spectra::ui::to_imu32(spectra::ui::theme().border_default),
                        6.0f);
     draw_list->PushClipRect(origin, ImVec2(origin.x + size.x, origin.y + size.y), true);
 

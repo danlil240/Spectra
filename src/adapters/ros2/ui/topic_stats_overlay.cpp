@@ -13,6 +13,7 @@
 
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
+    #include "ui/theme/theme_imgui.hpp"
     #include "ui/imgui/widgets.hpp"
     #include "ui/shell/shell_style.hpp"
 #endif
@@ -329,7 +330,7 @@ void TopicStatsOverlay::draw_stat_row(const char* label, const std::string& valu
     ImGui::TableSetColumnIndex(1);
     if (highlight)
     {
-        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.6f, 0.2f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Text, spectra::ui::to_imvec4(spectra::ui::theme().warning));
         ImGui::TextUnformatted(value.c_str());
         ImGui::PopStyleColor();
     }
@@ -370,7 +371,7 @@ void TopicStatsOverlay::draw_inline()
     }
 
     // Topic name header.
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.85f, 1.0f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_Text, spectra::ui::to_imvec4(spectra::ui::theme().accent));
     ImGui::TextUnformatted(snap.topic.c_str());
     ImGui::PopStyleColor();
     ImGui::Separator();
@@ -403,7 +404,7 @@ void TopicStatsOverlay::draw_inline()
     // Drop warning banner.
     if (snap.drop_detected)
     {
-        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.3f, 0.3f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Text, spectra::ui::to_imvec4(spectra::ui::theme().error));
         ImGui::TextUnformatted("  Drop detected!");
         ImGui::PopStyleColor();
         if (ImGui::IsItemHovered())

@@ -165,6 +165,10 @@ bool SettingsStore::save(const std::string& path) const
 
 void SettingsStore::apply_to(ui::ThemeManager& tm) const
 {
+    // A freshly constructed ThemeManager has no themes registered yet, so
+    // set_theme()/set_data_palette() would silently no-op and the first
+    // ThemeManager::instance() call would then fall back to "night".
+    tm.ensure_initialized();
     if (!data_.default_theme.empty())
         tm.set_theme(data_.default_theme);
     if (!data_.default_data_palette.empty())

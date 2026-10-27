@@ -16,6 +16,7 @@
 
 #include "../anim/frame_scheduler.hpp"
 #include "../ipc/codec.hpp"
+#include "live_series_index.hpp"
 #include "../ipc/message.hpp"
 #include "../ipc/transport.hpp"
 #include "../render/renderer.hpp"
@@ -460,18 +461,24 @@ void apply_diff_op_to_cache(spectra::ipc::SnapshotFigureState& fig, const spectr
 }
 
 // ─── Apply a DiffOp directly to a live Figure object ─────────────────────────
-void apply_diff_op_to_figure(spectra::Figure& fig, const spectra::ipc::DiffOp& op)
+// `where` locates a series op's target in the live Figure (op.series_index is
+// figure-wide); without it op.axes_index / op.series_index are used as is.
+void apply_diff_op_to_figure(spectra::Figure&                       fig,
+                             const spectra::ipc::DiffOp&            op,
+                             const spectra::agent::LiveSeriesIndex* where = nullptr)
 {
     // Locate the live series addressed by a series-level op.
     auto find_live_series = [&]() -> spectra::Series*
     {
-        auto* ax = live_axes_at(fig, op.axes_index);
+        const uint32_t axes_index   = where ? where->axes_index : op.axes_index;
+        const uint32_t series_index = where ? where->series_index : op.series_index;
+        auto*          ax           = live_axes_at(fig, axes_index);
         if (!ax)
             return nullptr;
         auto& series_vec = ax->series_mut();
-        if (op.series_index >= series_vec.size() || !series_vec[op.series_index])
+        if (series_index >= series_vec.size() || !series_vec[series_index])
             return nullptr;
-        return series_vec[op.series_index].get();
+        return series_vec[series_index].get();
     };
 
     auto* base = live_axes_at(fig, op.axes_index);
@@ -588,6 +595,41 @@ void apply_diff_op_to_figure(spectra::Figure& fig, const spectra::ipc::DiffOp& o
         case spectra::ipc::DiffOp::Type::SET_SERIES_LABEL:
             if (auto* s = find_live_series())
                 s->label(op.str_val);
+            break;
+        case spectra::ipc::DiffOp::Type::SET_SERIES_COLOR:
+            if (auto* s = find_live_series())
+                s->color(spectra::Color(static_cast<float>(op.f1),
+                                        static_cast<float>(op.f2),
+                                        static_cast<float>(op.f3),
+                                        static_cast<float>(op.f4)));
+            break;
+        case spectra::ipc::DiffOp::Type::SET_SERIES_VISIBLE:
+            if (auto* s = find_live_series())
+                s->visible(op.bool_val);
+            break;
+        case spectra::ipc::DiffOp::Type::SET_OPACITY:
+            if (auto* s = find_live_series())
+                s->opacity(static_cast<float>(op.f1));
+            break;
+        case spectra::ipc::DiffOp::Type::SET_LINE_WIDTH:
+            if (auto* s = find_live_series())
+            {
+                if (auto* line = dynamic_cast<spectra::LineSeries*>(s))
+                    line->width(static_cast<float>(op.f1));
+                else if (auto* line3d = dynamic_cast<spectra::LineSeries3D*>(s))
+                    line3d->width(static_cast<float>(op.f1));
+            }
+            break;
+        case spectra::ipc::DiffOp::Type::SET_MARKER_SIZE:
+            if (auto* s = find_live_series())
+            {
+                if (auto* scatter = dynamic_cast<spectra::ScatterSeries*>(s))
+                    scatter->size(static_cast<float>(op.f1));
+                else if (auto* scatter3d = dynamic_cast<spectra::ScatterSeries3D*>(s))
+                    scatter3d->size(static_cast<float>(op.f1));
+                else
+                    s->marker_size(static_cast<float>(op.f1));
+            }
             break;
         case spectra::ipc::DiffOp::Type::SET_AXIS_XLABEL:
             if (ax2d)
@@ -890,10 +932,13 @@ int main(int argc, char* argv[])
     // this object for all subsystems (register_commands, renderers, overlays).
     spectra::ui::ThemeManager theme_mgr;
     spectra::ui::ThemeManager::set_current(&theme_mgr);
+    theme_mgr.ensure_initialized();
 
+    // Saved preferences (theme, data palette), as App::run does in-process.
     spectra::ui::settings::SettingsStore settings_store;
     settings_store.load();
     settings_store.apply_to(theme_mgr);
+    settings_store.set_on_change([&settings_store]() { settings_store.save(); });
 
     auto renderer_ptr = std::make_unique<spectra::Renderer>(*backend, theme_mgr);
     if (!renderer_ptr->init())
@@ -1203,11 +1248,13 @@ int main(int argc, char* argv[])
                         bool needs_rebuild = false;
                         for (const auto& op : diff->ops)
                         {
+                            const spectra::ipc::SnapshotFigureState* cached = nullptr;
                             for (auto& fig : figure_cache)
                             {
                                 if (fig.figure_id == op.figure_id)
                                 {
                                     apply_diff_op_to_cache(fig, op);
+                                    cached = &fig;
                                     break;
                                 }
                             }
@@ -1222,7 +1269,18 @@ int main(int argc, char* argv[])
                             else
                             {
                                 // Apply directly to the matching live Figure object
-                                // (fast path for axis limits, grid toggle, series data).
+                                // (fast path for axis limits, grid toggle, series data
+                                // and style).  Series ops carry a figure-wide index;
+                                // the live Figure addresses series per axes.
+                                spectra::agent::LiveSeriesIndex        where;
+                                const spectra::agent::LiveSeriesIndex* where_ptr = nullptr;
+                                if (cached && spectra::agent::is_series_property_op(op.type)
+                                    && spectra::agent::locate_live_series(*cached,
+                                                                          op.series_index,
+                                                                          where))
+                                {
+                                    where_ptr = &where;
+                                }
                                 for (size_t mi = 0;
                                      mi < assigned_figures.size() && mi < all_ids.size();
                                      ++mi)
@@ -1231,7 +1289,7 @@ int main(int argc, char* argv[])
                                     {
                                         auto* live_fig = registry.get(all_ids[mi]);
                                         if (live_fig)
-                                            apply_diff_op_to_figure(*live_fig, op);
+                                            apply_diff_op_to_figure(*live_fig, op, where_ptr);
                                         break;
                                     }
                                 }

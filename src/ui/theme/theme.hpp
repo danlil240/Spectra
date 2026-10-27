@@ -8,6 +8,7 @@
 
 #include <spectra/color.hpp>
 #include <spectra/fwd.hpp>
+#include <spectra/theme_api.hpp>
 #include <string_view>
 
 #include "design_tokens.hpp"
@@ -24,6 +25,13 @@ namespace spectra
 {
 class EventSystem;
 class Figure;
+
+namespace detail
+{
+// Currently registered public theme-change callback (nullptr when none).
+// Implemented in theme_api.cpp.
+ThemeChangeCallback registered_theme_change_callback();
+}   // namespace detail
 }   // namespace spectra
 
 namespace spectra::ui
@@ -426,6 +434,9 @@ class ThemeManager
     // Renderers can compare against their cached version to skip redundant uploads.
     uint32_t theme_version() const { return theme_version_; }
 
+    // Fill a public ThemeSnapshot from this instance's current (display) colors.
+    void fill_snapshot(ThemeSnapshot& out) const;
+
     // Utility
     Color get_color(const std::string& color_name) const;
     Color lerp_color(const std::string& color_name, const Color& target, float t) const;
@@ -488,6 +499,13 @@ class ThemeManager
 
     // Event system for cross-subsystem notifications
     spectra::EventSystem* event_system_ = nullptr;
+
+    // Public ThemeChangeCallback bridge (see include/spectra/theme_api.hpp).
+    // Invokes the registered callback when the snapshot colors differ from the
+    // last snapshot this instance reported; identical snapshots are dropped.
+    void          notify_public_theme_change();
+    ThemeSnapshot last_notified_snapshot_{};
+    bool          last_notified_valid_ = false;
 
     ThemeGlassSettings glass_settings_;
     ThemeGlassSettings glass_defaults_for(const std::string& theme_name) const;

@@ -9,6 +9,8 @@
 #include <format>
 #include <cassert>
 #include <cctype>
+#include <cstddef>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <spectra/axes.hpp>
@@ -138,7 +140,25 @@ void ThemeManager::set_theme(const std::string& name)
         apply_to_imgui();
         if (event_system_)
             event_system_->theme_changed().emit(spectra::ThemeChangedEvent{name});
+        notify_public_theme_change();
     }
+}
+
+void ThemeManager::notify_public_theme_change()
+{
+    ThemeSnapshot snap{};
+    fill_snapshot(snap);
+    // Compare colors only: the trailing version counter bumps on every change,
+    // including no-op re-applies of the same theme.
+    constexpr size_t COLOR_BYTES = offsetof(ThemeSnapshot, version);
+    if (last_notified_valid_ && std::memcmp(&snap, &last_notified_snapshot_, COLOR_BYTES) == 0)
+        return;
+    // Record before invoking so a callback that re-enters set_theme() with the
+    // same theme terminates.
+    last_notified_snapshot_ = snap;
+    last_notified_valid_    = true;
+    if (auto cb = spectra::detail::registered_theme_change_callback())
+        cb(snap);
 }
 
 ThemeGlassSettings ThemeManager::glass_defaults_for(const std::string& theme_name) const

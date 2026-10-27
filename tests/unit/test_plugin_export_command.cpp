@@ -113,9 +113,11 @@ TEST(PluginExportJson, SerializesLineAndScatterData)
     std::vector<float> x  = {0.0f, 0.1f};
     std::vector<float> y  = {1.0f, 2.0f};
     ax.line(x, y).label("a");
-    EXPECT_EQ(figure_to_export_json(fig),
-              R"({"axes":[{"index":0,"title":"","xlabel":"","ylabel":"","series":[)"
-              R"({"label":"a","type":"line","x":[0,0.1],"y":[1,2]}]}]})");
+    // Raw strings stay out of the gtest macro (MSVC preprocessor).
+    const std::string expected =
+        R"({"axes":[{"index":0,"title":"","xlabel":"","ylabel":"","series":[)"
+        R"({"label":"a","type":"line","x":[0,0.1],"y":[1,2]}]}]})";
+    EXPECT_EQ(figure_to_export_json(fig), expected);
 }
 
 TEST(PluginExportJson, AppliesOffsetsAndWritesNonFiniteAsNull)
@@ -142,10 +144,11 @@ TEST_F(PluginExportCommandTest, ExistingFormatGetsCommandThatExportsActiveFigure
 
     ASSERT_TRUE(registry_.execute("file.export_plugin.Echo"));
     EXPECT_EQ(calls_, 1);
-    EXPECT_EQ(read_file(out_path_),
-              R"({"axes":[{"index":0,"title":"Signals","xlabel":"t","ylabel":"v","series":[)"
-              R"({"label":"speed \"m/s\"","type":"line","x":[0,1,2],"y":[0.5,-1,2.25]},)"
-              R"({"label":"pts","type":"scatter","x":[10,20],"y":[3,4]}]}]})");
+    const std::string expected =
+        R"({"axes":[{"index":0,"title":"Signals","xlabel":"t","ylabel":"v","series":[)"
+        R"({"label":"speed \"m/s\"","type":"line","x":[0,1,2],"y":[0.5,-1,2.25]},)"
+        R"({"label":"pts","type":"scatter","x":[10,20],"y":[3,4]}]}]})";
+    EXPECT_EQ(read_file(out_path_), expected);
 }
 
 // Registers through the C ABI the shipped plugins use, the way a plugin loading

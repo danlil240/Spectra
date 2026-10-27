@@ -400,6 +400,56 @@ static void consume_finite_value(float value, AxisExtent& extent, double offset 
     extent.consume(static_cast<double>(value) + offset);
 }
 
+// Fold one axis of a chunked series' cached summary into `extent`.  Logical
+// value = stored float + offset.  The min/max carry over directly; the
+// smallest positive logical value only needs a sample scan in the rare case
+// where a non-zero offset moves the stored range across zero.
+static void consume_chunked_axis(const ChunkedLineSeries& cs,
+                                 bool                     y_axis,
+                                 double                   offset,
+                                 AxisExtent&              extent)
+{
+    const auto   b       = cs.data_bounds();
+    const bool   has     = y_axis ? b.has_y : b.has_x;
+    const double lo      = y_axis ? b.y_min : b.x_min;
+    const double hi      = y_axis ? b.y_max : b.x_max;
+    const bool   has_pos = y_axis ? b.has_y_positive : b.has_x_positive;
+    const double lo_pos  = y_axis ? b.y_min_positive : b.x_min_positive;
+    if (!has)
+        return;
+
+    extent.consume(lo + offset);
+    extent.consume(hi + offset);
+
+    if (offset == 0.0)
+    {
+        if (has_pos)
+            extent.consume(lo_pos);
+        return;
+    }
+    if (lo + offset > 0.0 || hi + offset <= 0.0)
+        return;   // smallest positive is lo + offset, or there is none
+
+    double best     = 0.0;
+    bool   has_best = false;
+    for (std::size_t i = 0; i < cs.storage_chunk_count(); ++i)
+    {
+        for (float v : y_axis ? cs.y_chunk(i) : cs.x_chunk(i))
+        {
+            if (!std::isfinite(v))
+                continue;
+            const double d = static_cast<double>(v) + offset;
+            if (d > 0.0 && (!has_best || d < best))
+            {
+                best     = d;
+                has_best = true;
+            }
+        }
+    }
+    if (has_best)
+        extent.consume(best);
+}
+
 // Compute the raw (unpadded) data extent across all series.  Every autoscale
 // mode shares this so they all cover the same series types.
 static void data_extent_raw(const std::vector<std::unique_ptr<Series>>& series,
@@ -453,6 +503,11 @@ static void data_extent_raw(const std::vector<std::unique_ptr<Series>>& series,
         }
         if (auto* sh = dynamic_cast<const ShapeSeries*>(s.get()))
             try_xy(sh->x_data(), sh->y_data());
+        if (auto* cs = dynamic_cast<const ChunkedLineSeries*>(s.get()))
+        {
+            consume_chunked_axis(*cs, false, xoff, x);
+            consume_chunked_axis(*cs, true, yoff, y);
+        }
     }
 }
 
@@ -571,6 +626,16 @@ static bool latest_x_value(const std::vector<std::unique_ptr<Series>>& series, d
             update_from_span(band->x_values());
         if (auto* stem = dynamic_cast<const StemSeries*>(s.get()))
             update_from_span(stem->stem_x());
+        if (auto* cs = dynamic_cast<const ChunkedLineSeries*>(s.get()))
+        {
+            // The cached maximum is the latest x without scanning the samples.
+            const auto b = cs->data_bounds();
+            if (b.has_x && (!has_value || b.x_max + current_xoff > latest_x))
+            {
+                latest_x  = b.x_max + current_xoff;
+                has_value = true;
+            }
+        }
     }
 
     return has_value;
@@ -649,6 +714,12 @@ static bool windowed_y_extent(const std::vector<std::unique_ptr<Series>>& series
             consume_stems(*stem);
         if (auto* sh = dynamic_cast<const ShapeSeries*>(s.get()))
             consume_xy(sh->x_data(), sh->y_data());
+        if (auto* cs = dynamic_cast<const ChunkedLineSeries*>(s.get()))
+        {
+            // x and y share one chunk layout: scan pairs in place, no copy.
+            for (std::size_t i = 0; i < cs->storage_chunk_count(); ++i)
+                consume_xy(cs->x_chunk(i), cs->y_chunk(i));
+        }
     }
 
     return has_y;

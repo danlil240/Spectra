@@ -364,8 +364,9 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
         if(_test STREQUAL "test_eigen_support" AND SPECTRA_USE_EIGEN)
             target_link_libraries(unit_${_test} PRIVATE Eigen3::Eigen)
         endif()
-        # Hover round trip drives DataInteraction, which needs an ImGui context
-        if(_test MATCHES "^test_(double_precision_data|data_interaction)$" AND DEFINED imgui_SOURCE_DIR)
+        # Hover round trip drives DataInteraction, which needs an ImGui context; test_theme
+        # checks the ImGui palette apply_to_imgui() writes during a theme transition.
+        if(_test MATCHES "^test_(double_precision_data|data_interaction|theme)$" AND DEFINED imgui_SOURCE_DIR)
             target_include_directories(unit_${_test} SYSTEM PRIVATE ${imgui_SOURCE_DIR})
         endif()
         # Pass mock plugin path to transform plugin tests

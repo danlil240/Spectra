@@ -129,6 +129,13 @@ void ThemeManager::set_theme(const std::string& name)
     auto it = themes_.find(name);
     if (it != themes_.end())
     {
+        // A direct theme choice wins over any in-flight transition_to(): cancel it and drop
+        // the interpolated display colours *before* anything is applied or notified, so
+        // colors(), ImGui and listeners all see the new theme immediately and a later
+        // update() cannot overwrite it with the old transition target.
+        transitioning_        = false;
+        display_colors_valid_ = false;
+
         SPECTRA_LOG_TRACE("theme", "Theme changed to '{}'", name);
         current_theme_name_ = name;
         current_theme_      = &it->second;
@@ -353,8 +360,10 @@ void ThemeManager::apply_to_imgui()
     if (!current_theme_ || ImGui::GetCurrentContext() == nullptr)
         return;
 
-    auto&       style  = ImGui::GetStyle();
-    const auto& colors = current_theme_->colors;
+    auto& style = ImGui::GetStyle();
+    // Effective colours: mid-transition this is the interpolated palette, so ImGui chrome
+    // animates in step with the plot colours instead of jumping at the end.
+    const ThemeColors& colors = this->colors();
 
     // ── Modern 2026 styling ───────────────────────────────────────────────────────
     style.AntiAliasedLines       = true;

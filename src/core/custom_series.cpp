@@ -24,6 +24,7 @@ void CustomSeries::set_bounds(float x_min, float x_max, float y_min, float y_max
     bounds_x_max_ = x_max;
     bounds_y_min_ = y_min;
     bounds_y_max_ = y_max;
+    has_bounds_   = true;
 }
 
 }   // namespace spectra

@@ -8,6 +8,8 @@
 // the linked multi-axes crosshair to unproject the cursor on the hovered axes
 // and reproject it onto every other subplot.
 
+#include <cmath>
+
 #include "axis_mapping.hpp"
 
 namespace spectra::crosshair_mapping
@@ -39,6 +41,21 @@ inline double data_to_screen_x(const Axes& ax, double x)
 inline double data_to_screen_y(const Axes& ax, double y)
 {
     return AxisMapping(ax).to_screen_y(y);
+}
+
+/// Data distance one screen pixel spans at screen x @p sx on @p ax (for
+/// choosing how many digits a crosshair label needs; log axes vary with x).
+inline double pixel_resolution_x(const Axes& ax, double sx)
+{
+    const AxisMapping m(ax);
+    return std::abs(m.to_data_x(sx + 0.5) - m.to_data_x(sx - 0.5));
+}
+
+/// Data distance one screen pixel spans at screen y @p sy on @p ax.
+inline double pixel_resolution_y(const Axes& ax, double sy)
+{
+    const AxisMapping m(ax);
+    return std::abs(m.to_data_y(sy + 0.5) - m.to_data_y(sy - 0.5));
 }
 
 }   // namespace spectra::crosshair_mapping

@@ -101,6 +101,20 @@ inline AxisLimits zoom_limits_about(ScaleType s, AxisLimits lim, double anchor, 
             from_axis_space(s, anc + (a.max - anc) * factor)};
 }
 
+/// Limits spanning @p factor times the axis-space span of @p lim, centred on
+/// @p centre (data space) in axis space.  A centre that cannot be drawn on the
+/// axis (non-positive on a log axis, non-finite) keeps the current view centre.
+inline AxisLimits zoom_limits_centered(ScaleType s, AxisLimits lim, double centre, double factor)
+{
+    const AxisLimits a    = axis_space_limits(s, lim);
+    double           c    = (a.min + a.max) * 0.5;
+    const bool       draw = std::isfinite(centre) && (!is_log_scale(s) || centre > 0.0);
+    if (draw)
+        c = to_axis_space(s, centre);
+    const double half = (a.max - a.min) * 0.5 * factor;
+    return {from_axis_space(s, c - half), from_axis_space(s, c + half)};
+}
+
 /// Shift data-space limits by @p fraction of their axis-space span (pan).
 inline AxisLimits pan_limits(ScaleType s, AxisLimits lim, double fraction)
 {

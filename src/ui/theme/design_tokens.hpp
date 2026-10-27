@@ -85,6 +85,11 @@ constexpr float SECTION_HEADER_HEIGHT  = 32.0f;
 constexpr float SECTION_CONTENT_INSET  = 12.0f;   // Left indent for section content
 constexpr float INSPECTOR_LABEL_WIDTH  = 88.0f;   // Label column width (from label start)
 constexpr float INSPECTOR_INPUT_HEIGHT = 28.0f;   // Compact input height
+// Narrowest value column of a side-by-side "label | value" row.  When the
+// panel is narrower (an inspector squeezed below its 240 px minimum by a small
+// window), rows stack: the label on its own line, the value full-width below.
+constexpr float INSPECTOR_MIN_VALUE_WIDTH = 96.0f;
+constexpr float INSPECTOR_STACK_INDENT    = 8.0f;   // value indent of a stacked text row
 
 // ─── Panel Component Language ────────────────────────────────────────────────
 // Shared geometry for the reusable panel/card/chip system so every surface

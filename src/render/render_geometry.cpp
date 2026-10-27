@@ -949,140 +949,17 @@ void Renderer::render_figure_background(Figure& figure)
     backend_.draw(6);
 }
 
-void Renderer::render_plot_geometry(Figure& figure)
+// 2D grid lines of every axes in screen space, scissored to each viewport.
+// Drawn after the figure background and before any series so plotted data
+// (opaque bars, heatmaps, fills, plugin series) always covers the grid
+// instead of the grid being stroked on top of it.
+void Renderer::render_grid_2d(Figure& figure)
 {
-    uint32_t fig_w = figure.width();
-    uint32_t fig_h = figure.height();
-    auto     fw    = static_cast<float>(fig_w);
-    auto     fh    = static_cast<float>(fig_h);
+    const float    fw     = static_cast<float>(figure.width());
+    const float    fh     = static_cast<float>(figure.height());
+    const uint32_t slot   = backend_.current_flight_frame() % FRAME_BUFFER_SLOTS;
+    const auto&    colors = plot_colors();
 
-    // Select the buffer slot for this frame so that the previous in-flight
-    // frame's GPU commands still read from the other slot while we write this one.
-    const uint32_t slot = backend_.current_flight_frame() % FRAME_BUFFER_SLOTS;
-
-    const auto& colors = plot_colors();
-
-    overlay_line_scratch_.clear();
-
-    // ── 2D Axes: border and tick mark lines ──
-    for (auto& axes_ptr : figure.axes())
-    {
-        if (!axes_ptr)
-            continue;
-        auto&       axes = *axes_ptr;
-        const auto& vp   = axes.viewport();
-
-        // Skip axes entirely outside the framebuffer (scrolled off-screen)
-        if (vp.y + vp.h < 0.0f || vp.y > fh)
-            continue;
-
-        // ── Border: 4 lines at viewport edges (screen-space) ──
-        // Rendered in screen space to avoid a GPU buffer race condition:
-        // the previous data-space border vertex buffer was shared across
-        // in-flight frames, causing misalignment during fast zoom.
-        if (axes.border_enabled())
-        {
-            float bx0 = vp.x;
-            float by0 = vp.y;
-            float bx1 = vp.x + vp.w;
-            float by1 = vp.y + vp.h;
-            // Bottom edge
-            overlay_line_scratch_.push_back(bx0);
-            overlay_line_scratch_.push_back(by1);
-            overlay_line_scratch_.push_back(bx1);
-            overlay_line_scratch_.push_back(by1);
-            // Top edge
-            overlay_line_scratch_.push_back(bx0);
-            overlay_line_scratch_.push_back(by0);
-            overlay_line_scratch_.push_back(bx1);
-            overlay_line_scratch_.push_back(by0);
-            // Left edge
-            overlay_line_scratch_.push_back(bx0);
-            overlay_line_scratch_.push_back(by0);
-            overlay_line_scratch_.push_back(bx0);
-            overlay_line_scratch_.push_back(by1);
-            // Right edge
-            overlay_line_scratch_.push_back(bx1);
-            overlay_line_scratch_.push_back(by0);
-            overlay_line_scratch_.push_back(bx1);
-            overlay_line_scratch_.push_back(by1);
-        }
-
-        // Phase 2 (LT-5): read limits via AxesViewModel when available
-        AxisLimits xlim;
-        AxisLimits ylim;
-        {
-            auto* axes2d_ptr = dynamic_cast<Axes*>(&axes);
-            if (figure_vm_ && axes2d_ptr)
-            {
-                auto& avm = figure_vm_->get_or_create_axes_vm(axes2d_ptr);
-                xlim      = avm.visual_xlim();
-                ylim      = avm.visual_ylim();
-            }
-            else
-            {
-                xlim = axes.x_limits();
-                ylim = axes.y_limits();
-            }
-        }
-
-        // Map through axis space so log axes place ticks/grid in decades.
-        const auto*      scale_axes = dynamic_cast<const Axes*>(&axes);
-        const ScaleType  xscale     = scale_axes ? scale_axes->xscale() : ScaleType::Linear;
-        const ScaleType  yscale     = scale_axes ? scale_axes->yscale() : ScaleType::Linear;
-        const AxisLimits ax_x       = axis_space_limits(xscale, xlim);
-        const AxisLimits ax_y       = axis_space_limits(yscale, ylim);
-
-        double x_range = ax_x.max - ax_x.min;
-        double y_range = ax_y.max - ax_y.min;
-        if (x_range == 0.0)
-            x_range = 1.0;
-        if (y_range == 0.0)
-            y_range = 1.0;
-
-        auto data_to_px_x = [&](double dx) -> float {
-            return static_cast<float>(vp.x
-                                      + (to_axis_space(xscale, dx) - ax_x.min) / x_range * vp.w);
-        };
-        auto data_to_px_y = [&](double dy) -> float
-        {
-            return static_cast<float>(
-                vp.y + (1.0 - (to_axis_space(yscale, dy) - ax_y.min) / y_range) * vp.h);
-        };
-
-        const auto& as = axes.axis_style();
-        float       tl = as.tick_length;
-        if (tl <= 0.0f)
-            continue;
-
-        auto x_ticks = axes.compute_x_ticks();
-        auto y_ticks = axes.compute_y_ticks();
-
-        // X tick marks (at bottom edge of viewport)
-        for (double position : x_ticks.positions)
-        {
-            float px = data_to_px_x(position);
-            overlay_line_scratch_.push_back(px);
-            overlay_line_scratch_.push_back(vp.y + vp.h);
-            overlay_line_scratch_.push_back(px);
-            overlay_line_scratch_.push_back(vp.y + vp.h + tl);
-        }
-
-        // Y tick marks (at left edge of viewport)
-        for (double position : y_ticks.positions)
-        {
-            float py = data_to_px_y(position);
-            overlay_line_scratch_.push_back(vp.x);
-            overlay_line_scratch_.push_back(py);
-            overlay_line_scratch_.push_back(vp.x - tl);
-            overlay_line_scratch_.push_back(py);
-        }
-    }
-
-    // NOTE: 3D axis arrows are now rendered by render_arrows() inside render_axes()
-    // with depth testing, so they are properly occluded by 3D geometry.
-
-    // ── Set up screen-space ortho projection in UBO ──
     bind_screen_space_ubo(fw, fh);
 
     // ── Draw 2D grid lines per-axes (screen-space, scissored to viewport) ──
@@ -1400,6 +1277,146 @@ void Renderer::render_plot_geometry(Figure& figure)
             backend_.set_line_width(1.0f);
         }
     }
+
+    // Restore the full-figure scissor for the series that follow.
+    backend_.set_scissor(0, 0, figure.width(), figure.height());
+}
+
+void Renderer::render_plot_geometry(Figure& figure)
+{
+    uint32_t fig_w = figure.width();
+    uint32_t fig_h = figure.height();
+    auto     fw    = static_cast<float>(fig_w);
+    auto     fh    = static_cast<float>(fig_h);
+
+    // Select the buffer slot for this frame so that the previous in-flight
+    // frame's GPU commands still read from the other slot while we write this one.
+    const uint32_t slot = backend_.current_flight_frame() % FRAME_BUFFER_SLOTS;
+
+    const auto& colors = plot_colors();
+
+    overlay_line_scratch_.clear();
+
+    // ── 2D Axes: border and tick mark lines ──
+    for (auto& axes_ptr : figure.axes())
+    {
+        if (!axes_ptr)
+            continue;
+        auto&       axes = *axes_ptr;
+        const auto& vp   = axes.viewport();
+
+        // Skip axes entirely outside the framebuffer (scrolled off-screen)
+        if (vp.y + vp.h < 0.0f || vp.y > fh)
+            continue;
+
+        // ── Border: 4 lines at viewport edges (screen-space) ──
+        // Rendered in screen space to avoid a GPU buffer race condition:
+        // the previous data-space border vertex buffer was shared across
+        // in-flight frames, causing misalignment during fast zoom.
+        if (axes.border_enabled())
+        {
+            float bx0 = vp.x;
+            float by0 = vp.y;
+            float bx1 = vp.x + vp.w;
+            float by1 = vp.y + vp.h;
+            // Bottom edge
+            overlay_line_scratch_.push_back(bx0);
+            overlay_line_scratch_.push_back(by1);
+            overlay_line_scratch_.push_back(bx1);
+            overlay_line_scratch_.push_back(by1);
+            // Top edge
+            overlay_line_scratch_.push_back(bx0);
+            overlay_line_scratch_.push_back(by0);
+            overlay_line_scratch_.push_back(bx1);
+            overlay_line_scratch_.push_back(by0);
+            // Left edge
+            overlay_line_scratch_.push_back(bx0);
+            overlay_line_scratch_.push_back(by0);
+            overlay_line_scratch_.push_back(bx0);
+            overlay_line_scratch_.push_back(by1);
+            // Right edge
+            overlay_line_scratch_.push_back(bx1);
+            overlay_line_scratch_.push_back(by0);
+            overlay_line_scratch_.push_back(bx1);
+            overlay_line_scratch_.push_back(by1);
+        }
+
+        // Phase 2 (LT-5): read limits via AxesViewModel when available
+        AxisLimits xlim;
+        AxisLimits ylim;
+        {
+            auto* axes2d_ptr = dynamic_cast<Axes*>(&axes);
+            if (figure_vm_ && axes2d_ptr)
+            {
+                auto& avm = figure_vm_->get_or_create_axes_vm(axes2d_ptr);
+                xlim      = avm.visual_xlim();
+                ylim      = avm.visual_ylim();
+            }
+            else
+            {
+                xlim = axes.x_limits();
+                ylim = axes.y_limits();
+            }
+        }
+
+        // Map through axis space so log axes place ticks/grid in decades.
+        const auto*      scale_axes = dynamic_cast<const Axes*>(&axes);
+        const ScaleType  xscale     = scale_axes ? scale_axes->xscale() : ScaleType::Linear;
+        const ScaleType  yscale     = scale_axes ? scale_axes->yscale() : ScaleType::Linear;
+        const AxisLimits ax_x       = axis_space_limits(xscale, xlim);
+        const AxisLimits ax_y       = axis_space_limits(yscale, ylim);
+
+        double x_range = ax_x.max - ax_x.min;
+        double y_range = ax_y.max - ax_y.min;
+        if (x_range == 0.0)
+            x_range = 1.0;
+        if (y_range == 0.0)
+            y_range = 1.0;
+
+        auto data_to_px_x = [&](double dx) -> float {
+            return static_cast<float>(vp.x
+                                      + (to_axis_space(xscale, dx) - ax_x.min) / x_range * vp.w);
+        };
+        auto data_to_px_y = [&](double dy) -> float
+        {
+            return static_cast<float>(
+                vp.y + (1.0 - (to_axis_space(yscale, dy) - ax_y.min) / y_range) * vp.h);
+        };
+
+        const auto& as = axes.axis_style();
+        float       tl = as.tick_length;
+        if (tl <= 0.0f)
+            continue;
+
+        auto x_ticks = axes.compute_x_ticks();
+        auto y_ticks = axes.compute_y_ticks();
+
+        // X tick marks (at bottom edge of viewport)
+        for (double position : x_ticks.positions)
+        {
+            float px = data_to_px_x(position);
+            overlay_line_scratch_.push_back(px);
+            overlay_line_scratch_.push_back(vp.y + vp.h);
+            overlay_line_scratch_.push_back(px);
+            overlay_line_scratch_.push_back(vp.y + vp.h + tl);
+        }
+
+        // Y tick marks (at left edge of viewport)
+        for (double position : y_ticks.positions)
+        {
+            float py = data_to_px_y(position);
+            overlay_line_scratch_.push_back(vp.x);
+            overlay_line_scratch_.push_back(py);
+            overlay_line_scratch_.push_back(vp.x - tl);
+            overlay_line_scratch_.push_back(py);
+        }
+    }
+
+    // NOTE: 3D axis arrows are now rendered by render_arrows() inside render_axes()
+    // with depth testing, so they are properly occluded by 3D geometry.
+
+    // ── Set up screen-space ortho projection in UBO ──
+    bind_screen_space_ubo(fw, fh);
 
     // ── Text-annotation arrows (screen-space triangles, scissored to the plot area) ──
     {

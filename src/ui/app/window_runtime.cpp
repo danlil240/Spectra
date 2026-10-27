@@ -1002,6 +1002,14 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
         legend_overlay = ui_ctx.imgui_ui && ui_ctx.imgui_ui->data_interaction();
 #endif
         renderer_.set_legend_overlay_active(legend_overlay);
+        // Without the ImGui legend the renderer draws it; hovering its "+N more"
+        // cell then shows a tooltip naming the hidden entries.
+        const auto& pointer = ui_ctx.input_handler.cursor_readout();
+        if (!legend_overlay && pointer.in_window)
+            renderer_.set_pointer(static_cast<float>(pointer.screen_x),
+                                  static_cast<float>(pointer.screen_y));
+        else
+            renderer_.clear_pointer();
 
 #ifdef SPECTRA_USE_IMGUI
         // Pass selected series to the renderer for GPU-rendered highlight

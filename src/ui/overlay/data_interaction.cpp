@@ -377,8 +377,14 @@ void DataInteraction::draw_overlays(float       window_width,
     }
     else if (active_axes_)
     {
-        crosshair_
-            .draw(last_cursor_, active_viewport_, xlim_min_, xlim_max_, ylim_min_, ylim_max_, dl);
+        crosshair_.draw(last_cursor_,
+                        active_viewport_,
+                        xlim_min_,
+                        xlim_max_,
+                        ylim_min_,
+                        ylim_max_,
+                        dl,
+                        active_axes_);
     }
 
     // Draw annotations

@@ -6,6 +6,7 @@
 #include <spectra/axes3d.hpp>
 #include <string>
 
+#include "ui/imgui/field_layout.hpp"
 // SelectionContext is header-only, no ImGui dependency
 #include "ui/input/axes_selection.hpp"
 #include "ui/input/selection_context.hpp"
@@ -15,6 +16,7 @@
     #include <imgui.h>
     #include <imgui_internal.h>
 
+    #include "ui/imgui/widgets.hpp"
     #include "ui/overlay/inspector.hpp"
     #include "ui/theme/theme.hpp"
 #endif
@@ -301,6 +303,45 @@ TEST(AxesSelection, EmptyFigureClears)
     EXPECT_EQ(ctx.type, SelectionType::None);
 }
 
+// ─── Compact inspector rows (narrow panels) ─────────────────────────────────
+
+TEST(InspectorRowLayout, FieldRowsStackWhenTheValueColumnIsTooNarrow)
+{
+    using namespace spectra::ui::widgets;
+    namespace tk = spectra::ui::tokens;
+    // Default 320 px inspector: side by side, value after the label column.
+    RowLayout r = field_row_layout(288.0f, 40.0f);
+    EXPECT_FALSE(r.stacked);
+    EXPECT_FLOAT_EQ(r.value_x, tk::INSPECTOR_LABEL_WIDTH);
+    // At the 240 px minimum (~208 px content) rows still fit side by side.
+    EXPECT_FALSE(field_row_layout(208.0f, 40.0f).stacked);
+    // Squeezed below 240 px (down to the 160 px fitted minimum): stacked.
+    EXPECT_TRUE(field_row_layout(170.0f, 40.0f).stacked);
+    EXPECT_TRUE(field_row_layout(128.0f, 40.0f).stacked);
+    // A long label pushes the value column right; too far and it stacks.
+    EXPECT_FALSE(field_row_layout(288.0f, 150.0f).stacked);
+    EXPECT_FLOAT_EQ(field_row_layout(288.0f, 150.0f).value_x, 150.0f);
+    EXPECT_TRUE(field_row_layout(208.0f, 150.0f).stacked);
+}
+
+TEST(InspectorRowLayout, TextAndToggleRowsNeverOverlapTheirLabel)
+{
+    using namespace spectra::ui::widgets;
+    RowLayout r = text_row_layout(288.0f, 50.0f, 60.0f, 0.45f);
+    EXPECT_FALSE(r.stacked);
+    EXPECT_FLOAT_EQ(r.value_x, 288.0f * 0.45f);
+    // A label longer than 45 % moves the value after it rather than under it.
+    r = text_row_layout(288.0f, 180.0f, 60.0f, 0.45f);
+    EXPECT_FALSE(r.stacked);
+    EXPECT_FLOAT_EQ(r.value_x, 180.0f);
+    // Narrow row: the value would run past the edge, so it goes below.
+    EXPECT_TRUE(text_row_layout(140.0f, 90.0f, 70.0f, 0.45f).stacked);
+
+    EXPECT_FALSE(toggle_row_layout(288.0f, 100.0f, 36.0f).stacked);
+    EXPECT_FLOAT_EQ(toggle_row_layout(288.0f, 100.0f, 36.0f).value_x, 252.0f);
+    EXPECT_TRUE(toggle_row_layout(140.0f, 120.0f, 36.0f).stacked);
+}
+
 #ifdef SPECTRA_TEST_IMGUI_INSPECTOR
 
 class InspectorImGui : public ::testing::Test
@@ -395,6 +436,44 @@ TEST_F(InspectorImGui, 2DAxesPageHasNo3DControls)
     EXPECT_EQ(out.find("(3D)"), std::string::npos) << out;
     EXPECT_EQ(out.find("Enable Lighting"), std::string::npos) << out;
     EXPECT_EQ(insp.context().axes, &a2);
+}
+
+TEST_F(InspectorImGui, NarrowPanelStacksFieldRows)
+{
+    // Lay out one slider row in a window of the given width; return the
+    // slider frame's left edge relative to the content start, and whether it
+    // sits below the label line.
+    auto slider_row = [](float width)
+    {
+        struct Out
+        {
+            float dx    = 0.0f;
+            bool  below = false;
+        } out;
+        float v = 0.5f;
+        for (int i = 0; i < 3; ++i)
+        {
+            ImGui::NewFrame();
+            ImGui::SetNextWindowPos(ImVec2(0, 0));
+            ImGui::SetNextWindowSize(ImVec2(width, 400));
+            ImGui::Begin("row_test", nullptr, ImGuiWindowFlags_NoDecoration);
+            const ImVec2 start = ImGui::GetCursorScreenPos();
+            widgets::slider_field("Line Width", v, 0.0f, 10.0f);
+            out.dx    = ImGui::GetItemRectMin().x - start.x;
+            out.below = ImGui::GetItemRectMin().y >= start.y + ImGui::GetTextLineHeight();
+            ImGui::End();
+            ImGui::Render();
+        }
+        return out;
+    };
+
+    const auto wide = slider_row(320.0f);
+    EXPECT_FALSE(wide.below);
+    EXPECT_NEAR(wide.dx, spectra::ui::tokens::INSPECTOR_LABEL_WIDTH, 1.0f);
+
+    const auto narrow = slider_row(180.0f);
+    EXPECT_TRUE(narrow.below) << "label and slider must not share a squeezed row";
+    EXPECT_NEAR(narrow.dx, 0.0f, 1.0f) << "stacked slider takes the full width";
 }
 
 #endif   // SPECTRA_TEST_IMGUI_INSPECTOR

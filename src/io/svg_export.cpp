@@ -1322,6 +1322,16 @@ void emit_legend(SvgContext& c, const AxesBase& axes, const Rect& vp, const Lege
     }
     if (grid.overflow > 0)
     {
+        // The hidden entries' names as a hover tooltip in SVG viewers; the
+        // visible cell keeps the plain "+N more" text.
+        std::vector<std::string> labels;
+        labels.reserve(entries.size());
+        for (const auto& e : entries)
+            labels.push_back(e.label);
+        std::string tip;
+        for (const auto& line : legend_layout::overflow_tooltip_lines(labels, grid.shown))
+            tip += (tip.empty() ? "" : "\n") + line;
+        c.body << "      <g class=\"legend-overflow\"><title>" << xml_escape(tip) << "</title>\n";
         const int idx = grid.shown;
         emit_text(c.body,
                   legend_layout::overflow_text(grid.overflow),
@@ -1331,6 +1341,7 @@ void emit_legend(SvgContext& c, const AxesBase& axes, const Rect& vp, const Lege
                   st.text_secondary,
                   "start",
                   VAlign::Middle);
+        c.body << "      </g>\n";
     }
     c.body << "    </g>\n";
 }

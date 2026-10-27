@@ -1002,6 +1002,7 @@ bool PluginManager::load_plugin(const std::string& path)
     {
         unregister_series_types(series_type_reg_, plugin_series_entries);
         release_registrations({}, owner);
+        plugin_series_entries.clear();   // see close_plugin()
 #ifdef _WIN32
         FreeLibrary(static_cast<HMODULE>(handle));
 #else
@@ -1015,6 +1016,7 @@ bool PluginManager::load_plugin(const std::string& path)
     {
         unregister_series_types(series_type_reg_, plugin_series_entries);
         release_registrations({}, owner);
+        plugin_series_entries.clear();   // see close_plugin()
 #ifdef _WIN32
         FreeLibrary(static_cast<HMODULE>(handle));
 #else
@@ -1100,6 +1102,12 @@ void PluginManager::close_plugin(PluginEntry& p)
 
     // Anything the plugin registered from its shutdown function.
     release_registrations(p.registered_commands, p.owner);
+
+    // A plugin that links spectra statically (Windows) created these entries'
+    // shared_ptr control blocks in its own module; releasing the last weak
+    // reference after FreeLibrary would call into unmapped code.
+    p.registered_series_type_entries.clear();
+    p.registered_series_type_entries.shrink_to_fit();
 
     if (p.handle)
     {

@@ -32,6 +32,7 @@
 
 #include "core/annotation_layout.hpp"
 #include "core/axis_scale.hpp"
+#include "core/label_layout.hpp"
 #include "ui/overlay/legend_layout.hpp"
 
 namespace spectra
@@ -188,6 +189,32 @@ float estimate_text_width(std::string_view s, float font_px)
             em += 0.62f;
     }
     return em * font_px;
+}
+
+// Longest UTF-8 prefix of `s` that, followed by "...", fits `max_width` (estimated);
+// `s` itself when it already fits.  Used only where a label must stay clear of an
+// offset annotation on its row.
+std::string ellipsize_to_width(std::string_view s, float font_px, float max_width)
+{
+    if (estimate_text_width(s, font_px) <= max_width)
+        return std::string(s);
+    constexpr std::string_view ellipsis = "...";
+    size_t                     end      = s.size();
+    while (end > 0)
+    {
+        // Step back one codepoint (skip UTF-8 continuation bytes).
+        do
+            --end;
+        while (end > 0 && (static_cast<unsigned char>(s[end]) & 0xC0u) == 0x80u);
+        std::string candidate(s.substr(0, end));
+        while (!candidate.empty() && candidate.back() == ' ')
+            candidate.pop_back();
+        candidate += ellipsis;
+        if (estimate_text_width(candidate, font_px) <= max_width)
+            return candidate;
+    }
+    return estimate_text_width(ellipsis, font_px) <= max_width ? std::string(ellipsis)
+                                                               : std::string();
 }
 
 // Renderer font sizes (text_renderer.cpp FONT_PIXEL_SIZES).
@@ -1515,6 +1542,15 @@ void emit_axes_2d(SvgContext& c, const Axes& axes, const LegendConfig& legend)
     // x below the right end of the tick labels, y above the top of the axis
     // (render_geometry.cpp).
     const float x_label_row = vp.y + vp.h + tl + tick_padding + TICK_FONT_PX + 4.0f;
+    // The offsets share their rows with the X label / title: keep their width free.
+    const float x_offset_reserve =
+        x_ticks.offset_label.empty()
+            ? 0.0f
+            : offset_annotation_reserve(estimate_text_width(x_ticks.offset_label, TICK_FONT_PX));
+    const float y_offset_reserve =
+        y_ticks.offset_label.empty()
+            ? 0.0f
+            : offset_annotation_reserve(estimate_text_width(y_ticks.offset_label, TICK_FONT_PX));
     if (!x_ticks.offset_label.empty())
         emit_text(c.body,
                   x_ticks.offset_label,
@@ -1536,15 +1572,29 @@ void emit_axes_2d(SvgContext& c, const Axes& axes, const LegendConfig& legend)
     c.body << "    </g>\n";
 
     // Axis labels and title.
+    // A label next to an offset is placed beside it (and ellipsized if it cannot fit there).
+    auto beside_offset = [&](const std::string& label, float font_px, float res_l, float res_r)
+    {
+        const CenteredLabelSlot slot = centered_label_slot(vp.x, vp.w, res_l, res_r);
+        std::string             text = (res_l > 0.0f || res_r > 0.0f)
+                                           ? ellipsize_to_width(label, font_px, slot.max_width)
+                                           : label;
+        const float cx = centered_label_x(vp.x, vp.w, slot, estimate_text_width(text, font_px));
+        return std::pair<std::string, float>(std::move(text), cx);
+    };
     if (!axes.get_xlabel().empty())
+    {
+        const auto [text, cx] =
+            beside_offset(axes.get_xlabel(), LABEL_FONT_PX, 0.0f, x_offset_reserve);
         emit_text(c.body,
-                  axes.get_xlabel(),
-                  vp.x + vp.w * 0.5f,
+                  text,
+                  cx,
                   x_label_row,
                   LABEL_FONT_PX,
                   st.text_secondary,
                   "middle",
                   VAlign::Top);
+    }
     if (!axes.get_ylabel().empty())
     {
         const float cx = vp.x - tl - tick_padding - max_y_tick_width - 6.0f - LABEL_FONT_PX * 0.5f;
@@ -1560,15 +1610,19 @@ void emit_axes_2d(SvgContext& c, const Axes& axes, const LegendConfig& legend)
                   " transform=\"rotate(-90 " + num(cx) + " " + num(cy) + ")\"");
     }
     if (!axes.get_title().empty())
+    {
+        const auto [text, cx] =
+            beside_offset(axes.get_title(), TITLE_FONT_PX, y_offset_reserve, 0.0f);
         emit_text(c.body,
-                  axes.get_title(),
-                  vp.x + vp.w * 0.5f,
+                  text,
+                  cx,
                   std::max(2.0f, vp.y - TITLE_FONT_PX - tick_padding),
                   TITLE_FONT_PX,
                   st.text_primary,
                   "middle",
                   VAlign::Top,
                   " font-weight=\"500\"");
+    }
 
     // ShapeSeries text annotations (data-space labels).
     static constexpr const char* anchors[] = {"start", "middle", "end"};

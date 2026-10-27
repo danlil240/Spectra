@@ -4,6 +4,7 @@
 #include <chrono>
 #include <cstdlib>
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <unordered_set>
 #include <spectra/axes.hpp>
@@ -259,8 +260,10 @@ std::string Workspace::serialize_json(const WorkspaceData& data)
     {
         const auto& m = data.interaction.markers[mi];
         os << "      {\n";
-        os << "        \"data_x\": " << m.data_x << ",\n";
-        os << "        \"data_y\": " << m.data_y << ",\n";
+        // Shortest round-trip form: the default 6 digits would turn an
+        // epoch timestamp or 1e7 + 0.123 into "1.7e+09" / "1e+07".
+        os << "        \"data_x\": " << std::format("{}", m.data_x) << ",\n";
+        os << "        \"data_y\": " << std::format("{}", m.data_y) << ",\n";
         os << R"(        "series_label": ")" << escape_json(m.series_label) << "\",\n";
         os << "        \"point_index\": " << m.point_index << ",\n";
         os << "        \"axes_index\": " << m.axes_index << "\n";
@@ -794,8 +797,8 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data)
                 for (const auto& m_json : marker_objects)
                 {
                     OverlaySnapshot::MarkerEntry m;
-                    m.data_x       = static_cast<float>(read_number_value(m_json, "data_x", 0));
-                    m.data_y       = static_cast<float>(read_number_value(m_json, "data_y", 0));
+                    m.data_x       = read_number_value(m_json, "data_x", 0);
+                    m.data_y       = read_number_value(m_json, "data_y", 0);
                     m.series_label = read_string_value(m_json, "series_label");
                     m.point_index =
                         static_cast<size_t>(read_number_value(m_json, "point_index", 0));

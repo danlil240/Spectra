@@ -60,6 +60,9 @@ enum ChunkTag : uint16_t
     // Axes::text()/annotate() annotation of a 2D axes.  Added without a
     // version bump: older readers skip unknown chunks.
     TAG_TEXT_ANNOTATION = 0x0043,
+    // Data marker with double (absolute) x/y.  Written instead of the f32
+    // TAG_MARKER, also without a version bump (older readers skip it).
+    TAG_MARKER_F64 = 0x0044,
 
     TAG_END = 0xFFFF,
 };
@@ -667,9 +670,9 @@ bool FigureSerializer::save(const std::string&     path,
         // Markers
         for (const auto& m : overlay->markers)
         {
-            auto mpos = w.begin_chunk(TAG_MARKER);
-            w.write_f32(m.data_x);
-            w.write_f32(m.data_y);
+            auto mpos = w.begin_chunk(TAG_MARKER_F64);
+            w.write_f64(m.data_x);
+            w.write_f64(m.data_y);
             w.write_string(m.series_label);
             w.write_u32(static_cast<uint32_t>(m.point_index));
             w.write_i32(static_cast<int32_t>(m.axes_index));
@@ -1565,12 +1568,14 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
             }
 
             case TAG_MARKER:
+            case TAG_MARKER_F64:
             {
                 if (overlay)
                 {
+                    const bool                   f64 = tag == TAG_MARKER_F64;
                     OverlaySnapshot::MarkerEntry me;
-                    me.data_x       = r.read_f32();
-                    me.data_y       = r.read_f32();
+                    me.data_x       = f64 ? r.read_f64() : r.read_f32();
+                    me.data_y       = f64 ? r.read_f64() : r.read_f32();
                     me.series_label = r.read_string();
                     me.point_index  = r.read_u32();
                     int32_t ai      = r.read_i32();

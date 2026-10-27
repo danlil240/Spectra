@@ -898,14 +898,20 @@ TEST(BarSeries, HorizontalGradientRunsAcrossBarThickness)
         const float a  = fv[v * 3 + 2];
         const float c  = pos[v / 6];
         if (vy > c)
+        {
             EXPECT_FLOAT_EQ(a, 1.0f);
+        }
         else
+        {
             EXPECT_LT(a, 1.0f);
+        }
     }
 
     bars.gradient(false);
     for (size_t v = 0; v < bars.fill_vertex_count(); ++v)
+    {
         EXPECT_FLOAT_EQ(bars.fill_verts()[v * 3 + 2], 1.0f);
+    }
 }
 
 TEST(BarSeries, VerticalGradientRunsAcrossBarWidth)
@@ -919,8 +925,12 @@ TEST(BarSeries, VerticalGradientRunsAcrossBarWidth)
     for (size_t v = 0; v < bars.fill_vertex_count(); ++v)
     {
         if (fv[v * 3] < 1.0f)
+        {
             EXPECT_FLOAT_EQ(fv[v * 3 + 2], 1.0f);
+        }
         else
+        {
             EXPECT_LT(fv[v * 3 + 2], 1.0f);
+        }
     }
 }

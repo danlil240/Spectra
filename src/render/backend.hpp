@@ -9,15 +9,34 @@ namespace spectra
 
 class FrameProfiler;
 
+/// Primitive topology of a plugin-provided custom pipeline.
+///
+/// These values are the stable plugin ABI (SpectraPrimitiveTopology in
+/// ui/workspace/plugin_api.hpp) and are NOT VkPrimitiveTopology values: each
+/// backend maps them explicitly.  0 is a triangle list, as the ABI has always
+/// documented.  Values 1-5 coincide with the Vulkan enum, so a descriptor that
+/// passed a raw Vulkan value other than POINT_LIST keeps its meaning
+/// (3 = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST is accepted as a triangle list).
+enum class CustomTopology : uint32_t
+{
+    TriangleList       = 0,
+    LineList           = 1,
+    LineStrip          = 2,
+    TriangleListVulkan = 3,   // Alias of TriangleList (raw Vulkan value)
+    TriangleStrip      = 4,
+    TriangleFan        = 5,
+    PointList          = 6,
+};
+
 /// Pipeline creation descriptor for plugin-provided custom series types.
-/// Uses raw SPIR-V bytecodes and Vulkan-compatible enum values.
+/// Uses raw SPIR-V bytecodes; vertex formats are Vulkan-compatible values.
 struct CustomPipelineDesc
 {
     const uint8_t* vert_spirv      = nullptr;
     size_t         vert_spirv_size = 0;
     const uint8_t* frag_spirv      = nullptr;
     size_t         frag_spirv_size = 0;
-    uint32_t       topology        = 0;   // VkPrimitiveTopology value
+    uint32_t       topology        = 0;   // CustomTopology value (0 = triangle list)
 
     struct VertexBinding
     {

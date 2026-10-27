@@ -49,7 +49,7 @@ typedef struct SpectraSeriesTypeDesc
     size_t         vert_spirv_size;
     const uint8_t* frag_spirv;     /* Pre-compiled fragment shader SPIR-V */
     size_t         frag_spirv_size;
-    uint32_t       topology;       /* VkPrimitiveTopology value (0 = TRIANGLE_LIST) */
+    uint32_t       topology;       /* SpectraPrimitiveTopology (0 = TRIANGLE_LIST) */
 
     /* Vertex input layout (for pipelines that use vertex attributes).
        NULL / 0 means the pipeline uses SSBOs only (like Line, Scatter). */

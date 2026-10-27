@@ -714,13 +714,17 @@ PipelineHandle VulkanBackend::create_custom_pipeline(const CustomPipelineDesc& d
     }
 
     vk::PipelineConfig cfg;
+    if (!vk::custom_topology_to_vk(desc.topology, cfg.topology))
+    {
+        SPECTRA_LOG_WARN("vk_backend", "Custom pipeline has unknown topology {}", desc.topology);
+        return PipelineHandle{};
+    }
     cfg.render_pass          = rp;
     cfg.pipeline_layout      = pipeline_layout_;
     cfg.vert_spirv           = desc.vert_spirv;
     cfg.vert_spirv_size      = desc.vert_spirv_size;
     cfg.frag_spirv           = desc.frag_spirv;
     cfg.frag_spirv_size      = desc.frag_spirv_size;
-    cfg.topology             = static_cast<VkPrimitiveTopology>(desc.topology);
     cfg.enable_blending      = desc.enable_blending;
     cfg.enable_depth_test    = desc.enable_depth_test;
     cfg.enable_depth_write   = desc.enable_depth_write;

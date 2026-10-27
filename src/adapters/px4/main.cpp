@@ -126,6 +126,9 @@ int main(int argc, char** argv)
         shell.set_layout_manager(&lm);
         // Reuse the main app's chrome: Vision command bar + icon/label nav rail.
         shell.set_chrome_integration(ui_ctx->imgui_ui.get());
+        // File > Open ULog (Ctrl+O) and Exit (Ctrl+Q) go through the app's
+        // command registry so the menu, command palette and keys agree.
+        shell.register_commands(ui_ctx->cmd_registry, ui_ctx->shortcut_mgr);
         ui_ctx->imgui_ui->set_extra_draw_callback(
             [&shell, ui_ctx]()
             {
@@ -159,6 +162,7 @@ int main(int argc, char** argv)
         auto* ctx = app.ui_context();
         if (ctx && ctx->imgui_ui)
             ctx->imgui_ui->set_extra_draw_callback(nullptr);
+        shell.unregister_commands();
     }
 #endif
 

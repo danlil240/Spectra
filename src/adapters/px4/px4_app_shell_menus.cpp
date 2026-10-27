@@ -5,6 +5,8 @@
     #ifdef IMGUI_HAS_DOCK
         #include <imgui_internal.h>
     #endif
+    #include "ui/commands/command_registry.hpp"
+    #include "ui/commands/shortcut_manager.hpp"
     #include "ui/imgui/widgets.hpp"
     #include "ui/shell/canvas_host.hpp"
     #include "ui/shell/menu_bar.hpp"
@@ -17,7 +19,9 @@
 
     #include <algorithm>
     #include <array>
+    #include <cstdlib>
     #include <filesystem>
+    #include <string_view>
 #endif
 
 namespace spectra::adapters::px4
@@ -31,10 +35,32 @@ using spectra::ui::shell::CallbackPanel;
 using spectra::ui::shell::DockSlot;
 using spectra::ui::shell::PanelInfo;
 
+constexpr const char* kCmdOpenUlog    = "px4.file.open_ulog";
+constexpr const char* kCmdQuit        = "px4.app.quit";
+constexpr const char* kOpenRecentMenu = "Open Recent";
+
 std::string file_display_name(const std::string& path)
 {
     const std::string name = std::filesystem::path(path).filename().string();
     return name.empty() ? path : name;
+}
+
+// Parent directory with $HOME shortened to "~", shown as the hint column of an
+// Open Recent entry so logs with the same name stay distinguishable.
+std::string recent_dir_hint(const std::string& path)
+{
+    std::string dir  = std::filesystem::path(path).parent_path().string();
+    const char* home = std::getenv("HOME");
+    if (home && home[0] != '\0')
+    {
+        const std::string_view h(home);
+        if (dir.compare(0, h.size(), h) == 0 && (dir.size() == h.size() || dir[h.size()] == '/'))
+            dir = "~" + dir.substr(h.size());
+    }
+    constexpr size_t kMaxHint = 48;
+    if (dir.size() > kMaxHint)
+        dir = "\xe2\x80\xa6" + dir.substr(dir.size() - (kMaxHint - 1));
+    return dir;
 }
 }   // namespace
 
@@ -155,10 +181,26 @@ void Px4AppShell::on_register_panels()
 
 void Px4AppShell::on_populate_menus(spectra::ui::shell::MenuBar& bar)
 {
+    // Shortcut text comes from the live bindings, so a menu only advertises a
+    // shortcut that register_commands() actually bound.
+    bar.set_shortcut_resolver(
+        [this](const std::string& command_id) -> std::string
+        {
+            if (!cmd_registry_)
+                return {};
+            return spectra::menu_shortcut_text(shortcut_mgr_, cmd_registry_, command_id);
+        });
+
     auto& file = bar.menu("File");
-    file.add({.label = "Open ULog...", .shortcut = "Ctrl+O", .on_click = [this]() { open_ulog_with_dialog(); }});
+    file.add({.label      = "Open ULog...",
+              .command_id = kCmdOpenUlog,
+              .icon       = static_cast<uint16_t>(Icon::FolderOpen),
+              .on_click   = [this]() { open_ulog_with_dialog(); }});
+    file.add({.label = kOpenRecentMenu});
+    recent_menu_dirty_ = true;
     file.add_separator();
-    file.add({.label = "Exit", .shortcut = "Ctrl+Q", .on_click = [this]() { request_shutdown(); }});
+    file.add(
+        {.label = "Exit", .command_id = kCmdQuit, .on_click = [this]() { request_shutdown(); }});
 
     auto& plots = bar.menu("Plots");
     plots.add(
@@ -237,6 +279,77 @@ void Px4AppShell::on_populate_menus(spectra::ui::shell::MenuBar& bar)
                  plot_mgr_.set_bridge(nullptr);
              },
          .enabled = [this]() { return bridge_.is_connected(); }});
+}
+
+void Px4AppShell::refresh_recent_menu()
+{
+    if (!recent_menu_dirty_ || !is_initialized() || !menu_bar().has_menu("File"))
+        return;
+    recent_menu_dirty_ = false;
+
+    std::vector<spectra::ui::shell::MenuAction> items;
+    if (recent_.empty())
+    {
+        items.push_back({.label = "No Recent Files", .enabled = []() { return false; }});
+    }
+    else
+    {
+        for (const std::string& path : recent_.entries())
+        {
+            items.push_back({.label    = file_display_name(path),
+                             .shortcut = recent_dir_hint(path),
+                             .icon     = static_cast<uint16_t>(Icon::Clock),
+                             .on_click = [this, path]() { open_recent(path); }});
+        }
+    }
+    items.push_back({.separator = true});
+    items.push_back({.label    = "Clear Recent Files",
+                     .on_click = [this]() { clear_recent_files(); },
+                     .enabled  = [this]() { return !recent_.empty(); }});
+
+    for (auto& action : menu_bar().menu("File").items_mut())
+    {
+        if (action.label == kOpenRecentMenu)
+        {
+            action.submenu = std::move(items);
+            break;
+        }
+    }
+}
+
+void Px4AppShell::register_commands(spectra::CommandRegistry& registry,
+                                    spectra::ShortcutManager& shortcuts)
+{
+    cmd_registry_ = &registry;
+    shortcut_mgr_ = &shortcuts;
+
+    registry.register_command(
+        kCmdOpenUlog,
+        "Open ULog...",
+        [this]() { open_ulog_with_dialog(); },
+        "Ctrl+O",
+        "File",
+        static_cast<uint16_t>(Icon::FolderOpen));
+    registry.register_command(kCmdQuit, "Exit", [this]() { request_shutdown(); }, "Ctrl+Q", "App");
+
+    shortcuts.bind(spectra::Shortcut::from_string("Ctrl+O"), kCmdOpenUlog);
+    shortcuts.bind(spectra::Shortcut::from_string("Ctrl+Q"), kCmdQuit);
+}
+
+void Px4AppShell::unregister_commands()
+{
+    if (shortcut_mgr_)
+    {
+        shortcut_mgr_->unbind_command(kCmdOpenUlog);
+        shortcut_mgr_->unbind_command(kCmdQuit);
+    }
+    if (cmd_registry_)
+    {
+        cmd_registry_->unregister_command(kCmdOpenUlog);
+        cmd_registry_->unregister_command(kCmdQuit);
+    }
+    shortcut_mgr_ = nullptr;
+    cmd_registry_ = nullptr;
 }
 
 void Px4AppShell::on_populate_nav_rail(spectra::ui::shell::NavRail& rail)

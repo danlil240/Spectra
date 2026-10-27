@@ -7,6 +7,7 @@
 
 #include "px4_bridge.hpp"
 #include "px4_plot_manager.hpp"
+#include "px4_recent_files.hpp"
 #include "ulog_reader.hpp"
 
 #include <spectra/fwd.hpp>
@@ -16,9 +17,11 @@
 
 #include <atomic>
 #include <cstdint>
+#include <functional>
 #include <map>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #ifdef SPECTRA_USE_IMGUI
@@ -27,8 +30,10 @@
 
 namespace spectra
 {
+class CommandRegistry;
 class Figure;
 class LayoutManager;
+class ShortcutManager;
 class WindowManager;
 }   // namespace spectra
 
@@ -55,6 +60,10 @@ struct Px4AppConfig
 
     // Memory budget (bytes) for chunked series.  0 = unlimited.
     size_t chunked_memory_budget{0};
+
+    // Where File > Open Recent is persisted.  Empty keeps the list in memory
+    // only; parse_px4_args() fills in Px4RecentFiles::default_path().
+    std::string recent_files_path;
 };
 
 Px4AppConfig parse_px4_args(int argc, char** argv, std::string& error_out);
@@ -149,6 +158,28 @@ class Px4AppShell
     // Close all auto-generated and manually added plots.
     void close_all_plots();
 
+    // Subplot grid {rows, cols} used for `num_groups` auto-plot groups.  Four
+    // or more groups are tiled into columns so every plot fits the canvas.
+    static std::pair<int, int> auto_plot_grid(int num_groups);
+
+    // Most-recently-opened ULog files (newest first).
+    const Px4RecentFiles& recent_files() const { return recent_; }
+    // Open a recent entry; a file that no longer exists is dropped from the list.
+    bool open_recent(const std::string& path);
+    void clear_recent_files();
+
+    // File picker used by "Open ULog..." (default: native dialog).  Returns the
+    // chosen path, or empty when cancelled.
+    void set_file_chooser(std::function<std::string()> chooser);
+
+#ifdef SPECTRA_USE_IMGUI
+    // Register the px4 commands (open ULog, quit) with the app's command
+    // registry and bind their keyboard shortcuts (Ctrl+O, Ctrl+Q).  Both must
+    // outlive the shell, or call unregister_commands() before they go away.
+    void register_commands(spectra::CommandRegistry& registry, spectra::ShortcutManager& shortcuts);
+    void unregister_commands();
+#endif
+
     // True when there is nothing to plot (no ULog open, no MAVLink link, no
     // fields): the canvas shows an "Open ULog" empty state instead of an
     // empty 0-1 axes, and the canvas figure has no axes.
@@ -178,7 +209,8 @@ class Px4AppShell
     void sync_canvas_figure(bool force = false);
     void sync_auto_plot_figure();
     void sync_manual_plot_figure(bool force);
-    void rebuild_figure_axes(int num_groups);
+    void rebuild_figure_axes(int rows, int cols);
+    void refresh_recent_menu();
     void sync_layout_chrome();
 
     void draw_ulog_file(bool* p_open = nullptr);
@@ -206,6 +238,12 @@ class Px4AppShell
     std::atomic<bool> shutdown_requested_{false};
 
     std::string last_open_error_;
+
+    Px4RecentFiles               recent_;
+    bool                         recent_menu_dirty_{true};
+    std::function<std::string()> file_chooser_;
+    spectra::CommandRegistry*    cmd_registry_{nullptr};
+    spectra::ShortcutManager*    shortcut_mgr_{nullptr};
 
 #ifdef SPECTRA_USE_IMGUI
     std::map<std::string, bool> pending_panel_visibility_;

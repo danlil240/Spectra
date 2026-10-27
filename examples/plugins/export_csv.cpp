@@ -127,7 +127,7 @@ extern "C"
         info->api_version_minor = SPECTRA_PLUGIN_API_VERSION_MINOR;
 
         // Requires API v1.3+ for export format registry.
-        if (ctx->api_version_minor >= 3 && ctx->export_format_registry)
+        if (spectra::spectra_plugin_api_at_least(ctx, 1, 3) && ctx->export_format_registry)
         {
             spectra_register_export_format(ctx->export_format_registry,
                                            "CSV Data",

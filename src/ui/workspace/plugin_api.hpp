@@ -79,6 +79,24 @@ extern "C"
         void*                     backend_handle;         // opaque Backend* for C ABI wrappers
     };
 
+    // Returns non-zero when the host context provides at least API v{major}.{minor}.
+    //
+    // Compare the version as a (major, minor) pair: the minor number restarts at
+    // 0 on each major bump, so a v2.0 host provides every v1.x feature even
+    // though its minor number is lower.  Testing api_version_minor alone (e.g.
+    // `ctx->api_version_minor >= 2`) silently skips registration on newer
+    // hosts.  Still null-check the registry pointer before using it.
+    static inline int spectra_plugin_api_at_least(const SpectraPluginContext* ctx,
+                                                  uint32_t                    major,
+                                                  uint32_t                    minor)
+    {
+        if (!ctx)
+            return 0;
+        if (ctx->api_version_major != major)
+            return ctx->api_version_major > major ? 1 : 0;
+        return ctx->api_version_minor >= minor ? 1 : 0;
+    }
+
     // Plugin info returned by plugin_init.
     struct SpectraPluginInfo
     {

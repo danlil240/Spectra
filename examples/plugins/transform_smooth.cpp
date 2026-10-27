@@ -76,7 +76,7 @@ extern "C"
         info->api_version_minor = SPECTRA_PLUGIN_API_VERSION_MINOR;
 
         // Register the smoothing transform (requires API v1.1+)
-        if (ctx->api_version_minor >= 1 && ctx->transform_registry)
+        if (spectra_plugin_api_at_least(ctx, 1, 1) && ctx->transform_registry)
         {
             spectra_register_xy_transform(ctx->transform_registry,
                                           "Moving Average (5-pt)",

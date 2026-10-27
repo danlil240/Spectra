@@ -80,6 +80,45 @@ TEST(PluginVersionNegotiation, HostVersionConstants)
     EXPECT_GE(SPECTRA_PLUGIN_API_VERSION_MINOR, 0u);
 }
 
+// spectra_plugin_api_at_least() must compare (major, minor) as a pair: a v2.0
+// host provides every v1.x feature even though its minor number is lower.
+TEST(PluginVersionNegotiation, ApiAtLeastComparesMajorMinorPair)
+{
+    SpectraPluginContext ctx{};
+    ctx.api_version_major = 2;
+    ctx.api_version_minor = 0;
+
+    EXPECT_TRUE(spectra_plugin_api_at_least(&ctx, 1, 0));
+    EXPECT_TRUE(spectra_plugin_api_at_least(&ctx, 1, 1));
+    EXPECT_TRUE(spectra_plugin_api_at_least(&ctx, 1, 2));
+    EXPECT_TRUE(spectra_plugin_api_at_least(&ctx, 1, 3));
+    EXPECT_TRUE(spectra_plugin_api_at_least(&ctx, 1, 99));
+    EXPECT_TRUE(spectra_plugin_api_at_least(&ctx, 2, 0));
+    EXPECT_FALSE(spectra_plugin_api_at_least(&ctx, 2, 1));
+    EXPECT_FALSE(spectra_plugin_api_at_least(&ctx, 3, 0));
+
+    ctx.api_version_major = 1;
+    ctx.api_version_minor = 2;
+    EXPECT_TRUE(spectra_plugin_api_at_least(&ctx, 1, 1));
+    EXPECT_TRUE(spectra_plugin_api_at_least(&ctx, 1, 2));
+    EXPECT_FALSE(spectra_plugin_api_at_least(&ctx, 1, 3));
+    EXPECT_FALSE(spectra_plugin_api_at_least(&ctx, 2, 0));
+
+    EXPECT_FALSE(spectra_plugin_api_at_least(nullptr, 1, 0));
+}
+
+TEST(PluginVersionNegotiation, HostContextSatisfiesAllV1Features)
+{
+    SpectraPluginContext ctx{};
+    ctx.api_version_major = SPECTRA_PLUGIN_API_VERSION_MAJOR;
+    ctx.api_version_minor = SPECTRA_PLUGIN_API_VERSION_MINOR;
+    for (uint32_t minor = 0; minor <= 3; ++minor)
+        EXPECT_TRUE(spectra_plugin_api_at_least(&ctx, 1, minor)) << "v1." << minor;
+    EXPECT_TRUE(spectra_plugin_api_at_least(&ctx,
+                                            SPECTRA_PLUGIN_API_VERSION_MAJOR,
+                                            SPECTRA_PLUGIN_API_VERSION_MINOR));
+}
+
 // ─── Plugin .so loading tests ────────────────────────────────────────────────
 
 #ifndef SPECTRA_MOCK_PLUGIN_V1_0_PATH

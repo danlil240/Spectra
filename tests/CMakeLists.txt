@@ -415,6 +415,24 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
     endif()
 endforeach()
 
+# Shipped example plug-ins (examples/plugins/) loaded through the real PluginManager.
+# Only available when the examples are built; needs no GPU.
+if(TARGET transform_smooth AND TARGET overlay_crosshair AND TARGET export_csv
+   AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_example_plugins.cpp)
+    add_spectra_test(unit test_example_plugins)
+    target_compile_definitions(unit_test_example_plugins PRIVATE
+        SPECTRA_EXAMPLE_PLUGIN_TRANSFORM_SMOOTH_PATH="$<TARGET_FILE:transform_smooth>"
+        SPECTRA_EXAMPLE_PLUGIN_OVERLAY_CROSSHAIR_PATH="$<TARGET_FILE:overlay_crosshair>"
+        SPECTRA_EXAMPLE_PLUGIN_EXPORT_CSV_PATH="$<TARGET_FILE:export_csv>"
+    )
+    add_dependencies(unit_test_example_plugins transform_smooth overlay_crosshair export_csv)
+    # Export the host's C ABI symbols so the plug-ins bind to the test's copies
+    # instead of the static spectra copy linked into each plug-in.
+    if(NOT WIN32)
+        target_link_options(unit_test_example_plugins PRIVATE -rdynamic)
+    endif()
+endif()
+
 # test_multi_window uses a custom main() to avoid multi-VkInstance teardown crash on NVIDIA.
 # (Same root cause as the 3D golden test SIGSEGV: the driver crashes when multiple
 # VkInstance objects are destroyed sequentially in one process.)

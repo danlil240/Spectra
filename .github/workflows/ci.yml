@@ -66,6 +66,19 @@ jobs:
       - name: Check for hard-coded UI colour literals
         run: python3 tools/check_color_literals.py
 
+      # Scripts must stay LF (see .gitattributes); a CRLF shebang breaks them
+      # under WSL / Linux with "env: 'bash\r': No such file or directory".
+      - name: Check scripts have LF line endings
+        run: |
+          set -euo pipefail
+          crlf="$(git ls-files -z -- '*.sh' '*.bash' '*.zsh' '*.fish' '*.py' \
+                    | xargs -0 -r grep -l $'\r' || true)"
+          if [ -n "$crlf" ]; then
+            echo "::error::Scripts with CRLF line endings (convert to LF):"
+            echo "$crlf"
+            exit 1
+          fi
+
   # ─── Build + Unit Tests (Linux) ─────────────────────────────────────────
   build-linux:
     name: build-linux (${{ matrix.os }}, ${{ matrix.compiler }})

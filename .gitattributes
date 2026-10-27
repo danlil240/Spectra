@@ -1,0 +1,41 @@
+# Line-ending policy.
+#
+# Files that a Unix interpreter, make or a Linux tool reads directly must keep LF
+# in every checkout, including Windows checkouts with core.autocrlf=true that
+# are then used from WSL. A CRLF shebang fails with
+# "env: 'bash\r': No such file or directory".
+#
+# After this file changes, refresh an existing checkout with
+#   git rm --cached -r . && git reset --hard
+# (or clone again). New clones pick it up automatically.
+
+# Shell scripts and shell completions
+*.sh            text eol=lf
+*.bash          text eol=lf
+*.zsh           text eol=lf
+*.fish          text eol=lf
+
+# Python (many are executable with a shebang)
+*.py            text eol=lf
+
+# Make, Docker and packaging inputs read by Linux tools
+Makefile        text eol=lf
+Makefile.*      text eol=lf
+*.mk            text eol=lf
+Dockerfile      text eol=lf
+.dockerignore   text eol=lf
+PKGBUILD        text eol=lf
+PKGBUILD.in     text eol=lf
+packaging/apt/* text eol=lf
+
+# Binary data: never convert line endings or diff as text.
+*.png           binary
+*.jpg           binary
+*.jpeg          binary
+*.raw           binary
+*.db3           binary
+*.ulg           binary
+*.mcap          binary
+*.ttf           binary
+*.otf           binary
+*.spv           binary

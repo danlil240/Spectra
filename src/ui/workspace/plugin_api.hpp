@@ -38,6 +38,13 @@ class Backend;
 // that provides access to command registration, shortcuts, and undo.
 //
 // The C ABI ensures binary compatibility across compiler versions.
+//
+// Ownership: every registration (command, transform, overlay, export format,
+// data source, custom series type, undo action) is attributed to the module
+// that contains its callback.  When the plugin is unloaded the host removes all
+// of them before calling spectra_plugin_shutdown() and closing the library, and
+// disabling the plugin deactivates all of them (see PluginManager).  Plugins
+// may still unregister their own registrations; it is not required.
 
 extern "C"
 {
@@ -679,9 +686,13 @@ struct PluginEntry
     std::string       path;   // Path to the shared library
     bool              loaded  = false;
     bool              enabled = true;
-    PluginDiagnostics diagnostics;              ///< Lifecycle diagnostics.
-    uint32_t          api_version_minor  = 0;   // API minor version the plugin was built against
-    void*             handle             = nullptr;   // dlopen/LoadLibrary handle
+    PluginDiagnostics diagnostics;             ///< Lifecycle diagnostics.
+    uint32_t          api_version_minor = 0;   // API minor version the plugin was built against
+    void*             handle            = nullptr;   // dlopen/LoadLibrary handle
+    // Ownership token of the plugin's module.  Every registration made through
+    // the C ABI records the module holding its callback; the manager uses this
+    // token to remove (unload) or gate (enable/disable) all of them.
+    const void*              owner       = nullptr;
     SpectraPluginShutdownFn  shutdown_fn = nullptr;
     std::vector<std::string> registered_commands;       // Commands registered by this plugin
     std::vector<std::string> registered_series_types;   // Custom series types from init
@@ -717,7 +728,14 @@ class PluginManager
     // Returns true on success.
     bool load_plugin(const std::string& path);
 
-    // Unload a plugin by name. Calls shutdown, unregisters commands.
+    // Unload a plugin by name.  Before shutdown and before the library is
+    // closed, removes everything registered with the plugin's callbacks
+    // (commands, custom series types, transforms, overlays, export formats,
+    // data sources and undo/redo actions), whether registered during init or
+    // later, so no registry keeps a callback into unmapped code.  Running data
+    // sources are stopped.  Custom series of a removed type stay in their
+    // figures with their plugin GPU state released, drawing nothing until a
+    // type with that name is registered again (e.g. by reloading the plugin).
     bool unload_plugin(const std::string& name);
 
     // Unload all plugins.
@@ -735,7 +753,13 @@ class PluginManager
     // Number of loaded plugins.
     size_t plugin_count() const;
 
-    // Enable/disable a plugin (disabled plugins' commands are disabled).
+    // Enable/disable a plugin.  A disabled plugin stays loaded but none of its
+    // extensions is active: its commands are disabled, its overlays are not
+    // drawn, its transforms and export formats are neither listed nor callable,
+    // its data sources are stopped, hidden and not polled, and series of its
+    // custom types are neither uploaded nor drawn (they stay in their figures).
+    // Enabling restores all of them (data sources must be restarted).  Undo
+    // actions the plugin pushed stay on the undo stack.
     void set_plugin_enabled(const std::string& name, bool enabled);
 
     // Discover plugins in a directory (scans for .so/.dll/.dylib files).
@@ -762,6 +786,14 @@ class PluginManager
     Backend*                 backend_           = nullptr;
     mutable std::mutex       mutex_;
     std::vector<PluginEntry> plugins_;
+
+    // Remove the given commands and every registration owned by `owner` from
+    // all registries.  Caller holds mutex_.
+    void release_registrations(const std::vector<std::string>& command_ids, const void* owner);
+
+    // Remove the plugin's registrations, call its shutdown and close its
+    // library.  Caller holds mutex_.
+    void close_plugin(PluginEntry& p);
 
     // Build a plugin context gated to the given minor version.
     // Fields added after that version are set to nullptr.

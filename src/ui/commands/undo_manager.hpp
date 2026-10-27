@@ -15,6 +15,10 @@ struct UndoAction
     std::string           description;   // Human-readable description, e.g. "Change line color"
     std::function<void()> undo_fn;       // Restores previous state
     std::function<void()> redo_fn;       // Re-applies the change
+
+    // Opaque owner token (the plugin module that pushed the action); nullptr for
+    // host actions.  remove_owned() drops a plugin's actions before it unloads.
+    const void* owner = nullptr;
 };
 
 // Manages an undo/redo stack for property changes.
@@ -70,6 +74,12 @@ class UndoManager
 
     // Clear all undo/redo history.
     void clear();
+
+    // Remove every undo/redo (and pending group) action whose owner is `owner`,
+    // so no callback into an unloaded plugin stays reachable.  A group combined
+    // by end_group() takes the first non-null owner of its actions.  Returns the
+    // number of actions removed; nullptr removes nothing.
+    size_t remove_owned(const void* owner);
 
     // Begin/end a group: multiple pushes between begin_group/end_group
     // are treated as a single undoable action.

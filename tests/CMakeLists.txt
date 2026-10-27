@@ -252,6 +252,7 @@ set(SPECTRA_UNIT_TESTS
     test_plugin_export_command
     test_plugin_data_source
     test_plugin_integration
+    test_plugin_unload_cleanup
     test_plugin_series_type
     test_custom_series_render
     test_custom_series_gpu
@@ -338,6 +339,17 @@ target_include_directories(mock_integration_plugin PRIVATE
 target_compile_features(mock_integration_plugin PRIVATE cxx_std_20)
 target_link_libraries(mock_integration_plugin PRIVATE spectra)
 set_target_properties(mock_integration_plugin PROPERTIES PREFIX "")
+
+# Mock plugin that registers every extension kind and never unregisters —
+# loaded by test_plugin_unload_cleanup
+add_library(mock_leaky_plugin SHARED unit/mock_leaky_plugin.cpp)
+target_include_directories(mock_leaky_plugin PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_BINARY_DIR}/generated
+)
+target_compile_features(mock_leaky_plugin PRIVATE cxx_std_20)
+target_link_libraries(mock_leaky_plugin PRIVATE spectra)
+set_target_properties(mock_leaky_plugin PROPERTIES PREFIX "")
 
 # Tests that require a GPU/display (Vulkan + GLFW window)
 set(SPECTRA_GPU_TESTS
@@ -434,6 +446,18 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
                 SPECTRA_MOCK_PLUGIN_V1_99_PATH="$<TARGET_FILE:mock_plugin_v1_99>"
             )
             add_dependencies(unit_${_test} mock_plugin_v1_0 mock_plugin_v1_1 mock_plugin_v1_99)
+        endif()
+        if(_test STREQUAL "test_plugin_unload_cleanup")
+            target_compile_definitions(unit_${_test} PRIVATE
+                SPECTRA_MOCK_LEAKY_PLUGIN_PATH="$<TARGET_FILE:mock_leaky_plugin>"
+            )
+            target_link_libraries(unit_${_test} PRIVATE ${CMAKE_DL_LIBS})
+            add_dependencies(unit_${_test} mock_leaky_plugin)
+            # Export the host's C ABI symbols so the plug-in binds to the test's
+            # copies instead of the static spectra copy linked into it.
+            if(NOT WIN32)
+                target_link_options(unit_${_test} PRIVATE -rdynamic)
+            endif()
         endif()
         if(_test STREQUAL "test_plugin_integration")
             target_compile_definitions(unit_${_test} PRIVATE

@@ -6,7 +6,8 @@
 namespace spectra
 {
 
-void DataSourceRegistry::register_source(std::unique_ptr<DataSourceAdapter> adapter)
+void DataSourceRegistry::register_source(std::unique_ptr<DataSourceAdapter> adapter,
+                                         const void*                        owner)
 {
     if (!adapter)
         return;
@@ -30,7 +31,51 @@ void DataSourceRegistry::register_source(std::unique_ptr<DataSourceAdapter> adap
     Entry entry;
     entry.name    = std::move(adapter_name);
     entry.adapter = std::move(adapter);
+    entry.owner   = owner;
     sources_.push_back(std::move(entry));
+}
+
+size_t DataSourceRegistry::unregister_owner(const void* owner)
+{
+    if (!owner)
+        return 0;
+    std::lock_guard lock(mutex_);
+    for (auto& e : sources_)
+    {
+        // Stop while the owner's code is still loaded.
+        if (e.owner == owner && e.adapter && !e.faulted && e.adapter->is_running())
+            e.adapter->stop();
+    }
+    return std::erase_if(sources_, [owner](const Entry& e) { return e.owner == owner; });
+}
+
+void DataSourceRegistry::set_owner_enabled(const void* owner, bool enabled)
+{
+    if (!owner)
+        return;
+    std::lock_guard lock(mutex_);
+    for (auto& e : sources_)
+    {
+        if (e.owner != owner)
+            continue;
+        if (!enabled && e.enabled && e.adapter && !e.faulted && e.adapter->is_running())
+            e.adapter->stop();
+        e.enabled = enabled;
+    }
+}
+
+size_t DataSourceRegistry::count_owned(const void* owner) const
+{
+    if (!owner)
+        return 0;
+    std::lock_guard lock(mutex_);
+    size_t          n = 0;
+    for (const auto& e : sources_)
+    {
+        if (e.owner == owner)
+            ++n;
+    }
+    return n;
 }
 
 void DataSourceRegistry::unregister_source(const std::string& name)
@@ -58,7 +103,8 @@ std::vector<std::string> DataSourceRegistry::source_names() const
     names.reserve(sources_.size());
     for (const auto& e : sources_)
     {
-        names.push_back(e.name);
+        if (e.enabled)
+            names.push_back(e.name);
     }
     return names;
 }
@@ -74,7 +120,7 @@ DataSourceAdapter* DataSourceRegistry::find(const std::string& name) const
     std::lock_guard lock(mutex_);
     for (const auto& e : sources_)
     {
-        if (e.name == name)
+        if (e.name == name && e.enabled)
             return e.adapter.get();
     }
     return nullptr;
@@ -86,7 +132,7 @@ std::vector<DataPoint> DataSourceRegistry::poll_all()
     std::vector<DataPoint> result;
     for (auto& e : sources_)
     {
-        if (e.faulted)
+        if (e.faulted || !e.enabled)
             continue;
 
         if (e.adapter && e.adapter->is_running())

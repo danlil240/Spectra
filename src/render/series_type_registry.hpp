@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -52,6 +53,15 @@ struct SeriesTypeEntry
 
     bool faulted         = false;   // Set true on crash/exception to skip future invocations
     bool pipeline_failed = false;   // Pipeline creation failed — don't retry every frame
+
+    // Opaque owner token (the plugin module that registered the type); nullptr
+    // for the host.  See SeriesTypeRegistry::unregister_owner().
+    const void* owner = nullptr;
+
+    // False while the owning plugin is disabled: the Renderer neither uploads nor
+    // draws series of this type (cleanup_fn still runs when a series is removed).
+    // Written on the UI thread, read on the render thread.
+    std::atomic<bool> enabled{true};
 };
 
 /// Registry for plugin-defined custom series types.
@@ -72,7 +82,8 @@ class SeriesTypeRegistry
                        CustomUploadFn            upload_fn,
                        CustomDrawFn              draw_fn,
                        CustomBoundsFn            bounds_fn,
-                       CustomCleanupFn           cleanup_fn = {});
+                       CustomCleanupFn           cleanup_fn = {},
+                       const void*               owner      = nullptr);
 
     /// Remove a custom series type by name.  Unregister listeners are invoked
     /// first (with the lock released and the entry still registered) so the
@@ -87,6 +98,17 @@ class SeriesTypeRegistry
     /// false) if it is no longer registered, even when another entry with the
     /// same name is.
     bool unregister_entry(const std::shared_ptr<SeriesTypeEntry>& entry);
+
+    /// unregister_entry() for every type registered with `owner` (nullptr:
+    /// none).  Returns the number removed.
+    size_t unregister_owner(const void* owner);
+
+    /// Enable/disable every type registered with `owner` (see
+    /// SeriesTypeEntry::enabled).  Disabled types stay registered and listed.
+    void set_owner_enabled(const void* owner, bool enabled);
+
+    /// Number of types registered with `owner`.
+    size_t count_owned(const void* owner) const;
 
     /// Listener invoked by unregister_type() just before an entry is removed.
     using UnregisterListener = std::function<void(SeriesTypeEntry& entry)>;

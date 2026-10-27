@@ -3,7 +3,8 @@
 //
 // Regression test for plug-ins that returned success while registering nothing,
 // because their version guards tested api_version_minor on its own (>= 1/2/3) and
-// a v2.0 host reports minor 0.
+// a v2.0 host reports minor 0.  Also checks that unloading removes, and disabling
+// deactivates, what the examples registered (they never unregister themselves).
 
 #include <filesystem>
 #include <fstream>
@@ -56,22 +57,10 @@ class ExamplePluginTest : public ::testing::Test
         manager_.set_export_format_registry(exports_.get());
     }
 
-    void TearDown() override
-    {
-        // Destroy the registries BEFORE unloading the plug-ins.  Where the plug-in
-        // carries its own copy of the C ABI helpers (Windows DLLs always do), the
-        // std::function wrappers around its callbacks were instantiated inside the
-        // plug-in, so destroying them after FreeLibrary/dlclose jumps into unmapped
-        // code.  PluginManager does not unregister transforms, overlays or export
-        // formats on unload, so the registries must go first.
-        manager_.set_transform_registry(nullptr);
-        manager_.set_overlay_registry(nullptr);
-        manager_.set_export_format_registry(nullptr);
-        transforms_.reset();
-        overlays_.reset();
-        exports_.reset();
-        manager_.unload_all();
-    }
+    // Unload with the registries still attached: PluginManager must remove the
+    // plug-ins' transforms, overlays and export formats itself before closing the
+    // libraries (the shipped examples do not unregister anything in shutdown).
+    void TearDown() override { manager_.unload_all(); }
 
     // Loads the plug-in; false when the build did not produce it or loading failed.
     bool load(const std::string& path)
@@ -182,4 +171,102 @@ TEST_F(ExamplePluginTest, AllThreeLoadTogether)
     EXPECT_TRUE(transforms_->get_transform("Moving Average (5-pt)", t));
     EXPECT_EQ(overlays_->count(), 1u);
     EXPECT_EQ(exports_->available_formats().size(), 1u);
+}
+
+namespace
+{
+
+constexpr const char* kSmoothName    = "Transform: Moving Average";
+constexpr const char* kCrosshairName = "Overlay: Crosshair";
+constexpr const char* kCsvName       = "Export: CSV Data";
+constexpr const char* kSmoothXform   = "Moving Average (5-pt)";
+
+bool has_transform(const TransformRegistry& reg, const std::string& name)
+{
+    for (const auto& n : reg.available_transforms())
+    {
+        if (n == name)
+            return true;
+    }
+    return false;
+}
+
+}   // namespace
+
+TEST_F(ExamplePluginTest, UnloadRemovesShippedRegistrationsAndReloads)
+{
+    const std::vector<std::string> paths = {SPECTRA_EXAMPLE_PLUGIN_TRANSFORM_SMOOTH_PATH,
+                                            SPECTRA_EXAMPLE_PLUGIN_OVERLAY_CROSSHAIR_PATH,
+                                            SPECTRA_EXAMPLE_PLUGIN_EXPORT_CSV_PATH};
+    for (int round = 0; round < 2; ++round)
+    {
+        SCOPED_TRACE(round);
+        for (const auto& path : paths)
+            ASSERT_TRUE(load(path)) << path;
+        ASSERT_EQ(manager_.plugin_count(), 3u);
+
+        const void* smooth    = manager_.find_plugin(kSmoothName)->owner;
+        const void* crosshair = manager_.find_plugin(kCrosshairName)->owner;
+        const void* csv       = manager_.find_plugin(kCsvName)->owner;
+        ASSERT_NE(smooth, nullptr);
+        ASSERT_NE(crosshair, nullptr);
+        ASSERT_NE(csv, nullptr);
+        EXPECT_EQ(transforms_->count_owned(smooth), 1u);
+        EXPECT_EQ(overlays_->count_owned(crosshair), 1u);
+        EXPECT_EQ(exports_->count_owned(csv), 1u);
+
+        ASSERT_TRUE(manager_.unload_plugin(kSmoothName));
+        EXPECT_EQ(transforms_->count_owned(smooth), 0u);
+        EXPECT_FALSE(has_transform(*transforms_, kSmoothXform));
+        DataTransform t;
+        EXPECT_FALSE(transforms_->get_transform(kSmoothXform, t));
+
+        ASSERT_TRUE(manager_.unload_plugin(kCrosshairName));
+        EXPECT_EQ(overlays_->count_owned(crosshair), 0u);
+        EXPECT_EQ(overlays_->count(), 0u);
+        OverlayDrawContext ctx{};
+        overlays_->draw_all(ctx);   // must not reach the unloaded library
+
+        ASSERT_TRUE(manager_.unload_plugin(kCsvName));
+        EXPECT_EQ(exports_->count_owned(csv), 0u);
+        EXPECT_EQ(exports_->count(), 0u);
+        EXPECT_FALSE(exports_->export_figure("CSV Data", "{}", nullptr, 0, 0, "unused.csv"));
+
+        EXPECT_EQ(manager_.plugin_count(), 0u);
+    }
+}
+
+TEST_F(ExamplePluginTest, DisableGatesShippedExtensions)
+{
+    ASSERT_TRUE(load(SPECTRA_EXAMPLE_PLUGIN_TRANSFORM_SMOOTH_PATH));
+    ASSERT_TRUE(load(SPECTRA_EXAMPLE_PLUGIN_OVERLAY_CROSSHAIR_PATH));
+    ASSERT_TRUE(load(SPECTRA_EXAMPLE_PLUGIN_EXPORT_CSV_PATH));
+
+    const auto out_dir = std::filesystem::temp_directory_path() / "spectra_example_plugin_gate";
+    std::filesystem::create_directories(out_dir);
+    const std::string csv_path = (out_dir / "gate.csv").string();
+    const std::string json     = R"({"axes":[]})";
+
+    for (const char* name : {kSmoothName, kCrosshairName, kCsvName})
+        manager_.set_plugin_enabled(name, false);
+
+    DataTransform t;
+    EXPECT_FALSE(has_transform(*transforms_, kSmoothXform));
+    EXPECT_FALSE(transforms_->get_transform(kSmoothXform, t));
+    EXPECT_TRUE(exports_->available_formats().empty());
+    std::filesystem::remove(csv_path);
+    EXPECT_FALSE(exports_->export_figure("CSV Data", json, nullptr, 0, 0, csv_path));
+    EXPECT_FALSE(std::filesystem::exists(csv_path));
+    // The disabled overlay stays registered (it is removed on unload) but is skipped.
+    EXPECT_EQ(overlays_->count(), 1u);
+
+    for (const char* name : {kSmoothName, kCrosshairName, kCsvName})
+        manager_.set_plugin_enabled(name, true);
+
+    EXPECT_TRUE(has_transform(*transforms_, kSmoothXform));
+    EXPECT_TRUE(transforms_->get_transform(kSmoothXform, t));
+    ASSERT_EQ(exports_->available_formats().size(), 1u);
+    EXPECT_TRUE(exports_->export_figure("CSV Data", json, nullptr, 0, 0, csv_path));
+    EXPECT_TRUE(std::filesystem::exists(csv_path));
+    std::filesystem::remove_all(out_dir);
 }

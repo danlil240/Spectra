@@ -236,23 +236,39 @@ class TransformRegistry
     // Get the singleton instance
     static TransformRegistry& instance();
 
-    // Register a named custom transform
+    // Register a named custom transform.  `owner` is an opaque token (the
+    // plugin module that registered it, nullptr for the host) used by
+    // unregister_owner() / set_owner_enabled().
     void register_transform(const std::string&        name,
                             DataTransform::CustomFunc func,
-                            const std::string&        description = "");
+                            const std::string&        description = "",
+                            const void*               owner       = nullptr);
 
     // Register a named custom XY transform
     void register_xy_transform(const std::string&          name,
                                DataTransform::CustomXYFunc func,
-                               const std::string&          description = "");
+                               const std::string&          description = "",
+                               const void*                 owner       = nullptr);
 
     // Remove a custom transform by name.
     bool unregister_transform(const std::string& name);
 
-    // Get a registered custom transform by name
+    // Remove every custom transform registered with `owner` (nullptr: none).
+    // Returns the number removed.
+    size_t unregister_owner(const void* owner);
+
+    // Enable/disable every custom transform registered with `owner`.  Disabled
+    // transforms stay registered but are not listed by available_transforms()
+    // and get_transform() does not return them.
+    void set_owner_enabled(const void* owner, bool enabled);
+
+    // Number of custom transforms (enabled or not) registered with `owner`.
+    size_t count_owned(const void* owner) const;
+
+    // Get a registered (enabled) custom or built-in transform by name
     bool get_transform(const std::string& name, DataTransform& out) const;
 
-    // Get all registered transform names (built-in + custom)
+    // Get all available transform names (built-in + enabled custom)
     std::vector<std::string> available_transforms() const;
 
     // Save a pipeline preset
@@ -275,6 +291,8 @@ class TransformRegistry
     {
         DataTransform transform;
         std::string   description;
+        const void*   owner   = nullptr;
+        bool          enabled = true;
     };
 
     mutable std::mutex                                 mutex_;

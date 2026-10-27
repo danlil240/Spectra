@@ -80,6 +80,40 @@ void overlay_measure_text(const SpectraOverlayContext* /*ctx*/,
         *out_h = h;
 }
 
+// Ownership token for a registration: the base of the loaded module (shared
+// library or executable) containing `addr`, or nullptr if it is in none.
+//
+// Every C ABI registration records the module that holds its callback, so a
+// plugin's registrations can be found and removed (or disabled) whenever they
+// were made — during init or later from one of its callbacks — and however the
+// plugin reached these functions (the host's copy or one linked into it).
+// PluginManager derives the same token from the plugin's init function.
+const void* module_owner_of_address(const void* addr)
+{
+    if (!addr)
+        return nullptr;
+#ifdef _WIN32
+    HMODULE module = nullptr;
+    if (GetModuleHandleExA(
+            GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+            static_cast<LPCSTR>(addr),
+            &module))
+        return module;
+    return nullptr;
+#else
+    Dl_info info{};
+    if (dladdr(addr, &info) != 0)
+        return info.dli_fbase;
+    return nullptr;
+#endif
+}
+
+template <typename Fn>
+const void* module_owner_of(Fn fn)
+{
+    return fn ? module_owner_of_address(reinterpret_cast<const void*>(fn)) : nullptr;
+}
+
 }   // namespace
 
 // ─── C ABI host functions ────────────────────────────────────────────────────
@@ -97,6 +131,7 @@ extern "C"
         cmd.label    = desc->label;
         cmd.category = desc->category ? desc->category : "Plugin";
         cmd.shortcut = desc->shortcut_hint ? desc->shortcut_hint : "";
+        cmd.owner    = module_owner_of(desc->callback);
 
         // Wrap the C callback in a std::function, capturing user_data
         auto cb = desc->callback;
@@ -154,6 +189,7 @@ extern "C"
 
         UndoAction action;
         action.description = description;
+        action.owner       = module_owner_of(undo_fn ? undo_fn : redo_fn);
         if (undo_fn)
         {
             action.undo_fn = [undo_fn, undo_data]() { undo_fn(undo_data); };
@@ -184,7 +220,8 @@ extern "C"
         reg->register_transform(
             name,
             [cb, ud](float v) { return cb(v, ud); },
-            description ? description : "");
+            description ? description : "",
+            module_owner_of(cb));
         return 0;
     }
 
@@ -216,7 +253,8 @@ extern "C"
                 x_out.resize(out_count);
                 y_out.resize(out_count);
             },
-            description ? description : "");
+            description ? description : "",
+            module_owner_of(cb));
         return 0;
     }
 
@@ -244,33 +282,35 @@ extern "C"
         auto  cb  = callback;
         auto  ud  = user_data;
 
-        reg->register_overlay(name,
-                              [cb, ud](const OverlayDrawContext& draw_ctx)
-                              {
-                                  SpectraOverlayContext c{};
-                                  c.viewport_x   = draw_ctx.viewport_x;
-                                  c.viewport_y   = draw_ctx.viewport_y;
-                                  c.viewport_w   = draw_ctx.viewport_w;
-                                  c.viewport_h   = draw_ctx.viewport_h;
-                                  c.mouse_x      = draw_ctx.mouse_x;
-                                  c.mouse_y      = draw_ctx.mouse_y;
-                                  c.is_hovered   = draw_ctx.is_hovered ? 1 : 0;
-                                  c.figure_id    = draw_ctx.figure_id;
-                                  c.axes_index   = draw_ctx.axes_index;
-                                  c.series_count = draw_ctx.series_count;
-                                  c.reserved_    = draw_ctx.draw_list;
-                                  // API v2.1 appearance fields
-                                  c.struct_size = sizeof(SpectraOverlayContext);
-                                  c.ui_scale  = draw_ctx.ui_scale > 0.0f ? draw_ctx.ui_scale : 1.0f;
-                                  c.font_size = draw_ctx.font_size;
-                                  c.measure_text = overlay_measure_text;
-                                  if (draw_ctx.theme)
-                                  {
-                                      fill_overlay_theme(*draw_ctx.theme, c.theme);
-                                      c.flags |= SPECTRA_OVERLAY_FLAG_HAS_THEME;
-                                  }
-                                  cb(&c, ud);
-                              });
+        reg->register_overlay(
+            name,
+            [cb, ud](const OverlayDrawContext& draw_ctx)
+            {
+                SpectraOverlayContext c{};
+                c.viewport_x   = draw_ctx.viewport_x;
+                c.viewport_y   = draw_ctx.viewport_y;
+                c.viewport_w   = draw_ctx.viewport_w;
+                c.viewport_h   = draw_ctx.viewport_h;
+                c.mouse_x      = draw_ctx.mouse_x;
+                c.mouse_y      = draw_ctx.mouse_y;
+                c.is_hovered   = draw_ctx.is_hovered ? 1 : 0;
+                c.figure_id    = draw_ctx.figure_id;
+                c.axes_index   = draw_ctx.axes_index;
+                c.series_count = draw_ctx.series_count;
+                c.reserved_    = draw_ctx.draw_list;
+                // API v2.1 appearance fields
+                c.struct_size  = sizeof(SpectraOverlayContext);
+                c.ui_scale     = draw_ctx.ui_scale > 0.0f ? draw_ctx.ui_scale : 1.0f;
+                c.font_size    = draw_ctx.font_size;
+                c.measure_text = overlay_measure_text;
+                if (draw_ctx.theme)
+                {
+                    fill_overlay_theme(*draw_ctx.theme, c.theme);
+                    c.flags |= SPECTRA_OVERLAY_FLAG_HAS_THEME;
+                }
+                cb(&c, ud);
+            },
+            module_owner_of(cb));
         return 0;
     }
 
@@ -438,19 +478,21 @@ extern "C"
         auto  cb  = callback;
         auto  ud  = user_data;
 
-        reg->register_format(name,
-                             extension,
-                             [cb, ud](const ExportContext& ctx) -> bool
-                             {
-                                 SpectraExportContext c{};
-                                 c.figure_json     = ctx.figure_json;
-                                 c.figure_json_len = ctx.figure_json_len;
-                                 c.rgba_pixels     = ctx.rgba_pixels;
-                                 c.pixel_width     = ctx.pixel_width;
-                                 c.pixel_height    = ctx.pixel_height;
-                                 c.output_path     = ctx.output_path;
-                                 return cb(&c, ud) == 0;
-                             });
+        reg->register_format(
+            name,
+            extension,
+            [cb, ud](const ExportContext& ctx) -> bool
+            {
+                SpectraExportContext c{};
+                c.figure_json     = ctx.figure_json;
+                c.figure_json_len = ctx.figure_json_len;
+                c.rgba_pixels     = ctx.rgba_pixels;
+                c.pixel_width     = ctx.pixel_width;
+                c.pixel_height    = ctx.pixel_height;
+                c.output_path     = ctx.output_path;
+                return cb(&c, ud) == 0;
+            },
+            module_owner_of(cb));
         return 0;
     }
 
@@ -542,7 +584,7 @@ extern "C"
 
         auto* reg     = static_cast<DataSourceRegistry*>(registry);
         auto  adapter = std::make_unique<CDataSourceAdapter>(*desc);
-        reg->register_source(std::move(adapter));
+        reg->register_source(std::move(adapter), module_owner_of(desc->start_fn));
         return 0;
     }
 
@@ -683,7 +725,8 @@ extern "C"
                            std::move(upload_fn),
                            std::move(draw_fn),
                            std::move(bounds_fn),
-                           std::move(cleanup_fn));
+                           std::move(cleanup_fn),
+                           module_owner_of(upload_cb));
         return 0;
     }
 
@@ -934,6 +977,10 @@ bool PluginManager::load_plugin(const std::string& path)
         return false;
     }
 
+    // Token every registration made with this plugin's callbacks carries
+    // (see module_owner_of_address()).
+    const void* owner = module_owner_of(init_fn);
+
     const std::vector<std::string> series_types_before =
         series_type_reg_ ? series_type_reg_->type_names() : std::vector<std::string>{};
 
@@ -954,6 +1001,7 @@ bool PluginManager::load_plugin(const std::string& path)
     if (result != 0)
     {
         unregister_series_types(series_type_reg_, plugin_series_entries);
+        release_registrations({}, owner);
 #ifdef _WIN32
         FreeLibrary(static_cast<HMODULE>(handle));
 #else
@@ -966,6 +1014,7 @@ bool PluginManager::load_plugin(const std::string& path)
     if (info.api_version_major != SPECTRA_PLUGIN_API_VERSION_MAJOR)
     {
         unregister_series_types(series_type_reg_, plugin_series_entries);
+        release_registrations({}, owner);
 #ifdef _WIN32
         FreeLibrary(static_cast<HMODULE>(handle));
 #else
@@ -998,6 +1047,7 @@ bool PluginManager::load_plugin(const std::string& path)
     entry.enabled                        = true;
     entry.api_version_minor              = plugin_minor;
     entry.handle                         = handle;
+    entry.owner                          = owner;
     entry.shutdown_fn                    = shutdown_fn;
     entry.diagnostics.init_time_us       = init_us;
     entry.manifest                       = std::move(manifest);
@@ -1008,6 +1058,61 @@ bool PluginManager::load_plugin(const std::string& path)
     return true;
 }
 
+void PluginManager::release_registrations(const std::vector<std::string>& command_ids,
+                                          const void*                     owner)
+{
+    if (registry_)
+    {
+        for (const auto& cmd_id : command_ids)
+            registry_->unregister_command(cmd_id);
+        for (const auto& cmd_id : registry_->ids_owned_by(owner))
+            registry_->unregister_command(cmd_id);
+    }
+    // Series types first: unregistering notifies the Renderer, which runs the
+    // plugin's cleanup_fn for every live series of those types.
+    if (series_type_reg_)
+        series_type_reg_->unregister_owner(owner);
+    if (transform_reg_)
+        transform_reg_->unregister_owner(owner);
+    if (overlay_reg_)
+        overlay_reg_->unregister_owner(owner);
+    if (export_format_reg_)
+        export_format_reg_->unregister_owner(owner);
+    if (data_source_reg_)
+        data_source_reg_->unregister_owner(owner);   // stops running sources first
+    if (undo_mgr_)
+        undo_mgr_->remove_owned(owner);
+}
+
+void PluginManager::close_plugin(PluginEntry& p)
+{
+    // Drop every registration whose callbacks point into the plugin before
+    // shutdown and before its code is unmapped.  Series types tracked at init
+    // are removed by entry so a same-named type of another plugin is kept.
+    // Live custom series of a removed type stay in their figures: their plugin
+    // GPU state is released now and they draw nothing until a type of that
+    // name is registered again.
+    unregister_series_types(series_type_reg_, p.registered_series_type_entries);
+    release_registrations(p.registered_commands, p.owner);
+
+    if (p.shutdown_fn)
+        p.shutdown_fn();
+
+    // Anything the plugin registered from its shutdown function.
+    release_registrations(p.registered_commands, p.owner);
+
+    if (p.handle)
+    {
+#ifdef _WIN32
+        FreeLibrary(static_cast<HMODULE>(p.handle));
+#else
+        dlclose(p.handle);
+#endif
+    }
+    p.handle = nullptr;
+    p.loaded = false;
+}
+
 bool PluginManager::unload_plugin(const std::string& name)
 {
     std::lock_guard lock(mutex_);
@@ -1016,38 +1121,7 @@ bool PluginManager::unload_plugin(const std::string& name)
     {
         if (it->name == name && it->loaded)
         {
-            // Unregister commands
-            if (registry_)
-            {
-                for (const auto& cmd_id : it->registered_commands)
-                {
-                    registry_->unregister_command(cmd_id);
-                }
-            }
-
-            // Drop series types registered by this plugin before shutdown and
-            // before its code is unmapped (their callbacks point into the
-            // library).  Unregistering notifies the Renderer, which runs the
-            // plugin's cleanup_fn for every live series of those types while
-            // the plugin is still fully initialized (mirror of init order).
-            unregister_series_types(series_type_reg_, it->registered_series_type_entries);
-
-            // Call shutdown
-            if (it->shutdown_fn)
-            {
-                it->shutdown_fn();
-            }
-
-            // Close library
-            if (it->handle)
-            {
-#ifdef _WIN32
-                FreeLibrary(static_cast<HMODULE>(it->handle));
-#else
-                dlclose(it->handle);
-#endif
-            }
-
+            close_plugin(*it);
             plugins_.erase(it);
             return true;
         }
@@ -1061,34 +1135,8 @@ void PluginManager::unload_all()
 
     for (auto& p : plugins_)
     {
-        if (!p.loaded)
-            continue;
-
-        if (registry_)
-        {
-            for (const auto& cmd_id : p.registered_commands)
-            {
-                registry_->unregister_command(cmd_id);
-            }
-        }
-
-        // Release series types (and their per-series GPU state) before shutdown.
-        unregister_series_types(series_type_reg_, p.registered_series_type_entries);
-
-        if (p.shutdown_fn)
-        {
-            p.shutdown_fn();
-        }
-
-        if (p.handle)
-        {
-#ifdef _WIN32
-            FreeLibrary(static_cast<HMODULE>(p.handle));
-#else
-            dlclose(p.handle);
-#endif
-        }
-        p.loaded = false;
+        if (p.loaded)
+            close_plugin(p);
     }
     plugins_.clear();
 }
@@ -1135,14 +1183,24 @@ void PluginManager::set_plugin_enabled(const std::string& name, bool enabled)
         if (p.name == name)
         {
             p.enabled = enabled;
-            // Enable/disable all commands registered by this plugin
+            // Gate every extension the plugin registered, not just commands.
             if (registry_)
             {
                 for (const auto& cmd_id : p.registered_commands)
-                {
                     registry_->set_enabled(cmd_id, enabled);
-                }
+                for (const auto& cmd_id : registry_->ids_owned_by(p.owner))
+                    registry_->set_enabled(cmd_id, enabled);
             }
+            if (series_type_reg_)
+                series_type_reg_->set_owner_enabled(p.owner, enabled);
+            if (transform_reg_)
+                transform_reg_->set_owner_enabled(p.owner, enabled);
+            if (overlay_reg_)
+                overlay_reg_->set_owner_enabled(p.owner, enabled);
+            if (export_format_reg_)
+                export_format_reg_->set_owner_enabled(p.owner, enabled);
+            if (data_source_reg_)
+                data_source_reg_->set_owner_enabled(p.owner, enabled);   // stops running sources
             break;
         }
     }

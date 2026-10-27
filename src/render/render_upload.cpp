@@ -374,10 +374,10 @@ void Renderer::upload_series_data(Series&   series,
         // The skip only applies to clean series re-uploaded for origin drift.
         const auto current_generation = static_cast<uint64_t>(chunked_line->point_count());
         const bool count_changed      = (count != gpu.uploaded_count);
-        const bool origin_moved = (std::abs(static_cast<double>(gpu.origin_x) - origin_x) > 1.0
+        const bool origin_moved  = (std::abs(static_cast<double>(gpu.origin_x) - origin_x) > 1.0
                                    || std::abs(static_cast<double>(gpu.origin_y) - origin_y) > 1.0);
-        const bool scale_changed      = gpu.upload_xscale != xscale || gpu.upload_yscale != yscale;
-        const bool needs_upload       = series.is_dirty() || count_changed || origin_moved
+        const bool scale_changed = gpu.upload_xscale != xscale || gpu.upload_yscale != yscale;
+        const bool needs_upload  = series.is_dirty() || count_changed || origin_moved
                                   || scale_changed || !gpu.ssbo
                                   || (current_generation != gpu.data_generation);
 
@@ -607,6 +607,10 @@ void Renderer::upload_series_data(Series&   series,
         // registered again; until then keep the re-upload request pending.
         if (entry)
             gpu.plugin_state_released = false;
+        // The owning plugin is disabled: keep the series dirty so its data is
+        // uploaded once the plugin is enabled again.
+        if (entry && !entry->enabled.load(std::memory_order_relaxed))
+            return;
         if (entry && entry->upload_fn && !entry->faulted)
         {
             auto result = plugin_guard_invoke(entry->type_name.c_str(),

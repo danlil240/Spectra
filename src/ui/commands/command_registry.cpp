@@ -351,6 +351,20 @@ void CommandRegistry::set_enabled(const std::string& id, bool enabled)
     }
 }
 
+std::vector<std::string> CommandRegistry::ids_owned_by(const void* owner) const
+{
+    std::vector<std::string> ids;
+    if (!owner)
+        return ids;
+    std::lock_guard lock(mutex_);
+    for (const auto& [id, cmd] : commands_)
+    {
+        if (cmd.owner == owner)
+            ids.push_back(id);
+    }
+    return ids;
+}
+
 // ─── Recent commands ─────────────────────────────────────────────────────────
 
 void CommandRegistry::record_execution(const std::string& id)

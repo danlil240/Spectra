@@ -10,7 +10,8 @@ namespace spectra
 
 void ExportFormatRegistry::register_format(const std::string& name,
                                            const std::string& extension,
-                                           ExportCallback     callback)
+                                           ExportCallback     callback,
+                                           const void*        owner)
 {
     {
         std::lock_guard lock(mutex_);
@@ -25,7 +26,12 @@ void ExportFormatRegistry::register_format(const std::string& name,
             }
         }
 
-        formats_.push_back({name, extension, std::move(callback)});
+        Entry entry;
+        entry.name      = name;
+        entry.extension = extension;
+        entry.callback  = std::move(callback);
+        entry.owner     = owner;
+        formats_.push_back(std::move(entry));
         SPECTRA_LOG_INFO("export_registry",
                          "Registered export format '{}'  (.{})",
                          name,
@@ -57,6 +63,57 @@ void ExportFormatRegistry::unregister_format(const std::string& name)
         notify(removed, ChangeKind::Unregistered);
 }
 
+size_t ExportFormatRegistry::unregister_owner(const void* owner)
+{
+    if (!owner)
+        return 0;
+    std::vector<ExportFormatInfo> removed;
+    {
+        std::lock_guard lock(mutex_);
+        for (const auto& e : formats_)
+        {
+            if (e.owner == owner)
+                removed.push_back({e.name, e.extension});
+        }
+        std::erase_if(formats_, [owner](const Entry& e) { return e.owner == owner; });
+    }
+    for (const auto& info : removed)
+        notify(info, ChangeKind::Unregistered);
+    return removed.size();
+}
+
+void ExportFormatRegistry::set_owner_enabled(const void* owner, bool enabled)
+{
+    if (!owner)
+        return;
+    // Listeners see a disabled format as removed and a re-enabled one as added,
+    // so UI built from them (e.g. File > Export commands) follows the toggle.
+    std::vector<ExportFormatInfo> changed;
+    {
+        std::lock_guard lock(mutex_);
+        for (auto& entry : formats_)
+        {
+            if (entry.owner == owner && entry.enabled != enabled)
+            {
+                entry.enabled = enabled;
+                changed.push_back({entry.name, entry.extension});
+            }
+        }
+    }
+    for (const auto& info : changed)
+        notify(info, enabled ? ChangeKind::Registered : ChangeKind::Unregistered);
+}
+
+size_t ExportFormatRegistry::count_owned(const void* owner) const
+{
+    if (!owner)
+        return 0;
+    std::lock_guard lock(mutex_);
+    return static_cast<size_t>(std::count_if(formats_.begin(),
+                                             formats_.end(),
+                                             [owner](const Entry& e) { return e.owner == owner; }));
+}
+
 std::vector<ExportFormatInfo> ExportFormatRegistry::available_formats() const
 {
     std::lock_guard               lock(mutex_);
@@ -64,7 +121,8 @@ std::vector<ExportFormatInfo> ExportFormatRegistry::available_formats() const
     result.reserve(formats_.size());
     for (const auto& entry : formats_)
     {
-        result.push_back({entry.name, entry.extension});
+        if (entry.enabled)
+            result.push_back({entry.name, entry.extension});
     }
     return result;
 }
@@ -81,7 +139,7 @@ bool ExportFormatRegistry::export_figure(const std::string& format_name,
         std::lock_guard lock(mutex_);
         for (const auto& entry : formats_)
         {
-            if (entry.name == format_name && !entry.faulted)
+            if (entry.name == format_name && !entry.faulted && entry.enabled)
             {
                 cb = entry.callback;
                 break;

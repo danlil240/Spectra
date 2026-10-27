@@ -129,7 +129,11 @@ void apply_diff_op_to_cache(spectra::ipc::SnapshotFigureState& fig, const spectr
                 fig.series[op.series_index].color_b      = op.f3;
                 fig.series[op.series_index].color_a      = op.f4;
                 fig.series[op.series_index].color_index  = -1;   // explicit colour
-                fig.series[op.series_index].color_letter = 0;
+                // ...unless the op carries a format letter (theme-aware shade).
+                fig.series[op.series_index].color_letter =
+                    (op.str_val.size() == 1 && spectra::format_colors::is_letter(op.str_val[0]))
+                        ? static_cast<uint8_t>(op.str_val[0])
+                        : 0;
             }
             break;
         case spectra::ipc::DiffOp::Type::SET_SERIES_VISIBLE:
@@ -380,10 +384,16 @@ void apply_diff_op_to_figure(spectra::Figure&                       fig,
             break;
         case spectra::ipc::DiffOp::Type::SET_SERIES_COLOR:
             if (auto* s = find_live_series())
-                s->color(spectra::Color(static_cast<float>(op.f1),
-                                        static_cast<float>(op.f2),
-                                        static_cast<float>(op.f3),
-                                        static_cast<float>(op.f4)));
+            {
+                // A format letter in str_val is re-resolved for this window's theme.
+                if (op.str_val.size() == 1 && spectra::format_colors::is_letter(op.str_val[0]))
+                    s->set_color_letter(op.str_val[0]);
+                else
+                    s->color(spectra::Color(static_cast<float>(op.f1),
+                                            static_cast<float>(op.f2),
+                                            static_cast<float>(op.f3),
+                                            static_cast<float>(op.f4)));
+            }
             break;
         case spectra::ipc::DiffOp::Type::SET_SERIES_VISIBLE:
             if (auto* s = find_live_series())

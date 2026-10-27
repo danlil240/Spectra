@@ -36,6 +36,13 @@ static void apply_property_update(FigureModel&           fig_model,
     {
         diff.ops.push_back(fig_model.set_series_color(figure_id, series_index, f1, f2, f3, f4));
     }
+    else if (property == "color_letter")
+    {
+        // Theme-aware MATLAB colour letter ('r', 'k', ...), e.g. from Python.
+        if (str_val.size() == 1)
+            diff.ops.push_back(
+                fig_model.set_series_color_letter(figure_id, series_index, str_val[0]));
+    }
     else if (property == "xlim")
     {
         double cx0 = NAN;
@@ -349,6 +356,7 @@ HandleResult handle_req_update_property(DaemonContext&      ctx,
 
     // Check for unknown property before applying
     static const char* known_props[] = {"color",
+                                        "color_letter",
                                         "xlim",
                                         "ylim",
                                         "zlim",

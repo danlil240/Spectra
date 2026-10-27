@@ -50,6 +50,12 @@ struct WorkspaceData
         std::string name;
         std::string type;   // "line", "scatter", "line3d", "scatter3d", "surface", "mesh"
         float       color_r = 1.0f, color_g = 1.0f, color_b = 1.0f, color_a = 1.0f;
+        // Where the colour comes from: "auto" (data-palette slot color_index),
+        // "letter" (format letter color_letter, e.g. "r") or "rgb" (explicit).
+        // Empty in files written before it existed: the colour is left alone.
+        std::string color_source;
+        int         color_index = -1;
+        std::string color_letter;
         float       line_width  = 2.0f;
         float       marker_size = 6.0f;
         bool        visible     = true;

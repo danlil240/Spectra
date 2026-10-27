@@ -31,7 +31,7 @@ ExpressionPlot::ExpressionPlot(Ros2Bridge& bridge, MessageIntrospector& intr)
 
     spectra::LineSeries& ls = axes_->line();
     ls.label("expression");
-    ls.color(spectra::palette::default_cycle[0]);
+    ls.set_auto_color_index(0);   // follows the theme's data palette
     series_ = &ls;
 
     axes_->xlabel("time (s)");

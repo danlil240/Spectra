@@ -302,8 +302,9 @@ class RosPlotManager
     // Returns empty string if not found.
     std::string detect_type(const std::string& topic) const;
 
-    // Assign the next palette color (cycles through palette::default_cycle).
-    spectra::Color next_color();
+    // Take the next data-palette slot.  Series use it as their auto colour
+    // slot, so they follow the theme's palette instead of a frozen RGB.
+    int next_color_slot();
 
     // ---------- members ---------------------------------------------------
 

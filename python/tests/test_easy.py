@@ -13,9 +13,56 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from spectra._easy import (
     _to_list,
     _parse_color,
+    _color_letter,
+    _apply_color,
     _parse_xy_args,
     _EasyState,
 )
+
+
+# ─── Theme-aware colour letters ──────────────────────────────────────────────
+
+class _FakeSeries:
+    def __init__(self, with_letter=True):
+        self.calls = []
+        if with_letter:
+            self.set_color_letter = lambda letter: self.calls.append(("letter", letter))
+
+    def set_color(self, r, g, b, a=1.0):
+        self.calls.append(("rgb", (r, g, b, a)))
+
+
+class TestColorLetters:
+    def test_letters_and_names_map_to_letters(self):
+        for name, letter in [("k", "k"), ("black", "k"), ("b", "b"), ("Blue", "b"),
+                             ("w", "w"), ("white", "w"), ("y", "y"), (" red ", "r")]:
+            assert _color_letter(name) == letter
+
+    def test_other_colours_have_no_letter(self):
+        assert _color_letter("orange") is None
+        assert _color_letter("#FF0000") is None
+        assert _color_letter((1.0, 0.0, 0.0)) is None
+        assert _color_letter(None) is None
+
+    def test_named_letter_is_sent_as_letter_not_rgb(self):
+        s = _FakeSeries()
+        _apply_color(s, "k")
+        assert s.calls == [("letter", "k")]
+
+    def test_rgb_colours_still_sent_as_rgb(self):
+        s = _FakeSeries()
+        _apply_color(s, "#00FF00")
+        assert s.calls == [("rgb", (0.0, 1.0, 0.0, 1.0))]
+
+    def test_series_without_letter_support_falls_back_to_rgb(self):
+        s = _FakeSeries(with_letter=False)
+        _apply_color(s, "k")
+        assert s.calls == [("rgb", (0.0, 0.0, 0.0, 1.0))]
+
+    def test_none_leaves_series_alone(self):
+        s = _FakeSeries()
+        _apply_color(s, None)
+        assert s.calls == []
 
 
 # ─── _to_list ────────────────────────────────────────────────────────────────

@@ -190,9 +190,9 @@ float estimate_text_width(std::string_view s, float font_px)
 }
 
 // Renderer font sizes (text_renderer.cpp FONT_PIXEL_SIZES).
-constexpr float TICK_FONT_PX  = 11.5f;
-constexpr float LABEL_FONT_PX = 13.5f;
-constexpr float TITLE_FONT_PX = 21.0f;
+constexpr float TICK_FONT_PX  = 13.0f;
+constexpr float LABEL_FONT_PX = 14.0f;
+constexpr float TITLE_FONT_PX = 18.0f;
 
 enum class VAlign
 {
@@ -1431,6 +1431,28 @@ void emit_axes_2d(SvgContext& c, const Axes& axes, const LegendConfig& legend)
                 std::max(max_y_tick_width, estimate_text_width(y_ticks.labels[idx], TICK_FONT_PX));
         }
     }
+    // Shared offset / multiplier of the tick labels ("x10^-6", "+1.7x10^9"):
+    // x below the right end of the tick labels, y above the top of the axis
+    // (render_geometry.cpp).
+    const float x_label_row = vp.y + vp.h + tl + tick_padding + TICK_FONT_PX + 4.0f;
+    if (!x_ticks.offset_label.empty())
+        emit_text(c.body,
+                  x_ticks.offset_label,
+                  vp.x + vp.w,
+                  x_label_row,
+                  TICK_FONT_PX,
+                  st.tick_label,
+                  "end",
+                  VAlign::Top);
+    if (!y_ticks.offset_label.empty())
+        emit_text(c.body,
+                  y_ticks.offset_label,
+                  vp.x,
+                  vp.y - 4.0f,
+                  TICK_FONT_PX,
+                  st.tick_label,
+                  "start",
+                  VAlign::Bottom);
     c.body << "    </g>\n";
 
     // Axis labels and title.
@@ -1438,7 +1460,7 @@ void emit_axes_2d(SvgContext& c, const Axes& axes, const LegendConfig& legend)
         emit_text(c.body,
                   axes.get_xlabel(),
                   vp.x + vp.w * 0.5f,
-                  vp.y + vp.h + tick_padding + 16.0f + tick_padding,
+                  x_label_row,
                   LABEL_FONT_PX,
                   st.text_secondary,
                   "middle",

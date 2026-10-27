@@ -29,9 +29,9 @@ enum class TextVAlign : uint8_t
 // Font size presets matching the 3 sizes used for plot text
 enum class FontSize : uint8_t
 {
-    Tick  = 0,   // ~13px — tick labels
-    Label = 1,   // ~15px — axis labels
-    Title = 2,   // ~18px — plot title
+    Tick  = 0,   // 13px — tick labels
+    Label = 1,   // 14px — axis labels
+    Title = 2,   // 18px — plot title
     Count = 3,
 };
 

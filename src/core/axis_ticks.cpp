@@ -1,9 +1,9 @@
 #include "core/axis_ticks.hpp"
 
-#include <cmath>
-
 #include <algorithm>
-#include <charconv>
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
 #include <format>
 #include <limits>
 
@@ -38,11 +38,10 @@ double clean(double v)
 {
     if (v == 0.0 || !std::isfinite(v))
         return v;
-    char       buf[64];
-    const auto r   = std::to_chars(buf, buf + sizeof(buf), v, std::chars_format::general, 14);
-    double     out = v;
-    std::from_chars(buf, r.ptr, out);
-    return out;
+    // snprintf/strtod rather than <charconv>: Apple libc++ has no floating-point from_chars.
+    char buf[64];
+    std::snprintf(buf, sizeof(buf), "%.14g", v);
+    return std::strtod(buf, nullptr);
 }
 
 std::string superscript_int(int e)

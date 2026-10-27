@@ -42,8 +42,10 @@ void StatusBar::draw()
                              | ImGuiWindowFlags_NoBringToFrontOnFocus
                              | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoBackground;
 
+    // No vertical padding: the column children span the full bar height, so the
+    // segments' vertical centring matches the bar and nothing is clipped.
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
-                        ImVec2(ui::tokens::STATUS_BAR_PADDING_H, 2.0f));
+                        ImVec2(ui::tokens::STATUS_BAR_PADDING_H, 0.0f));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
     ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0, 0, 0, 0));
@@ -81,7 +83,9 @@ void StatusBar::draw()
             ImGui::BeginChild("##status_col",
                               ImVec2(col_w, col_h),
                               ImGuiChildFlags_None,
-                              ImGuiWindowFlags_HorizontalScrollbar | ImGuiWindowFlags_NoBackground);
+                              // No scrollbar: a horizontal one would take height
+                              // from the pills when a column overflows.
+                              ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoBackground);
             bool first = true;
             for (const StatusSegment& segment : segments_)
             {
@@ -96,6 +100,10 @@ void StatusBar::draw()
             ImGui::PopID();
         };
 
+        // The theme's CellPadding (y > 0) would push the columns down and past
+        // the bar's bottom edge; the bar lays out its own spacing.
+        ImGui::PushStyleVar(ImGuiStyleVar_CellPadding,
+                            ImVec2(ImGui::GetStyle().CellPadding.x, 0.0f));
         if (ImGui::BeginTable("##status_bar_tbl",
                               3,
                               ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_NoPadInnerX
@@ -117,6 +125,7 @@ void StatusBar::draw()
 
             ImGui::EndTable();
         }
+        ImGui::PopStyleVar();
     }
     ImGui::End();
 

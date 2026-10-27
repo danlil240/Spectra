@@ -650,26 +650,44 @@ void SpectraAppShell::on_populate_menus(MenuBar& bar)
     if (!imgui_)
         return;
 
+    CoreMenuHooks hooks;
+    hooks.panel_visible     = [this](std::string_view id) { return panel_visible(id); };
+    hooks.set_panel_visible = [this](std::string_view id, bool v) { set_panel_visible(id, v); };
+    populate_core_menus(bar, imgui_, hooks);
+
+    menus_populated_ = true;
+}
+
+void SpectraAppShell::populate_core_menus(MenuBar&                   bar,
+                                          spectra::ImGuiIntegration* imgui,
+                                          const CoreMenuHooks&       hooks)
+{
+    if (!imgui)
+        return;
+
     bar.set_shortcut_resolver(
-        [this](const std::string& command_id) {
-            return menu_shortcut_text(imgui_->shortcut_manager_,
-                                      imgui_->command_registry_,
+        [imgui](const std::string& command_id) {
+            return menu_shortcut_text(imgui->shortcut_manager_,
+                                      imgui->command_registry_,
                                       command_id);
         });
 
     // Menu item that runs a registry command and shows that command's shortcut.
-    auto command = [this](const char* label, const char* command_id)
+    auto command = [imgui](const char* label, const char* command_id)
     {
         MenuAction action;
         action.label      = label;
         action.command_id = command_id;
-        action.on_click   = [this, id = std::string(command_id)]()
+        action.on_click   = [imgui, id = std::string(command_id)]()
         {
-            if (imgui_->command_registry_)
-                imgui_->command_registry_->execute(id);
+            if (imgui->command_registry_)
+                imgui->command_registry_->execute(id);
         };
         return action;
     };
+
+    auto panel_visible = [hooks](std::string_view id)
+    { return hooks.panel_visible && hooks.panel_visible(id); };
 
     auto& file = bar.menu("File");
     file.add(command("New Figure", "figure.new"));
@@ -683,12 +701,7 @@ void SpectraAppShell::on_populate_menus(MenuBar& bar)
     file.add(command("Save Figure...", "file.save_figure"));
     file.add(command("Load Figure...", "file.load_figure"));
     file.add_separator();
-    // "app.cancel" is bound to Escape, which only dismisses overlays; do not
-    // advertise it as the Exit shortcut.
-    file.add({.label = "Exit", .on_click = [this]() {
-                  if (imgui_->command_registry_)
-                      imgui_->command_registry_->execute("app.cancel");
-              }});
+    file.add(command("Exit", "app.quit"));
 
     auto& edit = bar.menu("Edit");
     edit.add(command("Undo", "edit.undo"));
@@ -699,48 +712,56 @@ void SpectraAppShell::on_populate_menus(MenuBar& bar)
     view.add(command("Reset View", "view.reset"));
     view.add(command("Toggle Grid", "view.toggle_grid"));
     view.add(command("Toggle Legend", "view.toggle_legend"));
-    view.add({.label = "Remove All Data Tips", .on_click = [this]() {
-                  if (imgui_->data_interaction_)
-                      imgui_->data_interaction_->clear_markers();
+    view.add({.label    = "Remove All Data Tips",
+              .on_click = [imgui]()
+              {
+                  if (imgui->data_interaction_)
+                      imgui->data_interaction_->clear_markers();
               }});
     view.add_separator();
     // One checkable item per panel. The registry panels (Inspector, Timeline,
-    // Curve Editor, Plugins, Topics, Settings) are appended by bind_panel_registry
+    // Curve Editor, Plugins, Topics, Settings) are appended after these by
+    // MenuBar::bind_panel_registry (or add_core_panel_menu on the fallback path)
     // with their nav-rail icons; the items below are views that are not panels.
     view.add(make_toggle_action(
         "Navigation Rail",
-        [this]() { return imgui_->show_nav_rail_; },
-        [this]() { imgui_->set_nav_rail_visible(!imgui_->show_nav_rail_); },
+        [imgui]() { return imgui->show_nav_rail_; },
+        [imgui]() { imgui->set_nav_rail_visible(!imgui->show_nav_rail_); },
         Icon::Menu));
     view.add(make_toggle_action(
         "Data Editor",
-        [this]()
+        [imgui, panel_visible]()
         {
             return panel_visible("core.inspector")
-                   && imgui_->active_section_ == spectra::ImGuiIntegration::Section::DataEditor;
+                   && imgui->active_section_ == spectra::ImGuiIntegration::Section::DataEditor;
         },
-        [this]()
+        [imgui, panel_visible, hooks]()
         {
             const bool showing =
                 panel_visible("core.inspector")
-                && imgui_->active_section_ == spectra::ImGuiIntegration::Section::DataEditor;
+                && imgui->active_section_ == spectra::ImGuiIntegration::Section::DataEditor;
             if (!showing)
-                imgui_->active_section_ = spectra::ImGuiIntegration::Section::DataEditor;
-            set_panel_visible("core.inspector", !showing);
+                imgui->active_section_ = spectra::ImGuiIntegration::Section::DataEditor;
+            if (hooks.set_panel_visible)
+                hooks.set_panel_visible("core.inspector", !showing);
         },
         Icon::Database));
     {
         MenuAction params = make_toggle_action(
             "Parameters",
-            [this]()
+            [imgui]()
             {
-                return imgui_->knob_manager_ && !imgui_->knob_manager_->empty()
-                       && imgui_->knob_manager_->is_visible();
+                return imgui->knob_manager_ && !imgui->knob_manager_->empty()
+                       && imgui->knob_manager_->is_visible();
             },
-            [this]() { imgui_->knob_manager_->set_visible(!imgui_->knob_manager_->is_visible()); },
+            [imgui]()
+            {
+                if (imgui->knob_manager_)
+                    imgui->knob_manager_->set_visible(!imgui->knob_manager_->is_visible());
+            },
             Icon::Function);
-        params.enabled = [this]()
-        { return imgui_->knob_manager_ && !imgui_->knob_manager_->empty(); };
+        params.enabled = [imgui]()
+        { return imgui->knob_manager_ && !imgui->knob_manager_->empty(); };
         view.add(std::move(params));
     }
 
@@ -750,8 +771,8 @@ void SpectraAppShell::on_populate_menus(MenuBar& bar)
     {
         MenuAction theme;
         theme.label    = "Theme Settings";
-        theme.checked  = [this]() { return imgui_->show_theme_settings_; };
-        theme.on_click = [this]() { imgui_->show_theme_settings_ = !imgui_->show_theme_settings_; };
+        theme.checked  = [imgui]() { return imgui->show_theme_settings_; };
+        theme.on_click = [imgui]() { imgui->show_theme_settings_ = !imgui->show_theme_settings_; };
         tools.add(std::move(theme));
     }
     tools.add(command("Command Palette", "app.command_palette"));
@@ -763,21 +784,77 @@ void SpectraAppShell::on_populate_menus(MenuBar& bar)
     plot.add(command("Horizontal Line...", "plot.hline"));
     plot.add(command("Vertical Line...", "plot.vline"));
     plot.add(command("Plot Function...", "plot.function"));
+}
 
-    menus_populated_ = true;
+const std::vector<SpectraAppShell::CorePanelEntry>& SpectraAppShell::core_panels()
+{
+    static const std::vector<CorePanelEntry> panels = {
+        {"core.inspector", "Inspector", Icon::Axes},
+        {"core.timeline", "Timeline", Icon::Timeline},
+        {"core.curve_editor", "Curve Editor", Icon::ChartLine},
+        {"core.plugins", "Plugins", Icon::Wrench},
+        {"core.topics", "Topics", Icon::Broadcast},
+        {"core.settings", "Settings", Icon::Settings},
+    };
+    return panels;
+}
+
+void SpectraAppShell::add_core_panel_menu(MenuBar&                   bar,
+                                          spectra::ImGuiIntegration* imgui,
+                                          const PanelMenuHooks&      hooks)
+{
+    // Same shape as MenuBar::bind_panel_registry builds from the shell's
+    // PanelRegistry: a "Panels" submenu (flattened into its own section when
+    // drawn) with one checkable item per core panel.
+    Menu& view = bar.menu("View");
+    view.remove_submenu("Panels");
+
+    MenuAction panels_action;
+    panels_action.label = "Panels";
+    for (const CorePanelEntry& entry : core_panels())
+    {
+        const std::string id = entry.id;
+        MenuAction        item;
+        item.label      = entry.title;
+        item.icon       = static_cast<uint16_t>(entry.icon);
+        item.command_id = panel_command_id(id);
+        if (hooks.is_visible)
+            item.checked = [is_visible = hooks.is_visible, id]() { return is_visible(id); };
+        if (hooks.toggle)
+        {
+            item.on_click = [toggle = hooks.toggle, id]() { toggle(id); };
+        }
+        else
+        {
+            item.on_click = [imgui, cmd = item.command_id]()
+            {
+                if (imgui && imgui->command_registry_)
+                    imgui->command_registry_->execute(cmd);
+            };
+        }
+        panels_action.submenu.push_back(std::move(item));
+    }
+    view.add(std::move(panels_action));
 }
 
 void SpectraAppShell::sync_file_menu()
 {
     if (!imgui_ || !menus_populated_)
         return;
+    sync_plugin_export_menu(menu_bar_, imgui_);
+}
 
-    auto& file = menu_bar_.menu("File");
-    file.remove_submenu("##plugin_exports");
-    if (!imgui_->export_format_registry_)
+void SpectraAppShell::sync_plugin_export_menu(MenuBar& bar, spectra::ImGuiIntegration* imgui)
+{
+    if (!imgui)
         return;
 
-    const auto formats = imgui_->export_format_registry_->available_formats();
+    auto& file = bar.menu("File");
+    file.remove_submenu("##plugin_exports");
+    if (!imgui->export_format_registry_)
+        return;
+
+    const auto formats = imgui->export_format_registry_->available_formats();
     if (formats.empty())
         return;
 
@@ -789,10 +866,10 @@ void SpectraAppShell::sync_file_menu()
         const std::string name  = fmt.name;
         plugin_parent.submenu.push_back({.label      = label,
                                          .command_id = "file.export_plugin." + name,
-                                         .on_click   = [this, name]()
+                                         .on_click   = [imgui, name]()
                                          {
-                                             if (imgui_->command_registry_)
-                                                 imgui_->command_registry_->execute(
+                                             if (imgui->command_registry_)
+                                                 imgui->command_registry_->execute(
                                                      "file.export_plugin." + name);
                                          }});
     }

@@ -3,6 +3,7 @@
 #include "command_context.hpp"
 #include "command_descriptor.hpp"
 
+#include <optional>
 #include <spectra/figure.hpp>
 #include <spectra/figure_registry.hpp>
 #include <spectra/logger.hpp>
@@ -173,8 +174,10 @@ std::vector<CommandDescriptor> make_file_commands(CommandContext& ctx)
                         }
                         for (size_t i = 0; i < data.figures.size() && i < fig_mgr.count(); ++i)
                         {
-                            data.figures[i].custom_tab_title = fig_mgr.get_title(i);
-                            data.figures[i].is_modified      = fig_mgr.is_modified(i);
+                            // Positional: figure i is the i-th tab (ids are not indices).
+                            const FigureId fid               = fig_mgr.figure_ids()[i];
+                            data.figures[i].custom_tab_title = fig_mgr.get_title(fid);
+                            data.figures[i].is_modified      = fig_mgr.is_modified(fid);
                         }
                         data.undo_count      = undo_mgr.undo_count();
                         data.redo_count      = undo_mgr.redo_count();
@@ -196,9 +199,27 @@ std::vector<CommandDescriptor> make_file_commands(CommandContext& ctx)
              WorkspaceData data;
              if (Workspace::load(Workspace::default_path(), data))
              {
-                 if (!active_figure)
+                 // With no figure open (welcome screen) the workspace brings its
+                 // figures back: same size and subplot layout, empty axes (series
+                 // data is not stored in workspaces). Loading into open figures
+                 // keeps them and is undoable as before.
+                 const bool had_figures = active_figure != nullptr && fig_mgr.count() > 0;
+                 if (fig_mgr.count() == 0)
+                 {
+                     for (const auto& fs : data.figures)
+                     {
+                         FigureId id = registry.register_figure(Workspace::build_figure(fs));
+                         fig_mgr.add_figure(id, FigureState(id, registry.get(id)));
+                     }
+                 }
+                 Figure* target = active_figure;
+                 if (!target && fig_mgr.count() > 0)
+                     target = registry.get(fig_mgr.active_index());
+                 if (!target)
                      return;
-                 auto                 before_snap = capture_figure_axes(*active_figure);
+                 std::optional<FigureAxisSnapshot> before_snap;
+                 if (had_figures)
+                     before_snap = capture_figure_axes(*target);
                  std::vector<Figure*> figs;
                  for (auto id : fig_mgr.figure_ids())
                  {
@@ -207,10 +228,14 @@ std::vector<CommandDescriptor> make_file_commands(CommandContext& ctx)
                          figs.push_back(f);
                  }
                  Workspace::apply(data, figs);
-                 auto after_snap = capture_figure_axes(*active_figure);
-                 undo_mgr.push(UndoAction{"Load workspace",
-                                          [before_snap]() { restore_figure_axes(before_snap); },
-                                          [after_snap]() { restore_figure_axes(after_snap); }});
+                 if (before_snap)
+                 {
+                     auto after_snap = capture_figure_axes(*target);
+                     undo_mgr.push(UndoAction{"Load workspace",
+                                              [before = *before_snap]()
+                                              { restore_figure_axes(before); },
+                                              [after_snap]() { restore_figure_axes(after_snap); }});
+                 }
                  if (data_interaction)
                  {
                      data_interaction->set_crosshair(data.interaction.crosshair_enabled);
@@ -246,7 +271,8 @@ std::vector<CommandDescriptor> make_file_commands(CommandContext& ctx)
                  {
                      if (!data.figures[i].custom_tab_title.empty())
                      {
-                         fig_mgr.set_title(i, data.figures[i].custom_tab_title);
+                         fig_mgr.set_title(fig_mgr.figure_ids()[i],
+                                           data.figures[i].custom_tab_title);
                      }
                  }
                  if (data.active_figure_index < fig_mgr.count())

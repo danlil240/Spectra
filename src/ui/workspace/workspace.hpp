@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
 #include <spectra/fwd.hpp>
 #include <string>
 #include <vector>
@@ -226,6 +227,12 @@ class Workspace
     // Apply loaded workspace data to figures (restores axis limits, etc.).
     // Returns false if data is incompatible.
     static bool apply(const WorkspaceData& data, std::vector<Figure*>& figures);
+
+    // Build an empty figure with the size and subplot layout (2D / 3D axes) of
+    // a saved figure, for loading a workspace when no figure is open. Series
+    // data is not stored in workspaces, so the axes start empty; apply() then
+    // restores limits, labels and the rest.
+    static std::unique_ptr<Figure> build_figure(const WorkspaceData::FigureState& state);
 
     // Get default workspace file path (in user config directory).
     static std::string default_path();

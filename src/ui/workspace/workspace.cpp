@@ -1,5 +1,6 @@
 #include "workspace.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <cstdlib>
 #include <filesystem>
@@ -1174,6 +1175,33 @@ WorkspaceData Workspace::capture(const std::vector<Figure*>& figures,
     }
 
     return data;
+}
+
+std::unique_ptr<Figure> Workspace::build_figure(const WorkspaceData::FigureState& state)
+{
+    FigureConfig cfg;
+    cfg.width  = state.width > 0 ? state.width : 1280;
+    cfg.height = state.height > 0 ? state.height : 720;
+    auto fig   = std::make_unique<Figure>(cfg);
+
+    const size_t n_axes = std::max<size_t>(state.axes.size(), 1);
+    int          rows   = std::max(state.grid_rows, 1);
+    int          cols   = std::max(state.grid_cols, 1);
+    // A grid too small for the saved axes (hand-edited or older files) grows
+    // by rows so every axes gets a slot.
+    while (static_cast<size_t>(rows) * static_cast<size_t>(cols) < n_axes)
+        ++rows;
+
+    for (size_t ai = 0; ai < n_axes; ++ai)
+    {
+        const int  index = static_cast<int>(ai) + 1;
+        const bool is_3d = ai < state.axes.size() && state.axes[ai].is_3d;
+        if (is_3d)
+            fig->subplot3d(rows, cols, index);
+        else
+            fig->subplot(rows, cols, index);
+    }
+    return fig;
 }
 
 bool Workspace::apply(const WorkspaceData& data, std::vector<Figure*>& figures)

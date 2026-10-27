@@ -6,6 +6,7 @@
     #include "imgui.h"
     #include "io/export_registry.hpp"
     #include "ui/commands/command_registry.hpp"
+    #include "ui/commands/shortcut_manager.hpp"
     #include "ui/imgui/imgui_integration.hpp"
     #include "ui/input/input.hpp"
     #include "ui/layout/layout_manager.hpp"
@@ -24,14 +25,14 @@ namespace
 {
 using spectra::ui::Icon;
 
-MenuAction make_toggle_action(const char*               label,
-                              std::function<bool()>     checked,
-                              std::function<void()>     on_click,
-                              std::string               shortcut = {})
+MenuAction make_toggle_action(const char*           label,
+                              std::function<bool()> checked,
+                              std::function<void()> on_click,
+                              Icon                  icon)
 {
     MenuAction action;
     action.label    = label;
-    action.shortcut = std::move(shortcut);
+    action.icon     = static_cast<uint16_t>(icon);
     action.checked  = std::move(checked);
     action.on_click = std::move(on_click);
     return action;
@@ -428,7 +429,7 @@ void SpectraAppShell::draw_menus_inline()
     menu_bar_.draw_inline(
         [this](const char* label, const std::vector<MenuAction>& items)
         {
-            const auto menu_items = to_imgui_menu_items(items);
+            const auto menu_items = to_imgui_menu_items(items, menu_bar_.shortcut_resolver());
             imgui_->render_menubar_menu(label, menu_items);
         });
 }
@@ -602,173 +603,166 @@ void SpectraAppShell::on_register_panels()
         });
 }
 
+std::string SpectraAppShell::panel_command_id(const std::string& panel_id)
+{
+    constexpr std::string_view prefix = "core.";
+    if (panel_id == "core.settings")
+        return "panel.open_settings";
+    if (panel_id.rfind(prefix, 0) == 0)
+        return "panel.toggle_" + panel_id.substr(prefix.size());
+    return {};
+}
+
+PanelMenuHooks SpectraAppShell::panel_menu_hooks()
+{
+    PanelMenuHooks hooks;
+    hooks.command_id = [](const std::string& id) { return panel_command_id(id); };
+    hooks.is_visible = [this](const std::string& id)
+    {
+        // SettingsPanel keeps its own visibility flag (see SpectraNavRail::build_items).
+        if (id == "core.settings")
+            return imgui_ && imgui_->settings_panel() && imgui_->settings_panel()->is_visible();
+        return panel_visible(id);
+    };
+    hooks.toggle = [this](const std::string& id)
+    {
+        if (!imgui_)
+            return;
+        if (id == "core.settings")
+        {
+            if (auto* sp = imgui_->settings_panel())
+                sp->set_visible(!sp->is_visible());
+            return;
+        }
+        // Prefer the registered command so the menu, nav rail and keyboard shortcut
+        // share one code path (including undo).
+        const std::string cmd = panel_command_id(id);
+        if (imgui_->command_registry_ && imgui_->command_registry_->find(cmd))
+            imgui_->command_registry_->execute(cmd);
+        else
+            toggle_panel(id);
+    };
+    return hooks;
+}
+
 void SpectraAppShell::on_populate_menus(MenuBar& bar)
 {
     if (!imgui_)
         return;
 
+    bar.set_shortcut_resolver(
+        [this](const std::string& command_id) {
+            return menu_shortcut_text(imgui_->shortcut_manager_,
+                                      imgui_->command_registry_,
+                                      command_id);
+        });
+
+    // Menu item that runs a registry command and shows that command's shortcut.
+    auto command = [this](const char* label, const char* command_id)
+    {
+        MenuAction action;
+        action.label      = label;
+        action.command_id = command_id;
+        action.on_click   = [this, id = std::string(command_id)]()
+        {
+            if (imgui_->command_registry_)
+                imgui_->command_registry_->execute(id);
+        };
+        return action;
+    };
+
     auto& file = bar.menu("File");
-    file.add({.label = "New Figure", .on_click = [this]() {
-                  if (imgui_->command_registry_)
-                      imgui_->command_registry_->execute("figure.new");
-              }});
+    file.add(command("New Figure", "figure.new"));
     file.add_separator();
-    file.add({.label = "Export PNG", .on_click = [this]() {
-                  if (imgui_->command_registry_)
-                      imgui_->command_registry_->execute("file.export_png");
-              }});
-    file.add({.label = "Export SVG", .on_click = [this]() {
-                  if (imgui_->command_registry_)
-                      imgui_->command_registry_->execute("file.export_svg");
-              }});
-    file.add({.label    = "Copy as Image",
-              .shortcut = "Ctrl+Shift+C",
-              .on_click = [this]()
-              {
-                  if (imgui_->command_registry_)
-                      imgui_->command_registry_->execute("file.copy_to_clipboard");
-              }});
-    file.add({.label = "Save Workspace", .on_click = [this]() {
-                  if (imgui_->command_registry_)
-                      imgui_->command_registry_->execute("file.save_workspace");
-              }});
-    file.add({.label = "Load Workspace", .on_click = [this]() {
-                  if (imgui_->command_registry_)
-                      imgui_->command_registry_->execute("file.load_workspace");
-              }});
+    file.add(command("Export PNG", "file.export_png"));
+    file.add(command("Export SVG", "file.export_svg"));
+    file.add(command("Copy as Image", "file.copy_to_clipboard"));
+    file.add(command("Save Workspace", "file.save_workspace"));
+    file.add(command("Load Workspace", "file.load_workspace"));
     file.add_separator();
-    file.add({.label = "Save Figure...", .on_click = [this]() {
-                  if (imgui_->command_registry_)
-                      imgui_->command_registry_->execute("file.save_figure");
-              }});
-    file.add({.label = "Load Figure...", .on_click = [this]() {
-                  if (imgui_->command_registry_)
-                      imgui_->command_registry_->execute("file.load_figure");
-              }});
+    file.add(command("Save Figure...", "file.save_figure"));
+    file.add(command("Load Figure...", "file.load_figure"));
     file.add_separator();
+    // "app.cancel" is bound to Escape, which only dismisses overlays; do not
+    // advertise it as the Exit shortcut.
     file.add({.label = "Exit", .on_click = [this]() {
                   if (imgui_->command_registry_)
                       imgui_->command_registry_->execute("app.cancel");
               }});
 
     auto& edit = bar.menu("Edit");
-    edit.add({.label = "Undo", .shortcut = "Ctrl+Z", .on_click = [this]() {
-                  if (imgui_->command_registry_)
-                      imgui_->command_registry_->execute("edit.undo");
-              }});
-    edit.add({.label = "Redo", .shortcut = "Ctrl+Y", .on_click = [this]() {
-                  if (imgui_->command_registry_)
-                      imgui_->command_registry_->execute("edit.redo");
-              }});
+    edit.add(command("Undo", "edit.undo"));
+    edit.add(command("Redo", "edit.redo"));
 
     auto& view = bar.menu("View");
-    view.add(make_toggle_action(
-        "Toggle Inspector",
-        [this]()
-        {
-            const Panel* p = panels_.find("core.inspector");
-            return p && p->visible();
-        },
-        [this]() { toggle_panel("core.inspector"); }));
-    view.add(make_toggle_action(
-        "Toggle Navigation Rail",
-        [this]() { return imgui_->show_nav_rail_; },
-        [this]() { imgui_->set_nav_rail_visible(!imgui_->show_nav_rail_); }));
-    view.add({.label = "Zoom to Fit", .on_click = [this]() {
-                  if (imgui_->command_registry_)
-                      imgui_->command_registry_->execute("view.autofit");
-              }});
-    view.add({.label = "Reset View", .on_click = [this]() {
-                  if (imgui_->command_registry_)
-                      imgui_->command_registry_->execute("view.reset");
-              }});
-    view.add({.label = "Toggle Grid", .on_click = [this]() {
-                  if (imgui_->command_registry_)
-                      imgui_->command_registry_->execute("view.toggle_grid");
-              }});
-    view.add({.label = "Toggle Legend", .on_click = [this]() {
-                  if (imgui_->command_registry_)
-                      imgui_->command_registry_->execute("view.toggle_legend");
-              }});
+    view.add(command("Zoom to Fit", "view.autofit"));
+    view.add(command("Reset View", "view.reset"));
+    view.add(command("Toggle Grid", "view.toggle_grid"));
+    view.add(command("Toggle Legend", "view.toggle_legend"));
     view.add({.label = "Remove All Data Tips", .on_click = [this]() {
                   if (imgui_->data_interaction_)
                       imgui_->data_interaction_->clear_markers();
               }});
     view.add_separator();
+    // One checkable item per panel. The registry panels (Inspector, Timeline,
+    // Curve Editor, Plugins, Topics, Settings) are appended by bind_panel_registry
+    // with their nav-rail icons; the items below are views that are not panels.
     view.add(make_toggle_action(
-        "Toggle Timeline",
+        "Navigation Rail",
+        [this]() { return imgui_->show_nav_rail_; },
+        [this]() { imgui_->set_nav_rail_visible(!imgui_->show_nav_rail_); },
+        Icon::Menu));
+    view.add(make_toggle_action(
+        "Data Editor",
         [this]()
         {
-            const Panel* p = panels_.find("core.timeline");
-            return p && p->visible();
+            return panel_visible("core.inspector")
+                   && imgui_->active_section_ == spectra::ImGuiIntegration::Section::DataEditor;
         },
-        [this]() { toggle_panel("core.timeline"); }));
-    view.add(make_toggle_action(
-        "Toggle Curve Editor",
         [this]()
         {
-            const Panel* p = panels_.find("core.curve_editor");
-            return p && p->visible();
+            const bool showing =
+                panel_visible("core.inspector")
+                && imgui_->active_section_ == spectra::ImGuiIntegration::Section::DataEditor;
+            if (!showing)
+                imgui_->active_section_ = spectra::ImGuiIntegration::Section::DataEditor;
+            set_panel_visible("core.inspector", !showing);
         },
-        [this]() { toggle_panel("core.curve_editor"); }));
-    view.add({.label = "Toggle Parameters", .on_click = [this]() {
-                  if (imgui_->knob_manager_ && !imgui_->knob_manager_->empty())
-                      imgui_->knob_manager_->set_visible(!imgui_->knob_manager_->is_visible());
-              }});
-    view.add({.label = "Toggle Data Editor", .on_click = [this]() { toggle_panel("core.inspector"); }});
-    view.add(make_toggle_action(
-        "Toggle Topics",
-        [this]()
-        {
-            const Panel* p = panels_.find("core.topics");
-            return p && p->visible();
-        },
-        [this]() { toggle_panel("core.topics"); }));
-    view.add(make_toggle_action(
-        "Plugins...",
-        [this]()
-        {
-            const Panel* p = panels_.find("core.plugins");
-            return p && p->visible();
-        },
-        [this]() { toggle_panel("core.plugins"); }));
+        Icon::Database));
+    {
+        MenuAction params = make_toggle_action(
+            "Parameters",
+            [this]()
+            {
+                return imgui_->knob_manager_ && !imgui_->knob_manager_->empty()
+                       && imgui_->knob_manager_->is_visible();
+            },
+            [this]() { imgui_->knob_manager_->set_visible(!imgui_->knob_manager_->is_visible()); },
+            Icon::Function);
+        params.enabled = [this]()
+        { return imgui_->knob_manager_ && !imgui_->knob_manager_->empty(); };
+        view.add(std::move(params));
+    }
 
     auto& tools = bar.menu("Tools");
-    tools.add({.label = "Screenshot (PNG)", .on_click = [this]() {
-                   if (imgui_->command_registry_)
-                       imgui_->command_registry_->execute("file.export_png");
-               }});
+    tools.add(command("Screenshot (PNG)", "file.export_png"));
     tools.add_separator();
-    tools.add({.label = "Theme Settings", .on_click = [this]() {
-                   imgui_->show_theme_settings_ = !imgui_->show_theme_settings_;
-               }});
-    tools.add({.label = "Command Palette", .on_click = [this]() {
-                   if (imgui_->command_registry_)
-                       imgui_->command_registry_->execute("app.command_palette");
-               }});
+    {
+        MenuAction theme;
+        theme.label    = "Theme Settings";
+        theme.checked  = [this]() { return imgui_->show_theme_settings_; };
+        theme.on_click = [this]() { imgui_->show_theme_settings_ = !imgui_->show_theme_settings_; };
+        tools.add(std::move(theme));
+    }
+    tools.add(command("Command Palette", "app.command_palette"));
 
     auto& plot = bar.menu("Plot");
-    plot.add({.label = "Y = 0 Line", .on_click = [this]() {
-                  if (imgui_->command_registry_)
-                      imgui_->command_registry_->execute("plot.hline_zero");
-              }});
-    plot.add({.label = "X = 0 Line", .on_click = [this]() {
-                  if (imgui_->command_registry_)
-                      imgui_->command_registry_->execute("plot.vline_zero");
-              }});
+    plot.add(command("Y = 0 Line", "plot.hline_zero"));
+    plot.add(command("X = 0 Line", "plot.vline_zero"));
     plot.add_separator();
-    plot.add({.label = "Horizontal Line...", .on_click = [this]() {
-                  if (imgui_->command_registry_)
-                      imgui_->command_registry_->execute("plot.hline");
-              }});
-    plot.add({.label = "Vertical Line...", .on_click = [this]() {
-                  if (imgui_->command_registry_)
-                      imgui_->command_registry_->execute("plot.vline");
-              }});
-    plot.add({.label = "Plot Function...", .on_click = [this]() {
-                  if (imgui_->command_registry_)
-                      imgui_->command_registry_->execute("plot.function");
-              }});
+    plot.add(command("Horizontal Line...", "plot.hline"));
+    plot.add(command("Vertical Line...", "plot.vline"));
+    plot.add(command("Plot Function...", "plot.function"));
 
     menus_populated_ = true;
 }
@@ -793,7 +787,10 @@ void SpectraAppShell::sync_file_menu()
     {
         const std::string label = "Export " + fmt.name + " (." + fmt.extension + ")";
         const std::string name  = fmt.name;
-        plugin_parent.submenu.push_back({.label = label, .on_click = [this, name]() {
+        plugin_parent.submenu.push_back({.label      = label,
+                                         .command_id = "file.export_plugin." + name,
+                                         .on_click   = [this, name]()
+                                         {
                                              if (imgui_->command_registry_)
                                                  imgui_->command_registry_->execute(
                                                      "file.export_plugin." + name);

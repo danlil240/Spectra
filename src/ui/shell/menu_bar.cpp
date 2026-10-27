@@ -14,51 +14,65 @@ namespace
 {
 }   // namespace
 
-std::vector<spectra::ImGuiIntegration::MenuItem> to_imgui_menu_items(
-    const std::vector<MenuAction>& actions)
+namespace
 {
-    std::vector<spectra::ImGuiIntegration::MenuItem> out;
+using ImGuiMenuItem = spectra::ImGuiIntegration::MenuItem;
+
+void append_separator(std::vector<ImGuiMenuItem>& out)
+{
+    // No leading or doubled separators.
+    if (!out.empty() && !out.back().label.empty())
+        out.emplace_back("", nullptr);
+}
+
+void append_item(std::vector<ImGuiMenuItem>& out,
+                 const MenuAction&           action,
+                 const ShortcutResolver&     resolve_shortcut)
+{
+    if (action.separator)
+    {
+        append_separator(out);
+        return;
+    }
+    const bool    enabled = !action.enabled || action.enabled();
+    ImGuiMenuItem item(action.label, enabled ? action.on_click : nullptr);
+    item.shortcut = action.shortcut;
+    if (item.shortcut.empty() && !action.command_id.empty() && resolve_shortcut)
+        item.shortcut = resolve_shortcut(action.command_id);
+    item.checked = action.checked;
+    item.icon    = action.icon;
+    out.push_back(std::move(item));
+}
+}   // namespace
+
+std::vector<spectra::ImGuiIntegration::MenuItem> to_imgui_menu_items(
+    const std::vector<MenuAction>& actions,
+    const ShortcutResolver&        resolve_shortcut)
+{
+    std::vector<ImGuiMenuItem> out;
     out.reserve(actions.size());
     for (const MenuAction& action : actions)
     {
-        if (action.separator)
-        {
-            out.emplace_back("", nullptr);
-            continue;
-        }
         if (!action.submenu.empty())
         {
+            // The command bar has no cascading menus: a submenu becomes its own
+            // separated section of the parent menu.
+            append_separator(out);
             for (const MenuAction& sub : action.submenu)
-            {
-                if (sub.separator)
-                {
-                    out.emplace_back("", nullptr);
-                    continue;
-                }
-                const bool enabled = !sub.enabled || sub.enabled();
-                if (!enabled)
-                {
-                    out.emplace_back(sub.label, nullptr);
-                    continue;
-                }
-                out.emplace_back(sub.label, sub.on_click);
-            }
+                append_item(out, sub, resolve_shortcut);
+            append_separator(out);
             continue;
         }
-        const bool enabled = !action.enabled || action.enabled();
-        if (!enabled)
-        {
-            out.emplace_back(action.label, nullptr);
-            continue;
-        }
-        out.emplace_back(action.label, action.on_click);
+        append_item(out, action, resolve_shortcut);
     }
+    if (!out.empty() && out.back().label.empty())
+        out.pop_back();
     return out;
 }
 
 namespace
 {
-void render_menu_items(const std::vector<MenuAction>& items)
+void render_menu_items(const std::vector<MenuAction>& items, const ShortcutResolver& resolve)
 {
     for (const MenuAction& action : items)
     {
@@ -72,7 +86,7 @@ void render_menu_items(const std::vector<MenuAction>& items)
         {
             if (ImGui::BeginMenu(action.label.c_str()))
             {
-                render_menu_items(action.submenu);
+                render_menu_items(action.submenu, resolve);
                 ImGui::EndMenu();
             }
             continue;
@@ -81,7 +95,10 @@ void render_menu_items(const std::vector<MenuAction>& items)
         const bool  en           = !action.enabled || action.enabled();
         const bool  is_checkable = static_cast<bool>(action.checked);
         const bool  chk          = is_checkable && action.checked();
-        const char* shortcut_ptr = action.shortcut.empty() ? nullptr : action.shortcut.c_str();
+        std::string shortcut     = action.shortcut;
+        if (shortcut.empty() && !action.command_id.empty() && resolve)
+            shortcut = resolve(action.command_id);
+        const char* shortcut_ptr = shortcut.empty() ? nullptr : shortcut.c_str();
 
         if (ImGui::MenuItem(action.label.c_str(), shortcut_ptr, chk, en) && action.on_click)
         {
@@ -166,7 +183,8 @@ std::vector<std::string> MenuBar::menu_names() const
 
 void MenuBar::bind_panel_registry(PanelRegistry&   registry,
                                   std::string_view top_level,
-                                  std::string_view submenu_label)
+                                  std::string_view submenu_label,
+                                  PanelMenuHooks   hooks)
 {
     Menu& top_menu = menu(top_level);
     top_menu.remove_submenu(submenu_label);
@@ -181,13 +199,26 @@ void MenuBar::bind_panel_registry(PanelRegistry&   registry,
         const std::string title = panel->title();
 
         MenuAction item;
-        item.label   = title;
-        item.checked = [reg_ptr, id]()
+        item.label = title;
+        item.icon  = static_cast<uint16_t>(panel->icon());
+        if (hooks.command_id)
+            item.command_id = hooks.command_id(id);
+        if (hooks.is_visible)
         {
-            Panel* p = reg_ptr->find(id);
-            return p && p->visible();
-        };
-        item.on_click = [reg_ptr, id]() { reg_ptr->toggle(id); };
+            item.checked = [is_visible = hooks.is_visible, id]() { return is_visible(id); };
+        }
+        else
+        {
+            item.checked = [reg_ptr, id]()
+            {
+                Panel* p = reg_ptr->find(id);
+                return p && p->visible();
+            };
+        }
+        if (hooks.toggle)
+            item.on_click = [toggle = hooks.toggle, id]() { toggle(id); };
+        else
+            item.on_click = [reg_ptr, id]() { reg_ptr->toggle(id); };
         panels_action.submenu.push_back(std::move(item));
     }
 
@@ -217,7 +248,7 @@ void MenuBar::draw()
     {
         if (ImGui::BeginMenu(m.name().c_str()))
         {
-            render_menu_items(m.items());
+            render_menu_items(m.items(), shortcut_resolver_);
             ImGui::EndMenu();
         }
     }
@@ -228,6 +259,11 @@ void MenuBar::draw()
 void MenuBar::set_trailing_draw(std::function<void()> fn)
 {
     trailing_draw_ = std::move(fn);
+}
+
+void MenuBar::set_shortcut_resolver(ShortcutResolver fn)
+{
+    shortcut_resolver_ = std::move(fn);
 }
 
 void MenuBar::draw_command_bar(spectra::ImGuiIntegration* imgui)
@@ -243,7 +279,7 @@ void MenuBar::draw_command_bar(spectra::ImGuiIntegration* imgui)
 
     for (const Menu& m : menus_)
     {
-        const auto items = to_imgui_menu_items(m.items());
+        const auto items = to_imgui_menu_items(m.items(), shortcut_resolver_);
         imgui->render_menubar_menu(m.name().c_str(), items);
         ImGui::SameLine();
     }

@@ -68,16 +68,24 @@ uint32_t pack_rgba(const Color& c)
     return ch(c.r) | (ch(c.g) << 8) | (ch(c.b) << 16) | (ch(c.a) << 24);
 }
 
-// LegendConfig::font_size → nearest baked TextRenderer size (0 = default).
-FontSize legend_font(float font_size)
+// Legend text size.  An explicit LegendConfig::font_size is drawn at exactly
+// that pixel size (a baked preset scaled by TextRenderer) with rows of
+// font_size + 6 px, the same metrics as the window legend
+// (LegendInteraction) and the SVG exporter.  Unset (0) keeps the historical
+// Label preset with rows sized from its line height (golden baselines).
+struct LegendFont
 {
-    if (font_size <= 0.0f)
-        return FontSize::Label;
-    if (font_size < 12.5f)
-        return FontSize::Tick;
-    if (font_size < 17.0f)
-        return FontSize::Label;
-    return FontSize::Title;
+    FontSize preset   = FontSize::Label;
+    float    scale    = 1.0f;
+    float    pixel_px = 0.0f;   // requested size; 0 = auto
+};
+
+LegendFont legend_font(float font_size)
+{
+    if (!(font_size > 0.0f))
+        return {};
+    const auto sf = TextRenderer::scaled_font(font_size);
+    return {sf.preset, sf.scale, font_size};
 }
 
 enum class SwatchKind
@@ -376,26 +384,29 @@ void Renderer::build_legend(AxesBase& axes, const LegendConfig& config)
 
     // A static image cannot scroll, so every entry must be represented: see
     // legend_layout::compute_static_grid for the policy (tighter rows, then
-    // an explicit "+N more" cell).  If the configured font overflows, the
-    // smaller tick font is tried first before entries are summarised.
+    // an explicit "+N more" cell).  Shrink-to-fit rule shared with the SVG
+    // exporter (see legend_layout::compute_static_grid): only the automatic
+    // size may fall back to the smaller tick font before entries are
+    // summarised; an explicitly requested font_size is always honoured.
     struct Fit
     {
-        FontSize                  font;
+        LegendFont                font;
         legend_layout::GridLayout grid;
     };
-    auto fit_with = [&](FontSize f)
+    auto fit_with = [&](const LegendFont& f)
     {
         float max_label_w = 0.0f;
-        float th          = 0.0f;
+        float th          = f.pixel_px;
         for (const Series* s : entries)
         {
-            const auto ext = text_renderer_.measure_text(s->label(), f);
+            const auto ext = text_renderer_.measure_text(s->label(), f.preset, f.scale);
             max_label_w    = std::max(max_label_w, ext.width);
-            th             = std::max(th, ext.height);
+            if (f.pixel_px <= 0.0f)
+                th = std::max(th, ext.height);
         }
         const int   n = static_cast<int>(entries.size());
         const float overflow_w =
-            text_renderer_.measure_text(legend_layout::overflow_text(n), f).width;
+            text_renderer_.measure_text(legend_layout::overflow_text(n), f.preset, f.scale).width;
         const float cw = SWATCH_W + SWATCH_GAP + max_label_w;
         const auto  g  = legend_layout::compute_static_grid(n,
                                                           cw,
@@ -410,16 +421,17 @@ void Renderer::build_legend(AxesBase& axes, const LegendConfig& config)
         return Fit{f, g};
     };
     Fit fit = fit_with(legend_font(config.font_size));
-    if (fit.grid.overflow > 0 && fit.font != FontSize::Tick)
+    if (fit.grid.overflow > 0 && fit.font.pixel_px <= 0.0f && fit.font.preset != FontSize::Tick)
     {
-        Fit small = fit_with(FontSize::Tick);
+        Fit small = fit_with(LegendFont{FontSize::Tick, 1.0f, 0.0f});
         if (small.grid.shown > fit.grid.shown)
             fit = small;
     }
-    const FontSize font  = fit.font;
-    const auto&    grid  = fit.grid;
-    const float    row_h = grid.cell_h;
-    const float    col_w = grid.cell_w;
+    const FontSize font       = fit.font.preset;
+    const float    font_scale = fit.font.scale;
+    const auto&    grid       = fit.grid;
+    const float    row_h      = grid.cell_h;
+    const float    col_w      = grid.cell_w;
     if (grid.rows <= 0)
         return;
 
@@ -440,8 +452,8 @@ void Renderer::build_legend(AxesBase& axes, const LegendConfig& config)
     const float label_w = legend_layout::column_width(grid, pad_x, legend_layout::COL_GAP)
                           - SWATCH_W - SWATCH_GAP + 0.5f;
     const char* ellipsis = text_renderer_.has_glyph(0x2026, font) ? "\xE2\x80\xA6" : "...";
-    auto        measure  = [this](const std::string& t, FontSize fs)
-    { return text_renderer_.measure_text(t, fs).width; };
+    auto        measure  = [this, font_scale](const std::string& t, FontSize fs)
+    { return text_renderer_.measure_text(t, fs, font_scale).width; };
 
     AnnotationBuilder b{annotation_vertex_scratch_, annotation_point_scratch_};
     auto              add = [this](AnnotationDraw::Kind       k,
@@ -566,7 +578,8 @@ void Renderer::build_legend(AxesBase& axes, const LegendConfig& config)
                                  font,
                                  pack_rgba(text),
                                  TextAlign::Left,
-                                 TextVAlign::Middle);
+                                 TextVAlign::Middle,
+                                 font_scale);
     }
 
     // ── Overflow indicator: the last cell reports entries that did not fit ──
@@ -582,7 +595,8 @@ void Renderer::build_legend(AxesBase& axes, const LegendConfig& config)
                                  font,
                                  pack_rgba(text_base),
                                  TextAlign::Left,
-                                 TextVAlign::Middle);
+                                 TextVAlign::Middle,
+                                 font_scale);
     }
 }
 

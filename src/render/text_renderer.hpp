@@ -76,14 +76,16 @@ class TextRenderer
     void shutdown(Backend& backend);
 
     // Queue text for rendering. Coordinates are in screen pixels.
-    // Text is batched and drawn on flush().
+    // Text is batched and drawn on flush().  `scale` draws the baked preset
+    // glyphs magnified / minified (see scaled_font()); 1 draws them 1:1.
     void draw_text(const std::string& text,
                    float              x,
                    float              y,
                    FontSize           size,
                    uint32_t           color_rgba,
                    TextAlign          align  = TextAlign::Left,
-                   TextVAlign         valign = TextVAlign::Top);
+                   TextVAlign         valign = TextVAlign::Top,
+                   float              scale  = 1.0f);
 
     // Queue rotated text (angle in radians, rotated around (x,y))
     void draw_text_rotated(const std::string& text,
@@ -104,13 +106,27 @@ class TextRenderer
     // Nearest baked preset for a requested pixel size (<= 0 maps to Label).
     static FontSize nearest_font_size(float pixel_size);
 
+    // Pixel size (ascent - descent) a preset is baked at.
+    static float preset_pixel_size(FontSize size);
+
+    // Draw text at an arbitrary pixel size: the smallest baked preset at
+    // least that large (else the largest) plus the scale to pass to
+    // draw_text() / measure_text().  Glyphs are rasterised with 4x
+    // oversampling, so up to ~4x the preset size is still a minification.
+    struct ScaledFont
+    {
+        FontSize preset = FontSize::Label;
+        float    scale  = 1.0f;
+    };
+    static ScaledFont scaled_font(float pixel_size);
+
     // Measure text dimensions without drawing
     struct TextExtent
     {
         float width;
         float height;
     };
-    TextExtent measure_text(const std::string& text, FontSize size) const;
+    TextExtent measure_text(const std::string& text, FontSize size, float scale = 1.0f) const;
 
     // Queue text with depth testing (for 3D labels occluded by geometry).
     // ndc_depth: depth value in [0,1] range from the 3D MVP projection.

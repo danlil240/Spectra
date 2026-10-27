@@ -1183,6 +1183,8 @@ void emit_legend(SvgContext& c, const AxesBase& axes, const Rect& vp, const Lege
     if (entries.empty())
         return;
 
+    // Explicit sizes are honoured exactly (no shrink-to-fit); see the font
+    // size rule at legend_layout::compute_static_grid.
     const float     font_px  = cfg.font_size > 0.0f ? cfg.font_size : 12.5f;
     const float     pad_x    = cfg.padding + 2.0f;
     const float     pad_y    = cfg.padding;

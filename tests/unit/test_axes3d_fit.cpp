@@ -7,6 +7,9 @@
 #include <spectra/axes3d.hpp>
 #include <spectra/camera.hpp>
 #include <spectra/math3d.hpp>
+#include <spectra/series3d.hpp>
+#include <spectra/series_shapes3d.hpp>
+#include <vector>
 
 using namespace spectra;
 
@@ -111,4 +114,128 @@ TEST(Axes3DProjectionFit, BoxFitsSubplotAtAnyOrientation)
             EXPECT_LE(b.y1, vp.y + vp.h - kMargin) << "az " << az << " el " << el;
         }
     }
+}
+
+// ── S20: shape geometry must be current before the first frame's limits ────
+// ShapeSeries3D generates its mesh lazily.  The renderer computes the model /
+// grid from Axes3D limits *before* it uploads series, so the limits of a fresh
+// (never rendered, never auto_fit) shape scene must already include the shapes.
+
+namespace
+{
+
+struct Limits3D
+{
+    AxisLimits x, y, z;
+};
+
+Limits3D limits_of(const Axes3D& ax)
+{
+    return {ax.x_limits(), ax.y_limits(), ax.z_limits()};
+}
+
+void expect_same(const Limits3D& a, const Limits3D& b)
+{
+    EXPECT_DOUBLE_EQ(a.x.min, b.x.min);
+    EXPECT_DOUBLE_EQ(a.x.max, b.x.max);
+    EXPECT_DOUBLE_EQ(a.y.min, b.y.min);
+    EXPECT_DOUBLE_EQ(a.y.max, b.y.max);
+    EXPECT_DOUBLE_EQ(a.z.min, b.z.min);
+    EXPECT_DOUBLE_EQ(a.z.max, b.z.max);
+}
+
+// Simulates what render_upload does for every shape series during a frame.
+void simulate_upload(Axes3D& ax)
+{
+    for (auto& s : ax.series_mut())
+        if (auto* sh = dynamic_cast<ShapeSeries3D*>(s.get()))
+            sh->rebuild_geometry();
+}
+
+}   // namespace
+
+TEST(Axes3DShapeFirstFrame, FreshShapeLimitsMatchSecondFrame)
+{
+    Axes3D ax;
+    ax.shapes3d().box(-1.5f, 0.0f, 0.0f, 0.5f, 0.5f, 0.5f);
+    ax.shapes3d().sphere(0.0f, 0.0f, 0.0f, 0.65f);
+    ax.shapes3d().cylinder(1.5f, -0.6f, -0.7f, 1.5f, -0.6f, 0.7f, 0.35f);
+    ax.shapes3d().cone(0.0f, 1.5f, -0.7f, 0.0f, 1.5f, 0.9f, 0.55f);
+
+    // First frame: nothing has generated geometry yet.
+    const Limits3D first = limits_of(ax);
+    simulate_upload(ax);
+    const Limits3D second = limits_of(ax);
+    expect_same(first, second);
+
+    // All solids lie within the padded bounds (box at x=-1.5, cylinder x=1.5,
+    // cone apex z=0.9), not the empty-data [0,1] fallback.
+    EXPECT_LT(first.x.min, -1.9);
+    EXPECT_GT(first.x.max, 1.8);
+    EXPECT_GT(first.y.max, 1.9);
+    EXPECT_GT(first.z.max, 0.85);
+    EXPECT_LT(first.z.min, -0.65);
+}
+
+TEST(Axes3DShapeFirstFrame, ArrowsAndPlaneFirstFrame)
+{
+    Axes3D ax;
+    ax.shapes3d().arrow3d(0, 0, 0, 1.8f, 0, 0, 0.05f);
+    ax.shapes3d().arrow3d(0, 0, 0, 0, 1.8f, 0, 0.05f);
+    ax.shapes3d().arrow3d(0, 0, 0, 0, 0, 1.8f, 0.05f);
+    ax.shapes3d().plane(0.6f, 0.6f, -0.1f, 0, 0, 1, 1.0f).opacity(0.35f);
+
+    const Limits3D first = limits_of(ax);
+    simulate_upload(ax);
+    expect_same(first, limits_of(ax));
+    // Plane spans x,y in [-0.4, 1.6] and z=-0.1; arrows reach 1.8.
+    EXPECT_LT(first.x.min, -0.4);
+    EXPECT_LT(first.z.min, -0.1);
+    EXPECT_GT(first.z.max, 1.8);
+}
+
+TEST(Axes3DShapeFirstFrame, MixedSeriesIncludeShapes)
+{
+    Axes3D             ax;
+    std::vector<float> x{0.0f, 1.0f}, y{0.0f, 1.0f}, z{0.0f, 1.0f};
+    ax.scatter3d(x, y, z);
+    ax.shapes3d().sphere(5.0f, 0.0f, 0.0f, 1.0f);
+
+    const Limits3D first = limits_of(ax);
+    EXPECT_GT(first.x.max, 6.0);
+    simulate_upload(ax);
+    expect_same(first, limits_of(ax));
+}
+
+TEST(Axes3DShapeFirstFrame, ShapesAddedAfterFirstFrameUpdateLimits)
+{
+    Axes3D ax;
+    auto&  shapes = ax.shapes3d();
+    shapes.sphere(0.0f, 0.0f, 0.0f, 1.0f);
+    simulate_upload(ax);
+    const Limits3D before = limits_of(ax);
+
+    // Append without any upload: limits must reflect the new shape at once.
+    shapes.box(10.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f);
+    const Limits3D after = limits_of(ax);
+    EXPECT_GT(after.x.max, 11.0);
+    EXPECT_GT(after.x.max, before.x.max);
+    simulate_upload(ax);
+    expect_same(after, limits_of(ax));
+
+    shapes.clear_shapes();
+    EXPECT_EQ(shapes.vertex_count(), 0u);
+}
+
+TEST(Axes3DShapeFirstFrame, ExplicitLimitsPreserved)
+{
+    Axes3D ax;
+    ax.shapes3d().sphere(0.0f, 0.0f, 0.0f, 5.0f);
+    ax.xlim(-1.0f, 1.0f);
+    ax.ylim(-2.0f, 2.0f);
+    ax.zlim(-3.0f, 3.0f);
+    const Limits3D l = limits_of(ax);
+    EXPECT_DOUBLE_EQ(l.x.min, -1.0);
+    EXPECT_DOUBLE_EQ(l.y.max, 2.0);
+    EXPECT_DOUBLE_EQ(l.z.min, -3.0);
 }

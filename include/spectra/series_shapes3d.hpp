@@ -109,12 +109,30 @@ class ShapeSeries3D : public Series
     // ── Geometry access (for renderer — MeshSeries-compatible format) ──
 
     // Flat vertex data: {x,y,z, nx,ny,nz} per vertex
-    std::span<const float> vertices() const { return vertices_; }
-    size_t                 vertex_count() const { return vertices_.size() / 6; }
+    // Geometry is generated lazily from the shape definitions on first access
+    // after a change, so these are always current (no prior render needed).
+    std::span<const float> vertices() const
+    {
+        ensure_geometry();
+        return vertices_;
+    }
+    size_t vertex_count() const
+    {
+        ensure_geometry();
+        return vertices_.size() / 6;
+    }
 
     // Triangle indices
-    std::span<const uint32_t> indices() const { return indices_; }
-    size_t                    triangle_count() const { return indices_.size() / 3; }
+    std::span<const uint32_t> indices() const
+    {
+        ensure_geometry();
+        return indices_;
+    }
+    size_t triangle_count() const
+    {
+        ensure_geometry();
+        return indices_.size() / 3;
+    }
 
     // Rebuild mesh geometry from shape definitions.
     void rebuild_geometry();
@@ -168,9 +186,14 @@ class ShapeSeries3D : public Series
    private:
     std::vector<ShapeDef3D> shapes_;
 
-    // Generated mesh data (MeshSeries-compatible)
-    std::vector<float>    vertices_;   // {x,y,z, nx,ny,nz} per vertex
-    std::vector<uint32_t> indices_;    // triangle indices
+    // Generated mesh data (MeshSeries-compatible).  A cache derived from
+    // shapes_, filled lazily by ensure_geometry() — hence mutable.
+    mutable std::vector<float>    vertices_;   // {x,y,z, nx,ny,nz} per vertex
+    mutable std::vector<uint32_t> indices_;    // triangle indices
+    mutable bool                  geometry_stale_ = false;
+
+    // Regenerate vertices_/indices_ if shapes_ changed since the last build.
+    void ensure_geometry() const;
 
     float ambient_   = 0.0f;
     float specular_  = 0.0f;

@@ -1147,4 +1147,40 @@ TEST(SvgExport, ExportOptionsCarryThePerExportTheme)
     EXPECT_TRUE(fig.export_req_.svg_theme.empty());
 }
 
+// write_svg()/to_string() without an SvgStyle must still honour the figure's
+// background override (round-2 follow-up).
+TEST(SvgExport, DefaultStyleHonoursBackgroundOverride)
+{
+    auto fig                        = make_line_figure();
+    fig.style().background          = Color{0.2f, 0.4f, 0.6f, 1.0f};
+    fig.style().background_override = true;
+    std::string svg                 = SvgExporter::to_string(fig);
+    EXPECT_NE(svg.find("class=\"background\" width=\"100%\" height=\"100%\" fill=\"#336699\""),
+              std::string::npos);
+
+    const auto path = (std::filesystem::temp_directory_path() / "spectra_bg_override.svg").string();
+    ASSERT_TRUE(SvgExporter::write_svg(path, fig));
+    std::ifstream     in(path);
+    const std::string file((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    std::remove(path.c_str());
+    EXPECT_NE(file.find("fill=\"#336699\""), std::string::npos);
+}
+
+TEST(SvgExport, DefaultStyleUsesLightInkOnDarkOverride)
+{
+    auto fig                        = make_line_figure();
+    fig.style().background          = Color{0.05f, 0.05f, 0.05f, 1.0f};
+    fig.style().background_override = true;
+    std::string svg                 = SvgExporter::to_string(fig);
+    // Title uses the dark theme's primary text colour, not the light default.
+    EXPECT_NE(svg.find("#f1f5f9"), std::string::npos);
+    EXPECT_EQ(svg.find(hex_of(SvgStyle{}.text_primary)), std::string::npos);
+}
+
+TEST(SvgExport, DefaultStyleUnchangedWithoutOverride)
+{
+    auto fig = make_line_figure();
+    EXPECT_EQ(SvgExporter::to_string(fig), SvgExporter::to_string(fig, SvgStyle{}));
+}
+
 }   // namespace spectra

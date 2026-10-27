@@ -47,6 +47,9 @@ class SvgExporter
     // Write a Figure to an SVG file. Traverses Figure→Axes→Series hierarchy
     // and emits SVG elements directly, bypassing the GPU pipeline.
     // 3D axes are projected with their camera and painter-sorted.
+    // Without an SvgStyle the light-theme chrome is used, except that a
+    // FigureStyle::background_override supplies the background (and dark ink
+    // when that background is dark).
     static bool write_svg(const std::string& path, const Figure& figure);
     static bool write_svg(const std::string& path, const Figure& figure, const SvgStyle& style);
 

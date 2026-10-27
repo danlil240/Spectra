@@ -575,9 +575,16 @@ void Renderer::render_figure_content(Figure& figure, FigureViewModel* fig_vm)
             ax.set_series_removed_callback(removal_cb);
         const auto& vp = ax.viewport();
 
-        // Box, grid and ticks of a 3D axes need the 3D grid pipeline.
+        // Box, grid and ticks of a 3D axes need the 3D grid pipeline.  Its
+        // axis arrows may reach into the margins of its subplot cell.
         if (dynamic_cast<Axes3D*>(&ax))
+        {
             require_pipeline(grid3d_pipeline_, "3D axes");
+            const Rect cell =
+                axes3d_cell_rect(vp, figure.style(), static_cast<float>(w), static_cast<float>(h));
+            render_axes(ax, vp, w, h, &cell);
+            continue;
+        }
 
         render_axes(ax, vp, w, h);
     }
@@ -690,6 +697,26 @@ void Renderer::render_figure(Figure& figure)
     legend_overlay_active_ = overlay_legend;
 }
 
+vec3 shader_light_dir(const Axes3D& axes)
+{
+    if (!axes.lighting_enabled())
+        return {0.0f, 0.0f, 0.0f};
+    const vec3 ld = axes.light_dir();
+    if (!(vec3_length_sq(ld) > 1e-6))   // also catches NaN
+        return {0.5f, 0.7f, 1.0f};
+    return ld;
+}
+
+Rect axes3d_cell_rect(const Rect& vp, const FigureStyle& style, float fig_w, float fig_h)
+{
+    auto grow = [](float margin, float size) { return std::clamp(margin, 0.0f, size * 0.25f); };
+    const float x0 = std::max(0.0f, vp.x - grow(style.margin_left, vp.w));
+    const float y0 = std::max(0.0f, vp.y - grow(style.margin_top, vp.h));
+    const float x1 = std::min(fig_w, vp.x + vp.w + grow(style.margin_right, vp.w));
+    const float y1 = std::min(fig_h, vp.y + vp.h + grow(style.margin_bottom, vp.h));
+    return Rect{x0, y0, std::max(0.0f, x1 - x0), std::max(0.0f, y1 - y0)};
+}
+
 ExportViewport compute_export_viewport(uint32_t figure_width,
                                        uint32_t figure_height,
                                        uint32_t export_width,
@@ -715,7 +742,8 @@ ExportViewport compute_export_viewport(uint32_t figure_width,
 void Renderer::render_axes(AxesBase&   axes,
                            const Rect& viewport,
                            uint32_t    fig_width,
-                           uint32_t    fig_height)
+                           uint32_t    fig_height,
+                           const Rect* scissor)
 {
     // Skip axes entirely outside the framebuffer (scrolled off-screen)
     if (viewport.y + viewport.h < 0.0f || viewport.y > static_cast<float>(fig_height))
@@ -729,10 +757,11 @@ void Renderer::render_axes(AxesBase&   axes,
         return;
 
     // Clamp scissor to framebuffer bounds to avoid negative offsets
-    float sx  = std::max(0.0f, viewport.x);
-    float sy  = std::max(0.0f, viewport.y);
-    float sx2 = std::min(static_cast<float>(fig_width), viewport.x + viewport.w);
-    float sy2 = std::min(static_cast<float>(fig_height), viewport.y + viewport.h);
+    const Rect& clip = scissor ? *scissor : viewport;
+    float       sx   = std::max(0.0f, clip.x);
+    float       sy   = std::max(0.0f, clip.y);
+    float       sx2  = std::min(static_cast<float>(fig_width), clip.x + clip.w);
+    float       sy2  = std::min(static_cast<float>(fig_height), clip.y + clip.h);
     float sw  = std::max(0.0f, sx2 - sx);
     float sh  = std::max(0.0f, sy2 - sy);
 
@@ -803,21 +832,11 @@ void Renderer::render_axes(AxesBase&   axes,
         ubo.camera_pos[1] = cam.position.y;
         ubo.camera_pos[2] = cam.position.z;
 
-        // Light direction from Axes3D (configurable)
-        if (axes3d->lighting_enabled())
-        {
-            vec3 ld          = axes3d->light_dir();
-            ubo.light_dir[0] = ld.x;
-            ubo.light_dir[1] = ld.y;
-            ubo.light_dir[2] = ld.z;
-        }
-        else
-        {
-            // Zero light_dir signals shader to skip lighting (use flat color)
-            ubo.light_dir[0] = 0.0f;
-            ubo.light_dir[1] = 0.0f;
-            ubo.light_dir[2] = 0.0f;
-        }
+        // Light direction from Axes3D; zero tells the shaders to skip lighting.
+        const vec3 ld    = shader_light_dir(*axes3d);
+        ubo.light_dir[0] = ld.x;
+        ubo.light_dir[1] = ld.y;
+        ubo.light_dir[2] = ld.z;
     }
     else if (auto* axes2d = dynamic_cast<Axes*>(&axes))
     {

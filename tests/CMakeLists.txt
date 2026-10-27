@@ -198,6 +198,8 @@ set(SPECTRA_UNIT_TESTS
     test_3d_pipelines
     test_camera
     test_axes3d_fit
+    test_axes3d_render_helpers
+    test_3d_lighting
     test_shape3d_first_frame
     test_shape2d_first_frame
     # test_axes3d  # Not a proper GTEST file, uses plain functions with assert
@@ -396,6 +398,7 @@ set(SPECTRA_GPU_TESTS
     test_shape3d_first_frame
     test_shape2d_first_frame
     test_custom_series_gpu
+    test_3d_lighting
     test_embed_annotations_c
     test_ui_shell_welcome_gpu
 )

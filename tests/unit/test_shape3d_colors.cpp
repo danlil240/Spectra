@@ -137,7 +137,8 @@ TEST_F(Shape3DColorTest, ShapeColorChangeAfterFirstFrameUpdates)
     sh.shape_color(colors::green);   // applies to the last (only) shape
     HueCounts after = render_and_count();
     EXPECT_GT(after.green, kMinPixels) << "colour change not reflected after first frame";
-    EXPECT_LT(after.red, kMinPixels / 4);
+    // The red X axis arrow stays; the red box pixels must be gone.
+    EXPECT_LT(after.red, before.red / 4);
 }
 
 TEST_F(Shape3DColorTest, TranslucentShapeBlendsOverBackground)

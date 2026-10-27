@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cmath>
 #include <filesystem>
 #include <fstream>
@@ -983,4 +984,79 @@ TEST_F(ColorblindPaletteTest, NightThemeTranslucentTextIsReadable)
 
     EXPECT_GE(c.text_primary.contrast_ratio_over(c.bg_primary), 4.5f);
     EXPECT_GE(c.text_secondary.contrast_ratio_over(c.bg_primary), 4.5f);
+}
+
+// ─── Surface-aware UI text contrast (all themes) ─────────────────────────────
+
+namespace
+{
+// Exact sRGB (WCAG 2.x) relative luminance of `fg` alpha-composited over the
+// opaque `bg`.  Self-contained so the test does not depend on Color::luminance().
+double srgb_composited_luminance(const Color& fg, const Color& bg)
+{
+    auto lin = [](double c)
+    { return c <= 0.04045 ? c / 12.92 : std::pow((c + 0.055) / 1.055, 2.4); };
+    const double a = fg.a;
+    const double r = fg.r * a + bg.r * (1.0 - a);
+    const double g = fg.g * a + bg.g * (1.0 - a);
+    const double b = fg.b * a + bg.b * (1.0 - a);
+    return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+}
+
+double srgb_contrast_over(const Color& fg, const Color& bg)
+{
+    const Color  opaque_bg(bg.r, bg.g, bg.b, 1.0f);
+    const double l_fg = srgb_composited_luminance(fg, opaque_bg);
+    const double l_bg = srgb_composited_luminance(opaque_bg, opaque_bg);
+    return (std::max(l_fg, l_bg) + 0.05) / (std::min(l_fg, l_bg) + 0.05);
+}
+
+struct NamedColor
+{
+    const char* name;
+    Color       color;
+};
+}   // namespace
+
+// Enabled tertiary and semantic text is drawn on the window background, panels,
+// chips/cards, inputs and popups.  Every pair must meet WCAG AA normal text (4.5:1)
+// on the real composite (token alpha included).  Disabled text and grids are excluded.
+TEST_F(ColorblindPaletteTest, UiTextTokensMeetAAOnEverySurfaceInAllThemes)
+{
+    for (const char* theme : {"dark", "night", "light", "high_contrast"})
+    {
+        tm_.set_theme(theme);
+        const ThemeColors c = tm_.current().colors;
+
+        const NamedColor surfaces[] = {{"bg_primary", c.bg_primary},
+                                       {"bg_secondary", c.bg_secondary},
+                                       {"bg_tertiary", c.bg_tertiary},
+                                       {"bg_elevated", c.bg_elevated},
+                                       {"input_bg", c.input_bg}};
+        const NamedColor texts[]    = {{"text_primary", c.text_primary},
+                                       {"text_secondary", c.text_secondary},
+                                       {"text_tertiary", c.text_tertiary},
+                                       {"success", c.success},
+                                       {"warning", c.warning},
+                                       {"error", c.error},
+                                       {"info", c.info},
+                                       {"critical", c.critical}};
+
+        for (const auto& s : surfaces)
+        {
+            for (const auto& t : texts)
+            {
+                const double ratio = srgb_contrast_over(t.color, s.color);
+                EXPECT_GE(ratio, 4.5)
+                    << theme << ": " << t.name << " on " << s.name << " is " << ratio << ":1";
+            }
+
+            // Hierarchy: tertiary must stay visibly weaker than secondary text.
+            const double sec = srgb_contrast_over(c.text_secondary, s.color);
+            const double ter = srgb_contrast_over(c.text_tertiary, s.color);
+            EXPECT_LT(ter * 1.2, sec)
+                << theme << ": text_tertiary (" << ter
+                << ":1) is not clearly weaker than text_secondary (" << sec << ":1) on " << s.name;
+        }
+    }
 }

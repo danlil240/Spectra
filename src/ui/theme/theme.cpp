@@ -1195,7 +1195,7 @@ void ThemeManager::initialize_default_themes()
         // Text — cool gray hierarchy with clearer secondary labels
         .text_primary   = Color::from_hex(0xF1F5F9),
         .text_secondary = Color::from_hex(0xCBD5E1),
-        .text_tertiary  = Color::from_hex(0x8A97A6),
+        .text_tertiary  = Color::from_hex(0xA3ADB9),   // >=4.5:1 on every surface
         .text_inverse   = Color::from_hex(0x0C1116),
 
         // Borders — glass rims that define the rail, canvas, and popups
@@ -1210,11 +1210,11 @@ void ThemeManager::initialize_default_themes()
         .accent_subtle = Color(0.62f, 0.83f, 0.90f, 0.08f),
 
         // Semantic
-        .success  = Color::from_hex(0x3FB950),
-        .warning  = Color::from_hex(0xD29922),
-        .error    = Color::from_hex(0xFF7575),   // WCAG AA: 4.52:1 on bg_secondary (#2E2E2E)
+        .success  = Color::from_hex(0x56C265),   // Semantic text: >=4.5:1 up to bg_elevated
+        .warning  = Color::from_hex(0xD7A439),
+        .error    = Color::from_hex(0xFF8A8A),
         .info     = Color::from_hex(0x7DD3FC),
-        .critical = Color::from_hex(0xF472D0),
+        .critical = Color::from_hex(0xF685D6),
 
         // Plot-specific — grid recedes, data is hero
         .grid_major       = Color(0.70f, 0.78f, 0.84f, 0.12f),
@@ -1259,7 +1259,7 @@ void ThemeManager::initialize_default_themes()
 
                               .text_primary   = glass_palette::kTextPrimary,
                               .text_secondary = Color(0.78f, 0.84f, 0.92f, 0.82f),
-                              .text_tertiary  = Color(0.55f, 0.62f, 0.74f, 0.72f),
+                              .text_tertiary  = Color(0.70f, 0.75f, 0.83f, 0.72f),
                               .text_inverse   = Color::from_hex(0x050810),
 
                               .border_default = Color(0.22f, 0.28f, 0.38f, 0.28f),
@@ -1273,8 +1273,8 @@ void ThemeManager::initialize_default_themes()
 
                               .success  = glass_palette::kSuccessGreen,
                               .warning  = glass_palette::kWarningAmber,
-                              .error    = Color::from_hex(0xF85149),
-                              .info     = glass_palette::kAccentBlue,
+                              .error    = Color::from_hex(0xF9645D),
+                              .info     = Color::from_hex(0x5395F5),
                               .critical = glass_palette::kAccentMagenta,
 
                               .grid_major       = Color(0.55f, 0.72f, 0.92f, tokens::GRID_MAJOR_ALPHA_NIGHT),
@@ -1318,7 +1318,7 @@ void ThemeManager::initialize_default_themes()
                     // Text — blue-black ink against frosted surfaces
                               .text_primary   = Color::from_hex(0x102033),
                               .text_secondary = Color::from_hex(0x33485F),
-                              .text_tertiary  = Color::from_hex(0x64748B),
+                              .text_tertiary  = Color::from_hex(0x566478),
                               .text_inverse   = Color::from_hex(0xFFFFFF),
 
                     // Borders — cool glass rims with enough contrast to define layers
@@ -1333,10 +1333,10 @@ void ThemeManager::initialize_default_themes()
                               .accent_subtle = Color(0.05f, 0.45f, 0.56f, 0.08f),
 
                     // Semantic
-                              .success  = Color::from_hex(0x1A7F37),
+                              .success  = Color::from_hex(0x177231),
                               .warning  = Color::from_hex(0x7A5000),   // WCAG AA on light surfaces
                               .error    = Color::from_hex(0xB91C1C),   // WCAG AA on light surfaces
-                              .info     = Color::from_hex(0x2563EB),
+                              .info     = Color::from_hex(0x225AD5),
                               .critical = Color::from_hex(0xA21CAF),   // WCAG AA on light surfaces
 
                     // Plot-specific — cool academic gridlines on the tinted canvas
@@ -1401,9 +1401,9 @@ void ThemeManager::initialize_default_themes()
                             // Semantic
                                                      .success  = Color::from_hex(0x00FF00),
                                                      .warning  = Color::from_hex(0xFFFF00),
-                                                     .error    = Color::from_hex(0xFF0000),
+                                                     .error    = Color::from_hex(0xFF8585),   // 4.6:1 on bg_elevated
                                                      .info     = Color::from_hex(0xFFD700),
-                                                     .critical = Color::from_hex(0xFF00FF),
+                                                     .critical = Color::from_hex(0xFF6EFF),
 
                             // Plot-specific — text, axes and ticks stay at full contrast;
                             // the grid is a dim reference so it never outweighs the data,

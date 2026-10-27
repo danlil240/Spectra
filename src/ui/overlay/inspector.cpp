@@ -287,7 +287,7 @@ void Inspector::draw_series_browser(Figure& fig)
             ImGui::PushFont(font_heading_);
         ImGui::PushStyleColor(
             ImGuiCol_Text,
-            ImVec4(c.text_tertiary.r, c.text_tertiary.g, c.text_tertiary.b, 0.8f));
+            ImVec4(c.text_tertiary.r, c.text_tertiary.g, c.text_tertiary.b, c.text_tertiary.a));
         ImGui::TextUnformatted("SERIES");
         ImGui::PopStyleColor();
         if (font_heading_)
@@ -1037,7 +1037,7 @@ void Inspector::draw_reference_lines(Axes& ax)
     {
         ImGui::PushStyleColor(
             ImGuiCol_Text,
-            ImVec4(c.text_tertiary.r, c.text_tertiary.g, c.text_tertiary.b, 0.7f));
+            ImVec4(c.text_tertiary.r, c.text_tertiary.g, c.text_tertiary.b, c.text_tertiary.a));
         ImGui::TextUnformatted("No reference lines");
         ImGui::PopStyleColor();
         return;

@@ -101,8 +101,7 @@ static bool is_3d_series_type(const std::string& t)
 
 // Apply a snapshot series colour.  An auto-coloured series (color_index >= 0)
 // keeps following this window's data palette; otherwise the colour is explicit.
-static void apply_snapshot_color(spectra::Series&                         s,
-                                 const spectra::ipc::SnapshotSeriesState& ss)
+static void apply_snapshot_color(spectra::Series& s, const spectra::ipc::SnapshotSeriesState& ss)
 {
     if (ss.color_index >= 0)
         s.set_auto_color_index(ss.color_index);

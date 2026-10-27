@@ -795,6 +795,50 @@ TEST(Colormap, SampleViridisEndpoints)
     EXPECT_GT(lum1, lum0);
 }
 
+TEST(Colormap, SampleViridisMatchesReference)
+{
+    // Reference values from matplotlib's viridis; the middle of the map must stay teal-green
+    // (it previously degraded to a neutral grey, losing the map's hue).
+    struct Ref
+    {
+        float t, r, g, b;
+    };
+    const Ref refs[] = {{0.0f, 0.267f, 0.005f, 0.329f},
+                        {0.25f, 0.230f, 0.322f, 0.546f},
+                        {0.5f, 0.128f, 0.567f, 0.551f},
+                        {0.75f, 0.369f, 0.789f, 0.383f},
+                        {1.0f, 0.993f, 0.906f, 0.144f}};
+    for (const auto& ref : refs)
+    {
+        Color c = SurfaceSeries::sample_colormap(ColormapType::Viridis, ref.t);
+        EXPECT_NEAR(c.r, ref.r, 0.03f) << "t=" << ref.t;
+        EXPECT_NEAR(c.g, ref.g, 0.03f) << "t=" << ref.t;
+        EXPECT_NEAR(c.b, ref.b, 0.03f) << "t=" << ref.t;
+    }
+    Color mid = SurfaceSeries::sample_colormap(ColormapType::Viridis, 0.5f);
+    EXPECT_GT(mid.g, mid.r + 0.3f);
+    EXPECT_GT(mid.b, mid.r + 0.3f);
+}
+
+TEST(Colormap, SampleSequentialMapsReferenceMidpoints)
+{
+    struct Ref
+    {
+        ColormapType cm;
+        float        r, g, b;
+    };
+    const Ref refs[] = {{ColormapType::Plasma, 0.798f, 0.280f, 0.470f},
+                        {ColormapType::Inferno, 0.736f, 0.216f, 0.330f},
+                        {ColormapType::Magma, 0.716f, 0.215f, 0.475f}};
+    for (const auto& ref : refs)
+    {
+        Color c = SurfaceSeries::sample_colormap(ref.cm, 0.5f);
+        EXPECT_NEAR(c.r, ref.r, 0.03f);
+        EXPECT_NEAR(c.g, ref.g, 0.03f);
+        EXPECT_NEAR(c.b, ref.b, 0.03f);
+    }
+}
+
 TEST(Colormap, SampleJetEndpoints)
 {
     Color c0 = SurfaceSeries::sample_colormap(ColormapType::Jet, 0.0f);

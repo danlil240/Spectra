@@ -49,6 +49,17 @@ void Tooltip::draw(const NearestPointResult& nearest,
     if (!enabled_)
         return;
 
+    // A context menu, menu-bar menu or modal is open: the readout would draw over
+    // it (the overlay layer is not ordered against popups), so hide it and let it
+    // fade back in once the popup closes.
+    if (ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel))
+    {
+        hysteresis_     = 0.0f;
+        target_opacity_ = 0.0f;
+        opacity_        = 0.0f;
+        return;
+    }
+
     float dt = ImGui::GetIO().DeltaTime;
     fade_out_if_no_snap(nearest, dt);
     if (!nearest.found)

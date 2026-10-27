@@ -8,6 +8,7 @@
 #include <spectra/logger.hpp>
 
 #include "ui/app/ros2_adapter_state.hpp"
+#include "ui/app/session_runtime.hpp"
 #include "ui/app/window_ui_context.hpp"
 #include "ui/figures/figure_manager.hpp"
 
@@ -107,6 +108,46 @@ std::vector<CommandDescriptor> make_app_commands(CommandContext& ctx)
                             cmd_palette.close();
                         }
                     }});
+
+    // File > Exit. Closes every window this process owns through the same
+    // deferred path as the title-bar close button (WindowManager::request_close),
+    // so figures are torn down and the main loop ends once no window is left.
+    // Without a window manager (single-window runtime) the session stops instead.
+    {
+        SessionRuntime* session = ctx.session;
+    #ifdef SPECTRA_USE_GLFW
+        WindowManager* quit_window_mgr = ctx.window_mgr;
+    #else
+        void* quit_window_mgr = nullptr;
+    #endif
+        cmds.push_back({"app.quit",
+                        "Exit",
+                        "Ctrl+Q",
+                        "App",
+                        static_cast<uint16_t>(ui::Icon::Close),
+                        [session, quit_window_mgr]()
+                        {
+    #ifdef SPECTRA_USE_GLFW
+                            if (quit_window_mgr && !quit_window_mgr->windows().empty())
+                            {
+                                // request_close only queues ids; copy so the loop does
+                                // not depend on the live window list.
+                                const std::vector<WindowContext*> windows =
+                                    quit_window_mgr->windows();
+                                for (auto* wctx : windows)
+                                {
+                                    if (wctx)
+                                        quit_window_mgr->request_close(wctx->id);
+                                }
+                                return;
+                            }
+    #else
+                            (void)quit_window_mgr;
+    #endif
+                            if (session)
+                                session->request_exit();
+                        }});
+    }
 
     #ifdef SPECTRA_USE_GLFW
     {

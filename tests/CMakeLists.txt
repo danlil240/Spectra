@@ -189,6 +189,8 @@ set(SPECTRA_UNIT_TESTS
     test_shell_menu_bar
     test_shell_nav_rail
     test_shell_app_shell
+    test_ui_shell_fixes
+    test_ui_shell_welcome_gpu
     test_plugin_api
     test_workspace_v3
     test_phase3_integration
@@ -196,6 +198,8 @@ set(SPECTRA_UNIT_TESTS
     test_3d_pipelines
     test_camera
     test_axes3d_fit
+    test_axes3d_render_helpers
+    test_3d_lighting
     test_shape3d_first_frame
     test_shape2d_first_frame
     # test_axes3d  # Not a proper GTEST file, uses plain functions with assert
@@ -396,7 +400,9 @@ set(SPECTRA_GPU_TESTS
     test_shape3d_first_frame
     test_shape2d_first_frame
     test_custom_series_gpu
+    test_3d_lighting
     test_embed_annotations_c
+    test_ui_shell_welcome_gpu
 )
 
 foreach(_test ${SPECTRA_UNIT_TESTS})
@@ -427,6 +433,10 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
         # during a theme transition; settings_layout drives the Settings modal;
         # font_fallback checks ImGui decodes code points above U+FFFF.
         if(_test MATCHES "^test_(crosshair_mapping|log_overlays|double_precision_data|data_interaction|legend_bounds|legend_font_size|inspector|overlay_text_fit|settings_layout|theme|font_fallback)$" AND DEFINED imgui_SOURCE_DIR)
+            target_include_directories(unit_${_test} SYSTEM PRIVATE ${imgui_SOURCE_DIR})
+        endif()
+        # UI shell follow-ups draw tooltip / status bar into a bare ImGui context.
+        if(_test MATCHES "^test_ui_shell_(fixes|welcome_gpu)$" AND DEFINED imgui_SOURCE_DIR)
             target_include_directories(unit_${_test} SYSTEM PRIVATE ${imgui_SOURCE_DIR})
         endif()
         # CSV writer shared with the export_csv example plugin (header-only)

@@ -101,10 +101,12 @@ class Axes3D : public AxesBase
     static constexpr float box_half_size() { return 3.0f; }
 
     // Factor (>= 1) by which the camera projection is widened in viewport `vp`
-    // so the bounding box with its axis arrows, tick labels and title fits the
-    // viewport at the default camera distance.  Depends only on the viewport
-    // size (and whether a title is set) -- not on orientation, zoom or FOV --
-    // so the box keeps a steady size while orbiting.
+    // so the bounding box fits the viewport (plus a small proportional bleed
+    // into the surrounding layout margin, where labels, arrows and the title
+    // go) at the default camera distance.  1 for landscape viewports; only
+    // narrow ones zoom out.  Depends only on the viewport's aspect ratio -- not
+    // on its pixel size, DPI, orientation, zoom or FOV -- so the box keeps a
+    // steady size while orbiting.
     float projection_fit_scale(const Rect& vp) const;
 
     // Camera projection for viewport `vp` with projection_fit_scale() applied.

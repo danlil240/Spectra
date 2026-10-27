@@ -1,9 +1,10 @@
 #include "axes3d.hpp"
 
+#include "axis_ticks.hpp"
+
 #include <cmath>
 
 #include <algorithm>
-#include <format>
 #include <limits>
 #include <spectra/camera.hpp>
 #include <spectra/series.hpp>
@@ -14,104 +15,16 @@ namespace spectra
 namespace
 {
 
-// Format a tick value smartly for 3D axes: use enough decimal digits so that
-// ticks at the given spacing are distinguishable.
-static std::string format_tick_value_3d(double value, double spacing)
-{
-    if (std::abs(value) < spacing * 1e-6)
-        return "0";
-
-    double abs_val     = std::abs(value);
-    double abs_spacing = std::abs(spacing);
-
-    int digits_after_decimal = 0;
-    if (abs_spacing > 0 && std::isfinite(abs_spacing))
-    {
-        digits_after_decimal = static_cast<int>(std::ceil(-std::log10(abs_spacing))) + 1;
-        if (digits_after_decimal < 0)
-            digits_after_decimal = 0;
-    }
-
-    int total_sig_digits = 0;
-    if (abs_val > 0 && abs_spacing > 0)
-    {
-        total_sig_digits = static_cast<int>(std::ceil(std::log10(abs_val / abs_spacing))) + 2;
-        if (total_sig_digits < 4)
-            total_sig_digits = 4;
-        if (total_sig_digits > 15)
-            total_sig_digits = 15;
-    }
-    else
-    {
-        total_sig_digits = 6;
-    }
-
-    if (digits_after_decimal <= 9 && abs_val < 1e9 && abs_val >= 0.001)
-    {
-        std::string str = std::format("{:.{}f}", value, digits_after_decimal);
-        if (str.find('.') != std::string::npos)
-        {
-            while (str.back() == '0')
-                str.pop_back();
-            if (str.back() == '.')
-                str.pop_back();
-        }
-        return str;
-    }
-
-    return std::format("{:.{}e}", value, total_sig_digits - 1);
-}
-
+// 3D ticks use the shared linear tick generator (core/axis_ticks.hpp), so they
+// are placed and formatted exactly like 2D ticks (shared precision per axis,
+// offset / exponent moved into TickResult::offset_label).  The box edges keep a
+// fixed on-screen size, so the axis length is a constant: about five steps.
 TickResult compute_ticks_for_range(double dmin, double dmax)
 {
-    TickResult result;
-
-    if (dmax <= dmin)
-    {
-        result.positions = {dmin};
-        result.labels    = {format_tick_value_3d(dmin, 1.0)};
-        return result;
-    }
-
-    double range      = dmax - dmin;
-    double rough_step = range / 5.0;
-
-    double magnitude  = std::pow(10.0, std::floor(std::log10(rough_step)));
-    double normalized = rough_step / magnitude;
-
-    double nice_step = NAN;
-    if (normalized < 1.5)
-        nice_step = 1.0;
-    else if (normalized < 3.0)
-        nice_step = 2.0;
-    else if (normalized < 7.0)
-        nice_step = 5.0;
-    else
-        nice_step = 10.0;
-
-    nice_step *= magnitude;
-
-    if (nice_step <= 0.0 || !std::isfinite(nice_step))
-    {
-        result.positions = {dmin};
-        result.labels    = {format_tick_value_3d(dmin, range)};
-        return result;
-    }
-
-    double start = std::ceil(dmin / nice_step) * nice_step;
-
-    int max_iters = 30;
-    int iters     = 0;
-    for (double val = start; val <= dmax + nice_step * 0.01 && iters < max_iters;
-         val += nice_step, ++iters)
-    {
-        if (std::abs(val) < nice_step * 1e-6)
-            val = 0.0;
-        result.positions.push_back(val);
-        result.labels.push_back(format_tick_value_3d(val, nice_step));
-    }
-
-    return result;
+    LinearTickOptions opt;
+    opt.target_px = Y_TICK_TARGET_PX;
+    opt.axis_px   = 5.0 * Y_TICK_TARGET_PX;
+    return generate_linear_ticks(dmin, dmax, opt);
 }
 
 }   // anonymous namespace
@@ -377,24 +290,25 @@ float Axes3D::projection_fit_scale(const Rect& vp) const
     const float     radius       = box_half_size() * std::sqrt(3.0f);
     const float     tan_sphere = radius / std::sqrt(kRefDistance * kRefDistance - radius * radius);
 
-    // Pixels kept free around the sphere for tick labels and arrow tips, plus
-    // the title band drawn inside the top of the viewport.
-    constexpr float kLabelMarginPx = 22.0f;
-    constexpr float kTitleMarginPx = 14.0f;
-    const float     margin_x       = kLabelMarginPx;
-    const float     margin_y       = kLabelMarginPx + (title().empty() ? 0.0f : kTitleMarginPx);
+    // The sphere may bleed a little past the viewport into the layout margin
+    // around it (the subplot cell): tick labels, arrow tips and the title sit
+    // in that margin, as they do for 2D axes.  The allowance is a fraction of
+    // the viewport rather than a fixed pixel count, so the fit is the same at
+    // any DPI scale and small panels are not squeezed by fixed margins.  With
+    // it a landscape cell keeps scale 1: a single full-size 3D axes fills its
+    // cell exactly as before the fit existed; only narrow cells zoom out.
+    constexpr float kBleed = 0.035f;
 
     const float half_w = vp.w * 0.5f;
     const float half_h = vp.h * 0.5f;
     if (!(half_w > 0.0f) || !(half_h > 0.0f))
         return 1.0f;
-    // Never let margins eat more than half of a tiny viewport.
-    const float usable_w = std::max(half_w - margin_x, half_w * 0.5f);
-    const float usable_h = std::max(half_h - margin_y, half_h * 0.5f);
+    const float avail_w = half_w * (1.0f + kBleed);
+    const float avail_h = half_h * (1.0f + kBleed);
 
     // At scale 1 a view-space tangent t maps to t / kRefTanHalf * half_h pixels
     // on both screen axes; widen until the sphere fits the tighter one.
-    const float scale = tan_sphere / kRefTanHalf * half_h / std::min(usable_w, usable_h);
+    const float scale = tan_sphere / kRefTanHalf * half_h / std::min(avail_w, avail_h);
     return std::max(1.0f, scale);
 }
 

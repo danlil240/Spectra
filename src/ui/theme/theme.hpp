@@ -738,4 +738,46 @@ inline Color control_glow_color(const ThemeColors& c)
     return c.accent;
 }
 
+// ─── Contrast-checked UI colours ────────────────────────────────────────────
+
+// True when the theme's app chrome (bg_primary) is light.
+inline bool is_light_chrome(const ThemeColors& c)
+{
+    return c.bg_primary.luminance() > 0.4f;
+}
+
+// `fg` moved toward black or white (whichever side of `bg` it can gain contrast
+// on) until its WCAG contrast with the opaque `bg` reaches `min_ratio`. Returned
+// unchanged when it already does. The result keeps fg's alpha.
+Color ensure_contrast(const Color& fg, const Color& bg, float min_ratio);
+
+// Scrim ImGui draws behind modal dialogs (ImGuiCol_ModalWindowDimBg). Light
+// chrome gets a stronger, slate-tinted scrim so the dialog stands apart.
+Color modal_dim_color(const ThemeColors& c);
+
+// Status-bar performance readouts. Text colours reach 4.5:1 against what they
+// sit on (fps text against the pill, gpu text against the bar).
+struct StatusPerfColors
+{
+    Color fps_fill;
+    Color fps_border;
+    Color fps_text;
+    Color gpu_text;
+};
+StatusPerfColors status_perf_colors(const ThemeColors& c, bool fps_live, float glow_intensity);
+
+// Empty-state / welcome action buttons, resolved against the opaque `backdrop`
+// they are drawn on. Fills are opaque. Text reaches 4.5:1 against every fill
+// state, and the button edge (secondary: border; primary: fill) reaches 4.5:1
+// against the backdrop so the button reads as a button.
+struct ActionButtonColors
+{
+    Color fill;
+    Color hover;
+    Color active;
+    Color text;
+    Color border;   // alpha 0 = no border
+};
+ActionButtonColors action_button_colors(const ThemeColors& c, bool primary, const Color& backdrop);
+
 }   // namespace spectra::ui

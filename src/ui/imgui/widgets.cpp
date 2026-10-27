@@ -14,6 +14,7 @@
     #include <vector>
 
     #include "ui/theme/icons.hpp"
+    #include "ui/theme/theme_imgui.hpp"
     #include "ui/ui_interaction_log.hpp"
 
     #include <spectra/animator.hpp>
@@ -1143,25 +1144,15 @@ int empty_state_actions(std::span<const EmptyStateAction> actions, float start_x
         }
         ImGui::PushID(action.id ? action.id : action.label);
         ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_MD);
-        if (action.primary)
-        {
-            ImGui::PushStyleColor(ImGuiCol_Button,
-                                  ImVec4(c.accent.r, c.accent.g, c.accent.b, 0.85f));
-            ImGui::PushStyleColor(
-                ImGuiCol_ButtonHovered,
-                ImVec4(c.accent_hover.r, c.accent_hover.g, c.accent_hover.b, 0.95f));
-            ImGui::PushStyleColor(ImGuiCol_ButtonActive,
-                                  ImVec4(c.accent.r, c.accent.g, c.accent.b, 1.0f));
-        }
-        else
-        {
-            ImGui::PushStyleColor(ImGuiCol_Button,
-                                  ImVec4(c.bg_tertiary.r, c.bg_tertiary.g, c.bg_tertiary.b, 0.75f));
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
-                                  ImVec4(c.bg_elevated.r, c.bg_elevated.g, c.bg_elevated.b, 0.95f));
-            ImGui::PushStyleColor(ImGuiCol_ButtonActive,
-                                  ImVec4(c.accent.r, c.accent.g, c.accent.b, 0.25f));
-        }
+        // Contrast-checked against the chrome backdrop (welcome screen fill).
+        const ActionButtonColors bc       = action_button_colors(c, action.primary, c.bg_primary);
+        const bool               bordered = bc.border.a > 0.0f;
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, bordered ? 1.0f : 0.0f);
+        ImGui::PushStyleColor(ImGuiCol_Button, to_imvec4(bc.fill));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, to_imvec4(bc.hover));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, to_imvec4(bc.active));
+        ImGui::PushStyleColor(ImGuiCol_Text, to_imvec4(bc.text));
+        ImGui::PushStyleColor(ImGuiCol_Border, to_imvec4(bc.border));
         if (ImGui::Button(action.label ? action.label : "", sizes[i]))
         {
             clicked = static_cast<int>(i);
@@ -1170,8 +1161,8 @@ int empty_state_actions(std::span<const EmptyStateAction> actions, float start_x
                           "ok",
                           "empty_state");
         }
-        ImGui::PopStyleColor(3);
-        ImGui::PopStyleVar();
+        ImGui::PopStyleColor(5);
+        ImGui::PopStyleVar(2);
         ImGui::PopID();
         if (i + 1 < actions.size())
             ImGui::SameLine(0.0f, tokens::EMPTY_STATE_ACTION_GAP);

@@ -76,6 +76,18 @@ ExportViewport compute_export_viewport(uint32_t figure_width,
                                        uint32_t export_width,
                                        uint32_t export_height);
 
+// Light direction (data space) that the 3D surface and mesh shaders receive for
+// `axes`.  Zero when lighting is disabled: the shaders then draw the flat base
+// colour.  Otherwise the axes' light_dir(), or a default direction when that is
+// (near) zero, so a zero vector always means "unlit".
+vec3 shader_light_dir(const Axes3D& axes);
+
+// Region a 3D axes may draw into: its viewport `vp` grown into the layout margins
+// of its subplot cell (each side by the figure's margin, at most a quarter of
+// the viewport size), clamped to the fig_w x fig_h figure.  Axis arrows, tick
+// labels and the title of a 3D axes may extend into it.
+Rect axes3d_cell_rect(const Rect& vp, const FigureStyle& style, float fig_w, float fig_h);
+
 class Renderer
 {
    public:
@@ -221,7 +233,12 @@ class Renderer
     // Paint FigureStyle::background over the figure region when the figure
     // overrides the theme canvas colour (the render-pass clear always uses the theme).
     void render_figure_background(Figure& figure);
-    void render_axes(AxesBase& axes, const Rect& viewport, uint32_t fig_width, uint32_t fig_height);
+    // `scissor` (optional) replaces the viewport as the clip rectangle.
+    void render_axes(AxesBase&   axes,
+                     const Rect& viewport,
+                     uint32_t    fig_width,
+                     uint32_t    fig_height,
+                     const Rect* scissor = nullptr);
     void render_grid(AxesBase& axes, const Rect& viewport);
     void render_bounding_box(Axes3D& axes, const Rect& viewport);
     void render_tick_marks(Axes3D& axes, const Rect& viewport);

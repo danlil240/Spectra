@@ -120,6 +120,8 @@ std::unique_ptr<ImGuiIntegration> make_imgui_integration()
 
 // ─── Lifecycle ──────────────────────────────────────────────────────────────
 
+ImGuiIntegration::ImGuiIntegration() = default;
+
 ImGuiIntegration::~ImGuiIntegration()
 {
     shutdown();
@@ -1108,8 +1110,15 @@ void ImGuiIntegration::build_empty_ui()
     if (settings_panel_)
         settings_panel_->draw();
 
+    // Theme Settings is reachable from the Tools menu on the welcome screen too.
+    draw_theme_settings();
+
     // Welcome-state drop target: allows dragging a topic to auto-create a new figure.
     draw_topic_drop_target_welcome();
+
+    // Command palette overlay (Ctrl+K / Tools menu) — last so it renders on top.
+    if (command_palette_)
+        command_palette_->draw(io.DisplaySize.x, io.DisplaySize.y);
 }
 
 // ─── Welcome screen logo texture ────────────────────────────────────────────

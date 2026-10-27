@@ -63,13 +63,38 @@ TEST(Axes3DProjectionFit, NarrowViewportZoomsOutMore)
     EXPECT_GT(narrow, wide);
 }
 
-TEST(Axes3DProjectionFit, TitleReservesVerticalSpace)
+// Issue #105: a full-size 3D axes (and any landscape panel, large or small)
+// fills its viewport exactly as before the fit existed.
+TEST(Axes3DProjectionFit, LandscapeViewportKeepsFullSize)
+{
+    Axes3D ax;
+    ax.title("Title");   // drawn above the viewport: no longer shrinks the box
+    EXPECT_FLOAT_EQ(ax.projection_fit_scale(Rect{70, 40, 1190.0f, 860.0f}), 1.0f);
+    EXPECT_FLOAT_EQ(ax.projection_fit_scale(Rect{70, 40, 550.0f, 380.0f}), 1.0f);
+    EXPECT_FLOAT_EQ(ax.projection_fit_scale(Rect{70, 40, 180.0f, 120.0f}), 1.0f);
+    EXPECT_FLOAT_EQ(ax.projection_fit_scale(Rect{0, 0, 600.0f, 600.0f}), 1.0f);
+}
+
+TEST(Axes3DProjectionFit, TitleDoesNotShrinkTheBox)
 {
     Axes3D      ax;
-    const Rect  vp{0, 0, 1190.0f, 700.0f};
+    const Rect  vp{0, 0, 560.0f, 700.0f};
     const float without = ax.projection_fit_scale(vp);
     ax.title("Title");
-    EXPECT_GT(ax.projection_fit_scale(vp), without);
+    EXPECT_FLOAT_EQ(ax.projection_fit_scale(vp), without);
+}
+
+// Margins are proportional: the same panel at 2x DPI (twice the pixels) gets
+// the same fit, and a small panel is not squeezed more than a large one.
+TEST(Axes3DProjectionFit, DependsOnlyOnAspectRatio)
+{
+    Axes3D ax;
+    for (const Rect vp : {Rect{0, 0, 560.0f, 700.0f}, Rect{0, 0, 300.0f, 900.0f}})
+    {
+        const float base = ax.projection_fit_scale(vp);
+        EXPECT_NEAR(ax.projection_fit_scale(Rect{0, 0, vp.w * 2.0f, vp.h * 2.0f}), base, 1e-5f);
+        EXPECT_NEAR(ax.projection_fit_scale(Rect{0, 0, vp.w * 0.25f, vp.h * 0.25f}), base, 1e-5f);
+    }
 }
 
 TEST(Axes3DProjectionFit, IndependentOfOrientationAndZoom)
@@ -94,24 +119,27 @@ TEST(Axes3DProjectionFit, ProjectionMatrixScalesCameraProjection)
     EXPECT_FLOAT_EQ(proj.m[14], cam.m[14]);
 }
 
-// The box stays inside a half-figure subplot, with a label margin, at every
-// orientation (default distance).
+// The box stays inside its subplot at every orientation (default distance),
+// reaching at most 4% of the half-extent into the cell margin: in a narrow
+// half-figure subplot and in a full-size landscape one.
 TEST(Axes3DProjectionFit, BoxFitsSubplotAtAnyOrientation)
 {
-    constexpr float kMargin = 20.0f;
-    const Rect      vp{70.0f, 40.0f, 545.0f, 700.0f};
-    for (float az = 0.0f; az < 360.0f; az += 15.0f)
+    for (const Rect vp : {Rect{70.0f, 40.0f, 545.0f, 700.0f}, Rect{70.0f, 40.0f, 1190.0f, 860.0f}})
     {
-        for (float el = -89.0f; el <= 89.0f; el += 89.0f / 4.0f)
+        const float kMargin = -0.04f * std::min(vp.w, vp.h) * 0.5f;
+        for (float az = 0.0f; az < 360.0f; az += 15.0f)
         {
-            Axes3D ax;
-            ax.title("t");
-            ax.camera().set_azimuth(az).set_elevation(el);
-            const PixelBounds b = project_box(ax, vp);
-            EXPECT_GE(b.x0, vp.x + kMargin) << "az " << az << " el " << el;
-            EXPECT_LE(b.x1, vp.x + vp.w - kMargin) << "az " << az << " el " << el;
-            EXPECT_GE(b.y0, vp.y + kMargin) << "az " << az << " el " << el;
-            EXPECT_LE(b.y1, vp.y + vp.h - kMargin) << "az " << az << " el " << el;
+            for (float el = -89.0f; el <= 89.0f; el += 89.0f / 4.0f)
+            {
+                Axes3D ax;
+                ax.title("t");
+                ax.camera().set_azimuth(az).set_elevation(el);
+                const PixelBounds b = project_box(ax, vp);
+                EXPECT_GE(b.x0, vp.x + kMargin) << "az " << az << " el " << el;
+                EXPECT_LE(b.x1, vp.x + vp.w - kMargin) << "az " << az << " el " << el;
+                EXPECT_GE(b.y0, vp.y + kMargin) << "az " << az << " el " << el;
+                EXPECT_LE(b.y1, vp.y + vp.h - kMargin) << "az " << az << " el " << el;
+            }
         }
     }
 }

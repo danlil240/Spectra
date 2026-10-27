@@ -687,7 +687,7 @@ void ThemeManager::apply_to_imgui()
     imgui_colors[ImGuiCol_NavWindowingDimBg]     = ImVec4(0, 0, 0, 0.40f);
 
     // Modal
-    imgui_colors[ImGuiCol_ModalWindowDimBg] = lin(colors.bg_overlay, 0.5f);
+    imgui_colors[ImGuiCol_ModalWindowDimBg] = lin(modal_dim_color(colors));
 }
 
 void ThemeManager::apply_to_renderer(Renderer& renderer)
@@ -1390,7 +1390,7 @@ void ThemeManager::initialize_default_themes()
                               .bg_secondary = Color::from_hex(0xEAF1F7),   // Panels, sidebar, rails
                               .bg_tertiary  = Color::from_hex(0xD5E3EF),   // Inputs, chips, buttons
                               .bg_elevated  = Color::from_hex(0xF8FBFF),   // Tooltips and popups
-                              .bg_overlay   = Color(0.0f, 0.0f, 0.0f, 0.30f),
+                              .bg_overlay   = Color(0.04f, 0.08f, 0.13f, 0.66f),   // Modal scrim: slate
 
                     // Text — blue-black ink against frosted surfaces
                               .text_primary   = Color::from_hex(0x102033),
@@ -2079,6 +2079,110 @@ ThemeColors ThemeManager::interpolate_colors(const ThemeColors& start,
     result.roi_border        = start.roi_border.lerp(end.roi_border, t);
 
     return result;
+}
+
+// ─── Contrast-checked UI colours ────────────────────────────────────────────
+
+Color ensure_contrast(const Color& fg, const Color& bg, float min_ratio)
+{
+    const Color opaque_bg = bg.with_alpha(1.0f);
+    if (fg.contrast_ratio(opaque_bg) >= min_ratio)
+        return fg;
+    // Push away from the background: toward black on light backgrounds,
+    // toward white on dark ones (pick the end that can reach more contrast).
+    const Color black(0.0f, 0.0f, 0.0f, fg.a);
+    const Color white(1.0f, 1.0f, 1.0f, fg.a);
+    const Color target =
+        black.contrast_ratio(opaque_bg) >= white.contrast_ratio(opaque_bg) ? black : white;
+    for (int step = 1; step <= 50; ++step)
+    {
+        const Color c = fg.lerp(target, static_cast<float>(step) / 50.0f);
+        if (c.contrast_ratio(opaque_bg) >= min_ratio)
+            return c.with_alpha(fg.a);
+    }
+    return target;
+}
+
+Color modal_dim_color(const ThemeColors& c)
+{
+    if (is_light_chrome(c))
+        return c.bg_overlay.with_alpha(std::max(c.bg_overlay.a, 0.62f));
+    return c.bg_overlay.with_alpha(0.5f);
+}
+
+StatusPerfColors status_perf_colors(const ThemeColors& c, bool fps_live, float glow_intensity)
+{
+    StatusPerfColors out;
+    const bool       glow = glow_intensity > 0.01f;
+    if (is_light_chrome(c))
+    {
+        // The glass palette's dark-green badge is tuned for dark chrome; on light
+        // chrome use a pale tint of the theme's success colour.
+        if (fps_live)
+        {
+            out.fps_fill   = c.success.with_alpha(0.14f).composite_over(c.bg_primary);
+            out.fps_border = c.success.with_alpha(0.55f).composite_over(c.bg_primary);
+            out.fps_text   = ensure_contrast(c.success, out.fps_fill, 4.5f);
+        }
+        else
+        {
+            out.fps_fill   = c.bg_tertiary.with_alpha(1.0f);
+            out.fps_border = c.border_subtle.composite_over(c.bg_primary);
+            out.fps_text   = ensure_contrast(c.text_tertiary, out.fps_fill, 4.5f);
+        }
+        out.gpu_text = ensure_contrast(c.text_tertiary, c.bg_primary, 4.5f);
+        return out;
+    }
+
+    const bool fps_glow = fps_live && glow;
+    out.fps_fill        = fps_glow ? glass_palette::kFpsPillGreen : c.bg_tertiary.with_alpha(1.0f);
+    out.fps_border      = fps_glow ? glass_palette::kFpsPillBorder : c.border_subtle;
+    const Color text    = fps_glow   ? glass_palette::kFpsPillText
+                          : fps_live ? c.success
+                                     : c.text_tertiary;
+    out.fps_text        = ensure_contrast(text, out.fps_fill, 4.5f);
+    out.gpu_text =
+        ensure_contrast(glow ? glass_palette::kStatusGpuText : c.text_tertiary, c.bg_primary, 4.5f);
+    return out;
+}
+
+ActionButtonColors action_button_colors(const ThemeColors& c, bool primary, const Color& backdrop)
+{
+    const Color        bg = backdrop.with_alpha(1.0f);
+    ActionButtonColors out;
+    if (primary)
+    {
+        out.fill   = c.accent.with_alpha(1.0f);
+        out.hover  = c.accent_hover.with_alpha(1.0f);
+        out.active = c.accent.lerp(c.accent_hover, 0.5f).with_alpha(1.0f);
+        // Ink: whichever of the theme's text colours reads better on the accent.
+        const Color ink_a = c.text_primary.with_alpha(1.0f);
+        const Color ink_b = c.text_inverse.with_alpha(1.0f);
+        const float min_a = std::min({ink_a.contrast_ratio(out.fill),
+                                      ink_a.contrast_ratio(out.hover),
+                                      ink_a.contrast_ratio(out.active)});
+        const float min_b = std::min({ink_b.contrast_ratio(out.fill),
+                                      ink_b.contrast_ratio(out.hover),
+                                      ink_b.contrast_ratio(out.active)});
+        out.text          = min_a >= min_b ? ink_a : ink_b;
+        // Accents too close to the ink are pushed away from it.
+        out.fill   = ensure_contrast(out.fill, out.text, 4.5f);
+        out.hover  = ensure_contrast(out.hover, out.text, 4.5f);
+        out.active = ensure_contrast(out.active, out.text, 4.5f);
+        out.border = Color(0.0f, 0.0f, 0.0f, 0.0f);
+        return out;
+    }
+
+    out.fill   = c.bg_tertiary.with_alpha(0.75f).composite_over(bg);
+    out.hover  = c.bg_elevated.with_alpha(0.95f).composite_over(bg);
+    out.active = c.accent.with_alpha(0.25f).composite_over(bg);
+    Color text = c.text_primary.with_alpha(1.0f);
+    text       = ensure_contrast(text, out.fill, 4.5f);
+    text       = ensure_contrast(text, out.hover, 4.5f);
+    out.text   = ensure_contrast(text, out.active, 4.5f);
+    // The fill alone barely differs from the backdrop: an outline marks the edge.
+    out.border = ensure_contrast(c.border_strong.composite_over(bg), bg, 4.5f);
+    return out;
 }
 
 }   // namespace spectra::ui

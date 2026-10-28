@@ -96,6 +96,8 @@ endfunction()
 # When adding a new test, just append the name to this list.
 set(SPECTRA_UNIT_TESTS
     test_transform
+    test_window_png_export
+    test_window_export_extent
     test_bugfix_app_topic
     test_bugfix_core_axes
     test_axis_scale
@@ -409,6 +411,7 @@ set(SPECTRA_GPU_TESTS
     test_3d_lighting
     test_embed_annotations_c
     test_ui_shell_welcome_gpu
+    test_window_export_extent
 )
 
 foreach(_test ${SPECTRA_UNIT_TESTS})
@@ -444,6 +447,12 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
         # UI shell follow-ups draw tooltip / status bar into a bare ImGui context.
         if(_test MATCHES "^test_ui_shell_(fixes|welcome_gpu)$" AND DEFINED imgui_SOURCE_DIR)
             target_include_directories(unit_${_test} SYSTEM PRIVATE ${imgui_SOURCE_DIR})
+        endif()
+        # The resize case drives the GLFW window directly; glfw is PRIVATE to
+        # the spectra target, so link it here for GLFW/glfw3.h.
+        if(_test STREQUAL "test_window_export_extent" AND SPECTRA_USE_GLFW
+           AND DEFINED _spectra_glfw_link)
+            target_link_libraries(unit_${_test} PRIVATE ${_spectra_glfw_link})
         endif()
         # CSV writer shared with the export_csv example plugin (header-only)
         if(_test STREQUAL "test_export_csv_plugin")
@@ -509,7 +518,7 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
             add_dependencies(unit_${_test} spectra_wgsl_shaders)
         endif()
         # Decodes the exported PNGs with the bundled stb_image.
-        if(_test MATCHES "^test_(headless_export_text|text_scaling|shape3d_first_frame|shape2d_first_frame)$")
+        if(_test MATCHES "^test_(headless_export_text|text_scaling|shape3d_first_frame|shape2d_first_frame|window_export_extent)$")
             target_include_directories(unit_${_test} SYSTEM PRIVATE
                 ${CMAKE_SOURCE_DIR}/third_party/stb)
         endif()

@@ -106,7 +106,22 @@ class VulkanBackend : public Backend
                                      uint32_t       width,
                                      uint32_t       height,
                                      WindowContext* target_window);
-    bool has_pending_capture() const { return pending_capture_.buffer != nullptr; }
+    // Request a capture of the whole surface exactly as the executing frame
+    // rendered it.  The size is resolved when the capture runs (not now), so a
+    // resize between request and capture (window minimum size, user resize,
+    // DPI change) never crops or pads the image.  Collect the result with
+    // take_surface_capture().
+    void request_surface_capture(WindowContext* target_window = nullptr);
+    // Move a finished surface capture into @p out_rgba (tightly packed RGBA8,
+    // @p width x @p height).  Returns false when no surface capture finished
+    // (still pending, cancelled, or failed).
+    bool take_surface_capture(std::vector<uint8_t>& out_rgba, uint32_t& width, uint32_t& height);
+    // Drop a pending capture without running it.
+    void cancel_pending_capture();
+    bool has_pending_capture() const
+    {
+        return pending_capture_.buffer != nullptr || pending_capture_.fit_surface;
+    }
 
     uint32_t swapchain_width() const override;
     uint32_t swapchain_height() const override;
@@ -356,6 +371,12 @@ class VulkanBackend : public Backend
         uint32_t       height        = 0;
         bool           done          = false;
         WindowContext* target_window = nullptr;   // null = any window (first end_frame)
+        // Surface capture: size resolved at capture time into surface_pixels.
+        bool                 fit_surface  = false;
+        bool                 surface_done = false;
+        std::vector<uint8_t> surface_pixels;
+        uint32_t             surface_width  = 0;
+        uint32_t             surface_height = 0;
     };
     PendingCapture pending_capture_;
     bool           do_capture_before_present();

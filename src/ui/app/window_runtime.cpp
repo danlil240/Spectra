@@ -378,6 +378,15 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
 #endif
 
 #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
+    #ifdef SPECTRA_USE_IMGUI
+    // Enforce the window minimum size before the first frame is laid out, so
+    // the first rendered frame (and an export requested before it) already has
+    // the settled size instead of growing a frame later.  UI-driven changes to
+    // the limits are applied again after build_ui() below.
+    if (imgui_ui && ui_ctx.applied_min_window_w_ == 0.0f)
+        apply_window_size_limits(ui_ctx, *imgui_ui);
+    #endif
+
     // Keep swapchain extent matched to the live framebuffer BEFORE ImGui
     // new_frame so layout zones and GPU rendering share the same dimensions.
     bool     resize_active       = false;

@@ -31,6 +31,7 @@
 #include "window_manager_bootstrap.hpp"
 #include "window_ui_context_builder.hpp"
 #include "window_ui_context.hpp"
+#include "window_png_export.hpp"
 #include "ui/workspace/plugin_api.hpp"
 #include "ui/settings/settings_store.hpp"
 
@@ -68,8 +69,6 @@
 #endif
 
 #include "perf_metrics.hpp"
-#include "platform/clipboard_image.hpp"
-#include "ui/theme/svg_style.hpp"
 
 #include <chrono>
 #include <cctype>
@@ -280,18 +279,9 @@ struct App::AppRuntime
     uint32_t topics_panel_window_id = 0;
 #endif
 
-    // Pending PNG capture (pre-present path to avoid reading presented images)
-    struct PendingPngCapture
-    {
-        std::vector<uint8_t> pixels;
-        std::string          path;
-        std::string          theme;   // per-export theme (empty = app theme)
-        uint32_t             width                = 0;
-        uint32_t             height               = 0;
-        bool                 active               = false;
-        bool                 copy_to_clipboard    = false;
-        bool                 awaiting_gpu_capture = false;
-    } pending_png_capture;
+    // Pending windowed PNG / clipboard capture (pre-present readback whose
+    // size is resolved from the frame that is actually captured).
+    WindowPngExport png_export;
 
     AppRuntime(float fps, Backend& backend, Renderer& renderer, FigureRegistry& registry)
         : scheduler(fps), session(backend, renderer, registry)
@@ -955,10 +945,9 @@ App::StepResult App::step()
     // that theme (only the plot follows it; ImGui keeps its applied style),
     // then the window is redrawn in the app theme.
     std::optional<ui::ScopedExportTheme> capture_theme;
-    if (rt.pending_png_capture.active && rt.pending_png_capture.awaiting_gpu_capture
-        && !rt.pending_png_capture.theme.empty())
+    if (rt.png_export.awaiting_capture() && !rt.png_export.theme().empty())
     {
-        capture_theme.emplace(theme_mgr_.get(), rt.pending_png_capture.theme);
+        capture_theme.emplace(theme_mgr_.get(), rt.png_export.theme());
         rt.session.redraw_tracker().mark_dirty("themed export");
     }
 
@@ -1009,116 +998,25 @@ App::StepResult App::step()
 #endif
 
     // Phase 1: Write PNG from a previously completed pre-present capture.
-    if (rt.pending_png_capture.active)
+    // Phase 2: Schedule a pre-present capture for a pending export.  It runs
+    // inside end_frame() of the next rendered frame (before vkQueuePresentKHR,
+    // so the swapchain image contents are valid) and takes that frame's size.
     {
-        auto& cap = rt.pending_png_capture;
-        auto* vk  = (config_.backend == RenderBackend::Vulkan)
-                        ? static_cast<VulkanBackend*>(backend_.get())
-                        : nullptr;
-        if (cap.awaiting_gpu_capture && vk && vk->has_pending_capture())
+        auto* vk = (config_.backend == RenderBackend::Vulkan)
+                       ? static_cast<VulkanBackend*>(backend_.get())
+                       : nullptr;
+        rt.png_export.collect(vk);
+        if (!config_.headless && rt.active_figure && !rt.png_export.active())
         {
-            // GPU readback scheduled last frame is still in flight.
-        }
-        else
-        {
-            cap.awaiting_gpu_capture = false;
-            if (cap.copy_to_clipboard)
-            {
-                auto png =
-                    ImageExporter::write_png_to_memory(cap.pixels.data(), cap.width, cap.height);
-                if (!png.empty())
-                {
-                    if (platform::copy_image_to_clipboard(png.data(), png.size()))
-                        SPECTRA_LOG_INFO("export", "Figure copied to clipboard");
-                    else
-                        SPECTRA_LOG_WARN("export", "Clipboard image copy failed");
-                }
-            }
-            else if (!cap.path.empty())
-            {
-                if (ImageExporter::write_png(cap.path, cap.pixels.data(), cap.width, cap.height))
-                {
-                    SPECTRA_LOG_INFO("export", "Saved PNG: " + cap.path);
-                }
-                else
-                {
-                    SPECTRA_LOG_ERROR("export", "Failed to write PNG: " + cap.path);
-                }
-            }
-            cap.active            = false;
-            cap.copy_to_clipboard = false;
-            cap.pixels.clear();
-            cap.path.clear();
-            cap.theme.clear();
-        }
-    }
-
-    // Phase 2: Schedule a pre-present capture for figures with pending export.
-    // The capture will execute inside end_frame() (do_capture_before_present),
-    // before vkQueuePresentKHR, so the swapchain image contents are valid.
-    if (!config_.headless && rt.active_figure
-        && (!rt.active_figure->export_req_.png_path.empty()
-            || rt.active_figure->export_req_.copy_to_clipboard)
-        && !rt.pending_png_capture.active)
-    {
-        uint32_t ew = rt.active_figure->export_req_.png_width > 0
-                          ? rt.active_figure->export_req_.png_width
-                          : rt.active_figure->width();
-        uint32_t eh = rt.active_figure->export_req_.png_height > 0
-                          ? rt.active_figure->export_req_.png_height
-                          : rt.active_figure->height();
-        if (ew == 0 || eh == 0)
-        {
-            rt.active_figure->export_req_.png_path.clear();
-            rt.active_figure->export_req_.png_theme.clear();
-            rt.active_figure->export_req_.png_width         = 0;
-            rt.active_figure->export_req_.png_height        = 0;
-            rt.active_figure->export_req_.copy_to_clipboard = false;
-        }
-        else
-        {
-            auto& cap = rt.pending_png_capture;
-            cap.pixels.resize(static_cast<size_t>(ew) * eh * 4);
-            cap.path                 = rt.active_figure->export_req_.png_path;
-            cap.theme                = rt.active_figure->export_req_.png_theme;
-            cap.width                = ew;
-            cap.height               = eh;
-            cap.active               = true;
-            cap.copy_to_clipboard    = rt.active_figure->export_req_.copy_to_clipboard;
-            cap.awaiting_gpu_capture = true;
-
-            auto* vk = (config_.backend == RenderBackend::Vulkan)
-                           ? static_cast<VulkanBackend*>(backend_.get())
-                           : nullptr;
+            WindowContext* target_wctx = nullptr;
 #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
             // Target the window that owns this figure so multi-window captures
             // read the correct swapchain image.
-            WindowContext* target_wctx = nullptr;
-            if (rt.window_mgr)
-            {
-                const FigureId export_id = rt.frame_state.active_figure_id;
-                for (auto* wctx : rt.window_mgr->windows())
-                {
-                    const auto& figs = wctx->assigned_figures;
-                    if (std::find(figs.begin(), figs.end(), export_id) != figs.end())
-                    {
-                        target_wctx = wctx;
-                        break;
-                    }
-                }
-            }
-            if (target_wctx)
-                vk->request_framebuffer_capture(cap.pixels.data(), ew, eh, target_wctx);
-            else
+            target_wctx =
+                find_window_for_figure(rt.window_mgr.get(), rt.frame_state.active_figure_id);
 #endif
-                if (vk)
-                vk->request_framebuffer_capture(cap.pixels.data(), ew, eh);
-
-            rt.active_figure->export_req_.png_path.clear();
-            rt.active_figure->export_req_.png_theme.clear();
-            rt.active_figure->export_req_.png_width         = 0;
-            rt.active_figure->export_req_.png_height        = 0;
-            rt.active_figure->export_req_.copy_to_clipboard = false;
+            if (rt.png_export.schedule(*rt.active_figure, vk, target_wctx))
+                rt.session.redraw_tracker().mark_dirty("png export");
         }
     }
 
@@ -1304,29 +1202,7 @@ void App::shutdown_runtime()
             }
         }
 
-        if (!f.export_req_.svg_path.empty())
-        {
-            ui::ScopedExportTheme export_theme(theme_mgr_.get(), f.export_req_.svg_theme);
-            f.compute_layout();
-            // Same plot surface as the GPU path: the figure's background
-            // override (if any) decides ink, letter shades and palette.
-            if (theme_mgr_)
-            {
-                const ui::ThemeColors surface = theme_mgr_->plot_surface_colors(f.style());
-                ui::resolve_auto_series_colors(f,
-                                               theme_mgr_->plot_surface_data_palette(f.style()),
-                                               ui::is_light_plot_background(surface),
-                                               ui::effective_figure_background(f.style(), surface));
-            }
-            if (!SvgExporter::write_svg(f.export_req_.svg_path,
-                                        f,
-                                        theme_mgr_ ? ui::svg_style_from_theme(
-                                                         theme_mgr_->plot_surface_colors(f.style()))
-                                                   : SvgStyle{}))
-            {
-                SPECTRA_LOG_ERROR("app", "Failed to write SVG: {}", f.export_req_.svg_path);
-            }
-        }
+        write_pending_svg(f, theme_mgr_.get());
     }
 
     // Unload plugins while everything they registered into is still alive:

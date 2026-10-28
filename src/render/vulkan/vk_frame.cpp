@@ -297,7 +297,7 @@ void VulkanBackend::end_frame(FrameProfiler* profiler)
 
     // If a framebuffer capture was requested, perform it now — after GPU submit
     // (rendering complete) but before present (image still owned by us).
-    if (pending_capture_.buffer)
+    if (has_pending_capture())
     {
         do_capture_before_present();
     }

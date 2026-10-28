@@ -14,6 +14,9 @@ summarise the main changes rather than listing every commit.
 Release-readiness work for the first public preview.
 
 ### Added
+- `SPECTRA_CONFIG_DIR` overrides the per-user config directory, and `XDG_CONFIG_HOME` is honoured on Linux/macOS, for settings, keybindings, workspaces, autosave, plugins and the default theme.
+- Truncated dense legends scroll with the mouse wheel in interactive windows.
+- QA: framebuffer contrast tests for plots (4 themes, 1x/2x, simulated colour-vision deficiency) and text-contrast checks in the design review; `--repeat` soak mode with an RSS/heap slope gate (`qa_soak` ctest).
 - Date-time axes (`xaxis_datetime(true)`), named category bars (`bar(names, heights)`) and an
   outside-right legend position (`LegendPosition::OutsideRight`).
 - `append(double, double)` and `erase_before/after(double)` for full-precision streaming.
@@ -36,6 +39,9 @@ Release-readiness work for the first public preview.
 - Design-review QA harness asserts every captured state; plateau-aware memory warnings.
 
 ### Changed
+- Dense legends at explicit inside positions are capped to 35% of the plot area (and half its height once summarised), folding the rest into "+N more".
+- High Contrast grid is quieter (major alpha 0.26 → 0.20, minor 0.08 → 0.065); Night axis spine and several small UI labels have stronger contrast; theme transitions keep text readable on every frame.
+- `default_theme.json` moves from `~/.spectra/` to the config directory; the old location is still read.
 - README rewritten for newcomers: screenshots, comparison with other plotting tools, supported
   platforms and project status.
 - Runtime-mode documentation now explains that the CMake option `SPECTRA_RUNTIME_MODE` only
@@ -45,6 +51,12 @@ Release-readiness work for the first public preview.
 - Maintainer-only documentation moved to `docs/dev/`.
 
 ### Fixed
+- Use-after-free when playing the demo animation after closing its figure; an ImGui window leaked per figure or split pane ever shown.
+- PX4 viewer ignored dropped `.ulg` files; Parameters sort went stale after re-opening a changed log.
+- Dropping several CSV files opened only the last; unparsable CSV failed silently.
+- Plugin series created before their plugin loaded were never drawn.
+- Python: epoch timestamps lost precision (sent as float32); `Axes.remove_series(i)` removed from the wrong subplot.
+- Design review: zoom scenes now target the measured axes, and animated states wait for settled geometry.
 - WebGPU/Emscripten build with current emsdk.
 - Dear ImGui is fetched via git instead of a release archive.
 - Stem series are included in autoscale; histograms ignore non-finite samples.

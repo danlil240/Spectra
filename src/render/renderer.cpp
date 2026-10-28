@@ -75,17 +75,13 @@ Renderer::Renderer(Backend& backend, ui::ThemeManager& theme_mgr)
 {
 }
 
-void Renderer::prepare_shape3d_sorted_indices(SeriesGpuData&       gpu,
-                                              const ShapeSeries3D& series,
-                                              const mat4&          model,
-                                              const Camera&        cam,
-                                              float                series_alpha,
-                                              float                style_opacity)
+std::vector<double> Renderer::triangle_sort_key(const SeriesGpuData& gpu,
+                                                const mat4&          model,
+                                                const Camera&        cam,
+                                                size_t               index_count,
+                                                float                series_alpha,
+                                                float                style_opacity)
 {
-    const auto indices = series.indices();
-    if (indices.empty() || indices.size() != gpu.index_count)
-        return;   // not uploaded yet (or stale): draw unsorted this frame
-
     const bool ortho   = cam.projection_mode == Camera::ProjectionMode::Orthographic;
     const vec3 forward = vec3_normalize(cam.target - cam.position);
 
@@ -100,10 +96,49 @@ void Renderer::prepare_shape3d_sorted_indices(SeriesGpuData&       gpu,
     key.push_back(series_alpha);
     key.push_back(style_opacity);
     key.push_back(static_cast<double>(gpu.geometry_serial));
-    key.push_back(static_cast<double>(indices.size()));
+    key.push_back(static_cast<double>(index_count));
+    return key;
+}
 
+void Renderer::upload_sorted_indices(SeriesGpuData& gpu)
+{
+    const uint32_t slot = backend_.current_flight_frame() % FRAME_BUFFER_SLOTS;
+    if (gpu.sorted_slot_version[slot] != gpu.sorted_version || !gpu.sorted_index_buffer[slot])
+    {
+        const size_t bytes = gpu.sorted_indices.size() * sizeof(uint32_t);
+        if (!gpu.sorted_index_buffer[slot] || gpu.sorted_index_capacity[slot] < bytes)
+        {
+            // destroy_buffer defers the release until the slot's frame retires.
+            if (gpu.sorted_index_buffer[slot])
+                backend_.destroy_buffer(gpu.sorted_index_buffer[slot]);
+            gpu.sorted_index_buffer[slot]   = backend_.create_buffer(BufferUsage::Index, bytes);
+            gpu.sorted_index_capacity[slot] = gpu.sorted_index_buffer[slot] ? bytes : 0;
+        }
+        if (!gpu.sorted_index_buffer[slot])
+            return;
+        backend_.upload_buffer(gpu.sorted_index_buffer[slot], gpu.sorted_indices.data(), bytes);
+        gpu.sorted_slot_version[slot] = gpu.sorted_version;
+    }
+    gpu.sorted_ready_slot   = static_cast<int>(slot);
+    gpu.sorted_ready_serial = render_pass_serial_;
+}
+
+void Renderer::prepare_shape3d_sorted_indices(SeriesGpuData&       gpu,
+                                              const ShapeSeries3D& series,
+                                              const mat4&          model,
+                                              const Camera&        cam,
+                                              float                series_alpha,
+                                              float                style_opacity)
+{
+    const auto indices = series.indices();
+    if (indices.empty() || indices.size() != gpu.index_count)
+        return;   // not uploaded yet (or stale): draw unsorted this frame
+
+    auto key = triangle_sort_key(gpu, model, cam, indices.size(), series_alpha, style_opacity);
     if (key != gpu.sort_key)
     {
+        const bool ortho   = cam.projection_mode == Camera::ProjectionMode::Orthographic;
+        const vec3 forward = vec3_normalize(cam.target - cam.position);
         gpu.sorted_indices.assign(indices.begin(), indices.end());
         const auto vertices = series.vertices();
         const auto shapes   = series.shape_ranges();
@@ -129,25 +164,40 @@ void Renderer::prepare_shape3d_sorted_indices(SeriesGpuData&       gpu,
         gpu.sort_key = std::move(key);
         ++gpu.sorted_version;
     }
+    upload_sorted_indices(gpu);
+}
 
-    const uint32_t slot = backend_.current_flight_frame() % FRAME_BUFFER_SLOTS;
-    if (gpu.sorted_slot_version[slot] != gpu.sorted_version || !gpu.sorted_index_buffer[slot])
+void Renderer::prepare_mesh_sorted_indices(SeriesGpuData&            gpu,
+                                           std::span<const uint32_t> indices,
+                                           std::span<const float>    vertices,
+                                           const mat4&               model,
+                                           const Camera&             cam,
+                                           float                     series_alpha,
+                                           float                     style_opacity)
+{
+    if (indices.empty() || indices.size() != gpu.index_count)
+        return;   // not uploaded yet (or stale): draw unsorted this frame
+    if (indices.size() / 3 > kMaxSortedMeshTriangles)
+        return;   // too large to re-sort per camera move: draw in generation order
+
+    auto key = triangle_sort_key(gpu, model, cam, indices.size(), series_alpha, style_opacity);
+    if (key != gpu.sort_key)
     {
-        const size_t bytes = gpu.sorted_indices.size() * sizeof(uint32_t);
-        if (!gpu.sorted_index_buffer[slot] || gpu.sorted_index_capacity[slot] < bytes)
-        {
-            if (gpu.sorted_index_buffer[slot])
-                backend_.destroy_buffer(gpu.sorted_index_buffer[slot]);
-            gpu.sorted_index_buffer[slot]   = backend_.create_buffer(BufferUsage::Index, bytes);
-            gpu.sorted_index_capacity[slot] = gpu.sorted_index_buffer[slot] ? bytes : 0;
-        }
-        if (!gpu.sorted_index_buffer[slot])
-            return;
-        backend_.upload_buffer(gpu.sorted_index_buffer[slot], gpu.sorted_indices.data(), bytes);
-        gpu.sorted_slot_version[slot] = gpu.sorted_version;
+        const bool ortho   = cam.projection_mode == Camera::ProjectionMode::Orthographic;
+        const vec3 forward = vec3_normalize(cam.target - cam.position);
+        gpu.sorted_indices.assign(indices.begin(), indices.end());
+        sort_triangles_back_to_front(gpu.sorted_indices,
+                                     0,
+                                     gpu.sorted_indices.size(),
+                                     vertices,
+                                     model,
+                                     cam.position,
+                                     forward,
+                                     ortho);
+        gpu.sort_key = std::move(key);
+        ++gpu.sorted_version;
     }
-    gpu.sorted_ready_slot   = static_cast<int>(slot);
-    gpu.sorted_ready_serial = render_pass_serial_;
+    upload_sorted_indices(gpu);
 }
 
 void Renderer::destroy_series_buffers(SeriesGpuData& gpu)
@@ -1186,6 +1236,38 @@ void Renderer::render_axes(AxesBase&   axes,
             }
 
             bool is_transparent = effective_alpha < 0.99f;
+            // A translucent solid surface or mesh draws its own triangles back
+            // to front, so its far folds do not blend over its near ones.
+            if (gpu_it != series_gpu_data_.end())
+            {
+                auto&       gd            = gpu_it->second;
+                const float style_opacity = series_ptr->plot_style().opacity;
+                gd.sorted_ready_slot      = -1;
+                const bool blends         = effective_alpha * style_opacity < 0.99f;
+                if (blends && gd.type == SeriesType::Surface3D)
+                {
+                    auto* surf = static_cast<SurfaceSeries*>(series_ptr.get());
+                    if (!surf->wireframe() && surf->is_mesh_generated())
+                        prepare_mesh_sorted_indices(gd,
+                                                    surf->mesh().indices,
+                                                    surf->mesh().vertices,
+                                                    model_mat,
+                                                    cam,
+                                                    effective_alpha,
+                                                    style_opacity);
+                }
+                else if (blends && gd.type == SeriesType::Mesh3D)
+                {
+                    auto* mesh = static_cast<MeshSeries*>(series_ptr.get());
+                    prepare_mesh_sorted_indices(gd,
+                                                mesh->indices(),
+                                                mesh->vertices(),
+                                                model_mat,
+                                                cam,
+                                                effective_alpha,
+                                                style_opacity);
+                }
+            }
             if (is_transparent)
             {
                 transparent_entries.push_back({series_ptr.get(), dist});

@@ -18,6 +18,7 @@
 #include "io/export_registry.hpp"
 #include "math/data_transform.hpp"
 #include "render/renderer.hpp"
+#include "io/svg_export_internal.hpp"
 #include "render/series_type_registry.hpp"
 #include "render/vulkan/vk_backend.hpp"
 #include "render/vulkan/window_context.hpp"
@@ -1010,13 +1011,21 @@ App::StepResult App::step()
 #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
         window_mgr = rt.window_mgr.get();
 #endif
+        // Plugin series are drawn into SVGs by their type's vector export callback.
+        SvgExportHost svg_host;
+        svg_host.custom_series = [&rt](const CustomSeries& cs,
+                                       const float*        rgba,
+                                       float               opacity,
+                                       CustomVectorSink&   sink)
+        { return rt.series_type_registry.export_vector(cs, rgba, opacity, sink); };
         if (service_window_exports(
                 rt.png_export,
                 registry_,
                 rt.active_figure ? rt.frame_state.active_figure_id : INVALID_FIGURE_ID,
                 vk,
                 window_mgr,
-                theme_mgr_.get()))
+                theme_mgr_.get(),
+                &svg_host))
             rt.session.redraw_tracker().mark_dirty("png export");
     }
 
@@ -1123,6 +1132,13 @@ void App::shutdown_runtime()
 #endif
 
     // Process exports for all figures (headless batch mode)
+    // Plugin series are drawn into SVGs by their type's vector export callback.
+    SvgExportHost svg_host;
+    svg_host.custom_series = [&rt](const CustomSeries& cs,
+                                   const float*        rgba,
+                                   float               opacity,
+                                   CustomVectorSink&   sink)
+    { return rt.series_type_registry.export_vector(cs, rgba, opacity, sink); };
     bool framebuffer_holds_active = true;
     for (auto id : registry_.all_ids())
     {
@@ -1202,7 +1218,7 @@ void App::shutdown_runtime()
             }
         }
 
-        write_pending_svg(f, theme_mgr_.get());
+        write_pending_svg(f, theme_mgr_.get(), &svg_host);
     }
 
     // Unload plugins while everything they registered into is still alive:

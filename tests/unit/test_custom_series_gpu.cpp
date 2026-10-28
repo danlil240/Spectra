@@ -18,6 +18,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <memory>
 #include <string>
 #include <vector>
@@ -162,6 +164,63 @@ TEST(CustomSeriesGpu, HeatmapPluginDrawsFilledCells)
         img.at(static_cast<int>(vp.x + vp.w - 0.5f * cw), static_cast<int>(vp.y + 0.5f * ch));
     const int d = std::abs(lo[0] - hi[0]) + std::abs(lo[1] - hi[1]) + std::abs(lo[2] - hi[2]);
     EXPECT_GT(d, 200) << "first and last cells should map to opposite ends of viridis";
+
+    if (!std::getenv("SPECTRA_KEEP_TEST_OUTPUT") && !::testing::Test::HasFailure())
+        fs::remove_all(dir);
+#endif
+}
+
+// The app's SVG export (Figure::save_svg) draws plugin series through their
+// type's vector export callback: all heatmap cells appear as rectangles.
+TEST(CustomSeriesGpu, HeatmapPluginIsDrawnInSvgExport)
+{
+#ifndef SPECTRA_HEATMAP_PLUGIN_PATH
+    GTEST_SKIP() << "series_heatmap example plugin not built";
+#else
+    const fs::path dir = fs::temp_directory_path() / "spectra_test_custom_series_svg";
+    fs::create_directories(dir);
+    const fs::path svg_path = dir / "heatmap.svg";
+    fs::remove(svg_path);
+    {
+        App app({.headless = true, .socket_path = ""});
+        if (!app.ok())
+            GTEST_SKIP() << "No Vulkan device";
+
+        auto& fig  = app.figure({.width = 640, .height = 480});
+        auto& ax   = fig.subplot(1, 1, 1);
+        auto  hm   = std::make_unique<CustomSeries>("heatmap");
+        auto  blob = heatmap_blob();
+        hm->set_data(blob.data(), blob.size() * sizeof(float), blob.size());
+        ax.series_mut().push_back(std::move(hm));
+        ax.xlim(0.0, static_cast<double>(kCols));
+        ax.ylim(0.0, static_cast<double>(kRows));
+        fig.save_svg(svg_path.string());
+
+        app.init_runtime();
+        auto* ui = app.ui_context();
+        ASSERT_NE(ui, nullptr);
+        ASSERT_NE(ui->plugin_manager, nullptr);
+        ASSERT_TRUE(ui->plugin_manager->load_plugin(SPECTRA_HEATMAP_PLUGIN_PATH));
+
+        app.step();
+        app.shutdown_runtime();   // performs the headless SVG export
+    }
+
+    std::string svg;
+    {
+        std::ifstream in(svg_path, std::ios::binary);
+        ASSERT_TRUE(in.good()) << svg_path;
+        svg.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+    }
+    const size_t g = svg.find("<g class=\"plugin-series\" data-type=\"heatmap\">");
+    ASSERT_NE(g, std::string::npos) << svg;
+    const std::string group = svg.substr(g, svg.find("</g>", g) - g);
+    int               rects = 0;
+    for (size_t at = group.find("<rect "); at != std::string::npos;
+         at        = group.find("<rect ", at + 1))
+        ++rects;
+    EXPECT_EQ(rects, static_cast<int>(kCols * kRows));
+    EXPECT_EQ(svg.find("not exported"), std::string::npos);
 
     if (!std::getenv("SPECTRA_KEEP_TEST_OUTPUT") && !::testing::Test::HasFailure())
         fs::remove_all(dir);

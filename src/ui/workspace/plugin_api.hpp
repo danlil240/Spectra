@@ -50,7 +50,7 @@ extern "C"
 {
 // Plugin API version — bump major on breaking changes.
 #define SPECTRA_PLUGIN_API_VERSION_MAJOR 2
-#define SPECTRA_PLUGIN_API_VERSION_MINOR 1
+#define SPECTRA_PLUGIN_API_VERSION_MINOR 2
 
     // Opaque handles (pointers cast to void* for C ABI stability)
     typedef void* SpectraCommandRegistry;
@@ -629,6 +629,53 @@ extern "C"
 
     // Unregister a custom series type by name.
     int spectra_unregister_series_type(void* registry, const char* type_name);
+
+    // ─── Vector (SVG) export of custom series (added in API v2.2) ────────────
+    //
+    // The GPU draw callback cannot reach a vector export, so a series type that
+    // wants to appear in SVG exports registers a CPU export callback that
+    // describes its geometry through the host's sink.  Coordinates are in data
+    // space (before the series' x/y offset, which the host applies, like the
+    // data_offset push constants); the host maps them through the axes limits and
+    // scales.  Colours are straight (non-premultiplied) RGBA in [0, 1].
+    //
+    // Series of types without this callback are left out of vector exports; the
+    // host writes an XML comment in their place and logs a warning.
+    //
+    // The struct only grows at the end: check `struct_size` before using a field
+    // added after the first release (the v2.2 fields are always present).
+    typedef struct SpectraVectorSink
+    {
+        uint32_t struct_size;       // sizeof(SpectraVectorSink), host build
+        void*    host;              // opaque — pass to the functions below
+        float    series_color[4];   // the series colour as drawn (theme-adapted)
+        float    opacity;           // the series opacity (SpectraSeriesPushConst::opacity)
+
+        // Filled polygon of `point_count` (x, y) pairs (implicitly closed).
+        void (*fill_polygon)(void* host, const float* xy, uint32_t point_count, const float* rgba);
+        // Open polyline of `point_count` (x, y) pairs, `width_px` wide.
+        void (*stroke_polyline)(void*        host,
+                                const float* xy,
+                                uint32_t     point_count,
+                                const float* rgba,
+                                float        width_px);
+        // Axis-aligned filled rectangle spanning data corners (x0, y0)-(x1, y1).
+        void (*fill_rect)(void* host, float x0, float y0, float x1, float y1, const float* rgba);
+    } SpectraVectorSink;
+
+    // Export callback: describe one series (`series_data` / `data_count` as passed to
+    // upload_fn) through `sink`.  Return 0 on success; non-zero drops the series.
+    typedef int (*SpectraSeriesVectorExportFn)(const void*              series_data,
+                                               size_t                   data_count,
+                                               const SpectraVectorSink* sink,
+                                               void*                    user_data);
+
+    // Attach a vector export callback to an already registered series type.
+    // Returns 0 on success, -1 if the type is not registered or an argument is NULL.
+    int spectra_register_series_vector_export(void*                       registry,
+                                              const char*                 type_name,
+                                              SpectraSeriesVectorExportFn export_fn,
+                                              void*                       user_data);
 
     // ─── Backend C ABI helpers (for use in upload_fn / draw_fn callbacks) ────
 

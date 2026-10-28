@@ -517,8 +517,9 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
         if(_test STREQUAL "test_webgpu_backend" AND TARGET spectra_wgsl_shaders)
             add_dependencies(unit_${_test} spectra_wgsl_shaders)
         endif()
-        # Decodes the exported PNGs with the bundled stb_image.
-        if(_test MATCHES "^test_(headless_export_text|text_scaling|shape3d_first_frame|shape2d_first_frame|window_export_extent)$")
+        # Decodes the exported PNGs with the bundled stb_image (svg_export: parses
+        # the embedded font subset with stb_truetype).
+        if(_test MATCHES "^test_(headless_export_text|text_scaling|shape3d_first_frame|shape2d_first_frame|window_export_extent|svg_export)$")
             target_include_directories(unit_${_test} SYSTEM PRIVATE
                 ${CMAKE_SOURCE_DIR}/third_party/stb)
         endif()
@@ -553,6 +554,13 @@ if(TARGET transform_smooth AND TARGET overlay_crosshair AND TARGET export_csv
         SPECTRA_EXAMPLE_PLUGIN_EXPORT_CSV_PATH="$<TARGET_FILE:export_csv>"
     )
     add_dependencies(unit_test_example_plugins transform_smooth overlay_crosshair export_csv)
+    # The heatmap series plug-in needs glslang for its shaders; optional here.
+    if(TARGET series_heatmap)
+        target_compile_definitions(unit_test_example_plugins PRIVATE
+            SPECTRA_EXAMPLE_PLUGIN_SERIES_HEATMAP_PATH="$<TARGET_FILE:series_heatmap>"
+        )
+        add_dependencies(unit_test_example_plugins series_heatmap)
+    endif()
     # Export the host's C ABI symbols so the plug-ins bind to the test's copies
     # instead of the static spectra copy linked into each plug-in.  Windows has
     # no equivalent (each DLL keeps its own copy); the fixture destroys the

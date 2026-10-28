@@ -11,9 +11,12 @@
 #include <vector>
 
 #include "backend.hpp"
+#include "io/vector_sink.hpp"
 
 namespace spectra
 {
+
+class CustomSeries;
 
 // Callback signatures for custom series type plugins (C++ wrappers).
 //
@@ -32,6 +35,14 @@ using CustomBoundsFn  = std::function<int(const void* series_data,
                                          float*      bounds_out)>;   // [xmin, xmax, ymin, ymax]
 using CustomCleanupFn = std::function<void(Backend& backend, void*& gpu_state)>;
 
+/// CPU export of a custom series: `series_rgba` is the series colour as drawn
+/// (alpha includes the opacity), `opacity` the series opacity.  0 = success.
+using CustomVectorExportFn = std::function<int(const void*       series_data,
+                                               size_t            data_count,
+                                               const float*      series_rgba,
+                                               float             opacity,
+                                               CustomVectorSink& sink)>;
+
 /// An entry in the series type registry (internal storage).
 struct SeriesTypeEntry
 {
@@ -42,6 +53,10 @@ struct SeriesTypeEntry
     CustomDrawFn       draw_fn;
     CustomBoundsFn     bounds_fn;
     CustomCleanupFn    cleanup_fn;   // May be empty
+
+    // Optional CPU geometry for vector (SVG) export; empty = not exportable.
+    // Set on the UI thread (plugin init) and read there by the exporter.
+    CustomVectorExportFn vector_export_fn;
 
     // Persistent copy of SPIR-V bytecode (the registration pointer may not outlive the plugin init)
     std::vector<uint8_t> vert_spirv_storage;
@@ -119,6 +134,18 @@ class SeriesTypeRegistry
 
     /// Hand over pipelines of unregistered types for deferred destruction.
     std::vector<PipelineHandle> take_retired_pipelines();
+
+    /// Attach a vector export callback to the registered type `type_name`.
+    /// False if no such type is registered.
+    bool set_vector_export(const std::string& type_name, CustomVectorExportFn fn);
+
+    /// Vector (SVG) export of plugin series `series` through its type's
+    /// vector_export_fn, guarded like the GPU callbacks.  Returns nullptr when the
+    /// series was exported, otherwise why it was not (a static string).
+    const char* export_vector(const CustomSeries& series,
+                              const float*        series_rgba,
+                              float               opacity,
+                              CustomVectorSink&   sink);
 
     /// Look up an entry by name.  Returns nullptr if not found.
     const SeriesTypeEntry* find(const std::string& name) const;

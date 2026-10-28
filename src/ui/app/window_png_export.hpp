@@ -20,6 +20,7 @@ namespace spectra
 
 class Figure;
 class FigureRegistry;
+struct SvgExportHost;
 class VulkanBackend;
 struct WindowContext;
 class WindowManager;
@@ -81,7 +82,10 @@ WindowContext* find_window_for_figure(WindowManager* window_mgr, uint64_t fig_id
 
 // Write the pending SVG request of @p fig (if any) and clear it.  Returns false
 // only when a write was attempted and failed.
-bool write_pending_svg(Figure& fig, ui::ThemeManager* theme_mgr);
+// @p svg_host (optional) supplies host services such as plugin series export.
+bool write_pending_svg(Figure&              fig,
+                       ui::ThemeManager*    theme_mgr,
+                       const SvgExportHost* svg_host = nullptr);
 
 // One frame of windowed export servicing, shared by App::step() (inproc) and
 // the multiproc window agent, called after the frame has been rendered:
@@ -91,11 +95,12 @@ bool write_pending_svg(Figure& fig, ui::ThemeManager* theme_mgr);
 //  - writes every figure's pending SVG request right away.
 // @p active_id may be INVALID / unknown (no PNG scheduled).  Returns true when
 // a PNG capture was scheduled: the caller must make the next frame render.
-bool service_window_exports(WindowPngExport&  png_export,
-                            FigureRegistry&   registry,
-                            uint64_t          active_id,
-                            VulkanBackend*    vk,
-                            WindowManager*    window_mgr,
-                            ui::ThemeManager* theme_mgr);
+bool service_window_exports(WindowPngExport&     png_export,
+                            FigureRegistry&      registry,
+                            uint64_t             active_id,
+                            VulkanBackend*       vk,
+                            WindowManager*       window_mgr,
+                            ui::ThemeManager*    theme_mgr,
+                            const SvgExportHost* svg_host = nullptr);
 
 }   // namespace spectra

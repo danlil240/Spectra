@@ -12,6 +12,7 @@
 #include "platform/clipboard_image.hpp"
 #include "render/vulkan/vk_backend.hpp"
 #include "render/vulkan/window_context.hpp"
+#include "io/svg_export_internal.hpp"
 #include "ui/theme/svg_style.hpp"
 #include "ui/theme/theme.hpp"
 
@@ -240,7 +241,7 @@ WindowContext* find_window_for_figure(WindowManager* window_mgr, uint64_t fig_id
 }
 #endif
 
-bool write_pending_svg(Figure& f, ui::ThemeManager* theme_mgr)
+bool write_pending_svg(Figure& f, ui::ThemeManager* theme_mgr, const SvgExportHost* svg_host)
 {
     if (f.export_req_.svg_path.empty())
         return true;
@@ -261,11 +262,13 @@ bool write_pending_svg(Figure& f, ui::ThemeManager* theme_mgr)
                                        ui::is_light_plot_background(surface),
                                        ui::effective_figure_background(f.style(), surface));
     }
-    const bool ok = SvgExporter::write_svg(
-        path,
-        f,
+    const SvgStyle style =
         theme_mgr ? ui::svg_style_from_theme(theme_mgr->plot_surface_colors(f.style()))
-                  : SvgStyle{});
+                  : SvgStyle{};
+    // Plugin series are drawn by their type's vector export callback when the
+    // caller supplies one (in-proc App); otherwise they become XML comments.
+    const bool ok = svg_host ? svg_export_write(path, f, style, *svg_host)
+                             : SvgExporter::write_svg(path, f, style);
     if (!ok)
         SPECTRA_LOG_ERROR("app", "Failed to write SVG: {}", path);
     return ok;
@@ -276,7 +279,8 @@ bool service_window_exports(WindowPngExport&  png_export,
                             uint64_t          active_id,
                             VulkanBackend*    vk,
                             WindowManager*    window_mgr,
-                            ui::ThemeManager* theme_mgr)
+                            ui::ThemeManager*    theme_mgr,
+                            const SvgExportHost* svg_host)
 {
     png_export.collect(vk);
 
@@ -298,7 +302,7 @@ bool service_window_exports(WindowPngExport&  png_export,
     for (auto id : registry.all_ids())
     {
         if (Figure* fig = registry.get(id); fig && !fig->export_req_.svg_path.empty())
-            write_pending_svg(*fig, theme_mgr);
+            write_pending_svg(*fig, theme_mgr, svg_host);
     }
     return scheduled;
 }

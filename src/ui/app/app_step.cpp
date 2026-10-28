@@ -18,6 +18,7 @@
 #include "io/export_registry.hpp"
 #include "math/data_transform.hpp"
 #include "render/renderer.hpp"
+#include "io/svg_export_internal.hpp"
 #include "render/series_type_registry.hpp"
 #include "render/vulkan/vk_backend.hpp"
 #include "render/vulkan/window_context.hpp"
@@ -1231,11 +1232,19 @@ void App::shutdown_runtime()
                                                ui::is_light_plot_background(surface),
                                                ui::effective_figure_background(f.style(), surface));
             }
-            if (!SvgExporter::write_svg(f.export_req_.svg_path,
-                                        f,
-                                        theme_mgr_ ? ui::svg_style_from_theme(
-                                                         theme_mgr_->plot_surface_colors(f.style()))
-                                                   : SvgStyle{}))
+            // Plugin series are drawn by their type's vector export callback.
+            SvgExportHost svg_host;
+            svg_host.custom_series = [&rt](const CustomSeries& cs,
+                                           const float*        rgba,
+                                           float               opacity,
+                                           CustomVectorSink&   sink)
+            { return rt.series_type_registry.export_vector(cs, rgba, opacity, sink); };
+            if (!svg_export_write(f.export_req_.svg_path,
+                                  f,
+                                  theme_mgr_ ? ui::svg_style_from_theme(
+                                                   theme_mgr_->plot_surface_colors(f.style()))
+                                             : SvgStyle{},
+                                  svg_host))
             {
                 SPECTRA_LOG_ERROR("app", "Failed to write SVG: {}", f.export_req_.svg_path);
             }

@@ -1,6 +1,9 @@
 #include "io/text_metrics.hpp"
 
+#include <algorithm>
 #include <vector>
+
+#include "io/font_subset.hpp"
 
 // stb_truetype with internal linkage, so it cannot clash with the renderer's
 // own (external) stb_truetype implementation in text_renderer.cpp.
@@ -137,6 +140,47 @@ float inter_text_width(std::string_view text, float font_px)
         em += w >= 0.0f ? w : fallback_em(cp);
     }
     return em * font_px;
+}
+
+bool inter_covers(std::string_view text)
+{
+    const InterMetrics& m = inter_metrics();
+    if (!m.ok)
+        return false;
+    size_t i = 0;
+    while (i < text.size())
+    {
+        const uint32_t cp = next_codepoint(text, i);
+        const float    w  = cp < 128 ? m.ascii_em[cp] : m.glyph_em(static_cast<int>(cp));
+        if (w < 0.0f)
+            return false;
+    }
+    return true;
+}
+
+std::vector<uint32_t> utf8_codepoints(std::string_view text)
+{
+    std::vector<uint32_t> out;
+    size_t                i = 0;
+    while (i < text.size())
+        out.push_back(next_codepoint(text, i));
+    return out;
+}
+
+std::vector<uint8_t> inter_font_subset(std::span<const uint32_t> codepoints)
+{
+    const InterMetrics& m = inter_metrics();
+    if (!m.ok)
+        return {};
+    std::vector<FontSubsetGlyph> glyphs;
+    glyphs.reserve(codepoints.size());
+    for (const uint32_t cp : codepoints)
+    {
+        const int g = stbtt_FindGlyphIndex(&m.info, static_cast<int>(cp));
+        if (g > 0)
+            glyphs.push_back({cp, static_cast<uint16_t>(g)});
+    }
+    return subset_truetype(embedded_inter_font(), glyphs);
 }
 
 }   // namespace spectra

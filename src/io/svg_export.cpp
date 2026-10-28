@@ -4,7 +4,9 @@
 // render_geometry.cpp, render_3d.cpp): theme colours for the chrome, the
 // renderer's dash patterns and SDF marker shapes, the CPU-side fill/outline
 // geometry of the statistical and shape series, and a painter-sorted
-// projection of 3D axes through the axes' camera.
+// projection of 3D axes through the axes' camera.  Plugin series are drawn
+// by their type's vector export callback (SvgExportHost); text is pinned to
+// the Inter advances the layout used (textLength), and Inter can be embedded.
 
 #include <algorithm>
 #include <array>
@@ -13,13 +15,16 @@
 #include <cstdint>
 #include <fstream>
 #include <map>
+#include <set>
 #include <memory>
 #include <span>
 #include <spectra/axes.hpp>
 #include <spectra/axes3d.hpp>
 #include <spectra/camera.hpp>
+#include <spectra/custom_series.hpp>
 #include <spectra/export.hpp>
 #include <spectra/figure.hpp>
+#include <spectra/logger.hpp>
 #include <spectra/series.hpp>
 #include <spectra/series3d.hpp>
 #include <spectra/series_shapes.hpp>
@@ -36,6 +41,8 @@
 #include "core/axes3d.hpp"
 #include "core/axis_scale.hpp"
 #include "core/label_layout.hpp"
+#include "io/font_subset.hpp"
+#include "io/svg_export_internal.hpp"
 #include "io/svg_label_metrics.hpp"
 #include "io/text_metrics.hpp"
 #include "render/scatter_marker.hpp"
@@ -247,16 +254,56 @@ Color scatter_colormap(ColormapType cm, float t)
 
 // ─── Export context ─────────────────────────────────────────────────────────
 
+// The document body.  Text emitters consult it for the textLength policy and
+// record the codepoints they write (the subset an embedded font must cover).
+struct SvgBodyStream : std::ostringstream
+{
+    bool                  fit_text_length = true;
+    std::vector<uint32_t> codepoints;   // every codepoint of emitted <text> content
+    std::array<bool, 128> ascii_seen{};
+
+    void note_text(std::string_view text)
+    {
+        for (const uint32_t cp : utf8_codepoints(text))
+        {
+            if (cp < 128)
+            {
+                if (ascii_seen[cp])
+                    continue;
+                ascii_seen[cp] = true;
+            }
+            codepoints.push_back(cp);
+        }
+    }
+
+    // ` textLength=".." lengthAdjust="spacingAndGlyphs"` pinning `text` to the Inter
+    // advance the layout used, so fallback fonts cannot overflow fitted space.
+    // Nothing for text Inter does not fully cover: its width is only an estimate.
+    void text_length_attr(std::string_view text, float font_px)
+    {
+        note_text(text);
+        if (!fit_text_length || !inter_covers(text))
+            return;
+        const float w = measure_text_width(text, font_px);
+        if (w > 0.0f)
+            *this << " textLength=\"" << num(w) << "\" lengthAdjust=\"spacingAndGlyphs\"";
+    }
+};
+
 struct SvgContext
 {
     const SvgStyle&    style;
     std::ostringstream defs;
-    std::ostringstream body;
+    SvgBodyStream      body;
     int                next_id = 0;
     // (marker style, size in 1/100 px, edge mix in 1/1000) -> symbol id
     std::map<std::tuple<int, int, int>, std::string> marker_ids;
 
-    explicit SvgContext(const SvgStyle& s) : style(s) {}
+    // Plugin series export (SvgExportHost::custom_series); null exports none.
+    const SvgExportHost*  host = nullptr;
+    std::set<std::string> warned_types;   // plugin types already warned about
+
+    explicit SvgContext(const SvgStyle& s) : style(s) { body.fit_text_length = s.fit_text_length; }
 
     std::string new_id(std::string_view prefix)
     {
@@ -845,8 +892,15 @@ const T* fresh_geometry(const T* s, std::unique_ptr<T>& holder, bool always = fa
     return holder.get();
 }
 
+void emit_custom_series_2d(SvgContext& c, const CustomSeries& cs, const DataToSvg& m);
+
 void emit_series_2d(SvgContext& c, const Series& s, const DataToSvg& m)
 {
+    if (auto* cs = dynamic_cast<const CustomSeries*>(&s))
+    {
+        emit_custom_series_2d(c, *cs, m);
+        return;
+    }
     const SvgStyle& st    = c.style;
     const Color     col   = theme_series_color(s, st);
     const float     alpha = series_alpha(s);
@@ -1012,17 +1066,141 @@ void emit_series_2d(SvgContext& c, const Series& s, const DataToSvg& m)
     }
 }
 
+// ─── Plugin series ──────────────────────────────────────────────────────────
+
+// Text safe inside an XML comment ("--" is not allowed there).
+std::string comment_text(std::string_view s)
+{
+    std::string out = xml_escape(s);
+    for (size_t at = out.find("--"); at != std::string::npos; at = out.find("--", at))
+        out.replace(at, 2, "-\xE2\x80\x90");   // "-" + U+2010 hyphen
+    if (!out.empty() && out.back() == '-')
+        out.back() = '_';
+    return out;
+}
+
+// Vector sink handed to a plugin's export callback: maps data coordinates (plus
+// the series offset) through the axes and buffers SVG elements, so a failing
+// callback leaves nothing behind.
+class SvgCustomSink final : public CustomVectorSink
+{
+   public:
+    SvgCustomSink(const DataToSvg& m, double xoff, double yoff) : m_(m), xoff_(xoff), yoff_(yoff) {}
+
+    void fill_polygon(const float* xy, size_t n, const float* rgba) override
+    {
+        if (n < 3 || !(rgba[3] > 0.0f))
+            return;
+        std::string d;
+        if (!path_of(xy, n, d))
+            return;
+        out_ << "      <path d=\"" << d << "Z\"" << fill_attrs(rgba) << "/>\n";
+    }
+
+    void stroke_polyline(const float* xy, size_t n, const float* rgba, float width_px) override
+    {
+        if (n < 2 || !(rgba[3] > 0.0f) || !(width_px > 0.0f))
+            return;
+        std::string d;
+        if (!path_of(xy, n, d))
+            return;
+        const Color c{rgba[0], rgba[1], rgba[2], rgba[3]};
+        out_ << "      <path d=\"" << d << "\" fill=\"none\" stroke=\"" << hex(c)
+             << "\" stroke-width=\"" << num(width_px) << "\"" << opacity_attr("stroke-opacity", c.a)
+             << " stroke-linejoin=\"round\" stroke-linecap=\"round\"/>\n";
+    }
+
+    void fill_rect(float x0, float y0, float x1, float y1, const float* rgba) override
+    {
+        if (!(rgba[3] > 0.0f))
+            return;
+        const double ax = m_.map_x(xoff_ + x0), bx = m_.map_x(xoff_ + x1);
+        const double ay = m_.map_y(yoff_ + y0), by = m_.map_y(yoff_ + y1);
+        if (!std::isfinite(ax) || !std::isfinite(bx) || !std::isfinite(ay) || !std::isfinite(by))
+            return;
+        // crispEdges: adjacent cells (heatmaps) meet without anti-aliased seams.
+        out_ << "      <rect x=\"" << num(std::min(ax, bx)) << "\" y=\"" << num(std::min(ay, by))
+             << "\" width=\"" << num(std::fabs(bx - ax)) << "\" height=\""
+             << num(std::fabs(by - ay)) << "\"" << fill_attrs(rgba)
+             << " shape-rendering=\"crispEdges\"/>\n";
+    }
+
+    [[nodiscard]] std::string str() const { return out_.str(); }
+
+   private:
+    bool path_of(const float* xy, size_t n, std::string& d) const
+    {
+        for (size_t i = 0; i < n; ++i)
+        {
+            const double px = m_.map_x(xoff_ + xy[2 * i]);
+            const double py = m_.map_y(yoff_ + xy[2 * i + 1]);
+            if (!std::isfinite(px) || !std::isfinite(py))
+                return false;
+            d += i == 0 ? "M" : "L";
+            put_num(d, px);
+            d += ',';
+            put_num(d, py);
+        }
+        return true;
+    }
+
+    static std::string fill_attrs(const float* rgba)
+    {
+        const Color c{rgba[0], rgba[1], rgba[2], rgba[3]};
+        return " fill=\"" + hex(c) + "\"" + opacity_attr("fill-opacity", c.a);
+    }
+
+    const DataToSvg&   m_;
+    double             xoff_, yoff_;
+    std::ostringstream out_;
+};
+
+// A plugin series that cannot be exported: an XML comment in its place, and
+// one warning per type and export instead of dropping it silently.
+void note_custom_series_skipped(SvgContext& c, const CustomSeries& cs, const char* reason)
+{
+    c.body << "      <!-- plugin series '" << comment_text(cs.type_name()) << "'";
+    if (!cs.label().empty())
+        c.body << " \"" << comment_text(cs.label()) << "\"";
+    c.body << " not exported: " << comment_text(reason) << " -->\n";
+    if (c.warned_types.insert(cs.type_name()).second)
+        SPECTRA_LOG_WARN("svg",
+                         "SVG export: plugin series of type '{}' not exported: {}",
+                         cs.type_name(),
+                         reason);
+}
+
+void emit_custom_series_2d(SvgContext& c, const CustomSeries& cs, const DataToSvg& m)
+{
+    if (!c.host || !c.host->custom_series)
+    {
+        note_custom_series_skipped(c, cs, "no plugin series registry attached to this export");
+        return;
+    }
+    const Color   col     = theme_series_color(cs, c.style);
+    const float   rgba[4] = {col.r, col.g, col.b, series_alpha(cs)};
+    SvgCustomSink sink(m, cs.x_offset(), cs.y_offset());
+    if (const char* reason = c.host->custom_series(cs, rgba, cs.plot_style().opacity, sink))
+    {
+        note_custom_series_skipped(c, cs, reason);
+        return;
+    }
+    c.body << "      <g class=\"plugin-series\" data-type=\"" << xml_escape(cs.type_name())
+           << "\">\n"
+           << sink.str() << "      </g>\n";
+}
+
 // ─── Text ───────────────────────────────────────────────────────────────────
 
-void emit_text(std::ostringstream& o,
-               std::string_view    text,
-               double              x,
-               double              y,
-               float               font_px,
-               const Color&        col,
-               const char*         anchor,
-               VAlign              valign,
-               std::string_view    extra = {})
+void emit_text(SvgBodyStream&   o,
+               std::string_view text,
+               double           x,
+               double           y,
+               float            font_px,
+               const Color&     col,
+               const char*      anchor,
+               VAlign           valign,
+               std::string_view extra = {})
 {
     if (text.empty())
         return;
@@ -1031,19 +1209,20 @@ void emit_text(std::ostringstream& o,
       << opacity_attr("fill-opacity", col.a);
     if (std::string_view(anchor) != "start")
         o << " text-anchor=\"" << anchor << "\"";
+    o.text_length_attr(text, font_px);
     o << extra << ">" << xml_escape(text) << "</text>\n";
 }
 
 // Emits a fitted plot label; a shortened one keeps its full text as a hover tooltip.
-void emit_fitted_label(std::ostringstream& o,
-                       const FittedLabel&  fit,
-                       const std::string&  full_text,
-                       double              x,
-                       double              y,
-                       const Color&        col,
-                       const char*         anchor,
-                       VAlign              valign,
-                       std::string_view    extra = {})
+void emit_fitted_label(SvgBodyStream&     o,
+                       const FittedLabel& fit,
+                       const std::string& full_text,
+                       double             x,
+                       double             y,
+                       const Color&       col,
+                       const char*        anchor,
+                       VAlign             valign,
+                       std::string_view   extra = {})
 {
     if (fit.text.empty())
         return;
@@ -1509,8 +1688,9 @@ void emit_annotations(SvgContext& c, const Axes& axes, const DataToSvg& m, const
         c.body << "      <text class=\"annotation\" x=\"" << num(ax) << "\" y=\""
                << num(box.y1 - 0.25f * fs) << "\" font-size=\"" << num(fs) << "\" text-anchor=\""
                << anchors[static_cast<int>(ann->halign())] << "\" fill=\"" << hex(col) << "\""
-               << opacity_attr("fill-opacity", col.a) << ">" << xml_escape(ann->text())
-               << "</text>\n";
+               << opacity_attr("fill-opacity", col.a);
+        c.body.text_length_attr(ann->text(), fs);
+        c.body << ">" << xml_escape(ann->text()) << "</text>\n";
     }
     c.body << "    </g>\n";
 }
@@ -2336,7 +2516,11 @@ void emit_axes_3d(SvgContext& c, const Axes3D& axes, const LegendConfig& legend)
                                   lt);
             }
         }
-        // Plugin series are not exported (documented limitation).
+        else if (auto* cs = dynamic_cast<const CustomSeries*>(&s))
+        {
+            // The vector export callback describes 2D geometry only.
+            note_custom_series_skipped(c, *cs, "plugin series in 3D axes cannot be exported");
+        }
     }
 
     // Far to near.
@@ -2626,10 +2810,18 @@ std::string SvgExporter::to_string(const Figure& figure)
 
 std::string SvgExporter::to_string(const Figure& figure, const SvgStyle& style)
 {
+    return svg_export_to_string(figure, style, SvgExportHost{});
+}
+
+std::string svg_export_to_string(const Figure&        figure,
+                                 const SvgStyle&      style,
+                                 const SvgExportHost& host)
+{
     const uint32_t w = figure.width();
     const uint32_t h = figure.height();
 
     SvgContext c(style);
+    c.host = &host;
 
     // The caller computes the layout (Figure::compute_layout() is non-const);
     // each axes' viewport is used as-is.
@@ -2650,7 +2842,19 @@ std::string SvgExporter::to_string(const Figure& figure, const SvgStyle& style)
            "xmlns:xlink=\"http://www.w3.org/1999/xlink\" width=\""
         << w << "\" height=\"" << h << "\" viewBox=\"0 0 " << w << " " << h << "\" font-family=\""
         << xml_escape(style.font_family) << "\">\n";
-    const std::string defs = c.defs.str();
+    std::string defs = c.defs.str();
+    if (style.embed_font && !c.body.codepoints.empty())
+    {
+        // The used glyphs of Inter as "Inter": an @font-face family shadows an
+        // installed font of the same name, so every viewer sets the same face.
+        const std::vector<uint8_t> font = inter_font_subset(c.body.codepoints);
+        if (font.empty())
+            SPECTRA_LOG_WARN("svg", "SVG export: Inter is unavailable, font not embedded");
+        else
+            defs = "    <style>@font-face{font-family:'Inter';font-style:normal;font-weight:400;"
+                   "src:url(data:font/ttf;base64,"
+                   + base64_encode(font) + ") format('truetype');}</style>\n" + defs;
+    }
     if (!defs.empty())
         svg << "  <defs>\n" << defs << "  </defs>\n";
     svg << "  <rect class=\"background\" width=\"100%\" height=\"100%\" fill=\""
@@ -2677,7 +2881,15 @@ bool SvgExporter::write_svg(const std::string& path, const Figure& figure)
 
 bool SvgExporter::write_svg(const std::string& path, const Figure& figure, const SvgStyle& style)
 {
-    const std::string content = to_string(figure, style);
+    return svg_export_write(path, figure, style, SvgExportHost{});
+}
+
+bool svg_export_write(const std::string&   path,
+                      const Figure&        figure,
+                      const SvgStyle&      style,
+                      const SvgExportHost& host)
+{
+    const std::string content = svg_export_to_string(figure, style, host);
 
     std::ofstream file(path, std::ios::binary);
     if (!file.is_open())

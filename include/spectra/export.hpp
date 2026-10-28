@@ -39,6 +39,17 @@ struct SvgStyle
     Color       legend_bg      = {0.973f, 0.984f, 1.000f, 1.0f};
     Color       legend_border  = {0.61f, 0.72f, 0.82f, 0.44f};
     std::string font_family    = "Inter, 'Helvetica Neue', Arial, sans-serif";
+
+    /// Layout (legend boxes, label fitting, tick spacing) is computed with Inter's
+    /// advances.  When true, each text whose glyphs Inter covers carries
+    /// textLength + lengthAdjust="spacingAndGlyphs", so a viewer that sets it in a
+    /// fallback font (or another font_family) still matches that layout.
+    bool fit_text_length = true;
+
+    /// Embed the glyphs of Inter the document uses (a subset TrueType font in an
+    /// @font-face named "Inter"), so viewers without Inter installed render the
+    /// exact face.  Off by default: it adds roughly 30-60 KB to the file.
+    bool embed_font = false;
 };
 
 class SvgExporter

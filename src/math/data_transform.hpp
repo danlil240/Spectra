@@ -1,9 +1,13 @@
 #pragma once
 
+#include <atomic>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <functional>
+#include <memory>
 #include <mutex>
+#include <shared_mutex>
 #include <span>
 #include <string>
 #include <unordered_map>
@@ -96,12 +100,54 @@ class DataTransform
     // Human-readable description
     std::string description() const;
 
+    // Whether this transform can run.  Built-in and host transforms always can.
+    // A custom transform registered by a plugin shares one state with every copy
+    // of it (registry entry, get_transform() results, pipeline steps, saved
+    // pipelines): it is unavailable while its plugin is disabled, and for good
+    // once the plugin unloads or the registration is removed or replaced.  An
+    // unavailable transform never calls its callback: apply_y() passes the data
+    // through unchanged (identity) and apply_scalar() returns the input.
+    bool is_available() const;
+
    private:
-    TransformType   type_;
-    std::string     name_;
-    TransformParams params_;
-    CustomFunc      custom_func_;
-    CustomXYFunc    custom_xy_func_;
+    friend class TransformRegistry;
+
+    // Callbacks of a custom transform, shared by all copies so that disabling
+    // or unloading the owner reaches every retained copy.
+    struct CustomState
+    {
+        CustomFunc                func;
+        CustomXYFunc              xy_func;
+        std::atomic<bool>         enabled{true};
+        std::atomic<bool>         alive{true};
+        mutable std::shared_mutex mutex;   // shared: apply; unique: revoke
+    };
+
+    enum class CustomKind : std::uint8_t
+    {
+        None,
+        Scalar,
+        XY,
+    };
+
+    TransformType                type_;
+    std::string                  name_;
+    TransformParams              params_;
+    CustomKind                   custom_kind_ = CustomKind::None;
+    std::shared_ptr<CustomState> custom_;
+
+    // Wraps a state already holding its callback (see TransformRegistry).
+    DataTransform(const std::string& name, std::shared_ptr<CustomState> state, CustomKind kind);
+
+    // Registry-side controls of the shared custom state (no-ops otherwise).
+    void set_custom_enabled(bool enabled) const;
+    // Drops the callbacks for good, waiting for in-flight calls to finish.
+    void revoke_custom() const;
+    // Whether both transforms are copies of the same custom registration.
+    bool same_custom(const DataTransform& other) const
+    {
+        return custom_ != nullptr && custom_ == other.custom_;
+    }
 
     // Built-in transform implementations
     void apply_identity(std::span<const float> x_in,
@@ -210,8 +256,12 @@ class TransformPipeline
     // Human-readable description of the full pipeline
     std::string description() const;
 
-    // Check if pipeline is empty or all steps disabled
+    // Check if pipeline is empty or all steps disabled (or unavailable)
     bool is_identity() const;
+
+    // Whether every enabled step is available (see DataTransform::is_available).
+    // Unavailable steps apply as identity.
+    bool is_available() const;
 
    private:
     struct Step
@@ -250,16 +300,22 @@ class TransformRegistry
                                const std::string&          description = "",
                                const void*                 owner       = nullptr);
 
-    // Remove a custom transform by name.
+    // Remove a custom transform by name.  A plugin-owned transform (non-null
+    // owner) is also revoked in every retained copy (see
+    // DataTransform::is_available); host transforms keep working in copies.
+    // Registering a new transform under the name of a plugin-owned one revokes
+    // the old one the same way.
     bool unregister_transform(const std::string& name);
 
-    // Remove every custom transform registered with `owner` (nullptr: none).
-    // Returns the number removed.
+    // Remove every custom transform registered with `owner` (nullptr: none) and
+    // revoke it in every retained copy, including steps of saved pipelines, so
+    // no callback into the owner stays reachable.  Returns the number removed.
     size_t unregister_owner(const void* owner);
 
     // Enable/disable every custom transform registered with `owner`.  Disabled
     // transforms stay registered but are not listed by available_transforms()
-    // and get_transform() does not return them.
+    // and get_transform() does not return them; retained copies (pipelines,
+    // saved pipelines) apply them as identity until re-enabled.
     void set_owner_enabled(const void* owner, bool enabled);
 
     // Number of custom transforms (enabled or not) registered with `owner`.
@@ -274,7 +330,10 @@ class TransformRegistry
     // Save a pipeline preset
     void save_pipeline(const std::string& name, const TransformPipeline& pipeline);
 
-    // Load a pipeline preset
+    // Load a pipeline preset.  Like get_transform(), this fails (and leaves
+    // `out` untouched) while an enabled step is unavailable because its plugin
+    // is disabled or unloaded.  A step whose plugin was unloaded is rebound by
+    // name to a transform registered again since (e.g. the plugin reloaded).
     bool load_pipeline(const std::string& name, TransformPipeline& out) const;
 
     // Get all saved pipeline names
@@ -294,6 +353,17 @@ class TransformRegistry
         const void*   owner   = nullptr;
         bool          enabled = true;
     };
+
+    // Creates the shared state of a registered transform.  Set by the
+    // constructor, so it always points into the module that owns the registry
+    // (the host): a plugin linking spectra statically (Windows) runs its own
+    // copy of register_transform(), and a shared_ptr control block allocated
+    // there would be released by retained copies after the plugin unloaded.
+    // The callbacks themselves are dropped by unregister_owner() before unload.
+    using StateFactory       = std::shared_ptr<DataTransform::CustomState> (*)();
+    StateFactory make_state_ = nullptr;
+
+    static std::shared_ptr<DataTransform::CustomState> make_custom_state();
 
     mutable std::mutex                                 mutex_;
     std::unordered_map<std::string, CustomEntry>       custom_transforms_;

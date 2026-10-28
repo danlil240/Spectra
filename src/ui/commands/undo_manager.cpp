@@ -7,6 +7,13 @@
 namespace spectra
 {
 
+bool UndoAction::owned_by(const void* token) const
+{
+    if (!token)
+        return false;
+    return owner == token || std::ranges::find(owners, token) != owners.end();
+}
+
 // ─── Push ────────────────────────────────────────────────────────────────────
 
 void UndoManager::push(UndoAction action)
@@ -146,13 +153,22 @@ void UndoManager::end_group()
 
     UndoAction combined;
     combined.description = desc;
+    // The combined callbacks reach every child, so the group belongs to every
+    // child's owner(s), including those of a nested combined group.
+    auto add_owner = [&combined](const void* token)
+    {
+        if (!token || combined.owned_by(token))
+            return;
+        if (!combined.owner)
+            combined.owner = token;
+        else
+            combined.owners.push_back(token);
+    };
     for (const auto& a : actions)
     {
-        if (a.owner)
-        {
-            combined.owner = a.owner;
-            break;
-        }
+        add_owner(a.owner);
+        for (const void* token : a.owners)
+            add_owner(token);
     }
     combined.undo_fn = [actions]()
     {
@@ -190,7 +206,8 @@ size_t UndoManager::remove_owned(const void* owner)
     std::lock_guard lock(mutex_);
     size_t          removed = 0;
     for (auto* stack : {&undo_stack_, &redo_stack_, &group_actions_})
-        removed += std::erase_if(*stack, [owner](const UndoAction& a) { return a.owner == owner; });
+        removed +=
+            std::erase_if(*stack, [owner](const UndoAction& a) { return a.owned_by(owner); });
     return removed;
 }
 

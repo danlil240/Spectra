@@ -3155,13 +3155,24 @@ class QAAgent
                           && pi.figure_index != INVALID_FIGURE_ID;
             c.expect(visible, "every pane has a figure and a visible (>50px) area");
 
-            // Legend windows ("##legend_<figure ptr>_<axes>") belong only to
-            // figures visible in a pane, never to ones behind another tab.
+            // Legend windows (pooled "##legend_<slot>", see LegendInteraction::
+            // window_name) belong only to figures visible in a pane, never to
+            // ones behind another tab.
             std::set<std::string> visible_keys;
             for (const auto& pi : infos)
-                if (Figure* pf = app_->figure_registry().get(pi.figure_index))
-                    visible_keys.insert(
-                        std::format("##legend_{:x}_", reinterpret_cast<uintptr_t>(pf)));
+                if (Figure* pf = app_->figure_registry().get(pi.figure_index);
+                    pf && ui->data_interaction)
+                {
+                    const size_t n_axes = pf->axes().size() + pf->all_axes().size();
+                    for (size_t ai = 0; ai < n_axes; ++ai)
+                    {
+                        std::string wn = ui->data_interaction->legend().window_name(
+                            reinterpret_cast<uintptr_t>(pf),
+                            ai);
+                        if (!wn.empty())
+                            visible_keys.insert(std::move(wn));
+                    }
+                }
             std::string   ghosts;
             ImGuiContext* ctx = design_imgui();
             for (ImGuiWindow* w : ctx ? ctx->Windows : ImVector<ImGuiWindow*>{})
@@ -3171,10 +3182,9 @@ class QAAgent
                 std::string_view name(w->Name);
                 if (name.rfind("##legend_", 0) != 0 || name.rfind("##legend_toggle", 0) == 0)
                     continue;
-                bool ok = false;
-                for (const auto& k : visible_keys)
-                    ok = ok || name.rfind(k, 0) == 0;
-                if (!ok)
+                if (name.rfind("##legend_full", 0) == 0 || name.rfind("##legend_more", 0) == 0)
+                    continue;
+                if (visible_keys.count(std::string(name)) == 0)
                     ghosts += std::string(name) + " ";
             }
             c.expect(ghosts.empty(),

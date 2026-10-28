@@ -161,6 +161,9 @@ class DataInteraction
     // Invalidate cached figure pointer (call when a figure is destroyed)
     void clear_figure_cache(Figure* fig = nullptr)
     {
+        // The legend keys its state and pooled ImGui window by figure address.
+        if (fig)
+            legend_.forget_figure(reinterpret_cast<uintptr_t>(fig));
         if (!fig || last_figure_ == fig)
         {
             last_figure_   = nullptr;

@@ -174,7 +174,7 @@ TEST(LegendBoundsImGui, InteractiveLegendStaysInsideNarrowAxes)
     legend.draw(ax, vp, 0, cfg, 1);
     ImGui::Render();
 
-    ImGuiWindow* win = ImGui::FindWindowByName(std::format("##legend_{:x}_{}", 1ul, 0).c_str());
+    ImGuiWindow* win = ImGui::FindWindowByName(legend.window_name(1, 0).c_str());
     ASSERT_NE(win, nullptr);
     EXPECT_GE(win->Pos.x, vp.x);
     EXPECT_GE(win->Pos.y, vp.y);
@@ -281,6 +281,66 @@ TEST(LegendBoundsImGui, OverflowCellIsDiscoverable)
     ASSERT_NE(oc, nullptr);
     EXPECT_TRUE(oc->popup_open);
 
+    ImGui::DestroyContext();
+}
+
+// Legend ImGui windows are pooled: ImGui never frees a window, so a name per
+// figure address leaked one window per figure ever shown (soak: +5 windows per
+// open/close cycle).  Forgotten figures return their name for reuse.
+TEST(LegendBoundsImGui, LegendWindowsAreReusedAfterFigureIsForgotten)
+{
+    ImGui::CreateContext();
+    ImGuiIO& io    = ImGui::GetIO();
+    io.DisplaySize = ImVec2(800.0f, 600.0f);
+    io.DeltaTime   = 1.0f / 60.0f;
+    io.Fonts->AddFontDefault();
+    unsigned char* px = nullptr;
+    int            tw = 0, th = 0;
+    io.Fonts->GetTexDataAsRGBA32(&px, &tw, &th);
+
+    ui::ThemeManager  theme;
+    LegendInteraction legend;
+    legend.set_theme_manager(&theme);
+
+    Axes               ax;
+    std::vector<float> x = {0.0f, 1.0f};
+    ax.line(x, x).label("a");
+    const Rect   vp{20.0f, 30.0f, 400.0f, 300.0f};
+    LegendConfig cfg;
+    cfg.position = LegendPosition::TopLeft;
+
+    auto frame = [&](std::initializer_list<uintptr_t> figures)
+    {
+        ImGui::NewFrame();
+        for (uintptr_t f : figures)
+            legend.draw(ax, vp, 0, cfg, f);
+        ImGui::Render();
+    };
+
+    // Two figures side by side: two distinct windows.
+    frame({1, 2});
+    const std::string w1 = legend.window_name(1, 0);
+    const std::string w2 = legend.window_name(2, 0);
+    ASSERT_FALSE(w1.empty());
+    ASSERT_FALSE(w2.empty());
+    EXPECT_NE(w1, w2);
+    EXPECT_NE(ImGui::FindWindowByName(w1.c_str()), nullptr);
+    const int windows = ImGui::GetCurrentContext()->Windows.Size;
+
+    // Churn: close figure 1, open a new one, many times.  The pool and the
+    // ImGui window list stay bounded; the live figure keeps its own window.
+    uintptr_t prev = 1;
+    for (uintptr_t f = 3; f < 40; ++f)
+    {
+        legend.forget_figure(prev);
+        EXPECT_TRUE(legend.window_name(prev, 0).empty());
+        frame({f, 2});
+        EXPECT_EQ(legend.window_name(2, 0), w2);
+        EXPECT_NE(legend.window_name(f, 0), w2);
+        prev = f;
+    }
+    EXPECT_EQ(legend.legend_window_pool_size(), 2u);
+    EXPECT_EQ(ImGui::GetCurrentContext()->Windows.Size, windows);
     ImGui::DestroyContext();
 }
 

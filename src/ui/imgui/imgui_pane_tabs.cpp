@@ -3,6 +3,7 @@
     #include "imgui_integration_internal.hpp"
 
     #include <format>
+    #include <unordered_set>
     #include <spectra/window_defaults.hpp>
 
 namespace spectra
@@ -78,6 +79,9 @@ void ImGuiIntegration::draw_pane_tab_headers()
     };
 
     std::vector<PaneHeader> headers;
+    // Tab animation keys used this frame; the rest (closed panes / figures)
+    // are dropped after phase 1 so the map does not grow with churn.
+    std::unordered_set<PaneTabAnimKey, PaneTabAnimKeyHash> live_anims;
     headers.reserve(panes.size());
 
     // Compute insertion gap: when dragging a tab over a pane header,
@@ -188,7 +192,9 @@ void ImGuiIntegration::draw_pane_tab_headers()
             }
 
             // Animate position (keyed by pane+figure to avoid cross-pane interference)
-            auto& anim    = pane_tab_anims_[{ph.pane->id(), fig_idx}];
+            const PaneTabAnimKey anim_key{ph.pane->id(), fig_idx};
+            live_anims.insert(anim_key);
+            auto& anim    = pane_tab_anims_[anim_key];
             anim.target_x = cur_x;
             if (anim.current_x == 0.0f && anim.target_x != 0.0f)
             {
@@ -229,6 +235,8 @@ void ImGuiIntegration::draw_pane_tab_headers()
         headers.push_back(std::move(ph));
     }
 
+    std::erase_if(pane_tab_anims_, [&](const auto& kv) { return live_anims.count(kv.first) == 0; });
+
     // ── Phase 2: Draw + input handling via per-pane ImGui windows ───────
     // Each pane header is drawn inside its own ImGui window so that ImGui's
     // z-ordering naturally puts popups (menus) above these windows.
@@ -241,12 +249,17 @@ void ImGuiIntegration::draw_pane_tab_headers()
         | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoScrollbar
         | ImGuiWindowFlags_NoInputs;
 
-    for (auto& ph : headers)
+    for (size_t header_slot = 0; header_slot < headers.size(); ++header_slot)
     {
-        Rect hr = ph.header_rect;
+        auto& ph = headers[header_slot];
+        Rect  hr = ph.header_rect;
 
-        // Create a tiny ImGui window covering this pane's tab header area
-        const std::string win_id = std::format("##pane_tab_{}", ph.pane->id());
+        // Create a tiny ImGui window covering this pane's tab header area.
+        // Named by slot, not pane id: pane ids grow with every split and
+        // ImGui never frees a window, so per-id names leak one window per
+        // pane ever created.  The window is input-less and placed every
+        // frame, so it carries no per-pane state.
+        const std::string win_id = std::format("##pane_tab_{}", header_slot);
         ImGui::SetNextWindowPos(ImVec2(hr.x, hr.y));
         ImGui::SetNextWindowSize(ImVec2(hr.w, hr.h));
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));

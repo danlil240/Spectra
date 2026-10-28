@@ -143,7 +143,14 @@ option(SPECTRA_BUILD_TESTS    "Build unit tests and benchmarks"   ${SPECTRA_IS_T
 # The multiproc runtime spawns spectra-backend/spectra-window, so the apps are
 # built by default even for subproject consumers.
 option(SPECTRA_BUILD_APPS     "Build spectra, spectra-backend and spectra-window executables" ON)
-option(SPECTRA_INSTALL        "Generate install rules and the spectra CMake package" ON)
+# wasm builds produce a web page, not an installable package (the browser GLFW
+# shim is an interface target that cannot be exported).
+if(EMSCRIPTEN)
+    set(_spectra_install_default OFF)
+else()
+    set(_spectra_install_default ON)
+endif()
+option(SPECTRA_INSTALL        "Generate install rules and the spectra CMake package" ${_spectra_install_default})
 option(SPECTRA_PYTHON_WHEEL  "Install backend into Python package _bin/" OFF)
 
 # SPECTRA_USE_SYSTEM_<DEP> switches (system package vs. pinned FetchContent copy)

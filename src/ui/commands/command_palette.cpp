@@ -47,6 +47,11 @@ void CommandPalette::close()
     scroll_velocity_ = 0.0f;
 }
 
+size_t CommandPalette::result_count() const
+{
+    return results_.size();
+}
+
 void CommandPalette::toggle()
 {
     if (open_)
@@ -389,11 +394,11 @@ bool CommandPalette::draw(float window_width, float window_height)
         // Top strip
         fg->AddRectFilled(outer_min, ImVec2(outer_max.x, palette_y), col);
         // Bottom strip
-        fg->AddRectFilled(
-            ImVec2(outer_min.x, palette_y + palette_h), outer_max, col);
+        fg->AddRectFilled(ImVec2(outer_min.x, palette_y + palette_h), outer_max, col);
         // Left strip
-        fg->AddRectFilled(
-            ImVec2(outer_min.x, palette_y), ImVec2(palette_x, palette_y + palette_h), col);
+        fg->AddRectFilled(ImVec2(outer_min.x, palette_y),
+                          ImVec2(palette_x, palette_y + palette_h),
+                          col);
         // Right strip
         fg->AddRectFilled(ImVec2(palette_x + palette_w, palette_y),
                           ImVec2(outer_max.x, palette_y + palette_h),
@@ -408,18 +413,18 @@ bool CommandPalette::draw(float window_width, float window_height)
 
     // Layered shadow (drawn only in the margin around the palette, not over it)
     draw_donut(ImVec2(palette_x - 4, palette_y - 2),
-              ImVec2(palette_x + palette_w + 4, palette_y + palette_h + 12),
-              IM_COL32(0, 0, 0, static_cast<int>(30 * opacity_)));
+               ImVec2(palette_x + palette_w + 4, palette_y + palette_h + 12),
+               IM_COL32(0, 0, 0, static_cast<int>(30 * opacity_)));
     draw_donut(ImVec2(palette_x - 1, palette_y),
-              ImVec2(palette_x + palette_w + 1, palette_y + palette_h + 4),
-              IM_COL32(0, 0, 0, static_cast<int>(50 * opacity_)));
+               ImVec2(palette_x + palette_w + 1, palette_y + palette_h + 4),
+               IM_COL32(0, 0, 0, static_cast<int>(50 * opacity_)));
 
     // ─── Click outside palette to dismiss ──────────────────────────────────
     if (ImGui::IsMouseClicked(0))
     {
         ImVec2 mp         = ImGui::GetIO().MousePos;
         bool   on_palette = mp.x >= palette_x && mp.x <= palette_x + palette_w && mp.y >= palette_y
-                            && mp.y <= palette_y + palette_h;
+                          && mp.y <= palette_y + palette_h;
         if (!on_palette)
         {
             close();
@@ -643,7 +648,7 @@ bool CommandPalette::draw(float window_width, float window_height)
             if (scroll_to_selected_ && selected_index_ >= 0
                 && selected_index_ < static_cast<int>(results_.size()))
             {
-                scroll_to_selected_ = false;
+                scroll_to_selected_     = false;
                 float            item_y = 0.0f;
                 std::string_view cat;
                 for (int i = 0; i <= selected_index_; ++i)

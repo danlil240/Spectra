@@ -34,6 +34,7 @@
 #include "ui/app/window_ui_context_builder.hpp"
 #include "ui/app/window_ui_context_runtime.hpp"
 #include "ui/app/window_manager_bootstrap.hpp"
+#include "ui/app/window_png_export.hpp"
 #include "ui/app/window_ui_context.hpp"
 #include "ui/theme/theme.hpp"
 
@@ -79,6 +80,7 @@
 #endif
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -126,11 +128,11 @@ void apply_diff_op_to_cache(spectra::ipc::SnapshotFigureState& fig, const spectr
         case spectra::ipc::DiffOp::Type::SET_SERIES_COLOR:
             if (op.series_index < fig.series.size())
             {
-                fig.series[op.series_index].color_r      = op.f1;
-                fig.series[op.series_index].color_g      = op.f2;
-                fig.series[op.series_index].color_b      = op.f3;
-                fig.series[op.series_index].color_a      = op.f4;
-                fig.series[op.series_index].color_index  = -1;   // explicit colour
+                fig.series[op.series_index].color_r     = op.f1;
+                fig.series[op.series_index].color_g     = op.f2;
+                fig.series[op.series_index].color_b     = op.f3;
+                fig.series[op.series_index].color_a     = op.f4;
+                fig.series[op.series_index].color_index = -1;   // explicit colour
                 // ...unless the op carries a format letter (theme-aware shade).
                 fig.series[op.series_index].color_letter =
                     (op.str_val.size() == 1 && spectra::format_colors::is_letter(op.str_val[0]))
@@ -650,7 +652,9 @@ int main(int argc, char* argv[])
         while (!got_snapshot && std::chrono::steady_clock::now() < deadline)
         {
 #ifndef _WIN32
-            struct pollfd pfd{};
+            struct pollfd pfd
+            {
+            };
             pfd.fd      = conn->fd();
             pfd.events  = POLLIN;
             pfd.revents = 0;
@@ -712,7 +716,7 @@ int main(int argc, char* argv[])
     // (FigureConfig / REQ_CREATE_FIGURE), exactly like App::run_inproc.
     spectra::FigureRegistry registry;
     auto                    all_ids = rebuild_registry_from_cache(registry, figure_cache, 0, 0);
-    cache_dirty = false;
+    cache_dirty                     = false;
 
     // If the daemon has no figures yet (e.g. a publisher launched it before
     // any UI was opened), we run with an empty registry and let the shared
@@ -786,8 +790,8 @@ int main(int argc, char* argv[])
 
     frame_state.has_animation = active_figure ? active_figure->has_animation() : false;
 
-    spectra::WindowUIContext* ui_ctx_ptr = nullptr;
-    spectra::WindowContext* initial_wctx = nullptr;
+    spectra::WindowUIContext* ui_ctx_ptr          = nullptr;
+    spectra::WindowContext*   initial_wctx        = nullptr;
     bool                      ui_built_by_builder = false;
 
 #ifdef SPECTRA_USE_GLFW
@@ -819,9 +823,7 @@ int main(int argc, char* argv[])
 
     window_mgr->set_interactive_frame_handler(
         [&session, &scheduler, &animator, &window_mgr, &frame_state]()
-        {
-            session.pump_interactive_frame(scheduler, animator, window_mgr.get(), frame_state);
-        });
+        { session.pump_interactive_frame(scheduler, animator, window_mgr.get(), frame_state); });
 
     initial_wctx = window_mgr->create_first_window_with_ui(glfw->native_window(), all_ids);
     if (initial_wctx && cascade_index > 0)
@@ -1037,13 +1039,19 @@ int main(int argc, char* argv[])
     auto last_heartbeat     = std::chrono::steady_clock::now();
     auto heartbeat_interval = std::chrono::milliseconds(heartbeat_ms);
 
+    // File > Export PNG / SVG and Copy to Clipboard queue requests on the
+    // figure; this window process writes them (same path as App::step()).
+    spectra::WindowPngExport png_export;
+
     while (!session.should_exit() && g_running.load(std::memory_order_relaxed))
     {
         // ── Drain all pending IPC messages (non-blocking) ────────────────
 #ifndef _WIN32
         for (;;)
         {
-            struct pollfd pfd{};
+            struct pollfd pfd
+            {
+            };
             pfd.fd       = conn->fd();
             pfd.events   = POLLIN;
             pfd.revents  = 0;
@@ -1446,6 +1454,13 @@ int main(int argc, char* argv[])
         }
 
         // ── Standard session tick (same as inproc) ───────────────────────
+        // A PNG capture with its own theme draws the captured frame with it.
+        std::optional<spectra::ui::ScopedExportTheme> capture_theme;
+        if (png_export.awaiting_capture() && !png_export.theme().empty())
+        {
+            capture_theme.emplace(&theme_mgr, png_export.theme());
+            session.redraw_tracker().mark_dirty("themed export");
+        }
         session.tick(scheduler,
                      animator,
                      cmd_queue,
@@ -1456,6 +1471,27 @@ int main(int argc, char* argv[])
 #endif
                      frame_state);
         active_figure = frame_state.active_figure;
+        if (capture_theme)
+        {
+            capture_theme.reset();
+            session.redraw_tracker().mark_dirty("themed export done");
+        }
+
+        // ── Exports requested from this window's UI ──────────────────────
+        {
+            spectra::WindowManager* export_wm = nullptr;
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
+            export_wm = window_mgr.get();
+#endif
+            if (spectra::service_window_exports(
+                    png_export,
+                    registry,
+                    active_figure ? frame_state.active_figure_id : spectra::INVALID_FIGURE_ID,
+                    backend.get(),
+                    export_wm,
+                    &theme_mgr))
+                session.redraw_tracker().mark_dirty("png export");
+        }
 
 #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
         // Auto-exit when the last window has been closed by the user.

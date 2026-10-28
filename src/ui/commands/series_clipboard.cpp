@@ -13,14 +13,14 @@ namespace spectra
 SeriesSnapshot SeriesClipboard::snapshot(const Series& series)
 {
     SeriesSnapshot snap;
-    snap.label   = series.label();
-    snap.color   = series.color();
+    snap.label = series.label();
+    snap.color = series.color();
     // Keep where the colour comes from, so a pasted palette / format-letter
     // colour keeps following the theme instead of freezing its current RGB.
     snap.auto_color_index = series.auto_color_index();
     snap.color_letter     = series.color_letter();
-    snap.style   = series.plot_style();
-    snap.visible = series.visible();
+    snap.style            = series.plot_style();
+    snap.visible          = series.visible();
 
     // 2D types
     if (const auto* line = dynamic_cast<const LineSeries*>(&series))

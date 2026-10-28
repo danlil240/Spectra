@@ -287,8 +287,8 @@ void Renderer::upload_series_data(Series&   series,
                 gpu.fill_vertex_capacity = fill_alloc;
             }
 
-            if (xoff != origin_x || yoff != origin_y || is_log_scale(xscale)
-                || is_log_scale(yscale))
+            if (xoff != origin_x || yoff != origin_y || is_nonlinear_scale(xscale)
+                || is_nonlinear_scale(yscale))
             {
                 // Re-center fill vertices (stride=3: x, y, alpha)
                 if (upload_scratch_.size() < fill_floats)
@@ -523,6 +523,7 @@ void Renderer::upload_series_data(Series&   series,
         }
         backend_.upload_buffer(gpu.index_buffer, active_mesh->indices.data(), idx_byte_size);
         gpu.index_count = active_mesh->indices.size();
+        ++gpu.geometry_serial;   // invalidates the translucent triangle sort
 
         series.clear_dirty();
     }
@@ -558,6 +559,7 @@ void Renderer::upload_series_data(Series&   series,
         }
         backend_.upload_buffer(gpu.index_buffer, mesh->indices().data(), idx_byte_size);
         gpu.index_count = mesh->indices().size();
+        ++gpu.geometry_serial;   // invalidates the translucent triangle sort
 
         series.clear_dirty();
     }

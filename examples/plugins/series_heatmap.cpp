@@ -121,6 +121,69 @@ static int heatmap_bounds(const void*  series_data,
     return 0;
 }
 
+// ─── Vector export callback (API v2.2) ───────────────────────────────────────
+//
+// SVG exports cannot run the GPU pipeline, so the same cells are described on
+// the CPU: one rectangle per cell, coloured with the fragment shader's ramp.
+
+static void heatmap_viridis(float t, float* rgb)
+{
+    static const float c[5][3] = {
+        {0.267f, 0.004f, 0.329f},
+        {0.282f, 0.140f, 0.458f},
+        {0.127f, 0.566f, 0.551f},
+        {0.544f, 0.774f, 0.247f},
+        {0.993f, 0.906f, 0.144f},
+    };
+    t       = t < 0.0f ? 0.0f : (t > 1.0f ? 1.0f : t);
+    float s = t * 4.0f;
+    int   i = static_cast<int>(s);
+    if (i >= 4)
+    {
+        rgb[0] = c[4][0];
+        rgb[1] = c[4][1];
+        rgb[2] = c[4][2];
+        return;
+    }
+    float f = s - static_cast<float>(i);
+    for (int k = 0; k < 3; ++k)
+        rgb[k] = c[i][k] + (c[i + 1][k] - c[i][k]) * f;
+}
+
+static int heatmap_export_vector(const void*              series_data,
+                                 size_t                   data_count,
+                                 const SpectraVectorSink* sink,
+                                 void* /* user_data */)
+{
+    if (!sink || !sink->fill_rect || data_count < 4)
+        return -1;
+    auto*    floats = static_cast<const float*>(series_data);
+    uint32_t cols, rows;
+    std::memcpy(&cols, &floats[0], sizeof(uint32_t));
+    std::memcpy(&rows, &floats[1], sizeof(uint32_t));
+    if (cols == 0 || rows == 0 || static_cast<size_t>(cols) * rows > data_count - 4)
+        return -1;
+    const float min_val = floats[2];
+    const float range   = floats[3] - min_val;
+    for (uint32_t r = 0; r < rows; ++r)
+    {
+        for (uint32_t col = 0; col < cols; ++col)
+        {
+            const float raw = floats[4 + static_cast<size_t>(r) * cols + col];
+            float       rgba[4];
+            heatmap_viridis(range > 0.0f ? (raw - min_val) / range : 0.5f, rgba);
+            rgba[3] = sink->opacity;
+            sink->fill_rect(sink->host,
+                            static_cast<float>(col),
+                            static_cast<float>(r),
+                            static_cast<float>(col + 1),
+                            static_cast<float>(r + 1),
+                            rgba);
+        }
+    }
+    return 0;
+}
+
 // ─── Cleanup callback ────────────────────────────────────────────────────────
 
 static void heatmap_cleanup(SpectraBackendHandle backend,
@@ -168,7 +231,17 @@ extern "C"
         desc.cleanup_fn      = heatmap_cleanup;
         desc.user_data       = nullptr;
 
-        return spectra_register_series_type(ctx->series_type_registry, &desc);
+        const int rc = spectra_register_series_type(ctx->series_type_registry, &desc);
+        if (rc != 0)
+            return rc;
+
+        // Optional: lets SVG exports draw the cells (hosts older than v2.2 lack it).
+        if (spectra_plugin_api_at_least(ctx, 2, 2))
+            spectra_register_series_vector_export(ctx->series_type_registry,
+                                                  "heatmap",
+                                                  heatmap_export_vector,
+                                                  nullptr);
+        return 0;
     }
 
     SPECTRA_PLUGIN_API void spectra_plugin_shutdown()

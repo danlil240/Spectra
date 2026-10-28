@@ -82,13 +82,22 @@ On failure, the actual and diff images are written to `tests/golden/output/` (or
 ## 3. Code style
 
 - C++20, formatted with the repository's `.clang-format` (Google base, Allman braces,
-  4-space indent, 100 columns). Format changed files before committing:
+  4-space indent, 100 columns) using **clang-format 18**, the version CI uses (other
+  versions format differently). Format changed code before committing:
 
   ```bash
-  clang-format -i path/to/file.cpp     # single file
-  make format                          # whole project (format_project.sh)
-  make check-format                    # check only, as CI does
+  git clang-format-18 origin/main      # only the lines your branch changed
+  clang-format-18 -i path/to/file.cpp  # single file
+  make format                          # every git-tracked C/C++ file (format_project.sh)
+  make check-format                    # check only; exits non-zero if any file needs formatting
   ```
+
+  `make format` / `make check-format` need clang-format 18 (`CLANG_FORMAT=/path/to/clang-format`
+  overrides the binary) and skip `third_party/` and untracked files. CI runs
+  `make check-format` on the whole tree. See [BUILD_ENVIRONMENT.md](BUILD_ENVIRONMENT.md#formatting).
+
+- The whole-tree clang-format 18 reformat is listed in `.git-blame-ignore-revs`; GitHub's blame
+  skips it automatically, and locally run `git config blame.ignoreRevsFile .git-blame-ignore-revs`.
 
 - Naming: `PascalCase` types, `snake_case` functions and variables, trailing `_` for members,
   `UPPER_SNAKE` macros.

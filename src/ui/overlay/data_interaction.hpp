@@ -60,9 +60,14 @@ class DataInteraction
     size_t last_query_points_examined() const { return last_query_points_examined_; }
 
     // Crosshair control
-    bool crosshair_active() const { return crosshair_.enabled(); }
-    void toggle_crosshair() { crosshair_.toggle(); }
-    void set_crosshair(bool e) { crosshair_.set_enabled(e); }
+    bool  crosshair_active() const { return crosshair_.enabled(); }
+    float crosshair_opacity() const { return crosshair_.opacity(); }
+    // Cursor readout of the last update() (what the overlays were drawn for).
+    const CursorReadout& last_cursor() const { return last_cursor_; }
+    // Screen-space viewport of the axes under the cursor at the last update().
+    const Rect& active_viewport() const { return active_viewport_; }
+    void        toggle_crosshair() { crosshair_.toggle(); }
+    void        set_crosshair(bool e) { crosshair_.set_enabled(e); }
 
     // Tooltip control
     bool tooltip_active() const { return tooltip_.enabled(); }
@@ -75,8 +80,8 @@ class DataInteraction
                                               const Series* series,
                                               size_t        index,
                                               const Axes*   axes = nullptr);
-    void remove_marker(size_t idx);
-    void clear_markers();
+    void                           remove_marker(size_t idx);
+    void                           clear_markers();
     const std::vector<DataMarker>& markers() const { return markers_.markers(); }
 
     // Toggle a data label (datatip) on a point: adds if absent, removes if present.

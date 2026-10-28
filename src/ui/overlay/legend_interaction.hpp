@@ -7,13 +7,17 @@
     #include <spectra/color.hpp>
     #include <spectra/figure.hpp>
     #include <spectra/series.hpp>
+    #include <span>
     #include <unordered_map>
+    #include <vector>
 
 struct ImFont;
+struct ImVec2;
 
 namespace spectra::ui
 {
 class ThemeManager;
+struct ThemeColors;
 }   // namespace spectra::ui
 
 namespace spectra
@@ -83,6 +87,29 @@ class LegendInteraction
 
     void set_theme_manager(ui::ThemeManager* tm) { theme_mgr_ = tm; }
 
+    // ─── "+N more" cell (summarised legends) ────────────────────────────
+
+    // State of the "+N more" cell drawn by the last draw() of a legend, for
+    // hit-testing and tests.  Hovering the cell lists the hidden entries (with
+    // colour keys); clicking it opens the full legend popup, whose rows toggle
+    // series visibility like the legend's own rows.
+    struct OverflowCell
+    {
+        Rect cell;                 // screen pixels
+        int  shown      = 0;       // entries drawn in the legend box
+        int  hidden     = 0;       // entries summarised by the cell
+        bool hovered    = false;   // tooltip shown this frame
+        bool popup_open = false;   // full legend popup shown this frame
+        int  popup_rows = 0;       // rows submitted to the popup list
+        Rect popup_list;           // screen rect of the popup's (scrolling) list
+    };
+    // nullptr when that legend has no "+N more" cell.
+    const OverflowCell* overflow_cell(uintptr_t figure_id, size_t axes_index) const
+    {
+        auto it = overflow_cells_.find(make_offset_key(figure_id, axes_index));
+        return it != overflow_cells_.end() ? &it->second : nullptr;
+    }
+
    private:
     // Get or create state for a series pointer
     LegendSeriesState& get_state(const Series* s);
@@ -102,6 +129,37 @@ class LegendInteraction
     }
     LegendOffset& get_offset(uintptr_t figure_id, size_t axes_index);
 
+    // Shared look of one legend row (legend box and full legend popup).
+    struct RowStyle
+    {
+        ImFont*                font       = nullptr;
+        float                  font_size  = 0.0f;
+        float                  row_height = 0.0f;
+        float                  label_w    = 0.0f;   // label budget before ellipsizing
+        Color                  ink;                 // label colour
+        const ui::ThemeColors* colors = nullptr;
+    };
+    // Swatch + gap (+ visibility eye) width in front of / after a row's label.
+    float row_reserved_width() const;
+    // One clickable entry row (swatch, label, eye) at screen position @p pos,
+    // @p width wide.  Clicking toggles the series.  Returns true if clicked.
+    bool draw_entry_row(Series&         s,
+                        const ImVec2&   pos,
+                        float           width,
+                        const RowStyle& style,
+                        const char*     id);
+    // The "+N more" cell at @p pos, its hover tooltip and the full legend
+    // popup it opens.  Returns true if it consumed a click.
+    bool draw_overflow_cell(std::span<Series* const> entries,
+                            int                      shown,
+                            const ImVec2&            pos,
+                            float                    width,
+                            const RowStyle&          style,
+                            const Rect&              legend_box,
+                            uint64_t                 key);
+    // Flip a series' visibility through the legend (animated dimming).
+    void toggle_series(Series& s);
+
     // Series state keyed by raw pointer (valid for the lifetime of the figure)
     std::unordered_map<const Series*, LegendSeriesState> series_states_;
 
@@ -111,6 +169,9 @@ class LegendInteraction
     // Last corner chosen for LegendPosition::Best, per (figure, axes) — gives
     // the auto-placement hysteresis so the legend doesn't jitter.
     std::unordered_map<OffsetKey, LegendPosition> best_corner_;
+
+    // "+N more" cell per (figure, axes), as drawn by the last draw().
+    std::unordered_map<OffsetKey, OverflowCell> overflow_cells_;
 
     // Drag state
     bool   dragging_        = false;

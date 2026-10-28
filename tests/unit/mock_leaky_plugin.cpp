@@ -17,10 +17,11 @@ namespace
 
 SpectraOverlayRegistry g_overlay_registry = nullptr;
 
-int  g_overlay_draws  = 0;
-int  g_command_runs   = 0;
-int  g_export_calls   = 0;
-bool g_source_running = false;
+int  g_overlay_draws   = 0;
+int  g_command_runs    = 0;
+int  g_export_calls    = 0;
+int  g_transform_calls = 0;
+bool g_source_running  = false;
 
 void ping_command(void* /*user_data*/)
 {
@@ -40,6 +41,7 @@ void register_late_command(void* /*user_data*/)
 
 float shift_transform(float value, void* /*user_data*/)
 {
+    ++g_transform_calls;
     return value + 1.0f;
 }
 
@@ -117,6 +119,11 @@ extern "C"
     SPECTRA_PLUGIN_API int mock_leaky_export_calls()
     {
         return g_export_calls;
+    }
+
+    SPECTRA_PLUGIN_API int mock_leaky_transform_calls()
+    {
+        return g_transform_calls;
     }
 
     SPECTRA_PLUGIN_API int mock_leaky_source_running()

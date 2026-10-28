@@ -429,3 +429,65 @@ TEST_F(PaletteVisibilityTest, DisplayedPaletteIsCanvasAdjusted)
     for (size_t i = 0; i < dark_shown.colors.size(); ++i)
         EXPECT_TRUE(same_rgb(dark_shown.colors[i], dark_want.colors[i])) << i;
 }
+
+// The swatch Settings and the colour picker draw for each slot is the colour
+// the plotted series reaches the screen with: auto colour resolution (as the
+// renderer does it) followed by the final adapt_series_color_to_theme() ink
+// step.  Pure-black slots (colorblind 8, wong 1, monochrome 1) are drawn in the
+// theme foreground on dark themes, so their swatches must be too.
+TEST_F(PaletteVisibilityTest, DisplayedSwatchesMatchResolvedSeriesOnEveryTheme)
+{
+    int ink_swatches = 0;
+    for (const char* theme : kThemes)
+    {
+        tm_.set_theme(theme);
+        for (const char* name : kPalettes)
+        {
+            tm_.set_data_palette(name);
+            const DataPalette shown = tm_.displayed_data_palette();
+            const size_t      n     = shown.colors.size();
+            ASSERT_GT(n, 0u) << theme << "/" << name;
+
+            spectra::Figure                   fig;
+            auto&                             ax  = fig.subplot(1, 1, 1);
+            const float                       x[] = {0.0f, 1.0f};
+            std::vector<spectra::LineSeries*> lines;
+            for (size_t i = 0; i < n; ++i)
+                lines.push_back(&ax.line(x, x));
+            // Same calls as Renderer::begin_render_pass().
+            const auto surface = tm_.plot_surface_colors(fig.style());
+            spectra::ui::resolve_auto_series_colors(
+                fig,
+                tm_.plot_surface_data_palette(fig.style()),
+                spectra::ui::is_light_plot_background(surface),
+                spectra::ui::effective_figure_background(fig.style(), surface));
+
+            const UiColor& canvas = tm_.colors().bg_canvas;
+            for (size_t i = 0; i < n; ++i)
+            {
+                const spectra::Color drawn =
+                    spectra::ui::adapt_series_color_to_theme(lines[i]->color(), surface);
+                const UiColor& sw = shown.colors[i];
+                EXPECT_TRUE(sw.r == drawn.r && sw.g == drawn.g && sw.b == drawn.b
+                            && sw.a == drawn.a)
+                    << theme << "/" << name << " slot " << i + 1 << ": swatch " << sw.r << ","
+                    << sw.g << "," << sw.b << " vs drawn " << drawn.r << "," << drawn.g << ","
+                    << drawn.b;
+                if (ink_slot(tm_.current_data_palette().colors[i], canvas))
+                {
+                    ++ink_swatches;
+                    EXPECT_TRUE(same_rgb(sw, tm_.colors().text_primary.with_alpha(sw.a)))
+                        << theme << "/" << name << " slot " << i + 1;
+                }
+            }
+            // Named lookup gives the same final colours.
+            const DataPalette by_name = tm_.displayed_data_palette(name);
+            ASSERT_EQ(by_name.colors.size(), n);
+            for (size_t i = 0; i < n; ++i)
+                EXPECT_TRUE(same_rgb(by_name.colors[i], shown.colors[i]))
+                    << theme << "/" << name << " slot " << i + 1;
+        }
+    }
+    // colorblind 8, wong 1, monochrome 1 on night, dark and high_contrast.
+    EXPECT_EQ(ink_swatches, 9);
+}

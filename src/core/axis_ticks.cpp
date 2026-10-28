@@ -1,5 +1,7 @@
 #include "core/axis_ticks.hpp"
 
+#include "core/axis_scale.hpp"
+
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -27,6 +29,11 @@ constexpr size_t    MAX_CATEGORY_TICKS = 100;
 constexpr double MIN_CATEGORY_PX = 30.0;
 // Stepping down to reach two ticks never goes below this fraction of the target.
 constexpr double MIN_STEP_FRACTION = 0.35;
+// Sqrt axes: neighbouring ticks stay at least this fraction of the target apart
+// (the square root compresses large |v|, so the coarse step is set there).
+constexpr double SQRT_MIN_GAP_FRACTION = 0.5;
+// Sqrt axes: gaps wider than this many target spacings are subdivided.
+constexpr double SQRT_SPLIT_GAP_FACTOR = 2.0;
 
 double pow10i(int e)
 {
@@ -150,6 +157,157 @@ TickResult build_ticks(double lo, double hi, double step)
         result.labels.push_back(format_tick_label(v, fmt));
     result.offset_label = format_tick_offset(fmt);
     return result;
+}
+
+// True when @p s is a 1-2-5 step (1, 2 or 5 times a power of ten).
+bool is_125_step(double s)
+{
+    if (!(s > 0.0) || !std::isfinite(s))
+        return false;
+    const double m = clean(s / pow10i(static_cast<int>(std::floor(std::log10(s) + 1e-9))));
+    return m == 1.0 || m == 2.0 || m == 5.0;
+}
+
+// Multiples of @p step inside [lo, hi] (at most MAX_TICKS + 1 of them).
+std::vector<double> multiples_in(double lo, double hi, double step)
+{
+    std::vector<double> out;
+    long long           first = 0;
+    long long           last  = 0;
+    if (!tick_index_range(lo, hi, step, first, last))
+        return out;
+    for (long long i = first; i <= last && i - first <= MAX_TICKS; ++i)
+    {
+        double v = static_cast<double>(i) * step;
+        if (std::abs(v) < step * 1e-6)
+            v = 0.0;
+        out.push_back(v);
+    }
+    return out;
+}
+
+// Tick values for a sqrt axis whose neighbours are at least @p min_gap_px
+// apart on screen (see generate_sqrt_ticks).  @p finest receives the smallest
+// step used.  Returns false when no step yields two such ticks.
+template <typename ToPx>
+bool sqrt_tick_values(double               lo,
+                      double               hi,
+                      const ToPx&          px,
+                      double               raw_step,
+                      double               min_gap_px,
+                      double               split_gap_px,
+                      bool                 integer_only,
+                      std::vector<double>& ticks,
+                      double&              finest)
+{
+    auto min_gap = [&](const std::vector<double>& t)
+    {
+        double g = std::numeric_limits<double>::infinity();
+        for (size_t i = 1; i < t.size(); ++i)
+            g = std::min(g, px(t[i]) - px(t[i - 1]));
+        return g;
+    };
+
+    // Coarse step: the finest 1-2-5 step, no finer than the one a linear axis
+    // of the same length would use, whose ticks keep min_gap_px apart
+    // everywhere.  The square root compresses large |v|, so this is decided
+    // at the end of the axis farthest from zero.
+    ticks.clear();
+    // 1-2-5 steps only: a 2.5 step cannot be halved into nice values, which
+    // would leave the stretched region near zero without ticks.
+    std::vector<double> cands = step_candidates(raw_step, integer_only);
+    std::erase_if(cands, [](double c) { return !is_125_step(c); });
+    size_t first = 0;
+    for (size_t i = 1; i < cands.size(); ++i)
+    {
+        if (std::abs(std::log(cands[i] / raw_step)) < std::abs(std::log(cands[first] / raw_step)))
+            first = i;
+    }
+    for (size_t ci = first; ci < cands.size(); ++ci)
+    {
+        const double c = cands[ci];
+        if (tick_count(lo, hi, c) > MAX_TICKS)
+            continue;
+        std::vector<double> t = multiples_in(lo, hi, c);
+        if (t.size() < 2)
+            break;   // steps only grow from here
+        if (min_gap(t) >= min_gap_px)
+        {
+            ticks  = std::move(t);
+            finest = c;
+            break;
+        }
+    }
+    if (ticks.size() < 2)
+        return false;
+
+    // Subdivide wide gaps (the stretched region around zero and the margins
+    // before the first / after the last tick) with finer 1-2-5 steps.
+    struct Gap
+    {
+        double a, b, step;
+        bool   a_tick, b_tick;
+    };
+    std::vector<Gap> work;
+    if (lo < ticks.front())
+        work.push_back({lo, ticks.front(), finest, false, true});
+    for (size_t i = 1; i < ticks.size(); ++i)
+        work.push_back({ticks[i - 1], ticks[i], finest, true, true});
+    if (ticks.back() < hi)
+        work.push_back({ticks.back(), hi, finest, true, false});
+
+    static constexpr double DIVISORS[] = {2.0, 2.5, 5.0, 10.0};
+    while (!work.empty() && static_cast<long long>(ticks.size()) < MAX_TICKS)
+    {
+        const Gap g = work.back();
+        work.pop_back();
+        if (px(g.b) - px(g.a) < split_gap_px)
+            continue;
+        for (double d : DIVISORS)
+        {
+            const double s = clean(g.step / d);
+            if (!is_125_step(s) || (integer_only && s < 1.0))
+                continue;
+            // Interior multiples; an axis limit that is not a tick yet may
+            // receive one itself.
+            std::vector<double> cand;
+            for (double v : multiples_in(g.a, g.b, s))
+            {
+                const double tol = s * 1e-6;
+                if ((v > g.a + tol || !g.a_tick) && (v < g.b - tol || !g.b_tick))
+                    cand.push_back(v);
+            }
+            if (cand.empty() || cand.size() > 64)
+                continue;
+            // Greedy, nearest to zero first (the square root stretches small
+            // |v| the most): keep every candidate that stays min_gap_px away
+            // from the ticks around it.
+            std::sort(cand.begin(),
+                      cand.end(),
+                      [](double x, double y) { return std::abs(x) < std::abs(y); });
+            std::vector<double> inner;
+            for (double v : cand)
+            {
+                bool fits = (!g.a_tick || px(v) - px(g.a) >= min_gap_px)
+                            && (!g.b_tick || px(g.b) - px(v) >= min_gap_px);
+                for (size_t i = 0; fits && i < inner.size(); ++i)
+                    fits = std::abs(px(v) - px(inner[i])) >= min_gap_px;
+                if (fits)
+                    inner.insert(std::upper_bound(inner.begin(), inner.end(), v), v);
+            }
+            if (inner.empty())
+                continue;
+            finest = std::min(finest, s);
+            work.push_back({g.a, inner.front(), s, g.a_tick, true});
+            for (size_t i = 1; i < inner.size(); ++i)
+                work.push_back({inner[i - 1], inner[i], s, true, true});
+            work.push_back({inner.back(), g.b, s, true, g.b_tick});
+            ticks.insert(ticks.end(), inner.begin(), inner.end());
+            break;
+        }
+    }
+    std::sort(ticks.begin(), ticks.end());
+    return true;
 }
 
 }   // namespace
@@ -319,6 +477,56 @@ TickResult generate_linear_ticks(double lo, double hi, const LinearTickOptions& 
             break;
         ++idx;
         result = build_ticks(lo, hi, cands[idx]);
+    }
+    return result;
+}
+
+TickResult generate_sqrt_ticks(double lo, double hi, const LinearTickOptions& opt)
+{
+    if (!std::isfinite(lo) || !std::isfinite(hi))
+        return {};
+    if (hi < lo)
+        std::swap(lo, hi);
+    const double a_lo   = signed_sqrt(lo);
+    const double a_span = signed_sqrt(hi) - a_lo;
+    if (!(a_span > 0.0) || !std::isfinite(a_span) || (opt.integer_steps && !opt.categories.empty()))
+        return generate_linear_ticks(lo, hi, opt);
+
+    const double axis_px   = opt.axis_px > 1.0 ? opt.axis_px : DEFAULT_TICK_AXIS_PX;
+    const double target_px = opt.target_px > 1.0 ? opt.target_px : Y_TICK_TARGET_PX;
+    auto         px        = [&](double v) { return (signed_sqrt(v) - a_lo) / a_span * axis_px; };
+    const bool   integer_only = opt.integer_steps && hi - lo >= 2.0;
+    const double raw          = (hi - lo) * target_px / axis_px;
+
+    double     min_gap_px = SQRT_MIN_GAP_FRACTION * target_px;
+    TickResult result;
+    // x labels sit side by side: widen the minimum gap until they fit.
+    for (int pass = 0; pass < 4; ++pass)
+    {
+        std::vector<double> ticks;
+        double              finest = 0.0;
+        if (!sqrt_tick_values(lo,
+                              hi,
+                              px,
+                              raw,
+                              min_gap_px,
+                              std::max(SQRT_SPLIT_GAP_FACTOR * target_px, 2.0 * min_gap_px),
+                              integer_only,
+                              ticks,
+                              finest))
+            return generate_linear_ticks(lo, hi, opt);
+        const TickFormat fmt = choose_tick_format(ticks, finest, lo, hi);
+        result               = {};
+        result.positions     = std::move(ticks);
+        for (double v : result.positions)
+            result.labels.push_back(format_tick_label(v, fmt));
+        result.offset_label = format_tick_offset(fmt);
+        if (!opt.labels_side_by_side)
+            break;
+        const double need = max_label_px(result.labels) + TICK_LABEL_GAP_PX;
+        if (need <= min_gap_px)
+            break;
+        min_gap_px = need;
     }
     return result;
 }

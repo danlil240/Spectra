@@ -274,6 +274,9 @@ void WindowManager::destroy_window(uint32_t window_id)
     if (backend_->device() != VK_NULL_HANDLE)
         vkDeviceWaitIdle(backend_->device());
 
+    if (wctx.ui_ctx && window_ui_destroying_handler_)
+        window_ui_destroying_handler_(wctx);
+
     // Destroy UI context first (shuts down ImGui before Vulkan resources)
     if (wctx.ui_ctx)
     {
@@ -369,6 +372,9 @@ void WindowManager::shutdown()
     while (!windows_.empty())
     {
         auto& wctx = *windows_.back();
+
+        if (wctx.ui_ctx && window_ui_destroying_handler_)
+            window_ui_destroying_handler_(wctx);
 
         // Destroy UI context first (shuts down ImGui before Vulkan resources)
         if (wctx.ui_ctx)

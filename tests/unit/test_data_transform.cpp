@@ -948,3 +948,220 @@ TEST(DataTransformEdge, LargeDataset)
         EXPECT_LE(v, 1.0f);
     }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Plugin-owned transforms: retained copies follow disable / unload
+// ═══════════════════════════════════════════════════════════════════════════
+
+namespace
+{
+
+char g_owner_token = 'p';   // stands in for a plugin module token
+
+struct OwnedTransformFixture : ::testing::Test
+{
+    TransformRegistry  reg;
+    int                calls = 0;
+    std::vector<float> x{0.0f, 1.0f, 2.0f};
+    std::vector<float> y{1.0f, 3.0f, 8.0f};
+
+    void register_owned(const std::string& name = "PluginHalf")
+    {
+        reg.register_transform(
+            name,
+            [this](float v)
+            {
+                ++calls;
+                return v * 0.5f;
+            },
+            "y / 2",
+            &g_owner_token);
+    }
+
+    std::vector<float> run(const DataTransform& t)
+    {
+        std::vector<float> xo, yo;
+        t.apply_y(x, y, xo, yo);
+        EXPECT_EQ(xo, x);
+        return yo;
+    }
+
+    std::vector<float> run(const TransformPipeline& p)
+    {
+        std::vector<float> xo, yo;
+        p.apply(x, y, xo, yo);
+        EXPECT_EQ(xo, x);
+        return yo;
+    }
+};
+
+const std::vector<float> kHalf{0.5f, 1.5f, 4.0f};
+
+}   // namespace
+
+TEST_F(OwnedTransformFixture, DisableReachesRetainedCopiesAndSavedPipelines)
+{
+    register_owned();
+    DataTransform retained;
+    ASSERT_TRUE(reg.get_transform("PluginHalf", retained));
+    TransformPipeline pipeline;
+    pipeline.push_back(retained);
+    reg.save_pipeline("preset", pipeline);
+    EXPECT_EQ(run(retained), kHalf);
+    EXPECT_EQ(run(pipeline), kHalf);
+
+    reg.set_owner_enabled(&g_owner_token, false);
+    calls = 0;
+
+    // Direct lookup and saved-pipeline load both report it unavailable.
+    DataTransform lookup;
+    EXPECT_FALSE(reg.get_transform("PluginHalf", lookup));
+    TransformPipeline loaded;
+    EXPECT_FALSE(reg.load_pipeline("preset", loaded));
+    EXPECT_EQ(loaded.step_count(), 0u);   // untouched on failure
+
+    // Retained copies pass through unchanged without calling the callback.
+    EXPECT_FALSE(retained.is_available());
+    EXPECT_FALSE(pipeline.is_available());
+    EXPECT_TRUE(pipeline.is_identity());
+    EXPECT_EQ(run(retained), y);
+    EXPECT_EQ(run(pipeline), y);
+    EXPECT_FLOAT_EQ(retained.apply_scalar(8.0f), 8.0f);
+    EXPECT_NE(retained.description().find("unavailable"), std::string::npos);
+    EXPECT_EQ(calls, 0);
+
+    // Re-enabling restores every copy.
+    reg.set_owner_enabled(&g_owner_token, true);
+    EXPECT_TRUE(retained.is_available());
+    EXPECT_TRUE(pipeline.is_available());
+    EXPECT_EQ(run(retained), kHalf);
+    EXPECT_EQ(run(pipeline), kHalf);
+    ASSERT_TRUE(reg.load_pipeline("preset", loaded));
+    EXPECT_EQ(run(loaded), kHalf);
+    EXPECT_GT(calls, 0);
+}
+
+TEST_F(OwnedTransformFixture, UnloadRevokesRetainedCopiesAndReloadRebindsSaved)
+{
+    register_owned();
+    DataTransform retained;
+    ASSERT_TRUE(reg.get_transform("PluginHalf", retained));
+    TransformPipeline pipeline;
+    pipeline.push_back(DataTransform(TransformType::Scale, TransformParams{2.0f}));
+    pipeline.push_back(retained);
+    reg.save_pipeline("preset", pipeline);
+    TransformPipeline loaded_before;
+    ASSERT_TRUE(reg.load_pipeline("preset", loaded_before));
+
+    EXPECT_EQ(reg.unregister_owner(&g_owner_token), 1u);
+    calls = 0;
+
+    // Every copy (lookup result, pipeline, saved and loaded pipelines) drops
+    // the callback: identity, never entered.
+    EXPECT_FALSE(retained.is_available());
+    EXPECT_EQ(run(retained), y);
+    EXPECT_EQ(run(pipeline), (std::vector<float>{2.0f, 6.0f, 16.0f}));
+    EXPECT_EQ(run(loaded_before), (std::vector<float>{2.0f, 6.0f, 16.0f}));
+    TransformPipeline loaded;
+    EXPECT_FALSE(reg.load_pipeline("preset", loaded));
+    EXPECT_EQ(calls, 0);
+
+    // The preset survives; a reload of the plugin registers the name again
+    // and the saved pipeline binds to the new registration.
+    register_owned();
+    EXPECT_FALSE(retained.is_available());   // old copies stay revoked
+    EXPECT_EQ(run(retained), y);
+    EXPECT_EQ(calls, 0);
+    ASSERT_TRUE(reg.load_pipeline("preset", loaded));
+    EXPECT_TRUE(loaded.is_available());
+    EXPECT_EQ(run(loaded), (std::vector<float>{1.0f, 3.0f, 8.0f}));
+    EXPECT_GT(calls, 0);
+
+    // A re-disabled reload makes the saved pipeline unavailable again.
+    reg.set_owner_enabled(&g_owner_token, false);
+    TransformPipeline again;
+    EXPECT_FALSE(reg.load_pipeline("preset", again));
+}
+
+TEST_F(OwnedTransformFixture, DisabledStepOfSavedPipelineDoesNotBlockLoad)
+{
+    register_owned();
+    DataTransform t;
+    ASSERT_TRUE(reg.get_transform("PluginHalf", t));
+    TransformPipeline pipeline;
+    pipeline.push_back(t);
+    pipeline.set_enabled(0, false);
+    reg.save_pipeline("preset", pipeline);
+    reg.unregister_owner(&g_owner_token);
+
+    TransformPipeline loaded;
+    ASSERT_TRUE(reg.load_pipeline("preset", loaded));
+    EXPECT_EQ(run(loaded), y);
+    EXPECT_EQ(calls, 0);
+}
+
+TEST_F(OwnedTransformFixture, UnregisterOrReplaceOwnedRevokesCopies)
+{
+    register_owned();
+    DataTransform first;
+    ASSERT_TRUE(reg.get_transform("PluginHalf", first));
+    register_owned();   // replaced by a new registration of the same name
+    EXPECT_FALSE(first.is_available());
+
+    DataTransform second;
+    ASSERT_TRUE(reg.get_transform("PluginHalf", second));
+    EXPECT_TRUE(reg.unregister_transform("PluginHalf"));
+    EXPECT_FALSE(second.is_available());
+    calls = 0;
+    EXPECT_EQ(run(first), y);
+    EXPECT_EQ(run(second), y);
+    EXPECT_EQ(calls, 0);
+}
+
+TEST(DataTransformOwnership, HostTransformsKeepWorkingInCopies)
+{
+    TransformRegistry reg;
+    reg.register_transform("HostDouble", [](float v) { return v * 2.0f; });
+    DataTransform t;
+    ASSERT_TRUE(reg.get_transform("HostDouble", t));
+    EXPECT_TRUE(reg.unregister_transform("HostDouble"));
+    EXPECT_TRUE(t.is_available());
+    EXPECT_FLOAT_EQ(t.apply_scalar(3.0f), 6.0f);
+
+    // Copies made directly from a callable are host transforms too.
+    DataTransform direct("Direct", [](float v) { return v + 1.0f; });
+    DataTransform copy = direct;
+    EXPECT_TRUE(copy.is_available());
+    EXPECT_TRUE(copy.is_elementwise());
+    EXPECT_FLOAT_EQ(copy.apply_scalar(1.0f), 2.0f);
+}
+
+TEST_F(OwnedTransformFixture, RevokedXYTransformKeepsShapeQueries)
+{
+    reg.register_xy_transform(
+        "PluginDrop",
+        [this](std::span<const float> xi,
+               std::span<const float> yi,
+               std::vector<float>&    xo,
+               std::vector<float>&    yo)
+        {
+            ++calls;
+            xo.assign(xi.begin() + 1, xi.end());
+            yo.assign(yi.begin() + 1, yi.end());
+        },
+        "drop first",
+        &g_owner_token);
+    DataTransform t;
+    ASSERT_TRUE(reg.get_transform("PluginDrop", t));
+    EXPECT_TRUE(t.changes_length());
+    std::vector<float> xo, yo;
+    t.apply_y(x, y, xo, yo);
+    EXPECT_EQ(yo.size(), 2u);
+
+    reg.unregister_owner(&g_owner_token);
+    calls = 0;
+    EXPECT_TRUE(t.changes_length());
+    EXPECT_FALSE(t.is_elementwise());
+    EXPECT_EQ(run(t), y);
+    EXPECT_EQ(calls, 0);
+}

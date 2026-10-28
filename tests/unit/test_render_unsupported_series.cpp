@@ -62,11 +62,11 @@ class SubsetBackend : public Backend
     }
     void destroy_texture(TextureHandle) override {}
 
-    bool     begin_frame(FrameProfiler*) override { return true; }
-    void     end_frame(FrameProfiler*) override {}
-    void     begin_render_pass(const Color&) override {}
-    void     end_render_pass() override {}
-    void     bind_pipeline(PipelineHandle p) override
+    bool begin_frame(FrameProfiler*) override { return true; }
+    void end_frame(FrameProfiler*) override {}
+    void begin_render_pass(const Color&) override {}
+    void end_render_pass() override {}
+    void bind_pipeline(PipelineHandle p) override
     {
         bound_ = PipelineType::Image3D;
         for (const auto& [id, type] : pipeline_types_)
@@ -75,14 +75,14 @@ class SubsetBackend : public Backend
                 bound_ = type;
         }
     }
-    void     bind_buffer(BufferHandle, uint32_t) override {}
-    void     bind_index_buffer(BufferHandle) override {}
-    void     bind_texture(TextureHandle, uint32_t) override {}
-    void     push_constants(const SeriesPushConstants&) override {}
-    void     set_viewport(float, float, float, float) override {}
-    void     set_scissor(int32_t, int32_t, uint32_t, uint32_t) override {}
-    void     set_line_width(float) override {}
-    void     draw(uint32_t vertex_count, uint32_t) override
+    void bind_buffer(BufferHandle, uint32_t) override {}
+    void bind_index_buffer(BufferHandle) override {}
+    void bind_texture(TextureHandle, uint32_t) override {}
+    void push_constants(const SeriesPushConstants&) override {}
+    void set_viewport(float, float, float, float) override {}
+    void set_scissor(int32_t, int32_t, uint32_t, uint32_t) override {}
+    void set_line_width(float) override {}
+    void draw(uint32_t vertex_count, uint32_t) override
     {
         if (bound_ == PipelineType::Text)
             text_vertices += vertex_count;

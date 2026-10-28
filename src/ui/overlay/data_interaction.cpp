@@ -1091,8 +1091,8 @@ NearestPointResult DataInteraction::find_nearest(const CursorReadout& cursor, Fi
                 const auto   query = sorted_x_query_range(std::span<const float>(x_data, count),
                                                         local_center,
                                                         local_radius);
-                query_begin      = query.begin;
-                query_end        = query.end;
+                query_begin        = query.begin;
+                query_end          = query.end;
             }
 
             last_query_points_examined_ += query_end - query_begin;

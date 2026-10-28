@@ -704,19 +704,19 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data)
         for (const auto& ser_json : ser_objects)
         {
             WorkspaceData::SeriesState s;
-            s.name        = read_string_value(ser_json, "name");
-            s.type        = read_string_value(ser_json, "type");
-            s.color_r     = static_cast<float>(read_number_value(ser_json, "color_r", 1));
-            s.color_g     = static_cast<float>(read_number_value(ser_json, "color_g", 1));
-            s.color_b     = static_cast<float>(read_number_value(ser_json, "color_b", 1));
-            s.color_a     = static_cast<float>(read_number_value(ser_json, "color_a", 1));
+            s.name         = read_string_value(ser_json, "name");
+            s.type         = read_string_value(ser_json, "type");
+            s.color_r      = static_cast<float>(read_number_value(ser_json, "color_r", 1));
+            s.color_g      = static_cast<float>(read_number_value(ser_json, "color_g", 1));
+            s.color_b      = static_cast<float>(read_number_value(ser_json, "color_b", 1));
+            s.color_a      = static_cast<float>(read_number_value(ser_json, "color_a", 1));
             s.color_source = read_string_value(ser_json, "color_source");
             s.color_index  = static_cast<int>(read_number_value(ser_json, "color_index", -1));
             s.color_letter = read_string_value(ser_json, "color_letter");
-            s.line_width  = static_cast<float>(read_number_value(ser_json, "line_width", 2));
-            s.marker_size = static_cast<float>(read_number_value(ser_json, "marker_size", 6));
-            s.visible     = read_bool_value(ser_json, "visible", true);
-            s.point_count = static_cast<size_t>(read_number_value(ser_json, "point_count", 0));
+            s.line_width   = static_cast<float>(read_number_value(ser_json, "line_width", 2));
+            s.marker_size  = static_cast<float>(read_number_value(ser_json, "marker_size", 6));
+            s.visible      = read_bool_value(ser_json, "visible", true);
+            s.point_count  = static_cast<size_t>(read_number_value(ser_json, "point_count", 0));
             s.categories   = parse_json_string_array(ser_json, "categories");
             // v2 field
             s.opacity = static_cast<float>(read_number_value(ser_json, "opacity", 1.0));
@@ -1025,11 +1025,11 @@ WorkspaceData Workspace::capture(const std::vector<Figure*>& figures,
 
         WorkspaceData::FigureState fs;
         fs.has_text_annotations = true;   // captured from live axes (possibly none)
-        fs.title     = "";   // Figure has no title accessor yet
-        fs.width     = fig->width();
-        fs.height    = fig->height();
-        fs.grid_rows = fig->grid_rows();
-        fs.grid_cols = fig->grid_cols();
+        fs.title                = "";     // Figure has no title accessor yet
+        fs.width                = fig->width();
+        fs.height               = fig->height();
+        fs.grid_rows            = fig->grid_rows();
+        fs.grid_cols            = fig->grid_cols();
         fs.legend_position      = static_cast<int>(fig->legend().position);
 
         // Capture axes: use all_axes() if populated (mixed/3D figures),

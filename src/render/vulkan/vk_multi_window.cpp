@@ -282,6 +282,10 @@ void VulkanBackend::wait_window_fences(WindowContext& wctx) const
 
 void VulkanBackend::destroy_window_context(WindowContext& wctx)
 {
+    // A capture aimed at this window can never run once it is gone.
+    if (pending_capture_.target_window == &wctx)
+        cancel_pending_capture();
+
     // Wait for ALL GPU work to complete before destroying sync objects.
     // vkWaitForFences alone is insufficient — semaphores may still be
     // referenced by pending vkQueueSubmit/vkQueuePresentKHR operations.

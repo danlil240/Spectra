@@ -161,6 +161,7 @@ ShapeSeries3D& ShapeSeries3D::clear_shapes()
 {
     shapes_.clear();
     draw_ranges_.clear();
+    shape_ranges_.clear();
     vertices_.clear();
     indices_.clear();
     dirty_          = true;
@@ -629,6 +630,7 @@ void ShapeSeries3D::rebuild_geometry()
     vertices_.clear();
     indices_.clear();
     draw_ranges_.clear();
+    shape_ranges_.clear();
 
     for (const auto& def : shapes_)
     {
@@ -662,10 +664,17 @@ void ShapeSeries3D::rebuild_geometry()
         const Color c = def.shape_color.a > 0.0f ? def.shape_color : Color{0.0f, 0.0f, 0.0f, 0.0f};
         const auto  same = [&c](const Color& o)
         { return o.r == c.r && o.g == c.g && o.b == c.b && o.a == c.a; };
+        // Merged ranges keep their per-shape blocks, so the renderer can still
+        // order translucent shapes individually against other series.
+        const auto shape_index = static_cast<uint32_t>(shape_ranges_.size());
+        shape_ranges_.push_back({first_index, count});
         if (!draw_ranges_.empty() && same(draw_ranges_.back().color))
+        {
             draw_ranges_.back().index_count += count;
+            ++draw_ranges_.back().shape_count;
+        }
         else
-            draw_ranges_.push_back({first_index, count, c});
+            draw_ranges_.push_back({first_index, count, c, shape_index, 1});
     }
 }
 

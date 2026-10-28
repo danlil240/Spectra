@@ -145,12 +145,17 @@ class ShapeSeries3D : public Series
     // (lazily, together with the geometry, so they always match indices()).
     // A range whose color has zero alpha inherits the series colour.  Adjacent
     // shapes with the same colour are merged, so a series without per-shape
-    // colours yields a single range covering all indices.
+    // colours yields a single range covering all indices.  Each range also
+    // names the shapes it covers ([first_shape, first_shape + shape_count) in
+    // shape_ranges()), so a translucent range can still be depth-ordered one
+    // shape at a time against other series.
     struct DrawRange
     {
         uint32_t first_index = 0;
         uint32_t index_count = 0;
         Color    color{0.0f, 0.0f, 0.0f, 0.0f};
+        uint32_t first_shape = 0;
+        uint32_t shape_count = 0;
 
         bool inherits_series_color() const { return color.a <= 0.0f; }
     };
@@ -158,6 +163,19 @@ class ShapeSeries3D : public Series
     {
         ensure_geometry();
         return draw_ranges_;
+    }
+
+    // Contiguous index block of one generated shape (shapes that produce no
+    // triangles are omitted).  Blocks are in shape order and tile indices().
+    struct ShapeIndexRange
+    {
+        uint32_t first_index = 0;
+        uint32_t index_count = 0;
+    };
+    std::span<const ShapeIndexRange> shape_ranges() const
+    {
+        ensure_geometry();
+        return shape_ranges_;
     }
 
     // True if any shape carries an explicit colour with alpha below 0.99, so
@@ -224,6 +242,8 @@ class ShapeSeries3D : public Series
 
     // Per-colour index ranges (see draw_ranges()); part of the lazy geometry cache.
     mutable std::vector<DrawRange> draw_ranges_;
+    // Per-shape index blocks (see shape_ranges()); same cache as draw_ranges_.
+    mutable std::vector<ShapeIndexRange> shape_ranges_;
 
     // Geometry generators
     void generate_box(const ShapeDef3D& def);

@@ -121,9 +121,14 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
     auto& fig_mgr          = *ui_ctx.fig_mgr;
     auto& anim_controller  = ui_ctx.anim_controller;
 
-    // Advance timeline editor (drives interpolator evaluation)
-    // When Playing, we control the playhead ourselves to avoid double-speed
-    if (timeline_editor.playback_state() != PlaybackState::Playing)
+    // Advance timeline editor (drives interpolator evaluation).
+    // While Playing, an animated active figure drives the playhead itself from
+    // its own clock (drive_figure_anim below) — advancing here too would run
+    // at double speed.  Without such a figure (e.g. keyframe tracks over static
+    // data) nothing else moves the playhead, so the timeline advances itself.
+    const bool figure_drives_playhead =
+        allow_animation_tick && active_figure && has_animation && active_figure->anim_.on_frame;
+    if (timeline_editor.playback_state() != PlaybackState::Playing || !figure_drives_playhead)
     {
         timeline_editor.advance(scheduler.dt());
     }
@@ -378,6 +383,15 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
 #endif
 
 #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
+    #ifdef SPECTRA_USE_IMGUI
+    // Enforce the window minimum size before the first frame is laid out, so
+    // the first rendered frame (and an export requested before it) already has
+    // the settled size instead of growing a frame later.  UI-driven changes to
+    // the limits are applied again after build_ui() below.
+    if (imgui_ui && ui_ctx.applied_min_window_w_ == 0.0f)
+        apply_window_size_limits(ui_ctx, *imgui_ui);
+    #endif
+
     // Keep swapchain extent matched to the live framebuffer BEFORE ImGui
     // new_frame so layout zones and GPU rendering share the same dimensions.
     bool     resize_active       = false;
@@ -842,7 +856,7 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                 // Use figure's style margins for layout
                 const auto& af_style = active_figure->style();
                 Margins     fig_margins;
-                fig_margins.left   = af_style.margin_left;
+                fig_margins.left = af_style.margin_left;
                 // Keep the plot clear of the inspector tab on the canvas' right edge.
                 fig_margins.right  = LayoutManager::plot_margin_right(af_style.margin_right);
                 fig_margins.top    = af_style.margin_top;

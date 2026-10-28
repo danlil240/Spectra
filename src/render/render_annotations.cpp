@@ -365,10 +365,13 @@ void set_color(SeriesPushConstants& pc, const Color& c)
 
 }   // namespace
 
-void Renderer::build_legend(AxesBase& axes, const LegendConfig& config)
+void Renderer::build_legend(AxesBase& axes, const LegendConfig& requested)
 {
     if (!text_renderer_.is_initialized())
         return;
+    // A Best legend the figure layout moved outside (legend_layout::auto_outside).
+    LegendConfig config = requested;
+    config.position     = legend_layout::effective_position(axes, requested);
 
     const std::vector<Series*> entries = legend_layout::legend_entries(axes);
     if (entries.empty())
@@ -605,9 +608,20 @@ void Renderer::build_legend(AxesBase& axes, const LegendConfig& config)
 
         // Hover target: the whole cell (at least as wide as its text).
         LegendOverflowCell cell;
-        cell.axes    = &axes;
-        cell.cell    = Rect{x, cy - row_h * 0.5f, std::max(col_w, measure(text, font)), row_h};
-        cell.hidden  = legend_layout::overflow_tooltip_lines(entries, grid.shown);
+        cell.axes   = &axes;
+        cell.cell   = Rect{x, cy - row_h * 0.5f, std::max(col_w, measure(text, font)), row_h};
+        cell.hidden = legend_layout::overflow_tooltip_lines(entries, grid.shown);
+        const size_t hidden_total = entries.size() - static_cast<size_t>(grid.shown);
+        const size_t keyed =
+            cell.hidden.size() == hidden_total ? hidden_total : cell.hidden.size() - 1;
+        cell.colors.reserve(keyed);
+        for (size_t k = 0; k < keyed; ++k)
+        {
+            const Series& s = *entries[static_cast<size_t>(grid.shown) + k];
+            Color         c = ui::adapt_series_color_to_theme(legend_layout::swatch_color(s), tc);
+            c.a *= s.opacity() * (s.visible() ? 1.0f : HIDDEN_ALPHA);
+            cell.colors.push_back(c);
+        }
         cell.hovered = pointer_valid_ && pointer_x_ >= cell.cell.x
                        && pointer_x_ <= cell.cell.x + cell.cell.w && pointer_y_ >= cell.cell.y
                        && pointer_y_ <= cell.cell.y + cell.cell.h;
@@ -638,11 +652,14 @@ void Renderer::build_overflow_tooltip(const LegendOverflowCell& cell,
             return std::string(ell) + s.substr(3);
         return s;
     };
-    constexpr float PAD = 8.0f;
-    constexpr float GAP = 6.0f;
-    float           tw  = 0.0f;
+    constexpr float PAD    = 8.0f;
+    constexpr float GAP    = 6.0f;
+    constexpr float KEY    = 10.0f;   // colour key square, as the window legend swatch
+    const float     text_x = cell.colors.empty() ? 0.0f : KEY + SWATCH_GAP;
+    float           tw     = 0.0f;
     for (const auto& s : cell.hidden)
         tw = std::max(tw, text_renderer_.measure_text(line(s), font, font_scale).width);
+    tw += text_x;
     const float w  = std::min(tw + 2.0f * PAD, std::max(1.0f, annotation_fig_w_));
     const float h  = std::min(static_cast<float>(cell.hidden.size()) * row_h + 2.0f * PAD,
                              std::max(1.0f, annotation_fig_h_));
@@ -676,8 +693,18 @@ void Renderer::build_overflow_tooltip(const LegendOverflowCell& cell,
         const float cy = y + PAD + (static_cast<float>(i) + 0.5f) * row_h;
         if (cy > y + h)
             break;
+        if (i < cell.colors.size())
+        {
+            SeriesPushConstants kpc{};
+            set_color(kpc, cell.colors[i]);
+            kpc.opacity       = 1.0f;
+            const uint32_t k0 = b.vertex_count();
+            b.rounded_fill(Rect{x + PAD, cy - KEY * 0.5f, KEY, KEY}, 2.0f);
+            annotation_draws_.push_back(
+                {AnnotationDraw::Kind::Triangles, k0, b.vertex_count() - k0, kpc});
+        }
         text_renderer_.draw_text(line(cell.hidden[i]),
-                                 x + PAD,
+                                 x + PAD + text_x,
                                  cy,
                                  font,
                                  text_col,

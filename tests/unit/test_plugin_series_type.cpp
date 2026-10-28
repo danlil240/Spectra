@@ -100,11 +100,11 @@ TEST(PluginSeriesType, FindRegisteredType)
     desc.upload_fn       = [](SpectraBackendHandle, const void*, void*, size_t, void*) -> int
     { return 0; };
     desc.draw_fn   = [](SpectraBackendHandle,
-                        SpectraPipelineHandle,
-                        const void*,
-                        const SpectraViewport*,
-                        const SpectraSeriesPushConst*,
-                        void*) -> int { return 0; };
+                      SpectraPipelineHandle,
+                      const void*,
+                      const SpectraViewport*,
+                      const SpectraSeriesPushConst*,
+                      void*) -> int { return 0; };
     desc.bounds_fn = [](const void*, size_t, SpectraRect*, void*) -> int { return 0; };
     desc.user_data = nullptr;
 
@@ -136,11 +136,11 @@ TEST(PluginSeriesType, SPIRVBytecodeIsCopied)
     desc.upload_fn       = [](SpectraBackendHandle, const void*, void*, size_t, void*) -> int
     { return 0; };
     desc.draw_fn   = [](SpectraBackendHandle,
-                        SpectraPipelineHandle,
-                        const void*,
-                        const SpectraViewport*,
-                        const SpectraSeriesPushConst*,
-                        void*) -> int { return 0; };
+                      SpectraPipelineHandle,
+                      const void*,
+                      const SpectraViewport*,
+                      const SpectraSeriesPushConst*,
+                      void*) -> int { return 0; };
     desc.bounds_fn = [](const void*, size_t, SpectraRect*, void*) -> int { return 0; };
 
     spectra_register_series_type(&reg, &desc);
@@ -173,11 +173,11 @@ TEST(PluginSeriesType, UploadCallbackInvoked)
         return 0;
     };
     desc.draw_fn   = [](SpectraBackendHandle,
-                        SpectraPipelineHandle,
-                        const void*,
-                        const SpectraViewport*,
-                        const SpectraSeriesPushConst*,
-                        void*) -> int { return 0; };
+                      SpectraPipelineHandle,
+                      const void*,
+                      const SpectraViewport*,
+                      const SpectraSeriesPushConst*,
+                      void*) -> int { return 0; };
     desc.bounds_fn = [](const void*, size_t, SpectraRect*, void*) -> int { return 0; };
     desc.user_data = &tracker;
 
@@ -207,11 +207,11 @@ TEST(PluginSeriesType, BoundsCallbackProducesCorrectResult)
     desc.upload_fn       = [](SpectraBackendHandle, const void*, void*, size_t, void*) -> int
     { return 0; };
     desc.draw_fn   = [](SpectraBackendHandle,
-                        SpectraPipelineHandle,
-                        const void*,
-                        const SpectraViewport*,
-                        const SpectraSeriesPushConst*,
-                        void*) -> int { return 0; };
+                      SpectraPipelineHandle,
+                      const void*,
+                      const SpectraViewport*,
+                      const SpectraSeriesPushConst*,
+                      void*) -> int { return 0; };
     desc.bounds_fn = [](const void* data, size_t count, SpectraRect* rect, void*) -> int
     {
         // Interpret data as float pairs (x, y) and compute bounds.
@@ -267,11 +267,11 @@ TEST(PluginSeriesType, UnregisterRemovesType)
     desc.upload_fn       = [](SpectraBackendHandle, const void*, void*, size_t, void*) -> int
     { return 0; };
     desc.draw_fn   = [](SpectraBackendHandle,
-                        SpectraPipelineHandle,
-                        const void*,
-                        const SpectraViewport*,
-                        const SpectraSeriesPushConst*,
-                        void*) -> int { return 0; };
+                      SpectraPipelineHandle,
+                      const void*,
+                      const SpectraViewport*,
+                      const SpectraSeriesPushConst*,
+                      void*) -> int { return 0; };
     desc.bounds_fn = [](const void*, size_t, SpectraRect*, void*) -> int { return 0; };
 
     spectra_register_series_type(&reg, &desc);
@@ -334,11 +334,11 @@ TEST(PluginSeriesType, DuplicateNameIgnored)
     desc.upload_fn       = [](SpectraBackendHandle, const void*, void*, size_t, void*) -> int
     { return 0; };
     desc.draw_fn   = [](SpectraBackendHandle,
-                        SpectraPipelineHandle,
-                        const void*,
-                        const SpectraViewport*,
-                        const SpectraSeriesPushConst*,
-                        void*) -> int { return 0; };
+                      SpectraPipelineHandle,
+                      const void*,
+                      const SpectraViewport*,
+                      const SpectraSeriesPushConst*,
+                      void*) -> int { return 0; };
     desc.bounds_fn = [](const void*, size_t, SpectraRect*, void*) -> int { return 0; };
 
     EXPECT_EQ(spectra_register_series_type(&reg, &desc), 0);
@@ -415,11 +415,11 @@ TEST(PluginSeriesType, MultipleTypesRegistered)
         d.upload_fn       = [](SpectraBackendHandle, const void*, void*, size_t, void*) -> int
         { return 0; };
         d.draw_fn   = [](SpectraBackendHandle,
-                         SpectraPipelineHandle,
-                         const void*,
-                         const SpectraViewport*,
-                         const SpectraSeriesPushConst*,
-                         void*) -> int { return 0; };
+                       SpectraPipelineHandle,
+                       const void*,
+                       const SpectraViewport*,
+                       const SpectraSeriesPushConst*,
+                       void*) -> int { return 0; };
         d.bounds_fn = [](const void*, size_t, SpectraRect*, void*) -> int { return 0; };
         return d;
     };
@@ -474,11 +474,11 @@ TEST(PluginSeriesType, VertexLayoutPassedThrough)
     desc.upload_fn              = [](SpectraBackendHandle, const void*, void*, size_t, void*) -> int
     { return 0; };
     desc.draw_fn   = [](SpectraBackendHandle,
-                        SpectraPipelineHandle,
-                        const void*,
-                        const SpectraViewport*,
-                        const SpectraSeriesPushConst*,
-                        void*) -> int { return 0; };
+                      SpectraPipelineHandle,
+                      const void*,
+                      const SpectraViewport*,
+                      const SpectraSeriesPushConst*,
+                      void*) -> int { return 0; };
     desc.bounds_fn = [](const void*, size_t, SpectraRect*, void*) -> int { return 0; };
 
     spectra_register_series_type(&reg, &desc);
@@ -505,11 +505,11 @@ TEST(PluginSeriesType, FlagsMappedToPipelineDesc)
     desc.upload_fn       = [](SpectraBackendHandle, const void*, void*, size_t, void*) -> int
     { return 0; };
     desc.draw_fn   = [](SpectraBackendHandle,
-                        SpectraPipelineHandle,
-                        const void*,
-                        const SpectraViewport*,
-                        const SpectraSeriesPushConst*,
-                        void*) -> int { return 0; };
+                      SpectraPipelineHandle,
+                      const void*,
+                      const SpectraViewport*,
+                      const SpectraSeriesPushConst*,
+                      void*) -> int { return 0; };
     desc.bounds_fn = [](const void*, size_t, SpectraRect*, void*) -> int { return 0; };
 
     spectra_register_series_type(&reg, &desc);
@@ -536,11 +536,11 @@ TEST(PluginSeriesType, TransparentFlagDisablesDepthWrite)
     desc.upload_fn       = [](SpectraBackendHandle, const void*, void*, size_t, void*) -> int
     { return 0; };
     desc.draw_fn   = [](SpectraBackendHandle,
-                        SpectraPipelineHandle,
-                        const void*,
-                        const SpectraViewport*,
-                        const SpectraSeriesPushConst*,
-                        void*) -> int { return 0; };
+                      SpectraPipelineHandle,
+                      const void*,
+                      const SpectraViewport*,
+                      const SpectraSeriesPushConst*,
+                      void*) -> int { return 0; };
     desc.bounds_fn = [](const void*, size_t, SpectraRect*, void*) -> int { return 0; };
 
     spectra_register_series_type(&reg, &desc);
@@ -549,4 +549,112 @@ TEST(PluginSeriesType, TransparentFlagDisablesDepthWrite)
     ASSERT_NE(entry, nullptr);
     EXPECT_TRUE(entry->pipeline_desc.enable_depth_test);
     EXPECT_FALSE(entry->pipeline_desc.enable_depth_write);   // Transparent -> no depth write
+}
+
+// ─── Vector (SVG) export hook (API v2.2) ────────────────────────────────────
+
+namespace
+{
+
+struct RecordingSink final : CustomVectorSink
+{
+    std::vector<std::vector<float>> polygons, polylines, rects;
+    std::vector<float>              last_rgba;
+
+    void fill_polygon(const float* xy, size_t n, const float* rgba) override
+    {
+        polygons.emplace_back(xy, xy + 2 * n);
+        last_rgba.assign(rgba, rgba + 4);
+    }
+    void stroke_polyline(const float* xy, size_t n, const float* rgba, float w) override
+    {
+        polylines.emplace_back(xy, xy + 2 * n);
+        polylines.back().push_back(w);
+        last_rgba.assign(rgba, rgba + 4);
+    }
+    void fill_rect(float x0, float y0, float x1, float y1, const float* rgba) override
+    {
+        rects.push_back({x0, y0, x1, y1});
+        last_rgba.assign(rgba, rgba + 4);
+    }
+};
+
+void register_stub_type(SeriesTypeRegistry& reg, const char* name)
+{
+    SpectraSeriesTypeDesc desc{};
+    desc.type_name       = name;
+    desc.vert_spirv      = kStubSpirv;
+    desc.vert_spirv_size = sizeof(kStubSpirv);
+    desc.frag_spirv      = kStubSpirv;
+    desc.frag_spirv_size = sizeof(kStubSpirv);
+    desc.upload_fn       = [](SpectraBackendHandle, const void*, void*, size_t, void*) -> int
+    { return 0; };
+    desc.draw_fn   = [](SpectraBackendHandle,
+                      SpectraPipelineHandle,
+                      const void*,
+                      const SpectraViewport*,
+                      const SpectraSeriesPushConst*,
+                      void*) -> int { return 0; };
+    desc.bounds_fn = [](const void*, size_t, SpectraRect*, void*) -> int { return 0; };
+    ASSERT_EQ(spectra_register_series_type(&reg, &desc), 0);
+}
+
+}   // namespace
+
+TEST(PluginSeriesType, VectorExportHookIsOptionalAndVersioned)
+{
+    EXPECT_GE(SPECTRA_PLUGIN_API_VERSION_MAJOR * 100 + SPECTRA_PLUGIN_API_VERSION_MINOR, 202);
+
+    SeriesTypeRegistry reg;
+    register_stub_type(reg, "cells");
+    CustomSeries cs("cells");
+    const float  value = 7.0f;
+    cs.set_data(&value, sizeof(value), 1);
+    const float   rgba[4] = {0.1f, 0.2f, 0.3f, 0.4f};
+    RecordingSink sink;
+
+    // A type registered without the hook (every pre-v2.2 plug-in) is reported, not drawn.
+    const char* reason = reg.export_vector(cs, rgba, 0.5f, sink);
+    ASSERT_NE(reason, nullptr);
+    EXPECT_STREQ(reason, "its plugin has no vector export callback");
+    CustomSeries unknown("nope");
+    EXPECT_STREQ(reg.export_vector(unknown, rgba, 1.0f, sink), "series type is not registered");
+
+    auto hook = [](const void* data, size_t count, const SpectraVectorSink* s, void* ud) -> int
+    {
+        *static_cast<int*>(ud) += 1;
+        EXPECT_EQ(s->struct_size, sizeof(SpectraVectorSink));
+        EXPECT_EQ(count, 1u);
+        EXPECT_FLOAT_EQ(*static_cast<const float*>(data), 7.0f);
+        EXPECT_FLOAT_EQ(s->series_color[2], 0.3f);
+        EXPECT_FLOAT_EQ(s->opacity, 0.5f);
+        const float c[4]  = {1.0f, 0.0f, 0.0f, s->opacity};
+        const float tri[] = {0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f};
+        s->fill_rect(s->host, 0.0f, 0.0f, 2.0f, 3.0f, c);
+        s->fill_polygon(s->host, tri, 3, c);
+        s->stroke_polyline(s->host, tri, 3, s->series_color, 1.5f);
+        return 0;
+    };
+    int calls = 0;
+    EXPECT_EQ(spectra_register_series_vector_export(&reg, "nope", hook, &calls), -1);
+    EXPECT_EQ(spectra_register_series_vector_export(&reg, "cells", nullptr, &calls), -1);
+    EXPECT_EQ(spectra_register_series_vector_export(nullptr, "cells", hook, &calls), -1);
+    ASSERT_EQ(spectra_register_series_vector_export(&reg, "cells", hook, &calls), 0);
+
+    EXPECT_EQ(reg.export_vector(cs, rgba, 0.5f, sink), nullptr);
+    EXPECT_EQ(calls, 1);
+    ASSERT_EQ(sink.rects.size(), 1u);
+    EXPECT_EQ(sink.rects[0], (std::vector<float>{0.0f, 0.0f, 2.0f, 3.0f}));
+    ASSERT_EQ(sink.polygons.size(), 1u);
+    EXPECT_EQ(sink.polygons[0].size(), 6u);
+    ASSERT_EQ(sink.polylines.size(), 1u);
+    EXPECT_FLOAT_EQ(sink.polylines[0].back(), 1.5f);
+    EXPECT_FLOAT_EQ(sink.last_rgba[3], 0.4f);   // the series colour passed back
+
+    // A failing callback is reported; a disabled type is not called at all.
+    auto fail = [](const void*, size_t, const SpectraVectorSink*, void*) -> int { return 3; };
+    ASSERT_EQ(spectra_register_series_vector_export(&reg, "cells", fail, nullptr), 0);
+    EXPECT_STREQ(reg.export_vector(cs, rgba, 1.0f, sink), "its vector export callback failed");
+    reg.set_owner_enabled(reg.find("cells")->owner, false);
+    EXPECT_STREQ(reg.export_vector(cs, rgba, 1.0f, sink), "its plugin is disabled");
 }

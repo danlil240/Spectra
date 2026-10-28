@@ -221,7 +221,7 @@ bool FieldDragDrop::draw_drop_zone()
     // Highlighted overlay when a compatible payload is in flight.
     if (is_dragging())
     {
-        const bool  hovered  = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
+        const bool  hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
         const ImU32 fill_col =
             spectra::ui::to_imu32(spectra::ui::theme().accent, hovered ? 0.22f : 0.09f);
         const ImU32 border_col =

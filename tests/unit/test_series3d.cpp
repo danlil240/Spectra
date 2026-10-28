@@ -1282,6 +1282,37 @@ TEST(ShapeSeries3DColor, SameColorNeighboursMerge)
     EXPECT_EQ(sh.draw_ranges()[0].index_count, 72u);
 }
 
+TEST(ShapeSeries3DColor, MergedRangeKeepsPerShapeBlocks)
+{
+    ShapeSeries3D sh;
+    sh.box(0, 0, 0, 1, 1, 1).shape_color(colors::red);
+    sh.box(3, 0, 0, 1, 1, 1).shape_color(colors::red);
+    sh.sphere(0, 3, 0, 0.5f).shape_color(colors::green);
+    sh.rebuild_geometry();
+
+    const auto shapes = sh.shape_ranges();
+    ASSERT_EQ(shapes.size(), 3u);
+    uint32_t total = 0;
+    for (const auto& s : shapes)
+    {
+        EXPECT_EQ(s.first_index, total);
+        total += s.index_count;
+    }
+    EXPECT_EQ(total, sh.indices().size());
+    EXPECT_EQ(shapes[0].index_count, 36u);
+    EXPECT_EQ(shapes[1].first_index, 36u);
+
+    const auto ranges = sh.draw_ranges();
+    ASSERT_EQ(ranges.size(), 2u);
+    EXPECT_EQ(ranges[0].first_shape, 0u);
+    EXPECT_EQ(ranges[0].shape_count, 2u);
+    EXPECT_EQ(ranges[1].first_shape, 2u);
+    EXPECT_EQ(ranges[1].shape_count, 1u);
+
+    sh.clear_shapes();
+    EXPECT_TRUE(sh.shape_ranges().empty());
+}
+
 TEST(ShapeSeries3DColor, ChangingColorMarksDirtyAndRebuildsRanges)
 {
     ShapeSeries3D sh;

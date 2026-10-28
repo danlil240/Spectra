@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <functional>
+#include <limits>
 #include <memory>
 #include <gtest/gtest.h>
 #include <spectra/axes.hpp>
@@ -14,6 +15,7 @@
 
 #include "core/axes_data_extent.hpp"
 #include "core/axis_scale.hpp"
+#include "core/axis_ticks.hpp"
 
 using namespace spectra;
 
@@ -41,15 +43,42 @@ Axes& make_square_loglog(Axes& ax)
 
 // ─── Axis-space mapping per ScaleType ───────────────────────────────────────
 
-TEST(AxisScale, LinearAndSqrtAreIdentity)
+TEST(AxisScale, LinearIsIdentity)
 {
-    for (ScaleType s : {ScaleType::Linear, ScaleType::Sqrt})
+    const ScaleType s = ScaleType::Linear;
+    EXPECT_DOUBLE_EQ(to_axis_space(s, -3.5), -3.5);
+    EXPECT_DOUBLE_EQ(from_axis_space(s, 42.0), 42.0);
+    const AxisLimits lim = axis_space_limits(s, {-2.0, 5.0});
+    EXPECT_DOUBLE_EQ(lim.min, -2.0);
+    EXPECT_DOUBLE_EQ(lim.max, 5.0);
+}
+
+TEST(AxisScale, SqrtMapsThroughSignedSquareRoot)
+{
+    const ScaleType s = ScaleType::Sqrt;
+    EXPECT_TRUE(is_nonlinear_scale(s));
+    EXPECT_FALSE(is_log_scale(s));
+    EXPECT_DOUBLE_EQ(to_axis_space(s, 16.0), 4.0);
+    EXPECT_DOUBLE_EQ(to_axis_space(s, 0.0), 0.0);
+    // Negative data maps monotonically: sign(v)·sqrt(|v|).
+    EXPECT_DOUBLE_EQ(to_axis_space(s, -9.0), -3.0);
+    EXPECT_DOUBLE_EQ(from_axis_space(s, 5.0), 25.0);
+    EXPECT_DOUBLE_EQ(from_axis_space(s, -2.0), -4.0);
+    EXPECT_TRUE(std::isnan(to_axis_space(s, std::nan(""))));
+    const AxisLimits lim = axis_space_limits(s, {-4.0, 100.0});
+    EXPECT_DOUBLE_EQ(lim.min, -2.0);
+    EXPECT_DOUBLE_EQ(lim.max, 10.0);
+}
+
+TEST(AxisScale, SqrtRoundTripIsMonotonic)
+{
+    double prev = -std::numeric_limits<double>::infinity();
+    for (double v : {-1e6, -250.0, -1.0, -1e-6, 0.0, 1e-6, 0.3, 2.0, 81.0, 1.7e9})
     {
-        EXPECT_DOUBLE_EQ(to_axis_space(s, -3.5), -3.5);
-        EXPECT_DOUBLE_EQ(from_axis_space(s, 42.0), 42.0);
-        const AxisLimits lim = axis_space_limits(s, {-2.0, 5.0});
-        EXPECT_DOUBLE_EQ(lim.min, -2.0);
-        EXPECT_DOUBLE_EQ(lim.max, 5.0);
+        const double a = to_axis_space(ScaleType::Sqrt, v);
+        EXPECT_GT(a, prev) << v;
+        prev = a;
+        EXPECT_NEAR(from_axis_space(ScaleType::Sqrt, a), v, std::abs(v) * 1e-12 + 1e-18) << v;
     }
 }
 
@@ -168,7 +197,7 @@ TEST(AxisScale, Log10WideRangeStridesDecades)
     // 13 decades (1e-6..1e6) → every second decade, aligned on 10^0.  The
     // ends leave the plain range, so every label is a power (never "10000"
     // next to an exponent form).
-    const TickResult               yt     = ax.compute_y_ticks();
+    const TickResult yt = ax.compute_y_ticks();
     const std::vector<std::string> want_y = {"10⁻⁶", "10⁻⁴", "10⁻²", "10⁰", "10²", "10⁴", "10⁶"};
     EXPECT_EQ(yt.labels, want_y);
     EXPECT_LE(yt.positions.size(), 8u);
@@ -222,33 +251,109 @@ TEST(AxisScale, SqrtTicksStayInRange)
     }
 }
 
-TEST(AxisScale, SqrtTicksCoverAxisEvenly)
+TEST(AxisScale, SqrtTicksAreNiceDataValuesAtSqrtPositions)
 {
-    // Sqrt axes are drawn untransformed, so their ticks must be evenly spaced
-    // and leave no gap wider than one step at either end of the axis.
+    // [0, 100] on a 540 px y axis: nice data values (labelled in data units),
+    // with the stretched region near zero filled in by finer steps.
+    Axes ax;
+    ax.yscale(ScaleType::Sqrt);
+    ax.ylim(0.0, 100.0);
+    const TickResult          t        = ax.compute_y_ticks();
+    const std::vector<double> expected = {0.0, 5.0, 10.0, 20.0, 40.0, 60.0, 80.0, 100.0};
+    EXPECT_EQ(t.positions, expected);
+    const std::vector<std::string> labels = {"0", "5", "10", "20", "40", "60", "80", "100"};
+    EXPECT_EQ(t.labels, labels);
+    EXPECT_TRUE(t.offset_label.empty());
+}
+
+TEST(AxisScale, SqrtTicksNeverCrowdOnScreen)
+{
     for (const AxisLimits lim : {AxisLimits{0.0, 10.0},
                                  AxisLimits{0.0, 100.0},
+                                 AxisLimits{0.0, 1.0e4},
                                  AxisLimits{-4.0, 1.0},
-                                 AxisLimits{3.0, 7.0e5}})
+                                 AxisLimits{-100.0, 100.0},
+                                 AxisLimits{0.001, 0.02},
+                                 AxisLimits{3.0, 7.0e5},
+                                 AxisLimits{-0.25, 110.25},
+                                 AxisLimits{0.0, 1.0e7}})
     {
-        Axes ax;
-        ax.xscale(ScaleType::Sqrt);
-        ax.xlim(lim.min, lim.max);
-        const TickResult t = ax.compute_x_ticks();
-        ASSERT_GE(t.positions.size(), 3u) << lim.min << ".." << lim.max;
-        const double step = t.positions[1] - t.positions[0];
-        ASSERT_GT(step, 0.0);
-        for (size_t i = 1; i < t.positions.size(); ++i)
-            EXPECT_NEAR(t.positions[i] - t.positions[i - 1], step, step * 1e-6)
-                << lim.min << ".." << lim.max << " tick " << i;
-        EXPECT_LE(t.positions.front() - lim.min, step + 1e-9);
-        EXPECT_LE(lim.max - t.positions.back(), step + 1e-9);
-
-        Axes linear;
-        linear.xlim(lim.min, lim.max);
-        EXPECT_EQ(t.positions, linear.compute_x_ticks().positions);
-        EXPECT_EQ(t.labels, linear.compute_x_ticks().labels);
+        for (bool along_x : {true, false})
+        {
+            Axes ax;
+            ax.xscale(ScaleType::Sqrt);
+            ax.yscale(ScaleType::Sqrt);
+            ax.xlim(lim.min, lim.max);
+            ax.ylim(lim.min, lim.max);
+            const TickResult t      = along_x ? ax.compute_x_ticks() : ax.compute_y_ticks();
+            const double     target = along_x ? X_TICK_TARGET_PX : Y_TICK_TARGET_PX;
+            ASSERT_GE(t.positions.size(), 3u) << lim.min << ".." << lim.max;
+            ASSERT_EQ(t.positions.size(), t.labels.size());
+            const AxisLimits a  = axis_space_limits(ScaleType::Sqrt, lim);
+            auto             px = [&](double v) {
+                return (to_axis_space(ScaleType::Sqrt, v) - a.min) / (a.max - a.min)
+                       * DEFAULT_TICK_AXIS_PX;
+            };
+            for (size_t i = 0; i < t.positions.size(); ++i)
+            {
+                EXPECT_GE(t.positions[i], lim.min - 1e-12);
+                EXPECT_LE(t.positions[i], lim.max + 1e-12);
+                if (i == 0)
+                    continue;
+                EXPECT_GE(px(t.positions[i]) - px(t.positions[i - 1]), 0.5 * target - 1e-9)
+                    << lim.min << ".." << lim.max << " tick " << i << " x=" << along_x;
+            }
+            // No hole wider than ~2.5 target spacings anywhere on the axis.
+            EXPECT_LE(px(t.positions.front()), 2.5 * target) << lim.min << ".." << lim.max;
+            EXPECT_GE(px(t.positions.back()), DEFAULT_TICK_AXIS_PX - 2.5 * target);
+            for (size_t i = 1; i < t.positions.size(); ++i)
+                EXPECT_LE(px(t.positions[i]) - px(t.positions[i - 1]), 2.5 * target)
+                    << lim.min << ".." << lim.max << " tick " << i << " x=" << along_x;
+        }
     }
+}
+
+TEST(AxisScale, SqrtTicksSymmetricAboutZero)
+{
+    Axes ax;
+    ax.yscale(ScaleType::Sqrt);
+    ax.ylim(-100.0, 100.0);
+    const TickResult t = ax.compute_y_ticks();
+    ASSERT_GE(t.positions.size(), 3u);
+    const size_t n = t.positions.size();
+    for (size_t i = 0; i < n; ++i)
+        EXPECT_DOUBLE_EQ(t.positions[i], -t.positions[n - 1 - i]);
+}
+
+TEST(AxisScale, SqrtAutoscalePadsInSqrtSpace)
+{
+    // 5% padding of the square-root span: [0, 100] -> sqrt [-0.5, 10.5].
+    Axes               ax;
+    std::vector<float> x = {0.0f, 50.0f, 100.0f};
+    ax.line(x, x);
+    ax.xscale(ScaleType::Sqrt);
+    const AxisLimits l = ax.x_limits();
+    EXPECT_NEAR(l.min, -0.25, 1e-9);
+    EXPECT_NEAR(l.max, 110.25, 1e-9);
+}
+
+TEST(AxisScale, SqrtPanZoomWorkInSqrtSpace)
+{
+    // Zoom about 25 (sqrt 5) by 0.5 on [0, 100] (sqrt [0, 10]) -> sqrt [2.5, 7.5].
+    const AxisLimits z = zoom_limits_about(ScaleType::Sqrt, {0.0, 100.0}, 25.0, 0.5);
+    EXPECT_NEAR(z.min, 6.25, 1e-12);
+    EXPECT_NEAR(z.max, 56.25, 1e-12);
+    // Pan by +10% of the sqrt span: sqrt [1, 11].
+    const AxisLimits p = pan_limits(ScaleType::Sqrt, {0.0, 100.0}, 0.1);
+    EXPECT_NEAR(p.min, 1.0, 1e-12);
+    EXPECT_NEAR(p.max, 121.0, 1e-12);
+    // Pan left past zero keeps mapping monotonically (signed square).
+    const AxisLimits n = translate_limits(ScaleType::Sqrt, {0.0, 100.0}, -2.0);
+    EXPECT_NEAR(n.min, -4.0, 1e-12);
+    EXPECT_NEAR(n.max, 64.0, 1e-12);
+    const AxisLimits c = zoom_limits_centered(ScaleType::Sqrt, {0.0, 100.0}, 25.0, 0.5);
+    EXPECT_NEAR(c.min, 6.25, 1e-12);
+    EXPECT_NEAR(c.max, 56.25, 1e-12);
 }
 
 TEST(AxisScale, LinearTicksUnchanged)

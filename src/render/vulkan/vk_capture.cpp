@@ -6,6 +6,7 @@
 #include <spectra/logger.hpp>
 
 #include <cstring>
+#include <utility>
 #include <vector>
 
 #include "vk_frame_utils.hpp"
@@ -333,11 +334,7 @@ bool VulkanBackend::readback_framebuffer(uint8_t* out_rgba, uint32_t width, uint
 
 void VulkanBackend::request_framebuffer_capture(uint8_t* out_rgba, uint32_t width, uint32_t height)
 {
-    pending_capture_.buffer        = out_rgba;
-    pending_capture_.width         = width;
-    pending_capture_.height        = height;
-    pending_capture_.done          = false;
-    pending_capture_.target_window = nullptr;
+    request_framebuffer_capture(out_rgba, width, height, nullptr);
 }
 
 void VulkanBackend::request_framebuffer_capture(uint8_t*       out_rgba,
@@ -345,20 +342,57 @@ void VulkanBackend::request_framebuffer_capture(uint8_t*       out_rgba,
                                                 uint32_t       height,
                                                 WindowContext* target_window)
 {
+    cancel_pending_capture();
     pending_capture_.buffer        = out_rgba;
     pending_capture_.width         = width;
     pending_capture_.height        = height;
-    pending_capture_.done          = false;
     pending_capture_.target_window = target_window;
+}
+
+void VulkanBackend::request_surface_capture(WindowContext* target_window)
+{
+    cancel_pending_capture();
+    pending_capture_.fit_surface   = true;
+    pending_capture_.target_window = target_window;
+}
+
+bool VulkanBackend::take_surface_capture(std::vector<uint8_t>& out_rgba,
+                                         uint32_t&             width,
+                                         uint32_t&             height)
+{
+    if (!pending_capture_.surface_done)
+        return false;
+    out_rgba = std::move(pending_capture_.surface_pixels);
+    width    = pending_capture_.surface_width;
+    height   = pending_capture_.surface_height;
+    pending_capture_.surface_pixels.clear();
+    pending_capture_.surface_done   = false;
+    pending_capture_.surface_width  = 0;
+    pending_capture_.surface_height = 0;
+    return true;
+}
+
+void VulkanBackend::cancel_pending_capture()
+{
+    pending_capture_.buffer        = nullptr;
+    pending_capture_.width         = 0;
+    pending_capture_.height        = 0;
+    pending_capture_.done          = false;
+    pending_capture_.target_window = nullptr;
+    pending_capture_.fit_surface   = false;
+    pending_capture_.surface_done  = false;
+    pending_capture_.surface_pixels.clear();
+    pending_capture_.surface_width  = 0;
+    pending_capture_.surface_height = 0;
 }
 
 bool VulkanBackend::do_capture_before_present()
 {
-    if (!pending_capture_.buffer)
+    if (!has_pending_capture())
         return false;
     if (device_lost_)
     {
-        pending_capture_.buffer = nullptr;
+        cancel_pending_capture();
         return false;
     }
 
@@ -366,8 +400,16 @@ bool VulkanBackend::do_capture_before_present()
     if (pending_capture_.target_window && active_window_ != pending_capture_.target_window)
         return false;
 
-    uint32_t width  = pending_capture_.width;
-    uint32_t height = pending_capture_.height;
+    const bool fit_surface = pending_capture_.fit_surface;
+    uint32_t   width       = pending_capture_.width;
+    uint32_t   height      = pending_capture_.height;
+    if (fit_surface)
+    {
+        // Resolve the size now, from the image this frame actually rendered.
+        const VkExtent2D extent = headless_ ? offscreen_.extent : active_window_->swapchain.extent;
+        width                   = extent.width;
+        height                  = extent.height;
+    }
     // The capture buffer is laid out as requested; a clamped copy is re-strided.
     const uint32_t requested_w = width;
     const uint32_t requested_h = height;
@@ -388,7 +430,7 @@ bool VulkanBackend::do_capture_before_present()
     {
         if (active_window_->swapchain.images.empty())
         {
-            pending_capture_.buffer = nullptr;
+            cancel_pending_capture();
             return false;
         }
         src_image  = active_window_->swapchain.images[active_window_->current_image_index];
@@ -401,8 +443,14 @@ bool VulkanBackend::do_capture_before_present()
 
     if (width == 0 || height == 0 || src_image == VK_NULL_HANDLE)
     {
-        pending_capture_.buffer = nullptr;
+        cancel_pending_capture();
         return false;
+    }
+
+    if (fit_surface)
+    {
+        pending_capture_.surface_pixels.resize(static_cast<size_t>(width) * height * 4);
+        pending_capture_.buffer = pending_capture_.surface_pixels.data();
     }
 
     // Wait for rendering to complete before reading back
@@ -542,6 +590,14 @@ bool VulkanBackend::do_capture_before_present()
 
     pending_capture_.done   = true;
     pending_capture_.buffer = nullptr;
+    if (fit_surface)
+    {
+        pending_capture_.fit_surface    = false;
+        pending_capture_.surface_done   = true;
+        pending_capture_.surface_width  = width;
+        pending_capture_.surface_height = height;
+    }
+    pending_capture_.target_window = nullptr;
     return true;
 }
 

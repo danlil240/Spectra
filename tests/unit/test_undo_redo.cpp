@@ -308,3 +308,136 @@ TEST(UndoManager, NullRedoFnSafe)
     mgr.undo();
     EXPECT_TRUE(mgr.redo());   // Should not crash
 }
+
+// ─── Owner removal (plugin unload) ──────────────────────────────────────────
+
+namespace
+{
+
+// Stand-ins for two plugin module tokens.
+char kPluginA = 'a';
+char kPluginB = 'b';
+
+// Pushes an action owned by `owner` whose callbacks count into `calls`.
+void push_owned(UndoManager& mgr, const void* owner, int& calls)
+{
+    UndoAction a;
+    a.description = "owned";
+    a.owner       = owner;
+    a.undo_fn     = [&calls]() { ++calls; };
+    a.redo_fn     = [&calls]() { ++calls; };
+    mgr.push(std::move(a));
+}
+
+// Builds a group holding one action of A and then one of B (+ a host action).
+void push_mixed_group(UndoManager& mgr, int& a_calls, int& b_calls, int& host_calls)
+{
+    mgr.begin_group("Mixed");
+    push_owned(mgr, &kPluginA, a_calls);
+    mgr.push({"host", [&host_calls]() { ++host_calls; }, [&host_calls]() { ++host_calls; }});
+    push_owned(mgr, &kPluginB, b_calls);
+    mgr.end_group();
+}
+
+}   // namespace
+
+TEST(UndoManagerOwners, MixedGroupDroppedWhenEitherOwnerRemoved)
+{
+    for (const void* removed :
+         {static_cast<const void*>(&kPluginA), static_cast<const void*>(&kPluginB)})
+    {
+        UndoManager mgr;
+        int         a = 0, b = 0, host = 0;
+        push_mixed_group(mgr, a, b, host);
+        ASSERT_EQ(mgr.undo_count(), 1u);
+
+        EXPECT_EQ(mgr.remove_owned(removed), 1u);
+        EXPECT_EQ(mgr.undo_count(), 0u);
+        EXPECT_FALSE(mgr.undo());
+        EXPECT_FALSE(mgr.redo());
+        EXPECT_EQ(a + b + host, 0);   // no callback of the group was entered
+    }
+}
+
+TEST(UndoManagerOwners, MixedGroupOnRedoStackDroppedForSecondOwner)
+{
+    UndoManager mgr;
+    int         a = 0, b = 0, host = 0;
+    push_mixed_group(mgr, a, b, host);
+    ASSERT_TRUE(mgr.undo());
+    EXPECT_EQ(a, 1);
+    EXPECT_EQ(b, 1);
+    ASSERT_EQ(mgr.redo_count(), 1u);
+
+    EXPECT_EQ(mgr.remove_owned(&kPluginB), 1u);
+    EXPECT_EQ(mgr.redo_count(), 0u);
+    EXPECT_FALSE(mgr.redo());
+    EXPECT_EQ(a, 1);
+    EXPECT_EQ(b, 1);
+}
+
+TEST(UndoManagerOwners, GroupOwnedByAllChildOwners)
+{
+    UndoManager mgr;
+    int         a = 0, b = 0, host = 0;
+    push_mixed_group(mgr, a, b, host);
+    // Unrelated owners (and the host's nullptr) remove nothing.
+    static char other = 'o';
+    EXPECT_EQ(mgr.remove_owned(&other), 0u);
+    EXPECT_EQ(mgr.remove_owned(nullptr), 0u);
+    EXPECT_EQ(mgr.undo_count(), 1u);
+}
+
+TEST(UndoManagerOwners, NestedCombinedActionKeepsEveryOwner)
+{
+    // A combined group carried inside another group (e.g. a recorded macro of
+    // grouped edits) must still be dropped for any inner owner.
+    int        b = 0;
+    UndoAction nested;
+    nested.description = "nested";
+    nested.owner       = &kPluginA;
+    nested.owners      = {&kPluginB};
+    nested.undo_fn     = [&b]() { ++b; };
+
+    UndoManager mgr;
+    mgr.begin_group("Outer");
+    mgr.push({"host", []() {}, []() {}});
+    mgr.push(std::move(nested));
+    mgr.end_group();
+    ASSERT_EQ(mgr.undo_count(), 1u);
+    EXPECT_EQ(mgr.remove_owned(&kPluginB), 1u);
+    EXPECT_FALSE(mgr.undo());
+    EXPECT_EQ(b, 0);
+}
+
+TEST(UndoManagerOwners, HostActionsSurviveOwnerRemoval)
+{
+    UndoManager mgr;
+    int         a = 0, host = 0;
+    mgr.push({"host", [&host]() { ++host; }, nullptr});
+    push_owned(mgr, &kPluginA, a);
+    mgr.begin_group("Host group");
+    mgr.push({"h1", [&host]() { ++host; }, nullptr});
+    mgr.end_group();
+
+    EXPECT_EQ(mgr.remove_owned(&kPluginA), 1u);
+    EXPECT_EQ(mgr.undo_count(), 2u);
+    EXPECT_TRUE(mgr.undo());
+    EXPECT_TRUE(mgr.undo());
+    EXPECT_EQ(host, 2);
+    EXPECT_EQ(a, 0);
+}
+
+TEST(UndoManagerOwners, PendingGroupActionsRemoved)
+{
+    UndoManager mgr;
+    int         a = 0, b = 0;
+    mgr.begin_group("Pending");
+    push_owned(mgr, &kPluginA, a);
+    push_owned(mgr, &kPluginB, b);
+    EXPECT_EQ(mgr.remove_owned(&kPluginB), 1u);
+    mgr.end_group();
+    ASSERT_TRUE(mgr.undo());
+    EXPECT_EQ(a, 1);
+    EXPECT_EQ(b, 0);
+}

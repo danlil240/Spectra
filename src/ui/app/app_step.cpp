@@ -18,6 +18,7 @@
 #include "io/export_registry.hpp"
 #include "math/data_transform.hpp"
 #include "render/renderer.hpp"
+#include "io/svg_export_internal.hpp"
 #include "render/series_type_registry.hpp"
 #include "render/vulkan/vk_backend.hpp"
 #include "render/vulkan/window_context.hpp"
@@ -31,6 +32,7 @@
 #include "window_manager_bootstrap.hpp"
 #include "window_ui_context_builder.hpp"
 #include "window_ui_context.hpp"
+#include "window_png_export.hpp"
 #include "ui/workspace/plugin_api.hpp"
 #include "ui/settings/settings_store.hpp"
 
@@ -68,8 +70,6 @@
 #endif
 
 #include "perf_metrics.hpp"
-#include "platform/clipboard_image.hpp"
-#include "ui/theme/svg_style.hpp"
 
 #include <chrono>
 #include <cctype>
@@ -227,10 +227,16 @@ struct App::AppRuntime
     Animator       animator;
     SessionRuntime session;
 
-    PluginManager        plugin_manager;
+    // Host registries the plugin manager points to: declared before it so
+    // they outlive it even if ~AppRuntime has to unload plugins itself.
     ExportFormatRegistry export_format_registry;
     DataSourceRegistry   data_source_registry;
     SeriesTypeRegistry   series_type_registry;
+    PluginManager        plugin_manager;
+    // UI context whose command registry, shortcuts and undo stack the plugin
+    // manager uses (headless context or a window's).  Plugins are unloaded
+    // or re-hosted before it is destroyed (see App::release_plugin_ui_host).
+    WindowUIContext* plugin_host_ctx = nullptr;
 
     std::unique_ptr<ui::settings::SettingsStore> settings_store;
 
@@ -274,18 +280,9 @@ struct App::AppRuntime
     uint32_t topics_panel_window_id = 0;
 #endif
 
-    // Pending PNG capture (pre-present path to avoid reading presented images)
-    struct PendingPngCapture
-    {
-        std::vector<uint8_t> pixels;
-        std::string          path;
-        std::string          theme;   // per-export theme (empty = app theme)
-        uint32_t             width                = 0;
-        uint32_t             height               = 0;
-        bool                 active               = false;
-        bool                 copy_to_clipboard    = false;
-        bool                 awaiting_gpu_capture = false;
-    } pending_png_capture;
+    // Pending windowed PNG / clipboard capture (pre-present readback whose
+    // size is resolved from the frame that is actually captured).
+    WindowPngExport png_export;
 
     AppRuntime(float fps, Backend& backend, Renderer& renderer, FigureRegistry& registry)
         : scheduler(fps), session(backend, renderer, registry)
@@ -298,8 +295,78 @@ struct App::AppRuntime
     // non-deterministic std::system_error("Invalid argument") can occur
     // during member cleanup.  Making the destructor noexcept(false) lets
     // the exception propagate to callers that have try-catch guards.
-    ~AppRuntime() noexcept(false) = default;
+    //
+    // App::shutdown_runtime() unloads plugins while every host object is
+    // alive; this is the fallback for any other teardown path.  The body runs
+    // before any member is destroyed, so the plugins' registrations are still
+    // removed from live registries here.
+    ~AppRuntime() noexcept(false)
+    {
+        plugin_manager.unload_all();
+        plugin_manager.detach_host();
+    }
 };
+
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
+// Called before `dying` (a window's UI context) is destroyed.  When it hosts
+// the plugin manager's command registry, shortcuts and undo stack, plugins
+// must not outlive it bound to them: they registered commands and undo
+// actions there and were handed its raw handles at init.  With another open
+// window they are reloaded against that window's context (keeping their
+// enabled state); with none left (the app is closing) they are unloaded now,
+// while every host object is still alive.  Main thread, GPU idle.
+static void release_plugin_ui_host(PluginManager&    plugin_manager,
+                                   WindowUIContext*& host,
+                                   WindowUIContext*  dying,
+                                   WindowManager&    window_mgr)
+{
+    if (!dying || dying != host)
+        return;
+
+    WindowUIContext* next = nullptr;
+    for (auto* wctx : window_mgr.windows())
+    {
+        if (wctx && wctx->ui_ctx && wctx->ui_ctx.get() != dying && !wctx->is_preview)
+        {
+            next = wctx->ui_ctx.get();
+            break;
+        }
+    }
+
+    struct Reload
+    {
+        std::string name;
+        std::string path;
+        bool        enabled = true;
+    };
+    std::vector<Reload> reload;
+    if (next)
+    {
+        for (const auto& p : plugin_manager.plugins())
+        {
+            if (p.loaded)
+                reload.push_back({p.name, p.path, p.enabled});
+        }
+    }
+
+    plugin_manager.unload_all();
+    plugin_manager.set_command_registry(next ? &next->cmd_registry : nullptr);
+    plugin_manager.set_shortcut_manager(next ? &next->shortcut_mgr : nullptr);
+    plugin_manager.set_undo_manager(next ? &next->undo_mgr : nullptr);
+    host = next;
+
+    for (const auto& r : reload)
+    {
+        if (!plugin_manager.load_plugin(r.path))
+        {
+            SPECTRA_LOG_WARN("plugin", "Failed to reload plugin '{}' for a new window", r.name);
+            continue;
+        }
+        if (!r.enabled)
+            plugin_manager.set_plugin_enabled(r.name, false);
+    }
+}
+#endif
 
 #if !defined(_WIN32) && (defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3))
 // Keep exactly one open window's TopicsPanel wired to the topic server.  The
@@ -616,6 +683,7 @@ void App::init_runtime()
     }
 
     // Wire plugin host services after UI context creation.
+    rt.plugin_host_ctx = rt.ui_ctx_ptr;
     rt.plugin_manager.set_command_registry(&rt.ui_ctx_ptr->cmd_registry);
     rt.plugin_manager.set_shortcut_manager(&rt.ui_ctx_ptr->shortcut_mgr);
     rt.plugin_manager.set_undo_manager(&rt.ui_ctx_ptr->undo_mgr);
@@ -627,7 +695,17 @@ void App::init_runtime()
     renderer_->set_series_type_registry(&rt.series_type_registry);
 #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
     if (rt.window_mgr)
+    {
         rt.plugin_manager.set_overlay_registry(&rt.window_mgr->overlay_registry());
+        rt.window_mgr->set_window_ui_destroying_handler(
+            [&rt](WindowContext& wctx)
+            {
+                release_plugin_ui_host(rt.plugin_manager,
+                                       rt.plugin_host_ctx,
+                                       wctx.ui_ctx.get(),
+                                       *rt.window_mgr);
+            });
+    }
 #endif
 
     rt.ui_ctx_ptr->plugin_manager = &rt.plugin_manager;
@@ -868,10 +946,9 @@ App::StepResult App::step()
     // that theme (only the plot follows it; ImGui keeps its applied style),
     // then the window is redrawn in the app theme.
     std::optional<ui::ScopedExportTheme> capture_theme;
-    if (rt.pending_png_capture.active && rt.pending_png_capture.awaiting_gpu_capture
-        && !rt.pending_png_capture.theme.empty())
+    if (rt.png_export.awaiting_capture() && !rt.png_export.theme().empty())
     {
-        capture_theme.emplace(theme_mgr_.get(), rt.pending_png_capture.theme);
+        capture_theme.emplace(theme_mgr_.get(), rt.png_export.theme());
         rt.session.redraw_tracker().mark_dirty("themed export");
     }
 
@@ -921,118 +998,33 @@ App::StepResult App::step()
     }
 #endif
 
-    // Phase 1: Write PNG from a previously completed pre-present capture.
-    if (rt.pending_png_capture.active)
+    // Windowed exports: write a finished PNG capture, schedule a pre-present
+    // capture for a pending PNG / clipboard request (it runs inside end_frame()
+    // of the next rendered frame and takes that frame's size), and write
+    // pending SVGs now.  Headless exports are written by shutdown_runtime().
+    if (!config_.headless)
     {
-        auto& cap = rt.pending_png_capture;
-        auto* vk  = (config_.backend == RenderBackend::Vulkan)
-                        ? static_cast<VulkanBackend*>(backend_.get())
-                        : nullptr;
-        if (cap.awaiting_gpu_capture && vk && vk->has_pending_capture())
-        {
-            // GPU readback scheduled last frame is still in flight.
-        }
-        else
-        {
-            cap.awaiting_gpu_capture = false;
-            if (cap.copy_to_clipboard)
-            {
-                auto png =
-                    ImageExporter::write_png_to_memory(cap.pixels.data(), cap.width, cap.height);
-                if (!png.empty())
-                {
-                    if (platform::copy_image_to_clipboard(png.data(), png.size()))
-                        SPECTRA_LOG_INFO("export", "Figure copied to clipboard");
-                    else
-                        SPECTRA_LOG_WARN("export", "Clipboard image copy failed");
-                }
-            }
-            else if (!cap.path.empty())
-            {
-                if (ImageExporter::write_png(cap.path, cap.pixels.data(), cap.width, cap.height))
-                {
-                    SPECTRA_LOG_INFO("export", "Saved PNG: " + cap.path);
-                }
-                else
-                {
-                    SPECTRA_LOG_ERROR("export", "Failed to write PNG: " + cap.path);
-                }
-            }
-            cap.active            = false;
-            cap.copy_to_clipboard = false;
-            cap.pixels.clear();
-            cap.path.clear();
-            cap.theme.clear();
-        }
-    }
-
-    // Phase 2: Schedule a pre-present capture for figures with pending export.
-    // The capture will execute inside end_frame() (do_capture_before_present),
-    // before vkQueuePresentKHR, so the swapchain image contents are valid.
-    if (!config_.headless && rt.active_figure
-        && (!rt.active_figure->export_req_.png_path.empty()
-            || rt.active_figure->export_req_.copy_to_clipboard)
-        && !rt.pending_png_capture.active)
-    {
-        uint32_t ew = rt.active_figure->export_req_.png_width > 0
-                          ? rt.active_figure->export_req_.png_width
-                          : rt.active_figure->width();
-        uint32_t eh = rt.active_figure->export_req_.png_height > 0
-                          ? rt.active_figure->export_req_.png_height
-                          : rt.active_figure->height();
-        if (ew == 0 || eh == 0)
-        {
-            rt.active_figure->export_req_.png_path.clear();
-            rt.active_figure->export_req_.png_theme.clear();
-            rt.active_figure->export_req_.png_width         = 0;
-            rt.active_figure->export_req_.png_height        = 0;
-            rt.active_figure->export_req_.copy_to_clipboard = false;
-        }
-        else
-        {
-            auto& cap = rt.pending_png_capture;
-            cap.pixels.resize(static_cast<size_t>(ew) * eh * 4);
-            cap.path                 = rt.active_figure->export_req_.png_path;
-            cap.theme                = rt.active_figure->export_req_.png_theme;
-            cap.width                = ew;
-            cap.height               = eh;
-            cap.active               = true;
-            cap.copy_to_clipboard    = rt.active_figure->export_req_.copy_to_clipboard;
-            cap.awaiting_gpu_capture = true;
-
-            auto* vk = (config_.backend == RenderBackend::Vulkan)
-                           ? static_cast<VulkanBackend*>(backend_.get())
-                           : nullptr;
+        auto*          vk         = (config_.backend == RenderBackend::Vulkan)
+                                        ? static_cast<VulkanBackend*>(backend_.get())
+                                        : nullptr;
+        WindowManager* window_mgr = nullptr;
 #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
-            // Target the window that owns this figure so multi-window captures
-            // read the correct swapchain image.
-            WindowContext* target_wctx = nullptr;
-            if (rt.window_mgr)
-            {
-                const FigureId export_id = rt.frame_state.active_figure_id;
-                for (auto* wctx : rt.window_mgr->windows())
-                {
-                    const auto& figs = wctx->assigned_figures;
-                    if (std::find(figs.begin(), figs.end(), export_id) != figs.end())
-                    {
-                        target_wctx = wctx;
-                        break;
-                    }
-                }
-            }
-            if (target_wctx)
-                vk->request_framebuffer_capture(cap.pixels.data(), ew, eh, target_wctx);
-            else
+        window_mgr = rt.window_mgr.get();
 #endif
-                if (vk)
-                vk->request_framebuffer_capture(cap.pixels.data(), ew, eh);
-
-            rt.active_figure->export_req_.png_path.clear();
-            rt.active_figure->export_req_.png_theme.clear();
-            rt.active_figure->export_req_.png_width         = 0;
-            rt.active_figure->export_req_.png_height        = 0;
-            rt.active_figure->export_req_.copy_to_clipboard = false;
-        }
+        // Plugin series are drawn into SVGs by their type's vector export callback.
+        SvgExportHost svg_host;
+        svg_host.custom_series =
+            [&rt](const CustomSeries& cs, const float* rgba, float opacity, CustomVectorSink& sink)
+        { return rt.series_type_registry.export_vector(cs, rgba, opacity, sink); };
+        if (service_window_exports(
+                rt.png_export,
+                registry_,
+                rt.active_figure ? rt.frame_state.active_figure_id : INVALID_FIGURE_ID,
+                vk,
+                window_mgr,
+                theme_mgr_.get(),
+                &svg_host))
+            rt.session.redraw_tracker().mark_dirty("png export");
     }
 
     // Check animation duration termination
@@ -1138,6 +1130,11 @@ void App::shutdown_runtime()
 #endif
 
     // Process exports for all figures (headless batch mode)
+    // Plugin series are drawn into SVGs by their type's vector export callback.
+    SvgExportHost svg_host;
+    svg_host.custom_series =
+        [&rt](const CustomSeries& cs, const float* rgba, float opacity, CustomVectorSink& sink)
+    { return rt.series_type_registry.export_vector(cs, rgba, opacity, sink); };
     bool framebuffer_holds_active = true;
     for (auto id : registry_.all_ids())
     {
@@ -1217,30 +1214,21 @@ void App::shutdown_runtime()
             }
         }
 
-        if (!f.export_req_.svg_path.empty())
-        {
-            ui::ScopedExportTheme export_theme(theme_mgr_.get(), f.export_req_.svg_theme);
-            f.compute_layout();
-            // Same plot surface as the GPU path: the figure's background
-            // override (if any) decides ink, letter shades and palette.
-            if (theme_mgr_)
-            {
-                const ui::ThemeColors surface = theme_mgr_->plot_surface_colors(f.style());
-                ui::resolve_auto_series_colors(f,
-                                               theme_mgr_->plot_surface_data_palette(f.style()),
-                                               ui::is_light_plot_background(surface),
-                                               ui::effective_figure_background(f.style(), surface));
-            }
-            if (!SvgExporter::write_svg(f.export_req_.svg_path,
-                                        f,
-                                        theme_mgr_ ? ui::svg_style_from_theme(
-                                                         theme_mgr_->plot_surface_colors(f.style()))
-                                                   : SvgStyle{}))
-            {
-                SPECTRA_LOG_ERROR("app", "Failed to write SVG: {}", f.export_req_.svg_path);
-            }
-        }
+        write_pending_svg(f, theme_mgr_.get(), &svg_host);
     }
+
+    // Unload plugins while everything they registered into is still alive:
+    // the command registry, shortcuts and undo stack of the host UI context
+    // (a window's, or the headless one), the windows' shared overlay registry,
+    // the export / data-source / series-type registries, the Renderer (which
+    // runs plugin cleanup for live custom series) and the backend.  The GPU
+    // must be idle first because that cleanup frees plugin GPU resources.
+    // Detaching afterwards keeps any later unload from walking dead hosts.
+    if (backend_)
+        backend_->wait_idle();
+    rt.plugin_manager.unload_all();
+    rt.plugin_manager.detach_host();
+    rt.plugin_host_ctx = nullptr;
 
 #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
     if (rt.window_mgr)
@@ -1270,7 +1258,6 @@ void App::shutdown_runtime()
         rt.series_type_registry.destroy_pipelines(*backend_);
         renderer_->set_series_type_registry(nullptr);
     }
-    rt.plugin_manager.set_series_type_registry(nullptr);
 
     try
     {

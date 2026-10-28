@@ -739,6 +739,66 @@ extern "C"
         return 0;
     }
 
+    // ─── Vector export of custom series (API v2.2) ───────────────────────────
+
+    int spectra_register_series_vector_export(void*                       registry,
+                                              const char*                 type_name,
+                                              SpectraSeriesVectorExportFn export_fn,
+                                              void*                       user_data)
+    {
+        if (!registry || !type_name || !export_fn)
+            return -1;
+        auto* reg = static_cast<SeriesTypeRegistry*>(registry);
+
+        // Adapts the host sink to the C ABI table of function pointers.
+        struct SinkAdapter
+        {
+            static void fill_polygon(void* host, const float* xy, uint32_t n, const float* rgba)
+            {
+                if (host && xy && rgba)
+                    static_cast<CustomVectorSink*>(host)->fill_polygon(xy, n, rgba);
+            }
+            static void stroke_polyline(void*        host,
+                                        const float* xy,
+                                        uint32_t     n,
+                                        const float* rgba,
+                                        float        width_px)
+            {
+                if (host && xy && rgba)
+                    static_cast<CustomVectorSink*>(host)->stroke_polyline(xy, n, rgba, width_px);
+            }
+            static void fill_rect(void*        host,
+                                  float        x0,
+                                  float        y0,
+                                  float        x1,
+                                  float        y1,
+                                  const float* rgba)
+            {
+                if (host && rgba)
+                    static_cast<CustomVectorSink*>(host)->fill_rect(x0, y0, x1, y1, rgba);
+            }
+        };
+
+        auto fn = [export_fn, user_data](const void*       data,
+                                         size_t            count,
+                                         const float*      series_rgba,
+                                         float             opacity,
+                                         CustomVectorSink& sink) -> int
+        {
+            SpectraVectorSink c{};
+            c.struct_size = sizeof(SpectraVectorSink);
+            c.host        = &sink;
+            for (int i = 0; i < 4; ++i)
+                c.series_color[i] = series_rgba ? series_rgba[i] : 1.0f;
+            c.opacity         = opacity;
+            c.fill_polygon    = &SinkAdapter::fill_polygon;
+            c.stroke_polyline = &SinkAdapter::stroke_polyline;
+            c.fill_rect       = &SinkAdapter::fill_rect;
+            return export_fn(data, count, &c, user_data);
+        };
+        return reg->set_vector_export(type_name, std::move(fn)) ? 0 : -1;
+    }
+
     // ─── Backend C ABI helpers (API v2.0) ────────────────────────────────────
 
     SpectraBufferHandle spectra_backend_create_buffer(SpectraBackendHandle backend,
@@ -886,6 +946,20 @@ void unregister_series_types(SeriesTypeRegistry*                                
 PluginManager::~PluginManager()
 {
     unload_all();
+}
+
+void PluginManager::detach_host()
+{
+    std::lock_guard lock(mutex_);
+    registry_          = nullptr;
+    shortcut_mgr_      = nullptr;
+    undo_mgr_          = nullptr;
+    transform_reg_     = nullptr;
+    overlay_reg_       = nullptr;
+    export_format_reg_ = nullptr;
+    data_source_reg_   = nullptr;
+    series_type_reg_   = nullptr;
+    backend_           = nullptr;
 }
 
 SpectraPluginContext PluginManager::make_context(uint32_t minor_version) const

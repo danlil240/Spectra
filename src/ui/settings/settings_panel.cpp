@@ -421,7 +421,8 @@ void SettingsPanel::draw_appearance_tab()
     ImGui::SameLine(label_w);
     ImGui::SetNextItemWidth(200.0f);
     // Swatches show each palette as the plot draws it on the current canvas
-    // (visible_data_palette), not the raw palette definition.
+    // (displayed_data_palette: canvas-adjusted, ink slots in the theme
+    // foreground), not the raw palette definition.
     auto draw_swatches = [&](const ui::DataPalette& pal, float size)
     {
         ImDrawList*  dl    = ImGui::GetWindowDrawList();
@@ -506,7 +507,7 @@ void SettingsPanel::draw_appearance_tab()
     ImGui::TextUnformatted("Glass / Transparency");
     ImGui::Spacing();
 
-    ui::ThemeGlassSettings glass = theme_mgr_->glass();
+    ui::ThemeGlassSettings glass         = theme_mgr_->glass();
     bool                   glass_changed = false;
 
     auto glass_slider = [&](const char* label, float* value)
@@ -669,8 +670,8 @@ void SettingsPanel::draw_shortcuts_tab()
             {
                 std::string sc_str   = b.shortcut.valid() ? b.shortcut.to_string() : "(none)";
                 bool        conflict = b.shortcut.valid()
-                                       && shortcut_count.contains(b.shortcut.to_string())
-                                       && shortcut_count.at(b.shortcut.to_string()) > 1;
+                                && shortcut_count.contains(b.shortcut.to_string())
+                                && shortcut_count.at(b.shortcut.to_string()) > 1;
 
                 if (conflict)
                 {

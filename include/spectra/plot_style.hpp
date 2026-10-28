@@ -58,10 +58,10 @@ struct PlotStyle
     // MATLAB colour letter (r g b c m y k w) that set `color` in a format
     // string, or '\0' for an explicit colour.  A lettered colour is a tuned
     // shade that follows the theme (see format_colors in color.hpp).
-    char                 color_letter = '\0';
-    float                line_width  = 2.0f;
-    float                marker_size = 6.0f;
-    float                opacity     = 1.0f;
+    char  color_letter = '\0';
+    float line_width   = 2.0f;
+    float marker_size  = 6.0f;
+    float opacity      = 1.0f;
 
     // Convenience: does this style draw lines?
     bool has_line() const { return line_style != LineStyle::None; }

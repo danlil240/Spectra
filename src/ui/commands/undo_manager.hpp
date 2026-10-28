@@ -19,6 +19,14 @@ struct UndoAction
     // Opaque owner token (the plugin module that pushed the action); nullptr for
     // host actions.  remove_owned() drops a plugin's actions before it unloads.
     const void* owner = nullptr;
+
+    // Further owners whose callbacks this action reaches (a group combined by
+    // end_group() lists every owner of its children here, nested groups
+    // included).  remove_owned() matches `owner` and every entry.
+    std::vector<const void*> owners{};
+
+    // Whether removing `token`'s actions must drop this one.
+    bool owned_by(const void* token) const;
 };
 
 // Manages an undo/redo stack for property changes.
@@ -75,10 +83,11 @@ class UndoManager
     // Clear all undo/redo history.
     void clear();
 
-    // Remove every undo/redo (and pending group) action whose owner is `owner`,
-    // so no callback into an unloaded plugin stays reachable.  A group combined
-    // by end_group() takes the first non-null owner of its actions.  Returns the
-    // number of actions removed; nullptr removes nothing.
+    // Remove every undo/redo (and pending group) action owned by `owner`, so no
+    // callback into an unloaded plugin stays reachable.  A group combined by
+    // end_group() is owned by every owner of its actions: it is dropped whole
+    // when any of them is removed (undoing only part of a group is unsafe).
+    // Returns the number of top-level actions removed; nullptr removes nothing.
     size_t remove_owned(const void* owner);
 
     // Begin/end a group: multiple pushes between begin_group/end_group

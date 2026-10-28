@@ -3,13 +3,13 @@
 // Axis-space mapping for 2D scale types.
 //
 // "Axis space" is the coordinate system in which an axis is drawn linearly:
-// log10(v) for Log10, log2(v) for Log2 and v itself for Linear.  The renderer,
-// grid, tick labels and pan/zoom map data through these helpers so that a
-// log axis is drawn in decades instead of as a squashed linear axis.
+// log10(v) for Log10, log2(v) for Log2, the signed square root
+// sign(v)·sqrt(|v|) for Sqrt and v itself for Linear.  The renderer, grid,
+// tick labels, overlays, SVG export and pan/zoom map data through these
+// helpers so every output path agrees on where a value is drawn.
 //
-// Sqrt is deliberately left as identity here: its tick generator places
-// ticks in data space for an untransformed axis, and changing that is out of
-// scope for the log-scale fix.
+// Sqrt uses the signed square root so negative data still maps monotonically
+// (and continuously through zero) instead of being clipped or dropped.
 
 #include <cmath>
 
@@ -24,6 +24,29 @@ namespace spectra
 inline bool is_log_scale(ScaleType s)
 {
     return s == ScaleType::Log10 || s == ScaleType::Log2;
+}
+
+inline bool is_sqrt_scale(ScaleType s)
+{
+    return s == ScaleType::Sqrt;
+}
+
+/// True for every scale whose axis space differs from data space.
+inline bool is_nonlinear_scale(ScaleType s)
+{
+    return is_log_scale(s) || is_sqrt_scale(s);
+}
+
+/// Signed square root sign(v)·sqrt(|v|) (NaN stays NaN).
+inline double signed_sqrt(double v)
+{
+    return std::copysign(std::sqrt(std::abs(v)), v);
+}
+
+/// Inverse of signed_sqrt(): sign(a)·a².
+inline double signed_square(double a)
+{
+    return a * std::abs(a);
 }
 
 inline double log_scale_base(ScaleType s)
@@ -43,6 +66,8 @@ inline double log_axis_floor(ScaleType s)
 /// clipped to log_axis_floor(); NaN stays NaN so line breaks are preserved.
 inline double to_axis_space(ScaleType s, double v)
 {
+    if (is_sqrt_scale(s))
+        return signed_sqrt(v);
     if (!is_log_scale(s))
         return v;
     if (std::isnan(v))
@@ -55,6 +80,8 @@ inline double to_axis_space(ScaleType s, double v)
 /// Inverse of to_axis_space().
 inline double from_axis_space(ScaleType s, double a)
 {
+    if (is_sqrt_scale(s))
+        return signed_square(a);
     if (!is_log_scale(s))
         return a;
     return std::pow(log_scale_base(s), a);
@@ -83,6 +110,8 @@ inline AxisLimits sanitize_log_limits(ScaleType s, AxisLimits lim, double positi
 /// Data-space limits → axis-space limits (sanitized for log axes).
 inline AxisLimits axis_space_limits(ScaleType s, AxisLimits lim)
 {
+    if (is_sqrt_scale(s))
+        return {signed_sqrt(lim.min), signed_sqrt(lim.max)};
     if (!is_log_scale(s))
         return lim;
     lim = sanitize_log_limits(s, lim);
@@ -90,10 +119,11 @@ inline AxisLimits axis_space_limits(ScaleType s, AxisLimits lim)
 }
 
 /// Zoom data-space limits by @p factor about @p anchor (data space), in axis
-/// space so a log axis zooms by the same ratio on both sides of the anchor.
+/// space so a log / sqrt axis zooms by the same screen ratio on both sides of
+/// the anchor.
 inline AxisLimits zoom_limits_about(ScaleType s, AxisLimits lim, double anchor, double factor)
 {
-    if (!is_log_scale(s))
+    if (!is_nonlinear_scale(s))
         return {anchor + (lim.min - anchor) * factor, anchor + (lim.max - anchor) * factor};
     const AxisLimits a   = axis_space_limits(s, lim);
     const double     anc = to_axis_space(s, anchor);
@@ -118,7 +148,7 @@ inline AxisLimits zoom_limits_centered(ScaleType s, AxisLimits lim, double centr
 /// Shift data-space limits by @p fraction of their axis-space span (pan).
 inline AxisLimits pan_limits(ScaleType s, AxisLimits lim, double fraction)
 {
-    if (!is_log_scale(s))
+    if (!is_nonlinear_scale(s))
     {
         const double d = fraction * (lim.max - lim.min);
         return {lim.min + d, lim.max + d};
@@ -129,10 +159,11 @@ inline AxisLimits pan_limits(ScaleType s, AxisLimits lim, double fraction)
 }
 
 /// Shift data-space limits by @p delta axis-space units (pan by an absolute
-/// amount: data units on a linear axis, decades / octaves on a log axis).
+/// amount: data units on a linear axis, decades / octaves on a log axis,
+/// square-root units on a sqrt axis).
 inline AxisLimits translate_limits(ScaleType s, AxisLimits lim, double delta)
 {
-    if (!is_log_scale(s))
+    if (!is_nonlinear_scale(s))
         return {lim.min + delta, lim.max + delta};
     const AxisLimits a = axis_space_limits(s, lim);
     return {from_axis_space(s, a.min + delta), from_axis_space(s, a.max + delta)};
@@ -158,8 +189,8 @@ inline std::vector<double> log_minor_ticks(ScaleType s, double lo, double hi)
         return out;
     static constexpr double SUBS10[] = {2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0};
     static constexpr double SUBS2[]  = {1.25, 1.5, 1.75};
-    const int e_lo = static_cast<int>(std::floor(a_lo));
-    const int e_hi = static_cast<int>(std::ceil(a_hi));
+    const int               e_lo     = static_cast<int>(std::floor(a_lo));
+    const int               e_hi     = static_cast<int>(std::ceil(a_hi));
     for (int e = e_lo; e <= e_hi; ++e)
     {
         const double power     = std::pow(base, static_cast<double>(e));

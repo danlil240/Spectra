@@ -83,17 +83,27 @@ TEST(AxisMapping, LogAxesMapThroughAxisSpace)
     EXPECT_TRUE(m.x_drawable(1e-30));
 }
 
-TEST(AxisMapping, LinearAndSqrtStayLinear)
+TEST(AxisMapping, LinearStaysLinear)
 {
-    // Sqrt axes are drawn untransformed by the renderer; overlays follow.
-    for (ScaleType s : {ScaleType::Linear, ScaleType::Sqrt})
-    {
-        const AxisMapping m(VP, {0.0, 100.0}, {-1.0, 1.0}, s, s);
-        EXPECT_NEAR(m.to_screen_x(50.0), mid_x(), 1e-9);
-        EXPECT_NEAR(m.to_screen_y(0.0), mid_y(), 1e-9);
-        EXPECT_NEAR(m.to_data_x(VP.x + 0.25 * VP.w), 25.0, 1e-9);
-        EXPECT_TRUE(m.x_drawable(-5.0));
-    }
+    const ScaleType   s = ScaleType::Linear;
+    const AxisMapping m(VP, {0.0, 100.0}, {-1.0, 1.0}, s, s);
+    EXPECT_NEAR(m.to_screen_x(50.0), mid_x(), 1e-9);
+    EXPECT_NEAR(m.to_screen_y(0.0), mid_y(), 1e-9);
+    EXPECT_NEAR(m.to_data_x(VP.x + 0.25 * VP.w), 25.0, 1e-9);
+    EXPECT_TRUE(m.x_drawable(-5.0));
+}
+
+TEST(AxisMapping, SqrtMapsThroughSignedSquareRoot)
+{
+    const ScaleType   s = ScaleType::Sqrt;
+    const AxisMapping m(VP, {0.0, 100.0}, {-1.0, 1.0}, s, s);
+    EXPECT_NEAR(m.to_screen_x(25.0), mid_x(), 1e-9);
+    EXPECT_NEAR(m.to_screen_y(0.0), mid_y(), 1e-9);
+    EXPECT_NEAR(m.to_data_x(VP.x + 0.25 * VP.w), 6.25, 1e-9);
+    EXPECT_NEAR(m.to_data_y(VP.y + 0.75 * VP.h), -0.25, 1e-9);
+    // Negative values stay drawable (signed sqrt), left of zero.
+    EXPECT_TRUE(m.x_drawable(-5.0));
+    EXPECT_LT(m.to_screen_x(-5.0), VP.x);
 }
 
 TEST(AxisMapping, EpochScaleLinearKeepsPrecision)

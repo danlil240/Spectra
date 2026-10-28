@@ -197,7 +197,7 @@ void LiveConnectionPanel::draw_channel_list()
     ImGui::Text("Active Channels");
     ImGui::BeginChild("Channels", ImVec2(0, 0), 1);
 
-    auto channels = bridge_.channel_names();
+    auto channels  = bridge_.channel_names();
     bool any_shown = false;
     for (auto& ch_name : channels)
     {

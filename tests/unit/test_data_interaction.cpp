@@ -522,4 +522,34 @@ TEST(DataInteractionLog, SortedQueryUsesLogBoundsAndSkipsNonPositive)
     ASSERT_TRUE(left.found);
     EXPECT_EQ(left.point_index, 2u);
 }
+
+TEST(DataInteractionSqrt, PicksPointInSqrtAxisSpace)
+{
+    // Limits [0, 100] on a sqrt x axis: x = 25 is drawn half way across,
+    // x = 49 at 70%.  A linear mapping would pick x = 49 at the midpoint.
+    // The sorted path (> 64 points) builds its snap window in sqrt space too.
+    Figure             fig({.width = 900, .height = 600});
+    auto&              ax = fig.subplot(1, 1, 1);
+    std::vector<float> x, y;
+    for (int i = 0; i <= 100; ++i)
+    {
+        x.push_back(static_cast<float>(i));
+        y.push_back(5.0f);
+    }
+    ax.line(x, y);
+    ax.xscale(ScaleType::Sqrt);
+    ax.xlim(0.0, 100.0);
+    ax.ylim(0.0, 10.0);
+    ax.set_viewport(Rect{0.0f, 0.0f, 900.0f, 600.0f});
+
+    const auto np = hover_pick(fig, 450.0, 300.0);
+    ASSERT_TRUE(np.found);
+    EXPECT_EQ(np.point_index, 25u);
+    EXPECT_NEAR(np.screen_x, 450.0f, 0.5f);
+    EXPECT_LT(np.distance_px, 1.0f);
+
+    const auto right = hover_pick(fig, 630.0, 300.0);
+    ASSERT_TRUE(right.found);
+    EXPECT_EQ(right.point_index, 49u);
+}
 #endif

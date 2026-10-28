@@ -22,7 +22,7 @@ namespace spectra::ui
 {
 class ThemeManager;
 struct ThemeColors;
-}
+}   // namespace spectra::ui
 
 #include <array>
 #include <cstdint>
@@ -207,7 +207,10 @@ class Renderer
         const AxesBase*          axes = nullptr;
         Rect                     cell;     // figure pixels
         std::vector<std::string> hidden;   // tooltip lines (see overflow_tooltip_lines)
-        bool                     hovered = false;
+        // Colour keys of the leading hidden lines that name an entry (the
+        // trailing "... and K more" line, if any, has none).
+        std::vector<Color> colors;
+        bool               hovered = false;
     };
     const std::vector<LegendOverflowCell>& legend_overflow_cells() const
     {
@@ -280,6 +283,8 @@ class Renderer
     };
     // ShapeSeries3D draw-range selection for render_series(): all ranges (opaque
     // then translucent), only the opaque ranges, or a single range index (>= 0).
+    // With a single range, a non-zero shape count narrows the draw further to
+    // that run of the range's shapes (ShapeSeries3D::shape_ranges()).
     // Lets the 3D pass draw a mixed series' opaque ranges with opaque geometry
     // and sort each translucent range into the global transparent pass.
     static constexpr int kShape3DAllRanges    = -1;
@@ -295,10 +300,12 @@ class Renderer
 
     void render_series(Series&             series,
                        const Rect&         viewport,
-                       const VisibleRange* visible       = nullptr,
-                       double              view_cx       = 0.0,
-                       double              view_cy       = 0.0,
-                       int                 shape3d_range = kShape3DAllRanges);
+                       const VisibleRange* visible             = nullptr,
+                       double              view_cx             = 0.0,
+                       double              view_cy             = 0.0,
+                       int                 shape3d_range       = kShape3DAllRanges,
+                       uint32_t            shape3d_first_shape = 0,
+                       uint32_t            shape3d_shape_count = 0);
     void render_selection_highlight(AxesBase& axes, const Rect& viewport);
 
     // Build orthographic projection matrix for given axis limits
@@ -522,9 +529,10 @@ class Renderer
         // the same name rebuilds its state from scratch.
         bool plugin_state_released = false;
 
-        // ShapeSeries3D: indices() with each translucent range's triangles
-        // sorted back to front for the camera in sort_key (see
-        // prepare_shape3d_sorted_indices).  Uploaded per frame slot so the
+        // ShapeSeries3D: indices() with each translucent shape's triangles
+        // (SurfaceSeries / MeshSeries: all triangles) sorted back to front for
+        // the camera in sort_key (see prepare_shape3d_sorted_indices and
+        // prepare_mesh_sorted_indices).  Uploaded per frame slot so the
         // in-flight frame's copy is never overwritten.
         uint64_t              geometry_serial = 0;
         std::vector<uint32_t> sorted_indices;
@@ -547,6 +555,37 @@ class Renderer
     // @p cam (re-sorting only when the camera, model matrix, geometry or
     // transparency changed) and uploads them into this frame slot's sorted
     // index buffer; sets gpu.sorted_ready_slot.  Render thread only.
+    // Same for a translucent solid SurfaceSeries / MeshSeries: all of its
+    // triangles (6-float position+normal vertices) as one sorted block.
+    // Skipped above kMaxSortedMeshTriangles (drawn in generation order).
+    static constexpr size_t kMaxSortedMeshTriangles = 262144;
+    void                    prepare_mesh_sorted_indices(SeriesGpuData&            gpu,
+                                                        std::span<const uint32_t> indices,
+                                                        std::span<const float>    vertices,
+                                                        const mat4&               model,
+                                                        const Camera&             cam,
+                                                        float                     series_alpha,
+                                                        float                     style_opacity);
+    // Cache key of a camera/geometry-dependent triangle sort.
+    static std::vector<double> triangle_sort_key(const SeriesGpuData& gpu,
+                                                 const mat4&          model,
+                                                 const Camera&        cam,
+                                                 size_t               index_count,
+                                                 float                series_alpha,
+                                                 float                style_opacity);
+    // This pass's back-to-front sorted index buffer when @p transparent and one
+    // was prepared, otherwise the series' generation-order index buffer.
+    BufferHandle sorted_index_buffer_or(const SeriesGpuData& gpu, bool transparent) const
+    {
+        const int slot = gpu.sorted_ready_slot;
+        if (transparent && slot >= 0 && gpu.sorted_ready_serial == render_pass_serial_
+            && gpu.sorted_index_buffer[slot])
+            return gpu.sorted_index_buffer[slot];
+        return gpu.index_buffer;
+    }
+    // Uploads gpu.sorted_indices into this frame slot's sorted index buffer
+    // (when that slot is out of date) and marks it ready for this pass.
+    void upload_sorted_indices(SeriesGpuData& gpu);
     void prepare_shape3d_sorted_indices(SeriesGpuData&       gpu,
                                         const ShapeSeries3D& series,
                                         const mat4&          model,
@@ -608,7 +647,7 @@ class Renderer
     std::vector<AnnotationArrowDraw> annotation_arrow_draws_;
 
     // Legend / colorbar annotation state (render_annotations.cpp).
-    bool legend_overlay_active_ = false;
+    bool                            legend_overlay_active_ = false;
     bool                            pointer_valid_         = false;
     float                           pointer_x_             = 0.0f;
     float                           pointer_y_             = 0.0f;

@@ -1327,7 +1327,7 @@ void WebGPUBackend::bind_pipeline(PipelineHandle handle)
         // instead of running with the wrong shader.
         current_pipeline_        = nullptr;
         current_pipeline_layout_ = nullptr;
-        static int dbg_bp2 = 0;
+        static int dbg_bp2       = 0;
         if (dbg_bp2++ < 3)
             SPECTRA_LOG_ERROR("webgpu", "bind_pipeline: invalid handle id={}", handle.id);
         return;

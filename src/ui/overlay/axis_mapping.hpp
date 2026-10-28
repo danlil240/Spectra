@@ -6,8 +6,7 @@
 // markers / data tips, region select, box select, annotations) maps through
 // this one helper so they all agree with the renderer: positions are linear
 // in *axis space* (core/axis_scale.hpp), i.e. log10(v) / log2(v) on a log
-// axis and v itself on a linear axis.  Sqrt axes are drawn untransformed by
-// the renderer, so they map linearly here too.
+// axis, sign(v)·sqrt(|v|) on a sqrt axis and v itself on a linear axis.
 
 #include <spectra/axes.hpp>
 

@@ -32,21 +32,21 @@ namespace spectra
 namespace
 {
 
-// Centroid (data space) of the vertices referenced by one ShapeSeries3D draw
-// range.  Each shape owns a contiguous vertex block, so the referenced vertex
-// span [min, max] covers exactly the range's shapes.
-vec3 shape3d_range_centroid(const ShapeSeries3D& series, const ShapeSeries3D::DrawRange& range)
+// Centroid (data space) of the vertices referenced by one ShapeSeries3D index
+// block (a shape or a draw range).  Each shape owns a contiguous vertex block,
+// so the referenced vertex span [min, max] covers exactly the block's shapes.
+vec3 shape3d_block_centroid(const ShapeSeries3D& series, uint32_t first_index, uint32_t index_count)
 {
     const auto indices  = series.indices();
     const auto vertices = series.vertices();
-    const auto end      = std::min<size_t>(indices.size(),
-                                      static_cast<size_t>(range.first_index) + range.index_count);
-    if (range.first_index >= end)
+    const auto end =
+        std::min<size_t>(indices.size(), static_cast<size_t>(first_index) + index_count);
+    if (first_index >= end)
         return series.compute_centroid();
 
-    uint32_t vmin = indices[range.first_index];
+    uint32_t vmin = indices[first_index];
     uint32_t vmax = vmin;
-    for (size_t i = range.first_index; i < end; ++i)
+    for (size_t i = first_index; i < end; ++i)
     {
         vmin = std::min(vmin, indices[i]);
         vmax = std::max(vmax, indices[i]);
@@ -75,17 +75,13 @@ Renderer::Renderer(Backend& backend, ui::ThemeManager& theme_mgr)
 {
 }
 
-void Renderer::prepare_shape3d_sorted_indices(SeriesGpuData&       gpu,
-                                              const ShapeSeries3D& series,
-                                              const mat4&          model,
-                                              const Camera&        cam,
-                                              float                series_alpha,
-                                              float                style_opacity)
+std::vector<double> Renderer::triangle_sort_key(const SeriesGpuData& gpu,
+                                                const mat4&          model,
+                                                const Camera&        cam,
+                                                size_t               index_count,
+                                                float                series_alpha,
+                                                float                style_opacity)
 {
-    const auto indices = series.indices();
-    if (indices.empty() || indices.size() != gpu.index_count)
-        return;   // not uploaded yet (or stale): draw unsorted this frame
-
     const bool ortho   = cam.projection_mode == Camera::ProjectionMode::Orthographic;
     const vec3 forward = vec3_normalize(cam.target - cam.position);
 
@@ -100,35 +96,19 @@ void Renderer::prepare_shape3d_sorted_indices(SeriesGpuData&       gpu,
     key.push_back(series_alpha);
     key.push_back(style_opacity);
     key.push_back(static_cast<double>(gpu.geometry_serial));
-    key.push_back(static_cast<double>(indices.size()));
+    key.push_back(static_cast<double>(index_count));
+    return key;
+}
 
-    if (key != gpu.sort_key)
-    {
-        gpu.sorted_indices.assign(indices.begin(), indices.end());
-        const auto vertices = series.vertices();
-        for (const auto& r : series.draw_ranges())
-        {
-            if (!shape3d_range_transparent(r, series_alpha, style_opacity))
-                continue;
-            sort_triangles_back_to_front(gpu.sorted_indices,
-                                         r.first_index,
-                                         r.index_count,
-                                         vertices,
-                                         model,
-                                         cam.position,
-                                         forward,
-                                         ortho);
-        }
-        gpu.sort_key = std::move(key);
-        ++gpu.sorted_version;
-    }
-
+void Renderer::upload_sorted_indices(SeriesGpuData& gpu)
+{
     const uint32_t slot = backend_.current_flight_frame() % FRAME_BUFFER_SLOTS;
     if (gpu.sorted_slot_version[slot] != gpu.sorted_version || !gpu.sorted_index_buffer[slot])
     {
         const size_t bytes = gpu.sorted_indices.size() * sizeof(uint32_t);
         if (!gpu.sorted_index_buffer[slot] || gpu.sorted_index_capacity[slot] < bytes)
         {
+            // destroy_buffer defers the release until the slot's frame retires.
             if (gpu.sorted_index_buffer[slot])
                 backend_.destroy_buffer(gpu.sorted_index_buffer[slot]);
             gpu.sorted_index_buffer[slot]   = backend_.create_buffer(BufferUsage::Index, bytes);
@@ -141,6 +121,83 @@ void Renderer::prepare_shape3d_sorted_indices(SeriesGpuData&       gpu,
     }
     gpu.sorted_ready_slot   = static_cast<int>(slot);
     gpu.sorted_ready_serial = render_pass_serial_;
+}
+
+void Renderer::prepare_shape3d_sorted_indices(SeriesGpuData&       gpu,
+                                              const ShapeSeries3D& series,
+                                              const mat4&          model,
+                                              const Camera&        cam,
+                                              float                series_alpha,
+                                              float                style_opacity)
+{
+    const auto indices = series.indices();
+    if (indices.empty() || indices.size() != gpu.index_count)
+        return;   // not uploaded yet (or stale): draw unsorted this frame
+
+    auto key = triangle_sort_key(gpu, model, cam, indices.size(), series_alpha, style_opacity);
+    if (key != gpu.sort_key)
+    {
+        const bool ortho   = cam.projection_mode == Camera::ProjectionMode::Orthographic;
+        const vec3 forward = vec3_normalize(cam.target - cam.position);
+        gpu.sorted_indices.assign(indices.begin(), indices.end());
+        const auto vertices = series.vertices();
+        const auto shapes   = series.shape_ranges();
+        // Sort each translucent shape on its own: the 3D pass orders (and may
+        // draw) translucent shapes individually, so a shape's index block must
+        // stay intact, exactly as if it were its own series.
+        for (const auto& r : series.draw_ranges())
+        {
+            if (!shape3d_range_transparent(r, series_alpha, style_opacity))
+                continue;
+            const size_t shape_end =
+                std::min<size_t>(shapes.size(), static_cast<size_t>(r.first_shape) + r.shape_count);
+            for (size_t si = r.first_shape; si < shape_end; ++si)
+                sort_triangles_back_to_front(gpu.sorted_indices,
+                                             shapes[si].first_index,
+                                             shapes[si].index_count,
+                                             vertices,
+                                             model,
+                                             cam.position,
+                                             forward,
+                                             ortho);
+        }
+        gpu.sort_key = std::move(key);
+        ++gpu.sorted_version;
+    }
+    upload_sorted_indices(gpu);
+}
+
+void Renderer::prepare_mesh_sorted_indices(SeriesGpuData&            gpu,
+                                           std::span<const uint32_t> indices,
+                                           std::span<const float>    vertices,
+                                           const mat4&               model,
+                                           const Camera&             cam,
+                                           float                     series_alpha,
+                                           float                     style_opacity)
+{
+    if (indices.empty() || indices.size() != gpu.index_count)
+        return;   // not uploaded yet (or stale): draw unsorted this frame
+    if (indices.size() / 3 > kMaxSortedMeshTriangles)
+        return;   // too large to re-sort per camera move: draw in generation order
+
+    auto key = triangle_sort_key(gpu, model, cam, indices.size(), series_alpha, style_opacity);
+    if (key != gpu.sort_key)
+    {
+        const bool ortho   = cam.projection_mode == Camera::ProjectionMode::Orthographic;
+        const vec3 forward = vec3_normalize(cam.target - cam.position);
+        gpu.sorted_indices.assign(indices.begin(), indices.end());
+        sort_triangles_back_to_front(gpu.sorted_indices,
+                                     0,
+                                     gpu.sorted_indices.size(),
+                                     vertices,
+                                     model,
+                                     cam.position,
+                                     forward,
+                                     ortho);
+        gpu.sort_key = std::move(key);
+        ++gpu.sorted_version;
+    }
+    upload_sorted_indices(gpu);
 }
 
 void Renderer::destroy_series_buffers(SeriesGpuData& gpu)
@@ -844,8 +901,8 @@ void Renderer::render_axes(AxesBase&   axes,
     float       sy   = std::max(0.0f, clip.y);
     float       sx2  = std::min(static_cast<float>(fig_width), clip.x + clip.w);
     float       sy2  = std::min(static_cast<float>(fig_height), clip.y + clip.h);
-    float sw  = std::max(0.0f, sx2 - sx);
-    float sh  = std::max(0.0f, sy2 - sy);
+    float       sw   = std::max(0.0f, sx2 - sx);
+    float       sh   = std::max(0.0f, sy2 - sy);
 
     // Set scissor to clamped axes viewport
     backend_.set_scissor(static_cast<int32_t>(sx),
@@ -959,13 +1016,13 @@ void Renderer::render_axes(AxesBase&   axes,
         // Cache limits and view center for all sub-functions this frame.
         // Reading x_limits()/y_limits() only once prevents mid-frame
         // inconsistency when external threads modify series data.
-        auto& axes_gpu           = axes_gpu_data_[&axes];
-        axes_gpu.view_center_x   = view_cx;
-        axes_gpu.view_center_y   = view_cy;
-        axes_gpu.cached_xlim_min = xlim.min;
-        axes_gpu.cached_xlim_max = xlim.max;
-        axes_gpu.cached_ylim_min = ylim.min;
-        axes_gpu.cached_ylim_max = ylim.max;
+        auto& axes_gpu             = axes_gpu_data_[&axes];
+        axes_gpu.view_center_x     = view_cx;
+        axes_gpu.view_center_y     = view_cy;
+        axes_gpu.cached_xlim_min   = xlim.min;
+        axes_gpu.cached_xlim_max   = xlim.max;
+        axes_gpu.cached_ylim_min   = ylim.min;
+        axes_gpu.cached_ylim_max   = ylim.max;
         axes_gpu.xscale            = xscale;
         axes_gpu.yscale            = yscale;
         axes_gpu.axis_half_range_x = half_rx;
@@ -1035,9 +1092,11 @@ void Renderer::render_axes(AxesBase&   axes,
         // Collect visible series with their distances.
         struct SortEntry
         {
-            Series* series;
-            float   distance;
-            int     shape3d_range = kShape3DAllRanges;
+            Series*  series;
+            float    distance;
+            int      shape3d_range = kShape3DAllRanges;
+            uint32_t first_shape   = 0;   // translucent shape run within shape3d_range
+            uint32_t shape_count   = 0;   // 0 = the whole range
         };
         std::vector<SortEntry> opaque_entries;
         std::vector<SortEntry> transparent_entries;
@@ -1122,13 +1181,16 @@ void Renderer::render_axes(AxesBase&   axes,
             }
             // A shape series may mix opaque and translucent per-shape colours.
             // Its opaque ranges draw with the other opaque geometry (depth
-            // write on); each translucent range joins the sorted transparent
-            // pass at its own centroid, exactly as if submitted separately.
+            // write on).  Every translucent shape joins the sorted transparent
+            // pass at its own centroid, even when same-colour shapes share one
+            // range, so other series can interleave between them exactly as if
+            // each shape were submitted separately.
             if (gpu_it != series_gpu_data_.end() && gpu_it->second.type == SeriesType::Shape3D)
             {
                 const auto* sh3d          = static_cast<ShapeSeries3D*>(series_ptr.get());
                 const float style_opacity = series_ptr->plot_style().opacity;
                 const auto  ranges        = sh3d->draw_ranges();
+                const auto  shapes        = sh3d->shape_ranges();
                 bool        has_opaque    = false;
                 bool        has_blended   = false;
                 for (const auto& r : ranges)
@@ -1149,11 +1211,24 @@ void Renderer::render_axes(AxesBase&   axes,
                         has_opaque = true;
                         continue;
                     }
-                    const vec3 rc = shape3d_range_centroid(*sh3d, ranges[ri]);
-                    const vec4 rw = mat4_mul_vec4(model_mat, {rc.x, rc.y, rc.z, 1.0f});
-                    const auto rd =
-                        static_cast<float>(vec3_length(vec3{rw.x, rw.y, rw.z} - cam_pos));
-                    transparent_entries.push_back({series_ptr.get(), rd, static_cast<int>(ri)});
+                    const auto&  r = ranges[ri];
+                    const size_t shape_end =
+                        std::min<size_t>(shapes.size(),
+                                         static_cast<size_t>(r.first_shape) + r.shape_count);
+                    for (size_t si = r.first_shape; si < shape_end; ++si)
+                    {
+                        const vec3 sc = shape3d_block_centroid(*sh3d,
+                                                               shapes[si].first_index,
+                                                               shapes[si].index_count);
+                        const vec4 sw = mat4_mul_vec4(model_mat, {sc.x, sc.y, sc.z, 1.0f});
+                        const auto sd =
+                            static_cast<float>(vec3_length(vec3{sw.x, sw.y, sw.z} - cam_pos));
+                        transparent_entries.push_back({series_ptr.get(),
+                                                       sd,
+                                                       static_cast<int>(ri),
+                                                       static_cast<uint32_t>(si),
+                                                       1u});
+                    }
                 }
                 if (has_opaque)
                     opaque_entries.push_back({series_ptr.get(), dist, kShape3DOpaqueRanges});
@@ -1161,6 +1236,38 @@ void Renderer::render_axes(AxesBase&   axes,
             }
 
             bool is_transparent = effective_alpha < 0.99f;
+            // A translucent solid surface or mesh draws its own triangles back
+            // to front, so its far folds do not blend over its near ones.
+            if (gpu_it != series_gpu_data_.end())
+            {
+                auto&       gd            = gpu_it->second;
+                const float style_opacity = series_ptr->plot_style().opacity;
+                gd.sorted_ready_slot      = -1;
+                const bool blends         = effective_alpha * style_opacity < 0.99f;
+                if (blends && gd.type == SeriesType::Surface3D)
+                {
+                    auto* surf = static_cast<SurfaceSeries*>(series_ptr.get());
+                    if (!surf->wireframe() && surf->is_mesh_generated())
+                        prepare_mesh_sorted_indices(gd,
+                                                    surf->mesh().indices,
+                                                    surf->mesh().vertices,
+                                                    model_mat,
+                                                    cam,
+                                                    effective_alpha,
+                                                    style_opacity);
+                }
+                else if (blends && gd.type == SeriesType::Mesh3D)
+                {
+                    auto* mesh = static_cast<MeshSeries*>(series_ptr.get());
+                    prepare_mesh_sorted_indices(gd,
+                                                mesh->indices(),
+                                                mesh->vertices(),
+                                                model_mat,
+                                                cam,
+                                                effective_alpha,
+                                                style_opacity);
+                }
+            }
             if (is_transparent)
             {
                 transparent_entries.push_back({series_ptr.get(), dist});
@@ -1185,6 +1292,28 @@ void Renderer::render_axes(AxesBase&   axes,
                          [](const SortEntry& a, const SortEntry& b)
                          { return a.distance > b.distance; });
 
+        // Consecutive translucent shapes of one range whose index blocks are
+        // adjacent in draw order collapse into one draw (e.g. shapes already
+        // added far to near), keeping draw calls low without changing order.
+        size_t merged = 0;
+        for (size_t i = 0; i < transparent_entries.size(); ++i)
+        {
+            const SortEntry& e = transparent_entries[i];
+            if (merged > 0)
+            {
+                SortEntry& last = transparent_entries[merged - 1];
+                if (e.shape_count > 0 && last.shape_count > 0 && last.series == e.series
+                    && last.shape3d_range == e.shape3d_range
+                    && last.first_shape + last.shape_count == e.first_shape)
+                {
+                    last.shape_count += e.shape_count;
+                    continue;
+                }
+            }
+            transparent_entries[merged++] = e;
+        }
+        transparent_entries.resize(merged);
+
         // Render opaque first, then transparent
         for (auto& entry : opaque_entries)
         {
@@ -1192,7 +1321,14 @@ void Renderer::render_axes(AxesBase&   axes,
         }
         for (auto& entry : transparent_entries)
         {
-            render_series(*entry.series, viewport, nullptr, 0.0, 0.0, entry.shape3d_range);
+            render_series(*entry.series,
+                          viewport,
+                          nullptr,
+                          0.0,
+                          0.0,
+                          entry.shape3d_range,
+                          entry.first_shape,
+                          entry.shape_count);
         }
 
         // Selection highlight on top of all 3D series
@@ -1203,10 +1339,10 @@ void Renderer::render_axes(AxesBase&   axes,
         // 2D: render in order (no sorting needed)
         // Camera-relative rendering: use the cached view center and limits
         // from projection setup for re-uploads and data_offset push constants.
-        auto*  axes2d  = dynamic_cast<Axes*>(&axes);
-        double view_cx = 0.0;
-        double view_cy = 0.0;
-        double half_rx = 0.0;
+        auto*     axes2d  = dynamic_cast<Axes*>(&axes);
+        double    view_cx = 0.0;
+        double    view_cy = 0.0;
+        double    half_rx = 0.0;
         double    half_ry = 0.0;
         ScaleType xscale  = ScaleType::Linear;
         ScaleType yscale  = ScaleType::Linear;

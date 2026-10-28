@@ -222,12 +222,12 @@ void InputHandler::handle_mouse_button_3d(Axes3D* axes3d,
         // Project each data axis direction to screen space so we can later
         // pick the axis most aligned with the drag direction.
         {
-            const auto& vp     = axes3d->viewport();
-            const auto& cam    = axes3d->camera();
-            mat4        proj   = axes3d->projection_matrix(vp);
-            mat4        view   = cam.view_matrix();
-            mat4        model  = axes3d->data_to_normalized_matrix();
-            mat4        mvp    = mat4_mul(proj, mat4_mul(view, model));
+            const auto& vp    = axes3d->viewport();
+            const auto& cam   = axes3d->camera();
+            mat4        proj  = axes3d->projection_matrix(vp);
+            mat4        view  = cam.view_matrix();
+            mat4        model = axes3d->data_to_normalized_matrix();
+            mat4        mvp   = mat4_mul(proj, mat4_mul(view, model));
 
             // Project a normalized-cube point to viewport screen coords.
             auto project = [&](vec3 p, float& sx, float& sy) -> bool

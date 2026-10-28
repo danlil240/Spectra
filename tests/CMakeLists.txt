@@ -96,6 +96,8 @@ endfunction()
 # When adding a new test, just append the name to this list.
 set(SPECTRA_UNIT_TESTS
     test_transform
+    test_window_png_export
+    test_window_export_extent
     test_bugfix_app_topic
     test_bugfix_core_axes
     test_axis_scale
@@ -164,6 +166,7 @@ set(SPECTRA_UNIT_TESTS
     test_undo_property
     test_workspace_v2
     test_timeline_editor
+    test_qa_stats
     test_recording_export
     test_theme_colorblind
     test_theme_change_callback
@@ -215,6 +218,7 @@ set(SPECTRA_UNIT_TESTS
     test_workspace_3d
     test_3d_regression
     test_shape3d_colors
+    test_translucent_mesh_sort
     test_multi_window
     test_window_manager
     test_window_file_drop
@@ -390,6 +394,7 @@ set(SPECTRA_GPU_TESTS
     test_workspace_3d
     test_3d_regression
     test_shape3d_colors
+    test_translucent_mesh_sort
     test_multi_window
     test_window_manager
     test_figure_registry
@@ -407,6 +412,7 @@ set(SPECTRA_GPU_TESTS
     test_3d_lighting
     test_embed_annotations_c
     test_ui_shell_welcome_gpu
+    test_window_export_extent
 )
 
 foreach(_test ${SPECTRA_UNIT_TESTS})
@@ -442,6 +448,12 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
         # UI shell follow-ups draw tooltip / status bar into a bare ImGui context.
         if(_test MATCHES "^test_ui_shell_(fixes|welcome_gpu)$" AND DEFINED imgui_SOURCE_DIR)
             target_include_directories(unit_${_test} SYSTEM PRIVATE ${imgui_SOURCE_DIR})
+        endif()
+        # The resize case drives the GLFW window directly; glfw is PRIVATE to
+        # the spectra target, so link it here for GLFW/glfw3.h.
+        if(_test STREQUAL "test_window_export_extent" AND SPECTRA_USE_GLFW
+           AND DEFINED _spectra_glfw_link)
+            target_link_libraries(unit_${_test} PRIVATE ${_spectra_glfw_link})
         endif()
         # CSV writer shared with the export_csv example plugin (header-only)
         if(_test STREQUAL "test_export_csv_plugin")
@@ -506,8 +518,9 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
         if(_test STREQUAL "test_webgpu_backend" AND TARGET spectra_wgsl_shaders)
             add_dependencies(unit_${_test} spectra_wgsl_shaders)
         endif()
-        # Decodes the exported PNGs with the bundled stb_image.
-        if(_test MATCHES "^test_(headless_export_text|text_scaling|shape3d_first_frame|shape2d_first_frame)$")
+        # Decodes the exported PNGs with the bundled stb_image (svg_export: parses
+        # the embedded font subset with stb_truetype).
+        if(_test MATCHES "^test_(headless_export_text|text_scaling|shape3d_first_frame|shape2d_first_frame|window_export_extent|svg_export)$")
             target_include_directories(unit_${_test} SYSTEM PRIVATE
                 ${CMAKE_SOURCE_DIR}/third_party/stb)
         endif()
@@ -542,6 +555,13 @@ if(TARGET transform_smooth AND TARGET overlay_crosshair AND TARGET export_csv
         SPECTRA_EXAMPLE_PLUGIN_EXPORT_CSV_PATH="$<TARGET_FILE:export_csv>"
     )
     add_dependencies(unit_test_example_plugins transform_smooth overlay_crosshair export_csv)
+    # The heatmap series plug-in needs glslang for its shaders; optional here.
+    if(TARGET series_heatmap)
+        target_compile_definitions(unit_test_example_plugins PRIVATE
+            SPECTRA_EXAMPLE_PLUGIN_SERIES_HEATMAP_PATH="$<TARGET_FILE:series_heatmap>"
+        )
+        add_dependencies(unit_test_example_plugins series_heatmap)
+    endif()
     # Export the host's C ABI symbols so the plug-ins bind to the test's copies
     # instead of the static spectra copy linked into each plug-in.  Windows has
     # no equivalent (each DLL keeps its own copy); the fixture destroys the
@@ -550,6 +570,28 @@ if(TARGET transform_smooth AND TARGET overlay_crosshair AND TARGET export_csv
     if(NOT WIN32)
         target_link_options(unit_test_example_plugins PRIVATE -rdynamic)
     endif()
+endif()
+
+# Real App teardown (headless and windowed) with the shipped example plug-ins
+# and the mock that registers commands/undo left loaded (QA S3-P03).
+if(TARGET series_heatmap AND TARGET transform_smooth AND TARGET overlay_crosshair
+   AND TARGET export_csv AND TARGET mock_leaky_plugin AND NOT WIN32
+   AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_plugin_app_shutdown.cpp)
+    add_spectra_test(unit test_plugin_app_shutdown)
+    set_tests_properties(unit_test_plugin_app_shutdown PROPERTIES
+        LABELS "gpu"
+        RESOURCE_LOCK gpu)
+    target_compile_definitions(unit_test_plugin_app_shutdown PRIVATE
+        SPECTRA_HEATMAP_PLUGIN_PATH="$<TARGET_FILE:series_heatmap>"
+        SPECTRA_TRANSFORM_SMOOTH_PLUGIN_PATH="$<TARGET_FILE:transform_smooth>"
+        SPECTRA_OVERLAY_CROSSHAIR_PLUGIN_PATH="$<TARGET_FILE:overlay_crosshair>"
+        SPECTRA_EXPORT_CSV_PLUGIN_PATH="$<TARGET_FILE:export_csv>"
+        SPECTRA_MOCK_LEAKY_PLUGIN_PATH="$<TARGET_FILE:mock_leaky_plugin>"
+    )
+    add_dependencies(unit_test_plugin_app_shutdown
+        series_heatmap transform_smooth overlay_crosshair export_csv mock_leaky_plugin)
+    # The plug-ins bind to the test executable's copy of the C ABI.
+    target_link_options(unit_test_plugin_app_shutdown PRIVATE -rdynamic)
 endif()
 
 # test_multi_window uses a custom main() to avoid multi-VkInstance teardown crash on NVIDIA.
@@ -575,6 +617,23 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_multi_window.cpp)
     )
     add_test(NAME unit_test_multi_window COMMAND unit_test_multi_window)
     set_tests_properties(unit_test_multi_window PROPERTIES
+        LABELS "gpu"
+        RESOURCE_LOCK gpu)
+endif()
+
+# Windowed UI state (timeline playback, figure detach): runs under xvfb-run when
+# available so the windowed cases get an X display; they skip without one.
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_windowed_ui_state.cpp AND SPECTRA_USE_IMGUI)
+    add_spectra_test(unit test_windowed_ui_state)
+    find_program(SPECTRA_XVFB_RUN xvfb-run)
+    if(SPECTRA_XVFB_RUN AND NOT WIN32)
+        add_test(NAME unit_test_windowed_ui_state_xvfb
+            COMMAND ${SPECTRA_XVFB_RUN} -a $<TARGET_FILE:unit_test_windowed_ui_state>)
+        set_tests_properties(unit_test_windowed_ui_state_xvfb PROPERTIES
+            LABELS "gpu"
+            RESOURCE_LOCK gpu)
+    endif()
+    set_tests_properties(unit_test_windowed_ui_state PROPERTIES
         LABELS "gpu"
         RESOURCE_LOCK gpu)
 endif()
@@ -1959,7 +2018,7 @@ if(SPECTRA_USE_PX4)
     endif()
 endif()
 
-# QA Agents (interactive/manual harnesses, not registered as CTest tests)
+# QA Agents (interactive/manual harnesses; only the design review is a CTest test)
 option(SPECTRA_BUILD_QA_AGENT "Build QA stress testing agent" OFF)
 if(SPECTRA_BUILD_QA_AGENT)
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/qa/qa_agent.cpp)
@@ -1983,6 +2042,21 @@ if(SPECTRA_BUILD_QA_AGENT)
             $<$<BOOL:${SPECTRA_USE_FFMPEG}>:SPECTRA_USE_FFMPEG>
             $<$<BOOL:${SPECTRA_USE_IMGUI}>:SPECTRA_USE_IMGUI>
         )
+
+        # Design review: 63 named captures, each proved by semantic assertions
+        # (menu open, hover/crosshair, panels closed, UI scale...).  Runs under
+        # Xvfb + lavapipe with an isolated HOME; fails on any failed assertion.
+        if(SPECTRA_USE_GLFW AND SPECTRA_USE_IMGUI AND NOT WIN32)
+            add_test(NAME qa_design_review
+                COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/qa/run_design_review.sh
+                        $<TARGET_FILE:spectra_qa_agent>
+                        ${CMAKE_CURRENT_BINARY_DIR}/qa_design_review)
+            set_tests_properties(qa_design_review PROPERTIES
+                LABELS "gpu;qa"
+                RESOURCE_LOCK gpu
+                SKIP_RETURN_CODE 77
+                TIMEOUT 900)
+        endif()
     endif()
 
     if(SPECTRA_USE_ROS2 AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/qa/ros_qa_agent.cpp)
@@ -2016,6 +2090,22 @@ if(TARGET overlay_crosshair AND DEFINED imgui_SOURCE_DIR AND NOT WIN32
     # Export the host's C ABI + ImGui symbols so the plug-in binds to the test's
     # copies (and its ImGui context) instead of the static copy linked into it.
     target_link_options(unit_test_example_overlay_crosshair PRIVATE -rdynamic)
+endif()
+
+# format_project.sh (`make check-format`) must fail on misformatted files and on a
+# missing / wrong-version clang-format. CPU only; skips without clang-format 18.
+# Not registered on native Windows, where `bash` may resolve to the WSL launcher.
+if(NOT WIN32)
+    find_program(SPECTRA_BASH bash)
+    if(SPECTRA_BASH)
+        add_test(NAME format_gate
+            COMMAND ${SPECTRA_BASH} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/format_gate_test.sh
+                    ${CMAKE_SOURCE_DIR}/format_project.sh ${CMAKE_SOURCE_DIR}/.clang-format)
+        set_tests_properties(format_gate PROPERTIES
+            LABELS "format"
+            SKIP_RETURN_CODE 77
+            TIMEOUT 60)
+    endif()
 endif()
 
 # Manual (interactive, not run by CTest) test programs

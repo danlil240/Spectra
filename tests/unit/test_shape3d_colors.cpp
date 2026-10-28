@@ -276,3 +276,91 @@ TEST(Shape3DMixedTransparency, MixedSeriesMatchesSeparateSeries)
     // Per-range draw order must equal submitting the shapes as separate series.
     EXPECT_LT(differing, 20) << differing << " pixels differ between mixed and separate series";
 }
+
+// ─── R07: coalesced translucent shapes vs an interleaved series ─────────────
+
+namespace
+{
+
+// Two red 50%-alpha planes share one colour (so one coalesced draw range) at
+// depths -0.8 and +1.0 along the view direction; an independent blue 50%-alpha
+// plane sits between them.  Ordering the red range as one unit puts blue either
+// behind or in front of both reds; per-shape ordering blends red, blue, red.
+std::vector<uint8_t> render_coalesced_planes(bool batched)
+{
+    AppConfig config;
+    config.headless = true;
+    App   app(config);
+    auto& fig            = app.figure({.width = kW, .height = kH});
+    fig.legend().visible = false;
+    auto& ax             = fig.subplot3d(1, 1, 1);
+    ax.xlim(-1.5, 1.5);
+    ax.ylim(-1.5, 1.5);
+    ax.zlim(-1.5, 1.5);
+    ax.lighting_enabled(false);
+
+    const vec3  cam = ax.camera().position;
+    const float len = std::sqrt(cam.x * cam.x + cam.y * cam.y + cam.z * cam.z);
+    const vec3  u{cam.x / len, cam.y / len, cam.z / len};
+    const Color red{1.0f, 0.0f, 0.0f, 0.5f};
+    const Color blue{0.0f, 0.0f, 1.0f, 0.5f};
+    auto        add = [&](ShapeSeries3D& sh, float d, Color c)
+    { sh.plane(d * u.x, d * u.y, d * u.z, u.x, u.y, u.z, 0.65f).shape_color(c); };
+
+    if (batched)
+    {
+        auto& sh = ax.shapes3d();
+        add(sh, -0.8f, red);
+        add(sh, 1.0f, red);
+    }
+    else
+    {
+        add(ax.shapes3d(), -0.8f, red);
+        add(ax.shapes3d(), 1.0f, red);
+    }
+    add(ax.shapes3d(), 0.0f, blue);
+
+    app.run();
+    std::vector<uint8_t> px(static_cast<size_t>(kW) * kH * 4);
+    auto*                backend = app.backend();
+    if (!backend || !backend->readback_framebuffer(px.data(), kW, kH))
+    {
+        ADD_FAILURE() << "readback failed";
+        return {};
+    }
+    if (const char* dir = std::getenv("SPECTRA_TEST_EVIDENCE_DIR"))
+        ImageExporter::write_png(
+            std::string(dir) + (batched ? "/r07_batched.png" : "/r07_separate.png"),
+            px.data(),
+            kW,
+            kH);
+    return px;
+}
+
+}   // namespace
+
+TEST(Shape3DMixedTransparency, CoalescedTranslucentShapesInterleaveWithOtherSeries)
+{
+    const auto separate = render_coalesced_planes(false);
+    const auto batched  = render_coalesced_planes(true);
+    ASSERT_EQ(separate.size(), batched.size());
+    ASSERT_FALSE(separate.empty());
+
+    // Sanity: the reference blends red and blue in the overlap.
+    int blended = 0;
+    for (size_t i = 0; i + 3 < separate.size(); i += 4)
+        if (separate[i] > 40 && separate[i + 2] > 40 && separate[i + 1] < 40)
+            ++blended;
+    EXPECT_GT(blended, kMinPixels) << "reference scene lacks a red/blue overlap";
+
+    int differing = 0;
+    for (size_t i = 0; i + 3 < separate.size(); i += 4)
+    {
+        int d = 0;
+        for (int c = 0; c < 3; ++c)
+            d = std::max(d, std::abs(int(separate[i + c]) - int(batched[i + c])));
+        if (d > 8)
+            ++differing;
+    }
+    EXPECT_LT(differing, 20) << differing << " pixels differ between batched and separate shapes";
+}

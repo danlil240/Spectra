@@ -57,7 +57,7 @@ void apply_subplot_layout(Figure& fig, const std::vector<Rect>& rects, const Mar
         AxesBase* a = slot_axes(i);
         if (!a)
             continue;
-        legend_w[i] = legend_layout::outside_reserved_width(*a, fig.legend(), rects[i].w);
+        legend_w[i] = legend_layout::reserved_width(*a, fig.legend(), rects[i]);
         auto* a2    = dynamic_cast<Axes*>(a);
         if (!a2)
             continue;

@@ -24,7 +24,7 @@ namespace spectra
 {
 
 // ─── Binary format constants ────────────────────────────────────────────────
-static constexpr uint32_t MAGIC   = 0x53504346;   // "SPCF" — Spectra Figure
+static constexpr uint32_t MAGIC = 0x53504346;   // "SPCF" — Spectra Figure
 // v6: double axis limits on 2D axes and double data origins
 // (Series::x_offset()/y_offset()) on line and scatter series.
 // v7: every series chunk ends with its colour source (palette slot / format
@@ -238,7 +238,7 @@ class BinaryReader
         return v;
     }
 
-    void skip(uint32_t bytes) { f_.seekg(bytes, std::ios::cur); }
+    void           skip(uint32_t bytes) { f_.seekg(bytes, std::ios::cur); }
     std::streampos tell() { return f_.tellg(); }
     void           seek(std::streampos pos) { f_.seekg(pos); }
 

@@ -1,8 +1,10 @@
 #include "series_type_registry.hpp"
 
 #include <algorithm>
+#include <spectra/custom_series.hpp>
 
 #include "spectra/logger.hpp"
+#include "ui/workspace/plugin_guard.hpp"
 
 namespace spectra
 {
@@ -229,6 +231,51 @@ SeriesTypeEntry* SeriesTypeRegistry::find_mut(const std::string& name)
         if (entry->type_name == name)
             return entry.get();
     }
+    return nullptr;
+}
+
+bool SeriesTypeRegistry::set_vector_export(const std::string& type_name, CustomVectorExportFn fn)
+{
+    std::lock_guard lock(mutex_);
+    for (auto& entry : types_)
+    {
+        if (entry->type_name == type_name)
+        {
+            entry->vector_export_fn = std::move(fn);
+            return true;
+        }
+    }
+    return false;
+}
+
+const char* SeriesTypeRegistry::export_vector(const CustomSeries& series,
+                                              const float*        series_rgba,
+                                              float               opacity,
+                                              CustomVectorSink&   sink)
+{
+    const std::shared_ptr<SeriesTypeEntry> entry = find_shared(series.type_name());
+    if (!entry)
+        return "series type is not registered";
+    if (!entry->enabled.load(std::memory_order_relaxed))
+        return "its plugin is disabled";
+    if (entry->faulted)
+        return "its plugin faulted";
+    if (!entry->vector_export_fn)
+        return "its plugin has no vector export callback";
+    int        rc     = -1;
+    const auto result = plugin_guard_invoke(entry->type_name.c_str(),
+                                            [&]()
+                                            {
+                                                rc = entry->vector_export_fn(series.data(),
+                                                                             series.element_count(),
+                                                                             series_rgba,
+                                                                             opacity,
+                                                                             sink);
+                                            });
+    if (result != PluginCallResult::Success)
+        return "its vector export callback crashed";
+    if (rc != 0)
+        return "its vector export callback failed";
     return nullptr;
 }
 

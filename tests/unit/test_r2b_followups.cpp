@@ -172,11 +172,16 @@ TEST(HighContrastGrid, TranslucentSoFillsAreNotCutByDarkLines)
     tm.set_theme("high_contrast");
     const auto& c = tm.colors();
 
-    // Over the (black) canvas the grid still reads as #4D4D4D / #1C1C1C ...
+    // Over the (black) canvas the grid reads as #424242 / #141414 ...
     const ui::Color major = c.grid_major.composite_over(c.bg_canvas);
     const ui::Color minor = c.grid_minor.composite_over(c.bg_canvas);
-    EXPECT_NEAR(major.r * 255.0f, 0x4D, 1.0f);
-    EXPECT_NEAR(minor.r * 255.0f, 0x1C, 1.0f);
+    EXPECT_NEAR(major.r * 255.0f, 0x42, 1.0f);
+    EXPECT_NEAR(minor.r * 255.0f, 0x14, 1.0f);
+    // ... softer than the former #4D4D4D / #1C1C1C, yet still clearly visible
+    // (>= 2:1 against the canvas; see HighContrastGridIsDimmerThanAxesAndText).
+    EXPECT_LT(c.grid_major.a, 0.30f);
+    EXPECT_LT(c.grid_minor.a, 0.11f);
+    EXPECT_GE(major.contrast_ratio(c.bg_canvas), 2.0f);
 
     // ... but over a bright fill it only lightens it instead of drawing a dark
     // line through it (the old opaque grey made a checkerboard).

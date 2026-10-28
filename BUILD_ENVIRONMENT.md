@@ -59,7 +59,10 @@ sudo apt-get install -y \
     python3-pillow \
     \
     # Optional but recommended: Eigen3 math library
-    libeigen3-dev
+    libeigen3-dev \
+    \
+    # Code formatting (CI and `make check-format` use clang-format 18)
+    clang-format-18
 ```
 
 > **Note:** Dear ImGui, FlatBuffers and GoogleTest are downloaded by CMake's `FetchContent`
@@ -135,6 +138,28 @@ xvfb-run -a ctest --test-dir build -L golden -j1 --output-on-failure
 ./build/tests/unit_test_easy_api
 ./build/tests/unit_test_ipc
 ```
+
+### Formatting
+
+Spectra is formatted with **clang-format 18** (`.clang-format`; CI installs `clang-format-18`).
+Other major versions format differently, so `format_project.sh` refuses them.
+
+```bash
+git clang-format-18 origin/main   # format only the lines your branch changed
+make check-format                 # check every git-tracked C/C++ file (what CI runs); exits 1 on violations
+make format                       # format every git-tracked C/C++ file in place
+./format_project.sh --check path/to/file.cpp   # check specific files
+```
+
+`format_project.sh` processes only git-tracked `*.c/*.cc/*.cpp/*.cxx/*.h/*.hh/*.hpp/*.hxx/*.inl/*.m/*.mm`
+files and skips `third_party/`, `_deps/`, `build*/`, `src/gpu/shaders/` and golden output, so
+untracked local files (QA probes, scratch code) are never touched. It looks for `clang-format-18`,
+then Homebrew `llvm@18` (`brew install llvm@18`), then `clang-format`. Set
+`CLANG_FORMAT=/path/to/clang-format` to choose the binary (Windows: the LLVM 18 `clang-format.exe`,
+run from Git Bash or WSL), or `SPECTRA_FORMAT_ALLOW_ANY_VERSION=1` to only warn on another
+version. Exit codes: `0` clean, `1` files need formatting / failed, `2` tool missing or wrong
+version. The `format_gate` ctest (label `format`, CPU only) covers the script and skips without
+clang-format 18.
 
 ---
 
@@ -605,6 +630,17 @@ export SPECTRA_GOLDEN_OUTPUT_DIR=$PWD/tests/golden/output
 ```
 To update baselines: `export SPECTRA_UPDATE_BASELINES=1` before running golden tests.
 
+**Design review (`-DSPECTRA_BUILD_QA_AGENT=ON`).** `spectra_qa_agent --design-review` captures 63
+named UI states (menu open, crosshair hover, panels closed, 125% UI scale, Settings tabs, ...).
+Each capture carries semantic assertions checked on the captured frame (ImGui windows/popups
+drawn, layout/palette/settings state, pointer readout, swapchain size); a failed assertion is an
+`ERROR` (`design_assertion`) in `qa_report.{txt,json}` and the agent exits non-zero. CI-like run
+(private Xvfb, lavapipe, throw-away `HOME`):
+```bash
+ctest --test-dir build -R qa_design_review --output-on-failure      # label gpu;qa
+tests/qa/run_design_review.sh build/tests/spectra_qa_agent /tmp/design   # same, keeps output
+```
+
 ### QA_Performance
 Use Release builds only. Enable benchmarks with:
 ```bash
@@ -616,6 +652,16 @@ cmake --build build -j$(nproc)
 ### QA_Memory
 Build with AddressSanitizer (Section 8). Run non-GPU tests only (`-LE gpu`).
 For Valgrind Massif: `valgrind --tool=massif ./build/tests/unit_test_<name>`.
+
+QA agent memory/frame-time warnings are plateau-aware (rules in `tests/qa/qa_stats.hpp`):
+a fresh process gains ~25MB on its first scenario (allocator arenas, lavapipe JIT/pipeline
+caches, glyph caches) and then plateaus, so a single run's retention is only `INFO`. Use
+`--repeat 3` (or more) to judge leaks: a `WARNING` needs > 2MB/repetition growth after the first
+repetition that persists in the second half. The running RSS check warns only when the floor of
+the last 300 frames stays > 100MB above start (transient multi-window peaks do not count).
+`--scenario multi_window_churn` opens/closes 4 windows x 8 cycles and reports RSS, fd and thread
+counts per cycle. Frame-time spikes in a declared first-use window (a figure's or series type's
+first frames, a new window or swapchain size) are counted as warm-up, not reported.
 
 ### github-ci
 The CI workflow (`.github/workflows/ci.yml`) mirrors this document exactly. The `build-linux`

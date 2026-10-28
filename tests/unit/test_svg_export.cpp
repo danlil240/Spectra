@@ -16,10 +16,27 @@
 #include <filesystem>
 #include <random>
 
+#include <spectra/custom_series.hpp>
+#include <spectra/logger.hpp>
+
 #include "core/label_layout.hpp"
+#include "io/font_subset.hpp"
+#include "io/svg_export_internal.hpp"
 #include "io/svg_label_metrics.hpp"
 #include "io/text_metrics.hpp"
 #include "render/text_fit.hpp"
+
+// The test's own (internal-linkage) stb_truetype, to parse the embedded font subset.
+#if defined(__GNUC__)
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wunused-function"
+#endif
+#define STBTT_STATIC
+#define STB_TRUETYPE_IMPLEMENTATION
+#include <stb_truetype.h>
+#if defined(__GNUC__)
+    #pragma GCC diagnostic pop
+#endif
 
 namespace spectra
 {
@@ -146,6 +163,37 @@ TEST(SvgExport, ContainsLegendEntry)
     std::string svg = SvgExporter::to_string(fig);
 
     EXPECT_NE(svg.find("test-line"), std::string::npos);
+}
+
+TEST(SvgExport, SqrtAxisPlacesMarkersAtSquareRootPositions)
+{
+    Figure fig({.width = 800, .height = 600});
+    auto&  ax = fig.subplot(1, 1, 1);
+    ax.scatter(std::vector<float>{0.0f, 25.0f, 100.0f}, std::vector<float>{0.0f, 4.0f, 16.0f});
+    ax.xscale(ScaleType::Sqrt);
+    ax.yscale(ScaleType::Sqrt);
+    ax.xlim(0.0, 100.0);
+    ax.ylim(0.0, 16.0);
+    fig.compute_layout();
+    const Rect vp = ax.viewport();
+
+    const std::string                      svg = SvgExporter::to_string(fig);
+    std::vector<std::pair<double, double>> pts;
+    const std::string                      key = "        <use xlink:href=\"#mk";
+    for (size_t pos = svg.find(key); pos != std::string::npos; pos = svg.find(key, pos + 1))
+    {
+        const size_t xs = svg.find(" x=\"", pos) + 4;
+        const size_t ys = svg.find(" y=\"", pos) + 4;
+        pts.emplace_back(std::stod(svg.substr(xs)), std::stod(svg.substr(ys)));
+    }
+    ASSERT_EQ(pts.size(), 3u);
+    // x = 25 is half way along sqrt [0, 10]; y = 4 is half way up sqrt [0, 4].
+    EXPECT_NEAR(pts[0].first, vp.x, 0.05);
+    EXPECT_NEAR(pts[1].first, vp.x + 0.5 * vp.w, 0.05);
+    EXPECT_NEAR(pts[2].first, vp.x + vp.w, 0.05);
+    EXPECT_NEAR(pts[0].second, vp.y + vp.h, 0.05);
+    EXPECT_NEAR(pts[1].second, vp.y + 0.5 * vp.h, 0.05);
+    EXPECT_NEAR(pts[2].second, vp.y, 0.05);
 }
 
 TEST(SvgExport, ContainsGridLines)
@@ -617,17 +665,43 @@ TEST(SvgExport, FortyEntryLegendStaysInsideNarrowPlot)
     EXPECT_GT(more, 0) << "overflow must be reported, not dropped";
     EXPECT_EQ(shown + more, 40);
 
-    // The "+N more" cell names the hidden entries in a hover <title>.
+    // The "+N more" cell names every hidden entry (uncapped) in its <title>.
     const size_t ov = svg.find("<g class=\"legend-overflow\"><title>", g);
     ASSERT_NE(ov, std::string::npos);
     const size_t      ts    = svg.find("<title>", ov) + 7;
     const std::string title = svg.substr(ts, svg.find("</title>", ts) - ts);
     EXPECT_EQ(title.substr(0, title.find('\n')), "Series " + std::to_string(shown + 1));
-    if (more <= 21)
-        EXPECT_NE(title.find("Series 40"), std::string::npos) << title;
-    else
-        EXPECT_NE(title.find("and " + std::to_string(more - 20) + " more"), std::string::npos)
-            << title;
+    EXPECT_EQ(std::count(title.begin(), title.end(), '\n'), more - 1) << title;
+    EXPECT_NE(title.find("Series 40"), std::string::npos) << title;
+    EXPECT_EQ(title.find(" more"), std::string::npos) << title;
+}
+
+// A crowded Best legend (50 entries, small panel) moves to the strip right of
+// the plot instead of covering it; summarised entries are all listed in the
+// "+N more" cell's <title>.
+TEST(SvgExport, CrowdedBestLegendIsPlacedOutsideThePlot)
+{
+    Figure             fig({.width = 900, .height = 600});
+    auto&              ax = fig.subplot(2, 2, 1);
+    std::vector<float> x = {0.0f, 1.0f}, y = {0.0f, 1.0f};
+    for (int i = 0; i < 50; ++i)
+        ax.line(x, y).label("Series " + std::to_string(i + 1));
+    fig.compute_layout();
+    const std::string svg = SvgExporter::to_string(fig);
+
+    const SvgRect plot = plot_rect(svg);
+    const size_t  g    = svg.find("<g class=\"legend\">");
+    ASSERT_NE(g, std::string::npos);
+    const float box_x = attr(svg, g, "x");
+    EXPECT_GE(box_x, plot.x + plot.w) << "legend must not cover the plot";
+    EXPECT_LE(box_x + attr(svg, g, "width"), 900.0f);
+
+    const size_t ov = svg.find("<g class=\"legend-overflow\"><title>", g);
+    ASSERT_NE(ov, std::string::npos);
+    const size_t      ts    = svg.find("<title>", ov) + 7;
+    const std::string title = svg.substr(ts, svg.find("</title>", ts) - ts);
+    EXPECT_NE(title.find("Series 50"), std::string::npos) << title;
+    EXPECT_EQ(title.find(" more"), std::string::npos) << title;
 }
 
 TEST(SvgExport, LongUtf8LegendLabelIsEllipsizedInsidePlot)
@@ -1193,6 +1267,382 @@ TEST(SvgExport, DefaultStyleUnchangedWithoutOverride)
 {
     auto fig = make_line_figure();
     EXPECT_EQ(SvgExporter::to_string(fig), SvgExporter::to_string(fig, SvgStyle{}));
+}
+
+// ─── Font-independent text metrics (textLength) ─────────────────────────────
+
+// Value of attribute `name` in the opening tag of `elem`, or NaN.
+float attr_or_nan(const std::string& elem, const std::string& name)
+{
+    const size_t a = elem.find(" " + name + "=\"");
+    if (a == std::string::npos)
+        return std::nanf("");
+    return std::stof(elem.substr(a + name.size() + 3));
+}
+
+// Opening tags of every <text> element, paired with its content.
+std::vector<std::pair<std::string, std::string>> text_elements(const std::string& svg)
+{
+    std::vector<std::pair<std::string, std::string>> out;
+    size_t                                           pos = 0;
+    while ((pos = svg.find("<text ", pos)) != std::string::npos)
+    {
+        const size_t gt  = svg.find('>', pos);
+        const size_t end = svg.find("</text>", gt);
+        if (gt == std::string::npos || end == std::string::npos)
+            break;
+        out.emplace_back(svg.substr(pos, gt - pos), svg.substr(gt + 1, end - gt - 1));
+        pos = end;
+    }
+    return out;
+}
+
+TEST(SvgExport, FittedLabelsPinTheirLayoutWidthWithTextLength)
+{
+    if (!inter_metrics_available())
+        GTEST_SKIP() << "Inter not embedded in this build";
+    Figure             fig({.width = 400, .height = 300});
+    std::vector<float> x = {0.0f, 10.0f}, y = {0.0f, 1.0f};
+    auto&              ax = fig.subplot(1, 1, 1);
+    ax.line(x, y).label("series");
+    ax.title(long_text("P0 title"));
+    ax.xlabel(long_text("P0 xlabel"));
+    ax.ylabel(long_text("P0 ylabel"));
+    fig.compute_layout();
+    const std::string svg = SvgExporter::to_string(fig);
+
+    // Every fitted (here: shortened) label is pinned to the Inter width the
+    // fitting used, so a fallback font cannot overflow the space it was given.
+    int fitted = 0;
+    for (const auto& t : parse_labels(svg))
+    {
+        if (t.content.rfind("P0 ", 0) != 0)
+            continue;
+        ++fitted;
+        ASSERT_TRUE(ends_with_ellipsis(t.content)) << t.content;
+    }
+    EXPECT_EQ(fitted, 3);
+
+    int pinned = 0;
+    for (const auto& [tag, content] : text_elements(svg))
+    {
+        SCOPED_TRACE(content);
+        const float tl = attr_or_nan(tag, "textLength");
+        ASSERT_FALSE(std::isnan(tl)) << tag;   // ticks and legend too, not only fitted labels
+        EXPECT_NE(tag.find(" lengthAdjust=\"spacingAndGlyphs\""), std::string::npos);
+        const float font_px = attr_or_nan(tag, "font-size");
+        EXPECT_NEAR(tl, inter_text_width(content, font_px), 0.01f);
+        if (content.rfind("P0 ", 0) == 0)
+        {
+            const SvgLabel l{0, 0, font_px, "", content, false};
+            EXPECT_NEAR(tl, svg_width(l), 0.01f);
+            ++pinned;
+        }
+    }
+    EXPECT_EQ(pinned, 3);
+}
+
+TEST(SvgExport, TextLengthCanBeTurnedOff)
+{
+    auto     fig = make_line_figure();
+    SvgStyle st;
+    st.fit_text_length    = false;
+    const std::string svg = SvgExporter::to_string(fig, st);
+    EXPECT_GT(count_of(svg, "<text "), 0);
+    EXPECT_EQ(svg.find("textLength"), std::string::npos);
+    EXPECT_EQ(svg.find("lengthAdjust"), std::string::npos);
+}
+
+TEST(SvgExport, TextOutsideInterCoverageIsNotStretched)
+{
+    if (!inter_metrics_available())
+        GTEST_SKIP() << "Inter not embedded in this build";
+    // Inter has no CJK glyphs: the measured width is only an estimate, so the
+    // viewer's own font metrics are kept.
+    Figure fig({.width = 800, .height = 600});
+    auto&  ax = fig.subplot(1, 1, 1);
+    ax.line(std::vector<float>{0.0f, 1.0f}, std::vector<float>{0.0f, 1.0f});
+    ax.title("\xE6\xB8\xA9\xE5\xBA\xA6");   // 温度
+    fig.compute_layout();
+    const std::string svg   = SvgExporter::to_string(fig);
+    bool              found = false;
+    for (const auto& [tag, content] : text_elements(svg))
+    {
+        if (content != "\xE6\xB8\xA9\xE5\xBA\xA6")
+            continue;
+        found = true;
+        EXPECT_EQ(tag.find("textLength"), std::string::npos) << tag;
+    }
+    EXPECT_TRUE(found);
+}
+
+// ─── Embedded font ──────────────────────────────────────────────────────────
+
+std::vector<uint8_t> base64_decode(const std::string& s)
+{
+    auto val = [](char c) -> int
+    {
+        if (c >= 'A' && c <= 'Z')
+            return c - 'A';
+        if (c >= 'a' && c <= 'z')
+            return c - 'a' + 26;
+        if (c >= '0' && c <= '9')
+            return c - '0' + 52;
+        if (c == '+')
+            return 62;
+        if (c == '/')
+            return 63;
+        return -1;
+    };
+    std::vector<uint8_t> out;
+    uint32_t             acc = 0;
+    int                  n   = 0;
+    for (char c : s)
+    {
+        const int v = val(c);
+        if (v < 0)
+            continue;
+        acc = (acc << 6) | static_cast<uint32_t>(v);
+        if (++n == 4)
+        {
+            out.push_back(static_cast<uint8_t>(acc >> 16));
+            out.push_back(static_cast<uint8_t>(acc >> 8));
+            out.push_back(static_cast<uint8_t>(acc));
+            acc = 0;
+            n   = 0;
+        }
+    }
+    if (n == 3)
+    {
+        out.push_back(static_cast<uint8_t>(acc >> 10));
+        out.push_back(static_cast<uint8_t>(acc >> 2));
+    }
+    else if (n == 2)
+        out.push_back(static_cast<uint8_t>(acc >> 4));
+    return out;
+}
+
+TEST(SvgExport, Base64MatchesRfc4648Vectors)
+{
+    auto enc = [](std::string_view s)
+    { return base64_encode({reinterpret_cast<const uint8_t*>(s.data()), s.size()}); };
+    EXPECT_EQ(enc(""), "");
+    EXPECT_EQ(enc("f"), "Zg==");
+    EXPECT_EQ(enc("fo"), "Zm8=");
+    EXPECT_EQ(enc("foo"), "Zm9v");
+    EXPECT_EQ(enc("foob"), "Zm9vYg==");
+    EXPECT_EQ(enc("fooba"), "Zm9vYmE=");
+    EXPECT_EQ(enc("foobar"), "Zm9vYmFy");
+}
+
+TEST(SvgExport, FontIsNotEmbeddedByDefault)
+{
+    auto fig = make_line_figure();
+    EXPECT_EQ(SvgExporter::to_string(fig).find("@font-face"), std::string::npos);
+}
+
+TEST(SvgExport, EmbeddedFontIsAnInterSubsetOfTheUsedGlyphs)
+{
+    if (!inter_metrics_available())
+        GTEST_SKIP() << "Inter not embedded in this build";
+    auto     fig = make_line_figure();   // "Test Title", "X Label", "Y Label", "test-line"
+    SvgStyle st;
+    st.embed_font         = true;
+    const std::string svg = SvgExporter::to_string(fig, st);
+
+    const std::string head = "@font-face{font-family:'Inter';";
+    const size_t      ff   = svg.find(head);
+    ASSERT_NE(ff, std::string::npos);
+    EXPECT_LT(ff, svg.find("</defs>"));
+    const std::string b64_start = "base64,";
+    const size_t      b         = svg.find(b64_start, ff);
+    ASSERT_NE(b, std::string::npos);
+    const size_t e = svg.find(')', b);
+    ASSERT_NE(e, std::string::npos);
+    const std::vector<uint8_t> ttf = base64_decode(svg.substr(b + 7, e - b - 7));
+
+    // A small subset of the ~400 KB face.
+    const auto full = embedded_inter_font();
+    EXPECT_GT(ttf.size(), 1000u);
+    EXPECT_LT(ttf.size(), 64u * 1024u);
+    EXPECT_LT(svg.size(), SvgExporter::to_string(fig).size() + 96u * 1024u);
+
+    stbtt_fontinfo sub{}, orig{};
+    ASSERT_TRUE(stbtt_InitFont(&sub, ttf.data(), stbtt_GetFontOffsetForIndex(ttf.data(), 0)));
+    ASSERT_TRUE(stbtt_InitFont(&orig, full.data(), 0));
+
+    // Every used character keeps its outline and advance; unused ones are gone.
+    for (const char ch : std::string("TestiXLabY-01"))
+    {
+        SCOPED_TRACE(std::string(1, ch));
+        const int g = stbtt_FindGlyphIndex(&sub, ch);
+        ASSERT_GT(g, 0);
+        EXPECT_EQ(g, stbtt_FindGlyphIndex(&orig, ch));
+        EXPECT_FALSE(stbtt_IsGlyphEmpty(&sub, g));
+        int adv_s = 0, adv_o = 0, lsb = 0;
+        stbtt_GetGlyphHMetrics(&sub, g, &adv_s, &lsb);
+        stbtt_GetGlyphHMetrics(&orig, g, &adv_o, &lsb);
+        EXPECT_EQ(adv_s, adv_o);
+        stbtt_vertex* vs = nullptr;
+        stbtt_vertex* vo = nullptr;
+        const int     ns = stbtt_GetGlyphShape(&sub, g, &vs);
+        const int     no = stbtt_GetGlyphShape(&orig, g, &vo);
+        EXPECT_EQ(ns, no);
+        stbtt_FreeShape(&sub, vs);
+        stbtt_FreeShape(&orig, vo);
+    }
+    for (const char ch : std::string("QZqz@"))
+    {
+        SCOPED_TRACE(std::string(1, ch));
+        EXPECT_EQ(stbtt_FindGlyphIndex(&sub, ch), 0);
+    }
+}
+
+TEST(SvgExport, FontSubsetKeepsCompositeComponentsAndNonBmpMapping)
+{
+    if (!inter_metrics_available())
+        GTEST_SKIP() << "Inter not embedded in this build";
+    // U+00E9 (é) is a composite glyph in Inter: its components must survive.
+    const std::vector<uint32_t> cps = {0xE9, 'A'};
+    const auto                  ttf = inter_font_subset(cps);
+    ASSERT_FALSE(ttf.empty());
+    stbtt_fontinfo sub{};
+    ASSERT_TRUE(stbtt_InitFont(&sub, ttf.data(), 0));
+    const int g = stbtt_FindGlyphIndex(&sub, 0xE9);
+    ASSERT_GT(g, 0);
+    stbtt_vertex* v = nullptr;
+    EXPECT_GT(stbtt_GetGlyphShape(&sub, g, &v), 0);
+    stbtt_FreeShape(&sub, v);
+
+    // A non-BMP codepoint is mapped through a format 12 subtable.
+    const auto                         full = embedded_inter_font();
+    const std::vector<FontSubsetGlyph> glyphs{{0x1F600u, 5}, {'A', 6}};
+    const auto                         t2 = subset_truetype(full, glyphs);
+    ASSERT_FALSE(t2.empty());
+    stbtt_fontinfo s2{};
+    ASSERT_TRUE(stbtt_InitFont(&s2, t2.data(), 0));
+    EXPECT_EQ(stbtt_FindGlyphIndex(&s2, 0x1F600), 5);
+    EXPECT_EQ(stbtt_FindGlyphIndex(&s2, 'A'), 6);
+
+    // Not a TrueType font: nothing.
+    const uint8_t junk[16] = {'O', 'T', 'T', 'O'};
+    EXPECT_TRUE(subset_truetype(junk, glyphs).empty());
+}
+
+// ─── Plugin series ──────────────────────────────────────────────────────────
+
+struct WarningCapture
+{
+    std::shared_ptr<std::vector<std::string>> messages =
+        std::make_shared<std::vector<std::string>>();
+    Logger::SinkId id = 0;
+    WarningCapture()
+    {
+        auto m = messages;
+        id     = Logger::instance().add_sink(
+            [m](const Logger::LogEntry& e)
+            {
+                if (e.level == LogLevel::Warning && e.category == "svg")
+                    m->push_back(e.message);
+            });
+    }
+    ~WarningCapture() { Logger::instance().remove_sink(id); }
+};
+
+Figure make_plugin_figure(int series_count = 1)
+{
+    Figure fig({.width = 640, .height = 480});
+    auto&  ax = fig.subplot(1, 1, 1);
+    for (int i = 0; i < series_count; ++i)
+    {
+        auto        cs   = std::make_unique<CustomSeries>("grid--cells");
+        const float blob = 0.0f;
+        cs->set_data(&blob, sizeof(blob), 1);
+        cs->label("cells " + std::to_string(i));
+        ax.series_mut().push_back(std::move(cs));
+    }
+    ax.xlim(0.0, 4.0);
+    ax.ylim(0.0, 2.0);
+    fig.compute_layout();
+    return fig;
+}
+
+TEST(SvgExport, PluginSeriesWithoutHookBecomesCommentAndWarning)
+{
+    auto           fig = make_plugin_figure(2);
+    WarningCapture warn;
+    const auto     svg = SvgExporter::to_string(fig);
+    // One comment per series ("--" is not allowed in an XML comment) ...
+    EXPECT_EQ(count_of(svg,
+                       "<!-- plugin series 'grid-\xE2\x80\x90"
+                       "cells' \"cells "),
+              2);
+    EXPECT_NE(svg.find("not exported: no plugin series registry attached"), std::string::npos);
+    EXPECT_EQ(svg.find("plugin-series"), std::string::npos);
+    // ... and one warning per type.
+    ASSERT_EQ(warn.messages->size(), 1u);
+    EXPECT_NE((*warn.messages)[0].find("grid--cells"), std::string::npos);
+
+    // A host whose registry has no export callback for the type says so.
+    SvgExportHost host;
+    host.custom_series = [](const CustomSeries&, const float*, float, CustomVectorSink&)
+    { return "its plugin has no vector export callback"; };
+    const auto svg2 = svg_export_to_string(fig, SvgStyle{}, host);
+    EXPECT_EQ(count_of(svg2, "not exported: its plugin has no vector export callback"), 2);
+}
+
+TEST(SvgExport, PluginSeriesIsDrawnThroughTheHostHook)
+{
+    auto          fig = make_plugin_figure();
+    const Rect    vp  = fig.axes()[0]->viewport();
+    SvgExportHost host;
+    float         seen_alpha = -1.0f;
+    host.custom_series       = [&](const CustomSeries& cs,
+                             const float*        rgba,
+                             float               opacity,
+                             CustomVectorSink&   sink) -> const char*
+    {
+        EXPECT_EQ(cs.type_name(), "grid--cells");
+        EXPECT_FLOAT_EQ(opacity, 1.0f);
+        seen_alpha          = rgba[3];
+        const float red[4]  = {1.0f, 0.0f, 0.0f, 0.5f};
+        const float xy[6]   = {0.0f, 0.0f, 4.0f, 0.0f, 4.0f, 2.0f};
+        const float line[4] = {0.0f, 0.0f, 4.0f, 2.0f};
+        sink.fill_rect(0.0f, 0.0f, 2.0f, 1.0f, red);   // lower-left quarter
+        sink.fill_polygon(xy, 3, red);
+        sink.stroke_polyline(line, 2, rgba, 2.0f);
+        return nullptr;
+    };
+    WarningCapture warn;
+    const auto     svg = svg_export_to_string(fig, SvgStyle{}, host);
+    EXPECT_TRUE(warn.messages->empty());
+    EXPECT_FLOAT_EQ(seen_alpha, 1.0f);
+    const size_t g = svg.find("<g class=\"plugin-series\" data-type=\"grid--cells\">");
+    ASSERT_NE(g, std::string::npos);
+    // Inside the clipped series group.
+    EXPECT_LT(svg.rfind("<g class=\"series\" clip-path=", g), g);
+
+    const size_t r = svg.find("<rect ", g);
+    ASSERT_NE(r, std::string::npos);
+    const std::string rect = svg.substr(r, svg.find("/>", r) - r);
+    EXPECT_NEAR(attr_or_nan(rect, "x"), vp.x, 0.01f);
+    EXPECT_NEAR(attr_or_nan(rect, "y"), vp.y + vp.h * 0.5f, 0.01f);
+    EXPECT_NEAR(attr_or_nan(rect, "width"), vp.w * 0.5f, 0.01f);
+    EXPECT_NEAR(attr_or_nan(rect, "height"), vp.h * 0.5f, 0.01f);
+    EXPECT_NE(rect.find("fill=\"#ff0000\" fill-opacity=\"0.5\""), std::string::npos);
+    EXPECT_NE(svg.find("Z\" fill=\"#ff0000\"", g), std::string::npos);
+    EXPECT_NE(svg.find("fill=\"none\" stroke=", g), std::string::npos);
+
+    // A failing hook leaves nothing behind but the comment.
+    host.custom_series = [](const CustomSeries&, const float*, float, CustomVectorSink& sink)
+    {
+        const float c[4] = {1, 0, 0, 1};
+        sink.fill_rect(0, 0, 1, 1, c);
+        return "its vector export callback failed";
+    };
+    const auto svg2 = svg_export_to_string(fig, SvgStyle{}, host);
+    EXPECT_EQ(svg2.find("plugin-series"), std::string::npos);
+    EXPECT_NE(svg2.find("not exported: its vector export callback failed"), std::string::npos);
 }
 
 }   // namespace spectra

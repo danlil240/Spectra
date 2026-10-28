@@ -406,16 +406,24 @@ const DataPalette& ThemeManager::plot_surface_data_palette(const FigureStyle& st
 DataPalette ThemeManager::displayed_data_palette(const std::string& name) const
 {
     const DataPalette& src    = name.empty() ? current_data_palette() : resolve_data_palette(name);
-    const Color&       canvas = colors().bg_canvas;
+    const ThemeColors& tc     = colors();
+    const Color&       canvas = tc.bg_canvas;
     auto&              cache  = displayed_palette_cache_;
-    if (cache.valid && cache.canvas == canvas && cache.sequential == src.sequential
-        && cache.src == src.colors && cache.result.name == src.name)
+    if (cache.valid && cache.canvas == canvas && cache.ink == tc.text_primary
+        && cache.sequential == src.sequential && cache.src == src.colors
+        && cache.result.name == src.name)
         return cache.result;
     cache.src        = src.colors;
     cache.sequential = src.sequential;
     cache.canvas     = canvas;
+    cache.ink        = tc.text_primary;
     cache.result = visible_data_palette(src, spectra::Color(canvas.r, canvas.g, canvas.b, 1.0f));
-    cache.valid  = true;
+    // Final draw step, as the renderer applies it to every series colour: pure
+    // black / white ink slots left by visible_data_palette() are drawn in the
+    // theme foreground, so the swatch shows that, not the raw ink value.
+    for (auto& c : cache.result.colors)
+        c = adapt_series_color_to_theme(c, tc);
+    cache.valid = true;
     return cache.result;
 }
 
@@ -1429,7 +1437,7 @@ void ThemeManager::initialize_default_themes()
 
     // Light Glass — frosted blue-slate chrome with restrained aurora accents
     Theme light;
-    light.name   = "light";
+    light.name             = "light";
     light.colors           = {// Surfaces — still light, but no longer flat white-on-white
                               .bg_canvas    = Color::from_hex(0xF7FAFF),   // Plot area: faint cool glass tint
                               .bg_primary   = Color::from_hex(0xD9E4EE),   // App chrome backdrop
@@ -1532,12 +1540,16 @@ void ThemeManager::initialize_default_themes()
                             // the grid is a dim reference so it never outweighs the data,
                             // and the minor grid is nearly hidden.  The grid is translucent
                             // white rather than opaque grey: on the black canvas it reads
-                            // exactly as #4D4D4D / #1C1C1C, but where it crosses filled bars,
-                            // violins or bands it only lightens them slightly instead of
-                            // cutting dark lines through them (no checkerboard).
-                                                     .grid_major       = Color(1.0f, 1.0f, 1.0f, 0.30f),
-                                                     .grid_minor       = Color(1.0f, 1.0f, 1.0f, 0.11f),
-                                                     .grid_line        = Color(1.0f, 1.0f, 1.0f, 0.30f),
+                            // exactly as #424242 (~2.1:1) / #141414, but where it shows through
+                            // translucent bars, violins or bands it only lightens them slightly
+                            // instead of cutting dark lines through them (no checkerboard).
+                            // The major grid is deliberately below the 3:1 non-text level (3:1
+                            // on black would need alpha >= 0.35, i.e. a stronger grid): it is a
+                            // reference behind labelled axes, kept at >= 2:1 so it stays clearly
+                            // visible without outweighing the data.
+                                                     .grid_major       = Color(1.0f, 1.0f, 1.0f, 0.26f),
+                                                     .grid_minor       = Color(1.0f, 1.0f, 1.0f, 0.08f),
+                                                     .grid_line        = Color(1.0f, 1.0f, 1.0f, 0.26f),
                                                      .axis_line        = Color::from_hex(0xFFFFFF),
                                                      .tick_label       = Color::from_hex(0xFFFFFF),
                                                      .crosshair        = Color::from_hex(0xCCFFD700),
@@ -2255,9 +2267,9 @@ ThemeColors ThemeManager::interpolate_colors(const ThemeColors& start,
     result.accent_muted  = start.accent_muted.lerp(end.accent_muted, t);
     result.accent_subtle = start.accent_subtle.lerp(end.accent_subtle, t);
 
-    result.success = start.success.lerp(end.success, t);
-    result.warning = start.warning.lerp(end.warning, t);
-    result.error   = start.error.lerp(end.error, t);
+    result.success  = start.success.lerp(end.success, t);
+    result.warning  = start.warning.lerp(end.warning, t);
+    result.error    = start.error.lerp(end.error, t);
     result.info     = start.info.lerp(end.info, t);
     result.critical = start.critical.lerp(end.critical, t);
 

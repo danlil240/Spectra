@@ -16,12 +16,16 @@
 
 #include <gtest/gtest.h>
 
+#include <cstring>
 #include <spectra/axes.hpp>
+#include <spectra/custom_series.hpp>
 #include <spectra/figure.hpp>
 #include <spectra/series.hpp>
 
 #include "io/export_registry.hpp"
+#include "io/svg_export_internal.hpp"
 #include "math/data_transform.hpp"
+#include "render/series_type_registry.hpp"
 #include "ui/app/commands/plugin_export_commands.hpp"
 #include "ui/commands/command_registry.hpp"
 #include "ui/commands/shortcut_manager.hpp"
@@ -37,6 +41,9 @@
 #endif
 #ifndef SPECTRA_EXAMPLE_PLUGIN_EXPORT_CSV_PATH
     #define SPECTRA_EXAMPLE_PLUGIN_EXPORT_CSV_PATH ""
+#endif
+#ifndef SPECTRA_EXAMPLE_PLUGIN_SERIES_HEATMAP_PATH
+    #define SPECTRA_EXAMPLE_PLUGIN_SERIES_HEATMAP_PATH ""
 #endif
 
 using namespace spectra;
@@ -55,6 +62,7 @@ class ExamplePluginTest : public ::testing::Test
         manager_.set_transform_registry(transforms_.get());
         manager_.set_overlay_registry(overlays_.get());
         manager_.set_export_format_registry(exports_.get());
+        manager_.set_series_type_registry(series_types_.get());
     }
 
     // Unload with the registries still attached: PluginManager must remove the
@@ -73,9 +81,10 @@ class ExamplePluginTest : public ::testing::Test
     CommandRegistry                       commands_;
     ShortcutManager                       shortcuts_;
     UndoManager                           undo_;
-    std::unique_ptr<TransformRegistry>    transforms_ = std::make_unique<TransformRegistry>();
-    std::unique_ptr<OverlayRegistry>      overlays_   = std::make_unique<OverlayRegistry>();
-    std::unique_ptr<ExportFormatRegistry> exports_    = std::make_unique<ExportFormatRegistry>();
+    std::unique_ptr<TransformRegistry>    transforms_   = std::make_unique<TransformRegistry>();
+    std::unique_ptr<OverlayRegistry>      overlays_     = std::make_unique<OverlayRegistry>();
+    std::unique_ptr<ExportFormatRegistry> exports_      = std::make_unique<ExportFormatRegistry>();
+    std::unique_ptr<SeriesTypeRegistry>   series_types_ = std::make_unique<SeriesTypeRegistry>();
     PluginManager                         manager_;
 };
 
@@ -161,6 +170,63 @@ TEST_F(ExamplePluginTest, ExportCsvFileMenuCommandWritesActiveFigure)
     std::error_code ec;
     std::filesystem::remove(out, ec);
     export_cmds.detach();   // before TearDown destroys the export registry
+}
+
+// The heatmap example registers a vector export callback (API v2.2): SVG exports
+// draw its cells as rectangles in the shader's colours instead of dropping them.
+TEST_F(ExamplePluginTest, SeriesHeatmapIsDrawnInSvgExports)
+{
+    const std::string path = SPECTRA_EXAMPLE_PLUGIN_SERIES_HEATMAP_PATH;
+    if (path.empty())
+        GTEST_SKIP() << "series_heatmap plug-in not built (needs glslangValidator)";
+    ASSERT_TRUE(load(path)) << path;
+    const SeriesTypeEntry* entry = series_types_->find("heatmap");
+    ASSERT_NE(entry, nullptr);
+    EXPECT_TRUE(static_cast<bool>(entry->vector_export_fn));
+
+    // 3 x 2 cells, row-major values 0..5 over [0, 5].
+    constexpr uint32_t cols = 3, rows = 2;
+    std::vector<float> blob(4 + cols * rows);
+    std::memcpy(&blob[0], &cols, sizeof(cols));
+    std::memcpy(&blob[1], &rows, sizeof(rows));
+    blob[2] = 0.0f;
+    blob[3] = 5.0f;
+    for (uint32_t i = 0; i < cols * rows; ++i)
+        blob[4 + i] = static_cast<float>(i);
+
+    Figure fig({.width = 640, .height = 480});
+    auto&  ax = fig.subplot(1, 1, 1);
+    auto   hm = std::make_unique<CustomSeries>("heatmap");
+    hm->set_data(blob.data(), blob.size() * sizeof(float), blob.size());
+    ax.series_mut().push_back(std::move(hm));
+    ax.xlim(0.0, 3.0);
+    ax.ylim(0.0, 2.0);
+    fig.compute_layout();
+
+    SvgExportHost host;
+    host.custom_series =
+        [this](const CustomSeries& cs, const float* rgba, float opacity, CustomVectorSink& sink)
+    { return series_types_->export_vector(cs, rgba, opacity, sink); };
+    const std::string svg = svg_export_to_string(fig, SvgStyle{}, host);
+
+    const size_t g = svg.find("<g class=\"plugin-series\" data-type=\"heatmap\">");
+    ASSERT_NE(g, std::string::npos) << svg;
+    const std::string group = svg.substr(g, svg.find("</g>", g) - g);
+    int               rects = 0;
+    for (size_t at = group.find("<rect "); at != std::string::npos;
+         at        = group.find("<rect ", at + 1))
+        ++rects;
+    EXPECT_EQ(rects, static_cast<int>(cols * rows));
+    // The fragment shader's ramp end points: value 0 and value 5.
+    EXPECT_NE(group.find("fill=\"#440154\""), std::string::npos);
+    EXPECT_NE(group.find("fill=\"#fde725\""), std::string::npos);
+
+    // A disabled plug-in's series are not drawn, in SVG exports either.
+    manager_.set_plugin_enabled("Series: Heatmap", false);
+    const std::string off = svg_export_to_string(fig, SvgStyle{}, host);
+    EXPECT_EQ(off.find("plugin-series"), std::string::npos);
+    EXPECT_NE(off.find("<!-- plugin series 'heatmap' not exported: its plugin is disabled -->"),
+              std::string::npos);
 }
 
 TEST_F(ExamplePluginTest, AllThreeLoadTogether)

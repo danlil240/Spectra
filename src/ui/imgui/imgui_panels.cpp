@@ -654,13 +654,13 @@ void ImGuiIntegration::draw_inspector_toggle()
     bool is_open = layout_manager_->is_inspector_visible();
 
     // Chevron tab on the canvas/inspector seam — wide hit target, compact visual pill.
-    constexpr float VIS_W           = LayoutManager::INSPECTOR_TAB_WIDTH;
-    constexpr float VIS_H           = LayoutManager::INSPECTOR_TAB_HEIGHT;
-    constexpr float BTN_ROUNDING    = 11.0f;
-    constexpr float HIT_EXTRA_LEFT  = 12.0f;
-    constexpr float HIT_EXTRA_VERT  = 10.0f;
-    const float     hit_w           = VIS_W + HIT_EXTRA_LEFT;
-    const float     hit_h           = VIS_H + 2.0f * HIT_EXTRA_VERT;
+    constexpr float VIS_W          = LayoutManager::INSPECTOR_TAB_WIDTH;
+    constexpr float VIS_H          = LayoutManager::INSPECTOR_TAB_HEIGHT;
+    constexpr float BTN_ROUNDING   = 11.0f;
+    constexpr float HIT_EXTRA_LEFT = 12.0f;
+    constexpr float HIT_EXTRA_VERT = 10.0f;
+    const float     hit_w          = VIS_W + HIT_EXTRA_LEFT;
+    const float     hit_h          = VIS_H + 2.0f * HIT_EXTRA_VERT;
 
     float vis_x = canvas.x + canvas.w - VIS_W;
     if (is_open)
@@ -709,9 +709,9 @@ void ImGuiIntegration::draw_inspector_toggle()
         {
             const uint8_t bg_alpha = hovered ? 230 : 175;
             ImU32         bg_col   = IM_COL32(static_cast<uint8_t>(colors.bg_tertiary.r * 255),
-                                              static_cast<uint8_t>(colors.bg_tertiary.g * 255),
-                                              static_cast<uint8_t>(colors.bg_tertiary.b * 255),
-                                              bg_alpha);
+                                    static_cast<uint8_t>(colors.bg_tertiary.g * 255),
+                                    static_cast<uint8_t>(colors.bg_tertiary.b * 255),
+                                    bg_alpha);
             dl->AddRectFilled(ImVec2(vis_x, vis_y),
                               ImVec2(vis_x + VIS_W, vis_y + VIS_H),
                               bg_col,
@@ -781,131 +781,137 @@ void ImGuiIntegration::populate_status_bar(ui::shell::StatusBar& bar)
     bar.clear();
     bar.set_layout_manager(layout_manager_.get());
 
-    bar.add_segment({.align = ui::shell::StatusAlign::Left,
-                     .draw_fn = [this]()
-                     {
-        const auto& colors = theme_colors();
-        ImGui::PushFont(font_heading_);
+    bar.add_segment(
+        {.align   = ui::shell::StatusAlign::Left,
+         .draw_fn = [this]()
+         {
+             const auto& colors = theme_colors();
+             ImGui::PushFont(font_heading_);
 
-        // Use the column child window's actual height, not the outer status-bar
-        // rect: the bar reserves vertical WindowPadding, so the child is shorter
-        // than the full bar height. Centering against the wrong (larger) height
-        // pushes pills past the child's clip rect and trims their bottom edge.
-        const float bar_h       = ImGui::GetWindowHeight();
-        const float text_h      = ImGui::GetTextLineHeight();
-        const float pill_h      = ui::tokens::STATUS_BAR_PILL_HEIGHT;
-        const float pill_pad_h  = ui::tokens::STATUS_BAR_PILL_PAD_H;
-        const float pill_pad_v  = ui::tokens::STATUS_BAR_PILL_PAD_V;
-        const float pill_radius = ui::tokens::STATUS_BAR_PILL_RADIUS;
+             // Use the column child window's actual height, not the outer status-bar
+             // rect: the bar reserves vertical WindowPadding, so the child is shorter
+             // than the full bar height. Centering against the wrong (larger) height
+             // pushes pills past the child's clip rect and trims their bottom edge.
+             const float bar_h       = ImGui::GetWindowHeight();
+             const float text_h      = ImGui::GetTextLineHeight();
+             const float pill_h      = ui::tokens::STATUS_BAR_PILL_HEIGHT;
+             const float pill_pad_h  = ui::tokens::STATUS_BAR_PILL_PAD_H;
+             const float pill_pad_v  = ui::tokens::STATUS_BAR_PILL_PAD_V;
+             const float pill_radius = ui::tokens::STATUS_BAR_PILL_RADIUS;
 
-        float y_offset = (bar_h - pill_h) * 0.5f;
-        ImGui::SetCursorPosY(y_offset + (pill_h - text_h) * 0.5f);
+             float y_offset = (bar_h - pill_h) * 0.5f;
+             ImGui::SetCursorPosY(y_offset + (pill_h - text_h) * 0.5f);
 
-        ImDrawList* dl = ImGui::GetWindowDrawList();
+             ImDrawList* dl = ImGui::GetWindowDrawList();
 
-        auto draw_pill = [&](const char*      label,
-                             const ui::Color& text_col,
-                             const ui::Color& bg_col,
-                             float            bg_alpha,
-                             const ui::Color& border_col)
-        {
-            ImVec2 text_sz  = ImGui::CalcTextSize(label);
-            ImVec2 cursor_p = ImGui::GetCursorScreenPos();
-            ImVec2 pill_min(cursor_p.x - pill_pad_h,
-                            cursor_p.y - (pill_h - text_h) * 0.5f - pill_pad_v);
-            ImVec2 pill_max(cursor_p.x + text_sz.x + pill_pad_h,
-                            cursor_p.y + text_h + (pill_h - text_h) * 0.5f + pill_pad_v);
+             auto draw_pill = [&](const char*      label,
+                                  const ui::Color& text_col,
+                                  const ui::Color& bg_col,
+                                  float            bg_alpha,
+                                  const ui::Color& border_col)
+             {
+                 ImVec2 text_sz  = ImGui::CalcTextSize(label);
+                 ImVec2 cursor_p = ImGui::GetCursorScreenPos();
+                 ImVec2 pill_min(cursor_p.x - pill_pad_h,
+                                 cursor_p.y - (pill_h - text_h) * 0.5f - pill_pad_v);
+                 ImVec2 pill_max(cursor_p.x + text_sz.x + pill_pad_h,
+                                 cursor_p.y + text_h + (pill_h - text_h) * 0.5f + pill_pad_v);
 
-            dl->AddRectFilled(pill_min,
-                              pill_max,
-                              IM_COL32(static_cast<uint8_t>(bg_col.r * 255),
-                                       static_cast<uint8_t>(bg_col.g * 255),
-                                       static_cast<uint8_t>(bg_col.b * 255),
-                                       static_cast<uint8_t>(bg_alpha * 255)),
-                              pill_radius);
-            dl->AddRect(pill_min,
-                        pill_max,
-                        IM_COL32(static_cast<uint8_t>(border_col.r * 255),
-                                 static_cast<uint8_t>(border_col.g * 255),
-                                 static_cast<uint8_t>(border_col.b * 255),
-                                 static_cast<uint8_t>((bg_alpha * 0.60f) * 255)),
-                        pill_radius,
-                        0,
-                        1.0f);
+                 dl->AddRectFilled(pill_min,
+                                   pill_max,
+                                   IM_COL32(static_cast<uint8_t>(bg_col.r * 255),
+                                            static_cast<uint8_t>(bg_col.g * 255),
+                                            static_cast<uint8_t>(bg_col.b * 255),
+                                            static_cast<uint8_t>(bg_alpha * 255)),
+                                   pill_radius);
+                 dl->AddRect(pill_min,
+                             pill_max,
+                             IM_COL32(static_cast<uint8_t>(border_col.r * 255),
+                                      static_cast<uint8_t>(border_col.g * 255),
+                                      static_cast<uint8_t>(border_col.b * 255),
+                                      static_cast<uint8_t>((bg_alpha * 0.60f) * 255)),
+                             pill_radius,
+                             0,
+                             1.0f);
 
-            ImGui::PushStyleColor(
-                ImGuiCol_Text,
-                ImVec4(text_col.r,
-                       text_col.g,
-                       text_col.b,
-                       ui::tokens::STATUS_BAR_TEXT_ALPHA));
-            ImGui::TextUnformatted(label);
-            ImGui::PopStyleColor();
-        };
+                 ImGui::PushStyleColor(
+                     ImGuiCol_Text,
+                     ImVec4(text_col.r, text_col.g, text_col.b, ui::tokens::STATUS_BAR_TEXT_ALPHA));
+                 ImGui::TextUnformatted(label);
+                 ImGui::PopStyleColor();
+             };
 
-        {
-            const std::string cursor_buf =
-                cursor_data_valid_
-                    ? std::format("X: {:.4f}  Y: {:.4f}", cursor_data_x_, cursor_data_y_)
-                    : "X: —  Y: —";
-            draw_pill(cursor_buf.c_str(), colors.text_secondary, colors.bg_tertiary, 0.32f, colors.border_subtle);
-        }
+             {
+                 const std::string cursor_buf =
+                     cursor_data_valid_
+                         ? std::format("X: {:.4f}  Y: {:.4f}", cursor_data_x_, cursor_data_y_)
+                         : "X: —  Y: —";
+                 draw_pill(cursor_buf.c_str(),
+                           colors.text_secondary,
+                           colors.bg_tertiary,
+                           0.32f,
+                           colors.border_subtle);
+             }
 
-        ImGui::SameLine(0.0f, ui::tokens::STATUS_BAR_GROUP_GAP);
-        {
-            const char* mode_label = "Navigate";
-            ui::Color   mode_color = colors.text_secondary;
-            switch (interaction_mode_)
-            {
-                case ToolMode::Pan:
-                    mode_label = "Pan";
-                    mode_color = colors.accent;
-                    break;
-                case ToolMode::BoxZoom:
-                    mode_label = "Box Zoom";
-                    mode_color = colors.warning;
-                    break;
-                case ToolMode::Select:
-                    mode_label = "Select";
-                    mode_color = colors.info;
-                    break;
-                case ToolMode::ROI:
-                    mode_label = "ROI";
-                    mode_color = colors.info;
-                    break;
-                case ToolMode::Measure:
-                    mode_label = "Measure";
-                    mode_color = colors.success;
-                    break;
-                case ToolMode::Annotate:
-                    mode_label = "Annotate";
-                    mode_color = colors.accent;
-                    break;
-                default:
-                    break;
-            }
-            draw_pill(mode_label, mode_color, colors.bg_tertiary, 0.20f, mode_color);
-        }
+             ImGui::SameLine(0.0f, ui::tokens::STATUS_BAR_GROUP_GAP);
+             {
+                 const char* mode_label = "Navigate";
+                 ui::Color   mode_color = colors.text_secondary;
+                 switch (interaction_mode_)
+                 {
+                     case ToolMode::Pan:
+                         mode_label = "Pan";
+                         mode_color = colors.accent;
+                         break;
+                     case ToolMode::BoxZoom:
+                         mode_label = "Box Zoom";
+                         mode_color = colors.warning;
+                         break;
+                     case ToolMode::Select:
+                         mode_label = "Select";
+                         mode_color = colors.info;
+                         break;
+                     case ToolMode::ROI:
+                         mode_label = "ROI";
+                         mode_color = colors.info;
+                         break;
+                     case ToolMode::Measure:
+                         mode_label = "Measure";
+                         mode_color = colors.success;
+                         break;
+                     case ToolMode::Annotate:
+                         mode_label = "Annotate";
+                         mode_color = colors.accent;
+                         break;
+                     default:
+                         break;
+                 }
+                 draw_pill(mode_label, mode_color, colors.bg_tertiary, 0.20f, mode_color);
+             }
 
-        ImGui::SameLine(0.0f, ui::tokens::STATUS_BAR_GROUP_GAP);
-        {
-            std::string zoom_buf;
-            double      zoom_pct = static_cast<double>(zoom_level_) * 100.0;
-            if (zoom_pct < 10000.0)
-                zoom_buf = std::format("Zoom: {:.0f}%", zoom_pct);
-            else if (zoom_pct < 1e7)
-                zoom_buf = std::format("Zoom: {:.1f}K%", zoom_pct / 1e3);
-            else if (zoom_pct < 1e10)
-                zoom_buf = std::format("Zoom: {:.1f}M%", zoom_pct / 1e6);
-            else if (zoom_pct < 1e13)
-                zoom_buf = std::format("Zoom: {:.1f}G%", zoom_pct / 1e9);
-            else
-                zoom_buf = std::format("Zoom: {:.2e}%", zoom_pct);
-            draw_pill(zoom_buf.c_str(), colors.text_secondary, colors.bg_tertiary, 0.24f, colors.border_subtle);
-        }
+             ImGui::SameLine(0.0f, ui::tokens::STATUS_BAR_GROUP_GAP);
+             {
+                 std::string zoom_buf;
+                 double      zoom_pct = static_cast<double>(zoom_level_) * 100.0;
+                 if (zoom_pct < 10000.0)
+                     zoom_buf = std::format("Zoom: {:.0f}%", zoom_pct);
+                 else if (zoom_pct < 1e7)
+                     zoom_buf = std::format("Zoom: {:.1f}K%", zoom_pct / 1e3);
+                 else if (zoom_pct < 1e10)
+                     zoom_buf = std::format("Zoom: {:.1f}M%", zoom_pct / 1e6);
+                 else if (zoom_pct < 1e13)
+                     zoom_buf = std::format("Zoom: {:.1f}G%", zoom_pct / 1e9);
+                 else
+                     zoom_buf = std::format("Zoom: {:.2e}%", zoom_pct);
+                 draw_pill(zoom_buf.c_str(),
+                           colors.text_secondary,
+                           colors.bg_tertiary,
+                           0.24f,
+                           colors.border_subtle);
+             }
 
-        ImGui::PopFont();
-                     }});
+             ImGui::PopFont();
+         }});
 
     bar.add_segment(
         {.align   = ui::shell::StatusAlign::Right,
@@ -1000,7 +1006,6 @@ void ImGuiIntegration::populate_status_bar(ui::shell::StatusBar& bar)
              ImGui::PopFont();
          }});
 }
-
 
 void ImGuiIntegration::draw_split_view_splitters()
 {

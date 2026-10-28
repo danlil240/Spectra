@@ -67,7 +67,7 @@ std::string series_to_tsv(const std::vector<const Series*>& series)
         const LineSeries*    line    = nullptr;
         const ScatterSeries* scatter = nullptr;
         std::string          label;
-        size_t               count = 0;
+        size_t               count    = 0;
         double               x_off    = 0.0;
         double               y_off    = 0.0;
         int                  x_digits = 6;

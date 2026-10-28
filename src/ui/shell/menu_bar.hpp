@@ -21,11 +21,11 @@ struct MenuAction
     std::string command_id{};
     // ui::Icon codepoint drawn in the icon column (0 = none).
     uint16_t                icon = 0;
-    std::function<void()>   on_click      {};
-    std::function<bool()>   enabled       {};
-    std::function<bool()>   checked       {};
-    bool                    separator     = false;
-    std::vector<MenuAction> submenu       {};
+    std::function<void()>   on_click{};
+    std::function<bool()>   enabled{};
+    std::function<bool()>   checked{};
+    bool                    separator = false;
+    std::vector<MenuAction> submenu{};
 };
 
 class Menu
@@ -94,9 +94,9 @@ class MenuBar
     void draw();
 
    private:
-    std::deque<Menu>        menus_;
-    std::function<void()>   trailing_draw_;
-    ShortcutResolver        shortcut_resolver_;
+    std::deque<Menu>      menus_;
+    std::function<void()> trailing_draw_;
+    ShortcutResolver      shortcut_resolver_;
 };
 
 // Shared converter for Vision command-bar menu rendering. Submenus are flattened

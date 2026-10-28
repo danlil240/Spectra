@@ -21,17 +21,14 @@ env:
   SPECTRA_GOLDEN_STRICT: "1"
 
 jobs:
-  # ─── clang-format (changed lines only) ──────────────────────────────────
-  # The tree is not fully clang-format clean yet, so only the lines a PR / push
-  # touches are checked. Fix locally with `git clang-format <base>` or
-  # `./format_project.sh` (whole tree).
+  # ─── clang-format (whole tree) ──────────────────────────────────────────
+  # Every tracked C/C++ file must be clang-format 18 clean. Fix locally with
+  # `make format` (CLANG_FORMAT=clang-format-18 if several versions exist).
   format:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
 
       - name: Install clang-format 18
         run: |
@@ -39,27 +36,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends clang-format-18
 
-      - name: Check formatting of changed lines
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          PUSH_BEFORE_SHA: ${{ github.event.before }}
-        run: |
-          set -euo pipefail
-          if [ "$EVENT_NAME" = "pull_request" ]; then
-            base="$PR_BASE_SHA"
-          else
-            base="${PUSH_BEFORE_SHA:-}"
-          fi
-          if [ -z "$base" ] || ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
-            base="$(git rev-parse HEAD~1)"
-          fi
-          echo "Checking lines changed between $base and $GITHUB_SHA"
-          if ! git clang-format-18 --binary clang-format-18 --extensions c,cc,cpp,cxx,h,hh,hpp,hxx,inl,m,mm --diff "$base" "$GITHUB_SHA" \
-               -- src include tests examples; then
-            echo "::error::Changed lines are not clang-format clean. Run: git clang-format-18 $base"
-            exit 1
-          fi
+      - name: Check formatting (whole tree)
+        run: CLANG_FORMAT=clang-format-18 bash ./format_project.sh --check
 
       # UI colours must come from ThemeManager tokens so panels stay readable in
       # every theme. Approved exceptions: tools/color_literals_allowlist.txt.

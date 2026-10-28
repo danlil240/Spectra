@@ -1,6 +1,6 @@
 # Spectra Plugin Developer Guide
 
-> **API version covered**: v2.1 (current stable)  
+> **API version covered**: v2.2 (current stable)  
 > **Phase D — Custom Series Types** is available in API v2.0 via the `custom_series` registry.
 
 ---
@@ -198,7 +198,7 @@ A v1.0 plugin that requests only commands and shortcuts loads successfully even 
 | Constant | Value | Milestone |
 |---|---|---|
 | `SPECTRA_PLUGIN_API_VERSION_MAJOR` | 2 | Custom series types (`SpectraPluginContext` layout change) |
-| `SPECTRA_PLUGIN_API_VERSION_MINOR` | 1 | Overlay appearance fields (theme, UI scale, font size, text measuring) |
+| `SPECTRA_PLUGIN_API_VERSION_MINOR` | 2 | v2.1: overlay appearance fields (theme, UI scale, font size, text measuring); v2.2: vector (SVG) export of custom series |
 
 v1.1 added the transform registry, v1.2 overlays, v1.3 data sources and export formats;
 a v2.x host provides all of them (check with `spectra_plugin_api_at_least()`).
@@ -533,6 +533,29 @@ spectra_unregister_data_source(ctx->data_source_registry, "Sine Generator");
 ## Phase D: Custom Series Types (deferred)
 
 Custom series type registration requires **API v2.0** and depends on renderer decoupling work (QW-2/QW-3/QW-4 from `ARCHITECTURE_REVIEW.md`). The design document is at `docs/plans/CUSTOM_SERIES_DESIGN.md`. This section will be expanded when Phase D lands. A major version bump (`SPECTRA_PLUGIN_API_VERSION_MAJOR` → 2) will accompany the breaking `SpectraPluginContext` layout change.
+
+### Vector (SVG) export of custom series (v2.2)
+
+SVG exports do not run GPU pipelines, so a custom series type only appears in them when it
+registers a CPU export callback after `spectra_register_series_type()`:
+
+```cpp
+static int my_export(const void* data, size_t count, const SpectraVectorSink* sink, void*)
+{
+    const float rgba[4] = {1.0f, 0.0f, 0.0f, sink->opacity};
+    sink->fill_rect(sink->host, 0.0f, 0.0f, 1.0f, 1.0f, rgba);   // data coordinates
+    return 0;                                                     // non-zero: series dropped
+}
+
+if (spectra_plugin_api_at_least(ctx, 2, 2))
+    spectra_register_series_vector_export(ctx->series_type_registry, "my_type", my_export, nullptr);
+```
+
+The sink offers `fill_polygon`, `stroke_polyline` and `fill_rect`; coordinates are data space
+(the host adds the series offset and applies the axes limits and log scales), colours straight
+RGBA in [0, 1]. `series_color` is the series colour as drawn and `opacity` the series opacity.
+Series whose type has no callback (or whose plugin is disabled) are replaced by an XML comment
+and a logged warning. 2D axes only. See `examples/plugins/series_heatmap.cpp`.
 
 ---
 

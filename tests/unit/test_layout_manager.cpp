@@ -323,9 +323,11 @@ TEST(LayoutManager, NavRailScaleUsesItemCounts)
                     LayoutManager::nav_rail_nominal_content_height());
 
     const float h = 640.0f;
-    EXPECT_LT(LayoutManager::nav_rail_scale_for_height(h, buttons, seps),
-              LayoutManager::nav_rail_scale_for_height(
-                  h, LayoutManager::NAV_RAIL_FALLBACK_BUTTON_COUNT, seps));
+    EXPECT_LT(
+        LayoutManager::nav_rail_scale_for_height(h, buttons, seps),
+        LayoutManager::nav_rail_scale_for_height(h,
+                                                 LayoutManager::NAV_RAIL_FALLBACK_BUTTON_COUNT,
+                                                 seps));
 }
 
 // Height draw_nav_rail() / SpectraNavRail actually use: SPACE_3 window padding top and

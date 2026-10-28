@@ -724,6 +724,13 @@ class PluginManager
     void set_series_type_registry(SeriesTypeRegistry* reg) { series_type_reg_ = reg; }
     void set_backend(Backend* backend) { backend_ = backend; }
 
+    // Forget every host service set above.  Call after unload_all() when a
+    // host registry, command registry, undo stack or backend is about to be
+    // destroyed while the manager lives on: later unloads (including the one
+    // in ~PluginManager) then skip the dead host objects instead of walking
+    // freed memory.
+    void detach_host();
+
     // Load a plugin from a shared library path.
     // Returns true on success.
     bool load_plugin(const std::string& path);
@@ -738,7 +745,8 @@ class PluginManager
     // type with that name is registered again (e.g. by reloading the plugin).
     bool unload_plugin(const std::string& name);
 
-    // Unload all plugins.
+    // Unload all plugins.  Hosts must call this while every service set above
+    // is still alive (the destructor calls it too, as a last resort).
     void unload_all();
 
     // Get list of loaded plugins.

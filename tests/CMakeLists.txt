@@ -552,6 +552,28 @@ if(TARGET transform_smooth AND TARGET overlay_crosshair AND TARGET export_csv
     endif()
 endif()
 
+# Real App teardown (headless and windowed) with the shipped example plug-ins
+# and the mock that registers commands/undo left loaded (QA S3-P03).
+if(TARGET series_heatmap AND TARGET transform_smooth AND TARGET overlay_crosshair
+   AND TARGET export_csv AND TARGET mock_leaky_plugin AND NOT WIN32
+   AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_plugin_app_shutdown.cpp)
+    add_spectra_test(unit test_plugin_app_shutdown)
+    set_tests_properties(unit_test_plugin_app_shutdown PROPERTIES
+        LABELS "gpu"
+        RESOURCE_LOCK gpu)
+    target_compile_definitions(unit_test_plugin_app_shutdown PRIVATE
+        SPECTRA_HEATMAP_PLUGIN_PATH="$<TARGET_FILE:series_heatmap>"
+        SPECTRA_TRANSFORM_SMOOTH_PLUGIN_PATH="$<TARGET_FILE:transform_smooth>"
+        SPECTRA_OVERLAY_CROSSHAIR_PLUGIN_PATH="$<TARGET_FILE:overlay_crosshair>"
+        SPECTRA_EXPORT_CSV_PLUGIN_PATH="$<TARGET_FILE:export_csv>"
+        SPECTRA_MOCK_LEAKY_PLUGIN_PATH="$<TARGET_FILE:mock_leaky_plugin>"
+    )
+    add_dependencies(unit_test_plugin_app_shutdown
+        series_heatmap transform_smooth overlay_crosshair export_csv mock_leaky_plugin)
+    # The plug-ins bind to the test executable's copy of the C ABI.
+    target_link_options(unit_test_plugin_app_shutdown PRIVATE -rdynamic)
+endif()
+
 # test_multi_window uses a custom main() to avoid multi-VkInstance teardown crash on NVIDIA.
 # (Same root cause as the 3D golden test SIGSEGV: the driver crashes when multiple
 # VkInstance objects are destroyed sequentially in one process.)

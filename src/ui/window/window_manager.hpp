@@ -288,6 +288,9 @@ class WindowManager
     using FileDropHandler              = std::function<void(uint32_t window_id, const std::string& path)>;
     using FigureUnregisteringHandler   = std::function<void(FigureId, Figure*)>;
     using InteractiveFrameHandler    = std::function<void()>;
+    // Called once per window, after GPU idle and before its UI context is
+    // destroyed (window close and shutdown()), while the context is alive.
+    using WindowUIDestroyingHandler = std::function<void(WindowContext&)>;
 
     void set_tab_detach_handler(TabDetachHandler cb) { tab_detach_handler_ = std::move(cb); }
     void set_tab_move_handler(TabMoveHandler cb) { tab_move_handler_ = std::move(cb); }
@@ -309,6 +312,10 @@ class WindowManager
     void set_interactive_frame_handler(InteractiveFrameHandler cb)
     {
         interactive_frame_handler_ = std::move(cb);
+    }
+    void set_window_ui_destroying_handler(WindowUIDestroyingHandler cb)
+    {
+        window_ui_destroying_handler_ = std::move(cb);
     }
 
     // Render one frame synchronously (Win32 size/move modal loop).
@@ -408,6 +415,7 @@ class WindowManager
     // OS file drop handler
     FileDropHandler              file_drop_handler_;
     FigureUnregisteringHandler   figure_unregistering_handler_;
+    WindowUIDestroyingHandler    window_ui_destroying_handler_;
 
     // Cross-window drag target tracking
     uint32_t            drag_target_window_id_ = 0;

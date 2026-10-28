@@ -269,6 +269,7 @@ set(SPECTRA_UNIT_TESTS
     test_plugin_data_source
     test_plugin_integration
     test_plugin_unload_cleanup
+    test_series_anim_callback
     test_plugin_series_type
     test_custom_series_render
     test_custom_series_gpu

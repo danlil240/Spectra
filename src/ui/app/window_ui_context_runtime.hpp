@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional>
 #include <spectra/fwd.hpp>
 
 namespace spectra
@@ -37,6 +38,16 @@ struct WindowUIContextRuntimeWireOptions
     WindowManager* window_manager = nullptr;
 #endif
 };
+
+// Animation callback that drives `series` of figure `figure_id` only while
+// both still exist: the timeline outlives figures and series (closing the
+// figure or deleting the series while it plays must not touch freed memory),
+// so every call re-resolves the target through the registry and is a no-op
+// once it is gone.
+std::function<void(float)> make_series_anim_callback(const FigureRegistry&               registry,
+                                                     FigureId                            figure_id,
+                                                     const Series*                       series,
+                                                     std::function<void(Series&, float)> apply);
 
 #ifdef SPECTRA_USE_IMGUI
 void wire_window_ui_runtime(const WindowUIContextRuntimeWireOptions& options);

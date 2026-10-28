@@ -440,7 +440,7 @@ if(EMSCRIPTEN)
     if(NOT Python3_Interpreter_FOUND)
         message(FATAL_ERROR "Emscripten builds need Python 3 to generate Vulkan stubs")
     endif()
-    set(_spectra_vk_stubs${CMAKE_CURRENT_BINARY_DIR}/generated/vulkan_stubs.cpp)
+    set(_spectra_vk_stubs ${CMAKE_CURRENT_BINARY_DIR}/generated/vulkan_stubs.cpp)
     add_custom_command(
         OUTPUT  ${_spectra_vk_stubs}
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/cmake/generate_vulkan_stubs.py

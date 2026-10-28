@@ -164,6 +164,7 @@ set(SPECTRA_UNIT_TESTS
     test_undo_property
     test_workspace_v2
     test_timeline_editor
+    test_qa_stats
     test_recording_export
     test_theme_colorblind
     test_theme_change_callback
@@ -575,6 +576,23 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_multi_window.cpp)
     )
     add_test(NAME unit_test_multi_window COMMAND unit_test_multi_window)
     set_tests_properties(unit_test_multi_window PROPERTIES
+        LABELS "gpu"
+        RESOURCE_LOCK gpu)
+endif()
+
+# Windowed UI state (timeline playback, figure detach): runs under xvfb-run when
+# available so the windowed cases get an X display; they skip without one.
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_windowed_ui_state.cpp AND SPECTRA_USE_IMGUI)
+    add_spectra_test(unit test_windowed_ui_state)
+    find_program(SPECTRA_XVFB_RUN xvfb-run)
+    if(SPECTRA_XVFB_RUN AND NOT WIN32)
+        add_test(NAME unit_test_windowed_ui_state_xvfb
+            COMMAND ${SPECTRA_XVFB_RUN} -a $<TARGET_FILE:unit_test_windowed_ui_state>)
+        set_tests_properties(unit_test_windowed_ui_state_xvfb PROPERTIES
+            LABELS "gpu"
+            RESOURCE_LOCK gpu)
+    endif()
+    set_tests_properties(unit_test_windowed_ui_state PROPERTIES
         LABELS "gpu"
         RESOURCE_LOCK gpu)
 endif()
@@ -1959,7 +1977,7 @@ if(SPECTRA_USE_PX4)
     endif()
 endif()
 
-# QA Agents (interactive/manual harnesses, not registered as CTest tests)
+# QA Agents (interactive/manual harnesses; only the design review is a CTest test)
 option(SPECTRA_BUILD_QA_AGENT "Build QA stress testing agent" OFF)
 if(SPECTRA_BUILD_QA_AGENT)
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/qa/qa_agent.cpp)
@@ -1983,6 +2001,21 @@ if(SPECTRA_BUILD_QA_AGENT)
             $<$<BOOL:${SPECTRA_USE_FFMPEG}>:SPECTRA_USE_FFMPEG>
             $<$<BOOL:${SPECTRA_USE_IMGUI}>:SPECTRA_USE_IMGUI>
         )
+
+        # Design review: 63 named captures, each proved by semantic assertions
+        # (menu open, hover/crosshair, panels closed, UI scale...).  Runs under
+        # Xvfb + lavapipe with an isolated HOME; fails on any failed assertion.
+        if(SPECTRA_USE_GLFW AND SPECTRA_USE_IMGUI AND NOT WIN32)
+            add_test(NAME qa_design_review
+                COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/qa/run_design_review.sh
+                        $<TARGET_FILE:spectra_qa_agent>
+                        ${CMAKE_CURRENT_BINARY_DIR}/qa_design_review)
+            set_tests_properties(qa_design_review PROPERTIES
+                LABELS "gpu;qa"
+                RESOURCE_LOCK gpu
+                SKIP_RETURN_CODE 77
+                TIMEOUT 900)
+        endif()
     endif()
 
     if(SPECTRA_USE_ROS2 AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/qa/ros_qa_agent.cpp)

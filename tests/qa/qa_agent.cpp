@@ -13,6 +13,10 @@
 //     --no-fuzz           Skip fuzzing phase
 //     --no-scenarios      Skip scenarios phase
 //     --list-scenarios    List scenarios and exit
+//     --design-review     Capture 63 named UI states, each proved by semantic
+//                         assertions (failed assertion = ERROR, exit 1)
+//     --repeat <N>        Run each scenario N times; N>=3 judges RSS retention
+//                         for sustained growth (see qa_stats.hpp)
 
 #include <spectra/app.hpp>
 #include <spectra/axes.hpp>
@@ -22,11 +26,13 @@
 #include <spectra/series.hpp>
 #include <spectra/series3d.hpp>
 
+#include "qa_stats.hpp"
 #include "render/backend.hpp"
 #include "render/vulkan/vk_backend.hpp"
 
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
+    #include <imgui_internal.h>   // ImGuiWindow / popup stack for design assertions
     #include "ui/app/session_runtime.hpp"
     #include "ui/app/window_ui_context.hpp"
     #include "ui/commands/command_registry.hpp"
@@ -57,12 +63,16 @@
     #include <malloc.h>   // malloc_trim
 #endif
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <functional>
 #include <map>
 #include <mutex>
 #include <random>
+#include <set>
 #include <string>
+#include <typeindex>
+#include <typeinfo>
 #include <unordered_map>
 #include <vector>
 
@@ -113,6 +123,12 @@ static std::string format_mb_delta(int64_t delta_bytes)
     const int64_t abs_bytes = (delta_bytes >= 0) ? delta_bytes : -delta_bytes;
     const int64_t abs_mb    = to_mb_signed(abs_bytes);
     return std::string(delta_bytes >= 0 ? "+" : "-") + std::to_string(abs_mb) + "MB";
+}
+
+static std::string format_kb_delta(int64_t delta_bytes)
+{
+    const int64_t abs_bytes = (delta_bytes >= 0) ? delta_bytes : -delta_bytes;
+    return std::string(delta_bytes >= 0 ? "+" : "-") + std::to_string(abs_bytes / 1024) + "KB";
 }
 
 // ─── Issue tracking ──────────────────────────────────────────────────────────
@@ -333,6 +349,7 @@ struct QAOptions
     bool        no_scenarios   = false;
     bool        list_scenarios = false;
     bool        design_review  = false;
+    uint32_t    repeat         = 1;   // run each scenario N times (memory trend)
 };
 
 static QAOptions parse_args(int argc, char** argv)
@@ -361,6 +378,8 @@ static QAOptions parse_args(int argc, char** argv)
             opts.list_scenarios = true;
         else if (arg == "--design-review")
             opts.design_review = true;
+        else if (arg == "--repeat" && i + 1 < argc)
+            opts.repeat = std::max(1u, static_cast<uint32_t>(std::stoul(argv[++i])));
         else if (arg == "--help" || arg == "-h")
         {
             fprintf(stderr,
@@ -373,7 +392,9 @@ static QAOptions parse_args(int argc, char** argv)
                     "  --no-fuzz           Skip fuzzing phase\n"
                     "  --no-scenarios      Skip scenarios phase\n"
                     "  --list-scenarios    List scenarios and exit\n"
-                    "  --design-review     Capture UI screenshots for design analysis\n");
+                    "  --design-review     Capture UI screenshots for design analysis\n"
+                    "  --repeat <N>        Run each scenario N times; with N>=3 RSS retention\n"
+                    "                      is judged for sustained growth after warm-up\n");
             exit(0);
         }
     }
@@ -401,6 +422,135 @@ struct ScenarioMemoryMetric
     VulkanBackend::GpuMemoryStats gpu_before{};
     VulkanBackend::GpuMemoryStats gpu_after{};
 };
+
+// ─── Design-review semantic assertions ──────────────────────────────────────
+// Every design capture names a UI state ("menu open", "crosshair", ...).  Each
+// capture carries a verifier that proves that state from app / ImGui state of
+// the captured frame; a failed check is an ERROR issue, never a silent PNG.
+struct DesignCheck
+{
+    std::vector<std::string> passed;
+    std::vector<std::string> failed;
+
+    bool expect(bool ok, const std::string& what)
+    {
+        (ok ? passed : failed).push_back(what);
+        return ok;
+    }
+    bool near(double actual, double expected, double tol, const std::string& what)
+    {
+        const bool ok = std::abs(actual - expected) <= tol;
+        return expect(ok,
+                      what + " (actual " + std::to_string(actual) + ", expected "
+                          + std::to_string(expected) + " +/- " + std::to_string(tol) + ")");
+    }
+};
+using DesignVerifier = std::function<void(DesignCheck&)>;
+
+struct DesignAssertionRecord
+{
+    std::string              shot;
+    std::string              path;
+    uint64_t                 frame  = 0;
+    size_t                   checks = 0;
+    std::vector<std::string> failures;
+};
+
+#ifdef SPECTRA_USE_IMGUI
+// True when an ImGui window whose name contains `needle` was submitted in the
+// last completed frame of `ctx` (Begin() sets Active; NewFrame() clears it).
+static bool imgui_window_drawn(ImGuiContext* ctx, std::string_view needle)
+{
+    if (!ctx)
+        return false;
+    for (ImGuiWindow* w : ctx->Windows)
+    {
+        if (w && w->Active && !w->Hidden && w->Name
+            && std::string_view(w->Name).find(needle) != std::string_view::npos)
+            return true;
+    }
+    return false;
+}
+
+static ImGuiWindow* imgui_find_window(ImGuiContext* ctx, std::string_view name)
+{
+    if (!ctx)
+        return nullptr;
+    for (ImGuiWindow* w : ctx->Windows)
+        if (w && w->Name && std::string_view(w->Name) == name)
+            return w;
+    return nullptr;
+}
+
+// Open popups drawn in the last frame whose parent window name contains
+// `parent_needle` (empty = any parent).  `modal_only` restricts to modals.
+static int imgui_drawn_popups(ImGuiContext*    ctx,
+                              std::string_view parent_needle = {},
+                              bool             modal_only    = false)
+{
+    if (!ctx)
+        return 0;
+    int n = 0;
+    for (const ImGuiPopupData& p : ctx->OpenPopupStack)
+    {
+        ImGuiWindow* w = p.Window;
+        if (!w || !w->Active || w->Hidden)
+            continue;
+        if (modal_only && !(w->Flags & ImGuiWindowFlags_Modal))
+            continue;
+        if (!parent_needle.empty())
+        {
+            const ImGuiWindow* parent = w->ParentWindow;
+            if (!parent || !parent->Name
+                || std::string_view(parent->Name).find(parent_needle) == std::string_view::npos)
+                continue;
+        }
+        ++n;
+    }
+    return n;
+}
+
+// Diagnostic list of windows drawn last frame (appended to failed checks).
+static std::string imgui_drawn_window_names(ImGuiContext* ctx)
+{
+    std::string out;
+    if (!ctx)
+        return "<no imgui context>";
+    for (ImGuiWindow* w : ctx->Windows)
+    {
+        if (!w || !w->Active || w->Hidden || !w->Name || (w->Flags & ImGuiWindowFlags_ChildWindow))
+            continue;
+        if (!out.empty())
+            out += ", ";
+        out += w->Name;
+    }
+    return out;
+}
+#endif
+
+static std::string json_escape(const std::string& in)
+{
+    std::string out;
+    out.reserve(in.size());
+    for (char ch : in)
+    {
+        if (ch == '"' || ch == '\\')
+        {
+            out += '\\';
+            out += ch;
+        }
+        else if (static_cast<unsigned char>(ch) < 0x20)
+            out += ' ';
+        else
+            out += ch;
+    }
+    return out;
+}
+
+static bool rect_contains(const Rect& r, double x, double y)
+{
+    return r.w > 0.0f && r.h > 0.0f && x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
+}
 
 // ─── QAAgent class ───────────────────────────────────────────────────────────
 class QAAgent
@@ -771,6 +921,11 @@ class QAAgent
              [](QAAgent& qa) { return qa.scenario_multi_window_lifecycle(); }});
 
         scenarios_.push_back(
+            {"multi_window_churn",
+             "8 cycles of open 4 windows / close them; RSS, fds and threads per cycle",
+             [](QAAgent& qa) { return qa.scenario_multi_window_churn(); }});
+
+        scenarios_.push_back(
             {"tab_drag_between_windows",
              "Detach tabs into new windows, move figures across windows, re-attach",
              [](QAAgent& qa) { return qa.scenario_tab_drag_between_windows(); }});
@@ -821,6 +976,10 @@ class QAAgent
     {
         static constexpr size_t   SCENARIO_RSS_WARNING_BYTES = 20ull * 1024ull * 1024ull;
         static constexpr uint64_t SCENARIO_GPU_WARNING_BYTES = 5ull * 1024ull * 1024ull;
+        // Single-run retention above this always warns (no warm-up is this big).
+        static constexpr size_t SCENARIO_RSS_HARD_LIMIT_BYTES = 128ull * 1024ull * 1024ull;
+        // --repeat: mean growth per repetition after warm-up that counts as a leak.
+        static constexpr size_t SCENARIO_RSS_PER_REP_BYTES = 2ull * 1024ull * 1024ull;
 
         // BUG-8: Per-scenario RSS thresholds for scenarios that legitimately
         // allocate huge transient CPU buffers. These plateau at allocator
@@ -844,111 +1003,170 @@ class QAAgent
             if (!opts_.scenario_name.empty() && scenario.name != opts_.scenario_name)
                 continue;
 
-            fprintf(stderr, "[QA] Running scenario: %s\n", scenario.name.c_str());
-            snprintf(g_last_action, sizeof(g_last_action), "scenario:%s", scenario.name.c_str());
-            uint64_t start_frame = total_frames_;
-            size_t   rss_before  = get_rss_bytes();
-
-            VulkanBackend::GpuMemoryStats gpu_before{};
-            bool                          gpu_before_valid = snapshot_gpu_memory(gpu_before);
-
-            bool ok = false;
-            try
+            // Post-teardown RSS of every repetition: judged for sustained
+            // growth once all repetitions ran (see qa_stats.hpp).
+            const int64_t        rss_baseline = static_cast<int64_t>(settled_rss_bytes());
+            std::vector<int64_t> rss_after_reps;
+            bool                 stop_all = false;
+            for (uint32_t rep = 0; rep < opts_.repeat && !stop_all; ++rep)
             {
-                ok = scenario.run(*this);
-            }
-            catch (const std::exception& e)
-            {
-                add_issue(IssueSeverity::Error, "scenario", scenario.name + " threw: " + e.what());
-            }
+                const std::string run_name = opts_.repeat > 1
+                                                 ? scenario.name + "#" + std::to_string(rep + 1)
+                                                 : scenario.name;
+                fprintf(stderr, "[QA] Running scenario: %s\n", run_name.c_str());
+                snprintf(g_last_action, sizeof(g_last_action), "scenario:%s", run_name.c_str());
+                uint64_t start_frame = total_frames_;
+                size_t   rss_before  = settled_rss_bytes();
 
-            if (ok)
-            {
-                scenarios_passed_++;
-                fprintf(stderr,
-                        "[QA]   PASSED (%lu frames)\n",
-                        static_cast<unsigned long>(total_frames_ - start_frame));
-            }
-            else
-            {
-                scenarios_failed_++;
-                add_issue(IssueSeverity::Error, "scenario", scenario.name + " FAILED");
-            }
+                VulkanBackend::GpuMemoryStats gpu_before{};
+                bool                          gpu_before_valid = snapshot_gpu_memory(gpu_before);
 
-            size_t rss_after = get_rss_bytes();
-            if (rss_after > peak_rss_)
-                peak_rss_ = rss_after;
+                bool ok = false;
+                try
+                {
+                    ok = scenario.run(*this);
+                }
+                catch (const std::exception& e)
+                {
+                    add_issue(IssueSeverity::Error,
+                              "scenario",
+                              scenario.name + " threw: " + e.what());
+                }
 
-            VulkanBackend::GpuMemoryStats gpu_after{};
-            bool                          gpu_after_valid = snapshot_gpu_memory(gpu_after);
+                if (ok)
+                {
+                    scenarios_passed_++;
+                    fprintf(stderr,
+                            "[QA]   PASSED (%lu frames)\n",
+                            static_cast<unsigned long>(total_frames_ - start_frame));
+                }
+                else
+                {
+                    scenarios_failed_++;
+                    add_issue(IssueSeverity::Error, "scenario", scenario.name + " FAILED");
+                }
 
-            scenario_memory_.push_back({scenario.name,
-                                        ok,
-                                        start_frame,
-                                        total_frames_,
-                                        rss_before,
-                                        rss_after,
-                                        gpu_before_valid,
-                                        gpu_after_valid,
-                                        gpu_before,
-                                        gpu_after});
+                size_t rss_after = settled_rss_bytes();
+                if (rss_after > peak_rss_)
+                    peak_rss_ = rss_after;
+                rss_after_reps.push_back(static_cast<int64_t>(rss_after));
 
-            const int64_t rss_delta = signed_byte_delta(rss_before, rss_after);
-            std::string delta_log = "[QA]   Memory delta: RSS " + format_mb_delta(rss_delta) + " ("
-                                    + std::to_string(to_mb(rss_before)) + "->"
-                                    + std::to_string(to_mb(rss_after)) + "MB)";
-            if (gpu_before_valid && gpu_after_valid)
+                VulkanBackend::GpuMemoryStats gpu_after{};
+                bool                          gpu_after_valid = snapshot_gpu_memory(gpu_after);
+
+                scenario_memory_.push_back({run_name,
+                                            ok,
+                                            start_frame,
+                                            total_frames_,
+                                            rss_before,
+                                            rss_after,
+                                            gpu_before_valid,
+                                            gpu_after_valid,
+                                            gpu_before,
+                                            gpu_after});
+
+                const int64_t rss_delta = signed_byte_delta(rss_before, rss_after);
+                std::string   delta_log = "[QA]   Memory delta: RSS " + format_mb_delta(rss_delta)
+                                        + " (" + std::to_string(to_mb(rss_before)) + "->"
+                                        + std::to_string(to_mb(rss_after)) + "MB)";
+                if (gpu_before_valid && gpu_after_valid)
+                {
+                    const int64_t gpu_delta = signed_byte_delta(gpu_before.device_local_usage_bytes,
+                                                                gpu_after.device_local_usage_bytes);
+                    delta_log += ", GPU local " + format_mb_delta(gpu_delta) + " ("
+                                 + std::to_string(to_mb(gpu_before.device_local_usage_bytes)) + "->"
+                                 + std::to_string(to_mb(gpu_after.device_local_usage_bytes))
+                                 + "MB)";
+                }
+                else
+                {
+                    delta_log += ", GPU local n/a";
+                }
+                fprintf(stderr, "%s\n", delta_log.c_str());
+
+                // A single run's retention mixes one-time warm-up (allocator arenas,
+                // driver pipeline/JIT caches, glyph caches) with leaks, so it is
+                // only INFO; --repeat >= 3 judges sustained growth instead.  A huge
+                // single-run retention still warns.
+                if (opts_.repeat < 3
+                    && rss_after > rss_before + scenario_rss_threshold(scenario.name))
+                {
+                    const size_t threshold_mb =
+                        scenario_rss_threshold(scenario.name) / (1024ull * 1024ull);
+                    const bool huge = rss_after > rss_before + SCENARIO_RSS_HARD_LIMIT_BYTES;
+                    add_issue(huge ? IssueSeverity::Warning : IssueSeverity::Info,
+                              "scenario_memory",
+                              "Scenario '" + run_name + "' retained " + format_mb_delta(rss_delta)
+                                  + " RSS after teardown (" + std::to_string(to_mb(rss_before))
+                                  + "->" + std::to_string(to_mb(rss_after)) + "MB, threshold +"
+                                  + std::to_string(threshold_mb)
+                                  + "MB; single run includes warm-up, use --repeat 3+ to judge)",
+                              false);
+                }
+
+                if (gpu_before_valid && gpu_after_valid
+                    && gpu_after.device_local_usage_bytes
+                           > gpu_before.device_local_usage_bytes + SCENARIO_GPU_WARNING_BYTES)
+                {
+                    const int64_t gpu_delta = signed_byte_delta(gpu_before.device_local_usage_bytes,
+                                                                gpu_after.device_local_usage_bytes);
+                    add_issue(IssueSeverity::Warning,
+                              "scenario_gpu_memory",
+                              "Scenario '" + scenario.name + "' retained "
+                                  + format_mb_delta(gpu_delta)
+                                  + " GPU device-local memory after "
+                                    "teardown ("
+                                  + std::to_string(to_mb(gpu_before.device_local_usage_bytes))
+                                  + "->" + std::to_string(to_mb(gpu_after.device_local_usage_bytes))
+                                  + "MB, threshold +5MB)",
+                              false);
+                }
+
+                check_validation_messages("scenario:" + run_name);
+                if (wall_clock_exceeded() || has_critical_issue())
+                    stop_all = true;
+            }   // repetitions
+
+            if (opts_.repeat >= 3 && rss_after_reps.size() >= 3)
             {
-                const int64_t gpu_delta = signed_byte_delta(gpu_before.device_local_usage_bytes,
-                                                            gpu_after.device_local_usage_bytes);
-                delta_log += ", GPU local " + format_mb_delta(gpu_delta) + " ("
-                             + std::to_string(to_mb(gpu_before.device_local_usage_bytes)) + "->"
-                             + std::to_string(to_mb(gpu_after.device_local_usage_bytes)) + "MB)";
-            }
-            else
-            {
-                delta_log += ", GPU local n/a";
-            }
-            fprintf(stderr, "%s\n", delta_log.c_str());
-
-            if (rss_after > rss_before + scenario_rss_threshold(scenario.name))
-            {
-                const size_t threshold_mb =
-                    scenario_rss_threshold(scenario.name) / (1024ull * 1024ull);
-                add_issue(IssueSeverity::Warning,
+                const auto v =
+                    qa::judge_retention(rss_baseline,
+                                        rss_after_reps,
+                                        static_cast<int64_t>(SCENARIO_RSS_PER_REP_BYTES));
+                std::string trend;
+                for (size_t i = 0; i < rss_after_reps.size(); ++i)
+                    trend += (i ? "," : "") + std::to_string(to_mb(rss_after_reps[i]));
+                const std::string msg =
+                    "Scenario '" + scenario.name + "' RSS after each of "
+                    + std::to_string(rss_after_reps.size()) + " repetitions: "
+                    + std::to_string(to_mb(rss_baseline)) + "->[" + trend + "]MB; warm-up "
+                    + format_mb_delta(v.warmup_bytes) + ", then " + format_kb_delta(v.per_rep_bytes)
+                    + "/rep (second half " + format_kb_delta(v.late_per_rep_bytes) + "/rep)";
+                fprintf(stderr, "[QA]   %s\n", msg.c_str());
+                add_issue(v.sustained_growth ? IssueSeverity::Warning : IssueSeverity::Info,
                           "scenario_memory",
-                          "Scenario '" + scenario.name + "' retained " + format_mb_delta(rss_delta)
-                              + " RSS after teardown (" + std::to_string(to_mb(rss_before)) + "->"
-                              + std::to_string(to_mb(rss_after)) + "MB, threshold +"
-                              + std::to_string(threshold_mb) + "MB)",
+                          msg
+                              + (v.sustained_growth ? " — sustained growth (possible leak)"
+                                                    : " — plateaus (warm-up/allocator retention)"),
                           false);
             }
 
-            if (gpu_before_valid && gpu_after_valid
-                && gpu_after.device_local_usage_bytes
-                       > gpu_before.device_local_usage_bytes + SCENARIO_GPU_WARNING_BYTES)
-            {
-                const int64_t gpu_delta = signed_byte_delta(gpu_before.device_local_usage_bytes,
-                                                            gpu_after.device_local_usage_bytes);
-                add_issue(IssueSeverity::Warning,
-                          "scenario_gpu_memory",
-                          "Scenario '" + scenario.name + "' retained " + format_mb_delta(gpu_delta)
-                              + " GPU device-local memory after "
-                                "teardown ("
-                              + std::to_string(to_mb(gpu_before.device_local_usage_bytes)) + "->"
-                              + std::to_string(to_mb(gpu_after.device_local_usage_bytes))
-                              + "MB, threshold +5MB)",
-                          false);
-            }
-
-            if (wall_clock_exceeded())
+            if (stop_all)
             {
                 fprintf(stderr, "[QA] Wall clock limit reached, stopping scenarios\n");
                 break;
             }
-
-            check_validation_messages("scenario:" + scenario.name);
         }
+    }
+
+    // RSS after returning freed heap pages to the OS (glibc keeps them
+    // otherwise, which makes every free look like retention).
+    size_t settled_rss_bytes()
+    {
+#ifdef __linux__
+        malloc_trim(0);
+#endif
+        return get_rss_bytes();
     }
 
     void check_validation_messages(const std::string& context)
@@ -1802,6 +2020,113 @@ class QAAgent
         return true;
     }
 
+    // Repeated window create/close: per-window resources (swapchain images,
+    // ImGui context + font atlas, descriptor pools, X connections) must be
+    // released, so RSS / fd / thread counts after each cycle must plateau.
+    bool scenario_multi_window_churn()
+    {
+        ensure_lightweight_active_figure();
+#ifdef SPECTRA_USE_GLFW
+        auto* wm = app_->window_manager();
+        if (!wm)
+            return true;
+
+        static constexpr int    CYCLES          = 8;
+        static constexpr int    WINDOWS         = 4;
+        static constexpr size_t PER_CYCLE_BYTES = 1ull * 1024ull * 1024ull;
+
+        auto count_dir = [](const char* path) -> int
+        {
+            int             n = 0;
+            std::error_code ec;
+            for (auto it = std::filesystem::directory_iterator(path, ec);
+                 !ec && it != std::filesystem::directory_iterator();
+                 it.increment(ec))
+                ++n;
+            return n;
+        };
+
+        const int64_t        baseline = static_cast<int64_t>(settled_rss_bytes());
+        const int            fd0      = count_dir("/proc/self/fd");
+        const int            th0      = count_dir("/proc/self/task");
+        std::vector<int64_t> rss;
+        std::vector<int>     fds, threads;
+        std::string          trace;
+        size_t               peak_windows = 0;
+        for (int cycle = 0; cycle < CYCLES; ++cycle)
+        {
+            std::vector<FigureId> fids;
+            for (int i = 0; i < WINDOWS; ++i)
+            {
+                fids.push_back(create_random_figure());
+                pump_frames(1);
+            }
+            std::vector<WindowContext*> wins;
+            for (int i = 0; i < WINDOWS; ++i)
+            {
+                if (auto* w = wm->detach_figure(fids[i],
+                                                480,
+                                                360,
+                                                "Churn " + std::to_string(i),
+                                                80 + i * 120,
+                                                80 + i * 40))
+                    wins.push_back(w);
+                pump_frames(2);
+            }
+            peak_windows = std::max(peak_windows, wm->windows().size());
+            pump_frames(10);
+            for (auto* w : wins)
+            {
+                wm->request_close(w->id);
+                wm->process_pending_closes();
+                pump_frames(2);
+            }
+            reset_to_single_window_lightweight_state();
+            if (has_critical_issue())
+                return false;
+            rss.push_back(static_cast<int64_t>(settled_rss_bytes()));
+            fds.push_back(count_dir("/proc/self/fd"));
+            threads.push_back(count_dir("/proc/self/task"));
+            trace += (cycle ? "," : "") + std::to_string(to_mb(rss.back()));
+            if (wins.size() != static_cast<size_t>(WINDOWS))
+                add_issue(IssueSeverity::Error,
+                          "multi_window_churn",
+                          "cycle " + std::to_string(cycle + 1) + " opened "
+                              + std::to_string(wins.size()) + "/" + std::to_string(WINDOWS)
+                              + " windows",
+                          false);
+            if (wm->windows().size() != 1)
+                add_issue(IssueSeverity::Error,
+                          "multi_window_churn",
+                          "cycle " + std::to_string(cycle + 1) + " left "
+                              + std::to_string(wm->windows().size()) + " windows open",
+                          false);
+        }
+
+        const auto v = qa::judge_retention(baseline, rss, static_cast<int64_t>(PER_CYCLE_BYTES));
+        const std::string msg =
+            "multi_window_churn: " + std::to_string(CYCLES) + " cycles x " + std::to_string(WINDOWS)
+            + " windows (peak " + std::to_string(peak_windows) + " open); RSS "
+            + std::to_string(to_mb(baseline)) + "->[" + trace + "]MB, first cycle "
+            + format_mb_delta(v.warmup_bytes) + ", then " + format_kb_delta(v.per_rep_bytes)
+            + "/cycle (second half " + format_kb_delta(v.late_per_rep_bytes) + "/cycle); fds "
+            + std::to_string(fd0) + "->" + std::to_string(fds.back()) + ", threads "
+            + std::to_string(th0) + "->" + std::to_string(threads.back());
+        fprintf(stderr, "[QA]   %s\n", msg.c_str());
+        const bool fd_leak = fds.size() >= 3 && fds.back() > fds[1];
+        const bool th_leak = threads.size() >= 3 && threads.back() > threads[1];
+        add_issue(
+            (v.sustained_growth || fd_leak || th_leak) ? IssueSeverity::Warning
+                                                       : IssueSeverity::Info,
+            "multi_window_churn",
+            msg
+                + (v.sustained_growth || fd_leak || th_leak ? " — per-window resources keep growing"
+                                                            : " — plateaus after the first cycle"),
+            false);
+#endif
+        return true;
+    }
+
     bool scenario_tab_drag_between_windows()
     {
         ensure_lightweight_active_figure();
@@ -2615,11 +2940,50 @@ class QAAgent
     // Captures named screenshots of every meaningful UI state for design analysis.
     // Screenshots go into <output_dir>/design/ with descriptive names.
 
-    std::string named_screenshot(const std::string& name, WindowContext* target_window = nullptr)
+    // Capture the next frame of `target_window` (primary when null) and prove
+    // the state its name claims with `verify`, evaluated on the captured frame.
+    // Failed checks become ERROR issues (design-review exits non-zero).
+    std::string named_screenshot(const std::string&    name,
+                                 const DesignVerifier& verify,
+                                 WindowContext*        target_window = nullptr)
     {
+        DesignAssertionRecord record;
+        record.shot = name;
+
+        auto finish = [&](DesignCheck& check, const std::string& path)
+        {
+            record.path     = path;
+            record.frame    = total_frames_;
+            record.checks   = check.passed.size() + check.failed.size();
+            record.failures = check.failed;
+            if (!check.failed.empty())
+            {
+                std::string msg = "Capture '" + name + "' does not show its named state: ";
+                for (size_t i = 0; i < check.failed.size(); ++i)
+                    msg += (i ? "; " : "") + check.failed[i];
+#ifdef SPECTRA_USE_IMGUI
+                msg += " [drawn windows: " + imgui_drawn_window_names(design_imgui(target_window))
+                       + "]";
+#endif
+                add_issue(IssueSeverity::Error, "design_assertion", msg, false);
+            }
+            fprintf(stderr,
+                    "[QA/Design] %s: %zu/%zu assertions passed (frame %lu)\n",
+                    name.c_str(),
+                    check.passed.size(),
+                    record.checks,
+                    static_cast<unsigned long>(total_frames_));
+            design_assertions_.push_back(std::move(record));
+        };
+
         auto* backend = dynamic_cast<VulkanBackend*>(app_->backend());
         if (!backend)
+        {
+            DesignCheck check;
+            check.expect(false, "Vulkan backend available");
+            finish(check, "");
             return "";
+        }
 
         // When targeting a specific window, temporarily switch so
         // swapchain_width/height read from the correct swapchain.
@@ -2636,6 +3000,9 @@ class QAAgent
         {
             if (restore_window)
                 backend->set_active_window(restore_window);
+            DesignCheck check;
+            check.expect(false, "swapchain has a non-zero extent");
+            finish(check, "");
             return "";
         }
 
@@ -2649,6 +3016,13 @@ class QAAgent
 
         if (restore_window)
             backend->set_active_window(restore_window);
+
+        // Semantic assertions against the frame that was just captured.
+        DesignCheck check;
+        if (verify)
+            verify(check);
+        if (check.passed.empty() && check.failed.empty())
+            check.expect(false, "capture declares at least one semantic assertion");
 
         inspect_screenshot_artifacts(name, pixels, w, h);
         check_validation_messages("design:" + name);
@@ -2666,16 +3040,381 @@ class QAAgent
         ImageExporter::write_png(path, pixels.data(), w, h);
         fprintf(stderr, "[QA/Design] Captured: %s\n", path.c_str());
         design_screenshots_.push_back({name, path});
+        finish(check, path);
         return path;
     }
+
+#ifdef SPECTRA_USE_IMGUI
+    // ── Design-review state probes ───────────────────────────────────────
+    ImGuiContext* design_imgui(WindowContext* wctx = nullptr)
+    {
+        WindowUIContext* ui = wctx ? wctx->ui_ctx.get() : app_->ui_context();
+        return (ui && ui->imgui_ui) ? ui->imgui_ui->imgui_context() : nullptr;
+    }
+
+    Figure* design_active_figure()
+    {
+        auto* ui = app_->ui_context();
+        return (ui && ui->fig_mgr) ? ui->fig_mgr->active_figure() : nullptr;
+    }
+
+    FigureId design_active_figure_id()
+    {
+        auto* ui = app_->ui_context();
+        return (ui && ui->fig_mgr) ? ui->fig_mgr->active_index() : INVALID_FIGURE_ID;
+    }
+
+    FigureId newest_figure_id()
+    {
+        auto ids = app_->figure_registry().all_ids();
+        return ids.empty() ? INVALID_FIGURE_ID : ids.back();
+    }
+
+    // The active figure is `expected` and is the one drawn in the canvas.
+    void expect_active_figure(DesignCheck& c, FigureId expected, const char* what)
+    {
+        c.expect(expected != INVALID_FIGURE_ID && design_active_figure_id() == expected,
+                 std::string("active figure is ") + what + " (active id "
+                     + std::to_string(design_active_figure_id()) + ", expected "
+                     + std::to_string(expected) + ")");
+        c.expect(imgui_window_drawn(design_imgui(), "##canvas"), "plot canvas drawn");
+    }
+
+    size_t series_count(const Figure* fig)
+    {
+        size_t n = 0;
+        if (!fig)
+            return 0;
+        for (const auto& ax : fig->all_axes())
+            if (ax)
+                n += ax->series().size();
+        for (const auto& ax : fig->axes())
+            if (ax)
+                n += ax->series().size();
+        return n;
+    }
+
+    const Axes3D* first_axes3d(const Figure* fig)
+    {
+        if (!fig)
+            return nullptr;
+        for (const auto& ax : fig->all_axes())
+            if (auto* a3 = dynamic_cast<const Axes3D*>(ax.get()))
+                return a3;
+        return nullptr;
+    }
+
+    void expect_3d_figure(DesignCheck& c, FigureId id, size_t min_series)
+    {
+        expect_active_figure(c, id, "the new 3D figure");
+        const Axes3D* a3 = first_axes3d(design_active_figure());
+        c.expect(a3 != nullptr, "active figure has 3D axes");
+        c.expect(a3 && a3->series().size() >= min_series,
+                 "3D axes hold " + std::to_string(min_series) + "+ series");
+    }
+
+    LayoutManager* design_layout()
+    {
+        auto* ui = app_->ui_context();
+        return (ui && ui->imgui_ui) ? &ui->imgui_ui->get_layout_manager() : nullptr;
+    }
+
+    void expect_inspector_open(DesignCheck& c, bool open)
+    {
+        auto* lm = design_layout();
+        c.expect(lm && lm->is_inspector_visible() == open,
+                 std::string("inspector ") + (open ? "visible" : "hidden") + " in layout");
+        if (open)
+        {
+            c.expect(lm && lm->inspector_animated_width() > 100.0f,
+                     "inspector slid fully open (animated width "
+                         + std::to_string(lm ? lm->inspector_animated_width() : 0.0f) + "px)");
+            c.expect(imgui_window_drawn(design_imgui(), "##inspector"), "inspector window drawn");
+        }
+        else
+        {
+            c.expect(lm && lm->inspector_animated_width() < 1.0f,
+                     "inspector fully collapsed (animated width "
+                         + std::to_string(lm ? lm->inspector_animated_width() : 0.0f) + "px)");
+        }
+    }
+
+    void expect_split_panes(DesignCheck& c, size_t panes)
+    {
+        auto*        ui = app_->ui_context();
+        const size_t n  = ui ? ui->dock_system.pane_count() : 0;
+        c.expect(n == panes,
+                 "split view has " + std::to_string(panes) + " panes (actual " + std::to_string(n)
+                     + ")");
+        if (ui && panes > 1)
+        {
+            auto infos   = ui->dock_system.get_pane_infos();
+            bool visible = infos.size() == panes;
+            for (const auto& pi : infos)
+                visible = visible && pi.bounds.w > 50.0f && pi.bounds.h > 50.0f
+                          && pi.figure_index != INVALID_FIGURE_ID;
+            c.expect(visible, "every pane has a figure and a visible (>50px) area");
+
+            // Legend windows ("##legend_<figure ptr>_<axes>") belong only to
+            // figures visible in a pane, never to ones behind another tab.
+            std::set<std::string> visible_keys;
+            for (const auto& pi : infos)
+                if (Figure* pf = app_->figure_registry().get(pi.figure_index))
+                    visible_keys.insert(
+                        std::format("##legend_{:x}_", reinterpret_cast<uintptr_t>(pf)));
+            std::string   ghosts;
+            ImGuiContext* ctx = design_imgui();
+            for (ImGuiWindow* w : ctx ? ctx->Windows : ImVector<ImGuiWindow*>{})
+            {
+                if (!w || !w->Active || !w->Name)
+                    continue;
+                std::string_view name(w->Name);
+                if (name.rfind("##legend_", 0) != 0 || name.rfind("##legend_toggle", 0) == 0)
+                    continue;
+                bool ok = false;
+                for (const auto& k : visible_keys)
+                    ok = ok || name.rfind(k, 0) == 0;
+                if (!ok)
+                    ghosts += std::string(name) + " ";
+            }
+            c.expect(ghosts.empty(),
+                     "only visible pane figures draw legends (ghosts: " + ghosts + ")");
+        }
+    }
+
+    void expect_theme(DesignCheck& c, const std::string& name)
+    {
+        auto* ui = app_->ui_context();
+        c.expect(ui && ui->theme_mgr && ui->theme_mgr->current_theme_name() == name,
+                 "theme is '" + name + "' (actual '"
+                     + (ui && ui->theme_mgr ? ui->theme_mgr->current_theme_name() : "?") + "')");
+        c.expect(ui && ui->theme_mgr && !ui->theme_mgr->is_transitioning(),
+                 "theme transition finished");
+    }
+
+    void expect_swapchain(DesignCheck& c, WindowContext* wctx, uint32_t w, uint32_t h)
+    {
+        c.expect(wctx && wctx->swapchain.extent.width == w && wctx->swapchain.extent.height == h,
+                 "swapchain is " + std::to_string(w) + "x" + std::to_string(h) + " (actual "
+                     + (wctx ? std::to_string(wctx->swapchain.extent.width) + "x"
+                                   + std::to_string(wctx->swapchain.extent.height)
+                             : std::string("none"))
+                     + ")");
+    }
+
+    void expect_no_transient_ui(DesignCheck& c)
+    {
+        auto* ui = app_->ui_context();
+        c.expect(ui && !ui->cmd_palette.is_open(), "command palette closed");
+        c.expect(ui && !ui->settings_panel.is_visible(), "settings closed");
+        c.expect(ui && ui->imgui_ui && !ui->imgui_ui->is_menu_open(), "no menu open");
+        c.expect(imgui_drawn_popups(design_imgui()) == 0, "no ImGui popup open");
+    }
+
+    #ifdef SPECTRA_USE_GLFW
+    // Move the real (X11/Xvfb) pointer over the primary window so GLFW, ImGui
+    // and the InputHandler all see a genuine hover at (x, y) window coords.
+    void move_pointer(double x, double y, WindowContext* wctx = nullptr)
+    {
+        auto* wm = app_->window_manager();
+        if (!wctx && wm && !wm->windows().empty())
+            wctx = wm->windows()[0];
+        if (!wctx || !wctx->glfw_window)
+            return;
+        auto* win = static_cast<GLFWwindow*>(wctx->glfw_window);
+        glfwSetCursorPos(win, x, y);
+        // GLFW drops the X11 MotionNotify that its own warp generates, so the
+        // app's cursor callback (InputHandler + ImGui backend) never hears of
+        // it.  Deliver that motion through the installed callback chain, as a
+        // real pointer move would.
+        GLFWcursorposfun cb = glfwSetCursorPosCallback(win, nullptr);
+        glfwSetCursorPosCallback(win, cb);
+        if (cb)
+            cb(win, x, y);
+        pump_frames(1);
+    }
+
+    // Left-click at (x, y) in the window's ImGui context (pointer moved first).
+    void click_imgui(double x, double y, WindowContext* wctx = nullptr)
+    {
+        move_pointer(x, y, wctx);
+        ImGuiContext* ctx = design_imgui(wctx);
+        if (!ctx)
+            return;
+        ImGuiContext* prev = ImGui::GetCurrentContext();
+        ImGui::SetCurrentContext(ctx);
+        ImGui::GetIO().AddMouseButtonEvent(ImGuiMouseButton_Left, true);
+        ImGui::SetCurrentContext(prev);
+        pump_frames(1);
+        prev = ImGui::GetCurrentContext();
+        ImGui::SetCurrentContext(ctx);
+        ImGui::GetIO().AddMouseButtonEvent(ImGuiMouseButton_Left, false);
+        ImGui::SetCurrentContext(prev);
+        pump_frames(1);
+    }
+
+    bool pointer_position(double& x, double& y, WindowContext* wctx = nullptr)
+    {
+        auto* wm = app_->window_manager();
+        if (!wctx && wm && !wm->windows().empty())
+            wctx = wm->windows()[0];
+        if (!wctx || !wctx->glfw_window)
+            return false;
+        glfwGetCursorPos(static_cast<GLFWwindow*>(wctx->glfw_window), &x, &y);
+        return true;
+    }
+    #endif
+
+    // Put the pointer back where the design review found it.
+    void restore_pointer()
+    {
+    #ifdef SPECTRA_USE_GLFW
+        if (saved_pointer_valid_)
+            move_pointer(saved_pointer_x_, saved_pointer_y_);
+    #endif
+    }
+
+    // With panes [left-top, left-bottom | right], split the right column too
+    // (moves a spare figure of the left-top pane below the right pane), giving
+    // a 2x2 grid — the same pane operation view.split_down performs.
+    void split_right_column_down()
+    {
+        auto* ui = app_->ui_context();
+        if (!ui)
+            return;
+        auto&                       dock  = ui->dock_system;
+        auto                        infos = dock.get_pane_infos();
+        const DockSystem::PaneInfo* right = nullptr;
+        for (const auto& pi : infos)
+            if (!right || pi.bounds.x > right->bounds.x)
+                right = &pi;
+        SplitPane* donor = nullptr;
+        for (const auto& pi : infos)
+        {
+            SplitPane* pane = dock.split_view().pane_for_figure(pi.figure_index);
+            if (pane && pane->figure_count() >= 2
+                && (!donor || pane->figure_count() > donor->figure_count()))
+                donor = pane;
+        }
+        if (!right || !donor)
+            return;
+        const FigureId right_fig = right->figure_index;
+        FigureId       move      = INVALID_FIGURE_ID;
+        for (FigureId f : donor->figure_indices())
+            if (f != donor->figure_index())
+                move = f;
+        if (move == INVALID_FIGURE_ID)
+            return;
+        donor->remove_figure(move);
+        dock.split_figure_down(right_fig, move);
+    }
+
+    // Hover the pointer at fraction (fx, fy) of the active figure's first plot
+    // area.  Returns the target screen position.
+    bool hover_plot(float fx, float fy, double& out_x, double& out_y)
+    {
+        Figure* fig = design_active_figure();
+        if (!fig || fig->axes().empty() || !fig->axes()[0])
+            return false;
+        const Rect vp = fig->axes()[0]->viewport();
+        if (vp.w <= 0.0f || vp.h <= 0.0f)
+            return false;
+        out_x = std::floor(vp.x + vp.w * fx) + 0.5;
+        out_y = std::floor(vp.y + vp.h * fy) + 0.5;
+    #ifdef SPECTRA_USE_GLFW
+        move_pointer(out_x, out_y);
+        return true;
+    #else
+        return false;
+    #endif
+    }
+
+    struct ViewRange
+    {
+        double x0 = 0.0, x1 = 0.0, y0 = 0.0, y1 = 0.0;
+    };
+    ViewRange active_view_range()
+    {
+        ViewRange r;
+        Figure*   f = design_active_figure();
+        if (f && !f->axes().empty() && f->axes()[0])
+        {
+            auto xl = f->axes()[0]->x_limits();
+            auto yl = f->axes()[0]->y_limits();
+            r       = {xl.min, xl.max, yl.min, yl.max};
+        }
+        return r;
+    }
+
+    // Visible x/y spans shrank to at most `max_ratio` of the pre-zoom spans.
+    void expect_zoomed(DesignCheck& c, const ViewRange& before, double max_ratio)
+    {
+        const ViewRange now = active_view_range();
+        const double    bx  = before.x1 - before.x0;
+        const double    by  = before.y1 - before.y0;
+        c.expect(bx > 0.0 && (now.x1 - now.x0) < bx * max_ratio,
+                 "x span zoomed in (" + std::to_string(now.x1 - now.x0) + " vs "
+                     + std::to_string(bx) + ")");
+        c.expect(by > 0.0 && (now.y1 - now.y0) < by * max_ratio,
+                 "y span zoomed in (" + std::to_string(now.y1 - now.y0) + " vs "
+                     + std::to_string(by) + ")");
+    }
+
+    // Pump until hover overlays (crosshair fade-in) settle, bounded.
+    void settle_overlays()
+    {
+        auto* ui = app_->ui_context();
+        for (int i = 0; i < 90; ++i)
+        {
+            pump_frames(1);
+            if (ui && ui->data_interaction && ui->data_interaction->crosshair_active()
+                && ui->data_interaction->crosshair_opacity() >= 1.0f)
+                break;
+        }
+    }
+
+    // Crosshair enabled, pointer readout at (x, y) inside the plot and the
+    // overlay fully faded in for the captured frame.
+    void expect_crosshair_at(DesignCheck& c, double x, double y)
+    {
+        auto* ui = app_->ui_context();
+        auto* di = ui ? ui->data_interaction.get() : nullptr;
+        c.expect(di && di->crosshair_active(), "crosshair enabled");
+        if (!di)
+            return;
+        const CursorReadout& cur = di->last_cursor();
+        c.expect(cur.valid, "pointer readout is over a plot (valid data coordinates)");
+        c.near(cur.screen_x, x, 1.0, "pointer x at hover target");
+        c.near(cur.screen_y, y, 1.0, "pointer y at hover target");
+        Figure* fig = design_active_figure();
+        c.expect(fig && !fig->axes().empty() && fig->axes()[0]
+                     && rect_contains(fig->axes()[0]->viewport(), cur.screen_x, cur.screen_y),
+                 "pointer inside the plot area");
+        c.expect(di->crosshair_opacity() > 0.99f,
+                 "crosshair fully drawn (opacity " + std::to_string(di->crosshair_opacity()) + ")");
+    }
+#endif
 
     void run_design_review()
     {
         fprintf(stderr, "[QA/Design] Starting design review capture...\n");
+#if defined(SPECTRA_USE_IMGUI) && defined(SPECTRA_USE_GLFW)
+        saved_pointer_valid_ = pointer_position(saved_pointer_x_, saved_pointer_y_);
+#endif
 
         // ── 1. Default state: single figure with simple line ─────────────
         pump_frames(10);
-        named_screenshot("01_default_single_line");
+        named_screenshot("01_default_single_line",
+                         [&](DesignCheck& c)
+                         {
+                             Figure* f = design_active_figure();
+                             c.expect(f && f->axes().size() == 1, "one 2D axes");
+                             c.expect(series_count(f) == 1, "one series");
+                             c.expect(f && !f->axes().empty() && !f->axes()[0]->series().empty()
+                                          && f->axes()[0]->series()[0]->label() == "initial",
+                                      "series labelled 'initial'");
+                             expect_no_transient_ui(c);
+                         });
 
         // ── 2. Empty axes (no data) ──────────────────────────────────────
         {
@@ -2683,7 +3422,15 @@ class QAAgent
             fig.subplot(1, 1, 1);
 
             pump_frames(10);
-            named_screenshot("02_empty_axes");
+            const FigureId fid = newest_figure_id();
+            named_screenshot("02_empty_axes",
+                             [&](DesignCheck& c)
+                             {
+                                 expect_active_figure(c, fid, "the new empty figure");
+                                 Figure* f = design_active_figure();
+                                 c.expect(f && f->axes().size() == 1, "one 2D axes");
+                                 c.expect(series_count(f) == 0, "axes hold no series");
+                             });
         }
 
         // ── 3. Multiple series (line + scatter) ──────────────────────────
@@ -2706,7 +3453,17 @@ class QAAgent
             ax.ylabel("Amplitude");
 
             pump_frames(10);
-            named_screenshot("03_multi_series_with_labels");
+            const FigureId fid = newest_figure_id();
+            named_screenshot("03_multi_series_with_labels",
+                             [&](DesignCheck& c)
+                             {
+                                 expect_active_figure(c, fid, "the new multi-series figure");
+                                 Figure* f = design_active_figure();
+                                 c.expect(series_count(f) == 3, "three series");
+                                 c.expect(f && !f->axes().empty()
+                                              && f->axes()[0]->title() == "Multi-Series Plot",
+                                          "title 'Multi-Series Plot'");
+                             });
         }
 
         // ── 4. Dense data (10K points) ───────────────────────────────────
@@ -2723,7 +3480,19 @@ class QAAgent
             ax.title("Dense Data (10K points)");
 
             pump_frames(10);
-            named_screenshot("04_dense_data_10k");
+            const FigureId fid = newest_figure_id();
+            named_screenshot(
+                "04_dense_data_10k",
+                [&](DesignCheck& c)
+                {
+                    expect_active_figure(c, fid, "the new dense figure");
+                    Figure* f = design_active_figure();
+                    auto*   ser =
+                        (f && !f->axes().empty() && !f->axes()[0]->series().empty())
+                              ? dynamic_cast<const LineSeries*>(f->axes()[0]->series()[0].get())
+                              : nullptr;
+                    c.expect(ser && ser->point_count() == 10000, "line series has 10000 points");
+                });
         }
 
         // ── 5. Subplot grid (2x2) ───────────────────────────────────────
@@ -2746,7 +3515,15 @@ class QAAgent
             }
 
             pump_frames(10);
-            named_screenshot("05_subplot_2x2_grid");
+            const FigureId fid = newest_figure_id();
+            named_screenshot("05_subplot_2x2_grid",
+                             [&](DesignCheck& c)
+                             {
+                                 expect_active_figure(c, fid, "the new 2x2 figure");
+                                 Figure* f = design_active_figure();
+                                 c.expect(f && f->axes().size() == 4, "four subplots");
+                                 c.expect(series_count(f) == 4, "one series per subplot");
+                             });
         }
 
         // ── 6. Large scatter plot ────────────────────────────────────────
@@ -2764,7 +3541,19 @@ class QAAgent
             ax.title("Scatter Plot (2K points)");
 
             pump_frames(10);
-            named_screenshot("06_scatter_2k_normal");
+            const FigureId fid = newest_figure_id();
+            named_screenshot(
+                "06_scatter_2k_normal",
+                [&](DesignCheck& c)
+                {
+                    expect_active_figure(c, fid, "the new scatter figure");
+                    Figure* f = design_active_figure();
+                    auto*   ser =
+                        (f && !f->axes().empty() && !f->axes()[0]->series().empty())
+                              ? dynamic_cast<const ScatterSeries*>(f->axes()[0]->series()[0].get())
+                              : nullptr;
+                    c.expect(ser && ser->point_count() == 2000, "scatter series has 2000 points");
+                });
         }
 
         // ── 7. UI panels: inspector open ─────────────────────────────────
@@ -2775,7 +3564,8 @@ class QAAgent
             {
                 ui->cmd_registry.execute("panel.toggle_inspector");
                 pump_frames(10);
-                named_screenshot("07_inspector_panel_open");
+                named_screenshot("07_inspector_panel_open",
+                                 [&](DesignCheck& c) { expect_inspector_open(c, true); });
                 ui->cmd_registry.execute("panel.toggle_inspector");
                 pump_frames(5);
             }
@@ -2788,7 +3578,15 @@ class QAAgent
             {
                 ui->cmd_registry.execute("app.command_palette");
                 pump_frames(10);
-                named_screenshot("08_command_palette_open");
+                named_screenshot(
+                    "08_command_palette_open",
+                    [&](DesignCheck& c)
+                    {
+                        c.expect(ui->cmd_palette.is_open(), "command palette open");
+                        c.expect(imgui_window_drawn(design_imgui(), "##command_palette"),
+                                 "palette window drawn");
+                        c.expect(ui->cmd_palette.result_count() > 0, "palette lists commands");
+                    });
                 ui->cmd_registry.execute("app.cancel");
                 pump_frames(5);
             }
@@ -2801,7 +3599,8 @@ class QAAgent
             {
                 ui->cmd_registry.execute("view.split_right");
                 pump_frames(10);
-                named_screenshot("09_split_view_right");
+                named_screenshot("09_split_view_right",
+                                 [&](DesignCheck& c) { expect_split_panes(c, 2); });
             }
         }
 
@@ -2810,9 +3609,13 @@ class QAAgent
             auto* ui = app_->ui_context();
             if (ui)
             {
+                // view.split_down splits only the active (left) pane -> 3 panes.
                 ui->cmd_registry.execute("view.split_down");
+                pump_frames(2);
+                split_right_column_down();
                 pump_frames(10);
-                named_screenshot("10_split_view_4_panes");
+                named_screenshot("10_split_view_4_panes",
+                                 [&](DesignCheck& c) { expect_split_panes(c, 4); });
                 // Reset splits
                 ui->cmd_registry.execute("view.reset_splits");
                 pump_frames(5);
@@ -2826,7 +3629,7 @@ class QAAgent
             {
                 ui->cmd_registry.execute("theme.dark");
                 pump_frames(10);
-                named_screenshot("11_theme_dark");
+                named_screenshot("11_theme_dark", [&](DesignCheck& c) { expect_theme(c, "dark"); });
             }
         }
 
@@ -2837,7 +3640,8 @@ class QAAgent
             {
                 ui->cmd_registry.execute("theme.light");
                 pump_frames(30);   // D25 fix: allow theme transition to fully complete
-                named_screenshot("12_theme_light");
+                named_screenshot("12_theme_light",
+                                 [&](DesignCheck& c) { expect_theme(c, "light"); });
                 // Switch back to dark
                 ui->cmd_registry.execute("theme.dark");
                 pump_frames(30);
@@ -2860,7 +3664,17 @@ class QAAgent
                     }
                 }
                 pump_frames(10);
-                named_screenshot("13_grid_enabled");
+                named_screenshot("13_grid_enabled",
+                                 [&](DesignCheck& c)
+                                 {
+                                     Figure* f  = design_active_figure();
+                                     bool    on = f && !f->axes().empty();
+                                     if (f)
+                                         for (const auto& ax : f->axes())
+                                             on = on && ax && ax->grid_enabled();
+                                     c.expect(on,
+                                              "grid enabled on every axes of the active figure");
+                                 });
             }
         }
 
@@ -2875,7 +3689,13 @@ class QAAgent
                 {
                     active_fig->legend().visible = true;
                     pump_frames(10);
-                    named_screenshot("14_legend_visible");
+                    named_screenshot("14_legend_visible",
+                                     [&](DesignCheck& c)
+                                     {
+                                         Figure* f = design_active_figure();
+                                         c.expect(f && f->legend().visible, "legend visible");
+                                         c.expect(series_count(f) > 0, "legend has entries");
+                                     });
                     active_fig->legend().visible = false;
                 }
             }
@@ -2893,10 +3713,19 @@ class QAAgent
                 if (active_fig)
                     active_fig->legend().visible = true;
                 pump_frames(10);
-                named_screenshot("15_crosshair_mode");
+                double     hx = 0.0, hy = 0.0;
+                const bool hovered = hover_plot(0.62f, 0.40f, hx, hy);
+                settle_overlays();
+                named_screenshot("15_crosshair_mode",
+                                 [&](DesignCheck& c)
+                                 {
+                                     c.expect(hovered, "pointer moved over the plot");
+                                     expect_crosshair_at(c, hx, hy);
+                                 });
                 ui->data_interaction->set_crosshair(false);
                 if (active_fig)
                     active_fig->legend().visible = false;
+                restore_pointer();
                 pump_frames(5);
             }
         }
@@ -2906,10 +3735,12 @@ class QAAgent
             auto* ui = app_->ui_context();
             if (ui)
             {
+                const ViewRange pre_zoom = active_view_range();
                 for (int i = 0; i < 5; ++i)
                     ui->cmd_registry.execute("view.zoom_in");
                 pump_frames(10);
-                named_screenshot("16_zoomed_in");
+                named_screenshot("16_zoomed_in",
+                                 [&](DesignCheck& c) { expect_zoomed(c, pre_zoom, 0.8); });
                 ui->cmd_registry.execute("view.home");
                 pump_frames(5);
             }
@@ -2918,10 +3749,18 @@ class QAAgent
         // ── 17. Multiple tabs ───────────────────────────────────────────
         {
             // Create several figures to show tab bar
+            auto*        ui          = app_->ui_context();
+            const size_t tabs_before = ui->fig_mgr->count();
             for (int i = 0; i < 4; ++i)
                 create_random_figure();
             pump_frames(10);
-            named_screenshot("17_multiple_tabs");
+            named_screenshot("17_multiple_tabs",
+                             [&](DesignCheck& c)
+                             {
+                                 c.expect(ui->fig_mgr->count() == tabs_before + 4,
+                                          "four more figure tabs ("
+                                              + std::to_string(ui->fig_mgr->count()) + " total)");
+                             });
         }
 
         // ── 18. Timeline panel ──────────────────────────────────────────
@@ -2931,7 +3770,14 @@ class QAAgent
             {
                 ui->cmd_registry.execute("panel.toggle_timeline");
                 pump_frames(10);
-                named_screenshot("18_timeline_panel");
+                named_screenshot(
+                    "18_timeline_panel",
+                    [&](DesignCheck& c)
+                    {
+                        c.expect(ui->imgui_ui->is_timeline_visible(), "timeline visible");
+                        c.expect(imgui_window_drawn(design_imgui(), "##timeline_panel"),
+                                 "timeline window drawn");
+                    });
                 ui->cmd_registry.execute("panel.toggle_timeline");
                 pump_frames(5);
             }
@@ -2958,7 +3804,8 @@ class QAAgent
             ax.title("3D Surface");
 
             pump_frames(15);
-            named_screenshot("19_3d_surface");
+            const FigureId fid = newest_figure_id();
+            named_screenshot("19_3d_surface", [&](DesignCheck& c) { expect_3d_figure(c, fid, 1); });
         }
 
         // ── 20. 3D scatter plot ─────────────────────────────────────────
@@ -2978,7 +3825,8 @@ class QAAgent
             ax.title("3D Scatter");
 
             pump_frames(15);
-            named_screenshot("20_3d_scatter");
+            const FigureId fid = newest_figure_id();
+            named_screenshot("20_3d_scatter", [&](DesignCheck& c) { expect_3d_figure(c, fid, 1); });
         }
 
         // ══════════════════════════════════════════════════════════════════
@@ -3011,7 +3859,9 @@ class QAAgent
             ax.grid_planes(Axes3D::GridPlane::All);
 
             pump_frames(15);
-            named_screenshot("21_3d_surface_labeled");
+            const FigureId fid = newest_figure_id();
+            named_screenshot("21_3d_surface_labeled",
+                             [&](DesignCheck& c) { expect_3d_figure(c, fid, 1); });
         }
 
         // ── 22. 3D surface — rotated camera (side view) ───────────────
@@ -3034,7 +3884,16 @@ class QAAgent
             ax.camera().set_azimuth(0.0f).set_elevation(15.0f).set_distance(7.0f);
 
             pump_frames(15);
-            named_screenshot("22_3d_camera_side_view");
+            const FigureId fid = newest_figure_id();
+            named_screenshot(
+                "22_3d_camera_side_view",
+                [&](DesignCheck& c)
+                {
+                    expect_3d_figure(c, fid, 1);
+                    const Axes3D* a3 = first_axes3d(design_active_figure());
+                    c.near(a3 ? a3->camera().azimuth : -1.0, 0.0, 0.01, "camera azimuth");
+                    c.near(a3 ? a3->camera().elevation : -1.0, 15.0, 0.01, "camera elevation");
+                });
         }
 
         // ── 23. 3D surface — top-down camera ──────────────────────────
@@ -3057,7 +3916,15 @@ class QAAgent
             ax.camera().set_azimuth(45.0f).set_elevation(85.0f).set_distance(6.0f);
 
             pump_frames(15);
-            named_screenshot("23_3d_camera_top_down");
+            const FigureId fid = newest_figure_id();
+            named_screenshot(
+                "23_3d_camera_top_down",
+                [&](DesignCheck& c)
+                {
+                    expect_3d_figure(c, fid, 1);
+                    const Axes3D* a3 = first_axes3d(design_active_figure());
+                    c.near(a3 ? a3->camera().elevation : -1.0, 85.0, 0.01, "camera elevation");
+                });
         }
 
         // ── 24. 3D line plot (helix) ──────────────────────────────────
@@ -3081,7 +3948,9 @@ class QAAgent
             ax.zlabel("Z");
 
             pump_frames(15);
-            named_screenshot("24_3d_line_helix");
+            const FigureId fid = newest_figure_id();
+            named_screenshot("24_3d_line_helix",
+                             [&](DesignCheck& c) { expect_3d_figure(c, fid, 1); });
         }
 
         // ── 25. 3D scatter with multiple clusters ─────────────────────
@@ -3112,7 +3981,9 @@ class QAAgent
             ax.camera().set_azimuth(35.0f).set_elevation(24.0f).set_distance(8.0f);
 
             pump_frames(15);
-            named_screenshot("25_3d_scatter_clusters");
+            const FigureId fid = newest_figure_id();
+            named_screenshot("25_3d_scatter_clusters",
+                             [&](DesignCheck& c) { expect_3d_figure(c, fid, 2); });
         }
 
         // ── 26. 3D orthographic projection ────────────────────────────
@@ -3136,7 +4007,17 @@ class QAAgent
             ax.camera().set_ortho_size(8.0f);
 
             pump_frames(15);
-            named_screenshot("26_3d_orthographic");
+            const FigureId fid = newest_figure_id();
+            named_screenshot(
+                "26_3d_orthographic",
+                [&](DesignCheck& c)
+                {
+                    expect_3d_figure(c, fid, 1);
+                    const Axes3D* a3 = first_axes3d(design_active_figure());
+                    c.expect(
+                        a3 && a3->camera().projection_mode == Camera::ProjectionMode::Orthographic,
+                        "orthographic projection");
+                });
         }
 
 #ifdef SPECTRA_USE_IMGUI
@@ -3167,7 +4048,17 @@ class QAAgent
                 // Cycle to series selection
                 ui->cmd_registry.execute("series.cycle_selection");
                 pump_frames(10);
-                named_screenshot("27_inspector_series_stats");
+                named_screenshot(
+                    "27_inspector_series_stats",
+                    [&](DesignCheck& c)
+                    {
+                        expect_inspector_open(c, true);
+                        c.expect(ui->imgui_ui->is_inspector_section_series(),
+                                 "inspector shows the Series section");
+                        c.expect(ui->imgui_ui->selection_context().type == ui::SelectionType::Series
+                                     && ui->imgui_ui->selection_context().series != nullptr,
+                                 "a series is selected (properties + statistics shown)");
+                    });
                 ui->cmd_registry.execute("panel.toggle_inspector");
                 pump_frames(5);
             }
@@ -3178,9 +4069,21 @@ class QAAgent
             auto* ui = app_->ui_context();
             if (ui)
             {
+                // Show the Axes section (the inspector otherwise keeps the
+                // previous capture's series selection).
+                ui->imgui_ui->set_inspector_section_axes();
                 ui->cmd_registry.execute("panel.toggle_inspector");
                 pump_frames(10);
-                named_screenshot("28_inspector_axes_properties");
+                named_screenshot(
+                    "28_inspector_axes_properties",
+                    [&](DesignCheck& c)
+                    {
+                        expect_inspector_open(c, true);
+                        c.expect(ui->imgui_ui->is_inspector_section_axes(),
+                                 "inspector shows the Axes section");
+                        c.expect(ui->imgui_ui->selection_context().type == ui::SelectionType::Axes,
+                                 "axes selected in the inspector");
+                    });
                 ui->cmd_registry.execute("panel.toggle_inspector");
                 pump_frames(5);
             }
@@ -3214,7 +4117,17 @@ class QAAgent
 
                 ui->cmd_registry.execute("panel.toggle_timeline");
                 pump_frames(15);
-                named_screenshot("29_timeline_with_keyframes");
+                named_screenshot(
+                    "29_timeline_with_keyframes",
+                    [&](DesignCheck& c)
+                    {
+                        c.expect(ui->imgui_ui->is_timeline_visible()
+                                     && imgui_window_drawn(design_imgui(), "##timeline_panel"),
+                                 "timeline drawn");
+                        c.expect(te.track_count() >= 3, "timeline has 3+ tracks");
+                        c.expect(te.total_keyframe_count() >= 10, "timeline has 10+ keyframes");
+                        c.near(te.playhead(), 1.8, 0.01, "playhead");
+                    });
                 ui->cmd_registry.execute("panel.toggle_timeline");
                 pump_frames(5);
             }
@@ -3229,9 +4142,20 @@ class QAAgent
                 ui->cmd_registry.execute("panel.toggle_timeline");
                 pump_frames(5);
                 // Start playback and capture mid-play
-                te.play();
+                te.play();   // from Stopped: rewinds the playhead to 0
+                const float playhead_before = te.playhead();
                 pump_frames(30);   // Let it advance ~30 frames
-                named_screenshot("30_timeline_playing");
+                named_screenshot(
+                    "30_timeline_playing",
+                    [&](DesignCheck& c)
+                    {
+                        c.expect(ui->imgui_ui->is_timeline_visible()
+                                     && imgui_window_drawn(design_imgui(), "##timeline_panel"),
+                                 "timeline drawn");
+                        c.expect(te.is_playing(), "timeline playing");
+                        c.expect(te.playhead() > playhead_before,
+                                 "playhead advanced during playback");
+                    });
                 te.stop();
                 ui->cmd_registry.execute("panel.toggle_timeline");
                 pump_frames(5);
@@ -3250,7 +4174,17 @@ class QAAgent
 
                 ui->cmd_registry.execute("panel.toggle_timeline");
                 pump_frames(15);
-                named_screenshot("31_timeline_loop_region");
+                named_screenshot(
+                    "31_timeline_loop_region",
+                    [&](DesignCheck& c)
+                    {
+                        c.expect(ui->imgui_ui->is_timeline_visible()
+                                     && imgui_window_drawn(design_imgui(), "##timeline_panel"),
+                                 "timeline drawn");
+                        c.expect(te.loop_mode() == LoopMode::Loop, "loop mode on");
+                        c.near(te.loop_in(), 1.0, 0.001, "loop in");
+                        c.near(te.loop_out(), 3.5, 0.001, "loop out");
+                    });
                 // Clean up
                 te.set_loop_mode(LoopMode::None);
                 te.clear_loop_region();
@@ -3266,7 +4200,14 @@ class QAAgent
             {
                 ui->cmd_registry.execute("panel.toggle_curve_editor");
                 pump_frames(15);
-                named_screenshot("32_curve_editor");
+                named_screenshot("32_curve_editor",
+                                 [&](DesignCheck& c)
+                                 {
+                                     c.expect(ui->imgui_ui->is_curve_editor_visible(),
+                                              "curve editor visible");
+                                     c.expect(imgui_window_drawn(design_imgui(), "Curve Editor"),
+                                              "curve editor window drawn");
+                                 });
                 ui->cmd_registry.execute("panel.toggle_curve_editor");
                 pump_frames(5);
             }
@@ -3304,7 +4245,15 @@ class QAAgent
             {
                 ui->cmd_registry.execute("view.split_right");
                 pump_frames(15);
-                named_screenshot("33_split_view_two_figures");
+                named_screenshot("33_split_view_two_figures",
+                                 [&](DesignCheck& c)
+                                 {
+                                     expect_split_panes(c, 2);
+                                     auto infos = ui->dock_system.get_pane_infos();
+                                     c.expect(infos.size() == 2
+                                                  && infos[0].figure_index != infos[1].figure_index,
+                                              "panes show two different figures");
+                                 });
                 ui->cmd_registry.execute("view.reset_splits");
                 pump_frames(5);
             }
@@ -3333,6 +4282,7 @@ class QAAgent
             ax.title("Multi-Signal Overlay");
             ax.xlabel("Time (s)");
             ax.ylabel("Value");
+            const FigureId fid = newest_figure_id();
 
             pump_frames(10);
 
@@ -3345,10 +4295,24 @@ class QAAgent
                 if (ui->data_interaction)
                     ui->data_interaction->set_crosshair(true);
                 pump_frames(10);
-                named_screenshot("34_multi_series_full_chrome");
+                double     hx = 0.0, hy = 0.0;
+                const bool hovered = hover_plot(0.45f, 0.35f, hx, hy);
+                settle_overlays();
+                named_screenshot("34_multi_series_full_chrome",
+                                 [&](DesignCheck& c)
+                                 {
+                                     expect_active_figure(c, fid, "the new multi-signal figure");
+                                     Figure* f = design_active_figure();
+                                     c.expect(series_count(f) == 4, "four series");
+                                     c.expect(f && f->axes()[0]->grid_enabled(), "grid on");
+                                     c.expect(f && f->legend().visible, "legend visible");
+                                     c.expect(hovered, "pointer moved over the plot");
+                                     expect_crosshair_at(c, hx, hy);
+                                 });
                 // Restore defaults
                 if (ui->data_interaction)
                     ui->data_interaction->set_crosshair(false);
+                restore_pointer();
                 pump_frames(5);
             }
         }
@@ -3370,10 +4334,29 @@ class QAAgent
             auto* ui = app_->ui_context();
             if (ui)
             {
+                const ViewRange pre_zoom = active_view_range();
                 for (int i = 0; i < 5; ++i)
                     ui->cmd_registry.execute("view.zoom_in");
                 pump_frames(10);
-                named_screenshot("35_zoom_data_center_verify");
+                named_screenshot("35_zoom_data_center_verify",
+                                 [&](DesignCheck& c)
+                                 {
+                                     expect_zoomed(c, pre_zoom, 0.8);
+                                     Figure* f = design_active_figure();
+                                     if (f && !f->axes().empty())
+                                     {
+                                         auto xl = f->axes()[0]->x_limits();
+                                         auto yl = f->axes()[0]->y_limits();
+                                         c.near(0.5 * (xl.min + xl.max),
+                                                0.5 * (pre_zoom.x0 + pre_zoom.x1),
+                                                0.05 * (pre_zoom.x1 - pre_zoom.x0),
+                                                "zoom keeps x center");
+                                         c.near(0.5 * (yl.min + yl.max),
+                                                0.5 * (pre_zoom.y0 + pre_zoom.y1),
+                                                0.05 * (pre_zoom.y1 - pre_zoom.y0),
+                                                "zoom keeps y center");
+                                     }
+                                 });
                 ui->cmd_registry.execute("view.home");
                 pump_frames(5);
             }
@@ -3396,8 +4379,32 @@ class QAAgent
                 if (!ids.empty())
                     ui->fig_mgr->queue_switch(ids[0]);
                 pump_frames(10);
-                named_screenshot("36_menu_bar_activated");
+                // Open the File menu the way a user does: point at its
+                // command-bar button and click it.
+                Rect file_btn{};
+                if (ui->imgui_ui->menu_button_rect("File", file_btn))
+                    click_imgui(file_btn.x + file_btn.w * 0.5, file_btn.y + file_btn.h * 0.5);
+                pump_frames(6);   // popup appear animation
+                named_screenshot(
+                    "36_menu_bar_activated",
+                    [&](DesignCheck& c)
+                    {
+                        c.expect(ui->imgui_ui->is_menu_open(), "a command-bar menu is open");
+                        c.expect(ui->imgui_ui->open_menu_label() == "File",
+                                 "open menu is 'File' (actual '" + ui->imgui_ui->open_menu_label()
+                                     + "')");
+                        c.expect(imgui_drawn_popups(design_imgui(), "##commandbar") >= 1,
+                                 "menu popup drawn");
+                    });
             }
+        }
+
+        // Leave the File menu: pointer back off the menu closes it (auto-close).
+        if (auto* ui36 = app_->ui_context(); ui36 && ui36->imgui_ui)
+        {
+            restore_pointer();
+            ui36->imgui_ui->dismiss_automation_capture();
+            pump_frames(3);
         }
 
         // ── 37. Command palette with search text ────────────────────────
@@ -3417,7 +4424,18 @@ class QAAgent
                     pump_frames(1);
                 }
                 pump_frames(5);
-                named_screenshot("37_command_palette_with_search");
+                named_screenshot(
+                    "37_command_palette_with_search",
+                    [&](DesignCheck& c)
+                    {
+                        c.expect(ui->cmd_palette.is_open()
+                                     && imgui_window_drawn(design_imgui(), "##command_palette"),
+                                 "palette drawn");
+                        c.expect(std::string(ui->cmd_palette.query()) == "theme",
+                                 std::string("query is 'theme' (actual '") + ui->cmd_palette.query()
+                                     + "')");
+                        c.expect(ui->cmd_palette.result_count() > 0, "query has results");
+                    });
 
                 // Close palette
                 ui->cmd_registry.execute("app.cancel");
@@ -3430,14 +4448,30 @@ class QAAgent
             auto* ui = app_->ui_context();
             if (ui)
             {
+                // Register interactive parameters so the knob panel shows.
+                ui->knob_manager.add_float("Frequency", 2.0f, 0.1f, 10.0f, 0.1f);
+                ui->knob_manager.add_float("Damping", 0.2f, 0.0f, 1.0f);
+                ui->knob_manager.add_bool("Show envelope", true);
+                ui->knob_manager.set_visible(true);
                 // Open inspector
                 ui->cmd_registry.execute("panel.toggle_inspector");
                 pump_frames(5);
                 // Cycle selection to show series properties
                 ui->cmd_registry.execute("series.cycle_selection");
                 pump_frames(10);
-                named_screenshot("38_inspector_with_knobs");
+                named_screenshot("38_inspector_with_knobs",
+                                 [&](DesignCheck& c)
+                                 {
+                                     expect_inspector_open(c, true);
+                                     c.expect(ui->imgui_ui->selection_context().type
+                                                  == ui::SelectionType::Series,
+                                              "a series is selected");
+                                     c.expect(!ui->knob_manager.empty(), "knobs registered");
+                                     c.expect(imgui_window_drawn(design_imgui(), " Parameters"),
+                                              "knob panel drawn");
+                                 });
                 ui->cmd_registry.execute("panel.toggle_inspector");
+                ui->knob_manager.clear();
                 pump_frames(3);
             }
         }
@@ -3454,7 +4488,20 @@ class QAAgent
                 // (smooth_toward snaps when dt<=0)
                 ui->imgui_ui->get_layout_manager().update(1280.0f, 720.0f, 0.0f);
                 pump_frames(5);
-                named_screenshot("39_nav_rail_visible");
+                named_screenshot(
+                    "39_nav_rail_visible",
+                    [&](DesignCheck& c)
+                    {
+                        auto& lm = ui->imgui_ui->get_layout_manager();
+                        c.expect(lm.is_nav_rail_expanded(), "nav rail expanded");
+                        c.near(lm.nav_rail_animated_width(),
+                               lm.nav_rail_width(),
+                               0.5,
+                               "nav rail at expanded width");
+                        c.expect(imgui_window_drawn(design_imgui(), "##navrail")
+                                     || imgui_window_drawn(design_imgui(), "##AppShellNavRail"),
+                                 "nav rail drawn");
+                    });
                 // Restore collapsed state (also snap)
                 ui->imgui_ui->get_layout_manager().set_nav_rail_expanded(false);
                 ui->imgui_ui->get_layout_manager().update(1280.0f, 720.0f, 0.0f);
@@ -3481,7 +4528,15 @@ class QAAgent
                 if (!ids.empty())
                     ui->imgui_ui->open_tab_context_menu(ids[0]);
                 pump_frames(10);
-                named_screenshot("40_tab_context_menu");
+                named_screenshot(
+                    "40_tab_context_menu",
+                    [&](DesignCheck& c)
+                    {
+                        c.expect(!ids.empty() && ui->imgui_ui->tab_context_menu_figure() == ids[0],
+                                 "tab context menu targets Figure 1");
+                        c.expect(imgui_drawn_popups(design_imgui(), "##pane_tab_popup_host") >= 1,
+                                 "tab context popup drawn");
+                    });
 
                 // D43 fix: explicitly close the context menu so it doesn't
                 // bleed into subsequent screenshots (41–46).
@@ -3501,7 +4556,8 @@ class QAAgent
                 {
                     glfwSetWindowSize(glfw_win, 640, 480);
                     pump_frames(20);   // Allow swapchain recreation
-                    named_screenshot("41_window_resized_640x480");
+                    named_screenshot("41_window_resized_640x480",
+                                     [&](DesignCheck& c) { expect_swapchain(c, wctx, 640, 480); });
                 }
             }
         }
@@ -3517,7 +4573,8 @@ class QAAgent
                 {
                     glfwSetWindowSize(glfw_win, 1920, 600);
                     pump_frames(20);
-                    named_screenshot("42_window_resized_1920x600");
+                    named_screenshot("42_window_resized_1920x600",
+                                     [&](DesignCheck& c) { expect_swapchain(c, wctx, 1920, 600); });
                 }
             }
         }
@@ -3533,7 +4590,8 @@ class QAAgent
                 {
                     glfwSetWindowSize(glfw_win, 600, 1080);
                     pump_frames(20);
-                    named_screenshot("43_window_resized_600x1080");
+                    named_screenshot("43_window_resized_600x1080",
+                                     [&](DesignCheck& c) { expect_swapchain(c, wctx, 600, 1080); });
 
                     // Restore to normal
                     glfwSetWindowSize(glfw_win, 1280, 720);
@@ -3553,7 +4611,8 @@ class QAAgent
                 {
                     glfwSetWindowSize(glfw_win, 320, 240);
                     pump_frames(20);
-                    named_screenshot("44_window_resized_tiny_320x240");
+                    named_screenshot("44_window_resized_tiny_320x240",
+                                     [&](DesignCheck& c) { expect_swapchain(c, wctx, 320, 240); });
 
                     // Restore
                     glfwSetWindowSize(glfw_win, 1280, 720);
@@ -3607,13 +4666,39 @@ class QAAgent
                     // gets overridden.  Pass target WindowContext* so the
                     // capture fires only during that window's end_frame.
                     auto* primary_wctx = wm->windows().empty() ? nullptr : wm->windows()[0];
-                    named_screenshot("45_multi_window_primary", primary_wctx);
+                    named_screenshot(
+                        "45_multi_window_primary",
+                        [&](DesignCheck& c)
+                        {
+                            c.expect(wm->windows().size() == 2, "two OS windows");
+                            c.expect(new_wctx != nullptr, "figure detached into a new window");
+                            c.expect(primary_wctx
+                                         && std::find(primary_wctx->assigned_figures.begin(),
+                                                      primary_wctx->assigned_figures.end(),
+                                                      ids[1])
+                                                == primary_wctx->assigned_figures.end(),
+                                     "detached figure left the primary window");
+                        },
+                        primary_wctx);
 
                     // Screenshot from the secondary window
                     if (new_wctx)
                     {
                         pump_frames(5);
-                        named_screenshot("45b_multi_window_secondary", new_wctx);
+                        named_screenshot(
+                            "45b_multi_window_secondary",
+                            [&](DesignCheck& c)
+                            {
+                                c.expect(std::find(new_wctx->assigned_figures.begin(),
+                                                   new_wctx->assigned_figures.end(),
+                                                   ids[1])
+                                             != new_wctx->assigned_figures.end(),
+                                         "secondary window owns the detached figure");
+                                expect_swapchain(c, new_wctx, 800, 600);
+                                c.expect(imgui_window_drawn(design_imgui(new_wctx), "##canvas"),
+                                         "secondary canvas drawn");
+                            },
+                            new_wctx);
                     }
 
                     // Close the secondary window
@@ -3643,7 +4728,15 @@ class QAAgent
                     // Move window around
                     glfwSetWindowPos(glfw_win, 50, 50);
                     pump_frames(5);
-                    named_screenshot("46_window_moved_top_left");
+                    named_screenshot("46_window_moved_top_left",
+                                     [&](DesignCheck& c)
+                                     {
+                                         int px = -1, py = -1;
+                                         glfwGetWindowPos(glfw_win, &px, &py);
+                                         c.expect(px == 50 && py == 50,
+                                                  "window at (50,50) (actual (" + std::to_string(px)
+                                                      + "," + std::to_string(py) + "))");
+                                     });
                     glfwSetWindowPos(glfw_win, 400, 200);
                     pump_frames(5);
                 }
@@ -3661,7 +4754,16 @@ class QAAgent
                 pump_frames(5);
                 ui->cmd_registry.execute("panel.toggle_timeline");
                 pump_frames(10);
-                named_screenshot("47_split_inspector_timeline_open");
+                named_screenshot(
+                    "47_split_inspector_timeline_open",
+                    [&](DesignCheck& c)
+                    {
+                        expect_split_panes(c, 2);
+                        expect_inspector_open(c, true);
+                        c.expect(ui->imgui_ui->is_timeline_visible()
+                                     && imgui_window_drawn(design_imgui(), "##timeline_panel"),
+                                 "timeline drawn");
+                    });
                 ui->cmd_registry.execute("panel.toggle_timeline");
                 ui->cmd_registry.execute("panel.toggle_inspector");
                 ui->cmd_registry.execute("view.reset_splits");
@@ -3702,7 +4804,24 @@ class QAAgent
                             glfwSetWindowPos(glfw_primary, 50, 100);
                     }
                     pump_frames(10);
-                    named_screenshot("48_two_windows_side_by_side");
+                    named_screenshot(
+                        "48_two_windows_side_by_side",
+                        [&](DesignCheck& c)
+                        {
+                            c.expect(wm->windows().size() == 2, "two OS windows");
+                            expect_swapchain(c, win2, 640, 480);
+                            int px = -1, py = -1, sx = -1, sy = -1;
+                            glfwGetWindowPos(
+                                static_cast<GLFWwindow*>(wm->windows()[0]->glfw_window),
+                                &px,
+                                &py);
+                            if (win2)
+                                glfwGetWindowPos(static_cast<GLFWwindow*>(win2->glfw_window),
+                                                 &sx,
+                                                 &sy);
+                            c.expect(px == 50 && py == 100, "primary at (50,100)");
+                            c.expect(sx == 700 && sy == 100, "secondary at (700,100)");
+                        });
 
                     // Cleanup secondary
                     if (win2)
@@ -3748,7 +4867,14 @@ class QAAgent
                 // Now toggle fullscreen — hides inspector + keeps nav collapsed
                 ui->cmd_registry.execute("view.fullscreen");
                 pump_frames(20);   // Allow layout animation to settle
-                named_screenshot("49_fullscreen_mode");
+                named_screenshot("49_fullscreen_mode",
+                                 [&](DesignCheck& c)
+                                 {
+                                     expect_inspector_open(c, false);
+                                     c.expect(
+                                         !ui->imgui_ui->get_layout_manager().is_nav_rail_expanded(),
+                                         "nav rail collapsed");
+                                 });
                 ui->cmd_registry.execute("view.fullscreen");   // Toggle back
                 pump_frames(10);
             }
@@ -3774,10 +4900,27 @@ class QAAgent
                 auto& lm = ui->imgui_ui->get_layout_manager();
                 lm.set_inspector_visible(false);
                 lm.set_nav_rail_expanded(false);
-                lm.set_bottom_panel_height(0.0f);
+                ui->imgui_ui->set_timeline_visible(false);
+                ui->imgui_ui->set_curve_editor_visible(false);
 
                 pump_frames(20);   // Allow all animations to fully settle
-                named_screenshot("50_minimal_chrome_all_panels_closed");
+                named_screenshot(
+                    "50_minimal_chrome_all_panels_closed",
+                    [&](DesignCheck& c)
+                    {
+                        auto& lm = ui->imgui_ui->get_layout_manager();
+                        expect_inspector_open(c, false);
+                        c.expect(!lm.is_nav_rail_expanded(), "nav rail collapsed");
+                        c.near(lm.nav_rail_animated_width(),
+                               lm.nav_rail_width(),
+                               0.5,
+                               "nav rail at collapsed width");
+                        c.expect(lm.bottom_panel_height() == 0.0f, "no bottom panel");
+                        c.expect(!ui->imgui_ui->is_timeline_visible(), "timeline hidden");
+                        c.expect(!ui->imgui_ui->is_curve_editor_visible(), "curve editor hidden");
+                        expect_split_panes(c, 1);
+                        expect_no_transient_ui(c);
+                    });
             }
         }
 
@@ -3795,6 +4938,8 @@ class QAAgent
             ax.title("Empty State After Delete");
             ax.auto_fit();
             pump_frames(8);
+            const FigureId fid                = newest_figure_id();
+            bool           deleted_by_command = false;
 
             auto* ui = app_->ui_context();
             if (ui && ui->fig_mgr)
@@ -3808,17 +4953,17 @@ class QAAgent
                 pump_frames(2);
                 ui->cmd_registry.execute("series.delete");
                 pump_frames(8);
+                deleted_by_command = ax.series().empty();
             }
 
-            // Guarantee the capture represents the empty-state visual even if
-            // selection state prevented command-driven deletion in this frame.
-            if (!ax.series().empty())
-            {
-                ax.clear_series();
-                pump_frames(3);
-            }
-
-            named_screenshot("51_empty_figure_after_delete");
+            named_screenshot(
+                "51_empty_figure_after_delete",
+                [&](DesignCheck& c)
+                {
+                    expect_active_figure(c, fid, "the figure whose series was deleted");
+                    c.expect(deleted_by_command, "series.delete removed the selected series");
+                    c.expect(series_count(design_active_figure()) == 0, "figure has no series");
+                });
         }
 
         // ── 52. Legend overflow (8+ series) ────────────────────────────────
@@ -3848,7 +4993,15 @@ class QAAgent
             fig.legend().visible = true;
 
             pump_frames(15);
-            named_screenshot("52_legend_overflow_8_series");
+            const FigureId fid = newest_figure_id();
+            named_screenshot("52_legend_overflow_8_series",
+                             [&](DesignCheck& c)
+                             {
+                                 expect_active_figure(c, fid, "the new 8-series figure");
+                                 Figure* f = design_active_figure();
+                                 c.expect(series_count(f) == 8, "eight series");
+                                 c.expect(f && f->legend().visible, "legend visible");
+                             });
         }
 
         // ── 53. Split view with mismatched axis ranges ────────────────
@@ -3887,7 +5040,25 @@ class QAAgent
             {
                 ui->cmd_registry.execute("view.split_right");
                 pump_frames(15);
-                named_screenshot("53_split_view_mismatched_zoom");
+                named_screenshot("53_split_view_mismatched_zoom",
+                                 [&](DesignCheck& c)
+                                 {
+                                     expect_split_panes(c, 2);
+                                     bool zoomed_pane = false;
+                                     for (const auto& pi : ui->dock_system.get_pane_infos())
+                                     {
+                                         Figure* pf = app_->figure_registry().get(pi.figure_index);
+                                         if (pf && !pf->axes().empty())
+                                         {
+                                             auto xl     = pf->axes()[0]->x_limits();
+                                             zoomed_pane = zoomed_pane
+                                                           || (std::abs(xl.min - 2.0) < 1e-3
+                                                               && std::abs(xl.max - 6.0) < 1e-3);
+                                         }
+                                     }
+                                     c.expect(zoomed_pane,
+                                              "one pane shows the zoomed figure (x 2..6)");
+                                 });
                 ui->cmd_registry.execute("view.reset_splits");
                 pump_frames(5);
             }
@@ -3922,7 +5093,18 @@ class QAAgent
                 }
                 pump_frames(5);   // Let scroll animation settle with scrollbar visible
 
-                named_screenshot("54_command_palette_scrolled");
+                named_screenshot(
+                    "54_command_palette_scrolled",
+                    [&](DesignCheck& c)
+                    {
+                        c.expect(ui->cmd_palette.is_open()
+                                     && imgui_window_drawn(design_imgui(), "##command_palette"),
+                                 "palette drawn");
+                        c.expect(ui->cmd_palette.selected_index() >= 15,
+                                 "selection moved 15 rows (index "
+                                     + std::to_string(ui->cmd_palette.selected_index()) + ")");
+                        c.expect(ui->cmd_palette.scroll_offset() > 0.0f, "result list scrolled");
+                    });
 
                 // Close palette
                 ui->cmd_registry.execute("app.cancel");
@@ -3944,15 +5126,35 @@ class QAAgent
                     ui->fig_mgr->queue_switch(ids[0]);
                 pump_frames(3);
 
-                // Temporarily apply 1.25× global font scale to simulate DPI scaling
-                float saved_scale              = ImGui::GetIO().FontGlobalScale;
-                ImGui::GetIO().FontGlobalScale = 1.25f;
+                ImGuiWindow* bar0         = imgui_find_window(design_imgui(), "##commandbar");
+                const float  base_font_px = bar0 ? bar0->FontRefSize : 0.0f;
+                // Apply 125% through the app's UI scale (Settings -> Appearance),
+                // which scales fonts and style metrics in every ImGui context.
+                // (io.FontGlobalScale is obsolete since ImGui 1.92 and only
+                // scaled glyphs, never the layout.)
+                const float saved_scale = ui->theme_mgr ? ui->theme_mgr->ui_scale() : 1.0f;
+                if (ui->theme_mgr)
+                    ui->theme_mgr->set_ui_scale(1.25f);
                 pump_frames(3);   // Let layout settle at new scale
 
-                named_screenshot("55_nav_rail_dpi_scale_125pct");
+                named_screenshot("55_nav_rail_dpi_scale_125pct",
+                                 [&](DesignCheck& c)
+                                 {
+                                     ImGuiContext* ctx = design_imgui();
+                                     c.near(ctx ? ctx->Style.FontScaleMain : 0.0f,
+                                            1.25,
+                                            0.001,
+                                            "ImGui style font scale");
+                                     ImGuiWindow* bar = imgui_find_window(ctx, "##commandbar");
+                                     c.near(bar ? bar->FontRefSize : 0.0f,
+                                            base_font_px * 1.25f,
+                                            0.5,
+                                            "font size in effect (px)");
+                                 });
 
                 // Restore original scale
-                ImGui::GetIO().FontGlobalScale = saved_scale;
+                if (ui->theme_mgr)
+                    ui->theme_mgr->set_ui_scale(saved_scale);
                 pump_frames(2);
             }
         }
@@ -3979,19 +5181,29 @@ class QAAgent
                     auto& lm = ui->imgui_ui->get_layout_manager();
                     lm.set_inspector_visible(true);
                     lm.set_nav_rail_expanded(true);
-                    lm.set_bottom_panel_height(120.0f);
+                    ui->imgui_ui->set_timeline_visible(true);
                     pump_frames(10);
 
                     // Shrink to 320×240
                     glfwSetWindowSize(glfw_win, 320, 240);
                     pump_frames(20);
-                    named_screenshot("56_tiny_window_all_panels_open");
+                    named_screenshot(
+                        "56_tiny_window_all_panels_open",
+                        [&](DesignCheck& c)
+                        {
+                            expect_swapchain(c, wctx, 320, 240);
+                            c.expect(lm.is_inspector_visible(), "inspector requested open");
+                            c.expect(lm.is_nav_rail_expanded(), "nav rail expanded");
+                            c.expect(ui->imgui_ui->is_timeline_visible()
+                                         && imgui_window_drawn(design_imgui(), "##timeline_panel"),
+                                     "timeline drawn");
+                        });
 
                     // Restore window and hide panels
                     glfwSetWindowSize(glfw_win, 1280, 720);
                     lm.set_inspector_visible(false);
                     lm.set_nav_rail_expanded(false);
-                    lm.set_bottom_panel_height(0.0f);
+                    ui->imgui_ui->set_timeline_visible(false);
                     pump_frames(15);
                 }
             }
@@ -4023,7 +5235,18 @@ class QAAgent
                     ui->settings_panel.select_tab(tab);
                     ui->cmd_registry.execute("panel.open_settings");
                     pump_frames(12);
-                    named_screenshot(shot);
+                    named_screenshot(
+                        shot,
+                        [&](DesignCheck& c)
+                        {
+                            c.expect(ui->settings_panel.is_visible(), "settings visible");
+                            c.expect(imgui_drawn_popups(design_imgui(), {}, true) >= 1,
+                                     "settings modal drawn");
+                            c.expect(ui->settings_panel.active_tab() == tab,
+                                     "settings tab " + std::to_string(tab) + " shown (actual "
+                                         + std::to_string(ui->settings_panel.active_tab()) + ")");
+                            expect_theme(c, theme);
+                        });
                     close_settings();
                 };
 
@@ -4065,9 +5288,21 @@ class QAAgent
             out << "Spectra Design Review Screenshots\n";
             out << "==================================\n";
             out << "Captured: " << design_screenshots_.size() << " screenshots\n\n";
-            for (const auto& [name, path] : design_screenshots_)
+            size_t checks = 0, failed = 0;
+            for (const auto& rec : design_assertions_)
             {
-                out << "  " << name << "\n    -> " << path << "\n";
+                checks += rec.checks;
+                failed += rec.failures.empty() ? 0 : 1;
+            }
+            out << "Semantic assertions: " << design_assertions_.size() << " captures, " << checks
+                << " checks, " << failed << " captures failed\n\n";
+            for (const auto& rec : design_assertions_)
+            {
+                out << "  " << rec.shot << "  [" << (rec.failures.empty() ? "PASS" : "FAIL") << " "
+                    << (rec.checks - rec.failures.size()) << "/" << rec.checks << "]\n    -> "
+                    << rec.path << "\n";
+                for (const auto& f : rec.failures)
+                    out << "    FAILED: " << f << "\n";
             }
         }
     }
@@ -4565,21 +5800,64 @@ class QAAgent
     }
 
     // ── Per-frame monitoring ─────────────────────────────────────────────
+    // Declare a spike warm-up window when the frame just rendered used
+    // something for the first time.
+    void detect_first_use_warmup()
+    {
+        bool first_use = false;
+#ifdef SPECTRA_USE_IMGUI
+        if (auto* ui = app_->ui_context(); ui && ui->fig_mgr)
+        {
+            const FigureId id = ui->fig_mgr->active_index();
+            if (id != INVALID_FIGURE_ID && seen_figures_.insert(id).second)
+                first_use = true;
+            if (Figure* fig = ui->fig_mgr->active_figure())
+            {
+                for (const auto& ax : fig->all_axes())
+                    if (ax)
+                        for (const auto& sp : ax->series())
+                            if (sp
+                                && seen_series_types_.insert(std::type_index(typeid(*sp))).second)
+                                first_use = true;
+                for (const auto& ax : fig->axes())
+                    if (ax)
+                        for (const auto& sp : ax->series())
+                            if (sp
+                                && seen_series_types_.insert(std::type_index(typeid(*sp))).second)
+                                first_use = true;
+            }
+        }
+#endif
+        if (auto* wm = app_->window_manager())
+        {
+            const size_t n = wm->windows().size();
+            if (n > last_window_count_)
+                first_use = true;
+            last_window_count_ = n;
+            if (n > 0 && wm->windows()[0])
+            {
+                const auto&    ext = wm->windows()[0]->swapchain.extent;
+                const uint64_t key = (static_cast<uint64_t>(ext.width) << 32) | ext.height;
+                if (key != last_swapchain_key_)
+                    first_use = true;
+                last_swapchain_key_ = key;
+            }
+        }
+        if (first_use)
+            spike_detector_.declare_warmup(total_frames_);
+    }
+
     void check_frame(const App::StepResult& result)
     {
         if (total_frames_ % 30 == 0)
             check_validation_messages("frame_loop");
 
-        // Frame time spike detection
-        // P0 fix: warmup period (skip first 30 frames) + absolute minimum (33ms)
-        // to eliminate false positives from VSync-locked frames
-        static constexpr uint64_t WARMUP_FRAMES    = 30;
-        static constexpr float    MIN_SPIKE_MS     = 33.0f;
-        static constexpr float    SPIKE_MULTIPLIER = 3.0f;
-
-        if (total_frames_ > WARMUP_FRAMES && frame_stats_.ema > 0.5f
-            && result.frame_time_ms > MIN_SPIKE_MS
-            && result.frame_time_ms > frame_stats_.ema * SPIKE_MULTIPLIER)
+        // Frame time spike detection.  First-use frames (a figure's first
+        // frames: data upload + layout; a series type's first draw: driver
+        // shader-variant JIT on lavapipe; a new window/swapchain) are a
+        // declared warm-up window and are counted, not flagged.
+        detect_first_use_warmup();
+        if (spike_detector_.is_spike(total_frames_, result.frame_time_ms, frame_stats_.ema))
         {
             frame_stats_.spike_count++;
             add_issue(IssueSeverity::Warning,
@@ -4598,14 +5876,23 @@ class QAAgent
 
             sample_gpu_memory();
 
-            size_t growth = (rss > initial_rss_) ? (rss - initial_rss_) : 0;
-            if (growth > 100 * 1024 * 1024)   // >100MB growth
+            // Plateau-aware: transient peaks (e.g. several windows open at
+            // once) are not growth; warn when the floor of the last 5 samples
+            // (300 frames) stays >100MB above the initial RSS, once per +50MB.
+            rss_floor_.add(rss);
+            static constexpr size_t RSS_GROWTH_BYTES = 100ull * 1024ull * 1024ull;
+            static constexpr size_t RSS_REWARN_BYTES = 50ull * 1024ull * 1024ull;
+            if (rss_floor_.sustained_above(initial_rss_, RSS_GROWTH_BYTES)
+                && rss_floor_.floor() >= next_rss_warn_floor_)
             {
+                next_rss_warn_floor_ = rss_floor_.floor() + RSS_REWARN_BYTES;
                 add_issue(IssueSeverity::Warning,
                           "memory",
-                          "RSS grew by " + std::to_string(growth / (1024 * 1024))
-                              + "MB (initial: " + std::to_string(initial_rss_ / (1024 * 1024))
-                              + "MB, current: " + std::to_string(rss / (1024 * 1024)) + "MB)");
+                          "RSS stayed " + std::to_string(to_mb(rss_floor_.floor() - initial_rss_))
+                              + "MB above initial for 300 frames (initial: "
+                              + std::to_string(to_mb(initial_rss_))
+                              + "MB, floor: " + std::to_string(to_mb(rss_floor_.floor()))
+                              + "MB, current: " + std::to_string(to_mb(rss)) + "MB)");
             }
         }
     }
@@ -4699,6 +5986,8 @@ class QAAgent
             out << "  P99: " << frame_stats_.percentile(0.99f) << "ms\n";
             out << "  Max: " << frame_stats_.max_val() << "ms\n";
             out << "  Spikes (>3x avg): " << frame_stats_.spike_count << "\n";
+            out << "  First-use warm-up spikes (excluded): " << spike_detector_.warmup_spikes()
+                << "\n";
             out << "\n";
 
             out << "Memory:\n";
@@ -4747,6 +6036,25 @@ class QAAgent
                     out << ", frames=" << (metric.frame_end - metric.frame_start)
                         << ", status=" << (metric.passed ? "PASS" : "FAIL") << "\n";
                 }
+                out << "\n";
+            }
+
+            if (!design_assertions_.empty())
+            {
+                size_t checks = 0, failed = 0;
+                for (const auto& rec : design_assertions_)
+                {
+                    checks += rec.checks;
+                    failed += rec.failures.empty() ? 0 : 1;
+                }
+                out << "Design Assertions:\n";
+                out << "  Captures: " << design_assertions_.size() << " ("
+                    << (design_assertions_.size() - failed) << " proved, " << failed
+                    << " failed)\n";
+                out << "  Checks: " << checks << "\n";
+                for (const auto& rec : design_assertions_)
+                    for (const auto& f : rec.failures)
+                        out << "  FAILED " << rec.shot << ": " << f << "\n";
                 out << "\n";
             }
 
@@ -4836,7 +6144,8 @@ class QAAgent
             out << "    \"p95_ms\": " << frame_stats_.percentile(0.95f) << ",\n";
             out << "    \"p99_ms\": " << frame_stats_.percentile(0.99f) << ",\n";
             out << "    \"max_ms\": " << frame_stats_.max_val() << ",\n";
-            out << "    \"spikes\": " << frame_stats_.spike_count << "\n";
+            out << "    \"spikes\": " << frame_stats_.spike_count << ",\n";
+            out << "    \"warmup_spikes_excluded\": " << spike_detector_.warmup_spikes() << "\n";
             out << "  },\n";
             out << "  \"memory\": {\n";
             out << "    \"initial_rss_mb\": " << to_mb(initial_rss_) << ",\n";
@@ -4863,6 +6172,28 @@ class QAAgent
             out << "    \"error_count\": " << validation_errors << ",\n";
             out << "    \"warning_count\": " << validation_warnings << "\n";
             out << "  },\n";
+            {
+                size_t checks = 0, failed = 0;
+                for (const auto& rec : design_assertions_)
+                {
+                    checks += rec.checks;
+                    failed += rec.failures.empty() ? 0 : 1;
+                }
+                out << "  \"design_assertions\": {\"captures\": " << design_assertions_.size()
+                    << ", \"checks\": " << checks << ", \"failed_captures\": " << failed
+                    << ", \"shots\": [\n";
+                for (size_t i = 0; i < design_assertions_.size(); ++i)
+                {
+                    const auto& rec = design_assertions_[i];
+                    out << "    {\"name\": \"" << json_escape(rec.shot)
+                        << "\", \"checks\": " << rec.checks << ", \"frame\": " << rec.frame
+                        << ", \"failures\": [";
+                    for (size_t k = 0; k < rec.failures.size(); ++k)
+                        out << (k ? ", " : "") << "\"" << json_escape(rec.failures[k]) << "\"";
+                    out << "]}" << (i + 1 < design_assertions_.size() ? "," : "") << "\n";
+                }
+                out << "  ]},\n";
+            }
             out << "  \"scenario_memory\": [\n";
             for (size_t i = 0; i < scenario_memory_.size(); ++i)
             {
@@ -4899,7 +6230,7 @@ class QAAgent
                 const auto& issue = issues_[i];
                 out << "    {\"severity\": \"" << severity_str(issue.severity)
                     << "\", \"category\": \"" << issue.category << "\", \"message\": \""
-                    << issue.message << "\", \"frame\": " << issue.frame << "}";
+                    << json_escape(issue.message) << "\", \"frame\": " << issue.frame << "}";
                 if (i + 1 < issues_.size())
                     out << ",";
                 out << "\n";
@@ -4956,7 +6287,14 @@ class QAAgent
     uint32_t scenarios_passed_ = 0;
     uint32_t scenarios_failed_ = 0;
 
-    FrameStats frame_stats_;
+    FrameStats                frame_stats_;
+    qa::SpikeDetector         spike_detector_;
+    qa::RssFloorMonitor       rss_floor_{5};
+    size_t                    next_rss_warn_floor_ = 0;
+    std::set<FigureId>        seen_figures_;
+    std::set<std::type_index> seen_series_types_;
+    size_t                    last_window_count_  = 0;
+    uint64_t                  last_swapchain_key_ = 0;
 
     size_t                        initial_rss_                   = 0;
     size_t                        peak_rss_                      = 0;
@@ -4975,6 +6313,10 @@ class QAAgent
 
     // Design review
     std::vector<std::pair<std::string, std::string>> design_screenshots_;
+    std::vector<DesignAssertionRecord>               design_assertions_;
+    bool                                             saved_pointer_valid_ = false;
+    double                                           saved_pointer_x_     = 0.0;
+    double                                           saved_pointer_y_     = 0.0;
     std::unordered_map<uint64_t, std::string>        screenshot_hash_to_name_;
 };
 

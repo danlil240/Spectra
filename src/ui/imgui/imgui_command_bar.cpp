@@ -291,6 +291,12 @@ void ImGuiIntegration::draw_menubar_menu(const char* label, const std::vector<Me
     ImVec2 btn_size    = ImGui::GetItemRectSize();
     ImVec2 btn_max     = ImVec2(btn_pos.x + btn_size.x, btn_pos.y + btn_size.y);
     bool   btn_hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByPopup);
+    if (menu_button_rects_frame_ != ImGui::GetFrameCount())
+    {
+        menu_button_rects_.clear();
+        menu_button_rects_frame_ = ImGui::GetFrameCount();
+    }
+    menu_button_rects_.emplace_back(label, Rect{btn_pos.x, btn_pos.y, btn_size.x, btn_size.y});
 
     // Click opens this menu
     if (clicked)
@@ -576,6 +582,19 @@ void ImGuiIntegration::draw_toolbar_button(const char*                  icon,
 }
 
 // ─── Layout-Based Drawing Methods ─────────────────────────────────────────────
+
+bool ImGuiIntegration::menu_button_rect(std::string_view label, Rect& out) const
+{
+    for (const auto& [name, rect] : menu_button_rects_)
+    {
+        if (name == label)
+        {
+            out = rect;
+            return true;
+        }
+    }
+    return false;
+}
 
 bool ImGuiIntegration::begin_command_bar()
 {

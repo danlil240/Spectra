@@ -52,6 +52,28 @@ WindowContext* WindowManager::detach_figure(FigureId           figure_id,
         return nullptr;
     }
 
+    // A detached figure leaves the window that shows it: otherwise it would be
+    // listed by two windows and closing either one (which destroys its figures)
+    // would leave the other holding a dangling figure.  SessionRuntime's tab
+    // tear-off removes it before calling here, so then no owner is found.
+    WindowContext* src_wctx = nullptr;
+    for (auto& wptr : windows_)
+    {
+        auto& af = wptr->assigned_figures;
+        if (std::find(af.begin(), af.end(), figure_id) != af.end())
+        {
+            src_wctx = wptr.get();
+            break;
+        }
+    }
+    if (src_wctx && src_wctx->assigned_figures.size() <= 1)
+    {
+        SPECTRA_LOG_WARN("window_manager",
+                         "detach_figure: figure " + std::to_string(figure_id)
+                             + " is the last figure of window " + std::to_string(src_wctx->id));
+        return nullptr;
+    }
+
     // Clamp dimensions to reasonable minimums
     uint32_t w = width > 0 ? width : 800;
     uint32_t h = height > 0 ? height : 600;
@@ -81,6 +103,51 @@ WindowContext* WindowManager::detach_figure(FigureId           figure_id,
             "detach_figure: failed to create window for figure " + std::to_string(figure_id));
         return nullptr;
     }
+
+#ifdef SPECTRA_USE_IMGUI
+    FigureState moved_state;
+    bool        have_moved_state = false;
+#endif
+    // Release the figure from its previous window only once the new one exists.
+    if (src_wctx)
+    {
+#ifdef SPECTRA_USE_IMGUI
+        if (src_wctx->ui_ctx && src_wctx->ui_ctx->fig_mgr)
+        {
+            auto& src_dock = src_wctx->ui_ctx->dock_system;
+            if (src_dock.is_split())
+            {
+                if (auto* pane = src_dock.split_view().pane_for_figure(figure_id))
+                {
+                    if (pane->figure_count() <= 1)
+                        src_dock.close_split(figure_id);
+                    else
+                        pane->remove_figure(figure_id);
+                }
+            }
+            moved_state      = src_wctx->ui_ctx->fig_mgr->remove_figure(figure_id);
+            have_moved_state = true;
+        }
+#endif
+        auto& af = src_wctx->assigned_figures;
+        af.erase(std::remove(af.begin(), af.end(), figure_id), af.end());
+        if (src_wctx->active_figure_id == figure_id)
+            src_wctx->active_figure_id = af.empty() ? INVALID_FIGURE_ID : af.front();
+        if (src_wctx->assigned_figure_index == figure_id)
+            src_wctx->assigned_figure_index = src_wctx->active_figure_id;
+    }
+
+#ifdef SPECTRA_USE_IMGUI
+    // Carry the figure's per-window view state (zoom, inspector, title) along.
+    if (have_moved_state && wctx->ui_ctx && wctx->ui_ctx->fig_mgr)
+    {
+        auto* new_fm              = wctx->ui_ctx->fig_mgr;
+        new_fm->state(figure_id)  = std::move(moved_state);
+        std::string correct_title = new_fm->get_title(figure_id);
+        if (new_fm->tab_bar())
+            new_fm->tab_bar()->set_tab_title(0, correct_title);
+    }
+#endif
 
     SPECTRA_LOG_INFO("window_manager",
                      "Detached figure " + std::to_string(figure_id) + " to window "

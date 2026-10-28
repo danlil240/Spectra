@@ -60,7 +60,12 @@ class DataInteraction
     size_t last_query_points_examined() const { return last_query_points_examined_; }
 
     // Crosshair control
-    bool crosshair_active() const { return crosshair_.enabled(); }
+    bool  crosshair_active() const { return crosshair_.enabled(); }
+    float crosshair_opacity() const { return crosshair_.opacity(); }
+    // Cursor readout of the last update() (what the overlays were drawn for).
+    const CursorReadout& last_cursor() const { return last_cursor_; }
+    // Screen-space viewport of the axes under the cursor at the last update().
+    const Rect& active_viewport() const { return active_viewport_; }
     void toggle_crosshair() { crosshair_.toggle(); }
     void set_crosshair(bool e) { crosshair_.set_enabled(e); }
 

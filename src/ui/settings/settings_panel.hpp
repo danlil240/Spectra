@@ -33,6 +33,8 @@ class SettingsPanel
     // Programmatically select a tab: 0=Appearance, 1=Shortcuts, 2=UI Defaults.
     // Safe to call from automation — takes effect on the next draw() call.
     void select_tab(int idx) { pending_tab_ = idx; }
+    // Tab whose body was drawn last frame (0=Appearance, 1=Shortcuts, 2=UI Defaults).
+    int active_tab() const { return active_tab_; }
 
     void draw();
 

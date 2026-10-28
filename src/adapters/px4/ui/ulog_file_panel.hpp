@@ -49,6 +49,10 @@ class ULogFilePanel
     // Last opened file path.
     const std::string& current_file() const { return current_file_; }
 
+    // Row order of the Parameters table as last drawn: indices into
+    // reader.parameters(), following the table's click-to-sort state.
+    const std::vector<size_t>& parameter_row_order() const { return param_order_; }
+
     /// Draw the panel — handles ImGui Begin/End and controller state.
     void draw(bool* p_open = nullptr);
 
@@ -93,10 +97,11 @@ class ULogFilePanel
     char topic_filter_buf_[128]{};
 
     // Cached Parameters-table row order (indices into reader_.parameters()),
-    // rebuilt when the table's sort specs or the parameter set change.
-    std::vector<size_t>  param_order_;
-    const ULogParameter* param_order_src_{nullptr};
-    std::string          param_order_path_;
+    // rebuilt when the table's sort specs change or the reader loads a file
+    // (tracked by ULogReader::generation(), so re-opening the same path after
+    // the file changed re-sorts too).
+    std::vector<size_t> param_order_;
+    uint64_t            param_order_generation_{static_cast<uint64_t>(-1)};
 
     FieldCallback field_cb_;
     FileCallback  file_cb_;

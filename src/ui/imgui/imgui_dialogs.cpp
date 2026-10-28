@@ -189,40 +189,7 @@ void ImGuiIntegration::draw_csv_dialog()
                     ? "Plot " + std::to_string(csv_selected_y_.size()) + " Series"
                     : "Plot";
             if (ImGui::Button(plot_label.c_str(), ImVec2(140, 32)))
-            {
-                if (csv_plot_cb_)
-                {
-                    const std::vector<float>* z_ptr       = nullptr;
-                    const std::string*        z_label_ptr = nullptr;
-                    std::string               z_label;
-                    if (csv_col_z_ >= 0 && csv_col_z_ < static_cast<int>(csv_data_.num_cols))
-                    {
-                        z_ptr       = &csv_data_.columns[csv_col_z_];
-                        z_label     = csv_data_.headers[csv_col_z_];
-                        z_label_ptr = &z_label;
-                    }
-                    // X column base offset (non-zero for datetime/epoch columns)
-                    const double x_offset =
-                        (static_cast<size_t>(csv_col_x_) < csv_data_.column_offsets.size())
-                            ? csv_data_.column_offsets[csv_col_x_]
-                            : 0.0;
-                    // Sort selected Y columns for deterministic order
-                    std::vector<int> sorted_y = csv_selected_y_;
-                    std::sort(sorted_y.begin(), sorted_y.end());
-                    for (int y_col : sorted_y)
-                    {
-                        csv_plot_cb_(csv_file_path_,
-                                     csv_data_.columns[csv_col_x_],
-                                     csv_data_.columns[y_col],
-                                     csv_data_.headers[csv_col_x_],
-                                     csv_data_.headers[y_col],
-                                     z_ptr,
-                                     z_label_ptr,
-                                     x_offset);
-                    }
-                }
-                csv_dialog_open_ = false;
-            }
+                plot_csv_selection();
             ImGui::PopStyleColor(2);
 
             if (!can_plot)
@@ -234,6 +201,13 @@ void ImGuiIntegration::draw_csv_dialog()
                 csv_dialog_open_ = false;
             }
         }
+        else
+        {
+            // Unreadable / empty file: the error above explains why; offer a way out.
+            ImGui::Spacing();
+            if (ImGui::Button("Close", ImVec2(120, 32)))
+                csv_dialog_open_ = false;
+        }
     }
     ImGui::End();
     ImGui::PopStyleVar(2);
@@ -241,6 +215,49 @@ void ImGuiIntegration::draw_csv_dialog()
 
     if (!open)
         csv_dialog_open_ = false;
+}
+
+bool ImGuiIntegration::plot_csv_selection()
+{
+    const int ncols = static_cast<int>(csv_data_.num_cols);
+    if (!csv_data_loaded_ || csv_col_x_ < 0 || csv_col_x_ >= ncols || csv_selected_y_.empty()
+        || csv_data_.num_rows == 0)
+        return false;
+
+    if (csv_plot_cb_)
+    {
+        const std::vector<float>* z_ptr       = nullptr;
+        const std::string*        z_label_ptr = nullptr;
+        std::string               z_label;
+        if (csv_col_z_ >= 0 && csv_col_z_ < ncols)
+        {
+            z_ptr       = &csv_data_.columns[csv_col_z_];
+            z_label     = csv_data_.headers[csv_col_z_];
+            z_label_ptr = &z_label;
+        }
+        // X column base offset (non-zero for datetime/epoch columns)
+        const double x_offset = (static_cast<size_t>(csv_col_x_) < csv_data_.column_offsets.size())
+                                    ? csv_data_.column_offsets[csv_col_x_]
+                                    : 0.0;
+        // Sort selected Y columns for deterministic order
+        std::vector<int> sorted_y = csv_selected_y_;
+        std::sort(sorted_y.begin(), sorted_y.end());
+        for (int y_col : sorted_y)
+        {
+            if (y_col < 0 || y_col >= ncols)
+                continue;
+            csv_plot_cb_(csv_file_path_,
+                         csv_data_.columns[csv_col_x_],
+                         csv_data_.columns[y_col],
+                         csv_data_.headers[csv_col_x_],
+                         csv_data_.headers[y_col],
+                         z_ptr,
+                         z_label_ptr,
+                         x_offset);
+        }
+    }
+    csv_dialog_open_ = false;
+    return true;
 }
 
 void ImGuiIntegration::draw_custom_transform_dialog()

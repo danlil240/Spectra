@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+import struct
 from typing import TYPE_CHECKING, List, Union
 
 from . import _protocol as P
@@ -66,13 +68,79 @@ def _try_interleave_numpy(
     return None
 
 
+def _float32_exact(v: float) -> bool:
+    try:
+        return struct.unpack("<f", struct.pack("<f", v))[0] == v
+    except (OverflowError, struct.error):
+        return False
+
+
+def _choose_data_origin(values) -> float:
+    """Origin for storing ``values`` as float32 offsets without losing precision.
+
+    Python port of ``detail::choose_data_origin`` (src/core/data_origin.hpp):
+    0 while float32 holds the values well relative to their spread, otherwise
+    the centre of their range (e.g. for epoch timestamps).
+    """
+    lo = hi = 0.0
+    found = False
+    try:
+        import numpy as np
+
+        if isinstance(values, np.ndarray):
+            v = np.asarray(values, dtype=np.float64)
+            v = v[np.isfinite(v)]
+            if v.size:
+                lo, hi, found = float(v.min()), float(v.max()), True
+            values = ()
+    except ImportError:
+        pass
+    for v in values:
+        v = float(v)
+        if not math.isfinite(v):
+            continue
+        lo = min(lo, v) if found else v
+        hi = max(hi, v) if found else v
+        found = True
+    if not found:
+        return 0.0
+    rng = hi - lo
+    if max(abs(lo), abs(hi)) <= 64.0 * rng:
+        return 0.0
+    if rng == 0.0 and _float32_exact(lo):
+        return 0.0
+    return lo + 0.5 * rng
+
+
+def _choose_stream_origin(first_value: float) -> float:
+    """Port of ``detail::choose_stream_origin``: values >= 1000 become the origin."""
+    v = float(first_value)
+    if not math.isfinite(v) or abs(v) < 1000.0:
+        return 0.0
+    return v
+
+
+def _shift(values, origin: float):
+    """``values - origin`` in double precision (list or float64 numpy array)."""
+    try:
+        import numpy as np
+
+        if isinstance(values, np.ndarray):
+            arr = np.asarray(values, dtype=np.float64)
+            return arr - origin if origin != 0.0 else arr
+    except ImportError:
+        pass
+    vals = [float(v) for v in values]
+    return [v - origin for v in vals] if origin != 0.0 else vals
+
+
 class Series:
     """Proxy for a data series within a figure.
 
     All mutations are sent to the backend via IPC.
     """
 
-    __slots__ = ("_session", "_figure_id", "_index", "_type", "_label")
+    __slots__ = ("_session", "_figure_id", "_index", "_type", "_label", "_origin", "_has_data")
 
     def __init__(
         self,
@@ -87,6 +155,11 @@ class Series:
         self._index = series_index
         self._type = series_type
         self._label = label
+        # Double-precision data origins (x, y): values are sent as float32
+        # offsets from them, so large values such as epoch timestamps keep
+        # their precision.  Mirrors the backend's per-series x/y origin.
+        self._origin = (0.0, 0.0)
+        self._has_data = False
 
     @property
     def index(self) -> int:
@@ -114,7 +187,32 @@ class Series:
         For arrays exceeding CHUNK_SIZE (~128 MiB), data is automatically
         split into multiple chunked REQ_SET_DATA messages. The backend
         reassembles chunks before applying to the figure model.
+
+        Values too large for float32 precision (e.g. epoch timestamps) are
+        sent as offsets from a double-precision origin, which the backend
+        keeps with the series.
         """
+        origin = (_choose_data_origin(x), _choose_data_origin(y))
+        x = _shift(x, origin[0])
+        y = _shift(y, origin[1])
+        self._send_set_data(x, y)
+        # The backend resets a series' origin on new data: send it afterwards.
+        if origin != (0.0, 0.0):
+            self._send_origin(origin)
+        self._origin = origin
+        self._has_data = len(x) > 0
+
+    def _send_origin(self, origin) -> None:
+        payload = codec.encode_req_update_property(
+            figure_id=self._figure_id,
+            series_index=self._index,
+            prop="data_origin",
+            f1=origin[0],
+            f2=origin[1],
+        )
+        self._session._request(P.REQ_UPDATE_PROPERTY, payload)
+
+    def _send_set_data(self, x, y) -> None:
         # Try numpy fast path
         np_result = _try_interleave_numpy(x, y)
         if np_result is not None:
@@ -169,7 +267,23 @@ class Series:
         x: Union[List[float], "object"],
         y: Union[List[float], "object"],
     ) -> None:
-        """Append x/y data points to this series (streaming)."""
+        """Append x/y data points to this series (streaming).
+
+        Values are sent relative to the series' data origin (see set_data);
+        the first points streamed into an empty series pick that origin.
+        """
+        if not self._has_data:
+            xs = _shift(x, 0.0)
+            ys = _shift(y, 0.0)
+            if len(xs) and len(ys):
+                origin = (_choose_stream_origin(xs[0]), _choose_stream_origin(ys[0]))
+                if origin != (0.0, 0.0):
+                    self._send_origin(origin)
+                self._origin = origin
+                self._has_data = True
+            x, y = xs, ys
+        x = _shift(x, self._origin[0])
+        y = _shift(y, self._origin[1])
         # Try numpy fast path
         np_result = _try_interleave_numpy(x, y)
         if np_result is not None:

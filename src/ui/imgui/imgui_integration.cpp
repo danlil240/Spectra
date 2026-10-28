@@ -877,24 +877,12 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
         open_csv_with_dialog();
     }
 
-    // Handle CSV file dropped via OS drag-and-drop
-    if (!pending_csv_drop_path_.empty())
+    // Handle CSV files dropped via OS drag-and-drop, one column picker at a time.
+    if (!csv_dialog_open_ && !pending_csv_loads_.empty())
     {
-        std::string path = std::move(pending_csv_drop_path_);
-        pending_csv_drop_path_.clear();
-        csv_file_path_   = path;
-        csv_data_        = parse_csv(csv_file_path_);
-        csv_data_loaded_ = csv_data_.error.empty();
-        csv_error_       = csv_data_.error;
-        csv_col_x_       = 0;
-        csv_selected_y_.clear();
-        for (size_t c = 1; c < csv_data_.num_cols; ++c)
-            csv_selected_y_.push_back(static_cast<int>(c));
-        if (csv_selected_y_.empty() && csv_data_.num_cols > 0)
-            csv_selected_y_.push_back(0);
-        csv_col_z_ = -1;
-        if (csv_data_loaded_)
-            csv_dialog_open_ = true;
+        std::string path = std::move(pending_csv_loads_.front());
+        pending_csv_loads_.pop_front();
+        load_csv_into_dialog(path);
     }
 
     // Draw CSV load dialog if open
@@ -1201,7 +1189,12 @@ void ImGuiIntegration::open_csv_with_dialog()
         tinyfd_openFileDialog("Open CSV File", home_dir.c_str(), 3, filters, "CSV files", 0);
     if (!result)
         return;
-    csv_file_path_   = result;
+    load_csv_into_dialog(result);
+}
+
+void ImGuiIntegration::load_csv_into_dialog(const std::string& path)
+{
+    csv_file_path_   = path;
     csv_data_        = parse_csv(csv_file_path_);
     csv_data_loaded_ = csv_data_.error.empty();
     csv_error_       = csv_data_.error;
@@ -1212,8 +1205,8 @@ void ImGuiIntegration::open_csv_with_dialog()
     if (csv_selected_y_.empty() && csv_data_.num_cols > 0)
         csv_selected_y_.push_back(0);
     csv_col_z_ = -1;
-    if (csv_data_loaded_)
-        csv_dialog_open_ = true;
+    // Opened on failure too: the picker shows csv_error_ and disables "Plot".
+    csv_dialog_open_ = true;
 }
 
 void ImGuiIntegration::draw_welcome_screen(float display_w, float display_h, float dt)

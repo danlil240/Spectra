@@ -159,7 +159,7 @@ class TestChunkedTransferSeries:
         from spectra._series import Series
         # Just verify the method exists and has the chunking path
         import inspect
-        source = inspect.getsource(Series.set_data)
+        source = inspect.getsource(Series._send_set_data)
         assert "CHUNK_SIZE" in source
         assert "_send_chunked" in source
 

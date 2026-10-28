@@ -384,6 +384,37 @@ else()
 endif()
 set_target_properties(mock_leaky_plugin PROPERTIES PREFIX "")
 
+# Tiny counting plug-in (custom series type + transform) for the whole-lifetime
+# test: load -> use -> disable -> unload -> reload -> shutdown while loaded.
+# CPU-only, so it also runs on the Windows CI job (as a .dll).
+add_library(mock_lifecycle_plugin SHARED unit/mock_lifecycle_plugin.cpp)
+target_include_directories(mock_lifecycle_plugin PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_BINARY_DIR}/generated
+)
+target_compile_features(mock_lifecycle_plugin PRIVATE cxx_std_20)
+if(WIN32)
+    target_link_libraries(mock_lifecycle_plugin PRIVATE spectra)
+elseif(APPLE)
+    target_link_options(mock_lifecycle_plugin PRIVATE -undefined dynamic_lookup)
+else()
+    target_link_options(mock_lifecycle_plugin PRIVATE "LINKER:--allow-shlib-undefined")
+endif()
+set_target_properties(mock_lifecycle_plugin PROPERTIES PREFIX "")
+
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_plugin_lifecycle.cpp)
+    add_spectra_test(unit test_plugin_lifecycle)
+    target_compile_definitions(unit_test_plugin_lifecycle PRIVATE
+        SPECTRA_MOCK_LIFECYCLE_PLUGIN_PATH="$<TARGET_FILE:mock_lifecycle_plugin>"
+    )
+    target_link_libraries(unit_test_plugin_lifecycle PRIVATE ${CMAKE_DL_LIBS})
+    add_dependencies(unit_test_plugin_lifecycle mock_lifecycle_plugin)
+    if(NOT WIN32)
+        # The plug-in resolves the C ABI from the test executable.
+        target_link_options(unit_test_plugin_lifecycle PRIVATE -rdynamic)
+    endif()
+endif()
+
 # Tests that require a GPU/display (Vulkan + GLFW window)
 set(SPECTRA_GPU_TESTS
     test_automation_figure_handlers
@@ -636,6 +667,51 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_windowed_ui_state.cpp AND SPECTR
             RESOURCE_LOCK gpu)
     endif()
     set_tests_properties(unit_test_windowed_ui_state PROPERTIES
+        LABELS "gpu"
+        RESOURCE_LOCK gpu)
+endif()
+
+# OS file drop through the GLFW drop callback of a real window (CSV opens as
+# data).  Needs a display + Vulkan: xvfb-run when available; skips otherwise.
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_window_file_drop_glfw.cpp AND SPECTRA_USE_IMGUI
+   AND SPECTRA_USE_GLFW AND DEFINED _spectra_glfw_link)
+    add_spectra_test(unit test_window_file_drop_glfw)
+    target_link_libraries(unit_test_window_file_drop_glfw PRIVATE ${_spectra_glfw_link})
+    if(DEFINED imgui_SOURCE_DIR)
+        target_include_directories(unit_test_window_file_drop_glfw SYSTEM PRIVATE
+            ${imgui_SOURCE_DIR})
+    endif()
+    find_program(SPECTRA_XVFB_RUN xvfb-run)
+    if(SPECTRA_XVFB_RUN AND NOT WIN32)
+        add_test(NAME unit_test_window_file_drop_glfw_xvfb
+            COMMAND ${SPECTRA_XVFB_RUN} -a $<TARGET_FILE:unit_test_window_file_drop_glfw>)
+        set_tests_properties(unit_test_window_file_drop_glfw_xvfb PROPERTIES
+            LABELS "gpu"
+            RESOURCE_LOCK gpu)
+    endif()
+    set_tests_properties(unit_test_window_file_drop_glfw PROPERTIES
+        LABELS "gpu"
+        RESOURCE_LOCK gpu)
+endif()
+
+# Same, through SDL3's SDL_EVENT_DROP_FILE (SDL3 builds only).
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_window_file_drop_sdl3.cpp AND SPECTRA_USE_IMGUI
+   AND SPECTRA_USE_SDL3 AND DEFINED SPECTRA_SDL3_TARGET)
+    add_spectra_test(unit test_window_file_drop_sdl3)
+    target_link_libraries(unit_test_window_file_drop_sdl3 PRIVATE ${SPECTRA_SDL3_TARGET})
+    if(DEFINED imgui_SOURCE_DIR)
+        target_include_directories(unit_test_window_file_drop_sdl3 SYSTEM PRIVATE
+            ${imgui_SOURCE_DIR})
+    endif()
+    find_program(SPECTRA_XVFB_RUN xvfb-run)
+    if(SPECTRA_XVFB_RUN AND NOT WIN32)
+        add_test(NAME unit_test_window_file_drop_sdl3_xvfb
+            COMMAND ${SPECTRA_XVFB_RUN} -a $<TARGET_FILE:unit_test_window_file_drop_sdl3>)
+        set_tests_properties(unit_test_window_file_drop_sdl3_xvfb PROPERTIES
+            LABELS "gpu"
+            RESOURCE_LOCK gpu)
+    endif()
+    set_tests_properties(unit_test_window_file_drop_sdl3 PROPERTIES
         LABELS "gpu"
         RESOURCE_LOCK gpu)
 endif()
@@ -2017,6 +2093,31 @@ if(SPECTRA_USE_PX4)
         )
         add_test(NAME unit_test_px4_app_shell COMMAND unit_test_px4_app_shell)
         set_tests_properties(unit_test_px4_app_shell PROPERTIES LABELS "px4")
+    endif()
+
+    # PX4 viewer on the committed ULog fixture (tests/data/ulog): click-to-sort
+    # of the Parameters table through Dear ImGui (no display) and ULog file
+    # drops routed through the WindowManager's shared drop dispatch.
+    if(SPECTRA_USE_IMGUI AND DEFINED imgui_SOURCE_DIR)
+        foreach(_px4_test test_px4_ulog_sorting test_px4_file_drop)
+            if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/${_px4_test}.cpp)
+                add_executable(unit_${_px4_test} ${CMAKE_CURRENT_SOURCE_DIR}/unit/${_px4_test}.cpp)
+                target_link_libraries(unit_${_px4_test} PRIVATE spectra_px4_adapter GTest::gtest_main)
+                target_compile_features(unit_${_px4_test} PRIVATE cxx_std_20)
+                target_include_directories(unit_${_px4_test} PRIVATE
+                    ${CMAKE_SOURCE_DIR}/src
+                    ${CMAKE_SOURCE_DIR}/src/adapters/px4
+                    ${CMAKE_BINARY_DIR}/generated
+                    ${imgui_SOURCE_DIR}
+                    ${imgui_SOURCE_DIR}/backends
+                )
+                target_compile_definitions(unit_${_px4_test} PRIVATE
+                    SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+                )
+                add_test(NAME unit_${_px4_test} COMMAND unit_${_px4_test})
+                set_tests_properties(unit_${_px4_test} PROPERTIES LABELS "px4")
+            endif()
+        endforeach()
     endif()
 endif()
 

@@ -523,6 +523,7 @@ void ULogReader::close()
     log_messages_.clear();
     open_ = false;
     last_error_.clear();
+    ++generation_;
 }
 
 bool ULogReader::is_open() const noexcept

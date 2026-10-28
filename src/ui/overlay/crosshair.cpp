@@ -20,7 +20,7 @@ namespace spectra
 {
 
 // Fitted crosshair readout: the text to draw and its measured size.
-struct FittedLabel
+struct CrosshairReadoutLabel
 {
     std::string text;
     ImVec2      size;
@@ -28,11 +28,11 @@ struct FittedLabel
 
 // Measure a readout at full width (no measuring cap) and, if it is wider than
 // max_w, ellipsize it (UTF-8 safe) so its box stays inside the viewport.
-static FittedLabel fit_label(ImFont* font, float font_size, const std::string& text, float max_w)
+static CrosshairReadoutLabel fit_label(ImFont* font, float font_size, const std::string& text, float max_w)
 {
     const ui::overlay_fit::MeasureFn measure = [&](std::string_view s)
     { return font->CalcTextSizeA(font_size, FLT_MAX, 0.0f, s.data(), s.data() + s.size()).x; };
-    FittedLabel out;
+    CrosshairReadoutLabel out;
     out.text = ui::overlay_fit::ellipsize(text, std::max(0.0f, max_w), measure);
     out.size = font->CalcTextSizeA(font_size, FLT_MAX, 0.0f, out.text.c_str());
     if (out.size.y <= 0.0f)
@@ -193,7 +193,7 @@ void Crosshair::draw(const CursorReadout& cursor,
 
     // X label at bottom of viewport
     {
-        const FittedLabel fl =
+        const CrosshairReadoutLabel fl =
             fit_label(font, font->LegacySize * 0.85f, x_label, (vx1 - vx0) - label_pad * 2.0f);
         const ImVec2 sz = fl.size;
         // Keep the whole label box inside the viewport horizontally.
@@ -218,7 +218,7 @@ void Crosshair::draw(const CursorReadout& cursor,
     // Y label inside left edge of viewport
     {
         const float       lx = vx0 + 4.0f;
-        const FittedLabel fl =
+        const CrosshairReadoutLabel fl =
             fit_label(font, font->LegacySize * 0.85f, y_label, vx1 - lx - label_pad);
         const ImVec2 sz = fl.size;
         // Keep the whole label box inside the viewport vertically.
@@ -320,7 +320,7 @@ void Crosshair::draw_all_axes(const CursorReadout& cursor,
             const std::string x_label =
                 ui::format_compact_value(data_x,
                                          crosshair_mapping::pixel_resolution_x(*axes_ptr, sx));
-            const FittedLabel fl =
+            const CrosshairReadoutLabel fl =
                 fit_label(font, font->LegacySize * 0.85f, x_label, (vx1 - vx0) - label_pad * 2.0f);
             const ImVec2 sz = fl.size;
             float        lx = ui::overlay_fit::clamp_span(sx - sz.x * 0.5f - label_pad,
@@ -359,7 +359,7 @@ void Crosshair::draw_all_axes(const CursorReadout& cursor,
                     ui::format_compact_value(data_y,
                                              crosshair_mapping::pixel_resolution_y(*axes_ptr, cy));
                 const float       lx2     = vx0 + 4.0f;
-                const FittedLabel fl =
+                const CrosshairReadoutLabel fl =
                     fit_label(font, font->LegacySize * 0.85f, y_label, vx1 - lx2 - label_pad);
                 const ImVec2 sz  = fl.size;
                 float        ly2 = ui::overlay_fit::clamp_span(cy - sz.y * 0.5f - label_pad,
@@ -407,7 +407,7 @@ void Crosshair::draw_all_axes(const CursorReadout& cursor,
                     ui::format_compact_value(data_y,
                                              crosshair_mapping::pixel_resolution_y(*axes_ptr, sy));
                 const float       lx2     = vx0 + 4.0f;
-                const FittedLabel fl =
+                const CrosshairReadoutLabel fl =
                     fit_label(font, font->LegacySize * 0.85f, y_label, vx1 - lx2 - label_pad);
                 const ImVec2 sz  = fl.size;
                 float        ly2 = ui::overlay_fit::clamp_span(sy - sz.y * 0.5f - label_pad,

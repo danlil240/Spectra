@@ -23,7 +23,7 @@ struct UndoAction
     // Further owners whose callbacks this action reaches (a group combined by
     // end_group() lists every owner of its children here, nested groups
     // included).  remove_owned() matches `owner` and every entry.
-    std::vector<const void*> owners;
+    std::vector<const void*> owners{};
 
     // Whether removing `token`'s actions must drop this one.
     bool owned_by(const void* token) const;

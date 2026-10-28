@@ -670,6 +670,129 @@ inline bool fits(const Rect& vp, float w, float h, LegendPosition pos = LegendPo
     return w <= vp.w - 2.0f * CLAMP_INSET && h <= vp.h - 2.0f * CLAMP_INSET;
 }
 
+// ── Plot-area protection for inside legends ─────────────────────────────────
+// A dense inside legend (any position but OutsideRight) must leave most of
+// its plot visible.  It never covers more than INSIDE_MAX_COVERAGE of the
+// plot area, and a legend that is summarised anyway ("+N more") is also kept
+// within INSIDE_MAX_HEIGHT of the plot height, so a single tall column cannot
+// hide one side of every curve.  The box loses rows (it may gain columns
+// when the height cap leaves room for them); entries that no longer fit fold
+// into the "+N more" cell.  Labels keep their font size.  The cap never cuts
+// a legend below INSIDE_MIN_ROWS rows (or the rows it had), so short legends
+// in small subplots stay complete.  Explicit positions are kept: only the box
+// shrinks.
+inline constexpr float INSIDE_MAX_COVERAGE = 0.35f;
+inline constexpr float INSIDE_MAX_HEIGHT   = 0.5f;
+inline constexpr int   INSIDE_MIN_ROWS     = 4;
+
+// The static legend grid every legend drawer (window, GPU/PNG, SVG) uses:
+// compute_static_grid() inside legend_area() @p area for position @p pos,
+// then, for inside positions, the plot-area caps above.  Other arguments as
+// compute_static_grid.
+inline GridLayout compute_legend_grid(int            n,
+                                      float          col_w,
+                                      float          row_h,
+                                      float          min_row_h,
+                                      float          overflow_w,
+                                      float          pad_x,
+                                      float          pad_y,
+                                      float          col_gap,
+                                      const Rect&    area,
+                                      LegendPosition pos)
+{
+    auto grid = [&](float max_w, float max_h)
+    {
+        return compute_static_grid(n,
+                                   col_w,
+                                   row_h,
+                                   min_row_h,
+                                   overflow_w,
+                                   pad_x,
+                                   pad_y,
+                                   col_gap,
+                                   max_w,
+                                   max_h);
+    };
+    const float full_w = max_box_w(area, pos);
+    GridLayout  g      = grid(full_w, max_box_h(area, pos));
+    if (pos == LegendPosition::OutsideRight || g.rows <= 0 || !(g.width > 0.0f))
+        return g;
+
+    const float limit    = INSIDE_MAX_COVERAGE * area.w * area.h;
+    const int   min_rows = std::min(INSIDE_MIN_ROWS, g.visible_rows);
+    auto        min_h    = [&](const GridLayout& l)
+    { return 2.0f * pad_y + static_cast<float>(std::min(min_rows, l.visible_rows)) * l.cell_h; };
+    // The small slack keeps float error from dropping a row that exactly fits.
+    constexpr float SLACK = 0.01f;
+
+    // 1. A summarised (or oversized) legend stays within INSIDE_MAX_HEIGHT;
+    //    spare width may take extra columns.
+    const float max_h = std::max(min_h(g), INSIDE_MAX_HEIGHT * area.h);
+    if ((g.overflow > 0 || g.width * g.height > limit) && g.height > max_h)
+        g = grid(full_w, max_h + SLACK);
+
+    // 2. Coverage cap: same width (no extra columns), fewer rows.
+    if (g.width * g.height > limit)
+    {
+        const float cap_h = std::max(min_h(g), limit / g.width);
+        if (cap_h < g.height)
+            g = grid(g.width + SLACK, cap_h + SLACK);
+    }
+    return g;
+}
+
+// Fraction of @p area a legend box of @p g covers (0 for an empty area).
+inline float grid_coverage(const GridLayout& g, const Rect& area)
+{
+    const float a = area.w * area.h;
+    return a > 0.0f ? (g.width * g.height) / a : 0.0f;
+}
+
+// ── Wheel scrolling of a summarised interactive legend ──────────────────────
+// The window legend shows `shown` consecutive entries starting at a scroll
+// offset; the mouse wheel over the legend moves that offset by
+// SCROLL_ENTRIES_PER_NOTCH entries per notch (wheel > 0 scrolls back toward
+// the first entry), clamped so the box is always full.  The "+N more" cell
+// then summarises the entries before and after the visible run.
+inline constexpr float SCROLL_ENTRIES_PER_NOTCH = 3.0f;
+
+// Largest scroll offset of @p n entries showing @p shown at a time.
+inline int max_scroll(int n, int shown)
+{
+    return std::max(0, n - std::max(0, shown));
+}
+
+// New (fractional) scroll offset after a wheel movement of @p wheel notches.
+inline float scroll_offset(float offset, float wheel, int n, int shown)
+{
+    const float next = offset - wheel * SCROLL_ENTRIES_PER_NOTCH;
+    if (!std::isfinite(next))
+        return 0.0f;
+    return std::clamp(next, 0.0f, static_cast<float>(max_scroll(n, shown)));
+}
+
+// First visible entry for a (fractional) scroll offset.
+inline int scroll_first(float offset, int n, int shown)
+{
+    const int first = std::isfinite(offset) ? static_cast<int>(std::lround(offset)) : 0;
+    return std::clamp(first, 0, max_scroll(n, shown));
+}
+
+// Indices of the entries a "+N more" cell summarises when entries
+// [first, first + shown) are visible: those before the run, then those after.
+inline std::vector<int> hidden_entry_indices(int n, int first, int shown)
+{
+    std::vector<int> out;
+    first          = std::clamp(first, 0, max_scroll(n, shown));
+    const int last = std::min(n, first + std::max(0, shown));
+    out.reserve(static_cast<size_t>(std::max(0, n - (last - first))));
+    for (int i = 0; i < first; ++i)
+        out.push_back(i);
+    for (int i = last; i < n; ++i)
+        out.push_back(i);
+    return out;
+}
+
 // Series that get a legend entry, in axes order: labeled and not hidden from
 // the legend.  Works for 2D and 3D axes alike, so the window (ImGui) and the
 // GPU / PNG export legends list the same entries.  Hidden series stay listed
@@ -766,7 +889,9 @@ inline constexpr float AUTO_OUTSIDE_MIN_LABEL_W = 48.0f;
 // Fraction of @p plot an inside legend of @p entries would cover, using the
 // static (non-scrolling) grid every legend path sizes itself with and the
 // layout font (layout_font_px).  1 when not even one row fits (the legend
-// would be omitted), 0 for no entries / an empty plot.
+// would be omitted), 0 for no entries / an empty plot.  Deliberately measured
+// before the INSIDE_MAX_COVERAGE cap (compute_legend_grid): it is how much
+// the full legend would need, which decides whether Best moves it outside.
 inline float inside_coverage(std::span<Series* const> entries,
                              const LegendConfig&      cfg,
                              const Rect&              plot)

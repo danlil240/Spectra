@@ -987,6 +987,33 @@ TEST_F(RendererFixture, AutoOutsideLegendIsDrawnInTheStrip)
     EXPECT_LE(cell.y + cell.h, strip.y + strip.h + 0.5f);
 }
 
+// S4-U01: the headless/PNG legend applies the same plot-area cap as the SVG
+// and window legends to an explicitly placed dense legend (QA gallery
+// "layout" scene), so most of the plot stays visible.
+TEST_F(RendererFixture, DenseExplicitLegendIsCappedInsideThePlot)
+{
+    Figure fig({.width = 640, .height = 480});
+    auto&  ax                  = fig.subplot(1, 1, 1);
+    fig.legend().position      = LegendPosition::TopRight;
+    fig.legend().font_size     = 12.0f;
+    const std::vector<float> x = {0.0f, 1.0f};
+    for (int i = 0; i < 50; ++i)
+        ax.line(x, x).label("Sensor " + std::to_string(i + 1) + " / descriptive long legend entry");
+    render(fig);
+    ASSERT_EQ(renderer.legend_overflow_cells().size(), 1u);
+    const auto& cell = renderer.legend_overflow_cells()[0];
+    const Rect& vp   = ax.viewport();
+    // The "+N more" cell (the last row of the box) sits in the top part of the
+    // plot: the box no longer runs down most of its height.
+    EXPECT_LT(cell.cell.y + cell.cell.h - vp.y, 0.6f * vp.h);
+    EXPECT_GE(cell.cell.x + cell.cell.w, vp.x + 0.5f * vp.w) << "TopRight is kept";
+    ASSERT_FALSE(cell.hidden.empty());
+    // Entries before the cell are listed in order; at least INSIDE_MIN_ROWS - 1 are shown.
+    const int first_hidden = std::stoi(cell.hidden.front().substr(7)) - 1;   // "Sensor N / ..."
+    EXPECT_GE(first_hidden, legend_layout::INSIDE_MIN_ROWS - 1);
+    EXPECT_LT(first_hidden, 50);
+}
+
 TEST_F(RendererFixture, OverflowTooltipCarriesColourKeysOfHiddenEntries)
 {
     Figure fig({.width = 800, .height = 600});

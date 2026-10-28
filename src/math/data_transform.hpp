@@ -136,6 +136,9 @@ class DataTransform
     CustomKind                   custom_kind_ = CustomKind::None;
     std::shared_ptr<CustomState> custom_;
 
+    // Wraps a state already holding its callback (see TransformRegistry).
+    DataTransform(const std::string& name, std::shared_ptr<CustomState> state, CustomKind kind);
+
     // Registry-side controls of the shared custom state (no-ops otherwise).
     void set_custom_enabled(bool enabled) const;
     // Drops the callbacks for good, waiting for in-flight calls to finish.
@@ -350,6 +353,17 @@ class TransformRegistry
         const void*   owner   = nullptr;
         bool          enabled = true;
     };
+
+    // Creates the shared state of a registered transform.  Set by the
+    // constructor, so it always points into the module that owns the registry
+    // (the host): a plugin linking spectra statically (Windows) runs its own
+    // copy of register_transform(), and a shared_ptr control block allocated
+    // there would be released by retained copies after the plugin unloaded.
+    // The callbacks themselves are dropped by unregister_owner() before unload.
+    using StateFactory       = std::shared_ptr<DataTransform::CustomState> (*)();
+    StateFactory make_state_ = nullptr;
+
+    static std::shared_ptr<DataTransform::CustomState> make_custom_state();
 
     mutable std::mutex                                 mutex_;
     std::unordered_map<std::string, CustomEntry>       custom_transforms_;

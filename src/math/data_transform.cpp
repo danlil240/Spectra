@@ -141,6 +141,14 @@ DataTransform::DataTransform(const std::string& name, CustomXYFunc func)
     }
 }
 
+DataTransform::DataTransform(const std::string&           name,
+                             std::shared_ptr<CustomState> state,
+                             CustomKind                   kind)
+    : type_(TransformType::Custom), name_(name), custom_kind_(state ? kind : CustomKind::None),
+      custom_(std::move(state))
+{
+}
+
 bool DataTransform::is_available() const
 {
     if (!custom_)
@@ -893,9 +901,14 @@ bool TransformPipeline::is_available() const
 
 // ─── TransformRegistry ──────────────────────────────────────────────────────
 
-TransformRegistry::TransformRegistry()
+TransformRegistry::TransformRegistry() : make_state_(&TransformRegistry::make_custom_state)
 {
     register_builtins();
+}
+
+std::shared_ptr<DataTransform::CustomState> TransformRegistry::make_custom_state()
+{
+    return std::make_shared<DataTransform::CustomState>();
 }
 
 TransformRegistry& TransformRegistry::instance()
@@ -909,13 +922,20 @@ void TransformRegistry::register_transform(const std::string&        name,
                                            const std::string&        desc,
                                            const void*               owner)
 {
+    DataTransform added(name, DataTransform::CustomFunc{});
+    if (func)
+    {
+        auto state  = make_state_();   // host-side allocation, see make_state_
+        state->func = std::move(func);
+        added       = DataTransform(name, std::move(state), DataTransform::CustomKind::Scalar);
+    }
     DataTransform replaced;
     {
         std::lock_guard lock(mutex_);
         auto            it = custom_transforms_.find(name);
         if (it != custom_transforms_.end() && it->second.owner)
             replaced = std::move(it->second.transform);
-        custom_transforms_[name] = {DataTransform(name, std::move(func)), desc, owner};
+        custom_transforms_[name] = {std::move(added), desc, owner};
     }
     replaced.revoke_custom();
 }
@@ -925,13 +945,20 @@ void TransformRegistry::register_xy_transform(const std::string&          name,
                                               const std::string&          desc,
                                               const void*                 owner)
 {
+    DataTransform added(name, DataTransform::CustomXYFunc{});
+    if (func)
+    {
+        auto state     = make_state_();   // host-side allocation, see make_state_
+        state->xy_func = std::move(func);
+        added          = DataTransform(name, std::move(state), DataTransform::CustomKind::XY);
+    }
     DataTransform replaced;
     {
         std::lock_guard lock(mutex_);
         auto            it = custom_transforms_.find(name);
         if (it != custom_transforms_.end() && it->second.owner)
             replaced = std::move(it->second.transform);
-        custom_transforms_[name] = {DataTransform(name, std::move(func)), desc, owner};
+        custom_transforms_[name] = {std::move(added), desc, owner};
     }
     replaced.revoke_custom();
 }

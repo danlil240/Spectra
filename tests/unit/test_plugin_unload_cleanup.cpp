@@ -357,6 +357,17 @@ TEST_F(PluginUnloadCleanupTest, RetainedTransformCopiesFollowDisableAndUnload)
     ASSERT_TRUE(transforms_.load_pipeline("leaky-preset", after_unload));
     EXPECT_EQ(run(after_unload), shifted);
     EXPECT_EQ(run(pipeline), y);
+
+    // Releasing the last copies only after the library is closed must not run
+    // plug-in code.  On Windows the plug-in links spectra statically and runs
+    // its own copy of register_transform(): the shared state (and its
+    // shared_ptr control block) must still be allocated by the host registry.
+    ASSERT_TRUE(mgr_.unload_plugin(kPluginName));
+    retained = DataTransform{};
+    pipeline.clear();
+    loaded.clear();
+    after_unload.clear();
+    EXPECT_TRUE(transforms_.remove_pipeline("leaky-preset"));   // last references
 }
 
 // A group mixing actions of several plug-ins is dropped whole when any one of

@@ -888,6 +888,20 @@ PluginManager::~PluginManager()
     unload_all();
 }
 
+void PluginManager::detach_host()
+{
+    std::lock_guard lock(mutex_);
+    registry_          = nullptr;
+    shortcut_mgr_      = nullptr;
+    undo_mgr_          = nullptr;
+    transform_reg_     = nullptr;
+    overlay_reg_       = nullptr;
+    export_format_reg_ = nullptr;
+    data_source_reg_   = nullptr;
+    series_type_reg_   = nullptr;
+    backend_           = nullptr;
+}
+
 SpectraPluginContext PluginManager::make_context(uint32_t minor_version) const
 {
     SpectraPluginContext ctx{};

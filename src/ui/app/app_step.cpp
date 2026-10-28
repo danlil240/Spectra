@@ -227,10 +227,16 @@ struct App::AppRuntime
     Animator       animator;
     SessionRuntime session;
 
-    PluginManager        plugin_manager;
+    // Host registries the plugin manager points to: declared before it so
+    // they outlive it even if ~AppRuntime has to unload plugins itself.
     ExportFormatRegistry export_format_registry;
     DataSourceRegistry   data_source_registry;
     SeriesTypeRegistry   series_type_registry;
+    PluginManager        plugin_manager;
+    // UI context whose command registry, shortcuts and undo stack the plugin
+    // manager uses (headless context or a window's).  Plugins are unloaded
+    // or re-hosted before it is destroyed (see App::release_plugin_ui_host).
+    WindowUIContext* plugin_host_ctx = nullptr;
 
     std::unique_ptr<ui::settings::SettingsStore> settings_store;
 
@@ -298,8 +304,78 @@ struct App::AppRuntime
     // non-deterministic std::system_error("Invalid argument") can occur
     // during member cleanup.  Making the destructor noexcept(false) lets
     // the exception propagate to callers that have try-catch guards.
-    ~AppRuntime() noexcept(false) = default;
+    //
+    // App::shutdown_runtime() unloads plugins while every host object is
+    // alive; this is the fallback for any other teardown path.  The body runs
+    // before any member is destroyed, so the plugins' registrations are still
+    // removed from live registries here.
+    ~AppRuntime() noexcept(false)
+    {
+        plugin_manager.unload_all();
+        plugin_manager.detach_host();
+    }
 };
+
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
+// Called before `dying` (a window's UI context) is destroyed.  When it hosts
+// the plugin manager's command registry, shortcuts and undo stack, plugins
+// must not outlive it bound to them: they registered commands and undo
+// actions there and were handed its raw handles at init.  With another open
+// window they are reloaded against that window's context (keeping their
+// enabled state); with none left (the app is closing) they are unloaded now,
+// while every host object is still alive.  Main thread, GPU idle.
+static void release_plugin_ui_host(PluginManager&    plugin_manager,
+                                   WindowUIContext*& host,
+                                   WindowUIContext*  dying,
+                                   WindowManager&    window_mgr)
+{
+    if (!dying || dying != host)
+        return;
+
+    WindowUIContext* next = nullptr;
+    for (auto* wctx : window_mgr.windows())
+    {
+        if (wctx && wctx->ui_ctx && wctx->ui_ctx.get() != dying && !wctx->is_preview)
+        {
+            next = wctx->ui_ctx.get();
+            break;
+        }
+    }
+
+    struct Reload
+    {
+        std::string name;
+        std::string path;
+        bool        enabled = true;
+    };
+    std::vector<Reload> reload;
+    if (next)
+    {
+        for (const auto& p : plugin_manager.plugins())
+        {
+            if (p.loaded)
+                reload.push_back({p.name, p.path, p.enabled});
+        }
+    }
+
+    plugin_manager.unload_all();
+    plugin_manager.set_command_registry(next ? &next->cmd_registry : nullptr);
+    plugin_manager.set_shortcut_manager(next ? &next->shortcut_mgr : nullptr);
+    plugin_manager.set_undo_manager(next ? &next->undo_mgr : nullptr);
+    host = next;
+
+    for (const auto& r : reload)
+    {
+        if (!plugin_manager.load_plugin(r.path))
+        {
+            SPECTRA_LOG_WARN("plugin", "Failed to reload plugin '{}' for a new window", r.name);
+            continue;
+        }
+        if (!r.enabled)
+            plugin_manager.set_plugin_enabled(r.name, false);
+    }
+}
+#endif
 
 #if !defined(_WIN32) && (defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3))
 // Keep exactly one open window's TopicsPanel wired to the topic server.  The
@@ -616,6 +692,7 @@ void App::init_runtime()
     }
 
     // Wire plugin host services after UI context creation.
+    rt.plugin_host_ctx = rt.ui_ctx_ptr;
     rt.plugin_manager.set_command_registry(&rt.ui_ctx_ptr->cmd_registry);
     rt.plugin_manager.set_shortcut_manager(&rt.ui_ctx_ptr->shortcut_mgr);
     rt.plugin_manager.set_undo_manager(&rt.ui_ctx_ptr->undo_mgr);
@@ -627,7 +704,17 @@ void App::init_runtime()
     renderer_->set_series_type_registry(&rt.series_type_registry);
 #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
     if (rt.window_mgr)
+    {
         rt.plugin_manager.set_overlay_registry(&rt.window_mgr->overlay_registry());
+        rt.window_mgr->set_window_ui_destroying_handler(
+            [&rt](WindowContext& wctx)
+            {
+                release_plugin_ui_host(rt.plugin_manager,
+                                       rt.plugin_host_ctx,
+                                       wctx.ui_ctx.get(),
+                                       *rt.window_mgr);
+            });
+    }
 #endif
 
     rt.ui_ctx_ptr->plugin_manager = &rt.plugin_manager;
@@ -1242,6 +1329,19 @@ void App::shutdown_runtime()
         }
     }
 
+    // Unload plugins while everything they registered into is still alive:
+    // the command registry, shortcuts and undo stack of the host UI context
+    // (a window's, or the headless one), the windows' shared overlay registry,
+    // the export / data-source / series-type registries, the Renderer (which
+    // runs plugin cleanup for live custom series) and the backend.  The GPU
+    // must be idle first because that cleanup frees plugin GPU resources.
+    // Detaching afterwards keeps any later unload from walking dead hosts.
+    if (backend_)
+        backend_->wait_idle();
+    rt.plugin_manager.unload_all();
+    rt.plugin_manager.detach_host();
+    rt.plugin_host_ctx = nullptr;
+
 #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
     if (rt.window_mgr)
     {
@@ -1270,7 +1370,6 @@ void App::shutdown_runtime()
         rt.series_type_registry.destroy_pipelines(*backend_);
         renderer_->set_series_type_registry(nullptr);
     }
-    rt.plugin_manager.set_series_type_registry(nullptr);
 
     try
     {

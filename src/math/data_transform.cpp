@@ -120,13 +120,57 @@ DataTransform::DataTransform(TransformType type, const TransformParams& params)
 }
 
 DataTransform::DataTransform(const std::string& name, CustomFunc func)
-    : type_(TransformType::Custom), name_(name), custom_func_(std::move(func))
+    : type_(TransformType::Custom), name_(name)
 {
+    if (func)
+    {
+        custom_kind_  = CustomKind::Scalar;
+        custom_       = std::make_shared<CustomState>();
+        custom_->func = std::move(func);
+    }
 }
 
 DataTransform::DataTransform(const std::string& name, CustomXYFunc func)
-    : type_(TransformType::Custom), name_(name), custom_xy_func_(std::move(func))
+    : type_(TransformType::Custom), name_(name)
 {
+    if (func)
+    {
+        custom_kind_     = CustomKind::XY;
+        custom_          = std::make_shared<CustomState>();
+        custom_->xy_func = std::move(func);
+    }
+}
+
+bool DataTransform::is_available() const
+{
+    if (!custom_)
+        return true;
+    return custom_->alive.load(std::memory_order_acquire)
+           && custom_->enabled.load(std::memory_order_acquire);
+}
+
+void DataTransform::set_custom_enabled(bool enabled) const
+{
+    if (custom_)
+        custom_->enabled.store(enabled, std::memory_order_release);
+}
+
+void DataTransform::revoke_custom() const
+{
+    if (!custom_)
+        return;
+    CustomFunc   func;
+    CustomXYFunc xy_func;
+    {
+        // Waits for calls in flight on other threads.
+        std::unique_lock lock(custom_->mutex);
+        custom_->alive.store(false, std::memory_order_release);
+        func             = std::move(custom_->func);
+        xy_func          = std::move(custom_->xy_func);
+        custom_->func    = nullptr;
+        custom_->xy_func = nullptr;
+    }
+    // The callables are destroyed here, while their owner is still loaded.
 }
 
 // ─── Apply ──────────────────────────────────────────────────────────────────
@@ -181,18 +225,28 @@ void DataTransform::apply_y(std::span<const float> x_in,
             apply_fft(x_in, y_in, x_out, y_out);
             break;
         case TransformType::Custom:
-            if (custom_xy_func_)
+        {
+            // Held for the whole call so revoke_custom() cannot drop (and the
+            // owner cannot unload) the callback while it runs.
+            std::shared_lock<std::shared_mutex> lock;
+            if (custom_)
+                lock = std::shared_lock(custom_->mutex);
+            if (!is_available())
             {
-                custom_xy_func_(x_in, y_in, x_out, y_out);
+                apply_identity(x_in, y_in, x_out, y_out);
             }
-            else if (custom_func_)
+            else if (custom_ && custom_->xy_func)
+            {
+                custom_->xy_func(x_in, y_in, x_out, y_out);
+            }
+            else if (custom_ && custom_->func)
             {
                 const size_t n = std::min(x_in.size(), y_in.size());
                 x_out.assign(x_in.begin(), x_in.begin() + static_cast<std::ptrdiff_t>(n));
                 y_out.resize(n);
                 for (size_t i = 0; i < n; ++i)
                 {
-                    y_out[i] = custom_func_(y_in[i]);
+                    y_out[i] = custom_->func(y_in[i]);
                 }
             }
             else
@@ -200,6 +254,7 @@ void DataTransform::apply_y(std::span<const float> x_in,
                 apply_identity(x_in, y_in, x_out, y_out);
             }
             break;
+        }
     }
 }
 
@@ -227,9 +282,14 @@ float DataTransform::apply_scalar(float value) const
         case TransformType::Clamp:
             return std::clamp(value, params_.clamp_min, params_.clamp_max);
         case TransformType::Custom:
-            if (custom_func_)
-                return custom_func_(value);
-            return value;
+        {
+            if (!custom_)
+                return value;
+            std::shared_lock lock(custom_->mutex);
+            if (is_available() && custom_->func)
+                return custom_->func(value);
+            return value;   // unavailable: identity
+        }
         default:
             return std::numeric_limits<float>::quiet_NaN();
     }
@@ -249,7 +309,7 @@ bool DataTransform::is_elementwise() const
         case TransformType::Clamp:
             return true;
         case TransformType::Custom:
-            return custom_func_ != nullptr && !custom_xy_func_;
+            return custom_kind_ == CustomKind::Scalar;
         default:
             return false;
     }
@@ -266,7 +326,7 @@ bool DataTransform::changes_length() const
         case TransformType::FFT:   // output is N/2+1 frequency bins (left-sided)
             return true;
         case TransformType::Custom:
-            return custom_xy_func_ != nullptr;
+            return custom_kind_ == CustomKind::XY;
         default:
             return false;
     }
@@ -323,7 +383,7 @@ std::string DataTransform::description() const
             return ss.str();
         }
         case TransformType::Custom:
-            return "Custom: " + name_;
+            return is_available() ? "Custom: " + name_ : "Custom: " + name_ + " (unavailable)";
     }
     return "Unknown";
 }
@@ -812,10 +872,21 @@ bool TransformPipeline::is_identity() const
         return true;
     for (const auto& step : steps_)
     {
-        if (step.enabled && step.transform.type() != TransformType::Identity)
+        if (step.enabled && step.transform.type() != TransformType::Identity
+            && step.transform.is_available())
         {
             return false;
         }
+    }
+    return true;
+}
+
+bool TransformPipeline::is_available() const
+{
+    for (const auto& step : steps_)
+    {
+        if (step.enabled && !step.transform.is_available())
+            return false;
     }
     return true;
 }
@@ -838,8 +909,15 @@ void TransformRegistry::register_transform(const std::string&        name,
                                            const std::string&        desc,
                                            const void*               owner)
 {
-    std::lock_guard lock(mutex_);
-    custom_transforms_[name] = {DataTransform(name, std::move(func)), desc, owner};
+    DataTransform replaced;
+    {
+        std::lock_guard lock(mutex_);
+        auto            it = custom_transforms_.find(name);
+        if (it != custom_transforms_.end() && it->second.owner)
+            replaced = std::move(it->second.transform);
+        custom_transforms_[name] = {DataTransform(name, std::move(func)), desc, owner};
+    }
+    replaced.revoke_custom();
 }
 
 void TransformRegistry::register_xy_transform(const std::string&          name,
@@ -847,23 +925,61 @@ void TransformRegistry::register_xy_transform(const std::string&          name,
                                               const std::string&          desc,
                                               const void*                 owner)
 {
-    std::lock_guard lock(mutex_);
-    custom_transforms_[name] = {DataTransform(name, std::move(func)), desc, owner};
+    DataTransform replaced;
+    {
+        std::lock_guard lock(mutex_);
+        auto            it = custom_transforms_.find(name);
+        if (it != custom_transforms_.end() && it->second.owner)
+            replaced = std::move(it->second.transform);
+        custom_transforms_[name] = {DataTransform(name, std::move(func)), desc, owner};
+    }
+    replaced.revoke_custom();
 }
+
+// Revocation happens outside mutex_: it waits for calls in flight, and a
+// plugin callback may itself use the registry.
 
 bool TransformRegistry::unregister_transform(const std::string& name)
 {
-    std::lock_guard lock(mutex_);
-    return custom_transforms_.erase(name) > 0;
+    DataTransform removed;
+    {
+        std::lock_guard lock(mutex_);
+        auto            it = custom_transforms_.find(name);
+        if (it == custom_transforms_.end())
+            return false;
+        if (it->second.owner)
+            removed = std::move(it->second.transform);
+        custom_transforms_.erase(it);
+    }
+    removed.revoke_custom();
+    return true;
 }
 
 size_t TransformRegistry::unregister_owner(const void* owner)
 {
     if (!owner)
         return 0;
-    std::lock_guard lock(mutex_);
-    return std::erase_if(custom_transforms_,
-                         [owner](const auto& kv) { return kv.second.owner == owner; });
+    std::vector<DataTransform> removed;
+    {
+        std::lock_guard lock(mutex_);
+        for (auto it = custom_transforms_.begin(); it != custom_transforms_.end();)
+        {
+            if (it->second.owner == owner)
+            {
+                removed.push_back(std::move(it->second.transform));
+                it = custom_transforms_.erase(it);
+            }
+            else
+            {
+                ++it;
+            }
+        }
+    }
+    // Every copy shares the revoked state: get_transform() results, pipeline
+    // steps and saved-pipeline steps stop calling into the owner.
+    for (const auto& t : removed)
+        t.revoke_custom();
+    return removed.size();
 }
 
 void TransformRegistry::set_owner_enabled(const void* owner, bool enabled)
@@ -874,7 +990,10 @@ void TransformRegistry::set_owner_enabled(const void* owner, bool enabled)
     for (auto& [name, entry] : custom_transforms_)
     {
         if (entry.owner == owner)
+        {
             entry.enabled = enabled;
+            entry.transform.set_custom_enabled(enabled);
+        }
     }
 }
 
@@ -973,12 +1092,31 @@ bool TransformRegistry::load_pipeline(const std::string& name, TransformPipeline
 {
     std::lock_guard lock(mutex_);
     auto            it = saved_pipelines_.find(name);
-    if (it != saved_pipelines_.end())
+    if (it == saved_pipelines_.end())
+        return false;
+
+    TransformPipeline result = it->second;
+    for (size_t i = 0; i < result.step_count(); ++i)
     {
-        out = it->second;
-        return true;
+        const DataTransform& step = result.step(i);
+        if (step.is_available())
+            continue;
+        // Rebind a step whose registration is gone to the transform now
+        // registered under its name (a disabled one stays unavailable).
+        auto cit = custom_transforms_.find(step.name());
+        if (cit != custom_transforms_.end() && cit->second.enabled
+            && cit->second.transform.is_available() && !cit->second.transform.same_custom(step))
+        {
+            const TransformParams params    = step.params();
+            result.step_mut(i)              = cit->second.transform;
+            result.step_mut(i).params_mut() = params;
+            continue;
+        }
+        if (result.is_enabled(i))
+            return false;
     }
-    return false;
+    out = std::move(result);
+    return true;
 }
 
 std::vector<std::string> TransformRegistry::saved_pipelines() const

@@ -305,6 +305,82 @@ TEST_F(PluginUnloadCleanupTest, DisabledPluginStillUnloadsCleanly)
     EXPECT_EQ(series_types_.count(), 0u);
 }
 
+// Copies of a plugin transform taken before disable/unload (a lookup result, a
+// pipeline step, a saved preset) must follow the plugin's state: identity while
+// disabled, revoked once unloaded, and rebound by name after a reload.
+TEST_F(PluginUnloadCleanupTest, RetainedTransformCopiesFollowDisableAndUnload)
+{
+    const std::vector<float> x{0.0f, 1.0f, 2.0f}, y{1.0f, 3.0f, 8.0f};
+    const std::vector<float> shifted{2.0f, 4.0f, 9.0f};
+    auto                     run = [&](const TransformPipeline& p)
+    {
+        std::vector<float> xo, yo;
+        p.apply(x, y, xo, yo);
+        return yo;
+    };
+
+    ASSERT_TRUE(mgr_.load_plugin(path_));
+    DataTransform retained;
+    ASSERT_TRUE(transforms_.get_transform("LeakyShift", retained));
+    TransformPipeline pipeline;
+    pipeline.push_back(retained);
+    transforms_.save_pipeline("leaky-preset", pipeline);
+    EXPECT_EQ(run(pipeline), shifted);
+
+    mgr_.set_plugin_enabled(kPluginName, false);
+    const int         calls = counter("mock_leaky_transform_calls");
+    TransformPipeline loaded;
+    EXPECT_FALSE(transforms_.load_pipeline("leaky-preset", loaded));
+    EXPECT_FALSE(retained.is_available());
+    EXPECT_EQ(run(pipeline), y);
+    EXPECT_FLOAT_EQ(retained.apply_scalar(1.0f), 1.0f);
+    EXPECT_EQ(counter("mock_leaky_transform_calls"), calls);   // never entered
+
+    mgr_.set_plugin_enabled(kPluginName, true);
+    EXPECT_EQ(run(pipeline), shifted);
+    ASSERT_TRUE(transforms_.load_pipeline("leaky-preset", loaded));
+    EXPECT_EQ(run(loaded), shifted);
+
+    // Unload: every copy is revoked before the library is closed, so applying
+    // them afterwards must not call into unmapped code.
+    ASSERT_TRUE(mgr_.unload_plugin(kPluginName));
+    EXPECT_FALSE(retained.is_available());
+    EXPECT_EQ(run(pipeline), y);
+    EXPECT_EQ(run(loaded), y);
+    EXPECT_FLOAT_EQ(retained.apply_scalar(1.0f), 1.0f);
+    TransformPipeline after_unload;
+    EXPECT_FALSE(transforms_.load_pipeline("leaky-preset", after_unload));
+
+    // Reload: the saved preset binds to the new registration; the old copies
+    // stay revoked.
+    ASSERT_TRUE(mgr_.load_plugin(path_));
+    ASSERT_TRUE(transforms_.load_pipeline("leaky-preset", after_unload));
+    EXPECT_EQ(run(after_unload), shifted);
+    EXPECT_EQ(run(pipeline), y);
+}
+
+// A group mixing actions of several plug-ins is dropped whole when any one of
+// them unloads, so none of its callbacks stays reachable.
+TEST_F(PluginUnloadCleanupTest, UnloadDropsMixedOwnerUndoGroup)
+{
+    static char other_plugin = 'o';   // another loaded module's token
+    undo_.begin_group("Mixed plugins");
+    UndoAction first;
+    first.description = "other plugin edit";
+    first.owner       = &other_plugin;
+    first.undo_fn     = [] {};
+    undo_.push(std::move(first));
+    // The plug-in pushes its own action into the open group during init.
+    ASSERT_TRUE(mgr_.load_plugin(path_));
+    undo_.end_group();
+    ASSERT_EQ(undo_.undo_count(), 1u);
+
+    ASSERT_TRUE(mgr_.unload_plugin(kPluginName));
+    EXPECT_EQ(undo_.undo_count(), 0u);
+    EXPECT_EQ(undo_.redo_count(), 0u);
+    EXPECT_FALSE(undo_.undo());
+}
+
 TEST(PluginRegistryOwnership, NullOwnerNeverMatchesHostEntries)
 {
     OverlayRegistry overlays;

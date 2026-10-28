@@ -384,7 +384,7 @@ TEST_F(LegendFontFixture, WindowLegendMatchesRasterHeight)
     ImGui::PopFont();
     ImGui::Render();
 
-    ImGuiWindow* win = ImGui::FindWindowByName(std::format("##legend_{:x}_{}", 1ul, 0).c_str());
+    ImGuiWindow* win = ImGui::FindWindowByName(legend.window_name(1, 0).c_str());
     ASSERT_NE(win, nullptr);
     const RasterLegend r30 = raster(30.0f);
     EXPECT_NEAR(win->Size.y, expected_height(30.0f, 2), 1.0f);

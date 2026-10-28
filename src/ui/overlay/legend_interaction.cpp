@@ -68,6 +68,59 @@ LegendInteraction::LegendOffset& LegendInteraction::get_offset(uintptr_t figure_
     return legend_offsets_[make_offset_key(figure_id, axes_index)];
 }
 
+size_t LegendInteraction::window_slot(uintptr_t figure_id, size_t axes_index, bool& fresh)
+{
+    const OffsetKey key = make_offset_key(figure_id, axes_index);
+    auto            it  = window_slots_.find(key);
+    fresh               = false;
+    if (it != window_slots_.end() && it->second.figure_id == figure_id)
+        return it->second.slot;
+    size_t slot;
+    if (!free_window_slots_.empty())
+    {
+        slot = free_window_slots_.back();
+        free_window_slots_.pop_back();
+        fresh = true;   // reused: the ImGui window still holds another legend's state
+    }
+    else
+    {
+        slot = next_window_slot_++;
+    }
+    if (it != window_slots_.end())   // key collision with another figure: replace
+        free_window_slots_.push_back(it->second.slot);
+    window_slots_[key] = WindowSlot{figure_id, slot};
+    return slot;
+}
+
+std::string LegendInteraction::window_name(uintptr_t figure_id, size_t axes_index) const
+{
+    auto it = window_slots_.find(make_offset_key(figure_id, axes_index));
+    if (it == window_slots_.end() || it->second.figure_id != figure_id)
+        return {};
+    return std::format("##legend_{}", it->second.slot);
+}
+
+void LegendInteraction::forget_figure(uintptr_t figure_id)
+{
+    for (auto it = window_slots_.begin(); it != window_slots_.end();)
+    {
+        if (it->second.figure_id == figure_id)
+        {
+            const OffsetKey key = it->first;
+            free_window_slots_.push_back(it->second.slot);
+            legend_offsets_.erase(key);
+            best_corner_.erase(key);
+            overflow_cells_.erase(key);
+            scroll_offsets_.erase(key);
+            it = window_slots_.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
+}
+
 // ─── Update ─────────────────────────────────────────────────────────────────
 
 void LegendInteraction::update(float dt, Figure& figure)
@@ -240,12 +293,16 @@ bool LegendInteraction::draw(AxesBase&           axes,
     legend_w       = box.w;   // place() keeps the box inside the viewport
     legend_h       = box.h;
 
-    // Draw legend window — use figure_id in the ImGui ID to prevent cross-figure collisions
-    const std::string win_id =
-        std::format("##legend_{:x}_{}", static_cast<unsigned long>(figure_id), axes_index);
+    // Draw legend window — one pooled window name per (figure, axes) so legends
+    // of figures shown side by side never share ImGui state (scroll).
+    bool              fresh_slot = false;
+    const size_t      slot       = window_slot(figure_id, axes_index, fresh_slot);
+    const std::string win_id     = std::format("##legend_{}", slot);
 
     ImGui::SetNextWindowPos(ImVec2(lx, ly));
     ImGui::SetNextWindowSize(ImVec2(legend_w, legend_h));
+    if (fresh_slot)
+        ImGui::SetNextWindowScroll(ImVec2(0.0f, 0.0f));
 
     // Use LegendConfig colors; fall back to theme colors when unset (see
     // LegendConfig::uses_bg_color: black RGB without has_bg_color = unset).

@@ -270,6 +270,8 @@ set(SPECTRA_UNIT_TESTS
     test_plugin_data_source
     test_plugin_integration
     test_plugin_unload_cleanup
+    test_plugin_concurrent
+    test_series_anim_callback
     test_plugin_series_type
     test_custom_series_render
     test_custom_series_gpu
@@ -416,6 +418,30 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_plugin_lifecycle.cpp)
     endif()
 endif()
 
+# Second, independent build of the same plug-in with non-colliding names
+# ("MockLeakyPluginB", "LeakyShiftB" = +10, ...) — loaded next to
+# mock_leaky_plugin by test_plugin_concurrent.
+add_library(mock_leaky_plugin_b SHARED unit/mock_leaky_plugin.cpp)
+target_include_directories(mock_leaky_plugin_b PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_BINARY_DIR}/generated
+)
+target_compile_features(mock_leaky_plugin_b PRIVATE cxx_std_20)
+target_compile_definitions(mock_leaky_plugin_b PRIVATE
+    MOCK_LEAKY_TAG="B"
+    MOCK_LEAKY_SHIFT=10.0f
+)
+if(WIN32)
+    target_link_libraries(mock_leaky_plugin_b PRIVATE spectra)
+else()
+    if(APPLE)
+        target_link_options(mock_leaky_plugin_b PRIVATE -undefined dynamic_lookup)
+    else()
+        target_link_options(mock_leaky_plugin_b PRIVATE "LINKER:--allow-shlib-undefined")
+    endif()
+endif()
+set_target_properties(mock_leaky_plugin_b PROPERTIES PREFIX "")
+
 # Tests that require a GPU/display (Vulkan + GLFW window)
 set(SPECTRA_GPU_TESTS
     test_automation_figure_handlers
@@ -538,6 +564,17 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
             add_dependencies(unit_${_test} mock_leaky_plugin)
             # Export the host's C ABI symbols so the plug-in binds to the test's
             # copies instead of the static spectra copy linked into it.
+            if(NOT WIN32)
+                target_link_options(unit_${_test} PRIVATE -rdynamic)
+            endif()
+        endif()
+        if(_test STREQUAL "test_plugin_concurrent")
+            target_compile_definitions(unit_${_test} PRIVATE
+                SPECTRA_MOCK_LEAKY_PLUGIN_PATH="$<TARGET_FILE:mock_leaky_plugin>"
+                SPECTRA_MOCK_LEAKY_PLUGIN_B_PATH="$<TARGET_FILE:mock_leaky_plugin_b>"
+            )
+            target_link_libraries(unit_${_test} PRIVATE ${CMAKE_DL_LIBS})
+            add_dependencies(unit_${_test} mock_leaky_plugin mock_leaky_plugin_b)
             if(NOT WIN32)
                 target_link_options(unit_${_test} PRIVATE -rdynamic)
             endif()
@@ -2123,7 +2160,7 @@ if(SPECTRA_USE_PX4)
     endif()
 endif()
 
-# QA Agents (interactive/manual harnesses; only the design review is a CTest test)
+# QA Agents (interactive/manual harnesses; the design review and soak are CTest tests)
 option(SPECTRA_BUILD_QA_AGENT "Build QA stress testing agent" OFF)
 if(SPECTRA_BUILD_QA_AGENT)
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/qa/qa_agent.cpp)
@@ -2162,6 +2199,19 @@ if(SPECTRA_BUILD_QA_AGENT)
                 RESOURCE_LOCK gpu
                 SKIP_RETURN_CODE 77
                 TIMEOUT 900)
+
+            # Soak: 3 scenarios x 12 iterations in one process each; fails when
+            # the RSS (0.5 MB/iter) or in-use heap (0.05 MB/iter) slope after
+            # 2 warm-up iterations keeps growing.  See qa/run_soak.sh.
+            add_test(NAME qa_soak
+                COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/qa/run_soak.sh
+                        $<TARGET_FILE:spectra_qa_agent>
+                        ${CMAKE_CURRENT_BINARY_DIR}/qa_soak)
+            set_tests_properties(qa_soak PROPERTIES
+                LABELS "gpu;qa"
+                RESOURCE_LOCK gpu
+                SKIP_RETURN_CODE 77
+                TIMEOUT 300)
         endif()
     endif()
 

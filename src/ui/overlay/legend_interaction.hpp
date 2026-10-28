@@ -64,6 +64,19 @@ class LegendInteraction
               uintptr_t           figure_id,
               const FigureStyle*  figure_style = nullptr);
 
+    // Drop all per-(figure, axes) state of a destroyed figure (drag offsets,
+    // Best-corner hysteresis, overflow cells) and return its legend ImGui
+    // window names to the pool for reuse.
+    void forget_figure(uintptr_t figure_id);
+
+    // Number of distinct legend ImGui windows ever named (pool size); bounded
+    // by the number of legends visible at once, not by figures ever created.
+    size_t legend_window_pool_size() const { return next_window_slot_; }
+
+    // ImGui window name of the legend of (figure, axes) ("##legend_<slot>"),
+    // or "" when that legend has not been drawn since the figure was forgotten.
+    std::string window_name(uintptr_t figure_id, size_t axes_index) const;
+
     // ─── Queries ────────────────────────────────────────────────────────
 
     // Get the effective opacity for a series (for use by the renderer).
@@ -181,6 +194,20 @@ class LegendInteraction
     // Mouse-wheel scroll offset (in entries) of a summarised legend, per
     // (figure, axes); see legend_layout::scroll_offset.
     std::unordered_map<OffsetKey, float> scroll_offsets_;
+    // Legend ImGui window name slot per (figure, axes).  ImGui never frees a
+    // window, so naming windows by figure address leaked one per figure ever
+    // shown; slots of forgotten figures are reused instead.
+    struct WindowSlot
+    {
+        uintptr_t figure_id = 0;
+        size_t    slot      = 0;
+    };
+    std::unordered_map<OffsetKey, WindowSlot> window_slots_;
+    std::vector<size_t>                       free_window_slots_;
+    size_t                                    next_window_slot_ = 0;
+    // Returns the window slot of (figure, axes); `fresh` is set when the slot
+    // was just (re)assigned, so stale ImGui window state must be reset.
+    size_t window_slot(uintptr_t figure_id, size_t axes_index, bool& fresh);
 
     // Drag state
     bool   dragging_        = false;

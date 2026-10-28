@@ -15,8 +15,12 @@
 //     --list-scenarios    List scenarios and exit
 //     --design-review     Capture 65 named UI states, each proved by semantic
 //                         assertions (failed assertion = ERROR, exit 1)
-//     --repeat <N>        Run each scenario N times; N>=3 judges RSS retention
-//                         for sustained growth (see qa_stats.hpp)
+//     --repeat <N>        Run each scenario N times in one process (soak); RSS
+//                         is sampled after each iteration and its least-squares
+//                         slope after warm-up is gated (see qa_stats.hpp)
+//     --max-rss-slope <MB> Soak gate: max RSS slope in MB/iteration (default 0.5)
+//     --repeat-warmup <N> Soak: leading iterations excluded from the slope (default 1)
+//     --max-heap-slope <MB> Soak: also gate the in-use heap slope (glibc; default off)
 
 #include <spectra/app.hpp>
 #include <spectra/axes.hpp>
@@ -99,6 +103,20 @@ static size_t get_rss_bytes()
     return static_cast<size_t>(pages) * 4096;
 #else
     return 0;
+#endif
+}
+
+// In-use heap bytes (glibc arena + mmap chunks); -1 when unavailable.  Unlike
+// RSS it is not inflated by freed-but-retained pages, so it separates live
+// allocations from allocator retention.
+static int64_t get_heap_in_use_bytes()
+{
+#if defined(__linux__) && defined(__GLIBC__) \
+    && (__GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 33))
+    const struct mallinfo2 mi = mallinfo2();
+    return static_cast<int64_t>(mi.uordblks + mi.hblkhd);
+#else
+    return -1;
 #endif
 }
 
@@ -351,6 +369,9 @@ struct QAOptions
     bool        list_scenarios = false;
     bool        design_review  = false;
     uint32_t    repeat         = 1;   // run each scenario N times (memory trend)
+    uint32_t    repeat_warmup     = 1;   // soak: iterations excluded from the RSS slope
+    double      max_rss_slope_mb  = 0.5;    // soak gate: MB per measured iteration
+    double      max_heap_slope_mb = -1.0;   // soak heap gate (MB/iter); < 0 = off
 };
 
 static QAOptions parse_args(int argc, char** argv)
@@ -381,6 +402,12 @@ static QAOptions parse_args(int argc, char** argv)
             opts.design_review = true;
         else if (arg == "--repeat" && i + 1 < argc)
             opts.repeat = std::max(1u, static_cast<uint32_t>(std::stoul(argv[++i])));
+        else if (arg == "--repeat-warmup" && i + 1 < argc)
+            opts.repeat_warmup = static_cast<uint32_t>(std::stoul(argv[++i]));
+        else if (arg == "--max-rss-slope" && i + 1 < argc)
+            opts.max_rss_slope_mb = std::stod(argv[++i]);
+        else if (arg == "--max-heap-slope" && i + 1 < argc)
+            opts.max_heap_slope_mb = std::stod(argv[++i]);
         else if (arg == "--help" || arg == "-h")
         {
             fprintf(stderr,
@@ -394,8 +421,14 @@ static QAOptions parse_args(int argc, char** argv)
                     "  --no-scenarios      Skip scenarios phase\n"
                     "  --list-scenarios    List scenarios and exit\n"
                     "  --design-review     Capture UI screenshots for design analysis\n"
-                    "  --repeat <N>        Run each scenario N times; with N>=3 RSS retention\n"
-                    "                      is judged for sustained growth after warm-up\n");
+                    "  --repeat <N>        Run each scenario N times in one process; RSS is\n"
+                    "                      sampled after each iteration and the least-squares\n"
+                    "                      slope after warm-up fails the run when it exceeds\n"
+                    "                      --max-rss-slope (needs >= 3 measured iterations)\n"
+                    "  --max-rss-slope <MB> Max RSS slope, MB/iteration (default 0.5)\n"
+                    "  --repeat-warmup <N> Leading iterations excluded from the slope (default 1)\n"
+                    "  --max-heap-slope <MB> Also fail when the in-use heap (glibc mallinfo2)\n"
+                    "                      grows faster than this, MB/iteration (default off)\n");
             exit(0);
         }
     }
@@ -422,6 +455,23 @@ struct ScenarioMemoryMetric
     bool                          gpu_after_valid  = false;
     VulkanBackend::GpuMemoryStats gpu_before{};
     VulkanBackend::GpuMemoryStats gpu_after{};
+};
+
+// --repeat soak result of one scenario: RSS / heap after every iteration and
+// the least-squares RSS slope over the iterations after warm-up.
+struct ScenarioRssTrend
+{
+    std::string          name;
+    uint32_t             iterations        = 0;
+    uint32_t             warmup_iterations = 0;
+    int64_t              rss_baseline      = 0;
+    std::vector<int64_t> rss_after;    // bytes, one per iteration
+    std::vector<int64_t> heap_after;   // glibc in-use heap bytes (empty when unavailable)
+    qa::SlopeVerdict     rss;
+    double               heap_slope_mb_per_iter = 0.0;
+    double               max_slope_mb_per_iter  = 0.0;
+    qa::SlopeVerdict     heap;                                // judged only with --max-heap-slope
+    double               max_heap_slope_mb_per_iter = -1.0;   // < 0: heap not gated
 };
 
 // ─── Design-review semantic assertions ──────────────────────────────────────
@@ -1256,6 +1306,7 @@ class QAAgent
             // growth once all repetitions ran (see qa_stats.hpp).
             const int64_t        rss_baseline = static_cast<int64_t>(settled_rss_bytes());
             std::vector<int64_t> rss_after_reps;
+            std::vector<int64_t> heap_after_reps;
             bool                 stop_all = false;
             for (uint32_t rep = 0; rep < opts_.repeat && !stop_all; ++rep)
             {
@@ -1295,10 +1346,19 @@ class QAAgent
                     add_issue(IssueSeverity::Error, "scenario", scenario.name + " FAILED");
                 }
 
+                // Soak: return to the same single-window / single-figure state
+                // after every iteration so the samples compare like with like
+                // (scenarios leave their figures open, which would otherwise
+                // read as per-iteration growth).
+                if (opts_.repeat > 1)
+                    reset_to_single_window_lightweight_state();
+
                 size_t rss_after = settled_rss_bytes();
                 if (rss_after > peak_rss_)
                     peak_rss_ = rss_after;
                 rss_after_reps.push_back(static_cast<int64_t>(rss_after));
+                if (const int64_t heap = get_heap_in_use_bytes(); heap >= 0)
+                    heap_after_reps.push_back(heap);
 
                 VulkanBackend::GpuMemoryStats gpu_after{};
                 bool                          gpu_after_valid = snapshot_gpu_memory(gpu_after);
@@ -1335,9 +1395,9 @@ class QAAgent
 
                 // A single run's retention mixes one-time warm-up (allocator arenas,
                 // driver pipeline/JIT caches, glyph caches) with leaks, so it is
-                // only INFO; --repeat >= 3 judges sustained growth instead.  A huge
+                // only INFO; --repeat judges the per-iteration slope instead.  A huge
                 // single-run retention still warns.
-                if (opts_.repeat < 3
+                if (opts_.repeat == 1
                     && rss_after > rss_before + scenario_rss_threshold(scenario.name))
                 {
                     const size_t threshold_mb =
@@ -1349,7 +1409,8 @@ class QAAgent
                                   + " RSS after teardown (" + std::to_string(to_mb(rss_before))
                                   + "->" + std::to_string(to_mb(rss_after)) + "MB, threshold +"
                                   + std::to_string(threshold_mb)
-                                  + "MB; single run includes warm-up, use --repeat 3+ to judge)",
+                                  + "MB; single run includes warm-up, use --repeat 4+ to judge the "
+                                    "slope)",
                               false);
                 }
 
@@ -1376,29 +1437,11 @@ class QAAgent
                     stop_all = true;
             }   // repetitions
 
-            if (opts_.repeat >= 3 && rss_after_reps.size() >= 3)
-            {
-                const auto v =
-                    qa::judge_retention(rss_baseline,
-                                        rss_after_reps,
-                                        static_cast<int64_t>(SCENARIO_RSS_PER_REP_BYTES));
-                std::string trend;
-                for (size_t i = 0; i < rss_after_reps.size(); ++i)
-                    trend += (i ? "," : "") + std::to_string(to_mb(rss_after_reps[i]));
-                const std::string msg =
-                    "Scenario '" + scenario.name + "' RSS after each of "
-                    + std::to_string(rss_after_reps.size()) + " repetitions: "
-                    + std::to_string(to_mb(rss_baseline)) + "->[" + trend + "]MB; warm-up "
-                    + format_mb_delta(v.warmup_bytes) + ", then " + format_kb_delta(v.per_rep_bytes)
-                    + "/rep (second half " + format_kb_delta(v.late_per_rep_bytes) + "/rep)";
-                fprintf(stderr, "[QA]   %s\n", msg.c_str());
-                add_issue(v.sustained_growth ? IssueSeverity::Warning : IssueSeverity::Info,
-                          "scenario_memory",
-                          msg
-                              + (v.sustained_growth ? " — sustained growth (possible leak)"
-                                                    : " — plateaus (warm-up/allocator retention)"),
-                          false);
-            }
+            if (opts_.repeat > 1)
+                judge_scenario_rss_trend(scenario.name,
+                                         rss_baseline,
+                                         rss_after_reps,
+                                         heap_after_reps);
 
             if (stop_all)
             {
@@ -1416,6 +1459,84 @@ class QAAgent
         malloc_trim(0);
 #endif
         return get_rss_bytes();
+    }
+
+    // --repeat soak gate: least-squares RSS slope over the iterations after
+    // warm-up.  Exceeding --max-rss-slope is an ERROR (non-zero exit); fewer
+    // than 3 measured iterations are reported but not judged.
+    void judge_scenario_rss_trend(const std::string&          name,
+                                  int64_t                     rss_baseline,
+                                  const std::vector<int64_t>& rss_after,
+                                  const std::vector<int64_t>& heap_after)
+    {
+        static constexpr double MB = 1024.0 * 1024.0;
+
+        ScenarioRssTrend t;
+        t.name                  = name;
+        t.iterations            = static_cast<uint32_t>(rss_after.size());
+        t.warmup_iterations     = opts_.repeat_warmup;
+        t.rss_baseline          = rss_baseline;
+        t.rss_after             = rss_after;
+        t.heap_after            = heap_after;
+        t.max_slope_mb_per_iter = opts_.max_rss_slope_mb;
+        t.rss                   = qa::judge_rss_slope(rss_baseline,
+                                    rss_after,
+                                    t.warmup_iterations,
+                                    t.max_slope_mb_per_iter);
+        if (heap_after.size() > t.warmup_iterations)
+        {
+            std::vector<double> y;
+            for (size_t i = t.warmup_iterations; i < heap_after.size(); ++i)
+                y.push_back(static_cast<double>(heap_after[i]) / MB);
+            // Theil-Sen: one transient heap spike must not fail the tight gate.
+            t.heap_slope_mb_per_iter = qa::theil_sen_slope(y);
+            if (opts_.max_heap_slope_mb >= 0.0)
+            {
+                t.max_heap_slope_mb_per_iter = opts_.max_heap_slope_mb;
+                t.heap.measured              = y.size();
+                t.heap.slope_mb_per_iter     = t.heap_slope_mb_per_iter;
+                t.heap.judged                = y.size() >= 3;
+                t.heap.exceeds =
+                    t.heap.judged && t.heap_slope_mb_per_iter > opts_.max_heap_slope_mb;
+            }
+        }
+
+        std::string trend;
+        for (size_t i = 0; i < rss_after.size(); ++i)
+            trend += (i ? "," : "") + std::to_string(to_mb(static_cast<uint64_t>(rss_after[i])));
+        char slope_buf[224];
+        snprintf(slope_buf,
+                 sizeof(slope_buf),
+                 "warm-up %+.1fMB, RSS slope %+.3f MB/iter over %zu measured (max %.3f), "
+                 "heap slope (Theil-Sen) %+.3f MB/iter",
+                 t.rss.warmup_mb,
+                 t.rss.slope_mb_per_iter,
+                 t.rss.measured,
+                 t.max_slope_mb_per_iter,
+                 t.heap_slope_mb_per_iter);
+        std::string msg = "Scenario '" + name + "' soak x" + std::to_string(t.iterations)
+                          + " (warm-up " + std::to_string(t.warmup_iterations) + "): RSS "
+                          + std::to_string(to_mb(static_cast<uint64_t>(rss_baseline))) + "->["
+                          + trend + "]MB; " + slope_buf;
+        if (t.max_heap_slope_mb_per_iter >= 0.0)
+        {
+            char heap_buf[64];
+            snprintf(heap_buf, sizeof(heap_buf), " (heap max %.3f)", t.max_heap_slope_mb_per_iter);
+            msg += heap_buf;
+        }
+        IssueSeverity sev = IssueSeverity::Info;
+        if (!t.rss.judged)
+            msg += " — not judged (needs >= 3 measured iterations)";
+        else if (t.rss.exceeds || t.heap.exceeds)
+        {
+            msg += t.rss.exceeds ? " — RSS keeps growing (leak)" : " — heap keeps growing (leak)";
+            sev = IssueSeverity::Error;
+        }
+        else
+            msg += " — within slope gate";
+        fprintf(stderr, "[QA]   %s\n", msg.c_str());
+        add_issue(sev, "scenario_memory_slope", msg, false);
+        scenario_trends_.push_back(std::move(t));
     }
 
     void check_validation_messages(const std::string& context)
@@ -3417,13 +3538,24 @@ class QAAgent
                           && pi.figure_index != INVALID_FIGURE_ID;
             c.expect(visible, "every pane has a figure and a visible (>50px) area");
 
-            // Legend windows ("##legend_<figure ptr>_<axes>") belong only to
-            // figures visible in a pane, never to ones behind another tab.
+            // Legend windows (pooled "##legend_<slot>", see LegendInteraction::
+            // window_name) belong only to figures visible in a pane, never to
+            // ones behind another tab.
             std::set<std::string> visible_keys;
             for (const auto& pi : infos)
-                if (Figure* pf = app_->figure_registry().get(pi.figure_index))
-                    visible_keys.insert(
-                        std::format("##legend_{:x}_", reinterpret_cast<uintptr_t>(pf)));
+                if (Figure* pf = app_->figure_registry().get(pi.figure_index);
+                    pf && ui->data_interaction)
+                {
+                    const size_t n_axes = pf->axes().size() + pf->all_axes().size();
+                    for (size_t ai = 0; ai < n_axes; ++ai)
+                    {
+                        std::string wn = ui->data_interaction->legend().window_name(
+                            reinterpret_cast<uintptr_t>(pf),
+                            ai);
+                        if (!wn.empty())
+                            visible_keys.insert(std::move(wn));
+                    }
+                }
             std::string   ghosts;
             ImGuiContext* ctx = design_imgui();
             for (ImGuiWindow* w : ctx ? ctx->Windows : ImVector<ImGuiWindow*>{})
@@ -3433,10 +3565,9 @@ class QAAgent
                 std::string_view name(w->Name);
                 if (name.rfind("##legend_", 0) != 0 || name.rfind("##legend_toggle", 0) == 0)
                     continue;
-                bool ok = false;
-                for (const auto& k : visible_keys)
-                    ok = ok || name.rfind(k, 0) == 0;
-                if (!ok)
+                if (name.rfind("##legend_full", 0) == 0 || name.rfind("##legend_more", 0) == 0)
+                    continue;
+                if (visible_keys.count(std::string(name)) == 0)
                     ghosts += std::string(name) + " ";
             }
             c.expect(ghosts.empty(),
@@ -6636,6 +6767,98 @@ class QAAgent
         return count;
     }
 
+    // Soak (--repeat) results: text section.
+    void write_scenario_trends_text(std::ostream& out) const
+    {
+        if (scenario_trends_.empty())
+            return;
+        char line[256];
+        out << "Soak RSS Slope (--repeat):\n";
+        snprintf(line,
+                 sizeof(line),
+                 "  Gate: least-squares RSS slope after %u warm-up iteration(s) <= %.3f MB/iter "
+                 "(>= 3 measured iterations)\n",
+                 opts_.repeat_warmup,
+                 opts_.max_rss_slope_mb);
+        out << line;
+        if (opts_.max_heap_slope_mb >= 0.0)
+        {
+            snprintf(line,
+                     sizeof(line),
+                     "  Gate: in-use heap Theil-Sen slope <= %.3f MB/iter\n",
+                     opts_.max_heap_slope_mb);
+            out << line;
+        }
+        for (const auto& t : scenario_trends_)
+        {
+            snprintf(line,
+                     sizeof(line),
+                     "  %s: x%u, warm-up %+.1fMB, RSS slope %+.3f MB/iter (%zu measured), heap "
+                     "slope %+.3f MB/iter, status=%s\n",
+                     t.name.c_str(),
+                     t.iterations,
+                     t.rss.warmup_mb,
+                     t.rss.slope_mb_per_iter,
+                     t.rss.measured,
+                     t.heap_slope_mb_per_iter,
+                     !t.rss.judged ? "NOT_JUDGED"
+                                   : ((t.rss.exceeds || t.heap.exceeds) ? "FAIL" : "PASS"));
+            out << line;
+            out << "    RSS MB after each iteration: "
+                << to_mb(static_cast<uint64_t>(t.rss_baseline)) << " -> [";
+            for (size_t i = 0; i < t.rss_after.size(); ++i)
+                out << (i ? "," : "") << to_mb(static_cast<uint64_t>(t.rss_after[i]));
+            out << "]\n";
+        }
+        out << "\n";
+    }
+
+    // Soak (--repeat) results: "scenario_rss_trends" JSON array (with trailing comma).
+    void write_scenario_trends_json(std::ostream& out) const
+    {
+        static constexpr double MB = 1024.0 * 1024.0;
+        auto                    mb = [](int64_t bytes)
+        {
+            char buf[32];
+            snprintf(buf, sizeof(buf), "%.2f", static_cast<double>(bytes) / MB);
+            return std::string(buf);
+        };
+        auto num = [](double v)
+        {
+            char buf[32];
+            snprintf(buf, sizeof(buf), "%.4f", v);
+            return std::string(buf);
+        };
+        out << "  \"scenario_rss_trends\": [\n";
+        for (size_t i = 0; i < scenario_trends_.size(); ++i)
+        {
+            const auto& t = scenario_trends_[i];
+            out << "    {\"name\": \"" << json_escape(t.name)
+                << "\", \"iterations\": " << t.iterations
+                << ", \"warmup_iterations\": " << t.warmup_iterations
+                << ", \"measured_iterations\": " << t.rss.measured
+                << ", \"rss_baseline_mb\": " << mb(t.rss_baseline) << ", \"rss_after_mb\": [";
+            for (size_t k = 0; k < t.rss_after.size(); ++k)
+                out << (k ? ", " : "") << mb(t.rss_after[k]);
+            out << "], \"heap_after_mb\": [";
+            for (size_t k = 0; k < t.heap_after.size(); ++k)
+                out << (k ? ", " : "") << mb(t.heap_after[k]);
+            out << "], \"warmup_mb\": " << num(t.rss.warmup_mb)
+                << ", \"rss_slope_mb_per_iter\": " << num(t.rss.slope_mb_per_iter)
+                << ", \"heap_slope_mb_per_iter\": " << num(t.heap_slope_mb_per_iter)
+                << ", \"max_slope_mb_per_iter\": " << num(t.max_slope_mb_per_iter)
+                << ", \"max_heap_slope_mb_per_iter\": "
+                << (t.max_heap_slope_mb_per_iter >= 0.0 ? num(t.max_heap_slope_mb_per_iter)
+                                                        : std::string("null"))
+                << ", \"rss_passed\": " << (t.rss.exceeds ? "false" : "true")
+                << ", \"heap_passed\": " << (t.heap.exceeds ? "false" : "true")
+                << ", \"judged\": " << (t.rss.judged ? "true" : "false")
+                << ", \"passed\": " << ((t.rss.exceeds || t.heap.exceeds) ? "false" : "true") << "}"
+                << (i + 1 < scenario_trends_.size() ? "," : "") << "\n";
+        }
+        out << "  ],\n";
+    }
+
     void write_report()
     {
         float          duration          = wall_clock_seconds();
@@ -6723,6 +6946,8 @@ class QAAgent
                 }
                 out << "\n";
             }
+
+            write_scenario_trends_text(out);
 
             if (!design_assertions_.empty())
             {
@@ -6909,6 +7134,7 @@ class QAAgent
                 out << "\n";
             }
             out << "  ],\n";
+            write_scenario_trends_json(out);
             out << "  \"issues\": [\n";
             for (size_t i = 0; i < issues_.size(); ++i)
             {
@@ -6991,6 +7217,7 @@ class QAAgent
     std::vector<QAIssue>              issues_;
     std::vector<Scenario>             scenarios_;
     std::vector<ScenarioMemoryMetric> scenario_memory_;
+    std::vector<ScenarioRssTrend>     scenario_trends_;
 
     // P0 fix: screenshot rate limiting per category
     std::unordered_map<std::string, uint64_t> last_screenshot_frame_;

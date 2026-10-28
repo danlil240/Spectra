@@ -421,7 +421,8 @@ void SettingsPanel::draw_appearance_tab()
     ImGui::SameLine(label_w);
     ImGui::SetNextItemWidth(200.0f);
     // Swatches show each palette as the plot draws it on the current canvas
-    // (visible_data_palette), not the raw palette definition.
+    // (displayed_data_palette: canvas-adjusted, ink slots in the theme
+    // foreground), not the raw palette definition.
     auto draw_swatches = [&](const ui::DataPalette& pal, float size)
     {
         ImDrawList*  dl    = ImGui::GetWindowDrawList();

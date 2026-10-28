@@ -15,6 +15,8 @@
 # out.  HOME is inherited unchanged.
 #
 # Usage: run_design_review.sh <spectra_qa_agent> [output-dir]
+# Env:   SPECTRA_QA_SEED (default 42), SPECTRA_QA_SCREEN (Xvfb screen, default
+#        1920x1200x24; the pointer starts at its centre) for independent repeats.
 # Exit:  the agent's exit code; 77 (ctest SKIP) when no X server is available.
 set -u
 
@@ -45,10 +47,12 @@ if [ -z "${VK_ICD_FILENAMES:-}" ] && [ -z "${VK_DRIVER_FILES:-}" ]; then
     done
 fi
 
-args=(--design-review --no-fuzz --no-scenarios --seed 42 --duration 900 --output-dir "$out")
+seed=${SPECTRA_QA_SEED:-42}
+screen=${SPECTRA_QA_SCREEN:-1920x1200x24}
+args=(--design-review --no-fuzz --no-scenarios --seed "$seed" --duration 900 --output-dir "$out")
 
 if command -v xvfb-run >/dev/null 2>&1; then
-    xvfb-run -a -s '-screen 0 1920x1200x24' "$agent" "${args[@]}"
+    xvfb-run -a -s "-screen 0 $screen" "$agent" "${args[@]}"
     rc=$?
 elif [ -n "${DISPLAY:-}" ]; then
     "$agent" "${args[@]}"

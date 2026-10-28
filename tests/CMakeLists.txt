@@ -167,6 +167,7 @@ set(SPECTRA_UNIT_TESTS
     test_workspace_v2
     test_timeline_editor
     test_qa_stats
+    test_qa_settle
     test_recording_export
     test_theme_colorblind
     test_theme_change_callback

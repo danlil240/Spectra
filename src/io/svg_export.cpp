@@ -482,7 +482,7 @@ std::string SvgContext::marker_symbol(MarkerStyle ms, float size, float edge_mix
     const auto key = std::make_tuple(static_cast<int>(ms),
                                      static_cast<int>(std::lround(size * 100.0f)),
                                      static_cast<int>(std::lround(edge_mix * 1000.0f)));
-    auto it = marker_ids.find(key);
+    auto       it  = marker_ids.find(key);
     if (it != marker_ids.end())
         return it->second;
     std::string id = "mk" + std::to_string(marker_ids.size());
@@ -1249,7 +1249,13 @@ void emit_legend(SvgContext& c, const AxesBase& axes, const Rect& vp, const Lege
            << opacity_attr("fill-opacity", bg.a * 0.92f) << " stroke=\"" << hex(border) << "\""
            << opacity_attr("stroke-opacity", border.a) << " stroke-width=\"1\"/>\n";
 
-    const float label_w = col_w - swatch_w - gap + 0.5f;   // 0.5: float slack
+    // Custom box fill: labels switch to a contrasting ink when theirs is unreadable.
+    const Color label_ink = cfg.uses_bg_color()
+                                ? legend_layout::label_ink(st.text_secondary,
+                                                           Color{bg.r, bg.g, bg.b, bg.a * 0.92f},
+                                                           st.background)
+                                : st.text_secondary;
+    const float label_w   = col_w - swatch_w - gap + 0.5f;   // 0.5: float slack
     for (size_t i = 0; i < static_cast<size_t>(grid.shown); ++i)
     {
         const auto& e   = entries[i];
@@ -1313,7 +1319,7 @@ void emit_legend(SvgContext& c, const AxesBase& axes, const Rect& vp, const Lege
                   ex + swatch_w + gap,
                   ey,
                   font_px,
-                  st.text_secondary,
+                  label_ink,
                   "start",
                   VAlign::Middle);
         if (truncated)
@@ -1337,7 +1343,7 @@ void emit_legend(SvgContext& c, const AxesBase& axes, const Rect& vp, const Lege
                   r.x + pad_x + static_cast<float>(idx / grid.rows) * (col_w + col_gap),
                   r.y + pad_y + (static_cast<float>(idx % grid.rows) + 0.5f) * grid.cell_h,
                   font_px,
-                  st.text_secondary,
+                  label_ink,
                   "start",
                   VAlign::Middle);
         c.body << "      </g>\n";
@@ -1934,8 +1940,8 @@ void emit_axes_3d(SvgContext& c, const Axes3D& axes, const LegendConfig& legend)
     const float fit  = axes.projection_fit_scale(vp);
     proj.m[0] /= fit;
     proj.m[5] /= fit;
-    pj.mvp   = mat4_mul(proj, mat4_mul(cam.view_matrix(), pj.model));
-    pj.vp    = vp;
+    pj.mvp = mat4_mul(proj, mat4_mul(cam.view_matrix(), pj.model));
+    pj.vp  = vp;
 
     const auto   xlim  = axes.x_limits();
     const auto   ylim  = axes.y_limits();
@@ -2450,11 +2456,11 @@ void emit_axes_3d(SvgContext& c, const Axes3D& axes, const LegendConfig& legend)
                    << "\"" << opacity_attr("fill-opacity", a.color.a) << "/>\n";
         }
         const std::string& lbl = a.label;
-        float             lx  = bx + (dl > 1.0f ? dx / dl * 8.0f : 8.0f);
-        float             ly  = by + (dl > 1.0f ? dy / dl * 8.0f : 0.0f);
+        float              lx  = bx + (dl > 1.0f ? dx / dl * 8.0f : 8.0f);
+        float              ly  = by + (dl > 1.0f ? dy / dl * 8.0f : 0.0f);
         const float        lw  = measure_text_width(lbl, LABEL_FONT_PX);
-        const float       hh  = LABEL_FONT_PX * 0.5f;
-        Box2              r{lx, ly - hh, lx + lw, ly + hh};
+        const float        hh  = LABEL_FONT_PX * 0.5f;
+        Box2               r{lx, ly - hh, lx + lw, ly + hh};
         if (overlaps_any(r, placed, 2.0f))
         {
             lx = bx + 8.0f;

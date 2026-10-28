@@ -146,7 +146,7 @@ bool LegendInteraction::draw(AxesBase&           axes,
     // Drawn over the plot surface, so follow its ink (see plot_surface_colors()).
     const ui::ThemeColors theme_colors =
         figure_style ? theme_mgr_->plot_surface_colors(*figure_style) : theme_mgr_->colors();
-    ImFont*     font         = font_body_ ? font_body_ : ImGui::GetFont();
+    ImFont* font = font_body_ ? font_body_ : ImGui::GetFont();
 
     // Use font size from LegendConfig; fall back to font's native size
     float font_size = (config.font_size > 0.0f) ? config.font_size : font->LegacySize;
@@ -177,7 +177,7 @@ bool LegendInteraction::draw(AxesBase&           axes,
     // One column = swatch + label (+ visibility eye).  Entries flow into
     // extra columns instead of being cut off; scrolling is only a last resort
     // when even the widest grid that fits the plot can't hold them all.
-    constexpr float col_gap = legend_layout::COL_GAP;
+    constexpr float col_gap    = legend_layout::COL_GAP;
     const float     reserved_w = swatch_size + swatch_gap + (toggleable_ ? eye_width + 4.0f : 0.0f);
     float           col_w      = reserved_w + max_label_w;
     // OutsideRight lays out in the strip the figure layout reserved right of the axes.
@@ -197,9 +197,9 @@ bool LegendInteraction::draw(AxesBase&           axes,
     // compute_grid may narrow the column to keep the legend inside the axes.
     col_w                  = legend_layout::column_width(grid, pad_x, col_gap);
     const float label_w    = std::max(0.0f, col_w - reserved_w + 0.5f);   // 0.5: float slack
-    const bool scrollable = grid.scroll;
-    float      legend_w   = grid.width;
-    float      legend_h   = grid.height;
+    const bool  scrollable = grid.scroll;
+    float       legend_w   = grid.width;
+    float       legend_h   = grid.height;
     if (scrollable)
         legend_w += 8.0f;   // room for scrollbar
 
@@ -255,6 +255,19 @@ bool LegendInteraction::draw(AxesBase&           axes,
     // Translucent glass card: only honor an explicit user bg_color; otherwise
     // draw a frosted pane manually (see below) and keep the ImGui WindowBg clear.
     const bool user_bg = config.uses_bg_color();
+
+    // Label ink: theme text_secondary, unless a custom background makes it unreadable.
+    Color label_ink{theme_colors.text_secondary.r,
+                    theme_colors.text_secondary.g,
+                    theme_colors.text_secondary.b,
+                    1.0f};
+    if (user_bg)
+        label_ink = legend_layout::label_ink(label_ink,
+                                             config.bg_color,
+                                             Color{theme_colors.bg_canvas.r,
+                                                   theme_colors.bg_canvas.g,
+                                                   theme_colors.bg_canvas.b,
+                                                   1.0f});
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ui::tokens::RADIUS_LG);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(pad_x + 4.0f, pad_y + 3.0f));
@@ -374,14 +387,13 @@ bool LegendInteraction::draw(AxesBase&           axes,
                               2.0f);
 
             // Series label — spec §4.3: use text_secondary for legend labels
-            ImU32 text_col = ImGui::ColorConvertFloat4ToU32(ImVec4(theme_colors.text_secondary.r,
-                                                                   theme_colors.text_secondary.g,
-                                                                   theme_colors.text_secondary.b,
-                                                                   vis_alpha));
-            float label_x  = row_x + swatch_size + swatch_gap;
-            float label_y  = row_y + (row_height - font_size) * 0.5f;
-            const std::string& full  = s->label();
-            const FittedText   label = fit_text_to_width(
+            // (on a custom legend background: a contrasting ink, see label_ink).
+            ImU32 text_col = ImGui::ColorConvertFloat4ToU32(
+                ImVec4(label_ink.r, label_ink.g, label_ink.b, vis_alpha));
+            float              label_x = row_x + swatch_size + swatch_gap;
+            float              label_y = row_y + (row_height - font_size) * 0.5f;
+            const std::string& full    = s->label();
+            const FittedText   label   = fit_text_to_width(
                 full,
                 label_w,
                 FontSize::Label,

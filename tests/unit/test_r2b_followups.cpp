@@ -18,6 +18,7 @@
 #include <vector>
 
 #include "render/shape3d_sort.hpp"
+#include "ui/overlay/legend_layout.hpp"
 #include "ui/settings/settings_store.hpp"
 #include "ui/theme/theme.hpp"
 #include "ui/window/event_wait.hpp"
@@ -85,6 +86,63 @@ TEST(LegendBackground, SvgDrawsExplicitBlack)
     fig.legend().has_bg_color = true;
     const std::string black   = legend(SvgExporter::to_string(fig));
     EXPECT_NE(black.find("fill=\"#000000\""), std::string::npos) << black;
+}
+
+// ─── Legend labels stay readable on a custom background ─────────────────────
+
+TEST(LegendLabelInk, KeepsThemeInkWhenReadable)
+{
+    const Color ink{0.20f, 0.28f, 0.37f, 1.0f};   // light-theme text_secondary
+    const Color white{1.0f, 1.0f, 1.0f, 1.0f};
+    const Color out = legend_layout::label_ink(ink, white, white);
+    EXPECT_FLOAT_EQ(out.r, ink.r);
+    EXPECT_FLOAT_EQ(out.g, ink.g);
+    EXPECT_FLOAT_EQ(out.b, ink.b);
+}
+
+TEST(LegendLabelInk, SwitchesToContrastingInk)
+{
+    const Color dark_ink{0.20f, 0.28f, 0.37f, 0.6f};   // alpha (hidden dimming) kept
+    const Color light_ink{0.85f, 0.88f, 0.92f, 1.0f};
+    const Color canvas{0.97f, 0.98f, 1.0f, 1.0f};
+
+    // Opaque black legend on Light: dark theme ink -> near-white.
+    const Color on_black = legend_layout::label_ink(dark_ink, Color{0, 0, 0, 1}, canvas);
+    EXPECT_GT(legend_layout::wcag_luminance(on_black), 0.8f);
+    EXPECT_FLOAT_EQ(on_black.a, 0.6f);
+    EXPECT_GE(legend_layout::wcag_contrast(on_black, Color{0, 0, 0, 1}), 4.5f);
+
+    // Pale yellow legend on Dark: light theme ink -> near-black.
+    const Color yellow{1.0f, 0.95f, 0.6f, 1.0f};
+    const Color on_yellow =
+        legend_layout::label_ink(light_ink, yellow, Color{0.05f, 0.05f, 0.07f, 1});
+    EXPECT_LT(legend_layout::wcag_luminance(on_yellow), 0.05f);
+    EXPECT_GE(legend_layout::wcag_contrast(on_yellow, yellow), 4.5f);
+
+    // A translucent black fill is judged as composited over the canvas: at 10%
+    // over a white canvas it stays light enough for the dark theme ink.
+    const Color opaque_ink{dark_ink.r, dark_ink.g, dark_ink.b, 1.0f};
+    const Color faint = legend_layout::label_ink(opaque_ink, Color{0, 0, 0, 0.1f}, canvas);
+    EXPECT_FLOAT_EQ(faint.r, opaque_ink.r);
+}
+
+TEST(LegendLabelInk, SvgLabelOnBlackIsLight)
+{
+    auto fig                  = make_legend_figure();
+    fig.legend().bg_color     = Color{0.0f, 0.0f, 0.0f, 1.0f};
+    fig.legend().has_bg_color = true;
+    const std::string svg     = SvgExporter::to_string(fig);
+    const auto        g       = svg.find("<g class=\"legend\">");
+    ASSERT_NE(g, std::string::npos);
+    const auto t = svg.find("<text", g);
+    ASSERT_NE(t, std::string::npos);
+    const auto f = svg.find("fill=\"#", t);
+    ASSERT_NE(f, std::string::npos);
+    const std::string hex = svg.substr(f + 7, 6);
+    const auto        ch  = [&](int i)
+    { return static_cast<float>(std::stoi(hex.substr(i * 2, 2), nullptr, 16)) / 255.0f; };
+    const Color fill{ch(0), ch(1), ch(2), 1.0f};
+    EXPECT_GE(legend_layout::wcag_contrast(fill, Color{0, 0, 0, 1}), 4.5f) << hex;
 }
 
 TEST(LegendBackground, SerializerRoundTripsFlags)

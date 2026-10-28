@@ -755,4 +755,46 @@ inline Rect place(const Rect&    vp,
     return r;
 }
 
+// ── Label ink on a custom legend background ─────────────────────────────────
+// WCAG 2.1 relative luminance / contrast of opaque sRGB colours (alpha ignored).
+inline float wcag_luminance(const Color& c)
+{
+    auto lin = [](float v)
+    { return v <= 0.04045f ? v / 12.92f : std::pow((v + 0.055f) / 1.055f, 2.4f); };
+    return 0.2126f * lin(c.r) + 0.7152f * lin(c.g) + 0.0722f * lin(c.b);
+}
+inline float wcag_contrast(const Color& a, const Color& b)
+{
+    const float la = wcag_luminance(a), lb = wcag_luminance(b);
+    return (std::max(la, lb) + 0.05f) / (std::min(la, lb) + 0.05f);
+}
+// Source-over of `fg` onto opaque `bg` (encoded sRGB, like ImGui); result opaque.
+inline Color composite_over(const Color& fg, const Color& bg)
+{
+    const float t = std::clamp(fg.a, 0.0f, 1.0f);
+    return Color{fg.r * t + bg.r * (1.0f - t),
+                 fg.g * t + bg.g * (1.0f - t),
+                 fg.b * t + bg.b * (1.0f - t),
+                 1.0f};
+}
+
+inline constexpr float LABEL_MIN_CONTRAST = 4.5f;
+inline constexpr Color LABEL_INK_DARK{0.075f, 0.085f, 0.105f, 1.0f};
+inline constexpr Color LABEL_INK_LIGHT{0.960f, 0.968f, 0.980f, 1.0f};
+
+// Label ink for a legend box filled with `box_bg` (possibly translucent) drawn
+// over the opaque `canvas`: `ink` when it reaches 4.5:1 against that effective
+// background, otherwise near-black or near-white, whichever contrasts more.
+// `ink`'s alpha is kept so hidden-series dimming still applies.
+inline Color label_ink(const Color& ink, const Color& box_bg, const Color& canvas)
+{
+    const Color eff = composite_over(box_bg, Color{canvas.r, canvas.g, canvas.b, 1.0f});
+    if (wcag_contrast(composite_over(ink, eff), eff) >= LABEL_MIN_CONTRAST)
+        return ink;
+    const Color pick = wcag_contrast(LABEL_INK_DARK, eff) >= wcag_contrast(LABEL_INK_LIGHT, eff)
+                           ? LABEL_INK_DARK
+                           : LABEL_INK_LIGHT;
+    return Color{pick.r, pick.g, pick.b, ink.a};
+}
+
 }   // namespace spectra::legend_layout

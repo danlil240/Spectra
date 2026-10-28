@@ -485,7 +485,11 @@ void Renderer::build_legend(AxesBase& axes, const LegendConfig& config)
     // ── Entries (column-major, like LegendInteraction) ──
     const float bg_luma =
         0.2126f * tc.bg_canvas.r + 0.7152f * tc.bg_canvas.g + 0.0722f * tc.bg_canvas.b;
-    const Color text_base = theme_color(tc.text_secondary, theme_mgr_);
+    Color text_base = theme_color(tc.text_secondary, theme_mgr_);
+    if (config.uses_bg_color())   // custom box fill: keep labels readable on it
+        text_base = legend_layout::label_ink(text_base,
+                                             config.bg_color,
+                                             theme_color(tc.bg_canvas, theme_mgr_));
     for (size_t i = 0; i < static_cast<size_t>(grid.shown); ++i)
     {
         const int     row = static_cast<int>(i) % grid.rows;

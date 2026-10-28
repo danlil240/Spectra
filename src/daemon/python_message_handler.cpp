@@ -30,10 +30,10 @@ static bool apply_property_update(FigureModel&              fig_model,
                                   uint32_t                  axes_index,
                                   uint32_t                  series_index,
                                   const std::string&        property,
-                                  float                     f1,
-                                  float                     f2,
-                                  float                     f3,
-                                  float                     f4,
+                                  double                    f1,
+                                  double                    f2,
+                                  double                    f3,
+                                  double                    f4,
                                   bool                      bool_val,
                                   const std::string&        str_val,
                                   const std::vector<float>& data,
@@ -49,6 +49,16 @@ static bool apply_property_update(FigureModel&              fig_model,
         if (str_val.size() == 1)
             diff.ops.push_back(
                 fig_model.set_series_color_letter(figure_id, series_index, str_val[0]));
+    }
+    else if (property == "data_origin")
+    {
+        // Double-precision data origins of a 2D series (f1 = x, f2 = y): the
+        // Python client sends large values (epoch timestamps) as float offsets.
+        bool ok = false;
+        auto op = fig_model.set_series_origin(figure_id, series_index, f1, f2, &ok);
+        if (!ok)
+            return false;
+        diff.ops.push_back(std::move(op));
     }
     else if (property == "xlim")
     {
@@ -390,10 +400,11 @@ HandleResult handle_req_update_property(DaemonContext&      ctx,
 
     // Check for unknown property before applying
     static const char* known_props[] = {
-        "color",   "color_letter",   "xlim",     "ylim",       "zlim",
-        "title",   "grid",           "visible",  "line_width", "marker_size",
-        "opacity", "xlabel",         "ylabel",   "axes_title", "label",
-        "legend",  "legend_visible", "add_knob", "annotation", "clear_annotations"};
+        "color",      "color_letter",   "xlim",     "ylim",       "zlim",
+        "title",      "grid",           "visible",  "line_width", "marker_size",
+        "opacity",    "xlabel",         "ylabel",   "axes_title", "label",
+        "legend",     "legend_visible", "add_knob", "annotation", "clear_annotations",
+        "data_origin"};
     bool known = false;
     for (const auto* p : known_props)
     {

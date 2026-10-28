@@ -555,6 +555,42 @@ TEST(FigureModel, AppendSeriesData)
     EXPECT_FLOAT_EQ(op.data[2], 3.0f);
 }
 
+// Python sends epoch-sized values as float offsets plus a "data_origin"
+// property: the origins land in the model, its snapshot and the agent diff.
+TEST(FigureModel, SetSeriesOriginKeepsDataAndBroadcastsOrigins)
+{
+    spectra::daemon::FigureModel model;
+    auto                         fig_id = model.create_figure("Test");
+    model.add_axes(fig_id, 1, 1, 1);
+    model.add_series(fig_id, "epoch", "line");
+    model.set_series_data(fig_id, 0, {-0.25f, 1.0f, 0.25f, 2.0f});
+
+    bool ok = false;
+    auto op = model.set_series_origin(fig_id, 0, 1.7e9 + 0.5, -3.0, &ok);
+    ASSERT_TRUE(ok);
+    EXPECT_EQ(op.type, DiffOp::Type::SET_SERIES_DATA);
+    EXPECT_EQ(op.data, (std::vector<float>{-0.25f, 1.0f, 0.25f, 2.0f}));
+    EXPECT_DOUBLE_EQ(op.f1, 1.7e9 + 0.5);
+    EXPECT_DOUBLE_EQ(op.f2, -3.0);
+
+    auto snap = model.snapshot();
+    ASSERT_EQ(snap.figures.size(), 1u);
+    ASSERT_EQ(snap.figures[0].series.size(), 1u);
+    EXPECT_DOUBLE_EQ(snap.figures[0].series[0].x_origin, 1.7e9 + 0.5);
+    EXPECT_DOUBLE_EQ(snap.figures[0].series[0].y_origin, -3.0);
+
+    // New data resets the origin (the client re-sends one when needed).
+    model.set_series_data(fig_id, 0, {0.0f, 1.0f});
+    EXPECT_DOUBLE_EQ(model.snapshot().figures[0].series[0].x_origin, 0.0);
+
+    // Unknown series / 3D series: rejected, nothing to broadcast.
+    model.set_series_origin(fig_id, 7, 1.0, 1.0, &ok);
+    EXPECT_FALSE(ok);
+    model.add_series(fig_id, "cloud", "scatter3d");
+    model.set_series_origin(fig_id, 1, 1.0, 1.0, &ok);
+    EXPECT_FALSE(ok);
+}
+
 TEST(FigureModel, AppendSeriesDataCarriesAxesIndexForSubplots)
 {
     spectra::daemon::FigureModel model;

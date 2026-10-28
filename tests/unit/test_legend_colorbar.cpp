@@ -877,3 +877,145 @@ TEST_F(RendererFixture, Legend3DOverflowKeepsEntriesContiguous)
     for (size_t k = 0; k < drawn.size(); ++k)
         EXPECT_EQ(drawn[k], static_cast<int>(k)) << "legend entries must be contiguous";
 }
+
+// ─── Crowded "Best" legends move outside; "+N more" colour keys ─────────────
+
+namespace
+{
+
+// The QA "layout" scene: a 50-entry legend in a small panel.
+void add_entries(Axes& ax, int n, const std::string& prefix = "Series ")
+{
+    const std::vector<float> x = {0.0f, 1.0f};
+    for (int i = 0; i < n; ++i)
+        ax.line(x, x).label(prefix + std::to_string(i + 1));
+}
+
+}   // namespace
+
+TEST(LegendAutoOutside, CoverageGrowsWithEntriesAndShrinkingPlots)
+{
+    Axes ax;
+    add_entries(ax, 50);
+    const auto         all = legend_layout::legend_entries(ax);
+    const LegendConfig cfg;
+    const Rect         small{0.0f, 0.0f, 400.0f, 220.0f};
+    const Rect         large{0.0f, 0.0f, 1600.0f, 1000.0f};
+    const float        c50_small = legend_layout::inside_coverage(all, cfg, small);
+    EXPECT_GT(c50_small, legend_layout::AUTO_OUTSIDE_COVERAGE);
+    EXPECT_LE(c50_small, 1.0f);
+    EXPECT_LT(legend_layout::inside_coverage(all, cfg, large), c50_small);
+    const std::span<Series* const> three(all.data(), 3);
+    EXPECT_LT(legend_layout::inside_coverage(three, cfg, small),
+              legend_layout::AUTO_OUTSIDE_COVERAGE);
+    // Not even one row fits: the inside legend would be omitted (maximal cost).
+    EXPECT_EQ(legend_layout::inside_coverage(three, cfg, Rect{0.0f, 0.0f, 400.0f, 10.0f}), 1.0f);
+    EXPECT_EQ(legend_layout::inside_coverage({}, cfg, small), 0.0f);
+}
+
+TEST(LegendAutoOutside, CrowdedBestLegendReservesOutsideStrip)
+{
+    Figure fig({.width = 900, .height = 600});
+    auto&  ax = fig.subplot(2, 2, 1);
+    add_entries(ax, 50);
+    fig.compute_layout();
+    ASSERT_GT(ax.outside_legend_area().w, 0.0f);
+    EXPECT_EQ(legend_layout::effective_position(ax, fig.legend()), LegendPosition::OutsideRight);
+    // The strip is right of the plot area and the plot keeps the minimum width.
+    EXPECT_GE(ax.outside_legend_area().x, ax.viewport().x + ax.viewport().w - 0.5f);
+    EXPECT_GE(ax.viewport().w, legend_layout::AUTO_OUTSIDE_MIN_PLOT_W - 1.0f);
+}
+
+TEST(LegendAutoOutside, ExplicitPositionsAndSmallLegendsAreNotMoved)
+{
+    for (LegendPosition pos : {LegendPosition::TopRight,
+                               LegendPosition::TopLeft,
+                               LegendPosition::BottomLeft,
+                               LegendPosition::BottomRight})
+    {
+        Figure fig({.width = 900, .height = 600});
+        auto&  ax = fig.subplot(2, 2, 1);
+        add_entries(ax, 50);
+        fig.legend().position = pos;
+        fig.compute_layout();
+        EXPECT_EQ(ax.outside_legend_area().w, 0.0f) << static_cast<int>(pos);
+        EXPECT_EQ(legend_layout::effective_position(ax, fig.legend()), pos);
+    }
+
+    // A handful of entries in a normal plot: compact inside legend, unchanged layout.
+    Figure fig({.width = 900, .height = 600});
+    auto&  ax = fig.subplot(1, 1, 1);
+    add_entries(ax, 4);
+    fig.compute_layout();
+    EXPECT_EQ(ax.outside_legend_area().w, 0.0f);
+    EXPECT_EQ(legend_layout::effective_position(ax, fig.legend()), LegendPosition::Best);
+}
+
+TEST(LegendAutoOutside, NoRoomKeepsCompactSummary)
+{
+    // Too narrow to give up a strip: the plot would drop below the minimum width.
+    Figure fig({.width = 320, .height = 260});
+    auto&  ax = fig.subplot(1, 1, 1);
+    add_entries(ax, 50);
+    fig.compute_layout();
+    EXPECT_EQ(ax.outside_legend_area().w, 0.0f);
+    EXPECT_EQ(legend_layout::effective_position(ax, fig.legend()), LegendPosition::Best);
+
+    // A hidden legend reserves nothing.
+    Figure hidden({.width = 900, .height = 600});
+    auto&  hx = hidden.subplot(2, 2, 1);
+    add_entries(hx, 50);
+    hidden.legend().visible = false;
+    hidden.compute_layout();
+    EXPECT_EQ(hx.outside_legend_area().w, 0.0f);
+}
+
+TEST_F(RendererFixture, AutoOutsideLegendIsDrawnInTheStrip)
+{
+    Figure fig({.width = 900, .height = 600});
+    auto&  ax = fig.subplot(2, 2, 1);
+    add_entries(ax, 50);
+    render(fig);
+    const Rect strip = ax.outside_legend_area();
+    ASSERT_GT(strip.w, 0.0f);
+    // The one-column strip still cannot hold all 50: its "+N more" cell is in
+    // the strip, right of the plot area, not over the data.
+    ASSERT_EQ(renderer.legend_overflow_cells().size(), 1u);
+    const Rect cell = renderer.legend_overflow_cells()[0].cell;
+    EXPECT_GE(cell.x, ax.viewport().x + ax.viewport().w);
+    EXPECT_GE(cell.x, strip.x);
+    EXPECT_LE(cell.y + cell.h, strip.y + strip.h + 0.5f);
+}
+
+TEST_F(RendererFixture, OverflowTooltipCarriesColourKeysOfHiddenEntries)
+{
+    Figure fig({.width = 800, .height = 600});
+    auto&  ax                  = fig.subplot(3, 1, 1);
+    fig.legend().position      = LegendPosition::TopLeft;   // explicit: stays compact
+    const std::vector<float> x = {0.0f, 1.0f};
+    for (int i = 0; i < 40; ++i)
+    {
+        const Color c{static_cast<float>(i) / 40.0f, 0.5f, 1.0f - static_cast<float>(i) / 40.0f};
+        ax.line(x, x).label("Series " + std::to_string(i + 1)).color(c);
+    }
+    ax.series_mut()[39]->visible(false);   // hidden series stay listed, dimmed
+    render(fig);
+    ASSERT_EQ(renderer.legend_overflow_cells().size(), 1u);
+    const auto& cell    = renderer.legend_overflow_cells()[0];
+    const auto  entries = legend_layout::legend_entries(ax);
+    ASSERT_FALSE(cell.hidden.empty());
+    const size_t first        = static_cast<size_t>(std::stoi(cell.hidden.front().substr(7))) - 1;
+    const size_t hidden_total = entries.size() - first;
+    // Every listed entry has its colour key; a trailing "and K more" line has none.
+    const bool summarised = cell.hidden.size() != hidden_total;
+    ASSERT_EQ(cell.colors.size(), cell.hidden.size() - (summarised ? 1u : 0u));
+    for (size_t k = 0; k < cell.colors.size(); ++k)
+    {
+        const Series& s = *entries[first + k];
+        const Color   want =
+            ui::adapt_series_color_to_theme(legend_layout::swatch_color(s), theme.colors());
+        EXPECT_NEAR(cell.colors[k].r, want.r, 1e-5f) << k;
+        EXPECT_NEAR(cell.colors[k].b, want.b, 1e-5f) << k;
+        EXPECT_LT(cell.colors[k].a, s.visible() ? 1.01f : 0.5f) << k;
+    }
+}

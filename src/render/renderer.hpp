@@ -207,6 +207,9 @@ class Renderer
         const AxesBase*          axes = nullptr;
         Rect                     cell;     // figure pixels
         std::vector<std::string> hidden;   // tooltip lines (see overflow_tooltip_lines)
+        // Colour keys of the leading hidden lines that name an entry (the
+        // trailing "... and K more" line, if any, has none).
+        std::vector<Color>       colors;
         bool                     hovered = false;
     };
     const std::vector<LegendOverflowCell>& legend_overflow_cells() const

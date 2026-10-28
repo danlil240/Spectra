@@ -201,4 +201,87 @@ TEST(LegendBoundsImGui, InteractiveLegendStaysInsideNarrowAxes)
     ImGui::DestroyContext();
 }
 
+// A summarised interactive legend: the "+N more" cell lists the hidden
+// entries on hover, and clicking it opens the full (scrollable) legend whose
+// rows toggle series visibility like the legend's own rows.
+TEST(LegendBoundsImGui, OverflowCellIsDiscoverable)
+{
+    ImGui::CreateContext();
+    ImGuiIO& io    = ImGui::GetIO();
+    io.DisplaySize = ImVec2(1000.0f, 700.0f);
+    io.DeltaTime   = 1.0f / 60.0f;
+    io.Fonts->AddFontDefault();
+    unsigned char* px = nullptr;
+    int            tw = 0, th = 0;
+    io.Fonts->GetTexDataAsRGBA32(&px, &tw, &th);
+
+    ui::ThemeManager  theme;
+    LegendInteraction legend;
+    legend.set_theme_manager(&theme);
+
+    Axes               ax;
+    std::vector<float> x = {0.0f, 1.0f};
+    for (int i = 0; i < 50; ++i)
+        ax.line(x, x).label("Series " + std::to_string(i + 1));
+    const Rect vp{20.0f, 30.0f, 380.0f, 200.0f};
+    ax.set_viewport(vp);
+
+    LegendConfig cfg;
+    cfg.position = LegendPosition::TopLeft;
+
+    auto frame = [&](float mx, float my, bool down)
+    {
+        io.AddMousePosEvent(mx, my);
+        io.AddMouseButtonEvent(ImGuiMouseButton_Left, down);
+        ImGui::NewFrame();
+        legend.draw(ax, vp, 0, cfg, 1);
+        ImGui::Render();
+    };
+
+    frame(-100.0f, -100.0f, false);
+    const auto* oc = legend.overflow_cell(1, 0);
+    ASSERT_NE(oc, nullptr);
+    EXPECT_GT(oc->hidden, 0);
+    EXPECT_EQ(oc->shown + oc->hidden, 50);
+    EXPECT_FALSE(oc->hovered);
+    EXPECT_FALSE(oc->popup_open);
+    // The cell is inside the plot area.
+    EXPECT_GE(oc->cell.x, vp.x);
+    EXPECT_LE(oc->cell.y + oc->cell.h, vp.y + vp.h);
+
+    // Hover: tooltip with the hidden entries.
+    const float cx = oc->cell.x + 4.0f;
+    const float cy = oc->cell.y + oc->cell.h * 0.5f;
+    frame(cx, cy, false);
+    frame(cx, cy, false);
+    oc = legend.overflow_cell(1, 0);
+    ASSERT_NE(oc, nullptr);
+    EXPECT_TRUE(oc->hovered);
+
+    // Click: the full legend popup opens and lists entries.
+    frame(cx, cy, true);
+    frame(cx, cy, false);
+    frame(cx, cy, false);
+    oc = legend.overflow_cell(1, 0);
+    ASSERT_NE(oc, nullptr);
+    ASSERT_TRUE(oc->popup_open);
+    EXPECT_GT(oc->popup_rows, 0);
+    EXPECT_GT(oc->popup_list.h, 0.0f);
+
+    // Clicking the first popup row toggles the first series, and the popup stays open.
+    ASSERT_TRUE(ax.series()[0]->visible());
+    const float rx = oc->popup_list.x + 12.0f;
+    const float ry = oc->popup_list.y + 4.0f;
+    frame(rx, ry, false);
+    frame(rx, ry, true);
+    frame(rx, ry, false);
+    frame(rx, ry, false);
+    EXPECT_FALSE(ax.series()[0]->visible());
+    oc = legend.overflow_cell(1, 0);
+    ASSERT_NE(oc, nullptr);
+    EXPECT_TRUE(oc->popup_open);
+
+    ImGui::DestroyContext();
+}
+
 #endif

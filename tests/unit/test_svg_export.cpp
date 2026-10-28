@@ -665,17 +665,43 @@ TEST(SvgExport, FortyEntryLegendStaysInsideNarrowPlot)
     EXPECT_GT(more, 0) << "overflow must be reported, not dropped";
     EXPECT_EQ(shown + more, 40);
 
-    // The "+N more" cell names the hidden entries in a hover <title>.
+    // The "+N more" cell names every hidden entry (uncapped) in its <title>.
     const size_t ov = svg.find("<g class=\"legend-overflow\"><title>", g);
     ASSERT_NE(ov, std::string::npos);
     const size_t      ts    = svg.find("<title>", ov) + 7;
     const std::string title = svg.substr(ts, svg.find("</title>", ts) - ts);
     EXPECT_EQ(title.substr(0, title.find('\n')), "Series " + std::to_string(shown + 1));
-    if (more <= 21)
-        EXPECT_NE(title.find("Series 40"), std::string::npos) << title;
-    else
-        EXPECT_NE(title.find("and " + std::to_string(more - 20) + " more"), std::string::npos)
-            << title;
+    EXPECT_EQ(std::count(title.begin(), title.end(), '\n'), more - 1) << title;
+    EXPECT_NE(title.find("Series 40"), std::string::npos) << title;
+    EXPECT_EQ(title.find(" more"), std::string::npos) << title;
+}
+
+// A crowded Best legend (50 entries, small panel) moves to the strip right of
+// the plot instead of covering it; summarised entries are all listed in the
+// "+N more" cell's <title>.
+TEST(SvgExport, CrowdedBestLegendIsPlacedOutsideThePlot)
+{
+    Figure             fig({.width = 900, .height = 600});
+    auto&              ax = fig.subplot(2, 2, 1);
+    std::vector<float> x = {0.0f, 1.0f}, y = {0.0f, 1.0f};
+    for (int i = 0; i < 50; ++i)
+        ax.line(x, y).label("Series " + std::to_string(i + 1));
+    fig.compute_layout();
+    const std::string svg = SvgExporter::to_string(fig);
+
+    const SvgRect plot = plot_rect(svg);
+    const size_t  g    = svg.find("<g class=\"legend\">");
+    ASSERT_NE(g, std::string::npos);
+    const float box_x = attr(svg, g, "x");
+    EXPECT_GE(box_x, plot.x + plot.w) << "legend must not cover the plot";
+    EXPECT_LE(box_x + attr(svg, g, "width"), 900.0f);
+
+    const size_t ov = svg.find("<g class=\"legend-overflow\"><title>", g);
+    ASSERT_NE(ov, std::string::npos);
+    const size_t      ts    = svg.find("<title>", ov) + 7;
+    const std::string title = svg.substr(ts, svg.find("</title>", ts) - ts);
+    EXPECT_NE(title.find("Series 50"), std::string::npos) << title;
+    EXPECT_EQ(title.find(" more"), std::string::npos) << title;
 }
 
 TEST(SvgExport, LongUtf8LegendLabelIsEllipsizedInsidePlot)

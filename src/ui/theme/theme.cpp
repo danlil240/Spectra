@@ -1411,7 +1411,7 @@ void ThemeManager::initialize_default_themes()
                               .grid_major       = Color(0.55f, 0.72f, 0.92f, tokens::GRID_MAJOR_ALPHA_NIGHT),
                               .grid_minor       = Color(0.55f, 0.72f, 0.92f, tokens::GRID_MINOR_ALPHA_NIGHT),
                               .grid_line        = Color(0.55f, 0.72f, 0.92f, tokens::GRID_MAJOR_ALPHA_NIGHT),
-                              .axis_line        = Color(0.52f, 0.62f, 0.76f, 0.38f),
+                              .axis_line        = Color(0.52f, 0.62f, 0.76f, 0.70f),
                               .tick_label       = glass_palette::kTextSecondary,
                               .crosshair        = Color(0.24f, 0.84f, 0.96f, 0.58f),
                               .selection_fill   = Color(0.58f, 0.45f, 0.96f, 0.14f),
@@ -2295,6 +2295,20 @@ ThemeColors ThemeManager::interpolate_colors(const ThemeColors& start,
     result.annotation_bg     = start.annotation_bg.lerp(end.annotation_bg, t);
     result.roi_fill          = start.roi_fill.lerp(end.roi_fill, t);
     result.roi_border        = start.roi_border.lerp(end.roi_border, t);
+
+    // Between a dark and a light theme, text and surfaces both pass through
+    // mid-grey at the same time, so plain interpolation drops text to ~1:1
+    // mid-transition (S4-C01, measured on the rendered frame).  Keep text
+    // readable on the interpolated surfaces: it stays near the start ink until
+    // the surface crosses over, then takes the target side.
+    // Checked on chrome (bg_primary) and panels (bg_secondary): both sit on the
+    // same side of mid-grey on almost every frame, where the second push only
+    // adds contrast against the first.
+    for (Color* text : {&result.text_primary, &result.text_secondary, &result.text_tertiary})
+        *text = ensure_contrast(ensure_contrast(*text, result.bg_primary, 4.5f),
+                                result.bg_secondary,
+                                4.5f);
+    result.tick_label = ensure_contrast(result.tick_label, result.bg_canvas, 4.5f);
 
     return result;
 }

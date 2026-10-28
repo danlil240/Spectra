@@ -295,6 +295,7 @@ set(SPECTRA_UNIT_TESTS
     test_app_init_failure
     test_export_viewport
     test_headless_export_text
+    test_framebuffer_contrast
     test_text_scaling
     test_window_defaults
     test_text_annotation_ipc
@@ -405,6 +406,7 @@ set(SPECTRA_GPU_TESTS
     test_embed_surface
     test_easy_embed
     test_headless_export_text
+    test_framebuffer_contrast
     test_text_scaling
     test_shape3d_first_frame
     test_shape2d_first_frame
@@ -520,7 +522,7 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
         endif()
         # Decodes the exported PNGs with the bundled stb_image (svg_export: parses
         # the embedded font subset with stb_truetype).
-        if(_test MATCHES "^test_(headless_export_text|text_scaling|shape3d_first_frame|shape2d_first_frame|window_export_extent|svg_export)$")
+        if(_test MATCHES "^test_(headless_export_text|framebuffer_contrast|text_scaling|shape3d_first_frame|shape2d_first_frame|window_export_extent|svg_export)$")
             target_include_directories(unit_${_test} SYSTEM PRIVATE
                 ${CMAKE_SOURCE_DIR}/third_party/stb)
         endif()
@@ -2043,7 +2045,7 @@ if(SPECTRA_BUILD_QA_AGENT)
             $<$<BOOL:${SPECTRA_USE_IMGUI}>:SPECTRA_USE_IMGUI>
         )
 
-        # Design review: 63 named captures, each proved by semantic assertions
+        # Design review: 65 named captures, each proved by semantic assertions
         # (menu open, hover/crosshair, panels closed, UI scale...).  Runs under
         # Xvfb + lavapipe with an isolated HOME; fails on any failed assertion.
         if(SPECTRA_USE_GLFW AND SPECTRA_USE_IMGUI AND NOT WIN32)

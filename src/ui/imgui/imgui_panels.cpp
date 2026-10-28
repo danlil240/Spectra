@@ -466,7 +466,7 @@ void ImGuiIntegration::draw_inspector(Figure& figure)
                                   ImVec4(colors.text_tertiary.r,
                                          colors.text_tertiary.g,
                                          colors.text_tertiary.b,
-                                         0.75f));
+                                         1.0f));
             ImGui::TextUnformatted("INSPECTOR");
             ImGui::PopStyleColor();
             ImGui::PopFont();
@@ -834,9 +834,20 @@ void ImGuiIntegration::populate_status_bar(ui::shell::StatusBar& bar)
                              0,
                              1.0f);
 
-                 ImGui::PushStyleColor(
-                     ImGuiCol_Text,
-                     ImVec4(text_col.r, text_col.g, text_col.b, ui::tokens::STATUS_BAR_TEXT_ALPHA));
+                 // Semantic mode colours (accent / info / warning ...) are fill
+                 // tones; as text on the pill they must still reach 4.5:1 after
+                 // the bar's text alpha (Light's accent "Pan" measured 3.2:1).
+                 const ui::Color surface =
+                     bg_col.with_alpha(bg_alpha).composite_over(colors.bg_primary.with_alpha(1.0f));
+                 const float alpha  = ui::tokens::STATUS_BAR_TEXT_ALPHA;
+                 float       target = 4.5f;
+                 ui::Color   ink    = ui::ensure_contrast(text_col, surface, target);
+                 while (target < 21.0f && ink.with_alpha(alpha).contrast_ratio_over(surface) < 4.5f)
+                 {
+                     target += 0.25f;
+                     ink = ui::ensure_contrast(text_col, surface, target);
+                 }
+                 ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(ink.r, ink.g, ink.b, alpha));
                  ImGui::TextUnformatted(label);
                  ImGui::PopStyleColor();
              };

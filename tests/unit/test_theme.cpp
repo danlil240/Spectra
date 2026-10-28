@@ -538,6 +538,57 @@ TEST_F(ThemeManagerTest, TransitionInterpolatesColors)
     }
 }
 
+// S4-C01: the rendered mid-transition frame dropped text to ~1:1, because text
+// and surfaces were interpolated through the same mid-grey.  Text now keeps
+// 4.5:1 on the interpolated panel surface (or the best black / white can do on
+// it) on every frame of every theme pair, and the endpoints are unchanged.
+TEST_F(ThemeManagerTest, TransitionKeepsTextReadableOnEveryFrame)
+{
+    auto&             tm      = ThemeManager::instance();
+    const char* const names[] = {"dark", "night", "light", "high_contrast"};
+    auto              same    = [](const Color& a, const Color& b)
+    { return a.r == b.r && a.g == b.g && a.b == b.b && a.a == b.a; };
+    for (const char* from : names)
+        for (const char* to : names)
+        {
+            if (std::string(from) == to)
+                continue;
+            tm.set_theme(to);
+            const ThemeColors target = tm.colors();
+            for (int step = 1; step < 20; ++step)
+            {
+                tm.set_theme(from);
+                tm.transition_to(to, 1.0f);
+                tm.update(static_cast<float>(step) / 20.0f);
+                ASSERT_TRUE(tm.is_transitioning());
+                const ThemeColors& c       = tm.colors();
+                const Color        surface = c.bg_secondary.with_alpha(1.0f);
+                const float        best    = std::max(Color(0, 0, 0).contrast_ratio(surface),
+                                            Color(1, 1, 1).contrast_ratio(surface));
+                const float        need    = std::min(4.5f, best) - 0.01f;
+                const auto         where =
+                    std::string(from) + " -> " + to + " step " + std::to_string(step);
+                EXPECT_GE(c.text_primary.contrast_ratio(surface), need) << where;
+                EXPECT_GE(c.text_secondary.contrast_ratio(surface), need) << where;
+                EXPECT_GE(c.text_tertiary.contrast_ratio(surface), need) << where;
+                EXPECT_GE(c.tick_label.contrast_ratio(c.bg_canvas.with_alpha(1.0f)),
+                          std::min(4.5f,
+                                   std::max(Color(0, 0, 0).contrast_ratio(c.bg_canvas),
+                                            Color(1, 1, 1).contrast_ratio(c.bg_canvas)))
+                              - 0.01f)
+                    << where;
+                // The crossover frame is still far above the old ~1:1.
+                EXPECT_GE(c.text_primary.contrast_ratio(surface), 4.0f) << where;
+            }
+            tm.update(1.0f);
+            EXPECT_FALSE(tm.is_transitioning());
+            EXPECT_TRUE(same(tm.colors().text_primary, target.text_primary)) << from << "->" << to;
+            EXPECT_TRUE(same(tm.colors().text_secondary, target.text_secondary))
+                << from << "->" << to;
+        }
+    tm.set_theme("dark");
+}
+
 TEST_F(ThemeManagerTest, SetThemeCancelsActiveTransition)
 {
     auto& tm = ThemeManager::instance();

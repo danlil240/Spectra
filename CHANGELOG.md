@@ -27,6 +27,13 @@ Release-readiness work for the first public preview.
 - `examples/README.md` and `python/examples/README.md` indexing every example.
 - Doxygen `///` documentation for the main public headers (`figure.hpp`, `axes.hpp`,
   `series.hpp`, `app.hpp`, `easy.hpp`).
+- `ScaleType::Sqrt` is a real (signed) square-root scale with sqrt-aware ticks.
+- SVG `textLength` on Inter text (`SvgStyle::fit_text_length`) and an opt-in embedded Inter
+  subset (`SvgStyle::embed_font`); plugin series export to SVG through the optional plugin
+  vector-export hook (plugin API 2.2).
+- Crowded legends: "+N more" lists hidden entries on hover and opens a full legend on click;
+  crowded `Best` legends move outside the plot.
+- Design-review QA harness asserts every captured state; plateau-aware memory warnings.
 
 ### Changed
 - README rewritten for newcomers: screenshots, comparison with other plotting tools, supported
@@ -49,6 +56,15 @@ Release-readiness work for the first public preview.
 - 3D: lighting toggle, box size, shared ticks, title row. SVG: 3D shading, ShapeSeries3D,
   measured legend width.
 - Many UI shell, contrast and Qt theming fixes (issues #102–#112).
+- Shutdown with plugins loaded no longer crashes; retained plugin transforms and mixed-owner
+  undo groups no longer outlive a disabled or unloaded plugin.
+- Translucent 3D shapes, surfaces and meshes blend in correct back-to-front order.
+- Early windowed PNG exports are no longer cropped after the first resize; the multi-process
+  window exports PNG/SVG/clipboard requests.
+- Settings and colour-picker swatches match the plotted ink colour.
+- Timeline playback without an animation callback; detaching a figure to another window; ghost
+  legends in split view.
+- `make check-format` fails on violations and requires clang-format 18.
 
 ### Removed
 - Personal and generated files from the repository (vendored `.deb`, CTest output, local

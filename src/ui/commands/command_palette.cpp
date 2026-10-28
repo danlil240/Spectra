@@ -47,6 +47,11 @@ void CommandPalette::close()
     scroll_velocity_ = 0.0f;
 }
 
+size_t CommandPalette::result_count() const
+{
+    return results_.size();
+}
+
 void CommandPalette::toggle()
 {
     if (open_)

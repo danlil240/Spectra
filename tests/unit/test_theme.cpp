@@ -442,10 +442,16 @@ TEST_F(ThemeManagerTest, HighContrastGridIsDimmerThanAxesAndText)
     EXPECT_LT(major, contrast_on(c.text_primary, canvas) / 6.0f);
     EXPECT_LT(contrast_on(c.grid_line, canvas), contrast_on(c.axis_line, canvas) / 6.0f);
 
-    // Major grid stays visible; minor grid is nearly hidden and fainter than major.
-    EXPECT_GE(major, 2.0f);
-    EXPECT_LT(minor, major);
-    EXPECT_LE(minor, 1.4f);
+    // The grid recedes behind the data even in dense scenes: the major grid is a
+    // quiet reference (well under the former ~2.1:1) but still clearly visible.
+    EXPECT_GE(major, 1.5f);
+    EXPECT_LE(major, 1.8f);
+    // Minor stays visible but faint, and clearly below major so the two levels
+    // remain distinguishable.
+    EXPECT_GT(minor, 1.05f);
+    EXPECT_LE(minor, 1.2f);
+    EXPECT_GE(major - 1.0f, 4.0f * (minor - 1.0f));
+    EXPECT_GE(c.grid_major.a, 2.5f * c.grid_minor.a);
 
     // Text, axes and ticks keep full high-contrast levels.
     EXPECT_GE(contrast_on(c.axis_line, canvas), 15.0f);

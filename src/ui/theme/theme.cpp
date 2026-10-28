@@ -1536,20 +1536,22 @@ void ThemeManager::initialize_default_themes()
                                                      .info     = Color::from_hex(0xFFD700),
                                                      .critical = Color::from_hex(0xFF6EFF),
 
-                            // Plot-specific — text, axes and ticks stay at full contrast;
-                            // the grid is a dim reference so it never outweighs the data,
-                            // and the minor grid is nearly hidden.  The grid is translucent
+                            // Plot-specific — data, text, axes/spines and ticks stay at full
+                            // contrast; the grid is a quiet reference that recedes behind the
+                            // data, even in dense multi-panel layouts.  The grid is translucent
                             // white rather than opaque grey: on the black canvas it reads
-                            // exactly as #424242 (~2.1:1) / #141414, but where it shows through
-                            // translucent bars, violins or bands it only lightens them slightly
-                            // instead of cutting dark lines through them (no checkerboard).
-                            // The major grid is deliberately below the 3:1 non-text level (3:1
-                            // on black would need alpha >= 0.35, i.e. a stronger grid): it is a
-                            // reference behind labelled axes, kept at >= 2:1 so it stays clearly
-                            // visible without outweighing the data.
-                                                     .grid_major       = Color(1.0f, 1.0f, 1.0f, 0.26f),
-                                                     .grid_minor       = Color(1.0f, 1.0f, 1.0f, 0.08f),
-                                                     .grid_line        = Color(1.0f, 1.0f, 1.0f, 0.26f),
+                            // exactly as #333333 (major, ~1.66:1) / #111111 (minor, ~1.11:1),
+                            // but where it shows through translucent bars, violins or bands it
+                            // only lightens them slightly instead of cutting dark lines through
+                            // them (no checkerboard).  Major stays ~3x the minor alpha so the two
+                            // levels remain distinguishable; minor is faint but not hidden.
+                            // The grid is deliberately below the 3:1 non-text level (3:1 on
+                            // black would need alpha >= 0.35, i.e. a much stronger grid): it is
+                            // a non-essential reference behind labelled axes and ticks, which
+                            // carry the values at 21:1.
+                                                     .grid_major       = Color(1.0f, 1.0f, 1.0f, 0.20f),
+                                                     .grid_minor       = Color(1.0f, 1.0f, 1.0f, 0.065f),
+                                                     .grid_line        = Color(1.0f, 1.0f, 1.0f, 0.20f),
                                                      .axis_line        = Color::from_hex(0xFFFFFF),
                                                      .tick_label       = Color::from_hex(0xFFFFFF),
                                                      .crosshair        = Color::from_hex(0xCCFFD700),

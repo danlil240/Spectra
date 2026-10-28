@@ -386,8 +386,8 @@ TEST_F(UiShellFixture, LoadWorkspaceWithNoFigureCreatesFigures)
 {
     const auto      dir = std::filesystem::temp_directory_path() / "spectra_ui_shell_ws_config";
     ScopedConfigDir scoped(dir);
-    ImGuiScope imgui;   // theme application touches ImGui style
-    const auto data = two_figure_workspace();
+    ImGuiScope      imgui;   // theme application touches ImGui style
+    const auto      data = two_figure_workspace();
     ASSERT_TRUE(Workspace::save(Workspace::default_path(), data));
 
     auto& ui = build(false);

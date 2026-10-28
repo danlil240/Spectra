@@ -110,15 +110,15 @@ class LegendInteraction
     // the legend scrolls the run of entries the box shows (`first`).
     struct OverflowCell
     {
-        Rect cell;                 // screen pixels
-        int  shown      = 0;       // entries drawn in the legend box
-        int  hidden     = 0;       // entries summarised by the cell
-        int         first      = 0;       // first entry drawn (mouse-wheel scroll offset)
+        Rect        cell;                 // screen pixels
+        int         shown  = 0;           // entries drawn in the legend box
+        int         hidden = 0;           // entries summarised by the cell
+        int         first  = 0;           // first entry drawn (mouse-wheel scroll offset)
         std::string tooltip_first;        // first hidden label listed by the hover tooltip
-        bool hovered    = false;   // tooltip shown this frame
-        bool popup_open = false;   // full legend popup shown this frame
-        int  popup_rows = 0;       // rows submitted to the popup list
-        Rect popup_list;           // screen rect of the popup's (scrolling) list
+        bool        hovered    = false;   // tooltip shown this frame
+        bool        popup_open = false;   // full legend popup shown this frame
+        int         popup_rows = 0;       // rows submitted to the popup list
+        Rect        popup_list;           // screen rect of the popup's (scrolling) list
     };
     // nullptr when that legend has no "+N more" cell.
     const OverflowCell* overflow_cell(uintptr_t figure_id, size_t axes_index) const

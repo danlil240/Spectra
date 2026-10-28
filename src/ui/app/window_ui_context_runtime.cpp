@@ -64,8 +64,8 @@ void wire_timeline_from_figure(WindowUIContext& ui_ctx, Figure* figure, bool has
 
 void wire_demo_animation_channels(WindowUIContext& ui_ctx, Figure& figure, FigureRegistry& registry)
 {
-    auto& timeline_editor       = ui_ctx.timeline_editor;
-    auto& keyframe_interpolator = ui_ctx.keyframe_interpolator;
+    auto&          timeline_editor       = ui_ctx.timeline_editor;
+    auto&          keyframe_interpolator = ui_ctx.keyframe_interpolator;
     const FigureId figure_id             = registry.find_id(&figure);
 
     const float anim_dur = timeline_editor.duration();

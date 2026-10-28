@@ -451,7 +451,7 @@ bool LegendInteraction::draw(AxesBase&           axes,
             const int         grid_row = grid.rows > 0 ? row % grid.rows : row;
             const float       row_y    = cursor.y + static_cast<float>(grid_row) * row_height;
             const float       row_x = cursor.x + static_cast<float>(grid_col) * (col_w + col_gap);
-            const std::string id       = std::format("##legend_toggle_{:x}_{}_{}",
+            const std::string id    = std::format("##legend_toggle_{:x}_{}_{}",
                                                static_cast<unsigned long>(figure_id),
                                                axes_index,
                                                first + row);

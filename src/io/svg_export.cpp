@@ -1394,8 +1394,8 @@ void emit_legend(SvgContext& c, const AxesBase& axes, const Rect& vp, const Lege
     // inside legend capped to a share of the plot area), and
     // the box (and every label) stays inside the axes (audit S03/S04).
     // OutsideRight lays out in the strip reserved right of the axes.
-    const bool outside = cfg.position == LegendPosition::OutsideRight;
-    const Rect area    = outside ? legend_layout::legend_area(axes, cfg.position) : vp;
+    const bool  outside = cfg.position == LegendPosition::OutsideRight;
+    const Rect  area    = outside ? legend_layout::legend_area(axes, cfg.position) : vp;
     const auto  grid    = legend_layout::compute_legend_grid(n,
                                                          swatch_w + gap + max_label_w,
                                                          row_h,
@@ -1406,9 +1406,9 @@ void emit_legend(SvgContext& c, const AxesBase& axes, const Rect& vp, const Lege
                                                          col_gap,
                                                          area,
                                                          cfg.position);
-    const float w     = grid.width;
-    const float h     = grid.height;
-    const float col_w = legend_layout::column_width(grid, pad_x, col_gap);
+    const float w       = grid.width;
+    const float h       = grid.height;
+    const float col_w   = legend_layout::column_width(grid, pad_x, col_gap);
     if (grid.rows <= 0 || !legend_layout::fits(area, w, h, cfg.position))
         return;   // not even one row fits this (tiny) axes
 

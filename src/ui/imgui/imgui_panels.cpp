@@ -840,7 +840,7 @@ void ImGuiIntegration::populate_status_bar(ui::shell::StatusBar& bar)
                  // "Pan" measured 3.2:1), so they are specified at 5.5:1.
                  const ui::Color surface =
                      bg_col.with_alpha(bg_alpha).composite_over(colors.bg_primary.with_alpha(1.0f));
-                 const float alpha  = ui::tokens::STATUS_BAR_TEXT_ALPHA;
+                 const float     alpha      = ui::tokens::STATUS_BAR_TEXT_ALPHA;
                  constexpr float kSmallText = 5.5f;
                  float           target     = kSmallText;
                  ui::Color       ink        = ui::ensure_contrast(text_col, surface, target);

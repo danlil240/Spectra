@@ -362,14 +362,14 @@ struct QAOptions
     uint64_t    seed         = 0;
     float       duration_sec = 120.0f;
     std::string scenario_name;
-    uint64_t    fuzz_frames    = 3000;
-    std::string output_dir     = "/tmp/spectra_qa";
-    bool        no_fuzz        = false;
-    bool        no_scenarios   = false;
-    bool        list_scenarios = false;
-    bool        design_review  = false;
-    uint32_t    repeat         = 1;   // run each scenario N times (memory trend)
-    uint32_t    repeat_warmup     = 1;   // soak: iterations excluded from the RSS slope
+    uint64_t    fuzz_frames       = 3000;
+    std::string output_dir        = "/tmp/spectra_qa";
+    bool        no_fuzz           = false;
+    bool        no_scenarios      = false;
+    bool        list_scenarios    = false;
+    bool        design_review     = false;
+    uint32_t    repeat            = 1;      // run each scenario N times (memory trend)
+    uint32_t    repeat_warmup     = 1;      // soak: iterations excluded from the RSS slope
     double      max_rss_slope_mb  = 0.5;    // soak gate: MB per measured iteration
     double      max_heap_slope_mb = -1.0;   // soak heap gate (MB/iter); < 0 = off
 };
@@ -7228,14 +7228,14 @@ class QAAgent
     std::vector<DesignAssertionRecord>               design_assertions_;
     // The frame named_screenshot() just captured, for pixel-level assertions
     // made by its verifier (valid only while the verifier runs).
-    const uint8_t*                                   design_px_                 = nullptr;
-    uint32_t                                         design_w_                  = 0;
-    uint32_t                                         design_h_                  = 0;
-    WindowContext*                                   design_window_             = nullptr;
-    bool                                             text_contrast_log_started_ = false;
-    bool                                             saved_pointer_valid_ = false;
-    double                                           saved_pointer_x_     = 0.0;
-    double                                           saved_pointer_y_     = 0.0;
+    const uint8_t* design_px_                 = nullptr;
+    uint32_t       design_w_                  = 0;
+    uint32_t       design_h_                  = 0;
+    WindowContext* design_window_             = nullptr;
+    bool           text_contrast_log_started_ = false;
+    bool           saved_pointer_valid_       = false;
+    double         saved_pointer_x_           = 0.0;
+    double         saved_pointer_y_           = 0.0;
     // Bounded settle waits that timed out; each fails the next named capture.
     std::vector<std::string>                  pending_settle_failures_;
     std::unordered_map<uint64_t, std::string> screenshot_hash_to_name_;

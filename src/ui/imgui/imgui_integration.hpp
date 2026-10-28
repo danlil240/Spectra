@@ -216,8 +216,8 @@ class ImGuiIntegration
         custom_transform_dialog_.set_fonts(font_body_, font_heading_, font_title_);
         custom_transform_dialog_.open(current_figure_);
     }
-    void     close_transform_dialog() { custom_transform_dialog_.close(); }
-    bool     is_plot_overlay_dialog_open() const { return plot_overlay_dialog_.is_open(); }
+    void close_transform_dialog() { custom_transform_dialog_.close(); }
+    bool is_plot_overlay_dialog_open() const { return plot_overlay_dialog_.is_open(); }
     ui::PlotOverlayDialog&       plot_overlay_dialog() { return plot_overlay_dialog_; }
     const ui::PlotOverlayDialog& plot_overlay_dialog() const { return plot_overlay_dialog_; }
     bool                         is_theme_settings_visible() const { return show_theme_settings_; }

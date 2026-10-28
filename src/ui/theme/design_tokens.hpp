@@ -168,9 +168,9 @@ constexpr float TOOLTIP_TIME_TARGET_MS  = 0.1f;     // Tooltip query budget
 // status bar, command bar, and canvas frame stay visually consistent.
 
 // Nav rail (left toolbar)
-constexpr float NAV_RAIL_ICON_ALPHA_INACTIVE  = 0.86f;   // readable, not disabled
-constexpr float NAV_RAIL_ICON_ALPHA_HOVER     = 0.96f;
-constexpr float NAV_RAIL_ICON_ALPHA_ACTIVE    = 1.00f;
+constexpr float NAV_RAIL_ICON_ALPHA_INACTIVE = 0.86f;   // readable, not disabled
+constexpr float NAV_RAIL_ICON_ALPHA_HOVER    = 0.96f;
+constexpr float NAV_RAIL_ICON_ALPHA_ACTIVE   = 1.00f;
 // Labels are opaque: text_secondary is already the de-emphasised tier, and any
 // fade drops the small rail labels below 4.5:1 on Light's darker rail foot.
 constexpr float NAV_RAIL_LABEL_ALPHA_INACTIVE = 1.00f;

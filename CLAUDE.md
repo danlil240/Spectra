@@ -65,7 +65,7 @@ GPU / golden / xvfb / lavapipe: [`BUILD_ENVIRONMENT.md` §3](BUILD_ENVIRONMENT.m
 **Style**
 
 - `.clang-format`: Google base, C++20, Allman braces, 4 spaces, 100 columns.
-- Format: `clang-format -i <file>` or `make format` (`format_project.sh`).
+- Format with **clang-format 18**: `git clang-format-18 origin/main` (changed lines), or `make format` / `make check-format` (all tracked files, `format_project.sh`; check exits 1 on violations).
 - Naming: `PascalCase` types, `snake_case` functions/vars, trailing `_` members, `UPPER_SNAKE` macros.
 
 **Testing**

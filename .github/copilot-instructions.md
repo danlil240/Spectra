@@ -18,7 +18,7 @@ Use this file for repo-wide defaults only. Keep task-specific workflows in skill
 - Unit and integration validation: `ctest --test-dir build -LE gpu --output-on-failure`.
 - GPU-only validation: `ctest --test-dir build -L gpu --output-on-failure`.
 - Golden image validation: `ctest --test-dir build -L golden -j1 --output-on-failure`.
-- Formatting: `./format_project.sh` or `./format_project.sh --check`.
+- Formatting (clang-format 18 only): `git clang-format-18 origin/main` for changed lines; `make format` / `make check-format` (`format_project.sh`) for all git-tracked C/C++ files — check mode exits 1 when any file needs formatting.
 - Re-run CMake configure when changing feature flags, embedded assets, or shaders. Shader compilation and font embedding happen during configure, not only during build.
 
 ## Architecture

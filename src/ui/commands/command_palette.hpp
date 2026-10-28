@@ -38,6 +38,12 @@ class CommandPalette
     void toggle();
     bool is_open() const { return open_; }
 
+    // Read-only state for automation / QA assertions.
+    const char* query() const { return search_buf_; }
+    size_t      result_count() const { return results_.size(); }
+    int         selected_index() const { return selected_index_; }
+    float       scroll_offset() const { return scroll_offset_; }
+
     // Draw the palette UI. Call each frame inside an ImGui context.
     // Returns true if a command was executed this frame.
     bool draw(float window_width, float window_height);

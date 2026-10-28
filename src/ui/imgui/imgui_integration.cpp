@@ -441,6 +441,9 @@ bool ImGuiIntegration::has_active_chrome_animations() const
         return true;
     if (mode_transition_ && mode_transition_->is_active())
         return true;
+    // Timeline playback moves the playhead (and the panel) every frame.
+    if (timeline_editor_ && (timeline_editor_->is_playing() || timeline_editor_->is_recording()))
+        return true;
     // Modal scrim fading in/out (Settings, Theme Settings): ImGui advances the
     // dim ratio per frame, so keep frames coming until it settles.
     if (const ImGuiContext* g = ImGui::GetCurrentContext();
@@ -735,22 +738,19 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
         data_interaction_->draw_overlays(io.DisplaySize.x, io.DisplaySize.y, &figure, overlay_dl);
 
         // In split mode, draw_overlays only draws legends for the active figure.
-        // Draw legends for all other split pane figures as well.
+        // Draw the legend of every other pane's *visible* figure as well — not
+        // of figures behind another tab in a pane, whose stale axes viewports
+        // would put ghost legends over the visible plots.
         if (dock_system_ && dock_system_->is_split() && get_figure_ptr_)
         {
             auto panes = dock_system_->split_view().all_panes();
             for (auto* pane : panes)
             {
-                if (!pane)
+                if (!pane || !pane->is_leaf())
                     continue;
-                for (auto fig_id : pane->figure_indices())
-                {
-                    Figure* fig = get_figure_ptr_(fig_id);
-                    if (fig && fig != &figure)
-                    {
-                        data_interaction_->draw_legend_for_figure(*fig);
-                    }
-                }
+                Figure* fig = get_figure_ptr_(pane->figure_index());
+                if (fig && fig != &figure)
+                    data_interaction_->draw_legend_for_figure(*fig);
             }
         }
     }

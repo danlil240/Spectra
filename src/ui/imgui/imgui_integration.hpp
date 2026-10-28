@@ -8,6 +8,7 @@
     #include <memory>
     #include <spectra/fwd.hpp>
     #include <string>
+    #include <string_view>
     #include <unordered_map>
     #include <vector>
 
@@ -168,7 +169,11 @@ class ImGuiIntegration
     bool wants_capture_mouse() const;
     bool wants_capture_keyboard() const;
     bool is_tab_interacting() const { return pane_tab_hovered_ || pane_tab_drag_.dragging; }
-    bool is_menu_open() const { return !open_menu_label_.empty(); }
+    bool               is_menu_open() const { return !open_menu_label_.empty(); }
+    const std::string& open_menu_label() const { return open_menu_label_; }
+    // Screen rect of a command-bar menu button as drawn last frame (automation
+    // uses it to point at and click a menu).  Returns false when not drawn.
+    bool menu_button_rect(std::string_view label, Rect& out) const;
 
     // Reset pane-tab drag and dock split drag (does not close open menus).
     void cancel_tab_drag_state()
@@ -452,6 +457,12 @@ class ImGuiIntegration
 
     // Switch inspector to Series section (for programmatic series cycling)
     void set_inspector_section_series() { active_section_ = Section::Series; }
+    // Switch inspector to the Axes section (shows the selected/first axes' properties).
+    void set_inspector_section_axes() { active_section_ = Section::Axes; }
+    bool is_inspector_section_axes() const { return active_section_ == Section::Axes; }
+    bool is_inspector_section_series() const { return active_section_ == Section::Series; }
+    // Figure whose pane-tab context menu is open or pending (INVALID_FIGURE_ID = none).
+    FigureId tab_context_menu_figure() const { return pane_ctx_menu_fig_; }
 
     // Get/set selection context for programmatic series cycling
     ui::SelectionContext&       selection_context() { return selection_ctx_; }
@@ -902,6 +913,9 @@ class ImGuiIntegration
     // Menubar hover-switch state: tracks which menu popup is currently open
     // so hovering another menu button auto-opens it
     std::string open_menu_label_;   // label of currently open menu ("" = none)
+    // Command-bar menu button rects drawn last frame (label -> screen rect).
+    std::vector<std::pair<std::string, Rect>> menu_button_rects_;
+    int                                       menu_button_rects_frame_ = -1;
 
     // Deferred tooltip rendering to ensure tooltips appear above all UI elements
     const char* deferred_tooltip_ = nullptr;

@@ -121,9 +121,14 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
     auto& fig_mgr          = *ui_ctx.fig_mgr;
     auto& anim_controller  = ui_ctx.anim_controller;
 
-    // Advance timeline editor (drives interpolator evaluation)
-    // When Playing, we control the playhead ourselves to avoid double-speed
-    if (timeline_editor.playback_state() != PlaybackState::Playing)
+    // Advance timeline editor (drives interpolator evaluation).
+    // While Playing, an animated active figure drives the playhead itself from
+    // its own clock (drive_figure_anim below) — advancing here too would run
+    // at double speed.  Without such a figure (e.g. keyframe tracks over static
+    // data) nothing else moves the playhead, so the timeline advances itself.
+    const bool figure_drives_playhead =
+        allow_animation_tick && active_figure && has_animation && active_figure->anim_.on_frame;
+    if (timeline_editor.playback_state() != PlaybackState::Playing || !figure_drives_playhead)
     {
         timeline_editor.advance(scheduler.dt());
     }

@@ -564,6 +564,8 @@ bool detail::data_center(const Axes& axes, double& cx, double& cy)
         if (is_log_scale(s) && e.has_positive())
             return from_axis_space(s,
                                    (to_axis_space(s, e.min_pos) + to_axis_space(s, e.max)) * 0.5);
+        if (is_sqrt_scale(s))
+            return from_axis_space(s, (to_axis_space(s, e.min) + to_axis_space(s, e.max)) * 0.5);
         return (e.min + e.max) * 0.5;
     };
     cx = mid(axes.xscale(), x);
@@ -574,10 +576,21 @@ bool detail::data_center(const Axes& axes, double& cx, double& cy)
 // Turn a raw extent into axis limits.  `pad` adds 5% of the span on each side
 // (Fit/Padded); otherwise the extent is used as-is (Tight).  For log axes the
 // fit uses only positive values and pads multiplicatively so the lower limit
-// never reaches zero or below.
-static AxisLimits finalize_extent(const AxisExtent& e, bool pad, bool log_scale)
+// never reaches zero or below.  Sqrt axes pad 5% of the square-root span, so
+// the padding looks the same on screen as on a linear axis (a 5% data-space
+// pad below zero would take up a large part of a sqrt axis).
+static AxisLimits finalize_extent(const AxisExtent& e, bool pad, ScaleType scale)
 {
-    if (log_scale && e.has_positive())
+    if (is_sqrt_scale(scale) && e.valid() && pad)
+    {
+        double lo = signed_sqrt(e.min);
+        double hi = signed_sqrt(e.max);
+        double p  = (hi - lo) * 0.05;
+        if (p == 0.0)
+            p = 0.5;
+        return {signed_square(lo - p), signed_square(hi + p)};
+    }
+    if (is_log_scale(scale) && e.has_positive())
     {
         double lo = e.min_pos;
         double hi = e.max;
@@ -621,8 +634,8 @@ static AxisLimits finalize_extent(const AxisExtent& e, bool pad, bool log_scale)
 
 static void data_extent_with_mode(const std::vector<std::unique_ptr<Series>>& series,
                                   AutoscaleMode                               mode,
-                                  bool                                        x_log,
-                                  bool                                        y_log,
+                                  ScaleType                                   x_scale,
+                                  ScaleType                                   y_scale,
                                   AxisLimits&                                 x_lim,
                                   AxisLimits&                                 y_lim)
 {
@@ -631,8 +644,8 @@ static void data_extent_with_mode(const std::vector<std::unique_ptr<Series>>& se
     data_extent_raw(series, x, y);
     // Tight skips padding; Fit and Padded (and Manual's fallback) add 5%.
     const bool pad = mode != AutoscaleMode::Tight;
-    x_lim          = finalize_extent(x, pad, x_log);
-    y_lim          = finalize_extent(y, pad, y_log);
+    x_lim          = finalize_extent(x, pad, x_scale);
+    y_lim          = finalize_extent(y, pad, y_scale);
 }
 
 static bool latest_x_value(const std::vector<std::unique_ptr<Series>>& series, double& latest_x)
@@ -840,12 +853,7 @@ AxisLimits Axes::x_limits_unclamped() const
         return xlim_.value_or(AxisLimits{0.0, 1.0});
     AxisLimits xl;
     AxisLimits yl;
-    data_extent_with_mode(series_,
-                          autoscale_mode_,
-                          is_log_scale(xscale_),
-                          is_log_scale(yscale_),
-                          xl,
-                          yl);
+    data_extent_with_mode(series_, autoscale_mode_, xscale_, yscale_, xl, yl);
     return xl;
 }
 
@@ -891,21 +899,14 @@ AxisLimits Axes::y_limits_unclamped() const
             AxisExtent y_ext;
             if (windowed_y_extent(series_, window_min, window_max, y_ext))
             {
-                return finalize_extent(y_ext,
-                                       autoscale_mode_ != AutoscaleMode::Tight,
-                                       is_log_scale(yscale_));
+                return finalize_extent(y_ext, autoscale_mode_ != AutoscaleMode::Tight, yscale_);
             }
         }
     }
 
     AxisLimits xl;
     AxisLimits yl;
-    data_extent_with_mode(series_,
-                          autoscale_mode_,
-                          is_log_scale(xscale_),
-                          is_log_scale(yscale_),
-                          xl,
-                          yl);
+    data_extent_with_mode(series_, autoscale_mode_, xscale_, yscale_, xl, yl);
     return yl;
 }
 
@@ -985,12 +986,7 @@ void Axes::topic_auto_zoom_tick()
         autoscale_mode_ == AutoscaleMode::Manual ? AutoscaleMode::Padded : autoscale_mode_;
     AxisLimits new_x;
     AxisLimits new_y;
-    data_extent_with_mode(series_,
-                          fit_mode,
-                          is_log_scale(xscale_),
-                          is_log_scale(yscale_),
-                          new_x,
-                          new_y);
+    data_extent_with_mode(series_, fit_mode, xscale_, yscale_, new_x, new_y);
 
     if (!std::isfinite(new_x.min) || !std::isfinite(new_x.max) || !std::isfinite(new_y.min)
         || !std::isfinite(new_y.max))
@@ -1330,10 +1326,8 @@ static LinearTickOptions tick_options(const std::vector<std::unique_ptr<Series>>
     return opt;
 }
 
-// Sqrt axes are drawn untransformed (see core/axis_scale.hpp), so their ticks
-// are the ordinary linear ticks: evenly spaced nice values that cover the
-// whole axis.  (Placing ticks evenly in squared space bunched them at the top
-// and left a large gap near zero on the linearly drawn axis.)
+// Sqrt axes get nice data values placed at their square-root positions
+// (generate_sqrt_ticks), labelled in data units.
 TickResult Axes::compute_x_ticks() const
 {
     auto       lim = x_limits();
@@ -1347,6 +1341,8 @@ TickResult Axes::compute_x_ticks() const
     {
         return generate_log_ticks(lim.min, lim.max, log_scale_base(xscale_), opt);
     }
+    if (is_sqrt_scale(xscale_))
+        return generate_sqrt_ticks(lim.min, lim.max, opt);
     if (x_datetime_)
         return generate_datetime_ticks(lim.min, lim.max, opt);
     return generate_linear_ticks(lim.min, lim.max, opt);
@@ -1365,6 +1361,8 @@ TickResult Axes::compute_y_ticks() const
     {
         return generate_log_ticks(lim.min, lim.max, log_scale_base(yscale_), opt);
     }
+    if (is_sqrt_scale(yscale_))
+        return generate_sqrt_ticks(lim.min, lim.max, opt);
     if (y_datetime_)
         return generate_datetime_ticks(lim.min, lim.max, opt);
     return generate_linear_ticks(lim.min, lim.max, opt);

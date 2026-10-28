@@ -75,4 +75,13 @@ std::string format_tick_offset(const TickFormat& fmt);
 /// Linear ticks for the limits [@p lo, @p hi].
 TickResult generate_linear_ticks(double lo, double hi, const LinearTickOptions& opt = {});
 
+/// Ticks for a square-root axis (drawn linearly in sign(v)·sqrt(|v|)) with the
+/// data-space limits [@p lo, @p hi].  Positions are nice data values (multiples
+/// of 1-2-5 steps) labelled in data units.  A coarse step is chosen so ticks
+/// near the compressed large-|v| end keep at least 0.5 × target_px apart;
+/// gaps wider than two target spacings (typically the stretched region near
+/// zero) are then filled with multiples of finer 1-2-5 steps that keep that
+/// distance from their neighbours, so ticks never crowd.
+TickResult generate_sqrt_ticks(double lo, double hi, const LinearTickOptions& opt = {});
+
 }   // namespace spectra

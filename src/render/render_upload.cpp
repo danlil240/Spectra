@@ -287,8 +287,8 @@ void Renderer::upload_series_data(Series&   series,
                 gpu.fill_vertex_capacity = fill_alloc;
             }
 
-            if (xoff != origin_x || yoff != origin_y || is_log_scale(xscale)
-                || is_log_scale(yscale))
+            if (xoff != origin_x || yoff != origin_y || is_nonlinear_scale(xscale)
+                || is_nonlinear_scale(yscale))
             {
                 // Re-center fill vertices (stride=3: x, y, alpha)
                 if (upload_scratch_.size() < fill_floats)

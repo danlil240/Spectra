@@ -148,6 +148,37 @@ TEST(SvgExport, ContainsLegendEntry)
     EXPECT_NE(svg.find("test-line"), std::string::npos);
 }
 
+TEST(SvgExport, SqrtAxisPlacesMarkersAtSquareRootPositions)
+{
+    Figure fig({.width = 800, .height = 600});
+    auto&  ax = fig.subplot(1, 1, 1);
+    ax.scatter(std::vector<float>{0.0f, 25.0f, 100.0f}, std::vector<float>{0.0f, 4.0f, 16.0f});
+    ax.xscale(ScaleType::Sqrt);
+    ax.yscale(ScaleType::Sqrt);
+    ax.xlim(0.0, 100.0);
+    ax.ylim(0.0, 16.0);
+    fig.compute_layout();
+    const Rect vp = ax.viewport();
+
+    const std::string                      svg = SvgExporter::to_string(fig);
+    std::vector<std::pair<double, double>> pts;
+    const std::string                      key = "        <use xlink:href=\"#mk";
+    for (size_t pos = svg.find(key); pos != std::string::npos; pos = svg.find(key, pos + 1))
+    {
+        const size_t xs = svg.find(" x=\"", pos) + 4;
+        const size_t ys = svg.find(" y=\"", pos) + 4;
+        pts.emplace_back(std::stod(svg.substr(xs)), std::stod(svg.substr(ys)));
+    }
+    ASSERT_EQ(pts.size(), 3u);
+    // x = 25 is half way along sqrt [0, 10]; y = 4 is half way up sqrt [0, 4].
+    EXPECT_NEAR(pts[0].first, vp.x, 0.05);
+    EXPECT_NEAR(pts[1].first, vp.x + 0.5 * vp.w, 0.05);
+    EXPECT_NEAR(pts[2].first, vp.x + vp.w, 0.05);
+    EXPECT_NEAR(pts[0].second, vp.y + vp.h, 0.05);
+    EXPECT_NEAR(pts[1].second, vp.y + 0.5 * vp.h, 0.05);
+    EXPECT_NEAR(pts[2].second, vp.y, 0.05);
+}
+
 TEST(SvgExport, ContainsGridLines)
 {
     auto        fig = make_line_figure();

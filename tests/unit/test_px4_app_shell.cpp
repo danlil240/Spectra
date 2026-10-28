@@ -609,6 +609,13 @@ TEST(Px4AppShellTest, FourAutoPlotGroupsFitTheCanvas)
 // Recent files store.
 // ---------------------------------------------------------------------------
 
+// The store keeps absolute, normalised paths; on Windows that adds the drive
+// letter and backslashes, so expectations go through the same transform.
+static std::string stored_form(const std::string& p)
+{
+    return std::filesystem::absolute(std::filesystem::path(p)).lexically_normal().string();
+}
+
 TEST(Px4RecentFilesTest, PushMovesToFrontDedupesAndCaps)
 {
     Px4RecentFiles recent({}, 3);
@@ -616,14 +623,14 @@ TEST(Px4RecentFilesTest, PushMovesToFrontDedupesAndCaps)
     recent.push("/logs/b.ulg");
     recent.push("/logs/a.ulg");
     ASSERT_EQ(recent.entries().size(), 2u);
-    EXPECT_EQ(recent.entries()[0], "/logs/a.ulg");
-    EXPECT_EQ(recent.entries()[1], "/logs/b.ulg");
+    EXPECT_EQ(recent.entries()[0], stored_form("/logs/a.ulg"));
+    EXPECT_EQ(recent.entries()[1], stored_form("/logs/b.ulg"));
 
     recent.push("/logs/c.ulg");
     recent.push("/logs/d.ulg");
     ASSERT_EQ(recent.entries().size(), 3u);
-    EXPECT_EQ(recent.entries()[0], "/logs/d.ulg");
-    EXPECT_EQ(recent.entries()[2], "/logs/a.ulg");
+    EXPECT_EQ(recent.entries()[0], stored_form("/logs/d.ulg"));
+    EXPECT_EQ(recent.entries()[2], stored_form("/logs/a.ulg"));
 
     recent.remove("/logs/c.ulg");
     EXPECT_EQ(recent.entries().size(), 2u);
@@ -664,8 +671,8 @@ TEST(Px4RecentFilesTest, PersistsAcrossInstancesWithEscapedPaths)
     Px4RecentFiles loaded(file);
     ASSERT_TRUE(loaded.load());
     ASSERT_EQ(loaded.entries().size(), 2u);
-    EXPECT_EQ(loaded.entries()[0], std::filesystem::path(odd).lexically_normal().string());
-    EXPECT_EQ(loaded.entries()[1], "/logs/one.ulg");
+    EXPECT_EQ(loaded.entries()[0], stored_form(odd));
+    EXPECT_EQ(loaded.entries()[1], stored_form("/logs/one.ulg"));
 
     Px4RecentFiles missing(dir + "/does_not_exist.json");
     EXPECT_FALSE(missing.load());
@@ -700,7 +707,7 @@ TEST(Px4AppShellTest, OpeningUlogRecordsAndPersistsRecentFile)
         ASSERT_TRUE(shell.open_ulog(ulog_b));
         EXPECT_FALSE(shell.open_ulog(dir + "/missing.ulg"));   // failures are not recorded
         ASSERT_EQ(shell.recent_files().entries().size(), 2u);
-        EXPECT_EQ(shell.recent_files().entries()[0], ulog_b);
+        EXPECT_EQ(shell.recent_files().entries()[0], stored_form(ulog_b));
     }
 
     // A new session (e.g. after restart) sees the same list.
@@ -709,16 +716,16 @@ TEST(Px4AppShellTest, OpeningUlogRecordsAndPersistsRecentFile)
     Px4AppShell shell(cfg);
     ASSERT_TRUE(shell.init());
     ASSERT_EQ(shell.recent_files().entries().size(), 2u);
-    EXPECT_EQ(shell.recent_files().entries()[0], ulog_b);
-    EXPECT_EQ(shell.recent_files().entries()[1], ulog_a);
+    EXPECT_EQ(shell.recent_files().entries()[0], stored_form(ulog_b));
+    EXPECT_EQ(shell.recent_files().entries()[1], stored_form(ulog_a));
 
     // Re-opening from the list promotes it; an entry whose file is gone is dropped.
     ASSERT_TRUE(shell.open_recent(ulog_a));
-    EXPECT_EQ(shell.recent_files().entries()[0], ulog_a);
+    EXPECT_EQ(shell.recent_files().entries()[0], stored_form(ulog_a));
     std::remove(ulog_b.c_str());
     EXPECT_FALSE(shell.open_recent(ulog_b));
     ASSERT_EQ(shell.recent_files().entries().size(), 1u);
-    EXPECT_EQ(shell.recent_files().entries()[0], ulog_a);
+    EXPECT_EQ(shell.recent_files().entries()[0], stored_form(ulog_a));
 
     std::remove(ulog_a.c_str());
     std::filesystem::remove_all(dir);

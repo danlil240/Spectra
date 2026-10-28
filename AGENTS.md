@@ -28,7 +28,7 @@ Canonical flags and package list: [`BUILD_ENVIRONMENT.md`](BUILD_ENVIRONMENT.md)
 |-------|---------|
 | Build | `cmake --build build -j$(nproc)` after configure above |
 | Unit tests (fast) | `ctest --test-dir build -LE gpu --output-on-failure -j$(nproc)` |
-| Format | `git clang-format-18 origin/main` (changed lines); `make check-format` (whole tree, clang-format 18) |
+| Format | `git clang-format-18 origin/main` (changed lines); `make check-format` (whole tree, clang-format 18; what CI runs) |
 | Headless plot export | `cd build/examples && ./offscreen_export` → `output.png` (1920×1080) |
 | GUI example | `DISPLAY=:99 ./build/examples/basic_line` (with Xvfb + lavapipe env) |
 | Main app | `./build/spectra` (same display/Vulkan requirements as examples) |

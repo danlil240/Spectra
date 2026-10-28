@@ -145,8 +145,8 @@ Spectra is formatted with **clang-format 18** (`.clang-format`; CI installs `cla
 Other major versions format differently, so `format_project.sh` refuses them.
 
 ```bash
-git clang-format-18 origin/main   # format only the lines your branch changed (what CI checks)
-make check-format                 # check every git-tracked C/C++ file; exits 1 if any needs formatting
+git clang-format-18 origin/main   # format only the lines your branch changed
+make check-format                 # check every git-tracked C/C++ file (what CI runs); exits 1 on violations
 make format                       # format every git-tracked C/C++ file in place
 ./format_project.sh --check path/to/file.cpp   # check specific files
 ```

@@ -17,7 +17,10 @@ The formatting rules are defined in `.clang-format` at the project root. The con
 
 ## Usage
 
-### Format Only Your Changes (what CI checks)
+### Format Only Your Changes
+
+CI checks the whole tree (`make check-format`); the tree is clean, so formatting your
+changed lines keeps it that way.
 ```bash
 git clang-format-18 origin/main
 ```

@@ -93,8 +93,11 @@ On failure, the actual and diff images are written to `tests/golden/output/` (or
   ```
 
   `make format` / `make check-format` need clang-format 18 (`CLANG_FORMAT=/path/to/clang-format`
-  overrides the binary) and skip `third_party/` and untracked files. See
-  [BUILD_ENVIRONMENT.md](BUILD_ENVIRONMENT.md#formatting).
+  overrides the binary) and skip `third_party/` and untracked files. CI runs
+  `make check-format` on the whole tree. See [BUILD_ENVIRONMENT.md](BUILD_ENVIRONMENT.md#formatting).
+
+- The whole-tree clang-format 18 reformat is listed in `.git-blame-ignore-revs`; GitHub's blame
+  skips it automatically, and locally run `git config blame.ignoreRevsFile .git-blame-ignore-revs`.
 
 - Naming: `PascalCase` types, `snake_case` functions and variables, trailing `_` for members,
   `UPPER_SNAKE` macros.

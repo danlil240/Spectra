@@ -163,7 +163,8 @@ void ULogFilePanel::draw_content()
     }
     else
     {
-        ImGui::TextWrapped("No ULog file loaded. Click 'Open' to load a .ulg file.");
+        ImGui::TextWrapped(
+            "No ULog file loaded. Click 'Open...' or drop a .ulg file onto the window.");
     }
 #endif
 }
@@ -375,10 +376,9 @@ void ULogFilePanel::draw_params_table()
 
         // Re-sort only when the user changes the sort specs or the parameter
         // set changes (new file loaded); otherwise reuse the cached order.
-        ImGuiTableSortSpecs* specs        = ImGui::TableGetSortSpecs();
-        const bool           data_changed = param_order_src_ != params.data()
-                                  || param_order_.size() != params.size()
-                                  || param_order_path_ != reader_.metadata().path;
+        ImGuiTableSortSpecs* specs = ImGui::TableGetSortSpecs();
+        const bool           data_changed =
+            param_order_generation_ != reader_.generation() || param_order_.size() != params.size();
         if (specs && (specs->SpecsDirty || data_changed))
         {
             std::vector<ParamSortKey> keys;
@@ -389,16 +389,14 @@ void ULogFilePanel::draw_params_table()
                 keys.push_back({static_cast<ParamSortColumn>(s.ColumnUserID),
                                 s.SortDirection != ImGuiSortDirection_Descending});
             }
-            param_order_      = sorted_parameter_indices(params, keys);
-            param_order_src_  = params.data();
-            param_order_path_ = reader_.metadata().path;
-            specs->SpecsDirty = false;
+            param_order_            = sorted_parameter_indices(params, keys);
+            param_order_generation_ = reader_.generation();
+            specs->SpecsDirty       = false;
         }
         else if (!specs && data_changed)
         {
-            param_order_      = sorted_parameter_indices(params, {});
-            param_order_src_  = params.data();
-            param_order_path_ = reader_.metadata().path;
+            param_order_            = sorted_parameter_indices(params, {});
+            param_order_generation_ = reader_.generation();
         }
 
         for (size_t idx : param_order_)

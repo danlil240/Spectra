@@ -6,6 +6,8 @@
 #include <spectra/logger.hpp>
 #include <spectra/series.hpp>
 
+#include "ui/window/window_manager.hpp"
+
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
     #include "../../../third_party/tinyfiledialogs.h"
@@ -16,6 +18,7 @@
 #endif
 
 #include <algorithm>
+#include <cctype>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
@@ -303,6 +306,53 @@ void Px4AppShell::set_window_manager(spectra::WindowManager* wm)
         file_panel_->set_window_manager(wm);
     if (live_panel_)
         live_panel_->set_window_manager(wm);
+    // OS file drops (GLFW drop callback / SDL_EVENT_DROP_FILE) open ULogs.
+    // This replaces the main app's CSV drop handler: the PX4 viewer has no
+    // CSV column picker.
+    if (wm)
+        wm->set_file_drop_handler([this](uint32_t /*window_id*/, const std::string& path)
+                                  { handle_file_drop(path); });
+}
+
+// ---------------------------------------------------------------------------
+// File drop
+// ---------------------------------------------------------------------------
+
+bool Px4AppShell::is_ulog_path(const std::string& path)
+{
+    std::string ext = std::filesystem::path(path).extension().string();
+    std::transform(ext.begin(),
+                   ext.end(),
+                   ext.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    return ext == ".ulg" || ext == ".ulog";
+}
+
+bool Px4AppShell::handle_file_drop(const std::string& path)
+{
+    if (!is_ulog_path(path))
+    {
+        SPECTRA_LOG_WARN("px4", "ignoring dropped file (not a .ulg ULog): {}", path);
+        last_open_error_ = "Dropped file is not a PX4 ULog (.ulg): " + path;
+        return false;
+    }
+    // One log is open at a time: of several logs dropped together the last wins.
+    pending_drop_path_ = path;
+    return true;
+}
+
+bool Px4AppShell::process_pending_file_drop()
+{
+    if (pending_drop_path_.empty())
+        return false;
+    const std::string path = std::move(pending_drop_path_);
+    pending_drop_path_.clear();
+    const bool ok = open_ulog(path);
+    if (ok)
+        SPECTRA_LOG_INFO("px4", "opened dropped ULog: {}", path);
+    else
+        SPECTRA_LOG_WARN("px4", "failed to open dropped ULog {}: {}", path, last_open_error_);
+    return ok;
 }
 
 // ---------------------------------------------------------------------------
@@ -323,6 +373,8 @@ void Px4AppShell::process_pending_panels()
 
 void Px4AppShell::poll()
 {
+    process_pending_file_drop();
+
     // Update live data if connected.
     if (bridge_.is_receiving())
         plot_mgr_.poll();

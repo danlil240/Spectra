@@ -910,27 +910,27 @@ App::StepResult App::step()
     }
 #endif
 
-    // Phase 1: Write PNG from a previously completed pre-present capture.
-    // Phase 2: Schedule a pre-present capture for a pending export.  It runs
-    // inside end_frame() of the next rendered frame (before vkQueuePresentKHR,
-    // so the swapchain image contents are valid) and takes that frame's size.
+    // Windowed exports: write a finished PNG capture, schedule a pre-present
+    // capture for a pending PNG / clipboard request (it runs inside end_frame()
+    // of the next rendered frame and takes that frame's size), and write
+    // pending SVGs now.  Headless exports are written by shutdown_runtime().
+    if (!config_.headless)
     {
-        auto* vk = (config_.backend == RenderBackend::Vulkan)
-                       ? static_cast<VulkanBackend*>(backend_.get())
-                       : nullptr;
-        rt.png_export.collect(vk);
-        if (!config_.headless && rt.active_figure && !rt.png_export.active())
-        {
-            WindowContext* target_wctx = nullptr;
+        auto*          vk         = (config_.backend == RenderBackend::Vulkan)
+                                        ? static_cast<VulkanBackend*>(backend_.get())
+                                        : nullptr;
+        WindowManager* window_mgr = nullptr;
 #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
-            // Target the window that owns this figure so multi-window captures
-            // read the correct swapchain image.
-            target_wctx =
-                find_window_for_figure(rt.window_mgr.get(), rt.frame_state.active_figure_id);
+        window_mgr = rt.window_mgr.get();
 #endif
-            if (rt.png_export.schedule(*rt.active_figure, vk, target_wctx))
-                rt.session.redraw_tracker().mark_dirty("png export");
-        }
+        if (service_window_exports(
+                rt.png_export,
+                registry_,
+                rt.active_figure ? rt.frame_state.active_figure_id : INVALID_FIGURE_ID,
+                vk,
+                window_mgr,
+                theme_mgr_.get()))
+            rt.session.redraw_tracker().mark_dirty("png export");
     }
 
     // Check animation duration termination

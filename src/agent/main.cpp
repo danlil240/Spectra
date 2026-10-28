@@ -1476,22 +1476,19 @@ int main(int argc, char* argv[])
         }
 
         // ── Exports requested from this window's UI ──────────────────────
-        png_export.collect(backend.get());
-        if (active_figure && registry.get(frame_state.active_figure_id) == active_figure
-            && !png_export.active())
         {
-            spectra::WindowContext* target_wctx = nullptr;
+            spectra::WindowManager* export_wm = nullptr;
 #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
-            target_wctx =
-                spectra::find_window_for_figure(window_mgr.get(), frame_state.active_figure_id);
+            export_wm = window_mgr.get();
 #endif
-            if (png_export.schedule(*active_figure, backend.get(), target_wctx))
+            if (spectra::service_window_exports(
+                    png_export,
+                    registry,
+                    active_figure ? frame_state.active_figure_id : spectra::INVALID_FIGURE_ID,
+                    backend.get(),
+                    export_wm,
+                    &theme_mgr))
                 session.redraw_tracker().mark_dirty("png export");
-        }
-        for (auto id : registry.all_ids())
-        {
-            if (auto* fig = registry.get(id); fig && !fig->export_req_.svg_path.empty())
-                spectra::write_pending_svg(*fig, &theme_mgr);
         }
 
 #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)

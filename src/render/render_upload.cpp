@@ -523,6 +523,7 @@ void Renderer::upload_series_data(Series&   series,
         }
         backend_.upload_buffer(gpu.index_buffer, active_mesh->indices.data(), idx_byte_size);
         gpu.index_count = active_mesh->indices.size();
+        ++gpu.geometry_serial;   // invalidates the translucent triangle sort
 
         series.clear_dirty();
     }
@@ -558,6 +559,7 @@ void Renderer::upload_series_data(Series&   series,
         }
         backend_.upload_buffer(gpu.index_buffer, mesh->indices().data(), idx_byte_size);
         gpu.index_count = mesh->indices().size();
+        ++gpu.geometry_serial;   // invalidates the translucent triangle sort
 
         series.clear_dirty();
     }

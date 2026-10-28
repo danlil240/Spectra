@@ -526,9 +526,10 @@ class Renderer
         // the same name rebuilds its state from scratch.
         bool plugin_state_released = false;
 
-        // ShapeSeries3D: indices() with each translucent range's triangles
-        // sorted back to front for the camera in sort_key (see
-        // prepare_shape3d_sorted_indices).  Uploaded per frame slot so the
+        // ShapeSeries3D: indices() with each translucent shape's triangles
+        // (SurfaceSeries / MeshSeries: all triangles) sorted back to front for
+        // the camera in sort_key (see prepare_shape3d_sorted_indices and
+        // prepare_mesh_sorted_indices).  Uploaded per frame slot so the
         // in-flight frame's copy is never overwritten.
         uint64_t              geometry_serial = 0;
         std::vector<uint32_t> sorted_indices;
@@ -551,6 +552,37 @@ class Renderer
     // @p cam (re-sorting only when the camera, model matrix, geometry or
     // transparency changed) and uploads them into this frame slot's sorted
     // index buffer; sets gpu.sorted_ready_slot.  Render thread only.
+    // Same for a translucent solid SurfaceSeries / MeshSeries: all of its
+    // triangles (6-float position+normal vertices) as one sorted block.
+    // Skipped above kMaxSortedMeshTriangles (drawn in generation order).
+    static constexpr size_t kMaxSortedMeshTriangles = 262144;
+    void                    prepare_mesh_sorted_indices(SeriesGpuData&            gpu,
+                                                        std::span<const uint32_t> indices,
+                                                        std::span<const float>    vertices,
+                                                        const mat4&               model,
+                                                        const Camera&             cam,
+                                                        float                     series_alpha,
+                                                        float                     style_opacity);
+    // Cache key of a camera/geometry-dependent triangle sort.
+    static std::vector<double> triangle_sort_key(const SeriesGpuData& gpu,
+                                                 const mat4&          model,
+                                                 const Camera&        cam,
+                                                 size_t               index_count,
+                                                 float                series_alpha,
+                                                 float                style_opacity);
+    // This pass's back-to-front sorted index buffer when @p transparent and one
+    // was prepared, otherwise the series' generation-order index buffer.
+    BufferHandle sorted_index_buffer_or(const SeriesGpuData& gpu, bool transparent) const
+    {
+        const int slot = gpu.sorted_ready_slot;
+        if (transparent && slot >= 0 && gpu.sorted_ready_serial == render_pass_serial_
+            && gpu.sorted_index_buffer[slot])
+            return gpu.sorted_index_buffer[slot];
+        return gpu.index_buffer;
+    }
+    // Uploads gpu.sorted_indices into this frame slot's sorted index buffer
+    // (when that slot is out of date) and marks it ready for this pass.
+    void upload_sorted_indices(SeriesGpuData& gpu);
     void prepare_shape3d_sorted_indices(SeriesGpuData&       gpu,
                                         const ShapeSeries3D& series,
                                         const mat4&          model,

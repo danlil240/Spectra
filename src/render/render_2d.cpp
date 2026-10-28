@@ -342,7 +342,7 @@ void Renderer::render_series(Series&             series,
                     }
                     backend_.push_constants(pc);
                     backend_.bind_buffer(gpu.ssbo, 0);
-                    backend_.bind_index_buffer(gpu.index_buffer);
+                    backend_.bind_index_buffer(sorted_index_buffer_or(gpu, is_transparent));
                     backend_.draw_indexed(static_cast<uint32_t>(surf_mesh.indices.size()));
                 }
             }
@@ -367,7 +367,7 @@ void Renderer::render_series(Series&             series,
                 }
                 backend_.push_constants(pc);
                 backend_.bind_buffer(gpu.ssbo, 0);
-                backend_.bind_index_buffer(gpu.index_buffer);
+                backend_.bind_index_buffer(sorted_index_buffer_or(gpu, is_transparent));
                 backend_.draw_indexed(static_cast<uint32_t>(mesh->indices().size()));
             }
             break;

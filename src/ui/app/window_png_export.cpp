@@ -262,9 +262,9 @@ bool write_pending_svg(Figure& f, ui::ThemeManager* theme_mgr, const SvgExportHo
                                        ui::is_light_plot_background(surface),
                                        ui::effective_figure_background(f.style(), surface));
     }
-    const SvgStyle style =
-        theme_mgr ? ui::svg_style_from_theme(theme_mgr->plot_surface_colors(f.style()))
-                  : SvgStyle{};
+    const SvgStyle style = theme_mgr
+                               ? ui::svg_style_from_theme(theme_mgr->plot_surface_colors(f.style()))
+                               : SvgStyle{};
     // Plugin series are drawn by their type's vector export callback when the
     // caller supplies one (in-proc App); otherwise they become XML comments.
     const bool ok = svg_host ? svg_export_write(path, f, style, *svg_host)
@@ -274,11 +274,11 @@ bool write_pending_svg(Figure& f, ui::ThemeManager* theme_mgr, const SvgExportHo
     return ok;
 }
 
-bool service_window_exports(WindowPngExport&  png_export,
-                            FigureRegistry&   registry,
-                            uint64_t          active_id,
-                            VulkanBackend*    vk,
-                            WindowManager*    window_mgr,
+bool service_window_exports(WindowPngExport&     png_export,
+                            FigureRegistry&      registry,
+                            uint64_t             active_id,
+                            VulkanBackend*       vk,
+                            WindowManager*       window_mgr,
                             ui::ThemeManager*    theme_mgr,
                             const SvgExportHost* svg_host)
 {

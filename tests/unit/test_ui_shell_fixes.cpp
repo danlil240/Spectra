@@ -597,8 +597,9 @@ TEST(UiShellButtons, ActionButtonsReachContrastTargets)
                 SCOPED_TRACE(std::string(name) + (primary ? " primary on " : " secondary on ")
                              + backdrop_name);
                 const auto b = ui::action_button_colors(c, primary, backdrop);
-                const std::pair<const char*, ui::Color> states[] = {
-                    {"fill", b.fill}, {"hover", b.hover}, {"active", b.active}};
+                const std::pair<const char*, ui::Color> states[] = {{"fill", b.fill},
+                                                                    {"hover", b.hover},
+                                                                    {"active", b.active}};
                 for (const auto& [state, fill] : states)
                 {
                     SCOPED_TRACE(state);

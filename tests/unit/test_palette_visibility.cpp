@@ -448,9 +448,9 @@ TEST_F(PaletteVisibilityTest, DisplayedSwatchesMatchResolvedSeriesOnEveryTheme)
             const size_t      n     = shown.colors.size();
             ASSERT_GT(n, 0u) << theme << "/" << name;
 
-            spectra::Figure fig;
-            auto&           ax = fig.subplot(1, 1, 1);
-            const float     x[] = {0.0f, 1.0f};
+            spectra::Figure                   fig;
+            auto&                             ax  = fig.subplot(1, 1, 1);
+            const float                       x[] = {0.0f, 1.0f};
             std::vector<spectra::LineSeries*> lines;
             for (size_t i = 0; i < n; ++i)
                 lines.push_back(&ax.line(x, x));

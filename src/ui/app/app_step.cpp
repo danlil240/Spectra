@@ -1013,10 +1013,8 @@ App::StepResult App::step()
 #endif
         // Plugin series are drawn into SVGs by their type's vector export callback.
         SvgExportHost svg_host;
-        svg_host.custom_series = [&rt](const CustomSeries& cs,
-                                       const float*        rgba,
-                                       float               opacity,
-                                       CustomVectorSink&   sink)
+        svg_host.custom_series =
+            [&rt](const CustomSeries& cs, const float* rgba, float opacity, CustomVectorSink& sink)
         { return rt.series_type_registry.export_vector(cs, rgba, opacity, sink); };
         if (service_window_exports(
                 rt.png_export,
@@ -1134,10 +1132,8 @@ void App::shutdown_runtime()
     // Process exports for all figures (headless batch mode)
     // Plugin series are drawn into SVGs by their type's vector export callback.
     SvgExportHost svg_host;
-    svg_host.custom_series = [&rt](const CustomSeries& cs,
-                                   const float*        rgba,
-                                   float               opacity,
-                                   CustomVectorSink&   sink)
+    svg_host.custom_series =
+        [&rt](const CustomSeries& cs, const float* rgba, float opacity, CustomVectorSink& sink)
     { return rt.series_type_registry.export_vector(cs, rgba, opacity, sink); };
     bool framebuffer_holds_active = true;
     for (auto id : registry_.all_ids())

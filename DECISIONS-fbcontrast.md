@@ -42,8 +42,18 @@
   exempt from WCAG 1.4.3; asserted floor 3:1 (measured 5.02 / 3.16). `ImGuiCol_TextDisabled` (=text_tertiary)
   is used for live labels here, so it is held to 4.5:1, not treated as disabled.
 - **Design-review shot count** 63 -> 65 (`EXPECTED_DESIGN_SHOTS`, comments).
-- **Not fixed (reported):** accent colours used as text are not covered by the transition guard (active nav
-  label measures 1.19:1 at the midpoint); Light nav rail labels at 11.5px lose up to ~30% contrast to
-  antialiasing (neutral min 4.26 rendered for 6.46 specified) so the Light rail is not asserted at 4.5;
-  Light active rail label 3.92 rendered (4.90 specified); Light status fps/GPU readouts 4.04 / 4.27 rendered
-  (4.49 / 4.67 specified).
+- **Follow-up fixes (former open findings):**
+  - Transition accents: `interpolate_colors` also guards `accent` (3:1 on bg_secondary) and `accent_hover`
+    (4.5:1, it is the active rail label / open-menu title colour). Active rail label at the midpoint:
+    1.19 -> 3.47:1 rendered. State 63 now asserts all ink (not only neutral) at 3:1 in the rail, command bar,
+    tabs and status bar.
+  - Light rail labels: Light `text_secondary` 0x33485F -> 0x273A4F (8.0:1 on the rail foot, specified), so
+    11.5px labels reach 4.5:1 rendered (min 4.99). Light `accent_hover` 0x0F5F78 -> 0x0A4C61 for the active
+    label (3.92 -> 4.99 rendered). Font size unchanged.
+  - Light status readouts: `status_perf_colors` specifies light-chrome FPS / GPU text at 5.5:1 and status
+    pills specify their text at 5.5:1 after the bar alpha, because ~11px antialiasing costs ~10–15%.
+    Rendered Light status bar min 4.62:1.
+  - State 12 (Light) now asserts the nav rail (>= 10 runs) and status bar (>= 4 runs) at 4.5:1.
+  - `simulate_cvd` comments now name Machado, Oliveira & Fernandes 2009 (severity 1.0) for all three
+    dichromacies (the tritanopia matrix is Machado's too).
+  - Goldens: unchanged by the follow-up (strict run passes with the round-1 baselines; nothing regenerated).

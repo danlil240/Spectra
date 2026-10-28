@@ -4015,6 +4015,10 @@ class QAAgent
                                  {
                                      expect_theme(c, "light");
                                      expect_text_contrast(c, "##commandbar", 4.5f, 3);
+                                     // Small rail labels (incl. the active
+                                     // accent label) and status readouts.
+                                     expect_text_contrast(c, "##navrail", 4.5f, 10);
+                                     expect_text_contrast(c, "##AppShellStatusBar", 4.5f, 4);
                                  });
                 // Switch back to dark
                 ui->cmd_registry.execute("theme.dark");
@@ -5669,11 +5673,13 @@ class QAAgent
                     {
                         c.expect(ui->theme_mgr->is_transitioning(),
                                  "dark -> light transition in progress");
-                        // Text in theme ink stays readable on the
-                        // half-way surfaces (3:1 floor for this
-                        // transient frame; see DECISIONS-fbcontrast.md).
-                        for (const char* w : {"##navrail", "##commandbar", "##pane_tab"})
-                            expect_text_contrast(c, w, 3.0f, 3, false, true);
+                        // Text, including accent-coloured labels (active
+                        // rail tool, mode chip), stays readable on the
+                        // half-way surfaces (3:1 floor for this transient
+                        // frame; see DECISIONS-fbcontrast.md).
+                        for (const char* w :
+                             {"##navrail", "##commandbar", "##pane_tab", "##AppShellStatusBar"})
+                            expect_text_contrast(c, w, 3.0f, 3);
                     });
                 ui->theme_mgr->update(duration);   // finish: switches to Light
                 ui->theme_mgr->set_theme("dark");

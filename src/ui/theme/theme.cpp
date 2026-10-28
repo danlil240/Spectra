@@ -1,4 +1,5 @@
 #include "theme.hpp"
+#include "core/config_paths.hpp"
 #include "core/json_key.hpp"
 
 #include "design_tokens.hpp"
@@ -12,6 +13,7 @@
 #include <cassert>
 #include <cctype>
 #include <cstddef>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -1259,22 +1261,45 @@ bool ThemeManager::import_theme(const std::string& path)
     return true;
 }
 
+namespace
+{
+
+// <config dir>/default_theme.json (see core/config_paths.hpp).
+std::string default_theme_file()
+{
+    const std::filesystem::path dir = user_config_dir();
+    if (dir.empty())
+        return {};
+    return (dir / "default_theme.json").string();
+}
+
+// Pre-config-dir location (~/.spectra/default_theme.json).  Only consulted when
+// the config dir is not redirected, so SPECTRA_CONFIG_DIR / XDG_CONFIG_HOME
+// fully isolate the theme too.
+std::string legacy_default_theme_file()
+{
+    if (user_config_dir_overridden())
+        return {};
+    const char* home = std::getenv("HOME");
+    if (!home || home[0] == '\0')
+        home = std::getenv("USERPROFILE");
+    if (!home || home[0] == '\0')
+        return {};
+    return (std::filesystem::path(home) / ".spectra" / "default_theme.json").string();
+}
+
+}   // namespace
+
 void ThemeManager::save_current_as_default()
 {
     if (default_theme_path_.empty())
-    {
-        const char* home = std::getenv("HOME");
-        if (!home)
-            home = std::getenv("USERPROFILE");
-        if (home)
-        {
-            default_theme_path_ = std::string(home) + "/.spectra/default_theme.json";
-        }
-    }
+        default_theme_path_ = default_theme_file();
     if (!default_theme_path_.empty())
     {
-        auto dir = std::filesystem::path(default_theme_path_).parent_path();
-        std::filesystem::create_directories(dir);
+        std::error_code ec;
+        std::filesystem::create_directories(
+            std::filesystem::path(default_theme_path_).parent_path(),
+            ec);
         export_theme(default_theme_path_);
     }
 }
@@ -1282,20 +1307,23 @@ void ThemeManager::save_current_as_default()
 void ThemeManager::load_default()
 {
     if (default_theme_path_.empty())
+        default_theme_path_ = default_theme_file();
+
+    // Read the config-dir file, or the legacy one when only that exists.  Saves
+    // always go to default_theme_path_, which migrates the legacy file.
+    std::string     source = default_theme_path_;
+    std::error_code ec;
+    if (source.empty() || !std::filesystem::exists(source, ec))
     {
-        const char* home = std::getenv("HOME");
-        if (!home)
-            home = std::getenv("USERPROFILE");
-        if (home)
-        {
-            default_theme_path_ = std::string(home) + "/.spectra/default_theme.json";
-        }
+        const std::string legacy = legacy_default_theme_file();
+        if (!legacy.empty() && std::filesystem::exists(legacy, ec))
+            source = legacy;
     }
-    if (!default_theme_path_.empty() && std::filesystem::exists(default_theme_path_))
+    if (!source.empty() && std::filesystem::exists(source, ec))
     {
-        if (import_theme(default_theme_path_))
+        if (import_theme(source))
         {
-            std::ifstream lf(default_theme_path_);
+            std::ifstream lf(source);
             std::string   json((std::istreambuf_iterator<char>(lf)),
                              std::istreambuf_iterator<char>());
             size_t        np = json_find_key(json, "name");

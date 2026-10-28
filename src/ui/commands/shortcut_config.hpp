@@ -63,7 +63,7 @@ class ShortcutConfig
     // Does NOT auto-apply; call apply_overrides() after loading.
     bool load(const std::string& path);
 
-    // Default config file path (~/.config/spectra/keybindings.json).
+    // Default config file path (<config dir>/keybindings.json, see core/config_paths.hpp).
     static std::string default_path();
 
     // Serialize overrides to JSON string.

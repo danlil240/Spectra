@@ -8,6 +8,7 @@
 #include <filesystem>
 
 #include "adapters/data_source_registry.hpp"
+#include "core/config_paths.hpp"
 #include "io/export_registry.hpp"
 #include "math/data_transform.hpp"
 #include "render/backend.hpp"
@@ -1323,14 +1324,10 @@ std::vector<std::string> PluginManager::discover(const std::string& directory) c
 
 std::string PluginManager::default_plugin_dir()
 {
-    const char* home = std::getenv("HOME");
-    if (!home)
-        home = std::getenv("USERPROFILE");
-    if (!home)
+    const std::filesystem::path dir = user_config_dir();
+    if (dir.empty())
         return "plugins";
-
-    std::filesystem::path dir = std::filesystem::path(home) / ".config" / "spectra" / "plugins";
-    return dir.string();
+    return (dir / "plugins").string();
 }
 
 // ─── Serialization ───────────────────────────────────────────────────────────

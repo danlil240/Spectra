@@ -1,4 +1,5 @@
 #include "shortcut_config.hpp"
+#include "core/config_paths.hpp"
 #include "core/json_key.hpp"
 
 #include <cstdlib>
@@ -299,13 +300,9 @@ bool ShortcutConfig::load(const std::string& path)
 
 std::string ShortcutConfig::default_path()
 {
-    const char* home = std::getenv("HOME");
-    if (!home)
-        home = std::getenv("USERPROFILE");
-    if (!home)
+    const std::filesystem::path dir = user_config_dir();
+    if (dir.empty())
         return "keybindings.json";
-
-    std::filesystem::path dir = std::filesystem::path(home) / ".config" / "spectra";
     return (dir / "keybindings.json").string();
 }
 

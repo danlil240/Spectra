@@ -608,7 +608,9 @@ TEST(UiShellButtons, ActionButtonsReachContrastTargets)
                     EXPECT_GE(b.text.contrast_ratio(fill), 4.5f);
                     // Primary: the fill is the edge, a graphical object: 3:1.
                     if (primary)
+                    {
                         EXPECT_GE(fill.contrast_ratio(bg), 3.0f);
+                    }
                 }
                 if (primary)
                 {

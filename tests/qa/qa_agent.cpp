@@ -5816,15 +5816,23 @@ class QAAgent
                 for (const auto& ax : fig->all_axes())
                     if (ax)
                         for (const auto& sp : ax->series())
-                            if (sp
-                                && seen_series_types_.insert(std::type_index(typeid(*sp))).second)
+                        {
+                            if (!sp)
+                                continue;
+                            const Series& series = *sp;
+                            if (seen_series_types_.insert(std::type_index(typeid(series))).second)
                                 first_use = true;
+                        }
                 for (const auto& ax : fig->axes())
                     if (ax)
                         for (const auto& sp : ax->series())
-                            if (sp
-                                && seen_series_types_.insert(std::type_index(typeid(*sp))).second)
+                        {
+                            if (!sp)
+                                continue;
+                            const Series& series = *sp;
+                            if (seen_series_types_.insert(std::type_index(typeid(series))).second)
                                 first_use = true;
+                        }
             }
         }
 #endif

@@ -394,7 +394,7 @@ HandleResult handle_req_update_property(DaemonContext&      ctx,
         "title",   "grid",           "visible",  "line_width", "marker_size",
         "opacity", "xlabel",         "ylabel",   "axes_title", "label",
         "legend",  "legend_visible", "add_knob", "annotation", "clear_annotations"};
-    bool               known         = false;
+    bool known = false;
     for (const auto* p : known_props)
     {
         if (req->property == p)

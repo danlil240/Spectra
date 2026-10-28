@@ -123,8 +123,8 @@ VkInstance create_instance(bool                         enable_validation,
     }
 
     VkInstanceCreateInfo create_info{};
-    create_info.sType                   = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-    create_info.pApplicationInfo        = &app_info;
+    create_info.sType            = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+    create_info.pApplicationInfo = &app_info;
 
     // On macOS (MoltenVK) and other non-conformant "portability" drivers, the
     // loader hides physical devices unless the application opts in through
@@ -165,9 +165,9 @@ VkDebugUtilsMessengerEXT create_debug_messenger(VkInstance instance)
     info.sType           = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
     info.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT
                            | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-    info.messageType     = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT
-                           | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT
-                           | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+    info.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT
+                       | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT
+                       | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
     info.pfnUserCallback = debug_callback;
 
     VkDebugUtilsMessengerEXT messenger = VK_NULL_HANDLE;

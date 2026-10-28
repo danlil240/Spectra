@@ -40,9 +40,9 @@ class CommandPalette
 
     // Read-only state for automation / QA assertions.
     const char* query() const { return search_buf_; }
-    size_t      result_count() const;   // defined out of line: CommandSearchResult is incomplete here
-    int         selected_index() const { return selected_index_; }
-    float       scroll_offset() const { return scroll_offset_; }
+    size_t result_count() const;   // defined out of line: CommandSearchResult is incomplete here
+    int    selected_index() const { return selected_index_; }
+    float  scroll_offset() const { return scroll_offset_; }
 
     // Draw the palette UI. Call each frame inside an ImGui context.
     // Returns true if a command was executed this frame.

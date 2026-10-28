@@ -128,11 +128,11 @@ void apply_diff_op_to_cache(spectra::ipc::SnapshotFigureState& fig, const spectr
         case spectra::ipc::DiffOp::Type::SET_SERIES_COLOR:
             if (op.series_index < fig.series.size())
             {
-                fig.series[op.series_index].color_r      = op.f1;
-                fig.series[op.series_index].color_g      = op.f2;
-                fig.series[op.series_index].color_b      = op.f3;
-                fig.series[op.series_index].color_a      = op.f4;
-                fig.series[op.series_index].color_index  = -1;   // explicit colour
+                fig.series[op.series_index].color_r     = op.f1;
+                fig.series[op.series_index].color_g     = op.f2;
+                fig.series[op.series_index].color_b     = op.f3;
+                fig.series[op.series_index].color_a     = op.f4;
+                fig.series[op.series_index].color_index = -1;   // explicit colour
                 // ...unless the op carries a format letter (theme-aware shade).
                 fig.series[op.series_index].color_letter =
                     (op.str_val.size() == 1 && spectra::format_colors::is_letter(op.str_val[0]))
@@ -652,7 +652,9 @@ int main(int argc, char* argv[])
         while (!got_snapshot && std::chrono::steady_clock::now() < deadline)
         {
 #ifndef _WIN32
-            struct pollfd pfd{};
+            struct pollfd pfd
+            {
+            };
             pfd.fd      = conn->fd();
             pfd.events  = POLLIN;
             pfd.revents = 0;
@@ -714,7 +716,7 @@ int main(int argc, char* argv[])
     // (FigureConfig / REQ_CREATE_FIGURE), exactly like App::run_inproc.
     spectra::FigureRegistry registry;
     auto                    all_ids = rebuild_registry_from_cache(registry, figure_cache, 0, 0);
-    cache_dirty = false;
+    cache_dirty                     = false;
 
     // If the daemon has no figures yet (e.g. a publisher launched it before
     // any UI was opened), we run with an empty registry and let the shared
@@ -788,8 +790,8 @@ int main(int argc, char* argv[])
 
     frame_state.has_animation = active_figure ? active_figure->has_animation() : false;
 
-    spectra::WindowUIContext* ui_ctx_ptr = nullptr;
-    spectra::WindowContext* initial_wctx = nullptr;
+    spectra::WindowUIContext* ui_ctx_ptr          = nullptr;
+    spectra::WindowContext*   initial_wctx        = nullptr;
     bool                      ui_built_by_builder = false;
 
 #ifdef SPECTRA_USE_GLFW
@@ -821,9 +823,7 @@ int main(int argc, char* argv[])
 
     window_mgr->set_interactive_frame_handler(
         [&session, &scheduler, &animator, &window_mgr, &frame_state]()
-        {
-            session.pump_interactive_frame(scheduler, animator, window_mgr.get(), frame_state);
-        });
+        { session.pump_interactive_frame(scheduler, animator, window_mgr.get(), frame_state); });
 
     initial_wctx = window_mgr->create_first_window_with_ui(glfw->native_window(), all_ids);
     if (initial_wctx && cascade_index > 0)
@@ -1049,7 +1049,9 @@ int main(int argc, char* argv[])
 #ifndef _WIN32
         for (;;)
         {
-            struct pollfd pfd{};
+            struct pollfd pfd
+            {
+            };
             pfd.fd       = conn->fd();
             pfd.events   = POLLIN;
             pfd.revents  = 0;

@@ -1404,7 +1404,7 @@ void Inspector::draw_reference_lines(Axes& ax)
         }
 
         ImVec4 icon_col = to_imvec4(theme().error, 0.75f);
-        ImVec2 tsz = fnt->CalcTextSizeA(gsz, FLT_MAX, 0.0f, icon_str(Icon::Trash));
+        ImVec2 tsz      = fnt->CalcTextSizeA(gsz, FLT_MAX, 0.0f, icon_str(Icon::Trash));
         ImGui::GetWindowDrawList()->AddText(
             fnt,
             gsz,

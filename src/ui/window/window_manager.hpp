@@ -279,14 +279,14 @@ class WindowManager
     using TabDetachHandler = std::function<
         void(FigureId fid, uint32_t w, uint32_t h, const std::string& title, int sx, int sy)>;
     using TabMoveHandler       = std::function<void(FigureId fid,
-                                                    uint32_t target_window_id,
-                                                    int      drop_zone,
-                                                    float    local_x,
-                                                    float    local_y,
-                                                    FigureId target_figure_id)>;
-    using RedrawRequestHandler         = std::function<void(const char* reason)>;
-    using FileDropHandler              = std::function<void(uint32_t window_id, const std::string& path)>;
-    using FigureUnregisteringHandler   = std::function<void(FigureId, Figure*)>;
+                                              uint32_t target_window_id,
+                                              int      drop_zone,
+                                              float    local_x,
+                                              float    local_y,
+                                              FigureId target_figure_id)>;
+    using RedrawRequestHandler = std::function<void(const char* reason)>;
+    using FileDropHandler      = std::function<void(uint32_t window_id, const std::string& path)>;
+    using FigureUnregisteringHandler = std::function<void(FigureId, Figure*)>;
     using InteractiveFrameHandler    = std::function<void()>;
     // Called once per window, after GPU idle and before its UI context is
     // destroyed (window close and shutdown()), while the context is alive.
@@ -406,16 +406,16 @@ class WindowManager
     std::unique_ptr<WindowContext> pooled_preview_;
 
     // Tab drag handlers (applied to every new window's TabDragController)
-    TabDetachHandler     tab_detach_handler_;
-    TabMoveHandler       tab_move_handler_;
+    TabDetachHandler        tab_detach_handler_;
+    TabMoveHandler          tab_move_handler_;
     RedrawRequestHandler    redraw_request_handler_;
     InteractiveFrameHandler interactive_frame_handler_;
     bool                    interactive_frame_in_flight_ = false;
 
     // OS file drop handler
-    FileDropHandler              file_drop_handler_;
-    FigureUnregisteringHandler   figure_unregistering_handler_;
-    WindowUIDestroyingHandler    window_ui_destroying_handler_;
+    FileDropHandler            file_drop_handler_;
+    FigureUnregisteringHandler figure_unregistering_handler_;
+    WindowUIDestroyingHandler  window_ui_destroying_handler_;
 
     // Cross-window drag target tracking
     uint32_t            drag_target_window_id_ = 0;

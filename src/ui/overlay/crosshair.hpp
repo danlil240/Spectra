@@ -31,7 +31,7 @@ class Crosshair
     bool enabled() const { return enabled_; }
     // Fade-in amount of the last draw (0 = invisible, 1 = fully shown).
     float opacity() const { return opacity_; }
-    void toggle() { enabled_ = !enabled_; }
+    void  toggle() { enabled_ = !enabled_; }
 
     // Draw crosshair lines and axis labels for the given cursor position.
     // viewport is the axes Rect in screen coordinates.

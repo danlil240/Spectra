@@ -35,9 +35,9 @@ enum class LegendPosition
 /// @brief Legend placement and appearance for a Figure.
 struct LegendConfig
 {
-    LegendPosition position     = LegendPosition::Best;
-    bool           visible      = true;
-    float          font_size    = 0.0f;   ///< 0 = use default from font
+    LegendPosition position  = LegendPosition::Best;
+    bool           visible   = true;
+    float          font_size = 0.0f;   ///< 0 = use default from font
     /// Legend fill.  Used when has_bg_color is true or its RGB is not black;
     /// otherwise (the default) the theme's legend colour is used.
     Color bg_color = {};
@@ -66,16 +66,16 @@ struct LegendConfig
 struct FigureStyle
 {
     /// Figure background, used only when @ref background_override is true.
-    Color background         = colors::white;
+    Color background = colors::white;
     /// When false (default) the figure follows the active theme's canvas colour.
     bool  background_override = false;
-    float margin_top         = 40.0f;
-    float margin_bottom      = 60.0f;
-    float margin_left        = 70.0f;
-    float margin_right       = 20.0f;
-    float subplot_hgap       = 40.0f;
-    float subplot_vgap       = 50.0f;
-    float min_subplot_height = 150.0f;   ///< Minimum pixel height per subplot row
+    float margin_top          = 40.0f;
+    float margin_bottom       = 60.0f;
+    float margin_left         = 70.0f;
+    float margin_right        = 20.0f;
+    float subplot_hgap        = 40.0f;
+    float subplot_vgap        = 50.0f;
+    float min_subplot_height  = 150.0f;   ///< Minimum pixel height per subplot row
 };
 
 /// @brief Fluent builder that configures and starts a per-frame animation on a Figure.
@@ -117,8 +117,8 @@ class AnimationBuilder
 struct FigureExportRequest
 {
     std::string png_path;
-    uint32_t    png_width         = 0;   ///< 0 = use figure's native resolution
-    uint32_t    png_height        = 0;
+    uint32_t    png_width  = 0;   ///< 0 = use figure's native resolution
+    uint32_t    png_height = 0;
     std::string png_theme;   ///< empty = active app theme
     bool        copy_to_clipboard = false;
     std::string svg_path;

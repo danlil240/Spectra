@@ -28,7 +28,10 @@ struct CrosshairReadoutLabel
 
 // Measure a readout at full width (no measuring cap) and, if it is wider than
 // max_w, ellipsize it (UTF-8 safe) so its box stays inside the viewport.
-static CrosshairReadoutLabel fit_label(ImFont* font, float font_size, const std::string& text, float max_w)
+static CrosshairReadoutLabel fit_label(ImFont*            font,
+                                       float              font_size,
+                                       const std::string& text,
+                                       float              max_w)
 {
     const ui::overlay_fit::MeasureFn measure = [&](std::string_view s)
     { return font->CalcTextSizeA(font_size, FLT_MAX, 0.0f, s.data(), s.data() + s.size()).x; };
@@ -217,7 +220,7 @@ void Crosshair::draw(const CursorReadout& cursor,
 
     // Y label inside left edge of viewport
     {
-        const float       lx = vx0 + 4.0f;
+        const float                 lx = vx0 + 4.0f;
         const CrosshairReadoutLabel fl =
             fit_label(font, font->LegacySize * 0.85f, y_label, vx1 - lx - label_pad);
         const ImVec2 sz = fl.size;
@@ -358,7 +361,7 @@ void Crosshair::draw_all_axes(const CursorReadout& cursor,
                 const std::string y_label =
                     ui::format_compact_value(data_y,
                                              crosshair_mapping::pixel_resolution_y(*axes_ptr, cy));
-                const float       lx2     = vx0 + 4.0f;
+                const float                 lx2 = vx0 + 4.0f;
                 const CrosshairReadoutLabel fl =
                     fit_label(font, font->LegacySize * 0.85f, y_label, vx1 - lx2 - label_pad);
                 const ImVec2 sz  = fl.size;
@@ -406,7 +409,7 @@ void Crosshair::draw_all_axes(const CursorReadout& cursor,
                 const std::string y_label =
                     ui::format_compact_value(data_y,
                                              crosshair_mapping::pixel_resolution_y(*axes_ptr, sy));
-                const float       lx2     = vx0 + 4.0f;
+                const float                 lx2 = vx0 + 4.0f;
                 const CrosshairReadoutLabel fl =
                     fit_label(font, font->LegacySize * 0.85f, y_label, vx1 - lx2 - label_pad);
                 const ImVec2 sz  = fl.size;

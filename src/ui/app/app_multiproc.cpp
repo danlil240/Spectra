@@ -374,7 +374,7 @@ void App::run_multiproc()
         if (!fig)
             continue;
         fig->compute_layout();
-        auto fig_snap  = figure_to_snapshot(*fig, reg_to_ipc[id]);
+        auto fig_snap = figure_to_snapshot(*fig, reg_to_ipc[id]);
         // The snapshot carries the current data; only later edits need a
         // SET_SERIES_DATA (a stats series update makes the window rebuild).
         for_each_snapshot_series(*fig,

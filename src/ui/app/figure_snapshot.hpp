@@ -433,12 +433,12 @@ inline void for_each_snapshot_series(const Figure& fig, Fn&& fn)
 inline ipc::SnapshotFigureState figure_to_snapshot(const Figure& fig, uint64_t figure_id)
 {
     ipc::SnapshotFigureState snap;
-    snap.figure_id = figure_id;
+    snap.figure_id       = figure_id;
     snap.title           = fig.tab_title();   // empty = caller / window picks "Figure N"
-    snap.width     = fig.width();
-    snap.height    = fig.height();
-    snap.grid_rows = fig.grid_rows();
-    snap.grid_cols = fig.grid_cols();
+    snap.width           = fig.width();
+    snap.height          = fig.height();
+    snap.grid_rows       = fig.grid_rows();
+    snap.grid_cols       = fig.grid_cols();
     snap.legend_position = ipc::legend_position_to_wire(fig.legend().position);
 
     // One axes entry per grid slot so axes_index == subplot index - 1 on both

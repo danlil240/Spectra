@@ -81,9 +81,9 @@ class ExamplePluginTest : public ::testing::Test
     CommandRegistry                       commands_;
     ShortcutManager                       shortcuts_;
     UndoManager                           undo_;
-    std::unique_ptr<TransformRegistry>    transforms_ = std::make_unique<TransformRegistry>();
-    std::unique_ptr<OverlayRegistry>      overlays_   = std::make_unique<OverlayRegistry>();
-    std::unique_ptr<ExportFormatRegistry> exports_    = std::make_unique<ExportFormatRegistry>();
+    std::unique_ptr<TransformRegistry>    transforms_   = std::make_unique<TransformRegistry>();
+    std::unique_ptr<OverlayRegistry>      overlays_     = std::make_unique<OverlayRegistry>();
+    std::unique_ptr<ExportFormatRegistry> exports_      = std::make_unique<ExportFormatRegistry>();
     std::unique_ptr<SeriesTypeRegistry>   series_types_ = std::make_unique<SeriesTypeRegistry>();
     PluginManager                         manager_;
 };

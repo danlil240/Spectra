@@ -320,7 +320,7 @@ void ImGuiIntegration::draw_theme_settings()
         for (const char* theme_id : available_themes)
         {
             const std::string display_name = theme_manager.display_name(theme_id);
-            bool is_current = (theme_manager.current_theme_name() == theme_id);
+            bool              is_current   = (theme_manager.current_theme_name() == theme_id);
 
             if (is_current)
             {

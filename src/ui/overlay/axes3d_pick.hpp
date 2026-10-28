@@ -27,10 +27,10 @@ inline Projected3DPoint project_axes3d_data_point(const Axes3D& axes, vec3 data_
     if (vp.w <= 0.0f || vp.h <= 0.0f)
         return out;
 
-    const mat4  proj   = axes.projection_matrix(vp);
-    const mat4  view   = cam.view_matrix();
-    const mat4  model  = axes.data_to_normalized_matrix();
-    const mat4  mvp    = mat4_mul(proj, mat4_mul(view, model));
+    const mat4 proj  = axes.projection_matrix(vp);
+    const mat4 view  = cam.view_matrix();
+    const mat4 model = axes.data_to_normalized_matrix();
+    const mat4 mvp   = mat4_mul(proj, mat4_mul(view, model));
 
     const float clip_x =
         mvp.m[0] * data_pos.x + mvp.m[4] * data_pos.y + mvp.m[8] * data_pos.z + mvp.m[12];

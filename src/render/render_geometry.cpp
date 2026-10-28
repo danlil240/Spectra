@@ -349,7 +349,7 @@ void Renderer::render_plot_text(Figure& figure)
                                                                  label_ellipsis));
             auto  ext = text_renderer_.measure_text(fit.text, fit.size, fit.scale);
             float cx  = centered_label_x(vp.x, vp.w, slot, ext.width);
-            float                   py   = vp.y - ext.height - tick_padding;
+            float py  = vp.y - ext.height - tick_padding;
             // Only clamp if the title would go off the top of the figure.
             // The previous clamp (py < vp.y + 2) always fired and placed the
             // title inside the axes viewport where it competed with grid/series
@@ -756,10 +756,10 @@ void Renderer::render_plot_text(Figure& figure)
                 float d1  = 0.0f;
                 if (!world_to_screen(start, sx0, sy0, d0) || !world_to_screen(end, sx1, sy1, d1))
                     return;
-                float       label_offset = 8.0f;
-                float       dir_x        = sx1 - sx0;
-                float       dir_y        = sy1 - sy0;
-                float       dir_len      = std::sqrt(dir_x * dir_x + dir_y * dir_y);
+                float label_offset = 8.0f;
+                float dir_x        = sx1 - sx0;
+                float dir_y        = sy1 - sy0;
+                float dir_len      = std::sqrt(dir_x * dir_x + dir_y * dir_y);
                 float lx = sx1 + (dir_len > 1.0f ? dir_x / dir_len * label_offset : label_offset);
                 float ly_center = sy1 + (dir_len > 1.0f ? dir_y / dir_len * label_offset : 0.0f);
                 // If the label would land on the title (typical for the
@@ -1597,8 +1597,8 @@ void Renderer::render_annotation_arrows(Axes& axes, uint32_t slot, float fw, flo
         {
             const auto sf  = TextRenderer::scaled_font(ann->font_size());
             auto       ext = text_renderer_.measure_text(ann->text(), sf.preset, sf.scale);
-            w = ext.width;
-            h = ext.height;
+            w              = ext.width;
+            h              = ext.height;
         }
         const auto box = annotation_layout::text_box(ax, ay, w, h, ann->halign(), ann->valign());
         annotation_layout::Arrow g;

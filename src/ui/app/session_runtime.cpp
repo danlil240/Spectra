@@ -434,9 +434,9 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
 
                     // Draw X icon
                     {
-                        float cx    = close_x + kBtnSize * 0.5f;
-                        float cy    = close_y + kBtnSize * 0.5f;
-                        float half  = 5.0f;
+                        float cx   = close_x + kBtnSize * 0.5f;
+                        float cy   = close_y + kBtnSize * 0.5f;
+                        float half = 5.0f;
                         ImU32 x_col =
                             close_hovered ? ui::to_imu32(th.text_inverse) : col_close_icon;
                         bg_dl->AddLine(ImVec2(cx - half, cy - half),

@@ -67,23 +67,23 @@ class FakeBackend : public Backend
     }
     void destroy_texture(TextureHandle) override {}
 
-    bool     begin_frame(FrameProfiler*) override { return true; }
-    void     end_frame(FrameProfiler*) override {}
-    void     begin_render_pass(const Color&) override {}
-    void     end_render_pass() override {}
-    void     bind_pipeline(PipelineHandle h) override
+    bool begin_frame(FrameProfiler*) override { return true; }
+    void end_frame(FrameProfiler*) override {}
+    void begin_render_pass(const Color&) override {}
+    void end_render_pass() override {}
+    void bind_pipeline(PipelineHandle h) override
     {
         auto it = pipeline_types.find(h.id);
         bound = it != pipeline_types.end() ? std::optional<PipelineType>(it->second) : std::nullopt;
     }
-    void     bind_buffer(BufferHandle, uint32_t) override {}
-    void     bind_index_buffer(BufferHandle) override {}
-    void     bind_texture(TextureHandle, uint32_t) override {}
-    void     push_constants(const SeriesPushConstants&) override {}
-    void     set_viewport(float, float, float, float) override {}
-    void     set_scissor(int32_t, int32_t, uint32_t, uint32_t) override {}
-    void     set_line_width(float) override {}
-    void     draw(uint32_t, uint32_t) override
+    void bind_buffer(BufferHandle, uint32_t) override {}
+    void bind_index_buffer(BufferHandle) override {}
+    void bind_texture(TextureHandle, uint32_t) override {}
+    void push_constants(const SeriesPushConstants&) override {}
+    void set_viewport(float, float, float, float) override {}
+    void set_scissor(int32_t, int32_t, uint32_t, uint32_t) override {}
+    void set_line_width(float) override {}
+    void draw(uint32_t, uint32_t) override
     {
         if (events)
             events->push_back(bound == PipelineType::Grid ? "grid" : "draw");

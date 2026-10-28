@@ -17,11 +17,11 @@ namespace
 
 SpectraOverlayRegistry g_overlay_registry = nullptr;
 
-int  g_overlay_draws  = 0;
-int  g_command_runs   = 0;
-int  g_export_calls   = 0;
+int  g_overlay_draws   = 0;
+int  g_command_runs    = 0;
+int  g_export_calls    = 0;
 int  g_transform_calls = 0;
-bool g_source_running = false;
+bool g_source_running  = false;
 
 void ping_command(void* /*user_data*/)
 {

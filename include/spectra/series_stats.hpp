@@ -557,9 +557,9 @@ class BarSeries : public Series
     std::vector<float>       heights_;
     std::vector<std::string> categories_;
     float                    bar_width_   = 0.8f;
-    float              baseline_    = 0.0f;
-    BarOrientation     orientation_ = BarOrientation::Vertical;
-    bool               gradient_    = true;
+    float                    baseline_    = 0.0f;
+    BarOrientation           orientation_ = BarOrientation::Vertical;
+    bool                     gradient_    = true;
 
     // Generated geometry
     std::vector<float> line_x_;

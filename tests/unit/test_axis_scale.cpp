@@ -197,7 +197,7 @@ TEST(AxisScale, Log10WideRangeStridesDecades)
     // 13 decades (1e-6..1e6) → every second decade, aligned on 10^0.  The
     // ends leave the plain range, so every label is a power (never "10000"
     // next to an exponent form).
-    const TickResult               yt     = ax.compute_y_ticks();
+    const TickResult yt = ax.compute_y_ticks();
     const std::vector<std::string> want_y = {"10⁻⁶", "10⁻⁴", "10⁻²", "10⁰", "10²", "10⁴", "10⁶"};
     EXPECT_EQ(yt.labels, want_y);
     EXPECT_LE(yt.positions.size(), 8u);

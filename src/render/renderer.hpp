@@ -22,7 +22,7 @@ namespace spectra::ui
 {
 class ThemeManager;
 struct ThemeColors;
-}
+}   // namespace spectra::ui
 
 #include <array>
 #include <cstdint>
@@ -209,8 +209,8 @@ class Renderer
         std::vector<std::string> hidden;   // tooltip lines (see overflow_tooltip_lines)
         // Colour keys of the leading hidden lines that name an entry (the
         // trailing "... and K more" line, if any, has none).
-        std::vector<Color>       colors;
-        bool                     hovered = false;
+        std::vector<Color> colors;
+        bool               hovered = false;
     };
     const std::vector<LegendOverflowCell>& legend_overflow_cells() const
     {
@@ -647,7 +647,7 @@ class Renderer
     std::vector<AnnotationArrowDraw> annotation_arrow_draws_;
 
     // Legend / colorbar annotation state (render_annotations.cpp).
-    bool legend_overlay_active_ = false;
+    bool                            legend_overlay_active_ = false;
     bool                            pointer_valid_         = false;
     float                           pointer_x_             = 0.0f;
     float                           pointer_y_             = 0.0f;

@@ -608,9 +608,9 @@ void Renderer::build_legend(AxesBase& axes, const LegendConfig& requested)
 
         // Hover target: the whole cell (at least as wide as its text).
         LegendOverflowCell cell;
-        cell.axes    = &axes;
-        cell.cell    = Rect{x, cy - row_h * 0.5f, std::max(col_w, measure(text, font)), row_h};
-        cell.hidden  = legend_layout::overflow_tooltip_lines(entries, grid.shown);
+        cell.axes   = &axes;
+        cell.cell   = Rect{x, cy - row_h * 0.5f, std::max(col_w, measure(text, font)), row_h};
+        cell.hidden = legend_layout::overflow_tooltip_lines(entries, grid.shown);
         const size_t hidden_total = entries.size() - static_cast<size_t>(grid.shown);
         const size_t keyed =
             cell.hidden.size() == hidden_total ? hidden_total : cell.hidden.size() - 1;

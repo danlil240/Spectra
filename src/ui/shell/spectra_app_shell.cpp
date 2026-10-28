@@ -41,8 +41,7 @@ MenuAction make_toggle_action(const char*           label,
 
 // ─── SpectraCanvasHost ───────────────────────────────────────────────────────
 
-SpectraCanvasHost::SpectraCanvasHost(spectra::ImGuiIntegration* imgui,
-                                     spectra::LayoutManager*    lm)
+SpectraCanvasHost::SpectraCanvasHost(spectra::ImGuiIntegration* imgui, spectra::LayoutManager* lm)
     : CanvasHost(lm), imgui_(imgui)
 {
 }
@@ -73,13 +72,12 @@ void SpectraNavRail::build_items(std::vector<NavItem>& out) const
     auto add_tool = [&](Icon icon, const char* label, ToolMode mode)
     {
         NavItem item;
-        item.icon    = icon;
-        item.label   = label;
-        item.id      = label;
-        item.tooltip = label;
-        item.is_active = [imgui = imgui_, mode]()
-        { return imgui->interaction_mode_ == mode; };
-        item.on_click = [imgui = imgui_, mode]() { imgui->interaction_mode_ = mode; };
+        item.icon      = icon;
+        item.label     = label;
+        item.id        = label;
+        item.tooltip   = label;
+        item.is_active = [imgui = imgui_, mode]() { return imgui->interaction_mode_ == mode; };
+        item.on_click  = [imgui = imgui_, mode]() { imgui->interaction_mode_ = mode; };
         out.push_back(std::move(item));
     };
 
@@ -103,12 +101,11 @@ void SpectraNavRail::build_items(std::vector<NavItem>& out) const
 
     {
         NavItem markers;
-        markers.icon    = Icon::MapPin;
-        markers.label   = "Markers";
-        markers.id      = "markers";
-        markers.tooltip = "Markers";
-        markers.is_active = [imgui = imgui_]()
-        {
+        markers.icon      = Icon::MapPin;
+        markers.label     = "Markers";
+        markers.id        = "markers";
+        markers.tooltip   = "Markers";
+        markers.is_active = [imgui = imgui_]() {
             return imgui->data_interaction_ != nullptr
                    && !imgui->data_interaction_->markers().empty();
         };
@@ -122,10 +119,10 @@ void SpectraNavRail::build_items(std::vector<NavItem>& out) const
 
     {
         NavItem xform;
-        xform.icon    = Icon::MagicWand;
-        xform.label   = "Transform";
-        xform.id      = "transform";
-        xform.tooltip = "Transform";
+        xform.icon      = Icon::MagicWand;
+        xform.label     = "Transform";
+        xform.id        = "transform";
+        xform.tooltip   = "Transform";
         xform.is_active = [imgui = imgui_]() { return imgui->custom_transform_dialog_.is_open(); };
         xform.on_click  = [imgui = imgui_]()
         {
@@ -171,17 +168,16 @@ void SpectraNavRail::build_items(std::vector<NavItem>& out) const
             }
 
             const std::string panel_id = item.id;
-            item.is_active             = [shell, panel_id]()
-            { return shell->panel_visible(panel_id); };
-            item.on_click = [shell, panel_id]() { shell->toggle_panel(panel_id); };
+            item.is_active = [shell, panel_id]() { return shell->panel_visible(panel_id); };
+            item.on_click  = [shell, panel_id]() { shell->toggle_panel(panel_id); };
         }
     }
 
     NavItem help;
-    help.icon    = Icon::Help;
-    help.label   = "Help";
-    help.id      = "help";
-    help.tooltip = "Help";
+    help.icon      = Icon::Help;
+    help.label     = "Help";
+    help.id        = "help";
+    help.tooltip   = "Help";
     help.is_active = []() { return false; };
     help.on_click  = [imgui = imgui_]()
     {
@@ -241,8 +237,8 @@ void SpectraNavRail::draw()
                         1.0f);
         }
 
-        ImFont* label_font = imgui_->font_heading_;
-        const float btn_w  = rail_w;
+        ImFont*     label_font = imgui_->font_heading_;
+        const float btn_w      = rail_w;
 
         std::vector<NavItem> items;
         build_items(items);
@@ -257,16 +253,16 @@ void SpectraNavRail::draw()
                 ++button_count;
         }
 
-        const float scale = LayoutManager::nav_rail_scale_for_height(
-            bounds.h, button_count, sep_count);
+        const float scale =
+            LayoutManager::nav_rail_scale_for_height(bounds.h, button_count, sep_count);
 
         auto draw_separator = [&]()
         {
             ImGui::Dummy(ImVec2(0, ui::tokens::SPACE_2 * scale));
             const float sep_inset = ui::tokens::SPACE_4 * scale;
             ImVec2      p0        = ImVec2(ImGui::GetWindowPos().x + sep_inset,
-                                  std::floor(ImGui::GetCursorScreenPos().y));
-            ImVec2 p1 = ImVec2(ImGui::GetWindowPos().x + rail_w - sep_inset, p0.y);
+                               std::floor(ImGui::GetCursorScreenPos().y));
+            ImVec2      p1        = ImVec2(ImGui::GetWindowPos().x + rail_w - sep_inset, p0.y);
             ImGui::GetWindowDrawList()->AddLine(
                 p0,
                 p1,

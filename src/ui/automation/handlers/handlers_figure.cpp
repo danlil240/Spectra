@@ -123,25 +123,26 @@ std::vector<AutomationHandlerEntry> make_figure_handlers()
                     }
                 }
                 oss << ",\"undo_count\":" << ui_ctx->undo_mgr.undo_count()
-                    << ",\"redo_count\":" << ui_ctx->undo_mgr.redo_count() << ",\"is_3d_mode\":"
-                    << (has_3d_axes ? "true" : "false")
-                    << R"(,"theme":")"
+                    << ",\"redo_count\":" << ui_ctx->undo_mgr.redo_count()
+                    << ",\"is_3d_mode\":" << (has_3d_axes ? "true" : "false") << R"(,"theme":")"
                     << json_escape(ui_ctx->theme_mgr ? ui_ctx->theme_mgr->current_theme_name() : "")
                     << '"';
                 if (ui_ctx->imgui_ui)
                 {
                     auto& imgui = *ui_ctx->imgui_ui;
-                    auto& lm      = imgui.get_layout_manager();
-                    oss << R"(,"ui":{)"
-                        << R"("interaction_mode":")" << tool_mode_name(imgui.get_interaction_mode())
+                    auto& lm    = imgui.get_layout_manager();
+                    oss << R"(,"ui":{)" << R"("interaction_mode":")"
+                        << tool_mode_name(imgui.get_interaction_mode())
                         << R"(","timeline_visible":)"
                         << (imgui.is_timeline_visible() ? "true" : "false")
                         << R"(,"curve_editor_visible":)"
                         << (imgui.is_curve_editor_visible() ? "true" : "false")
                         << R"(,"plugins_panel_visible":)"
                         << (imgui.is_plugins_panel_visible() ? "true" : "false")
-                        << R"(,"inspector_visible":)" << (lm.is_inspector_visible() ? "true" : "false")
-                        << R"(,"nav_rail_visible":)" << (lm.is_nav_rail_visible() ? "true" : "false")
+                        << R"(,"inspector_visible":)"
+                        << (lm.is_inspector_visible() ? "true" : "false")
+                        << R"(,"nav_rail_visible":)"
+                        << (lm.is_nav_rail_visible() ? "true" : "false")
                         << R"(,"transform_dialog_open":)"
                         << (imgui.is_transform_dialog_open() ? "true" : "false")
                         << R"(,"theme_settings_visible":)"
@@ -160,8 +161,8 @@ std::vector<AutomationHandlerEntry> make_figure_handlers()
                             if (!first)
                                 oss << ",";
                             first = false;
-                            oss << "\"" << json_escape(panel_id) << "\":"
-                                << (visible ? "true" : "false");
+                            oss << "\"" << json_escape(panel_id)
+                                << "\":" << (visible ? "true" : "false");
                         }
                         oss << "}";
                     }

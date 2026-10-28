@@ -675,17 +675,17 @@ std::vector<uint64_t> FigureModel::load_snapshot(const ipc::StateSnapshotPayload
             next_figure_id_ = id + 1;
 
         FigureData fd;
-        fd.id        = id;
-        fd.title     = fig.title;
-        fd.width     = fig.width;
-        fd.height    = fig.height;
-        fd.grid_rows = fig.grid_rows;
-        fd.grid_cols = fig.grid_cols;
-        fd.live_fps  = fig.live_fps;
+        fd.id              = id;
+        fd.title           = fig.title;
+        fd.width           = fig.width;
+        fd.height          = fig.height;
+        fd.grid_rows       = fig.grid_rows;
+        fd.grid_cols       = fig.grid_cols;
+        fd.live_fps        = fig.live_fps;
         fd.legend_position = fig.legend_position;
-        fd.axes      = fig.axes;
-        fd.series    = fig.series;
-        figures_[id] = std::move(fd);
+        fd.axes            = fig.axes;
+        fd.series          = fig.series;
+        figures_[id]       = std::move(fd);
         figure_order_.push_back(id);
         ids.push_back(id);
     }
@@ -708,16 +708,16 @@ ipc::StateSnapshotPayload FigureModel::snapshot() const
             continue;
         const auto&              fd = it->second;
         ipc::SnapshotFigureState fig;
-        fig.figure_id = fd.id;
-        fig.title     = fd.title;
-        fig.width     = fd.width;
-        fig.height    = fd.height;
-        fig.grid_rows = fd.grid_rows;
-        fig.grid_cols = fd.grid_cols;
-        fig.live_fps  = fd.live_fps;
+        fig.figure_id       = fd.id;
+        fig.title           = fd.title;
+        fig.width           = fd.width;
+        fig.height          = fd.height;
+        fig.grid_rows       = fd.grid_rows;
+        fig.grid_cols       = fd.grid_cols;
+        fig.live_fps        = fd.live_fps;
         fig.legend_position = fd.legend_position;
-        fig.axes      = fd.axes;
-        fig.series    = fd.series;
+        fig.axes            = fd.axes;
+        fig.series          = fd.series;
         snap.figures.push_back(std::move(fig));
     }
     snap.knobs = knobs_;
@@ -737,16 +737,16 @@ ipc::StateSnapshotPayload FigureModel::snapshot(const std::vector<uint64_t>& fig
             continue;
         const auto&              fd = it->second;
         ipc::SnapshotFigureState fig;
-        fig.figure_id = fd.id;
-        fig.title     = fd.title;
-        fig.width     = fd.width;
-        fig.height    = fd.height;
-        fig.grid_rows = fd.grid_rows;
-        fig.grid_cols = fd.grid_cols;
-        fig.live_fps  = fd.live_fps;
+        fig.figure_id       = fd.id;
+        fig.title           = fd.title;
+        fig.width           = fd.width;
+        fig.height          = fd.height;
+        fig.grid_rows       = fd.grid_rows;
+        fig.grid_cols       = fd.grid_cols;
+        fig.live_fps        = fd.live_fps;
         fig.legend_position = fd.legend_position;
-        fig.axes      = fd.axes;
-        fig.series    = fd.series;
+        fig.axes            = fd.axes;
+        fig.series          = fd.series;
         snap.figures.push_back(std::move(fig));
     }
     snap.knobs = knobs_;
@@ -774,11 +774,11 @@ bool FigureModel::apply_diff_op(const ipc::DiffOp& op)
         case ipc::DiffOp::Type::SET_SERIES_COLOR:
             if (it == figures_.end() || op.series_index >= it->second.series.size())
                 return false;
-            it->second.series[op.series_index].color_r      = op.f1;
-            it->second.series[op.series_index].color_g      = op.f2;
-            it->second.series[op.series_index].color_b      = op.f3;
-            it->second.series[op.series_index].color_a      = op.f4;
-            it->second.series[op.series_index].color_index  = -1;
+            it->second.series[op.series_index].color_r     = op.f1;
+            it->second.series[op.series_index].color_g     = op.f2;
+            it->second.series[op.series_index].color_b     = op.f3;
+            it->second.series[op.series_index].color_a     = op.f4;
+            it->second.series[op.series_index].color_index = -1;
             // A format letter in str_val keeps the colour theme-aware.
             it->second.series[op.series_index].color_letter =
                 (op.str_val.size() == 1 && format_colors::is_letter(op.str_val[0]))

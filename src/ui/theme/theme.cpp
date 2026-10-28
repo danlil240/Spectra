@@ -1437,7 +1437,7 @@ void ThemeManager::initialize_default_themes()
 
     // Light Glass — frosted blue-slate chrome with restrained aurora accents
     Theme light;
-    light.name   = "light";
+    light.name             = "light";
     light.colors           = {// Surfaces — still light, but no longer flat white-on-white
                               .bg_canvas    = Color::from_hex(0xF7FAFF),   // Plot area: faint cool glass tint
                               .bg_primary   = Color::from_hex(0xD9E4EE),   // App chrome backdrop
@@ -2267,9 +2267,9 @@ ThemeColors ThemeManager::interpolate_colors(const ThemeColors& start,
     result.accent_muted  = start.accent_muted.lerp(end.accent_muted, t);
     result.accent_subtle = start.accent_subtle.lerp(end.accent_subtle, t);
 
-    result.success = start.success.lerp(end.success, t);
-    result.warning = start.warning.lerp(end.warning, t);
-    result.error   = start.error.lerp(end.error, t);
+    result.success  = start.success.lerp(end.success, t);
+    result.warning  = start.warning.lerp(end.warning, t);
+    result.error    = start.error.lerp(end.error, t);
     result.info     = start.info.lerp(end.info, t);
     result.critical = start.critical.lerp(end.critical, t);
 

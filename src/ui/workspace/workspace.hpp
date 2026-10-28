@@ -104,16 +104,16 @@ struct WorkspaceData
 
     struct FigureState
     {
-        std::string              title;
-        uint32_t                 width       = 1280;
-        uint32_t                 height      = 720;
-        int                      grid_rows   = 1;
-        int                      grid_cols   = 1;
-        bool                     is_modified = false;
-        std::string              custom_tab_title;   // Tab title from FigureManager
-        std::vector<AxisState>   axes;
-        std::vector<SeriesState> series;
-        std::vector<Axes3DState> axes_3d;   // v4: 3D axes state
+        std::string                      title;
+        uint32_t                         width       = 1280;
+        uint32_t                         height      = 720;
+        int                              grid_rows   = 1;
+        int                              grid_cols   = 1;
+        bool                             is_modified = false;
+        std::string                      custom_tab_title;   // Tab title from FigureManager
+        std::vector<AxisState>           axes;
+        std::vector<SeriesState>         series;
+        std::vector<Axes3DState>         axes_3d;   // v4: 3D axes state
         std::vector<TextAnnotationState> text_annotations;
         bool                             has_text_annotations = false;   // key present in file
         // LegendPosition (optional "legend_position" key); -1 = not in the

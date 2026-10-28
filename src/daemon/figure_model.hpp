@@ -213,11 +213,11 @@ class FigureModel
     {
         uint64_t                              id = 0;
         std::string                           title;
-        uint32_t                              width     = DEFAULT_WINDOW_WIDTH;
-        uint32_t                              height    = DEFAULT_WINDOW_HEIGHT;
-        int32_t                               grid_rows = 1;
-        int32_t                               grid_cols = 1;
-        float                                 live_fps  = 0.0f;
+        uint32_t                              width           = DEFAULT_WINDOW_WIDTH;
+        uint32_t                              height          = DEFAULT_WINDOW_HEIGHT;
+        int32_t                               grid_rows       = 1;
+        int32_t                               grid_cols       = 1;
+        float                                 live_fps        = 0.0f;
         uint8_t                               legend_position = 5;   // LegendPosition::Best
         std::vector<ipc::SnapshotAxisState>   axes;
         std::vector<ipc::SnapshotSeriesState> series;

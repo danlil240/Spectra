@@ -305,12 +305,12 @@ struct SnapshotFigureState
 {
     uint64_t    figure_id = 0;
     std::string title;
-    uint32_t    width        = DEFAULT_WINDOW_WIDTH;
-    uint32_t    height       = DEFAULT_WINDOW_HEIGHT;
-    int32_t     grid_rows    = 1;
-    int32_t     grid_cols    = 1;
-    uint32_t    window_group = 0;      // Figures with the same non-zero group share one window
-    float       live_fps     = 0.0f;   // >0 = Python live-streaming at this FPS
+    uint32_t    width           = DEFAULT_WINDOW_WIDTH;
+    uint32_t    height          = DEFAULT_WINDOW_HEIGHT;
+    int32_t     grid_rows       = 1;
+    int32_t     grid_cols       = 1;
+    uint32_t    window_group    = 0;      // Figures with the same non-zero group share one window
+    float       live_fps        = 0.0f;   // >0 = Python live-streaming at this FPS
     uint8_t     legend_position = 5;      // spectra::LegendPosition (5 = Best)
     std::vector<SnapshotAxisState>   axes;
     std::vector<SnapshotSeriesState> series;

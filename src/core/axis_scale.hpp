@@ -189,8 +189,8 @@ inline std::vector<double> log_minor_ticks(ScaleType s, double lo, double hi)
         return out;
     static constexpr double SUBS10[] = {2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0};
     static constexpr double SUBS2[]  = {1.25, 1.5, 1.75};
-    const int e_lo = static_cast<int>(std::floor(a_lo));
-    const int e_hi = static_cast<int>(std::ceil(a_hi));
+    const int               e_lo     = static_cast<int>(std::floor(a_lo));
+    const int               e_hi     = static_cast<int>(std::ceil(a_hi));
     for (int e = e_lo; e <= e_hi; ++e)
     {
         const double power     = std::pow(base, static_cast<double>(e));

@@ -247,7 +247,7 @@ std::size_t ChunkedLineSeries::erase_before(float x_threshold)
     impl_->y.erase_front(lo);
     impl_->lod_dirty    = true;
     impl_->bounds_dirty = true;
-    dirty_           = true;
+    dirty_              = true;
     return lo;
 }
 
@@ -537,7 +537,7 @@ void ChunkedLineSeries::enforce_memory_budget()
     {
         impl_->lod_dirty    = true;
         impl_->bounds_dirty = true;
-        dirty_           = true;
+        dirty_              = true;
     }
 }
 

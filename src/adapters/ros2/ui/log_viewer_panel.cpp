@@ -64,7 +64,7 @@ static spectra::ui::Color severity_colour(LogSeverity s)
 // Construction
 // ---------------------------------------------------------------------------
 
-LogViewerPanel::LogViewerPanel(RosLogViewer& viewer) : viewer_(viewer) 
+LogViewerPanel::LogViewerPanel(RosLogViewer& viewer) : viewer_(viewer)
 {
     // Mirror initial filter state into UI buffers.
     const LogFilter& f = viewer_.filter();
@@ -561,8 +561,7 @@ void LogViewerPanel::draw_detail_pane(const LogEntry& e)
     row("Message:", e.message);
     if (!e.file.empty() || e.line > 0)
     {
-        const std::string loc =
-            e.line > 0 ? std::format("{}:{}", e.file, e.line) : e.file;
+        const std::string loc = e.line > 0 ? std::format("{}:{}", e.file, e.line) : e.file;
         row("Location:", loc.c_str());
     }
     if (!e.function.empty())
@@ -584,13 +583,13 @@ void LogViewerPanel::draw_status_bar(const std::vector<LogEntry>& entries)
 #ifdef SPECTRA_USE_IMGUI
     ImGui::PushStyleColor(ImGuiCol_Text,
                           spectra::ui::to_imvec4(spectra::ui::theme().text_tertiary));
-    const std::string status = std::format(
-        "Showing {} / {}  |  Total received: {}  |  Buffer: {} / {}",
-        entries.size(),
-        visible_count_,
-        viewer_.total_received(),
-        viewer_.entry_count(),
-        viewer_.capacity());
+    const std::string status =
+        std::format("Showing {} / {}  |  Total received: {}  |  Buffer: {} / {}",
+                    entries.size(),
+                    visible_count_,
+                    viewer_.total_received(),
+                    viewer_.entry_count(),
+                    viewer_.capacity());
     ImGui::TextUnformatted(status.c_str());
     ImGui::PopStyleColor();
 #else

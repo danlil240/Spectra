@@ -901,8 +901,8 @@ void Renderer::render_axes(AxesBase&   axes,
     float       sy   = std::max(0.0f, clip.y);
     float       sx2  = std::min(static_cast<float>(fig_width), clip.x + clip.w);
     float       sy2  = std::min(static_cast<float>(fig_height), clip.y + clip.h);
-    float sw  = std::max(0.0f, sx2 - sx);
-    float sh  = std::max(0.0f, sy2 - sy);
+    float       sw   = std::max(0.0f, sx2 - sx);
+    float       sh   = std::max(0.0f, sy2 - sy);
 
     // Set scissor to clamped axes viewport
     backend_.set_scissor(static_cast<int32_t>(sx),
@@ -1016,13 +1016,13 @@ void Renderer::render_axes(AxesBase&   axes,
         // Cache limits and view center for all sub-functions this frame.
         // Reading x_limits()/y_limits() only once prevents mid-frame
         // inconsistency when external threads modify series data.
-        auto& axes_gpu           = axes_gpu_data_[&axes];
-        axes_gpu.view_center_x   = view_cx;
-        axes_gpu.view_center_y   = view_cy;
-        axes_gpu.cached_xlim_min = xlim.min;
-        axes_gpu.cached_xlim_max = xlim.max;
-        axes_gpu.cached_ylim_min = ylim.min;
-        axes_gpu.cached_ylim_max = ylim.max;
+        auto& axes_gpu             = axes_gpu_data_[&axes];
+        axes_gpu.view_center_x     = view_cx;
+        axes_gpu.view_center_y     = view_cy;
+        axes_gpu.cached_xlim_min   = xlim.min;
+        axes_gpu.cached_xlim_max   = xlim.max;
+        axes_gpu.cached_ylim_min   = ylim.min;
+        axes_gpu.cached_ylim_max   = ylim.max;
         axes_gpu.xscale            = xscale;
         axes_gpu.yscale            = yscale;
         axes_gpu.axis_half_range_x = half_rx;
@@ -1339,10 +1339,10 @@ void Renderer::render_axes(AxesBase&   axes,
         // 2D: render in order (no sorting needed)
         // Camera-relative rendering: use the cached view center and limits
         // from projection setup for re-uploads and data_offset push constants.
-        auto*  axes2d  = dynamic_cast<Axes*>(&axes);
-        double view_cx = 0.0;
-        double view_cy = 0.0;
-        double half_rx = 0.0;
+        auto*     axes2d  = dynamic_cast<Axes*>(&axes);
+        double    view_cx = 0.0;
+        double    view_cy = 0.0;
+        double    half_rx = 0.0;
         double    half_ry = 0.0;
         ScaleType xscale  = ScaleType::Linear;
         ScaleType yscale  = ScaleType::Linear;

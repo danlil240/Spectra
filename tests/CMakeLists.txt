@@ -2018,5 +2018,21 @@ if(TARGET overlay_crosshair AND DEFINED imgui_SOURCE_DIR AND NOT WIN32
     target_link_options(unit_test_example_overlay_crosshair PRIVATE -rdynamic)
 endif()
 
+# format_project.sh (`make check-format`) must fail on misformatted files and on a
+# missing / wrong-version clang-format. CPU only; skips without clang-format 18.
+# Not registered on native Windows, where `bash` may resolve to the WSL launcher.
+if(NOT WIN32)
+    find_program(SPECTRA_BASH bash)
+    if(SPECTRA_BASH)
+        add_test(NAME format_gate
+            COMMAND ${SPECTRA_BASH} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/format_gate_test.sh
+                    ${CMAKE_SOURCE_DIR}/format_project.sh ${CMAKE_SOURCE_DIR}/.clang-format)
+        set_tests_properties(format_gate PROPERTIES
+            LABELS "format"
+            SKIP_RETURN_CODE 77
+            TIMEOUT 60)
+    endif()
+endif()
+
 # Manual (interactive, not run by CTest) test programs
 add_subdirectory(manual)

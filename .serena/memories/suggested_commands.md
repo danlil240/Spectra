@@ -48,8 +48,8 @@ xvfb-run -a ctest --test-dir build -L golden -j1 --output-on-failure
 ## Format
 
 ```bash
-make format              # ./format_project.sh
-make check-format        # --check only
+make format              # ./format_project.sh (tracked files, clang-format 18)
+make check-format        # --check only; exits 1 if any file needs formatting
 clang-format -i <file>   # single file
 ```
 

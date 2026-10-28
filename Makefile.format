@@ -21,17 +21,17 @@ help:
 
 format:
 	@echo "Formatting all C++ files..."
-	@./format_project.sh
+	@bash ./format_project.sh
 
 check:
 	@echo "Checking formatting..."
-	@./format_project.sh --check
+	@bash ./format_project.sh --check
 
 # Alternative targets for convenience
 format-verbose:
 	@echo "Formatting all C++ files (verbose)..."
-	@./format_project.sh --verbose
+	@bash ./format_project.sh --verbose
 
 check-verbose:
 	@echo "Checking formatting (verbose)..."
-	@./format_project.sh --check --verbose
+	@bash ./format_project.sh --check --verbose

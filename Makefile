@@ -38,11 +38,13 @@ clean: ## Remove build directory
 
 # ─── Formatting ──────────────────────────────────────────────────────────────
 
-format: ## Format all C++ files
-	./format_project.sh
+# Both run on git-tracked C/C++ files with clang-format 18 (as CI does) and exit
+# non-zero on failure. Override the binary with CLANG_FORMAT=/path/to/clang-format.
+format: ## Format all tracked C++ files (clang-format 18)
+	bash ./format_project.sh $(FORMAT_ARGS)
 
-check-format: ## Check C++ formatting (no changes)
-	./format_project.sh --check
+check-format: ## Check C++ formatting, fail if any file needs it (no changes)
+	bash ./format_project.sh --check $(FORMAT_ARGS)
 
 # ─── Python ──────────────────────────────────────────────────────────────────
 

@@ -5,11 +5,11 @@ Run from repo root after code changes. Scope checks to what you touched.
 ## 1. Format
 
 ```bash
-make check-format
-# or format touched files: clang-format -i path/to/file.cpp
+git clang-format-18 origin/main   # format the lines you changed (what CI checks)
+make check-format                 # whole tracked tree, clang-format 18; exits 1 on violations
 ```
 
-Fail → `make format` or manual `clang-format -i`.
+Fail → `make format` or `clang-format-18 -i <file>`.
 
 ## 2. Build
 

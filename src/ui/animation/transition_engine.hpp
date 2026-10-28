@@ -52,6 +52,8 @@ class TransitionEngine
 
     // ─── Animate inertial pan ───────────────────────────────────────────
     // Applies a decelerating velocity to axis limits (for drag release).
+    // Velocities are in axis-space units/sec: data units on a linear axis,
+    // decades (Log10) or octaves (Log2) on a log axis.
     // ─── Animate Camera ─────────────────────────────────────────────
     // Smoothly transitions a Camera from its current state to `target`
     // over `duration` seconds. Interpolates azimuth, elevation, distance,

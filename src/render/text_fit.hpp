@@ -16,6 +16,7 @@ struct FittedText
 {
     std::string text;                          // text to draw (possibly ellipsized)
     FontSize    size      = FontSize::Title;   // font size to draw it at
+    float       scale     = 1.0f;              // multiplier on `size` (draw_text scale)
     bool        truncated = false;             // true when characters were dropped
 };
 

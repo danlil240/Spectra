@@ -291,8 +291,9 @@ def encode_req_update_property(
     f4: float = 0.0,
     bool_val: bool = False,
     str_val: str = "",
+    data: Optional[List[float]] = None,
 ) -> bytes:
-    return fb_codec.encode_fb_req_update_property(figure_id=figure_id, axes_index=axes_index, series_index=series_index, prop=prop, f1=f1, f2=f2, f3=f3, f4=f4, bool_val=bool_val, str_val=str_val)
+    return fb_codec.encode_fb_req_update_property(figure_id=figure_id, axes_index=axes_index, series_index=series_index, prop=prop, f1=f1, f2=f2, f3=f3, f4=f4, bool_val=bool_val, str_val=str_val, data=data)
 
 def encode_req_show(figure_id: int, window_id: int = 0) -> bytes:
     return fb_codec.encode_fb_req_show(figure_id=figure_id, window_id=window_id)

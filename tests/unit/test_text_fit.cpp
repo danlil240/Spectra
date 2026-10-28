@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <gtest/gtest.h>
 #include <string>
 
@@ -47,11 +48,39 @@ TEST(TextFit, FitsAtPreferredSize)
 
 TEST(TextFit, ShrinksBeforeEllipsizing)
 {
-    // 10 chars: 100px at Title, 80px at Label.
+    // 10 chars: 100px at Title, 80px at Label.  85px lies between the two tiers, so the
+    // Title glyphs are scaled to fill exactly 85px rather than snapping down to Label.
     auto r = fit_text_to_width("abcdefghij", 85.0f, FontSize::Title, FontSize::Label, fake_measure);
     EXPECT_EQ(r.text, "abcdefghij");
-    EXPECT_EQ(r.size, FontSize::Label);
+    EXPECT_EQ(r.size, FontSize::Title);
+    EXPECT_FLOAT_EQ(r.scale, 0.85f);
     EXPECT_FALSE(r.truncated);
+
+    // Exactly the Label width: the Label tier is used unscaled.
+    r = fit_text_to_width("abcdefghij", 80.0f, FontSize::Title, FontSize::Label, fake_measure);
+    EXPECT_EQ(r.size, FontSize::Label);
+    EXPECT_FLOAT_EQ(r.scale, 1.0f);
+    EXPECT_FALSE(r.truncated);
+}
+
+TEST(TextFit, TitleShrinkIsContinuous)
+{
+    // Drawn width (tier width x scale) as the budget shrinks from 120px to 80px: the text
+    // fills the whole budget once it no longer fits at Title size, without the jump from
+    // 100px straight to 80px that snapping to the Label tier would cause.
+    const std::string text = "abcdefghij";
+    float             prev = 1e9f;
+    for (float budget = 120.0f; budget >= 80.0f; budget -= 0.5f)
+    {
+        const auto r =
+            fit_text_to_width(text, budget, FontSize::Title, FontSize::Label, fake_measure);
+        const float drawn = fake_measure(r.text, r.size) * r.scale;
+        EXPECT_FALSE(r.truncated) << budget;
+        EXPECT_LE(drawn, budget + 1e-3f) << budget;
+        EXPECT_NEAR(drawn, std::min(budget, 100.0f), 1e-3f) << budget;
+        EXPECT_LE(drawn, prev + 1e-3f) << budget;
+        prev = drawn;
+    }
 }
 
 TEST(TextFit, DoesNotShrinkBelowMinimum)

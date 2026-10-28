@@ -1,5 +1,7 @@
 #include "settings_store.hpp"
+#include "core/json_key.hpp"
 
+#include <cmath>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -47,7 +49,7 @@ std::string escape_json(const std::string& s)
 std::string read_json_string(const std::string& json, const std::string& key)
 {
     std::string search = "\"" + key + "\"";
-    auto        pos    = json.find(search);
+    auto        pos    = json_find_key(json, key);
     if (pos == std::string::npos)
         return {};
     pos = json.find(':', pos + search.size());
@@ -69,7 +71,7 @@ std::string read_json_string(const std::string& json, const std::string& key)
 bool read_json_bool(const std::string& json, const std::string& key, bool def)
 {
     std::string search = "\"" + key + "\"";
-    auto        pos    = json.find(search);
+    auto        pos    = json_find_key(json, key);
     if (pos == std::string::npos)
         return def;
     pos = json.find(':', pos + search.size());
@@ -86,6 +88,20 @@ bool read_json_bool(const std::string& json, const std::string& key, bool def)
     return def;
 }
 
+double read_json_number(const std::string& json, const std::string& key, double def)
+{
+    auto pos = json_find_key(json, key);
+    if (pos == std::string::npos)
+        return def;
+    pos = json.find(':', pos + key.size() + 2);
+    if (pos == std::string::npos)
+        return def;
+    const char*  begin = json.c_str() + pos + 1;
+    char*        end   = nullptr;
+    const double v     = std::strtod(begin, &end);
+    return (end == begin || !std::isfinite(v)) ? def : v;
+}
+
 std::string serialize(const SettingsData& d)
 {
     std::ostringstream os;
@@ -96,7 +112,8 @@ std::string serialize(const SettingsData& d)
     os << R"(    "default_data_palette": ")" << escape_json(d.default_data_palette) << "\",\n";
     os << "    \"inspector_visible\": " << (d.inspector_visible ? "true" : "false") << ",\n";
     os << "    \"nav_rail_visible\": " << (d.nav_rail_visible ? "true" : "false") << ",\n";
-    os << "    \"timeline_visible\": " << (d.timeline_visible ? "true" : "false") << "\n";
+    os << "    \"timeline_visible\": " << (d.timeline_visible ? "true" : "false") << ",\n";
+    os << "    \"ui_scale\": " << d.ui_scale << "\n";
     os << "  }\n";
     os << "}\n";
     return os.str();
@@ -154,6 +171,8 @@ bool SettingsStore::load(const std::string& path)
     data_.inspector_visible = read_json_bool(json, "inspector_visible", data_.inspector_visible);
     data_.nav_rail_visible  = read_json_bool(json, "nav_rail_visible", data_.nav_rail_visible);
     data_.timeline_visible  = read_json_bool(json, "timeline_visible", data_.timeline_visible);
+    data_.ui_scale          = ui::ThemeManager::clamp_ui_scale(
+        static_cast<float>(read_json_number(json, "ui_scale", data_.ui_scale)));
 
     loaded_path_ = path;
     return true;
@@ -190,6 +209,7 @@ void SettingsStore::apply_to(ui::ThemeManager& tm) const
         tm.set_theme(data_.default_theme);
     if (!data_.default_data_palette.empty())
         tm.set_data_palette(data_.default_data_palette);
+    tm.set_ui_scale(data_.ui_scale);
 }
 
 AppearanceState appearance_state(const ui::ThemeManager& tm, const SettingsData& d)

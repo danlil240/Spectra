@@ -197,6 +197,10 @@ static spectra::LegendPosition to_legend_position(int v)
             return L::BottomLeft;
         case SPECTRA_LEGEND_NONE:
             return L::None;
+        case SPECTRA_LEGEND_BEST:
+            return L::Best;
+        case SPECTRA_LEGEND_OUTSIDE_RIGHT:
+            return L::OutsideRight;
         default:
             return L::TopRight;
     }
@@ -260,6 +264,17 @@ static void c_guard_void(F&& body) noexcept
     catch (...)
     {
     }
+}
+
+// Annotation @p index of a 2D axes handle, or nullptr.
+static spectra::TextAnnotation* c_annotation_at(SpectraAxes* ax, int index)
+{
+    if (!ax || !ax->axes_2d || index < 0)
+        return nullptr;
+    const auto& list = ax->axes_2d->annotations();
+    if (static_cast<size_t>(index) >= list.size())
+        return nullptr;
+    return list[static_cast<size_t>(index)].get();
 }
 
 extern "C"
@@ -1323,6 +1338,108 @@ extern "C"
             if (!ax || !ax->axes_2d || !title)
                 return;
             ax->axes_2d->title(title);
+        };
+        c_guard_void(body);
+    }
+
+    // ── Text annotations ───────────────────────────────────────────────────────
+
+    int spectra_axes_text(SpectraAxes* ax, float x, float y, const char* text)
+    {
+        auto body = [&]() -> int
+        {
+            if (!ax || !ax->axes_2d || !text)
+                return -1;
+            ax->axes_2d->text(x, y, text);
+            return static_cast<int>(ax->axes_2d->annotations().size()) - 1;
+        };
+        return c_guard<int>(-1, body);
+    }
+
+    int spectra_axes_annotate(SpectraAxes* ax,
+                              const char*  text,
+                              float        x,
+                              float        y,
+                              float        text_x,
+                              float        text_y)
+    {
+        auto body = [&]() -> int
+        {
+            if (!ax || !ax->axes_2d || !text)
+                return -1;
+            ax->axes_2d->annotate(text, x, y, text_x, text_y);
+            return static_cast<int>(ax->axes_2d->annotations().size()) - 1;
+        };
+        return c_guard<int>(-1, body);
+    }
+
+    int spectra_axes_annotation_count(SpectraAxes* ax)
+    {
+        auto body = [&]() -> int
+        {
+            if (!ax || !ax->axes_2d)
+                return 0;
+            return static_cast<int>(ax->axes_2d->annotations().size());
+        };
+        return c_guard<int>(0, body);
+    }
+
+    void spectra_axes_annotation_set_color(SpectraAxes* ax,
+                                           int          index,
+                                           float        r,
+                                           float        g,
+                                           float        b,
+                                           float        a)
+    {
+        auto body = [&]()
+        {
+            if (auto* t = c_annotation_at(ax, index))
+                t->color(spectra::Color(r, g, b, a));
+        };
+        c_guard_void(body);
+    }
+
+    void spectra_axes_annotation_set_font_size(SpectraAxes* ax, int index, float font_size)
+    {
+        auto body = [&]()
+        {
+            if (auto* t = c_annotation_at(ax, index))
+                t->font_size(font_size);
+        };
+        c_guard_void(body);
+    }
+
+    void spectra_axes_annotation_set_align(SpectraAxes* ax, int index, int halign, int valign)
+    {
+        auto body = [&]()
+        {
+            auto* t = c_annotation_at(ax, index);
+            if (!t)
+                return;
+            if (halign >= SPECTRA_HALIGN_LEFT && halign <= SPECTRA_HALIGN_RIGHT)
+                t->halign(static_cast<spectra::TextAnnotation::HAlign>(halign));
+            if (valign >= SPECTRA_VALIGN_TOP && valign <= SPECTRA_VALIGN_BOTTOM)
+                t->valign(static_cast<spectra::TextAnnotation::VAlign>(valign));
+        };
+        c_guard_void(body);
+    }
+
+    void spectra_axes_annotation_set_visible(SpectraAxes* ax, int index, int visible)
+    {
+        auto body = [&]()
+        {
+            if (auto* t = c_annotation_at(ax, index))
+                t->visible(visible != 0);
+        };
+        c_guard_void(body);
+    }
+
+    void spectra_axes_clear_annotations(SpectraAxes* ax)
+    {
+        auto body = [&]()
+        {
+            if (ax && ax->axes_2d)
+                ax->axes_2d->clear_annotations();
         };
         c_guard_void(body);
     }

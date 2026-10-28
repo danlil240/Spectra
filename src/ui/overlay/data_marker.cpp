@@ -122,42 +122,12 @@ void DataMarkerManager::clear()
     markers_.clear();
 }
 
-void DataMarkerManager::data_to_screen(double      data_x,
-                                       double      data_y,
-                                       const Rect& viewport,
-                                       double      xlim_min,
-                                       double      xlim_max,
-                                       double      ylim_min,
-                                       double      ylim_max,
-                                       float&      screen_x,
-                                       float&      screen_y)
+void DataMarkerManager::draw(const AxisMapping& map,
+                             float              opacity,
+                             const Axes*        filter_axes,
+                             ImDrawList*        dl)
 {
-    double x_range = xlim_max - xlim_min;
-    double y_range = ylim_max - ylim_min;
-    if (x_range == 0.0)
-        x_range = 1.0;
-    if (y_range == 0.0)
-        y_range = 1.0;
-
-    // Subtract in double first: at epoch-scale x (or large y offsets) the
-    // difference is small and converts to float without precision loss.
-    auto norm_x = static_cast<float>((data_x - xlim_min) / x_range);
-    auto norm_y = static_cast<float>((data_y - ylim_min) / y_range);
-
-    screen_x = viewport.x + norm_x * viewport.w;
-    // Y is inverted (screen Y goes down, data Y goes up)
-    screen_y = viewport.y + (1.0f - norm_y) * viewport.h;
-}
-
-void DataMarkerManager::draw(const Rect& viewport,
-                             double      xlim_min,
-                             double      xlim_max,
-                             double      ylim_min,
-                             double      ylim_max,
-                             float       opacity,
-                             const Axes* filter_axes,
-                             ImDrawList* dl)
-{
+    const Rect& viewport = map.viewport();
     if (markers_.empty())
         return;
 
@@ -184,17 +154,11 @@ void DataMarkerManager::draw(const Rect& viewport,
         if (filter_axes && m.axes != filter_axes)
             continue;
 
-        float sx = NAN;
-        float sy = NAN;
-        data_to_screen(m.data_x,
-                       m.data_y,
-                       viewport,
-                       xlim_min,
-                       xlim_max,
-                       ylim_min,
-                       ylim_max,
-                       sx,
-                       sy);
+        // Points a log axis cannot draw (x or y <= 0) have no screen position.
+        if (!map.x_drawable(m.data_x) || !map.y_drawable(m.data_y))
+            continue;
+        const auto sx = static_cast<float>(map.to_screen_x(m.data_x));
+        const auto sy = static_cast<float>(map.to_screen_y(m.data_y));
 
         // Skip if outside viewport
         if (sx < viewport.x || sx > viewport.x + viewport.w || sy < viewport.y
@@ -357,16 +321,13 @@ void DataMarkerManager::draw(const Rect& viewport,
     }
 }
 
-int DataMarkerManager::hit_test(float       screen_x,
-                                float       screen_y,
-                                const Rect& viewport,
-                                double      xlim_min,
-                                double      xlim_max,
-                                double      ylim_min,
-                                double      ylim_max,
-                                float       radius_px,
-                                const Axes* filter_axes) const
+int DataMarkerManager::hit_test(float              screen_x,
+                                float              screen_y,
+                                const AxisMapping& map,
+                                float              radius_px,
+                                const Axes*        filter_axes) const
 {
+    const Rect& viewport = map.viewport();
     // Constants matching draw() for label box geometry
     ImFont*     font    = ImGui::GetFont();
     const float fs      = font->LegacySize;
@@ -388,17 +349,11 @@ int DataMarkerManager::hit_test(float       screen_x,
         if (filter_axes && m.axes != filter_axes)
             continue;
 
-        float sx = NAN;
-        float sy = NAN;
-        data_to_screen(m.data_x,
-                       m.data_y,
-                       viewport,
-                       xlim_min,
-                       xlim_max,
-                       ylim_min,
-                       ylim_max,
-                       sx,
-                       sy);
+        // Points a log axis cannot draw (x or y <= 0) have no screen position.
+        if (!map.x_drawable(m.data_x) || !map.y_drawable(m.data_y))
+            continue;
+        const auto sx = static_cast<float>(map.to_screen_x(m.data_x));
+        const auto sy = static_cast<float>(map.to_screen_y(m.data_y));
 
         // 1) Check the dot itself
         float dx = screen_x - sx;

@@ -101,8 +101,33 @@ class SnapshotAxisState(object):
             return self._tab.String(o + self._tab.Pos)
         return None
 
+    # SnapshotAxisState
+    def Annotations(self, j):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(26))
+        if o != 0:
+            x = self._tab.Vector(o)
+            x += flatbuffers.number_types.UOffsetTFlags.py_type(j) * 4
+            x = self._tab.Indirect(x)
+            from spectra.ipc.fb.SnapshotAnnotationState import SnapshotAnnotationState
+            obj = SnapshotAnnotationState()
+            obj.Init(self._tab.Bytes, x)
+            return obj
+        return None
+
+    # SnapshotAxisState
+    def AnnotationsLength(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(26))
+        if o != 0:
+            return self._tab.VectorLen(o)
+        return 0
+
+    # SnapshotAxisState
+    def AnnotationsIsNone(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(26))
+        return o == 0
+
 def SnapshotAxisStateStart(builder):
-    builder.StartObject(11)
+    builder.StartObject(12)
 
 def Start(builder):
     SnapshotAxisStateStart(builder)
@@ -172,6 +197,18 @@ def SnapshotAxisStateAddTitle(builder, title):
 
 def AddTitle(builder, title):
     SnapshotAxisStateAddTitle(builder, title)
+
+def SnapshotAxisStateAddAnnotations(builder, annotations):
+    builder.PrependUOffsetTRelativeSlot(11, flatbuffers.number_types.UOffsetTFlags.py_type(annotations), 0)
+
+def AddAnnotations(builder, annotations):
+    SnapshotAxisStateAddAnnotations(builder, annotations)
+
+def SnapshotAxisStateStartAnnotationsVector(builder, numElems):
+    return builder.StartVector(4, numElems, 4)
+
+def StartAnnotationsVector(builder, numElems):
+    return SnapshotAxisStateStartAnnotationsVector(builder, numElems)
 
 def SnapshotAxisStateEnd(builder):
     return builder.EndObject()

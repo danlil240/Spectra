@@ -222,7 +222,8 @@ class TextRenderer
     bool             rasterize_glyph(size_t         size_index,
                                      uint32_t       cp,
                                      const uint8_t* font_data,
-                                     float          pack_size) const;
+                                     float          pack_size,
+                                     int            face_index = 0) const;
     bool             add_tofu_glyph(size_t size_index);
     bool             alloc_atlas_rect(int w, int h, int& out_x, int& out_y) const;
     bool             upload_atlas(Backend& backend);

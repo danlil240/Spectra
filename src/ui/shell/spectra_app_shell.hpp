@@ -1,11 +1,14 @@
 #pragma once
 #ifdef SPECTRA_USE_IMGUI
+    #include <functional>
     #include <map>
     #include <memory>
     #include <string>
     #include <string_view>
+    #include <vector>
 
     #include "ui/shell/app_shell.hpp"
+    #include "ui/theme/icons.hpp"
 
 namespace spectra
 {
@@ -51,6 +54,34 @@ class SpectraAppShell : public AppShell
 
     // Command that toggles a core panel ("core.timeline" -> "panel.toggle_timeline").
     static std::string panel_command_id(const std::string& panel_id);
+
+    // ── Core menu model ────────────────────────────────────────────────
+    // One menu definition shared by the app shell and ImGuiIntegration's
+    // fallback path (no shell bound), so both show the same items.
+    struct CoreMenuHooks
+    {
+        std::function<bool(std::string_view panel_id)>               panel_visible{};
+        std::function<void(std::string_view panel_id, bool visible)> set_panel_visible{};
+    };
+    struct CorePanelEntry
+    {
+        const char* id;
+        const char* title;
+        Icon        icon;
+    };
+
+    // File / Edit / View / Tools / Plot menus (without the "Panels" section).
+    static void populate_core_menus(MenuBar&                   bar,
+                                    spectra::ImGuiIntegration* imgui,
+                                    const CoreMenuHooks&       hooks);
+    // The core panels in menu / nav-rail order.
+    static const std::vector<CorePanelEntry>& core_panels();
+    // View > Panels section for hosts without a PanelRegistry (fallback path).
+    static void add_core_panel_menu(MenuBar&                   bar,
+                                    spectra::ImGuiIntegration* imgui,
+                                    const PanelMenuHooks&      hooks);
+    // Plugin export formats under File (rebuilt each frame; formats can change).
+    static void sync_plugin_export_menu(MenuBar& bar, spectra::ImGuiIntegration* imgui);
 
    protected:
     void on_register_panels() override;

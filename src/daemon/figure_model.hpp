@@ -72,6 +72,29 @@ class FigureModel
     // Set axis title. Returns a DiffOp.
     ipc::DiffOp set_axis_title(uint64_t figure_id, uint32_t axes_index, const std::string& title);
 
+    // --- Text annotations (2D axes) ---
+    // Each returns false (no change, no revision bump) when the figure, axes or
+    // annotation index does not exist; on success *op_out holds the diff.
+
+    // Append an annotation to an axes.
+    bool add_annotation(uint64_t                            figure_id,
+                        uint32_t                            axes_index,
+                        const ipc::SnapshotAnnotationState& annotation,
+                        ipc::DiffOp*                        op_out);
+
+    // Replace annotation @p index of an axes.
+    bool set_annotation(uint64_t                            figure_id,
+                        uint32_t                            axes_index,
+                        uint32_t                            index,
+                        const ipc::SnapshotAnnotationState& annotation,
+                        ipc::DiffOp*                        op_out);
+
+    // Remove every annotation of an axes.
+    bool clear_annotations(uint64_t figure_id, uint32_t axes_index, ipc::DiffOp* op_out);
+
+    // Number of annotations on an axes (0 when unknown).
+    size_t annotation_count(uint64_t figure_id, uint32_t axes_index) const;
+
     // --- Series management ---
 
     // Add a series to a figure's axes. Returns the series index.
@@ -94,6 +117,12 @@ class FigureModel
                                  float    g,
                                  float    b,
                                  float    a);
+
+    // Colour a series with MATLAB format letter @p letter (r g b c m y k w).
+    // The window resolves the letter's shade for its theme; the op carries the
+    // dark-background shade in f1..f4 and the letter in str_val.  A non-letter
+    // leaves the series unchanged (the op then carries its current colour).
+    ipc::DiffOp set_series_color_letter(uint64_t figure_id, uint32_t series_index, char letter);
 
     // Set series visibility. Returns a DiffOp.
     ipc::DiffOp set_series_visible(uint64_t figure_id, uint32_t series_index, bool visible);
@@ -189,6 +218,7 @@ class FigureModel
         int32_t                               grid_rows = 1;
         int32_t                               grid_cols = 1;
         float                                 live_fps  = 0.0f;
+        uint8_t                               legend_position = 5;   // LegendPosition::Best
         std::vector<ipc::SnapshotAxisState>   axes;
         std::vector<ipc::SnapshotSeriesState> series;
     };

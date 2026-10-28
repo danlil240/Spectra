@@ -22,12 +22,16 @@
 #include "render/renderer.hpp"
 #include "ui/app/figure_snapshot.hpp"
 #include "ui/theme/theme.hpp"
+#include "ui/data/clipboard_export.hpp"
 #include "ui/workspace/figure_serializer.hpp"
+#include "ui/workspace/workspace.hpp"
 
 #if defined(SPECTRA_USE_IMGUI) && __has_include(<imgui.h>)
     #define SPECTRA_TEST_HOVER 1
     #include <imgui.h>
 
+    #include "ui/input/region_select.hpp"
+    #include "ui/overlay/axis_mapping.hpp"
     #include "ui/overlay/data_interaction.hpp"
 #endif
 
@@ -513,3 +517,234 @@ TEST(DoubleDataApi, SerializerRoundTripKeepsOriginsAndLimits)
     EXPECT_NEAR(dax.y_limits().min, kBigY - kSmallA, 1e-9);
     EXPECT_NEAR(dax.y_limits().max, kBigY + kSmallA, 1e-9);
 }
+
+// ─── Streaming: append(double, double) / erase_*(double) (issue #112) ───────
+
+// The double overloads are chosen only when an argument is a double, so
+// existing float/integer calls keep their exact meaning and never become
+// ambiguous.
+static_assert(detail::wants_f64_overload_v<double, double>);
+static_assert(detail::wants_f64_overload_v<double, float>);
+static_assert(detail::wants_f64_overload_v<int, double>);
+static_assert(!detail::wants_f64_overload_v<float, float>);
+static_assert(!detail::wants_f64_overload_v<int, float>);
+static_assert(!detail::wants_f64_overload_v<int, int>);
+static_assert(!detail::wants_f64_overload_v<size_t, float>);
+
+TEST(DoubleStreaming, AppendDoubleKeepsFullPrecision)
+{
+    const auto s = make_signal(500);
+    LineSeries line;
+    for (size_t i = 0; i < s.t.size(); ++i)
+        line.append(s.t[i], s.y[i]);
+
+    ASSERT_EQ(line.point_count(), s.t.size());
+    EXPECT_NE(line.x_offset(), 0.0);
+    EXPECT_NE(line.y_offset(), 0.0);
+    for (size_t i = 0; i < s.t.size(); ++i)
+    {
+        EXPECT_NEAR(line.x_offset() + line.x_data()[i], s.t[i], 1e-3);
+        EXPECT_NEAR(line.y_offset() + line.y_data()[i], s.y[i], 1e-8);
+    }
+    EXPECT_TRUE(line.x_is_sorted());
+}
+
+TEST(DoubleStreaming, ScatterAppendDoubleKeepsFullPrecision)
+{
+    const auto    s = make_signal(50);
+    ScatterSeries sc;
+    for (size_t i = 0; i < s.t.size(); ++i)
+        sc.append(s.t[i], s.y[i]);
+    ASSERT_EQ(sc.point_count(), s.t.size());
+    for (size_t i = 0; i < s.t.size(); ++i)
+    {
+        EXPECT_NEAR(sc.x_offset() + sc.x_data()[i], s.t[i], 1e-3);
+        EXPECT_NEAR(sc.y_offset() + sc.y_data()[i], s.y[i], 1e-8);
+    }
+}
+
+TEST(DoubleStreaming, AppendThroughBasePointerUsesDoublePath)
+{
+    std::unique_ptr<Series> base = std::make_unique<LineSeries>();
+    base->append(kEpoch + 0.25, kBigY + 0.003);
+    base->append(kEpoch + 0.5, kBigY + 0.004);
+    auto& line = static_cast<LineSeries&>(*base);
+    ASSERT_EQ(line.point_count(), 2u);
+    EXPECT_NEAR(line.x_offset() + line.x_data()[1], kEpoch + 0.5, 1e-6);
+    EXPECT_NEAR(line.y_offset() + line.y_data()[1], kBigY + 0.004, 1e-9);
+}
+
+TEST(DoubleStreaming, FloatAndIntegerCallsKeepFloatPath)
+{
+    LineSeries line;
+    line.append(5000, 7000);      // int, int   -> float overload
+    line.append(5001, 7001.0f);   // int, float -> float overload
+    line.append(5002.0f, 7002.0f);
+    EXPECT_EQ(line.x_offset(), 0.0);
+    EXPECT_EQ(line.y_offset(), 0.0);
+    ASSERT_EQ(line.point_count(), 3u);
+    EXPECT_EQ(line.x_data()[0], 5000.0f);
+    EXPECT_EQ(line.y_data()[2], 7002.0f);
+}
+
+TEST(DoubleStreaming, SmallValuesKeepPlainStorage)
+{
+    LineSeries line;
+    line.append(0.5, 2.0);
+    line.append(1.5, -3.0);
+    EXPECT_EQ(line.x_offset(), 0.0);
+    EXPECT_EQ(line.y_offset(), 0.0);
+    EXPECT_EQ(line.x_data()[1], 1.5f);
+    EXPECT_EQ(line.y_data()[1], -3.0f);
+}
+
+TEST(DoubleStreaming, AppendUsesExistingOrigin)
+{
+    const auto   s = make_signal(11);
+    LineSeries   line(std::span<const double>(s.t), std::span<const double>(s.y));
+    const double xoff = line.x_offset();
+    const double yoff = line.y_offset();
+    ASSERT_NE(xoff, 0.0);
+    line.append(kEpoch + 3600.5, kBigY + 0.0042);
+    EXPECT_EQ(line.x_offset(), xoff);   // origin is not moved by appends
+    EXPECT_EQ(line.y_offset(), yoff);
+    ASSERT_EQ(line.point_count(), 12u);
+    EXPECT_NEAR(line.x_offset() + line.x_data()[11], kEpoch + 3600.5, 1e-3);
+    EXPECT_NEAR(line.y_offset() + line.y_data()[11], kBigY + 0.0042, 1e-8);
+}
+
+TEST(DoubleStreaming, EraseBeforeAndAfterTakeAbsoluteDoubleX)
+{
+    LineSeries line;
+    for (int i = 0; i < 100; ++i)
+        line.append(kEpoch + i, static_cast<double>(i));
+    // A double threshold is an absolute x; a float one would be compared
+    // against the stored offsets and remove everything.
+    EXPECT_EQ(line.erase_before(kEpoch + 10.0), 10u);
+    EXPECT_EQ(line.erase_after(kEpoch + 89.0), 10u);
+    ASSERT_EQ(line.point_count(), 80u);
+    EXPECT_NEAR(line.x_offset() + line.x_data().front(), kEpoch + 10.0, 1e-6);
+    EXPECT_NEAR(line.x_offset() + line.x_data().back(), kEpoch + 89.0, 1e-6);
+}
+
+TEST(DoubleStreaming, ThreadSafeAppendAndEraseResolveAtCommit)
+{
+    LineSeries line;
+    line.set_thread_safe(true);
+    for (int i = 0; i < 20; ++i)
+        line.append(kEpoch + 0.5 * i, kBigY + 0.001 * i);
+    line.append(1.0f, 2.0f);   // float append: stored as given
+    EXPECT_EQ(line.point_count(), 0u);
+    EXPECT_TRUE(line.commit_pending());
+    ASSERT_EQ(line.point_count(), 21u);
+    EXPECT_NE(line.x_offset(), 0.0);
+    for (int i = 0; i < 20; ++i)
+    {
+        EXPECT_NEAR(line.x_offset() + line.x_data()[i], kEpoch + 0.5 * i, 1e-6);
+        EXPECT_NEAR(line.y_offset() + line.y_data()[i], kBigY + 0.001 * i, 1e-8);
+    }
+    EXPECT_EQ(line.x_data()[20], 1.0f);
+    EXPECT_FALSE(line.x_is_sorted());
+
+    LineSeries ts;
+    ts.set_thread_safe(true);
+    for (int i = 0; i < 10; ++i)
+        ts.append(kEpoch + i, 0.0);
+    ASSERT_TRUE(ts.commit_pending());
+    ts.erase_before(kEpoch + 4.0);
+    ts.erase_after(kEpoch + 7.0);
+    ASSERT_TRUE(ts.commit_pending());
+    ASSERT_EQ(ts.point_count(), 4u);
+    EXPECT_NEAR(ts.x_offset() + ts.x_data().front(), kEpoch + 4.0, 1e-6);
+}
+
+TEST(DoubleStreaming, ClipboardExportUsesAbsoluteValues)
+{
+    LineSeries line;
+    line.label("big");
+    const std::vector<double> x{kEpoch, kEpoch + 1.5};
+    const std::vector<double> y{kBigY + 0.123, kBigY + 0.5};
+    line.set_x(std::span<const double>(x));
+    line.set_y(std::span<const double>(y));
+    ASSERT_NE(line.y_offset(), 0.0);
+
+    const std::string tsv = series_to_tsv({&line});
+    EXPECT_NE(tsv.find("1700000000\t10000000.123\n"), std::string::npos) << tsv;
+    EXPECT_NE(tsv.find("1700000001.5\t10000000.5\n"), std::string::npos) << tsv;
+}
+
+TEST(DoubleStreaming, BinaryFileKeepsMarkerPrecision)
+{
+    const std::string path =
+        (std::filesystem::temp_directory_path() / "spectra_test_marker_f64.spectra").string();
+    Figure src({.width = 400, .height = 300});
+    src.subplot(1, 1, 1).line(std::span<const double>(make_signal(5).t),
+                              std::span<const double>(make_signal(5).y));
+    OverlaySnapshot snap;
+    snap.markers.push_back({kEpoch + 0.25, kBigY + 0.0031, "s", 3, 0});
+    ASSERT_TRUE(FigureSerializer::save(path, src, &snap));
+
+    Figure          dst({.width = 400, .height = 300});
+    OverlaySnapshot loaded;
+    ASSERT_TRUE(FigureSerializer::load(path, dst, &loaded));
+    std::remove(path.c_str());
+    ASSERT_EQ(loaded.markers.size(), 1u);
+    EXPECT_EQ(loaded.markers[0].data_x, kEpoch + 0.25);
+    EXPECT_EQ(loaded.markers[0].data_y, kBigY + 0.0031);
+    EXPECT_EQ(loaded.markers[0].point_index, 3u);
+}
+
+TEST(DoubleStreaming, WorkspaceJsonKeepsMarkerPrecision)
+{
+    WorkspaceData data;
+    data.interaction.markers.push_back({kEpoch + 0.25, kBigY + 0.0031, "s", 3, 1});
+    const std::string path =
+        (std::filesystem::temp_directory_path() / "spectra_test_marker_f64_ws.json").string();
+    ASSERT_TRUE(Workspace::save(path, data));
+
+    WorkspaceData back;
+    ASSERT_TRUE(Workspace::load(path, back));
+    std::remove(path.c_str());
+    ASSERT_EQ(back.interaction.markers.size(), 1u);
+    EXPECT_EQ(back.interaction.markers[0].data_x, kEpoch + 0.25);
+    EXPECT_EQ(back.interaction.markers[0].data_y, kBigY + 0.0031);
+    EXPECT_EQ(back.interaction.markers[0].axes_index, 1u);
+}
+
+#ifdef SPECTRA_TEST_HOVER
+TEST(DoubleStreaming, RegionSelectUsesAbsoluteValues)
+{
+    Figure fig({.width = 800, .height = 600});
+    auto&  ax = fig.subplot(1, 1, 1);
+    // y = 1e7 + 0.001 * i, x = epoch + i: float storage alone cannot tell
+    // these points apart.
+    std::vector<double> x(10), y(10);
+    for (int i = 0; i < 10; ++i)
+    {
+        x[i] = kEpoch + i;
+        y[i] = kBigY + 0.001 * i;
+    }
+    ax.line(std::span<const double>(x), std::span<const double>(y));
+    ax.xlim(kEpoch - 1.0, kEpoch + 10.0);
+    ax.ylim(kBigY - 0.001, kBigY + 0.010);
+    ax.set_viewport({0.0f, 0.0f, 1100.0f, 1100.0f});
+
+    const AxisMapping m(ax);
+    RegionSelect      rs;
+    // Select x in [epoch + 2.5, epoch + 6.5] and y in [1e7 + 0.0025, 1e7 + 0.0055]:
+    // points 3, 4 and 5.
+    rs.begin(m.to_screen_x(kEpoch + 2.5), m.to_screen_y(kBigY + 0.0055), m);
+    rs.update_drag(m.to_screen_x(kEpoch + 6.5), m.to_screen_y(kBigY + 0.0025), m);
+    EXPECT_NEAR(rs.data_x_min(), kEpoch + 2.5, 1e-6);
+    rs.finish(&ax);
+
+    ASSERT_TRUE(rs.has_selection());
+    const auto& st = rs.statistics();
+    EXPECT_EQ(st.point_count, 3u);
+    EXPECT_NEAR(st.x_min, kEpoch + 3.0, 1e-6);
+    EXPECT_NEAR(st.x_max, kEpoch + 5.0, 1e-6);
+    EXPECT_NEAR(st.y_mean, kBigY + 0.004, 1e-8);
+    EXPECT_NEAR(st.y_std, 0.001, 1e-8);
+    EXPECT_EQ(format_region_value(kBigY + 0.004, 0.002), "10000000.004");
+}
+#endif

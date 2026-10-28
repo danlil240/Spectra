@@ -25,6 +25,8 @@ struct SeriesSnapshot
     Type               type = Type::Line;
     std::string        label;
     Color              color;
+    int                auto_color_index = -1;     // palette slot (Series::auto_color_index())
+    char               color_letter     = '\0';   // format letter (Series::color_letter())
     PlotStyle          style;
     bool               visible    = true;
     float              line_width = 2.0f;   // LineSeries / LineSeries3D

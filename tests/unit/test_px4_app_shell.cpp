@@ -8,7 +8,16 @@
 #include <spectra/figure.hpp>
 #include <spectra/series.hpp>
 
+#include "core/layout.hpp"
+#include "px4_recent_files.hpp"
+
+#ifdef SPECTRA_USE_IMGUI
+    #include "ui/commands/command_registry.hpp"
+    #include "ui/commands/shortcut_manager.hpp"
+#endif
+
 #include <cstdio>
+#include <filesystem>
 #include <cstdint>
 #include <cstring>
 #include <fstream>
@@ -488,6 +497,341 @@ TEST(Px4AppShellTest, CloseAllPlotsRemovesManuallyAddedFields)
 
     std::remove(path.c_str());
 }
+
+// ---------------------------------------------------------------------------
+// Auto-plot layout: four or more groups are tiled so they fit the canvas.
+// ---------------------------------------------------------------------------
+
+namespace
+{
+
+// ULog with battery_status, vehicle_local_position (altitude + velocity) and
+// airspeed: four auto-plot groups.
+std::string write_four_group_ulog(const std::string& name)
+{
+    ULogBuilder builder;
+    builder.add_format("battery_status:uint64_t timestamp;float voltage_v;float current_a");
+    builder.add_format(
+        "vehicle_local_position:uint64_t timestamp;float z;float vx;float vy;float vz");
+    builder.add_format(
+        "airspeed:uint64_t timestamp;float indicated_airspeed_m_s;float true_airspeed_m_s");
+    builder.add_subscription(0, 1, "battery_status");
+    builder.add_subscription(0, 2, "vehicle_local_position");
+    builder.add_subscription(0, 3, "airspeed");
+
+    for (uint64_t t = 1; t <= 3; ++t)
+    {
+        const float bat[2] = {12.0f - 0.1f * static_cast<float>(t), 5.0f};
+        const float pos[4] = {-1.0f * static_cast<float>(t), 0.5f, 0.25f, -0.1f};
+        const float air[2] = {10.0f + static_cast<float>(t), 11.0f + static_cast<float>(t)};
+        builder.add_data(1, t * 1000000, reinterpret_cast<const uint8_t*>(bat), sizeof(bat));
+        builder.add_data(2, t * 1000000, reinterpret_cast<const uint8_t*>(pos), sizeof(pos));
+        builder.add_data(3, t * 1000000, reinterpret_cast<const uint8_t*>(air), sizeof(air));
+    }
+    return builder.write_to_file(temp_path(name));
+}
+
+std::string temp_dir(const std::string& name)
+{
+    auto dir = std::filesystem::temp_directory_path() / ("spectra_px4_test_" + name);
+    std::filesystem::remove_all(dir);
+    std::filesystem::create_directories(dir);
+    return dir.string();
+}
+
+}   // namespace
+
+TEST(Px4AppShellTest, AutoPlotGridTilesFourOrMoreGroups)
+{
+    EXPECT_EQ(Px4AppShell::auto_plot_grid(1), std::make_pair(1, 1));
+    EXPECT_EQ(Px4AppShell::auto_plot_grid(3), std::make_pair(3, 1));
+    EXPECT_EQ(Px4AppShell::auto_plot_grid(4), std::make_pair(2, 2));
+    EXPECT_EQ(Px4AppShell::auto_plot_grid(6), std::make_pair(3, 2));
+    EXPECT_EQ(Px4AppShell::auto_plot_grid(8), std::make_pair(3, 3));
+    for (int n = 1; n <= 9; ++n)
+    {
+        const auto [rows, cols] = Px4AppShell::auto_plot_grid(n);
+        EXPECT_GE(rows * cols, n) << n;
+        EXPECT_LE(rows, 3) << n;
+    }
+}
+
+TEST(Px4AppShellTest, FourAutoPlotGroupsFitTheCanvas)
+{
+    const std::string path = write_four_group_ulog("four_groups");
+
+    Px4AppShell     shell(Px4AppConfig{});
+    spectra::Figure fig({.width = 1000, .height = 640});
+    shell.set_canvas_figure(&fig);
+    ASSERT_TRUE(shell.open_ulog(path));
+
+    ASSERT_EQ(fig.axes().size(), 4u);
+    EXPECT_EQ(fig.grid_rows(), 2);
+    EXPECT_EQ(fig.grid_cols(), 2);
+    for (const auto& ax : fig.axes())
+    {
+        ASSERT_TRUE(ax);
+        EXPECT_FALSE(ax->series().empty());
+    }
+
+    // Same layout the window runtime computes for the canvas: the grid must
+    // fit the canvas height without scrolling.
+    const auto&      st = fig.style();
+    spectra::Margins m{st.margin_left, st.margin_right, st.margin_bottom, st.margin_top};
+    float            content_h = 0.0f;
+    const float      canvas_h  = 600.0f;
+    const auto       rects     = spectra::compute_subplot_layout(1000.0f,
+                                                       canvas_h,
+                                                       fig.grid_rows(),
+                                                       fig.grid_cols(),
+                                                       m,
+                                                       st.min_subplot_height,
+                                                       &content_h);
+    EXPECT_LE(content_h, canvas_h);
+    ASSERT_GE(rects.size(), 4u);
+    for (size_t i = 0; i < 4; ++i)
+    {
+        EXPECT_GT(rects[i].h, 0.0f);
+        EXPECT_LE(rects[i].y + rects[i].h, canvas_h);
+    }
+
+    // Closing the plots goes back to a single 1x1 axes.
+    shell.close_all_plots();
+    shell.poll();
+    EXPECT_EQ(fig.grid_rows(), 1);
+    EXPECT_EQ(fig.grid_cols(), 1);
+    EXPECT_EQ(fig.axes().size(), 1u);
+
+    std::remove(path.c_str());
+}
+
+// ---------------------------------------------------------------------------
+// Recent files store.
+// ---------------------------------------------------------------------------
+
+// The store keeps absolute, normalised paths; on Windows that adds the drive
+// letter and backslashes, so expectations go through the same transform.
+static std::string stored_form(const std::string& p)
+{
+    return std::filesystem::absolute(std::filesystem::path(p)).lexically_normal().string();
+}
+
+TEST(Px4RecentFilesTest, PushMovesToFrontDedupesAndCaps)
+{
+    Px4RecentFiles recent({}, 3);
+    recent.push("/logs/a.ulg");
+    recent.push("/logs/b.ulg");
+    recent.push("/logs/a.ulg");
+    ASSERT_EQ(recent.entries().size(), 2u);
+    EXPECT_EQ(recent.entries()[0], stored_form("/logs/a.ulg"));
+    EXPECT_EQ(recent.entries()[1], stored_form("/logs/b.ulg"));
+
+    recent.push("/logs/c.ulg");
+    recent.push("/logs/d.ulg");
+    ASSERT_EQ(recent.entries().size(), 3u);
+    EXPECT_EQ(recent.entries()[0], stored_form("/logs/d.ulg"));
+    EXPECT_EQ(recent.entries()[2], stored_form("/logs/a.ulg"));
+
+    recent.remove("/logs/c.ulg");
+    EXPECT_EQ(recent.entries().size(), 2u);
+    recent.clear();
+    EXPECT_TRUE(recent.empty());
+}
+
+TEST(Px4RecentFilesTest, DefaultsToTenEntriesInSpectraConfigDir)
+{
+    Px4RecentFiles recent;
+    EXPECT_EQ(recent.max_entries(), 10u);
+    const std::filesystem::path p(Px4RecentFiles::default_path());
+    EXPECT_EQ(p.filename(), "px4_recent.json");
+    EXPECT_EQ(p.parent_path().filename(), "spectra");
+    EXPECT_EQ(p.parent_path().parent_path().filename(), ".config");
+}
+
+TEST(Px4RecentFilesTest, RelativePathsAreStoredAbsolute)
+{
+    Px4RecentFiles recent;
+    recent.push("flight.ulg");
+    ASSERT_EQ(recent.entries().size(), 1u);
+    EXPECT_TRUE(std::filesystem::path(recent.entries()[0]).is_absolute());
+    EXPECT_EQ(std::filesystem::path(recent.entries()[0]).filename(), "flight.ulg");
+}
+
+TEST(Px4RecentFilesTest, PersistsAcrossInstancesWithEscapedPaths)
+{
+    const std::string dir  = temp_dir("recent_roundtrip");
+    const std::string file = dir + "/sub/px4_recent.json";   // parent created on save
+
+    const std::string odd = "/logs/with \"quotes\" and \\backslash\\/x.ulg";
+    {
+        Px4RecentFiles recent(file);
+        recent.push("/logs/one.ulg");
+        recent.push(odd);
+    }
+    Px4RecentFiles loaded(file);
+    ASSERT_TRUE(loaded.load());
+    ASSERT_EQ(loaded.entries().size(), 2u);
+    EXPECT_EQ(loaded.entries()[0], stored_form(odd));
+    EXPECT_EQ(loaded.entries()[1], stored_form("/logs/one.ulg"));
+
+    Px4RecentFiles missing(dir + "/does_not_exist.json");
+    EXPECT_FALSE(missing.load());
+    EXPECT_TRUE(missing.entries().empty());
+
+    std::filesystem::remove_all(dir);
+}
+
+TEST(Px4RecentFilesTest, ParseArgsUsesDefaultRecentPath)
+{
+    const char* argv[] = {"spectra-px4"};
+    std::string err;
+    const auto  cfg = parse_px4_args(1, const_cast<char**>(argv), err);
+    EXPECT_EQ(cfg.recent_files_path, Px4RecentFiles::default_path());
+}
+
+TEST(Px4AppShellTest, OpeningUlogRecordsAndPersistsRecentFile)
+{
+    const std::string dir    = temp_dir("shell_recent");
+    const std::string store  = dir + "/px4_recent.json";
+    const std::string ulog_a = write_four_group_ulog("recent_a");
+    const std::string ulog_b = write_four_group_ulog("recent_b");
+
+    {
+        Px4AppConfig cfg;
+        cfg.recent_files_path = store;
+        Px4AppShell shell(cfg);
+        ASSERT_TRUE(shell.init());
+        EXPECT_TRUE(shell.recent_files().empty());
+
+        ASSERT_TRUE(shell.open_ulog(ulog_a));
+        ASSERT_TRUE(shell.open_ulog(ulog_b));
+        EXPECT_FALSE(shell.open_ulog(dir + "/missing.ulg"));   // failures are not recorded
+        ASSERT_EQ(shell.recent_files().entries().size(), 2u);
+        EXPECT_EQ(shell.recent_files().entries()[0], stored_form(ulog_b));
+    }
+
+    // A new session (e.g. after restart) sees the same list.
+    Px4AppConfig cfg;
+    cfg.recent_files_path = store;
+    Px4AppShell shell(cfg);
+    ASSERT_TRUE(shell.init());
+    ASSERT_EQ(shell.recent_files().entries().size(), 2u);
+    EXPECT_EQ(shell.recent_files().entries()[0], stored_form(ulog_b));
+    EXPECT_EQ(shell.recent_files().entries()[1], stored_form(ulog_a));
+
+    // Re-opening from the list promotes it; an entry whose file is gone is dropped.
+    ASSERT_TRUE(shell.open_recent(ulog_a));
+    EXPECT_EQ(shell.recent_files().entries()[0], stored_form(ulog_a));
+    std::remove(ulog_b.c_str());
+    EXPECT_FALSE(shell.open_recent(ulog_b));
+    ASSERT_EQ(shell.recent_files().entries().size(), 1u);
+    EXPECT_EQ(shell.recent_files().entries()[0], stored_form(ulog_a));
+
+    std::remove(ulog_a.c_str());
+    std::filesystem::remove_all(dir);
+}
+
+#ifdef SPECTRA_USE_IMGUI
+namespace
+{
+const spectra::ui::shell::MenuAction* find_action(
+    const std::vector<spectra::ui::shell::MenuAction>& items,
+    const std::string&                                 label)
+{
+    for (const auto& a : items)
+        if (a.label == label)
+            return &a;
+    return nullptr;
+}
+}   // namespace
+
+TEST(Px4AppShellTest, FileMenuListsRecentFiles)
+{
+    const std::string dir  = temp_dir("menu_recent");
+    const std::string ulog = write_four_group_ulog("menu_recent");
+
+    Px4AppConfig cfg;
+    cfg.recent_files_path = dir + "/px4_recent.json";
+    Px4AppShell shell(cfg);
+    ASSERT_TRUE(shell.init());
+
+    auto&       file   = shell.menu_bar().menu("File");
+    const auto* recent = find_action(file.items(), "Open Recent");
+    ASSERT_NE(recent, nullptr);
+    ASSERT_EQ(recent->submenu.size(), 3u);   // "No Recent Files", separator, "Clear"
+    EXPECT_EQ(recent->submenu[0].label, "No Recent Files");
+    EXPECT_FALSE(recent->submenu[0].enabled());
+
+    ASSERT_TRUE(shell.open_ulog(ulog));
+    shell.poll();   // menu is rebuilt outside of menu drawing
+    recent = find_action(file.items(), "Open Recent");
+    ASSERT_NE(recent, nullptr);
+    ASSERT_EQ(recent->submenu.size(), 3u);
+    EXPECT_EQ(recent->submenu[0].label, std::filesystem::path(ulog).filename().string());
+    EXPECT_TRUE(static_cast<bool>(recent->submenu[0].on_click));
+    EXPECT_EQ(recent->submenu[2].label, "Clear Recent Files");
+    EXPECT_TRUE(recent->submenu[2].enabled());
+
+    recent->submenu[2].on_click();
+    shell.poll();
+    EXPECT_TRUE(shell.recent_files().empty());
+    recent = find_action(file.items(), "Open Recent");
+    EXPECT_EQ(recent->submenu[0].label, "No Recent Files");
+
+    std::remove(ulog.c_str());
+    std::filesystem::remove_all(dir);
+}
+
+TEST(Px4AppShellTest, CtrlOOpensUlogAndCtrlQQuits)
+{
+    constexpr int kKeyO = 79, kKeyQ = 81, kPress = 1, kModCtrl = 0x2;
+
+    const std::string ulog = write_four_group_ulog("shortcut_open");
+
+    Px4AppShell shell(Px4AppConfig{});
+    ASSERT_TRUE(shell.init());
+    int chooser_calls = 0;
+    shell.set_file_chooser(
+        [&]()
+        {
+            ++chooser_calls;
+            return ulog;
+        });
+
+    spectra::CommandRegistry registry;
+    spectra::ShortcutManager shortcuts;
+    shortcuts.set_command_registry(&registry);
+    shortcuts.register_defaults();
+
+    // Before registration the menu must not advertise unbound shortcuts.
+    const auto& resolve = shell.menu_bar().shortcut_resolver();
+    const auto* open    = find_action(shell.menu_bar().menu("File").items(), "Open ULog...");
+    const auto* quit    = find_action(shell.menu_bar().menu("File").items(), "Exit");
+    ASSERT_NE(open, nullptr);
+    ASSERT_NE(quit, nullptr);
+    EXPECT_TRUE(open->shortcut.empty());
+    EXPECT_EQ(resolve(open->command_id), "");
+    EXPECT_FALSE(shortcuts.on_key(kKeyO, kPress, kModCtrl));
+
+    shell.register_commands(registry, shortcuts);
+    EXPECT_EQ(resolve(open->command_id), "Ctrl+O");
+    EXPECT_EQ(resolve(quit->command_id), "Ctrl+Q");
+
+    EXPECT_TRUE(shortcuts.on_key(kKeyO, kPress, kModCtrl));
+    EXPECT_EQ(chooser_calls, 1);
+    EXPECT_TRUE(shell.reader().is_open());
+
+    EXPECT_FALSE(shell.shutdown_requested());
+    EXPECT_TRUE(shortcuts.on_key(kKeyQ, kPress, kModCtrl));
+    EXPECT_TRUE(shell.shutdown_requested());
+
+    shell.unregister_commands();
+    EXPECT_FALSE(shortcuts.on_key(kKeyO, kPress, kModCtrl));
+    EXPECT_EQ(registry.find("px4.file.open_ulog"), nullptr);
+
+    std::remove(ulog.c_str());
+}
+#endif
 
 int main(int argc, char** argv)
 {

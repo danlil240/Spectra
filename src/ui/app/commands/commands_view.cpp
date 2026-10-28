@@ -8,6 +8,8 @@
 #include <spectra/figure.hpp>
 #include <spectra/series.hpp>
 
+#include "core/axes_data_extent.hpp"
+#include "core/axis_scale.hpp"
 #include "ui/app/window_ui_context.hpp"
 #include "ui/commands/undoable_property.hpp"
 #include "ui/figures/figure_manager.hpp"
@@ -21,7 +23,9 @@
 #endif
 
 #include <algorithm>
+#include <cmath>
 #include <limits>
+#include <utility>
 
 namespace spectra
 {
@@ -297,60 +301,18 @@ std::vector<CommandDescriptor> make_view_commands(CommandContext& ctx)
                     }});
 
     // ─── Zoom helper ─────────────────────────────────────────────────────
-    auto compute_data_center = [](Axes* ax, float& cx, float& cy) -> bool
+    // Zoom by `factor` (new span / old span) about the centre of the visible
+    // data of every 2D series type (detail::data_center), falling back to the
+    // view centre.  Works in axis space (log axes zoom by ratios) and in
+    // double precision (epoch-scale limits).
+    auto zoom_about_data_center = [](Axes& ax, double factor) -> std::pair<AxisLimits, AxisLimits>
     {
-        float dxmin = std::numeric_limits<float>::max();
-        float dxmax = std::numeric_limits<float>::lowest();
-        float dymin = std::numeric_limits<float>::max();
-        float dymax = std::numeric_limits<float>::lowest();
-        bool  found = false;
-        for (const auto& s : ax->series())
-        {
-            if (!s || !s->visible())
-                continue;
-            if (const auto* line = dynamic_cast<const LineSeries*>(s.get()))
-            {
-                if (line->point_count() == 0)
-                    continue;
-                auto xd = line->x_data();
-                auto yd = line->y_data();
-                for (float i : xd)
-                {
-                    dxmin = std::min(dxmin, i);
-                    dxmax = std::max(dxmax, i);
-                }
-                for (float i : yd)
-                {
-                    dymin = std::min(dymin, i);
-                    dymax = std::max(dymax, i);
-                }
-                found = true;
-            }
-            else if (const auto* sc = dynamic_cast<const ScatterSeries*>(s.get()))
-            {
-                if (sc->point_count() == 0)
-                    continue;
-                auto xd = sc->x_data();
-                auto yd = sc->y_data();
-                for (float i : xd)
-                {
-                    dxmin = std::min(dxmin, i);
-                    dxmax = std::max(dxmax, i);
-                }
-                for (float i : yd)
-                {
-                    dymin = std::min(dymin, i);
-                    dymax = std::max(dymax, i);
-                }
-                found = true;
-            }
-        }
-        if (found)
-        {
-            cx = (dxmin + dxmax) * 0.5f;
-            cy = (dymin + dymax) * 0.5f;
-        }
-        return found;
+        // No data: NaN centre keeps the current view centre.
+        double cx = std::numeric_limits<double>::quiet_NaN();
+        double cy = cx;
+        detail::data_center(ax, cx, cy);
+        return {zoom_limits_centered(ax.xscale(), ax.x_limits(), cx, factor),
+                zoom_limits_centered(ax.yscale(), ax.y_limits(), cy, factor)};
     };
 
     // ─── Zoom In ─────────────────────────────────────────────────────────
@@ -359,7 +321,7 @@ std::vector<CommandDescriptor> make_view_commands(CommandContext& ctx)
                     "",
                     "View",
                     static_cast<uint16_t>(ui::Icon::ZoomIn),
-                    [&, compute_data_center]()
+                    [&, zoom_about_data_center]()
                     {
                         if (auto* ax3d = dynamic_cast<Axes3D*>(input_handler.active_axes_base()))
                         {
@@ -367,15 +329,7 @@ std::vector<CommandDescriptor> make_view_commands(CommandContext& ctx)
                         }
                         else if (auto* ax = input_handler.active_axes())
                         {
-                            auto  old_x = ax->x_limits();
-                            auto  old_y = ax->y_limits();
-                            float xc    = (old_x.min + old_x.max) * 0.5f;
-                            float yc    = (old_y.min + old_y.max) * 0.5f;
-                            compute_data_center(ax, xc, yc);
-                            float      xr = (old_x.max - old_x.min) * 0.375f;
-                            float      yr = (old_y.max - old_y.min) * 0.375f;
-                            AxisLimits new_x{xc - xr, xc + xr};
-                            AxisLimits new_y{yc - yr, yc + yr};
+                            const auto [new_x, new_y] = zoom_about_data_center(*ax, 0.75);
                             undoable_set_limits(&undo_mgr, *ax, new_x, new_y);
                         }
                     }});
@@ -386,7 +340,7 @@ std::vector<CommandDescriptor> make_view_commands(CommandContext& ctx)
                     "",
                     "View",
                     0,
-                    [&, compute_data_center]()
+                    [&, zoom_about_data_center]()
                     {
                         if (auto* ax3d = dynamic_cast<Axes3D*>(input_handler.active_axes_base()))
                         {
@@ -394,15 +348,7 @@ std::vector<CommandDescriptor> make_view_commands(CommandContext& ctx)
                         }
                         else if (auto* ax = input_handler.active_axes())
                         {
-                            auto  old_x = ax->x_limits();
-                            auto  old_y = ax->y_limits();
-                            float xc    = (old_x.min + old_x.max) * 0.5f;
-                            float yc    = (old_y.min + old_y.max) * 0.5f;
-                            compute_data_center(ax, xc, yc);
-                            float      xr = (old_x.max - old_x.min) * 0.625f;
-                            float      yr = (old_y.max - old_y.min) * 0.625f;
-                            AxisLimits new_x{xc - xr, xc + xr};
-                            AxisLimits new_y{yc - yr, yc + yr};
+                            const auto [new_x, new_y] = zoom_about_data_center(*ax, 1.25);
                             undoable_set_limits(&undo_mgr, *ax, new_x, new_y);
                         }
                     }});

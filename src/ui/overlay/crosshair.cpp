@@ -2,6 +2,7 @@
 
     #include "crosshair.hpp"
 
+    #include <algorithm>
     #include <cfloat>
     #include <cmath>
     #include <format>
@@ -77,11 +78,12 @@ static void draw_dashed_line(ImDrawList* dl,
 
 void Crosshair::draw(const CursorReadout& cursor,
                      const Rect&          viewport,
-                     float /*xlim_min*/,
-                     float /*xlim_max*/,
-                     float /*ylim_min*/,
-                     float /*ylim_max*/,
-                     ImDrawList* dl)
+                     float                xlim_min,
+                     float                xlim_max,
+                     float                ylim_min,
+                     float                ylim_max,
+                     ImDrawList*          dl,
+                     const Axes*          axes)
 {
     // Animate opacity
     float target = (enabled_ && cursor.valid) ? 1.0f : 0.0f;
@@ -175,9 +177,16 @@ void Crosshair::draw(const CursorReadout& cursor,
     ImU32 label_text = ImGui::ColorConvertFloat4ToU32(
         ImVec4(colors.text_primary.r, colors.text_primary.g, colors.text_primary.b, opacity_));
 
-    // Large values (epoch timestamps, big offsets) use fixed notation.
-    const std::string x_label = ui::format_readout_value(cursor.data_x, 4);
-    const std::string y_label = ui::format_readout_value(cursor.data_y, 4);
+    // Compact labels: just the digits one pixel resolves, never wider than the
+    // label box allows (epoch-sized values switch to scientific notation).
+    const double x_res =
+        axes ? crosshair_mapping::pixel_resolution_x(*axes, cursor.screen_x)
+             : std::abs(static_cast<double>(xlim_max) - xlim_min) / std::max(1.0f, viewport.w);
+    const double y_res =
+        axes ? crosshair_mapping::pixel_resolution_y(*axes, cursor.screen_y)
+             : std::abs(static_cast<double>(ylim_max) - ylim_min) / std::max(1.0f, viewport.h);
+    const std::string x_label = ui::format_compact_value(cursor.data_x, x_res);
+    const std::string y_label = ui::format_compact_value(cursor.data_y, y_res);
 
     ImFont*         font      = ImGui::GetFont();
     constexpr float label_pad = 3.0f;
@@ -308,7 +317,9 @@ void Crosshair::draw_all_axes(const CursorReadout& cursor,
                              1.0f);
 
             // X label at bottom
-            const std::string x_label = ui::format_readout_value(data_x, 4);
+            const std::string x_label =
+                ui::format_compact_value(data_x,
+                                         crosshair_mapping::pixel_resolution_x(*axes_ptr, sx));
             const FittedLabel fl =
                 fit_label(font, font->LegacySize * 0.85f, x_label, (vx1 - vx0) - label_pad * 2.0f);
             const ImVec2 sz = fl.size;
@@ -344,7 +355,9 @@ void Crosshair::draw_all_axes(const CursorReadout& cursor,
                                  1.0f);
 
                 // Y label inside left edge of viewport
-                const std::string y_label = ui::format_readout_value(data_y, 4);
+                const std::string y_label =
+                    ui::format_compact_value(data_y,
+                                             crosshair_mapping::pixel_resolution_y(*axes_ptr, cy));
                 const float       lx2     = vx0 + 4.0f;
                 const FittedLabel fl =
                     fit_label(font, font->LegacySize * 0.85f, y_label, vx1 - lx2 - label_pad);
@@ -390,7 +403,9 @@ void Crosshair::draw_all_axes(const CursorReadout& cursor,
                                  1.0f);
 
                 // Y label showing the same data-Y value
-                const std::string y_label = ui::format_readout_value(data_y, 4);
+                const std::string y_label =
+                    ui::format_compact_value(data_y,
+                                             crosshair_mapping::pixel_resolution_y(*axes_ptr, sy));
                 const float       lx2     = vx0 + 4.0f;
                 const FittedLabel fl =
                     fit_label(font, font->LegacySize * 0.85f, y_label, vx1 - lx2 - label_pad);

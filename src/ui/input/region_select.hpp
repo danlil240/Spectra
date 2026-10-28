@@ -5,7 +5,10 @@
     #include <cstddef>
     #include <spectra/color.hpp>
     #include <spectra/series.hpp>
+    #include <string>
     #include <vector>
+
+    #include "ui/overlay/axis_mapping.hpp"
 
 struct ImFont;
 
@@ -21,24 +24,31 @@ class Axes;
 class Figure;
 class TransitionEngine;
 
-// Statistics computed for a selected region of data points.
+// Statistics computed for a selected region of data points.  Values are
+// absolute data coordinates (series x_offset/y_offset included), in double so
+// epoch timestamps and 1e7 + small data keep their precision.
 struct RegionStatistics
 {
     size_t point_count = 0;
-    float  x_min = 0.0f, x_max = 0.0f;
-    float  y_min = 0.0f, y_max = 0.0f;
-    float  y_mean = 0.0f;
-    float  y_std  = 0.0f;
+    double x_min = 0.0, x_max = 0.0;
+    double y_min = 0.0, y_max = 0.0;
+    double y_mean = 0.0;
+    double y_std  = 0.0;
 };
 
-// A point captured inside a region selection.
+// A point captured inside a region selection (absolute data coordinates).
 struct SelectedPoint
 {
     const Series* series = nullptr;
     size_t        index  = 0;
-    float         data_x = 0.0f;
-    float         data_y = 0.0f;
+    double        data_x = 0.0;
+    double        data_y = 0.0;
 };
+
+// Format a statistic for the region toolbar: 4 significant digits of the
+// spread, plus enough leading digits that a value such as 1e7 + 0.5 or an
+// epoch timestamp is not rounded to "1e+07".
+std::string format_region_value(double value, double spread);
 
 // Region selection: shift-drag to select a rectangular region on the plot.
 // Shows a floating mini-toolbar with point count and basic statistics.
@@ -57,23 +67,12 @@ class RegionSelect
 
     // ─── Selection lifecycle ────────────────────────────────────────────
 
-    // Begin a new selection at the given screen position.
-    void begin(double      screen_x,
-               double      screen_y,
-               const Rect& viewport,
-               float       xlim_min,
-               float       xlim_max,
-               float       ylim_min,
-               float       ylim_max);
+    // Begin a new selection at the given screen position.  @p map is the
+    // screen <-> data mapping of the axes (viewport, limits, axis scales).
+    void begin(double screen_x, double screen_y, const AxisMapping& map);
 
     // Update the selection end point (while dragging).
-    void update_drag(double      screen_x,
-                     double      screen_y,
-                     const Rect& viewport,
-                     float       xlim_min,
-                     float       xlim_max,
-                     float       ylim_min,
-                     float       ylim_max);
+    void update_drag(double screen_x, double screen_y, const AxisMapping& map);
 
     // Finish the selection (mouse release). Computes statistics.
     void finish(const Axes* axes);
@@ -87,10 +86,10 @@ class RegionSelect
     bool has_selection() const { return has_selection_; }
 
     // Data-coordinate bounds of the selection rectangle.
-    float data_x_min() const { return data_x0_ < data_x1_ ? data_x0_ : data_x1_; }
-    float data_x_max() const { return data_x0_ > data_x1_ ? data_x0_ : data_x1_; }
-    float data_y_min() const { return data_y0_ < data_y1_ ? data_y0_ : data_y1_; }
-    float data_y_max() const { return data_y0_ > data_y1_ ? data_y0_ : data_y1_; }
+    double data_x_min() const { return data_x0_ < data_x1_ ? data_x0_ : data_x1_; }
+    double data_x_max() const { return data_x0_ > data_x1_ ? data_x0_ : data_x1_; }
+    double data_y_min() const { return data_y0_ < data_y1_ ? data_y0_ : data_y1_; }
+    double data_y_max() const { return data_y0_ > data_y1_ ? data_y0_ : data_y1_; }
 
     const RegionStatistics&           statistics() const { return stats_; }
     const std::vector<SelectedPoint>& selected_points() const { return selected_points_; }
@@ -99,13 +98,7 @@ class RegionSelect
 
     // Draw the selection rectangle and floating mini-toolbar.
     // Call inside ImGui frame, after build_ui.
-    void draw(const Rect& viewport,
-              float       xlim_min,
-              float       xlim_max,
-              float       ylim_min,
-              float       ylim_max,
-              float       window_width,
-              float       window_height);
+    void draw(const AxisMapping& map, float window_width, float window_height);
 
     // ─── Configuration ──────────────────────────────────────────────────
 
@@ -122,28 +115,6 @@ class RegionSelect
                            float window_width,
                            float window_height);
 
-    // Convert data coordinates to screen coordinates
-    static void data_to_screen(float       data_x,
-                               float       data_y,
-                               const Rect& viewport,
-                               float       xlim_min,
-                               float       xlim_max,
-                               float       ylim_min,
-                               float       ylim_max,
-                               float&      screen_x,
-                               float&      screen_y);
-
-    // Convert screen coordinates to data coordinates
-    static void screen_to_data(double      screen_x,
-                               double      screen_y,
-                               const Rect& viewport,
-                               float       xlim_min,
-                               float       xlim_max,
-                               float       ylim_min,
-                               float       ylim_max,
-                               float&      data_x,
-                               float&      data_y);
-
     // Collect all data points inside the selection rectangle
     void collect_points(const Axes* axes);
 
@@ -153,9 +124,9 @@ class RegionSelect
     bool dragging_      = false;
     bool has_selection_ = false;
 
-    // Selection rectangle in data coordinates
-    float data_x0_ = 0.0f, data_y0_ = 0.0f;
-    float data_x1_ = 0.0f, data_y1_ = 0.0f;
+    // Selection rectangle in absolute data coordinates
+    double data_x0_ = 0.0, data_y0_ = 0.0;
+    double data_x1_ = 0.0, data_y1_ = 0.0;
 
     // Cached screen coordinates of drag start (for drawing during drag)
     double screen_start_x_ = 0.0;

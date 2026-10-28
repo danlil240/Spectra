@@ -3,23 +3,36 @@
 #include <algorithm>
 #include <format>
 #include <limits>
+#include <optional>
 #include <vector>
 #include <spectra/axes.hpp>
 #include <spectra/chunked_series.hpp>
+#include <spectra/custom_series.hpp>
 #include <spectra/event_bus.hpp>
 #include <spectra/series_shapes.hpp>
 #include <spectra/series_stats.hpp>
 
 #include "colorbar_layout.hpp"
+#include "core/axes_data_extent.hpp"
 #include "core/axis_scale.hpp"
 #include "core/axis_ticks.hpp"
+#include "core/datetime_ticks.hpp"
+#include "io/text_metrics.hpp"
 
 namespace spectra
 {
 
-void AxesBase::set_viewport(const Rect& r)
+void AxesBase::set_viewport(const Rect& r, float outside_legend_width)
 {
-    viewport_ = colorbar_layout::wants_colorbar(*this) ? colorbar_layout::shrink_cell(r) : r;
+    Rect cell            = r;
+    outside_legend_area_ = Rect{0.0f, 0.0f, 0.0f, 0.0f};
+    if (outside_legend_width > 0.0f && cell.w > 0.0f)
+    {
+        const float w        = std::min(outside_legend_width, cell.w * 0.5f);
+        outside_legend_area_ = Rect{cell.x + cell.w - w, cell.y, w, cell.h};
+        cell.w -= w;
+    }
+    viewport_ = colorbar_layout::wants_colorbar(*this) ? colorbar_layout::shrink_cell(cell) : cell;
 }
 
 // --- Safe series removal ---
@@ -194,6 +207,17 @@ HistogramSeries& Axes::histogram(std::span<const float> values, int bins)
 BarSeries& Axes::bar(std::span<const float> positions, std::span<const float> heights)
 {
     return add_series<BarSeries>(positions, heights);
+}
+
+BarSeries& Axes::bar(const std::vector<std::string>& categories, std::span<const float> heights)
+{
+    const size_t       n = std::min(categories.size(), heights.size());
+    std::vector<float> positions(n);
+    for (size_t i = 0; i < n; ++i)
+        positions[i] = static_cast<float>(i);
+    auto& s = add_series<BarSeries>(std::span<const float>(positions), heights.first(n));
+    s.categories(std::vector<std::string>(categories.begin(), categories.begin() + n));
+    return s;
 }
 
 BandSeries& Axes::band(std::span<const float> x,
@@ -452,13 +476,18 @@ static void consume_chunked_axis(const ChunkedLineSeries& cs,
 
 // Compute the raw (unpadded) data extent across all series.  Every autoscale
 // mode shares this so they all cover the same series types.
+// `zoom_center` selects the view.zoom_in/out variant (see data_center()):
+// visible series only, plus plugin series with host-computed bounds.
 static void data_extent_raw(const std::vector<std::unique_ptr<Series>>& series,
                             AxisExtent&                                 x,
-                            AxisExtent&                                 y)
+                            AxisExtent&                                 y,
+                            bool                                        zoom_center = false)
 {
     for (const auto& s : series)
     {
-        if (s->excluded_from_autoscale())
+        if (!s || s->excluded_from_autoscale())
+            continue;
+        if (zoom_center && !s->visible())
             continue;
 
         // Per-series double offsets: logical x = x_offset + stored float
@@ -508,7 +537,38 @@ static void data_extent_raw(const std::vector<std::unique_ptr<Series>>& series,
             consume_chunked_axis(*cs, false, xoff, x);
             consume_chunked_axis(*cs, true, yoff, y);
         }
+        if (zoom_center)
+        {
+            if (auto* cu = dynamic_cast<const CustomSeries*>(s.get()); cu && cu->has_bounds())
+            {
+                consume_finite_value(cu->bounds_x_min(), x, xoff);
+                consume_finite_value(cu->bounds_x_max(), x, xoff);
+                consume_finite_value(cu->bounds_y_min(), y, yoff);
+                consume_finite_value(cu->bounds_y_max(), y, yoff);
+            }
+        }
     }
+}
+
+bool detail::data_center(const Axes& axes, double& cx, double& cy)
+{
+    AxisExtent x;
+    AxisExtent y;
+    data_extent_raw(axes.series(), x, y, true);
+    if (!x.valid() || !y.valid())
+        return false;
+    // Centre in axis space so a log axis zooms about the geometric middle of
+    // the data it actually draws (only positive values exist on a log axis).
+    auto mid = [](ScaleType s, const AxisExtent& e)
+    {
+        if (is_log_scale(s) && e.has_positive())
+            return from_axis_space(s,
+                                   (to_axis_space(s, e.min_pos) + to_axis_space(s, e.max)) * 0.5);
+        return (e.min + e.max) * 0.5;
+    };
+    cx = mid(axes.xscale(), x);
+    cy = mid(axes.yscale(), y);
+    return std::isfinite(cx) && std::isfinite(cy);
 }
 
 // Turn a raw extent into axis limits.  `pad` adds 5% of the span on each side
@@ -1032,24 +1092,37 @@ static std::string format_tick_value(double value, double spacing)
     return std::format("{:.{}e}", value, total_sig_digits - 1);
 }
 
-// Label for base^e on a log axis: plain numbers near 1, compact exponent
-// form ("1e-6", "2^20") for far-away decades.
-static std::string format_log_tick(double base, int e)
+// Plain-number range of log tick labels, as exponents of the base:
+// 0.0001 .. 10000 on Log10, 1/16 .. 65536 on Log2.
+static bool log_tick_plain(double base, int e)
 {
+    return base == 10.0 ? (e >= -4 && e <= 4) : (e >= -4 && e <= 16);
+}
+
+static std::string log_tick_superscript(int e)
+{
+    static constexpr const char* DIGITS[] = {"⁰", "¹", "²", "³", "⁴", "⁵", "⁶", "⁷", "⁸", "⁹"};
+    std::string out;
+    if (e < 0)
+        out += "⁻";
+    for (char c : std::to_string(std::abs(e)))
+        out += DIGITS[c - '0'];
+    return out;
+}
+
+// Label for base^e on a log axis.  `plain` is decided once per axis (every
+// labelled power inside the plain range) so one axis never mixes "10000"
+// with an exponent form: either all plain numbers ("0.01", "1", "100") or all
+// powers ("10⁻⁶", "10⁰", "10⁶" / "2⁻¹⁸", "2⁰").
+static std::string format_log_tick(double base, int e, bool plain)
+{
+    if (!plain)
+        return (base == 10.0 ? "10" : "2") + log_tick_superscript(e);
     const double v = std::pow(base, static_cast<double>(e));
-    if (base == 10.0)
-    {
-        if (e >= 0 && e <= 5)
-            return std::format("{:.0f}", v);
-        if (e < 0 && e >= -4)
-            return std::format("{:.{}f}", v, -e);
-        return std::format("1e{}", e);
-    }
-    if (e >= 0 && e <= 16)
+    if (e >= 0)
         return std::format("{:.0f}", v);
-    if (e < 0 && e >= -4)
-        return std::format("{:.{}f}", v, -e);
-    return std::format("2^{}", e);
+    // 10^-e and 2^-e need exactly -e decimals.
+    return std::format("{:.{}f}", v, -e);
 }
 
 // Logarithmic ticks at integer powers of `base` within [lo, hi] (both > 0).
@@ -1109,41 +1182,14 @@ static TickResult generate_log_ticks(double                   lo,
         if (rem != 0)
             first += stride - rem;
     }
+    bool plain = true;
+    for (int e = first; e <= e_hi; e += stride)
+        plain = plain && log_tick_plain(base, e);
     for (int e = first; e <= e_hi; e += stride)
     {
         result.positions.push_back(std::pow(base, static_cast<double>(e)));
-        result.labels.push_back(format_log_tick(base, e));
+        result.labels.push_back(format_log_tick(base, e, plain));
     }
-    return result;
-}
-
-// Sqrt-scale ticks: evenly spaced in squared space (signed, so negative
-// limits stay monotonic), placed at their square roots and labelled with the
-// coordinate they are actually drawn at.
-static TickResult generate_sqrt_ticks(double lo, double hi, const LinearTickOptions& opt)
-{
-    auto signed_sq   = [](double v) { return v < 0.0 ? -v * v : v * v; };
-    auto signed_sqrt = [](double v) { return v < 0.0 ? -std::sqrt(-v) : std::sqrt(v); };
-
-    const TickResult inner = generate_linear_ticks(signed_sq(lo), signed_sq(hi), opt);
-    TickResult       result;
-    result.positions.reserve(inner.positions.size());
-    for (double p : inner.positions)
-        result.positions.push_back(signed_sqrt(p));
-
-    double gap = std::numeric_limits<double>::max();
-    for (size_t i = 1; i < result.positions.size(); ++i)
-    {
-        const double d = std::abs(result.positions[i] - result.positions[i - 1]);
-        if (d > 0.0)
-            gap = std::min(gap, d);
-    }
-    if (gap == std::numeric_limits<double>::max())
-        gap = (hi - lo) > 0.0 ? (hi - lo) : 1.0;
-
-    result.labels.reserve(result.positions.size());
-    for (double p : result.positions)
-        result.labels.push_back(format_tick_value(p, gap));
     return result;
 }
 
@@ -1195,6 +1241,83 @@ static std::vector<double> category_positions(const std::vector<std::unique_ptr<
     return out;
 }
 
+// One tick per named bar category (BarSeries::categories()) along one axis,
+// labelled with the category name.  nullopt when no visible bar series on that
+// axis has names.  Names that would collide are thinned to every k-th one.
+static std::optional<TickResult> named_category_ticks(
+    const std::vector<std::unique_ptr<Series>>& series,
+    bool                                        along_x,
+    AxisLimits                                  lim,
+    double                                      axis_px)
+{
+    std::vector<std::pair<double, std::string>> cats;
+    for (const auto& s : series)
+    {
+        const auto* bar = dynamic_cast<const BarSeries*>(s.get());
+        if (!bar || !bar->visible() || bar->categories().empty()
+            || (bar->orientation() == BarOrientation::Vertical) != along_x)
+            continue;
+        const auto& pos   = bar->bar_positions();
+        const auto& names = bar->categories();
+        for (size_t i = 0; i < pos.size() && i < names.size(); ++i)
+            cats.emplace_back(
+                static_cast<double>(pos[i]) + (along_x ? bar->x_offset() : bar->y_offset()),
+                names[i]);
+    }
+    if (cats.empty())
+        return std::nullopt;
+    std::stable_sort(cats.begin(),
+                     cats.end(),
+                     [](const auto& a, const auto& b) { return a.first < b.first; });
+    cats.erase(std::unique(cats.begin(),
+                           cats.end(),
+                           [](const auto& a, const auto& b) { return a.first == b.first; }),
+               cats.end());
+
+    double lo = lim.min;
+    double hi = lim.max;
+    if (hi < lo)
+        std::swap(lo, hi);
+    const double tol = (hi - lo) * 1e-9;
+    TickResult   all;
+    for (const auto& [p, name] : cats)
+    {
+        if (p >= lo - tol && p <= hi + tol)
+        {
+            all.positions.push_back(p);
+            all.labels.push_back(name);
+        }
+    }
+    if (all.positions.size() < 2 || !(hi > lo))
+        return all;
+
+    // Thin out names that would overlap: x labels sit side by side, y labels
+    // are stacked one text row apart.
+    double gap = std::numeric_limits<double>::max();
+    for (size_t i = 1; i < all.positions.size(); ++i)
+        gap = std::min(gap, all.positions[i] - all.positions[i - 1]);
+    const double px     = axis_px > 1.0 ? axis_px : DEFAULT_TICK_AXIS_PX;
+    const double gap_px = gap * px / (hi - lo);
+    double       need   = CATEGORY_ROW_PX;
+    if (along_x)
+    {
+        float w = 0.0f;
+        for (const auto& l : all.labels)
+            w = std::max(w, inter_text_width(l, TICK_LABEL_FONT_PX));
+        need = static_cast<double>(w) + TICK_LABEL_GAP_PX;
+    }
+    if (gap_px >= need || !(gap_px > 0.0))
+        return all;
+    const auto stride = static_cast<size_t>(std::ceil(need / gap_px));
+    TickResult thinned;
+    for (size_t i = 0; i < all.positions.size(); i += stride)
+    {
+        thinned.positions.push_back(all.positions[i]);
+        thinned.labels.push_back(all.labels[i]);
+    }
+    return thinned;
+}
+
 static LinearTickOptions tick_options(const std::vector<std::unique_ptr<Series>>& series,
                                       bool                                        along_x,
                                       double                                      axis_px)
@@ -1207,16 +1330,25 @@ static LinearTickOptions tick_options(const std::vector<std::unique_ptr<Series>>
     return opt;
 }
 
+// Sqrt axes are drawn untransformed (see core/axis_scale.hpp), so their ticks
+// are the ordinary linear ticks: evenly spaced nice values that cover the
+// whole axis.  (Placing ticks evenly in squared space bunched them at the top
+// and left a large gap near zero on the linearly drawn axis.)
 TickResult Axes::compute_x_ticks() const
 {
     auto       lim = x_limits();
     const auto opt = tick_options(series_, true, viewport_.w);
+    if (xscale_ == ScaleType::Linear)
+    {
+        if (auto named = named_category_ticks(series_, true, lim, viewport_.w))
+            return std::move(*named);
+    }
     if (is_log_scale(xscale_))
     {
         return generate_log_ticks(lim.min, lim.max, log_scale_base(xscale_), opt);
     }
-    if (xscale_ == ScaleType::Sqrt)
-        return generate_sqrt_ticks(lim.min, lim.max, opt);
+    if (x_datetime_)
+        return generate_datetime_ticks(lim.min, lim.max, opt);
     return generate_linear_ticks(lim.min, lim.max, opt);
 }
 
@@ -1224,12 +1356,17 @@ TickResult Axes::compute_y_ticks() const
 {
     auto       lim = y_limits();
     const auto opt = tick_options(series_, false, viewport_.h);
+    if (yscale_ == ScaleType::Linear)
+    {
+        if (auto named = named_category_ticks(series_, false, lim, viewport_.h))
+            return std::move(*named);
+    }
     if (is_log_scale(yscale_))
     {
         return generate_log_ticks(lim.min, lim.max, log_scale_base(yscale_), opt);
     }
-    if (yscale_ == ScaleType::Sqrt)
-        return generate_sqrt_ticks(lim.min, lim.max, opt);
+    if (y_datetime_)
+        return generate_datetime_ticks(lim.min, lim.max, opt);
     return generate_linear_ticks(lim.min, lim.max, opt);
 }
 

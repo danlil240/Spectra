@@ -3,6 +3,7 @@
 #include <spectra/logger.hpp>
 #include <spectra/window_defaults.hpp>
 
+#include "../ipc/annotation_state.hpp"
 #include "../ipc/codec.hpp"
 
 #include <algorithm>
@@ -17,24 +18,37 @@
 namespace spectra::daemon
 {
 
+// "annotation" property: series_index value that always appends.
+static constexpr uint32_t ANNOTATION_APPEND = 0xFFFFFFFFu;
+
 // ─── Helper: apply a single property update to FigureModel ─────────────────
 // Shared by handle_req_update_property and handle_req_update_batch.
-static void apply_property_update(FigureModel&           fig_model,
-                                  uint64_t               figure_id,
-                                  uint32_t               axes_index,
-                                  uint32_t               series_index,
-                                  const std::string&     property,
-                                  float                  f1,
-                                  float                  f2,
-                                  float                  f3,
-                                  float                  f4,
-                                  bool                   bool_val,
-                                  const std::string&     str_val,
-                                  ipc::StateDiffPayload& diff)
+// Returns false when the update addressed something that does not exist
+// (currently only checked for the annotation properties).
+static bool apply_property_update(FigureModel&              fig_model,
+                                  uint64_t                  figure_id,
+                                  uint32_t                  axes_index,
+                                  uint32_t                  series_index,
+                                  const std::string&        property,
+                                  float                     f1,
+                                  float                     f2,
+                                  float                     f3,
+                                  float                     f4,
+                                  bool                      bool_val,
+                                  const std::string&        str_val,
+                                  const std::vector<float>& data,
+                                  ipc::StateDiffPayload&    diff)
 {
     if (property == "color")
     {
         diff.ops.push_back(fig_model.set_series_color(figure_id, series_index, f1, f2, f3, f4));
+    }
+    else if (property == "color_letter")
+    {
+        // Theme-aware MATLAB colour letter ('r', 'k', ...), e.g. from Python.
+        if (str_val.size() == 1)
+            diff.ops.push_back(
+                fig_model.set_series_color_letter(figure_id, series_index, str_val[0]));
     }
     else if (property == "xlim")
     {
@@ -112,6 +126,33 @@ static void apply_property_update(FigureModel&           fig_model,
         ks.max_val = f3;
         fig_model.add_knob(ks);
     }
+    else if (property == "annotation")
+    {
+        // 2D text annotation: str_val = text, data = ipc::pack_annotation()
+        // floats.  series_index addresses an existing annotation of the axes;
+        // ANNOTATION_APPEND (or any index == count) appends a new one.
+        ipc::SnapshotAnnotationState a;
+        if (!ipc::unpack_annotation(data, str_val, a))
+            return false;
+        ipc::DiffOp op;
+        bool        ok = false;
+        if (series_index == ANNOTATION_APPEND
+            || series_index == fig_model.annotation_count(figure_id, axes_index))
+            ok = fig_model.add_annotation(figure_id, axes_index, a, &op);
+        else
+            ok = fig_model.set_annotation(figure_id, axes_index, series_index, a, &op);
+        if (!ok)
+            return false;
+        diff.ops.push_back(std::move(op));
+    }
+    else if (property == "clear_annotations")
+    {
+        ipc::DiffOp op;
+        if (!fig_model.clear_annotations(figure_id, axes_index, &op))
+            return false;
+        diff.ops.push_back(std::move(op));
+    }
+    return true;
 }
 
 // ─── Handlers ──────────────────────────────────────────────────────────────
@@ -348,23 +389,11 @@ HandleResult handle_req_update_property(DaemonContext&      ctx,
     auto                  base_rev = ctx.fig_model.revision();
 
     // Check for unknown property before applying
-    static const char* known_props[] = {"color",
-                                        "xlim",
-                                        "ylim",
-                                        "zlim",
-                                        "title",
-                                        "grid",
-                                        "visible",
-                                        "line_width",
-                                        "marker_size",
-                                        "opacity",
-                                        "xlabel",
-                                        "ylabel",
-                                        "axes_title",
-                                        "label",
-                                        "legend",
-                                        "legend_visible",
-                                        "add_knob"};
+    static const char* known_props[] = {
+        "color",   "color_letter",   "xlim",     "ylim",       "zlim",
+        "title",   "grid",           "visible",  "line_width", "marker_size",
+        "opacity", "xlabel",         "ylabel",   "axes_title", "label",
+        "legend",  "legend_visible", "add_knob", "annotation", "clear_annotations"};
     bool               known         = false;
     for (const auto* p : known_props)
     {
@@ -384,18 +413,27 @@ HandleResult handle_req_update_property(DaemonContext&      ctx,
         return HandleResult::Continue;
     }
 
-    apply_property_update(ctx.fig_model,
-                          req->figure_id,
-                          req->axes_index,
-                          req->series_index,
-                          req->property,
-                          req->f1,
-                          req->f2,
-                          req->f3,
-                          req->f4,
-                          req->bool_val,
-                          req->str_val,
-                          diff);
+    if (!apply_property_update(ctx.fig_model,
+                               req->figure_id,
+                               req->axes_index,
+                               req->series_index,
+                               req->property,
+                               req->f1,
+                               req->f2,
+                               req->f3,
+                               req->f4,
+                               req->bool_val,
+                               req->str_val,
+                               req->data,
+                               diff))
+    {
+        send_resp_err(*slot.conn,
+                      ctx.graph.session_id(),
+                      msg.header.request_id,
+                      404,
+                      "Bad target for property: " + req->property);
+        return HandleResult::Continue;
+    }
 
     // Broadcast diff to agents
     if (!diff.ops.empty())
@@ -639,6 +677,7 @@ HandleResult handle_req_update_batch(DaemonContext& ctx, ClientSlot& slot, const
                               upd.f4,
                               upd.bool_val,
                               upd.str_val,
+                              upd.data,
                               diff);
     }
 

@@ -19,6 +19,48 @@ void PendingSeriesDataDeleter::operator()(PendingSeriesData* ptr) const
 
 Series::~Series() = default;
 
+// Default double-precision streaming hooks: store relative to the current
+// offsets through the float forms.
+void Series::append_f64(double x, double y)
+{
+    append(static_cast<float>(x - x_offset_), static_cast<float>(y - y_offset_));
+}
+
+size_t Series::erase_before_f64(double x_threshold)
+{
+    return erase_before(static_cast<float>(x_threshold - x_offset_));
+}
+
+size_t Series::erase_after_f64(double x_threshold)
+{
+    return erase_after(static_cast<float>(x_threshold - x_offset_));
+}
+
+namespace
+{
+// Float storage for an absolute (double) streamed point.  The first point
+// into an empty axis without an origin picks one (detail::choose_stream_origin).
+struct StoredPoint
+{
+    float x;
+    float y;
+};
+
+StoredPoint to_stored_point(double  x,
+                            double  y,
+                            bool    x_empty,
+                            bool    y_empty,
+                            double& x_offset,
+                            double& y_offset)
+{
+    if (x_empty && x_offset == 0.0)
+        x_offset = detail::choose_stream_origin(x);
+    if (y_empty && y_offset == 0.0)
+        y_offset = detail::choose_stream_origin(y);
+    return {static_cast<float>(x - x_offset), static_cast<float>(y - y_offset)};
+}
+}   // namespace
+
 Series::Series(const Series& other)
     : label_(other.label_), color_(other.color_), auto_color_index_(other.auto_color_index_),
       color_letter_(other.color_letter_), style_(other.style_), visible_(other.visible_),
@@ -234,6 +276,37 @@ void LineSeries::set_y_f64(std::span<const double> y)
     dirty_    = true;
 }
 
+void LineSeries::append_f64(double x, double y)
+{
+    if (thread_safe_ && pending_)
+    {
+        pending_->append_f64(x, y);
+        return;
+    }
+    const StoredPoint p = to_stored_point(x, y, x_.empty(), y_.empty(), x_offset_, y_offset_);
+    append(p.x, p.y);
+}
+
+size_t LineSeries::erase_before_f64(double x_threshold)
+{
+    if (thread_safe_ && pending_)
+    {
+        pending_->erase_before(x_threshold, /*absolute=*/true);
+        return 0;   // Actual count available after commit.
+    }
+    return erase_before(static_cast<float>(x_threshold - x_offset_));
+}
+
+size_t LineSeries::erase_after_f64(double x_threshold)
+{
+    if (thread_safe_ && pending_)
+    {
+        pending_->erase_after(x_threshold, /*absolute=*/true);
+        return 0;
+    }
+    return erase_after(static_cast<float>(x_threshold - x_offset_));
+}
+
 void LineSeries::append(float x, float y)
 {
     if (thread_safe_ && pending_)
@@ -401,6 +474,17 @@ void ScatterSeries::set_y_f64(std::span<const double> y)
     y_        = std::move(yf);
     y_offset_ = origin;
     dirty_    = true;
+}
+
+void ScatterSeries::append_f64(double x, double y)
+{
+    if (thread_safe_ && pending_)
+    {
+        pending_->append_f64(x, y);
+        return;
+    }
+    const StoredPoint p = to_stored_point(x, y, x_.empty(), y_.empty(), x_offset_, y_offset_);
+    append(p.x, p.y);
 }
 
 void ScatterSeries::append(float x, float y)

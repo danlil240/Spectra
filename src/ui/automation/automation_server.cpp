@@ -17,6 +17,8 @@
 #ifdef SPECTRA_USE_GLFW
     #define GLFW_INCLUDE_NONE
     #include <GLFW/glfw3.h>
+#elif defined(SPECTRA_USE_SDL3)
+    #include <SDL3/SDL.h>
 #endif
 
 #ifndef _WIN32
@@ -35,6 +37,24 @@
 
 namespace spectra
 {
+
+namespace
+{
+
+// Wakes the UI thread from WindowManager::wait_events_timeout().  Both calls
+// are documented as safe from any thread.
+void wake_main_loop()
+{
+#ifdef SPECTRA_USE_GLFW
+    glfwPostEmptyEvent();
+#elif defined(SPECTRA_USE_SDL3)
+    SDL_Event ev{};
+    ev.type = SDL_EVENT_USER;
+    SDL_PushEvent(&ev);
+#endif
+}
+
+}   // namespace
 
 // ─── AutomationServer lifecycle ──────────────────────────────────────────────
 
@@ -223,10 +243,8 @@ std::string AutomationServer::invoke(const std::string&        method,
         pending_.push_back(std::move(req));
     }
 
-    // Wake the main thread if it's sleeping in glfwWaitEventsTimeout().
-    #ifdef SPECTRA_USE_GLFW
-    glfwPostEmptyEvent();
-    #endif
+    // Wake the main thread if it's sleeping in WindowManager::wait_events_timeout().
+    wake_main_loop();
 
     const auto deadline = std::chrono::steady_clock::now() + timeout;
     while (running_.load(std::memory_order_relaxed) && std::chrono::steady_clock::now() < deadline)
@@ -357,10 +375,8 @@ void AutomationServer::handle_client(int client_fd)
                 pending_.push_back(std::move(req));
             }
 
-            // Wake the main thread if it's sleeping in glfwWaitEventsTimeout().
-    #ifdef SPECTRA_USE_GLFW
-            glfwPostEmptyEvent();
-    #endif
+            // Wake the main thread if it's sleeping in WindowManager::wait_events_timeout().
+            wake_main_loop();
 
             // Wait for main thread to execute (max 30s)
             auto        deadline = std::chrono::steady_clock::now() + std::chrono::seconds(30);

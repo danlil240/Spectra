@@ -100,6 +100,7 @@ set(SPECTRA_UNIT_TESTS
     test_bugfix_core_axes
     test_axis_scale
     test_crosshair_mapping
+    test_log_overlays
     test_bugfix_core_series
     test_bugfix_core_stats
     test_bugfix_daemon_agent
@@ -127,6 +128,8 @@ set(SPECTRA_UNIT_TESTS
     test_decimation
     test_filters
     test_tick_generation
+    test_axes_layout_fit
+    test_axes_format_transport
     test_series_visibility
     test_ui_icons
     test_svg_export
@@ -167,8 +170,12 @@ set(SPECTRA_UNIT_TESTS
     test_palette_resolution
     test_palette_visibility
     test_window_agent_state
+    test_multiproc_snapshot
     test_format_letter_colors
+    test_color_source_persistence
     test_settings_store
+    test_json_key
+    test_r2b_followups
     test_settings_appearance
     test_settings_layout
     test_phase2_integration
@@ -186,6 +193,8 @@ set(SPECTRA_UNIT_TESTS
     test_shell_menu_bar
     test_shell_nav_rail
     test_shell_app_shell
+    test_ui_shell_fixes
+    test_ui_shell_welcome_gpu
     test_plugin_api
     test_workspace_v3
     test_phase3_integration
@@ -193,6 +202,8 @@ set(SPECTRA_UNIT_TESTS
     test_3d_pipelines
     test_camera
     test_axes3d_fit
+    test_axes3d_render_helpers
+    test_3d_lighting
     test_shape3d_first_frame
     test_shape2d_first_frame
     # test_axes3d  # Not a proper GTEST file, uses plain functions with assert
@@ -280,7 +291,12 @@ set(SPECTRA_UNIT_TESTS
     test_app_init_failure
     test_export_viewport
     test_headless_export_text
+    test_text_scaling
     test_window_defaults
+    test_text_annotation_ipc
+    test_text_annotation_persist
+    test_window_placement
+    test_embed_annotations_c
 )
 
 # Mock transform plugin — shared library loaded by test_plugin_transforms
@@ -384,9 +400,13 @@ set(SPECTRA_GPU_TESTS
     test_embed_surface
     test_easy_embed
     test_headless_export_text
+    test_text_scaling
     test_shape3d_first_frame
     test_shape2d_first_frame
     test_custom_series_gpu
+    test_3d_lighting
+    test_embed_annotations_c
+    test_ui_shell_welcome_gpu
 )
 
 foreach(_test ${SPECTRA_UNIT_TESTS})
@@ -414,8 +434,13 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
         # Hover round trip drives DataInteraction (and legend_bounds draws the
         # interactive legend, crosshair_mapping the linked crosshair), which needs an
         # ImGui context; test_theme checks the ImGui palette apply_to_imgui() writes
-        # during a theme transition; settings_layout drives the Settings modal.
-        if(_test MATCHES "^test_(crosshair_mapping|double_precision_data|data_interaction|legend_bounds|legend_font_size|overlay_text_fit|settings_layout|theme)$" AND DEFINED imgui_SOURCE_DIR)
+        # during a theme transition; settings_layout drives the Settings modal;
+        # font_fallback checks ImGui decodes code points above U+FFFF.
+        if(_test MATCHES "^test_(crosshair_mapping|log_overlays|double_precision_data|data_interaction|legend_bounds|legend_font_size|inspector|overlay_text_fit|settings_layout|theme|font_fallback)$" AND DEFINED imgui_SOURCE_DIR)
+            target_include_directories(unit_${_test} SYSTEM PRIVATE ${imgui_SOURCE_DIR})
+        endif()
+        # UI shell follow-ups draw tooltip / status bar into a bare ImGui context.
+        if(_test MATCHES "^test_ui_shell_(fixes|welcome_gpu)$" AND DEFINED imgui_SOURCE_DIR)
             target_include_directories(unit_${_test} SYSTEM PRIVATE ${imgui_SOURCE_DIR})
         endif()
         # CSV writer shared with the export_csv example plugin (header-only)
@@ -482,7 +507,7 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
             add_dependencies(unit_${_test} spectra_wgsl_shaders)
         endif()
         # Decodes the exported PNGs with the bundled stb_image.
-        if(_test MATCHES "^test_(headless_export_text|shape3d_first_frame|shape2d_first_frame)$")
+        if(_test MATCHES "^test_(headless_export_text|text_scaling|shape3d_first_frame|shape2d_first_frame)$")
             target_include_directories(unit_${_test} SYSTEM PRIVATE
                 ${CMAKE_SOURCE_DIR}/third_party/stb)
         endif()
@@ -567,6 +592,19 @@ foreach(qt_demo qt_embed_demo qt_multi_canvas_demo)
             TIMEOUT 60)
     endif()
 endforeach()
+
+# Qt palette from the Spectra theme: pure colour conversion, no display needed.
+if(TARGET spectra_qt_adapter)
+    add_executable(unit_test_qt_theme unit/test_qt_theme.cpp)
+    target_link_libraries(unit_test_qt_theme PRIVATE spectra_qt_adapter GTest::gtest_main)
+    target_compile_features(unit_test_qt_theme PRIVATE cxx_std_20)
+    target_include_directories(unit_test_qt_theme PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_BINARY_DIR}/generated
+    )
+    add_test(NAME unit_test_qt_theme COMMAND unit_test_qt_theme)
+    set_tests_properties(unit_test_qt_theme PROPERTIES LABELS "qt")
+endif()
 
 # QtRuntime startup theme: needs an X display with Vulkan (xvfb-run + lavapipe).
 if(TARGET spectra_qt_adapter)

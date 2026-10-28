@@ -3,6 +3,9 @@
 #include <algorithm>
 #include <sstream>
 
+#include "core/axis_scale.hpp"
+#include "core/json_key.hpp"
+
 namespace spectra
 {
 
@@ -219,7 +222,7 @@ void AxisLinkManager::propagate_from(Axes* source, AxisLimits /*old_xlim*/, Axis
     propagating_ = false;
 }
 
-void AxisLinkManager::propagate_zoom(Axes* source, float data_x, float data_y, float factor)
+void AxisLinkManager::propagate_zoom(Axes* source, double data_x, double data_y, double factor)
 {
     if (!source)
         return;
@@ -238,19 +241,19 @@ void AxisLinkManager::propagate_zoom(Axes* source, float data_x, float data_y, f
             if (peer == source)
                 continue;
 
+            // Zoom in the peer's axis space so a log peer keeps its ratios
+            // about the anchor (and never crosses zero), like the source.
             if (has_flag(group.axis, LinkAxis::X))
             {
-                auto   xlim     = peer->x_limits();
-                double new_xmin = data_x + (xlim.min - data_x) * factor;
-                double new_xmax = data_x + (xlim.max - data_x) * factor;
-                peer->xlim(new_xmin, new_xmax);
+                const AxisLimits z =
+                    zoom_limits_about(peer->xscale(), peer->x_limits(), data_x, factor);
+                peer->xlim(z.min, z.max);
             }
             if (has_flag(group.axis, LinkAxis::Y))
             {
-                auto   ylim     = peer->y_limits();
-                double new_ymin = data_y + (ylim.min - data_y) * factor;
-                double new_ymax = data_y + (ylim.max - data_y) * factor;
-                peer->ylim(new_ymin, new_ymax);
+                const AxisLimits z =
+                    zoom_limits_about(peer->yscale(), peer->y_limits(), data_y, factor);
+                peer->ylim(z.min, z.max);
             }
         }
     }
@@ -258,7 +261,7 @@ void AxisLinkManager::propagate_zoom(Axes* source, float data_x, float data_y, f
     propagating_ = false;
 }
 
-void AxisLinkManager::propagate_pan(Axes* source, float dx_data, float dy_data)
+void AxisLinkManager::propagate_pan(Axes* source, double dx, double dy)
 {
     if (!source)
         return;
@@ -279,13 +282,13 @@ void AxisLinkManager::propagate_pan(Axes* source, float dx_data, float dy_data)
 
             if (has_flag(group.axis, LinkAxis::X))
             {
-                auto xlim = peer->x_limits();
-                peer->xlim(xlim.min + dx_data, xlim.max + dx_data);
+                const AxisLimits t = translate_limits(peer->xscale(), peer->x_limits(), dx);
+                peer->xlim(t.min, t.max);
             }
             if (has_flag(group.axis, LinkAxis::Y))
             {
-                auto ylim = peer->y_limits();
-                peer->ylim(ylim.min + dy_data, ylim.max + dy_data);
+                const AxisLimits t = translate_limits(peer->yscale(), peer->y_limits(), dy);
+                peer->ylim(t.min, t.max);
             }
         }
     }
@@ -445,7 +448,7 @@ void AxisLinkManager::deserialize(const std::string& json, const IndexToAxes& ma
     // Minimal JSON parser — find groups array
     auto find_array = [&](const std::string& key) -> std::pair<size_t, size_t>
     {
-        auto pos = json.find("\"" + key + "\"");
+        auto pos = json_find_key(json, key);
         if (pos == std::string::npos)
             return {std::string::npos, std::string::npos};
         pos = json.find('[', pos);
@@ -494,7 +497,7 @@ void AxisLinkManager::deserialize(const std::string& json, const IndexToAxes& ma
         // Extract fields
         auto extract_int = [&](const std::string& obj_str, const std::string& key) -> int
         {
-            auto kpos = obj_str.find("\"" + key + "\"");
+            auto kpos = json_find_key(obj_str, key);
             if (kpos == std::string::npos)
                 return -1;
             kpos = obj_str.find(':', kpos);
@@ -508,7 +511,7 @@ void AxisLinkManager::deserialize(const std::string& json, const IndexToAxes& ma
 
         auto extract_string = [&](const std::string& obj_str, const std::string& key) -> std::string
         {
-            auto kpos = obj_str.find("\"" + key + "\"");
+            auto kpos = json_find_key(obj_str, key);
             if (kpos == std::string::npos)
                 return "";
             kpos = obj_str.find(':', kpos);

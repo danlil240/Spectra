@@ -137,6 +137,10 @@ struct TextRenderer::GlyphSources
         {
             chain_ready = true;
             chain = FontFallbackChain(paths_explicit ? explicit_paths : discover_fallback_fonts());
+            // Discovered chains also ask fontconfig for codepoints none of
+            // their fonts has; an explicit list is used exactly as given.
+            if (!paths_explicit && system_font_lookup_available())
+                chain.set_system_lookup(&find_system_font_for);
         }
         return chain;
     }
@@ -190,7 +194,8 @@ bool TextRenderer::alloc_atlas_rect(int w, int h, int& out_x, int& out_y) const
 bool TextRenderer::rasterize_glyph(size_t         si,
                                    uint32_t       cp,
                                    const uint8_t* font_data,
-                                   float          pack_size) const
+                                   float          pack_size,
+                                   int            face_index) const
 {
     // Rasterise into a scratch bitmap with the same stb_truetype packing path
     // (and oversampling) as the pre-baked glyphs, then copy into the atlas.
@@ -203,7 +208,8 @@ bool TextRenderer::rasterize_glyph(size_t         si,
         return false;
     stbtt_PackSetOversampling(&ctx, OVERSAMPLE, OVERSAMPLE);
     stbtt_packedchar pc{};
-    const int ok = stbtt_PackFontRange(&ctx, font_data, 0, pack_size, static_cast<int>(cp), 1, &pc);
+    const int        ok =
+        stbtt_PackFontRange(&ctx, font_data, face_index, pack_size, static_cast<int>(cp), 1, &pc);
     stbtt_PackEnd(&ctx);
     if (!ok)
         return false;
@@ -303,7 +309,12 @@ const GlyphInfo* TextRenderer::glyph_for(size_t si, uint32_t cp) const
             const int          idx   = chain.find(cp);
             // Match the primary font's em size (STBTT_POINT_SIZE) so symbols
             // from another font sit at the same visual size as the text.
-            if (idx >= 0 && rasterize_glyph(si, cp, chain.font_data(idx), -fd.em_pixels))
+            if (idx >= 0
+                && rasterize_glyph(si,
+                                   cp,
+                                   chain.font_data(idx),
+                                   -fd.em_pixels,
+                                   chain.face_index(idx)))
             {
                 fd.fallback_cps.insert(cp);
                 return &fd.glyphs[cp];

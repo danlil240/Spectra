@@ -521,6 +521,15 @@ class BarSeries : public Series
     const std::vector<float>& bar_positions() const { return positions_; }
     const std::vector<float>& bar_heights() const { return heights_; }
 
+    /// Category names, one per bar in set_data() order.  The bar axis then gets
+    /// one tick per labelled bar, showing its name, instead of numeric ticks.
+    BarSeries& categories(std::vector<std::string> labels)
+    {
+        categories_ = std::move(labels);
+        return *this;
+    }
+    const std::vector<std::string>& categories() const { return categories_; }
+
     // Fluent setters
     using Series::color;
     using Series::label;
@@ -544,9 +553,10 @@ class BarSeries : public Series
     void rebuild_geometry();
 
    private:
-    std::vector<float> positions_;
-    std::vector<float> heights_;
-    float              bar_width_   = 0.8f;
+    std::vector<float>       positions_;
+    std::vector<float>       heights_;
+    std::vector<std::string> categories_;
+    float                    bar_width_   = 0.8f;
     float              baseline_    = 0.0f;
     BarOrientation     orientation_ = BarOrientation::Vertical;
     bool               gradient_    = true;

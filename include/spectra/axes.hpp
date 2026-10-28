@@ -99,9 +99,15 @@ class AxesBase
 
     /// Assign the axes' layout cell.  When a colorbar is shown (see
     /// show_colorbar), a strip on the right of the cell is reserved for it and
-    /// viewport() is the remaining plot area.
-    void        set_viewport(const Rect& r);
+    /// viewport() is the remaining plot area.  A positive
+    /// @p outside_legend_width first reserves a strip of that width on the
+    /// right of the cell for a LegendPosition::OutsideRight legend
+    /// (see outside_legend_area()).
+    void        set_viewport(const Rect& r, float outside_legend_width = 0.0f);
     const Rect& viewport() const { return viewport_; }
+    /// Strip reserved right of the plot area (and colorbar) for an outside
+    /// legend; zero-sized when none is reserved.
+    const Rect& outside_legend_area() const { return outside_legend_area_; }
 
     /// @brief Axes title.
     const std::string& title() const { return title_; }
@@ -136,6 +142,7 @@ class AxesBase
     bool                                 colorbar_visible_ = false;
     AxisStyle                            axis_style_;
     Rect                                 viewport_;
+    Rect                                 outside_legend_area_{0.0f, 0.0f, 0.0f, 0.0f};
     SeriesRemovedCallback                on_series_removed_;
     EventSystem*                         event_system_ = nullptr;
 };
@@ -229,6 +236,9 @@ class Axes : public AxesBase
     HistogramSeries& histogram(std::span<const float> values, int bins = 30);
     /// @brief Add a bar chart with bars at @p positions.
     BarSeries& bar(std::span<const float> positions, std::span<const float> heights);
+    /// @brief Add a bar chart of named categories: bar i sits at x = i and the
+    /// x axis shows one tick per category, labelled with its name.
+    BarSeries& bar(const std::vector<std::string>& categories, std::span<const float> heights);
     /// @brief Add a filled band between @p lower and @p upper (e.g. a confidence interval).
     BandSeries& band(std::span<const float> x,
                      std::span<const float> lower,
@@ -279,6 +289,16 @@ class Axes : public AxesBase
     ScaleType xscale() const { return xscale_; }
     void      yscale(ScaleType s) { yscale_ = s; }
     ScaleType yscale() const { return yscale_; }
+
+    /// Date-time axis: the values are Unix epoch seconds (UTC, e.g. from the
+    /// double-precision plot()/line() overloads) and the ticks fall on calendar
+    /// steps (seconds .. years) labelled as times and dates ("14:30", "Mar 05",
+    /// "2024"), with the date or year context in the axis corner.  Only applies
+    /// while the axis scale is ScaleType::Linear.
+    void xaxis_datetime(bool enabled) { x_datetime_ = enabled; }
+    bool xaxis_datetime() const { return x_datetime_; }
+    void yaxis_datetime(bool enabled) { y_datetime_ = enabled; }
+    bool yaxis_datetime() const { return y_datetime_; }
 
     // Accessors
     /// @brief Current x-axis limits (explicit or auto-fitted).
@@ -350,6 +370,8 @@ class Axes : public AxesBase
     std::string           ylabel_;
     ScaleType             xscale_         = ScaleType::Linear;
     ScaleType             yscale_         = ScaleType::Linear;
+    bool                  x_datetime_     = false;
+    bool                  y_datetime_     = false;
     AutoscaleMode         autoscale_mode_ = AutoscaleMode::Padded;
     std::optional<float>  presented_buffer_seconds_;
     bool                  presented_buffer_following_ = false;

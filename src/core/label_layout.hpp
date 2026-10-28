@@ -64,18 +64,22 @@ struct FittedLabel
 {
     std::string text;                           // text to draw (possibly ellipsized)
     LabelFont   font      = LabelFont::Title;   // font tier to draw it at
+    float       scale     = 1.0f;               // size multiplier on `font` (<= 1: shrunk to fit)
     bool        truncated = false;              // true when characters were dropped
 };
 
 // Measures the drawn width (pixels) of `text` at font tier `font`.
 using LabelWidthFn = std::function<float(const std::string& text, LabelFont font)>;
 
-// Fit text into max_width pixels.
+// Fit text into max_width pixels.  `measure` must scale linearly with the font size.
 //   1. Try each font tier from `preferred` down to `min_font` (inclusive); the first tier
-//      at which the whole text fits is used.
-//   2. Otherwise, at `min_font`, keep the longest UTF-8 prefix (on codepoint boundaries,
+//      at which the whole text fits is used at scale 1.
+//   2. Shrinking is smooth: when a tier is too wide but the next smaller tier fits, the
+//      larger tier is used with `scale` < 1 so the text exactly fills max_width (its size
+//      lies between the two tiers) instead of jumping down to the smaller tier.
+//   3. Otherwise, at `min_font`, keep the longest UTF-8 prefix (on codepoint boundaries,
 //      trailing spaces trimmed) that fits together with `ellipsis`.
-//   3. If not even the ellipsis fits (e.g. a zero budget), the text is empty.
+//   4. If not even the ellipsis fits (e.g. a zero budget), the text is empty.
 FittedLabel fit_label_to_width(const std::string&  text,
                                float               max_width,
                                LabelFont           preferred,
@@ -84,7 +88,7 @@ FittedLabel fit_label_to_width(const std::string&  text,
                                std::string_view    ellipsis = "...");
 
 // Axes title over a span of `span_w` pixels, with `reserve_left` kept free for the Y
-// offset annotation: Title size, stepping down to Label size, then ellipsized.
+// offset annotation: Title size, shrinking smoothly to Label size, then ellipsized.
 FittedLabel fit_axes_title(const std::string&  title,
                            float               span_w,
                            float               reserve_left,
@@ -105,8 +109,8 @@ FittedLabel fit_axes_ylabel(const std::string&  label,
                             const LabelWidthFn& measure,
                             std::string_view    ellipsis = LABEL_ELLIPSIS);
 
-// 3D axes title over the viewport width `span_w`: Title size, stepping down to Label
-// size, then ellipsized.
+// 3D axes title over the viewport width `span_w`: Title size, shrinking smoothly to
+// Label size, then ellipsized.
 FittedLabel fit_axes3d_title(const std::string&  title,
                              float               span_w,
                              const LabelWidthFn& measure,

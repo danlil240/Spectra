@@ -1,8 +1,11 @@
 #include "workspace.hpp"
+#include "core/json_key.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <cstdlib>
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <unordered_set>
 #include <spectra/axes.hpp>
@@ -10,12 +13,20 @@
 #include <spectra/figure.hpp>
 #include <spectra/series.hpp>
 #include <spectra/series3d.hpp>
+#include <spectra/series_stats.hpp>
 #include <sstream>
+
+#include "series_color_source.hpp"
 
 namespace spectra
 {
 
 // ─── Simple JSON writer ──────────────────────────────────────────────────────
+
+// Like escape_json(), but also writes JSON structural characters as \u
+// escapes.  The minimal reader below finds objects by counting braces, so
+// free text inside an array element (annotation text) must not contain them.
+static std::string escape_json_text(const std::string& s);
 
 static std::string escape_json(const std::string& s)
 {
@@ -39,6 +50,33 @@ static std::string escape_json(const std::string& s)
                 break;
             case '\t':
                 out += "\\t";
+                break;
+            default:
+                out += c;
+                break;
+        }
+    }
+    return out;
+}
+
+static std::string escape_json_text(const std::string& s)
+{
+    std::string out;
+    for (char c : escape_json(s))
+    {
+        switch (c)
+        {
+            case '{':
+                out += "\\u007b";
+                break;
+            case '}':
+                out += "\\u007d";
+                break;
+            case '[':
+                out += "\\u005b";
+                break;
+            case ']':
+                out += "\\u005d";
                 break;
             default:
                 out += c;
@@ -82,6 +120,8 @@ std::string Workspace::serialize_json(const WorkspaceData& data)
         os << "      \"grid_cols\": " << fig.grid_cols << ",\n";
         os << "      \"is_modified\": " << (fig.is_modified ? "true" : "false") << ",\n";
         os << R"(      "custom_tab_title": ")" << escape_json(fig.custom_tab_title) << "\",\n";
+        if (fig.legend_position >= 0)
+            os << "      \"legend_position\": " << fig.legend_position << ",\n";
 
         // Axes
         os << "      \"axes\": [\n";
@@ -98,7 +138,11 @@ std::string Workspace::serialize_json(const WorkspaceData& data)
             os << R"(          "x_label": ")" << escape_json(ax.x_label) << "\",\n";
             os << R"(          "y_label": ")" << escape_json(ax.y_label) << "\",\n";
             os << R"(          "title": ")" << escape_json(ax.title) << "\",\n";
-            os << "          \"is_3d\": " << (ax.is_3d ? "true" : "false") << "\n";
+            os << "          \"is_3d\": " << (ax.is_3d ? "true" : "false") << ",\n";
+            os << "          \"x_scale\": " << ax.x_scale << ",\n";
+            os << "          \"y_scale\": " << ax.y_scale << ",\n";
+            os << "          \"x_datetime\": " << (ax.x_datetime ? "true" : "false") << ",\n";
+            os << "          \"y_datetime\": " << (ax.y_datetime ? "true" : "false") << "\n";
             os << "        }";
             if (ai + 1 < fig.axes.size())
                 os << ",";
@@ -144,6 +188,12 @@ std::string Workspace::serialize_json(const WorkspaceData& data)
             os << "          \"color_g\": " << s.color_g << ",\n";
             os << "          \"color_b\": " << s.color_b << ",\n";
             os << "          \"color_a\": " << s.color_a << ",\n";
+            if (!s.color_source.empty())
+            {
+                os << R"(          "color_source": ")" << escape_json(s.color_source) << "\",\n";
+                os << "          \"color_index\": " << s.color_index << ",\n";
+                os << R"(          "color_letter": ")" << escape_json(s.color_letter) << "\",\n";
+            }
             os << "          \"line_width\": " << s.line_width << ",\n";
             os << "          \"marker_size\": " << s.marker_size << ",\n";
             os << "          \"visible\": " << (s.visible ? "true" : "false") << ",\n";
@@ -155,6 +205,13 @@ std::string Workspace::serialize_json(const WorkspaceData& data)
             os << "          \"ambient\": " << s.ambient << ",\n";
             os << "          \"specular\": " << s.specular << ",\n";
             os << "          \"shininess\": " << s.shininess << ",\n";
+            if (!s.categories.empty())
+            {
+                os << "          \"categories\": [";
+                for (size_t ci = 0; ci < s.categories.size(); ++ci)
+                    os << (ci > 0 ? ", " : "") << '"' << escape_json_text(s.categories[ci]) << '"';
+                os << "],\n";
+            }
             os << "          \"dash_pattern\": [";
             for (size_t di = 0; di < s.dash_pattern.size(); ++di)
             {
@@ -165,6 +222,36 @@ std::string Workspace::serialize_json(const WorkspaceData& data)
             os << "]\n";
             os << "        }";
             if (si + 1 < fig.series.size())
+                os << ",";
+            os << "\n";
+        }
+        os << "      ],\n";
+
+        // 2D text annotations (written last: the reader looks keys up by
+        // first occurrence, so they must not precede the figure's own keys)
+        os << "      \"text_annotations\": [\n";
+        for (size_t ti = 0; ti < fig.text_annotations.size(); ++ti)
+        {
+            const auto& t = fig.text_annotations[ti];
+            os << "        {\n";
+            os << "          \"axes_index\": " << t.axes_index << ",\n";
+            os << "          \"x\": " << t.x << ",\n";
+            os << "          \"y\": " << t.y << ",\n";
+            os << R"(          "text": ")" << escape_json_text(t.text) << "\",\n";
+            os << "          \"has_color\": " << (t.has_color ? "true" : "false") << ",\n";
+            os << "          \"color_r\": " << t.color_r << ",\n";
+            os << "          \"color_g\": " << t.color_g << ",\n";
+            os << "          \"color_b\": " << t.color_b << ",\n";
+            os << "          \"color_a\": " << t.color_a << ",\n";
+            os << "          \"font_size\": " << t.font_size << ",\n";
+            os << "          \"halign\": " << t.halign << ",\n";
+            os << "          \"valign\": " << t.valign << ",\n";
+            os << "          \"has_arrow\": " << (t.has_arrow ? "true" : "false") << ",\n";
+            os << "          \"arrow_x\": " << t.arrow_x << ",\n";
+            os << "          \"arrow_y\": " << t.arrow_y << ",\n";
+            os << "          \"visible\": " << (t.visible ? "true" : "false") << "\n";
+            os << "        }";
+            if (ti + 1 < fig.text_annotations.size())
                 os << ",";
             os << "\n";
         }
@@ -188,8 +275,10 @@ std::string Workspace::serialize_json(const WorkspaceData& data)
     {
         const auto& m = data.interaction.markers[mi];
         os << "      {\n";
-        os << "        \"data_x\": " << m.data_x << ",\n";
-        os << "        \"data_y\": " << m.data_y << ",\n";
+        // Shortest round-trip form: the default 6 digits would turn an
+        // epoch timestamp or 1e7 + 0.123 into "1.7e+09" / "1e+07".
+        os << "        \"data_x\": " << std::format("{}", m.data_x) << ",\n";
+        os << "        \"data_y\": " << std::format("{}", m.data_y) << ",\n";
         os << R"(        "series_label": ")" << escape_json(m.series_label) << "\",\n";
         os << "        \"point_index\": " << m.point_index << ",\n";
         os << "        \"axes_index\": " << m.axes_index << "\n";
@@ -342,6 +431,45 @@ static std::string unescape_json(const std::string& s)
                     out += '\t';
                     ++i;
                     break;
+                case 'u':
+                {
+                    // \uXXXX (BMP code point) -> UTF-8
+                    unsigned cp = 0;
+                    bool     ok = i + 5 < s.size();
+                    for (size_t k = 0; ok && k < 4; ++k)
+                    {
+                        const char h = s[i + 2 + k];
+                        cp <<= 4;
+                        if (h >= '0' && h <= '9')
+                            cp |= static_cast<unsigned>(h - '0');
+                        else if (h >= 'a' && h <= 'f')
+                            cp |= static_cast<unsigned>(h - 'a' + 10);
+                        else if (h >= 'A' && h <= 'F')
+                            cp |= static_cast<unsigned>(h - 'A' + 10);
+                        else
+                            ok = false;
+                    }
+                    if (!ok)
+                    {
+                        out += s[i];
+                        break;
+                    }
+                    if (cp < 0x80)
+                        out += static_cast<char>(cp);
+                    else if (cp < 0x800)
+                    {
+                        out += static_cast<char>(0xC0 | (cp >> 6));
+                        out += static_cast<char>(0x80 | (cp & 0x3F));
+                    }
+                    else
+                    {
+                        out += static_cast<char>(0xE0 | (cp >> 12));
+                        out += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
+                        out += static_cast<char>(0x80 | (cp & 0x3F));
+                    }
+                    i += 5;
+                    break;
+                }
                 default:
                     out += s[i];
                     break;
@@ -358,7 +486,7 @@ static std::string unescape_json(const std::string& s)
 std::string Workspace::read_string_value(const std::string& json, const std::string& key)
 {
     std::string search = "\"" + key + "\"";
-    auto        pos    = json.find(search);
+    auto        pos    = json_find_key(json, key);
     if (pos == std::string::npos)
         return "";
 
@@ -385,7 +513,7 @@ double Workspace::read_number_value(const std::string& json,
                                     double             default_val)
 {
     std::string search = "\"" + key + "\"";
-    auto        pos    = json.find(search);
+    auto        pos    = json_find_key(json, key);
     if (pos == std::string::npos)
         return default_val;
 
@@ -420,7 +548,7 @@ double Workspace::read_number_value(const std::string& json,
 bool Workspace::read_bool_value(const std::string& json, const std::string& key, bool default_val)
 {
     std::string search = "\"" + key + "\"";
-    auto        pos    = json.find(search);
+    auto        pos    = json_find_key(json, key);
     if (pos == std::string::npos)
         return default_val;
 
@@ -441,7 +569,7 @@ static std::vector<std::string> parse_json_array(const std::string& json, const 
 {
     std::vector<std::string> objects;
     std::string              search = "\"" + key + "\"";
-    auto                     pos    = json.find(search);
+    auto                     pos    = json_find_key(json, key);
     if (pos == std::string::npos)
         return objects;
 
@@ -474,6 +602,35 @@ static std::vector<std::string> parse_json_array(const std::string& json, const 
         }
     }
     return objects;
+}
+
+// Parse an array of strings (finds [...] after key).  Empty when absent.
+static std::vector<std::string> parse_json_string_array(const std::string& json,
+                                                        const std::string& key)
+{
+    std::vector<std::string> out;
+    const std::string        search = "\"" + key + "\"";
+    auto                     pos    = json.find(search);
+    if (pos == std::string::npos)
+        return out;
+    pos = json.find('[', pos + search.size());
+    if (pos == std::string::npos)
+        return out;
+    for (size_t i = pos + 1; i < json.size(); ++i)
+    {
+        if (json[i] == ']')
+            break;
+        if (json[i] != '"')
+            continue;
+        size_t end = i + 1;
+        while (end < json.size() && json[end] != '"')
+            end += json[end] == '\\' ? 2 : 1;
+        if (end >= json.size())
+            break;
+        out.push_back(unescape_json(json.substr(i + 1, end - i - 1)));
+        i = end;
+    }
+    return out;
 }
 
 bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data)
@@ -512,6 +669,9 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data)
             fig.custom_tab_title = read_string_value(fig_json, "custom_tab_title");
         }
 
+        // Optional key (any version); -1 = absent
+        fig.legend_position = static_cast<int>(read_number_value(fig_json, "legend_position", -1));
+
         // Axes
         auto ax_objects = parse_json_array(fig_json, "axes");
         for (const auto& ax_json : ax_objects)
@@ -531,6 +691,11 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data)
             {
                 ax.is_3d = read_bool_value(ax_json, "is_3d", false);
             }
+            // Optional keys (any version)
+            ax.x_scale    = static_cast<int>(read_number_value(ax_json, "x_scale", 0));
+            ax.y_scale    = static_cast<int>(read_number_value(ax_json, "y_scale", 0));
+            ax.x_datetime = read_bool_value(ax_json, "x_datetime", false);
+            ax.y_datetime = read_bool_value(ax_json, "y_datetime", false);
             fig.axes.push_back(std::move(ax));
         }
 
@@ -545,10 +710,14 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data)
             s.color_g     = static_cast<float>(read_number_value(ser_json, "color_g", 1));
             s.color_b     = static_cast<float>(read_number_value(ser_json, "color_b", 1));
             s.color_a     = static_cast<float>(read_number_value(ser_json, "color_a", 1));
+            s.color_source = read_string_value(ser_json, "color_source");
+            s.color_index  = static_cast<int>(read_number_value(ser_json, "color_index", -1));
+            s.color_letter = read_string_value(ser_json, "color_letter");
             s.line_width  = static_cast<float>(read_number_value(ser_json, "line_width", 2));
             s.marker_size = static_cast<float>(read_number_value(ser_json, "marker_size", 6));
             s.visible     = read_bool_value(ser_json, "visible", true);
             s.point_count = static_cast<size_t>(read_number_value(ser_json, "point_count", 0));
+            s.categories   = parse_json_string_array(ser_json, "categories");
             // v2 field
             s.opacity = static_cast<float>(read_number_value(ser_json, "opacity", 1.0));
             // v3 fields
@@ -557,7 +726,7 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data)
                 s.line_style   = static_cast<int>(read_number_value(ser_json, "line_style", 1));
                 s.marker_style = static_cast<int>(read_number_value(ser_json, "marker_style", 0));
                 // Parse dash_pattern array
-                auto dp_pos = ser_json.find("\"dash_pattern\"");
+                auto dp_pos = json_find_key(ser_json, "dash_pattern");
                 if (dp_pos != std::string::npos)
                 {
                     auto bracket     = ser_json.find('[', dp_pos);
@@ -619,6 +788,30 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data)
             }
         }
 
+        // 2D text annotations (optional key, any version)
+        fig.has_text_annotations = json_find_key(fig_json, "text_annotations") != std::string::npos;
+        for (const auto& t_json : parse_json_array(fig_json, "text_annotations"))
+        {
+            WorkspaceData::TextAnnotationState t;
+            t.axes_index = static_cast<size_t>(read_number_value(t_json, "axes_index", 0));
+            t.x          = static_cast<float>(read_number_value(t_json, "x", 0));
+            t.y          = static_cast<float>(read_number_value(t_json, "y", 0));
+            t.text       = read_string_value(t_json, "text");
+            t.has_color  = read_bool_value(t_json, "has_color", false);
+            t.color_r    = static_cast<float>(read_number_value(t_json, "color_r", 0));
+            t.color_g    = static_cast<float>(read_number_value(t_json, "color_g", 0));
+            t.color_b    = static_cast<float>(read_number_value(t_json, "color_b", 0));
+            t.color_a    = static_cast<float>(read_number_value(t_json, "color_a", 1));
+            t.font_size  = static_cast<float>(read_number_value(t_json, "font_size", 0));
+            t.halign     = static_cast<int>(read_number_value(t_json, "halign", 0));
+            t.valign     = static_cast<int>(read_number_value(t_json, "valign", 2));
+            t.has_arrow  = read_bool_value(t_json, "has_arrow", false);
+            t.arrow_x    = static_cast<float>(read_number_value(t_json, "arrow_x", 0));
+            t.arrow_y    = static_cast<float>(read_number_value(t_json, "arrow_y", 0));
+            t.visible    = read_bool_value(t_json, "visible", true);
+            fig.text_annotations.push_back(std::move(t));
+        }
+
         data.figures.push_back(std::move(fig));
     }
 
@@ -629,7 +822,7 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data)
         data.interaction.tooltip_enabled   = read_bool_value(json, "tooltip_enabled", true);
 
         // Parse markers array from interaction object
-        auto interaction_pos = json.find("\"interaction\"");
+        auto interaction_pos = json_find_key(json, "interaction");
         if (interaction_pos != std::string::npos)
         {
             // Extract the interaction object substring
@@ -657,8 +850,8 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data)
                 for (const auto& m_json : marker_objects)
                 {
                     OverlaySnapshot::MarkerEntry m;
-                    m.data_x       = static_cast<float>(read_number_value(m_json, "data_x", 0));
-                    m.data_y       = static_cast<float>(read_number_value(m_json, "data_y", 0));
+                    m.data_x       = read_number_value(m_json, "data_x", 0);
+                    m.data_y       = read_number_value(m_json, "data_y", 0);
                     m.series_label = read_string_value(m_json, "series_label");
                     m.point_index =
                         static_cast<size_t>(read_number_value(m_json, "point_index", 0));
@@ -731,7 +924,7 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data)
         }
 
         // Parse timeline state
-        auto tl_pos = json.find("\"timeline\"");
+        auto tl_pos = json_find_key(json, "timeline");
         if (tl_pos != std::string::npos)
         {
             auto brace = json.find('{', tl_pos);
@@ -831,11 +1024,13 @@ WorkspaceData Workspace::capture(const std::vector<Figure*>& figures,
             continue;
 
         WorkspaceData::FigureState fs;
+        fs.has_text_annotations = true;   // captured from live axes (possibly none)
         fs.title     = "";   // Figure has no title accessor yet
         fs.width     = fig->width();
         fs.height    = fig->height();
         fs.grid_rows = fig->grid_rows();
         fs.grid_cols = fig->grid_cols();
+        fs.legend_position      = static_cast<int>(fig->legend().position);
 
         // Capture axes: use all_axes() if populated (mixed/3D figures),
         // otherwise fall back to axes() (2D-only figures).
@@ -893,6 +1088,37 @@ WorkspaceData Workspace::capture(const std::vector<Figure*>& figures,
                 as.x_label      = ax2d->get_xlabel();
                 as.y_label      = ax2d->get_ylabel();
                 as.title        = ax2d->get_title();
+                as.x_scale      = static_cast<int>(ax2d->xscale());
+                as.y_scale      = static_cast<int>(ax2d->yscale());
+                as.x_datetime   = ax2d->xaxis_datetime();
+                as.y_datetime   = ax2d->yaxis_datetime();
+
+                for (const auto& ann : ax2d->annotations())
+                {
+                    if (!ann)
+                        continue;
+                    WorkspaceData::TextAnnotationState t;
+                    t.axes_index = axes_idx;
+                    t.x          = ann->x();
+                    t.y          = ann->y();
+                    t.text       = ann->text();
+                    if (ann->color())
+                    {
+                        t.has_color = true;
+                        t.color_r   = ann->color()->r;
+                        t.color_g   = ann->color()->g;
+                        t.color_b   = ann->color()->b;
+                        t.color_a   = ann->color()->a;
+                    }
+                    t.font_size = ann->font_size();
+                    t.halign    = static_cast<int>(ann->halign());
+                    t.valign    = static_cast<int>(ann->valign());
+                    t.has_arrow = ann->has_arrow();
+                    t.arrow_x   = ann->arrow_x();
+                    t.arrow_y   = ann->arrow_y();
+                    t.visible   = ann->visible();
+                    fs.text_annotations.push_back(std::move(t));
+                }
             }
 
             fs.axes.push_back(std::move(as));
@@ -933,6 +1159,20 @@ WorkspaceData Workspace::capture(const std::vector<Figure*>& figures,
                 ss.color_g = s->color().g;
                 ss.color_b = s->color().b;
                 ss.color_a = s->color().a;
+                switch (const SeriesColorSource src = color_source_of(*s); src.kind)
+                {
+                    case SeriesColorSource::Kind::Palette:
+                        ss.color_source = "auto";
+                        ss.color_index  = src.value;
+                        break;
+                    case SeriesColorSource::Kind::Letter:
+                        ss.color_source = "letter";
+                        ss.color_letter = std::string(1, static_cast<char>(src.value));
+                        break;
+                    case SeriesColorSource::Kind::Explicit:
+                        ss.color_source = "rgb";
+                        break;
+                }
                 ss.opacity = s->opacity();
 
                 if (auto* ls = dynamic_cast<LineSeries*>(s.get()))
@@ -968,6 +1208,12 @@ WorkspaceData Workspace::capture(const std::vector<Figure*>& figures,
                     ss.specular      = sf->specular();
                     ss.shininess     = sf->shininess();
                 }
+                else if (auto* bar = dynamic_cast<BarSeries*>(s.get()))
+                {
+                    ss.type        = "bar";
+                    ss.point_count = bar->bar_positions().size();
+                    ss.categories  = bar->categories();
+                }
                 else if (auto* ms = dynamic_cast<MeshSeries*>(s.get()))
                 {
                     ss.type        = "mesh";
@@ -998,6 +1244,33 @@ WorkspaceData Workspace::capture(const std::vector<Figure*>& figures,
     return data;
 }
 
+std::unique_ptr<Figure> Workspace::build_figure(const WorkspaceData::FigureState& state)
+{
+    FigureConfig cfg;
+    cfg.width  = state.width > 0 ? state.width : 1280;
+    cfg.height = state.height > 0 ? state.height : 720;
+    auto fig   = std::make_unique<Figure>(cfg);
+
+    const size_t n_axes = std::max<size_t>(state.axes.size(), 1);
+    int          rows   = std::max(state.grid_rows, 1);
+    int          cols   = std::max(state.grid_cols, 1);
+    // A grid too small for the saved axes (hand-edited or older files) grows
+    // by rows so every axes gets a slot.
+    while (static_cast<size_t>(rows) * static_cast<size_t>(cols) < n_axes)
+        ++rows;
+
+    for (size_t ai = 0; ai < n_axes; ++ai)
+    {
+        const int  index = static_cast<int>(ai) + 1;
+        const bool is_3d = ai < state.axes.size() && state.axes[ai].is_3d;
+        if (is_3d)
+            fig->subplot3d(rows, cols, index);
+        else
+            fig->subplot(rows, cols, index);
+    }
+    return fig;
+}
+
 bool Workspace::apply(const WorkspaceData& data, std::vector<Figure*>& figures)
 {
     // Apply axis limits and grid state from workspace data to matching figures
@@ -1007,6 +1280,11 @@ bool Workspace::apply(const WorkspaceData& data, std::vector<Figure*>& figures)
         auto*       fig = figures[fi];
         if (!fig)
             continue;
+
+        // Files without the key keep the figure's legend position.
+        if (fs.legend_position >= 0
+            && fs.legend_position <= static_cast<int>(LegendPosition::OutsideRight))
+            fig->legend().position = static_cast<LegendPosition>(fs.legend_position);
 
         // Apply axes: use all_axes() if populated, else axes()
         const bool has_all_axes = !fig->all_axes().empty();
@@ -1050,6 +1328,34 @@ bool Workspace::apply(const WorkspaceData& data, std::vector<Figure*>& figures)
                 ax2d->xlim(as.x_min, as.x_max);
                 ax2d->ylim(as.y_min, as.y_max);
                 ax2d->set_grid_enabled(as.grid_visible);
+                auto to_scale = [](int v)
+                { return v >= 0 && v <= 3 ? static_cast<ScaleType>(v) : ScaleType::Linear; };
+                ax2d->xscale(to_scale(as.x_scale));
+                ax2d->yscale(to_scale(as.y_scale));
+                ax2d->xaxis_datetime(as.x_datetime);
+                ax2d->yaxis_datetime(as.y_datetime);
+
+                // Files without the key (older formats) keep the current ones.
+                if (fs.has_text_annotations)
+                {
+                    ax2d->clear_annotations();
+                    for (const auto& t : fs.text_annotations)
+                    {
+                        if (t.axes_index != ai)
+                            continue;
+                        auto& ann = ax2d->text(t.x, t.y, t.text);
+                        ann.font_size(t.font_size)
+                            .halign(static_cast<TextAnnotation::HAlign>(
+                                t.halign >= 0 && t.halign <= 2 ? t.halign : 0))
+                            .valign(static_cast<TextAnnotation::VAlign>(
+                                t.valign >= 0 && t.valign <= 2 ? t.valign : 2))
+                            .visible(t.visible);
+                        if (t.has_color)
+                            ann.color(Color(t.color_r, t.color_g, t.color_b, t.color_a));
+                        if (t.has_arrow)
+                            ann.arrow_to(t.arrow_x, t.arrow_y);
+                    }
+                }
             }
         };
 
@@ -1074,7 +1380,24 @@ bool Workspace::apply(const WorkspaceData& data, std::vector<Figure*>& figures)
             {
                 if (!s || si >= fs.series.size())
                     return;
-                s->visible(fs.series[si].visible);
+                const auto& ss = fs.series[si];
+                s->visible(ss.visible);
+                if (auto* bar = dynamic_cast<BarSeries*>(s.get()); bar && !ss.categories.empty())
+                    bar->categories(ss.categories);
+                // Restore the colour with its source (palette / letter colours
+                // keep following the theme).  Older files have no source.
+                if (!ss.color_source.empty())
+                {
+                    SeriesColorSource src;
+                    if (ss.color_source == "auto")
+                        src = {SeriesColorSource::Kind::Palette, ss.color_index};
+                    else if (ss.color_source == "letter" && ss.color_letter.size() == 1)
+                        src = {SeriesColorSource::Kind::Letter,
+                               static_cast<int32_t>(ss.color_letter[0])};
+                    apply_color_source(*s,
+                                       src,
+                                       Color{ss.color_r, ss.color_g, ss.color_b, ss.color_a});
+                }
                 ++si;
             }
         };

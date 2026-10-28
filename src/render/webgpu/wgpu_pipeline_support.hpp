@@ -17,6 +17,8 @@ constexpr bool webgpu_supports_pipeline(PipelineType type)
     {
         case PipelineType::Line:
         case PipelineType::Scatter:
+        case PipelineType::ScatterColormap:
+        case PipelineType::Heatmap:
         case PipelineType::Grid:
         case PipelineType::Overlay:
         case PipelineType::StatFill:
@@ -24,9 +26,8 @@ constexpr bool webgpu_supports_pipeline(PipelineType type)
         case PipelineType::TextDepth:
             return true;
         default:
-            // ScatterColormap, Heatmap and every 3D pipeline have no WGSL port
-            // yet.  The Renderer falls back (uniform-color scatter) or skips
-            // the series and shows an in-canvas notice.
+            // No 3D pipeline has a WGSL port yet.  The Renderer skips those
+            // series and shows an in-canvas notice.
             return false;
     }
 }

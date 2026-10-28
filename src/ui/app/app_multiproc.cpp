@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdlib>
+#include <optional>
 #include <spectra/app.hpp>
 #include <spectra/export.hpp>
 #include <spectra/figure.hpp>
@@ -20,6 +21,7 @@
 #include <vector>
 
 #include "anim/frame_scheduler.hpp"
+#include "ipc/axes_format_state.hpp"
 #include "ipc/codec.hpp"
 #include "ipc/message.hpp"
 #include "ipc/transport.hpp"
@@ -168,6 +170,11 @@ void App::run_multiproc()
             backend_->create_offscreen_framebuffer(export_w, export_h);
             static_cast<VulkanBackend*>(backend_.get())->ensure_pipelines();
 
+            // Per-export themes (ExportOptions::theme): the PNG render and the
+            // SVG each use their own, restored right after.
+            std::optional<ui::ScopedExportTheme> png_theme;
+            png_theme.emplace(theme_mgr_.get(), fig->export_req_.png_theme);
+
             // A larger-than-figure export keeps the figure's layout and draws it
             // scaled up (HiDPI), so lines, markers and text keep their size.
             ExportViewport ev =
@@ -191,6 +198,7 @@ void App::run_multiproc()
             fig->config_.width  = orig_w;
             fig->config_.height = orig_h;
             fig->compute_layout();
+            png_theme.reset();
 
             // Device lost is unrecoverable: the framebuffer holds no valid
             // image and every further frame would fail, so stop exporting.
@@ -221,6 +229,16 @@ void App::run_multiproc()
 
             if (!fig->export_req_.svg_path.empty())
             {
+                ui::ScopedExportTheme svg_theme(theme_mgr_.get(), fig->export_req_.svg_theme);
+                if (theme_mgr_)
+                {
+                    const ui::ThemeColors surface = theme_mgr_->plot_surface_colors(fig->style());
+                    ui::resolve_auto_series_colors(
+                        *fig,
+                        theme_mgr_->plot_surface_data_palette(fig->style()),
+                        ui::is_light_plot_background(surface),
+                        ui::effective_figure_background(fig->style(), surface));
+                }
                 if (!SvgExporter::write_svg(fig->export_req_.svg_path,
                                             *fig,
                                             theme_mgr_
@@ -357,7 +375,13 @@ void App::run_multiproc()
             continue;
         fig->compute_layout();
         auto fig_snap  = figure_to_snapshot(*fig, reg_to_ipc[id]);
-        fig_snap.title = default_figure_title(reg_to_ipc[id] - 99);
+        // The snapshot carries the current data; only later edits need a
+        // SET_SERIES_DATA (a stats series update makes the window rebuild).
+        for_each_snapshot_series(*fig,
+                                 [](uint32_t, uint32_t, const Series& s)
+                                 { const_cast<Series&>(s).clear_dirty(); });
+        if (fig_snap.title.empty())   // tab_title() wins over "Figure N"
+            fig_snap.title = default_figure_title(reg_to_ipc[id] - 99);
         snap.figures.push_back(std::move(fig_snap));
     }
 
@@ -451,6 +475,35 @@ void App::run_multiproc()
         double xmin, xmax, ymin, ymax;
     };
     std::unordered_map<AxisLimitsKey, SentLimits, AxisLimitsKeyHash, AxisLimitsKeyEq> sent_limits;
+
+    // Last-sent text annotations per axes (seeded from the initial snapshot)
+    // so annotations added or edited by user callbacks reach the windows.
+    std::unordered_map<AxisLimitsKey,
+                       std::vector<ipc::SnapshotAnnotationState>,
+                       AxisLimitsKeyHash,
+                       AxisLimitsKeyEq>
+        sent_annotations;
+    // Last-sent axis scales / date-time modes per axes, legend position per
+    // figure and bar category names per (figure, figure-wide series index),
+    // so changes made by user callbacks reach the windows.
+    std::unordered_map<AxisLimitsKey, ipc::SnapshotAxisState, AxisLimitsKeyHash, AxisLimitsKeyEq>
+                                          sent_formats;
+    std::unordered_map<uint64_t, uint8_t> sent_legend_pos;
+    std::unordered_map<AxisLimitsKey, std::vector<std::string>, AxisLimitsKeyHash, AxisLimitsKeyEq>
+        sent_categories;
+    for (const auto& fs : snap.figures)
+    {
+        for (size_t ai = 0; ai < fs.axes.size(); ++ai)
+        {
+            const AxisLimitsKey key{fs.figure_id, static_cast<uint32_t>(ai)};
+            sent_annotations[key] = fs.axes[ai].annotations;
+            sent_formats[key]     = fs.axes[ai];
+        }
+        sent_legend_pos[fs.figure_id] = fs.legend_position;
+        for (size_t si = 0; si < fs.series.size(); ++si)
+            sent_categories[AxisLimitsKey{fs.figure_id, static_cast<uint32_t>(si)}] =
+                fs.series[si].categories;
+    }
 
     // Wait until all agent windows are closed (backend sends CMD_CLOSE_WINDOW or drops connection)
     auto                  last_heartbeat     = std::chrono::steady_clock::now();
@@ -599,50 +652,105 @@ void App::run_multiproc()
                             }
                         }
 
-                        uint32_t series_idx = 0;
-                        for (const auto& s_ptr : ax_ptr->series())
-                        {
-                            if (s_ptr && s_ptr->is_dirty())
-                            {
-                                ipc::DiffOp op;
-                                op.type         = ipc::DiffOp::Type::SET_SERIES_DATA;
-                                op.figure_id    = reg_to_ipc[id];
-                                op.axes_index   = axes_idx;
-                                op.series_index = series_idx;
-                                op.f1           = s_ptr->x_offset();   // data origins
-                                op.f2           = s_ptr->y_offset();
-
-                                if (auto* line = dynamic_cast<const LineSeries*>(s_ptr.get()))
-                                {
-                                    auto xd = line->x_data();
-                                    auto yd = line->y_data();
-                                    op.data.reserve(xd.size() * 2);
-                                    for (size_t i = 0; i < xd.size() && i < yd.size(); ++i)
-                                    {
-                                        op.data.push_back(xd[i]);
-                                        op.data.push_back(yd[i]);
-                                    }
-                                }
-                                else if (auto* scatter =
-                                             dynamic_cast<const ScatterSeries*>(s_ptr.get()))
-                                {
-                                    auto xd = scatter->x_data();
-                                    auto yd = scatter->y_data();
-                                    op.data.reserve(xd.size() * 2);
-                                    for (size_t i = 0; i < xd.size() && i < yd.size(); ++i)
-                                    {
-                                        op.data.push_back(xd[i]);
-                                        op.data.push_back(yd[i]);
-                                    }
-                                }
-
-                                diff.ops.push_back(std::move(op));
-                                const_cast<Series*>(s_ptr.get())->clear_dirty();
-                            }
-                            series_idx++;
-                        }
                         axes_idx++;
                     }
+
+                    // Text annotations: emit ops when Axes::text()/annotate()
+                    // changed, addressed by snapshot axes slot.
+                    const size_t slots = snapshot_axes_slot_count(*fig);
+                    for (size_t slot = 0; slot < slots; ++slot)
+                    {
+                        auto* ax2d = dynamic_cast<const Axes*>(snapshot_axes_at(*fig, slot));
+                        if (!ax2d)
+                            continue;
+                        const auto    slot_idx = static_cast<uint32_t>(slot);
+                        AxisLimitsKey key{reg_to_ipc[id], slot_idx};
+                        std::vector<ipc::SnapshotAnnotationState> now_ann;
+                        now_ann.reserve(ax2d->annotations().size());
+                        for (const auto& ann : ax2d->annotations())
+                        {
+                            if (ann)
+                                now_ann.push_back(ipc::annotation_to_state(*ann));
+                        }
+                        auto& sent = sent_annotations[key];
+                        if (now_ann != sent)
+                        {
+                            for (auto& op :
+                                 ipc::diff_annotations(sent, now_ann, reg_to_ipc[id], slot_idx))
+                                diff.ops.push_back(std::move(op));
+                            sent = std::move(now_ann);
+                        }
+                    }
+
+                    // Axis scales / date-time tick mode of the 2D axes.
+                    for (size_t slot = 0; slot < slots; ++slot)
+                    {
+                        auto* ax2d = dynamic_cast<const Axes*>(snapshot_axes_at(*fig, slot));
+                        if (!ax2d)
+                            continue;
+                        const auto             slot_idx = static_cast<uint32_t>(slot);
+                        ipc::SnapshotAxisState now;
+                        ipc::axis_format_to_state(*ax2d, now);
+                        auto& sent = sent_formats[AxisLimitsKey{reg_to_ipc[id], slot_idx}];
+                        if (!ipc::same_axis_format(now, sent))
+                        {
+                            diff.ops.push_back(
+                                ipc::make_axis_scale_op(reg_to_ipc[id], slot_idx, now));
+                            ipc::apply_axis_scale_op(
+                                sent,
+                                ipc::make_axis_scale_op(reg_to_ipc[id], slot_idx, now));
+                        }
+                    }
+
+                    // Legend position.
+                    {
+                        const uint8_t pos   = ipc::legend_position_to_wire(fig->legend().position);
+                        auto [lp, inserted] = sent_legend_pos.try_emplace(reg_to_ipc[id], pos);
+                        if (!inserted && lp->second != pos)
+                        {
+                            diff.ops.push_back(
+                                ipc::make_legend_position_op(reg_to_ipc[id],
+                                                             fig->legend().position));
+                            lp->second = pos;
+                        }
+                    }
+
+                    // Series data: index the series figure-wide, in snapshot
+                    // order, as the daemon's FigureModel and the window do.
+                    for_each_snapshot_series(
+                        *fig,
+                        [&](uint32_t slot, uint32_t global_idx, const Series& s)
+                        {
+                            if (auto* bar = dynamic_cast<const BarSeries*>(&s))
+                            {
+                                auto& sent =
+                                    sent_categories[AxisLimitsKey{reg_to_ipc[id], global_idx}];
+                                if (sent != bar->categories())
+                                {
+                                    diff.ops.push_back(
+                                        ipc::make_series_categories_op(reg_to_ipc[id],
+                                                                       slot,
+                                                                       global_idx,
+                                                                       bar->categories()));
+                                    sent = bar->categories();
+                                }
+                            }
+                            if (!s.is_dirty())
+                                return;
+                            ipc::SnapshotSeriesState payload;
+                            encode_snapshot_series_data(s, payload);
+
+                            ipc::DiffOp op;
+                            op.type         = ipc::DiffOp::Type::SET_SERIES_DATA;
+                            op.figure_id    = reg_to_ipc[id];
+                            op.axes_index   = slot;
+                            op.series_index = global_idx;
+                            op.f1           = s.x_offset();   // data origins
+                            op.f2           = s.y_offset();
+                            op.data         = std::move(payload.data);
+                            diff.ops.push_back(std::move(op));
+                            const_cast<Series&>(s).clear_dirty();
+                        });
                 }
             }
 

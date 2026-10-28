@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 
+#include "core/axis_scale.hpp"
 #include "ui/camera/camera.hpp"
 
 namespace spectra
@@ -183,12 +184,14 @@ void AnimationController::update(float dt)
         float vx    = a.vx_data * decay;
         float vy    = a.vy_data * decay;
 
-        // Apply velocity as displacement this frame
-        auto xlim = a.axes->x_limits();
-        auto ylim = a.axes->y_limits();
-
-        a.axes->xlim(xlim.min + vx * dt, xlim.max + vx * dt);
-        a.axes->ylim(ylim.min + vy * dt, ylim.max + vy * dt);
+        // Apply velocity as displacement this frame, in axis space (log
+        // axes glide by decades / octaves and never cross zero).
+        const AxisLimits xlim =
+            translate_limits(a.axes->xscale(), a.axes->x_limits(), static_cast<double>(vx) * dt);
+        const AxisLimits ylim =
+            translate_limits(a.axes->yscale(), a.axes->y_limits(), static_cast<double>(vy) * dt);
+        a.axes->xlim(xlim.min, xlim.max);
+        a.axes->ylim(ylim.min, ylim.max);
 
         if (t >= 1.0f)
         {

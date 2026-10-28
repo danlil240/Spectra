@@ -41,12 +41,6 @@ constexpr float FILL_SWATCH   = 10.0f;
 constexpr float CORNER_RADIUS = 4.0f;
 constexpr float HIDDEN_ALPHA  = 0.15f;   // same dimming as the ImGui legend
 
-bool is_unset(const Color& c)
-{
-    // LegendConfig uses {} (black) as "use the theme colour"; see figure.hpp.
-    return c.r == 0.0f && c.g == 0.0f && c.b == 0.0f;
-}
-
 float srgb_to_linear(float c)
 {
     return (c <= 0.04045f) ? c / 12.92f : std::pow((c + 0.055f) / 1.055f, 2.4f);
@@ -132,8 +126,11 @@ void Renderer::render_annotations(Figure& figure)
     annotation_draws_.clear();
     annotation_vertex_scratch_.clear();
     annotation_point_scratch_.clear();
+    legend_overflow_cells_.clear();
 
-    const float fh = static_cast<float>(figure.height());
+    const float fh    = static_cast<float>(figure.height());
+    annotation_fig_w_ = static_cast<float>(figure.width());
+    annotation_fig_h_ = fh;
 
     // Colorbars: figure.axes() holds the 2D axes, figure.all_axes() the 3D ones.
     auto colorbar_for = [&](AxesBase* axes)
@@ -379,6 +376,7 @@ void Renderer::build_legend(AxesBase& axes, const LegendConfig& config)
 
     const auto& tc    = plot_colors();
     const Rect& vp    = axes.viewport();
+    const Rect  area  = legend_layout::legend_area(axes, config.position);
     const float pad_x = config.padding + 2.0f;   // as LegendInteraction
     const float pad_y = config.padding;
 
@@ -408,16 +406,17 @@ void Renderer::build_legend(AxesBase& axes, const LegendConfig& config)
         const float overflow_w =
             text_renderer_.measure_text(legend_layout::overflow_text(n), f.preset, f.scale).width;
         const float cw = SWATCH_W + SWATCH_GAP + max_label_w;
-        const auto  g  = legend_layout::compute_static_grid(n,
-                                                          cw,
-                                                          th + 6.0f,
-                                                          th + 2.0f,
-                                                          overflow_w,
-                                                          pad_x,
-                                                          pad_y,
-                                                          legend_layout::COL_GAP,
-                                                          vp.w - 2.0f * legend_layout::MARGIN,
-                                                          vp.h - 2.0f * legend_layout::MARGIN);
+        const auto  g =
+            legend_layout::compute_static_grid(n,
+                                               cw,
+                                               th + 6.0f,
+                                               th + 2.0f,
+                                               overflow_w,
+                                               pad_x,
+                                               pad_y,
+                                               legend_layout::COL_GAP,
+                                               legend_layout::max_box_w(area, config.position),
+                                               legend_layout::max_box_h(area, config.position));
         return Fit{f, g};
     };
     Fit fit = fit_with(legend_font(config.font_size));
@@ -441,9 +440,10 @@ void Renderer::build_legend(AxesBase& axes, const LegendConfig& config)
         legend_layout::resolve_position(axes, vp, grid.width, grid.height, config.position, prev);
     if (config.position == LegendPosition::Best)
         legend_best_corner_[&axes] = corner;
-    if (!legend_layout::fits(vp, grid.width, grid.height))
+    const Rect region = corner == LegendPosition::OutsideRight ? area : vp;
+    if (!legend_layout::fits(region, grid.width, grid.height, corner))
         return;   // not even one row fits this (tiny) axes
-    const Rect box = legend_layout::place(vp, corner, grid.width, grid.height);
+    const Rect box = legend_layout::place(region, corner, grid.width, grid.height);
 
     // Labels longer than their column are ellipsized (UTF-8 safe) so the
     // legend never runs past its axes (audit S04).  The 0.5 px slack absorbs
@@ -464,11 +464,11 @@ void Renderer::build_legend(AxesBase& axes, const LegendConfig& config)
 
     // ── Box: background + border ──
     {
-        const Color bg = is_unset(config.bg_color) ? theme_color(tc.tooltip_bg, theme_mgr_, 0.9f)
-                                                   : config.bg_color;
-        const Color border = is_unset(config.border_color)
-                                 ? theme_color(tc.border_subtle, theme_mgr_)
-                                 : config.border_color;
+        // LegendConfig::uses_*_color: black RGB without the has_* flag = theme colour.
+        const Color bg =
+            config.uses_bg_color() ? config.bg_color : theme_color(tc.tooltip_bg, theme_mgr_, 0.9f);
+        const Color         border = config.uses_border_color() ? config.border_color
+                                                                : theme_color(tc.border_subtle, theme_mgr_);
         SeriesPushConstants pc{};
         set_color(pc, bg);
         uint32_t first = b.vertex_count();
@@ -485,7 +485,11 @@ void Renderer::build_legend(AxesBase& axes, const LegendConfig& config)
     // ── Entries (column-major, like LegendInteraction) ──
     const float bg_luma =
         0.2126f * tc.bg_canvas.r + 0.7152f * tc.bg_canvas.g + 0.0722f * tc.bg_canvas.b;
-    const Color text_base = theme_color(tc.text_secondary, theme_mgr_);
+    Color text_base = theme_color(tc.text_secondary, theme_mgr_);
+    if (config.uses_bg_color())   // custom box fill: keep labels readable on it
+        text_base = legend_layout::label_ink(text_base,
+                                             config.bg_color,
+                                             theme_color(tc.bg_canvas, theme_mgr_));
     for (size_t i = 0; i < static_cast<size_t>(grid.shown); ++i)
     {
         const int     row = static_cast<int>(i) % grid.rows;
@@ -589,11 +593,94 @@ void Renderer::build_legend(AxesBase& axes, const LegendConfig& config)
         const int   col = grid.shown / grid.rows;
         const float x  = box.x + pad_x + static_cast<float>(col) * (col_w + legend_layout::COL_GAP);
         const float cy = box.y + pad_y + static_cast<float>(row) * row_h + row_h * 0.5f;
-        text_renderer_.draw_text(legend_layout::overflow_text(grid.overflow),
+        const std::string text = legend_layout::overflow_text(grid.overflow);
+        text_renderer_.draw_text(text,
                                  x,
                                  cy,
                                  font,
                                  pack_rgba(text_base),
+                                 TextAlign::Left,
+                                 TextVAlign::Middle,
+                                 font_scale);
+
+        // Hover target: the whole cell (at least as wide as its text).
+        LegendOverflowCell cell;
+        cell.axes    = &axes;
+        cell.cell    = Rect{x, cy - row_h * 0.5f, std::max(col_w, measure(text, font)), row_h};
+        cell.hidden  = legend_layout::overflow_tooltip_lines(entries, grid.shown);
+        cell.hovered = pointer_valid_ && pointer_x_ >= cell.cell.x
+                       && pointer_x_ <= cell.cell.x + cell.cell.w && pointer_y_ >= cell.cell.y
+                       && pointer_y_ <= cell.cell.y + cell.cell.h;
+        if (cell.hovered)
+            build_overflow_tooltip(cell, box, font, font_scale, row_h);
+        legend_overflow_cells_.push_back(std::move(cell));
+    }
+}
+
+// Tooltip card listing the entries a hovered "+N more" cell summarises.  It is
+// placed beside the legend box (left, else right, else over it) so the legend
+// text, which the text pass draws above all annotation geometry, does not
+// show through it, and kept inside the figure.
+void Renderer::build_overflow_tooltip(const LegendOverflowCell& cell,
+                                      const Rect&               legend_box,
+                                      FontSize                  font,
+                                      float                     font_scale,
+                                      float                     row_h)
+{
+    if (cell.hidden.empty())
+        return;
+    const auto& tc   = plot_colors();
+    const char* ell  = text_renderer_.has_glyph(0x2026, font) ? nullptr : "...";
+    auto        line = [&](const std::string& s)
+    {
+        // "\xE2\x80\xA6 and K more" falls back to ASCII without an ellipsis glyph.
+        if (ell && s.rfind("\xE2\x80\xA6", 0) == 0)
+            return std::string(ell) + s.substr(3);
+        return s;
+    };
+    constexpr float PAD = 8.0f;
+    constexpr float GAP = 6.0f;
+    float           tw  = 0.0f;
+    for (const auto& s : cell.hidden)
+        tw = std::max(tw, text_renderer_.measure_text(line(s), font, font_scale).width);
+    const float w  = std::min(tw + 2.0f * PAD, std::max(1.0f, annotation_fig_w_));
+    const float h  = std::min(static_cast<float>(cell.hidden.size()) * row_h + 2.0f * PAD,
+                             std::max(1.0f, annotation_fig_h_));
+    const float fw = annotation_fig_w_;
+    const float fh = annotation_fig_h_;
+
+    float x = legend_box.x - GAP - w;   // left of the legend
+    if (x < 0.0f)
+        x = legend_box.x + legend_box.w + GAP;   // else right of it
+    if (x + w > fw)
+        x = std::max(0.0f, fw - w);   // else over it, inside the figure
+    float y = std::clamp(cell.cell.y + cell.cell.h * 0.5f - h * 0.5f, 0.0f, std::max(0.0f, fh - h));
+    const Rect card{x, y, w, h};
+
+    AnnotationBuilder   b{annotation_vertex_scratch_, annotation_point_scratch_};
+    SeriesPushConstants pc{};
+    set_color(pc, theme_color(tc.tooltip_bg, theme_mgr_, 1.0f));
+    uint32_t first = b.vertex_count();
+    b.rounded_fill(card, CORNER_RADIUS);
+    annotation_draws_.push_back(
+        {AnnotationDraw::Kind::Triangles, first, b.vertex_count() - first, pc});
+    set_color(pc, theme_color(tc.border_subtle, theme_mgr_));
+    pc.line_width = 1.0f;
+    first         = b.vertex_count();
+    b.rounded_stroke(card, CORNER_RADIUS);
+    annotation_draws_.push_back({AnnotationDraw::Kind::Lines, first, b.vertex_count() - first, pc});
+
+    const uint32_t text_col = pack_rgba(theme_color(tc.text_primary, theme_mgr_));
+    for (size_t i = 0; i < cell.hidden.size(); ++i)
+    {
+        const float cy = y + PAD + (static_cast<float>(i) + 0.5f) * row_h;
+        if (cy > y + h)
+            break;
+        text_renderer_.draw_text(line(cell.hidden[i]),
+                                 x + PAD,
+                                 cy,
+                                 font,
+                                 text_col,
                                  TextAlign::Left,
                                  TextVAlign::Middle,
                                  font_scale);

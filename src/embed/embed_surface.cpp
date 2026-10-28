@@ -13,6 +13,7 @@
 #include "embed_detail.hpp"
 
 #ifdef SPECTRA_USE_IMGUI
+    #include "core/figure_layout.hpp"
     #include "core/layout.hpp"
     #include "ui/imgui/imgui_integration.hpp"
     #include "ui/overlay/data_interaction.hpp"
@@ -365,7 +366,7 @@ struct EmbedSurface::Impl
                 const auto& af_style = active_fig->style();
                 Margins     fig_margins;
                 fig_margins.left   = af_style.margin_left;
-                fig_margins.right  = af_style.margin_right;
+                fig_margins.right  = LayoutManager::plot_margin_right(af_style.margin_right);
                 fig_margins.top    = af_style.margin_top;
                 fig_margins.bottom = af_style.margin_bottom;
                 if (canvas.w > 0.0f && canvas.h > 0.0f)
@@ -377,13 +378,7 @@ struct EmbedSurface::Impl
                                                               fig_margins,
                                                               canvas.x,
                                                               canvas.y);
-                    for (size_t i = 0; i < active_fig->axes_mut().size() && i < rects.size(); ++i)
-                        if (active_fig->axes_mut()[i])
-                            active_fig->axes_mut()[i]->set_viewport(rects[i]);
-                    for (size_t i = 0; i < active_fig->all_axes_mut().size() && i < rects.size();
-                         ++i)
-                        if (active_fig->all_axes_mut()[i])
-                            active_fig->all_axes_mut()[i]->set_viewport(rects[i]);
+                    apply_subplot_layout(*active_fig, rects, fig_margins);
                 }
             }
 

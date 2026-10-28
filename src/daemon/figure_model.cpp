@@ -1,6 +1,10 @@
 #include "figure_model.hpp"
 
+#include "../ipc/annotation_state.hpp"
+#include "../ipc/axes_format_state.hpp"
+
 #include <algorithm>
+#include <spectra/color.hpp>
 
 namespace spectra::daemon
 {
@@ -218,6 +222,79 @@ ipc::DiffOp FigureModel::set_axis_title(uint64_t           figure_id,
     return op;
 }
 
+// --- Text annotations ---
+
+bool FigureModel::add_annotation(uint64_t                            figure_id,
+                                 uint32_t                            axes_index,
+                                 const ipc::SnapshotAnnotationState& annotation,
+                                 ipc::DiffOp*                        op_out)
+{
+    std::lock_guard lock(mu_);
+    auto            it = figures_.find(figure_id);
+    if (it == figures_.end() || axes_index >= it->second.axes.size())
+        return false;
+    auto& list = it->second.axes[axes_index].annotations;
+    list.push_back(annotation);
+    bump_revision();
+    if (op_out)
+        *op_out = ipc::make_annotation_op(ipc::DiffOp::Type::ADD_ANNOTATION,
+                                          figure_id,
+                                          axes_index,
+                                          static_cast<uint32_t>(list.size() - 1),
+                                          &annotation);
+    return true;
+}
+
+bool FigureModel::set_annotation(uint64_t                            figure_id,
+                                 uint32_t                            axes_index,
+                                 uint32_t                            index,
+                                 const ipc::SnapshotAnnotationState& annotation,
+                                 ipc::DiffOp*                        op_out)
+{
+    std::lock_guard lock(mu_);
+    auto            it = figures_.find(figure_id);
+    if (it == figures_.end() || axes_index >= it->second.axes.size())
+        return false;
+    auto& list = it->second.axes[axes_index].annotations;
+    if (index >= list.size())
+        return false;
+    list[index] = annotation;
+    bump_revision();
+    if (op_out)
+        *op_out = ipc::make_annotation_op(ipc::DiffOp::Type::SET_ANNOTATION,
+                                          figure_id,
+                                          axes_index,
+                                          index,
+                                          &annotation);
+    return true;
+}
+
+bool FigureModel::clear_annotations(uint64_t figure_id, uint32_t axes_index, ipc::DiffOp* op_out)
+{
+    std::lock_guard lock(mu_);
+    auto            it = figures_.find(figure_id);
+    if (it == figures_.end() || axes_index >= it->second.axes.size())
+        return false;
+    it->second.axes[axes_index].annotations.clear();
+    bump_revision();
+    if (op_out)
+        *op_out = ipc::make_annotation_op(ipc::DiffOp::Type::CLEAR_ANNOTATIONS,
+                                          figure_id,
+                                          axes_index,
+                                          0,
+                                          nullptr);
+    return true;
+}
+
+size_t FigureModel::annotation_count(uint64_t figure_id, uint32_t axes_index) const
+{
+    std::lock_guard lock(mu_);
+    auto            it = figures_.find(figure_id);
+    if (it == figures_.end() || axes_index >= it->second.axes.size())
+        return 0;
+    return it->second.axes[axes_index].annotations.size();
+}
+
 // --- Series management ---
 
 ipc::DiffOp FigureModel::set_series_label(uint64_t           figure_id,
@@ -329,6 +406,42 @@ ipc::DiffOp FigureModel::set_series_color(uint64_t figure_id,
     op.f2           = g;
     op.f3           = b;
     op.f4           = a;
+    return op;
+}
+
+ipc::DiffOp FigureModel::set_series_color_letter(uint64_t figure_id,
+                                                 uint32_t series_index,
+                                                 char     letter)
+{
+    std::lock_guard lock(mu_);
+    const bool      valid = format_colors::is_letter(letter);
+    const Color     shade = format_colors::shade(letter);
+    ipc::DiffOp     op;
+    op.type         = ipc::DiffOp::Type::SET_SERIES_COLOR;
+    op.figure_id    = figure_id;
+    op.series_index = series_index;
+
+    auto it = figures_.find(figure_id);
+    if (it != figures_.end() && series_index < it->second.series.size())
+    {
+        auto& s = it->second.series[series_index];
+        if (valid)
+        {
+            s.color_r      = shade.r;
+            s.color_g      = shade.g;
+            s.color_b      = shade.b;
+            s.color_a      = 1.0f;
+            s.color_index  = -1;
+            s.color_letter = static_cast<uint8_t>(letter);
+        }
+        op.f1 = s.color_r;
+        op.f2 = s.color_g;
+        op.f3 = s.color_b;
+        op.f4 = s.color_a;
+        if (s.color_letter != 0)
+            op.str_val = std::string(1, static_cast<char>(s.color_letter));
+    }
+    bump_revision();
     return op;
 }
 
@@ -569,6 +682,7 @@ std::vector<uint64_t> FigureModel::load_snapshot(const ipc::StateSnapshotPayload
         fd.grid_rows = fig.grid_rows;
         fd.grid_cols = fig.grid_cols;
         fd.live_fps  = fig.live_fps;
+        fd.legend_position = fig.legend_position;
         fd.axes      = fig.axes;
         fd.series    = fig.series;
         figures_[id] = std::move(fd);
@@ -601,6 +715,7 @@ ipc::StateSnapshotPayload FigureModel::snapshot() const
         fig.grid_rows = fd.grid_rows;
         fig.grid_cols = fd.grid_cols;
         fig.live_fps  = fd.live_fps;
+        fig.legend_position = fd.legend_position;
         fig.axes      = fd.axes;
         fig.series    = fd.series;
         snap.figures.push_back(std::move(fig));
@@ -629,6 +744,7 @@ ipc::StateSnapshotPayload FigureModel::snapshot(const std::vector<uint64_t>& fig
         fig.grid_rows = fd.grid_rows;
         fig.grid_cols = fd.grid_cols;
         fig.live_fps  = fd.live_fps;
+        fig.legend_position = fd.legend_position;
         fig.axes      = fd.axes;
         fig.series    = fd.series;
         snap.figures.push_back(std::move(fig));
@@ -663,7 +779,11 @@ bool FigureModel::apply_diff_op(const ipc::DiffOp& op)
             it->second.series[op.series_index].color_b      = op.f3;
             it->second.series[op.series_index].color_a      = op.f4;
             it->second.series[op.series_index].color_index  = -1;
-            it->second.series[op.series_index].color_letter = 0;
+            // A format letter in str_val keeps the colour theme-aware.
+            it->second.series[op.series_index].color_letter =
+                (op.str_val.size() == 1 && format_colors::is_letter(op.str_val[0]))
+                    ? static_cast<uint8_t>(op.str_val[0])
+                    : 0;
             break;
 
         case ipc::DiffOp::Type::SET_SERIES_VISIBLE:
@@ -735,6 +855,38 @@ bool FigureModel::apply_diff_op(const ipc::DiffOp& op)
                 return false;
             it->second.series[op.series_index].name = op.str_val;
             break;
+
+        case ipc::DiffOp::Type::ADD_ANNOTATION:
+        case ipc::DiffOp::Type::SET_ANNOTATION:
+        case ipc::DiffOp::Type::CLEAR_ANNOTATIONS:
+            if (it == figures_.end() || op.axes_index >= it->second.axes.size())
+                return false;
+            if (!ipc::apply_annotation_op(it->second.axes[op.axes_index].annotations, op))
+                return false;
+            break;
+
+        case ipc::DiffOp::Type::SET_AXIS_SCALE:
+            if (it == figures_.end() || op.axes_index >= it->second.axes.size())
+                return false;
+            ipc::apply_axis_scale_op(it->second.axes[op.axes_index], op);
+            break;
+
+        case ipc::DiffOp::Type::SET_LEGEND_POSITION:
+            if (it == figures_.end())
+                return false;
+            it->second.legend_position =
+                ipc::legend_position_to_wire(ipc::legend_position_from_wire(op.f1));
+            break;
+
+        case ipc::DiffOp::Type::SET_SERIES_CATEGORIES:
+        {
+            std::vector<std::string> names;
+            if (it == figures_.end() || op.series_index >= it->second.series.size()
+                || !ipc::categories_from_op(op, names))
+                return false;
+            it->second.series[op.series_index].categories = std::move(names);
+            break;
+        }
 
         case ipc::DiffOp::Type::SET_KNOB_VALUE:
             for (auto& k : knobs_)

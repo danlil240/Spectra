@@ -76,6 +76,18 @@ ExportViewport compute_export_viewport(uint32_t figure_width,
                                        uint32_t export_width,
                                        uint32_t export_height);
 
+// Light direction (data space) that the 3D surface and mesh shaders receive for
+// `axes`.  Zero when lighting is disabled: the shaders then draw the flat base
+// colour.  Otherwise the axes' light_dir(), or a default direction when that is
+// (near) zero, so a zero vector always means "unlit".
+vec3 shader_light_dir(const Axes3D& axes);
+
+// Region a 3D axes may draw into: its viewport `vp` grown into the layout margins
+// of its subplot cell (each side by the figure's margin, at most a quarter of
+// the viewport size), clamped to the fig_w x fig_h figure.  Axis arrows, tick
+// labels and the title of a 3D axes may extend into it.
+Rect axes3d_cell_rect(const Rect& vp, const FigureStyle& style, float fig_w, float fig_h);
+
 class Renderer
 {
    public:
@@ -153,6 +165,8 @@ class Renderer
     // Uses Vulkan grid pipeline with a screen-space ortho projection.
     // 3D arrows are rendered inside render_axes() with depth testing.
     void render_plot_geometry(Figure& figure);
+    // 2D grid lines (screen-space), drawn before the series so data covers them.
+    void render_grid_2d(Figure& figure);
     // Text-annotation arrows of one 2D axes (screen-space, called by render_plot_geometry).
     void render_annotation_arrows(Axes& axes, uint32_t slot, float fw, float fh);
 
@@ -172,6 +186,33 @@ class Renderer
     // drawn by the renderer (there is no overlay version).
     void set_legend_overlay_active(bool active) { legend_overlay_active_ = active; }
     bool legend_overlay_active() const { return legend_overlay_active_; }
+
+    // Pointer position (figure pixels) for hover feedback of the renderer-drawn
+    // legend: hovering a "+N more" cell shows a tooltip naming the entries it
+    // summarises.  Interactive overlay-less windows set it each frame; headless
+    // export never does (and render_figure() ignores it), so images keep the
+    // plain "+N more" cell.
+    void set_pointer(float x, float y)
+    {
+        pointer_valid_ = true;
+        pointer_x_     = x;
+        pointer_y_     = y;
+    }
+    void clear_pointer() { pointer_valid_ = false; }
+
+    // "+N more" cells of the legends drawn in the last render_annotations()
+    // pass (for hit-testing and tests).
+    struct LegendOverflowCell
+    {
+        const AxesBase*          axes = nullptr;
+        Rect                     cell;     // figure pixels
+        std::vector<std::string> hidden;   // tooltip lines (see overflow_tooltip_lines)
+        bool                     hovered = false;
+    };
+    const std::vector<LegendOverflowCell>& legend_overflow_cells() const
+    {
+        return legend_overflow_cells_;
+    }
 
     // Set the currently selected series for highlight rendering.
     // The renderer draws a thin accent-colored line on top of selected series
@@ -221,7 +262,12 @@ class Renderer
     // Paint FigureStyle::background over the figure region when the figure
     // overrides the theme canvas colour (the render-pass clear always uses the theme).
     void render_figure_background(Figure& figure);
-    void render_axes(AxesBase& axes, const Rect& viewport, uint32_t fig_width, uint32_t fig_height);
+    // `scissor` (optional) replaces the viewport as the clip rectangle.
+    void render_axes(AxesBase&   axes,
+                     const Rect& viewport,
+                     uint32_t    fig_width,
+                     uint32_t    fig_height,
+                     const Rect* scissor = nullptr);
     void render_grid(AxesBase& axes, const Rect& viewport);
     void render_bounding_box(Axes3D& axes, const Rect& viewport);
     void render_tick_marks(Axes3D& axes, const Rect& viewport);
@@ -272,6 +318,11 @@ class Renderer
     // and colorbar, drawn after the series and plot geometry so they sit on top.
     void render_annotations(Figure& figure);
     void build_legend(AxesBase& axes, const LegendConfig& config);
+    void build_overflow_tooltip(const LegendOverflowCell& cell,
+                                const Rect&               legend_box,
+                                FontSize                  font,
+                                float                     font_scale,
+                                float                     row_h);
     void build_colorbar(AxesBase& axes);
 
     // Upload a screen-space (pixel, Y-down) orthographic projection into the
@@ -470,8 +521,38 @@ class Renderer
         // unregistered: forces a re-upload so a type registered again under
         // the same name rebuilds its state from scratch.
         bool plugin_state_released = false;
+
+        // ShapeSeries3D: indices() with each translucent range's triangles
+        // sorted back to front for the camera in sort_key (see
+        // prepare_shape3d_sorted_indices).  Uploaded per frame slot so the
+        // in-flight frame's copy is never overwritten.
+        uint64_t              geometry_serial = 0;
+        std::vector<uint32_t> sorted_indices;
+        std::vector<double>   sort_key;
+        uint64_t              sorted_version = 0;
+        BufferHandle          sorted_index_buffer[FRAME_BUFFER_SLOTS];
+        size_t                sorted_index_capacity[FRAME_BUFFER_SLOTS] = {};
+        uint64_t              sorted_slot_version[FRAME_BUFFER_SLOTS]   = {};
+        // Slot whose sorted buffer is current, and the render pass
+        // (render_pass_serial_) it was prepared for; used only within it.
+        int      sorted_ready_slot   = -1;
+        uint64_t sorted_ready_serial = 0;
     };
     std::unordered_map<const Series*, SeriesGpuData> series_gpu_data_;
+    // Incremented by begin_render_pass(); tags per-pass state such as
+    // SeriesGpuData::sorted_ready_serial.
+    uint64_t render_pass_serial_ = 0;
+
+    // Sorts the triangles of @p series' translucent ranges back to front for
+    // @p cam (re-sorting only when the camera, model matrix, geometry or
+    // transparency changed) and uploads them into this frame slot's sorted
+    // index buffer; sets gpu.sorted_ready_slot.  Render thread only.
+    void prepare_shape3d_sorted_indices(SeriesGpuData&       gpu,
+                                        const ShapeSeries3D& series,
+                                        const mat4&          model,
+                                        const Camera&        cam,
+                                        float                series_alpha,
+                                        float                style_opacity);
 
     // Destroy all GPU buffer handles held by a SeriesGpuData or AxesGpuData.
     void destroy_series_buffers(SeriesGpuData& gpu);
@@ -528,6 +609,12 @@ class Renderer
 
     // Legend / colorbar annotation state (render_annotations.cpp).
     bool legend_overlay_active_ = false;
+    bool                            pointer_valid_         = false;
+    float                           pointer_x_             = 0.0f;
+    float                           pointer_y_             = 0.0f;
+    std::vector<LegendOverflowCell> legend_overflow_cells_;
+    float                           annotation_fig_w_ = 0.0f;   // figure size during
+    float                           annotation_fig_h_ = 0.0f;   // render_annotations()
     // One recorded draw of the annotation pass.  Vertex kinds index
     // annotation_vertex_scratch_ (in vertices); Segment / Marker index
     // annotation_point_scratch_ (in points).

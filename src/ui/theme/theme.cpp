@@ -1,4 +1,5 @@
 #include "theme.hpp"
+#include "core/json_key.hpp"
 
 #include "design_tokens.hpp"
 #include "glass_tokens.hpp"
@@ -154,6 +155,70 @@ void ThemeManager::set_theme(const std::string& name)
             event_system_->theme_changed().emit(spectra::ThemeChangedEvent{name});
         notify_public_theme_change();
     }
+}
+
+bool ThemeManager::push_export_theme(const std::string& name)
+{
+    ensure_initialized();
+    if (export_override_.active)
+        return false;
+    auto it = themes_.find(name);
+    if (it == themes_.end())
+    {
+        std::string lower(name);
+        for (auto& ch : lower)
+            ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+        it = themes_.find(lower);
+        if (it == themes_.end())
+            return false;
+    }
+    export_override_       = {true,
+                              current_theme_name_,
+                              current_theme_,
+                              transitioning_,
+                              display_colors_valid_,
+                              palette_transitioning_,
+                              display_palette_valid_};
+    current_theme_name_    = it->first;
+    current_theme_         = &it->second;
+    transitioning_         = false;
+    display_colors_valid_  = false;
+    palette_transitioning_ = false;
+    display_palette_valid_ = false;
+    ++theme_version_;
+    return true;
+}
+
+void ThemeManager::pop_export_theme()
+{
+    if (!export_override_.active)
+        return;
+    current_theme_name_     = export_override_.theme_name;
+    current_theme_          = export_override_.theme;
+    transitioning_          = export_override_.transitioning;
+    display_colors_valid_   = export_override_.display_colors_valid;
+    palette_transitioning_  = export_override_.palette_transitioning;
+    display_palette_valid_  = export_override_.display_palette_valid;
+    export_override_.active = false;
+    ++theme_version_;
+}
+
+ScopedExportTheme::ScopedExportTheme(ThemeManager* tm, const std::string& name) : tm_(tm)
+{
+    if (!tm_ || name.empty())
+        return;
+    active_ = tm_->push_export_theme(name);
+    if (!active_)
+        SPECTRA_LOG_WARN("export",
+                         "Unknown export theme '{}', using the active theme '{}'",
+                         name,
+                         tm_->current_theme_name());
+}
+
+ScopedExportTheme::~ScopedExportTheme()
+{
+    if (active_)
+        tm_->pop_export_theme();
 }
 
 void ThemeManager::notify_public_theme_change()
@@ -338,6 +403,22 @@ const DataPalette& ThemeManager::plot_surface_data_palette(const FigureStyle& st
     return current_data_palette();
 }
 
+DataPalette ThemeManager::displayed_data_palette(const std::string& name) const
+{
+    const DataPalette& src    = name.empty() ? current_data_palette() : resolve_data_palette(name);
+    const Color&       canvas = colors().bg_canvas;
+    auto&              cache  = displayed_palette_cache_;
+    if (cache.valid && cache.canvas == canvas && cache.sequential == src.sequential
+        && cache.src == src.colors && cache.result.name == src.name)
+        return cache.result;
+    cache.src        = src.colors;
+    cache.sequential = src.sequential;
+    cache.canvas     = canvas;
+    cache.result = visible_data_palette(src, spectra::Color(canvas.r, canvas.g, canvas.b, 1.0f));
+    cache.valid  = true;
+    return cache.result;
+}
+
 void ThemeManager::set_data_palette(const std::string& palette_name)
 {
     auto it = data_palettes_.find(palette_name);
@@ -441,6 +522,13 @@ void ThemeManager::apply_to_imgui()
         return;
 
     auto& style = ImGui::GetStyle();
+    // Start every application from ImGui's unscaled default sizes (colours are
+    // all overwritten below) so the UI scale applied at the end never compounds.
+    {
+        ImGuiStyle fresh;
+        std::memcpy(fresh.Colors, style.Colors, sizeof(style.Colors));
+        style = fresh;
+    }
     // Effective colours: mid-transition this is the interpolated palette, so ImGui chrome
     // animates in step with the plot colours instead of jumping at the end.
     const ThemeColors& colors = this->colors();
@@ -623,7 +711,29 @@ void ThemeManager::apply_to_imgui()
     imgui_colors[ImGuiCol_NavWindowingDimBg]     = ImVec4(0, 0, 0, 0.40f);
 
     // Modal
-    imgui_colors[ImGuiCol_ModalWindowDimBg] = lin(colors.bg_overlay, 0.5f);
+    imgui_colors[ImGuiCol_ModalWindowDimBg] = lin(modal_dim_color(colors));
+
+    // App UI scale (Settings -> Appearance): paddings, roundings, spacings and
+    // the font size; overlays read FontScaleMain as their ui_scale.
+    if (ui_scale_ != 1.0f)
+        style.ScaleAllSizes(ui_scale_);
+    style.FontScaleMain = ui_scale_;
+}
+
+float ThemeManager::clamp_ui_scale(float scale)
+{
+    if (!std::isfinite(scale))
+        return 1.0f;
+    return std::clamp(scale, UI_SCALE_MIN, UI_SCALE_MAX);
+}
+
+void ThemeManager::set_ui_scale(float scale)
+{
+    const float s = clamp_ui_scale(scale);
+    if (s == ui_scale_)
+        return;
+    ui_scale_ = s;
+    apply_to_imgui();   // current ImGui context; others resync in new_frame()
 }
 
 void ThemeManager::apply_to_renderer(Renderer& renderer)
@@ -910,7 +1020,7 @@ bool parse_theme_colors_from_json(const std::string& json, ThemeColors& out)
 {
 #define PARSE_TC(name)                             \
     {                                              \
-        size_t p = json.find("\"" #name "\"");     \
+        size_t p = json_find_key(json, #name);     \
         if (p != std::string::npos)                \
         {                                          \
             p += strlen("\"" #name "\"");          \
@@ -963,7 +1073,7 @@ bool parse_theme_colors_from_json(const std::string& json, ThemeColors& out)
 #undef PARSE_TC
     // Parse glow_intensity float
     {
-        size_t p = json.find("\"glow_intensity\"");
+        size_t p = json_find_key(json, "glow_intensity");
         if (p != std::string::npos)
         {
             p = json.find(':', p);
@@ -1041,7 +1151,7 @@ bool ThemeManager::import_theme(const std::string& path)
     if (json.empty())
         return false;
 
-    size_t name_pos = json.find("\"name\"");
+    size_t name_pos = json_find_key(json, "name");
     if (name_pos == std::string::npos)
         return false;
     std::string name = extract_string_value(json, name_pos + 6);
@@ -1051,7 +1161,7 @@ bool ThemeManager::import_theme(const std::string& path)
     Theme theme;
     theme.name = name;
 
-    size_t colors_pos = json.find("\"colors\"");
+    size_t colors_pos = json_find_key(json, "colors");
     if (colors_pos != std::string::npos)
     {
         size_t brace = json.find('{', colors_pos + 8);
@@ -1075,7 +1185,7 @@ bool ThemeManager::import_theme(const std::string& path)
     auto parse_float = [&](const char* key, float& out)
     {
         std::string needle = std::string("\"") + key + "\"";
-        size_t      p      = json.find(needle);
+        size_t      p      = json_find_key(json, key);
         if (p != std::string::npos)
         {
             p = json.find(':', p);
@@ -1091,7 +1201,7 @@ bool ThemeManager::import_theme(const std::string& path)
     auto parse_bool = [&](const char* key, bool& out)
     {
         std::string needle = std::string("\"") + key + "\"";
-        size_t      p      = json.find(needle);
+        size_t      p      = json_find_key(json, key);
         if (p != std::string::npos)
         {
             size_t t_pos = json.find("true", p);
@@ -1110,7 +1220,7 @@ bool ThemeManager::import_theme(const std::string& path)
 
     register_theme(name, std::move(theme));
 
-    size_t glass_pos = json.find("\"glass\"");
+    size_t glass_pos = json_find_key(json, "glass");
     if (glass_pos != std::string::npos)
     {
         ThemeGlassSettings g                 = glass_settings_;
@@ -1180,7 +1290,7 @@ void ThemeManager::load_default()
             std::ifstream lf(default_theme_path_);
             std::string   json((std::istreambuf_iterator<char>(lf)),
                              std::istreambuf_iterator<char>());
-            size_t        np = json.find("\"name\"");
+            size_t        np = json_find_key(json, "name");
             if (np != std::string::npos)
             {
                 std::string n = extract_string_value(json, np + 6);
@@ -1326,7 +1436,7 @@ void ThemeManager::initialize_default_themes()
                               .bg_secondary = Color::from_hex(0xEAF1F7),   // Panels, sidebar, rails
                               .bg_tertiary  = Color::from_hex(0xD5E3EF),   // Inputs, chips, buttons
                               .bg_elevated  = Color::from_hex(0xF8FBFF),   // Tooltips and popups
-                              .bg_overlay   = Color(0.0f, 0.0f, 0.0f, 0.30f),
+                              .bg_overlay   = Color(0.04f, 0.08f, 0.13f, 0.66f),   // Modal scrim: slate
 
                     // Text — blue-black ink against frosted surfaces
                               .text_primary   = Color::from_hex(0x102033),
@@ -1420,10 +1530,14 @@ void ThemeManager::initialize_default_themes()
 
                             // Plot-specific — text, axes and ticks stay at full contrast;
                             // the grid is a dim reference so it never outweighs the data,
-                            // and the minor grid is nearly hidden.
-                                                     .grid_major       = Color::from_hex(0x4D4D4D),
-                                                     .grid_minor       = Color::from_hex(0x1C1C1C),
-                                                     .grid_line        = Color::from_hex(0x4D4D4D),
+                            // and the minor grid is nearly hidden.  The grid is translucent
+                            // white rather than opaque grey: on the black canvas it reads
+                            // exactly as #4D4D4D / #1C1C1C, but where it crosses filled bars,
+                            // violins or bands it only lightens them slightly instead of
+                            // cutting dark lines through them (no checkerboard).
+                                                     .grid_major       = Color(1.0f, 1.0f, 1.0f, 0.30f),
+                                                     .grid_minor       = Color(1.0f, 1.0f, 1.0f, 0.11f),
+                                                     .grid_line        = Color(1.0f, 1.0f, 1.0f, 0.30f),
                                                      .axis_line        = Color::from_hex(0xFFFFFF),
                                                      .tick_label       = Color::from_hex(0xFFFFFF),
                                                      .crosshair        = Color::from_hex(0xCCFFD700),
@@ -1571,6 +1685,7 @@ void ThemeManager::initialize_data_palettes()
     viridis.description     = "Viridis-inspired discrete — perceptually uniform, print-safe";
     viridis.colorblind_safe = true;
     viridis.safe_for        = {CVDType::Protanopia, CVDType::Deuteranopia, CVDType::Tritanopia};
+    viridis.sequential      = true;
     viridis.colors          = {
         Color::from_hex(0x440154),   // deep purple
         Color::from_hex(0x482878),   // purple
@@ -1594,6 +1709,7 @@ void ThemeManager::initialize_data_palettes()
                             CVDType::Deuteranopia,
                             CVDType::Tritanopia,
                             CVDType::Achromatopsia};
+    mono.sequential      = true;
     mono.colors          = {
         Color::from_hex(0x000000),   // black
         Color::from_hex(0x404040),   // dark gray
@@ -1762,6 +1878,156 @@ double cvd_aware_distance(const Rgb& a, const Rgb& b)
     return best;
 }
 
+// Sequential-palette path of visible_data_palette().  The non-ink slots are
+// treated as one ramp: every slot's OKLab lightness is scaled toward the
+// anchor (the ramp end farthest from the canvas) by the largest common factor
+// that brings all slots to @p goal, so the lightness order survives.  When
+// that squeezes neighbours closer than @p min_distance (CVD-aware OKLab, or
+// the source's own closest pair if smaller) the anchor itself moves outward —
+// as little as needed — to give the ramp more room.  Hue and chroma are kept
+// (chroma only as far as the gamut allows).  Returns false (and leaves @p out
+// alone) when the slots are not a strictly monotonic lightness ramp.
+template <typename InkFn>
+bool keep_ramp_visible(const std::vector<Rgb>& src,
+                       const Rgb&              bg,
+                       InkFn                   ink_slot,
+                       double                  toward_l,
+                       double                  goal,
+                       double                  min_distance,
+                       DataPalette&            out)
+{
+    std::vector<size_t> ramp;
+    for (size_t i = 0; i < src.size(); ++i)
+        if (!ink_slot(src[i]))
+            ramp.push_back(i);
+    if (ramp.size() < 3)
+        return false;
+
+    struct Lch
+    {
+        double L, C, h;
+    };
+    std::vector<Lch> lch(src.size());
+    for (size_t i : ramp)
+    {
+        const OkLab lab = srgb_to_oklab(src[i]);
+        lch[i]          = {lab.L, std::hypot(lab.a, lab.b), std::atan2(lab.b, lab.a)};
+    }
+    // Strictly monotonic lightness, either direction.
+    int dir = 0;
+    for (size_t k = 1; k < ramp.size(); ++k)
+    {
+        const double d = lch[ramp[k]].L - lch[ramp[k - 1]].L;
+        const int    s = d > 1e-6 ? 1 : (d < -1e-6 ? -1 : 0);
+        if (s == 0 || (dir != 0 && s != dir))
+            return false;
+        dir = s;
+    }
+
+    // Anchor: the end whose lightness lies farthest in the contrast direction.
+    const size_t first    = ramp.front();
+    const size_t last     = ramp.back();
+    const bool   last_far = (toward_l > 0.5) == (lch[last].L > lch[first].L);
+    const size_t anchor   = last_far ? last : first;
+
+    double want = min_distance;
+    for (size_t a = 0; a < ramp.size(); ++a)
+        for (size_t b = a + 1; b < ramp.size(); ++b)
+            want = std::min(want, cvd_aware_distance(src[ramp[a]], src[ramp[b]]));
+
+    // The ramp for anchor lightness L_a and scale factor s: the anchor sits at
+    // L_a and every other slot keeps s times its lightness offset from it.
+    std::vector<Rgb> cur(src.size());
+    auto             colour_at = [&](size_t i, double L_a, double s)
+    {
+        if (i == anchor && L_a == lch[anchor].L)
+            return src[anchor];
+        const double L = L_a + (lch[i].L - lch[anchor].L) * s;
+        return quantise_8bit(oklch_to_srgb_in_gamut(L, lch[i].C, lch[i].h));
+    };
+    auto all_pass = [&](double L_a, double s)
+    {
+        for (size_t i : ramp)
+            if (exact_contrast(colour_at(i, L_a, s), bg) < goal)
+                return false;
+        return true;
+    };
+    // Largest feasible scale for anchor lightness L_a; fills `cur`.
+    auto solve = [&](double L_a)
+    {
+        double lo = 0.0;
+        double hi = 1.0;
+        if (all_pass(L_a, 1.0))
+            lo = 1.0;
+        else
+            for (int it = 0; it < 30; ++it)
+            {
+                const double mid = 0.5 * (lo + hi);
+                if (all_pass(L_a, mid))
+                    lo = mid;
+                else
+                    hi = mid;
+            }
+        for (size_t i : ramp)
+        {
+            Rgb c = colour_at(i, L_a, lo);
+            // Same lightness but another hue can differ slightly in
+            // luminance: nudge any remaining shortfall outward on its own.
+            if (exact_contrast(c, bg) < goal)
+                c = lightness_to_contrast(c, bg, toward_l, goal);
+            cur[i] = c;
+        }
+    };
+    auto min_distance_now = [&]()
+    {
+        double d = std::numeric_limits<double>::max();
+        for (size_t a = 0; a < ramp.size(); ++a)
+            for (size_t b = a + 1; b < ramp.size(); ++b)
+                d = std::min(d, cvd_aware_distance(cur[ramp[a]], cur[ramp[b]]));
+        return d;
+    };
+
+    // Anchor lightness: its own, moved outward first if the anchor itself
+    // fails, then only as far as distinctness requires.
+    double L_a0 = lch[anchor].L;
+    if (exact_contrast(src[anchor], bg) < goal)
+        L_a0 = srgb_to_oklab(lightness_to_contrast(src[anchor], bg, toward_l, goal)).L;
+    auto anchor_l = [&](double t) { return L_a0 + (toward_l - L_a0) * t; };
+
+    // Smallest anchor move (in 1/32 steps of the remaining lightness) that
+    // keeps the ramp distinct; when none does, the most distinct one.
+    // Distinctness is not monotonic in the move (near black/white the gamut
+    // removes chroma), hence a scan rather than a bisection.
+    double best_t    = 0.0;
+    double best_dist = -1.0;
+    for (int step = 0; step <= 32; ++step)
+    {
+        const double t = step / 32.0;
+        solve(anchor_l(t));
+        const double d = min_distance_now();
+        if (d >= want - 1e-4)
+        {
+            best_t = t;
+            break;
+        }
+        if (d > best_dist + 1e-6)
+        {
+            best_dist = d;
+            best_t    = t;
+        }
+    }
+    solve(anchor_l(best_t));
+
+    for (size_t i : ramp)
+    {
+        auto& dst = out.colors[i];
+        dst.r     = static_cast<float>(cur[i].r);
+        dst.g     = static_cast<float>(cur[i].g);
+        dst.b     = static_cast<float>(cur[i].b);
+    }
+    return true;
+}
+
 }   // namespace
 
 DataPalette visible_data_palette(const DataPalette&    palette,
@@ -1814,15 +2080,19 @@ DataPalette visible_data_palette(const DataPalette&    palette,
     if (todo.empty())
         return out;
 
-    std::stable_sort(todo.begin(),
-                     todo.end(),
-                     [&](size_t a, size_t b) { return contrast[a] > contrast[b]; });
-
     const Rgb    white{1.0, 1.0, 1.0};
     const Rgb    black{0.0, 0.0, 0.0};
     const bool   lighten   = exact_contrast(white, bg) >= exact_contrast(black, bg);
     const double toward_l  = lighten ? 1.0 : 0.0;
     const double max_reach = exact_contrast(lighten ? white : black, bg);
+
+    if (palette.sequential
+        && keep_ramp_visible(src, bg, ink_slot, toward_l, target + GOAL_MARGIN, MIN_DISTANCE, out))
+        return out;
+
+    std::stable_sort(todo.begin(),
+                     todo.end(),
+                     [&](size_t a, size_t b) { return contrast[a] > contrast[b]; });
 
     std::vector<Rgb> result = src;
     for (size_t i : todo)
@@ -2015,6 +2285,110 @@ ThemeColors ThemeManager::interpolate_colors(const ThemeColors& start,
     result.roi_border        = start.roi_border.lerp(end.roi_border, t);
 
     return result;
+}
+
+// ─── Contrast-checked UI colours ────────────────────────────────────────────
+
+Color ensure_contrast(const Color& fg, const Color& bg, float min_ratio)
+{
+    const Color opaque_bg = bg.with_alpha(1.0f);
+    if (fg.contrast_ratio(opaque_bg) >= min_ratio)
+        return fg;
+    // Push away from the background: toward black on light backgrounds,
+    // toward white on dark ones (pick the end that can reach more contrast).
+    const Color black(0.0f, 0.0f, 0.0f, fg.a);
+    const Color white(1.0f, 1.0f, 1.0f, fg.a);
+    const Color target =
+        black.contrast_ratio(opaque_bg) >= white.contrast_ratio(opaque_bg) ? black : white;
+    for (int step = 1; step <= 50; ++step)
+    {
+        const Color c = fg.lerp(target, static_cast<float>(step) / 50.0f);
+        if (c.contrast_ratio(opaque_bg) >= min_ratio)
+            return c.with_alpha(fg.a);
+    }
+    return target;
+}
+
+Color modal_dim_color(const ThemeColors& c)
+{
+    if (is_light_chrome(c))
+        return c.bg_overlay.with_alpha(std::max(c.bg_overlay.a, 0.62f));
+    return c.bg_overlay.with_alpha(0.5f);
+}
+
+StatusPerfColors status_perf_colors(const ThemeColors& c, bool fps_live, float glow_intensity)
+{
+    StatusPerfColors out;
+    const bool       glow = glow_intensity > 0.01f;
+    if (is_light_chrome(c))
+    {
+        // The glass palette's dark-green badge is tuned for dark chrome; on light
+        // chrome use a pale tint of the theme's success colour.
+        if (fps_live)
+        {
+            out.fps_fill   = c.success.with_alpha(0.14f).composite_over(c.bg_primary);
+            out.fps_border = c.success.with_alpha(0.55f).composite_over(c.bg_primary);
+            out.fps_text   = ensure_contrast(c.success, out.fps_fill, 4.5f);
+        }
+        else
+        {
+            out.fps_fill   = c.bg_tertiary.with_alpha(1.0f);
+            out.fps_border = c.border_subtle.composite_over(c.bg_primary);
+            out.fps_text   = ensure_contrast(c.text_tertiary, out.fps_fill, 4.5f);
+        }
+        out.gpu_text = ensure_contrast(c.text_tertiary, c.bg_primary, 4.5f);
+        return out;
+    }
+
+    const bool fps_glow = fps_live && glow;
+    out.fps_fill        = fps_glow ? glass_palette::kFpsPillGreen : c.bg_tertiary.with_alpha(1.0f);
+    out.fps_border      = fps_glow ? glass_palette::kFpsPillBorder : c.border_subtle;
+    const Color text    = fps_glow   ? glass_palette::kFpsPillText
+                          : fps_live ? c.success
+                                     : c.text_tertiary;
+    out.fps_text        = ensure_contrast(text, out.fps_fill, 4.5f);
+    out.gpu_text =
+        ensure_contrast(glow ? glass_palette::kStatusGpuText : c.text_tertiary, c.bg_primary, 4.5f);
+    return out;
+}
+
+ActionButtonColors action_button_colors(const ThemeColors& c, bool primary, const Color& backdrop)
+{
+    const Color        bg = backdrop.with_alpha(1.0f);
+    ActionButtonColors out;
+    if (primary)
+    {
+        out.fill   = c.accent.with_alpha(1.0f);
+        out.hover  = c.accent_hover.with_alpha(1.0f);
+        out.active = c.accent.lerp(c.accent_hover, 0.5f).with_alpha(1.0f);
+        // Ink: whichever of the theme's text colours reads better on the accent.
+        const Color ink_a = c.text_primary.with_alpha(1.0f);
+        const Color ink_b = c.text_inverse.with_alpha(1.0f);
+        const float min_a = std::min({ink_a.contrast_ratio(out.fill),
+                                      ink_a.contrast_ratio(out.hover),
+                                      ink_a.contrast_ratio(out.active)});
+        const float min_b = std::min({ink_b.contrast_ratio(out.fill),
+                                      ink_b.contrast_ratio(out.hover),
+                                      ink_b.contrast_ratio(out.active)});
+        out.text          = min_a >= min_b ? ink_a : ink_b;
+        // Accents too close to the ink are pushed away from it.
+        out.fill   = ensure_contrast(out.fill, out.text, 4.5f);
+        out.hover  = ensure_contrast(out.hover, out.text, 4.5f);
+        out.active = ensure_contrast(out.active, out.text, 4.5f);
+        out.border = Color(0.0f, 0.0f, 0.0f, 0.0f);
+        return out;
+    }
+
+    out.fill   = c.bg_tertiary.with_alpha(0.75f).composite_over(bg);
+    out.hover  = c.bg_elevated.with_alpha(0.95f).composite_over(bg);
+    out.active = c.accent.with_alpha(0.25f).composite_over(bg);
+    Color text = c.text_primary.with_alpha(1.0f);
+    text       = ensure_contrast(text, out.fill, 4.5f);
+    text       = ensure_contrast(text, out.hover, 4.5f);
+    out.text   = ensure_contrast(text, out.active, 4.5f);
+    // The fill alone barely differs from the backdrop: an outline marks the edge.
+    out.border = ensure_contrast(c.border_strong.composite_over(bg), bg, 4.5f);
+    return out;
 }
 
 }   // namespace spectra::ui

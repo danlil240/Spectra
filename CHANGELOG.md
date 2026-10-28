@@ -14,6 +14,14 @@ summarise the main changes rather than listing every commit.
 Release-readiness work for the first public preview.
 
 ### Added
+- Date-time axes (`xaxis_datetime(true)`), named category bars (`bar(names, heights)`) and an
+  outside-right legend position (`LegendPosition::OutsideRight`).
+- `append(double, double)` and `erase_before/after(double)` for full-precision streaming.
+- `save_png`/`save_svg` overloads taking `ExportOptions{width, height, theme}`.
+- 3D axes page in the inspector; UI scale setting (75–200%); PX4 Open Recent; File > Exit.
+- Text annotations in the multi-process window, Python, workspace files and the C FFI.
+- fontconfig font fallback, glyphs above U+FFFF in the UI, monochrome emoji.
+- WebGPU ScatterColormap and Heatmap pipelines; Qt and wasm CI jobs.
 - `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `CITATION.cff`, this changelog, pull-request and
   issue templates.
 - `examples/README.md` and `python/examples/README.md` indexing every example.
@@ -35,10 +43,17 @@ Release-readiness work for the first public preview.
 - Stem series are included in autoscale; histograms ignore non-finite samples.
 - IPC preserves non-socket paths.
 - Broken links in the documentation site.
+- Multi-process window: stats series, subplot placement, mixed 2D/3D series, zoom %, titles.
+- Log axes: markers, tooltips, selection, annotations, pan and linked zoom use the log mapping.
+- Series colours keep following the palette after save, paste and duplicate.
+- 3D: lighting toggle, box size, shared ticks, title row. SVG: 3D shading, ShapeSeries3D,
+  measured legend width.
+- Many UI shell, contrast and Qt theming fixes (issues #102–#112).
 
 ### Removed
 - Personal and generated files from the repository (vendored `.deb`, CTest output, local
   editor and Docker settings, unused icons).
+
 
 ## [0.3.0] - 2026-07-20
 

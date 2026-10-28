@@ -1,4 +1,5 @@
 #include "ui/animation/keyframe_interpolator.hpp"
+#include "core/json_key.hpp"
 
 #include <cmath>
 
@@ -763,11 +764,10 @@ std::string extract_string(const std::string& json, const std::string& key)
 
 float extract_float(const std::string& json, const std::string& key, float def = 0.0f)
 {
-    std::string search = "\"" + key + "\":";
-    auto        pos    = json.find(search);
+    auto pos = json_find_key(json, key);
     if (pos == std::string::npos)
         return def;
-    pos += search.size();
+    pos = json.find(':', pos + key.size() + 2) + 1;
     try
     {
         return std::stof(json.substr(pos));
@@ -780,11 +780,10 @@ float extract_float(const std::string& json, const std::string& key, float def =
 
 int extract_int(const std::string& json, const std::string& key, int def = 0)
 {
-    std::string search = "\"" + key + "\":";
-    auto        pos    = json.find(search);
+    auto pos = json_find_key(json, key);
     if (pos == std::string::npos)
         return def;
-    pos += search.size();
+    pos = json.find(':', pos + key.size() + 2) + 1;
     try
     {
         return std::stoi(json.substr(pos));
@@ -838,14 +837,14 @@ bool KeyframeInterpolator::deserialize(const std::string& json)
     std::lock_guard lock(mutex_);
 
     // Very minimal JSON parsing — sufficient for our own serialization format
-    if (json.find("\"channels\"") == std::string::npos)
+    if (json_find_key(json, "channels") == std::string::npos)
         return false;
 
     channels_.clear();
     bindings_.clear();
 
     // Find channel blocks
-    size_t pos = json.find("[", json.find("\"channels\""));
+    size_t pos = json.find("[", json_find_key(json, "channels"));
     if (pos == std::string::npos)
         return false;
     pos++;
@@ -876,7 +875,7 @@ bool KeyframeInterpolator::deserialize(const std::string& json)
                 AnimationChannel ch(name, def);
 
                 // Parse keyframes within this block
-                size_t kf_pos = block.find("\"keyframes\"");
+                size_t kf_pos = json_find_key(block, "keyframes");
                 if (kf_pos != std::string::npos)
                 {
                     size_t kf_arr = block.find("[", kf_pos);

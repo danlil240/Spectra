@@ -17,12 +17,14 @@
 #include <vector>
 
 #include "core/axis_scale.hpp"
+#include "io/text_metrics.hpp"
 #include "ui/imgui/axes3d_renderer.hpp"
 #include "ui/theme/theme.hpp"
 #include "ui/viewmodel/axes_view_model.hpp"
 #include "ui/viewmodel/figure_view_model.hpp"
 #include "ui/viewmodel/series_view_model.hpp"
 #include "ui/workspace/plugin_guard.hpp"
+#include "render/shape3d_sort.hpp"
 
 namespace spectra
 {
@@ -73,6 +75,74 @@ Renderer::Renderer(Backend& backend, ui::ThemeManager& theme_mgr)
 {
 }
 
+void Renderer::prepare_shape3d_sorted_indices(SeriesGpuData&       gpu,
+                                              const ShapeSeries3D& series,
+                                              const mat4&          model,
+                                              const Camera&        cam,
+                                              float                series_alpha,
+                                              float                style_opacity)
+{
+    const auto indices = series.indices();
+    if (indices.empty() || indices.size() != gpu.index_count)
+        return;   // not uploaded yet (or stale): draw unsorted this frame
+
+    const bool ortho   = cam.projection_mode == Camera::ProjectionMode::Orthographic;
+    const vec3 forward = vec3_normalize(cam.target - cam.position);
+
+    std::vector<double> key;
+    key.reserve(30);
+    for (float v : model.m)
+        key.push_back(v);
+    for (double v :
+         {cam.position.x, cam.position.y, cam.position.z, forward.x, forward.y, forward.z})
+        key.push_back(v);
+    key.push_back(ortho ? 1.0 : 0.0);
+    key.push_back(series_alpha);
+    key.push_back(style_opacity);
+    key.push_back(static_cast<double>(gpu.geometry_serial));
+    key.push_back(static_cast<double>(indices.size()));
+
+    if (key != gpu.sort_key)
+    {
+        gpu.sorted_indices.assign(indices.begin(), indices.end());
+        const auto vertices = series.vertices();
+        for (const auto& r : series.draw_ranges())
+        {
+            if (!shape3d_range_transparent(r, series_alpha, style_opacity))
+                continue;
+            sort_triangles_back_to_front(gpu.sorted_indices,
+                                         r.first_index,
+                                         r.index_count,
+                                         vertices,
+                                         model,
+                                         cam.position,
+                                         forward,
+                                         ortho);
+        }
+        gpu.sort_key = std::move(key);
+        ++gpu.sorted_version;
+    }
+
+    const uint32_t slot = backend_.current_flight_frame() % FRAME_BUFFER_SLOTS;
+    if (gpu.sorted_slot_version[slot] != gpu.sorted_version || !gpu.sorted_index_buffer[slot])
+    {
+        const size_t bytes = gpu.sorted_indices.size() * sizeof(uint32_t);
+        if (!gpu.sorted_index_buffer[slot] || gpu.sorted_index_capacity[slot] < bytes)
+        {
+            if (gpu.sorted_index_buffer[slot])
+                backend_.destroy_buffer(gpu.sorted_index_buffer[slot]);
+            gpu.sorted_index_buffer[slot]   = backend_.create_buffer(BufferUsage::Index, bytes);
+            gpu.sorted_index_capacity[slot] = gpu.sorted_index_buffer[slot] ? bytes : 0;
+        }
+        if (!gpu.sorted_index_buffer[slot])
+            return;
+        backend_.upload_buffer(gpu.sorted_index_buffer[slot], gpu.sorted_indices.data(), bytes);
+        gpu.sorted_slot_version[slot] = gpu.sorted_version;
+    }
+    gpu.sorted_ready_slot   = static_cast<int>(slot);
+    gpu.sorted_ready_serial = render_pass_serial_;
+}
+
 void Renderer::destroy_series_buffers(SeriesGpuData& gpu)
 {
     if (gpu.ssbo)
@@ -83,6 +153,9 @@ void Renderer::destroy_series_buffers(SeriesGpuData& gpu)
         backend_.destroy_buffer(gpu.fill_buffer);
     if (gpu.outlier_buffer)
         backend_.destroy_buffer(gpu.outlier_buffer);
+    for (auto& b : gpu.sorted_index_buffer)
+        if (b)
+            backend_.destroy_buffer(b);
 
     // Clean up plugin GPU state for custom series types.
     if (gpu.type == SeriesType::Custom && gpu.plugin_gpu_state && series_type_registry_)
@@ -444,10 +517,10 @@ bool Renderer::init()
 
     // Initialize text renderer — prefer embedded font data (zero file dependencies),
     // fall back to disk paths for development builds.
-#if __has_include("inter_font_embedded.hpp")
+    // The embedded copy lives in spectra-core (shared with the SVG exporter's text metrics).
+    if (const auto font = embedded_inter_font(); !font.empty())
     {
-    #include "inter_font_embedded.hpp"
-        if (text_renderer_.init(backend_, InterFont_ttf_data, InterFont_ttf_size))
+        if (text_renderer_.init(backend_, font.data(), font.size()))
         {
             SPECTRA_LOG_INFO("renderer", "TextRenderer initialized from embedded font data");
         }
@@ -457,7 +530,6 @@ bool Renderer::init()
                              "TextRenderer init from embedded data failed — trying disk");
         }
     }
-#endif
     if (!text_renderer_.is_initialized())
     {
         const char* font_paths[] = {
@@ -491,6 +563,7 @@ void Renderer::begin_render_pass()
 
     text_renderer_.begin_frame_recording(backend_.current_flight_frame());
     truncated_text_regions_.clear();
+    ++render_pass_serial_;
 
     const auto& theme_colors = theme_mgr_.colors();
     Color       bg_color     = Color(theme_colors.bg_canvas.r,
@@ -505,6 +578,7 @@ void Renderer::begin_render_pass(const Color& clear_color)
 {
     text_renderer_.begin_frame_recording(backend_.current_flight_frame());
     truncated_text_regions_.clear();
+    ++render_pass_serial_;
     backend_.begin_render_pass(clear_color);
     backend_.set_line_width(1.0f);
 }
@@ -544,6 +618,9 @@ void Renderer::render_figure_content(Figure& figure, FigureViewModel* fig_vm)
     // before any axes content.
     render_figure_background(figure);
 
+    // 2D grid below every series (built-in and plugin): opaque data covers it.
+    render_grid_2d(figure);
+
     // Wire up deferred-deletion callback on every axes so that
     // clear_series() / remove_series() safely defer GPU cleanup.
     // Only install the renderer-only fallback if no callback is already set;
@@ -575,9 +652,16 @@ void Renderer::render_figure_content(Figure& figure, FigureViewModel* fig_vm)
             ax.set_series_removed_callback(removal_cb);
         const auto& vp = ax.viewport();
 
-        // Box, grid and ticks of a 3D axes need the 3D grid pipeline.
+        // Box, grid and ticks of a 3D axes need the 3D grid pipeline.  Its
+        // axis arrows may reach into the margins of its subplot cell.
         if (dynamic_cast<Axes3D*>(&ax))
+        {
             require_pipeline(grid3d_pipeline_, "3D axes");
+            const Rect cell =
+                axes3d_cell_rect(vp, figure.style(), static_cast<float>(w), static_cast<float>(h));
+            render_axes(ax, vp, w, h, &cell);
+            continue;
+        }
 
         render_axes(ax, vp, w, h);
     }
@@ -587,7 +671,8 @@ void Renderer::render_figure_content(Figure& figure, FigureViewModel* fig_vm)
     render_plot_text(figure);
     render_unsupported_notice(figure);
 
-    // Render screen-space plot geometry (2D grid, border, tick marks) via Vulkan grid pipeline.
+    // Render screen-space plot geometry (border, tick marks, annotation arrows) via Vulkan grid
+    // pipeline; the 2D grid was drawn by render_grid_2d() before the series.
     // 3D arrows are rendered inside render_axes() with depth testing.
     render_plot_geometry(figure);
 
@@ -681,13 +766,37 @@ void Renderer::render_figure(Figure& figure)
     // same render pass.
     // Nothing else draws into this pass, so the legend comes from the renderer
     // even if the interactive window's ImGui overlay normally provides it.
+    // It is also an image, never a hover state: no "+N more" tooltip.
     const bool overlay_legend = legend_overlay_active_;
+    const bool pointer        = pointer_valid_;
     legend_overlay_active_    = false;
+    pointer_valid_            = false;
     begin_render_pass();
     render_figure_content(figure);
     render_text(static_cast<float>(figure.width()), static_cast<float>(figure.height()));
     end_render_pass();
     legend_overlay_active_ = overlay_legend;
+    pointer_valid_         = pointer;
+}
+
+vec3 shader_light_dir(const Axes3D& axes)
+{
+    if (!axes.lighting_enabled())
+        return {0.0f, 0.0f, 0.0f};
+    const vec3 ld = axes.light_dir();
+    if (!(vec3_length_sq(ld) > 1e-6))   // also catches NaN
+        return {0.5f, 0.7f, 1.0f};
+    return ld;
+}
+
+Rect axes3d_cell_rect(const Rect& vp, const FigureStyle& style, float fig_w, float fig_h)
+{
+    auto grow = [](float margin, float size) { return std::clamp(margin, 0.0f, size * 0.25f); };
+    const float x0 = std::max(0.0f, vp.x - grow(style.margin_left, vp.w));
+    const float y0 = std::max(0.0f, vp.y - grow(style.margin_top, vp.h));
+    const float x1 = std::min(fig_w, vp.x + vp.w + grow(style.margin_right, vp.w));
+    const float y1 = std::min(fig_h, vp.y + vp.h + grow(style.margin_bottom, vp.h));
+    return Rect{x0, y0, std::max(0.0f, x1 - x0), std::max(0.0f, y1 - y0)};
 }
 
 ExportViewport compute_export_viewport(uint32_t figure_width,
@@ -715,7 +824,8 @@ ExportViewport compute_export_viewport(uint32_t figure_width,
 void Renderer::render_axes(AxesBase&   axes,
                            const Rect& viewport,
                            uint32_t    fig_width,
-                           uint32_t    fig_height)
+                           uint32_t    fig_height,
+                           const Rect* scissor)
 {
     // Skip axes entirely outside the framebuffer (scrolled off-screen)
     if (viewport.y + viewport.h < 0.0f || viewport.y > static_cast<float>(fig_height))
@@ -729,10 +839,11 @@ void Renderer::render_axes(AxesBase&   axes,
         return;
 
     // Clamp scissor to framebuffer bounds to avoid negative offsets
-    float sx  = std::max(0.0f, viewport.x);
-    float sy  = std::max(0.0f, viewport.y);
-    float sx2 = std::min(static_cast<float>(fig_width), viewport.x + viewport.w);
-    float sy2 = std::min(static_cast<float>(fig_height), viewport.y + viewport.h);
+    const Rect& clip = scissor ? *scissor : viewport;
+    float       sx   = std::max(0.0f, clip.x);
+    float       sy   = std::max(0.0f, clip.y);
+    float       sx2  = std::min(static_cast<float>(fig_width), clip.x + clip.w);
+    float       sy2  = std::min(static_cast<float>(fig_height), clip.y + clip.h);
     float sw  = std::max(0.0f, sx2 - sx);
     float sh  = std::max(0.0f, sy2 - sy);
 
@@ -803,21 +914,11 @@ void Renderer::render_axes(AxesBase&   axes,
         ubo.camera_pos[1] = cam.position.y;
         ubo.camera_pos[2] = cam.position.z;
 
-        // Light direction from Axes3D (configurable)
-        if (axes3d->lighting_enabled())
-        {
-            vec3 ld          = axes3d->light_dir();
-            ubo.light_dir[0] = ld.x;
-            ubo.light_dir[1] = ld.y;
-            ubo.light_dir[2] = ld.z;
-        }
-        else
-        {
-            // Zero light_dir signals shader to skip lighting (use flat color)
-            ubo.light_dir[0] = 0.0f;
-            ubo.light_dir[1] = 0.0f;
-            ubo.light_dir[2] = 0.0f;
-        }
+        // Light direction from Axes3D; zero tells the shaders to skip lighting.
+        const vec3 ld    = shader_light_dir(*axes3d);
+        ubo.light_dir[0] = ld.x;
+        ubo.light_dir[1] = ld.y;
+        ubo.light_dir[2] = ld.z;
     }
     else if (auto* axes2d = dynamic_cast<Axes*>(&axes))
     {
@@ -1029,6 +1130,18 @@ void Renderer::render_axes(AxesBase&   axes,
                 const float style_opacity = series_ptr->plot_style().opacity;
                 const auto  ranges        = sh3d->draw_ranges();
                 bool        has_opaque    = false;
+                bool        has_blended   = false;
+                for (const auto& r : ranges)
+                    has_blended =
+                        has_blended || shape3d_range_transparent(r, effective_alpha, style_opacity);
+                gpu_it->second.sorted_ready_slot = -1;
+                if (has_blended)
+                    prepare_shape3d_sorted_indices(gpu_it->second,
+                                                   *sh3d,
+                                                   model_mat,
+                                                   cam,
+                                                   effective_alpha,
+                                                   style_opacity);
                 for (size_t ri = 0; ri < ranges.size(); ++ri)
                 {
                     if (!shape3d_range_transparent(ranges[ri], effective_alpha, style_opacity))

@@ -9,11 +9,14 @@
     #include <limits>
     #include <numeric>
     #include <spectra/axes.hpp>
+    #include <spectra/axes3d.hpp>
+    #include <spectra/camera.hpp>
     #include <spectra/figure.hpp>
     #include <spectra/series.hpp>
     #include <vector>
 
     #include "ui/commands/series_clipboard.hpp"
+    #include "ui/input/axes_selection.hpp"
     #include "ui/theme/design_tokens.hpp"
     #include "ui/theme/icons.hpp"
     #include "ui/theme/theme.hpp"
@@ -61,9 +64,14 @@ void Inspector::draw(Figure& figure)
             break;
 
         case SelectionType::Axes:
+            draw_axes_picker(figure);
             if (ctx_.axes)
             {
                 draw_axes_properties(*ctx_.axes, ctx_.axes_index);
+            }
+            else if (auto* ax3d = dynamic_cast<Axes3D*>(ctx_.axes_base))
+            {
+                draw_axes3d_properties(*ax3d, ctx_.axes_index);
             }
             break;
 
@@ -197,10 +205,15 @@ void Inspector::draw_figure_properties(Figure& fig)
                 leg.visible = show_legend;
             }
 
-            const char* positions[] =
-                {"Top Right", "Top Left", "Bottom Right", "Bottom Left", "Hidden", "Best"};
-            int pos = static_cast<int>(leg.position);
-            if (widgets::combo_field("Position", pos, positions, 6))
+            const char* positions[] = {"Top Right",
+                                       "Top Left",
+                                       "Bottom Right",
+                                       "Bottom Left",
+                                       "Hidden",
+                                       "Best",
+                                       "Outside Right"};
+            int         pos         = static_cast<int>(leg.position);
+            if (widgets::combo_field("Position", pos, positions, 7))
             {
                 leg.position = static_cast<LegendPosition>(pos);
             }
@@ -217,16 +230,38 @@ void Inspector::draw_figure_properties(Figure& fig)
                 leg.padding = padding;
             }
 
+            // A colour picked here is explicit (pure black included); "Theme"
+            // returns to the theme's legend colours.
             spectra::Color bg_color = leg.bg_color;
             if (widgets::color_field("Background", bg_color))
             {
-                leg.bg_color = bg_color;
+                leg.bg_color     = bg_color;
+                leg.has_bg_color = true;
+            }
+            if (leg.uses_bg_color())
+            {
+                ImGui::SameLine();
+                if (ImGui::SmallButton("Theme##legend_bg"))
+                {
+                    leg.bg_color     = {};
+                    leg.has_bg_color = false;
+                }
             }
 
             spectra::Color border_color = leg.border_color;
             if (widgets::color_field("Border", border_color))
             {
-                leg.border_color = border_color;
+                leg.border_color     = border_color;
+                leg.has_border_color = true;
+            }
+            if (leg.uses_border_color())
+            {
+                ImGui::SameLine();
+                if (ImGui::SmallButton("Theme##legend_border"))
+                {
+                    leg.border_color     = {};
+                    leg.has_border_color = false;
+                }
             }
             widgets::end_group();
             widgets::small_spacing();
@@ -869,6 +904,15 @@ void Inspector::draw_axes_properties(Axes& ax, int index)
     ImGui::PopStyleColor();
 
     widgets::section_spacing();
+    widgets::begin_group("axes_title");
+    std::string ax_title = ax.get_title();
+    if (widgets::text_field("Title", ax_title))
+    {
+        ax.title(ax_title);
+    }
+    widgets::end_group();
+
+    widgets::section_spacing();
     widgets::separator();
     widgets::section_spacing();
 
@@ -1000,6 +1044,257 @@ void Inspector::draw_axes_properties(Axes& ax, int index)
             draw_reference_lines(ax);
             widgets::end_group();
             widgets::small_spacing();
+            widgets::end_animated_section();
+        }
+    }
+}
+
+// ─── Axes Picker ────────────────────────────────────────────────────────────
+
+void Inspector::draw_axes_picker(Figure& fig)
+{
+    const auto slots = figure_axes_slots(fig);
+    if (slots.size() < 2)
+        return;
+
+    std::vector<std::string> names;
+    std::vector<const char*> items;
+    names.reserve(slots.size());
+    int current = 0;
+    for (size_t i = 0; i < slots.size(); ++i)
+    {
+        names.push_back(
+            std::format("Axes {}{}", slots[i].index + 1, slots[i].axes3d ? " (3D)" : ""));
+        if (slots[i].base == ctx_.axes_base || (ctx_.axes && slots[i].axes2d == ctx_.axes))
+            current = static_cast<int>(i);
+    }
+    for (const auto& n : names)
+        items.push_back(n.c_str());
+
+    widgets::begin_group("axes_picker");
+    if (widgets::combo_field("Axes", current, items.data(), static_cast<int>(items.size())))
+    {
+        select_axes_slot(ctx_, fig, slots[static_cast<size_t>(current)]);
+    }
+    widgets::end_group();
+    widgets::section_spacing();
+}
+
+// ─── 3D Axes Properties ─────────────────────────────────────────────────────
+
+void Inspector::draw_axes3d_properties(Axes3D& ax, int index)
+{
+    const auto& c = theme();
+
+    // Context title
+    if (font_title_)
+        ImGui::PushFont(font_title_);
+    ImGui::PushStyleColor(
+        ImGuiCol_Text,
+        ImVec4(c.text_primary.r, c.text_primary.g, c.text_primary.b, c.text_primary.a));
+    const std::string title = std::format("Axes {} (3D)", index + 1);
+    ImGui::TextUnformatted(title.c_str());
+    ImGui::PopStyleColor();
+    if (font_title_)
+        ImGui::PopFont();
+
+    widgets::small_spacing();
+
+    ImGui::PushStyleColor(
+        ImGuiCol_Text,
+        ImVec4(c.text_secondary.r, c.text_secondary.g, c.text_secondary.b, c.text_secondary.a));
+    const std::string sub = std::format("{} series", ax.series().size());
+    ImGui::TextUnformatted(sub.c_str());
+    ImGui::PopStyleColor();
+
+    widgets::section_spacing();
+    widgets::begin_group("axes3d_title");
+    std::string ax_title = ax.get_title();
+    if (widgets::text_field("Title", ax_title))
+    {
+        ax.title(ax_title);
+    }
+    widgets::end_group();
+
+    widgets::section_spacing();
+    widgets::separator();
+    widgets::section_spacing();
+
+    // ── X / Y / Z axis: range + label
+    struct AxisRow
+    {
+        const char* header;
+        const char* group;
+        bool*       open;
+        AxisLimits (Axes3D::*limits)() const;
+        void (Axes3D::*set_limits)(double, double);
+        const std::string& (Axes3D::*label)() const;
+        void (Axes3D::*set_label)(const std::string&);
+    };
+    const AxisRow rows[] = {
+        {"X AXIS",
+         "axes3d_x",
+         &sec_axis_x_,
+         &Axes3D::x_limits,
+         &Axes3D::xlim,
+         &Axes3D::get_xlabel,
+         &Axes3D::xlabel},
+        {"Y AXIS",
+         "axes3d_y",
+         &sec_axis_y_,
+         &Axes3D::y_limits,
+         &Axes3D::ylim,
+         &Axes3D::get_ylabel,
+         &Axes3D::ylabel},
+        {"Z AXIS",
+         "axes3d_z",
+         &sec_axis_z_,
+         &Axes3D::z_limits,
+         &Axes3D::zlim,
+         &Axes3D::get_zlabel,
+         &Axes3D::zlabel},
+    };
+    for (const auto& row : rows)
+    {
+        if (!widgets::section_header(row.header, row.open, font_heading_))
+            continue;
+        if (!widgets::begin_animated_section(row.group))
+            continue;
+        widgets::begin_group(row.group);
+        const AxisLimits lim  = (ax.*row.limits)();
+        auto             lo_f = static_cast<float>(lim.min);
+        auto             hi_f = static_cast<float>(lim.max);
+        if (widgets::drag_field2("Range", lo_f, hi_f, 0.01f, "%.3f") && lo_f < hi_f)
+        {
+            (ax.*row.set_limits)(static_cast<double>(lo_f), static_cast<double>(hi_f));
+        }
+        std::string label = (ax.*row.label)();
+        if (widgets::text_field("Label", label))
+        {
+            (ax.*row.set_label)(label);
+        }
+        widgets::end_group();
+        widgets::small_spacing();
+        widgets::end_animated_section();
+    }
+
+    // ── Grid & Box
+    if (widgets::section_header("GRID & BOX", &sec_grid_, font_heading_))
+    {
+        if (widgets::begin_animated_section("GRID & BOX"))
+        {
+            widgets::begin_group("axes3d_grid");
+            bool grid = ax.grid_enabled();
+            if (widgets::checkbox_field("Show Grid", grid))
+            {
+                ax.grid(grid);
+            }
+            const int planes       = static_cast<int>(ax.grid_planes());
+            auto      plane_toggle = [&](const char* label, Axes3D::GridPlane p)
+            {
+                const int bit = static_cast<int>(p);
+                bool      on  = (planes & bit) != 0;
+                if (widgets::checkbox_field(label, on))
+                {
+                    const int cur = static_cast<int>(ax.grid_planes());
+                    ax.set_grid_planes(on ? (cur | bit) : (cur & ~bit));
+                }
+            };
+            plane_toggle("XY Plane", Axes3D::GridPlane::XY);
+            plane_toggle("XZ Plane", Axes3D::GridPlane::XZ);
+            plane_toggle("YZ Plane", Axes3D::GridPlane::YZ);
+            bool box = ax.show_bounding_box();
+            if (widgets::checkbox_field("Bounding Box", box))
+            {
+                ax.show_bounding_box(box);
+            }
+            widgets::end_group();
+            widgets::small_spacing();
+            widgets::end_animated_section();
+        }
+    }
+
+    // ── Lighting
+    if (widgets::section_header("LIGHTING", &sec_lighting_, font_heading_))
+    {
+        if (widgets::begin_animated_section("LIGHTING"))
+        {
+            widgets::begin_group("axes3d_lighting");
+            bool lit = ax.lighting_enabled();
+            if (widgets::checkbox_field("Enable Lighting", lit))
+            {
+                ax.lighting_enabled(lit);
+            }
+            vec3 dir     = ax.light_dir();
+            auto lx      = static_cast<float>(dir.x);
+            auto ly      = static_cast<float>(dir.y);
+            auto lz      = static_cast<float>(dir.z);
+            bool changed = false;
+            changed |= widgets::drag_field("Light X", lx, 0.01f, -1.0f, 1.0f, "%.2f");
+            changed |= widgets::drag_field("Light Y", ly, 0.01f, -1.0f, 1.0f, "%.2f");
+            changed |= widgets::drag_field("Light Z", lz, 0.01f, -1.0f, 1.0f, "%.2f");
+            if (changed)
+            {
+                ax.light_dir(lx, ly, lz);
+            }
+            widgets::end_group();
+            widgets::small_spacing();
+            widgets::end_animated_section();
+        }
+    }
+
+    // ── Camera
+    if (widgets::section_header("CAMERA", &sec_camera_, font_heading_))
+    {
+        if (widgets::begin_animated_section("CAMERA"))
+        {
+            widgets::begin_group("axes3d_camera");
+            Camera&     cam     = ax.camera();
+            const char* modes[] = {"Perspective", "Orthographic"};
+            int         mode    = static_cast<int>(cam.projection_mode);
+            if (widgets::combo_field("Projection", mode, modes, 2))
+            {
+                cam.set_projection(static_cast<Camera::ProjectionMode>(mode));
+            }
+            float az = cam.azimuth;
+            if (widgets::drag_field("Azimuth", az, 0.5f, -360.0f, 360.0f, "%.1f deg"))
+            {
+                cam.set_azimuth(az);
+            }
+            float el = cam.elevation;
+            if (widgets::drag_field("Elevation", el, 0.5f, -89.0f, 89.0f, "%.1f deg"))
+            {
+                cam.set_elevation(el);
+            }
+            if (cam.projection_mode == Camera::ProjectionMode::Perspective)
+            {
+                float fov = cam.fov;
+                if (widgets::drag_field("Field of View", fov, 0.5f, 5.0f, 120.0f, "%.0f deg"))
+                {
+                    cam.set_fov(fov);
+                }
+            }
+            if (widgets::button_field("Reset Camera"))
+            {
+                cam.reset();
+            }
+            widgets::end_group();
+            widgets::small_spacing();
+            widgets::end_animated_section();
+        }
+    }
+
+    // ── Autoscale
+    if (widgets::section_header("AUTOSCALE", &sec_style_, font_heading_))
+    {
+        if (widgets::begin_animated_section("AUTOSCALE"))
+        {
+            widgets::begin_group("axes3d_autoscale");
+            if (widgets::button_field("Auto-fit Now"))
+            {
+                ax.auto_fit();
+            }
+            widgets::end_group();
             widgets::end_animated_section();
         }
     }

@@ -20,7 +20,7 @@ struct FigureConfig
     uint32_t height = DEFAULT_WINDOW_HEIGHT;
 };
 
-/// @brief Where the legend is drawn inside each axes.
+/// @brief Where the legend of each axes is drawn.
 enum class LegendPosition
 {
     TopRight,
@@ -28,7 +28,8 @@ enum class LegendPosition
     BottomRight,
     BottomLeft,
     None,
-    Best,   // Corner with the least overlap with plotted data (default)
+    Best,           // Corner with the least overlap with plotted data (default)
+    OutsideRight,   // Right of the axes, top-aligned; the plot area shrinks to make room
 };
 
 /// @brief Legend placement and appearance for a Figure.
@@ -37,9 +38,28 @@ struct LegendConfig
     LegendPosition position     = LegendPosition::Best;
     bool           visible      = true;
     float          font_size    = 0.0f;   ///< 0 = use default from font
-    Color          bg_color     = {};     ///< {0,0,0,0} = use theme bg_elevated
-    Color          border_color = {};     ///< {0,0,0,0} = use theme border_subtle
-    float          padding      = 8.0f;
+    /// Legend fill.  Used when has_bg_color is true or its RGB is not black;
+    /// otherwise (the default) the theme's legend colour is used.
+    Color bg_color = {};
+    /// Legend border.  Same rule as bg_color, with has_border_color.
+    Color border_color = {};
+    float padding      = 8.0f;
+    /// Set to use bg_color / border_color even when it is pure black, which is
+    /// otherwise read as "unset" for backward compatibility.
+    bool has_bg_color     = false;
+    bool has_border_color = false;
+
+    /// True when the legend fill comes from bg_color rather than the theme.
+    constexpr bool uses_bg_color() const
+    {
+        return has_bg_color || bg_color.r != 0.0f || bg_color.g != 0.0f || bg_color.b != 0.0f;
+    }
+    /// True when the legend border comes from border_color rather than the theme.
+    constexpr bool uses_border_color() const
+    {
+        return has_border_color || border_color.r != 0.0f || border_color.g != 0.0f
+               || border_color.b != 0.0f;
+    }
 };
 
 /// @brief Figure background colour, outer margins and subplot spacing (pixels).
@@ -99,9 +119,22 @@ struct FigureExportRequest
     std::string png_path;
     uint32_t    png_width         = 0;   ///< 0 = use figure's native resolution
     uint32_t    png_height        = 0;
+    std::string png_theme;   ///< empty = active app theme
     bool        copy_to_clipboard = false;
     std::string svg_path;
+    std::string svg_theme;   ///< empty = active app theme
     std::string video_path;
+};
+
+/// @brief Optional settings for one Figure::save_png() / save_svg() call.
+struct ExportOptions
+{
+    uint32_t width  = 0;   ///< PNG width in pixels (0 = figure width); ignored for SVG
+    uint32_t height = 0;   ///< PNG height in pixels (0 = figure height); ignored for SVG
+    /// Theme this export is drawn with, e.g. "light" or "dark" (any registered
+    /// theme name).  Empty uses the app's active theme.  Only this file is
+    /// affected; an unknown name logs a warning and falls back to the active theme.
+    std::string theme;
 };
 
 /// @brief Animation state set by AnimationBuilder, driven by WindowRuntime.
@@ -145,8 +178,12 @@ class Figure
     bool save_png(const std::string& path);
     /// @brief Request a PNG export at the given resolution (see save_png()).
     bool save_png(const std::string& path, uint32_t export_width, uint32_t export_height);
+    /// @brief Request a PNG export with per-export options (size, theme).
+    bool save_png(const std::string& path, const ExportOptions& options);
     /// @brief Request an SVG vector export (see save_png() for the return value).
     bool save_svg(const std::string& path);
+    /// @brief Request an SVG vector export with per-export options (theme).
+    bool save_svg(const std::string& path, const ExportOptions& options);
     /// @brief Copy a rendered image of the figure to the system clipboard.
     void copy_to_clipboard();
 

@@ -232,6 +232,23 @@ struct CmdCloseWindowPayload
 
 // ─── State sync payloads ────────────────────────────────────────────────────
 
+// Serialized 2D text annotation (spectra::TextAnnotation) within an axis state.
+struct SnapshotAnnotationState
+{
+    float       x = 0.0f, y = 0.0f;   // anchor, data coordinates
+    std::string text;
+    bool        has_color = false;   // false = theme text colour
+    float       color_r = 0.0f, color_g = 0.0f, color_b = 0.0f, color_a = 1.0f;
+    float       font_size = 0.0f;   // px; 0 = axis-label size
+    uint8_t     halign    = 0;      // TextAnnotation::HAlign (0=Left,1=Center,2=Right)
+    uint8_t     valign    = 2;      // TextAnnotation::VAlign (0=Top,1=Middle,2=Bottom)
+    bool        has_arrow = false;
+    float       arrow_x = 0.0f, arrow_y = 0.0f;
+    bool        visible = true;
+
+    bool operator==(const SnapshotAnnotationState&) const = default;
+};
+
 // Serialized axis state within a figure snapshot.
 struct SnapshotAxisState
 {
@@ -243,6 +260,13 @@ struct SnapshotAxisState
     std::string x_label;
     std::string y_label;
     std::string title;
+    // 2D text annotations (Axes::text / Axes::annotate), in draw order.
+    std::vector<SnapshotAnnotationState> annotations;
+    // 2D axis scales (spectra::ScaleType) and date-time tick mode.
+    uint8_t x_scale    = 0;
+    uint8_t y_scale    = 0;
+    bool    x_datetime = false;
+    bool    y_datetime = false;
 };
 
 // Serialized series metadata within a figure snapshot.
@@ -272,6 +296,8 @@ struct SnapshotSeriesState
     // (e.g. epoch timestamps) as float offsets from a nearby origin.
     double x_origin = 0.0;
     double y_origin = 0.0;
+    // Bar series: category names (BarSeries::categories()), empty otherwise.
+    std::vector<std::string> categories;
 };
 
 // A single figure's full state.
@@ -285,6 +311,7 @@ struct SnapshotFigureState
     int32_t     grid_cols    = 1;
     uint32_t    window_group = 0;      // Figures with the same non-zero group share one window
     float       live_fps     = 0.0f;   // >0 = Python live-streaming at this FPS
+    uint8_t     legend_position = 5;      // spectra::LegendPosition (5 = Best)
     std::vector<SnapshotAxisState>   axes;
     std::vector<SnapshotSeriesState> series;
 };
@@ -337,6 +364,14 @@ struct DiffOp
         ADD_AXES =
             23,   // axes_index=new index, bool_val=is_3d, f1=grid_rows, f2=grid_cols (0 = unknown)
         SET_LIVE_FPS = 25,   // f1=target fps, bool_val=enable/disable
+        // Text annotations: str_val=text, data=pack_annotation() floats.
+        ADD_ANNOTATION    = 26,   // append to axes_index
+        SET_ANNOTATION    = 27,   // replace annotation series_index of axes_index
+        CLEAR_ANNOTATIONS = 28,   // remove every annotation of axes_index
+        // f1=x scale, f2=y scale (spectra::ScaleType), f3=x date-time, f4=y date-time (0/1)
+        SET_AXIS_SCALE        = 29,
+        SET_LEGEND_POSITION   = 30,   // f1=spectra::LegendPosition
+        SET_SERIES_CATEGORIES = 31,   // bar category names: f1=count, str_val=names joined by 0x1F
     };
 
     Type     type         = Type::SET_AXIS_LIMITS;
@@ -460,6 +495,8 @@ struct ReqUpdatePropertyPayload
     double      f1 = 0.0, f2 = 0.0, f3 = 0.0, f4 = 0.0;
     bool        bool_val = false;
     std::string str_val;
+    // Bulk float payload ("annotation": pack_annotation() layout).
+    std::vector<float> data;
 };
 
 // Python → Backend: show a figure (spawn agent window).

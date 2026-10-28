@@ -96,30 +96,6 @@ bool AnnotationManager::is_editing() const
     return false;
 }
 
-void AnnotationManager::data_to_screen(float       data_x,
-                                       float       data_y,
-                                       const Rect& viewport,
-                                       float       xlim_min,
-                                       float       xlim_max,
-                                       float       ylim_min,
-                                       float       ylim_max,
-                                       float&      screen_x,
-                                       float&      screen_y)
-{
-    float x_range = xlim_max - xlim_min;
-    float y_range = ylim_max - ylim_min;
-    if (x_range == 0.0f)
-        x_range = 1.0f;
-    if (y_range == 0.0f)
-        y_range = 1.0f;
-
-    float norm_x = (data_x - xlim_min) / x_range;
-    float norm_y = (data_y - ylim_min) / y_range;
-
-    screen_x = viewport.x + norm_x * viewport.w;
-    screen_y = viewport.y + (1.0f - norm_y) * viewport.h;
-}
-
 void AnnotationManager::begin_drag(size_t index, float screen_x, float screen_y)
 {
     if (index >= annotations_.size())
@@ -145,15 +121,11 @@ void AnnotationManager::end_drag()
     drag_active_ = false;
 }
 
-int AnnotationManager::hit_test(float       screen_x,
-                                float       screen_y,
-                                const Rect& viewport,
-                                float       xlim_min,
-                                float       xlim_max,
-                                float       ylim_min,
-                                float       ylim_max,
-                                float       radius_px,
-                                const Axes* filter_axes) const
+int AnnotationManager::hit_test(float              screen_x,
+                                float              screen_y,
+                                const AxisMapping& map,
+                                float              radius_px,
+                                const Axes*        filter_axes) const
 {
     ImFont*     font  = font_body_ ? font_body_ : ImGui::GetFont();
     const float fs    = font->LegacySize;
@@ -166,17 +138,11 @@ int AnnotationManager::hit_test(float       screen_x,
         if (filter_axes && a.axes != filter_axes)
             continue;
 
-        float sx = 0.0f;
-        float sy = 0.0f;
-        data_to_screen(a.data_x,
-                       a.data_y,
-                       viewport,
-                       xlim_min,
-                       xlim_max,
-                       ylim_min,
-                       ylim_max,
-                       sx,
-                       sy);
+        // Anchors a log axis cannot draw (x or y <= 0) have no screen position.
+        if (!map.x_drawable(a.data_x) || !map.y_drawable(a.data_y))
+            continue;
+        const auto sx = static_cast<float>(map.to_screen_x(a.data_x));
+        const auto sy = static_cast<float>(map.to_screen_y(a.data_y));
 
         // Annotation box position
         float box_cx = sx + a.offset_x;
@@ -212,15 +178,12 @@ int AnnotationManager::hit_test(float       screen_x,
     return -1;
 }
 
-void AnnotationManager::draw(const Rect& viewport,
-                             float       xlim_min,
-                             float       xlim_max,
-                             float       ylim_min,
-                             float       ylim_max,
-                             float       opacity,
-                             const Axes* filter_axes,
-                             ImDrawList* dl)
+void AnnotationManager::draw(const AxisMapping& map,
+                             float              opacity,
+                             const Axes*        filter_axes,
+                             ImDrawList*        dl)
 {
+    const Rect& viewport = map.viewport();
     if (annotations_.empty())
         return;
 
@@ -240,17 +203,11 @@ void AnnotationManager::draw(const Rect& viewport,
         if (filter_axes && a.axes != filter_axes)
             continue;
 
-        float sx = 0.0f;
-        float sy = 0.0f;
-        data_to_screen(a.data_x,
-                       a.data_y,
-                       viewport,
-                       xlim_min,
-                       xlim_max,
-                       ylim_min,
-                       ylim_max,
-                       sx,
-                       sy);
+        // Anchors a log axis cannot draw (x or y <= 0) have no screen position.
+        if (!map.x_drawable(a.data_x) || !map.y_drawable(a.data_y))
+            continue;
+        const auto sx = static_cast<float>(map.to_screen_x(a.data_x));
+        const auto sy = static_cast<float>(map.to_screen_y(a.data_y));
 
         // Skip if anchor is outside viewport
         if (sx < viewport.x || sx > viewport.x + viewport.w || sy < viewport.y

@@ -253,6 +253,8 @@ TEST_F(RosPlotManagerTest, AddPlotSeriesColorFromPalette)
     EXPECT_FLOAT_EQ(h.series->color().r, expected.r);
     EXPECT_FLOAT_EQ(h.series->color().g, expected.g);
     EXPECT_FLOAT_EQ(h.series->color().b, expected.b);
+    // Auto colour: follows the theme's data palette instead of a frozen RGB.
+    EXPECT_TRUE(h.series->has_auto_color());
 }
 
 TEST_F(RosPlotManagerTest, AddPlotColorsAdvanceWithEachPlot)
@@ -265,6 +267,8 @@ TEST_F(RosPlotManagerTest, AddPlotColorsAdvanceWithEachPlot)
     EXPECT_FALSE(h0.series->color().r == h1.series->color().r
                  && h0.series->color().g == h1.series->color().g
                  && h0.series->color().b == h1.series->color().b);
+    // Each plot takes its own palette slot.
+    EXPECT_NE(h0.series->auto_color_index(), h1.series->auto_color_index());
 }
 
 TEST_F(RosPlotManagerTest, AddPlotIdsMonotonicallyIncreasing)

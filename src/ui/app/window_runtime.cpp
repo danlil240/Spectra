@@ -6,12 +6,15 @@
 #include <spectra/logger.hpp>
 
 #include "anim/frame_scheduler.hpp"
+#include "core/figure_layout.hpp"
 #include "core/layout.hpp"
 #include "render/renderer.hpp"
 #include "render/vulkan/vk_backend.hpp"
 #include <spectra/figure_registry.hpp>
 #include "window_ui_context.hpp"
 #include "zoom_level.hpp"
+
+#include <limits>
 
 #ifdef SPECTRA_USE_GLFW
     #define GLFW_INCLUDE_NONE
@@ -611,29 +614,33 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
 
             if (needs_recompute)
             {
-                float data_min = xlim.max;
-                float data_max = xlim.min;
+                float data_min = std::numeric_limits<float>::infinity();
+                float data_max = -std::numeric_limits<float>::infinity();
                 for (auto& s : ax->series())
                 {
-                    if (!s)
+                    // Reference lines (axhline/axvline) span +-1e12: not data.
+                    if (!s || s->is_reference_line())
                         continue;
                     std::span<const float> xd;
                     if (auto* ls = dynamic_cast<LineSeries*>(s.get()))
                         xd = ls->x_data();
                     else if (auto* sc = dynamic_cast<ScatterSeries*>(s.get()))
                         xd = sc->x_data();
-                    if (!xd.empty())
-                    {
-                        auto [it_min, it_max] = std::minmax_element(xd.begin(), xd.end());
-                        data_min              = std::min(data_min, *it_min);
-                        data_max              = std::max(data_max, *it_max);
-                    }
+                    // Also drops sentinel endpoints of reference lines that
+                    // arrived as plain series (Python hline over IPC).
+                    accumulate_zoom_extent(xd, data_min, data_max);
                 }
                 zoom_vm.set_zoom_cache(data_min, data_max, series_count);
             }
 
             float data_range = zoom_vm.cached_data_max() - zoom_vm.cached_data_min();
-            if (view_range > 0.0f && data_range > 0.0f)
+            if (!(data_range > 0.0f))
+            {
+                // No finite data extent (e.g. only reference lines): nothing
+                // to compare the view with, so report the unzoomed level.
+                imgui_ui->set_zoom_level(1.0f);
+            }
+            else if (view_range > 0.0f)
             {
                 // 100% = the autoscaled view (which includes padding), not the raw extent.
                 const double pad =
@@ -824,20 +831,7 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                         if (fig->scroll_offset_y() < 0.0f)
                             fig->set_scroll_offset_y(0.0f);
 
-                        for (size_t i = 0; i < fig->axes_mut().size() && i < rects.size(); ++i)
-                        {
-                            if (fig->axes_mut()[i])
-                            {
-                                fig->axes_mut()[i]->set_viewport(rects[i]);
-                            }
-                        }
-                        for (size_t i = 0; i < fig->all_axes_mut().size() && i < rects.size(); ++i)
-                        {
-                            if (fig->all_axes_mut()[i])
-                            {
-                                fig->all_axes_mut()[i]->set_viewport(rects[i]);
-                            }
-                        }
+                        apply_subplot_layout(*fig, rects, pane_margins);
                     }
                 }
             }
@@ -849,7 +843,8 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                 const auto& af_style = active_figure->style();
                 Margins     fig_margins;
                 fig_margins.left   = af_style.margin_left;
-                fig_margins.right  = af_style.margin_right;
+                // Keep the plot clear of the inspector tab on the canvas' right edge.
+                fig_margins.right  = LayoutManager::plot_margin_right(af_style.margin_right);
                 fig_margins.top    = af_style.margin_top;
                 fig_margins.bottom = af_style.margin_bottom;
 
@@ -875,21 +870,7 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                 if (active_figure->scroll_offset_y() < 0.0f)
                     active_figure->set_scroll_offset_y(0.0f);
 
-                for (size_t i = 0; i < active_figure->axes_mut().size() && i < rects.size(); ++i)
-                {
-                    if (active_figure->axes_mut()[i])
-                    {
-                        active_figure->axes_mut()[i]->set_viewport(rects[i]);
-                    }
-                }
-                for (size_t i = 0; i < active_figure->all_axes_mut().size() && i < rects.size();
-                     ++i)
-                {
-                    if (active_figure->all_axes_mut()[i])
-                    {
-                        active_figure->all_axes_mut()[i]->set_viewport(rects[i]);
-                    }
-                }
+                apply_subplot_layout(*active_figure, rects, fig_margins);
             }
         }
         else if (active_figure)
@@ -1021,6 +1002,14 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
         legend_overlay = ui_ctx.imgui_ui && ui_ctx.imgui_ui->data_interaction();
 #endif
         renderer_.set_legend_overlay_active(legend_overlay);
+        // Without the ImGui legend the renderer draws it; hovering its "+N more"
+        // cell then shows a tooltip naming the hidden entries.
+        const auto& pointer = ui_ctx.input_handler.cursor_readout();
+        if (!legend_overlay && pointer.in_window)
+            renderer_.set_pointer(static_cast<float>(pointer.screen_x),
+                                  static_cast<float>(pointer.screen_y));
+        else
+            renderer_.clear_pointer();
 
 #ifdef SPECTRA_USE_IMGUI
         // Pass selected series to the renderer for GPU-rendered highlight

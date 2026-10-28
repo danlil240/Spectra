@@ -143,7 +143,14 @@ option(SPECTRA_BUILD_TESTS    "Build unit tests and benchmarks"   ${SPECTRA_IS_T
 # The multiproc runtime spawns spectra-backend/spectra-window, so the apps are
 # built by default even for subproject consumers.
 option(SPECTRA_BUILD_APPS     "Build spectra, spectra-backend and spectra-window executables" ON)
-option(SPECTRA_INSTALL        "Generate install rules and the spectra CMake package" ON)
+# wasm builds produce a web page, not an installable package (the browser GLFW
+# shim is an interface target that cannot be exported).
+if(EMSCRIPTEN)
+    set(_spectra_install_default OFF)
+else()
+    set(_spectra_install_default ON)
+endif()
+option(SPECTRA_INSTALL        "Generate install rules and the spectra CMake package" ${_spectra_install_default})
 option(SPECTRA_PYTHON_WHEEL  "Install backend into Python package _bin/" OFF)
 
 # SPECTRA_USE_SYSTEM_<DEP> switches (system package vs. pinned FetchContent copy)
@@ -213,7 +220,7 @@ include(cmake/CompileShaders.cmake)
 set(WGSL_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/gpu/shaders/wgsl)
 set(WGSL_HEADER     ${CMAKE_CURRENT_BINARY_DIR}/generated/shader_wgsl.hpp)
 if(EXISTS ${WGSL_SOURCE_DIR})
-    file(GLOB _wgsl_inputs "${WGSL_SOURCE_DIR}/*.wgsl")
+    file(GLOB _wgsl_inputs CONFIGURE_DEPENDS "${WGSL_SOURCE_DIR}/*.wgsl")
     if(_wgsl_inputs)
         add_custom_command(
             OUTPUT  ${WGSL_HEADER}
@@ -422,6 +429,8 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 endif()
 
 target_link_libraries(spectra PUBLIC spectra-core Vulkan::Vulkan)
+# dlopen: fontconfig is loaded at run time for fallback-font lookup (font_fallback.cpp).
+target_link_libraries(spectra PRIVATE ${CMAKE_DL_LIBS})
 
 target_compile_definitions(spectra PUBLIC
     SPECTRA_RUNTIME_MODE_${SPECTRA_RUNTIME_MODE}
@@ -438,7 +447,7 @@ if(EMSCRIPTEN)
     if(NOT Python3_Interpreter_FOUND)
         message(FATAL_ERROR "Emscripten builds need Python 3 to generate Vulkan stubs")
     endif()
-    set(_spectra_vk_stubs${CMAKE_CURRENT_BINARY_DIR}/generated/vulkan_stubs.cpp)
+    set(_spectra_vk_stubs ${CMAKE_CURRENT_BINARY_DIR}/generated/vulkan_stubs.cpp)
     add_custom_command(
         OUTPUT  ${_spectra_vk_stubs}
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/cmake/generate_vulkan_stubs.py
@@ -603,6 +612,7 @@ if(SPECTRA_USE_QT)
     add_library(spectra_qt_adapter
         src/adapters/qt/qt_runtime.cpp
         src/adapters/qt/qt_surface_host.cpp
+        src/adapters/qt/qt_theme.cpp
     )
     target_link_libraries(spectra_qt_adapter PUBLIC spectra Qt6::Gui)
     target_compile_features(spectra_qt_adapter PRIVATE cxx_std_20)
@@ -722,7 +732,10 @@ if(SPECTRA_USE_IMGUI AND (SPECTRA_USE_GLFW OR SPECTRA_USE_SDL3))
             $<TARGET_PROPERTY:${SPECTRA_SDL3_TARGET},INTERFACE_INCLUDE_DIRECTORIES>
         )
     endif()
-    target_compile_definitions(spectra PUBLIC SPECTRA_USE_IMGUI)
+    # 32-bit ImWchar: code points above U+FFFF (emoji, maths alphanumerics,
+    # CJK extension B) are decoded instead of shown as U+FFFD.  PUBLIC so every
+    # translation unit that includes imgui.h agrees on sizeof(ImWchar).
+    target_compile_definitions(spectra PUBLIC SPECTRA_USE_IMGUI IMGUI_USE_WCHAR32)
 endif()
 
 # ROS2 adapter (optional) — all ROS2 build logic lives in src/adapters/ros2/CMakeLists.txt
@@ -831,6 +844,7 @@ if(SPECTRA_USE_PX4)
         src/adapters/px4/px4_plot_manager.cpp
         src/adapters/px4/px4_app_shell.cpp
         src/adapters/px4/px4_app_shell_menus.cpp
+        src/adapters/px4/px4_recent_files.cpp
         src/adapters/px4/ui/ulog_file_panel.cpp
         src/adapters/px4/ui/live_connection_panel.cpp
         src/adapters/px4/ui/px4_panel_helpers.cpp

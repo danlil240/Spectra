@@ -45,7 +45,8 @@ class ProcessManager
     void set_socket_path(const std::string& path) { socket_path_ = path; }
 
     // Spawn a new agent process. Returns the PID on success, -1 on failure.
-    // The agent will be launched with: spectra-window --socket <socket_path>
+    // The agent will be launched with:
+    //   spectra-window --socket <socket_path> --cascade-index <live agent count>
     pid_t spawn_agent();
 
     // Spawn an agent and associate it with a window ID (for tracking).

@@ -242,13 +242,13 @@ SubplotHandle SubplotManager::add_plot(int                slot,
         entry->field_path = field_path;
         entry->type_name  = resolved_type;
 
-        std::string    lbl   = topic + "/" + field_path;
-        spectra::Color color = next_color();
-        entry->color_index   = color_cursor_ - 1;
+        std::string lbl        = topic + "/" + field_path;
+        const int   color_slot = next_color_slot();
+        entry->color_index     = static_cast<size_t>(color_slot);
 
         spectra::LineSeries& ls = se.axes->line();
         ls.label(lbl);
-        ls.color(color);
+        ls.set_auto_color_index(color_slot);
         ls.width(3.0f);
         entry->series = &ls;
 
@@ -362,11 +362,11 @@ SubplotHandle SubplotManager::add_plot(int                slot,
     std::string lbl = topic + "/" + field_path;
 
     // Add a LineSeries to the subplot axes.
-    spectra::Color color    = next_color();
-    se.color_index          = color_cursor_ - 1;
+    const int color_slot    = next_color_slot();
+    se.color_index          = static_cast<size_t>(color_slot);
     spectra::LineSeries& ls = se.axes->line();
     ls.label(lbl);
-    ls.color(color);
+    ls.set_auto_color_index(color_slot);
     ls.width(3.0f);
     se.series = &ls;
 
@@ -1496,12 +1496,10 @@ void SubplotManager::compact()
         se.buffer_depth           = a.buffer_depth;
 
         // Create new primary LineSeries in the target axes.
-        std::string    lbl = se.topic + "/" + se.field_path;
-        spectra::Color color =
-            spectra::palette::default_cycle[se.color_index % spectra::palette::default_cycle_size];
-        spectra::LineSeries& ls = se.axes->line();
+        std::string          lbl = se.topic + "/" + se.field_path;
+        spectra::LineSeries& ls  = se.axes->line();
         ls.label(lbl);
-        ls.color(color);
+        ls.set_auto_color_index(static_cast<int>(se.color_index));
         ls.width(3.0f);
 
         // Copy saved data into the new series.
@@ -1516,13 +1514,10 @@ void SubplotManager::compact()
         se.extra_series = std::move(a.extra_series);
         for (size_t ei = 0; ei < se.extra_series.size(); ++ei)
         {
-            auto&          es = se.extra_series[ei];
-            spectra::Color ecol =
-                spectra::palette::default_cycle[es->color_index
-                                                % spectra::palette::default_cycle_size];
+            auto&                es  = se.extra_series[ei];
             spectra::LineSeries& els = se.axes->line();
             els.label(es->topic + "/" + es->field_path);
-            els.color(ecol);
+            els.set_auto_color_index(static_cast<int>(es->color_index));
             els.width(3.0f);
             if (ei < a.extra_xy.size() && !a.extra_xy[ei].first.empty())
             {
@@ -1915,12 +1910,9 @@ std::string SubplotManager::detect_type(const std::string& topic) const
     return {};
 }
 
-spectra::Color SubplotManager::next_color()
+int SubplotManager::next_color_slot()
 {
-    const spectra::Color c =
-        spectra::palette::default_cycle[color_cursor_ % spectra::palette::default_cycle_size];
-    ++color_cursor_;
-    return c;
+    return static_cast<int>(color_cursor_++);
 }
 
 void SubplotManager::rebuild_x_links()

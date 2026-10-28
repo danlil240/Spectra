@@ -660,7 +660,7 @@ WindowContext* WindowManager::create_first_window_with_ui(void*                 
     wctx_ptr->assigned_figure_index = active_id;
     wctx_ptr->assigned_figures      = figure_ids;
     wctx_ptr->active_figure_id      = active_id;
-    wctx_ptr->title                 = "Spectra";
+    wctx_ptr->title                 = "Spectra";   // retitled per frame (sync_window_title)
 
 #ifdef SPECTRA_USE_GLFW
     auto* glfw_win = static_cast<GLFWwindow*>(glfw_window);
@@ -737,13 +737,20 @@ WindowContext* WindowManager::create_window_with_ui(uint32_t           width,
         return nullptr;
     }
 
+    // Without an explicit position, cascade from the open figure windows
+    // (computed before the new window joins the list).
+    bool explicit_pos = screen_x != WINDOW_POS_AUTO && screen_y != WINDOW_POS_AUTO;
+    if (!explicit_pos)
+        explicit_pos = next_cascade_position(width, height, screen_x, screen_y);
+
     // Create the base window (GLFW + Vulkan resources)
     auto* wctx = create_window(width, height, title);
     if (!wctx)
         return nullptr;
 
-    // Set window position
-    set_window_position(*wctx, screen_x, screen_y);
+    // Set window position (otherwise the OS / window manager places it)
+    if (explicit_pos)
+        set_window_position(*wctx, screen_x, screen_y);
 
     // Set figure assignment
     wctx->assigned_figure_index = initial_figure_id;

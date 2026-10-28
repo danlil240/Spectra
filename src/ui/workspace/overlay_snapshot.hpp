@@ -19,8 +19,10 @@ struct OverlaySnapshot
 
     struct MarkerEntry
     {
-        float       data_x = 0.0f;
-        float       data_y = 0.0f;
+        // Absolute data coordinates; double so epoch timestamps and
+        // 1e7 + small data survive a save/load round trip.
+        double      data_x = 0.0;
+        double      data_y = 0.0;
         std::string series_label;
         size_t      point_index = 0;
         size_t      axes_index  = 0;

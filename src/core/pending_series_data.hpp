@@ -10,6 +10,7 @@
 #include <span>
 #include <vector>
 
+#include "data_origin.hpp"
 #include "spinlock.hpp"
 
 namespace spectra
@@ -107,23 +108,35 @@ class PendingSeriesData
     void append(float x, float y)
     {
         SpinLockGuard guard(lock_);
-        append_x_.push_back(x);
-        append_y_.push_back(y);
+        appends_.push_back({x, y, false});
         set_pending();
     }
 
-    void erase_before(float threshold)
+    // Append of absolute double values (Series::append(double, double)).
+    // Converted to float offsets at commit, where the live offsets are known.
+    void append_f64(double x, double y)
+    {
+        SpinLockGuard guard(lock_);
+        appends_.push_back({x, y, true});
+        set_pending();
+    }
+
+    // `absolute` thresholds are logical x values (offset included), resolved
+    // against the live x offset at commit.
+    void erase_before(double threshold, bool absolute = false)
     {
         SpinLockGuard guard(lock_);
         erase_threshold_ = threshold;
+        erase_absolute_  = absolute;
         has_erase_       = true;
         set_pending();
     }
 
-    void erase_after(float threshold)
+    void erase_after(double threshold, bool absolute = false)
     {
         SpinLockGuard guard(lock_);
         erase_after_threshold_ = threshold;
+        erase_after_absolute_  = absolute;
         has_erase_after_       = true;
         set_pending();
     }
@@ -185,6 +198,14 @@ class PendingSeriesData
             changed = true;
         }
 
+        // Stored-value threshold for an erase: absolute thresholds are made
+        // relative to the x offset in effect after the replace above.
+        auto stored_threshold = [&](double threshold, bool absolute) -> float
+        {
+            const double origin = (absolute && x_offset) ? *x_offset : 0.0;
+            return static_cast<float>(threshold - origin);
+        };
+
         // 2. Erase-before (sorted-x binary search).
         // x and y may differ in length (replace_x / replace_y are queued
         // independently), so all erase counts are derived from the paired
@@ -196,7 +217,7 @@ class PendingSeriesData
             {
                 auto it = std::lower_bound(x.begin(),
                                            x.begin() + static_cast<ptrdiff_t>(count),
-                                           erase_threshold_);
+                                           stored_threshold(erase_threshold_, erase_absolute_));
                 auto n  = static_cast<ptrdiff_t>(it - x.begin());
                 if (n > 0)
                 {
@@ -215,9 +236,10 @@ class PendingSeriesData
             const size_t count = std::min(x.size(), y.size());
             if (count > 0)
             {
-                auto       it   = std::upper_bound(x.begin(),
-                                           x.begin() + static_cast<ptrdiff_t>(count),
-                                           erase_after_threshold_);
+                auto it = std::upper_bound(
+                    x.begin(),
+                    x.begin() + static_cast<ptrdiff_t>(count),
+                    stored_threshold(erase_after_threshold_, erase_after_absolute_));
                 const auto keep = static_cast<ptrdiff_t>(it - x.begin());
                 const auto end  = static_cast<ptrdiff_t>(count);
                 if (end > keep)
@@ -230,19 +252,40 @@ class PendingSeriesData
         }
         has_erase_after_ = false;
 
-        // 4. Append accumulated points
-        if (!append_x_.empty())
+        // 4. Append accumulated points.  Double appends become float offsets
+        // from the live origins; the first one into an empty axis without an
+        // origin picks it (same rule as the non-pending path).
+        if (!appends_.empty())
         {
+            std::vector<float> add_x;
+            std::vector<float> add_y;
+            add_x.reserve(appends_.size());
+            add_y.reserve(appends_.size());
+            double x_origin = x_offset ? *x_offset : 0.0;
+            double y_origin = y_offset ? *y_offset : 0.0;
+            for (const auto& a : appends_)
+            {
+                if (!a.absolute)
+                {
+                    add_x.push_back(static_cast<float>(a.x));
+                    add_y.push_back(static_cast<float>(a.y));
+                    continue;
+                }
+                if (x_offset && x_origin == 0.0 && x.empty() && add_x.empty())
+                    *x_offset = x_origin = detail::choose_stream_origin(a.x);
+                if (y_offset && y_origin == 0.0 && y.empty() && add_y.empty())
+                    *y_offset = y_origin = detail::choose_stream_origin(a.y);
+                add_x.push_back(static_cast<float>(a.x - x_origin));
+                add_y.push_back(static_cast<float>(a.y - y_origin));
+            }
             if (x_sorted && *x_sorted)
             {
-                const bool boundary_sorted = x.empty() || x.back() <= append_x_.front();
-                *x_sorted =
-                    boundary_sorted && x_sorted_without_nan(append_x_.begin(), append_x_.end());
+                const bool boundary_sorted = x.empty() || x.back() <= add_x.front();
+                *x_sorted = boundary_sorted && x_sorted_without_nan(add_x.begin(), add_x.end());
             }
-            x.insert(x.end(), append_x_.begin(), append_x_.end());
-            y.insert(y.end(), append_y_.begin(), append_y_.end());
-            append_x_.clear();
-            append_y_.clear();
+            x.insert(x.end(), add_x.begin(), add_x.end());
+            y.insert(y.end(), add_y.begin(), add_y.end());
+            appends_.clear();
             changed = true;
         }
 
@@ -293,15 +336,23 @@ class PendingSeriesData
     std::optional<double>             pending_x_offset_;
     std::optional<double>             pending_y_offset_;
 
-    // Append accumulator.
-    std::vector<float> append_x_;
-    std::vector<float> append_y_;
+    // Append accumulator.  Float appends keep their exact float values
+    // (widened losslessly); `absolute` marks double appends.
+    struct PendingAppend
+    {
+        double x;
+        double y;
+        bool   absolute;
+    };
+    std::vector<PendingAppend> appends_;
 
     // Erase-before / erase-after state.
-    float erase_threshold_       = 0.0f;
-    float erase_after_threshold_ = 0.0f;
-    bool  has_erase_             = false;
-    bool  has_erase_after_       = false;
+    double erase_threshold_       = 0.0;
+    double erase_after_threshold_ = 0.0;
+    bool   erase_absolute_        = false;
+    bool   erase_after_absolute_  = false;
+    bool   has_erase_             = false;
+    bool   has_erase_after_       = false;
 
     // Trim-to-max state.
     size_t trim_max_points_ = 0;

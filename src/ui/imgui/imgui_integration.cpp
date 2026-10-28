@@ -120,6 +120,8 @@ std::unique_ptr<ImGuiIntegration> make_imgui_integration()
 
 // ─── Lifecycle ──────────────────────────────────────────────────────────────
 
+ImGuiIntegration::ImGuiIntegration() = default;
+
 ImGuiIntegration::~ImGuiIntegration()
 {
     shutdown();
@@ -468,6 +470,10 @@ void ImGuiIntegration::new_frame()
     #elif defined(SPECTRA_USE_SDL3)
     ImGui_ImplSDL3_NewFrame();
     #endif
+    // Follow the app UI scale (Settings -> Appearance) in every ImGui context:
+    // a change made in another window re-styles this one before its frame.
+    if (theme_mgr_ && ImGui::GetStyle().FontScaleMain != theme_mgr_->ui_scale())
+        theme_mgr_->apply_to_imgui();
     ImGui::NewFrame();
 
     // Update layout with current window size and delta time
@@ -498,6 +504,10 @@ void ImGuiIntegration::new_frame_headless(const HeadlessFrameInput& input)
     io.DisplayFramebufferScale = ImVec2(input.dpi_scale, input.dpi_scale);
 
     ImGui_ImplVulkan_NewFrame();
+    // Follow the app UI scale (Settings -> Appearance) in every ImGui context:
+    // a change made in another window re-styles this one before its frame.
+    if (theme_mgr_ && ImGui::GetStyle().FontScaleMain != theme_mgr_->ui_scale())
+        theme_mgr_->apply_to_imgui();
     ImGui::NewFrame();
 
     // Update layout with current display size and delta time
@@ -1108,8 +1118,15 @@ void ImGuiIntegration::build_empty_ui()
     if (settings_panel_)
         settings_panel_->draw();
 
+    // Theme Settings is reachable from the Tools menu on the welcome screen too.
+    draw_theme_settings();
+
     // Welcome-state drop target: allows dragging a topic to auto-create a new figure.
     draw_topic_drop_target_welcome();
+
+    // Command palette overlay (Ctrl+K / Tools menu) — last so it renders on top.
+    if (command_palette_)
+        command_palette_->draw(io.DisplaySize.x, io.DisplaySize.y);
 }
 
 // ─── Welcome screen logo texture ────────────────────────────────────────────
@@ -1474,8 +1491,10 @@ void ImGuiIntegration::load_fonts()
                                        icon_ranges);
 
         // System fallback fonts for glyphs Inter lacks (maths operators,
-        // CJK, ...).  ImGui 1.92 rasterises glyphs on demand from the first
-        // source that has them, so merging costs nothing until used.
+        // CJK, monochrome emoji, ...).  ImGui 1.92 rasterises glyphs on demand
+        // from the first source that has them, so merging costs nothing until
+        // used.  No glyph ranges: with IMGUI_USE_WCHAR32 (CMakeLists.txt) this
+        // covers the whole Unicode range, including code points above U+FFFF.
         for (const auto& file : fallback_font_files_)
         {
             ImFontConfig fb_cfg;
@@ -1501,7 +1520,9 @@ void ImGuiIntegration::load_fonts()
     for (const auto& path : discover_fallback_fonts())
     {
         FontFileData file;
-        if (file.load(path) && is_font_signature(file.data(), file.size()))
+        // Outline fonts only: ImGui's stb_truetype loader cannot use colour
+        // bitmap emoji fonts (no glyf/CFF table).
+        if (file.load(path) && is_outline_font(file.data(), file.size()))
             fallback_font_files_.push_back(std::move(file));
     }
 

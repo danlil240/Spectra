@@ -120,6 +120,41 @@ def _parse_color(color: Union[str, Tuple, List, None]) -> Optional[Tuple[float, 
     return None
 
 
+# Named colours that map to a MATLAB colour letter.  These are sent as the
+# letter so the window draws the shade tuned for its theme ('k' stays visible
+# on a dark plot, 'y' on a light one) instead of a fixed RGB.
+_LETTER_NAMES = {
+    "r": "r", "red": "r",
+    "g": "g", "green": "g",
+    "b": "b", "blue": "b",
+    "c": "c", "cyan": "c",
+    "m": "m", "magenta": "m",
+    "y": "y", "yellow": "y",
+    "k": "k", "black": "k",
+    "w": "w", "white": "w",
+}
+
+
+def _color_letter(color: Union[str, Tuple, List, None]) -> Optional[str]:
+    """Return the theme-aware colour letter for a named colour, else None."""
+    if isinstance(color, str):
+        return _LETTER_NAMES.get(color.lower().strip())
+    return None
+
+
+def _apply_color(series: Any, color: Union[str, Tuple, List, None]) -> None:
+    """Colour a series: named letter colours stay theme-aware, others are RGB."""
+    if series is None or color is None:
+        return
+    letter = _color_letter(color)
+    if letter is not None and hasattr(series, "set_color_letter"):
+        series.set_color_letter(letter)
+        return
+    c = _parse_color(color)
+    if c:
+        series.set_color(*c)
+
+
 # ─── Global State ─────────────────────────────────────────────────────────────
 
 class _EasyState:
@@ -426,10 +461,8 @@ def stem(
         stem_y.extend([0.0, yi, float("nan")])
     line = ax.line(stem_x, stem_y, label=label)
     dots = ax.scatter(x, y, label="")
-    c = _parse_color(color)
-    if c:
-        line.set_color(*c)
-        dots.set_color(*c)
+    _apply_color(line, color)
+    _apply_color(dots, color)
     _auto_fit_axes(ax, x, y)
     _state._show_if_pending()
     return line
@@ -472,9 +505,7 @@ def hist(
 
     ax = _state._ensure_axes()
     series = ax.line(step_x, step_y, label=label)
-    c = _parse_color(color)
-    if c:
-        series.set_color(*c)
+    _apply_color(series, color)
     _auto_fit_axes(ax, step_x, step_y)
     _state._show_if_pending()
     return series
@@ -505,9 +536,7 @@ def bar(
 
     ax = _state._ensure_axes()
     series = ax.line(bx, by, label=label)
-    c = _parse_color(color)
-    if c:
-        series.set_color(*c)
+    _apply_color(series, color)
     series.set_line_width(2.0)
     _auto_fit_axes(ax, bx, by)
     _state._show_if_pending()
@@ -604,15 +633,12 @@ def boxplot(
 
     ax = _state._ensure_axes()
     series = ax.line(all_x, all_y, label=label)
-    c = _parse_color(color)
-    if c:
-        series.set_color(*c)
+    _apply_color(series, color)
     series.set_line_width(2.0)
 
     if out_x:
         dots = ax.scatter(out_x, out_y, label="")
-        if c:
-            dots.set_color(*c)
+        _apply_color(dots, color)
 
     _auto_fit_axes(ax, all_x, all_y)
     if out_y:
@@ -716,9 +742,7 @@ def violin_plot(
 
     ax = _state._ensure_axes()
     series = ax.line(all_x, all_y, label=label)
-    c = _parse_color(color)
-    if c:
-        series.set_color(*c)
+    _apply_color(series, color)
     _auto_fit_axes(ax, all_x, all_y)
     _state._show_if_pending()
     return series
@@ -742,9 +766,7 @@ def hline(
         return ihline(y, ymin, ymax, color=color, label=label, knob_name=knob_name)
     ax = _state._ensure_axes()
     series = ax.line([-1e12, 1e12], [y, y], label=label)
-    c = _parse_color(color)
-    if c:
-        series.set_color(*c)
+    _apply_color(series, color)
     series.set_line_width(1.0)
     return series
 
@@ -767,9 +789,7 @@ def vline(
         return ivline(x, xmin, xmax, color=color, label=label, knob_name=knob_name)
     ax = _state._ensure_axes()
     series = ax.line([x, x], [-1e12, 1e12], label=label)
-    c = _parse_color(color)
-    if c:
-        series.set_color(*c)
+    _apply_color(series, color)
     series.set_line_width(1.0)
     return series
 
@@ -1187,9 +1207,7 @@ def surf(
     zv = _to_list(z)
     ax = _state._ensure_axes3d()
     series = ax._add_series_3d("surface", xv, yv, zv, label=label or "surface")
-    c = _parse_color(color)
-    if c:
-        series.set_color(*c)
+    _apply_color(series, color)
     _auto_fit_axes3d(ax, xv, yv, zv)
     _state._show_if_pending()
     return series
@@ -1237,6 +1255,46 @@ def grid(visible: bool = True):
 def legend(visible: bool = True):
     """Toggle legend visibility."""
     _current_axes_any().legend(visible)
+
+
+def text(
+    x: float,
+    y: float,
+    s: str,
+    color: Union[str, Tuple, List, None] = None,
+    fontsize: float = 0.0,
+    ha: str = "left",
+    va: str = "bottom",
+):
+    """Place text at data coordinates (x, y) on the current 2D axes.
+
+    Usage::
+
+        sp.text(2.0, 0.5, "peak", color="red", fontsize=16)
+    """
+    ax = _state._ensure_axes()
+    ann = ax.text(x, y, s, color=_parse_color(color), fontsize=fontsize, ha=ha, va=va)
+    _state._show_if_pending()
+    return ann
+
+
+def annotate(
+    s: str,
+    xy: Tuple[float, float],
+    xytext: Optional[Tuple[float, float]] = None,
+    color: Union[str, Tuple, List, None] = None,
+    fontsize: float = 0.0,
+):
+    """Label the point ``xy``; with ``xytext`` the text sits there with an arrow to ``xy``.
+
+    Usage::
+
+        sp.annotate("local max", xy=(3.1, 0.9), xytext=(4.0, 1.2))
+    """
+    ax = _state._ensure_axes()
+    ann = ax.annotate(s, xy, xytext, color=_parse_color(color), fontsize=fontsize)
+    _state._show_if_pending()
+    return ann
 
 
 # ─── Live Streaming / Animation ──────────────────────────────────────────────
@@ -1575,9 +1633,7 @@ def _apply_series_style(
     **kwargs,
 ):
     """Apply optional styling to a series."""
-    c = _parse_color(color)
-    if c:
-        series.set_color(*c)
+    _apply_color(series, color)
     if width is not None:
         series.set_line_width(float(width))
     if size is not None:

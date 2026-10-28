@@ -310,6 +310,10 @@ struct DataPalette
     std::vector<Color>   colors;
     bool                 colorblind_safe = false;
     std::vector<CVDType> safe_for;   // Which CVD types this palette is safe for
+    // Ordered ramp (viridis, monochrome): the slots' lightness order carries
+    // meaning, so visible_data_palette() keeps it monotonic instead of moving
+    // each low-contrast slot on its own.
+    bool sequential = false;
 
     // Get color by index (wraps around)
     const Color& operator[](size_t index) const { return colors[index % colors.size()]; }
@@ -417,10 +421,26 @@ class ThemeManager
     ThemeColors        plot_surface_colors(const FigureStyle& style) const;
     const DataPalette& plot_surface_data_palette(const FigureStyle& style) const;
 
+    // Palette swatches as the plot actually draws them: palette `name` ("" =
+    // the current palette, "default" = the theme's own) passed through
+    // visible_data_palette() against the theme canvas.  Settings and colour
+    // picker swatches use this so they match auto-coloured series.
+    DataPalette displayed_data_palette(const std::string& name = {}) const;
+
     // Animated palette transition
     void transition_palette(const std::string& palette_name,
                             float              duration_sec = tokens::DURATION_SLOW);
     bool is_palette_transitioning() const;
+
+    // App UI scale (1.0 = 100%), clamped to [UI_SCALE_MIN, UI_SCALE_MAX].
+    // apply_to_imgui() scales ImGui sizes and fonts by it; overlays receive it
+    // through ImGui's FontScaleMain.  set_ui_scale() re-applies to the current
+    // ImGui context.
+    static constexpr float UI_SCALE_MIN = 0.75f;
+    static constexpr float UI_SCALE_MAX = 2.0f;
+    static float           clamp_ui_scale(float scale);
+    void                   set_ui_scale(float scale);
+    float                  ui_scale() const { return ui_scale_; }
 
     // Theme application
     void apply_to_imgui();                              // Updates all ImGui style colors
@@ -430,6 +450,17 @@ class ThemeManager
     void transition_to(const std::string& name, float duration_sec = tokens::DURATION_SLOW);
     void update(float dt);   // Update ongoing transitions
     bool is_transitioning() const;
+
+    // Per-export theme (Figure::save_png / save_svg with ExportOptions::theme).
+    // push_export_theme() makes colors(), current() and the "default" data palette
+    // follow the registered theme `name` until pop_export_theme(), without
+    // touching ImGui, theme listeners or the persisted selection; any running
+    // theme or palette transition is suspended and resumed afterwards.  Returns
+    // false (and changes nothing) for an unknown name or while another export
+    // theme is active.  Prefer ScopedExportTheme.
+    bool push_export_theme(const std::string& name);
+    void pop_export_theme();
+    bool export_theme_active() const { return export_override_.active; }
 
     // Theme persistence
     bool export_theme(const std::string& path) const;
@@ -527,6 +558,32 @@ class ThemeManager
     ThemeGlassSettings glass_settings_;
     ThemeGlassSettings glass_defaults_for(const std::string& theme_name) const;
 
+    // State saved by push_export_theme(), restored by pop_export_theme().
+    struct ExportOverride
+    {
+        bool        active = false;
+        std::string theme_name;
+        Theme*      theme                 = nullptr;
+        bool        transitioning         = false;
+        bool        display_colors_valid  = false;
+        bool        palette_transitioning = false;
+        bool        display_palette_valid = false;
+    } export_override_;
+
+    // displayed_data_palette() cache: recomputed only when the source colours,
+    // the ramp flag or the canvas change.
+    struct DisplayedPaletteCache
+    {
+        std::vector<Color> src;
+        bool               sequential = false;
+        Color              canvas;
+        DataPalette        result;
+        bool               valid = false;
+    };
+    mutable DisplayedPaletteCache displayed_palette_cache_;
+
+    float ui_scale_ = 1.0f;
+
     void               initialize_default_themes();
     void               initialize_data_palettes();
     const DataPalette& resolve_data_palette(const std::string& name) const;
@@ -534,6 +591,24 @@ class ThemeManager
     // Built-in theme whose ink suits @p style's override surface when that
     // surface's lightness is opposite to the theme canvas; nullptr otherwise.
     const Theme* plot_surface_ink_theme(const FigureStyle& style) const;
+};
+
+// RAII guard for ThemeManager::push_export_theme(): renders with theme `name`
+// for the guard's lifetime.  An empty name or null manager does nothing; an
+// unknown name logs a warning and keeps the active theme.
+class ScopedExportTheme
+{
+   public:
+    ScopedExportTheme(ThemeManager* tm, const std::string& name);
+    ~ScopedExportTheme();
+    ScopedExportTheme(const ScopedExportTheme&)            = delete;
+    ScopedExportTheme& operator=(const ScopedExportTheme&) = delete;
+
+    bool active() const { return active_; }
+
+   private:
+    ThemeManager* tm_     = nullptr;
+    bool          active_ = false;
 };
 
 // True when the theme's plot canvas is light (format-letter colours then use
@@ -588,10 +663,18 @@ inline constexpr float AUTO_SERIES_MIN_CONTRAST = 3.0f;
 //    simulated protanopia, deuteranopia or tritanopia, moves further from the
 //    canvas in 0.25 contrast steps until it is that far apart (or as far apart
 //    as the two were in the source palette, if that was closer).
+// Sequential palettes (DataPalette::sequential, with OKLab lightness strictly
+// monotonic over the non-ink slots) are handled as a ramp instead: every
+// slot's OKLab lightness is scaled toward the ramp end farthest from the
+// canvas (the anchor) by the largest common factor that brings all slots to
+// @p min_contrast; if that would leave neighbours closer than the distinctness
+// rule above allows, the anchor moves outward just enough to make room.  The
+// lightness order of the ramp survives (hue and chroma are kept as above;
+// passing slots may move too).
 // Alpha is kept.  An empty palette is treated as palette::default_cycle.  Only
-// auto series colours go through this: the palette swatches in Settings,
-// explicit RGB colours and colormaps (heatmap / surface sampling) are not
-// changed.
+// auto series colours (and the palette swatches that preview them, see
+// ThemeManager::displayed_data_palette) go through this: explicit RGB colours
+// and colormaps (heatmap / surface sampling) are not changed.
 DataPalette visible_data_palette(const DataPalette&    palette,
                                  const spectra::Color& canvas,
                                  float                 min_contrast = AUTO_SERIES_MIN_CONTRAST);
@@ -696,5 +779,47 @@ inline Color control_glow_color(const ThemeColors& c)
     // Themes without a dedicated glow hue use their normal accent.
     return c.accent;
 }
+
+// ─── Contrast-checked UI colours ────────────────────────────────────────────
+
+// True when the theme's app chrome (bg_primary) is light.
+inline bool is_light_chrome(const ThemeColors& c)
+{
+    return c.bg_primary.luminance() > 0.4f;
+}
+
+// `fg` moved toward black or white (whichever side of `bg` it can gain contrast
+// on) until its WCAG contrast with the opaque `bg` reaches `min_ratio`. Returned
+// unchanged when it already does. The result keeps fg's alpha.
+Color ensure_contrast(const Color& fg, const Color& bg, float min_ratio);
+
+// Scrim ImGui draws behind modal dialogs (ImGuiCol_ModalWindowDimBg). Light
+// chrome gets a stronger, slate-tinted scrim so the dialog stands apart.
+Color modal_dim_color(const ThemeColors& c);
+
+// Status-bar performance readouts. Text colours reach 4.5:1 against what they
+// sit on (fps text against the pill, gpu text against the bar).
+struct StatusPerfColors
+{
+    Color fps_fill;
+    Color fps_border;
+    Color fps_text;
+    Color gpu_text;
+};
+StatusPerfColors status_perf_colors(const ThemeColors& c, bool fps_live, float glow_intensity);
+
+// Empty-state / welcome action buttons, resolved against the opaque `backdrop`
+// they are drawn on. Fills are opaque. Text reaches 4.5:1 against every fill
+// state, and the button edge (secondary: border; primary: fill) reaches 4.5:1
+// against the backdrop so the button reads as a button.
+struct ActionButtonColors
+{
+    Color fill;
+    Color hover;
+    Color active;
+    Color text;
+    Color border;   // alpha 0 = no border
+};
+ActionButtonColors action_button_colors(const ThemeColors& c, bool primary, const Color& backdrop);
 
 }   // namespace spectra::ui

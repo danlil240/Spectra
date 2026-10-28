@@ -81,7 +81,7 @@ PlotHandle RosPlotManager::add_plot(const std::string& topic,
     {
         spectra::ChunkedLineSeries& cs = entry->axes->chunked_line();
         cs.label(lbl);
-        cs.color(next_color());
+        cs.set_auto_color_index(next_color_slot());
         cs.enable_lod(chunked_lod_);
         if (chunked_memory_budget_ > 0)
             cs.set_memory_budget(chunked_memory_budget_);
@@ -92,7 +92,7 @@ PlotHandle RosPlotManager::add_plot(const std::string& topic,
     {
         spectra::LineSeries& ls = entry->axes->line();
         ls.label(lbl);
-        ls.color(next_color());
+        ls.set_auto_color_index(next_color_slot());
         entry->series      = &ls;
         entry->base_series = &ls;
     }
@@ -555,12 +555,9 @@ std::string RosPlotManager::detect_type(const std::string& topic) const
     return {};
 }
 
-spectra::Color RosPlotManager::next_color()
+int RosPlotManager::next_color_slot()
 {
-    const spectra::Color c =
-        spectra::palette::default_cycle[color_cursor_ % spectra::palette::default_cycle_size];
-    ++color_cursor_;
-    return c;
+    return static_cast<int>(color_cursor_++);
 }
 
 }   // namespace spectra::adapters::ros2

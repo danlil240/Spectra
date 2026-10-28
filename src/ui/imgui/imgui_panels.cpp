@@ -5,6 +5,7 @@
     #include <format>
 
     #include "../topics/topics_panel.hpp"
+    #include "ui/input/axes_selection.hpp"
     #include "ui/shell/spectra_app_shell.hpp"
     #include "ui/shell/status_bar.hpp"
     #include "ui/theme/glass_draw.hpp"
@@ -619,35 +620,9 @@ void ImGuiIntegration::draw_inspector(Figure& figure)
                         }
                         break;
                     case Section::Axes:
-                        // Only show browser if user hasn't selected a specific axes.
-                        // When switching figures, try to preserve the axes index if valid.
-                        if (figure.axes().empty())
-                        {
-                            // No axes in this figure, clear selection
-                            selection_ctx_.clear();
-                        }
-                        else if (selection_ctx_.type != ui::SelectionType::Axes)
-                        {
-                            selection_ctx_.select_axes(&figure, figure.axes_mut()[0].get(), 0);
-                        }
-                        else if (selection_ctx_.figure != &figure)
-                        {
-                            // User has axes selected but switched to a different figure.
-                            // Try to select the same axes index in the new figure.
-                            int target_idx = selection_ctx_.axes_index;
-                            if (target_idx >= 0
-                                && target_idx < static_cast<int>(figure.axes().size()))
-                            {
-                                selection_ctx_.select_axes(&figure,
-                                                           figure.axes_mut()[target_idx].get(),
-                                                           target_idx);
-                            }
-                            else
-                            {
-                                // Index out of range, fall back to first axes
-                                selection_ctx_.select_axes(&figure, figure.axes_mut()[0].get(), 0);
-                            }
-                        }
+                        // Keep the user's axes (2D or 3D) selected; default to
+                        // the first axes, and keep the slot when switching figures.
+                        ui::sync_axes_section_selection(selection_ctx_, figure);
                         break;
                     case Section::DataEditor:
                         break;   // Handled above
@@ -679,8 +654,8 @@ void ImGuiIntegration::draw_inspector_toggle()
     bool is_open = layout_manager_->is_inspector_visible();
 
     // Chevron tab on the canvas/inspector seam — wide hit target, compact visual pill.
-    constexpr float VIS_W           = 22.0f;
-    constexpr float VIS_H           = 52.0f;
+    constexpr float VIS_W           = LayoutManager::INSPECTOR_TAB_WIDTH;
+    constexpr float VIS_H           = LayoutManager::INSPECTOR_TAB_HEIGHT;
     constexpr float BTN_ROUNDING    = 11.0f;
     constexpr float HIT_EXTRA_LEFT  = 12.0f;
     constexpr float HIT_EXTRA_VERT  = 10.0f;
@@ -973,6 +948,13 @@ void ImGuiIntegration::populate_status_bar(ui::shell::StatusBar& bar)
 
              ImDrawList* dl = ImGui::GetWindowDrawList();
 
+             // Light chrome gets a pale success tint instead of the glass
+             // palette's dark-green badge; all readouts are contrast-checked.
+             const ui::StatusPerfColors perf =
+                 ui::status_perf_colors(colors,
+                                        fps_live,
+                                        theme_mgr_ ? theme_mgr_->effective_glow_intensity() : 0.0f);
+
              {
                  ImVec2           text_sz  = ImGui::CalcTextSize(fps_buf.c_str());
                  ImVec2           cursor_p = ImGui::GetCursorScreenPos();
@@ -980,15 +962,9 @@ void ImGuiIntegration::populate_status_bar(ui::shell::StatusBar& bar)
                                  cursor_p.y - (pill_h - text_h) * 0.5f - fps_pad_v);
                  ImVec2           pill_max(cursor_p.x + text_sz.x + fps_pad_h,
                                  cursor_p.y + text_h + (pill_h - text_h) * 0.5f + fps_pad_v);
-                 const float      glow = theme_mgr_ ? theme_mgr_->effective_glow_intensity() : 0.0f;
-                 const bool       fps_glow = fps_live && glow > 0.01f;
-                 const ui::Color& fps_fill =
-                     fps_glow ? ui::glass_palette::kFpsPillGreen : colors.bg_tertiary;
-                 const ui::Color& fps_border =
-                     fps_glow ? ui::glass_palette::kFpsPillBorder : colors.border_subtle;
-                 const ui::Color& fps_text = fps_glow   ? ui::glass_palette::kFpsPillText
-                                             : fps_live ? colors.success
-                                                        : colors.text_tertiary;
+                 const ui::Color& fps_fill   = perf.fps_fill;
+                 const ui::Color& fps_border = perf.fps_border;
+                 const ui::Color& fps_text   = perf.fps_text;
 
                  dl->AddRectFilled(pill_min,
                                    pill_max,
@@ -1013,10 +989,10 @@ void ImGuiIntegration::populate_status_bar(ui::shell::StatusBar& bar)
              }
 
              ImGui::SameLine(0.0f, perf_gap);
-             const ui::Color& gpu_text =
-                 (theme_mgr_ && theme_mgr_->effective_glow_intensity() > 0.01f)
-                     ? ui::glass_palette::kStatusGpuText
-                     : colors.text_tertiary;
+             // SameLine returns to the line's top (the fps text was placed with
+             // SetCursorPosY inside a SameLine), so centre the GPU readout again.
+             ImGui::SetCursorPosY((bar_h - text_h) * 0.5f);
+             const ui::Color& gpu_text = perf.gpu_text;
              ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(gpu_text.r, gpu_text.g, gpu_text.b, 1.0f));
              ImGui::TextUnformatted(gpu_buf.c_str());
              ImGui::PopStyleColor();

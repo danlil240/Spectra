@@ -2,6 +2,8 @@
 
 #include <spectra/logger.hpp>
 
+#include <string>
+
 #ifndef _WIN32
     #include <spawn.h>
     #include <sys/wait.h>
@@ -25,8 +27,16 @@ pid_t ProcessManager::spawn_agent()
     if (agent_path_.empty() || socket_path_.empty())
         return -1;
 
-    pid_t       pid    = 0;
-    const char* argv[] = {agent_path_.c_str(), "--socket", socket_path_.c_str(), nullptr};
+    pid_t pid = 0;
+    // Cascade slot: each agent window opens offset from the previous ones
+    // instead of stacked at the same spot (agents cannot see each other).
+    const std::string cascade = std::to_string(processes_.size());
+    const char*       argv[]  = {agent_path_.c_str(),
+                                 "--socket",
+                                 socket_path_.c_str(),
+                                 "--cascade-index",
+                                 cascade.c_str(),
+                                 nullptr};
 
     posix_spawn_file_actions_t actions;
     posix_spawn_file_actions_init(&actions);

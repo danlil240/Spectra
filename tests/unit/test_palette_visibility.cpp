@@ -158,6 +158,10 @@ TEST_F(PaletteVisibilityTest, EveryAutoSlotReachesThreeToOneOnAllCombos)
                 EXPECT_GE(contrast(v, canvas), 3.0) << where;
                 EXPECT_GE(contrast(quantise(v), canvas), 3.0) << where << " (8-bit)";
                 EXPECT_EQ(v.a, s.a) << where;
+                // Sequential ramps (viridis, monochrome) are rescaled as a whole
+                // to keep their lightness order; see SequentialRampsStayMonotonic.
+                if (src.sequential)
+                    continue;
                 if (contrast(s, canvas) >= 3.0)
                 {
                     EXPECT_TRUE(same_rgb(s, v)) << where << " passing slot must be unchanged";
@@ -187,8 +191,9 @@ TEST_F(PaletteVisibilityTest, EveryAutoSlotReachesThreeToOneOnAllCombos)
         }
     }
     EXPECT_EQ(combos, 32);
-    // The audit counted 50 slots below 3:1 across the four themes.
-    EXPECT_GE(adjusted, 40);
+    // The audit counted 50 slots below 3:1 across the four themes (the
+    // sequential palettes' slots are checked by SequentialRampsStayMonotonic).
+    EXPECT_GE(adjusted, 30);
 }
 
 TEST_F(PaletteVisibilityTest, AdjustedSlotsStayDistinctIncludingUnderCVD)
@@ -317,4 +322,110 @@ TEST_F(PaletteVisibilityTest, UsesEffectiveSurfaceNotThemeCanvas)
         spectra::ui::visible_data_palette(tm_.current_data_palette(),
                                           spectra::Color(dark.r, dark.g, dark.b));
     EXPECT_TRUE(same_rgb(on_dark.colors[3], tm_.current_data_palette().colors[3]));
+}
+
+// Issue #104: Tableau 10's olive (#BCBD22) and cyan (#17BECF) sit near 2:1 on a
+// white canvas.  The draw-time adjustment must lift them (and every other weak
+// slot) to >= 3:1 on the light theme canvas and on pure white, keeping their hue.
+TEST_F(PaletteVisibilityTest, TableauOliveAndCyanReadableOnWhite)
+{
+    tm_.set_theme("light");
+    tm_.set_data_palette("default");
+    const DataPalette& src = tm_.current_data_palette();
+    ASSERT_EQ(src.colors.size(), spectra::palette::light_cycle_size);
+
+    constexpr size_t OLIVE = 8;
+    constexpr size_t CYAN  = 9;
+    const UiColor    white(1.0f, 1.0f, 1.0f);
+    EXPECT_LT(contrast(src.colors[OLIVE], white), 3.0);   // weak as authored
+    EXPECT_LT(contrast(src.colors[CYAN], white), 3.0);
+
+    const UiColor theme_canvas = tm_.colors().bg_canvas;
+    for (const UiColor& canvas : {white, theme_canvas})
+    {
+        const DataPalette vis =
+            spectra::ui::visible_data_palette(src, spectra::Color(canvas.r, canvas.g, canvas.b));
+        for (size_t i = 0; i < vis.colors.size(); ++i)
+            EXPECT_GE(contrast(quantise(vis.colors[i]), canvas), 3.0) << "slot " << i;
+        for (size_t i : {OLIVE, CYAN})
+        {
+            const Lab    a   = oklab(src.colors[i]);
+            const Lab    b   = oklab(vis.colors[i]);
+            const double hue = std::abs(std::atan2(a.b, a.a) - std::atan2(b.b, b.a));
+            EXPECT_LT(hue, 0.15) << "slot " << i << " changed hue";
+        }
+    }
+}
+
+// Sequential palettes keep their lightness ramp after the visibility
+// adjustment (round-2 follow-up): on Light, viridis' lime/yellow tail used to
+// be pulled to the same 3:1 lightness, flattening the ramp.
+TEST_F(PaletteVisibilityTest, SequentialRampsStayMonotonic)
+{
+    for (const char* theme : kThemes)
+    {
+        tm_.set_theme(theme);
+        const UiColor canvas = tm_.colors().bg_canvas;
+        for (const char* name : {"viridis", "monochrome"})
+        {
+            tm_.set_data_palette(name);
+            const DataPalette& src = tm_.current_data_palette();
+            ASSERT_TRUE(src.sequential) << name;
+            const DataPalette vis = spectra::ui::visible_data_palette(
+                src,
+                spectra::Color(canvas.r, canvas.g, canvas.b, 1.0f));
+            std::vector<double> ls, lv;
+            for (size_t i = 0; i < src.colors.size(); ++i)
+            {
+                if (ink_slot(src.colors[i], canvas))
+                    continue;
+                const auto where = std::string(theme) + "/" + name + " slot " + std::to_string(i);
+                EXPECT_GE(contrast(quantise(vis.colors[i]), canvas), 3.0) << where;
+                ls.push_back(oklab(src.colors[i]).L);
+                lv.push_back(oklab(vis.colors[i]).L);
+            }
+            ASSERT_GE(lv.size(), 3u);
+            const double dir = ls.back() > ls.front() ? 1.0 : -1.0;
+            for (size_t k = 1; k < lv.size(); ++k)
+            {
+                // Same order as the source, and no two neighbours collapsed.
+                EXPECT_GT((lv[k] - lv[k - 1]) * dir, 0.015)
+                    << theme << "/" << name << " step " << k << " " << lv[k - 1] << " -> " << lv[k];
+            }
+        }
+    }
+}
+
+// Settings / colour-picker swatches show the colours auto series are drawn
+// with on the current canvas, not the raw palette definition.
+TEST_F(PaletteVisibilityTest, DisplayedPaletteIsCanvasAdjusted)
+{
+    tm_.set_theme("light");
+    tm_.set_data_palette("viridis");
+    const UiColor      canvas = tm_.colors().bg_canvas;
+    const DataPalette& raw    = tm_.current_data_palette();
+    const DataPalette  want =
+        spectra::ui::visible_data_palette(raw, spectra::Color(canvas.r, canvas.g, canvas.b, 1.0f));
+    const DataPalette shown = tm_.displayed_data_palette();
+    ASSERT_EQ(shown.colors.size(), want.colors.size());
+    bool differs_from_raw = false;
+    for (size_t i = 0; i < shown.colors.size(); ++i)
+    {
+        EXPECT_TRUE(same_rgb(shown.colors[i], want.colors[i])) << i;
+        differs_from_raw = differs_from_raw || !same_rgb(shown.colors[i], raw.colors[i]);
+    }
+    EXPECT_TRUE(differs_from_raw);
+
+    // Named lookup ("default" = the theme's own palette) and cache refresh on
+    // theme change.
+    const DataPalette by_name = tm_.displayed_data_palette("viridis");
+    EXPECT_TRUE(same_rgb(by_name.colors.back(), want.colors.back()));
+    tm_.set_theme("dark");
+    const UiColor     dark_canvas = tm_.colors().bg_canvas;
+    const DataPalette dark_want   = spectra::ui::visible_data_palette(
+        tm_.current_data_palette(),
+        spectra::Color(dark_canvas.r, dark_canvas.g, dark_canvas.b, 1.0f));
+    const DataPalette dark_shown = tm_.displayed_data_palette();
+    for (size_t i = 0; i < dark_shown.colors.size(); ++i)
+        EXPECT_TRUE(same_rgb(dark_shown.colors[i], dark_want.colors[i])) << i;
 }

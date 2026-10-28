@@ -731,6 +731,7 @@ WGPUPipelineLayout WebGPUBackend::layout_for_type(PipelineType type) const
         case PipelineType::Line:
         case PipelineType::Scatter:
         case PipelineType::ScatterColormap:
+        case PipelineType::Heatmap:
             return pl_ssbo_;
 
         case PipelineType::Text:
@@ -749,6 +750,7 @@ WGPURenderPipeline WebGPUBackend::create_pipeline_for_type(PipelineType type)
 
     // Select WGSL source and configuration for this pipeline type.
     const char* wgsl_source   = nullptr;
+    const char* vs_entry      = "vs_main";
     bool        enable_depth  = false;
     bool        line_topology = false;
 
@@ -772,6 +774,17 @@ WGPURenderPipeline WebGPUBackend::create_pipeline_for_type(PipelineType type)
 
         case PipelineType::Scatter:
             wgsl_source = wgsl::scatter_wgsl;
+            break;
+
+        case PipelineType::ScatterColormap:
+            // Same fragment shader as Scatter; the vertex stage reads a vec4
+            // (x, y, value, pad) SSBO and passes the value on for the colormap.
+            wgsl_source = wgsl::scatter_wgsl;
+            vs_entry    = "vs_colormap";
+            break;
+
+        case PipelineType::Heatmap:
+            wgsl_source = wgsl::heatmap_wgsl;
             break;
 
         case PipelineType::Grid:
@@ -805,8 +818,7 @@ WGPURenderPipeline WebGPUBackend::create_pipeline_for_type(PipelineType type)
             break;
 
         default:
-            // ScatterColormap, Heatmap and 3D types have no WGSL port yet
-            // (see webgpu_supports_pipeline()).
+            // 3D types have no WGSL port yet (see webgpu_supports_pipeline()).
             return nullptr;
     }
 
@@ -828,7 +840,7 @@ WGPURenderPipeline WebGPUBackend::create_pipeline_for_type(PipelineType type)
     WGPUVertexAttribute    attrs[3]{};
     WGPUVertexState        vertex_state{};
     vertex_state.module     = shader;
-    vertex_state.entryPoint = WGPU_LABEL("vs_main");
+    vertex_state.entryPoint = WGPU_LABEL(vs_entry);
 
     if (va2.attr_count > 0)
     {
@@ -876,7 +888,7 @@ WGPURenderPipeline WebGPUBackend::create_pipeline_for_type(PipelineType type)
         vertex_state.bufferCount = 1;
         vertex_state.buffers     = &vbl;
     }
-    // else: SSBO-based shaders (line/scatter) — no vertex buffers.
+    // else: SSBO-based shaders (line/scatter/heatmap) — no vertex buffers.
 
     // ── Fragment state ───────────────────────────────────────────────────────
 

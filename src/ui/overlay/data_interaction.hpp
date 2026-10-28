@@ -7,6 +7,7 @@
     #include <spectra/fwd.hpp>
 
     #include "annotation.hpp"
+    #include "axis_mapping.hpp"
     #include "crosshair.hpp"
     #include "data_marker.hpp"
     #include "ui/input/input.hpp"
@@ -68,7 +69,12 @@ class DataInteraction
     void set_tooltip(bool e) { tooltip_.set_enabled(e); }
 
     // Marker / data label control
-    void add_marker(float data_x, float data_y, const Series* series, size_t index);
+    // data_x/data_y are absolute data coordinates (series offsets included).
+    void                           add_marker(double        data_x,
+                                              double        data_y,
+                                              const Series* series,
+                                              size_t        index,
+                                              const Axes*   axes = nullptr);
     void remove_marker(size_t idx);
     void clear_markers();
     const std::vector<DataMarker>& markers() const { return markers_.markers(); }
@@ -230,6 +236,14 @@ class DataInteraction
 
     // Pin / unpin a datatip at the current nearest point (2D or 3D). Returns true if handled.
     bool try_toggle_datatip_at_nearest();
+
+    // Screen <-> data mapping of the hovered 2D axes (through its axis scales).
+    AxisMapping active_mapping() const
+    {
+        if (active_axes_)
+            return AxisMapping(*active_axes_);
+        return AxisMapping(active_viewport_, {xlim_min_, xlim_max_}, {ylim_min_, ylim_max_});
+    }
 
     NearestPointResult nearest_;
     Tooltip            tooltip_;

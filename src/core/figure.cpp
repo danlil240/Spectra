@@ -6,6 +6,7 @@
 #include <system_error>
 
 #include "axes3d.hpp"
+#include "core/figure_layout.hpp"
 #include "layout.hpp"
 
 #ifdef _WIN32
@@ -184,20 +185,32 @@ bool Figure::save_png(const std::string& path)
 
 bool Figure::save_png(const std::string& path, uint32_t export_width, uint32_t export_height)
 {
+    return save_png(path, ExportOptions{export_width, export_height, {}});
+}
+
+bool Figure::save_png(const std::string& path, const ExportOptions& options)
+{
     if (!export_path_is_writable(path, "PNG"))
         return false;
     export_req_.png_path   = path;
-    export_req_.png_width  = export_width;
-    export_req_.png_height = export_height;
+    export_req_.png_width  = options.width;
+    export_req_.png_height = options.height;
+    export_req_.png_theme  = options.theme;
     compute_layout();
     return true;
 }
 
 bool Figure::save_svg(const std::string& path)
 {
+    return save_svg(path, ExportOptions{});
+}
+
+bool Figure::save_svg(const std::string& path, const ExportOptions& options)
+{
     if (!export_path_is_writable(path, "SVG"))
         return false;
-    export_req_.svg_path = path;
+    export_req_.svg_path  = path;
+    export_req_.svg_theme = options.theme;
     compute_layout();
     return true;
 }
@@ -228,23 +241,7 @@ void Figure::compute_layout()
                                         grid_cols_,
                                         fig_margins);
 
-    // Assign viewport rects to 2D axes
-    for (size_t i = 0; i < axes_.size() && i < rects.size(); ++i)
-    {
-        if (axes_[i])
-        {
-            axes_[i]->set_viewport(rects[i]);
-        }
-    }
-
-    // Assign viewport rects to all axes (including 3D)
-    for (size_t i = 0; i < all_axes_.size() && i < rects.size(); ++i)
-    {
-        if (all_axes_[i])
-        {
-            all_axes_[i]->set_viewport(rects[i]);
-        }
-    }
+    apply_subplot_layout(*this, rects, fig_margins);
 }
 
 }   // namespace spectra

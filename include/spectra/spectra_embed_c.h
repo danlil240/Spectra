@@ -90,11 +90,13 @@ extern "C"
     /* Legend position (spectra::LegendPosition) */
     enum
     {
-        SPECTRA_LEGEND_TOP_RIGHT    = 0,
-        SPECTRA_LEGEND_TOP_LEFT     = 1,
-        SPECTRA_LEGEND_BOTTOM_RIGHT = 2,
-        SPECTRA_LEGEND_BOTTOM_LEFT  = 3,
-        SPECTRA_LEGEND_NONE         = 4
+        SPECTRA_LEGEND_TOP_RIGHT     = 0,
+        SPECTRA_LEGEND_TOP_LEFT      = 1,
+        SPECTRA_LEGEND_BOTTOM_RIGHT  = 2,
+        SPECTRA_LEGEND_BOTTOM_LEFT   = 3,
+        SPECTRA_LEGEND_NONE          = 4,
+        SPECTRA_LEGEND_BEST          = 5,
+        SPECTRA_LEGEND_OUTSIDE_RIGHT = 6
     };
 
     /* Axis scale type (spectra::ScaleType) */
@@ -426,6 +428,55 @@ extern "C"
     /* Set axis scale type (SPECTRA_SCALE_*). */
     void spectra_axes_set_xscale(SpectraAxes* ax, int scale_type);
     void spectra_axes_set_yscale(SpectraAxes* ax, int scale_type);
+
+    /* ── Text annotations (2D axes) ───────────────────────────────────────── */
+
+    /* Horizontal / vertical text alignment (spectra::TextAnnotation::HAlign / VAlign). */
+    enum
+    {
+        SPECTRA_HALIGN_LEFT   = 0,
+        SPECTRA_HALIGN_CENTER = 1,
+        SPECTRA_HALIGN_RIGHT  = 2
+    };
+    enum
+    {
+        SPECTRA_VALIGN_TOP    = 0,
+        SPECTRA_VALIGN_MIDDLE = 1,
+        SPECTRA_VALIGN_BOTTOM = 2
+    };
+
+    /* Place text with its anchor at data coordinates (x, y) (left-aligned,
+     * sitting above the anchor, theme text colour). Returns the annotation's
+     * index on the axes (>= 0), or -1 on failure (NULL/3D axes, NULL text). */
+    int spectra_axes_text(SpectraAxes* ax, float x, float y, const char* text);
+
+    /* Place text centred at (text_x, text_y) with an arrow pointing to (x, y).
+     * Returns the annotation index, or -1 on failure. */
+    int spectra_axes_annotate(SpectraAxes* ax,
+                              const char*  text,
+                              float        x,
+                              float        y,
+                              float        text_x,
+                              float        text_y);
+
+    /* Number of text annotations on the axes (0 for NULL/3D axes). */
+    int spectra_axes_annotation_count(SpectraAxes* ax);
+
+    /* Style annotation `index` (as returned by spectra_axes_text/annotate).
+     * Out-of-range indices are ignored. font_size <= 0 restores the default. */
+    void spectra_axes_annotation_set_color(SpectraAxes* ax,
+                                           int          index,
+                                           float        r,
+                                           float        g,
+                                           float        b,
+                                           float        a);
+    void spectra_axes_annotation_set_font_size(SpectraAxes* ax, int index, float font_size);
+    /* halign: SPECTRA_HALIGN_*, valign: SPECTRA_VALIGN_*. */
+    void spectra_axes_annotation_set_align(SpectraAxes* ax, int index, int halign, int valign);
+    void spectra_axes_annotation_set_visible(SpectraAxes* ax, int index, int visible);
+
+    /* Remove every text annotation from the axes. */
+    void spectra_axes_clear_annotations(SpectraAxes* ax);
 
     /* ── Legend control (Phase 1E) ─────────────────────────────────────────── */
 

@@ -86,6 +86,14 @@ def _finalize(builder: flatbuffers.Builder) -> bytes:
     return FB_PREFIX + bytes(buf)
 
 
+def _create_float_vector(builder: flatbuffers.Builder, data: List[float]) -> int:
+    """Build a [float] vector (must be called before the owning table's Start)."""
+    builder.StartVector(4, len(data), 4)
+    for v in reversed(data):
+        builder.PrependFloat32(float(v))
+    return builder.EndVector()
+
+
 # ─── Encode functions ─────────────────────────────────────────────────────────
 
 def encode_fb_hello(client_type: str = "python", build: str = "") -> bytes:
@@ -198,10 +206,12 @@ def encode_fb_req_update_property(
     f4: float = 0.0,
     bool_val: bool = False,
     str_val: str = "",
+    data: Optional[List[float]] = None,
 ) -> bytes:
     builder = flatbuffers.Builder(512)
     prop_off = builder.CreateString(prop)
     str_off = builder.CreateString(str_val) if str_val else None
+    data_off = _create_float_vector(builder, data) if data else None
     FBReqUpdProp.Start(builder)
     FBReqUpdProp.AddFigureId(builder, figure_id)
     FBReqUpdProp.AddAxesIndex(builder, axes_index)
@@ -214,6 +224,8 @@ def encode_fb_req_update_property(
     FBReqUpdProp.AddBoolVal(builder, bool_val)
     if str_off is not None:
         FBReqUpdProp.AddStrVal(builder, str_off)
+    if data_off is not None:
+        FBReqUpdProp.AddData(builder, data_off)
     root = builder.EndObject()
     builder.Finish(root)
     return _finalize(builder)
@@ -227,6 +239,8 @@ def encode_fb_req_update_batch(updates: List[dict]) -> bytes:
         prop_off = builder.CreateString(upd.get("prop", ""))
         str_val = upd.get("str_val", "")
         str_off = builder.CreateString(str_val) if str_val else None
+        data = upd.get("data")
+        data_off = _create_float_vector(builder, data) if data else None
         FBReqUpdProp.Start(builder)
         FBReqUpdProp.AddFigureId(builder, upd.get("figure_id", 0))
         FBReqUpdProp.AddAxesIndex(builder, upd.get("axes_index", 0))
@@ -239,6 +253,8 @@ def encode_fb_req_update_batch(updates: List[dict]) -> bytes:
         FBReqUpdProp.AddBoolVal(builder, upd.get("bool_val", False))
         if str_off is not None:
             FBReqUpdProp.AddStrVal(builder, str_off)
+        if data_off is not None:
+            FBReqUpdProp.AddData(builder, data_off)
         offsets.append(FBReqUpdProp.End(builder))
     FBReqUpdBatch.StartUpdatesVector(builder, len(offsets))
     for off in reversed(offsets):
@@ -560,6 +576,7 @@ def decode_fb_req_update_property(data: bytes) -> dict:
         "f4": fb.F4(),
         "bool_val": fb.BoolVal(),
         "str_val": str_val_raw.decode("utf-8") if str_val_raw else "",
+        "data": [fb.Data(i) for i in range(fb.DataLength())],
     }
 
 

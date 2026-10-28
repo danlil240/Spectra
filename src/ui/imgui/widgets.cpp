@@ -13,7 +13,9 @@
     #include <unordered_map>
     #include <vector>
 
+    #include "field_layout.hpp"
     #include "ui/theme/icons.hpp"
+    #include "ui/theme/theme_imgui.hpp"
     #include "ui/ui_interaction_log.hpp"
 
     #include <spectra/animator.hpp>
@@ -324,16 +326,28 @@ void separator()
 
 // ─── Info Row ───────────────────────────────────────────────────────────────
 
-void info_row(const char* label, const char* value)
+// Read-only "label   value" row.  The value starts at `fraction` of the row
+// (or after a longer label); on a row too narrow for both it goes on its own
+// line below, slightly indented, instead of being drawn over the label.
+static void text_row(const char* label, const char* value, float fraction)
 {
-    const auto& c = theme();
+    const auto& c       = theme();
+    const float row_x   = ImGui::GetCursorPosX();
+    const float avail   = ImGui::GetContentRegionAvail().x;
+    const float label_w = ImGui::CalcTextSize(label).x + ImGui::GetStyle().ItemSpacing.x;
+    const float value_w = ImGui::CalcTextSize(value).x;
+
     ImGui::PushStyleColor(
         ImGuiCol_Text,
         ImVec4(c.text_secondary.r, c.text_secondary.g, c.text_secondary.b, c.text_secondary.a));
     ImGui::TextUnformatted(label);
     ImGui::PopStyleColor();
 
-    ImGui::SameLine(ImGui::GetContentRegionAvail().x * 0.45f);
+    const RowLayout row = text_row_layout(avail, label_w, value_w, fraction);
+    if (row.stacked)
+        ImGui::SetCursorPosX(row_x + tokens::INSPECTOR_STACK_INDENT);
+    else
+        ImGui::SameLine(row_x + row.value_x);
 
     ImGui::PushStyleColor(
         ImGuiCol_Text,
@@ -342,22 +356,21 @@ void info_row(const char* label, const char* value)
     ImGui::PopStyleColor();
 }
 
+void info_row(const char* label, const char* value)
+{
+    text_row(label, value, 0.45f);
+}
+
 void info_row_mono(const char* label, const char* value)
 {
-    const auto& c = theme();
-    ImGui::PushStyleColor(
-        ImGuiCol_Text,
-        ImVec4(c.text_secondary.r, c.text_secondary.g, c.text_secondary.b, c.text_secondary.a));
-    ImGui::TextUnformatted(label);
-    ImGui::PopStyleColor();
+    text_row(label, value, 0.45f);
+}
 
-    ImGui::SameLine(ImGui::GetContentRegionAvail().x * 0.45f);
-
-    ImGui::PushStyleColor(
-        ImGuiCol_Text,
-        ImVec4(c.text_primary.r, c.text_primary.g, c.text_primary.b, c.text_primary.a));
-    ImGui::TextUnformatted(value);
-    ImGui::PopStyleColor();
+// End of the visible part of an ImGui label ("Text##id" -> "Text").
+static const char* visible_label_end(const char* label)
+{
+    const char* id = std::strstr(label, "##");
+    return id ? id : label + std::strlen(label);
 }
 
 // ─── Field Label ────────────────────────────────────────────────────────────
@@ -366,21 +379,32 @@ void info_row_mono(const char* label, const char* value)
 // INSPECTOR_LABEL_WIDTH after the label's own start (so section indentation does
 // not eat into it) and grows for a label longer than the column, so a value
 // field never overdraws its label.
+//
+// Below INSPECTOR_MIN_VALUE_WIDTH of value column (a narrow inspector) the row
+// stacks: the label on its own line and the field full-width underneath.
 static void field_label(const char* label)
 {
     const auto& c       = theme();
     const float start_x = ImGui::GetCursorScreenPos().x;
-    ImGui::AlignTextToFramePadding();
+    const float avail   = ImGui::GetContentRegionAvail().x;
+    const float label_w =
+        ImGui::CalcTextSize(label, nullptr, true).x + ImGui::GetStyle().ItemSpacing.x;
+    const RowLayout row = field_row_layout(avail, label_w);
+
+    if (!row.stacked)
+        ImGui::AlignTextToFramePadding();
     ImGui::PushStyleColor(
         ImGuiCol_Text,
         ImVec4(c.text_secondary.r, c.text_secondary.g, c.text_secondary.b, c.text_secondary.a));
-    ImGui::TextUnformatted(label);
+    ImGui::TextUnformatted(label, visible_label_end(label));
     ImGui::PopStyleColor();
+    if (row.stacked)
+    {
+        ImGui::SetCursorScreenPos(ImVec2(start_x, ImGui::GetCursorScreenPos().y));
+        return;
+    }
     ImGui::SameLine();
-    const float label_w =
-        ImGui::CalcTextSize(label, nullptr, true).x + ImGui::GetStyle().ItemSpacing.x;
-    const float value_x = start_x + std::max(tokens::INSPECTOR_LABEL_WIDTH, label_w);
-    ImGui::SetCursorScreenPos(ImVec2(value_x, ImGui::GetCursorScreenPos().y));
+    ImGui::SetCursorScreenPos(ImVec2(start_x + row.value_x, ImGui::GetCursorScreenPos().y));
 }
 
 // ─── Color Field ────────────────────────────────────────────────────────────
@@ -469,8 +493,9 @@ bool color_field(const char* label, spectra::Color& color)
             changed = true;
         }
 
-        // Palette swatches from current data palette
-        const auto& palette = spectra::ui::data_palette();
+        // Palette swatches from the current data palette, as auto series draw
+        // them on the canvas (contrast-adjusted), so a picked swatch matches.
+        const auto palette = ThemeManager::instance().displayed_data_palette();
         if (!palette.colors.empty())
         {
             ImGui::Spacing();
@@ -725,21 +750,30 @@ bool toggle_field(const char* label, bool& value)
     const auto& c = theme();
     ImGui::PushID(label);
 
-    // Side-by-side label-value layout
+    float height = 18.0f;
+    float width  = 34.0f;
+
+    // Side-by-side label-value layout; a label too long for a narrow row
+    // puts the switch on the next line (right-aligned) instead of under it.
+    const float row_x = ImGui::GetCursorPosX();
+    const float avail = ImGui::GetContentRegionAvail().x;
+    const float label_w =
+        ImGui::CalcTextSize(label, nullptr, true).x + ImGui::GetStyle().ItemSpacing.x;
+    const RowLayout row = toggle_row_layout(avail, label_w, width + 2.0f);
     ImGui::AlignTextToFramePadding();
     ImGui::PushStyleColor(
         ImGuiCol_Text,
         ImVec4(c.text_secondary.r, c.text_secondary.g, c.text_secondary.b, c.text_secondary.a));
-    ImGui::TextUnformatted(label);
+    ImGui::TextUnformatted(label, visible_label_end(label));
     ImGui::PopStyleColor();
-    ImGui::SameLine(ImGui::GetContentRegionAvail().x - 36.0f);
+    if (row.stacked)
+        ImGui::SetCursorPosX(row_x + row.value_x);
+    else
+        ImGui::SameLine(row_x + row.value_x);
 
     // Draw a toggle switch using ImGui draw list
     ImVec2      pos  = ImGui::GetCursorScreenPos();
-    ImDrawList* draw = ImGui::GetWindowDrawList();
-
-    float height = 18.0f;
-    float width  = 34.0f;
+    ImDrawList* draw   = ImGui::GetWindowDrawList();
     float radius = height * 0.5f;
 
     // Invisible button for interaction
@@ -1143,25 +1177,15 @@ int empty_state_actions(std::span<const EmptyStateAction> actions, float start_x
         }
         ImGui::PushID(action.id ? action.id : action.label);
         ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, tokens::RADIUS_MD);
-        if (action.primary)
-        {
-            ImGui::PushStyleColor(ImGuiCol_Button,
-                                  ImVec4(c.accent.r, c.accent.g, c.accent.b, 0.85f));
-            ImGui::PushStyleColor(
-                ImGuiCol_ButtonHovered,
-                ImVec4(c.accent_hover.r, c.accent_hover.g, c.accent_hover.b, 0.95f));
-            ImGui::PushStyleColor(ImGuiCol_ButtonActive,
-                                  ImVec4(c.accent.r, c.accent.g, c.accent.b, 1.0f));
-        }
-        else
-        {
-            ImGui::PushStyleColor(ImGuiCol_Button,
-                                  ImVec4(c.bg_tertiary.r, c.bg_tertiary.g, c.bg_tertiary.b, 0.75f));
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
-                                  ImVec4(c.bg_elevated.r, c.bg_elevated.g, c.bg_elevated.b, 0.95f));
-            ImGui::PushStyleColor(ImGuiCol_ButtonActive,
-                                  ImVec4(c.accent.r, c.accent.g, c.accent.b, 0.25f));
-        }
+        // Contrast-checked against the chrome backdrop (welcome screen fill).
+        const ActionButtonColors bc       = action_button_colors(c, action.primary, c.bg_primary);
+        const bool               bordered = bc.border.a > 0.0f;
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, bordered ? 1.0f : 0.0f);
+        ImGui::PushStyleColor(ImGuiCol_Button, to_imvec4(bc.fill));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, to_imvec4(bc.hover));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, to_imvec4(bc.active));
+        ImGui::PushStyleColor(ImGuiCol_Text, to_imvec4(bc.text));
+        ImGui::PushStyleColor(ImGuiCol_Border, to_imvec4(bc.border));
         if (ImGui::Button(action.label ? action.label : "", sizes[i]))
         {
             clicked = static_cast<int>(i);
@@ -1170,8 +1194,8 @@ int empty_state_actions(std::span<const EmptyStateAction> actions, float start_x
                           "ok",
                           "empty_state");
         }
-        ImGui::PopStyleColor(3);
-        ImGui::PopStyleVar();
+        ImGui::PopStyleColor(5);
+        ImGui::PopStyleVar(2);
         ImGui::PopID();
         if (i + 1 < actions.size())
             ImGui::SameLine(0.0f, tokens::EMPTY_STATE_ACTION_GAP);
@@ -1829,29 +1853,15 @@ bool int_drag_field(const char* label, int& value, int speed, int min, int max, 
 
 void stat_row(const char* label, const char* value, const char* unit)
 {
-    const auto& c = theme();
-
-    ImGui::PushStyleColor(
-        ImGuiCol_Text,
-        ImVec4(c.text_secondary.r, c.text_secondary.g, c.text_secondary.b, c.text_secondary.a));
-    ImGui::TextUnformatted(label);
-    ImGui::PopStyleColor();
-
-    ImGui::SameLine(ImGui::GetContentRegionAvail().x * 0.4f);
-
-    ImGui::PushStyleColor(
-        ImGuiCol_Text,
-        ImVec4(c.text_primary.r, c.text_primary.g, c.text_primary.b, c.text_primary.a));
     if (unit)
     {
         const std::string buf = std::format("{} {}", value, unit);
-        ImGui::TextUnformatted(buf.c_str());
+        text_row(label, buf.c_str(), 0.4f);
     }
     else
     {
-        ImGui::TextUnformatted(value);
+        text_row(label, value, 0.4f);
     }
-    ImGui::PopStyleColor();
 }
 
 void stat_row_colored(const char*           label,

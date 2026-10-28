@@ -18,6 +18,8 @@
 #include <algorithm>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
+#include <system_error>
 
 namespace spectra::adapters::px4
 {
@@ -67,6 +69,9 @@ struct GroupDef
     const char*           ylabel;
     std::vector<FieldDef> fields;
 };
+
+// Minimum plot-area height per auto-plot row (see sync_auto_plot_figure).
+constexpr float kAutoPlotMinSubplotHeight = 80.0f;
 
 static const GroupDef k_auto_plot_groups[] = {
     {"Attitude (deg)",
@@ -137,6 +142,7 @@ static const GroupDef k_auto_plot_groups[] = {
 Px4AppConfig parse_px4_args(int argc, char** argv, std::string& error_out)
 {
     Px4AppConfig cfg;
+    cfg.recent_files_path = Px4RecentFiles::default_path();
 
     for (int i = 1; i < argc; ++i)
     {
@@ -198,6 +204,9 @@ Px4AppShell::Px4AppShell(const Px4AppConfig& cfg)
     : cfg_(cfg)
 #endif
 {
+#ifdef SPECTRA_USE_IMGUI
+    file_chooser_ = choose_ulog_file_path;
+#endif
 }
 
 Px4AppShell::~Px4AppShell()
@@ -235,6 +244,12 @@ bool Px4AppShell::init()
             sync_canvas_figure();
         });
 
+    // Load the recent-files list before the launch file is pushed onto it.
+    recent_.set_path(cfg_.recent_files_path);
+    if (!recent_.path().empty())
+        recent_.load();
+    recent_menu_dirty_ = true;
+
     // Open initial ULog file if specified.
     if (!cfg_.ulog_file.empty())
     {
@@ -251,6 +266,7 @@ bool Px4AppShell::init()
 #ifdef SPECTRA_USE_IMGUI
     initialize();
 #endif
+    refresh_recent_menu();
 
     return true;
 }
@@ -312,6 +328,7 @@ void Px4AppShell::poll()
         plot_mgr_.poll();
 
     sync_canvas_figure();
+    refresh_recent_menu();
 }
 
 // ---------------------------------------------------------------------------
@@ -325,6 +342,9 @@ void Px4AppShell::draw()
         return;
 
     sync_layout_chrome();
+    // Rebuild File > Open Recent here, outside menu iteration: a menu click that
+    // opens a file must not edit the item list it is being drawn from.
+    refresh_recent_menu();
     draw_frame();
 #endif
 }
@@ -421,6 +441,11 @@ void Px4AppShell::set_nav_rail_visible(bool) {}
 void Px4AppShell::set_nav_rail_expanded(bool) {}
 
 void Px4AppShell::set_layout_manager(spectra::LayoutManager*) {}
+
+void Px4AppShell::refresh_recent_menu()
+{
+    recent_menu_dirty_ = false;
+}
 #endif
 
 // ---------------------------------------------------------------------------
@@ -447,11 +472,38 @@ bool Px4AppShell::open_ulog(const std::string& path)
     plot_mgr_.load_ulog(reader_);
     set_panel_visible("px4.ulog_file", true);
     last_open_error_.clear();
+    recent_.push(path);
+    recent_menu_dirty_ = true;
 
     // Automatically generate flight-review-style plots on file open.
     auto_plot_ulog();
 
     return true;
+}
+
+bool Px4AppShell::open_recent(const std::string& path)
+{
+    if (open_ulog(path))
+        return true;
+
+    std::error_code ec;
+    if (!std::filesystem::exists(path, ec))
+    {
+        recent_.remove(path);
+        recent_menu_dirty_ = true;
+    }
+    return false;
+}
+
+void Px4AppShell::clear_recent_files()
+{
+    recent_.clear();
+    recent_menu_dirty_ = true;
+}
+
+void Px4AppShell::set_file_chooser(std::function<std::string()> chooser)
+{
+    file_chooser_ = std::move(chooser);
 }
 
 // ---------------------------------------------------------------------------
@@ -565,7 +617,7 @@ void Px4AppShell::sync_canvas_figure(bool force)
         // rather than a meaningless 0-1 grid.
         if (!canvas_figure_->axes().empty())
         {
-            rebuild_figure_axes(1);
+            rebuild_figure_axes(1, 1);
             canvas_figure_->legend().visible = false;
         }
         last_canvas_revision_ = static_cast<uint64_t>(-1);
@@ -583,10 +635,10 @@ void Px4AppShell::sync_canvas_figure(bool force)
 }
 
 // ---------------------------------------------------------------------------
-// rebuild_figure_axes — safely reset figure to a fresh N×1 grid.
+// rebuild_figure_axes — safely reset figure to a fresh rows×cols grid.
 // ---------------------------------------------------------------------------
 
-void Px4AppShell::rebuild_figure_axes(int num_groups)
+void Px4AppShell::rebuild_figure_axes(int rows, int cols)
 {
     // Clear all existing series (GPU-safe deferred cleanup).
     for (auto& ax : canvas_figure_->axes_mut())
@@ -595,8 +647,20 @@ void Px4AppShell::rebuild_figure_axes(int num_groups)
 
     // Drop the axes vector and reset the grid.
     canvas_figure_->axes_mut().clear();
-    canvas_figure_->set_grid(num_groups, 1);
+    canvas_figure_->set_grid(rows, cols);
     last_canvas_revision_ = static_cast<uint64_t>(-1);
+}
+
+std::pair<int, int> Px4AppShell::auto_plot_grid(int num_groups)
+{
+    if (num_groups <= 3)
+        return {std::max(1, num_groups), 1};
+    // Tile into columns so each plot keeps a usable height instead of stacking
+    // every group into one column that overflows the canvas.  Rows are capped
+    // at three for up to nine groups; beyond that the canvas scrolls.
+    const int cols = num_groups <= 6 ? 2 : 3;
+    const int rows = (num_groups + cols - 1) / cols;
+    return {rows, cols};
 }
 
 // ---------------------------------------------------------------------------
@@ -614,7 +678,7 @@ void Px4AppShell::sync_auto_plot_figure()
     const int n = static_cast<int>(auto_plot_groups_.size());
     if (n == 0)
     {
-        rebuild_figure_axes(1);
+        rebuild_figure_axes(1, 1);
         auto& ax = canvas_figure_->subplot(1, 1, 1);
         ax.title("PX4 ULog — no data");
         ax.xlabel("time (s)");
@@ -624,14 +688,22 @@ void Px4AppShell::sync_auto_plot_figure()
     }
 
     // Ensure the axes vector is properly sized for the current group count.
-    const int cur_rows = canvas_figure_->grid_rows();
-    if (cur_rows != n || static_cast<int>(canvas_figure_->axes().size()) != n)
-        rebuild_figure_axes(n);
+    const auto [rows, cols] = auto_plot_grid(n);
+    if (canvas_figure_->grid_rows() != rows || canvas_figure_->grid_cols() != cols
+        || static_cast<int>(canvas_figure_->axes().size()) != n)
+    {
+        rebuild_figure_axes(rows, cols);
+        // The default 150 px minimum per row makes three rows of plots (plus
+        // title / tick margins) taller than a typical canvas; let the grid
+        // shrink to the canvas instead of overflowing it.
+        canvas_figure_->style().min_subplot_height =
+            std::min(canvas_figure_->style().min_subplot_height, kAutoPlotMinSubplotHeight);
+    }
 
     for (int i = 0; i < n; ++i)
     {
         const auto& group = auto_plot_groups_[static_cast<size_t>(i)];
-        auto&       ax    = canvas_figure_->subplot(n, 1, i + 1);
+        auto&       ax    = canvas_figure_->subplot(rows, cols, i + 1);
 
         ax.title(group.title);
         ax.xlabel("time (s)");
@@ -719,8 +791,9 @@ void Px4AppShell::sync_manual_plot_figure(bool force)
         return;
 
     // Ensure we are back to a 1×1 grid if coming from auto-plot.
-    if (canvas_figure_->grid_rows() != 1 || canvas_figure_->axes().size() != 1)
-        rebuild_figure_axes(1);
+    if (canvas_figure_->grid_rows() != 1 || canvas_figure_->grid_cols() != 1
+        || canvas_figure_->axes().size() != 1)
+        rebuild_figure_axes(1, 1);
 
     auto& ax = canvas_figure_->subplot(1, 1, 1);
     ax.xlabel("time (s)");
@@ -809,15 +882,11 @@ void Px4AppShell::sync_manual_plot_figure(bool force)
 
 bool Px4AppShell::open_ulog_with_dialog()
 {
-#ifdef SPECTRA_USE_IMGUI
-    const std::string path = choose_ulog_file_path();
+    const std::string path = file_chooser_ ? file_chooser_() : std::string();
     if (path.empty())
         return false;
 
     return open_ulog(path);
-#else
-    return false;
-#endif
 }
 
 }   // namespace spectra::adapters::px4

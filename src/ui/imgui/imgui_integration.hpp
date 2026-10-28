@@ -44,6 +44,7 @@ struct ThemeColors;
 class ThemeManager;
 namespace shell
 {
+class MenuBar;
 class SpectraAppShell;
 class SpectraNavRail;
 class StatusBar;
@@ -100,7 +101,7 @@ class ImGuiIntegration
         }
     };
 
-    ImGuiIntegration() = default;
+    ImGuiIntegration();
     ~ImGuiIntegration();
 
     ImGuiIntegration(const ImGuiIntegration&)            = delete;
@@ -537,6 +538,10 @@ class ImGuiIntegration
     ui::shell::SpectraAppShell* app_shell() const { return app_shell_; }
     void set_app_shell(ui::shell::SpectraAppShell* shell) { app_shell_ = shell; }
 
+    // Menus drawn when no app shell is bound. Built on first use from the same
+    // model as the shell (SpectraAppShell::populate_core_menus).
+    ui::shell::MenuBar& fallback_menu_bar();
+
     // Called by SpectraCanvasHost — core canvas window + glass frame + scrollbar.
     void draw_canvas_content(Figure& figure);
 
@@ -592,6 +597,7 @@ class ImGuiIntegration
                              bool                         is_active  = false,
                              float                        icon_scale = 1.0f);
     void draw_menubar_menu(const char* label, const std::vector<MenuItem>& items);
+    void draw_fallback_menus();
 
     bool     initialized_        = false;
     bool     headless_           = false;   // True when initialized via init_headless()
@@ -876,6 +882,7 @@ class ImGuiIntegration
     // Extra draw callback (set by spectra-ros or other adapters)
     ExtraDrawCallback           extra_draw_cb_;
     ui::shell::SpectraAppShell* app_shell_ = nullptr;
+    std::unique_ptr<ui::shell::MenuBar> fallback_menu_bar_;
 
     // Scene render callback (set by spectra-ros for GPU 3D viewport)
     SceneRenderCallback scene_render_cb_;

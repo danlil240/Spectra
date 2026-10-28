@@ -61,6 +61,13 @@ void main() {
 
     vec3 base_color = color.rgb;
 
+    // Lighting disabled (Axes3D::lighting_enabled(false)): the renderer sends a
+    // zero light_dir, and the surface is drawn in its flat base colour.
+    if (dot(light_dir, light_dir) < 1e-12) {
+        out_color = vec4(base_color, color.a * opacity);
+        return;
+    }
+
     // Decode material properties from push constants:
     // _pad2[0] = ambient strength  (0 = use default 0.40)
     // _pad2[1] = specular strength (0 = use default 0.12)
@@ -70,13 +77,9 @@ void main() {
     float ambient_strength  = _pad2[0] > 0.001 ? _pad2[0] : 0.40;
     float specular_strength = _pad2[1] > 0.001 ? _pad2[1] : 0.12;
 
-    // Primary (key) light direction from UBO (fallback to default if zero).
+    // Primary (key) light direction from UBO (never zero here, see above).
     // Transform from data space into model space to match normals.
-    vec3 L = light_dir;
-    if (dot(L, L) < 0.001) {
-        L = vec3(0.5, 0.7, 1.0);
-    }
-    L = normalize(mat3(model) * L);
+    vec3 L = normalize(mat3(model) * light_dir);
 
     // Diffuse (Lambertian) from the key light
     float diffuse = max(dot(N, L), 0.0) * 0.55;

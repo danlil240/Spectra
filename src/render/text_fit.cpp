@@ -7,7 +7,10 @@ namespace spectra
 
 FittedText to_fitted_text(FittedLabel&& label)
 {
-    return FittedText{std::move(label.text), static_cast<FontSize>(label.font), label.truncated};
+    return FittedText{std::move(label.text),
+                      static_cast<FontSize>(label.font),
+                      label.scale,
+                      label.truncated};
 }
 
 LabelWidthFn to_label_width_fn(const TextWidthFn& measure)

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
 #include <spectra/fwd.hpp>
 #include <string>
 #include <vector>
@@ -30,6 +31,11 @@ struct WorkspaceData
         std::string y_label;
         std::string title;
         bool        is_3d = false;   // v4: true if this axes is an Axes3D
+        // Optional keys (absent in older files: defaults = linear, numeric).
+        int  x_scale    = 0;   // ScaleType
+        int  y_scale    = 0;
+        bool x_datetime = false;
+        bool y_datetime = false;
     };
 
     // v4: 3D axes state (one per 3D axes, indexed parallel to AxisState)
@@ -50,6 +56,12 @@ struct WorkspaceData
         std::string name;
         std::string type;   // "line", "scatter", "line3d", "scatter3d", "surface", "mesh"
         float       color_r = 1.0f, color_g = 1.0f, color_b = 1.0f, color_a = 1.0f;
+        // Where the colour comes from: "auto" (data-palette slot color_index),
+        // "letter" (format letter color_letter, e.g. "r") or "rgb" (explicit).
+        // Empty in files written before it existed: the colour is left alone.
+        std::string color_source;
+        int         color_index = -1;
+        std::string color_letter;
         float       line_width  = 2.0f;
         float       marker_size = 6.0f;
         bool        visible     = true;
@@ -67,6 +79,27 @@ struct WorkspaceData
         float ambient       = 0.0f;
         float specular      = 0.0f;
         float shininess     = 0.0f;
+        // Bar category names (optional "categories" key; empty = none).
+        std::vector<std::string> categories;
+    };
+
+    // 2D text annotation (Axes::text / Axes::annotate).  Stored in the
+    // figure-level "text_annotations" array; files without it (v1-v4 and
+    // older builds) load with has_text_annotations == false and apply()
+    // then leaves the axes' annotations untouched.
+    struct TextAnnotationState
+    {
+        size_t      axes_index = 0;
+        float       x = 0.0f, y = 0.0f;
+        std::string text;
+        bool        has_color = false;   // false = theme text colour
+        float       color_r = 0.0f, color_g = 0.0f, color_b = 0.0f, color_a = 1.0f;
+        float       font_size = 0.0f;
+        int         halign    = 0;   // TextAnnotation::HAlign
+        int         valign    = 2;   // TextAnnotation::VAlign
+        bool        has_arrow = false;
+        float       arrow_x = 0.0f, arrow_y = 0.0f;
+        bool        visible = true;
     };
 
     struct FigureState
@@ -81,6 +114,11 @@ struct WorkspaceData
         std::vector<AxisState>   axes;
         std::vector<SeriesState> series;
         std::vector<Axes3DState> axes_3d;   // v4: 3D axes state
+        std::vector<TextAnnotationState> text_annotations;
+        bool                             has_text_annotations = false;   // key present in file
+        // LegendPosition (optional "legend_position" key); -1 = not in the
+        // file, so apply() keeps the figure's current position.
+        int legend_position = -1;
     };
 
     struct PanelState
@@ -199,6 +237,12 @@ class Workspace
     // Apply loaded workspace data to figures (restores axis limits, etc.).
     // Returns false if data is incompatible.
     static bool apply(const WorkspaceData& data, std::vector<Figure*>& figures);
+
+    // Build an empty figure with the size and subplot layout (2D / 3D axes) of
+    // a saved figure, for loading a workspace when no figure is open. Series
+    // data is not stored in workspaces, so the axes start empty; apply() then
+    // restores limits, labels and the rest.
+    static std::unique_ptr<Figure> build_figure(const WorkspaceData::FigureState& state);
 
     // Get default workspace file path (in user config directory).
     static std::string default_path();

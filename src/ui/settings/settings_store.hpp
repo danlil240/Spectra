@@ -18,6 +18,8 @@ struct SettingsData
     bool        inspector_visible    = true;
     bool        nav_rail_visible     = true;
     bool        timeline_visible     = false;
+    // App UI scale (1.0 = 100%); clamped to ThemeManager::UI_SCALE_MIN..MAX.
+    float ui_scale = 1.0f;
 };
 
 // Theme and data palette an App starts with.

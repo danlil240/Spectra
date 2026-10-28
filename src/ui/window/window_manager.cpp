@@ -5,6 +5,7 @@
 
 #include <spectra/logger.hpp>
 
+#include "event_wait.hpp"
 #include "render/vulkan/window_context.hpp"
 #include "ui/app/window_ui_context.hpp"
 
@@ -43,14 +44,13 @@ void WindowManager::wait_events_timeout(double timeout_seconds)
 #ifdef SPECTRA_USE_GLFW
     glfwWaitEventsTimeout(timeout_seconds);
 #elif defined(SPECTRA_USE_SDL3)
-    // SDL3 has no equivalent wait-for-event with timeout — use a brief poll
-    // and sleep to avoid busy-waiting.
-    process_sdl3_events();
+    // Block until an event arrives or the timeout expires (like
+    // glfwWaitEventsTimeout), then drain the queue.  SDL_WaitEventTimeout with
+    // a null event leaves the event queued for process_sdl3_events().
+    // Background threads wake this with SDL_PushEvent (see automation_server).
     if (timeout_seconds > 0.0)
-    {
-        auto ms = static_cast<uint32_t>(timeout_seconds * 1000.0);
-        SDL_Delay(std::min(ms, 100u));
-    }
+        SDL_WaitEventTimeout(nullptr, sdl3_wait_timeout_ms(timeout_seconds));
+    process_sdl3_events();
 #else
     (void)timeout_seconds;
 #endif
@@ -257,6 +257,95 @@ void WindowManager::end_mouse_release_tracking()
 {
     mouse_release_tracking_ = false;
     mouse_release_seen_     = false;
+}
+
+// ── Window title / cascade placement ────────────────────────────────────────
+
+void WindowManager::set_window_title(WindowContext& wctx, const std::string& title)
+{
+    if (wctx.title == title)
+        return;
+    wctx.title = title;
+#ifdef SPECTRA_USE_GLFW
+    if (wctx.glfw_window)
+        glfwSetWindowTitle(static_cast<GLFWwindow*>(wctx.glfw_window), title.c_str());
+#elif defined(SPECTRA_USE_SDL3)
+    if (wctx.glfw_window)
+        SDL_SetWindowTitle(static_cast<SDL_Window*>(wctx.glfw_window), title.c_str());
+#endif
+}
+
+void WindowManager::sync_window_title(WindowContext& wctx)
+{
+#ifdef SPECTRA_USE_IMGUI
+    if (wctx.is_preview || wctx.is_panel || !wctx.ui_ctx || !wctx.ui_ctx->fig_mgr)
+        return;
+    auto*          fm     = wctx.ui_ctx->fig_mgr;
+    const FigureId active = fm->active_index();
+    if (active == INVALID_FIGURE_ID)
+        return;
+    set_window_title(wctx, window_title_for_figure(fm->get_title(active)));
+#else
+    (void)wctx;
+#endif
+}
+
+bool WindowManager::primary_work_area(ScreenWorkArea& out) const
+{
+#ifdef SPECTRA_USE_GLFW
+    GLFWmonitor* mon = glfwGetPrimaryMonitor();
+    if (!mon)
+        return false;
+    glfwGetMonitorWorkarea(mon, &out.x, &out.y, &out.w, &out.h);
+    return out.w > 0 && out.h > 0;
+#elif defined(SPECTRA_USE_SDL3)
+    SDL_Rect r{};
+    if (!SDL_GetDisplayUsableBounds(SDL_GetPrimaryDisplay(), &r))
+        return false;
+    out = {r.x, r.y, r.w, r.h};
+    return out.w > 0 && out.h > 0;
+#else
+    (void)out;
+    return false;
+#endif
+}
+
+bool WindowManager::next_cascade_position(uint32_t width, uint32_t height, int& x, int& y) const
+{
+    const WindowContext* first = nullptr;
+    int                  count = 0;
+    for (const auto* w : active_ptrs_)
+    {
+        if (!w || w->is_preview || w->is_panel || w->should_close || !w->glfw_window)
+            continue;
+        if (!first)
+            first = w;
+        ++count;
+    }
+    if (!first)
+        return false;
+
+    int base_x = 0;
+    int base_y = 0;
+#ifdef SPECTRA_USE_GLFW
+    glfwGetWindowPos(static_cast<GLFWwindow*>(first->glfw_window), &base_x, &base_y);
+#elif defined(SPECTRA_USE_SDL3)
+    SDL_GetWindowPosition(static_cast<SDL_Window*>(first->glfw_window), &base_x, &base_y);
+#else
+    return false;
+#endif
+    ScreenWorkArea wa;
+    if (!primary_work_area(wa))
+        wa = {};
+    auto pos = cascade_window_position(base_x,
+                                       base_y,
+                                       count,
+                                       static_cast<int>(width),
+                                       static_cast<int>(height),
+                                       wa);
+    x        = pos.first;
+    y        = pos.second;
+    return true;
 }
 
 }   // namespace spectra

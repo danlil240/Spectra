@@ -236,6 +236,23 @@ class Series:
         )
         self._session._request(P.REQ_UPDATE_PROPERTY, payload)
 
+    def set_color_letter(self, letter: str) -> None:
+        """Colour the series with a MATLAB colour letter (r g b c m y k w).
+
+        Unlike set_color(), the window picks the letter's shade for its theme
+        (e.g. 'k' is black on a light plot and light gray on a dark one) and
+        re-resolves it when the theme changes.
+        """
+        if len(letter) != 1 or letter not in "rgbcmykw":
+            raise ValueError("color letter must be one of r g b c m y k w, got %r" % (letter,))
+        payload = codec.encode_req_update_property(
+            figure_id=self._figure_id,
+            series_index=self._index,
+            prop="color_letter",
+            str_val=letter,
+        )
+        self._session._request(P.REQ_UPDATE_PROPERTY, payload)
+
     def set_line_width(self, width: float) -> None:
         payload = codec.encode_req_update_property(
             figure_id=self._figure_id,

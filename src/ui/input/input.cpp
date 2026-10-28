@@ -429,7 +429,8 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
 
 void InputHandler::clear_cursor_readout()
 {
-    cursor_readout_.valid = false;
+    cursor_readout_.valid     = false;
+    cursor_readout_.in_window = false;
 }
 
 void InputHandler::on_mouse_move(double x, double y)
@@ -460,7 +461,8 @@ void InputHandler::on_mouse_move(double x, double y)
     }
 
     // Update cursor readout regardless of mode (2D and 3D axes)
-    AxesBase* hit_base = hit_test_all_axes(x, y);
+    cursor_readout_.in_window = true;
+    AxesBase* hit_base        = hit_test_all_axes(x, y);
     if (hit_base)
     {
         SPECTRA_LOG_TRACE("input", "Mouse move hit axes");

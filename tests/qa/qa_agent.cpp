@@ -13,7 +13,7 @@
 //     --no-fuzz           Skip fuzzing phase
 //     --no-scenarios      Skip scenarios phase
 //     --list-scenarios    List scenarios and exit
-//     --design-review     Capture 63 named UI states, each proved by semantic
+//     --design-review     Capture 65 named UI states, each proved by semantic
 //                         assertions (failed assertion = ERROR, exit 1)
 //     --repeat <N>        Run each scenario N times; N>=3 judges RSS retention
 //                         for sustained growth (see qa_stats.hpp)
@@ -525,6 +525,215 @@ static std::string imgui_drawn_window_names(ImGuiContext* ctx)
             out += ", ";
         out += w->Name;
     }
+    return out;
+}
+
+// ── Rendered text contrast (S4-C01) ─────────────────────────────────────
+// A run of text glyphs drawn last frame: consecutive font-atlas quads of one
+// colour on one line in one window's draw list.  Glyph boxes are in
+// framebuffer pixels, clipped to the draw command's clip rect.
+struct ImguiTextRun
+{
+    std::string         window;
+    const ImGuiWindow*  win    = nullptr;
+    ImU32               col    = 0;
+    int                 glyphs = 0;
+    float               x0 = 1e9f, y0 = 1e9f, x1 = -1e9f, y1 = -1e9f;
+    std::vector<ImVec4> boxes;
+    // Covered by a window drawn above it (popup, tooltip, another panel) or
+    // dimmed by a modal: what is on screen there is not this run's text.
+    bool occluded = false;
+};
+
+static std::vector<ImguiTextRun> imgui_text_runs(ImGuiContext* ctx)
+{
+    std::vector<ImguiTextRun> runs;
+    if (!ctx || !ctx->IO.Fonts)
+        return runs;
+    const ImTextureID font_tex = ctx->IO.Fonts->TexRef.GetTexID();
+    const ImVec2      white    = ctx->DrawListSharedData.TexUvWhitePixel;
+    const ImVec2      scale    = ctx->IO.DisplayFramebufferScale;
+    for (ImGuiWindow* w : ctx->Windows)
+    {
+        if (!w || !w->Active || w->Hidden || !w->Name || !w->DrawList)
+            continue;
+        const ImDrawList& dl = *w->DrawList;
+        for (const ImDrawCmd& cmd : dl.CmdBuffer)
+        {
+            if (cmd.UserCallback || cmd.ElemCount < 6 || cmd.GetTexID() != font_tex)
+                continue;
+            ImguiTextRun run;
+            auto         flush = [&]()
+            {
+                if (run.glyphs > 0)
+                    runs.push_back(std::move(run));
+                run = ImguiTextRun{};
+            };
+            // Glyphs are emitted by PrimRectUV: indices a,a+1,a+2, a,a+2,a+3
+            // over an axis-aligned quad.  Walk triangle by triangle.
+            for (unsigned k = 0; k + 6 <= cmd.ElemCount; k += 3)
+            {
+                const ImDrawIdx* idx = dl.IdxBuffer.Data + cmd.IdxOffset + k;
+                const unsigned   a   = idx[0];
+                if (idx[1] != a + 1 || idx[2] != a + 2 || idx[3] != a || idx[4] != a + 2
+                    || idx[5] != a + 3)
+                    continue;
+                const ImDrawVert* v    = dl.VtxBuffer.Data + cmd.VtxOffset + a;
+                const bool        quad = v[0].pos.y == v[1].pos.y && v[1].pos.x == v[2].pos.x
+                                  && v[2].pos.y == v[3].pos.y && v[3].pos.x == v[0].pos.x
+                                  && v[0].pos.x < v[1].pos.x && v[0].pos.y < v[2].pos.y;
+                const bool textured =
+                    !(v[0].uv.x == white.x && v[0].uv.y == white.y) && v[0].uv.x != v[1].uv.x;
+                if (!quad || !textured || v[0].col != v[2].col)
+                    continue;
+                ImVec4 box(std::max(v[0].pos.x, cmd.ClipRect.x) * scale.x,
+                           std::max(v[0].pos.y, cmd.ClipRect.y) * scale.y,
+                           std::min(v[2].pos.x, cmd.ClipRect.z) * scale.x,
+                           std::min(v[2].pos.y, cmd.ClipRect.w) * scale.y);
+                k += 3;   // the quad's second triangle
+                if (box.z <= box.x || box.w <= box.y)
+                    continue;
+                const float h        = box.w - box.y;
+                const bool  same_run = run.glyphs > 0 && run.col == v[0].col
+                                      && std::abs(box.w - run.y1) < 0.6f * h + 2.0f
+                                      && box.x - run.x1 < 1.5f * h;
+                if (!same_run)
+                    flush();
+                run.window = w->Name;
+                run.win    = w;
+                run.col    = v[0].col;
+                run.glyphs++;
+                run.boxes.push_back(box);
+                run.x0 = std::min(run.x0, box.x);
+                run.y0 = std::min(run.y0, box.y);
+                run.x1 = std::max(run.x1, box.z);
+                run.y1 = std::max(run.y1, box.w);
+            }
+            flush();
+        }
+    }
+
+    // Z-order: ctx->Windows is back to front; child windows draw with their root.
+    auto order = [&](const ImGuiWindow* w)
+    {
+        for (int i = 0; i < ctx->Windows.Size; ++i)
+            if (ctx->Windows[i] == w)
+                return i;
+        return -1;
+    };
+    for (ImguiTextRun& run : runs)
+    {
+        const ImGuiWindow* root = run.win ? run.win->RootWindow : nullptr;
+        const int          z    = order(root);
+        for (int i = z + 1; root && i < ctx->Windows.Size && !run.occluded; ++i)
+        {
+            const ImGuiWindow* o = ctx->Windows[i];
+            if (!o || !o->Active || o->Hidden || o->RootWindow != o || o == root)
+                continue;
+            // Docked chrome (rail, bars, panels, overlay hosts) tiles the
+            // screen without overlapping text; popups, tooltips, modals and
+            // floating titled windows are drawn over whatever is below.
+            constexpr ImGuiWindowFlags floating = ImGuiWindowFlags_Popup | ImGuiWindowFlags_Tooltip
+                                                  | ImGuiWindowFlags_Modal
+                                                  | ImGuiWindowFlags_ChildMenu;
+            if (!(o->Flags & floating) && (o->Flags & ImGuiWindowFlags_NoTitleBar))
+                continue;
+            if (o->Flags & ImGuiWindowFlags_Modal)
+            {
+                run.occluded = true;
+                break;
+            }
+            const ImRect r = o->Rect();
+            run.occluded   = r.Min.x * scale.x < run.x1 && r.Max.x * scale.x > run.x0
+                           && r.Min.y * scale.y < run.y1 && r.Max.y * scale.y > run.y0;
+        }
+    }
+    return runs;
+}
+
+// Peak-ink WCAG contrast of a text run as captured in `px` (RGBA8, w x h):
+// the most contrasting pixel inside the glyph boxes against the median colour
+// of a 2px ring just outside the run's bounding box (the surface the text sits
+// on, including any glass / blur / dimming composited under it).
+struct TextRunContrast
+{
+    float     ratio     = 1.0f;
+    float     intended  = 1.0f;   // vertex colour composited over the measured surface
+    ui::Color surface   = {};
+    ui::Color ink       = {};
+    int       ring_px   = 0;
+    float     ring_flat = 0.0f;   // fraction of ring pixels within 1.15:1 of the median
+};
+
+static TextRunContrast measure_text_run(const ImguiTextRun& run,
+                                        const uint8_t*      px,
+                                        uint32_t            w,
+                                        uint32_t            h,
+                                        bool                linear_vertex_colors)
+{
+    TextRunContrast out;
+    const int       W  = static_cast<int>(w);
+    const int       H  = static_cast<int>(h);
+    auto            at = [&](int x, int y)
+    {
+        const uint8_t* p = px + (static_cast<size_t>(y) * w + x) * 4;
+        return ui::Color(p[0] / 255.0f, p[1] / 255.0f, p[2] / 255.0f, 1.0f);
+    };
+    const int              X0 = static_cast<int>(std::floor(run.x0));
+    const int              Y0 = static_cast<int>(std::floor(run.y0));
+    const int              X1 = static_cast<int>(std::ceil(run.x1));
+    const int              Y1 = static_cast<int>(std::ceil(run.y1));
+    std::vector<float>     rs, gs, bs;
+    std::vector<ui::Color> ring;
+    for (int y = Y0 - 3; y < Y1 + 3; ++y)
+        for (int x = X0 - 3; x < X1 + 3; ++x)
+        {
+            const bool inside = x >= X0 - 1 && x < X1 + 1 && y >= Y0 - 1 && y < Y1 + 1;
+            if (inside || x < 0 || y < 0 || x >= W || y >= H)
+                continue;
+            const ui::Color c = at(x, y);
+            ring.push_back(c);
+            rs.push_back(c.r);
+            gs.push_back(c.g);
+            bs.push_back(c.b);
+        }
+    out.ring_px = static_cast<int>(ring.size());
+    if (ring.empty())
+        return out;
+    auto median = [](std::vector<float>& v)
+    {
+        std::nth_element(v.begin(), v.begin() + v.size() / 2, v.end());
+        return v[v.size() / 2];
+    };
+    out.surface = ui::Color(median(rs), median(gs), median(bs), 1.0f);
+    int flat    = 0;
+    for (const ui::Color& c : ring)
+        flat += c.contrast_ratio(out.surface) < 1.15f ? 1 : 0;
+    out.ring_flat = static_cast<float>(flat) / static_cast<float>(ring.size());
+
+    for (const ImVec4& b : run.boxes)
+    {
+        const int bx0 = std::max(0, static_cast<int>(b.x));
+        const int by0 = std::max(0, static_cast<int>(b.y));
+        const int bx1 = std::min(W, static_cast<int>(std::ceil(b.z)));
+        const int by1 = std::min(H, static_cast<int>(std::ceil(b.w)));
+        for (int y = by0; y < by1; ++y)
+            for (int x = bx0; x < bx1; ++x)
+            {
+                const ui::Color c  = at(x, y);
+                const float     cr = c.contrast_ratio(out.surface);
+                if (cr > out.ratio)
+                {
+                    out.ratio = cr;
+                    out.ink   = c;
+                }
+            }
+    }
+    const ImVec4 v = ImGui::ColorConvertU32ToFloat4(run.col);
+    ui::Color    vc(v.x, v.y, v.z, v.w);
+    if (linear_vertex_colors)
+        vc = vc.to_srgb();
+    out.intended = vc.contrast_ratio_over(out.surface);
     return out;
 }
 #endif
@@ -3063,8 +3272,17 @@ class QAAgent
 
         // Semantic assertions against the frame that was just captured.
         DesignCheck check;
+        design_px_     = pixels.data();
+        design_w_      = w;
+        design_h_      = h;
+        design_window_ = target_window;
         if (verify)
             verify(check);
+#ifdef SPECTRA_USE_IMGUI
+        log_text_contrast(name);
+#endif
+        design_px_     = nullptr;
+        design_window_ = nullptr;
         if (check.passed.empty() && check.failed.empty())
             check.expect(false, "capture declares at least one semantic assertion");
 
@@ -3234,6 +3452,144 @@ class QAAgent
                      + (ui && ui->theme_mgr ? ui->theme_mgr->current_theme_name() : "?") + "')");
         c.expect(ui && ui->theme_mgr && !ui->theme_mgr->is_transitioning(),
                  "theme transition finished");
+    }
+
+    // ── Rendered text contrast (S4-C01) ──────────────────────────────────
+    // Text runs of the captured frame (see named_screenshot) with their
+    // peak-ink contrast measured on the captured pixels.
+    struct MeasuredTextRun
+    {
+        ImguiTextRun    run;
+        TextRunContrast m;
+    };
+
+    std::vector<MeasuredTextRun> design_text_runs(std::string_view window_needle = {})
+    {
+        std::vector<MeasuredTextRun> out;
+        if (!design_px_)
+            return out;
+        WindowUIContext* ui = design_window_ ? design_window_->ui_ctx.get() : app_->ui_context();
+        const bool       linear = ui && ui->theme_mgr && ui->theme_mgr->current().linearize_colors;
+        for (ImguiTextRun& run : imgui_text_runs(design_imgui(design_window_)))
+        {
+            if (!window_needle.empty() && run.window.find(window_needle) == std::string::npos)
+                continue;
+            TextRunContrast m = measure_text_run(run, design_px_, design_w_, design_h_, linear);
+            out.push_back({std::move(run), m});
+        }
+        return out;
+    }
+
+    // Every word-length text run (3+ glyphs) drawn in a window whose name
+    // contains `window_needle` reaches `min_ratio` on the captured frame.
+    // Only runs on a reliably known surface count: the ring around the run
+    // must be mostly one colour (not straddling a border, an icon or another
+    // widget) and not covered by a window above it.  `disabled` selects text
+    // faded by BeginDisabled() (true) or all other text (false), and
+    // `neutral_only` keeps only runs in neutral (text-token) ink, skipping
+    // accent / status colours used as text.  At least `min_runs` must be
+    // measured, so a moved or missing window cannot pass vacuously.
+    void expect_text_contrast(DesignCheck&     c,
+                              std::string_view window_needle,
+                              float            min_ratio,
+                              size_t           min_runs,
+                              bool             disabled     = false,
+                              bool             neutral_only = false)
+    {
+        size_t      measured = 0;
+        float       worst    = 1e9f;
+        std::string worst_desc;
+        for (const MeasuredTextRun& r : design_text_runs(window_needle))
+        {
+            if (r.run.occluded || r.run.glyphs < 3 || r.m.ring_flat < 0.6f || r.m.ring_px < 20)
+                continue;
+            // Disabled controls: text faded by BeginDisabled() (alpha scaled
+            // by style.DisabledAlpha).  ImGuiCol_TextDisabled is the theme's
+            // text_tertiary, which the app also uses for live labels and
+            // hints, so it is held to the normal text target.
+            const bool is_disabled = ((r.run.col >> IM_COL32_A_SHIFT) & 0xFF) < 0xB0;
+            if (is_disabled != disabled)
+                continue;
+            // Neutral ink = the theme's text tokens; accent / status colours
+            // used as text are chromatic.
+            const int r8 = r.run.col & 0xFF, g8 = (r.run.col >> 8) & 0xFF,
+                      b8 = (r.run.col >> 16) & 0xFF;
+            if (neutral_only && std::max({r8, g8, b8}) - std::min({r8, g8, b8}) > 30)
+                continue;
+            ++measured;
+            if (r.m.ratio < worst)
+            {
+                worst      = r.m.ratio;
+                worst_desc = std::format("{} at ({:.0f},{:.0f}) {} glyphs, ink #{:02X}{:02X}{:02X} "
+                                         "on #{:02X}{:02X}{:02X}",
+                                         r.run.window,
+                                         r.run.x0,
+                                         r.run.y0,
+                                         r.run.glyphs,
+                                         static_cast<int>(std::lround(r.m.ink.r * 255)),
+                                         static_cast<int>(std::lround(r.m.ink.g * 255)),
+                                         static_cast<int>(std::lround(r.m.ink.b * 255)),
+                                         static_cast<int>(std::lround(r.m.surface.r * 255)),
+                                         static_cast<int>(std::lround(r.m.surface.g * 255)),
+                                         static_cast<int>(std::lround(r.m.surface.b * 255)));
+            }
+        }
+        const std::string what = std::string(disabled ? "disabled " : "")
+                                 + (neutral_only ? "neutral " : "") + "text in '"
+                                 + std::string(window_needle) + "'";
+        c.expect(measured >= min_runs,
+                 std::format("{}: {} runs measured (need {})", what, measured, min_runs));
+        if (measured > 0)
+            c.expect(worst >= min_ratio,
+                     std::format("{} reaches {:.1f}:1 on the captured frame (worst {:.2f}:1, {})",
+                                 what,
+                                 min_ratio,
+                                 worst,
+                                 worst_desc));
+    }
+
+    // Appends every measured text run of the capture to design/text_contrast.csv
+    // (diagnostics; assertions are made per state by expect_text_contrast).
+    void log_text_contrast(const std::string& shot)
+    {
+        const std::string path = opts_.output_dir + "/design/text_contrast.csv";
+        std::filesystem::create_directories(opts_.output_dir + "/design");
+        const bool    fresh = !text_contrast_log_started_;
+        std::ofstream out(path, fresh ? std::ios::trunc : std::ios::app);
+        if (!out)
+            return;
+        if (fresh)
+            out << "shot,window,x,y,w,h,glyphs,vertex_rgba,surface,ink,ratio,intended,ring_flat,"
+                   "occluded\n";
+        text_contrast_log_started_ = true;
+        auto hex                   = [](const ui::Color& c)
+        {
+            return std::format("#{:02X}{:02X}{:02X}",
+                               static_cast<int>(std::lround(c.r * 255)),
+                               static_cast<int>(std::lround(c.g * 255)),
+                               static_cast<int>(std::lround(c.b * 255)));
+        };
+        for (const MeasuredTextRun& r : design_text_runs())
+        {
+            std::string window = r.run.window;
+            std::replace(window.begin(), window.end(), ',', ';');
+            out << std::format(
+                "{},{},{:.0f},{:.0f},{:.0f},{:.0f},{},{:08X},{},{},{:.2f},{:.2f},{:.2f},{}\n",
+                shot,
+                window,
+                r.run.x0,
+                r.run.y0,
+                r.run.x1 - r.run.x0,
+                r.run.y1 - r.run.y0,
+                r.run.glyphs,
+                r.run.col,
+                hex(r.m.surface),
+                hex(r.m.ink),
+                r.m.ratio,
+                r.m.intended,
+                r.m.ring_flat,
+                r.run.occluded ? 1 : 0);
+        }
     }
 
     void expect_swapchain(DesignCheck& c, WindowContext* wctx, uint32_t w, uint32_t h)
@@ -3706,7 +4062,12 @@ class QAAgent
                 pump_frames(2);
                 wait_ui_settled("07 inspector open");
                 named_screenshot("07_inspector_panel_open",
-                                 [&](DesignCheck& c) { expect_inspector_open(c, true); });
+                                 [&](DesignCheck& c)
+                                 {
+                                     expect_inspector_open(c, true);
+                                     // Glass panel over the canvas.
+                                     expect_text_contrast(c, "##inspector", 4.5f, 3);
+                                 });
                 ui->cmd_registry.execute("panel.toggle_inspector");
                 pump_frames(5);
             }
@@ -3727,6 +4088,8 @@ class QAAgent
                         c.expect(imgui_window_drawn(design_imgui(), "##command_palette"),
                                  "palette window drawn");
                         c.expect(ui->cmd_palette.result_count() > 0, "palette lists commands");
+                        // Glass palette over the blurred, dimmed backdrop.
+                        expect_text_contrast(c, "##command_palette", 4.5f, 3);
                     });
                 ui->cmd_registry.execute("app.cancel");
                 pump_frames(5);
@@ -3771,7 +4134,14 @@ class QAAgent
                 ui->cmd_registry.execute("theme.dark");
                 pump_frames(2);
                 wait_ui_settled("11 dark theme");
-                named_screenshot("11_theme_dark", [&](DesignCheck& c) { expect_theme(c, "dark"); });
+                named_screenshot("11_theme_dark",
+                                 [&](DesignCheck& c)
+                                 {
+                                     expect_theme(c, "dark");
+                                     // Glass nav rail labels and command bar.
+                                     expect_text_contrast(c, "##navrail", 4.5f, 5);
+                                     expect_text_contrast(c, "##commandbar", 4.5f, 3);
+                                 });
             }
         }
 
@@ -3784,7 +4154,15 @@ class QAAgent
                 pump_frames(2);
                 wait_ui_settled("12 light theme");   // theme transition is dt-based
                 named_screenshot("12_theme_light",
-                                 [&](DesignCheck& c) { expect_theme(c, "light"); });
+                                 [&](DesignCheck& c)
+                                 {
+                                     expect_theme(c, "light");
+                                     expect_text_contrast(c, "##commandbar", 4.5f, 3);
+                                     // Small rail labels (incl. the active
+                                     // accent label) and status readouts.
+                                     expect_text_contrast(c, "##navrail", 4.5f, 10);
+                                     expect_text_contrast(c, "##AppShellStatusBar", 4.5f, 4);
+                                 });
                 // Switch back to dark
                 ui->cmd_registry.execute("theme.dark");
                 pump_frames(30);
@@ -3864,6 +4242,8 @@ class QAAgent
                                  {
                                      c.expect(hovered, "pointer moved over the plot");
                                      expect_crosshair_at(c, hx, hy);
+                                     // Glass hover tooltip over the plot.
+                                     expect_text_contrast(c, "##overlay_host", 4.5f, 2);
                                  });
                 ui->data_interaction->set_crosshair(false);
                 if (active_fig)
@@ -3932,6 +4312,7 @@ class QAAgent
                         c.expect(ui->imgui_ui->is_timeline_visible(), "timeline visible");
                         c.expect(imgui_window_drawn(design_imgui(), "##timeline_panel"),
                                  "timeline window drawn");
+                        expect_text_contrast(c, "##timeline_panel", 4.5f, 3);
                     });
                 ui->cmd_registry.execute("panel.toggle_timeline");
                 pump_frames(5);
@@ -4553,6 +4934,8 @@ class QAAgent
                                      + "')");
                         c.expect(imgui_drawn_popups(design_imgui(), "##commandbar") >= 1,
                                  "menu popup drawn");
+                        // Glass menu popup: labels and shortcut hints.
+                        expect_text_contrast(c, "##Popup", 4.5f, 5);
                     });
             }
         }
@@ -5305,6 +5688,8 @@ class QAAgent
                                  "selection moved 15 rows (index "
                                      + std::to_string(ui->cmd_palette.selected_index()) + ")");
                         c.expect(ui->cmd_palette.scroll_offset() > 0.0f, "result list scrolled");
+                        // Includes the row under the selection highlight.
+                        expect_text_contrast(c, "##command_palette", 4.5f, 5);
                     });
 
                 // Close palette
@@ -5423,7 +5808,7 @@ class QAAgent
             }
         }
 
-        // ── 57–63. Settings panel (G-6: Appearance / Shortcuts / UI Defaults) ──
+        // ── 57–62. Settings panel (G-6: Appearance / Shortcuts / UI Defaults) ──
         {
             auto* ui = app_->ui_context();
             if (ui)
@@ -5461,6 +5846,8 @@ class QAAgent
                                      "settings tab " + std::to_string(tab) + " shown (actual "
                                          + std::to_string(ui->settings_panel.active_tab()) + ")");
                             expect_theme(c, theme);
+                            // Glass modal over the dimmed app.
+                            expect_text_contrast(c, "Settings##spectra", 4.5f, 5);
                         });
                     close_settings();
                 };
@@ -5480,13 +5867,88 @@ class QAAgent
             }
         }
 
+        // ── 63. Theme transition midpoint (S4-C01) ──
+        // A frame halfway through the animated Dark -> Light transition, where
+        // every surface and text token is interpolated.  The transition is
+        // made long and advanced to its midpoint directly so the captured
+        // frame does not depend on frame timing.
+        {
+            auto* ui = app_->ui_context();
+            if (ui && ui->theme_mgr)
+            {
+                ui->theme_mgr->set_theme("dark");
+                pump_frames(10);
+                constexpr float duration = 1000.0f;
+                ui->theme_mgr->transition_to("light", duration);
+                ui->theme_mgr->update(0.5f * duration);
+                pump_frames(3);
+                named_screenshot(
+                    "63_theme_transition_midpoint",
+                    [&](DesignCheck& c)
+                    {
+                        c.expect(ui->theme_mgr->is_transitioning(),
+                                 "dark -> light transition in progress");
+                        // Text, including accent-coloured labels (active
+                        // rail tool, mode chip), stays readable on the
+                        // half-way surfaces (3:1 floor for this transient
+                        // frame; see DECISIONS-fbcontrast.md).
+                        for (const char* w :
+                             {"##navrail", "##commandbar", "##pane_tab", "##AppShellStatusBar"})
+                            expect_text_contrast(c, w, 3.0f, 3);
+                    });
+                ui->theme_mgr->update(duration);   // finish: switches to Light
+                ui->theme_mgr->set_theme("dark");
+                pump_frames(10);
+            }
+        }
+
+        // ── 64. Disabled controls (S4-C01) ──
+        // The custom transform dialog opens with an empty formula, so its
+        // "Save Preset" and "Apply" buttons are drawn disabled (ImGui
+        // BeginDisabled fades them by style.DisabledAlpha).
+        {
+            auto* ui = app_->ui_context();
+            if (ui && ui->imgui_ui)
+            {
+                ui->imgui_ui->open_transform_dialog();
+                pump_frames(10);
+                // The action row sits at the end of the scrolling body.
+                if (ImGuiContext* ctx = design_imgui())
+                {
+                    ImGuiContext* prev = ImGui::GetCurrentContext();
+                    ImGui::SetCurrentContext(ctx);
+                    for (ImGuiWindow* w : ctx->Windows)
+                        if (w && w->Name
+                            && std::string_view(w->Name).starts_with("##custom_xform/##xform_body"))
+                            ImGui::SetScrollY(w, w->ScrollMax.y);
+                    ImGui::SetCurrentContext(prev);
+                }
+                pump_frames(5);
+                named_screenshot(
+                    "64_transform_dialog_disabled_actions",
+                    [&](DesignCheck& c)
+                    {
+                        c.expect(ui->imgui_ui->is_transform_dialog_open()
+                                     && imgui_window_drawn(design_imgui(), "##custom_xform"),
+                                 "transform dialog drawn");
+                        expect_text_contrast(c, "##custom_xform", 4.5f, 3);
+                        // "Save Preset" / "Apply" (BeginDisabled).
+                        // Disabled controls are exempt from WCAG
+                        // 1.4.3; they must still read as text.
+                        expect_text_contrast(c, "##custom_xform", 3.0f, 2, true);
+                    });
+                ui->imgui_ui->close_transform_dialog();
+                pump_frames(5);
+            }
+        }
+
         // ── Summary ─────────────────────────────────────────────────────
         fprintf(stderr,
                 "[QA/Design] Captured %zu design screenshots in %s/design/\n",
                 design_screenshots_.size(),
                 opts_.output_dir.c_str());
 
-        static constexpr size_t EXPECTED_DESIGN_SHOTS = 63;
+        static constexpr size_t EXPECTED_DESIGN_SHOTS = 65;
         if (design_screenshots_.size() != EXPECTED_DESIGN_SHOTS)
         {
             add_issue(IssueSeverity::Error,
@@ -6537,6 +6999,13 @@ class QAAgent
     // Design review
     std::vector<std::pair<std::string, std::string>> design_screenshots_;
     std::vector<DesignAssertionRecord>               design_assertions_;
+    // The frame named_screenshot() just captured, for pixel-level assertions
+    // made by its verifier (valid only while the verifier runs).
+    const uint8_t*                                   design_px_                 = nullptr;
+    uint32_t                                         design_w_                  = 0;
+    uint32_t                                         design_h_                  = 0;
+    WindowContext*                                   design_window_             = nullptr;
+    bool                                             text_contrast_log_started_ = false;
     bool                                             saved_pointer_valid_ = false;
     double                                           saved_pointer_x_     = 0.0;
     double                                           saved_pointer_y_     = 0.0;

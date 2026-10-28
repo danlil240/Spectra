@@ -207,6 +207,16 @@ class ImGuiIntegration
     void     clear_reset_live_view() { reset_live_view_ = false; }
     ToolMode get_interaction_mode() const { return interaction_mode_; }
     bool     is_transform_dialog_open() const { return custom_transform_dialog_.is_open(); }
+    // Open the custom transform dialog on the current figure, as the nav
+    // rail's Transform button does (automation / design review).
+    void open_transform_dialog()
+    {
+        if (custom_transform_dialog_.is_open())
+            return;
+        custom_transform_dialog_.set_fonts(font_body_, font_heading_, font_title_);
+        custom_transform_dialog_.open(current_figure_);
+    }
+    void     close_transform_dialog() { custom_transform_dialog_.close(); }
     bool     is_plot_overlay_dialog_open() const { return plot_overlay_dialog_.is_open(); }
     ui::PlotOverlayDialog&       plot_overlay_dialog() { return plot_overlay_dialog_; }
     const ui::PlotOverlayDialog& plot_overlay_dialog() const { return plot_overlay_dialog_; }

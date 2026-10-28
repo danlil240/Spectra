@@ -130,7 +130,7 @@ void ImGuiIntegration::draw_timeline_panel()
         ImGui::PushFont(font_heading_);
         ImGui::PushStyleColor(
             ImGuiCol_Text,
-            ImVec4(colors.text_tertiary.r, colors.text_tertiary.g, colors.text_tertiary.b, 0.75f));
+            ImVec4(colors.text_tertiary.r, colors.text_tertiary.g, colors.text_tertiary.b, 1.0f));
         ImGui::TextUnformatted("TIMELINE");
         ImGui::PopStyleColor();
         ImGui::PopFont();

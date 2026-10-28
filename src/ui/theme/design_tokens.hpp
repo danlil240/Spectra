@@ -171,8 +171,10 @@ constexpr float TOOLTIP_TIME_TARGET_MS  = 0.1f;     // Tooltip query budget
 constexpr float NAV_RAIL_ICON_ALPHA_INACTIVE  = 0.86f;   // readable, not disabled
 constexpr float NAV_RAIL_ICON_ALPHA_HOVER     = 0.96f;
 constexpr float NAV_RAIL_ICON_ALPHA_ACTIVE    = 1.00f;
-constexpr float NAV_RAIL_LABEL_ALPHA_INACTIVE = 0.78f;   // readable tiny labels
-constexpr float NAV_RAIL_LABEL_ALPHA_HOVER    = 0.95f;
+// Labels are opaque: text_secondary is already the de-emphasised tier, and any
+// fade drops the small rail labels below 4.5:1 on Light's darker rail foot.
+constexpr float NAV_RAIL_LABEL_ALPHA_INACTIVE = 1.00f;
+constexpr float NAV_RAIL_LABEL_ALPHA_HOVER    = 1.00f;
 constexpr float NAV_RAIL_LABEL_ALPHA_ACTIVE   = 1.00f;
 constexpr float NAV_RAIL_ICON_SIZE_BASE       = 20.0f;   // matches ICON_MD
 // Drawn via font_heading_ (baked at 11.5px); keep the requested draw size close

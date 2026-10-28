@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run the QA agent's design review under CI-like conditions and fail when any
-# of its 63 captures does not show the state it is named after.
+# of its 65 captures does not show the state it is named after.
 #
 # Every capture carries semantic assertions (menu popup open, crosshair at the
 # hovered point, panels closed, UI scale in effect, Settings modal + tab, ...)

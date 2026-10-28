@@ -26,6 +26,7 @@
 #include <spectra/series.hpp>
 #include <spectra/series3d.hpp>
 
+#include "qa_settle.hpp"
 #include "qa_stats.hpp"
 #include "render/backend.hpp"
 #include "render/vulkan/vk_backend.hpp"
@@ -701,6 +702,45 @@ class QAAgent
                 break;
             }
         }
+    }
+
+    // Pump frames until `settled()` holds for a few consecutive frames,
+    // bounded by a frame budget AND a wall-time budget (qa_settle.hpp).  Use
+    // it, not a fixed pump_frames(N), before asserting on anything that
+    // animates by elapsed time or completes asynchronously (layout slides,
+    // nav rail width, theme transitions, overlay fades, swapchain extent,
+    // window position).  A timeout is logged and fails the next named capture.
+    bool wait_until_settled(const std::string&           what,
+                            const std::function<bool()>& settled,
+                            const qa::SettleBudget&      budget = {})
+    {
+        const qa::SettleResult r = qa::wait_until_stable(
+            [&]
+            {
+                if (has_critical_issue() || wall_clock_exceeded())
+                    return false;
+                pump_frames(1);
+                return true;
+            },
+            settled,
+            [&] { return static_cast<double>(wall_clock_seconds()); },
+            budget);
+        if (r.settled)
+        {
+            fprintf(stderr,
+                    "[QA] Settled: %s (%lu frames / %.3f s)\n",
+                    what.c_str(),
+                    static_cast<unsigned long>(r.frames),
+                    r.seconds);
+            return true;
+        }
+        const std::string msg =
+            what + " did not settle ("
+            + (r.aborted ? std::string("run stopped") : std::string("timed out")) + " after "
+            + std::to_string(r.frames) + " frames / " + std::to_string(r.seconds) + " s)";
+        fprintf(stderr, "[QA] Settle wait failed: %s\n", msg.c_str());
+        pending_settle_failures_.push_back(msg);
+        return false;
     }
 
     void add_issue(IssueSeverity      sev,
@@ -2952,6 +2992,10 @@ class QAAgent
 
         auto finish = [&](DesignCheck& check, const std::string& path)
         {
+            // A state that never settled is not the state the capture names.
+            for (const auto& f : pending_settle_failures_)
+                check.expect(false, f);
+            pending_settle_failures_.clear();
             record.path     = path;
             record.frame    = total_frames_;
             record.checks   = check.passed.size() + check.failed.size();
@@ -3202,6 +3246,33 @@ class QAAgent
                      + ")");
     }
 
+    // ── Settle predicates (for wait_until_settled) ──────────────────────
+    // Inspector slide and nav-rail width have reached their (window-fitted)
+    // targets, by the layout manager's own definition.
+    bool layout_settled()
+    {
+        auto* lm = design_layout();
+        return !lm || !lm->is_animating();
+    }
+
+    bool theme_settled()
+    {
+        auto* ui = app_->ui_context();
+        return !ui || !ui->theme_mgr || !ui->theme_mgr->is_transitioning();
+    }
+
+    bool ui_settled() { return layout_settled() && theme_settled(); }
+
+    static bool swapchain_is(const WindowContext* wctx, uint32_t w, uint32_t h)
+    {
+        return wctx && wctx->swapchain.extent.width == w && wctx->swapchain.extent.height == h;
+    }
+
+    void wait_ui_settled(const std::string& what)
+    {
+        wait_until_settled(what + ": layout + theme animations", [&] { return ui_settled(); });
+    }
+
     void expect_no_transient_ui(DesignCheck& c)
     {
         auto* ui = app_->ui_context();
@@ -3346,31 +3417,100 @@ class QAAgent
         return r;
     }
 
-    // Visible x/y spans shrank to at most `max_ratio` of the pre-zoom spans.
-    void expect_zoomed(DesignCheck& c, const ViewRange& before, double max_ratio)
-    {
-        const ViewRange now = active_view_range();
-        const double    bx  = before.x1 - before.x0;
-        const double    by  = before.y1 - before.y0;
-        c.expect(bx > 0.0 && (now.x1 - now.x0) < bx * max_ratio,
-                 "x span zoomed in (" + std::to_string(now.x1 - now.x0) + " vs "
-                     + std::to_string(bx) + ")");
-        c.expect(by > 0.0 && (now.y1 - now.y0) < by * max_ratio,
-                 "y span zoomed in (" + std::to_string(now.y1 - now.y0) + " vs "
-                     + std::to_string(by) + ")");
-    }
-
     // Pump until hover overlays (crosshair fade-in) settle, bounded.
     void settle_overlays()
     {
         auto* ui = app_->ui_context();
-        for (int i = 0; i < 90; ++i)
+        wait_until_settled("crosshair fade-in",
+                           [&]
+                           {
+                               return ui && ui->data_interaction
+                                      && ui->data_interaction->crosshair_active()
+                                      && ui->data_interaction->crosshair_opacity() >= 1.0f;
+                           });
+    }
+
+    // Make `ax` the input target the way a user does before a keyboard view
+    // command (view.zoom_in, ...): hover the real pointer over its plot area,
+    // so InputHandler's hit test selects it.  Returns the command target.
+    AxesBase* target_axes_by_hover(Axes& ax)
+    {
+        auto* ui = app_->ui_context();
+        if (!ui)
+            return nullptr;
+        const Rect vp = ax.viewport();
+        if (vp.w > 0.0f && vp.h > 0.0f)
         {
-            pump_frames(1);
-            if (ui && ui->data_interaction && ui->data_interaction->crosshair_active()
-                && ui->data_interaction->crosshair_opacity() >= 1.0f)
-                break;
+    #ifdef SPECTRA_USE_GLFW
+            // Off the exact centre so the hover lands between data points.
+            move_pointer(std::floor(vp.x + vp.w * 0.37f) + 0.5,
+                         std::floor(vp.y + vp.h * 0.71f) + 0.5);
+    #endif
         }
+        return ui->input_handler.active_axes_base();
+    }
+
+    struct AxesSpans
+    {
+        double x = 0.0, y = 0.0;
+    };
+    static AxesSpans axes_spans(const Axes& ax)
+    {
+        return {ax.x_limits().max - ax.x_limits().min, ax.y_limits().max - ax.y_limits().min};
+    }
+
+    // Target `ax` by hover, then zoom in `steps` times through the command
+    // registry.  `before` receives the spans of that same axes pre-zoom.
+    bool zoom_in_on(Axes& ax, int steps, AxesSpans& before)
+    {
+        auto* ui = app_->ui_context();
+        if (!ui)
+            return false;
+        const bool targeted = target_axes_by_hover(ax) == &ax;
+        before              = axes_spans(ax);
+        for (int i = 0; i < steps; ++i)
+            ui->cmd_registry.execute("view.zoom_in");
+        return targeted;
+    }
+
+    // The zoom command targeted `ax` (still the input target at capture) and
+    // its spans shrank by view.zoom_in's factor 0.75 per step.
+    void expect_zoomed_on(DesignCheck&     c,
+                          const Axes&      ax,
+                          bool             targeted,
+                          const AxesSpans& before,
+                          int              steps)
+    {
+        auto* ui = app_->ui_context();
+        c.expect(targeted, "zoom command target set to the measured axes by hovering it");
+        c.expect(ui && ui->input_handler.active_axes() == &ax,
+                 "command target is the measured axes at capture");
+        c.expect(design_active_figure() && !design_active_figure()->axes().empty()
+                     && design_active_figure()->axes()[0].get() == &ax,
+                 "measured axes is the active figure's plot");
+        const double    expected = std::pow(0.75, steps);
+        const AxesSpans now      = axes_spans(ax);
+        fprintf(stderr,
+                "[QA/Design] zoom: target_is_measured_axes=%d spans x %.6f -> %.6f (ratio %.6f) "
+                "y %.6f -> %.6f (ratio %.6f), expected ratio %.6f\n",
+                ui && ui->input_handler.active_axes() == &ax ? 1 : 0,
+                before.x,
+                now.x,
+                before.x > 0.0 ? now.x / before.x : -1.0,
+                before.y,
+                now.y,
+                before.y > 0.0 ? now.y / before.y : -1.0,
+                expected);
+        c.near(before.x > 0.0 ? now.x / before.x : -1.0,
+               expected,
+               1e-3,
+               "x span ratio after " + std::to_string(steps) + " zoom steps ("
+                   + std::to_string(now.x) + " vs " + std::to_string(before.x) + ")");
+        c.near(before.y > 0.0 ? now.y / before.y : -1.0,
+               expected,
+               1e-3,
+               "y span ratio after " + std::to_string(steps) + " zoom steps ("
+                   + std::to_string(now.y) + " vs " + std::to_string(before.y) + ")");
     }
 
     // Crosshair enabled, pointer readout at (x, y) inside the plot and the
@@ -3563,7 +3703,8 @@ class QAAgent
             if (ui)
             {
                 ui->cmd_registry.execute("panel.toggle_inspector");
-                pump_frames(10);
+                pump_frames(2);
+                wait_ui_settled("07 inspector open");
                 named_screenshot("07_inspector_panel_open",
                                  [&](DesignCheck& c) { expect_inspector_open(c, true); });
                 ui->cmd_registry.execute("panel.toggle_inspector");
@@ -3628,7 +3769,8 @@ class QAAgent
             if (ui)
             {
                 ui->cmd_registry.execute("theme.dark");
-                pump_frames(10);
+                pump_frames(2);
+                wait_ui_settled("11 dark theme");
                 named_screenshot("11_theme_dark", [&](DesignCheck& c) { expect_theme(c, "dark"); });
             }
         }
@@ -3639,7 +3781,8 @@ class QAAgent
             if (ui)
             {
                 ui->cmd_registry.execute("theme.light");
-                pump_frames(30);   // D25 fix: allow theme transition to fully complete
+                pump_frames(2);
+                wait_ui_settled("12 light theme");   // theme transition is dt-based
                 named_screenshot("12_theme_light",
                                  [&](DesignCheck& c) { expect_theme(c, "light"); });
                 // Switch back to dark
@@ -3735,13 +3878,25 @@ class QAAgent
             auto* ui = app_->ui_context();
             if (ui)
             {
-                const ViewRange pre_zoom = active_view_range();
-                for (int i = 0; i < 5; ++i)
-                    ui->cmd_registry.execute("view.zoom_in");
+                // view.zoom_in acts on the input target (the hovered axes);
+                // the pointer restored after scene 15 may have cleared it.
+                // Target the axes that is measured, as a user would.
+                Figure*   f        = design_active_figure();
+                Axes*     zoom_ax  = (f && !f->axes().empty()) ? f->axes_mut()[0].get() : nullptr;
+                AxesSpans pre_zoom = {};
+                bool      targeted = false;
+                if (zoom_ax)
+                    targeted = zoom_in_on(*zoom_ax, 5, pre_zoom);
                 pump_frames(10);
                 named_screenshot("16_zoomed_in",
-                                 [&](DesignCheck& c) { expect_zoomed(c, pre_zoom, 0.8); });
+                                 [&](DesignCheck& c)
+                                 {
+                                     c.expect(zoom_ax != nullptr, "active figure has 2D axes");
+                                     if (zoom_ax)
+                                         expect_zoomed_on(c, *zoom_ax, targeted, pre_zoom, 5);
+                                 });
                 ui->cmd_registry.execute("view.home");
+                restore_pointer();
                 pump_frames(5);
             }
         }
@@ -4047,7 +4202,8 @@ class QAAgent
                 pump_frames(5);
                 // Cycle to series selection
                 ui->cmd_registry.execute("series.cycle_selection");
-                pump_frames(10);
+                pump_frames(2);
+                wait_ui_settled("27 inspector open");
                 named_screenshot(
                     "27_inspector_series_stats",
                     [&](DesignCheck& c)
@@ -4073,7 +4229,8 @@ class QAAgent
                 // previous capture's series selection).
                 ui->imgui_ui->set_inspector_section_axes();
                 ui->cmd_registry.execute("panel.toggle_inspector");
-                pump_frames(10);
+                pump_frames(2);
+                wait_ui_settled("28 inspector open");
                 named_screenshot(
                     "28_inspector_axes_properties",
                     [&](DesignCheck& c)
@@ -4335,13 +4492,13 @@ class QAAgent
             if (ui)
             {
                 const ViewRange pre_zoom = active_view_range();
-                for (int i = 0; i < 5; ++i)
-                    ui->cmd_registry.execute("view.zoom_in");
+                AxesSpans       spans    = {};
+                const bool      targeted = zoom_in_on(ax, 5, spans);
                 pump_frames(10);
                 named_screenshot("35_zoom_data_center_verify",
                                  [&](DesignCheck& c)
                                  {
-                                     expect_zoomed(c, pre_zoom, 0.8);
+                                     expect_zoomed_on(c, ax, targeted, spans, 5);
                                      Figure* f = design_active_figure();
                                      if (f && !f->axes().empty())
                                      {
@@ -4358,6 +4515,7 @@ class QAAgent
                                      }
                                  });
                 ui->cmd_registry.execute("view.home");
+                restore_pointer();
                 pump_frames(5);
             }
         }
@@ -4458,7 +4616,8 @@ class QAAgent
                 pump_frames(5);
                 // Cycle selection to show series properties
                 ui->cmd_registry.execute("series.cycle_selection");
-                pump_frames(10);
+                pump_frames(2);
+                wait_ui_settled("38 inspector open");
                 named_screenshot("38_inspector_with_knobs",
                                  [&](DesignCheck& c)
                                  {
@@ -4487,7 +4646,8 @@ class QAAgent
                 // Force animation to snap by calling update with dt=0
                 // (smooth_toward snaps when dt<=0)
                 ui->imgui_ui->get_layout_manager().update(1280.0f, 720.0f, 0.0f);
-                pump_frames(5);
+                pump_frames(2);
+                wait_ui_settled("39 nav rail expanded");
                 named_screenshot(
                     "39_nav_rail_visible",
                     [&](DesignCheck& c)
@@ -4555,7 +4715,10 @@ class QAAgent
                 if (glfw_win)
                 {
                     glfwSetWindowSize(glfw_win, 640, 480);
-                    pump_frames(20);   // Allow swapchain recreation
+                    pump_frames(2);
+                    wait_until_settled("41 640x480 swapchain recreation",
+                                       [&]
+                                       { return swapchain_is(wctx, 640, 480) && ui_settled(); });
                     named_screenshot("41_window_resized_640x480",
                                      [&](DesignCheck& c) { expect_swapchain(c, wctx, 640, 480); });
                 }
@@ -4572,7 +4735,10 @@ class QAAgent
                 if (glfw_win)
                 {
                     glfwSetWindowSize(glfw_win, 1920, 600);
-                    pump_frames(20);
+                    pump_frames(2);
+                    wait_until_settled("42 1920x600 swapchain recreation",
+                                       [&]
+                                       { return swapchain_is(wctx, 1920, 600) && ui_settled(); });
                     named_screenshot("42_window_resized_1920x600",
                                      [&](DesignCheck& c) { expect_swapchain(c, wctx, 1920, 600); });
                 }
@@ -4589,7 +4755,10 @@ class QAAgent
                 if (glfw_win)
                 {
                     glfwSetWindowSize(glfw_win, 600, 1080);
-                    pump_frames(20);
+                    pump_frames(2);
+                    wait_until_settled("43 600x1080 swapchain recreation",
+                                       [&]
+                                       { return swapchain_is(wctx, 600, 1080) && ui_settled(); });
                     named_screenshot("43_window_resized_600x1080",
                                      [&](DesignCheck& c) { expect_swapchain(c, wctx, 600, 1080); });
 
@@ -4610,7 +4779,10 @@ class QAAgent
                 if (glfw_win)
                 {
                     glfwSetWindowSize(glfw_win, 320, 240);
-                    pump_frames(20);
+                    pump_frames(2);
+                    wait_until_settled("44 320x240 swapchain recreation",
+                                       [&]
+                                       { return swapchain_is(wctx, 320, 240) && ui_settled(); });
                     named_screenshot("44_window_resized_tiny_320x240",
                                      [&](DesignCheck& c) { expect_swapchain(c, wctx, 320, 240); });
 
@@ -4659,7 +4831,9 @@ class QAAgent
                     // Detach second figure into a new window
                     auto* new_wctx =
                         wm->detach_figure(ids[1], 800, 600, "Detached Figure", 100, 100);
-                    pump_frames(20);
+                    pump_frames(2);
+                    wait_until_settled("45 detached window swapchain",
+                                       [&] { return swapchain_is(new_wctx, 800, 600); });
 
                     // D41 fix: use window-targeted captures. step() iterates
                     // all windows, so set_active_window before pump_frames
@@ -4727,7 +4901,14 @@ class QAAgent
                 {
                     // Move window around
                     glfwSetWindowPos(glfw_win, 50, 50);
-                    pump_frames(5);
+                    pump_frames(1);
+                    wait_until_settled("46 window move",
+                                       [&]
+                                       {
+                                           int px = -1, py = -1;
+                                           glfwGetWindowPos(glfw_win, &px, &py);
+                                           return px == 50 && py == 50;
+                                       });
                     named_screenshot("46_window_moved_top_left",
                                      [&](DesignCheck& c)
                                      {
@@ -4753,7 +4934,8 @@ class QAAgent
                 ui->cmd_registry.execute("panel.toggle_inspector");
                 pump_frames(5);
                 ui->cmd_registry.execute("panel.toggle_timeline");
-                pump_frames(10);
+                pump_frames(2);
+                wait_ui_settled("47 inspector open");
                 named_screenshot(
                     "47_split_inspector_timeline_open",
                     [&](DesignCheck& c)
@@ -4803,7 +4985,22 @@ class QAAgent
                         if (glfw_primary)
                             glfwSetWindowPos(glfw_primary, 50, 100);
                     }
-                    pump_frames(10);
+                    pump_frames(1);
+                    wait_until_settled(
+                        "48 window positions + secondary swapchain",
+                        [&]
+                        {
+                            if (wm->windows().empty() || !win2)
+                                return false;
+                            int px = -1, py = -1, sx = -1, sy = -1;
+                            glfwGetWindowPos(
+                                static_cast<GLFWwindow*>(wm->windows()[0]->glfw_window),
+                                &px,
+                                &py);
+                            glfwGetWindowPos(static_cast<GLFWwindow*>(win2->glfw_window), &sx, &sy);
+                            return px == 50 && py == 100 && sx == 700 && sy == 100
+                                   && swapchain_is(win2, 640, 480);
+                        });
                     named_screenshot(
                         "48_two_windows_side_by_side",
                         [&](DesignCheck& c)
@@ -4866,7 +5063,8 @@ class QAAgent
 
                 // Now toggle fullscreen — hides inspector + keeps nav collapsed
                 ui->cmd_registry.execute("view.fullscreen");
-                pump_frames(20);   // Allow layout animation to settle
+                pump_frames(2);
+                wait_ui_settled("49 fullscreen layout");
                 named_screenshot("49_fullscreen_mode",
                                  [&](DesignCheck& c)
                                  {
@@ -4903,7 +5101,10 @@ class QAAgent
                 ui->imgui_ui->set_timeline_visible(false);
                 ui->imgui_ui->set_curve_editor_visible(false);
 
-                pump_frames(20);   // Allow all animations to fully settle
+                // LayoutManager::smooth_toward is dt-based: wait for the
+                // settled geometry, not a frame count.
+                pump_frames(2);
+                wait_ui_settled("50 all panels closed");
                 named_screenshot(
                     "50_minimal_chrome_all_panels_closed",
                     [&](DesignCheck& c)
@@ -5135,7 +5336,17 @@ class QAAgent
                 const float saved_scale = ui->theme_mgr ? ui->theme_mgr->ui_scale() : 1.0f;
                 if (ui->theme_mgr)
                     ui->theme_mgr->set_ui_scale(1.25f);
-                pump_frames(3);   // Let layout settle at new scale
+                pump_frames(2);
+                wait_until_settled(
+                    "55 UI scale 1.25 in effect",
+                    [&]
+                    {
+                        ImGuiContext* ctx = design_imgui();
+                        ImGuiWindow*  bar = imgui_find_window(ctx, "##commandbar");
+                        return ctx && std::abs(ctx->Style.FontScaleMain - 1.25f) <= 0.001f && bar
+                               && std::abs(bar->FontRefSize - base_font_px * 1.25f) <= 0.5f
+                               && ui_settled();
+                    });
 
                 named_screenshot("55_nav_rail_dpi_scale_125pct",
                                  [&](DesignCheck& c)
@@ -5186,7 +5397,10 @@ class QAAgent
 
                     // Shrink to 320×240
                     glfwSetWindowSize(glfw_win, 320, 240);
-                    pump_frames(20);
+                    pump_frames(2);
+                    wait_until_settled("56 tiny window swapchain",
+                                       [&]
+                                       { return swapchain_is(wctx, 320, 240) && ui_settled(); });
                     named_screenshot(
                         "56_tiny_window_all_panels_open",
                         [&](DesignCheck& c)
@@ -5230,7 +5444,8 @@ class QAAgent
                     if (ui->theme_mgr)
                     {
                         ui->theme_mgr->set_theme(theme);
-                        pump_frames(20);
+                        pump_frames(2);
+                        wait_ui_settled(std::string(shot) + " theme");
                     }
                     ui->settings_panel.select_tab(tab);
                     ui->cmd_registry.execute("panel.open_settings");
@@ -6325,7 +6540,9 @@ class QAAgent
     bool                                             saved_pointer_valid_ = false;
     double                                           saved_pointer_x_     = 0.0;
     double                                           saved_pointer_y_     = 0.0;
-    std::unordered_map<uint64_t, std::string>        screenshot_hash_to_name_;
+    // Bounded settle waits that timed out; each fails the next named capture.
+    std::vector<std::string>                  pending_settle_failures_;
+    std::unordered_map<uint64_t, std::string> screenshot_hash_to_name_;
 };
 
 // ─── Signal handler ──────────────────────────────────────────────────────────
